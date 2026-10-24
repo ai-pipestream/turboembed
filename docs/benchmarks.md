@@ -1005,3 +1005,55 @@ the library's real outputs against the F32 bundle reference. The separate
 `hailo_evidence` example also compares the same rows directly against CPU
 Exact and records that CPU's own F32 conformance. No mock device or
 invented timing supplies these checks. Hailo-8L is not measured.
+
+### Measured MiniLM records, 2026-10-24
+
+The clean pushed build was `94a833f60389` on both boards. These are real
+MiniLM runs on eight fitting reference cases cycled into 32 rows, 724
+live tokens and 4096 computed positions per Hailo pass. Conformance
+checks all eight cases alone plus all 32 timed rows. No corpus text or
+model weights are included in the receipts.
+
+| Device | HailoRT | Library Model p50 / p99 ms | Library Fastest p50 / p99 ms | Native Model service-time p50 ms | Minimum F32-reference cosine |
+|---|---|---:|---:|---:|---:|
+| Hailo-8 | 4.23.0 | 94.4046 / 94.4923 | 94.4156 / 100.7251 | 76.7165 | 0.9356557854 |
+| Hailo-10H | 5.1.1 | 42.8469 / 44.3788 | 42.9875 / 45.3751 | 168.9353 | 0.9367578756 |
+
+The native Hailo-10H CLI result is slower than the library in this run.
+The CLI includes its own F32 conversion and streaming overhead; these
+measurements do not isolate the cause or claim the CLI is the fastest
+possible HailoRT configuration. Its commands and five independent
+throughput samples are preserved for reproduction.
+
+The four capability records are:
+
+- `benchmarks/records/hailo10h.hailo.embed.fastest.all-minilm-l6-v2-e57c4f36.94a833f60389.json`
+- `benchmarks/records/hailo10h.hailo.embed.model.all-minilm-l6-v2-e57c4f36.94a833f60389.json`
+- `benchmarks/records/hailo8.hailo.embed.fastest.all-minilm-l6-v2-f4256cb3.94a833f60389.json`
+- `benchmarks/records/hailo8.hailo.embed.model.all-minilm-l6-v2-f4256cb3.94a833f60389.json`
+
+A separate same-input CPU Exact comparison uses four CPU threads, three
+warmups and 20 measured passes on each Raspberry Pi 5 host. These
+comparison receipts are evidence, not additional capability records:
+
+| Board / device | CPU Exact p50 ms | Hailo Model p50 ms | Minimum CPU Exact / Hailo cosine |
+|---|---:|---:|---:|
+| pi5ai1 / Hailo-8 | 329.7469 | 94.4036 | 0.9356558408 |
+| pi5ai2p / Hailo-10H | 339.8066 | 42.7378 | 0.9367579579 |
+
+See `docs/receipts/hailo-937/hailo8.json` and
+`docs/receipts/hailo-937/hailo10h.json` for bundle, HEF, input, CLI and
+build hashes, versions, timings and native throughput samples. Both CPU
+runs reached cosine 0.9999999999982 and maximum absolute difference
+3.4273e-7 against the F32 reference. Both Hailo boards beat their CPU at
+this measured shape while clearing 0.93. This does not establish the
+crossover at other windows or batch sizes, or alter dispatch policy.
+
+The record tests use these measured records to check Model/Fastest
+support, Exact and Hailo-8L exclusions, the inclusive I8 floor, complete
+case coverage, and padded token accounting. The opt-in `hailo_native`
+test runs the real library on a board with `TURBO_HAILO_BUNDLE` and
+`TURBO_HAILO_RECEIPT` set to the deployment bundle and a receipt written
+by the native runner. It accepts the matching receipt and rejects
+changed input/device hashes, case lists, shapes, sample durations and
+invalid native timing or provenance fields.

@@ -92,7 +92,8 @@ pub const PROGRAMS: [(&str, &str, &str); 4] = [
 /// them: TEI's GPU image and TensorRT for cuda; TEI's CPU image for the
 /// CPU; OpenVINO on the GPU and TEI's CPU image, the end-to-end baseline
 /// on that machine, for levelzero; the same pair for npu, with OpenVINO
-/// on the NPU; TEI's router built natively with Metal for metal; none
+/// on the NPU; TEI's router built natively with Metal for metal; HailoRT
+/// for hailo; none
 /// for another backend, whose records back nothing.
 pub fn applies(backend: &str) -> &'static [&'static str] {
     match backend {
