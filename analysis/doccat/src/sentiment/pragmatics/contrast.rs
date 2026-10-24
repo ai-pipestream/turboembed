@@ -31,7 +31,7 @@ impl PragmaticsAnnotator {
                 // Balanced clauses separated by an adversative conjunction ("but",
                 // "however", "although", ...) are literal contrast unless the
                 // positive span carries an explicit sarcastic framing cue.
-                let has_adversative = between.iter().any(|w| ADVERSATIVE_CONJUNCTIONS.contains(&w.as_str()));
+                let has_adversative = between.iter().any(|w| PRAGMATICS_ADVERSATIVES.contains(&w.as_str()));
                 if has_adversative && !pos.cued {
                     continue;
                 }

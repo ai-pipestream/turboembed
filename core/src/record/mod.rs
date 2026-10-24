@@ -83,9 +83,13 @@ pub const NO_RECORD: &str = "no benchmark record for this cell";
 
 /// The reference programs a record may name, each with its role: the
 /// vendors' fastest kernel paths (TensorRT for NVIDIA GPUs, OpenVINO for
-/// Intel GPUs and for the NPU) and the fastest known embedding server.
-pub const REFERENCES: [(&str, &str); 3] =
-    [("text-embeddings-inference", "end_to_end"), ("tensorrt", "kernel"), ("openvino", "kernel")];
+/// Intel GPUs and for the NPU, HailoRT for Hailo) and the embedding server.
+pub const REFERENCES: [(&str, &str); 4] = [
+    ("text-embeddings-inference", "end_to_end"),
+    ("tensorrt", "kernel"),
+    ("openvino", "kernel"),
+    ("hailort", "kernel"),
+];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -214,7 +218,7 @@ pub struct Timing {
     pub rows_per_second: f64,
     /// Token positions the library computed per run: each row's through
     /// its last live token, since its backends pack the rows and skip the
-    /// padding after them. npu counts every position of each compiled
+    /// padding after them. npu and hailo count every position of each compiled
     /// frame in the pass (one frame is batch x seq; a frame of batch 1
     /// that cycles cases counts one frame per case). Beside
     /// rows.live_tokens, and a reference's computed_tokens, so a padded
@@ -288,6 +292,7 @@ pub fn tolerance(dtype: u32) -> Option<Tolerance> {
     match dtype {
         TURBO_DTYPE_F32 => Some(Tolerance { min_cosine: 0.9999, max_abs_diff: Some(1e-4) }),
         TURBO_DTYPE_F16 | TURBO_DTYPE_BF16 => Some(Tolerance { min_cosine: 0.999, max_abs_diff: None }),
+        crate::TURBO_DTYPE_I8 => Some(Tolerance { min_cosine: 0.93, max_abs_diff: None }),
         _ => None,
     }
 }
