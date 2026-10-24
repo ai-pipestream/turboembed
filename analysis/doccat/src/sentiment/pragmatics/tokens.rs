@@ -258,6 +258,5 @@ pub(super) fn is_clause_final_tag(
 }
 
 pub(super) fn clean_token(raw: &str) -> String {
-    let trimmed = raw.trim_matches(|c: char| c.is_ascii_punctuation() && c != '\'');
-    trimmed.to_ascii_lowercase()
+    crate::sentiment::token_key::token_key_strict(raw.trim(), false)
 }
