@@ -1970,6 +1970,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-chunker",
+ "turbo-coref",
  "turbo-doccat",
  "turbo-goldens",
  "turbo-normalize",
@@ -2208,6 +2209,8 @@ dependencies = [
  "turbo",
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-bundle",
+ "turbo-zoo",
 ]
 
 [[package]]
