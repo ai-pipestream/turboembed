@@ -52,6 +52,19 @@ fn item(column: &Option<Strs>, i: usize) -> Option<Option<&str>> {
 /// column that is always `*` would match the JVM everywhere; the counts
 /// the tests assert are what catch it.
 fn matches(run_name: &str, analyzer: LatticeAnalyzer) -> Counts {
+    let bytes = analyzer.tokenizer().dictionary().to_prebuilt().unwrap();
+    let dictionary =
+        MecabDictionary::from_prebuilt(turbo_tokenize::lattice::PrebuiltImage::copy_from(&bytes), Default::default())
+            .unwrap();
+    let compiled =
+        LatticeAnalyzer::new(LatticeTokenizer::new(dictionary, analyzer.tokenizer().whitespace()), analyzer.format())
+            .unwrap();
+    let source = matches_loaded(run_name, analyzer);
+    assert_eq!(matches_loaded(run_name, compiled), source);
+    source
+}
+
+fn matches_loaded(run_name: &str, analyzer: LatticeAnalyzer) -> Counts {
     let map = analyzer.format().map();
     let pipeline = Analyzer::builder().add(analyzer).build().unwrap();
     let mut counts = Counts::default();

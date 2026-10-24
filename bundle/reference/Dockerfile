@@ -11,7 +11,10 @@
 #   docker image inspect --format '{{.Id}}' turbo-reference
 #
 # The recipe pins the image as turbo-reference@sha256:<that id>.
-FROM python:3.12-slim
+#
+# The base is pinned by digest (the multi-arch index of python:3.12-slim,
+# Debian trixie), so a rebuild starts from the same layers.
+FROM python:3.12-slim-trixie@sha256:a0f57064cbdcd6285fa45f51237ab0b35ea8ebaed06a1f5973e89e19dfb86704
 COPY requirements.txt /requirements.txt
 RUN pip install --no-cache-dir --extra-index-url https://download.pytorch.org/whl/cpu -r /requirements.txt
 COPY reference.py rerank.py qa_reference.py onnx_f16.py bin_to_safetensors.py onnx_to_openvino_ir.py /

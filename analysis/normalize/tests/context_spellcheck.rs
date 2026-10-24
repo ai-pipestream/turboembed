@@ -468,3 +468,14 @@ fn viterbi_beam_pruning_scales_linearly_with_lm_order_and_candidate_width() {
     assert_eq!(c_fwd.config_hash(), c_rev.config_hash());
     assert_ne!(c_fwd.config_hash(), c_fwd.clone().max_beam_width(16).config_hash());
 }
+
+#[test]
+fn url_query_words_and_glued_exclamations_stay_untouched() {
+    let (engine, lm) = build_fixture_engine_and_lm();
+    let contextual = ContextSpellCorrector::new(Arc::clone(&engine), Arc::clone(&lm));
+    // The ASCII `?` must not split the URL token before the URL
+    // guard sees it: the query word keeps its typo either way.
+    let out = apply(&contextual, "go to www.example.com/a?giong now");
+    assert!(out.contains("www.example.com/a?giong"), "URL rewritten: {out:?}");
+    assert_eq!(apply(&contextual, "wow!teh store"), "wow!teh store");
+}
