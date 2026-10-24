@@ -82,7 +82,8 @@ fn get(url: &str) -> Result<Vec<u8>> {
 
 /// Write through a temporary name, so an interrupted fetch leaves no file
 /// that looks complete. The name is this write's own
-/// (`<name>.partial.<pid>.<n>`) and is created anew, never opened through
+/// (`<name>.partial.<pid>.<n>`, the next `n` when a name is taken) and is
+/// created anew, never opened through
 /// a symlink, so fetches of one directory in other processes never touch
 /// each other's bytes; it is removed when the write fails. The rename
 /// replaces `dest` itself, also when `dest` is a symlink, so nothing is
@@ -91,14 +92,19 @@ pub fn write_atomic(dest: &Path, bytes: &[u8]) -> Result<()> {
     static WRITES: AtomicU64 = AtomicU64::new(0);
     let parent = dest.parent().ok_or_else(|| format!("{}: no parent directory", dest.display()))?;
     fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
-    let mut name = dest.file_name().ok_or_else(|| format!("{}: no file name", dest.display()))?.to_owned();
-    name.push(format!(".partial.{}.{}", std::process::id(), WRITES.fetch_add(1, Ordering::Relaxed)));
-    let tmp = dest.with_file_name(name);
-    let mut f = fs::OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&tmp)
-        .map_err(|e| format!("{}: {e}", tmp.display()))?;
+    let base = dest.file_name().ok_or_else(|| format!("{}: no file name", dest.display()))?.to_owned();
+    // A name left by a killed process whose pid came round again is
+    // passed over, neither opened nor removed.
+    let (tmp, mut f) = loop {
+        let mut name = base.clone();
+        name.push(format!(".partial.{}.{}", std::process::id(), WRITES.fetch_add(1, Ordering::Relaxed)));
+        let tmp = dest.with_file_name(name);
+        match fs::OpenOptions::new().write(true).create_new(true).open(&tmp) {
+            Ok(f) => break (tmp, f),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(format!("{}: {e}", tmp.display())),
+        }
+    };
     let written = f.write_all(bytes).and_then(|_| f.sync_all()).map_err(|e| format!("{}: {e}", tmp.display()));
     drop(f);
     let renamed = written.and_then(|_| fs::rename(&tmp, dest).map_err(|e| format!("{}: {e}", dest.display())));

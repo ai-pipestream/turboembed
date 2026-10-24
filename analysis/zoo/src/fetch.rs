@@ -237,8 +237,8 @@ fn make_dirs(cache: &Path, id: &str, path: &str) -> Result<(), ZooError> {
 
 /// Write through a temporary name beside `dest`, so an interrupted write
 /// leaves no file that looks complete. The name is this write's own
-/// (`<name>.partial.<pid>.<n>`) and is created anew, never opened through
-/// a symlink, so writers of the same file in other threads or processes
+/// (`<name>.partial.<pid>.<n>`, the next `n` when a name is taken) and is
+/// created anew, never opened through a symlink, so writers of the same file in other threads or processes
 /// never touch each other's bytes: the last rename wins, and each rename
 /// puts a whole file in place. The temporary file is removed when a write
 /// fails. The rename replaces `dest` itself, also when `dest` is a symlink.
@@ -249,13 +249,22 @@ pub(crate) fn write_atomic(dest: &Path, bytes: &[u8]) -> Result<(), ZooError> {
         .parent()
         .ok_or_else(|| ZooError::Io { path: dest.to_path_buf(), message: "no parent directory".into() })?;
     fs::create_dir_all(parent).map_err(|e| io(parent, e))?;
-    let mut name = dest
+    let base = dest
         .file_name()
         .ok_or_else(|| ZooError::Io { path: dest.to_path_buf(), message: "no file name".into() })?
         .to_owned();
-    name.push(format!(".partial.{}.{}", std::process::id(), WRITES.fetch_add(1, Ordering::Relaxed)));
-    let tmp = dest.with_file_name(name);
-    let mut f = fs::OpenOptions::new().write(true).create_new(true).open(&tmp).map_err(|e| io(&tmp, e))?;
+    // A name left by a killed process whose pid came round again is
+    // passed over, neither opened nor removed.
+    let (tmp, mut f) = loop {
+        let mut name = base.clone();
+        name.push(format!(".partial.{}.{}", std::process::id(), WRITES.fetch_add(1, Ordering::Relaxed)));
+        let tmp = dest.with_file_name(name);
+        match fs::OpenOptions::new().write(true).create_new(true).open(&tmp) {
+            Ok(f) => break (tmp, f),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(io(&tmp, e)),
+        }
+    };
     let written = f.write_all(bytes).and_then(|_| f.sync_all()).map_err(|e| io(&tmp, e));
     drop(f);
     let renamed = written.and_then(|_| denied_again(|| fs::rename(&tmp, dest)).map_err(|e| io(dest, e)));
