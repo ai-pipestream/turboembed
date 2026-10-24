@@ -4,7 +4,7 @@
 # ubuntu-24.04 image has; rustup is installed by dtolnay/rust-toolchain at
 # the start of each job. No docker socket is passed in, since the jobs run
 # a pull request's code; a GPU is passed in when the runner is started
-# (README.md).
+# (README.md). Each container takes one job (entrypoint.sh).
 FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
 
 ARG RUNNER_VERSION=2.338.1
@@ -26,6 +26,12 @@ RUN curl -fsSL -o runner.tar.gz \
 USER root
 RUN ./bin/installdependencies.sh && rm -rf /var/lib/apt/lists/*
 USER runner
+
+# Each job starts in a new container, so the toolchain is in the image;
+# dtolnay/rust-toolchain then only updates it to the current stable.
+RUN curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal \
+      --component rustfmt,clippy --target aarch64-unknown-linux-gnu
+ENV PATH=/home/runner/.cargo/bin:$PATH
 
 COPY --chmod=755 entrypoint.sh /usr/local/bin/entrypoint.sh
 ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/entrypoint.sh"]

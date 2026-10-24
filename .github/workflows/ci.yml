@@ -29,8 +29,11 @@ env:
 #
 # The Linux lanes run on the GitHub-hosted runner unless the repository
 # variable TURBO_CI_LINUX names the labels of self-hosted runners as JSON,
-# such as ["self-hosted", "turbo-ci"]. Pull requests from forks always
-# run on the hosted runner. The Windows lanes are always hosted.
+# such as ["self-hosted", "turbo-ci"]. Pull requests from forks are sent
+# to the hosted runner, but a fork can edit this file: what keeps outside
+# code off the self-hosted runners is the approval the repository requires
+# for every outside collaborator's run (.github/runner/README.md). The
+# Windows lanes are always hosted.
 jobs:
   lint:
     runs-on: ${{ github.event.pull_request.head.repo.fork != true && vars.TURBO_CI_LINUX && fromJSON(vars.TURBO_CI_LINUX) || 'ubuntu-24.04' }}

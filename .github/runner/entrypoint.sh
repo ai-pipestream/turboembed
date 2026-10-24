@@ -1,17 +1,10 @@
 #!/bin/sh
-# Registers the runner on the first start, from RUNNER_TOKEN, then runs
-# it. /home/runner is a volume, so the registration, the runner's updates
-# and the toolchains are kept across restarts.
+# Runs one job and exits. The just-in-time configuration comes from
+# supervise.sh, which asks GitHub for a new one and starts a new container
+# for each job, so nothing one job leaves behind reaches the next.
 set -eu
 cd /home/runner/actions-runner
-if [ ! -f .runner ]; then
-  : "${RUNNER_TOKEN:?a registration token is needed on the first start}"
-  ./config.sh --unattended --replace \
-    --url "${RUNNER_URL:-https://github.com/ai-pipestream/turboembed}" \
-    --token "$RUNNER_TOKEN" \
-    --name "$RUNNER_NAME" \
-    --labels "$RUNNER_LABELS" \
-    --work _work
-fi
-unset RUNNER_TOKEN
-exec ./run.sh
+: "${RUNNER_JITCONFIG:?supervise.sh passes a just-in-time configuration}"
+jit=$RUNNER_JITCONFIG
+unset RUNNER_JITCONFIG
+exec ./run.sh --jitconfig "$jit"
