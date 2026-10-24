@@ -235,8 +235,9 @@ impl ParserTool {
     ///
     /// Mirrors `ParserTool.parseLine(String line, Parser parser, int numParses)`:
     /// 1. Spaces untokenized parentheses via [`space_untokenized_parens`].
-    /// 2. Splits into tokens using Java `StringTokenizer` default delimiters
-    ///    (`" \t\n\r\f"`).
+    /// 2. Splits into tokens on the characters `mode` counts as whitespace, as
+    ///    `WhitespaceTokenizer` does with `StringUtil.isWhitespace`; a line with
+    ///    no token gives no parses.
     /// 3. Builds a flat `INC` tree with [`TOK_NODE`] children, runs
     ///    `parser.parse_n(&flat, num_parses)`, and adjusts every node's span
     ///    and the shared backing text back to `line`.
@@ -251,11 +252,12 @@ impl ParserTool {
         mode: turbo_unicode::WhitespaceMode,
         num_parses: usize,
     ) -> Result<Vec<Parse>, ParseError> {
-        if line.trim().is_empty() || num_parses == 0 {
+        if num_parses == 0 {
             return Ok(Vec::new());
         }
         let spaced = space_untokenized_parens(line, mode);
-        let raw_tokens: Vec<&str> = spaced.split([' ', '\t', '\n', '\r', '\x0C']).filter(|s| !s.is_empty()).collect();
+        let raw_tokens: Vec<&str> =
+            spaced.split(|c: char| mode.is_whitespace(c as u32)).filter(|s| !s.is_empty()).collect();
         if raw_tokens.is_empty() {
             return Ok(Vec::new());
         }

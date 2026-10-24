@@ -5,6 +5,8 @@ mod model;
 mod normalize;
 mod package;
 mod parser;
+mod sentence;
+mod slots;
 mod trainer;
 mod wire;
 pub use context::{FeatureLayout, FeedforwardContext, FeedforwardFeatureIds};
