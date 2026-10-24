@@ -57,7 +57,10 @@ the same on any thread, so the bits do not depend on the thread count, on
 the batch a row is in, or on which thread took it
 (`core/tests/deberta_threads.rs`). Calls made at once on one encoder share
 it: one takes the pool and the others run on their own thread, with the
-same bits. LayerNorm, the embedding lookup and the masked row stay on the
+same bits. A server that calls one encoder from several request threads
+at once therefore gets the pool for one call at a time, and the other
+calls run single-threaded; an encoder per worker, or `encode_batch`,
+keeps the pool busy instead. LayerNorm, the embedding lookup and the masked row stay on the
 calling thread.
 
 Latency at DeBERTa-v3 shapes on synthetic weights, on one thread and on
