@@ -198,6 +198,12 @@ fn span_distance_bytes(a: Span, b: Span) -> u32 {
 }
 
 fn normalize_country_token(raw: &str) -> Option<RegionCode> {
+    // The word splitter above keeps `'` and `-` inside words, so
+    // a phrase can start or end with them ("United States'",
+    // "'France'"): strip those splitter-made ends before the
+    // shared lookup, whose own trim is whitespace only so table
+    // keys keep meaningful punctuation.
+    let raw = raw.trim_matches(|c: char| c == '\'' || c == '\u{2019}' || c == '-');
     crate::region::country_code_for_name(raw, &mut String::new(), &mut String::new())
 }
 
