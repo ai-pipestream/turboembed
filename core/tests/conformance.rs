@@ -17,6 +17,8 @@ mod common;
 mod qa_common;
 #[path = "rerank/common.rs"]
 mod rerank_common;
+#[path = "conformance/scores.rs"]
+mod scores;
 #[path = "conformance/tasks.rs"]
 mod tasks;
 
