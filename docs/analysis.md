@@ -4264,6 +4264,30 @@ Every `weighted` setting across `0.35..=0.50` on `turbo-chunker-254-200`
 against all three stage-0 baselines, `bm25-document`, and both dense
 `turbo-chunker` records.
 
+Those gates compare a hybrid candidate against dense-only baselines,
+so they credit the chunker with BM25's share of the gain. Recorded
+like for like (`--retrieval hybrid --fusion weighted
+--bm25-weight 0.35` on both sides, all-MiniLM-L6-v2, CPU, one
+commit, in `analysis/eval/records/sentence-windows-5-hybrid`,
+`fixed-tokens-200-hybrid`, `opennlp-sandbox-semantic-hybrid` and
+`turbo-chunker-254-200-hybrid-cpu`; the CPU candidate reproduces
+the CUDA record's nDCG@10 on three sets and differs by 0.18 points
+on `arguana`), the chunker's own share is within noise of the
+simple baselines:
+
+| Baseline (hybrid) | `scifact` | `nfcorpus` | `arguana` | `qasper` | Gate (candidate `69.24` / `34.28` / `51.47` / `37.85`) |
+| :--- | ---: | ---: | ---: | ---: | :--- |
+| `sentence-windows-5-hybrid` | `70.14` | `33.91` | `51.74` | `38.11` | FAIL (0 gains; `scifact` below the floor) |
+| `fixed-tokens-200-hybrid` | `69.48` | `33.56` | `52.17` | `38.13` | FAIL (0 gains; `arguana` below the floor, p = 0.0079) |
+| `opennlp-sandbox-semantic-hybrid` | `66.49` | `32.01` | `41.36` | `39.37` | FAIL (3 gains; `qasper` -1.52 below the floor) |
+
+So at `w = 0.35` the earlier stage-0 PASSes measure mostly the
+addition of BM25, not the chunker: hybrid against hybrid,
+`turbo-chunker-254-200` ties `sentence-windows-5` and
+`fixed-tokens-200` on every set (all intervals cover zero but
+`arguana` against fixed tokens, where it is significantly worse),
+and beats the sandbox semantic chunker everywhere but `qasper`.
+
 ### Structure in the chunker
 
 The records under `analysis/eval/records/turbo-chunker-254-200-structure-*`
