@@ -1071,8 +1071,8 @@ comparison receipts are evidence, not additional capability records:
 
 | Board / device | CPU Exact p50 ms | Hailo Model p50 ms | Minimum CPU Exact / Hailo cosine |
 |---|---:|---:|---:|
-| pi5ai1 / Hailo-8 | 329.7469 | 94.4036 | 0.9356558408 |
-| pi5ai2p / Hailo-10H | 339.8066 | 42.7378 | 0.9367579579 |
+| pi5-hailo8 / Hailo-8 | 329.7469 | 94.4036 | 0.9356558408 |
+| pi5-hailo10h / Hailo-10H | 339.8066 | 42.7378 | 0.9367579579 |
 
 See `docs/receipts/hailo-937/hailo8.json` and
 `docs/receipts/hailo-937/hailo10h.json` for bundle, HEF, input, CLI and
@@ -1090,3 +1090,6 @@ test runs the real library on a board with `TURBO_HAILO_BUNDLE` and
 by the native runner. It accepts the matching receipt and rejects
 changed input/device hashes, case lists, shapes, sample durations and
 invalid native timing or provenance fields.
+
+The hardware test's command, required inputs, saved output and source
+revision are recorded in [its receipt](receipts/hailo-937/native-test.md).
