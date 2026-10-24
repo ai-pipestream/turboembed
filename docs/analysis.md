@@ -3613,12 +3613,12 @@ trained on MASC 3.0.0 (CC BY 3.0 US), gated against
   tweets is not settled, and the licence policy refuses data under a
   platform's terms. The places count every document read, so no other
   document changes side, and the card lists the documents left out.
-- The training: the factory defaults and the settings of the UD 1.3
-  models (GIS, 300 iterations, cutoff 5, 4 threads, OpenNLP 2.5.4's
+- The training: the factory defaults and the released MASC settings
+  (GIS, 300 iterations, cutoff 5, 4 partitions, OpenNLP 2.5.4's
   whitespace, 10 sentences per sentence detector sample, the default
   feature generator descriptor and no tag dictionary for the tagger). The
-  sentence detector and the tokenizer differ from their references in
-  their data, not their settings. The tagger's reference was trained
+  sentence detector and the tokenizer differ from their UD 1.3
+  references in data and training partitions (the references use 12). The tagger's reference was trained
   otherwise (its manifest records OpenNLP 1.5.0, 100 iterations and
   cutoff 5, and it holds a tag dictionary and no feature generator
   descriptor), so its gate compares data and settings together. The
@@ -3769,9 +3769,10 @@ files, and its recipe's component and language.
   and the README's `License: CC BY 4.0` line, before every file is
   checked against its record.
 - The split: UD's own, trained on `train` and gated on `test`, `dev`
-  not read. The training has the settings of the MASC recipes (those of
-  the UD 1.3 models) with the factory defaults of the treebank's
-  language. The samples are those of OpenNLP's CoNLL-U streams, except
+  not read. The training keeps the released UD 2.16 settings (GIS, 300
+  iterations, cutoff 5, 4 partitions) with the factory defaults of the
+  treebank's language. OpenNLP UD 1.3 reproduction separately uses 12
+  partitions. The samples are those of OpenNLP's CoNLL-U streams, except
   that the tagger's and lemmatizer's leave out empty nodes, which are
   not words of the text.
 - The gate: against the OpenNLP UD 1.3 model for the language and

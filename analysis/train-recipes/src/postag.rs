@@ -3,9 +3,8 @@
 //!
 //! The recipe trains on the training documents of [`crate::masc::SPLIT`]
 //! with the factory defaults (the default feature generator descriptor,
-//! no tag dictionary) and the parameters the published UD 1.3 models were
-//! trained with ([`turbo_train_components::ud`]: GIS, 300 iterations,
-//! cutoff 5, 4 threads). Training uses no randomness, so the recipe has
+//! no tag dictionary) and the released MASC parameters: GIS, 300
+//! iterations, cutoff 5, 4 partitions. Training uses no randomness, so the recipe has
 //! no seed. The reference was trained otherwise: its manifest records
 //! OpenNLP 1.5.0, 100 iterations and cutoff 5, and it holds a tag
 //! dictionary (`tags.tagdict`) and no feature generator descriptor, so

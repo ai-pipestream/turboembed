@@ -2,11 +2,11 @@
 //! gates against the OpenNLP English UD models.
 //!
 //! Each recipe trains on the training documents of [`crate::masc::SPLIT`]
-//! with the factory defaults and the parameters the published UD 1.3
-//! models were trained with ([`turbo_train_components::ud`]: GIS,
-//! 300 iterations, cutoff 5, 4 threads, OpenNLP 2.5.4's whitespace), so
-//! the trained model and the reference differ in their data, not their
-//! settings. Training uses no randomness, so the recipe has no seed.
+//! with the factory defaults and the released MASC parameters: GIS,
+//! 300 iterations, cutoff 5, 4 partitions, OpenNLP 2.5.4's whitespace.
+//! The UD 1.3 references use 12 partitions, so the models differ in their
+//! data and floating-point grouping. Training uses no randomness, so
+//! the recipe has no seed.
 //!
 //! The samples are what OpenNLP's MASC streams read, with two changes
 //! ([`read_token_samples`]): the token stream skips a sentence without a
