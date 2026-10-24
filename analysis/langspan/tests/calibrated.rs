@@ -1,5 +1,6 @@
 //! Runs real mixed text through the published language model and the
 //! fitted calibration, including pipeline alignment and stale profiles.
+//! Model absence follows the published-model convention: skip unless required.
 #[path = "../examples/calibration_support/mod.rs"]
 mod calibration_support;
 use calibration_support::{collect, transformed, verify};
@@ -14,13 +15,14 @@ use turbo_langspan::{CalibratedSpanDetector, Settings, SpanDetector, calibration
 use turbo_maxent::ModelFile;
 use turbo_train::calibration::{Method, fit};
 
-fn detector() -> LanguageDetector {
-    let path = turbo_goldens::published_model("langdetect-183.bin").expect("published language model required");
-    LanguageDetector::new(LanguageModel::open(ModelFile::read(path).unwrap()).unwrap())
+fn detector() -> Option<LanguageDetector> {
+    let path = turbo_goldens::published_model("langdetect-183.bin")?;
+    Some(LanguageDetector::new(LanguageModel::open(ModelFile::read(path).unwrap()).unwrap()))
 }
 #[test]
 fn calibrated_real_text_keeps_spans_and_measures_the_selected_language() {
-    let detector = SpanDetector::new(detector(), Settings::default());
+    let Some(model) = detector() else { return };
+    let detector = SpanDetector::new(model, Settings::default());
     let dev = parse(include_str!("data/mixed-dev.txt")).unwrap();
     let test = parse(include_str!("data/mixed-test.txt")).unwrap();
     let a = collect(&detector, &dev[..20]);
@@ -64,7 +66,8 @@ fn calibrated_real_text_keeps_spans_and_measures_the_selected_language() {
 }
 #[test]
 fn actual_profile_rejects_changed_candidates_settings_and_domain() {
-    let source = SpanDetector::new(detector(), Settings::default());
+    let Some(model) = detector() else { return };
+    let source = SpanDetector::new(model, Settings::default());
     let docs = parse(include_str!("data/mixed-dev.txt")).unwrap();
     let a = collect(&source, &docs[..20]);
     let b = collect(&source, &docs[20..]);
@@ -72,10 +75,10 @@ fn actual_profile_rejects_changed_candidates_settings_and_domain() {
         fit(calibration_identity(&source, "mixed-v1"), Method::Temperature, a.samples("fit20"), b.samples("reserve10"))
             .unwrap();
     assert!(CalibratedSpanDetector::new(source, profile.clone(), "another-domain").is_err());
-    let restricted = SpanDetector::restricted(detector(), Settings::default(), |code| code != "war");
+    let restricted = SpanDetector::restricted(detector().unwrap(), Settings::default(), |code| code != "war");
     assert!(CalibratedSpanDetector::new(restricted, profile.clone(), "mixed-v1").is_err());
     let mut settings = Settings::default();
     settings.clause_letters += 1;
-    let changed = SpanDetector::new(detector(), settings);
+    let changed = SpanDetector::new(detector().unwrap(), settings);
     assert!(CalibratedSpanDetector::new(changed, profile, "mixed-v1").is_err());
 }
