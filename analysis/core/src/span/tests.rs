@@ -354,4 +354,19 @@ fn overlapping_range_and_covering_at_match_the_general_queries() {
         let got: Vec<usize> = erange(a, b).iter().map(|ix| ix.get()).collect();
         assert_eq!(got, want, "query [{a}, {b})");
     }
+
+    // Exhaustive agreement with the general query, including a long
+    // run of empty items at one point (the range query must reach
+    // them by binary search, never by walking the run).
+    let many: Vec<(u32, u32)> =
+        [(0, 0)].into_iter().chain([(0, 3)]).chain([(3, 3); 64]).chain([(3, 6), (8, 8), (8, 11), (11, 11)]).collect();
+    let dense = spans_of(&many);
+    for a in 0..=12u32 {
+        for b in a..=12u32 {
+            let want: Vec<usize> = dense.overlapping(Span::new(a, b)).into_iter().map(|ix| ix.get()).collect();
+            let got: Vec<usize> = dense.overlapping_range(Span::new(a, b)).iter().map(|ix| ix.get()).collect();
+            assert_eq!(got, want, "dense query [{a}, {b})");
+        }
+    }
+    assert_eq!(idx(dense.overlapping_range(Span::new(3, 4))), (2, 67), "all 64 empty items at 3, plus (3, 6)");
 }

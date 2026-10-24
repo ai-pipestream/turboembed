@@ -266,29 +266,25 @@ impl<L> Spans<L> {
     }
 
     /// The items overlapping `outer`, when the spans are in text order
-    /// and do not overlap (`Overlap::None`): two binary searches, no
+    /// and do not overlap (`Overlap::None`): binary searches only, no
     /// scan and no allocation. An empty `outer` is a point query. For
     /// layers whose spans may nest or overlap, use [`Spans::overlapping`].
     pub fn overlapping_range(&self, outer: Span) -> IxRange<L> {
-        if outer.is_empty() {
-            let p = outer.start;
-            let mut lo = self.end.partition_point(|&e| e <= p);
-            while lo > 0 && self.start[lo - 1] == p && self.end[lo - 1] == p {
-                lo -= 1;
-            }
-            let mut hi = lo + self.start[lo..].partition_point(|&s| s <= p);
-            while hi > lo && self.end[hi - 1] <= p && self.start[hi - 1] != p {
-                hi -= 1;
-            }
-            return IxRange::new(lo as u32, hi as u32);
-        }
-        let mut lo = self.end.partition_point(|&e| e <= outer.start);
-        // Empty items at the query start overlap it (Span::overlaps),
-        // though their end equals the start the search just skipped.
-        while lo > 0 && self.start[lo - 1] == outer.start && self.end[lo - 1] == outer.start {
-            lo -= 1;
-        }
-        let hi = lo + self.start[lo..].partition_point(|&s| s < outer.end);
+        // The first overlap is the earlier of the first item starting
+        // at or after `outer.start` and the first item ending after
+        // it: between the two bounds can only sit empty items exactly
+        // at `outer.start`, which overlap it (Span::overlaps), and a
+        // straddling item is found by the end bound alone. Taking the
+        // minimum reaches both without walking the empty run.
+        let lo = self.start.partition_point(|&s| s < outer.start).min(self.end.partition_point(|&e| e <= outer.start));
+        let hi = if outer.is_empty() {
+            // A point query also overlaps the item covering the point;
+            // every item starting at or before it, from `lo` on, is
+            // either empty at the point or that one covering item.
+            lo.max(self.start.partition_point(|&s| s <= outer.start))
+        } else {
+            lo + self.start[lo..].partition_point(|&s| s < outer.end)
+        };
         IxRange::new(lo as u32, hi as u32)
     }
 
