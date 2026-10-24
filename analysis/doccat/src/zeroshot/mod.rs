@@ -10,7 +10,7 @@
 use std::fmt;
 use std::sync::Arc;
 
-use turbo_analysis::{ModelRef, TagSet};
+use turbo_analysis::{Execution, ModelRef, TagSet};
 
 mod annotate;
 
@@ -28,6 +28,12 @@ pub trait NliScorer {
     /// The model scoring every pair, recorded as layer
     /// provenance by the annotators.
     fn model_ref(&self) -> ModelRef;
+
+    /// The hardware execution provenance (`backend`, `device`, `precision`)
+    /// recorded by the annotators when backed by a runtime session.
+    fn execution(&self) -> Option<Execution> {
+        None
+    }
 
     /// The model's token budget for one pair, special tokens
     /// included: the most tokens one encoded pair may hold.

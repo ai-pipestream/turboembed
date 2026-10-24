@@ -8,7 +8,7 @@ pub use decode::decode;
 mod windows;
 pub use windows::{QaWindow, windows};
 mod session;
-pub use session::{ExtractiveQa, QaOptions};
+pub use session::{ExtractiveQa, QaOptions, run_window_batch};
 mod reference;
 pub use reference::check_reference;
 

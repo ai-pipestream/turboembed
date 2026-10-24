@@ -2,7 +2,7 @@
 
 use std::marker::PhantomData;
 
-use turbo_analysis::{Annotator, Error, Ix, ModelRef, Refs, Tag, View};
+use turbo_analysis::{Annotator, Error, Execution, Ix, ModelRef, Refs, Tag, View};
 use turbo_analysis_layers::Categories;
 
 use super::{NliScorer, ZeroShotCategorizer, best_index};
@@ -41,6 +41,10 @@ impl<S: NliScorer + Send + Sync + 'static> Annotator for ZeroShotAnnotator<S> {
 
     fn model(&self) -> Option<ModelRef> {
         Some(self.categorizer.scorer().model_ref())
+    }
+
+    fn execution(&self) -> Option<Execution> {
+        self.categorizer.scorer().execution()
     }
 
     fn config_hash(&self) -> u64 {
@@ -95,6 +99,10 @@ impl<S: NliScorer + Send + Sync + 'static, L: SpanCategorizable> Annotator for Z
 
     fn model(&self) -> Option<ModelRef> {
         Some(self.categorizer.scorer().model_ref())
+    }
+
+    fn execution(&self) -> Option<Execution> {
+        self.categorizer.scorer().execution()
     }
 
     fn config_hash(&self) -> u64 {
