@@ -6,36 +6,40 @@
 //! pool, flow control, ordering, and cancellation machinery as
 //! `AnalyzeVectors`.
 
-use std::collections::HashMap;
+#[path = "embed_exec.rs"]
+mod exec;
+
 use std::path::Path;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::AtomicBool;
 
 use turbo::bundle::Bundle;
 use turbo::head::ProjectionHead;
 use turbo::manifest::{PromptRole, Truncation};
 use turbo::mlm::MlmHead;
-use turbo::sparse::{MaxLogPool, SparseOptions as Cut, SparseTerm};
+use turbo::sparse::{MaxLogPool, SparseOptions as Cut};
 use turbo::tokenizer::{Encode, Tokenizer};
 use turbo::{
-    TURBO_DTYPE_F32, TURBO_NORMALIZE_L2, TURBO_NORMALIZE_NONE, TURBO_POOLING_MEAN, TURBO_PROMPT_DOCUMENT,
-    TURBO_PROMPT_QUERY, turbo_embed_options, turbo_model_info, turbo_token_range,
+    TURBO_NORMALIZE_L2, TURBO_NORMALIZE_NONE, TURBO_POOLING_MEAN, TURBO_PROMPT_DOCUMENT, TURBO_PROMPT_QUERY,
+    TURBO_TRUNCATE_NONE, turbo_embed_options, turbo_model_info, turbo_token_range,
 };
-use turbo_analysis::{Ix, Layer, ModelRef, Span, Spans, View, ViewId};
+use turbo_analysis::{Layer, ModelRef, Span, Spans, View, ViewId};
+use turbo_analysis_embed::Rows;
 use turbo_analysis_embed::window::{Placed, Plan, Target, Which};
-use turbo_analysis_embed::{Rows, normalize};
 use turbo_analysis_layers::{SparseTerms, Subwords, TokenVectorWindows, Vectors};
 
 use crate::api::{
-    Failure, Result, TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_SHAPE,
-    TURBO_E_UNSUPPORTED, TURBO_E_UNSUPPORTED_OPTION,
+    Failure, Result, TURBO_E_CAPACITY, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_SHAPE, TURBO_E_UNSUPPORTED_OPTION,
 };
 use crate::offsets::OffsetMode;
+use crate::proto::result::AnalyzeOutput;
 use crate::proto::result::analyze_stream_response::Outcome as ProtoOutcome;
 use crate::results::sparse::SparseTermsWire;
 use crate::results::tokens::TokenVectors;
 use crate::results::{MAX_SPARSE_ENTRIES, MAX_SPARSE_OCCURRENCES, MAX_TOKEN_VECTOR_BYTES, MAX_WINDOWS, Wire, over};
 use crate::state::Slot;
 use crate::stream::Shared;
+
+use exec::{TokenRunBufs, build_token_vector_windows, check_alive, fill_sparse_terms, flush_sparse};
 
 /// Companion state for a `TASK_EMBED` bundle enabling learned sparse-term
 /// (`SPLADE`) and per-token contextual vector (`ColBERT` / late-interaction)
@@ -47,6 +51,7 @@ pub struct EmbedModel {
     pub model: ModelRef,
     pub vocab: usize,
     pub dim: u32,
+    pub output_dims: Vec<u32>,
     pub l2: bool,
     pub pooling: u32,
 }
@@ -85,6 +90,7 @@ impl EmbedModel {
         };
         let m = &bundle.manifest.model;
         let model = ModelRef { id: m.id.clone(), revision: m.revision.clone(), sha256: bundle.manifest_sha256.clone() };
+        let n_dims = (info.output_dims_count as usize).min(info.output_dims.len());
         Ok(Self {
             tokenizer,
             mlm,
@@ -92,9 +98,88 @@ impl EmbedModel {
             model,
             vocab,
             dim: info.dim,
+            output_dims: info.output_dims[..n_dims].to_vec(),
             l2: info.normalize == TURBO_NORMALIZE_L2,
             pooling: info.pooling,
         })
+    }
+
+    /// Validates `EmbedOptions` and `sparse_top_k` for `output`, returning the
+    /// resolved per-token vector dimension (`output_dim`) when applicable.
+    pub(crate) fn validate_options(
+        &self,
+        output: AnalyzeOutput,
+        opts: &turbo_embed_options,
+        sparse_top_k: u32,
+    ) -> Result<u32> {
+        let bad_opt = |f, msg: String| Err(Failure::new(TURBO_E_UNSUPPORTED_OPTION, f, msg));
+        let bad_arg = |f, msg: String| Err(Failure::new(TURBO_E_INVALID_ARGUMENT, f, msg));
+        if opts.truncate != 0 && opts.truncate != TURBO_TRUNCATE_NONE {
+            return bad_opt(
+                1,
+                format!(
+                    "truncate {}: windowed structured outputs do not truncate; use 0 or TURBO_TRUNCATE_NONE",
+                    opts.truncate
+                ),
+            );
+        }
+        if opts.pooling != 0 && opts.pooling != TURBO_POOLING_MEAN {
+            return bad_opt(
+                5,
+                format!("pooling {}: single-token range extraction requires 0 or TURBO_POOLING_MEAN", opts.pooling),
+            );
+        }
+        match output {
+            AnalyzeOutput::SparseTerms => {
+                if self.mlm.is_none() {
+                    return bad_opt(0, "the bundle declares no MLM head for sparse terms".into());
+                }
+                if opts.normalize != 0 && opts.normalize != TURBO_NORMALIZE_L2 {
+                    return bad_opt(4, format!("normalize {}: sparse terms are always L2-normalized", opts.normalize));
+                }
+                if opts.output_dim > self.dim {
+                    return bad_arg(6, format!("output_dim {} exceeds encoder width {}", opts.output_dim, self.dim));
+                }
+                if opts.output_dim != 0 && opts.output_dim != self.dim {
+                    return bad_opt(
+                        6,
+                        format!("output_dim {}: sparse terms decode full width {}", opts.output_dim, self.dim),
+                    );
+                }
+                if sparse_top_k as u64 > MAX_SPARSE_ENTRIES {
+                    return Err(over("max_sparse_entries", "sparse term entries", sparse_top_k as u64));
+                }
+                Ok(self.dim)
+            }
+            AnalyzeOutput::TokenVectors => {
+                if self.pooling != TURBO_POOLING_MEAN {
+                    return bad_opt(5, format!("{}: token vectors require a mean-pooled bundle", self.model.id));
+                }
+                if let Some(proj) = &self.projection {
+                    let pdim = proj.dim as u32;
+                    match opts.output_dim {
+                        0 => Ok(pdim),
+                        d if d == pdim => Ok(pdim),
+                        d if d > pdim => bad_arg(6, format!("output_dim {d} is over the projection head's dim {pdim}")),
+                        d => bad_opt(6, format!("output_dim {d}: projection head produces fixed dim {pdim}")),
+                    }
+                } else {
+                    match opts.output_dim {
+                        0 => Ok(self.dim),
+                        d if d > self.dim => bad_arg(6, format!("output_dim {d} is over the model's dim {}", self.dim)),
+                        d if d == self.dim || self.output_dims.contains(&d) => Ok(d),
+                        d => bad_opt(
+                            6,
+                            format!(
+                                "output_dim {d}: the model was trained to be cut to {:?} besides its dim {}",
+                                self.output_dims, self.dim
+                            ),
+                        ),
+                    }
+                }
+            }
+            _ => bad_opt(0, "unsupported structured embed output".into()),
+        }
     }
 
     fn tokenize_subwords(&self, text: &str) -> Result<Subwords> {
@@ -129,40 +214,47 @@ impl EmbedModel {
 
     fn window_width(&self, slot: &Slot, opts: &turbo_embed_options, head_len: usize, tail_len: usize) -> Result<u32> {
         if opts.max_tokens > slot.info.max_seq {
-            return Err(Failure::new(
-                TURBO_E_CAPACITY,
-                2,
-                format!("max_tokens {} is over the session's max_seq {}", opts.max_tokens, slot.info.max_seq),
-            ));
+            let msg = format!("max_tokens {} is over the session's max_seq {}", opts.max_tokens, slot.info.max_seq);
+            return Err(Failure::new(TURBO_E_CAPACITY, 2, msg));
         }
         let max_seq = if opts.max_tokens == 0 { slot.info.max_seq } else { opts.max_tokens };
         let overhead = (head_len + tail_len) as u32;
         if max_seq <= overhead {
-            return Err(Failure::new(
-                TURBO_E_INVALID_ARGUMENT,
-                2,
-                format!("max_seq {max_seq} leaves no room for text beside {overhead} tokens of overhead"),
-            ));
+            let msg = format!("max_seq {max_seq} leaves no room for text beside {overhead} tokens of overhead");
+            return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 2, msg));
         }
         Ok(max_seq - overhead)
     }
 
     /// Executes a micro-batch of `ANALYZE_OUTPUT_SPARSE_TERMS` documents on `slot`.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn run_sparse_batch(
         &self,
         shared: &Shared,
+        dead: &AtomicBool,
         slot: &Slot,
         texts: &[&str],
         opts: &turbo_embed_options,
         offsets: OffsetMode,
         cut: Cut,
     ) -> Result<Vec<ProtoOutcome>> {
-        let mlm = self.mlm.as_ref().ok_or_else(|| {
-            Failure::new(TURBO_E_UNSUPPORTED_OPTION, 0, "the bundle declares no MLM head for sparse terms")
-        })?;
+        self.validate_options(AnalyzeOutput::SparseTerms, opts, cut.top_k)?;
+        let mlm = self.mlm.as_ref().expect("validated MLM head");
         let (head, tail) = self.row_ends(opts.prompt_role)?;
         let width = self.window_width(slot, opts, head.len(), tail.len())?;
-        let subwords: Vec<Subwords> = texts.iter().map(|t| self.tokenize_subwords(t)).collect::<Result<Vec<_>>>()?;
+        let mut subwords = Vec::with_capacity(texts.len());
+        for &t in texts {
+            check_alive(dead)?;
+            let sub = self.tokenize_subwords(t)?;
+            if sub.len() as u64 > MAX_SPARSE_OCCURRENCES {
+                return Err(over("max_sparse_occurrences", "occurrence spans", sub.len() as u64));
+            }
+            let wins = sub.ids.len().div_ceil(width as usize) as u64;
+            if wins > MAX_WINDOWS {
+                return Err(over("max_windows", "encoder windows", wins));
+            }
+            subwords.push(sub);
+        }
 
         let (max_batch, max_ranges) = (slot.info.max_batch, slot.max_ranges as usize);
         let mut rows = Rows::new(slot.info.max_seq, self.tokenizer.fill_id());
@@ -175,7 +267,17 @@ impl EmbedModel {
                 let mut piece = lo;
                 while piece < hi {
                     if rows.len() == max_batch || ranges.len() == max_ranges {
-                        flush_sparse(shared, slot, mlm, &mut rows, &mut ranges, &mut owners, &mut states, &mut pools)?;
+                        flush_sparse(
+                            shared,
+                            dead,
+                            slot,
+                            mlm,
+                            &mut rows,
+                            &mut ranges,
+                            &mut owners,
+                            &mut states,
+                            &mut pools,
+                        )?;
                     }
                     let take = (hi - piece).min(max_ranges - ranges.len());
                     let row = rows.push(&[&head, &sub.ids[lo..hi], &tail]);
@@ -191,10 +293,11 @@ impl EmbedModel {
                 }
             }
         }
-        flush_sparse(shared, slot, mlm, &mut rows, &mut ranges, &mut owners, &mut states, &mut pools)?;
+        flush_sparse(shared, dead, slot, mlm, &mut rows, &mut ranges, &mut owners, &mut states, &mut pools)?;
 
         let mut outcomes = Vec::with_capacity(texts.len());
         for ((&text, sub), pool) in texts.iter().zip(&subwords).zip(pools) {
+            check_alive(dead)?;
             let pool = pool.unwrap_or_else(|| MaxLogPool::new(self.vocab));
             let selected = pool.terms(&cut).map_err(|e| Failure::new(e.code, e.field, e.message))?;
             let mut terms = SparseTerms::<View>::new(self.model.clone());
@@ -212,22 +315,18 @@ impl EmbedModel {
     }
 
     /// Executes a micro-batch of `ANALYZE_OUTPUT_TOKEN_VECTORS` documents on `slot`.
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn run_token_vectors_batch(
         &self,
         shared: &Shared,
+        dead: &AtomicBool,
         slot: &Slot,
         texts: &[&str],
         opts: &turbo_embed_options,
         offsets: OffsetMode,
         stride: u32,
     ) -> Result<Vec<ProtoOutcome>> {
-        if self.pooling != TURBO_POOLING_MEAN {
-            return Err(Failure::new(
-                TURBO_E_UNSUPPORTED_OPTION,
-                5,
-                format!("{}: token vectors require a mean-pooled bundle", self.model.id),
-            ));
-        }
+        let out_dim = self.validate_options(AnalyzeOutput::TokenVectors, opts, 0)?;
         let (head, tail) = self.row_ends(opts.prompt_role)?;
         let width = self.window_width(slot, opts, head.len(), tail.len())?;
         if stride > width {
@@ -237,8 +336,19 @@ impl EmbedModel {
                 format!("token_stride {stride} exceeds window width {width}"),
             ));
         }
-        let subwords: Vec<Subwords> = texts.iter().map(|t| self.tokenize_subwords(t)).collect::<Result<Vec<_>>>()?;
-        let (hidden_dim, out_dim) = (self.dim as usize, self.projection.as_ref().map_or(self.dim, |p| p.dim as u32));
+        let mut subwords = Vec::with_capacity(texts.len());
+        for &t in texts {
+            check_alive(dead)?;
+            let sub = self.tokenize_subwords(t)?;
+            let token_bytes =
+                (sub.len() as u64).checked_mul(out_dim as u64).and_then(|v| v.checked_mul(4)).unwrap_or(u64::MAX);
+            if token_bytes > MAX_TOKEN_VECTOR_BYTES {
+                return Err(over("max_token_vector_bytes", "token vector data", token_bytes));
+            }
+            subwords.push(sub);
+        }
+
+        let (hidden_dim, out_width) = (self.dim as usize, out_dim as usize);
         let l2 = match opts.normalize {
             TURBO_NORMALIZE_NONE => false,
             TURBO_NORMALIZE_L2 => true,
@@ -246,9 +356,7 @@ impl EmbedModel {
         };
 
         let mut plan = Plan::new(width);
-        let mut doc_windows: Vec<Vec<u32>> = Vec::with_capacity(subwords.len());
-        let mut raw_states: Vec<Vec<f32>> = subwords.iter().map(|sub| vec![0.0f32; sub.len() * hidden_dim]).collect();
-
+        let mut doc_windows: Vec<TokenVectorWindows> = Vec::with_capacity(subwords.len());
         for (d, sub) in subwords.iter().enumerate() {
             let win_offset = plan.windows.len() as u32;
             let placements = plan
@@ -265,10 +373,15 @@ impl EmbedModel {
                     whole: true,
                 });
             }
-            doc_windows.push(window_indices);
+            let windows = build_token_vector_windows(sub, &window_indices);
+            if windows.spans.len() as u64 > MAX_WINDOWS {
+                return Err(over("max_windows", "encoder windows", windows.spans.len() as u64));
+            }
+            doc_windows.push(windows);
         }
         plan.placed.sort_by_key(|x| x.window);
 
+        let mut out_states: Vec<Vec<f32>> = subwords.iter().map(|sub| vec![0.0f32; sub.len() * out_width]).collect();
         let (max_batch, max_ranges) = (slot.info.max_batch, slot.max_ranges as usize);
         let mut bufs = TokenRunBufs::new(slot.info.max_seq, self.tokenizer.fill_id());
         let (head_len, mut p) = (head.len() as u32, 0usize);
@@ -281,7 +394,17 @@ impl EmbedModel {
             let ids = &subwords[win.doc as usize].ids[win.start as usize..win.end as usize];
             while p < end {
                 if bufs.rows.len() == max_batch || bufs.ranges.len() == max_ranges {
-                    bufs.flush(shared, slot, hidden_dim, &plan.placed, &mut raw_states)?;
+                    bufs.flush(
+                        shared,
+                        dead,
+                        slot,
+                        hidden_dim,
+                        out_width,
+                        self.projection.as_ref(),
+                        l2,
+                        &plan.placed,
+                        &mut out_states,
+                    )?;
                 }
                 let row = bufs.rows.push(&[&head, ids, &tail]);
                 let take = (end - p).min(max_ranges - bufs.ranges.len());
@@ -293,23 +416,23 @@ impl EmbedModel {
             }
         }
         if !bufs.rows.is_empty() {
-            bufs.flush(shared, slot, hidden_dim, &plan.placed, &mut raw_states)?;
+            bufs.flush(
+                shared,
+                dead,
+                slot,
+                hidden_dim,
+                out_width,
+                self.projection.as_ref(),
+                l2,
+                &plan.placed,
+                &mut out_states,
+            )?;
         }
 
         let mut outcomes = Vec::with_capacity(texts.len());
-        for (((&text, sub), mut states), win_indices) in texts.iter().zip(&subwords).zip(raw_states).zip(doc_windows) {
-            let data = if let Some(proj) = &self.projection {
-                proj.project(&states, l2).map_err(|e| Failure::new(e.code, e.field, e.message))?
-            } else {
-                if l2 {
-                    for row in states.chunks_exact_mut(hidden_dim) {
-                        normalize(row);
-                    }
-                }
-                states
-            };
+        for ((&text, data), windows) in texts.iter().zip(out_states).zip(doc_windows) {
+            check_alive(dead)?;
             let vectors = Vectors::<Subwords>::new(out_dim, data, Vec::new(), self.model.clone());
-            let windows = build_token_vector_windows(sub, &win_indices);
             let msg = TokenVectors::new(&vectors, &windows).with_offsets(text, offsets).to_msg();
             if msg.data.len() as u64 > MAX_TOKEN_VECTOR_BYTES {
                 return Err(over("max_token_vector_bytes", "token vector data", msg.data.len() as u64));
@@ -321,165 +444,4 @@ impl EmbedModel {
         }
         Ok(outcomes)
     }
-}
-
-fn build_token_vector_windows(sub: &Subwords, window_indices: &[u32]) -> TokenVectorWindows {
-    let mut spans = Spans::new(ViewId::SOURCE);
-    let mut i = 0;
-    while i < sub.len() {
-        let w = window_indices[i];
-        let first = sub.spans.get(Ix::new(i as u32));
-        let (start, mut end) = (first.start, first.end);
-        i += 1;
-        while i < sub.len() && window_indices[i] == w {
-            end = sub.spans.get(Ix::new(i as u32)).end;
-            i += 1;
-        }
-        if start < end {
-            spans.push(Span::new(start, end));
-        }
-    }
-    TokenVectorWindows { spans }
-}
-
-fn fill_sparse_terms(out: &mut SparseTerms<View>, sub: &Subwords, selected: &[SparseTerm]) {
-    let mut spans: HashMap<i32, (Span, Vec<Span>)> = HashMap::new();
-    for k in 0..sub.ids.len() {
-        let s = sub.spans.get(Ix::new(k as u32));
-        spans
-            .entry(sub.ids[k])
-            .and_modify(|(hull, occ)| {
-                hull.start = hull.start.min(s.start);
-                hull.end = hull.end.max(s.end);
-                occ.push(s);
-            })
-            .or_insert((s, vec![s]));
-    }
-    for t in selected {
-        match spans.get(&(t.term as i32)) {
-            Some((hull, occ)) => {
-                out.push(t.term, t.weight, Some(*hull));
-                out.push_occurrences(occ);
-            }
-            None => {
-                out.push(t.term, t.weight, None);
-                out.push_occurrences(&[]);
-            }
-        }
-    }
-    out.unit();
-}
-
-#[allow(clippy::too_many_arguments)]
-fn flush_sparse(
-    shared: &Shared,
-    slot: &Slot,
-    mlm: &MlmHead,
-    rows: &mut Rows,
-    ranges: &mut Vec<turbo_token_range>,
-    owners: &mut Vec<(u32, u32)>,
-    states: &mut Vec<f32>,
-    pools: &mut [Option<MaxLogPool>],
-) -> Result<()> {
-    if rows.is_empty() {
-        return Ok(());
-    }
-    run_ranges_on_slot(shared, slot, rows, ranges, mlm.hidden as u32, states)?;
-    let mut at = 0usize;
-    while at < owners.len() {
-        let d = owners[at].0;
-        let end = owners[at..].iter().position(|&(x, _)| x != d).map_or(owners.len(), |k| at + k);
-        let pool = pools[d as usize].as_mut().expect("a document with rows has a pool");
-        mlm.relu_peak_into(&states[at * mlm.hidden..end * mlm.hidden], pool)
-            .map_err(|e| Failure::new(e.code, e.field, e.message))?;
-        at = end;
-    }
-    rows.clear();
-    ranges.clear();
-    owners.clear();
-    Ok(())
-}
-
-struct TokenRunBufs {
-    rows: Rows,
-    ranges: Vec<turbo_token_range>,
-    targets: Vec<u32>,
-    flat: Vec<f32>,
-}
-
-impl TokenRunBufs {
-    fn new(max_seq: u32, fill: i32) -> Self {
-        Self { rows: Rows::new(max_seq, fill), ranges: Vec::new(), targets: Vec::new(), flat: Vec::new() }
-    }
-
-    fn flush(
-        &mut self,
-        shared: &Shared,
-        slot: &Slot,
-        dim: usize,
-        placed: &[Placed],
-        out: &mut [Vec<f32>],
-    ) -> Result<()> {
-        run_ranges_on_slot(shared, slot, &self.rows, &self.ranges, dim as u32, &mut self.flat)?;
-        for (v, &t) in self.flat.chunks_exact(dim).zip(self.targets.iter()) {
-            let x = placed[t as usize];
-            let states = &mut out[x.target.doc as usize];
-            let idx = x.target.item as usize;
-            states[idx * dim..(idx + 1) * dim].copy_from_slice(v);
-        }
-        self.rows.clear();
-        self.ranges.clear();
-        self.targets.clear();
-        Ok(())
-    }
-}
-
-fn run_ranges_on_slot(
-    shared: &Shared,
-    slot: &Slot,
-    rows: &Rows,
-    ranges: &[turbo_token_range],
-    dim: u32,
-    out: &mut Vec<f32>,
-) -> Result<()> {
-    let opts = turbo_embed_options {
-        struct_size: size_of::<turbo_embed_options>() as u32,
-        truncate: 0,
-        max_tokens: 0,
-        prompt_role: 0,
-        normalize: TURBO_NORMALIZE_NONE,
-        pooling: TURBO_POOLING_MEAN,
-        output_dim: 0,
-    };
-    slot.session.write_ranges(&rows.batch(), ranges, &opts).map_err(|f| {
-        if f.code == TURBO_E_UNSUPPORTED && f.message.contains("does not offer embed_write_ranges") {
-            Failure::new(
-                TURBO_E_UNSUPPORTED,
-                f.field,
-                format!("the backend does not offer range pooling (embed_write_ranges): {}", f.message),
-            )
-        } else {
-            f
-        }
-    })?;
-    shared.runs.fetch_add(1, Ordering::Relaxed);
-    let result = slot.session.run()?;
-    let info = result.info()?;
-    if info.dtype != TURBO_DTYPE_F32 {
-        return Err(Failure::new(TURBO_E_UNSUPPORTED_OPTION, 0, "range result is not f32"));
-    }
-    if info.batch != ranges.len() as u32 || info.dim != dim {
-        return Err(Failure::new(
-            TURBO_E_INTERNAL,
-            0,
-            format!("range result has [{}, {}], expected [{}, {dim}]", info.batch, info.dim, ranges.len()),
-        ));
-    }
-    let bytes = result.read(info.bytes)?;
-    out.clear();
-    out.reserve(ranges.len() * dim as usize);
-    for chunk in bytes.as_chunks::<4>().0 {
-        out.push(f32::from_le_bytes(*chunk));
-    }
-    Ok(())
 }

@@ -64,25 +64,8 @@ fn check(state: &State, d: AnalyzeDocument, room: Room) -> Result<Doc, Box<(Stri
                     room,
                 ));
             };
-            if doc_opts.output == AnalyzeOutput::SparseTerms && embed.mlm.is_none() {
-                return Err((
-                    Failure::new(
-                        TURBO_E_UNSUPPORTED_OPTION,
-                        0,
-                        format!("model {} declares no MLM head for sparse terms", served.name),
-                    ),
-                    room,
-                ));
-            }
-            if doc_opts.output == AnalyzeOutput::TokenVectors && embed.pooling != turbo::TURBO_POOLING_MEAN {
-                return Err((
-                    Failure::new(
-                        TURBO_E_UNSUPPORTED_OPTION,
-                        5,
-                        format!("model {}: token vectors require a mean-pooled bundle", served.name),
-                    ),
-                    room,
-                ));
+            if let Err(f) = embed.validate_options(doc_opts.output, &doc_opts.embed, doc_opts.sparse_top_k) {
+                return Err((f, room));
             }
         }
         let batch_limit = loaded.slots[0].info.max_batch;

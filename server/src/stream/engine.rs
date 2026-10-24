@@ -111,7 +111,7 @@ impl Engine {
                 stalled_deadline.unwrap_or_else(|| Instant::now() + Duration::from_secs(86400)),
             ));
             tokio::select! {
-                env = work.recv() => match env {
+                env = work.recv(), if !input_ended => match env {
                     Some(Envelope::Doc(mut doc)) => {
                         doc.seq = self.next_seq;
                         self.next_seq += 1;
@@ -133,7 +133,7 @@ impl Engine {
                 },
                 outcome = self.inflight.join_next(), if !self.inflight.is_empty() => match outcome {
                     Some(Ok(outcome)) => {
-                        if self.deliver(outcome, &answers).await.is_err() {
+                        if self.deliver(outcome, &answers, &dead).await.is_err() {
                             break;
                         }
                     }
@@ -280,7 +280,8 @@ impl Engine {
             Ok(held) => {
                 let opts = docs[0].opts;
                 let shared = self.shared.clone();
-                self.inflight.spawn_blocking(move || run::run(&shared, held, docs, &opts, permits));
+                let dead = dead.clone();
+                self.inflight.spawn_blocking(move || run::run(&shared, &dead, held, docs, &opts, permits));
             }
             Err(_) => self.stash(docs, permits),
         }
@@ -301,6 +302,7 @@ impl Engine {
         &mut self,
         outcome: Outcome,
         answers: &mpsc::Sender<std::result::Result<AnalyzeStreamResponse, Status>>,
+        dead: &Arc<AtomicBool>,
     ) -> std::result::Result<(), ()> {
         let Outcome { model, version, dim, rows } = outcome;
         match rows {
@@ -335,13 +337,17 @@ impl Engine {
                 self.enqueue(doc.seq, pending, answers).await
             }
             Err(Whole { failure: _, docs, permits }) => {
+                if dead.load(Ordering::SeqCst) {
+                    return Err(());
+                }
                 for (doc, permit) in docs.into_iter().zip(permits) {
                     match doc.loaded.take() {
                         Ok(held) => {
                             let opts = doc.opts;
                             let shared = self.shared.clone();
+                            let dead = dead.clone();
                             self.inflight
-                                .spawn_blocking(move || run::run(&shared, held, vec![doc], &opts, vec![permit]));
+                                .spawn_blocking(move || run::run(&shared, &dead, held, vec![doc], &opts, vec![permit]));
                         }
                         Err(_) => self.stash(vec![doc], vec![permit]),
                     }

@@ -6,7 +6,7 @@
 //! single-document call would answer it.
 
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use tokio::sync::OwnedSemaphorePermit;
 use turbo::{TURBO_PLACE_HOST, TURBO_PLACE_PINNED, TURBO_PLACE_SHARED, turbo_embed_options, turbo_text};
@@ -99,6 +99,7 @@ pub(crate) fn key(d: &Doc) -> BatchKey {
 /// before it starts never counts.
 pub(crate) fn run(
     shared: &Shared,
+    dead: &AtomicBool,
     held: Held,
     docs: Vec<Doc>,
     opts: &turbo_embed_options,
@@ -107,7 +108,7 @@ pub(crate) fn run(
     let (model, version) = (docs[0].model.clone(), docs[0].version.clone());
     let output = docs[0].output;
     if output != AnalyzeOutput::Vectors {
-        return run_structured(shared, held, docs, opts, permits, model, version);
+        return run_structured(shared, dead, held, docs, opts, permits, model, version);
     }
     let fail = |failure, docs, permits| Outcome {
         model: model.clone(),
@@ -147,8 +148,10 @@ pub(crate) fn run(
     Outcome { model, version, dim, rows: Ok(rows) }
 }
 
+#[allow(clippy::too_many_arguments)]
 fn run_structured(
     shared: &Shared,
+    dead: &AtomicBool,
     held: Held,
     docs: Vec<Doc>,
     opts: &turbo_embed_options,
@@ -181,10 +184,10 @@ fn run_structured(
     let computed = match docs[0].output {
         AnalyzeOutput::SparseTerms => {
             let cut = turbo::sparse::SparseOptions { top_k: docs[0].sparse_top_k, floor: docs[0].sparse_floor };
-            embed.run_sparse_batch(shared, slot, &texts, opts, offsets, cut)
+            embed.run_sparse_batch(shared, dead, slot, &texts, opts, offsets, cut)
         }
         AnalyzeOutput::TokenVectors => {
-            embed.run_token_vectors_batch(shared, slot, &texts, opts, offsets, docs[0].token_stride)
+            embed.run_token_vectors_batch(shared, dead, slot, &texts, opts, offsets, docs[0].token_stride)
         }
         AnalyzeOutput::Vectors => unreachable!(),
     };
