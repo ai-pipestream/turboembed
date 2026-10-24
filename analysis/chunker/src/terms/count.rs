@@ -51,29 +51,33 @@ impl<L: Layer> Annotator for TermCounter<L> {
             return Err(fail(format!("{} terms for {} tokens", terms.term.len(), tokens.spans.len())));
         }
         let ranges = unit_ranges(tokens, units).map_err(fail)?;
-        Ok((count(&terms.term, vocabulary.len(), &ranges).map_err(fail)?,))
+        Ok((count_multi(&terms.term, vocabulary.len(), &ranges).map_err(fail)?,))
     }
 }
 
-/// The tokens of each unit of `units`, as `TermCounter` documents them:
-/// the tokens whose start is in the unit, two binary searches per unit,
-/// or every token for one unit with no spans.
-pub(crate) fn unit_ranges<L: Layer>(tokens: &Tokens, units: &L) -> Result<Vec<Range<usize>>, String> {
+/// The token ranges of each unit of `units`, as `TermCounter`
+/// documents them: the tokens whose start is in the unit, two
+/// binary searches per fragment, or every token for one unit with
+/// no spans. A discontinuous unit contributes one range per
+/// fragment, so tokens in the excluded gaps between fragments
+/// are never counted.
+pub(crate) fn unit_ranges<L: Layer>(tokens: &Tokens, units: &L) -> Result<Vec<Vec<Range<usize>>>, String> {
     let (starts, _) = tokens.spans.columns();
     if !starts.windows(2).all(|w| w[0] <= w[1]) {
         return Err("the tokens are not in text order".into());
     }
+    let range = |a: u32, b: u32| starts.partition_point(|&s| s < a)..starts.partition_point(|&s| s < b);
     Ok(match units.text_spans() {
         Some(ts) if ts.view != tokens.spans.view() => {
             return Err(format!("the units are in view {}, the tokens in view {}", ts.view.0, tokens.spans.view().0));
         }
-        Some(ts) => ts
-            .start
-            .iter()
-            .zip(ts.end)
-            .map(|(&a, &b)| starts.partition_point(|&s| s < a)..starts.partition_point(|&s| s < b))
+        Some(ts) if ts.frag_item_end.is_empty() => {
+            ts.start.iter().zip(ts.end).map(|(&a, &b)| vec![range(a, b)]).collect()
+        }
+        Some(ts) => (0..ts.start.len())
+            .map(|i| ts.item_frag_range(i).map(|f| range(ts.frag_start[f], ts.frag_end[f])).collect())
             .collect(),
-        None if units.len() == 1 => std::iter::once(0..starts.len()).collect(),
+        None if units.len() == 1 => vec![vec![0..starts.len()]],
         None => return Err(format!("{} units with no spans; only one can hold every token", units.len())),
     })
 }
@@ -86,6 +90,16 @@ pub fn count<L>(
     vocabulary: usize,
     units: &[Range<usize>],
 ) -> Result<TermStats<L>, String> {
+    count_multi(term, vocabulary, &units.iter().map(|r| vec![r.clone()]).collect::<Vec<_>>())
+}
+
+/// The term counts of each unit, a unit being one or more token
+/// runs (one per fragment for a discontinuous unit).
+pub fn count_multi<L>(
+    term: &[Option<Ix<Vocabulary>>],
+    vocabulary: usize,
+    units: &[Vec<Range<usize>>],
+) -> Result<TermStats<L>, String> {
     let mut s = TermStats {
         row: Vec::with_capacity(units.len() + 1),
         term: Vec::new(),
@@ -96,10 +110,12 @@ pub fn count<L>(
     };
     s.row.push(0);
     let mut ids = Vec::new();
-    for r in units {
+    for ranges in units {
         ids.clear();
-        let run = term.get(r.clone()).ok_or_else(|| format!("tokens {r:?} past the {} terms", term.len()))?;
-        ids.extend(run.iter().flatten().copied());
+        for r in ranges {
+            let run = term.get(r.clone()).ok_or_else(|| format!("tokens {r:?} past the {} terms", term.len()))?;
+            ids.extend(run.iter().flatten().copied());
+        }
         ids.sort_unstable();
         if let Some(t) = ids.last().filter(|t| t.get() >= vocabulary) {
             return Err(format!("a term {} past the vocabulary of {vocabulary}", t.get()));

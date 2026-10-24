@@ -82,6 +82,7 @@ pub fn document(text: &str, sentences: &[(u32, u32)], chunks: &[(u32, u32, u8, O
         cost: Vec::new(),
         model_tokens: Vec::new(),
         over_budget: Vec::new(),
+        prompt_overhead: 0,
     };
     for &(i, j, level, parent) in chunks {
         let (a, b) = (sentences[i as usize].0, sentences[j as usize - 1].1);

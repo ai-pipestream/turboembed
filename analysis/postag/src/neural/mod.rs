@@ -13,6 +13,7 @@
 #![allow(clippy::needless_range_loop)]
 
 pub mod adam;
+mod batch_words;
 pub mod bilstm_model;
 pub mod bilstm_tagger;
 pub mod bilstm_trainer;

@@ -8,6 +8,7 @@ pub mod package;
 mod packing;
 mod schema;
 mod window;
+pub use codec::register_codecs;
 pub use config::Config;
 pub use output::{Decisions, GlinerAnnotator};
 pub use packing::PackedInput;
@@ -69,6 +70,16 @@ impl Model {
         p.check(&self.config, self.encoder.config(), schema.labels().len())?;
         let h = self.encoder.encode(&p.ids, &vec![true; p.ids.len()]).map_err(|e| e.message)?;
         self.heads.score(h.data(), h.width(), &p.prompts, &p.words, self.config.max_width)
+    }
+    pub(crate) fn score_packed_with_work(
+        &self,
+        p: &PackedInput,
+        schema: &ExtractionSchema,
+        work: &mut heads::Work,
+    ) -> Result<Vec<Candidate>, String> {
+        p.check(&self.config, self.encoder.config(), schema.labels().len())?;
+        let h = self.encoder.encode(&p.ids, &vec![true; p.ids.len()]).map_err(|e| e.message)?;
+        self.heads.score_with_work(h.data(), h.width(), &p.prompts, &p.words, self.config.max_width, work)
     }
 }
 /// Stable score-priority decoding. Nested mode allows containment but rejects
