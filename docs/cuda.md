@@ -377,7 +377,7 @@ Measured with:
 
 ```sh
 TURBO_TEST_REQUIRE_CUDA=1 TURBO_TEST_BUNDLE=<all-MiniLM-L6-v2 bundle> \
-    cargo test --release -p turbo --features cuda --test cuda the_first_tuned_session_s_cost \
+    cargo test --release -p turbo --features cuda --test cuda_tuning the_first_tuned_session_s_cost \
     -- --include-ignored --nocapture
 ```
 
@@ -685,6 +685,18 @@ older than the runtime, it lists none and the runtime's log says why.
   session, so a range run allocates nothing either. The device is a GPU,
   so `cpu_threads` (field 6 of `turbo_session_desc`) is 0 alone: any
   other value is `TURBO_E_UNSUPPORTED_OPTION` naming field 6.
+- **The span head.** The table sets `token_head`, so an extractive QA
+  model is loaded with its span head (`turbo_backend_model.head`: the
+  `[2, hidden]` weight and the bias, F32, copied to the device with the
+  weights), and a range write to it asks for the head (`rows.head`). The
+  run pools each range's full vector, unnormalized, as above, and
+  `span_head` then computes each range's start and end logits, a warp
+  per logit, the products and sums in F64 as the CPU path's head does,
+  into a `[max_ranges, 2]` buffer made with the session, which the run
+  hands out in place of the vectors. A window's read is then 8 bytes a
+  token, where the hidden states were 3 KB a token at RoBERTa-base's 768.
+  The kernel is in every graph of a model with a head and returns at once
+  in a run that does not ask for it.
 - **What a result reports.** Stages: tokenize on the host for text,
   upload, lookup, encode and pool on the device, normalize fused into the
   pooling kernel when it runs, and no download: the vectors stay where
@@ -695,13 +707,13 @@ older than the runtime, it lists none and the runtime's log says why.
   the backend allocated on the running thread during the run, counted
   where it allocates; a run allocates nothing, cold or warm. The first
   run of a shape may still load kernels the driver has not loaded yet
-  (CUDA loads modules lazily); `core/tests/cuda.rs` holds warm runs to an
+  (CUDA loads modules lazily); `core/tests/cuda_runs.rs` holds warm runs to an
   unchanged free-memory figure too.
 
 ## Testing on a GPU machine
 
 With `TURBO_CUDA_ROOT` set as above, from the workspace root.
-`TURBO_TEST_REQUIRE_CUDA=1` makes every test in `core/tests/cuda.rs` that
+`TURBO_TEST_REQUIRE_CUDA=1` makes every test in `core/tests/cuda_*.rs` that
 needs a device fail when the backend lists none, where without it the
 test passes with a line saying it was skipped; set it on a GPU machine,
 so a run that found no GPU cannot pass.
@@ -709,7 +721,7 @@ so a run that found no GPU cannot pass.
 ```
 export TURBO_TEST_REQUIRE_CUDA=1
 
-# Everything, with the CUDA-only tests in core/tests/cuda.rs. The checks
+# Everything, with the CUDA-only tests in core/tests/cuda_*.rs. The checks
 # against cuBLAS (the GEMMs against its products, the F16 sums, the GEMMs
 # handed to it) run with cuda-cublas, and say they were skipped without:
 cargo test -p turbo --features cuda,cuda-cublas
@@ -717,7 +729,7 @@ cargo test -p turbo --features cuda,cuda-cublas
 # The CUDA-only tests, with what they print (the device, the largest
 # difference from the f64 encoder and the CPU), in release too for the
 # largest shape:
-cargo test --release -p turbo --features cuda --test cuda -- --nocapture
+cargo test --release -p turbo --features cuda --test 'cuda_*' -- --nocapture
 
 # Conformance on the small sealed bundle (docs/conformance.md):
 TURBO_TEST_DEVICE=cuda cargo test --release -p turbo --features cuda --test conformance -- --nocapture
@@ -732,7 +744,7 @@ TURBO_TEST_DEVICE=cuda TURBO_TEST_PRECISION=exact \
 TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=cuda \
     cargo test --release -p turbo --features cuda --test conformance -- --include-ignored --nocapture
 TURBO_TEST_BUNDLE=<bundle-dir> \
-    cargo test --release -p turbo --features cuda --test cuda -- --include-ignored --nocapture
+    cargo test --release -p turbo --features cuda --test 'cuda_*' -- --include-ignored --nocapture
 
 # Conformance again with its sessions tuned (tests/common's session_desc
 # asks for tuning ON), at each precision as above:
@@ -742,7 +754,7 @@ TURBO_TEST_TUNING=1 TURBO_TEST_DEVICE=cuda \
 
 `TURBO_TEST_DEVICE=cuda` picks the first device the cuda backend lists,
 and the conformance test fails when it lists none. The tests in
-`core/tests/cuda.rs` that need no device (the table, the arch labels)
+`core/tests/cuda_devices.rs` that need no device (the table, the arch labels)
 run everywhere the feature builds.
 
 ## Recording a benchmark

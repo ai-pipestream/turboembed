@@ -55,7 +55,7 @@ impl Pike {
             // A new start has a lower priority than every thread already
             // running, and none is needed once a match is known.
             if matched.is_none() && !(anchored && pos > 0) {
-                Pike::add(insts, &mut self.current, &mut self.stack, 0, pos, text.as_bytes(), pos);
+                Pike::add(insts, &mut self.current, &mut self.stack, 0, pos, text, pos);
             }
             if self.current.dense.is_empty() && (matched.is_some() || anchored) {
                 break;
@@ -73,7 +73,7 @@ impl Pike {
                         if let Some((c, next_pos)) = step
                             && re.consumes(inst, c)
                         {
-                            Pike::add(insts, &mut self.next, &mut self.stack, pc + 1, start, text.as_bytes(), next_pos);
+                            Pike::add(insts, &mut self.next, &mut self.stack, pc + 1, start, text, next_pos);
                         }
                     }
                 }
@@ -88,7 +88,7 @@ impl Pike {
 
     /// Adds the thread at `pc` and everything it reaches without consuming
     /// a character at `pos`, in priority order.
-    fn add(insts: &[Inst], list: &mut Threads, stack: &mut Vec<u32>, pc: u32, start: usize, bytes: &[u8], pos: usize) {
+    fn add(insts: &[Inst], list: &mut Threads, stack: &mut Vec<u32>, pc: u32, start: usize, text: &str, pos: usize) {
         stack.clear();
         stack.push(pc);
         while let Some(mut pc) = stack.pop() {
@@ -103,7 +103,7 @@ impl Pike {
                         stack.push(fallback);
                         pc = prefer;
                     }
-                    Inst::Assert(a) if a.holds(bytes, pos) => pc += 1,
+                    Inst::Assert(a) if a.holds(text, pos) => pc += 1,
                     _ => break,
                 }
             }

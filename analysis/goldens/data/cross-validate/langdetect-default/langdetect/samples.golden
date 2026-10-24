@@ -1,0 +1,78 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	langdetect/samples	2763	2404	f46e8705f2de1e27ff2e8246a41c56ce39fdcbc83278862022e91af0b89c2218
+annotator	opennlp.tools.langdetect.LanguageDetectorCrossValidator	evaluate
+config	Algorithm	MAXENT
+config	Cutoff	5
+config	Iterations	100
+config	folds	3
+config	run	langdetect-default
+layer	turbo:language-cv-folds	document	3	fold:u32	training-samples:u32	test-samples:u32	events:u32	crc32c:u32	correct:u32	documents:u32	accuracy:f64
+0	37	19	37	3119884030	6	19	3fd435e50d79435e 0.3157894736842105
+1	37	19	37	574184489	4	19	3fcaf286bca1af28 0.21052631578947367
+2	38	18	38	540095832	5	18	3fd1c71c71c71c72 0.2777777777777778
+end	turbo:language-cv-folds
+layer	turbo:language-cv-predictions	document	56	fold:u32	sample:u32	language:str
+0	0	ita
+0	1	ita
+0	2	ell
+0	3	deu
+0	4	spa
+0	5	ell
+0	6	ita
+0	7	fra
+0	8	eng
+0	9	ita
+0	10	ell
+0	11	nld
+0	12	spa
+0	13	ell
+0	14	eng
+0	15	nld
+0	16	eng
+0	17	nld
+0	18	nld
+1	0	nld
+1	1	spa
+1	2	rus
+1	3	deu
+1	4	nld
+1	5	eng
+1	6	ita
+1	7	ell
+1	8	nld
+1	9	spa
+1	10	rus
+1	11	deu
+1	12	deu
+1	13	fra
+1	14	spa
+1	15	ell
+1	16	eng
+1	17	spa
+1	18	fra
+2	0	eng
+2	1	nld
+2	2	fra
+2	3	ita
+2	4	ell
+2	5	deu
+2	6	deu
+2	7	rus
+2	8	ita
+2	9	deu
+2	10	deu
+2	11	nld
+2	12	ell
+2	13	eng
+2	14	ita
+2	15	ell
+2	16	nld
+2	17	eng
+end	turbo:language-cv-predictions
+layer	turbo:language-cv-merged	document	1	documents:u32	accuracy:f64
+56	3fd1249249249249 0.26785714285714285
+end	turbo:language-cv-merged

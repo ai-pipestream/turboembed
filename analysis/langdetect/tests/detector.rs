@@ -5,7 +5,10 @@ mod common;
 
 use turbo_analysis::{Analyzer, Annotator, Document, Key, Status};
 use turbo_analysis_layers::Language;
-use turbo_langdetect::{ContextGenerator, LanguageDetector, LanguageModel, ModelError, NO_EVIDENCE, Ranking, Scratch};
+use turbo_langdetect::{
+    ContextGenerator, LanguageDetector, LanguageModel, ModelError, NO_EVIDENCE, ProbingConfig, ProbingContext, Ranking,
+    Scratch,
+};
 use turbo_maxent::ModelFile;
 
 use common::{MANIFEST, gis_model, zip};
@@ -267,4 +270,86 @@ fn cleanup_keeps_feature_iterators_valid_and_supports_reuse() {
         g.shrink_excess();
         assert_eq!(snapshots(&g), snapshots(&fresh));
     }
+}
+
+#[test]
+fn probing_stops_early_when_top_language_and_margin_stabilize() {
+    let d = detector();
+    let mut scratch = Scratch::new();
+    let mut out = Ranking::new();
+    let cfg = ProbingConfig { max_length: 100, chunk_size: 2, min_consec_improvements: 2, min_diff: 0.20 };
+    // Three 2-char chunks ("x ", "x ", "x ") give 3 consecutive evaluations
+    // with "bbb" first, non-decreasing confidence, and margin >= 0.20, so
+    // probing stops at 6 code points out of 14.
+    let len = d.probing_predict_languages_with("x x x x x x x ", cfg, &mut scratch, &mut out);
+    assert_eq!(len, 6);
+    assert_eq!(d.model().code(out.outcomes()[0] as usize), "bbb");
+    assert!(out.has_evidence());
+    assert!(!scratch.probing_context().is_empty());
+}
+
+#[test]
+fn probing_respects_min_diff_max_length_empty_text_and_code_point_counts() {
+    let d = detector();
+    let mut scratch = Scratch::new();
+    let mut out = Ranking::new();
+
+    // Empty input evaluates 0 features (uniform prior) and returns length 0.
+    let len = d.probing_predict_languages("", &mut scratch, &mut out);
+    assert_eq!(len, 0);
+    assert!(!out.has_evidence());
+    assert_eq!(out.outcomes(), &[0, 1, 2]);
+
+    // max_length = 0 also stops immediately with length 0 and uniform prior.
+    let zero_max = ProbingConfig { max_length: 0, ..ProbingConfig::default() };
+    let len = d.probing_predict_languages_with("x x x", zero_max, &mut scratch, &mut out);
+    assert_eq!(len, 0);
+    assert!(!out.has_evidence());
+
+    // On "y y y y y ", "aaa" and "ccc" tie (diff == 0.0): with min_diff = 0.20
+    // seenEnough never fires, so probing stops at max_length (7 code points).
+    let tie_cfg = ProbingConfig { max_length: 7, chunk_size: 2, min_consec_improvements: 2, min_diff: 0.20 };
+    let len = d.probing_predict_languages_with("y y y y y ", tie_cfg, &mut scratch, &mut out);
+    assert_eq!(len, 7);
+    assert_eq!(out.outcomes(), &[0, 2, 1]);
+
+    // With min_diff = 0.0, the margin check is disabled and probing stops at 3 chunks (6 code points).
+    let no_diff = ProbingConfig { min_diff: 0.0, ..tie_cfg };
+    let len = d.probing_predict_languages_with("y y y y y ", no_diff, &mut scratch, &mut out);
+    assert_eq!(len, 6);
+
+    // Supplementary code points (4 UTF-8 bytes, 2 UTF-16 units each) count as 1 code point each.
+    let emoji_cfg = ProbingConfig { max_length: 5, chunk_size: 2, min_consec_improvements: 10, min_diff: 0.99 };
+    let len = d.probing_predict_languages_with("\u{1F600}x\u{1F600}x\u{1F600}x", emoji_cfg, &mut scratch, &mut out);
+    assert_eq!(len, 5);
+}
+
+#[test]
+fn probing_resets_window_when_confidence_dips_or_top_language_changes() {
+    let d = detector();
+    let mut scratch = Scratch::new();
+    let mut out = Ranking::new();
+    let cfg = ProbingConfig { max_length: 100, chunk_size: 2, min_consec_improvements: 2, min_diff: 0.10 };
+    // Chunk 1 ("x "): bbb leads with e^2/(e^2+2). Chunk 2 ("y "): y is added so
+    // bbb's confidence dips to e^2/(e^2+2e), preventing early stop on chunk 3
+    // ("x ", len 6) until the dip leaves the 3-chunk window on chunk 4 (len 8).
+    let len = d.probing_predict_languages_with("x y x x x ", cfg, &mut scratch, &mut out);
+    assert_eq!(len, 8);
+    assert_eq!(d.model().code(out.outcomes()[0] as usize), "bbb");
+
+    // Changing the top language after chunk 1 ("y " -> aaa, then "x " -> bbb)
+    // similarly requires 3 consecutive "bbb" chunks (chunks 2..=4, len 8).
+    let len = d.probing_predict_languages_with("y x x x x ", cfg, &mut scratch, &mut out);
+    assert_eq!(len, 8);
+    assert_eq!(d.model().code(out.outcomes()[0] as usize), "bbb");
+
+    // ProbingContext shrink_excess reclaims oversized buffers and supports reuse.
+    let mut pctx = ProbingContext::default();
+    let big: String = (0..20_000).map(|i| char::from_u32(0x4e00 + (i % 4096)).unwrap()).collect();
+    pctx.add_chunk(&big);
+    assert!(!pctx.is_empty());
+    pctx.shrink_excess();
+    assert!(pctx.is_empty());
+    pctx.add_chunk("x");
+    assert_eq!(pctx.len(), 1);
 }

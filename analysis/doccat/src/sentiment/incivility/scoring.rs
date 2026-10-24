@@ -12,6 +12,20 @@ impl IncivilityAnnotator {
         parent_tok_range: Option<(usize, usize)>,
         unit_vec: Option<&[f32]>,
     ) -> Result<(IncivilityScores, Vec<IncivilityEvidenceSpan>), String> {
+        self.score_unit_in_context(token_lower, tok_start, tok_end, parent_tok_range, unit_vec, None)
+    }
+
+    /// [`IncivilityAnnotator::score_unit`] with `context_vec`, the vector the
+    /// head reads beside the unit's own ([`IncivilityVectorContext`]).
+    pub fn score_unit_in_context(
+        &self,
+        token_lower: &[String],
+        tok_start: usize,
+        tok_end: usize,
+        parent_tok_range: Option<(usize, usize)>,
+        unit_vec: Option<&[f32]>,
+        context_vec: Option<&[f32]>,
+    ) -> Result<(IncivilityScores, Vec<IncivilityEvidenceSpan>), String> {
         if !self.threshold.is_finite() || !(0.05..=0.99).contains(&self.threshold) {
             return Err("incivility threshold must be finite and in 0.05..=0.99".into());
         }
@@ -28,7 +42,8 @@ impl IncivilityAnnotator {
         let mut scores = IncivilityScores::default();
         let mut evidence: Vec<IncivilityEvidenceSpan> = Vec::new();
 
-        if tok_start < tok_end {
+        let lexicon = self.stage != IncivilityStage::Learned;
+        if lexicon && tok_start < tok_end {
             // 1. Scan lexicon phrases inside `tok_start..tok_end`.
             let (lex_scores, lex_ev) = scan_lexicon(&self.lexicon, token_lower, tok_start, tok_end);
             for (lbl, val) in lex_scores.iter() {
@@ -56,11 +71,12 @@ impl IncivilityAnnotator {
         }
 
         // 3. Score embedding vector when present and `self.vector_scorer` is configured.
-        if let (Some(scorer), Some(vec)) = (&self.vector_scorer, unit_vec) {
-            if vec.iter().any(|v| !v.is_finite()) {
+        let scorer = self.vector_scorer.as_ref().filter(|_| self.stage != IncivilityStage::Lexicon);
+        if let (Some(scorer), Some(vec)) = (scorer, unit_vec) {
+            if vec.iter().chain(context_vec.into_iter().flatten()).any(|v| !v.is_finite()) {
                 return Err("incivility vector must be finite".into());
             }
-            let head_scores = scorer.score_incivility(vec)?;
+            let head_scores = scorer.score_incivility_in_context(vec, context_vec)?;
             if head_scores.iter().into_iter().any(|(_, v)| !v.is_finite() || !(0.0..=1.0).contains(&v)) {
                 return Err("incivility head scores must be finite and in 0..=1".into());
             }
@@ -79,8 +95,9 @@ impl IncivilityAnnotator {
         // 4. Co-occurrence rule for SevereToxicity: when Threat co-occurs with
         // Insult, Profanity, IdentityAttack, or Intolerance at >= threshold,
         // elevate SevereToxicity and merge their evidence spans.
+        // The learned stage reports the head's scores as they are.
         let max_other = scores.insult.max(scores.profanity).max(scores.identity_attack).max(scores.intolerance);
-        if scores.threat >= self.threshold && max_other >= self.threshold {
+        if lexicon && scores.threat >= self.threshold && max_other >= self.threshold {
             let sev = (0.55 * scores.threat + 0.45 * max_other).clamp(self.threshold, 0.99);
             if sev > scores.severe_toxicity {
                 scores.severe_toxicity = sev;

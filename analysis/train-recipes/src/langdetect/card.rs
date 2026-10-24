@@ -260,6 +260,9 @@ impl LanguageCard {
         if self.language != ZOO_LANGUAGE {
             return Err(bad("language", format!("{} is not {ZOO_LANGUAGE}, its recipe's", self.language)));
         }
+        if self.attribution.trim().is_empty() || self.attribution.chars().any(char::is_control) {
+            return Err(bad("attribution", format!("{:?} is empty or holds a control character", self.attribution)));
+        }
         Ok(Artifact {
             id: self.id.parse().map_err(|e| bad("id", e))?,
             kind: Kind::Model,
@@ -271,6 +274,7 @@ impl LanguageCard {
             license_terms: self.license_terms.parse().map_err(|e| bad("licence terms", e))?,
             trained_on: self.trained_on.clone(),
             class: self.class,
+            attribution: Some(self.attribution.clone()),
             origin: None,
             files: vec![
                 File {

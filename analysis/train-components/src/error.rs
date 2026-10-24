@@ -97,6 +97,12 @@ pub enum Error {
     /// The tree insertion event stream failed where OpenNLP throws or
     /// exits.
     TreeInsert(turbo_parser::treeinsert::TreeInsertError),
+    /// A cross-validation fold's prediction the evaluator refuses where
+    /// the JVM's evaluator throws.
+    Evaluate(turbo_formats::evaluate::EvalError),
+    /// A language detector model trained for a cross-validation fold
+    /// could not be read back.
+    LanguageModel(turbo_langdetect::ModelError),
 }
 
 impl fmt::Display for Error {
@@ -151,6 +157,8 @@ impl fmt::Display for Error {
             Error::ParserModel(e) => write!(f, "{e}"),
             Error::ParseSample(e) => write!(f, "parser sample: {e}"),
             Error::TreeInsert(e) => write!(f, "parser training events: {e}"),
+            Error::Evaluate(e) => write!(f, "evaluation: {e}"),
+            Error::LanguageModel(e) => write!(f, "language detector model: {e}"),
         }
     }
 }
@@ -202,6 +210,18 @@ impl From<turbo_parser::ParseError> for Error {
 impl From<turbo_parser::treeinsert::TreeInsertError> for Error {
     fn from(e: turbo_parser::treeinsert::TreeInsertError) -> Error {
         Error::TreeInsert(e)
+    }
+}
+
+impl From<turbo_formats::evaluate::EvalError> for Error {
+    fn from(e: turbo_formats::evaluate::EvalError) -> Error {
+        Error::Evaluate(e)
+    }
+}
+
+impl From<turbo_langdetect::ModelError> for Error {
+    fn from(e: turbo_langdetect::ModelError) -> Error {
+        Error::LanguageModel(e)
     }
 }
 

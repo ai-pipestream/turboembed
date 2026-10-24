@@ -35,8 +35,9 @@ pub use quantities::{PERCENT, Quantities, QuantityMention};
 pub use regions::{InvalidRegionCode, MarginError, RegionCode, RegionVote, Regions, VoteError};
 pub use segmentation::{Block, Boundaries, Chunks, Cut, Sentences, Structure, Subwords, Tokens};
 pub use sentiment::{
-    Aspect, AspectTarget, Aspects, Incivility, IncivilityItem, IncivilityLabel, IncivilityScores, IncivilityTarget,
-    Incongruity, Opinion, Opinions, Polarity, PolarityScores, Pragmatics, PragmaticsItem,
+    Aspect, AspectTarget, Aspects, EMOTION_DIMENSIONS, EmotionDimension, EmotionItem, EmotionLayer, EmotionScores,
+    EmotionTarget, Incivility, IncivilityItem, IncivilityLabel, IncivilityScores, IncivilityTarget, Incongruity,
+    Opinion, Opinions, Polarity, PolarityScores, Pragmatics, PragmaticsItem,
 };
 pub use sparse::SparseTerms;
 pub use syntax::{

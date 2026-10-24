@@ -96,6 +96,9 @@ cargo run --release -p turbo-bench -- record \
     --tei-model upstream/
 ```
 
+The committed CPU records, made this way on a Ryzen 9 9950X, are listed
+with their times in docs/cpu.md ("Benchmark records").
+
 On an Intel Arc GPU, with Level Zero installed, one Intel GPU listed,
 and both images pulled:
 
@@ -371,7 +374,7 @@ may lack: `rows.kind`, read as `ROWS_MIXED` (then the only rows), and
 | `library.version` | The version number at the start of `turbo_version()`. |
 | `library.build` | `turbo_version()` whole: the version and the backends linked. |
 | `library.commit`, `.pushed_to` | See Provenance. |
-| `library.settings` | What changed what the backend ran, as `NAME=value`, in this order and each once: the environment variables that were set, `TURBO_CPU_THREADS` on cpu; `TURBO_CUDA_TILE`, `TURBO_CUDA_SK_STEPS`, `TURBO_CUDA_ATTENTION`, `TURBO_CUDA_CUBLAS`, `TURBO_CUDA_LAYER_NORM`, `TURBO_CUDA_POOL`, `TURBO_CUDA_TF32`, `TURBO_CUDA_F16_ACCUMULATE`, `TURBO_CUDA_GELU`, `TURBO_CUDA_RESIDUAL`, `TURBO_CUDA_PRODUCT`, `TURBO_AUTOTUNE` and `TURBO_AUTOTUNE_BUDGET_MS` on cuda and on levelzero; then, on cuda, always, and on levelzero where the session reports a choice, what the session reported of its kernels (`turbo_session_info`, docs/autotune.md): `TURBO_CUDA_TUNED` or `TURBO_LEVELZERO_TUNED`, where the choices came from (`default`, `forced`, `measured` or `cache`), and `TURBO_CUDA_CHOICES` or `TURBO_LEVELZERO_CHOICES`, the choices themselves, whatever the environment said. Setting the CHOICES variable to a record's value runs the same kernels again. On npu, always, `TURBO_NPU_GRAPH_FORMAT` (`NGRAPH_LITE` or `NATIVE`, the format the device selected; an environment variable does not change it) and `TURBO_NPU_GRAPH_INPUT` (`INPUT_TOKEN_IDS` or `INPUT_EMBEDDINGS`, the loaded artifact). An npu record that omits either does not parse. `INPUT_EMBEDDINGS` with a `speed_ratio` does not parse. Empty when nothing was set on a backend that reports no choices, or in a record made before the field was; a record made before the choices has only the variables. |
+| `library.settings` | What changed what the backend ran, as `NAME=value`, in this order and each once: the environment variables that were set, `TURBO_CPU_THREADS` on cpu; `TURBO_CUDA_TILE`, `TURBO_CUDA_SK_STEPS`, `TURBO_CUDA_ATTENTION`, `TURBO_CUDA_CUBLAS`, `TURBO_CUDA_LAYER_NORM`, `TURBO_CUDA_POOL`, `TURBO_CUDA_TF32`, `TURBO_CUDA_F16_ACCUMULATE`, `TURBO_CUDA_GELU`, `TURBO_CUDA_RESIDUAL`, `TURBO_CUDA_PRODUCT`, `TURBO_AUTOTUNE` and `TURBO_AUTOTUNE_BUDGET_MS` on cuda, levelzero and metal; then, on cuda, always, and on levelzero and metal where the session reports a choice (on metal, a session whose linear layers have more than one path, as at FASTEST), what the session reported of its kernels (`turbo_session_info`, docs/autotune.md): `TURBO_CUDA_TUNED`, `TURBO_LEVELZERO_TUNED` or `TURBO_METAL_TUNED`, where the choices came from (`default`, `forced`, `measured` or `cache`), and `TURBO_CUDA_CHOICES`, `TURBO_LEVELZERO_CHOICES` or `TURBO_METAL_CHOICES`, the choices themselves, whatever the environment said. Setting the CHOICES variable to a record's value runs the same kernels again. On npu, always, `TURBO_NPU_GRAPH_FORMAT` (`NGRAPH_LITE` or `NATIVE`, the format the device selected; an environment variable does not change it) and `TURBO_NPU_GRAPH_INPUT` (`INPUT_TOKEN_IDS` or `INPUT_EMBEDDINGS`, the loaded artifact). An npu record that omits either does not parse. `INPUT_EMBEDDINGS` with a `speed_ratio` does not parse. Empty when nothing was set on a backend that reports no choices, or in a record made before the field was; a record made before the choices has only the variables. |
 | `task`, `precision` | `TASK_EMBED`; `PRECISION_*` as the session asked. |
 | `compute_dtype` | `DTYPE_*` as `turbo_session_get_info` reported it. `DTYPE_I8` is accepted and has no floor. |
 | `bundle.*` | `turbo_model_info`: model id and revision, and the manifest, artifact and tokenizer hashes. |
@@ -962,6 +965,8 @@ docs/analysis.md ("BiLSTM-CRF numerics") reads the committed record.
   the tests that need a measured reference give the record one whose
   figures are derived from that measurement; such a record is never
   written where the core reads records.
+- `settings.rs`: what `library.settings` copies from a metal session's
+  report, and the order the parser holds metal settings to.
 - `tool.rs`: `turbo-bench record` run as a program. Its refusals, on
   trees made for the test: a tree it was not built from, a dirty tree, a
   bundle in `testdata/`, a reference neither named nor disabled, an

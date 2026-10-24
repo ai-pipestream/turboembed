@@ -22,6 +22,15 @@ usage:
       per second and call latency at 1, 8, 32 and 128 sentences per call
       and by sentence length, interleaved over --rounds (default 3); write
       the record to <repo>/benchmarks/records/postag (needs --features postag)
+  turbo-bench qa --bundle <dir> --questions <squad.json> [--device <d>]
+                 [--precision <p>] [--batch <n>] [--max-batch <n>]
+                 [--per-bin <n>] [--warmup <n>] [--iterations <n>]
+                 [--repo <dir>] [--out <dir>]
+      extractive QA questions per second on one device, by the context's
+      length in tokens (bins from 0, 128, 256 and 384), up to --per-bin
+      questions each (default 256), --batch questions per call (default
+      8), --max-batch windows per run (default the model's), precision
+      exact by default; write the record to <repo>/benchmarks/qa
   turbo-bench check <record.json>...
       parse records and say whether each backs SUPPORTED for its cell
 

@@ -1,0 +1,88 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-24T00:21:47Z",
+  "machine": {
+    "arch": "rtx4080super",
+    "host_cpu": "",
+    "os": "linux"
+  },
+  "device": {
+    "backend": "cuda",
+    "kind": "DEVICE_GPU",
+    "name": "NVIDIA GeForce RTX 4080 SUPER",
+    "vendor": "NVIDIA",
+    "driver_version": "615.71.09, CUDA 13.4",
+    "runtime_version": "12.4",
+    "memory_total": 16802250752
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 cuda cpu",
+    "commit": "ceae91f1cd5da0e524919b45c044490b395db98b",
+    "pushed_to": [
+      "origin/fable/1003-qa-device-span-head"
+    ],
+    "settings": []
+  },
+  "precision": "PRECISION_EXACT",
+  "model_id": "deepset/roberta-base-squad2",
+  "revision": "1",
+  "manifest_sha256": "da0398773c5b3c8d547dd5b46f5f7d030eb42ebb74c3a4693ce081a3bb792630",
+  "questions_sha256": "80a5225e94905956a6446d296ca1093975c4d3b3260f1d6c8f68bc2ab77182d8",
+  "batch": 8,
+  "max_batch": 32,
+  "bins": [
+    {
+      "min_tokens": 0,
+      "max_tokens": 128,
+      "questions": 256,
+      "windows": 256,
+      "warmup": 2,
+      "iterations": 10,
+      "p50_ms": 205.13641199999998,
+      "min_ms": 201.461109,
+      "max_ms": 207.024109,
+      "questions_per_second": 1247.9500713895688,
+      "windows_per_second": 1247.9500713895688
+    },
+    {
+      "min_tokens": 128,
+      "max_tokens": 256,
+      "questions": 256,
+      "windows": 256,
+      "warmup": 2,
+      "iterations": 10,
+      "p50_ms": 375.821994,
+      "min_ms": 372.833017,
+      "max_ms": 379.942619,
+      "questions_per_second": 681.1735451544648,
+      "windows_per_second": 681.1735451544648
+    },
+    {
+      "min_tokens": 256,
+      "max_tokens": 384,
+      "questions": 256,
+      "windows": 263,
+      "warmup": 2,
+      "iterations": 10,
+      "p50_ms": 642.0788670000001,
+      "min_ms": 636.722146,
+      "max_ms": 653.6611300000001,
+      "questions_per_second": 398.70491485900277,
+      "windows_per_second": 409.60700237467864
+    },
+    {
+      "min_tokens": 384,
+      "max_tokens": 0,
+      "questions": 210,
+      "windows": 471,
+      "warmup": 2,
+      "iterations": 10,
+      "p50_ms": 1156.132104,
+      "min_ms": 1147.525983,
+      "max_ms": 1162.6256930000002,
+      "questions_per_second": 181.64014239673773,
+      "windows_per_second": 407.39289080411174
+    }
+  ]
+}

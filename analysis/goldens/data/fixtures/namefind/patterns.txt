@@ -112,3 +112,9 @@ syntax	-	[\b]
 syntax	-	a\
 syntax	-	(?P<n>a)
 syntax	-	(?-i-s)a
+ok	-	\b\d{4}\b
+ok	-	\Bx
+ok	-	\bx
+ok	-	a$
+ok	-	a\Z
+ok	-	a\z

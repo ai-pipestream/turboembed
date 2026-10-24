@@ -1,8 +1,9 @@
-//! Strict conversion of the GLiNER small-v2.1 markerV0 profile. The source
-//! checkpoint must first be exported to F32 safetensors with weights-only loading.
+//! Strict conversion of the GLiNER small-v2.1 and multi-v2.1 markerV0 profiles.
+//! Accepts either an F32 safetensors checkpoint or a `torch.save` zip archive
+//! (`pytorch_model.bin`).
 use crate::Result;
 use serde_json::{Value, json};
-use std::{collections::BTreeMap, fs, path::Path};
+use std::{borrow::Cow, collections::BTreeMap, fs, path::Path};
 use turbo::deberta::package::digest;
 use turbo::safetensors::{Dtype, File};
 use turbo_gliner::{
@@ -13,10 +14,14 @@ use turbo_gliner::{
 pub fn from_huggingface(v: &Value, vocab: usize) -> Result<Config> {
     if v.get("span_mode").and_then(Value::as_str) != Some("markerV0")
         || v.get("subtoken_pooling").and_then(Value::as_str) != Some("first")
-        || v.get("model_name").and_then(Value::as_str) != Some("microsoft/deberta-v3-small")
     {
-        return Err("gliner requires small-v2.1 markerV0/first profile".into());
+        return Err("gliner requires v2.1 markerV0/first profile".into());
     }
+    let expected_vocab = match v.get("model_name").and_then(Value::as_str) {
+        Some("microsoft/deberta-v3-small") => 128_004,
+        Some("microsoft/mdeberta-v3-base") => 250_105,
+        _ => return Err("gliner requires small-v2.1 or multi-v2.1 markerV0/first profile".into()),
+    };
     for (name, expected) in [
         ("has_rnn", json!(true)),
         ("embed_ent_token", json!(true)),
@@ -27,14 +32,14 @@ pub fn from_huggingface(v: &Value, vocab: usize) -> Result<Config> {
             return Err(format!("gliner unsupported {name}"));
         }
     }
-    if vocab != 128004 {
-        return Err("gliner small-v2.1 vocabulary must have 128004 entries".into());
+    if vocab != expected_vocab {
+        return Err(format!("gliner vocabulary must have {expected_vocab} entries"));
     }
     Ok(Config {
         hidden: v.get("hidden_size").and_then(Value::as_u64).ok_or("gliner missing hidden_size")? as usize,
         max_width: v.get("max_width").and_then(Value::as_u64).ok_or("gliner missing max_width")? as usize,
-        entity_token: 128002,
-        separator_token: 128003,
+        entity_token: (vocab - 2) as u32,
+        separator_token: (vocab - 1) as u32,
         cls_token: 1,
         eos_token: 2,
     })
@@ -69,7 +74,13 @@ pub fn convert_files(
 ) -> Result<()> {
     let mut ec: Value = serde_json::from_slice(&read(encoder_config, 65536)?).map_err(|e| e.to_string())?;
     let gc: Value = serde_json::from_slice(&read(gliner_config, 65536)?).map_err(|e| e.to_string())?;
-    let bytes = read(checkpoint, 2 << 30)?;
+    let raw = read(checkpoint, 2 << 30)?;
+    let bytes: Cow<'_, [u8]> = if raw.starts_with(b"PK\x03\x04") {
+        let tensors = crate::torch::read(&raw)?;
+        Cow::Owned(crate::torch::to_safetensors(&tensors, |k| Some(k.to_owned())))
+    } else {
+        Cow::Borrowed(raw.as_slice())
+    };
     let f = File::parse("gliner checkpoint", &bytes).map_err(|e| e.message)?;
     let embedding = f
         .get("token_rep_layer.bert_layer.model.embeddings.word_embeddings.weight", Dtype::F32, 2)
@@ -79,7 +90,13 @@ pub fn convert_files(
     let config = from_huggingface(&gc, encoder.vocabulary)?;
     let heads = convert_heads(&config, &encoder, &bytes)?;
     let tokenizer = read(spm, 16 << 20)?;
-    turbo::sentencepiece::SentencePiece::parse(&tokenizer).map_err(|e| e.message)?;
+    let parsed_spm = turbo::sentencepiece::SentencePiece::parse(&tokenizer).map_err(|e| e.message)?;
+    if parsed_spm.len() + 4 != encoder.vocabulary
+        || parsed_spm.id("[CLS]") != Some(config.cls_token)
+        || parsed_spm.id("[SEP]") != Some(config.eos_token)
+    {
+        return Err("gliner spm.model does not match checkpoint vocabulary".into());
+    }
     // Validate encoder before creating the destination; publication uses a new
     // directory and an incomplete package cannot pass the digest loader.
     crate::deberta::convert(&encoder, &bytes, "token_rep_layer.bert_layer.model.")?;
@@ -109,12 +126,18 @@ mod tests {
             "model_name":"microsoft/deberta-v3-small", "hidden_size":512, "max_width":12});
         assert_eq!(from_huggingface(&base, 128004).unwrap().hidden, 512);
         assert!(from_huggingface(&base, 128003).is_err());
+        let multi = json!({"span_mode":"markerV0", "subtoken_pooling":"first",
+            "model_name":"microsoft/mdeberta-v3-base", "hidden_size":512, "max_width":12});
+        let multi_cfg = from_huggingface(&multi, 250105).unwrap();
+        assert_eq!((multi_cfg.entity_token, multi_cfg.separator_token), (250103, 250104));
+        assert!(from_huggingface(&multi, 128004).is_err());
         for (key, value) in [
             ("has_rnn", json!(false)),
             ("embed_ent_token", json!(false)),
             ("labels_encoder", json!("other")),
             ("span_mode", json!("markerV1")),
             ("subtoken_pooling", json!("mean")),
+            ("model_name", json!("microsoft/deberta-v3-large")),
         ] {
             let mut bad = base.clone();
             bad[key] = value;

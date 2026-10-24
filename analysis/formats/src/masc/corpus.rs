@@ -282,6 +282,10 @@ fn java_file(folder: &Path, child: &str) -> PathBuf {
         return PathBuf::from(normalized);
     }
     out.push(&normalized);
+    // Java's File takes `/` as a separator on Windows as well; a verbatim
+    // (`\\?\`) path does not, so there the joined path uses backslashes.
+    #[cfg(windows)]
+    let out = std::ffi::OsString::from(out.to_string_lossy().replace('/', "\\"));
     PathBuf::from(out)
 }
 

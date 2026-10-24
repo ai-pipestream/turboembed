@@ -355,6 +355,9 @@ impl WebLanguageCard {
         if self.language != ZOO_LANGUAGE {
             return Err(bad("language", format!("{} is not {ZOO_LANGUAGE}, its recipe's", self.language)));
         }
+        if self.attribution.trim().is_empty() || self.attribution.chars().any(char::is_control) {
+            return Err(bad("attribution", format!("{:?} is empty or holds a control character", self.attribution)));
+        }
         let file = |name: &str, url: &str, size: u64, sha256: &str, sha512: &str| -> Result<File> {
             Ok(File {
                 path: name.parse().map_err(|e| bad("file name", e))?,
@@ -376,6 +379,7 @@ impl WebLanguageCard {
             license_terms: self.license_terms.parse().map_err(|e| bad("licence terms", e))?,
             trained_on: self.trained_on.clone(),
             class: self.class,
+            attribution: Some(self.attribution.clone()),
             origin: None,
             files: vec![
                 file(&self.file.name, model_url, self.file.size, &self.file.sha256, &self.file.sha512)?,

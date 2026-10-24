@@ -348,5 +348,8 @@ fn sentence_vectors_from_another_encoder_are_refused() {
     assert!(err.to_string().contains("head-encoder"), "{err}");
 }
 
+mod bias;
 mod context;
+mod head;
+mod learned;
 mod lexicon;

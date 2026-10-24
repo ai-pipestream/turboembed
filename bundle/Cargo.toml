@@ -17,7 +17,5 @@ serde_path_to_error = "0.1"
 ureq = "3"
 # F16 tables for a distilled static model (distill.rs).
 half = "2"
-# The pattern a static recipe leaves vocabulary entries out by.
-regex = "1"
 
 turbo-gliner = { path = "../analysis/gliner" }

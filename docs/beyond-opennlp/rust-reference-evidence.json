@@ -1,0 +1,501 @@
+{
+  "schema": 1,
+  "checked_date": "2026-10-23",
+  "records": [
+    {
+      "crate": "ptb-reader",
+      "version": "0.9.1",
+      "registry_license": "BSD-3-Clause",
+      "package_sha256": "f957893c4ab2178226956eee26d3b509f96ab1b07d9a4592385aaecb56e9ba04",
+      "repository": "https://github.com/sjmielke/ptb-reader-rust",
+      "role": "Candidate",
+      "issues": [
+        211,
+        238
+      ],
+      "source_license": {
+        "commit": "b975a841e78d464db8bbaa8862003777e8422ba5",
+        "path": "LICENSE",
+        "url": "https://github.com/sjmielke/ptb-reader-rust/blob/b975a841e78d464db8bbaa8862003777e8422ba5/LICENSE",
+        "digest": "4998f76c09d36674a68b891c11755b37e4f4c322828f74b1164746708e7be29d"
+      }
+    },
+    {
+      "crate": "conllu",
+      "version": "0.8.0",
+      "registry_license": "MIT OR Apache-2.0",
+      "package_sha256": "fb103d8de17a098acd48b5b6092e3f3b5467fb95311770f9c6b9fa4e12dea486",
+      "repository": "https://github.com/danieldk/udgraph",
+      "role": "Hold",
+      "issues": [
+        211,
+        235,
+        236
+      ],
+      "source_license": null
+    },
+    {
+      "crate": "udgraph",
+      "version": "0.8.0",
+      "registry_license": "MIT OR Apache-2.0",
+      "package_sha256": "0fb24e7a1b81165c47e286d2675bfa32c478ded1928d644c0dae6c241bf40d0a",
+      "repository": "https://github.com/danieldk/udgraph",
+      "role": "Hold",
+      "issues": [
+        235,
+        236
+      ],
+      "source_license": null
+    },
+    {
+      "crate": "conllx",
+      "version": "0.12.1",
+      "registry_license": "Apache-2.0",
+      "package_sha256": "c38ec5642ce1b214866b917b82093a0fe9c75503dc005763737873aa4cfa4a94",
+      "repository": "https://github.com/danieldk/conllx-rs",
+      "role": "Candidate",
+      "issues": [
+        234
+      ],
+      "source_license": {
+        "commit": "6c7d8dbae81f96d66ef0d8fb8aa9eca95d919c6c",
+        "path": "LICENSE",
+        "url": "https://github.com/danieldk/conllx-rs/blob/6c7d8dbae81f96d66ef0d8fb8aa9eca95d919c6c/LICENSE",
+        "digest": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    },
+    {
+      "crate": "crfs",
+      "version": "0.4.1",
+      "registry_license": "MIT",
+      "package_sha256": "b32234f40bc03a82d1955510f53053723d0e636bc13a4c99a07de2e491dad656",
+      "repository": "https://github.com/messense/crfs-rs",
+      "role": "Candidate",
+      "issues": [
+        173,
+        206,
+        229
+      ],
+      "source_license": {
+        "commit": "a8b5e9914629983b0cc0e6080e7e53a060673024",
+        "path": "LICENSE",
+        "url": "https://github.com/messense/crfs-rs/blob/a8b5e9914629983b0cc0e6080e7e53a060673024/LICENSE",
+        "digest": "057f29e6c8ec7a5700f486ff5e894f613de5fc00e4e2d6567410b9653bf05f5c"
+      }
+    },
+    {
+      "crate": "liblbfgs",
+      "version": "0.1.0",
+      "registry_license": "MIT",
+      "package_sha256": "1f1c009b0026557d64756b39f531841781d2f5a72d90e923858d94278ef12fdd",
+      "repository": "https://github.com/ybyygu/rust-lbfgs",
+      "role": "Candidate",
+      "issues": [
+        228
+      ],
+      "source_license": {
+        "commit": "3671d41fd87f01392b51a462a49addd66e9c48c5",
+        "path": "LICENSE",
+        "url": "https://github.com/ybyygu/rust-lbfgs/blob/3671d41fd87f01392b51a462a49addd66e9c48c5/LICENSE",
+        "digest": "8d70eb06e4c5afd8cba31ec4001eb92a961c54b9202ef87fa08dd054db21bbc1"
+      }
+    },
+    {
+      "crate": "libsvm-rs",
+      "version": "0.9.1",
+      "registry_license": "BSD-3-Clause",
+      "package_sha256": "e7aa9da7f9f942f8c7bb0f1fab4f8a6a090a6ce5c6c639d74205d918f0afbcf7",
+      "repository": "https://github.com/ricardofrantz/libsvm-rs",
+      "role": "Candidate",
+      "issues": [
+        214
+      ],
+      "source_license": {
+        "commit": "858df3f97a1a300a263a33ce4e8b56ba187748c4",
+        "path": "LICENSE",
+        "url": "https://github.com/ricardofrantz/libsvm-rs/blob/858df3f97a1a300a263a33ce4e8b56ba187748c4/LICENSE",
+        "digest": "b56bb77703a1719cc716099d5d6c1b51b265af3574f197b010a44070ce741a32"
+      }
+    },
+    {
+      "crate": "rust-bert",
+      "version": "0.23.0",
+      "registry_license": "Apache-2.0",
+      "package_sha256": "d42c5e4175577f25c58a4be357f09fc2aeb701093e861c41b7f60d1cbf7e61a3",
+      "repository": "https://github.com/guillaume-be/rust-bert",
+      "role": "Candidate",
+      "issues": [
+        207,
+        208
+      ],
+      "source_license": {
+        "commit": "6db859ef097edfdda338004b4d60deebf6a3ab66",
+        "path": "LICENSE",
+        "url": "https://github.com/guillaume-be/rust-bert/blob/6db859ef097edfdda338004b4d60deebf6a3ab66/LICENSE",
+        "digest": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+      }
+    },
+    {
+      "crate": "charabia",
+      "version": "0.10.0",
+      "registry_license": "MIT",
+      "package_sha256": "27d98f4c66de52108210ee491c9c991513021dfd259bf65e4bbd889687b488d7",
+      "repository": "https://github.com/meilisearch/charabia",
+      "role": "Candidate",
+      "issues": [
+        184
+      ],
+      "source_license": {
+        "commit": "bc63b9860434f06cf78b51bb0eab00aaefb69f15",
+        "path": "LICENSE",
+        "url": "https://github.com/meilisearch/charabia/blob/bc63b9860434f06cf78b51bb0eab00aaefb69f15/LICENSE",
+        "digest": "b0b5aee3ad1a8cad84dd3b73dbac346bf2b903b33ea90b1d1b3d0800744f5a74"
+      }
+    },
+    {
+      "crate": "text-splitter",
+      "version": "0.33.0",
+      "registry_license": "MIT",
+      "package_sha256": "db62ebfeba13b9502c0d8e139d8552595aa3765cc7c7fab7584f7c5d0e145449",
+      "repository": "https://github.com/benbrandt/text-splitter",
+      "role": "Candidate",
+      "issues": [
+        167
+      ],
+      "source_license": {
+        "commit": "bdfe0fbe2caefbb855dd65933fbc5d01b588a2e7",
+        "path": "LICENSE.txt",
+        "url": "https://github.com/benbrandt/text-splitter/blob/bdfe0fbe2caefbb855dd65933fbc5d01b588a2e7/LICENSE.txt",
+        "digest": "baaf1c4646d566f8c104aa6c78a340f2b115f06db76cb741118d2dc4125b62e2"
+      }
+    },
+    {
+      "crate": "tokenizations",
+      "version": "0.4.2",
+      "registry_license": "MIT",
+      "package_sha256": "82381b4b8b089504623a8892d29f715199ccb624add4a69845ded0399eb06e40",
+      "repository": "https://github.com/tamuhey/tokenizations",
+      "role": "Candidate",
+      "issues": [
+        166
+      ],
+      "source_license": {
+        "commit": "bcb27e901c2a9413b45dfd030c6ff8764d753188",
+        "path": "LICENSE",
+        "url": "https://github.com/tamuhey/tokenizations/blob/bcb27e901c2a9413b45dfd030c6ff8764d753188/LICENSE",
+        "digest": "dba10f9a4d95a165d221db64b165075c83196d5527e8ef3c1c1dc6ec9f8a57bb"
+      }
+    },
+    {
+      "crate": "unicode-security",
+      "version": "0.1.2",
+      "registry_license": "MIT/Apache-2.0",
+      "package_sha256": "2e4ddba1535dd35ed8b61c52166b7155d7f4e4b8847cec6f48e71dc66d8b5e50",
+      "repository": "https://github.com/unicode-rs/unicode-security",
+      "role": "Candidate",
+      "issues": [
+        158,
+        180
+      ],
+      "source_license": {
+        "commit": "1b4a80b48147f5f323fb2dfc784bcf2a2b4bbc4a",
+        "path": "LICENSE-APACHE",
+        "url": "https://github.com/unicode-rs/unicode-security/blob/1b4a80b48147f5f323fb2dfc784bcf2a2b4bbc4a/LICENSE-APACHE",
+        "digest": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+      }
+    },
+    {
+      "crate": "text2num",
+      "version": "2.8.0",
+      "registry_license": "MIT",
+      "package_sha256": "372f8f5b672792938479cc6b13774c0f13a23fcc925511d82ddd4462f6f6ebd7",
+      "repository": "https://github.com/allo-media/text2num-rs",
+      "role": "Candidate",
+      "issues": [
+        217
+      ],
+      "source_license": {
+        "commit": "8dc343634e1ffe18a2bd1e651817226a46a6045d",
+        "path": "LICENSE",
+        "url": "https://github.com/allo-media/text2num-rs/blob/8dc343634e1ffe18a2bd1e651817226a46a6045d/LICENSE",
+        "digest": "9d10dcdf7438f5856ed010d7bcce11377cc0112bd416337c5c1e8ff765c6cf24"
+      }
+    },
+    {
+      "crate": "interim",
+      "version": "0.2.1",
+      "registry_license": "MIT",
+      "package_sha256": "a9ce9099a85f468663d3225bf87e85d0548968441e1db12248b996b24f0f5b5a",
+      "repository": "https://github.com/conradludgate/interim",
+      "role": "Candidate",
+      "issues": [
+        220
+      ],
+      "source_license": {
+        "commit": "a0887dc6278c7f6d06c490a6399ce44b74e776cd",
+        "path": "LICENSE.txt",
+        "url": "https://github.com/conradludgate/interim/blob/a0887dc6278c7f6d06c490a6399ce44b74e776cd/LICENSE.txt",
+        "digest": "dd36422306cd0c6e499f153996c655e3be88a575447cf2382c9625ef0d9cca53"
+      }
+    },
+    {
+      "crate": "twitter-text",
+      "version": "0.3.1",
+      "registry_license": "Apache-2.0",
+      "package_sha256": "349e18232ae8d5a368a86c2d70c7d4744b58c9007c9da5d260ec0dbff019f765",
+      "repository": "https://github.com/sayrer/twitter-text",
+      "role": "Candidate",
+      "issues": [
+        182
+      ],
+      "source_license": {
+        "commit": "7e1956b9bb914b3c1ffec25da1650024f5623336",
+        "path": "LICENSE",
+        "url": "https://github.com/sayrer/twitter-text/blob/7e1956b9bb914b3c1ffec25da1650024f5623336/LICENSE",
+        "digest": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+      }
+    },
+    {
+      "crate": "elinor",
+      "version": "0.4.0",
+      "registry_license": "MIT OR Apache-2.0",
+      "package_sha256": "69bb653d24ed2225fa53fdf4b1d2d37536052399c2bdb1803fdb692ab4efc611",
+      "repository": "https://github.com/kampersanda/elinor",
+      "role": "Oracle",
+      "issues": [
+        154,
+        172
+      ],
+      "source_license": {
+        "commit": "69cce1abf17cf89b6bd9895027ce24d9e3465c7b",
+        "path": "LICENSE-APACHE",
+        "url": "https://github.com/kampersanda/elinor/blob/69cce1abf17cf89b6bd9895027ce24d9e3465c7b/LICENSE-APACHE",
+        "digest": "cf90d659de5c1e6418267ab8043b756e65508ee5d8d50b29eb2d2fe444c2c3eb"
+      }
+    },
+    {
+      "crate": "lindera",
+      "version": "6.2.0",
+      "registry_license": "MIT",
+      "package_sha256": "acdfde95c0360c7214c7f97cbd52f293c41da5c7f215979b065b2b41772d199f",
+      "repository": "https://github.com/lindera/lindera",
+      "role": "Oracle",
+      "issues": [
+        191,
+        192,
+        354
+      ],
+      "source_license": {
+        "commit": "049d87e9a71e15c139a0488f731adc50b7d6a7a3",
+        "path": "LICENSE",
+        "url": "https://github.com/lindera/lindera/blob/049d87e9a71e15c139a0488f731adc50b7d6a7a3/LICENSE",
+        "digest": "d37249886de3136db31717f15f6ade215a36fbed1c782381e38b2bf6047e8ec4"
+      }
+    },
+    {
+      "crate": "vibrato",
+      "version": "0.5.2",
+      "registry_license": "MIT OR Apache-2.0",
+      "package_sha256": "b02279291f68f435d84407eae0a99a8ac3dea4c2ff1f9efc86ab2431d13606bd",
+      "repository": "https://github.com/daac-tools/vibrato",
+      "role": "Oracle",
+      "issues": [
+        191,
+        354
+      ],
+      "source_license": {
+        "commit": "6d80c52a2e5c200fc0c7091840487ee55faf9aaa",
+        "path": "LICENSE-APACHE",
+        "url": "https://github.com/daac-tools/vibrato/blob/6d80c52a2e5c200fc0c7091840487ee55faf9aaa/LICENSE-APACHE",
+        "digest": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+      }
+    },
+    {
+      "crate": "lingua",
+      "version": "1.8.0",
+      "registry_license": "Apache-2.0",
+      "package_sha256": "f40d9129bb9fe42c95d1bd420d6891607eaff17df16ee15674aed2d05b0ec8f4",
+      "repository": "https://github.com/pemistahl/lingua-rs",
+      "role": "Oracle",
+      "issues": [
+        164,
+        239,
+        389
+      ],
+      "source_license": {
+        "commit": "086bc102343361140686491e64a4ba13501404d7",
+        "path": "LICENSE",
+        "url": "https://github.com/pemistahl/lingua-rs/blob/086bc102343361140686491e64a4ba13501404d7/LICENSE",
+        "digest": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4"
+      }
+    },
+    {
+      "crate": "whatlang",
+      "version": "0.18.0",
+      "registry_license": "MIT",
+      "package_sha256": "f5e8f38b596e2a359b755342473520a99421e43658548c79489ee221b728c107",
+      "repository": "https://github.com/greyblake/whatlang-rs",
+      "role": "Oracle",
+      "issues": [
+        164,
+        239,
+        389
+      ],
+      "source_license": {
+        "commit": "7ddb6bbd158a27844378dd6df0f33f473cd3d731",
+        "path": "LICENSE",
+        "url": "https://github.com/greyblake/whatlang-rs/blob/7ddb6bbd158a27844378dd6df0f33f473cd3d731/LICENSE",
+        "digest": "9fb62b415784b27e358a03677cac6b56de73425f4fdbb5f4ecf19650af5dfe0c"
+      }
+    },
+    {
+      "crate": "whichlang",
+      "version": "0.1.1",
+      "registry_license": "MIT",
+      "package_sha256": "0b9aa3ad29c3d08283ac6b769e3ec15ad1ddb88af7d2e9bc402c574973b937e7",
+      "repository": "https://github.com/quickwit-oss/whichlang",
+      "role": "Oracle",
+      "issues": [
+        164,
+        389
+      ],
+      "source_license": {
+        "commit": "6c1c8b63ea61720306a19bee1bb555ec4646b635",
+        "path": "LICENSE",
+        "url": "https://github.com/quickwit-oss/whichlang/blob/6c1c8b63ea61720306a19bee1bb555ec4646b635/LICENSE",
+        "digest": "1c1281da288faa274d2cf71cd3be00ecd62c6b5f7b16c01428f72d19d0a053b1"
+      }
+    },
+    {
+      "crate": "daachorse",
+      "version": "5.1.0",
+      "registry_license": "MIT OR Apache-2.0",
+      "package_sha256": "6662915a20ca97f4c293df4b589dda442f852429f50fda4f1d779f12cb7fe98f",
+      "repository": "https://github.com/daac-tools/daachorse",
+      "role": "Candidate",
+      "issues": [
+        177,
+        185,
+        186,
+        192,
+        199,
+        202,
+        385
+      ],
+      "source_license": {
+        "commit": "7e94aa16917fd97c19f77f5791117bd1ba4018f4",
+        "path": "LICENSE-APACHE",
+        "url": "https://github.com/daac-tools/daachorse/blob/7e94aa16917fd97c19f77f5791117bd1ba4018f4/LICENSE-APACHE",
+        "digest": "62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a"
+      }
+    },
+    {
+      "crate": "fst",
+      "version": "0.4.7",
+      "registry_license": "Unlicense/MIT",
+      "package_sha256": "7ab85b9b05e3978cc9a9cf8fea7f01b494e1a09ed3037e16ba39edc7a29eb61a",
+      "repository": "https://github.com/BurntSushi/fst",
+      "role": "Candidate",
+      "issues": [
+        174,
+        175,
+        189,
+        198,
+        199,
+        201,
+        216,
+        221,
+        224,
+        385
+      ],
+      "source_license": {
+        "commit": "5907b4739793b3d5d7061eaa3f85274e09769d6a",
+        "path": "UNLICENSE",
+        "url": "https://github.com/BurntSushi/fst/blob/5907b4739793b3d5d7061eaa3f85274e09769d6a/UNLICENSE",
+        "digest": "7e12e5df4bae12cb21581ba157ced20e1986a0508dd10d0e8a4ab9a4cf94e85c"
+      }
+    },
+    {
+      "crate": "aho-corasick",
+      "version": "1.1.5",
+      "registry_license": "Unlicense OR MIT",
+      "package_sha256": "c982642fa9e8606056828ee9a8505737230110bb1099153c79efe865c59d12ba",
+      "repository": "https://github.com/BurntSushi/aho-corasick",
+      "role": "Candidate",
+      "issues": [
+        177,
+        185,
+        186,
+        199,
+        202,
+        385
+      ],
+      "source_license": {
+        "commit": "6c0abf5681bfc30bb9d8f7f52b68a350b436fffa",
+        "path": "UNLICENSE",
+        "url": "https://github.com/BurntSushi/aho-corasick/blob/6c0abf5681bfc30bb9d8f7f52b68a350b436fffa/UNLICENSE",
+        "digest": "7e12e5df4bae12cb21581ba157ced20e1986a0508dd10d0e8a4ab9a4cf94e85c"
+      }
+    },
+    {
+      "crate": "encoding_rs",
+      "version": "0.8.42",
+      "registry_license": "(Apache-2.0 OR MIT) AND BSD-3-Clause",
+      "package_sha256": "8e985e0451871ad22fb8d2b6b076e2028a502a0d3950998c2c5c0a4f9b5d9679",
+      "repository": "https://github.com/hsivonen/encoding_rs",
+      "role": "Candidate",
+      "issues": [
+        187,
+        233,
+        234,
+        237,
+        238,
+        384
+      ],
+      "source_license": {
+        "commit": "9db0e447f07c34b9969a258a2a1237cc6cf341d5",
+        "path": "LICENSE-APACHE",
+        "url": "https://github.com/hsivonen/encoding_rs/blob/9db0e447f07c34b9969a258a2a1237cc6cf341d5/LICENSE-APACHE",
+        "digest": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    },
+    {
+      "crate": "chardetng",
+      "version": "1.0.0",
+      "registry_license": "Apache-2.0 OR MIT",
+      "package_sha256": "13de944a44b5064ee5d3a5ceccc49a41bfec50f2580e66f82e87703acdb88b53",
+      "repository": "https://github.com/hsivonen/chardetng",
+      "role": "Oracle",
+      "issues": [
+        187,
+        384
+      ],
+      "source_license": {
+        "commit": "4a53a99e07e418ceb91e0049580e6bbcb2df0591",
+        "path": "LICENSE-APACHE",
+        "url": "https://github.com/hsivonen/chardetng/blob/4a53a99e07e418ceb91e0049580e6bbcb2df0591/LICENSE-APACHE",
+        "digest": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      }
+    },
+    {
+      "crate": "nlprule",
+      "version": "0.6.4",
+      "registry_license": "MIT OR Apache-2.0",
+      "package_sha256": "d77e28ea6b9a2cc59fdcf7d9f9da3bec509d18178de7dff7d83574643520f33e",
+      "repository": "https://github.com/bminixhofer/nlprule",
+      "role": "Code-only hold",
+      "issues": [
+        174,
+        175,
+        176,
+        209
+      ],
+      "source_license": {
+        "commit": "ebb54617ea5f3378c0dc63486631724b7e97e13c",
+        "path": "LICENSE-APACHE",
+        "url": "https://github.com/bminixhofer/nlprule/blob/ebb54617ea5f3378c0dc63486631724b7e97e13c/LICENSE-APACHE",
+        "digest": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+      }
+    }
+  ]
+}

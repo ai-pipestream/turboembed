@@ -137,11 +137,24 @@ A HEF is compiled for one architecture (`target`) and a fixed frame:
 with `TURBO_E_CAPACITY`. The backend loads the HEF whose `target` is the
 device's `arch`.
 
-On the Hailo-10H, all-MiniLM-L6-v2 compiled in I8 from the upstream ONNX
-cut at the word-embedding gather and the attention mask (128 tokens)
-runs at 224 rows a second with two frames in flight, the rate
-`hailortcli benchmark` gives the same HEF (Raspberry Pi 5, HailoRT
-5.1.1, 2026-09-25).
+On the Hailo-10H (Raspberry Pi 5, HailoRT 5.1.1, firmware 5.1.1),
+all-MiniLM-L6-v2 is compiled in I8 from the upstream ONNX cut at the
+word-embedding gather and the attention mask (128 tokens) by the
+Dataflow Compiler 5.4.0 with
+`compiler_optimization` `"max"`, with a minimum cosine of 0.937 to the
+F32 reference vectors, over the tier's floor of 0.93. Frames run in
+bursts of 32, so a HEF's contexts are loaded once a burst. Through the
+library (one session, `TURBO_PRECISION_MODEL`, mean pooling, normalized;
+one row the mean of 200 runs, 64 rows the mean of 20, at commit
+a74f0b5a, 2026-10-23):
+
+| Compile | Contexts | Compile time (32 cores) | One row | 64 rows a run | `hailortcli run2 --batch-size 1` | `--batch-size 32` |
+|---|---|---|---|---|---|---|
+| default | 6 | about 3 min | 6.0 ms | 670 rows/s | 224 frames/s | 783 frames/s |
+| `"max"` | 4 | about 25 min | 5.1 ms | 908 rows/s | 276 frames/s | 1186 frames/s |
+
+The two give the same cosines to the reference cases and to 60
+held-out texts (minimum 0.937, mean 0.972).
 
 On the Hailo-8 (26 TOPS, on a Raspberry Pi 5 and on a Compute Module 5,
 HailoRT 4.23.0), the same model is compiled by 3.34.0 with

@@ -21,7 +21,7 @@ of LibreOffice's dictionaries, which `turbo-goldens fetch-models <dir>`
 downloads into `<dir>/hunspell/` from the `LibreOffice/dictionaries`
 repository at commit `67032ee957631908098a72edf48dc81cac27e369` and checks
 against the SHA-512 in `HUNSPELL_FILES` of
-`analysis/goldens-tool/src/recipe.rs`:
+`analysis/goldens-tool/src/recipe/models.rs`:
 
 | Dictionary | Licence (the README beside it in that repository) |
 |---|---|
@@ -31,8 +31,10 @@ against the SHA-512 in `HUNSPELL_FILES` of
 
 Only the goldens made with them are checked in: the words of the inputs and
 the stems and analyses OpenNLP returned. The `ci` workflow caches the
-download directory under the hash of `recipe.rs`, which holds the digests,
-and runs this crate's tests with the dictionaries required.
+download directory under the hash of the recipe directory
+`analysis/goldens-tool/src/recipe/`, which holds the digests, and of
+`analysis/goldens-tool/src/models.rs`, which fetches them, and runs this
+crate's tests with the dictionaries required.
 
 ## Golden files
 

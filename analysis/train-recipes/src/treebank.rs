@@ -316,6 +316,7 @@ impl Treebank {
             license_terms: terms.parse().map_err(bad("terms", terms.clone()))?,
             trained_on: Vec::new(),
             class: class_of([LICENCE]),
+            attribution: Some(self.attribution()),
             origin: None,
             files,
         })

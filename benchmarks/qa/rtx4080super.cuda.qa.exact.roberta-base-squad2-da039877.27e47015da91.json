@@ -1,0 +1,88 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-23T14:26:17Z",
+  "machine": {
+    "arch": "rtx4080super",
+    "host_cpu": "",
+    "os": "linux"
+  },
+  "device": {
+    "backend": "cuda",
+    "kind": "DEVICE_GPU",
+    "name": "NVIDIA GeForce RTX 4080 SUPER",
+    "vendor": "NVIDIA",
+    "driver_version": "615.71.09, CUDA 13.4",
+    "runtime_version": "12.4",
+    "memory_total": 16802250752
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 cuda cpu",
+    "commit": "27e47015da919969b4e3686ebd6001883250b5bd",
+    "pushed_to": [
+      "origin/fable/914-qa-squad2"
+    ],
+    "settings": []
+  },
+  "precision": "PRECISION_EXACT",
+  "model_id": "deepset/roberta-base-squad2",
+  "revision": "1",
+  "manifest_sha256": "da0398773c5b3c8d547dd5b46f5f7d030eb42ebb74c3a4693ce081a3bb792630",
+  "questions_sha256": "80a5225e94905956a6446d296ca1093975c4d3b3260f1d6c8f68bc2ab77182d8",
+  "batch": 8,
+  "max_batch": 32,
+  "bins": [
+    {
+      "min_tokens": 0,
+      "max_tokens": 128,
+      "questions": 256,
+      "windows": 256,
+      "warmup": 1,
+      "iterations": 10,
+      "p50_ms": 233.00664700000002,
+      "min_ms": 230.921228,
+      "max_ms": 234.91985100000002,
+      "questions_per_second": 1098.6811032905855,
+      "windows_per_second": 1098.6811032905855
+    },
+    {
+      "min_tokens": 128,
+      "max_tokens": 256,
+      "questions": 256,
+      "windows": 256,
+      "warmup": 1,
+      "iterations": 10,
+      "p50_ms": 427.083691,
+      "min_ms": 424.547099,
+      "max_ms": 434.084925,
+      "questions_per_second": 599.4141321589356,
+      "windows_per_second": 599.4141321589356
+    },
+    {
+      "min_tokens": 256,
+      "max_tokens": 384,
+      "questions": 256,
+      "windows": 263,
+      "warmup": 1,
+      "iterations": 10,
+      "p50_ms": 724.4103250000001,
+      "min_ms": 720.806419,
+      "max_ms": 731.034956,
+      "questions_per_second": 353.39087691771925,
+      "windows_per_second": 363.05390870843814
+    },
+    {
+      "min_tokens": 384,
+      "max_tokens": 0,
+      "questions": 210,
+      "windows": 471,
+      "warmup": 1,
+      "iterations": 10,
+      "p50_ms": 1312.8369289999998,
+      "min_ms": 1308.965046,
+      "max_ms": 1316.918357,
+      "questions_per_second": 159.95893729159414,
+      "windows_per_second": 358.7650450682897
+    }
+  ]
+}
