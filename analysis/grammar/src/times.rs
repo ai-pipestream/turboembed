@@ -152,7 +152,7 @@ fn push(
 }
 
 impl Annotator for TimeAnnotator {
-    const VERSION: &'static str = "3";
+    const VERSION: &'static str = "4";
     const ID: &'static str = "turbo-grammar:times";
     type Reads = (View, Option<DocumentDate>);
     type Writes = (Times,);

@@ -597,7 +597,8 @@ the offset is in TIMEX3. Subtract the offset for an absolute UTC instant.
 A time-only value has no absolute date. Range durations remain local-clock
 durations, so a range crossing a daylight-saving transition can differ
 from elapsed UTC duration. Zone policy and region enter the configuration
-hash; the annotator version is 3. No external dependency is added.
+hash; the annotator version is 4, separating these results from the earlier
+part-of-day suffix behavior. No external dependency is added.
 
 ### Specification status
 
