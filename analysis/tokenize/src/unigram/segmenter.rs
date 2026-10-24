@@ -1,12 +1,13 @@
-//! The segmenter: OpenNLP's `UnigramSegmenter.tokenizePos` over a loaded
-//! [`UnigramLexicon`].
+//! Frequency segmentation with selectable Chinese and OpenNLP policies.
 
 use turbo_analysis::Span;
 use turbo_unicode::WhitespaceMode;
 
+use super::hmm;
 use super::lexicon::UnigramLexicon;
 use crate::TokenizerOptions;
 use crate::whitespace::whitespace_spans;
+use turbo_unicode::script::{Script, script};
 
 /// The buffers one segmentation reuses: the whitespace-free stretches of
 /// the text, the characters of the current stretch, and the best score
@@ -20,6 +21,8 @@ pub struct Scratch {
     offsets: Vec<u32>,
     best: Vec<f64>,
     previous: Vec<u32>,
+    raw: Vec<Span>,
+    hmm: hmm::Scratch,
 }
 
 impl Scratch {
@@ -28,12 +31,26 @@ impl Scratch {
     }
 }
 
+/// How dictionary segmentation handles runs that are not words.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum UnigramMode {
+    /// Group ASCII alphanumerics and use the trained BMES model for
+    /// adjacent single Han characters not forming a dictionary word.
+    Chinese,
+    /// Group ASCII alphanumerics, with no unknown-word model.
+    #[default]
+    Dictionary,
+    /// Preserve OpenNLP's dictionary-only path, including ASCII splitting.
+    OpenNlp,
+}
+
 /// The unigram frequency segmenter: a lexicon and the whitespace mode the
-/// text is split in.
+/// text is split in, plus an explicit unknown-word policy.
 #[derive(Debug, Clone)]
 pub struct UnigramSegmenter {
     pub(crate) lexicon: UnigramLexicon,
     pub(crate) whitespace: WhitespaceMode,
+    pub(crate) mode: UnigramMode,
 }
 
 impl UnigramSegmenter {
@@ -42,7 +59,17 @@ impl UnigramSegmenter {
     /// in; OpenNLP reads one process-wide mode for both, so the two are
     /// the same unless a caller wants otherwise.
     pub fn new(lexicon: UnigramLexicon, whitespace: WhitespaceMode) -> UnigramSegmenter {
-        UnigramSegmenter { lexicon, whitespace }
+        UnigramSegmenter { lexicon, whitespace, mode: UnigramMode::Dictionary }
+    }
+
+    /// Selects the segmentation policy. The default is [`UnigramMode::Dictionary`].
+    pub fn with_mode(mut self, mode: UnigramMode) -> Self {
+        self.mode = mode;
+        self
+    }
+
+    pub fn mode(&self) -> UnigramMode {
+        self.mode
     }
 
     pub fn lexicon(&self) -> &UnigramLexicon {
@@ -67,7 +94,68 @@ impl UnigramSegmenter {
         whitespace_spans(text, options, &mut scratch.stretches);
         for i in 0..scratch.stretches.len() {
             let stretch = scratch.stretches[i];
-            self.decode(text, stretch, scratch, out);
+            if self.mode == UnigramMode::OpenNlp {
+                self.decode(text, stretch, scratch);
+                out.extend_from_slice(&scratch.raw);
+            } else {
+                self.chinese(text, stretch, scratch, out);
+            }
+        }
+    }
+
+    fn chinese(&self, text: &str, stretch: Span, scratch: &mut Scratch, out: &mut Vec<Span>) {
+        // ASCII alphanumerics are atomic even if individual letters or
+        // digits occur in the lexicon. Non-ASCII spans retain dictionary DP.
+        let part = &text[stretch.range()];
+        let mut start = 0;
+        while start < part.len() {
+            let ascii = part[start..].chars().next().unwrap().is_ascii_alphanumeric();
+            let len: usize =
+                part[start..].chars().take_while(|c| c.is_ascii_alphanumeric() == ascii).map(char::len_utf8).sum();
+            let span = Span::new(stretch.start + start as u32, stretch.start + (start + len) as u32);
+            if ascii {
+                out.push(span);
+            } else {
+                self.decode(text, span, scratch);
+                if self.mode == UnigramMode::Chinese {
+                    self.unknown_words(text, span.start, scratch, out);
+                } else {
+                    out.extend_from_slice(&scratch.raw);
+                }
+            }
+            start += len;
+        }
+    }
+
+    fn unknown_words(&self, text: &str, base: u32, scratch: &mut Scratch, out: &mut Vec<Span>) {
+        let mut i = 0;
+        while i < scratch.raw.len() {
+            let first = scratch.raw[i];
+            let eligible = |s: Span| {
+                let mut chars = text[s.range()].chars();
+                let c = chars.next().unwrap();
+                chars.next().is_none() && script(c) == Script::Han && hmm::observes(c)
+            };
+            if !eligible(first) {
+                out.push(first);
+                i += 1;
+                continue;
+            }
+            let mut end = i + 1;
+            while end < scratch.raw.len() && eligible(scratch.raw[end]) {
+                end += 1;
+            }
+            let last = scratch.raw[end - 1];
+            if end - i == 1 || self.lexicon.log_probability(&text[first.start as usize..last.end as usize]).is_some() {
+                out.extend_from_slice(&scratch.raw[i..end]);
+            } else {
+                // Every raw word in this run is one character; locate the
+                // corresponding reusable character and byte-offset slices.
+                let a = scratch.offsets.binary_search(&(first.start - base)).unwrap();
+                let b = a + end - i;
+                hmm::cut(&scratch.chars[a..b], &scratch.offsets[a..=b], base, &mut scratch.hmm, out);
+            }
+            i = end;
         }
     }
 
@@ -86,9 +174,10 @@ impl UnigramSegmenter {
     /// pair, but never reaches them (the step over an unlisted character
     /// takes the whole pair, and a word is whole characters), so it skips
     /// them, and visiting only character boundaries changes nothing.
-    fn decode(&self, text: &str, stretch: Span, scratch: &mut Scratch, out: &mut Vec<Span>) {
+    fn decode(&self, text: &str, stretch: Span, scratch: &mut Scratch) {
         let part = &text[stretch.range()];
-        let Scratch { chars, offsets, best, previous, .. } = scratch;
+        let Scratch { chars, offsets, best, previous, raw: out, .. } = scratch;
+        out.clear();
         chars.clear();
         offsets.clear();
         for (i, c) in part.char_indices() {
@@ -152,7 +241,7 @@ mod tests {
 
     fn segmenter() -> UnigramSegmenter {
         let lexicon = UnigramLexicon::parse(LEXICON.as_bytes(), WhitespaceMode::Unicode).unwrap();
-        UnigramSegmenter::new(lexicon, WhitespaceMode::Unicode)
+        UnigramSegmenter::new(lexicon, WhitespaceMode::Unicode).with_mode(UnigramMode::OpenNlp)
     }
 
     fn words<'a>(s: &UnigramSegmenter, text: &'a str) -> Vec<&'a str> {
@@ -223,7 +312,7 @@ mod tests {
             WhitespaceMode::Unicode,
         )
         .unwrap();
-        let s = UnigramSegmenter::new(lexicon, WhitespaceMode::Unicode);
+        let s = UnigramSegmenter::new(lexicon, WhitespaceMode::Unicode).with_mode(UnigramMode::OpenNlp);
         // [U+20BB7][U+20BBE U+91CE] sums log 1 + log 3 - 2 log 9, above
         // [U+20BB7 U+20BBE][U+91CE] at log 5 + log 0.5 - 2 log 9.
         let text = "\u{20bb7}\u{20bbe}\u{91ce}\u{20bb7}";
@@ -240,7 +329,7 @@ mod tests {
         // runs to the end of this text, so it is quadratic, in Java too.
         let word = "a".repeat(4_000);
         let lexicon = UnigramLexicon::parse(format!("{word} 1\n").as_bytes(), WhitespaceMode::Unicode).unwrap();
-        let s = UnigramSegmenter::new(lexicon, WhitespaceMode::Unicode);
+        let s = UnigramSegmenter::new(lexicon, WhitespaceMode::Unicode).with_mode(UnigramMode::OpenNlp);
         assert_eq!(spans(&s, &word), [(0, 4_000)]);
     }
 
@@ -251,7 +340,7 @@ mod tests {
         // values); [A][BC]'s last word starts at A's end, before C, so it
         // wins.
         let lexicon = UnigramLexicon::parse(b"ab 2\nc 3\na 3\nbc 2\n", WhitespaceMode::Unicode).unwrap();
-        let s = UnigramSegmenter::new(lexicon, WhitespaceMode::Unicode);
+        let s = UnigramSegmenter::new(lexicon, WhitespaceMode::Unicode).with_mode(UnigramMode::OpenNlp);
         let ab = s.lexicon().log_probability("ab").unwrap();
         let c = s.lexicon().log_probability("c").unwrap();
         let a = s.lexicon().log_probability("a").unwrap();
@@ -263,8 +352,8 @@ mod tests {
     #[test]
     fn the_whitespace_mode_decides_the_stretches() {
         let lexicon = UnigramLexicon::parse(LEXICON.as_bytes(), WhitespaceMode::Unicode).unwrap();
-        let unicode = UnigramSegmenter::new(lexicon.clone(), WhitespaceMode::Unicode);
-        let legacy = UnigramSegmenter::new(lexicon, WhitespaceMode::Legacy);
+        let unicode = UnigramSegmenter::new(lexicon.clone(), WhitespaceMode::Unicode).with_mode(UnigramMode::OpenNlp);
+        let legacy = UnigramSegmenter::new(lexicon, WhitespaceMode::Legacy).with_mode(UnigramMode::OpenNlp);
         // U+0085 is whitespace in Unicode mode only, U+001C in legacy mode only.
         assert_eq!(words(&unicode, "\u{6211}\u{85}\u{6211}"), ["\u{6211}", "\u{6211}"]);
         assert_eq!(words(&legacy, "\u{6211}\u{85}\u{6211}"), ["\u{6211}", "\u{85}", "\u{6211}"]);

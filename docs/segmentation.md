@@ -874,6 +874,11 @@ include inputs on which every model splits inside U+1F600.
 
 ### `UnigramSegmenter` (Chinese)
 
+The default now groups ASCII letter/digit runs; optional BMES and explicit
+OpenNLP modes are documented in [Chinese unigram evaluation](unigram-chinese.md),
+with current PKU/MSR accuracy and a matched jieba-rs speed record. The Java
+port details and older measurements below describe `UnigramMode::OpenNlp`.
+
 `opennlp.tools.tokenize.lattice.UnigramSegmenter`
 (`turbo_tokenize::unigram`): dictionary and frequency segmentation for
 Chinese and other text written without spaces. It reads a `View` and an
@@ -997,7 +1002,7 @@ computed from the end of the sentence, keeps `手牵着|手`. The port keeps
 OpenNLP's behaviour in both; grouping such runs would be a change to
 OpenNLP.
 
-Speed is not measured here: no matched benchmark against jieba-rs is
+The historical run below did not measure speed: no matched benchmark against jieba-rs was
 committed, so this section makes no speed claim (AGENTS.md, rule 7).
 
 ### `LatticeTokenizer` (Japanese, Korean)
