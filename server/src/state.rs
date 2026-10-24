@@ -3,11 +3,12 @@
 //! and remove entries, and every listing reads the current list.
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
 use turbo::{
     TURBO_DTYPE_I32, TURBO_PLACE_PINNED, TURBO_TASK_EMBED, TURBO_TASK_EXTRACTIVE_QA, TURBO_TASK_RERANK,
-    turbo_session_desc, turbo_session_info,
+    turbo_model_info, turbo_session_desc, turbo_session_info,
 };
 
 use crate::api::{self, *};
@@ -26,7 +27,15 @@ pub(crate) struct Slot {
     /// turbo_session_get_info, read once at load: it is fixed at
     /// turbo_session_create.
     pub(crate) info: turbo_session_info,
+    pub(crate) desc: turbo_session_desc,
+    pub(crate) max_ranges: AtomicU32,
     pub(crate) session: Session,
+}
+
+impl Slot {
+    pub(crate) fn max_ranges(&self) -> u32 {
+        self.max_ranges.load(Ordering::Acquire)
+    }
 }
 
 // The pointers are into the slot's own buffers, written only by the request
@@ -37,6 +46,9 @@ unsafe impl Sync for Slot {}
 /// A loaded model and its sessions, dropped sessions first, then the model.
 pub(crate) struct Loaded {
     pub(crate) slots: Vec<Slot>,
+    pub(crate) bundle: String,
+    pub(crate) model_info: turbo_model_info,
+    pub(crate) embed: OnceLock<api::Result<crate::tasks::EmbedModel>>,
     pub(crate) qa: Option<crate::tasks::QaModel>,
     pub(crate) model: Model,
     pub(crate) task: u32,
@@ -47,8 +59,8 @@ pub(crate) struct Loaded {
 
 /// A session taken from its model's pool, returned when this is dropped.
 pub struct Held {
-    loaded: Arc<Loaded>,
-    index: usize,
+    pub(crate) loaded: Arc<Loaded>,
+    pub(crate) index: usize,
 }
 
 impl Held {
@@ -290,6 +302,7 @@ impl State {
         for _ in 0..c.sessions {
             let session = model.session(&desc).map_err(fail("turbo_session_create", &SESSION_DESC))?;
             let si = session.info().map_err(fail("turbo_session_get_info", &[]))?;
+            let slot_ranges = if desc.max_ranges == 0 { si.max_batch } else { desc.max_ranges };
             let alloc = || {
                 let b = ctx
                     .alloc(TURBO_PLACE_PINNED, TURBO_DTYPE_I32, si.max_batch, si.max_seq)
@@ -298,10 +311,28 @@ impl State {
                 Ok::<_, String>((b, p))
             };
             let ((ids, a), (mask, b), (types, t)) = (alloc()?, alloc()?, alloc()?);
-            slots.push(Slot { _buffers: [ids, mask, types], ptrs: [a, b, t], info: si, session });
+            slots.push(Slot {
+                _buffers: [ids, mask, types],
+                ptrs: [a, b, t],
+                info: si,
+                desc,
+                max_ranges: AtomicU32::new(slot_ranges),
+                session,
+            });
         }
         let idle = Mutex::new((0..slots.len()).rev().collect());
-        let loaded = Loaded { slots, qa, model, task: info.task, device, revision: api::field(&info.revision), idle };
+        let loaded = Loaded {
+            slots,
+            bundle: c.bundle.clone(),
+            model_info: info,
+            embed: OnceLock::new(),
+            qa,
+            model,
+            task: info.task,
+            device,
+            revision: api::field(&info.revision),
+            idle,
+        };
         // The caller holds the loading mutex: no other load can have set
         // this entry's load.
         let _ = m.loaded.set(Arc::new(loaded));

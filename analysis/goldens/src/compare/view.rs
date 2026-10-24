@@ -7,6 +7,7 @@
 //! one-to-one replacements, so a normalizer matches it by making one edit
 //! per character too.
 
+use std::borrow::Cow;
 use turbo_analysis::{View, ViewId};
 use turbo_analysis_layers::Strs;
 
@@ -24,15 +25,19 @@ impl GoldenCompare for View {
         GoldenAnchor::Text
     }
 
-    /// Only a view made directly from the source (or the source itself)
-    /// is compared: the edits of a chain of views are each against their
-    /// own parent, and composing them into edits against the source is
-    /// not done here, so a chained view is reported as such.
+    /// A chain's parent alignment is composed back to the source before
+    /// comparing rows. Direct views retain their original edit boundaries.
     fn compare(&self, cx: &Cx<'_>, golden: &GoldenLayer, tol: Tolerance) -> Result<(), Mismatch> {
-        match self.parent() {
-            None | Some(ViewId::SOURCE) => {}
-            Some(_) => return Err(Mismatch::ChainedView { layer: cx.layer.clone() }),
-        }
+        let alignment = match self.parent() {
+            None | Some(ViewId::SOURCE) => Cow::Borrowed(self.alignment()),
+            Some(parent) => {
+                let preceding = cx
+                    .doc
+                    .view_alignment(ViewId::SOURCE, parent)
+                    .map_err(|e| Mismatch::ViewAlignment { layer: cx.layer.clone(), detail: e.to_string() })?;
+                Cow::Owned(preceding.compose(self.alignment()))
+            }
+        };
         let start = golden.u32s("start").expect("a u32 column the shape checked");
         let end = golden.u32s("end").expect("a u32 column the shape checked");
         let with = golden.strs("with").expect("a str column the shape checked");
@@ -49,7 +54,7 @@ impl GoldenCompare for View {
         }
         // The alignment stores edits as structs; the comparison reads
         // columns, so the Rust side is laid out once per layer.
-        let edits = self.alignment().edits();
+        let edits = alignment.edits();
         let mut r_start = Vec::with_capacity(edits.len());
         let mut r_end = Vec::with_capacity(edits.len());
         let mut r_with = Strs::default();

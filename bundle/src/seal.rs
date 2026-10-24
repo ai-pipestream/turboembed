@@ -383,6 +383,7 @@ pub fn seal_manifest(m: Value, bundle: &Path) -> Result<()> {
 /// computes with the bundle's tokenizer, loaded through this manifest.
 pub fn write_manifest(m: &Value, bundle: &Path, unwritten: Option<&str>) -> Result<()> {
     let mut m = m.clone();
+    m["model"]["license_class"] = serde_json::to_value(crate::licence::manifest_class(&m)?).unwrap();
     let mut files = Vec::new();
     for p in named_paths(&m)? {
         let bytes = if unwritten == Some(p.as_str()) {
@@ -409,6 +410,7 @@ pub fn verify(bundle: &Path) -> Result<()> {
     let b = Bundle::open(bundle).map_err(|e| e.message)?;
     Tokenizer::load(&b).map_err(|e| e.message)?;
     let m = &b.manifest;
+    crate::licence::check_recorded(m)?;
     let listed: BTreeSet<String> = m.files.iter().map(|f| f.path.clone()).collect();
     for p in &listed {
         b.read_verified(p).map_err(|e| e.message)?;
