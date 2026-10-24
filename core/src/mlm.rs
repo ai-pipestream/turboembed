@@ -30,8 +30,10 @@ pub struct MlmHead {
     pub ln_eps: f32,
     /// The decoder, `hidden` to `vocab`; its weight is the word embedding
     /// table when the bundle ties it (BERT's default). The sparse path
-    /// transposes it once, on its first call, and keeps that copy, so a
-    /// decoder changed after that call is refused there.
+    /// transposes it once, on its first call, and keeps that copy. A
+    /// decoder of another size set after that call is refused there; one of
+    /// the same size is not seen, so the decoder is not to change once the
+    /// head is in use.
     pub decoder: Linear,
     decoder_t: Transposed,
 }
