@@ -17,6 +17,7 @@ pub mod distill;
 pub mod fetch;
 pub mod glirel;
 pub mod matryoshka;
+pub mod postag;
 pub mod qa;
 pub mod recipe;
 pub mod reference;

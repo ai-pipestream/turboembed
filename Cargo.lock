@@ -2021,6 +2021,8 @@ dependencies = [
  "serde_path_to_error",
  "turbo",
  "turbo-gliner",
+ "turbo-goldens",
+ "turbo-postag",
  "ureq",
 ]
 
