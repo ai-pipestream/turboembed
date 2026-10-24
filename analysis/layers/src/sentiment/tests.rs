@@ -123,6 +123,7 @@ fn incivility_and_pragmatics_construct_and_check_evidence_slices() {
             cost: vec![10],
             model_tokens: vec![16],
             over_budget: vec![false],
+            prompt_overhead: 0,
         }
     };
     let chunks = make_chunks();
