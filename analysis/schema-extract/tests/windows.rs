@@ -95,16 +95,66 @@ fn document(text: &str, sentences: bool) -> Document {
 }
 
 fn run(doc: Document, given_sentences: bool) -> Result<Document, String> {
+    run_with(doc, given_sentences, annotator())
+}
+
+fn run_with(doc: Document, given_sentences: bool, annotator: SchemaAnnotator) -> Result<Document, String> {
     let mut b = Analyzer::builder().given(Key::<Tokens>::DEFAULT);
     if given_sentences {
         b = b.given(Key::<Sentences>::DEFAULT);
     }
-    let analyzer = b.add(annotator()).build().unwrap();
+    let analyzer = b.add(annotator).build().unwrap();
     let mut docs = vec![doc];
     for r in analyzer.run(&mut docs) {
         r.map_err(|e| e.to_string())?;
     }
     Ok(docs.pop().unwrap())
+}
+
+#[test]
+fn windowed_categories_keep_every_labels_best_probability() {
+    let task = |name: &str, names: &[&str], multi_label| ClassificationTask {
+        name: name.into(),
+        labels: names.iter().map(|n| Label { name: (*n).into(), description: None }).collect(),
+        multi_label,
+        threshold: 0.0,
+        top_k: Some(1),
+    };
+    let schema = ExtractionSchema {
+        classifications: vec![
+            task("tone", &["calm", "urgent", "angry"], false),
+            task("topic", &["billing", "shipping", "refund"], true),
+        ],
+        ..Default::default()
+    };
+    let make = || SchemaAnnotator::new(common::offline(limits()), schema.clone(), 0.0).unwrap();
+    let doc = document(TEXT, true);
+    let windows = make().windows(doc.get::<View>().unwrap(), doc.get::<Tokens>().unwrap(), doc.get()).unwrap();
+    assert!(windows.len() >= 3, "exercise aggregation across several real model passes");
+    let mut expected = vec![0.0_f64; 6];
+    let mut first = None;
+    for at in windows {
+        let part = run_with(document(&TEXT[at], true), true, make()).unwrap();
+        let row = part.get::<Categories>().unwrap().get(0).unwrap();
+        first.get_or_insert_with(|| row.scores.to_vec());
+        assert_eq!(row.scores.len(), expected.len());
+        assert_eq!(row.selected.len(), 2, "one softmax winner and one top-k sigmoid winner");
+        for (best, &score) in expected.iter_mut().zip(row.scores) {
+            assert!(score > 0.0 && score < 1.0, "the real model also scores unselected labels");
+            *best = best.max(score);
+        }
+    }
+    assert!(expected.iter().zip(first.unwrap()).any(|(&best, first)| best > first), "later windows improve a score");
+    let whole = run_with(doc, true, make()).unwrap();
+    let categories = whole.get::<Categories>().unwrap();
+    assert_eq!(categories.check(), Ok(()));
+    let row = categories.get(0).unwrap();
+    assert_eq!(row.scores, expected, "every label keeps its maximum window probability, even if unselected");
+    assert_eq!(row.selected.len(), 2);
+    for range in [0..3, 3..6] {
+        let selected = row.selected.iter().map(|t| t.0 as usize).find(|i| range.contains(i)).unwrap();
+        assert!(range.clone().all(|i| row.scores[i] <= row.scores[selected]));
+    }
 }
 
 fn windows(doc: &Document) -> Vec<std::ops::Range<usize>> {

@@ -14,8 +14,9 @@
 //!   choice) all equal an earlier record's is the same record found again
 //!   in the overlap, and is dropped; instance numbers count the records
 //!   kept, per type, in text order;
-//! - a classification label's probability is the highest any window gave
-//!   it, and the document's chosen labels are every window's, best first:
+//! - every classification label's probability, chosen or not, is the
+//!   highest any window gave it; these maxima are not renormalized. The
+//!   document's chosen labels are every window's, best first:
 //!   one for a single-label task, at most `top_k` for a multi-label one.
 
 use std::ops::Range;
@@ -23,7 +24,7 @@ use std::ops::Range;
 use turbo_analysis::{Layer, View};
 use turbo_analysis_layers::{Sentences, Tokens};
 
-use crate::decode::{Classified, Corroborate, Extraction, FieldValue, Record, SpanValue};
+use crate::decode::{Corroborate, Extraction, FieldValue, Record, SpanValue};
 use crate::model::ExtractError;
 use crate::schema::{Cardinality, ExtractionSchema, Source};
 
@@ -174,11 +175,15 @@ pub fn merge(out: &mut Extraction, window: Extraction, at: Range<usize>) {
         let i = match out.classifications.iter().position(|o| o.task == c.task) {
             Some(i) => i,
             None => {
-                out.classifications.push(Classified { task: c.task, labels: Vec::new() });
-                out.classifications.len() - 1
+                out.classifications.push(c);
+                continue;
             }
         };
-        let labels = &mut out.classifications[i].labels;
+        let merged = &mut out.classifications[i];
+        for (best, p) in merged.probs.iter_mut().zip(c.probs) {
+            *best = best.max(p);
+        }
+        let labels = &mut merged.labels;
         for l in c.labels {
             match labels.iter_mut().find(|o| o.0 == l.0) {
                 Some(o) if o.1 < l.1 => *o = l,

@@ -5,13 +5,14 @@
 //!
 //! The document's `Categories` hold every task's labels as `task: label`,
 //! task by task: each label's score is its probability within its task,
-//! whether or not it was chosen (a single-label task's scores sum to 1),
+//! whether or not it was chosen (a single-label pass's scores sum to 1),
 //! the selected set is every task's chosen labels, and the best category
 //! the highest-scoring of them.
 //!
 //! Text longer than one encoder pass is read in sentence-aligned windows
 //! (the document's `Sentences`, or its tokens when it has none) and the
-//! windows' results merged; [`crate::window`] gives the rules.
+//! windows' results merged; each label keeps its maximum probability
+//! across passes without renormalizing. [`crate::window`] gives the rules.
 
 use turbo_analysis::{Annotator, Error, ModelRef, Refs, Span, Spans, Tag, TagSet, View};
 use turbo_analysis_layers::{Categories, Entities, Numbers, Pii, Sentences, Tokens};

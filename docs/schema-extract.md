@@ -64,7 +64,8 @@ spans mapped back to the source view's bytes, and the results merged:
   different windows. A record whose values all equal an earlier record's
   is the same record seen again in the overlap and is dropped; instances
   count the records kept, per type, in text order;
-- a classification label's probability is the highest a window gave it;
+- every classification label's probability, chosen or not, is the highest
+  a window gave it, without renormalizing the maxima;
   the chosen labels are every window's, best first, one for a
   single-label task and at most `top_k` for a multi-label one.
 
@@ -123,6 +124,8 @@ any of the four deterministic layers present. It writes:
   `task: label`. Each score is the label's probability within its task,
   whether or not the label was chosen: a single-label task's scores are
   one softmax summing to 1, a multi-label task's are independent sigmoids.
+  For windowed text, each label keeps its maximum over the passes, so
+  single-label scores across the whole document need not sum to 1.
   The selected set is every task's chosen labels; the best category is the
   highest-scoring selected label.
 - `Records` (`turbo:records`). Each span value has an exact byte span of
