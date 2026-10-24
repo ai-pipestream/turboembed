@@ -3,7 +3,7 @@
 //! the rows it applies to. The BiLSTM input projections of every word are
 //! one product; only the recurrent step runs word by word. Spans go through
 //! out_project and label scoring in blocks of SPANS rows, all buffers come
-//! from one workspace per call.
+//! from one workspace retained across windows and documents.
 use crate::{Candidate, Config};
 use turbo::{
     cpu::{Matrix, Mode},
@@ -67,7 +67,7 @@ impl Mlp {
 }
 /// The buffers of one call.
 #[derive(Default)]
-struct Work {
+pub(crate) struct Work {
     x: Vec<f32>,
     projected: Vec<f32>,
     prompts: Vec<f32>,
@@ -149,11 +149,22 @@ impl Heads {
         words: &[usize],
         max_width: usize,
     ) -> Result<Vec<Candidate>, String> {
+        self.score_with_work(states, width, prompts, words, max_width, &mut Work::default())
+    }
+
+    pub(crate) fn score_with_work(
+        &self,
+        states: &[f32],
+        width: usize,
+        prompts: &[usize],
+        words: &[usize],
+        max_width: usize,
+        w: &mut Work,
+    ) -> Result<Vec<Candidate>, String> {
         if width != self.projection.k || prompts.iter().chain(words).any(|&i| (i + 1) * width > states.len()) {
             return Err("gliner hidden state layout mismatch".into());
         }
         let (d, labels, n) = (self.hidden, prompts.len(), words.len());
-        let mut w = Work::default();
         w.x.clear();
         for &i in prompts.iter().chain(words) {
             w.x.extend_from_slice(&states[i * width..(i + 1) * width]);
@@ -162,7 +173,9 @@ impl Heads {
         self.prompt.run(&w.projected[..labels * d], labels, &mut w.mid, &mut w.prompts)?;
         let scorer = Matrix::from_rows(&[&w.prompts], d).map_err(memory)?;
         let projected = std::mem::take(&mut w.projected);
-        self.words(&projected[labels * d..], n, &mut w)?;
+        let result = self.words(&projected[labels * d..], n, w);
+        w.projected = projected;
+        result?;
         self.start.run(&w.words, n, &mut w.mid, &mut w.starts)?;
         self.end.run(&w.words, n, &mut w.mid, &mut w.ends)?;
         // out_project reads relu([start, end]).
@@ -221,5 +234,27 @@ impl Heads {
             }
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+impl Work {
+    pub(crate) fn allocations(&self) -> [(usize, usize); 13] {
+        [
+            &self.x,
+            &self.projected,
+            &self.prompts,
+            &self.mid,
+            &self.gates,
+            &self.step,
+            &self.state,
+            &self.cell,
+            &self.words,
+            &self.starts,
+            &self.ends,
+            &self.spans,
+            &self.logits,
+        ]
+        .map(|v| (v.as_ptr() as usize, v.capacity()))
     }
 }
