@@ -354,3 +354,7 @@ mod steps;
 mod tokens;
 pub use steps::{ChunkVectors, SentenceChunkVectors, SentenceVectors, SubwordVectors, VectorsProvider};
 pub use tokens::ContextualTokens;
+mod cached;
+pub(crate) use cached::CachedWindows;
+#[cfg(test)]
+mod cache_tests;

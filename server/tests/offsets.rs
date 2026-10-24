@@ -265,6 +265,8 @@ fn u32_max_wire_indices_are_refused_not_panicked() {
     let tokens = turbo_kserve::results::tokens::TokenVectors {
         model: model(),
         view: ViewId::SOURCE.0,
+        text: String::new(),
+        offsets: OffsetMode::Utf8,
         dim: 2,
         data: vec![1.0, 0.0],
         empty: vec![u32::MAX],

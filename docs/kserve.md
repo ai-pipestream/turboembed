@@ -45,7 +45,7 @@ request:
 |---|---|---|
 | `bundle` | `bundle_path` of `turbo_model_load` | Required. |
 | `name` | The model name requests use; no header call. | The last component of `bundle`. |
-| `device` | the runtime device index for `turbo_context_create`, or `select` for the index `turbo_runtime_select` gives for `TURBO_TASK_EMBED` | Required. The header has no default device. `turbo_runtime_select` never picks a CPU, so on a host with no other device `select` fails with `TURBO_E_DEVICE_NOT_FOUND` and the server exits; there the configuration names the CPU's index. |
+| `device` | the runtime device index for `turbo_context_create`, or `select` for the index `turbo_runtime_select` gives for the bundle's `TURBO_TASK_*` | Required. The header has no default device. For `TURBO_TASK_EMBED`, `turbo_runtime_select` never picks a CPU, so on a host with no other device `select` fails with `TURBO_E_DEVICE_NOT_FOUND` and the server exits; for `TURBO_TASK_RERANK` and `TURBO_TASK_EXTRACTIVE_QA`, `select` picks the CPU cross-encoder / extractive-QA device. |
 | `precision` | `turbo_session_desc.precision`: `PRECISION_MODEL`, `PRECISION_FASTEST` or `PRECISION_EXACT` | 0, `TURBO_PRECISION_MODEL`. |
 | `max_batch` | `turbo_session_desc.max_batch` | 0, the model's. |
 | `max_seq` | `turbo_session_desc.max_seq` | 0, the model's. |
@@ -69,9 +69,11 @@ no session bound that would refuse it first.
 A failure in any of these calls stops the server before it is ready. It
 logs the call, `turbo_status_name` of the code, the field if the error
 names one, and `turbo_error.message`, and exits with a non-zero status.
-The header has one task, so `select` names `TURBO_TASK_EMBED`, and a
-bundle of another task fails `turbo_model_load` with
-`TURBO_E_UNSUPPORTED_TASK`, which stops the server the same way (Tasks).
+The server serves `TURBO_TASK_EMBED`, `TURBO_TASK_RERANK`, and
+`TURBO_TASK_EXTRACTIVE_QA`. `select` passes the bundle's task to
+`turbo_runtime_select`, and a bundle of any other task fails
+`turbo_model_load` with `TURBO_E_UNSUPPORTED_TASK`, which stops the
+server the same way (Tasks).
 
 Each session also has three `TURBO_PLACE_PINNED` buffers of
 `TURBO_DTYPE_I32`, for `ids`, `mask` and `types`, made by
@@ -424,16 +426,49 @@ rather than retrying the call.
 
 ## Tasks
 
-The server serves `TURBO_TASK_EMBED`, the one task the header has. A
-bundle of any other task is refused at startup with
+The server serves the three tasks the header defines: `TURBO_TASK_EMBED`,
+`TURBO_TASK_RERANK`, and `TURBO_TASK_EXTRACTIVE_QA`. A bundle of any
+other task is refused at startup (or on `LoadBundle`) with
 `TURBO_E_UNSUPPORTED_TASK`.
+
+### Rerank (`TURBO_TASK_RERANK`)
+
+- `ModelMetadata`: inputs `query` (`BYTES`, `[-1]`) and `passages`
+  (`BYTES`, `[-1]`), output `scores` (`FP32`, `[-1, 1]`), plus
+  `model_info.rerank_query_tokens` and `model_info.rerank_pair_template`
+  (`PAIR_BERT` or `PAIR_ROBERTA`).
+- `ModelInfer`: accepts `query` (`[batch]` or `[1]` broadcast across
+  `passages`) + `passages` (or `passage`) of `BYTES` `[batch]`, or
+  `pairs` of `BYTES` `[batch, 2]`, in `bytes_contents` or
+  `raw_input_contents`. Parameters are `turbo_rerank_options` fields:
+  `query_tokens` (field 1), `max_tokens` (field 2), and `stride`
+  (field 3), each an `int64_param`. Runs `turbo_rerank_write_pairs` and
+  `turbo_session_run`, returning `[batch, 1]` FP32 relevance logits in
+  `raw_output_contents[0]` and `stage.RERANK_STAGE_*` placements.
+
+### Extractive QA (`TURBO_TASK_EXTRACTIVE_QA`)
+
+- `ModelMetadata`: inputs `question` (`BYTES`, `[1]`) and `context`
+  (`BYTES`, `[1]`), outputs `spans` (`INT32`, `[-1, 2]`), `scores`
+  (`FP64`, `[-1]`), and `probabilities` (`FP64`, `[-1]`).
+- `ModelInfer`: accepts one `[1]` `question` and `[1]` `context` of
+  UTF-8 `BYTES`. Parameters are `max_answer_tokens` (field 1,
+  `int64_param`), `top_k` (field 2, `int64_param`), `null_threshold`
+  (field 3, `double_param`), and `non_overlapping` (field 4,
+  `bool_param`). Encodes joint question/context windows on the session's
+  token-range path, projects token hidden states through the 2-label
+  span classifier head, and returns UTF-8 byte spans `[k, 2]` with scores
+  and calibrated probabilities plus response parameters `abstained`
+  (`bool_param`), `null_score` (`double_param`), and `null_probability`
+  (`double_param`).
+
+### Growing a task
 
 The header grows a task by one rule: a task number `TURBO_TASK_<TASK>`,
 an options struct `turbo_<task>_options`, one `turbo_<task>_write_<input>`
 per input shape, `turbo_<task>_read_<what>` only when the output is not
 one `[batch, dim]` block, and model facts at the end of
-`turbo_model_info`. The mapping grows with it, by the rules embed
-follows here:
+`turbo_model_info`. The mapping grows with it, by the rules above:
 
 - `turbo_model_info.task` of the loaded bundle chooses the task; the
   model's metadata lists that task's inputs and outputs.
