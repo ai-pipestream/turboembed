@@ -11,7 +11,6 @@
 
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use tokio::sync::{OwnedSemaphorePermit, Semaphore, mpsc};
@@ -22,7 +21,7 @@ use tonic::Status;
 use crate::api::Failure;
 use crate::proto::result::{AnalyzeOrder, AnalyzeStreamResponse};
 use crate::stream::run::{self, Doc, Outcome, Whole};
-use crate::stream::{BatchKey, Envelope, Room, Shared};
+use crate::stream::{BatchKey, Dead, Envelope, Room, Shared};
 
 /// The header as the scheduler holds it.
 #[derive(Debug)]
@@ -98,18 +97,20 @@ impl Engine {
         mut self,
         mut work: mpsc::Receiver<Envelope>,
         answers: mpsc::Sender<std::result::Result<AnalyzeStreamResponse, Status>>,
-        dead: Arc<AtomicBool>,
+        dead: Arc<Dead>,
     ) {
         let mut input_ended = false;
+        // The two timers live across the loop and are reset each turn;
+        // a branch whose deadline is None is disabled, so a far reset
+        // never fires.
+        let far = || Instant::now() + Duration::from_secs(86400);
+        let mut sleeper = std::pin::pin!(tokio::time::sleep_until(far()));
+        let mut stalled_retry = std::pin::pin!(tokio::time::sleep_until(far()));
         loop {
             let deadline = self.deadline(input_ended);
-            let mut sleeper = Box::pin(tokio::time::sleep_until(
-                deadline.unwrap_or_else(|| Instant::now() + Duration::from_secs(86400)),
-            ));
+            sleeper.as_mut().reset(deadline.unwrap_or_else(far));
             let stalled_deadline = self.stalled_at.map(|at| at + SESSION_RETRY);
-            let mut stalled_retry = Box::pin(tokio::time::sleep_until(
-                stalled_deadline.unwrap_or_else(|| Instant::now() + Duration::from_secs(86400)),
-            ));
+            stalled_retry.as_mut().reset(stalled_deadline.unwrap_or_else(far));
             tokio::select! {
                 env = work.recv() => match env {
                     Some(Envelope::Doc(mut doc)) => {
@@ -143,10 +144,10 @@ impl Engine {
                     }
                     None => {}
                 },
-                _ = &mut sleeper, if deadline.is_some() => self.dispatch(true, &dead).await,
+                _ = sleeper.as_mut(), if deadline.is_some() => self.dispatch(true, &dead).await,
                 // A batch whose sessions are all held waits here and
                 // retries without ever blocking this loop.
-                _ = &mut stalled_retry, if stalled_deadline.is_some() => {
+                _ = stalled_retry.as_mut(), if stalled_deadline.is_some() => {
                     self.stalled_at = None;
                     self.retry_stalled(&dead).await;
                 },
@@ -167,7 +168,7 @@ impl Engine {
                 break;
             }
         }
-        dead.store(true, Ordering::SeqCst);
+        dead.set();
     }
 
     /// When the next dispatch is due: the linger after the oldest
@@ -191,7 +192,7 @@ impl Engine {
     /// stream. `force` dispatches past the linger, for the
     /// linger's own deadline and the input's half-close. Batches whose
     /// sessions are all held go to `stalled`, never to a wait here.
-    async fn dispatch(&mut self, force: bool, dead: &Arc<AtomicBool>) {
+    async fn dispatch(&mut self, force: bool, dead: &Arc<Dead>) {
         if self.pending.is_empty() || self.window_sem.available_permits() == 0 {
             return;
         }
@@ -241,7 +242,7 @@ impl Engine {
     }
 
     /// Retries every stalled batch once, in turn.
-    async fn retry_stalled(&mut self, dead: &Arc<AtomicBool>) {
+    async fn retry_stalled(&mut self, dead: &Arc<Dead>) {
         for _ in 0..self.stalled.len() {
             let Some((docs, permits)) = self.stalled.pop_front() else { return };
             self.respawn(docs, permits, dead).await;
@@ -251,7 +252,7 @@ impl Engine {
     /// Starts one batch: window permits first, then a session. On a shut
     /// window the documents come back to stay queued; on a busy pool they
     /// wait on `stalled` holding their permits.
-    async fn spawn(&mut self, batch: Vec<Queued>, dead: &Arc<AtomicBool>) -> std::result::Result<(), Vec<Queued>> {
+    async fn spawn(&mut self, batch: Vec<Queued>, dead: &Arc<Dead>) -> std::result::Result<(), Vec<Queued>> {
         let n = batch.len();
         let mut permits = Vec::with_capacity(n);
         for _ in 0..n {
@@ -270,8 +271,8 @@ impl Engine {
 
     /// Runs one batch that already holds its window permits and its
     /// count. A busy session pool requeues the batch on `stalled`.
-    async fn respawn(&mut self, docs: Vec<Doc>, permits: Vec<OwnedSemaphorePermit>, dead: &Arc<AtomicBool>) {
-        if dead.load(Ordering::SeqCst) {
+    async fn respawn(&mut self, docs: Vec<Doc>, permits: Vec<OwnedSemaphorePermit>, dead: &Arc<Dead>) {
+        if dead.is_set() {
             self.stalled.push_back((docs, permits));
             return;
         }
@@ -414,7 +415,7 @@ pub(crate) fn start(
     config: Config,
     work: mpsc::Receiver<Envelope>,
     answers: mpsc::Sender<std::result::Result<AnalyzeStreamResponse, Status>>,
-    dead: Arc<AtomicBool>,
+    dead: Arc<Dead>,
 ) -> JoinHandle<()> {
     tokio::spawn(Engine::new(shared, config).run(work, answers, dead))
 }

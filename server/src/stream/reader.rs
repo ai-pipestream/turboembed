@@ -11,8 +11,6 @@
 
 use std::collections::VecDeque;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
 
 use tokio::sync::{Semaphore, mpsc};
 use tonic::{Status, Streaming};
@@ -23,7 +21,7 @@ use crate::proto::result::{AnalyzeDocument, AnalyzeStreamRequest};
 use crate::state::State;
 use crate::stream::handler;
 use crate::stream::run::Doc;
-use crate::stream::{Envelope, Room, Shared, admit, admit_refusal, bound_retained_id, over_byte_cap, over_bytes};
+use crate::stream::{Dead, Envelope, Room, Shared, admit, admit_refusal, bound_retained_id, over_byte_cap, over_bytes};
 
 /// Validates one document the way the single-document call validates
 /// its model and options, and builds the work the scheduler queues.
@@ -67,12 +65,12 @@ pub(crate) async fn run(
     stream_bytes: Arc<Semaphore>,
     mut inbound: Streaming<AnalyzeStreamRequest>,
     work: mpsc::Sender<Envelope>,
-    dead: Arc<AtomicBool>,
+    dead: Arc<Dead>,
 ) {
     let mut backlog: VecDeque<AnalyzeDocument> = VecDeque::new();
     let mut input_closed = false;
     loop {
-        if dead.load(Ordering::SeqCst) {
+        if dead.is_set() {
             return;
         }
         let document = match backlog.pop_front() {
@@ -153,22 +151,14 @@ pub(crate) async fn run(
     }
 }
 
-/// Waits out an admission, checking the stream's death on a short
-/// beat: an over-cap or flooded admission never outlives the stream.
-async fn wait_room(
-    admit: &mut (impl std::future::Future<Output = Room> + Unpin),
-    dead: &Arc<AtomicBool>,
-) -> Option<Room> {
-    loop {
-        if dead.load(Ordering::SeqCst) {
-            return None;
-        }
-        let room = tokio::select! {
-            room = &mut *admit => Some(room),
-            _ = tokio::time::sleep(Duration::from_millis(5)) => None,
-        };
-        if let Some(room) = room {
-            return Some(room);
-        }
+/// Waits out an admission, or until the stream dies: an over-cap or
+/// flooded admission never outlives the stream.
+async fn wait_room(admit: &mut (impl std::future::Future<Output = Room> + Unpin), dead: &Arc<Dead>) -> Option<Room> {
+    if dead.is_set() {
+        return None;
+    }
+    tokio::select! {
+        room = &mut *admit => Some(room),
+        _ = dead.wait() => None,
     }
 }
