@@ -103,6 +103,15 @@ cargo test --release -p turbo-sat --test speed -- --ignored --nocapture
   checkpoint's `config.json` and `model.safetensors` as the model in
   place of the tiny model's `out/model`, and the bge-m3 file as the
   tokenizer; `config.json` is read by the reference only, not sealed.
+  `bundle/recipes/sat-3l.json` is the recipe for `sat-3l` (MIT, limited
+  lookahead). Its checkpoint ships `pytorch_model.bin` and no
+  safetensors: the upstream directory holds it, `config.json` and the
+  bge-m3 `tokenizer.json`, and the weights are written by
+  `bin_to_safetensors.py` in the `turbo-reference` image, whose report,
+  with that image and `reproducible`, sits beside the file as
+  `weights/model.safetensors.report.json` before `seal`. The reference
+  reads the `.bin` directory; `segment` reads a directory holding
+  `config.json` and the written `model.safetensors`.
 - `tests/annotator.rs`: batching, texts longer than a window, texts
   without words, the threshold and line feeds, the options, the
   configuration hash, the provider and the analyzer.

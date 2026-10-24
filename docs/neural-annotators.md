@@ -197,6 +197,30 @@ encoder matches the mean of wtpsplit's encoder states for the recipe's
 absolute difference is 3.1e-6 (`TURBO_TEST_BUNDLE=<bundle> cargo test -p
 turbo --test conformance -- --include-ignored`).
 
+`sat-3l` at revision `a3b7ba6b61881d619989757aea971cde7d3d6a98` (three
+layers, `lookahead` 48 in its config, so 16 keys ahead a layer) passes
+the same test. Its recipe, `bundle/recipes/sat-3l.json`, writes the
+weights from the checkpoint's `pytorch_model.bin` (it ships no
+safetensors) with the same PyTorch step `bge-m3-8192` uses, with the
+bge-m3 tokenizer as above. The boundary score is label 0 of the 111,
+wtpsplit's `Constants.NEWLINE_INDEX`, the index `SaT._predict_proba`
+takes the sigmoid of. On the 90 texts, at wtpsplit's default threshold
+for a limited-lookahead model:
+
+| Threshold, stride, block | Largest probability difference, CPU | Characters near the threshold |
+|---|---|---|
+| 0.025, 16, 62 | 1.5e-4 | 0 |
+| 0.025, 7, 30 | 1.6e-4 | 0 |
+| 0.025, 64, 510 | 1.5e-4 | 1 |
+
+The ids, offsets and pieces agree as for `sat-1l-sm` (six cluster spans
+widened, one text with a pad token in it). At 64 and 510 one character
+sits within the tolerance of the threshold in wtpsplit and lands on the
+other side; the test counts it rather than calling it a mismatch, as
+for the tiny model's 0.25, 62, 62 fixture. The encoder matches
+wtpsplit's for the 16 cases: one minus the lowest cosine is 1.2e-12,
+the largest absolute difference 5.0e-6.
+
 What the step does differently, and why:
 
 - **Tokenizer pipeline.** The reference runs wtpsplit with the model's
