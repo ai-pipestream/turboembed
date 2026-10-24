@@ -270,7 +270,7 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
             let tok = &text[s as usize..e as usize];
             if tok.bytes().any(|b| b.is_ascii_digit()) {
                 let lo = if k >= 2 && (ends[k - 1] - starts[k - 1]) <= 2 { k - 2 } else { k.saturating_sub(1) };
-                let hi = (k + 3).min(n);
+                let hi = (k + 5).min(n);
                 let is_clock_meridian = tok.len() >= 3
                     && matches!(&tok.as_bytes()[tok.len() - 2..], b"am" | b"pm" | b"AM" | b"PM" | b"Am" | b"Pm")
                     && tok.as_bytes()[..tok.len() - 2].iter().all(u8::is_ascii_digit);
@@ -278,7 +278,7 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
                 let qty_cue = (!is_clock_meridian
                     && tok.bytes().any(|b| !b.is_ascii_digit() && !matches!(b, b'.' | b',' | b'-')))
                     || next_tok.is_some_and(|nt| {
-                        nt.len() <= 7
+                        nt.len() <= 20
                             && !matches!(
                                 nt,
                                 "at" | "on" | "in" | "to" | "of" | "by" | "for" | "from" | "with" | "and" | "or"
@@ -286,7 +286,7 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
                     });
                 if let Some(last) = d_wins.last_mut()
                     && prev_d != usize::MAX
-                    && k <= prev_d + 1
+                    && (k <= prev_d + 1 || k < last.1)
                 {
                     last.1 = last.1.max(hi);
                     last.2 += 1;
@@ -311,13 +311,44 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
             let money_cue = !sub_text.is_ascii()
                 || sub_text.bytes().any(|b| b == b'$' || b.is_ascii_uppercase())
                 || (tok_lo..tok_hi).any(|i| {
+                    let w = &text[starts[i] as usize..ends[i] as usize];
                     matches!(
-                        &text[starts[i] as usize..ends[i] as usize],
+                        w,
                         "dollar" | "dollars" | "euro" | "euros" | "pound" | "pounds" | "sterling" | "yen"
                             | "rupee" | "rupees" | "yuan" | "renminbi" | "ruble" | "rubles" | "rouble"
                             | "roubles" | "shekel" | "shekels" | "baht"
-                    )
+                    ) || (w.len() == 3
+                        && w.bytes().all(|b| b.is_ascii_alphabetic())
+                        && turbo_analysis_layers::Currency::new([
+                            w.as_bytes()[0].to_ascii_uppercase(),
+                            w.as_bytes()[1].to_ascii_uppercase(),
+                            w.as_bytes()[2].to_ascii_uppercase(),
+                        ])
+                        .is_some_and(turbo_numeric::money::is_iso_currency))
                 });
+            // The money extractor reads ISO codes in capitals only
+            // (its document behavior is pinned by JVM goldens), but
+            // queries write `500 usd`: scan a copy with standalone
+            // lowercase ISO code tokens uppercased in place, which
+            // keeps every byte offset unchanged.
+            let mut owned: Option<String> = None;
+            for i in tok_lo..tok_hi {
+                let w = &text[starts[i] as usize..ends[i] as usize];
+                if w.len() == 3
+                    && w.bytes().all(|b| b.is_ascii_lowercase())
+                    && turbo_analysis_layers::Currency::new([
+                        w.as_bytes()[0].to_ascii_uppercase(),
+                        w.as_bytes()[1].to_ascii_uppercase(),
+                        w.as_bytes()[2].to_ascii_uppercase(),
+                    ])
+                    .is_some_and(turbo_numeric::money::is_iso_currency)
+                {
+                    let buf = owned.get_or_insert_with(|| sub_text.to_owned());
+                    let at = starts[i] as usize - lo;
+                    buf[at..at + 3].make_ascii_uppercase();
+                }
+            }
+            let sub_text: &str = owned.as_deref().unwrap_or(sub_text);
             let mut m_cnt = 0usize;
             if money_cue {
                 let mut sm = turbo_analysis_layers::Money::new(view.id());
@@ -366,4 +397,76 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
         }
         h
     }
+}
+
+/// The quantity extractor for queries: the default short units
+/// plus their spelled-out English forms, since queries write
+/// `10 kilometers` and `2 kilograms`, not only abbreviations.
+pub(crate) fn query_quantity_extractor(
+    notation: turbo_analysis_layers::NumberNotation,
+) -> turbo_numeric::QuantityExtractor {
+    const LONG_UNITS: [&str; 57] = [
+        "kilometer",
+        "kilometers",
+        "kilometre",
+        "kilometres",
+        "meter",
+        "meters",
+        "metre",
+        "metres",
+        "centimeter",
+        "centimeters",
+        "millimeter",
+        "millimeters",
+        "mile",
+        "miles",
+        "yard",
+        "yards",
+        "inch",
+        "inches",
+        "feet",
+        "kilogram",
+        "kilograms",
+        "gram",
+        "grams",
+        "milligram",
+        "milligrams",
+        "ton",
+        "tons",
+        "liter",
+        "liters",
+        "milliliter",
+        "milliliters",
+        "millisecond",
+        "milliseconds",
+        "microsecond",
+        "microseconds",
+        "minute",
+        "minutes",
+        "hour",
+        "hours",
+        "kilobyte",
+        "kilobytes",
+        "megabyte",
+        "megabytes",
+        "gigabyte",
+        "gigabytes",
+        "terabyte",
+        "terabytes",
+        "petabyte",
+        "petabytes",
+        "kilowatt",
+        "kilowatts",
+        "megawatt",
+        "megawatts",
+        "calorie",
+        "calories",
+        "kilocalorie",
+        "kilocalories",
+    ];
+    turbo_numeric::QuantityExtractor::with_units(
+        turbo_numeric::DEFAULT_UNITS.iter().chain(LONG_UNITS.iter()).copied(),
+        notation,
+    )
+    .unwrap_or_else(|_| turbo_numeric::QuantityExtractor::new(notation))
 }
