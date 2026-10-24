@@ -105,6 +105,9 @@ fn exact_conversions_across_length_mass_volume_temperature_and_speed() {
     assert_eq!(Unit::Volume(Volume::Liter).normalize(d("250")), Some((d("0.25"), m3)));
     assert_eq!(Unit::Volume(Volume::Milliliter).normalize(d("500")), Some((d("0.0005"), m3)));
     assert_eq!(Unit::Volume(Volume::Gallon).normalize(d("1")), Some((d("0.003785411784"), m3)));
+    assert_eq!(Unit::Volume(Volume::Minim).normalize(d("1")), Some((d("0.000000061611519921875"), m3)));
+    assert_eq!(Unit::Volume(Volume::Minim).normalize(d("60")), Unit::Volume(Volume::FluidDram).normalize(d("1")),);
+    assert_eq!(Unit::Volume(Volume::Minim).normalize(d("480")), Unit::Volume(Volume::FluidOunce).normalize(d("1")),);
 
     // Temperature (affine) -> K
     let k = Unit::Temperature(Temperature::Kelvin);

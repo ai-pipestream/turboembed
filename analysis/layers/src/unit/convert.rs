@@ -136,7 +136,7 @@ impl Volume {
             Volume::Teaspoon => dec(492_892_159_375, 17),
             Volume::FluidDram => dec(36_966_911_953_125, 19),
             Volume::Pinch => dec(308_057_599_609_375, 21),
-            Volume::Minim => dec(61_611_519_921_875, 20),
+            Volume::Minim => dec(61_611_519_921_875, 21),
             Volume::Barrel => dec(158_987_294_928, 12),
             Volume::Hogshead => dec(238_480_942_392, 12),
             // 1 cord = 128 ft³ = 3.624556363776 m³.

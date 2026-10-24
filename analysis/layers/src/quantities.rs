@@ -204,6 +204,7 @@ fn check_decimal(i: usize, label: &str, negative: bool, digits: &str) -> Result<
 
 impl Layer for Quantities {
     const ID: &'static str = "turbo:quantities";
+    const SCHEMA: u16 = 2;
     positional!(Quantities);
 
     fn check(&self) -> Result<(), String> {
@@ -317,6 +318,7 @@ mod tests {
         assert!(q.check().unwrap_err().contains("empty"));
     }
 
+    /// `testQuantityValidation`, `testQuantityRejectsUnicodeBlankUnit`.
     #[test]
     fn check_wants_a_unit() {
         for blank in ["", " ", "\u{00A0}", "\u{3000}", "\u{2028}"] {
