@@ -43,6 +43,7 @@ mod boilerplate;
 mod calibrated;
 mod core_layers;
 mod emotion;
+mod events;
 mod helpers;
 mod indexes;
 mod lexical;
@@ -116,6 +117,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Ordinals>()
         .register::<Quantities>()
         .register::<Times>()
+        .register::<crate::Events>()
         .register::<Pii>()
         .register::<Regions>()
         .register::<Matches>()

@@ -121,3 +121,6 @@ The libraries are unchanged by this measurement; narrowing them (the
 `>obl` passive agent, the copular attribute, the voice and object
 variants above) changes what they extract and is left to its own
 change, measured on this fixture.
+
+Predicate-argument events with N-ary, anchored arguments are in
+[events.md](events.md).
