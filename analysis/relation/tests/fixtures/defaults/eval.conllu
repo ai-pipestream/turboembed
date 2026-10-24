@@ -1,0 +1,372 @@
+# The turbo-relation default pattern evaluation fixture (docs/relation.md,
+# "Measured defaults"). Written for this repository and licensed with it
+# (Apache-2.0); no sentence comes from an outside corpus. Gold UD v2 parses,
+# gold entity spans and kinds (`entity = first-last kind`, word numbers),
+# and gold relations (`relation = head tail label`, entity numbers in
+# entity order), one sentence per block. A sentence's text is its word
+# forms joined by single spaces.
+
+# sent_id = 1
+# text = Acme Corp acquired Bolt Systems .
+# entity = 1-2 organization
+# entity = 4-5 organization
+# relation = 1 2 subject-object
+# relation = 2 1 acquired_by
+1	Acme	Acme	PROPN	_	_	2	compound	_	_
+2	Corp	Corp	PROPN	_	_	3	nsubj	_	_
+3	acquired	acquire	VERB	_	_	0	root	_	_
+4	Bolt	Bolt	PROPN	_	_	5	compound	_	_
+5	Systems	Systems	PROPN	_	_	3	obj	_	_
+6	.	.	PUNCT	_	_	3	punct	_	_
+
+# sent_id = 2
+# text = Bolt was acquired by Acme Corp .
+# entity = 1-1 organization
+# entity = 5-6 organization
+# relation = 1 2 passive-agent
+# relation = 1 2 acquired_by
+1	Bolt	Bolt	PROPN	_	_	3	nsubj:pass	_	_
+2	was	be	AUX	_	_	3	aux:pass	_	_
+3	acquired	acquire	VERB	_	_	0	root	_	_
+4	by	by	ADP	_	_	6	case	_	_
+5	Acme	Acme	PROPN	_	_	6	compound	_	_
+6	Corp	Corp	PROPN	_	_	3	obl:agent	_	_
+7	.	.	PUNCT	_	_	3	punct	_	_
+
+# sent_id = 3
+# text = Bolt was acquired in 2019 by Acme .
+# entity = 1-1 organization
+# entity = 5-5 date
+# entity = 7-7 organization
+# relation = 1 3 passive-agent
+# relation = 1 3 acquired_by
+1	Bolt	Bolt	PROPN	_	_	3	nsubj:pass	_	_
+2	was	be	AUX	_	_	3	aux:pass	_	_
+3	acquired	acquire	VERB	_	_	0	root	_	_
+4	in	in	ADP	_	_	5	case	_	_
+5	2019	2019	NUM	_	_	3	obl	_	_
+6	by	by	ADP	_	_	7	case	_	_
+7	Acme	Acme	PROPN	_	_	3	obl:agent	_	_
+8	.	.	PUNCT	_	_	3	punct	_	_
+
+# sent_id = 4
+# text = Jane Smith founded Acme .
+# entity = 1-2 person
+# entity = 4-4 organization
+# relation = 1 2 subject-object
+# relation = 2 1 founded_by
+1	Jane	Jane	PROPN	_	_	3	nsubj	_	_
+2	Smith	Smith	PROPN	_	_	1	flat	_	_
+3	founded	found	VERB	_	_	0	root	_	_
+4	Acme	Acme	PROPN	_	_	3	obj	_	_
+5	.	.	PUNCT	_	_	3	punct	_	_
+
+# sent_id = 5
+# text = Acme was founded by Jane Smith in Boston .
+# entity = 1-1 organization
+# entity = 5-6 person
+# entity = 8-8 location
+# relation = 1 2 passive-agent
+# relation = 1 2 founded_by
+1	Acme	Acme	PROPN	_	_	3	nsubj:pass	_	_
+2	was	be	AUX	_	_	3	aux:pass	_	_
+3	founded	found	VERB	_	_	0	root	_	_
+4	by	by	ADP	_	_	5	case	_	_
+5	Jane	Jane	PROPN	_	_	3	obl:agent	_	_
+6	Smith	Smith	PROPN	_	_	5	flat	_	_
+7	in	in	ADP	_	_	8	case	_	_
+8	Boston	Boston	PROPN	_	_	3	obl	_	_
+9	.	.	PUNCT	_	_	3	punct	_	_
+
+# sent_id = 6
+# text = Acme is headquartered in Boston .
+# entity = 1-1 organization
+# entity = 5-5 location
+# relation = 1 2 headquartered_in
+1	Acme	Acme	PROPN	_	_	3	nsubj:pass	_	_
+2	is	be	AUX	_	_	3	aux:pass	_	_
+3	headquartered	headquarter	VERB	_	_	0	root	_	_
+4	in	in	ADP	_	_	5	case	_	_
+5	Boston	Boston	PROPN	_	_	3	obl	_	_
+6	.	.	PUNCT	_	_	3	punct	_	_
+
+# sent_id = 7
+# text = Acme is located in Boston .
+# entity = 1-1 organization
+# entity = 5-5 location
+# relation = 1 2 located_in
+1	Acme	Acme	PROPN	_	_	3	nsubj:pass	_	_
+2	is	be	AUX	_	_	3	aux:pass	_	_
+3	located	locate	VERB	_	_	0	root	_	_
+4	in	in	ADP	_	_	5	case	_	_
+5	Boston	Boston	PROPN	_	_	3	obl	_	_
+6	.	.	PUNCT	_	_	3	punct	_	_
+
+# sent_id = 8
+# text = Acme is in Boston .
+# entity = 1-1 organization
+# entity = 4-4 location
+# relation = 1 2 located_in
+1	Acme	Acme	PROPN	_	_	4	nsubj	_	_
+2	is	be	AUX	_	_	4	cop	_	_
+3	in	in	ADP	_	_	4	case	_	_
+4	Boston	Boston	PROPN	_	_	0	root	_	_
+5	.	.	PUNCT	_	_	4	punct	_	_
+
+# sent_id = 9
+# text = Jane Smith is from Boston .
+# entity = 1-2 person
+# entity = 5-5 location
+1	Jane	Jane	PROPN	_	_	5	nsubj	_	_
+2	Smith	Smith	PROPN	_	_	1	flat	_	_
+3	is	be	AUX	_	_	5	cop	_	_
+4	from	from	ADP	_	_	5	case	_	_
+5	Boston	Boston	PROPN	_	_	0	root	_	_
+6	.	.	PUNCT	_	_	5	punct	_	_
+
+# sent_id = 10
+# text = Jane Smith is a Democrat .
+# entity = 1-2 person
+# entity = 5-5 group
+# relation = 1 2 attribute
+1	Jane	Jane	PROPN	_	_	5	nsubj	_	_
+2	Smith	Smith	PROPN	_	_	1	flat	_	_
+3	is	be	AUX	_	_	5	cop	_	_
+4	a	a	DET	_	_	5	det	_	_
+5	Democrat	Democrat	PROPN	_	_	0	root	_	_
+6	.	.	PUNCT	_	_	5	punct	_	_
+
+# sent_id = 11
+# text = Jane Smith works for Acme .
+# entity = 1-2 person
+# entity = 5-5 organization
+# relation = 1 2 works_for
+1	Jane	Jane	PROPN	_	_	3	nsubj	_	_
+2	Smith	Smith	PROPN	_	_	1	flat	_	_
+3	works	work	VERB	_	_	0	root	_	_
+4	for	for	ADP	_	_	5	case	_	_
+5	Acme	Acme	PROPN	_	_	3	obl	_	_
+6	.	.	PUNCT	_	_	3	punct	_	_
+
+# sent_id = 12
+# text = John Doe works with Acme in Boston .
+# entity = 1-2 person
+# entity = 5-5 organization
+# entity = 7-7 location
+1	John	John	PROPN	_	_	3	nsubj	_	_
+2	Doe	Doe	PROPN	_	_	1	flat	_	_
+3	works	work	VERB	_	_	0	root	_	_
+4	with	with	ADP	_	_	5	case	_	_
+5	Acme	Acme	PROPN	_	_	3	obl	_	_
+6	in	in	ADP	_	_	7	case	_	_
+7	Boston	Boston	PROPN	_	_	3	obl	_	_
+8	.	.	PUNCT	_	_	3	punct	_	_
+
+# sent_id = 13
+# text = Acme employs John Doe .
+# entity = 1-1 organization
+# entity = 3-4 person
+# relation = 1 2 subject-object
+# relation = 2 1 works_for
+1	Acme	Acme	PROPN	_	_	2	nsubj	_	_
+2	employs	employ	VERB	_	_	0	root	_	_
+3	John	John	PROPN	_	_	2	obj	_	_
+4	Doe	Doe	PROPN	_	_	3	flat	_	_
+5	.	.	PUNCT	_	_	2	punct	_	_
+
+# sent_id = 14
+# text = John Doe joined Acme in 2015 .
+# entity = 1-2 person
+# entity = 4-4 organization
+# entity = 6-6 date
+# relation = 1 2 subject-object
+# relation = 1 2 member_of
+1	John	John	PROPN	_	_	3	nsubj	_	_
+2	Doe	Doe	PROPN	_	_	1	flat	_	_
+3	joined	join	VERB	_	_	0	root	_	_
+4	Acme	Acme	PROPN	_	_	3	obj	_	_
+5	in	in	ADP	_	_	6	case	_	_
+6	2015	2015	NUM	_	_	3	obl	_	_
+7	.	.	PUNCT	_	_	3	punct	_	_
+
+# sent_id = 15
+# text = Jane Smith joined with Acme .
+# entity = 1-2 person
+# entity = 5-5 organization
+1	Jane	Jane	PROPN	_	_	3	nsubj	_	_
+2	Smith	Smith	PROPN	_	_	1	flat	_	_
+3	joined	join	VERB	_	_	0	root	_	_
+4	with	with	ADP	_	_	5	case	_	_
+5	Acme	Acme	PROPN	_	_	3	obl	_	_
+6	.	.	PUNCT	_	_	3	punct	_	_
+
+# sent_id = 16
+# text = Jane Smith is a member of the Sierra Club .
+# entity = 1-2 person
+# entity = 8-9 organization
+# relation = 1 2 member_of
+1	Jane	Jane	PROPN	_	_	5	nsubj	_	_
+2	Smith	Smith	PROPN	_	_	1	flat	_	_
+3	is	be	AUX	_	_	5	cop	_	_
+4	a	a	DET	_	_	5	det	_	_
+5	member	member	NOUN	_	_	0	root	_	_
+6	of	of	ADP	_	_	9	case	_	_
+7	the	the	DET	_	_	9	det	_	_
+8	Sierra	Sierra	PROPN	_	_	9	compound	_	_
+9	Club	Club	PROPN	_	_	5	nmod	_	_
+10	.	.	PUNCT	_	_	5	punct	_	_
+
+# sent_id = 17
+# text = Jane Smith was born in Paris .
+# entity = 1-2 person
+# entity = 6-6 location
+# relation = 1 2 born_in
+1	Jane	Jane	PROPN	_	_	4	nsubj:pass	_	_
+2	Smith	Smith	PROPN	_	_	1	flat	_	_
+3	was	be	AUX	_	_	4	aux:pass	_	_
+4	born	bear	VERB	_	_	0	root	_	_
+5	in	in	ADP	_	_	6	case	_	_
+6	Paris	Paris	PROPN	_	_	4	obl	_	_
+7	.	.	PUNCT	_	_	4	punct	_	_
+
+# sent_id = 18
+# text = Jean Dupont , born in Paris , moved to Lyon .
+# entity = 1-2 person
+# entity = 6-6 location
+# entity = 10-10 location
+# relation = 1 2 born_in
+1	Jean	Jean	PROPN	_	_	8	nsubj	_	_
+2	Dupont	Dupont	PROPN	_	_	1	flat	_	_
+3	,	,	PUNCT	_	_	4	punct	_	_
+4	born	bear	VERB	_	_	1	acl	_	_
+5	in	in	ADP	_	_	6	case	_	_
+6	Paris	Paris	PROPN	_	_	4	obl	_	_
+7	,	,	PUNCT	_	_	4	punct	_	_
+8	moved	move	VERB	_	_	0	root	_	_
+9	to	to	ADP	_	_	10	case	_	_
+10	Lyon	Lyon	PROPN	_	_	8	obl	_	_
+11	.	.	PUNCT	_	_	8	punct	_	_
+
+# sent_id = 19
+# text = Jane Smith is married to John Doe .
+# entity = 1-2 person
+# entity = 6-7 person
+# relation = 1 2 spouse_of
+1	Jane	Jane	PROPN	_	_	4	nsubj	_	_
+2	Smith	Smith	PROPN	_	_	1	flat	_	_
+3	is	be	AUX	_	_	4	cop	_	_
+4	married	married	ADJ	_	_	0	root	_	_
+5	to	to	ADP	_	_	6	case	_	_
+6	John	John	PROPN	_	_	4	obl	_	_
+7	Doe	Doe	PROPN	_	_	6	flat	_	_
+8	.	.	PUNCT	_	_	4	punct	_	_
+
+# sent_id = 20
+# text = Jane Smith married John Doe in 1998 .
+# entity = 1-2 person
+# entity = 4-5 person
+# entity = 7-7 date
+# relation = 1 2 subject-object
+# relation = 1 2 spouse_of
+1	Jane	Jane	PROPN	_	_	3	nsubj	_	_
+2	Smith	Smith	PROPN	_	_	1	flat	_	_
+3	married	marry	VERB	_	_	0	root	_	_
+4	John	John	PROPN	_	_	3	obj	_	_
+5	Doe	Doe	PROPN	_	_	4	flat	_	_
+6	in	in	ADP	_	_	7	case	_	_
+7	1998	1998	NUM	_	_	3	obl	_	_
+8	.	.	PUNCT	_	_	3	punct	_	_
+
+# sent_id = 21
+# text = Paris , the French capital , hosted the summit .
+# entity = 1-1 location
+# entity = 3-5 location
+# relation = 1 2 apposition
+1	Paris	Paris	PROPN	_	_	7	nsubj	_	_
+2	,	,	PUNCT	_	_	5	punct	_	_
+3	the	the	DET	_	_	5	det	_	_
+4	French	French	ADJ	_	_	5	amod	_	_
+5	capital	capital	NOUN	_	_	1	appos	_	_
+6	,	,	PUNCT	_	_	5	punct	_	_
+7	hosted	host	VERB	_	_	0	root	_	_
+8	the	the	DET	_	_	9	det	_	_
+9	summit	summit	NOUN	_	_	7	obj	_	_
+10	.	.	PUNCT	_	_	7	punct	_	_
+
+# sent_id = 22
+# text = Acme 's chief executive , Jane Smith , resigned .
+# entity = 1-1 organization
+# entity = 3-4 title
+# entity = 6-7 person
+# relation = 1 2 possession
+# relation = 2 3 apposition
+# relation = 3 1 works_for
+1	Acme	Acme	PROPN	_	_	4	nmod:poss	_	_
+2	's	's	PART	_	_	1	case	_	_
+3	chief	chief	ADJ	_	_	4	amod	_	_
+4	executive	executive	NOUN	_	_	9	nsubj	_	_
+5	,	,	PUNCT	_	_	6	punct	_	_
+6	Jane	Jane	PROPN	_	_	4	appos	_	_
+7	Smith	Smith	PROPN	_	_	6	flat	_	_
+8	,	,	PUNCT	_	_	6	punct	_	_
+9	resigned	resign	VERB	_	_	0	root	_	_
+10	.	.	PUNCT	_	_	9	punct	_	_
+
+# sent_id = 23
+# text = Google 's Android dominates the market .
+# entity = 1-1 organization
+# entity = 3-3 product
+# relation = 1 2 possession
+1	Google	Google	PROPN	_	_	3	nmod:poss	_	_
+2	's	's	PART	_	_	1	case	_	_
+3	Android	Android	PROPN	_	_	4	nsubj	_	_
+4	dominates	dominate	VERB	_	_	0	root	_	_
+5	the	the	DET	_	_	6	det	_	_
+6	market	market	NOUN	_	_	4	obj	_	_
+7	.	.	PUNCT	_	_	4	punct	_	_
+
+# sent_id = 24
+# text = Jane Smith of Acme spoke .
+# entity = 1-2 person
+# entity = 4-4 organization
+# relation = 1 2 prepositional-attachment
+# relation = 1 2 works_for
+1	Jane	Jane	PROPN	_	_	5	nsubj	_	_
+2	Smith	Smith	PROPN	_	_	1	flat	_	_
+3	of	of	ADP	_	_	4	case	_	_
+4	Acme	Acme	PROPN	_	_	1	nmod	_	_
+5	spoke	speak	VERB	_	_	0	root	_	_
+6	.	.	PUNCT	_	_	5	punct	_	_
+
+# sent_id = 25
+# text = Acme in Boston hired Jane Smith .
+# entity = 1-1 organization
+# entity = 3-3 location
+# entity = 5-6 person
+# relation = 1 2 prepositional-attachment
+# relation = 1 2 located_in
+# relation = 1 3 subject-object
+# relation = 3 1 works_for
+1	Acme	Acme	PROPN	_	_	4	nsubj	_	_
+2	in	in	ADP	_	_	3	case	_	_
+3	Boston	Boston	PROPN	_	_	1	nmod	_	_
+4	hired	hire	VERB	_	_	0	root	_	_
+5	Jane	Jane	PROPN	_	_	4	obj	_	_
+6	Smith	Smith	PROPN	_	_	5	flat	_	_
+7	.	.	PUNCT	_	_	4	punct	_	_
+
+# sent_id = 26
+# text = Boston is the capital of Massachusetts .
+# entity = 1-1 location
+# entity = 3-4 location
+# entity = 6-6 location
+# relation = 1 2 attribute
+# relation = 2 3 prepositional-attachment
+# relation = 1 3 located_in
+1	Boston	Boston	PROPN	_	_	4	nsubj	_	_
+2	is	be	AUX	_	_	4	cop	_	_
+3	the	the	DET	_	_	4	det	_	_
+4	capital	capital	NOUN	_	_	0	root	_	_
+5	of	of	ADP	_	_	6	case	_	_
+6	Massachusetts	Massachusetts	PROPN	_	_	4	nmod	_	_
+7	.	.	PUNCT	_	_	4	punct	_	_
