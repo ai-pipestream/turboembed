@@ -35,7 +35,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-relation` | `analysis/relation/` | Dependency-path relation extraction over entity heads ([relation.md](relation.md)) |
 | `turbo-sequence` | `analysis/sequence/` | OpenNLP's beam search, BIO and BILOU codecs and feature generation framework (generators, `StringPattern` and the XML descriptors), with the context generators and validators of the part-of-speech tagger, chunker and name finder, the part-of-speech tag dictionary (`tags.tagdict`) and the Penn Treebank and Universal Dependencies tag mapping. Its crate documentation lists the OpenNLP behaviour it reproduces that is surprising, and the one it does not yet (QN models in a beam search); `analysis/sequence/README.md` describes its JVM golden files |
 | `turbo-postag` | `analysis/postag/` | OpenNLP's `POSTaggerME`: `PosModel` opens a `POSModel` file with its descriptor, tag dictionary, beam size and tag format, and `PosTagger` writes `opennlp:pos` (a tag and its probability per token, aligned to `opennlp:tokens`, one beam search per sentence). Tags and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/postag/README.md` describes its goldens and its accuracy on UD English EWT |
-| `turbo-lemmatizer` | `analysis/lemmatizer/` | OpenNLP's `LemmatizerME` (`LemmatizerModel`, `MaxentLemmatizer`: a beam search per sentence over the tagged tokens whose outcomes are lemma classes, shortest edit scripts applied to the lowercased token) and `DictionaryLemmatizer` (a `word<tab>tag<tab>lemma` lookup). Both read `opennlp:tokens` and `opennlp:pos` and write `opennlp:lemmas`; the maxent one also writes `turbo:confidence<opennlp:lemmas>`. Lemmas and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/lemmatizer/README.md` describes its goldens |
+| `turbo-lemmatizer` | `analysis/lemmatizer/` | OpenNLP's `LemmatizerME` (`LemmatizerModel`, `MaxentLemmatizer`: a beam search per sentence over the tagged tokens whose outcomes are lemma classes, shortest edit scripts applied to the lowercased token) and `DictionaryLemmatizer` (a `word<tab>tag<tab>lemma` lookup). Both read `opennlp:tokens` and `opennlp:pos` and write `opennlp:lemmas`; the maxent one also writes `turbo:confidence<opennlp:lemmas>`. Published OpenNLP models match the JVM bit for bit; native models use a case-preserving class format. The crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/lemmatizer/README.md` describes its goldens |
 | `turbo-phrase-chunker` | `analysis/phrase-chunker/` | OpenNLP's `ChunkerME`: `ChunkerModel` opens a `ChunkerModel` file and `PhraseChunker` writes `opennlp:chunk-tags` (a chunk tag and its probability per token, aligned to `opennlp:tokens`, one beam search per sentence over the tokens and their part-of-speech tags) and `opennlp:chunks` (the phrases those tags make, as `chunkAsSpans` returns them). Tags and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/phrase-chunker/README.md` describes its goldens. It is not `turbo-chunker`, which cuts retrieval units |
 | `turbo-namefind` | `analysis/namefind/` | OpenNLP's `DictionaryNameFinder`, `RegexNameFinder` and the patterns of `RegexNameFinderFactory`, which write `opennlp:entities` from `opennlp:tokens`, `FilterEntities` to resolve overlapping or nested entities by `FilterRule`, and the merge of several entity layers by `dropOverlappingSpans`. Built-in patterns use hand-written UTF-8 scanners and user patterns in Java syntax are compiled by `JavaRegex` to a direct bytecode matcher or refused with a typed error; the crate documentation lists what is refused and the OpenNLP behaviour that is surprising, and `analysis/namefind/README.md` describes its JVM golden files |
 | `turbo-stem` | `analysis/stem/` | OpenNLP's stemmers: `PorterStemmer`, the 21 Snowball stemmers (generated from the Snowball sources OpenNLP's classes come from, over UTF-16 code units as in Java), the light and minimal stemmers, `CachingStemmer`, and `StemAnnotator` (OpenNLP's `StemmerAnnotator`), which writes `turbo:stems` from `opennlp:tokens`. Its crate documentation lists the OpenNLP behaviour that is surprising; `analysis/stem/README.md` describes its JVM golden files and how OpenNLP's Snowball stems differ from current Snowball's |
@@ -3797,7 +3797,7 @@ cargo run --release -p turbo-train-recipes -- ud --treebanks <zoo-home>/artifact
     --references <dir with the OpenNLP UD models> --out <dir> [--recipe <model id>]...
 ```
 
-Results of a release-mode run of all sixteen recipes, with the five
+Historical results before the native lemma format, from all sixteen recipes, with the five
 lemmatizers run again after the last change to the tokens their gates
 leave out (each model file is the one the runs before the review wrote,
 by SHA-256), in points (F-measure for sentences and tokens, accuracy for
@@ -3813,8 +3813,13 @@ and each gate's lead with its left-out tokens counted:
 | Finnish FTB vs `fi-ud-tdt` |  |  | 89.25 vs 87.25, +1.47 to +2.53 | 88.87 vs 83.97, +4.35 to +5.45 |
 | Italian MarkIT vs `it-ud-vit` |  |  | 89.96 vs 92.17, -2.92 to -1.49, fail | 82.57 vs 83.55, -1.44 to -0.53, fail |
 
-The fourteen models gated against references of the zoo pass, and the
-two Italian models fail: they lose 2.21 points (tagger) and 0.98
+The current lemma recipes keep case. The [case evaluation](lemma-case-evaluation.md)
+records the new full-token and capitalized-lemma accuracy, exact model
+hashes and Italian error strata. It retains the paired gate and its
+coverage mask. The table above is the earlier lowercase run.
+
+In that earlier run the fourteen models gated against zoo references passed,
+and the two Italian models failed: they lose 2.21 points (tagger) and 0.98
 (lemmatizer) to OpenNLP's Italian models, so they get no zoo entry. The
 gates leave out the test tokens the reference cannot get right: the
 Finnish tagger's 635 of 16,261 (3.91 percent: `DET`, `PART` and
@@ -3822,12 +3827,12 @@ Finnish tagger's 635 of 16,261 (3.91 percent: `DET`, `PART` and
 of 9,654, and the lemmatizers' 57 (Spanish), 18 (Catalan), 100
 (Portuguese), 177 (Finnish) and 33 (Italian). Every such gate's lead is
 lower with them left out than with them counted, or the same: most for
-the Finnish tagger, +2.00 against +4.55. No model gives a lemma with a
-capital letter, as no OpenNLP lemmatizer does (it applies a class to the
+the Finnish tagger, +2.00 against +4.55. Those older models gave no lemma with a
+capital letter, as the OpenNLP format does (it applies a class to the
 lowercased token), so both models get wrong the test tokens whose lemma
 has one: from 7.14 percent of the Portuguese ones to 12.12 percent of
-the Italian ones, and 1 Finnish token. Giving them would be an
-improvement over OpenNLP, found here and not made. The Catalan references are OpenNLP's models of the same
+the Italian ones, and 1 Finnish token. The native class format now learns those lemmas; the linked case evaluation
+reports the new results. The Catalan references are OpenNLP's models of the same
 treebank: the sentence detector and tokenizer recipes make OpenNLP's
 events exactly and their models differ from the references only in the
 last bits of some parameters, so those gates check that the recipes
@@ -4070,7 +4075,7 @@ forty inputs of the `edge` set to exercise the reducer. Across them the
 Rust side matched or explained every golden; no offset invariant broke.
 What it took to get there:
 
-- The lemmatizers lowercase with `turbo_unicode::java::to_lowercase`,
+- OpenNLP-format lemmatizers lowercase with `turbo_unicode::java::to_lowercase`,
   which wrote final sigma under Unicode's Final_Sigma condition. The JDK's
   `String.toLowerCase` has its own: it walks the sigma's word, as its word
   break iterator for the root locale delimits it, passing over every

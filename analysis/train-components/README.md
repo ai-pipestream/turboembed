@@ -10,6 +10,11 @@ model files `SentenceDetectorME.train`, `TokenizerME.train`,
 manifest entry and artifact the JVM writes, and the reproduction of the
 published UD 1.3 models from their treebanks.
 
+The lemmatizer's default factory is now native and case-preserving.
+Use `LemmatizerFactory::opennlp` for the original event classes and JVM
+model format. The published UD reproduction and golden tests select that
+compatibility factory explicitly. See docs/lemma-case-evaluation.md.
+
 | Module | OpenNLP |
 |---|---|
 | `sentdetect` | `SentenceDetectorFactory` (with the language's end characters from the `Factory` classes), `SDEventStream`, `SentenceDetectorME.train`, `SentenceModel` |
