@@ -60,7 +60,17 @@ fn options(floor: Option<f64>) -> CalibrationOptions {
 }
 
 fn point(max_seq: u32, max_batch: u32, min_cosine: f64, device_ms: f64, cpu_ms: f64) -> Point {
-    Point { max_seq, max_batch, min_cosine, device_ms, cpu_ms, short_device_ms: 14.1, short_cpu_ms: 7.5 }
+    Point {
+        max_seq,
+        max_batch,
+        min_cosine,
+        device_ms,
+        cpu_ms,
+        short_device_ms: 14.1,
+        short_cpu_ms: 7.5,
+        doc_device_ms: 84.5,
+        doc_cpu_ms: 46.5,
+    }
 }
 
 fn at(max_seq: u32, max_batch: u32) -> VectorOptions {
@@ -169,11 +179,11 @@ fn the_kept_form_reads_back() {
     let text = c.to_text();
     assert_eq!(Calibration::parse(&text), Some(c));
     assert_eq!(Calibration::parse("calibration 1\n"), None);
-    assert_eq!(Calibration::parse("calibration 4\nfloor\tx\n"), None);
-    // The second form timed the CPU at Precision::Model, and the third
-    // has no times of one sentence alone: neither is read.
-    for old in ["calibration 2", "calibration 3"] {
-        assert_eq!(Calibration::parse(&text.replacen("calibration 4", old, 1)), None);
+    assert_eq!(Calibration::parse("calibration 5\nfloor\tx\n"), None);
+    // The second form timed the CPU at Precision::Model, the third has no
+    // times of one sentence alone, the fourth none of one text: none is read.
+    for old in ["calibration 2", "calibration 3", "calibration 4"] {
+        assert_eq!(Calibration::parse(&text.replacen("calibration 5", old, 1)), None);
     }
     // Every line short of the key, the floor and a point is refused, and
     // so is a record given twice or a point of the first form's four fields.

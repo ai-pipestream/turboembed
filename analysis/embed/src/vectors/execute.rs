@@ -53,12 +53,25 @@ impl VectorAnnotator {
     /// session: packed as `embed` packs them (`pack`), each run's rows as
     /// long as its longest. The call is planned, not run.
     pub fn shape(&self, annotator: &'static str, inputs: &[Input<'_>]) -> Shape {
-        self.shape_at(annotator, inputs, self.max_batch, self.max_ranges)
+        self.shape_at(annotator, inputs, self.max_batch, self.max_ranges).expect("a session's limits are at least 1")
     }
 
     /// `shape` in a session of `max_batch` rows and `max_ranges` ranges a
-    /// run.
-    pub fn shape_at(&self, annotator: &'static str, inputs: &[Input<'_>], max_batch: u32, max_ranges: u32) -> Shape {
+    /// run, each at least 1 (a session resolves 0 to its default before it
+    /// runs); an error for 0.
+    pub fn shape_at(
+        &self,
+        annotator: &'static str,
+        inputs: &[Input<'_>],
+        max_batch: u32,
+        max_ranges: u32,
+    ) -> Result<Shape, CoreError> {
+        if max_batch == 0 || max_ranges == 0 {
+            return Err(CoreError::new(
+                INVALID_ARGUMENT,
+                format!("shape of {max_batch} rows and {max_ranges} ranges a run: each must be at least 1"),
+            ));
+        }
         let mut out: Vec<Result<Output, Error>> = inputs.iter().map(|i| self.output_for(annotator, i)).collect();
         let mut plan = Plan::new(self.width());
         self.plan_batch(annotator, inputs, &mut plan, &mut out);
@@ -82,7 +95,7 @@ impl VectorAnnotator {
             Ok(())
         });
         let Ok(()) = counted;
-        shape
+        Ok(shape)
     }
 
     /// Lays out the windows of every document of `inputs` whose layers fit

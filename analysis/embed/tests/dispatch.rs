@@ -94,9 +94,14 @@ fn middle(t: &[f64]) -> f64 {
     t[t.len() / 2]
 }
 
+/// The lowest and highest of some times.
+fn low_high(t: &[f64]) -> (f64, f64) {
+    t.iter().fold((f64::INFINITY, 0f64), |(l, h), &x| (l.min(x), h.max(x)))
+}
+
 /// Times as their middle, then their lowest and highest.
 fn spread(t: &[f64]) -> String {
-    let (lo, hi) = t.iter().fold((f64::INFINITY, 0f64), |(l, h), &x| (l.min(x), h.max(x)));
+    let (lo, hi) = low_high(t);
     format!("{:.2} ({lo:.2}-{hi:.2})", middle(t))
 }
 
@@ -177,16 +182,16 @@ fn each_document_records_the_side_its_call_ran_on() {
     };
     let texts = held_out();
     // A kept calibration with a Hailo-8's costs: 11 ms a run and 3 a row
-    // on the device, 0.6 a token on the CPU, at the shapes the texts and
-    // their first sentence have here.
+    // on the device, 0.6 a token on the CPU, at the shapes the texts, their
+    // first sentence and their first text have here.
     let key = Calibration::key(&bert(), &o, &texts).unwrap();
     let probe = VectorAnnotator::open(&bert(), &at(Device::Cpu, Precision::Model, 24, 4)).unwrap();
     let short: Vec<Text> = vec![(texts[0].0[..texts[0].1[0].1 as usize].to_string(), vec![texts[0].1[0]])];
-    let one = shape_of(&bert(), &probe, &short, 1).unwrap();
     let (frames, tokens) = (Cost { run: 11.0, row: 3.0, token: 0.0 }, Cost { run: 0.0, row: 0.0, token: 0.6 });
     let points = [1, 4]
         .map(|b| {
-            let all = shape_of(&bert(), &probe, &texts, b).unwrap();
+            let at = |t: &[Text]| shape_of(&bert(), &probe, t, b).unwrap();
+            let (all, one, doc) = (at(&texts), at(&short), at(&texts[..1]));
             Point {
                 max_seq: 24,
                 max_batch: b,
@@ -195,6 +200,8 @@ fn each_document_records_the_side_its_call_ran_on() {
                 cpu_ms: tokens.ms(all),
                 short_device_ms: frames.ms(one),
                 short_cpu_ms: tokens.ms(one),
+                doc_device_ms: frames.ms(doc),
+                doc_cpu_ms: tokens.ms(doc),
             }
         })
         .to_vec();
@@ -236,6 +243,12 @@ fn predicted_and_done(a: &Arc<VectorAnnotator>, texts: &[Text]) -> (Shape, Shape
         })
         .collect();
     let predicted = a.shape("test", &inputs);
+    // Limits of 0 are refused, not packed forever.
+    for (b, r) in [(1, 0), (0, 1), (0, 0)] {
+        let e = a.shape_at("test", &inputs, b, r).unwrap_err().to_string();
+        assert!(e.contains("each must be at least 1"), "{e}");
+    }
+    assert_eq!(a.shape_at("test", &inputs, a.info().max_batch, a.info().max_ranges).unwrap(), predicted);
     run(&step(&bert(), a.clone()), texts);
     (predicted, a.last_shape())
 }
@@ -271,19 +284,15 @@ fn the_shape_predicted_is_the_shape_run() {
     assert_eq!(predicted_and_done(&a, &many).1.runs, 40);
 }
 
-/// How much slower than the faster fixed side a dispatched submission may
-/// run when timed: the spread of the Pi 5 CPU's medians from run to run is
-/// about 5%.
-const NOISE: f64 = 1.10;
-
 /// On the device TURBO_TEST_DEVICE names, with the bundle
 /// TURBO_TEST_VECTORS_BUNDLE: the calibration of tests/calibrate.rs, then,
 /// at each window and cap, one sentence, one document and the whole set
-/// sent through one dispatched instance. Each, timed three times beside
-/// the same step fixed on the device and fixed on the CPU, runs within
-/// NOISE of the faster of the two; every document of a submission records
-/// one side, and its vectors are that fixed side's. Prints each time's
-/// middle and spread.
+/// sent through one dispatched instance. Every document of a submission
+/// records one side, its vectors are that side's, and the side is the
+/// faster of the step fixed on the device and fixed on the CPU, each timed
+/// three times in turn: the one with the lower middle time, unless the two
+/// sides' times overlap, where neither is faster. Prints each time's
+/// middle and spread, the dispatched instance's too.
 #[test]
 fn on_the_device_every_submission_runs_at_the_faster_side() {
     let (Ok(bundle), Ok(want)) = (std::env::var("TURBO_TEST_VECTORS_BUNDLE"), std::env::var("TURBO_TEST_DEVICE"))
@@ -336,16 +345,26 @@ fn on_the_device_every_submission_runs_at_the_faster_side() {
                         t[k].push(median_ms(x, sub, reps));
                     }
                 }
-                let [ms, dev_ms, cpu_ms] = t.each_ref().map(|v| middle(v));
-                let best = dev_ms.min(cpu_ms);
-                let faster = if dev_ms < cpu_ms { "hailo" } else { "cpu" };
+                let [dev_ms, cpu_ms] = [middle(&t[1]), middle(&t[2])];
+                let ((dl, dh), (cl, ch)) = (low_high(&t[1]), low_high(&t[2]));
+                let tie = dl <= ch && cl <= dh;
+                let faster = if tie {
+                    "either"
+                } else if dev_ms < cpu_ms {
+                    "hailo"
+                } else {
+                    "cpu"
+                };
                 println!(
                     "{max_seq}\t{cap}\t{what}\t{side}\t{faster}\t{}\t{}\t{}",
                     spread(&t[0]),
                     spread(&t[1]),
                     spread(&t[2])
                 );
-                assert!(ms <= best * NOISE, "{max_seq}x{cap} {what}: {ms:.2} ms, over {NOISE} times {best:.2}");
+                assert!(
+                    tie || side.starts_with(faster),
+                    "{max_seq}x{cap} {what}: ran on {side}, the {faster} is faster"
+                );
             }
         }
     }

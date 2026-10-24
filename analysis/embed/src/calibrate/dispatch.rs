@@ -9,8 +9,8 @@
 //! A side's cost is fitted to what the calibration measured at the step's
 //! window, as a time a run, a row and a token, none below 0: a Hailo-8 pays for every
 //! row whatever its length and loads its contexts once a run, and the CPU
-//! pays for the tokens. The samples are the whole set of texts and its
-//! first sentence alone, at each batch measured.
+//! pays for the tokens. The samples are the whole set of texts, its first
+//! sentence alone and its first text alone, at each batch measured.
 
 use std::path::Path;
 
@@ -119,8 +119,8 @@ pub struct Dispatch {
     eligible: bool,
     device_cost: Cost,
     cpu_cost: Cost,
-    /// The calls the calibration timed at the step's cap, by shape, and
-    /// the side that was faster for each.
+    /// The calls the calibration timed, by shape, and the side with the
+    /// lower median time for each.
     measured: Vec<(Shape, Side)>,
     force: Option<Side>,
 }
@@ -163,18 +163,26 @@ impl Dispatch {
         let (mut on_device, mut on_cpu) = (Vec::new(), Vec::new());
         let points: Vec<_> = c.points.iter().filter(|p| p.max_seq == max_seq).collect();
         let eligible = points.iter().all(|p| p.min_cosine >= c.floor);
-        let mut measured = Vec::new();
         for p in points {
-            let (all, one) =
-                (shape_of(bundle, &device, texts, p.max_batch)?, shape_of(bundle, &device, &short, p.max_batch)?);
-            on_device.extend([(all, p.device_ms), (one, p.short_device_ms)]);
-            on_cpu.extend([(all, p.cpu_ms), (one, p.short_cpu_ms)]);
-            if p.max_batch == cap {
-                let won = |device_ms: f64, cpu_ms: f64| {
-                    if eligible && device_ms < cpu_ms { Side::Device } else { Side::Cpu }
-                };
-                measured.extend([(all, won(p.device_ms, p.cpu_ms)), (one, won(p.short_device_ms, p.short_cpu_ms))]);
+            let at = |t: &[Text]| shape_of(bundle, &device, t, p.max_batch);
+            let (all, one, doc) = (at(texts)?, at(&short)?, at(&texts[..1])?);
+            on_device.extend([(all, p.device_ms), (one, p.short_device_ms), (doc, p.doc_device_ms)]);
+            on_cpu.extend([(all, p.cpu_ms), (one, p.short_cpu_ms), (doc, p.doc_cpu_ms)]);
+        }
+        // A call of the same shape timed in sessions of several caps did the
+        // same work in each: its side is the one with the lower median.
+        let mut measured: Vec<(Shape, Side)> = Vec::new();
+        for (s, _) in &on_device {
+            if measured.iter().any(|(m, _)| m == s) {
+                continue;
             }
+            let median = |samples: &[(Shape, f64)]| {
+                let mut t: Vec<f64> = samples.iter().filter(|(m, _)| m == s).map(|&(_, t)| t).collect();
+                t.sort_by(f64::total_cmp);
+                t[t.len() / 2]
+            };
+            let device_wins = eligible && median(&on_device) < median(&on_cpu);
+            measured.push((*s, if device_wins { Side::Device } else { Side::Cpu }));
         }
         let fit = |samples: &[(Shape, f64)], side: &str| {
             Cost::fit(samples).ok_or_else(|| {
@@ -197,8 +205,8 @@ impl Dispatch {
     }
 
     /// The side a call of shape `s` runs on: the side measured faster when
-    /// the calibration timed a call of that shape at the step's cap, else
-    /// the side whose fitted cost is lower.
+    /// the calibration timed a call of that shape, else the side whose
+    /// fitted cost is lower.
     pub fn side(&self, s: Shape) -> Side {
         if let Some(side) = self.force {
             return side;
@@ -250,7 +258,7 @@ pub fn shape_of(bundle: &Path, a: &VectorAnnotator, texts: &[Text], cap: u32) ->
             Some(Input { subwords, sentences: Some(&sentences.spans), chunks: None, levels: None })
         })
         .collect();
-    Ok(a.shape_at("calibration", &inputs, cap, default_ranges(cap, a.info().max_seq)))
+    a.shape_at("calibration", &inputs, cap, default_ranges(cap, a.info().max_seq))
 }
 
 impl Embedder for Dispatch {

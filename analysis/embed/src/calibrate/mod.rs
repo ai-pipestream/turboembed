@@ -1,7 +1,7 @@
 //! Where the sentence vector step should run, measured once per bundle and
 //! device and kept: for each window and rows per run asked, the lowest
 //! cosine of the device's vectors to the same weights on the CPU, and the
-//! median time of the step on each. The device runs a configuration when
+//! fastest time of the step on each. The device runs a configuration when
 //! its vectors clear a cosine floor there and it is faster than the CPU;
 //! the CPU runs every other.
 //!
@@ -65,7 +65,8 @@ pub struct CalibrationOptions {
     /// The lowest cosine to accept; None is the core's tolerance for the
     /// device's dtype, or [`I8_FLOOR`] for I8.
     pub floor: Option<f64>,
-    /// Timed runs per measurement, of which the median is kept.
+    /// Timed runs per measurement, of which the fastest is kept: another
+    /// process on the machine can only slow a run.
     pub reps: usize,
 }
 
@@ -77,11 +78,14 @@ pub struct Point {
     pub min_cosine: f64,
     pub device_ms: f64,
     pub cpu_ms: f64,
-    /// The median times of one sentence sent alone (the first of the
+    /// The fastest times of one sentence sent alone (the first of the
     /// texts), which `Dispatch` fits each side's cost a call to with the
     /// whole set's.
     pub short_device_ms: f64,
     pub short_cpu_ms: f64,
+    /// The fastest times of the first text sent alone.
+    pub doc_device_ms: f64,
+    pub doc_cpu_ms: f64,
 }
 
 impl Point {
@@ -150,10 +154,23 @@ impl Calibration {
                 }
                 let min_cosine = lowest_cosine(&got, &want, dim);
                 let (device_ms, cpu_ms) =
-                    medians(o.reps, || run(&dev, texts).map(drop), || run(&on_cpu, texts).map(drop))?;
+                    fastest(o.reps, || run(&dev, texts).map(drop), || run(&on_cpu, texts).map(drop))?;
                 let (short_device_ms, short_cpu_ms) =
-                    medians(4 * o.reps, || run(&dev, &short).map(drop), || run(&on_cpu, &short).map(drop))?;
-                points.push(Point { max_seq, max_batch, min_cosine, device_ms, cpu_ms, short_device_ms, short_cpu_ms });
+                    fastest(4 * o.reps, || run(&dev, &short).map(drop), || run(&on_cpu, &short).map(drop))?;
+                let doc = &texts[..1];
+                let (doc_device_ms, doc_cpu_ms) =
+                    fastest(2 * o.reps, || run(&dev, doc).map(drop), || run(&on_cpu, doc).map(drop))?;
+                points.push(Point {
+                    max_seq,
+                    max_batch,
+                    min_cosine,
+                    device_ms,
+                    cpu_ms,
+                    short_device_ms,
+                    short_cpu_ms,
+                    doc_device_ms,
+                    doc_cpu_ms,
+                });
             }
         }
         Ok(Calibration { key, floor: floor.unwrap_or(I8_FLOOR), points })
@@ -429,13 +446,35 @@ fn cosine(g: &[f32], w: &[f32]) -> f64 {
     if d == 0.0 { if n(g) == n(w) { 1.0 } else { 0.0 } } else { dot / d }
 }
 
-/// The median times of `reps` runs each of `a` and `b`, in ms, the two
-/// taking turns after one untimed run each, so drift falls on both.
+/// The median times of `reps` runs each of `a` and `b`, in ms.
 fn medians(
+    reps: usize,
+    a: impl FnMut() -> Result<(), CoreError>,
+    b: impl FnMut() -> Result<(), CoreError>,
+) -> Result<(f64, f64), CoreError> {
+    let (ta, tb) = times(reps, a, b)?;
+    Ok((ta[reps / 2], tb[reps / 2]))
+}
+
+/// The fastest times of `reps` runs each of `a` and `b`, in ms: what
+/// another process on the machine cannot add to, since it only ever slows
+/// a run.
+fn fastest(
+    reps: usize,
+    a: impl FnMut() -> Result<(), CoreError>,
+    b: impl FnMut() -> Result<(), CoreError>,
+) -> Result<(f64, f64), CoreError> {
+    let (ta, tb) = times(reps, a, b)?;
+    Ok((ta[0], tb[0]))
+}
+
+/// The times of `reps` runs each of `a` and `b`, in ms, sorted, the two
+/// taking turns after one untimed run each, so drift falls on both.
+fn times(
     reps: usize,
     mut a: impl FnMut() -> Result<(), CoreError>,
     mut b: impl FnMut() -> Result<(), CoreError>,
-) -> Result<(f64, f64), CoreError> {
+) -> Result<(Vec<f64>, Vec<f64>), CoreError> {
     if reps == 0 {
         return Err(CoreError::new(INVALID_ARGUMENT, "calibration needs at least one timed run"));
     }
@@ -458,5 +497,5 @@ fn medians(
     }
     ta.sort_by(f64::total_cmp);
     tb.sort_by(f64::total_cmp);
-    Ok((ta[reps / 2], tb[reps / 2]))
+    Ok((ta, tb))
 }
