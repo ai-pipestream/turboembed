@@ -125,6 +125,10 @@ pub struct Args {
     pub max_message_bytes: usize,
     /// Whether the admin calls, LoadBundle and UnloadBundle, are served.
     pub admin: bool,
+    /// The model catalog's zoo home, and the index it serves when not the
+    /// built-in one.
+    pub catalog_dir: Option<String>,
+    pub catalog_index: Option<String>,
 }
 
 /// `--max-message-bytes` when absent: 64 MiB.
@@ -139,12 +143,23 @@ pub const ENV_ADMIN: &str = "TURBO_KSERVE_ADMIN";
 pub const ENV_LISTEN: &str = "TURBO_KSERVE_LISTEN";
 pub const ENV_MODELS: &str = "TURBO_KSERVE_MODELS";
 pub const ENV_MAX_MESSAGE_BYTES: &str = "TURBO_KSERVE_MAX_MESSAGE_BYTES";
+pub const ENV_CATALOG_DIR: &str = "TURBO_KSERVE_CATALOG_DIR";
+pub const ENV_CATALOG_INDEX: &str = "TURBO_KSERVE_CATALOG_INDEX";
 
 pub const USAGE: &str = "usage: turbo-kserve --listen ADDR:PORT --model bundle=PATH,device=INDEX|select,sessions=N\
 [,name=NAME][,precision=PRECISION_MODEL|PRECISION_FASTEST|PRECISION_EXACT][,max_batch=N][,max_seq=N] [--model ...] \
-[--max-message-bytes N] [--admin]\n\
+[--max-message-bytes N] [--admin] [--catalog-dir PATH [--catalog-index FILE]]\n\
 environment: TURBO_KSERVE_LISTEN, TURBO_KSERVE_MODELS (--model values separated by `;`), \
-TURBO_KSERVE_MAX_MESSAGE_BYTES, TURBO_KSERVE_ADMIN; a flag on the command line replaces its variable";
+TURBO_KSERVE_MAX_MESSAGE_BYTES, TURBO_KSERVE_ADMIN, TURBO_KSERVE_CATALOG_DIR, TURBO_KSERVE_CATALOG_INDEX; \
+a flag on the command line replaces its variable";
+
+/// Sets a path flag's value, given once and not empty.
+fn path_once(flag: &str, v: String, slot: &mut Option<String>) -> Result<(), String> {
+    if v.is_empty() || slot.replace(v).is_some() {
+        return Err(format!("{flag} needs a path and may be given once"));
+    }
+    Ok(())
+}
 
 impl Args {
     /// The command line, with the process environment filling in what it
@@ -161,6 +176,7 @@ impl Args {
         let mut listen = None;
         let mut max_message_bytes = None;
         let mut admin = None;
+        let (mut catalog_dir, mut catalog_index) = (None, None);
         let mut models = Vec::new();
         let mut it = args.into_iter();
         while let Some(a) = it.next() {
@@ -183,6 +199,8 @@ impl Args {
                         return Err("--admin takes no value and may be given once".into());
                     }
                 }
+                "--catalog-dir" => path_once(&flag, value()?, &mut catalog_dir)?,
+                "--catalog-index" => path_once(&flag, value()?, &mut catalog_index)?,
                 "--max-message-bytes" => {
                     let v = value()?;
                     let n: usize = v.parse().map_err(|_| format!("--max-message-bytes {v}: not a byte count"))?;
@@ -219,6 +237,11 @@ impl Args {
                 _ => return Err(format!("{ENV_ADMIN}={v}: not one of 1, true, yes, 0, false, no")),
             });
         }
+        catalog_dir = catalog_dir.or_else(|| env(ENV_CATALOG_DIR).filter(|v| !v.is_empty()));
+        catalog_index = catalog_index.or_else(|| env(ENV_CATALOG_INDEX).filter(|v| !v.is_empty()));
+        if catalog_index.is_some() && catalog_dir.is_none() {
+            return Err("--catalog-index needs --catalog-dir".into());
+        }
         let listen = listen.ok_or("--listen is required")?;
         names(&models)?;
         Ok(Args {
@@ -226,6 +249,8 @@ impl Args {
             models,
             max_message_bytes: max_message_bytes.unwrap_or(DEFAULT_MAX_MESSAGE_BYTES),
             admin: admin.unwrap_or(false),
+            catalog_dir,
+            catalog_index,
         })
     }
 }
@@ -328,6 +353,22 @@ mod tests {
         )
         .unwrap();
         assert_eq!(a.max_message_bytes, DEFAULT_MAX_MESSAGE_BYTES);
+    }
+
+    #[test]
+    fn the_catalog_comes_from_its_flags_or_their_variables() {
+        let base = "--listen 127.0.0.1:0 --model bundle=/b/a,device=0,sessions=1";
+        let a = args(base).unwrap();
+        assert_eq!((a.catalog_dir, a.catalog_index), (None, None));
+        let a = args(&format!("{base} --catalog-dir /z --catalog-index=/z/zoo.json")).unwrap();
+        assert_eq!((a.catalog_dir.as_deref(), a.catalog_index.as_deref()), (Some("/z"), Some("/z/zoo.json")));
+        let env = |k: &str| (k == ENV_CATALOG_DIR).then(|| "/from-env".to_string());
+        let parsed = |s: &str| Args::parse_with(s.split_whitespace().map(String::from), env);
+        assert_eq!(parsed(base).unwrap().catalog_dir.as_deref(), Some("/from-env"));
+        assert_eq!(parsed(&format!("{base} --catalog-dir=/z")).unwrap().catalog_dir.as_deref(), Some("/z"));
+        assert!(args(&format!("{base} --catalog-dir /z --catalog-dir /y")).is_err());
+        assert!(args(&format!("{base} --catalog-dir=")).is_err());
+        assert_eq!(args(&format!("{base} --catalog-index /i")).unwrap_err(), "--catalog-index needs --catalog-dir");
     }
 
     #[test]

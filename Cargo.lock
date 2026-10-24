@@ -2310,6 +2310,7 @@ name = "turbo-kserve"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "libc",
  "prost",
  "protox",
  "serde_json",
@@ -2338,6 +2339,7 @@ dependencies = [
  "turbo-schema-extract",
  "turbo-stopword-layers",
  "turbo-tokenize-layers",
+ "turbo-zoo",
 ]
 
 [[package]]

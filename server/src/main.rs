@@ -1,8 +1,10 @@
 //! turbo-kserve: the Open Inference Protocol over gRPC for turboembed
 //! bundles (docs/kserve.md).
 
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+use turbo_kserve::catalog::Catalog;
 use turbo_kserve::config::{Args, USAGE};
 use turbo_kserve::{Serve, Server};
 
@@ -40,14 +42,24 @@ async fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let server =
-        match Server::start(args.listen, args.models, args.max_message_bytes, Serve { admin: args.admin }).await {
-            Ok(s) => s,
+    let catalog = match &args.catalog_dir {
+        Some(dir) => match Catalog::http(PathBuf::from(dir), args.catalog_index.as_deref().map(Path::new)) {
+            Ok(c) => Some(c),
             Err(e) => {
-                eprintln!("turbo-kserve: {e}");
+                eprintln!("turbo-kserve: catalog: {e}");
                 return ExitCode::FAILURE;
             }
-        };
+        },
+        None => None,
+    };
+    let serve = Serve { admin: args.admin, catalog };
+    let server = match Server::start(args.listen, args.models, args.max_message_bytes, serve).await {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("turbo-kserve: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
     eprintln!("turbo-kserve: listening on {}", server.local_addr());
     // A stop signal during load stops the server once the load returns:
     // the library has no way to stop a load part way.
