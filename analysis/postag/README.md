@@ -220,6 +220,34 @@ marginal drift, and words per second and call latency by sentences per
 call and by sentence length. The record on this model and the EWT test
 split is `benchmarks/records/postag/x86-64.cpu.postag.bilstm-crf.819328e7.90e41ce15c8c.json`; docs/analysis.md ("BiLSTM-CRF
 numerics") reads it.
+### Bundle form
+
+`ONLP-BLPT-1` to `-5` stays the interchange format. For the device
+backends, `turbo-bundle postag-convert <model.bin> <license> <new-dir>`
+reads the file through this crate and writes a bundle directory:
+
+- `weights.safetensors`: every tensor as F32, row-major, by name
+  (`word_embeddings`, `char_embeddings`, `{char,word}_{forward,backward}`
+  and, stacked, `word_{forward,backward}2`, each as `.w`, `.u` and `.b`
+  with the gate rows in `(i, f, g, o)` order, `output_weights`,
+  `output_bias`, and when the model has them `transition_weights`,
+  `start_weights`, `end_weights`, `pretrained_vectors`, `adapter_weights`
+  and `adapter_bias`);
+- `weights-f16.safetensors`: the same tensors as F16, for `FASTEST`;
+- `vocab.json`: the word, character (modified UTF-8 bytes) and pretrained
+  vocabularies, the tags and the longest word;
+- `postag.json`: the format, the source file's SHA-256 and length, the
+  licence, the gate order, whether the model is CRF, stacked or has an
+  adapter, and the SHA-256 of each file above.
+
+`turbo-bundle postag-verify <dir> [<model.bin>]` checks every digest, and
+with the source file that the bundle came from it.
+`BilstmPosModel::named_tensors`, `vocabularies` and `from_named` are the
+two directions; `turbo_bundle::postag::load` reads a bundle back.
+`bundle/tests/postag.rs` converts the six BiLSTM runs of the
+`postag-neural` goldens: each bundle (F32) tags the training sentences
+and the fixed token list exactly as the `.bin` does, with the parity and
+the packed numerics, and a bundle whose digests do not match is refused.
 
 ### Not done
 
