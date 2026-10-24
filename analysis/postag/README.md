@@ -236,6 +236,13 @@ reads the file through this crate and writes a bundle directory:
 with the source file that the bundle came from it.
 `BilstmPosModel::named_tensors`, `vocabularies` and `from_named` are the
 two directions; `turbo_bundle::postag::load` reads a bundle back.
+Conversion checks that every narrowed F32 and F16 weight remains finite
+before creating the output directory. An unsupported value is refused
+with its tensor name and precision, leaving no partial bundle. Values
+that round to a finite F16 remain supported.
+
+Bundle weights are rounded from the source model's f64 values, so their
+probabilities may differ from the interchange model's probabilities.
 `bundle/tests/postag.rs` converts the six BiLSTM runs of the
 `postag-neural` goldens: each bundle (F32) tags the training sentences
 and the fixed token list exactly as the `.bin` does, with the parity and

@@ -70,6 +70,8 @@ fn vocab_json(v: &Vocabularies) -> Vec<u8> {
 }
 
 /// Converts the `ONLP-BLPT` file `bin` into a new bundle directory `out`.
+/// Rejects weights that narrow to non-finite F32 or F16 before creating
+/// the directory, so both advertised variants remain loadable.
 pub fn convert(bin: &[u8], license: &str, out: &Path) -> Result<()> {
     let model = BilstmPosModel::load(bin).map_err(|e| format!("postag-convert: {e}"))?;
     let mut named = model.named_tensors();
@@ -81,7 +83,14 @@ pub fn convert(bin: &[u8], license: &str, out: &Path) -> Result<()> {
             return Err(format!("postag-convert: {} holds {bad}, not a finite F32", t.name));
         }
         let a: Vec<u8> = t.values.iter().flat_map(|&x| (x as f32).to_le_bytes()).collect();
-        let h: Vec<u8> = t.values.iter().flat_map(|&x| half::f16::from_f64(x).to_le_bytes()).collect();
+        let mut h = Vec::with_capacity(t.values.len() * 2);
+        for &value in &t.values {
+            let narrowed = half::f16::from_f64(value);
+            if !narrowed.is_finite() {
+                return Err(format!("postag-convert: {} holds {value}, not a finite F16", t.name));
+            }
+            h.extend_from_slice(&narrowed.to_le_bytes());
+        }
         f32s.push((t.name.clone(), t.shape.clone(), a));
         f16s.push((t.name.clone(), t.shape.clone(), h));
     }

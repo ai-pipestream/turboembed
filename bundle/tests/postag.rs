@@ -27,6 +27,53 @@ fn tags(model: &BilstmPosModel, numerics: Numerics, sentences: &[Vec<String>]) -
     sentences.iter().map(|s| tagger.tag(s).unwrap()).collect()
 }
 
+fn model_with_output_bias(value: f64) -> BilstmPosModel {
+    let r = run::runs().into_iter().find(|r| r.is_bilstm()).unwrap();
+    let source = BilstmPosModel::load(r.bytes.as_slice()).unwrap();
+    let mut named = source.named_tensors();
+    named.iter_mut().find(|t| t.name == "output_bias").unwrap().values[0] = value;
+    BilstmPosModel::from_named(source.vocabularies(), |key| {
+        named.iter().find(|t| t.name == key).map(|t| (t.shape.clone(), t.values.clone()))
+    })
+    .unwrap()
+}
+
+#[test]
+fn f16_overflow_is_refused_before_creating_a_bundle() {
+    for (i, value) in [70_000.0, -70_000.0, 65_520.0, -65_520.0].into_iter().enumerate() {
+        let source = model_with_output_bias(value);
+        assert!((value as f32).is_finite());
+        let sentence = vec!["hello".to_string()];
+        assert!(BilstmPosTagger::with_numerics(source.clone(), Numerics::JvmParity).unwrap().tag(&sentence).is_ok());
+        let mut bytes = Vec::new();
+        source.serialize(&mut bytes).unwrap();
+        let dir = scratch(&format!("f16-overflow-{i}"));
+        let error = postag::convert(&bytes, "Apache-2.0", &dir).unwrap_err();
+        assert!(error.contains("output_bias") && error.contains("finite F16"), "{error}");
+        assert!(!dir.exists(), "a refused model must not publish a partial bundle");
+    }
+}
+
+#[test]
+fn finite_f16_boundary_values_remain_supported() {
+    for (i, value) in [65_504.0, -65_504.0, 65_519.0, -65_519.0].into_iter().enumerate() {
+        let source = model_with_output_bias(value);
+        let mut bytes = Vec::new();
+        source.serialize(&mut bytes).unwrap();
+        let dir = scratch(&format!("f16-boundary-{i}"));
+        postag::convert(&bytes, "Apache-2.0", &dir).unwrap();
+        postag::verify(&dir, Some(&bytes)).unwrap();
+        for f16 in [false, true] {
+            let loaded = postag::load(&dir, f16).unwrap();
+            let named = loaded.named_tensors();
+            assert!(named.iter().all(|t| t.values.iter().all(|v| v.is_finite())));
+            let bias = named.iter().find(|t| t.name == "output_bias").unwrap().values[0];
+            assert_eq!(bias, if f16 { value.signum() * 65_504.0 } else { value });
+        }
+        fs::remove_dir_all(&dir).unwrap();
+    }
+}
+
 #[test]
 fn a_converted_bundle_tags_every_bilstm_golden_as_the_model_file() {
     let mut converted = 0;
