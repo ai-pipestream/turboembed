@@ -1,0 +1,16 @@
+# The cases of the pysbd suite that the maxent-de-inventory detector gets wrong, and what
+# differs. tests/conformance.rs writes this file and fails when a run differs
+# from it. 13 of 35 cases fail.
+pysbd/test_deutsch/003	1 extra, first after "...n der Abstimmung vom 12."
+pysbd/test_deutsch/012	1 extra, first after "Wir trafen Dr. med." [clean=true]
+pysbd/test_deutsch/015	1 extra, first after "...rau Prof. Schulze ist z." [clean=true]
+pysbd/test_deutsch/019	1 extra, first after "Sie besucht eine kath." [clean=true]
+pysbd/test_deutsch/020	1 extra, first after "...tungen, Zeitschriften u." [clean=true]
+pysbd/test_deutsch/024	5 missing, first after "Fit in vier Wochen" [clean=true]
+pysbd/test_deutsch/026	2 extra, first after "...on Tongefäßen aus dem 1." [clean=true]
+pysbd/test_deutsch/027	2 extra, first after "• 6." [clean=true]
+pysbd/test_deutsch/028	1 extra, first after "...n der Abstimmung vom 12." [clean=true]
+pysbd/test_deutsch/031	1 extra, first after "...gesetzes (MiLoG) zum 01." [clean=true]
+pysbd/test_deutsch/032	3 missing, first after "... einige Sorten Weichkäse" [clean=true]
+pysbd/test_deutsch/033	4 missing, first after "...abycentre.co.uk/midwives"; 7 extra, first after "...den Schwangerschaft • 1." [doc_type=pdf, clean=true]
+pysbd/test_deutsch/035	the same breaks, different text [doc_type=pdf, clean=true]

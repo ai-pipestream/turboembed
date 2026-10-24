@@ -23,16 +23,32 @@ own file; generate a client from it in any language with gRPC.
 | `AnalyzeStream` | Bulk document analysis over one bidirectional stream. |
 
 Span offsets cross in the unit a message names (`OffsetMode` on
-`ChunkLevelsResult`): UTF-8 bytes (the internal offsets), UTF-16 code
+`ChunkLevelsResult`, `SparseTermsResult`, `TokenVectorsResult`, and
+`ExtractionResult`): UTF-8 bytes (the internal offsets), UTF-16 code
 units (Java string indices), or Unicode code points, converted through
-the view text's checkpoint table (`server/src/offsets.rs`). An offset
+the view text's checkpoint table (`server/src/offsets.rs`) using
+linear-scan column helpers (`OffsetTable::column_to_utf16` and
+`OffsetTable::column_to_code_point`). When `text` is omitted on
+`SparseTermsResult`, `TokenVectorsResult`, or `ExtractionResult` in
+`OFFSET_MODE_UTF8`, spans cross as raw UTF-8 byte offsets; when `text`
+is supplied (or when `offsets` is `OFFSET_MODE_UTF16` or
+`OFFSET_MODE_CODE_POINT`), every span, occurrence, window, and fragment
+is converted and validated against `text`. An offset
 that is out of bounds, inverted, or inside a code point or a UTF-16
 surrogate pair refuses with `TURBO_E_INVALID_ARGUMENT`; nothing is
 snapped to a boundary. `ChunkLevelsResult` carries `turbo:chunks`,
 `turbo:levels`, and `opennlp:embeddings` over the chunks in one round
 trip, fragments included. `RoundTripDocumentGraph` takes binary
 `DocumentGraph` bytes and answers with the same document imported and
-re-exported, listing every layer's standard id (`opennlp:*` or
+re-exported through a `OnceLock<Codecs>` registry
+(`server/src/results/document.rs`) initialized with all first-party
+workspace `LayerCodec` registrations (`turbo-analysis-layers`,
+`turbo-abbrev`, `turbo-chunker`, `turbo-coref`,
+`turbo-encoding-layers`, `turbo-entity-linker`, `turbo-geo`,
+`turbo-gliner`, `turbo-glossary-layers`, `turbo-group`,
+`turbo-keywords`, `turbo-normalize-layers`, `turbo-relation`,
+`turbo-schema-extract`, `turbo-stopword-layers`, and
+`turbo-tokenize-layers`), listing every layer's standard id (`opennlp:*` or
 `turbo:*`), instance, provenance (annotator, version, model, config
 hash), item count, and status (`OK`, `SKIPPED`, or `FAILED` with its
 detail), and every view likewise. Layers whose codecs the server does

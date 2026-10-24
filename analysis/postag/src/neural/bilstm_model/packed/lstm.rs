@@ -34,15 +34,7 @@ pub(super) fn to_f32(v: &[f64]) -> Vec<f32> {
     v.iter().map(|&x| x as f32).collect()
 }
 
-#[inline]
-fn sigmoid(x: f32) -> f32 {
-    if x >= 0.0 {
-        1.0 / (1.0 + (-x).exp())
-    } else {
-        let e = x.exp();
-        e / (1.0 + e)
-    }
-}
+use turbo::head::sigmoid;
 
 /// The reusable buffers of the recurrences of one call.
 #[derive(Default)]
