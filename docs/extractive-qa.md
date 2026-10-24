@@ -72,7 +72,11 @@ parity and rejects modified reference logits even with updated file hashes.
 It establishes arithmetic parity and SQuAD-v2 null-score mechanics.
 `core/tests/cuda_qa.rs` runs the tiny model on CUDA, one window per run and
 batched, against the reference logits (1e-4) and the CPU path (1e-5), and checks
-that the CUDA capability cell reports the task as experimental. With
+that the CUDA capability cell reports the task as experimental. It also checks
+that a CUDA range write to the QA model returns two logits a token, within 1e-5
+of the head over the CPU backend's hidden states, and that the read copies 8
+bytes a token; and that such a write refuses normalization and a cut
+`output_dim`, since the head needs the full vector. With
 `TURBO_TEST_QA_BUNDLE` naming the bundle below, it runs that bundle's reference
 cases on CUDA at EXACT and MODEL against the transformers logits and the CPU path.
 The probabilities are relative candidate probabilities, not a calibration claim.
@@ -139,13 +143,17 @@ it was built from. The records for this bundle, at exact precision:
 
 | Context tokens | Windows a question | CUDA questions/s | CPU questions/s |
 |---|---|---|---|
-| 0 to 128 | 1.00 | 1,099 | 118 |
-| 128 to 256 | 1.00 | 599 | 70 |
-| 256 to 384 | 1.03 | 353 | 42 |
-| 384 and more | 2.24 | 160 | 21 |
+| 0 to 128 | 1.00 | 1,248 | 118 |
+| 128 to 256 | 1.00 | 681 | 70 |
+| 256 to 384 | 1.03 | 399 | 42 |
+| 384 and more | 2.24 | 182 | 21 |
 
 The CUDA cell is an RTX 4080 SUPER, the CPU cell a Ryzen 9 9950X3D on all 32
-threads. The head runs on the host in F64 for both.
+threads. Both compute the span head in F64: on CUDA on the device, after the
+range pool, so a window's read is its `[tokens, 2]` logits; on the CPU on the
+host, from the hidden states. Moving the head onto the device took the CUDA
+cell from 1,095, 593, 353 and 162 questions/s to the numbers above, 13 to 15%
+by bin, in three rounds alternating with the build before it.
 
 ```sh
 turbo-bench qa --bundle <bundle> --questions dev-v2.0.json --device cuda --precision exact
@@ -159,6 +167,7 @@ not the embedding records `turbo-bench check` reads. Metal and Level Zero offer
 range writes and so open QA sessions, but neither has been run against the
 reference here; they are reached only by naming them in `QaOptions`, as
 `ExtractiveQa::open`, which the bundle check and the annotator use, stays on the
-CPU. The threshold is not calibrated on held-out data. On a GPU every token's
-final hidden state comes back to the host for the span head, about 1.2 MB a
-384-token RoBERTa-base window; #1003 moves the head onto the device.
+CPU. The threshold is not calibrated on held-out data. Metal and Level Zero
+do not apply the span head yet (`token_head` in `turbo_backend.h`), so on
+them each token's final hidden state still comes back to the host for it,
+about 1.2 MB a 384-token RoBERTa-base window.

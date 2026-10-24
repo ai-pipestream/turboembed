@@ -354,6 +354,7 @@ __global__ void __launch_bounds__(PACK_BLOCK) pack_rows_kernel(PackArgs a) {
         in.has_types = a.run.has_types;
         in.items = items;
         in.ranges = a.run.ranges;
+        in.head = a.run.head;
         *p.info = in;
     }
     __syncthreads();
@@ -609,6 +610,34 @@ __global__ void __launch_bounds__(POOL_BLOCK)
             const float scale = 1.0f / norm;
             for (int d = threadIdx.x; d < in.output_dim; d += POOL_BLOCK) dst[d] *= scale;
         }
+    }
+}
+
+/* span_head's warps to a block, each an output value at a time. */
+constexpr int HEAD_WARPS = 8;
+
+/* The F64 sum of a warp's values, in lane 0, in a fixed order. */
+__device__ __forceinline__ double warp_sum_f64(double v) {
+#pragma unroll
+    for (int o = 16; o > 0; o >>= 1) v += __shfl_down_sync(0xffffffffu, v, o);
+    return v;
+}
+
+__global__ void __launch_bounds__(HEAD_WARPS * 32)
+    span_head_kernel(const float *pooled, const float *w, int head_out, int hidden, const Info *info, float *out) {
+    const Info in = *info;
+    if (!in.head) return;
+    const int lane = threadIdx.x & 31;
+    const int values = in.ranges * head_out;
+    const float *bias = w + (size_t)head_out * hidden;
+    for (int v = blockIdx.x * HEAD_WARPS + (threadIdx.x >> 5); v < values; v += gridDim.x * HEAD_WARPS) {
+        const int i = v / head_out, o = v % head_out;
+        const float *x = pooled + (size_t)i * hidden;
+        const float *wo = w + (size_t)o * hidden;
+        double acc = 0.0;
+        for (int d = lane; d < hidden; d += 32) acc += (double)__ldg(wo + d) * (double)__ldg(x + d);
+        acc = warp_sum_f64(acc);
+        if (lane == 0) out[v] = (float)((double)bias[o] + acc);
     }
 }
 
@@ -4181,6 +4210,7 @@ cudaError_t make_plan(const Shape &s, Plan *p) {
     p->pack_smem = (size_t)3 * nb * sizeof(int32_t);
     p->rows_grid = cap(((long long)s.tcap + ROW_WARPS - 1) / ROW_WARPS, s.sms * 8);
     p->pool_grid = cap(s.batch_cap > s.ranges_cap ? s.batch_cap : s.ranges_cap, s.sms * 4);
+    p->head_grid = cap(((long long)s.ranges_cap * s.head_out + HEAD_WARPS - 1) / HEAD_WARPS, s.sms * 8);
     p->column_pool = s.column_pool || s.hidden > 4 * POOL_BLOCK;
     p->epi_grid = cap(s.tcap, s.sms * 8);
     p->fetch_grid = cap(((long long)3 * s.tcap / 4 + FETCH_BLOCK * FETCH_LOADS - 1) / (FETCH_BLOCK * FETCH_LOADS),
@@ -4323,6 +4353,12 @@ cudaError_t pool(cudaStream_t s, const float *x, const uint16_t *x16, const int3
         pool_split_kernel<__half><<<plan.pool_grid, POOL_BLOCK, 0, s>>>(h, rows, p, hidden, out);
     else
         pool_split_kernel<float><<<plan.pool_grid, POOL_BLOCK, 0, s>>>(x, rows, p, hidden, out);
+    return cudaGetLastError();
+}
+
+cudaError_t span_head(cudaStream_t s, const float *pooled, const float *w, int head_out, int hidden, const Info *info,
+                      float *out, const Plan &plan) {
+    span_head_kernel<<<plan.head_grid, HEAD_WARPS * 32, 0, s>>>(pooled, w, head_out, hidden, info, out);
     return cudaGetLastError();
 }
 

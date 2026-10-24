@@ -41,10 +41,10 @@ pub const OPENNLP_MAX: usize = 3;
 /// One distinct n-gram: where its code units start in the lowercased
 /// text, how many there are, and `CharBuffer.hashCode` of them.
 #[derive(Copy, Clone, Debug)]
-struct Gram {
-    start: u32,
-    len: u32,
-    hash: i32,
+pub(crate) struct Gram {
+    pub(crate) start: u32,
+    pub(crate) len: u32,
+    pub(crate) hash: i32,
 }
 
 /// Builds the context of a text and keeps its buffers for the next one,
@@ -139,6 +139,37 @@ impl ContextGenerator {
             }
             self.ends.push(self.bytes.len() as u32);
         }
+    }
+
+    /// Generates the chunk's distinct lowercased n-grams and their first
+    /// `HashMap` iteration order (`DefaultLanguageDetectorContextGenerator.getContext`),
+    /// without computing the second map's order or modified UTF-8 bytes.
+    pub(crate) fn generate_chunk(&mut self, text: &str) {
+        let prepared = prepare(text);
+        self.lowercase(&prepared);
+        self.collect_grams();
+        self.spread.clear();
+        self.spread.extend(self.grams.iter().map(|g| spread(g.hash)));
+        self.order_scratch.reset();
+        self.first_exact = self.order_scratch.order(&self.spread, Insert::Put, &mut self.counted);
+    }
+
+    /// Each distinct n-gram of the last [`generate_chunk`](Self::generate_chunk)
+    /// call as `(utf16_units, char_buffer_hash)` in the first map's
+    /// iteration order.
+    pub(crate) fn counted_grams(&self) -> impl ExactSizeIterator<Item = (&[u16], i32)> + '_ {
+        self.counted.iter().map(move |&idx| {
+            let g = self.grams[idx as usize];
+            (&self.units[g.start as usize..(g.start + g.len) as usize], g.hash)
+        })
+    }
+
+    pub(crate) fn min_length(&self) -> usize {
+        self.min
+    }
+
+    pub(crate) fn max_length(&self) -> usize {
+        self.max
     }
 
     /// The number of distinct n-grams.
@@ -253,13 +284,13 @@ impl ContextGenerator {
 /// the high bits of the hash times 2^64 over the golden ratio, which
 /// spreads the small hashes of short n-grams over the whole table.
 #[inline]
-fn home_slot(hash: i32, slots: usize) -> usize {
+pub(crate) fn home_slot(hash: i32, slots: usize) -> usize {
     let product = u64::from(hash as u32).wrapping_mul(0x9E37_79B9_7F4A_7C15);
     (product >> (64 - slots.trailing_zeros())) as usize
 }
 
 /// Doubles the slot table and puts every gram back.
-fn grow(slots: &mut Vec<u32>, grams: &[Gram]) {
+pub(crate) fn grow(slots: &mut Vec<u32>, grams: &[Gram]) {
     let size = slots.len() * 2;
     slots.clear();
     slots.resize(size, 0);

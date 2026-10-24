@@ -26,9 +26,10 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use regex::Regex;
+mod skip;
 use serde::Deserialize;
 use serde_json::{Value, json};
+use skip::SkipRule;
 use turbo::bundle::Bundle;
 use turbo::manifest::{Manifest, PromptRole, SpecialRole, Truncation};
 use turbo::safetensors::{self, Dtype};
@@ -47,8 +48,9 @@ pub struct Spec {
     pub pca_dims: u32,
     /// Model2Vec's SIF coefficient, in (0, 1).
     pub sif_coefficient: f64,
-    /// A regular expression; a vocabulary entry it matches whole is left
-    /// out of the PCA and the ranks, its row zero and its weight 0.
+    /// A whole-token `PREFIX\d+SUFFIX` rule with ASCII digits and literal
+    /// edges (escape ASCII punctuation with a backslash). Matching rows
+    /// are left out of the PCA and ranks, with zero vector and weight.
     pub skip: String,
     /// What the table is stored in: "F32" or "F16".
     pub dtype: String,
@@ -154,7 +156,7 @@ pub fn stage(recipe: &Recipe, base_dir: &Path, bundle: &Path) -> Result<()> {
 
     // Which entries are kept.
     let vocab = vocabulary(&tok_bytes, vocab_size)?;
-    let skip = Regex::new(&format!("^(?:{})$", spec.skip)).map_err(|e| format!("distill.skip: {e}"))?;
+    let skip = SkipRule::parse(&spec.skip)?;
     let unused_special = |id: usize| {
         bm.tokenizer
             .special_tokens

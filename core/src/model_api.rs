@@ -73,12 +73,40 @@ pub(super) fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
         };
     }
     let rerank_head = m.rerank.as_ref().map(|_| head::Head::load_artifact(&bundle, index)).transpose()?;
+    // A backend that applies token heads is given the span head, in F32,
+    // and pools QA ranges into logits (turbo_backend.h, token_head).
+    let span_head =
+        (m.qa.is_some() && b.token_head()).then(|| head::Head::load_artifact(&bundle, index)).transpose()?;
     let tensors = weights.tensors();
-    let desc = weights.desc(&tensors);
+    let mut desc = weights.desc(&tensors);
+    let head_tensors = span_head.as_ref().map(|h| head_tensors(&h.classifier));
+    if let (Some(h), Some(t)) = (&span_head, &head_tensors) {
+        desc.head = t.as_ptr();
+        desc.head_out = h.classifier.out_dim as u32;
+    }
     let mut raw = std::ptr::null_mut();
     backend::check(b, "model_load", |err| unsafe { load(c.raw, &desc, &mut raw, err) })?; // rule 9
     let output_dims = e.output_dims.clone();
-    Ok(Model { context: c.clone(), raw, release, weights, tokenizer, info, output_dims, rerank_head })
+    Ok(Model { context: c.clone(), raw, release, weights, tokenizer, info, output_dims, rerank_head, span_head })
+}
+
+/// A linear layer as turbo_backend_model.head takes it: the weight, then
+/// the bias, both F32, pointing into `l`.
+fn head_tensors(l: &head::Linear) -> [backend::turbo_backend_tensor; 2] {
+    let f32_tensor =
+        |name: &'static std::ffi::CStr, data: &[f32], shape: [u64; 2], ndim: u32| backend::turbo_backend_tensor {
+            name: name.as_ptr(),
+            data: data.as_ptr().cast(),
+            shape,
+            ndim,
+            dtype: TURBO_DTYPE_F32,
+            bytes: size_of_val(data) as u64,
+        };
+    let (out, hidden) = (l.out_dim as u64, l.in_dim as u64);
+    [
+        f32_tensor(c"classifier_weight", &l.weight, [out, hidden], 2),
+        f32_tensor(c"classifier_bias", &l.bias, [out, 0], 1),
+    ]
 }
 
 /// # Safety

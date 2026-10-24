@@ -685,6 +685,18 @@ older than the runtime, it lists none and the runtime's log says why.
   session, so a range run allocates nothing either. The device is a GPU,
   so `cpu_threads` (field 6 of `turbo_session_desc`) is 0 alone: any
   other value is `TURBO_E_UNSUPPORTED_OPTION` naming field 6.
+- **The span head.** The table sets `token_head`, so an extractive QA
+  model is loaded with its span head (`turbo_backend_model.head`: the
+  `[2, hidden]` weight and the bias, F32, copied to the device with the
+  weights), and a range write to it asks for the head (`rows.head`). The
+  run pools each range's full vector, unnormalized, as above, and
+  `span_head` then computes each range's start and end logits, a warp
+  per logit, the products and sums in F64 as the CPU path's head does,
+  into a `[max_ranges, 2]` buffer made with the session, which the run
+  hands out in place of the vectors. A window's read is then 8 bytes a
+  token, where the hidden states were 3 KB a token at RoBERTa-base's 768.
+  The kernel is in every graph of a model with a head and returns at once
+  in a run that does not ask for it.
 - **What a result reports.** Stages: tokenize on the host for text,
   upload, lookup, encode and pool on the device, normalize fused into the
   pooling kernel when it runs, and no download: the vectors stay where

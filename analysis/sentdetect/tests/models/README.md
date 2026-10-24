@@ -12,7 +12,7 @@ CC BY-SA data is downloaded, not checked in (`docs/licences.md`).
 | `opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin` | the same release (`opennlp-models-sentdetect-pt:1.3.0`) | `a711463f146555de26d69d806a9f1a88a66ed0c02f3fe2020b4a475ccea047ff` |
 
 `cargo run -p turbo-goldens-tool -- fetch-models <dir>` downloads them, with
-the other models of `analysis/goldens-tool/src/recipe.rs`, and checks each
+the other models of `analysis/goldens-tool/src/recipe/models.rs`, and checks each
 against its published SHA-512. The tests read them from the directory
 `TURBO_GOLDENS_MODELS` names, or `target/turbo-goldens/models` under the
 repository root:

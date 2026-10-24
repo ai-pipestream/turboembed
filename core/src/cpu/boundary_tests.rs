@@ -74,6 +74,9 @@ fn session(table: &[f32], precision: u32) -> Result<Vec<f32>, (i32, u32, String)
         artifact_bytes: 0,
         artifact2: std::ptr::null(),
         artifact2_bytes: 0,
+        head: std::ptr::null(),
+        head_out: 0,
+        reserved: 0,
     };
     let mut err = error();
     let mut model = std::ptr::null_mut();
@@ -107,7 +110,7 @@ fn session(table: &[f32], precision: u32) -> Result<Vec<f32>, (i32, u32, String)
             pooling: TURBO_POOLING_MEAN,
             normalize: TURBO_NORMALIZE_NONE,
             output_dim: DIM as u32,
-            reserved: 0,
+            head: 0,
         };
         assert_eq!(unsafe { (BACKEND.embed_write.unwrap())(s, &rows, &mut err) }, 0);
         let mut run: turbo_backend_run = unsafe { std::mem::zeroed() };
