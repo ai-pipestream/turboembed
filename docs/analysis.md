@@ -3203,7 +3203,7 @@ container from a recorded `eclipse-temurin:21-jdk` digest with OpenNLP
 built from a recorded commit of the fork, runs the Java generator in it
 without a network over the inputs the models (each model checked
 against its published SHA-512) and the fixtures (checked against the
-SHA-512 `recipe.rs` lists), and writes
+SHA-512 `analysis/goldens-tool/src/recipe/fixtures.rs` lists), and writes
 `<annotator>/<model>/<set>/<id>.golden` for every run and every input
 of the sets it takes. `turbo-goldens verify` regenerates them into a scratch directory and
 fails on any file whose bytes differ. The checked in goldens were made

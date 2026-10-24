@@ -236,14 +236,26 @@ fn phone_backs_off_before_a_trailing_group() {
 
 #[test]
 fn iban_and_the_phone_inside_it() {
+    let parity = cursor().keeping_nested();
+    assert!(!cursor().keeps_nested() && parity.keeps_nested());
     assert_found(
         &cursor(),
+        "Wire it to DE89 3704 0044 0532 0130 00 by Friday.",
+        &[(11, 38, "iban", "DE89370400440532013000")],
+    );
+    assert_found(
+        &parity,
         "Wire it to DE89 3704 0044 0532 0130 00 by Friday.",
         &[(11, 38, "iban", "DE89370400440532013000"), (26, 38, "phone", "0532013000")],
     );
     assert_found(&cursor(), "num 3704 0044 0532 0130 00 end", &[(14, 26, "phone", "0532013000")]);
     assert_found(
         &cursor(),
+        "Pay DE89 3704 0044 0532 0130 00 or call +1 555 123 4567.",
+        &[(4, 31, "iban", "DE89370400440532013000"), (40, 55, "phone", "+15551234567")],
+    );
+    assert_found(
+        &parity,
         "Pay DE89 3704 0044 0532 0130 00 or call +1 555 123 4567.",
         &[
             (4, 31, "iban", "DE89370400440532013000"),
@@ -339,9 +351,14 @@ fn separated_card_back_off_keeps_the_phone_inside() {
 }
 
 #[test]
-fn phone_digits_inside_an_email_are_kept() {
+fn phone_digits_inside_an_email_are_dropped_by_default_and_kept_in_parity() {
     assert_found(
         &cursor(),
+        "mail +15551234567@voip.example.com please",
+        &[(5, 34, "email", "+15551234567@voip.example.com")],
+    );
+    assert_found(
+        &cursor().keeping_nested(),
         "mail +15551234567@voip.example.com please",
         &[(5, 34, "email", "+15551234567@voip.example.com"), (5, 17, "phone", "+15551234567")],
     );

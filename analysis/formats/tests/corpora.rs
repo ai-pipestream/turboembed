@@ -253,7 +253,11 @@ fn rebuild(run: &str, golden: &Golden, input: &str, scratch: &Path) -> Rebuilt {
             match corpus.samples(params, |p| std::fs::read_to_string(p)) {
                 Err(turbo_formats::corpora::DirectoryError::Format(e)) => {
                     let corpus = scratch.to_str().unwrap();
-                    let row = vec!["0".to_owned(), e.class(), e.message().replace(corpus, "<corpus>")];
+                    let row = vec![
+                        "0".to_owned(),
+                        e.class(),
+                        e.message().replace(corpus, "<corpus>").replace(std::path::MAIN_SEPARATOR, "/"),
+                    ];
                     out.row("turbo:read-errors", row);
                 }
                 Err(e) => panic!("{e}"),
@@ -286,7 +290,9 @@ fn rebuild(run: &str, golden: &Golden, input: &str, scratch: &Path) -> Rebuilt {
             let mut ours: Vec<String> = newsgroup_listing(scratch)
                 .unwrap()
                 .iter()
-                .map(|f| f.path.strip_prefix(scratch).unwrap().to_str().unwrap().to_owned())
+                .map(|f| {
+                    f.path.strip_prefix(scratch).unwrap().to_str().unwrap().replace(std::path::MAIN_SEPARATOR, "/")
+                })
                 .collect();
             ours.sort();
             let mut theirs = listed.clone();

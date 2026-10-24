@@ -61,11 +61,26 @@ impl Runtime {
                         "CPU extractive QA; task benchmark pending"
                     },
                 );
+            } else if task == TURBO_TASK_EXTRACTIVE_QA
+                && cap.status != backend::TURBO_CAP_UNSUPPORTED
+                && backend::offered!(d.backend, embed_write_ranges).is_ok()
+            {
+                // The span head reads each token's final state through a
+                // singleton range, so any backend with range writes runs it.
+                cap.status = backend::TURBO_CAP_EXPERIMENTAL;
+                write_str(&mut cap.reason, "extractive QA through range writes; task benchmark pending");
             } else {
                 cap.status = backend::TURBO_CAP_UNSUPPORTED;
                 cap.dtype = 0;
                 cap.options_honored = 0;
-                write_str(&mut cap.reason, "rerank and extractive QA require CPU");
+                write_str(
+                    &mut cap.reason,
+                    if task == TURBO_TASK_RERANK {
+                        "rerank requires CPU"
+                    } else {
+                        "extractive QA needs range writes, which this backend does not offer"
+                    },
+                );
             }
             return Ok(cap);
         }

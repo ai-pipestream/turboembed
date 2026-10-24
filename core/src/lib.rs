@@ -2,7 +2,7 @@
 //!
 //! This cut has the runtime handle, status names, contexts, buffers,
 //! models, the tokenizer, and embed sessions and their results. The types
-//! below mirror the header's; tests/abi.rs checks their layout against a
+//! below mirror the header's; tests/abi/ checks their layout against a
 //! C compiler's.
 
 #![allow(non_camel_case_types)]

@@ -184,8 +184,11 @@ of it.
 
 The SaT and GLiNER checkpoints docs/neural-annotators.md considers, and
 the GLiNER2 and GLiREL checkpoints the relation scorer considers
-(docs/gliner2-relations.md, docs/glirel-relations.md). Three are in the
-zoo's index: `fastino/gliner2-base-v1` (`fastino-gliner2-base-v1`,
+(docs/gliner2-relations.md, docs/glirel-relations.md), and the SQuAD 2.0
+checkpoint the extractive QA benchmarks run (docs/extractive-qa.md).
+Four are in the zoo's index: `deepset/roberta-base-squad2`
+(`deepset-roberta-base-squad2`, share-alike through its training data,
+fetched only after the user accepts CC BY-SA 4.0), `fastino/gliner2-base-v1` (`fastino-gliner2-base-v1`,
 permissive), `jackboyla/glirel-large-v0` (`jackboyla-glirel-large-v0`,
 local-only, fetched from its publisher only after the user accepts CC
 BY-NC-SA 4.0), and GLiREL's tokenizer, `microsoft/deberta-v3-large`'s
@@ -199,7 +202,7 @@ and GLiREL rows.
 
 | Checkpoint | Revision | Licence | Base and data | Class | Checked |
 |---|---|---|---|---|---|
-| [segment-any-text/sat-1l-sm](https://huggingface.co/segment-any-text/sat-1l-sm) | `00a783439c201b20ee91ee1624dc817f1bf0e578` | MIT | XLM-R (MIT); trained on mC4, then a mixture that includes Universal Dependencies training sets | local-only unless the mixture left out UD's non-commercial treebanks (English GUM and others, under Datasets); to be confirmed against wtpsplit's training configuration | here |
+| [segment-any-text/sat-1l-sm](https://huggingface.co/segment-any-text/sat-1l-sm) | `00a783439c201b20ee91ee1624dc817f1bf0e578` | MIT | XLM-R (MIT); trained on mC4, then a mixture that includes Universal Dependencies training sets | local-only: the training mixture holds the training sets of 16 UD treebanks under CC BY-NC-SA, English GUM among them (below) | here |
 | [segment-any-text/sat-12l-sm](https://huggingface.co/segment-any-text/sat-12l-sm) | `d70c72a9331b2d5a9e82baad00c64964a23a09bb` | MIT | as `sat-1l-sm` | as `sat-1l-sm` | here |
 | [segment-any-text/sat-3l](https://huggingface.co/segment-any-text/sat-3l) | `a3b7ba6b61881d619989757aea971cde7d3d6a98` | MIT | XLM-R (MIT); mC4 (ODC-BY) | permissive; needs limited lookahead, which the core lacks | here |
 | [urchade/gliner_small-v2.1](https://huggingface.co/urchade/gliner_small-v2.1) | `4e091416cf7c3481db542c2a3d26156916f3a47f` | Apache-2.0 | deberta-v3-small (MIT); `urchade/pile-mistral-v0.1` (Apache-2.0, labels Mistral wrote for text from The Pile) | permissive | here |
@@ -209,6 +212,40 @@ and GLiREL rows.
 | [microsoft/deberta-v3-large](https://huggingface.co/microsoft/deberta-v3-large) (`spm.model`, `config.json`) | `64a8c8eab3e352a784c658aef62be1662607476f` | MIT | | permissive; in the index | here |
 | [jackboyla/glirel-large-v0](https://huggingface.co/jackboyla/glirel-large-v0) | `40a523e12a8432d6da364cf2a195a28755ff04d3` | CC BY-NC-SA 4.0 (the card and the GLiREL repository) | deberta-v3-large (MIT); training data not named on the card | local-only; in the index, fetched after acceptance | here |
 | [dslim/bert-base-NER](https://huggingface.co/dslim/bert-base-NER) | `d1a3e8f13f8c3566299d95fcfc9a8d2382a9affc` | MIT | [google-bert/bert-base-cased](https://huggingface.co/google-bert/bert-base-cased) (Apache-2.0); CoNLL-2003 (Reuters RCV1, research only; under Datasets) | refused by the class rule, for its training data: not shipped, bundled, listed in the index or trained on; a local reference that is scored, as `en-pos-maxent` is | here |
+| [deepset/roberta-base-squad2](https://huggingface.co/deepset/roberta-base-squad2) | `adc3b06f79f797d1c575d5479d6f5efe54a9e3b4` | CC BY 4.0 | [FacebookAI/roberta-base](https://huggingface.co/FacebookAI/roberta-base) (MIT); SQuAD 2.0 (CC BY-SA 4.0, under Datasets) | share-alike, by its training data: in the index, fetched after acceptance; not shipped or bundled; `bundle/recipes/roberta-base-squad2.json` makes a local bundle from it | here, 2026-10-23 |
+
+The `-sm` class was checked on 2026-10-23 against wtpsplit (MIT) at
+commit `3ef928c8e163d11dc6f6336ad610bff2ffe0bda4`.
+`wtpsplit/data_acquisition/extract_all_data.py` reads UD 2.13
+(`ud-treebanks-v2.13`) and keeps the first 10,000 sentences of each
+language's `*-ud-train.conllu`, with `include_train_data` on by default.
+The treebank for each language is the `ud` column of
+`wtpsplit/data/language_info.csv`. `wtpsplit/train/train_SM.py` trains
+on those sentences, and on the same sentences corrupted, for every
+language that has them. The `-sm` configurations (`configs/SM/`) change
+only the layer count and schedule. The README of each named treebank at
+tag `r2.13` gives these licences:
+
+- CC BY-NC-SA, with a training file the glob matches (16): Arabic PADT,
+  Basque BDT, Bulgarian BTB, English GUM, Estonian EDT, Greek GDT, Hindi
+  HDTB, Hungarian Szeged, Italian ISDT, Latin ITTB, Polish PDB, Swedish
+  LinES, Tamil TTB, Turkish IMST, Ukrainian IU and Urdu UDTB.
+- Czech PDT (CC BY-NC-SA 4.0) is not read: its training set is split
+  into several files (`cs_pdt-ud-train-ca.conllu` and others), which the
+  glob does not match.
+- Galician TreeGal is under LGPL-LR.
+- The other 39 are CC BY or CC BY-SA, or have no training file.
+
+The released checkpoints name no training commit, so this is the
+published recipe rather than a record of the run. The SaT paper
+(section 4.2) also says the mixture includes UD training sets. Under the
+class rule, `sat-1l-sm` and `sat-12l-sm` are local-only.
+
+`bundle/recipes/sat-1l-sm.json` seals `sat-1l-sm` with BAAI/bge-m3's
+`tokenizer.json` at revision `5617a9f61b028005a4858fdac845db406aefb181`,
+whose model card declares MIT (checked on 2026-10-23 from the hub's
+model API). It is XLM-R's vocabulary in the form the core reads
+(docs/neural-annotators.md, "Against wtpsplit").
 
 `dslim/bert-base-NER` is the checkpoint OpenNLP's `NameFinderDL` documents
 and the native token classifier in `turbo-namefind-dl` is compared with.
@@ -246,6 +283,7 @@ match the hub's LFS object ids at that revision.
 | [DaNE](https://github.com/alexandrainst/danlp) | Danish NER | CC BY-SA 4.0 | share-alike | | plan |
 | [Wikipedia](https://dumps.wikimedia.org/) | language detection | CC BY-SA 4.0 | share-alike | | plan |
 | [DBpedia-14](https://huggingface.co/datasets/fancyzhx/dbpedia_14) | document categorizer | CC BY-SA 3.0 and GFDL | share-alike | | plan |
+| [SQuAD 2.0](https://rajpurkar.github.io/SQuAD-explorer/) | extractive QA | CC BY-SA 4.0 | share-alike | the dev set `dev-v2.0.json` (4,370,528 bytes, SHA-256 `80a5225e94905956a6446d296ca1093975c4d3b3260f1d6c8f68bc2ab77182d8`) is used for evaluation only (docs/extractive-qa.md); it is not in the repository | here, 2026-10-23 |
 | [UD_English-GUM r2.16](https://github.com/UniversalDependencies/UD_English-GUM/blob/r2.16/README.md) | | CC BY-NC-SA 4.0 | local-only | non-commercial | here |
 | [UD_English-LinES r2.16](https://github.com/UniversalDependencies/UD_English-LinES/blob/r2.16/README.txt) | | CC BY-NC-SA 4.0 | local-only | non-commercial | here |
 | [UD_Swedish-LinES r2.16](https://github.com/UniversalDependencies/UD_Swedish-LinES/blob/r2.16/README.txt) | | CC BY-NC-SA 4.0 | local-only | non-commercial | here |
