@@ -69,6 +69,8 @@ fn each_numerics_keeps_its_config_hash_through_the_graph_round_trip() {
     for numerics in [Numerics::Packed, Numerics::JvmParity] {
         let t = tagger(numerics);
         let hash = t.config_hash();
+        let digest = t.model().model_ref().sha256.clone();
+        assert_eq!(Annotator::model(&t).map(|m| m.sha256), Some(digest.clone()), "{numerics:?}: the model's ref");
         let doc = tagged(t);
         assert_eq!(pos_config(&doc), hash, "{numerics:?}: the layer names its annotator's hash");
 
@@ -79,6 +81,10 @@ fn each_numerics_keeps_its_config_hash_through_the_graph_round_trip() {
         assert_eq!(read, graph, "{numerics:?}: the bytes read back to the same graph");
         let back = import(&read, &codecs).unwrap();
         assert_eq!(pos_config(&back), hash, "{numerics:?}: imported");
+        let prov = back.provenance(Key::<PosTags>::DEFAULT.id()).unwrap();
+        assert_eq!(prov.model.as_ref().unwrap().sha256, digest, "{numerics:?}: the model digest after import");
+        let record = read.layers.iter().find(|l| l.provenance.annotator == "turbo-postag:bilstm").unwrap();
+        assert_eq!(record.provenance.model.as_ref().unwrap().sha256, digest, "{numerics:?}: the digest in the bytes");
         let (a, b) = (doc.get::<PosTags>().unwrap(), back.get::<PosTags>().unwrap());
         assert_eq!((&a.tags, &a.prob), (&b.tags, &b.prob), "{numerics:?}: the tags themselves");
         // Exported again from the imported document: the same bytes.

@@ -81,3 +81,44 @@ fn check_refuses_what_a_measurement_cannot_give() {
     refused(&|r| r.command = ["--model ", "home", "someone", "e5.bin"].join("/"), "a host path");
     refused(&|r| r.record_version = 2, "another version");
 }
+
+#[test]
+fn check_refuses_non_finite_latency_and_ratio() {
+    let refused = |f: &dyn Fn(&mut PosRecord), why: &str| {
+        let mut r = sample();
+        f(&mut r);
+        assert!(check(&r).is_err(), "{why}");
+        // write() refuses what check() refuses, so no record it saves holds a
+        // JSON null where a number belongs.
+        let dir = std::env::temp_dir().join(format!("turbo-postag-check-{}", std::process::id()));
+        assert!(write(&r, &dir).is_err(), "{why}: written");
+    };
+    for nan_or_inf in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        refused(&|r| r.runs[0].packed.call_p95_ms = nan_or_inf, "packed p95");
+        refused(&|r| r.runs[0].parity.call_p95_ms = nan_or_inf, "parity p95");
+        refused(&|r| r.runs[0].packed.call_p50_ms = nan_or_inf, "packed p50");
+        refused(&|r| r.runs[0].packed_over_parity = nan_or_inf, "ratio");
+    }
+    // Both rates finite and positive, their quotient past f64::MAX.
+    refused(
+        &|r| {
+            r.runs[0].packed.words_per_second = f64::MAX;
+            r.runs[0].parity.words_per_second = 1e-300;
+            r.runs[0].packed_over_parity = f64::INFINITY;
+        },
+        "a quotient that overflows",
+    );
+    refused(
+        &|r| {
+            r.runs[0].packed.words_per_second = f64::MAX;
+            r.runs[0].parity.words_per_second = 1e-300;
+            r.runs[0].packed_over_parity = f64::MAX;
+        },
+        "a finite ratio for an overflowed quotient",
+    );
+    // What check() takes reads back from its JSON unchanged.
+    let r = sample();
+    check(&r).unwrap();
+    let back: PosRecord = serde_json::from_str(&serde_json::to_string(&r).unwrap()).unwrap();
+    assert_eq!(back, r);
+}

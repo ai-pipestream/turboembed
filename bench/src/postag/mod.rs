@@ -202,11 +202,15 @@ pub fn check(r: &PosRecord) -> Result<()> {
             return Err(format!("{what}: counts past the treebank"));
         }
         for s in [&run.packed, &run.parity] {
-            if !positive(s.words_per_second) || !positive(s.call_p50_ms) || s.call_p95_ms < s.call_p50_ms {
-                return Err(format!("{what}: a rate or latency that is not positive, or p95 under p50"));
+            let latency = positive(s.call_p50_ms) && positive(s.call_p95_ms) && s.call_p95_ms >= s.call_p50_ms;
+            if !positive(s.words_per_second) || !latency {
+                return Err(format!("{what}: a rate or latency that is not finite and positive, or p95 under p50"));
             }
         }
         let q = run.packed.words_per_second / run.parity.words_per_second;
+        if !positive(q) || !positive(run.packed_over_parity) {
+            return Err(format!("{what}: packed_over_parity or the quotient of the rates is not finite and positive"));
+        }
         if (run.packed_over_parity - q).abs() > 1e-12 * q {
             return Err(format!("{what}: packed_over_parity is not the quotient of the rates"));
         }
