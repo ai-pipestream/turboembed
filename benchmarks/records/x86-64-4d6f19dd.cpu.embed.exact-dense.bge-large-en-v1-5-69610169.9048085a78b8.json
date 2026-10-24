@@ -1,0 +1,191 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-23T21:56:34Z",
+  "machine": {
+    "arch": "x86_64",
+    "host_cpu": "AMD Ryzen 9 9950X 16-Core Processor",
+    "os": "linux"
+  },
+  "device": {
+    "backend": "cpu",
+    "kind": "DEVICE_CPU",
+    "name": "AMD Ryzen 9 9950X 16-Core Processor",
+    "vendor": "AuthenticAMD",
+    "driver_version": "",
+    "runtime_version": "",
+    "memory_total": 65923383296
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 cpu",
+    "commit": "9048085a78b8f7d8ac6ccecbc2c2a4159190c686",
+    "pushed_to": [
+      "origin/main"
+    ],
+    "settings": [
+      "TURBO_CPU_THREADS=16"
+    ]
+  },
+  "task": "TASK_EMBED",
+  "precision": "PRECISION_EXACT",
+  "compute_dtype": "DTYPE_F32",
+  "bundle": {
+    "model_id": "BAAI/bge-large-en-v1.5",
+    "revision": "1",
+    "manifest_sha256": "6961016910fa740056d8719fa8a6d40f2796ffad6a83239c19114e5922a49407",
+    "artifact_sha256": "45e1954914e29bd74080e6c1510165274ff5279421c89f76c418878732f64ae7",
+    "tokenizer_sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66"
+  },
+  "rows": {
+    "kind": "ROWS_DENSE",
+    "batch": 32,
+    "seq": 512,
+    "live_tokens": 16384,
+    "cases": [
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8
+    ],
+    "sha256": "2ae802501583c0727377d7fe8d37746d805fbe05a548fd79224948582c8af4d4"
+  },
+  "timing": {
+    "warmup": 20,
+    "iterations": 200,
+    "p50_ms": 5980.681595,
+    "p99_ms": 5997.854283,
+    "mean_ms": 5981.951946350001,
+    "min_ms": 5966.233179,
+    "max_ms": 6000.260722,
+    "rows_per_second": 5.349424223967542,
+    "computed_tokens": 16384
+  },
+  "conformance": {
+    "rows": 41,
+    "min_cosine": 0.9999999999882742,
+    "max_abs_diff": 5.066394805908203e-7
+  },
+  "references": [
+    {
+      "name": "text-embeddings-inference",
+      "role": "end_to_end",
+      "pinned": "ghcr.io/huggingface/text-embeddings-inference@sha256:2538ea1c9640d3763b15af668039d24172d063b42337b0c27796fc2be180c78d",
+      "version": "1.9.4 (float32)",
+      "commands": [
+        [
+          "docker",
+          "image",
+          "inspect",
+          "--format",
+          "{{.Id}}",
+          "ghcr.io/huggingface/text-embeddings-inference@sha256:2538ea1c9640d3763b15af668039d24172d063b42337b0c27796fc2be180c78d"
+        ],
+        [
+          "docker",
+          "image",
+          "inspect",
+          "--format",
+          "{{json .Config.Env}}",
+          "ghcr.io/huggingface/text-embeddings-inference@sha256:2538ea1c9640d3763b15af668039d24172d063b42337b0c27796fc2be180c78d"
+        ],
+        [
+          "docker",
+          "run",
+          "--detach",
+          "--rm",
+          "--pull",
+          "never",
+          "--name",
+          "turbo-bench-tei-1739025",
+          "--cpuset-cpus",
+          "8-15,24-31",
+          "--env",
+          "OMP_NUM_THREADS=8",
+          "--env",
+          "MKL_NUM_THREADS=8",
+          "--env",
+          "RAYON_NUM_THREADS=16",
+          "--publish",
+          "127.0.0.1::80",
+          "--env",
+          "HF_HUB_OFFLINE=1",
+          "--mount",
+          "type=bind,src=<tei-model>,dst=/model,readonly",
+          "ghcr.io/huggingface/text-embeddings-inference@sha256:2538ea1c9640d3763b15af668039d24172d063b42337b0c27796fc2be180c78d",
+          "--model-id",
+          "/model",
+          "--port",
+          "80",
+          "--dtype",
+          "float32",
+          "--pooling",
+          "cls",
+          "--max-client-batch-size",
+          "32",
+          "--max-batch-tokens",
+          "16384"
+        ],
+        [
+          "docker",
+          "port",
+          "turbo-bench-tei-1739025",
+          "80/tcp"
+        ],
+        [
+          "docker",
+          "inspect",
+          "--format",
+          "{{.State.Running}}",
+          "turbo-bench-tei-1739025"
+        ],
+        [
+          "docker",
+          "inspect",
+          "--format",
+          "{{.State.Running}}",
+          "turbo-bench-tei-1739025"
+        ]
+      ],
+      "procedure": "POST /decode then /tokenize to check the rows survive TEI's re-tokenization; then POST /embed with the batch's 32 rows as token ids, 20 untimed then 200 timed, each timed from sending the request to reading the whole response, the p50 and p99 of TEI's x-total-time, x-tokenization-time, x-queue-time, x-inference-time headers beside it, and TEI's /metrics read before and after the timed requests for its te_batch_next_size and te_batch_next_tokens histograms; min_cosine is against the bundle's reference vectors; round trip (measured) p50 9884.786 ms, p99 11052.727 ms; TEI's own headers, whole ms, over the same requests: x-total-time p50 9881 p99 11049, x-tokenization-time p50 3 p99 12, x-queue-time p50 3756 p99 4273, x-inference-time p50 2351 p99 2754; TEI's /metrics over the timed requests: 6400 inputs in 200 requests, 934 backend batches (te_batch_next_size's 1410 samples less the 476 empty polls te_batch_next_tokens shows), 4.67 batches per request, mean batch size 6.85 inputs (batches by size, 1: 64, 2: 33, 3 to 4: 58, 5 to 8: 779); the library ran pinned to CPUs 8-15,24-31 with TURBO_CPU_THREADS=16 threads, one per logical CPU; TEI ran with --cpuset-cpus 8-15,24-31 and OMP_NUM_THREADS=8, MKL_NUM_THREADS=8, RAYON_NUM_THREADS=16 (MKL's threads one per physical core of the list, as MKL itself defaults, since two on a core contend for its vector units; candle's rayon threads one per logical CPU), over the image's RAYON_NUM_THREADS=8; its ONNX Runtime and tokenizer threads counted from those CPUs",
+      "measured": {
+        "iterations": 200,
+        "p50_ms": 9884.785644000001,
+        "p99_ms": 11052.72688,
+        "rows_per_second": 3.2105107963614032,
+        "min_cosine": 0.9999999999991428,
+        "computed_tokens": 16384
+      },
+      "not_run": null
+    }
+  ],
+  "speed_ratio": 0.6050390782758384,
+  "speed_reference": "text-embeddings-inference"
+}
