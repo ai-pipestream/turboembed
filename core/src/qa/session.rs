@@ -260,11 +260,11 @@ pub unsafe fn run_window_batch(
                     logits.copy_from_slice(x);
                 } else {
                     for (label, logit) in logits.iter_mut().enumerate() {
-                        let weights = &h.weight[label * h.in_dim..(label + 1) * h.in_dim];
+                        let weights = &h.weight()[label * h.in_dim..(label + 1) * h.in_dim];
                         *logit = weights
                             .iter()
                             .zip(x)
-                            .fold(f64::from(h.bias[label]), |a, (&w_val, &v)| a + f64::from(w_val) * f64::from(v))
+                            .fold(f64::from(h.bias()[label]), |a, (&w_val, &v)| a + f64::from(w_val) * f64::from(v))
                             as f32;
                     }
                 }

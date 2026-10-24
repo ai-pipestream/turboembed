@@ -64,7 +64,7 @@ unsafe fn dot_avx2(a: &[f32], b: &[f32]) -> f32 {
 /// `l` on one row, through [`dot`].
 pub(crate) fn apply(l: &Linear, x: &[f32], out: &mut [f32]) {
     assert!(x.len() == l.in_dim && out.len() == l.out_dim, "a row of the layer's widths");
-    for ((o, w), &b) in out.iter_mut().zip(l.weight.chunks_exact(l.in_dim)).zip(&l.bias) {
+    for ((o, w), &b) in out.iter_mut().zip(l.weight().chunks_exact(l.in_dim)).zip(l.bias()) {
         *o = dot(w, x) + b;
     }
 }
@@ -93,12 +93,12 @@ impl Packed {
     pub fn new(l: &Linear) -> Packed {
         let panel = if l.out_dim.is_multiple_of(TILE) { TILE } else { l.out_dim };
         let mut wt = vec![0.0; l.in_dim * l.out_dim];
-        for (o, w) in l.weight.chunks_exact(l.in_dim).enumerate() {
+        for (o, w) in l.weight().chunks_exact(l.in_dim).enumerate() {
             for (k, &v) in w.iter().enumerate() {
                 wt[o / panel * l.in_dim * panel + k * panel + o % panel] = v;
             }
         }
-        Packed { in_dim: l.in_dim, out_dim: l.out_dim, wt, panel, bias: l.bias.clone() }
+        Packed { in_dim: l.in_dim, out_dim: l.out_dim, wt, panel, bias: l.bias().to_vec() }
     }
 
     /// Where input `k`'s weights for outputs from `o0` start in `wt`;

@@ -26,7 +26,7 @@ use crate::kernel::{Packed, apply, dot};
 /// A layer's columns `from..from + width` of a `[out, in]` matrix, without
 /// bias, packed.
 fn columns(l: &Linear, from: usize, width: usize) -> Result<Packed, String> {
-    let w = l.weight.chunks_exact(l.in_dim).flat_map(|row| row[from..from + width].iter().copied()).collect();
+    let w = l.weight().chunks_exact(l.in_dim).flat_map(|row| row[from..from + width].iter().copied()).collect();
     Ok(Packed::new(&Linear::new(width, l.out_dim, w, vec![0.0; l.out_dim]).map_err(|e| e.message)?))
 }
 
@@ -137,10 +137,10 @@ impl Heads {
             start: mlp(f, &format!("{m}.span_marker.project_start"))?,
             end: mlp(f, &format!("{m}.span_marker.project_end"))?,
             entity_first: [columns(&entity, 0, h)?, columns(&entity, h, h)?],
-            entity_bias: entity.bias.clone(),
+            entity_bias: entity.bias().to_vec(),
             entity_last: Packed::new(&linear(f, &format!("{m}.span_marker.out_project.3"))?),
             pair_first: [columns(&pair, 0, h)?, columns(&pair, h, h)?],
-            pair_bias: pair.bias.clone(),
+            pair_bias: pair.bias().to_vec(),
             pair_last: linear(f, &format!("{m}.out_project.3"))?,
             prompt: mlp(f, "prompt_rep_layer")?,
             projection: Packed::new(&projection),
@@ -243,12 +243,12 @@ impl Heads {
         let mut folded = vec![0.0; m * f];
         for (t, fold) in types.chunks_exact(h).zip(folded.chunks_exact_mut(f)) {
             for (o, &q) in t.iter().enumerate() {
-                for (x, &w) in fold.iter_mut().zip(&self.pair_last.weight[o * f..(o + 1) * f]) {
+                for (x, &w) in fold.iter_mut().zip(&self.pair_last.weight()[o * f..(o + 1) * f]) {
                     *x += q * w;
                 }
             }
         }
-        let bias: Vec<f32> = types.chunks_exact(h).map(|t| dot(t, &self.pair_last.bias)).collect();
+        let bias: Vec<f32> = types.chunks_exact(h).map(|t| dot(t, self.pair_last.bias())).collect();
         let mut hidden = vec![0.0; f];
         let mut out = Vec::with_capacity(pairs.len() * m);
         for &(a, b) in pairs {

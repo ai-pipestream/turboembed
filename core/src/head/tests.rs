@@ -36,7 +36,7 @@ fn linear_and_head_reject_overflowing_misaligned_and_non_finite_inputs() {
     // Short and long mutated classifier/pooler weight and bias storage are rejected
     // across logits, logits_into, probabilities, and probabilities_into.
     let mut short_cls = head.clone();
-    short_cls.classifier.weight.clear();
+    short_cls.classifier.weight_mut().clear();
     let mut out_f32 = [0.0f32; 2];
     let mut out_f64 = [0.0f64; 2];
     assert_eq!(short_cls.logits(&[1.0, 2.0]).unwrap_err().code, INVALID_SHAPE);
@@ -45,15 +45,15 @@ fn linear_and_head_reject_overflowing_misaligned_and_non_finite_inputs() {
     assert_eq!(short_cls.probabilities_into(&[1.0, 2.0], &mut out_f64).unwrap_err().code, INVALID_SHAPE);
 
     let mut long_cls = head.clone();
-    long_cls.classifier.weight.extend([1.0, 1.0]);
-    long_cls.classifier.bias.push(0.0);
+    long_cls.classifier.weight_mut().extend([1.0, 1.0]);
+    long_cls.classifier.bias_mut().push(0.0);
     assert_eq!(long_cls.logits(&[1.0, 2.0]).unwrap_err().code, INVALID_SHAPE);
     assert_eq!(long_cls.logits_into(&[1.0, 2.0], &mut out_f32).unwrap_err().code, INVALID_SHAPE);
     assert_eq!(long_cls.probabilities(&[1.0, 2.0]).unwrap_err().code, INVALID_SHAPE);
     assert_eq!(long_cls.probabilities_into(&[1.0, 2.0], &mut out_f64).unwrap_err().code, INVALID_SHAPE);
 
     let mut bad_pooler = head;
-    bad_pooler.pooler.as_mut().unwrap().bias.pop();
+    bad_pooler.pooler.as_mut().unwrap().bias_mut().pop();
     assert_eq!(bad_pooler.logits(&[1.0, 2.0]).unwrap_err().code, INVALID_SHAPE);
     assert_eq!(bad_pooler.probabilities(&[1.0, 2.0]).unwrap_err().code, INVALID_SHAPE);
 }
@@ -115,13 +115,13 @@ fn batched_logits_match_one_state_at_a_time() {
 fn mutated_weights_are_the_ones_applied() {
     let mut layer = Linear::new(2, 1, vec![1.0, 2.0], vec![0.0]).unwrap();
     let mut out = [0.0f32; 1];
-    layer.weight[0] = 3.0;
+    layer.weight_mut()[0] = 3.0;
     layer.apply(&[1.0, 1.0], &mut out);
     assert_eq!(out, [5.0], "mutation before first apply");
-    layer.weight[0] = 10.0;
+    layer.weight_mut()[0] = 10.0;
     layer.apply(&[1.0, 1.0], &mut out);
     assert_eq!(out, [12.0], "mutation after packing");
-    layer.bias[0] = 1.0;
+    layer.bias_mut()[0] = 1.0;
     layer.apply(&[1.0, 1.0], &mut out);
     assert_eq!(out, [13.0], "bias mutation");
     let clone = layer.clone();

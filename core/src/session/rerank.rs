@@ -144,7 +144,7 @@ pub(super) unsafe fn run_pairs(s: &SessionInner, state: &mut State) -> Result<tu
             }
             let hidden = if let Some(pooler) = &head.pooler {
                 for (dst, (w, &bias)) in
-                    state.pooled.iter_mut().zip(pooler.weight.chunks_exact(head.hidden).zip(&pooler.bias))
+                    state.pooled.iter_mut().zip(pooler.weight().chunks_exact(head.hidden).zip(pooler.bias()))
                 {
                     let sum = w.iter().zip(input).fold(f64::from(bias), |a, (&w, &x)| a + f64::from(w) * f64::from(x));
                     *dst = sum.tanh() as f32;
@@ -155,10 +155,10 @@ pub(super) unsafe fn run_pairs(s: &SessionInner, state: &mut State) -> Result<tu
             };
             let value = head
                 .classifier
-                .weight
+                .weight()
                 .iter()
                 .zip(hidden)
-                .fold(f64::from(head.classifier.bias[0]), |a, (&w, &x)| a + f64::from(w) * f64::from(x))
+                .fold(f64::from(head.classifier.bias()[0]), |a, (&w, &x)| a + f64::from(w) * f64::from(x))
                 as f32;
             if !value.is_finite() {
                 return Err(Error::new(INTERNAL, "rerank relevance overflows F32"));

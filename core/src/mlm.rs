@@ -194,7 +194,7 @@ impl MlmHead {
         while done < tokens {
             let n = (tokens - done).min(BLOCK);
             let xb = &x[done * h..(done + n) * h];
-            for (i, (w, &b)) in self.decoder.weight.chunks_exact(h).zip(&self.decoder.bias).enumerate() {
+            for (i, (w, &b)) in self.decoder.weight().chunks_exact(h).zip(self.decoder.bias()).enumerate() {
                 for t in 0..n {
                     let x = &xb[t * h..][..h];
                     let mut s = b;

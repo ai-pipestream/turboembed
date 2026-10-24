@@ -229,7 +229,7 @@ impl MlmHead {
         // processor has a SIMD kernel for it (sparse/decode.rs).
         let kernel = Kernel::detect();
         let mut wt = vec![0.0f32; h * v];
-        for (i, w) in self.decoder.weight.chunks_exact(h).enumerate() {
+        for (i, w) in self.decoder.weight().chunks_exact(h).enumerate() {
             for (j, &x) in w.iter().enumerate() {
                 wt[j * v + i] = x;
             }
@@ -251,7 +251,7 @@ impl MlmHead {
                 // filling the whole block first costs the x86 decoder
                 // about 2%. A kernel that takes one token a pass gets
                 // exactly one row per call, which keeps that gain.
-                let bias = &self.decoder.bias[i0..i0 + w];
+                let bias = &self.decoder.bias()[i0..i0 + w];
                 let k = kernel.tokens_per_pass();
                 if k == 1 {
                     for (x, o) in block.chunks_exact(h).zip(out.chunks_exact_mut(w)) {
