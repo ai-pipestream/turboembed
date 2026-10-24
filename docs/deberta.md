@@ -30,9 +30,9 @@ once and reused by every layer and head. `encode` retains only the final
 output; `encode_layers` also retains embedding and intermediate outputs for
 parity tests.
 
-Execution is single-threaded CPU code over the CPU backend's packed matrix
-kernels (`core/src/cpu/kernels/dense.rs`: AVX-512, AVX2 or portable, chosen at
-run time). Only visible positions are computed. Visible queries attend only to
+Execution is CPU code over the CPU backend's packed matrix kernels
+(`core/src/cpu/kernels/dense.rs`: AVX-512, AVX2 or portable, chosen at run
+time). Only visible positions are computed. Visible queries attend only to
 visible keys, and buckets depend only on position differences, so visible rows
 come out bit for bit the same whatever padding or masked IDs surround them.
 Every masked position has the same hidden state: zero after the embedding,
@@ -42,12 +42,29 @@ p2c are products against keys and against only the relative rows the
 sequence's distances reach, gathered by bucket. The shared-key relative
 projections depend on weights alone. They are made once at load when all
 layers fit in 1 GiB, and otherwise per call for the reached rows, with the
-same bits. Threading, batching and device backends remain later work.
+same bits. Device backends remain later work.
 
-Latency at DeBERTa-v3 shapes on synthetic weights, one pinned core:
+## Threads and batches
+
+Each encoder owns a pool of threads, made at load: `TURBO_CPU_THREADS` when
+set, else one per processor the process may run on, as for a CPU session
+(docs/cpu.md); `Encoder::with_threads` sets the count, 1 to 1024. `encode`
+splits one sequence's products into tiles and its attention into heads,
+each tile and head one task of the pool. `encode_batch` takes rows of IDs
+and masks and runs each row as one task, on one thread, returning a result
+per row; a row that fails fails alone. Every tile, head and row is computed
+the same on any thread, so the bits do not depend on the thread count, on
+the batch a row is in, or on which thread took it
+(`core/tests/deberta_threads.rs`). Calls made at once on one encoder share
+it: one takes the pool and the others run on their own thread, with the
+same bits. LayerNorm, the embedding lookup and the masked row stay on the
+calling thread.
+
+Latency at DeBERTa-v3 shapes on synthetic weights, on one thread and on
+every processor, one sequence a call and batches of 16:
 
 ```
-taskset -c 2 cargo test --release --locked -p turbo --test deberta_speed -- --ignored --nocapture
+cargo test --release --locked -p turbo --test deberta_speed -- --ignored --nocapture
 ```
 
 ## Configuration and package contract
