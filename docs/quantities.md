@@ -45,10 +45,14 @@ shared unit table in `analysis/layers/src/unit/mod.rs` (for example,
 `2.5km` -> `2500` `m`, `500 g` -> `0.5` `kg`, `250 mL` -> `0.00025` `m³`,
 `100 °C` -> `373.15` `K`, `36 km/h` -> `10` `m/s`), so quantities can be
 compared and filtered across units while keeping the written columns
-unchanged. When a written value or its converted form lies outside `Dec`'s
+unchanged. A unit with no defined base conversion, including temperature
+degrees without a scale (`deg`), keeps its stated value and unit. When a
+written value or its converted form lies outside `Dec`'s
 `i128` mantissa or `i16` scale range, `base_unit` is left empty (`""`) and
-`Quantities::normalized_dec` returns `None`. Note that bare unit symbols
-in `Unit::from_symbol` (such as `C`, `F`, `K`, `st`, and `d` for Celsius,
+`Quantities::normalized_dec` returns `None`; `normalized_value` then retains
+the written value and must not be treated as a converted value. Note that
+bare unit symbols in `Unit::from_symbol` (such as `C`, `F`, `K`, `st`, and
+`d` for Celsius,
 Fahrenheit, Kelvin, stone, and day) map to typed units in the shared unit
 table, so a caller passing a custom unit list with the same spelling gets
 that unit's normalization.

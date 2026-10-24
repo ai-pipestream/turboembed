@@ -30,11 +30,12 @@ pub const PERCENT: &str = "%";
 /// `normalized_coefficient`, `normalized_scale`, and `base_unit` hold the
 /// quantity normalized to its SI or stated base unit (`2.5km` -> `2500 m`,
 /// `500 g` -> `0.5 kg`, `100 °C` -> `373.15 K`, `36 km/h` -> `10 m/s`). When
-/// a unit is not in the shared unit table (such as `%` or a caller's custom
-/// token), the normalized columns hold the canonicalized written value and
-/// unit. When the written value or its converted form lies outside [`Dec`]'s
-/// `i128` mantissa or `i16` scale range, `base_unit` is empty (`""`) and
-/// [`Quantities::normalized_dec`] returns `None`.
+/// no base conversion is defined (such as `%`, a caller's custom token, or
+/// temperature degrees without a scale), the normalized columns hold the
+/// canonicalized written value and unit. When the written value or its
+/// converted form lies outside [`Dec`]'s `i128` mantissa or `i16` scale range,
+/// `base_unit` is empty (`""`) and [`Quantities::normalized_dec`] returns
+/// `None`.
 pub struct Quantities {
     pub spans: Spans<Quantities>,
     /// Whether the value is below zero. A zero value is never negative,
@@ -105,12 +106,12 @@ impl Quantities {
         self.unit.push(m.unit);
 
         let normalized = Dec::from_unscaled(m.negative, m.coefficient, m.scale).and_then(|dec| match parsed {
-            Some(u) => u.normalize(dec).map(|(norm_dec, base)| {
+            Some(u) if u.base_unit().is_some() => u.normalize(dec).map(|(norm_dec, base)| {
                 let mut base_sym = String::new();
                 base.write_symbol(&mut base_sym);
                 (norm_dec, base_sym)
             }),
-            None => Some((dec, m.unit.to_owned())),
+            _ => Some((dec, m.unit.to_owned())),
         });
 
         if let Some((norm_dec, base_sym)) = normalized {
@@ -146,6 +147,8 @@ impl Quantities {
     }
 
     /// The normalized value of mention `i` in [`Quantities::base_unit`].
+    /// If the base unit is empty, this retains the written value; check
+    /// [`Quantities::normalized_dec`] before using it for comparison.
     pub fn normalized_value(&self, i: Ix<Quantities>) -> DecimalRef<'_> {
         DecimalRef {
             negative: self.normalized_negative[i.get()],

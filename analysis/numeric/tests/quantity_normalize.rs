@@ -157,3 +157,15 @@ fn extracted_quantity_outside_dec_scale_range_returns_none_from_normalized_dec()
     assert_eq!(q.base_unit(Ix::new(1)), "");
     assert_eq!(q.normalized_dec(Ix::new(1)), None);
 }
+
+#[test]
+fn units_without_a_defined_conversion_keep_their_stated_value() {
+    let extractor = QuantityExtractor::with_units(["deg", "foo"], LatinUs).unwrap();
+    let q = scan_with(&extractor, "5 deg and 5 foo");
+    assert_eq!(q.len(), 2);
+    for (i, unit) in (0_u32..).zip(["deg", "foo"]) {
+        assert_eq!(q.unit(Ix::new(i)), unit);
+        assert_eq!(q.base_unit(Ix::new(i)), unit);
+        assert_eq!(q.normalized_dec(Ix::new(i)), Some(d("5")));
+    }
+}
