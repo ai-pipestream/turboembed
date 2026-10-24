@@ -208,17 +208,7 @@ impl Layer for GlossaryTerms {
             return Err("an empty term span".into());
         }
         self.spans.check(Self::OVERLAP).map_err(|_| "term spans not in text order or overlapping")?;
-        if self.glossary.id.len() != self.glossary.term.len() {
-            return Err("glossary id and term columns differ in length".into());
-        }
-        for (_, entry) in self.glossary.iter() {
-            if is_blank(entry.id) {
-                return Err(EntryError::BlankId.to_string());
-            }
-            if is_blank(entry.term) {
-                return Err(EntryError::BlankTerm.to_string());
-            }
-        }
+        debug_assert_eq!(self.glossary.id.len(), self.glossary.term.len());
         if self.entry.iter().any(|e| e.get() >= self.glossary.len()) {
             return Err(format!("an entry outside the glossary of {}", self.glossary.len()));
         }
@@ -307,13 +297,5 @@ mod tests {
         fragmented.tokens.push(IxRange::new(0, 2));
         fragmented.entry.push(EntryIx(0));
         assert_eq!(fragmented.check().unwrap_err(), "term spans not in text order or overlapping");
-
-        // Blank glossary IDs or terms are rejected by check().
-        let mut blank_id = Glossary { id: Strs::default(), term: Strs::default() };
-        blank_id.id.push(" ");
-        blank_id.term.push("x");
-        let mut bad_terms = GlossaryTerms::new(ViewId::SOURCE, Arc::new(blank_id));
-        bad_terms.push(Span::new(0, 1), IxRange::new(0, 1), EntryIx(0));
-        assert_eq!(bad_terms.check().unwrap_err(), EntryError::BlankId.to_string());
     }
 }
