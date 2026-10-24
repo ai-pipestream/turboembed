@@ -182,6 +182,7 @@ impl Treebank {
                 size: self.size,
                 sha256: parse("sha256", self.sha256),
                 sha512: parse("sha512", self.sha512),
+                download: None,
             }],
         }
     }

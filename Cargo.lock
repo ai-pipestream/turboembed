@@ -2821,6 +2821,8 @@ dependencies = [
  "serde_json",
  "sha2",
  "turbo-goldens",
+ "turbo-maxent",
+ "turbo-zstd",
  "ureq",
 ]
 

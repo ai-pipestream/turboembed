@@ -1,5 +1,7 @@
 //! Fetching an artifact: the licence check, then each file, verified by
-//! size, SHA-256 and SHA-512 before it is written or handed out.
+//! size, SHA-256 and SHA-512 before it is written or handed out. A file
+//! served compressed is checked by its download size and SHA-256 first,
+//! then unpacked and checked as any other.
 
 use std::fs;
 use std::io::Write;
@@ -168,10 +170,12 @@ impl<'t> Zoo<'t> {
                 Err(e) => return Err(ZooError::Io { path: local, message: e.to_string() }),
             };
             if !cached {
+                let wire = f.download.as_ref().map_or(f.size, |d| d.download_bytes);
                 let bytes = self
                     .transport
-                    .get(&f.url, f.size)
+                    .get(&f.url, wire)
                     .map_err(|message| ZooError::Transport { url: f.url.to_string(), message })?;
+                let bytes = unpack(a, f, bytes)?;
                 verify(a, f, &bytes)?;
                 write_atomic(&local, &bytes)?;
             }
@@ -179,6 +183,28 @@ impl<'t> Zoo<'t> {
         }
         Ok(Fetched { artifact: a, dir, files })
     }
+}
+
+/// The file `bytes` fetched from `file.url` hold: the bytes themselves,
+/// or, for a file served compressed, the bytes unpacked after their own
+/// size and SHA-256 are checked.
+pub fn unpack(artifact: &Artifact, file: &File, bytes: Vec<u8>) -> Result<Vec<u8>, ZooError> {
+    let Some(d) = &file.download else { return Ok(bytes) };
+    let fail = |check, expected: String, actual: String| ZooError::Integrity {
+        id: artifact.id.clone(),
+        path: file.path.to_string(),
+        check,
+        expected,
+        actual,
+    };
+    if bytes.len() as u64 != d.download_bytes {
+        return Err(fail(Check::DownloadSize, d.download_bytes.to_string(), bytes.len().to_string()));
+    }
+    let sha256 = Sha256::of(&bytes);
+    if sha256 != d.download_sha256 {
+        return Err(fail(Check::DownloadSha256, d.download_sha256.to_string(), sha256.to_string()));
+    }
+    crate::transfer::unpack(d.compression, &bytes, file.size).map_err(|e| fail(Check::Unpack, file.size.to_string(), e))
 }
 
 /// Check `bytes` against `file`'s size, SHA-256 and SHA-512, in that
