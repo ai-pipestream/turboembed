@@ -32,16 +32,16 @@ pub struct Plan<'a> {
     pub opts: turbo_embed_options,
 }
 
-fn bad(message: impl Into<String>) -> Failure {
+pub(crate) fn bad(message: impl Into<String>) -> Failure {
     Failure::new(TURBO_E_INVALID_ARGUMENT, 0, message)
 }
 
-fn bad_shape(message: impl Into<String>) -> Failure {
+pub(crate) fn bad_shape(message: impl Into<String>) -> Failure {
     Failure::new(TURBO_E_INVALID_SHAPE, 0, message)
 }
 
 /// The contents of an input that has none.
-static EMPTY: InferTensorContents = InferTensorContents {
+pub(crate) static EMPTY: InferTensorContents = InferTensorContents {
     bool_contents: Vec::new(),
     int_contents: Vec::new(),
     int64_contents: Vec::new(),
@@ -189,7 +189,7 @@ pub fn plan(req: &ModelInferRequest) -> Result<Plan<'_>> {
 }
 
 /// The tensor's extents, each within a uint32_t.
-fn shape(i: &InferInputTensor, rank: usize) -> Result<Vec<u32>> {
+pub(crate) fn shape(i: &InferInputTensor, rank: usize) -> Result<Vec<u32>> {
     if i.shape.len() != rank {
         return Err(bad_shape(format!("input `{}` has rank {}; it takes rank {rank}", i.name, i.shape.len())));
     }
@@ -202,7 +202,7 @@ fn shape(i: &InferInputTensor, rank: usize) -> Result<Vec<u32>> {
         .collect()
 }
 
-fn has_contents(c: &InferTensorContents) -> bool {
+pub(crate) fn has_contents(c: &InferTensorContents) -> bool {
     !c.bool_contents.is_empty()
         || !c.int_contents.is_empty()
         || !c.int64_contents.is_empty()
@@ -214,7 +214,7 @@ fn has_contents(c: &InferTensorContents) -> bool {
 }
 
 /// Refuses contents in any typed field but `keep`.
-fn only(i: &InferInputTensor, c: &InferTensorContents, keep: &str) -> Result<()> {
+pub(crate) fn only(i: &InferInputTensor, c: &InferTensorContents, keep: &str) -> Result<()> {
     let used = [
         ("bool_contents", !c.bool_contents.is_empty()),
         ("int_contents", !c.int_contents.is_empty()),
@@ -231,13 +231,13 @@ fn only(i: &InferInputTensor, c: &InferTensorContents, keep: &str) -> Result<()>
     }
 }
 
-fn view(b: &[u8]) -> turbo_text {
+pub(crate) fn view(b: &[u8]) -> turbo_text {
     turbo_text { ptr: b.as_ptr() as *const c_char, len: b.len() as u64 }
 }
 
 /// Raw BYTES: each element a 4-byte little-endian length and that many
 /// bytes, back to back, with nothing left over.
-fn split_bytes(mut b: &[u8]) -> Result<Vec<turbo_text>> {
+pub(crate) fn split_bytes(mut b: &[u8]) -> Result<Vec<turbo_text>> {
     let mut out = Vec::new();
     while !b.is_empty() {
         let Some((len, rest)) = b.split_first_chunk::<4>() else {
@@ -326,7 +326,7 @@ pub fn options(params: &HashMap<String, InferParameter>) -> Result<turbo_embed_o
     })
 }
 
-fn kind(c: Option<&ParameterChoice>) -> &'static str {
+pub(crate) fn kind(c: Option<&ParameterChoice>) -> &'static str {
     match c {
         None => "no value",
         Some(ParameterChoice::BoolParam(_)) => "a bool_param",

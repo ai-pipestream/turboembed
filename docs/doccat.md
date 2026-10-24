@@ -381,6 +381,49 @@ as provenance and the template, labels, mode, aggregation, and overlap
 in the annotator config hash. Blank items score zero everywhere rather
 than failing the document.
 
+### Native bundle NLI scorer (`turbo_analysis_embed::BundleNliScorer`)
+
+`turbo_analysis_embed::BundleNliScorer` implements `NliScorer` on a
+sequence-classification bundle (`TASK_EMBED` with a `CLASSIFIER_SEQUENCE`
+head in `head.bin`) on the CPU backend:
+
+1. `BundleNliScorer::open(dir, &EncoderOptions)` opens the bundle's
+   `Tokenizer` (checking that `Tokenizer::pair_template()` resolves a
+   `PairTemplate` with `PairTemplate::specials()` equal to `3` for BERT or
+   `4` for RoBERTa), loads the `CLASSIFIER_SEQUENCE` head (`Head::load`), and
+   opens the `Encoder` session. It refuses a bundle whose `head.kind` is not
+   `ClassifierKind::Sequence`, whose `head.labels` do not resolve to a valid
+   3-way (`entailment`/`neutral`/`contradiction`) or 2-way
+   (`entailment`/`not_entailment`) NLI outcome set, whose `head.hidden` does
+   not match `info.dim`, or whose `max_seq` cannot fit at least two content
+   tokens beside `pair_template.specials()`. `BundleNliScorer::open_categorizer`
+   and `BundleNliScorer::open_annotator` construct a
+   `ZeroShotCategorizer<BundleNliScorer>` or `ZeroShotAnnotator<BundleNliScorer>`
+   directly from `dir`, `&EncoderOptions`, candidate `labels`, and
+   `ZeroShotConfig`.
+2. `NliScorer::count_tokens` encodes the single piece without special tokens
+   (`add_special_tokens = false`) so `ZeroShotCategorizer` budgets hypotheses
+   and windows long premises using exact subword counts.
+3. `NliScorer::score_pairs` encodes every `(premise, hypothesis)` pair of a
+   categorization call with `Tokenizer::encode_pair` (emitting both token IDs
+   and segment token types `0`/`1`) and batches all pairs of the document into
+   chunks of `max_batch` rows through `Rows::push_with_types`,
+   `Encoder::run_cls`, and `Head::logits_into`, recording the backend's
+   `Execution` provenance on the resulting `Categories` layer.
+4. `bundle/recipes/nli-minilm2-l6-h768.json` packages
+   [`cross-encoder/nli-MiniLM2-L6-H768`](https://huggingface.co/cross-encoder/nli-MiniLM2-L6-H768)
+   (revision `b95119ce93d3e065de6214e38cd4a97b0f2f2c6d`, 6-layer 768-dim
+   `RobertaForSequenceClassification` with outcomes
+   `["contradiction", "entailment", "neutral"]`, registered in the model zoo
+   as `cross-encoder-nli-minilm2-l6-h768` under `CLASS_SHARE_ALIKE`).
+   Verified against PyTorch `AutoModelForSequenceClassification` in
+   `analysis/embed/tests/zeroshot.rs`, the bundle matches all 8 reference
+   `(premise, hypothesis)` pairs to `worst_abs_diff = 3.81e-6` (`< 1e-4`
+   gate) and categorizes all 4 zero-shot topic examples (`food` `0.9660`,
+   `finance` `0.3593`, `sports` `0.9858`, `travel` `0.9870`) in one batched
+   encoder forward pass per document (`48.95 ms` total across 4 documents x
+   4 candidate labels, `12.24 ms/doc` on CPU).
+
 ## Transformer sequence classification (`DocumentCategorizerDL`)
 
 `turbo_doccat::dl` ports OpenNLP's `opennlp.dl.doccat.DocumentCategorizerDL`,

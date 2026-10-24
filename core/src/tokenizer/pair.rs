@@ -10,6 +10,18 @@ pub struct PairWindow {
 }
 
 impl Tokenizer {
+    /// Returns the tokenizer's sequence-pair template (`PAIR_BERT` or
+    /// `PAIR_ROBERTA`), when the bundle supports pair encoding.
+    ///
+    /// Note: when `manifest.rerank` is absent, this template is inferred from
+    /// the model family (`Family::Bert` with `token_types >= 2` or
+    /// `Family::Roberta`) and a 3-slot `[start, "$TEXT", end]` template rather
+    /// than declared by the bundle as a sequence-pair task; check
+    /// `manifest.rerank` or the bundle's `Head` when task support matters.
+    pub fn pair_template(&self) -> Option<PairTemplate> {
+        self.rerank.as_ref().map(|r| r.pair_template)
+    }
+
     /// Right-truncate the query first, then cover the passage with windows.
     /// Zero limits select the bundle settings; zero stride uses disjoint windows.
     pub fn encode_pair(
