@@ -27,10 +27,7 @@ pub(crate) fn lines(text: &str) -> impl Iterator<Item = &str> {
     })
 }
 
-/// `String.isBlank`: empty or only `Character.isWhitespace` characters.
-pub(crate) fn is_blank(line: &str) -> bool {
-    line.chars().all(java::is_whitespace)
-}
+pub(crate) use turbo_unicode::java::is_blank;
 
 /// Splits a line at every comma and trims each field as `String.trim`
 /// does, removing every character up to U+0020 at both ends. A control
