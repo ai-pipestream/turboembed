@@ -74,3 +74,27 @@ fn malformed_shortlists_and_level_spans_fail_before_slicing() {
             .is_err()
     );
 }
+
+#[test]
+fn reranker_batches_documents_and_isolates_invalid_shortlists() {
+    let f = fixture();
+    let a = RerankAnnotator::open(&f.dir, 1, RerankOptions::default()).unwrap();
+    let d = Document::new("Paris Germany");
+    let view = d.get::<View>().unwrap();
+    let l = levels();
+    let s = Shortlist { query: "France".into(), source: Key::DEFAULT, items: vec![Ix::new(1), Ix::new(2)] };
+    let t = Shortlist { query: "Europe".into(), source: Key::DEFAULT, items: vec![Ix::new(2)] };
+    let bad = Shortlist { query: "bad".into(), source: Key::DEFAULT, items: vec![Ix::new(9)] };
+    let expected = [a.annotate((view, &l, &s)).unwrap().0, a.annotate((view, &l, &t)).unwrap().0];
+    let mut actual = a.annotate_batch(vec![(view, &l, &s), (view, &l, &bad), (view, &l, &t)]).into_iter();
+    for (i, expected) in expected.into_iter().enumerate() {
+        if i == 1 {
+            assert!(actual.next().unwrap().is_err());
+        }
+        let got = actual.next().unwrap().unwrap().0;
+        assert_eq!(got.items, expected.items);
+        assert_eq!(got.scores, expected.scores);
+        assert_eq!(got.model, expected.model);
+    }
+    assert!(a.annotate_batch(Vec::new()).is_empty());
+}

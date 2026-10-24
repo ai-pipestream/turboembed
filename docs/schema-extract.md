@@ -96,8 +96,10 @@ any of the four deterministic layers present. It writes:
 - `Entities`, over the entity types (kinds `schema-entities`), with each
   span's covering tokens and its score.
 - The document's `Categories`, one category per task label as
-  `task: label`. Each score is the label's probability within its task;
-  the selected set is every task's chosen labels; the best category is the
+  `task: label`. Each score is the label's probability within its task,
+  whether or not the label was chosen: a single-label task's scores are
+  one softmax summing to 1, a multi-label task's are independent sigmoids.
+  The selected set is every task's chosen labels; the best category is the
   highest-scoring selected label.
 - `Records` (`turbo:records`). Each span value has an exact byte span of
   the view's text (from its first word's start to its last word's end),
@@ -113,9 +115,15 @@ any of the four deterministic layers present. It writes:
   - every record with a value;
   - support runs in order, from the four sources.
 
-The model's identity is on every layer's provenance. The text read gets a
-final `.` when it lacks sentence punctuation, as GLiNER2 reads it; a span
-reaching into that `.` is cut back to the text.
+The model's identity is on every layer's provenance, with a config hash:
+FNV-1a over a canonical, length-prefixed encoding of the schema (every
+entity type, task, label, description, threshold, `top_k`, field, choice
+and check), the request threshold, every `Limits` field and the span
+heads' `max_width`. Floats are hashed by their bits with `-0.0` folded into
+`0.0`, so the hash does not depend on how anything is formatted.
+
+The text read gets a final `.` when it lacks sentence punctuation, as
+GLiNER2 reads it; a span reaching into that `.` is cut back to the text.
 
 `export::register_codecs` registers the `DocumentGraph` codec of
 `Records` and of `Evidence<Records>`. Import reads the payload as
@@ -156,6 +164,10 @@ Python.
   - the record layer across the document graph, byte-identical on
     re-export, with every truncation and every flipped byte of its payload
     refused or checked.
+- `analysis/schema-extract/tests/scores_and_hash.rs` checks that every
+  label of a task keeps its probability in `Categories`, chosen or not,
+  and that the config hash changes with each limit, threshold and schema
+  setting while equal settings hash equal.
 
 ## Speed
 
