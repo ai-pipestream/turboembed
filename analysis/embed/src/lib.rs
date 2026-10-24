@@ -66,3 +66,5 @@ pub mod dense;
 pub use dense::{DenseClassifierAnnotator, DenseClassifierModel, DenseClassifierTrainer};
 pub mod doccat;
 pub use doccat::BundleSequenceScorer;
+pub mod zeroshot;
+pub use zeroshot::BundleNliScorer;

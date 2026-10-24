@@ -96,7 +96,22 @@ impl Annotator for GlinerAnnotator {
             self.model.identity(),
         )
     }
-    fn annotate(&self, (view, tokens, sentences): Refs<'_, Self>) -> Result<Self::Writes, Error> {
+    fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error> {
+        self.annotate_with_work(input, &mut crate::heads::Work::default())
+    }
+
+    fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
+        let mut work = crate::heads::Work::default();
+        inputs.into_iter().map(|i| self.annotate_with_work(i, &mut work)).collect()
+    }
+}
+
+impl GlinerAnnotator {
+    fn annotate_with_work(
+        &self,
+        (view, tokens, sentences): Refs<'_, Self>,
+        work: &mut crate::heads::Work,
+    ) -> Result<(Entities, Decisions), Error> {
         let fail = |detail: String| Error::Annotator { annotator: Self::ID, detail };
         let windows = crate::window::pack_windows(&self.model, &self.schema, view, tokens, sentences).map_err(fail)?;
         let (starts, ends) = tokens.spans.columns();
@@ -109,8 +124,10 @@ impl Annotator for GlinerAnnotator {
         };
         let mut decisions = Decisions { logits: Vec::new(), threshold: self.schema.threshold() };
         for window in windows {
-            let candidates =
-                crate::decode(self.model.score_packed(&window.packed, &self.schema).map_err(fail)?, &self.schema);
+            let candidates = crate::decode(
+                self.model.score_packed_with_work(&window.packed, &self.schema, work).map_err(fail)?,
+                &self.schema,
+            );
             for c in candidates {
                 let start = window.tokens.start + c.start;
                 let end = window.tokens.start + c.end;

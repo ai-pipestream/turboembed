@@ -406,13 +406,15 @@ fn maxent_on_pysbd() {
     }
 }
 
-/// The English model as it runs by default, with the bundled inventory.
+/// Each published model as it runs by default, with its bundled inventory.
 #[test]
-fn maxent_en_with_inventory_on_text_suites() {
-    if let Some(Detector::Maxent(lang, d)) = maxent("en") {
-        let d = Detector::Maxent(lang, d.with_abbreviations(AbbreviationInventories::for_language(lang)));
-        text_suite(&d, "pragmatic-segmenter");
-        text_suite(&d, "pysbd");
+fn maxent_with_inventory_on_text_suites() {
+    for (lang, _) in MODELS {
+        if let Some(Detector::Maxent(lang, d)) = maxent(lang) {
+            let d = Detector::Maxent(lang, d.with_abbreviations(AbbreviationInventories::for_language(lang)));
+            text_suite(&d, "pragmatic-segmenter");
+            text_suite(&d, "pysbd");
+        }
     }
 }
 

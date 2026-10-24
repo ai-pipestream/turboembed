@@ -147,6 +147,7 @@ fn the_builder_hashes_discontinuous_fragments_not_envelopes() {
                 cost: vec![0],
                 model_tokens: vec![1],
                 over_budget: vec![false],
+                prompt_overhead: 0,
             },
             by,
         )

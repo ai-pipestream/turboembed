@@ -230,6 +230,7 @@ tech\trust kernel thread allocator latency
             cost: vec![0, 1000],
             model_tokens: vec![4, 4],
             over_budget: vec![false, false],
+            prompt_overhead: 0,
         },
         Provenance::by("test:chunks"),
     )
