@@ -41,11 +41,7 @@ impl<'a> Iterator for Lines<'a> {
     }
 }
 
-/// `StringUtil.trimUnicodeWhitespace`: the Unicode `White_Space` set at
-/// both ends, in every whitespace mode.
-pub(crate) fn trim_unicode_whitespace(line: &str) -> &str {
-    line.trim_matches(|c: char| WhitespaceMode::Unicode.is_whitespace(c as u32))
-}
+pub(crate) use turbo_unicode::whitespace::trim_unicode_whitespace;
 
 /// The fields of `line` separated by whitespace in `mode`, as OpenNLP's
 /// dictionary readers split them (`splitWhitespace` over

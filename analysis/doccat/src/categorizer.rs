@@ -193,6 +193,10 @@ impl Annotator for DocumentCategorizerME {
     fn model(&self) -> Option<ModelRef> {
         Some(self.model.model_ref().clone())
     }
+
+    fn config_hash(&self) -> u64 {
+        self.model.config_hash_value()
+    }
 }
 
 /// Categorizes each span of a positional layer `L` (`Sentences`, `Structure`,
@@ -280,6 +284,15 @@ impl<L: SpanCategorizable> Annotator for SpanCategorizer<L> {
 
     fn model(&self) -> Option<ModelRef> {
         Some(self.categorizer.model().model_ref().clone())
+    }
+
+    fn config_hash(&self) -> u64 {
+        let mut h = self.categorizer.config_hash();
+        for &b in L::ID.as_bytes() {
+            h ^= b as u64;
+            h = h.wrapping_mul(0x100000001b3);
+        }
+        h
     }
 }
 

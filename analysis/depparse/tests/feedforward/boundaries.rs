@@ -168,3 +168,14 @@ fn invalid_settings_and_parser_inputs_fail() {
     assert!(p.parse::<Tokens>(&[], &[]).is_err());
     assert!(p.parse::<Tokens>(&["a"], &[]).is_err());
 }
+
+#[test]
+fn a_model_read_from_bytes_caches_its_pos_label_and_special_slots() {
+    let java = FeedforwardDependencyModel::from_java_bytes(include_bytes!("data/plain.bin")).unwrap();
+    let (n, h) = (java.layout().positions(), java.weights().hidden_bias.len());
+    let v = java.vocabulary();
+    let expected = (n * 3 + n * v.pos.len() + (n - 6) * v.labels.len()) * h;
+    assert_eq!(java.cached_slot_values(), expected);
+    let rebuilt = FeedforwardDependencyModel::from_bytes(&java.to_bytes().unwrap()).unwrap();
+    assert_eq!(rebuilt.cached_slot_values(), expected);
+}

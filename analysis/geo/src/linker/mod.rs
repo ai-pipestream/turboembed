@@ -337,6 +337,44 @@ impl<G: Gazetteer> Geocoder for GeoEntityLinker<G> {
         }
         Ok(resolutions)
     }
+
+    fn fingerprint(&self) -> u64 {
+        const TAG: u64 = 0x4745_4f5f_4c49_4e4b;
+        self.fingerprint_with(TAG)
+    }
+}
+
+impl<G: Gazetteer> GeoEntityLinker<G> {
+    fn fingerprint_with(&self, tag: u64) -> u64 {
+        let metric_disc = match self.fuzzy.metric() {
+            FuzzyMetric::Combined => 0u64,
+            FuzzyMetric::NormalizedLevenshtein => 1u64,
+            FuzzyMetric::JaroWinkler => 2u64,
+        };
+        let policy_disc = match self.mention_policy {
+            MentionPolicy::All => 0u64,
+            MentionPolicy::ExcludeSingleAsciiLetters => 1u64,
+        };
+        let mut h = (FNV_OFFSET_BASIS ^ tag).wrapping_mul(FNV_PRIME);
+        for bits in [
+            self.gazetteer.fingerprint(),
+            self.weights.fuzzy.to_bits(),
+            self.weights.geohash.to_bits(),
+            self.weights.country.to_bits(),
+            self.weights.province.to_bits(),
+            self.weights.population.to_bits(),
+            metric_disc,
+            self.fuzzy.min_similarity().to_bits(),
+            self.geohash.precision() as u64,
+            self.country.decay_bytes().to_bits(),
+            self.province.decay_bytes().to_bits(),
+            self.max_candidates_per_mention as u64,
+            policy_disc,
+        ] {
+            h = (h ^ bits).wrapping_mul(FNV_PRIME);
+        }
+        hash_location_types(h, &self.location_types)
+    }
 }
 
 impl<G: Gazetteer + Send + Sync + 'static> Annotator for GeoEntityLinker<G> {
@@ -345,10 +383,12 @@ impl<G: Gazetteer + Send + Sync + 'static> Annotator for GeoEntityLinker<G> {
     type Writes = (Locations, EntityLocationLinks);
 
     fn annotate(&self, (view, entities): Refs<'_, Self>) -> Result<Self::Writes, Error> {
+        use turbo_analysis::Layer as _;
         self.weights.validate().map_err(|e| Error::Annotator { annotator: Self::ID, detail: e.to_string() })?;
         if entities.spans.view() != view.id() {
             return Err(Error::Annotator { annotator: Self::ID, detail: "entities are in a different view".into() });
         }
+        entities.check().map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
         let mut admitted_entities: Vec<(Ix<Entities>, Span)> = Vec::new();
         let mut lower_buf = String::new();
         for (ix, span) in entities.spans.iter() {
@@ -389,36 +429,11 @@ impl<G: Gazetteer + Send + Sync + 'static> Annotator for GeoEntityLinker<G> {
                 edges.push(Edge::new(ent_ix, loc_ix, tag, cand.score));
             }
         }
+        locations.check().map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
         Ok((locations, Edges::new(kinds, edges)))
     }
 
     fn config_hash(&self) -> u64 {
-        let metric_disc = match self.fuzzy.metric() {
-            FuzzyMetric::Combined => 0u64,
-            FuzzyMetric::NormalizedLevenshtein => 1u64,
-            FuzzyMetric::JaroWinkler => 2u64,
-        };
-        let policy_disc = match self.mention_policy {
-            MentionPolicy::All => 0u64,
-            MentionPolicy::ExcludeSingleAsciiLetters => 1u64,
-        };
-        let mut h = FNV_OFFSET_BASIS;
-        for bits in [
-            self.weights.fuzzy.to_bits(),
-            self.weights.geohash.to_bits(),
-            self.weights.country.to_bits(),
-            self.weights.province.to_bits(),
-            self.weights.population.to_bits(),
-            metric_disc,
-            self.fuzzy.min_similarity().to_bits(),
-            self.geohash.precision() as u64,
-            self.country.decay_bytes().to_bits(),
-            self.province.decay_bytes().to_bits(),
-            self.max_candidates_per_mention as u64,
-            policy_disc,
-        ] {
-            h = (h ^ bits).wrapping_mul(FNV_PRIME);
-        }
-        hash_location_types(h, &self.location_types)
+        self.fingerprint_with(0)
     }
 }

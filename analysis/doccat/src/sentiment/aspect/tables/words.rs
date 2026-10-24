@@ -173,8 +173,8 @@ pub(in super::super) const DEGREE_MODIFIERS: &[(&str, f64)] = &[
     ("a_bit", -0.30),
 ];
 
-/// Adversative and clause-splitting conjunctions.
-pub(in super::super) const ADVERSATIVE_CONJUNCTIONS: &[&str] = &[
+/// Adversative and clause-splitting conjunctions for aspect extraction.
+pub(in super::super) const ASPECT_ADVERSATIVES: &[&str] = &[
     "but",
     "however",
     "yet",
