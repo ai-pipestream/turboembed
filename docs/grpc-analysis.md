@@ -121,8 +121,14 @@ sessions finish; the name is then refused as never served), and the next
 `Capabilities` shows the change.
 
 Load and unload are admin calls, and the server does not serve them by
-default: start it with `--admin` (docs/grpc.md, Flags) to answer them,
+default: start it with `--admin` (docs/grpc.md, Flags) to answer them
+(which also allows starting with zero pre-loaded models),
 and until then they refuse with `TURBO_E_UNSUPPORTED` (`UNIMPLEMENTED`).
+`LoadBundleRequest` accepts either an explicit `device` index or
+`select_device = true` (with `device = 0`) to pick a device for the
+bundle's task via `turbo_runtime_select`, and any load or session creation
+failure returns its mapped gRPC status code with `turbo-code` and
+`turbo-field` trailing metadata (docs/kserve.md, Errors).
 Even with the flag they take a plaintext, unauthenticated gRPC port into
 trust, the same trust every request already carries; put the port behind
 what a deployment uses for that (docs/grpc.md, Starting it).

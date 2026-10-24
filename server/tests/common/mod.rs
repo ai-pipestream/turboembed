@@ -196,6 +196,7 @@ pub fn load_req(name: &str, bundle: &str, sessions: u32, precision: u32) -> Load
         precision,
         max_batch: 0,
         max_seq: 0,
+        select_device: false,
     }
 }
 

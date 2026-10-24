@@ -204,7 +204,7 @@ impl State {
         let _one = self.loading.lock().unwrap_or_else(|e| e.into_inner());
         for m in self.listing() {
             if m.loaded.get().is_none() {
-                self.load_model(&m)?;
+                self.load_model(&m).map_err(|e| e.to_string())?;
             }
         }
         Ok(())
@@ -214,7 +214,7 @@ impl State {
     /// no-op. Every other registration is untouched, and a same-named
     /// replacement is a different registration, so one LoadBundle's
     /// failure cannot fail or roll back another's.
-    pub(crate) fn load_one(&self, m: &Arc<Served>) -> std::result::Result<(), String> {
+    pub(crate) fn load_one(&self, m: &Arc<Served>) -> std::result::Result<(), LoadError> {
         let _one = self.loading.lock().unwrap_or_else(|e| e.into_inner());
         if m.loaded.get().is_none() {
             self.load_model(m)?;
@@ -225,14 +225,10 @@ impl State {
     /// One model's load: its context, model, sessions and pinned buffers,
     /// published on its entry. The loading mutex is held by the caller, so
     /// this entry cannot load twice.
-    fn load_model(&self, m: &Arc<Served>) -> std::result::Result<(), String> {
-        let fail = |call: &str, fields: &[&str]| {
-            let (name, call) = (m.name.clone(), call.to_string());
-            let fields: Vec<String> = fields.iter().map(|s| s.to_string()).collect();
-            move |f: Failure| {
-                let fields: Vec<&str> = fields.iter().map(String::as_str).collect();
-                format!("model {name}: {call}: {}", describe(&f, &fields))
-            }
+    fn load_model(&self, m: &Arc<Served>) -> std::result::Result<(), LoadError> {
+        let fail = |call: &'static str, fields: &'static [&'static str]| {
+            let model = m.name.clone();
+            move |failure: Failure| LoadError { model, call, failure, fields }
         };
         let rt = match self.runtime.get() {
             Some(rt) => rt,
@@ -295,7 +291,7 @@ impl State {
                     .alloc(TURBO_PLACE_PINNED, TURBO_DTYPE_I32, si.max_batch, si.max_seq)
                     .map_err(fail("turbo_buffer_alloc", &[]))?;
                 let p = b.host_ptr().map_err(fail("turbo_buffer_host_ptr", &[]))?;
-                Ok::<_, String>((b, p))
+                Ok::<_, LoadError>((b, p))
             };
             let ((ids, a), (mask, b), (types, t)) = (alloc()?, alloc()?, alloc()?);
             slots.push(Slot { _buffers: [ids, mask, types], ptrs: [a, b, t], info: si, session });
@@ -306,6 +302,35 @@ impl State {
         // this entry's load.
         let _ = m.loaded.set(Arc::new(loaded));
         Ok(())
+    }
+}
+
+/// A structured failure from loading a model or creating its sessions,
+/// preserving the turbo status code, field index, and field name table.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LoadError {
+    pub model: String,
+    pub call: &'static str,
+    pub failure: Failure,
+    pub fields: &'static [&'static str],
+}
+
+impl std::fmt::Display for LoadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "model {}: {}: {}", self.model, self.call, describe(&self.failure, self.fields))
+    }
+}
+
+impl LoadError {
+    /// Converts the load failure to its mapped gRPC Status with `turbo-code`
+    /// and `turbo-field` trailing metadata.
+    pub fn to_status(&self) -> tonic::Status {
+        let f = Failure::new(
+            self.failure.code,
+            self.failure.field,
+            format!("model {}: {}: {}", self.model, self.call, self.failure.message),
+        );
+        crate::status::to_status(&f, self.fields)
     }
 }
 
@@ -433,5 +458,20 @@ mod tests {
         assert_eq!(m.name, "x");
         assert!(loaded.is_none(), "nothing is loaded yet; ready() reports that on the same path");
         assert!(state.ready("x", "").is_err());
+    }
+
+    #[test]
+    fn load_error_preserves_status() {
+        let err = LoadError {
+            model: "m".into(),
+            call: "turbo_session_create",
+            failure: Failure::new(TURBO_E_UNSUPPORTED_OPTION, 2, "over max_seq"),
+            fields: &SESSION_DESC,
+        };
+        let status = err.to_status();
+        assert_eq!(status.code(), tonic::Code::Unimplemented);
+        assert_eq!(status.metadata().get("turbo-code").unwrap(), "513");
+        assert_eq!(status.metadata().get("turbo-field").unwrap(), "2");
+        assert!(status.message().contains("field 2 (max_seq)"), "{}", status.message());
     }
 }

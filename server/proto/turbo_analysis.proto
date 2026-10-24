@@ -182,6 +182,10 @@ message LoadBundleRequest
   // The sessions' batch and sequence limits; 0 is the model's.
   uint32 max_batch = 6;
   uint32 max_seq = 7;
+
+  // Select a device with turbo_runtime_select for the bundle's task
+  // instead of indexing `device` (must leave `device` at 0).
+  bool select_device = 11;
 }
 
 message LoadBundleResponse
