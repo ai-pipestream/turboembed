@@ -14,6 +14,7 @@
 //! rows, so a sequence's states do not depend on the others in the batch.
 
 use super::kernels::{Matrix, Mode};
+use crate::head::sigmoid;
 use crate::status::{Result, invalid};
 
 /// One direction's recurrent weights and its place in the stacked input
@@ -56,10 +57,6 @@ pub struct Work {
     /// [batch, hidden] each sequence's state and cell, in batch order.
     state: Vec<f32>,
     cell: Vec<f32>,
-}
-
-fn sigmoid(x: f32) -> f32 {
-    1.0 / (1.0 + (-x).exp())
 }
 
 fn grow(v: &mut Vec<f32>, n: usize) -> Result<&mut [f32]> {
@@ -120,7 +117,14 @@ impl Lstm {
 
     /// Every direction over the sequences of `lengths` (each at least 1,
     /// the longest first), whose rows are `x` [sum, input], into `out`
-    /// [sum, width]: row r's direction k state at columns k * hidden..
+    /// [sum, width]: row r's direction k state at columns k * hidden to
+    /// (k + 1) * hidden.
+    ///
+    /// Lengths out of order are refused, not sorted: a caller holding
+    /// sequences in another order sorts them longest first (a stable sort
+    /// keeps equal lengths in place), lays their rows out in that order,
+    /// and puts the output rows back. A sequence's states do not depend on
+    /// where it sits in the batch, so the order changes nothing else.
     pub fn run(&self, x: &[f32], lengths: &[usize], out: &mut [f32], w: &mut Work) -> Result<()> {
         let (h, g) = (self.hidden, 4 * self.hidden);
         let rows = lengths.iter().try_fold(0usize, |a, &n| a.checked_add(n));
