@@ -110,6 +110,21 @@ fn sentiment_family_refusals() {
     splice(&mut graph, "turbo:numbers", w.finish(), 1);
     assert!(import(&graph, &codecs()).is_err(), "a number at the end of the address space imported");
 
+    // A schema-1 turbo:numbers record must be refused by schema version.
+    let mut graph = export(&doc, &codecs()).unwrap();
+    for record in &mut graph.layers {
+        if record.layer == "turbo:numbers" {
+            record.schema = 1;
+        }
+    }
+    match import(&graph, &codecs()) {
+        Err(ExportError::IncompatibleSchema { layer, exported, supported }) => {
+            assert_eq!((layer.as_str(), exported, supported), ("turbo:numbers", 1, 2));
+        }
+        Ok(_) => panic!("a schema-1 turbo:numbers record imported"),
+        Err(other) => panic!("a schema-1 turbo:numbers record failed as {other}"),
+    }
+
     // A phrase head outside its token range.
     let mut graph = export(&doc, &codecs()).unwrap();
     let mut w = Writer::new();

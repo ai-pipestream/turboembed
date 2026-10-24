@@ -2,15 +2,16 @@
 //!
 //! The layer holds ASCII digits with strict grouping, an optional fraction,
 //! an optional leading minus and an optional scale marker (`12k`, `3 million`),
-//! as well as grammar-parsed numbers. The value is kept as a decimal, the way
-//! Java's `BigDecimal` holds it, so `0.1` stays `0.1`.
+//! as well as grammar-parsed numbers, mirroring OpenNLP's `NumberScan`. The
+//! value is kept as a decimal, the way Java's `BigDecimal` holds it, so `0.1`
+//! stays `0.1`.
 
 use turbo_analysis::{Ix, Layer, Span, Spans, ViewId};
 
 use crate::Strs;
 
 /// The written convention a number groups digits and marks its fraction in.
-/// Nothing in this crate guesses it from a locale.
+/// Nothing in this crate guesses it from a locale (`1.234` is valid in both).
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub enum NumberNotation {
     /// Commas group digits and a dot marks the fraction: `1,234.56`.
@@ -158,8 +159,9 @@ impl Numbers {
         self.spans.push(m.span)
     }
 
-    /// The span of the numeral alone, without the sign and the scale
-    /// marker.
+    /// The span of the numeral (`numeral_start..numeral_end`), without a
+    /// leading minus symbol or trailing scale marker (spelled negatives keep
+    /// the full phrase).
     pub fn numeral(&self, i: Ix<Numbers>) -> Span {
         Span::new(self.numeral_start[i.get()], self.numeral_end[i.get()])
     }
@@ -173,11 +175,12 @@ impl Numbers {
 
 impl Layer for Numbers {
     const ID: &'static str = "turbo:numbers";
+    const SCHEMA: u16 = 2;
     positional!(Numbers);
 
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();
-        let columns = [
+        let cols = [
             self.numeral_start.len(),
             self.numeral_end.len(),
             self.negative.len(),
@@ -187,14 +190,12 @@ impl Layer for Numbers {
             self.marker.len(),
             self.notation.len(),
         ];
-        if columns.iter().any(|&l| l != n) {
+        if cols.iter().any(|&l| l != n) {
             return Err("every column as long as the spans".into());
         }
         self.spans.check(Self::OVERLAP).map_err(|_| "numbers in text order, not overlapping")?;
         for (i, span) in self.spans.iter() {
-            let i = i.get();
-            let numeral_start = self.numeral_start[i];
-            let end = self.numeral_end[i];
+            let (i, numeral_start, end) = (i.get(), self.numeral_start[i.get()], self.numeral_end[i.get()]);
             if numeral_start < span.start || end <= numeral_start || end > span.end {
                 return Err(format!("number {i} has its numeral end {end} outside {}..{}", span.start, span.end));
             }
