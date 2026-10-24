@@ -1138,6 +1138,30 @@ to the session's `max_batch` rows and `max_ranges` ranges a run (16 per
 row unless set). A window whose ranges do not all fit in a run goes
 again, with the rest, in the next.
 
+The sentence, chunk, opinion and aspect span heads also pack windows
+across documents in `annotate_batch`. They keep the same pooling rules
+and isolate invalid layer inputs before encoding. QA batches question/context
+windows, and reranking batches the candidate pairs from all valid shortlists.
+Subword tokenization reuses its offset scratch buffer between documents.
+
+`LearnedAspectSentiment` retains raw hidden states for the union of its
+sentence-pooling and token-selection windows. Every distinct window runs
+once; BIO tagging, opinion polarity, aspect polarity and implicit aspect
+categories then share those states. Multiple documents share encoder runs
+up to `max_batch`. The range-output session grows to hold one range per
+token, so a small original `max_ranges` does not cause repeat forwards.
+Host storage is proportional to the total retained window tokens times
+encoder width. States are released after the annotation batch.
+
+These raw states are distinct from normalized or projected
+`Vectors<Subwords>`. A supplied subword vector layer can supply BIO features,
+but it cannot reconstruct the raw states for exact span pooling, so span
+heads still require an encoder pass. The current span-head input schemas
+do not take an optional subword vector layer. CPU tests compare the retained
+states with the existing token and span paths bit for bit, including split
+spans, overlapping windows, projection, and cross-document batching. They
+do not establish accelerator numerical parity or full-model throughput.
+
 ### What a pooled vector is
 
 A vector is the mean of the encoder's final states over the item's own

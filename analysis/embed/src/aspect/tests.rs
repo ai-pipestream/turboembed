@@ -230,3 +230,91 @@ fn fit_rejects_empty_inputs_and_out_of_bounds_ranges() {
     };
     assert!(LearnedAspectSentiment::fit(Arc::clone(&vec_ann), &["battery"], &[bad_op], 1e-4, 10, 0.1).is_err());
 }
+
+#[test]
+fn twenty_sentences_use_one_window_per_document_and_share_a_batch() {
+    let dir = bert_dir();
+    let sub = SubwordAnnotator::open(&dir).unwrap();
+    let vectors = Arc::new(
+        VectorAnnotator::open(
+            &dir,
+            &VectorOptions {
+                encoder: EncoderOptions {
+                    max_seq: 64,
+                    max_batch: 4,
+                    max_ranges: 2,
+                    cpu_threads: 1,
+                    ..Default::default()
+                },
+                ..Default::default()
+            },
+        )
+        .unwrap(),
+    );
+    let doc = Document::new("good. ".repeat(20));
+    let view = doc.get::<View>().unwrap();
+    let mut sentences = Sentences { spans: Spans::new(view.id()) };
+    for i in 0..20 {
+        sentences.spans.push(Span::new(i * 6, i * 6 + 5));
+    }
+    let (tokens,) = turbo_tokenize::SimpleTokenizer::default().annotate((view, Some(&sentences))).unwrap();
+    let (pieces,) = sub.annotate((view, Some(&tokens))).unwrap();
+    assert!(pieces.len() <= vectors.width() as usize);
+    let precomputed = vectors.embed_subwords("test", &pieces, Some(&sentences.spans)).unwrap();
+    let dim = vectors.dim() as usize;
+    // Exercise both explicit aspects and the opinion-only implicit branch with
+    // real fixed-weight classifier heads and real transformer hidden states.
+    for label in [decode::TAG_B_ASP, decode::TAG_B_OP] {
+        let mut bias = vec![0.0; 5];
+        bias[label as usize] = 10.0;
+        let bio = ClassifierHead::linear(
+            vectors.model().clone(),
+            dim as u32,
+            bio_aspect_opinion_tagset(),
+            HeadMode::SingleLabel,
+            vec![0.0; dim * 5],
+            bias,
+        )
+        .unwrap();
+        let pol = ClassifierHead::linear(
+            vectors.model().clone(),
+            dim as u32,
+            TagSet::new("polarity", &["positive", "negative", "neutral"]),
+            HeadMode::SingleLabel,
+            (0..dim * 3).map(|i| (i as f64).cos()).collect(),
+            vec![0.1, 0.2, 0.3],
+        )
+        .unwrap();
+        let a = LearnedAspectSentiment::new(vectors.clone(), bio, pol, None);
+        let input = (view, &sentences, &tokens, &pieces, None, None, None);
+        let before = vectors.run_counts();
+        let expected = a.annotate(input).unwrap();
+        let after = vectors.run_counts();
+        assert_eq!((after.0 - before.0, after.1 - before.1), (1, 1));
+        assert!(expected.1.len() >= 20);
+        let invalid = Sentences { spans: Spans::new(ViewId(99)) };
+        let before = vectors.run_counts();
+        let mut results = a.annotate_batch(vec![
+            input,
+            (view, &invalid, &tokens, &pieces, None, None, None),
+            (view, &sentences, &tokens, &pieces, Some(&precomputed), None, None),
+        ]);
+        assert!(results.remove(1).is_err());
+        let after = vectors.run_counts();
+        assert_eq!((after.0 - before.0, after.1 - before.1), (1, 2), "valid documents share one run");
+        for result in results {
+            let (opinions, aspects) = result.unwrap();
+            assert_eq!(opinions.tokens, expected.0.tokens);
+            assert_eq!(opinions.polarity, expected.0.polarity);
+            assert_eq!(opinions.intensity, expected.0.intensity);
+            assert_eq!(opinions.negated, expected.0.negated);
+            assert_eq!(aspects.tokens, expected.1.tokens);
+            assert_eq!(aspects.sentence, expected.1.sentence);
+            assert_eq!(aspects.positive, expected.1.positive);
+            assert_eq!(aspects.negative, expected.1.negative);
+            assert_eq!(aspects.neutral, expected.1.neutral);
+            assert_eq!(aspects.opinions, expected.1.opinions);
+            assert_eq!(aspects.opinion_end, expected.1.opinion_end);
+        }
+    }
+}
