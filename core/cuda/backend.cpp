@@ -797,6 +797,10 @@ struct Model {
     bool narrow_tried = false;
     void *narrowed = nullptr;
     std::vector<const uint16_t *> f16;
+    /* The token head, [head_out, hidden] F32 then its [head_out] bias, on
+     * the device; NULL with head_out 0 for a model without one. */
+    float *head = nullptr;
+    uint32_t head_out = 0;
 };
 
 void release_model(Model *m) {
@@ -804,6 +808,7 @@ void release_model(Model *m) {
     if (m->stored) cudaFree(m->stored);
     if (m->widened) cudaFree(m->widened);
     if (m->narrowed) cudaFree(m->narrowed);
+    if (m->head) cudaFree(m->head);
     delete m;
 }
 
@@ -872,11 +877,20 @@ int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo
             return refuse(err, TURBO_E_UNSUPPORTED,
                           "hidden %u and intermediate %u: the cuda backend takes multiples of 8, hidden up to %d",
                           desc->hidden, desc->intermediate, MAX_HIDDEN);
+        // The core hands a head only to a table that sets token_head, and
+        // only in a description that holds the field.
+        const bool has_head = desc->struct_size >= offsetof(turbo_backend_model, head_out) + sizeof(uint32_t) &&
+                              desc->head != nullptr;
+        if (has_head && (desc->head_out == 0 || desc->head[0].bytes != (uint64_t)desc->head_out * desc->hidden * 4 ||
+                         desc->head[1].bytes != (uint64_t)desc->head_out * 4))
+            return refuse(err, TURBO_E_INTERNAL, "a token head of %u outputs whose tensors are not F32 [%u, %u] and [%u]",
+                          desc->head_out, desc->head_out, desc->hidden, desc->head_out);
         const size_t elem = desc->dtype == TURBO_DTYPE_F32 ? 4 : 2;
         Model *m = make<Model>();
         m->ctx = c;
         m->desc = *desc;
         m->desc.tensors = nullptr;
+        m->desc.head = nullptr;
         for (uint32_t i = 0; i < desc->tensor_count; i++) m->counts.push_back(desc->tensors[i].bytes / elem);
         const size_t total = lay_out(m->counts, elem, every_tensor, m->offsets);
         const int32_t rc = [&]() -> int32_t {
@@ -888,6 +902,16 @@ int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo
                 const turbo_backend_tensor &t = desc->tensors[i];
                 TRY_CUDA(cudaMemcpyAsync(base + m->offsets[i], t.data, t.bytes, cudaMemcpyHostToDevice, c->stream),
                          t.name);
+            }
+            if (has_head) {
+                const size_t w = desc->head[0].bytes, b = desc->head[1].bytes;
+                TRY_CUDA(device_malloc(reinterpret_cast<void **>(&m->head), w + b), "device memory for the head");
+                TRY_CUDA(cudaMemcpyAsync(m->head, desc->head[0].data, w, cudaMemcpyHostToDevice, c->stream),
+                         desc->head[0].name);
+                TRY_CUDA(cudaMemcpyAsync(reinterpret_cast<char *>(m->head) + w, desc->head[1].data, b,
+                                         cudaMemcpyHostToDevice, c->stream),
+                         desc->head[1].name);
+                m->head_out = desc->head_out;
             }
             TRY_CUDA(cudaStreamSynchronize(c->stream), "copying the weights to the device");
             if (desc->dtype == TURBO_DTYPE_F32)
@@ -1602,6 +1626,10 @@ struct Session {
      * as the output: a vector per row after embed_write, per range after
      * embed_write_ranges. */
     Buffer output;
+    /* [max_ranges, head_out] F32 on the device, the token head's outputs,
+     * handed out in place of output after a range write that asks for the
+     * head; unused on a model without one. */
+    Buffer head_output;
     /* [3, max_batch * max_seq] int32 and room for [max_ranges, 3] more,
      * page-locked, which the run's fetch kernel reads, and the event that
      * says a write's copies from the caller's memory are done. */
@@ -1818,6 +1846,10 @@ int32_t encode(Session &s, int bin, turbo_error *err) {
     }
     TRY_CUDA(pool(st, s.x, stream16 ? s.x16 : nullptr, s.rows, s.pk, h, static_cast<float *>(s.output.ptr), plan),
              "pooling");
+    if (s.model->head)
+        TRY_CUDA(span_head(st, static_cast<const float *>(s.output.ptr), s.model->head, (int)s.model->head_out, h,
+                           s.pk.info, static_cast<float *>(s.head_output.ptr), plan),
+                 "the token head");
     return TURBO_OK;
 }
 
@@ -2032,7 +2064,7 @@ void stage_rows(Session &s, int m) {
             mask[(size_t)r * seq + i] = live ? 1 : 0;
         }
     s.fetch.n = (int32_t)(2 * plane);
-    s.run = RunArgs{rows, seq, TURBO_POOLING_MEAN, 0, (int32_t)s.model->desc.hidden, 0, 0};
+    s.run = RunArgs{rows, seq, TURBO_POOLING_MEAN, 0, (int32_t)s.model->desc.hidden, 0, 0, 0};
     s.pack.run = s.run;
     s.tokens = (uint32_t)m;
 }
@@ -2385,6 +2417,7 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
         base.seq_cap = (int)max_seq;
         base.tcap = (int)tokens;
         base.ranges_cap = (int)max_ranges;
+        base.head_out = (int)m->head_out;
         base.hidden = (int)d.hidden;
         base.heads = (int)d.heads;
         base.inter = (int)d.intermediate;
@@ -2556,10 +2589,12 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
         // is at most max_batch * max_seq, so this is no more than x.
         const size_t vectors = max_batch > max_ranges ? max_batch : max_ranges;
         const size_t output = round_up(vectors * h * 4, DEVICE_ALIGN);
+        const size_t head_output = round_up((size_t)max_ranges * m->head_out * 4, DEVICE_ALIGN);
         Tuned found;
         uint32_t tune_ms = 0;
         const size_t total =
-            5 * ints + ranges + 5 * rows + info + x + x16 + qkv + att + ffn + part + ws + flags + raw + output;
+            5 * ints + ranges + 5 * rows + info + x + x16 + qkv + att + ffn + part + ws + flags + raw + output +
+            head_output;
         // The staging: the three planes, the ranges, then the fault word.
         const size_t staged_ints = 3 * tokens + range_ints;
         const int32_t rc = [&]() -> int32_t {
@@ -2597,6 +2632,11 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
             s->output.placement = TURBO_PLACE_DEVICE;
             s->output.bytes = (uint64_t)vectors * d.hidden * 4;
             s->output.owned = false;
+            s->head_output.ctx = c;
+            s->head_output.ptr = take(head_output);
+            s->head_output.placement = TURBO_PLACE_DEVICE;
+            s->head_output.bytes = (uint64_t)max_ranges * m->head_out * 4;
+            s->head_output.owned = false;
             s->pack.rows = s->rows;
             s->pack.heads = (int32_t)d.heads;
             s->pack.queries = s->plan[0].attn_queries;
@@ -2829,6 +2869,12 @@ int32_t write_rows(Session &s, const turbo_backend_embed_rows *r, const turbo_to
     s.run.output_dim = (int32_t)r->output_dim;
     s.run.has_types = r->types ? 1 : 0;
     s.run.ranges = (int32_t)count;
+    // The head reads each range's whole vector, unnormalized.
+    s.run.head = r->head ? 1 : 0;
+    if (r->head) {
+        s.run.output_dim = (int32_t)s.model->desc.hidden;
+        s.run.l2 = 0;
+    }
     s.tokens = packed;
     s.h2d = sent;
     s.written = true;
@@ -2836,7 +2882,10 @@ int32_t write_rows(Session &s, const turbo_backend_embed_rows *r, const turbo_to
 }
 
 int32_t embed_write(void *session, const turbo_backend_embed_rows *r, turbo_error *err) {
-    return guarded(err, [&]() -> int32_t { return write_rows(*static_cast<Session *>(session), r, nullptr, 0, err); });
+    return guarded(err, [&]() -> int32_t {
+        if (r->head) return refuse(err, TURBO_E_INTERNAL, "a head asked of embed_write: the core asks it of ranges");
+        return write_rows(*static_cast<Session *>(session), r, nullptr, 0, err);
+    });
 }
 
 /* The rows as embed_write sends them, and the ranges after them, where
@@ -2851,6 +2900,9 @@ int32_t embed_write_ranges(void *session, const turbo_backend_embed_rows *r, con
                           s.max_ranges);
         if (r->pooling != TURBO_POOLING_MEAN)
             return refuse(err, TURBO_E_INTERNAL, "pooling %u for ranges: the core passes MEAN alone", r->pooling);
+        if (r->head && (!s.model->head || r->output_dim != s.model->head_out))
+            return refuse(err, TURBO_E_INTERNAL, "a head of %u outputs asked of a cuda model whose head has %u",
+                          r->output_dim, s.model->head_out);
         return write_rows(s, r, ranges, count, err);
     });
 }
@@ -2912,7 +2964,7 @@ int32_t session_run(void *session, turbo_backend_run *out, turbo_error *err) {
             }
         }
         out->placement = TURBO_PLACE_DEVICE;
-        out->output = &s.output;
+        out->output = s.run.head ? &s.head_output : &s.output;
         out->host = nullptr;
         out->h2d_bytes = s.h2d;
         out->d2h_bytes = 0;
@@ -3110,6 +3162,8 @@ const turbo_backend turbo_cuda_backend = {
     session_create_tuned,
     session_open,
     embed_write_ranges,
+    1,
+    0,
 };
 
 /* Every allocation this backend has made in the process, host and device,

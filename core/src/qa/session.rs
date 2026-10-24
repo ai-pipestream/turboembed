@@ -186,8 +186,8 @@ impl ExtractiveQa {
 }
 
 /// Runs a batch of QA windows `ws` (`1 <= ws.len() <= max_batch`) on `session`,
-/// reading token hidden states through singleton ranges, verifying finite
-/// values, and projecting start/end logits through `head`.
+/// reading singleton ranges, verifying finite values, and using device
+/// logits or projecting hidden states through `head`.
 ///
 /// # Safety
 /// `session` must be a valid, idle `turbo_session` handle configured for the
@@ -236,10 +236,12 @@ pub unsafe fn run_window_batch(
         let mut info: turbo_result_info = std::mem::zeroed();
         info.struct_size = size_of::<turbo_result_info>() as u32;
         check(turbo_result_get_info(result.0, &mut info, &mut e), &e)?;
-        if info.batch != n || info.dim as usize != head.hidden || info.dtype != TURBO_DTYPE_F32 {
+        let on_device = crate::session::applies_span_head(session)?;
+        let dim = if on_device { head.classifier.out_dim } else { head.hidden };
+        if info.batch != n || info.dim as usize != dim || info.dtype != TURBO_DTYPE_F32 {
             return Err(Error::new(INTERNAL, "QA encoder returned an unexpected state shape"));
         }
-        let mut states = vec![0f32; n as usize * head.hidden];
+        let mut states = vec![0f32; n as usize * dim];
         let bytes = size_of_val(states.as_slice()) as u64;
         let mut written = 0;
         check(turbo_result_read(result.0, states.as_mut_ptr().cast(), bytes, &mut written, &mut e), &e)?;
@@ -247,20 +249,24 @@ pub unsafe fn run_window_batch(
             return Err(Error::new(INTERNAL, "QA encoder returned invalid states"));
         }
         let h = &head.classifier;
-        let mut tokens = states.chunks_exact(h.in_dim);
+        let mut tokens = states.chunks_exact(dim);
         let mut out = Vec::with_capacity(ws.len());
         for w in ws {
             let mut start = Vec::with_capacity(w.ids.len());
             let mut end = Vec::with_capacity(w.ids.len());
             for x in tokens.by_ref().take(w.ids.len()) {
                 let mut logits = [0f32; 2];
-                for (label, logit) in logits.iter_mut().enumerate() {
-                    let weights = &h.weight[label * h.in_dim..(label + 1) * h.in_dim];
-                    *logit = weights
-                        .iter()
-                        .zip(x)
-                        .fold(f64::from(h.bias[label]), |a, (&w_val, &v)| a + f64::from(w_val) * f64::from(v))
-                        as f32;
+                if on_device {
+                    logits.copy_from_slice(x);
+                } else {
+                    for (label, logit) in logits.iter_mut().enumerate() {
+                        let weights = &h.weight[label * h.in_dim..(label + 1) * h.in_dim];
+                        *logit = weights
+                            .iter()
+                            .zip(x)
+                            .fold(f64::from(h.bias[label]), |a, (&w_val, &v)| a + f64::from(w_val) * f64::from(v))
+                            as f32;
+                    }
                 }
                 if logits.iter().any(|v| !v.is_finite()) {
                     return Err(Error::new(INTERNAL, "QA head logits overflow F32"));

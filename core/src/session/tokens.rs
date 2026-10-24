@@ -71,14 +71,36 @@ pub unsafe extern "C" fn turbo_embed_write_ranges(
             let ranges = std::slice::from_raw_parts(ranges, len);
             check_ranges(&tb, ranges)?;
             // turbo.h: a range is pooled by the mean whatever the bundle says.
-            let rows = turbo_backend_embed_rows { pooling: TURBO_POOLING_MEAN, ..caller_rows(&o, &tb) };
+            let mut rows = turbo_backend_embed_rows { pooling: TURBO_POOLING_MEAN, ..caller_rows(&o, &tb) };
+            if let Some(h) = &s.model.span_head {
+                span_head_options(&o, s.model.info.dim)?;
+                let output_dim = h.classifier.out_dim as u32;
+                rows = turbo_backend_embed_rows { head: 1, output_dim, normalize: TURBO_NORMALIZE_NONE, ..rows };
+            }
             let b = s.backend;
             let write = backend::offered!(b, embed_write_ranges)?;
             backend::check(b, "embed_write_ranges", |err| write(s.raw, &rows, ranges.as_ptr(), count, err))?;
-            state.written = Some(Written { batch: count, output_dim: o.output_dim, tokenized: false });
+            state.written = Some(Written { batch: count, output_dim: rows.output_dim, tokenized: false });
             Ok(())
         })
     }
+}
+
+/// turbo.h: the span head reads a range's whole vector, so a range write
+/// to a model whose device applies it takes no normalization and no
+/// narrower output_dim.
+fn span_head_options(o: &EmbedOptions, dim: u32) -> Result<()> {
+    if o.normalize != TURBO_NORMALIZE_NONE {
+        return Err(Error::field(UNSUPPORTED_OPTION, 4, "normalize: the span head's logits are not normalized"));
+    }
+    if o.output_dim != dim {
+        return Err(Error::field(
+            UNSUPPORTED_OPTION,
+            6,
+            format!("output_dim {}: the span head reads all {dim} values of a range's vector", o.output_dim),
+        ));
+    }
+    Ok(())
 }
 
 /// The caller's turbo_token_batch, read once and its struct_size checked.
