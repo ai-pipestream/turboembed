@@ -38,8 +38,8 @@ use turbo_sequence::{
 };
 use turbo_train::{Event, Key, Manifest, ModelPackage, TrainingConfiguration, TrainingParameters};
 
-fn package(extra_entries: usize) -> Arc<ModelFile> {
-    let events = [Event::from_strs("unit", &[":w=dic"]), Event::from_strs("other", &["missing"])];
+pub fn package(extra_entries: usize) -> Arc<ModelFile> {
+    let events = [Event::from_strs("person-unit", &[":w=dic"]), Event::from_strs("other", &["missing"])];
     let mut params = TrainingParameters::new();
     params.put(Key::ITERATIONS, 50);
     params.put(Key::CUTOFF, 0);
@@ -52,7 +52,7 @@ fn package(extra_entries: usize) -> Arc<ModelFile> {
     let mut weights = vec![0.0; 10];
     weights[1] = 5.0;
     let crf = CrfSequenceModel::new(
-        vec!["other".into(), "unit".into()],
+        vec!["other".into(), "person-unit".into()],
         vec![JavaString::new(":w=dic")],
         NameCodec::Bilou,
         weights,
