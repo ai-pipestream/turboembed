@@ -1,0 +1,256 @@
+//! The sentence and chunk vector steps on the device or on the CPU, chosen
+//! for each call from a calibration: a [`Dispatch`] holds the step opened
+//! on both at one window and cap on rows a run, plans each call
+//! (`VectorAnnotator::shape`), and runs all of it on the side whose fitted
+//! cost is lower for that call. Each document's layers record the side
+//! that made them (`Annotator::annotate_batch_placed`), so a document's
+//! vectors are one side's, and which one is in its provenance.
+//!
+//! A side's cost is fitted to what the calibration measured at the step's
+//! window, as a time a run, a row and a token, none below 0: a Hailo-8 pays for every
+//! row whatever its length and loads its contexts once a run, and the CPU
+//! pays for the tokens. The samples are the whole set of texts and its
+//! first sentence alone, at each batch measured.
+
+use std::path::Path;
+
+use turbo::status::{Error as CoreError, INVALID_ARGUMENT};
+use turbo_analysis::{Analyzer, Error, Execution, Key, ModelRef};
+use turbo_analysis_layers::{Sentences, Subwords};
+
+use super::{Calibration, CalibrationOptions, FORCE_VAR, Side, Text, documents, first_sentence, forced};
+use crate::encoder::{Device, Precision};
+use crate::vectors::{Embedder, Input, Output, Shape};
+use crate::window::Which;
+use crate::{SubwordAnnotator, VectorAnnotator, VectorOptions};
+
+/// A side's time for a call, in ms: a cost a run, a row and a token.
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct Cost {
+    pub run: f64,
+    pub row: f64,
+    pub token: f64,
+}
+
+impl Cost {
+    /// The fit of `samples`, each a call's shape and its time in ms: the
+    /// costs, none below 0, that make the sum of the squared relative
+    /// errors least, so one sentence counts as much as the whole set. Each
+    /// subset of the three costs is solved with the others at 0, and the
+    /// best that has none below 0 is kept. None when no subset is solved.
+    pub fn fit(samples: &[(Shape, f64)]) -> Option<Cost> {
+        let rows: Vec<([f64; 3], f64)> = samples
+            .iter()
+            .filter(|(_, t)| *t > 0.0)
+            .map(|(s, t)| ([s.runs as f64 / t, s.rows as f64 / t, s.tokens as f64 / t], 1.0))
+            .collect();
+        let mut best: Option<(f64, [f64; 3])> = None;
+        for mask in 1..8u32 {
+            let used: Vec<usize> = (0..3).filter(|i| mask & (1 << i) != 0).collect();
+            let Some(x) = solve(&rows, &used) else { continue };
+            if x.iter().any(|&v| v < 0.0) {
+                continue;
+            }
+            let mut full = [0f64; 3];
+            for (&i, &v) in used.iter().zip(&x) {
+                full[i] = v;
+            }
+            let err: f64 =
+                rows.iter().map(|(a, b)| (a.iter().zip(&full).map(|(p, q)| p * q).sum::<f64>() - b).powi(2)).sum();
+            if best.is_none_or(|(e, _)| err < e) {
+                best = Some((err, full));
+            }
+        }
+        best.map(|(_, [run, row, token])| Cost { run, row, token })
+    }
+
+    pub fn ms(&self, s: Shape) -> f64 {
+        self.run * s.runs as f64 + self.row * s.rows as f64 + self.token * s.tokens as f64
+    }
+}
+
+/// The least squares solution of `a x = b` over the columns `used` of the
+/// rows `(a, b)`, through the normal equations with each column scaled to
+/// at most 1; None when they are singular.
+fn solve(rows: &[([f64; 3], f64)], used: &[usize]) -> Option<Vec<f64>> {
+    let n = used.len();
+    let scale: Vec<f64> = used.iter().map(|&j| rows.iter().map(|(a, _)| a[j].abs()).fold(0.0, f64::max)).collect();
+    if scale.contains(&0.0) {
+        return None;
+    }
+    let mut m = vec![vec![0f64; n]; n];
+    let mut v = vec![0f64; n];
+    for (a, b) in rows {
+        let x: Vec<f64> = used.iter().zip(&scale).map(|(&j, s)| a[j] / s).collect();
+        for i in 0..n {
+            v[i] += x[i] * b;
+            for (mij, xj) in m[i].iter_mut().zip(&x) {
+                *mij += x[i] * xj;
+            }
+        }
+    }
+    for c in 0..n {
+        let p = (c..n).max_by(|&x, &y| m[x][c].abs().total_cmp(&m[y][c].abs()))?;
+        if m[p][c].abs() < 1e-9 {
+            return None;
+        }
+        m.swap(c, p);
+        v.swap(c, p);
+        let (pivot, at) = (m[c].clone(), v[c]);
+        for (r, (row, vr)) in m.iter_mut().zip(v.iter_mut()).enumerate() {
+            if r != c {
+                let f = row[c] / pivot[c];
+                for (x, y) in row[c..].iter_mut().zip(&pivot[c..]) {
+                    *x -= f * y;
+                }
+                *vr -= f * at;
+            }
+        }
+    }
+    Some((0..n).map(|i| v[i] / m[i][i] / scale[i]).collect())
+}
+
+/// The step on the device and on the CPU, and each side's fitted cost.
+pub struct Dispatch {
+    device: VectorAnnotator,
+    cpu: VectorAnnotator,
+    cap: u32,
+    /// Whether the device's vectors clear the floor at the step's window.
+    eligible: bool,
+    device_cost: Cost,
+    cpu_cost: Cost,
+    force: Option<Side>,
+}
+
+impl Dispatch {
+    /// The step at `base`'s window and cap on rows a run, on the device
+    /// and precision of `o` and on the CPU at `Precision::Exact`, choosing
+    /// per call from the calibration kept in `dir` (measured first when
+    /// there is none, `Calibration::load_or_measure`). `o` must ask for
+    /// `base`'s window and cap. The [`FORCE_VAR`] variable sends every call
+    /// to one side. Both are checked before anything is measured.
+    pub fn open(
+        dir: &Path,
+        bundle: &Path,
+        o: &CalibrationOptions,
+        texts: &[Text],
+        base: &VectorOptions,
+    ) -> Result<Dispatch, CoreError> {
+        let force = forced(std::env::var(FORCE_VAR).ok().as_deref())?;
+        let (max_seq, cap) = (base.encoder.max_seq, base.encoder.max_batch);
+        if !o.windows.contains(&max_seq) || !o.batches.contains(&cap) {
+            return Err(CoreError::new(
+                INVALID_ARGUMENT,
+                format!(
+                    "dispatch at {max_seq} tokens a row and {cap} rows a run needs the calibration to ask for that \
+                     window and that batch; it asks for windows {:?} and batches {:?}",
+                    o.windows, o.batches
+                ),
+            ));
+        }
+        let c = Calibration::load_or_measure(dir, bundle, o, texts)?;
+        let open = |device: Device, precision: Precision| {
+            let mut v = base.clone();
+            v.encoder.device = device;
+            v.encoder.precision = precision;
+            VectorAnnotator::open(bundle, &v)
+        };
+        let (device, cpu) = (open(o.device.clone(), o.precision)?, open(Device::Cpu, Precision::Exact)?);
+        let short = first_sentence(texts)?;
+        let (mut on_device, mut on_cpu) = (Vec::new(), Vec::new());
+        let mut eligible = true;
+        for p in c.points.iter().filter(|p| p.max_seq == max_seq) {
+            let (all, one) = (shape_of(bundle, &device, texts, p.max_batch)?, shape_of(bundle, &device, &short, 1)?);
+            on_device.extend([(all, p.device_ms), (one, p.short_device_ms)]);
+            on_cpu.extend([(all, p.cpu_ms), (one, p.short_cpu_ms)]);
+            eligible &= p.min_cosine >= c.floor;
+        }
+        let fit = |samples: &[(Shape, f64)], side: &str| {
+            Cost::fit(samples).ok_or_else(|| {
+                CoreError::new(
+                    INVALID_ARGUMENT,
+                    format!("the {side}'s calibration at {max_seq} tokens a row fits no cost"),
+                )
+            })
+        };
+        Ok(Dispatch {
+            cap,
+            eligible,
+            device_cost: fit(&on_device, "device")?,
+            cpu_cost: fit(&on_cpu, "cpu")?,
+            force,
+            device,
+            cpu,
+        })
+    }
+
+    /// The side a call of shape `s` runs on.
+    pub fn side(&self, s: Shape) -> Side {
+        let device = self.eligible && self.device_cost.ms(s) < self.cpu_cost.ms(s);
+        self.force.unwrap_or(if device { Side::Device } else { Side::Cpu })
+    }
+
+    /// Each side's fitted cost: the device's, then the CPU's.
+    pub fn costs(&self) -> (Cost, Cost) {
+        (self.device_cost, self.cpu_cost)
+    }
+
+    /// The step on `side`.
+    pub fn on(&self, side: Side) -> &VectorAnnotator {
+        match side {
+            Side::Device => &self.device,
+            Side::Cpu => &self.cpu,
+        }
+    }
+
+    /// The step's cap on rows a run.
+    pub fn cap(&self) -> u32 {
+        self.cap
+    }
+}
+
+/// The shape of the sentence vector step over `texts` on `a`, at runs of
+/// `cap` rows: the texts are split into subwords and planned, not run.
+pub fn shape_of(bundle: &Path, a: &VectorAnnotator, texts: &[Text], cap: u32) -> Result<Shape, CoreError> {
+    let err = |e: Error| CoreError::new(INVALID_ARGUMENT, e.to_string());
+    let words = Analyzer::builder()
+        .given(Key::<Sentences>::DEFAULT)
+        .add(SubwordAnnotator::open(bundle)?)
+        .build()
+        .map_err(err)?;
+    let mut docs = documents(texts)?;
+    for r in words.run(&mut docs) {
+        r.map_err(err)?;
+    }
+    let inputs: Vec<Input<'_>> = docs
+        .iter()
+        .filter_map(|d| {
+            let (subwords, sentences) = (d.get::<Subwords>()?, d.get::<Sentences>()?);
+            Some(Input { subwords, sentences: Some(&sentences.spans), chunks: None, levels: None })
+        })
+        .collect();
+    Ok(a.shape("calibration", &inputs, cap))
+}
+
+impl Embedder for Dispatch {
+    fn embed_placed(
+        &self,
+        annotator: &'static str,
+        inputs: &[Input<'_>],
+    ) -> (Vec<Result<Output, Error>>, Option<Execution>) {
+        let a = self.on(self.side(self.device.shape(annotator, inputs, self.cap)));
+        (a.embed(annotator, inputs), Some(a.execution().clone()))
+    }
+
+    fn model(&self) -> &ModelRef {
+        self.device.model()
+    }
+
+    fn execution(&self) -> &Execution {
+        self.device.execution()
+    }
+
+    fn config(&self, layout: Which) -> u64 {
+        self.device.config(layout)
+    }
+}

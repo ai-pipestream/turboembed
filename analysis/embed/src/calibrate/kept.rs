@@ -7,12 +7,15 @@ use super::{Calibration, Point};
 impl Calibration {
     /// The kept form: the key and the floor, then a line per point.
     pub fn to_text(&self) -> String {
-        let mut s = String::from("calibration 3\n");
+        let mut s = String::from("calibration 4\n");
         let _ = writeln!(s, "key\t{}", self.key);
         let _ = writeln!(s, "floor\t{}", self.floor);
         for p in &self.points {
-            let _ =
-                writeln!(s, "point\t{}\t{}\t{}\t{}\t{}", p.max_seq, p.max_batch, p.min_cosine, p.device_ms, p.cpu_ms);
+            let _ = writeln!(
+                s,
+                "point\t{}\t{}\t{}\t{}\t{}\t{}\t{}",
+                p.max_seq, p.max_batch, p.min_cosine, p.device_ms, p.cpu_ms, p.short_device_ms, p.short_cpu_ms
+            );
         }
         s
     }
@@ -21,7 +24,7 @@ impl Calibration {
     /// each exactly once and at least one point; None for anything else.
     pub fn parse(text: &str) -> Option<Calibration> {
         let mut lines = text.lines();
-        if lines.next()? != "calibration 3" {
+        if lines.next()? != "calibration 4" {
             return None;
         }
         let mut key: Option<String> = None;
@@ -34,13 +37,15 @@ impl Calibration {
                 "floor" => floor.replace(rest.parse().ok()?).is_some(),
                 "point" => {
                     let f: Vec<&str> = rest.split('\t').collect();
-                    let [a, b, c, d, e] = f[..] else { return None };
+                    let [a, b, c, d, e, g, h] = f[..] else { return None };
                     points.push(Point {
                         max_seq: a.parse().ok()?,
                         max_batch: b.parse().ok()?,
                         min_cosine: c.parse().ok()?,
                         device_ms: d.parse().ok()?,
                         cpu_ms: e.parse().ok()?,
+                        short_device_ms: g.parse().ok()?,
+                        short_cpu_ms: h.parse().ok()?,
                     });
                     false
                 }

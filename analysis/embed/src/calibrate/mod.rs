@@ -37,7 +37,10 @@ use turbo_analysis_layers::{Sentences, Vectors};
 use crate::encoder::{Device, Encoder, EncoderOptions, Precision};
 use crate::{SentenceVectors, SubwordAnnotator, VectorAnnotator, VectorOptions};
 
+mod dispatch;
 mod kept;
+
+pub use dispatch::{Cost, Dispatch, shape_of};
 
 /// The cosine floor of an I8 device, the tier's (docs/hailo.md); the core
 /// gives I8 none of its own.
@@ -74,6 +77,11 @@ pub struct Point {
     pub min_cosine: f64,
     pub device_ms: f64,
     pub cpu_ms: f64,
+    /// The median times of one sentence sent alone (the first of the
+    /// texts), which `Dispatch` fits each side's cost a call to with the
+    /// whole set's.
+    pub short_device_ms: f64,
+    pub short_cpu_ms: f64,
 }
 
 impl Point {
@@ -126,6 +134,7 @@ impl Calibration {
                 VectorAnnotator::open(bundle, &VectorOptions { encoder: enc, ..VectorOptions::default() }).map(Arc::new)
             };
             let want = run(&pipeline(bundle, open(Device::Cpu, Precision::Exact, 0)?)?, texts)?;
+            let short = first_sentence(texts)?;
             for &max_batch in &o.batches {
                 let vectors = open(o.device.clone(), o.precision, max_batch)?;
                 floor.get_or_insert_with(|| default_floor(vectors.info().compute_dtype));
@@ -142,7 +151,9 @@ impl Calibration {
                 let min_cosine = lowest_cosine(&got, &want, dim);
                 let (device_ms, cpu_ms) =
                     medians(o.reps, || run(&dev, texts).map(drop), || run(&on_cpu, texts).map(drop))?;
-                points.push(Point { max_seq, max_batch, min_cosine, device_ms, cpu_ms });
+                let (short_device_ms, short_cpu_ms) =
+                    medians(4 * o.reps, || run(&dev, &short).map(drop), || run(&on_cpu, &short).map(drop))?;
+                points.push(Point { max_seq, max_batch, min_cosine, device_ms, cpu_ms, short_device_ms, short_cpu_ms });
             }
         }
         Ok(Calibration { key, floor: floor.unwrap_or(I8_FLOOR), points })
@@ -282,6 +293,15 @@ pub fn lowest_cosine(got: &[f32], want: &[f32], dim: usize) -> f64 {
         .fold(1f64, |m, c| if c.is_nan() { f64::NEG_INFINITY } else { m.min(c) })
 }
 
+/// The first sentence of the first text that has one, as a text of its
+/// own.
+fn first_sentence(texts: &[Text]) -> Result<Vec<Text>, CoreError> {
+    let Some((text, &(a, b))) = texts.iter().find_map(|(t, s)| s.first().map(|f| (t, f))) else {
+        return Err(CoreError::new(INVALID_ARGUMENT, "calibration needs a text with a sentence"));
+    };
+    Ok(vec![(text[a as usize..b as usize].to_owned(), vec![(0, b - a)])])
+}
+
 /// Fails unless `values` is not empty and holds each value once, each
 /// from 1 to `max`.
 fn once_each(what: &str, values: &[u32], max: u32) -> Result<(), CoreError> {
@@ -367,11 +387,9 @@ fn pipeline(bundle: &Path, vectors: Arc<VectorAnnotator>) -> Result<Analyzer, Co
         .map_err(|e| CoreError::new(INVALID_ARGUMENT, e.to_string()))
 }
 
-/// The sentence vectors of every text, in order; an error when a text
-/// with sentences gets none.
-fn run(a: &Analyzer, texts: &[Text]) -> Result<Vec<f32>, CoreError> {
-    let err = |e: turbo_analysis::Error| CoreError::new(INVALID_ARGUMENT, e.to_string());
-    let mut docs: Vec<Document> = texts
+/// A document for each text, with its sentences.
+fn documents(texts: &[Text]) -> Result<Vec<Document>, CoreError> {
+    texts
         .iter()
         .map(|(text, spans)| {
             let mut d = Document::new(text.as_str());
@@ -382,7 +400,14 @@ fn run(a: &Analyzer, texts: &[Text]) -> Result<Vec<f32>, CoreError> {
             d.add(&Key::DEFAULT, Sentences { spans: s }, Provenance::by("calibration")).map(|_| d)
         })
         .collect::<Result<_, _>>()
-        .map_err(err)?;
+        .map_err(|e| CoreError::new(INVALID_ARGUMENT, e.to_string()))
+}
+
+/// The sentence vectors of every text, in order; an error when a text
+/// with sentences gets none.
+fn run(a: &Analyzer, texts: &[Text]) -> Result<Vec<f32>, CoreError> {
+    let err = |e: turbo_analysis::Error| CoreError::new(INVALID_ARGUMENT, e.to_string());
+    let mut docs = documents(texts)?;
     for r in a.run(&mut docs) {
         r.map_err(err)?;
     }

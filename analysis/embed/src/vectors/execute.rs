@@ -1,4 +1,13 @@
 use super::*;
+
+/// What a call makes the encoder do (`VectorAnnotator::shape`).
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct Shape {
+    pub runs: u64,
+    pub rows: u64,
+    /// Tokens computed: each run's rows times its longest row.
+    pub tokens: u64,
+}
 impl VectorAnnotator {
     /// The vectors of a batch of documents, a result for each. A document
     /// whose layers do not fit together fails alone; a run that fails
@@ -8,44 +17,7 @@ impl VectorAnnotator {
         let mut out: Vec<Result<Output, Error>> = inputs.iter().map(|i| self.output_for(annotator, i)).collect();
         let mut guard = self.lock();
         let st = &mut *guard;
-        st.plan.clear();
-        for (d, (input, slot)) in inputs.iter().zip(&mut out).enumerate() {
-            let Ok(o) = slot else { continue };
-            let (starts, ends) = input.subwords.spans.columns();
-            let d = d as u32;
-            // The levels are placed scope by scope, before anything else
-            // is queued for the document.
-            if let (Some(l), Some(v)) = (input.levels, o.levels.as_mut())
-                && let Err(e) = crate::levels::plan(&mut st.plan, d, l, starts, ends, v)
-            {
-                *slot = Err(Error::Annotator { annotator, detail: e.to_string() });
-                continue;
-            }
-            // The finest layer given lays out the windows.
-            if let (Some(s), Some(v)) = (input.sentences, o.sentences.as_mut()) {
-                for (i, span) in s.iter() {
-                    let r = pieces_of(starts, ends, span.start, span.end);
-                    if r.is_empty() {
-                        v.empty.push(i);
-                    }
-                    st.plan.layout(Target { doc: d, which: Which::Sentences, item: i.get() as u32 }, r);
-                }
-            }
-            if let (Some(c), Some(v)) = (input.chunks, o.chunks.as_mut()) {
-                let lays_out = input.sentences.is_none();
-                for (i, span) in c.iter() {
-                    let r = pieces_of(starts, ends, span.start, span.end);
-                    if r.is_empty() {
-                        v.empty.push(i);
-                    }
-                    let t = Target { doc: d, which: Which::Chunks, item: i.get() as u32 };
-                    if lays_out { st.plan.layout(t, r) } else { st.plan.item(t, r) }
-                }
-            }
-            if let Err(e) = st.plan.place(d, starts.len() as u32) {
-                *slot = Err(Error::Annotator { annotator, detail: e.to_string() });
-            }
-        }
+        self.plan_batch(annotator, inputs, &mut st.plan, &mut out);
         if let Err(e) = self.run(st, inputs, &mut out) {
             let e = Error::Annotator { annotator, detail: e.to_string() };
             for o in out.iter_mut().filter(|o| o.is_ok()) {
@@ -75,6 +47,74 @@ impl VectorAnnotator {
             }
         }
         out
+    }
+
+    /// The runs, rows and tokens a call of `inputs` makes when runs hold
+    /// at most `cap` rows: a row for each window the plan lays out, in
+    /// order, each run's rows as long as its longest. The call is planned,
+    /// not run; a window whose ranges overflow a run, which goes again in
+    /// the next, is not counted twice.
+    pub fn shape(&self, annotator: &'static str, inputs: &[Input<'_>], cap: u32) -> Shape {
+        let mut out: Vec<Result<Output, Error>> = inputs.iter().map(|i| self.output_for(annotator, i)).collect();
+        let mut plan = Plan::new(self.width());
+        self.plan_batch(annotator, inputs, &mut plan, &mut out);
+        let ends = (self.head.len() + self.tail.len()) as u64;
+        let mut shape = Shape { runs: 0, rows: plan.windows.len() as u64, tokens: 0 };
+        for run in plan.windows.chunks(cap.max(1) as usize) {
+            let longest = run.iter().map(|w| (w.end - w.start) as u64).max().unwrap_or(0) + ends;
+            shape.runs += 1;
+            shape.tokens += run.len() as u64 * longest;
+        }
+        shape
+    }
+
+    /// Lays out the windows of every document of `inputs` whose layers fit
+    /// together, failing a document alone when its items do not place.
+    fn plan_batch(
+        &self,
+        annotator: &'static str,
+        inputs: &[Input<'_>],
+        plan: &mut Plan,
+        out: &mut [Result<Output, Error>],
+    ) {
+        plan.clear();
+        for (d, (input, slot)) in inputs.iter().zip(out.iter_mut()).enumerate() {
+            let Ok(o) = slot else { continue };
+            let (starts, ends) = input.subwords.spans.columns();
+            let d = d as u32;
+            // The levels are placed scope by scope, before anything else
+            // is queued for the document.
+            if let (Some(l), Some(v)) = (input.levels, o.levels.as_mut())
+                && let Err(e) = crate::levels::plan(plan, d, l, starts, ends, v)
+            {
+                *slot = Err(Error::Annotator { annotator, detail: e.to_string() });
+                continue;
+            }
+            // The finest layer given lays out the windows.
+            if let (Some(s), Some(v)) = (input.sentences, o.sentences.as_mut()) {
+                for (i, span) in s.iter() {
+                    let r = pieces_of(starts, ends, span.start, span.end);
+                    if r.is_empty() {
+                        v.empty.push(i);
+                    }
+                    plan.layout(Target { doc: d, which: Which::Sentences, item: i.get() as u32 }, r);
+                }
+            }
+            if let (Some(c), Some(v)) = (input.chunks, o.chunks.as_mut()) {
+                let lays_out = input.sentences.is_none();
+                for (i, span) in c.iter() {
+                    let r = pieces_of(starts, ends, span.start, span.end);
+                    if r.is_empty() {
+                        v.empty.push(i);
+                    }
+                    let t = Target { doc: d, which: Which::Chunks, item: i.get() as u32 };
+                    if lays_out { plan.layout(t, r) } else { plan.item(t, r) }
+                }
+            }
+            if let Err(e) = plan.place(d, starts.len() as u32) {
+                *slot = Err(Error::Annotator { annotator, detail: e.to_string() });
+            }
+        }
     }
 
     /// Pools one vector per span in `spans` from `subwords` through the

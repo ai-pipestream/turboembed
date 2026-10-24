@@ -352,5 +352,6 @@ fn config_hash(values: &[u32]) -> u64 {
 mod execute;
 mod steps;
 mod tokens;
-pub use steps::{ChunkVectors, SentenceChunkVectors, SentenceVectors, SubwordVectors, VectorsProvider};
+pub use execute::Shape;
+pub use steps::{ChunkVectors, Embedder, SentenceChunkVectors, SentenceVectors, SubwordVectors, VectorsProvider};
 pub use tokens::ContextualTokens;

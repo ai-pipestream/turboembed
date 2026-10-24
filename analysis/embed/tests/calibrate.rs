@@ -6,13 +6,16 @@
 //! step opened for each configuration runs on the side that won it.
 
 use std::path::{Path, PathBuf};
-
 use std::sync::Arc;
 
 use turbo_analysis_embed::calibrate::{
     Calibration, CalibrationOptions, Point, Side, Text, lowest_cosine, time, vectors,
 };
 use turbo_analysis_embed::{Device, EncoderOptions, Precision, VectorAnnotator, VectorOptions};
+
+mod held_out;
+use held_out::held_out;
+
 const SENTENCES: [&str; 8] = [
     "Embedding models turn a passage of text into a vector.",
     "Passages with similar meaning land near each other.",
@@ -57,7 +60,7 @@ fn options(floor: Option<f64>) -> CalibrationOptions {
 }
 
 fn point(max_seq: u32, max_batch: u32, min_cosine: f64, device_ms: f64, cpu_ms: f64) -> Point {
-    Point { max_seq, max_batch, min_cosine, device_ms, cpu_ms }
+    Point { max_seq, max_batch, min_cosine, device_ms, cpu_ms, short_device_ms: 14.1, short_cpu_ms: 7.5 }
 }
 
 fn at(max_seq: u32, max_batch: u32) -> VectorOptions {
@@ -166,9 +169,12 @@ fn the_kept_form_reads_back() {
     let text = c.to_text();
     assert_eq!(Calibration::parse(&text), Some(c));
     assert_eq!(Calibration::parse("calibration 1\n"), None);
-    assert_eq!(Calibration::parse("calibration 3\nfloor\tx\n"), None);
-    // The second form timed the CPU at Precision::Model: it is not read.
-    assert_eq!(Calibration::parse(&text.replacen("calibration 3", "calibration 2", 1)), None);
+    assert_eq!(Calibration::parse("calibration 4\nfloor\tx\n"), None);
+    // The second form timed the CPU at Precision::Model, and the third
+    // has no times of one sentence alone: neither is read.
+    for old in ["calibration 2", "calibration 3"] {
+        assert_eq!(Calibration::parse(&text.replacen("calibration 4", old, 1)), None);
+    }
     // Every line short of the key, the floor and a point is refused, and
     // so is a record given twice or a point of the first form's four fields.
     let lines: Vec<&str> = text.lines().collect();
@@ -264,27 +270,6 @@ fn a_kept_calibration_is_read_back_not_measured_again() {
     assert_eq!(a.execution().backend, "cpu");
     assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 2);
     std::fs::remove_dir_all(&dir).unwrap();
-}
-
-/// The documents of tests/data/calibration-texts.txt: a sentence a line,
-/// a blank line between documents.
-fn held_out() -> Vec<Text> {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/calibration-texts.txt");
-    let all = std::fs::read_to_string(path).unwrap();
-    let mut out = Vec::new();
-    for doc in all.split("\n\n") {
-        let (mut text, mut spans) = (String::new(), Vec::new());
-        for line in doc.lines().filter(|l| !l.is_empty()) {
-            if !text.is_empty() {
-                text.push(' ');
-            }
-            let a = text.len() as u32;
-            text.push_str(line);
-            spans.push((a, text.len() as u32));
-        }
-        out.push((text, spans));
-    }
-    out
 }
 
 /// How much slower than the faster side's measured time a chosen
