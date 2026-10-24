@@ -1,4 +1,41 @@
 use super::*;
+
+/// Embeds `inputs`, refusing any whose chunks were budgeted
+/// against a different prompt overhead than this annotator's:
+/// their `model_tokens` assumed another prompt, so embedding
+/// them could silently overflow `max_seq`. An overhead of zero
+/// records nothing and is not refused.
+fn embed_checked(
+    ann: &VectorAnnotator,
+    id: &'static str,
+    inputs: Vec<Input<'_>>,
+    overheads: &[u32],
+) -> Vec<Result<Output, Error>> {
+    let want = ann.overhead();
+    let mut slots: Vec<Option<Result<Output, Error>>> = Vec::with_capacity(inputs.len());
+    let mut ok: Vec<Input<'_>> = Vec::new();
+    let mut ok_at: Vec<usize> = Vec::new();
+    for (i, input) in inputs.into_iter().enumerate() {
+        let recorded = overheads[i];
+        if recorded != 0 && recorded != want {
+            slots.push(Some(Err(Error::Annotator {
+                annotator: id,
+                detail: format!(
+                    "the chunks were budgeted with {recorded} tokens of prompt overhead, this step embeds with {want}"
+                ),
+            })));
+        } else {
+            slots.push(None);
+            ok_at.push(i);
+            ok.push(input);
+        }
+    }
+    for (at, r) in ok_at.into_iter().zip(ann.embed(id, &ok)) {
+        slots[at] = Some(r);
+    }
+    slots.into_iter().map(|s| s.expect("every slot filled")).collect()
+}
+
 /// The provenance every vector step gives: the model, where it ran and
 /// the settings, with the layer that lays out the step's windows.
 macro_rules! provenance {
@@ -57,11 +94,15 @@ impl Annotator for ChunkVectors {
     }
 
     fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
+        let overheads: Vec<u32> = inputs.iter().map(|(_, c)| c.prompt_overhead).collect();
         let inputs: Vec<Input<'_>> = inputs
             .into_iter()
             .map(|(sub, c)| Input { subwords: sub, sentences: None, chunks: Some(&c.spans), levels: None })
             .collect();
-        self.0.embed(Self::ID, &inputs).into_iter().map(|r| r.map(|o| (o.chunks.expect("asked for"),))).collect()
+        embed_checked(&self.0, Self::ID, inputs, &overheads)
+            .into_iter()
+            .map(|r| r.map(|o| (o.chunks.expect("asked for"),)))
+            .collect()
     }
 
     provenance!(Which::Chunks);
@@ -82,12 +123,12 @@ impl Annotator for SentenceChunkVectors {
     }
 
     fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
+        let overheads: Vec<u32> = inputs.iter().map(|(_, _, c)| c.prompt_overhead).collect();
         let inputs: Vec<Input<'_>> = inputs
             .into_iter()
             .map(|(sub, s, c)| Input { subwords: sub, sentences: Some(&s.spans), chunks: Some(&c.spans), levels: None })
             .collect();
-        self.0
-            .embed(Self::ID, &inputs)
+        embed_checked(&self.0, Self::ID, inputs, &overheads)
             .into_iter()
             .map(|r| r.map(|o| (o.sentences.expect("asked for"), o.chunks.expect("asked for"))))
             .collect()

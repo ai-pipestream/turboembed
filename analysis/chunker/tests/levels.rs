@@ -125,6 +125,7 @@ fn chunks(doc: &Document, ranges: &[(u32, u32)]) -> Chunks {
         cost: Vec::new(),
         model_tokens: Vec::new(),
         over_budget: Vec::new(),
+        prompt_overhead: 0,
     };
     for &(i, j) in ranges {
         let span = if i < j {

@@ -48,6 +48,7 @@ fn chunks() -> Chunks {
         cost: vec![0; 4],
         model_tokens: vec![10, 20, 30, 40],
         over_budget: vec![false; 4],
+        prompt_overhead: 0,
     }
 }
 
