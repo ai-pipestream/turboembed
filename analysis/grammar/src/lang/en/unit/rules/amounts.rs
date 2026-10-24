@@ -77,6 +77,63 @@ pub(super) fn is_currency_sign(c: char) -> bool {
     turbo_unicode::category::general_category(c) == turbo_unicode::category::GeneralCategory::Sc
 }
 
+/// `$5 per hour`, `20 euros a day`: a money amount as a rate.
+pub(super) fn b_money_rate(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+    let q = qty(&v[0]);
+    let Unit::Currency(c) = q.unit() else { return None };
+    quantity(q.value(), Unit::Rate(Rate::Currency(c, per(term(&v[1]).0))))
+}
+
+/// `$20 an hour`, but not the `a year earlier` of a date.
+pub(super) fn b_money_rate_a(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
+    if not_temporal_reference(ctx) { b_money_rate(v, ctx) } else { None }
+}
+
+/// `6 foot 2`, `10 stone 4`, `5 pounds 8`: a bare minor count (below
+/// 12, 14 or 16) added to a foot, stone or pound quantity, ending
+/// its clause as the bare hundredths of money do, so `6 foot 2
+/// times` leaves both numbers alone.
+pub(super) fn b_major_minor_bare(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
+    let (major, n) = (qty(&v[0]), num(&v[1]));
+    let div = match major.unit() {
+        Unit::Length(Length::Foot) => 12,
+        Unit::Weight(Weight::Stone) => 14,
+        Unit::Weight(Weight::Pound) => 16,
+        _ => return None,
+    };
+    if !n.value.is_integer() || n.value >= Dec::from_i64(div) {
+        return None;
+    }
+    let ends = match ctx.after() {
+        None => true,
+        Some(a) => match ctx.lexeme(a).kind {
+            Kind::Punct => true,
+            Kind::Word => matches!(
+                ctx.word(a),
+                "and"
+                    | "or"
+                    | "but"
+                    | "more"
+                    | "less"
+                    | "extra"
+                    | "each"
+                    | "tall"
+                    | "long"
+                    | "high"
+                    | "wide"
+                    | "deep"
+                    | "thick"
+                    | "heavy"
+            ),
+            Kind::Numeral => false,
+        },
+    };
+    if !ends {
+        return None;
+    }
+    quantity(major.value().checked_add(n.value.checked_div(Dec::from_i64(div))?)?, major.unit())
+}
+
 /// `5 ft 2 in`, `5 feet and 2 inches`.
 pub(super) fn b_feet_inches(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let (f, n) = (qty(&v[0]), num(&v[1]));
