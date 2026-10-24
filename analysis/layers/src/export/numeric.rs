@@ -219,6 +219,11 @@ impl LayerCodec for Pii {
         put_spans(&mut w, &self.spans, cx)?;
         w.usize(self.kind.len())?;
         for &k in &self.kind {
+            if let PiiKind::Custom(name) = k
+                && (name.is_empty() || PiiKind::parse(name).is_some())
+            {
+                return Err(malformed(format!("invalid custom pii kind {name:?}")));
+            }
             PiiKind::remember_custom(k);
             w.str(k.name())?;
         }
@@ -234,7 +239,7 @@ impl LayerCodec for Pii {
             let name = r.string()?;
             kind.push(
                 PiiKind::parse(&name)
-                    .or_else(|| PiiKind::lookup_custom(&name))
+                    .or_else(|| PiiKind::intern_custom(&name))
                     .ok_or_else(|| malformed(format!("an unknown pii kind {name:?}")))?,
             );
         }

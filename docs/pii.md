@@ -201,16 +201,17 @@ spans over multi-byte texts, and that the text equals `mask`.
   unit offset 2 more). The goldens record UTF-8 offsets, so the
   comparison is exact.
 - Masks keep the byte length, not the UTF-16 length (above).
-- Caller-defined extractors implement `CustomExtractor` (or pass a scan
-  function to `Scanner::custom_fn` / `PiiDetector::with_custom_fn`) and
-  emit mentions with `PiiKind::custom("...")`, their own `PiiConfidence`,
-  and `checksum` / `text` helpers via `PiiSink`
+- Caller-defined extractors implement `CustomExtractor` (with optional
+  `config_hash` for stateful settings, or pass a scan function to
+  `Scanner::custom_fn` / `PiiDetector::with_custom_fn`) and emit
+  mentions with `PiiKind::custom("...")`, their own `PiiConfidence`, and
+  `checksum` / `text` helpers via `PiiSink`
   (`analysis/pii/tests/custom_extractors.rs`). Built-in kinds rank
   `0..20` (`PiiKind::ALL`); `PiiKind::Custom` has rank `20` and orders
   after built-in kinds on an exact span tie, then by kind name. Caller
   kinds flow through `mask_all`, `mask_by_kind`, `MaskedView` (with
-  `MaskedView::with` overrides), `Pseudonymizer`, `HmacTokenizer` and
-  `PiiAuditReport`.
+  `MaskedView::with` overrides), `Pseudonymizer`, `HmacTokenizer`,
+  `PiiAuditReport` and binary graph export/import (`PiiKind::intern_custom`).
 - `PiiConfidence` is added (above).
 - By default, `PiiDetector` drops a mention whose span lies strictly
   inside a longer mention, so trailing groups of a grouped IBAN are not

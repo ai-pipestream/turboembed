@@ -43,6 +43,10 @@ impl CustomExtractor for AccountExtractor {
         &KINDS
     }
 
+    fn config_hash(&self) -> u64 {
+        self.prefix.iter().fold(0xcbf2_9ce4_8422_2325, |h, &b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3))
+    }
+
     fn scan(&self, text: &str, sink: &mut PiiSink<'_>) {
         let b = text.as_bytes();
         let plen = self.prefix.len();
@@ -298,7 +302,31 @@ fn custom_kind_ordering_export_round_trip_and_sink_validation() {
     assert_eq!(back_pii.kind, [ACCOUNT_KIND, PERSONNUMMER_KIND]);
     assert_eq!(back_pii.check(), Ok(()));
 
-    // SinkError validation on malformed spans, empty kinds, and empty normalized values.
+    // A custom kind not previously seen in this process is interned on import.
+    let needle = b"account-number";
+    let replacement = b"fresh-acct-num";
+    assert_eq!(needle.len(), replacement.len());
+    assert_eq!(PiiKind::lookup_custom("fresh-acct-num"), None);
+    let mut fresh_bytes = bytes.clone();
+    let pos = fresh_bytes.windows(needle.len()).position(|w| w == needle).expect("encoded kind name");
+    fresh_bytes[pos..pos + needle.len()].copy_from_slice(replacement);
+    let fresh_doc = import(&DocumentGraph::from_bytes(&fresh_bytes).unwrap(), &codecs()).unwrap();
+    let fresh_pii = fresh_doc.get::<Pii>().unwrap();
+    assert_eq!(fresh_pii.kind, [PiiKind::Custom("fresh-acct-num"), PERSONNUMMER_KIND]);
+    assert_eq!(fresh_pii.check(), Ok(()));
+    assert_eq!(PiiKind::intern_custom("email"), None);
+
+    // Raw PiiKind::Custom with a reserved built-in name is refused by Pii::check and export.
+    let mut bad_pii = Pii::new(ViewId::SOURCE);
+    bad_pii.push(PiiMention {
+        span: Span::new(0, 14),
+        kind: PiiKind::Custom("email"),
+        confidence: PiiConfidence::Format,
+        normalized: "a@example.com",
+    });
+    assert!(bad_pii.check().unwrap_err().contains("reserved built-in kind name"));
+
+    // SinkError validation on malformed spans, empty kinds, reserved kinds, and empty normalized values.
     let check_sink = |text: &str, sink: &mut PiiSink<'_>| {
         assert_eq!(sink.text(), text);
         assert_eq!(
@@ -318,6 +346,10 @@ fn custom_kind_ordering_export_round_trip_and_sink_validation() {
             Err(SinkError::EmptyKind)
         );
         assert_eq!(
+            sink.try_add(Span::new(0, 2), PiiKind::Custom("email"), PiiConfidence::Format, "x"),
+            Err(SinkError::ReservedKind("email"))
+        );
+        assert_eq!(
             sink.try_add(Span::new(0, 2), ACCOUNT_KIND, PiiConfidence::Format, ""),
             Err(SinkError::EmptyValue(Span::new(0, 2)))
         );
@@ -329,7 +361,7 @@ fn custom_kind_ordering_export_round_trip_and_sink_validation() {
     let validator = PiiDetector::new(vec![Scanner::custom_fn("Validator", ACCOUNT_KIND, check_sink)]);
     let _ = validator.layer("éok", ViewId::SOURCE);
 
-    // Scanner::with_kinds refuses custom extractors; config_hash distinguishes custom scanners.
+    // Scanner::with_kinds refuses custom extractors; config_hash distinguishes custom scanners and settings.
     let custom_ext = Extractor::Custom("AccountPiiExtractor");
     assert_eq!(Scanner::with_kinds(custom_ext, PiiKinds::EMPTY), Err(ScannerError::NoKinds(custom_ext)));
     assert_eq!(
@@ -340,4 +372,20 @@ fn custom_kind_ordering_export_round_trip_and_sink_validation() {
     let d2 = PiiDetector::cursor().with_custom_fn("B", ACCOUNT_KIND, scan_se_personnummer);
     assert_ne!(d1.config_hash(), PiiDetector::cursor().config_hash());
     assert_ne!(d1.config_hash(), d2.config_hash());
+
+    let s_acct = Scanner::custom(AccountExtractor { prefix: b"acct" });
+    let s_iban = Scanner::custom(AccountExtractor { prefix: b"iban" });
+    assert_ne!(s_acct, s_iban);
+    assert_ne!(PiiDetector::new(vec![s_acct]).config_hash(), PiiDetector::new(vec![s_iban]).config_hash());
+
+    // MaskedView::config_hash includes default_policy for unlisted custom kinds.
+    let star = MaskPolicy::new('*').unwrap();
+    let dash = MaskPolicy::new('-').unwrap();
+    let mut overridden = MaskedView::all(star);
+    for k in PiiKind::ALL {
+        overridden = overridden.with(k, dash);
+    }
+    let all_dash = MaskedView::all(dash);
+    assert_ne!(overridden.policy(ACCOUNT_KIND), all_dash.policy(ACCOUNT_KIND));
+    assert_ne!(overridden.config_hash(), all_dash.config_hash());
 }

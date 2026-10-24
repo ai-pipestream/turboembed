@@ -237,6 +237,7 @@ impl Annotator for PiiDetector {
                 for k in s.custom_kinds() {
                     h = fold_bytes(h, k.name().as_bytes());
                 }
+                h = fold(h, s.custom_config_hash());
             }
         }
         if self.keep_nested { fold(h, 1) } else { h }

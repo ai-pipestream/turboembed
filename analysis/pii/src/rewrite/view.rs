@@ -206,6 +206,7 @@ impl Annotator for MaskedView {
             .policies
             .iter()
             .copied()
+            .chain(std::iter::once(self.default_policy))
             .map(pack_policy)
             .fold(0xcbf2_9ce4_8422_2325, |h, x| (h ^ x).wrapping_mul(PRIME));
         for &(name, policy) in &self.custom {

@@ -18,6 +18,8 @@ pub enum SinkError {
     Span(Span),
     /// The kind name is empty.
     EmptyKind,
+    /// A [`PiiKind::Custom`] uses one of the reserved built-in kind names.
+    ReservedKind(&'static str),
     /// The normalized form is empty.
     EmptyValue(Span),
 }
@@ -27,6 +29,9 @@ impl fmt::Display for SinkError {
         match self {
             SinkError::Span(s) => write!(f, "the span {}..{} is not a non-empty range of the text", s.start, s.end),
             SinkError::EmptyKind => f.write_str("the pii kind name must not be empty"),
+            SinkError::ReservedKind(name) => {
+                write!(f, "custom pii kind {name:?} uses a reserved built-in kind name")
+            }
             SinkError::EmptyValue(s) => {
                 write!(f, "candidate at {}..{} has an empty normalized form", s.start, s.end)
             }
@@ -55,6 +60,11 @@ impl<'a> PiiSink<'a> {
     fn check_span(&self, span: Span, kind: PiiKind) -> Result<(usize, usize), SinkError> {
         if kind.name().is_empty() {
             return Err(SinkError::EmptyKind);
+        }
+        if let PiiKind::Custom(name) = kind
+            && PiiKind::parse(name).is_some()
+        {
+            return Err(SinkError::ReservedKind(name));
         }
         let (start, end) = (span.start as usize, span.end as usize);
         if start >= end

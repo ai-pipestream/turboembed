@@ -111,6 +111,12 @@ pub trait CustomExtractor: Send + Sync {
 
     /// Scans `text` and appends candidate mentions to `sink`.
     fn scan(&self, text: &str, sink: &mut PiiSink<'_>);
+
+    /// Fingerprint of this extractor's configuration, folded into
+    /// [`crate::PiiDetector`]'s configuration hash and [`Scanner`] equality.
+    fn config_hash(&self) -> u64 {
+        0
+    }
 }
 
 struct FnExtractor {
@@ -188,7 +194,8 @@ impl PartialEq for Scanner {
                 a == b && ak == bk
             }
             (ScannerInner::Custom(a), ScannerInner::Custom(b)) => {
-                Arc::ptr_eq(a, b) || (a.name() == b.name() && a.kinds() == b.kinds())
+                Arc::ptr_eq(a, b)
+                    || (a.name() == b.name() && a.kinds() == b.kinds() && a.config_hash() == b.config_hash())
             }
             _ => false,
         }
@@ -202,7 +209,10 @@ impl Hash for Scanner {
         self.extractor().hash(state);
         match &self.inner {
             ScannerInner::Builtin { kinds, .. } => kinds.hash(state),
-            ScannerInner::Custom(c) => c.kinds().hash(state),
+            ScannerInner::Custom(c) => {
+                c.kinds().hash(state);
+                c.config_hash().hash(state);
+            }
         }
     }
 }
@@ -259,6 +269,15 @@ impl Scanner {
         match &self.inner {
             ScannerInner::Builtin { .. } => &[],
             ScannerInner::Custom(c) => c.kinds(),
+        }
+    }
+
+    /// Configuration fingerprint for a custom scanner (`0` for a built-in
+    /// scanner).
+    pub fn custom_config_hash(&self) -> u64 {
+        match &self.inner {
+            ScannerInner::Builtin { .. } => 0,
+            ScannerInner::Custom(c) => c.config_hash(),
         }
     }
 

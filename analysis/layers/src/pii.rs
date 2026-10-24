@@ -127,7 +127,7 @@ impl PiiKind {
     }
 
     /// Records a custom kind's static name so binary layer import can
-    /// resolve it without allocating untrusted strings.
+    /// resolve it without allocating.
     pub fn remember_custom(kind: PiiKind) {
         if let PiiKind::Custom(name) = kind
             && !name.is_empty()
@@ -147,6 +147,27 @@ impl PiiKind {
     pub fn lookup_custom(name: &str) -> Option<PiiKind> {
         let reg = custom_registry().read().expect("custom pii kinds lock");
         reg.iter().copied().find(|&k| k == name).map(PiiKind::Custom)
+    }
+
+    /// Looks up or interns a custom kind name during binary layer import,
+    /// bounded to 256 custom kinds of at most 64 bytes each.
+    pub fn intern_custom(name: &str) -> Option<PiiKind> {
+        if name.is_empty() || name.len() > 64 || PiiKind::parse(name).is_some() {
+            return None;
+        }
+        if let Some(k) = PiiKind::lookup_custom(name) {
+            return Some(k);
+        }
+        let mut reg = custom_registry().write().expect("custom pii kinds lock");
+        if let Some(&existing) = reg.iter().find(|&&k| k == name) {
+            return Some(PiiKind::Custom(existing));
+        }
+        if reg.len() >= 256 {
+            return None;
+        }
+        let leaked: &'static str = Box::leak(name.to_owned().into_boxed_str());
+        reg.push(leaked);
+        Some(PiiKind::Custom(leaked))
     }
 
     /// The name OpenNLP's `PiiMention` uses for the type (`email`,
@@ -363,6 +384,11 @@ impl Layer for Pii {
             }
             if m.kind.name().is_empty() {
                 return Err(format!("pii mention {i} has no kind name"));
+            }
+            if let PiiKind::Custom(name) = m.kind
+                && PiiKind::parse(name).is_some()
+            {
+                return Err(format!("pii mention {i} uses reserved built-in kind name {name:?} as custom"));
             }
             if m.normalized.is_empty() {
                 return Err(format!("pii mention {i} has no normalized form"));
