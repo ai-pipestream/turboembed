@@ -2453,8 +2453,11 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-encoding",
  "turbo-goldens",
+ "turbo-hunspell",
+ "turbo-morfologik",
  "turbo-ngram",
  "turbo-normalize-layers",
+ "turbo-tokenize",
  "turbo-unicode",
 ]
 
