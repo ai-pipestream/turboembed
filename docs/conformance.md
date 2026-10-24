@@ -77,3 +77,28 @@ tolerance.
 `a_fixed_shape_refuses_the_cases_it_cannot_hold` runs the same check on
 the small bundle with its artifact fixed at 32 tokens, so the capacity
 path is exercised on every build.
+
+## Other outputs
+
+The same run checks the outputs besides pooled vectors, on the same
+device and at the same precision (`core/tests/conformance/tasks.rs`).
+Each is held to the table above for the compute dtype its session
+reports, with every value it compares taken as one vector.
+
+| Check | Through | Against |
+|---|---|---|
+| `rerank_scores_match_upstream` | `turbo_rerank_write_pairs`, one pair a write and `max_batch` pairs a write | the transformers scores in `testdata/tiny-rerank-reference` |
+| `extractive_qa_logits_match_upstream` | `turbo::qa::ExtractiveQa` on the backend's first device, one window a run and `max_batch` windows a run | the transformers start and end logits in `testdata/tiny-qa-reference` |
+| `token_vectors_match_the_reference_encoder_and_pool_to_upstream` | `turbo_embed_write_ranges` with one range a token, `TURBO_NORMALIZE_NONE`, one row a write and full batches | each token: the f64 encoder over the bundle's weights (`PlainBert` in `core/tests/common`); their mean, normalized: the sentence-transformers vector of `testdata/tiny-bert-bundle` |
+| `sparse_weights_match_the_reference_encoder` | the token vectors above, through an MLM head and the max-log pool on the host, as `turbo-embed`'s sparse encoder reads them | the same head and pool over the f64 encoder's states |
+
+The small bundle has no trained MLM head, so the sparse check builds one
+on its hidden width with the decoder tied to the word embeddings; the
+head's arithmetic is held to numpy in `core/tests/mlm.rs`.
+
+A check is skipped, with the reason printed, when the device does not
+offer what it needs: `turbo_runtime_capability` reports the task
+`TURBO_CAP_UNSUPPORTED` (rerank, extractive QA), or
+`turbo_embed_write_ranges` is `TURBO_E_UNSUPPORTED` (token vectors,
+sparse). A skip passes; a check the device offers and fails is a
+failure.
