@@ -35,14 +35,19 @@ impl QuoteKind {
 /// One row of [`Quotations`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Quotation {
-    /// The bytes of the statement, quotation marks excluded.
+    /// The bytes of the statement, its own quotation marks excluded. A
+    /// `Mixed` row's content is the whole complement, so the marks of the
+    /// quote inside it stay (`the year was " a turning point "`).
     pub content: Span,
     /// The speaker mention (`the CFO`, `she`), when found.
     pub speaker: Option<Span>,
     /// The reporting verb (`said`, `warned`), when found.
     pub cue_verb: Option<Span>,
     /// The row of the default `Groups<Mentions>` (coreference chains) the
-    /// speaker belongs to, when resolved.
+    /// speaker belongs to, when resolved. A raw row number, not a checked
+    /// node reference: this crate cannot name `Mentions`, so neither
+    /// `check` nor import validates it against a chain layer, and it is
+    /// only meaningful next to the chains it was resolved with.
     pub speaker_chain: Option<u32>,
     pub kind: QuoteKind,
     /// In `[0, 1]`.
