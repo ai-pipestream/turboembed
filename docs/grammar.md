@@ -563,6 +563,11 @@ an offset on each endpoint. Zone suffixes participate in chart selection,
 so `02:30 hora de Madrid` cannot be split into a bare hour and a duration.
 `time::zone::at` also reads a standalone zone at a supplied byte offset.
 
+Only expressions with an explicit clock consume a zone suffix, both during
+selection and when writing the result. Part-of-day expressions keep their
+local TIMEX3 value and source span: `this morning CST` keeps `this morning`
+and its resolved range rather than consuming the unresolved abbreviation.
+
 UTC/GMT accept signed hours, HHMM or HH:MM, within -14:00..+14:00.
 Malformed offsets are refused as a whole. Standard/daylight abbreviations
 have fixed offsets: EST/EDT, PST/PDT, MST/MDT, CET/CEST, EET/EEST and CDT.
@@ -576,7 +581,8 @@ geographic daylight-saving rule. Other ambiguous abbreviations, including
 
 `hora de Madrid`, Madrid time, Amsterdam time forms, and London/Londres
 forms use the modern EU rule for 1996 through 2099. A time-only city needs
-a reference date; a dated expression uses that expression's date.
+a reference date; a dated expression uses that expression's date. A date
+emitted as a separate mention does not override the clock's reference date.
 The last Sundays of March and October change at 01:00 UTC. Missing spring
 hours and repeated autumn hours are unresolved rather than guessed.
 Dates outside that supported interval are refused. This is a bounded
