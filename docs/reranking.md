@@ -156,15 +156,15 @@ of ten passes after two warmups. TEI runs on the same GPU in a container
 pinned by digest, in float32, timed on `/rerank` with `raw_scores: true` and
 `truncate: false`, so its figure includes loopback HTTP.
 
-Measured on 2026-10-24 at commit `6160b5cb`, NVIDIA RTX 4080 SUPER (CUDA
+Measured on 2026-10-24 at commit `66bbe5e2`, NVIDIA RTX 4080 SUPER (CUDA
 runtime 12.4, driver 615.71.09), which was also driving a desktop session,
 with SQuAD 2.0 dev, precision EXACT, and TEI 89-1.8 (image digest
 `sha256:1a3d7c897bdaf42cd4d1cad57b3134b91b3b5db129995d30db9fb2fc8bf8fd64`).
 
 | Model | Library pairs/s | TEI pairs/s | Library over TEI | Largest score difference to TEI |
 | --- | ---: | ---: | ---: | ---: |
-| MS MARCO MiniLM L6 v2 | 4298.2 | 1463.8 | 2.94x | 0.0129 |
-| BGE reranker base | 650.1 | 369.0 | 1.76x | 0.116 |
+| MS MARCO MiniLM L6 v2 | 4303.7 | 1276.1 | 3.37x | 0.0129 |
+| BGE reranker base | 663.9 | 427.9 | 1.55x | 0.116 |
 
 The records are in `benchmarks/rerank/`. The score differences are TEI's:
 the library is within `1e-5` of the Transformers FP32 reference on both
