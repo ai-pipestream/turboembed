@@ -34,6 +34,9 @@ pub(in crate::lang::en::time) static RULES: &[Rule] = &[
     // Date ranges.
     rr("range", RANGE, &[node(DPOINT), node(TO), node(DPOINT)], b_range),
     rr("range_from", RANGE, &[word("from"), node(DPOINT), node(TO), node(DPOINT)], b_range),
+    rr("range_from_to_date", RANGE, &[word("from"), node(DPOINT), node(DATE)], |v, c| {
+        (date_of(c, v.last()?) == Some(DateSpec::CurrentDate)).then(|| b_range(v, c))?
+    }),
     rr("range_between", RANGE, &[word("between"), node(DPOINT), word("and"), node(DPOINT)], b_range),
     rr("range_between_to", RANGE, &[word("between"), node(DPOINT), node(TO), node(DPOINT)], b_range),
     rr("range_days_of", RANGE, &[node(MDAY), node(TO), node(MDAY), word("of"), node(DPOINT)], b_days_of),
@@ -97,11 +100,21 @@ pub(in crate::lang::en::time) static RULES: &[Rule] = &[
     rr("range_lrange_dtp", RANGE, &[node(LRANGE), node(DTP)], b_trange_date),
     // Stretches from the reference.
     rr("range_next_n", RANGE, &[node(RELW), node(AMOUNT), node(UNIT)], b_next_n),
+    rr("range_the_next_n", RANGE, &[word("the"), node(RELW), node(AMOUNT), node(UNIT)], b_next_n),
     rr("range_n_next", RANGE, &[node(AMOUNT), node(RELW), node(UNIT)], b_n_next),
     rr("range_next_dur", RANGE, &[node(RELW), node(DUR)], b_next_dur),
     rr("range_next_unit", RANGE, &[node(RELW), node(UNIT)], b_next_unit),
     rr("range_within", RANGE, &[word("within"), node(DUR)], b_within),
-    rr("range_within_next", RANGE, &[word("within"), word("next"), node(DUR)], b_within),
+    rr("range_within_next", RANGE, &[word("within"), opt_word("the"), word("next"), node(DUR)], b_within),
+    rr(
+        "range_within_next_unit_dur",
+        RANGE,
+        &[word("within"), opt_word("the"), word("next"), node(UNIT), word("and"), node(DUR)],
+        |v, c| {
+            let d = length(i64::from(MILLI), &v[0])?.plus(&duration_of(c, &v[1])?)?;
+            emit(c, TimeValue::range(Range::Within { length: d }))
+        },
+    ),
     rr(
         "range_for_starting",
         RANGE,
@@ -179,6 +192,27 @@ pub(in crate::lang::en::time) static RULES: &[Rule] = &[
     ),
     rr("moded_end_of_day", MODED, &[word("end"), word("of"), opt_word("the"), word("day")], b_end_of_day),
     rr("moded_eod", MODED, &[word("eod")], b_end_of_day),
+    rr("moded_the_eod", MODED, &[word("the"), word("eod")], b_end_of_day),
+    rr("moded_till_date", MODED, &[word("till"), word("date")], |_, c| {
+        emit(
+            c,
+            TimeValue::Point {
+                point: Point::date(DateSpec::CurrentDate),
+                modifier: Modifier::relation(Relation::Before),
+                clip: false,
+            },
+        )
+    }),
+    rr("moded_to_date", MODED, &[word("to"), word("date")], |_, c| {
+        emit(
+            c,
+            TimeValue::Point {
+                point: Point::date(DateSpec::CurrentDate),
+                modifier: Modifier::relation(Relation::Before),
+                clip: false,
+            },
+        )
+    }),
     rr("moded_end_of_unit", MODED, &[word("end"), word("of"), node(UNIT)], b_end_of_unit),
     rr("moded_year_greater_than", MODED, &[word("year"), word("greater"), word("than"), node(DPOINT)], b_after),
     rr("moded_eoy", MODED, &[word("eoy")], b_eoy),

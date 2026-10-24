@@ -101,6 +101,23 @@ pub(in crate::lang) fn b_holiday_near(v: &[Value], c: &Ctx<'_>) -> Option<Value>
     emit_date(c, DateSpec::HolidayNear { holiday: holiday_of(c, &v[1])?, future: n > 0 })
 }
 
+pub(in crate::lang) fn b_holiday_weekend(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+    let (holiday, year) = match date_of(c, v.last()?)? {
+        DateSpec::Holiday { holiday, year } => (holiday, year),
+        _ => return None,
+    };
+    emit_date(c, DateSpec::HolidayWeekend { holiday, year })
+}
+
+pub(in crate::lang) fn b_holiday_weekend_year(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+    let holiday = holiday_of(c, &v[0])?;
+    let year = match v.get(1) {
+        Some(y) => full_year(y)?,
+        None => YearRef::Any,
+    };
+    emit_date(c, DateSpec::HolidayWeekend { holiday, year })
+}
+
 /// `the week of April 10th`, `w/c Feb 4`.
 pub(in crate::lang) fn b_week_of(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     match date_of(c, v.last()?)? {

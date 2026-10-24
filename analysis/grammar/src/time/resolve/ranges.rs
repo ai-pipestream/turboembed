@@ -69,7 +69,7 @@ fn open_year(d: &Dated) -> bool {
 fn edge_of(span: (Date, Date), edge: Edge, grain: TimeGrain) -> Option<Date> {
     let (s, e) = span;
     match edge {
-        Edge::Start => Some(s),
+        Edge::Start | Edge::ExplicitStart => Some(s),
         Edge::End => Some(e),
         Edge::Mid => match grain {
             TimeGrain::Month => Date::new(s.year(), s.month(), 16),
@@ -101,6 +101,9 @@ fn between(
     ee: Edge,
     now: DateTime,
 ) -> Option<(TimeKind, TimeGrain, Vec<Moment>)> {
+    if !start.shift.is_zero() || !end.shift.is_zero() {
+        return clock_range(start, end, now);
+    }
     if let (Some(cs), Some(ce)) = (date_choice(start, now), date_choice(end, now)) {
         let gs = if start.time == TimeOfDay::Now { TimeGrain::Day } else { start.date.grain()? };
         let ge = if end.time == TimeOfDay::Now { TimeGrain::Day } else { end.date.grain()? };
@@ -110,6 +113,14 @@ fn between(
 }
 
 fn date_range(cs: &Choice, se: Edge, gs: TimeGrain, ce: &Choice, ee: Edge, ge: TimeGrain) -> Option<Vec<Moment>> {
+    if cs.past.span.is_none() || ce.past.span.is_none() {
+        let (DateTimex::Date(ds), DateTimex::Date(de)) = (cs.past.timex, ce.past.timex) else { return None };
+        let timex = Timex::UnresolvedRange(
+            TimexPoint { date: ds, time: TimexTime::None },
+            TimexPoint { date: de, time: TimexTime::None },
+        );
+        return Some(vec![Moment { timex, span: None, future: true, first: true }]);
+    }
     let unit = if gs == TimeGrain::Year && ge == TimeGrain::Year && se == Edge::Start && ee == Edge::Start {
         Unit::Year
     } else if coarse(gs) && coarse(ge) {
@@ -118,13 +129,17 @@ fn date_range(cs: &Choice, se: Edge, gs: TimeGrain, ce: &Choice, ee: Edge, ge: T
         Unit::Day
     };
     let bound = |d: &Dated, edge: Edge, g: TimeGrain| edge_of(d.span?, edge, g);
-    let (ps, pe) = (bound(&cs.past, se, gs)?, bound(&ce.past, ee, ge)?);
-    let (fs, fe) = (bound(&cs.future, se, gs)?, bound(&ce.future, ee, ge)?);
+    let (ps, mut pe) = (bound(&cs.past, se, gs)?, bound(&ce.past, ee, ge)?);
+    let (fs, mut fe) = (bound(&cs.future, se, gs)?, bound(&ce.future, ee, ge)?);
+    let (os, oe) = (open_year(&cs.past), open_year(&ce.past));
+    if os && oe && (ps.month(), ps.day()) == (2, 29) && pe.year() != ps.year() {
+        pe = Date::new(ps.year(), pe.month(), pe.day())?;
+        fe = Date::new(fs.year(), fe.month(), fe.day())?;
+    }
     // A range whose end comes before its start takes the end's later
     // reading in the past and the start's earlier one in the future.
     let past = if pe < ps { (ps, bound(&ce.future, ee, ge)?) } else { (ps, pe) };
     let future = if fe < fs { (bound(&cs.past, se, gs)?, fe) } else { (fs, fe) };
-    let (os, oe) = (open_year(&cs.past), open_year(&ce.past));
     let mut out = Vec::with_capacity(2);
     for (is_future, (s, e)) in [(false, past), (true, future)] {
         if e < s {
@@ -184,7 +199,7 @@ fn clock_pairs(s: &Clock, e: &Clock) -> Vec<(u32, u32, u8, u8)> {
             vec![(st, et, sh[0], eh)]
         }
         // `10:30 to 3`: a morning start and an afternoon end.
-        (false, false) if s.hour > e.hour && e.hour < 12 && s.shown != Shown::Hour => {
+        (false, false) if s.hour > e.hour && e.hour < 12 && s.shown != Shown::Hour && e.shown == Shown::Hour => {
             let (st, eh) = (secs(s, sh[0]), e.hour + 12);
             vec![(st, secs(e, eh), sh[0], eh)]
         }
@@ -331,6 +346,7 @@ fn for_length(start: &Point, length: &Duration, now: DateTime) -> Option<(TimeKi
         }
         (date, TimeOfDay::Clock(c)) => {
             let (hours, n) = c.hours();
+            let clock_len = length.parts().iter().all(|(u, _)| u.is_clock());
             let mut out = Vec::new();
             for (future, d) in dates(date, now)?.readings() {
                 let DateTimex::Date(dt) = d.timex else { return None };
@@ -341,10 +357,12 @@ fn for_length(start: &Point, length: &Duration, now: DateTime) -> Option<(TimeKi
                         return None;
                     }
                     let end_date = if b.date() == a.date() { dt } else { next_day(dt, b.date()) };
+                    let start_time = if clock_len { clock_timex(h, &c) } else { TimexTime::seconds(a.second_of_day()) };
+                    let dur = if clock_len { clock_duration(b.local_seconds() - a.local_seconds())? } else { *length };
                     let timex = Timex::Range(
-                        TimexPoint { date: dt, time: clock_timex(h, &c) },
+                        TimexPoint { date: dt, time: start_time },
                         TimexPoint { date: end_date, time: TimexTime::seconds(b.second_of_day()) },
-                        clock_duration(b.local_seconds() - a.local_seconds())?,
+                        dur,
                     );
                     let span = Some(Span::Range(Some(Instant::DateTime(a)), Some(Instant::DateTime(b))));
                     out.push(Moment { timex, span, future, first: k == 0 });

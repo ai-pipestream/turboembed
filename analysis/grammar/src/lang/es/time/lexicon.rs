@@ -112,6 +112,8 @@ pub const ENTRIES: &[Entry] = &[
     e("tardes", PART, 2, PLURAL),
     e("noche", PART, 3, 0),
     e("noches", PART, 3, PLURAL),
+    e("madrugada", PART, 9, 0),
+    e("madrugadas", PART, 9, PLURAL),
     e("hoy", DAYWORD, 0, 0),
     e("mañana", DAYWORD, 1, 0),
     e("ayer", DAYWORD, -1, 0),
