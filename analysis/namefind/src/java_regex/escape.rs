@@ -24,7 +24,7 @@ impl Translator<'_> {
             'z' => Ok((Node::Assert(Assertion::EndText), ASSERTION)),
             'Z' => {
                 self.limits.dollar = true;
-                Ok((Node::Assert(Assertion::EndText), ASSERTION))
+                Ok((Node::Assert(Assertion::EndOrFinalTerminator), ASSERTION))
             }
             'b' => {
                 if self.peek_is('{') && self.peek_at(1) == Some('g' as u32) {

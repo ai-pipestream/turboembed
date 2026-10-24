@@ -177,3 +177,34 @@ fn nesting_is_limited() {
     assert!(matches!(JavaRegex::compile(&nested(MAX_DEPTH + 1)), Err(Error::Compile { .. })));
     assert!(matches!(JavaRegex::compile(&"(".repeat(100_000)), Err(Error::Compile { .. })));
 }
+
+#[test]
+fn java_mark_boundaries_and_final_terminators_in_both_engines() {
+    let mut cases = vec![
+        (r"\b\d{4}\b", "सन् 2024 में", Some((10, 14))),
+        (r"\Bx", "a\u{301}x", Some((3, 4))),
+        (r"\bx", "a\u{301}x", None),
+        (r"\bx", "_\u{301}x", Some((3, 4))),
+        (r"\bx", "\u{301}x", Some((2, 3))),
+        (r"\bx", "𐐀\u{301}x", Some((6, 7))),
+        (r"\bx", "a𝅧x", Some((5, 6))),
+        (r"a\b𝅧", "a𝅧x", None),
+        (r"a\B𝅧", "a𝅧x", Some((0, 5))),
+        (r"a$", "a\n\n", None),
+        (r"a\z", "a\n", None),
+        (r"\r$", "a\r\n", None),
+    ];
+    for text in ["a", "a\n", "a\r", "a\r\n", "a\u{85}", "a\u{2028}", "a\u{2029}"] {
+        cases.push((r"a$", text, Some((0, 1))));
+        cases.push((r"a\Z", text, Some((0, 1))));
+    }
+    for (pattern, text, want) in cases {
+        let r = JavaRegex::compile(pattern).unwrap();
+        if text.chars().all(|c| c as u32 <= 0xFFFF) {
+            r.check(&TextFacts::of(text)).unwrap();
+        }
+        for engine in [Engine::Auto, Engine::Backtrack, Engine::Pike] {
+            assert_eq!(r.find_at_with(text, 0, &mut Scratch::default(), engine), want, "{pattern} on {text:?}");
+        }
+    }
+}

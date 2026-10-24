@@ -96,6 +96,9 @@ cargo run --release -p turbo-bench -- record \
     --tei-model upstream/
 ```
 
+The committed CPU records, made this way on a Ryzen 9 9950X, are listed
+with their times in docs/cpu.md ("Benchmark records").
+
 On an Intel Arc GPU, with Level Zero installed, one Intel GPU listed,
 and both images pulled:
 

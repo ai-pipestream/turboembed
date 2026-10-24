@@ -198,7 +198,7 @@ impl Translator<'_> {
                 '$' => {
                     self.at += 1;
                     self.limits.dollar = true;
-                    (Node::Assert(Assertion::EndText), ASSERTION)
+                    (Node::Assert(Assertion::EndOrFinalTerminator), ASSERTION)
                 }
                 '.' => {
                     self.at += 1;
