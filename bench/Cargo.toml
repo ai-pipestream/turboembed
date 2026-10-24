@@ -14,8 +14,14 @@ turbo = { path = "../core" }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 ureq = "3"
+# The part-of-speech tagger `turbo-bench postag` measures (the postag feature).
+turbo-analysis = { path = "../analysis/core", optional = true }
+turbo-postag = { path = "../analysis/postag", optional = true }
 
 [features]
+# Links the BiLSTM-CRF part-of-speech tagger for `turbo-bench postag`
+# (docs/benchmarks.md, "Part-of-speech records").
+postag = ["dep:turbo-analysis", "dep:turbo-postag"]
 # Links the CUDA backend into the library the tool measures (docs/cuda.md).
 cuda = ["turbo/cuda"]
 # cuBLAS in that library as well, for a record with TURBO_CUDA_CUBLAS set.

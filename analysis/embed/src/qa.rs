@@ -147,13 +147,30 @@ impl Annotator for ExtractiveQaAnnotator {
         }
         h
     }
-    fn annotate(&self, (view, question): Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        let answer = self
-            .session
-            .lock()
-            .map_err(|_| failure("QA session lock poisoned"))?
-            .answer(&question.0, view.text(), self.options)
-            .map_err(|e| failure(e.message))?;
-        Ok((Answers::from_decoded(view.id(), answer).map_err(failure)?,))
+    fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error> {
+        self.annotate_batch(vec![input]).remove(0)
+    }
+
+    fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
+        let mut session = match self.session.lock() {
+            Ok(s) => s,
+            Err(_) => return inputs.iter().map(|_| Err(failure("QA session lock poisoned"))).collect(),
+        };
+        let pairs: Vec<_> = inputs.iter().map(|(view, q)| (q.0.as_str(), view.text())).collect();
+        let logits = match session.logits_many(&pairs) {
+            Ok(rows) => rows.into_iter().map(Ok).collect::<Vec<_>>(),
+            // Tokenization can reject one pair. Isolate it without losing valid
+            // neighbors; successful batches never take this recovery path.
+            Err(_) => pairs.iter().map(|&(q, c)| session.logits(q, c)).collect(),
+        };
+        logits
+            .into_iter()
+            .zip(inputs)
+            .map(|(rows, (view, _))| {
+                let answer = turbo::qa::decode(view.text(), &rows.map_err(|e| failure(e.message))?, self.options)
+                    .map_err(|e| failure(e.message))?;
+                Ok((Answers::from_decoded(view.id(), answer).map_err(failure)?,))
+            })
+            .collect()
     }
 }

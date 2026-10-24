@@ -111,6 +111,42 @@ impl Offsetter {
             }
         }
     }
+
+    /// Converts a column of internal byte offsets (already proven on char
+    /// boundaries) to wire offsets, using [`OffsetTable::column_to_utf16`]
+    /// and [`OffsetTable::column_to_code_point`] for linear-time forward
+    /// cursor conversion on ordered columns with automatic fallback for
+    /// out-of-order entries.
+    pub fn column_to_wire(&self, text: &str, bytes: &[u32]) -> Vec<u32> {
+        match self.mode {
+            OffsetMode::Utf8 => bytes.to_vec(),
+            OffsetMode::Utf16 => {
+                let mut out = Vec::with_capacity(bytes.len());
+                self.table.column_to_utf16(text, bytes, &mut out);
+                out.into_iter().map(|u| u.0).collect()
+            }
+            OffsetMode::CodePoint => {
+                let mut out = Vec::with_capacity(bytes.len());
+                self.table.column_to_code_point(text, bytes, &mut out);
+                out.into_iter().map(|c| c.0).collect()
+            }
+        }
+    }
+
+    /// Converts a slice of internal byte spans to `(start, end)` wire
+    /// columns via [`Offsetter::column_to_wire`].
+    pub fn spans_to_wire(&self, text: &str, spans: &[Span]) -> (Vec<u32>, Vec<u32>) {
+        let starts: Vec<u32> = spans.iter().map(|s| s.start).collect();
+        let ends: Vec<u32> = spans.iter().map(|s| s.end).collect();
+        (self.column_to_wire(text, &starts), self.column_to_wire(text, &ends))
+    }
+
+    /// Converts parallel `(start, end)` wire columns to internal byte
+    /// spans in `text`, refusing out-of-bounds, inverted, mid-codepoint,
+    /// or mid-surrogate offsets.
+    pub fn spans_from_wire(&self, text: &str, what: &str, starts: &[u32], ends: &[u32]) -> Result<Vec<Span>, Failure> {
+        starts.iter().zip(ends).map(|(&s, &e)| self.from_wire(text, what, s, e)).collect()
+    }
 }
 
 #[cfg(test)]

@@ -924,6 +924,36 @@ less. A range over a whole row gave the row's vector to the bit, and
 the lowest cosine of a chunk's range vector to its chunk row's was
 0.69.
 
+## Part-of-speech records
+
+`turbo-bench postag --model <file> --treebank <file.conllu> [--cpus <list>]
+[--rounds <n>]`, in a build with `--features postag`, measures the
+BiLSTM-CRF part-of-speech tagger (`analysis/postag/`) in its two
+numerics, `Packed` (f32 on the CPU backend's packed GEMM) and
+`JvmParity` (the f64 reference), on the syntactic words of a CoNLL-U
+treebank. It is not an embed record and backs no capability cell, so
+it goes to `benchmarks/records/postag/`, a directory `core/build.rs`
+and the embed record tests do not read; `bench/tests/tree.rs` checks
+each file there against its name and `turbo_bench::postag::check`. The
+provenance is the embed record's: a clean, pushed commit the tool was
+built from, checked before and after the run.
+
+The record (`bench/src/postag/mod.rs`, `PosRecord`) names the model (its
+ModelRef, the file's SHA-256 and size, and each numerics'
+`config_hash`, which must differ), the treebank (file name, SHA-256,
+sentences, words), the words each numerics tags as the treebank does,
+the words they tag the same, and the largest difference between their
+emission scores and between their marginal probabilities of a word's
+tag. Then, per configuration (1, 8, 32 and 128 sentences per call over
+the whole treebank; 32 per call over the sentences of 1 to 9, 10 to 24
+and 25 or more words), each numerics' words per second (the median over
+the passes) and the p50 and p95 of a call's time. Each round times every
+configuration packed, parity, parity, packed, after one untimed warm
+pass of each, so the ratio holds however the clock moves. The name is
+machine, backend, the model file's hash and the commit:
+`x86-64.cpu.postag.bilstm-crf.<model8>.<commit12>.json`.
+docs/analysis.md ("BiLSTM-CRF numerics") reads the committed record.
+
 ## Tests
 
 `bench/tests/` runs without docker or a GPU:
@@ -953,6 +983,9 @@ the lowest cosine of a chunk's range vector to its chunk row's was
   from a local socket, on directories under a path with a sentinel user
   name in it: the commands run name the real paths, and the records name
   only the placeholders.
+- `tree.rs`: the committed records, range records and part-of-speech
+  records against their names and checks, the paths the docs name, and
+  no host path in committed text.
 - `runners.rs`: the reference programs' commands, argument by argument;
   their output parsed from examples in the form TEI, trtexec and
   benchmark_app print it; which programs each backend gets; and the

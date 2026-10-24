@@ -158,7 +158,8 @@ fn jvm_parity_is_the_detector_without_an_inventory() {
     let parity = RuleSentenceDetector { splitter: RuleSplitter::new("en").without_inventory() };
     assert_eq!(parity.config_hash(), old("en"));
     assert_ne!(RuleSentenceDetector::new("en").config_hash(), old("en"));
-    assert_eq!(RuleSentenceDetector::new("de").config_hash(), old("de"));
+    assert_ne!(RuleSentenceDetector::new("de").config_hash(), old("de"));
+    assert_eq!(RuleSentenceDetector { splitter: RuleSplitter::new("de").without_inventory() }.config_hash(), old("de"));
     assert_eq!(
         rules(&RuleSplitter::new("en").with_abbreviations(AbbreviationInventory::EMPTY), &text),
         rules(&RuleSplitter::new("en").without_inventory(), &text)
@@ -209,7 +210,7 @@ fn the_rule_splitter_honours_its_switches() {
     assert_eq!(rules(&added, text).len(), 2);
     assert_eq!(rules(&RuleSplitter::new("en").without_inventory(), text).len(), 3);
     // Languages without a bundled inventory get none.
-    for tag in ["de", "pt", "qaa", "und"] {
+    for tag in ["qaa", "und"] {
         assert!(RuleSplitter::new(tag).abbreviations().is_empty(), "{tag}");
     }
     assert!(RuleSplitter::uax29().abbreviations().is_empty());
