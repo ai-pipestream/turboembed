@@ -190,10 +190,9 @@ impl MlmHead {
         // the decoder's name when the artifact names no decoder weight.
         let tied = expected.len() == 5;
         if tied {
-            let name = art
-                .tensor_names
-                .get(&crate::manifest::TensorRole::WordEmbeddings)
-                .ok_or_else(|| invalid("manifest.json: artifacts[{index}].tensor_names: no word_embeddings"))?;
+            let name = art.tensor_names.get(&crate::manifest::TensorRole::WordEmbeddings).ok_or_else(|| {
+                invalid(format!("manifest.json: artifacts[{index}].tensor_names: no word_embeddings"))
+            })?;
             expected.push(Expected {
                 name: name.clone(),
                 shape: vec![a.vocab_size as u64, a.hidden as u64],
