@@ -258,11 +258,27 @@ pub(crate) fn write_atomic(dest: &Path, bytes: &[u8]) -> Result<(), ZooError> {
     let mut f = fs::OpenOptions::new().write(true).create_new(true).open(&tmp).map_err(|e| io(&tmp, e))?;
     let written = f.write_all(bytes).and_then(|_| f.sync_all()).map_err(|e| io(&tmp, e));
     drop(f);
-    let renamed = written.and_then(|_| fs::rename(&tmp, dest).map_err(|e| io(dest, e)));
+    let renamed = written.and_then(|_| rename(&tmp, dest).map_err(|e| io(dest, e)));
     if renamed.is_err() {
         let _ = fs::remove_file(&tmp);
     }
     renamed
+}
+
+/// `fs::rename`. Windows refuses to replace a file another handle has
+/// open, reading it or replacing it, with access denied; such a handle is
+/// short-lived, so the rename is tried again, up to about a second.
+fn rename(from: &Path, to: &Path) -> std::io::Result<()> {
+    let mut tries = 0;
+    loop {
+        match fs::rename(from, to) {
+            Err(e) if cfg!(windows) && e.kind() == std::io::ErrorKind::PermissionDenied && tries < 100 => {
+                tries += 1;
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            done => return done,
+        }
+    }
 }
 
 #[cfg(all(test, feature = "http"))]

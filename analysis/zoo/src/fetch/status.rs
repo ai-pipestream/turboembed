@@ -41,11 +41,16 @@ pub(super) fn local_file(artifact: &Artifact, file: &File, local: &Path) -> Resu
             actual: m.len().to_string(),
         })),
         Ok(_) => {
-            // Another process may remove the file between the stat and
-            // the read; that is a missing file, not an error.
+            // Another process may remove or replace the file between the
+            // stat and the read; that is a missing file, not an error.
+            // Windows refuses to open a file being deleted or replaced
+            // with access denied, so there that counts as missing too.
             let bytes = match fs::read(local) {
                 Ok(bytes) => bytes,
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Local::Missing),
+                Err(e) if cfg!(windows) && e.kind() == std::io::ErrorKind::PermissionDenied => {
+                    return Ok(Local::Missing);
+                }
                 Err(e) => return Err(io(e.to_string())),
             };
             Ok(verify(artifact, file, &bytes).map_or_else(Local::Mismatch, |()| Local::Verified))
