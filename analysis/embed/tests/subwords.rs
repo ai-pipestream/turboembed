@@ -18,6 +18,8 @@ use turbo_analysis::*;
 use turbo_analysis_embed::{SubwordAnnotator, SubwordsProvider};
 use turbo_analysis_layers::{Subwords, Tokens};
 
+#[path = "subwords/nfc.rs"]
+mod nfc;
 #[path = "subwords/sentencepiece.rs"]
 mod sentencepiece;
 

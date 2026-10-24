@@ -116,7 +116,12 @@ from, however the text was normalized on the way.
 - A byte-level token holding part of a character spans the whole
   character, so two tokens can share one.
 - Spans are on character boundaries, inside the text, and the spans of
-  the text's tokens start in order.
+  the text's tokens start in order and end in order.
+- With NFC on (Qwen2's files), a character NFC composes spans every
+  character it was composed from, wherever canonical reordering put
+  them. Where that would start or end a character's span before the one
+  before it (`a`, a cedilla and an acute become `á` and the cedilla),
+  the characters share one span over all their sources.
 
 For the `sentencepiece` kind they are the library's offsets under these
 rules (above). For the others they are upstream's offsets except where

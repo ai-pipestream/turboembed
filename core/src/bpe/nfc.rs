@@ -192,6 +192,11 @@ mod tests {
         aligned("a\u{327}\u{301}", 0, &mut s, Some(&mut src));
         assert_eq!(s, "\u{e1}\u{327}");
         assert_eq!(src, [[0, 5]; 4]);
+        // The acute, after the cedilla in NFC, comes from before it, so
+        // the two share a span; the x stays apart.
+        aligned("x\u{301}\u{327}", 0, &mut s, Some(&mut src));
+        assert_eq!(s, "x\u{327}\u{301}");
+        assert_eq!(src, [[0, 1], [1, 5], [1, 5], [1, 5], [1, 5]]);
         // Marks out of order are reordered with their sources.
         aligned("a\u{301}\u{327}", 0, &mut s, Some(&mut src));
         assert_eq!(s, "\u{e1}\u{327}");
