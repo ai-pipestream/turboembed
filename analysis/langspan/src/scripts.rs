@@ -87,10 +87,28 @@ pub struct Candidates {
 
 impl Candidates {
     pub(crate) fn config_hash(&self) -> u64 {
-        use std::hash::{Hash, Hasher};
-        let mut hasher = std::collections::hash_map::DefaultHasher::new();
-        self.hash(&mut hasher);
-        hasher.finish()
+        // Fixed-width lengths and outcome indices, and Unicode script names,
+        // keep persisted provenance independent of Rust's Hasher and usize.
+        let mut h = 0xcbf29ce484222325_u64;
+        let mut feed = |bytes: &[u8]| {
+            for &b in bytes {
+                h = (h ^ u64::from(b)).wrapping_mul(0x100000001b3);
+            }
+        };
+        feed(&(self.by_group.len() as u32).to_le_bytes());
+        for (script, outcomes) in &self.by_group {
+            feed(&(script.name().len() as u32).to_le_bytes());
+            feed(script.name().as_bytes());
+            feed(&(outcomes.len() as u32).to_le_bytes());
+            for outcome in outcomes {
+                feed(&outcome.to_le_bytes());
+            }
+        }
+        feed(&(self.anywhere.len() as u32).to_le_bytes());
+        for outcome in &self.anywhere {
+            feed(&outcome.to_le_bytes());
+        }
+        h
     }
 
     /// The candidates for a model's outcome `codes`, in outcome order,
@@ -130,6 +148,12 @@ impl Candidates {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn candidate_identity_uses_a_fixed_byte_encoding() {
+        let candidates = Candidates::new(["eng"].into_iter(), |_| true);
+        assert_eq!(candidates.config_hash(), 0x82c1004aaf42047c);
+    }
 
     #[test]
     fn kana_and_bopomofo_go_with_han_and_neutral_scripts_with_nothing() {

@@ -6,14 +6,9 @@ fn malformed_tokens_are_errors_before_expansion() {
     let doc = Document::new("café del");
     let view = doc.get::<View>().unwrap();
     let expander = RuleMwtExpander::new(MwtLanguage::Spanish);
-    for spans in [
-        vec![Span { start: 5, end: 2 }],
-        vec![Span::new(0, 999)],
-        vec![Span::new(4, 5)],
-        vec![Span::new(0, 4)],
-        vec![Span::new(0, 6), Span::new(5, 8)],
-        vec![Span::new(6, 8), Span::new(0, 2)],
-    ] {
+    for spans in
+        [vec![Span { start: 5, end: 2 }], vec![Span::new(0, 999)], vec![Span::new(4, 5)], vec![Span::new(0, 4)]]
+    {
         let mut t = Tokens { spans: Spans::new(view.id()), sentence: None };
         for span in spans {
             t.spans.push(span);
@@ -53,14 +48,20 @@ fn validation_checks_view_fragments_and_sentence_columns() {
 #[test]
 fn mwt_preserves_overlapping_and_duplicate_utf16_token_mappings() {
     use turbo_analysis::Layer;
+    // MWT expands each token independently, so retain Tokens::OVERLAP's
+    // valid overlaps, duplicates and index order instead of tightening it.
     for (text, ranges) in [
         ("😀.😀a", vec![(0, 10), (9, 10)]),
         ("Smile 😀", vec![(0, 5), (6, 10), (6, 10)]),
+        ("café del", vec![(0, 6), (5, 8)]),
+        ("café del", vec![(6, 8), (0, 2)]),
     ] {
         let doc = Document::new(text);
         let view = doc.get::<View>().unwrap();
         let mut tokens = Tokens { spans: Spans::new(view.id()), sentence: None };
-        for (start, end) in ranges { tokens.spans.push(Span::new(start, end)); }
+        for (start, end) in ranges {
+            tokens.spans.push(Span::new(start, end));
+        }
         tokens.check().unwrap();
         let (words,) = RuleMwtExpander::new(MwtLanguage::Spanish).annotate((view, &tokens)).unwrap();
         assert_eq!(words.len(), tokens.len());

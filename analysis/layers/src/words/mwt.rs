@@ -154,7 +154,7 @@ impl Annotator for RuleMwtExpander {
     type Writes = (Words,);
 
     fn annotate(&self, (view, tokens): Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        tokens.check_contiguous_in(view).map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
+        tokens.check_contiguous_bounds_in(view).map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
         let words = self.expand(view.text(), tokens);
         words.check_against(view.text(), tokens).map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
         Ok((words,))
