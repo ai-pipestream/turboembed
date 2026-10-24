@@ -49,6 +49,7 @@ pub(super) fn chunks_of(rows: &[Row]) -> Chunks {
         cost: vec![0; n],
         model_tokens: vec![1; n],
         over_budget: vec![false; n],
+        prompt_overhead: 0,
     }
 }
 
