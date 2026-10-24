@@ -571,10 +571,9 @@ Differences from OpenNLP:
     repeated line keeps its span and the line is reported around it. A
     multi-line block that repeats is reported line by line, since each of
     its lines repeats.
-- Not done: the precision and recall of these rules on extracted
-  documents. There is no labelled sample of extracted PDFs here; the
-  evaluation needs one (documents from the target corpus with the damaged
-  spans marked by hand), and the issue keeps its evaluation item open.
+- A labelled four-page PDF evaluation now measures the default and optional
+  detectors. See [Extracted PDF evaluation](#extracted-pdf-evaluation) for
+  per-kind support, precision, recall and the limits of this sample.
 
 Tests (`analysis/normalize/tests/artifacts.rs`): every expectation of
 `CursorArtifactDetectorTest`, `ArtifactBoundaryTest`,
@@ -1295,10 +1294,9 @@ Differences from OpenNLP:
     repeated line keeps its span and the line is reported around it. A
     multi-line block that repeats is reported line by line, since each of
     its lines repeats.
-- Not done: the precision and recall of these rules on extracted
-  documents. There is no labelled sample of extracted PDFs here; the
-  evaluation needs one (documents from the target corpus with the damaged
-  spans marked by hand), and the issue keeps its evaluation item open.
+- A labelled four-page PDF evaluation now measures the default and optional
+  detectors. See [Extracted PDF evaluation](#extracted-pdf-evaluation) for
+  per-kind support, precision, recall and the limits of this sample.
 
 Tests (`analysis/normalize/tests/artifacts.rs`): every expectation of
 `CursorArtifactDetectorTest`, `ArtifactBoundaryTest`,
@@ -2403,3 +2401,58 @@ chunks, answers) project back to the exact raw markup bytes through
 the view alignment; `analysis/normalize/tests/markup.rs` holds the
 adversary fixtures, including that byte-for-byte projection. There is
 no OpenNLP counterpart to either normalizer.
+
+
+## Extracted PDF evaluation
+
+The licensed page extracts, hand-selected UTF-8 span labels, source attribution,
+pinned hashes and reproduction recipe are in
+[`analysis/normalize/data/extracted-pdf`](../analysis/normalize/data/extracted-pdf/README.md).
+Pages 2-3 of two ACL papers provide 21,819 bytes and 2,687 whitespace-delimited
+tokens, including genuine mathematical font extraction damage. No synthetic
+corruption was added. Run:
+
+```sh
+cargo test --locked -p turbo-normalize --test extracted_pdf -- --nocapture
+```
+
+The default `ArtifactDetector` and the optional all-kinds configuration produce
+identical measurements here. Exact kind and both byte boundaries must match;
+partial overlaps receive no credit. Precision is TP/(TP+FP) and recall is
+TP/(TP+FN). N/A means the denominator is zero.
+
+| Kind | Default enabled | TP | FP | FN | Precision | Recall |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| ReplacementChar | yes | 0 | 0 | 0 | N/A | N/A |
+| Control | yes | 11 | 0 | 0 | 1.0000 | 1.0000 |
+| Noncharacter | yes | 0 | 0 | 0 | N/A | N/A |
+| UnpairedSurrogate | yes | 0 | 0 | 0 | N/A | N/A |
+| PrivateUse | yes | 4 | 0 | 0 | 1.0000 | 1.0000 |
+| BidiControl | yes | 0 | 0 | 0 | N/A | N/A |
+| ZeroWidth | yes | 0 | 0 | 0 | N/A | N/A |
+| UnicodeTag | yes | 0 | 0 | 0 | N/A | N/A |
+| Mojibake | yes | 0 | 0 | 0 | N/A | N/A |
+| MojibakeSequence | no | 0 | 0 | 0 | N/A | N/A |
+| RepeatedLine | no | 0 | 0 | 0 | N/A | N/A |
+
+This evaluates eleven control runs and four private-use runs in P19-1423;
+2020.acl-main.1 contributes no positive spans. Both configurations have 15
+true positives, zero false positives and zero false negatives. Kinds absent
+from the sample are **unmeasured**, not proven accurate. A Rust `str` cannot
+contain an unpaired surrogate.
+
+The default `NoiseScorer`, without a dictionary or exclusions, reports one
+false positive: `FFNNs` at bytes 5548..5553 in P19-1423, severity `Damaged`,
+score 0.5. This is a legitimate acronym for feed-forward neural networks.
+There are no predictions in the second paper and no positive lexical noise
+labels in either. Thus noise precision is 0/1 = 0, and recall is N/A. Math
+font mapping errors belong to the artifact labels, not ASCII lexical noise.
+The regression test retains this known error so that changes remain visible.
+
+No defaults were tuned. Four pages from two scientific papers, labelled in one
+pass, cannot establish general PDF or OCR quality. Column order, hyphenated
+line wrapping, flattened equations and missing URL underscores are outside
+these artifact kinds. Coverage still needs other scripts, encodings, PDF
+producers, OCR errors and positive examples of the unsupported kinds, plus
+independent annotation review. The checked-in benchmark establishes a
+reproducible baseline, not a production-wide accuracy claim.

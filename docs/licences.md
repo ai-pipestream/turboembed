@@ -497,3 +497,14 @@ provenance lists the slicing rules. Full-width reference outputs and source
 SHA-256 values are in `analysis/gliner/tests/fixtures/full-reference.json`.
 No full model is added to the zoo by this change. The exact checkpoint above
 was checked; this is not a licence decision for other GLiNER checkpoints.
+
+
+### Extracted PDF artifact evaluation
+
+The two ACL paper excerpts under `analysis/normalize/data/extracted-pdf` are
+CC-BY-4.0 material, with authors, titles, page ranges, source URLs, licence
+links and transformation notices in that directory's README. The ACL
+[copyright policy](https://aclanthology.org/faq/copyright/) places ACL materials
+from 2016 onward under CC-BY-4.0. The paper text is evaluation data, not
+repository-licensed source code; retain attribution when redistributing it.
+The reproduction script verifies original PDF and extracted-text hashes.
