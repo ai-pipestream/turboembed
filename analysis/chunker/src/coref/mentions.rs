@@ -125,11 +125,13 @@ pub fn chunk_antecedents(
         let start_links = links.len();
 
         for cluster in &chains.clusters {
-            // Find the canonical antecedent strictly before `s_start` (preferring non-pronoun).
-            let antecedent: Option<&ResolvedMention> = cluster
-                .iter()
-                .find(|m| m.sentence < s_start && !m.is_pronoun)
-                .or_else(|| cluster.iter().find(|m| m.sentence < s_start));
+            // Find the canonical antecedent strictly before this chunk
+            // (preferring non-pronoun). A mention in an earlier clause
+            // chunk of the same first sentence also precedes the chunk.
+            let precedes =
+                |m: &ResolvedMention| m.sentence < s_start || (m.sentence == s_start && m.span.end <= chunk_span.start);
+            let antecedent: Option<&ResolvedMention> =
+                cluster.iter().find(|m| precedes(m) && !m.is_pronoun).or_else(|| cluster.iter().find(|m| precedes(m)));
             let Some(ant) = antecedent else {
                 continue;
             };
@@ -206,12 +208,13 @@ impl Annotator for ChunkAntecedentBuilder {
         Option<Edges<Mentions, Mentions>>,
         Option<Entities>,
         Option<Groups<Entities>>,
+        Option<Edges<Entities, Entities>>,
     );
     type Writes = (ChunkAntecedents,);
 
     fn annotate(
         &self,
-        (sentences, chunks, view, mentions, m_groups, m_edges, entities, e_groups): Refs<'_, Self>,
+        (sentences, chunks, view, mentions, m_groups, m_edges, entities, e_groups, e_edges): Refs<'_, Self>,
     ) -> Result<(ChunkAntecedents,), Error> {
         let v = sentences.spans.view();
         if chunks.spans.view() != v
@@ -221,6 +224,6 @@ impl Annotator for ChunkAntecedentBuilder {
         {
             return Err(Error::Annotator { annotator: Self::ID, detail: "its inputs are in different views".into() });
         }
-        Ok((chunk_antecedents(sentences, chunks, view, mentions, m_groups, m_edges, entities, e_groups, None),))
+        Ok((chunk_antecedents(sentences, chunks, view, mentions, m_groups, m_edges, entities, e_groups, e_edges),))
     }
 }

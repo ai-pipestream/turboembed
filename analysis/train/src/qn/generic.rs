@@ -45,7 +45,13 @@ impl Cached<'_> {
         }
         c.2.fill(0.0);
         match (self.function)(x, &mut c.2) {
-            Ok(v) if v.is_finite() && c.2.iter().all(|g| g.is_finite()) => c.1 = v,
+            Ok(v) if v.is_finite() && c.2.iter().all(|g| g.is_finite()) => {
+                c.1 = v;
+                // Armijo can reject an invalid trial and recover at a
+                // shorter step. Report the current evaluation's error,
+                // not an error from a point that was never accepted.
+                *self.error.borrow_mut() = None;
+            }
             result => {
                 *self.error.borrow_mut() =
                     Some(result.err().unwrap_or_else(|| "non-finite objective or gradient".into()));
@@ -71,6 +77,8 @@ impl Objective for Cached<'_> {
 /// Minimize a finite differentiable objective from zero with existing
 /// L-BFGS/Armijo machinery. The callback includes any L2 penalty. L1 is
 /// unsupported here, since this entry point returns unscaled parameters.
+/// An error at a trial point rejects that step. Errors at the origin or
+/// a line search that cannot recover are returned to the caller.
 pub fn minimize_objective(
     dimension: usize,
     params: &QnParams,
@@ -104,5 +112,12 @@ pub fn minimize_objective(
     if let Some(e) = cached.error.borrow_mut().take() {
         return Err(e);
     }
-    Ok((minimizer.search.next_point, result.map_err(|e| e.to_string())?))
+    let stop = result.map_err(|e| e.to_string())?;
+    // Backtracking can underflow to the starting point, whose finite
+    // evaluation then looks like a zero-change convergence. That is not
+    // a recovered trial: require a positive step for generic objectives.
+    if minimizer.search.step_size <= 0.0 {
+        return Err("generic QN line search made no progress".into());
+    }
+    Ok((minimizer.search.next_point, stop))
 }

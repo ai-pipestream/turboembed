@@ -70,6 +70,7 @@ fn sentiment_numeric_and_vector_layers_round_trip() {
         &Key::DEFAULT,
         Numbers {
             spans: spans(&[(0, 5)]),
+            numeral_start: vec![0],
             numeral_end: vec![5],
             negative: vec![false],
             coefficient: strs(&["42"]),
