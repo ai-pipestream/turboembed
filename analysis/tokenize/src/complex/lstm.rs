@@ -160,7 +160,12 @@ fn dot_hunits(a: &[f32; HUNITS], b: &[f32; HUNITS]) -> f32 {
 
 #[inline]
 fn sigmoid(x: f32) -> f32 {
-    1.0 / (1.0 + (-x).exp())
+    if x >= 0.0 {
+        1.0 / (1.0 + (-x).exp())
+    } else {
+        let e = x.exp();
+        e / (1.0 + e)
+    }
 }
 
 /// One recurrent step of ICU4X's `compute_hc` using precomputed `bx = b + W * x`.

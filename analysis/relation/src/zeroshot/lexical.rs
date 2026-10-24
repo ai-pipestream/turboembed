@@ -15,7 +15,7 @@ use super::{Mention, RelationError, RelationScorer};
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct LexicalRelationScorer;
 
-/// The lower-cased words of `text` with their byte ranges: runs of
+/// The case-folded words of `text` with their byte ranges: runs of
 /// letters and digits.
 fn words(text: &str) -> Vec<(u32, u32, String)> {
     let mut out = Vec::new();
@@ -24,7 +24,9 @@ fn words(text: &str) -> Vec<(u32, u32, String)> {
         match (c.is_alphanumeric(), start) {
             (true, None) => start = Some(i),
             (false, Some(s)) => {
-                out.push((s as u32, i as u32, text[s..i].to_lowercase()));
+                let mut w = String::new();
+                turbo_unicode::casefold::fold(&text[s..i], &mut w);
+                out.push((s as u32, i as u32, w));
                 start = None;
             }
             _ => {}

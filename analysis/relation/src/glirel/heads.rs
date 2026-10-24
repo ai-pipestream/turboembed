@@ -27,7 +27,7 @@ use crate::kernel::{Packed, apply, dot};
 /// bias, packed.
 fn columns(l: &Linear, from: usize, width: usize) -> Result<Packed, String> {
     let w = l.weight.chunks_exact(l.in_dim).flat_map(|row| row[from..from + width].iter().copied()).collect();
-    Ok(Packed::new(&Linear::new(width, l.out_dim, w, vec![0.0; l.out_dim]).map_err(|e| e.message)?))
+    Packed::new(&Linear::new(width, l.out_dim, w, vec![0.0; l.out_dim]).map_err(|e| e.message)?)
 }
 
 fn linear(f: &File, name: &str) -> Result<Linear, String> {
@@ -39,7 +39,7 @@ fn linear(f: &File, name: &str) -> Result<Linear, String> {
 
 /// Linear, ReLU, Linear, as `create_projection_layer` builds it.
 fn mlp(f: &File, name: &str) -> Result<[Packed; 2], String> {
-    Ok([Packed::new(&linear(f, &format!("{name}.0"))?), Packed::new(&linear(f, &format!("{name}.3"))?)])
+    Ok([Packed::new(&linear(f, &format!("{name}.0"))?)?, Packed::new(&linear(f, &format!("{name}.3"))?)?])
 }
 
 fn relu(mut v: Vec<f32>) -> Vec<f32> {
@@ -51,9 +51,7 @@ fn run(m: &[Packed; 2], x: &[f32], n: usize) -> Vec<f32> {
     m[1].rows(&relu(m[0].rows(x, n)), n)
 }
 
-fn sigmoid(x: f32) -> f32 {
-    1.0 / (1.0 + (-x).exp())
-}
+use turbo::head::sigmoid;
 
 /// One direction of the LSTM: the input product with both biases, and the
 /// recurrent product.
@@ -71,7 +69,7 @@ impl Direction {
         let input = Linear::new(wi.shape[1] as usize, wi.shape[0] as usize, wi.f32s(), bias).map_err(|e| e.message)?;
         let out = wh.shape[0] as usize;
         let recurrent = Linear::new(wh.shape[1] as usize, out, wh.f32s(), vec![0.0; out]).map_err(|e| e.message)?;
-        Ok(Direction { input: Packed::new(&input), recurrent })
+        Ok(Direction { input: Packed::new(&input)?, recurrent })
     }
 
     /// The hidden state at each of the `n` words, `[n][L]`, from the first
@@ -140,12 +138,12 @@ impl Heads {
             end: mlp(f, &format!("{m}.span_marker.project_end"))?,
             entity_first: [columns(&entity, 0, h)?, columns(&entity, h, h)?],
             entity_bias: entity.bias.clone(),
-            entity_last: Packed::new(&linear(f, &format!("{m}.span_marker.out_project.3"))?),
+            entity_last: Packed::new(&linear(f, &format!("{m}.span_marker.out_project.3"))?)?,
             pair_first: [columns(&pair, 0, h)?, columns(&pair, h, h)?],
             pair_bias: pair.bias.clone(),
             pair_last: linear(f, &format!("{m}.out_project.3"))?,
             prompt: mlp(f, "prompt_rep_layer")?,
-            projection: Packed::new(&projection),
+            projection: Packed::new(&projection)?,
         };
         heads.check()?;
         Ok(heads)
