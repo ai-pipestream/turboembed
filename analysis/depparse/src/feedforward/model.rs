@@ -1,3 +1,4 @@
+use super::slots::SlotTable;
 use super::{FeatureLayout, FeedforwardContext, normalize::normalize};
 use crate::{Result, Transition, error};
 use std::collections::{BTreeMap, HashMap, HashSet};
@@ -70,7 +71,10 @@ pub struct FeedforwardDependencyModel {
     pub(super) layout: FeatureLayout,
     pub(super) activation: Activation,
     pub(super) weights: NeuralWeights,
+    /// Frequent word rows in word slots, from [`Self::precompute_words`].
     pub(super) cache: HashMap<(usize, usize), Vec<f64>>,
+    /// Every POS, label and word-special row in its slots, built with the model.
+    pub(super) fixed: SlotTable,
 }
 impl FeedforwardDependencyModel {
     pub fn new(
@@ -80,8 +84,17 @@ impl FeedforwardDependencyModel {
         activation: Activation,
         weights: NeuralWeights,
     ) -> Result<Self> {
-        let model = Self { vocabulary, transitions, layout, activation, weights, cache: HashMap::new() };
+        let mut model = Self {
+            vocabulary,
+            transitions,
+            layout,
+            activation,
+            weights,
+            cache: HashMap::new(),
+            fixed: SlotTable::default(),
+        };
         model.check()?;
+        model.fixed = SlotTable::build(&model);
         Ok(model)
     }
     pub fn vocabulary(&self) -> &Vocabulary {
@@ -168,7 +181,9 @@ impl FeedforwardDependencyModel {
         let w = &self.weights;
         let mut hidden: Vec<_> = w.hidden_bias.iter().map(|&v| f64::from(v)).collect();
         for (slot, &id) in ids.iter().enumerate() {
-            if let Some(contribution) = self.cache.get(&(slot, id)) {
+            if let Some(contribution) =
+                self.fixed.get(slot, id).or_else(|| self.cache.get(&(slot, id)).map(Vec::as_slice))
+            {
                 for (h, c) in hidden.iter_mut().zip(contribution) {
                     *h += c;
                 }
@@ -192,7 +207,12 @@ impl FeedforwardDependencyModel {
         }
         Ok(scores)
     }
-    fn contribution(&self, slot: usize, id: usize, j: usize) -> f64 {
+    /// The f64 values of the slot contributions computed when the model was
+    /// built (POS, label and word-special rows).
+    pub fn cached_slot_values(&self) -> usize {
+        self.fixed.len()
+    }
+    pub(super) fn contribution(&self, slot: usize, id: usize, j: usize) -> f64 {
         let w = &self.weights;
         let e = w.embedding_size;
         let start = (j * self.layout.feature_count() + slot) * e;
