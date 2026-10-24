@@ -4,11 +4,20 @@ use super::*;
 fn a_peers_rates_are_read_from_its_lines() {
     let out = "statembed+rayon: loaded in 3.1 ms\nstatembed+rayon batch 1: 51234 texts/s\n\
                statembed+rayon batch 32: 120000 texts/s\nsomething else\nx batch y: 3 texts/s\n";
-    let r = rates("t60", out);
+    let r = rates("t60", out, &[1, 32]);
     assert_eq!(r.len(), 2);
     assert_eq!(r[0], Rate { set: "t60".into(), batch: 1, texts_per_second: 51234.0 });
     assert_eq!(r[1].batch, 32);
-    assert!(rates("golden", "model2vec-zig: not run").is_empty());
+    assert!(rates("golden", "model2vec-zig: not run", &[1]).is_empty());
+    // One line a batch, in order; `all` stands for any batch above 1.
+    let zig = "model2vec-zig batch 1: 900 texts/s\nmodel2vec-zig batch all (32 threads): 4000 texts/s\n\
+               model2vec-zig batch all (32 threads): 4100 texts/s\n";
+    let r = rates("golden", zig, &[1, 32, 256]);
+    assert_eq!(
+        r.iter().map(|r| (r.batch, r.texts_per_second)).collect::<Vec<_>>(),
+        [(1, 900.0), (32, 4000.0), (256, 4100.0)]
+    );
+    assert!(rates("golden", "x batch all (2 threads): 5 texts/s\n", &[1]).is_empty());
 }
 
 #[test]

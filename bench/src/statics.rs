@@ -31,16 +31,20 @@ pub const STATIC_RECORD_VERSION: u32 = 1;
 /// Where static records go, under the repository.
 pub const STATIC_DIR: &str = "benchmarks/static/";
 
-/// The peers `peers.sh run` knows, each with the version
-/// bench/static-peers/README.md pins.
-pub const PEERS: [(&str, &str); 7] = [
-    ("statembed", "statembed 1.0.0"),
-    ("statembed-rayon", "statembed 1.0.0 with rayon"),
-    ("model2vec-rs", "model2vec-rs 1567eaa"),
-    ("go-potion", "go-potion v0.1.2"),
-    ("model2vec-zig", "model2vec-zig ed5b443 (0.2.0)"),
-    ("model2vec", "Model2Vec 3ef2bf2"),
-    ("st", "sentence-transformers 6.1.0 StaticEmbedding"),
+/// The peers `peers.sh run` knows: each one's name, the version
+/// bench/static-peers/README.md pins, and its program there.
+pub const PEERS: [(&str, &str, &str); 7] = [
+    ("statembed", "statembed 1.0.0", "rs/src/bin/statembed.rs"),
+    ("statembed-rayon", "statembed 1.0.0 with rayon", "rs/src/bin/statembed.rs, built with rayon"),
+    ("model2vec-rs", "model2vec-rs 1567eaa", "rs/src/bin/m2vrs.rs"),
+    ("go-potion", "go-potion v0.1.2", "go/main.go"),
+    (
+        "model2vec-zig",
+        "model2vec-zig ed5b443 (0.2.0)",
+        "zig/src/main.zig; it has no batch API, so a batch above 1 runs every text over one thread per CPU",
+    ),
+    ("model2vec", "Model2Vec 3ef2bf2", "py/bench.py model2vec"),
+    ("st", "sentence-transformers 6.1.0 StaticEmbedding", "py/bench.py st"),
 ];
 
 /// The script the peers run through, as a record names it.
@@ -99,6 +103,9 @@ pub struct Rate {
 pub struct Peer {
     pub name: String,
     pub version: String,
+    /// Its program under bench/static-peers, and how it batches when that
+    /// differs from the library.
+    pub procedure: String,
     /// Every command run for it, each as its argv, with the text set as
     /// `<set:NAME>` and the vectors file as `<vectors>`.
     pub commands: Vec<Vec<String>>,
@@ -138,15 +145,19 @@ pub fn best(n: usize, pass: &mut dyn FnMut() -> Result<()>) -> Result<f64> {
     Ok(top)
 }
 
-/// The rates in a peer's output: lines ending `batch <b>: <n> texts/s`.
-pub fn rates(set: &str, out: &str) -> Vec<Rate> {
-    out.lines()
-        .filter_map(|l| {
-            let (_, rest) = l.rsplit_once(" batch ")?;
-            let (b, tps) = rest.split_once(": ")?;
-            let tps = tps.strip_suffix(" texts/s")?;
-            Some(Rate { set: set.into(), batch: b.parse().ok()?, texts_per_second: tps.parse().ok()? })
-        })
+/// The rates in a peer's output: one line ending `batch <b>: <n> texts/s`
+/// for each of `batches`, in order. A program that runs every batch above
+/// 1 alike names it `all`.
+pub fn rates(set: &str, out: &str, batches: &[u32]) -> Vec<Rate> {
+    let lines = out.lines().filter_map(|l| {
+        let (_, rest) = l.rsplit_once(" batch ")?;
+        let (b, tps) = rest.split_once(": ")?;
+        Some((b, tps.strip_suffix(" texts/s")?.parse::<f64>().ok()?))
+    });
+    lines
+        .zip(batches)
+        .filter(|((b, _), want)| b.parse() == Ok(**want) || (**want > 1 && b.starts_with("all")))
+        .map(|((_, tps), &batch)| Rate { set: set.into(), batch, texts_per_second: tps })
         .collect()
 }
 
@@ -219,7 +230,7 @@ pub fn measure(plan: &StaticPlan, p: &Provenance, recorded_at: String) -> Result
     let name = field(&info.model_id);
     let short = name.rsplit('/').next().unwrap_or(&name).to_owned();
     let peers = match &plan.peers {
-        Some((script, w)) => PEERS.iter().map(|&(p, v)| peer(plan, script, w, &short, p, v, &first, dim)).collect(),
+        Some((script, w)) => PEERS.iter().map(|&p| peer(plan, script, w, &short, p, &first, dim)).collect(),
         None => Vec::new(),
     };
     Ok(StaticRecord {
@@ -255,14 +266,12 @@ pub fn measure(plan: &StaticPlan, p: &Provenance, recorded_at: String) -> Result
 
 /// One peer through `peers.sh run`: its rates on every set, then its
 /// vectors for the first set against the library's.
-#[allow(clippy::too_many_arguments)]
 fn peer(
     plan: &StaticPlan,
     script: &Path,
     w: &Path,
     model: &str,
-    name: &str,
-    version: &str,
+    (name, version, procedure): (&str, &str, &str),
     first: &[f32],
     dim: usize,
 ) -> Peer {
@@ -283,6 +292,7 @@ fn peer(
     let mut p = Peer {
         name: name.into(),
         version: version.into(),
+        procedure: procedure.into(),
         commands: Vec::new(),
         rates: Vec::new(),
         vectors: None,
@@ -291,13 +301,20 @@ fn peer(
     for (set, path) in &plan.sets {
         let (out, argv) = run(set, path, &batches, None);
         p.commands.push(argv);
+        // Some programs print their rates on stderr.
         match out {
-            Ok(o) => p.rates.extend(rates(set, &String::from_utf8_lossy(&o.stdout))),
+            Ok(o) => {
+                let text = String::from_utf8_lossy(&o.stdout).into_owned() + &String::from_utf8_lossy(&o.stderr);
+                let got = rates(set, &text, &plan.batches);
+                if got.is_empty() {
+                    p.not_run = Some(format!("{set}: no rate ({}): {}", o.status, text.lines().last().unwrap_or("")));
+                }
+                p.rates.extend(got);
+            }
             Err(e) => p.not_run = Some(format!("{PEERS_SCRIPT}: {e}")),
         }
     }
     if p.rates.is_empty() {
-        p.not_run.get_or_insert_with(|| format!("{name} gave no rate for {model}"));
         return p;
     }
     let (set, path) = &plan.sets[0];
