@@ -17,7 +17,7 @@ use std::time::Duration;
 use tokio::sync::{Semaphore, mpsc};
 use tonic::{Status, Streaming};
 
-use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_UTF8, TURBO_E_UNSUPPORTED_OPTION};
+use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_UTF8};
 use crate::proto::result::analyze_stream_request::Kind;
 use crate::proto::result::{AnalyzeDocument, AnalyzeOutput, AnalyzeStreamRequest};
 use crate::state::State;
@@ -54,15 +54,9 @@ fn check(state: &State, d: AnalyzeDocument, room: Room) -> Result<Doc, Box<(Stri
             if std::str::from_utf8(&d.text).is_err() {
                 return Err((Failure::new(TURBO_E_INVALID_UTF8, 0, "document text is not valid UTF-8"), room));
             }
-            let Some(embed) = loaded.embed.as_ref() else {
-                return Err((
-                    Failure::new(
-                        TURBO_E_UNSUPPORTED_OPTION,
-                        0,
-                        format!("model {} has no embed companion", served.name),
-                    ),
-                    room,
-                ));
+            let embed = match loaded.embed() {
+                Ok(e) => e,
+                Err(f) => return Err((f, room)),
             };
             if let Err(f) = embed.validate_options(doc_opts.output, &doc_opts.embed, doc_opts.sparse_top_k) {
                 return Err((f, room));

@@ -261,15 +261,69 @@ async fn stream_cancellation_aborts_multi_window_token_vector_execution_promptly
     }
     drop(stream);
 
-    // Wait briefly for the worker to observe `dead` and release the slot.
-    tokio::time::sleep(Duration::from_millis(80)).await;
-    let after_cancel = s.stream_stats().runs;
-    tokio::time::sleep(Duration::from_millis(80)).await;
-    let settled = s.stream_stats().runs;
-    assert_eq!(settled, after_cancel, "encoder runs must stop growing once the stream is cancelled");
+    // Poll until any single in-flight encoder run finishes, then verify no further runs occur.
+    let settle_deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+    let mut settled = s.stream_stats().runs;
+    loop {
+        tokio::time::sleep(Duration::from_millis(25)).await;
+        let now = s.stream_stats().runs;
+        if now == settled || tokio::time::Instant::now() >= settle_deadline {
+            settled = now;
+            break;
+        }
+        settled = now;
+    }
+    tokio::time::sleep(Duration::from_millis(100)).await;
+    assert_eq!(s.stream_stats().runs, settled, "encoder runs must stop growing once the stream is cancelled");
     assert!(
         settled - before < 100,
         "cancelled 312-flush document should abort well before finishing all windows (ran {})",
         settled - before
     );
+}
+
+#[tokio::test]
+async fn embed_bundle_loads_without_eager_companion_and_vectors_batch_across_ignored_options() {
+    let lazy = matryoshka_bundle("lazy-companion");
+    let (s, mut c) = serve_models(vec![("lazy", &lazy.0)]).await;
+    // Remove tokenizer.json after startup load: plain AnalyzeVectors uses the C session
+    // loaded at startup, whereas EmbedModel::load is deferred until the first structured
+    // request (SparseTerms or TokenVectors).
+    fs::remove_file(lazy.0.join("tokenizer.json")).unwrap();
+    let before = s.stream_stats().runs;
+
+    // Two AnalyzeOutput::Vectors documents that differ only in offsets, sparse_top_k,
+    // sparse_floor, and token_stride still batch together into a single encoder run.
+    let mut stream = open_stream(&mut c, 0, 0, 50).await;
+    send_typed(
+        &mut stream,
+        "v1",
+        "lazy",
+        b"alpha beta",
+        AnalyzeOutput::Vectors,
+        ProtoOffsetMode::Utf8,
+        Some(AnalyzeOptions { sparse_top_k: 4, sparse_floor: 0.1, token_stride: 1, ..Default::default() }),
+    )
+    .await;
+    send_typed(
+        &mut stream,
+        "v2",
+        "lazy",
+        b"gamma delta",
+        AnalyzeOutput::Vectors,
+        ProtoOffsetMode::Utf16,
+        Some(AnalyzeOptions { sparse_top_k: 16, sparse_floor: 0.5, token_stride: 2, ..Default::default() }),
+    )
+    .await;
+    let got = by_id(stream.half_close()).await;
+    assert!(matches!(got.get("v1").unwrap(), Outcome::Vectors(_)), "v1: {:?}", got.get("v1"));
+    assert!(matches!(got.get("v2").unwrap(), Outcome::Vectors(_)), "v2: {:?}", got.get("v2"));
+    assert_eq!(s.stream_stats().runs - before, 1, "Vectors documents differing only in ignored fields must batch");
+
+    // Requesting TokenVectors now lazily triggers EmbedModel::load and fails on the missing file.
+    let mut stream2 = open_stream(&mut c, 0, 0, 0).await;
+    send_typed(&mut stream2, "tv1", "lazy", b"alpha beta", AnalyzeOutput::TokenVectors, ProtoOffsetMode::Utf8, None)
+        .await;
+    let got2 = by_id(stream2.half_close()).await;
+    assert!(matches!(got2.get("tv1").unwrap(), Outcome::Failure(_)), "tv1: {:?}", got2.get("tv1"));
 }

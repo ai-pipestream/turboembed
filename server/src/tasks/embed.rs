@@ -22,9 +22,9 @@ use turbo::{
     TURBO_NORMALIZE_L2, TURBO_NORMALIZE_NONE, TURBO_POOLING_MEAN, TURBO_PROMPT_DOCUMENT, TURBO_PROMPT_QUERY,
     TURBO_TRUNCATE_NONE, turbo_embed_options, turbo_model_info, turbo_token_range,
 };
-use turbo_analysis::{Layer, ModelRef, Span, Spans, View, ViewId};
-use turbo_analysis_embed::Rows;
+use turbo_analysis::{Ix, Layer, ModelRef, Span, Spans, View, ViewId};
 use turbo_analysis_embed::window::{Placed, Plan, Target, Which};
+use turbo_analysis_embed::{ContextualTokens, Rows};
 use turbo_analysis_layers::{SparseTerms, Subwords, TokenVectorWindows, Vectors};
 
 use crate::api::{
@@ -39,7 +39,7 @@ use crate::results::{MAX_SPARSE_ENTRIES, MAX_SPARSE_OCCURRENCES, MAX_TOKEN_VECTO
 use crate::state::Slot;
 use crate::stream::Shared;
 
-use exec::{TokenRunBufs, build_token_vector_windows, check_alive, fill_sparse_terms, flush_sparse};
+use exec::{TokenRunBufs, check_alive, fill_sparse_terms, flush_sparse};
 
 /// Companion state for a `TASK_EMBED` bundle enabling learned sparse-term
 /// (`SPLADE`) and per-token contextual vector (`ColBERT` / late-interaction)
@@ -256,7 +256,7 @@ impl EmbedModel {
             subwords.push(sub);
         }
 
-        let (max_batch, max_ranges) = (slot.info.max_batch, slot.max_ranges as usize);
+        let (max_batch, max_ranges) = (slot.info.max_batch, slot.max_ranges() as usize);
         let mut rows = Rows::new(slot.info.max_seq, self.tokenizer.fill_id());
         let (mut ranges, mut owners, mut states) = (Vec::new(), Vec::new(), Vec::new());
         let mut pools: Vec<Option<MaxLogPool>> = vec![None; texts.len()];
@@ -373,7 +373,10 @@ impl EmbedModel {
                     whole: true,
                 });
             }
-            let windows = build_token_vector_windows(sub, &window_indices);
+            let windows = ContextualTokens::token_vector_windows_from(
+                (0..sub.len()).map(|i| (sub.spans.get(Ix::new(i as u32)), window_indices[i])),
+                ViewId::SOURCE,
+            );
             if windows.spans.len() as u64 > MAX_WINDOWS {
                 return Err(over("max_windows", "encoder windows", windows.spans.len() as u64));
             }
@@ -382,7 +385,7 @@ impl EmbedModel {
         plan.placed.sort_by_key(|x| x.window);
 
         let mut out_states: Vec<Vec<f32>> = subwords.iter().map(|sub| vec![0.0f32; sub.len() * out_width]).collect();
-        let (max_batch, max_ranges) = (slot.info.max_batch, slot.max_ranges as usize);
+        let (max_batch, max_ranges) = (slot.info.max_batch, slot.max_ranges() as usize);
         let mut bufs = TokenRunBufs::new(slot.info.max_seq, self.tokenizer.fill_id());
         let (head_len, mut p) = (head.len() as u32, 0usize);
 

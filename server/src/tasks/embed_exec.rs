@@ -7,40 +7,66 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use turbo::head::ProjectionHead;
 use turbo::mlm::MlmHead;
 use turbo::sparse::{MaxLogPool, SparseTerm};
-use turbo::{TURBO_DTYPE_F32, TURBO_NORMALIZE_NONE, TURBO_POOLING_MEAN, turbo_embed_options, turbo_token_range};
-use turbo_analysis::{Ix, Layer, Span, Spans, View, ViewId};
+use turbo::{
+    TURBO_DTYPE_F32, TURBO_NORMALIZE_NONE, TURBO_POOLING_MEAN, TURBO_TASK_EMBED, turbo_embed_options, turbo_token_range,
+};
+use turbo_analysis::{Ix, Span, View};
 use turbo_analysis_embed::window::Placed;
 use turbo_analysis_embed::{Rows, normalize};
-use turbo_analysis_layers::{SparseTerms, Subwords, TokenVectorWindows};
+use turbo_analysis_layers::{SparseTerms, Subwords};
 
-use crate::api::{Failure, Result, TURBO_E_INTERNAL, TURBO_E_UNSUPPORTED, TURBO_E_UNSUPPORTED_OPTION};
-use crate::state::Slot;
+use crate::api::{
+    Failure, Result, TURBO_E_INTERNAL, TURBO_E_INVALID_STATE, TURBO_E_UNSUPPORTED, TURBO_E_UNSUPPORTED_OPTION,
+};
+use crate::state::{Held, Loaded, Slot};
 use crate::stream::Shared;
+
+impl Loaded {
+    /// Lazily loads the companion tokenizer and optional MLM / projection heads
+    /// when a structured `TASK_EMBED` output (`SparseTerms` or `TokenVectors`)
+    /// is requested, so plain `AnalyzeVectors` never pays for or fails on
+    /// companion head files.
+    pub(crate) fn embed(&self) -> Result<&super::EmbedModel> {
+        if self.task != TURBO_TASK_EMBED {
+            return Err(Failure::new(TURBO_E_UNSUPPORTED_OPTION, 0, "the model has no embed companion"));
+        }
+        self.embed
+            .get_or_init(|| super::EmbedModel::load(&self.bundle, &self.model_info))
+            .as_ref()
+            .map_err(Clone::clone)
+    }
+}
+
+impl Held {
+    /// Ensures this slot's session reserves `max_batch * max_seq` output rows
+    /// for per-token structured outputs (`SparseTerms` or `TokenVectors`),
+    /// upgrading the session on first structured use just as
+    /// `Encoder::reserve_token_ranges` does.
+    pub(crate) fn reserve_token_ranges(&self) -> Result<()> {
+        let slot = self.slot();
+        let needed = slot.info.max_batch.saturating_mul(slot.info.max_seq);
+        if slot.max_ranges() >= needed {
+            return Ok(());
+        }
+        let mut desc = slot.desc;
+        desc.max_ranges = needed;
+        match self.loaded.model.session(&desc) {
+            Ok(s) => {
+                slot.session.replace(s);
+                slot.max_ranges.store(needed, Ordering::Release);
+                Ok(())
+            }
+            Err(f) if f.code == TURBO_E_UNSUPPORTED_OPTION && f.field == 7 => Ok(()),
+            Err(f) => Err(f),
+        }
+    }
+}
 
 pub(super) fn check_alive(dead: &AtomicBool) -> Result<()> {
     if dead.load(Ordering::Acquire) {
-        return Err(Failure::new(TURBO_E_INTERNAL, 0, "stream cancelled"));
+        return Err(Failure::new(TURBO_E_INVALID_STATE, 0, "the client cancelled the stream"));
     }
     Ok(())
-}
-
-pub(super) fn build_token_vector_windows(sub: &Subwords, window_indices: &[u32]) -> TokenVectorWindows {
-    let mut spans = Spans::new(ViewId::SOURCE);
-    let mut i = 0;
-    while i < sub.len() {
-        let w = window_indices[i];
-        let first = sub.spans.get(Ix::new(i as u32));
-        let (start, mut end) = (first.start, first.end);
-        i += 1;
-        while i < sub.len() && window_indices[i] == w {
-            end = sub.spans.get(Ix::new(i as u32)).end;
-            i += 1;
-        }
-        if start < end {
-            spans.push(Span::new(start, end));
-        }
-    }
-    TokenVectorWindows { spans }
 }
 
 pub(super) fn fill_sparse_terms(out: &mut SparseTerms<View>, sub: &Subwords, selected: &[SparseTerm]) {

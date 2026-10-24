@@ -71,26 +71,43 @@ impl ContextualTokens {
         Vectors::new(self.dim, self.data.clone(), Vec::new(), self.model.clone())
     }
 
+    /// Builds a [`TokenVectorWindows`] byte-span partition on `view` from an
+    /// iterator of `(span, window_index)` pairs in token order, grouping
+    /// consecutive tokens that took their vector from the same encoder window
+    /// into non-overlapping byte spans `[first.start, last.end)`.
+    pub fn token_vector_windows_from(
+        tokens: impl IntoIterator<Item = (Span, u32)>,
+        view: ViewId,
+    ) -> TokenVectorWindows {
+        let mut spans = Spans::new(view);
+        let mut cur: Option<(u32, u32, u32)> = None;
+        for (s, w) in tokens {
+            match &mut cur {
+                Some((cw, _, end)) if *cw == w => *end = s.end,
+                Some((cw, start, end)) => {
+                    if *start < *end {
+                        spans.push(Span::new(*start, *end));
+                    }
+                    *cw = w;
+                    *start = s.start;
+                    *end = s.end;
+                }
+                None => cur = Some((w, s.start, s.end)),
+            }
+        }
+        if let Some((_, start, end)) = cur
+            && start < end
+        {
+            spans.push(Span::new(start, end));
+        }
+        TokenVectorWindows { spans }
+    }
+
     /// Builds the [`TokenVectorWindows`] byte-span partition for these tokens
     /// on `view`, grouping consecutive tokens that took their vector from the
     /// same encoder window into non-overlapping byte spans `[first.start, last.end)`.
     pub fn to_token_vector_windows(&self, view: ViewId) -> TokenVectorWindows {
-        let mut spans = Spans::new(view);
-        let mut i = 0;
-        while i < self.spans.len() {
-            let w = self.window_indices[i];
-            let start = self.spans[i].start;
-            let mut end = self.spans[i].end;
-            i += 1;
-            while i < self.spans.len() && self.window_indices[i] == w {
-                end = self.spans[i].end;
-                i += 1;
-            }
-            if start < end {
-                spans.push(Span::new(start, end));
-            }
-        }
-        TokenVectorWindows { spans }
+        Self::token_vector_windows_from(self.spans.iter().copied().zip(self.window_indices.iter().copied()), view)
     }
 }
 

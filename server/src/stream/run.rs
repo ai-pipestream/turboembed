@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::OwnedSemaphorePermit;
 use turbo::{TURBO_PLACE_HOST, TURBO_PLACE_PINNED, TURBO_PLACE_SHARED, turbo_embed_options, turbo_text};
 
-use crate::api::{Failure, Output, Result, TURBO_E_INTERNAL, TURBO_E_INVALID_UTF8, TURBO_E_UNSUPPORTED_OPTION};
+use crate::api::{Failure, Output, Result, TURBO_E_INTERNAL, TURBO_E_INVALID_UTF8};
 use crate::offsets::OffsetMode;
 use crate::proto::result::AnalyzeOutput;
 use crate::proto::result::analyze_stream_response::Outcome as ProtoOutcome;
@@ -78,19 +78,24 @@ pub(crate) struct Outcome {
 /// one name are different loads and never batch together.
 pub(crate) fn key(d: &Doc) -> BatchKey {
     let o = &d.opts;
+    let (offsets, top_k, floor, stride) = match d.output {
+        AnalyzeOutput::Vectors => (0, 0, 0, 0),
+        AnalyzeOutput::SparseTerms => (d.offsets.to_proto(), d.sparse_top_k, d.sparse_floor.to_bits(), 0),
+        AnalyzeOutput::TokenVectors => (d.offsets.to_proto(), 0, 0, d.token_stride),
+    };
     (
         Arc::as_ptr(&d.loaded) as usize,
         d.output as i32,
-        d.offsets.to_proto(),
+        offsets,
         o.truncate,
         o.max_tokens,
         o.prompt_role,
         o.normalize,
         o.pooling,
         o.output_dim,
-        d.sparse_top_k,
-        d.sparse_floor.to_bits(),
-        d.token_stride,
+        top_k,
+        floor,
+        stride,
     )
 }
 
@@ -165,11 +170,14 @@ fn run_structured(
         dim: 0,
         rows: Err(Whole { failure, docs, permits }),
     };
-    if docs[0].loaded.embed.is_none() {
-        return fail(Failure::new(TURBO_E_UNSUPPORTED_OPTION, 0, "the model has no embed companion"), docs, permits);
-    }
     let loaded = docs[0].loaded.clone();
-    let embed = loaded.embed.as_ref().expect("embed companion verified");
+    let embed = match loaded.embed() {
+        Ok(e) => e,
+        Err(f) => return fail(f, docs, permits),
+    };
+    if let Err(f) = held.reserve_token_ranges() {
+        return fail(f, docs, permits);
+    }
     let mut texts: Vec<&str> = Vec::with_capacity(docs.len());
     for d in &docs {
         match std::str::from_utf8(&d.text) {
