@@ -1693,11 +1693,9 @@ here with the words joined by a space. Not ported:
 - Callbacks (`on_match`: `test_issue615`, `test_matcher_from_usage_docs`,
   `test_matcher_callback`, `test_phrase_matcher_callback` and the like):
   a caller acts on the returned matches instead.
-- `MORPH`, `IS_SUBSET`, `IS_SUPERSET`, `INTERSECTS` and list-valued
-  extension attributes: morphological features and set-valued
-  attributes are not attributes here.
-- `REGEX` and `FUZZY`: no regular expression engine or edit distance is
-  built in; `Tok::text_where` takes the caller's own test.
+- Custom list-valued extension attributes are not imported.
+- `REGEX` returns a typed import error naming the operator. There is no
+  regular expression engine; `Tok::text_where` takes a caller's predicate.
 - `LIKE_URL`, `LIKE_EMAIL`, `DEP` and dependency patterns: the first two
   are spaCy's heuristics, not ported; dependency-tree patterns are a
   separate effort.
@@ -1710,6 +1708,58 @@ here with the words joined by a space. Not ported:
   span ruler: there is no serialization or Python pipeline here, the
   ruler writes `turbo:matches` rather than entities, and a rule number
   stands in for an `id`.
+
+### spaCy JSON rules and predicates
+
+`turbo_matcher::spacy::read_pattern` reads a token-pattern array.
+`read_rules` reads the JSON array or JSONL format exported by EntityRuler
+and SpanRuler. Each `Rule` retains its label, optional id, and either
+compiled-ready token tests or a phrase string. `Rule::add_to` adds token
+rules to a Matcher. A phrase needs the caller's tokenizer, then can be
+added to a PhraseMatcher or SpanRuler; the importer does not guess token
+boundaries. Parse the entire file before adding its rules.
+
+String `IN` and `NOT_IN` keep the existing interned-value path. `FUZZY`
+and `FUZZY1` through `FUZZY9` compare Unicode characters by Levenshtein
+distance, including nested `IN` and `NOT_IN`. The default bound is
+`max(2, round(0.3 * pattern_length))` with ties to even, as in spaCy 3.8.7.
+`MORPH` reads token-aligned `MorphFeatures<Tokens>` through
+`Input::with_morph`; the SpanRuler pipeline reads that optional layer too.
+`IS_SUBSET`, `IS_SUPERSET`, and `INTERSECTS` compare individual `Feat=Val`
+items, expanding comma-separated values. Literal `MORPH` strings compare
+as written; membership sets canonicalize their strings, matching spaCy.
+`TAG` reads `Input::with_tags`, independently of the `POS` column. The
+pipeline ruler does not infer fine-grained tags from its POS layer.
+
+Unknown attributes and operators (including `REGEX`, dependency patterns,
+and custom extensions) return `ImportError::Unsupported` naming the key.
+Wrong types, invalid repeats and excessively large automata refuse.
+The JSON reader limits files to 16 MiB, nesting to 32, and object members
+to 64. Duplicate keys and unpaired surrogate escapes refuse. It adds no
+crate dependencies. Dependency-tree rules remain outside this reader.
+
+The optional local [oracle fixture](../analysis/matcher/tests/data/README.md) compares
+2,580 exact labelled token spans over 31 original EWT sentences (485
+tokens), using spaCy 3.8.7 in the pinned reference container. They include
+Explosion's unchanged 118-rule published drug-pattern file and additional
+operator rules, with original UTF-8 byte spans checked in Rust. The EWT
+corpus and generated JSON remain outside the committed tree because their
+licence is CC BY-SA 4.0. Set `TURBO_SPACY_ORACLE` to the generated file and
+`TURBO_TEST_REQUIRE_SPACY_ORACLE=1` to require the external comparison. A pipeline
+test checks morphology matches and their source offsets; malformed files,
+Unicode edit distance, missing layers, and alignment errors are tested.
+
+The historical [existing-path timing receipt](../analysis/matcher/reference/existing-path-timing.json)
+uses `token_bench` on the complete EWT
+r2.16 train file: 204,577 tokens, 51,765 identical hits. On an AMD Ryzen 9
+9950X3D, release builds of main `0edf2f35` and this change were run on the
+same CPU core in twelve alternating-order pairs, fifteen iterations per
+process after one warmup. Median of process medians: main 16.149 ms,
+changed 11.084 ms (ratio 0.686). No slowdown was observed on this exact,
+set-membership and bounded-repeat workload. This is not a performance
+claim for the added fuzzy or morphology predicates. The raw process
+medians and reproduction commands are retained with the oracle's README;
+this measurement predates the oracle-storage correction.
 
 ## Term analyzer and per-language normalization profiles (`turbo:terms`, `turbo:stems`)
 
