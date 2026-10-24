@@ -6,6 +6,7 @@ use turbo_goldens::data_dir;
 use turbo_numeric::{NumberNotation, NumberScanner};
 fn reset(out: &mut Numbers) {
     out.spans = Spans::new(ViewId::SOURCE);
+    out.numeral_start.clear();
     out.numeral_end.clear();
     out.negative.clear();
     out.coefficient = Default::default();
@@ -74,6 +75,7 @@ fn paired_release() {
         black_box(out.len());
     }
     let elapsed = t.elapsed();
+    out.check().unwrap();
     let mut digest = 0xcbf29ce484222325u64;
     for i in 0..out.len() {
         let ix = Ix::new(i as u32);
@@ -81,6 +83,7 @@ fn paired_release() {
             "{:?}",
             (
                 out.spans.get(ix),
+                out.numeral_start[i],
                 out.numeral_end[i],
                 out.negative[i],
                 out.value(ix).to_plain_string(),
