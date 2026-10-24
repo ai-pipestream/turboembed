@@ -188,6 +188,69 @@ impl Decimal {
         out.scale = scale;
         Ok(())
     }
+
+    /// Rounds `self` in place to `target_scale` decimal places using
+    /// round-half-to-even (`BigDecimal.setScale(target_scale, RoundingMode.HALF_EVEN)`).
+    pub fn round_to_scale(&mut self, target_scale: i32) {
+        if self.is_zero() {
+            self.negative = false;
+            self.scale = target_scale;
+            return;
+        }
+        let diff = i64::from(self.scale) - i64::from(target_scale);
+        if diff == 0 {
+            return;
+        }
+        if diff < 0 {
+            let add_zeros = usize::try_from(-diff).expect("a scale difference that fits in memory");
+            self.digits.extend(std::iter::repeat_n('0', add_zeros));
+            self.scale = target_scale;
+            return;
+        }
+        let drop = usize::try_from(diff).expect("a scale difference that fits in memory");
+        let len = self.digits.len();
+        if drop > len {
+            self.digits.clear();
+            self.digits.push('0');
+            self.negative = false;
+            self.scale = target_scale;
+            return;
+        }
+        let split = len - drop;
+        let bytes = self.digits.as_bytes();
+        let first_dropped = bytes[split] - b'0';
+        let tail_nonzero = bytes[split + 1..].iter().any(|&b| b != b'0');
+        let last_kept_odd = split > 0 && !(bytes[split - 1] - b'0').is_multiple_of(2);
+        let round_up = first_dropped > 5 || (first_dropped == 5 && (tail_nonzero || last_kept_odd));
+        self.digits.truncate(split);
+        if round_up {
+            increment_digits(&mut self.digits);
+        }
+        if self.digits.is_empty() || self.digits.bytes().all(|b| b == b'0') {
+            self.digits.clear();
+            self.digits.push('0');
+            self.negative = false;
+        }
+        self.scale = target_scale;
+    }
+}
+
+/// Increments an ASCII digit string (possibly empty, representing `0`) by 1.
+fn increment_digits(digits: &mut String) {
+    if digits.is_empty() {
+        digits.push('1');
+        return;
+    }
+    // SAFETY: `digits` contains only ASCII digits `'0'..='9'`.
+    let bytes = unsafe { digits.as_bytes_mut() };
+    for b in bytes.iter_mut().rev() {
+        if *b < b'9' {
+            *b += 1;
+            return;
+        }
+        *b = b'0';
+    }
+    digits.insert(0, '1');
 }
 
 impl fmt::Display for Decimal {

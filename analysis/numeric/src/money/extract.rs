@@ -10,32 +10,30 @@
 use std::fmt;
 
 use turbo_analysis::{Annotator, Error, Refs, Span, View};
-use turbo_analysis_layers::{Currency, Money, MoneyMention, NumberNotation};
+use turbo_analysis_layers::{Currency, Money, MoneyMention, Multiplier, NumberNotation};
 use turbo_unicode::GeneralCategory;
 use turbo_unicode::category::general_category;
+use turbo_unicode::java;
 
-use super::tables::{DEFAULT_SYMBOLS, MAX_CURRENCY_WORD_UNITS, currency_word, is_iso_currency};
+use super::tables::{
+    DEFAULT_SYMBOLS, MAX_CURRENCY_WORD_UNITS, currency_word, dollar_prefix, is_iso_currency, is_test_currency,
+};
 use crate::scan::{
     ScanResult, base_char_before, boundary_after, boundary_before, byte_at, char_at, continues_number, parse,
     sign_boundary_before, whitespace_at, word_end,
 };
 
 /// Writes `turbo:money` over a text view: every amount written with a
-/// currency symbol before or after it (`$1,234.56`, `50€`), an ISO 4217
-/// code before or after it (`USD 100`, `100 USD`) or an English currency
-/// word after it (`1.2 million dollars`), with an optional leading minus
-/// and an optional scale marker (`$1.2M`, `$3 billion`). A bare number is
+/// currency symbol before or after it (`$1,234.56`, `50€`, `HK$50`), an ISO
+/// 4217 code before or after it (`USD 100`, `100 USD`, `-USD 5`), or an
+/// English currency word after it (`1.2 million dollars`), with an optional
+/// leading minus and scale marker (`$1.2M`, `$3 billion`). A bare number is
 /// never money.
 ///
-/// Amounts are read in one [`NumberNotation`], `LatinUs` by default. A
-/// symbol maps to one currency, the one it most commonly denotes (`$` is
-/// `USD`) unless the caller gives its own table.
-///
-/// OpenNLP's `forRegion(Locale)` derives a table and a notation from the
-/// JDK's locale data; that lookup is not here. A caller that knows the
-/// region builds the same extractor from [`MoneyExtractor::with_symbol`]
-/// and [`MoneyExtractor::new`]: for Australia, the default table with `$`
-/// as `AUD`, in `LatinUs`.
+/// Amounts are read in one [`NumberNotation`], `LatinUs` by default, and a
+/// symbol maps to one currency (`$` is `USD`) unless overridden via
+/// [`MoneyExtractor::with_symbol`], [`MoneyExtractor::with_symbols`], or
+/// [`MoneyExtractor::for_region`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MoneyExtractor {
     /// The symbol table, sorted by symbol.
@@ -44,6 +42,7 @@ pub struct MoneyExtractor {
     /// capital, or the first byte of a symbol in the table.
     starts: [bool; 256],
     notation: NumberNotation,
+    opennlp_parity: bool,
 }
 
 /// Why a symbol table was refused.
@@ -115,15 +114,33 @@ impl MoneyExtractor {
             let mut buf = [0u8; 4];
             starts[usize::from(s.encode_utf8(&mut buf).as_bytes()[0])] = true;
         }
-        Ok(MoneyExtractor { symbols: table.into_boxed_slice(), starts, notation })
+        Ok(MoneyExtractor { symbols: table.into_boxed_slice(), starts, notation, opennlp_parity: false })
     }
 
     /// The same extractor with `symbol` mapped to `currency`, the other
     /// entries kept: what `forRegion` does for a region whose own currency
     /// is written with one currency sign.
     pub fn with_symbol(self, symbol: char, currency: Currency) -> Result<MoneyExtractor, SymbolError> {
+        let parity = self.opennlp_parity;
         let entries = self.symbols.iter().copied().chain([(symbol, currency)]);
-        MoneyExtractor::with_symbols(entries, self.notation)
+        Ok(MoneyExtractor::with_symbols(entries, self.notation)?.with_opennlp_parity(parity))
+    }
+
+    /// Configures OpenNLP-compatible parity mode (`false` by default).
+    ///
+    /// When `false` (default), leading minuses before ISO codes (`-USD 5`),
+    /// dollar-prefixed region symbols (`HK$50`, `US$50`, `CA$50`), weight-context
+    /// filtering on `pound(s)` (`3 pounds of flour`), and test-code refusal
+    /// (`XTS`, `XXX`) are active. When `true`, matches OpenNLP's
+    /// `CursorMoneyExtractor` behavior for JVM golden verification.
+    pub fn with_opennlp_parity(mut self, enabled: bool) -> Self {
+        self.opennlp_parity = enabled;
+        self
+    }
+
+    /// Whether OpenNLP-compatible parity mode is enabled.
+    pub fn opennlp_parity(&self) -> bool {
+        self.opennlp_parity
     }
 
     /// The symbol table, sorted by symbol.
@@ -178,22 +195,29 @@ impl MoneyExtractor {
     fn match_at(&self, text: &str, start: usize, digits: &mut String) -> Option<Found> {
         let negative = text.as_bytes()[start] == b'-';
         let i = start + usize::from(negative);
+        let boundary = if negative { sign_boundary_before(text, start) } else { boundary_before(text, i) };
+        if !self.opennlp_parity
+            && boundary
+            && let Some((after_prefix, currency)) = self.dollar_prefix_at(text, i)
+            && let Some(found) = self.symbol_first(text, after_prefix, currency, negative, digits)
+        {
+            return Some(found);
+        }
         let c = char_at(text, i);
         if let Some((symbol, currency)) = c.and_then(|c| self.symbol(c).map(|cur| (c, cur)))
-            && !ascii_letter_before(text, i)
+            && !self.letter_before_symbol(text, i)
             && (!negative || sign_boundary_before(text, start))
         {
             return self.symbol_first(text, i + symbol.len_utf8(), currency, negative, digits);
         }
         let b = text.as_bytes();
-        if !negative
-            && b[i].is_ascii_uppercase()
-            && boundary_before(text, i)
-            && let Some(found) = self.iso_first(text, i, digits)
+        if (!negative || !self.opennlp_parity)
+            && byte_at(b, i).is_ascii_uppercase()
+            && boundary
+            && let Some(found) = self.iso_first(text, i, negative, digits)
         {
             return Some(found);
         }
-        let boundary = if negative { sign_boundary_before(text, start) } else { boundary_before(text, i) };
         if byte_at(b, i).is_ascii_digit() && !continues_number(text, i, self.notation) && boundary {
             return self.number_first(text, i, negative, digits);
         }
@@ -215,15 +239,15 @@ impl MoneyExtractor {
         mention(text, r.end, &r, currency, negative)
     }
 
-    /// `USD 100` and `USD 1.2 million`: a code at `code_start`, one
-    /// whitespace character, then the number. No minus is taken.
-    fn iso_first(&self, text: &str, code_start: usize, digits: &mut String) -> Option<Found> {
-        let code = iso_code_at(text, code_start)?;
+    /// `USD 100`, `USD 1.2 million`, and `-USD 5` (unless `opennlp_parity`):
+    /// a code at `code_start`, one whitespace character, then the number.
+    fn iso_first(&self, text: &str, code_start: usize, negative: bool, digits: &mut String) -> Option<Found> {
+        let code = self.iso_code_at(text, code_start)?;
         if !whitespace_at(text, code_start + 3) {
             return None;
         }
         let r = parse(text, skip_whitespace(text, code_start + 3), true, self.notation, digits)?;
-        mention(text, r.end, &r, code, false)
+        mention(text, r.end, &r, code, negative)
     }
 
     /// `100 USD`, `50€`, `3.5m USD` and `1.2 million dollars`: the number
@@ -239,16 +263,87 @@ impl MoneyExtractor {
             return None;
         }
         let word_start = r.end + next.len_utf8();
-        if let Some(code) = iso_code_at(text, word_start) {
+        if let Some(code) = self.iso_code_at(text, word_start) {
             return mention(text, word_start + 3, &r, code, negative);
         }
-        let (currency, end) = currency_word_at(text, word_start)?;
+        let (currency, end) = self.currency_word_at(text, digit_start, &r, word_start)?;
         mention(text, end, &r, currency, negative)
     }
 
     /// The currency a symbol denotes in this table.
     fn symbol(&self, c: char) -> Option<Currency> {
         self.symbols.binary_search_by_key(&c, |&(s, _)| s).ok().map(|i| self.symbols[i].1)
+    }
+
+    /// Matches a dollar-prefixed region symbol (`HK$`, `US$`, `CA$`, `R$`, `A$`)
+    /// starting at `i` when `$` is in the symbol table.
+    fn dollar_prefix_at(&self, text: &str, i: usize) -> Option<(usize, Currency)> {
+        self.symbol('$')?;
+        let b = text.as_bytes();
+        for len in [3usize, 2] {
+            if let Some(slice) = b.get(i..i + len)
+                && slice.last() == Some(&b'$')
+                && let Some(currency) = dollar_prefix(slice)
+            {
+                return Some((i + len, currency));
+            }
+        }
+        None
+    }
+
+    /// Whether the character before byte `index` (combining marks skipped) is
+    /// a letter that makes the symbol at `index` part of a longer symbol.
+    fn letter_before_symbol(&self, text: &str, index: usize) -> bool {
+        if self.opennlp_parity {
+            base_char_before(text, index).is_some_and(|c| c.is_ascii_alphabetic())
+        } else {
+            base_char_before(text, index).is_some_and(java::is_letter)
+        }
+    }
+
+    /// `isoCodeAt`: three ASCII capitals at byte `start`, between word
+    /// boundaries, that make a code the JDK knows (and is not a test code in
+    /// default mode).
+    fn iso_code_at(&self, text: &str, start: usize) -> Option<Currency> {
+        let code: [u8; 3] = text.as_bytes().get(start..start + 3)?.try_into().ok()?;
+        if !boundary_before(text, start) {
+            return None;
+        }
+        let code = Currency::new(code)?;
+        if !boundary_after(text, start + 3) || !is_iso_currency(code) {
+            return None;
+        }
+        if !self.opennlp_parity && is_test_currency(code) {
+            return None;
+        }
+        Some(code)
+    }
+
+    /// `currencyWordAt`: the currency a word at byte `start` names, and where
+    /// the word ends. A hyphen right after the word makes it the first part of
+    /// a compound (`euro-cent`), which is no amount.
+    fn currency_word_at(
+        &self,
+        text: &str,
+        digit_start: usize,
+        r: &ScanResult,
+        start: usize,
+    ) -> Option<(Currency, usize)> {
+        let end = word_end(text, start, MAX_CURRENCY_WORD_UNITS)?;
+        if byte_at(text.as_bytes(), end) == b'-' {
+            return None;
+        }
+        let word = &text[start..end];
+        let currency = currency_word(word)?;
+        if !self.opennlp_parity && is_pound_word(word) {
+            if let Some(sterling_end) = trailing_sterling(text, end) {
+                return Some((currency, sterling_end));
+            }
+            if r.multiplier == Multiplier::One && is_pound_weight_context(text, digit_start, end) {
+                return None;
+            }
+        }
+        Some((currency, end))
     }
 }
 
@@ -279,33 +374,88 @@ fn skip_whitespace(text: &str, i: usize) -> usize {
     i + char_at(text, i).map_or(1, char::len_utf8)
 }
 
-/// `isoCodeAt`: three ASCII capitals at byte `start`, between word
-/// boundaries, that make a code the JDK knows.
-fn iso_code_at(text: &str, start: usize) -> Option<Currency> {
-    let code: [u8; 3] = text.as_bytes().get(start..start + 3)?.try_into().ok()?;
-    if !boundary_before(text, start) {
-        return None;
-    }
-    let code = Currency::new(code)?;
-    (boundary_after(text, start + 3) && is_iso_currency(code)).then_some(code)
+/// Whether `word` is `pound` or `pounds` under `Character.toLowerCase`.
+fn is_pound_word(word: &str) -> bool {
+    lower_eq(word, "pound") || lower_eq(word, "pounds")
 }
 
-/// `currencyWordAt`: the currency a word at byte `start` names, and where
-/// the word ends. A hyphen right after the word makes it the first part of
-/// a compound (`euro-cent`), which is no amount.
-fn currency_word_at(text: &str, start: usize) -> Option<(Currency, usize)> {
-    let end = word_end(text, start, MAX_CURRENCY_WORD_UNITS)?;
-    if byte_at(text.as_bytes(), end) == b'-' {
+/// If `sterling` follows one whitespace character after `end`, returns the
+/// byte offset after `sterling`.
+fn trailing_sterling(text: &str, end: usize) -> Option<usize> {
+    if !whitespace_at(text, end) {
         return None;
     }
-    Some((currency_word(&text[start..end])?, end))
+    let next_start = skip_whitespace(text, end);
+    let next_end = word_end(text, next_start, MAX_CURRENCY_WORD_UNITS)?;
+    lower_eq(&text[next_start..next_end], "sterling").then_some(next_end)
 }
 
-/// `asciiLetterBefore`: whether the character before byte `index`,
-/// combining marks skipped, is an ASCII letter, so a symbol there is the
-/// tail of a longer one (`HK$`, `US$`).
-fn ascii_letter_before(text: &str, index: usize) -> bool {
-    base_char_before(text, index).is_some_and(|c| c.is_ascii_alphabetic())
+/// Words after or before `pound(s)` that indicate a unit of weight rather than
+/// pounds sterling.
+const POUND_WEIGHT_FOLLOWING_CUES: [&str; 12] =
+    ["apples", "bag", "butter", "each", "flour", "in", "ounce", "ounces", "oz", "package", "per", "sugar"];
+const POUND_WEIGHT_PRECEDING_CUES: [&str; 8] =
+    ["carried", "gained", "heavy", "lifted", "lost", "weigh", "weighed", "weighs"];
+
+/// Returns `true` when `pound(s)` ending at `end` (after a numeral starting at
+/// `digit_start`) stands in a weight context (`3 pounds of flour`, `weighs 150 pounds`).
+fn is_pound_weight_context(text: &str, digit_start: usize, end: usize) -> bool {
+    if whitespace_at(text, end) {
+        let next_start = skip_whitespace(text, end);
+        if let Some(next_end) = word_end(text, next_start, 12) {
+            let next_word = &text[next_start..next_end];
+            if lower_eq(next_word, "of") {
+                if whitespace_at(text, next_end) {
+                    let after_of = skip_whitespace(text, next_end);
+                    if let Some(after_end) = word_end(text, after_of, 12)
+                        && ["aid", "debt", "funding", "profit", "revenue", "sterling"]
+                            .iter()
+                            .any(|&w| lower_eq(&text[after_of..after_end], w))
+                    {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            if POUND_WEIGHT_FOLLOWING_CUES.iter().any(|&w| lower_eq(next_word, w)) {
+                return true;
+            }
+        } else if byte_at(text.as_bytes(), next_start).is_ascii_digit() {
+            let mut sub_idx = next_start;
+            while byte_at(text.as_bytes(), sub_idx).is_ascii_digit() {
+                sub_idx += 1;
+            }
+            let unit_start = skip_whitespace(text, sub_idx);
+            if let Some(unit_end) = word_end(text, unit_start, 12)
+                && ["ounce", "ounces", "oz"].iter().any(|&w| lower_eq(&text[unit_start..unit_end], w))
+            {
+                return true;
+            }
+        }
+    }
+    word_before(text, digit_start).is_some_and(|prev| POUND_WEIGHT_PRECEDING_CUES.iter().any(|&w| lower_eq(prev, w)))
+}
+
+/// Returns the word immediately before `index` (separated by whitespace or a
+/// leading minus sign), if any.
+fn word_before(text: &str, index: usize) -> Option<&str> {
+    let mut chars = text.get(..index)?.char_indices().rev().peekable();
+    if chars.peek().is_some_and(|&(_, c)| c == '-') {
+        chars.next();
+    }
+    if !whitespace_at(text, chars.peek()?.0) {
+        return None;
+    }
+    while chars.peek().is_some_and(|&(idx, _)| whitespace_at(text, idx)) {
+        chars.next();
+    }
+    let (last_idx, last_ch) = chars.next().filter(|&(_, ch)| java::is_letter(ch))?;
+    let word_start = chars.take_while(|&(_, ch)| java::is_letter(ch)).last().map_or(last_idx, |(idx, _)| idx);
+    text.get(word_start..last_idx + last_ch.len_utf8())
+}
+
+fn lower_eq(word: &str, ascii_lower: &str) -> bool {
+    word.chars().map(java::to_lower_char).eq(ascii_lower.chars())
 }
 
 impl Annotator for MoneyExtractor {
@@ -326,8 +476,8 @@ impl Annotator for MoneyExtractor {
         Ok((money,))
     }
 
-    /// FNV-1a over the notation and the symbol table, fixed so that stored
-    /// provenance stays comparable across builds.
+    /// FNV-1a over the notation, the symbol table, and the parity flag, fixed
+    /// so that stored provenance stays comparable across builds.
     fn config_hash(&self) -> u64 {
         let notation: u64 = match self.notation {
             NumberNotation::LatinUs => 1,
@@ -337,8 +487,12 @@ impl Annotator for MoneyExtractor {
             let [a, b, d] = c.code();
             [u64::from(s), u64::from(a), u64::from(b), u64::from(d)]
         });
-        std::iter::once(notation)
+        let mut h = std::iter::once(notation)
             .chain(symbols)
-            .fold(0xcbf2_9ce4_8422_2325, |h, x| (h ^ x).wrapping_mul(0x0100_0000_01b3))
+            .fold(0xcbf2_9ce4_8422_2325, |h, x| (h ^ x).wrapping_mul(0x0100_0000_01b3));
+        if self.opennlp_parity {
+            h = (h ^ 1).wrapping_mul(0x0100_0000_01b3);
+        }
+        h
     }
 }

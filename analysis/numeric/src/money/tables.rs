@@ -23,6 +23,33 @@ const ILS: Currency = code(b"ILS");
 const THB: Currency = code(b"THB");
 const CNY: Currency = code(b"CNY");
 
+/// Dollar-prefixed region symbols (`HK$`, `US$`, `CA$`, `C$`, `A$`, `AU$`,
+/// `NZ$`, `R$`, `S$`, `SG$`, `NT$`, `MX$`, `TW$`, `Z$`) and the currency
+/// each denotes by convention when `$` is in the symbol table.
+pub const DOLLAR_PREFIXES: [(&[u8], Currency); 14] = [
+    (b"A$", code(b"AUD")),
+    (b"AU$", code(b"AUD")),
+    (b"C$", code(b"CAD")),
+    (b"CA$", code(b"CAD")),
+    (b"HK$", code(b"HKD")),
+    (b"MX$", code(b"MXN")),
+    (b"NT$", code(b"TWD")),
+    (b"NZ$", code(b"NZD")),
+    (b"R$", code(b"BRL")),
+    (b"S$", code(b"SGD")),
+    (b"SG$", code(b"SGD")),
+    (b"TW$", code(b"TWD")),
+    (b"US$", USD),
+    (b"Z$", code(b"ZWL")),
+];
+
+/// Returns the currency denoted by a dollar-prefixed region symbol (`HK$`,
+/// `US$`, `CA$`, `R$`, `A$`) starting at `prefix` (`1..=2` ASCII letters
+/// followed by `'$'`).
+pub(crate) fn dollar_prefix(prefix: &[u8]) -> Option<Currency> {
+    DOLLAR_PREFIXES.binary_search_by_key(&prefix, |&(p, _)| p).ok().map(|i| DOLLAR_PREFIXES[i].1)
+}
+
 /// The default symbol table: each symbol mapped to the currency it most
 /// commonly denotes. A caller in another convention passes its own table
 /// to [`MoneyExtractor::with_symbols`](super::MoneyExtractor::with_symbols).
@@ -96,6 +123,56 @@ pub fn is_iso_currency(code: Currency) -> bool {
     ISO_CODES.binary_search(&code.code()).is_ok()
 }
 
+/// Whether `code` is an ISO 4217 testing (`XTS`) or no-currency (`XXX`)
+/// code. By default [`MoneyExtractor`](super::MoneyExtractor) refuses these
+/// codes as money mentions; [`MoneyExtractor::with_opennlp_parity`](super::MoneyExtractor::with_opennlp_parity)
+/// accepts them to match OpenNLP.
+pub fn is_test_currency(code: Currency) -> bool {
+    matches!(&code.code(), b"XTS" | b"XXX")
+}
+
+/// Returns the ISO 4217 default fraction digits (minor-unit decimal places)
+/// for `code` as `java.util.Currency.getDefaultFractionDigits()` reports it
+/// on JDK 21 (`0` for `JPY`/`KRW`/`VND`, `2` for `USD`/`EUR`/`GBP`, `3` for
+/// `BHD`/`JOD`/`KWD`, `4` for `CLF`), or `None` when the code has no minor
+/// unit (`XAU`, `XDR`, `XTS`, `XXX`) or is not in the ISO table.
+pub fn minor_units(code: Currency) -> Option<u8> {
+    if !is_iso_currency(code) {
+        return None;
+    }
+    let bytes = code.code();
+    if NO_MINOR_UNIT_CODES.binary_search(&bytes).is_ok() {
+        return None;
+    }
+    if ZERO_MINOR_UNIT_CODES.binary_search(&bytes).is_ok() {
+        return Some(0);
+    }
+    if THREE_MINOR_UNIT_CODES.binary_search(&bytes).is_ok() {
+        return Some(3);
+    }
+    if bytes == *b"CLF" {
+        return Some(4);
+    }
+    Some(2)
+}
+
+/// Codes where `Currency.getDefaultFractionDigits()` returns `-1` (precious
+/// metals, composite units, testing, and no-currency codes), sorted.
+const NO_MINOR_UNIT_CODES: [[u8; 3]; 15] = [
+    *b"XAG", *b"XAU", *b"XBA", *b"XBB", *b"XBC", *b"XBD", *b"XDR", *b"XFO", *b"XFU", *b"XPD", *b"XPT", *b"XSU",
+    *b"XTS", *b"XUA", *b"XXX",
+];
+
+/// Codes where `Currency.getDefaultFractionDigits()` returns `0`, sorted.
+const ZERO_MINOR_UNIT_CODES: [[u8; 3]; 30] = [
+    *b"ADP", *b"BEF", *b"BIF", *b"BYB", *b"BYR", *b"CLP", *b"DJF", *b"ESP", *b"GNF", *b"GRD", *b"ISK", *b"ITL",
+    *b"JPY", *b"KMF", *b"KRW", *b"LUF", *b"MGF", *b"PTE", *b"PYG", *b"ROL", *b"RWF", *b"TPE", *b"TRL", *b"UGX",
+    *b"UYI", *b"VND", *b"VUV", *b"XAF", *b"XOF", *b"XPF",
+];
+
+/// Codes where `Currency.getDefaultFractionDigits()` returns `3`, sorted.
+const THREE_MINOR_UNIT_CODES: [[u8; 3]; 7] = [*b"BHD", *b"IQD", *b"JOD", *b"KWD", *b"LYD", *b"OMR", *b"TND"];
+
 /// The JDK's currency codes, sorted.
 const ISO_CODES: [[u8; 3]; 233] = [
     *b"ADP", *b"AED", *b"AFA", *b"AFN", *b"ALL", *b"AMD", *b"ANG", *b"AOA", *b"ARS", *b"ATS", *b"AUD", *b"AWG",
@@ -138,6 +215,20 @@ mod tests {
         assert!(is_iso_currency(code(b"EEK")));
         assert!(!is_iso_currency(code(b"USX")));
         assert!(!is_iso_currency(code(b"AAA")));
+        assert!(DOLLAR_PREFIXES.windows(2).all(|w| w[0].0 < w[1].0));
+        assert!(NO_MINOR_UNIT_CODES.windows(2).all(|w| w[0] < w[1]));
+        assert!(ZERO_MINOR_UNIT_CODES.windows(2).all(|w| w[0] < w[1]));
+        assert!(THREE_MINOR_UNIT_CODES.windows(2).all(|w| w[0] < w[1]));
+        assert!(is_test_currency(code(b"XTS")));
+        assert!(is_test_currency(code(b"XXX")));
+        assert!(!is_test_currency(USD));
+        assert_eq!(minor_units(USD), Some(2));
+        assert_eq!(minor_units(JPY), Some(0));
+        assert_eq!(minor_units(code(b"KWD")), Some(3));
+        assert_eq!(minor_units(code(b"CLF")), Some(4));
+        assert_eq!(minor_units(code(b"XAU")), None);
+        assert_eq!(minor_units(code(b"XXX")), None);
+        assert_eq!(minor_units(code(b"USX")), None);
     }
 
     #[test]
