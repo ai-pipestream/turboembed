@@ -7,6 +7,22 @@ use turbo_structure::{StructureAnnotator, StructureProjector, Syntax, detect};
 const NOTES: &str = "# Field notes\r\n\r\n<div class=\"notice\">\r\n**Keep** the café open.\r\n</div>\r\n\r\n- Coffee\r\n\r\n- Tea\r\n\r\n[^source]: Café register.\r\n\r\n    Checked on Friday.\r\n\r\nEnd of notes.\r\n";
 
 #[test]
+fn column_hints_respect_trimmed_headers_and_container_content() {
+    for text in ["Name  Count  \u{2003}\nTea   2\n", "> Name  Count  \u{2003}\n> Tea   2\n", "é\t量  \u{2003}\n茶\t2\n"]
+    {
+        let s = detect(text, Syntax::Plain, ViewId::SOURCE);
+        s.check().unwrap();
+        assert_eq!(s.kind.iter().filter(|&&k| k == Block::Table).count(), 1, "{text:?}");
+        assert_eq!(s.kind.iter().filter(|&&k| k == Block::TableCell).count(), 4, "{text:?}");
+    }
+    for text in ["  label  \n  body  \n", ">  label  \n>  body  \n"] {
+        let s = detect(text, Syntax::Plain, ViewId::SOURCE);
+        s.check().unwrap();
+        assert!(!s.kind.contains(&Block::Table), "{text:?}");
+    }
+}
+
+#[test]
 fn html_footnotes_and_loose_lists_keep_exact_spans() {
     let s = detect(NOTES, Syntax::Markdown, ViewId::SOURCE);
     s.check().unwrap();

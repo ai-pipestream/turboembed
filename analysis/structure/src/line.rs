@@ -25,11 +25,11 @@ impl<'a> Lines<'a> {
 
     /// Plain text also records potential column separators while finding
     /// the line break, so table detection need not rescan either line.
-    pub(crate) fn next_columns(&mut self) -> Option<(usize, usize, bool)> {
+    pub(crate) fn next_columns(&mut self) -> Option<(usize, usize, Option<usize>)> {
         self.next_line::<true>()
     }
 
-    fn next_line<const COLUMNS: bool>(&mut self) -> Option<(usize, usize, bool)> {
+    fn next_line<const COLUMNS: bool>(&mut self) -> Option<(usize, usize, Option<usize>)> {
         let b = self.text.as_bytes();
         if self.at >= b.len() {
             return None;
@@ -42,7 +42,7 @@ impl<'a> Lines<'a> {
             Some(_) => end + 1,
             None => end,
         };
-        Some((start, end, columns))
+        Some((start, end, columns.map(|at| start + at)))
     }
 }
 
@@ -57,9 +57,9 @@ impl Iterator for Lines<'_> {
 /// Search eight bytes at a time without reading past the slice. The
 /// zero-byte test only selects a candidate word; byte order does not
 /// matter, and the exact first CR or LF is then found in that word.
-fn line_end<const COLUMNS: bool>(bytes: &[u8]) -> (Option<usize>, bool) {
+fn line_end<const COLUMNS: bool>(bytes: &[u8]) -> (Option<usize>, Option<usize>) {
     let zero = |x: u64| x.wrapping_sub(0x0101_0101_0101_0101) & !x & 0x8080_8080_8080_8080;
-    let (mut columns, mut space) = (false, false);
+    let (mut columns, mut space) = (None, false);
     let (chunks, tail) = bytes.as_chunks::<8>();
     for (i, chunk) in chunks.iter().enumerate() {
         let word = u64::from_le_bytes(*chunk);
@@ -69,17 +69,25 @@ fn line_end<const COLUMNS: bool>(bytes: &[u8]) -> (Option<usize>, bool) {
                     return (Some(i * 8 + at), columns);
                 }
                 if COLUMNS {
-                    columns |= byte == b'\t' || (space && byte == b' ');
+                    if byte == b'\t' || (space && byte == b' ') {
+                        columns = Some(i * 8 + at - usize::from(byte == b' '));
+                    }
                     space = byte == b' ';
                 }
             }
         }
-        if COLUMNS && !columns {
+        if COLUMNS {
             let spaces = zero(word ^ 0x2020_2020_2020_2020);
             // A borrow can mark the byte after a space: confirm pairs.
-            columns = (space && chunk[0] == b' ')
-                || zero(word ^ 0x0909_0909_0909_0909) != 0
-                || (spaces & (spaces >> 8) != 0 && chunk.windows(2).any(|b| b == b"  "));
+            if space && chunk[0] == b' ' {
+                columns = Some(i * 8 - 1);
+            }
+            let tab =
+                (zero(word ^ 0x0909_0909_0909_0909) != 0).then(|| chunk.iter().rposition(|&b| b == b'\t')).flatten();
+            let pair = (spaces & (spaces >> 8) != 0).then(|| chunk.windows(2).rposition(|b| b == b"  ")).flatten();
+            if let Some(at) = tab.into_iter().chain(pair).max() {
+                columns = Some(i * 8 + at);
+            }
             space = chunk[7] == b' ';
         }
     }
@@ -88,7 +96,9 @@ fn line_end<const COLUMNS: bool>(bytes: &[u8]) -> (Option<usize>, bool) {
             return (Some(bytes.len() - tail.len() + at), columns);
         }
         if COLUMNS {
-            columns |= byte == b'\t' || (space && byte == b' ');
+            if byte == b'\t' || (space && byte == b' ') {
+                columns = Some(bytes.len() - tail.len() + at - usize::from(byte == b' '));
+            }
             space = byte == b' ';
         }
     }
@@ -217,7 +227,7 @@ mod tests {
     }
     #[test]
     fn separator_scan_agrees_on_document_lines_and_word_boundaries() {
-        let candidate = |s: &str| Lines::new(s, 0).next_columns().is_some_and(|(_, _, yes)| yes);
+        let candidate = |s: &str| Lines::new(s, 0).next_columns().is_some_and(|(_, _, at)| at.is_some());
         for text in [include_str!("../../../docs/analysis.md"), "é\t茶  coffee\r\nspace ! café"] {
             for line in text.lines() {
                 for padding in 0..8 {
@@ -241,7 +251,8 @@ mod tests {
             let mut lines = Lines::new(&text, 0);
             while let Some((a, b, columns)) = lines.next_columns() {
                 let line = &text[a..b];
-                assert_eq!(columns, line.contains("  ") || line.contains('\t'), "{line:?}");
+                let last = line.rfind("  ").into_iter().chain(line.rfind('\t')).max().map(|at| a + at);
+                assert_eq!(columns, last, "{line:?}");
             }
         }
         for boundary in 0..24 {
@@ -249,7 +260,8 @@ mod tests {
             let mut lines = Lines::new(&text, 0);
             while let Some((a, b, columns)) = lines.next_columns() {
                 let line = &text[a..b];
-                assert_eq!(columns, line.contains("  ") || line.contains('\t'), "{line:?}");
+                let last = line.rfind("  ").into_iter().chain(line.rfind('\t')).max().map(|at| a + at);
+                assert_eq!(columns, last, "{line:?}");
             }
         }
     }

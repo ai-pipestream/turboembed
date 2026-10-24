@@ -104,10 +104,9 @@ pub(crate) struct Parser<'a> {
     runs: Vec<(usize, usize)>,
     cells: Vec<(usize, usize)>,
     column_starts: Vec<usize>,
-    /// Both physical lines contain a possible column separator. A
-    /// paragraph's final line is the preceding physical line; container
-    /// markers/indentation can give false positives, never false negatives.
-    columns_candidate: bool,
+    /// Last separator offsets on the previous/current physical lines.
+    /// Compare them with the content bounds after matching containers.
+    column_separators: [Option<usize>; 2],
 }
 
 /// A depth, at most 255.
@@ -165,7 +164,7 @@ impl<'a> Parser<'a> {
             runs: Vec::new(),
             cells: Vec::new(),
             column_starts: Vec::new(),
-            columns_candidate: false,
+            column_separators: [None; 2],
         }
     }
 
@@ -181,9 +180,9 @@ impl<'a> Parser<'a> {
                 self.line(start, end);
             }
         } else {
-            let (mut lines, mut previous) = (Lines::new(self.text, from), false);
+            let (mut lines, mut previous) = (Lines::new(self.text, from), None);
             while let Some((start, end, columns)) = lines.next_columns() {
-                self.columns_candidate = previous && columns;
+                self.column_separators = [previous, columns];
                 self.line(start, end);
                 previous = columns;
             }

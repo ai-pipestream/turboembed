@@ -61,11 +61,20 @@ impl Parser<'_> {
     }
 
     pub(super) fn columns_start(&mut self, p: usize, le: usize) -> bool {
-        if !self.columns_candidate {
-            return false;
-        }
+        let [Some(header_separator), Some(next_separator)] = self.column_separators else { return false };
         let Leaf::Paragraph { node, lines, last_start, prev_end } = self.leaf else { return false };
         let header_end = self.tree.nodes[node as usize].end as usize;
+        if header_separator < last_start || next_separator < p {
+            return false;
+        }
+        // The last separator may be trailing whitespace outside the
+        // trimmed header. Only that case needs a scan for an earlier one.
+        if header_separator >= header_end {
+            let header = &self.text[last_start..header_end];
+            if !header.contains("  ") && !header.contains('\t') {
+                return false;
+            }
+        }
         if !crate::columns::aligned(self.text, last_start, header_end, p, le) {
             return false;
         }
