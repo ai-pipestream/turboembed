@@ -294,9 +294,8 @@ fn the_shape_predicted_is_the_shape_run() {
     assert_eq!(predicted_and_done(&a, &many).1.runs, 40);
 }
 
-/// The part of a time below which six rounds of medians on the Hailo-8
-/// boards do not tell two runs of the same step apart: same-instance runs
-/// were measured up to 0.3% apart.
+/// The part of a time below which paired rounds on the Hailo-8 boards do
+/// not tell two runs of the same step apart.
 const RESOLUTION: f64 = 0.005;
 
 /// On the device TURBO_TEST_DEVICE names, with the bundle
@@ -306,8 +305,11 @@ const RESOLUTION: f64 = 0.005;
 /// records one side, its vectors are that side's, and the side is the
 /// faster of the step fixed on the device and fixed on the CPU, each timed
 /// six times in turn: the one with the lower middle time, unless the two
-/// sides' times overlap, where neither is faster. Prints each time's
-/// middle and spread, the dispatched instance's too.
+/// sides' times overlap, where neither is faster. Then six pairs of the
+/// dispatched calls and the step they run on, back to back: the median
+/// difference, what dispatch adds, is no more than the planning (timed on
+/// its own) and RESOLUTION. Prints each side's middle and spread, what
+/// dispatch adds, and the pairs.
 #[test]
 fn on_the_device_every_submission_runs_at_the_faster_side() {
     let (Ok(bundle), Ok(want)) = (std::env::var("TURBO_TEST_VECTORS_BUNDLE"), std::env::var("TURBO_TEST_DEVICE"))
@@ -335,7 +337,9 @@ fn on_the_device_every_submission_runs_at_the_faster_side() {
         [("one sentence", &sentence, 20), ("one document", &texts[..1], 10), ("all", &texts, 3)];
     let dir = std::env::temp_dir().join(format!("turbo-dispatch-device-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
-    println!("window\tcap\tsubmission\tdispatched\tfaster\tdispatched ms\tdevice ms\tcpu ms (median, low-high of 6)");
+    println!(
+        "window\tcap\tsubmission\tdispatched\tfaster\tdispatched ms\tdevice ms\tcpu ms (median, low-high of 6)\tplan ms\tadded ms\tadded"
+    );
     for &max_seq in &o.windows {
         for &cap in &o.batches {
             let base = at(device.clone(), Precision::Model, max_seq, cap);
@@ -352,18 +356,16 @@ fn on_the_device_every_submission_runs_at_the_faster_side() {
                 assert!(got.iter().all(|g| &g.1 == side), "{max_seq}x{cap} {what}: one side per call");
                 let fixed = if side.starts_with("cpu") { &on_cpu } else { &on_device };
                 assert!(same(&got, &run(fixed, sub), dim) >= 1.0 - 1e-6, "{max_seq}x{cap} {what}");
-                // Six medians of each, taking turns.
-                let mut t = [Vec::new(), Vec::new(), Vec::new()];
-                let steps = [&a, &on_device, &on_cpu];
+                // The two sides, six rounds each, in turns that alternate who
+                // goes first.
+                let mut t = [Vec::new(), Vec::new()];
                 for round in 0..6 {
-                    // Each takes each place in the order twice, so what the
-                    // one before leaves the machine in falls on all three alike.
-                    for k in (0..3).map(|i| (i + round) % 3) {
-                        t[k].push(timed(steps[k], sub, reps));
+                    for k in [round % 2, 1 - round % 2] {
+                        t[k].push(timed([&on_device, &on_cpu][k], sub, reps));
                     }
                 }
-                let [dev_ms, cpu_ms] = [middle(&t[1]), middle(&t[2])];
-                let ((dl, dh), (cl, ch)) = (low_high(&t[1]), low_high(&t[2]));
+                let [dev_ms, cpu_ms] = [middle(&t[0]), middle(&t[1])];
+                let ((dl, dh), (cl, ch)) = (low_high(&t[0]), low_high(&t[1]));
                 let tie = dl <= ch && cl <= dh;
                 let faster = if tie {
                     "either"
@@ -372,6 +374,11 @@ fn on_the_device_every_submission_runs_at_the_faster_side() {
                 } else {
                     "cpu"
                 };
+                let chose_cpu = side.starts_with("cpu");
+                assert!(
+                    tie || chose_cpu == (faster == "cpu"),
+                    "{max_seq}x{cap} {what}: ran on {side}, the {faster} is faster"
+                );
                 // What dispatch adds to the step it chose, planning the call,
                 // timed on its own.
                 let docs = worded(bundle, sub);
@@ -387,29 +394,41 @@ fn on_the_device_every_submission_runs_at_the_faster_side() {
                     p.sort_by(f64::total_cmp);
                     p[reps / 2]
                 };
+                // The dispatched calls against the step they run on, six
+                // pairs timed back to back, alternating which goes first: a
+                // slow stretch of the machine falls on both of a pair, and the
+                // median of the differences is what dispatch adds.
+                let chosen = if chose_cpu { &on_cpu } else { &on_device };
+                let pairs: Vec<(f64, f64)> = (0..6)
+                    .map(|i| {
+                        if i % 2 == 0 {
+                            let x = timed(&a, sub, reps);
+                            (x, timed(chosen, sub, reps))
+                        } else {
+                            let y = timed(chosen, sub, reps);
+                            (timed(&a, sub, reps), y)
+                        }
+                    })
+                    .collect();
+                let added = middle(&pairs.iter().map(|(x, y)| x - y).collect::<Vec<_>>());
+                let fixed = middle(&pairs.iter().map(|p| p.1).collect::<Vec<_>>());
+                let dispatched = middle(&pairs.iter().map(|p| p.0).collect::<Vec<_>>());
                 println!(
-                    "{max_seq}\t{cap}\t{what}\t{side}\t{faster}\t{}\t{}\t{}\t{plan:.3}",
+                    "{max_seq}\t{cap}\t{what}\t{side}\t{faster}\t{dispatched:.3}\t{}\t{}\t{plan:.3}\t{added:+.3}\t{:+.3}%",
                     spread(&t[0]),
                     spread(&t[1]),
-                    spread(&t[2])
+                    100.0 * added / fixed
                 );
-                let chose_cpu = side.starts_with("cpu");
+                let shown: Vec<String> = pairs.iter().map(|(x, y)| format!("{x:.3}/{y:.3}")).collect();
+                println!("pairs\t{max_seq}\t{cap}\t{what}\t{}", shown.join(" "));
+                // What dispatch adds is no more than the planning and
+                // RESOLUTION of the time, below which paired rounds on these
+                // boards do not tell two runs of the same step apart.
                 assert!(
-                    tie || chose_cpu == (faster == "cpu"),
-                    "{max_seq}x{cap} {what}: ran on {side}, the {faster} is faster"
-                );
-                // The dispatched instance runs as fast as the side it chose
-                // but for the one thing it adds, planning the call: its
-                // fastest round is no slower than that side's slowest round,
-                // the planning and RESOLUTION of that side's time, below which
-                // six rounds on these boards do not tell two runs apart.
-                let (got, _) = low_high(&t[0]);
-                let (fixed_low, fixed_high) = if chose_cpu { (cl, ch) } else { (dl, dh) };
-                assert!(
-                    got <= fixed_high * (1.0 + RESOLUTION) + plan,
-                    "{max_seq}x{cap} {what}: dispatched {} over {side}'s {fixed_low:.3}-{fixed_high:.3} and planning \
-                     {plan:.3}",
-                    spread(&t[0])
+                    added <= plan + RESOLUTION * fixed,
+                    "{max_seq}x{cap} {what}: dispatch adds {added:.3} ms (pairs {}), over planning {plan:.3} and \
+                     {RESOLUTION} of {fixed:.3}",
+                    shown.join(" ")
                 );
             }
         }
