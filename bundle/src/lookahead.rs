@@ -68,8 +68,8 @@ mod tests {
         let sat_3l = json!({ "lookahead": 48, "num_hidden_layers": 3, "lookahead_split_layers": null });
         assert_eq!(per_layer(&sat_3l), Ok(Some(16)));
         assert_eq!(
-            per_layer(&json!({ "lookahead": 48, "num_hidden_layers": 12, "lookahead_split_layers": 6 })),
-            Ok(Some(8))
+            per_layer(&json!({ "lookahead": 48, "num_hidden_layers": 12, "lookahead_split_layers": 12 })),
+            Ok(Some(4))
         );
         assert_eq!(per_layer(&json!({ "lookahead": 8, "num_hidden_layers": 3 })), Ok(Some(2)));
         assert_eq!(per_layer(&json!({ "lookahead": null, "num_hidden_layers": 1 })), Ok(None));
@@ -80,5 +80,31 @@ mod tests {
         assert!(e.contains("lookahead: none, the upstream config.json trains 16 a layer (lookahead 48"), "{e}");
         let e = agrees(&json!({ "num_hidden_layers": 1 }), &json!({ "architecture": { "lookahead": 4 } })).unwrap_err();
         assert!(e.contains("lookahead: 4, the upstream config.json trains none"), "{e}");
+    }
+
+    #[test]
+    fn a_split_inside_the_encoder_cannot_be_one_uniform_band() {
+        // wtpsplit switches to causal attention at this layer, even when
+        // the initial mask has unrestricted (null or absent) lookahead.
+        for split in [0, 1, 6, 11] {
+            for total in [json!(48), Value::Null] {
+                let cfg = json!({ "lookahead": total, "num_hidden_layers": 12, "lookahead_split_layers": split });
+                let e = per_layer(&cfg).unwrap_err();
+                assert!(e.contains("per-layer lookahead") && e.contains("not supported"), "{cfg}: {e}");
+                assert!(agrees(&cfg, &json!({ "architecture": { "lookahead": 8 } })).is_err());
+            }
+        }
+        assert!(per_layer(&json!({ "num_hidden_layers": 12, "lookahead_split_layers": 6 })).is_err());
+    }
+
+    #[test]
+    fn an_explicit_split_needs_a_valid_layer_count() {
+        for cfg in [
+            json!({ "lookahead": 48, "num_hidden_layers": 12, "lookahead_split_layers": 13 }),
+            json!({ "lookahead": 48, "lookahead_split_layers": 6 }),
+            json!({ "lookahead": 48, "num_hidden_layers": "12", "lookahead_split_layers": 6 }),
+        ] {
+            assert!(per_layer(&cfg).is_err(), "{cfg}");
+        }
     }
 }
