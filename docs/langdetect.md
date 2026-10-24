@@ -158,8 +158,9 @@ which checks its published SHA-512. The tests look for it there, or in
 the directory named by `TURBO_GOLDENS_MODELS`. Without it, the tests
 that need it print where they looked and pass without comparing, unless
 `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1` makes them fail; the n-gram
-comparison runs either way. CI does not fetch the model, so CI runs
-the n-gram comparison and none of the probability comparisons.
+comparison runs either way. CI fetches the model
+(`turbo-goldens-tool -- fetch-models` in `.github/workflows/ci.yml`),
+so CI runs the probability comparisons too.
 
 `analysis/langdetect/tests/context.rs` checks the generator on texts
 worked out by hand (the hash map order of `abab`, lowercasing, n-grams
@@ -282,9 +283,11 @@ The recipe that trains a model on Tatoeba and gates it against
 `langdetect-183.bin` is in `analysis/train-recipes` (its README, "The
 language detector recipe").
 
-## Not ported
+## Evaluation
 
-- Evaluation (`LanguageDetectorEvaluator`) and cross validation.
+Evaluation (`LanguageDetectorEvaluator`) and cross validation are
+ported in `analysis/formats/src/evaluate/`, shared with the other
+component evaluators.
 
 ## OpenNLP findings
 

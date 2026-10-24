@@ -229,7 +229,7 @@ this form before it is written or loaded.
 | `model.source.repository`, `.commit` | string | yes | Where the checkpoint came from. |
 | `model.license` | string | yes | SPDX identifier. Nothing is redistributed without one. |
 | `model.license_file` | path | no | The licence text. |
-| `task` | enum | yes | `TASK_EMBED`. Names the task block that follows. Any other `TASK_*` name is a task this build does not have. |
+| `task` | enum | yes | `TASK_EMBED`, `TASK_RERANK` or `TASK_EXTRACTIVE_QA`. Names the task block that follows. Any other `TASK_*` name is a task this build does not have. |
 | `embed.dim`, `.pooling`, `.normalize` | uint32, enum | yes | Vector width; what `TURBO_POOLING_MODEL` and `TURBO_NORMALIZE_MODEL` mean. With an `architecture`, `dim` equals `architecture.hidden`: the vectors are pooled hidden states. |
 | `embed.max_seq` | uint32 | yes | Tokens per row including specials, the length the model was evaluated at. Never the positional table size. |
 | `embed.max_batch` | uint32 | yes | The largest batch the reference was checked at. A session larger than it is refused. |
@@ -255,7 +255,7 @@ this form before it is written or loaded.
 | `classifier.labels` | string[] | with `classifier` | The output labels in id order (`0..labels.len()`), matching `id2label` in the upstream `config.json`. At least one non-empty label. |
 | `projection.dim` | uint32 | with `projection` | Output width of a linear token-projection head (`[projection.dim, hidden]` weight, optional `[projection.dim]` bias) applied to unpooled token hidden states before L2 normalization, as ColBERT and late-interaction models carry. Requires an encoder `architecture`. |
 | `artifacts[].name` | string | yes | Unique; referenced by `from` and `host_weights`. |
-| `artifacts[].format` | enum | yes | `FORMAT_SAFETENSORS`, `FORMAT_OPENVINO_IR`, `FORMAT_HEF`, `FORMAT_GGUF`, `FORMAT_ONNX`. |
+| `artifacts[].format` | enum | yes | `FORMAT_SAFETENSORS`, `FORMAT_OPENVINO_IR`, `FORMAT_HEF`, `FORMAT_ONNX`. (`FORMAT_GGUF` is a header and manifest name only; no backend loads it.) |
 | `artifacts[].files` | path[] | yes | Each listed in `files`. A `FORMAT_HEF` artifact is one file. A `FORMAT_OPENVINO_IR` artifact is two: the xml, then its weights. A `FORMAT_ONNX` artifact's first file is the graph; any others are its external data, beside it in the same directory, as the exporter wrote them. |
 | `artifacts[].backends` | string[] | yes | `turbo_device_info.backend` values that load it. Empty: nothing loads it, as for an ONNX file carried only for the reference programs and the converters. |
 | `artifacts[].target` | string | compiled artifacts | The device architecture label the artifact was compiled for. Matched against `turbo_device_info.arch`. |

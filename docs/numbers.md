@@ -6,7 +6,9 @@ layer. It is a port of the number scan in the OpenNLP numeric add-on:
 `NumberScan` reads one number, and the candidate loop of
 `CursorQuantityExtractor` finds where numbers start, here without the
 money exclusion and without the unit the quantity extractor wants after
-a number.
+a number. Spelled-out numbers with exact values ("one hundred and
+three") are read by the rule grammar in `turbo-grammar`
+(`analysis/grammar/`), not by this scanner.
 
 ## The layer
 
