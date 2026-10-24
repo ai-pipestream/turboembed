@@ -1,7 +1,6 @@
-EIP-55: Mixed-case checksum address encoding
-Authors: Vitalik Buterin, Alex Van de Sande
-Status: Final
-Licence: CC0-1.0 (https://creativecommons.org/publicdomain/zero/1.0/)
+EIP-55: Mixed-case checksum address encoding (adapt.)
+Source authors: Vitalik Buterin, Alex Van de Sande
+Source licence: CC0-1.0 (creativecommons.org/publicdomain/zero/1.0)
 Source: https://eips.ethereum.org/EIPS/eip-55
 
 Abstract and Rationale

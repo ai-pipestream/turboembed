@@ -330,17 +330,25 @@ The set is made to pass the checks the scanners make, so recall on it
 says the scanners find what they are built to find, not how they do on
 text written by people.
 
-### Human-written text
+### Mixed evaluation set (third-party MASC, adapted specifications, and project-authored memos)
 
 `precision_and_recall_on_human_written_text` scores the same pack on a
 mixed eight-document evaluation set (`45,401` UTF-8 bytes, `87` gold
 mentions across all 20 built-in kinds in
 `analysis/pii/tests/data/human-eval/labels.tsv`; licences and SHA-256
 digests in `analysis/pii/tests/data/human-eval/README.md` and
-`docs/licences.md`):
+`docs/licences.md`). Because real personal identifiers (national IDs,
+payment cards, bank accounts, device IMEIs, and live cloud or SCM
+credentials) cannot be redistributed in the repository, only `phone` is
+evaluated on unedited third-party prose (`masc-*.escaped`), `btc-address`
+and `eth-address` are evaluated on project-adapted specification summaries
+embedding the canonical BIP-173/350 and ERC-55 test vectors, and the
+remaining 17 kinds are evaluated on project-authored operational memos
+(`operational-memos.txt`):
 
 - Five third-party documents from MASC 3.0.0 (`34,969` bytes, CC BY 3.0
-  US, `12` gold spans, all `phone`): three corporate and non-profit
+  US, `12` gold spans, all `phone`: `10` true, `1` false, `2` missed,
+  precision `0.909`, recall `0.833`): three corporate and non-profit
   solicitation letters (`masc-att2.escaped`, `masc-hsus4.escaped`,
   `masc-united1.escaped`), one New York Times News Service travel
   dispatch (`masc-nyt6.escaped`), and one Legal Services Corporation
@@ -365,29 +373,30 @@ digests in `analysis/pii/tests/data/human-eval/README.md` and
   Luhn-valid test IMEIs), paired with mistyped check digits, order and
   invoice numbers, timestamps, software versions and statutory citations.
 
-| Kind | true | false | missed | precision | recall |
-|---|---:|---:|---:|---:|---:|
-| `jwt` | 3 | 0 | 0 | 1.000 | 1.000 |
-| `aws-access-key` | 2 | 0 | 0 | 1.000 | 1.000 |
-| `github-token` | 3 | 0 | 0 | 1.000 | 1.000 |
-| `url-credential` | 2 | 0 | 0 | 1.000 | 1.000 |
-| `email` | 3 | 2 | 0 | 0.600 | 1.000 |
-| `iban` | 4 | 0 | 0 | 1.000 | 1.000 |
-| `imei` | 3 | 0 | 2 | 1.000 | 0.600 |
-| `card` | 4 | 2 | 0 | 0.667 | 1.000 |
-| `btc-address` | 8 | 0 | 0 | 1.000 | 1.000 |
-| `eth-address` | 10 | 0 | 0 | 1.000 | 1.000 |
-| `mac` | 3 | 0 | 0 | 1.000 | 1.000 |
-| `ipv6` | 3 | 0 | 0 | 1.000 | 1.000 |
-| `ipv4` | 3 | 0 | 0 | 1.000 | 1.000 |
-| `us-ssn` | 3 | 0 | 0 | 1.000 | 1.000 |
-| `us-itin` | 3 | 0 | 0 | 1.000 | 1.000 |
-| `uk-nhs` | 3 | 0 | 0 | 1.000 | 1.000 |
-| `de-steuer-id` | 3 | 0 | 0 | 1.000 | 1.000 |
-| `ca-sin` | 3 | 0 | 1 | 1.000 | 0.750 |
-| `aba-routing` | 3 | 0 | 0 | 1.000 | 1.000 |
-| `phone` | 13 | 5 | 2 | 0.722 | 0.867 |
-| **all kinds** | **82** | **9** | **5** | **0.901** | **0.943** |
+| Kind | Source partition | true | false | missed | precision | recall |
+|---|---|---:|---:|---:|---:|---:|
+| `jwt` | project-authored (`operational-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
+| `aws-access-key` | project-authored (`operational-memos.txt`) | 2 | 0 | 0 | 1.000 | 1.000 |
+| `github-token` | project-authored (`operational-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
+| `url-credential` | project-authored (`operational-memos.txt`) | 2 | 0 | 0 | 1.000 | 1.000 |
+| `email` | project-authored (`operational-memos.txt`) | 3 | 2 | 0 | 0.600 | 1.000 |
+| `iban` | project-authored (`operational-memos.txt`) | 4 | 0 | 0 | 1.000 | 1.000 |
+| `imei` | project-authored (`operational-memos.txt`) | 3 | 0 | 2 | 1.000 | 0.600 |
+| `card` | project-authored (`operational-memos.txt`) | 4 | 2 | 0 | 0.667 | 1.000 |
+| `btc-address` | adapted spec (`bip-173-350.txt`, BSD-2-Clause vectors) | 8 | 0 | 0 | 1.000 | 1.000 |
+| `eth-address` | adapted spec (`eip-55.txt`, CC0-1.0 vectors) | 10 | 0 | 0 | 1.000 | 1.000 |
+| `mac` | project-authored (`operational-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
+| `ipv6` | project-authored (`operational-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
+| `ipv4` | project-authored (`operational-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
+| `us-ssn` | project-authored (`operational-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
+| `us-itin` | project-authored (`operational-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
+| `uk-nhs` | project-authored (`operational-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
+| `de-steuer-id` | project-authored (`operational-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
+| `ca-sin` | project-authored (`operational-memos.txt`) | 3 | 0 | 1 | 1.000 | 0.750 |
+| `aba-routing` | project-authored (`operational-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
+| `phone` (MASC only) | third-party human-written (`masc-*.escaped`, CC BY 3.0 US) | 10 | 1 | 2 | 0.909 | 0.833 |
+| `phone` (all) | third-party MASC (`12`) + project-authored (`3`) | 13 | 5 | 2 | 0.722 | 0.867 |
+| **all kinds** | **mixed (`12` MASC + `18` adapted spec + `57` project-authored)** | **82** | **9** | **5** | **0.901** | **0.943** |
 
 What the false positives and misses are:
 

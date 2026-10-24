@@ -324,13 +324,13 @@ const HUMAN_DOCS: [(&str, bool, &str, &str); 8] = [
         "masc-lsc-access.escaped",
         "ec16a1e1e8d0deca3db0d6e25800e815e518441c29b7187b4bed6fd2773275f3",
     ),
-    ("eip-55", false, "eip-55.txt", "99d519e93281cb8634d25262f7bd230f9deb68f5d54e3cf0e990acecc27ca666"),
-    ("bip-173-350", false, "bip-173-350.txt", "1aebb37a80e7c451b85ee5c611c4267964d7d7c1d77f3f5bfaa7ae92c2b2359a"),
+    ("eip-55", false, "eip-55.txt", "5359191d91cf2c6e707bc4a790ef90155da0499e788b386805ba10022ef6b848"),
+    ("bip-173-350", false, "bip-173-350.txt", "a8d1e9b7621ff57df9a51e67fe636cd08cd7bd14ed1ef7014473a0402a9d14ae"),
     (
         "operational-memos",
         false,
         "operational-memos.txt",
-        "aa4d465ba9de775c575090984359a19f50308c2b88e5634a87cde0f803d907a9",
+        "260fc461b579030279741b25a1b1c7f03c4fa5c3929fb5585bf12ee38dc3fe9c",
     ),
 ];
 

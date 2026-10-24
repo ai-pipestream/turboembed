@@ -1,7 +1,7 @@
 # Operational, financial, network, compliance, clinical, and device memos
 # Licence: Apache-2.0 (repository licence)
-# All identifiers are official specification test vectors or reserved
-# documentation ranges (RFC 2606, RFC 3849, RFC 5737, RFC 7042, RFC 7519,
+# Identifiers are specification test vectors, documentation ranges, or
+# synthetic specimens (RFC 2606, RFC 3849, RFC 5737, RFC 7042, RFC 7519,
 # ISO 13616, Federal Reserve, PCI test cards, NHS 999/943 test numbers,
 # CRA specimen SINs, BZSt test Steuer-IDs, IRS ITIN / SSA
 # specimens, GSMA test IMEIs, Ofcom / NANPA drama phone ranges).

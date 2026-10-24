@@ -1,6 +1,6 @@
-BIP-173 and BIP-350: Bech32 and Bech32m Segregated Witness Addresses
-Authors: Pieter Wuille, Greg Maxwell
-Licence: BSD-2-Clause (https://opensource.org/licenses/BSD-2-Clause)
+BIP-173 / BIP-350: Bech32 & Bech32m SegWit Addresses (adapted)
+Source authors: Pieter Wuille, Greg Maxwell
+Source licence: BSD-2-Clause (opensource.org/licenses/BSD-2-Clause)
 Source: https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki
         https://github.com/bitcoin/bips/blob/master/bip-0350.mediawiki
 
