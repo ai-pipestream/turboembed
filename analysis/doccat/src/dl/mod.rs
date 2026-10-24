@@ -31,9 +31,11 @@
 //!   and `Categories<L>` (`turbo:categories<L>`).
 
 mod annotate;
+mod batch;
 mod config;
 mod options;
 mod scoring;
+mod units;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::{self, Write as _};

@@ -1,5 +1,30 @@
 use super::*;
 impl Encoder {
+    #[cfg(test)]
+    pub(crate) fn run_counts(&self) -> (usize, usize) {
+        self.runs
+    }
+
+    /// Reserve output rows for retaining every token of a batch of windows.
+    /// The model and numerical settings are retained; replace the session only
+    /// when its output buffer is too small. Failure leaves the old session live.
+    pub(crate) fn reserve_token_ranges(&mut self) -> Result<(), Error> {
+        let needed = self.info.max_batch.saturating_mul(self.info.max_seq);
+        if self.info.max_ranges >= needed {
+            return Ok(());
+        }
+        let mut desc = self.desc;
+        desc.max_ranges = needed;
+        let mut replacement = ptr::null_mut();
+        let mut err = new_error();
+        check(unsafe { turbo_session_create(self.model, &desc, &mut replacement, &mut err) }, &err)?;
+        unsafe { turbo_session_release(self.session) };
+        self.session = replacement;
+        self.desc = desc;
+        self.info.max_ranges = needed;
+        Ok(())
+    }
+
     /// Late pooling: `rows` encoded once and, into `out`, the mean of the
     /// encoder's final states over each range's tokens, neither cut nor
     /// normalized: `[ranges.len(), dim]` values. A caller that wants unit
@@ -11,6 +36,11 @@ impl Encoder {
             turbo_embed_write_ranges(self.session, &rows.batch(), ranges.as_ptr(), ranges.len() as u32, &o, &mut err)
         };
         check(rc, &err).map_err(|x| needs_range_write(x, &self.info.execution.backend))?;
+        #[cfg(test)]
+        {
+            self.runs.0 += 1;
+            self.runs.1 += rows.len() as usize;
+        }
         self.run(ranges.len() as u32, out)
     }
 
