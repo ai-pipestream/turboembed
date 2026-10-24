@@ -5,9 +5,8 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use turbo_analysis::{Annotator, Error, ModelRef, Refs, View};
-use turbo_analysis_layers::{Lemmas, PosTags, Strs, Tokens};
-use turbo_maxent::sha256;
+pub use crate::lemmatizer::MorfologikLemmatizer;
+use turbo_analysis::ModelRef;
 use turbo_sequence::SequenceValidator;
 use turbo_unicode::java::to_lowercase;
 
@@ -15,7 +14,7 @@ use crate::encoding::{decode_base_form, encode_base_form};
 use crate::error::MorfologikError;
 use crate::fsa::{FsaReader, MAGIC, VERSION_FSA5};
 use crate::metadata::MorfologikMetadata;
-use crate::reader::{NOT_FOUND, index_of};
+use crate::reader::index_of;
 
 /// One morphological entry returned by [`MorfologikDictionary::lookup`]
 /// (`morfologik.stemming.WordData`).
@@ -39,6 +38,45 @@ pub struct MorfologikDictionary {
 }
 
 impl MorfologikDictionary {
+    /// First matching lemma in automaton order, without collecting WordData
+    /// records or copying the query and POS labels for every candidate.
+    pub fn first_lemma(&self, raw_word: &str, postag: &str) -> Option<String> {
+        use crate::charset::DictionaryCharset;
+        use std::borrow::Cow;
+        let converted = self.metadata.input_conversion.apply_cow(Cow::Borrowed(raw_word));
+        let encode = |s: &str| self.metadata.charset.encode(s).ok();
+        let word = if self.metadata.charset == DictionaryCharset::Utf8 {
+            Cow::Borrowed(converted.as_bytes())
+        } else {
+            Cow::Owned(encode(&converted)?)
+        };
+        let tag = if self.metadata.charset == DictionaryCharset::Utf8 {
+            Cow::Borrowed(postag.as_bytes())
+        } else {
+            Cow::Owned(encode(postag)?)
+        };
+        let separator = self.metadata.separator;
+        if word.contains(&separator) || tag.is_empty() {
+            return None;
+        }
+        let mut found = None;
+        self.fsa.lookup_with_separator(&word, separator, |suffix| {
+            if found.is_some() {
+                return;
+            }
+            let Some(sep) = index_of(suffix, separator, self.metadata.encoder.control_bytes()) else {
+                return;
+            };
+            if suffix[sep + 1..] != *tag {
+                return;
+            }
+            if let Ok(base) = decode_base_form(&word, &suffix[..sep], self.metadata.encoder) {
+                found = self.metadata.charset.decode(&base).ok();
+            }
+        });
+        found
+    }
+
     /// Reads a `.dict` file and its sibling `.info` metadata file from disk.
     pub fn read(dict_path: impl AsRef<Path>) -> Result<Self, MorfologikError> {
         let dict_path = dict_path.as_ref();
@@ -58,7 +96,7 @@ impl MorfologikDictionary {
         let model_ref = ModelRef {
             id: "opennlp:MorfologikDictionary".to_owned(),
             revision: String::new(),
-            sha256: sha256(dict_bytes).to_hex(),
+            sha256: crate::identity::digest(&[dict_bytes, info_bytes]),
         };
         Ok(Self { fsa, metadata, model_ref })
     }
@@ -73,7 +111,7 @@ impl MorfologikDictionary {
         &self.fsa
     }
 
-    /// Provenance reference for this dictionary.
+    /// Provenance reference, hashing both the automaton and its metadata.
     pub fn model_ref(&self) -> &ModelRef {
         &self.model_ref
     }
@@ -127,105 +165,6 @@ impl MorfologikDictionary {
             results.push(WordData { word: converted.clone(), stem, tag });
         });
         results
-    }
-}
-
-/// Lemmatizer backed by a [`MorfologikDictionary`], ported from
-/// `opennlp.morfologik.lemmatizer.MorfologikLemmatizer`.
-#[derive(Debug, Clone)]
-pub struct MorfologikLemmatizer {
-    dictionary: Arc<MorfologikDictionary>,
-}
-
-impl MorfologikLemmatizer {
-    /// Initializes a `MorfologikLemmatizer` from a `.dict` path and its sibling `.info` file.
-    pub fn read(dict_path: impl AsRef<Path>) -> Result<Self, MorfologikError> {
-        Ok(Self::new(Arc::new(MorfologikDictionary::read(dict_path)?)))
-    }
-
-    /// Initializes a `MorfologikLemmatizer` from `.dict` and `.info` bytes.
-    pub fn from_bytes(dict_bytes: &[u8], info_bytes: &[u8]) -> Result<Self, MorfologikError> {
-        Ok(Self::new(Arc::new(MorfologikDictionary::from_bytes(dict_bytes, info_bytes)?)))
-    }
-
-    /// Initializes a `MorfologikLemmatizer` from an existing [`MorfologikDictionary`].
-    pub fn new(dictionary: Arc<MorfologikDictionary>) -> Self {
-        Self { dictionary }
-    }
-
-    /// Returns all distinct lemmas for `(word, postag)`, lowercasing `word` with
-    /// `Locale.ROOT` (`turbo_unicode::java::to_lowercase`).
-    pub fn lemmas_for(&self, word: &str, postag: &str) -> Vec<String> {
-        let mut lower = String::with_capacity(word.len());
-        to_lowercase(word, &mut lower);
-        let mut lemmas = Vec::new();
-        for data in self.dictionary.lookup(&lower) {
-            if data.tag.as_deref() == Some(postag) && !lemmas.contains(&data.stem) {
-                lemmas.push(data.stem);
-            }
-        }
-        lemmas
-    }
-
-    /// `MorfologikLemmatizer.lemmatize(String[] toks, String[] tags)`: returns `Some(lemma)`
-    /// for each token and tag, or `None` (`null` in Java) when no lemma matches.
-    pub fn lemmatize<S1: AsRef<str>, S2: AsRef<str>>(&self, tokens: &[S1], tags: &[S2]) -> Vec<Option<String>> {
-        assert_eq!(tokens.len(), tags.len(), "tokens and tags must have the same length");
-        tokens
-            .iter()
-            .zip(tags.iter())
-            .map(|(tok, tag)| self.lemmas_for(tok.as_ref(), tag.as_ref()).into_iter().next())
-            .collect()
-    }
-
-    /// `MorfologikLemmatizer.lemmatize(List<String> toks, List<String> tags)`: returns
-    /// the list of distinct lemmas for each token and tag (empty `Vec` on a miss).
-    pub fn lemmatize_all<S1: AsRef<str>, S2: AsRef<str>>(&self, tokens: &[S1], tags: &[S2]) -> Vec<Vec<String>> {
-        assert_eq!(tokens.len(), tags.len(), "tokens and tags must have the same length");
-        tokens.iter().zip(tags.iter()).map(|(tok, tag)| self.lemmas_for(tok.as_ref(), tag.as_ref())).collect()
-    }
-}
-
-impl Annotator for MorfologikLemmatizer {
-    const ID: &'static str = "turbo-morfologik:lemmatizer";
-    type Reads = (View, Tokens, PosTags);
-    type Writes = (Lemmas,);
-
-    fn annotate(&self, (view, tokens, tags): Refs<'_, Self>) -> Result<(Lemmas,), Error> {
-        if tokens.spans.view() != view.id() {
-            return Err(Error::Annotator {
-                annotator: Self::ID,
-                detail: format!(
-                    "the tokens are in view {}, not in view {} that is lemmatized",
-                    tokens.spans.view().0,
-                    view.id().0
-                ),
-            });
-        }
-        if tokens.spans.len() != tags.tags.len() {
-            return Err(Error::Annotator {
-                annotator: Self::ID,
-                detail: format!("{} tokens but {} POS tags", tokens.spans.len(), tags.tags.len()),
-            });
-        }
-        let text = view.text();
-        let mut out = Strs::default();
-        for ((_, span), &tag) in tokens.spans.iter().zip(&tags.tags) {
-            let word = text.get(span.start as usize..span.end as usize).ok_or_else(|| Error::Annotator {
-                annotator: Self::ID,
-                detail: format!("token span {}..{} out of bounds", span.start, span.end),
-            })?;
-            let pos = tags.tagset.label(tag);
-            match self.lemmas_for(word, pos).first() {
-                Some(lemma) => out.push(lemma),
-                None => out.push(NOT_FOUND),
-            }
-        }
-        Ok((Lemmas { lemma: out },))
-    }
-
-    fn model(&self) -> Option<ModelRef> {
-        Some(self.dictionary.model_ref().clone())
     }
 }
 
