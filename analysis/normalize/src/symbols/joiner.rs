@@ -1,7 +1,7 @@
 //! `SymbolJoiner`: joins multi-token symbol sequences from a table and
 //! applies the ten-symbol word map to standalone symbol tokens.
 
-use turbo_analysis::{Annotator, Error, Refs, Span, Spans, View, ViewBuilder};
+use turbo_analysis::{Annotator, Error, Layer, Refs, Span, Spans, View, ViewBuilder};
 use turbo_analysis_layers::Tokens;
 
 use super::whole_symbol_word;
@@ -182,21 +182,17 @@ impl SymbolJoiner {
             });
         }
         let text = src.text();
+        let invalid = |detail| Error::Annotator { annotator: Self::ID, detail };
+        tokens.check().map_err(invalid)?;
+        for (ix, span) in tokens.spans.iter() {
+            if tokens.spans.is_discontinuous(ix) {
+                return Err(invalid(format!("token {ix:?} must be contiguous")));
+            }
+            if text.get(span.range()).is_none() {
+                return Err(invalid(format!("token {ix:?} must be a UTF-8 span within the view")));
+            }
+        }
         let raw: Vec<Span> = tokens.spans.iter().map(|(_, s)| s).collect();
-        if let Some(&oob) = raw.iter().find(|s| s.start > s.end || s.end as usize > text.len()) {
-            return Err(Error::Annotator {
-                annotator: Self::ID,
-                detail: format!("token span {}..{} out of bounds for {}-byte view", oob.start, oob.end, text.len()),
-            });
-        }
-        if let Some(ref sent) = tokens.sentence
-            && sent.len() != raw.len()
-        {
-            return Err(Error::Annotator {
-                annotator: Self::ID,
-                detail: format!("tokens has {} spans but {} sentence indices", raw.len(), sent.len()),
-            });
-        }
         let mut joined_spans = Spans::new(src.id());
         let mut joined_sent = tokens.sentence.as_ref().map(|s| Vec::with_capacity(s.len()));
         let mut i = 0;
@@ -247,6 +243,7 @@ impl SymbolJoiner {
 
 impl Annotator for SymbolJoiner {
     const ID: &'static str = "turbo:normalize:symbol-joiner";
+    const VERSION: &'static str = "3";
     type Reads = (View, Tokens);
     type Writes = (View, Tokens);
 
@@ -262,7 +259,12 @@ impl Annotator for SymbolJoiner {
             .filter_map(|(_, s)| whole_symbol_word(&text[s.range()]).map(|w| (s.start as usize, s.end as usize, w)))
             .collect();
         symbols.sort_unstable_by_key(|&(start, _, _)| start);
-        symbols.dedup_by_key(|&mut (start, _, _)| start);
+        if symbols.windows(2).any(|pair| pair[0].1 > pair[1].0) {
+            return Err(Error::Annotator {
+                annotator: Self::ID,
+                detail: "symbol replacement spans must not overlap".into(),
+            });
+        }
         let mut out = ViewBuilder::new(text);
         for (start, end, word) in symbols {
             out.keep(start);
