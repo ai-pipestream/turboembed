@@ -13,7 +13,9 @@
 //! `UnicodeScript.of`.
 
 pub mod code_point;
+mod strings;
 mod word_classes;
+pub use strings::is_blank;
 
 use crate::ascii::push_lowercase_run;
 use crate::category::{GeneralCategory, general_category};
