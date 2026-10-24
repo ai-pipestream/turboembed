@@ -123,7 +123,14 @@ fn trained_here(id: &str) -> bool {
 
 /// The published neural checkpoints the index lists (docs/licences.md,
 /// "Neural annotator checkpoints"): permissive, so nothing to accept.
-const CHECKPOINTS: [&str; 2] = ["fastino-gliner2-base-v1", "microsoft-deberta-v3-large-tokenizer"];
+const CHECKPOINTS: [&str; 6] = [
+    "fastino-gliner2-base-v1",
+    "microsoft-deberta-v3-large-tokenizer",
+    "urchade-gliner-small-v2.1",
+    "microsoft-deberta-v3-small-tokenizer",
+    "urchade-gliner-multi-v2.1",
+    "microsoft-mdeberta-v3-base-tokenizer",
+];
 
 /// The local-only checkpoints the index lists: fetched only for a user
 /// who has accepted their licence.
@@ -223,6 +230,66 @@ fn the_gliner2_checkpoint_is_pinned_and_permissive() {
     for f in &a.files {
         let url = format!("https://huggingface.co/fastino/gliner2-base-v1/resolve/{revision}/{}", f.path.as_str());
         assert_eq!(f.url.as_str(), url);
+    }
+}
+
+#[test]
+fn the_gliner_v2_1_checkpoints_and_tokenizers_are_pinned_and_permissive() {
+    let index = Index::builtin();
+    for (id, repo, rev, format, licence, lang, files) in [
+        (
+            "urchade-gliner-small-v2.1",
+            "urchade/gliner_small-v2.1",
+            "4e091416cf7c3481db542c2a3d26156916f3a47f",
+            Format::Pytorch,
+            Licence::Apache2,
+            "en",
+            &["pytorch_model.bin", "gliner_config.json"][..],
+        ),
+        (
+            "microsoft-deberta-v3-small-tokenizer",
+            "microsoft/deberta-v3-small",
+            "a36c739020e01763fe789b4b85e2df55d6180012",
+            Format::Sentencepiece,
+            Licence::Mit,
+            "en",
+            &["spm.model", "config.json"][..],
+        ),
+        (
+            "urchade-gliner-multi-v2.1",
+            "urchade/gliner_multi-v2.1",
+            "443d26d654e0324125a96bebd8e796c14ff2efe6",
+            Format::Safetensors,
+            Licence::Apache2,
+            "mul",
+            &["model.safetensors", "gliner_config.json"][..],
+        ),
+        (
+            "microsoft-mdeberta-v3-base-tokenizer",
+            "microsoft/mdeberta-v3-base",
+            "a0484667b22365f84929a935b5e50a51f71f159d",
+            Format::Sentencepiece,
+            Licence::Mit,
+            "mul",
+            &["spm.model", "config.json"][..],
+        ),
+    ] {
+        let a = index.get(id).unwrap();
+        assert_eq!((a.kind, a.format, a.license, a.class), (Kind::Model, format, licence, LicenceClass::Permissive));
+        assert_eq!(a.language.as_ref().map(|l| l.as_str()), Some(lang));
+        assert_eq!(a.version, rev);
+        let notice = a.attribution.as_deref().unwrap();
+        assert!(notice.contains(repo) && notice.contains(rev));
+        for source in &a.trained_on {
+            assert!(notice.contains(&source.name));
+            assert!(notice.contains(source.license_terms.as_str()));
+        }
+        let paths: Vec<&str> = a.files.iter().map(|f| f.path.as_str()).collect();
+        assert_eq!(paths, files);
+        for f in &a.files {
+            assert_eq!(f.url.as_str(), format!("https://huggingface.co/{repo}/resolve/{rev}/{}", f.path.as_str()));
+        }
+        assert!(a.licences_to_accept(Policy::default()).is_empty());
     }
 }
 
