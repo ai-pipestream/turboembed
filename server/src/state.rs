@@ -3,13 +3,13 @@
 //! and remove entries, and every listing reads the current list.
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
 use tokio::sync::watch;
 use turbo::{
     TURBO_DTYPE_I32, TURBO_PLACE_PINNED, TURBO_TASK_EMBED, TURBO_TASK_EXTRACTIVE_QA, TURBO_TASK_RERANK,
-    turbo_session_desc, turbo_session_info,
+    turbo_model_info, turbo_session_desc, turbo_session_info,
 };
 
 use crate::api::{self, *};
@@ -28,7 +28,15 @@ pub(crate) struct Slot {
     /// turbo_session_get_info, read once at load: it is fixed at
     /// turbo_session_create.
     pub(crate) info: turbo_session_info,
+    pub(crate) desc: turbo_session_desc,
+    pub(crate) max_ranges: AtomicU32,
     pub(crate) session: Session,
+}
+
+impl Slot {
+    pub(crate) fn max_ranges(&self) -> u32 {
+        self.max_ranges.load(Ordering::Acquire)
+    }
 }
 
 // The pointers are into the slot's own buffers, written only by the request
@@ -39,6 +47,9 @@ unsafe impl Sync for Slot {}
 /// A loaded model and its sessions, dropped sessions first, then the model.
 pub(crate) struct Loaded {
     pub(crate) slots: Vec<Slot>,
+    pub(crate) bundle: String,
+    pub(crate) model_info: turbo_model_info,
+    pub(crate) embed: OnceLock<api::Result<crate::tasks::EmbedModel>>,
     pub(crate) qa: Option<crate::tasks::QaModel>,
     pub(crate) model: Model,
     pub(crate) task: u32,
@@ -49,8 +60,8 @@ pub(crate) struct Loaded {
 
 /// A session taken from its model's pool, returned when this is dropped.
 pub struct Held {
-    loaded: Arc<Loaded>,
-    index: usize,
+    pub(crate) loaded: Arc<Loaded>,
+    pub(crate) index: usize,
 }
 
 impl Held {
@@ -345,6 +356,7 @@ impl State {
         for _ in 0..c.sessions {
             let session = model.session(&desc).map_err(fail("turbo_session_create", &SESSION_DESC))?;
             let si = session.info().map_err(fail("turbo_session_get_info", &[]))?;
+            let slot_ranges = if desc.max_ranges == 0 { si.max_batch } else { desc.max_ranges };
             let alloc = || {
                 let b = ctx
                     .alloc(TURBO_PLACE_PINNED, TURBO_DTYPE_I32, si.max_batch, si.max_seq)
@@ -353,10 +365,28 @@ impl State {
                 Ok::<_, String>((b, p))
             };
             let ((ids, a), (mask, b), (types, t)) = (alloc()?, alloc()?, alloc()?);
-            slots.push(Slot { _buffers: [ids, mask, types], ptrs: [a, b, t], info: si, session });
+            slots.push(Slot {
+                _buffers: [ids, mask, types],
+                ptrs: [a, b, t],
+                info: si,
+                desc,
+                max_ranges: AtomicU32::new(slot_ranges),
+                session,
+            });
         }
         let idle = Mutex::new((0..slots.len()).rev().collect());
-        let loaded = Loaded { slots, qa, model, task: info.task, device, revision: api::field(&info.revision), idle };
+        let loaded = Loaded {
+            slots,
+            bundle: c.bundle.clone(),
+            model_info: info,
+            embed: OnceLock::new(),
+            qa,
+            model,
+            task: info.task,
+            device,
+            revision: api::field(&info.revision),
+            idle,
+        };
         // The caller holds the loading mutex: no other load can have set
         // this entry's load.
         let _ = m.loaded.set(Arc::new(loaded));
@@ -426,68 +456,4 @@ pub(crate) fn properties(state: &State, loaded: &Loaded) -> api::Result<HashMap<
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::config::Device;
-
-    fn config(name: &str) -> ModelConfig {
-        ModelConfig {
-            bundle: format!("b/{name}"),
-            name: Some(name.into()),
-            device: Device::Index(0),
-            precision: 0,
-            max_batch: 0,
-            max_seq: 0,
-            sessions: 1,
-        }
-    }
-
-    /// The error of a refused registration.
-    fn refused(r: api::Result<Arc<Served>>) -> Failure {
-        match r {
-            Err(e) => e,
-            Ok(_) => panic!("a capped registration was accepted"),
-        }
-    }
-
-    #[test]
-    fn registration_is_capped_with_the_limit_named() {
-        let state = State::new(vec!["base".into()], vec![config("base")]);
-        for k in 0..MAX_LOADED_MODELS - 1 {
-            state.add(format!("m{k}"), config(&format!("m{k}"))).unwrap();
-        }
-        let e = refused(state.add("one-more".into(), config("one-more")));
-        assert_eq!(e.code, TURBO_E_CAPACITY);
-        assert!(e.message.contains("max_loaded_models"), "{e:?}");
-        // The base model still serves.
-        assert!(state.peek("base").is_ok());
-    }
-
-    #[test]
-    fn rollback_removes_only_the_exact_registration() {
-        let state = State::new(Vec::new(), Vec::new());
-        let a = state.add("x".into(), config("x")).unwrap();
-        // A same-named registration is a different identity: rolling
-        // back against it must not remove the live one.
-        state.remove("x").unwrap();
-        let b = state.add("x".into(), config("x")).unwrap();
-        assert!(!Arc::ptr_eq(&a, &b));
-        state.remove_if(&a).unwrap();
-        assert!(state.peek("x").is_ok(), "the replacement registration stands");
-        assert!(Arc::ptr_eq(&state.peek("x").unwrap().0, &b));
-        // Rolling back the live one removes it.
-        state.remove_if(&b).unwrap();
-        assert!(state.peek("x").is_err());
-        // Rolling back what is already gone is not an error.
-        state.remove_if(&b).unwrap();
-    }
-
-    #[test]
-    fn peek_returns_the_registration_without_cloning_the_name() {
-        let state = State::new(vec!["x".into()], vec![config("x")]);
-        let (m, loaded) = state.peek("x").unwrap();
-        assert_eq!(m.name, "x");
-        assert!(loaded.is_none(), "nothing is loaded yet; ready() reports that on the same path");
-        assert!(state.ready("x", "").is_err());
-    }
-}
+mod tests;
