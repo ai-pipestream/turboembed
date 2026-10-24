@@ -24,9 +24,9 @@ use crate::proto::result::StreamLimits;
 use crate::status::to_status;
 use crate::stream::run::Doc;
 
-/// The batching key: the load's identity, then the options. Documents
-/// batch together only under one key.
-pub(crate) type BatchKey = (usize, u32, u32, u32, u32, u32, u32);
+/// The batching key: the load's identity, output kind, offset mode, and
+/// options. Documents batch together only under one key.
+pub(crate) type BatchKey = (usize, i32, i32, u32, u32, u32, u32, u32, u32, u32, u32, u32);
 
 /// What the reader hands the engine for one stream message: an
 /// admitted document holding its queue room, a document that failed
