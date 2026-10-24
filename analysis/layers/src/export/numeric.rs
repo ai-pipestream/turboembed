@@ -218,7 +218,13 @@ impl LayerCodec for Pii {
         let mut w = Writer::new();
         put_spans(&mut w, &self.spans, cx)?;
         w.usize(self.kind.len())?;
-        for k in &self.kind {
+        for &k in &self.kind {
+            if let PiiKind::Custom(name) = k
+                && (name.is_empty() || name.len() > PiiKind::MAX_CUSTOM_NAME_BYTES || PiiKind::parse(name).is_some())
+            {
+                return Err(malformed(format!("invalid custom pii kind {name:?}")));
+            }
+            PiiKind::remember_custom(k);
             w.str(k.name())?;
         }
         put_variants(&mut w, &PII_CONFIDENCES, &self.confidence)?;
@@ -232,10 +238,8 @@ impl LayerCodec for Pii {
         for _ in 0..r.usize()? {
             let name = r.string()?;
             kind.push(
-                PiiKind::ALL
-                    .iter()
-                    .copied()
-                    .find(|k| k.name() == name)
+                PiiKind::parse(&name)
+                    .or_else(|| PiiKind::intern_custom(&name))
                     .ok_or_else(|| malformed(format!("an unknown pii kind {name:?}")))?,
             );
         }

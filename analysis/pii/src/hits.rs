@@ -4,10 +4,165 @@
 //! longer candidate is dropped; OpenNLP parity mode keeps it.
 
 use std::cmp::Reverse;
+use std::fmt;
 use std::ops::Range;
 
 use turbo_analysis::Span;
 use turbo_analysis_layers::{Pii, PiiConfidence, PiiKind, PiiMention};
+
+/// Why a candidate handed to [`PiiSink`] was refused.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SinkError {
+    /// The span is empty, past the end of the text, or not on UTF-8
+    /// character boundaries.
+    Span(Span),
+    /// The kind name is empty.
+    EmptyKind,
+    /// A [`PiiKind::Custom`] name is longer than [`PiiKind::MAX_CUSTOM_NAME_BYTES`].
+    KindTooLong(&'static str),
+    /// A [`PiiKind::Custom`] uses one of the reserved built-in kind names.
+    ReservedKind(&'static str),
+    /// The normalized form is empty.
+    EmptyValue(Span),
+}
+
+impl fmt::Display for SinkError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            SinkError::Span(s) => write!(f, "the span {}..{} is not a non-empty range of the text", s.start, s.end),
+            SinkError::EmptyKind => f.write_str("the pii kind name must not be empty"),
+            SinkError::KindTooLong(name) => {
+                write!(f, "custom pii kind {name:?} is {} bytes (max {})", name.len(), PiiKind::MAX_CUSTOM_NAME_BYTES)
+            }
+            SinkError::ReservedKind(name) => {
+                write!(f, "custom pii kind {name:?} uses a reserved built-in kind name")
+            }
+            SinkError::EmptyValue(s) => {
+                write!(f, "candidate at {}..{} has an empty normalized form", s.start, s.end)
+            }
+        }
+    }
+}
+
+impl std::error::Error for SinkError {}
+
+/// Candidate sink passed to a [`crate::CustomExtractor`] during scanning.
+pub struct PiiSink<'a> {
+    text: &'a str,
+    hits: &'a mut Hits,
+}
+
+impl<'a> PiiSink<'a> {
+    pub(crate) fn new(text: &'a str, hits: &'a mut Hits) -> PiiSink<'a> {
+        PiiSink { text, hits }
+    }
+
+    /// The source text being scanned.
+    pub const fn text(&self) -> &'a str {
+        self.text
+    }
+
+    fn check_span(&self, span: Span, kind: PiiKind) -> Result<(usize, usize), SinkError> {
+        if kind.name().is_empty() {
+            return Err(SinkError::EmptyKind);
+        }
+        if let PiiKind::Custom(name) = kind {
+            if name.len() > PiiKind::MAX_CUSTOM_NAME_BYTES {
+                return Err(SinkError::KindTooLong(name));
+            }
+            if PiiKind::parse(name).is_some() {
+                return Err(SinkError::ReservedKind(name));
+            }
+        }
+        let (start, end) = (span.start as usize, span.end as usize);
+        if start >= end
+            || end > self.text.len()
+            || !self.text.is_char_boundary(start)
+            || !self.text.is_char_boundary(end)
+        {
+            return Err(SinkError::Span(span));
+        }
+        Ok((start, end))
+    }
+
+    /// Appends a candidate whose normalized form is `normalized`, after
+    /// verifying that `span` is a non-empty character-boundary range of
+    /// [`PiiSink::text`] and `normalized` and `kind.name()` are non-empty.
+    pub fn try_add(
+        &mut self,
+        span: Span,
+        kind: PiiKind,
+        confidence: PiiConfidence,
+        normalized: &str,
+    ) -> Result<(), SinkError> {
+        let (start, end) = self.check_span(span, kind)?;
+        if normalized.is_empty() {
+            return Err(SinkError::EmptyValue(span));
+        }
+        PiiKind::remember_custom(kind);
+        self.hits.add(start, end, kind, confidence, |s| s.push_str(normalized));
+        Ok(())
+    }
+
+    /// Appends a candidate whose normalized form is `normalized`.
+    ///
+    /// # Panics
+    ///
+    /// When [`PiiSink::try_add`] would return an error.
+    pub fn add(&mut self, span: Span, kind: PiiKind, confidence: PiiConfidence, normalized: &str) {
+        self.try_add(span, kind, confidence, normalized).expect("valid candidate mention");
+    }
+
+    /// Appends a candidate whose normalized form is the covered slice of
+    /// [`PiiSink::text`].
+    pub fn try_add_text(&mut self, span: Span, kind: PiiKind, confidence: PiiConfidence) -> Result<(), SinkError> {
+        let (start, end) = self.check_span(span, kind)?;
+        PiiKind::remember_custom(kind);
+        self.hits.add_text(self.text, start, end, kind, confidence);
+        Ok(())
+    }
+
+    /// Appends a candidate whose normalized form is the covered slice of
+    /// [`PiiSink::text`].
+    ///
+    /// # Panics
+    ///
+    /// When [`PiiSink::try_add_text`] would return an error.
+    pub fn add_text(&mut self, span: Span, kind: PiiKind, confidence: PiiConfidence) {
+        self.try_add_text(span, kind, confidence).expect("valid candidate mention");
+    }
+
+    /// Appends a candidate whose normalized form `write` writes into the
+    /// shared candidate buffer without allocating a temporary `String`.
+    pub fn try_add_with(
+        &mut self,
+        span: Span,
+        kind: PiiKind,
+        confidence: PiiConfidence,
+        write: impl FnOnce(&mut String),
+    ) -> Result<(), SinkError> {
+        let (start, end) = self.check_span(span, kind)?;
+        let from = self.hits.buf.len() as u32;
+        write(&mut self.hits.buf);
+        let to = self.hits.buf.len() as u32;
+        if from == to {
+            return Err(SinkError::EmptyValue(span));
+        }
+        PiiKind::remember_custom(kind);
+        self.hits.hits.push(Hit { start: start as u32, end: end as u32, kind, confidence, normalized: from..to });
+        Ok(())
+    }
+
+    /// Appends a candidate whose normalized form `write` writes into the
+    /// shared candidate buffer.
+    ///
+    /// # Panics
+    ///
+    /// When [`PiiSink::try_add_with`] would return an error.
+    pub fn add_with(&mut self, span: Span, kind: PiiKind, confidence: PiiConfidence, write: impl FnOnce(&mut String)) {
+        self.try_add_with(span, kind, confidence, write).expect("valid candidate mention");
+    }
+}
 
 /// One candidate, with its normalized form as a range of the shared
 /// buffer.
