@@ -51,6 +51,7 @@ fn term_counter_skips_the_gap_of_a_discontinuous_chunk() {
             cost: vec![0],
             model_tokens: vec![4],
             over_budget: vec![false],
+            prompt_overhead: 0,
         },
         by,
     )
@@ -91,6 +92,7 @@ fn facets_stay_in_their_clause_chunk() {
             cost: vec![0, 1],
             model_tokens: vec![3, 3],
             over_budget: vec![false, false],
+            prompt_overhead: 0,
         },
         by.clone(),
     )
