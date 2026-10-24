@@ -372,10 +372,44 @@ conformance results below.
 - From ICU's suppressions: they are applied to the word before any full
   stop that UAX #29 breaks after, and a sentence starter after the
   abbreviation restores the break in English; ICU has no starters.
-- Thai, Lao, Khmer and other languages written without sentence
-  punctuation get one sentence per paragraph: UAX #29 has nothing to
-  break at, and there is no rule here that finds sentence ends in
-  unpunctuated text.
+- Without a fallback model, Thai, Lao, Khmer and other scripts written
+  without sentence-ending punctuation get one sentence per paragraph:
+  UAX #29 has nothing to break at, and there is no character rule that
+  finds sentence ends in unpunctuated text. When an
+  `UnpunctuatedSplitter` fallback (`analysis/sentdetect/src/rules/fallback.rs`)
+  such as `turbo_sat::SatAnnotator` (`analysis/sat/src/fallback.rs`,
+  `rule_splitter_with_sat`, `rule_detector_with_sat`) is attached via
+  `RuleSplitter::with_unpunctuated_fallback` or
+  `RuleSentenceDetector::with_unpunctuated_fallback`, the rule splitter
+  first runs UAX #29 and language tailorings, then routes any candidate
+  sentence span that contains `Thai`, `Lao` or `Khmer` characters and is
+  not already terminated by a Khmer full stop (`U+17D4` KHAN or `U+17D5`
+  BARIYOOSAN) through the SaT fallback in a single batch across the
+  document or batch of documents, validating, trimming and shifting the
+  resulting sub-spans back into document byte offsets.
+
+**Unpunctuated script evaluation (`analysis/sat/tests/unpunctuated_eval.rs`).**
+Evaluated on 200 five-sentence paragraphs (1,000 gold sentences, 800
+internal sentence boundaries per corpus) joined by single spaces with
+`split_on_newlines: false` against `segment-any-text/sat-1l-sm` (commit
+`00a783439c201b20ee91ee1624dc817f1bf0e578`): UD Thai PUD (`th_pud`,
+commit `d3735d6b7cfb2fb2bf9aa2ca5fb9ffd5fb09b011`), Khmer `khPOS` 1.0
+(commit `87a6dc83c2beee822dd8ff33ac1c0b9fd7c53eb6`, 1,000 `KAN`-terminated
+sentences evaluated both unpunctuated with `U+17D4`/`U+17D5` stripped and
+as punctuated in `khPOS`), and Lao POS (`SeqLabeling` `Lao_train.txt`,
+commit `ac2e2aa1dd6cf2eb2a3eb9d560cdbe9da8449989`):
+
+| Corpus | Detector | Gold / Pred / Match Spans | Span P | Span R | Span F1 | Gold / Pred / Match Boundaries | Boundary P | Boundary R | Boundary F1 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Thai (`th_pud`) | `rules` | 1000 / 209 / 3 | 0.014 | 0.003 | 0.005 | 800 / 9 / 4 | 0.444 | 0.005 | 0.010 |
+| Thai (`th_pud`) | `rules + sat-1l-sm` (`t = 0.25`) | 1000 / 1134 / 437 | 0.385 | 0.437 | **0.410** | 800 / 934 / 590 | 0.632 | 0.738 | **0.681** |
+| Lao (`lao_pos`) | `rules` | 1000 / 536 / 272 | 0.507 | 0.272 | 0.354 | 800 / 336 / 333 | 0.991 | 0.416 | 0.586 |
+| Lao (`lao_pos`) | `rules + sat-1l-sm` (`t = 0.25`) | 1000 / 957 / 655 | 0.684 | 0.655 | **0.669** | 800 / 757 / 652 | 0.861 | 0.815 | **0.838** |
+| Khmer unpunctuated (`khpos_unpunc`) | `rules` | 1000 / 265 / 2 | 0.008 | 0.002 | 0.003 | 800 / 65 / 3 | 0.046 | 0.004 | 0.007 |
+| Khmer unpunctuated (`khpos_unpunc`) | `rules + sat-1l-sm` (`t = 0.25`) | 1000 / 430 / 8 | 0.019 | 0.008 | **0.011** | 800 / 230 / 16 | 0.070 | 0.020 | **0.031** |
+| Khmer unpunctuated (`khpos_unpunc`) | `rules + sat-1l-sm` (`t = 0.025`) | 1000 / 1195 / 27 | 0.023 | 0.027 | **0.025** | 800 / 995 / 119 | 0.120 | 0.149 | **0.133** |
+| Khmer punctuated (`khpos_raw`) | `rules` | 1000 / 1097 / 907 | 0.827 | 0.907 | 0.865 | 800 / 897 / 777 | 0.866 | 0.971 | 0.916 |
+| Khmer punctuated (`khpos_raw`) | `rules + sat-1l-sm` (`t = 0.25`) | 1000 / 1105 / 907 | 0.821 | 0.907 | **0.862** | 800 / 905 / 777 | 0.859 | 0.971 | **0.911** |
 
 **Conformance.** `analysis/sentdetect/tests/conformance.rs` runs three detectors over three
 suites stored as typed test data in

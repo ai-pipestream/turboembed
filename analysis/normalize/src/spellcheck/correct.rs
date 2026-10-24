@@ -208,7 +208,7 @@ impl SpellCorrect {
     }
 
     fn compound(&self, text: &str, out: &mut ViewBuilder<'_>, skip: Option<&[Span]>, report: &mut Report<'_>) {
-        if text.chars().all(java::is_whitespace) {
+        if java::is_blank(text) {
             return;
         }
         let mut pieces: Vec<Piece> = Vec::new();

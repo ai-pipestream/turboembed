@@ -12,7 +12,6 @@
 //! units, as Java counts it.
 
 use turbo_analysis::Span;
-use turbo_unicode::WhitespaceMode;
 
 use crate::source::{Line, Piece};
 
@@ -25,11 +24,7 @@ const GROUP_CLOSE: u8 = b')';
 const BRACKET_OPEN: u8 = b'<';
 const BRACKET_CLOSE: u8 = b'>';
 
-/// `StringUtil.isUnicodeWhitespace`, which the parser uses whatever the
-/// whitespace mode.
-pub(crate) fn is_ws(c: char) -> bool {
-    WhitespaceMode::Unicode.is_whitespace(c as u32)
-}
+pub(crate) use turbo_unicode::props::white_space as is_ws;
 
 fn is_quote(b: u8) -> bool {
     b == b'"' || b == b'\''
