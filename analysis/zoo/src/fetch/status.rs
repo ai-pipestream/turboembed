@@ -26,6 +26,23 @@ pub(super) enum Local {
     Mismatch(ZooError),
 }
 
+/// The bytes at `path`. Windows refuses to open a file that is being
+/// deleted or replaced with access denied, so there a denied read is tried
+/// again for up to about a second, as the rename onto it is
+/// (fetch.rs); a denial that lasts longer is an error, not a missing file.
+fn read(path: &Path) -> std::io::Result<Vec<u8>> {
+    let mut tries = 0;
+    loop {
+        match fs::read(path) {
+            Err(e) if cfg!(windows) && e.kind() == std::io::ErrorKind::PermissionDenied && tries < 100 => {
+                tries += 1;
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            done => return done,
+        }
+    }
+}
+
 /// The file at `local`, checked against `file`. A symlink, or anything
 /// but a plain file, is an error: the zoo writes only plain files.
 pub(super) fn local_file(artifact: &Artifact, file: &File, local: &Path) -> Result<Local, ZooError> {
@@ -43,14 +60,9 @@ pub(super) fn local_file(artifact: &Artifact, file: &File, local: &Path) -> Resu
         Ok(_) => {
             // Another process may remove or replace the file between the
             // stat and the read; that is a missing file, not an error.
-            // Windows refuses to open a file being deleted or replaced
-            // with access denied, so there that counts as missing too.
-            let bytes = match fs::read(local) {
+            let bytes = match read(local) {
                 Ok(bytes) => bytes,
                 Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Local::Missing),
-                Err(e) if cfg!(windows) && e.kind() == std::io::ErrorKind::PermissionDenied => {
-                    return Ok(Local::Missing);
-                }
                 Err(e) => return Err(io(e.to_string())),
             };
             Ok(verify(artifact, file, &bytes).map_or_else(Local::Mismatch, |()| Local::Verified))
