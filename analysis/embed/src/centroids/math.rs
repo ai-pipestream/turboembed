@@ -43,9 +43,5 @@ pub(crate) fn argmax_tag(scores: &[f64]) -> (Tag, f64) {
 }
 
 pub(crate) fn fnv1a(bytes: &[u8]) -> u64 {
-    let mut h = 0xcbf2_9ce4_8422_2325u64;
-    for &b in bytes {
-        h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
-    }
-    h
+    turbo_analysis::fnv1a(bytes)
 }

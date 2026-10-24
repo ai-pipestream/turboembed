@@ -93,17 +93,13 @@ impl Annotator for SpanDetector {
 
     fn config_hash(&self) -> u64 {
         let s = self.settings();
-        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-        for word in [
-            s.switch.space.to_bits(),
-            s.switch.punctuation.to_bits(),
-            s.switch.sentence.to_bits(),
-            u64::from(s.clause_letters),
-            s.rescore_margin.to_bits(),
-            u64::from(s.shortlist),
-        ] {
-            h = (h ^ word).wrapping_mul(0x0000_0100_0000_01b3);
-        }
-        h
+        turbo_analysis::Fnv1a::new()
+            .f64(s.switch.space)
+            .f64(s.switch.punctuation)
+            .f64(s.switch.sentence)
+            .u32(s.clause_letters)
+            .f64(s.rescore_margin)
+            .bool(s.shortlist)
+            .finish()
     }
 }

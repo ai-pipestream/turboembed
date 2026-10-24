@@ -153,11 +153,7 @@ impl Annotator for RuleMwtExpander {
 
     /// FNV-1a over the language, the one setting the expander has.
     fn config_hash(&self) -> u64 {
-        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-        for b in (self.language as u64).to_le_bytes() {
-            h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
-        }
-        h
+        turbo_analysis::Fnv1a::new().u64(self.language as u64).finish()
     }
 }
 

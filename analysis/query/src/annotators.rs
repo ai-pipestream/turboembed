@@ -37,14 +37,11 @@ pub struct GazetteerCandidateAnnotator<G> {
 impl<G: Gazetteer> GazetteerCandidateAnnotator<G> {
     pub fn new(gazetteer: Arc<G>) -> Self {
         let min_lowercase_population = 50_000u64;
-        let mut h = 0xcbf2_9ce4_8422_2325u64;
-        for b in std::any::type_name::<G>()
-            .bytes()
-            .chain(min_lowercase_population.to_le_bytes())
-            .chain(gazetteer.fingerprint().to_le_bytes())
-        {
-            h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
-        }
+        let h = turbo_analysis::Fnv1a::new()
+            .str(std::any::type_name::<G>())
+            .u64(min_lowercase_population)
+            .u64(gazetteer.fingerprint())
+            .finish();
         Self {
             gazetteer,
             kinds: TagSet::new("opennlp:entities", &[DEFAULT_LOCATION_TYPE]),

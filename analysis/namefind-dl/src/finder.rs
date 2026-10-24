@@ -281,11 +281,7 @@ impl Annotator for NameFinderDl {
     fn config_hash(&self) -> u64 {
         // What changes the entities beside the model: the chunks, and the
         // pieces a row holds, where a long chunk is cut.
-        let mut h = 0xcbf2_9ce4_8422_2325u64;
-        for b in [self.split, self.overlap, self.width].iter().flat_map(|v| (*v as u64).to_le_bytes()) {
-            h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
-        }
-        h
+        turbo_analysis::Fnv1a::new().u64(self.split as u64).u64(self.overlap as u64).u64(self.width as u64).finish()
     }
 }
 

@@ -39,8 +39,6 @@ pub const PRIMARY_LINK_LABEL: &str = "resolved";
 /// Edge tag label for a secondary candidate resolution of an entity.
 pub const CANDIDATE_LINK_LABEL: &str = "candidate";
 
-const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-const FNV_PRIME: u64 = 0x0100_0000_01b3;
 const DEFAULT_MAX_CANDIDATES: usize = 5;
 const DEFAULT_RETRIEVAL_LIMIT: usize = 25;
 
@@ -402,23 +400,20 @@ impl<G: Gazetteer + Send + Sync + 'static> Annotator for GeoEntityLinker<G> {
             MentionPolicy::All => 0u64,
             MentionPolicy::ExcludeSingleAsciiLetters => 1u64,
         };
-        let mut h = FNV_OFFSET_BASIS;
-        for bits in [
-            self.weights.fuzzy.to_bits(),
-            self.weights.geohash.to_bits(),
-            self.weights.country.to_bits(),
-            self.weights.province.to_bits(),
-            self.weights.population.to_bits(),
-            metric_disc,
-            self.fuzzy.min_similarity().to_bits(),
-            self.geohash.precision() as u64,
-            self.country.decay_bytes().to_bits(),
-            self.province.decay_bytes().to_bits(),
-            self.max_candidates_per_mention as u64,
-            policy_disc,
-        ] {
-            h = (h ^ bits).wrapping_mul(FNV_PRIME);
-        }
-        hash_location_types(h, &self.location_types)
+        let mut h = turbo_analysis::Fnv1a::new();
+        h.f64(self.weights.fuzzy)
+            .f64(self.weights.geohash)
+            .f64(self.weights.country)
+            .f64(self.weights.province)
+            .f64(self.weights.population)
+            .u64(metric_disc)
+            .f64(self.fuzzy.min_similarity())
+            .u64(self.geohash.precision() as u64)
+            .u64(self.country.decay_bytes().to_bits())
+            .u64(self.province.decay_bytes().to_bits())
+            .u64(self.max_candidates_per_mention as u64)
+            .u64(policy_disc);
+        hash_location_types(&mut h, &self.location_types);
+        h.finish()
     }
 }

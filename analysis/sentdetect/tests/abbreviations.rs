@@ -43,7 +43,7 @@ fn detectors(name: &str) -> (SentenceDetector, SentenceDetector) {
 
 /// FNV-1a over `bytes` from the offset basis.
 fn fnv(bytes: &[u8]) -> u64 {
-    bytes.iter().fold(0xcbf2_9ce4_8422_2325, |h, &b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3))
+    turbo_analysis::fnv1a(bytes)
 }
 
 fn fixture_text() -> String {
@@ -140,7 +140,7 @@ fn jvm_parity_is_the_detector_without_an_inventory() {
         assert_eq!(bits(&a), bits(&c), "{name}");
         // The parity hash is the hash before inventories, FNV-1a of the
         // whitespace mode's number (2 for Unicode); the default differs.
-        let old = (0xcbf2_9ce4_8422_2325_u64 ^ 2).wrapping_mul(0x0100_0000_01b3);
+        let old = (turbo_analysis::FNV1A_OFFSET_BASIS ^ 2).wrapping_mul(turbo_analysis::FNV1A_PRIME);
         assert_eq!(parity.config_hash(), old);
         assert_ne!(d.config_hash(), old);
         assert_eq!(d.config_hash(), d.clone().with_abbreviations(AbbreviationInventory::english()).config_hash());

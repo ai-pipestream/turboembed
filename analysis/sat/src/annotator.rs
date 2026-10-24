@@ -361,22 +361,17 @@ impl Annotator for SatAnnotator {
 /// changes the sentences: the threshold's bits, the stride, the block
 /// size, the line feed switch and the classifier's tensors and label.
 fn config_hash(o: &SatOptions, block: u32, stride: u32) -> u64 {
-    let mut h = 0xcbf2_9ce4_8422_2325u64;
-    let mut eat = |bytes: &[u8]| {
-        for &b in bytes {
-            h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
-        }
-    };
-    eat(&(o.threshold + 0.0).to_bits().to_le_bytes());
-    eat(&stride.to_le_bytes());
-    eat(&block.to_le_bytes());
-    eat(&[u8::from(o.split_on_newlines)]);
-    eat(o.head.weight.as_bytes());
-    eat(&[0]);
-    eat(o.head.bias.as_bytes());
-    eat(&[0]);
-    eat(&o.head.label.to_le_bytes());
-    h
+    turbo_analysis::Fnv1a::new()
+        .f64(o.threshold)
+        .u32(stride)
+        .u32(block)
+        .bool(o.split_on_newlines)
+        .bytes(o.head.weight.as_bytes())
+        .bytes(&[0])
+        .bytes(o.head.bias.as_bytes())
+        .bytes(&[0])
+        .bytes(&o.head.label.to_le_bytes())
+        .finish()
 }
 
 /// Offers `SatAnnotator` to pipelines built from configuration, as "sat".

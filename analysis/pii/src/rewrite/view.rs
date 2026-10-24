@@ -9,7 +9,7 @@
 //! whose bytes already are the mask (a `*` masked with `*`) is left out of
 //! the edits, since nothing changed there.
 
-use turbo_analysis::{Annotator, Bound, Error, Key, Refs, Span, View, ViewBuilder};
+use turbo_analysis::{Annotator, Bound, Error, Fnv1a, Key, Refs, Span, View, ViewBuilder};
 use turbo_analysis_layers::{Pii, PiiKind};
 
 use super::MaskPolicy;
@@ -189,6 +189,11 @@ impl Annotator for MaskedView {
             .policies
             .iter()
             .map(|p| u64::from(p.mask() as u8) | u64::from(p.keeps_format()) << 8 | (p.trailing() as u64) << 16);
-        words.fold(0xcbf2_9ce4_8422_2325, |h, x| (h ^ x).wrapping_mul(0x0100_0000_01b3))
+        words
+            .fold(Fnv1a::new(), |mut h, x| {
+                h.u64(x);
+                h
+            })
+            .finish()
     }
 }

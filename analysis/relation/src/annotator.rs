@@ -75,13 +75,6 @@ impl<A: WordOrTokenAnchor> RelationAnnotator<A> {
     }
 }
 
-fn fnv(state: &mut u64, bytes: &[u8]) {
-    for &b in bytes {
-        *state ^= u64::from(b);
-        *state = state.wrapping_mul(0x100000001b3);
-    }
-}
-
 impl<A: WordOrTokenAnchor> Annotator for RelationAnnotator<A> {
     const ID: &'static str = "turbo:relation-annotator";
     type Reads = (View, Sentences, A, Tokens, Dependencies<A>, Entities, Option<A::Pos>, Option<Lemmas>);
@@ -195,10 +188,11 @@ impl<A: WordOrTokenAnchor> Annotator for RelationAnnotator<A> {
     }
 
     fn config_hash(&self) -> u64 {
-        let mut h = 0xcbf29ce484222325u64;
-        fnv(&mut h, b"turbo:relation-annotator");
+        let mut h = turbo_analysis::Fnv1a::new();
+        h.str("turbo:relation-annotator");
+        h.u8(u8::from(self.max_path_len.is_some()));
         if let Some(cap) = self.max_path_len {
-            fnv(&mut h, &(cap as u64).to_le_bytes());
+            h.u64(cap as u64);
         }
         for p in &self.patterns {
             for field in [
@@ -212,14 +206,15 @@ impl<A: WordOrTokenAnchor> Annotator for RelationAnnotator<A> {
             ] {
                 match field {
                     Some(s) => {
-                        fnv(&mut h, &[1]);
-                        fnv(&mut h, s.as_bytes());
+                        h.u8(1).str(s);
                     }
-                    None => fnv(&mut h, &[0]),
+                    None => {
+                        h.u8(0);
+                    }
                 }
             }
-            fnv(&mut h, &p.confidence.to_bits().to_le_bytes());
+            h.f64(p.confidence);
         }
-        h
+        h.finish()
     }
 }

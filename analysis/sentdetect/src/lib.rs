@@ -72,14 +72,13 @@ fn mode_hash(mode: WhitespaceMode) -> u64 {
         WhitespaceMode::Legacy => 1,
         WhitespaceMode::Unicode => 2,
     };
-    (0xcbf2_9ce4_8422_2325 ^ x).wrapping_mul(0x0100_0000_01b3)
+    // One FNV-1a step on the mode number: the parity splitter's
+    // pre-inventory hash, kept bit-identical on purpose.
+    (turbo_analysis::FNV1A_OFFSET_BASIS ^ x).wrapping_mul(turbo_analysis::FNV1A_PRIME)
 }
 
 /// `h` with the eight bytes of `x` folded in, FNV-1a: a configuration
 /// hash extended with an abbreviation inventory's hash.
-fn fold_hash(mut h: u64, x: u64) -> u64 {
-    for b in x.to_le_bytes() {
-        h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
-    }
-    h
+fn fold_hash(h: u64, x: u64) -> u64 {
+    turbo_analysis::Fnv1a::with_seed(h).u64(x).finish()
 }

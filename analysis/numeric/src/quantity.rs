@@ -11,7 +11,7 @@
 
 use std::fmt;
 
-use turbo_analysis::{Annotator, Error, Refs, Span, View, ViewId};
+use turbo_analysis::{Annotator, Error, Fnv1a, Refs, Span, View, ViewId};
 use turbo_analysis_layers::{Money, NumberNotation, PERCENT, Quantities, QuantityMention};
 use turbo_unicode::java;
 
@@ -293,6 +293,10 @@ impl Annotator for QuantityExtractor {
         let units = self.units.iter().flat_map(|u| u.bytes().chain([0]).map(u64::from));
         std::iter::once(notation)
             .chain(units)
-            .fold(0xcbf2_9ce4_8422_2325, |h, x| (h ^ x).wrapping_mul(0x0100_0000_01b3))
+            .fold(Fnv1a::new(), |mut h, x| {
+                h.u64(x);
+                h
+            })
+            .finish()
     }
 }

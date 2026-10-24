@@ -21,7 +21,7 @@ pub use keys::{Chains, EntityKeys, KeyMention, Keying, normalize_surface};
 
 use std::num::NonZeroU32;
 
-use turbo_analysis::{Annotator, Bound, Error, Groups, Refs, View};
+use turbo_analysis::{Annotator, Bound, Error, Fnv1a, Groups, Refs, View};
 use turbo_analysis_layers::{Boundaries, Cut, Entities, Sentences};
 
 use crate::coref::Mentions;
@@ -115,7 +115,13 @@ pub(crate) fn same_view(
 }
 
 pub(crate) fn fnv(values: &[u64]) -> u64 {
-    values.iter().fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x).wrapping_mul(0x0100_0000_01b3))
+    values
+        .iter()
+        .fold(Fnv1a::new(), |mut h, &x| {
+            h.u64(x);
+            h
+        })
+        .finish()
 }
 
 impl Annotator for EntityBoundaries {

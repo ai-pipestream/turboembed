@@ -102,7 +102,7 @@ impl Predictor {
         bytes.extend(policy.coverage.to_le_bytes());
         bytes.extend((policy.max_set_size as u64).to_le_bytes());
         bytes.extend(policy.min_confidence.to_le_bytes());
-        let hash = bytes.iter().fold(0xcbf29ce484222325, |h, &b| (h ^ u64::from(b)).wrapping_mul(0x100000001b3));
+        let hash = turbo_analysis::fnv1a(&bytes);
         let metadata = Arc::new(crate::DecisionMetadata::new(identity.clone(), id.clone(), policy, cutoff)?);
         Ok(Self { calibration, policy, cutoff, id, identity, hash, metadata })
     }

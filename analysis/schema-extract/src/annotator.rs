@@ -37,10 +37,7 @@ impl SchemaAnnotator {
         if extractor.model().id.is_empty() {
             return Err("a model with no id".into());
         }
-        let mut h = 0xcbf2_9ce4_8422_2325u64;
-        for b in format!("{schema:?}{threshold}").bytes() {
-            h = (h ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3);
-        }
+        let h = turbo_analysis::fnv1a(format!("{schema:?}{threshold}").as_bytes());
         Ok(SchemaAnnotator { extractor, schema, threshold, hash: h })
     }
 

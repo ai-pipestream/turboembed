@@ -287,42 +287,37 @@ fn sentence_of(mentions: &[Mention<'_>], sentences: Option<&Sentences>) -> Vec<O
         .collect()
 }
 
-fn fnv(h: &mut u64, bytes: &[u8]) {
-    for &b in bytes {
-        *h = (*h ^ u64::from(b)).wrapping_mul(0x100000001b3);
-    }
-}
-
-/// Every setting, each label field and the scorer's model.
 fn config_hash(c: &ZeroShotRelationConfig, model: Option<ModelRef>) -> u64 {
-    let mut h = 0xcbf29ce484222325u64;
-    let field = |h: &mut u64, s: &str| {
-        fnv(h, &(s.len() as u64).to_le_bytes());
-        fnv(h, s.as_bytes());
-    };
-    for (s, v) in [(c.threshold.to_bits(), 0), (c.within_sentence as u64, 1), (c.max_labels as u64, 2)] {
-        fnv(&mut h, &[v]);
-        fnv(&mut h, &s.to_le_bytes());
+    let mut h = turbo_analysis::Fnv1a::new();
+    for (s, v) in [(c.threshold.to_bits(), 0u8), (c.within_sentence as u64, 1), (c.max_labels as u64, 2)] {
+        h.u8(v).u64(s);
     }
-    fnv(&mut h, &(c.max_mentions as u64).to_le_bytes());
-    fnv(&mut h, &(c.max_pairs as u64).to_le_bytes());
+    h.u64(c.max_mentions as u64).u64(c.max_pairs as u64);
     for l in &c.labels {
-        field(&mut h, &l.name);
-        fnv(&mut h, &l.threshold.map_or(u64::MAX, f64::to_bits).to_le_bytes());
-        fnv(&mut h, &[l.symmetric as u8, l.domain.is_some() as u8, l.range.is_some() as u8]);
+        h.str(&l.name).u64(l.threshold.map_or(u64::MAX, f64::to_bits)).bytes(&[
+            l.symmetric as u8,
+            l.domain.is_some() as u8,
+            l.range.is_some() as u8,
+        ]);
         for kinds in [&l.domain, &l.range].into_iter().flatten() {
-            fnv(&mut h, &(kinds.len() as u64).to_le_bytes());
-            kinds.iter().for_each(|k| field(&mut h, k));
+            h.usize(kinds.len());
+            kinds.iter().for_each(|k| {
+                h.str(k);
+            });
         }
     }
     match model {
-        None => fnv(&mut h, &[0]),
+        None => {
+            h.u8(0);
+        }
         Some(m) => {
-            fnv(&mut h, &[1]);
-            [m.id, m.revision, m.sha256].iter().for_each(|s| field(&mut h, s));
+            h.u8(1);
+            [m.id, m.revision, m.sha256].iter().for_each(|s| {
+                h.str(s);
+            });
         }
     }
-    h
+    h.finish()
 }
 
 impl<S: RelationScorer + 'static> Annotator for ZeroShotRelationAnnotator<S> {

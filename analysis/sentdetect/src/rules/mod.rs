@@ -368,19 +368,12 @@ impl Annotator for RuleSentenceDetector {
     /// inventory's hash when there is one.
     fn config_hash(&self) -> u64 {
         let s = &self.splitter;
-        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-        let mut eat = |b: u8| h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
-        for b in s.language.rules_code().bytes() {
-            eat(b);
-        }
-        eat(0);
-        for b in s.rules.bits().to_le_bytes() {
-            eat(b);
-        }
-        eat(match s.line_breaks {
+        let mut h = turbo_analysis::Fnv1a::new();
+        h.bytes(s.language.rules_code().as_bytes()).u8(0).u64(s.rules.bits()).u8(match s.line_breaks {
             LineBreaks::Sentence => 1,
             LineBreaks::Paragraph => 2,
         });
+        let h = h.finish();
         if s.inventory.is_unset() { h } else { fold_hash(h, s.inventory.config_hash()) }
     }
 }

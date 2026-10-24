@@ -1,7 +1,7 @@
 //! The packs and the detector that runs them, OpenNLP's `PiiPacks`,
 //! `CompositePiiExtractor` and `PiiAnnotator`.
 
-use turbo_analysis::{Annotator, Error, Refs, View, ViewId};
+use turbo_analysis::{Annotator, Error, Fnv1a, Refs, View, ViewId};
 use turbo_analysis_layers::{Pii, PiiKind, PiiKinds};
 
 use crate::hits::Hits;
@@ -197,7 +197,12 @@ impl Annotator for PiiDetector {
             let kinds = s.kinds().iter().fold(0u64, |b, k| b | 1 << k.rank());
             [s.extractor() as u64, kinds]
         });
-        let h = words.fold(0xcbf2_9ce4_8422_2325, |h, x| (h ^ x).wrapping_mul(0x0100_0000_01b3));
-        if self.keep_nested { (h ^ 1).wrapping_mul(0x0100_0000_01b3) } else { h }
+        let h = words
+            .fold(Fnv1a::new(), |mut h, x| {
+                h.u64(x);
+                h
+            })
+            .finish();
+        if self.keep_nested { Fnv1a::with_seed(h).u8(1).finish() } else { h }
     }
 }

@@ -45,14 +45,12 @@ impl PatternChunker {
             }
         }
         let kinds = TagSet::new("chunks", &kind_labels);
-        let mut h = 0xcbf2_9ce4_8422_2325_u64;
-        h = (h ^ (rules.len() as u64)).wrapping_mul(0x0000_0100_0000_01b3);
+        let mut h = turbo_analysis::Fnv1a::new();
+        h.u64(rules.len() as u64);
         for r in &rules {
-            for b in r.fingerprint().to_le_bytes() {
-                h = (h ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3);
-            }
+            h.u64(r.fingerprint());
         }
-        Self { rules, kinds, config_hash: h }
+        Self { rules, kinds, config_hash: h.finish() }
     }
 
     /// Compiles a list of `(kind, pattern)` specifications in priority order.
@@ -461,24 +459,17 @@ impl Annotator for PatternChunkComposer {
     }
 
     fn config_hash(&self) -> u64 {
-        let mut h = self.pattern_chunker.config_hash();
-        let mode_byte = match self.mode {
-            ComposeMode::Fallback => 1u8,
-            ComposeMode::Override => 2u8,
-        };
-        h = (h ^ u64::from(mode_byte)).wrapping_mul(0x0000_0100_0000_01b3);
+        let mut h = turbo_analysis::Fnv1a::with_seed(self.pattern_chunker.config_hash());
+        h.u8(match self.mode {
+            ComposeMode::Fallback => 1,
+            ComposeMode::Override => 2,
+        });
         if let Some(me) = &self.me_chunker {
-            for b in me.config_hash().to_le_bytes() {
-                h = (h ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3);
-            }
+            h.u64(me.config_hash());
             if let Some(mref) = me.model() {
-                for s in [mref.id.as_bytes(), mref.revision.as_bytes(), mref.sha256.as_bytes()] {
-                    for &b in s {
-                        h = (h ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3);
-                    }
-                }
+                h.str(&mref.id).str(&mref.revision).str(&mref.sha256);
             }
         }
-        h
+        h.finish()
     }
 }

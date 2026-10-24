@@ -18,7 +18,7 @@ mod select;
 mod shapes;
 mod words;
 
-use turbo_analysis::{Annotator, Error, Refs, View};
+use turbo_analysis::{Annotator, Error, Fnv1a, Refs, View};
 use turbo_analysis_layers::{Date, Granularity, Temporals};
 
 pub use select::DocumentDateSelector;
@@ -178,7 +178,13 @@ impl Annotator for TemporalExtractor {
             None => [0, 0],
             Some(d) => [1, d.epoch_day() as u64],
         };
-        reference.iter().fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x).wrapping_mul(0x0100_0000_01b3))
+        reference
+            .iter()
+            .fold(Fnv1a::new(), |mut h, &x| {
+                h.u64(x);
+                h
+            })
+            .finish()
     }
 }
 

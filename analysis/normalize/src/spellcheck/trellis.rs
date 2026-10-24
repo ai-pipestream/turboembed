@@ -104,15 +104,6 @@ pub(crate) fn group_into_sentences<'a>(
 /// Computes a deterministic 64-bit content fingerprint over `lm`'s order,
 /// n-grams, and counts, independent of internal hash-table iteration order.
 pub(crate) fn lm_fingerprint(lm: &NGramLanguageModel) -> u64 {
-    const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
-    const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
-    let mix_bytes = |mut h: u64, bytes: &[u8]| -> u64 {
-        for &b in bytes {
-            h ^= u64::from(b);
-            h = h.wrapping_mul(FNV_PRIME);
-        }
-        h
-    };
     let splitmix64 = |mut z: u64| -> u64 {
         z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
         z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
@@ -122,23 +113,21 @@ pub(crate) fn lm_fingerprint(lm: &NGramLanguageModel) -> u64 {
     let mut sum = 0u64;
     let mut xor = 0u64;
     for ngram in lm.iter() {
-        let mut eh = mix_bytes(FNV_OFFSET, &(ngram.len() as u64).to_le_bytes());
+        let mut eh = turbo_analysis::Fnv1a::new();
+        eh.u64(ngram.len() as u64);
         for token in ngram {
-            eh = mix_bytes(eh, &(token.len() as u64).to_le_bytes());
-            eh = mix_bytes(eh, token.as_bytes());
+            eh.u64(token.len() as u64).bytes(token.as_bytes());
         }
         let count = lm.get_count(ngram);
-        eh = splitmix64(mix_bytes(eh, &count.to_le_bytes()));
+        eh.bytes(&count.to_le_bytes());
+        let eh = splitmix64(eh.finish());
         sum = sum.wrapping_add(eh);
         xor ^= eh.rotate_left(23);
     }
 
-    let mut hash = FNV_OFFSET;
-    hash = mix_bytes(hash, &(lm.order() as u64).to_le_bytes());
-    hash = mix_bytes(hash, &(lm.size() as u64).to_le_bytes());
-    hash = mix_bytes(hash, &sum.to_le_bytes());
-    hash = mix_bytes(hash, &xor.to_le_bytes());
-    splitmix64(hash)
+    let mut hash = turbo_analysis::Fnv1a::new();
+    hash.u64(lm.order() as u64).u64(lm.size() as u64).u64(sum).u64(xor);
+    splitmix64(hash.finish())
 }
 
 /// Decodes the minimum-cost candidate sequence across `cand_sets` via Viterbi

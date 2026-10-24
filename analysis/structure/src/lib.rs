@@ -109,7 +109,7 @@ impl Annotator for StructureAnnotator {
             Syntax::Markdown => 1,
             Syntax::Plain => 2,
         };
-        (0xcbf2_9ce4_8422_2325 ^ x).wrapping_mul(0x0100_0000_01b3)
+        turbo_analysis::Fnv1a::new().u64(x).finish()
     }
 }
 
