@@ -39,6 +39,14 @@ pub fn grpc_code(code: i32) -> Code {
 /// turbo_error.field names.
 pub const EMBED_OPTIONS: [&str; 6] = ["truncate", "max_tokens", "prompt_role", "normalize", "pooling", "output_dim"];
 
+/// The fields of turbo_rerank_options, 1-based: what a rerank write's
+/// turbo_error.field names.
+pub const RERANK_OPTIONS: [&str; 3] = ["query_tokens", "max_tokens", "stride"];
+
+/// The fields of DecodeOptions for extractive QA, 1-based: what a QA
+/// request's turbo_error.field names.
+pub const QA_OPTIONS: [&str; 4] = ["max_answer_tokens", "top_k", "null_threshold", "non_overlapping"];
+
 /// The fields of turbo_session_desc, 1-based: what turbo_session_create's
 /// turbo_error.field names.
 pub const SESSION_DESC: [&str; 7] =

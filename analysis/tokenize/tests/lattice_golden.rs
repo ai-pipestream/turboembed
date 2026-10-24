@@ -85,6 +85,16 @@ struct Counts {
 /// golden model records are `models`) and compares with the JVM.
 fn matches(run_name: &str, dir: &Path, models: &[&Path], mode: WhitespaceMode) -> Counts {
     let dictionary = MecabDictionary::load(dir, mode).unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
+    let bytes = dictionary.to_prebuilt().unwrap();
+    let compiled =
+        MecabDictionary::from_prebuilt(turbo_tokenize::lattice::PrebuiltImage::copy_from(&bytes), Default::default())
+            .unwrap();
+    let source = matches_loaded(run_name, dictionary, models, mode);
+    assert_eq!(matches_loaded(run_name, compiled, models, mode), source);
+    source
+}
+
+fn matches_loaded(run_name: &str, dictionary: MecabDictionary, models: &[&Path], mode: WhitespaceMode) -> Counts {
     let tokenizer = LatticeTokenizer::new(dictionary, mode);
     let mut counts = Counts::default();
     let records: Vec<(&str, [u8; 64])> =

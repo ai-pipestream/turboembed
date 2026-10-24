@@ -43,6 +43,9 @@ fn check(state: &State, d: AnalyzeDocument, room: Room) -> Result<Doc, Box<(Stri
             Ok(v) => v,
             Err(f) => return Err((f, room)),
         };
+        if loaded.task != turbo::TURBO_TASK_EMBED {
+            return Err((Failure::new(crate::api::TURBO_E_UNSUPPORTED_TASK, 0, "the model's task is not embed"), room));
+        }
         let opts = match handler::options(d.options.as_ref()) {
             Ok(o) => o,
             Err(f) => return Err((f, room)),
