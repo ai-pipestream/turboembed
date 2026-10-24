@@ -30,7 +30,7 @@ use std::path::PathBuf;
 
 use turbo_train::TrainingConfiguration;
 use turbo_train_components::ud::{self, RECIPES};
-use turbo_zoo::UserId;
+use turbo_zoo::{Home, UserId};
 
 /// The largest difference a parameter may show from the published value.
 /// The eighteen models differ by 2.2e-15 to 9.8e-15 (sentences and
@@ -44,9 +44,8 @@ const TOLERANCE: f64 = 1e-12;
 #[ignore = "fetches CC BY-SA treebanks and trains for minutes; see the file comment"]
 fn the_published_ud_models_are_reproduced() {
     let models = PathBuf::from(std::env::var("TURBO_GOLDENS_MODELS").expect("TURBO_GOLDENS_MODELS"));
-    let home = ud::zoo_home().expect("a zoo home");
-    let user: UserId =
-        std::env::var("USER").or_else(|_| std::env::var("USERNAME")).expect("USER").parse().expect("a user name");
+    let home = Home::from_env().expect("a zoo home");
+    let user: UserId = UserId::from_env().expect("a user name in USER");
     let only: Vec<String> =
         std::env::var("TURBO_REPRODUCE_MODELS").map(|v| v.split(',').map(str::to_owned).collect()).unwrap_or_default();
     let mut failed = Vec::new();
