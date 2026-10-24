@@ -14,7 +14,7 @@ turbo-calibration = { path = "../calibration" }
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
 turbo-formats = { path = "../formats" }
-# Java's Double.toString, parseDouble and parseInt, and Math.log.
+# Java's Double.toString, parseDouble and parseInt, Math.log, and StrictMath.tanh.
 turbo-jvm = { path = "../jvm" }
 # MaxEnt evaluation and SHA-256 of the model files, for the layers' model
 # reference; the sentiment model file and its maxent classifier.

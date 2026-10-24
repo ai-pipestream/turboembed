@@ -8,11 +8,11 @@
 //! Tolerances, from `docs/doccat.md`:
 //!
 //! - The feature vector, the vote and the category order are exact.
-//! - Decision values of the linear and polynomial kernels are exact: they
-//!   are sums of products in LIBSVM's order. The RBF and sigmoid kernels
-//!   call `Math.exp` and `Math.tanh`, which the Rust standard library does
-//!   not reproduce in the last place, so their decision values are within
-//!   1e-12.
+//! - Decision values of the linear, polynomial and sigmoid kernels are
+//!   exact: they are sums of products in LIBSVM's order, and the sigmoid
+//!   kernel calls `turbo_jvm::strict_math::tanh`. The RBF kernel calls
+//!   `Math.exp`, which the Rust standard library does not reproduce in the
+//!   last place, so its decision values are within 1e-12.
 //! - Probabilities are within 1e-9: Platt's sigmoid calls `Math.exp` for
 //!   every kernel, and the pairwise coupling iterates on what it returns.
 
@@ -104,7 +104,7 @@ struct Totals {
 fn check_run(run: &Path, shapes: &[Shape], totals: &mut Totals) {
     let name = run.file_name().unwrap().to_string_lossy().into_owned();
     let model = model(run, shapes);
-    let exact = matches!(model.libsvm().kernel(), Kernel::Linear | Kernel::Polynomial { .. });
+    let exact = matches!(model.libsvm().kernel(), Kernel::Linear | Kernel::Polynomial { .. } | Kernel::Sigmoid { .. });
     let categorizer = SvmCategorizer::new(model.clone()).unwrap_or_else(|e| panic!("{name}: {e}"));
     let analyzer = Analyzer::builder().given(Key::<Tokens>::DEFAULT).add(categorizer).build().expect("the analyzer");
     let mut scratch = Scratch::new();
