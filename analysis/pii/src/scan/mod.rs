@@ -15,12 +15,15 @@ mod phone;
 mod secrets;
 
 use std::fmt;
+use std::hash::{Hash, Hasher};
+use std::sync::Arc;
 
 use turbo_analysis_layers::{PiiKind, PiiKinds};
 
-use crate::hits::Hits;
+use crate::hits::{Hits, PiiSink};
 
-/// One OpenNLP extractor class.
+/// One OpenNLP extractor class, or a caller-defined extractor named by
+/// the caller.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Extractor {
     /// `CursorPiiExtractor`: e-mail addresses, IBANs, cards, phones.
@@ -42,10 +45,13 @@ pub enum Extractor {
     CaIdentity,
     /// `DevicePiiExtractor`: labelled IMEIs.
     Device,
+    /// A caller-defined extractor (`PiiExtractor`).
+    Custom(&'static str),
 }
 
 impl Extractor {
-    /// The kinds this extractor finds.
+    /// The built-in kinds this extractor finds (`EMPTY` for
+    /// [`Extractor::Custom`]).
     pub const fn kinds(self) -> PiiKinds {
         use PiiKind::*;
         match self {
@@ -58,10 +64,11 @@ impl Extractor {
             Extractor::EuIdentity => PiiKinds::of(&[UkNhs, DeSteuerId]),
             Extractor::CaIdentity => PiiKinds::of(&[CaSin]),
             Extractor::Device => PiiKinds::of(&[Imei]),
+            Extractor::Custom(_) => PiiKinds::EMPTY,
         }
     }
 
-    /// The Java class's simple name.
+    /// The Java class's simple name, or the caller extractor's name.
     pub const fn java_name(self) -> &'static str {
         match self {
             Extractor::Cursor => "CursorPiiExtractor",
@@ -73,7 +80,56 @@ impl Extractor {
             Extractor::EuIdentity => "EuIdentityPiiExtractor",
             Extractor::CaIdentity => "CaIdentityPiiExtractor",
             Extractor::Device => "DevicePiiExtractor",
+            Extractor::Custom(name) => name,
         }
+    }
+
+    pub(crate) const fn tag(self) -> u64 {
+        match self {
+            Extractor::Cursor => 0,
+            Extractor::Banking => 1,
+            Extractor::Network => 2,
+            Extractor::Secrets => 3,
+            Extractor::Crypto => 4,
+            Extractor::UsIdentity => 5,
+            Extractor::EuIdentity => 6,
+            Extractor::CaIdentity => 7,
+            Extractor::Device => 8,
+            Extractor::Custom(_) => 9,
+        }
+    }
+}
+
+/// A caller-defined PII extractor, OpenNLP's `PiiExtractor`.
+pub trait CustomExtractor: Send + Sync {
+    /// Identifier for this extractor in [`Extractor::Custom`] and
+    /// [`crate::PiiDetector`]'s configuration hash.
+    fn name(&self) -> &'static str;
+
+    /// The kinds this extractor reports.
+    fn kinds(&self) -> &[PiiKind];
+
+    /// Scans `text` and appends candidate mentions to `sink`.
+    fn scan(&self, text: &str, sink: &mut PiiSink<'_>);
+}
+
+struct FnExtractor {
+    name: &'static str,
+    kinds: [PiiKind; 1],
+    scan: fn(&str, &mut PiiSink<'_>),
+}
+
+impl CustomExtractor for FnExtractor {
+    fn name(&self) -> &'static str {
+        self.name
+    }
+
+    fn kinds(&self) -> &[PiiKind] {
+        &self.kinds
+    }
+
+    fn scan(&self, text: &str, sink: &mut PiiSink<'_>) {
+        (self.scan)(text, sink);
     }
 }
 
@@ -97,22 +153,68 @@ impl fmt::Display for ScannerError {
 
 impl std::error::Error for ScannerError {}
 
+#[derive(Clone)]
+enum ScannerInner {
+    Builtin { extractor: Extractor, kinds: PiiKinds },
+    Custom(Arc<dyn CustomExtractor>),
+}
+
 /// An extractor with the kinds it reports, as the Java constructors that
-/// take a type set build it.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+/// take a type set build it, or a caller-defined [`CustomExtractor`].
+#[derive(Clone)]
 pub struct Scanner {
-    extractor: Extractor,
-    kinds: PiiKinds,
+    inner: ScannerInner,
+}
+
+impl fmt::Debug for Scanner {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.inner {
+            ScannerInner::Builtin { extractor, kinds } => {
+                f.debug_struct("Scanner").field("extractor", extractor).field("kinds", kinds).finish()
+            }
+            ScannerInner::Custom(c) => f
+                .debug_struct("Scanner")
+                .field("extractor", &Extractor::Custom(c.name()))
+                .field("kinds", &c.kinds())
+                .finish(),
+        }
+    }
+}
+
+impl PartialEq for Scanner {
+    fn eq(&self, other: &Self) -> bool {
+        match (&self.inner, &other.inner) {
+            (ScannerInner::Builtin { extractor: a, kinds: ak }, ScannerInner::Builtin { extractor: b, kinds: bk }) => {
+                a == b && ak == bk
+            }
+            (ScannerInner::Custom(a), ScannerInner::Custom(b)) => {
+                Arc::ptr_eq(a, b) || (a.name() == b.name() && a.kinds() == b.kinds())
+            }
+            _ => false,
+        }
+    }
+}
+
+impl Eq for Scanner {}
+
+impl Hash for Scanner {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.extractor().hash(state);
+        match &self.inner {
+            ScannerInner::Builtin { kinds, .. } => kinds.hash(state),
+            ScannerInner::Custom(c) => c.kinds().hash(state),
+        }
+    }
 }
 
 impl Scanner {
-    /// The extractor with every kind it finds.
+    /// The built-in extractor with every kind it finds.
     pub const fn all(extractor: Extractor) -> Scanner {
-        Scanner { extractor, kinds: extractor.kinds() }
+        Scanner { inner: ScannerInner::Builtin { extractor, kinds: extractor.kinds() } }
     }
 
-    /// The extractor limited to `kinds`, which must be a non-empty subset
-    /// of [`Extractor::kinds`].
+    /// The built-in extractor limited to `kinds`, which must be a
+    /// non-empty subset of [`Extractor::kinds`].
     pub fn with_kinds(extractor: Extractor, kinds: PiiKinds) -> Result<Scanner, ScannerError> {
         if kinds.is_empty() {
             return Err(ScannerError::NoKinds(extractor));
@@ -120,22 +222,58 @@ impl Scanner {
         if let Some(k) = kinds.iter().find(|&k| !extractor.kinds().contains(k)) {
             return Err(ScannerError::Foreign(extractor, k));
         }
-        Ok(Scanner { extractor, kinds })
+        Ok(Scanner { inner: ScannerInner::Builtin { extractor, kinds } })
     }
 
-    pub const fn extractor(&self) -> Extractor {
-        self.extractor
+    /// A scanner running a caller-defined [`CustomExtractor`].
+    pub fn custom<E: CustomExtractor + 'static>(extractor: E) -> Scanner {
+        for &k in extractor.kinds() {
+            PiiKind::remember_custom(k);
+        }
+        Scanner { inner: ScannerInner::Custom(Arc::new(extractor)) }
     }
 
-    pub const fn kinds(&self) -> PiiKinds {
-        self.kinds
+    /// A scanner running a stateless function for a single [`PiiKind`].
+    pub fn custom_fn(name: &'static str, kind: PiiKind, scan: fn(&str, &mut PiiSink<'_>)) -> Scanner {
+        Scanner::custom(FnExtractor { name, kinds: [kind], scan })
+    }
+
+    pub fn extractor(&self) -> Extractor {
+        match &self.inner {
+            ScannerInner::Builtin { extractor, .. } => *extractor,
+            ScannerInner::Custom(c) => Extractor::Custom(c.name()),
+        }
+    }
+
+    /// The built-in kinds this scanner reports.
+    pub fn kinds(&self) -> PiiKinds {
+        match &self.inner {
+            ScannerInner::Builtin { kinds, .. } => *kinds,
+            ScannerInner::Custom(c) => PiiKinds::of(c.kinds()),
+        }
+    }
+
+    /// All kinds declared by a custom scanner, or an empty slice for a
+    /// built-in scanner.
+    pub fn custom_kinds(&self) -> &[PiiKind] {
+        match &self.inner {
+            ScannerInner::Builtin { .. } => &[],
+            ScannerInner::Custom(c) => c.kinds(),
+        }
     }
 
     /// Appends this scanner's candidates in `text`, in the order the Java
     /// extractor's scans run.
     pub(crate) fn scan(&self, text: &str, hits: &mut Hits) {
-        let k = self.kinds;
-        match self.extractor {
+        let ScannerInner::Builtin { extractor, kinds: k } = &self.inner else {
+            if let ScannerInner::Custom(c) = &self.inner {
+                let mut sink = PiiSink::new(text, hits);
+                c.scan(text, &mut sink);
+            }
+            return;
+        };
+        let k = *k;
+        match extractor {
             Extractor::Cursor => {
                 if k.contains(PiiKind::Email) {
                     email::scan(text, hits);
@@ -171,6 +309,7 @@ impl Scanner {
             Extractor::EuIdentity => national::scan_eu(text, k, hits),
             Extractor::CaIdentity => labelled::scan_sin(text, hits),
             Extractor::Device => labelled::scan_imei(text, hits),
+            Extractor::Custom(_) => {}
         }
     }
 }

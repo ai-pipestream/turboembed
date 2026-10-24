@@ -123,16 +123,18 @@ pub fn mask_view(src: &View, spans: impl IntoIterator<Item = (Span, MaskPolicy)>
 
 /// Writes the `masked` view: the text it reads with every mention of the
 /// pii layer over it masked with its kind's policy.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct MaskedView {
     policies: [MaskPolicy; PiiKind::ALL.len()],
+    default_policy: MaskPolicy,
+    custom: Vec<(&'static str, MaskPolicy)>,
 }
 
 impl MaskedView {
     /// Every mention masked with `policy`: `Masker.mask(document, layer,
     /// policy)`.
     pub fn all(policy: MaskPolicy) -> MaskedView {
-        MaskedView { policies: [policy; PiiKind::ALL.len()] }
+        MaskedView { policies: [policy; PiiKind::ALL.len()], default_policy: policy, custom: Vec::new() }
     }
 
     /// Each mention masked with its kind's default policy and `mask`:
@@ -147,12 +149,24 @@ impl MaskedView {
 
     /// This view with the mentions of `kind` masked with `policy`.
     pub fn with(mut self, kind: PiiKind, policy: MaskPolicy) -> MaskedView {
-        self.policies[kind.rank() as usize] = policy;
+        if let PiiKind::Custom(name) = kind {
+            PiiKind::remember_custom(kind);
+            match self.custom.binary_search_by_key(&name, |&(k, _)| k) {
+                Ok(at) => self.custom[at].1 = policy,
+                Err(at) => self.custom.insert(at, (name, policy)),
+            }
+        } else {
+            self.policies[kind.rank() as usize] = policy;
+        }
         self
     }
 
     pub fn policy(&self, kind: PiiKind) -> MaskPolicy {
-        self.policies[kind.rank() as usize]
+        if let PiiKind::Custom(name) = kind {
+            self.custom.binary_search_by_key(&name, |&(k, _)| k).map_or(self.default_policy, |at| self.custom[at].1)
+        } else {
+            self.policies[kind.rank() as usize]
+        }
     }
 
     /// The step for a pipeline, writing the view as [`MASKED`].
@@ -185,10 +199,22 @@ impl Annotator for MaskedView {
     /// FNV-1a over each kind's mask byte and options, fixed so that stored
     /// provenance stays comparable across builds.
     fn config_hash(&self) -> u64 {
-        let words = self
+        const PRIME: u64 = 0x0100_0000_01b3;
+        let pack_policy =
+            |p: MaskPolicy| u64::from(p.mask() as u8) | u64::from(p.keeps_format()) << 8 | (p.trailing() as u64) << 16;
+        let mut h = self
             .policies
             .iter()
-            .map(|p| u64::from(p.mask() as u8) | u64::from(p.keeps_format()) << 8 | (p.trailing() as u64) << 16);
-        words.fold(0xcbf2_9ce4_8422_2325, |h, x| (h ^ x).wrapping_mul(0x0100_0000_01b3))
+            .copied()
+            .map(pack_policy)
+            .fold(0xcbf2_9ce4_8422_2325, |h, x| (h ^ x).wrapping_mul(PRIME));
+        for &(name, policy) in &self.custom {
+            for &b in name.as_bytes() {
+                h = (h ^ u64::from(b)).wrapping_mul(PRIME);
+            }
+            h = (h ^ 0xff).wrapping_mul(PRIME);
+            h = (h ^ pack_policy(policy)).wrapping_mul(PRIME);
+        }
+        h
     }
 }

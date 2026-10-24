@@ -10,13 +10,21 @@
 //! layer allows any overlap.
 
 use std::fmt;
+use std::sync::{OnceLock, RwLock};
 
 use turbo_analysis::{Ix, Layer, Overlap, Span, Spans, ViewId};
 
 use crate::Strs;
 
-/// What a mention is. The variants are in OpenNLP's `PiiTypePriority`
-/// order, so the derived order is the rank that sorts mentions with the
+static CUSTOM_KINDS: OnceLock<RwLock<Vec<&'static str>>> = OnceLock::new();
+
+fn custom_registry() -> &'static RwLock<Vec<&'static str>> {
+    CUSTOM_KINDS.get_or_init(|| RwLock::new(Vec::new()))
+}
+
+/// What a mention is. The built-in variants are in OpenNLP's
+/// `PiiTypePriority` order, followed by [`PiiKind::Custom`] for caller
+/// kinds, so the derived order is the rank that sorts mentions with the
 /// same span.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum PiiKind {
@@ -56,10 +64,12 @@ pub enum PiiKind {
     /// An ABA routing transit number, check digit verified.
     AbaRouting,
     Phone,
+    /// A caller-defined identifier kind (`account-number`, `se-personnummer`).
+    Custom(&'static str),
 }
 
 impl PiiKind {
-    /// Every kind, in rank order.
+    /// Every built-in kind, in rank order.
     pub const ALL: [PiiKind; 20] = [
         PiiKind::Jwt,
         PiiKind::AwsAccessKey,
@@ -83,8 +93,64 @@ impl PiiKind {
         PiiKind::Phone,
     ];
 
+    /// A caller-defined kind named `name`, or the built-in [`PiiKind`] when
+    /// `name` matches one of [`PiiKind::ALL`].
+    pub const fn custom(name: &'static str) -> PiiKind {
+        match name.as_bytes() {
+            b"jwt" => PiiKind::Jwt,
+            b"aws-access-key" => PiiKind::AwsAccessKey,
+            b"github-token" => PiiKind::GithubToken,
+            b"url-credential" => PiiKind::UrlCredential,
+            b"email" => PiiKind::Email,
+            b"iban" => PiiKind::Iban,
+            b"imei" => PiiKind::Imei,
+            b"card" => PiiKind::Card,
+            b"btc-address" => PiiKind::BtcAddress,
+            b"eth-address" => PiiKind::EthAddress,
+            b"mac" => PiiKind::Mac,
+            b"ipv6" => PiiKind::Ipv6,
+            b"ipv4" => PiiKind::Ipv4,
+            b"us-ssn" => PiiKind::UsSsn,
+            b"us-itin" => PiiKind::UsItin,
+            b"uk-nhs" => PiiKind::UkNhs,
+            b"de-steuer-id" => PiiKind::DeSteuerId,
+            b"ca-sin" => PiiKind::CaSin,
+            b"aba-routing" => PiiKind::AbaRouting,
+            b"phone" => PiiKind::Phone,
+            _ => PiiKind::Custom(name),
+        }
+    }
+
+    /// Whether this is a caller-defined kind outside [`PiiKind::ALL`].
+    pub const fn is_custom(self) -> bool {
+        matches!(self, PiiKind::Custom(_))
+    }
+
+    /// Records a custom kind's static name so binary layer import can
+    /// resolve it without allocating untrusted strings.
+    pub fn remember_custom(kind: PiiKind) {
+        if let PiiKind::Custom(name) = kind
+            && !name.is_empty()
+            && PiiKind::parse(name).is_none()
+        {
+            if custom_registry().read().expect("custom pii kinds lock").contains(&name) {
+                return;
+            }
+            let mut reg = custom_registry().write().expect("custom pii kinds lock");
+            if !reg.contains(&name) {
+                reg.push(name);
+            }
+        }
+    }
+
+    /// Looks up a previously registered custom kind by `name`.
+    pub fn lookup_custom(name: &str) -> Option<PiiKind> {
+        let reg = custom_registry().read().expect("custom pii kinds lock");
+        reg.iter().copied().find(|&k| k == name).map(PiiKind::Custom)
+    }
+
     /// The name OpenNLP's `PiiMention` uses for the type (`email`,
-    /// `aws-access-key`, `de-steuer-id`).
+    /// `aws-access-key`, `de-steuer-id`, or a caller's custom name).
     pub const fn name(self) -> &'static str {
         match self {
             PiiKind::Jwt => "jwt",
@@ -107,22 +173,47 @@ impl PiiKind {
             PiiKind::CaSin => "ca-sin",
             PiiKind::AbaRouting => "aba-routing",
             PiiKind::Phone => "phone",
+            PiiKind::Custom(name) => name,
         }
     }
 
-    /// The kind OpenNLP names `name`.
+    /// The built-in kind OpenNLP names `name`.
     pub fn parse(name: &str) -> Option<PiiKind> {
         PiiKind::ALL.into_iter().find(|k| k.name() == name)
     }
 
-    /// `PiiTypePriority.rank`: the position in [`PiiKind::ALL`].
+    /// `PiiTypePriority.rank`: the position in [`PiiKind::ALL`], or `20`
+    /// (`PiiKind::ALL.len()`) for [`PiiKind::Custom`].
     pub const fn rank(self) -> u8 {
-        self as u8
+        match self {
+            PiiKind::Jwt => 0,
+            PiiKind::AwsAccessKey => 1,
+            PiiKind::GithubToken => 2,
+            PiiKind::UrlCredential => 3,
+            PiiKind::Email => 4,
+            PiiKind::Iban => 5,
+            PiiKind::Imei => 6,
+            PiiKind::Card => 7,
+            PiiKind::BtcAddress => 8,
+            PiiKind::EthAddress => 9,
+            PiiKind::Mac => 10,
+            PiiKind::Ipv6 => 11,
+            PiiKind::Ipv4 => 12,
+            PiiKind::UsSsn => 13,
+            PiiKind::UsItin => 14,
+            PiiKind::UkNhs => 15,
+            PiiKind::DeSteuerId => 16,
+            PiiKind::CaSin => 17,
+            PiiKind::AbaRouting => 18,
+            PiiKind::Phone => 19,
+            PiiKind::Custom(_) => 20,
+        }
     }
 
-    /// The bit of this kind in a [`PiiKinds`] set.
+    /// The bit of this kind in a [`PiiKinds`] set (`0` for [`PiiKind::Custom`]).
     pub const fn bit(self) -> u32 {
-        1 << self as u32
+        let r = self.rank();
+        if (r as usize) < PiiKind::ALL.len() { 1 << r as u32 } else { 0 }
     }
 }
 
@@ -231,6 +322,7 @@ impl Pii {
 
     /// Appends one mention to every column.
     pub fn push(&mut self, m: PiiMention<'_>) -> Ix<Pii> {
+        PiiKind::remember_custom(m.kind);
         self.kind.push(m.kind);
         self.confidence.push(m.confidence);
         self.normalized.push(m.normalized);
@@ -268,6 +360,9 @@ impl Layer for Pii {
         for (i, m) in self.mentions().enumerate() {
             if m.span.is_empty() {
                 return Err(format!("pii mention {i} is empty at {}", m.span.start));
+            }
+            if m.kind.name().is_empty() {
+                return Err(format!("pii mention {i} has no kind name"));
             }
             if m.normalized.is_empty() {
                 return Err(format!("pii mention {i} has no normalized form"));

@@ -12,8 +12,8 @@ package of the OpenNLP fork the other ports follow (commit `cdf33c6`):
 |---|---|
 | `PiiDetector` | `CompositePiiExtractor` and `PiiAnnotator` |
 | `Pack`, `PiiDetector::pack` | `PiiPacks` |
-| `Extractor`, `Scanner` | the extractor classes (`CursorPiiExtractor`, `NetworkPiiExtractor` and the others) and their type selection |
-| `Pii`, `PiiMention`, `PiiKind` | `PiiMention`, the type strings, `PiiTypePriority` |
+| `Extractor`, `Scanner`, `CustomExtractor`, `PiiSink` | `PiiExtractor`, the extractor classes (`CursorPiiExtractor`, `NetworkPiiExtractor` and the others) and their type selection |
+| `Pii`, `PiiMention`, `PiiKind`, `PiiKind::Custom` | `PiiMention`, the type strings, `PiiTypePriority` |
 | `PiiConfidence` | none (below) |
 | `rewrite::mask`, `mask_all`, `mask_by_kind`, `MaskPolicy` | `Masker`, `MaskPolicy`, `MaskPolicies` |
 | `rewrite::MaskedView`, `mask_view` | `Masker` with `MaskPolicies.byType()`, as a view |
@@ -201,13 +201,16 @@ spans over multi-byte texts, and that the text equals `mask`.
   unit offset 2 more). The goldens record UTF-8 offsets, so the
   comparison is exact.
 - Masks keep the byte length, not the UTF-16 length (above).
-- A detector is built from the extractor classes the package has.
-  OpenNLP's `PiiExtractor` interface also takes extractors written by a
-  caller with type strings of their own; there is no such extension here,
-  so the Java tests of custom types (`PseudonymizerIdentity` with custom
-  types, the audit escaping of custom type names, the read counts of a
-  custom `CharSequence`) are not ported. Their ordering and masking cases
-  are ported with built-in kinds.
+- Caller-defined extractors implement `CustomExtractor` (or pass a scan
+  function to `Scanner::custom_fn` / `PiiDetector::with_custom_fn`) and
+  emit mentions with `PiiKind::custom("...")`, their own `PiiConfidence`,
+  and `checksum` / `text` helpers via `PiiSink`
+  (`analysis/pii/tests/custom_extractors.rs`). Built-in kinds rank
+  `0..20` (`PiiKind::ALL`); `PiiKind::Custom` has rank `20` and orders
+  after built-in kinds on an exact span tie, then by kind name. Caller
+  kinds flow through `mask_all`, `mask_by_kind`, `MaskedView` (with
+  `MaskedView::with` overrides), `Pseudonymizer`, `HmacTokenizer` and
+  `PiiAuditReport`.
 - `PiiConfidence` is added (above).
 - By default, `PiiDetector` drops a mention whose span lies strictly
   inside a longer mention, so trailing groups of a grouped IBAN are not
