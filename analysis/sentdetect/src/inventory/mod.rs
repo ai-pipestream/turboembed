@@ -31,6 +31,7 @@
 mod english;
 mod index;
 mod judge;
+mod languages;
 #[cfg(test)]
 mod tests;
 
@@ -223,11 +224,21 @@ pub struct AbbreviationInventories;
 
 impl AbbreviationInventories {
     /// The bundled inventory of a BCP 47 tag with every class, or
-    /// [`AbbreviationInventory::EMPTY`] for a language without one. Only
-    /// English (`en`) has one.
+    /// [`AbbreviationInventory::EMPTY`] for a language without one.
     pub fn for_language(tag: &str) -> AbbreviationInventory {
+        Self::for_language_with_classes(tag, AbbreviationClasses::ALL)
+    }
+
+    /// The bundled inventory restricted to a class set or preset.
+    pub fn for_language_with_classes(tag: &str, classes: impl Into<AbbreviationClasses>) -> AbbreviationInventory {
+        let classes = classes.into();
         let primary = tag.split(['-', '_']).next().unwrap_or("");
-        if primary.eq_ignore_ascii_case("en") { AbbreviationInventory::english() } else { AbbreviationInventory::EMPTY }
+        if primary.eq_ignore_ascii_case("en") {
+            AbbreviationInventory::with_classes(classes)
+        } else {
+            languages::bundle(primary)
+                .map_or(AbbreviationInventory::EMPTY, |bundle| AbbreviationInventory::from_bundle(bundle, classes))
+        }
     }
 }
 
@@ -255,11 +266,11 @@ impl AbbreviationInventory {
     /// The bundled English inventory with the given classes, a class, a
     /// set or an [`AbbreviationPreset`].
     pub fn with_classes(classes: impl Into<AbbreviationClasses>) -> AbbreviationInventory {
-        let mut inventory = AbbreviationInventory {
-            bundle: Some(&english::ENGLISH),
-            classes: classes.into(),
-            ..AbbreviationInventory::EMPTY
-        };
+        Self::from_bundle(&english::ENGLISH, classes.into())
+    }
+
+    fn from_bundle(bundle: &'static Bundle, classes: AbbreviationClasses) -> Self {
+        let mut inventory = AbbreviationInventory { bundle: Some(bundle), classes, ..AbbreviationInventory::EMPTY };
         inventory.index = Some(Arc::new(Index::build(&inventory)));
         inventory
     }
