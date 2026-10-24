@@ -230,11 +230,12 @@ impl ExtractiveQa {
             info.struct_size = size_of::<turbo_result_info>() as u32;
             check(turbo_result_get_info(result.0, &mut info, &mut e), &e)?;
             // A device that applies the span head returns each token's two
-            // logits (turbo.h); elsewhere its final hidden state.
+            // logits (turbo.h); elsewhere its final hidden state. Width 2
+            // is also valid on the CPU, so shape cannot identify the path.
             let labels = self.head.classifier.out_dim;
-            let on_device = info.dim as usize == labels;
-            if info.batch != n || !(on_device || info.dim as usize == self.head.hidden) || info.dtype != TURBO_DTYPE_F32
-            {
+            let on_device = model_handle(self.model)?.inner.span_head.is_some();
+            let dim = if on_device { labels } else { self.head.hidden };
+            if info.batch != n || info.dim as usize != dim || info.dtype != TURBO_DTYPE_F32 {
                 return Err(Error::new(INTERNAL, "QA encoder returned an unexpected state shape"));
             }
             if on_device {
