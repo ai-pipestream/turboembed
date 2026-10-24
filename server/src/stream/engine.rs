@@ -20,7 +20,7 @@ use tonic::Status;
 
 use crate::api::Failure;
 use crate::proto::result::{AnalyzeOrder, AnalyzeStreamResponse};
-use crate::stream::run::{self, Doc, Outcome, Whole};
+use crate::stream::run::{self, Doc, Outcome, RowPayload, Whole};
 use crate::stream::{BatchKey, Dead, Envelope, Room, Shared};
 
 /// The header as the scheduler holds it.
@@ -112,7 +112,7 @@ impl Engine {
             let stalled_deadline = self.stalled_at.map(|at| at + SESSION_RETRY);
             stalled_retry.as_mut().reset(stalled_deadline.unwrap_or_else(far));
             tokio::select! {
-                env = work.recv() => match env {
+                env = work.recv(), if !input_ended => match env {
                     Some(Envelope::Doc(mut doc)) => {
                         doc.seq = self.next_seq;
                         self.next_seq += 1;
@@ -134,7 +134,7 @@ impl Engine {
                 },
                 outcome = self.inflight.join_next(), if !self.inflight.is_empty() => match outcome {
                     Some(Ok(outcome)) => {
-                        if self.deliver(outcome, &answers).await.is_err() {
+                        if self.deliver(outcome, &answers, &dead).await.is_err() {
                             break;
                         }
                     }
@@ -281,7 +281,8 @@ impl Engine {
             Ok(held) => {
                 let opts = docs[0].opts;
                 let shared = self.shared.clone();
-                self.inflight.spawn_blocking(move || run::run(&shared, held, docs, &opts, permits));
+                let dead = dead.clone();
+                self.inflight.spawn_blocking(move || run::run(&shared, dead.flag(), held, docs, &opts, permits));
             }
             Err(_) => self.stash(docs, permits),
         }
@@ -302,22 +303,25 @@ impl Engine {
         &mut self,
         outcome: Outcome,
         answers: &mpsc::Sender<std::result::Result<AnalyzeStreamResponse, Status>>,
+        dead: &Arc<Dead>,
     ) -> std::result::Result<(), ()> {
         let Outcome { model, version, dim, rows } = outcome;
         match rows {
             Ok(rows) => {
                 for row in rows {
-                    let vectors = crate::proto::result::AnalyzeVectors {
-                        model: model.clone(),
-                        version: version.clone(),
-                        dim,
-                        data: row.data,
+                    let response = match row.payload {
+                        RowPayload::Vector(data) => {
+                            let vectors = crate::proto::result::AnalyzeVectors {
+                                model: model.clone(),
+                                version: version.clone(),
+                                dim,
+                                data,
+                            };
+                            ok_response(row.id, vectors)
+                        }
+                        RowPayload::Outcome(outcome) => AnalyzeStreamResponse { id: row.id, outcome: Some(*outcome) },
                     };
-                    let pending = Pending {
-                        response: ok_response(row.id, vectors),
-                        room: Some(row.room),
-                        window: Some(row.window),
-                    };
+                    let pending = Pending { response, room: Some(row.room), window: Some(row.window) };
                     if self.enqueue(row.seq, pending, answers).await.is_err() {
                         return Err(());
                     }
@@ -334,13 +338,18 @@ impl Engine {
                 self.enqueue(doc.seq, pending, answers).await
             }
             Err(Whole { failure: _, docs, permits }) => {
+                if dead.is_set() {
+                    return Err(());
+                }
                 for (doc, permit) in docs.into_iter().zip(permits) {
                     match doc.loaded.take() {
                         Ok(held) => {
                             let opts = doc.opts;
                             let shared = self.shared.clone();
-                            self.inflight
-                                .spawn_blocking(move || run::run(&shared, held, vec![doc], &opts, vec![permit]));
+                            let dead = dead.clone();
+                            self.inflight.spawn_blocking(move || {
+                                run::run(&shared, dead.flag(), held, vec![doc], &opts, vec![permit])
+                            });
                         }
                         Err(_) => self.stash(vec![doc], vec![permit]),
                     }

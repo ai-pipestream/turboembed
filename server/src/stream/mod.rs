@@ -45,6 +45,11 @@ impl Dead {
         self.set.load(Ordering::SeqCst)
     }
 
+    /// The flag alone, for a run that checks it between rows.
+    pub(crate) fn flag(&self) -> &std::sync::atomic::AtomicBool {
+        &self.set
+    }
+
     /// Returns once the stream has died. The waiter is registered before
     /// the flag is read, so a `set` between the two is not missed.
     pub(crate) async fn wait(&self) {
@@ -60,9 +65,9 @@ impl Dead {
     }
 }
 
-/// The batching key: the load's identity, then the options. Documents
-/// batch together only under one key.
-pub(crate) type BatchKey = (usize, u32, u32, u32, u32, u32, u32);
+/// The batching key: the load's identity, output kind, offset mode, and
+/// options. Documents batch together only under one key.
+pub(crate) type BatchKey = (usize, i32, i32, u32, u32, u32, u32, u32, u32, u32, u32, u32);
 
 /// What the reader hands the engine for one stream message: an
 /// admitted document holding its queue room, a document that failed

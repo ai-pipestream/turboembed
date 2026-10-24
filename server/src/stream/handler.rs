@@ -16,8 +16,9 @@ use tonic::{Response, Status, Streaming};
 
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_ENUM, names};
 use crate::kserve::Reply;
+use crate::offsets::OffsetMode;
 use crate::proto::result::analyze_stream_request::Kind;
-use crate::proto::result::{AnalyzeOptions, AnalyzeOrder, AnalyzeStreamRequest, AnalyzeStreamResponse};
+use crate::proto::result::{AnalyzeOptions, AnalyzeOrder, AnalyzeOutput, AnalyzeStreamRequest, AnalyzeStreamResponse};
 use crate::state::State;
 use crate::status::to_status;
 use crate::stream::engine::{self, Config};
@@ -37,6 +38,49 @@ fn invalid(message: impl Into<String>) -> Status {
 fn bad_enum(name: &str, value: u32, table: &[(u32, &str)]) -> Failure {
     let all: Vec<&str> = table.iter().map(|(_, n)| *n).collect();
     Failure::new(TURBO_E_INVALID_ENUM, 0, format!("{name} {value}: not one of {}", all.join(", "),))
+}
+
+/// Validated per-document options, output kind, and wire offset mode.
+#[derive(Copy, Clone, Debug)]
+pub(crate) struct DocOptions {
+    pub(crate) embed: turbo::turbo_embed_options,
+    pub(crate) output: AnalyzeOutput,
+    pub(crate) offsets: OffsetMode,
+    pub(crate) sparse_top_k: u32,
+    pub(crate) sparse_floor: f32,
+    pub(crate) token_stride: u32,
+}
+
+/// Validates the output kind, offset mode, and options of one
+/// `AnalyzeDocument`.
+pub(crate) fn doc_options(output: i32, offsets: i32, o: Option<&AnalyzeOptions>) -> Result<DocOptions, Failure> {
+    let output = AnalyzeOutput::try_from(output).map_err(|_| {
+        Failure::new(
+            TURBO_E_INVALID_ENUM,
+            0,
+            format!(
+                "output {output}: not one of ANALYZE_OUTPUT_VECTORS, ANALYZE_OUTPUT_SPARSE_TERMS, ANALYZE_OUTPUT_TOKEN_VECTORS"
+            ),
+        )
+    })?;
+    let offsets = OffsetMode::from_proto(offsets)?;
+    let embed = options(o)?;
+    let raw = o.cloned().unwrap_or_default();
+    if !raw.sparse_floor.is_finite() || raw.sparse_floor < 0.0 {
+        return Err(Failure::new(
+            TURBO_E_INVALID_ARGUMENT,
+            0,
+            format!("sparse_floor {}: must be a finite number >= 0", raw.sparse_floor),
+        ));
+    }
+    Ok(DocOptions {
+        embed,
+        output,
+        offsets,
+        sparse_top_k: raw.sparse_top_k,
+        sparse_floor: raw.sparse_floor,
+        token_stride: raw.token_stride,
+    })
 }
 
 /// The document's options as one turbo_embed_options, each field 0 or a
