@@ -257,6 +257,12 @@ unsafe fn session<'a>(s: *mut turbo_session) -> Result<&'a turbo_session> {
     }
 }
 
+/// Whether this session's range writes apply the model's span head.
+/// The caller must hold a live session handle.
+pub(crate) unsafe fn applies_span_head(s: *mut turbo_session) -> Result<bool> {
+    Ok(unsafe { session(s)? }.inner.model.span_head.is_some())
+}
+
 unsafe fn result<'a>(r: *mut turbo_result) -> Result<&'a mut turbo_result> {
     match unsafe { r.as_mut() } {
         Some(r) if r.magic == RESULT_MAGIC => Ok(r),

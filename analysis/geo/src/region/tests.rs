@@ -65,9 +65,16 @@ fn doc_with_location_entities(text: &str, names: &[&str]) -> Document {
     let mut tokens = Vec::new();
     let mut kind = Vec::new();
     let mut score = Vec::new();
-    for &name in names {
-        let start = text.find(name).unwrap();
-        spans.push(Span::new(start as u32, (start + name.len()) as u32));
+    let mut found: Vec<Span> = names
+        .iter()
+        .map(|&name| {
+            let start = text.find(name).unwrap();
+            Span::new(start as u32, (start + name.len()) as u32)
+        })
+        .collect();
+    found.sort_by_key(|s| s.start);
+    for span in found {
+        spans.push(span);
         tokens.push(IxRange::new(0, 0));
         kind.push(Tag(0));
         score.push(1.0);
