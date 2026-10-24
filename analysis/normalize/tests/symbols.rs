@@ -182,4 +182,16 @@ fn joiner_joins_symbol_sequences_from_table_with_exact_offsets() {
     let custom = SymbolJoiner::with_sequences(["::=", "<=>"]);
     assert_ne!(custom.config_hash(), SymbolJoiner::new().config_hash());
     assert_ne!(SymbolJoiner::without_sequences().config_hash(), SymbolJoiner::new().config_hash());
+
+    // Long run of touching single-byte punctuation tokens does not scan quadratically.
+    let many_q = "?".repeat(4000);
+    let doc_q = Document::new(many_q);
+    let view_q = doc_q.get::<View>().unwrap();
+    let mut spans_q = Spans::new(view_q.id());
+    for idx in 0..4000u32 {
+        spans_q.push(Span::new(idx, idx + 1));
+    }
+    let tokens_q = Tokens { spans: spans_q, sentence: None };
+    let joined_q = SymbolJoiner::new().join_tokens(view_q, &tokens_q).unwrap();
+    assert_eq!(joined_q.spans.len(), 4000);
 }

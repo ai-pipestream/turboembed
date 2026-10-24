@@ -75,6 +75,7 @@ pub enum DehyphenateMode {
 pub struct Dehyphenate {
     mode: DehyphenateMode,
     lexicon: Option<Arc<dyn Dictionary>>,
+    lexicon_id: Option<u64>,
 }
 
 impl std::fmt::Debug for Dehyphenate {
@@ -86,17 +87,25 @@ impl std::fmt::Debug for Dehyphenate {
 impl Dehyphenate {
     /// The OpenNLP behaviour: every qualifying hyphen is deleted.
     pub fn new() -> Dehyphenate {
-        Dehyphenate { mode: DehyphenateMode::Join, lexicon: None }
+        Dehyphenate { mode: DehyphenateMode::Join, lexicon: None, lexicon_id: None }
     }
 
     /// Keeps a hyphen-minus that is followed by an uppercase letter.
     pub fn keep_compounds() -> Dehyphenate {
-        Dehyphenate { mode: DehyphenateMode::KeepCompounds, lexicon: None }
+        Dehyphenate { mode: DehyphenateMode::KeepCompounds, lexicon: None, lexicon_id: None }
     }
 
     /// Decides whether to keep a hyphen-minus at a line break using `lexicon`.
     pub fn with_lexicon(lexicon: impl Dictionary + 'static) -> Dehyphenate {
-        Dehyphenate { mode: DehyphenateMode::Lexicon, lexicon: Some(Arc::new(lexicon)) }
+        let id = lexicon.config_hash();
+        Dehyphenate { mode: DehyphenateMode::Lexicon, lexicon: Some(Arc::new(lexicon)), lexicon_id: Some(id) }
+    }
+
+    /// Decides whether to keep a hyphen-minus at a line break using `lexicon`
+    /// and an explicit identity key for [`Normalizer::config_hash`].
+    pub fn with_identified_lexicon(id: impl std::hash::Hash, lexicon: impl Dictionary + 'static) -> Dehyphenate {
+        let id_hash = hash_config(&(id, lexicon.config_hash()));
+        Dehyphenate { mode: DehyphenateMode::Lexicon, lexicon: Some(Arc::new(lexicon)), lexicon_id: Some(id_hash) }
     }
 
     /// Decides whether to keep a hyphen-minus at a line break using a
@@ -128,52 +137,150 @@ impl Normalizer for Dehyphenate {
                 continue;
             };
             let after_hyphen = i + hyphen.len_utf8();
-            match join_end(text, i, after_hyphen) {
-                Some(end) => {
-                    let keep_hyphen = self.should_keep_hyphen(text, i, end, hyphen);
-                    out.keep(if keep_hyphen { after_hyphen } else { i });
-                    out.replace(end, "");
-                    // The letter at `end` cannot be a hyphen, so the scan
-                    // resumes there.
-                    i = end;
+            let Some(end) = join_end(text, i, after_hyphen) else {
+                i = after_hyphen;
+                continue;
+            };
+            if self.mode == DehyphenateMode::Lexicon
+                && let Some(lexicon) = self.lexicon.as_deref()
+            {
+                let (breaks, next_i) = collect_and_resolve_chain(lexicon, text, i, after_hyphen, end, hyphen);
+                for brk in breaks {
+                    out.keep(if brk.keep { brk.after_hyphen } else { brk.hyphen_idx });
+                    out.replace(brk.cont_idx, "");
                 }
-                None => i = after_hyphen,
+                i = next_i;
+            } else {
+                let keep_hyphen =
+                    hyphen == '-' && self.mode == DehyphenateMode::KeepCompounds && uppercase(decode_at(text, end));
+                out.keep(if keep_hyphen { after_hyphen } else { i });
+                out.replace(end, "");
+                i = end;
             }
         }
     }
 
     fn config_hash(&self) -> u64 {
-        hash_config(&self.mode)
+        let lex_hash = self.lexicon_id.or_else(|| self.lexicon.as_ref().map(|d| d.config_hash()));
+        hash_config(&(&self.mode, lex_hash))
     }
 }
 
-impl Dehyphenate {
-    fn should_keep_hyphen(&self, text: &str, hyphen_idx: usize, cont_idx: usize, hyphen: char) -> bool {
-        if hyphen != '-' {
-            return false;
+struct ChainBreak {
+    hyphen_idx: usize,
+    after_hyphen: usize,
+    cont_idx: usize,
+    hyphen: char,
+    keep: bool,
+}
+
+/// Collects a maximal chain of consecutive qualifying line-break hyphens in
+/// the same word starting at `(first_hyphen, first_after, first_cont, first_char)`
+/// and decides which U+002D breaks to keep using `lexicon`.
+fn collect_and_resolve_chain(
+    lexicon: &dyn Dictionary,
+    text: &str,
+    first_hyphen: usize,
+    first_after: usize,
+    first_cont: usize,
+    first_char: char,
+) -> (Vec<ChainBreak>, usize) {
+    let seg0_start = word_start_with_inline_hyphens(text, first_hyphen);
+    let mut segments: Vec<&str> = vec![&text[seg0_start..first_hyphen]];
+    let mut breaks = vec![ChainBreak {
+        hyphen_idx: first_hyphen,
+        after_hyphen: first_after,
+        cont_idx: first_cont,
+        hyphen: first_char,
+        keep: false,
+    }];
+    let mut seg_start = first_cont;
+    loop {
+        let seg_end = word_end_with_inline_hyphens(text, seg_start);
+        segments.push(&text[seg_start..seg_end]);
+        if seg_end < text.len()
+            && let Some(h) = hyphen_at(text, seg_end)
+            && let Some(next_cont) = join_end(text, seg_end, seg_end + h.len_utf8())
+        {
+            breaks.push(ChainBreak {
+                hyphen_idx: seg_end,
+                after_hyphen: seg_end + h.len_utf8(),
+                cont_idx: next_cont,
+                hyphen: h,
+                keep: false,
+            });
+            seg_start = next_cont;
+        } else {
+            break;
         }
-        match self.mode {
-            DehyphenateMode::Join => false,
-            DehyphenateMode::KeepCompounds => uppercase(decode_at(text, cont_idx)),
-            DehyphenateMode::Lexicon => {
-                let Some(lexicon) = self.lexicon.as_deref() else {
-                    return uppercase(decode_at(text, cont_idx));
-                };
-                let left = left_stem(text, hyphen_idx);
-                let right = right_stem(text, cont_idx);
-                let joined = format!("{left}{right}");
-                if lexicon_knows(lexicon, &joined) {
-                    return false;
+    }
+    let resume_at = breaks.last().map_or(first_cont, |b| b.cont_idx);
+    resolve_chain_keeps(lexicon, text, &segments, &mut breaks);
+    (breaks, resume_at)
+}
+
+fn resolve_chain_keeps(lexicon: &dyn Dictionary, text: &str, segments: &[&str], breaks: &mut [ChainBreak]) {
+    let k = breaks.len();
+    let all_joined = segments.concat();
+    if !all_joined.contains('-') && lexicon_knows(lexicon, &all_joined) {
+        return;
+    }
+    if k <= 8 {
+        let allowed_mask: u32 =
+            breaks.iter().enumerate().fold(0u32, |acc, (idx, b)| acc | (u32::from(b.hyphen == '-') << idx));
+        // Prefer the fewest kept hyphens where every `-`-separated component is a known word.
+        for target_kept in 0..=k {
+            for mask in 0..(1u32 << k) {
+                if (mask & !allowed_mask) != 0 || mask.count_ones() as usize != target_kept {
+                    continue;
                 }
-                let hyphenated = format!("{left}-{right}");
-                if lexicon_knows(lexicon, &hyphenated)
-                    || (lexicon_knows(lexicon, &left) && lexicon_knows(lexicon, &right))
-                {
-                    return true;
+                let candidate = build_candidate(segments, mask);
+                if candidate.split('-').all(|part| lexicon_knows(lexicon, part)) {
+                    apply_mask(breaks, mask);
+                    return;
                 }
-                uppercase(decode_at(text, cont_idx))
             }
         }
+        // Next, prefer the fewest kept hyphens where the hyphenated compound itself is listed in the lexicon.
+        for target_kept in 1..=k {
+            for mask in 0..(1u32 << k) {
+                if (mask & !allowed_mask) != 0 || mask.count_ones() as usize != target_kept {
+                    continue;
+                }
+                let candidate = build_candidate(segments, mask);
+                if lexicon_knows(lexicon, &candidate) {
+                    apply_mask(breaks, mask);
+                    return;
+                }
+            }
+        }
+    }
+    for (idx, brk) in breaks.iter_mut().enumerate() {
+        if brk.hyphen == '-' {
+            let left = segments[idx].rsplit('-').next().unwrap_or(segments[idx]);
+            let right = segments[idx + 1].split('-').next().unwrap_or(segments[idx + 1]);
+            let pair = format!("{left}-{right}");
+            brk.keep = lexicon_knows(lexicon, &pair)
+                || (lexicon_knows(lexicon, left) && lexicon_knows(lexicon, right))
+                || uppercase(decode_at(text, brk.cont_idx));
+        }
+    }
+}
+
+fn build_candidate(segments: &[&str], mask: u32) -> String {
+    let mut out = String::from(segments[0]);
+    for (idx, seg) in segments[1..].iter().enumerate() {
+        if (mask & (1u32 << idx)) != 0 {
+            out.push('-');
+        }
+        out.push_str(seg);
+    }
+    out
+}
+
+fn apply_mask(breaks: &mut [ChainBreak], mask: u32) {
+    for (idx, brk) in breaks.iter_mut().enumerate() {
+        brk.keep = (mask & (1u32 << idx)) != 0;
     }
 }
 
@@ -193,82 +300,39 @@ fn is_word_char(c: char) -> bool {
     is_letter(c) || general_category(c).is_mark()
 }
 
-/// Collects the letter-and-mark stem before `hyphen_idx`, walking across any
-/// preceding qualifying line-break hyphens that are part of the same split word.
-fn left_stem(text: &str, hyphen_idx: usize) -> String {
-    let mut segments: Vec<&str> = Vec::new();
-    let mut end = hyphen_idx;
-    loop {
-        let mut start = end;
-        while start > 0 {
-            let (prev, c) = decode_before(text, start);
-            if !is_word_char(c) {
-                break;
-            }
-            start = prev;
-        }
-        segments.push(&text[start..end]);
-        if let Some(prev_hyphen) = preceding_join_hyphen(text, start) {
-            end = prev_hyphen;
-        } else {
-            break;
-        }
-    }
-    segments.reverse();
-    segments.concat()
-}
-
-/// If `cont_idx` is the continuation of an earlier qualifying hyphen + line break,
-/// returns the byte offset of that hyphen.
-fn preceding_join_hyphen(text: &str, cont_idx: usize) -> Option<usize> {
-    let mut at = cont_idx;
-    while at > 0 {
-        let (prev, c) = decode_before(text, at);
-        if is_horizontal_whitespace(c) {
-            at = prev;
-        } else if is_line_break(c) {
-            at = prev;
-            if c == '\n' && at > 0 && text.as_bytes()[at - 1] == b'\r' {
-                at -= 1;
-            }
-            break;
-        } else {
-            return None;
-        }
-    }
-    if at == 0 {
-        return None;
-    }
-    let (h_start, _) = decode_before(text, at);
-    let h = hyphen_at(text, h_start)?;
-    (h_start + h.len_utf8() == at && join_end(text, h_start, at) == Some(cont_idx)).then_some(h_start)
-}
-
-/// Collects the letter-and-mark stem starting at `cont_idx`, walking across any
-/// subsequent qualifying soft or typeset line-break hyphens in the same word.
-fn right_stem(text: &str, cont_idx: usize) -> String {
-    let mut out = String::new();
-    let mut start = cont_idx;
-    loop {
-        let mut end = start;
-        while end < text.len() {
-            let c = decode_at(text, end);
-            if !is_word_char(c) {
-                break;
-            }
-            end += c.len_utf8();
-        }
-        out.push_str(&text[start..end]);
-        if end < text.len()
-            && let Some(h) = hyphen_at(text, end)
-            && let Some(next_cont) = join_end(text, end, end + h.len_utf8())
+/// Walks backward from `end` across word characters and inline U+002D hyphens
+/// that connect two letter-bearing sub-parts on the same line.
+fn word_start_with_inline_hyphens(text: &str, end: usize) -> usize {
+    let mut start = end;
+    while start > 0 {
+        let (prev, c) = decode_before(text, start);
+        if is_word_char(c)
+            || (c == '-' && ends_with_letter(text, prev) && start < text.len() && is_letter(decode_at(text, start)))
         {
-            start = next_cont;
+            start = prev;
         } else {
             break;
         }
     }
-    out
+    start
+}
+
+/// Walks forward from `start` across word characters and inline U+002D hyphens
+/// that are immediately followed by a letter on the same line.
+fn word_end_with_inline_hyphens(text: &str, start: usize) -> usize {
+    let mut end = start;
+    while end < text.len() {
+        let c = decode_at(text, end);
+        if is_word_char(c) {
+            end += c.len_utf8();
+        } else if c == '-' && ends_with_letter(text, end) && end + 1 < text.len() && is_letter(decode_at(text, end + 1))
+        {
+            end += 1;
+        } else {
+            break;
+        }
+    }
+    end
 }
 
 /// The hyphen that starts at byte `at`, if there is one. U+00AD starts

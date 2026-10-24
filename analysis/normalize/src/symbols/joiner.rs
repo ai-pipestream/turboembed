@@ -122,6 +122,7 @@ pub const DEFAULT_SYMBOL_SEQUENCES: &[&str] = &[
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct SymbolJoiner {
     sequences: Vec<String>,
+    max_len: usize,
 }
 
 impl Default for SymbolJoiner {
@@ -145,13 +146,14 @@ impl SymbolJoiner {
         let mut list: Vec<String> = sequences.into_iter().map(Into::into).filter(|s| !s.is_empty()).collect();
         list.sort();
         list.dedup();
-        SymbolJoiner { sequences: list }
+        let max_len = list.iter().map(String::len).max().unwrap_or(0);
+        SymbolJoiner { sequences: list, max_len }
     }
 
     /// Creates a `SymbolJoiner` with an empty sequence table (only replaces
     /// lone mapped-symbol tokens with words).
     pub fn without_sequences() -> SymbolJoiner {
-        SymbolJoiner { sequences: Vec::new() }
+        SymbolJoiner { sequences: Vec::new(), max_len: 0 }
     }
 
     /// The configured symbol sequences, sorted lexicographically.
@@ -159,8 +161,14 @@ impl SymbolJoiner {
         &self.sequences
     }
 
-    fn contains_sequence(&self, candidate: &str) -> bool {
-        self.sequences.binary_search_by(|s| s.as_str().cmp(candidate)).is_ok()
+    /// Returns `(has_prefix, is_exact)` for `candidate` in the sorted table.
+    fn lookup_prefix(&self, candidate: &str) -> (bool, bool) {
+        let idx = self.sequences.partition_point(|s| s.as_str() < candidate);
+        if let Some(entry) = self.sequences.get(idx) {
+            (entry.starts_with(candidate), entry == candidate)
+        } else {
+            (false, false)
+        }
     }
 
     /// Joins touching token spans in `tokens` whose combined slice in
@@ -194,24 +202,37 @@ impl SymbolJoiner {
         let mut i = 0;
         while i < raw.len() {
             let mut best_j = i;
-            if !self.sequences.is_empty() {
+            if self.max_len > 0 {
                 let start = raw[i].start as usize;
-                let mut prev_end = raw[i].end;
-                let mut j = i + 1;
-                while j < raw.len() && raw[j].start == prev_end {
-                    if let Some(ref sent) = tokens.sentence
-                        && sent[j] != sent[i]
-                    {
-                        break;
+                let first_end = raw[i].end as usize;
+                let can_start = first_end - start <= self.max_len
+                    && text.get(start..first_end).is_some_and(|s| self.lookup_prefix(s).0);
+                if can_start {
+                    let mut prev_end = raw[i].end;
+                    let mut j = i + 1;
+                    while j < raw.len() && raw[j].start == prev_end {
+                        if let Some(ref sent) = tokens.sentence
+                            && sent[j] != sent[i]
+                        {
+                            break;
+                        }
+                        let end = raw[j].end as usize;
+                        if end - start > self.max_len {
+                            break;
+                        }
+                        let Some(slice) = text.get(start..end) else {
+                            break;
+                        };
+                        let (has_prefix, is_exact) = self.lookup_prefix(slice);
+                        if !has_prefix {
+                            break;
+                        }
+                        if is_exact {
+                            best_j = j;
+                        }
+                        prev_end = raw[j].end;
+                        j += 1;
                     }
-                    let end = raw[j].end as usize;
-                    if let Some(slice) = text.get(start..end)
-                        && self.contains_sequence(slice)
-                    {
-                        best_j = j;
-                    }
-                    prev_end = raw[j].end;
-                    j += 1;
                 }
             }
             joined_spans.push(Span::new(raw[i].start, raw[best_j].end));

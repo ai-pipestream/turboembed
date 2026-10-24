@@ -350,8 +350,37 @@ fn lexicon_mode_with_hunspell_and_morfologik_on_extracted_text() {
     let hunspell_affixes =
         Arc::new(HunspellDictionary::from_bytes(&affixes_aff, &affixes_dic, LoadMode::Strict).unwrap());
     let dehyp_affixes = Dehyphenate::with_hunspell(hunspell_affixes);
+    assert_ne!(dehyp_compound.config_hash(), dehyp_affixes.config_hash());
     // "ponies" is derived from "pony/SM", whereas "co-op" is listed with its hyphen.
     assert_eq!(run_checked(&dehyp_affixes, "pon-\nies at the co-\nop", join_edit), "ponies at the co-op");
+
+    // Distinct lexicons produce distinct provenance config hashes and views on a Document.
+    use turbo_analysis::{Analyzer, Bound, Document, Key, View};
+    use turbo_normalize::NormalizeStep;
+    let analyzer = Analyzer::builder()
+        .step(Bound::new(NormalizeStep::new(dehyp_compound)).write(0, "v1"))
+        .step(Bound::new(NormalizeStep::new(dehyp_affixes)).write(0, "v2"))
+        .build()
+        .unwrap();
+    let mut docs = vec![Document::new("foot-\nball and bad-\nball")];
+    assert!(analyzer.run(&mut docs)[0].is_ok());
+    assert_eq!(docs[0].get_key(&Key::<View>::named("v1")).unwrap().text(), "football and bad-ball");
+    assert_eq!(docs[0].get_key(&Key::<View>::named("v2")).unwrap().text(), "football and badball");
+    assert_ne!(
+        docs[0].provenance(Key::<View>::named("v1").id()).unwrap().config,
+        docs[0].provenance(Key::<View>::named("v2").id()).unwrap().config
+    );
+
+    // Multi-line dictionary compound ("mother-\nin-\nlaw") and mixed compound + syllable split
+    // ("well-\nin-\nformed") with a Hunspell dictionary.
+    let multi_aff = b"SET UTF-8\n";
+    let multi_dic = b"3\nmother-in-law\nwell\ninformed\n";
+    let hunspell_multi = Arc::new(HunspellDictionary::from_bytes(multi_aff, multi_dic, LoadMode::Strict).unwrap());
+    let dehyp_multi = Dehyphenate::with_hunspell(hunspell_multi);
+    assert_eq!(
+        run_checked(&dehyp_multi, "mother-\nin-\nlaw and well-\nin-\nformed", join_edit),
+        "mother-in-law and well-informed"
+    );
 
     // Morfologik FSA dictionary on extracted prose with "litiga-\ntion",
     // "well-\nknown", "Mc-\nDonald", "state-of-the-\nart", and multi-line "inter-\nnation-\nal".

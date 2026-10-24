@@ -32,6 +32,11 @@ pub use stats::NoiseStats;
 pub trait Dictionary: Send + Sync {
     /// Whether `word`, in lowercase, is a known word.
     fn contains(&self, word: &str) -> bool;
+
+    /// A fingerprint of this dictionary for annotator and normalizer cache keys.
+    fn config_hash(&self) -> u64 {
+        crate::hash_config(&std::any::type_name::<Self>())
+    }
 }
 
 impl<F: Fn(&str) -> bool + Send + Sync> Dictionary for F {
@@ -44,11 +49,21 @@ impl Dictionary for HashSet<String> {
     fn contains(&self, word: &str) -> bool {
         HashSet::contains(self, word)
     }
+
+    fn config_hash(&self) -> u64 {
+        let mut words: Vec<&str> = self.iter().map(String::as_str).collect();
+        words.sort_unstable();
+        crate::hash_config(&words)
+    }
 }
 
 impl Dictionary for BTreeSet<String> {
     fn contains(&self, word: &str) -> bool {
         BTreeSet::contains(self, word)
+    }
+
+    fn config_hash(&self) -> u64 {
+        crate::hash_config(self)
     }
 }
 
@@ -56,11 +71,19 @@ impl<D: Dictionary + ?Sized> Dictionary for Arc<D> {
     fn contains(&self, word: &str) -> bool {
         (**self).contains(word)
     }
+
+    fn config_hash(&self) -> u64 {
+        (**self).config_hash()
+    }
 }
 
 impl Dictionary for turbo_hunspell::Dictionary {
     fn contains(&self, word: &str) -> bool {
         !turbo_hunspell::Stemmer::new(self).stems(word).is_empty()
+    }
+
+    fn config_hash(&self) -> u64 {
+        self.fingerprint()
     }
 }
 
@@ -68,11 +91,20 @@ impl Dictionary for turbo_morfologik::MorfologikDictionary {
     fn contains(&self, word: &str) -> bool {
         !self.lookup(word).is_empty()
     }
+
+    fn config_hash(&self) -> u64 {
+        let m = self.metadata();
+        crate::hash_config(&(self.model_ref().sha256.as_str(), m.separator, format!("{m:?}")))
+    }
 }
 
 impl Dictionary for turbo_morfologik::MorfologikTagDictionary {
     fn contains(&self, word: &str) -> bool {
         self.tags(word).is_some()
+    }
+
+    fn config_hash(&self) -> u64 {
+        crate::hash_config(&(self.dictionary().config_hash(), self.is_case_sensitive()))
     }
 }
 
@@ -248,9 +280,8 @@ impl Annotator for NoiseScorer {
         Ok((self.layer(view.text(), view.id(), &exclude),))
     }
 
-    /// Records whether a dictionary is set. A dictionary is not hashed:
-    /// two scorers with different word lists have the same hash.
+    /// Records the dictionary's configuration fingerprint when one is set.
     fn config_hash(&self) -> u64 {
-        crate::hash_config(&self.dictionary.is_some())
+        crate::hash_config(&self.dictionary.as_ref().map(|d| d.config_hash()))
     }
 }
