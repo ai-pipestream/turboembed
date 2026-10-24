@@ -37,11 +37,6 @@ fn with_workspace<R>(f: impl FnOnce(&mut FuzzyWorkspace) -> R) -> R {
     })
 }
 
-#[inline]
-fn char_len_fast(s: &str) -> usize {
-    if s.is_ascii() { s.len() } else { s.chars().count() }
-}
-
 /// Upper bound on [`FuzzyMetric::score_folded`] given only the character
 /// counts `m` and `n` of two non-empty strings.
 #[inline]
@@ -403,14 +398,25 @@ impl GazetteerIndex {
                 let key_hits = with_workspace(|ws| {
                     ws.load_a(q_key);
                     let m = ws.a_chars.len();
+                    // The length window the metric's own upper bound
+                    // admits: the bound peaks at n == m and falls on
+                    // both sides, so the admitted lengths are one
+                    // contiguous range, binary-searched in `by_len`
+                    // instead of scanning every key.
+                    let max_len = self.by_len.last().map_or(0, |&(n, _)| n as usize);
+                    let (mut lo, mut hi) = (m, m);
+                    while lo > 0 && metric_upper_bound(metric, m, lo - 1) >= threshold {
+                        lo -= 1;
+                    }
+                    while hi < max_len && metric_upper_bound(metric, m, hi + 1) >= threshold {
+                        hi += 1;
+                    }
+                    let from = self.by_len.partition_point(|&(n, _)| (n as usize) < lo);
+                    let to = self.by_len.partition_point(|&(n, _)| (n as usize) <= hi);
                     let mut hits: Vec<(u32, f64)> = Vec::new();
-                    for k in 0..self.names.len() as u32 {
+                    for &(_, k) in &self.by_len[from..to] {
                         let cand_key = self.names.key(k);
                         if cand_key == q_key {
-                            continue;
-                        }
-                        let n = char_len_fast(cand_key);
-                        if metric_upper_bound(metric, m, n) < threshold {
                             continue;
                         }
                         let sim = ws.score_with_loaded_a(metric, q_key, cand_key);
