@@ -1125,7 +1125,7 @@ TestPeaks &test_peaks() {
 }
 
 /* TURBO_METAL_CHOICES, read when a session is made: items separated by
- * ';', "linear=<f32|h32|h64|h128|auto>" forcing the linear layers' kernels into
+ * ';', "linear=<f32|h32|h64|h128|h32n32|auto>" forcing the linear layers' kernels into
  * *linear, "attn=<staged|registers|auto>" forcing attention's into *attn,
  * and "forced=" as a session reports it, whatever it names, read and left
  * alone. Each is -1 when nothing names it. */

@@ -2023,6 +2023,7 @@ dependencies = [
  "serde_path_to_error",
  "turbo",
  "turbo-gliner",
+ "turbo-zoo",
  "ureq",
 ]
 
@@ -2602,6 +2603,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-embed",
  "turbo-analysis-layers",
+ "turbo-sentdetect",
  "turbo-unicode",
 ]
 
