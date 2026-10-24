@@ -158,6 +158,7 @@ a directory with the same model run without them, and its options are
 | | `chunker-fixture+beam1` | `en` | `beamSize 1` |
 | | `chunker-fixture-rust` (fixture) | `en`, `multi`, `edge` | |
 | `langdetect` (`LanguageDetectorME`) | `langdetect-183`, `langdetect-fixture-rust` (fixture) | `en`, `multi` | |
+| | `langdetect-183+probing`, `langdetect-183+probing-chunk50`, `langdetect-fixture-rust+probing`, `langdetect-fixture-rust+probing-chunk50` | `en`, `multi`, `langdetect` | `probing true`, `chunkSize`, `maxLength`, `minConsecImprovements`, `minDiff` |
 | `normalize` (each normalizer) | the normalizer's name | `norm` | see below |
 | `numbers` (`NumberScan` of the addons `numeric` module) | `latin-us`, `latin-eu` | `num` | `notation` |
 | `money`, `money-convert` (`MoneyAnnotator`, `MoneyConversionAnnotator`) | `latin-us`, `latin-eu` | `money` | `notation`; for conversions also `target`, `as_of`, `snapshot` |
