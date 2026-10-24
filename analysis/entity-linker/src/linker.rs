@@ -194,12 +194,7 @@ impl Annotator for EntityLinker {
     fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error> {
         self.config.validate().map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
         let (view, entities, sentences, tokens, mentions, mention_groups, entity_groups, entity_vectors) = input;
-        if entities.spans.view() != view.id() {
-            return Err(Error::Annotator {
-                annotator: Self::ID,
-                detail: format!("Entities view {:?} does not match input View {:?}", entities.spans.view(), view.id()),
-            });
-        }
+        crate::validate::check_inputs(view, entities, sentences, tokens)?;
 
         let n = entities.len();
         if n == 0 {
@@ -215,14 +210,8 @@ impl Annotator for EntityLinker {
         for i in 0..n {
             let ix = Ix::<Entities>::new(i as u32);
             let span = entities.spans.get(ix);
-            let (s, e) = (span.start as usize, span.end as usize);
-            if s > e || e > text.len() || !text.is_char_boundary(s) || !text.is_char_boundary(e) {
-                return Err(Error::Annotator {
-                    annotator: Self::ID,
-                    detail: format!("entity {i} span {s}..{e} is not valid UTF-8 in view of length {}", text.len()),
-                });
-            }
-            mention_texts.push(text[s..e].to_owned());
+            // Spans were checked by `check_inputs`; `get` keeps this panic-free regardless.
+            mention_texts.push(text.get(span.start as usize..span.end as usize).unwrap_or_default().to_owned());
             ner_kinds.push(entities.kinds.label(entities.kind[i]).to_owned());
         }
 
@@ -364,6 +353,7 @@ impl Annotator for EntityLinker {
             out.candidates.push(cands);
         }
 
+        out.check().map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
         Ok((out,))
     }
 }
@@ -383,18 +373,19 @@ fn build_context_sets(
     for i in 0..n {
         let ix = Ix::<Entities>::new(i as u32);
         let ent_span = entities.spans.get(ix);
-        let ent_terms: HashSet<String> =
-            extract_context_terms(&text[ent_span.start as usize..ent_span.end as usize]).into_iter().collect();
+        let ent_text = text.get(ent_span.start as usize..ent_span.end as usize).unwrap_or_default();
+        let ent_terms: HashSet<String> = extract_context_terms(ent_text).into_iter().collect();
 
         // Local context: surrounding sentence if available, else token window, else character window
         let local_slice = if let Some(sents) = sentences
             && let Some((_, s_span)) =
                 sents.spans.iter().find(|(_, s)| s.start <= ent_span.start && ent_span.end <= s.end)
         {
-            &text[s_span.start as usize..s_span.end as usize]
+            text.get(s_span.start as usize..s_span.end as usize).unwrap_or(text)
         } else if let Some(toks) = tokens
             && toks.len() > 0
         {
+            // `check_inputs` verified one token range per entity, inside `toks`.
             let range = entities.tokens[i];
             let start_tok = range.start.get().saturating_sub(window_tokens).min(toks.len() - 1);
             let end_tok = range.end.get().saturating_add(window_tokens).clamp(1, toks.len());
@@ -402,7 +393,7 @@ fn build_context_sets(
             let end_b = toks.spans.get(Ix::new((end_tok - 1) as u32)).end as usize;
             let lo = start_b.min(text.len());
             let hi = end_b.clamp(lo, text.len());
-            &text[lo..hi]
+            text.get(lo..hi).unwrap_or(text)
         } else {
             text
         };
