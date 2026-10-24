@@ -1,6 +1,6 @@
 //! What is committed in the tree, checked as a reader would: the records
-//! under benchmarks/records and benchmarks/ranges are what their names
-//! say, the README and the
+//! under benchmarks/records, benchmarks/records/postag, benchmarks/records/tag and
+//! benchmarks/ranges are what their names say, the README and the
 //! docs point at files that exist, and no committed text names a home
 //! directory on one of our machines.
 
@@ -10,7 +10,9 @@ use std::path::{Path, PathBuf};
 
 use common::workspace;
 use turbo::record::{self, HOST_PATHS, Record};
+use turbo_bench::postag::{self, PosRecord};
 use turbo_bench::ranges::{self, RangeRecord};
+use turbo_bench::tag::{self, TagRecord};
 
 /// The `*.json` files under benchmarks/records, by name.
 fn committed_records() -> Vec<(String, Vec<u8>)> {
@@ -59,6 +61,48 @@ fn the_committed_range_records_carry_the_name_of_their_contents() {
         let r: RangeRecord = serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
         assert_eq!(ranges::file_name(&r), name, "{name}: named for other contents");
         ranges::check(&r).unwrap_or_else(|e| panic!("{name}: {e}"));
+    }
+}
+
+/// The `*.json` files under benchmarks/records/tag, by name.
+fn committed_tag_records() -> Vec<(String, Vec<u8>)> {
+    let Ok(rd) = std::fs::read_dir(workspace().join(tag::TAG_DIR)) else { return Vec::new() };
+    let mut out: Vec<(String, Vec<u8>)> = rd
+        .map(|e| e.unwrap().path())
+        .filter(|p| p.extension().is_some_and(|x| x == "json"))
+        .map(|p| (p.file_name().unwrap().to_str().unwrap().to_owned(), std::fs::read(&p).unwrap()))
+        .collect();
+    out.sort();
+    out
+}
+
+#[test]
+fn the_committed_tag_records_carry_the_name_of_their_contents() {
+    for (name, bytes) in committed_tag_records() {
+        let r: TagRecord = serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert_eq!(tag::file_name(&r), name, "{name}: named for other contents");
+        tag::check(&r).unwrap_or_else(|e| panic!("{name}: {e}"));
+    }
+}
+
+/// The `*.json` files under benchmarks/records/postag, by name.
+fn committed_postag_records() -> Vec<(String, Vec<u8>)> {
+    let Ok(rd) = std::fs::read_dir(workspace().join(postag::POSTAG_DIR)) else { return Vec::new() };
+    let mut out: Vec<(String, Vec<u8>)> = rd
+        .map(|e| e.unwrap().path())
+        .filter(|p| p.extension().is_some_and(|x| x == "json"))
+        .map(|p| (p.file_name().unwrap().to_str().unwrap().to_owned(), std::fs::read(&p).unwrap()))
+        .collect();
+    out.sort();
+    out
+}
+
+#[test]
+fn the_committed_postag_records_carry_the_name_of_their_contents() {
+    for (name, bytes) in committed_postag_records() {
+        let r: PosRecord = serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
+        assert_eq!(postag::file_name(&r), name, "{name}: named for other contents");
+        postag::check(&r).unwrap_or_else(|e| panic!("{name}: {e}"));
     }
 }
 
@@ -131,6 +175,8 @@ fn the_committed_text_carries_no_host_path() {
     let mut files: Vec<PathBuf> = documents();
     files.extend(committed_records().iter().map(|(n, _)| root.join("benchmarks/records").join(n)));
     files.extend(committed_range_records().iter().map(|(n, _)| root.join("benchmarks/ranges").join(n)));
+    files.extend(committed_postag_records().iter().map(|(n, _)| root.join(postag::POSTAG_DIR).join(n)));
+    files.extend(committed_tag_records().iter().map(|(n, _)| root.join(tag::TAG_DIR).join(n)));
     for dir in ["bundle/recipes", "include/turbo", ".github/workflows"] {
         if let Ok(rd) = std::fs::read_dir(root.join(dir)) {
             files.extend(rd.map(|e| e.unwrap().path()).filter(|p| p.is_file()));

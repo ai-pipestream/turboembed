@@ -15,6 +15,22 @@ usage:
       or its max_seq), time one vector per row, one per chunk of --chunk
       text tokens (default 64) by ranges, and one per chunk embedded as a
       row of its own; write the record to <repo>/benchmarks/ranges
+  turbo-bench postag --model <file> --treebank <file.conllu> [--cpus <list>]
+                     [--rounds <n>] [--repo <dir>] [--out <dir>]
+      the BiLSTM-CRF tagger's packed and JVM parity numerics on a CoNLL-U
+      treebank: accuracy, agreement, emission and marginal drift, and words
+      per second and call latency at 1, 8, 32 and 128 sentences per call
+      and by sentence length, interleaved over --rounds (default 3); write
+      the record to <repo>/benchmarks/records/postag (needs --features postag)
+  turbo-bench tag --model <bundle-dir | ONLP-BLPT file> --corpus <file.conllu>
+                  [--device cpu] [--precision exact|model|fastest]
+                  [--sentences-per-call <n>] [--rounds <n>] [--cpus <list>]
+                  [--repo <dir>] [--out <dir>]
+      one tier of the BiLSTM-CRF tagger on a CoNLL-U corpus: accuracy, and
+      words per second and call p50/p99 cold (the first pass of a freshly
+      loaded tagger) and warm (the median of --rounds passes, default 3);
+      write the record to <repo>/benchmarks/records/tag (needs --features
+      postag)
   turbo-bench qa --bundle <dir> --questions <squad.json> [--device <d>]
                  [--precision <p>] [--batch <n>] [--max-batch <n>]
                  [--per-bin <n>] [--warmup <n>] [--iterations <n>]

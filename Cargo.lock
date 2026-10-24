@@ -1995,6 +1995,9 @@ dependencies = [
  "serde",
  "serde_json",
  "turbo",
+ "turbo-analysis",
+ "turbo-bundle",
+ "turbo-postag",
  "ureq",
 ]
 
@@ -2021,6 +2024,8 @@ dependencies = [
  "serde_path_to_error",
  "turbo",
  "turbo-gliner",
+ "turbo-goldens",
+ "turbo-postag",
  "ureq",
 ]
 
