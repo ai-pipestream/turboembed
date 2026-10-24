@@ -1,32 +1,180 @@
-//! `SymbolJoiner`: the symbol map applied to tokens.
+//! `SymbolJoiner`: joins multi-token symbol sequences from a table and
+//! applies the ten-symbol word map to standalone symbol tokens.
 
-use turbo_analysis::{Annotator, Error, Overlap, Refs, View, ViewBuilder};
+use turbo_analysis::{Annotator, Error, Layer, Refs, Span, Spans, View, ViewBuilder};
 use turbo_analysis_layers::Tokens;
 
 use super::whole_symbol_word;
+use crate::hash_config;
 
-/// Replaces every token that is exactly one mapped symbol with its word,
-/// in a new view: with tokens `Dungeons`, `&`, `Dragons` the view reads
-/// `Dungeons and Dragons`. Tokens that merely contain a symbol (`R&D`)
-/// are left alone.
+/// Default table of common symbol sequences joined when a tokenizer splits
+/// them across touching token spans.
+pub const DEFAULT_SYMBOL_SEQUENCES: &[&str] = &[
+    "!=",
+    "!==",
+    "%=",
+    "&&",
+    "&=",
+    "*=",
+    "**",
+    "++",
+    "+=",
+    "--",
+    "-=",
+    "->",
+    "..",
+    "...",
+    "..=",
+    ".NET",
+    ".net",
+    "//",
+    "/=",
+    "::",
+    ":=",
+    "<-",
+    "<->",
+    "<<",
+    "<<=",
+    "<=",
+    "<=>",
+    "<>",
+    "<|",
+    "<~",
+    "==",
+    "===",
+    "=>",
+    ">=",
+    ">>",
+    ">>=",
+    ">>>",
+    "ASP.NET",
+    "AT&T",
+    "A&E",
+    "B&B",
+    "C#",
+    "C++",
+    "C/O",
+    "D3.js",
+    "F#",
+    "I/O",
+    "M&A",
+    "N/A",
+    "Next.js",
+    "Node.js",
+    "Nuxt.js",
+    "Objective-C",
+    "P&L",
+    "Q#",
+    "Q&A",
+    "R&D",
+    "React.js",
+    "S&L",
+    "S&P",
+    "Three.js",
+    "UTF-16",
+    "UTF-32",
+    "UTF-8",
+    "VB.NET",
+    "Vue.js",
+    "W/O",
+    "^=",
+    "a/k/a",
+    "asp.net",
+    "c#",
+    "c++",
+    "c/o",
+    "d/b/a",
+    "d3.js",
+    "f#",
+    "i/o",
+    "n/a",
+    "next.js",
+    "node.js",
+    "nuxt.js",
+    "objective-c",
+    "q#",
+    "r&d",
+    "react.js",
+    "three.js",
+    "utf-16",
+    "utf-32",
+    "utf-8",
+    "vb.net",
+    "vue.js",
+    "w/",
+    "w/o",
+    "|=",
+    "|>",
+    "||",
+    "~>",
+];
+
+/// Joins touching token spans that match a symbol sequence in its table
+/// (`C++`, `.NET`, `->`, `R&D`, etc.) into single tokens and replaces every
+/// remaining token that is a single mapped symbol with its English word:
+/// with tokens `Dungeons`, `&`, `Dragons` the view reads
+/// `Dungeons and Dragons`, while `C`, `+`, `+` is joined into one `C++`
+/// token and left as `C++` in the view.
 ///
-/// It reads a `View` and the `Tokens` made on it, and writes a `View`.
-/// The tokens of the new view are found by mapping the old ones through
-/// the view's alignment, or by tokenizing it again.
-///
-/// OpenNLP counterpart: `SymbolJoinerCharSequenceNormalizer`, called by
-/// the caller once per token. The `symbol-joiner` add-on is the same
-/// class; neither joins symbol sequences.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
-pub struct SymbolJoiner;
+/// It reads a `View` and the `Tokens` made on it, and writes both the
+/// normalized `View` and the `Tokens` layer on that view with joined
+/// symbol-sequence tokens and mapped byte offsets.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct SymbolJoiner {
+    sequences: Vec<String>,
+    max_len: usize,
+}
 
-impl Annotator for SymbolJoiner {
-    const ID: &'static str = "turbo:normalize:symbol-joiner";
-    const VERSION: &'static str = "2";
-    type Reads = (View, Tokens);
-    type Writes = (View,);
+impl Default for SymbolJoiner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
-    fn annotate(&self, (src, tokens): Refs<'_, Self>) -> Result<(View,), Error> {
+impl SymbolJoiner {
+    /// Creates a `SymbolJoiner` with [`DEFAULT_SYMBOL_SEQUENCES`].
+    pub fn new() -> SymbolJoiner {
+        Self::with_sequences(DEFAULT_SYMBOL_SEQUENCES.iter().copied())
+    }
+
+    /// Creates a `SymbolJoiner` with the given table of symbol sequences.
+    pub fn with_sequences<I, S>(sequences: I) -> SymbolJoiner
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        let mut list: Vec<String> = sequences.into_iter().map(Into::into).filter(|s| !s.is_empty()).collect();
+        list.sort();
+        list.dedup();
+        let max_len = list.iter().map(String::len).max().unwrap_or(0);
+        SymbolJoiner { sequences: list, max_len }
+    }
+
+    /// Creates a `SymbolJoiner` with an empty sequence table (only replaces
+    /// lone mapped-symbol tokens with words).
+    pub fn without_sequences() -> SymbolJoiner {
+        SymbolJoiner { sequences: Vec::new(), max_len: 0 }
+    }
+
+    /// The configured symbol sequences, sorted lexicographically.
+    pub fn sequences(&self) -> &[String] {
+        &self.sequences
+    }
+
+    /// Returns `(has_prefix, is_exact)` for `candidate` in the sorted table.
+    fn lookup_prefix(&self, candidate: &str) -> (bool, bool) {
+        let idx = self.sequences.partition_point(|s| s.as_str() < candidate);
+        if let Some(entry) = self.sequences.get(idx) {
+            (entry.starts_with(candidate), entry == candidate)
+        } else {
+            (false, false)
+        }
+    }
+
+    /// Joins touching token spans in `tokens` whose combined slice in
+    /// `src.text()` matches a sequence in `self.sequences` (longest match
+    /// first), returning a new `Tokens` layer on `src.id()`.
+    pub fn join_tokens(&self, src: &View, tokens: &Tokens) -> Result<Tokens, Error> {
         if tokens.spans.view() != src.id() {
             return Err(Error::Annotator {
                 annotator: Self::ID,
@@ -35,18 +183,87 @@ impl Annotator for SymbolJoiner {
         }
         let text = src.text();
         let invalid = |detail| Error::Annotator { annotator: Self::ID, detail };
-        tokens.spans.check(Overlap::None).map_err(invalid)?;
-        let mut symbols = Vec::new();
+        tokens.check().map_err(invalid)?;
         for (ix, span) in tokens.spans.iter() {
             if tokens.spans.is_discontinuous(ix) {
                 return Err(invalid(format!("token {ix:?} must be contiguous")));
             }
-            let token = text
-                .get(span.range())
-                .ok_or_else(|| invalid(format!("token {ix:?} must be a UTF-8 span within the view")))?;
-            if let Some(word) = whole_symbol_word(token) {
-                symbols.push((span.start as usize, span.end as usize, word));
+            if text.get(span.range()).is_none() {
+                return Err(invalid(format!("token {ix:?} must be a UTF-8 span within the view")));
             }
+        }
+        let raw: Vec<Span> = tokens.spans.iter().map(|(_, s)| s).collect();
+        let mut joined_spans = Spans::new(src.id());
+        let mut joined_sent = tokens.sentence.as_ref().map(|s| Vec::with_capacity(s.len()));
+        let mut i = 0;
+        while i < raw.len() {
+            let mut best_j = i;
+            if self.max_len > 0 {
+                let start = raw[i].start as usize;
+                let first_end = raw[i].end as usize;
+                let can_start = first_end - start <= self.max_len
+                    && text.get(start..first_end).is_some_and(|s| self.lookup_prefix(s).0);
+                if can_start {
+                    let mut prev_end = raw[i].end;
+                    let mut j = i + 1;
+                    while j < raw.len() && raw[j].start == prev_end {
+                        if let Some(ref sent) = tokens.sentence
+                            && sent[j] != sent[i]
+                        {
+                            break;
+                        }
+                        let end = raw[j].end as usize;
+                        if end - start > self.max_len {
+                            break;
+                        }
+                        let Some(slice) = text.get(start..end) else {
+                            break;
+                        };
+                        let (has_prefix, is_exact) = self.lookup_prefix(slice);
+                        if !has_prefix {
+                            break;
+                        }
+                        if is_exact {
+                            best_j = j;
+                        }
+                        prev_end = raw[j].end;
+                        j += 1;
+                    }
+                }
+            }
+            joined_spans.push(Span::new(raw[i].start, raw[best_j].end));
+            if let (Some(out_s), Some(in_s)) = (&mut joined_sent, &tokens.sentence) {
+                out_s.push(in_s[i]);
+            }
+            i = best_j + 1;
+        }
+        Ok(Tokens { spans: joined_spans, sentence: joined_sent })
+    }
+}
+
+impl Annotator for SymbolJoiner {
+    const ID: &'static str = "turbo:normalize:symbol-joiner";
+    const VERSION: &'static str = "3";
+    type Reads = (View, Tokens);
+    type Writes = (View, Tokens);
+
+    fn annotate(&self, (src, tokens): Refs<'_, Self>) -> Result<(View, Tokens), Error> {
+        let joined = self.join_tokens(src, tokens)?;
+        let text = src.text();
+        // Only one-symbol tokens (after sequence joining) are replaced, so
+        // overlapping or unordered tokens elsewhere cannot disturb the order
+        // of the writes.
+        let mut symbols: Vec<(usize, usize, &'static str)> = joined
+            .spans
+            .iter()
+            .filter_map(|(_, s)| whole_symbol_word(&text[s.range()]).map(|w| (s.start as usize, s.end as usize, w)))
+            .collect();
+        symbols.sort_unstable_by_key(|&(start, _, _)| start);
+        if symbols.windows(2).any(|pair| pair[0].1 > pair[1].0) {
+            return Err(Error::Annotator {
+                annotator: Self::ID,
+                detail: "symbol replacement spans must not overlap".into(),
+            });
         }
         let mut out = ViewBuilder::new(text);
         for (start, end, word) in symbols {
@@ -54,6 +271,15 @@ impl Annotator for SymbolJoiner {
             out.replace(end, word);
         }
         let (normalized, alignment) = out.finish();
-        Ok((View::derived(src, normalized, alignment),))
+        let view = View::derived(src, normalized, alignment);
+        let mut mapped_spans = Spans::new(view.id());
+        for (_, span) in joined.spans.iter() {
+            mapped_spans.push(view.alignment().span_to_child(span));
+        }
+        Ok((view, Tokens { spans: mapped_spans, sentence: joined.sentence }))
+    }
+
+    fn config_hash(&self) -> u64 {
+        hash_config(&self.sequences)
     }
 }

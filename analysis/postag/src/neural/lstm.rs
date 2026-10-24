@@ -344,16 +344,7 @@ impl LstmLayer {
 /// emissions are bit for bit, the rest within 1e-15, and every tag and
 /// Viterbi path is the JVM's. `tanh` uses fdlibm, which is what JDK 21's
 /// `Math.tanh` returns, and every sum is formed in Java's order.
-#[inline]
-fn sigmoid(x: f64) -> f64 {
-    if x >= 0.0 {
-        let z = (-x).exp();
-        1.0 / (1.0 + z)
-    } else {
-        let z = x.exp();
-        z / (1.0 + z)
-    }
-}
+use turbo::head::sigmoid_f64 as sigmoid;
 
 #[cfg(test)]
 mod tests {

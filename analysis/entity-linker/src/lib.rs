@@ -29,6 +29,7 @@ pub mod providers;
 pub mod scorer;
 pub mod similarity;
 mod snapshot;
+mod validate;
 
 pub use kb::{CatalogError, KbEntity, KnowledgeBase};
 pub use layer::{CandidateLink, LinkedEntities, LinkedEntityView, NilReason, codecs, register_codecs};

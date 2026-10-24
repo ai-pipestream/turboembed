@@ -340,6 +340,7 @@ impl Chunker {
             cost: Vec::new(),
             model_tokens: Vec::new(),
             over_budget: Vec::new(),
+            prompt_overhead: b.overhead,
         };
         let cx = RunCx { sentences, subwords, lengths: &lengths, bounds, limits: &limits, clauses };
         for run in runs {

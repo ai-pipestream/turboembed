@@ -3,13 +3,13 @@
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use turbo_analysis::{Annotator, Error, Execution, Ix, Layer, ModelRef, Refs, Span, Tag, TagSet};
+use turbo_analysis::{Annotator, Error, Execution, Ix, Layer, ModelRef, Refs, Tag, TagSet};
 use turbo_analysis_layers::{
     Aspect, Aspects, Categories, CategoryScope, Chunks, Incivility, Opinions, PolarityScores, Pragmatics, Sentences,
     Subwords, Tokens, Vectors,
 };
 
-use super::ClassifierHead;
+use super::{ClassifierHead, batch};
 use crate::centroids::LabelCentroids;
 use crate::vectors::VectorAnnotator;
 use crate::window::Which;
@@ -194,11 +194,16 @@ impl Annotator for SentenceSpanHead {
     type Reads = (Subwords, Sentences);
     type Writes = (Categories<Sentences>,);
 
-    fn annotate(&self, (subwords, sentences): Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        let spans: Vec<Span> = (0..sentences.len()).map(|i| sentences.spans.get(Ix::new(i as u32))).collect();
-        let pooled: Vectors<Sentences> =
-            self.vectors.embed_spans(Self::ID, subwords, Some(&sentences.spans), sentences.spans.view(), &spans)?;
-        Ok((self.head.categorize_vectors(Self::ID, &pooled)?,))
+    fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error> {
+        self.annotate_batch(vec![input]).remove(0)
+    }
+
+    fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
+        let docs = inputs
+            .into_iter()
+            .map(|(sub, s)| Ok(batch::prepare(sub, Some(s), s.spans.view(), s.spans.iter().map(|(_, s)| s))))
+            .collect();
+        batch::batch(&self.vectors, &self.head, Self::ID, docs)
     }
 
     fn model(&self) -> Option<ModelRef> {
@@ -234,11 +239,16 @@ impl Annotator for ChunkSpanHead {
     type Reads = (Subwords, Option<Sentences>, Chunks);
     type Writes = (Categories<Chunks>,);
 
-    fn annotate(&self, (subwords, sentences, chunks): Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        let spans: Vec<Span> = (0..chunks.len()).map(|i| chunks.spans.get(Ix::new(i as u32))).collect();
-        let pooled: Vectors<Chunks> =
-            self.vectors.embed_spans(Self::ID, subwords, sentences.map(|s| &s.spans), chunks.spans.view(), &spans)?;
-        Ok((self.head.categorize_vectors(Self::ID, &pooled)?,))
+    fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error> {
+        self.annotate_batch(vec![input]).remove(0)
+    }
+
+    fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
+        let docs = inputs
+            .into_iter()
+            .map(|(sub, s, c)| Ok(batch::prepare(sub, s, c.spans.view(), c.spans.iter().map(|(_, s)| s))))
+            .collect();
+        batch::batch(&self.vectors, &self.head, Self::ID, docs)
     }
 
     fn model(&self) -> Option<ModelRef> {
@@ -278,7 +288,7 @@ impl OpinionSpanHead {
         sentences: Option<&Sentences>,
         opinions: &Opinions,
     ) -> Result<Vectors<Opinions>, Error> {
-        let spans: Vec<Span> = (0..opinions.len()).map(|i| opinions.span(Ix::new(i as u32), tokens)).collect();
+        let spans = batch::opinion_spans(Self::ID, tokens, opinions)?;
         self.vectors.embed_spans(Self::ID, subwords, sentences.map(|s| &s.spans), tokens.spans.view(), &spans)
     }
 }
@@ -288,9 +298,19 @@ impl Annotator for OpinionSpanHead {
     type Reads = (Subwords, Tokens, Option<Sentences>, Opinions);
     type Writes = (Categories<Opinions>,);
 
-    fn annotate(&self, (subwords, tokens, sentences, opinions): Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        let pooled = self.pool_opinions(subwords, tokens, sentences, opinions)?;
-        Ok((self.head.categorize_vectors(Self::ID, &pooled)?,))
+    fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error> {
+        self.annotate_batch(vec![input]).remove(0)
+    }
+
+    fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
+        let docs = inputs
+            .into_iter()
+            .map(|(sub, t, s, o)| {
+                batch::opinion_spans(Self::ID, t, o)
+                    .map(|spans| batch::prepare(sub, s, t.spans.view(), spans.into_iter()))
+            })
+            .collect();
+        batch::batch(&self.vectors, &self.head, Self::ID, docs)
     }
 
     fn model(&self) -> Option<ModelRef> {
@@ -331,15 +351,7 @@ impl AspectSpanHead {
         sentences: Option<&Sentences>,
         aspects: &Aspects,
     ) -> Result<Vectors<Aspects>, Error> {
-        let mut spans = Vec::with_capacity(aspects.len());
-        for i in 0..aspects.len() {
-            let ix = Ix::<Aspects>::new(i as u32);
-            let span = aspects.span(ix, tokens, sentences).ok_or_else(|| Error::Annotator {
-                annotator: Self::ID,
-                detail: format!("implicit aspect {i} requires a Sentences layer to resolve its span"),
-            })?;
-            spans.push(span);
-        }
+        let spans = batch::aspect_spans(Self::ID, tokens, sentences, aspects)?;
         self.vectors.embed_spans(Self::ID, subwords, sentences.map(|s| &s.spans), tokens.spans.view(), &spans)
     }
 
@@ -390,9 +402,19 @@ impl Annotator for AspectSpanHead {
     type Reads = (Subwords, Tokens, Option<Sentences>, Aspects);
     type Writes = (Categories<Aspects>,);
 
-    fn annotate(&self, (subwords, tokens, sentences, aspects): Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        let pooled = self.pool_aspects(subwords, tokens, sentences, aspects)?;
-        Ok((self.head.categorize_vectors(Self::ID, &pooled)?,))
+    fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error> {
+        self.annotate_batch(vec![input]).remove(0)
+    }
+
+    fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
+        let docs = inputs
+            .into_iter()
+            .map(|(sub, t, s, a)| {
+                batch::aspect_spans(Self::ID, t, s, a)
+                    .map(|spans| batch::prepare(sub, s, t.spans.view(), spans.into_iter()))
+            })
+            .collect();
+        batch::batch(&self.vectors, &self.head, Self::ID, docs)
     }
 
     fn model(&self) -> Option<ModelRef> {
