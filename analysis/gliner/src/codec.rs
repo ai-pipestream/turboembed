@@ -1,6 +1,11 @@
 use crate::Decisions;
-use turbo_analysis::export::{ExportCx, ExportError, ImportCx, LayerCodec};
+use turbo_analysis::export::{Codecs, ExportCx, ExportError, ImportCx, LayerCodec};
 use turbo_analysis::{Document, Layer};
+
+/// Registers the GLiNER [`Decisions`] layer codec in `codecs`.
+pub fn register_codecs(codecs: &mut Codecs) {
+    codecs.register::<Decisions>();
+}
 impl LayerCodec for Decisions {
     fn export(&self, _: &ExportCx) -> Result<Vec<u8>, ExportError> {
         self.check().map_err(ExportError::Malformed)?;
