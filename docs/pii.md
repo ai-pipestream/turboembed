@@ -211,9 +211,11 @@ spans over multi-byte texts, and that the text equals `mask`.
   after built-in kinds on an exact span tie, then by kind name. A custom
   kind name must be 1 to 64 UTF-8 bytes (`PiiKind::MAX_CUSTOM_NAME_BYTES`)
   and not one of the reserved built-in names in `PiiKind::ALL`; the
-  process-wide custom kind registry interns up to 256 distinct custom
-  kind names (`PiiKind::MAX_CUSTOM_KINDS`) across binary graph
-  exports and imports (`PiiKind::intern_custom`). Caller kinds flow
+  process-wide custom kind registry holds up to 256 distinct custom
+  kind names (`PiiKind::MAX_CUSTOM_KINDS`). Once 256 distinct custom names
+  are registered, known names continue to succeed while a 257th new custom
+  name is refused by `PiiKind::remember_custom`, `PiiSink`, `Pii::check`,
+  `Pii::export` and `PiiKind::intern_custom`. Caller kinds flow
   through `mask_all`, `mask_by_kind`, `MaskedView` (with
   `MaskedView::with` overrides), `Pseudonymizer`, `HmacTokenizer`,
   `PiiAuditReport` and binary graph export/import.

@@ -22,6 +22,8 @@ pub enum SinkError {
     KindTooLong(&'static str),
     /// A [`PiiKind::Custom`] uses one of the reserved built-in kind names.
     ReservedKind(&'static str),
+    /// A [`PiiKind::Custom`] exceeds the [`PiiKind::MAX_CUSTOM_KINDS`] registry capacity.
+    RegistryFull(&'static str),
     /// The normalized form is empty.
     EmptyValue(Span),
 }
@@ -36,6 +38,9 @@ impl fmt::Display for SinkError {
             }
             SinkError::ReservedKind(name) => {
                 write!(f, "custom pii kind {name:?} uses a reserved built-in kind name")
+            }
+            SinkError::RegistryFull(name) => {
+                write!(f, "custom pii kind {name:?} exceeds registry capacity ({})", PiiKind::MAX_CUSTOM_KINDS)
             }
             SinkError::EmptyValue(s) => {
                 write!(f, "candidate at {}..{} has an empty normalized form", s.start, s.end)
@@ -72,6 +77,9 @@ impl<'a> PiiSink<'a> {
             }
             if PiiKind::parse(name).is_some() {
                 return Err(SinkError::ReservedKind(name));
+            }
+            if !PiiKind::remember_custom(kind) {
+                return Err(SinkError::RegistryFull(name));
             }
         }
         let (start, end) = (span.start as usize, span.end as usize);

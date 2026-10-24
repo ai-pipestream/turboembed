@@ -138,21 +138,29 @@ impl PiiKind {
 
     /// Records a valid custom kind's static name so binary layer import can
     /// resolve it without allocating, up to [`PiiKind::MAX_CUSTOM_KINDS`]
-    /// entries of at most [`PiiKind::MAX_CUSTOM_NAME_BYTES`] bytes.
-    pub fn remember_custom(kind: PiiKind) {
-        if let PiiKind::Custom(name) = kind
-            && !name.is_empty()
-            && name.len() <= Self::MAX_CUSTOM_NAME_BYTES
-            && PiiKind::parse(name).is_none()
-        {
-            if custom_registry().read().expect("custom pii kinds lock").contains(&name) {
-                return;
-            }
-            let mut reg = custom_registry().write().expect("custom pii kinds lock");
-            if !reg.contains(&name) && reg.len() < Self::MAX_CUSTOM_KINDS {
-                reg.push(name);
-            }
+    /// entries of at most [`PiiKind::MAX_CUSTOM_NAME_BYTES`] bytes. Returns
+    /// `true` when `kind` is a built-in kind or a valid custom kind that is
+    /// now registered, and `false` when the custom kind is invalid or the
+    /// [`PiiKind::MAX_CUSTOM_KINDS`] registry is full.
+    pub fn remember_custom(kind: PiiKind) -> bool {
+        let PiiKind::Custom(name) = kind else {
+            return true;
+        };
+        if name.is_empty() || name.len() > Self::MAX_CUSTOM_NAME_BYTES || PiiKind::parse(name).is_some() {
+            return false;
         }
+        if custom_registry().read().expect("custom pii kinds lock").contains(&name) {
+            return true;
+        }
+        let mut reg = custom_registry().write().expect("custom pii kinds lock");
+        if reg.contains(&name) {
+            return true;
+        }
+        if reg.len() >= Self::MAX_CUSTOM_KINDS {
+            return false;
+        }
+        reg.push(name);
+        true
     }
 
     /// Looks up a previously registered custom kind by `name`.
@@ -359,7 +367,7 @@ impl Pii {
 
     /// Appends one mention to every column.
     pub fn push(&mut self, m: PiiMention<'_>) -> Ix<Pii> {
-        PiiKind::remember_custom(m.kind);
+        let _ = PiiKind::remember_custom(m.kind);
         self.kind.push(m.kind);
         self.confidence.push(m.confidence);
         self.normalized.push(m.normalized);
@@ -411,6 +419,12 @@ impl Layer for Pii {
                 }
                 if PiiKind::parse(name).is_some() {
                     return Err(format!("pii mention {i} uses reserved built-in kind name {name:?} as custom"));
+                }
+                if !PiiKind::remember_custom(m.kind) {
+                    return Err(format!(
+                        "pii mention {i} exceeds custom kind registry capacity ({}) for {name:?}",
+                        PiiKind::MAX_CUSTOM_KINDS
+                    ));
                 }
             }
             if m.normalized.is_empty() {
