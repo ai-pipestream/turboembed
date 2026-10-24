@@ -1,0 +1,797 @@
+// Strongly-typed document graph projection over gRPC (issue #1219).
+//
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+package turbo.result;
+
+// Which model produced a result, by the bundle's own identity: the
+// manifest's model id and revision, and the manifest's sha256, the
+// contract the load was made against.
+message ModelRef
+{
+  string id = 1;
+  string revision = 2;
+  string sha256 = 3;
+}
+
+// The unit every span offset in a message is counted in. UTF-8 bytes
+// are the internal offsets; UTF-16 code units are Java's string
+// indices; code points count Unicode scalar values. Conversion uses
+// the view text's checkpoint table and refuses offsets that are out
+// of bounds, inverted, or inside a code point or UTF-16 surrogate
+// pair, with TURBO_E_INVALID_ARGUMENT: nothing is snapped or cut.
+enum OffsetMode
+{
+  OFFSET_MODE_UTF8 = 0;
+  OFFSET_MODE_UTF16 = 1;
+  OFFSET_MODE_CODE_POINT = 2;
+}
+
+// What became of one layer or view on its document.
+enum LayerWireStatus
+{
+  LAYER_WIRE_STATUS_OK = 0;
+  LAYER_WIRE_STATUS_SKIPPED = 1;
+  LAYER_WIRE_STATUS_FAILED = 2;
+}
+
+// One text view of a document graph.
+message ViewInfo
+{
+  string instance = 1;
+  LayerWireStatus status = 2;
+  string status_detail = 3;
+  string annotator = 4;
+  // The parent view's instance; empty for the source view.
+  string parent = 5;
+}
+
+// Request to project a binary DocumentGraph into a strongly-typed
+// TypedDocumentResult in the caller's chosen view and OffsetMode.
+message InspectDocumentGraphRequest
+{
+  string doc_id = 1;
+  bytes graph = 2;
+  uint32 view = 3;
+  OffsetMode offsets = 4;
+}
+
+// Runtime execution environment for a model-backed layer.
+message ExecutionInfo
+{
+  string backend = 1;
+  string device = 2;
+  string precision = 3;
+}
+
+// Deduplicated model and annotator provenance entry referenced by
+// `model_ref` from layers and annotations.
+message ModelProvenance
+{
+  string model_ref = 1;
+  string annotator = 2;
+  string version = 3;
+  uint64 config_hash = 4;
+  optional ModelRef bundle = 5;
+  optional ExecutionInfo execution = 6;
+}
+
+// What a layer's items hang on.
+enum AnchorKind
+{
+  ANCHOR_KIND_TEXT = 0;
+  ANCHOR_KIND_ALIGNED = 1;
+  ANCHOR_KIND_DOCUMENT = 2;
+}
+
+// One contiguous half-open span fragment [start, end) in the enclosing
+// message's view and OffsetMode.
+message SpanFragment
+{
+  uint32 start = 1;
+  uint32 end = 2;
+}
+
+// A cross-layer index bound declared by a TypedLayer (`Layer::indexes`).
+message LayerIndexBound
+{
+  string layer = 1;
+  string instance = 2;
+  uint32 bound = 3;
+}
+
+// Strongly-typed projection of an entire Document in dependency order.
+message TypedDocumentResult
+{
+  string doc_id = 1;
+  string raw_text = 2;
+  uint32 view = 3;
+  OffsetMode offsets = 4;
+  repeated ModelProvenance models = 5;
+  repeated ViewInfo views = 6;
+  repeated TypedLayer layers = 7;
+}
+
+// One typed layer instance on a TypedDocumentResult.
+message TypedLayer
+{
+  string id = 1;
+  string instance = 2;
+  LayerWireStatus status = 3;
+  string status_detail = 4;
+  AnchorKind scope = 5;
+  repeated string model_refs = 6;
+  optional string anchor_layer = 7;
+  repeated TypedAnnotation annotations = 8;
+  repeated LayerIndexBound indexes_layer = 9;
+}
+
+// One recognizer vote on an EntityAnnotation, populated from
+// Evidence<Entities> when present.
+message EntityVote
+{
+  string annotator = 1;
+  optional string model_ref = 2;
+  repeated SpanFragment spans = 3;
+  optional double probability = 4;
+  optional double calibrated_probability = 5;
+  optional string abstention = 6;
+}
+
+message SentenceAnnotation
+{
+  uint32 index = 1;
+  string text = 2;
+}
+
+message TokenAnnotation
+{
+  optional uint32 sentence_index = 1;
+  string surface = 2;
+}
+
+message WordAnnotation
+{
+  uint32 token_start = 1;
+  uint32 token_end = 2;
+  optional SpanFragment subspan = 3;
+  string form = 4;
+}
+
+message SubwordAnnotation
+{
+  int32 vocab_id = 1;
+  optional uint32 token_index = 2;
+  string surface = 3;
+}
+
+message PosTagAnnotation
+{
+  string tagset = 1;
+  string tag = 2;
+  uint32 target_index = 3;
+}
+
+message MorphFeaturesAnnotation
+{
+  uint32 target_index = 1;
+  string features = 2;
+}
+
+message LemmaAnnotation
+{
+  uint32 target_index = 1;
+  string lemma = 2;
+}
+
+message StemAnnotation
+{
+  uint32 token_index = 1;
+  string stem = 2;
+}
+
+message TermAnnotation
+{
+  uint32 token_index = 1;
+  string surface = 2;
+  string folded = 3;
+  optional string stem = 4;
+  optional string lemma = 5;
+}
+
+message ChunkTagAnnotation
+{
+  string tagset = 1;
+  string tag = 2;
+  uint32 token_index = 3;
+}
+
+message PhraseChunkAnnotation
+{
+  string tagset = 1;
+  string kind = 2;
+  uint32 token_start = 3;
+  uint32 token_end = 4;
+}
+
+message PhraseAnnotation
+{
+  string tagset = 1;
+  string kind = 2;
+  uint32 token_start = 3;
+  uint32 token_end = 4;
+  uint32 head_token = 5;
+  optional uint32 parent_index = 6;
+}
+
+message DependencyAnnotation
+{
+  string tagset = 1;
+  uint32 target_index = 2;
+  optional uint32 head_index = 3;
+  string relation = 4;
+}
+
+message EntityAnnotation
+{
+  string tagset = 1;
+  string kind = 2;
+  uint32 token_start = 3;
+  uint32 token_end = 4;
+  string canonical = 5;
+  optional string kb_id = 6;
+  repeated EntityVote votes = 7;
+}
+
+message RelationAnnotation
+{
+  string tagset = 1;
+  string kind = 2;
+  uint32 subject_entity = 3;
+  uint32 object_entity = 4;
+}
+
+message CorefMentionAnnotation
+{
+  uint32 sentence_index = 1;
+  uint32 token_start = 2;
+  uint32 token_end = 3;
+  uint32 head_token = 4;
+  optional uint32 entity_index = 5;
+  string kind = 6;
+  string origin = 7;
+  string number = 8;
+  string gender = 9;
+  string animacy = 10;
+  string person = 11;
+}
+
+message CorefChainAnnotation
+{
+  string representative = 1;
+  repeated uint32 mention_indices = 2;
+}
+
+message SpeakerAnnotation
+{
+  string speaker = 1;
+}
+
+message WordNetSenseAnnotation
+{
+  uint32 token_index = 1;
+  uint32 synset_offset = 2;
+  string pos = 3;
+  string lexname = 4;
+  string gloss = 5;
+  repeated string lemmas = 6;
+  repeated uint32 hypernym_offsets = 7;
+}
+
+message LexicalExpansionAnnotation
+{
+  uint32 token_index = 1;
+  repeated string synonyms = 2;
+  repeated string hypernyms = 3;
+  repeated string derivations = 4;
+  repeated string morph_roots = 5;
+}
+
+message GlossaryTermAnnotation
+{
+  string canonical_id = 1;
+  string preferred_label = 2;
+  uint32 entry_index = 3;
+  uint32 token_start = 4;
+  uint32 token_end = 5;
+}
+
+message NumberAnnotation
+{
+  SpanFragment numeral_span = 1;
+  bool negative = 2;
+  string coefficient = 3;
+  uint32 scale = 4;
+  string multiplier = 5;
+  string marker = 6;
+  string notation = 7;
+  string plain_value = 8;
+}
+
+message OrdinalAnnotation
+{
+  string base = 1;
+  int64 offset = 2;
+}
+
+message MoneyAnnotation
+{
+  string currency = 1;
+  bool negative = 2;
+  string coefficient = 3;
+  int32 scale = 4;
+  string plain_amount = 5;
+}
+
+message QuantityAnnotation
+{
+  string unit = 1;
+  bool negative = 2;
+  string coefficient = 3;
+  int32 scale = 4;
+  string plain_value = 5;
+  bool is_percent = 6;
+}
+
+message TemporalAnnotation
+{
+  string granularity = 1;
+  string origin = 2;
+  string iso = 3;
+  int32 year = 4;
+  uint32 period = 5;
+  uint32 day = 6;
+}
+
+message TimeAnnotation
+{
+  string kind = 1;
+  string grain = 2;
+  string modifier = 3;
+  optional int64 start = 4;
+  optional int64 end = 5;
+  optional int64 duration_ms = 6;
+  bool ambiguous = 7;
+  string timex = 8;
+}
+
+message DocumentDateAnnotation
+{
+  int32 year = 1;
+  uint32 month = 2;
+  uint32 day = 3;
+  string iso = 4;
+}
+
+message PlaceResolution
+{
+  string source = 1;
+  string record_id = 2;
+  string canonical_name = 3;
+  string feature_class = 4;
+  string country_code = 5;
+  string admin1_code = 6;
+  string admin2_code = 7;
+  double latitude = 8;
+  double longitude = 9;
+  uint64 population = 10;
+  string timezone = 11;
+}
+
+message PlaceAncestorProto
+{
+  string id = 1;
+  string name = 2;
+  string kind = 3;
+}
+
+message ContainmentChain
+{
+  repeated PlaceAncestorProto ancestors = 1;
+}
+
+message RegionVote
+{
+  string country_code = 1;
+  double share = 2;
+}
+
+message LanguageAnnotation
+{
+  string code = 1;
+  double score = 2;
+}
+
+message LanguageSpanAnnotation
+{
+  string code = 1;
+  string script = 2;
+  double confidence = 3;
+}
+
+message CategoryScoreProto
+{
+  string label = 1;
+  double score = 2;
+}
+
+message CategoryAnnotation
+{
+  string tagset = 1;
+  string best_label = 2;
+  bool abstained = 3;
+  repeated string selected = 4;
+  repeated CategoryScoreProto scores = 5;
+}
+
+message SentimentAnnotation
+{
+  string polarity = 1;
+  double positive = 2;
+  double negative = 3;
+  double neutral = 4;
+}
+
+message LabelTokenSpanProto
+{
+  string label = 1;
+  uint32 token_start = 2;
+  uint32 token_end = 3;
+}
+
+message EmotionAnnotation
+{
+  string target_kind = 1;
+  uint32 target_index = 2;
+  repeated double scores = 3;
+  repeated LabelTokenSpanProto evidence = 4;
+}
+
+message AspectAnnotation
+{
+  optional uint32 token_start = 1;
+  optional uint32 token_end = 2;
+  optional uint32 sentence_index = 3;
+  optional string category = 4;
+  string polarity = 5;
+  double positive = 6;
+  double negative = 7;
+  double neutral = 8;
+  repeated uint32 opinion_indices = 9;
+}
+
+message OpinionAnnotation
+{
+  uint32 token_start = 1;
+  uint32 token_end = 2;
+  double polarity = 3;
+  double intensity = 4;
+  bool negated = 5;
+}
+
+message IncivilityAnnotation
+{
+  string target_kind = 1;
+  uint32 target_index = 2;
+  double insult = 3;
+  double profanity = 4;
+  double threat = 5;
+  double identity_attack = 6;
+  double intolerance = 7;
+  double severe_toxicity = 8;
+  repeated LabelTokenSpanProto evidence = 9;
+}
+
+message PragmaticsAnnotation
+{
+  uint32 sentence_index = 1;
+  double score = 2;
+  optional uint32 positive_token_start = 3;
+  optional uint32 positive_token_end = 4;
+  optional uint32 negative_token_start = 5;
+  optional uint32 negative_token_end = 6;
+}
+
+message PiiMention
+{
+  string kind = 1;
+  string confidence_tier = 2;
+  string normalized = 3;
+}
+
+message NoiseSpan
+{
+  string severity = 1;
+  double score = 2;
+}
+
+message TextArtifact
+{
+  string kind = 1;
+}
+
+message EmbeddedAsset
+{
+  string format = 1;
+  string media_type = 2;
+  string declared_type = 3;
+  string encoding = 4;
+  SpanFragment payload_span = 5;
+  uint64 decoded_bytes = 6;
+  optional uint32 width = 7;
+  optional uint32 height = 8;
+}
+
+message SpellingCorrection
+{
+  string suggestion = 1;
+  uint32 edit_distance = 2;
+}
+
+message PlaceholderAnnotation
+{
+  string kind = 1;
+}
+
+message EmojiAnnotation
+{
+  string kind = 1;
+  string name = 2;
+  string region = 3;
+}
+
+message ProtectedSpanAnnotation
+{
+  uint32 index = 1;
+}
+
+message AbbreviationAnnotation
+{
+  string form = 1;
+}
+
+message MatchAnnotation
+{
+  uint32 token_start = 1;
+  uint32 token_end = 2;
+  string label = 3;
+  uint32 rule_id = 4;
+}
+
+message BoilerplateAnnotation
+{
+  uint32 target_index = 1;
+  optional string kind = 2;
+  float score = 3;
+}
+
+message ConfidenceAnnotation
+{
+  uint32 target_index = 1;
+  double confidence = 2;
+}
+
+message StopwordFlagAnnotation
+{
+  uint32 token_index = 1;
+  string language = 2;
+  bool is_stopword = 3;
+}
+
+message WordTypeAnnotation
+{
+  uint32 token_index = 1;
+  string kind = 2;
+}
+
+message ReadingAnnotation
+{
+  uint32 token_index = 1;
+  optional string reading = 2;
+  optional string pronunciation = 3;
+  optional string lemma = 4;
+}
+
+message KeywordAnnotation
+{
+  string phrase = 1;
+  double score = 2;
+  string algorithm = 3;
+  uint32 terms = 4;
+}
+
+message SourceEncodingAnnotation
+{
+  string encoding = 1;
+  float confidence = 2;
+  string evidence = 3;
+}
+
+message VectorAnnotation
+{
+  uint32 target_index = 1;
+  uint32 dim = 2;
+  bool empty = 3;
+  repeated float values = 4;
+}
+
+message ChunkAnnotation
+{
+  uint32 level = 1;
+  optional uint32 parent_index = 2;
+  uint32 sentence_start = 3;
+  uint32 sentence_end = 4;
+  string cut_reason = 5;
+  int64 cost = 6;
+  uint32 model_tokens = 7;
+  bool over_budget = 8;
+}
+
+message LevelAnnotation
+{
+  string kind = 1;
+  uint32 unit_index = 2;
+  optional uint32 parent_index = 3;
+}
+
+message BoundaryAnnotation
+{
+  uint32 sentence_index = 1;
+  int32 cost = 2;
+  string reason = 3;
+}
+
+message StructureAnnotation
+{
+  string kind = 1;
+  optional uint32 parent_index = 2;
+  uint32 depth = 3;
+}
+
+message AnswerAnnotation
+{
+  double score = 1;
+  double probability = 2;
+  double null_score = 3;
+  double null_probability = 4;
+  string text = 5;
+}
+
+message EdgeAnnotation
+{
+  uint32 from_index = 1;
+  uint32 to_index = 2;
+  string kind = 3;
+  double score = 4;
+}
+
+message GroupAnnotation
+{
+  repeated uint32 members = 1;
+}
+
+message LinkedEntityAnnotation
+{
+  uint32 entity_index = 1;
+  optional string kb_id = 2;
+  string provider_id = 3;
+  string canonical_name = 4;
+  string matched_alias = 5;
+  double score = 6;
+  optional string nil_reason = 7;
+  optional uint32 nil_cluster = 8;
+}
+
+message CalibratedAnnotation
+{
+  uint32 target_index = 1;
+  repeated double raw = 2;
+  repeated double calibrated = 3;
+  repeated uint32 prediction_set = 4;
+  optional string abstention = 5;
+}
+
+message TokenVectorWindowAnnotation
+{
+  uint32 window_index = 1;
+}
+
+message Utf16SpanAnnotation
+{
+  uint32 target_index = 1;
+  uint32 start16 = 2;
+  uint32 end16 = 3;
+  bool cut = 4;
+}
+
+// One strongly-typed annotation in a TypedLayer.
+message TypedAnnotation
+{
+  repeated SpanFragment spans = 1;
+  optional double probability = 2;
+  optional string model_ref = 3;
+
+  oneof value
+  {
+    SentenceAnnotation sentence = 10;
+    TokenAnnotation token = 11;
+    WordAnnotation word = 12;
+    SubwordAnnotation subword = 13;
+    PosTagAnnotation pos_tag = 14;
+    MorphFeaturesAnnotation morph_features = 15;
+    LemmaAnnotation lemma = 16;
+    StemAnnotation stem = 17;
+    TermAnnotation term = 18;
+    ChunkTagAnnotation chunk_tag = 19;
+    PhraseChunkAnnotation phrase_chunk = 20;
+    PhraseAnnotation phrase = 21;
+    DependencyAnnotation dependency = 22;
+    EntityAnnotation entity = 23;
+    RelationAnnotation relation = 24;
+    CorefMentionAnnotation coref_mention = 25;
+    CorefChainAnnotation coref_chain = 26;
+    SpeakerAnnotation speaker = 27;
+    WordNetSenseAnnotation wordnet_sense = 28;
+    LexicalExpansionAnnotation lexical_expansion = 29;
+    GlossaryTermAnnotation glossary_term = 30;
+    NumberAnnotation number = 31;
+    OrdinalAnnotation ordinal = 32;
+    MoneyAnnotation money = 33;
+    QuantityAnnotation quantity = 34;
+    TemporalAnnotation temporal = 35;
+    TimeAnnotation time = 36;
+    DocumentDateAnnotation document_date = 37;
+    PlaceResolution place = 38;
+    ContainmentChain containment = 39;
+    RegionVote region_vote = 40;
+    LanguageAnnotation language = 41;
+    LanguageSpanAnnotation language_span = 42;
+    CategoryAnnotation category = 43;
+    SentimentAnnotation sentiment = 44;
+    EmotionAnnotation emotion = 45;
+    AspectAnnotation aspect = 46;
+    OpinionAnnotation opinion = 47;
+    IncivilityAnnotation incivility = 48;
+    PragmaticsAnnotation pragmatics = 49;
+    PiiMention pii = 50;
+    NoiseSpan noise = 51;
+    TextArtifact artifact = 52;
+    EmbeddedAsset asset = 53;
+    SpellingCorrection correction = 54;
+    PlaceholderAnnotation placeholder = 55;
+    EmojiAnnotation emoji = 56;
+    ProtectedSpanAnnotation protected_span = 57;
+    AbbreviationAnnotation abbreviation = 58;
+    MatchAnnotation rule_match = 59;
+    BoilerplateAnnotation boilerplate = 60;
+    ConfidenceAnnotation confidence = 61;
+    StopwordFlagAnnotation stopword_flag = 62;
+    WordTypeAnnotation word_type = 63;
+    ReadingAnnotation reading = 64;
+    KeywordAnnotation keyword = 65;
+    SourceEncodingAnnotation source_encoding = 66;
+    VectorAnnotation vector = 67;
+    ChunkAnnotation chunk = 68;
+    LevelAnnotation level_unit = 69;
+    BoundaryAnnotation boundary = 70;
+    StructureAnnotation structure = 71;
+    AnswerAnnotation answer = 72;
+    EdgeAnnotation edge = 73;
+    GroupAnnotation group = 74;
+    LinkedEntityAnnotation linked_entity = 75;
+    CalibratedAnnotation calibrated = 76;
+    TokenVectorWindowAnnotation token_vector_window = 77;
+    Utf16SpanAnnotation utf16_span = 78;
+  }
+}

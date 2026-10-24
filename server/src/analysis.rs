@@ -15,8 +15,9 @@ use crate::kserve::Reply;
 use crate::proto::result::analysis_service_server::AnalysisService;
 use crate::proto::result::{
     AnalyzeStreamRequest, CapabilitiesRequest, CapabilitiesResponse, ChunkLevelsResult, DocumentGraphRequest,
-    DocumentGraphResponse, ExtractionResult, LoadBundleRequest, LoadBundleResponse, RecordsResult, RerankScoresResult,
-    SparseTermsResult, TokenVectorsResult, UnloadBundleRequest, UnloadBundleResponse,
+    DocumentGraphResponse, ExtractionResult, InspectDocumentGraphRequest, LoadBundleRequest, LoadBundleResponse,
+    RecordsResult, RerankScoresResult, SparseTermsResult, TokenVectorsResult, TypedDocumentResult, UnloadBundleRequest,
+    UnloadBundleResponse,
 };
 use crate::results::Wire;
 use crate::results::{
@@ -144,6 +145,18 @@ impl AnalysisService for Analysis {
             .await
             .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("the round trip's task failed: {e}"))))?;
         Ok(Response::new(out.map_err(plain)?))
+    }
+
+    async fn inspect_document_graph(&self, req: Request<InspectDocumentGraphRequest>) -> Reply<TypedDocumentResult> {
+        let req = req.into_inner();
+        let out = tokio::task::spawn_blocking(move || crate::results::typed::inspect_document_graph(&req))
+            .await
+            .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("the inspect task failed: {e}"))))?;
+        Ok(Response::new(out.map_err(plain)?))
+    }
+
+    async fn round_trip_typed_document(&self, req: Request<TypedDocumentResult>) -> Reply<TypedDocumentResult> {
+        round_trip::<_, TypedDocumentResult>(req)
     }
 
     async fn analyze_stream(
