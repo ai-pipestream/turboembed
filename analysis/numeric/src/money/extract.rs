@@ -9,7 +9,7 @@
 
 use std::fmt;
 
-use turbo_analysis::{Annotator, Error, Refs, Span, View};
+use turbo_analysis::{Annotator, Error, Fnv1a, Refs, Span, View};
 use turbo_analysis_layers::{Currency, Money, MoneyMention, NumberNotation};
 use turbo_unicode::GeneralCategory;
 use turbo_unicode::category::general_category;
@@ -339,6 +339,10 @@ impl Annotator for MoneyExtractor {
         });
         std::iter::once(notation)
             .chain(symbols)
-            .fold(0xcbf2_9ce4_8422_2325, |h, x| (h ^ x).wrapping_mul(0x0100_0000_01b3))
+            .fold(Fnv1a::new(), |mut h, x| {
+                h.u64(x);
+                h
+            })
+            .finish()
     }
 }

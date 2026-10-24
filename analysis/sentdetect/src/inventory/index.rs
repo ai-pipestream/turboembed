@@ -53,11 +53,11 @@ pub(super) struct Index {
 const ENTRY_WORDS: usize = 64;
 const WORD_WORDS: usize = 16;
 
-const FNV_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
+const FNV_BASIS: u64 = turbo_analysis::FNV1A_OFFSET_BASIS;
 
 /// One byte of FNV-1a.
 fn step(h: u64, b: u8) -> u64 {
-    (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3)
+    (h ^ u64::from(b)).wrapping_mul(turbo_analysis::FNV1A_PRIME)
 }
 
 /// The filter bit of an FNV-1a hash in a filter of `2^bits` bits, mixed

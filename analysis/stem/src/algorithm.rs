@@ -1,6 +1,10 @@
 //! Every stemmer of the crate as one value, for the annotator and for
 //! configuration.
 
+use std::hash::Hasher as _;
+
+use turbo_analysis::Fnv1a as Fnv;
+
 use crate::light::LightStemmer;
 use crate::porter::PorterStemmer;
 use crate::snowball::SnowballStemmer;
@@ -35,24 +39,7 @@ impl Algorithm {
                 }
             }
         }
-        h.0
-    }
-}
-
-/// 64-bit FNV-1a.
-struct Fnv(u64);
-
-impl Default for Fnv {
-    fn default() -> Fnv {
-        Fnv(0xcbf2_9ce4_8422_2325)
-    }
-}
-
-impl Fnv {
-    fn write(&mut self, bytes: &[u8]) {
-        for &b in bytes {
-            self.0 = (self.0 ^ b as u64).wrapping_mul(0x0100_0000_01b3);
-        }
+        h.finish()
     }
 }
 

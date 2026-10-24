@@ -9,7 +9,7 @@
 
 use std::collections::BTreeSet;
 
-use turbo_analysis::{Annotator, Bound, Error, Refs, Span, View};
+use turbo_analysis::{Annotator, Bound, Error, Fnv1a, Refs, Span, View};
 use turbo_analysis_layers::{Boundaries, Cut, Entities, Sentences, Tokens};
 
 use crate::weigh::{COREF, DRIFT, ENTITY, SENTIMENT, STRUCTURE, Weight};
@@ -362,6 +362,10 @@ impl Annotator for DistilledBoundaryScorer {
         [w.structure.0, w.drift.0, w.sentiment.0, w.coref.0, w.lexical_overlap, w.entity_continuity, w.bias]
             .iter()
             .chain(runs.as_ref())
-            .fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x as u32 as u64).wrapping_mul(0x0100_0000_01b3))
+            .fold(Fnv1a::new(), |mut h, &x| {
+                h.u64(u64::from(x as u32));
+                h
+            })
+            .finish()
     }
 }

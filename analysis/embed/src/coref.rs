@@ -157,19 +157,13 @@ impl TokenVectors for BundleTokenVectors {
     }
 
     fn config_hash(&self) -> u64 {
-        let mut h = 0xcbf2_9ce4_8422_2325u64;
+        let mut h = turbo_analysis::Fnv1a::new();
         for s in
             [CONFIG_TAG, &self.annotator.model().id, &self.annotator.model().revision, &self.annotator.model().sha256]
         {
-            for &b in s.as_bytes() {
-                h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
-            }
-            h = (h ^ 0xff).wrapping_mul(0x0100_0000_01b3);
+            h.str(s);
         }
-        for b in self.annotator.token_config().to_le_bytes() {
-            h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
-        }
-        h
+        h.u64(self.annotator.token_config()).finish()
     }
 }
 

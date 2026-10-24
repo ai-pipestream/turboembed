@@ -154,7 +154,7 @@ fn the_exact_best_row_is_near_the_top() {
 }
 
 fn fnv(bytes: &[u8]) -> u64 {
-    bytes.iter().fold(0xcbf2_9ce4_8422_2325u64, |h, &b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3))
+    turbo_analysis::fnv1a(bytes)
 }
 
 #[test]

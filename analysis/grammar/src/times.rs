@@ -133,11 +133,7 @@ impl Annotator for TimeAnnotator {
     /// FNV-1a over the grammar's name and the fixed reference.
     fn config_hash(&self) -> u64 {
         let fixed = self.reference.map_or(i64::MIN, DateTime::local_seconds);
-        self.grammar
-            .name()
-            .bytes()
-            .chain(fixed.to_le_bytes())
-            .fold(0xcbf2_9ce4_8422_2325, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3))
+        turbo_analysis::Fnv1a::new().bytes(self.grammar.name().as_bytes()).i64(fixed).finish()
     }
 }
 

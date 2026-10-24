@@ -6,4 +6,6 @@ license.workspace = true
 publish = false
 
 [dependencies]
+# The canonical deterministic FNV-1a hasher for configuration hashes.
+turbo-analysis = { path = "../core" }
 sha2 = "0.11"

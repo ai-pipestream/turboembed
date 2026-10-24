@@ -17,7 +17,7 @@
 
 use std::collections::HashMap;
 use std::fmt;
-use std::hash::{BuildHasherDefault, Hasher};
+use std::hash::BuildHasherDefault;
 
 use turbo_maxent::{Entries, Entry};
 
@@ -82,29 +82,7 @@ pub(crate) struct Rule {
     pub(crate) slot: u32,
 }
 
-/// The 64-bit FNV-1a hash as a `Hasher`. Dictionary tokens are short, and
-/// this hashes them faster than the standard library's default while
-/// giving the same lookups.
-#[derive(Clone, Debug)]
-pub(crate) struct Fnv(u64);
-
-impl Default for Fnv {
-    fn default() -> Fnv {
-        Fnv(0xCBF2_9CE4_8422_2325)
-    }
-}
-
-impl Hasher for Fnv {
-    fn finish(&self) -> u64 {
-        self.0
-    }
-
-    fn write(&mut self, bytes: &[u8]) {
-        for &b in bytes {
-            self.0 = (self.0 ^ u64::from(b)).wrapping_mul(0x0100_0000_01B3);
-        }
-    }
-}
+pub(crate) use turbo_analysis::Fnv1a as Fnv;
 
 /// A map from tokens to their [`DictionaryOperation`].
 #[derive(Clone, Debug, Default)]
@@ -231,7 +209,7 @@ mod tests {
     #[test]
     fn fnv_reference_value() {
         let mut h = Fnv::default();
-        h.write(b"a");
+        h.bytes(b"a");
         assert_eq!(h.finish(), 0xAF63_DC4C_8601_EC8C);
     }
 }

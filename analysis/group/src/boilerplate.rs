@@ -4,7 +4,7 @@
 
 use std::marker::PhantomData;
 
-use turbo_analysis::{Annotator, Error, Ix, Layer, Refs};
+use turbo_analysis::{Annotator, Error, Fnv1a, Ix, Layer, Refs};
 use turbo_analysis_layers::{Block, Boilerplate, BoilerplateKind, Chunks, Sentences, Structure};
 
 use crate::sketch::Sketches;
@@ -199,6 +199,10 @@ impl<L: BoilerplateUnit> Annotator for BoilerplateDetector<L> {
             u64::from(self.disclaimer_words),
         ]
         .iter()
-        .fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x).wrapping_mul(0x0100_0000_01b3))
+        .fold(Fnv1a::new(), |mut h, &x| {
+            h.u64(x);
+            h
+        })
+        .finish()
     }
 }

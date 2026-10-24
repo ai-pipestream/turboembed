@@ -2,7 +2,7 @@
 //! `MoneyConversionAnnotator`, as of a fixed date ([`MoneyConverter`]) or
 //! as of each document's date ([`DatedMoneyConverter`]).
 
-use turbo_analysis::{Annotator, Bound, Error, Refs};
+use turbo_analysis::{Annotator, Bound, Error, Fnv1a, Refs};
 use turbo_analysis_layers::{CONVERTED_MONEY, Currency, DocumentDate, Money, MoneyMention};
 
 use super::{Date, Decimal, FxRates};
@@ -80,7 +80,11 @@ fn config_hash(target: Currency, as_of: Option<Date>) -> u64 {
     let date = as_of.map_or([0, 0], |d| [1, d.epoch_day() as u64]);
     [u64::from(a), u64::from(b), u64::from(c), date[0], date[1]]
         .iter()
-        .fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x).wrapping_mul(0x0100_0000_01b3))
+        .fold(Fnv1a::new(), |mut h, &x| {
+            h.u64(x);
+            h
+        })
+        .finish()
 }
 
 impl<R: FxRates + Send + Sync + 'static> Annotator for MoneyConverter<R> {

@@ -148,18 +148,20 @@ impl turbo_analysis::Annotator for QueryTermAnnotator {
     }
 
     fn config_hash(&self) -> u64 {
-        let mut h = 0xcbf2_9ce4_8422_2325u64;
-        for v in [
+        [
             self.sent.config_hash(),
             self.tok.config_hash(),
             self.span_detector.config_hash(),
             self.inner.config_hash(),
             turbo_chunker::terms::NormalizedTermIndexer { form: self.term_form }.config_hash(),
             self.stopwords.config_hash(),
-        ] {
-            h = (h ^ v).wrapping_mul(0x0100_0000_01b3);
-        }
-        h
+        ]
+        .into_iter()
+        .fold(turbo_analysis::Fnv1a::new(), |mut h, v| {
+            h.u64(v);
+            h
+        })
+        .finish()
     }
 }
 
@@ -362,11 +364,13 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
     }
 
     fn config_hash(&self) -> u64 {
-        let mut h = 0xcbf2_9ce4_8422_2325u64;
-        for v in [self.money.config_hash(), self.quantity.config_hash(), self.temporal.config_hash()] {
-            h = (h ^ v).wrapping_mul(0x0100_0000_01b3);
-        }
-        h
+        [self.money.config_hash(), self.quantity.config_hash(), self.temporal.config_hash()]
+            .into_iter()
+            .fold(turbo_analysis::Fnv1a::new(), |mut h, v| {
+                h.u64(v);
+                h
+            })
+            .finish()
     }
 }
 

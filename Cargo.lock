@@ -2031,6 +2031,7 @@ name = "turbo-calibration"
 version = "0.1.0"
 dependencies = [
  "sha2",
+ "turbo-analysis",
 ]
 
 [[package]]
@@ -2639,6 +2640,7 @@ dependencies = [
 name = "turbo-sequence"
 version = "0.1.0"
 dependencies = [
+ "turbo-analysis",
  "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
