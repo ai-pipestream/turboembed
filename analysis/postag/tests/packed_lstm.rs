@@ -112,16 +112,21 @@ fn bad_shapes_lengths_and_values_are_refused() {
     let m = Model::new(4, 2, 5);
     let lstm = m.lstm();
     let mut work = Work::default();
-    let err = |x: &[f32], lengths: &[usize], out: usize| {
-        lstm.run(x, lengths, &mut vec![0.0; out], &mut Work::default()).unwrap_err().message
+    // What the caller passed is at fault, not the weights: the codes say so.
+    let err = |x: &[f32], lengths: &[usize], out: usize, code: i32| {
+        let e = lstm.run(x, lengths, &mut vec![0.0; out], &mut Work::default()).unwrap_err();
+        assert_eq!(e.code, code, "{}", e.message);
+        e.message
     };
-    assert!(err(&[0.0; 12], &[1, 2], 12).contains("longest first"));
-    assert!(err(&[0.0; 8], &[2, 0], 8).contains("at least 1"));
-    assert!(err(&[0.0; 7], &[2], 8).contains("input"));
-    assert!(err(&[0.0; 8], &[2], 7).contains("output"));
+    let (argument, shape) = (turbo::status::INVALID_ARGUMENT, turbo::status::INVALID_SHAPE);
+    assert!(err(&[0.0; 12], &[1, 2], 12, argument).contains("longest first"));
+    assert!(err(&[0.0; 8], &[2, 0], 8, argument).contains("at least 1"));
+    assert!(err(&[0.0; 8], &[usize::MAX, 1], 8, argument).contains("overflow"));
+    assert!(err(&[0.0; 7], &[2], 8, shape).contains("input"));
+    assert!(err(&[0.0; 8], &[2], 7, shape).contains("output"));
     let mut nan = vec![0.0; 8];
     nan[3] = f32::NAN;
-    assert!(err(&nan, &[2], 8).contains("not finite"));
+    assert!(err(&nan, &[2], 8, argument).contains("not finite"));
     lstm.run(&[], &[], &mut [], &mut work).unwrap();
     let short = Weights { w: &m.w[0][1..], u: &m.u[0], b: &m.b[0], reverse: false };
     assert!(Lstm::new(4, 2, &[short]).err().unwrap().message.contains("w has"));

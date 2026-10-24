@@ -15,7 +15,7 @@
 
 use super::kernels::{Matrix, Mode};
 use crate::head::sigmoid;
-use crate::status::{Result, invalid};
+use crate::status::{Error, INVALID_ARGUMENT, INVALID_SHAPE, OUT_OF_MEMORY, Result, invalid};
 
 /// One direction's recurrent weights and its place in the stacked input
 /// projection.
@@ -57,11 +57,18 @@ pub struct Work {
     /// [batch, hidden] each sequence's state and cell, in batch order.
     state: Vec<f32>,
     cell: Vec<f32>,
+    /// Each sequence's first row.
+    starts: Vec<usize>,
+}
+
+/// A run refused for what the caller passed; the weights are not at fault.
+fn argument(message: impl Into<String>) -> Error {
+    Error::new(INVALID_ARGUMENT, message)
 }
 
 fn grow(v: &mut Vec<f32>, n: usize) -> Result<&mut [f32]> {
     if v.len() < n {
-        v.try_reserve_exact(n - v.len()).map_err(|_| invalid("lstm workspace allocation failed"))?;
+        v.try_reserve_exact(n - v.len()).map_err(|_| Error::new(OUT_OF_MEMORY, "lstm workspace allocation failed"))?;
         v.resize(n, 0.0);
     }
     Ok(&mut v[..n])
@@ -128,30 +135,39 @@ impl Lstm {
     /// keeps equal lengths in place), lays their rows out in that order,
     /// and puts the output rows back. A sequence's states do not depend on
     /// where it sits in the batch, so the order changes nothing else.
+    ///
+    /// Refused: lengths of 0, out of order or overflowing, and non-finite
+    /// inputs or states, with INVALID_ARGUMENT; `x` or `out` of the wrong
+    /// size, with INVALID_SHAPE; a workspace that cannot grow, with
+    /// OUT_OF_MEMORY.
     pub fn run(&self, x: &[f32], lengths: &[usize], out: &mut [f32], w: &mut Work) -> Result<()> {
         let (h, g) = (self.hidden, 4 * self.hidden);
         let rows = lengths.iter().try_fold(0usize, |a, &n| a.checked_add(n));
-        let rows = rows.ok_or_else(|| invalid("lstm: lengths overflow"))?;
+        let rows = rows.ok_or_else(|| argument("lstm: lengths overflow"))?;
         if lengths.contains(&0) || lengths.windows(2).any(|p| p[0] < p[1]) {
-            return Err(invalid("lstm: lengths must be at least 1 and the longest first"));
+            return Err(argument("lstm: lengths must be at least 1 and the longest first"));
         }
         if Some(x.len()) != rows.checked_mul(self.input) || Some(out.len()) != rows.checked_mul(self.width()) {
-            return Err(invalid(format!(
-                "lstm: {} input and {} output values for {rows} rows of {} and {}",
-                x.len(),
-                out.len(),
-                self.input,
-                self.width()
-            )));
+            return Err(Error::new(
+                INVALID_SHAPE,
+                format!(
+                    "lstm: {} input and {} output values for {rows} rows of {} and {}",
+                    x.len(),
+                    out.len(),
+                    self.input,
+                    self.width()
+                ),
+            ));
         }
         if !x.iter().all(|v| v.is_finite()) {
-            return Err(invalid("lstm: an input is not finite"));
+            return Err(argument("lstm: an input is not finite"));
         }
         if rows == 0 {
             return Ok(());
         }
         let (batch, dg) = (lengths.len(), self.directions.len() * g);
-        let starts: Vec<usize> = lengths.iter().scan(0, |a, &n| Some(std::mem::replace(a, *a + n))).collect();
+        w.starts.clear();
+        w.starts.extend(lengths.iter().scan(0, |a, &n| Some(std::mem::replace(a, *a + n))));
         let projected = grow(&mut w.projected, rows * dg)?;
         self.projection.apply(x, self.input, rows, Some(&self.bias), projected, dg, Mode::Plain);
         let projected = &w.projected[..rows * dg];
@@ -170,8 +186,8 @@ impl Lstm {
                 if t > 0 {
                     d.recurrent.apply(&w.state, h, active, None, &mut w.step, g, Mode::Plain);
                 }
-                for s in 0..active {
-                    let at = starts[s] + if d.reverse { lengths[s] - 1 - t } else { t };
+                for (s, (&start, &n)) in w.starts.iter().zip(lengths).take(active).enumerate() {
+                    let at = start + if d.reverse { n - 1 - t } else { t };
                     let a = &projected[at * dg + k * g..][..g];
                     let rec = &w.step[s * g..][..g];
                     let (state, cell) = (&mut w.state[s * h..][..h], &mut w.cell[s * h..][..h]);
@@ -181,7 +197,7 @@ impl Lstm {
                         let c = sigmoid(gate(1)) * cell[j] + sigmoid(gate(0)) * gate(2).tanh();
                         let v = sigmoid(gate(3)) * c.tanh();
                         if !v.is_finite() {
-                            return Err(invalid(format!("lstm: a state is not finite at row {at}")));
+                            return Err(argument(format!("lstm: a state is not finite at row {at}")));
                         }
                         (cell[j], state[j], row[j]) = (c, v, v);
                     }
