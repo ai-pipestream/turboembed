@@ -4328,10 +4328,12 @@ simple baselines:
 
 So at `w = 0.35` the earlier stage-0 PASSes measure mostly the
 addition of BM25, not the chunker: hybrid against hybrid,
-`turbo-chunker-254-200` ties `sentence-windows-5` and
-`fixed-tokens-200` on every set (all intervals cover zero but
-`arguana` against fixed tokens, where it is significantly worse),
-and beats the sandbox semantic chunker everywhere but `qasper`.
+`turbo-chunker-254-200` ties `sentence-windows-5` on every set,
+and against `fixed-tokens-200` it is significantly better on
+`nfcorpus` (`+0.71`, 95% interval `+0.16` to `+1.30`, p = 0.0147,
+real but under the gate's 2-point gain threshold), significantly
+worse on `arguana`, and tied on `scifact` and `qasper`. It beats
+the sandbox semantic chunker everywhere but `qasper`.
 
 ### Structure in the chunker
 
