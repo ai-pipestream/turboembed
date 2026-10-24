@@ -40,11 +40,15 @@ pub(crate) fn collect_tokens(text: &str, protected: Option<&[Span]>) -> Vec<Toke
     let spans = protected.unwrap_or(&[]);
     let mut p_idx = 0;
     // Whitespace tokenization keeps unspaced CJK text in one
-    // token; split after unambiguous sentence terminators
-    // (STerm, not the ambiguous full stop) so sentence grouping
-    // and trellis context stay per sentence.
-    let is_sterm =
-        |c: char| turbo_unicode::sentence_break::sentence_break(c as u32) == turbo_unicode::SentenceBreak::STerm;
+    // token; split after unambiguous non-ASCII sentence
+    // terminators (STerm, not the ambiguous full stop) so
+    // sentence grouping and trellis context stay per sentence.
+    // ASCII terminators do not split: a `?` inside a URL or a
+    // `!` glued to a word must reach the guards as one token,
+    // as it did before this split existed.
+    let is_sterm = |c: char| {
+        !c.is_ascii() && turbo_unicode::sentence_break::sentence_break(c as u32) == turbo_unicode::SentenceBreak::STerm
+    };
     let tokens = tokens(text).into_iter().flat_map(|tok| {
         let mut pieces = Vec::new();
         let mut start = tok.start;
