@@ -6,7 +6,8 @@
 //! Sets TURBO_BENCH_BUILD_COMMIT (40 hex, or empty outside a git tree) and
 //! TURBO_BENCH_BUILD_CHANGES (the changed paths, as `git status
 //! --porcelain` gives them, joined with `, `; empty when clean). New files
-//! under benchmarks/records/ are not changes, as in git.rs.
+//! under benchmarks/records/ or benchmarks/static/ are not changes, as in
+//! git.rs.
 //!
 //! Cargo takes a watched path that does not exist as always changed, and
 //! would run this, and rebuild the tool, on every call: so of a clean
@@ -90,7 +91,10 @@ fn main() {
     let changes: Vec<String> = match status {
         Some(s) => s
             .lines()
-            .filter(|l| !l.strip_prefix("?? ").is_some_and(|p| p.starts_with("benchmarks/records/")))
+            .filter(|l| {
+                !l.strip_prefix("?? ")
+                    .is_some_and(|p| ["benchmarks/records/", "benchmarks/static/"].iter().any(|d| p.starts_with(d)))
+            })
             .map(str::to_owned)
             .collect(),
         None => vec!["(git status failed)".to_owned()],

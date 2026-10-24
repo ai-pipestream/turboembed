@@ -123,7 +123,7 @@ pub struct Agreement {
     pub rows: u32,
     /// Rows equal to the library's to the bit.
     pub bit_equal: u32,
-    /// Rows of NaN: texts the peer refused.
+    /// Rows with non-finite values: texts the peer refused.
     pub refused: u32,
     /// The lowest cosine over the rows it did not refuse.
     pub min_cosine: f64,
@@ -169,7 +169,7 @@ pub fn agreement(set: &str, want: &[f32], got: &[u8], dim: usize) -> Result<Agre
     let got: Vec<f32> = got.as_chunks::<4>().0.iter().map(|b| f32::from_le_bytes(*b)).collect();
     let (mut bit_equal, mut refused, mut min_cosine) = (0, 0, 1f64);
     for (w, g) in want.chunks(dim).zip(got.chunks(dim)) {
-        if g.iter().any(|v| v.is_nan()) {
+        if g.iter().any(|v| !v.is_finite()) {
             refused += 1;
             continue;
         }
@@ -180,7 +180,13 @@ pub fn agreement(set: &str, want: &[f32], got: &[u8], dim: usize) -> Result<Agre
         let norm = |v: &[f32]| v.iter().map(|&x| f64::from(x) * f64::from(x)).sum::<f64>().sqrt();
         let (nw, ng) = (norm(w), norm(g));
         // Two zero vectors (a text with no tokens) agree.
-        let c = if nw == 0.0 && ng == 0.0 { 1.0 } else { dot / (nw * ng) };
+        let c = if nw == 0.0 && ng == 0.0 {
+            1.0
+        } else if nw == 0.0 || ng == 0.0 {
+            0.0
+        } else {
+            dot / (nw * ng)
+        };
         min_cosine = min_cosine.min(c);
     }
     Ok(Agreement { set: set.into(), rows: (want.len() / dim) as u32, bit_equal, refused, min_cosine })
