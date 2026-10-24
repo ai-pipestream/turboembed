@@ -4792,26 +4792,31 @@ runs them on any machine:
   alone on each side. `Dispatch::open` opens the step on the device and on
   the CPU at `Precision::Exact` at one window and cap, refusing a window
   and cap the calibration does not ask for before it measures, and fits
-  each side's time a call (`Cost::fit`, least squares) to a cost a run, a
-  row and a token, over the whole set and the one sentence at each batch
-  measured at that window; the shape of each is planned, not run
-  (`VectorAnnotator::shape`: each run's rows as long as its longest). Each
-  call is planned the same way and runs whole on the side whose cost is
-  lower, the device only where its vectors clear the floor at that window,
-  and `TURBO_CALIBRATION_FORCE` still sends every call to one side.
+  each side's time a call (`Cost::fit`: no cost below 0, least relative
+  squares) to a cost a run, a row and a token, over the whole set and the
+  one sentence at each batch measured at that window. Shapes are planned,
+  not run: `VectorAnnotator::shape` packs a call through `pack`, the loop
+  `embed` runs by, so the rows a run holds and the ranges it holds both
+  split runs, and `last_shape` reports what a call sent to the encoder. A
+  call of a shape the calibration timed at the step's cap goes to the side
+  measured faster; any other runs whole on the side whose cost is lower;
+  the device only where its vectors clear the floor at that window;
+  `TURBO_CALIBRATION_FORCE` still sends every call to one side.
   `SentenceVectors`, `ChunkVectors` and `SentenceChunkVectors` take any
   `Embedder`, a `VectorAnnotator` or a `Dispatch`, and record each call's
   side on every document's layers (`annotate_batch_placed`).
-  `analysis/embed/tests/dispatch.rs` checks the fit, the refusals and,
-  with the CPU at `Precision::Model` standing in for the device, that a
-  call of one sentence and a call of many record different sides and get
-  each side's vectors; on the device `TURBO_TEST_DEVICE` names, at each of
-  the twelve windows and caps, one sentence, one document and the whole
-  set through one instance each run within 10% of the faster of the step
-  fixed on each side, every document records one side, and its vectors are
-  that side's. `analysis/core/tests/placed.rs` checks that each document
-  records the execution its call returned, and its own after a run again
-  alone.
+  `analysis/embed/tests/dispatch.rs` checks the fit, the refusals, that
+  the shape predicted is the shape run (one range a row and 40 one-word
+  sentences among the cases), and, with the CPU at `Precision::Model`
+  standing in for the device, that a call of one sentence and a call of
+  many record different sides and get each side's vectors; on the device
+  `TURBO_TEST_DEVICE` names, at each of the twelve windows and caps, one
+  sentence, one document and the whole set through one instance, each
+  timed three times in turn with the step fixed on each side, run within
+  10% of the faster fixed side, every document records one side, and its
+  vectors are that side's. `analysis/core/tests/placed.rs` checks that
+  each document records the execution its call returned, and its own after
+  a run again alone.
 - `analysis/core/tests/offsets.rs` converts offsets in both directions
   at every character boundary of text with one to four byte
   characters, refuses offsets inside a surrogate pair and past the end,

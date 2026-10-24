@@ -239,29 +239,37 @@ configuration: a call that small, sent to a session whose batch chose
 the Hailo-8, spends about 6.5 ms more than the CPU would.
 
 `Dispatch` chooses per call instead of per configuration: it holds the
-step on the Hailo-8 and on the CPU at one window and cap, fits each
-side's time a call to a cost a run, a row and a token from the
-calibration (the whole set and its first sentence alone, at each batch),
-and runs each call whole on the side that costs less for it. Each
-document's layers record the side that made its vectors. Through one
-instance on the Hailo-8 on a Raspberry Pi 5 at commit b520748b
-(dispatched, then the step fixed on each side, in ms):
+step on the Hailo-8 and on the CPU at one window and cap, and runs each
+call whole on one side. A call the calibration timed at that cap (the
+whole set, or its first sentence alone) goes to the side measured faster;
+any other goes to the side whose cost is lower, fitted to the
+calibration's times as a cost a run, a row and a token. A call's runs,
+rows and tokens are planned the way it runs. Each document's layers
+record the side that made its vectors. Through one instance on the
+Hailo-8 on a Raspberry Pi 5 at commit 0fab346b, the middle of three
+medians each (dispatched, then the step fixed on the Hailo-8 and on the
+CPU, in ms):
 
 | Window | Cap | One sentence | One document | All 168 sentences |
 |---|---|---|---|---|
-| 16 | 1 | CPU 7.5 (14.1, 7.5) | CPU 46.2 (84.5, 46.4) | CPU 1605 (2999, 1607) |
-| 16 | 32 | CPU 7.5 (14.1, 7.6) | Hailo-8 42.0 (41.9, 41.5) | Hailo-8 640 (640, 1392) |
-| 32 | 1 | CPU 10.1 (14.1, 9.2) | Hailo-8 42.2 (42.2, 42.9) | Hailo-8 1605 (1605, 1524) |
-| 64 | 8 | CPU 7.6 (14.1, 10.0) | Hailo-8 28.2 (28.2, 35.5) | Hailo-8 337 (337, 1244) |
-| 128 | 1 | CPU 7.5 (14.1, 7.6) | Hailo-8 14.1 (14.1, 31.8) | Hailo-8 507 (507, 1166) |
-| 128 | 32 | CPU 7.6 (14.1, 7.7) | Hailo-8 14.1 (14.1, 32.3) | Hailo-8 133 (133, 1121) |
+| 16 | 1 | CPU 7.5 (14.1, 7.5) | CPU 46.3 (84.5, 46.5) | CPU 1617 (2999, 1608) |
+| 16 | 8 | CPU 7.6 (14.1, 7.6) | Hailo-8 42.0 (41.9, 41.4) | Hailo-8 1240 (1240, 1417) |
+| 16 | 32 | CPU 7.6 (14.1, 7.6) | Hailo-8 41.9 (41.9, 41.4) | Hailo-8 640 (640, 1392) |
+| 32 | 1 | CPU 7.5 (14.1, 7.6) | Hailo-8 42.2 (42.2, 42.9) | CPU 1520 (1605, 1519) |
+| 32 | 8 | CPU 7.6 (14.1, 7.6) | Hailo-8 35.2 (35.2, 40.6) | Hailo-8 674 (675, 1398) |
+| 32 | 32 | CPU 7.5 (14.1, 7.6) | Hailo-8 35.3 (35.2, 40.8) | Hailo-8 351 (351, 1382) |
+| 64 | 1 | CPU 7.6 (14.1, 7.6) | Hailo-8 28.2 (28.2, 36.5) | Hailo-8 802 (802, 1300) |
+| 64 | 8 | CPU 7.6 (14.1, 7.6) | Hailo-8 28.2 (28.2, 35.5) | Hailo-8 337 (337, 1246) |
+| 64 | 32 | CPU 7.6 (14.1, 7.6) | Hailo-8 28.2 (28.2, 35.7) | Hailo-8 176 (176, 1243) |
+| 128 | 1 | CPU 7.6 (14.1, 7.6) | Hailo-8 14.1 (14.1, 31.8) | Hailo-8 507 (507, 1144) |
+| 128 | 8 | CPU 7.5 (14.1, 7.5) | Hailo-8 14.1 (14.1, 31.8) | Hailo-8 223 (223, 1107) |
+| 128 | 32 | CPU 7.6 (14.1, 7.7) | Hailo-8 14.1 (14.1, 32.4) | Hailo-8 133 (133, 1117) |
 
-At all twelve windows and caps (the device test), on both boards, each
-submission ran within 10% of the faster fixed side: one sentence always
-on the CPU, and the whole set on the Hailo-8 except at 16 tokens and one
-row a run. The one choice that was not the faster side is the whole set
-at 32 tokens and one row a run, where the two sides are within 5% and
-the fit puts the Hailo-8 ahead.
+The Compute Module 5 gives the same sides and times within 4%. In 34 of
+the 36 cells the side chosen is the faster one, or the two are within
+each other's spread. The two that are not are one document at 16 tokens
+with a cap of 8 or 32 rows: the fit sends it to the Hailo-8, 1.2% and
+1.3% slower than the CPU, on both boards, outside the spread of three.
 
 On the Hailo-10H (on a Raspberry Pi 5, HailoRT 5.1.1, firmware 5.1.1),
 which has memory of its own, the same measurement at commit 67e1327b
