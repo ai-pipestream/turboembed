@@ -459,6 +459,21 @@ pub(crate) fn is_numeric_time_token(text: &str, s: usize, e: usize) -> bool {
     matches!(prev, b':' | b'/' | b'-' | b'.') || matches!(next, b':' | b'/' | b'-' | b'.')
 }
 
+/// Whether a lowercased token modifies a time expression's
+/// relation or position within its period, so dropping it would
+/// change the meaning (`before tomorrow` is not `tomorrow`).
+#[rustfmt::skip]
+pub(crate) fn is_time_modifier(lower: &str) -> bool {
+    matches!(
+        lower,
+        "after" | "ago" | "antes" | "before" | "beginning" | "between" | "by" | "dentro" | "desde"
+            | "después" | "despues" | "during" | "early" | "end" | "entre" | "finales" | "fines"
+            | "from" | "hace" | "hasta" | "hence" | "late" | "later" | "mediados" | "mid" | "middle"
+            | "past" | "principios" | "prior" | "since" | "start" | "through" | "till" | "to" | "until"
+            | "within"
+    )
+}
+
 #[rustfmt::skip]
 pub(crate) fn is_time_ctx(text: &str, s: usize, e: usize, trig: bool) -> bool {
     if trig {
