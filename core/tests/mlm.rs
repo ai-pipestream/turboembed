@@ -161,15 +161,15 @@ fn the_head_matches_the_numpy_reference() {
     };
     let hidden = g["hidden"].as_u64().unwrap() as usize;
     let vocab = g["vocab"].as_u64().unwrap() as usize;
-    let head = MlmHead {
+    let head = MlmHead::new(
         hidden,
         vocab,
-        transform: Linear::new(hidden, hidden, flat("transform_weight", true), flat("transform_bias", false)).unwrap(),
-        ln_weight: flat("ln_weight", false),
-        ln_bias: flat("ln_bias", false),
-        ln_eps: g["eps"].as_f64().unwrap() as f32,
-        decoder: Linear::new(hidden, vocab, flat("decoder_weight", true), flat("decoder_bias", false)).unwrap(),
-    };
+        Linear::new(hidden, hidden, flat("transform_weight", true), flat("transform_bias", false)).unwrap(),
+        flat("ln_weight", false),
+        flat("ln_bias", false),
+        g["eps"].as_f64().unwrap() as f32,
+        Linear::new(hidden, vocab, flat("decoder_weight", true), flat("decoder_bias", false)).unwrap(),
+    );
     let states = flat("states", true);
     let logits = head.logits(&states).unwrap();
     let want = flat("logits", true);

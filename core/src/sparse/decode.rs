@@ -31,13 +31,15 @@ impl Kernel {
         Kernel::Portable
     }
 
-    /// How many tokens one kernel pass takes: NEON sums up to 4 per pass
-    /// over the weight rows, the others 1.
+    /// How many tokens one kernel pass takes: NEON and AVX2 sum up to 4
+    /// per pass over the weight rows, the portable loop 1.
     pub(super) fn tokens_per_pass(self) -> usize {
         match self {
             #[cfg(target_arch = "aarch64")]
             Kernel::Neon => 4,
-            _ => 1,
+            #[cfg(target_arch = "x86_64")]
+            Kernel::Avx2 => 4,
+            Kernel::Portable => 1,
         }
     }
 
@@ -60,9 +62,9 @@ impl Kernel {
     }
 
     /// `run` for each token of `xs` (rows of `h`) into its row of `out`
-    /// (rows of `w`), each row the same bits as `run` gives it. NEON takes
-    /// up to 4 tokens per pass over the weight rows, so each row's
-    /// columns are read from memory once for all of them.
+    /// (rows of `w`), each row the same bits as `run` gives it. NEON and
+    /// AVX2 take up to 4 tokens per pass over the weight rows, so each
+    /// row's columns are read from memory once for all of them.
     ///
     /// # Panics
     /// As `run`, or if `xs` and `out` hold different numbers of rows.
@@ -77,6 +79,22 @@ impl Kernel {
                     // SAFETY: detect chose it, so the processor has NEON;
                     // the shapes are checked above.
                     unsafe { neon(x, h, wt, o, w, v, i0) };
+                }
+            }
+            #[cfg(target_arch = "x86_64")]
+            Kernel::Avx2 => {
+                assert!(i0 + w <= v && wt.len() >= h * v, "decoder product shape");
+                for (x, o) in xs.chunks(4 * h).zip(out.chunks_mut(4 * w)) {
+                    // SAFETY: detect chose it, so the processor has AVX2 and
+                    // FMA; the shapes are checked above.
+                    unsafe {
+                        match x.len() / h {
+                            4 => avx2_tokens::<4>(x, h, wt, o, w, v, i0),
+                            3 => avx2_tokens::<3>(x, h, wt, o, w, v, i0),
+                            2 => avx2_tokens::<2>(x, h, wt, o, w, v, i0),
+                            _ => avx2_tokens::<1>(x, h, wt, o, w, v, i0),
+                        }
+                    }
                 }
             }
             _ => {
@@ -143,6 +161,58 @@ unsafe fn avx2(x: &[f32], wt: &[f32], o: &mut [f32], v: usize, i0: usize) {
         i += 32;
     }
     tail(x, wt, &mut o[i..], v, i0 + i);
+}
+
+/// `T` tokens `xs` (rows of `h`) into their rows of `out` (rows of `w`):
+/// 16 columns a step, held for all `T` tokens in registers while the
+/// weight rows stream past once, then each token's last columns as `tail`
+/// sums them.
+///
+/// # Safety
+/// The processor has AVX2 and FMA, `xs` and `out` hold `T` rows each, and
+/// `wt` holds `h` rows of `v` floats with `i0 + w <= v`.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2,fma")]
+unsafe fn avx2_tokens<const T: usize>(
+    xs: &[f32],
+    h: usize,
+    wt: &[f32],
+    out: &mut [f32],
+    w: usize,
+    v: usize,
+    i0: usize,
+) {
+    use std::arch::x86_64::*;
+    let (op, wp, xp) = (out.as_mut_ptr(), wt.as_ptr(), xs.as_ptr());
+    let mut i = 0;
+    while i + 16 <= w {
+        // SAFETY: i + 16 <= w, row j has columns i0..i0 + w, and each of
+        // the T token rows of out has w columns (contract).
+        unsafe {
+            let mut c = [[_mm256_setzero_ps(); 2]; T];
+            for (t, c) in c.iter_mut().enumerate() {
+                c[0] = _mm256_loadu_ps(op.add(t * w + i));
+                c[1] = _mm256_loadu_ps(op.add(t * w + i + 8));
+            }
+            for j in 0..h {
+                let row = wp.add(j * v + i0 + i);
+                let (r0, r1) = (_mm256_loadu_ps(row), _mm256_loadu_ps(row.add(8)));
+                for (t, c) in c.iter_mut().enumerate() {
+                    let a = _mm256_set1_ps(*xp.add(t * h + j));
+                    c[0] = _mm256_fmadd_ps(a, r0, c[0]);
+                    c[1] = _mm256_fmadd_ps(a, r1, c[1]);
+                }
+            }
+            for (t, c) in c.iter().enumerate() {
+                _mm256_storeu_ps(op.add(t * w + i), c[0]);
+                _mm256_storeu_ps(op.add(t * w + i + 8), c[1]);
+            }
+        }
+        i += 16;
+    }
+    for (x, o) in xs.chunks_exact(h).zip(out.chunks_exact_mut(w)) {
+        tail(x, wt, &mut o[i..], v, i0 + i);
+    }
 }
 
 /// Up to 4 tokens `xs` (rows of `h`) into their rows of `out` (rows of

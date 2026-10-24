@@ -228,12 +228,7 @@ impl MlmHead {
         // j in the order Linear::apply sums it, with FMA where the
         // processor has a SIMD kernel for it (sparse/decode.rs).
         let kernel = Kernel::detect();
-        let mut wt = vec![0.0f32; h * v];
-        for (i, w) in self.decoder.weight.chunks_exact(h).enumerate() {
-            for (j, &x) in w.iter().enumerate() {
-                wt[j * v + i] = x;
-            }
-        }
+        let wt = self.decoder_transposed()?;
         const BLOCK: usize = 48;
         // Columns at a time, so a block's output rows and the weight's
         // column chunk both stay in cache: the weight streams once per
@@ -256,14 +251,14 @@ impl MlmHead {
                 if k == 1 {
                     for (x, o) in block.chunks_exact(h).zip(out.chunks_exact_mut(w)) {
                         o.copy_from_slice(bias);
-                        kernel.run_tokens(x, h, &wt, o, w, v, i0);
+                        kernel.run_tokens(x, h, wt, o, w, v, i0);
                     }
                 } else {
                     for (x, o) in block.chunks(k * h).zip(out.chunks_mut(k * w)) {
                         for o in o.chunks_exact_mut(w) {
                             o.copy_from_slice(bias);
                         }
-                        kernel.run_tokens(x, h, &wt, o, w, v, i0);
+                        kernel.run_tokens(x, h, wt, o, w, v, i0);
                     }
                 }
                 for o in out.chunks_exact(w) {
@@ -373,5 +368,79 @@ mod tests {
         assert_eq!(select_terms(&neg, &SparseOptions::all()).unwrap_err().code, INVALID_ARGUMENT);
         neg.fill(0.0);
         assert!(select_terms(&neg, &SparseOptions::all()).unwrap().is_empty());
+    }
+}
+
+#[cfg(test)]
+mod head_tests {
+    use super::*;
+    use crate::head::Linear;
+
+    fn values(n: usize, seed: u32) -> Vec<f32> {
+        let mut s = seed.wrapping_mul(2_654_435_761).max(1);
+        (0..n)
+            .map(|_| {
+                s ^= s << 13;
+                s ^= s >> 17;
+                s ^= s << 5;
+                ((s >> 8) as f32 / 8_388_608.0 - 1.0) * 0.1
+            })
+            .collect()
+    }
+
+    fn head(h: usize, v: usize) -> MlmHead {
+        MlmHead::new(
+            h,
+            v,
+            Linear::new(h, h, values(h * h, 1), values(h, 2)).unwrap(),
+            vec![1.0; h],
+            vec![0.0; h],
+            1e-12,
+            Linear::new(h, v, values(h * v, 3), values(v, 4)).unwrap(),
+        )
+    }
+
+    /// The transposed decoder is made on the first call and read on every
+    /// later one, which gives the same pool; a decoder replaced by one of
+    /// another shape after that call is refused, not read through the old
+    /// transpose.
+    #[test]
+    fn the_decoder_is_transposed_once_and_kept() {
+        let (h, v) = (17, 301);
+        let mut m = head(h, v);
+        let states = values(5 * h, 9);
+        let mut first = MaxLogPool::new(v);
+        m.relu_peak_into(&states, &mut first).unwrap();
+        let wt = m.decoder_transposed().unwrap().as_ptr();
+        let mut again = MaxLogPool::new(v);
+        m.relu_peak_into(&states, &mut again).unwrap();
+        assert_eq!(first.weights(), again.weights());
+        assert_eq!(m.decoder_transposed().unwrap().as_ptr(), wt, "made once");
+        assert_eq!(head(h, v), m, "equality ignores the transpose");
+        m.vocab = v - 1;
+        m.decoder = Linear::new(h, v - 1, values(h * (v - 1), 3), values(v - 1, 4)).unwrap();
+        let mut pool = MaxLogPool::new(v - 1);
+        assert_eq!(m.relu_peak_into(&states, &mut pool).unwrap_err().code, crate::status::INTERNAL);
+    }
+
+    /// relu_peak_into end to end at a base SPLADE model's shape: 128
+    /// tokens, hidden 768, vocabulary 30,522. Run in release:
+    /// `cargo test --release --locked -p turbo --lib relu_peak_timing -- --ignored --nocapture`
+    #[test]
+    #[ignore = "timing; run in release"]
+    fn relu_peak_timing() {
+        let (h, v, tokens) = (768, 30_522, 128);
+        let m = head(h, v);
+        let states = values(tokens * h, 7);
+        let mut times = Vec::new();
+        for _ in 0..7 {
+            let mut pool = MaxLogPool::new(v);
+            let t = std::time::Instant::now();
+            m.relu_peak_into(&states, &mut pool).unwrap();
+            times.push(t.elapsed().as_secs_f64() * 1e3);
+        }
+        let first = times[0];
+        times.sort_by(f64::total_cmp);
+        println!("relu_peak_into {tokens}x{h}x{v}: first call {first:.1} ms, median of 7 {:.1} ms", times[3]);
     }
 }
