@@ -124,114 +124,18 @@ pub fn extract_context_terms(text: &str) -> Vec<String> {
         .collect()
 }
 
-/// Computes the Jaro similarity in `[0.0, 1.0]` between two strings over `char`s.
+/// Computes the Jaro similarity in `[0.0, 1.0]` between two strings
+/// over `char`s: the shared `turbo_geo` implementation (ASCII bitmask
+/// fast path, thread-local scratch otherwise).
 pub fn jaro_similarity(a: &str, b: &str) -> f64 {
-    if a == b {
-        return 1.0;
-    }
-    if a.is_ascii() && b.is_ascii() && a.len() <= 128 && b.len() <= 128 {
-        let a_bytes = a.as_bytes();
-        let b_bytes = b.as_bytes();
-        let a_len = a_bytes.len();
-        let b_len = b_bytes.len();
-        if a_len == 0 || b_len == 0 {
-            return 0.0;
-        }
-        let match_distance = (a_len.max(b_len) / 2).saturating_sub(1);
-        let mut a_matches = 0u128;
-        let mut b_matches = 0u128;
-        let mut matches = 0usize;
-        for (i, &ac) in a_bytes.iter().enumerate() {
-            let start = i.saturating_sub(match_distance);
-            let end = (i + match_distance + 1).min(b_len);
-            for (j, &bc) in b_bytes.iter().enumerate().take(end).skip(start) {
-                let b_bit = 1u128 << j;
-                if (b_matches & b_bit) == 0 && ac == bc {
-                    a_matches |= 1u128 << i;
-                    b_matches |= b_bit;
-                    matches += 1;
-                    break;
-                }
-            }
-        }
-        if matches == 0 {
-            return 0.0;
-        }
-        let mut transpositions = 0usize;
-        let mut rem_b = b_matches;
-        for (i, &ac) in a_bytes.iter().enumerate() {
-            if (a_matches & (1u128 << i)) == 0 {
-                continue;
-            }
-            let k = rem_b.trailing_zeros() as usize;
-            rem_b &= rem_b - 1;
-            if ac != b_bytes[k] {
-                transpositions += 1;
-            }
-        }
-        let m = matches as f64;
-        let t = (transpositions as f64) / 2.0;
-        return ((m / (a_len as f64)) + (m / (b_len as f64)) + ((m - t) / m)) / 3.0;
-    }
-
-    let a_chars: Vec<char> = a.chars().collect();
-    let b_chars: Vec<char> = b.chars().collect();
-    let a_len = a_chars.len();
-    let b_len = b_chars.len();
-    if a_len == 0 || b_len == 0 {
-        return 0.0;
-    }
-
-    let match_distance = (a_len.max(b_len) / 2).saturating_sub(1);
-    let mut a_matches = vec![false; a_len];
-    let mut b_matches = vec![false; b_len];
-
-    let mut matches = 0usize;
-    for i in 0..a_len {
-        let start = i.saturating_sub(match_distance);
-        let end = (i + match_distance + 1).min(b_len);
-        for j in start..end {
-            if !b_matches[j] && a_chars[i] == b_chars[j] {
-                a_matches[i] = true;
-                b_matches[j] = true;
-                matches += 1;
-                break;
-            }
-        }
-    }
-
-    if matches == 0 {
-        return 0.0;
-    }
-
-    let mut transpositions = 0usize;
-    let mut k = 0usize;
-    for i in 0..a_len {
-        if !a_matches[i] {
-            continue;
-        }
-        while !b_matches[k] {
-            k += 1;
-        }
-        if a_chars[i] != b_chars[k] {
-            transpositions += 1;
-        }
-        k += 1;
-    }
-
-    let m = matches as f64;
-    let t = (transpositions as f64) / 2.0;
-    ((m / (a_len as f64)) + (m / (b_len as f64)) + ((m - t) / m)) / 3.0
+    turbo_geo::jaro_similarity(a, b)
 }
 
-/// Computes the Jaro-Winkler similarity in `[0.0, 1.0]` between two strings.
+/// Computes the Jaro-Winkler similarity in `[0.0, 1.0]` between two
+/// strings: the shared `turbo_geo` implementation, with the standard
+/// 0.7 boost threshold.
 pub fn jaro_winkler(a: &str, b: &str) -> f64 {
-    let jaro = jaro_similarity(a, b);
-    if jaro <= 0.0 {
-        return 0.0;
-    }
-    let prefix = a.chars().zip(b.chars()).take(4).take_while(|(ca, cb)| ca == cb).count() as f64;
-    (jaro + prefix * 0.1 * (1.0 - jaro)).clamp(0.0, 1.0)
+    turbo_geo::jaro_winkler(a, b)
 }
 
 /// Computes the Sørensen-Dice coefficient over space-separated tokens of two
