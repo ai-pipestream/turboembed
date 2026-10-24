@@ -46,16 +46,7 @@ impl<'a> Iterator for Lines<'a> {
     }
 }
 
-/// `StringUtil.isUnicodeBlank`: empty, or Unicode `White_Space` only.
-pub(crate) fn is_blank(s: &str) -> bool {
-    s.chars().all(char::is_whitespace)
-}
-
-/// `StringUtil.trimUnicodeWhitespace`: `s` without leading and trailing
-/// Unicode `White_Space`. Rust's `char::is_whitespace` is that property.
-pub(crate) fn trim(s: &str) -> &str {
-    s.trim_matches(char::is_whitespace)
-}
+pub(crate) use turbo_unicode::whitespace::{is_unicode_blank as is_blank, trim_unicode_whitespace as trim};
 
 /// The text [`parse_long`] refused, where Java throws a
 /// `NumberFormatException`.

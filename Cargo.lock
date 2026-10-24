@@ -2603,6 +2603,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-embed",
  "turbo-analysis-layers",
+ "turbo-sentdetect",
  "turbo-unicode",
 ]
 
