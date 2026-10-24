@@ -20,7 +20,7 @@ use crate::bundle::{AlignedBytes, Bundle, sha256_hex};
 use crate::manifest::{
     Activation, Architecture, Artifact, Family, Format, GraphInput, Manifest, PositionEmbedding, TensorRole, role_name,
 };
-use crate::status::{BUNDLE_NO_ARTIFACT, Error, INTERNAL, INVALID_ARGUMENT, Result, invalid};
+use crate::status::{BUNDLE_NO_ARTIFACT, Error, INTERNAL, INVALID_ARGUMENT, Result, UNSUPPORTED, invalid};
 
 use place::place_static;
 pub(crate) use place::{Placed, place};
@@ -179,6 +179,21 @@ pub const STATIC_ROLES: [TensorRole; TURBO_STATIC_TENSORS as usize] =
 /// The family model_load is told. Every combination the manifest can name
 /// is listed, so a new family, activation or position embedding does not
 /// compile until it has a place here.
+/// Whether the backend named `backend` runs a model of limited lookahead
+/// `lookahead` (0 for none): only the CPU's attention takes a band, and any
+/// other would run the whole row and give wrong vectors.
+pub fn runs_band(backend: &str, lookahead: u32) -> Result<()> {
+    if lookahead == 0 || backend == "cpu" {
+        return Ok(());
+    }
+    Err(Error::new(
+        UNSUPPORTED,
+        format!(
+            "architecture.lookahead {lookahead}: the {backend} backend has no limited-lookahead attention; load the model on the cpu backend"
+        ),
+    ))
+}
+
 fn family(a: &Architecture) -> u32 {
     match (a.family, a.activation, a.position_embedding) {
         (Family::Bert, Activation::GeluErf, PositionEmbedding::Absolute) => TURBO_FAMILY_BERT,
@@ -203,6 +218,8 @@ pub struct Weights {
     family: u32,
     arch: [u32; 7],
     position_offset: u32,
+    /// architecture.lookahead, 0 for none.
+    pub lookahead: u32,
     layer_norm_eps: f64,
     /// A compiled artifact's first file, as hashed: the whole HEF, or an
     /// OpenVINO IR's xml.
@@ -240,6 +257,7 @@ impl Weights {
                 family: TURBO_FAMILY_STATIC,
                 arch: [0, dim, 0, 0, st.vocab_size, 0, 1],
                 position_offset: 0,
+                lookahead: 0,
                 layer_norm_eps: 0.0,
                 artifact: None,
                 artifact2: None,
@@ -301,6 +319,7 @@ impl Weights {
             family: family(a),
             arch: [a.layers, a.hidden, a.heads, a.intermediate, a.vocab_size, a.max_positions, a.token_types],
             position_offset: a.position_offset,
+            lookahead: a.lookahead.unwrap_or(0),
             layer_norm_eps: a.layer_norm_eps,
             artifact,
             artifact2,
@@ -384,7 +403,7 @@ impl Weights {
             artifact2_bytes,
             head: std::ptr::null(),
             head_out: 0,
-            reserved: 0,
+            lookahead: self.lookahead,
         }
     }
 
@@ -439,5 +458,20 @@ mod tests {
             Err(e) => e,
         };
         assert_eq!(err.code, INVALID_ARGUMENT);
+    }
+
+    #[test]
+    fn only_the_cpu_runs_a_banded_model() {
+        assert!(runs_band("cpu", 16).is_ok());
+        for b in ["cuda", "metal", "levelzero", "npu", "hailo"] {
+            assert!(runs_band(b, 0).is_ok());
+            let e = runs_band(b, 16).err().unwrap();
+            assert_eq!(e.code, UNSUPPORTED);
+            assert!(
+                e.message.contains(&format!("the {b} backend has no limited-lookahead attention")),
+                "{}",
+                e.message
+            );
+        }
     }
 }
