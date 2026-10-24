@@ -2,7 +2,7 @@
 
 use std::fmt;
 
-use turbo_unicode::java::{to_lower_char, to_upper_char};
+use turbo_unicode::java::equals_ignore_case;
 
 use crate::entry::{InvalidRegionCode, RegionCode};
 use crate::fold::Folder;
@@ -102,21 +102,6 @@ impl Suppression {
             key == self.key
         })
     }
-}
-
-/// `String.equalsIgnoreCase`: the same length in UTF-16 units, and at each
-/// place the same character, or characters whose uppercase, or whose
-/// lowercase of the uppercase, agree.
-fn equals_ignore_case(a: &str, b: &str) -> bool {
-    if a.encode_utf16().count() != b.encode_utf16().count() {
-        return false;
-    }
-    a.chars().zip(b.chars()).all(|(x, y)| {
-        x == y || {
-            let (ux, uy) = (to_upper_char(x), to_upper_char(y));
-            ux == uy || to_lower_char(ux) == to_lower_char(uy)
-        }
-    })
 }
 
 #[cfg(test)]
