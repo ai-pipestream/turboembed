@@ -8,6 +8,9 @@ use std::collections::BTreeSet;
 
 use turbo_zoo::{Component, Format, Index, Kind, Licence, LicenceClass, Policy, verify};
 
+#[path = "builtin/components.rs"]
+mod components;
+
 #[test]
 fn the_builtin_index_parses_and_is_canonical() {
     let index = Index::builtin();

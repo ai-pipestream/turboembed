@@ -3619,6 +3619,7 @@
     {
       "id": "fastino-gliner2-base-v1",
       "kind": "KIND_MODEL",
+      "component": "COMPONENT_SCHEMA_EXTRACTOR",
       "language": "en",
       "format": "FORMAT_SAFETENSORS",
       "version": "f9634218e53580c56edf0de97ca1a7d3f1c2354e",
@@ -3702,6 +3703,7 @@
     {
       "id": "jackboyla-glirel-large-v0",
       "kind": "KIND_MODEL",
+      "component": "COMPONENT_RELATION_EXTRACTOR",
       "language": "en",
       "format": "FORMAT_PYTORCH",
       "version": "40a523e12a8432d6da364cf2a195a28755ff04d3",
@@ -3737,6 +3739,7 @@
     {
       "id": "cross-encoder-nli-minilm2-l6-h768",
       "kind": "KIND_MODEL",
+      "component": "COMPONENT_ZERO_SHOT_CATEGORIZER",
       "language": "en",
       "format": "FORMAT_SAFETENSORS",
       "version": "b95119ce93d3e065de6214e38cd4a97b0f2f2c6d",
@@ -3816,6 +3819,7 @@
     {
       "id": "deepset-roberta-base-squad2",
       "kind": "KIND_MODEL",
+      "component": "COMPONENT_EXTRACTIVE_QA",
       "language": "en",
       "format": "FORMAT_SAFETENSORS",
       "version": "adc3b06f79f797d1c575d5479d6f5efe54a9e3b4",
@@ -3883,6 +3887,7 @@
     {
       "id": "urchade-gliner-small-v2.1",
       "kind": "KIND_MODEL",
+      "component": "COMPONENT_ENTITY_EXTRACTOR",
       "language": "en",
       "format": "FORMAT_PYTORCH",
       "version": "4e091416cf7c3481db542c2a3d26156916f3a47f",
@@ -3950,6 +3955,7 @@
     {
       "id": "urchade-gliner-multi-v2.1",
       "kind": "KIND_MODEL",
+      "component": "COMPONENT_ENTITY_EXTRACTOR",
       "language": "mul",
       "format": "FORMAT_SAFETENSORS",
       "version": "443d26d654e0324125a96bebd8e796c14ff2efe6",

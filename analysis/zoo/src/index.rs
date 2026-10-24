@@ -56,6 +56,10 @@ macro_rules! constant_enum {
     };
 }
 
+mod component;
+
+pub use component::Component;
+
 constant_enum! {
     /// What an artifact is.
     Kind, "an artifact kind" {
@@ -64,23 +68,6 @@ constant_enum! {
         Lexicon => "KIND_LEXICON",
         Centroids => "KIND_CENTROIDS",
         Dataset => "KIND_DATASET",
-    }
-}
-
-constant_enum! {
-    /// The analysis component a model serves. The first eight are
-    /// OpenNLP's `opennlp.tools.models.ModelType` constants, prefixed.
-    Component, "a component" {
-        Lemmatizer => "COMPONENT_LEMMATIZER",
-        Tokenizer => "COMPONENT_TOKENIZER",
-        SentenceDetector => "COMPONENT_SENTENCE_DETECTOR",
-        Pos => "COMPONENT_POS",
-        PosGeneric => "COMPONENT_POS_GENERIC",
-        NameFinder => "COMPONENT_NAME_FINDER",
-        Chunker => "COMPONENT_CHUNKER",
-        Parser => "COMPONENT_PARSER",
-        LanguageDetector => "COMPONENT_LANGUAGE_DETECTOR",
-        DocumentCategorizer => "COMPONENT_DOCUMENT_CATEGORIZER",
     }
 }
 
@@ -473,16 +460,6 @@ impl Index {
             return Err(ZooError::Refused { id: r.id.clone(), licences: r.licences.clone() });
         }
         Err(ZooError::NotFound(id.to_owned()))
-    }
-
-    /// The listed models for `component` in `language`, in index order, as
-    /// OpenNLP's `DownloadUtil` looks a model up by language and
-    /// `ModelType`.
-    pub fn find(&self, language: &str, component: Component) -> impl Iterator<Item = &Artifact> + '_ {
-        let language = language.to_owned();
-        self.artifacts.iter().filter(move |a| {
-            a.component == Some(component) && a.language.as_ref().is_some_and(|l| l.as_str() == language)
-        })
     }
 
     /// `artifacts` written as an index in the canonical form: serde_json's
