@@ -340,4 +340,18 @@ fn overlapping_range_and_covering_at_match_the_general_queries() {
     let only_empty = spans_of(&[(7, 7)]);
     assert_eq!(only_empty.covering_at(7), Some(Ix::new(0)), "an empty item covers its own point");
     assert_eq!(only_empty.covering_at(6), None);
+
+    // Empty items at a non-empty query's start overlap it; empty
+    // items at its end do not.
+    let edges = spans_of(&[(0, 0), (0, 0), (0, 4), (4, 4), (4, 9), (9, 9)]);
+    let erange = |a: u32, b: u32| edges.overlapping_range(Span::new(a, b));
+    assert_eq!(idx(erange(0, 1)), (0, 3), "both empty items at 0 and the item starting there");
+    assert_eq!(idx(erange(0, 4)), (0, 3), "the empty item at 4 is at the query end");
+    assert_eq!(idx(erange(4, 9)), (3, 5), "the empty item at 4, not the one at 9");
+    assert_eq!(idx(erange(1, 4)), (2, 3), "empty items before the query start stay out");
+    for (a, b) in [(0, 1), (0, 4), (4, 9), (1, 4), (0, 9), (9, 10)] {
+        let want: Vec<usize> = edges.overlapping(Span::new(a, b)).into_iter().map(|ix| ix.get()).collect();
+        let got: Vec<usize> = erange(a, b).iter().map(|ix| ix.get()).collect();
+        assert_eq!(got, want, "query [{a}, {b})");
+    }
 }
