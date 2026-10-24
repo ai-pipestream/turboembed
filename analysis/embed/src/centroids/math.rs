@@ -20,15 +20,7 @@ pub(crate) fn softmax_in_place(logits: &mut [f64]) {
     }
 }
 
-pub(crate) fn sigmoid(z: f64) -> f64 {
-    if z >= 0.0 {
-        let e = (-z).exp();
-        1.0 / (1.0 + e)
-    } else {
-        let e = z.exp();
-        e / (1.0 + e)
-    }
-}
+pub(crate) use turbo::head::sigmoid_f64 as sigmoid;
 
 pub(crate) fn argmax_tag(scores: &[f64]) -> (Tag, f64) {
     let mut best_idx = 0usize;

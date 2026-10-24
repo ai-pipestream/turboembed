@@ -85,9 +85,7 @@ pub struct Extraction {
     pub records: Vec<Record>,
 }
 
-fn sigmoid(x: f32) -> f32 {
-    1.0 / (1.0 + (-x).exp())
-}
+use turbo::head::sigmoid;
 
 /// The spans of one field's logits (`[tokens][width]`, the words after
 /// `skip` prefix tokens) at or above `threshold`, after `checks`, ranked,
