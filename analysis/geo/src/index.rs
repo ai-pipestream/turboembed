@@ -333,7 +333,8 @@ impl IndexBuilder {
         store.shrink_to_fit();
         names.text.shrink_to_fit();
         names.bounds.shrink_to_fit();
-        GazetteerIndex { store, names, postings_start, postings, ids, regions, sources }
+        let by_len = by_len_of(&names);
+        GazetteerIndex { store, names, postings_start, postings, ids, regions, sources, by_len }
     }
 }
 
@@ -391,6 +392,23 @@ pub(crate) struct GazetteerIndex {
     pub(crate) regions: Vec<u32>,
     /// The codes of the sources, in the order their first record came.
     pub(crate) sources: Vec<u16>,
+    /// `(character count, key)` for every key, sorted: the length window a
+    /// fuzzy lookup binary-searches. Derived from `names`; never stored.
+    pub(crate) by_len: Vec<(u32, u32)>,
+}
+
+/// The `by_len` table of a finished index.
+pub(crate) fn by_len_of(names: &KeyTable) -> Vec<(u32, u32)> {
+    // Corrupt `bounds` must not panic here: `check` rejects such an index.
+    let mut by_len: Vec<(u32, u32)> = Vec::new();
+    for (i, w) in names.bounds.windows(2).enumerate() {
+        let (start, end) = (w[0] as usize, w[1] as usize);
+        let n =
+            names.text.get(start..end).map_or(0, |key| if key.is_ascii() { key.len() } else { key.chars().count() });
+        by_len.push((u32::try_from(n).unwrap_or(u32::MAX), u32::try_from(i).unwrap_or(u32::MAX)));
+    }
+    by_len.sort_unstable();
+    by_len
 }
 
 thread_local! {
