@@ -5,7 +5,31 @@ existing non-Latin stress input but took substantially longer. This receipt
 records the failed implementation as well as the correction. The acceptance
 criterion has not been narrowed or waived.
 
-## Revisions and protocol
+## Main 6f7a6ea6 integration
+
+`schema2.json` measures code `14c0f541c2c55086139dc262195ea89ed338c8ab`
+against main `6f7a6ea6a16d1fc36972d57a883c67255146887e`. A normal merge
+brought in Numbers::numeral_start. The harness clears that column before
+a scan, checks the layer after timing, and adds the column to the output
+checksum. Both builds use this harness.
+
+For 24 alternating pairs with 1,000 timed scans per sample:
+
+- Latin: main median 209.177 ms; candidate 200.896 ms; median paired
+  ratio 0.9583; 6,000 matching mentions per scan.
+- Non-Latin with ASCII numerals: main 933.632 ms; candidate 925.119 ms;
+  median paired ratio 0.9785; 15,000 matching mentions per scan.
+- Non-Latin Nd work: main 636.937 ms; candidate 1,200.014 ms; median
+  paired ratio 1.8848; 7,500 versus 15,000 mentions per scan.
+
+Counts and checksums match for the unchanged-output inputs. Input hashes
+match the earlier runs. The new column changes the output checksums from
+the older records. Load-average snapshots were 4.91/8.63/13.23 at start
+and 5.45/7.87/12.49 at finish. The JSON holds CPU, compiler and binary
+identities. No median slowdown was found on the unchanged-output inputs.
+This is not a statistical speedup claim or proof for another architecture.
+
+## Earlier revisions and protocol
 
 - `red.json`: original head `d70008607396eedb92b8ed3d6bca5ace9d44e120`
   against main `97dee9b334a06216ff6cdb4bc7bc764f26ade70c`; 12 alternating
@@ -37,8 +61,8 @@ snapshots were 12.11/16.85/15.82 at start and 11.01/14.83/15.18 at finish;
 each sample's snapshot is retained in JSON. Small differences are not
 claimed as significant speedups or as a guarantee for another machine.
 
-The scanner and its dependency source trees are identical between the two
-pinned main revisions; the intervening main changes were elsewhere.
+The scanner and dependency code did not change from main 97dee9b3 to
+654f5f85. Main 6f7a6ea6 changes Numbers, so it has a fresh measurement.
 
 ## Inputs and output checks
 
@@ -99,14 +123,16 @@ changed.
 
 Validation: 312 numeric tests pass, including the JVM goldens, exact
 boundary/UTF-8 span regressions, exhaustive Unicode candidate comparison,
-and every Nd digit across wide-block edges/tails. Both full cross-layer
-fuzz invariant tests pass over all named input sets. Strict all-target
+and every Nd digit across wide-block edges/tails. Both cross-layer fuzz
+tests pass, including the full configured offset run and input inventory. Strict all-target
 Clippy for numeric/fuzz, workspace formatting, and five tree tests pass.
 The ignored release timing test was exercised separately for these records.
 
 ## Reproduction
 
-Use fresh isolated checkouts at the pinned main and candidate revisions.
+Use fresh isolated checkouts at main 6f7a6ea6 and candidate 14c0f541.
+For the older schema-1 runs, take the harness from code commit 4c025715;
+the current harness needs the new Numbers column.
 Copy `analysis/numeric/tests/scan_timing.rs` from the candidate to the same
 path in the main checkout, without changing main's production sources.
 In each checkout:
@@ -122,14 +148,15 @@ Use the two test-executable paths printed by Cargo as `MAIN_BINARY` and
 
 ```sh
 CPU=7 ROUNDS=24 TURBO_BENCH_ITERS=1000 \
-MAIN_SHA=654f5f85528c9ab67468d7d11113ba8f778a7a70 \
-HEAD_SHA=4c025715266e92d02d33113241c0f122936b9f15 \
+MAIN_SHA=6f7a6ea6a16d1fc36972d57a883c67255146887e \
+HEAD_SHA=14c0f541c2c55086139dc262195ea89ed338c8ab \
   docs/receipts/numeric-931/run-pairs.sh "$MAIN_BINARY" "$HEAD_BINARY" > run.txt
 ```
 
 Choose an appropriate CPU for the local host and retain its ambient-load
 information. The script records binary hashes and emits each raw sample.
-The final JSON is the retained equivalent run, with corpus hashes and
-paired medians aggregated from those raw values. Other exploratory source
+The JSON came from a local Node program using standard-library modules.
+It ran the same child commands and order, read the output, and computed
+the medians. The shell script runs those commands without Node. Other exploratory source
 patches and timing logs remain in the implementation checkout's ignored
 evidence directory; they were not substituted for the final run.

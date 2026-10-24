@@ -110,20 +110,21 @@ rules. Number syntax and the parity option are unchanged.
 
 The [paired release receipt](receipts/numeric-931/README.md) retains the
 original regression, a rejected intermediate implementation, and all final
-samples. Code commit `4c025715266e92d02d33113241c0f122936b9f15` was compared
-with main `654f5f85528c9ab67468d7d11113ba8f778a7a70`, using 24 alternating
+samples. Code commit `14c0f541c2c55086139dc262195ea89ed338c8ab` was compared
+with main `6f7a6ea6a16d1fc36972d57a883c67255146887e`, using 24 alternating
 pairs per corpus and 1,000 timed iterations per sample on one CPU of a
 shared AMD Ryzen 9 9950X3D host:
 
 - Existing Latin output: 6,000 mentions per iteration on both; median
-  206.73 ms on main and 200.41 ms on the candidate.
+  209.18 ms on main and 200.90 ms on the candidate.
 - Existing non-Latin text with ASCII numerals: 15,000 mentions per
-  iteration on both; median 892.58 ms on main and 873.48 ms on the candidate.
+  iteration on both; median 933.63 ms on main and 925.12 ms on the candidate.
 - Non-Latin text with Nd numerals: 7,500 mentions on main versus 15,000 on
-  the candidate; median 643.43 ms versus 1,279.86 ms. This performs new work
+  the candidate; median 636.94 ms versus 1,200.01 ms. This performs new work
   and is not a same-output speed comparison.
 
-The two existing-output corpora have matching value/span checksums. No
+The two existing-output corpora have matching value/span checksums,
+including numeral_start. No
 median slowdown was observed in this run; the small differences are not
 claimed as statistically significant speedups. Raw ordering, ambient load,
 input hashes, binary hashes, and reproduction steps are in the receipt.
