@@ -16,6 +16,7 @@ pub enum Block {
     Section,
     Heading,
     Paragraph,
+    /// A tight list. See `list_tightness` for both list variants.
     List,
     ListItem,
     Table,
@@ -27,6 +28,21 @@ pub enum Block {
     Footnote,
     PageHeader,
     PageFooter,
+    /// A list with blank lines between items or item blocks.
+    LooseList,
+    /// A raw HTML block; its contents are not parsed as Markdown.
+    Html,
+}
+
+impl Block {
+    /// The list tightness flag, or `None` for a non-list block.
+    pub fn list_tightness(self) -> Option<bool> {
+        match self {
+            Self::List => Some(true),
+            Self::LooseList => Some(false),
+            _ => None,
+        }
+    }
 }
 
 impl Layer for Structure {
