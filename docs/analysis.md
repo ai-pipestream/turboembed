@@ -4947,3 +4947,6 @@ the chunker cascade tests, and build-time space isolation by
 as a tarball (not BEIR jsonl for this reader); the ConTEB sets and
 HiCBench are not loadable from this cache (HiCBench has no licence
 recorded), so those did not run.
+
+The [cut-identity checker](chunker-cut-identity.md) compares flat chunk
+partitions across backend runs with optional DP runner-up margins.

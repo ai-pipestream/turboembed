@@ -1,5 +1,6 @@
-//! The detector, OpenNLP's `LanguageDetectorME`: `predictLanguages` and
-//! `predictLanguage`, and the annotator that writes `opennlp:language`.
+//! The detector, OpenNLP's `LanguageDetectorME`: `predictLanguages`,
+//! `predictLanguage`, `probingPredictLanguages`, and the annotator that
+//! writes `opennlp:language`.
 
 use std::cell::RefCell;
 use std::cmp::Ordering;
@@ -9,6 +10,7 @@ use turbo_analysis_layers::{Language, Strs};
 
 use crate::context::ContextGenerator;
 use crate::model::LanguageModel;
+use crate::probing::{ProbingConfig, ProbingContext, seen_enough, take_chars};
 
 /// The reason the annotator gives when it declines a document.
 pub const NO_EVIDENCE: &str = "no language evidence";
@@ -20,6 +22,8 @@ pub const NO_EVIDENCE: &str = "no language evidence";
 #[derive(Debug, Default)]
 pub struct Scratch {
     context: ContextGenerator,
+    probing: ProbingContext,
+    probing_history: Vec<(u32, f64)>,
     probabilities: Vec<f64>,
 }
 
@@ -28,10 +32,20 @@ impl Scratch {
         Scratch::default()
     }
 
-    /// The context of the last text detected: its n-grams in the order the
+    /// The context of the last text detected with
+    /// [`LanguageDetector::predict_languages`] or
+    /// [`LanguageDetector::predict_language`]: its n-grams in the order the
     /// model received them.
     pub fn context(&self) -> &ContextGenerator {
         &self.context
+    }
+
+    /// The cumulative context of the last text detected with
+    /// [`LanguageDetector::probing_predict_languages`] or
+    /// [`LanguageDetector::probing_predict_languages_with`]: its n-grams in
+    /// the order the model received them on the final evaluated chunk.
+    pub fn probing_context(&self) -> &ProbingContext {
+        &self.probing
     }
 
     /// The probability of each outcome for the last text, in the model's
@@ -44,6 +58,7 @@ impl Scratch {
     /// the last prediction probabilities remain available.
     pub fn shrink_excess(&mut self) {
         self.context.shrink_excess();
+        self.probing.shrink_excess();
     }
 }
 
@@ -121,13 +136,58 @@ impl LanguageDetector {
     /// and probabilities are ordered as `Double.compare` orders them.
     pub fn predict_languages(&self, text: &str, scratch: &mut Scratch, out: &mut Ranking) {
         self.evaluate(text, scratch);
-        let p = &scratch.probabilities;
-        out.outcome.clear();
-        out.outcome.extend(0..p.len() as u32);
-        out.outcome.sort_by(|&a, &b| java_double_compare(p[b as usize], p[a as usize]));
-        out.probability.clear();
-        out.probability.extend(out.outcome.iter().map(|&o| p[o as usize]));
-        out.evidence = self.has_evidence(&scratch.context);
+        self.rank(&scratch.probabilities, self.has_evidence(scratch.context.features()), out);
+    }
+
+    /// `probingPredictLanguages(content)` with
+    /// [`ProbingConfig::default()`]: detects over growing chunks of `text`,
+    /// stopping early when the top language is stable across
+    /// `min_consec_improvements` consecutive improvements with a margin of at
+    /// least `min_diff` over the second language, or when `max_length`
+    /// Unicode code points have been processed.
+    ///
+    /// Writes the final ranking into `out` and returns the number of Unicode
+    /// code points (`char`s) processed (`ProbingLanguageDetectionResult.getLength()`).
+    pub fn probing_predict_languages(&self, text: &str, scratch: &mut Scratch, out: &mut Ranking) -> usize {
+        self.probing_predict_languages_with(text, ProbingConfig::default(), scratch, out)
+    }
+
+    /// `probingPredictLanguages(content, config)`: as
+    /// [`probing_predict_languages`](Self::probing_predict_languages), with a
+    /// custom [`ProbingConfig`].
+    pub fn probing_predict_languages_with(
+        &self,
+        text: &str,
+        config: ProbingConfig,
+        scratch: &mut Scratch,
+        out: &mut Ranking,
+    ) -> usize {
+        scratch.probing.reset();
+        scratch.probing_history.clear();
+        let mut start = 0usize;
+        let mut rest = text;
+        let mut has_prediction = false;
+        loop {
+            let actual_chunk_size = if start.saturating_add(config.chunk_size) > config.max_length {
+                config.max_length.saturating_sub(start)
+            } else {
+                config.chunk_size
+            };
+            let (chunk, chunk_chars) = take_chars(&mut rest, actual_chunk_size);
+            if chunk_chars == 0 {
+                if !has_prediction {
+                    self.evaluate_probing(scratch, out);
+                }
+                return start;
+            }
+            start += chunk_chars;
+            scratch.probing.add_chunk(chunk);
+            self.evaluate_probing(scratch, out);
+            has_prediction = true;
+            if seen_enough(&mut scratch.probing_history, out, &config) {
+                return start;
+            }
+        }
     }
 
     /// `predictLanguage`: the first language `predictLanguages` ranks,
@@ -145,7 +205,7 @@ impl LanguageDetector {
             outcome: best as u32,
             code: self.model.code(best),
             probability: p[best],
-            evidence: self.has_evidence(&scratch.context),
+            evidence: self.has_evidence(scratch.context.features()),
         }
     }
 
@@ -160,9 +220,27 @@ impl LanguageDetector {
         maxent.eval_features(scratch.context.features(), &mut scratch.probabilities);
     }
 
-    fn has_evidence(&self, context: &ContextGenerator) -> bool {
+    fn evaluate_probing(&self, scratch: &mut Scratch, out: &mut Ranking) {
         let maxent = self.model.maxent();
-        context.features().any(|f| maxent.has_predicate_modified_utf8(f))
+        scratch.probabilities.clear();
+        scratch.probabilities.resize(maxent.num_outcomes(), 0.0);
+        maxent.eval_features(scratch.probing.features(), &mut scratch.probabilities);
+        let evidence = self.has_evidence(scratch.probing.features());
+        self.rank(&scratch.probabilities, evidence, out);
+    }
+
+    fn rank(&self, p: &[f64], evidence: bool, out: &mut Ranking) {
+        out.outcome.clear();
+        out.outcome.extend(0..p.len() as u32);
+        out.outcome.sort_by(|&a, &b| java_double_compare(p[b as usize], p[a as usize]));
+        out.probability.clear();
+        out.probability.extend(out.outcome.iter().map(|&o| p[o as usize]));
+        out.evidence = evidence;
+    }
+
+    fn has_evidence<'a>(&self, mut features: impl Iterator<Item = &'a [u8]>) -> bool {
+        let maxent = self.model.maxent();
+        features.any(|f| maxent.has_predicate_modified_utf8(f))
     }
 }
 

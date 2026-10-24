@@ -419,6 +419,9 @@ struct Model {
     /// The widths embed.output_dims allows besides dim.
     output_dims: Vec<u32>,
     rerank_head: Option<head::Head>,
+    /// An extractive QA model's span head, on a backend that applies it
+    /// as it pools ranges; it holds the tensors model_load was handed.
+    span_head: Option<head::Head>,
 }
 
 // As for Context: the backend's model may be used from any thread.

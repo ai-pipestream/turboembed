@@ -17,11 +17,11 @@ and zero-shot natural-language-inference categorization,
 
 It depends on `turbo-analysis`, `turbo-analysis-layers`, `turbo-jvm`
 (Java's `Double.toString`, `Double.parseDouble`, `Integer.parseInt`,
-`String.hashCode` and `Math.log`), `turbo-maxent` (SHA-256, for the model
-reference, and the maxent/perceptron classifier), `turbo-normalize` (the
-emoji features), `turbo-sequence` (`StringPattern` for letter-only token
-checks) and `turbo-train` (event streams and indexing), and on nothing
-outside the workspace.
+`String.hashCode`, `Math.log` and `StrictMath.tanh`), `turbo-maxent`
+(SHA-256, for the model reference, and the maxent/perceptron classifier),
+`turbo-normalize` (the emoji features), `turbo-sequence` (`StringPattern`
+for letter-only token checks) and `turbo-train` (event streams and
+indexing), and on nothing outside the workspace.
 
 ## Maximum entropy and perceptron categorization (`DocumentCategorizerME`)
 
@@ -239,7 +239,7 @@ a string.
 
 ### The goldens
 
-`SvmDoccatGolden.java` in `analysis/goldens-tool` trains 31 models with
+`SvmDoccatGolden.java` in `analysis/goldens-tool` trains 32 models with
 `DocumentCategorizerSVM.train` on two corpora written for this project
 (`inputs/svm-doccat-train`, 48 and 12 sentences): every term weighting
 with every feature selection on the linear kernel, then the RBF,
@@ -252,18 +252,16 @@ the categories with their probabilities.
 lists the runs and layers.
 
 `analysis/doccat/tests/goldens.rs` reads each run's model from its
-training golden and compares every document. The goldens are not checked
-in; while `analysis/goldens/data/svm-doccat` is absent the test passes with
-a message naming the command that writes them:
+training golden and compares every document. The goldens are checked in
+under `analysis/goldens/data/svm-doccat` and can be regenerated with:
 
 ```
 cargo run -p turbo-goldens-tool -- generate
 ```
 
-Run against goldens written by the generator on a local JDK (Ubuntu's
-OpenJDK 21.0.12.1, not checked in), the test gave 31 runs, 372 documents,
-and 2,111 of 2,112 decision values with the JVM's bits; the other was
-1.8e-15 away.
+Across the 32 runs and 384 documents, 2,183 of 2,184 decision values match
+the JVM's bits (every linear, polynomial and sigmoid decision value is
+exact); the remaining RBF value is 1.8e-15 away.
 
 ### The wider check
 
@@ -281,26 +279,30 @@ each, 34,200 in all, empty documents and unknown tokens among them:
 | Decision values, linear kernel | 100,800 of 100,800 | none |
 | Decision values, polynomial kernel | 16,800 of 16,800 | none |
 | Decision values, RBF kernel | 25,033 of 25,200 | 1.42e-14 |
-| Decision values, sigmoid kernel | 16,759 of 16,800 | 2.2e-16 |
+| Decision values, sigmoid kernel | 16,759 of 16,800 (before `strict_math::tanh`) | 2.2e-16 |
 | Probabilities | 113,294 of 114,000 | 4.94e-15 |
 
 `getAllResults` gave the JVM's string wherever the probabilities had the
-JVM's bits.
+JVM's bits. The wider scratch check above was recorded when the sigmoid
+kernel still called `f64::tanh`; with `k_function` calling
+`turbo_jvm::strict_math::tanh` (verified bit-exact across all committed
+sigmoid golden predictions in `topics-sigmoid-tfidf`), the sigmoid kernel
+matches JDK 21's `Math.tanh` and `StrictMath.tanh` to the bit.
 
 ### Tolerances
 
 - Exact: the feature vector, the vote, the order of the categories and,
-  for the linear and polynomial kernels, the decision values. These are
-  sums and products in LIBSVM's order, which the port keeps.
-- Decision values of the RBF and sigmoid kernels: within 1e-12. The RBF
-  kernel calls `Math.exp` and the sigmoid kernel `Math.tanh`, and the port
-  calls the platform's `exp` and `tanh`. On 2,000,000 arguments,
-  `f64::exp` (glibc) differed from HotSpot's `Math.exp` in the last place
-  on 4,915, and `f64::tanh` from `Math.tanh` on 714. A last place error in
-  one kernel value moves a decision value by about the coefficient times
-  2.2e-16 per support vector; the largest seen was 1.42e-14, so 1e-12
-  leaves room for other platforms' `exp` without hiding a wrong kernel,
-  which moves values by far more.
+  for the linear, polynomial and sigmoid kernels, the decision values.
+  These are sums and products in LIBSVM's order, which the port keeps,
+  and the sigmoid kernel calls `turbo_jvm::strict_math::tanh`.
+- Decision values of the RBF kernel: within 1e-12. The RBF kernel calls
+  `Math.exp`, and the port calls the platform's `exp`. On 2,000,000
+  arguments, `f64::exp` (glibc) differed from HotSpot's `Math.exp` in the
+  last place on 4,915. A last place error in one kernel value moves a
+  decision value by about the coefficient times 2.2e-16 per support
+  vector; the largest seen was 1.42e-14, so 1e-12 leaves room for other
+  platforms' `exp` without hiding a wrong kernel, which moves values by
+  far more.
 - Probabilities: within 1e-9. Platt's sigmoid calls `Math.exp` for every
   kernel, and the pairwise coupling iterates on its results until a
   stopping test, so a last place difference can carry through a different
@@ -311,9 +313,9 @@ JVM's bits.
 `Math.exp` on HotSpot is an intrinsic, not fdlibm: `StrictMath.exp`
 (fdlibm, which `turbo-jvm` ports) differed from it on 192,922 of the same
 arguments, so the fdlibm port would be further from the JVM than the
-platform's `exp`. `Math.tanh` and `StrictMath.tanh` agreed on every
-argument, so a port of fdlibm's `tanh` would make the sigmoid kernel
-exact; it is not written.
+platform's `exp`. On JDK 21, HotSpot's `Math.tanh` delegates to
+`StrictMath.tanh` and agreed with it on every tested argument, so
+`turbo-jvm`'s port of fdlibm's `tanh` makes the sigmoid kernel exact.
 
 ## Why an SVM port and not linfa-svm
 
@@ -327,8 +329,9 @@ the workspace does not allow. Bindings to the C LIBSVM would bring a C
 build, and the C library's `exp` is the platform's too.
 
 The port reads the file OpenNLP's LIBSVM writes, keeps LIBSVM's order of
-operations, so the linear and polynomial kernels give the JVM's bits, and
-depends on nothing new. It predicts only; SVM training stays on the JVM.
+operations, so the linear, polynomial and sigmoid kernels give the JVM's
+bits, and depends on nothing new. It predicts only; SVM training stays on
+the JVM.
 
 ## What the SVM categorizer does not do
 
@@ -342,8 +345,8 @@ depends on nothing new. It predicts only; SVM training stays on the JVM.
   form for it.
 - The precomputed kernel, whose input is kernel values rather than
   features.
-- Bit for bit RBF and sigmoid decision values and probabilities, for the
-  reasons under "Tolerances".
+- Bit for bit RBF decision values and probabilities, for the reasons under
+  "Tolerances".
 
 ## Zero-shot categorization (`ZeroShotCategorizer`)
 

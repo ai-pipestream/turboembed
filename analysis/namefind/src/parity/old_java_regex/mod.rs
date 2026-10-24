@@ -13,7 +13,7 @@ use std::fmt::Write;
 use turbo_unicode::GeneralCategory;
 use turbo_unicode::java::code_point::{general_category, is_letter_or_digit};
 
-use crate::error::{Error, TextLimit};
+use crate::error::Error;
 
 use self::translate::translate;
 
@@ -91,18 +91,11 @@ impl JavaRegex {
         self.limits
     }
 
-    /// The first limit `facts` breaks, as an error.
-    pub(crate) fn check(&self, facts: &TextFacts) -> Result<(), Error> {
-        let limit = if self.limits.word_boundary && facts.mark_at_boundary {
-            TextLimit::MarkAtBoundary
-        } else if self.limits.dollar && facts.final_line_terminator {
-            TextLimit::FinalLineTerminator
-        } else if self.limits.mid_pair && facts.supplementary {
-            TextLimit::Supplementary
-        } else {
-            return Ok(());
-        };
-        Err(Error::Text { pattern: self.source.clone(), limit })
+    /// Whether the old translation is a valid oracle for this text.
+    pub(crate) fn supports(&self, facts: &TextFacts) -> bool {
+        !(self.limits.word_boundary && facts.mark_at_boundary
+            || self.limits.dollar && facts.final_line_terminator
+            || self.limits.mid_pair && facts.supplementary)
     }
 }
 

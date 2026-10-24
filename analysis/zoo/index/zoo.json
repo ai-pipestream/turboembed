@@ -3879,6 +3879,140 @@
           "sha512": "6f6102865b5c991065233520ee25681ad5062e29f1a7733c7722414ef12229c13a1d1d948fa98264f4b2384ced476bded8ed88c56354385f47b2a50904215dd3"
         }
       ]
+    },
+    {
+      "id": "urchade-gliner-small-v2.1",
+      "kind": "KIND_MODEL",
+      "language": "en",
+      "format": "FORMAT_PYTORCH",
+      "version": "4e091416cf7c3481db542c2a3d26156916f3a47f",
+      "license": "Apache-2.0",
+      "license_terms": "https://huggingface.co/urchade/gliner_small-v2.1/blob/4e091416cf7c3481db542c2a3d26156916f3a47f/README.md",
+      "trained_on": [
+        {
+          "name": "microsoft/deberta-v3-small",
+          "license": "MIT",
+          "license_terms": "https://huggingface.co/microsoft/deberta-v3-small"
+        },
+        {
+          "name": "urchade/pile-mistral-v0.1",
+          "license": "Apache-2.0",
+          "license_terms": "https://huggingface.co/datasets/urchade/pile-mistral-v0.1"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "urchade/gliner_small-v2.1 at 4e091416cf7c3481db542c2a3d26156916f3a47f (Apache-2.0, https://huggingface.co/urchade/gliner_small-v2.1/blob/4e091416cf7c3481db542c2a3d26156916f3a47f/README.md), derived from microsoft/deberta-v3-small (MIT, https://huggingface.co/microsoft/deberta-v3-small); urchade/pile-mistral-v0.1 (Apache-2.0, https://huggingface.co/datasets/urchade/pile-mistral-v0.1).",
+      "files": [
+        {
+          "path": "pytorch_model.bin",
+          "url": "https://huggingface.co/urchade/gliner_small-v2.1/resolve/4e091416cf7c3481db542c2a3d26156916f3a47f/pytorch_model.bin",
+          "size": 610652234,
+          "sha256": "1d4e83e4e4ae4ae0a4fbc81a32ee6de480fb341650d73e808088bb2800312de4",
+          "sha512": "8d709720a00c1e0f23354833f2ebc1d5a5fc275ace5e07d660e4cd0d6eaff72a1c2fdabb5f952842c399420781c0a4f03b4fa37096f31858f6b39cdc4ba24f81"
+        },
+        {
+          "path": "gliner_config.json",
+          "url": "https://huggingface.co/urchade/gliner_small-v2.1/resolve/4e091416cf7c3481db542c2a3d26156916f3a47f/gliner_config.json",
+          "size": 477,
+          "sha256": "eb963bd7182a1eaed4d170a87348ab62de6fc4eb30cfa7130c80846fee43d0ac",
+          "sha512": "a10782e7e451941f295e4113091314401736444eb99b8fddc3d7130916108d618fc8390b1c7088188bf709688999696fc815a9574c2abf34c118ca9b00deacd3"
+        }
+      ]
+    },
+    {
+      "id": "microsoft-deberta-v3-small-tokenizer",
+      "kind": "KIND_MODEL",
+      "language": "en",
+      "format": "FORMAT_SENTENCEPIECE",
+      "version": "a36c739020e01763fe789b4b85e2df55d6180012",
+      "license": "MIT",
+      "license_terms": "https://huggingface.co/microsoft/deberta-v3-small/blob/a36c739020e01763fe789b4b85e2df55d6180012/README.md",
+      "trained_on": [],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "microsoft/deberta-v3-small at a36c739020e01763fe789b4b85e2df55d6180012 (MIT, https://huggingface.co/microsoft/deberta-v3-small/blob/a36c739020e01763fe789b4b85e2df55d6180012/README.md).",
+      "files": [
+        {
+          "path": "spm.model",
+          "url": "https://huggingface.co/microsoft/deberta-v3-small/resolve/a36c739020e01763fe789b4b85e2df55d6180012/spm.model",
+          "size": 2464616,
+          "sha256": "c679fbf93643d19aab7ee10c0b99e460bdbc02fedf34b92b05af343b4af586fd",
+          "sha512": "950cf1b397c25342053efaea576419e104f11e085796d741e5e78d6765ffe5474f4f096ee578099b04a611bde03e12808c51e2b6e89d2962a8665a35da6eb081"
+        },
+        {
+          "path": "config.json",
+          "url": "https://huggingface.co/microsoft/deberta-v3-small/resolve/a36c739020e01763fe789b4b85e2df55d6180012/config.json",
+          "size": 578,
+          "sha256": "b0bb1caf90a50aa67d1085130508dfbf8646ac5a11928305e280b07a36e100ae",
+          "sha512": "46f6d6a9ddabdc389599d61f731e642f40e9b24d9b8fa19617a97fcec44649721b4670afba57c5bc86620ee7b53688030f15bd27498b44ba8724786ed98aab53"
+        }
+      ]
+    },
+    {
+      "id": "urchade-gliner-multi-v2.1",
+      "kind": "KIND_MODEL",
+      "language": "mul",
+      "format": "FORMAT_SAFETENSORS",
+      "version": "443d26d654e0324125a96bebd8e796c14ff2efe6",
+      "license": "Apache-2.0",
+      "license_terms": "https://huggingface.co/urchade/gliner_multi-v2.1/blob/443d26d654e0324125a96bebd8e796c14ff2efe6/README.md",
+      "trained_on": [
+        {
+          "name": "microsoft/mdeberta-v3-base",
+          "license": "MIT",
+          "license_terms": "https://huggingface.co/microsoft/mdeberta-v3-base"
+        },
+        {
+          "name": "urchade/pile-mistral-v0.1",
+          "license": "Apache-2.0",
+          "license_terms": "https://huggingface.co/datasets/urchade/pile-mistral-v0.1"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "urchade/gliner_multi-v2.1 at 443d26d654e0324125a96bebd8e796c14ff2efe6 (Apache-2.0, https://huggingface.co/urchade/gliner_multi-v2.1/blob/443d26d654e0324125a96bebd8e796c14ff2efe6/README.md), derived from microsoft/mdeberta-v3-base (MIT, https://huggingface.co/microsoft/mdeberta-v3-base); urchade/pile-mistral-v0.1 (Apache-2.0, https://huggingface.co/datasets/urchade/pile-mistral-v0.1).",
+      "files": [
+        {
+          "path": "model.safetensors",
+          "url": "https://huggingface.co/urchade/gliner_multi-v2.1/resolve/443d26d654e0324125a96bebd8e796c14ff2efe6/model.safetensors",
+          "size": 1155830112,
+          "sha256": "2100142f31627531497850659dcb3821c99d5e71c08a8e01a98e4b11ef32a199",
+          "sha512": "936a42b5d4b4b0a202da0e95aed0c58b38e033998db1604965244de305d22d52494ddd284d2a0a1bce7acbce635f9271a8095eb3fe473f4deb81d375ca494112"
+        },
+        {
+          "path": "gliner_config.json",
+          "url": "https://huggingface.co/urchade/gliner_multi-v2.1/resolve/443d26d654e0324125a96bebd8e796c14ff2efe6/gliner_config.json",
+          "size": 477,
+          "sha256": "e25f61d91620df84aae8076811ee592e926e94d341b82e7bc1be359718f83017",
+          "sha512": "a8c0e3e85a0e44357c23023fb8a5af75aa9312a44aba9f8740eea027d813d2769452c3f5ccad9f2e80a63632c552245d488c399a69005b42775e77994c4835fe"
+        }
+      ]
+    },
+    {
+      "id": "microsoft-mdeberta-v3-base-tokenizer",
+      "kind": "KIND_MODEL",
+      "language": "mul",
+      "format": "FORMAT_SENTENCEPIECE",
+      "version": "a0484667b22365f84929a935b5e50a51f71f159d",
+      "license": "MIT",
+      "license_terms": "https://huggingface.co/microsoft/mdeberta-v3-base/blob/a0484667b22365f84929a935b5e50a51f71f159d/README.md",
+      "trained_on": [],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "microsoft/mdeberta-v3-base at a0484667b22365f84929a935b5e50a51f71f159d (MIT, https://huggingface.co/microsoft/mdeberta-v3-base/blob/a0484667b22365f84929a935b5e50a51f71f159d/README.md).",
+      "files": [
+        {
+          "path": "spm.model",
+          "url": "https://huggingface.co/microsoft/mdeberta-v3-base/resolve/a0484667b22365f84929a935b5e50a51f71f159d/spm.model",
+          "size": 4305025,
+          "sha256": "13c8d666d62a7bc4ac8f040aab68e942c861f93303156cc28f5c7e885d86d6e3",
+          "sha512": "33338f21f4b98563d99e4849dd1dc08869453389e5269d7da7bae06f65014cda04ff66ab2ccabe84260f75b8752f922cdbc4f9a6448f0cf78521ff6f902d7bf1"
+        },
+        {
+          "path": "config.json",
+          "url": "https://huggingface.co/microsoft/mdeberta-v3-base/resolve/a0484667b22365f84929a935b5e50a51f71f159d/config.json",
+          "size": 579,
+          "sha256": "bcffcd343dc5efa5ef2d5a58d2b405eed108f01cc45b48d0a907b333ec41801f",
+          "sha512": "a23dfdcd05b51c6f495c6808a55933500f3f4ebe3baac3fe97b0dc194bec7c8c0be75d2f15f5000504ae38bdd9e62dd56899f7a986d08b0be29f4e7b67863233"
+        }
+      ]
     }
   ]
 }

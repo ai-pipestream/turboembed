@@ -1,0 +1,77 @@
+golden 1
+generator	turbo-goldens-java	1
+opennlp	cdf33c653d5d61d5af7d37ffee189a83bd8392ea	3.0.0-SNAPSHOT
+jdk	21.0.12.1	21.0.12.1+1-LTS	Eclipse Adoptium
+unicode	15.0
+input	svm-doccat/sports	93	93	8ee99a6fe4c5101a41985e5e84da63ff2062ab6d90fac00d5413faff9045faf8
+annotator	opennlp.tools.ml.libsvm.doccat.DocumentCategorizerSVM	categorize
+config	coef0	-0.1
+config	corpus	svm-doccat-train/topics
+config	cost	1.0
+config	degree	3
+config	gamma	0.05
+config	generators	bag-of-words
+config	kernel	SIGMOID
+config	language	eng
+config	max-features	-1
+config	run	topics-sigmoid-tfidf
+config	scaling	0.0 1.0
+config	seed	1
+config	selection	NONE
+config	svm-type	C_SVC
+config	weighting	TF_IDF
+layer	opennlp:tokens	text	20	start:u32	end:u32
+0	3
+4	10
+11	16
+17	18
+19	26
+27	30
+31	34
+35	39
+40	43
+44	47
+48	53
+54	58
+59	60
+61	65
+66	70
+71	73
+74	79
+80	82
+83	86
+87	92
+end	opennlp:tokens
+layer	turbo:svm-vector	document	14	index:u32	value:f64
+22	3ff0000000000000 1.0
+24	3ff0000000000000 1.0
+31	3ff0000000000000 1.0
+34	3ff0000000000000 1.0
+50	3ff0000000000000 1.0
+68	3ff0000000000000 1.0
+96	3ff0000000000000 1.0
+99	3ff0000000000000 1.0
+176	3ff0000000000000 1.0
+202	3fe0000000000000 0.5
+222	3ff0000000000000 1.0
+272	3ff0000000000000 1.0
+274	3fe8000000000000 0.75
+280	3ff0000000000000 1.0
+end	turbo:svm-vector
+layer	turbo:svm-decisions	document	6	first:str	second:str	value:f64
+weather	cooking	bfc9150c05a98704 -0.1959548022887746
+weather	sports	bfed5e696ddb74ce -0.9177748819016871
+weather	finance	3fcbfb0ab3dfd944 0.21859868796281934
+cooking	sports	bfe6c5847a61130f -0.7116110220164006
+cooking	finance	3fdc4a15eb9010a6 0.4420218277375717
+sports	finance	3ff3c21da0c1b591 1.234891536670464
+end	turbo:svm-decisions
+layer	turbo:svm-vote	document	1	category:str
+sports
+end	turbo:svm-vote
+layer	turbo:categories	document	4	category:str	score:f64
+sports	3fd287f970ab4662 0.2895492172511692
+finance	3fd0c7e525ce30cb 0.26220062915741654
+cooking	3fcd1b98c905d8a0 0.22740468802993963
+weather	3fcc44aa0a073907 0.22084546556147464
+end	turbo:categories

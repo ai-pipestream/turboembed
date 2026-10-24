@@ -246,7 +246,7 @@ jobs:
 
   check:
     if: always()
-    needs: [lint, test, fuzz, features, parity, windows]
+    needs: [lint, test, fuzz, features, parity, windows-lint, windows-test, windows-fuzz, windows-core]
     runs-on: ubuntu-24.04
     steps:
       - name: every lane passed
@@ -260,7 +260,11 @@ jobs:
   # and the host-only NPU build: the CUDA, Metal, Level Zero and Hailo
   # backends need toolchains this runner does not have, and the JVM
   # parity steps above need the OpenNLP models, so their tests skip here.
-  windows:
+  # The lanes mirror the Linux ones: lint, the workspace tests in four
+  # shards, turbo-fuzz optimized, and the core with its C ABI tests.
+  # Skipped in the shards: two docker runner tests (unix exit status
+  # text, unix mount paths; the docker runners are Linux-only).
+  windows-lint:
     runs-on: windows-latest
     steps:
       # The goldens and fixtures are compared byte for byte; a checkout
@@ -272,6 +276,9 @@ jobs:
         with:
           components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
+        with:
+          key: windows-lint
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       # One package at a time: `cargo fmt --all` passes every file to one
       # rustfmt and passes the Windows command line limit (os error 206).
       - name: fmt
@@ -288,15 +295,86 @@ jobs:
         run: cargo clippy -p turbo --features npu --all-targets
       - name: clippy (turboquant)
         run: cargo clippy -p turbo-vector-index --features turboquant --all-targets
+
+  # The crates dealt as in the Linux shards. With windows-fuzz and
+  # windows-core, the shards run what `cargo test --workspace` ran.
+  windows-test:
+    name: windows test (shard ${{ matrix.shard }}/4)
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      # The goldens and fixtures are compared byte for byte; a checkout
+      # with core.autocrlf would rewrite their line endings.
+      - name: keep line endings as committed
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: windows-shard-${{ matrix.shard }}
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: the shard's crates
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name != "turbo" and .name != "turbo-fuzz") | .name' \
+            | tr -d '\r' \
+            | sort \
+            | awk -v n="${{ matrix.shard }}" -v k=4 '(NR - 1) % k == n - 1 { printf "-p %s ", $0 }' > "$RUNNER_TEMP/packages"
+          echo "PACKAGES=$(cat "$RUNNER_TEMP/packages")" >> "$GITHUB_ENV"
+          cat "$RUNNER_TEMP/packages"
       # --no-fail-fast: a Windows-only failure in one crate should not
-      # hide another's. Skipped: two docker runner tests (unix exit status
-      # text, unix mount paths; the docker runners are Linux-only).
+      # hide another's.
       - name: test
+        shell: bash
         run: >-
-          cargo test --workspace --exclude turbo --no-fail-fast --
+          cargo test $PACKAGES --no-fail-fast --
           --skip a_program_that_fails_is_a_reason_and_docker_failing_is_an_error
           --skip the_two_runs_make_one_measured_reference
-      # Its own target directory, as in the check job (#358).
+
+  # Optimized as in the Linux fuzz job, with debug assertions and
+  # overflow checks kept on.
+  windows-fuzz:
+    name: windows test (turbo-fuzz)
+    runs-on: windows-latest
+    steps:
+      # The goldens and fixtures are compared byte for byte; a checkout
+      # with core.autocrlf would rewrite their line endings.
+      - name: keep line endings as committed
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: windows-fuzz
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: test
+        env:
+          CARGO_TARGET_DIR: target/fuzz
+          CARGO_PROFILE_DEV_OPT_LEVEL: "2"
+          CARGO_PROFILE_DEV_DEBUG_ASSERTIONS: "true"
+          CARGO_PROFILE_DEV_OVERFLOW_CHECKS: "true"
+        run: cargo test -p turbo-fuzz --no-fail-fast
+
+  # The core and its C ABI tests, in their own target directory, as in
+  # the features job (#358).
+  windows-core:
+    runs-on: windows-latest
+    steps:
+      # The goldens and fixtures are compared byte for byte; a checkout
+      # with core.autocrlf would rewrite their line endings.
+      - name: keep line endings as committed
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: windows-core
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - name: test (core)
         env:
           CARGO_TARGET_DIR: target/core

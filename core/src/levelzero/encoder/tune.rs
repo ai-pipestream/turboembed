@@ -218,7 +218,7 @@ pub(super) fn measure(s: &mut Session, order: [Linear; 2], budget_ms: u32) -> Re
         pooling: TURBO_POOLING_MEAN,
         normalize: TURBO_NORMALIZE_NONE,
         output_dim: d.hidden,
-        reserved: 0,
+        head: 0,
     };
     let (tokens, longest, _) = unsafe { s.pack(&rows)? };
     s.has_types = false;
