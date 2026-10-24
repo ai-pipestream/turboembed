@@ -26,3 +26,14 @@ fn unicode_edge_whitespace_takes_the_detector_path() {
     assert_eq!(sentences_of("hello\u{000B}"), vec![(0, 5)]);
     assert_eq!(sentences_of("\u{2003}hello\u{2003}"), vec![(3, 8)]);
 }
+
+#[test]
+fn query_quantity_extractor_accepts_the_long_units() {
+    // Guards the silent fallback in query_quantity_extractor: if
+    // with_units ever refuses the constant list, the spelled-out
+    // units stop extracting instead of falling back unnoticed.
+    let extractor = crate::query_quantity_extractor(turbo_analysis_layers::NumberNotation::LatinUs);
+    let units: Vec<&str> = extractor.units().collect();
+    assert!(units.contains(&"kilometers") && units.contains(&"milliseconds"), "{units:?}");
+    assert!(units.len() > turbo_numeric::DEFAULT_UNITS.len());
+}

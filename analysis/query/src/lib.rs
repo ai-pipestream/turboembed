@@ -305,18 +305,18 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
             }
         }
         // A lowercase ISO code counts only right after an amount
-        // (`500 usd`, never `top 10`), and never when the code is an
-        // ordinary English word, so common queries gain no money cue.
+        // (`500 usd`, never `top 10`), and only from a small
+        // allowlist of codes unambiguous in lowercase queries: a
+        // denylist of English-word codes (php, cop, ron, top, ...)
+        // can never be completed, so anything else stays a word.
         let token_at = |i: usize| &text[starts[i] as usize..ends[i] as usize];
         let lowercase_iso_after_amount = |i: usize| {
-            const ENGLISH_WORD_CODES: [&str; 10] =
-                ["ALL", "BOB", "CUP", "GEL", "MAD", "MOP", "PEN", "SOS", "TOP", "TRY"];
+            const LOWERCASE_CODES: [&str; 19] = [
+                "aud", "brl", "cad", "chf", "cny", "dkk", "eur", "gbp", "hkd", "inr", "jpy", "krw", "mxn", "nok",
+                "nzd", "sek", "sgd", "usd", "zar",
+            ];
             let w = token_at(i);
-            if i == 0 || w.len() != 3 || !w.bytes().all(|b| b.is_ascii_lowercase()) {
-                return false;
-            }
-            let upper: String = w.chars().map(|c| c.to_ascii_uppercase()).collect();
-            if ENGLISH_WORD_CODES.contains(&upper.as_str()) {
+            if i == 0 || !LOWERCASE_CODES.contains(&w) {
                 return false;
             }
             let prev = token_at(i - 1);
