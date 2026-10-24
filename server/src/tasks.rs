@@ -1,11 +1,14 @@
-//! Serving `TASK_RERANK` and `TASK_EXTRACTIVE_QA` bundles over KServe v2.
+//! Serving `TASK_EMBED` sparse/token-vector outputs, `TASK_RERANK`, and
+//! `TASK_EXTRACTIVE_QA` bundles over gRPC.
 
+pub(crate) mod embed;
 mod qa;
 mod rerank;
 
 use std::path::Path;
 use turbo::{TURBO_TASK_EMBED, TURBO_TASK_EXTRACTIVE_QA, TURBO_TASK_RERANK};
 
+pub use embed::EmbedModel;
 pub(crate) use qa::infer_qa;
 pub use qa::{QaModel, qa_options};
 pub(crate) use rerank::infer_rerank;

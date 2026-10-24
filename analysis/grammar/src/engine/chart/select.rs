@@ -20,7 +20,7 @@ impl Parser {
         if output == Output::Number {
             let mut shadows = std::mem::take(&mut self.shadows);
             shadows.clear();
-            self.pick(text, Output::Ordinal, &mut shadows);
+            self.pick(text, Output::Ordinal, &mut shadows, &|_, _, end| end);
             self.shadowed.resize(self.lexed.len(), NONE);
             for (i, m) in shadows.iter().enumerate() {
                 let node = &self.chart.nodes[m.node as usize];
@@ -30,11 +30,32 @@ impl Parser {
             }
             self.shadows = shadows;
         }
-        self.pick(text, output, out);
+        self.pick(text, output, out, &|_, _, end| end);
+    }
+
+    /// Select time mentions while reserving a recognized suffix during
+    /// ranking and overlap checks. Returned mentions retain the original
+    /// value span so the caller can resolve the suffix separately.
+    pub(crate) fn select_time_suffix(
+        &mut self,
+        text: &str,
+        out: &mut Vec<Mention>,
+        suffix: impl Fn(&Interned, &Value, u32) -> u32,
+    ) {
+        if text.len() != self.chart.text_len {
+            return;
+        }
+        self.pick(text, Output::Time, out, &suffix);
     }
 
     #[inline]
-    fn pick(&mut self, text: &str, output: Output, out: &mut Vec<Mention>) {
+    fn pick(
+        &mut self,
+        text: &str,
+        output: Output,
+        out: &mut Vec<Mention>,
+        suffix: &impl Fn(&Interned, &Value, u32) -> u32,
+    ) {
         let n = self.lexed.len();
         let lex = &self.lexed.lexemes;
         self.cands.clear();
@@ -66,7 +87,11 @@ impl Parser {
             if !self.grammar.keep(output, node, &ctx) {
                 continue;
             }
-            self.cands.push((id as u32, lex[s].start, lex[e - 1].end));
+            let end = suffix(&self.times, &node.value, lex[e - 1].end);
+            if end < lex[e - 1].end || end as usize > text.len() || !text.is_char_boundary(end as usize) {
+                continue;
+            }
+            self.cands.push((id as u32, lex[s].start, end));
         }
         let nodes = &self.chart.nodes;
         self.cands.sort_by(|a, b| {
@@ -84,12 +109,13 @@ impl Parser {
         let from = out.len();
         for &(id, start, end) in &self.cands {
             let node = &nodes[id as usize];
-            let span = node.start as usize..node.end as usize;
+            let extended = lex.partition_point(|l| l.start < end);
+            let span = node.start as usize..extended;
             if self.taken[span.clone()].iter().any(|&t| t) {
                 continue;
             }
             self.taken[span].fill(true);
-            out.push(Mention { start, end, value: node.value, node: id });
+            out.push(Mention { start, end: lex[node.end as usize - 1].end, value: node.value, node: id });
         }
         out[from..].sort_by_key(|p| p.start);
     }

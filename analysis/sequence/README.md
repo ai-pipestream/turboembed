@@ -101,8 +101,20 @@ them and does not look at the serializer names.
 each evaluation of a QN model starts from the previous one's probabilities.
 `beam/ner-qn-fixture` is what OpenNLP gives; `beam/ner-qn-fixture+fresh-sums`
 runs the same search over a wrapper that
-evaluates every context into a new array. The crate matches the second; the
-test for the first is ignored until `turbo-maxent` can evaluate from given sums.
+evaluates every context into a new array. Native `BeamSearch` matches the
+second. `search.opennlp()` starts a compatibility session matching the first;
+retain that session across sentences to carry QN probabilities as Java does.
+Both tests run in CI and compare outcome labels, probability bits, score bits,
+recorded contexts and decoded name spans for every sentence in the golden.
+
+Each session borrows its search, so its model and outcome order cannot change.
+Use one session per independent stream; no Rust global or thread-local state is
+used. `reset()` clears its carried probabilities, corresponding to closing the
+Java search for the current thread; it does not clear a context generator's
+adaptive data. The session matches the JVM's default evaluation cache size of
+zero. Native and scored search methods remain stateless between calls.
+`MaxentModel::eval_features_seeded` is the explicit caller-buffer overload;
+ordinary maxent evaluation continues to start fresh.
 
 ### The public models
 

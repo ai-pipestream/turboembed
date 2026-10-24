@@ -148,6 +148,11 @@ fn depths(xs: &[i64]) -> Vec<i64> {
 /// in order, skipping it.
 pub fn drift(rows: &Rows<'_>, d: &Drift) -> (Vec<i32>, Vec<Cut>) {
     let cos = cosines(rows, d.window);
+    score_cosines(&cos, d)
+}
+
+/// Shared integer TextTiling scoring for embedding and lexical cosines.
+pub(crate) fn score_cosines(cos: &[Option<i64>], d: &Drift) -> (Vec<i32>, Vec<Cut>) {
     let at: Vec<usize> = (0..cos.len()).filter(|&g| cos[g].is_some()).collect();
     let raw: Vec<i64> = at.iter().filter_map(|&g| cos[g]).collect();
     let sm = smooth(&raw, d.smoothing as usize);

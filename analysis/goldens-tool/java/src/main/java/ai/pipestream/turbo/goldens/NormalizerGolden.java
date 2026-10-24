@@ -113,6 +113,7 @@ final class NormalizerGolden implements AnnotatorGolden {
         of("shrink", ShrinkCharSequenceNormalizer.class, ShrinkCharSequenceNormalizer::getInstance),
         of("social-media", SocialMediaCharSequenceNormalizer.class, SocialMediaCharSequenceNormalizer::getInstance),
         of("symbol-joiner", SymbolJoinerCharSequenceNormalizer.class, SymbolJoinerCharSequenceNormalizer::getInstance),
+        new NormalizerChainGolden(),
         of("url", UrlCharSequenceNormalizer.class, UrlCharSequenceNormalizer::getInstance),
         of("whitespace", WhitespaceCharSequenceNormalizer.class, WhitespaceCharSequenceNormalizer::getInstance),
         of("whitespace-keep-lines", LineBreakPreservingWhitespaceCharSequenceNormalizer.class,

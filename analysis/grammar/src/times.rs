@@ -28,12 +28,13 @@ fn neutral() -> DateTime {
 pub struct TimeAnnotator {
     grammar: &'static dyn Grammar,
     reference: Option<DateTime>,
+    zones: Option<crate::time::zone::Region>,
     pool: Mutex<Vec<Parser>>,
 }
 
 impl TimeAnnotator {
     pub fn new(grammar: &'static dyn Grammar) -> TimeAnnotator {
-        TimeAnnotator { grammar, reference: None, pool: Mutex::new(Vec::new()) }
+        TimeAnnotator { grammar, reference: None, zones: None, pool: Mutex::new(Vec::new()) }
     }
 
     pub fn english() -> TimeAnnotator {
@@ -51,6 +52,14 @@ impl TimeAnnotator {
         self
     }
 
+    /// Enable explicit time zones. CST and IST require a matching region;
+    /// other abbreviations have documented fixed offsets. City names need
+    /// a reference date, except when the expression supplies one itself.
+    pub fn with_time_zones(mut self, region: crate::time::zone::Region) -> Self {
+        self.zones = Some(region);
+        self
+    }
+
     /// Finds the time mentions in `text`, with spans in view `view`,
     /// resolved against `reference` when there is one.
     ///
@@ -61,7 +70,17 @@ impl TimeAnnotator {
         let mut parser = self.pool.lock().ok().and_then(|mut p| p.pop()).unwrap_or_else(|| Parser::new(self.grammar));
         parser.parse(text);
         let mut mentions = Vec::new();
-        parser.select(text, Output::Time, &mut mentions);
+        if let Some(region) = self.zones {
+            parser.select_time_suffix(text, &mut mentions, |values, value, end| {
+                let timed = values.get(value).is_some_and(crate::time::zone::has_clock);
+                if !timed {
+                    return end;
+                }
+                crate::time::zone::at(text, end as usize, region).map_or(end, |z| z.end as u32)
+            });
+        } else {
+            parser.select(text, Output::Time, &mut mentions);
+        }
         let mut times = Times::new(view);
         let mut timex = String::new();
         let now = reference.unwrap_or_else(neutral);
@@ -69,7 +88,21 @@ impl TimeAnnotator {
             let Some(value) = parser.times().get(&m.value) else { continue };
             let open = reference.is_none() && depends_on_reference(&value);
             let Some(r) = resolve(&value, now) else { continue };
-            push(&mut times, Span::new(m.start, m.end), &r, open, &mut timex);
+            let timed = matches!(
+                r.kind,
+                turbo_analysis_layers::TimeKind::Time
+                    | turbo_analysis_layers::TimeKind::TimeRange
+                    | turbo_analysis_layers::TimeKind::DateTime
+                    | turbo_analysis_layers::TimeKind::DateTimeRange
+            );
+            let zone =
+                self.zones.filter(|_| timed).and_then(|region| crate::time::zone::at(text, m.end as usize, region));
+            let offsets = zone.and_then(|z| crate::time::zone::Offsets::for_resolution(&r, z.zone, reference));
+            // An explicit city zone without a resolvable date or during
+            // a DST gap/fold stays unresolved, never a guessed offset.
+            let unresolved = open || zone.is_some() && offsets.is_none();
+            let end = zone.map_or(m.end, |z| z.end as u32);
+            push(&mut times, Span::new(m.start, end), &r, unresolved, offsets, &mut timex);
         }
         if let Ok(mut pool) = self.pool.lock() {
             pool.push(parser);
@@ -79,13 +112,24 @@ impl TimeAnnotator {
 }
 
 /// Writes a mention's preferred reading; with `open`, only what it is.
-fn push(times: &mut Times, span: Span, r: &Resolved, open: bool, timex: &mut String) {
+fn push(
+    times: &mut Times,
+    span: Span,
+    r: &Resolved,
+    open: bool,
+    offsets: Option<crate::time::zone::Offsets>,
+    timex: &mut String,
+) {
     use std::fmt::Write as _;
     let Some(alt) = r.alternatives.get(r.preferred) else { return };
     timex.clear();
     let (mut start, mut end, mut duration_ms) = (None, None, None);
     if !open {
-        let _ = write!(timex, "{}", alt.timex);
+        if let Some(offsets) = offsets {
+            let _ = crate::time::zone::write_timex(timex, alt.timex, offsets);
+        } else {
+            let _ = write!(timex, "{}", alt.timex);
+        }
         match alt.value {
             Resolution::Point(i) => start = Some(i.seconds()),
             Resolution::Range { start: s, end: e } => {
@@ -113,7 +157,7 @@ fn push(times: &mut Times, span: Span, r: &Resolved, open: bool, timex: &mut Str
 }
 
 impl Annotator for TimeAnnotator {
-    const VERSION: &'static str = "2";
+    const VERSION: &'static str = "3";
     const ID: &'static str = "turbo-grammar:times";
     type Reads = (View, Option<DocumentDate>);
     type Writes = (Times,);
@@ -133,7 +177,11 @@ impl Annotator for TimeAnnotator {
     /// FNV-1a over the grammar's name and the fixed reference.
     fn config_hash(&self) -> u64 {
         let fixed = self.reference.map_or(i64::MIN, DateTime::local_seconds);
-        turbo_analysis::Fnv1a::new().bytes(self.grammar.name().as_bytes()).i64(fixed).finish()
+        turbo_analysis::Fnv1a::new()
+            .bytes(self.grammar.name().as_bytes())
+            .i64(fixed)
+            .u8(self.zones.map_or(0, |r| r as u8 + 1))
+            .finish()
     }
 }
 
