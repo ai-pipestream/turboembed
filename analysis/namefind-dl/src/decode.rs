@@ -61,6 +61,11 @@ pub enum Decoding {
     /// an entity is whole words, the tokenizer's (punctuation and CJK
     /// ideographs each one), and a `B-` the model gives a piece inside
     /// a word does not start one there.
+    ///
+    /// The words are BERT's pre-tokenization (`turbo::tokenizer::pre_words`)
+    /// whatever tokenizer the model has. That matches WordPiece models such
+    /// as `dslim-bert-base-ner`; a SentencePiece or byte-level BPE token
+    /// classifier has other word rules, so use `Piece` for one.
     #[default]
     Word,
     /// Every piece takes its own label, as OpenNLP's `NameFinderDL`
