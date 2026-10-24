@@ -265,6 +265,8 @@ fn the_manifest_must_agree_with_the_file() {
 /// added tokens and post-processor are replaced by one unknown token put
 /// at the end of the vocabulary: what is checked is the pattern, NFC and
 /// the merges on the published vocabulary.
+const UNK: &str = "<turbo unk>";
+
 #[test]
 #[ignore = "needs TURBO_BPE_FILES"]
 fn matches_upstream_on_llama3_and_qwen2() {
@@ -273,20 +275,25 @@ fn matches_upstream_on_llama3_and_qwen2() {
         let mut json: Value = serde_json::from_slice(&std::fs::read(dir.join(name).join("tokenizer.json")).unwrap())
             .unwrap_or_else(|e| panic!("{name}: {e}"));
         let vocab = json["model"]["vocab"].as_object_mut().unwrap();
+        // A byte-level piece never holds a raw space (it is Ġ there), so
+        // this name cannot be one of the vocabulary's own pieces, as
+        // "<unk>" is in Qwen2's.
         let unk = vocab.len();
-        vocab.insert("<unk>".into(), json!(unk));
-        json["added_tokens"] = json!([{ "id": unk, "content": "<unk>", "single_word": false, "lstrip": false,
+        assert!(vocab.insert(UNK.into(), json!(unk)).is_none(), "{name}: {UNK} is in the vocabulary");
+        json["added_tokens"] = json!([{ "id": unk, "content": UNK, "single_word": false, "lstrip": false,
             "rstrip": false, "normalized": false, "special": true }]);
         json["post_processor"] = Value::Null;
         let mut m = manifest_split(pattern, nfc);
         m["tokenizer"]["bpe"]["ignore_merges"] = json!(json["model"]["ignore_merges"] == true);
-        m["tokenizer"]["special_tokens"] = json!([{ "role": "SPECIAL_UNK", "content": "<unk>", "id": unk }]);
+        m["tokenizer"]["special_tokens"] = json!([{ "role": "SPECIAL_UNK", "content": UNK, "id": unk }]);
         m["tokenizer"]["template"] = json!(["$TEXT"]);
         m["architecture"]["vocab_size"] = json!(unk + 1);
         let (_f, tok, up) = tokenizer(name, m, &json);
-        for text in texts().iter().filter(|t| !t.contains("<unk>")) {
+        let texts = texts();
+        for text in &texts {
             check(&tok, &up, text, nfc);
         }
+        println!("{name}: {} texts match upstream", texts.len());
     }
 }
 

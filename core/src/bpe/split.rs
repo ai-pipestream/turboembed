@@ -12,12 +12,15 @@ pub const LLAMA3: &str = r"(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+
 pub const QWEN2: &str =
     r"(?i:'s|'t|'re|'ve|'m|'ll|'d)|[^\r\n\p{L}\p{N}]?\p{L}+|\p{N}| ?[^\s\p{L}\p{N}]+[\r\n]*|\s*[\r\n]+|\s+(?!\S)|\s+";
 
-/// `word(start, end)` for each match of `p`'s pattern in `s`.
-pub(crate) fn words(p: BpePattern, s: &str, word: impl FnMut(usize, usize)) {
+/// `word(start, end)` for each match of `p`'s pattern in `s`. Only
+/// GPT-2's matcher is made for each caller's `word`: the other two take
+/// it as `dyn`, which costs them nothing measurable, where a copy of each
+/// beside GPT-2's in every caller made GPT-2's path about 8% slower.
+pub(crate) fn words(p: BpePattern, s: &str, mut word: impl FnMut(usize, usize)) {
     match p {
         BpePattern::Gpt2 => split(s, word),
-        BpePattern::Llama3 => split_digits(s, 3, word),
-        BpePattern::Qwen2 => split_digits(s, 1, word),
+        BpePattern::Llama3 => split_digits(s, 3, &mut word as &mut dyn FnMut(usize, usize)),
+        BpePattern::Qwen2 => split_digits(s, 1, &mut word as &mut dyn FnMut(usize, usize)),
     }
 }
 
