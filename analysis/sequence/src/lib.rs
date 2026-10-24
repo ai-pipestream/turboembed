@@ -85,16 +85,13 @@
 //!   were; a name's probability is the mean of its outcomes', `NaN` for
 //!   an empty name.
 //!
-//! One is not reproduced yet: `QNModel.eval(context, probs)` adds its sums
-//! to what `probs` already holds, and `BeamSearch` passes the same array to
-//! every evaluation (one per thread, kept across sentences), so inside a
-//! beam search each evaluation of a QN model starts from the probabilities
-//! of the one before. GIS and perceptron models overwrite the array. The
-//! search here evaluates every context from zero, which matches OpenNLP
-//! for GIS and perceptron models but not for QN models; matching QN needs
-//! an evaluation in `turbo-maxent` that starts from the caller's sums
-//! (`tests/beam.rs` holds the ignored test, and `beam/ner-qn-fixture` its
-//! golden).
+//! QN's caller-buffer overload adds weights to the previous probabilities.
+//! [`BeamSearch::opennlp`] provides an explicit compatibility session that
+//! retains this state across evaluations and sentences, matching Java's
+//! default uncached beam. Use one session per independent stream; reset it
+//! to reproduce closing Java's thread-local beam state. Native searches and
+//! the scored-search APIs continue to start every evaluation fresh. Both
+//! modes have bit-for-bit JVM golden tests over the same real QN model.
 
 pub mod beam;
 pub mod chunker;
@@ -108,7 +105,8 @@ pub mod pattern;
 pub mod postag;
 
 pub use beam::{
-    AcceptAll, BeamSearch, ContextGenerator, OutcomeLabel, Sequence, SequenceValidator, manifest_beam_size,
+    AcceptAll, BeamSearch, ContextGenerator, OpenNlpBeamSearch, OutcomeLabel, Sequence, SequenceValidator,
+    manifest_beam_size,
 };
 pub use chunker::TokenTag;
 pub use codec::{BilouCodec, BioCodec, SequenceCodec, Span};
