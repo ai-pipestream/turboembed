@@ -61,6 +61,7 @@ fn document() -> Document {
         cost: Vec::new(),
         model_tokens: Vec::new(),
         over_budget: Vec::new(),
+        prompt_overhead: 0,
     };
     for (i, j, level, parent) in [(0u32, 12u32, 1u8, None), (0, 6, 0, Some(0)), (6, 12, 0, Some(0))] {
         c.spans.push(Span::new(bounds[i as usize].0, bounds[j as usize - 1].1));

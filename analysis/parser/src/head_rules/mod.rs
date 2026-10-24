@@ -26,9 +26,7 @@ pub use english::EnglishHeadRules;
 /// Maximum number of tags permitted in a single head rule (`MAX_TAGS_PER_RULE = 1_000`).
 pub const MAX_TAGS_PER_RULE: usize = 1_000;
 
-/// Maximum number of atoms in a compiled [`TagPattern`]: one bit each in a `u64`, and one more
-/// for the end of the pattern.
-pub const MAX_PATTERN_ATOMS: usize = 63;
+pub use turbo_jvm::MAX_PATTERN_ATOMS;
 
 const PUNCTUATION_TAGS: [&str; 4] = [".", ",", "``", "''"];
 

@@ -84,13 +84,18 @@ fn copy_dir(from: &Path, to: &Path) {
 
 /// The server loaded, and the demo in front of it offering every tier.
 async fn start() -> (Server, Demo) {
+    start_with(models(), TIERS.iter().map(|(n, _)| n.to_string()).collect()).await
+}
+
+/// The server serving `served`, loaded, and the demo in front of it
+/// started with the names `offered`.
+async fn start_with(served: Vec<ModelConfig>, offered: Vec<String>) -> (Server, Demo) {
     // The demo serves inference only; the admin calls stay off.
-    let s = Server::start("127.0.0.1:0".parse().unwrap(), models(), DEFAULT_MAX_MESSAGE_BYTES, Serve::default())
+    let s = Server::start("127.0.0.1:0".parse().unwrap(), served, DEFAULT_MAX_MESSAGE_BYTES, Serve::default())
         .await
         .unwrap();
     s.load().await.unwrap();
-    let names = TIERS.iter().map(|(n, _)| n.to_string()).collect();
-    let d = Demo::start("127.0.0.1:0".parse().unwrap(), &format!("http://{}", s.local_addr()), names).await.unwrap();
+    let d = Demo::start("127.0.0.1:0".parse().unwrap(), &format!("http://{}", s.local_addr()), offered).await.unwrap();
     (s, d)
 }
 
@@ -200,6 +205,7 @@ async fn status_and_metadata_come_from_the_server() {
     assert_eq!(v["server"], format!("http://{}", s.local_addr()));
     let names: Vec<Value> = TIERS.iter().map(|(n, _)| json!({ "name": n, "ready": true })).collect();
     assert_eq!(v["models"], Value::Array(names));
+    assert_eq!(v["models_from"], "flags");
 
     for (name, precision) in TIERS {
         let (status, m) = get_json(&d, &format!("/api/models/{name}")).await;
@@ -313,4 +319,27 @@ async fn a_server_that_is_not_there_is_reported() {
     assert_eq!(e["error"]["grpc"], "Unavailable");
     d.stop().await;
     drop(reserved);
+}
+
+#[tokio::test]
+async fn with_no_names_the_page_offers_the_bundles_capabilities_lists() {
+    // Two bundles served, the demo given no names: both are listed, in the
+    // order served, from AnalysisService/Capabilities.
+    let two: Vec<ModelConfig> = models().into_iter().take(2).collect();
+    let (_s, d) = start_with(two, Vec::new()).await;
+    let (status, v) = get_json(&d, "/api/status").await;
+    assert_eq!(status, 200);
+    assert_eq!(v["models_from"], "capabilities");
+    let want: Vec<Value> = TIERS[..2].iter().map(|(n, _)| json!({ "name": n, "ready": true })).collect();
+    assert_eq!(v["models"], Value::Array(want));
+    // Each listed name is one the page can embed with.
+    let (status, r) = post_json(&d, "/api/infer", json!({ "model": TIERS[1].0, "texts": ["a listed model"] })).await;
+    assert_eq!(status, 200, "{r}");
+    assert_eq!(r["shape"], json!([1, 32]));
+
+    // Names given to the demo override the listing.
+    let (_s, d) = start_with(models().into_iter().take(2).collect(), vec![TIERS[1].0.to_string()]).await;
+    let (_, v) = get_json(&d, "/api/status").await;
+    assert_eq!(v["models_from"], "flags");
+    assert_eq!(v["models"], json!([{ "name": TIERS[1].0, "ready": true }]));
 }
