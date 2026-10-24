@@ -8,6 +8,10 @@
 //! finder gives covers the tokens its bytes overlap, and names with the
 //! same tokens and type count once.
 //!
+//! The finder runs with its defaults, each word labelled by its first
+//! piece; `TURBO_NER_DECODING=piece` labels every piece, as `NameFinderDL`
+//! does.
+//!
 //! The set's Reuters text is for research only: the test reads a copy the
 //! caller has and keeps nothing of it.
 
@@ -15,7 +19,7 @@ use std::path::PathBuf;
 
 use turbo_formats::conll::{Conll03Language, Conll03Reader, EntityTypes};
 use turbo_formats::evaluate::{FMeasure, LabeledSpan};
-use turbo_namefind_dl::{NameFinderDl, NameFinderDlOptions};
+use turbo_namefind_dl::{Decoding, NameFinderDl, NameFinderDlOptions};
 
 /// The model's type for each of the reader's.
 fn reader_kind(model: &str) -> &'static str {
@@ -56,7 +60,10 @@ fn conll2003_english_test_set() {
             (text, spans)
         })
         .collect();
-    let finder = NameFinderDl::open(&bundle, &NameFinderDlOptions::default()).unwrap();
+    let piece = std::env::var("TURBO_NER_DECODING").is_ok_and(|d| d == "piece");
+    let decoding = if piece { Decoding::Piece } else { Decoding::Word };
+    let finder =
+        NameFinderDl::open(&bundle, &NameFinderDlOptions { decoding, ..NameFinderDlOptions::default() }).unwrap();
     let inputs: Vec<(&str, Vec<(usize, usize)>)> =
         texts.iter().map(|(t, _)| (t.as_str(), vec![(0, t.len())])).collect();
     let found = finder.find(&inputs).unwrap();
@@ -102,5 +109,7 @@ fn conll2003_english_test_set() {
     for (k, m) in kinds.iter().zip(&by_kind) {
         eprintln!("  {k}: precision {:.4}, recall {:.4}, F1 {:.4}", m.precision(), m.recall(), m.f_measure());
     }
-    assert!(all.f_measure() > 0.86, "F1 {}", all.f_measure());
+    // 0.9157 by words, 0.8641 by pieces.
+    let floor = if piece { 0.86 } else { 0.91 };
+    assert!(all.f_measure() > floor, "F1 {}", all.f_measure());
 }

@@ -93,3 +93,19 @@ fn overlaps_keep_the_longest_then_the_most_probable() {
     // padded to the same bytes.
     assert_eq!(resolve(text, vec![c(16, 23, 0.5), c(17, 24, 0.9)]), [c(17, 24, 0.9)]);
 }
+
+#[test]
+fn rows_overlap_and_give_each_piece_one_label() {
+    assert_eq!(row_ranges(0, 8), [(0, 0, 0, 0)]);
+    assert_eq!(row_ranges(8, 8), [(0, 8, 0, 8)]);
+    // Rows of 8 step by 4, each keeping the labels of its middle half.
+    assert_eq!(row_ranges(17, 8), [(0, 8, 0, 6), (4, 12, 6, 10), (8, 16, 10, 14), (12, 17, 14, 17)]);
+    for (count, width) in [(9, 1), (10, 3), (100, 7), (513, 510)] {
+        let rows = row_ranges(count, width);
+        assert_eq!((rows[0].2, rows.last().unwrap().3), (0, count));
+        for w in rows.windows(2) {
+            assert_eq!(w[0].3, w[1].2, "{count} {width}");
+        }
+        assert!(rows.iter().all(|&(s, e, a, b)| s <= a && a <= b && b <= e && e - s <= width));
+    }
+}

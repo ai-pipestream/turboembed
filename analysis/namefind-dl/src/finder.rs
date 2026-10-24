@@ -6,12 +6,15 @@
 //! single spaces as `AbstractDL` rejoins them, are tokenized without
 //! special tokens and read in one row, `[CLS] pieces [SEP]`, as
 //! `NameFinderDL` encodes a chunk. A chunk with more pieces than a row
-//! holds, which OpenNLP's model would refuse, is read in consecutive rows;
-//! an entity across two rows then ends at the first, the next row starting
-//! on an `I-` piece.
-//! Every position of a row, its special tokens too, gets its own label
-//! scores from the bundle's token classification head, and decode.rs
-//! turns them into entities, resolved across the whole document.
+//! holds, which OpenNLP's model would refuse, is read in rows overlapping
+//! by half a row (`decode::row_ranges`), each piece labelled by the row
+//! where it has the most context on both sides, and the chunk's pieces
+//! decoded as one run, the special tokens between rows left out, so an
+//! entity across a row boundary is whole.
+//! Every position of a row gets its own label scores from the bundle's
+//! token classification head, and decode.rs turns them into entities,
+//! each word labelled by its first piece unless `Decoding::Piece` asks
+//! for every piece's own label, resolved across the whole document.
 //!
 //! An entity's token range is the tokens its bytes overlap; one between
 //! tokens is the empty range where it would start.
@@ -29,7 +32,7 @@ use turbo_analysis::{Annotator, Error, Execution, IxRange, ModelRef, Refs, Span,
 use turbo_analysis_embed::{Encoder, EncoderOptions, Rows};
 use turbo_analysis_layers::{Entities, Sentences, Tag, Tokens};
 
-use crate::decode::{self, Candidate, Label};
+use crate::decode::{self, Candidate, Decoding, Label};
 
 /// How a `NameFinderDl` runs its model and cuts its input.
 #[derive(Clone, Debug)]
@@ -39,11 +42,13 @@ pub struct NameFinderDlOptions {
     pub split: usize,
     /// Words consecutive chunks share: `InferenceOptions.splitOverlapSize`.
     pub overlap: usize,
+    /// Word labels by default; `Decoding::Piece` as `NameFinderDL` decodes.
+    pub decoding: Decoding,
 }
 
 impl Default for NameFinderDlOptions {
     fn default() -> NameFinderDlOptions {
-        NameFinderDlOptions { encoder: EncoderOptions::default(), split: 250, overlap: 50 }
+        NameFinderDlOptions { encoder: EncoderOptions::default(), split: 250, overlap: 50, decoding: Decoding::Word }
     }
 }
 
@@ -65,10 +70,27 @@ pub struct NameFinderDl {
     max_ranges: usize,
     split: usize,
     overlap: usize,
+    decoding: Decoding,
 }
 
-/// Each position of a row: its bytes in the text, none for a special token.
-type Positions = Vec<Option<(usize, usize)>>;
+/// One row's positions: its document, the positions whose labels it gives
+/// (`keep`), whether it ends its chunk, and each position's bytes in the
+/// text and word in the chunk, none for a special token.
+struct Row {
+    doc: usize,
+    keep: std::ops::Range<usize>,
+    last: bool,
+    bytes: Vec<Option<(usize, usize)>>,
+    words: Vec<Option<usize>>,
+}
+
+/// A chunk's positions and scores so far, its rows joined.
+#[derive(Default)]
+struct Chunk {
+    bytes: Vec<Option<(usize, usize)>>,
+    words: Vec<Option<usize>>,
+    scores: Vec<f32>,
+}
 
 /// The rows being built, one range per position, and each row's pieces.
 struct Run {
@@ -76,8 +98,9 @@ struct Run {
     rows: Rows,
     ranges: Vec<turbo_token_range>,
     states: Vec<f32>,
-    /// Per row: its document and each position's bytes in the text.
-    pieces: Vec<(usize, Positions)>,
+    pieces: Vec<Row>,
+    /// The chunk whose rows are being read, across flushes.
+    chunk: Chunk,
 }
 
 impl NameFinderDl {
@@ -119,6 +142,7 @@ impl NameFinderDl {
                 ranges: Vec::new(),
                 states: Vec::new(),
                 pieces: Vec::new(),
+                chunk: Chunk::default(),
                 encoder,
             }),
             kinds: TagSet::new("namefind-dl", &types),
@@ -129,6 +153,7 @@ impl NameFinderDl {
             max_ranges: eo.max_ranges as usize,
             split: o.split,
             overlap: o.overlap,
+            decoding: o.decoding,
             tokenizer,
             head,
             labels,
@@ -149,6 +174,7 @@ impl NameFinderDl {
         run.rows.clear();
         run.ranges.clear();
         run.pieces.clear();
+        run.chunk = Chunk::default();
         let mut ids = Vec::new();
         let mut spans = Vec::new();
         // A chunk's words rejoined with single spaces, as `AbstractDL`
@@ -180,26 +206,37 @@ impl NameFinderDl {
                     self.tokenizer.encode_spans(&joined, bare, &mut ids, &mut spans).map_err(|e| e.to_string())?;
                     // A piece lies inside one word of `joined`: shift it to
                     // that word in the text.
+                    let word = |s: &[u32; 2]| starts.partition_point(|&(j, _)| j <= s[0] as usize) - 1;
                     let place = |s: &[u32; 2]| {
-                        let (j, t) = starts[starts.partition_point(|&(j, _)| j <= s[0] as usize) - 1];
+                        let (j, t) = starts[word(s)];
                         (t + s[0] as usize - j, t + s[1] as usize - j)
                     };
                     // A chunk of no pieces is still read, as `[CLS] [SEP]`.
-                    let parts: Vec<&[i32]> = if ids.is_empty() { vec![&[]] } else { ids.chunks(self.width).collect() };
-                    for (k, part) in parts.into_iter().enumerate() {
-                        let first = k * self.width;
+                    let parts = decode::row_ranges(ids.len(), self.width);
+                    let count = parts.len();
+                    for (k, &(first, end, own_start, own_end)) in parts.iter().enumerate() {
+                        let part = &ids[first..end];
                         let rows = self.cls.len() + part.len() + self.sep.len();
                         if run.rows.len() as usize == self.max_batch || run.ranges.len() + rows > self.max_ranges {
                             self.flush(&mut run, &mut found)?;
                         }
                         let row = run.rows.push(&[&self.cls, part, &self.sep]);
-                        let mut at: Positions = vec![None; self.cls.len()];
-                        at.extend(spans[first..first + part.len()].iter().map(|s| (s[0] < s[1]).then(|| place(s))));
-                        at.resize(rows, None);
+                        let piece = &spans[first..first + part.len()];
+                        let mut bytes = vec![None; self.cls.len()];
+                        bytes.extend(piece.iter().map(|s| (s[0] < s[1]).then(|| place(s))));
+                        bytes.resize(rows, None);
+                        let mut words = vec![None; self.cls.len()];
+                        words.extend(piece.iter().map(|s| Some(word(s))));
+                        words.resize(rows, None);
                         for p in 0..rows as u32 {
                             run.ranges.push(turbo_token_range { row, start: p, end: p + 1 });
                         }
-                        run.pieces.push((d, at));
+                        // The first row gives `[CLS]`'s label and the last
+                        // `[SEP]`'s, as one row would.
+                        let c = self.cls.len();
+                        let lo = if k == 0 { 0 } else { c + own_start - first };
+                        let hi = if k + 1 == count { rows } else { c + own_end - first };
+                        run.pieces.push(Row { doc: d, keep: lo..hi, last: k + 1 == count, bytes, words });
                     }
                 }
             }
@@ -213,14 +250,27 @@ impl NameFinderDl {
         if run.rows.is_empty() {
             return Ok(());
         }
-        let Run { encoder, rows, ranges, states, pieces } = run;
+        let Run { encoder, rows, ranges, states, pieces, chunk } = run;
         encoder.run_ranges(rows, ranges, states).map_err(|e| e.to_string())?;
         let logits = self.head.logits(states).map_err(|e| e.to_string())?;
         let n = self.labels.len();
         let mut at = 0;
-        for (d, p) in pieces.iter() {
-            found[*d].extend(decode::decode(p, &logits[at * n..(at + p.len()) * n], &self.labels)?);
-            at += p.len();
+        for row in pieces.iter() {
+            // Each row gives the labels of the pieces it keeps, the special
+            // tokens between two rows left out, so the chunk is one run.
+            let (lo, hi) = (row.keep.start, row.keep.end);
+            chunk.bytes.extend_from_slice(&row.bytes[lo..hi]);
+            chunk.words.extend_from_slice(&row.words[lo..hi]);
+            chunk.scores.extend_from_slice(&logits[(at + lo) * n..(at + hi) * n]);
+            at += row.bytes.len();
+            if row.last {
+                let Chunk { bytes, words, scores } = &*chunk;
+                found[row.doc].extend(match self.decoding {
+                    Decoding::Word => decode::decode_words(bytes, words, scores, &self.labels)?,
+                    Decoding::Piece => decode::decode(bytes, scores, &self.labels)?,
+                });
+                *chunk = Chunk::default();
+            }
         }
         rows.clear();
         ranges.clear();
@@ -279,10 +329,14 @@ impl Annotator for NameFinderDl {
     }
 
     fn config_hash(&self) -> u64 {
-        // What changes the entities beside the model: the chunks, and the
-        // pieces a row holds, where a long chunk is cut.
+        // What changes the entities beside the model: the chunks, the
+        // pieces a row holds, where a long chunk is cut, and the decoding.
         let mut h = 0xcbf2_9ce4_8422_2325u64;
-        for b in [self.split, self.overlap, self.width].iter().flat_map(|v| (*v as u64).to_le_bytes()) {
+        let decoding = match self.decoding {
+            Decoding::Word => 0,
+            Decoding::Piece => 1,
+        };
+        for b in [self.split, self.overlap, self.width, decoding].iter().flat_map(|v| (*v as u64).to_le_bytes()) {
             h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
         }
         h
