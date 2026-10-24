@@ -64,9 +64,15 @@ Face hub):
 - `sat-1l-sm` to `sat-12l-sm`: the supervised mixture models, with no
   lookahead and one label. These need nothing the core lacks;
   `sat-1l-sm` matches wtpsplit (Against wtpsplit, below), and the others
-  have not been run here. Their training mixture holds UD
-  treebanks under CC BY-NC-SA, so they are local-only
-  (docs/licences.md, "Neural annotator checkpoints").
+  have not been run here. The 2026-10-24 source audit classifies `sat-1l-sm`
+  and `sat-12l-sm` as refused: their published training recipe includes
+  OPUS-100 with unconfirmed terms. UD non-commercial terms alone would
+  permit local-only use, but accepting them cannot override that refusal.
+  Neither checkpoint is added to the zoo (docs/licences.md,
+  "SaT supervised-mixture source audit"). Existing local parity results
+  are historical measurements, not distribution approval. `sat-3l`, trained
+  on mC4 without this supervised mixture, remains the permissive option,
+  gated on the limited-lookahead work in #887.
 
 ### The step
 
@@ -247,11 +253,11 @@ the stride is the main setting for throughput.
 
 ### Not done
 
-- A zoo entry for the `-sm` checkpoints. An entry needs each file's
-  SHA-512, and the checkpoints are local-only (docs/licences.md): the
-  zoo would fetch one only after its user accepts the licence, and CI
-  never fetches it, so the comparison above runs only where a user has
-  the checkpoint. `sat-12l-sm` and the other sizes have not been run.
+- Zoo downloads of `sat-1l-sm` and `sat-12l-sm` are refused following
+  the complete source audit in docs/licences.md. The OPUS-100 terms
+  must be established before this decision can change; local licence
+  acceptance is insufficient. No entry or download receipt is created.
+  `sat-12l-sm` and the other sizes have not been run here.
 - Limited lookahead, for the models without `-sm`.
 - A bundle task for token classification. The bundle carries a SaT
   model as `TASK_EMBED` with the classifier in its raw weights, read by
