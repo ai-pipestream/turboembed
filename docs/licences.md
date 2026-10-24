@@ -123,7 +123,27 @@ the second for failing their gates).
 | `turbo-en-masc-3.0.0-tokens-1` | [MASC](https://anc.org/data/masc/) 3.0.0, its Twitter genre left out | CC BY 3.0 US | permissive | as MASC's row under Datasets |
 | `turbo-en-masc-3.0.0-pos-1` | [MASC](https://anc.org/data/masc/) 3.0.0, its Twitter genre left out | CC BY 3.0 US | permissive | as MASC's row under Datasets |
 | `turbo-en-masc-3.0.0-chunks-1` | [MASC](https://anc.org/data/masc/) 3.0.0, its Twitter genre left out | CC BY 3.0 US | permissive | as MASC's row under Datasets |
-| `turbo-es-ud-ancora-2.16-sentence-1` | [UD_Spanish-AnCora r2.16](https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Spanish-AnCora's row under Datasets |
+| `turbo-es-ud-ancora-2.16-sentence-1` | [UD_Arabic-PADT r2.13](https://github.com/UniversalDependencies/UD_Arabic-PADT/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 3.0 | local-only | recipe reads `ar_padt-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Basque-BDT r2.13](https://github.com/UniversalDependencies/UD_Basque-BDT/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 3.0 | local-only | recipe reads `eu_bdt-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Bulgarian-BTB r2.13](https://github.com/UniversalDependencies/UD_Bulgarian-BTB/blob/r2.13/README.txt) | SaT supervised-mixture audit | CC BY-NC-SA 3.0 | local-only | recipe reads `bg_btb-ud-train.conllu` | here, 2026-10-24 |
+| [UD_English-GUM r2.13](https://github.com/UniversalDependencies/UD_English-GUM/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 4.0 | local-only | recipe reads `en_gum-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Estonian-EDT r2.13](https://github.com/UniversalDependencies/UD_Estonian-EDT/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 4.0 | local-only | recipe reads `et_edt-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Greek-GDT r2.13](https://github.com/UniversalDependencies/UD_Greek-GDT/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 3.0 | local-only | recipe reads `el_gdt-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Hindi-HDTB r2.13](https://github.com/UniversalDependencies/UD_Hindi-HDTB/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 4.0 | local-only | recipe reads `hi_hdtb-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Hungarian-Szeged r2.13](https://github.com/UniversalDependencies/UD_Hungarian-Szeged/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 3.0 | local-only | recipe reads `hu_szeged-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Italian-ISDT r2.13](https://github.com/UniversalDependencies/UD_Italian-ISDT/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 3.0 | local-only | recipe reads `it_isdt-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Latin-ITTB r2.13](https://github.com/UniversalDependencies/UD_Latin-ITTB/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 3.0 | local-only | recipe reads `la_ittb-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Polish-PDB r2.13](https://github.com/UniversalDependencies/UD_Polish-PDB/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 4.0 | local-only | recipe reads `pl_pdb-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Swedish-LinES r2.13](https://github.com/UniversalDependencies/UD_Swedish-LinES/blob/r2.13/README.txt) | SaT supervised-mixture audit | CC BY-NC-SA 4.0 | local-only | recipe reads `sv_lines-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Tamil-TTB r2.13](https://github.com/UniversalDependencies/UD_Tamil-TTB/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 3.0 | local-only | recipe reads `ta_ttb-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Turkish-IMST r2.13](https://github.com/UniversalDependencies/UD_Turkish-IMST/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 4.0 | local-only | recipe reads `tr_imst-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Ukrainian-IU r2.13](https://github.com/UniversalDependencies/UD_Ukrainian-IU/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 4.0 | local-only | recipe reads `uk_iu-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Urdu-UDTB r2.13](https://github.com/UniversalDependencies/UD_Urdu-UDTB/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 4.0 | local-only | recipe reads `ur_udtb-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Czech-PDT r2.13](https://github.com/UniversalDependencies/UD_Czech-PDT/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 4.0 | local-only | not selected: split training filenames miss `*-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Galician-TreeGal r2.13](https://github.com/UniversalDependencies/UD_Galician-TreeGal/blob/r2.13/README.md) | SaT supervised-mixture audit | LGPL-LR | LGPL-LR; separate terms | recipe reads `gl_treegal-ud-train.conllu` | here, 2026-10-24 |
+| [OPUS-100 v1.0](https://opus.nlpl.eu/opus-100.php) | SaT supervised mixture | `LicenseRef-Unconfirmed` | refused | publisher card licence unknown; see source audit above | here, 2026-10-24 |
+| [NLLB OPUS v1](https://github.com/Helsinki-NLP/OPUS/blob/42d4fbe382245487a68e853ca53bea832a41a02a/corpus/NLLB/v1/README) | SaT supervised mixture | ODC-By-1.0 | permissive database grant | original-source terms retained; not NLLB model weights | here, 2026-10-24 |
+| [UD_Spanish-AnCora r2.16](https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Spanish-AnCora's row under Datasets |
 | `turbo-es-ud-ancora-2.16-tokens-1` | [UD_Spanish-AnCora r2.16](https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Spanish-AnCora's row under Datasets |
 | `turbo-es-ud-ancora-2.16-pos-1` | [UD_Spanish-AnCora r2.16](https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Spanish-AnCora's row under Datasets |
 | `turbo-es-ud-ancora-2.16-lemmas-1` | [UD_Spanish-AnCora r2.16](https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/README.md) | CC BY 4.0 | permissive | as UD_Spanish-AnCora's row under Datasets |
@@ -204,13 +224,14 @@ The others were not fetched, so no entry has the SHA-512s an entry
 needs. "Checked" is **here**: the
 `license` of the model card's metadata at the revision named, read on
 2026-10-15 from the hub's model API, on 2026-10-21 for the GLiNER2
-and GLiREL rows, and on 2026-10-23 for the GLiNER v2.1 tokenizers.
+and GLiREL rows, on 2026-10-23 for the GLiNER v2.1 tokenizers, and
+on 2026-10-24 for the three SaT rows at their pinned revisions.
 
 | Checkpoint | Revision | Licence | Base and data | Class | Checked |
 |---|---|---|---|---|---|
-| [segment-any-text/sat-1l-sm](https://huggingface.co/segment-any-text/sat-1l-sm) | `00a783439c201b20ee91ee1624dc817f1bf0e578` | MIT | XLM-R (MIT); trained on mC4, then a mixture that includes Universal Dependencies training sets | local-only: the training mixture holds the training sets of 16 UD treebanks under CC BY-NC-SA, English GUM among them (below) | here |
-| [segment-any-text/sat-12l-sm](https://huggingface.co/segment-any-text/sat-12l-sm) | `d70c72a9331b2d5a9e82baad00c64964a23a09bb` | MIT | as `sat-1l-sm` | as `sat-1l-sm` | here |
-| [segment-any-text/sat-3l](https://huggingface.co/segment-any-text/sat-3l) | `a3b7ba6b61881d619989757aea971cde7d3d6a98` | MIT | XLM-R (MIT); mC4 (ODC-BY) | permissive; needs limited lookahead, which the core lacks | here |
+| [segment-any-text/sat-1l-sm](https://huggingface.co/segment-any-text/sat-1l-sm) | `00a783439c201b20ee91ee1624dc817f1bf0e578` | MIT | XLM-R (MIT); trained on mC4, then a mixture that includes Universal Dependencies training sets | refused: the published training mixture includes OPUS-100 with unconfirmed terms (`LicenseRef-Unconfirmed`); the UD part alone is local-only | here, 2026-10-24 |
+| [segment-any-text/sat-12l-sm](https://huggingface.co/segment-any-text/sat-12l-sm) | `d70c72a9331b2d5a9e82baad00c64964a23a09bb` | MIT | as `sat-1l-sm` | refused, as `sat-1l-sm` | here, 2026-10-24 |
+| [segment-any-text/sat-3l](https://huggingface.co/segment-any-text/sat-3l) | `a3b7ba6b61881d619989757aea971cde7d3d6a98` | MIT | XLM-R (MIT); mC4 (ODC-BY) | permissive; mC4-only SaT alternative, gated on limited lookahead (#887), which the core lacks | here, 2026-10-24 |
 | [urchade/gliner_small-v2.1](https://huggingface.co/urchade/gliner_small-v2.1) | `4e091416cf7c3481db542c2a3d26156916f3a47f` | Apache-2.0 | deberta-v3-small (MIT); `urchade/pile-mistral-v0.1` (Apache-2.0, labels Mistral wrote for text from The Pile) | permissive; in the index (`urchade-gliner-small-v2.1`, docs/gliner.md) | here |
 | [microsoft/deberta-v3-small](https://huggingface.co/microsoft/deberta-v3-small) (`spm.model`, `config.json`) | `a36c739020e01763fe789b4b85e2df55d6180012` | MIT | | permissive; in the index (`microsoft-deberta-v3-small-tokenizer`) | here, 2026-10-23 |
 | [urchade/gliner_multi-v2.1](https://huggingface.co/urchade/gliner_multi-v2.1) | `443d26d654e0324125a96bebd8e796c14ff2efe6` | Apache-2.0 | mdeberta-v3-base (MIT); as `gliner_small-v2.1` | permissive; in the index (`urchade-gliner-multi-v2.1`, docs/gliner.md) | here |
@@ -246,8 +267,58 @@ tag `r2.13` gives these licences:
 
 The released checkpoints name no training commit, so this is the
 published recipe rather than a record of the run. The SaT paper
-(section 4.2) also says the mixture includes UD training sets. Under the
-class rule, `sat-1l-sm` and `sat-12l-sm` are local-only.
+(section 4.2) also says the mixture includes UD training sets. The UD part alone would make the two `-sm` checkpoints local-only.
+The complete source audit below supersedes that earlier classification.
+
+### SaT supervised-mixture source audit (2026-10-24)
+
+The pinned [sat-1l-sm card](https://huggingface.co/segment-any-text/sat-1l-sm/blob/00a783439c201b20ee91ee1624dc817f1bf0e578/README.md)
+and [sat-12l-sm card](https://huggingface.co/segment-any-text/sat-12l-sm/blob/d70c72a9331b2d5a9e82baad00c64964a23a09bb/README.md)
+still declare `license: mit`, confirmed from the model API on this date.
+That declaration does not replace the project's training-source checks.
+
+The [published training code](https://github.com/segment-any-text/wtpsplit/blob/3ef928c8e163d11dc6f6336ad610bff2ffe0bda4/wtpsplit/train/train_SM.py)
+selects UD training text when present, otherwise OPUS-100 when present,
+otherwise NLLB. Clean and corrupted versions of each selected source are used.
+The [acquisition code](https://github.com/segment-any-text/wtpsplit/blob/3ef928c8e163d11dc6f6336ad610bff2ffe0bda4/wtpsplit/data_acquisition/extract_all_data.py)
+uses UD 2.13 and up to 10,000 UD or OPUS-100 training sentences per language.
+Its NLLB source is the OPUS v1 monolingual export for Cebuano, Javanese,
+Mongolian and Yoruba, shuffled and split into training and test halves.
+
+- **OPUS-100: `LicenseRef-Unconfirmed`, refused.** The
+  [publisher page](https://opus.nlpl.eu/opus-100.php) describes sampling from
+  many OPUS corpora but supplies no corpus-wide licence grant. The
+  [Helsinki-NLP card at 805090dc28bf78897da9641cdf08b61287580df9](https://huggingface.co/datasets/Helsinki-NLP/opus-100/blob/805090dc28bf78897da9641cdf08b61287580df9/README.md)
+  records an unknown licence and leaves its licensing section unfilled.
+  No licence covering the exact mixture was confirmed. A collection of
+  downloadable sentences does not by itself meet the zoo's terms gate.
+- **NLLB OPUS v1: ODC-By-1.0 database grant confirmed.** The
+  [OPUS v1 README](https://github.com/Helsinki-NLP/OPUS/blob/42d4fbe382245487a68e853ca53bea832a41a02a/corpus/NLLB/v1/README)
+  and [licence](https://github.com/Helsinki-NLP/OPUS/blob/42d4fbe382245487a68e853ca53bea832a41a02a/corpus/NLLB/v1/LICENSE)
+  agree with the [allenai card at c36967abb45f06ff7659849372ab41e01838193e](https://huggingface.co/datasets/allenai/nllb/blob/c36967abb45f06ff7659849372ab41e01838193e/README.md).
+  The card also retains original-source terms. This is the mined-text
+  dataset, not a licence for NLLB translation model weights. The database
+  grant is permissive under the class rule; it does not settle individual
+  source-text rights.
+- **UD 2.13: non-commercial sources confirmed.** The Datasets rows below
+  record the actual release, README and matching training filename.
+  Czech PDT is listed for completeness but its split training filenames do
+  not match the recipe's glob. This audit fetched metadata and licence text,
+  not the training corpus.
+
+**Decision:** `sat-1l-sm` and `sat-12l-sm` are `CLASS_REFUSED` under the
+repository's current policy because the OPUS-100 terms remain unconfirmed.
+No `segment-any-text-sat-1l-sm` or `segment-any-text-sat-12l-sm` zoo entry is
+added, and no weight or tokenizer file is fetched for indexing. A local
+CC BY-NC-SA acceptance cannot override the unconfirmed-source refusal.
+Digest measurement and acceptance/download tests are therefore inapplicable
+for these refused entries. This follows the refusal branch of #882.
+
+The [sat-3l card](https://huggingface.co/segment-any-text/sat-3l/blob/a3b7ba6b61881d619989757aea971cde7d3d6a98/README.md)
+also retains MIT. Its mC4-only training leaves it the permissive SaT option
+under the existing class rule; runtime use remains gated on limited lookahead
+in #887. The older `-sm` parity measurements below remain historical evidence,
+not approval to distribute the checkpoint or a bundle built from it.
 
 `bundle/recipes/sat-1l-sm.json` seals `sat-1l-sm` with BAAI/bge-m3's
 `tokenizer.json` at revision `5617a9f61b028005a4858fdac845db406aefb181`,
