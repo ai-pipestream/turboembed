@@ -6,9 +6,11 @@ extraction heads without Python, ONNX or an external inference engine.
 
 This CPU implementation establishes the equations and the checkpoint
 boundary. On top of it now sit the GLiNER span heads (`turbo-gliner`),
-the GLiREL relation scorer (`turbo-relation`), GLiNER2 schema decoding
-(`turbo-schema-extract`) and SaT (`turbo-sat`); the span and schema
-work in #714 and #715 is built on this encoder.
+the GLiREL relation scorer (`turbo-relation`) and GLiNER2 schema
+decoding (`turbo-schema-extract`); the span and schema work in #714
+and #715 is built on this encoder. SaT (`turbo-sat`) is separate: it
+runs on the generic encoder token-state path with an XLM-R/RoBERTa
+bundle, not on this DeBERTa encoder.
 
 ## Supported computation
 
