@@ -23,6 +23,7 @@
 //! into `tres` and `millonesimo`). Spans stay those of the text as written.
 
 use crate::dec::Dec;
+use turbo_unicode::whitespace::WhitespaceMode;
 
 use super::numeral::{NumeralStyle, Reading, digits_end};
 
@@ -117,11 +118,6 @@ fn is_word_char(c: char) -> bool {
     turbo_unicode::props::alphabetic(c) || turbo_unicode::category::general_category(c).is_mark()
 }
 
-/// Whether ASCII byte `b` is `White_Space`.
-fn ascii_space(b: u8) -> bool {
-    matches!(b, b' ' | b'\t'..=b'\r')
-}
-
 /// The character at byte `i`, which is a character boundary.
 fn char_at(text: &str, i: usize) -> char {
     let b = text.as_bytes()[i];
@@ -133,13 +129,13 @@ fn chunk_end(text: &str, mut i: usize) -> usize {
     let b = text.as_bytes();
     while i < b.len() {
         if b[i] < 0x80 {
-            if ascii_space(b[i]) {
+            if WhitespaceMode::Unicode.is_ascii_whitespace(b[i]) {
                 return i;
             }
             i += 1;
         } else {
             let c = char_at(text, i);
-            if turbo_unicode::props::white_space(c) {
+            if WhitespaceMode::Unicode.is_whitespace(c as u32) {
                 return i;
             }
             i += c.len_utf8();
@@ -182,7 +178,7 @@ impl Lexed {
         let mut plain_until = 0;
         while i < b.len() {
             let c = char_at(text, i);
-            if if c.is_ascii() { ascii_space(b[i]) } else { turbo_unicode::props::white_space(c) } {
+            if WhitespaceMode::Unicode.is_whitespace(c as u32) {
                 i += c.len_utf8();
                 glued = false;
                 continue;
