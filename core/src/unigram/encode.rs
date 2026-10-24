@@ -46,11 +46,15 @@ impl Unigram {
         }
     }
 
-    /// `encode` after a WhitespaceSplit: the normalized text is cut at
-    /// each whitespace character, which is dropped, and each word, with
-    /// the metaspace in front, is cut at each metaspace as `encode` cuts.
+    /// `encode` after a WhitespaceSplit.
     fn encode_words<S: Sink>(&self, text: &str, base: usize, piece: &str, out: &mut S) {
-        let chars = self.normalized_chars(piece, base);
+        self.split_words(text, &self.normalized_chars(piece, base), out);
+    }
+
+    /// Normalized characters, each with its source in `text`, cut at
+    /// each whitespace character, which is dropped; each word, with the
+    /// metaspace in front, is cut at each metaspace as `encode` cuts.
+    pub(super) fn split_words<S: Sink>(&self, text: &str, chars: &[(char, Span)], out: &mut S) {
         let (mut s, mut sources, mut best) = (String::new(), Vec::new(), Vec::new());
         for word in chars.split(|(c, _)| c.is_whitespace()).filter(|w| !w.is_empty()) {
             s.clear();

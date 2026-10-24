@@ -16,7 +16,14 @@ const MASK: i64 = 28232;
 /// BGE-M3's tokenizer.json in xlm-roberta-base's form, written once per
 /// process.
 fn tokenizer_json() -> PathBuf {
-    let path = std::env::temp_dir().join(format!("turbo-xlmr-tokenizer-{}.json", std::process::id()));
+    xlmr_json(false)
+}
+
+/// The same, with `<mask>` matched in the normalized text when
+/// `normalized_mask`.
+fn xlmr_json(normalized_mask: bool) -> PathBuf {
+    let name = format!("turbo-xlmr-tokenizer-{}-{}.json", normalized_mask, std::process::id());
+    let path = std::env::temp_dir().join(name);
     if !path.exists() {
         let raw = std::fs::read(testdata().join("bge-m3/tokenizer.json")).unwrap();
         let mut j: Value = serde_json::from_slice(&raw).unwrap();
@@ -33,6 +40,10 @@ fn tokenizer_json() -> PathBuf {
                 { "type": "Metaspace", "replacement": "\u{2581}", "add_prefix_space": true }
             ]
         });
+        if normalized_mask {
+            let mask = j["added_tokens"].as_array_mut().unwrap().iter_mut().find(|t| t["content"] == "<mask>");
+            mask.unwrap()["normalized"] = json!(true);
+        }
         let tmp = path.with_extension(format!("{:?}.tmp", std::thread::current().id()));
         std::fs::write(&tmp, serde_json::to_vec(&j).unwrap()).unwrap();
         std::fs::rename(&tmp, &path).unwrap();
@@ -109,6 +120,13 @@ fn fixture(name: &str) -> Fixture {
     Fixture::with_tokenizer(&format!("xlmr-{name}"), manifest_xlmr(), &tokenizer_json())
 }
 
+/// With `<mask>` normalized, plain text takes the added-token path.
+fn fixture_normalized_mask(name: &str) -> Fixture {
+    let mut m = manifest_xlmr();
+    m["tokenizer"]["special_tokens"][4]["normalized"] = json!(true);
+    Fixture::with_tokenizer(&format!("xlmr-{name}"), m, &xlmr_json(true))
+}
+
 fn whole() -> turbo::tokenizer::Encode {
     turbo::tokenizer::Encode {
         add_special_tokens: true,
@@ -131,11 +149,14 @@ fn trimmed(text: &str, span: [u32; 2]) -> [u32; 2] {
 
 #[test]
 fn ids_match_upstream() {
-    let f = fixture("ids");
-    let tok = f.open().expect("tokenizer loads");
-    let up = upstream_at(&tokenizer_json());
-    for text in texts() {
-        assert_eq!(tok.row(&text, None).unwrap(), upstream_ids(&up, &text), "text {text:?}");
+    for normalized_mask in [false, true] {
+        let f = if normalized_mask { fixture_normalized_mask("ids-nm") } else { fixture("ids") };
+        let tok = f.open().expect("tokenizer loads");
+        let up = upstream_at(&xlmr_json(normalized_mask));
+        for text in texts() {
+            let want = upstream_ids(&up, &text);
+            assert_eq!(tok.row(&text, None).unwrap(), want, "normalized mask {normalized_mask}: text {text:?}");
+        }
     }
 }
 
@@ -144,11 +165,17 @@ fn ids_match_upstream() {
 /// core's then covers the cluster.
 #[test]
 fn spans_match_upstream_offsets() {
+    for normalized_mask in [false, true] {
+        let f = if normalized_mask { fixture_normalized_mask("spans-nm") } else { fixture("spans") };
+        spans_match(&f, &xlmr_json(normalized_mask));
+    }
+}
+
+fn spans_match(f: &Fixture, file: &Path) {
     use unicode_segmentation::UnicodeSegmentation;
-    let f = fixture("spans");
     f.write();
     let tok = turbo::tokenizer::Tokenizer::load(&turbo::bundle::Bundle::open(&f.dir).unwrap()).unwrap();
-    let mut up = upstream_at(&tokenizer_json());
+    let mut up = upstream_at(file);
     up.with_truncation(None).unwrap();
     for text in texts() {
         let (mut ids, mut spans) = (Vec::new(), Vec::new());
