@@ -55,6 +55,7 @@ fn sentiment_family_refusals() {
         &Key::DEFAULT,
         Numbers {
             spans: spans(&[(0, 5)]),
+            numeral_start: vec![0],
             numeral_end: vec![5],
             negative: vec![false],
             coefficient: strs(&["42"]),
