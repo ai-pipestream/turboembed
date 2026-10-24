@@ -17,6 +17,8 @@ mod candidate;
 #[cfg(all(test, target_arch = "x86_64"))]
 mod candidate_tests;
 mod extended;
+#[cfg(test)]
+mod prefix_tests;
 
 pub(crate) use extended::{EXTENDED_START_BYTES, is_nd_at, next_candidate_pos, utf8_char_width};
 use turbo_analysis_layers::{Multiplier, NumberNotation, ScaleMarker};
