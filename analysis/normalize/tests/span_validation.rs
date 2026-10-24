@@ -54,9 +54,7 @@ fn both_annotators_refuse_invalid_spans_without_panicking() {
         vec![Span::new(0, 99)],
         vec![Span::new(1, 2)],
         vec![Span::new(0, 1)],
-        vec![Span::new(0, 4), Span::new(3, 6)],
         vec![Span::new(3, 4), Span::new(3, 4)],
-        vec![Span::new(5, 6), Span::new(3, 4)],
     ] {
         let mut sentences = Sentences { spans: Spans::new(view.id()) };
         let mut tokens = Tokens { spans: Spans::new(view.id()), sentence: None };
@@ -65,7 +63,7 @@ fn both_annotators_refuse_invalid_spans_without_panicking() {
             tokens.spans.push(span);
         }
         assert!(correct(view, &sentences).is_err());
-        assert!(SymbolJoiner.annotate((view, &tokens)).is_err());
+        assert!(SymbolJoiner::new().annotate((view, &tokens)).is_err());
     }
 }
 
@@ -76,11 +74,56 @@ fn both_annotators_refuse_foreign_views_and_discontinuous_items() {
     let sentences = Sentences { spans: Spans::new(ViewId(7)) };
     let tokens = Tokens { spans: Spans::new(ViewId(7)), sentence: None };
     assert!(correct(view, &sentences).is_err());
-    assert!(SymbolJoiner.annotate((view, &tokens)).is_err());
+    assert!(SymbolJoiner::new().annotate((view, &tokens)).is_err());
     let mut sentences = Sentences { spans: Spans::new(view.id()) };
     let mut tokens = Tokens { spans: Spans::new(view.id()), sentence: None };
     sentences.spans.push_fragments(&[Span::new(0, 1), Span::new(2, 3)]);
     tokens.spans.push_fragments(&[Span::new(0, 1), Span::new(2, 3)]);
     assert!(correct(view, &sentences).is_err());
-    assert!(SymbolJoiner.annotate((view, &tokens)).is_err());
+    assert!(SymbolJoiner::new().annotate((view, &tokens)).is_err());
+}
+
+#[test]
+fn symbol_joiner_preserves_valid_cut_emoji_tokens() {
+    use turbo_analysis::Layer;
+    let doc = Document::new("&\u{1f600}.");
+    let view = doc.get::<View>().unwrap();
+    let mut spans = Spans::new(view.id());
+    spans.push(Span::new(0, 5));
+    spans.push(Span::new(1, 6));
+    let tokens = Tokens { spans, sentence: None };
+    tokens.check().unwrap();
+    let (out, mapped) = SymbolJoiner::new().annotate((view, &tokens)).unwrap();
+    assert_eq!(out.text(), view.text());
+    assert_eq!(mapped.spans.iter().map(|(_, s)| s).collect::<Vec<_>>(), vec![Span::new(0, 5), Span::new(1, 6)]);
+    for (_, span) in mapped.spans.iter() {
+        assert_eq!(out.alignment().span_to_parent(span), span);
+    }
+}
+
+#[test]
+fn symbol_joiner_sorts_writes_without_reordering_token_spans() {
+    let doc = Document::new("& +");
+    let view = doc.get::<View>().unwrap();
+    let mut spans = Spans::new(view.id());
+    spans.push(Span::new(2, 3));
+    spans.push(Span::new(0, 1));
+    let (out, mapped) = SymbolJoiner::new().annotate((view, &Tokens { spans, sentence: None })).unwrap();
+    assert_eq!(out.text(), "and plus");
+    assert_eq!(mapped.spans.iter().map(|(_, s)| s).collect::<Vec<_>>(), vec![Span::new(4, 8), Span::new(0, 3)]);
+    assert_eq!(out.alignment().span_to_parent(Span::new(4, 8)), Span::new(2, 3));
+    assert_eq!(out.alignment().span_to_parent(Span::new(0, 3)), Span::new(0, 1));
+}
+
+#[test]
+fn sentence_order_validation_remains_stricter_than_token_order() {
+    let doc = Document::new("é & +");
+    let view = doc.get::<View>().unwrap();
+    for raw in [[Span::new(0, 4), Span::new(3, 6)], [Span::new(5, 6), Span::new(3, 4)]] {
+        let mut spans = Spans::new(view.id());
+        for span in raw {
+            spans.push(span);
+        }
+        assert!(correct(view, &Sentences { spans }).is_err());
+    }
 }
