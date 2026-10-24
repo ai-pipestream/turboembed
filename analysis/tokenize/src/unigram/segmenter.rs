@@ -107,14 +107,14 @@ impl UnigramSegmenter {
         // ASCII alphanumerics are atomic even if individual letters or
         // digits occur in the lexicon. Non-ASCII spans retain dictionary DP.
         let part = &text[stretch.range()];
-        let ascii = |b: u8| is_ascii_alnum(char::from(b));
-        let bytes = part.as_bytes();
-        // Most corpus stretches have no ASCII run to separate. Test bytes
-        // without decoding UTF-8, then take the ordinary dictionary path.
-        if !bytes.iter().copied().any(ascii) {
-            self.decode_run(text, stretch, scratch, out);
+        // Find ASCII while collecting the characters the dictionary DP
+        // already needs, without another scan of the common non-ASCII run.
+        if !Self::prepare::<true>(part, scratch) {
+            self.decode_run(text, stretch, scratch, out, true);
             return;
         }
+        let ascii = |b: u8| is_ascii_alnum(char::from(b));
+        let bytes = part.as_bytes();
         let mut start = 0;
         while start < bytes.len() {
             let grouped = ascii(bytes[start]);
@@ -123,22 +123,25 @@ impl UnigramSegmenter {
             if grouped {
                 out.push(span);
             } else {
-                self.decode_run(text, span, scratch, out);
+                self.decode_run(text, span, scratch, out, false);
             }
             start += len;
         }
     }
 
-    fn decode_run(&self, text: &str, span: Span, scratch: &mut Scratch, out: &mut Vec<Span>) {
+    fn decode_run(&self, text: &str, span: Span, scratch: &mut Scratch, out: &mut Vec<Span>, prepared: bool) {
+        if !prepared {
+            Self::prepare::<false>(&text[span.range()], scratch);
+        }
         if self.mode != UnigramMode::Chinese {
-            self.decode(text, span, scratch, out);
+            self.decode_prepared(span, scratch, out);
             return;
         }
         // Only the HMM needs the intermediate dictionary words. The other
         // modes append directly to the caller's output, without a copy.
         let mut raw = std::mem::take(&mut scratch.raw);
         raw.clear();
-        self.decode(text, span, scratch, &mut raw);
+        self.decode_prepared(span, scratch, &mut raw);
         scratch.raw = raw;
         self.unknown_words(text, span.start, scratch, out);
     }
@@ -191,15 +194,26 @@ impl UnigramSegmenter {
     /// takes the whole pair, and a word is whole characters), so it skips
     /// them, and visiting only character boundaries changes nothing.
     fn decode(&self, text: &str, stretch: Span, scratch: &mut Scratch, out: &mut Vec<Span>) {
-        let part = &text[stretch.range()];
-        let Scratch { chars, offsets, best, previous, .. } = scratch;
+        Self::prepare::<false>(&text[stretch.range()], scratch);
+        self.decode_prepared(stretch, scratch, out);
+    }
+
+    fn prepare<const CHECK_ASCII: bool>(part: &str, scratch: &mut Scratch) -> bool {
+        let Scratch { chars, offsets, .. } = scratch;
         chars.clear();
         offsets.clear();
+        let mut ascii = false;
         for (i, c) in part.char_indices() {
             chars.push(c);
             offsets.push(i as u32);
+            ascii |= CHECK_ASCII && is_ascii_alnum(c);
         }
         offsets.push(part.len() as u32);
+        ascii
+    }
+
+    fn decode_prepared(&self, stretch: Span, scratch: &mut Scratch, out: &mut Vec<Span>) {
+        let Scratch { chars, offsets, best, previous, .. } = scratch;
         let n = chars.len();
         best.clear();
         best.resize(n + 1, f64::NEG_INFINITY);
