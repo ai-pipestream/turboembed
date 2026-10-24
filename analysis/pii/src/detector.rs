@@ -104,9 +104,10 @@ impl Pack {
 /// Runs scanners over a text and writes their mentions in OpenNLP's
 /// order. A detector over several scanners is a `CompositePiiExtractor`:
 /// candidates of all of them are ordered together, and ties keep the
-/// scanner order. By default, a candidate strictly nested inside a
-/// longer candidate is dropped; [`PiiDetector::keeping_nested`] keeps it
-/// for OpenNLP parity.
+/// scanner order. By default, any candidate that overlaps an earlier
+/// accepted candidate is dropped so mentions are disjoint;
+/// [`PiiDetector::keeping_nested`] keeps overlapping candidates for
+/// OpenNLP parity.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PiiDetector {
     scanners: Vec<Scanner>,
@@ -130,14 +131,13 @@ impl PiiDetector {
         PiiDetector::new(vec![Scanner::all(Extractor::Cursor)])
     }
 
-    /// This detector, keeping mentions strictly nested inside a longer
-    /// mention as OpenNLP does.
+    /// This detector, keeping overlapping mentions as OpenNLP does.
     pub fn keeping_nested(mut self) -> PiiDetector {
         self.keep_nested = true;
         self
     }
 
-    /// Whether mentions strictly nested inside a longer mention are kept.
+    /// Whether overlapping mentions are kept.
     pub const fn keeps_nested(&self) -> bool {
         self.keep_nested
     }

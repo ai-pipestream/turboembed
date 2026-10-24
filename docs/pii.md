@@ -75,13 +75,11 @@ columns `spans` (UTF-8 byte offsets into the view, on character
 boundaries), `kind`, `confidence` and `normalized`. Mentions are ordered
 by start, then longer first, then by kind rank; equal mentions (span,
 kind and normalized form) appear once, the first found kept. By default,
-a mention strictly nested inside a longer mention (such as a phone or
-card inside a grouped IBAN, or an NHS number inside an international
-phone number) is dropped; `PiiDetector::keeping_nested` keeps it for
-OpenNLP parity. Mentions of different kinds may still share an exact
-span or cross each other: an IMEI after its label is also a Luhn-valid
-card number, and `https://user:pass@example.com` has a URL credential
-crossing an e-mail address. `Pii::check` holds a layer to this order.
+any mention that overlaps an earlier accepted mention (whether strictly
+nested, sharing the same span with a lower-ranked kind, or crossing its
+end) is dropped so `PiiDetector` produces disjoint spans that can be
+rewritten directly; `PiiDetector::keeping_nested` keeps overlapping
+mentions for OpenNLP parity. `Pii::check` holds a layer to this order.
 
 The kinds, in rank order (`PiiKind::ALL`, `PiiKind::rank`), with the
 normalized form and the confidence each gets:
@@ -209,12 +207,13 @@ spans over multi-byte texts, and that the text equals `mask`.
   custom `CharSequence`) are not ported. Their ordering and masking cases
   are ported with built-in kinds.
 - `PiiConfidence` is added (above).
-- By default, `PiiDetector` drops a mention whose span lies strictly
-  inside a longer mention, so trailing groups of a grouped IBAN are not
-  also reported as a phone or card and ten digits inside an
-  international phone number are not also reported as an NHS number.
-  `PiiDetector::keeping_nested` keeps nested mentions as OpenNLP does;
-  the golden and differential parity checks use it.
+- By default, `PiiDetector` drops any mention whose span overlaps an
+  earlier accepted mention (strictly nested, same-span lower-ranked
+  kind, or crossing), so the resulting `Pii` layer can always be passed
+  to `Pseudonymizer::rewrite` and `HmacTokenizer::rewrite` without
+  `RewriteError::Overlap`. `PiiDetector::keeping_nested` keeps
+  overlapping mentions as OpenNLP does; the golden and differential
+  parity checks use it.
 
 ## OpenNLP behaviour kept
 
@@ -234,8 +233,9 @@ them.
   `+44 (0)20 7946 0123` gives `+44 (0)20 7946`, normalized `+440207946`,
   because the trunk `0` counts as a digit.
 - Ten digits grouped `ddd ddd dddd` on the same span that pass the NHS
-  mod 11 check are both an NHS number and a phone number in the wide
-  pack.
+  mod 11 check are an NHS number by default (`uk-nhs` ranks ahead of
+  `phone`), and both an NHS number and a phone number in
+  `PiiDetector::keeping_nested`.
 
 ## Fixtures
 
@@ -306,15 +306,15 @@ reports rather than layers.
 labelled set made from a fixed seed (40 values of every kind built to
 pass their checks, each in a sentence, and near misses of the
 checksummed kinds with no label) together with OpenNLP's golden true and
-false positive corpora: 1112 texts, 720 labels made in the test. A found
+false positive corpora: 1112 texts, 680 labels made in the test. A found
 mention is true when a label has its span and kind; every other found
 mention is false.
 
 | | true | false | missed | precision | recall |
 |---|---|---|---|---|---|
-| all kinds | 744 | 40 | 0 | 0.949 | 1.000 |
-| `phone` | 122 | 40 | 0 | 0.753 | 1.000 |
-| every other kind | 622 | 0 | 0 | 1.000 | 1.000 |
+| all kinds | 701 | 40 | 0 | 0.946 | 1.000 |
+| `phone` | 81 | 40 | 0 | 0.669 | 1.000 |
+| every other kind | 620 | 0 | 0 | 1.000 | 1.000 |
 
 The false mentions are a phone in each near miss NHS number (ten grouped
 digits are a phone shape); phones and cards nested inside grouped IBANs

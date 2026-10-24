@@ -71,8 +71,8 @@ fn the_wide_pack_keeps_every_mention_of_the_narrow_ones() {
             assert!(wide_parity.contains(&row), "{}: {row:?}", p.name());
         }
         for row in rows(&pack(p), &text) {
-            let nested = wide_default.iter().any(|w| w.0 <= row.0 && row.1 <= w.1 && (w.0 < row.0 || row.1 < w.1));
-            assert!(wide_default.contains(&row) || nested, "{}: {row:?}", p.name());
+            let overlapped = wide_default.iter().any(|w| w.0 < row.1 && row.0 < w.1);
+            assert!(wide_default.contains(&row) || overlapped, "{}: {row:?}", p.name());
         }
     }
 }
@@ -132,7 +132,8 @@ fn packs_join() {
     assert_eq!(rows(&joined(&[Pack::Contact, Pack::Contact]), text), rows(&pack(Pack::Contact), text));
     let text = "record 943 476 5919 today";
     assert_eq!(kinds(&pack(Pack::Contact), text), ["phone"]);
-    assert_eq!(kinds(&wide(), text), ["uk-nhs", "phone"]);
+    assert_eq!(kinds(&wide(), text), ["uk-nhs"]);
+    assert_eq!(kinds(&wide().keeping_nested(), text), ["uk-nhs", "phone"]);
 }
 
 #[test]
@@ -140,7 +141,12 @@ fn an_imei_is_also_a_card_in_either_order() {
     for order in [[Pack::Payment, Pack::Device], [Pack::Device, Pack::Payment]] {
         let text = "IMEI: 490154203237518.";
         let d = joined(&order);
-        assert_found(&d, text, &[(6, 21, "imei", "490154203237518"), (6, 21, "card", "490154203237518")]);
+        assert_found(&d, text, &[(6, 21, "imei", "490154203237518")]);
+        assert_found(
+            &d.clone().keeping_nested(),
+            text,
+            &[(6, 21, "imei", "490154203237518"), (6, 21, "card", "490154203237518")],
+        );
         assert_eq!(mask_all(text, &layer(&d, text), '*').unwrap(), "IMEI: ***************.");
     }
 }
@@ -174,8 +180,8 @@ fn crossing_mentions_are_kept_and_masked() {
             let start = text.find(address).unwrap() as u32;
             let want = (start, start + address.len() as u32, "email", address.to_owned());
             assert!(rows(&pack(Pack::Contact), &text).contains(&want), "{text}");
-            assert!(rows(&wide(), &text).contains(&want), "{text}");
-            let masked = mask_all(&text, &layer(&wide(), &text), '*').unwrap();
+            assert!(rows(&wide().keeping_nested(), &text).contains(&want), "{text}");
+            let masked = mask_all(&text, &layer(&wide().keeping_nested(), &text), '*').unwrap();
             assert_eq!(&masked[want.0 as usize..want.1 as usize], "*".repeat(address.len()));
         }
     }
@@ -330,14 +336,17 @@ fn golden_true_positives() {
         let got_parity: Vec<(u32, u32, String, String)> =
             rows(&wide().keeping_nested(), &text).into_iter().map(|r| (r.0, r.1, r.2.to_owned(), r.3)).collect();
         assert_eq!(got_parity, want, "{text}");
-        let unnested: Vec<(u32, u32, String, String)> = want
-            .iter()
-            .filter(|m| !want.iter().any(|o| o.0 <= m.0 && m.1 <= o.1 && (o.0 < m.0 || m.1 < o.1)))
-            .cloned()
-            .collect();
+        let mut disjoint = Vec::new();
+        let mut outer_end = 0;
+        for m in &want {
+            if m.0 >= outer_end {
+                outer_end = outer_end.max(m.1);
+                disjoint.push(m.clone());
+            }
+        }
         let got: Vec<(u32, u32, String, String)> =
             rows(&wide(), &text).into_iter().map(|r| (r.0, r.1, r.2.to_owned(), r.3)).collect();
-        assert_eq!(got, unnested, "{text}");
+        assert_eq!(got, disjoint, "{text}");
     }
 }
 
@@ -356,5 +365,8 @@ fn golden_false_positives() {
 fn layers_pass_their_check() {
     let pii = layer(&wide(), &everything());
     assert_eq!(pii.check(), Ok(()));
-    assert!(pii.mentions().count() > 20);
+    assert!(pii.mentions().count() >= 19);
+    let parity = layer(&wide().keeping_nested(), &everything());
+    assert_eq!(parity.check(), Ok(()));
+    assert!(parity.mentions().count() > 20);
 }

@@ -177,8 +177,7 @@ fn synthetic(seed: u64, per_kind: usize) -> Vec<Labelled> {
         out.push(Labelled { text: format!("SSN 666-{}", &ssn[4..]), labels: vec![] });
 
         let n = nhs(r);
-        // Ten digits in groups are also a phone number.
-        out.push(placed(r, "NHS ", &grouped3_3_4(&n), &["uk-nhs", "phone"]));
+        out.push(placed(r, "NHS ", &grouped3_3_4(&n), &["uk-nhs"]));
         out.push(Labelled { text: format!("NHS {}", grouped3_3_4(&bump_last_digit(&n))), labels: vec![] });
 
         let sin = with_luhn(&format!("0{}", r.digits(7)));
@@ -221,8 +220,15 @@ fn corpora() -> Vec<Labelled> {
         }
     }
     for l in &mut out {
-        let all = l.labels.clone();
-        l.labels.retain(|m| !all.iter().any(|o| o.0 <= m.0 && m.1 <= o.1 && (o.0 < m.0 || m.1 < o.1)));
+        l.labels.sort_by_key(|m| (m.0, std::cmp::Reverse(m.1), PiiKind::parse(m.2).expect("a kind")));
+        let mut outer_end = 0;
+        l.labels.retain(|m| {
+            if m.0 < outer_end {
+                return false;
+            }
+            outer_end = outer_end.max(m.1);
+            true
+        });
     }
     out.extend(fixtures("golden-false-positives.txt").into_iter().map(|text| Labelled { text, labels: vec![] }));
     out
@@ -295,12 +301,12 @@ fn precision_and_recall_on_the_synthetic_set() {
         total.fp,
         total.fn_
     );
-    assert!(labels_made > 700, "{labels_made} labels");
+    assert!(labels_made >= 680, "{labels_made} labels");
     assert!(precision >= PRECISION_FLOOR, "precision {precision:.4}");
     assert!(recall >= RECALL_FLOOR, "recall {recall:.4}");
 }
 
-/// The measured totals are precision 0.9490 and recall 1.0. The false
+/// The measured totals are precision 0.9460 and recall 1.0. The false
 /// mentions are a phone in each near miss NHS number (ten grouped digits
 /// are a phone shape); phones and cards nested inside grouped IBANs and
 /// NHS numbers nested inside US phones are dropped by default.

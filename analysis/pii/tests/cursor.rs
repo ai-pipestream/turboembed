@@ -342,9 +342,10 @@ fn two_cards_split_by_a_space() {
 }
 
 #[test]
-fn separated_card_back_off_keeps_the_phone_inside() {
+fn separated_card_back_off_keeps_the_phone_inside_in_parity() {
+    assert_found(&cursor(), "Card 4111 1111 1111 1111 123 on file", &[(5, 24, "card", "4111111111111111")]);
     assert_found(
-        &cursor(),
+        &cursor().keeping_nested(),
         "Card 4111 1111 1111 1111 123 on file",
         &[(5, 24, "card", "4111111111111111"), (15, 28, "phone", "11111111123")],
     );

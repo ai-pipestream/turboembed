@@ -45,8 +45,8 @@ pub struct PiiRewrite {
 
 impl PiiRewrite {
     /// Replaces each mention with the label `label` writes for it, in
-    /// text order. The mentions must lie in `text` and not overlap; their
-    /// order does not matter.
+    /// text order. The mentions must be non-empty, lie in `text`, and not
+    /// overlap; their order does not matter.
     pub(crate) fn replace<'a>(
         text: &str,
         mentions: impl IntoIterator<Item = PiiMention<'a>>,
@@ -55,7 +55,7 @@ impl PiiRewrite {
         let mut ordered: Vec<PiiMention<'a>> = mentions.into_iter().collect();
         for m in &ordered {
             let (start, end) = (m.span.start as usize, m.span.end as usize);
-            if start > end || end > text.len() || !text.is_char_boundary(start) || !text.is_char_boundary(end) {
+            if start >= end || end > text.len() || !text.is_char_boundary(start) || !text.is_char_boundary(end) {
                 return Err(RewriteError::Span(m.span));
             }
         }
@@ -74,6 +74,9 @@ impl PiiRewrite {
             out.push_str(&text[copied..start]);
             buf.clear();
             label(m, &mut buf);
+            if buf.is_empty() {
+                return Err(RewriteError::EmptyValue(m.span));
+            }
             let from = out.len() as u32;
             out.push_str(&buf);
             let to = out.len() as u32;
@@ -139,5 +142,40 @@ impl PiiRewrite {
             return if towards_start { label.start } else { label.end };
         }
         (i64::from(offset) + self.shifts[p]) as u32
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use turbo_analysis::Layer;
+    use turbo_analysis_layers::{PiiConfidence, PiiKind};
+
+    #[test]
+    fn replace_rejects_empty_spans_and_empty_labels_and_keeps_labels_valid() {
+        let empty_span = PiiMention {
+            span: Span::new(3, 3),
+            kind: PiiKind::Email,
+            confidence: PiiConfidence::Format,
+            normalized: "a@b.com",
+        };
+        assert_eq!(
+            PiiRewrite::replace("0123456789", [empty_span], |_, buf| buf.push_str("EMAIL-1")).err(),
+            Some(RewriteError::Span(Span::new(3, 3)))
+        );
+
+        let valid = PiiMention {
+            span: Span::new(3, 6),
+            kind: PiiKind::Email,
+            confidence: PiiConfidence::Format,
+            normalized: "a@b.com",
+        };
+        assert_eq!(
+            PiiRewrite::replace("0123456789", [valid], |_, _| {}).err(),
+            Some(RewriteError::EmptyValue(Span::new(3, 6)))
+        );
+
+        let ok = PiiRewrite::replace("0123456789", [valid], |_, buf| buf.push_str("EMAIL-1")).unwrap();
+        assert_eq!(ok.labels().check(), Ok(()));
     }
 }
