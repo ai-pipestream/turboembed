@@ -310,7 +310,7 @@ fn is_title(text: &str) -> bool {
 /// Python's `str.isspace`: the White_Space property, and the separators
 /// U+001C to U+001F, which Python also counts.
 fn is_space(text: &str) -> bool {
-    !text.is_empty() && all(text, |c| props::white_space(c) || ('\u{1c}'..='\u{1f}').contains(&c))
+    !text.is_empty() && all(text, turbo_unicode::whitespace::is_python_space)
 }
 
 fn digits(text: &str) -> bool {
