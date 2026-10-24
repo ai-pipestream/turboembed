@@ -285,15 +285,24 @@ fn labels_name_the_kind_and_point_into_the_new_text() {
 }
 
 #[test]
-fn rewrites_refuse_overlaps_empty_spans_and_spans_off_the_text() {
+fn rewrites_coalesce_detector_clusters_and_refuse_invalid_or_reversed_overlaps() {
     let text = "https://john:pass@example.com/path";
-    let disjoint = layer(&wide(), text);
-    assert_found(&wide(), text, &[(8, 17, "url-credential", "john:pass")]);
-    let pseudo = Pseudonymizer::default().rewrite(text, &disjoint).unwrap();
-    assert_eq!(pseudo.text(), "https://URL-CREDENTIAL-1@example.com/path");
+    let detected = layer(&wide(), text);
+    assert_found(&wide(), text, &[(8, 17, "url-credential", "john:pass"), (13, 29, "email", "pass@example.com")]);
+    assert_eq!(mask_all(text, &detected, '*').unwrap(), format!("https://{}/path", "*".repeat(21)));
+    let pseudo = Pseudonymizer::default().rewrite(text, &detected).unwrap();
+    assert_eq!(pseudo.text(), "https://URL-CREDENTIAL-1/path");
     assert_eq!(pseudo.labels().check(), Ok(()));
-    let hmac = tokenizer().rewrite(text, &disjoint).unwrap();
+    let hmac = tokenizer().rewrite(text, &detected).unwrap();
+    assert!(!hmac.text().contains("@example.com"), "{}", hmac.text());
     assert_eq!(hmac.labels().check(), Ok(()));
+
+    let card_phone = "Card 4111 1111 1111 1111 123 on file";
+    let cp_layer = layer(&wide(), card_phone);
+    assert_eq!(mask_all(card_phone, &cp_layer, '*').unwrap(), "Card *********************** on file");
+    let cp_pseudo = Pseudonymizer::default().rewrite(card_phone, &cp_layer).unwrap();
+    assert_eq!(cp_pseudo.text(), "Card CARD-1 on file");
+    assert_eq!(cp_pseudo.labels().check(), Ok(()));
 
     for same_span in ["record 943 476 5919 today", "IMEI: 490154203237518."] {
         let pii = layer(&wide(), same_span);
@@ -303,16 +312,15 @@ fn rewrites_refuse_overlaps_empty_spans_and_spans_off_the_text() {
         assert_eq!(hmac.labels().check(), Ok(()));
     }
 
-    let crossing = layer(&wide().keeping_nested(), text);
-    assert_found(
-        &wide().keeping_nested(),
-        text,
-        &[(8, 17, "url-credential", "john:pass"), (13, 29, "email", "pass@example.com")],
-    );
+    let reversed_overlap =
+        manual(&[(13, 29, PiiKind::Email, "pass@example.com"), (8, 17, PiiKind::UrlCredential, "john:pass")]);
+    assert_eq!(Pseudonymizer::default().rewrite(text, &reversed_overlap).unwrap().text(), "https://URL-CREDENTIAL-1/path");
     let overlap = Err(RewriteError::Overlap(Span::new(8, 17), Span::new(13, 29)));
-    assert_eq!(Pseudonymizer::default().rewrite(text, &crossing).map(|r| r.into_text()), overlap.clone());
-    assert_eq!(tokenizer().rewrite(text, &crossing).map(|r| r.into_text()), overlap);
-    assert_eq!(mask_all(text, &crossing, '*').unwrap(), format!("https://{}/path", "*".repeat(21)));
+    assert_eq!(
+        Pseudonymizer::default().refusing_overlaps().rewrite(text, &detected).map(|r| r.into_text()),
+        overlap.clone()
+    );
+    assert_eq!(tokenizer().refusing_overlaps().rewrite(text, &detected).map(|r| r.into_text()), overlap);
 
     for empty in [
         manual(&[(5, 5, PiiKind::Email, "a@b.com")]),

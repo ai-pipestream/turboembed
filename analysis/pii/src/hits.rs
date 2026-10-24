@@ -1,7 +1,7 @@
 //! Candidates and their order, OpenNLP's `Hits`: by start, longer first,
 //! then by kind rank, then in the order they were found; equal mentions
-//! once, the first kept. By default, any candidate that overlaps an
-//! earlier accepted candidate is dropped; OpenNLP parity mode keeps it.
+//! once, the first kept. By default, a candidate strictly nested inside a
+//! longer candidate is dropped; OpenNLP parity mode keeps it.
 
 use std::cmp::Reverse;
 use std::ops::Range;
@@ -57,9 +57,8 @@ impl Hits {
     /// Orders the candidates (a stable sort keeps the finding order of
     /// ties) and writes each distinct mention to `out`. Equal mentions
     /// share a span, so they sit in one run of that span. When
-    /// `keep_nested` is `false`, any candidate that overlaps an earlier
-    /// accepted candidate's span is dropped so the resolved mentions are
-    /// disjoint.
+    /// `keep_nested` is `false`, any candidate whose span lies strictly
+    /// inside an earlier, longer candidate's span is dropped.
     pub(crate) fn resolve(mut self, keep_nested: bool, out: &mut Pii) {
         self.hits.sort_by_key(|h| (h.start, Reverse(h.end), h.kind));
         let mut run_start = 0;
@@ -72,7 +71,9 @@ impl Hits {
                     run_start = i;
                 }
             }
-            if !keep_nested && outer.is_some_and(|(_, oe)| h.start < oe) {
+            if !keep_nested
+                && outer.is_some_and(|(os, oe)| os <= h.start && h.end <= oe && (os < h.start || h.end < oe))
+            {
                 continue;
             }
             if outer.is_none_or(|(_, oe)| h.end > oe) {
@@ -150,8 +151,10 @@ mod tests {
     }
 
     #[test]
-    fn overlapping_candidates_drop_by_default_and_stay_when_keeping_nested() {
+    fn nested_candidates_drop_by_default_and_same_or_crossing_spans_stay() {
         use PiiKind::*;
+        // Prefix, interior and suffix spans inside 2..10 drop; a second
+        // kind on 2..10 and a crossing span 8..14 stay.
         let adds = [
             (2, 10, Iban, "iban"),
             (2, 10, Card, "same-span"),
@@ -160,21 +163,10 @@ mod tests {
             (4, 10, UkNhs, "suffix"),
             (8, 14, Email, "crossing"),
             (9, 12, Phone, "inside-crossing"),
-            (14, 18, Ipv4, "disjoint"),
         ];
-        assert_eq!(resolved_with(false, &adds), [row(2, 10, Iban, "iban"), row(14, 18, Ipv4, "disjoint")]);
         assert_eq!(
-            resolved_with(true, &adds),
-            [
-                row(2, 10, Iban, "iban"),
-                row(2, 10, Card, "same-span"),
-                row(2, 6, Phone, "prefix"),
-                row(4, 10, UkNhs, "suffix"),
-                row(4, 8, Phone, "interior"),
-                row(8, 14, Email, "crossing"),
-                row(9, 12, Phone, "inside-crossing"),
-                row(14, 18, Ipv4, "disjoint"),
-            ]
+            resolved_with(false, &adds),
+            [row(2, 10, Iban, "iban"), row(2, 10, Card, "same-span"), row(8, 14, Email, "crossing")]
         );
     }
 

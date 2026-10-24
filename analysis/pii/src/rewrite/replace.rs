@@ -44,6 +44,44 @@ pub struct PiiRewrite {
 }
 
 impl PiiRewrite {
+    /// Validates every mention's span in `text` and coalesces overlapping
+    /// mentions into disjoint union spans, keeping the top-ranked mention's
+    /// kind, confidence, and normalized form so every covered byte is
+    /// replaced without leaking trailing characters.
+    pub(crate) fn coalesce_clusters<'a>(
+        text: &str,
+        mentions: impl IntoIterator<Item = PiiMention<'a>>,
+    ) -> Result<Vec<PiiMention<'a>>, RewriteError> {
+        let mut ordered: Vec<PiiMention<'a>> = mentions.into_iter().collect();
+        for m in &ordered {
+            let (start, end) = (m.span.start as usize, m.span.end as usize);
+            if start >= end || end > text.len() || !text.is_char_boundary(start) || !text.is_char_boundary(end) {
+                return Err(RewriteError::Span(m.span));
+            }
+        }
+        ordered.sort_by_key(|m| (m.span.start, std::cmp::Reverse(m.span.end), m.kind));
+        let mut out: Vec<PiiMention<'a>> = Vec::with_capacity(ordered.len());
+        let mut best_key = (turbo_analysis_layers::PiiKind::Phone, 0u32, std::cmp::Reverse(0u32));
+        for m in ordered {
+            let key = (m.kind, m.span.start, std::cmp::Reverse(m.span.end - m.span.start));
+            if let Some(last) = out.last_mut()
+                && m.span.start < last.span.end
+            {
+                last.span.end = last.span.end.max(m.span.end);
+                if key < best_key {
+                    last.kind = m.kind;
+                    last.confidence = m.confidence;
+                    last.normalized = m.normalized;
+                    best_key = key;
+                }
+            } else {
+                best_key = key;
+                out.push(m);
+            }
+        }
+        Ok(out)
+    }
+
     /// Replaces each mention with the label `label` writes for it, in
     /// text order. The mentions must be non-empty, lie in `text`, and not
     /// overlap; their order does not matter.
