@@ -867,6 +867,27 @@ with one item. `Categories<Sentences>`, `Categories<Structure>` and
 block or chunk. A crate categorizing units of its own layer implements
 `CategoryScope` for it.
 
+### Neural annotation batches
+
+`DocumentCategorizerDL` and `DlSpanCategorizer` collect windows from all
+valid documents and span units into one scorer call. The bundle scorer
+splits these rows at its session batch limit. Each unit keeps its own
+window aggregation, category order and scores. Invalid input layers fail
+only their document; if the shared scorer fails, units are retried
+individually to retain valid neighbors.
+
+`BilstmPosTagger` sends all sentences from valid documents to one
+`batch_emissions` call. Packed numerics share the matrix projections;
+JVM-parity numerics retain the reference calculation per sentence.
+`FeedforwardPosTagger` reuses token and prediction scratch buffers, with
+previous-tag context reset at each sentence boundary.
+
+`GlinerAnnotator` reuses the head workspace across windows and documents.
+Recurrent state is reset for each window. Its DeBERTa encoder still runs
+one window at a time. Tests compare actual CPU model outputs with separate
+calls and check that warmed head buffers retain their allocations; these
+checks establish equivalence and reuse, not a measured throughput gain.
+
 ## Sentiment layers (`turbo:opinions`, `turbo:aspects`, `turbo:incivility`, `turbo:pragmatics`)
 
 Four layers in `turbo-analysis-layers` (`sentiment`) hold opinion
