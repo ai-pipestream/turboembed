@@ -1,11 +1,13 @@
-use super::DenseClassifierModel;
+use super::{DenseClassifierModel, OutputKind};
 use std::{marker::PhantomData, sync::Arc};
-use turbo_analysis::{Annotator, Error, ModelRef, Refs, Tag};
+use turbo_analysis::{Annotator, Error, ModelRef, Refs};
 use turbo_analysis_layers::{Categories, CategoryScope, Vectors};
 
 /// Scores every present vector; refuses a different encoder, missing rows,
-/// invalid dimensions, or non-finite data. Sigmoid scores are independent;
-/// Categories stores the full score row and its highest scoring label.
+/// invalid dimensions, or non-finite data. Softmax writes the argmax label;
+/// Sigmoid applies per-label thresholds and writes the emitted label set
+/// into `Categories::selected` (with `Tag::NONE` as best category when no
+/// label clears its threshold).
 pub struct DenseClassifierAnnotator<L: CategoryScope> {
     model: DenseClassifierModel,
     identity: ModelRef,
@@ -37,8 +39,11 @@ impl<L: CategoryScope> Annotator for DenseClassifierAnnotator<L> {
         let mut out = Categories::new(Arc::clone(self.model.head().tags()));
         for x in vectors.data.chunks_exact(vectors.dim as usize) {
             let p = self.model.probabilities(x).map_err(fail)?;
-            let best = p.iter().enumerate().fold(0, |best, (i, v)| if *v > p[best] { i } else { best });
-            out.push(Tag(best as u16), &p);
+            let (best, selected) = self.model.select_tags(&p).map_err(fail)?;
+            match self.model.output() {
+                OutputKind::Softmax => out.push(best, &p),
+                OutputKind::Sigmoid => out.push_selected(best, &selected, &p),
+            }
         }
         Ok((out,))
     }
