@@ -216,8 +216,9 @@ fn rebuild(run: &str, input: &str, scratch: &Path) -> Rebuilt {
             let documents = read_brat_corpus(scratch, recursive, mode).unwrap();
             let parser = BratParser::new(NewlineSentences(mode), tokenizer, types, mode).unwrap();
             let corpus = scratch.to_str().unwrap().to_owned();
-            let samples =
-                drain_with(BratSamples::new(&documents, &parser), &mut out, |m| m.replace(&corpus, "<corpus>"));
+            let samples = drain_with(BratSamples::new(&documents, &parser), &mut out, |m| {
+                m.replace(&corpus, "<corpus>").replace(std::path::MAIN_SEPARATOR, "/")
+            });
             names_in(
                 &documents.iter().filter_map(|d| d.as_ref().ok()).map(|d| d.text()).collect::<Vec<_>>(),
                 &samples,

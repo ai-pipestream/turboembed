@@ -32,12 +32,13 @@ impl Differences {
         self.extra.sort();
     }
 
-    /// One line per path: `differs`, `missing` or `extra`, a tab, the path.
+    /// One line per path: `differs`, `missing` or `extra`, a tab, the path,
+    /// written with `/` on every host.
     pub fn report(&self) -> String {
         let mut s = String::new();
         for (what, paths) in [("differs", &self.differ), ("missing", &self.missing), ("extra", &self.extra)] {
             for p in paths {
-                s.push_str(&format!("{what}\t{}\n", p.display()));
+                s.push_str(&format!("{what}\t{}\n", p.to_string_lossy().replace(std::path::MAIN_SEPARATOR, "/")));
             }
         }
         s
