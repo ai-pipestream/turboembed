@@ -85,3 +85,27 @@ fn answer_projection_cannot_turn_inserted_text_into_an_empty_answer() {
     assert!(answers.check().is_err());
     assert!(Answers::from_decoded(ViewId(1), Answer::None { null_score: 0. }).unwrap().check().is_ok());
 }
+
+#[test]
+fn qa_batch_matches_single_for_multiple_windows_and_empty_contexts() {
+    let f = fixture();
+    let a = ExtractiveQaAnnotator::open(&f.dir, 1, DecodeOptions { null_threshold: -1000.0, ..Default::default() })
+        .unwrap();
+    let docs = [
+        Document::new("Paris is in France."),
+        Document::new("The café is in Montréal. ".repeat(20)),
+        Document::new(""),
+    ];
+    let questions = [Question("Where?".into()), Question("Where is the café?".into()), Question("What?".into())];
+    let inputs: Vec<_> = docs.iter().zip(&questions).map(|(d, q)| (d.get::<View>().unwrap(), q)).collect();
+    let expected: Vec<_> = inputs.iter().map(|&i| a.annotate(i).unwrap().0).collect();
+    for (actual, expected) in a.annotate_batch(inputs).into_iter().zip(expected) {
+        let actual = actual.unwrap().0;
+        assert_eq!(actual.spans.columns(), expected.spans.columns());
+        assert_eq!(actual.scores, expected.scores);
+        assert_eq!(actual.probabilities, expected.probabilities);
+        assert_eq!(actual.null_score, expected.null_score);
+        assert_eq!(actual.null_probability, expected.null_probability);
+    }
+    assert!(a.annotate_batch(Vec::new()).is_empty());
+}

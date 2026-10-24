@@ -228,10 +228,9 @@ impl QuerySpanDetector {
         if toks.spans.view() != view.id() || !toks.spans.is_ordered() {
             return None;
         }
-        if bytes
-            .iter()
-            .any(|&b| matches!(b, b'\n' | b'\r' | b'\t') || (b.is_ascii_punctuation() && !matches!(b, b'$' | b'%')))
-            || bytes.windows(2).any(|w| matches!(w[0], b'x' | b'X') && matches!(w[1], b'd' | b'D'))
+        if bytes.iter().any(|&b| {
+            matches!(b, b'\n' | b'\r' | b'\t' | 0x0B | 0x0C) || (b.is_ascii_punctuation() && !matches!(b, b'$' | b'%'))
+        }) || bytes.windows(2).any(|w| matches!(w[0], b'x' | b'X') && matches!(w[1], b'd' | b'D'))
         {
             return None;
         }
@@ -457,6 +456,21 @@ pub(crate) fn is_numeric_time_token(text: &str, s: usize, e: usize) -> bool {
     let prev = text.as_bytes().get(s.wrapping_sub(1)).copied().unwrap_or(b' ');
     let next = text.as_bytes().get(e).copied().unwrap_or(b' ');
     matches!(prev, b':' | b'/' | b'-' | b'.') || matches!(next, b':' | b'/' | b'-' | b'.')
+}
+
+/// Whether a lowercased token modifies a time expression's
+/// relation or position within its period, so dropping it would
+/// change the meaning (`before tomorrow` is not `tomorrow`).
+#[rustfmt::skip]
+pub(crate) fn is_time_modifier(lower: &str) -> bool {
+    matches!(
+        lower,
+        "after" | "ago" | "antes" | "before" | "beginning" | "between" | "by" | "dentro" | "desde"
+            | "después" | "despues" | "during" | "early" | "end" | "entre" | "finales" | "fines"
+            | "from" | "hace" | "hasta" | "hence" | "late" | "later" | "mediados" | "mid" | "middle"
+            | "past" | "principios" | "prior" | "since" | "start" | "through" | "till" | "to" | "until"
+            | "within"
+    )
 }
 
 #[rustfmt::skip]
