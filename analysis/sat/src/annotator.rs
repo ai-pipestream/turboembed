@@ -17,7 +17,7 @@ use turbo_analysis_embed::{Device, Encoder, EncoderOptions, Precision, Rows};
 use turbo_analysis_layers::Sentences;
 
 use crate::cuts::{self, Window};
-use crate::head::{Head, HeadNames};
+use crate::head::{BOUNDARY_LABEL, Head};
 
 /// A text's tokens' spans, as byte offsets, and each token's stitched
 /// score, in token order.
@@ -46,7 +46,9 @@ pub struct SatOptions {
     /// Also end a sentence at every line feed, which the model reads as a
     /// space: wtpsplit's `split_on_input_newlines`, on by default.
     pub split_on_newlines: bool,
-    pub head: HeadNames,
+    /// The classifier's label whose score is the boundary, 0 as in
+    /// wtpsplit.
+    pub label: u32,
 }
 
 impl Default for SatOptions {
@@ -57,7 +59,7 @@ impl Default for SatOptions {
             stride: 0,
             block_size: 0,
             split_on_newlines: true,
-            head: HeadNames::default(),
+            label: BOUNDARY_LABEL,
         }
     }
 }
@@ -71,7 +73,7 @@ impl Default for SatOptions {
 ///   ending at the last token; each window is one row with the template's
 ///   special tokens around it. A token in several windows gets the mean
 ///   of its scores.
-/// - A token's score is the classifier's (`HeadNames`) on its final
+/// - A token's score is the classifier's label `label` on its final
 ///   state. Its probability, over `threshold`, puts a boundary at the end
 ///   of its span; the boundary moves past the whitespace after it.
 /// - Each boundary then moves forward to the end of the grapheme cluster
@@ -123,8 +125,8 @@ struct Doc {
 
 impl SatAnnotator {
     /// The bundle at `dir` on the device `o` names. The bundle must hold
-    /// an encoder (a static model has no state per token) and, in its raw
-    /// weights, the classifier `o.head` names.
+    /// an encoder (a static model has no state per token) and declare a
+    /// `CLASSIFIER_TOKEN` head in its manifest.
     pub fn open(dir: &Path, o: &SatOptions) -> CoreResult<SatAnnotator> {
         let bundle = Bundle::open(dir)?;
         let m = &bundle.manifest;
@@ -163,7 +165,7 @@ impl SatAnnotator {
         eo.max_ranges = max_batch.saturating_mul(max_seq);
         let encoder = Encoder::open(dir, &eo)?;
         let info = encoder.info().clone();
-        let head = Head::load(&bundle, &o.head, info.dim)?;
+        let head = Head::load(&bundle, o.label, info.dim)?;
         let config = config_hash(o, block, stride);
         let word_start = (0..tokenizer.vocab_size() as i32).find(|&i| tokenizer.piece(i) == Some("\u{2581}"));
         Ok(SatAnnotator {
@@ -359,7 +361,7 @@ impl Annotator for SatAnnotator {
 
 /// FNV-1a over everything besides the model and where it runs that
 /// changes the sentences: the threshold's bits, the stride, the block
-/// size, the line feed switch and the classifier's tensors and label.
+/// size, the line feed switch and the classifier's label.
 fn config_hash(o: &SatOptions, block: u32, stride: u32) -> u64 {
     let mut h = 0xcbf2_9ce4_8422_2325u64;
     let mut eat = |bytes: &[u8]| {
@@ -371,11 +373,7 @@ fn config_hash(o: &SatOptions, block: u32, stride: u32) -> u64 {
     eat(&stride.to_le_bytes());
     eat(&block.to_le_bytes());
     eat(&[u8::from(o.split_on_newlines)]);
-    eat(o.head.weight.as_bytes());
-    eat(&[0]);
-    eat(o.head.bias.as_bytes());
-    eat(&[0]);
-    eat(&o.head.label.to_le_bytes());
+    eat(&o.label.to_le_bytes());
     h
 }
 
@@ -422,7 +420,7 @@ fn parse_options(spec: &Spec) -> Result<SatOptions, String> {
         stride: number(spec, "stride", "0")?,
         block_size: number(spec, "block_size", "0")?,
         split_on_newlines,
-        head: HeadNames::default(),
+        label: BOUNDARY_LABEL,
     })
 }
 
