@@ -15,6 +15,7 @@
 //! per-coordinate calibration (TQ+) on up to 1024 of its rows, taken at an
 //! even stride, so the same rows always give the same calibration.
 
+mod compact;
 mod index;
 
 pub use index::QuantizedIndex;
