@@ -386,3 +386,6 @@ fn bundle_sequence_scorer_rejects_token_classifier_bundle() {
     };
     assert!(err.message.contains("CLASSIFIER_SEQUENCE"), "unexpected error: {err}");
 }
+
+#[path = "doccat/batch.rs"]
+mod batch;

@@ -51,9 +51,7 @@ fn run(m: &[Packed; 2], x: &[f32], n: usize) -> Vec<f32> {
     m[1].rows(&relu(m[0].rows(x, n)), n)
 }
 
-fn sigmoid(x: f32) -> f32 {
-    1.0 / (1.0 + (-x).exp())
-}
+use turbo::head::sigmoid;
 
 /// One direction of the LSTM: the input product with both biases, and the
 /// recurrent product.

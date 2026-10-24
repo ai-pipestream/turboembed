@@ -9,8 +9,8 @@ use bytes::Bytes;
 use tonic::{Request, Response, Status};
 use turbo::{
     TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_DTYPE_I32, TURBO_EMBED_STAGE_COUNT, TURBO_PLACE_HOST,
-    TURBO_PLACE_PINNED, TURBO_PLACE_SHARED, TURBO_TASK_EMBED, turbo_embed_options, turbo_result_info,
-    turbo_session_info, turbo_token_batch,
+    TURBO_PLACE_PINNED, TURBO_PLACE_SHARED, TURBO_RERANK_STAGE_COUNT, TURBO_TASK_EMBED, TURBO_TASK_EXTRACTIVE_QA,
+    TURBO_TASK_RERANK, turbo_embed_options, turbo_result_info, turbo_session_info, turbo_token_batch,
 };
 
 use crate::api::{self, *};
@@ -20,19 +20,19 @@ use crate::proto::infer_parameter::ParameterChoice;
 use crate::proto::model_infer_response::InferOutputTensor;
 use crate::proto::model_metadata_response::TensorMetadata;
 use crate::proto::*;
-use crate::state::{Held, State, properties};
-use crate::status::{EMBED_OPTIONS, to_status};
+use crate::state::{Held, Loaded, Served, State, properties};
+use crate::status::{EMBED_OPTIONS, QA_OPTIONS, RERANK_OPTIONS, to_status};
 
 /// The vectors of one result, owned until the response that carries them is
 /// encoded; dropping them releases the buffer, then the result, then the
 /// session.
-struct Vectors {
-    data: Data,
-    _result: Output,
-    _held: Held,
+pub(crate) struct Vectors {
+    pub(crate) data: Data,
+    pub(crate) _result: Output,
+    pub(crate) _held: Held,
 }
 
-enum Data {
+pub(crate) enum Data {
     /// The result's own host memory, from turbo_result_buffer.
     Mapped { ptr: *const u8, len: usize, _buffer: Buffer },
     /// What turbo_result_read downloaded.
@@ -77,7 +77,7 @@ fn token_batch(batch: u32, seq: u32, ids: *const i32, mask: *const i32, types: *
 }
 
 /// The protocol's name for a result dtype.
-fn datatype(dtype: u32) -> Option<&'static str> {
+pub(crate) fn datatype(dtype: u32) -> Option<&'static str> {
     match dtype {
         TURBO_DTYPE_F32 => Some("FP32"),
         TURBO_DTYPE_F16 => Some("FP16"),
@@ -87,19 +87,19 @@ fn datatype(dtype: u32) -> Option<&'static str> {
     }
 }
 
-fn int(v: impl Into<i128>) -> InferParameter {
+pub(crate) fn int(v: impl Into<i128>) -> InferParameter {
     let v: i128 = v.into();
     InferParameter {
         parameter_choice: Some(ParameterChoice::Int64Param(v.clamp(i64::MIN as i128, i64::MAX as i128) as i64)),
     }
 }
 
-fn string(v: impl Into<String>) -> InferParameter {
+pub(crate) fn string(v: impl Into<String>) -> InferParameter {
     InferParameter { parameter_choice: Some(ParameterChoice::StringParam(v.into())) }
 }
 
 /// The scalar fields of turbo_result_info as response parameters.
-fn result_parameters(i: &turbo_result_info) -> HashMap<String, InferParameter> {
+pub(crate) fn result_parameters(i: &turbo_result_info) -> HashMap<String, InferParameter> {
     let mut p: HashMap<String, InferParameter> = [
         ("task", string(names::task(i.task))),
         ("batch", int(i.batch)),
@@ -124,9 +124,15 @@ fn result_parameters(i: &turbo_result_info) -> HashMap<String, InferParameter> {
     .into_iter()
     .map(|(k, v)| (k.to_string(), v))
     .collect();
-    if i.task == TURBO_TASK_EMBED {
+    if i.task == TURBO_TASK_EMBED || i.task == TURBO_TASK_EXTRACTIVE_QA {
         for (s, name) in
             names::EMBED_STAGES.iter().enumerate().take((i.stage_count as usize).min(TURBO_EMBED_STAGE_COUNT))
+        {
+            p.insert(format!("stage.{name}"), string(names::stage(i.stage[s])));
+        }
+    } else if i.task == TURBO_TASK_RERANK {
+        for (s, name) in
+            names::RERANK_STAGES.iter().enumerate().take((i.stage_count as usize).min(TURBO_RERANK_STAGE_COUNT))
         {
             p.insert(format!("stage.{name}"), string(names::stage(i.stage[s])));
         }
@@ -151,8 +157,20 @@ fn fits(si: &turbo_session_info, batch: u32, seq: u32) -> Result<()> {
 }
 
 /// One ModelInfer: one write, one run and one read on one held session.
-fn infer(state: &State, req: ModelInferRequest) -> Result<ModelInferResponse> {
-    let (served, loaded) = state.ready(&req.model_name, &req.model_version)?;
+fn infer(
+    state: &State,
+    req: ModelInferRequest,
+) -> std::result::Result<ModelInferResponse, (Failure, &'static [&'static str])> {
+    let (served, loaded) = state.ready(&req.model_name, &req.model_version).map_err(|f| (f, &[][..]))?;
+    match loaded.task {
+        TURBO_TASK_EMBED => infer_embed(&served, &loaded, req).map_err(|f| (f, &EMBED_OPTIONS[..])),
+        TURBO_TASK_RERANK => crate::tasks::infer_rerank(&served, &loaded, req).map_err(|f| (f, &RERANK_OPTIONS[..])),
+        TURBO_TASK_EXTRACTIVE_QA => crate::tasks::infer_qa(&served, &loaded, req).map_err(|f| (f, &QA_OPTIONS[..])),
+        other => Err((Failure::new(TURBO_E_UNSUPPORTED_TASK, 0, format!("unsupported task {other}")), &[][..])),
+    }
+}
+
+fn infer_embed(served: &Arc<Served>, loaded: &Arc<Loaded>, req: ModelInferRequest) -> Result<ModelInferResponse> {
     let plan = infer::plan(&req)?;
     // Every session of a model is made alike, so the first one's limits are
     // the held one's: an oversized raw request is refused before BUSY.
@@ -215,7 +233,7 @@ fn infer(state: &State, req: ModelInferRequest) -> Result<ModelInferResponse> {
     })
 }
 
-fn tensor(name: &str, datatype: &str, shape: &[i64]) -> TensorMetadata {
+pub(crate) fn tensor(name: &str, datatype: &str, shape: &[i64]) -> TensorMetadata {
     TensorMetadata { name: name.into(), datatype: datatype.into(), shape: shape.to_vec() }
 }
 
@@ -268,17 +286,35 @@ impl GrpcInferenceService for Inference {
         let req = req.into_inner();
         let (served, loaded) = self.state.ready(&req.name, &req.version).map_err(plain)?;
         let properties = properties(&self.state, &loaded).map_err(plain)?;
+        let (inputs, outputs) = match loaded.task {
+            TURBO_TASK_RERANK => (
+                vec![tensor("query", "BYTES", &[-1]), tensor("passages", "BYTES", &[-1])],
+                vec![tensor("scores", "FP32", &[-1, 1])],
+            ),
+            TURBO_TASK_EXTRACTIVE_QA => (
+                vec![tensor("question", "BYTES", &[1]), tensor("context", "BYTES", &[1])],
+                vec![
+                    tensor("spans", "INT32", &[-1, 2]),
+                    tensor("scores", "FP64", &[-1]),
+                    tensor("probabilities", "FP64", &[-1]),
+                ],
+            ),
+            _ => (
+                vec![
+                    tensor("texts", "BYTES", &[-1]),
+                    tensor("ids", "INT32", &[-1, -1]),
+                    tensor("mask", "INT32", &[-1, -1]),
+                    tensor("types", "INT32", &[-1, -1]),
+                ],
+                vec![tensor("vectors", "FP32", &[-1, -1])],
+            ),
+        };
         Ok(Response::new(ModelMetadataResponse {
             name: served.name.clone(),
             versions: vec![loaded.revision.clone()],
             platform: String::new(),
-            inputs: vec![
-                tensor("texts", "BYTES", &[-1]),
-                tensor("ids", "INT32", &[-1, -1]),
-                tensor("mask", "INT32", &[-1, -1]),
-                tensor("types", "INT32", &[-1, -1]),
-            ],
-            outputs: vec![tensor("vectors", "FP32", &[-1, -1])],
+            inputs,
+            outputs,
             properties,
         }))
     }
@@ -291,6 +327,6 @@ impl GrpcInferenceService for Inference {
         let out = tokio::task::spawn_blocking(move || infer(&state, req)).await.map_err(|e| {
             to_status(&Failure::new(TURBO_E_INTERNAL, 0, format!("the request's task failed: {e}")), &[])
         })?;
-        out.map(Response::new).map_err(|f| to_status(&f, &EMBED_OPTIONS))
+        out.map(Response::new).map_err(|(f, fields)| to_status(&f, fields))
     }
 }
