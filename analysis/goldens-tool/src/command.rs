@@ -29,6 +29,8 @@ pub fn describe(cmd: &Command) -> String {
 mod tests {
     use super::*;
 
+    // Needs a POSIX `sh`, which Windows does not have.
+    #[cfg(unix)]
     #[test]
     fn a_failing_command_is_reported_with_its_line_and_stderr() {
         let err = run(Command::new("sh").args(["-c", "echo broken >&2; exit 3"])).unwrap_err();

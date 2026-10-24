@@ -105,10 +105,82 @@ impl Host {
         Host { name, vendor, memory_total: number(c"hw.memsize"), memory_free: free * page }
     }
 
-    #[cfg(not(any(target_os = "linux", target_os = "macos")))]
+    /// Windows: the processor as CPUID names it (x86_64), else as the
+    /// PROCESSOR_IDENTIFIER variable does, and the memory as
+    /// GlobalMemoryStatusEx counts it, whose available figure includes
+    /// the standby list, as MemAvailable does.
+    #[cfg(windows)]
+    pub(super) fn read() -> Host {
+        #[repr(C)]
+        struct MemoryStatusEx {
+            length: u32,
+            memory_load: u32,
+            total_phys: u64,
+            avail_phys: u64,
+            total_page_file: u64,
+            avail_page_file: u64,
+            total_virtual: u64,
+            avail_virtual: u64,
+            avail_extended_virtual: u64,
+        }
+        #[link(name = "kernel32")]
+        unsafe extern "system" {
+            fn GlobalMemoryStatusEx(buffer: *mut MemoryStatusEx) -> i32;
+        }
+        let (name, vendor) = cpuid_names().unwrap_or_else(|| {
+            // "Intel64 Family 6 Model 197 Stepping 2, GenuineIntel"
+            let id = std::env::var("PROCESSOR_IDENTIFIER").unwrap_or_default();
+            let vendor = id.rsplit_once(',').map_or("", |(_, v)| v.trim()).to_owned();
+            (id, vendor)
+        });
+        let mut m = MemoryStatusEx {
+            length: std::mem::size_of::<MemoryStatusEx>() as u32,
+            memory_load: 0,
+            total_phys: 0,
+            avail_phys: 0,
+            total_page_file: 0,
+            avail_page_file: 0,
+            total_virtual: 0,
+            avail_virtual: 0,
+            avail_extended_virtual: 0,
+        };
+        let ok = unsafe { GlobalMemoryStatusEx(&mut m) } != 0;
+        let (memory_total, memory_free) = if ok { (m.total_phys, m.avail_phys) } else { (0, 0) };
+        Host { name, vendor, memory_total, memory_free }
+    }
+
+    #[cfg(not(any(target_os = "linux", target_os = "macos", windows)))]
     pub(super) fn read() -> Host {
         Host::default()
     }
+}
+
+/// The brand string and vendor id CPUID gives (leaves 0x80000002 to
+/// 0x80000004, and 0), as /proc/cpuinfo's model name and vendor_id.
+#[cfg(all(windows, target_arch = "x86_64"))]
+fn cpuid_names() -> Option<(String, String)> {
+    use std::arch::x86_64::__cpuid;
+    let text = |words: &[u32]| {
+        let b: Vec<u8> = words.iter().flat_map(|w| w.to_le_bytes()).collect();
+        String::from_utf8_lossy(&b).trim_end_matches('\0').trim().to_owned()
+    };
+    let l0 = __cpuid(0);
+    let vendor = text(&[l0.ebx, l0.edx, l0.ecx]);
+    if __cpuid(0x8000_0000).eax < 0x8000_0004 {
+        return None;
+    }
+    let mut words = Vec::with_capacity(12);
+    for leaf in 0x8000_0002..=0x8000_0004u32 {
+        let r = __cpuid(leaf);
+        words.extend([r.eax, r.ebx, r.ecx, r.edx]);
+    }
+    let name = text(&words);
+    (!name.is_empty()).then_some((name, vendor))
+}
+
+#[cfg(all(windows, not(target_arch = "x86_64")))]
+fn cpuid_names() -> Option<(String, String)> {
+    None
 }
 
 #[cfg(test)]

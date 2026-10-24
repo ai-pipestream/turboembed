@@ -161,7 +161,9 @@ frameworks and libc++, which every macOS has.
   softmax; at FASTEST it stages K and V in F16 (K transposed, so its
   SIMD-group matrices load without a transpose) and each chunk's mask as
   an additive bias, keeps its queries in registers and runs the softmax
-  in base 2. A head width that is not a
+  in base 2, with each group's scores and probabilities in threadgroup
+  memory or in the SIMD-group matrices' registers (Kernel choices). A
+  head width that is not a
   multiple of 8, or is over 64, runs a narrower kernel, one query at a
   time, in F32 at every precision. The run waits for the pass to
   complete before it returns, and leaves the vectors in the session's
@@ -235,12 +237,13 @@ frameworks and libc++, which every macOS has.
 
 ## Kernel choices
 
-At FASTEST a session chooses one item, which tile its linear layers run
-in past 64 packed tokens, and reports it in `turbo_session_get_info`'s
-`choices` (docs/autotune.md):
+At FASTEST a session chooses two items, which tile its linear layers
+run in past 64 packed tokens and, for heads a multiple of 8 up to 64,
+which kernel runs attention, and reports them in
+`turbo_session_get_info`'s `choices` (docs/autotune.md):
 
 ```
-linear=auto;forced=
+linear=auto;attn=auto;forced=
 ```
 
 `linear=h64` is the 64 x 64 tile, each of its four SIMD groups 32 x 32
@@ -253,16 +256,32 @@ the two on each side of that line but at about 512 tokens (3% slower
 there). All are F16 operands with F32 sums
 (`TURBO_NUMERIC_F16_F32ACC`); the tile can change how many parts a
 small layer's k is split into, so a different choice moves the bits
-within FASTEST's floor. `forced=` names `linear` when the environment
-fixed it. EXACT and MODEL have one path, the F32 kernels, and report no
-choices. A session nothing forces or tunes runs `auto`.
+within FASTEST's floor.
 
-`TURBO_METAL_CHOICES`, read when a session is made, forces the item it
+`attn=staged` passes each SIMD group's 8 x 32 scores and probabilities
+through threadgroup memory, a query's row to four lanes; `attn=registers`
+keeps them in the SIMD-group matrices' registers, each lane holding two
+columns of a row in each 8 x 8 block, so it needs 6 KiB less threadgroup
+memory and no barrier between the scores and the product with V.
+`attn=auto` picks per run: staged up to 512 packed tokens and registers
+above. On the M2 (all-minilm-l6-v2, six alternating rounds) registers is
+3 to 4% slower at 2 and 4 rows of 128 tokens, 0.2 to 0.7% faster at 8,
+16 and 32 rows of 128, and 1.6% faster at 32 rows of 256. Both are F16
+operands with F32 sums; they add a row's scores in different orders, so
+the two move the bits within FASTEST's floor.
+
+`forced=` names `linear`, `attn` or both when the environment fixed them.
+EXACT and MODEL have one path, the F32 kernels, and report no choices. A
+session nothing forces or tunes runs `auto` for both.
+
+`TURBO_METAL_CHOICES`, read when a session is made, forces the items it
 names (`linear=h32`, `linear=h64`, `linear=h128`, `linear=auto`, or
-`linear=f32` at EXACT and MODEL);
-a line a session reported, `forced=` and all, forces the same kernels
-back. A kernel outside the precision's numerics (`f32` at FASTEST, an F16
-tile at EXACT or MODEL), or `h128` on a device that does not run it, is
+`linear=f32` at EXACT and MODEL; `attn=staged`, `attn=registers` or
+`attn=auto`), and a session with any item forced is not tuned; a line a
+session reported, `forced=` and all, forces the same kernels back. A
+kernel outside the precision's numerics (`f32` at FASTEST, an F16 tile
+or any `attn` at EXACT or MODEL), `attn` for heads the F16 attention
+does not take, or `h128` on a device that does not run it, is
 `TURBO_E_UNSUPPORTED_OPTION` naming field 3; any other item is
 `TURBO_E_INVALID_ARGUMENT`.
 
@@ -273,7 +292,9 @@ A FASTEST session made with `turbo_session_desc.tuning` ON or RETUNE
 it can hold when it is made, and runs the incumbent unless another
 choice is faster at every one; docs/autotune.md has the switches, the
 cache and what holds across backends. It is off by default, and a forced
-choice is never timed.
+choice is never timed. The tuner times the linear layers' tiles alone:
+attention runs `attn=auto` while it does, since the two attention
+kernels are closer than the 5% a challenger must win by.
 
 How: on the session's own memory and queue, at 256, 1024, 4096 and 8192
 packed tokens, each that the session's `max_batch` x `max_seq` holds,

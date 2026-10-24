@@ -8,6 +8,9 @@ use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
 
 use turbo_goldens::data_dir;
+use turbo_tokenize::complex::{
+    ComplexScript, Lstm, LstmScratch, bundled, bundled_dictionaries, bundled_lstm, bundled_lstms,
+};
 use turbo_tokenize::lattice::Scratch;
 use turbo_tokenize::{LatticeTokenizer, MecabDictionary, WhitespaceMode};
 
@@ -70,4 +73,32 @@ fn a_grown_scratch_analyzes_without_allocating() {
         }
         assert_eq!(COUNT.with(Cell::get) - before, 0, "{dictionary}");
     }
+    complex_segmenters_allocate_nothing_after_warmup();
+}
+
+fn complex_segmenters_allocate_nothing_after_warmup() {
+    let sample = "a ผู้ใช้สามารถติดตั้งโปรแกรมคอมพิวเตอร์ได้ด้วยตนเอง \
+                  ປະເທດລາວມີພົນລະເມືອງປະມານເຈັດລ້ານຄົນ \
+                  ព្រះរាជាណាចក្រកម្ពុជាជាប្រទេសមួយនៅអាស៊ីអាគ្នេយ៍ \
+                  မြန်မာနိုင်ငံသည်အရှေ့တောင်အာရှတွင်တည်ရှိသည် z";
+    let thai_lstm = Lstm::from_bytes(bundled_lstm(ComplexScript::Thai)).unwrap();
+    let mut lstm_scratch = LstmScratch::default();
+    let mut ends = Vec::with_capacity(64);
+
+    // Warm up OnceLock singletons, thread-local LSTM scratch, and explicit LstmScratch.
+    for seg in [bundled(), bundled_dictionaries(), bundled_lstms()] {
+        ends.clear();
+        seg.for_each_segment(sample, |_, e| ends.push(e));
+    }
+    ends.clear();
+    thai_lstm.segment_with("ผู้ใช้สามารถติดตั้งโปรแกรมคอมพิวเตอร์ได้ด้วยตนเอง", &mut lstm_scratch, |e| ends.push(e as u32));
+
+    let before = COUNT.with(Cell::get);
+    for seg in [bundled(), bundled_dictionaries(), bundled_lstms()] {
+        ends.clear();
+        seg.for_each_segment(sample, |_, e| ends.push(e));
+    }
+    ends.clear();
+    thai_lstm.segment_with("กรุงเทพมหานครเป็นเมืองหลวงของประเทศไทย", &mut lstm_scratch, |e| ends.push(e as u32));
+    assert_eq!(COUNT.with(Cell::get) - before, 0);
 }

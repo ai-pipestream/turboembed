@@ -180,12 +180,14 @@ fn url_credentials() {
 }
 
 #[test]
-fn a_credential_holding_a_token_keeps_both() {
+fn a_credential_holding_a_token_drops_nested_by_default_and_keeps_in_parity() {
     let credential = "oauth2:ghp_1234567890abcdefghijklmnopqrstuvwxyz";
     let token = "ghp_1234567890abcdefghijklmnopqrstuvwxyz";
+    let text = format!("https://{credential}@example.com/x.git");
+    assert_found(&secrets(), &text, &[(8, 8 + credential.len() as u32, "url-credential", credential)]);
     assert_found(
-        &secrets(),
-        &format!("https://{credential}@example.com/x.git"),
+        &secrets().keeping_nested(),
+        &text,
         &[
             (8, 8 + credential.len() as u32, "url-credential", credential),
             (15, 15 + token.len() as u32, "github-token", token),
