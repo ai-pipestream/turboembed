@@ -1955,6 +1955,10 @@ a cost per gap. For the gap after sentence g:
    whether a cut is made there. The default is untuned; the tests pin
    this behaviour so a change to it is deliberate.
 
+The optional lexical and discourse boundary steps, their provenance, and
+the full Qasper test-split ablation are documented in
+[chunker text signals](chunker-text-signals.md).
+
 Comparing groups of sentences rather than single sentences keeps one
 odd sentence from looking like a topic of its own: with a window of one,
 both gaps around an outlier are full-depth valleys and the optimizer
