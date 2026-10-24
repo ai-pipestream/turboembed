@@ -20,7 +20,10 @@ Units are enums grouped by what they measure, in
 `ft³` and `km/h` need no variant of their own. A `Rate` is information
 or money over a time (`10 Mb/s`, `$5 per hour`), written by
 `write_symbol` as `Mbit/s` and, on the money layer, stated in the
-currency with the span covering the `per hour`. `Unit::measure` gives the
+currency with the span covering the `per hour`. The grammar's short time
+denominators use `wk`, `mo` and `yr` for week, month and year. Money keeps
+the amount and currency without a separate period column; its source span
+retains that wording. `Unit::measure` gives the
 Recognizers-Text type (currency, dimension, temperature, age) and
 `Unit::dimension` the subtype. `Display` writes the Recognizers-Text
 unit name (`Square meter`, `Kilometer per hour`, `C`) and is used only to
@@ -75,7 +78,10 @@ and the rules in `analysis/grammar/src/lang/en/unit/rules/mod.rs`.
   trailing count of the next smaller imperial unit adds in the same
   way (`6 foot 2` in inches, `10 stone 4` in pounds, `5 pounds 8` in
   ounces) when it ends its clause, as a bare money hundredths count
-  must. An information unit or a money amount over a time (with
+  must. Ambiguous `pounds` keeps the existing context rule: `a baby of
+  5 pounds 8` is weight, while `it costs 5 pounds 8` and `he paid 2 pounds
+  6` are currency hundredths. Explicit `lb` remains a weight. An
+  information unit or a money amount over a time (with
   `per`, `/`, `a` or `an`) is a rate, except that `a year earlier`
   and its kin stay a date wording, not a rate.
 - A country or its adjective before a generic name names the currency

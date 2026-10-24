@@ -1,5 +1,7 @@
 use super::*;
 
+use crate::lang::en::unit::ENGLISH_UNITS;
+
 // Quantities.
 
 pub(super) fn b_amount_unit(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
@@ -102,6 +104,17 @@ pub(super) fn b_major_minor_bare(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
         _ => return None,
     };
     if !n.value.is_integer() || n.value >= Dec::from_i64(div) {
+        return None;
+    }
+    // The full compound ends in a number, so selection no longer sees
+    // `pounds` as its last word. Apply the existing word-sense guard at
+    // the major unit's boundary; explicit `lb` remains unambiguous weight.
+    if major.unit() == Unit::Weight(Weight::Pound)
+        && let Some(at) = (ctx.start..ctx.end)
+            .rev()
+            .find(|&i| ctx.lexeme(i).kind == Kind::Word && matches!(ctx.word(i), "pound" | "pounds"))
+        && !ENGLISH_UNITS.stands(major.value(), major.unit(), &Ctx { end: at + 1, ..*ctx })
+    {
         return None;
     }
     let ends = match ctx.after() {
