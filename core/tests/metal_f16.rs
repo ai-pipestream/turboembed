@@ -88,7 +88,7 @@ fn fastest_computes_in_f16_and_says_so() {
         assert_eq!(rt.capability(i, p).dtype, dtype, "precision {p}");
         let info = make(l.m, None, p, TURBO_AUTOTUNE_OFF).unwrap().info();
         assert_eq!(info.compute_dtype, dtype, "precision {p}");
-        // FASTEST has four tilings (three tiles and auto) and three
+        // FASTEST has five tilings (four tiles and auto) and three
         // attention kernels (staged, registers and auto); the others one path.
         let want = if p == TURBO_PRECISION_FASTEST { "linear=auto;attn=auto;forced=" } else { "" };
         assert_eq!((field(&info.choices), info.tuned), (want.to_owned(), TURBO_TUNED_DEFAULT), "precision {p}");
@@ -108,6 +108,7 @@ fn each_f16_choice_matches_the_cpu_within_fastest_s_floor() {
         ("linear=h32", TURBO_PRECISION_FASTEST, FASTEST_FLOOR, "linear=h32;attn=auto;forced=linear"),
         ("linear=h64", TURBO_PRECISION_FASTEST, FASTEST_FLOOR, "linear=h64;attn=auto;forced=linear"),
         ("linear=h128", TURBO_PRECISION_FASTEST, FASTEST_FLOOR, "linear=h128;attn=auto;forced=linear"),
+        ("linear=h32n32", TURBO_PRECISION_FASTEST, FASTEST_FLOOR, "linear=h32n32;attn=auto;forced=linear"),
         ("linear=auto", TURBO_PRECISION_FASTEST, FASTEST_FLOOR, "linear=auto;attn=auto;forced=linear"),
         ("attn=staged", TURBO_PRECISION_FASTEST, FASTEST_FLOOR, "linear=auto;attn=staged;forced=attn"),
         ("attn=registers", TURBO_PRECISION_FASTEST, FASTEST_FLOOR, "linear=auto;attn=registers;forced=attn"),
@@ -173,7 +174,7 @@ fn a_tuned_session_runs_one_of_the_choices_and_forces_back() {
     let i = s.info();
     assert!([TURBO_TUNED_MEASURED, TURBO_TUNED_DEFAULT].contains(&i.tuned), "{}", i.tuned);
     let line = field(&i.choices);
-    let tiles = ["h32", "h64", "h128", "auto"];
+    let tiles = ["h32", "h64", "h128", "h32n32", "auto"];
     assert!(tiles.iter().any(|t| line == format!("linear={t};attn=auto;forced=")), "{line}");
     let forced = make(g.m, Some(&line), TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_OFF).unwrap();
     assert_eq!(field(&forced.info().choices), line.replace("forced=", "forced=linear,attn"));
@@ -308,7 +309,9 @@ fn masked_keys_inside_a_row_are_left_out_at_fastest() {
         assert!(apart >= 100.0 * (1.0 - MASKED_FLOOR), "row {r}: masking moves the cpu's vector by only {apart:.3e}");
     }
     let awkward = awkward_rows(&dir);
-    for line in ["linear=h32", "linear=h64", "linear=h128", "linear=auto", "attn=staged", "attn=registers"] {
+    let lines =
+        ["linear=h32", "linear=h64", "linear=h128", "linear=h32n32", "linear=auto", "attn=staged", "attn=registers"];
+    for line in lines {
         let s = make(g.m, Some(line), TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_OFF).unwrap();
         let lowest = against_cpu(&s, &cpu, &t, MASKED_FLOOR, &format!("{line}, masked keys"));
         println!("{line}, masked keys inside rows: 1 - lowest cosine with the cpu {:.3e}", 1.0 - lowest);
