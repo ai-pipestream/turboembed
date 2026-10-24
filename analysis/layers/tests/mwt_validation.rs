@@ -49,3 +49,21 @@ fn validation_checks_view_fragments_and_sentence_columns() {
     t.sentence = Some(vec![Ix::new(0), Ix::new(0)]);
     assert!(expander.annotate((view, &t)).is_ok());
 }
+
+#[test]
+fn mwt_preserves_overlapping_and_duplicate_utf16_token_mappings() {
+    use turbo_analysis::Layer;
+    for (text, ranges) in [
+        ("😀.😀a", vec![(0, 10), (9, 10)]),
+        ("Smile 😀", vec![(0, 5), (6, 10), (6, 10)]),
+    ] {
+        let doc = Document::new(text);
+        let view = doc.get::<View>().unwrap();
+        let mut tokens = Tokens { spans: Spans::new(view.id()), sentence: None };
+        for (start, end) in ranges { tokens.spans.push(Span::new(start, end)); }
+        tokens.check().unwrap();
+        let (words,) = RuleMwtExpander::new(MwtLanguage::Spanish).annotate((view, &tokens)).unwrap();
+        assert_eq!(words.len(), tokens.len());
+        words.check_against(text, &tokens).unwrap();
+    }
+}
