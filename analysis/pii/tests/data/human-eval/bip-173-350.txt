@@ -1,0 +1,43 @@
+BIP-173 and BIP-350: Bech32 and Bech32m Segregated Witness Addresses
+Authors: Pieter Wuille, Greg Maxwell
+Licence: BSD-2-Clause (https://opensource.org/licenses/BSD-2-Clause)
+Source: https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki
+        https://github.com/bitcoin/bips/blob/master/bip-0350.mediawiki
+
+Abstract and Specification
+
+A segregated witness output address consists of a human-readable part
+("bc" for Bitcoin mainnet, "tb" for testnet), the separator "1", a
+witness version character in the Bech32 alphabet ("q" for version 0,
+"p" through "n" for versions 1 through 16), the 5-bit witness program
+data, and a 6-character BCH checksum. Witness version 0 uses the
+original BIP-173 Bech32 constant 1, whereas witness versions 1 through
+16 use the BIP-350 Bech32m constant 0x2bc830a3 to eliminate the length-
+extension weakness when the final character is "p". Legacy Pay-to-
+Public-Key-Hash (P2PKH, version 0x00) and Pay-to-Script-Hash (P2SH,
+version 0x05) mainnet addresses use Base58Check encoding with a 4-byte
+double-SHA-256 checksum, such as the synthetic test vectors
+1Pjk7c5ipz7ZpbVT3VKwcFNGeqgBFpbQdw and
+3APADkvHwo6aV4ZRCY7H7RZTcdvMxbYyNR.
+
+Valid Mainnet Segregated Witness Vectors
+
+- BIP-173 witness version 0 (P2WPKH and P2WSH):
+  BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4
+  bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4
+- BIP-350 witness version 1 (Taproot P2TR) and higher versions:
+  bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0
+  bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kt5nd6y
+  BC1SW50QGDZ25J
+  bc1zw508d6qejxtdg4y5r3zarvaryvaxxpcs
+
+Invalid and Out-of-Scope Vectors from the Specification
+
+Decoders must reject mixed-case Bech32 strings such as
+bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jJ0,
+version 0 programs encoded with Bech32m such as
+bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kemeawh, version 1 programs encoded
+with original Bech32 such as
+bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7k7grplx,
+invalid witness program lengths such as BC130XLXVLHEMJA6C4DQV22UAPCTQUPFHLXM9H8Z3K2E72Q4K9HCZ7VQ7ZWS8R,
+and broken Base58Check checksums such as 1Pjk7c5ipz7ZpbVT3VKwcFNGeqgBFpbQdx.
