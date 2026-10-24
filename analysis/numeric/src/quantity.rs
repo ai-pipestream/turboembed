@@ -46,7 +46,9 @@ const MAX_UNIT_UNITS: usize = 14;
 
 /// How many UTF-16 units of letters a candidate unit token may
 /// have before the scan gives up. A longer run of letters is
-/// no unit.
+/// no unit. The bound only sizes the scan: a token still counts
+/// only when it matches a known unit exactly, so widening it
+/// changes no reading, on the default document path either.
 const MAX_TOKEN_UNITS: usize = 16;
 
 /// Writes `turbo:quantities` over a text view: every number followed by a
