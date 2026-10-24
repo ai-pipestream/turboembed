@@ -98,8 +98,9 @@ fn inside_a_url_credential() {
     let value = token(160);
     let credential = format!("user:{value}");
     let text = format!("https://{credential}@example.invalid/repo.git");
+    assert_found(&pack(Pack::Secrets), &text, &[(8, 8 + credential.len() as u32, "url-credential", &credential)]);
     assert_found(
-        &pack(Pack::Secrets),
+        &pack(Pack::Secrets).keeping_nested(),
         &text,
         &[
             (8, 8 + credential.len() as u32, "url-credential", &credential),

@@ -160,7 +160,7 @@ pub(super) fn backend_rows(o: &EmbedOptions, batch: u32, seq: u32, row_stride: u
         pooling: o.pooling,
         normalize: o.normalize,
         output_dim: o.output_dim,
-        reserved: 0,
+        head: 0,
     }
 }
 

@@ -143,7 +143,7 @@ fn check(pack: Pack) -> Counts {
     let ids = inputs();
     assert!(ids.len() > 50, "only {} inputs in the pii set", ids.len());
     let analyzer = Analyzer::builder()
-        .add(PiiDetector::pack(pack))
+        .add(PiiDetector::pack(pack).keeping_nested())
         .step(MaskedView::by_kind('*').unwrap().bound())
         .build()
         .expect("the analyzer");

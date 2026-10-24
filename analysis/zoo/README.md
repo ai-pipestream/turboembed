@@ -62,7 +62,7 @@ checks it.
 
 ## Tests
 
-- `tests/zoo.rs`: one artifact per class, served from memory. Refused
+- `tests/zoo.rs` and `tests/zoo/origin.rs`: one artifact per class, served from memory. Refused
   artifacts, no-derivatives ones among them, are neither listed nor
   fetched; share-alike, LGPL and GPL artifacts are refused until the
   user accepts each licence they need, per user, rechecked on every
@@ -80,14 +80,16 @@ checks it.
   GPL acceptance can be turned off;
   a size, SHA-256 or SHA-512 mismatch fails and writes nothing; a corrupt
   cached file is fetched again; a symlink in the cache is refused; the
-  index parser rejects every malformed field.
+  index parser requires `attribution` whenever a licence asks for it and
+  rejects every malformed field.
 - `tests/cli.rs`: before recording an acceptance, `turbo-zoo accept`
   shows the text's address and, for local-only terms, what the terms
   allow apart from this project's policy, which accepting agrees to; it
   names a permissive or refused licence as such, a refused `LicenseRef-`
   one included, and offers nothing to accept, and `turbo-zoo revoke`
-  names them the same way; `turbo-zoo show` gives the same two
-  statements for a local-only artifact.
+  names them the same way; `turbo-zoo show` prints the artifact's
+  `attribution` and gives the same two statements for a local-only
+  artifact.
 - `src/fetch.rs`, with the `http` feature: the HTTPS transport follows
   at most 10 redirects and refuses a plain `http://` address before
   connecting, the check `ureq` applies to every redirect too.

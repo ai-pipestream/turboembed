@@ -146,6 +146,7 @@ pub fn dataset(release: Release) -> Result<Artifact> {
         license_terms: TERMS.parse().map_err(parse("terms", TERMS))?,
         trained_on: Vec::new(),
         class: LicenceClass::Permissive,
+        attribution: Some(ATTRIBUTION.to_owned()),
         origin: None,
         files: vec![File {
             path: r.file.parse().map_err(parse("file", r.file))?,

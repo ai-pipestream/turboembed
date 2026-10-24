@@ -77,12 +77,28 @@ unsafe extern "C" fn no_tuned(
     crate::status::INTERNAL
 }
 
+/// A table that ends with embed_write_ranges is known and applies no
+/// token head, whatever lies past its end; the whole table applies one
+/// when it sets token_head.
+#[test]
+fn a_table_from_before_token_heads_is_known_and_applies_none() {
+    let mut t = cpu_table(std::mem::offset_of!(turbo_backend, token_head));
+    t.token_head = 1;
+    check_table(&t).unwrap();
+    assert!(!t.token_head());
+    let mut t = cpu_table(size_of::<turbo_backend>());
+    assert!(!t.token_head());
+    t.token_head = 1;
+    assert!(t.token_head());
+    check_table(&t).unwrap();
+}
+
 #[test]
 fn a_table_from_before_tuned_sessions_is_known_and_offers_none() {
     let t = cpu_table(std::mem::offset_of!(turbo_backend, session_create_tuned));
     assert_eq!(std::mem::offset_of!(turbo_backend, session_create_tuned), 160);
     assert_eq!(std::mem::offset_of!(turbo_backend, session_open), 168);
-    assert_eq!(size_of::<turbo_backend>(), 184);
+    assert_eq!(std::mem::offset_of!(turbo_backend, token_head), 184);
     check_table(&t).unwrap();
     assert!(offered!(&t, session_run).is_ok());
     // Whatever lies past the table's end is not read.

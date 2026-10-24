@@ -31,7 +31,7 @@ everything that makes them:
   repository's `mvnw`,
   clones `opennlp-addons` at a pinned commit and installs its `numeric`
   module, and builds the generator.
-- `src/`: the driver, the `turbo-goldens` binary. `src/recipe.rs` holds the
+- `src/`: the driver, the `turbo-goldens` binary. `src/recipe/` holds the
   base image digest, the OpenNLP and addons commits, the published models
   with their URLs and SHA-512 hashes, the checked in fixtures with their
   SHA-512 hashes, and the input sets. `src/fuzz.rs` is the `fuzz`
@@ -60,7 +60,7 @@ cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n
   and checks each one's SHA-512 against the value published beside it on
   downloads.apache.org. A model already there with the right hash is kept.
   With `--local` it also downloads the OpenNLP 1.5 English models
-  (`LOCAL_MODELS` in `src/recipe.rs`) from opennlp.sourceforge.net, which
+  (`LOCAL_MODELS` in `src/recipe/models.rs`) from opennlp.sourceforge.net, which
   publishes no hash beside them: the recipe has the SHA-512 of the files
   whose SHA-256 the sequence crate's README lists. Their training corpora
   are LDC corpora or undocumented, so the `ci` workflow does not fetch
@@ -84,7 +84,7 @@ cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n
   (`REFERENCE_IMAGE`, bundle/README.md) with no network, and keeps the copy
   only if its SHA-512 is `POOLED_SHA512`. `generate`, `verify` and `fuzz`
   do the same, so they need that image.
-  It also fetches the MeCab dictionaries (`DICTIONARIES` in `src/recipe.rs`)
+  It also fetches the MeCab dictionaries (`DICTIONARIES` in `src/recipe/models.rs`)
   as archives, checks each archive's SHA-512 (neither project publishes
   one; these are the hashes OpenNLP's dictionary catalog test resource
   lists), and unpacks it with `tar` into a directory of the archive's
@@ -102,7 +102,7 @@ cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n
   snapshot's directory (at `/rates`) mounted read only, and replaces the
   annotator directories in `analysis/goldens/data` (or `<dir>`) with what
   it wrote. The generator is always given `--dumps`
-  (`GENERATOR_ARGS` in `src/recipe.rs`), so the goldens and their dumps are
+  (`GENERATOR_ARGS` in `src/recipe/mod.rs`), so the goldens and their dumps are
   made and installed together; before installing, every sentence, token,
   part-of-speech, maxent lemmatizer, chunk and language golden whose header names a model must have a dump beside it
   whose header parses, except a golden with an error record (the annotator
@@ -158,6 +158,7 @@ a directory with the same model run without them, and its options are
 | | `chunker-fixture+beam1` | `en` | `beamSize 1` |
 | | `chunker-fixture-rust` (fixture) | `en`, `multi`, `edge` | |
 | `langdetect` (`LanguageDetectorME`) | `langdetect-183`, `langdetect-fixture-rust` (fixture) | `en`, `multi` | |
+| | `langdetect-183+probing`, `langdetect-183+probing-chunk50`, `langdetect-fixture-rust+probing`, `langdetect-fixture-rust+probing-chunk50` | `en`, `multi`, `langdetect` | `probing true`, `chunkSize`, `maxLength`, `minConsecImprovements`, `minDiff` |
 | `normalize` (each normalizer) | the normalizer's name | `norm` | see below |
 | `numbers` (`NumberScan` of the addons `numeric` module) | `latin-us`, `latin-eu` | `num` | `notation` |
 | `money`, `money-convert` (`MoneyAnnotator`, `MoneyConversionAnnotator`) | `latin-us`, `latin-eu` | `money` | `notation`; for conversions also `target`, `as_of`, `snapshot` |
@@ -217,7 +218,7 @@ a directory with the same model run without them, and its options are
 | `hunspell` (`HunspellDictionary`, `HunspellStemmer` of the `OPENNLP-1927-hunspell-compatibility` branch) | `en_US`, `de_DE_frami`, `hu_HU` (downloaded); `fixture-<name>` for each fixture in `hunspell/`, and `fixture-unsupported-directives+partial` | `hunspell`: `edge` and the run's own; `stem`: the Snowball sample of the dictionary's language | `mode`, `branchCommit` |
 | `stopword` (`StopwordLists`, `StopwordFilter`, `StopwordFilteringTokenizer`) | `lists`, `codes`, `words`, `filter`, `letters` | `stopword`: `codes` for `codes`, `words` for the others | |
 | `glossary` (`AhoCorasickGlossaryMatcher`, `TermAnalyzingGlossaryMatcher`, `CompositeGlossaryMatcher`, `CsvGlossaryReader`, `TbxGlossaryReader`) | `exact`, `ignore-case`, `whitespace+ignore-case`, `analyzed`, `composite` (the fixture `glossary-terms.tsv`); `csv`, `tsv-header`, `tbx-en`, `tbx-de` | `glossary`: the `text-` inputs for the matchers, the `csv-`, `tsv-` and `tbx-` inputs for the readers | `ignoreCase`, `normalizer`, `analyzer`; `delimiter`, `skipHeader`; `languageTag` |
-| `svm-doccat` (`DocumentCategorizerSVM.train`, `categorize`) | `topics-linear-<weighting>-<selection>` for the four weightings (`binary`, `tf`, `tfidf`, `lognorm`) and five selections (`none`, `ig`, `chi2`, `tf`, `df`); `topics-rbf-tfidf`, `topics-poly-tf`, `topics-sigmoid-binary`, `topics-nu-linear-tfidf`, `topics-nu-rbf-lognorm`, `topics-linear-tfidf-noscale`, `topics-rbf-tfidf-scale-1`, `topics-linear-lognorm-ngram`, `topics-linear-binary-c10`, `pair-linear-tfidf`, `pair-rbf-binary` | `svm-doccat`; the run's corpus in `svm-doccat-train` | `run`, `corpus`, `language`, `seed`, `weighting`, `selection`, `max-features`, `svm-type`, `kernel`, `degree`, `gamma`, `coef0`, `cost`, `scaling`, `generators` |
+| `svm-doccat` (`DocumentCategorizerSVM.train`, `categorize`) | `topics-linear-<weighting>-<selection>` for the four weightings (`binary`, `tf`, `tfidf`, `lognorm`) and five selections (`none`, `ig`, `chi2`, `tf`, `df`); `topics-rbf-tfidf`, `topics-poly-tf`, `topics-sigmoid-binary`, `topics-sigmoid-tfidf`, `topics-nu-linear-tfidf`, `topics-nu-rbf-lognorm`, `topics-linear-tfidf-noscale`, `topics-rbf-tfidf-scale-1`, `topics-linear-lognorm-ngram`, `topics-linear-binary-c10`, `pair-linear-tfidf`, `pair-rbf-binary` | `svm-doccat`; the run's corpus in `svm-doccat-train` | `run`, `corpus`, `language`, `seed`, `weighting`, `selection`, `max-features`, `svm-type`, `kernel`, `degree`, `gamma`, `coef0`, `cost`, `scaling`, `generators` |
 | `sentiment` (`SentimentME.train`, `probabilities`) | `tokens-maxent`, `emoji-maxent`, `emoji-default`, `emoji-qn`, `emoji-perceptron` | `sentiment`; the corpus `feedback` in `sentiment-train` | `run`, `corpus`, `language`, `factory`, `Algorithm`, `Iterations`, `Cutoff` |
 | `doccat` (`DocumentCategorizerME.train`, `categorize`) | `sms-default`, `sms-maxent`, `sms-qn`, `sms-perceptron` | `doccat`; the corpus `emoji` in `doccat-train` | `run`, `corpus`, `language`, `generators`, `Algorithm`, `Iterations`, `Cutoff` |
 | `postag-neural` (`BilstmPOSTagger`, `FeedforwardPOSTagger` of the addons `neural-postag` module, `topKSequences`) | `bilstm`, `bilstm-crf`, `bilstm-two-layer`, `bilstm-two-layer-crf`, `bilstm-vectors-crf`, `bilstm-adapter-crf`, `feedforward`, `feedforward-vectors` | `tagged` (the `wordtag` input, also the training corpus), `sequence` (the `sentences` input) | `run`, `corpus`, `neuralPostagCommit`, `settings`, `vectors` |
@@ -323,7 +324,7 @@ a directory with the same model run without them, and its options are
   `analysis/train-components/tests/chunker.rs` compares with them.
 - A `train-liblinear` run (`LiblinearTrainGolden`) trains the liblinear
   add-on of the OpenNLP addons (`main` branch, the commit
-  `LIBLINEAR_ADDON_COMMIT` in `src/recipe.rs`) on the events of a `train`
+  `LIBLINEAR_ADDON_COMMIT` in `src/recipe/mod.rs`) on the events of a `train`
   source, sorted within each event (liblinear refuses features that do
   not ascend) or as the stream made them (`events raw`). The add-on's
   classes are in the default package, so the image compiles them into a
@@ -448,7 +449,7 @@ a directory with the same model run without them, and its options are
   optional.
 
 The fixtures (`analysis/goldens/data/fixtures`) are checked in, mounted at
-`/fixtures` and listed with their SHA-512 in `src/recipe.rs`; the data
+`/fixtures` and listed with their SHA-512 in `src/recipe/fixtures.rs`; the data
 directory's README says where each comes from.
 
 ## WordPiece goldens
@@ -465,7 +466,7 @@ first and `[SEP]` last with empty spans at the ends of the text; the
 generator checks them and leaves them out, since they are not pieces of
 the text. The encoder asks no model, so there are no dumps.
 
-OpenNLP's `WordpieceTokenizer` is not what runs: at the commit in `src/recipe.rs` it
+OpenNLP's `WordpieceTokenizer` is not what runs: at the commit in `src/recipe/mod.rs` it
 does no normalization, and its `tokenizePos` throws, so it has no spans.
 `WordpieceEncoder` is the class with the BERT normalization, ids and
 spans.
@@ -602,7 +603,7 @@ jars (`BranchJar`).
 - `ConlluDependencySampleStream` (`ConlluDependencyGolden`), with the
   `DependencySample`, `DependencyTree` and `DependencyArc` it builds, of
   the fork's `ready/agents-md` branch (`CONLLU_DEPENDENCY_COMMIT` in
-  `src/recipe.rs`, `-Dturbo.goldens.conlluDependencyJar`), over the
+  `src/recipe/mod.rs`, `-Dturbo.goldens.conlluDependencyJar`), over the
   `dependency-` inputs, in each tag set and for the universal tags also
   in the legacy whitespace mode. The layers are those of the format
   goldens' part-of-speech samples, `turbo:samples`, `turbo:read-errors`,
@@ -929,7 +930,7 @@ the expression the method returns before building the module.
 `PlaceProfiles.load` made of the table `inputs/place-profiles/<id>.txt`.
 The class is not in the addons commit the rest of the `geo` module is built
 from, so the Dockerfile takes `PlaceProfiles.java` from
-`PLACE_PROFILES_COMMIT` (`src/recipe.rs`, on the addons'
+`PLACE_PROFILES_COMMIT` (`src/recipe/mod.rs`, on the addons'
 `ready/geo-place-profiles` branch) and compiles it into the module; the
 golden's `profilesCommit` record names that commit. The layers are
 `turbo:profiles-load` (whether it loaded, or the exception),
@@ -1003,7 +1004,7 @@ the notation takes the model's place in the path.
 
 The scan is `NumberScan.parse` in the `numeric` module of
 `ai-pipestream/opennlp-addons` (branch `ready/numeric`, commit
-`33e95a4956f1535cdc074056b29246fe88b3c81a`, pinned in `src/recipe.rs`). `NumberGolden` runs the
+`33e95a4956f1535cdc074056b29246fe88b3c81a`, pinned in `src/recipe/mod.rs`). `NumberGolden` runs the
 loop of that module's `CursorQuantityExtractor.extract` and `matchAt`
 without the exclusion of money spans and without units, using only public
 `NumberScan` methods: at each offset an optional `-`, an ASCII digit that
@@ -1196,7 +1197,7 @@ JVM's bits. Without the corpus it skips, unless
 
 These runs record the neural taggers of the addons' `neural-postag`
 module, which the Dockerfile builds from `NEURAL_POSTAG_COMMIT`
-(`src/recipe.rs`, on the addons' `ready/neural-postag-bilstm` branch)
+(`src/recipe/mod.rs`, on the addons' `ready/neural-postag-bilstm` branch)
 against the OpenNLP fork; the `neuralPostagCommit` record names that
 commit. `PostagNeuralGolden.java` writes them. Each run trains one model on
 the word and tag lines of `inputs/tagged/wordtag.txt` (written for this
@@ -1387,7 +1388,7 @@ text; a string that can hold half of a surrogate pair is written as
 
 The `code-points` run of `string-pattern` runs the code point
 `StringPattern` of the fork's `ready/string-pattern-unicode` branch
-(`STRING_PATTERN_COMMIT` in `src/recipe.rs`). The image compiles that commit's
+(`STRING_PATTERN_COMMIT` in `src/recipe/mod.rs`). The image compiles that commit's
 `StringPattern`, `FeatureGeneratorUtil` and `ParamChecks` against the
 generator's OpenNLP build into `/string-pattern/string-pattern.jar`, and the
 entrypoint names the jar in the system property
@@ -1397,7 +1398,7 @@ the container, the generator needs that property.
 
 The `hunspell` runs work the same way with the Hunspell classes of the fork's
 `OPENNLP-1927-hunspell-compatibility` branch (`HUNSPELL_COMMIT` in
-`src/recipe.rs`): the image compiles that commit's `HunspellStemmer`,
+`src/recipe/mod.rs`): the image compiles that commit's `HunspellStemmer`,
 `HunspellDictionary`, `HunspellAffixTable`, `HunspellCompoundRule`,
 `HunspellConversion` and `AffixCondition`, with `java/hunspell/HunspellBridge.java`,
 into `/hunspell/hunspell.jar` beside a file holding the commit, and the
@@ -1437,12 +1438,12 @@ the container's JDK, Eclipse Temurin 21.0.12.1.
 Before that, they were made by running the generator directly on Ubuntu's
 OpenJDK 21.0.12.1. The container run gave the same bytes except the `jdk`
 header line. The generator can still be run that way while working on it,
-with the OpenNLP fork built at the commit pinned in `src/recipe.rs`
+with the OpenNLP fork built at the commit pinned in `src/recipe/mod.rs`
 (commit `cdf33c653d5d61d5af7d37ffee189a83bd8392ea` of the
 `kristian-3.x-features` branch, Maven version `3.0.0-SNAPSHOT`; the commit
 pinned before it does not have `Dehyphenation`, `BoundedUrl`,
 `EnglishContraction` and `SymbolJoiner`), and the `numeric` module of
-`opennlp-addons` installed after it at its commit in `src/recipe.rs` (the
+`opennlp-addons` installed after it at its commit in `src/recipe/mod.rs` (the
 `numbers` goldens do not record that commit in their header). Its output
 then differs from the checked in files in the `jdk` line:
 

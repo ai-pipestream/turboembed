@@ -3203,7 +3203,7 @@ container from a recorded `eclipse-temurin:21-jdk` digest with OpenNLP
 built from a recorded commit of the fork, runs the Java generator in it
 without a network over the inputs the models (each model checked
 against its published SHA-512) and the fixtures (checked against the
-SHA-512 `recipe.rs` lists), and writes
+SHA-512 `analysis/goldens-tool/src/recipe/fixtures.rs` lists), and writes
 `<annotator>/<model>/<set>/<id>.golden` for every run and every input
 of the sets it takes. `turbo-goldens verify` regenerates them into a scratch directory and
 fails on any file whose bytes differ. The checked in goldens were made
@@ -4947,3 +4947,6 @@ the chunker cascade tests, and build-time space isolation by
 as a tarball (not BEIR jsonl for this reader); the ConTEB sets and
 HiCBench are not loadable from this cache (HiCBench has no licence
 recorded), so those did not run.
+
+The [cut-identity checker](chunker-cut-identity.md) compares flat chunk
+partitions across backend runs with optional DP runner-up margins.

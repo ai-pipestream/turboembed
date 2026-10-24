@@ -2015,7 +2015,6 @@ name = "turbo-bundle"
 version = "0.1.0"
 dependencies = [
  "half",
- "regex",
  "serde",
  "serde_json",
  "serde_path_to_error",
@@ -2209,6 +2208,8 @@ dependencies = [
  "turbo",
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-bundle",
+ "turbo-zoo",
 ]
 
 [[package]]

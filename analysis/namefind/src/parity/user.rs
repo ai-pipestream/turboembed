@@ -23,6 +23,11 @@ fn check_java(pattern: &str, flags: Flags, texts: &[String], rng: &mut Rng, scra
         "limits of {pattern:?} {flags:?}"
     );
     for text in texts {
+        // The old translation cannot serve as an oracle for the newly
+        // supported mark boundaries and final terminators; JVM goldens do.
+        if !old.supports(&old_java_regex::TextFacts::of(text)) {
+            continue;
+        }
         let starts = char_starts(text);
         for from in froms(rng, starts.len() - 1) {
             let from = starts[from];

@@ -6,14 +6,17 @@ import opennlp.tools.langdetect.LanguageDetectorME;
 import opennlp.tools.langdetect.LanguageDetectorModel;
 
 /**
- * The language detector's decision point: the one {@code eval} call
- * {@link LanguageDetectorME#predictLanguages(CharSequence)} makes for the whole document, at
- * position 0. No context generator is wrapped, as there is nothing to pair.
+ * The language detector's decision points: the one {@code eval} call
+ * {@link LanguageDetectorME#predictLanguages(CharSequence)} makes for the whole document, or the
+ * sequence of per-chunk {@code eval} calls
+ * {@link LanguageDetectorME#probingPredictLanguages(CharSequence, opennlp.tools.langdetect.LanguageDetectorConfig)}
+ * makes over the cumulative {@code ngramCounts} map, each at position 0. No context generator is
+ * wrapped, as there is nothing to pair.
  *
- * <p>The call is {@code eval(String[], float[])}. Its contexts are the distinct n-grams the
- * context generator produced, in the iteration order of the {@code HashMap} that counted them,
- * and each value is 1 (the detector does not pass the counts, see OPENNLP-1261 in its source).
- * The dump holds them exactly as {@code eval} received them.</p>
+ * <p>Each call is {@code eval(String[], float[])}. Its contexts are the distinct n-grams in the
+ * iteration order of the {@code HashMap} that counted them, and each value is 1 (the detector does
+ * not pass the counts, see OPENNLP-1261 in its source). The dump holds them exactly as
+ * {@code eval} received them.</p>
  */
 final class LanguageDump implements AnnotatorDump {
 
@@ -52,17 +55,24 @@ final class LanguageDump implements AnnotatorDump {
   public Run run(Input input) throws AnnotatorException {
     List<Layer> layers;
     try {
-      layers = LanguageGolden.layers(detector, input);
+      layers = golden.layers(detector, input);
     } catch (AnnotatorException e) {
       // What the model was asked before the annotator threw belongs to no dump.
       recorder.discard();
       throw e;
     }
     List<Evaluation> evaluations = recorder.take();
-    if (evaluations.size() != 1 || evaluations.get(0).request() != null) {
+    if (evaluations.stream().anyMatch(e -> e.request() != null)) {
+      throw new IllegalStateException("input " + input.inputId() + ": unexpected context request on langdetect eval");
+    }
+    if (!golden.isProbing() && evaluations.size() != 1) {
       throw new IllegalStateException("input " + input.inputId() + ": predictLanguages made "
           + evaluations.size() + " eval calls, one was expected");
     }
-    return new Run(recorder.outcomeLabels(), List.of(DecisionPoint.document(evaluations.get(0))), layers);
+    if (golden.isProbing() && evaluations.isEmpty()) {
+      throw new IllegalStateException("input " + input.inputId() + ": probingPredictLanguages made no eval calls");
+    }
+    List<DecisionPoint> points = evaluations.stream().map(DecisionPoint::document).toList();
+    return new Run(recorder.outcomeLabels(), points, layers);
   }
 }

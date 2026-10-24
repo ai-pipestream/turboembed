@@ -641,14 +641,19 @@ them.
 
 Thai, Lao, Khmer and Burmese are written without spaces between words,
 and UAX #29 does not find the words inside a run of their letters. `DictionaryWordTokenizer` is the
-UAX #29 word tokenizer with those runs handed to a word dictionary, a
-port of ICU4X's dictionary word segmenter (`icu_segmenter`, the
-`DictionaryBreakIterator` with its `ZeroTrieSimpleAscii` word lists)
-with no dependency on the ICU4X crates. It writes `Tokens` and
-`WordTypes` (a word of a run has the type southeast asian), cuts long
-words as `WordTokenizer` does, and has the same untyped variant,
-`UntypedDictionaryWordTokenizer`. `ComplexSegmenter` is the segmenter
-under it, over a `&str`, and `Dictionary` is one script's word list.
+UAX #29 word tokenizer with those runs handed to a per-script segmenter
+(`Segmenter::Lstm` for Thai and `Segmenter::Dictionary` for Lao, Khmer
+and Burmese), a port of ICU4X's complex-script word segmenters
+(`icu_segmenter`, the `DictionaryBreakIterator` with its
+`ZeroTrieSimpleAscii` word lists and the `LstmSegmenter` with its
+bidirectional LSTM weights) with no dependency on the ICU4X crates. It
+writes `Tokens` and `WordTypes` (a word of a run has the type southeast
+asian), cuts long words as `WordTokenizer` does, and has the same
+untyped variant, `UntypedDictionaryWordTokenizer`. `ComplexSegmenter` is
+the segmenter under it, over a `&str`, with one `Segmenter` (`Dictionary`
+or `Lstm`) per script (`ComplexSegmenter::with_segmenters` lets a caller
+pick either segmenter per script, while `ComplexSegmenter::bundled` picks
+the default for each script).
 
 A complex run is a maximal run of characters of one script among Thai,
 Lao, Khmer and Myanmar that have `Line_Break=SA`: the sets
@@ -656,56 +661,88 @@ Lao, Khmer and Myanmar that have `Line_Break=SA`: the sets
 segmenter. Digits, punctuation and the other characters of those scripts
 are not `SA` and stay with the UAX #29 rules. The text between runs is
 segmented by the UAX #29 rules on its own, so the state machine starts
-afresh after each run, as ICU4X's does. Inside a run the dictionary is
-walked from each position, one character at a time: a word that no
-longer word continues is taken at once; otherwise the longest word seen
-that ends on a grapheme cluster boundary is taken when the walk can go
-no further; where no word starts, the piece read until the walk failed
-is one segment, or the rest of the run when the run ended first.
+afresh after each run, as ICU4X's does. Inside a dictionary run the
+dictionary is walked from each position, one character at a time: a word
+that no longer word continues is taken at once; otherwise the longest
+word seen that ends on a grapheme cluster boundary is taken when the
+walk can go no further; where no word starts, the piece read until the
+walk failed is one segment, or the rest of the run when the run ended
+first. Inside an LSTM run the text is split into dictionary entries by
+greedy longest-match over the model's `ZeroTrieSimpleAscii` vocabulary
+(one Unicode scalar when no entry starts at that position, mapped to
+the out-of-vocabulary row `V`); a forward and backward 1-layer LSTM
+(`hun = 27`, `x = 40`, `c = 4`, IEEE-754 `f32` arithmetic in the same
+order as ICU4X's 8-way unrolled dot product) scores each cluster as
+`B`/`I`/`E`/`S`, and boundaries are emitted after each cluster where `E`
+(`weights[2]`) strictly exceeds `B`, `I` and `S` (and at the end of the
+run), snapped forward to the end of the containing extended grapheme
+cluster if an entry ends mid-cluster. Because each cluster's embedding is
+picked from a small table of `V + 1` vectors, `fw_b + fw_w * x[id]` and
+`bw_b + bw_w * x[id]` are precomputed for every vocabulary ID when the
+`.lstm` model is loaded, leaving only the `[4 * hun, hun]` recurrent
+products per character step.
 
-Data: the four word lists of ICU4X's baked segmenter data at commit
-`bb3e1f9a0c966f7334aa400066f520f64f3dc3d6`, generated with CLDR
-49.0.0-BETA4 and Unicode 18.0.0 from ICU's export data `release-79.1rc`.
-The CLDR release is a beta, but CLDR does not supply these lists: they
-are ICU4C's `brkitr/dictionaries/*dict.txt`, and the words of each file
-equal ICU4C's lists at `release-79.1rc` exactly (an ignored test checks
-this when given the files). The published `icu_segmenter_data` 2.3.0 is
-older (CLDR 48.2.1) and is not used. Each file in
+Data: the four word lists and four LSTM weight tables of ICU4X's baked
+segmenter data at commit `bb3e1f9a0c966f7334aa400066f520f64f3dc3d6`,
+generated with CLDR 49.0.0-BETA4 and Unicode 18.0.0 from ICU's export
+data `release-79.1rc`. The CLDR release is a beta, but CLDR does not
+supply these files: the dictionaries are ICU4C's
+`brkitr/dictionaries/*dict.txt` (equal to ICU4C's lists at
+`release-79.1rc` exactly, checked by an ignored test when given the
+files), and the LSTM models are ICU4X's
+`Thai_codepoints_exclusive_model4_heavy`,
+`Lao_codepoints_exclusive_model4_heavy`,
+`Khmer_codepoints_exclusive_model4_heavy` and
+`Burmese_codepoints_exclusive_model4_heavy` (`CodePoints` models with
+`hun = 27`). The published `icu_segmenter_data` 2.3.0 is older (CLDR
+48.2.1) and is not used. Each `.dict` file in
 `analysis/tokenize/data/icu4x-segmenter/` is the entry's alphabet (an
 inversion list of at most 128 characters; a character's position in it
 is the byte the trie steps on) and its trie bytes, unchanged, behind a
-small header; the dictionaries are read in place from the `include_bytes!`
-data, with no decoding and no allocation. Thai has 26383 words, Lao
-30550, Khmer 81028 and Burmese 41120. The data are under the Unicode
+small header; the dictionaries are read in place from the
+`include_bytes!` data, with no decoding and no allocation. Thai has
+26383 words, Lao 30550, Khmer 81028 and Burmese 41120. Each `.lstm` file
+(`TZL1` header) stores the model type, `V`, `x`, `hun`, the
+`ZeroTrieSimpleAscii` bytes, and the nine little-endian `f32` arrays
+(`mat1`..`mat9`, ~170 KB per script). The data are under the Unicode
 License v3, with ICU's notices for the Thai and Khmer lists and BSD
 style licences for the Lao and Burmese lists; `LICENSE` beside the data
 has all of them, and the data README says how to rebuild the files from
-ICU4X's source (`regenerate_from_icu4x`, ignored, rebuilds them byte for
-byte).
+ICU4X's source (`regenerate_from_icu4x` and `regenerate_lstm_from_icu4x`,
+ignored, rebuild them byte for byte).
 
 The proofs: every line of ICU4X's `WordBreakDictionary.txt` without CJK
 (81 of 88; ICU4X segments Chinese and Japanese with a different
 dictionary, which this tokenizer leaves to `UnigramSegmenter` and
-`LatticeTokenizer`) gives the same boundaries byte for byte
-(`analysis/tokenize/tests/complex_icu4x.rs`); every boundary is an extended grapheme
-cluster boundary by the Unicode 18.0 rules, including GB9c (except where
-one cluster spans runs of two scripts, deviation 3), in 200 000
-random texts of the four scripts' characters and 200 000 runs of
-dictionary words with letters dropped, doubled or inserted (`analysis/tokenize/tests/complex_graphemes.rs`).
-The grapheme cluster boundaries are those of `turbo_unicode::grapheme`,
-checked against every case of `GraphemeBreakTest.txt`.
+`LatticeTokenizer`) gives the same boundaries byte for byte under
+`bundled_dictionaries()`, and every non-CJK line of ICU4X's
+`WordBreakLstm.txt` (77 of 84) gives the same boundaries byte for byte
+under `bundled_lstms()` (`analysis/tokenize/tests/complex_icu4x.rs`);
+every boundary of both segmenters is an extended grapheme cluster
+boundary by the Unicode 18.0 rules, including GB9c (except where one
+cluster spans runs of two scripts, deviation 3), in random texts of the
+four scripts' characters and runs of dictionary words with letters
+dropped, doubled or inserted
+(`analysis/tokenize/tests/complex_graphemes.rs`). The grapheme cluster
+boundaries are those of `turbo_unicode::grapheme`, checked against every
+case of `GraphemeBreakTest.txt`.
 
 Deviations from ICU4X, each with a test:
 
-1. ICU4X takes a word that no longer word continues, and the piece read
-   where no word starts, without looking at grapheme clusters, so a
-   boundary can fall between a letter and its marks (in Burmese and
-   Khmer, also inside a conjunct joined by the virama, which GB9c now
-   keeps together). Here such a boundary moves forward to the end of its
-   cluster and the next word is looked for from there
+1. ICU4X takes a word that no longer word continues, the piece read
+   where no word starts, and an LSTM `E` step without looking at
+   grapheme clusters, so a boundary can fall between a letter and its
+   marks (in Burmese and Khmer, also inside a conjunct joined by the
+   virama, which GB9c now keeps together). Here such a boundary moves
+   forward to the end of its cluster (in the dictionary, the next word
+   is looked for from there; in the LSTM, any `E` inside the cluster
+   snaps to the cluster end)
    (`a_boundary_never_splits_a_grapheme_cluster` and
-   `a_word_inside_a_grapheme_cluster_is_not_taken` in `analysis/tokenize/src/complex/dictionary.rs`).
-   Where ICU4X's boundary is on a cluster boundary, the two agree.
+   `a_word_inside_a_grapheme_cluster_is_not_taken` in
+   `analysis/tokenize/src/complex/dictionary.rs`, and
+   `lstm_boundary_inside_grapheme_cluster_snaps_to_cluster_end` in
+   `analysis/tokenize/src/complex/lstm.rs`). Where ICU4X's boundary is
+   on a cluster boundary, the two agree.
 2. A run that starts with marks belonging to the cluster before it (a
    Thai vowel sign after a Latin letter) starts at the next cluster
    boundary, and the marks join the segment before: `a\u{0E31}ภาษา` gives
@@ -714,14 +751,14 @@ Deviations from ICU4X, each with a test:
 3. Marks or joiners of no script after a run's last letter are in its
    cluster and join the last word: `ภาษา\u{0300} b` gives `ภาษา\u{0300}`,
    ` `, `b`, where ICU4X makes the mark a segment of its own. The
-   dictionary still sees the run alone, so the words do not change
+   segmenter still sees the run alone, so the words do not change
    (`runs_are_trimmed_to_grapheme_clusters` in `analysis/tokenize/src/complex/mod.rs`).
    The one place a boundary still falls inside a cluster: GB9c joins a
    consonant to the linker before it whatever their scripts, so a Khmer
    COENG followed by a Myanmar letter is one cluster. Extending the
    Khmer run to the cluster's end would give its last word the Myanmar
    letter, so the run stops where the Myanmar run starts and the Burmese
-   dictionary sees its whole run: `ក្កខ` (U+1780 U+17D2 U+1000 U+1001)
+   segmenter sees its whole run: `ក្កខ` (U+1780 U+17D2 U+1000 U+1001)
    gives `ក្`, `က`, `ခ`
    (`a_cluster_across_two_runs_is_cut_where_the_second_starts`).
 4. ICU4X's older (1.x) segmenter hardcoded the script ranges and left out
@@ -729,7 +766,7 @@ Deviations from ICU4X, each with a test:
    `Script` and `Line_Break` properties, and a test counts them (73 Thai,
    73 Lao, 87 Khmer, 187 Myanmar characters).
 5. The other `SA` scripts (Tai Tham, Tai Viet, New Tai Lue, Ahom and
-   others) have no dictionary here, and ICU4X has none for them either.
+   others) have no segmenter here, and ICU4X has none for them either.
    Here their characters keep their `Word_Break` values and the UAX #29
    rules segment them like any other text
    (`a_script_without_a_dictionary_keeps_the_uax29_rules`). ICU4X's
@@ -737,33 +774,51 @@ Deviations from ICU4X, each with a test:
    of `Extend`), so its boundaries in these scripts can differ from
    these.
 
-Accuracy. ICU4X also has an LSTM model for these scripts. It was
-compared with the dictionary on gold segmentations, scoring the words
-inside complex runs only (a word is correct when the gold has a word over the same
-characters): UD Thai PUD (commit
-`670083cd185a2ae215ce7aef1127c2b63640217d`, 1000 sentences, 21640 gold
-words in Thai runs) and myPOS 3.0 for Burmese (commit
-`f1a620ba271cae3d8658441eb626450fca09cdfa`, 43196 sentences, 468105 gold
-words). The dictionary rows come from
-`analysis/tokenize/tests/complex_eval.rs` (ignored, since neither corpus
-can be bundled), which asserts them. The LSTM rows and the newmm numbers
-below cannot be reproduced from the repository: the LSTM rows came from
-a scratch port of ICU4X's LSTM (checked against ICU4X's
-`WordBreakLstm.txt`, all 71 runs identical) and newmm from a run
-outside the repository, and both were used only to decide whether to
-port the LSTM.
+Accuracy and speed across all four scripts. Both segmenters were
+evaluated on gold segmentations, scoring the words inside complex runs
+only (a word is correct when the gold has a word over the same
+characters):
 
-| Segmenter | Corpus | Precision | Recall | F1 |
-|---|---|---|---|---|
-| Dictionary | Thai PUD | 0.690 | 0.790 | 0.737 |
-| LSTM | Thai PUD | 0.764 | 0.825 | 0.793 |
-| Dictionary | myPOS | 0.641 | 0.765 | 0.698 |
-| LSTM | myPOS | 0.532 | 0.635 | 0.579 |
+- **Thai**: UD Thai PUD (commit
+  `670083cd185a2ae215ce7aef1127c2b63640217d`, `th_pud-ud-test.conllu`,
+  1000 sentences, 287631 B, 21640 gold words in complex runs).
+- **Burmese**: myPOS 3.0 (commit
+  `f1a620ba271cae3d8658441eb626450fca09cdfa`, `mypos-ver.3.0.txt`,
+  43196 sentences, 6954379 B, 468105 gold words in complex runs).
+- **Khmer**: khPOS 1.0 (commit
+  `0211405c145b0a340ad558569bd06c946b2296b4`, `train.all`, 12000
+  sentences, 1801664 B, 121294 gold words in complex runs).
+- **Lao**: SeqLabeling Lao POS (commit
+  `8025a122e95422901e0907f0fc8ca4b5c1c34235`, `Lao_train.txt`, 4613
+  sentences, 798438 B, 64882 gold words in complex runs, 63644 in Lao
+  runs and 1238 in embedded Thai runs).
 
-The LSTM is better on Thai and worse on Burmese, and there is no gold
-data at hand for Lao or Khmer, so it is not ported: it does not win
-over the dictionary, and it would add a second model format and a
-floating point evaluation to keep deterministic.
+All rows below come from `analysis/tokenize/tests/complex_eval.rs`
+(ignored, since the corpora are not bundled), which asserts exact word
+counts and verifies that `ComplexSegmenter::bundled()` chooses the
+higher-F1 segmenter for every script (`Lstm` for Thai, `Dictionary` for
+Lao, Khmer and Burmese). Throughput was measured on an `Intel(R)
+Core(TM) Ultra 9 285K` (`cargo test --release`, best of 5 passes after a
+warm pass, zero heap allocations per run via `LstmScratch`):
+
+| Script | Corpus | Segmenter | Default | Precision | Recall | F1 | Throughput (MB/s) | Throughput (segs/s) |
+|---|---|---|---|---|---|---|---|---|
+| Thai | Thai PUD | Dictionary | | 0.690 | 0.790 | 0.737 | 72.52 | 6,967,793 |
+| Thai | Thai PUD | LSTM | yes | 0.764 | 0.825 | 0.793 | 2.17 | 198,170 |
+| Burmese | myPOS 3.0 | Dictionary | yes | 0.641 | 0.765 | 0.698 | 70.02 | 6,324,508 |
+| Burmese | myPOS 3.0 | LSTM | | 0.532 | 0.635 | 0.579 | 2.22 | 200,597 |
+| Khmer | khPOS 1.0 | Dictionary | yes | 0.737 | 0.761 | 0.748 | 68.16 | 5,037,626 |
+| Khmer | khPOS 1.0 | LSTM | | 0.693 | 0.702 | 0.697 | 2.22 | 160,900 |
+| Lao | SeqLabeling Lao | Dictionary | yes | 0.622 | 0.701 | 0.659 | 70.71 | 6,813,118 |
+| Lao | SeqLabeling Lao | LSTM | | 0.591 | 0.678 | 0.632 | 2.17 | 212,892 |
+
+The LSTM gains +5.6 F1 points on Thai (`0.793` vs `0.737`), whereas the
+dictionary beats the LSTM on Burmese (`0.698` vs `0.579`), Khmer (`0.748`
+vs `0.697`) and Lao (`0.659` vs `0.632`; on the mixed Lao+Thai runs in
+`Lao_train.txt`, `bundled()` using the Thai LSTM on Thai runs and the
+Lao dictionary on Lao runs reaches F1 `0.666`). Accordingly,
+`ComplexSegmenter::bundled()` uses the LSTM for Thai and the dictionary
+for Lao, Khmer and Burmese.
 
 For reference, PyThaiNLP's newmm (nlpo3 1.4.0 with the PyThaiNLP 5.4.0
 word list; neither is bundled) scores
