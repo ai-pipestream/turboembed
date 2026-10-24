@@ -953,6 +953,36 @@ machine, backend, the model file's hash and the commit:
 `x86-64.cpu.postag.bilstm-crf.<model8>.<commit12>.json`.
 docs/analysis.md ("BiLSTM-CRF numerics") reads the committed record.
 
+## Tagger records
+
+`turbo-bench tag --model <bundle-dir | file> --corpus <file.conllu>
+[--device cpu] [--precision exact|model|fastest] [--sentences-per-call <n>]
+[--rounds <n>] [--cpus <list>]`, in a build with `--features postag`, is
+the tagger mode every backend records through: it measures one tier of
+the BiLSTM-CRF part-of-speech tagger, a device and a precision, on the
+syntactic words of a CoNLL-U corpus. `--model` takes the bundle form
+`turbo-bundle postag-convert` writes (`analysis/postag/README.md`,
+"Bundle form"), verified before it is read, or the `ONLP-BLPT` file
+itself. The CPU tiers are `exact` (the `JvmParity` f64 numerics, on the
+file's f64 or the bundle's F32 weights), `model` (the `Packed` numerics on
+the same weights) and `fastest` (`Packed` on the bundle's F16 copy, so a
+bundle is needed). Another device is refused: no tier of the tagger runs
+there yet. The records go to `benchmarks/records/tag/`, read by neither
+`core/build.rs` nor the embed and postag record tests;
+`bench/tests/tree.rs` checks each one against its name and
+`turbo_bench::tag::check`. The provenance is the embed record's.
+
+The record (`bench/src/tag/mod.rs`, `TagRecord`) names the model (its
+ModelRef, the source file's SHA-256, the bundle manifest's SHA-256 when
+a bundle was read, the weights and the tag count), the tier (device,
+precision, numerics and the tagger's `config_hash`) and the corpus,
+then the words tagged as the corpus does and two speeds, each words per
+second with the p50 and p99 of a call's time: cold, the first pass of a
+tagger loaded just before it, and warm, the median of `--rounds` passes
+(3 by default) after it, every call of them in the percentiles. The
+name is machine, backend, precision, the source file's hash and the
+commit: `x86-64.cpu.tag.bilstm-crf.<precision>.<source8>.<commit12>.json`.
+
 ## Tests
 
 `bench/tests/` runs without docker or a GPU:

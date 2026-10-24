@@ -17,11 +17,13 @@ ureq = "3"
 # The part-of-speech tagger `turbo-bench postag` measures (the postag feature).
 turbo-analysis = { path = "../analysis/core", optional = true }
 turbo-postag = { path = "../analysis/postag", optional = true }
+# Reads a part-of-speech bundle for `turbo-bench tag` (bundle/src/postag.rs).
+turbo-bundle = { path = "../bundle", optional = true }
 
 [features]
 # Links the BiLSTM-CRF part-of-speech tagger for `turbo-bench postag`
 # (docs/benchmarks.md, "Part-of-speech records").
-postag = ["dep:turbo-analysis", "dep:turbo-postag"]
+postag = ["dep:turbo-analysis", "dep:turbo-postag", "dep:turbo-bundle"]
 # Links the CUDA backend into the library the tool measures (docs/cuda.md).
 cuda = ["turbo/cuda"]
 # cuBLAS in that library as well, for a record with TURBO_CUDA_CUBLAS set.
