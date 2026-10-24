@@ -263,9 +263,11 @@ fn read_index(bytes: &[u8], expected: SnapshotKind) -> Result<(String, Gazetteer
         attribute_source: r.u16s()?,
     };
     let names = KeyTable { text: r.string()?, bounds: r.u32s()?, slots: r.slots()? };
+    let by_len = crate::index::by_len_of(&names);
     let index = GazetteerIndex {
         store,
         names,
+        by_len,
         postings_start: r.u32s()?,
         postings: r.u32s()?,
         ids: r.slots()?,

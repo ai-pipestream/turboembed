@@ -110,12 +110,12 @@ impl Record {
                 "timing.computed_tokens {got} is not between the live tokens and the padded pass, {slots:?}"
             ));
         }
-        // The npu graph executes every position of each compiled frame,
+        // The npu and Hailo graphs execute every position of each compiled frame,
         // including padding. The count is that frame times the frames in
         // the pass: batch x seq, or one [1, seq] frame per case.
-        if self.device.backend == "npu" && self.timing.computed_tokens != Some(positions) {
+        if matches!(self.device.backend.as_str(), "npu" | "hailo") && self.timing.computed_tokens != Some(positions) {
             return Err(
-                "timing.computed_tokens for npu is every position of each compiled frame in the pass: batch x seq \
+                "timing.computed_tokens for npu or hailo is every position of each compiled frame in the pass: batch x seq \
                  for one frame, and one [1, seq] frame per case when the frame batch is 1"
                     .into(),
             );

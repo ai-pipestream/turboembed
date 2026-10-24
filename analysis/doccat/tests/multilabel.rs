@@ -203,7 +203,7 @@ fn the_entry_bytes_round_trip_and_truncation_errors() {
         .unwrap()
         .with_thresholds(vec![0.4, 0.6])
         .unwrap();
-    let bytes = model.write();
+    let bytes = model.write().unwrap();
 
     let opened = MultiLabelDoccatModel::open(&bytes).unwrap();
     assert_eq!(opened.thresholds(), [0.4, 0.6]);
@@ -230,7 +230,7 @@ fn the_entry_bytes_round_trip_and_truncation_errors() {
 #[test]
 fn the_package_round_trips_the_calibrated_thresholds() {
     let model = hand_built_model().with_thresholds(vec![0.3, 0.7]).unwrap();
-    let package = package_multilabel_model(&model, 1_700_000_000_000);
+    let package = package_multilabel_model(&model, 1_700_000_000_000).unwrap();
     let opened = open_package(package.to_bytes()).unwrap();
     assert_eq!(opened.thresholds(), [0.3, 0.7]);
     assert_eq!(opened.max_labels(), None);
@@ -242,7 +242,7 @@ fn the_package_round_trips_the_calibrated_thresholds() {
     let mut manifest = turbo_train::Manifest::new("DocumentCategorizerME", "en", 0);
     manifest.set("factory", "opennlp.tools.doccat.DoccatFactory");
     let mut other = turbo_train::ModelPackage::new(manifest);
-    other.add_entry("doccat.model", model.write());
+    other.add_entry("doccat.model", model.write().unwrap());
     assert!(open_package(other.to_bytes()).is_err());
 }
 
@@ -424,7 +424,7 @@ fn training_then_calibration_beats_a_flat_threshold_on_macro_f1() {
 
     // The calibrated thresholds serialize inside the package and come
     // back: the acceptance claim survives a save and an open.
-    let opened = open_package(package_multilabel_model(&calibrated, 1_700_000_000_000).to_bytes()).unwrap();
+    let opened = open_package(package_multilabel_model(&calibrated, 1_700_000_000_000).unwrap().to_bytes()).unwrap();
     assert_eq!(opened.thresholds(), calibrated.thresholds());
     assert_eq!(macro_f1(&scores, &truth, opened.thresholds()), tuned);
 }
@@ -454,11 +454,11 @@ fn a_trained_model_classifies_and_package_round_trips() {
     assert!(sports > 0.9 && sports <= 1.0, "sports: {sports}");
     assert!(finance < 0.1, "finance: {finance}");
 
-    let bytes = model.write();
+    let bytes = model.write().unwrap();
     let opened = MultiLabelDoccatModel::open(&bytes).unwrap();
     assert_eq!(opened.scores(&["team", "wins"]), model.scores(&["team", "wins"]));
 
-    let package = package_multilabel_model(&model, 1_700_000_000_000);
+    let package = package_multilabel_model(&model, 1_700_000_000_000).unwrap();
     assert_eq!(package.manifest().component_name(), "MultiLabelDoccat");
     let bytes = package.to_bytes();
     let opened = open_package(bytes.clone()).unwrap();

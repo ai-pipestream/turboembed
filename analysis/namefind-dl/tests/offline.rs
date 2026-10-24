@@ -9,12 +9,13 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
+use std::time::Instant;
 
 use serde_json::{Value, json};
 use turbo::bundle::{Bundle, sha256_hex};
 use turbo::manifest::{PromptRole, Truncation};
 use turbo::tokenizer::{Encode, Tokenizer};
-use turbo_analysis::{Analyzer, Bound, Document, Key, Provenance, Span, Spans, ViewId};
+use turbo_analysis::{Analyzer, Annotator, Bound, Document, Key, Provenance, Span, Spans, View, ViewId};
 use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Entities, Sentences, Tokens};
 use turbo_namefind_dl::decode::{Decoding, label_probability, words};
@@ -262,4 +263,123 @@ fn words_are_read_as_opennlp_rejoins_them() {
     }
     let t = "Ann\u{85}Lee";
     assert_eq!(spans(t), [(0, 3), (5, 8)]);
+}
+
+// Batches across documents: every document's chunks are read in shared
+// encoder runs, each document's entities are what it gets alone, and a
+// document whose inputs fail their checks fails alone.
+
+/// Word tokens of `text`, split on spaces.
+fn tokens(text: &str) -> Tokens {
+    let mut spans = Spans::new(ViewId::SOURCE);
+    let mut start = 0;
+    for word in text.split(' ') {
+        spans.push(Span::new(start as u32, (start + word.len()) as u32));
+        start += word.len() + 1;
+    }
+    Tokens { spans, sentence: None }
+}
+
+fn rows(e: &Entities) -> Vec<(u32, u32, usize, usize, u16, u64)> {
+    e.spans
+        .iter()
+        .map(|(i, s)| {
+            let r = e.tokens[i.get()];
+            (s.start, s.end, r.start.get(), r.end.get(), e.kind[i.get()].0, e.score[i.get()].to_bits())
+        })
+        .collect()
+}
+
+const TEXTS: [&str; 4] =
+    ["Ann met Bob in Paris", "Hello world , this is an unbelievable test", "", "Carl stayed . Dana left early"];
+
+#[test]
+fn a_batch_reads_documents_together_and_each_gets_what_it_gets_alone() {
+    // Small rows and batches, so runs hold pieces of several documents.
+    for (split, overlap, max_seq, max_batch) in [(250, 50, 0, 0), (3, 1, 5, 2), (4, 1, 6, 1)] {
+        let f = finder(split, overlap, max_seq, max_batch);
+        let docs: Vec<Document> = TEXTS.iter().map(|t| Document::new(*t)).collect();
+        let toks: Vec<Tokens> = TEXTS.iter().map(|t| tokens(t)).collect();
+        let mut sentences = Spans::new(ViewId::SOURCE);
+        sentences.push(Span::new(0, 13));
+        sentences.push(Span::new(14, 29));
+        let sentences = Sentences { spans: sentences };
+        let refs: Vec<_> = docs
+            .iter()
+            .zip(&toks)
+            .enumerate()
+            .map(|(i, (d, t))| (d.get::<View>().unwrap(), t, (i == 3).then_some(&sentences)))
+            .collect();
+        let alone: Vec<_> = refs.iter().map(|r| rows(&f.annotate(*r).unwrap().0)).collect();
+        let together: Vec<_> = f.annotate_batch(refs).into_iter().map(|r| rows(&r.unwrap().0)).collect();
+        assert_eq!(together, alone, "split {split}, overlap {overlap}, max_seq {max_seq}, max_batch {max_batch}");
+        assert!(together[0].len() >= 5 && together[2].is_empty());
+    }
+}
+
+#[test]
+fn a_document_with_invalid_inputs_fails_alone() {
+    let f = finder(250, 50, 0, 0);
+    let docs: Vec<Document> = TEXTS.iter().map(|t| Document::new(*t)).collect();
+    let good = tokens(TEXTS[0]);
+    // An inverted token: a lone one too, which no window of two catches.
+    let mut inverted = Spans::new(ViewId::SOURCE);
+    inverted.push(Span { start: 5, end: 3 });
+    let inverted = Tokens { spans: inverted, sentence: None };
+    // Sentences that overlap.
+    let mut overlapping = Spans::new(ViewId::SOURCE);
+    overlapping.push(Span::new(0, 20));
+    overlapping.push(Span::new(5, 29));
+    let overlapping = Sentences { spans: overlapping };
+    let other = tokens(TEXTS[3]);
+    let view = |i: usize| docs[i].get::<View>().unwrap();
+    let alone = rows(&f.annotate((view(0), &good, None)).unwrap().0);
+    let results = f.annotate_batch(vec![
+        (view(0), &good, None),
+        (view(1), &inverted, None),
+        (view(3), &other, Some(&overlapping)),
+        (view(0), &good, None),
+    ]);
+    assert_eq!(rows(&results[0].as_ref().unwrap().0), alone);
+    assert_eq!(rows(&results[3].as_ref().unwrap().0), alone);
+    for r in &results[1..3] {
+        assert!(matches!(r, Err(turbo_analysis::Error::Annotator { .. })), "{:?}", r.as_ref().err());
+    }
+    // A sentence off a character boundary fails its own read, not the batch's.
+    let mut cut = Spans::new(ViewId::SOURCE);
+    cut.push(Span::new(0, 3));
+    let cut = Sentences { spans: cut };
+    let zoe = Document::new("Zoë");
+    let zoe_tokens = tokens("Zoë");
+    let results = f.annotate_batch(vec![(view(0), &good, None), (zoe.get::<View>().unwrap(), &zoe_tokens, Some(&cut))]);
+    assert_eq!(rows(&results[0].as_ref().unwrap().0), alone);
+    assert!(results[1].is_err());
+}
+
+/// Throughput of 256 documents of about 40 words, one at a time against
+/// one batch. `cargo test --release -p turbo-namefind-dl --test offline --
+/// --ignored --nocapture throughput`
+#[test]
+#[ignore = "timing"]
+fn throughput() {
+    let f = finder(250, 50, 0, 0);
+    let text = "Ann met Bob in Paris and they walked along the river to see an unbelievable exhibition of paintings . \
+                Carl stayed home while Dana left early for the station , where the trains were late again today";
+    let docs: Vec<Document> = (0..256).map(|_| Document::new(text)).collect();
+    let toks = tokens(text);
+    let refs = || docs.iter().map(|d| (d.get::<View>().unwrap(), &toks, None)).collect::<Vec<_>>();
+    let best = |run: &dyn Fn() -> usize| {
+        let mut best = f64::MAX;
+        let mut n = 0;
+        for _ in 0..5 {
+            let start = Instant::now();
+            n = run();
+            best = best.min(start.elapsed().as_secs_f64());
+        }
+        (docs.len() as f64 / best, n)
+    };
+    let (one, a) = best(&|| refs().into_iter().map(|r| f.annotate(r).unwrap().0.spans.len()).sum());
+    let (batch, b) = best(&|| f.annotate_batch(refs()).into_iter().map(|r| r.unwrap().0.spans.len()).sum());
+    assert_eq!(a, b);
+    println!("one at a time: {one:.0} docs/s; annotate_batch: {batch:.0} docs/s ({a} entities)");
 }

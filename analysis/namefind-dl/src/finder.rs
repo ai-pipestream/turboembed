@@ -28,11 +28,12 @@ use turbo::manifest::{ClassifierKind, PromptRole, Truncation};
 use turbo::status::{Error as CoreError, INVALID_ARGUMENT};
 use turbo::tokenizer::{Encode, Tokenizer};
 use turbo::turbo_token_range;
-use turbo_analysis::{Annotator, Error, Execution, IxRange, ModelRef, Refs, Span, Spans, TagSet, View};
+use turbo_analysis::{Annotator, Error, Execution, IxRange, Layer, ModelRef, Refs, Span, Spans, TagSet, View};
 use turbo_analysis_embed::{Encoder, EncoderOptions, Rows};
 use turbo_analysis_layers::{Entities, Sentences, Tag, Tokens};
 
 use crate::decode::{self, Candidate, Decoding, Label};
+use crate::place::{Word, place};
 
 /// How a `NameFinderDl` runs its model and cuts its input.
 #[derive(Clone, Debug)]
@@ -73,6 +74,9 @@ pub struct NameFinderDl {
     decoding: Decoding,
 }
 
+/// Each position of a row: its bytes in the text, none for a special token.
+type Positions = Vec<Option<(usize, usize)>>;
+
 /// One row's positions: its document, the positions whose labels it gives
 /// (`keep`), whether it ends its chunk, and each position's bytes in the
 /// text and word in the chunk, none for a special token.
@@ -80,14 +84,14 @@ struct Row {
     doc: usize,
     keep: std::ops::Range<usize>,
     last: bool,
-    bytes: Vec<Option<(usize, usize)>>,
+    bytes: Positions,
     words: Vec<Option<usize>>,
 }
 
 /// A chunk's positions and scores so far, its rows joined.
 #[derive(Default)]
 struct Chunk {
-    bytes: Vec<Option<(usize, usize)>>,
+    bytes: Positions,
     words: Vec<Option<usize>>,
     scores: Vec<f32>,
 }
@@ -180,7 +184,7 @@ impl NameFinderDl {
         // A chunk's words rejoined with single spaces, as `AbstractDL`
         // rejoins them, and each word's start there and in the text.
         let mut joined = String::new();
-        let mut starts: Vec<(usize, usize)> = Vec::new();
+        let mut starts: Vec<Word> = Vec::new();
         let bare = Encode {
             add_special_tokens: false,
             truncation: Truncation::None,
@@ -198,18 +202,23 @@ impl NameFinderDl {
                         if !joined.is_empty() {
                             joined.push(' ');
                         }
-                        starts.push((joined.len(), lo + ws));
+                        starts.push((joined.len(), lo + ws, we - ws));
                         joined.push_str(&region[ws..we]);
                     }
                     ids.clear();
                     spans.clear();
                     self.tokenizer.encode_spans(&joined, bare, &mut ids, &mut spans).map_err(|e| e.to_string())?;
-                    // A piece lies inside one word of `joined`: shift it to
-                    // that word in the text.
-                    let word = |s: &[u32; 2]| starts.partition_point(|&(j, _)| j <= s[0] as usize) - 1;
-                    let place = |s: &[u32; 2]| {
-                        let (j, t) = starts[word(s)];
-                        (t + s[0] as usize - j, t + s[1] as usize - j)
+                    // Each end of a piece maps through its own word of
+                    // `joined` (place.rs), so one touching or crossing a
+                    // joining space still lands on the text's words.
+                    let locate = |s: &[u32; 2]| -> Result<Option<(usize, usize)>, String> {
+                        let at = place(&starts, *s);
+                        match at {
+                            Some((a, b)) if !(text.is_char_boundary(a) && text.is_char_boundary(b) && b <= hi) => {
+                                Err(format!("piece {}..{} maps to {a}..{b}, not text characters", s[0], s[1]))
+                            }
+                            _ => Ok(at),
+                        }
                     };
                     // A chunk of no pieces is still read, as `[CLS] [SEP]`.
                     let parts = decode::row_ranges(ids.len(), self.width);
@@ -221,12 +230,18 @@ impl NameFinderDl {
                             self.flush(&mut run, &mut found)?;
                         }
                         let row = run.rows.push(&[&self.cls, part, &self.sep]);
+                        let mut bytes: Positions = vec![None; self.cls.len()];
                         let piece = &spans[first..first + part.len()];
-                        let mut bytes = vec![None; self.cls.len()];
-                        bytes.extend(piece.iter().map(|s| (s[0] < s[1]).then(|| place(s))));
+                        for s in piece {
+                            bytes.push(locate(s)?);
+                        }
                         bytes.resize(rows, None);
                         let mut words = vec![None; self.cls.len()];
-                        words.extend(piece.iter().map(|s| Some(word(s))));
+                        words.extend(
+                            piece
+                                .iter()
+                                .map(|s| Some(starts.partition_point(|w| w.0 <= s[0] as usize).saturating_sub(1))),
+                        );
                         words.resize(rows, None);
                         for p in 0..rows as u32 {
                             run.ranges.push(turbo_token_range { row, start: p, end: p + 1 });
@@ -278,19 +293,32 @@ impl NameFinderDl {
         Ok(())
     }
 
-    fn entities(&self, view: &View, tokens: &Tokens, sentences: Option<&Sentences>) -> Result<Entities, String> {
+    /// The regions a document is read in, once its inputs are checked:
+    /// its sentences, or the whole text.
+    fn regions(
+        &self,
+        view: &View,
+        tokens: &Tokens,
+        sentences: Option<&Sentences>,
+    ) -> Result<Vec<(usize, usize)>, String> {
         if tokens.spans.view() != view.id() || sentences.is_some_and(|s| s.spans.view() != view.id()) {
             return Err("the tokens or sentences are in another view".into());
         }
-        let text = view.text();
-        let regions: Vec<(usize, usize)> = match sentences {
+        tokens.check().map_err(|e| format!("invalid tokens: {e}"))?;
+        if let Some(s) = sentences {
+            s.check().map_err(|e| format!("invalid sentences: {e}"))?;
+        }
+        Ok(match sentences {
             Some(s) => (0..s.spans.len())
                 .map(|i| s.spans.get(turbo_analysis::Ix::new(i as u32)).range())
                 .map(|r| (r.start, r.end))
                 .collect(),
-            None => vec![(0, text.len())],
-        };
-        let found = self.find(&[(text, regions)])?.remove(0);
+            None => vec![(0, view.text().len())],
+        })
+    }
+
+    /// The entities of a document's resolved candidates.
+    fn build(&self, view: &View, tokens: &Tokens, found: Vec<Candidate>) -> Result<Entities, String> {
         let ordered = in_text_order(tokens);
         let mut out = Entities {
             spans: Spans::new(view.id()),
@@ -307,6 +335,41 @@ impl NameFinderDl {
         }
         Ok(out)
     }
+
+    fn entities(&self, view: &View, tokens: &Tokens, sentences: Option<&Sentences>) -> Result<Entities, String> {
+        let regions = self.regions(view, tokens, sentences)?;
+        let found = self.find(&[(view.text(), regions)])?.remove(0);
+        self.build(view, tokens, found)
+    }
+
+    /// Every document of a batch, its chunks read in shared encoder runs.
+    /// A document whose inputs fail their checks fails alone; when the
+    /// shared read fails, each document is read alone, so only the one at
+    /// fault fails.
+    fn entities_batch(&self, inputs: &[Refs<'_, Self>]) -> Vec<Result<Entities, String>> {
+        let regions: Vec<_> = inputs.iter().map(|(v, t, s)| self.regions(v, t, *s)).collect();
+        let valid: Vec<usize> = (0..inputs.len()).filter(|&i| regions[i].is_ok()).collect();
+        let batch: Vec<(&str, Vec<(usize, usize)>)> =
+            valid.iter().map(|&i| (inputs[i].0.text(), regions[i].clone().unwrap_or_default())).collect();
+        let mut found: Vec<Option<Vec<Candidate>>> = (0..inputs.len()).map(|_| None).collect();
+        if let Ok(all) = self.find(&batch) {
+            for (&i, c) in valid.iter().zip(all) {
+                found[i] = Some(c);
+            }
+        }
+        inputs
+            .iter()
+            .zip(regions)
+            .zip(found)
+            .map(|(((view, tokens, _), regions), found)| {
+                let found = match found {
+                    Some(c) => c,
+                    None => self.find(&[(view.text(), regions?)])?.remove(0),
+                };
+                self.build(view, tokens, found)
+            })
+            .collect()
+    }
 }
 
 impl Annotator for NameFinderDl {
@@ -318,6 +381,13 @@ impl Annotator for NameFinderDl {
         self.entities(view, tokens, sentences)
             .map(|e| (e,))
             .map_err(|detail| Error::Annotator { annotator: Self::ID, detail })
+    }
+
+    fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
+        self.entities_batch(&inputs)
+            .into_iter()
+            .map(|r| r.map(|e| (e,)).map_err(|detail| Error::Annotator { annotator: Self::ID, detail }))
+            .collect()
     }
 
     fn model(&self) -> Option<ModelRef> {
@@ -367,10 +437,12 @@ fn token_range(tokens: &Tokens, ordered: bool, start: u32, end: u32) -> Result<I
     }
 }
 
-/// Whether the tokens are single fragments in text order, none overlapping
-/// the next: checked once per document, as each lookup is then a search.
+/// Whether the tokens are single fragments in text order, none inverted
+/// and none overlapping the next: checked once per document, as each
+/// lookup is then a search.
 fn in_text_order(tokens: &Tokens) -> bool {
     let (starts, ends) = tokens.spans.columns();
     !tokens.spans.has_discontinuous()
+        && starts.iter().zip(ends).all(|(s, e)| s <= e)
         && starts.windows(2).zip(ends.windows(2)).all(|(s, e)| e[0] <= s[1] && s[0] <= s[1])
 }
