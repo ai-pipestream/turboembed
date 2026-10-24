@@ -65,8 +65,12 @@ pub(crate) fn group_into_sentences<'a>(
         let mut groups = Vec::new();
         let mut start = 0;
         for s in sents {
+            let gap_start = start;
             while start < all_tokens.len() && all_tokens[start].full.end <= s.start as usize {
                 start += 1;
+            }
+            if gap_start < start {
+                groups.push(&all_tokens[gap_start..start]);
             }
             let mut end = start;
             while end < all_tokens.len() && all_tokens[end].full.start < s.end as usize {

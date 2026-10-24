@@ -1,6 +1,6 @@
 //! `SymbolJoiner`: the symbol map applied to tokens.
 
-use turbo_analysis::{Annotator, Error, Refs, View, ViewBuilder};
+use turbo_analysis::{Annotator, Error, Overlap, Refs, View, ViewBuilder};
 use turbo_analysis_layers::Tokens;
 
 use super::whole_symbol_word;
@@ -22,6 +22,7 @@ pub struct SymbolJoiner;
 
 impl Annotator for SymbolJoiner {
     const ID: &'static str = "turbo:normalize:symbol-joiner";
+    const VERSION: &'static str = "2";
     type Reads = (View, Tokens);
     type Writes = (View,);
 
@@ -33,15 +34,20 @@ impl Annotator for SymbolJoiner {
             });
         }
         let text = src.text();
-        // Only one-symbol tokens are replaced, so overlapping or unordered
-        // tokens elsewhere cannot disturb the order of the writes.
-        let mut symbols: Vec<(usize, usize, &'static str)> = tokens
-            .spans
-            .iter()
-            .filter_map(|(_, s)| whole_symbol_word(&text[s.range()]).map(|w| (s.start as usize, s.end as usize, w)))
-            .collect();
-        symbols.sort_unstable_by_key(|&(start, _, _)| start);
-        symbols.dedup_by_key(|&mut (start, _, _)| start);
+        let invalid = |detail| Error::Annotator { annotator: Self::ID, detail };
+        tokens.spans.check(Overlap::None).map_err(invalid)?;
+        let mut symbols = Vec::new();
+        for (ix, span) in tokens.spans.iter() {
+            if tokens.spans.is_discontinuous(ix) {
+                return Err(invalid(format!("token {ix:?} must be contiguous")));
+            }
+            let token = text
+                .get(span.range())
+                .ok_or_else(|| invalid(format!("token {ix:?} must be a UTF-8 span within the view")))?;
+            if let Some(word) = whole_symbol_word(token) {
+                symbols.push((span.start as usize, span.end as usize, word));
+            }
+        }
         let mut out = ViewBuilder::new(text);
         for (start, end, word) in symbols {
             out.keep(start);
