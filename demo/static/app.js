@@ -195,8 +195,15 @@ function heat(v) {
   return `background: rgba(var(--heat), ${(a * a * 0.85).toFixed(3)})`;
 }
 
+// Cuts `t` to at most `n` characters, the last an ellipsis when it was cut.
+// A character is a grapheme cluster where the browser has Intl.Segmenter,
+// else a code point, so a cut never splits a surrogate pair (and, with
+// graphemes, never an emoji sequence or a letter from its combining mark).
 function short(t, n = 28) {
-  return t.length > n ? t.slice(0, n - 1) + "…" : t;
+  const chars = typeof Intl !== "undefined" && Intl.Segmenter
+    ? Array.from(new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(t), (g) => g.segment)
+    : Array.from(t);
+  return chars.length > n ? chars.slice(0, n - 1).join("") + "…" : t;
 }
 
 function stat(v, k) {

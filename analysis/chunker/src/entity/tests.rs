@@ -61,6 +61,7 @@ fn chunks(ranges: &[(u32, u32)], parent: &[Option<u32>], level: &[u8], sents: &S
         cost: vec![0; n],
         model_tokens: vec![1; n],
         over_budget: vec![false; n],
+        prompt_overhead: 0,
     }
 }
 
