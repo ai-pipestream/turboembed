@@ -2329,6 +2329,7 @@ dependencies = [
  "turbo-coref",
  "turbo-encoding-layers",
  "turbo-entity-linker",
+ "turbo-formats",
  "turbo-geo",
  "turbo-gliner",
  "turbo-glossary-layers",
