@@ -19,6 +19,8 @@ pub mod aspect;
 pub mod calibrate;
 pub mod centroids;
 pub mod encoder;
+pub mod export;
+pub use export::{codecs, register_codecs};
 pub mod heads;
 pub mod levels;
 pub mod rerank;

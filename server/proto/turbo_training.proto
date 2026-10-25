@@ -1,0 +1,154 @@
+syntax = "proto3";
+
+// The model catalog over gRPC (docs/grpc-catalog.md): the turbo-zoo
+// index the server was started with, the artifacts its cache holds, the
+// licence acceptances it records, and installs that stream their
+// progress. Every artifact is checked by size, SHA-256 and SHA-512, and a
+// file served compressed by its download size and SHA-256 as well, before
+// the cache holds it (docs/zoo.md).
+package turbo.training;
+
+service TurboCatalogService {
+  // Every artifact the index lists. Refused artifacts are never listed.
+  rpc ListModelCatalog(ListModelCatalogRequest) returns (ListModelCatalogResponse);
+  // The artifacts whose files are all in the cache at the sizes the index
+  // records.
+  rpc ListInstalledModels(ListInstalledModelsRequest) returns (ListInstalledModelsResponse);
+  // Admin. Records that a user accepted a licence's terms.
+  rpc RecordLicenceAcceptance(RecordLicenceAcceptanceRequest) returns (RecordLicenceAcceptanceResponse);
+  // Admin. Fetches and verifies an artifact into the cache, one install at
+  // a time, after the licence and free disk checks.
+  rpc InstallModel(InstallModelRequest) returns (stream InstallModelUpdate);
+}
+
+// A licence and the address of the text a user accepts for it.
+message LicenceTerms {
+  // The SPDX identifier, or a LicenseRef- one.
+  string licence = 1;
+  string text = 2;
+}
+
+message TrainingSource {
+  string name = 1;
+  string licence = 2;
+  string licence_terms = 3;
+}
+
+message CatalogFile {
+  // The file's path inside the artifact's directory.
+  string path = 1;
+  string url = 2;
+  // The file as the cache holds it, unpacked.
+  uint64 size = 3;
+  string sha256 = 4;
+  string sha512 = 5;
+  // "gzip" or "zstd" for a file served compressed, else empty, with the
+  // compressed bytes' own size and SHA-256.
+  string compression = 6;
+  uint64 download_bytes = 7;
+  string download_sha256 = 8;
+}
+
+message CatalogEntry {
+  string id = 1;
+  // As docs/zoo.md names them: KIND_LEXICON, FORMAT_TEXT, CLASS_PERMISSIVE.
+  string kind = 2;
+  // Empty when the artifact names none.
+  string component = 3;
+  string language = 4;
+  string format = 5;
+  string version = 6;
+  string licence = 7;
+  string licence_terms = 8;
+  string licence_class = 9;
+  string attribution = 10;
+  repeated TrainingSource trained_on = 11;
+  repeated CatalogFile files = 12;
+  // The files' unpacked sizes summed.
+  uint64 total_bytes = 13;
+  // Every term a user accepts before the artifact is installed.
+  repeated LicenceTerms terms = 14;
+  // Of those, the ones the request's user has not accepted. Empty when
+  // the request names no user.
+  repeated LicenceTerms missing_terms = 15;
+  bool installed = 16;
+}
+
+message ListModelCatalogRequest {
+  string user = 1;
+  // Filters, each ignored when empty: KIND_LEXICON, a language tag.
+  string kind = 2;
+  string language = 3;
+}
+
+message ListModelCatalogResponse {
+  repeated CatalogEntry entries = 1;
+}
+
+message InstalledModel {
+  string id = 1;
+  string version = 2;
+  // The artifact's directory in the server's cache, and each file's path
+  // there in the index's order.
+  string dir = 3;
+  repeated string files = 4;
+  uint64 total_bytes = 5;
+}
+
+message ListInstalledModelsRequest {}
+
+message ListInstalledModelsResponse {
+  repeated InstalledModel models = 1;
+}
+
+message RecordLicenceAcceptanceRequest {
+  string user = 1;
+  // The SPDX identifier as ListModelCatalog gives it.
+  string licence = 2;
+  // The terms address, only for a licence without a text of its own
+  // (LicenseRef-RestrictedPublic): the entry's LicenceTerms.text.
+  string terms = 3;
+}
+
+message RecordLicenceAcceptanceResponse {
+  string user = 1;
+  LicenceTerms accepted = 2;
+  // Seconds since the Unix epoch.
+  uint64 accepted_at = 3;
+}
+
+message InstallModelRequest {
+  string user = 1;
+  string artifact_id = 2;
+}
+
+enum InstallStage {
+  INSTALL_STAGE_UNSPECIFIED = 0;
+  // The licence and disk checks passed and the install holds the slot;
+  // bytes is what the files still to fetch take on disk.
+  INSTALL_STAGE_ADMITTED = 1;
+  // A file is requested; bytes is its size on the wire.
+  INSTALL_STAGE_DOWNLOADING = 2;
+  // A file's bytes arrived, not yet checked; bytes is what arrived.
+  INSTALL_STAGE_DOWNLOADED = 3;
+  // Every file is in the cache and verified; bytes is their total.
+  INSTALL_STAGE_VERIFIED = 4;
+}
+
+message InstallProgress {
+  InstallStage stage = 1;
+  // The file's place in the artifact's list, from 0, for DOWNLOADING and
+  // DOWNLOADED.
+  uint32 file_index = 2;
+  uint32 file_count = 3;
+  string path = 4;
+  uint64 bytes = 5;
+}
+
+// Progress, then one installed last.
+message InstallModelUpdate {
+  oneof update {
+    InstallProgress progress = 1;
+    InstalledModel installed = 2;
+  }
+}

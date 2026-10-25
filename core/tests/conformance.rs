@@ -8,9 +8,19 @@
 //! testdata/tiny-bert-bundle. TURBO_TEST_DEVICE names the device, as a
 //! runtime device index or a backend name (the first device that backend
 //! lists); without it, the CPU. TURBO_TEST_PRECISION names the session's
-//! precision, model, fastest or exact; without it, model.
+//! precision, model, fastest or exact; without it, model. The checks of
+//! rerank, extractive QA, token vectors and sparse terms are in
+//! conformance/tasks.rs.
 
 mod common;
+#[path = "qa/common.rs"]
+mod qa_common;
+#[path = "rerank/common.rs"]
+mod rerank_common;
+#[path = "conformance/scores.rs"]
+mod scores;
+#[path = "conformance/tasks.rs"]
+mod tasks;
 
 use std::path::{Path, PathBuf};
 use std::ptr;

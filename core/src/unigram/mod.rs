@@ -35,6 +35,7 @@ pub struct Unigram {
     collapse_whitespace: bool,
     strip: bool,
     whole_text: bool,
+    whitespace_split: bool,
     metaspace: char,
     add_prefix_space: bool,
 }

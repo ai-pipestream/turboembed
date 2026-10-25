@@ -1,8 +1,10 @@
 //! turbo-kserve: the Open Inference Protocol over gRPC for turboembed
 //! bundles (docs/kserve.md).
 
+use std::path::PathBuf;
 use std::process::ExitCode;
 
+use turbo_kserve::catalog::Catalog;
 use turbo_kserve::config::{Args, USAGE};
 use turbo_kserve::{Serve, Server};
 
@@ -31,6 +33,18 @@ async fn stop_signal() -> &'static str {
     }
 }
 
+/// The catalog in `dir`, fetching over HTTPS.
+#[cfg(feature = "catalog-http")]
+fn catalog(dir: &str, index: Option<&str>) -> Result<Catalog, String> {
+    Catalog::http(std::path::PathBuf::from(dir), index.map(std::path::Path::new))
+}
+
+/// A server built without `catalog-http` has no way to fetch a model.
+#[cfg(not(feature = "catalog-http"))]
+fn catalog(_dir: &str, _index: Option<&str>) -> Result<Catalog, String> {
+    Err("this turbo-kserve was built without the catalog-http feature, so it cannot fetch models".into())
+}
+
 #[tokio::main]
 async fn main() -> ExitCode {
     let args = match Args::parse(std::env::args().skip(1)) {
@@ -40,14 +54,30 @@ async fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let server =
-        match Server::start(args.listen, args.models, args.max_message_bytes, Serve { admin: args.admin }).await {
-            Ok(s) => s,
+    let catalog = match &args.catalog_dir {
+        Some(dir) => match catalog(dir, args.catalog_index.as_deref()) {
+            Ok(c) => Some(c),
             Err(e) => {
-                eprintln!("turbo-kserve: {e}");
+                eprintln!("turbo-kserve: catalog: {e}");
                 return ExitCode::FAILURE;
             }
-        };
+        },
+        None => None,
+    };
+    let serve = Serve {
+        admin: args.admin,
+        vocabulary: args.vocabulary_dir.map(PathBuf::from),
+        catalog,
+        sink: args.sink,
+        ..Serve::default()
+    };
+    let server = match Server::start(args.listen, args.models, args.max_message_bytes, serve).await {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("turbo-kserve: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
     eprintln!("turbo-kserve: listening on {}", server.local_addr());
     // A stop signal during load stops the server once the load returns:
     // the library has no way to stop a load part way.

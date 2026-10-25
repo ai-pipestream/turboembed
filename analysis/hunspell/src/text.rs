@@ -9,9 +9,7 @@ use turbo_unicode::category::{GeneralCategory, general_category};
 use turbo_unicode::{java, props};
 
 /// `String.length()`: the number of UTF-16 units.
-pub(crate) fn utf16_len(s: &str) -> usize {
-    s.chars().map(char::len_utf16).sum()
-}
+pub(crate) use turbo_unicode::utf16::utf16_len;
 
 /// `StringUtil.isWhitespace(char)` in its default mode: the Unicode
 /// `White_Space` property. No supplementary character has it, so a
@@ -113,9 +111,7 @@ pub(crate) fn upper_char(c: char) -> char {
 
 /// `StringUtil.toLowerCase`: `Character.toLowerCase(int)` on each code
 /// point, appended to `out`.
-pub(crate) fn push_lowercase(s: &str, out: &mut String) {
-    out.extend(s.chars().map(lower_char));
-}
+pub(crate) use turbo_unicode::java::to_lowercase_code_points as push_lowercase;
 
 /// `StringUtil.toUpperCase` on one character: `Character.toUpperCase(char)`
 /// on each UTF-16 unit, so a character outside the Basic Multilingual

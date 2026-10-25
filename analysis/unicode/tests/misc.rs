@@ -1,8 +1,8 @@
-//! Spot checks of the small modules: categories, properties, chars and
+//! Spot checks of the small modules: categories, properties and
 //! confusable skeletons.
 
 use turbo_unicode::category::{GeneralCategory, general_category};
-use turbo_unicode::{chars, confusables, props};
+use turbo_unicode::{confusables, props};
 
 #[test]
 fn category_groups() {
@@ -37,16 +37,6 @@ fn property_spot_checks() {
     assert!(props::emoji_component('\u{200D}'));
     assert!(props::extended_pictographic('\u{1F600}'));
     assert!(!props::extended_pictographic('a'));
-}
-
-#[test]
-fn ascii_helpers() {
-    assert!(chars::is_ascii_alnum('a') && chars::is_ascii_alnum('9'));
-    assert!(!chars::is_ascii_alnum('\u{E9}') && !chars::is_ascii_alnum('_'));
-    assert_eq!(chars::ascii_lower('Q'), 'q');
-    assert_eq!(chars::ascii_lower('\u{C9}'), '\u{C9}');
-    assert!(chars::ascii_eq_ignore_case("Hello", "hELLO"));
-    assert!(!chars::ascii_eq_ignore_case("\u{C9}", "\u{E9}"));
 }
 
 fn skeleton(text: &str) -> String {
