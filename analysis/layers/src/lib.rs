@@ -31,6 +31,7 @@ pub use entity_graph::{
 };
 pub use events::{AnchoredLayerKind, ArgumentRole, EventArgument, EventFrame, Events};
 pub use generic::{Confidence, Language, TokenVectorWindows, Utf16Spans, Vectors};
+pub use heatmap::{DocumentHeatmap, HeatmapLane, HeatmapLaneKind, HeatmapSegment};
 pub use language_spans::{LanguageSpan, LanguageSpans, UNDETERMINED};
 pub use levels::{Level, Levels, Unit, VectorKind};
 pub use matches::Matches;
@@ -140,6 +141,7 @@ mod events;
 mod evidence;
 pub mod export;
 mod generic;
+mod heatmap;
 mod language_spans;
 mod levels;
 mod matches;
