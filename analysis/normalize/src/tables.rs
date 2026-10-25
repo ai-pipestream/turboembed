@@ -31,33 +31,21 @@
 /// the characters with the Unicode `White_Space` property, including the
 /// no-break spaces U+00A0, U+2007 and U+202F (which `Character.isWhitespace`
 /// excludes).
-pub const WHITESPACE: &[char] = &[
-    '\u{0009}', // character tabulation (HT)
-    '\u{000A}', // line feed (LF)
-    '\u{000B}', // line tabulation (VT)
-    '\u{000C}', // form feed (FF)
-    '\u{000D}', // carriage return (CR)
-    '\u{0020}', // space
-    '\u{0085}', // next line (NEL)
-    '\u{00A0}', // no-break space (NBSP)
-    '\u{1680}', // ogham space mark
-    '\u{2000}', // en quad
-    '\u{2001}', // em quad
-    '\u{2002}', // en space
-    '\u{2003}', // em space
-    '\u{2004}', // three-per-em space
-    '\u{2005}', // four-per-em space
-    '\u{2006}', // six-per-em space
-    '\u{2007}', // figure space
-    '\u{2008}', // punctuation space
-    '\u{2009}', // thin space
-    '\u{200A}', // hair space
-    '\u{2028}', // line separator
-    '\u{2029}', // paragraph separator
-    '\u{202F}', // narrow no-break space (NNBSP)
-    '\u{205F}', // medium mathematical space (MMSP)
-    '\u{3000}', // ideographic space
-];
+pub const WHITESPACE: &[char] = &whitespace_chars();
+
+const fn whitespace_chars() -> [char; turbo_unicode::whitespace::UNICODE_WHITESPACE.len()] {
+    let points = turbo_unicode::whitespace::UNICODE_WHITESPACE;
+    let mut chars = ['\0'; turbo_unicode::whitespace::UNICODE_WHITESPACE.len()];
+    let mut i = 0;
+    while i < points.len() {
+        chars[i] = match char::from_u32(points[i]) {
+            Some(c) => c,
+            None => panic!("whitespace must be a scalar value"),
+        };
+        i += 1;
+    }
+    chars
+}
 
 /// The members of [`WHITESPACE`] that force a line or paragraph break: the
 /// entries OpenNLP marks `LINE_BREAK`.
@@ -71,27 +59,10 @@ pub const LINE_BREAKS: &[char] = &[
     '\u{2029}', // paragraph separator
 ];
 
-/// Whether `c` is in [`WHITESPACE`].
-///
-/// A `match` on ranges rather than a search of the list: on 1 MB of mixed
-/// text the `match` measured faster than `binary_search` over the sorted
-/// list (see the ignored test `whitespace_membership_timing`).
+/// Whether `c` is in [`WHITESPACE`], using the shared Unicode mode.
 #[inline]
 pub fn is_whitespace(c: char) -> bool {
-    matches!(
-        c,
-        '\u{0009}'..='\u{000D}'
-            | '\u{0020}'
-            | '\u{0085}'
-            | '\u{00A0}'
-            | '\u{1680}'
-            | '\u{2000}'..='\u{200A}'
-            | '\u{2028}'
-            | '\u{2029}'
-            | '\u{202F}'
-            | '\u{205F}'
-            | '\u{3000}'
-    )
+    turbo_unicode::whitespace::WhitespaceMode::Unicode.is_whitespace(c as u32)
 }
 
 /// Whether `c` is in [`LINE_BREAKS`].

@@ -12,6 +12,11 @@ pub enum Check {
     Size,
     Sha256,
     Sha512,
+    /// A compressed file's bytes on the wire, before unpacking.
+    DownloadSize,
+    DownloadSha256,
+    /// The compressed bytes do not unpack to the file's size.
+    Unpack,
 }
 
 impl fmt::Display for Check {
@@ -20,6 +25,9 @@ impl fmt::Display for Check {
             Check::Size => "size",
             Check::Sha256 => "SHA-256",
             Check::Sha512 => "SHA-512",
+            Check::DownloadSize => "download size",
+            Check::DownloadSha256 => "download SHA-256",
+            Check::Unpack => "unpacked file",
         })
     }
 }

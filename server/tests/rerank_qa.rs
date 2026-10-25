@@ -87,7 +87,9 @@ async fn metadata_capabilities_and_stream_refusal_for_rerank_and_qa() {
         cfg(&roberta_rerank.0, "bge-reranker-base", 0),
         cfg(&qa.0, "qa-bert", 1),
     ];
-    let s = Server::start("127.0.0.1:0".parse().unwrap(), models, MAX, Serve { admin: true }).await.unwrap();
+    let s = Server::start("127.0.0.1:0".parse().unwrap(), models, MAX, Serve { admin: true, ..Serve::default() })
+        .await
+        .unwrap();
     s.load().await.unwrap();
 
     let mut k = common::kserve(&s).await;
@@ -330,7 +332,9 @@ async fn qa_model_infer_matches_direct_extractive_qa_bit_for_bit() {
 async fn rerank_and_qa_refusals_report_status_code_and_field() {
     let (rerank_dir, qa_dir) = (make_rerank_bundle("PAIR_BERT"), make_qa_bundle());
     let models = vec![cfg(&rerank_dir.0, "rerank", 2), cfg(&qa_dir.0, "qa", 1)];
-    let s = Server::start("127.0.0.1:0".parse().unwrap(), models, MAX, Serve { admin: true }).await.unwrap();
+    let s = Server::start("127.0.0.1:0".parse().unwrap(), models, MAX, Serve { admin: true, ..Serve::default() })
+        .await
+        .unwrap();
     s.load().await.unwrap();
     let mut k = common::kserve(&s).await;
 
