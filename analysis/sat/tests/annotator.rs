@@ -8,7 +8,7 @@ use turbo_analysis::registry::{Registry, Spec};
 use turbo_analysis::{Analyzer, Annotator, Document, Span};
 use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::Sentences;
-use turbo_sat::{HeadNames, SatAnnotator, SatOptions, SatProvider, cuts};
+use turbo_sat::{SatAnnotator, SatOptions, SatProvider, cuts};
 
 fn testdata() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata")
@@ -132,13 +132,10 @@ fn bad_options_and_bundles_are_refused() {
     refused(SatOptions { block_size: 10, stride: 11, ..d.clone() }, &b, "stride 11");
     refused(SatOptions { threshold: Some(1.5), ..d.clone() }, &b, "threshold 1.5");
     refused(SatOptions { threshold: Some(f64::NAN), ..d.clone() }, &b, "threshold NaN");
-    let missing = HeadNames { weight: "head.weight".into(), ..HeadNames::default() };
-    refused(SatOptions { head: missing, ..d.clone() }, &b, "no raw-weights artifact holds head.weight");
-    let label = HeadNames { label: 1, ..HeadNames::default() };
-    refused(SatOptions { head: label, ..d.clone() }, &b, "label 1 of a classifier with 1 labels");
+    refused(SatOptions { label: 1, ..d.clone() }, &b, "label 1 of a classifier with 1 labels");
     refused(d.clone(), &testdata().join("tiny-static-bundle"), "a static model has no state per token");
-    // tiny-bert has no classifier in its weights.
-    refused(d, &testdata().join("tiny-bert-bundle"), "classifier.weight");
+    // tiny-bert's manifest declares no classifier.
+    refused(d, &testdata().join("tiny-bert-bundle"), "the manifest declares no classifier");
 }
 
 /// The block is what a row has room for, 62 beside <s> and </s>, and the

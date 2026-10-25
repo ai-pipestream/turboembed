@@ -76,6 +76,12 @@
       "vocab_size": 250002,
       "lookahead": 16
     },
+    "classifier": {
+      "kind": "CLASSIFIER_TOKEN",
+      "labels": [
+        "newline"
+      ]
+    },
     "artifacts": [
       {
         "name": "weights-f32",
@@ -112,7 +118,9 @@
           "ffn_out_weight": "roberta.encoder.layer.{layer}.output.dense.weight",
           "ffn_out_bias": "roberta.encoder.layer.{layer}.output.dense.bias",
           "ffn_ln_weight": "roberta.encoder.layer.{layer}.output.LayerNorm.weight",
-          "ffn_ln_bias": "roberta.encoder.layer.{layer}.output.LayerNorm.bias"
+          "ffn_ln_bias": "roberta.encoder.layer.{layer}.output.LayerNorm.bias",
+          "classifier_weight": "classifier.weight",
+          "classifier_bias": "classifier.bias"
         },
         "produced_by": {
           "upstream": "pytorch_model.bin"
