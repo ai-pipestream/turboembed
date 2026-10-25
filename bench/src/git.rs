@@ -10,6 +10,9 @@ use crate::Result;
 /// runs: they are not what is measured.
 pub const RECORDS_DIR: &str = "benchmarks/records/";
 
+/// Every directory the tool writes new records into.
+const NEW_RECORD_DIRS: [&str; 2] = [RECORDS_DIR, crate::statics::STATIC_DIR];
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Provenance {
     /// The working tree's top directory.
@@ -40,18 +43,19 @@ pub fn git(dir: &Path, args: &[&str]) -> Result<String> {
 }
 
 /// A `git status --porcelain=v1` line for an untracked file under
-/// benchmarks/records/: a record made and not yet committed. A tracked
+/// benchmarks/records/ or benchmarks/static/: a record made and not yet
+/// committed. A tracked
 /// record changed or deleted is a change like any other.
 pub fn is_new_record(line: &str) -> bool {
-    line.strip_prefix("?? ").is_some_and(|p| p.starts_with(RECORDS_DIR))
+    line.strip_prefix("?? ").is_some_and(|p| NEW_RECORD_DIRS.iter().any(|d| p.starts_with(d)))
 }
 
 /// The commit checked out in `dir`'s working tree, when the tree is
 /// clean and the commit is on a branch of origin. Refused:
 ///
 /// - a tree with any change, staged or not, or any untracked file that
-///   is not ignored, except new files under benchmarks/records/ (`git
-///   status --porcelain --untracked-files=all`);
+///   is not ignored, except new files under benchmarks/records/ and
+///   benchmarks/static/ (`git status --porcelain --untracked-files=all`);
 /// - no remote named origin (`git remote get-url origin`);
 /// - a commit no remote-tracking branch of origin contains (`git
 ///   for-each-ref --contains HEAD refs/remotes/origin/`). Those refs are

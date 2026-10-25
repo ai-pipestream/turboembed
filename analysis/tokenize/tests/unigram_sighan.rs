@@ -20,7 +20,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 
 use turbo_tokenize::unigram::Scratch;
-use turbo_tokenize::{UnigramLexicon, UnigramSegmenter, WhitespaceMode};
+use turbo_tokenize::{UnigramLexicon, UnigramMode, UnigramSegmenter, WhitespaceMode};
 
 /// Counts of one test set: gold words, words returned, correct words, and
 /// the out-of-vocabulary gold words and how many of them were found.
@@ -72,7 +72,7 @@ fn score(segmenter: &UnigramSegmenter, dir: &std::path::Path, corpus: &str) -> S
     // than the test file, which the characters do not see.
     let returned = spans(words.iter().copied());
     let expected = spans(gold.split_whitespace());
-    assert_eq!(returned.last().map(|s| s.1), expected.last().map(|s| s.1), "{corpus}: the same characters");
+    assert_eq!(words.concat(), gold.split_whitespace().collect::<String>(), "{corpus}: identical text");
     let found: HashSet<(usize, usize)> = returned.iter().map(|&(s, e, _)| (s, e)).collect();
     let mut s = Score { gold: expected.len(), returned: returned.len(), correct: 0, oov: 0, oov_correct: 0 };
     for &(start, end, w) in &expected {
@@ -93,20 +93,27 @@ fn pku_and_msr() {
         panic!("set TURBO_JIEBA_DICT and TURBO_SIGHAN_DIR");
     };
     let lexicon = UnigramLexicon::read(dict, WhitespaceMode::Unicode).unwrap();
-    let segmenter = UnigramSegmenter::new(lexicon, WhitespaceMode::Unicode);
     let dir = PathBuf::from(dir);
-    for (corpus, expected) in [
-        ("pku", Score { gold: 104372, returned: 102198, correct: 84241, oov: 6006, oov_correct: 2519 }),
-        ("msr", Score { gold: 106873, returned: 108642, correct: 89087, oov: 2829, oov_correct: 955 }),
-    ] {
-        let s = score(&segmenter, &dir, corpus);
-        println!(
-            "{corpus}: P {:.4} R {:.4} F1 {:.4} R_oov {:.4} ({s:?})",
-            s.correct as f64 / s.returned as f64,
-            s.correct as f64 / s.gold as f64,
-            s.f1(),
-            s.oov_correct as f64 / s.oov as f64
-        );
-        assert_eq!(s, expected, "{corpus}");
+    // All modes use the same unmodified pinned dictionary and test text.
+    let counts = [
+        (UnigramMode::OpenNlp, [(102198, 84241, 2519), (108642, 89087, 955)]),
+        (UnigramMode::Dictionary, [(98986, 84985, 3262), (108642, 89087, 955)]),
+        (UnigramMode::Chinese, [(96562, 82137, 3481), (106224, 86799, 1271)]),
+    ];
+    for (mode, expected) in counts {
+        let segmenter = UnigramSegmenter::new(lexicon.clone(), WhitespaceMode::Unicode).with_mode(mode);
+        for ((corpus, gold, oov), (returned, correct, oov_correct)) in
+            [("pku", 104372, 6006), ("msr", 106873, 2829)].into_iter().zip(expected)
+        {
+            let s = score(&segmenter, &dir, corpus);
+            println!(
+                "{corpus} {mode:?}: P {:.9} R {:.9} F1 {:.9} R_oov {:.9} ({s:?})",
+                s.correct as f64 / s.returned as f64,
+                s.correct as f64 / s.gold as f64,
+                s.f1(),
+                s.oov_correct as f64 / s.oov as f64
+            );
+            assert_eq!(s, Score { gold, returned, correct, oov, oov_correct }, "{corpus} {mode:?}");
+        }
     }
 }
