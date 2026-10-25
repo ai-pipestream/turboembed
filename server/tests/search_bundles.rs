@@ -199,7 +199,9 @@ async fn admin_gate_snapshot_confinement_and_error_codes() {
         }]
     };
     let srv_no_admin =
-        Server::start("127.0.0.1:0".parse().unwrap(), default_models(), MAX, Serve { admin: false }).await.unwrap();
+        Server::start("127.0.0.1:0".parse().unwrap(), default_models(), MAX, Serve { admin: false, catalog: None })
+            .await
+            .unwrap();
     let mut c_no_admin =
         TurboSearchServiceClient::connect(format!("http://{}", srv_no_admin.local_addr())).await.unwrap();
 
@@ -222,7 +224,9 @@ async fn admin_gate_snapshot_confinement_and_error_codes() {
     srv_no_admin.stop().await;
 
     let srv =
-        Server::start("127.0.0.1:0".parse().unwrap(), default_models(), MAX, Serve { admin: true }).await.unwrap();
+        Server::start("127.0.0.1:0".parse().unwrap(), default_models(), MAX, Serve { admin: true, catalog: None })
+            .await
+            .unwrap();
     srv.set_search_snapshot_dir(&snap_dir);
     let mut c = TurboSearchServiceClient::connect(format!("http://{}", srv.local_addr())).await.unwrap();
 

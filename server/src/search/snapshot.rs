@@ -41,7 +41,9 @@ pub fn persist_index_to_dir(ix: &HybridIndex, base_dir: &Path, file_name: &str) 
     let path = resolve_snapshot_path(base_dir, file_name)?;
     let bytes = encode_snapshot(ix);
     std::fs::create_dir_all(base_dir).map_err(|e| io_err(format!("create snapshot dir: {e}")))?;
-    let tmp = path.with_extension("tmp_snapshot");
+    let mut tmp_os = path.as_os_str().to_os_string();
+    tmp_os.push(".tmp_snapshot");
+    let tmp = PathBuf::from(tmp_os);
     std::fs::write(&tmp, &bytes).map_err(|e| io_err(format!("write snapshot temp file: {e}")))?;
     std::fs::rename(&tmp, &path).map_err(|e| io_err(format!("atomic rename snapshot file: {e}")))?;
     Ok(bytes.len() as u64)

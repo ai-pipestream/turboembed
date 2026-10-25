@@ -192,7 +192,8 @@ fn permissive_is_fetched_without_acceptance_and_then_served_from_the_cache() {
     assert_eq!(t.gets.get(), 1);
     zoo.fetch("permissive", &alice(), &none).unwrap();
     assert_eq!(t.gets.get(), 1, "a verified cached file is not fetched again");
-    assert!(!dir.0.join("permissive").join("permissive.bin.partial").exists());
+    let names = fs::read_dir(dir.0.join("permissive")).unwrap().map(|e| e.unwrap().file_name());
+    assert!(names.into_iter().all(|n| !n.to_string_lossy().contains(".partial")), "no temporary file is left");
 }
 
 #[test]

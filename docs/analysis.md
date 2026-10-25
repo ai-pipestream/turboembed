@@ -87,8 +87,8 @@ match the JVM bit for bit:
   for context generators, `StringPattern` and character n-grams;
   `utf16_len` is `String.length()`; `compare_to` is `String.compareTo`,
   which orders by code unit and so differs from `str::cmp` for
-  characters outside the Basic Multilingual Plane; `is_java_whitespace`
-  is `Character.isWhitespace`.
+  characters outside the Basic Multilingual Plane. `Character.isWhitespace`
+  comes from `turbo_unicode::java::code_point::is_whitespace`.
 - `random`: `JavaRandom` is `java.util.Random` from a seed, and its
   `shuffle` is `Collections.shuffle(List, Random)`, as OpenNLP's readers,
   cross-validation and trainers use them.
@@ -131,6 +131,11 @@ forward pass over the text, and `OffsetTable::column_to_utf16` and
 `column_to_code_point` use it to fill a vector the caller provides.
 
 ## Views
+
+`NormalizationXray::between` inspects composed view alignments as complete
+byte partitions, with borrowed run text, recorded step provenance and
+typed UTF-16/code-point projection. See [Normalization x-ray](normalization-xray.md)
+for the source-byte domain and allocation contracts.
 
 The source text never changes. A step that changes text (Unicode
 normalization, dehyphenation) writes a new `View`, with an `Alignment`
@@ -5155,6 +5160,9 @@ recorded), so those did not run.
 
 The [cut-identity checker](chunker-cut-identity.md) compares flat chunk
 partitions across backend runs with optional DP runner-up margins.
+
+The [shared whitespace definitions and timing receipt](whitespace.md) describe
+the Unicode and Java predicates used by normalization, lexing and segmentation.
 
 ## BiLSTM-CRF numerics
 

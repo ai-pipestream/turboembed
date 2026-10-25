@@ -29,6 +29,7 @@ pub mod gliner2;
 pub mod glirel;
 mod kernel;
 pub mod layer;
+pub mod modality;
 pub mod paths;
 pub mod pattern;
 mod prepare;
@@ -40,6 +41,7 @@ pub use explore::{DistantSupervisionMiner, MinedRule, RelationPathExplorer, Seed
 pub use gliner2::Gliner2Relations;
 pub use glirel::GlirelRelations;
 pub use layer::Relations;
+pub use modality::{ModalityAnnotator, ModalityConfig};
 pub use paths::{DependencyPath, RelationPaths};
 pub use pattern::{RelationMention, RelationPattern, Step};
 pub use zeroshot::{

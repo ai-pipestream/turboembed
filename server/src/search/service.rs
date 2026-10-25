@@ -23,6 +23,8 @@ use crate::search::snapshot::{load_index_from_dir, persist_index_to_dir};
 use crate::state::State;
 use crate::status::{describe, to_status};
 
+const MAX_STREAM_DOCUMENTS: usize = 4_096;
+
 pub struct SearchService {
     pub(crate) state: Arc<State>,
     pub(crate) registry: Arc<SearchRegistry>,
@@ -120,9 +122,23 @@ impl TurboSearchService for SearchService {
         req: Request<Streaming<IndexDocumentRequest>>,
     ) -> std::result::Result<Response<IndexDocumentsResponse>, Status> {
         let mut stream = req.into_inner();
-        let mut items = Vec::new();
+        let mut items: Vec<IndexDocumentRequest> = Vec::new();
         while let Some(item) = stream.next().await {
-            items.push(item?);
+            if items.len() >= MAX_STREAM_DOCUMENTS {
+                return reply(Err(bad_arg(format!(
+                    "IndexDocuments stream exceeds maximum of {MAX_STREAM_DOCUMENTS} documents"
+                ))));
+            }
+            let doc_req = item?;
+            if let Some(first) = items.first()
+                && doc_req.index_name != first.index_name
+            {
+                return reply(Err(bad_arg(format!(
+                    "IndexDocuments stream item targets `{}`, expected `{}`",
+                    doc_req.index_name, first.index_name
+                ))));
+            }
+            items.push(doc_req);
         }
         if items.is_empty() {
             return reply(Err(bad_arg("IndexDocuments stream must contain at least one document")));

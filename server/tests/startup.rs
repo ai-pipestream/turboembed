@@ -238,7 +238,7 @@ async fn admin_starts_empty_and_bundle_dir_loads_sealed_bundles() {
 
     // With --admin, the server starts with zero models, answers Capabilities
     // with an empty bundle list, and then accepts LoadBundle.
-    let s = Server::start(at, Vec::new(), MAX, Serve { admin: true }).await.unwrap();
+    let s = Server::start(at, Vec::new(), MAX, Serve { admin: true, ..Serve::default() }).await.unwrap();
     s.load().await.unwrap();
     let mut k = client(&s).await;
     assert!(k.server_ready(ServerReadyRequest {}).await.unwrap().into_inner().ready);
