@@ -31,7 +31,10 @@ use turbo_analysis::{Document, Error, Key, KeyId, Layer, Span, TextSpans, ViewId
 use crate::sentiment::{EmotionLayer, Incivility};
 use crate::{Categories, Chunks, Entities, Pii, Sentences, Tokens};
 
+mod buckets;
 mod lanes;
+
+use buckets::bucket_segments;
 
 use lanes::{chunk_score_lane, emotion_lane, incivility_lane, sentiment_lane};
 
@@ -116,6 +119,9 @@ impl DocumentHeatmap {
     /// non-finite score a lane would carry, each naming the layer and
     /// item. A scored layer present without the layer it scores is
     /// [`Error::Missing`] for that layer.
+    /// Bucket storage with an unrepresentable layout or a failed reservation
+    /// returns [`Error::Invalid`] naming the source layer. Output retains the
+    /// requested bin count, with memory proportional to that count.
     pub fn build(doc: &Document, view: ViewId, buckets: Option<NonZeroU32>) -> Result<DocumentHeatmap, Error> {
         if view.0 as usize >= doc.view_count() {
             return Err(Error::Bounds {
@@ -355,56 +361,6 @@ fn exact_segments(
             let covering: Vec<usize> = shape.members_of(seg).iter().map(|m| m.item as usize).collect();
             let (score, count, primary_item) = aggregate(kind, items, &covering);
             HeatmapSegment { span: seg.span, score, count, primary_item }
-        })
-        .collect())
-}
-
-fn bucket_segments(
-    doc: &Document,
-    view: ViewId,
-    key: KeyId,
-    text_len: u32,
-    buckets: u32,
-    kind: HeatmapLaneKind,
-    items: &[Item],
-) -> Result<Vec<HeatmapSegment>, Error> {
-    check_items(doc, view, key, text_len, items)?;
-    let n = buckets as usize;
-    let edge = |i: usize| -> u32 { (i as u64 * text_len as u64 / buckets as u64) as u32 };
-    let edges: Vec<u32> = (0..=n).map(edge).collect();
-    let mut covering: Vec<Vec<usize>> = vec![Vec::new(); n];
-    let mut stamp: Vec<u32> = vec![0; n];
-    for (ix, it) in items.iter().enumerate() {
-        let mark = ix as u32 + 1;
-        for &(s, e) in &it.frags {
-            // Bins a fragment touches: positive-length overlap, or the
-            // bin holding a zero-width point (the last bin at the end).
-            // Search the actual rounded edges; multiplying by N/length
-            // is not their inverse when bins have unequal widths.
-            let (first, end) = if s == e {
-                let at = if text_len == 0 {
-                    0
-                } else if s == text_len {
-                    n - 1
-                } else {
-                    edges[1..].partition_point(|&end| end <= s)
-                };
-                (at, at + 1)
-            } else {
-                (edges[1..].partition_point(|&end| end <= s), edges[..n].partition_point(|&start| start < e))
-            };
-            for (b, cov) in covering.iter_mut().enumerate().take(end).skip(first) {
-                if (s == e || edges[b] < edges[b + 1]) && stamp[b] != mark {
-                    stamp[b] = mark;
-                    cov.push(ix);
-                }
-            }
-        }
-    }
-    Ok((0..n)
-        .map(|i| {
-            let (score, count, primary_item) = aggregate(kind, items, &covering[i]);
-            HeatmapSegment { span: Span { start: edges[i], end: edges[i + 1] }, score, count, primary_item }
         })
         .collect())
 }
