@@ -94,6 +94,7 @@ pub enum Minor {
     Centavo,
     Centime,
     Paisa,
+    Sen,
 }
 
 impl Minor {
@@ -110,6 +111,7 @@ impl Minor {
             Minor::Centavo => "Centavo",
             Minor::Centime => "Centime",
             Minor::Paisa => "Paisa",
+            Minor::Sen => "Sen",
         }
     }
 
@@ -129,6 +131,7 @@ impl Minor {
             Minor::Centavo => (generic(Generic::Peso), 2),
             Minor::Centime => (generic(Generic::Franc), 2),
             Minor::Paisa => (generic(Generic::Rupee), 2),
+            Minor::Sen => (coded("jpy"), 2),
         }
     }
 }

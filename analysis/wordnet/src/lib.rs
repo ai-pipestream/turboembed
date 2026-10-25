@@ -16,6 +16,7 @@
 //! - [`SynsetSimilarity`] for path, Wu-Palmer, and Leacock-Chodorow similarity.
 //! - [`HypernymTyper`] for coarse semantic typing by upward hypernym chain traversal.
 
+pub mod annotator;
 pub mod error;
 pub mod expansion;
 pub mod folding;
@@ -28,8 +29,9 @@ pub mod relation;
 pub mod similarity;
 pub mod wndb;
 
+pub use annotator::{WordNetAnnotator, WordNetOptions};
 pub use error::WordNetError;
-pub use expansion::{Expansion, ExpansionKind, LexicalExpander, LexicalExpanderBuilder};
+pub use expansion::{Expansion, ExpansionKind, ExpansionSource, LexicalExpander, LexicalExpanderBuilder};
 pub use folding::{fold, fold_into, split_on_spaces};
 pub use hypernym::HypernymTyper;
 pub use lexicon::{InMemoryWordNetLexicon, LemmaKey, LexicalKnowledgeBase, Synset};

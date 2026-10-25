@@ -1,6 +1,11 @@
 //! Native CPU DeBERTa-v3 shared-key encoder foundation for extraction heads.
 //! This Rust API consumes token IDs and masks, not text. It does not register
 //! a C session task or implement GLiNER span/relation/schema decoding.
+//!
+//! An encoder computes on its own pool of threads: one sequence's products
+//! and heads across them, or a batch's sequences one to a thread. Every
+//! output is computed the same on any thread, so the bits do not depend on
+//! the thread count or on what else is in a batch.
 mod attention;
 mod config;
 mod math;
@@ -10,19 +15,25 @@ mod projections;
 #[cfg(test)]
 mod tests;
 mod weights;
+use std::sync::Mutex;
+
 use crate::{
+    cpu::pool::Pool,
     safetensors::File,
-    status::{Result, invalid},
+    status::{Error, Result, invalid},
 };
 use attention::Run;
 pub use config::Config;
 pub use projections::TokenPromptProjections;
 use weights::Weights;
 
-/// Immutable, checked weights. Calls may run concurrently on the same model.
+/// Immutable, checked weights. Calls may run concurrently on the same
+/// model: one at a time takes the pool, and the others run on their own
+/// thread, with the same bits.
 pub struct Encoder {
     config: Config,
     weights: Weights,
+    pool: Mutex<Pool>,
 }
 
 /// Hidden states retain the input mask so heads cannot select padding rows.
@@ -53,7 +64,25 @@ impl Encoder {
         }
         let file = File::parse("deberta weights", bytes)?;
         let weights = Weights::load(&config, &file)?;
-        Ok(Self { config, weights })
+        let threads = crate::cpu::threads(0, std::env::var("TURBO_CPU_THREADS").ok().as_deref())
+            .map_err(|r| Error::new(r.code, r.message))?;
+        Ok(Self { config, weights, pool: Mutex::new(Pool::new(threads)) })
+    }
+
+    /// The same encoder on `threads` threads, the caller's among them:
+    /// 1 to 1024. Without it, TURBO_CPU_THREADS when set, else one per
+    /// processor this process may run on, as for a CPU session
+    /// (docs/cpu.md).
+    pub fn with_threads(self, threads: usize) -> Result<Self> {
+        if !(1..=crate::cpu::MAX_THREADS).contains(&threads) {
+            return Err(invalid(format!("deberta threads {threads}: the count must be 1 to 1024")));
+        }
+        Ok(Self { pool: Mutex::new(Pool::new(threads)), ..self })
+    }
+
+    /// The threads the encoder's pool runs on.
+    pub fn threads(&self) -> usize {
+        self.pool.lock().map_or(1, |p| p.threads())
     }
     pub fn config(&self) -> &Config {
         &self.config
@@ -63,17 +92,49 @@ impl Encoder {
     /// length are all validated before embedding lookup. An all-masked or
     /// empty sequence is an error. Padding row values follow HF semantics.
     pub fn encode(&self, ids: &[u32], mask: &[bool]) -> Result<HiddenStates> {
-        let (_, last) = self.run(ids, mask, false)?;
+        let mut pool = self.pool.try_lock().ok();
+        let (_, last) = self.run(ids, mask, false, pool.as_deref_mut())?;
         Ok(HiddenStates { data: last, mask: mask.to_vec(), width: self.config.hidden })
+    }
+
+    /// `encode` of each row, in order: the rows one to a thread of the
+    /// pool, each giving the bits it gives alone. A row that fails fails
+    /// alone.
+    pub fn encode_batch(&self, rows: &[(&[u32], &[bool])]) -> Vec<Result<HiddenStates>> {
+        let out: Vec<Mutex<Option<Result<HiddenStates>>>> = rows.iter().map(|_| Mutex::new(None)).collect();
+        let one = |i: usize| {
+            let (ids, mask) = rows[i];
+            let r = self.run(ids, mask, false, None);
+            let r = r.map(|(_, last)| HiddenStates { data: last, mask: mask.to_vec(), width: self.config.hidden });
+            if let Ok(mut slot) = out[i].lock() {
+                *slot = Some(r);
+            }
+        };
+        match self.pool.try_lock() {
+            Ok(mut pool) => pool.run(rows.len(), &|i, _| one(i)),
+            Err(_) => (0..rows.len()).for_each(one),
+        }
+        out.into_iter()
+            .map(|m| {
+                m.into_inner().ok().flatten().unwrap_or_else(|| Err(invalid("deberta batch row was not computed")))
+            })
+            .collect()
     }
 
     /// Embedding output then each encoder layer, for numerical reference
     /// comparison. Normal inference uses `encode` and retains only the last.
     pub fn encode_layers(&self, ids: &[u32], mask: &[bool]) -> Result<Vec<Vec<f32>>> {
-        self.run(ids, mask, true).map(|(trace, _)| trace)
+        let mut pool = self.pool.try_lock().ok();
+        self.run(ids, mask, true, pool.as_deref_mut()).map(|(trace, _)| trace)
     }
 
-    fn run(&self, ids: &[u32], mask: &[bool], trace: bool) -> Result<(Vec<Vec<f32>>, Vec<f32>)> {
+    fn run(
+        &self,
+        ids: &[u32],
+        mask: &[bool],
+        trace: bool,
+        mut pool: Option<&mut Pool>,
+    ) -> Result<(Vec<Vec<f32>>, Vec<f32>)> {
         let c = &self.config;
         if ids.is_empty() || ids.len() > c.max_sequence || ids.len() != mask.len() || !mask.iter().any(|x| *x) {
             return Err(invalid("deberta sequence/mask shape or max_sequence limit"));
@@ -83,7 +144,7 @@ impl Encoder {
         }
         let h = c.hidden;
         let cached = self.weights.layers.iter().all(|l| l.pos.is_some());
-        let mut run = Run::new(c, mask, cached)?;
+        let mut run = Run::new(c, mask, cached, pool.as_ref().map_or(1, |p| p.threads()))?;
         // Visible rows are their embeddings, LayerNorm'd; the shared
         // masked row stays zero, as upstream multiplies it by its mask.
         for (row, &p) in run.x.chunks_exact_mut(h).zip(&run.at) {
@@ -97,7 +158,7 @@ impl Encoder {
             layers.push(scatter(&run, h)?);
         }
         for layer in &self.weights.layers {
-            run.layer(c, layer, &self.weights.relative)?;
+            run.layer(c, layer, &self.weights.relative, pool.as_deref_mut())?;
             if trace {
                 layers.push(scatter(&run, h)?);
             }

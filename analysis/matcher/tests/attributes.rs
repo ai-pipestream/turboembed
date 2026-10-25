@@ -185,6 +185,7 @@ fn discontinuous_entities_skip_gap_tokens_and_ruler_checks_entity_view() {
         one("N", &[Tok::flag(Flag::Number, true)]).find(&child_input_with_source_numbers),
         Err(MatchError::ViewMismatch { layer: "turbo:numbers", expected: clean.id(), actual: ViewId::SOURCE })
     );
-    let err = ruler.annotate((clean, &child_tokens, None, None, Some(&entities), None, None, None)).err().unwrap();
+    let err =
+        ruler.annotate((clean, &child_tokens, None, None, Some(&entities), None, None, None, None)).err().unwrap();
     assert!(err.to_string().contains("entities are in another view"), "{err}");
 }
