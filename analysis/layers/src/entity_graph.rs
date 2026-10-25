@@ -8,7 +8,8 @@
 //! coreference chains, linked entities, locations, dependencies, aspects
 //! and relation edges; it lives here so a reader needs none of them.
 
-use turbo_analysis::{Anchor, Ix, Key, KeyId, Layer, Span, ViewId};
+use std::any::TypeId;
+use turbo_analysis::{Anchor, Document, Ix, Key, KeyId, Layer, Span, View, ViewId};
 
 use crate::Entities;
 
@@ -164,6 +165,37 @@ impl Layer for DocumentEntities {
         self.entities.len()
     }
 
+    fn check_document(&self, doc: &Document, on: &[KeyId]) -> Result<(), String> {
+        let view = doc
+            .layers()
+            .filter(|k| k.ty == TypeId::of::<View>())
+            .filter_map(|k| doc.get_key(&Key::<View>::named(k.name)))
+            .find(|v| v.id() == self.view)
+            .ok_or("document entities refer to an unknown view")?;
+        let source = on
+            .iter()
+            .find(|k| k.ty == TypeId::of::<Entities>())
+            .map(|k| doc.require(&Key::<Entities>::named(k.name)).map_err(|e| e.to_string()))
+            .transpose()?;
+        if source.is_some_and(|s| s.spans.view() != self.view) {
+            return Err("document entity references are in a different view".into());
+        }
+        for e in &self.entities {
+            for m in &e.mentions {
+                if view.text().get(m.span.start as usize..m.span.end as usize).is_none() {
+                    return Err("consolidated mention outside view or not on UTF-8 boundaries".into());
+                }
+                if let Some(row) = m.entity {
+                    let s = source.ok_or("consolidated mention has no source entity layer")?;
+                    if row.get() >= s.spans.len() || s.spans.get(row) != m.span {
+                        return Err("consolidated mention differs from its source entity".into());
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         let rows = self.entities.iter().flat_map(|e| e.mentions.iter()).filter_map(|m| m.entity);
         match rows.map(|r| r.get() + 1).max() {
@@ -278,10 +310,19 @@ impl Layer for EntitySalience {
     }
 
     fn indexes(&self) -> Vec<(KeyId, usize)> {
-        match self.scores.last() {
-            Some(s) => vec![(Key::<DocumentEntities>::DEFAULT.id(), s.entity_ix as usize + 1)],
-            None => Vec::new(),
+        vec![(Key::<DocumentEntities>::DEFAULT.id(), self.scores.len())]
+    }
+
+    fn check_document(&self, doc: &Document, on: &[KeyId]) -> Result<(), String> {
+        let key = on
+            .iter()
+            .find(|k| k.ty == TypeId::of::<DocumentEntities>())
+            .ok_or("salience needs its consolidated entities")?;
+        let entities = doc.require(&Key::<DocumentEntities>::named(key.name)).map_err(|e| e.to_string())?;
+        if entities.entities.len() != self.scores.len() {
+            return Err("one salience score per consolidated entity".into());
         }
+        Ok(())
     }
 
     fn check(&self) -> Result<(), String> {

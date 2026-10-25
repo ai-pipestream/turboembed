@@ -17,7 +17,7 @@
 
 use std::cell::RefCell;
 
-use turbo_analysis::{Annotator, Document, Error, Key, Refs, View};
+use turbo_analysis::{Annotator, Document, Error, Key, Layer, Refs, View};
 use turbo_analysis_layers::{Block, DocumentEntities, EntitySalience, EntitySalienceScore, Sentences, Structure};
 
 /// The weights and constants of [`EntitySalienceAnnotator`].
@@ -93,19 +93,36 @@ impl EntitySalienceAnnotator {
         Ok(s)
     }
 
-    /// The salience of `entities`, with `scratch` as working memory.
+    /// The salience of validated source coordinates, with reusable working memory.
     pub fn score(
         &self,
-        text_len: usize,
+        text: &str,
         entities: &DocumentEntities,
         sentences: Option<&Sentences>,
         structure: Option<&Structure>,
         scratch: &mut Scratch,
-    ) -> EntitySalience {
+    ) -> Result<EntitySalience, Error> {
+        let fail = |detail: String| Error::Annotator { annotator: Self::ID, detail };
+        self.config.check().map_err(fail)?;
+        entities.check().map_err(fail)?;
+        if sentences.is_some_and(|s| s.spans.view() != entities.view)
+            || structure.is_some_and(|s| s.spans.view() != entities.view)
+        {
+            return Err(fail("salience inputs are in different views".into()));
+        }
+        for mention in entities.entities.iter().flat_map(|e| e.mentions.iter()) {
+            if text.get(mention.span.start as usize..mention.span.end as usize).is_none() {
+                return Err(fail("salience mention outside view or not on UTF-8 boundaries".into()));
+            }
+        }
+        if let Some(s) = sentences {
+            s.check().map_err(fail)?;
+        }
+        if let Some(s) = structure {
+            s.check().map_err(fail)?;
+        }
         let c = &self.config;
         let n = entities.entities.len();
-        let sentences = sentences.filter(|s| s.spans.view() == entities.view);
-        let structure = structure.filter(|s| s.spans.view() == entities.view);
         let starts: Vec<u32> = sentences.map_or_else(Vec::new, |s| s.spans.iter().map(|(_, sp)| sp.start).collect());
         let sentence_of = |at: u32| starts.partition_point(|&s| s <= at).saturating_sub(1) as u32;
         let headings: Vec<(u32, u32)> = structure.map_or_else(Vec::new, |s| {
@@ -113,7 +130,7 @@ impl EntitySalienceAnnotator {
                 .iter()
                 .zip(&s.kind)
                 .filter(|(_, k)| **k == Block::Heading)
-                .map(|((_, sp), _)| (sp.start, sp.end))
+                .flat_map(|((i, _), _)| s.spans.fragments(i).map(|sp| (sp.start, sp.end)))
                 .collect()
         });
 
@@ -124,7 +141,7 @@ impl EntitySalienceAnnotator {
             let mut position = if sentences.is_some() {
                 (-c.position_decay * sentence_of(first) as f32).exp()
             } else {
-                1.0 - first as f32 / text_len.max(1) as f32
+                1.0 - first as f32 / text.len().max(1) as f32
             };
             let in_heading =
                 e.mentions.iter().any(|m| headings.iter().any(|&(a, b)| a <= m.span.start && m.span.end <= b));
@@ -160,21 +177,24 @@ impl EntitySalienceAnnotator {
             scratch.occurrences.clear();
         }
         let centrality = pagerank(entities, c, scratch);
-        let total = (c.position_weight + c.syntax_weight + c.frequency_weight + c.centrality_weight).max(f32::EPSILON);
+        let total = f64::from(c.position_weight)
+            + f64::from(c.syntax_weight)
+            + f64::from(c.frequency_weight)
+            + f64::from(c.centrality_weight);
         for (row, &cent) in rows.iter_mut().zip(centrality) {
             row.centrality_score = cent.clamp(0.0, 1.0);
-            let sum = c.position_weight * row.position_score
-                + c.syntax_weight * row.syntax_score
-                + c.frequency_weight * row.frequency_score
-                + c.centrality_weight * row.centrality_score;
-            row.salience = (sum / total).clamp(0.0, 1.0);
+            let sum = f64::from(c.position_weight) * f64::from(row.position_score)
+                + f64::from(c.syntax_weight) * f64::from(row.syntax_score)
+                + f64::from(c.frequency_weight) * f64::from(row.frequency_score)
+                + f64::from(c.centrality_weight) * f64::from(row.centrality_score);
+            row.salience = (sum / total).clamp(0.0, 1.0) as f32;
         }
         let mut order: Vec<usize> = (0..n).collect();
         order.sort_by(|&a, &b| rows[b].salience.total_cmp(&rows[a].salience).then(a.cmp(&b)));
         for (rank, &i) in order.iter().enumerate() {
             rows[i].rank = rank as u32;
         }
-        EntitySalience { scores: rows }
+        Ok(EntitySalience { scores: rows })
     }
 }
 
@@ -243,7 +263,7 @@ fn pagerank<'s>(entities: &DocumentEntities, c: &SalienceConfig, s: &'s mut Scra
 
 impl Annotator for EntitySalienceAnnotator {
     const ID: &'static str = "turbo:entity-salience";
-    const VERSION: &'static str = "1";
+    const VERSION: &'static str = "2";
     type Reads = (View, DocumentEntities, Option<Sentences>, Option<Structure>);
     type Writes = (EntitySalience,);
 
@@ -275,8 +295,28 @@ impl Annotator for EntitySalienceAnnotator {
                 detail: "the document entities are not of the view read".into(),
             });
         }
-        let len = view.text().len();
-        let out = SCRATCH.with(|s| self.score(len, entities, sentences, structure, &mut s.borrow_mut()));
+        let out = SCRATCH.with(|s| self.score(view.text(), entities, sentences, structure, &mut s.borrow_mut()))?;
         Ok((out,))
+    }
+}
+
+impl SalienceConfig {
+    fn check(&self) -> Result<(), String> {
+        let weights = [self.position_weight, self.syntax_weight, self.frequency_weight, self.centrality_weight];
+        if weights.iter().any(|v| !v.is_finite() || *v < 0.0) || weights.iter().all(|v| *v == 0.0) {
+            return Err("salience weights must be finite, nonnegative and have a positive total".into());
+        }
+        if !self.position_decay.is_finite()
+            || self.position_decay < 0.0
+            || !self.heading_bonus.is_finite()
+            || self.heading_bonus < 0.0
+            || !(0.0..=1.0).contains(&self.pagerank_damping)
+            || self.pagerank_iters == 0
+        {
+            return Err(
+                "salience decay/bonus must be finite and nonnegative, damping in [0, 1], iterations positive".into()
+            );
+        }
+        Ok(())
     }
 }

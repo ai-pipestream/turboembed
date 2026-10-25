@@ -175,9 +175,14 @@ impl Annotator for ChunkEntityHeaders {
         let chains = Chains { mentions, mention_groups, entity_groups };
         let keys = EntityKeys::build(sentences, entities, view.text(), self.keying, chains);
         let mut out = chunk_entities(chunks, &keys, self.policy);
-        if let (false, Some(d), Some(s)) = (self.salience.is_off(), document, salience)
-            && d.view == view.id()
-        {
+        if let (false, Some(d), Some(s)) = (self.salience.is_off(), document, salience) {
+            if d.view != view.id() || d.entities.len() != s.scores.len() {
+                return Err(Error::Annotator {
+                    annotator: Self::ID,
+                    detail: "salience headers need matching consolidated entities and view".into(),
+                });
+            }
+            s.check().map_err(|detail| Error::Annotator { annotator: Self::ID, detail })?;
             salient::apply(&mut out, &keys, d, s, self.salience);
         }
         Ok((out,))
