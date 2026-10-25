@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use turbo_analysis::Fnv1a;
 use turbo_stopword::{StopwordLanguage, StopwordList};
 use turbo_unicode::java;
 
@@ -48,8 +49,7 @@ impl Lexicon {
                 self.lower.push(lower);
             }
         }
-        let hash =
-            self.lower.bytes().fold(0xcbf2_9ce4_8422_2325u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3));
+        let hash = Fnv1a::new().bytes(self.lower.as_bytes()).finish();
         Lexeme {
             id: (letter || digit).then(|| self.intern_hash(hash)),
             syllables: if letter { groups.max(1) } else { 0 },
