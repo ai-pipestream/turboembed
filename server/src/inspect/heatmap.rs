@@ -3,18 +3,30 @@
 //! (`heatmap_buckets > 0`), with all bucket boundaries projected into the
 //! caller's [`OffsetMode`].
 
-use std::collections::BTreeMap;
+use std::any::TypeId;
 
-use turbo_analysis::{Document, Ix, Span, ViewId};
+use turbo_analysis::{Document, Ix, Key, Span, ViewId};
 use turbo_analysis_layers::{
     Categories, Chunks, Entities, Incivility, IncivilityTarget, Pii, PiiConfidence, Sentences, Tag, Tokens,
 };
 
+mod aggregate;
+use aggregate::ActiveScores;
+
+use super::bad;
 use super::window::snap_down;
 use crate::api::Failure;
 use crate::offsets::Offsetter;
 use crate::proto::result::{HeatmapBucketProto, HeatmapLaneProto};
 use crate::results::{MAX_FRAGMENTS, over};
+
+#[cfg(test)]
+std::thread_local! {
+    static AGGREGATE_QUERIES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+mod tests;
 
 /// Maximum number of minimap buckets allowed per heatmap lane.
 pub const MAX_HEATMAP_BUCKETS: u32 = 4_096;
@@ -40,82 +52,185 @@ pub(crate) fn build_heatmap_lanes(
         return Err(over("max_heatmap_buckets", "heatmap_buckets", heatmap_buckets as u64));
     }
     let mut lanes = Vec::new();
+    for key in doc.layers() {
+        let instance = key.name;
 
-    if let Some(tokens) = doc.get::<Tokens>()
-        && tokens.spans.view() == view
-        && !tokens.spans.is_empty()
-    {
-        let items: Vec<ScoredSpan> = (0..tokens.spans.len())
-            .map(|i| ScoredSpan { span: tokens.spans.get(Ix::new(i as u32)), score: 1.0, item: i as u32 })
-            .collect();
-        lanes.push(make_lane("tokens", "TokenDensity", view.0 as u32, text, offsetter, heatmap_buckets, &items, true)?);
-    }
-
-    if let Some(entities) = doc.get::<Entities>()
-        && entities.spans.view() == view
-        && !entities.spans.is_empty()
-    {
-        let mut items = Vec::new();
-        for i in 0..entities.spans.len() {
-            let ix = Ix::new(i as u32);
-            let sc = entities.score.get(i).copied().unwrap_or(1.0) as f32;
-            for frag in entities.spans.fragments(ix) {
-                items.push(ScoredSpan { span: frag, score: sc, item: i as u32 });
-            }
-        }
-        lanes.push(make_lane(
-            "entities",
-            "EntityDensity",
-            view.0 as u32,
-            text,
-            offsetter,
-            heatmap_buckets,
-            &items,
-            false,
-        )?);
-    }
-
-    if let Some(pii) = doc.get::<Pii>()
-        && pii.spans.view() == view
-        && !pii.spans.is_empty()
-    {
-        let mut items = Vec::new();
-        for i in 0..pii.spans.len() {
-            let ix = Ix::new(i as u32);
-            let sc = match pii.confidence[i] {
-                PiiConfidence::Format => 0.5,
-                PiiConfidence::Checksum => 0.85,
-                PiiConfidence::LabelledChecksum => 1.0,
-            };
-            for frag in pii.spans.fragments(ix) {
-                items.push(ScoredSpan { span: frag, score: sc, item: i as u32 });
-            }
-        }
-        lanes.push(make_lane("pii", "PiiDensity", view.0 as u32, text, offsetter, heatmap_buckets, &items, false)?);
-    }
-
-    if let Some(sentences) = doc.get::<Sentences>()
-        && sentences.spans.view() == view
-        && let Some(cats) = doc.get::<Categories<Sentences>>()
-        && !cats.category.is_empty()
-    {
-        let mut items = Vec::new();
-        for i in 0..cats.category.len().min(sentences.spans.len()) {
-            let tag = cats.category[i];
-            if tag == Tag::NONE {
-                continue;
-            }
-            let n_cats = cats.categories.len().max(1);
-            let row_scores = &cats.scores[i * n_cats..(i + 1) * n_cats];
-            let best_score = row_scores.get(tag.0 as usize).copied().unwrap_or(0.0) as f32;
-            let lbl = cats.categories.label(tag).to_ascii_lowercase();
-            let signed = if lbl.contains("neg") { -best_score } else { best_score };
-            items.push(ScoredSpan { span: sentences.spans.get(Ix::new(i as u32)), score: signed, item: i as u32 });
-        }
-        if !items.is_empty() {
+        if key.ty == TypeId::of::<Tokens>()
+            && let Some(tokens) = doc.get_key(&Key::<Tokens>::named(instance))
+            && tokens.spans.view() == view
+            && !tokens.spans.is_empty()
+        {
+            let items: Vec<ScoredSpan> = (0..tokens.spans.len())
+                .map(|i| ScoredSpan { span: tokens.spans.get(Ix::new(i as u32)), score: 1.0, item: i as u32 })
+                .collect();
             lanes.push(make_lane(
-                "sentiment",
-                "SentimentPolarity",
+                &lane_id("tokens", instance),
+                "TokenDensity",
+                view.0 as u32,
+                text,
+                offsetter,
+                heatmap_buckets,
+                &items,
+                true,
+            )?);
+        }
+
+        if key.ty == TypeId::of::<Entities>()
+            && let Some(entities) = doc.get_key(&Key::<Entities>::named(instance))
+            && entities.spans.view() == view
+            && !entities.spans.is_empty()
+        {
+            let mut items = Vec::new();
+            for i in 0..entities.spans.len() {
+                let ix = Ix::new(i as u32);
+                let sc = entities.score.get(i).copied().unwrap_or(1.0) as f32;
+                for frag in entities.spans.fragments(ix) {
+                    items.push(ScoredSpan { span: frag, score: sc, item: i as u32 });
+                }
+            }
+            lanes.push(make_lane(
+                &lane_id("entities", instance),
+                "EntityDensity",
+                view.0 as u32,
+                text,
+                offsetter,
+                heatmap_buckets,
+                &items,
+                false,
+            )?);
+        }
+
+        if key.ty == TypeId::of::<Pii>()
+            && let Some(pii) = doc.get_key(&Key::<Pii>::named(instance))
+            && pii.spans.view() == view
+            && !pii.spans.is_empty()
+        {
+            let mut items = Vec::new();
+            for i in 0..pii.spans.len() {
+                let ix = Ix::new(i as u32);
+                let sc = match pii.confidence[i] {
+                    PiiConfidence::Format => 0.5,
+                    PiiConfidence::Checksum => 0.85,
+                    PiiConfidence::LabelledChecksum => 1.0,
+                };
+                for frag in pii.spans.fragments(ix) {
+                    items.push(ScoredSpan { span: frag, score: sc, item: i as u32 });
+                }
+            }
+            lanes.push(make_lane(
+                &lane_id("pii", instance),
+                "PiiDensity",
+                view.0 as u32,
+                text,
+                offsetter,
+                heatmap_buckets,
+                &items,
+                false,
+            )?);
+        }
+
+        if key.ty == TypeId::of::<Categories<Sentences>>()
+            && let Some(cats) = doc.get_key(&Key::<Categories<Sentences>>::named(instance))
+            && !cats.category.is_empty()
+            && let Some(anchor) = doc.made_on(key).iter().find(|k| k.ty == TypeId::of::<Sentences>())
+            && let Some(sentences) = doc.get_key(&Key::<Sentences>::named(anchor.name))
+            && sentences.spans.view() == view
+        {
+            let mut items = Vec::new();
+            for i in 0..cats.category.len().min(sentences.spans.len()) {
+                let tag = cats.category[i];
+                if tag == Tag::NONE {
+                    continue;
+                }
+                let n_cats = cats.categories.len().max(1);
+                let row_scores = &cats.scores[i * n_cats..(i + 1) * n_cats];
+                let best_score = row_scores.get(tag.0 as usize).copied().unwrap_or(0.0) as f32;
+                let lbl = cats.categories.label(tag).to_ascii_lowercase();
+                let signed = if lbl.contains("neg") { -best_score } else { best_score };
+                items.push(ScoredSpan { span: sentences.spans.get(Ix::new(i as u32)), score: signed, item: i as u32 });
+            }
+            if !items.is_empty() {
+                lanes.push(make_lane(
+                    &lane_id("sentiment", instance),
+                    "SentimentPolarity",
+                    view.0 as u32,
+                    text,
+                    offsetter,
+                    heatmap_buckets,
+                    &items,
+                    false,
+                )?);
+            }
+        }
+
+        if key.ty == TypeId::of::<Incivility>()
+            && let Some(inciv) = doc.get_key(&Key::<Incivility>::named(instance))
+            && !inciv.target.is_empty()
+        {
+            let bindings = doc.made_on(key);
+            let sentences = bindings
+                .iter()
+                .find(|k| k.ty == TypeId::of::<Sentences>())
+                .and_then(|k| doc.get_key(&Key::<Sentences>::named(k.name)));
+            let chunks = bindings
+                .iter()
+                .find(|k| k.ty == TypeId::of::<Chunks>())
+                .and_then(|k| doc.get_key(&Key::<Chunks>::named(k.name)));
+            let mut items = Vec::new();
+            for (i, &t) in inciv.target.iter().enumerate() {
+                let span = match t {
+                    IncivilityTarget::Sentence(ix) => sentences
+                        .filter(|s| s.spans.view() == view)
+                        .and_then(|s| (ix.get() < s.spans.len()).then(|| s.spans.get(ix))),
+                    IncivilityTarget::Chunk(ix) => chunks
+                        .filter(|c| c.spans.view() == view)
+                        .and_then(|c| (ix.get() < c.spans.len()).then(|| c.spans.get(ix))),
+                    IncivilityTarget::Block(_) => None,
+                };
+                if let Some(sp) = span {
+                    let sc = [
+                        inciv.insult[i],
+                        inciv.profanity[i],
+                        inciv.threat[i],
+                        inciv.identity_attack[i],
+                        inciv.intolerance[i],
+                        inciv.severe_toxicity[i],
+                    ]
+                    .into_iter()
+                    .fold(0.0_f64, f64::max) as f32;
+                    items.push(ScoredSpan { span: sp, score: sc, item: i as u32 });
+                }
+            }
+            if !items.is_empty() {
+                lanes.push(make_lane(
+                    &lane_id("incivility", instance),
+                    "IncivilityScore",
+                    view.0 as u32,
+                    text,
+                    offsetter,
+                    heatmap_buckets,
+                    &items,
+                    false,
+                )?);
+            }
+        }
+
+        if key.ty == TypeId::of::<Chunks>()
+            && let Some(chunks) = doc.get_key(&Key::<Chunks>::named(instance))
+            && chunks.spans.view() == view
+            && !chunks.spans.is_empty()
+        {
+            let mut items = Vec::new();
+            for i in 0..chunks.spans.len() {
+                let ix = Ix::new(i as u32);
+                let sc = chunks.model_tokens[i] as f32;
+                for frag in chunks.spans.fragments(ix) {
+                    items.push(ScoredSpan { span: frag, score: sc, item: i as u32 });
+                }
+            }
+            lanes.push(make_lane(
+                &lane_id("chunks", instance),
+                "ChunkScore",
                 view.0 as u32,
                 text,
                 offsetter,
@@ -125,67 +240,24 @@ pub(crate) fn build_heatmap_lanes(
             )?);
         }
     }
-
-    if let Some(inciv) = doc.get::<Incivility>()
-        && !inciv.target.is_empty()
-    {
-        let sentences = doc.get::<Sentences>();
-        let chunks = doc.get::<Chunks>();
-        let mut items = Vec::new();
-        for (i, &t) in inciv.target.iter().enumerate() {
-            let span = match t {
-                IncivilityTarget::Sentence(ix) => sentences
-                    .filter(|s| s.spans.view() == view)
-                    .and_then(|s| (ix.get() < s.spans.len()).then(|| s.spans.get(ix))),
-                IncivilityTarget::Chunk(ix) => chunks
-                    .filter(|c| c.spans.view() == view)
-                    .and_then(|c| (ix.get() < c.spans.len()).then(|| c.spans.get(ix))),
-                IncivilityTarget::Block(_) => None,
-            };
-            if let Some(sp) = span {
-                let sc = [
-                    inciv.insult[i],
-                    inciv.profanity[i],
-                    inciv.threat[i],
-                    inciv.identity_attack[i],
-                    inciv.intolerance[i],
-                    inciv.severe_toxicity[i],
-                ]
-                .into_iter()
-                .fold(0.0_f64, f64::max) as f32;
-                items.push(ScoredSpan { span: sp, score: sc, item: i as u32 });
-            }
-        }
-        if !items.is_empty() {
-            lanes.push(make_lane(
-                "incivility",
-                "IncivilityScore",
-                view.0 as u32,
-                text,
-                offsetter,
-                heatmap_buckets,
-                &items,
-                false,
-            )?);
-        }
-    }
-
-    if let Some(chunks) = doc.get::<Chunks>()
-        && chunks.spans.view() == view
-        && !chunks.spans.is_empty()
-    {
-        let mut items = Vec::new();
-        for i in 0..chunks.spans.len() {
-            let ix = Ix::new(i as u32);
-            let sc = chunks.model_tokens[i] as f32;
-            for frag in chunks.spans.fragments(ix) {
-                items.push(ScoredSpan { span: frag, score: sc, item: i as u32 });
-            }
-        }
-        lanes.push(make_lane("chunks", "ChunkScore", view.0 as u32, text, offsetter, heatmap_buckets, &items, false)?);
-    }
-
+    lanes.sort_by(|a, b| lane_order(&a.kind).cmp(&lane_order(&b.kind)).then_with(|| a.id.cmp(&b.id)));
     Ok(lanes)
+}
+
+fn lane_order(kind: &str) -> u8 {
+    match kind {
+        "TokenDensity" => 0,
+        "EntityDensity" => 1,
+        "PiiDensity" => 2,
+        "SentimentPolarity" => 3,
+        "IncivilityScore" => 4,
+        "ChunkScore" => 5,
+        _ => 6,
+    }
+}
+
+fn lane_id(kind: &str, instance: &str) -> String {
+    if instance.is_empty() { kind.to_owned() } else { format!("{kind}@{instance}") }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -199,6 +271,12 @@ fn make_lane(
     items: &[ScoredSpan],
     sum_density: bool,
 ) -> Result<HeatmapLaneProto, Failure> {
+    if items.len() as u64 > MAX_FRAGMENTS {
+        return Err(over("max_fragments", "heatmap input fragments", items.len() as u64));
+    }
+    if items.iter().any(|item| !item.score.is_finite()) {
+        return Err(bad("heatmap contains a non-finite score"));
+    }
     let buckets = if heatmap_buckets == 0 {
         exact_segments(text, offsetter, items, sum_density)?
     } else {
@@ -240,7 +318,7 @@ fn exact_segments(
     }
     events.sort_unstable_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)).then(a.2.cmp(&b.2)));
 
-    let mut active: BTreeMap<usize, ScoredSpan> = BTreeMap::new();
+    let mut active = ActiveScores::new(items);
     let mut out = Vec::new();
     let mut i = 0usize;
     while i < events.len() {
@@ -248,29 +326,16 @@ fn exact_segments(
         while i < events.len() && events[i].0 == pos {
             let (_, is_start, idx) = events[i];
             if is_start {
-                active.insert(idx, items[idx]);
+                active.insert(idx);
             } else {
-                active.remove(&idx);
+                active.remove(idx);
             }
             i += 1;
         }
         if i < events.len() && !active.is_empty() {
             let next_pos = events[i].0;
             if pos < next_pos {
-                let count = active.len() as u32;
-                let mut best_score = 0.0_f32;
-                let mut primary_item: Option<u32> = None;
-                for it in active.values() {
-                    if sum_density {
-                        best_score += it.score;
-                        if primary_item.is_none() {
-                            primary_item = Some(it.item);
-                        }
-                    } else if primary_item.is_none() || it.score.abs() > best_score.abs() {
-                        best_score = it.score;
-                        primary_item = Some(it.item);
-                    }
-                }
+                let (best_score, count, primary_item) = active.summary(sum_density);
                 let (start, end) = offsetter.to_wire(text, Span::new(pos, next_pos));
                 out.push(HeatmapBucketProto { start, end, score: best_score, count, primary_item });
             }
@@ -297,46 +362,34 @@ fn binned_buckets(
     }
     bounds.push(len as u32);
 
-    let mut counts = vec![0u32; n];
-    let mut scores = vec![0.0_f32; n];
-    let mut primaries: Vec<Option<u32>> = vec![None; n];
-
-    for it in items {
-        if it.span.is_empty() {
+    // Assign two events per input span, rather than visiting every bucket it
+    // overlaps. Bucket boundaries can repeat at UTF-8 character boundaries;
+    // the two partition points preserve the existing overlap rule there.
+    let mut opens = vec![Vec::new(); n];
+    let mut closes = vec![Vec::new(); n + 1];
+    for (index, item) in items.iter().enumerate() {
+        if item.span.is_empty() {
             continue;
         }
-        let first_b = bounds[1..].partition_point(|&b_end| b_end <= it.span.start);
-        let last_b = bounds[..n].partition_point(|&b_start| b_start < it.span.end);
-        for b_idx in first_b..last_b.min(n) {
-            let a = bounds[b_idx];
-            let b = bounds[b_idx + 1];
-            if it.span.start < b && it.span.end > a {
-                counts[b_idx] += 1;
-                if sum_density {
-                    scores[b_idx] += it.score;
-                    if primaries[b_idx].is_none() {
-                        primaries[b_idx] = Some(it.item);
-                    }
-                } else if primaries[b_idx].is_none() || it.score.abs() > scores[b_idx].abs() {
-                    scores[b_idx] = it.score;
-                    primaries[b_idx] = Some(it.item);
-                }
-            }
+        let first = bounds[1..].partition_point(|&end| end <= item.span.start);
+        let last = bounds[..n].partition_point(|&start| start < item.span.end);
+        if first < last {
+            opens[first].push(index);
+            closes[last].push(index);
         }
     }
-
+    let mut active = ActiveScores::new(items);
     let mut out = Vec::with_capacity(n);
-    for b_idx in 0..n {
-        let a = bounds[b_idx];
-        let b = bounds[b_idx + 1].max(a);
-        let (start, end) = offsetter.to_wire(text, Span::new(a, b));
-        out.push(HeatmapBucketProto {
-            start,
-            end,
-            score: scores[b_idx],
-            count: counts[b_idx],
-            primary_item: primaries[b_idx],
-        });
+    for b in 0..n {
+        for &index in &closes[b] {
+            active.remove(index);
+        }
+        for &index in &opens[b] {
+            active.insert(index);
+        }
+        let (score, count, primary_item) = active.summary(sum_density);
+        let (start, end) = offsetter.to_wire(text, Span::new(bounds[b], bounds[b + 1]));
+        out.push(HeatmapBucketProto { start, end, score, count, primary_item });
     }
     out
 }

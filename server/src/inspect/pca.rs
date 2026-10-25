@@ -105,7 +105,13 @@ pub(crate) fn compute_pca<L: Layer>(
             for (p_idx, &row_idx) in present.iter().enumerate() {
                 let row_c = &centered[p_idx * d..(p_idx + 1) * d];
                 let proj: f64 = row_c.iter().zip(axis).map(|(&x, &a)| x * a).sum();
-                coords[row_idx][c_idx] = proj as f32;
+                let coordinate = proj as f32;
+                if !coordinate.is_finite() {
+                    return Err(bad(format!(
+                        "projected row {row_idx} coordinate {c_idx} is not representable as finite f32"
+                    )));
+                }
+                coords[row_idx][c_idx] = coordinate;
             }
         }
     }

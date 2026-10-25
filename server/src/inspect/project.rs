@@ -12,6 +12,7 @@ use turbo_chunker::{
     drift as compute_drift,
 };
 
+use super::bindings::require_default_binding;
 use super::pca::{compute_pca, validate_finite_vectors};
 use super::stacks::build_term_stacks;
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
@@ -128,6 +129,7 @@ fn build_projection(
     pca_dims: u32,
 ) -> Result<VectorProjectionProto, Failure> {
     if let Some(vecs) = doc.get::<Vectors<Chunks>>() {
+        require_default_binding::<Vectors<Chunks>, Chunks>(doc)?;
         let chunks =
             doc.get::<Chunks>().ok_or_else(|| bad("document has turbo:vectors<turbo:chunks> without turbo:chunks"))?;
         if chunks.spans.len() as u64 > MAX_CHUNKS {
@@ -144,6 +146,7 @@ fn build_projection(
         return compute_pca(vecs, &spans, &chunks.level, text, offsetter, pca_dims);
     }
     if let Some(vecs) = doc.get::<Vectors<Sentences>>() {
+        require_default_binding::<Vectors<Sentences>, Sentences>(doc)?;
         let sentences = doc
             .get::<Sentences>()
             .ok_or_else(|| bad("document has turbo:vectors<opennlp:sentences> without opennlp:sentences"))?;
@@ -197,6 +200,7 @@ fn build_drift_curve(
     let chunks = doc.get::<Chunks>();
 
     let (raw_cos, sm_cos, depth_scores, costs, reasons) = if let Some(vecs) = doc.get::<Vectors<Sentences>>() {
+        require_default_binding::<Vectors<Sentences>, Sentences>(doc)?;
         if vecs.len() != n {
             return Err(bad(format!(
                 "turbo:vectors<opennlp:sentences> length {} does not match opennlp:sentences length {n}",
@@ -210,6 +214,7 @@ fn build_drift_curve(
         let (cost, reason) = compute_drift(&rows, &cfg);
         (raw, sm, depth, cost, reason)
     } else if let Some(bounds) = doc.get::<Boundaries>() {
+        require_default_binding::<Boundaries, Sentences>(doc)?;
         if bounds.cost.len() != n {
             return Err(bad(format!(
                 "turbo:boundaries length {} does not match opennlp:sentences length {n}",
@@ -349,6 +354,9 @@ fn build_strategy_matrix(
     else {
         return Ok(None);
     };
+    require_default_binding::<Boundaries, Sentences>(doc)?;
+    require_default_binding::<ClauseCuts, Sentences>(doc)?;
+    require_default_binding::<Chunks, Sentences>(doc)?;
     let structure = doc.get::<Structure>();
     let clauses = doc.get::<ClauseCuts>();
 

@@ -47,7 +47,7 @@ async fn inspect_and_project_refusals_and_multibyte_boundaries() {
         "127.0.0.1:0".parse().unwrap(),
         vec![test_model_config()],
         8 * 1024 * 1024,
-        Serve { admin: false },
+        Serve { admin: false, ..Serve::default() },
     )
     .await
     .expect("start server");

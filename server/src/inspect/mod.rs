@@ -1,6 +1,7 @@
 //! Document inspection and chunk projection RPC handlers
 //! (`InspectDocumentWindow` and `ProjectChunks`, issue #1220).
 
+mod bindings;
 pub mod heatmap;
 pub mod pca;
 pub mod project;

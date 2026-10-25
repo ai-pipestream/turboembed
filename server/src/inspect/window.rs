@@ -3,11 +3,10 @@
 
 use std::collections::BTreeMap;
 
-use turbo_analysis::{Document, Ix, Key, Layer, Span, Spans, View, ViewId};
-use turbo_analysis_layers::{
-    Abbreviations, Boilerplate, Categories, Chunks, EmotionDimension, EmotionLayer, Entities, Incivility, Language,
-    LanguageSpans, Numbers, Pii, PiiConfidence, PosTags, Regions, Sentences, Structure, Subwords, Tag, Tokens,
-};
+mod layers;
+
+use turbo_analysis::{Document, Ix, Layer, Span, Spans, View, ViewId};
+use turbo_analysis_layers::{Categories, EmotionDimension, EmotionLayer, Incivility, Language, Regions, Tag};
 
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
 use crate::offsets::Offsetter;
@@ -98,20 +97,23 @@ fn push_clipped_item<L>(
     spans: &Spans<L>,
     idx: usize,
     window: Span,
-    layer: &str,
+    identity: (&str, &str),
     label: String,
     score: f64,
-) {
+) -> Result<(), Failure> {
     let ix = Ix::<L>::new(idx as u32);
     for frag in spans.fragments(ix) {
         let s = frag.start.max(window.start);
         let e = frag.end.min(window.end);
         if s < e {
+            if out.len() as u64 >= MAX_FRAGMENTS {
+                return Err(over("max_fragments", "clipped window fragments", out.len() as u64 + 1));
+            }
             out.push(ClippedFrag {
                 span: Span::new(s, e),
                 ann: SegmentAnnotationProto {
-                    layer: layer.to_owned(),
-                    instance: String::new(),
+                    layer: identity.0.to_owned(),
+                    instance: identity.1.to_owned(),
                     item: idx as u32,
                     label: label.clone(),
                     score,
@@ -119,6 +121,7 @@ fn push_clipped_item<L>(
             });
         }
     }
+    Ok(())
 }
 
 /// Computes the combined elementary segmentation of all requested positional
@@ -134,155 +137,7 @@ pub(crate) fn combined_segments(
     if window.is_empty() {
         return Ok(Vec::new());
     }
-    let mut clipped: Vec<ClippedFrag> = Vec::new();
-
-    if layer_allowed(filter_layers, Sentences::ID)
-        && let Some(sentences) = doc.get::<Sentences>()
-        && sentences.spans.view() == view
-    {
-        for i in ordered_range(&sentences.spans, window) {
-            push_clipped_item(&mut clipped, &sentences.spans, i, window, Sentences::ID, format!("S{i}"), 1.0);
-        }
-    }
-
-    if layer_allowed(filter_layers, Tokens::ID)
-        && let Some(tokens) = doc.get::<Tokens>()
-        && tokens.spans.view() == view
-    {
-        let tok_key = Key::<Tokens>::DEFAULT.id();
-        let pos_key = Key::<PosTags>::DEFAULT.id();
-        let pos_bound_to_default =
-            doc.made_on(pos_key).iter().find(|k| k.ty == tok_key.ty).is_none_or(|&k| k == tok_key);
-        let pos = if pos_bound_to_default { doc.get::<PosTags>() } else { None };
-        for i in 0..tokens.spans.len() {
-            let (label, score) = match pos {
-                Some(p) if i < p.tags.len() => {
-                    let lbl = p.tagset.label(p.tags[i]).to_owned();
-                    let sc = p.prob.as_ref().and_then(|pr| pr.get(i).copied()).unwrap_or(1.0);
-                    (lbl, sc)
-                }
-                _ => ("token".to_owned(), 1.0),
-            };
-            push_clipped_item(&mut clipped, &tokens.spans, i, window, Tokens::ID, label, score);
-        }
-    }
-
-    // Subwords uses Overlap::Any, so its ends column is not guaranteed monotonic;
-    // scan items directly rather than binary-searching ends.
-    if layer_allowed(filter_layers, Subwords::ID)
-        && let Some(subwords) = doc.get::<Subwords>()
-        && subwords.spans.view() == view
-    {
-        for i in 0..subwords.spans.len() {
-            push_clipped_item(&mut clipped, &subwords.spans, i, window, Subwords::ID, "subword".to_owned(), 1.0);
-        }
-    }
-
-    if layer_allowed(filter_layers, Structure::ID)
-        && let Some(structure) = doc.get::<Structure>()
-        && structure.spans.view() == view
-    {
-        for i in 0..structure.spans.len() {
-            let label = format!("{:?}", structure.kind[i]);
-            push_clipped_item(&mut clipped, &structure.spans, i, window, Structure::ID, label, 1.0);
-        }
-    }
-
-    if layer_allowed(filter_layers, Entities::ID)
-        && let Some(entities) = doc.get::<Entities>()
-        && entities.spans.view() == view
-    {
-        for i in 0..entities.spans.len() {
-            let label = entities.kinds.label(entities.kind[i]).to_owned();
-            let score = entities.score.get(i).copied().unwrap_or(1.0);
-            push_clipped_item(&mut clipped, &entities.spans, i, window, Entities::ID, label, score);
-        }
-    }
-
-    if layer_allowed(filter_layers, Chunks::ID)
-        && let Some(chunks) = doc.get::<Chunks>()
-        && chunks.spans.view() == view
-    {
-        for i in 0..chunks.spans.len() {
-            let label = format!("L{}:{:?}", chunks.level[i], chunks.cut[i]);
-            let score = chunks.cost[i] as f64;
-            push_clipped_item(&mut clipped, &chunks.spans, i, window, Chunks::ID, label, score);
-        }
-    }
-
-    if layer_allowed(filter_layers, Pii::ID)
-        && let Some(pii) = doc.get::<Pii>()
-        && pii.spans.view() == view
-    {
-        for i in 0..pii.spans.len() {
-            let label = pii.kind[i].name().to_owned();
-            let score = match pii.confidence[i] {
-                PiiConfidence::Format => 0.5,
-                PiiConfidence::Checksum => 0.85,
-                PiiConfidence::LabelledChecksum => 1.0,
-            };
-            push_clipped_item(&mut clipped, &pii.spans, i, window, Pii::ID, label, score);
-        }
-    }
-
-    if layer_allowed(filter_layers, Numbers::ID)
-        && let Some(numbers) = doc.get::<Numbers>()
-        && numbers.spans.view() == view
-    {
-        for i in 0..numbers.spans.len() {
-            let label = format!("{:?}", numbers.notation[i]);
-            push_clipped_item(&mut clipped, &numbers.spans, i, window, Numbers::ID, label, 1.0);
-        }
-    }
-
-    if layer_allowed(filter_layers, LanguageSpans::ID)
-        && let Some(langs) = doc.get::<LanguageSpans>()
-        && langs.spans.view() == view
-    {
-        for i in 0..langs.spans.len() {
-            let m = langs.get(Ix::new(i as u32));
-            push_clipped_item(
-                &mut clipped,
-                &langs.spans,
-                i,
-                window,
-                LanguageSpans::ID,
-                m.code.to_owned(),
-                m.confidence,
-            );
-        }
-    }
-
-    if layer_allowed(filter_layers, Abbreviations::ID)
-        && let Some(abbr) = doc.get::<Abbreviations>()
-        && abbr.spans.view() == view
-    {
-        for i in 0..abbr.spans.len() {
-            let label = format!("{:?}", abbr.form[i]);
-            push_clipped_item(&mut clipped, &abbr.spans, i, window, Abbreviations::ID, label, 1.0);
-        }
-    }
-
-    if layer_allowed(filter_layers, Boilerplate::<Sentences>::ID)
-        && let Some(bp) = doc.get::<Boilerplate<Sentences>>()
-        && let Some(sentences) = doc.get::<Sentences>()
-        && sentences.spans.view() == view
-    {
-        for i in 0..bp.kind.len().min(sentences.spans.len()) {
-            if let Some(kind) = bp.kind[i] {
-                let label = format!("{kind:?}");
-                push_clipped_item(
-                    &mut clipped,
-                    &sentences.spans,
-                    i,
-                    window,
-                    Boilerplate::<Sentences>::ID,
-                    label,
-                    bp.score[i] as f64,
-                );
-            }
-        }
-    }
+    let clipped = layers::collect_fragments(doc, view, window, filter_layers)?;
 
     if clipped.len() as u64 > MAX_FRAGMENTS {
         return Err(over("max_fragments", "clipped window fragments", clipped.len() as u64));
@@ -301,6 +156,7 @@ pub(crate) fn combined_segments(
     let mut active_set: BTreeMap<usize, &SegmentAnnotationProto> = BTreeMap::new();
     let mut raw_segments: Vec<(Span, Vec<SegmentAnnotationProto>)> = Vec::new();
     let mut i = 0usize;
+    let mut memberships = 0u64;
     while i < events.len() {
         let pos = events[i].0;
         while i < events.len() && events[i].0 == pos {
@@ -321,6 +177,10 @@ pub(crate) fn combined_segments(
             if pos >= window.start && next_pos <= window.end && pos < next_pos {
                 if raw_segments.len() as u64 >= MAX_FRAGMENTS {
                     return Err(over("max_fragments", "combined window segments", raw_segments.len() as u64 + 1));
+                }
+                memberships = memberships.saturating_add(active_set.len() as u64);
+                if memberships > MAX_FRAGMENTS {
+                    return Err(over("max_fragments", "combined segment annotation memberships", memberships));
                 }
                 let mut active: Vec<SegmentAnnotationProto> = active_set.values().map(|&a| a.clone()).collect();
                 active.sort_by(|x, y| {

@@ -945,6 +945,9 @@ message BudgetSpec
 
 message ProjectChunksRequest
 {
+  // Projection joins the default layer instances. Aligned columns bound to a
+  // different instance are refused with TURBO_E_INVALID_ARGUMENT instead of
+  // attaching their rows to unrelated default spans.
   bytes graph = 1;
   OffsetMode offsets = 2;
   // Number of principal components: 2 or 3 (0 defaults to 2).
