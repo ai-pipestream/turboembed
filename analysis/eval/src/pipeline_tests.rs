@@ -63,6 +63,8 @@ fn pipeline(chunker: Box<dyn Chunker>, titles: Titles) -> Pipeline {
         titles,
         lexical: None,
         hybrid: None,
+        cascade: None,
+        static_embedder: None,
     }
 }
 

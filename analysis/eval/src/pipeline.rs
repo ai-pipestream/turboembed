@@ -12,6 +12,7 @@ use std::time::Instant;
 
 use crate::Result;
 use crate::analysis::Analysis;
+use crate::cascade::{Cascade, CascadeSearch};
 use crate::chunkers::Chunker;
 use crate::cost::{Cost, Distribution, StageTimes};
 use crate::embedder::{Counted, Embedder, Role};
@@ -46,6 +47,10 @@ pub struct Pipeline {
     pub lexical: Option<Lexical>,
     /// BM25 over the chunks' terms fused with the embedder's vectors.
     pub hybrid: Option<Hybrid>,
+    /// Static-to-contextual cascade over the corpus: `embedder`
+    /// is the contextual stage, `static_embedder` the static one.
+    pub cascade: Option<Cascade>,
+    pub static_embedder: Option<Box<dyn Embedder>>,
 }
 
 /// What a pipeline did on a set.
@@ -79,6 +84,9 @@ impl Pipeline {
         }
         let retrieval = if let Some(l) = &self.lexical {
             Some(record::Chunker { name: "bm25".into(), config: l.config() })
+        } else if let Some(c) = &self.cascade {
+            let static_model = self.static_embedder.as_ref().map_or("", |e| e.identity().bundle.model_id.as_str());
+            Some(record::Chunker { name: "cascade".into(), config: c.config(static_model) })
         } else {
             self.hybrid.as_ref().map(|h| record::Chunker { name: "hybrid".into(), config: h.config() })
         };
@@ -91,8 +99,13 @@ impl Pipeline {
 
     /// Runs the pipeline over the set and scores it.
     pub fn evaluate(&mut self, set: &LoadedSet) -> Result<Outcome> {
-        if self.lexical.is_some() && self.hybrid.is_some() {
-            return Err("a pipeline cannot set both lexical and hybrid retrieval".into());
+        if [self.lexical.is_some(), self.hybrid.is_some(), self.cascade.is_some()].into_iter().filter(|b| *b).count()
+            > 1
+        {
+            return Err("a pipeline sets at most one of lexical, hybrid and cascade retrieval".into());
+        }
+        if self.cascade.is_some() && self.static_embedder.is_none() {
+            return Err("cascade retrieval needs a static embedder".into());
         }
         set.check()?;
         let embedder = &mut Counted { inner: self.embedder.as_mut(), tokens: 0 };
@@ -145,7 +158,7 @@ impl Pipeline {
             if p.len() != spans.len() * embedder.dim() {
                 return Err(format!("set {}: {} pooled values for {} chunks", set.name, p.len(), spans.len()));
             }
-            if self.lexical.is_some() || self.hybrid.is_some() {
+            if self.lexical.is_some() || self.hybrid.is_some() || self.cascade.is_some() {
                 return Err("vectors a chunker pools are retrieved by dense retrieval only".into());
             }
             // The vectors are pooled from the text alone: a title would be
@@ -186,6 +199,9 @@ impl Pipeline {
             (run, chunks, 0.0, ms(t))
         } else if let Some(hybrid) = &self.hybrid {
             hybrid_run(hybrid, set, embedder, texts, doc_of, spans, &ids, t)?
+        } else if let Some(cascade) = &self.cascade {
+            let statics = self.static_embedder.as_deref_mut().expect("checked above");
+            cascade_run(cascade, set, embedder, statics, texts, doc_of, spans, &ids, t)?
         } else {
             dense(set, embedder, texts, pooled, doc_of, spans, &ids, t)?
         };
@@ -283,6 +299,56 @@ fn hybrid_run(
     let queries: Vec<(&str, &str)> = set.queries.iter().map(|q| (q.id.as_str(), q.text.as_str())).collect();
     let search = HybridSearch { bm25: &bm25_index, dim, vectors: &vectors, doc: &doc_of, span: &spans, docs: ids };
     let (run, chunks) = hybrid.search(&search, &queries, &query_vectors)?;
+    let retrieval_ms = ms(t);
+    Ok((run, chunks, embedding_ms, retrieval_ms))
+}
+
+/// The cascade ranking: chunks and queries embedded in both
+/// spaces, stage 1 over static vectors and BM25, stage 2 over
+/// the pool in the contextual space.
+#[allow(clippy::too_many_arguments)]
+fn cascade_run(
+    cascade: &Cascade,
+    set: &LoadedSet,
+    embedder: &mut Counted<'_>,
+    statics: &mut dyn Embedder,
+    texts: Vec<String>,
+    doc_of: Vec<u32>,
+    spans: Vec<crate::spans::Span>,
+    ids: &[String],
+    t: Instant,
+) -> Result<(Run, ChunkRun, f64, f64)> {
+    use turbo_vector_index::{Normalization, Space};
+    let mut counted_statics = Counted { inner: statics, tokens: 0 };
+    let contextual_vectors = embed_all(embedder, &texts, Role::Document)?;
+    let static_vectors = embed_all(&mut counted_statics, &texts, Role::Document)?;
+    let query_texts: Vec<&str> = set.queries.iter().map(|q| q.text.as_str()).collect();
+    let contextual_queries = embed_all(embedder, &query_texts, Role::Query)?;
+    let static_queries = embed_all(&mut counted_statics, &query_texts, Role::Query)?;
+    embedder.tokens += counted_statics.tokens;
+    let embedding_ms = ms(t);
+
+    let t = Instant::now();
+    let rows = doc_of.len();
+    let static_space =
+        Space::new(counted_statics.identity().model_ref(), counted_statics.dim() as u32, Normalization::None);
+    let contextual_space = Space::new(embedder.identity().model_ref(), embedder.dim() as u32, Normalization::None);
+    let index =
+        cascade.build(static_space.clone(), &static_vectors, contextual_space.clone(), &contextual_vectors, rows)?;
+    let bm25_index = cascade.index(&texts, &doc_of)?;
+    drop(texts);
+    let queries: Vec<(&str, &str)> = set.queries.iter().map(|q| (q.id.as_str(), q.text.as_str())).collect();
+    let search = CascadeSearch {
+        bm25: &bm25_index,
+        doc: &doc_of,
+        span: &spans,
+        docs: ids,
+        static_space: &static_space,
+        static_queries: &static_queries,
+        contextual_space: &contextual_space,
+        contextual_queries: &contextual_queries,
+    };
+    let (run, chunks) = cascade.search(&index, &search, &queries)?;
     let retrieval_ms = ms(t);
     Ok((run, chunks, embedding_ms, retrieval_ms))
 }

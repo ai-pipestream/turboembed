@@ -8,6 +8,7 @@ mod buffers;
 mod encoder;
 mod host;
 mod kernels;
+pub mod lstm;
 mod model;
 pub(crate) mod pool;
 mod run;
