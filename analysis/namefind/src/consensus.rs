@@ -10,10 +10,11 @@
 //! the earliest recognizer's first). Each one not yet taken is a group's
 //! entity, and every candidate of its type not yet taken whose token range
 //! overlaps it (for [`EntityMergePolicy::RawUnion`], is the same range)
-//! votes for it, so a vote always overlaps the entity it is for. Priority
-//! fallback keeps every first-recognizer entity and checks each later
-//! candidate against retained winners before it can consume votes. The
-//! group's score is the highest score in it. Its
+//! votes for it, so a vote always overlaps the entity it is for. Each input
+//! instance contributes at most one quorum vote. Priority fallback keeps
+//! every first-recognizer entity and checks each later candidate against
+//! retained winners before it can consume votes. The group's score is the
+//! highest score in it. Its
 //! evidence record holds, for each vote in recognizer order, the voter's
 //! own span in the source text and a support range that points at the
 //! voter's entity in the voter's instance, where its own score is; the
@@ -22,11 +23,11 @@
 //! run none write 0 for a score they do not have.
 
 use std::any::Any;
+use std::collections::HashSet;
 use std::num::NonZeroU32;
 use std::sync::Arc;
 
 use turbo_analysis::annotate::{AnchorUse, Step};
-use turbo_analysis::evidence::read_of;
 use turbo_analysis::export::LayerRef;
 use turbo_analysis::{
     Document, Error, Evidence, FilterRule, Ix, Key, KeyId, Layer, Producer, Provenance, Span, Spans, Status, Support,
@@ -280,15 +281,24 @@ impl ConsensusEntityMerger {
         Key::named(self.output.name)
     }
 
-    /// The merged layer and its evidence for one document.
+    /// The merged layer and evidence for one document. Refuses missing
+    /// selected tokens, repeated input instances, and inputs whose resolved
+    /// token binding differs from the selected instance.
     pub fn build(&self, doc: &Document) -> Result<(Entities, Evidence<Entities>), Error> {
         let fail = |detail: String| Error::Annotator { annotator: Self::ID, detail };
+        doc.require(&self.tokens)?;
+        let mut seen = HashSet::with_capacity(self.inputs.len());
+        for key in &self.inputs {
+            if !seen.insert(key.id()) {
+                return Err(fail(format!("duplicate recognizer input {}", key.id())));
+            }
+        }
         let layers: Vec<&Entities> = self.inputs.iter().map(|k| doc.require(k)).collect::<Result<_, _>>()?;
         let mut producers: Vec<Producer> = Vec::with_capacity(layers.len());
         let mut ran_model: Vec<bool> = Vec::with_capacity(layers.len());
         for k in &self.inputs {
             let p = doc.provenance(k.id()).ok_or(Error::Missing(k.id()))?;
-            if read_of::<Tokens>(p).is_some_and(|t| t != self.tokens.id()) {
+            if !doc.made_on(k.id()).contains(&self.tokens.id()) {
                 return Err(fail(format!("{} was made on other tokens than {}", k.id(), self.tokens.id())));
             }
             producers.push(Producer { annotator: p.annotator.to_owned(), model: p.model.clone() });
