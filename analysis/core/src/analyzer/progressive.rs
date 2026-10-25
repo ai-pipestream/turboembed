@@ -30,12 +30,14 @@ pub struct StepEvent<'a> {
     /// Step identity, stage, execution duration, and written layer keys.
     pub timing: StepTiming,
     /// Current document slice after storing this step's outputs (and any
-    /// immediately cascaded `Status::Skipped` dependent outputs).
+    /// cascaded `Status::Skipped` dependent outputs whose producers have
+    /// settled, so their provenance references are present).
     pub docs: &'a [Document],
     /// First error recorded by this step across the batch, if the step failed.
     pub failure: Option<Error>,
     /// Downstream step IDs whose required inputs were failed or skipped on all
-    /// documents as a result of this step's failure.
+    /// documents as a result of this step's failure. A reported step can still
+    /// await another input producer before storing its skipped outputs.
     pub skipped_dependents: Vec<&'static str>,
 }
 
@@ -60,8 +62,10 @@ impl Analyzer {
     /// 1. Its outputs are stored onto `docs` immediately.
     /// 2. If the step failed on all documents in `docs`, any downstream steps
     ///    whose required inputs are now failed or skipped on all documents have
-    ///    their outputs marked `Status::Skipped` immediately and their IDs
-    ///    reported in [`StepEvent::skipped_dependents`].
+    ///    their IDs reported in [`StepEvent::skipped_dependents`]. Outputs are
+    ///    marked `Status::Skipped` immediately when their dependencies are
+    ///    ready; otherwise the step waits for normal readiness so graph
+    ///    snapshots never name a producer's still-absent outputs.
     /// 3. `on_step` is invoked with the [`StepEvent`].
     /// 4. If `cancel` is not set, any downstream steps whose `reads()` are now
     ///    satisfied are spawned immediately.
@@ -111,6 +115,13 @@ impl Analyzer {
 
         // 0 = unstarted, 1 = running, 2 = done
         let mut step_state = vec![0u8; n];
+        let mut deferred_skips = vec![false; n];
+        let deps_ready = |i: usize, state: &[u8]| {
+            self.steps[i]
+                .reads()
+                .iter()
+                .all(|r| producer_of.get(r).is_none_or(|&p| stage_of[p] >= stage_of[i] || state[p] == 2))
+        };
 
         std::thread::scope(|s| {
             let (tx, rx) = mpsc::channel::<(usize, u64, Box<dyn Any + Send>)>();
@@ -127,10 +138,7 @@ impl Analyzer {
                         if step_state[i] != 0 {
                             continue;
                         }
-                        let deps_ready = self.steps[i].reads().iter().all(|r| {
-                            producer_of.get(r).is_none_or(|&p| stage_of[p] >= stage_of[i] || step_state[p] == 2)
-                        });
-                        if !deps_ready {
+                        if !deps_ready(i, step_state) {
                             continue;
                         }
                         if writes_view[i] {
@@ -202,15 +210,24 @@ impl Analyzer {
                             .map(|(k, _)| k)
                             .collect();
                         let all_docs_blocked = docs.iter().all(|d| {
-                            req_reads
-                                .iter()
-                                .any(|&rk| matches!(d.status(rk), Some(Status::Failed(_) | Status::Skipped(_))))
+                            req_reads.iter().any(|&rk| {
+                                matches!(d.status(rk), Some(Status::Failed(_) | Status::Skipped(_)))
+                                    || producer_of.get(&rk).is_some_and(|&p| deferred_skips[p])
+                            })
                         });
                         if all_docs_blocked {
-                            step_state[dep_ix] = 2;
-                            let dep_out = self.steps[dep_ix].compute(docs);
-                            self.steps[dep_ix].store(dep_out, docs, &mut status);
-                            skipped_dependents.push(self.steps[dep_ix].id());
+                            if !deferred_skips[dep_ix] {
+                                skipped_dependents.push(self.steps[dep_ix].id());
+                            }
+                            if deps_ready(dep_ix, &step_state) {
+                                step_state[dep_ix] = 2;
+                                let dep_out = self.steps[dep_ix].compute(docs);
+                                self.steps[dep_ix].store(dep_out, docs, &mut status);
+                            } else {
+                                // Report the failure cascade now, but let normal
+                                // readiness store this skip after its other inputs.
+                                deferred_skips[dep_ix] = true;
+                            }
                         }
                     }
                 }
