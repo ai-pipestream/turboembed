@@ -157,7 +157,7 @@ impl UdModelCard {
                     algorithm: "MAXENT".to_owned(),
                     iterations: published::ITERATIONS,
                     cutoff: published::CUTOFF,
-                    threads: published::THREADS,
+                    threads: crate::ud::THREADS,
                 },
                 sentences_per_sample: (recipe.component == published::Component::Sentence)
                     .then_some(SENTENCES_PER_SAMPLE),

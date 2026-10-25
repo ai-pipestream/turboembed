@@ -4,7 +4,8 @@ impl LexiconSentiment {
     /// Scores raw text in VADER-compatible mode, matching Python
     /// `vaderSentiment`'s `SentimentIntensityAnalyzer.polarity_scores(text)`.
     pub fn score_text(&self, text: &str) -> VaderScore {
-        let raw_tokens: Vec<&str> = text.split_whitespace().collect();
+        let raw_tokens: Vec<&str> =
+            text.split(turbo_unicode::whitespace::is_python_space).filter(|t| !t.is_empty()).collect();
         let words_and_emoticons: Vec<&str> = raw_tokens.iter().map(|&t| strip_punc_if_word(t)).collect();
         let lower_words: Vec<String> = words_and_emoticons.iter().map(|w| w.to_lowercase()).collect();
         let is_cap_diff = allcap_differential(&words_and_emoticons);

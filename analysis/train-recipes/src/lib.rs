@@ -264,15 +264,14 @@ impl Recipe {
         matches!(self, Recipe::Chunk(_))
     }
 
-    /// The training parameters, as the card records them: the UD models'
-    /// for the segmentation recipes and the tagger
-    /// ([`turbo_train_components::ud`]), the chunker's, and
+    /// The training parameters, as the card records them: the MASC settings
+    /// for the segmentation recipes and the tagger, the chunker's, and
     /// `NameFinderME.train`'s defaults for the name finders
     /// ([`namefind::training_parameters`]).
     pub fn parameters(&self) -> ParametersCard {
         use turbo_train_components::{namefind as names, ud};
         let (iterations, cutoff, threads) = match self {
-            Recipe::Segmentation(_) | Recipe::Pos(_) => (ud::ITERATIONS, ud::CUTOFF, ud::THREADS),
+            Recipe::Segmentation(_) | Recipe::Pos(_) => (ud::ITERATIONS, ud::CUTOFF, masc::THREADS),
             Recipe::Chunk(_) => (chunk::ITERATIONS, chunk::CUTOFF, chunk::THREADS),
             Recipe::Name(_) => (names::DEFAULT_ITERATIONS, names::DEFAULT_CUTOFF, 1),
         };

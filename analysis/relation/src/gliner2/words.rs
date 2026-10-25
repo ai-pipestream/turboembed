@@ -14,10 +14,11 @@
 //!
 //! Python's `\w` and `\s` follow `str.isalnum` and `str.isspace`; here a
 //! letter, number or mark is its Unicode general category, and whitespace
-//! is Rust's White_Space plus the four separators U+001C to U+001F that
+//! is Unicode White_Space plus the four separators U+001C to U+001F that
 //! Python also counts.
 
 use turbo_unicode::category::general_category;
+use turbo_unicode::whitespace::is_python_space;
 
 /// One word: its lower-cased text and its byte range in the text.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -25,10 +26,6 @@ pub struct Word {
     pub text: String,
     pub start: usize,
     pub end: usize,
-}
-
-fn is_space(c: char) -> bool {
-    c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c)
 }
 
 fn is_word(c: char) -> bool {
@@ -48,7 +45,7 @@ fn starts_with_ascii_ci(s: &str, prefix: &str) -> bool {
 
 fn url(s: &str) -> Option<usize> {
     let head = ["https://", "http://", "www."].into_iter().find(|p| starts_with_ascii_ci(s, p))?;
-    let rest = run(&s[head.len()..], |c| !is_space(c));
+    let rest = run(&s[head.len()..], |c| !is_python_space(c));
     (rest > 0).then_some(head.len() + rest)
 }
 
@@ -108,7 +105,7 @@ pub fn split(text: &str) -> Vec<Word> {
     while at < text.len() {
         let rest = &text[at..];
         let c = rest.chars().next().expect("not at the end");
-        if is_space(c) {
+        if is_python_space(c) {
             at += c.len_utf8();
             continue;
         }

@@ -6,6 +6,7 @@
 //! (Apache-2.0; see NOTICE).
 
 use super::classes::*;
+use turbo_unicode::whitespace::is_python_space;
 
 /// The classes a character is in.
 pub(crate) fn class(c: char) -> u64 {
@@ -14,12 +15,6 @@ pub(crate) fn class(c: char) -> u64 {
         Ok(i) => CLASSES[i].1,
         Err(_) => 0,
     }
-}
-
-/// Python's `\s` for str patterns: `str.isspace`, which is White_Space
-/// plus the information separators U+001C to U+001F.
-fn is_space(c: char) -> bool {
-    turbo_unicode::props::white_space(c) || ('\u{1C}'..='\u{1F}').contains(&c)
 }
 
 /// Python's `\w` for str patterns: letters, numbers and the underscore.
@@ -71,7 +66,7 @@ impl<'a> Scan<'a> {
             || (at(0, BEFORE_UPPER_ACCENTED) && at(1, UPPER_ACCENTED))
             || (at(0, BEFORE_LOWER_ACCENTED) && at(1, LOWER_ACCENTED))
             || (at(0, BEFORE_CURRENCY) && at(1, CURRENCY))
-            || (is_space(c) && at(1, UPPER_ACCENTED) && at(2, CURRENCY))
+            || (is_python_space(c) && at(1, UPPER_ACCENTED) && at(2, CURRENCY))
             || (at(0, UPPER_ACCENTED_BOX) && at(1, NUMERIC_LAW))
             || (at(0, BEFORE_START_NUMERIC) && at(1, START_PUNCT) && at(2, NUMERIC))
             || (at(0, BEFORE_END_START) && at(1, END_PUNCT) && at(2, START_PUNCT))
@@ -118,7 +113,7 @@ impl<'a> Scan<'a> {
             // windows-1252 encodings of 'à' and 'á', and of U+00A0 itself.
             || (c == 'Ã' && is(1, |d| matches!(d, '\u{A0}' | '¡')))
             || (c.is_ascii_lowercase()
-                && ((is(1, is_space) && is(2, is_cap_a_tilde_or_circumflex) && eq(3, ' '))
+                && ((is(1, is_python_space) && is(2, is_cap_a_tilde_or_circumflex) && eq(3, ' '))
                     || (is(1, is_cap_a_tilde_or_circumflex) && eq(2, ' '))))
             || (i == 0 && is_cap_a_tilde_or_circumflex(c) && eq(1, ' '))
             // Â standing for nothing before a character encoded as itself.
