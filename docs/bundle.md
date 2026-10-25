@@ -438,6 +438,15 @@ refuses to finish unless every hash matches. The model zoo
 and datasets the same way, and adds a licence class per artifact and
 the user's acceptance of the licences that need it.
 
+`turbo-bundle catalogue` lists the models the tool makes by name
+(`bundle/src/catalogue.rs`): the BGE v1.5 encoders, BGE-M3, the two
+rerankers and the potion static models. Every other recipe in
+`bundle/recipes/` is made by its path, for the reason `BY_PATH` gives
+beside it: it reads a file kept next to the recipe, it is a second
+build of a catalogued model, or its training data puts it behind the
+zoo's acceptance step. A test fails when a recipe file is in neither
+list.
+
 ## Decisions taken with the design
 
 - ONNX is a file in the bundle because the IR and the HEF are compiled
