@@ -38,7 +38,8 @@ pub struct TableCellRef<'a> {
     pub cell: &'a TableCell,
 }
 
-/// Cells in canonical source/row-major order. Outer table envelopes
+/// Cells in canonical source order, queried in logical row-major order.
+/// Outer table envelopes
 /// and full logical rows include syntax; cell spans contain content only.
 /// `rows` includes separators with the preceding row, so a row boundary
 /// never strands a GFM delimiter or an ASCII border.
@@ -84,11 +85,14 @@ impl Tables {
 
     pub fn cells_in_table(&self, table_id: u32) -> impl Iterator<Item = TableCellRef<'_>> {
         let first = self.cells.partition_point(|c| c.table_id < table_id);
-        self.cells[first..]
+        let mut cells: Vec<_> = self.cells[first..]
             .iter()
             .take_while(move |c| c.table_id == table_id)
             .enumerate()
             .map(move |(i, _)| self.cell(Ix::new((first + i) as u32)))
+            .collect();
+        cells.sort_unstable_by_key(|c| (c.cell.row_ix, c.cell.col_ix));
+        cells.into_iter()
     }
 
     pub fn headers_for_table(&self, table_id: u32) -> impl Iterator<Item = TableCellRef<'_>> {

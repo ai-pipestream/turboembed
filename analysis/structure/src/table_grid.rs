@@ -100,6 +100,7 @@ fn detect_limited(text: &str, view: ViewId, max_cells: usize) -> Result<Tables, 
         };
         let table_id = u32::try_from(out.table_bounds.len()).map_err(|_| "too many tables")?;
         out.table_bounds.push(parsed.bounds);
+        let mut cells = Vec::new();
         for (row, data) in parsed.rows.into_iter().enumerate() {
             let row_ix = u16::try_from(row).map_err(|_| "more than 65536 logical rows")?;
             out.rows.push(data.bounds);
@@ -107,17 +108,24 @@ fn detect_limited(text: &str, view: ViewId, max_cells: usize) -> Result<Tables, 
             out.row_ix.push(row_ix);
             for (column, fragments) in data.cells.into_iter().enumerate() {
                 let col_ix = u16::try_from(column).map_err(|_| "more than 65536 columns")?;
-                out.spans.try_push_fragments(&fragments).map_err(|e| e.to_string())?;
-                out.cells.push(TableCell {
-                    table_id,
-                    row_ix,
-                    col_ix,
-                    row_span: 1,
-                    col_span: 1,
-                    is_header: data.header,
-                    align: parsed.align[column],
-                });
+                cells.push((
+                    fragments,
+                    TableCell {
+                        table_id,
+                        row_ix,
+                        col_ix,
+                        row_span: 1,
+                        col_span: 1,
+                        is_header: data.header,
+                        align: parsed.align[column],
+                    },
+                ));
             }
+        }
+        cells.sort_unstable_by_key(|(s, c)| (s[0].start, s.last().unwrap().end, c.row_ix, c.col_ix));
+        for (fragments, cell) in cells {
+            out.spans.try_push_fragments(&fragments).map_err(|e| e.to_string())?;
+            out.cells.push(cell);
         }
         i = next;
     }

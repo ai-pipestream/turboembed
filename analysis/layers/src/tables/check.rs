@@ -1,5 +1,5 @@
 use super::Tables;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use turbo_analysis::{Document, Ix, Overlap, Span, ViewId};
 
 pub(super) fn span(doc: &Document, view: ViewId, s: Span) -> Result<(), String> {
@@ -51,15 +51,16 @@ pub(super) fn tables(t: &Tables) -> Result<(), String> {
         }
     }
     let mut occupied: BTreeMap<(u32, u16), BTreeMap<u32, u32>> = BTreeMap::new();
-    let mut previous = None;
+    let mut coordinates = BTreeSet::new();
+    let mut previous_table = None;
     let mut source_previous = None;
     let mut counts = vec![0usize; row_count.len()];
     for (i, cell) in t.cells.iter().enumerate() {
         let key = (cell.table_id, cell.row_ix, cell.col_ix);
-        if previous.is_some_and(|p| p >= key) {
-            return Err("cells must be unique and row-major".into());
+        if !coordinates.insert(key) || previous_table.is_some_and(|p| p > cell.table_id) {
+            return Err("cells must have unique coordinates and ordered table IDs".into());
         }
-        previous = Some(key);
+        previous_table = Some(cell.table_id);
         let n = *row_count.get(cell.table_id as usize).ok_or("cell table id outside table bounds")?;
         let end_row = usize::from(cell.row_ix) + usize::from(cell.row_span);
         if cell.row_span == 0 || cell.col_span == 0 || end_row > n {

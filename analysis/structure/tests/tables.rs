@@ -51,6 +51,21 @@ fn ascii_grid_headers_multiline_utf8_and_empty_cells() {
 }
 
 #[test]
+fn multiline_grid_cell_source_order_can_differ_from_column_order() {
+    let text = "+--------+--------+\n| City   | Sales  |\n+========+========+\n|        | 12     |\n| Zürich |        |\n+--------+--------+\n";
+    let doc = document(text);
+    let tables = doc.get::<Tables>().unwrap();
+    let logical: Vec<_> = tables.cells_in_table(0).collect();
+    assert_eq!(logical.iter().map(|c| c.cell.col_ix).collect::<Vec<_>>(), [0, 1, 0, 1]);
+    assert_eq!(&text[logical[2].span.range()], "Zürich");
+    assert_eq!(&text[logical[3].span.range()], "12");
+    assert!(logical[2].index > logical[3].index, "storage follows source, the query follows coordinates");
+    let graph = export(&doc, &codecs()).unwrap();
+    let restored = import(&DocumentGraph::from_bytes(&graph.to_bytes().unwrap()).unwrap(), &codecs()).unwrap();
+    assert_eq!(export(&restored, &codecs()).unwrap(), graph);
+}
+
+#[test]
 fn key_values_refuse_urls_timestamps_long_prose_and_code() {
     let text = "Invoice Date: 2026-03-15\nTicker = ACME\nURL: https://example.org/a\nhttps://example.org/a\n12:30\nThis long prose sentence has far too many words: no\n```text\nHidden: value\n| fake |\n| ---- |\n```\n";
     let doc = document(text);
