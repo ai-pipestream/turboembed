@@ -233,3 +233,14 @@ fn a_table_of_an_unknown_size_or_a_load_without_its_release_is_refused() {
     let e = check_table(&t).unwrap_err();
     assert_eq!(e, Error::new(INTERNAL, "cpu backend: its table has model_load and no model_release"));
 }
+
+#[test]
+fn rerank_runs_on_the_cpu_and_cuda_and_on_no_backend_without_a_record() {
+    let mut t = cpu_table(size_of::<turbo_backend>());
+    assert!(t.runs_rerank());
+    for (name, runs) in [(c"cuda", true), (c"metal", false), (c"levelzero", false), (c"hailo", false), (c"npu", false)]
+    {
+        t.name = name.as_ptr();
+        assert_eq!(t.runs_rerank(), runs, "{name:?}");
+    }
+}

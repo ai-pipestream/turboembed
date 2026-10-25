@@ -43,7 +43,7 @@ pub(super) fn trim(text: &str, start: usize, end: usize) -> Span {
 }
 
 pub(super) fn lines(text: &str) -> Vec<Line> {
-    let mut input = Lines::new(text.as_bytes(), 0);
+    let mut input = Lines::new(text, 0);
     let mut out = Vec::new();
     while let Some((start, end)) = input.next() {
         out.push(Line { start, end, next: input.at() });
