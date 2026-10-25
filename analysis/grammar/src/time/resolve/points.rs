@@ -3,7 +3,7 @@
 
 use turbo_analysis_layers::{Date, DateTime, Modifier, Portion, Relation, TimeGrain, TimeKind};
 
-use super::super::duration::Duration;
+use super::super::duration::{Duration, Unit};
 use super::super::spec::{DateSpec, Point, Shown, TimeOfDay, YearRef};
 use super::super::timex::{Timex, TimexDate, TimexPoint, TimexTime};
 use super::dates::{DateTimex, Dated, dates, plus};
@@ -104,7 +104,15 @@ pub(super) fn moments(p: &Point, now: DateTime) -> Option<(TimeKind, Vec<Moment>
     };
     let moved = match from {
         Instant::Date(d) if !clock => {
-            let d = plus(d, &p.shift)?;
+            let mut d = plus(d, &p.shift)?;
+            if let DateSpec::ShiftedWeekday { weekday: wd, .. } = p.date {
+                d = if p.shift.parts().iter().any(|(u, _)| matches!(u, Unit::Year | Unit::Month)) {
+                    d.plus_days((i64::from(wd) - i64::from(d.day_of_week())).rem_euclid(7))?
+                } else {
+                    let sun = d.plus_days(-(i64::from(d.day_of_week()) % 7))?;
+                    sun.plus_days(i64::from(wd % 7))?
+                };
+            }
             let timex = point_timex(TimexDate::day(d), TimexTime::None);
             return Some((TimeKind::Date, vec![moment(timex, Some(Span::Point(Instant::Date(d))), true, true)]));
         }

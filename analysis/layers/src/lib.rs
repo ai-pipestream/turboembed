@@ -45,6 +45,9 @@ pub use syntax::{
 };
 pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
 pub use times::{Modifier, Portion, Relation, TimeGrain, TimeKind, TimeMention, Times};
+pub use wordnet::{
+    ExpansionRow, LexicalExpansions, SAME_SYNSET, SenseRow, WORDNET_POS, WORDNET_RELATIONS, WordNetSenses,
+};
 pub use words::{
     MorphFeatures, MorphPosTags, MwtLanguage, RuleMwtExpander, TokenExpansion, Word, WordLemmas, WordOrTokenAnchor,
     WordPosTags, Words,
@@ -131,4 +134,5 @@ mod sparse;
 mod syntax;
 mod temporal;
 mod times;
+mod wordnet;
 mod words;
