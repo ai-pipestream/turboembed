@@ -95,3 +95,53 @@ fn a_recipe_made_from_a_bundle_without_an_encoder_is_refused() {
     assert!(e.contains("architecture"), "{e}");
     fs::remove_dir_all(d).unwrap();
 }
+
+/// `from` copied to `to`, every file and directory.
+fn copy_dir(from: &Path, to: &Path) {
+    fs::create_dir_all(to).unwrap();
+    for e in fs::read_dir(from).unwrap() {
+        let e = e.unwrap();
+        let dest = to.join(e.file_name());
+        if e.file_type().unwrap().is_dir() {
+            copy_dir(&e.path(), &dest);
+        } else {
+            fs::copy(e.path(), dest).unwrap();
+        }
+    }
+}
+
+#[test]
+fn the_bases_licence_text_goes_with_the_static_model() {
+    let d = scratch("licence");
+    // The small BERT bundle with a licence text of its own.
+    let base = d.join("base");
+    copy_dir(&root().join("testdata/tiny-bert-bundle"), &base);
+    let text = b"Synthetic licence text for this test.\n";
+    fs::write(base.join("LICENSE"), text).unwrap();
+    let mut m: Value = serde_json::from_slice(&fs::read(base.join("manifest.json")).unwrap()).unwrap();
+    m["model"]["license_file"] = "LICENSE".into();
+    m["files"].as_array_mut().unwrap().push(serde_json::json!({
+        "path": "LICENSE",
+        "size": text.len(),
+        "sha256": turbo::bundle::sha256_hex(text),
+    }));
+    fs::write(base.join("manifest.json"), serde_json::to_vec_pretty(&m).unwrap()).unwrap();
+
+    let mut recipe = from_base::recipe(&base, &options(), &d.join("work")).unwrap();
+    assert_eq!(recipe.manifest["model"]["license_file"], "LICENSE");
+    let bundle = d.join("bundle");
+    turbo_bundle::distill::stage_with(&recipe, &base, &bundle, &[], &mut |_| {}).unwrap();
+    turbo_bundle::distill::seal(&mut recipe, &bundle).unwrap();
+    assert_eq!(fs::read(bundle.join("LICENSE")).unwrap(), text);
+    let sealed: Value = serde_json::from_slice(&fs::read(bundle.join("manifest.json")).unwrap()).unwrap();
+    assert_eq!(sealed["model"]["license_file"], "LICENSE");
+    assert!(sealed["files"].as_array().unwrap().iter().any(|f| f["path"] == "LICENSE"), "{}", sealed["files"]);
+    Bundle::open(&bundle).unwrap();
+
+    // A licence path that leaves the bundle is refused.
+    m["model"]["license_file"] = "../LICENSE".into();
+    fs::write(base.join("manifest.json"), serde_json::to_vec_pretty(&m).unwrap()).unwrap();
+    let e = from_base::recipe(&base, &options(), &d.join("work2")).unwrap_err();
+    assert!(e.contains("relative path"), "{e}");
+    fs::remove_dir_all(d).unwrap();
+}
