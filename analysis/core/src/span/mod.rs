@@ -8,6 +8,7 @@ use std::ops::Range;
 
 mod index;
 mod join;
+pub(crate) mod slice;
 mod spans;
 mod text;
 

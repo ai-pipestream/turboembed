@@ -4,7 +4,108 @@
 
 use std::cmp::Ordering;
 
-use turbo_numeric::money::{Currency, Date, Decimal, EcbRates, cmp_values};
+use turbo_analysis::{Layer, Span, ViewId};
+use turbo_numeric::money::{Currency, Date, Decimal, EcbRates, Money, MoneyExtractor, cmp_values};
+use turbo_numeric::{Quantities, QuantityExtractor};
+
+/// The span of the whole of `text`, in bytes.
+pub fn whole(text: &str) -> Span {
+    Span::new(0, text.len() as u32)
+}
+
+/// One extracted money mention: its span, its amount and its currency.
+#[derive(Debug)]
+pub struct FoundMoney {
+    pub span: Span,
+    pub amount: Decimal,
+    pub currency: Currency,
+}
+
+/// Every money mention `x` finds in `text`, after checking the layer.
+pub fn extract_money(x: &MoneyExtractor, text: &str) -> Vec<FoundMoney> {
+    let mut m = Money::new(ViewId::SOURCE);
+    x.scan(text, &mut m);
+    assert_eq!(m.check(), Ok(()), "{text:?}");
+    m.spans
+        .iter()
+        .map(|(i, span)| {
+            let a = m.amount(i);
+            let amount = Decimal { negative: a.negative, digits: a.digits.into(), scale: a.scale as i32 };
+            FoundMoney { span, amount, currency: m.currency[i.get()] }
+        })
+        .collect()
+}
+
+/// The single money mention `x` finds in `text`.
+pub fn single_money_with(x: &MoneyExtractor, text: &str) -> FoundMoney {
+    let mut all = extract_money(x, text);
+    assert_eq!(all.len(), 1, "expected one mention in {text:?}: {all:?}");
+    all.pop().unwrap()
+}
+
+/// The single money mention the default extractor finds in `text`.
+pub fn single_money(text: &str) -> FoundMoney {
+    single_money_with(&MoneyExtractor::default(), text)
+}
+
+/// Asserts `x` finds no money mention in `text`.
+pub fn none_money(x: &MoneyExtractor, text: &str) {
+    let found = extract_money(x, text);
+    assert!(found.is_empty(), "{text:?}: {found:?}");
+}
+
+/// One extracted quantity mention: its span, its value and its unit.
+#[derive(Debug)]
+pub struct FoundQuantity {
+    pub span: Span,
+    pub value: Decimal,
+    pub unit: String,
+}
+
+/// Every quantity mention `x` finds in `text`, after checking the layer.
+pub fn extract_quantity(x: &QuantityExtractor, text: &str) -> Vec<FoundQuantity> {
+    let mut q = Quantities::new(ViewId::SOURCE);
+    x.scan(text, &mut q);
+    assert_eq!(q.check(), Ok(()), "{text:?}");
+    q.spans
+        .iter()
+        .map(|(i, span)| {
+            let v = q.value(i);
+            let value = Decimal { negative: v.negative, digits: v.digits.into(), scale: v.scale as i32 };
+            FoundQuantity { span, value, unit: q.unit(i).into() }
+        })
+        .collect()
+}
+
+/// The single quantity mention `x` finds in `text`.
+pub fn single_quantity_with(x: &QuantityExtractor, text: &str) -> FoundQuantity {
+    let mut all = extract_quantity(x, text);
+    assert_eq!(all.len(), 1, "expected one mention in {text:?}: {all:?}");
+    all.pop().unwrap()
+}
+
+/// The single quantity mention the default extractor finds in `text`.
+pub fn single_quantity(text: &str) -> FoundQuantity {
+    single_quantity_with(&QuantityExtractor::default(), text)
+}
+
+/// Asserts `x` finds no quantity mention in `text`.
+pub fn none_quantity_with(x: &QuantityExtractor, text: &str) {
+    let found = extract_quantity(x, text);
+    assert!(found.is_empty(), "{text:?}: {found:?}");
+}
+
+/// Asserts the default extractor finds no quantity mention in `text`.
+pub fn none_quantity(text: &str) {
+    none_quantity_with(&QuantityExtractor::default(), text);
+}
+
+/// Asserts the quantity mention's value, at any scale, and unit.
+#[track_caller]
+pub fn assert_quantity(m: &FoundQuantity, value: &str, unit: &str) {
+    assert!(same(&dec(value), &m.value), "expected {value}, got {}", m.value);
+    assert_eq!(m.unit, unit);
+}
 
 /// A currency code from a literal.
 pub fn cur(code: &str) -> Currency {

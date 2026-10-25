@@ -176,8 +176,8 @@ fn fold(last: &Linear) -> Result<Packed, String> {
 }
 
 fn transpose(l: &Linear) -> Vec<f32> {
-    let mut t = vec![0.0; l.weight.len()];
-    for (o, row) in l.weight.chunks_exact(l.in_dim).enumerate() {
+    let mut t = vec![0.0; l.weight().len()];
+    for (o, row) in l.weight().chunks_exact(l.in_dim).enumerate() {
         for (i, &v) in row.iter().enumerate() {
             t[i * l.out_dim + o] = v;
         }
@@ -199,7 +199,7 @@ fn columns(l: &Linear) -> Result<(Linear, Linear), String> {
     let half = l.in_dim / 2;
     let mut a = Vec::with_capacity(l.out_dim * half);
     let mut b = Vec::with_capacity(l.out_dim * half);
-    for row in l.weight.chunks_exact(l.in_dim) {
+    for row in l.weight().chunks_exact(l.in_dim) {
         a.extend_from_slice(&row[..half]);
         b.extend_from_slice(&row[half..]);
     }
@@ -254,7 +254,7 @@ impl Heads {
                 .map_err(|_| "out_projector: three layers".to_string())?,
             start: packed(&mlp(f, &format!("{span}.project_start"), &[0, 3])?)?,
             end: packed(&mlp(f, &format!("{span}.project_end"), &[0, 3])?)?,
-            first_bias: first.bias.clone(),
+            first_bias: first.bias().to_vec(),
             first_start: Packed::new(&first_start)?,
             first_end: Packed::new(&first_end)?,
             fold: fold(&last)?,
@@ -448,7 +448,7 @@ impl Heads {
         assert!(h == self.last.in_dim && spans.width == self.max_width, "spans from these heads");
         let q = queries.len() / d;
         let folded = self.fold.rows(queries, q);
-        let bias: Vec<f32> = queries.chunks_exact(d).map(|x| dot(x, &self.last.bias)).collect();
+        let bias: Vec<f32> = queries.chunks_exact(d).map(|x| dot(x, self.last.bias())).collect();
         let size = spans.n * spans.width;
         let mut out = vec![f32::NEG_INFINITY; q * size];
         for i in 0..spans.n {

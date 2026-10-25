@@ -23,8 +23,10 @@ pub use calibrated::{Calibrated, CalibratedRow};
 pub use categories::{Categories, CategoryRow, CategoryScope};
 pub use containment::{Containment, ContainmentChain, ContainmentError, PlaceAncestor, PlaceAncestorRef};
 pub use date::{DAY_SECONDS, Date, DateTime, write_year};
+pub use dec::Dec;
 pub use entity_graph::{
-    ConsolidatedMention, DocumentEntities, DocumentEntity, EntityRelation, SyntacticRole, SyntacticRoleCounts,
+    ConsolidatedMention, DocumentEntities, DocumentEntity, EntityRelation, EntitySalience, EntitySalienceScore,
+    SyntacticRole, SyntacticRoleCounts,
 };
 pub use events::{AnchoredLayerKind, ArgumentRole, EventArgument, EventFrame, Events};
 pub use generic::{Confidence, Language, TokenVectorWindows, Utf16Spans, Vectors};
@@ -50,6 +52,9 @@ pub use sentiment::{
 pub use sparse::SparseTerms;
 pub use syntax::{
     ChunkTags, Dependencies, Entities, Lemmas, PhraseChunks, Phrases, PosTags, Stems, TermSlot, Terms, WordDependencies,
+};
+pub use tables::{
+    ChunkTableContext, ChunkTableHeaders, ColumnAlign, KeyValuePair, KeyValuePairs, TableCell, TableCellRef, Tables,
 };
 pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
 pub use times::{Modifier, Portion, Relation, TimeGrain, TimeKind, TimeMention, Times};
@@ -123,6 +128,7 @@ mod containment;
 #[cfg(test)]
 mod core_tests;
 mod date;
+pub mod dec;
 mod entity_graph;
 mod events;
 mod evidence;
@@ -144,7 +150,9 @@ mod segmentation;
 mod sentiment;
 mod sparse;
 mod syntax;
+pub mod tables;
 mod temporal;
 mod times;
+pub mod unit;
 mod wordnet;
 mod words;

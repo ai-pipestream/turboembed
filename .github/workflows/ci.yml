@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
   pull_request:
+  # The merge queue's run on the queued pull requests stacked on main.
+  merge_group:
 
 permissions:
   contents: read
@@ -128,10 +130,18 @@ jobs:
             | awk -v n="${{ matrix.shard }}" -v k=4 '(NR - 1) % k == n - 1 { printf "-p %s ", $0 }' > "$RUNNER_TEMP/packages"
           echo "PACKAGES=$(cat "$RUNNER_TEMP/packages")" >> "$GITHUB_ENV"
           cat "$RUNNER_TEMP/packages"
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      # nextest runs the shard's test binaries side by side, where cargo
+      # test runs them one after another; it does not run doctests, so
+      # those run after it.
       - name: test
         env:
           TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
-        run: cargo test $PACKAGES
+        run: |
+          cargo nextest run --no-tests=warn $PACKAGES
+          cargo test --doc $PACKAGES
 
   # turbo-fuzz's tests run every annotator run over every corpus and
   # golden text, about 20 minutes unoptimized. Here they are built
@@ -334,7 +344,7 @@ jobs:
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
           echo "$RESULTS"
-          # The Windows lanes are skipped on pull requests.
+          # The Windows lanes are skipped on pull requests and in the merge queue.
           for r in $RESULTS; do [ "$r" = success ] || [ "$r" = skipped ] || exit 1; done
 
   # Windows, the host the Intel NPU machines run (#1011). The CPU backend
@@ -345,11 +355,12 @@ jobs:
   # shards, turbo-fuzz optimized, and the core with its C ABI tests.
   # Skipped in the shards: two docker runner tests (unix exit status
   # text, unix mount paths; the docker runners are Linux-only).
-  # They run on pushes to main, not on pull requests: the hosted pool
+  # They run on pushes to main, not on pull requests or in the merge
+  # queue: the hosted pool
   # runs few Windows jobs at once, and six per pull request push queued
   # every run behind them.
   windows-lint:
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push'
     runs-on: windows-latest
     steps:
       # The goldens and fixtures are compared byte for byte; a checkout
@@ -385,7 +396,7 @@ jobs:
   # windows-core, the shards run what `cargo test --workspace` ran.
   windows-test:
     name: windows test (shard ${{ matrix.shard }}/4)
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push'
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -426,7 +437,7 @@ jobs:
   # overflow checks kept on.
   windows-fuzz:
     name: windows test (turbo-fuzz)
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push'
     runs-on: windows-latest
     steps:
       # The goldens and fixtures are compared byte for byte; a checkout
@@ -450,7 +461,7 @@ jobs:
   # The core and its C ABI tests, in their own target directory, as in
   # the features job (#358).
   windows-core:
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'push'
     runs-on: windows-latest
     steps:
       # The goldens and fixtures are compared byte for byte; a checkout

@@ -38,12 +38,16 @@ impl std::error::Error for TokenizerError {}
 pub struct HmacTokenizer {
     key: Vec<u8>,
     length: usize,
+    refuse_overlaps: bool,
 }
 
 impl fmt::Debug for HmacTokenizer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // The key stays out of logs.
-        f.debug_struct("HmacTokenizer").field("length", &self.length).finish_non_exhaustive()
+        f.debug_struct("HmacTokenizer")
+            .field("length", &self.length)
+            .field("refuse_overlaps", &self.refuse_overlaps)
+            .finish_non_exhaustive()
     }
 }
 
@@ -65,7 +69,19 @@ impl HmacTokenizer {
         if !(4..=64).contains(&length) {
             return Err(TokenizerError::Length(length));
         }
-        Ok(HmacTokenizer { key: key.to_vec(), length })
+        Ok(HmacTokenizer { key: key.to_vec(), length, refuse_overlaps: false })
+    }
+
+    /// This tokenizer, refusing overlapping mentions with
+    /// [`RewriteError::Overlap`] as OpenNLP does.
+    pub fn refusing_overlaps(mut self) -> HmacTokenizer {
+        self.refuse_overlaps = true;
+        self
+    }
+
+    /// Whether overlapping mentions are refused rather than coalesced.
+    pub const fn refuses_overlaps(&self) -> bool {
+        self.refuse_overlaps
     }
 
     /// Appends the token of `value` of `kind` to `out`.
@@ -98,12 +114,17 @@ impl HmacTokenizer {
     }
 
     /// Replaces every mention of `pii`, a layer over `text`, with its
-    /// token. The mentions must not overlap or have empty normalized forms.
+    /// token.
     pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
         if let Some(m) = pii.mentions().find(|m| m.normalized.is_empty()) {
             return Err(RewriteError::EmptyValue(m.span));
         }
-        PiiRewrite::replace(text, pii.mentions(), |m, out| {
+        let mentions: Vec<_> = if self.refuse_overlaps {
+            pii.mentions().collect()
+        } else {
+            PiiRewrite::coalesce_clusters(text, pii.mentions())?
+        };
+        PiiRewrite::replace(text, mentions, |m, out| {
             self.write_token(m.kind, m.normalized, out).expect("checked non-empty normalized values");
         })
     }

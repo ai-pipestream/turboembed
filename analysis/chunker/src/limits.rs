@@ -14,6 +14,8 @@ use crate::gaps::Unit;
 pub enum Limit {
     /// No unit holds sentences on both sides.
     Free,
+    /// A logical table row stays whole even when it exceeds the budget.
+    Atomic,
     /// A unit around it fits the budget: the smallest such unit's kind.
     Held(Block),
     /// Units are around it and none fits: the smallest one's kind.
@@ -82,7 +84,7 @@ pub fn atoms(
     let inner = run.start..run.end.saturating_sub(1).max(run.start);
     for (g, l) in inner.clone().zip(&limits[inner]) {
         let forced = match *l {
-            Limit::Held(_) => continue,
+            Limit::Held(_) | Limit::Atomic => continue,
             Limit::Free => None,
             Limit::Inside(k) => Some(Cut::Inside(k)),
         };

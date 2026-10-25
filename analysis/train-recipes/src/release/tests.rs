@@ -231,9 +231,18 @@ fn the_tatoeba_workflow_trains_on_the_kept_export() {
         .map(|u| format!("{RELEASES}{tag}/{}", u.rsplit('/').next().unwrap()))
         .to_vec();
     assert_eq!(listed.iter().map(|(_, url)| (*url).to_owned()).collect::<Vec<_>>(), urls);
-    for (sha256, url) in listed {
+    for (sha256, url) in &listed {
         assert!(sha256.len() == 64 && sha256.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')), "{url}");
     }
+    let index = Index::builtin();
+    let dataset = index.get("tatoeba-2026-10-10").unwrap();
+    assert_eq!(dataset.kind, Kind::Dataset);
+    assert_eq!(dataset.format, Format::TarBz2);
+    let dataset_files: Vec<(String, String)> =
+        dataset.files.iter().map(|f| (f.sha256.to_string(), f.url.to_string())).collect();
+    let expected_files: Vec<(String, String)> =
+        listed.iter().map(|(sha, url)| ((*sha).to_owned(), (*url).to_owned())).collect();
+    assert_eq!(dataset_files, expected_files);
     // The runs write the model's directory under its id.
     assert!(lines.contains(&format!("id={MODEL_ID}").as_str()));
     assert!(workflow.contains(&format!("\"$id.bin\" {SENTENCES_FILE} {CARD_FILE} {GATE_FILE}")));

@@ -38,6 +38,7 @@ fn run(args: &[String]) -> Result<()> {
         Some("ranges") => ranges_cmd(&args[1..]),
         Some("rerank") => rerank_cmd::run(&args[1..]),
         Some("postag") => turbo_bench::postag::cmd(&args[1..]),
+        Some("tag") => turbo_bench::tag::cmd(&args[1..]),
         Some("lattice") => turbo_bench::throughput::lattice_cmd(&args[1..]),
         Some("grammar") => turbo_bench::throughput::grammar_cmd(&args[1..]),
         Some("qa") => qa_cmd::run(&args[1..]),
