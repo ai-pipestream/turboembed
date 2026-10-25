@@ -2,11 +2,15 @@
 //! chunk mentions, then the ones in scope from earlier in its section,
 //! as entity keys and the `opennlp:entities` index naming each, never as
 //! copied strings. [`ChunkEntities::header`] projects a chunk's entries
-//! onto the text when an embedder wants them as a prefix.
+//! onto the text when an embedder wants them as a prefix. With
+//! `DocumentEntities` and `EntitySalience` present, [`SalienceHeaders`]
+//! can order a chunk's entries by document salience and append the
+//! document's most salient entities after the carried ones.
 
 use turbo_analysis::{Anchor, Annotator, Error, Groups, Ix, Key, KeyId, Layer, LayerName, Refs, View};
-use turbo_analysis_layers::{Chunks, Entities, Sentences};
+use turbo_analysis_layers::{Chunks, DocumentEntities, Entities, EntitySalience, Sentences};
 
+use super::salient::{self, SalienceHeaders};
 use super::{Chains, EntityKeys, Keying, chunk_entities, fnv, same_view};
 use crate::coref::Mentions;
 
@@ -30,7 +34,9 @@ impl Default for HeaderPolicy {
 /// overlap the chunk's fragments, by the sentence of their first such
 /// mention and then by key, then the keys carried from mentions before
 /// the chunk in its section, latest sentence first and then by key,
-/// with `mentions` zero.
+/// with `mentions` zero. [`SalienceHeaders`] may reorder the first group
+/// and append the document's most salient keys, also with `mentions`
+/// zero, after the second.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct ChunkEntities {
     /// For each entity key, the entity that names it (its first mention).
@@ -137,6 +143,7 @@ impl Layer for ChunkEntities {
 pub struct ChunkEntityHeaders {
     pub keying: Keying,
     pub policy: HeaderPolicy,
+    pub salience: SalienceHeaders,
 }
 
 impl Annotator for ChunkEntityHeaders {
@@ -149,12 +156,17 @@ impl Annotator for ChunkEntityHeaders {
         Option<Mentions>,
         Option<Groups<Mentions>>,
         Option<Groups<Entities>>,
+        Option<DocumentEntities>,
+        Option<EntitySalience>,
     );
     type Writes = (ChunkEntities,);
 
     fn annotate(
         &self,
-        (sentences, chunks, view, entities, mentions, mention_groups, entity_groups): Refs<'_, Self>,
+        (sentences, chunks, view, entities, mentions, mention_groups, entity_groups, document, salience): Refs<
+            '_,
+            Self,
+        >,
     ) -> Result<(ChunkEntities,), Error> {
         same_view(Self::ID, sentences, view, entities, mentions)?;
         if chunks.spans.view() != sentences.spans.view() {
@@ -162,10 +174,20 @@ impl Annotator for ChunkEntityHeaders {
         }
         let chains = Chains { mentions, mention_groups, entity_groups };
         let keys = EntityKeys::build(sentences, entities, view.text(), self.keying, chains);
-        Ok((chunk_entities(chunks, &keys, self.policy),))
+        let mut out = chunk_entities(chunks, &keys, self.policy);
+        if let (false, Some(d), Some(s)) = (self.salience.is_off(), document, salience)
+            && d.view == view.id()
+        {
+            salient::apply(&mut out, &keys, d, s, self.salience);
+        }
+        Ok((out,))
     }
 
     fn config_hash(&self) -> u64 {
-        fnv(&[self.keying.bits(), u64::from(self.policy.max_carried)])
+        if self.salience.is_off() {
+            fnv(&[self.keying.bits(), u64::from(self.policy.max_carried)])
+        } else {
+            fnv(&[self.keying.bits(), u64::from(self.policy.max_carried), self.salience.bits()])
+        }
     }
 }

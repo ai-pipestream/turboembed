@@ -219,3 +219,92 @@ impl Layer for DocumentEntities {
         Ok(())
     }
 }
+
+/// How central one consolidated entity is to its document
+/// (`turbo:entity-salience`), and the features that say so.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct EntitySalienceScore {
+    /// The entity's row of the default `DocumentEntities`.
+    pub entity_ix: u32,
+    /// The weighted features, in `[0, 1]`.
+    pub salience: f32,
+    /// 0 for the most salient entity; ties go to the lower `entity_ix`.
+    pub rank: u32,
+    /// How early its first mention is, raised when a heading mentions it.
+    pub position_score: f32,
+    /// How often its mentions are subjects or objects.
+    pub syntax_score: f32,
+    /// Its mention count, log-scaled against the most mentioned entity.
+    pub frequency_score: f32,
+    /// Its PageRank over entity co-occurrence and relations, scaled so the
+    /// most central entity is 1.
+    pub centrality_score: f32,
+}
+
+/// One score per entity of the default `DocumentEntities`, by `entity_ix`.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct EntitySalience {
+    pub scores: Vec<EntitySalienceScore>,
+}
+
+impl EntitySalience {
+    pub fn as_slice(&self) -> &[EntitySalienceScore] {
+        &self.scores
+    }
+
+    /// The score of entity `entity_ix`.
+    pub fn get(&self, entity_ix: u32) -> Option<&EntitySalienceScore> {
+        self.scores.get(entity_ix as usize).filter(|s| s.entity_ix == entity_ix)
+    }
+
+    /// The `k` most salient entities, most salient first.
+    pub fn top_k(&self, k: usize) -> Vec<EntitySalienceScore> {
+        let mut by_rank = self.scores.clone();
+        by_rank.sort_by_key(|s| s.rank);
+        by_rank.truncate(k);
+        by_rank
+    }
+}
+
+impl Layer for EntitySalience {
+    const ID: &'static str = "turbo:entity-salience";
+
+    fn anchor() -> Anchor {
+        Anchor::Document
+    }
+
+    fn len(&self) -> usize {
+        self.scores.len()
+    }
+
+    fn indexes(&self) -> Vec<(KeyId, usize)> {
+        match self.scores.last() {
+            Some(s) => vec![(Key::<DocumentEntities>::DEFAULT.id(), s.entity_ix as usize + 1)],
+            None => Vec::new(),
+        }
+    }
+
+    fn check(&self) -> Result<(), String> {
+        let n = self.scores.len();
+        let mut seen = vec![false; n];
+        for (i, s) in self.scores.iter().enumerate() {
+            if s.entity_ix as usize != i {
+                return Err(format!("score {i} is for entity {}, not {i}", s.entity_ix));
+            }
+            let parts = [s.salience, s.position_score, s.syntax_score, s.frequency_score, s.centrality_score];
+            if parts.iter().any(|v| !(0.0..=1.0).contains(v)) {
+                return Err(format!("entity {i} has a score outside [0, 1]"));
+            }
+            match seen.get_mut(s.rank as usize) {
+                Some(slot) if !*slot => *slot = true,
+                _ => return Err(format!("entity {i} has rank {}, repeated or past {n}", s.rank)),
+            }
+        }
+        let mut by_rank: Vec<&EntitySalienceScore> = self.scores.iter().collect();
+        by_rank.sort_by_key(|s| s.rank);
+        if by_rank.windows(2).any(|w| w[0].salience < w[1].salience) {
+            return Err("a rank above a more salient entity".to_owned());
+        }
+        Ok(())
+    }
+}
