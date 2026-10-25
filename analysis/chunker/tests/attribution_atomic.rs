@@ -69,7 +69,11 @@ fn boost_narrowing_refuses_infinite_or_zero_results_before_mutation() {
         for units in [vec![Ix::new(0)], vec![]] {
             let mut a = seeded(&ch);
             let before = a.clone();
-            let f = UnitFilter { name: "boost".into(), mode: FilterMode::Boost(factor), units };
+            let f = UnitFilter {
+                name: "boost".into(),
+                mode: FilterMode::Boost(factor),
+                units: units.into_iter().collect(),
+            };
             assert!(a.apply_unit_filter(&ch, &levels, &f).is_err(), "accepted {factor}");
             assert_eq!(a, before);
         }
@@ -82,7 +86,11 @@ fn representable_boosts_preserve_the_existing_rounding_contract() {
     let levels = Levels { spans: spans(), unit: vec![Unit::Chunk(Ix::new(0))], parent: vec![None] };
     for factor in [f32::from_bits(1) as f64, f32::MIN_POSITIVE as f64, 0.1, 1.0, f32::MAX as f64] {
         let mut a = seeded(&ch);
-        let f = UnitFilter { name: "boost".into(), mode: FilterMode::Boost(factor), units: vec![Ix::new(0)] };
+        let f = UnitFilter {
+            name: "boost".into(),
+            mode: FilterMode::Boost(factor),
+            units: [Ix::new(0)].into_iter().collect(),
+        };
         assert_eq!(a.apply_unit_filter(&ch, &levels, &f).unwrap(), 1);
         assert_eq!(a.filter_boost, Some(factor as f32));
         assert_eq!(a.matched_spans.last().unwrap().weight.to_bits(), (factor as f32).to_bits());
