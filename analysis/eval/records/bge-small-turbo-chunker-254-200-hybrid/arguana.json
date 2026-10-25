@@ -1,10 +1,10 @@
 {
   "record_version": 1,
-  "recorded_at": "2026-10-21T23:45:50Z",
+  "recorded_at": "2026-10-25T03:35:43Z",
   "provenance": {
-    "commit": "0b02f5a27e5d31cc39c0378101d14b69cecd8012",
+    "commit": "1d7d2cbff4a60e82c5b16ab5b947b6dbf5f7288f",
     "pushed_to": [
-      "origin/fable/799-embedder-check"
+      "origin/claude/956-bge-query-instruction"
     ],
     "machine": {
       "arch": "rtx4080super",
@@ -23,7 +23,7 @@
     "bundle": {
       "model_id": "BAAI/bge-small-en-v1.5",
       "revision": "1",
-      "manifest_sha256": "cb28c3c7cd30bfafe809994c0c9ea0df921f75b2bc9c5856275854b14bcfcbaa",
+      "manifest_sha256": "352402c205716d9ea3325b4e4df5e5e5ca34ada21c643be5719885572030605b",
       "artifact_sha256": "3c9f31665447c8911517620762200d2245a2518d6e7208acc78cd9db317e21ad",
       "tokenizer_sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66"
     }
@@ -5756,10 +5756,10 @@
   },
   "cost": {
     "wall": {
-      "analysis_ms": 161.94635,
-      "chunking_ms": 64.832608,
-      "embedding_ms": 4690.9958879999995,
-      "retrieval_ms": 3271.3005399999997
+      "analysis_ms": 185.510505,
+      "chunking_ms": 68.035234,
+      "embedding_ms": 4642.784604,
+      "retrieval_ms": 3482.811603
     },
     "tokens_embedded": 2124052,
     "chunks": 11145,

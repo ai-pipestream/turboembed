@@ -322,7 +322,7 @@ fn the_rust_lemma_fixture_is_the_bin_written_here() {
     let text = tagged("lemmas.txt");
     let samples: Vec<_> = LemmaReader::new(&text).unwrap().map(|s| s.unwrap()).collect();
     assert_eq!(samples.len(), 20);
-    let factory = LemmatizerFactory::new("en");
+    let factory = LemmatizerFactory::opennlp("en");
     let ours = train_lemmatizer_model(
         &samples,
         &factory,

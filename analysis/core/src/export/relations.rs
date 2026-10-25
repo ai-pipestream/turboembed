@@ -48,6 +48,45 @@ impl<From: Layer, To: Layer> LayerCodec for Edges<From, To> {
         let (from_key, to_key) = (cx.key::<From>(&from.instance.clone()), cx.key::<To>(&to.instance.clone()));
         Ok(Edges::between(from_key, to_key, kinds, rows))
     }
+
+    /// Keeps the edges whose endpoints both survived slicing, with
+    /// endpoints re-pointed through the earlier layers' remaps;
+    /// kinds and scores are copied whole. Row order is preserved,
+    /// so the sliced payload is still in (from, to, kind) order
+    /// once endpoints are remapped (remaps are order-preserving).
+    fn slice_body(data: &[u8], cx: &SliceCx) -> Result<SlicedBody, ExportError> {
+        let mut r = Reader::new(data);
+        let from = get_layer_ref(&mut r)?;
+        let to = get_layer_ref(&mut r)?;
+        let kinds = get_tagset(&mut r)?;
+        let mut rows: Vec<(u32, u32, u32, f64)> = Vec::new();
+        let mut remap: Vec<Option<u32>> = Vec::new();
+        for _ in 0..r.usize()? {
+            let (a, b, kind, score) = (r.u32()?, r.u32()?, r.u32()?, r.f64()?);
+            match (cx.remapped(&from, a)?, cx.remapped(&to, b)?) {
+                (Some(a2), Some(b2)) => {
+                    remap.push(Some(rows.len() as u32));
+                    rows.push((a2, b2, kind, score));
+                }
+                _ => remap.push(None),
+            }
+        }
+        if !r.is_done() {
+            return Err(malformed("trailing bytes in an edges payload being sliced"));
+        }
+        let mut w = Writer::new();
+        put_layer_ref(&mut w, &from)?;
+        put_layer_ref(&mut w, &to)?;
+        put_tagset(&mut w, &kinds)?;
+        w.usize(rows.len())?;
+        for (a, b, kind, score) in rows {
+            w.u32(a);
+            w.u32(b);
+            w.u32(kind);
+            w.f64(score);
+        }
+        Ok(Some((w.finish(), remap)))
+    }
 }
 
 impl<L: Layer> LayerCodec for Groups<L> {
@@ -90,5 +129,43 @@ impl<L: Layer> LayerCodec for Groups<L> {
         }
         let of_key = cx.key::<L>(&of.instance.clone());
         Ok(Groups::of(of_key, groups))
+    }
+
+    /// Keeps the members that survived slicing, re-pointed through
+    /// their layer's remap, and drops groups left empty. Members
+    /// stay in increasing order (remaps are order-preserving).
+    fn slice_body(data: &[u8], cx: &SliceCx) -> Result<SlicedBody, ExportError> {
+        let mut r = Reader::new(data);
+        let of = get_layer_ref(&mut r)?;
+        let mut groups: Vec<Vec<u32>> = Vec::new();
+        let mut remap: Vec<Option<u32>> = Vec::new();
+        for _ in 0..r.usize()? {
+            let mut members: Vec<u32> = Vec::new();
+            for _ in 0..r.usize()? {
+                let index = r.u32()?;
+                if let Some(new) = cx.remapped(&of, index)? {
+                    members.push(new);
+                }
+            }
+            if members.is_empty() {
+                remap.push(None);
+            } else {
+                remap.push(Some(groups.len() as u32));
+                groups.push(members);
+            }
+        }
+        if !r.is_done() {
+            return Err(malformed("trailing bytes in a groups payload being sliced"));
+        }
+        let mut w = Writer::new();
+        put_layer_ref(&mut w, &of)?;
+        w.usize(groups.len())?;
+        for members in &groups {
+            w.usize(members.len())?;
+            for member in members {
+                w.u32(*member);
+            }
+        }
+        Ok(Some((w.finish(), remap)))
     }
 }

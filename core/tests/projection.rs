@@ -251,8 +251,8 @@ fn f16_and_bf16_projection_weights_widen_and_validate() {
         let dir = f.write();
         let b = Bundle::open(dir).unwrap();
         let head = ProjectionHead::load(&b).unwrap();
-        assert_eq!(head.linear.weight, vec![1.0f32; 16]);
-        assert_eq!(head.linear.bias, vec![1.0f32, -0.5f32]);
+        assert_eq!(head.linear.weight(), vec![1.0f32; 16]);
+        assert_eq!(head.linear.bias(), vec![1.0f32, -0.5f32]);
         let out = head.project(&[0.25f32; 8], false).unwrap();
         assert_eq!(out, vec![3.0f32, 1.5f32]);
     }

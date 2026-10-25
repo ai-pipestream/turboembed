@@ -4,50 +4,34 @@ use std::sync::Arc;
 use turbo_eval::model_gate::Counts;
 use turbo_formats::evaluate::LemmatizerEvaluator;
 use turbo_formats::sample::LemmaSample;
-use turbo_lemmatizer::{LemmatizerModel, MaxentLemmatizer, TokenTag, edit_script::decode_lemma};
+use turbo_lemmatizer::{LemmaEncoding, LemmatizerModel, MaxentLemmatizer, TokenTag};
 use turbo_maxent::{JavaString, ModelFile};
-use turbo_train_components::lemmatize;
 use turbo_zoo::Sha256;
 
 use crate::card::{Mismatch, TagCount};
 use crate::error::{Error, Result};
 use crate::postag::most_frequent;
 
-/// The lemma classes a reference lemmatizer has outcomes for, which decide
-/// the held-out tokens a lemmatizer's gate scores. A token's gold class is
-/// the class training gives the token and its held-out lemma
-/// ([`lemmatize::lemma_class`], `LemmatizerME.encodeLemmas`). A token is
-/// left out of both models' scores when its gold class gives its lemma
-/// back, so a lemmatizer trained on the treebank can give it, and no
-/// outcome of the reference gives that lemma for the token, so the
-/// reference cannot get it right, as a token whose tag a reference tagger
-/// cannot give ([`crate::postag::ReferenceTags`]). Lacking the gold class
-/// is not enough: `decodeShortestEditScript` deletes a character without
-/// reading the letter the class names for it, so classes that differ only
-/// in those letters give the same lemma, and a reference without a token's
-/// gold class may give its lemma through another class.
+/// The reference model's classes and decoder. A token is left out only
+/// when the reference's gold edit class can express its exact lemma, but
+/// none of the reference's outcomes can give that lemma. This preserves
+/// the existing reference coverage mask for published OpenNLP models.
 ///
-/// A token whose gold class gives another string is scored, as
-/// `LemmatizerEvaluator` counts it: training teaches the candidate the
-/// gold classes, so the rule leaves out only tokens it can be taught.
-/// `decodeLemmas` applies a class to the lowercased token, and every class
-/// is made from a lowercased lemma, so no model gives a lemma with a
-/// capital letter (MarkIT writes `[PUNCT]` as the lemma of most
-/// punctuation); and it reads a class's index as one digit, so a gold
-/// class with an index of ten or more gives another string
-/// (`turbo_lemmatizer`'s documentation). Making classes from the lemma as
-/// written and applying them to the token as written would let a model
-/// give capitalised lemmas, an improvement over OpenNLP that the recipes
-/// leave out so that they train and score as OpenNLP does.
+/// Capitalized lemmas stay in the gate: the old decoder cannot round-trip
+/// their gold classes, so both systems are scored on them. The native
+/// model can learn them. Full and capitalized-token accuracy are reported
+/// separately by the case evaluation example; the gate's coverage limit
+/// and paired confidence interval are unchanged.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReferenceClasses {
     classes: HashSet<JavaString>,
+    encoding: LemmaEncoding,
 }
 
 impl ReferenceClasses {
-    /// The classes `outcomes`.
+    /// OpenNLP classes `outcomes`. Use `of_model` for a native model.
     pub fn new(outcomes: impl IntoIterator<Item = JavaString>) -> ReferenceClasses {
-        ReferenceClasses { classes: outcomes.into_iter().collect() }
+        ReferenceClasses { classes: outcomes.into_iter().collect(), encoding: LemmaEncoding::OpenNlp }
     }
 
     /// The outcomes of the lemmatizer in `bytes`.
@@ -56,15 +40,16 @@ impl ReferenceClasses {
     ///
     /// A model file that is not a lemmatizer model.
     pub fn of_model(bytes: &[u8]) -> Result<ReferenceClasses> {
-        Ok(ReferenceClasses::new(open_lemmatizer(bytes)?.maxent().outcomes().cloned()))
+        let model = open_lemmatizer(bytes)?;
+        Ok(ReferenceClasses { classes: model.maxent().outcomes().cloned().collect(), encoding: model.encoding() })
     }
 
     /// Whether a held-out token `token` of the lemma `lemma` is scored:
     /// unless its gold class gives the lemma and no class of the reference
     /// does.
     pub fn scores(&self, token: &str, lemma: &str) -> bool {
-        let gives = |class: &JavaString| decode_lemma(token, class).is_ok_and(|given| given == lemma);
-        let class = lemmatize::lemma_class(token, lemma);
+        let gives = |class: &JavaString| self.encoding.decode(token, class).is_ok_and(|given| given == lemma);
+        let class = self.encoding.encode(token, lemma);
         self.classes.contains(&class) || !gives(&class) || self.classes.iter().any(gives)
     }
 
@@ -120,12 +105,8 @@ fn open_lemmatizer(bytes: &[u8]) -> Result<LemmatizerModel> {
 }
 
 /// Each sample's counts for the lemmatizer in `bytes`, given the
-/// sample's tags: the tokens given the sample's lemma, of its tokens that
-/// `classes` scores ([`ReferenceClasses::scores`]). The
-/// lemmas are those `LemmatizerME.lemmatize` gives, which
-/// `LemmatizerEvaluator` compares with the sample's: `decodeLemmas` applies
-/// each class to the lowercased token, so a capitalised held-out lemma is
-/// never given.
+/// sample's tags, over the tokens `classes` scores. Decoding follows
+/// the model's factory, including native case-preserving models.
 ///
 /// # Errors
 ///
@@ -169,7 +150,13 @@ pub(super) fn lemma_scores<'s>(
         }
         lemmas.clear();
         for (w, class) in words.iter().zip(&predicted_classes) {
-            lemmas.push(decode_lemma(w.token, class).map_err(|e| Error::Model(format!("{:?}: {e}", w.token)))?);
+            lemmas.push(
+                lemmatizer
+                    .lemmatizer_model()
+                    .encoding()
+                    .decode(w.token, class)
+                    .map_err(|e| Error::Model(format!("{:?}: {e}", w.token)))?,
+            );
         }
         let predicted: Vec<&str> = lemmas.iter().map(String::as_str).collect();
         let mut evaluator = LemmatizerEvaluator::default();
