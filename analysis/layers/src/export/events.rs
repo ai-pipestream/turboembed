@@ -35,15 +35,18 @@ impl LayerCodec for Events {
         out.spans = spans;
         out.lemma = get_strs(&mut r)?;
         want_len(out.lemma.len(), n, "event lemmas")?;
-        let text_len = doc.text(out.spans.view()).len() as u32;
+        let text = doc.text(out.spans.view());
         for _ in 0..n {
             out.sentence.push(r.u32()?);
             out.confidence.push(f32::from_bits(r.u32()?));
             let count = r.u32()?;
             for _ in 0..count {
                 let span = r.span()?;
-                if span.end > text_len {
-                    return Err(malformed(format!("argument {}..{} outside the view text", span.start, span.end)));
+                if text.get(span.range()).is_none() {
+                    return Err(malformed(format!(
+                        "argument {}..{} outside view or off UTF-8 boundaries",
+                        span.start, span.end
+                    )));
                 }
                 let role = r.u8()?;
                 let role = ArgumentRole::from_byte(role).ok_or_else(|| malformed(format!("argument role {role}")))?;

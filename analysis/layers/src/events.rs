@@ -3,9 +3,9 @@
 //! of another layer (a temporal expression, an amount of money, a
 //! quantity, a named entity), the index of that mention.
 
-use turbo_analysis::{Ix, Layer, Overlap, Span, Spans, TextSpans, ViewId};
+use turbo_analysis::{Document, Ix, Key, KeyId, Layer, Overlap, Span, Spans, TextSpans, ViewId};
 
-use crate::Strs;
+use crate::{Entities, Money, Quantities, Sentences, Strs, Temporals};
 
 /// What an argument does in its event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -183,6 +183,44 @@ impl Layer for Events {
 
     fn text_spans(&self) -> Option<TextSpans<'_>> {
         Some(self.spans.text_spans())
+    }
+
+    fn indexes(&self) -> Vec<(KeyId, usize)> {
+        let mut out = Vec::new();
+        if let Some(bound) = self.sentence.iter().map(|&i| (i as usize).saturating_add(1)).max() {
+            out.push((Key::<Sentences>::DEFAULT.id(), bound));
+        }
+        for (kind, key) in [
+            (AnchoredLayerKind::Temporals, Key::<Temporals>::DEFAULT.id()),
+            (AnchoredLayerKind::Money, Key::<Money>::DEFAULT.id()),
+            (AnchoredLayerKind::Quantities, Key::<Quantities>::DEFAULT.id()),
+            (AnchoredLayerKind::Names, Key::<Entities>::DEFAULT.id()),
+        ] {
+            if let Some(bound) = self
+                .arguments
+                .iter()
+                .filter(|a| a.anchored_layer == kind)
+                .filter_map(|a| a.anchored_index)
+                .map(|i| (i as usize).saturating_add(1))
+                .max()
+            {
+                out.push((key, bound));
+            }
+        }
+        out
+    }
+
+    fn check_document(&self, doc: &Document, _on: &[KeyId]) -> Result<(), String> {
+        let text = doc.text(self.spans.view());
+        for a in &self.arguments {
+            if text.get(a.span.range()).is_none() {
+                return Err(format!(
+                    "event argument {}..{} outside view or off UTF-8 boundaries",
+                    a.span.start, a.span.end
+                ));
+            }
+        }
+        Ok(())
     }
 
     fn check(&self) -> Result<(), String> {

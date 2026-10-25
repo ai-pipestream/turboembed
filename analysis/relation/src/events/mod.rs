@@ -126,6 +126,17 @@ impl Annotator for EventExtractor {
         &self,
         (view, sentences, tokens, deps, pos, lemmas, temporals, money, quantities, entities): Refs<'_, Self>,
     ) -> Result<Self::Writes, Error> {
+        if tokens.spans.view() != view.id() || sentences.spans.view() != view.id() {
+            return Err(Self::fail("tokens or sentences belong to another text view".into()));
+        }
+        if self.config.anchor
+            && (temporals.is_some_and(|a| a.spans.view() != view.id())
+                || money.is_some_and(|a| a.spans.view() != view.id())
+                || quantities.is_some_and(|a| a.spans.view() != view.id())
+                || entities.is_some_and(|a| a.spans.view() != view.id()))
+        {
+            return Err(Self::fail("event anchors belong to another text view".into()));
+        }
         let n = tokens.spans.len();
         if deps.head.len() != n {
             return Err(Self::fail(format!("{} dependencies for {n} tokens", deps.head.len())));

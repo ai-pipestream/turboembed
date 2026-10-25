@@ -1,5 +1,11 @@
 # Predicate-argument events (`EventExtractor`)
 
+Event storage and graph import validate argument bounds and UTF-8
+boundaries in addition to trigger spans. Sentence and anchored-mention
+indices participate in the document's normal reference checks, including
+named instances. Extraction refuses incompatible token, sentence or
+enabled anchor views before reading their text.
+
 `turbo_relation::EventExtractor` (`turbo:event-extractor`) writes the
 `Events` layer (`turbo:events`, in `turbo-analysis-layers`): one frame per
 predicate, with its trigger span and lemma, its sentence, a confidence and
