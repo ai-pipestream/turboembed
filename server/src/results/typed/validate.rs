@@ -4,6 +4,7 @@
 //! aligned anchor integrity, and `indexes_layer` bounds.
 
 mod annotation;
+mod quality;
 mod shared;
 
 use std::collections::{HashMap, HashSet};
@@ -206,6 +207,7 @@ fn validate_layer(
     layer: &TypedLayer,
 ) -> Result<(), Failure> {
     let lid = layer.id.as_str();
+    quality::layer(layer)?;
     for mref in &layer.model_refs {
         check_model_ref(known_models, &format!("layer {lid}.model_refs"), mref)?;
     }

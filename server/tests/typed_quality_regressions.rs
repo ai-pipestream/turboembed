@@ -247,7 +247,7 @@ async fn typed_quality_refuses_malformed_metrics_payloads_and_spans() {
                         Some(if id == TextQuality::ID { Value::TextQuality(bad) } else { Value::SpanQuality(bad) });
                     mutations.push(msg);
                 }
-                for shape in 0..7 {
+                for shape in 0..10 {
                     let mut msg = good.clone();
                     let l = &mut msg.layers[layer_ix];
                     match shape {
@@ -264,6 +264,19 @@ async fn typed_quality_refuses_malformed_metrics_payloads_and_spans() {
                         4 => l.annotations[0].spans[0] = SpanFragment { start: 2, end: 1 },
                         5 if id == TextQuality::ID => l.annotations.clear(),
                         6 if id == TextQuality::ID => l.annotations.push(l.annotations[0].clone()),
+                        7 if mode != OffsetMode::CodePoint => {
+                            l.annotations[0].spans[0].start = match (view, mode) {
+                                (0, OffsetMode::Utf8) => 3,
+                                (0, OffsetMode::Utf16) => 4,
+                                (_, OffsetMode::Utf8) => 1,
+                                _ => 2,
+                            };
+                        }
+                        8 => l.id = "test:wrong-quality-layer".into(),
+                        9 => {
+                            let end = l.annotations[0].spans[0].end;
+                            l.annotations[0].spans.push(SpanFragment { start: end, end });
+                        }
                         _ => continue,
                     }
                     mutations.push(msg);
@@ -279,5 +292,66 @@ async fn typed_quality_refuses_malformed_metrics_payloads_and_spans() {
         }
     }
     server.stop().await;
+    eprintln!("quality malformed-message controls: {cases} cases, {accepted} accepted");
     assert_eq!(accepted, 0, "accepted {accepted}/{cases} malformed quality messages");
+}
+
+#[tokio::test]
+async fn quality_preserves_metric_endpoints_and_empty_projected_regions() {
+    let (server, mut client) = common::serve_no_admin().await;
+    let mut doc = fixture();
+    for (name, ratio) in [("zero", -0.0), ("one", 1.0)] {
+        let m = QualityMetrics {
+            composite_score: ratio,
+            mtld_lexical_diversity: 0.0,
+            flesch_kincaid_grade: -f32::MAX,
+            automated_readability_index: -0.0,
+            coleman_liau_index: f32::MAX,
+            information_density: ratio,
+            alpha_ratio: ratio,
+            digit_ratio: ratio,
+            symbol_ratio: ratio,
+            whitespace_ratio: ratio,
+            replacement_ratio: ratio,
+            flags: QualityFlags::CLEAN,
+        };
+        m.check().unwrap();
+        doc.add(
+            &Key::<TextQuality>::named(name),
+            TextQuality::new(ViewId::SOURCE, 12, m),
+            Provenance::by("quality:endpoint"),
+        )
+        .unwrap();
+        let mut regions = SpanQuality::new(ViewId::SOURCE);
+        regions.push(Span::new(0, 2), m);
+        doc.add(&Key::<SpanQuality>::named(name), regions, Provenance::by("quality:removed-prefix")).unwrap();
+    }
+    let graph = export(&doc, codecs()).unwrap().to_bytes().unwrap();
+    for mode in [OffsetMode::Utf8, OffsetMode::Utf16, OffsetMode::CodePoint] {
+        let out = project(&mut client, &graph, mode, 1).await;
+        let out = client.round_trip_typed_document(out).await.unwrap().into_inner();
+        for name in ["zero", "one"] {
+            for layer in out.layers.iter().filter(|l| l.instance == name) {
+                let ann = &layer.annotations[0];
+                let m = match ann.value.as_ref().unwrap() {
+                    Value::TextQuality(m) => m,
+                    Value::SpanQuality(m) => {
+                        assert_eq!(ann.spans, [SpanFragment { start: 0, end: 0 }]);
+                        m
+                    }
+                    _ => unreachable!(),
+                };
+                let ratio: f32 = if name == "zero" { -0.0 } else { 1.0 };
+                for index in [0, 5, 6, 7, 8, 9, 10] {
+                    assert_eq!(fields(m)[index].unwrap().to_bits(), ratio.to_bits());
+                }
+                assert_eq!(m.mtld_lexical_diversity, Some(0.0));
+                assert_eq!(m.flesch_kincaid_grade, Some(-f32::MAX));
+                assert_eq!(m.automated_readability_index.unwrap().to_bits(), (-0.0f32).to_bits());
+                assert_eq!(m.coleman_liau_index, Some(f32::MAX));
+                assert_eq!(m.flags, 0);
+            }
+        }
+    }
+    server.stop().await;
 }
