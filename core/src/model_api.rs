@@ -9,8 +9,11 @@ pub(super) fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
     let load = backend::offered!(b, model_load)?;
     let release = backend::offered!(b, model_release)?;
     let bundle = bundle::Bundle::open(Path::new(path))?; // rules 1 to 4
-    if bundle.manifest.rerank.is_some() && b.name() != "cpu" {
-        return Err(Error::new(status::UNSUPPORTED_TASK, "rerank requires the CPU backend"));
+    if bundle.manifest.rerank.is_some() && !b.runs_rerank() {
+        return Err(Error::new(
+            status::UNSUPPORTED_TASK,
+            format!("rerank has run on the CPU and CUDA only, not the {} backend", b.name()),
+        ));
     }
     if bundle.manifest.qa.is_some() && backend::offered!(b, embed_write_ranges).is_err() {
         return Err(Error::new(

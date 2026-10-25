@@ -3,7 +3,7 @@
 use std::rc::Rc;
 
 use turbo_analysis::Span;
-use turbo_unicode::java::{is_digit, is_letter, to_lower_char, to_upper_char};
+use turbo_unicode::java::{is_digit, is_letter, lowercase_code_points, to_upper_char};
 
 use super::contraction::contract;
 use super::metadata;
@@ -347,7 +347,7 @@ fn contraction<'a>(left: Piece<'a>, right: Piece<'a>) -> Result<Option<Vec<Field
         }
         return Ok(Some(out));
     }
-    let lower: String = left.text.chars().map(to_lower_char).collect();
+    let lower: String = lowercase_code_points(left.text);
     Ok(contract(&lower, right.text).map(|c| {
         let mut chars = c.chars();
         let first = chars.next().expect("no contraction is empty");
