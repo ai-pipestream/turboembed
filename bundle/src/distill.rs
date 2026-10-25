@@ -59,14 +59,6 @@ pub struct Spec {
 /// The table's tensor name in the weights file, as Model2Vec names it.
 const EMBEDDINGS: &str = "embeddings";
 
-/// One text of the quality set.
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct QualityText {
-    text: String,
-    group: u32,
-}
-
 /// Where the recipe puts things.
 struct Paths {
     weights: String,
@@ -126,6 +118,27 @@ fn spec(recipe: &Recipe) -> Result<&Spec> {
 /// which `seal` reads; and `reference/cases.json`, what the reference
 /// script reads.
 pub fn stage(recipe: &Recipe, base_dir: &Path, bundle: &Path) -> Result<()> {
+    stage_with(recipe, base_dir, bundle, &[], &mut progress::print).map(|_| ())
+}
+
+/// What a staged distillation added beyond the base's vocabulary.
+#[derive(Debug, Default)]
+pub struct Staged {
+    /// The learned terms' entries, as ids from the base's vocab_size up.
+    pub added: Vec<String>,
+    /// The learned terms left out, and why.
+    pub refused: Vec<(String, Refusal)>,
+}
+
+/// [`stage`], with `terms` added to the vocabulary (extra.rs) and each
+/// step reported to `observe`.
+pub fn stage_with(
+    recipe: &Recipe,
+    base_dir: &Path,
+    bundle: &Path,
+    terms: &[String],
+    observe: &mut dyn FnMut(Progress),
+) -> Result<Staged> {
     let spec = spec(recipe)?;
     let p = paths(recipe)?;
     if bundle.join("manifest.json").exists() {
@@ -138,9 +151,14 @@ pub fn stage(recipe: &Recipe, base_dir: &Path, bundle: &Path) -> Result<()> {
     let base_tok = Tokenizer::load(&base).map_err(|e| format!("base bundle: {}", e.message))?;
     same_tokenizer(recipe, bm)?;
     let tok_bytes = base.read_verified(&bm.tokenizer.file).map_err(|e| e.message)?;
-    crate::fetch::write_atomic(&bundle.join(&p.tokenizer), &tok_bytes)?;
-    crate::seal::stage(recipe, base_dir, bundle)?;
     let vocab_size = arch.vocab_size as usize;
+    let added = extra::plan(&base_tok, bm, terms)?;
+    let tok_out = match added.entries.is_empty() {
+        true => tok_bytes.clone(),
+        false => extra::extend(&tok_bytes, vocab_size, &added.entries)?,
+    };
+    crate::fetch::write_atomic(&bundle.join(&p.tokenizer), &tok_out)?;
+    crate::seal::stage(recipe, base_dir, bundle)?;
     let declared = recipe.manifest["static_embedding"]["vocab_size"].as_u64();
     if declared != Some(vocab_size as u64) {
         return Err(format!("static_embedding.vocab_size {declared:?} is not the base's {vocab_size}"));
@@ -169,34 +187,37 @@ pub fn stage(recipe: &Recipe, base_dir: &Path, bundle: &Path) -> Result<()> {
     if kept.len() <= k {
         return Err(format!("{} entries are kept, and PCA to {k} needs more", kept.len()));
     }
-    println!(
-        "distill: {} of {vocab_size} entries kept, {} left out by {:?} or as special tokens",
-        kept.len(),
-        vocab_size - kept.len(),
-        spec.skip
-    );
+    let (n_added, total) = (added.entries.len(), vocab_size + added.entries.len());
+    observe(Progress::Kept { kept: kept.len(), vocab_size, added: n_added, refused: added.refused.len() });
 
     // Every kept entry through the base encoder.
     let rt = api::Runtime::create()?;
     let ctx = rt.cpu()?;
     let model = ctx.load(base_dir)?;
     let info = model.info()?;
-    let rows = embed_entries(&model, &info, bm, &kept, h)?;
+    let n = kept.len() + n_added;
+    let mut rows =
+        embed_entries(&model, &info, bm, &kept, h, &mut |done| observe(Progress::Embedded { done, total: n }))?;
+    rows.extend(extra::embed(&model, &info, bm, &added.pieces, h, |done| {
+        observe(Progress::Embedded { done: kept.len() + done, total: n })
+    })?);
 
-    // PCA, then Zipf weights by rank among the kept entries.
-    let (projected, explained) = pca(&rows, kept.len(), h, k);
-    let n = kept.len();
-    let total: f64 = (0..n).map(|r| 1.0 / (r as f64 + 2.0)).sum();
-    let mut table = vec![0f32; vocab_size * k];
-    for (r, &id) in kept.iter().enumerate() {
-        let p = (1.0 / (r as f64 + 2.0)) / total;
+    // PCA, then Zipf weights by rank: the kept entries in id order, then
+    // the learned terms in theirs.
+    let (projected, explained) = pca(&rows, n, h, k);
+    observe(Progress::Reduced { pca_dims: k, explained_variance: explained });
+    let zipf: f64 = (0..n).map(|r| 1.0 / (r as f64 + 2.0)).sum();
+    let mut table = vec![0f32; total * k];
+    let ids = kept.iter().copied().chain(vocab_size..total);
+    for (r, id) in ids.enumerate() {
+        let p = (1.0 / (r as f64 + 2.0)) / zipf;
         let w = spec.sif_coefficient / (spec.sif_coefficient + p);
         for (t, v) in table[id * k..(id + 1) * k].iter_mut().zip(&projected[r * k..(r + 1) * k]) {
             // Rounded once, from F64, to what is stored.
             *t = if spec.dtype == "F16" { half::f16::from_f64(v * w).to_f32() } else { (v * w) as f32 };
         }
     }
-    let file = write_table(&table, vocab_size, k, &spec.dtype);
+    let file = write_table(&table, total, k, &spec.dtype);
     crate::fetch::write_atomic(&bundle.join(&p.weights), &file)?;
 
     // The cost, on the quality texts.
@@ -206,13 +227,17 @@ pub fn stage(recipe: &Recipe, base_dir: &Path, bundle: &Path) -> Result<()> {
         .ok_or("manifest.static_embedding.max_length: missing")? as u32;
     let median = median_chars(&vocab);
     let base_vecs = base_vectors(&model, &info, &texts)?;
-    let static_vecs: Vec<Vec<f64>> = texts
-        .iter()
-        .map(|t| {
-            let ids = static_ids(&base_tok, median, &t.text, max_length)?;
-            Ok(static_vector(&table, k, &ids))
-        })
-        .collect::<Result<_>>()?;
+    let static_vecs: Vec<Vec<f64>> = match n_added {
+        0 => texts
+            .iter()
+            .map(|t| Ok(static_vector(&table, k, &static_ids(&base_tok, median, &t.text, max_length)?)))
+            .collect::<Result<_>>()?,
+        _ => {
+            let mut m = recipe.manifest.clone();
+            m["static_embedding"]["vocab_size"] = json!(total);
+            quality::staged_ids(&m, bundle, &texts)?.iter().map(|ids| static_vector(&table, k, ids)).collect()
+        }
+    };
     let groups: Vec<u32> = texts.iter().map(|t| t.group).collect();
     let quality = json!({
         "texts": p.texts,
@@ -220,7 +245,11 @@ pub fn stage(recipe: &Recipe, base_dir: &Path, bundle: &Path) -> Result<()> {
         "static_top1": round4(top1(&static_vecs, &groups)),
         "similarity_spearman": round4(spearman(&base_vecs, &static_vecs)),
     });
-    println!("distill: quality {quality}");
+    observe(Progress::Measured {
+        base_top1: quality["base_top1"].as_f64().unwrap_or(0.0),
+        static_top1: quality["static_top1"].as_f64().unwrap_or(0.0),
+        similarity_spearman: quality["similarity_spearman"].as_f64().unwrap_or(0.0),
+    });
 
     let report = json!({
         "tool": "turbo-bundle distill",
@@ -235,6 +264,7 @@ pub fn stage(recipe: &Recipe, base_dir: &Path, bundle: &Path) -> Result<()> {
             format!("explained_variance={explained:.4}"),
             format!("sif_coefficient={}", spec.sif_coefficient),
             format!("dtype={}", spec.dtype),
+            format!("learned_terms={n_added}"),
         ],
         "reproducible": false,
         "distilled_from": {
@@ -243,10 +273,11 @@ pub fn stage(recipe: &Recipe, base_dir: &Path, bundle: &Path) -> Result<()> {
             "manifest_sha256": base.manifest_sha256,
         },
         "quality": quality,
+        "vocab_size": total,
     });
     let report_path = report_path(bundle, &p.weights);
     crate::fetch::write_atomic(&report_path, &serde_json::to_vec_pretty(&report).unwrap())?;
-    Ok(())
+    Ok(Staged { added: added.entries, refused: added.refused })
 }
 
 pub(crate) fn turbo_version() -> String {
@@ -291,6 +322,7 @@ fn embed_entries(
     bm: &Manifest,
     kept: &[usize],
     h: usize,
+    done: &mut dyn FnMut(usize),
 ) -> Result<Vec<f64>> {
     let id_of = |s: &str| bm.tokenizer.special_tokens.iter().find(|t| t.content == s).map(|t| t.id as i32);
     let template: Vec<Option<i32>> = bm
@@ -312,61 +344,23 @@ fn embed_entries(
         session.tokens(n as u32, seq as u32, &ids, &mask, &o, &mut vecs[..n * h])?;
         out.extend(vecs[..n * h].iter().map(|&v| v as f64));
         if c % 64 == 63 {
-            println!("distill: {} of {} entries embedded", (c + 1) * batch, kept.len());
+            done((c + 1) * batch);
         }
     }
     Ok(out)
 }
 
+mod extra;
+pub mod from_base;
 mod math;
+mod progress;
+mod quality;
+
+pub use extra::Refusal;
+pub use progress::Progress;
+use quality::{base_vectors, quality_texts, static_ids};
 
 use math::{cosine, median_chars, pca, round4, spearman, static_vector, top1, vocabulary, write_table};
-
-fn quality_texts(path: &Path) -> Result<Vec<QualityText>> {
-    let s = fs::read_to_string(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    let texts: Vec<QualityText> = s
-        .lines()
-        .enumerate()
-        .filter(|(_, l)| !l.trim().is_empty())
-        .map(|(i, l)| serde_json::from_str(l).map_err(|e| format!("{} line {}: {e}", path.display(), i + 1)))
-        .collect::<Result<_>>()?;
-    if texts.len() < 3 {
-        return Err(format!("{}: too few texts to rank", path.display()));
-    }
-    Ok(texts)
-}
-
-/// The base model's own vectors for the texts, as its bundle says.
-fn base_vectors(model: &api::Model, info: &turbo::turbo_model_info, texts: &[QualityText]) -> Result<Vec<Vec<f64>>> {
-    let d = info.dim as usize;
-    let session = model.session(info.max_batch, info.max_seq)?;
-    let o = api::options(0, 0);
-    let mut out = Vec::with_capacity(texts.len());
-    let mut buf = vec![0f32; info.max_batch as usize * d];
-    for chunk in texts.chunks(info.max_batch as usize) {
-        let t: Vec<&str> = chunk.iter().map(|q| q.text.as_str()).collect();
-        session.texts(&t, &o, &mut buf[..t.len() * d])?;
-        out.extend(buf[..t.len() * d].chunks_exact(d).map(|v| v.iter().map(|&x| x as f64).collect()));
-    }
-    Ok(out)
-}
-
-/// A text's ids for the static model, from the base tokenizer, as
-/// a static model takes them: the text cut to `max_length` times the median
-/// entry length in characters, encoded with no special tokens and cut to
-/// `max_length` tokens, then the unknown token dropped.
-fn static_ids(tok: &Tokenizer, median: usize, text: &str, max_length: u32) -> Result<Vec<i32>> {
-    let cut: String = text.chars().take(max_length as usize * median).collect();
-    let e = Encode {
-        add_special_tokens: false,
-        truncation: Truncation::Right,
-        max_tokens: max_length,
-        prompt: PromptRole::None,
-    };
-    let mut ids = tok.encode(&cut, e).map_err(|e| e.message)?;
-    ids.retain(|&id| id != tok.unk_id);
-    Ok(ids)
-}
 
 /// Seal a staged bundle: the table's report fills `static_embedding` and
 /// the artifact's `produced_by`, and the tool writes the reference
@@ -388,6 +382,7 @@ pub fn seal(recipe: &mut Recipe, bundle: &Path) -> Result<()> {
     let m = &mut recipe.manifest;
     m["static_embedding"]["distilled_from"] = table_report["distilled_from"].clone();
     m["static_embedding"]["quality"] = table_report["quality"].clone();
+    m["static_embedding"]["vocab_size"] = table_report["vocab_size"].clone();
     let mut pb = json!({});
     for key in ["tool", "tool_version", "container", "args", "reproducible"] {
         pb[key] = table_report[key].clone();
