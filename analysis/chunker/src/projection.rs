@@ -4,7 +4,7 @@
 //!
 //! The projection is computed in `f64` over the non-empty rows only:
 //! mean-centering, then the leading eigenvectors of the covariance by
-//! cyclic Jacobi rotations. When there are fewer rows than dimensions
+//! Householder tridiagonalization and implicit QL (`eigen.rs`). When there are fewer rows than dimensions
 //! (the usual case: tens to hundreds of chunks at 384 to 1024
 //! dimensions), the eigendecomposition runs on the `[m, m]` Gram
 //! matrix instead and the coordinates come from its eigenvectors
@@ -21,6 +21,9 @@
 //! to keep.
 
 use std::marker::PhantomData;
+
+mod eigen;
+use eigen::symmetric_eigen;
 
 use turbo_analysis::math::{dot_f64, sum_sq_f64};
 use turbo_analysis::{Ix, Layer, ModelRef};
@@ -197,7 +200,7 @@ fn covariance_basis(centred: &[f64], m: usize, d: usize) -> (Vec<f64>, Vec<f64>,
             cov[j * d + i] = v;
         }
     }
-    let (values, vecs) = jacobi(&mut cov, d);
+    let (values, vecs) = symmetric_eigen(&cov, d);
     let mut order: Vec<usize> = (0..d).collect();
     order.sort_by(|&a, &b| values[b].total_cmp(&values[a]).then(a.cmp(&b)));
     let keep = 3.min(d);
@@ -224,7 +227,7 @@ fn dual_basis(centred: &[f64], m: usize, d: usize) -> (Vec<f64>, Vec<f64>, Vec<f
             gram[j * m + i] = v;
         }
     }
-    let (values, vecs) = jacobi(&mut gram, m);
+    let (values, vecs) = symmetric_eigen(&gram, m);
     let mut order: Vec<usize> = (0..m).collect();
     order.sort_by(|&a, &b| values[b].total_cmp(&values[a]).then(a.cmp(&b)));
     let mut signs = vec![1.0f64; 3];
@@ -244,52 +247,6 @@ fn dual_basis(centred: &[f64], m: usize, d: usize) -> (Vec<f64>, Vec<f64>, Vec<f
         }
     }
     (values, vecs, signs)
-}
-
-/// Eigenvalues and eigenvectors (as columns) of the symmetric matrix
-/// `a` by cyclic Jacobi rotations, in fixed sweep order. `a` is
-/// overwritten. The same rotation sequence the bundle distiller uses.
-fn jacobi(a: &mut [f64], n: usize) -> (Vec<f64>, Vec<f64>) {
-    let mut v = vec![0f64; n * n];
-    for i in 0..n {
-        v[i * n + i] = 1.0;
-    }
-    let norm: f64 = a.iter().map(|x| x * x).sum::<f64>().sqrt();
-    for _sweep in 0..100 {
-        let off: f64 = (0..n).flat_map(|p| (p + 1..n).map(move |q| (p, q))).map(|(p, q)| a[p * n + q].powi(2)).sum();
-        if off.sqrt() <= 1e-15 * norm {
-            break;
-        }
-        for p in 0..n {
-            for q in p + 1..n {
-                let apq = a[p * n + q];
-                if apq.abs() <= 1e-300 {
-                    continue;
-                }
-                let (app, aqq) = (a[p * n + p], a[q * n + q]);
-                let theta = (aqq - app) / (2.0 * apq);
-                let t = if theta == 0.0 { 1.0 } else { theta.signum() / (theta.abs() + (theta * theta + 1.0).sqrt()) };
-                let c = 1.0 / (t * t + 1.0).sqrt();
-                let s = t * c;
-                for k in 0..n {
-                    let (akp, akq) = (a[k * n + p], a[k * n + q]);
-                    a[k * n + p] = c * akp - s * akq;
-                    a[k * n + q] = s * akp + c * akq;
-                }
-                for k in 0..n {
-                    let (apk, aqk) = (a[p * n + k], a[q * n + k]);
-                    a[p * n + k] = c * apk - s * aqk;
-                    a[q * n + k] = s * apk + c * aqk;
-                }
-                for k in 0..n {
-                    let (vkp, vkq) = (v[k * n + p], v[k * n + q]);
-                    v[k * n + p] = c * vkp - s * vkq;
-                    v[k * n + q] = s * vkp + c * vkq;
-                }
-            }
-        }
-    }
-    ((0..n).map(|i| a[i * n + i]).collect(), v)
 }
 
 #[cfg(test)]

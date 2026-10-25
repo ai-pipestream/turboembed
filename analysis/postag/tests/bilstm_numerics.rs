@@ -47,12 +47,7 @@ fn config_hash_separates_the_numerics_and_repeats() {
     assert_ne!(packed.config_hash(), other.config_hash());
     // The same in every run and build: FNV-1a, no random state.
     let sha = packed.model().model_ref().sha256.clone();
-    let fnv = |tag: &[u8]| {
-        [tag, b"\0", sha.as_bytes()]
-            .into_iter()
-            .flatten()
-            .fold(0xcbf2_9ce4_8422_2325u64, |h, &b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3))
-    };
+    let fnv = |tag: &[u8]| turbo_analysis::Fnv1a::new().bytes(tag).bytes(b"\0").bytes(sha.as_bytes()).finish();
     assert_eq!((packed.config_hash(), parity.config_hash()), (fnv(b"packed"), fnv(b"jvm-parity")));
 }
 

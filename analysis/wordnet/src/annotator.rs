@@ -118,34 +118,25 @@ fn relation_code(source: &ExpansionSource) -> u8 {
 
 // Resource contents are immutable; sort and hash them once during construction.
 fn configuration_hash(lexicon_id: &str, options: WordNetOptions, exceptions: Option<&MorphyExceptions>) -> u64 {
-    const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
-    const FNV_PRIME: u64 = 0x0100_0000_01b3;
     let o = &options;
-    let mut h = FNV_OFFSET;
-    let fields = [o.max_senses as u64, o.hypernym_depth as u64, u64::from(o.include_hyponyms), o.max_expansions as u64];
-    let mut mix = |bytes: &[u8]| {
-        for &b in bytes {
-            h = (h ^ u64::from(b)).wrapping_mul(FNV_PRIME);
-        }
-    };
-    mix(lexicon_id.as_bytes());
-    for field in fields {
-        mix(&field.to_le_bytes());
-    }
+    let mut h = turbo_analysis::Fnv1a::new();
+    // Preserve the unframed lexicon id and eight-byte option widths,
+    // including the boolean, from the persisted configuration stream.
+    h.bytes(lexicon_id.as_bytes())
+        .u64(o.max_senses as u64)
+        .u64(o.hypernym_depth as u64)
+        .u64(u64::from(o.include_hyponyms))
+        .u64(o.max_expansions as u64);
     if let Some(exceptions) = exceptions {
-        mix(b"morphy-exceptions-v1");
+        h.bytes(b"morphy-exceptions-v1");
         exceptions.visit_entries(|pos, form, bases| {
-            mix(&[pos.code() as u8]);
-            mix(&(form.len() as u64).to_le_bytes());
-            mix(form.as_bytes());
-            mix(&(bases.len() as u64).to_le_bytes());
+            h.u8(pos.code() as u8).str(form).u64(bases.len() as u64);
             for base in bases {
-                mix(&(base.len() as u64).to_le_bytes());
-                mix(base.as_bytes());
+                h.str(base);
             }
         });
     }
-    h ^ u64::from(exceptions.is_some())
+    h.finish() ^ u64::from(exceptions.is_some())
 }
 
 impl<L: LexicalKnowledgeBase + Send + Sync + 'static> Annotator for WordNetAnnotator<L> {

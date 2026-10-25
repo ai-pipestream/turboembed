@@ -3,6 +3,8 @@ use std::{collections::HashSet, env, fs, hint::black_box, io::Cursor, time::Inst
 use turbo_tokenize::UnigramMode;
 use turbo_tokenize::{UnigramLexicon, UnigramSegmenter, WhitespaceMode, unigram::Scratch};
 
+mod output_hash;
+
 fn main() {
     let args: Vec<_> = env::args().collect();
     let dict = fs::read(&args[1]).unwrap();
@@ -40,7 +42,7 @@ fn main() {
         let mut spans = Vec::new();
         for (which, name) in names.iter().enumerate() {
             let mut words = Vec::new();
-            let mut hash = 0xcbf29ce484222325_u64;
+            let mut hash = turbo_analysis::Fnv1a::new().finish();
             for line in raw.lines() {
                 let tokens: Vec<_> = if let Some(model) = models.get(which) {
                     spans.clear();
@@ -62,12 +64,7 @@ fn main() {
                         jieba_words(&jieba, line, which == names.len() - 1)
                     }
                 };
-                for token in &tokens {
-                    for b in token.len().to_le_bytes().into_iter().chain(token.bytes()) {
-                        hash = (hash ^ u64::from(b)).wrapping_mul(0x100000001b3);
-                    }
-                }
-                hash = (hash ^ 255).wrapping_mul(0x100000001b3);
+                hash = output_hash::feed_line(hash, &tokens);
                 words.extend(tokens);
             }
             assert_eq!(words.concat(), gold.split_whitespace().collect::<String>());

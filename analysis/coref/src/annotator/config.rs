@@ -16,7 +16,9 @@ fn types(h: &mut Fnv, types: &[String]) {
     let mut sorted: Vec<&str> = types.iter().map(String::as_str).collect();
     sorted.sort_unstable();
     h.write_u64(sorted.len() as u64);
-    sorted.iter().for_each(|t| h.str(t));
+    sorted.iter().for_each(|t| {
+        h.str(t);
+    });
 }
 
 pub(super) fn hash(a: &CorefAnnotator) -> u64 {

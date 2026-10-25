@@ -133,10 +133,6 @@ impl<A: WordOrTokenAnchor> Annotator for RelationPathAnnotator<A> {
             None => (0u8, 0u64),
             Some(cap) => (1u8, cap as u64),
         };
-        let mut hash = 0xcbf29ce484222325u64;
-        for byte in std::iter::once(discriminant).chain(cap.to_le_bytes()) {
-            hash = (hash ^ u64::from(byte)).wrapping_mul(0x100000001b3);
-        }
-        hash
+        turbo_analysis::Fnv1a::new().u8(discriminant).u64(cap).finish()
     }
 }

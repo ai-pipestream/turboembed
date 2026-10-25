@@ -428,38 +428,32 @@ impl KnowledgeBase {
 
     /// Computes a deterministic 64-bit FNV-1a content fingerprint over the catalog.
     pub fn fingerprint(&self) -> u64 {
-        const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
-        const PRIME: u64 = 0x0000_0100_0000_01b3;
-        let mix = |mut h: u64, bytes: &[u8]| -> u64 {
-            for &b in bytes {
-                h ^= u64::from(b);
-                h = h.wrapping_mul(PRIME);
-            }
-            h ^= 0xff;
-            h.wrapping_mul(PRIME)
-        };
-        let mut h = mix(OFFSET, self.provider_id.as_bytes());
-        h = mix(h, &(self.entities.len() as u64).to_le_bytes());
+        fn mix(h: &mut turbo_analysis::Fnv1a, bytes: &[u8]) {
+            h.bytes(bytes).bytes(&[0xff]);
+        }
+        let mut h = turbo_analysis::Fnv1a::new();
+        mix(&mut h, self.provider_id.as_bytes());
+        mix(&mut h, &(self.entities.len() as u64).to_le_bytes());
         for ent in &self.entities {
-            h = mix(h, ent.id.as_bytes());
-            h = mix(h, ent.name.as_bytes());
-            h = mix(h, &ent.popularity_prior.to_bits().to_le_bytes());
+            mix(&mut h, ent.id.as_bytes());
+            mix(&mut h, ent.name.as_bytes());
+            mix(&mut h, &ent.popularity_prior.to_bits().to_le_bytes());
             for (alias, w) in &ent.aliases {
-                h = mix(h, alias.as_bytes());
-                h = mix(h, &w.to_bits().to_le_bytes());
+                mix(&mut h, alias.as_bytes());
+                mix(&mut h, &w.to_bits().to_le_bytes());
             }
             for t in &ent.entity_types {
-                h = mix(h, t.as_bytes());
+                mix(&mut h, t.as_bytes());
             }
-            h = mix(h, ent.description.as_bytes());
+            mix(&mut h, ent.description.as_bytes());
             for rel in &ent.related_ids {
-                h = mix(h, rel.as_bytes());
+                mix(&mut h, rel.as_bytes());
             }
         }
         if let Some(vi) = &self.vector_index {
-            h = mix(h, &(vi.len() as u64).to_le_bytes());
-            h = mix(h, &(vi.space().dim as u64).to_le_bytes());
+            mix(&mut h, &(vi.len() as u64).to_le_bytes());
+            mix(&mut h, &(vi.space().dim as u64).to_le_bytes());
         }
-        h
+        h.finish()
     }
 }

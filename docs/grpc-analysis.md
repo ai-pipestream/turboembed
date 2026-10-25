@@ -21,6 +21,13 @@ own file; generate a client from it in any language with gRPC.
 | `RoundTripChunkLevels` | The message, validated, unchanged. |
 | `RoundTripDocumentGraph` | The document, imported and re-exported, with its layers and views listed. |
 | `AnalyzeStream` | Bulk document analysis over one bidirectional stream. |
+| `InspectDocumentWindow` | Viewport segments, chips, heatmaps and optional normalization differences. |
+| `ProjectChunks` | Vector projection, term stacks and optional drift/strategy comparisons. |
+| `ListOutputFormats` | The standard document formatter descriptors. |
+| `FormatDocument` | A binary document graph exported in a requested format. |
+
+See [inspection, projection and export RPCs](grpc-inspect.md) for their
+request fields, limits and output semantics.
 
 Span offsets cross in the unit a message names (`OffsetMode` on
 `ChunkLevelsResult`, `SparseTermsResult`, `TokenVectorsResult`, and

@@ -179,3 +179,20 @@ fn lexical_layer_rejects_nonfinite_weights_and_character_splits() {
     );
     assert!(doc.add(&Key::DEFAULT, layer, Provenance::by("test:split")).is_err());
 }
+
+#[test]
+fn canonical_hasher_preserves_framed_morphy_identity_and_replacement() {
+    let exceptions = MorphyExceptions::from_map(HashMap::from([
+        (WordNetPos::Verb, HashMap::from([("went".into(), vec!["go".into()])])),
+        (
+            WordNetPos::Noun,
+            HashMap::from([("mice".into(), vec!["dog".into(), "cat".into()]), ("geese".into(), vec!["cat".into()])]),
+        ),
+    ]));
+    let annotator =
+        WordNetAnnotator::new(lexicon(), "é:词", WordNetOptions::default()).unwrap().with_morphy(exceptions);
+    // Fixed from #1303's original framed byte stream before the hasher migration.
+    assert_eq!(annotator.config_hash(), 8684690029536206153);
+    let replaced = annotator.with_morphy(MorphyExceptions::empty());
+    assert_eq!(replaced.config_hash(), 11483478524313537840);
+}

@@ -175,21 +175,16 @@ impl Annotator for PosTagger {
     /// FNV-1a over the tag format asked for, the beam size and the context
     /// cache size, the three settings a `POSTaggerME` is built with.
     fn config_hash(&self) -> u64 {
-        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-        let mut mix = |x: u64| {
-            for b in x.to_le_bytes() {
-                h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
-            }
-        };
-        mix(match self.model.requested_format() {
-            turbo_sequence::postag::PosTagFormat::Ud => 1,
-            turbo_sequence::postag::PosTagFormat::Penn => 2,
-            turbo_sequence::postag::PosTagFormat::Custom => 3,
-            turbo_sequence::postag::PosTagFormat::Unknown => 4,
-        });
-        mix(self.model.beam_size() as u64);
-        mix(self.model.context_cache_size() as u64);
-        h
+        turbo_analysis::Fnv1a::new()
+            .u64(match self.model.requested_format() {
+                turbo_sequence::postag::PosTagFormat::Ud => 1,
+                turbo_sequence::postag::PosTagFormat::Penn => 2,
+                turbo_sequence::postag::PosTagFormat::Custom => 3,
+                turbo_sequence::postag::PosTagFormat::Unknown => 4,
+            })
+            .u64(self.model.beam_size() as u64)
+            .u64(self.model.context_cache_size() as u64)
+            .finish()
     }
 }
 

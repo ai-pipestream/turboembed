@@ -7,11 +7,14 @@ pub mod api;
 pub mod capabilities;
 pub mod catalog;
 pub mod config;
+pub mod format;
 mod health;
 mod infer;
+pub mod inspect;
 mod kserve;
 pub mod offsets;
 pub mod results;
+pub mod search;
 pub mod sink;
 pub mod state;
 pub mod status;
@@ -28,6 +31,10 @@ pub mod proto {
     /// The analysis result layer (docs/grpc-analysis.md).
     pub mod result {
         tonic::include_proto!("turbo.result");
+    }
+    /// Hybrid search, index lifecycle, aliases, and collection drift (issue #1221).
+    pub mod search {
+        tonic::include_proto!("turbo.search");
     }
     /// The gRPC health checking protocol (`grpc.health.v1.Health`).
     pub mod health {
@@ -62,6 +69,7 @@ use crate::config::ModelConfig;
 use crate::proto::grpc_inference_service_server::GrpcInferenceServiceServer;
 use crate::proto::health::health_server::HealthServer;
 use crate::proto::result::analysis_service_server::AnalysisServiceServer;
+use crate::proto::search::turbo_search_service_server::TurboSearchServiceServer;
 use crate::proto::sink::turbo_sink_service_server::TurboSinkServiceServer;
 use crate::proto::training::turbo_catalog_service_server::TurboCatalogServiceServer;
 use crate::proto::vocabulary::turbo_vocabulary_service_server::TurboVocabularyServiceServer;
@@ -88,6 +96,7 @@ fn too_large<B>(mut r: http::Response<B>) -> http::Response<B> {
 /// analysis service adds and removes bundles while serving.
 pub struct Server {
     state: Arc<State>,
+    search_registry: Arc<search::SearchRegistry>,
     addr: SocketAddr,
     stop: Option<oneshot::Sender<()>>,
     task: JoinHandle<std::result::Result<(), tonic::transport::Error>>,
@@ -130,6 +139,13 @@ impl Server {
         let state = Arc::new(State::new(names, models));
         let kserve = GrpcInferenceServiceServer::new(kserve::Inference { state: state.clone() })
             .max_decoding_message_size(max_message_bytes);
+        let search_registry = Arc::new(search::SearchRegistry::new());
+        let search = TurboSearchServiceServer::new(search::SearchService {
+            state: state.clone(),
+            registry: search_registry.clone(),
+            admin: serve.admin,
+        })
+        .max_decoding_message_size(max_message_bytes);
         let health = HealthServer::new(health::HealthService { state: state.clone() })
             .max_decoding_message_size(max_message_bytes);
         let store = match &serve.vocabulary {
@@ -161,6 +177,7 @@ impl Server {
                 .layer(tower::util::MapResponseLayer::new(too_large))
                 .add_service(kserve)
                 .add_service(analysis)
+                .add_service(search)
                 .add_service(health)
                 .add_service(vocabulary)
                 .add_service(catalog)
@@ -169,7 +186,13 @@ impl Server {
                     let _ = stopped.await;
                 }),
         );
-        Ok(Server { state, addr, stop: Some(stop), task, sink })
+        Ok(Server { state, search_registry, addr, stop: Some(stop), task, sink })
+    }
+
+    /// Configures the directory within which `PersistIndex` and
+    /// `CreateIndex.load_from_path` read and write plain snapshot file names.
+    pub fn set_search_snapshot_dir(&self, dir: impl Into<std::path::PathBuf>) {
+        self.search_registry.set_snapshot_dir(dir.into());
     }
 
     pub fn local_addr(&self) -> SocketAddr {
