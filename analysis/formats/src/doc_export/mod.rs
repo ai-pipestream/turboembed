@@ -368,9 +368,7 @@ pub(crate) fn get_bound_layer<L: Layer>(
         return Ok(None);
     };
     let on = doc.made_on(key.id());
-    if let Some(&actual) = on.iter().find(|k| k.ty == expected_anchor.ty)
-        && actual != expected_anchor
-    {
+    if let Some(&actual) = on.iter().find(|k| k.ty == expected_anchor.ty && **k != expected_anchor) {
         return Err(FormatExportError::InvalidData(format!(
             "layer {} is bound to {}, expected {}",
             key.id(),
