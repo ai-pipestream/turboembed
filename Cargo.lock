@@ -2341,6 +2341,7 @@ dependencies = [
  "turbo-glossary-layers",
  "turbo-group",
  "turbo-keywords",
+ "turbo-normalize",
  "turbo-normalize-layers",
  "turbo-relation",
  "turbo-schema-extract",
