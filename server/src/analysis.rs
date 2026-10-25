@@ -15,11 +15,13 @@ use crate::kserve::Reply;
 use crate::proto::result::analysis_service_server::AnalysisService;
 use crate::proto::result::{
     AnalyzeStreamRequest, CapabilitiesRequest, CapabilitiesResponse, ChunkLevelsResult, DocumentGraphRequest,
-    DocumentGraphResponse, ExtractionResult, LoadBundleRequest, LoadBundleResponse, RerankScoresResult,
+    DocumentGraphResponse, ExtractionResult, LoadBundleRequest, LoadBundleResponse, RecordsResult, RerankScoresResult,
     SparseTermsResult, TokenVectorsResult, UnloadBundleRequest, UnloadBundleResponse,
 };
 use crate::results::Wire;
-use crate::results::{extraction::Extraction, layers::ChunkLevels, rerank::RerankScores, tokens::TokenVectors};
+use crate::results::{
+    extraction::Extraction, layers::ChunkLevels, records::RecordSet, rerank::RerankScores, tokens::TokenVectors,
+};
 use crate::state::{Loaded, State};
 use crate::status::to_status;
 use crate::stream;
@@ -31,6 +33,8 @@ pub(crate) struct Analysis {
     /// Whether the admin calls, LoadBundle and UnloadBundle, are served
     /// (the server's --admin flag, off by default).
     pub(crate) admin: bool,
+    /// Where completed stream documents are forwarded, when anywhere.
+    pub(crate) sink: Option<Arc<crate::sink::SinkForwarder>>,
 }
 
 fn plain(f: Failure) -> Status {
@@ -92,7 +96,7 @@ impl AnalysisService for Analysis {
             loaded.map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("the load's task failed: {e}"))))?;
         if let Err(e) = loaded {
             let _ = self.state.remove_if(&registered);
-            return Err(Status::internal(e));
+            return Err(e.to_status());
         }
         let l: Arc<Loaded> = registered.loaded.get().cloned().ok_or_else(|| {
             plain(Failure::new(TURBO_E_INVALID_STATE, 0, format!("model {} is not loaded yet", registered.name)))
@@ -126,6 +130,10 @@ impl AnalysisService for Analysis {
         round_trip::<_, Extraction>(req)
     }
 
+    async fn round_trip_records(&self, req: Request<RecordsResult>) -> Reply<RecordsResult> {
+        round_trip::<_, RecordSet>(req)
+    }
+
     async fn round_trip_chunk_levels(&self, req: Request<ChunkLevelsResult>) -> Reply<ChunkLevelsResult> {
         round_trip::<_, ChunkLevels>(req)
     }
@@ -144,6 +152,6 @@ impl AnalysisService for Analysis {
         &self,
         req: Request<tonic::Streaming<AnalyzeStreamRequest>>,
     ) -> Reply<Self::AnalyzeStreamStream> {
-        crate::stream::handler::start(self.state.clone(), req.into_inner()).await
+        crate::stream::handler::start(self.state.clone(), req.into_inner(), self.sink.clone()).await
     }
 }

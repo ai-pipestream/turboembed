@@ -7,7 +7,8 @@ use crate::engine::{Build, Ctx, Dim, Item, Kind, Rule, glued, glued_if, glued_wo
 use crate::lang::en::{NUM, NUMERAL, SCALE};
 use crate::unit::currency::{CODES, code};
 use crate::unit::{
-    Age, Angle, Area, CurrencyUnit, Generic, Information, Length, Minor, Per, Speed, Temperature, Unit, Volume, Weight,
+    Age, Angle, Area, CurrencyUnit, Generic, Information, Length, Minor, Per, Rate, Speed, Temperature, Unit, Volume,
+    Weight,
 };
 use crate::value::{Num, NumKind, Quantity, Value, flag};
 

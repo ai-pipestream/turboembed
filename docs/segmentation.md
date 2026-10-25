@@ -958,6 +958,11 @@ include inputs on which every model splits inside U+1F600.
 
 ### `UnigramSegmenter` (Chinese)
 
+The default now groups ASCII letter/digit runs; optional BMES and explicit
+OpenNLP modes are documented in [Chinese unigram evaluation](unigram-chinese.md),
+with current PKU/MSR accuracy and a matched jieba-rs speed record. The Java
+port details and older measurements below describe `UnigramMode::OpenNlp`.
+
 `opennlp.tools.tokenize.lattice.UnigramSegmenter`
 (`turbo_tokenize::unigram`): dictionary and frequency segmentation for
 Chinese and other text written without spaces. It reads a `View` and an
@@ -1081,7 +1086,7 @@ computed from the end of the sentence, keeps `手牵着|手`. The port keeps
 OpenNLP's behaviour in both; grouping such runs would be a change to
 OpenNLP.
 
-Speed is not measured here: no matched benchmark against jieba-rs is
+The historical run below did not measure speed: no matched benchmark against jieba-rs was
 committed, so this section makes no speed claim (AGENTS.md, rule 7).
 
 ### `LatticeTokenizer` (Japanese, Korean)
@@ -1301,7 +1306,7 @@ Apache-2.0). Neither is a dependency, and no code was taken from either.
 | Input | MeCab source directory: `*.csv`, `matrix.def`, `char.def`, `unk.def` | MeCab source directory, with a `metadata.json` per dictionary that names its columns, encoding and options | MeCab source files, given as readers (the lexicon as one concatenated `lex.csv`) |
 | Encodings | UTF-8 only (IPADIC from a UTF-8 copy) | any `encoding_rs` encoding the metadata names | UTF-8 |
 | MeCab's compiled `sys.dic`, `matrix.bin`, `char.bin`, `unk.dic` | not read | not read | not read |
-| Own compiled format | none: the source is parsed at load | yes (built with `rkyv`) | yes (built with `bincode`) |
+| Own compiled format | versioned shared runtime tables; see [prebuilt dictionaries](lattice-prebuilt.md) | yes (built with `rkyv`) | yes (built with `bincode`) |
 | Dictionaries packaged | none | IPADIC, IPADIC-NEologd, UniDic 2.1.2 (from the source distribution), mecab-ko-dic, CC-CEDICT, Jieba, SudachiDict | none in the crate |
 | Feature columns | the string; typed readings via `DictionaryFormat` | the string, and named fields from `metadata.json` (`token.get("reading")`) | the string |
 | Origin | a port of OpenNLP's `LatticeTokenizer`, checked against JVM goldens | a fork of kuromoji-rs | its own, with options for MeCab-compatible output |
@@ -1335,7 +1340,8 @@ the source, so no golden covers the compiled path. The entries of one
 surface are in the order `mecab-dict-index` wrote them, and that order
 decides ties, so a compiled dictionary could segment differently from
 its source here without any test noticing. The source distributions
-remain the input, and `unidic-mecab-2.1.2` is fetched by
+remain the compiler input for the [prebuilt format](lattice-prebuilt.md),
+and `unidic-mecab-2.1.2` is fetched by
 `turbo-goldens fetch-models` and checked in the lattice goldens.
 
 #### Throughput

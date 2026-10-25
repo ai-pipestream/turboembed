@@ -11,8 +11,11 @@ fn the_catalogue_names_pinned_recipes() {
             assert!(r.manifest.get("rerank").is_some(), "{id}");
             assert_eq!(r.manifest["classifier"]["labels"].as_array().unwrap().len(), 1);
             assert!(r.manifest["reference"]["produced_by"]["container"].as_str().unwrap().contains("@sha256:"));
+        } else if r.manifest.get("static_embedding").is_none() {
+            // A dense encoder: its reference comes from the pinned container.
+            assert_eq!(r.manifest["task"], "TASK_EMBED", "{id}");
+            assert!(r.manifest["reference"]["produced_by"]["container"].as_str().unwrap().contains("@sha256:"));
         } else {
-            assert!(r.manifest.get("static_embedding").is_some(), "{id}");
             assert!(r.upstream.iter().all(|u| u.sha256.is_some()), "{id}: every file pinned");
             assert_eq!(r.manifest["static_embedding"]["max_length"], 512, "{id}");
             assert_eq!(r.manifest["embed"]["normalize"], "NORMALIZE_L2", "{id}");

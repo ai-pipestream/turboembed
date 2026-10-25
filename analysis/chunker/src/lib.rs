@@ -18,23 +18,29 @@ pub mod cascade;
 pub mod clauses;
 mod cohesion;
 pub mod coref;
+mod discourse;
+pub mod discourse_graph;
 mod drift;
 pub mod entity;
 pub mod expand;
 mod gaps;
 mod hashes;
 pub mod late;
+mod lexical;
 mod limits;
 pub mod multirep;
 mod optimizer;
 mod providers;
 mod run;
+mod text_signals;
 mod trace;
 pub use optimizer::{DecisionMargin, SegmentTrace, segment_with_trace};
 pub use trace::ChunkTrace;
 pub mod rechunk;
 pub mod route;
 pub mod scorer;
+pub mod strategy;
+pub use strategy::{ChunkStrategy, StrategyMatrix, StrategySummary};
 mod sentiment;
 mod sums;
 mod weigh;
@@ -51,6 +57,8 @@ pub use coref::{
     CorefCohesion, CorefLink, Gender, MentionKind, MentionOrigin, Mentions, Number, Person, ResolvedMention,
     chunk_antecedents, coref_boundaries, coref_boundaries_from_chains, extract_chains,
 };
+pub use discourse::{DISCOURSE, DiscourseBoundaries, DiscourseLanguage};
+pub use discourse_graph::DiscourseAnnotator;
 pub use drift::{Drift, DriftBoundaries, Score, drift};
 pub use entity::{
     ChunkEntities, ChunkEntityHeaders, EntityBoundaries, EntityContinuity, EntityKeys, HeaderPolicy, Keying,
@@ -59,6 +67,7 @@ pub use entity::{
 pub use expand::{ExpandedHit, ExpansionPolicy, ParentExpander, ScoreAggregation, unit_tokens};
 pub use hashes::{ChunkId, ContentHashBuilder, ContentHashes, LevelHashBuilder};
 pub use late::{LateChunkAnnotator, Pooling, WindowPolicy};
+pub use lexical::{LEXICAL, LexicalBoundaries, LexicalForm};
 pub use multirep::{ChunkRepresentation, MultiRepChunkIndex, RepHit, RepresentationKind};
 pub use providers::{
     ClauseCutProvider, CorefBoundariesProvider, DistilledBoundariesProvider, DriftProvider, EntityBoundariesProvider,
@@ -73,6 +82,7 @@ pub use sentiment::{
     sentiment_shift,
 };
 pub use sums::{Rows, Sums};
+pub use text_signals::WeighTextBoundaries;
 pub use turbo_analysis_layers::TokenVectorWindows;
 pub use weigh::{
     COREF, DRIFT, ENTITY, SENTIMENT, STRUCTURE, WeighAllBoundaries, WeighBoundaries, Weight, weigh, weigh_with_coref,

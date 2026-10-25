@@ -1,4 +1,4 @@
-use turbo_analysis::{Alternatives, Anchor, Ix, IxRange, Key, KeyId, Layer, ModelRef, Overlap, Spans, SplitMode};
+use turbo_analysis::{Alternatives, Anchor, Ix, IxRange, Key, KeyId, Layer, ModelRef, Overlap, Spans, SplitMode, View};
 
 /// Document structure from the parser upstream or a structure annotator:
 /// sections, headings, lists, tables, code, as a tree.
@@ -16,6 +16,7 @@ pub enum Block {
     Section,
     Heading,
     Paragraph,
+    /// A tight list. See `list_tightness` for both list variants.
     List,
     ListItem,
     Table,
@@ -27,6 +28,21 @@ pub enum Block {
     Footnote,
     PageHeader,
     PageFooter,
+    /// A list with blank lines between items or item blocks.
+    LooseList,
+    /// A raw HTML block; its contents are not parsed as Markdown.
+    Html,
+}
+
+impl Block {
+    /// The list tightness flag, or `None` for a non-list block.
+    pub fn list_tightness(self) -> Option<bool> {
+        match self {
+            Self::List => Some(true),
+            Self::LooseList => Some(false),
+            _ => None,
+        }
+    }
 }
 
 impl Layer for Structure {
@@ -73,6 +89,14 @@ pub struct Sentences {
     pub spans: Spans<Sentences>,
 }
 
+impl Sentences {
+    /// Validates ordered, non-overlapping, contiguous UTF-8 spans in `view`.
+    /// Use before algorithms that slice each sentence's envelope.
+    pub fn check_contiguous_in(&self, view: &View) -> Result<(), String> {
+        check_contiguous_spans(&self.spans, view, "sentences", Overlap::None)
+    }
+}
+
 impl Layer for Sentences {
     const ID: &'static str = "opennlp:sentences";
     positional!(Sentences);
@@ -95,12 +119,62 @@ pub struct Tokens {
 }
 
 impl Tokens {
+    /// Validates columns and ordered, non-overlapping, contiguous UTF-8 spans
+    /// in `view`. Algorithms that require disjoint tokens use this stricter
+    /// check; the layer itself also permits overlapping UTF-16 token mappings.
+    pub fn check_contiguous_in(&self, view: &View) -> Result<(), String> {
+        self.check()?;
+        check_contiguous_spans(&self.spans, view, "tokens", Overlap::None)
+    }
+
+    /// Validates columns and contiguous UTF-8 bounds while retaining the
+    /// layer's permitted overlapping or duplicated UTF-16 token mappings.
+    /// Per-token algorithms need these bounds without a disjointness rule.
+    pub fn check_contiguous_bounds_in(&self, view: &View) -> Result<(), String> {
+        self.check()?;
+        check_contiguous_spans(&self.spans, view, "tokens", Self::OVERLAP)
+    }
+
     /// The tokens of one sentence: a binary search, no scan.
     pub fn of(&self, s: Ix<Sentences>) -> IxRange<Tokens> {
         let col = self.sentence.as_deref().expect("tokens made per sentence");
         let a = col.partition_point(|&x| x < s);
         let b = a + col[a..].partition_point(|&x| x == s);
         IxRange::new(a as u32, b as u32)
+    }
+
+    /// The tokens of one sentence, with or without the sentence
+    /// column: the column when populated, else a binary search
+    /// over the token spans inside the sentence's span. Never
+    /// panics, unlike [`Tokens::of`].
+    pub fn in_sentence(&self, sentences: &Sentences, s: Ix<Sentences>) -> IxRange<Tokens> {
+        match &self.sentence {
+            Some(_) => self.of(s),
+            None => self.spans.within(sentences.spans.get(s)),
+        }
+    }
+
+    /// Contiguous token runs by sentence: one `(sentence, range)`
+    /// per run of equal sentence indices, or a single
+    /// `(None, all)` run when the sentence column is absent.
+    pub fn sentence_ranges(&self) -> impl Iterator<Item = (Option<Ix<Sentences>>, IxRange<Tokens>)> + '_ {
+        let total = self.spans.len();
+        let mut at = 0usize;
+        std::iter::from_fn(move || {
+            if at >= total {
+                return None;
+            }
+            let (sent, end) = match &self.sentence {
+                Some(col) => {
+                    let s = col[at];
+                    (Some(s), at + col[at..].partition_point(|&x| x == s))
+                }
+                None => (None, total),
+            };
+            let range = IxRange::new(at as u32, end as u32);
+            at = end;
+            Some((sent, range))
+        })
     }
 
     /// The tokens of `mode`'s path through `alt`
@@ -153,6 +227,17 @@ pub struct Subwords {
 }
 
 impl Subwords {
+    /// The pieces of one word token, with or without the token
+    /// column: the column when populated, else a binary search
+    /// over the piece spans inside the token's span. Never
+    /// panics, unlike [`Subwords::of`].
+    pub fn in_token(&self, tokens: &Tokens, t: Ix<Tokens>) -> IxRange<Subwords> {
+        match &self.token {
+            Some(_) => self.of(t),
+            None => self.spans.within(tokens.spans.get(t)),
+        }
+    }
+
     /// The pieces of one word token: a binary search, no scan.
     pub fn of(&self, t: Ix<Tokens>) -> IxRange<Subwords> {
         let col = self.token.as_deref().expect("subwords made per token");
@@ -326,4 +411,23 @@ impl Layer for Chunks {
         self.spans.check(Self::OVERLAP)?;
         Ok(())
     }
+}
+
+fn check_contiguous_spans<L: Layer>(spans: &Spans<L>, view: &View, what: &str, overlap: Overlap) -> Result<(), String> {
+    if spans.view() != view.id() {
+        return Err(format!("the {what} are in another view"));
+    }
+    spans.check(overlap).map_err(|detail| {
+        if detail == "spans in text order, not overlapping" {
+            format!("the {what} are not in text order or overlap")
+        } else {
+            detail
+        }
+    })?;
+    for (ix, span) in spans.iter() {
+        if spans.is_discontinuous(ix) || view.text().get(span.range()).is_none() {
+            return Err(format!("{} span {ix:?} must be contiguous and within UTF-8 view bounds", L::ID));
+        }
+    }
+    Ok(())
 }

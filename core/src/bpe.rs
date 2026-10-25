@@ -13,7 +13,13 @@ use serde_json::Value;
 
 use crate::manifest;
 use crate::status::{Result, invalid};
-use crate::tokenizer::{Fx, LETTER, NUMBER, Sink, Span, category, trim_span};
+use crate::tokenizer::{Fx, Sink, Span, covering, trim_span};
+
+mod nfc;
+mod split;
+#[cfg(test)]
+use split::{Class, class};
+pub use split::{LLAMA3, QWEN2, split, split_digits};
 
 type Merges = HashMap<u64, (u32, u32), BuildHasherDefault<Fx>>;
 
@@ -29,6 +35,8 @@ pub struct Bpe {
     unk_id: u32,
     add_prefix_space: bool,
     ignore_merges: bool,
+    pattern: manifest::BpePattern,
+    nfc: bool,
 }
 
 const NONE: u32 = u32::MAX;
@@ -63,22 +71,8 @@ impl Bpe {
         if model["ignore_merges"].as_bool().unwrap_or(false) != m.ignore_merges {
             return Err(disagree("model.ignore_merges"));
         }
-        if !json["normalizer"].is_null() {
-            return Err(invalid(format!(
-                "{file}: normalizer is {}: the core runs byte-level BPE on the text as it is",
-                json["normalizer"]["type"]
-            )));
-        }
-        let pre = &json["pre_tokenizer"];
-        if pre["type"] != "ByteLevel" || !pre["use_regex"].as_bool().unwrap_or(true) {
-            return Err(invalid(format!(
-                "{file}: pre_tokenizer is {}: the core runs ByteLevel with GPT-2's pattern",
-                pre["type"]
-            )));
-        }
-        if pre["add_prefix_space"].as_bool().unwrap_or(true) != m.add_prefix_space {
-            return Err(disagree("pre_tokenizer.add_prefix_space"));
-        }
+        check_normalizer(file, &json["normalizer"], m.nfc)?;
+        check_pre_tokenizer(file, &json["pre_tokenizer"], m)?;
 
         let raw = model["vocab"].as_object().ok_or_else(|| invalid(format!("{file}: model.vocab is not an object")))?;
         let mut pieces = vec![None; raw.len()];
@@ -131,6 +125,8 @@ impl Bpe {
             unk_id,
             add_prefix_space: m.add_prefix_space,
             ignore_merges: m.ignore_merges,
+            pattern: m.pattern,
+            nfc: m.nfc,
         })
     }
 
@@ -150,6 +146,9 @@ impl Bpe {
     /// The ids of `piece`, the bytes of `text` from `base` on with no
     /// special token in them.
     pub(crate) fn encode<S: Sink>(&self, text: &str, base: usize, piece: &str, out: &mut S) {
+        if self.nfc && !nfc::is_nfc(piece) {
+            return self.encode_nfc(text, base, piece, out);
+        }
         // The space put in front comes from the character it is put
         // before; each byte from the character it is part of.
         let prefixed = self.add_prefix_space && !piece.starts_with(' ');
@@ -175,10 +174,22 @@ impl Bpe {
             // A space then the text's first character: the pattern reads
             // the two as it would in the text.
             let with = String::from_utf8(s).expect("a space and UTF-8");
-            split(&with, |a, b| each(a, &with.as_bytes()[a..b]));
+            split::words(self.pattern, &with, |a, b| each(a, &with.as_bytes()[a..b]));
         } else {
-            split(piece, |a, b| each(a, &piece.as_bytes()[a..b]));
+            split::words(self.pattern, piece, |a, b| each(a, &piece.as_bytes()[a..b]));
         }
+    }
+
+    /// `encode` for a piece NFC changes: each token's span covers the
+    /// sources of its normalized bytes. Never with a space put in front.
+    fn encode_nfc<S: Sink>(&self, text: &str, base: usize, piece: &str, out: &mut S) {
+        let (mut normalized, mut sources) = nfc::buffers();
+        nfc::aligned(piece, base, &mut normalized, S::SPANS.then_some(&mut sources));
+        let span = |from: usize, to: usize| covering(text, &sources[from..to]);
+        let mut word = Word::default();
+        let n = normalized.as_bytes();
+        split::words(self.pattern, &normalized, |a, b| self.word(&n[a..b], a, &span, &mut word, out));
+        nfc::keep(normalized, sources);
     }
 
     /// One word's pieces: the whole word when `ignore_merges` and it is a
@@ -214,6 +225,73 @@ impl Bpe {
             out.push(s.id as i32, || span(from + s.start as usize, from + s.end as usize));
         }
     }
+}
+
+/// The file's normalizer is the one the manifest says: NFC with `nfc`,
+/// else none.
+fn check_normalizer(file: &str, n: &Value, nfc: bool) -> Result<()> {
+    match (nfc, n["type"].as_str()) {
+        (false, _) if n.is_null() => Ok(()),
+        (true, Some("NFC")) => Ok(()),
+        (false, _) => Err(invalid(format!(
+            "{file}: normalizer is {}: manifest.json says the text is encoded as it is",
+            n["type"]
+        ))),
+        (true, _) => Err(invalid(format!("{file}: normalizer is {}, and manifest.json says NFC", n["type"]))),
+    }
+}
+
+/// The file's pre-tokenizer runs the pattern the manifest says: GPT-2's
+/// in ByteLevel itself, or Llama-3's or Qwen2's in a Split before a
+/// ByteLevel that splits nothing, which never puts a space in front.
+fn check_pre_tokenizer(file: &str, pre: &Value, m: &manifest::Bpe) -> Result<()> {
+    let disagree = |what: &str| invalid(format!("{file}: {what} is not what manifest.json says"));
+    let byte_level = match m.pattern {
+        manifest::BpePattern::Gpt2 => {
+            if pre["type"] != "ByteLevel" || !pre["use_regex"].as_bool().unwrap_or(true) {
+                return Err(invalid(format!(
+                    "{file}: pre_tokenizer is {}: manifest.json says ByteLevel with GPT-2's pattern",
+                    pre["type"]
+                )));
+            }
+            pre
+        }
+        p => {
+            let want = if p == manifest::BpePattern::Llama3 { LLAMA3 } else { QWEN2 };
+            let steps = pre["pretokenizers"].as_array().map(Vec::as_slice).unwrap_or_default();
+            let [split, byte_level] = steps else {
+                return Err(invalid(format!(
+                    "{file}: pre_tokenizer is {}: manifest.json says a Sequence of a Split and a ByteLevel",
+                    pre["type"]
+                )));
+            };
+            if pre["type"] != "Sequence"
+                || split["type"] != "Split"
+                || split["behavior"] != "Isolated"
+                || split["invert"] != false
+                || byte_level["type"] != "ByteLevel"
+                || byte_level["use_regex"] != false
+            {
+                return Err(invalid(format!(
+                    "{file}: pre_tokenizer: manifest.json says a Split (Isolated, not inverted) then a ByteLevel \
+                     without use_regex"
+                )));
+            }
+            if split["pattern"]["Regex"] != want {
+                return Err(disagree("pre_tokenizer's Split pattern"));
+            }
+            byte_level
+        }
+    };
+    if byte_level["add_prefix_space"].as_bool().unwrap_or(true) != m.add_prefix_space {
+        return Err(disagree("pre_tokenizer.add_prefix_space"));
+    }
+    if m.add_prefix_space && (m.nfc || m.pattern != manifest::BpePattern::Gpt2) {
+        return Err(invalid(format!(
+            "{file}: add_prefix_space: the core puts a space in front only for GPT-2's pattern without NFC"
+        )));
+    }
+    Ok(())
 }
 
 fn key(l: u32, r: u32) -> u64 {
@@ -380,99 +458,6 @@ impl Word {
             }
         }
         self.symbols.retain(|s| s.end != 0);
-    }
-}
-
-/// What the pattern sees a character as.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Class {
-    Space,
-    Letter,
-    Number,
-    Other,
-}
-
-fn class(c: char) -> Class {
-    if c.is_ascii() {
-        return match c {
-            'a'..='z' | 'A'..='Z' => Class::Letter,
-            '0'..='9' => Class::Number,
-            '\t' | '\n' | '\x0b' | '\x0c' | '\r' | ' ' => Class::Space,
-            _ => Class::Other,
-        };
-    }
-    if c.is_whitespace() {
-        Class::Space
-    } else if category(c, LETTER) {
-        Class::Letter
-    } else if category(c, NUMBER) {
-        Class::Number
-    } else {
-        Class::Other
-    }
-}
-
-/// GPT-2's pattern, `'s|'t|'re|'ve|'m|'ll|'d| ?\p{L}+| ?\p{N}+|
-/// ?[^\s\p{L}\p{N}]+|\s+(?!\S)|\s+`, as upstream matches it: `word(start,
-/// end)` for each match, which together cover the text. Public so that a
-/// trainer cuts its corpus into the words this encoder merges.
-pub fn split(s: &str, mut word: impl FnMut(usize, usize)) {
-    let b = s.as_bytes();
-    let at = |i: usize| s[i..].chars().next().expect("inside the text");
-    // The end of the run of `class` from i.
-    let run = |mut i: usize, k: Class| {
-        while i < b.len() {
-            let c = at(i);
-            if class(c) != k {
-                break;
-            }
-            i += c.len_utf8();
-        }
-        i
-    };
-    let mut i = 0;
-    while i < b.len() {
-        let c = at(i);
-        // A contraction.
-        if c == '\'' {
-            let rest = &b[i + 1..];
-            let len = if rest.starts_with(b"re") || rest.starts_with(b"ve") || rest.starts_with(b"ll") {
-                2
-            } else if matches!(rest.first(), Some(b's' | b't' | b'm' | b'd')) {
-                1
-            } else {
-                0
-            };
-            if len > 0 {
-                word(i, i + 1 + len);
-                i += 1 + len;
-                continue;
-            }
-        }
-        // An optional space, then a run of letters, numbers or others.
-        let j = if c == ' ' { i + 1 } else { i };
-        if j < b.len() {
-            let k = class(at(j));
-            if k != Class::Space {
-                let end = run(j, k);
-                word(i, end);
-                i = end;
-                continue;
-            }
-        }
-        // Whitespace: up to the last before a character that is not,
-        // unless that leaves none.
-        let end = run(i, Class::Space);
-        if end < b.len() {
-            let last = s[..end].chars().next_back().expect("a run of one at least").len_utf8();
-            if end - last > i {
-                word(i, end - last);
-                i = end - last;
-                continue;
-            }
-        }
-        word(i, end);
-        i = end;
     }
 }
 

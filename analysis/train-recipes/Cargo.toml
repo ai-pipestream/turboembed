@@ -44,3 +44,7 @@ turbo-zoo = { path = "../zoo" }
 # The model card, written as strict JSON as the gate record is.
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+
+[dev-dependencies]
+turbo-analysis-layers = { path = "../layers" }
+turbo-namefind = { path = "../namefind" }

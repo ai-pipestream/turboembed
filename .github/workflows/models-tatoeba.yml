@@ -30,6 +30,15 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request cancels the training still going on its
+# older head; a run by hand is never cancelled. The training job runs
+# on the runners TURBO_TRAIN_LINUX names, apart from the ci lanes so a
+# training run of up to three hours does not hold their runners;
+# publishing is hosted.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CARGO_TERM_COLOR: always
   # The release's tag and where its assets are published
@@ -47,7 +56,7 @@ env:
 
 jobs:
   tatoeba:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ github.event.pull_request.head.repo.fork != true && vars.TURBO_TRAIN_LINUX && fromJSON(vars.TURBO_TRAIN_LINUX) || 'ubuntu-24.04' }}
     timeout-minutes: 120
     permissions:
       contents: read

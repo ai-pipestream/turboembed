@@ -451,6 +451,19 @@ impl WordNetRelation {
         }
     }
 
+    /// The relation's code in `turbo_analysis_layers::LexicalExpansions`:
+    /// `1 +` its index in [`Self::ALL`], so 0 stays free for a synonym.
+    #[inline]
+    pub const fn layer_code(self) -> u8 {
+        self as u8 + 1
+    }
+
+    /// The relation a layer code names, or `None` for a synonym's 0 and
+    /// for a code past the last relation.
+    pub fn from_layer_code(code: u8) -> Option<Self> {
+        Self::ALL.get(usize::from(code).checked_sub(1)?).copied()
+    }
+
     /// Resolves a WN-LMF `relType` string, returning an error if unknown.
     pub fn try_from_lmf_name(lmf_name: &str) -> Result<Self, WordNetError> {
         Self::from_lmf_name(lmf_name)

@@ -84,9 +84,14 @@ fn model(bundle: &Path, name: Option<&str>, sessions: u32) -> ModelConfig {
 
 /// A server whose admin calls are served, for the load and unload tests.
 pub async fn serve() -> (Server, Analysis) {
-    let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model(&tiny(), None, 2)], MAX, Serve { admin: true })
-        .await
-        .unwrap();
+    let s = Server::start(
+        "127.0.0.1:0".parse().unwrap(),
+        vec![model(&tiny(), None, 2)],
+        MAX,
+        Serve { admin: true, ..Serve::default() },
+    )
+    .await
+    .unwrap();
     s.load().await.unwrap();
     // The client decodes answers up to the same message budget the server
     // decodes requests with: a refusal can carry an id bounded by the
@@ -196,6 +201,7 @@ pub fn load_req(name: &str, bundle: &str, sessions: u32, precision: u32) -> Load
         precision,
         max_batch: 0,
         max_seq: 0,
+        select_device: false,
     }
 }
 
@@ -226,7 +232,14 @@ pub fn stream_header(order: i32, max_inflight: u32, batch_linger_ms: u32) -> Ana
 /// One stream message: a document.
 pub fn stream_doc(id: &str, model: &str, text: &str, options: Option<AnalyzeOptions>) -> AnalyzeStreamRequest {
     AnalyzeStreamRequest {
-        kind: Some(Kind::Document(AnalyzeDocument { id: id.into(), model: model.into(), text: text.into(), options })),
+        kind: Some(Kind::Document(AnalyzeDocument {
+            id: id.into(),
+            model: model.into(),
+            text: text.into(),
+            options,
+            output: 0,
+            offsets: 0,
+        })),
     }
 }
 

@@ -129,16 +129,35 @@ impl Builder {
         }
         // Levels: a step runs once everything it reads that anything
         // writes exists; an optional input nothing writes is just absent.
+        // If two unscheduled steps form a cycle where one edge is optional
+        // (e.g. `TimeAnnotator` reading `Option<DocumentDate>` and
+        // `TimesDocumentDateSelector` reading `Times`), the cycle member
+        // whose required inputs are all ready runs first without its
+        // optional input, while steps outside the cycle wait for their
+        // optional producers.
         let mut level = vec![usize::MAX; self.steps.len()];
         let mut done: HashSet<KeyId> = self.given.iter().copied().collect();
         let mut stages = Vec::new();
         while level.contains(&usize::MAX) {
-            let ready: Vec<usize> = (0..self.steps.len())
+            let mut ready: Vec<usize> = (0..self.steps.len())
                 .filter(|&i| {
                     level[i] == usize::MAX
                         && self.steps[i].reads().iter().all(|r| done.contains(r) || !producer.contains_key(r))
                 })
                 .collect();
+            if ready.is_empty()
+                && let Some(cycle_member) = (0..self.steps.len()).find(|&i| {
+                    level[i] == usize::MAX
+                        && self.steps[i]
+                            .reads()
+                            .into_iter()
+                            .zip(self.steps[i].required())
+                            .all(|(r, req)| !req || done.contains(&r) || !producer.contains_key(&r))
+                        && on_optional_cycle(i, &self.steps, &level, &done, &producer)
+                })
+            {
+                ready.push(cycle_member);
+            }
             if ready.is_empty() {
                 let stuck: Vec<_> =
                     (0..self.steps.len()).filter(|&i| level[i] == usize::MAX).map(|i| self.steps[i].id()).collect();
@@ -151,5 +170,129 @@ impl Builder {
             stages.push(ready);
         }
         Ok(Analyzer { steps: self.steps, stages })
+    }
+}
+
+fn on_optional_cycle(
+    candidate: usize,
+    steps: &[Box<dyn Step>],
+    level: &[usize],
+    done: &HashSet<KeyId>,
+    producer: &HashMap<KeyId, Option<usize>>,
+) -> bool {
+    let mut stack: Vec<usize> = steps[candidate]
+        .reads()
+        .into_iter()
+        .zip(steps[candidate].required())
+        .filter_map(|(r, req)| {
+            if !req && !done.contains(&r) {
+                producer.get(&r).copied().flatten().filter(|&p| level[p] == usize::MAX)
+            } else {
+                None
+            }
+        })
+        .collect();
+    let mut visited = vec![false; steps.len()];
+    while let Some(cur) = stack.pop() {
+        if cur == candidate {
+            return true;
+        }
+        if visited[cur] {
+            continue;
+        }
+        visited[cur] = true;
+        for r in steps[cur].reads() {
+            if !done.contains(&r)
+                && let Some(Some(p)) = producer.get(&r)
+                && level[*p] == usize::MAX
+            {
+                stack.push(*p);
+            }
+        }
+    }
+    false
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{Analyzer, Annotator, Document, Error, Layer, Refs, View};
+
+    struct LayerA(bool);
+    impl Layer for LayerA {
+        const ID: &'static str = "test:a";
+        fn len(&self) -> usize {
+            1
+        }
+        fn check(&self) -> Result<(), String> {
+            Ok(())
+        }
+    }
+
+    struct LayerB;
+    impl Layer for LayerB {
+        const ID: &'static str = "test:b";
+        fn len(&self) -> usize {
+            1
+        }
+        fn check(&self) -> Result<(), String> {
+            Ok(())
+        }
+    }
+
+    struct LayerC(bool);
+    impl Layer for LayerC {
+        const ID: &'static str = "test:c";
+        fn len(&self) -> usize {
+            1
+        }
+        fn check(&self) -> Result<(), String> {
+            Ok(())
+        }
+    }
+
+    struct ProduceA;
+    impl Annotator for ProduceA {
+        const ID: &'static str = "test:produce-a";
+        type Reads = (View, Option<LayerB>);
+        type Writes = (LayerA,);
+        fn annotate(&self, (_, b): Refs<'_, Self>) -> Result<(LayerA,), Error> {
+            Ok((LayerA(b.is_some()),))
+        }
+    }
+
+    struct ProduceBFromA;
+    impl Annotator for ProduceBFromA {
+        const ID: &'static str = "test:produce-b";
+        type Reads = (LayerA,);
+        type Writes = (LayerB,);
+        fn annotate(&self, (_a,): Refs<'_, Self>) -> Result<(LayerB,), Error> {
+            Ok((LayerB,))
+        }
+    }
+
+    struct BystanderC;
+    impl Annotator for BystanderC {
+        const ID: &'static str = "test:bystander-c";
+        type Reads = (View, Option<LayerA>);
+        type Writes = (LayerC,);
+        fn annotate(&self, (_, a): Refs<'_, Self>) -> Result<(LayerC,), Error> {
+            Ok((LayerC(a.is_some()),))
+        }
+    }
+
+    #[test]
+    fn optional_cycle_schedules_only_cycle_member_and_waits_for_bystanders() {
+        // BystanderC is added first and only optionally reads LayerA;
+        // ProduceBFromA requires LayerA and ProduceA optionally reads LayerB.
+        // Only ProduceA is on the cycle, so ProduceA must run first and
+        // BystanderC must still receive LayerA.
+        let analyzer = Analyzer::builder().add(BystanderC).add(ProduceBFromA).add(ProduceA).build().unwrap();
+        let mut docs = vec![Document::new("hello")];
+        for r in analyzer.run(&mut docs) {
+            r.unwrap();
+        }
+        assert!(!docs[0].get::<LayerA>().unwrap().0);
+        assert!(docs[0].get::<LayerB>().is_some());
+        assert!(docs[0].get::<LayerC>().unwrap().0, "bystander must wait for LayerA");
     }
 }

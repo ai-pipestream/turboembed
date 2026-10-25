@@ -23,16 +23,24 @@ pub use calibrated::{Calibrated, CalibratedRow};
 pub use categories::{Categories, CategoryRow, CategoryScope};
 pub use containment::{Containment, ContainmentChain, ContainmentError, PlaceAncestor, PlaceAncestorRef};
 pub use date::{DAY_SECONDS, Date, DateTime, write_year};
+pub use entity_graph::{
+    ConsolidatedMention, DocumentEntities, DocumentEntity, EntityRelation, SyntacticRole, SyntacticRoleCounts,
+};
+pub use events::{AnchoredLayerKind, ArgumentRole, EventArgument, EventFrame, Events};
 pub use generic::{Confidence, Language, TokenVectorWindows, Utf16Spans, Vectors};
 pub use language_spans::{LanguageSpan, LanguageSpans, UNDETERMINED};
 pub use levels::{Level, Levels, Unit, VectorKind};
 pub use matches::Matches;
+pub use modality::{DeonticKind, EpistemicStatus, Modality, ModalityTag, Polarity as ModalityPolarity};
 pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
 pub use ordinals::{OrdinalBase, OrdinalMention, Ordinals};
 pub use pii::{Pii, PiiConfidence, PiiKind, PiiKinds, PiiMention};
 pub use quantities::{PERCENT, Quantities, QuantityMention};
 pub use regions::{InvalidRegionCode, MarginError, RegionCode, RegionVote, Regions, VoteError};
+pub use rhetoric::{
+    ClaimLinks, ClaimRelationKind, Discourse, DiscourseEdgeLabel, DiscourseRel, Edus, Nuclearity, SentenceClaimLinks,
+};
 pub use segmentation::{Block, Boundaries, Chunks, Cut, Sentences, Structure, Subwords, Tokens};
 pub use sentiment::{
     Aspect, AspectTarget, Aspects, EMOTION_DIMENSIONS, EmotionDimension, EmotionItem, EmotionLayer, EmotionScores,
@@ -43,8 +51,12 @@ pub use sparse::SparseTerms;
 pub use syntax::{
     ChunkTags, Dependencies, Entities, Lemmas, PhraseChunks, Phrases, PosTags, Stems, TermSlot, Terms, WordDependencies,
 };
+pub use tables::{ColumnAlign, KeyValuePair, KeyValuePairs, TableCell, TableCellRef, Tables};
 pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
 pub use times::{Modifier, Portion, Relation, TimeGrain, TimeKind, TimeMention, Times};
+pub use wordnet::{
+    ExpansionRow, LexicalExpansions, SAME_SYNSET, SenseRow, WORDNET_POS, WORDNET_RELATIONS, WordNetSenses,
+};
 pub use words::{
     MorphFeatures, MorphPosTags, MwtLanguage, RuleMwtExpander, TokenExpansion, Word, WordLemmas, WordOrTokenAnchor,
     WordPosTags, Words,
@@ -112,12 +124,15 @@ mod containment;
 #[cfg(test)]
 mod core_tests;
 mod date;
+mod entity_graph;
+mod events;
 mod evidence;
 pub mod export;
 mod generic;
 mod language_spans;
 mod levels;
 mod matches;
+pub mod modality;
 mod money;
 mod numbers;
 mod ordinals;
@@ -125,10 +140,13 @@ mod pii;
 mod predicate;
 mod quantities;
 mod regions;
+pub mod rhetoric;
 mod segmentation;
 mod sentiment;
 mod sparse;
 mod syntax;
+pub mod tables;
 mod temporal;
 mod times;
+mod wordnet;
 mod words;

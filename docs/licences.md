@@ -187,7 +187,9 @@ the GLiNER2 and GLiREL checkpoints the relation scorer considers
 (docs/gliner2-relations.md, docs/glirel-relations.md), the NLI
 checkpoint zero-shot categorization considers (docs/doccat.md), and the
 SQuAD 2.0 checkpoint the extractive QA benchmarks run
-(docs/extractive-qa.md). Nine are in the zoo's index:
+(docs/extractive-qa.md), and the learned-sparse and late-interaction
+checkpoints the SPLATE study runs (docs/splate.md, #913). Eleven are
+in the zoo's index:
 `deepset/roberta-base-squad2` (`deepset-roberta-base-squad2`,
 share-alike through its training data, fetched only after the user
 accepts CC BY-SA 4.0), `urchade/gliner_small-v2.1`
@@ -203,18 +205,25 @@ BY-NC-SA 4.0), GLiREL's tokenizer, `microsoft/deberta-v3-large`'s
 `spm.model` and `config.json` (`microsoft-deberta-v3-large-tokenizer`,
 permissive), and `cross-encoder/nli-MiniLM2-L6-H768`
 (`cross-encoder-nli-minilm2-l6-h768`, share-alike, fetched from its
-publisher after the user accepts CC BY-SA 4.0 and CC BY-SA 3.0).
+publisher after the user accepts CC BY-SA 4.0 and CC BY-SA 3.0),
+`opensearch-project/opensearch-neural-sparse-encoding-v1`
+(`opensearch-neural-sparse-encoding-v1`, local-only through its
+training data, fetched from its publisher only after the user
+accepts MS MARCO's terms), and `colbert-ir/colbertv2.0`
+(`colbert-ir-colbertv2.0`, local-only the same way).
 The others were not fetched, so no entry has the SHA-512s an entry
 needs. "Checked" is **here**: the
 `license` of the model card's metadata at the revision named, read on
-2026-10-15 from the hub's model API, on 2026-10-21 for the GLiNER2 and
-GLiREL rows, and on 2026-10-23 for the GLiNER v2.1 tokenizers and the NLI row.
+2026-10-15 from the hub's model API. GLiNER2 and GLiREL were checked on
+2026-10-21; GLiNER v2.1 tokenizers and NLI on 2026-10-23. The pinned SaT
+checkpoints and retrieval models were checked on 2026-10-24. Retrieval
+files were downloaded then, with SHA-512 digests recorded in their entries.
 
 | Checkpoint | Revision | Licence | Base and data | Class | Checked |
 |---|---|---|---|---|---|
-| [segment-any-text/sat-1l-sm](https://huggingface.co/segment-any-text/sat-1l-sm) | `00a783439c201b20ee91ee1624dc817f1bf0e578` | MIT | XLM-R (MIT); trained on mC4, then a mixture that includes Universal Dependencies training sets | local-only: the training mixture holds the training sets of 16 UD treebanks under CC BY-NC-SA, English GUM among them (below) | here |
-| [segment-any-text/sat-12l-sm](https://huggingface.co/segment-any-text/sat-12l-sm) | `d70c72a9331b2d5a9e82baad00c64964a23a09bb` | MIT | as `sat-1l-sm` | as `sat-1l-sm` | here |
-| [segment-any-text/sat-3l](https://huggingface.co/segment-any-text/sat-3l) | `a3b7ba6b61881d619989757aea971cde7d3d6a98` | MIT | XLM-R (MIT); mC4 (ODC-BY) | permissive; needs limited lookahead, which the core lacks | here |
+| [segment-any-text/sat-1l-sm](https://huggingface.co/segment-any-text/sat-1l-sm) | `00a783439c201b20ee91ee1624dc817f1bf0e578` | MIT | XLM-R (MIT); trained on mC4, then a mixture that includes Universal Dependencies training sets | refused: the published training mixture includes OPUS-100 with unconfirmed terms (`LicenseRef-Unconfirmed`); the UD part alone is local-only | here, 2026-10-24 |
+| [segment-any-text/sat-12l-sm](https://huggingface.co/segment-any-text/sat-12l-sm) | `d70c72a9331b2d5a9e82baad00c64964a23a09bb` | MIT | as `sat-1l-sm` | refused, as `sat-1l-sm` | here, 2026-10-24 |
+| [segment-any-text/sat-3l](https://huggingface.co/segment-any-text/sat-3l) | `a3b7ba6b61881d619989757aea971cde7d3d6a98` | MIT | XLM-R (MIT); mC4 (ODC-BY) | permissive; mC4-only SaT alternative, gated on limited lookahead (#887), which the core lacks | here, 2026-10-24 |
 | [urchade/gliner_small-v2.1](https://huggingface.co/urchade/gliner_small-v2.1) | `4e091416cf7c3481db542c2a3d26156916f3a47f` | Apache-2.0 | deberta-v3-small (MIT); `urchade/pile-mistral-v0.1` (Apache-2.0, labels Mistral wrote for text from The Pile) | permissive; in the index (`urchade-gliner-small-v2.1`, docs/gliner.md) | here |
 | [microsoft/deberta-v3-small](https://huggingface.co/microsoft/deberta-v3-small) (`spm.model`, `config.json`) | `a36c739020e01763fe789b4b85e2df55d6180012` | MIT | | permissive; in the index (`microsoft-deberta-v3-small-tokenizer`) | here, 2026-10-23 |
 | [urchade/gliner_multi-v2.1](https://huggingface.co/urchade/gliner_multi-v2.1) | `443d26d654e0324125a96bebd8e796c14ff2efe6` | Apache-2.0 | mdeberta-v3-base (MIT); as `gliner_small-v2.1` | permissive; in the index (`urchade-gliner-multi-v2.1`, docs/gliner.md) | here |
@@ -226,6 +235,8 @@ GLiREL rows, and on 2026-10-23 for the GLiNER v2.1 tokenizers and the NLI row.
 | [cross-encoder/nli-MiniLM2-L6-H768](https://huggingface.co/cross-encoder/nli-MiniLM2-L6-H768) | `b95119ce93d3e065de6214e38cd4a97b0f2f2c6d` | Apache-2.0 | [nreimers/MiniLMv2-L6-H768-distilled-from-RoBERTa-Large](https://huggingface.co/nreimers/MiniLMv2-L6-H768-distilled-from-RoBERTa-Large) (Apache-2.0); [SNLI](https://huggingface.co/datasets/stanfordnlp/snli) (CC BY-SA 4.0) and [MultiNLI](https://huggingface.co/datasets/nyu-mll/multi_nli) (CC BY-SA 3.0; majority of OANC genres) | share-alike; in the index, fetched after acceptance; zero-shot categorization (docs/doccat.md) | here |
 | [dslim/bert-base-NER](https://huggingface.co/dslim/bert-base-NER) | `d1a3e8f13f8c3566299d95fcfc9a8d2382a9affc` | MIT | [google-bert/bert-base-cased](https://huggingface.co/google-bert/bert-base-cased) (Apache-2.0); CoNLL-2003 (Reuters RCV1, research only; under Datasets) | refused by the class rule, for its training data: not shipped, bundled, listed in the index or trained on; a local reference that is scored, as `en-pos-maxent` is | here |
 | [deepset/roberta-base-squad2](https://huggingface.co/deepset/roberta-base-squad2) | `adc3b06f79f797d1c575d5479d6f5efe54a9e3b4` | CC BY 4.0 | [FacebookAI/roberta-base](https://huggingface.co/FacebookAI/roberta-base) (MIT); SQuAD 2.0 (CC BY-SA 4.0, under Datasets) | share-alike, by its training data: in the index, fetched after acceptance; not shipped or bundled; `bundle/recipes/roberta-base-squad2.json` makes a local bundle from it | here, 2026-10-23 |
+| [opensearch-project/opensearch-neural-sparse-encoding-v1](https://huggingface.co/opensearch-project/opensearch-neural-sparse-encoding-v1) | `708f7e68f4aada15c2d59144a5187c521da6d8db` | Apache-2.0 | [google-bert/bert-base-uncased](https://huggingface.co/google-bert/bert-base-uncased) (Apache-2.0); [MS MARCO](https://microsoft.github.io/msmarco/) (Microsoft's terms: non-commercial research only, no intellectual property rights extended; under Datasets) | local-only, by its training data: in the index, fetched from its publisher only after the user accepts MS MARCO's terms; not shipped or bundled; the learned-sparse arm of the SPLATE study (#913, docs/splate.md) | here, 2026-10-24 |
+| [colbert-ir/colbertv2.0](https://huggingface.co/colbert-ir/colbertv2.0) | `c1e84128e85ef755c096a95bdb06b47793b13acf` | MIT | [google-bert/bert-base-uncased](https://huggingface.co/google-bert/bert-base-uncased) (Apache-2.0); [MS MARCO](https://microsoft.github.io/msmarco/) (as above) | local-only, by its training data: in the index, fetched after acceptance the same way; the MaxSim arm of the SPLATE study (#913) | here, 2026-10-24 |
 
 The `-sm` class was checked on 2026-10-23 against wtpsplit (MIT) at
 commit `3ef928c8e163d11dc6f6336ad610bff2ffe0bda4`.
@@ -251,8 +262,58 @@ tag `r2.13` gives these licences:
 
 The released checkpoints name no training commit, so this is the
 published recipe rather than a record of the run. The SaT paper
-(section 4.2) also says the mixture includes UD training sets. Under the
-class rule, `sat-1l-sm` and `sat-12l-sm` are local-only.
+(section 4.2) also says the mixture includes UD training sets. The UD part alone would make the two `-sm` checkpoints local-only.
+The complete source audit below supersedes that earlier classification.
+
+### SaT supervised-mixture source audit (2026-10-24)
+
+The pinned [sat-1l-sm card](https://huggingface.co/segment-any-text/sat-1l-sm/blob/00a783439c201b20ee91ee1624dc817f1bf0e578/README.md)
+and [sat-12l-sm card](https://huggingface.co/segment-any-text/sat-12l-sm/blob/d70c72a9331b2d5a9e82baad00c64964a23a09bb/README.md)
+still declare `license: mit`, confirmed from the model API on this date.
+That declaration does not replace the project's training-source checks.
+
+The [published training code](https://github.com/segment-any-text/wtpsplit/blob/3ef928c8e163d11dc6f6336ad610bff2ffe0bda4/wtpsplit/train/train_SM.py)
+selects UD training text when present, otherwise OPUS-100 when present,
+otherwise NLLB. Clean and corrupted versions of each selected source are used.
+The [acquisition code](https://github.com/segment-any-text/wtpsplit/blob/3ef928c8e163d11dc6f6336ad610bff2ffe0bda4/wtpsplit/data_acquisition/extract_all_data.py)
+uses UD 2.13 and up to 10,000 UD or OPUS-100 training sentences per language.
+Its NLLB source is the OPUS v1 monolingual export for Cebuano, Javanese,
+Mongolian and Yoruba, shuffled and split into training and test halves.
+
+- **OPUS-100: `LicenseRef-Unconfirmed`, refused.** The
+  [publisher page](https://opus.nlpl.eu/opus-100.php) describes sampling from
+  many OPUS corpora but supplies no corpus-wide licence grant. The
+  [Helsinki-NLP card at 805090dc28bf78897da9641cdf08b61287580df9](https://huggingface.co/datasets/Helsinki-NLP/opus-100/blob/805090dc28bf78897da9641cdf08b61287580df9/README.md)
+  records an unknown licence and leaves its licensing section unfilled.
+  No licence covering the exact mixture was confirmed. A collection of
+  downloadable sentences does not by itself meet the zoo's terms gate.
+- **NLLB OPUS v1: ODC-By-1.0 database grant confirmed.** The
+  [OPUS v1 README](https://github.com/Helsinki-NLP/OPUS/blob/42d4fbe382245487a68e853ca53bea832a41a02a/corpus/NLLB/v1/README)
+  and [licence](https://github.com/Helsinki-NLP/OPUS/blob/42d4fbe382245487a68e853ca53bea832a41a02a/corpus/NLLB/v1/LICENSE)
+  agree with the [allenai card at c36967abb45f06ff7659849372ab41e01838193e](https://huggingface.co/datasets/allenai/nllb/blob/c36967abb45f06ff7659849372ab41e01838193e/README.md).
+  The card also retains original-source terms. This is the mined-text
+  dataset, not a licence for NLLB translation model weights. The database
+  grant is permissive under the class rule; it does not settle individual
+  source-text rights.
+- **UD 2.13: non-commercial sources confirmed.** The Datasets rows below
+  record the actual release, README and matching training filename.
+  Czech PDT is listed for completeness but its split training filenames do
+  not match the recipe's glob. This audit fetched metadata and licence text,
+  not the training corpus.
+
+**Decision:** `sat-1l-sm` and `sat-12l-sm` are `CLASS_REFUSED` under the
+repository's current policy because the OPUS-100 terms remain unconfirmed.
+No `segment-any-text-sat-1l-sm` or `segment-any-text-sat-12l-sm` zoo entry is
+added, and no weight or tokenizer file is fetched for indexing. A local
+CC BY-NC-SA acceptance cannot override the unconfirmed-source refusal.
+Digest measurement and acceptance/download tests are therefore inapplicable
+for these refused entries. This follows the refusal branch of #882.
+
+The [sat-3l card](https://huggingface.co/segment-any-text/sat-3l/blob/a3b7ba6b61881d619989757aea971cde7d3d6a98/README.md)
+also retains MIT. Its mC4-only training leaves it the permissive SaT option
+under the existing class rule; runtime use remains gated on limited lookahead
+in #887. The older `-sm` parity measurements below remain historical evidence,
+not approval to distribute the checkpoint or a bundle built from it.
 
 `bundle/recipes/sat-1l-sm.json` seals `sat-1l-sm` with BAAI/bge-m3's
 `tokenizer.json` at revision `5617a9f61b028005a4858fdac845db406aefb181`,
@@ -270,16 +331,64 @@ that of `onnx/model.onnx` (431,172,619 bytes) is
 `963039b81eec5b33e23d84826ccdf1e8f8ada776f320e692113034cfae384617`; both
 match the hub's LFS object ids at that revision.
 
+## Frequency lexicons
+
+The word frequency lists spell correction loads (docs on the
+normalize spell checker, #935). Both are in the zoo's index as
+permissive `KIND_LEXICON` entries, fetched from their publisher
+with nothing to accept: `wolfgarbe/SymSpell`'s
+`frequency_dictionary_en_82_765.txt`
+(`symspell-frequency-dictionary-en-82-765`, 1,332,881 bytes,
+SHA-256 `c604e1121e398ae7c7fbf777f11e0a0f2fa66eda932cb9fba1321466cf3acd7b`)
+and `frequency_bigramdictionary_en_243_342.txt`
+(`symspell-frequency-bigramdictionary-en-243-342`, 5,137,213
+bytes, SHA-256
+`fd892a160184101dd7ae807ac5a302d01fcea1c47304181a8ed7ed9c94545bcd`),
+both at revision `c239062ae02961df18ab7da1671d01b4388204e0` under the
+repository's MIT licence (Wolf Garbe). The project's README states
+that the unigram list was compiled as the intersection of Google
+Books Ngram data (CC BY 3.0) with SCOWL, Kevin Atkinson's
+permissively licensed spell-checker word lists
+(http://wordlist.aspell.net/). For the bigram list the README says
+only that it is included and gives no source; its counts look like
+Ngram counts, so the index records the Ngram data as its training
+source too, but that origin is inferred and unconfirmed, and the
+bigram entry's attribution says so. The attribution, which names
+the Ngram data and SCOWL, must travel with either list. Other frequency sources can join
+later as further lexicon entries behind the same
+`FrequencyDictionary` text loader.
+
 ## Datasets
 
 | Dataset | Use | Licence | Class | Notes | Checked |
 |---|---|---|---|---|---|
+| [UD_Arabic-PADT r2.13](https://github.com/UniversalDependencies/UD_Arabic-PADT/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 3.0 | local-only | recipe reads `ar_padt-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Basque-BDT r2.13](https://github.com/UniversalDependencies/UD_Basque-BDT/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 3.0 | local-only | recipe reads `eu_bdt-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Bulgarian-BTB r2.13](https://github.com/UniversalDependencies/UD_Bulgarian-BTB/blob/r2.13/README.txt) | SaT supervised-mixture audit | CC BY-NC-SA 3.0 | local-only | recipe reads `bg_btb-ud-train.conllu` | here, 2026-10-24 |
+| [UD_English-GUM r2.13](https://github.com/UniversalDependencies/UD_English-GUM/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 4.0 | local-only | recipe reads `en_gum-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Estonian-EDT r2.13](https://github.com/UniversalDependencies/UD_Estonian-EDT/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 4.0 | local-only | recipe reads `et_edt-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Greek-GDT r2.13](https://github.com/UniversalDependencies/UD_Greek-GDT/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 3.0 | local-only | recipe reads `el_gdt-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Hindi-HDTB r2.13](https://github.com/UniversalDependencies/UD_Hindi-HDTB/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 4.0 | local-only | recipe reads `hi_hdtb-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Hungarian-Szeged r2.13](https://github.com/UniversalDependencies/UD_Hungarian-Szeged/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 3.0 | local-only | recipe reads `hu_szeged-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Italian-ISDT r2.13](https://github.com/UniversalDependencies/UD_Italian-ISDT/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 3.0 | local-only | recipe reads `it_isdt-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Latin-ITTB r2.13](https://github.com/UniversalDependencies/UD_Latin-ITTB/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 3.0 | local-only | recipe reads `la_ittb-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Polish-PDB r2.13](https://github.com/UniversalDependencies/UD_Polish-PDB/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 4.0 | local-only | recipe reads `pl_pdb-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Swedish-LinES r2.13](https://github.com/UniversalDependencies/UD_Swedish-LinES/blob/r2.13/README.txt) | SaT supervised-mixture audit | CC BY-NC-SA 4.0 | local-only | recipe reads `sv_lines-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Tamil-TTB r2.13](https://github.com/UniversalDependencies/UD_Tamil-TTB/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 3.0 | local-only | recipe reads `ta_ttb-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Turkish-IMST r2.13](https://github.com/UniversalDependencies/UD_Turkish-IMST/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 4.0 | local-only | recipe reads `tr_imst-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Ukrainian-IU r2.13](https://github.com/UniversalDependencies/UD_Ukrainian-IU/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 4.0 | local-only | recipe reads `uk_iu-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Urdu-UDTB r2.13](https://github.com/UniversalDependencies/UD_Urdu-UDTB/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 4.0 | local-only | recipe reads `ur_udtb-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Czech-PDT r2.13](https://github.com/UniversalDependencies/UD_Czech-PDT/blob/r2.13/README.md) | SaT supervised-mixture audit | CC BY-NC-SA 4.0 | local-only | not selected: split training filenames miss `*-ud-train.conllu` | here, 2026-10-24 |
+| [UD_Galician-TreeGal r2.13](https://github.com/UniversalDependencies/UD_Galician-TreeGal/blob/r2.13/README.md) | SaT supervised-mixture audit | LGPL-LR | LGPL-LR; separate terms | recipe reads `gl_treegal-ud-train.conllu` | here, 2026-10-24 |
+| [OPUS-100 v1.0](https://opus.nlpl.eu/opus-100.php) | SaT supervised mixture | `LicenseRef-Unconfirmed` | refused | publisher card licence unknown; see source audit above | here, 2026-10-24 |
+| [NLLB OPUS v1](https://github.com/Helsinki-NLP/OPUS/blob/42d4fbe382245487a68e853ca53bea832a41a02a/corpus/NLLB/v1/README) | SaT supervised mixture | ODC-By-1.0 | permissive database grant | original-source terms retained; not NLLB model weights | here, 2026-10-24 |
 | [UD_Spanish-AnCora r2.16](https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/README.md) | sentence, token, POS, lemma | CC BY 4.0 | permissive | the recipes in `analysis/train-recipes` train on it (#415); `LICENSE.txt` and the README's metadata say CC BY 4.0, while a README paragraph still says "The GNU license is inherited from the original dataset"; the README's changelog entry "2021-11-15 v2.9" says "The license changed to CC BY 4.0 (https://doi.org/10.5281/zenodo.4762030)." | here |
 | [UD_Catalan-AnCora r2.16](https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/README.md) | sentence, token, POS, lemma | CC BY 4.0 | permissive | the recipes train on it (#415); the same README paragraph and changelog entry as Spanish AnCora | here |
 | [UD_Portuguese-Porttinari r2.16](https://github.com/UniversalDependencies/UD_Portuguese-Porttinari/blob/r2.16/README.md) | sentence, token, POS, lemma | CC BY 4.0 | permissive, recipe only | the CC BY 4.0 grant is the treebank authors', for their annotations; its README says "The texts in the treebank are from Folha de São Paulo newspaper, which are publicly available at Kaggle website." No licence from Folha for the articles' text is shown (the Kaggle dataset's own terms were not read), so the rights to the text are not settled: the recipes stay, so a user can train the models locally (#415), and no model trained on it is shipped (`treebank::TextRights::NotSettled`; `UdModelCard::artifact` refuses one whatever its gate says) | here |
 | [UD_Finnish-FTB r2.16](https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/README.md) | POS, lemma | CC BY 4.0 | permissive | `LICENSE.txt` says "FTB1U is Copyright 2014 FIN-CLARIN" and offers LGPLv3 or later or, at the user's option, CC BY 4.0; the recipes take CC BY 4.0 (#415), and a model's attribution keeps the copyright notice. Its text is grammar examples from VISK with a space between every two tokens, so it has no sentence or token recipe | here |
 | [UD_Italian-MarkIT r2.16](https://github.com/UniversalDependencies/UD_Italian-MarkIT/blob/r2.16/README.md) | POS, lemma | CC BY 4.0 | permissive | the recipes train on it (#415), gated against OpenNLP's Italian UD models, which are local-only (below) and only scored. Its text has a space between almost every two tokens (its files have 9 `SpaceAfter=No`, 2 in `train` and 7 in `dev`), so it has no sentence or token recipe | here |
-| [MASC](https://anc.org/data/masc/) | English sentences, tokens, Penn POS, noun and verb chunks, named entities | CC BY 3.0 US | permissive | 500K words, manually validated; the recipes in `analysis/train-recipes` train on it, from the 3.0.0 archive published as a release asset of github.com/nancyide/anc-website (tag `datasets-2026-09-25`), recorded by size and digest (`masc::RELEASE`); that anc.org's download page links to it was reported but not checked, as anc.org could not be reached from the machine the recipes were run on. Its Twitter genre (`data/written/twitter`, two documents, 24,180 words, from 2008, source given as "unknown" in their headers) has no terms of its own: the 3.0.0 release's README has no licence text, and anc.org states CC BY 3.0 US for MASC with no exception. Whether Twitter's terms reach the tweets' text is not settled here, and the policy refuses platform-terms data, so the recipes leave the genre out of training and of the held-out set (`masc::Exclusion::TwitterGenre`), as Kristian Rickert decided on 2026-10-15 | here |
+| [MASC](https://anc.org/data/masc/) | English sentences, tokens, Penn POS, noun and verb chunks, named entities, PII evaluation | CC BY 3.0 US | permissive | 500K words, manually validated; the recipes in `analysis/train-recipes` train on it, from the 3.0.0 archive published as a release asset of github.com/nancyide/anc-website (tag `datasets-2026-09-25`), recorded by size and digest (`masc::RELEASE`); five non-Twitter documents are also checked in under `analysis/pii/tests/data/human-eval` (`analysis/pii/tests/data/human-eval/README.md`) for the partial mixed PII evaluation set (docs/pii.md), which does not complete #968; that anc.org's download page links to it was reported but not checked, as anc.org could not be reached from the machine the recipes were run on. Its Twitter genre (`data/written/twitter`, two documents, 24,180 words, from 2008, source given as "unknown" in their headers) has no terms of its own: the 3.0.0 release's README has no licence text, and anc.org states CC BY 3.0 US for MASC with no exception. Whether Twitter's terms reach the tweets' text is not settled here, and the policy refuses platform-terms data, so the recipes leave the genre out of training and of the held-out set (`masc::Exclusion::TwitterGenre`), as Kristian Rickert decided on 2026-10-15 | here |
+| [EIP-55](https://eips.ethereum.org/EIPS/eip-55) and [BIP-173](https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki) / [BIP-350](https://github.com/bitcoin/bips/blob/master/bip-0350.mediawiki) test vectors and adapted specification summaries (`analysis/pii/tests/data/human-eval/eip-55.txt`, `analysis/pii/tests/data/human-eval/bip-173-350.txt`) | PII evaluation (`eth-address`, `btc-address`) | CC0-1.0 (EIP-55 test vectors); BSD-2-Clause (BIP-173, BIP-350 test vectors); Apache-2.0 (project-adapted prose) | permissive | canonical published checksum test vectors by Vitalik Buterin and Alex Van de Sande (EIP-55) and Pieter Wuille and Greg Maxwell (BIP-173, BIP-350) embedded in project-adapted prose, paired with project-authored operational memos (`analysis/pii/tests/data/human-eval/operational-memos.txt`, Apache-2.0) and five MASC 3.0.0 documents in `analysis/pii/tests/data/human-eval/README.md` (docs/pii.md) | here, 2026-10-24 |
 | [Open English WordNet](https://github.com/globalwordnet/english-wordnet/blob/main/LICENSE.md) | English lemmas | CC BY 4.0 | permissive | derived from Princeton WordNet; attribute both | here |
 | [Princeton WordNet](https://wordnet.princeton.edu/license-and-commercial-use) | English lemmas | WordNet licence (BSD-like) | permissive | | plan |
 | [PoliMorf / Morfologik](https://github.com/morfologik/polimorf) | Polish lemmas | BSD-2-Clause | permissive | | plan |
@@ -298,7 +407,9 @@ match the hub's LFS object ids at that revision.
 | [DBpedia-14](https://huggingface.co/datasets/fancyzhx/dbpedia_14) | document categorizer | CC BY-SA 3.0 and GFDL | share-alike | | plan |
 | [SNLI](https://huggingface.co/datasets/stanfordnlp/snli) | natural language inference | CC BY-SA 4.0 | share-alike | training data of `cross-encoder/nli-MiniLM2-L6-H768` | here |
 | [MultiNLI](https://huggingface.co/datasets/nyu-mll/multi_nli) | natural language inference | CC BY-SA 3.0 (majority of OANC genres; remaining genres OANC, public domain, or CC BY) | share-alike | training data of `cross-encoder/nli-MiniLM2-L6-H768` | here |
+| [Google Books Ngram data](https://storage.googleapis.com/books/ngrams/books/datasetsv2.html) | word frequencies | CC BY 3.0 | permissive | one of the two sources the SymSpell unigram list above was compiled from (intersected with SCOWL), and the inferred, unconfirmed source of its bigram list; the data itself is not fetched or used here, only named as what the lists derive from | here, 2026-10-24 |
 | [SQuAD 2.0](https://rajpurkar.github.io/SQuAD-explorer/) | extractive QA | CC BY-SA 4.0 | share-alike | the dev set `dev-v2.0.json` (4,370,528 bytes, SHA-256 `80a5225e94905956a6446d296ca1093975c4d3b3260f1d6c8f68bc2ab77182d8`) is used for evaluation only (docs/extractive-qa.md); it is not in the repository | here, 2026-10-23 |
+| [MS MARCO](https://microsoft.github.io/msmarco/) | passage retrieval training | Microsoft's terms: non-commercial research only, free of charge without extending any license or other intellectual property rights (named `LicenseRef-RestrictedPublic` in the zoo) | local-only | training data of `opensearch-project/opensearch-neural-sparse-encoding-v1` and `colbert-ir/colbertv2.0` above; the dataset itself is not fetched or used here, only named as what puts those checkpoints in their class | here, 2026-10-24 |
 | [UD_English-GUM r2.16](https://github.com/UniversalDependencies/UD_English-GUM/blob/r2.16/README.md) | | CC BY-NC-SA 4.0 | local-only | non-commercial | here |
 | [UD_English-LinES r2.16](https://github.com/UniversalDependencies/UD_English-LinES/blob/r2.16/README.txt) | | CC BY-NC-SA 4.0 | local-only | non-commercial | here |
 | [UD_Swedish-LinES r2.16](https://github.com/UniversalDependencies/UD_Swedish-LinES/blob/r2.16/README.txt) | | CC BY-NC-SA 4.0 | local-only | non-commercial | here |
@@ -504,6 +615,21 @@ provenance lists the slicing rules. Full-width reference outputs and source
 SHA-256 values are in `analysis/gliner/tests/fixtures/full-reference.json`.
 No full model is added to the zoo by this change. The exact checkpoint above
 was checked; this is not a licence decision for other GLiNER checkpoints.
+
+### Extracted PDF artifact evaluation
+
+The three ACL paper excerpts and the JMLR excerpt under `analysis/normalize/data/extracted-pdf` are
+CC-BY-4.0 material, with authors, titles, page ranges, source URLs, licence
+links and transformation notices in that directory's README. The ACL
+[copyright policy](https://aclanthology.org/faq/copyright/) places ACL materials
+from 2016 onward under CC-BY-4.0. The paper text is evaluation data, not
+repository-licensed source code; retain attribution when redistributing it.
+The JMLR excerpt is from Justin Bunker, Mark Girolami, Hefin Lambley,
+Andrew M. Stuart and T. J. Sullivan, 2025, *Autoencoders in Function Space*,
+JMLR 26(165):1-54, pages 2-7. Its PDF explicitly states CC-BY 4.0 and
+requires attribution linking to the
+[original publication](https://jmlr.org/papers/v26/25-0035.html).
+The Rust reproduction helper verifies original PDF and extracted-text hashes.
 
 ## Sentence abbreviation inventories
 

@@ -40,6 +40,10 @@ service AnalysisService
   rpc RoundTripRerankScores(RerankScoresResult) returns (RerankScoresResult) {}
   rpc RoundTripExtraction(ExtractionResult) returns (ExtractionResult) {}
 
+  // Schema-extracted structured records, every span offset in the
+  // message's chosen OffsetMode.
+  rpc RoundTripRecords(RecordsResult) returns (RecordsResult) {}
+
   // Chunks, their level tree and their embeddings in one round trip,
   // with every span offset in the message's chosen OffsetMode.
   rpc RoundTripChunkLevels(ChunkLevelsResult) returns (ChunkLevelsResult) {}
@@ -128,21 +132,32 @@ message BundleCapabilities
   // batch_limit.
   uint32 batch_limit = 7;
 
-  // The limits an extraction schema may carry; present only for a
-  // bundle whose task reads a schema. No such task is merged yet
-  // (issue #715), so every bundle the server loads today leaves this
-  // unset.
+  // The limits an extraction schema may carry, the schema-extract
+  // crate's Limits (docs/schema-extract.md); present only for a bundle
+  // whose task reads a schema. No bundle the server loads today has
+  // such a task, so this is unset until the server loads one.
   SchemaLimits schema = 8;
 }
 
-// The limits an extraction schema may carry (issue #715). A schema over
-// a limit is TURBO_E_CAPACITY naming that limit.
+// The limits an extraction schema may carry, the schema-extract crate's
+// Limits. A schema over a limit is TURBO_E_CAPACITY naming that limit.
 message SchemaLimits
 {
+  // Never filled by any release; replaced by the crate's own limits.
+  reserved 2, 3, 4;
+  reserved "max_label_sets", "max_fields", "max_depth";
+
   uint32 max_entity_types = 1;
-  uint32 max_label_sets = 2;
-  uint32 max_fields = 3;
-  uint32 max_depth = 4;
+  uint32 max_classification_tasks = 5;
+  uint32 max_labels_per_task = 6;
+  uint32 max_structures = 7;
+  uint32 max_fields_per_structure = 8;
+  // The longest name, description or choice, in bytes.
+  uint32 max_text_bytes = 9;
+  // The subwords the schema prompt may take of the encoder's input.
+  uint32 max_prompt_subwords = 10;
+  // The words of text read in one encoder window.
+  uint32 max_words = 11;
 }
 
 // What one result message may carry, refused with TURBO_E_CAPACITY
@@ -160,6 +175,7 @@ message ResultLimits
   uint64 max_levels = 9;
   uint64 max_fragments = 10;
   uint64 max_graph_bytes = 11;
+  uint64 max_record_values = 12;
 }
 
 message LoadBundleRequest
@@ -182,6 +198,10 @@ message LoadBundleRequest
   // The sessions' batch and sequence limits; 0 is the model's.
   uint32 max_batch = 6;
   uint32 max_seq = 7;
+
+  // Select a device with turbo_runtime_select for the bundle's task
+  // instead of indexing `device` (must leave `device` at 0).
+  bool select_device = 11;
 }
 
 message LoadBundleResponse
@@ -311,8 +331,8 @@ message RerankScoresResult
 
 // The ranked answers of an extraction or question-answering run: the
 // turbo-analysis-embed Answers layer (extractive QA, #745) plus the
-// model identity. The schema-driven structured records of #715 have no
-// merged layer yet; this message carries what exists today. An empty
+// model identity. Schema-driven structured records travel as
+// RecordsResult. An empty
 // result is a calibrated abstention: null_probability is 1.
 message ExtractionResult
 {
@@ -350,6 +370,66 @@ message ExtractionResult
   // OFFSET_MODE_UTF8, spans are carried as raw UTF-8 byte offsets.
   string text = 12;
   OffsetMode offsets = 13;
+}
+
+// The structured records of a schema extraction (the schema-extract
+// crate's turbo:records layer) plus the model identity, over one view's
+// text, with every span offset in the message's OffsetMode. A record is
+// one instance of a record type; its values are spans of the text, each
+// under a field path ("invoice.total"), or closed choices with no span.
+// Decoding re-proves the layer's own check: every value names a record
+// and a path of that record's type, every record has a value, scores are
+// in [0, 1] and logits finite.
+message RecordsResult
+{
+  ModelRef model = 1;
+
+  // The view text the spans are offsets into.
+  string text = 2;
+  uint32 view = 3;
+  OffsetMode offsets = 4;
+
+  // The label sets the tags below index: record types, every
+  // record.field path, and every closed choice, each with its set name.
+  string types_name = 5;
+  repeated string types = 6;
+  string paths_name = 7;
+  repeated string paths = 8;
+  string choices_name = 9;
+  repeated string choices = 10;
+
+  // Per record: its type (an index into types) and the model's
+  // instance index.
+  repeated uint32 record_type = 11;
+  repeated uint32 record_instance = 12;
+
+  // Per span value: its fragments, flat by column in value order (value
+  // v's fragments are value_frag_at[v - 1]..value_frag_at[v], from 0 for
+  // the first), its record, its path (an index into paths), probability
+  // and logit.
+  repeated uint32 value_frag_start = 13;
+  repeated uint32 value_frag_end = 14;
+  repeated uint32 value_frag_at = 15;
+  repeated uint32 value_record = 16;
+  repeated uint32 value_path = 17;
+  repeated double value_score = 18;
+  repeated double value_logit = 19;
+
+  // The deterministic rows corroborating each span value: value v's are
+  // support_end[v - 1]..support_end[v]. A source is 0 glossary, 1 PII,
+  // 2 numbers, 3 locations; the row indexes that source layer's instance
+  // in the producing document.
+  repeated uint32 support_end = 20;
+  repeated uint32 support_source = 21;
+  repeated uint32 support_row = 22;
+
+  // Per closed-choice value: its record, path, choice (an index into
+  // choices), probability and logit.
+  repeated uint32 choice_record = 23;
+  repeated uint32 choice_path = 24;
+  repeated uint32 choice = 25;
+  repeated double choice_score = 26;
+  repeated double choice_logit = 27;
 }
 
 // What the streaming bulk analysis call accepts and answers (issue
@@ -401,10 +481,25 @@ message AnalyzeStreamHeader
   uint32 batch_linger_ms = 3;
 }
 
+// What kind of analysis output one document in AnalyzeStream asks for.
+enum AnalyzeOutput
+{
+  // Pooled document embedding (AnalyzeVectors).
+  ANALYZE_OUTPUT_VECTORS = 0;
+
+  // Learned sparse lexical expansion (SparseTermsResult, #708 / #917).
+  ANALYZE_OUTPUT_SPARSE_TERMS = 1;
+
+  // Per-token contextual vectors with encoder window spans
+  // (TokenVectorsResult, #709 / #917).
+  ANALYZE_OUTPUT_TOKEN_VECTORS = 2;
+}
+
 // The embed options one document asks for: the fields of
 // turbo_embed_options, each 0 for the model's default, exactly what the
-// single-document call's parameters carry. Documents batch together only
-// with documents of the same model and the same options.
+// single-document call's parameters carry, plus optional sparse-term and
+// token-vector knobs. Documents batch together only with documents of the
+// same model, output kind, offset mode, and options.
 message AnalyzeOptions
 {
   // TURBO_TRUNCATE_*.
@@ -424,6 +519,18 @@ message AnalyzeOptions
 
   // One of the widths the capability listing names; 0 is the model's dim.
   uint32 output_dim = 6;
+
+  // Maximum number of non-zero sparse terms kept per document for
+  // ANALYZE_OUTPUT_SPARSE_TERMS; 0 keeps all non-zero terms.
+  uint32 sparse_top_k = 7;
+
+  // Minimum weight threshold for ANALYZE_OUTPUT_SPARSE_TERMS; terms with
+  // weight <= sparse_floor are dropped (must be finite and >= 0).
+  float sparse_floor = 8;
+
+  // Sliding-window stride in subword pieces for
+  // ANALYZE_OUTPUT_TOKEN_VECTORS; 0 uses half the window width.
+  uint32 token_stride = 9;
 }
 
 // One document to analyze: its client correlation id, the served model's
@@ -441,10 +548,18 @@ message AnalyzeDocument
 
   // What to compute; absent is every model default.
   AnalyzeOptions options = 4;
+
+  // Which result kind to compute; 0 is ANALYZE_OUTPUT_VECTORS.
+  AnalyzeOutput output = 5;
+
+  // Wire unit for span offsets on SparseTermsResult and
+  // TokenVectorsResult; 0 is OFFSET_MODE_UTF8.
+  OffsetMode offsets = 6;
 }
 
-// One document's answer, tagged with its correlation id: its vectors, or
-// its failure. A failed document never ends the stream.
+// One document's answer, tagged with its correlation id: its vectors,
+// sparse terms, token vectors, or failure. A failed document never ends
+// the stream.
 message AnalyzeStreamResponse
 {
   // The document's correlation id.
@@ -457,6 +572,12 @@ message AnalyzeStreamResponse
 
     // Why this document failed.
     AnalyzeFailure failure = 3;
+
+    // The document's learned sparse terms (#917).
+    SparseTermsResult sparse_terms = 4;
+
+    // The document's per-token contextual vectors and windows (#917).
+    TokenVectorsResult token_vectors = 5;
   }
 }
 

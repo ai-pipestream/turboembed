@@ -42,6 +42,8 @@ async fn stream_round(c: &mut Analysis, docs: &[String], linger_ms: u32) -> Dura
                 model: NAME.into(),
                 text: text.clone().into(),
                 options: None,
+                output: 0,
+                offsets: 0,
             })),
         })
         .await
@@ -126,7 +128,7 @@ async fn serve_many(sessions: u32) -> (turbo_kserve::Server, Analysis) {
         "127.0.0.1:0".parse().unwrap(),
         vec![model_config(sessions)],
         turbo_kserve::config::DEFAULT_MAX_MESSAGE_BYTES,
-        turbo_kserve::Serve { admin: true },
+        turbo_kserve::Serve { admin: true, ..turbo_kserve::Serve::default() },
     )
     .await
     .unwrap();

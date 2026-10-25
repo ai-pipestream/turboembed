@@ -7,13 +7,7 @@ use turbo_analysis_layers::{Entities, Sentences};
 use super::{CorefChains, CorefLink, MILLI, MentionKind, Mentions, ResolvedMention, is_pronoun_text};
 
 fn locate_sentence(span: Span, sents: &Sentences) -> Option<usize> {
-    let n = sents.spans.len();
-    if n == 0 {
-        return None;
-    }
-    let (_, ends) = sents.spans.columns();
-    let idx = ends.partition_point(|&e| e <= span.start);
-    (idx < n).then_some(idx)
+    sents.spans.covering_at(span.start).map(|i| i.get())
 }
 
 fn push_edge_link(links: &mut Vec<CorefLink>, candidate: CorefLink) {
@@ -41,6 +35,47 @@ fn push_cluster_link(links: &mut Vec<CorefLink>, candidate: CorefLink) {
     } else {
         links.push(candidate);
     }
+}
+
+/// Connected components of pairwise links over `0..n` node ids, so
+/// sequential edges `A-B`, `B-C` form one chain `[A, B, C]` rather
+/// than two isolated pairs.
+fn components(n: usize, pairs: &[(usize, usize)]) -> Vec<Vec<usize>> {
+    fn find(parent: &mut [usize], mut x: usize) -> usize {
+        while parent[x] != x {
+            let up = parent[parent[x]];
+            parent[x] = up;
+            x = up;
+        }
+        x
+    }
+    let mut parent: Vec<usize> = (0..n).collect();
+    for &(a, b) in pairs {
+        let (ra, rb) = (find(&mut parent, a), find(&mut parent, b));
+        if ra != rb {
+            parent[ra.max(rb)] = ra.min(rb);
+        }
+    }
+    let mut groups: Vec<Vec<usize>> = Vec::new();
+    let mut group_of_root: Vec<Option<usize>> = vec![None; n];
+    let mut seen = vec![false; n];
+    for &(a, b) in pairs {
+        for x in [a, b] {
+            if seen[x] {
+                continue;
+            }
+            seen[x] = true;
+            let root = find(&mut parent, x);
+            match group_of_root[root] {
+                Some(gi) => groups[gi].push(x),
+                None => {
+                    group_of_root[root] = Some(groups.len());
+                    groups.push(vec![x]);
+                }
+            }
+        }
+    }
+    groups
 }
 
 fn push_cluster_only(mut cluster: Vec<ResolvedMention>, clusters: &mut Vec<Vec<ResolvedMention>>) {
@@ -143,13 +178,12 @@ pub fn extract_chains(
             }
         }
         if let Some(edges) = mention_edges {
+            let mut pairs: Vec<(usize, usize)> = Vec::new();
             for (_, edge) in edges.iter() {
                 let (Some(a), Some(b)) = (resolve(edge.from), resolve(edge.to)) else {
                     continue;
                 };
-                if mention_groups.is_none() {
-                    push_cluster_only(vec![a, b], &mut clusters);
-                }
+                pairs.push((edge.from.get(), edge.to.get()));
                 if a.sentence != b.sentence {
                     let (lo, hi) = if a.sentence < b.sentence { (a, b) } else { (b, a) };
                     let w = if edge.score.is_finite() && edge.score > 0.0 {
@@ -168,6 +202,13 @@ pub fn extract_chains(
                             weight_milli: w.clamp(1, MILLI),
                         },
                     );
+                }
+            }
+            if mention_groups.is_none() {
+                for comp in components(m_layer.spans.len(), &pairs) {
+                    let cluster: Vec<ResolvedMention> =
+                        comp.iter().filter_map(|&i| resolve(Ix::new(i as u32))).collect();
+                    push_cluster_only(cluster, &mut clusters);
                 }
             }
         }
@@ -201,13 +242,12 @@ pub fn extract_chains(
             }
         }
         if let Some(edges) = entity_edges {
+            let mut pairs: Vec<(usize, usize)> = Vec::new();
             for (_, edge) in edges.iter() {
                 let (Some(a), Some(b)) = (resolve(edge.from), resolve(edge.to)) else {
                     continue;
                 };
-                if entity_groups.is_none() {
-                    push_cluster_only(vec![a, b], &mut clusters);
-                }
+                pairs.push((edge.from.get(), edge.to.get()));
                 if a.sentence != b.sentence {
                     let (lo, hi) = if a.sentence < b.sentence { (a, b) } else { (b, a) };
                     let w = if edge.score.is_finite() && edge.score > 0.0 {
@@ -226,6 +266,13 @@ pub fn extract_chains(
                             weight_milli: w.clamp(1, MILLI),
                         },
                     );
+                }
+            }
+            if entity_groups.is_none() {
+                for comp in components(e_layer.spans.len(), &pairs) {
+                    let cluster: Vec<ResolvedMention> =
+                        comp.iter().filter_map(|&i| resolve(Ix::new(i as u32))).collect();
+                    push_cluster_only(cluster, &mut clusters);
                 }
             }
         }

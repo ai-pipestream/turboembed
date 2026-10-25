@@ -5,12 +5,17 @@
 //!
 //! The document's `Categories` hold every task's labels as `task: label`,
 //! task by task: each label's score is its probability within its task,
-//! whether or not it was chosen (a single-label task's scores sum to 1),
+//! whether or not it was chosen (a single-label pass's scores sum to 1),
 //! the selected set is every task's chosen labels, and the best category
 //! the highest-scoring of them.
+//!
+//! Text longer than one encoder pass is read in sentence-aligned windows
+//! (the document's `Sentences`, or its tokens when it has none) and the
+//! windows' results merged; each label keeps its maximum probability
+//! across passes without renormalizing. [`crate::window`] gives the rules.
 
 use turbo_analysis::{Annotator, Error, ModelRef, Refs, Span, Spans, Tag, TagSet, View};
-use turbo_analysis_layers::{Categories, Entities, Numbers, Pii, Tokens};
+use turbo_analysis_layers::{Categories, Entities, Numbers, Pii, Sentences, Tokens};
 use turbo_geo::Locations;
 use turbo_glossary_layers::GlossaryTerms;
 
@@ -19,6 +24,7 @@ use crate::decode::{Corroborate, Extraction, FieldValue, decode};
 use crate::layer::{Records, source_code};
 use crate::model::Gliner2Extractor;
 use crate::schema::{ExtractionSchema, Source};
+use crate::window;
 
 /// A schema and the model that fills it.
 pub struct SchemaAnnotator {
@@ -45,6 +51,43 @@ impl SchemaAnnotator {
 
     pub fn schema(&self) -> &ExtractionSchema {
         &self.schema
+    }
+
+    /// The byte ranges of `text` this annotator reads in one pass each:
+    /// the whole text when it fits, else its sentence-aligned windows.
+    pub fn windows(
+        &self,
+        view: &View,
+        tokens: &Tokens,
+        sentences: Option<&Sentences>,
+    ) -> Result<Vec<std::ops::Range<usize>>, String> {
+        let fits = |t: &str| match self.extractor.prompt(t, &self.schema) {
+            Ok(_) => Ok(true),
+            Err(e) if window::too_long(&e) => Ok(false),
+            Err(e) => Err(e.to_string()),
+        };
+        if fits(view.text())? {
+            return Ok(std::iter::once(0..view.text().len()).collect());
+        }
+        window::plan(view.text(), &window::units(view, tokens, sentences)?, fits)
+    }
+
+    /// Text too long for one pass: each window read on its own, merged.
+    fn windowed(
+        &self,
+        view: &View,
+        tokens: &Tokens,
+        sentences: Option<&Sentences>,
+        layers: &dyn Corroborate,
+    ) -> Result<Extraction, String> {
+        let mut out = Extraction { entities: vec![Vec::new(); self.schema.entities.len()], ..Extraction::default() };
+        for at in self.windows(view, tokens, sentences)? {
+            let pass = self.extractor.pass(&view.text()[at.clone()], &self.schema).map_err(|e| e.to_string())?;
+            let shifted = window::Shifted { layers, by: at.start };
+            window::merge(&mut out, decode(&pass, &self.schema, self.threshold, &shifted)?, at);
+        }
+        window::finish(&mut out, &self.schema);
+        Ok(out)
     }
 }
 
@@ -208,12 +251,13 @@ fn records(view: &View, schema: &ExtractionSchema, out: &Extraction) -> Records 
 
 impl Annotator for SchemaAnnotator {
     const ID: &'static str = "turbo:schema-extract";
-    type Reads = (View, Tokens, Option<GlossaryTerms>, Option<Pii>, Option<Numbers>, Option<Locations>);
+    type Reads =
+        (View, Tokens, Option<GlossaryTerms>, Option<Pii>, Option<Numbers>, Option<Locations>, Option<Sentences>);
     type Writes = (Entities, Categories, Records);
 
     fn annotate(
         &self,
-        (view, tokens, glossary, pii, numbers, locations): Refs<'_, Self>,
+        (view, tokens, glossary, pii, numbers, locations, sentences): Refs<'_, Self>,
     ) -> Result<Self::Writes, Error> {
         let fail = |detail: String| Error::Annotator { annotator: Self::ID, detail };
         let id = view.id();
@@ -225,9 +269,15 @@ impl Annotator for SchemaAnnotator {
         {
             return Err(fail("a layer read is not in the view read".into()));
         }
-        let pass = self.extractor.pass(view.text(), &self.schema).map_err(|e| fail(e.to_string()))?;
         let layers = DocumentLayers { glossary, pii, numbers, locations };
-        let out = decode(&pass, &self.schema, self.threshold, &layers).map_err(fail)?;
+        let out = match self.extractor.prompt(view.text(), &self.schema) {
+            Ok(prompt) => {
+                let pass = self.extractor.pass_prompt(prompt).map_err(|e| fail(e.to_string()))?;
+                decode(&pass, &self.schema, self.threshold, &layers).map_err(fail)?
+            }
+            Err(e) if window::too_long(&e) => self.windowed(view, tokens, sentences, &layers).map_err(fail)?,
+            Err(e) => return Err(fail(e.to_string())),
+        };
         let written = (
             entities(view, tokens, &self.schema, &out),
             categories(&self.schema, &out),
