@@ -133,14 +133,31 @@ fn caller_choice_keeps_native_staging_and_both_storage_formats() {
         let native = turbovec::TurboQuantIndex::from_bytes(&tv).unwrap();
         let queries = rows();
         let queries = &queries[..3];
+        let source_rows = rows().len();
+        // The large fixture repeats identical model vectors. Native batch
+        // and single-query kernels may choose different copies at a tied
+        // cutoff, so compare the source vector and score, not its copy id.
+        let logical_hits = |hits: &[turbo_vector_index::Hit]| {
+            let unique: std::collections::BTreeSet<_> = hits.iter().map(|h| h.row).collect();
+            assert_eq!(unique.len(), hits.len(), "a result repeated a physical row");
+            hits.iter()
+                .map(|h| {
+                    assert!((h.row as usize) < index.len());
+                    (h.row as usize % source_rows, h.score)
+                })
+                .collect::<Vec<_>>()
+        };
         let flat: Vec<f32> = queries.iter().flatten().copied().collect();
         let staged = index.top_k_batch_with_search(&space(), &flat, 10, Staged).unwrap();
         for (q, actual) in queries.iter().zip(&staged) {
             let norm = q.iter().map(|&x| f64::from(x).powi(2)).sum::<f64>().sqrt();
             let normalized: Vec<f32> = q.iter().map(|&x| (f64::from(x) / norm) as f32).collect();
             let expected = native.try_search(&normalized, 10).unwrap();
-            assert_eq!(actual.iter().map(|h| i64::from(h.row)).collect::<Vec<_>>(), expected.indices);
-            assert_eq!(*actual, index.top_k_with_search(&space(), q, 10, Staged).unwrap());
+            assert_eq!(
+                actual.iter().map(|h| h.row as usize % source_rows).collect::<Vec<_>>(),
+                expected.indices.iter().map(|&row| row as usize % source_rows).collect::<Vec<_>>()
+            );
+            assert_eq!(logical_hits(actual), logical_hits(&index.top_k_with_search(&space(), q, 10, Staged).unwrap()));
             assert_eq!(
                 index.top_k(&space(), q, 10).unwrap(),
                 index.top_k_with_search(&space(), q, 10, Exhaustive).unwrap()

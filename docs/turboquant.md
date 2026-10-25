@@ -158,7 +158,10 @@ second/third-shard offsets in single, batch and concurrent first queries.
 The explicit staged option is checked against the pinned kernel and both
 serialized representations remain byte-identical after either query mode.
 The large case repeats real vectors to cross the staging threshold; it is
-not a benchmark corpus or evidence of application recall.
+not a benchmark corpus or evidence of application recall. At a tied cutoff,
+native single-query and batch searches can choose different copies of the
+same source vector. Their test compares source-vector identities and scores
+while requiring distinct physical rows, rather than prescribing a copy id.
 
 ### Search choice on a larger real model table
 
