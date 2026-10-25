@@ -21,6 +21,7 @@ pub mod layer;
 pub mod markup;
 pub mod math;
 pub mod offsets;
+pub mod phrase;
 pub mod predicate;
 pub mod registry;
 pub mod span;
@@ -46,6 +47,7 @@ pub use markup::{MarkupError, MarkupText, TagKind, TagSpan, TextRun, TextRunKind
 pub use offsets::{
     CodePointOffset, CodePointSpan, OffsetCursor, OffsetError, OffsetTable, OffsetUnit, Utf16Offset, Utf16Span,
 };
+pub use phrase::PhraseIndex;
 pub use predicate::{
     ConditionalAnnotator, ConditionalStep, FilterAnnotator, FilterableLayer, SpanFilter, co_written_aligned_anchors,
     retain_aligned_anchor,
