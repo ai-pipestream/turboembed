@@ -4,6 +4,8 @@
 use std::collections::BTreeMap;
 
 mod layers;
+#[cfg(test)]
+mod tests;
 
 use turbo_analysis::{Document, Ix, Layer, Span, Spans, View, ViewId};
 use turbo_analysis_layers::{Categories, EmotionDimension, EmotionLayer, Incivility, Language, Regions, Tag};
@@ -134,6 +136,18 @@ pub(crate) fn combined_segments(
     offsetter: &Offsetter,
     filter_layers: &[String],
 ) -> Result<Vec<CombinedSegmentProto>, Failure> {
+    combine_with_budget(doc, view, text, window, offsetter, filter_layers, MAX_FRAGMENTS)
+}
+
+fn combine_with_budget(
+    doc: &Document,
+    view: ViewId,
+    text: &str,
+    window: Span,
+    offsetter: &Offsetter,
+    filter_layers: &[String],
+    max_memberships: u64,
+) -> Result<Vec<CombinedSegmentProto>, Failure> {
     if window.is_empty() {
         return Ok(Vec::new());
     }
@@ -179,7 +193,7 @@ pub(crate) fn combined_segments(
                     return Err(over("max_fragments", "combined window segments", raw_segments.len() as u64 + 1));
                 }
                 memberships = memberships.saturating_add(active_set.len() as u64);
-                if memberships > MAX_FRAGMENTS {
+                if memberships > max_memberships {
                     return Err(over("max_fragments", "combined segment annotation memberships", memberships));
                 }
                 let mut active: Vec<SegmentAnnotationProto> = active_set.values().map(|&a| a.clone()).collect();
