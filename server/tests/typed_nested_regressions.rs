@@ -217,6 +217,39 @@ async fn consolidated_mentions_use_exact_entity_targets_and_refuse_malformed_nes
 }
 
 #[tokio::test]
+async fn consolidated_mentions_reject_ambiguous_targets_in_either_order() {
+    let (server, mut client) = common::serve_no_admin().await;
+    let doc = consolidated();
+    for mode in [OffsetMode::Utf8, OffsetMode::Utf16, OffsetMode::CodePoint] {
+        let good = project(&mut client, &doc, mode, 0).await;
+        assert_eq!(client.round_trip_typed_document(good.clone()).await.unwrap().into_inner(), good);
+        for default_first in [false, true] {
+            let mut bad = good.clone();
+            let layer = bad.layers.iter_mut().find(|l| l.id == DocumentEntities::NAME.to_string()).unwrap();
+            let gold = layer
+                .indexes_layer
+                .iter()
+                .find(|bound| bound.layer == "opennlp:entities" && bound.instance == "gold")
+                .unwrap()
+                .clone();
+            let mut default = gold.clone();
+            default.instance.clear();
+            default.bound = 1;
+            layer.indexes_layer.retain(|bound| bound.layer != "opennlp:entities");
+            if default_first {
+                layer.indexes_layer.extend([default, gold]);
+            } else {
+                layer.indexes_layer.extend([gold, default]);
+            }
+            let error = client.round_trip_typed_document(bad).await.unwrap_err();
+            assert_eq!(error.code(), tonic::Code::InvalidArgument, "{error}");
+            assert!(error.message().contains("ambiguous opennlp:entities index targets"), "{error}");
+        }
+    }
+    server.stop().await;
+}
+
+#[tokio::test]
 async fn candidate_and_sparse_nested_values_return_structured_invalid_arguments() {
     let (server, mut client) = common::serve_no_admin().await;
     let mut doc = Document::new("é😀");

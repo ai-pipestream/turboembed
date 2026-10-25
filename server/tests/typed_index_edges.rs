@@ -244,3 +244,56 @@ async fn nested_references_reject_ambiguous_same_type_targets() {
     }
     server.stop().await;
 }
+
+#[tokio::test]
+async fn token_ranges_reject_ambiguous_targets_in_either_order() {
+    let graph = export(&fixture::build_rich_document(), codecs()).unwrap().to_bytes().unwrap();
+    let (server, mut client) = common::serve_no_admin().await;
+    for mode in [OffsetMode::Utf8, OffsetMode::Utf16, OffsetMode::CodePoint] {
+        let out = client
+            .inspect_document_graph(InspectDocumentGraphRequest {
+                doc_id: "ambiguous-tokens".into(),
+                graph: graph.clone(),
+                view: 0,
+                offsets: mode as i32,
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(client.round_trip_typed_document(out.clone()).await.unwrap().into_inner(), out);
+        for short_first in [false, true] {
+            let mut bad = out.clone();
+            let mut short = bad
+                .layers
+                .iter()
+                .find(|layer| layer.id == "opennlp:tokens" && layer.instance.is_empty())
+                .unwrap()
+                .clone();
+            short.instance = "short".into();
+            short.annotations.truncate(1);
+            bad.layers.push(short);
+
+            let words = bad.layers.iter_mut().find(|layer| layer.id == "turbo:words").unwrap();
+            let mut default_bound = words
+                .indexes_layer
+                .iter()
+                .find(|bound| bound.layer == "opennlp:tokens" && bound.instance.is_empty())
+                .unwrap()
+                .clone();
+            let mut short_bound = default_bound.clone();
+            short_bound.instance = "short".into();
+            short_bound.bound = 1;
+            words.indexes_layer.retain(|bound| bound.layer != "opennlp:tokens");
+            default_bound.bound = 3;
+            if short_first {
+                words.indexes_layer.extend([short_bound, default_bound]);
+            } else {
+                words.indexes_layer.extend([default_bound, short_bound]);
+            }
+            let error = client.round_trip_typed_document(bad).await.unwrap_err();
+            assert_eq!(error.code(), tonic::Code::InvalidArgument, "{error}");
+            assert!(error.message().contains("ambiguous opennlp:tokens index targets"), "{error}");
+        }
+    }
+    server.stop().await;
+}

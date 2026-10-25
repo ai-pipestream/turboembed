@@ -1,5 +1,5 @@
 //! Nested payload checks use the same offset and probability rules as
-//! outer annotations; their references retain the selected layer instance.
+//! outer annotations; their references require one unambiguous target.
 
 use super::*;
 use crate::proto::result::{
@@ -8,12 +8,8 @@ use crate::proto::result::{
 };
 
 pub(super) fn bound(ctx: &LayerCtx<'_>, layer: &str) -> Result<usize, Failure> {
-    let mut lengths = ctx.target_lengths.iter().filter(|((id, _), _)| *id == layer).map(|(_, len)| *len);
-    let len = lengths.next().ok_or_else(|| bad(format!("{} has no {layer} index target", ctx.lid)))?;
-    if lengths.next().is_some() {
-        return Err(bad(format!("{} has ambiguous {layer} index targets", ctx.lid)));
-    }
-    Ok(len)
+    unique_target_len(&ctx.target_lengths, ctx.lid, layer)?
+        .ok_or_else(|| bad(format!("{} has no {layer} index target", ctx.lid)))
 }
 
 pub(super) fn target(ctx: &LayerCtx<'_>, layer: &str, index: u32) -> Result<usize, Failure> {

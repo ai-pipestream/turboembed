@@ -207,6 +207,19 @@ fn check_index_slice(what: &str, lid: &str, i: usize, indices: &[u32], lim: Opti
     Ok(())
 }
 
+fn unique_target_len(
+    target_lengths: &HashMap<(&str, &str), usize>,
+    lid: &str,
+    layer: &str,
+) -> Result<Option<usize>, Failure> {
+    let mut lengths = target_lengths.iter().filter(|((id, _), _)| *id == layer).map(|(_, len)| *len);
+    let len = lengths.next();
+    if lengths.next().is_some() {
+        return Err(bad(format!("{lid} has ambiguous {layer} index targets")));
+    }
+    Ok(len)
+}
+
 fn validate_layer(
     msg: &TypedDocumentResult,
     offsetter: &Offsetter,
@@ -262,23 +275,19 @@ fn validate_layer(
         }
     }
 
-    let token_len = layer
+    let target_lengths: HashMap<(&str, &str), usize> = layer
         .indexes_layer
         .iter()
-        .find(|b| b.layer == "opennlp:tokens")
-        .and_then(|b| layer_lengths.get(&("opennlp:tokens", b.instance.as_str())).copied())
-        .or_else(|| {
-            layer_lengths
-                .get(&("opennlp:tokens", layer.instance.as_str()))
-                .or_else(|| layer_lengths.get(&("opennlp:tokens", "")))
-                .copied()
-        });
-
-    let entity_len = layer
-        .indexes_layer
-        .iter()
-        .find(|b| b.layer == "opennlp:entities")
-        .and_then(|b| layer_lengths.get(&(b.layer.as_str(), b.instance.as_str())).copied());
+        .zip(&target_bounds)
+        .map(|(b, &n)| ((b.layer.as_str(), b.instance.as_str()), n))
+        .collect();
+    let token_len = unique_target_len(&target_lengths, lid, "opennlp:tokens")?.or_else(|| {
+        layer_lengths
+            .get(&("opennlp:tokens", layer.instance.as_str()))
+            .or_else(|| layer_lengths.get(&("opennlp:tokens", "")))
+            .copied()
+    });
+    let entity_len = unique_target_len(&target_lengths, lid, "opennlp:entities")?;
 
     let ctx = LayerCtx {
         text: &msg.raw_text,
@@ -287,12 +296,7 @@ fn validate_layer(
         layer_lengths,
         token_len,
         entity_len,
-        target_lengths: layer
-            .indexes_layer
-            .iter()
-            .zip(&target_bounds)
-            .map(|(b, &n)| ((b.layer.as_str(), b.instance.as_str()), n))
-            .collect(),
+        target_lengths,
         table_ids: layer
             .indexes_layer
             .iter()
