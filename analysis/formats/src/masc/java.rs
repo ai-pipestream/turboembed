@@ -117,34 +117,7 @@ pub(crate) fn parse_int(s: &str) -> Option<i32> {
     i32::try_from(value).ok()
 }
 
-/// `s.equalsIgnoreCase(target)` for an ASCII `target`. Java compares unit
-/// by unit, taking two units as equal when they are, when their upper
-/// cases are, or when the lower cases of their upper cases are. Besides
-/// the ASCII letters themselves, that matches four characters to ASCII
-/// letters: `ı` (U+0131) and `ſ` (U+017F), whose upper cases are `I` and
-/// `S`, and `İ` (U+0130) and the Kelvin sign (U+212A), whose lower cases
-/// are `i` and `k`.
-pub(crate) fn equals_ignore_case_ascii(s: &str, target: &str) -> bool {
-    debug_assert!(target.is_ascii());
-    let mut chars = s.chars();
-    for t in target.chars() {
-        let Some(c) = chars.next() else {
-            return false;
-        };
-        let matches = c == t
-            || c.eq_ignore_ascii_case(&t)
-            || match c {
-                '\u{131}' | '\u{130}' => t.eq_ignore_ascii_case(&'i'),
-                '\u{17F}' => t.eq_ignore_ascii_case(&'s'),
-                '\u{212A}' => t.eq_ignore_ascii_case(&'k'),
-                _ => false,
-            };
-        if !matches {
-            return false;
-        }
-    }
-    chars.next().is_none()
-}
+pub(crate) use turbo_unicode::java::equals_ignore_case as equals_ignore_case_ascii;
 
 /// `MascIdentifiers.splitOnSpaces`: the runs of characters other than a
 /// space, in order.

@@ -99,6 +99,33 @@ fn the_environment_fills_in_absent_flags() {
 }
 
 #[test]
+fn the_sink_comes_from_its_flags_or_their_variables() {
+    let base = "--listen 127.0.0.1:0 --model bundle=/b/a,device=0,sessions=1";
+    assert_eq!(args(base).unwrap().sink, None);
+    let s = args(&format!("{base} --sink-endpoint http://sink:9 --sink-queue-items=8")).unwrap().sink.unwrap();
+    assert_eq!((s.endpoint.as_str(), s.max_queue_items, s.max_queue_bytes), ("http://sink:9", 8, 64 << 20));
+    let env = |k: &str| (k == ENV_SINK_ENDPOINT).then(|| "http://env:9".to_string());
+    let parsed = Args::parse_with(base.split_whitespace().map(String::from), env).unwrap();
+    assert_eq!(parsed.sink.unwrap().endpoint, "http://env:9");
+    assert!(args(&format!("{base} --sink-queue-items 8")).is_err(), "bounds need an endpoint");
+    assert!(args(&format!("{base} --sink-endpoint http://a:1 --sink-queue-bytes 0")).is_err());
+    assert!(args(&format!("{base} --sink-endpoint http://a:1 --sink-endpoint http://b:1")).is_err());
+}
+
+#[test]
+fn the_vocabulary_dir_comes_from_its_flag_or_its_variable() {
+    let base = "--listen 127.0.0.1:0 --model bundle=/b/a,device=0,sessions=1";
+    assert_eq!(args(base).unwrap().vocabulary_dir, None);
+    assert_eq!(args(&format!("{base} --vocabulary-dir /v")).unwrap().vocabulary_dir.as_deref(), Some("/v"));
+    let env = |k: &str| (k == ENV_VOCABULARY_DIR).then(|| "/from-env".to_string());
+    let parsed = |s: &str| Args::parse_with(s.split_whitespace().map(String::from), env).unwrap();
+    assert_eq!(parsed(base).vocabulary_dir.as_deref(), Some("/from-env"));
+    assert_eq!(parsed(&format!("{base} --vocabulary-dir=/v")).vocabulary_dir.as_deref(), Some("/v"));
+    assert!(args(&format!("{base} --vocabulary-dir /v --vocabulary-dir /w")).is_err());
+    assert!(args(&format!("{base} --vocabulary-dir=")).is_err());
+}
+
+#[test]
 fn the_catalog_comes_from_its_flags_or_their_variables() {
     let base = "--listen 127.0.0.1:0 --model bundle=/b/a,device=0,sessions=1";
     let a = args(base).unwrap();

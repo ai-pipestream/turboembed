@@ -205,6 +205,8 @@ mod tests {
                 Isa::Avx2 => avx2(g, t),
                 #[cfg(target_arch = "x86_64")]
                 Isa::Avx512 => avx512(g, t),
+                #[cfg(target_arch = "aarch64")]
+                Isa::Neon => neon(g, t),
             }
         }
     }
@@ -219,5 +221,11 @@ mod tests {
     #[target_feature(enable = "avx512f,avx512vl,avx2,fma")]
     unsafe fn avx512(g: &Gemm, t: usize) {
         unsafe { g.task::<super::super::Avx512>(t) }
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    #[target_feature(enable = "neon")]
+    unsafe fn neon(g: &Gemm, t: usize) {
+        unsafe { g.task::<super::super::Neon>(t) }
     }
 }

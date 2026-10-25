@@ -306,23 +306,7 @@ impl SnowballEnv {
     }
 }
 
-/// The UTF-16 length of a string, at compile time.
-pub const fn utf16_len(s: &str) -> usize {
-    let b = s.as_bytes();
-    let mut i = 0;
-    let mut n = 0;
-    while i < b.len() {
-        // A four-byte sequence is a supplementary character: two units.
-        n += if b[i] >= 0xF0 { 2 } else { 1 };
-        i += match b[i] {
-            0x00..=0x7F => 1,
-            0xC0..=0xDF => 2,
-            0xE0..=0xEF => 3,
-            _ => 4,
-        };
-    }
-    n
-}
+pub use turbo_unicode::utf16::utf16_len;
 
 /// A string as UTF-16 code units, at compile time. `N` is `utf16_len(s)`.
 pub const fn utf16<const N: usize>(s: &str) -> [u16; N] {

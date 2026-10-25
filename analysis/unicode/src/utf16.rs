@@ -56,8 +56,15 @@ fn low_surrogate(cp: u32) -> u16 {
 /// The UTF-16 code units of the bytes of a run of whole characters: one
 /// per character, two for each four-byte character.
 #[inline]
-fn units_in(bytes: &[u8]) -> usize {
-    bytes.iter().map(|&b| usize::from(b & 0xC0 != 0x80) + usize::from(b >= 0xF0)).sum()
+const fn units_in(bytes: &[u8]) -> usize {
+    let mut units = 0;
+    let mut i = 0;
+    while i < bytes.len() {
+        let b = bytes[i];
+        units += (b & 0xC0 != 0x80) as usize + (b >= 0xF0) as usize;
+        i += 1;
+    }
+    units
 }
 
 /// A position among the UTF-16 code units of a `&str`.
@@ -266,7 +273,7 @@ impl<'a> Utf16Cursor<'a> {
 }
 
 /// The length of `s` in UTF-16 code units.
-pub fn utf16_len(s: &str) -> usize {
+pub const fn utf16_len(s: &str) -> usize {
     units_in(s.as_bytes())
 }
 
