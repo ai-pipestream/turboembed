@@ -8,17 +8,25 @@ containing the raw distribution, calibrated distribution, label-index set,
 artifact identity, policy, quantile, and optional abstention reason. Reasons
 are `EmptySet`, `SetTooLarge`, and `BelowThreshold`, in that precedence order.
 Consumers must inspect the sidecar before delivering a category or entity.
-Raw output presence is not acceptance. For entities, inspect every covered
-token; the token sets do not form a jointly valid BIO sequence.
+Raw output presence is not acceptance. For `NameFinderME`
+(`CalibratedNameAnnotator`, `Calibrated<Tokens>`), inspect every covered token
+because token sets are prefix-conditioned and do not form a jointly valid BIO
+sequence. For `CrfNameFinder` (`CalibratedCrfNameAnnotator`,
+`Calibrated<Entities>`), each decoded entity span carries its own calibrated
+sequence-marginal distribution over `["other", kind_0, ...]`, aligned 1-to-1
+with `Entities`.
 
 ## Fit, bind, and evaluate
 
 1. Train the underlying model without using any calibration or test samples.
 2. Collect full model probability distributions and gold label indices on
    three separate splits: probability fitting, conformal calibration, and
-   final evaluation. Label order must be the model's outcome order.
-3. Construct the actual producer identity with `turbo_doccat::calibrated::identity`
-   or `turbo_namefind::calibrated::identity`. Supply a domain identifier.
+   final evaluation. Label order must be the model's outcome order (or
+   `CrfSequenceModel::span_outcomes()` for span-level CRF calibration).
+3. Construct the actual producer identity with `turbo_doccat::calibrated::identity`,
+   `turbo_namefind::calibrated::identity` (`Task::TokenTagging`), or
+   `turbo_namefind::calibrated::crf_identity` (`Task::SpanTagging`). Supply a
+   domain identifier.
 4. Call `turbo_train::calibration::fit` with a `Method` and two `Samples`
    collections. The frozen transform is fitted only on the first collection;
    sorted `1 - p(gold)` scores come only from the second. Split names and SHA-256
@@ -28,10 +36,12 @@ token; the token sets do not form a jointly valid BIO sequence.
    ordered labels, and inference configuration must match. A mismatch names
    the artifact digest. In-memory doccat models without a model digest, and
    custom feature generators without an identifiable configuration, are refused.
-6. Construct `Predictor`, `CalibratedCategorizer`, or `CalibratedNameAnnotator`
-   with `Policy { coverage, max_set_size, min_confidence }`. All policy fields
+6. Construct `Predictor`, `CalibratedCategorizer`, `CalibratedNameAnnotator`,
+   or `CalibratedCrfNameAnnotator` with
+   `Policy { coverage, max_set_size, min_confidence }`. All policy fields
    enter `config_hash()`, together with the complete artifact. Built-in doccat
-   feature settings also enter the producer identity.
+   feature settings and CRF sequence codec settings also enter the producer
+   identity.
 7. Evaluate the untouched test split with `turbo_eval::calibration::reliability`
    and `coverage`. ECE is equal-width top-label ECE; Brier is the sum of squared
    errors across classes. Set coverage and delivered coverage are separate:
@@ -40,8 +50,39 @@ token; the token sets do not form a jointly valid BIO sequence.
 The binary artifact uses version `TCAL0001`, little-endian numbers, u32
 lengths, and fixed field order. Decoders validate counts against available
 bytes before allocation, reject trailing bytes, and validate parameters.
-`DocumentGraph` codecs register the sidecars for document `Categories` and
-`Tokens`; the imported policy, set, and reason must be consistent.
+`DocumentGraph` codecs register the sidecars for document `Categories`,
+`Tokens`, and `Entities`; the imported policy, set, and reason must be
+consistent.
+
+## Span-level CRF calibration
+
+`NameFinderME` decodes with beam search and returns per-token MaxEnt
+distributions conditioned on the winning prefix (`Task::TokenTagging`). In
+contrast, `CrfSequenceModel` (`analysis/sequence/src/crf/model.rs`) defines a
+globally normalized probability distribution over legal BIO or BILOU paths.
+For any contiguous token span `start..end`:
+
+- Each entity kind `k` in `CrfSequenceModel::entity_kinds()` corresponds to a
+  unique legal BIO or BILOU state sequence on `start..end` (with `{k}-cont`
+  excluded at `end` under BIO). Because distinct entity kinds require distinct
+  start or unit states at `start`, the events that `start..end` is a complete
+  entity of kind `k` are mutually exclusive across kinds.
+- `CrfSequenceModel::span_distribution(&lattice, start, end)` evaluates each
+  kind's exact forward-backward marginal via `CrfLattice::span_probability` and
+  places the complement probability `1 - sum_k p(k)` at index `0` (`"other"`,
+  not a complete entity on `start..end`), yielding a normalized distribution
+  over `CrfSequenceModel::span_outcomes()` (`["other", kind_0, ...]`).
+- `CrfNameFinder::find_scored_spans` pairs each top-1 decoded entity with its
+  span marginal distribution, and `CrfNameFinder::candidate_spans(tokens, k)`
+  returns the ordered unique candidate spans from the top-`k` constrained paths
+  with their span marginal distributions for calibration fitting and conformal
+  scoring.
+- `CalibratedCrfNameAnnotator` writes `(Entities, Calibrated<Entities>)`, where
+  row `i` of `Calibrated<Entities>` aligns to entity `i` of `Entities`, and
+  `Entities` aligns both to `View` byte spans and `Tokens` index ranges. When a
+  candidate span is ambiguous between an entity kind and `"other"`, both indices
+  enter the conformal prediction set and a single-label policy (`max_set_size: 1`)
+  abstains with `Abstention::SetTooLarge`.
 
 ## Methods and coverage interpretation
 
@@ -108,6 +149,109 @@ less conservative 90% request.
 Run the numerical test with `cargo test --locked -p turbo-train --test calibration -- --nocapture`
 and the model integration receipts with
 `cargo test --locked -p turbo-doccat -p turbo-namefind --test calibrated -- --nocapture`.
+
+## Real-corpus ECE and coverage records
+
+### MASC 3.0.0 (`analysis/train-recipes/examples/masc_calibration.rs`)
+
+`analysis/train-recipes/examples/masc_calibration.rs` evaluates all three
+transforms (`Temperature`, `Platt`, `Isotonic`) at requested coverage `0.90` on
+the verified MASC 3.0.0 release (`corpus_sha256`
+`445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd`, CC BY 3.0
+US, Twitter genre excluded by `masc::SPLIT`; see `docs/licences.md`). Reproduce
+with:
+
+```sh
+cargo run --release --locked -p turbo-train-recipes --example masc_calibration -- DATA_DIRECTORY
+```
+
+Models are trained only on `split.train` (351 documents). For document
+categorization, the 39 held-out documents in `split.held_out` are partitioned
+deterministically (`i % 3`) into disjoint `masc-fit`, `masc-conformal`, and
+`masc-test` splits. The name-finder experiment instead samples 900 held-out
+sentences, then partitions those sentences by `i % 3`; its three splits can
+contain different sentences from the same original document.
+`Single-label delivered` reports `delivered_coverage` under the stricter
+decision policy `Policy { coverage: 0.90, max_set_size: 1, min_confidence: 0.50 }`.
+
+1. **`DocumentCategorizerME` (4 genres: `prose-reference`, `news-press`, `correspondence`, `spoken`)**:
+   40-token passages grouped per document (`fit_n = 424`, `conformal_n = 763`, `test_n = 530`, raw accuracy `0.700000`).
+
+| Transform | ECE | Brier | Set coverage (`0.90`) | Mean set size | Single-label delivered | Abstention rate | Artifact SHA-256 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| Raw | 0.087442 | 0.441689 | n/a | n/a | n/a | n/a | n/a |
+| Temperature | 0.039741 | 0.431322 | 0.807547 | 1.372 | 0.511321 | 0.373585 | `20052b0d6027a3d7619a01c1524ace15df63e3979143033ecf90ebbdb080b0cd` |
+| Platt | 0.037501 | 0.431160 | 0.801887 | 1.360 | 0.511321 | 0.371698 | `717cd7f30aaebe1a9b3d4c5062ad44b7aecf4c732d8fa23e1050389f37435447` |
+| Isotonic | 0.051353 | 0.435257 | 0.800000 | 1.342 | 0.537736 | 0.333962 | `ef6a4ecfee0ac6d644df4a639d7dc31ad96f169e35b31d731a28a42fae208a7b` |
+
+   Because passages are partitioned by whole document (13 held-out documents
+   per split), passage-level exchangeability is only approximate across
+   documents, and realized set coverage (`0.800` to `0.808`) reflects
+   document-level genre clustering.
+
+2. **`NameFinderME` token-level (`Task::TokenTagging`, BIO, 9 outcomes across `person`, `location`, `organization`, `date`)**:
+   Trained on 2,048 genre-spread training sentences; evaluated on 900 held-out
+   sentences split `i % 3` (`fit_n = 4069`, `conformal_n = 3724`, `test_n = 4078` tokens, raw accuracy `0.967876`).
+   Fitting, conformal scoring and evaluation each use a fresh finder per
+   sentence, matching one single-sentence `Document` per adapter call. The
+   model's training recipe is unchanged. Every fitting/conformal raw row is
+   checked against the corresponding adapter sidecar, and both test decision
+   policies are evaluated from all emitted sidecar columns after artifact
+   serialization/loading. These token rows remain correlated within sentences
+   and source documents; their empirical coverage is not a joint span guarantee
+   or a promise that this split achieves nominal 90% coverage.
+
+| Transform | ECE | Brier | Set coverage (`0.90`) | Mean set size | Single-label delivered | Abstention rate | Artifact SHA-256 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| Raw | 0.013650 | 0.050761 | n/a | n/a | n/a | n/a | n/a |
+| Temperature | 0.009178 | 0.049382 | 0.904610 | 0.910 | 0.904610 | 0.090240 | `cb7b464a9450ba98cf226f6bc7716887fb99afd7f515f0029c1bffc8fadb06eb` |
+| Platt | 0.008671 | 0.049619 | 0.904855 | 0.910 | 0.904855 | 0.090240 | `4987e5847293cb5a0a49743dbaf346f4bbae7f2df6ba36e91ac0fd3485f49fde` |
+| Isotonic | 0.004283 | 0.048234 | 0.904365 | 0.908 | 0.904365 | 0.092202 | `a0b694c191f4b40253466c8750341503ba6a85bafda6255a4a0e96d0b559f067` |
+
+3. **`CrfNameFinder` span-level (`Task::SpanTagging`, BIO, 5 outcomes `["other", "date", "location", "organization", "person"]`)**:
+   Candidate spans from `CrfNameFinder::candidate_spans(..., 4)` bound via
+   `crf_identity_with_candidates(..., 4)` and `CalibratedCrfNameAnnotator::with_candidates(..., 4)`
+   on the same held-out sentence splits (`fit_n = 550`, `conformal_n = 558`, `test_n = 542` candidate spans, raw accuracy `0.850554`).
+
+| Transform | ECE | Brier | Set coverage (`0.90`) | Mean set size | Single-label delivered | Abstention rate | Artifact SHA-256 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| Raw | 0.036268 | 0.213593 | n/a | n/a | n/a | n/a | n/a |
+| Temperature | 0.038892 | 0.211607 | 0.898524 | 1.120 | 0.784133 | 0.132841 | `5de64ae1508fe7cf59ed8ad0edb9eb602779e251464f7d886454d74a291ff6eb` |
+| Platt | 0.045838 | 0.211462 | 0.898524 | 1.120 | 0.782288 | 0.134686 | `c2b0523a7a356a2ce6fcf4af3ddc1ff7dbdfb1d48adbdebfc6178e60574178b6` |
+| Isotonic | 0.042270 | 0.209870 | 0.904059 | 1.133 | 0.776753 | 0.154982 | `0580a9c01865b12fd34144cbe83a027235abc0914d022912c1ab0b467855f4bc` |
+
+4. **`CrfNameFinder` span-level (`Task::SpanTagging`, BILOU, 5 outcomes `["other", "date", "location", "organization", "person"]`)**:
+   Candidate spans from `CrfNameFinder::candidate_spans(..., 4)` bound via
+   `crf_identity_with_candidates(..., 4)` and `CalibratedCrfNameAnnotator::with_candidates(..., 4)`
+   on the same held-out sentence splits (`fit_n = 551`, `conformal_n = 553`, `test_n = 548` candidate spans, raw accuracy `0.868613`).
+
+| Transform | ECE | Brier | Set coverage (`0.90`) | Mean set size | Single-label delivered | Abstention rate | Artifact SHA-256 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| Raw | 0.026169 | 0.185469 | n/a | n/a | n/a | n/a | n/a |
+| Temperature | 0.023087 | 0.183377 | 0.914234 | 1.109 | 0.804745 | 0.124088 | `9b60cfe431e886e8522a3cb7673c5ff1291504c8e8a6be34ec281d7022a7a812` |
+| Platt | 0.026345 | 0.183358 | 0.912409 | 1.108 | 0.802920 | 0.125912 | `32284f429c373887ce8041bb4f2166aa89a693c9fe0a8dfb478a1819dc39f973` |
+| Isotonic | 0.024549 | 0.185042 | 0.901460 | 1.091 | 0.810219 | 0.105839 | `6640a979ad41e6c4e08d3b2b654b492509a42b80803ce2316cf26b00b958d5e3` |
+
+### Checked-in GermEval 2014 and passage excerpts
+
+`analysis/namefind/tests/calibrated.rs`
+(`germeval_real_corpus_token_and_crf_span_calibration_receipts`) and
+`analysis/doccat/tests/calibrated.rs`
+(`real_passage_corpus_receipts_across_all_transforms`) run in CI on the
+checked-in 105-sentence GermEval 2014 excerpt
+(`analysis/goldens/data/inputs/ner/germeval-excerpt.txt`, SHA-256
+`0bc6a217acfc21773d49b2ab3861e0cd318c2ce825374a4aba5b242571eaa53c`, CC BY 4.0)
+and checked-in passage fixtures (`analysis/goldens/data/inputs/svm-doccat-train/topics.txt`
+and `analysis/goldens/data/inputs/sentiment-train/feedback.txt`):
+
+| Producer and corpus | Transform | ECE before | ECE after | Brier before | Brier after | Set coverage (`0.90`) |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `CrfNameFinder` span-level (GermEval 2014 excerpt, `test_n = 50`) | Temperature | 0.078290 | 0.149059 | 0.317316 | 0.316092 | 0.980000 |
+| `CrfNameFinder` span-level (GermEval 2014 excerpt, `test_n = 50`) | Platt | 0.078290 | 0.139214 | 0.317316 | 0.315288 | 0.980000 |
+| `CrfNameFinder` span-level (GermEval 2014 excerpt, `test_n = 50`) | Isotonic | 0.078290 | 0.114776 | 0.317316 | 0.324982 | 0.920000 |
+| `DocumentCategorizerME` (checked-in passages, `test_n = 26`) | Temperature | 0.189156 | 0.283442 | 0.530043 | 0.581107 | 0.846154 |
+| `DocumentCategorizerME` (checked-in passages, `test_n = 26`) | Platt | 0.189156 | 0.253670 | 0.530043 | 0.570071 | 0.846154 |
+| `DocumentCategorizerME` (checked-in passages, `test_n = 26`) | Isotonic | 0.189156 | 0.373917 | 0.530043 | 0.718390 | 1.000000 |
 
 ## Allocation and validation contract
 

@@ -160,6 +160,7 @@ fn pattern(p: &Point) -> Option<TimexPoint> {
         DateSpec::Cal { year: YearRef::Any, month: 0, day, weekday: 0 } if day > 0 => {
             TimexDate::Ymd { year: super::timex::TimexYear::Any, month: None, day: Some(day) }
         }
+        DateSpec::Undefined { grain: TimeGrain::Weekend } => TimexDate::Pattern("XXXX-WXX-WE"),
         _ => return None,
     };
     let time = match p.time {
@@ -215,6 +216,8 @@ fn date_depends(d: DateSpec) -> bool {
         | DateSpec::Season { year, .. }
         | DateSpec::Decade { year }
         | DateSpec::Holiday { year, .. }
+        | DateSpec::HolidayWeekend { year, .. }
+        | DateSpec::YearSlice { year, .. }
         | DateSpec::OtherYear { year, .. } => !matches!(year, YearRef::Abs(_)),
         DateSpec::MonthWeek { year, month, .. } | DateSpec::NthWeekday { year, month, .. } => {
             !matches!(year, YearRef::Abs(_)) || matches!(month, super::spec::MonthRef::Rel(_))

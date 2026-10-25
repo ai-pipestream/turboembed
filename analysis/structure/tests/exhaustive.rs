@@ -42,6 +42,12 @@ const LINES: &[&str] = &[
     "...",
     "-- ",
     "2024. y",
+    "<div>",
+    "<!--",
+    "-->",
+    "[^a]: café",
+    "Name    Count",
+    "Café    17",
 ];
 
 fn holds(text: &str, syntax: Syntax) {

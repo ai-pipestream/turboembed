@@ -101,7 +101,7 @@ impl SpanScratch {
 pub struct SpanDetector {
     detector: LanguageDetector,
     settings: Settings,
-    candidates: Candidates,
+    pub(crate) candidates: Candidates,
     languages: Arc<TagSet>,
     undetermined: u16,
 }
@@ -171,6 +171,35 @@ impl SpanDetector {
         scratch: &mut SpanScratch,
         out: &mut Vec<Run>,
     ) {
+        self.detect_inner(text, sentence_starts, tokens, scratch, out, None);
+    }
+
+    /// Text-only runs plus the uncalibrated distribution over model outcomes
+    /// for each run. Unsupported scripts have an all-zero row and no outcome.
+    pub fn detect_distributions(
+        &self,
+        text: &str,
+        scratch: &mut SpanScratch,
+        out: &mut Vec<Run>,
+        rows: &mut Vec<Vec<f64>>,
+    ) {
+        rows.clear();
+        self.detect_inner(text, None, None, scratch, out, Some(rows));
+    }
+
+    pub(crate) fn candidate_hash(&self) -> u64 {
+        self.candidates.fingerprint()
+    }
+
+    fn detect_inner(
+        &self,
+        text: &str,
+        sentence_starts: Option<&[u32]>,
+        tokens: Option<(&[u32], &[u32])>,
+        scratch: &mut SpanScratch,
+        out: &mut Vec<Run>,
+        mut rows: Option<&mut Vec<Vec<f64>>>,
+    ) {
         out.clear();
         units(text, tokens, &mut scratch.units);
         let n = scratch.units.len();
@@ -204,8 +233,24 @@ impl SpanDetector {
             let last = units[end - 1].end;
             let letters = units[first..end].iter().map(|u| u.letters).sum();
             let script = dominant_script(text, &units[first..end], &mut scratch.scripts);
-            let confidence =
+            let (confidence, evidence) =
                 self.confidence(text, units[first].start, last, units[first].group, outcome, &mut scratch.detect);
+            if let Some(rows) = rows.as_deref_mut() {
+                let candidates = self.candidates.of(units[first].group);
+                let mut row = vec![0.0; self.detector.model().maxent().num_outcomes()];
+                if outcome.is_some() {
+                    let p = scratch.detect.probabilities();
+                    let sum: f64 = if evidence {
+                        candidates.iter().map(|&i| p[i as usize]).sum()
+                    } else {
+                        candidates.len() as f64
+                    };
+                    for &i in candidates {
+                        row[i as usize] = if evidence { p[i as usize] / sum } else { 1.0 / sum };
+                    }
+                }
+                rows.push(row);
+            }
             out.push(Run { span: Span::new(start, last), outcome, script, confidence, letters });
         }
         if let Some(run) = out.last_mut() {
@@ -329,18 +374,18 @@ impl SpanDetector {
         group: Script,
         outcome: Option<u32>,
         scratch: &mut Scratch,
-    ) -> f64 {
-        let Some(outcome) = outcome else { return 0.0 };
+    ) -> (f64, bool) {
+        let Some(outcome) = outcome else { return (0.0, false) };
         let candidates = self.candidates.of(group);
         if candidates.len() == 1 {
-            return 1.0;
+            return (1.0, false);
         }
         let evidence = self.detector.predict_language(&text[start as usize..end as usize], scratch).evidence;
         if !evidence {
-            return 1.0 / candidates.len() as f64;
+            return (1.0 / candidates.len() as f64, false);
         }
         let p = scratch.probabilities();
         let total: f64 = candidates.iter().map(|&c| p[c as usize]).sum();
-        (p[outcome as usize] / total).clamp(0.0, 1.0)
+        ((p[outcome as usize] / total).clamp(0.0, 1.0), true)
     }
 }

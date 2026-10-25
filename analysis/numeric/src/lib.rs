@@ -33,7 +33,7 @@ pub use money::{
 };
 pub use quantity::{DEFAULT_UNITS, QuantityExtractor, UnitError};
 pub use scan::{ScanResult, parse};
-pub use temporal::{DocumentDateSelector, TemporalExtractor};
+pub use temporal::{DocumentDateSelector, TemporalExtractor, TimesDocumentDateSelector};
 pub use turbo_analysis_layers::unit;
 pub use turbo_analysis_layers::{
     Dec, DecimalRef, DocumentDate, Granularity, Multiplier, NumberNotation, Numbers, Origin, PERCENT, Quantities,

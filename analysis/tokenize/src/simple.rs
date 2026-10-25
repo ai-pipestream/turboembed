@@ -40,12 +40,12 @@ enum Class {
 /// The class of every ASCII character in one whitespace mode. ASCII
 /// letters are the only alphabetic ASCII characters and ASCII digits the
 /// only digits; the two modes differ on U+001C to U+001F.
-const fn ascii_classes(legacy: bool) -> [Class; 128] {
+const fn ascii_classes(mode: WhitespaceMode) -> [Class; 128] {
     let mut table = [Class::Other; 128];
     let mut b = 0;
     while b < 128 {
         let c = b as u8;
-        table[b] = if (c >= 0x09 && c <= 0x0D) || c == b' ' || (legacy && c >= 0x1C && c <= 0x1F) {
+        table[b] = if mode.is_ascii_whitespace(c) {
             Class::Whitespace
         } else if c.is_ascii_alphabetic() {
             Class::Alphabetic
@@ -59,8 +59,8 @@ const fn ascii_classes(legacy: bool) -> [Class; 128] {
     table
 }
 
-static UNICODE_ASCII: [Class; 128] = ascii_classes(false);
-static LEGACY_ASCII: [Class; 128] = ascii_classes(true);
+static UNICODE_ASCII: [Class; 128] = ascii_classes(WhitespaceMode::Unicode);
+static LEGACY_ASCII: [Class; 128] = ascii_classes(WhitespaceMode::Legacy);
 
 /// The class of a character at or above U+0080. A character outside the
 /// BMP is "other", as each of its surrogate halves is in Java.

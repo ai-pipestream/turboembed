@@ -19,7 +19,7 @@
 use crate::dec::Dec;
 
 use super::{
-    Age, Angle, Area, DurationUnit, Energy, Frequency, Information, Length, Per, Power, Speed, Temperature, Unit,
+    Age, Angle, Area, DurationUnit, Energy, Frequency, Information, Length, Per, Power, Rate, Speed, Temperature, Unit,
     Volume, Weight,
 };
 
@@ -186,6 +186,10 @@ impl Per {
             Per::Second => Dec::ONE,
             Per::Minute => dec(60, 0),
             Per::Hour => dec(3600, 0),
+            Per::Day => dec(86_400, 0),
+            Per::Week => dec(604_800, 0),
+            Per::Month => dec(2_628_000, 0),
+            Per::Year => dec(31_536_000, 0),
         }
     }
 
@@ -195,6 +199,10 @@ impl Per {
             "s" => Per::Second,
             "min" => Per::Minute,
             "h" | "hr" => Per::Hour,
+            "d" => Per::Day,
+            "wk" => Per::Week,
+            "mo" => Per::Month,
+            "yr" => Per::Year,
             _ => return None,
         })
     }
@@ -371,13 +379,17 @@ impl Unit {
             Unit::Volume(_) => Unit::Volume(Volume::BASE),
             Unit::Weight(_) => Unit::Weight(Weight::BASE),
             Unit::Speed(_) => Unit::Speed(Speed::BASE),
+            Unit::Rate(Rate::Information(..)) => Unit::Rate(Rate::Information(Information::BASE, Per::Second)),
             Unit::Information(_) => Unit::Information(Information::BASE),
             Unit::Angle(_) => Unit::Angle(Angle::BASE),
             Unit::Duration(_) => Unit::Duration(DurationUnit::BASE),
             Unit::Frequency(_) => Unit::Frequency(Frequency::BASE),
             Unit::Power(_) => Unit::Power(Power::BASE),
             Unit::Energy(_) => Unit::Energy(Energy::BASE),
-            Unit::Temperature(Temperature::Degree) | Unit::Age(Age::Unstated) | Unit::Currency(_) => return None,
+            Unit::Temperature(Temperature::Degree)
+            | Unit::Age(Age::Unstated)
+            | Unit::Currency(_)
+            | Unit::Rate(Rate::Currency(..)) => return None,
             Unit::Temperature(_) => Unit::Temperature(Temperature::BASE),
             Unit::Age(_) => Unit::Age(Age::BASE),
         })
@@ -393,6 +405,7 @@ impl Unit {
             Unit::Volume(v) => v.factor(),
             Unit::Weight(w) => w.factor(),
             Unit::Speed(s) => s.factor(),
+            Unit::Rate(Rate::Information(i, p)) => i.factor().checked_div(p.seconds())?,
             Unit::Information(i) => i.factor(),
             Unit::Angle(a) => a.factor(),
             Unit::Duration(d) => d.factor(),
@@ -402,7 +415,7 @@ impl Unit {
             Unit::Temperature(Temperature::Kelvin) => Dec::ONE,
             Unit::Temperature(Temperature::Rankine) => dec(5, 0).checked_div(dec(9, 0))?,
             Unit::Age(a) => a.to_base(Dec::ONE)?,
-            Unit::Temperature(_) | Unit::Currency(_) => return None,
+            Unit::Temperature(_) | Unit::Currency(_) | Unit::Rate(Rate::Currency(..)) => return None,
         })
     }
 
@@ -411,6 +424,7 @@ impl Unit {
         let base = self.base_unit()?;
         let converted = match self {
             Unit::Speed(s) => s.to_base(value)?,
+            Unit::Rate(Rate::Information(i, p)) => value.checked_mul(i.factor())?.checked_div(p.seconds())?,
             Unit::Temperature(t) => t.to_base(value)?,
             Unit::Age(a) => a.to_base(value)?,
             _ => value.checked_mul(self.conversion_factor()?)?,

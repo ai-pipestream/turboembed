@@ -440,8 +440,11 @@ async fn round_trip_document_graph_supports_all_registered_workspace_crates() {
     let _ = Chunks::ID;
 
     let graph_bytes = export(&doc, codecs()).unwrap().to_bytes().unwrap();
-    let resp =
-        c.round_trip_document_graph(DocumentGraphRequest { graph: graph_bytes.clone() }).await.unwrap().into_inner();
+    let resp = c
+        .round_trip_document_graph(DocumentGraphRequest { graph: graph_bytes.clone().into() })
+        .await
+        .unwrap()
+        .into_inner();
     assert_eq!(resp.graph, graph_bytes, "re-exported DocumentGraph bytes are byte-identical");
     assert_eq!(resp.source_text, "Hello world");
     assert!(resp.layers.iter().all(|l| l.status == LayerWireStatus::Ok as i32));
