@@ -4,6 +4,7 @@
 //! aligned anchor integrity, and `indexes_layer` bounds.
 
 mod annotation;
+mod evidence;
 mod quality;
 mod shared;
 
@@ -208,6 +209,7 @@ fn validate_layer(
 ) -> Result<(), Failure> {
     let lid = layer.id.as_str();
     quality::layer(layer)?;
+    evidence::layer(layer)?;
     for mref in &layer.model_refs {
         check_model_ref(known_models, &format!("layer {lid}.model_refs"), mref)?;
     }
