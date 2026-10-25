@@ -204,6 +204,10 @@ is in that form and a test keeps it there.
 | `.files[].size` | uint64 | yes | Bytes. |
 | `.files[].sha256` | 64 lowercase hex | yes | Checked as the bundle tool checks files. |
 | `.files[].sha512` | 128 lowercase hex | yes | Checked as OpenNLP's `DownloadUtil` checks files. |
+| `.files[].download` | message | for a file served compressed | The file as the `url` serves it. `size`, `sha256` and `sha512` above stay the unpacked file's, which is what the cache holds. |
+| `.files[].download.compression` | `gzip` or `zstd` | yes | `gzip` is one RFC 1952 member, whose trailer CRC-32 and length must match; `zstd` is one or more RFC 8878 frames. |
+| `.files[].download.download_bytes` | uint64 | yes | The compressed bytes' size. |
+| `.files[].download.download_sha256` | 64 lowercase hex | yes | The compressed bytes' SHA-256. |
 
 Every field of type https URL (`.license_terms`,
 `.trained_on[].license_terms`, `.origin` and `.files[].url` here, and
@@ -297,7 +301,17 @@ For `fetch(id, user)`:
    itself, never its target), the temporary file is created anew,
    never opened through a link, and renamed onto the file. The
    transport is told the expected size; the HTTP transport reads at
-   most one byte more.
+   most one byte more, and asks for the bytes unencoded
+   (`Accept-Encoding: identity`). For a file with a `download` entry,
+   the transport is told the larger of `download_bytes` and `size`; the
+   fetched bytes are checked by `download_bytes` and `download_sha256`
+   (`Check::DownloadSize`, `Check::DownloadSha256`), unpacked to exactly
+   `size` bytes (`Check::Unpack` when they do not), and the unpacked
+   bytes are then checked by size, SHA-256 and SHA-512 as any other
+   file before they are written. Fetched bytes that fail the wire check
+   but verify as the file itself are kept: a server encoded the file
+   anyway (`Content-Encoding: gzip`) and the transport decoded it. The
+   zoo's own HTTP transport is built without that decoding.
 
 Step 2 runs on every call, cached files or not, so a revoked acceptance
 takes effect at once. There is no hash cache, as in the bundle loader.

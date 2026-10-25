@@ -81,12 +81,14 @@ jobs:
         run: cargo clippy -p turbo-vector-index --features turboquant --all-targets
       # The arm64 machines (aarch64 Linux, Apple silicon) build without
       # the x86_64 kernels. Checked only: the crates left out reach ring
-      # through ureq, whose build script needs an aarch64 C compiler.
+      # through ureq, whose build script needs an aarch64 C compiler. The
+      # server is checked without catalog-http, its one way to ureq.
       - name: check (aarch64)
-        run: >-
-          cargo check --workspace --target aarch64-unknown-linux-gnu
-          --exclude turbo-bench --exclude turbo-bundle --exclude turbo-eval
-          --exclude turbo-zoo --exclude turbo-train-components --exclude turbo-train-recipes
+        run: |
+          cargo check --workspace --target aarch64-unknown-linux-gnu \
+            --exclude turbo-bench --exclude turbo-bundle --exclude turbo-eval --exclude turbo-kserve \
+            --exclude turbo-zoo --exclude turbo-train-components --exclude turbo-train-recipes
+          cargo check -p turbo-kserve --no-default-features --target aarch64-unknown-linux-gnu
 
   # The workspace tests other than the core's and turbo-fuzz's, the
   # crates dealt round robin by sorted name into four shards, from `cargo
