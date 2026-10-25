@@ -96,6 +96,7 @@ fn qvalue(value: &str) -> Option<u16> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use axum::http::HeaderValue;
 
     #[test]
     fn defaults_repeated_fields_and_parameter_boundaries() {
@@ -127,6 +128,42 @@ mod tests {
         ] {
             headers.insert(header::ACCEPT, value.parse().unwrap());
             assert_eq!(stream_sse(&headers), expected, "{value}");
+        }
+    }
+    #[test]
+    fn valid_quoted_pairs_in_utf8_charset_match_the_offered_representation() {
+        for value in [
+            r#"text/event-stream;charset="utf\-8""#,
+            r#"text/event-stream;charset="u\tf-8";q=0.5;;"#,
+            r#"application/x-ndjson;charset="UTF\-8";"#,
+        ] {
+            let mut headers = HeaderMap::new();
+            headers.insert(header::ACCEPT, HeaderValue::from_str(value).unwrap());
+            let expected = Some(value.starts_with("text/"));
+            assert_eq!(stream_sse(&headers), expected, "{value}");
+        }
+    }
+
+    #[test]
+    fn empty_parameters_keep_repeated_header_quality_and_wildcard_controls() {
+        let mut headers = HeaderMap::new();
+        headers.append(header::ACCEPT, HeaderValue::from_static("text/event-stream;;;q=0;;"));
+        headers.append(header::ACCEPT, HeaderValue::from_static("application/x-ndjson; ; q=0.7;"));
+        assert_eq!(stream_sse(&headers), Some(false));
+        headers.insert(header::ACCEPT, HeaderValue::from_static("text/event-stream;;q=0;;, */*;q=1;"));
+        assert_eq!(stream_sse(&headers), Some(false));
+    }
+
+    #[test]
+    fn opaque_quoted_bytes_do_not_hide_a_later_supported_range() {
+        let values: &[&[u8]] = &[
+            b"application/x-ndjson;profile=\"\x80\", text/event-stream",
+            "application/x-ndjson;profile=\"é\", text/event-stream".as_bytes(),
+        ];
+        for value in values {
+            let mut headers = HeaderMap::new();
+            headers.insert(header::ACCEPT, HeaderValue::from_bytes(value).unwrap());
+            assert_eq!(stream_sse(&headers), Some(true), "{value:?}");
         }
     }
 }

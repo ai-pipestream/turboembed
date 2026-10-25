@@ -165,6 +165,18 @@ async fn stream_format_respects_accept_ranges_and_quality() {
         ("text/*;q=0.9, application/*;q=0.1", 200, "text/event-stream"),
         ("text/event-stream;q=1, application/x-ndjson;q=0.1", 200, "text/event-stream"),
         ("text/event-stream;q=0, application/x-ndjson;q=0", 406, "application/json"),
+        ("text/event-stream;", 200, "text/event-stream"),
+        ("text/event-stream;;q=1", 200, "text/event-stream"),
+        ("application/x-ndjson;", 200, "application/x-ndjson"),
+        (r#"text/event-stream;charset="utf\-8""#, 200, "text/event-stream"),
+        (r#"application/x-ndjson;charset="UTF\-8";"#, 200, "application/x-ndjson"),
+        ("application/x-ndjson;profile=\"é\", text/event-stream", 200, "text/event-stream"),
+        ("application/x-ndjson;q=0\r\nAccept: text/event-stream;;", 200, "text/event-stream"),
+        (
+            r#"application/x-ndjson;profile="a,text/event-stream,b", application/x-ndjson;q=0.4"#,
+            200,
+            "application/x-ndjson",
+        ),
     ];
     let mut failures = Vec::new();
     for (accept, expected_status, expected_kind) in cases {
@@ -195,8 +207,15 @@ async fn unacceptable_stream_format_is_refused_without_an_upstream_server() {
     let addr = listener.local_addr().unwrap();
     drop(listener);
     let d = Demo::start("127.0.0.1:0".parse().unwrap(), &format!("http://{addr}"), vec![]).await.unwrap();
-    let (status, kind, body) = http(&d, "POST", "/api/analyze/stream", "*/*;q=0", r#"{"documents":[]}"#).await;
+    for accept in [
+        "*/*;q=0",
+        r#"text/event-stream;charset="u\tf-8";q=0"#,
+        r#"text/event-stream;charset="utf\,8""#,
+        r#"application/x-ndjson;profile="é", text/event-stream;q=0"#,
+    ] {
+        let (status, kind, body) = http(&d, "POST", "/api/analyze/stream", accept, r#"{"documents":[]}"#).await;
+        assert_eq!((status, kind.as_str()), (406, "application/json"), "{accept}: {body}");
+        assert_eq!(serde_json::from_str::<Value>(&body).unwrap()["error"]["grpc"], Value::Null);
+    }
     d.stop().await;
-    assert_eq!((status, kind.as_str()), (406, "application/json"), "{body}");
-    assert_eq!(serde_json::from_str::<Value>(&body).unwrap()["error"]["grpc"], Value::Null);
 }
