@@ -51,7 +51,15 @@ cargo run -p turbo-bundle -- seal $W/recipe.json $W/upstream $W/bundle
 run segment /w/out/model /w/tokenizer.json /w/texts.jsonl /w/t0.5-s16-b62.jsonl 0.5 16 62
 run segment /w/out/model /w/tokenizer.json /w/texts.jsonl /w/t0.25-s62-b62.jsonl 0.25 62 62
 run segment /w/out/model /w/tokenizer.json /w/texts.jsonl /w/t0.5-s7-b30.jsonl 0.5 7 30
+
+# Limited lookahead: the same weights, wtpsplit's lookahead 8 (4 a layer).
+run tiny /w/tokenizer.json /w/la 8
+run segment /w/la/model /w/tokenizer.json /w/texts.jsonl /w/la8-t0.5-s16-b62.jsonl 0.5 16 62
+run segment /w/la/model /w/tokenizer.json /w/texts.jsonl /w/la8-t0.025-s7-b30.jsonl 0.025 7 30
 ```
+
+`tests/parity.rs` holds the `la8-` fixtures to a copy of the tiny bundle
+with `architecture.lookahead` 4.
 
 The image runs as a user other than root; `--user 0:0` lets it write
 to the mounted directory.
@@ -87,7 +95,8 @@ cargo test --release -p turbo-sat --test speed -- --ignored --nocapture
   `segment` made from its weights, when `TURBO_TEST_SAT_BUNDLE` names
   the bundle and `TURBO_TEST_SAT_FIXTURES` the fixtures, separated by
   commas. `bundle/recipes/sat-1l-sm.json` is the recipe for `sat-1l-sm`
-  (local-only, docs/licences.md). Its upstream directory holds the
+  (refused under the current training-source policy, docs/licences.md).
+  Its upstream directory holds the
   checkpoint's `model.safetensors` and, as `tokenizer.json`,
   BAAI/bge-m3's at revision `5617a9f61b028005a4858fdac845db406aefb181`
   (the checkpoint has no tokenizer of its own). Its reference vectors
@@ -95,6 +104,31 @@ cargo test --release -p turbo-sat --test speed -- --ignored --nocapture
   checkpoint's `config.json` and `model.safetensors` as the model in
   place of the tiny model's `out/model`, and the bge-m3 file as the
   tokenizer; `config.json` is read by the reference only, not sealed.
+  `bundle/recipes/sat-3l.json` is the recipe for `sat-3l` (MIT, limited
+  lookahead). Its checkpoint ships `pytorch_model.bin` and no
+  safetensors: the upstream directory holds it, `config.json` and the
+  bge-m3 `tokenizer.json`, and the weights are written by
+  `bin_to_safetensors.py` in the `turbo-reference` image, whose report,
+  with that image and `reproducible`, sits beside the file as
+  `weights/model.safetensors.report.json` before `seal`. The reference
+  reads the `.bin` directory; `segment` reads a directory holding
+  `config.json` and the written `model.safetensors`.
+  Its classifier preserves all 111 columns in the pinned config's
+  `id2label` order, using the upstream neutral names `LABEL_0` through
+  `LABEL_110`. These names assign no semantics to the other outputs.
+  SaT selects row zero, wtpsplit's `Constants.NEWLINE_INDEX`, for the
+  boundary probability. The reference writer emits all unpadded token
+  logits, including special tokens, so sealing verifies the full head.
+  The recipe pins the updated reference image. With the prior pinned
+  environment already present, rebuild it without fetching dependencies:
+
+  ```sh
+  docker build --network=none --pull=false -t turbo-sat-reference:classifier \
+      -f analysis/sat/reference/Dockerfile.classifier analysis/sat/reference
+  ```
+
+  This updates only the writer over the same locked dependency image;
+  the full environment remains described by `reference/Dockerfile`.
 - `tests/annotator.rs`: batching, texts longer than a window, texts
   without words, the threshold and line feeds, the options, the
   configuration hash, the provider and the analyzer.

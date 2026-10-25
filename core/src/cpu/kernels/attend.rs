@@ -36,6 +36,10 @@ pub(in crate::cpu) struct Attend<'a> {
     pub(in crate::cpu) d: usize,
     pub(in crate::cpu) len: usize,
     pub(in crate::cpu) mask: &'a [u8],
+    /// Limited lookahead: query i attends to keys up to i + ahead, and
+    /// usize::MAX leaves the whole row. A banded key's score is minus
+    /// infinity, as a masked key's is.
+    pub(in crate::cpu) ahead: usize,
     pub(in crate::cpu) scale: f32,
     /// Whether the plain Rust fallback fuses multiply and add: as V does.
     pub(in crate::cpu) fma: bool,
@@ -113,6 +117,14 @@ impl Attend<'_> {
             }
             if jb < lp {
                 self.scores::<V, G, 1>(q, jb, sp, lp, mp);
+            }
+            // The band: only a model with limited lookahead has keys past
+            // it, so the whole-row path is one comparison per group.
+            if self.ahead < self.len {
+                for g in 0..G {
+                    let from = (i + g).saturating_add(self.ahead).saturating_add(1).min(self.len);
+                    sc[g * lp + from..g * lp + self.len].fill(f32::NEG_INFINITY);
+                }
             }
             for g in 0..G {
                 let row = &mut sc[g * lp..][..lp];

@@ -177,22 +177,24 @@ fn hash_compat_options_identity_and_morphy() {
             hashes.extend([plain.config_hash(), morphy.config_hash()]);
         }
     }
-    // Fixed values from the previous implementation, before migration.
+    // Plain values retain the pre-migration byte stream. Morphy values
+    // include the resource tag introduced by the identity repair in #1303,
+    // pinned before replacing its local FNV loop with the canonical hasher.
     assert_eq!(
         hashes,
         [
             10151469796173529181,
-            10151469796173529180,
+            3680983188007610824,
             1611157893381296233,
-            1611157893381296232,
+            758218860574209860,
             9154899751243379368,
-            9154899751243379369,
+            1934318102296041461,
             10306967913311042588,
-            10306967913311042589,
+            16914308485395794521,
             17548468750267158981,
-            17548468750267158980,
+            11483478524313537840,
             6655273575599580657,
-            6655273575599580656
+            5617332801517433580
         ]
     );
 }

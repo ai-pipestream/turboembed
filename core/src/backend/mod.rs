@@ -103,7 +103,10 @@ pub struct turbo_backend_model {
     pub artifact2_bytes: u64,
     pub head: *const turbo_backend_tensor,
     pub head_out: u32,
-    pub reserved: u32,
+    /// Limited lookahead: keys a query attends to past itself, 0 for the
+    /// whole row (architecture.lookahead). Only the CPU backend runs a
+    /// band; the core refuses a banded model on any other.
+    pub lookahead: u32,
 }
 
 /// A session as session_open receives it: turbo_session_desc's fields with

@@ -6,6 +6,10 @@ on:
   pull_request:
   # The merge queue's run on the queued pull requests stacked on main.
   merge_group:
+  # The lanes skipped on pushes to main run here once a day, so main's
+  # build caches, which only main saves, follow its dependencies.
+  schedule:
+    - cron: "17 6 * * *"
 
 permissions:
   contents: read
@@ -99,6 +103,9 @@ jobs:
   # turbo` ran.
   test:
     name: test (shard ${{ matrix.shard }}/4)
+    # Skipped on pushes to main: the merge queue ran this lane on the very
+    # commit main now points to, and direct pushes to main are refused.
+    if: github.event_name != 'push'
     runs-on: ${{ github.event.pull_request.head.repo.fork != true && vars.TURBO_CI_LINUX && fromJSON(vars.TURBO_CI_LINUX) || 'ubuntu-24.04' }}
     strategy:
       fail-fast: false
@@ -149,6 +156,8 @@ jobs:
   # target directory of their own so the other jobs' builds are untouched.
   fuzz:
     name: test (turbo-fuzz)
+    # Skipped on pushes to main, as the shards are.
+    if: github.event_name != 'push'
     runs-on: ${{ github.event.pull_request.head.repo.fork != true && vars.TURBO_CI_LINUX && fromJSON(vars.TURBO_CI_LINUX) || 'ubuntu-24.04' }}
     steps:
       - uses: actions/checkout@v7
@@ -185,6 +194,9 @@ jobs:
           key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe/**', 'analysis/goldens-tool/src/models.rs') }}
       - name: fetch the OpenNLP models
         run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
       # TurboQuant storage is behind a feature that brings in turbovec.
       - name: test (turboquant)
         run: cargo test -p turbo-vector-index --features turboquant
@@ -199,10 +211,14 @@ jobs:
       # and a crate compiled against the one overwritten fails to load
       # (#358). So the core's tests, and every later run that turns on
       # another core feature, build in a target directory of their own.
+      # nextest runs the core's test binaries side by side; the doctests
+      # run after it.
       - name: test (core)
         env:
           CARGO_TARGET_DIR: target/core
-        run: cargo test -p turbo
+        run: |
+          cargo nextest run -p turbo
+          cargo test --doc -p turbo
       # Host-only. This runner is ubuntu-24.04 and has no Intel NPU.
       # The job does not pass --include-ignored and does not set
       # TURBO_TEST_REQUIRE_NPU, so the device tests in core/tests/npu.rs
@@ -212,7 +228,7 @@ jobs:
       - name: test (npu)
         env:
           CARGO_TARGET_DIR: target/core
-        run: cargo test -p turbo --features npu
+        run: cargo nextest run -p turbo --features npu
       - name: a benchmark record end to end, from the pushed commit
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
@@ -220,6 +236,8 @@ jobs:
         run: cargo test -p turbo-bench --test tool a_cpu_record_is_measured_and_without_a_reference_backs_nothing
 
   parity:
+    # Skipped on pushes to main, as the shards are.
+    if: github.event_name != 'push'
     runs-on: ${{ github.event.pull_request.head.repo.fork != true && vars.TURBO_CI_LINUX && fromJSON(vars.TURBO_CI_LINUX) || 'ubuntu-24.04' }}
     steps:
       - uses: actions/checkout@v7
@@ -233,6 +251,9 @@ jobs:
           key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe/**', 'analysis/goldens-tool/src/models.rs') }}
       - name: fetch the OpenNLP models
         run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
       # The published UD sentence detector, tokenizer, part-of-speech and
       # lemmatizer models are trained on CC BY-SA treebanks and not checked
       # in either; the tests over them skip without them and fail here.
@@ -255,12 +276,16 @@ jobs:
         env:
           TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
           TURBO_TEST_REQUIRE_OPENNLP_MODELS: "1"
+        # nextest runs the test binaries side by side, where cargo test runs
+        # them one after another; the doctests run after it.
         run: |
-          cargo test -p turbo-maxent -p turbo-sequence -p turbo-langdetect -p turbo-langspan -p turbo-sentdetect -p turbo-tokenize -p turbo-postag -p turbo-lemmatizer -p turbo-hunspell
-          cargo test -p turbo-zoo --test builtin
-          cargo test -p turbo-eval --lib
-          cargo test -p turbo-train-recipes --test recipes
-          cargo test -p turbo-train-components --test doccat_goldens
+          PACKAGES="-p turbo-maxent -p turbo-sequence -p turbo-langdetect -p turbo-langspan -p turbo-sentdetect -p turbo-tokenize -p turbo-postag -p turbo-lemmatizer -p turbo-hunspell"
+          cargo nextest run $PACKAGES
+          cargo test --doc $PACKAGES
+          cargo nextest run -p turbo-zoo --test builtin
+          cargo nextest run -p turbo-eval --lib
+          cargo nextest run -p turbo-train-recipes --test recipes
+          cargo nextest run -p turbo-train-components --test doccat_goldens
       # The sentence detectors against the conformance suites (Pragmatic
       # Segmenter, pySBD, UAX #29) and the rule splitter's agreement with
       # the maxent detector, with the de, en and pt sentence models. The
@@ -280,7 +305,7 @@ jobs:
       - name: lattice tokenizer parity against the JVM, dictionaries required
         env:
           TURBO_MECAB_DICTIONARIES: ${{ github.workspace }}/.opennlp-models
-        run: cargo test -p turbo-tokenize --test lattice_golden --test lattice_readings -- --ignored
+        run: cargo nextest run -p turbo-tokenize --test lattice_golden --test lattice_readings --run-ignored only
 
   # A static bundle against Model2Vec's own ids and vectors
   # (core/tests/static_parity.rs, docs/static.md). potion-base-2M, the

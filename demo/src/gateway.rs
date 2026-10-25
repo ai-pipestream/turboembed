@@ -10,7 +10,7 @@ use axum::Json;
 use axum::body::{Body, Bytes};
 use axum::extract::State;
 use axum::extract::rejection::JsonRejection;
-use axum::http::{HeaderMap, header};
+use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use serde::{Deserialize, Serialize};
 use tokio::sync::mpsc;
@@ -79,11 +79,16 @@ pub(crate) async fn analyze_stream(
         Ok(Json(b)) => b,
         Err(e) => return refused(e.body_text()),
     };
-    let sse = headers
-        .get_all(header::ACCEPT)
-        .iter()
-        .filter_map(|v| v.to_str().ok())
-        .any(|a| a.split(',').any(|t| t.trim().starts_with("text/event-stream")));
+    let Some(sse) = crate::accept::stream_sse(&headers) else {
+        return (
+            StatusCode::NOT_ACCEPTABLE,
+            Json(serde_json::json!({ "error": {
+                "grpc": null,
+                "message": "Accept must allow application/x-ndjson or text/event-stream"
+            }})),
+        )
+            .into_response();
+    };
     let frames: Vec<AnalyzeStreamRequest> = std::iter::once(Kind::Header(req.header))
         .chain(req.documents.into_iter().map(Kind::Document))
         .map(|k| AnalyzeStreamRequest { kind: Some(k) })

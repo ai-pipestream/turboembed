@@ -76,6 +76,23 @@ pub(crate) fn view_info(record: &ViewRecord) -> ViewInfo {
     }
 }
 
+/// Exports `doc` into a [`DocumentGraphResponse`] using the server's
+/// canonical [`Codecs`] registry.
+pub fn export_document_response(doc: &turbo_analysis::Document) -> Result<DocumentGraphResponse, Failure> {
+    let codecs = codecs();
+    let out = export(doc, codecs).map_err(|e| bad(format!("document graph export: {e}")))?;
+    let bytes = out.to_bytes().map_err(|e| bad(format!("document graph encode: {e}")))?;
+    if bytes.len() as u64 > MAX_GRAPH_BYTES {
+        return Err(over("max_graph_bytes", "document graph bytes", bytes.len() as u64));
+    }
+    Ok(DocumentGraphResponse {
+        graph: bytes.into(),
+        layers: out.layers.iter().map(layer_info).collect(),
+        views: out.views.iter().map(view_info).collect(),
+        source_text: out.source.text.clone(),
+    })
+}
+
 /// Imports the request's graph, re-exports it, and lists its
 /// layers and views from the re-exported records, so the listing
 /// always describes the bytes in the same answer.

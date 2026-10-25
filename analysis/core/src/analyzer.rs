@@ -1,7 +1,12 @@
-//! The analyzer: a validated graph of steps, run over batches.
+//! The analyzer: a validated graph of steps, run over batches or streamed
+//! progressively as individual DAG branches complete.
+
+mod progressive;
 
 use std::any::TypeId;
 use std::collections::{HashMap, HashSet};
+
+pub use progressive::{StepEvent, StepTiming};
 
 use crate::annotate::{AnchorUse, Annotator, Bound, Step};
 use crate::doc::{Document, View};
@@ -34,6 +39,11 @@ impl Analyzer {
     /// The steps in run order, a stage per line: for logs and the docs.
     pub fn plan(&self) -> Vec<Vec<&'static str>> {
         self.stages.iter().map(|s| s.iter().map(|&i| self.steps[i].id()).collect()).collect()
+    }
+
+    /// Planned step identifiers flattened in topological stage order.
+    pub fn step_ids(&self) -> Vec<&'static str> {
+        self.stages.iter().flat_map(|s| s.iter().map(|&i| self.steps[i].id())).collect()
     }
 
     /// Runs every stage over the batch. A step that fails on a document,
@@ -218,6 +228,8 @@ fn on_optional_cycle(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::AtomicBool;
+
     use crate::{Analyzer, Annotator, Document, Error, Layer, Refs, View};
 
     struct LayerA(bool);
@@ -294,6 +306,24 @@ mod tests {
         for r in analyzer.run(&mut docs) {
             r.unwrap();
         }
+        assert!(!docs[0].get::<LayerA>().unwrap().0);
+        assert!(docs[0].get::<LayerB>().is_some());
+        assert!(docs[0].get::<LayerC>().unwrap().0, "bystander must wait for LayerA");
+    }
+
+    #[test]
+    fn optional_cycle_runs_in_progressive_mode() {
+        let analyzer = Analyzer::builder().add(BystanderC).add(ProduceBFromA).add(ProduceA).build().unwrap();
+        let mut docs = vec![Document::new("hello")];
+        let cancel = AtomicBool::new(false);
+        let mut events = Vec::new();
+        for r in analyzer.run_progressive(&mut docs, &cancel, |ev| {
+            events.push(ev.timing.step_id);
+        }) {
+            r.unwrap();
+        }
+        assert_eq!(events.len(), 3);
+        assert_eq!(events[0], ProduceA::ID);
         assert!(!docs[0].get::<LayerA>().unwrap().0);
         assert!(docs[0].get::<LayerB>().is_some());
         assert!(docs[0].get::<LayerC>().unwrap().0, "bystander must wait for LayerA");

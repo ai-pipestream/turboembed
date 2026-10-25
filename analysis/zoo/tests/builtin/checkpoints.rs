@@ -200,3 +200,20 @@ fn the_nli_checkpoint_is_pinned_and_share_alike() {
         ]
     );
 }
+
+/// SaT's sat-3l, trained on mC4 alone with limited lookahead (#887).
+#[test]
+fn sat_3l_is_pinned_permissive_and_attributed() {
+    let a = Index::builtin().get(CHECKPOINTS[6]).unwrap().clone();
+    let k = (a.kind, a.format, a.license, a.class);
+    assert_eq!(k, (Kind::Model, Format::Pytorch, Licence::Mit, LicenceClass::Permissive));
+    let revision = "a3b7ba6b61881d619989757aea971cde7d3d6a98";
+    assert_eq!(a.version, revision);
+    let licences: Vec<Licence> = a.trained_on.iter().map(|t| t.license).collect();
+    assert_eq!(licences, [Licence::Mit, Licence::OdcBy10]);
+    assert!(a.attribution.as_deref().unwrap().contains("segment-any-text/sat-3l at a3b7ba6b"));
+    for f in &a.files {
+        let url = format!("https://huggingface.co/segment-any-text/sat-3l/resolve/{revision}/{}", f.path.as_str());
+        assert_eq!(f.url.as_str(), url);
+    }
+}

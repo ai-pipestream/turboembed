@@ -104,6 +104,8 @@ pub(super) struct Encoder {
     max_seq: usize,
     /// The position table row a row's first token reads.
     position_offset: usize,
+    /// Keys a query attends to past itself: usize::MAX for the whole row.
+    ahead: usize,
     // The written rows, [batch, seq] packed with no stride.
     batch: usize,
     seq: usize,
@@ -180,6 +182,7 @@ impl Encoder {
             packed,
             max_seq,
             position_offset: d.position_offset as usize,
+            ahead: if d.lookahead == 0 { usize::MAX } else { d.lookahead as usize },
             batch: 0,
             seq: 0,
             ids: zeroed(tokens)?,

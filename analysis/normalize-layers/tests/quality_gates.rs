@@ -157,3 +157,61 @@ fn named_quality_dependencies_are_bound_and_failed_quality_is_reported_before_do
         Some(LayerStatus::Skipped(_))
     ));
 }
+
+#[test]
+fn progressive_quality_gates_match_reports_and_keep_snapshots_importable() {
+    use std::sync::atomic::AtomicBool;
+    use turbo_analysis::export::{export, import};
+
+    let pipeline = Analyzer::builder()
+        .add(RuleSentenceDetector::new("en"))
+        .add(SimpleTokenizer::default())
+        .add(TextQualityAnnotator)
+        .step(ConditionalStep::from_predicate(
+            "quality",
+            quality_gate(ViewId::SOURCE, 0.6, F::NAV_BOILERPLATE | F::MOJIBAKE_SUSPECT),
+            Bound::new(RuleSentenceDetector::new("en")).write(0, "after-quality"),
+        ))
+        .step(ConditionalStep::from_predicate(
+            "lexical",
+            lexical_quality_gate(ViewId::SOURCE, 0.3, 8.0),
+            Bound::new(RuleSentenceDetector::new("en")).write(0, "after-lexical"),
+        ))
+        .build()
+        .unwrap();
+    let mut reported = [
+        Document::new(PROSE),
+        Document::new("Home | About | Contact | Privacy"),
+        Document::new("\u{fffd} \u{fffd} \u{fffd}"),
+    ];
+    let mut progressive = reported.clone();
+    let reports = pipeline.run_with_report(&mut reported);
+    assert!(reports.iter().all(|(status, _)| status.is_ok()));
+    let codecs = turbo_analysis_layers::export::codecs();
+    let bytes = |doc: &Document| export(doc, &codecs).unwrap().to_bytes().unwrap();
+    let mut events = 0;
+    let status = pipeline.run_progressive(&mut progressive, &AtomicBool::new(false), |event| {
+        events += 1;
+        assert!(event.failure.is_none());
+        for doc in event.docs {
+            let graph = export(doc, &codecs).unwrap();
+            let restored = import(&graph, &codecs).unwrap();
+            assert_eq!(bytes(&restored), graph.to_bytes().unwrap());
+        }
+    });
+    assert!(status.iter().all(Result::is_ok));
+    assert_eq!(events, 5);
+    for (i, (want, got)) in reported.iter().zip(&progressive).enumerate() {
+        assert_eq!(bytes(got), bytes(want));
+        for name in ["after-quality", "after-lexical"] {
+            let key = Key::<Sentences>::named(name);
+            let output = reports[i].1.steps.iter().flat_map(|step| &step.outputs).find(|o| o.key == key.id()).unwrap();
+            assert_eq!(got.status(key.id()), output.status.as_ref());
+            if i == 0 {
+                assert!(matches!(got.status(key.id()), Some(LayerStatus::Complete)));
+            } else {
+                assert!(matches!(got.status(key.id()), Some(LayerStatus::Skipped(_))));
+            }
+        }
+    }
+}

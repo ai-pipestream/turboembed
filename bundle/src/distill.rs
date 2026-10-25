@@ -343,8 +343,9 @@ fn embed_entries(
         let n = chunk.len();
         session.tokens(n as u32, seq as u32, &ids, &mask, &o, &mut vecs[..n * h])?;
         out.extend(vecs[..n * h].iter().map(|&v| v as f64));
-        if c % 64 == 63 {
-            done((c + 1) * batch);
+        let completed = out.len() / h;
+        if c % 64 == 63 || completed == kept.len() {
+            done(completed);
         }
     }
     Ok(out)
@@ -355,6 +356,8 @@ pub mod from_base;
 mod math;
 mod progress;
 mod quality;
+#[cfg(test)]
+mod tests;
 
 pub use extra::Refusal;
 pub use progress::Progress;
