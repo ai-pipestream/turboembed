@@ -13,3 +13,12 @@ turbo-glossary-layers = { path = "../glossary-layers" }
 turbo-unicode = { path = "../unicode" }
 turbo-vector-index = { path = "../vector-index" }
 turbo-wordnet = { path = "../wordnet" }
+
+[dev-dependencies]
+turbo-analysis-embed = { path = "../embed" }
+turbo-chunker = { path = "../chunker" }
+turbo-maxent = { path = "../maxent" }
+turbo-namefind = { path = "../namefind" }
+turbo-normalize = { path = "../normalize" }
+turbo-sentdetect = { path = "../sentdetect" }
+turbo-tokenize = { path = "../tokenize" }

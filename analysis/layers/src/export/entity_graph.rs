@@ -3,7 +3,7 @@
 //! written against the default `Entities` instance, named once.
 //! `EntitySalience` is its row count, then each score's columns.
 
-use turbo_analysis::{Span, ViewId};
+use turbo_analysis::ViewId;
 
 use super::*;
 use crate::{
@@ -57,7 +57,7 @@ fn get_mention(
     cx: &mut ImportCx,
     rows: &Option<LayerRef>,
 ) -> Result<ConsolidatedMention, ExportError> {
-    let span = Span::new(r.u32()?, r.u32()?);
+    let span = r.span()?;
     let entity = match r.u8()? {
         0 => None,
         1 => {

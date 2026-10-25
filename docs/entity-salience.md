@@ -65,3 +65,32 @@ and then mostly as an object, and a topic that is mostly an object while
 a regulator is the repeated subject. Eight documents is a regression
 check on the scoring, not a measure of quality on any corpus, and the
 weights were not tuned on it.
+
+## Validation and transport
+
+The scorer's producer version is 2. Configuration weights must be finite,
+nonnegative, and have a positive total. Position decay and heading bonus
+must be finite and nonnegative, PageRank damping must be in `[0, 1]`, and
+iterations must be positive. Weight normalization uses a wider accumulator
+so small and large common weight scales preserve the ranking. The public
+`score` method takes the source text and returns a `Result`, validating
+mention coordinates and configuration before scoring.
+
+Optional sentence and structure layers must have the same view as the
+consolidated entities. Heading bonuses use actual heading fragments;
+mentions in a heading envelope's gap receive no bonus. Enabled salience
+headers reject mismatched document-entity views or incomplete scores.
+
+`EntitySalience` validates one score for every consolidated entity,
+including at binary import. `DocumentEntities` validates its view, source
+UTF-8 coordinates and each linked source entity's view and exact envelope.
+The mention decoder returns an error for reversed coordinates. Named
+source references resolve through the document's recorded dependencies.
+
+`analysis/entity-linker/tests/salience_validation.rs` runs the production
+sentence detector, tokenizer, dictionary name finder, consolidator,
+salience scorer, bundle tokenizer, chunker and salience-aware header step.
+It verifies the resulting header text, full graph/provenance equality,
+malformed score components/ranks, incomplete rows, source/view/reference
+corruption, heading gaps and configuration limits. These are functional
+regressions and make no timing or allocation-free claim.

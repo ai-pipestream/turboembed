@@ -2118,10 +2118,17 @@ name = "turbo-entity-linker"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
+ "turbo-analysis-embed",
  "turbo-analysis-layers",
+ "turbo-chunker",
  "turbo-coref",
  "turbo-geo",
  "turbo-glossary-layers",
+ "turbo-maxent",
+ "turbo-namefind",
+ "turbo-normalize",
+ "turbo-sentdetect",
+ "turbo-tokenize",
  "turbo-unicode",
  "turbo-vector-index",
  "turbo-wordnet",
