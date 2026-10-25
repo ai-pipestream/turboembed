@@ -166,7 +166,7 @@ struct LayerCtx<'a> {
     layer_lengths: &'a HashMap<(&'a str, &'a str), usize>,
     token_len: Option<usize>,
     entity_len: Option<usize>,
-    target_lengths: HashMap<&'a str, usize>,
+    target_lengths: HashMap<(&'a str, &'a str), usize>,
     table_ids: HashSet<u32>,
     target_bounds: Vec<usize>,
     layer_len: usize,
@@ -287,7 +287,12 @@ fn validate_layer(
         layer_lengths,
         token_len,
         entity_len,
-        target_lengths: layer.indexes_layer.iter().zip(&target_bounds).map(|(b, &n)| (b.layer.as_str(), n)).collect(),
+        target_lengths: layer
+            .indexes_layer
+            .iter()
+            .zip(&target_bounds)
+            .map(|(b, &n)| ((b.layer.as_str(), b.instance.as_str()), n))
+            .collect(),
         table_ids: layer
             .indexes_layer
             .iter()

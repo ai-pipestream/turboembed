@@ -2,9 +2,10 @@ mod common;
 #[path = "typed_document/fixture.rs"]
 mod fixture;
 
-use turbo_analysis::export::export;
+use turbo_analysis::{Ix, Provenance, Span, Tag, export::export};
 use turbo_kserve::proto::result::{InspectDocumentGraphRequest, OffsetMode, typed_annotation::Value};
 use turbo_kserve::results::document::codecs;
+use turbo_relation::Relations;
 
 #[tokio::test]
 async fn optional_token_ranges_require_both_endpoints() {
@@ -170,4 +171,76 @@ async fn sentence_and_opinion_references_follow_the_declared_bounds() {
     }
     server.stop().await;
     assert!(accepted.is_empty(), "accepted out-of-bounds references: {accepted:?}");
+}
+
+#[tokio::test]
+async fn nested_references_reject_ambiguous_same_type_targets() {
+    let mut doc = fixture::build_rich_document();
+    fixture::add(
+        &mut doc,
+        Relations {
+            spans: fixture::spans(&[Span::new(0, fixture::TEXT.len() as u32)]),
+            subject: vec![Ix::new(0)],
+            object: vec![Ix::new(1)],
+            kind: vec![Tag(0)],
+            kinds: fixture::tagset("relation", &["related"]),
+            score: vec![0.8],
+        },
+        Provenance::by("test:relations"),
+    );
+    let graph = export(&doc, codecs()).unwrap().to_bytes().unwrap();
+    let (server, mut client) = common::serve_no_admin().await;
+    for mode in [OffsetMode::Utf8, OffsetMode::Utf16, OffsetMode::CodePoint] {
+        let out = client
+            .inspect_document_graph(InspectDocumentGraphRequest {
+                doc_id: "same-type-targets".into(),
+                graph: graph.clone(),
+                view: 0,
+                offsets: mode as i32,
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(client.round_trip_typed_document(out.clone()).await.unwrap().into_inner(), out);
+
+        let mut bad = out;
+        let entities = bad
+            .layers
+            .iter()
+            .find(|layer| layer.id == "opennlp:entities" && layer.instance.is_empty())
+            .unwrap()
+            .clone();
+        assert!(entities.annotations.len() > 1);
+        let mut short = entities;
+        short.instance = "short".into();
+        short.annotations.truncate(1);
+        bad.layers.push(short);
+
+        let relation = bad
+            .layers
+            .iter_mut()
+            .find(|layer| layer.annotations.iter().any(|a| matches!(a.value, Some(Value::Relation(_)))))
+            .unwrap();
+        let default_bound = relation
+            .indexes_layer
+            .iter()
+            .find(|bound| bound.layer == "opennlp:entities" && bound.instance.is_empty())
+            .unwrap()
+            .clone();
+        let mut short_bound = default_bound.clone();
+        short_bound.instance = "short".into();
+        short_bound.bound = 1;
+        relation.indexes_layer.insert(0, short_bound);
+        relation.indexes_layer.push(default_bound);
+        for annotation in &mut relation.annotations {
+            if let Some(Value::Relation(value)) = &mut annotation.value {
+                value.subject_entity = 1;
+                value.object_entity = 0;
+            }
+        }
+        let error = client.round_trip_typed_document(bad).await.unwrap_err();
+        assert_eq!(error.code(), tonic::Code::InvalidArgument, "{error}");
+        assert!(error.message().contains("ambiguous opennlp:entities index targets"), "{error}");
+    }
+    server.stop().await;
 }

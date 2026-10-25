@@ -8,7 +8,12 @@ use crate::proto::result::{
 };
 
 pub(super) fn bound(ctx: &LayerCtx<'_>, layer: &str) -> Result<usize, Failure> {
-    ctx.target_lengths.get(layer).copied().ok_or_else(|| bad(format!("{} has no {layer} index target", ctx.lid)))
+    let mut lengths = ctx.target_lengths.iter().filter(|((id, _), _)| *id == layer).map(|(_, len)| *len);
+    let len = lengths.next().ok_or_else(|| bad(format!("{} has no {layer} index target", ctx.lid)))?;
+    if lengths.next().is_some() {
+        return Err(bad(format!("{} has ambiguous {layer} index targets", ctx.lid)));
+    }
+    Ok(len)
 }
 
 pub(super) fn target(ctx: &LayerCtx<'_>, layer: &str, index: u32) -> Result<usize, Failure> {
@@ -68,7 +73,7 @@ pub(super) fn salience_order(ctx: &LayerCtx<'_>, layer: &TypedLayer) -> Result<(
     if layer.id != "turbo:entity-salience" {
         return Ok(());
     }
-    if ctx.target_lengths.get("turbo:document-entities").copied() != Some(layer.annotations.len()) {
+    if bound(ctx, "turbo:document-entities")? != layer.annotations.len() {
         return Err(bad("salience needs one row for every selected consolidated entity"));
     }
     let mut scores = vec![None; layer.annotations.len()];
