@@ -48,6 +48,8 @@ pub enum Test {
     Length(Cmp, u32),
     /// The caller's own test of the token's text.
     Text(TextTest),
+    /// A fuzzy or morphological set comparison.
+    Value(Attr, crate::ValueTest),
 }
 
 impl fmt::Debug for Test {
@@ -60,6 +62,7 @@ impl fmt::Debug for Test {
             Test::Iob(i) => write!(f, "iob == {i:?}"),
             Test::Length(c, n) => write!(f, "length {c:?} {n}"),
             Test::Text(_) => f.write_str("text test"),
+            Test::Value(a, t) => write!(f, "{a:?} {t:?}"),
         }
     }
 }

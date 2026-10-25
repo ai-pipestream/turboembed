@@ -3,7 +3,7 @@ use turbo_formats::FormatError;
 use turbo_formats::conllu::{ConlluReader, ConlluSentenceReader, ConlluTokenReader, Sentence, WordLine};
 use turbo_formats::sample::{LemmaSample, PosSample};
 use turbo_train::TrainingConfiguration;
-use turbo_train_components::ud::{self as published, Component};
+use turbo_train_components::ud::Component;
 use turbo_train_components::{
     LemmaEventStream, LemmatizerFactory, PosEventStream, PosTaggerFactory, SdEventStream, SentenceDetectorFactory,
     Stamp, TokSpanEventStream, TokenizerFactory, lemmatize, postag, sentdetect, tokenize,
@@ -266,8 +266,7 @@ impl UdRecipe {
         check_skipped(LeftOut::TrainingSentences, read.skipped, read.samples.len())?;
         let language = self.treebank.language;
         let stamp = Stamp::at(TIMESTAMP_MS);
-        let params =
-            if native_lemmas { super::native::training_parameters() } else { published::training_parameters() };
+        let params = if native_lemmas { super::native::training_parameters() } else { super::training_parameters() };
         let mut config = TrainingConfiguration::default();
         let mut events = Vec::new();
         let (bytes, report) = match &read.samples {

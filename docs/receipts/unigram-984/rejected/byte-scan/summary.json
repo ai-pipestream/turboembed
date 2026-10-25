@@ -1,0 +1,378 @@
+{
+  "samples": {
+    "main/pku/jieba-hmm": {
+      "n": 6,
+      "median_ms": 6.2436637,
+      "min_ms": 4.54807042,
+      "max_ms": 36.43519596
+    },
+    "main/pku/jieba-dictionary": {
+      "n": 6,
+      "median_ms": 5.52120459,
+      "min_ms": 4.23146496,
+      "max_ms": 25.378721
+    },
+    "main/pku/main": {
+      "n": 6,
+      "median_ms": 4.30615259,
+      "min_ms": 3.51300652,
+      "max_ms": 17.18167618
+    },
+    "main/msr/jieba-hmm": {
+      "n": 6,
+      "median_ms": 5.61816692,
+      "min_ms": 5.24706526,
+      "max_ms": 33.1621145
+    },
+    "main/msr/jieba-dictionary": {
+      "n": 6,
+      "median_ms": 5.7481575,
+      "min_ms": 4.86094458,
+      "max_ms": 44.5088621
+    },
+    "main/msr/main": {
+      "n": 6,
+      "median_ms": 5.0614520899999995,
+      "min_ms": 4.20410504,
+      "max_ms": 41.46817122
+    },
+    "blocked/pku/jieba-hmm": {
+      "n": 6,
+      "median_ms": 7.7355072499999995,
+      "min_ms": 5.07310674,
+      "max_ms": 35.28708214
+    },
+    "blocked/pku/jieba-dictionary": {
+      "n": 6,
+      "median_ms": 8.68358325,
+      "min_ms": 4.58411796,
+      "max_ms": 36.89527528
+    },
+    "blocked/pku/chinese": {
+      "n": 6,
+      "median_ms": 10.226646550000002,
+      "min_ms": 4.83159148,
+      "max_ms": 21.30391402
+    },
+    "blocked/pku/dictionary": {
+      "n": 6,
+      "median_ms": 8.51188741,
+      "min_ms": 3.86463618,
+      "max_ms": 15.43232616
+    },
+    "blocked/pku/opennlp": {
+      "n": 6,
+      "median_ms": 8.273131470000001,
+      "min_ms": 3.62369082,
+      "max_ms": 17.84202736
+    },
+    "blocked/msr/jieba-hmm": {
+      "n": 6,
+      "median_ms": 5.81207325,
+      "min_ms": 4.97893688,
+      "max_ms": 30.53228024
+    },
+    "blocked/msr/jieba-dictionary": {
+      "n": 6,
+      "median_ms": 5.8092966100000005,
+      "min_ms": 4.78311342,
+      "max_ms": 34.24778986
+    },
+    "blocked/msr/chinese": {
+      "n": 6,
+      "median_ms": 6.19778786,
+      "min_ms": 5.59236914,
+      "max_ms": 37.20829834
+    },
+    "blocked/msr/dictionary": {
+      "n": 6,
+      "median_ms": 4.89424273,
+      "min_ms": 4.27262982,
+      "max_ms": 34.59576382
+    },
+    "blocked/msr/opennlp": {
+      "n": 6,
+      "median_ms": 4.30395003,
+      "min_ms": 3.95856858,
+      "max_ms": 21.10465028
+    },
+    "fixed/pku/jieba-hmm": {
+      "n": 6,
+      "median_ms": 5.13233753,
+      "min_ms": 4.60683972,
+      "max_ms": 5.50823146
+    },
+    "fixed/pku/jieba-dictionary": {
+      "n": 6,
+      "median_ms": 4.933820669999999,
+      "min_ms": 4.41525206,
+      "max_ms": 5.1717715
+    },
+    "fixed/pku/chinese": {
+      "n": 6,
+      "median_ms": 5.52291463,
+      "min_ms": 4.87495828,
+      "max_ms": 5.93576284
+    },
+    "fixed/pku/dictionary": {
+      "n": 6,
+      "median_ms": 4.3828981,
+      "min_ms": 3.90223206,
+      "max_ms": 4.71949812
+    },
+    "fixed/pku/opennlp": {
+      "n": 6,
+      "median_ms": 3.86625745,
+      "min_ms": 3.4827381,
+      "max_ms": 4.31793568
+    },
+    "fixed/msr/jieba-hmm": {
+      "n": 6,
+      "median_ms": 12.67996984,
+      "min_ms": 5.063308,
+      "max_ms": 29.21852102
+    },
+    "fixed/msr/jieba-dictionary": {
+      "n": 6,
+      "median_ms": 10.38128964,
+      "min_ms": 4.75244082,
+      "max_ms": 12.86400862
+    },
+    "fixed/msr/chinese": {
+      "n": 6,
+      "median_ms": 10.786527060000001,
+      "min_ms": 5.828703,
+      "max_ms": 14.94654424
+    },
+    "fixed/msr/dictionary": {
+      "n": 6,
+      "median_ms": 6.53049313,
+      "min_ms": 4.6785451,
+      "max_ms": 15.10203224
+    },
+    "fixed/msr/opennlp": {
+      "n": 6,
+      "median_ms": 5.15410549,
+      "min_ms": 4.26847196,
+      "max_ms": 7.61224448
+    }
+  },
+  "scores": {
+    "main/pku/main": "gold=104372 returned=102198 correct=84241 oov=6006 oov_correct=2519 output_fnv64=19a527fc0c0846ef",
+    "main/pku/jieba-dictionary": "gold=104372 returned=98982 correct=84986 oov=6006 oov_correct=3264 output_fnv64=8205a792772e7f37",
+    "main/pku/jieba-hmm": "gold=104372 returned=96271 correct=82100 oov=6006 oov_correct=3500 output_fnv64=7c26c5f0e9c7abb7",
+    "main/msr/main": "gold=106873 returned=108642 correct=89087 oov=2829 oov_correct=955 output_fnv64=c60d9811e2e7d817",
+    "main/msr/jieba-dictionary": "gold=106873 returned=108642 correct=89087 oov=2829 oov_correct=955 output_fnv64=c60d9811e2e7d817",
+    "main/msr/jieba-hmm": "gold=106873 returned=106102 correct=86610 oov=2829 oov_correct=1271 output_fnv64=1cd628cba49edf2f",
+    "blocked/pku/opennlp": "gold=104372 returned=102198 correct=84241 oov=6006 oov_correct=2519 output_fnv64=19a527fc0c0846ef",
+    "blocked/pku/dictionary": "gold=104372 returned=98986 correct=84985 oov=6006 oov_correct=3262 output_fnv64=4dca8fb72d62a8df",
+    "blocked/pku/chinese": "gold=104372 returned=96562 correct=82137 oov=6006 oov_correct=3481 output_fnv64=fa3c53dacc87d6ff",
+    "blocked/pku/jieba-dictionary": "gold=104372 returned=98982 correct=84986 oov=6006 oov_correct=3264 output_fnv64=8205a792772e7f37",
+    "blocked/pku/jieba-hmm": "gold=104372 returned=96271 correct=82100 oov=6006 oov_correct=3500 output_fnv64=7c26c5f0e9c7abb7",
+    "blocked/msr/opennlp": "gold=106873 returned=108642 correct=89087 oov=2829 oov_correct=955 output_fnv64=c60d9811e2e7d817",
+    "blocked/msr/dictionary": "gold=106873 returned=108642 correct=89087 oov=2829 oov_correct=955 output_fnv64=c60d9811e2e7d817",
+    "blocked/msr/chinese": "gold=106873 returned=106224 correct=86799 oov=2829 oov_correct=1271 output_fnv64=9a1f7197358402e3",
+    "blocked/msr/jieba-dictionary": "gold=106873 returned=108642 correct=89087 oov=2829 oov_correct=955 output_fnv64=c60d9811e2e7d817",
+    "blocked/msr/jieba-hmm": "gold=106873 returned=106102 correct=86610 oov=2829 oov_correct=1271 output_fnv64=1cd628cba49edf2f",
+    "fixed/pku/opennlp": "gold=104372 returned=102198 correct=84241 oov=6006 oov_correct=2519 output_fnv64=19a527fc0c0846ef",
+    "fixed/pku/dictionary": "gold=104372 returned=98986 correct=84985 oov=6006 oov_correct=3262 output_fnv64=4dca8fb72d62a8df",
+    "fixed/pku/chinese": "gold=104372 returned=96562 correct=82137 oov=6006 oov_correct=3481 output_fnv64=fa3c53dacc87d6ff",
+    "fixed/pku/jieba-dictionary": "gold=104372 returned=98982 correct=84986 oov=6006 oov_correct=3264 output_fnv64=8205a792772e7f37",
+    "fixed/pku/jieba-hmm": "gold=104372 returned=96271 correct=82100 oov=6006 oov_correct=3500 output_fnv64=7c26c5f0e9c7abb7",
+    "fixed/msr/opennlp": "gold=106873 returned=108642 correct=89087 oov=2829 oov_correct=955 output_fnv64=c60d9811e2e7d817",
+    "fixed/msr/dictionary": "gold=106873 returned=108642 correct=89087 oov=2829 oov_correct=955 output_fnv64=c60d9811e2e7d817",
+    "fixed/msr/chinese": "gold=106873 returned=106224 correct=86799 oov=2829 oov_correct=1271 output_fnv64=9a1f7197358402e3",
+    "fixed/msr/jieba-dictionary": "gold=106873 returned=108642 correct=89087 oov=2829 oov_correct=955 output_fnv64=c60d9811e2e7d817",
+    "fixed/msr/jieba-hmm": "gold=106873 returned=106102 correct=86610 oov=2829 oov_correct=1271 output_fnv64=1cd628cba49edf2f"
+  },
+  "comparisons": {
+    "pku/fixed-default/main": {
+      "median_paired_ratio": 1.0406387549773288,
+      "pairs": [
+        {
+          "round": 1,
+          "candidate_ms": 3.9212923999999996,
+          "baseline_ms": 3.52895217,
+          "ratio": 1.1111775425394896
+        },
+        {
+          "round": 2,
+          "candidate_ms": 4.53832006,
+          "baseline_ms": 15.96532232,
+          "ratio": 0.2842610984630594
+        },
+        {
+          "round": 3,
+          "candidate_ms": 4.4811492699999995,
+          "baseline_ms": 4.30615259,
+          "ratio": 1.0406387549773288
+        }
+      ]
+    },
+    "pku/blocked-default/main": {
+      "median_paired_ratio": 0.9185816798935126,
+      "pairs": [
+        {
+          "round": 1,
+          "candidate_ms": 8.51188741,
+          "baseline_ms": 3.52895217,
+          "ratio": 2.412015521876569
+        },
+        {
+          "round": 2,
+          "candidate_ms": 12.99671745,
+          "baseline_ms": 15.96532232,
+          "ratio": 0.8140591958935158
+        },
+        {
+          "round": 3,
+          "candidate_ms": 3.95555288,
+          "baseline_ms": 4.30615259,
+          "ratio": 0.9185816798935126
+        }
+      ]
+    },
+    "pku/fixed-default/blocked-default": {
+      "median_paired_ratio": 0.46068424206283054,
+      "pairs": [
+        {
+          "round": 1,
+          "candidate_ms": 3.9212923999999996,
+          "baseline_ms": 8.51188741,
+          "ratio": 0.46068424206283054
+        },
+        {
+          "round": 2,
+          "candidate_ms": 4.53832006,
+          "baseline_ms": 12.99671745,
+          "ratio": 0.34918971482295325
+        },
+        {
+          "round": 3,
+          "candidate_ms": 4.4811492699999995,
+          "baseline_ms": 3.95555288,
+          "ratio": 1.1328755817315732
+        }
+      ]
+    },
+    "pku/fixed-default/fixed-opennlp": {
+      "median_paired_ratio": 1.1174750382998762,
+      "pairs": [
+        {
+          "round": 1,
+          "candidate_ms": 3.9212923999999996,
+          "baseline_ms": 3.50906487,
+          "ratio": 1.1174750382998762
+        },
+        {
+          "round": 2,
+          "candidate_ms": 4.53832006,
+          "baseline_ms": 4.0871975,
+          "ratio": 1.1103745439264925
+        },
+        {
+          "round": 3,
+          "candidate_ms": 4.4811492699999995,
+          "baseline_ms": 3.93037307,
+          "ratio": 1.1401333130953901
+        }
+      ]
+    },
+    "msr/fixed-default/main": {
+      "median_paired_ratio": 1.1110027707456283,
+      "pairs": [
+        {
+          "round": 1,
+          "candidate_ms": 4.70429569,
+          "baseline_ms": 4.23427899,
+          "ratio": 1.1110027707456283
+        },
+        {
+          "round": 2,
+          "candidate_ms": 9.94738192,
+          "baseline_ms": 34.5193942,
+          "ratio": 0.28816791692132304
+        },
+        {
+          "round": 3,
+          "candidate_ms": 8.58905211,
+          "baseline_ms": 5.0614520899999995,
+          "ratio": 1.6969541462161706
+        }
+      ]
+    },
+    "msr/blocked-default/main": {
+      "median_paired_ratio": 0.9867541206734154,
+      "pairs": [
+        {
+          "round": 1,
+          "candidate_ms": 4.29888586,
+          "baseline_ms": 4.23427899,
+          "ratio": 1.0152580569567053
+        },
+        {
+          "round": 2,
+          "candidate_ms": 34.062154469999996,
+          "baseline_ms": 34.5193942,
+          "ratio": 0.9867541206734154
+        },
+        {
+          "round": 3,
+          "candidate_ms": 4.89424273,
+          "baseline_ms": 5.0614520899999995,
+          "ratio": 0.96696415237628
+        }
+      ]
+    },
+    "msr/fixed-default/blocked-default": {
+      "median_paired_ratio": 1.0943057906636302,
+      "pairs": [
+        {
+          "round": 1,
+          "candidate_ms": 4.70429569,
+          "baseline_ms": 4.29888586,
+          "ratio": 1.0943057906636302
+        },
+        {
+          "round": 2,
+          "candidate_ms": 9.94738192,
+          "baseline_ms": 34.062154469999996,
+          "ratio": 0.2920361930940419
+        },
+        {
+          "round": 3,
+          "candidate_ms": 8.58905211,
+          "baseline_ms": 4.89424273,
+          "ratio": 1.7549297376184692
+        }
+      ]
+    },
+    "msr/fixed-default/fixed-opennlp": {
+      "median_paired_ratio": 1.1330563508206757,
+      "pairs": [
+        {
+          "round": 1,
+          "candidate_ms": 4.70429569,
+          "baseline_ms": 4.27353112,
+          "ratio": 1.1007982761571653
+        },
+        {
+          "round": 2,
+          "candidate_ms": 9.94738192,
+          "baseline_ms": 5.15410549,
+          "ratio": 1.9299919140770243
+        },
+        {
+          "round": 3,
+          "candidate_ms": 8.58905211,
+          "baseline_ms": 7.58042802,
+          "ratio": 1.1330563508206757
+        }
+      ]
+    }
+  },
+  "load_1m": {
+    "min": 22.23,
+    "max": 72.91
+  }
+}

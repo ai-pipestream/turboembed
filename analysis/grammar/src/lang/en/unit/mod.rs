@@ -19,7 +19,7 @@ use std::sync::OnceLock;
 
 use crate::dec::Dec;
 use crate::engine::{Ctx, Dim, Grammar, Kind, Lexicon, Node, NumeralStyle, Output, Rule};
-use crate::unit::{Angle, CurrencyUnit, Generic, Temperature, Unit, Weight};
+use crate::unit::{Angle, CurrencyUnit, Generic, Length, Temperature, Unit, Weight};
 use crate::value::Value;
 
 use super::{DIMS as NUMBER_DIMS, ENGLISH, NUMERAL};
@@ -331,6 +331,12 @@ impl EnglishUnits {
             // A singular `turn` counts one turn or less: `a half turn`,
             // not `2 turn signals`.
             Unit::Angle(Angle::Turn) if ctx.word(last) == "turn" => value <= Dec::ONE,
+            // `pm` is a picometer only near a word that makes the context
+            // sub-atomic length rather than an afternoon hour (`2 pm is 2
+            // picometer`).
+            Unit::Length(Length::Picometer) if ctx.word(last) == "pm" => {
+                self.near(ctx, &["picometer", "picometers", "picometre", "picometres", "nanometer", "nanometers"], 6, 6)
+            }
             Unit::Currency(_) => {
                 // A sign glued to a number goes with it: `$10 dollars` is
                 // `$10`, `3 USD50` is `USD50`.

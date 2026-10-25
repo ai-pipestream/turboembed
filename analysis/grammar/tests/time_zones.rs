@@ -137,3 +137,32 @@ fn upstream_zone_offsets_are_counted_separately_from_disabled_cases() {
     assert_eq!(disagree, [("English", 517), ("Dutch", 494)]);
     assert_eq!(unsupported, [("Dutch", 293)]);
 }
+
+#[test]
+fn unresolved_calendar_date_range_ignores_trailing_zone_and_formats_without_offset() {
+    use turbo_grammar::time::timex::{Timex, TimexDate, TimexPoint, TimexTime, TimexYear};
+    use turbo_grammar::time::zone::Offsets;
+
+    let a = TimeAnnotator::english().with_time_zones(Region::Unspecified);
+    let text = "2/29-3/1/2019 UTC";
+    let t = a.find(text, ViewId::SOURCE, Some(reference("2019-01-01T12:00")));
+    assert_eq!(t.check(), Ok(()));
+    assert_eq!(t.len(), 1);
+    let (idx, span) = t.spans.iter().next().unwrap();
+    assert_eq!(&text[span.range()], "2/29-3/1/2019");
+    let m = t.get(idx);
+    assert_eq!(m.timex, "(2019-02-29,2019-03-01,PXD)");
+    assert_eq!((m.start, m.end), (None, None));
+
+    let s = TimexPoint {
+        date: TimexDate::Ymd { year: TimexYear::Year(2019), month: Some(2), day: Some(29) },
+        time: TimexTime::None,
+    };
+    let e = TimexPoint {
+        date: TimexDate::Ymd { year: TimexYear::Year(2019), month: Some(3), day: Some(1) },
+        time: TimexTime::None,
+    };
+    let mut out = String::new();
+    zone::write_timex(&mut out, Timex::UnresolvedRange(s, e), Offsets { start: -300, end: -300 }).unwrap();
+    assert_eq!(out, "(2019-02-29,2019-03-01,PXD)");
+}

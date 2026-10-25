@@ -10,7 +10,7 @@ use super::super::calendar::{
     weekday_of_week,
 };
 use super::super::duration::{Duration, Unit};
-use super::super::spec::{DateSpec, MonthRef, YearRef};
+use super::super::spec::{DateSpec, HolidayOrRel, MonthRef, YearRef};
 use super::super::timex::{TimexDate, TimexYear};
 
 /// How far a search for a matching year or month goes.
@@ -108,8 +108,7 @@ pub fn plus(d: Date, length: &Duration) -> Option<Date> {
         out = match unit {
             Unit::Year => out.plus_years(n)?,
             Unit::Month => out.plus_months(n)?,
-            Unit::Week => out.plus_weeks(n)?,
-            Unit::Weekend => out.plus_weeks(n)?,
+            Unit::Week | Unit::Weekend => out.plus_weeks(n)?,
             Unit::Day | Unit::BusinessDay | Unit::Weekday => out.plus_days(n)?,
             Unit::Hour | Unit::Minute | Unit::Second => return None,
         };
@@ -402,10 +401,10 @@ pub fn dates(spec: DateSpec, now: DateTime) -> Option<Choice> {
         },
         DateSpec::HolidayNear { holiday: h, future } => {
             let this = holiday(h, ry)?;
-            let d = match (future, this > today, this < today) {
-                (true, true, _) | (false, _, true) => this,
-                (true, false, _) => holiday(h, ry.checked_add(1)?)?,
-                (false, _, false) => holiday(h, ry.checked_sub(1)?)?,
+            let d = if (future && this > today) || (!future && this < today) {
+                this
+            } else {
+                holiday(h, ry.checked_add(if future { 1 } else { -1 })?)?
             };
             Some(Choice::one(concrete_day(d)))
         }
@@ -419,6 +418,65 @@ pub fn dates(spec: DateSpec, now: DateTime) -> Option<Choice> {
             }));
             Some(Choice::one(d))
         }
+        DateSpec::YearToDate => Some(Choice::one(Dated {
+            timex: DateTimex::Date(TimexDate::year(ry)),
+            span: Some((Date::new(ry, 1, 1)?, today)),
+        })),
+        DateSpec::CurrentDate => Some(Choice::one(day(today, TimexDate::Present))),
+        DateSpec::WorkWeek { n } => {
+            let start = monday(today)?.plus_weeks(i64::from(n))?;
+            let (year, week) = start.iso_week();
+            Some(Choice::one(Dated {
+                timex: DateTimex::Date(TimexDate::Week { year, week }),
+                span: Some((start, start.plus_days(5)?)),
+            }))
+        }
+        DateSpec::RestOfWeek => {
+            let days = i32::try_from(monday(today)?.plus_days(6)?.epoch_day() - today.epoch_day()).ok()?;
+            (days > 0).then(|| range_period(today, Duration::units(Unit::Day, days)?, None))?.map(Choice::one)
+        }
+        DateSpec::HolidayWeekend { holiday: h, year } => {
+            let weekend = |y: i32| -> Option<Dated> {
+                let hd = holiday(h, y)?;
+                let (sat, end) = if hd.day_of_week() == 1 {
+                    (hd.plus_days(-2)?, hd.plus_days(1)?)
+                } else {
+                    (monday(hd)?.plus_days(5)?, monday(hd)?.plus_days(7)?)
+                };
+                let (year, week) = sat.iso_week();
+                Some(Dated {
+                    timex: DateTimex::Date(TimexDate::Weekend { year, week }),
+                    span: Some((hd.min(sat), end.max(hd.plus_days(1)?))),
+                })
+            };
+            if let Some(y) = year.year(ry) {
+                weekend(y).map(Choice::one)
+            } else {
+                let this = holiday(h, ry)?;
+                let py = if this <= today { ry } else { ry.checked_sub(1)? };
+                let fy = if this >= today { ry } else { ry.checked_add(1)? };
+                Some(Choice { past: weekend(py)?, future: weekend(fy)? })
+            }
+        }
+        DateSpec::YearSlice { year, unit, count, last } => {
+            let y = if year == YearRef::Any { ry } else { year.year(ry)? };
+            let n = i32::from(count);
+            let start = match (unit, last) {
+                (Unit::Week, false) => iso_week_start(y, 1)?,
+                (Unit::Week, true) => iso_week_start(y, 0)?.plus_weeks(1 - i64::from(n))?,
+                (Unit::Month, false) => Date::new(y, 1, 1)?,
+                (Unit::Month, true) => Date::new(y, 13u8.checked_sub(count)?, 1)?,
+                (Unit::Day, false) => Date::new(y, 1, 1)?,
+                (Unit::Day, true) => Date::new(y.checked_add(1)?, 1, 1)?.plus_days(-i64::from(n))?,
+                _ => return None,
+            };
+            range_period(start, Duration::units(unit, n)?, None).map(Choice::one)
+        }
+        DateSpec::ShiftedWeekday { base, .. } => match base {
+            HolidayOrRel::Today => Some(Choice::one(concrete_day(today))),
+            HolidayOrRel::MonthDay { month, day } => Some(month_day(month, day, now)),
+            HolidayOrRel::Holiday(h) => dates(DateSpec::Holiday { holiday: h, year: YearRef::Any }, now),
+        },
     }
 }
 

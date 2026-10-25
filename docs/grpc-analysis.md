@@ -87,9 +87,22 @@ rpcs from the same messages.
   probabilities, and the abstention score and its probability; an empty
   result is a calibrated abstention. Answers made of separated pieces
   carry their fragments beside the bounding envelope, so the gap inside
-  a discontinuous answer never decodes as answer text. The schema-driven structured
-  records of issue #715 have no merged layer yet; when one lands, its
-  results join this message or grow one beside it.
+  a discontinuous answer never decodes as answer text.
+- `RecordsResult`: the schema-extract `turbo:records` layer: the
+  structured records of a schema extraction over one view's text, with
+  every span offset in the message's `OffsetMode` (UTF-8 bytes, UTF-16
+  units or code points, as `ChunkLevelsResult`). It carries the record
+  types, every `record.field` path and every closed choice as named label
+  lists; per record its type and instance; per span value its fragments,
+  record, path, probability and logit, and the deterministic rows that
+  corroborate it (0 glossary, 1 PII, 2 numbers, 3 locations); and per
+  closed-choice value its record, path, choice, probability and logit.
+  Decoding re-proves the layer's check: a value's path must be a field of
+  its record's type, every record has a value, scores lie in [0, 1],
+  logits are finite, and no label is listed twice. Support rows index
+  layers of the producing document, which the message does not carry, so
+  they are checked for order and source only. `RoundTripRecords` answers
+  with the message it was given.
 
 ## Capabilities
 
@@ -105,13 +118,13 @@ request, per loaded bundle:
 | `widths` | `dim` first, then the `output_dims` a request may name by `output_dim`, ascending. |
 | `context_limit` | Tokens per row; a longer row is `TURBO_E_CAPACITY` naming `max_seq`. |
 | `batch_limit` | Rows per run; a larger batch is `TURBO_E_CAPACITY` naming `max_batch`. |
-| `schema` | The limits an extraction schema may carry; unset until a task reads one (issue #715). |
+| `schema` | The limits an extraction schema may carry, the schema-extract crate's `Limits` (`max_entity_types`, `max_classification_tasks`, `max_labels_per_task`, `max_structures`, `max_fields_per_structure`, `max_text_bytes`, `max_prompt_subwords`, `max_words`); unset until the server loads a bundle whose task reads a schema. |
 
 The limits are the session's: what a request is actually held to, where a
 server started below the model's limits. The response's `limits` field
 names what one result message may carry (`max_sparse_entries`,
 `max_sparse_occurrences`, `max_token_vector_bytes`, `max_rerank_items`,
-`max_answers`); a larger message is `TURBO_E_CAPACITY` (771,
+`max_answers`, `max_record_values` and the rest); a larger message is `TURBO_E_CAPACITY` (771,
 `OUT_OF_RANGE`, docs/kserve.md, Errors) naming that limit, and nothing is
 truncated.
 
@@ -121,8 +134,14 @@ sessions finish; the name is then refused as never served), and the next
 `Capabilities` shows the change.
 
 Load and unload are admin calls, and the server does not serve them by
-default: start it with `--admin` (docs/grpc.md, Flags) to answer them,
+default: start it with `--admin` (docs/grpc.md, Flags) to answer them
+(which also allows starting with zero pre-loaded models),
 and until then they refuse with `TURBO_E_UNSUPPORTED` (`UNIMPLEMENTED`).
+`LoadBundleRequest` accepts either an explicit `device` index or
+`select_device = true` (with `device = 0`) to pick a device for the
+bundle's task via `turbo_runtime_select`, and any load or session creation
+failure returns its mapped gRPC status code with `turbo-code` and
+`turbo-field` trailing metadata (docs/kserve.md, Errors).
 Even with the flag they take a plaintext, unauthenticated gRPC port into
 trust, the same trust every request already carries; put the port behind
 what a deployment uses for that (docs/grpc.md, Starting it).

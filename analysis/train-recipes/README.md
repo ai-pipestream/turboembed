@@ -6,10 +6,16 @@ docs/analysis.md ("Models trained on permissive data" and "Model gates")
 describes both. The MASC recipes come first here; the recipes on the
 CC BY 4.0 Universal Dependencies treebanks are under "The UD recipes".
 
-The lemma recipes now preserve case by default. The older results below
-use the OpenNLP lowercase format. Updated per-language accuracy, hashes,
-commands and the Italian gate diagnosis are in
+New lemma training preserves case by default. Published UD recipe ids keep
+the OpenNLP lowercase format; the local native-v1 route preserves case under
+distinct ids. Per-language accuracy, hashes, commands and the Italian gate diagnosis are in
 [docs/lemma-case-evaluation.md](../../docs/lemma-case-evaluation.md).
+
+The UD reproduction investigation in #953 identified 12 training partitions
+as the setting that gives the published parameter bytes. New runs using
+`turbo_train_components::ud::training_parameters` use 12. MASC segmentation
+and POS recipes and this project's UD 2.16 release recipes keep 4 partitions,
+preserving their released model hashes and gate values.
 
 | Module | What it holds |
 |---|---|
@@ -99,14 +105,14 @@ status is 1 when a gate fails and 2 on an error.
   other. The card lists the documents left out
   (`corpus.excluded_documents`), and the gate record's held-out set is
   named with the exclusion.
-- Parameters: those the UD 1.3 models were trained with
-  (`ud::training_parameters`: GIS, 300 iterations, cutoff 5, 4 threads),
+- Parameters: the released MASC settings
+  (GIS, 300 iterations, cutoff 5, 4 partitions),
   the factory defaults for English (for the tagger: the default feature
   generator descriptor, no tag dictionary, beam size 3), OpenNLP 2.5.4's
   whitespace, and a fixed manifest `Timestamp` (2026-10-14T00:00:00Z), so
   a run gives the same model bytes. The sentence detector's and the
-  tokenizer's references, UD 1.3 models, were trained with the same
-  settings, so they differ from the trained models in their data alone.
+  tokenizer's references, UD 1.3 models, use 12 partitions, so they
+  differ in data and floating-point grouping.
   The tagger's reference was not: its manifest records OpenNLP 1.5.0, 100
   iterations and cutoff 5, and it holds a tag dictionary (`tags.tagdict`)
   and no feature generator descriptor, so its gate compares data and
@@ -863,8 +869,8 @@ read on 2026-10-14 (#415):
   changed `LICENSE.txt` is refused too.
 - Split: UD's own. Each model is trained on `train` and gated on `test`;
   `dev` is checked and not read.
-- Parameters: those of the UD 1.3 models (GIS, 300 iterations, cutoff 5,
-  4 threads), the factory defaults for the treebank's language, OpenNLP
+- Parameters: the released UD 2.16 settings (GIS, 300 iterations, cutoff 5,
+  4 partitions), the factory defaults for the treebank's language, OpenNLP
   2.5.4's whitespace, 10 sentences per sentence detector sample, the
   universal tags, and the fixed manifest `Timestamp`. No randomness, so
   no seed.
@@ -1070,16 +1076,17 @@ models scored on every token):
   MarkIT's `train` file has 611 sentences.
 - The Catalan references are OpenNLP's models of this treebank's
   `train` file (the zoo records them as trained on `UD_Catalan-AnCora
-  r2.16`), made with the settings the recipes take from the UD 1.3
-  models. The recipes make OpenNLP's sentence detector and tokenizer
+  r2.16`), made with 12 training partitions; these release recipes keep
+  their original 4. The recipes make OpenNLP's sentence detector and tokenizer
   events exactly: each trained model's `Training-Eventhash` is its
   reference's (2275230916, from 14,747 events, and 289028499, from
   1,432,196), the model entries are the same byte for byte up to the
   parameters, and the parameters differ only in their last bits (1,107
   of 1,237 in `sent.model` and 39,509 of 55,744 in `token.model`, by at
   most 4.8e-13 of their value). So those two gates check that the
-  recipes reproduce OpenNLP's models rather than compare two models, and
-  the models agree on every unit. With the empty nodes kept, the recipes
+  four-partition release recipes agree with the reference predictions
+  on every unit; the separate 12-partition reproduction recipes require
+  exact parameter bytes. With the empty nodes kept, the recipes
   make OpenNLP's tagger and lemmatizer events exactly too (event hashes
   4145769459, from 422,116 events, and 896960108); the recipes leave the
   treebank's 4,999 empty nodes out (417,117 events), so the tagger and

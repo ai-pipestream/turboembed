@@ -5,6 +5,7 @@ mod infer;
 mod load;
 mod packed;
 mod serialize;
+mod tensors;
 mod validate;
 
 use std::collections::HashMap;
@@ -18,6 +19,7 @@ use crate::neural::lstm::LstmLayer;
 
 pub use load::{char_key_from_unit, char_vocabulary_from_strs};
 pub(crate) use packed::Packed;
+pub use tensors::{NamedTensor, Shaped, Vocabularies};
 use validate::validate_tensors;
 
 /// Unknown word and character symbol, always stored at row `0`.

@@ -31,10 +31,14 @@ fn published_ud_lemma_recipe_keeps_opennlp_bytes() {
     assert_eq!(model.encoding(), LemmaEncoding::OpenNlp, "an existing release id changed its class format");
     let read = recipe.samples(&conllu, recipe.treebank.train.name).unwrap();
     let UdSamples::Lemmas(samples) = read.samples else { panic!("lemma recipe") };
+    // The released UD 2.16 recipe retains four partitions. The shared
+    // UD 1.3 reproduction parameters now use twelve, a separate protocol.
+    let mut released = turbo_train_components::ud::training_parameters();
+    released.put_str(turbo_train::Key::THREADS, "4");
     let expected = train_lemmatizer_model(
         &samples,
         &LemmatizerFactory::opennlp(recipe.treebank.language),
-        &turbo_train_components::ud::training_parameters(),
+        &released,
         &mut TrainingConfiguration::default(),
         Stamp::at(TIMESTAMP_MS),
     )
