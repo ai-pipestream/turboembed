@@ -11,6 +11,9 @@ impl<'a> Parser<'a> {
     /// settled: it continues the open leaf or starts a new one.
     pub(super) fn leaf_line(&mut self, c: &mut Cursor<'_>, le: usize) {
         let (cols, p) = c.indent();
+        if self.extra_start(p, le, cols) {
+            return;
+        }
         let b = self.bytes;
         let in_text = matches!(self.leaf, Leaf::Paragraph { .. } | Leaf::Table { .. });
         if self.markdown && cols >= 4 && !in_text {
@@ -63,10 +66,14 @@ impl<'a> Parser<'a> {
             self.close_lists();
             return;
         }
+        if !self.markdown && self.columns_start(p, le) {
+            return;
+        }
         if self.markdown && self.table_start(p, le) {
             return;
         }
         match self.leaf {
+            Leaf::Columns { node } => self.columns_row(node, p, le),
             Leaf::Table { node } => self.table_row(node, p, le),
             Leaf::Paragraph { .. } => self.paragraph_line(p, le),
             _ => {
@@ -168,7 +175,12 @@ impl<'a> Parser<'a> {
                 }
                 self.tree.close(node);
             }
-            Leaf::Fenced { node, .. } | Leaf::Indented { node } | Leaf::Table { node } => self.tree.close(node),
+            Leaf::Html { node, .. }
+            | Leaf::Footnote { node }
+            | Leaf::Columns { node }
+            | Leaf::Fenced { node, .. }
+            | Leaf::Indented { node }
+            | Leaf::Table { node } => self.tree.close(node),
         }
     }
 
