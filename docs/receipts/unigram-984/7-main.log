@@ -1,0 +1,18 @@
+score pku main gold=104372 returned=102198 correct=84241 oov=6006 oov_correct=2519 output_fnv64=19a527fc0c0846ef
+score pku jieba-dictionary gold=104372 returned=98982 correct=84986 oov=6006 oov_correct=3264 output_fnv64=8205a792772e7f37
+score pku jieba-hmm gold=104372 returned=96271 correct=82100 oov=6006 oov_correct=3500 output_fnv64=7c26c5f0e9c7abb7
+timing pku jieba-hmm pass=1 ms=23.737607520 count=4813550
+timing pku jieba-dictionary pass=1 ms=25.030920200 count=4949100
+timing pku main pass=1 ms=21.895459420 count=5109900
+timing pku main pass=2 ms=17.337229640 count=5109900
+timing pku jieba-dictionary pass=2 ms=32.608214820 count=4949100
+timing pku jieba-hmm pass=2 ms=42.843024020 count=4813550
+score msr main gold=106873 returned=108642 correct=89087 oov=2829 oov_correct=955 output_fnv64=c60d9811e2e7d817
+score msr jieba-dictionary gold=106873 returned=108642 correct=89087 oov=2829 oov_correct=955 output_fnv64=c60d9811e2e7d817
+score msr jieba-hmm gold=106873 returned=106102 correct=86610 oov=2829 oov_correct=1271 output_fnv64=1cd628cba49edf2f
+timing msr jieba-hmm pass=1 ms=26.232760220 count=5305350
+timing msr jieba-dictionary pass=1 ms=48.001274900 count=5432350
+timing msr main pass=1 ms=27.567200480 count=5432100
+timing msr main pass=2 ms=24.002992600 count=5432100
+timing msr jieba-dictionary pass=2 ms=49.987087820 count=5432350
+timing msr jieba-hmm pass=2 ms=58.423747380 count=5305350

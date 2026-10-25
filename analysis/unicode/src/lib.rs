@@ -21,9 +21,9 @@
 //! in UTF-16 code units as OpenNLP does and so meet lone surrogates.
 //! [`java::equals_ignore_case`] shares String.equalsIgnoreCase with ASCII
 //! target handling. [`utf16::utf16_len`] is usable in const expressions.
-//! For ASCII-only operations, use Rust's `is_ascii_alphanumeric`,
-//! `to_ascii_lowercase`, and `eq_ignore_ascii_case` directly; the unused
-//! `chars` wrappers have been removed.
+//! [`chars::is_ascii_alnum`] retains the ASCII classification used by the
+//! unigram tokenizer. The unused ASCII lowercase and comparison wrappers
+//! are removed; use Rust's `to_ascii_lowercase` and `eq_ignore_ascii_case`.
 //!
 //! The modules the segmentation ports use besides [`java`]:
 //!
@@ -43,6 +43,7 @@
 
 pub mod casefold;
 pub mod category;
+pub mod chars;
 pub mod confusables;
 pub mod emoji;
 pub mod grapheme;

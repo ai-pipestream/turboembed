@@ -175,3 +175,32 @@ pub(in crate::lang) fn b_century(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let n = nth(&v[0])?;
     (1..=30).contains(&n).then(|| emit_date(c, DateSpec::Century { n }))?
 }
+
+pub(in crate::lang) fn b_workweek(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+    let n = match term(&v[0]).1 {
+        rel::THIS | rel::UPCOMING => 0,
+        rel::NEXT | rel::LAST => term(&v[0]).0 as i8,
+        _ => return None,
+    };
+    emit_date(c, DateSpec::WorkWeek { n })
+}
+
+pub(in crate::lang) fn b_year_slice(v: &[Value], c: &Ctx<'_>, last: bool) -> Option<Value> {
+    let year = year_of(c, &v[2])?;
+    let m = term(&v[0]).0;
+    if m <= 0 || m % 1000 != 0 {
+        return None;
+    }
+    let count = u8::try_from(m / 1000).ok()?;
+    let (u, f) = term(&v[1]);
+    if f & PLURAL == 0 {
+        return None;
+    }
+    let unit = match (u & 255, u >> 8) {
+        (1, 1) => crate::time::duration::Unit::Month,
+        (2, 1) => crate::time::duration::Unit::Week,
+        (6, 1) => crate::time::duration::Unit::Day,
+        _ => return None,
+    };
+    emit_date(c, DateSpec::YearSlice { year, unit, count, last })
+}

@@ -282,7 +282,7 @@ Then, with git, in `--repo`, before measuring and again before writing:
 1. `git rev-parse --show-toplevel`: it is a working tree.
 2. `git status --porcelain=v1 --untracked-files=all
    --ignore-submodules=none` lists nothing but new, untracked files
-   under `benchmarks/records/`: no change, staged or not, and no
+   under `benchmarks/records/` or `benchmarks/static/`: no change, staged or not, and no
    untracked file git does not ignore. New records are left out because
    they are not what is measured, so several can be made before they are
    committed; a committed record changed or deleted is a change like any
