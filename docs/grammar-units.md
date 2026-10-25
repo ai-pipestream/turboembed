@@ -17,7 +17,13 @@ Units are enums grouped by what they measure, in
 `Weight`, `Speed`, `Information`, `Angle`, `Temperature` and `Age`, with
 `Unit` over them and `Unit::Currency` for money. `Area::Square`,
 `Volume::Cubic` and `Speed::Per` take a `Length` (and a time), so `km²`,
-`ft³` and `km/h` need no variant of their own. `Unit::measure` gives the
+`ft³` and `km/h` need no variant of their own. A `Rate` is information
+or money over a time (`10 Mb/s`, `$5 per hour`), written by
+`write_symbol` as `Mbit/s` and, on the money layer, stated in the
+currency with the span covering the `per hour`. The grammar's short time
+denominators use `wk`, `mo` and `yr` for week, month and year. Money keeps
+the amount and currency without a separate period column; its source span
+retains that wording. `Unit::measure` gives the
 Recognizers-Text type (currency, dimension, temperature, age) and
 `Unit::dimension` the subtype. `Display` writes the Recognizers-Text
 unit name (`Square meter`, `Kilometer per hour`, `C`) and is used only to
@@ -68,7 +74,16 @@ and the rules in `analysis/grammar/src/lang/en/unit/rules/mod.rs`.
   (`$5`, `€ 20`, `USD 30`), with an optional multiplier after either
   (`$3.5m`, `4.5 bn euros`, `2 m dollars`). `6 ft 2 in` and `5'11"` add
   the inches as twelfths of a foot. `5 dollars and 50
-  cents` and `15 USD 50` add the minor unit to the major.
+  cents` and `15 USD 50` add the minor unit to the major. A bare
+  trailing count of the next smaller imperial unit adds in the same
+  way (`6 foot 2` in inches, `10 stone 4` in pounds, `5 pounds 8` in
+  ounces) when it ends its clause, as a bare money hundredths count
+  must. Ambiguous `pounds` keeps the existing context rule: `a baby of
+  5 pounds 8` is weight, while `it costs 5 pounds 8` and `he paid 2 pounds
+  6` are currency hundredths. Explicit `lb` remains a weight. An
+  information unit or a money amount over a time (with
+  `per`, `/`, `a` or `an`) is a rate, except that `a year earlier`
+  and its kin stay a date wording, not a rate.
 - A country or its adjective before a generic name names the currency
   (`Canadian dollars`, `HK$`, `US$`, `South African rand`); a code glued
   to `$` does the same (`CAD$`).
@@ -131,19 +146,11 @@ for that name.
 | File | Cases | Eligible | Passing |
 |---|---|---|---|
 | `AgeModel.json` | 19 | 19 | 19 |
-| `CurrencyModel.json` | 180 | 177 | 175 |
-| `DimensionModel.json` | 100 | 100 | 99 |
+| `CurrencyModel.json` | 180 | 177 | 177 |
+| `DimensionModel.json` | 100 | 100 | 100 |
 | `TemperatureModel.json` | 43 | 43 | 43 |
 
-The cases that fail:
-
-- `DimensionModel.json` #52, `2 pm is 2 picometer`: `pm` is read as a
-  time of day, not a unit.
-- `CurrencyModel.json` #102, `one kuai and five mao five`: a trailing
-  bare count is the next minor unit (fen); the grammar reads only one
-  minor unit after the major.
-- `CurrencyModel.json` #110, `sen 100,000`: `sen` is not read as a unit
-  before a number.
+Every eligible case of the four files passes.
 
 ## Speed
 
@@ -156,8 +163,10 @@ with the number rules and about 7.5 to 8.5 ms with the unit rules, and
 
 ## Not handled
 
-- Rates other than speeds: `10 Mb/s` gives `10 Mb`, `$5 per hour` gives `$5`.
 - Readings that need more than the next few words: `20 knots tied` reads
   as a speed, `3 cups` (trophies) as a volume, `300 m people` as a length
   and `version 2 g` as a weight.
-- `6 foot 2` gives `6 foot` and leaves the 2.
+- Glued rate words (`200 Mbps`) and rates over units other than time
+  (`$5 per person`).
+- Spanish and Dutch unit rules (#929): the unit rules are English only,
+  over the Spanish and Dutch number grammars.

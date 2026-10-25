@@ -211,6 +211,44 @@ pub enum DateSpec {
     Undefined {
         grain: TimeGrain,
     },
+    /// `year to date`: January 1 of the reference year to the reference day.
+    YearToDate,
+    /// `till date`, `to date`, `current date`: the reference day as `PRESENT_REF`.
+    CurrentDate,
+    /// Monday to Saturday of the week `n` weeks from the reference week.
+    WorkWeek {
+        n: i8,
+    },
+    /// From the reference day to the end of its ISO week.
+    RestOfWeek,
+    /// The weekend adjacent to a holiday: `Labor Day weekend`,
+    /// `weekend of Thanksgiving 2023`.
+    HolidayWeekend {
+        holiday: Holiday,
+        year: YearRef,
+    },
+    /// The first or last `count` units (`Day`, `Week` or `Month`) of a year:
+    /// `the first 2 weeks of 2021`, `the last four months of 2021`.
+    YearSlice {
+        year: YearRef,
+        unit: super::duration::Unit,
+        count: u8,
+        last: bool,
+    },
+    /// A weekday paired with a shifted base date (`Monday two weeks from now`,
+    /// `3 weeks after Christmas on Friday`).
+    ShiftedWeekday {
+        base: HolidayOrRel,
+        weekday: u8,
+    },
+}
+
+/// The base date of a [`DateSpec::ShiftedWeekday`].
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum HolidayOrRel {
+    Today,
+    MonthDay { month: u8, day: u8 },
+    Holiday(Holiday),
 }
 
 impl DateSpec {
@@ -233,24 +271,30 @@ impl DateSpec {
             | DateSpec::NthWeekday { .. }
             | DateSpec::Holiday { .. }
             | DateSpec::HolidayNear { .. }
-            | DateSpec::RelMonthDay { .. } => TimeGrain::Day,
+            | DateSpec::RelMonthDay { .. }
+            | DateSpec::CurrentDate
+            | DateSpec::ShiftedWeekday { .. } => TimeGrain::Day,
             DateSpec::Rel { grain, .. } | DateSpec::Undefined { grain } => grain,
             DateSpec::Fortnight { .. }
             | DateSpec::Week { .. }
             | DateSpec::MonthWeek { .. }
-            | DateSpec::WeekOf { .. } => TimeGrain::Week,
+            | DateSpec::WeekOf { .. }
+            | DateSpec::WorkWeek { .. }
+            | DateSpec::RestOfWeek => TimeGrain::Week,
+            DateSpec::HolidayWeekend { .. } => TimeGrain::Weekend,
             DateSpec::Quarter { .. } => TimeGrain::Quarter,
             DateSpec::Half { .. } => TimeGrain::Half,
             DateSpec::Season { .. } => TimeGrain::Season,
             DateSpec::Decade { .. } => TimeGrain::Decade,
             DateSpec::Century { .. } => TimeGrain::Century,
-            DateSpec::OtherYear { .. } => TimeGrain::Year,
+            DateSpec::OtherYear { .. } | DateSpec::YearToDate => TimeGrain::Year,
+            DateSpec::YearSlice { unit, .. } => super::resolve::unit_grain(unit),
         })
     }
 
     /// Whether the spec names a single day.
     pub fn is_day(self) -> bool {
-        self.grain() == Some(TimeGrain::Day)
+        self.grain() == Some(TimeGrain::Day) && !matches!(self, DateSpec::YearSlice { .. })
     }
 }
 
@@ -279,6 +323,9 @@ impl Point {
 pub enum Edge {
     #[default]
     Start,
+    /// `the start of 2008`, written explicitly so a year-to-year range
+    /// measures its duration in months (`P12M`) rather than years (`P1Y`).
+    ExplicitStart,
     Mid,
     End,
 }

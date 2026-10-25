@@ -1,10 +1,7 @@
 //! Alias normalization, string similarity (Jaro-Winkler and token Dice),
 //! and context term extraction for entity candidate generation and scoring.
 
-use turbo_unicode::GeneralCategory;
 use turbo_unicode::casefold;
-use turbo_unicode::category::general_category;
-use turbo_unicode::normalize::{Form, normalize};
 
 /// Common English stop words excluded from context overlap scoring so
 /// disambiguation focuses on content-bearing terms.
@@ -20,33 +17,24 @@ const STOP_WORDS: &[&str] = &[
 ];
 
 /// Folds a surface mention or KB alias into a canonical lookup key:
-/// decomposes with NFD, strips non-spacing combining marks (diacritics),
-/// applies full Unicode case folding, collapses dotted initialisms
+/// accent-folds with the shared `turbo_normalize::AccentFold` (marks
+/// of Latin, Greek, and Cyrillic bases removed, other scripts' marks
+/// kept, stroke letters mapped), applies full Unicode case folding,
+/// collapses dotted initialisms
 /// (`"U.S.A."` -> `"usa"`), splits on punctuation and whitespace, and
 /// joins alphanumeric tokens with a single ASCII space.
 pub fn fold_alias(input: &str) -> String {
     if input.is_empty() {
         return String::new();
     }
-    let mut nfd = String::with_capacity(input.len());
-    normalize(Form::Nfd, input, &mut nfd);
-
-    let mut stripped = String::with_capacity(nfd.len());
-    for ch in nfd.chars() {
-        if general_category(ch) == GeneralCategory::Mn {
-            continue;
-        }
-        match ch {
-            'ß' | 'ẞ' => stripped.push_str("ss"),
-            'æ' | 'Æ' => stripped.push_str("ae"),
-            'œ' | 'Œ' => stripped.push_str("oe"),
-            'ø' | 'Ø' => stripped.push('o'),
-            'ł' | 'Ł' => stripped.push('l'),
-            'đ' | 'Đ' | 'ð' | 'Ð' => stripped.push('d'),
-            'ı' => stripped.push('i'),
-            _ => stripped.push(ch),
-        }
+    let mut stripped = String::with_capacity(input.len());
+    thread_local! {
+        static FOLD_SCRATCH: std::cell::RefCell<turbo_normalize::FoldScratch> =
+            std::cell::RefCell::new(turbo_normalize::FoldScratch::default());
     }
+    FOLD_SCRATCH.with(|scratch| {
+        turbo_normalize::AccentFold::new().fold_str(input, &mut scratch.borrow_mut(), &mut stripped);
+    });
 
     let mut folded = String::with_capacity(stripped.len());
     casefold::fold(&stripped, &mut folded);
@@ -319,6 +307,18 @@ pub(crate) fn min_jaro_matches(q_len: usize, k_len: usize, prefix_len: usize, th
     let numer = rhs * (q_len as f64) * (k_len as f64);
     let denom = (q_len + k_len) as f64;
     ((numer / denom) - 1e-9).ceil().max(1.0) as usize
+}
+
+#[cfg(test)]
+mod fold_alias_accent_tests {
+    #[test]
+    fn marks_outside_folded_scripts_survive_and_thorn_maps() {
+        // Devanagari anusvara (Mn) is kept: the two words stay distinct.
+        assert_ne!(super::fold_alias("\u{0938}\u{0902}\u{0924}"), super::fold_alias("\u{0938}\u{0924}"));
+        assert_eq!(super::fold_alias("\u{00DE}ingvellir"), "thingvellir");
+        assert_eq!(super::fold_alias("\u{0126}amrun"), "hamrun");
+        assert_eq!(super::fold_alias("S\u{00E3}o Paulo"), "sao paulo");
+    }
 }
 
 #[cfg(test)]

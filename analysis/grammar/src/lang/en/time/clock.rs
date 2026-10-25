@@ -203,7 +203,7 @@ pub(crate) fn b_midnight(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
     emit_clock(c, Clock::new(0, 0, 0, Shown::Hour, Meridiem::Day)?)
 }
 
-pub(crate) const PARTS: [Part; 9] = [
+pub(crate) const PARTS: [Part; 10] = [
     Part::Morning,
     Part::Afternoon,
     Part::Evening,
@@ -213,6 +213,7 @@ pub(crate) const PARTS: [Part; 9] = [
     Part::Breakfast,
     Part::Lunch,
     Part::Dinner,
+    Part::Dawn,
 ];
 
 pub(crate) fn part(v: &Value) -> Option<Part> {
@@ -242,7 +243,7 @@ pub(crate) fn b_night_time(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
 
 pub(crate) fn portion_part(c: &Ctx<'_>, v: &Value, portion: Portion) -> Option<Value> {
     let p = part(v)?;
-    if !matches!(p, Part::Morning | Part::Afternoon | Part::Evening | Part::Night) {
+    if !matches!(p, Part::Dawn | Part::Morning | Part::Afternoon | Part::Evening | Part::Night) {
         return None;
     }
     emit_part(c, p, Modifier::portion(portion))

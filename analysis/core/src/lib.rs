@@ -19,6 +19,7 @@ pub mod export;
 pub mod graph;
 pub mod layer;
 pub mod markup;
+pub mod math;
 pub mod offsets;
 pub mod phrase;
 pub mod predicate;

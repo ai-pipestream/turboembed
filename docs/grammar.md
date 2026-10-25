@@ -226,6 +226,17 @@ where they choose a reading:
   reference.
 - `may`, `sun` and a few other words with a common sense need a cue to
   be a date (`in May`, `on Sun`); `last` after `will` or `to` is a verb.
+- Bare `to date` needs an adverbial context: a clause boundary or a
+  recognized finite predicate (`sales to date exceed ...`). An infinitive
+  governor (`wanted to date`) or following object or noun modifier
+  (`to date him`, `to date night`) suppresses both the standalone node
+  and its use inside a larger time expression. These lexical checks are
+  conservative; they do not perform general syntactic tagging.
+- A yearless range with February 29 at either endpoint pairs both dates
+  around the same leap-day occurrence. A range crossing December takes
+  the neighboring year for its other endpoint; inclusive edges apply
+  after pairing. This avoids combining independent year searches into
+  multi-year ranges for adjacent calendar days.
 - A date with a dot after a full month name (`April. One`) is two
   sentences, and a slash pair after a number or before `of` (`21 1/4`,
   `3/4 of`) is a fraction.
@@ -401,21 +412,21 @@ type (`none` for a case that expects no mention):
 
 | Type | Eligible | Passing |
 |---|---|---|
-| `date` | 198 | 175 |
-| `daterange` | 357 | 325 |
-| `datetime` | 82 | 78 |
-| `datetimerange` | 96 | 85 |
+| `date` | 198 | 183 |
+| `daterange` | 357 | 347 |
+| `datetime` | 82 | 79 |
+| `datetimerange` | 96 | 89 |
 | `duration` | 46 | 46 |
 | `set` | 46 | 46 |
 | `time` | 34 | 34 |
-| `timerange` | 47 | 43 |
+| `timerange` | 47 | 42 |
 | none | 64 | 61 |
-| All | 970 | 893 |
+| All | 970 | 927 |
 
-The cases that fail include time zones, a weekday after a shift,
-`year to date`, holiday weekends, `the first
-N weeks of`, leap-day ranges and a few readings the specification gives
-in a form the rules do not produce for the same words elsewhere. The rules are written for
+Every remaining eligible case that does not pass across all 16
+specification files is documented in
+`analysis/grammar/tests/spec/reasons.rs` and verified by `ratchet`.
+The rules are written for
 English forms, not for single cases, and read forms the specifications
 do not test (`third to last`, a U+2212 minus, `3 in 2009`); the unit
 tests in `analysis/grammar/src/lang/en/tests.rs` cover them.
@@ -428,27 +439,27 @@ way, with the lists in `analysis/grammar/tests/data/pass/Dutch/`:
 | `NumberModel.json` | 161 | 159 |
 | `OrdinalModel.json` | 48 | 48 |
 | `PercentModel.json` | 13 | 13 |
-| `DateTimeModel.json` | 605 | 561 |
+| `DateTimeModel.json` | 605 | 579 |
 
 | Date-time type | Eligible | Passing |
 |---|---|---|
-| `date` | 126 | 117 |
-| `daterange` | 205 | 188 |
-| `datetime` | 51 | 47 |
+| `date` | 126 | 119 |
+| `daterange` | 205 | 199 |
+| `datetime` | 51 | 49 |
 | `datetimerange` | 74 | 66 |
 | `duration` | 28 | 28 |
-| `set` | 23 | 21 |
+| `set` | 23 | 23 |
 | `time` | 23 | 21 |
-| `timerange` | 24 | 22 |
+| `timerange` | 24 | 23 |
 | none | 51 | 51 |
 
 The two number cases that fail are `192.168.1.2`, which the
-specification reads as 192168, 1 and 2, and a lone `een` the
-specification counts as 1. The date-time cases that fail include `op`
-taken into some spans and not others, `voor` meaning for, ranges across
-two dates, the year up to a date, leap days, and a few readings the
-specification gives in a form it does not give for the same words
-elsewhere. The unit tests in `analysis/grammar/src/lang/nl/tests.rs` and
+specification reads as 192.168 and 1.2, and `1 234 567,89`, where the
+specification expects only `567,89`. The date-time cases that fail
+include `op` taken into some spans and not others, `voor` meaning for,
+and a few readings the specification gives in a form it does not give
+for the same words elsewhere (each listed in
+`analysis/grammar/tests/spec/reasons.rs`). The unit tests in `analysis/grammar/src/lang/nl/tests.rs` and
 `analysis/grammar/src/lang/nl/time/tests.rs` cover forms the
 specifications do not test.
 
@@ -496,21 +507,20 @@ dot. The pass lists are under `analysis/grammar/tests/data/pass/Spanish/`.
 | `NumberModel.json` | 206 | 204 |
 | `OrdinalModel.json` | 82 | 82 |
 | `PercentModel.json` | 66 | 66 |
-| `DateTimeModel.json` | 744 | 686 |
+| `DateTimeModel.json` | 744 | 706 |
 
-`DateTimeModel.json` by the first expected type: `date` 147 of 160,
-`daterange` 269 of 295, `datetime` 62 of 68, `datetimerange` 57 of 64,
-`duration` 29 of 29, `set` 18 of 18, `time` 33 of 33, `timerange` 18
+`DateTimeModel.json` by the first expected type: `date` 149 of 160,
+`daterange` 284 of 295, `datetime` 62 of 68, `datetimerange` 58 of 64,
+`duration` 29 of 29, `set` 18 of 18, `time` 33 of 33, `timerange` 20
 of 22, none 53 of 55.
 
 The number cases that fail are `192.168.1.2` (the specification reads
-192168, 1 and 2) and `un cientocincoavos` (a singular numerator with a
+192.168 and 1.2) and `un cientocincoavos` (a singular numerator with a
 plural denominator). The time cases that fail include a date said with
 `este` or `próximo` (`el próximo 6 de abril`) that the specification
-resolves to one year, `madrugada`, `las primeras 2 semanas de 2021`,
-`el resto de la semana`, an article the specification takes for some
-units and not others (`la semana pasada` but `próximo trimestre`), and a
-few misspellings.
+resolves to one year, an article the specification takes for some
+units and not others, and a few misspellings (all listed in
+`analysis/grammar/tests/spec/reasons.rs`).
 
 In a release build, a 100 KB text made of the Spanish date-time inputs
 parsed and selected with `SPANISH` at about 13 MB/s and with
@@ -595,11 +605,14 @@ hash; the annotator version is 3. No external dependency is added.
 
 ### Specification status
 
-Re-running the existing DateTimeModel suite gives 891/970 English,
-561/605 Dutch and 686/744 Spanish: **79, 44 and 58 failures** remain.
-The English documentation previously claimed 893; replaying the original
-selector on the same base commit also gives 891. Zone-free counts are
-unchanged by this change.
+Re-running the existing DateTimeModel suite gives 927/970 English,
+579/605 Dutch and 706/744 Spanish: **43, 26 and 38 failures** remain.
+The English `timerange` row previously claimed 43 passing (893 total)
+in the table when the actual passing count on `main` was 42 of 47 (891
+total); no `timerange` pass-list entry was removed, and the 5 remaining
+`timerange` failures are documented in
+`analysis/grammar/tests/spec/reasons.rs`. Zone-free counts are
+unchanged by the explicit-zone reader.
 
 All nine fixture cases carrying an expected `utcOffsetMins` are marked
 unsupported by .NET, which the existing conformance test excludes. Thus

@@ -108,9 +108,7 @@ impl EntityKeys {
 
 /// The sentence whose span holds `at`, if any.
 fn sentence_at(sentences: &Sentences, at: u32) -> Option<u32> {
-    let (starts, ends) = sentences.spans.columns();
-    let i = ends.partition_point(|&e| e <= at);
-    (i < starts.len() && starts[i] <= at).then_some(i as u32)
+    sentences.spans.covering_at(at).map(|i| i.get() as u32)
 }
 
 fn find(parent: &mut [u32], mut x: u32) -> u32 {
