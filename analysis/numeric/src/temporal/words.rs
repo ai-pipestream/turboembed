@@ -41,9 +41,7 @@ pub(super) fn word(text: &str, start: usize) -> Option<usize> {
 }
 
 /// Whether `word`, lowercased as OpenNLP lowercases it, is `lower`.
-fn is(word: &str, lower: &str) -> bool {
-    word.chars().map(java::to_lower_char).eq(lower.chars())
-}
+use turbo_unicode::java::eq_lowercase_code_points as is;
 
 /// The month, 1 to 12, that `word` names in full or by its first three
 /// letters.

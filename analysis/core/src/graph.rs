@@ -204,6 +204,75 @@ impl<From: Layer, To: Layer> Edges<From, To> {
     }
 }
 
+/// Reusable buffers for [`Edges::reachable_from`]: a breadth-first
+/// queue and a generation-stamped visited column, so repeated
+/// traversals allocate nothing once the buffers have grown to the
+/// largest frontier and node index they have seen.
+#[derive(Clone, Debug, Default)]
+pub struct ReachScratch {
+    queue: Vec<u32>,
+    seen: Vec<u32>,
+    generation: u32,
+}
+
+impl ReachScratch {
+    pub fn new() -> ReachScratch {
+        ReachScratch::default()
+    }
+
+    /// Marks `node` visited in this traversal; returns whether it
+    /// was already marked.
+    fn mark(&mut self, node: u32) -> bool {
+        let i = node as usize;
+        if i >= self.seen.len() {
+            self.seen.resize(i + 1, 0);
+        }
+        let was = self.seen[i] == self.generation;
+        self.seen[i] = self.generation;
+        was
+    }
+}
+
+impl<L: Layer> Edges<L, L> {
+    /// The items reachable from `root` following outgoing edges,
+    /// breadth-first, `root` first, each item once, at most
+    /// `max_hops` edges out (`max_hops == 0` yields only `root`).
+    /// Cycles terminate by the visited marks in `scratch`, which is
+    /// reused across calls; `out` is cleared and refilled, so after
+    /// the first call neither buffer allocates for a graph no larger
+    /// than one already traversed. The edges are assumed checked
+    /// (as a document holds them): targets are followed as stored.
+    pub fn reachable_from(&self, root: Ix<L>, max_hops: u32, scratch: &mut ReachScratch, out: &mut Vec<Ix<L>>) {
+        out.clear();
+        scratch.queue.clear();
+        scratch.generation = scratch.generation.wrapping_add(1);
+        if scratch.generation == 0 {
+            scratch.seen.iter_mut().for_each(|s| *s = 0);
+            scratch.generation = 1;
+        }
+        scratch.mark(root.get() as u32);
+        scratch.queue.push(root.get() as u32);
+        out.push(root);
+        let mut head = 0usize;
+        let mut hops = 0u32;
+        while head < scratch.queue.len() && hops < max_hops {
+            let level_end = scratch.queue.len();
+            while head < level_end {
+                let node = Ix::new(scratch.queue[head]);
+                head += 1;
+                for row in self.from_source(node).iter() {
+                    let to = self.to[row.get()];
+                    if !scratch.mark(to.get() as u32) {
+                        scratch.queue.push(to.get() as u32);
+                        out.push(to);
+                    }
+                }
+            }
+            hops += 1;
+        }
+    }
+}
+
 impl<From: Layer, To: Layer> Layer for Edges<From, To> {
     const ID: &'static str = "turbo:edges";
     const OF: Option<&'static LayerName> = Some(From::NAME);
@@ -329,6 +398,15 @@ impl<L: Layer> Groups<L> {
     /// sorted slice.
     pub fn contains(&self, i: Ix<Self>, item: Ix<L>) -> bool {
         self.get(i).binary_search(&item).is_ok()
+    }
+
+    /// Every group containing `item`, with `item`'s rank in the
+    /// group: one binary search per group over its sorted slice, no
+    /// allocation and no auxiliary index, so the cost is $O(G \log
+    /// n)$ in the group count for the occasional reverse lookup
+    /// (the forward direction stays [`Groups::get`]).
+    pub fn groups_containing(&self, item: Ix<L>) -> impl Iterator<Item = (Ix<Self>, usize)> + '_ {
+        self.iter().filter_map(move |(ix, members)| members.binary_search(&item).ok().map(|rank| (ix, rank)))
     }
 
     /// Every group with its index and its sorted slice of members.
