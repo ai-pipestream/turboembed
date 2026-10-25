@@ -1,4 +1,132 @@
 //! Additional real graph/RPC controls for transitive anchors and nested references.
+
+#[tokio::test]
+async fn named_entity_salience_survives_both_views_and_all_offset_modes() {
+    let (server, mut client) = common::serve_no_admin().await;
+    let mut doc = consolidated();
+    let source = doc.get::<View>().unwrap().clone();
+    let mut builder = ViewBuilder::new(source.text());
+    builder.replace(2, "e");
+    let (text, alignment) = builder.finish();
+    doc.add(&Key::<View>::named("ascii"), View::derived(&source, text, alignment), Provenance::by("context:view"))
+        .unwrap();
+    let mut default = DocumentEntities::new(ViewId::SOURCE);
+    default.entities.push(doc.get_key(&Key::<DocumentEntities>::named("rollup")).unwrap().entities[0].clone());
+    doc.add(
+        &Key::<DocumentEntities>::DEFAULT,
+        default,
+        Provenance { on: vec![Key::<Entities>::named("gold").id()], ..Provenance::by("context:default") },
+    )
+    .unwrap();
+    let salience = EntitySalience {
+        scores: [0.2, 0.9]
+            .into_iter()
+            .enumerate()
+            .map(|(i, score)| EntitySalienceScore {
+                entity_ix: i as u32,
+                salience: score,
+                rank: 1 - i as u32,
+                position_score: 0.1,
+                syntax_score: 0.2,
+                frequency_score: 0.3,
+                centrality_score: 0.4,
+            })
+            .collect(),
+    };
+    doc.add(
+        &Key::<EntitySalience>::named("scorer"),
+        salience,
+        Provenance { on: vec![Key::<DocumentEntities>::named("rollup").id()], ..Provenance::by("context:salience") },
+    )
+    .unwrap();
+    for view in [0, 1] {
+        for mode in [OffsetMode::Utf8, OffsetMode::Utf16, OffsetMode::CodePoint] {
+            let out = project(&mut client, &doc, mode, view).await;
+            let layer = out.layers.iter().find(|l| l.id == EntitySalience::NAME.to_string()).unwrap();
+            assert_eq!(layer.annotations.len(), 2, "nonempty salience was erased");
+            assert_eq!(layer.indexes_layer[0].instance, "rollup");
+            let end = if view == 0 && mode == OffsetMode::Utf8 { 2 } else { 1 };
+            assert_eq!(layer.annotations[0].spans, [SpanFragment { start: 0, end }]);
+            assert_eq!(client.round_trip_typed_document(out.clone()).await.unwrap().into_inner(), out);
+        }
+    }
+    server.stop().await;
+}
+
+#[tokio::test]
+async fn named_chunk_table_headers_survive_both_views_and_all_offset_modes() {
+    let (server, mut client) = common::serve_no_admin().await;
+    let mut doc = Document::new("xxé A");
+    let source = doc.get::<View>().unwrap().clone();
+    let mut builder = ViewBuilder::new(source.text());
+    builder.replace(2, "");
+    let (text, alignment) = builder.finish();
+    doc.add(&Key::<View>::named("trim"), View::derived(&source, text, alignment), Provenance::by("context:view"))
+        .unwrap();
+    doc.add(
+        &Key::<Sentences>::DEFAULT,
+        Sentences { spans: spans(ViewId(1), &[(0, 4)]) },
+        Provenance::by("context:sentences"),
+    )
+    .unwrap();
+    let chunks = Chunks {
+        spans: spans(ViewId(1), &[(0, 3), (3, 4)]),
+        level: vec![0; 2],
+        parent: vec![None; 2],
+        sentences: vec![IxRange::new(0, 1); 2],
+        cut: vec![Cut::DocumentStart, Cut::Sentence],
+        cost: vec![0; 2],
+        model_tokens: vec![1; 2],
+        over_budget: vec![false; 2],
+        prompt_overhead: 0,
+    };
+    let mut tables = Tables::new(ViewId(1));
+    tables.table_bounds.push(Span::new(0, 4));
+    for (i, (start, end)) in [(0, 2), (3, 4)].into_iter().enumerate() {
+        tables.spans.push(Span::new(start, end));
+        tables.cells.push(TableCell {
+            table_id: 0,
+            row_ix: i as u16,
+            col_ix: 0,
+            row_span: 1,
+            col_span: 1,
+            is_header: i == 0,
+            align: ColumnAlign::Left,
+        });
+        tables.rows.push(Span::new(if i == 0 { 0 } else { 3 }, if i == 0 { 3 } else { 4 }));
+        tables.row_table.push(0);
+        tables.row_ix.push(i as u16);
+    }
+    let headers = ChunkTableHeaders::build(&chunks, &tables, "é A").unwrap();
+    doc.add(
+        &Key::<Chunks>::named("body"),
+        chunks,
+        Provenance { reads: vec![Key::<Sentences>::DEFAULT.id()], ..Provenance::by("context:chunks") },
+    )
+    .unwrap();
+    doc.add(&Key::<Tables>::named("grid"), tables, Provenance::by("context:tables")).unwrap();
+    doc.add(
+        &Key::<ChunkTableHeaders>::named("headers"),
+        headers,
+        Provenance {
+            on: vec![Key::<Chunks>::named("body").id(), Key::<Tables>::named("grid").id()],
+            ..Provenance::by("context:headers")
+        },
+    )
+    .unwrap();
+    for view in [0, 1] {
+        for mode in [OffsetMode::Utf8, OffsetMode::Utf16, OffsetMode::CodePoint] {
+            let out = project(&mut client, &doc, mode, view).await;
+            let layer = out.layers.iter().find(|l| l.id == ChunkTableHeaders::NAME.to_string()).unwrap();
+            assert_eq!(layer.annotations.len(), 2, "nonempty table context was erased");
+            assert_eq!(layer.indexes_layer[0].instance, "body");
+            assert_eq!(layer.indexes_layer[1].instance, "grid");
+            assert_eq!(client.round_trip_typed_document(out.clone()).await.unwrap().into_inner(), out);
+        }
+    }
+    server.stop().await;
+}
+
 mod common;
 
 use turbo_analysis::export::export;
@@ -6,8 +134,9 @@ use turbo_analysis::{
     Document, Ix, IxRange, Key, Layer, ModelRef, NBest, Provenance, Span, Spans, Tag, TagSet, View, ViewBuilder, ViewId,
 };
 use turbo_analysis_layers::{
-    ChunkTags, ConsolidatedMention, DocumentEntities, DocumentEntity, Entities, EntityRelation, PosTags, SparseTerms,
-    SyntacticRoleCounts, Tokens,
+    ChunkTableHeaders, ChunkTags, Chunks, ColumnAlign, ConsolidatedMention, Cut, DocumentEntities, DocumentEntity,
+    Entities, EntityRelation, EntitySalience, EntitySalienceScore, PosTags, Sentences, SparseTerms,
+    SyntacticRoleCounts, TableCell, Tables, Tokens,
 };
 use turbo_kserve::api::TURBO_E_INVALID_ARGUMENT;
 use turbo_kserve::proto::result::{
