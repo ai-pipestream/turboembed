@@ -187,7 +187,9 @@ the GLiNER2 and GLiREL checkpoints the relation scorer considers
 (docs/gliner2-relations.md, docs/glirel-relations.md), the NLI
 checkpoint zero-shot categorization considers (docs/doccat.md), and the
 SQuAD 2.0 checkpoint the extractive QA benchmarks run
-(docs/extractive-qa.md). Nine are in the zoo's index:
+(docs/extractive-qa.md), and the learned-sparse and late-interaction
+checkpoints the SPLATE study runs (docs/splate.md, #913). Eleven are
+in the zoo's index:
 `deepset/roberta-base-squad2` (`deepset-roberta-base-squad2`,
 share-alike through its training data, fetched only after the user
 accepts CC BY-SA 4.0), `urchade/gliner_small-v2.1`
@@ -203,12 +205,19 @@ BY-NC-SA 4.0), GLiREL's tokenizer, `microsoft/deberta-v3-large`'s
 `spm.model` and `config.json` (`microsoft-deberta-v3-large-tokenizer`,
 permissive), and `cross-encoder/nli-MiniLM2-L6-H768`
 (`cross-encoder-nli-minilm2-l6-h768`, share-alike, fetched from its
-publisher after the user accepts CC BY-SA 4.0 and CC BY-SA 3.0).
+publisher after the user accepts CC BY-SA 4.0 and CC BY-SA 3.0),
+`opensearch-project/opensearch-neural-sparse-encoding-v1`
+(`opensearch-neural-sparse-encoding-v1`, local-only through its
+training data, fetched from its publisher only after the user
+accepts MS MARCO's terms), and `colbert-ir/colbertv2.0`
+(`colbert-ir-colbertv2.0`, local-only the same way).
 The others were not fetched, so no entry has the SHA-512s an entry
 needs. "Checked" is **here**: the
 `license` of the model card's metadata at the revision named, read on
 2026-10-15 from the hub's model API, on 2026-10-21 for the GLiNER2 and
-GLiREL rows, and on 2026-10-23 for the GLiNER v2.1 tokenizers and the NLI row.
+GLiREL rows, and on 2026-10-23 for the GLiNER v2.1 tokenizers and the NLI row, and
+on 2026-10-24 for the two retrieval rows, whose files were fetched
+then so the entries have their SHA-512s.
 
 | Checkpoint | Revision | Licence | Base and data | Class | Checked |
 |---|---|---|---|---|---|
@@ -226,6 +235,8 @@ GLiREL rows, and on 2026-10-23 for the GLiNER v2.1 tokenizers and the NLI row.
 | [cross-encoder/nli-MiniLM2-L6-H768](https://huggingface.co/cross-encoder/nli-MiniLM2-L6-H768) | `b95119ce93d3e065de6214e38cd4a97b0f2f2c6d` | Apache-2.0 | [nreimers/MiniLMv2-L6-H768-distilled-from-RoBERTa-Large](https://huggingface.co/nreimers/MiniLMv2-L6-H768-distilled-from-RoBERTa-Large) (Apache-2.0); [SNLI](https://huggingface.co/datasets/stanfordnlp/snli) (CC BY-SA 4.0) and [MultiNLI](https://huggingface.co/datasets/nyu-mll/multi_nli) (CC BY-SA 3.0; majority of OANC genres) | share-alike; in the index, fetched after acceptance; zero-shot categorization (docs/doccat.md) | here |
 | [dslim/bert-base-NER](https://huggingface.co/dslim/bert-base-NER) | `d1a3e8f13f8c3566299d95fcfc9a8d2382a9affc` | MIT | [google-bert/bert-base-cased](https://huggingface.co/google-bert/bert-base-cased) (Apache-2.0); CoNLL-2003 (Reuters RCV1, research only; under Datasets) | refused by the class rule, for its training data: not shipped, bundled, listed in the index or trained on; a local reference that is scored, as `en-pos-maxent` is | here |
 | [deepset/roberta-base-squad2](https://huggingface.co/deepset/roberta-base-squad2) | `adc3b06f79f797d1c575d5479d6f5efe54a9e3b4` | CC BY 4.0 | [FacebookAI/roberta-base](https://huggingface.co/FacebookAI/roberta-base) (MIT); SQuAD 2.0 (CC BY-SA 4.0, under Datasets) | share-alike, by its training data: in the index, fetched after acceptance; not shipped or bundled; `bundle/recipes/roberta-base-squad2.json` makes a local bundle from it | here, 2026-10-23 |
+| [opensearch-project/opensearch-neural-sparse-encoding-v1](https://huggingface.co/opensearch-project/opensearch-neural-sparse-encoding-v1) | `708f7e68f4aada15c2d59144a5187c521da6d8db` | Apache-2.0 | [google-bert/bert-base-uncased](https://huggingface.co/google-bert/bert-base-uncased) (Apache-2.0); [MS MARCO](https://microsoft.github.io/msmarco/) (Microsoft's terms: non-commercial research only, no intellectual property rights extended; under Datasets) | local-only, by its training data: in the index, fetched from its publisher only after the user accepts MS MARCO's terms; not shipped or bundled; the learned-sparse arm of the SPLATE study (#913, docs/splate.md) | here, 2026-10-24 |
+| [colbert-ir/colbertv2.0](https://huggingface.co/colbert-ir/colbertv2.0) | `c1e84128e85ef755c096a95bdb06b47793b13acf` | MIT | [google-bert/bert-base-uncased](https://huggingface.co/google-bert/bert-base-uncased) (Apache-2.0); [MS MARCO](https://microsoft.github.io/msmarco/) (as above) | local-only, by its training data: in the index, fetched after acceptance the same way; the MaxSim arm of the SPLATE study (#913) | here, 2026-10-24 |
 
 The `-sm` class was checked on 2026-10-23 against wtpsplit (MIT) at
 commit `3ef928c8e163d11dc6f6336ad610bff2ffe0bda4`.
@@ -299,6 +310,7 @@ match the hub's LFS object ids at that revision.
 | [SNLI](https://huggingface.co/datasets/stanfordnlp/snli) | natural language inference | CC BY-SA 4.0 | share-alike | training data of `cross-encoder/nli-MiniLM2-L6-H768` | here |
 | [MultiNLI](https://huggingface.co/datasets/nyu-mll/multi_nli) | natural language inference | CC BY-SA 3.0 (majority of OANC genres; remaining genres OANC, public domain, or CC BY) | share-alike | training data of `cross-encoder/nli-MiniLM2-L6-H768` | here |
 | [SQuAD 2.0](https://rajpurkar.github.io/SQuAD-explorer/) | extractive QA | CC BY-SA 4.0 | share-alike | the dev set `dev-v2.0.json` (4,370,528 bytes, SHA-256 `80a5225e94905956a6446d296ca1093975c4d3b3260f1d6c8f68bc2ab77182d8`) is used for evaluation only (docs/extractive-qa.md); it is not in the repository | here, 2026-10-23 |
+| [MS MARCO](https://microsoft.github.io/msmarco/) | passage retrieval training | Microsoft's terms: non-commercial research only, free of charge without extending any license or other intellectual property rights (named `LicenseRef-RestrictedPublic` in the zoo) | local-only | training data of `opensearch-project/opensearch-neural-sparse-encoding-v1` and `colbert-ir/colbertv2.0` above; the dataset itself is not fetched or used here, only named as what puts those checkpoints in their class | here, 2026-10-24 |
 | [UD_English-GUM r2.16](https://github.com/UniversalDependencies/UD_English-GUM/blob/r2.16/README.md) | | CC BY-NC-SA 4.0 | local-only | non-commercial | here |
 | [UD_English-LinES r2.16](https://github.com/UniversalDependencies/UD_English-LinES/blob/r2.16/README.txt) | | CC BY-NC-SA 4.0 | local-only | non-commercial | here |
 | [UD_Swedish-LinES r2.16](https://github.com/UniversalDependencies/UD_Swedish-LinES/blob/r2.16/README.txt) | | CC BY-NC-SA 4.0 | local-only | non-commercial | here |

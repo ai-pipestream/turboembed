@@ -73,6 +73,7 @@ pub enum Unit {
     Volume(Volume),
     Weight(Weight),
     Speed(Speed),
+    Rate(Rate),
     Information(Information),
     Angle(Angle),
     Temperature(Temperature),
@@ -85,7 +86,7 @@ impl Unit {
         match self {
             Unit::Temperature(_) => Measure::Temperature,
             Unit::Age(_) => Measure::Age,
-            Unit::Currency(_) => Measure::Currency,
+            Unit::Currency(_) | Unit::Rate(Rate::Currency(..)) => Measure::Currency,
             _ => Measure::Dimension,
         }
     }
@@ -99,6 +100,7 @@ impl Unit {
             Unit::Volume(_) => Dimension::Volume,
             Unit::Weight(_) => Dimension::Weight,
             Unit::Speed(_) => Dimension::Speed,
+            Unit::Rate(Rate::Information(..)) => Dimension::Information,
             Unit::Information(_) => Dimension::Information,
             Unit::Angle(_) => Dimension::Angle,
             _ => return None,
@@ -108,6 +110,7 @@ impl Unit {
     pub fn currency(self) -> Option<CurrencyUnit> {
         match self {
             Unit::Currency(c) => Some(c),
+            Unit::Rate(Rate::Currency(c, _)) => Some(c),
             _ => None,
         }
     }
@@ -134,6 +137,16 @@ impl Unit {
                 p.symbol()
             }
             Unit::Speed(Speed::Knot) => "kn",
+            Unit::Rate(Rate::Information(i, p)) => {
+                out.push_str(i.symbol());
+                out.push('/');
+                p.symbol()
+            }
+            Unit::Rate(Rate::Currency(c, p)) => {
+                c.write_symbol(out);
+                out.push('/');
+                p.symbol()
+            }
             Unit::Information(i) => i.symbol(),
             Unit::Angle(Angle::Degree) => "°",
             Unit::Angle(Angle::Radian) => "rad",
@@ -188,6 +201,8 @@ impl fmt::Display for Unit {
             Unit::Weight(w) => f.write_str(w.name()),
             Unit::Speed(Speed::Per(l, p)) => write!(f, "{} per {}", l.name(), p.name()),
             Unit::Speed(Speed::Knot) => f.write_str("Knot"),
+            Unit::Rate(Rate::Information(i, p)) => write!(f, "{} per {}", i.name(), p.name()),
+            Unit::Rate(Rate::Currency(c, p)) => write!(f, "{c} per {}", p.name()),
             Unit::Information(i) => f.write_str(i.name()),
             Unit::Angle(a) => f.write_str(match a {
                 Angle::Degree => "Degree",
