@@ -45,7 +45,7 @@ request:
 |---|---|---|
 | `bundle` | `bundle_path` of `turbo_model_load` | Required. |
 | `name` | The model name requests use; no header call. | The last component of `bundle`. |
-| `device` | the runtime device index for `turbo_context_create`, or `select` for the index `turbo_runtime_select` gives for the bundle's `TURBO_TASK_*` | Required. The header has no default device. For `TURBO_TASK_EMBED`, `turbo_runtime_select` never picks a CPU, so on a host with no other device `select` fails with `TURBO_E_DEVICE_NOT_FOUND` and the server exits; for `TURBO_TASK_RERANK` and `TURBO_TASK_EXTRACTIVE_QA`, `select` picks the CPU cross-encoder / extractive-QA device. |
+| `device` | the runtime device index for `turbo_context_create`, or `select` for the index `turbo_runtime_select` gives for the bundle's `TURBO_TASK_*` | Required. The header has no default device. For `TURBO_TASK_EMBED`, `turbo_runtime_select` never picks a CPU, so on a host with no other device `select` fails with `TURBO_E_DEVICE_NOT_FOUND` and the server exits; for `TURBO_TASK_RERANK` and `TURBO_TASK_EXTRACTIVE_QA`, `select` also considers the CPU; their cells tie as experimental, so it picks the first device in order that runs the task, a GPU when one is listed and the CPU otherwise. Reranking runs only on the CPU and CUDA, so `select` picks a CUDA device when there is one and the CPU otherwise. |
 | `precision` | `turbo_session_desc.precision`: `PRECISION_MODEL`, `PRECISION_FASTEST` or `PRECISION_EXACT` | 0, `TURBO_PRECISION_MODEL`. |
 | `max_batch` | `turbo_session_desc.max_batch` | 0, the model's. |
 | `max_seq` | `turbo_session_desc.max_seq` | 0, the model's. |

@@ -165,6 +165,7 @@ pub fn dataset(release: Release) -> Result<Artifact> {
             size: r.size,
             sha256: r.sha256.parse().map_err(parse("sha256", r.sha256))?,
             sha512: r.sha512.parse().map_err(parse("sha512", r.sha512))?,
+            download: None,
         }],
     })
 }
