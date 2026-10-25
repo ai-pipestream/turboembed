@@ -77,3 +77,56 @@ fn scanning_and_the_heap_merge_alike() {
         assert_eq!(ids(&a), ids(&b));
     }
 }
+
+/// Upstream's Split pre-tokenizer with `pattern`: each word's byte range
+/// in a text.
+fn upstream_words(pattern: &str) -> impl Fn(&str) -> Vec<(usize, usize)> {
+    use tokenizers::pre_tokenizers::split::{Split, SplitPattern};
+    use tokenizers::{OffsetReferential, OffsetType, PreTokenizedString, PreTokenizer, SplitDelimiterBehavior};
+    let split = Split::new(SplitPattern::Regex(pattern.into()), SplitDelimiterBehavior::Isolated, false).unwrap();
+    move |text| {
+        let mut p = PreTokenizedString::from(text);
+        split.pre_tokenize(&mut p).unwrap();
+        p.get_splits(OffsetReferential::Original, OffsetType::Byte).into_iter().map(|(_, o, _)| o).collect()
+    }
+}
+
+/// Llama-3's and Qwen2's patterns, matched by hand, cut text where the
+/// regular expressions do: on the corners of each alternative and on
+/// random strings of the characters that tell them apart.
+#[test]
+fn the_split_patterns_cut_where_upstream_does() {
+    let alphabet: Vec<char> =
+        "aZé\u{17f}'sStTrReEvVmMlLdD 1234①٣\u{301}!?.,-\t\r\n\u{a0}\u{3000}\u{b}日本😀_\"".chars().collect();
+    let mut texts: Vec<String> = [
+        "it's IT'S they're WE'VE I'm you'll he'd 'tis '\u{17f} 'ſt 'K ''s",
+        "12345 1234567 ① ②③④⑤ ١٢٣٤ x1y22z333",
+        "  hello   world\t\ttab \n\n line\r\n crlf \n  \n  ",
+        "!!! ... ?!\n\n\n --- ,abc .def 'ghi \tjkl \u{3000}mno",
+        "trailing   ",
+        "   ",
+        "a\u{301}b\u{302}\u{303} \u{301}c",
+    ]
+    .map(str::to_owned)
+    .to_vec();
+    let mut x: u64 = 0x2545_f491_4f6c_dd1d;
+    for _ in 0..3000 {
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        let len = 1 + (x % 12) as usize;
+        let mut s = String::new();
+        for k in 0..len {
+            s.push(alphabet[((x >> (k * 5)) % alphabet.len() as u64) as usize]);
+        }
+        texts.push(s);
+    }
+    for (pattern, digits) in [(LLAMA3, 3), (QWEN2, 1)] {
+        let theirs = upstream_words(pattern);
+        for text in &texts {
+            let mut ours = Vec::new();
+            split_digits(text, digits, |a, b| ours.push((a, b)));
+            assert_eq!(ours, theirs(text), "{text:?} with {digits} digits");
+        }
+    }
+}

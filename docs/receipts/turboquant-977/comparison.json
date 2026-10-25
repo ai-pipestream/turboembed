@@ -1,0 +1,281 @@
+{
+  "base": "0edf2f35ce710bc5d04fd3924c61bd992aad017e",
+  "cpu": "AMD Ryzen 9 9950X3D",
+  "cpu_core": 4,
+  "threads": 1,
+  "warmup_passes": 3,
+  "single_query_passes": 3,
+  "batch_passes": 5,
+  "timing": "median milliseconds; warmed indexes; Rust release; FAISS Python API",
+  "faiss_image": "sha256:05359c44a219c47de6c305daf82ac321d49e91fa2701370e985d13cd14cecfac",
+  "faiss_wheel_sha256": "ab88ee287c25a119213153d033f7dd64c3ccec466ace267395872f554b648cd7",
+  "potion_model_sha256": "f65d0f325faadc1e121c319e2faa41170d3fa07d8c89abd48ca5358d9a223de2",
+  "sets": {
+    "potion": {
+      "turbo": [
+        {
+          "index": "exact",
+          "rows": 29232,
+          "queries": 296,
+          "dim": 256,
+          "k": 10,
+          "bytes_per_row": 1024,
+          "query_ms": 0.2426,
+          "batch_ms_per_query": 0.0833
+        },
+        {
+          "index": "turboquant",
+          "bits": 2,
+          "calibrate": false,
+          "bytes_per_row": 73.6,
+          "compact_bytes_per_row": 68.0,
+          "encode_rows_per_s": 573668,
+          "query_ms": 0.0291,
+          "batch_ms_per_query": 0.0175,
+          "recall@10": 0.8507,
+          "mean_error": -0.000442,
+          "mse": 0.0005146
+        },
+        {
+          "index": "turboquant",
+          "bits": 3,
+          "calibrate": false,
+          "bytes_per_row": 142.2,
+          "compact_bytes_per_row": 100.0,
+          "encode_rows_per_s": 358593,
+          "query_ms": 0.0507,
+          "batch_ms_per_query": 0.03,
+          "recall@10": 0.9186,
+          "mean_error": -0.000345,
+          "mse": 0.00014
+        },
+        {
+          "index": "turboquant",
+          "bits": 4,
+          "calibrate": false,
+          "bytes_per_row": 142.2,
+          "compact_bytes_per_row": 132.0,
+          "encode_rows_per_s": 337136,
+          "query_ms": 0.1118,
+          "batch_ms_per_query": 0.0321,
+          "recall@10": 0.9547,
+          "mean_error": -1.1e-05,
+          "mse": 3.671e-05
+        },
+        {
+          "index": "turboquant",
+          "bits": 2,
+          "calibrate": true,
+          "bytes_per_row": 73.6,
+          "compact_bytes_per_row": 68.1,
+          "encode_rows_per_s": 969781,
+          "query_ms": 0.0283,
+          "batch_ms_per_query": 0.0176,
+          "recall@10": 0.847,
+          "mean_error": 0.000553,
+          "mse": 0.0005156
+        },
+        {
+          "index": "turboquant",
+          "bits": 3,
+          "calibrate": true,
+          "bytes_per_row": 142.2,
+          "compact_bytes_per_row": 100.1,
+          "encode_rows_per_s": 902385,
+          "query_ms": 0.0515,
+          "batch_ms_per_query": 0.03,
+          "recall@10": 0.9159,
+          "mean_error": -0.000545,
+          "mse": 0.0001407
+        },
+        {
+          "index": "turboquant",
+          "bits": 4,
+          "calibrate": true,
+          "bytes_per_row": 142.2,
+          "compact_bytes_per_row": 132.1,
+          "encode_rows_per_s": 849620,
+          "query_ms": 0.1112,
+          "batch_ms_per_query": 0.032,
+          "recall@10": 0.9581,
+          "mean_error": -5e-06,
+          "mse": 3.754e-05
+        }
+      ],
+      "faiss": {
+        "faiss": "1.13.2",
+        "numpy": "2.2.6",
+        "threads": 1,
+        "dim": 256,
+        "k": 10,
+        "rows": 29232,
+        "queries": 296,
+        "records": [
+          {
+            "index": "FlatIP",
+            "recall_at_k": 1.0,
+            "bytes_per_row": 1024.001539408867,
+            "encode_rows_per_s": 3549265.588164456,
+            "query_ms": 0.3267725114710629,
+            "batch_ms_per_query": 0.22540071969725997
+          },
+          {
+            "index": "SQ4",
+            "recall_at_k": 0.9070945945945946,
+            "bytes_per_row": 128.07283114395184,
+            "encode_rows_per_s": 3352908.018168125,
+            "query_ms": 0.45068649342283607,
+            "batch_ms_per_query": 0.4507246013491641
+          },
+          {
+            "index": "SQ8",
+            "recall_at_k": 0.9945945945945946,
+            "bytes_per_row": 256.0728311439518,
+            "encode_rows_per_s": 4222404.185187577,
+            "query_ms": 0.2675504656508565,
+            "batch_ms_per_query": 0.2668832803956812
+          }
+        ],
+        "sha256": {
+          "rows.f32": "429a3e6d2ff45d540d7e245d466084ca6144fa0054b05a53fccea4cdd1c89721",
+          "queries.f32": "afd32d45faa9a13744815cb391d9f3c2f7098e1df7431e9222651723bc5378dc",
+          "truth.u32": "dfe34f7b29ecd8b55cb7b45e368d7ca7305ddeda788bd6dd0cbaba1a0ac076ec"
+        }
+      },
+      "error_queries": 2
+    },
+    "random": {
+      "turbo": [
+        {
+          "index": "exact",
+          "rows": 999900,
+          "queries": 100,
+          "dim": 256,
+          "k": 10,
+          "bytes_per_row": 1024,
+          "query_ms": 23.2947,
+          "batch_ms_per_query": 2.9375
+        },
+        {
+          "index": "turboquant",
+          "bits": 2,
+          "calibrate": false,
+          "bytes_per_row": 68.2,
+          "compact_bytes_per_row": 68.0,
+          "encode_rows_per_s": 827915,
+          "query_ms": 1.6309,
+          "batch_ms_per_query": 0.7467,
+          "recall@10": 0.406,
+          "mean_error": -0.000483,
+          "mse": 0.0005178
+        },
+        {
+          "index": "turboquant",
+          "bits": 3,
+          "calibrate": false,
+          "bytes_per_row": 132.3,
+          "compact_bytes_per_row": 100.0,
+          "encode_rows_per_s": 774056,
+          "query_ms": 3.8849,
+          "batch_ms_per_query": 0.732,
+          "recall@10": 0.658,
+          "mean_error": 0.000642,
+          "mse": 0.000141
+        },
+        {
+          "index": "turboquant",
+          "bits": 4,
+          "calibrate": false,
+          "bytes_per_row": 132.3,
+          "compact_bytes_per_row": 132.0,
+          "encode_rows_per_s": 809828,
+          "query_ms": 4.2474,
+          "batch_ms_per_query": 1.3605,
+          "recall@10": 0.818,
+          "mean_error": 7e-06,
+          "mse": 3.706e-05
+        },
+        {
+          "index": "turboquant",
+          "bits": 2,
+          "calibrate": true,
+          "bytes_per_row": 68.2,
+          "compact_bytes_per_row": 68.0,
+          "encode_rows_per_s": 857773,
+          "query_ms": 1.5904,
+          "batch_ms_per_query": 0.9665,
+          "recall@10": 0.416,
+          "mean_error": 0.000222,
+          "mse": 0.0005201
+        },
+        {
+          "index": "turboquant",
+          "bits": 3,
+          "calibrate": true,
+          "bytes_per_row": 132.3,
+          "compact_bytes_per_row": 100.0,
+          "encode_rows_per_s": 702234,
+          "query_ms": 3.904,
+          "batch_ms_per_query": 0.734,
+          "recall@10": 0.672,
+          "mean_error": 0.000558,
+          "mse": 0.0001415
+        },
+        {
+          "index": "turboquant",
+          "bits": 4,
+          "calibrate": true,
+          "bytes_per_row": 132.3,
+          "compact_bytes_per_row": 132.0,
+          "encode_rows_per_s": 857197,
+          "query_ms": 4.2792,
+          "batch_ms_per_query": 1.377,
+          "recall@10": 0.815,
+          "mean_error": 0.000111,
+          "mse": 3.791e-05
+        }
+      ],
+      "faiss": {
+        "faiss": "1.13.2",
+        "numpy": "2.2.6",
+        "threads": 1,
+        "dim": 256,
+        "k": 10,
+        "rows": 999900,
+        "queries": 100,
+        "records": [
+          {
+            "index": "FlatIP",
+            "recall_at_k": 1.0,
+            "bytes_per_row": 1024.0000450045004,
+            "encode_rows_per_s": 4863590.727520013,
+            "query_ms": 24.06860707560554,
+            "batch_ms_per_query": 8.302776409545913
+          },
+          {
+            "index": "SQ4",
+            "recall_at_k": 0.853,
+            "bytes_per_row": 128.0021292129213,
+            "encode_rows_per_s": 3397415.276620732,
+            "query_ms": 18.435019068419933,
+            "batch_ms_per_query": 19.028562679886818
+          },
+          {
+            "index": "SQ8",
+            "recall_at_k": 0.988,
+            "bytes_per_row": 256.0021292129213,
+            "encode_rows_per_s": 3474421.824148676,
+            "query_ms": 12.125793495215476,
+            "batch_ms_per_query": 12.227915490511805
+          }
+        ],
+        "sha256": {
+          "rows.f32": "1079b01ba3ef720c2db7a8abc27590bb1888d3cea66235e225f683d14d8fdc5b",
+          "queries.f32": "b45c8054d321d709ed54ae52014ae40023d32a003986e061e397c9be1ca71591",
+          "truth.u32": "b2d494002e3d1adcc3ae37790eb5e7fc87aa74d8d3f436cf46dfbdea53898922"
+        }
+      },
+      "error_queries": 1
+    }
+  }
+}

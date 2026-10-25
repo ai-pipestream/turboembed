@@ -11,12 +11,10 @@
 use std::num::NonZeroU32;
 
 use turbo_analysis::Span;
-use turbo_normalize::AccentFold;
+use turbo_normalize::{AccentFold, FoldScratch};
 use turbo_tokenize::{WordTokenizer, WordType, word_tokens};
-use turbo_unicode::category::{GeneralCategory, general_category};
 use turbo_unicode::java::to_lowercase;
 use turbo_unicode::normalize::{Form, is_normalized, normalize};
-use turbo_unicode::script::script;
 
 /// Folds names to match keys. It keeps its buffers between calls, so one
 /// folder folds any number of names with no allocation once the buffers
@@ -27,8 +25,7 @@ pub struct Folder {
     types: Vec<WordType>,
     nfc: String,
     lower: String,
-    decomposed: String,
-    mapped: String,
+    scratch: FoldScratch,
 }
 
 /// The maximum token length of OpenNLP's `WordTokenizer`, in UTF-16 units.
@@ -48,8 +45,7 @@ impl Folder {
             types: Vec::new(),
             nfc: String::new(),
             lower: String::new(),
-            decomposed: String::new(),
-            mapped: String::new(),
+            scratch: FoldScratch::default(),
         }
     }
 
@@ -126,7 +122,8 @@ impl Folder {
         };
         self.lower.clear();
         to_lowercase(nfc, &mut self.lower);
-        accent_fold(&self.accent, &self.lower, &mut self.decomposed, &mut self.mapped, out);
+        let accent = self.accent;
+        accent.fold_str(&self.lower, &mut self.scratch, out);
     }
 }
 
@@ -150,33 +147,6 @@ fn fold_plain_ascii(name: &str, key: &mut String) -> bool {
         key.extend(word.iter().map(|&b| char::from(b.to_ascii_lowercase())));
     }
     true
-}
-
-/// `AccentFoldCharSequenceNormalizer.normalize` with its default scripts
-/// and stroke letters, appended to `out`: the text in NFD, every
-/// non-spacing mark whose base is a letter of a folded script removed,
-/// every stroke letter replaced, and the result in NFC. The base of a mark
-/// is the last character before it that is not a non-spacing mark; a
-/// replaced stroke letter counts as Latin.
-fn accent_fold(fold: &AccentFold, text: &str, decomposed: &mut String, mapped: &mut String, out: &mut String) {
-    decomposed.clear();
-    normalize(Form::Nfd, text, decomposed);
-    mapped.clear();
-    let mut base = None;
-    for c in decomposed.chars() {
-        if !c.is_ascii() && general_category(c) == GeneralCategory::Mn {
-            if !base.is_some_and(|s| fold.folds(s)) {
-                mapped.push(c);
-            }
-        } else if let Some(ascii) = fold.stroke_letter(c) {
-            mapped.push_str(ascii);
-            base = Some(turbo_unicode::Script::Latin);
-        } else {
-            mapped.push(c);
-            base = Some(script(c));
-        }
-    }
-    normalize(Form::Nfc, mapped, out);
 }
 
 #[cfg(test)]
