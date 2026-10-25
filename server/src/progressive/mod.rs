@@ -17,10 +17,11 @@ use tokio_stream::Stream;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status};
 use turbo_analysis::export::{DocumentGraph, export, import};
-use turbo_analysis::{Analyzer, Document, Key};
-use turbo_analysis_layers::{Boundaries, Sentences, Tokens};
+use turbo_analysis::{Analyzer, Document};
 
-use crate::api::{Failure, TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT};
+use crate::api::{
+    Failure, TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_STATE, TURBO_E_PANIC,
+};
 use crate::kserve::Reply;
 use crate::offsets::OffsetMode;
 use crate::proto::result::analyze_progressive_event::Event;
@@ -32,10 +33,8 @@ use crate::results::MAX_GRAPH_BYTES;
 use crate::results::document::{codecs, export_document_response, layer_info, view_info};
 use crate::status::to_status;
 
-use steps::{
-    BoundariesStep, ChunksStep, LanguageStep, LemmasStep, PosStep, SentencesStep, StemsStep, TermsStep, TokensStep,
-    WordsStep,
-};
+pub use steps::compile_analyzer;
+use steps::{CHUNKING_STEPS, DEFAULT_STEPS, MINIMAL_STEPS};
 
 /// Server-streaming response type for `AnalyzeDocumentProgressive`, carrying a
 /// drop guard that sets the cooperative cancellation flag as soon as the stream
@@ -67,23 +66,45 @@ fn bad(msg: impl Into<String>) -> Failure {
     Failure::new(TURBO_E_INVALID_ARGUMENT, 0, msg)
 }
 
+fn step_error_code(err: &turbo_analysis::Error) -> i32 {
+    match err {
+        turbo_analysis::Error::Annotator { detail, .. } if detail.starts_with("panic:") => TURBO_E_PANIC,
+        turbo_analysis::Error::Annotator { .. } => TURBO_E_INTERNAL,
+        turbo_analysis::Error::Missing(_)
+        | turbo_analysis::Error::Duplicate(_)
+        | turbo_analysis::Error::Clash(_)
+        | turbo_analysis::Error::Misaligned { .. }
+        | turbo_analysis::Error::Unaligned { .. }
+        | turbo_analysis::Error::Pipeline(_) => TURBO_E_INVALID_STATE,
+        turbo_analysis::Error::Bounds { .. }
+        | turbo_analysis::Error::Invalid { .. }
+        | turbo_analysis::Error::Offset { .. }
+        | turbo_analysis::Error::Source(_) => TURBO_E_INVALID_ARGUMENT,
+        turbo_analysis::Error::Skipped(_) => 0,
+    }
+}
+
 /// Validates `req`, builds the [`Analyzer`] DAG, and starts the progressive
 /// execution task feeding the returned [`ProgressiveStream`].
 pub async fn start_progressive(req: Request<AnalyzePipelineRequest>) -> Reply<ProgressiveStream> {
     let req = req.into_inner();
-    let _offsets = OffsetMode::from_proto(req.offsets).map_err(plain)?;
+    let offsets = OffsetMode::from_proto(req.offsets).map_err(plain)?;
+    if !req.model.trim().is_empty() {
+        return Err(plain(bad(format!(
+            "unknown model bundle {:?} for built-in progressive pipeline; leave model empty",
+            req.model
+        ))));
+    }
 
     let doc = build_initial_document(&req)?;
-    let fail_pos = req.model == "fail-pos";
-    let slow_lang_ms = if req.model == "slow-lang" { 150 } else { 0 };
-    let analyzer = build_pipeline(&req, &doc, fail_pos, slow_lang_ms)?;
+    let analyzer = build_pipeline(&req, &doc)?;
 
     let cancel = Arc::new(AtomicBool::new(false));
     let task_cancel = Arc::clone(&cancel);
     let (tx, rx) = mpsc::channel::<std::result::Result<AnalyzeProgressiveEvent, Status>>(32);
 
     let doc_id = req.doc_id.clone();
-    let proto_offsets = req.offsets;
+    let proto_offsets = offsets.to_proto();
 
     tokio::task::spawn_blocking(move || {
         run_progressive_task(doc_id, proto_offsets, doc, analyzer, task_cancel, tx);
@@ -129,29 +150,7 @@ fn build_initial_document(req: &AnalyzePipelineRequest) -> Result<Document, Stat
     Ok(Document::new(req.text.as_str()))
 }
 
-const DEFAULT_STEPS: &[&str] = &[
-    "turbo:language",
-    "turbo:sentences",
-    "turbo:tokens",
-    "turbo:words",
-    "turbo:terms",
-    "turbo:stems",
-    "turbo:pos",
-    "turbo:lemmas",
-    "turbo:boundaries",
-    "turbo:chunks",
-];
-
-const MINIMAL_STEPS: &[&str] = &["turbo:sentences", "turbo:tokens"];
-
-const CHUNKING_STEPS: &[&str] = &["turbo:sentences", "turbo:tokens", "turbo:boundaries", "turbo:chunks"];
-
-fn build_pipeline(
-    req: &AnalyzePipelineRequest,
-    initial_doc: &Document,
-    fail_pos: bool,
-    slow_lang_ms: u64,
-) -> Result<Analyzer, Status> {
+fn build_pipeline(req: &AnalyzePipelineRequest, initial_doc: &Document) -> Result<Analyzer, Status> {
     let step_names: Vec<&str> = if !req.steps.is_empty() {
         req.steps.iter().map(String::as_str).collect()
     } else {
@@ -167,36 +166,7 @@ fn build_pipeline(
         }
     };
 
-    let mut builder = Analyzer::builder();
-    if initial_doc.present(Key::<Sentences>::DEFAULT.id()) {
-        builder = builder.given(Key::<Sentences>::DEFAULT);
-    }
-    if initial_doc.present(Key::<Tokens>::DEFAULT.id()) {
-        builder = builder.given(Key::<Tokens>::DEFAULT);
-    }
-    if initial_doc.present(Key::<Boundaries>::DEFAULT.id()) {
-        builder = builder.given(Key::<Boundaries>::DEFAULT);
-    }
-
-    for name in step_names {
-        builder = match name {
-            "turbo:language" => builder.add(LanguageStep { sleep_ms: slow_lang_ms }),
-            "turbo:sentences" => builder.add(SentencesStep),
-            "turbo:tokens" => builder.add(TokensStep),
-            "turbo:words" => builder.add(WordsStep),
-            "turbo:terms" => builder.add(TermsStep),
-            "turbo:stems" => builder.add(StemsStep),
-            "turbo:pos" => builder.add(PosStep { force_fail: fail_pos }),
-            "turbo:lemmas" => builder.add(LemmasStep),
-            "turbo:boundaries" => builder.add(BoundariesStep),
-            "turbo:chunks" => builder.add(ChunksStep),
-            unknown => {
-                return Err(plain(bad(format!("unknown pipeline step '{unknown}'"))));
-            }
-        };
-    }
-
-    builder.build().map_err(|e| plain(bad(format!("invalid pipeline DAG: {e}"))))
+    compile_analyzer(initial_doc, &step_names).map_err(plain)
 }
 
 fn run_progressive_task(
@@ -275,7 +245,7 @@ fn run_progressive_task(
                     stage: ev.timing.stage as u32,
                     duration_us: ev.timing.duration_us,
                     failure: Some(AnalyzeFailure {
-                        turbo_code: TURBO_E_INVALID_ARGUMENT,
+                        turbo_code: step_error_code(&err),
                         field: 0,
                         message: err.to_string(),
                     }),
@@ -303,6 +273,19 @@ fn run_progressive_task(
                     return;
                 }
             };
+            if graph_bytes.len() as u64 > MAX_GRAPH_BYTES {
+                let _ = tx.blocking_send(Err(plain(Failure::new(
+                    TURBO_E_CAPACITY,
+                    0,
+                    format!(
+                        "step '{}' graph snapshot length {} exceeds max_graph_bytes ({MAX_GRAPH_BYTES})",
+                        ev.timing.step_id,
+                        graph_bytes.len()
+                    ),
+                ))));
+                cancel.store(true, Ordering::Relaxed);
+                return;
+            }
             AnalyzeProgressiveEvent {
                 sequence: seq,
                 event: Some(Event::LayersReady(AnalysisLayerBatch {

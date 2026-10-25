@@ -181,7 +181,7 @@ impl Analyzer {
                     return;
                 }
                 let mut to_spawn = Vec::new();
-                for &i in &topo_steps {
+                for (pos, &i) in topo_steps.iter().enumerate() {
                     if step_state[i] != 0 {
                         continue;
                     }
@@ -190,8 +190,12 @@ impl Analyzer {
                     if !deps_ready {
                         continue;
                     }
-                    if writes_view[i] && (*inflight > 0 || !to_spawn.is_empty()) {
-                        break;
+                    if writes_view[i] {
+                        let earlier_views_done =
+                            topo_steps[..pos].iter().all(|&prev| !writes_view[prev] || step_state[prev] == 2);
+                        if !earlier_views_done || *inflight > 0 || !to_spawn.is_empty() {
+                            break;
+                        }
                     }
                     if *view_step_inflight {
                         break;

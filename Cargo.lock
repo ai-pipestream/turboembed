@@ -2339,7 +2339,12 @@ dependencies = [
  "turbo-normalize-layers",
  "turbo-relation",
  "turbo-schema-extract",
+ "turbo-sentdetect",
+ "turbo-stem",
+ "turbo-stopword",
  "turbo-stopword-layers",
+ "turbo-structure",
+ "turbo-tokenize",
  "turbo-tokenize-layers",
 ]
 

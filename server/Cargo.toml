@@ -35,7 +35,12 @@ turbo-relation = { path = "../analysis/relation" }
 # The structured records of a schema extraction and the limits its
 # schemas are held to.
 turbo-schema-extract = { path = "../analysis/schema-extract" }
+turbo-sentdetect = { path = "../analysis/sentdetect" }
+turbo-stem = { path = "../analysis/stem" }
+turbo-stopword = { path = "../analysis/stopword" }
 turbo-stopword-layers = { path = "../analysis/stopword-layers" }
+turbo-structure = { path = "../analysis/structure" }
+turbo-tokenize = { path = "../analysis/tokenize" }
 turbo-tokenize-layers = { path = "../analysis/tokenize-layers" }
 # The response's vectors are handed to the encoder in place (Bytes::from_owner).
 bytes = "1.9"
