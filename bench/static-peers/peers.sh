@@ -5,6 +5,8 @@
 #   peers.sh accuracy   every tool's vectors for the golden texts, scored
 #   peers.sh score      the vectors accuracy wrote, scored again
 #   peers.sh timing     texts/s per tool, model, text set and batch
+#   peers.sh run TOOL MODEL TEXTS BATCHES [OUT]
+#                       one tool, as `turbo-bench static` runs each peer
 # Inputs (directories with one subdirectory per model name):
 #   MODELS_DIR    Model2Vec files: config.json, tokenizer.json, model.safetensors
 #   GOLDEN_DIR    texts.json and golden-512.safetensors from bundle/model2vec-golden
@@ -12,6 +14,8 @@
 # Everything is written under $W (default ~/static-peers); remove that
 # directory to remove it all. Nothing is installed system-wide and no tool
 # downloads a model: HF_HUB_OFFLINE is set, and each tool reads copies.
+# A model with no directory in MODELS_DIR is left out (potion-retrieval-32M
+# needs its terms accepted to be fetched; docs/static.md).
 set -euo pipefail
 H=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$H/../.." && pwd)
@@ -59,6 +63,7 @@ setup() {
   (cd "$H/zig" && zig build --cache-dir "$W/zig-local-cache" --prefix "$W/zig-out")
   (cd "$REPO" && cargo test --release -q -p turbo --test static_speed --no-run)
   for m in $MODELS; do
+    [ -d "$MODELS_DIR/$m" ] || { echo "$m: not in MODELS_DIR, left out"; continue; }
     # Copies: statembed writes tokenizer.v2.json beside the tokenizer and
     # go-potion realigns the safetensors file in place.
     mkdir -p "$W/models/$m" "$W/gph/$(kind "$m")"
@@ -89,6 +94,7 @@ accuracy() {
   : "${GOLDEN_DIR:?}"
   for m in $MODELS; do
     G=$GOLDEN_DIR/$m
+    [ -d "$G" ] || continue
     for tool in statembed model2vec-rs go-potion model2vec-zig model2vec st; do
       o=$W/out/$tool-$m.f32; rm -f "$o"
       if run $tool "$m" "$G/texts.json" - "$o" > "$W/out/$tool-$m.log" 2>&1 && [ -f "$o" ]; then
@@ -127,4 +133,4 @@ timing() {
   uptime
 }
 
-"$1"
+"$@"

@@ -64,9 +64,10 @@ no way to stop a load part way.
 | Flag | Meaning | Absent |
 |---|---|---|
 | `--listen ADDR:PORT` | Where to answer gRPC, without TLS. | Required. |
-| `--model SETTINGS` | One served model; repeat for more. | At least one is required. |
+| `--model SETTINGS` | One served model; repeat for more. | At least one model (from `--model` or `--bundle-dir`) is required unless `--admin` is set. |
+| `--bundle-dir DIR` | Discover immediate child directories containing `manifest.json` and serve each on device 0 with 1 session unless overridden by an explicit `--model` of the same name. | Off. |
 | `--max-message-bytes N` | The largest request message read; a larger one is refused with `RESOURCE_EXHAUSTED` before it is read. | 64 MiB. |
-| `--admin` | Answer the admin calls: the analysis service's `LoadBundle` and `UnloadBundle` (docs/grpc-analysis.md) and the vocabulary store's writes (docs/grpc-vocabulary.md). Without it they refuse with `UNIMPLEMENTED`. | Off. |
+| `--admin` | Answer the admin calls: the analysis service's `LoadBundle` and `UnloadBundle` (docs/grpc-analysis.md) and the vocabulary store's writes (docs/grpc-vocabulary.md), and allow starting with zero models. Without it they refuse with `UNIMPLEMENTED`. | Off. |
 | `--vocabulary-dir PATH` | The vocabulary store's directory, made when it does not exist (docs/grpc-vocabulary.md). | No store: it lists nothing and refuses writes with `FAILED_PRECONDITION`. |
 
 `SETTINGS` is comma-separated `key=value` pairs:
@@ -109,6 +110,7 @@ twice; `TURBO_KSERVE_MODELS` lists every model in one.
 |---|---|
 | `TURBO_KSERVE_LISTEN` | `--listen` |
 | `TURBO_KSERVE_MODELS` | `--model`, one or more values separated by `;` |
+| `TURBO_KSERVE_BUNDLE_DIR` | `--bundle-dir` |
 | `TURBO_KSERVE_MAX_MESSAGE_BYTES` | `--max-message-bytes` |
 | `TURBO_KSERVE_ADMIN` | `--admin` (`1`, `true`, `yes`, `0`, `false`, `no`) |
 | `TURBO_KSERVE_VOCABULARY_DIR` | `--vocabulary-dir` |

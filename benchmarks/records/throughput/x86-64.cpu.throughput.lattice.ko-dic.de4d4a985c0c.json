@@ -1,0 +1,58 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-24T16:53:06Z",
+  "machine": {
+    "arch": "x86_64",
+    "host_cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
+    "os": "linux"
+  },
+  "device": {
+    "backend": "cpu",
+    "kind": "DEVICE_CPU",
+    "name": "AMD Ryzen 9 9950X3D 16-Core Processor",
+    "vendor": "AuthenticAMD",
+    "driver_version": "",
+    "runtime_version": "",
+    "memory_total": 130171322368
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 cpu",
+    "commit": "de4d4a985c0cb232073f96decf3394a97e1c9921",
+    "pushed_to": [
+      "origin/muse/965-bench-throughput-modes"
+    ],
+    "settings": []
+  },
+  "procedure": "the tool ran unpinned, the tokenizer on one thread",
+  "command": "cargo run --release -p turbo-bench --features lattice -- lattice --dictionaries <dir> ko-dic --readings --rounds 5",
+  "mode": "lattice",
+  "subject": {
+    "name": "ko-dic",
+    "sha256": "5fe7fa0a0274fbb36ae3cce5c94f7180adbdc8793a5fdf10b83f954ea2c42f83",
+    "load_seconds": 1.337301052
+  },
+  "text": {
+    "source": "analysis/goldens/data/inputs/{ko} in name order, repeated to at least 10485760 bytes",
+    "bytes": 10486625,
+    "chars": 4077590,
+    "sha256": "9d0b2460367c153343f93d589eb3229c100fc99db5433ff812835f0478864667"
+  },
+  "rounds": 5,
+  "runs": [
+    {
+      "phase": "analyze",
+      "units": 1824185,
+      "seconds": 0.721826922,
+      "chars_per_second": 5648985.755064425,
+      "bytes_per_second": 14527893.987306835
+    },
+    {
+      "phase": "analyzer-readings",
+      "units": 1824185,
+      "seconds": 0.795886462,
+      "chars_per_second": 5123331.27234422,
+      "bytes_per_second": 13176031.382224968
+    }
+  ]
+}

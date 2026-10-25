@@ -54,14 +54,14 @@ impl CrfConstraints {
             let part = if label == "other" {
                 ("", "other")
             } else {
-                let (kind, suffix) = label.rsplit_once('-').ok_or_else(|| invalid(label))?;
-                if crate::codec::name_type(label) != Some(kind)
-                    || !matches!(suffix, "start" | "cont" | "last" | "unit")
+                let kind = crate::codec::name_type(label);
+                let suffix = if kind.is_some() { label.rsplit_once('-').unwrap().1 } else { label.as_str() };
+                if !matches!(suffix, "start" | "cont" | "last" | "unit")
                     || (codec == NameCodec::Bio && matches!(suffix, "last" | "unit"))
                 {
                     return Err(invalid(format!("outcome {label:?} does not match codec")));
                 }
-                (kind, suffix)
+                (kind.unwrap_or(""), suffix)
             };
             parsed.push(part);
         }

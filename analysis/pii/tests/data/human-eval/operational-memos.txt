@@ -1,0 +1,104 @@
+# Operational, financial, network, compliance, clinical, and device memos
+# Licence: Apache-2.0 (repository licence)
+# Identifiers are specification test vectors, documentation ranges, or
+# synthetic specimens (RFC 2606, RFC 3849, RFC 5737, RFC 7042, RFC 7519,
+# ISO 13616, Federal Reserve, PCI test cards, NHS 999/943 test numbers,
+# CRA specimen SINs, BZSt test Steuer-IDs, IRS ITIN / SSA
+# specimens, GSMA test IMEIs, Ofcom / NANPA drama phone ranges).
+
+Section 1: Security Incident Postmortem (Credential Rotation)
+
+On Tuesday morning the release pipeline failed to authenticate against the
+artifact mirror after an expired service credential remained in the staging
+environment file. The build script still attempted to fetch tarballs from
+https://buildbot:stage-pass99@artifacts.example.com/v2/index.json and fall
+back to ftp://readonly:mirror-key42@ftp.example.org/pub/packages, while the
+documentation examples correctly pointed to https://example.com:8443/health
+without embedded userinfo.
+
+During the audit of the runner logs, the security team rotated two IAM test
+keys that had been pasted into the ticket comments, AKIAIOSFODNN7EXAMPLE and
+ASIAQYLCMZ2R4EXAMPLE, and confirmed that the malformed string
+AKIAIOSFODNN7EXAMPL was a truncated copy from an earlier terminal paste.
+Three personal and installation tokens from the sandbox organization were
+also revoked: ghp_1234567890abcdefghijklmnopqrstuvwxyz,
+gho_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789, and
+ghs_0123456789abcdefghijklmnopqrstuvwxyzABCD. The short placeholder
+ghp_short12345 in the unit test README was left untouched.
+
+Finally, the team purged the three debugging JSON Web Tokens captured in the
+har-export trace:
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c,
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhdXRoLmV4YW1wbGUuY29tIn0.c2lnbmF0dXJlX2J5dGVzX2hlcmU,
+and eyJhbGciOiJFUzI1NiJ9.eyJhdWQiOiJhcGkuZXhhbXBsZS5vcmcifQ.dGVzdF9zaWduYXR1cmVfdmFsdWU.
+Base64 fragments without an alg header such as
+eyJ0eXAiOiJKV1QifQ.cGF5bG9hZA.c2lnbmF0dXJl were verified to be harmless test
+fixtures. Status updates were sent to security-alerts@example.com,
+incident.response@mail.example.org, and ops+oncall@example.net; replies from
+postmaster@localhost were ignored.
+
+Section 2: Treasury and Payment Settlement Memo
+
+For the European and North American clearing sandbox, incoming SEPA wire
+transfers are routed to DE89 3704 0044 0532 0130 00 in Frankfurt,
+GB82WEST12345698765432 in London, NL91ABNA0417164300 in Amsterdam, and
+FR14 2004 1010 0505 0001 3M02 606 in Paris. A test batch containing the
+transposed check digits DE88 3704 0044 0532 0130 00 was rejected by the
+gateway before settlement. Domestic ACH test files use the Federal Reserve
+routing numbers 021000021, 121000248, and 011000138, whereas the invalid
+routing number 021000022 is reserved for negative clearing tests.
+
+Card-present and e-commerce gateway regression runs must use only the
+issuer-designated Luhn test PANs: Visa 4111 1111 1111 1111, Mastercard
+5555-5555-5555-4444, American Express 378282246310005, and Discover
+6011 1111 1111 1117. The declined-checksum fixture uses 4111 1111 1111 1112.
+For settlement inquiries, merchants may call the London desk at
++44 20 7946 0958, the Washington desk at +1 202-555-0143, or the Chicago
+support line at (312) 555-0199.
+
+Section 3: Network Change Control Request
+
+All packet captures in the staging lab use RFC 5737 and RFC 3849
+documentation prefixes. The ingress load balancers listen on 192.0.2.10,
+198.51.100.42, and 203.0.113.200, forwarding dual-stack traffic to
+2001:db8:85a3::8a2e:370:7334, 2001:0db8:0000:0042:0000:8a2e:0370:7334, and
+fe80::1ff:fe23:4567:890a. Software version strings such as 2.5.4 and 10.0.1
+or timestamps like 12:34:56 must never be rewritten by the log scrubber.
+Virtual NICs in the test cluster are assigned the IEEE 802 locally
+administered or documentation MAC addresses 00:00:5e:00:53:af,
+02:42:ac:11:00:02, and 00-1B-44-11-3A-B7, while the all-zero placeholder
+00:00:00:00:00:00 is filtered out.
+
+Section 4: Cross-Border Payroll, Tax, and Clinical Intake Verification
+
+In the US payroll sandbox, employee tax withholding records are tested with
+specimen Social Security Numbers 123-45-6789, 234-56-7890, and 345 67 8901,
+while non-resident alien withholding uses Individual Taxpayer Identification
+Numbers 900-70-1234, 911-55-4321, and 922 78 9012. SSA-excluded prefixes
+such as 666-45-6789 and 000-12-3456 are rejected by intake validation.
+
+For Canadian payroll onboarding, the parser accepts labelled records such as
+SIN: 046 454 286, social insurance number 046-454-286, and SIN #046454286.
+However, when a regional form inserts the province code between the label and
+the digits, as in SIN (ON) 046 454 286, or when the check digit fails as in
+SIN: 046 454 287, the strict adjacent-label rule does not match.
+
+German payroll records in the test tenant use the Bundeszentralamt fuer
+Steuern specimen Steuer-IDs 65929970489, 86095742719, and 12 134 567 895,
+whereas 65929970488 fails the ISO 7064 MOD 11,10 check digit. UK clinical
+intake tests use the ungrouped NHS numbers 9434765919 and 9991234578, as well
+as the space-grouped NHS number 943 476 5919; when a clerk mistypes the check
+digit in the grouped form NHS 943 476 5918, the mod 11 check rejects it as an
+NHS number, though the ten grouped digits still resemble a domestic telephone
+number.
+
+Section 5: Mobile Device Fleet Inventory
+
+Handset provisioning logs record the 15-digit GSMA test identifiers with
+their prefix labels, including IMEI: 001970012345677, IMEI #004400152020002,
+and IMEI: 490154203237518. Note that 490154203237518 begins with the digits
+49 and passes Luhn, so a payment-card scan running in the widest pack also
+flags the same fifteen digits as a candidate Visa number. When a return
+authorization lists the identifier after a parenthetical slot note, such as
+IMEI (primary) 001970012345677, the adjacent-label check leaves it
+unmatched, and the corrupted entry IMEI: 001970012345678 is rejected by Luhn.

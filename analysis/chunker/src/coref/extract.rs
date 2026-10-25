@@ -7,13 +7,7 @@ use turbo_analysis_layers::{Entities, Sentences};
 use super::{CorefChains, CorefLink, MILLI, MentionKind, Mentions, ResolvedMention, is_pronoun_text};
 
 fn locate_sentence(span: Span, sents: &Sentences) -> Option<usize> {
-    let n = sents.spans.len();
-    if n == 0 {
-        return None;
-    }
-    let (_, ends) = sents.spans.columns();
-    let idx = ends.partition_point(|&e| e <= span.start);
-    (idx < n).then_some(idx)
+    sents.spans.covering_at(span.start).map(|i| i.get())
 }
 
 fn push_edge_link(links: &mut Vec<CorefLink>, candidate: CorefLink) {
