@@ -13,6 +13,7 @@ use crate::proto::result as proto;
 pub mod document;
 pub mod extraction;
 pub mod layers;
+pub mod records;
 pub mod rerank;
 pub mod sparse;
 pub mod tokens;
@@ -31,6 +32,9 @@ pub const MAX_CHUNKS: u64 = 1 << 20;
 pub const MAX_LEVELS: u64 = 1 << 20;
 pub const MAX_FRAGMENTS: u64 = 1 << 22;
 pub const MAX_GRAPH_BYTES: u64 = 64 << 20;
+/// Record values, records, closed-choice values or support rows in one
+/// RecordsResult, each counted on its own.
+pub const MAX_RECORD_VALUES: u64 = 1 << 20;
 
 /// One result kind's wire form: to the message, and back with the
 /// message's own validation, whose refusal names what it found.

@@ -25,7 +25,65 @@ fn dep_label(deps: Option<&Dependencies<Tokens>>, tok_ix: usize) -> Option<&str>
 }
 
 fn is_opening_punct(text: Option<&str>, pos: Option<&str>) -> bool {
-    matches!(text, Some("(" | "[" | "{" | "``" | "\u{201c}" | "\u{2018}")) || matches!(pos, Some("-LRB-" | "``"))
+    use turbo_unicode::category::{GeneralCategory, general_category};
+    let by_text = match text {
+        Some("``") => true,
+        Some(s) => {
+            let mut chars = s.chars();
+            match (chars.next(), chars.next()) {
+                (Some(c), None) => matches!(general_category(c), GeneralCategory::Ps | GeneralCategory::Pi),
+                _ => false,
+            }
+        }
+        None => false,
+    };
+    by_text || matches!(pos, Some("-LRB-" | "``"))
+}
+
+/// A single-character token that closes a quote or bracket, or
+/// separates clauses: Pe/Pf by category (the closing guillemet
+/// is Pf in some conventions, Pi/Pf pairs), plus the Po clause
+/// and sentence marks beyond ASCII (fullwidth and CJK marks,
+/// Arabic semicolon, inverted marks, ellipsis, danda).
+fn is_unicode_closing_or_sep(s: &str) -> bool {
+    use turbo_unicode::category::{GeneralCategory, general_category};
+    let mut chars = s.chars();
+    let (Some(c), None) = (chars.next(), chars.next()) else { return false };
+    match general_category(c) {
+        GeneralCategory::Pe => true,
+        GeneralCategory::Pf => true,
+        GeneralCategory::Po => matches!(
+            c,
+            '\u{060C}'
+                | '\u{061B}'
+                | '\u{061F}'
+                | '\u{06D4}'
+                | '\u{0964}'
+                | '\u{0965}'
+                | '\u{104A}'
+                | '\u{104B}'
+                | '\u{1802}'
+                | '\u{1808}'
+                | '\u{201D}'
+                | '\u{2019}'
+                | '\u{2026}'
+                | '\u{3001}'
+                | '\u{3002}'
+                | '\u{FF01}'
+                | '\u{FF0C}'
+                | '\u{FF1A}'
+                | '\u{FF1B}'
+                | '\u{FF1F}'
+                | '\u{FF0E}'
+        ),
+        _ => false,
+    }
+}
+
+/// A single-character hard clause mark beyond ASCII `;`/`:`:
+/// the Arabic and fullwidth semicolons and colons.
+fn is_unicode_hard_clause(s: &str) -> bool {
+    matches!(s, "\u{061B}" | "\u{FF1B}" | "\u{FF1A}")
 }
 
 fn is_closing_or_sep_punct(
@@ -40,10 +98,12 @@ fn is_closing_or_sep_punct(
     if is_opening_punct(txt, p) {
         return false;
     }
-    if matches!(txt, Some("," | ";" | ":" | "." | "!" | "?" | ")" | "]" | "}" | "--" | "-")) {
+    if matches!(txt, Some("," | ";" | ":" | "." | "!" | "?" | ")" | "]" | "}" | "--" | "-"))
+        || txt.is_some_and(is_unicode_closing_or_sep)
+    {
         return true;
     }
-    if matches!(p, Some("," | ":" | "." | "-RRB-" | "PUNCT")) {
+    if matches!(p, Some("," | ":" | "." | "-RRB-" | "PUNCT" | "''")) {
         return true;
     }
     matches!(dep_label(deps, tok_ix).map(base_rel), Some("punct"))
@@ -52,7 +112,7 @@ fn is_closing_or_sep_punct(
 fn is_hard_clause_punct(tok_ix: usize, span: Span, pos: Option<&PosTags>, view: Option<&View>) -> bool {
     let txt = token_text(view, span);
     let p = pos_label(pos, tok_ix);
-    matches!(txt, Some(";" | ":" | "--")) || matches!(p, Some(":"))
+    matches!(txt, Some(";" | ":" | "--")) || txt.is_some_and(is_unicode_hard_clause) || matches!(p, Some(":"))
 }
 
 fn is_comma(tok_ix: usize, span: Span, pos: Option<&PosTags>, view: Option<&View>) -> bool {

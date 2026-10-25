@@ -265,6 +265,44 @@ impl<L> Spans<L> {
         IxRange::new(a as u32, b as u32)
     }
 
+    /// The items overlapping `outer`, when the spans are in text order
+    /// and do not overlap (`Overlap::None`): binary searches only, no
+    /// scan and no allocation. An empty `outer` is a point query. For
+    /// layers whose spans may nest or overlap, use [`Spans::overlapping`].
+    pub fn overlapping_range(&self, outer: Span) -> IxRange<L> {
+        // The first overlap is the earlier of the first item starting
+        // at or after `outer.start` and the first item ending after
+        // it: between the two bounds can only sit empty items exactly
+        // at `outer.start`, which overlap it (Span::overlaps), and a
+        // straddling item is found by the end bound alone. Taking the
+        // minimum reaches both without walking the empty run.
+        let lo = self.start.partition_point(|&s| s < outer.start).min(self.end.partition_point(|&e| e <= outer.start));
+        let hi = if outer.is_empty() {
+            // A point query also overlaps the item covering the point;
+            // every item starting at or before it, from `lo` on, is
+            // either empty at the point or that one covering item.
+            lo.max(self.start.partition_point(|&s| s <= outer.start))
+        } else {
+            lo + self.start[lo..].partition_point(|&s| s < outer.end)
+        };
+        IxRange::new(lo as u32, hi as u32)
+    }
+
+    /// The item covering byte `offset`, when the spans are in
+    /// text order and do not overlap: `None` in a gap between
+    /// items. An empty item covers its own point. For layers
+    /// whose spans may nest or overlap, use [`Spans::covering`].
+    pub fn covering_at(&self, offset: u32) -> Option<Ix<L>> {
+        let idx = self.end.partition_point(|&e| e <= offset);
+        if idx < self.start.len() && self.start[idx] <= offset {
+            return Some(Ix::new(idx as u32));
+        }
+        if idx > 0 && self.start[idx - 1] == offset && self.end[idx - 1] == offset {
+            return Some(Ix::new((idx - 1) as u32));
+        }
+        None
+    }
+
     /// Whether the `start` column is in non-decreasing text order ($O(1)$,
     /// maintained as spans are pushed).
     pub fn is_start_ordered(&self) -> bool {
