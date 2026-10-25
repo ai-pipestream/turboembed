@@ -13,7 +13,9 @@
 //!   file of its own.
 //! - [`Zoo`]: hands out an artifact by id as verified local files, after
 //!   checking the user accepted every licence its class needs. Every file
-//!   is checked by size, SHA-256 and SHA-512, cached or fetched.
+//!   is checked by size, SHA-256 and SHA-512, cached or fetched; a file
+//!   served compressed is also checked on the wire before it is unpacked
+//!   ([`transfer`]).
 //!
 //! docs/licences.md is the table of approved and refused datasets and
 //! checkpoints the index is built from.
@@ -24,14 +26,16 @@ pub mod error;
 pub mod fetch;
 pub mod index;
 pub mod licence;
+pub mod transfer;
 
 pub use accept::{Acceptance, Acceptances, UserId};
 pub use digest::{Sha256, Sha512};
 pub use error::{Check, ZooError};
 #[cfg(feature = "http")]
 pub use fetch::Http;
-pub use fetch::{Fetched, Offline, Transport, Zoo, verify};
+pub use fetch::{Fetched, Offline, Transport, Zoo, unpack, verify};
 pub use index::{Artifact, ArtifactId, Component, File, Format, Index, Kind, Language, TrainingData, Url};
 pub use licence::{
     GplAcceptance, Licence, LicenceClass, LocalOnlyReason, Policy, RefusalReason, Requirement, class_of,
 };
+pub use transfer::{Compression, Download};

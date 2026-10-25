@@ -20,7 +20,7 @@
 //! is `turbo_sequence::postag::TagDictionary`, which reads the same XML.
 
 use turbo_maxent::{Entries, JavaString};
-use turbo_unicode::java::to_lower_char;
+use turbo_unicode::java::{lowercase_code_points as lowercase, lowercase_code_points_changes};
 
 use crate::dictionary::{XmlEntry, write_entries_xml};
 use crate::error::{Error, Result};
@@ -114,7 +114,7 @@ impl PosDictionary {
     /// is not case sensitive.
     pub fn tags(&self, word: &str) -> Option<&[String]> {
         let lowered;
-        let key = if self.case_sensitive || word.chars().all(|c| to_lower_char(c) == c) {
+        let key = if self.case_sensitive || !lowercase_code_points_changes(word) {
             word
         } else {
             lowered = lowercase(word);
@@ -164,11 +164,6 @@ impl PosDictionary {
             }),
         )
     }
-}
-
-/// `StringUtil.toLowerCase`: `Character.toLowerCase` of each code point.
-fn lowercase(word: &str) -> String {
-    word.chars().map(to_lower_char).collect()
 }
 
 /// `StringUtil.split(input, separator)`: the fields between separators
