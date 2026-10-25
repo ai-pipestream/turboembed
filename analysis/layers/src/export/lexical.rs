@@ -1,5 +1,7 @@
 use super::*;
 
+use std::sync::Arc;
+
 impl LayerCodec for Language {
     fn export(&self, _cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
         let mut w = Writer::new();
@@ -209,4 +211,113 @@ fn get_selected(r: &mut Reader<'_>, tagset: &TagSet) -> Result<Vec<Vec<Tag>>, Ex
         out.push(set);
     }
     Ok(out)
+}
+
+fn put_u8s(w: &mut Writer, values: &[u8]) -> Result<(), ExportError> {
+    w.usize(values.len())?;
+    for &v in values {
+        w.u8(v);
+    }
+    Ok(())
+}
+
+fn get_u8s(r: &mut Reader<'_>) -> Result<Vec<u8>, ExportError> {
+    let mut values = Vec::new();
+    for _ in 0..r.usize()? {
+        values.push(r.u8()?);
+    }
+    Ok(values)
+}
+
+impl LayerCodec for WordNetSenses {
+    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_spans(&mut w, &self.spans, cx)?;
+        put_ix_col(&mut w, cx, &Key::<Tokens>::DEFAULT, &self.token)?;
+        put_strs(&mut w, &self.synset_id)?;
+        put_strs(&mut w, &self.sense_id)?;
+        put_u8s(&mut w, &self.pos)?;
+        put_strs(&mut w, &self.lemma)?;
+        put_strs(&mut w, &self.synset_lemmas)?;
+        put_u32s(&mut w, &self.synset_lemma_row)?;
+        put_strs(&mut w, &self.gloss)?;
+        put_u32s(&mut w, &self.sense_rank)?;
+        w.str(&self.lexicon_id)?;
+        Ok(w.finish())
+    }
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let spans = get_spans(&mut r, cx)?;
+        let n = spans.len();
+        let token = get_ix_col(&mut r, cx)?;
+        want_len(token.len(), n, "token indexes")?;
+        let synset_id = get_strs(&mut r)?;
+        want_len(synset_id.len(), n, "synset ids")?;
+        let sense_id = get_strs(&mut r)?;
+        want_len(sense_id.len(), n, "sense ids")?;
+        let pos = get_u8s(&mut r)?;
+        want_len(pos.len(), n, "parts of speech")?;
+        let lemma = get_strs(&mut r)?;
+        want_len(lemma.len(), n, "lemmas")?;
+        let synset_lemmas = get_strs(&mut r)?;
+        let synset_lemma_row = get_u32s(&mut r)?;
+        want_len(synset_lemma_row.len(), n + 1, "synset lemma row starts")?;
+        let gloss = get_strs(&mut r)?;
+        want_len(gloss.len(), n, "glosses")?;
+        let sense_rank = get_u32s(&mut r)?;
+        want_len(sense_rank.len(), n, "sense ranks")?;
+        let lexicon_id: Arc<str> = r.string()?.into();
+        done(&r, "wordnet senses")?;
+        Ok(WordNetSenses {
+            spans,
+            token,
+            synset_id,
+            sense_id,
+            pos,
+            lemma,
+            synset_lemmas,
+            synset_lemma_row,
+            gloss,
+            sense_rank,
+            lexicon_id,
+        })
+    }
+}
+
+impl LayerCodec for LexicalExpansions {
+    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_spans(&mut w, &self.spans, cx)?;
+        put_ix_col(&mut w, cx, &Key::<Tokens>::DEFAULT, &self.token)?;
+        put_strs(&mut w, &self.term)?;
+        put_u8s(&mut w, &self.relation)?;
+        put_u8s(&mut w, &self.depth)?;
+        put_u32s(&mut w, &self.sense_rank)?;
+        put_f64s(&mut w, &self.weight)?;
+        w.str(&self.lexicon_id)?;
+        put_strs(&mut w, &self.synset_id)?;
+        Ok(w.finish())
+    }
+    fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let spans = get_spans(&mut r, cx)?;
+        let n = spans.len();
+        let token = get_ix_col(&mut r, cx)?;
+        want_len(token.len(), n, "token indexes")?;
+        let term = get_strs(&mut r)?;
+        want_len(term.len(), n, "terms")?;
+        let relation = get_u8s(&mut r)?;
+        want_len(relation.len(), n, "relations")?;
+        let depth = get_u8s(&mut r)?;
+        want_len(depth.len(), n, "depths")?;
+        let sense_rank = get_u32s(&mut r)?;
+        want_len(sense_rank.len(), n, "sense ranks")?;
+        let weight = get_f64s(&mut r)?;
+        want_len(weight.len(), n, "weights")?;
+        let lexicon_id: Arc<str> = r.string()?.into();
+        let synset_id = get_strs(&mut r)?;
+        want_len(synset_id.len(), n, "synset ids")?;
+        done(&r, "lexical expansions")?;
+        Ok(LexicalExpansions { spans, token, term, relation, depth, sense_rank, weight, lexicon_id, synset_id })
+    }
 }

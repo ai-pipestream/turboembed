@@ -15,3 +15,4 @@ turbo-unicode = { path = "../unicode" }
 
 [dev-dependencies]
 turbo-goldens = { path = "../goldens" }
+turbo-grammar = { path = "../grammar" }

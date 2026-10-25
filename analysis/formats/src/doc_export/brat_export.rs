@@ -5,12 +5,16 @@ use std::io::Write;
 use std::sync::Arc;
 
 use turbo_analysis::{
-    CodePointOffset, CodePointSpan, Document, Edges, IxRange, Layer as _, Span, Spans, Utf16Offset, Utf16Span, ViewId,
+    CodePointOffset, CodePointSpan, Document, Edges, IxRange, Key, Layer as _, Span, Spans, Utf16Offset, Utf16Span,
+    ViewId,
 };
 use turbo_analysis_layers::{Entities, TagSet, Tokens};
 use turbo_unicode::WhitespaceMode;
 
-use super::{DocumentFormatter, ExportOffsetMode, FormatExportError, OutputFormatDescriptor, sanitize_single_line};
+use super::{
+    DocumentFormatter, ExportOffsetMode, FormatExportError, OutputFormatDescriptor, get_bound_layer,
+    sanitize_single_line,
+};
 use crate::ner::brat::{AnnotationValue, BratDocument};
 
 const REQUIRED_LAYERS: &[&str] = &[];
@@ -109,7 +113,8 @@ impl DocumentFormatter for BratFormatter {
             }
         }
 
-        if let Some(relations) = doc.get::<Edges<Entities, Entities>>() {
+        if let Some(relations) = get_bound_layer::<Edges<Entities, Entities>>(doc, Key::<Entities>::DEFAULT.id(), None)?
+        {
             let mut next_r = 1usize;
             for (_edge_ix, edge) in relations.iter() {
                 let (Some(from_tid), Some(to_tid)) = (

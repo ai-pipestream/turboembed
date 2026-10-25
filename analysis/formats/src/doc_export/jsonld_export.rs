@@ -3,14 +3,14 @@
 use std::fmt::Write as _;
 use std::io::Write;
 
-use turbo_analysis::{Document, Edges, Ix, Layer as _};
+use turbo_analysis::{Document, Edges, Ix, Key, Layer as _};
 use turbo_analysis_layers::{
     Categories, Chunks, Dependencies, Entities, Language, Lemmas, MorphFeatures, Pii, PosTags, Sentences, Stems,
     Tokens, WordDependencies, WordLemmas, WordPosTags, Words,
 };
 use turbo_stopword_layers::Stopwords;
 
-use super::{DocumentFormatter, ExportOffsetMode, FormatExportError, OutputFormatDescriptor};
+use super::{DocumentFormatter, ExportOffsetMode, FormatExportError, OutputFormatDescriptor, get_bound_layer};
 
 const REQUIRED_LAYERS: &[&str] = &[];
 
@@ -132,13 +132,18 @@ impl DocumentFormatter for JsonLdFormatter {
         }
 
         if let Some(tokens) = doc.get::<Tokens>() {
+            let tok_key = Key::<Tokens>::DEFAULT.id();
+            let tok_len = tokens.spans.len();
+            if tokens.sentence.is_some() {
+                let _ = get_bound_layer::<Tokens>(doc, Key::<Sentences>::DEFAULT.id(), None)?;
+            }
             let view = tokens.spans.view();
-            let pos = doc.get::<PosTags>();
-            let lemmas = doc.get::<Lemmas>();
-            let stems = doc.get::<Stems>();
-            let feats = doc.get::<MorphFeatures<Tokens>>();
-            let deps = doc.get::<Dependencies<Tokens>>();
-            let stopwords = doc.get::<Stopwords>();
+            let pos = get_bound_layer::<PosTags>(doc, tok_key, Some(tok_len))?;
+            let lemmas = get_bound_layer::<Lemmas>(doc, tok_key, Some(tok_len))?;
+            let stems = get_bound_layer::<Stems>(doc, tok_key, Some(tok_len))?;
+            let feats = get_bound_layer::<MorphFeatures<Tokens>>(doc, tok_key, Some(tok_len))?;
+            let deps = get_bound_layer::<Dependencies<Tokens>>(doc, tok_key, Some(tok_len))?;
+            let stopwords = get_bound_layer::<Stopwords>(doc, tok_key, Some(tok_len))?;
 
             let mut s = String::from("    \"opennlp:tokens\": [");
             for (t_ix, span) in tokens.spans.iter() {
@@ -176,11 +181,13 @@ impl DocumentFormatter for JsonLdFormatter {
             s.push(']');
             sections.push(s);
 
-            if let Some(words) = doc.get::<Words>() {
-                let w_pos = doc.get::<WordPosTags>();
-                let w_lemmas = doc.get::<WordLemmas>();
-                let w_feats = doc.get::<MorphFeatures<Words>>();
-                let w_deps = doc.get::<WordDependencies>();
+            if let Some(words) = get_bound_layer::<Words>(doc, tok_key, None)? {
+                let word_key = Key::<Words>::DEFAULT.id();
+                let word_len = words.len();
+                let w_pos = get_bound_layer::<WordPosTags>(doc, word_key, Some(word_len))?;
+                let w_lemmas = get_bound_layer::<WordLemmas>(doc, word_key, Some(word_len))?;
+                let w_feats = get_bound_layer::<MorphFeatures<Words>>(doc, word_key, Some(word_len))?;
+                let w_deps = get_bound_layer::<WordDependencies>(doc, word_key, Some(word_len))?;
                 let view_text = doc.text(view);
                 let mut ws = String::from("    \"turbo:words\": [");
                 for i in 0..words.len() {
@@ -254,7 +261,8 @@ impl DocumentFormatter for JsonLdFormatter {
             sections.push(s);
         }
 
-        if let Some(relations) = doc.get::<Edges<Entities, Entities>>() {
+        if let Some(relations) = get_bound_layer::<Edges<Entities, Entities>>(doc, Key::<Entities>::DEFAULT.id(), None)?
+        {
             let mut s = String::from("    \"turbo:edges<opennlp:entities,opennlp:entities>\": [");
             for (r_ix, edge) in relations.iter() {
                 let row = r_ix.get();

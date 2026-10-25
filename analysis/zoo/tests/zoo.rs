@@ -1,6 +1,8 @@
 //! The zoo's licence rules and integrity checks, on a small index of one
 //! artifact per class served from memory.
 
+#[path = "zoo/classes.rs"]
+mod classes;
 #[path = "zoo/origin.rs"]
 mod origin;
 

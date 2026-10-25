@@ -25,7 +25,7 @@ use std::fmt;
 use std::io::Write;
 use std::sync::Arc;
 
-use turbo_analysis::{Document, Span, ViewId};
+use turbo_analysis::{Document, Key, KeyId, Layer, Span, ViewId};
 
 use crate::error::FormatError;
 
@@ -353,4 +353,41 @@ pub(crate) fn sanitize_single_line(text: &str) -> String {
             }
         })
         .collect()
+}
+
+/// Fetches the default instance of `L` and verifies that its recorded binding
+/// (`Document::made_on`) matches `expected_anchor` (and that its item count
+/// equals `expected_len` when provided).
+pub(crate) fn get_bound_layer<L: Layer>(
+    doc: &Document,
+    expected_anchor: KeyId,
+    expected_len: Option<usize>,
+) -> Result<Option<&L>, FormatExportError> {
+    let key = Key::<L>::DEFAULT;
+    let Some(layer) = doc.get_key(&key) else {
+        return Ok(None);
+    };
+    let on = doc.made_on(key.id());
+    if let Some(&actual) = on.iter().find(|k| k.ty == expected_anchor.ty)
+        && actual != expected_anchor
+    {
+        return Err(FormatExportError::InvalidData(format!(
+            "layer {} is bound to {}, expected {}",
+            key.id(),
+            actual,
+            expected_anchor
+        )));
+    }
+    if let Some(len) = expected_len
+        && layer.len() != len
+    {
+        return Err(FormatExportError::InvalidData(format!(
+            "layer {} has {} items, expected {} for {}",
+            key.id(),
+            layer.len(),
+            len,
+            expected_anchor
+        )));
+    }
+    Ok(Some(layer))
 }

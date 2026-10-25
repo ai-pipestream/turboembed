@@ -174,6 +174,7 @@ pub(super) static RULES: &[Rule] = &[
     rr("range_lrange_dtp", RANGE, &[node(LRANGE), opt_word("de"), node(DTP)], en::b_trange_date),
     // Stretches from the reference.
     rr("range_next_n", RANGE, &[node(RELW), node(AMOUNT), node(UNIT)], en::b_next_n),
+    rr("range_art_next_n", RANGE, &[node(ART), node(RELW), node(AMOUNT), node(UNIT)], |v, c| en::b_next_n(&v[1..], c)),
     rr("range_n_next", RANGE, &[node(AMOUNT), node(RELW), node(UNIT)], en::b_n_next),
     rr("range_n_unit_next", RANGE, &[node(AMOUNT), node(UNIT), node(RELW)], b_n_unit_next),
     rr("range_next_dur", RANGE, &[node(RELW), node(DUR)], en::b_next_dur),
@@ -225,6 +226,7 @@ pub(super) static RULES: &[Rule] = &[
     rr("moded_mediados", MODED, &[word("mediados"), node(DE), node(ADPOINT)], en::b_mid),
     rr("moded_medianos", MODED, &[word("medianos"), node(DE), node(ADPOINT)], en::b_mid),
     rr("moded_finales", MODED, &[word("finales"), node(DE), node(ADPOINT)], en::b_end),
+    rr("moded_ultimos", MODED, &[word("ultimos"), node(DE), node(ADPOINT)], en::b_end),
     rr("moded_final", MODED, &[word("final"), node(DE), node(ADPOINT)], en::b_end),
     rr("moded_fin", MODED, &[word("fin"), node(DE), node(ADPOINT)], en::b_end),
     rr("moded_al_final", MODED, &[word("al"), word("final"), node(DE), node(ADPOINT)], b_end_of_day_al),

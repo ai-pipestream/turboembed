@@ -48,7 +48,7 @@ impl DocumentFormatter for WarcFormatter {
             binary: true,
             lossless: false,
             required_layers: REQUIRED_LAYERS,
-            description: "WARC/1.1 archive with warcinfo and resource records for urn:turbo:document:<doc_id>, exact Content-Length, and CRLF framing.",
+            description: "WARC/1.1 archive with deterministic per-doc_id WARC-Record-ID and WARC-Date headers, warcinfo and resource records, exact Content-Length, and CRLF framing.",
         }
     }
 
@@ -172,18 +172,27 @@ pub fn parse_warc_records(bytes: &[u8]) -> Result<Vec<WarcRecord>, FormatExportE
 
         let len = content_length
             .ok_or_else(|| FormatExportError::InvalidData("missing Content-Length header in WARC record".into()))?;
-        if pos + len + 4 > bytes.len() {
+        let Some(block_end) = pos.checked_add(len) else {
+            return Err(FormatExportError::InvalidData(format!(
+                "WARC record Content-Length {len} overflows buffer offset {pos}"
+            )));
+        };
+        let Some(record_end) = block_end.checked_add(4) else {
+            return Err(FormatExportError::InvalidData(format!(
+                "WARC record block end {block_end} + trailer overflows usize"
+            )));
+        };
+        if record_end > bytes.len() {
             return Err(FormatExportError::InvalidData(format!(
                 "WARC record block of {len} bytes + trailer exceeds buffer length {}",
                 bytes.len()
             )));
         }
-        let block = bytes[pos..pos + len].to_vec();
-        pos += len;
-        if &bytes[pos..pos + 4] != b"\r\n\r\n" {
+        let block = bytes[pos..block_end].to_vec();
+        if &bytes[block_end..record_end] != b"\r\n\r\n" {
             return Err(FormatExportError::InvalidData("missing '\\r\\n\\r\\n' WARC record trailer".into()));
         }
-        pos += 4;
+        pos = record_end;
         records.push(WarcRecord { headers, block });
     }
     Ok(records)

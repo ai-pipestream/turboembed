@@ -61,7 +61,7 @@ fn spanish_datetimes() {
     for (name, (eligible, passing)) in &run.by_type {
         println!("  {name:<28}{eligible:>5}{passing:>6}");
     }
-    ratchet(LANGUAGE, "DateTimeModel.json", &run.passing, true);
+    ratchet(LANGUAGE, "DateTimeModel.json", run.eligible, &run.passing, true);
     assert_eq!(run.eligible, 744);
 }
 
@@ -78,7 +78,7 @@ fn spanish_summary() {
         let _ = writeln!(table, "{:<36}{eligible:>8}{passing:>9}", format!("{LANGUAGE}/Number/{file}"));
     }
     let run = datetime::run_all_with(&SPANISH_TIMES, &datetime_cases(), false);
-    ratchet(LANGUAGE, "DateTimeModel.json", &run.passing, false);
+    ratchet(LANGUAGE, "DateTimeModel.json", run.eligible, &run.passing, false);
     let _ = writeln!(table, "{:<36}{:>8}{:>9}", "Spanish/DateTime/DateTimeModel.json", run.eligible, run.passing.len());
     println!("{table}");
 }
