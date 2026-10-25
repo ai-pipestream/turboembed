@@ -214,3 +214,24 @@ fn every_vote_overlaps_the_entity_it_is_for() {
         assert_eq!(c.votes.len(), 5, "{policy:?}");
     }
 }
+
+#[test]
+fn priority_fallback_preserves_nested_entities_from_the_first_recognizer() {
+    for inner_kind in [PERSON, ORGANIZATION] {
+        let first = entities(&[(0, 3, PERSON, 0.4), (1, 2, inner_kind, 0.9)]);
+        let later = entities(&[(6, 7, LOCATION, 0.8)]);
+        let merged = consensus(&[&first, &later], EntityMergePolicy::PriorityFallback).unwrap();
+        assert_eq!(rows(&merged.entities), [(0, 3, "person", 0.4),
+            (1, 2, if inner_kind == PERSON { "person" } else { "organization" }, 0.9),
+            (6, 7, "location", 0.8)]);
+    }
+}
+
+#[test]
+fn rejected_priority_candidate_does_not_consume_a_usable_fallback() {
+    let first = entities(&[(0, 1, PERSON, 0.7)]);
+    let later = entities(&[(0, 3, ORGANIZATION, 0.9), (2, 4, ORGANIZATION, 0.8)]);
+    let merged = consensus(&[&first, &later], EntityMergePolicy::PriorityFallback).unwrap();
+    assert_eq!(rows(&merged.entities), [(0, 1, "person", 0.7), (2, 4, "organization", 0.9)]);
+    assert_eq!(merged.votes_of(1), [Vote { input: 1, entity: 0 }, Vote { input: 1, entity: 1 }]);
+}
