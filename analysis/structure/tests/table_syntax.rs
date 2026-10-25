@@ -84,3 +84,20 @@ fn implied_cells_obey_the_explicit_resource_and_coordinate_limits() {
     assert!(detect_tables(&huge, ViewId::SOURCE).unwrap_err().contains("u16"));
     assert!(detect_tables("Metric \\| value\n---\n", ViewId::SOURCE).unwrap().cells.is_empty());
 }
+
+#[test]
+fn unsupported_spanning_grid_row_ends_the_closed_grid() {
+    let text = "+---+---+\n| a | b |\n+---+---+\n| joined |\n+---+---+\n| c | d |\n+---+---+\n";
+    let tables = detect_tables(text, ViewId::SOURCE).unwrap();
+    assert_eq!(tables.table_bounds.len(), 2);
+    for (id, expected) in [(0, ["a", "b"]), (1, ["c", "d"])] {
+        assert_eq!(tables.cells_in_table(id).map(|c| &text[c.span.range()]).collect::<Vec<_>>(), expected);
+    }
+    assert!(
+        !tables
+            .cells
+            .iter()
+            .enumerate()
+            .any(|(i, _)| text[tables.spans.get(turbo_analysis::Ix::new(i as u32)).range()].contains("joined"))
+    );
+}
