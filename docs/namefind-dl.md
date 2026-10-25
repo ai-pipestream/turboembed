@@ -29,12 +29,20 @@ For each sentence (the whole text when there is no sentence layer):
    (`NameFinderDL.labelProbability`).
 4. By default (`Decoding::Word`) each word takes its first piece's
    label and probability, as the model was trained, and covers all its
-   pieces. The words are the tokenizer's own, as BERT's basic
-   pre-tokenization cuts them (`turbo::tokenizer::pre_words`): parted by
-   whitespace, with each punctuation character and each CJK ideograph a
-   word of its own. So `(Paris)` is `(`, `Paris`, `)`, a name before a
-   full stop or comma ends before it, and unspaced ideographs are read
-   one by one. A `B-<type>` word starts an entity that runs over the
+   pieces. The words are CoNLL-2003's, the words the model was trained
+   on, which follow the Penn Treebank's conventions
+   (`turbo_namefind_dl::decode::name_words`): a run of text with no space
+   is one word, but brackets and quotes around it, a comma, colon,
+   semicolon, question or exclamation mark after it, a closing `'s`, and
+   a full stop that ends a sentence rather than an abbreviation are words
+   of their own, and so is each CJK ideograph. So `(Paris)` is `(`,
+   `Paris`, `)`, `Macron.` is `Macron`, `.`, while `U.N.`, `C.`, `1.`
+   and `Mr.` keep their full stops, as CoNLL's tokens do. A full stop
+   ends an abbreviation after a word that holds one already, a single
+   letter or digit, up to three digits, or a short list of English
+   titles, company words and months. Each word is a union of BERT's
+   pre-tokens (`turbo::tokenizer::pre_words`), so no piece crosses one.
+   A `B-<type>` word starts an entity that runs over the
    `I-<type>` words after it; its probability is the lowest of theirs.
    `Decoding::Piece` reads every position this way instead, the special
    tokens too, as `NameFinderDL` does; the OpenNLP parity test runs in
@@ -127,24 +135,25 @@ same tokens and type count once: when the model labels two pieces of
 one word `B-` each, both names cover that word.
 
 On `dslim/bert-base-NER` with the CPU backend, the 3,453 test sentences
-hold 5,648 names. With the default, each of the tokenizer's words
-labelled by its first piece, the finder gives 5,945, of which 5,189 are
-right:
+hold 5,648 names. With the default, each CoNLL-style word labelled by
+its first piece, the finder gives 5,688, of which 5,190 are right:
 
 | Type | Precision | Recall | F1 |
 | --- | --- | --- | --- |
-| all | 0.8728 | 0.9187 | 0.8952 |
-| person | 0.8362 | 0.9567 | 0.8924 |
-| organization | 0.8893 | 0.9091 | 0.8991 |
-| location | 0.9281 | 0.9287 | 0.9284 |
-| misc | 0.8008 | 0.8305 | 0.8154 |
+| all | 0.9124 | 0.9189 | 0.9157 |
+| person | 0.9585 | 0.9573 | 0.9579 |
+| organization | 0.8942 | 0.9109 | 0.9025 |
+| location | 0.9337 | 0.9293 | 0.9315 |
+| misc | 0.8031 | 0.8248 | 0.8138 |
 
-The test set's tokens are joined by spaces, so whitespace words there are
-its tokens; labelling those instead scored 0.9157, but on running text
-it kept punctuation in a name (`Macron.`) and lost a name behind a
-bracket or quote. The words the model was trained on part a token such
-as `U.N.` or `1.` at each full stop, and a `B-` the model gives one of
-those parts is a name of its own, which costs precision here.
+Of the set's 46,435 tokens, the word rules part two (`Fla.` and `ST.`,
+whose full stops the abbreviation list does not hold); BERT's pre-tokens
+alone part 2,824. Labelling those pre-tokens as words scored 0.8952
+(5,945 found, 5,189 right): a token such as `1.`, `C.` or `U.N.` parts
+at each full stop, and a `B-` the model gives a lone full stop, as it
+does after `1`, is a false name. The rules were written from the Penn
+Treebank's conventions, not fitted to this set, and the abbreviation
+list was not extended for the two tokens it misses.
 
 The model card reports a test F1 of 0.913 from its own evaluation, which
 scores its own word-level labels rather than names over these tokens.

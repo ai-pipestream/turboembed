@@ -14,11 +14,11 @@ use std::time::Instant;
 use serde_json::{Value, json};
 use turbo::bundle::{Bundle, sha256_hex};
 use turbo::manifest::{PromptRole, Truncation};
-use turbo::tokenizer::{Encode, Tokenizer, pre_words};
+use turbo::tokenizer::{Encode, Tokenizer};
 use turbo_analysis::{Analyzer, Annotator, Bound, Document, Key, Provenance, Span, Spans, View, ViewId};
 use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Entities, Sentences, Tokens};
-use turbo_namefind_dl::decode::{Decoding, label_probability};
+use turbo_namefind_dl::decode::{Decoding, label_probability, name_words};
 use turbo_namefind_dl::{NameFinderDl, NameFinderDlOptions};
 
 const BIAS: [f32; 3] = [0.0, 2.0, 0.0];
@@ -220,11 +220,12 @@ fn the_configuration_hash_follows_the_row_length() {
 
 #[test]
 fn by_default_each_word_is_labelled_by_its_first_piece() {
-    // Every piece is `B-PER`: by words, each word the tokenizer reads is
-    // one entity, whole, where by pieces each piece is. Its words part
-    // punctuation from a name: `world` and `,`, `chunks` and `.`.
-    let want = pre_words(TEXT);
+    // Every piece is `B-PER`: by words, each word is one entity, whole,
+    // where by pieces each piece is. Its words part punctuation from a
+    // name: `world` and `,`, `finder` and `'s`, `chunks` and `.`.
+    let want = name_words(TEXT);
     assert!(want.contains(&(6, 11)) && want.contains(&(11, 12)));
+    assert!(want.contains(&(49, 55)) && want.contains(&(55, 57)));
     assert!(pieces(TEXT).len() > want.len());
     let p = label_probability(&BIAS, 1);
     let f = NameFinderDl::open(&bundle(), &NameFinderDlOptions::default()).unwrap();
@@ -240,9 +241,9 @@ fn a_word_across_a_row_boundary_is_one_entity() {
     let text = "Hello world, a zqxjkvbw test of the finder's chunks.";
     let all = pieces(text);
     let count = |&(a, b): &(usize, usize)| all.iter().filter(|&&(s, e)| a <= s && e <= b).count();
-    let (a, b) = pre_words(text).into_iter().max_by_key(count).unwrap();
+    let (a, b) = name_words(text).into_iter().max_by_key(count).unwrap();
     assert!(count(&(a, b)) > 2, "{:?} is {} pieces", &text[a..b], count(&(a, b)));
-    let want = pre_words(text);
+    let want = name_words(text);
     for (split, overlap, max_seq, max_batch) in [(250, 50, 4, 0), (250, 50, 5, 1), (3, 1, 4, 2), (4, 2, 5, 0)] {
         let f = finder_by(Decoding::Word, split, overlap, max_seq, max_batch);
         let got = f.find(&[(text, vec![(0, text.len())]), (text, vec![(a, b)])]).unwrap();
@@ -254,10 +255,10 @@ fn a_word_across_a_row_boundary_is_one_entity() {
 
 #[test]
 fn a_name_keeps_apart_from_the_punctuation_and_ideographs_around_it() {
-    // The words are the tokenizer's, not the whitespace's: a name behind
-    // a bracket or a quote is still the name's first piece, a name before
-    // a full stop or comma ends before it, and ideographs unspaced are a
-    // word each.
+    // The words are CoNLL's, not the whitespace's: a name behind a
+    // bracket or a quote is still the name's first piece, a name before a
+    // full stop or comma ends before it, an abbreviation keeps its full
+    // stops, and ideographs unspaced are a word each.
     let f = NameFinderDl::open(&bundle(), &NameFinderDlOptions::default()).unwrap();
     for (t, name) in [
         ("(Paris)", (1, 6)),
@@ -266,11 +267,15 @@ fn a_name_keeps_apart_from_the_punctuation_and_ideographs_around_it() {
         ("Merkel, too", (0, 6)),
         ("Merkel's", (0, 6)),
         ("\u{6771}\u{4eac}", (3, 6)),
+        ("U.N. troops", (0, 4)),
+        ("1. Jesper Ronnback", (0, 2)),
+        ("C. Spearman", (0, 2)),
+        ("Mr. Smith.", (0, 3)),
     ] {
         let got = f.find(&[(t, vec![(0, t.len())])]).unwrap();
         let spans: Vec<_> = got[0].iter().map(|c| (c.start, c.end)).collect();
         assert!(spans.contains(&name), "{t:?}: {spans:?}");
-        assert_eq!(spans, pre_words(t), "{t:?}");
+        assert_eq!(spans, name_words(t), "{t:?}");
     }
 }
 

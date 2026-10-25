@@ -109,7 +109,7 @@ fn conll2003_english_test_set() {
     for (k, m) in kinds.iter().zip(&by_kind) {
         eprintln!("  {k}: precision {:.4}, recall {:.4}, F1 {:.4}", m.precision(), m.recall(), m.f_measure());
     }
-    // 0.8952 by the tokenizer's words, 0.8641 by pieces.
-    let floor = if piece { 0.86 } else { 0.89 };
+    // 0.9157 by CoNLL-style words, 0.8641 by pieces.
+    let floor = if piece { 0.86 } else { 0.91 };
     assert!(all.f_measure() > floor, "F1 {}", all.f_measure());
 }

@@ -6,9 +6,9 @@
 //!   probability that label's softmax probability (with OpenNLP's handling
 //!   of infinities);
 //! - by default (`Decoding::Word`) each word takes its first piece's label,
-//!   as the model was trained, and the units below are words: the
-//!   tokenizer's own (`turbo::tokenizer::pre_words`), punctuation and CJK
-//!   ideographs each a word; with
+//!   as the model was trained, and the units below are words: CoNLL-style
+//!   words ([`name_words`]), punctuation around a word and CJK ideographs
+//!   each a word, an abbreviation's full stop kept in it; with
 //!   `Decoding::Piece` every piece is a unit, as `NameFinderDL` decodes;
 //! - a `B-<type>` unit starts an entity that runs over the `I-<type>`
 //!   units after it, with the lowest probability among them;
@@ -20,6 +20,9 @@
 //! so an entity is exactly the bytes its pieces cover.
 
 use std::collections::BTreeMap;
+
+mod words;
+pub use words::name_words;
 
 /// One label of the model's label map.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -58,14 +61,16 @@ pub fn labels(names: &[String]) -> (Vec<Label>, Vec<String>) {
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Decoding {
     /// Each word takes its first piece's label, as the model was trained:
-    /// an entity is whole words, the tokenizer's (punctuation and CJK
-    /// ideographs each one), and a `B-` the model gives a piece inside
-    /// a word does not start one there.
+    /// an entity is whole words, CoNLL-style ([`name_words`]: punctuation
+    /// around a word and CJK ideographs each one, an abbreviation's full
+    /// stops kept in it), and a `B-` the model gives a piece inside a word
+    /// does not start one there.
     ///
-    /// The words are BERT's pre-tokenization (`turbo::tokenizer::pre_words`)
-    /// whatever tokenizer the model has. That matches WordPiece models such
-    /// as `dslim-bert-base-ner`; a SentencePiece or byte-level BPE token
-    /// classifier has other word rules, so use `Piece` for one.
+    /// The words are unions of BERT's pre-tokens
+    /// (`turbo::tokenizer::pre_words`) whatever tokenizer the model has.
+    /// That matches WordPiece models such as `dslim-bert-base-ner`; a
+    /// SentencePiece or byte-level BPE token classifier has other word
+    /// rules, so use `Piece` for one.
     #[default]
     Word,
     /// Every piece takes its own label, as OpenNLP's `NameFinderDL`

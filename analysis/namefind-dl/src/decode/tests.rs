@@ -109,3 +109,31 @@ fn rows_overlap_and_give_each_piece_one_label() {
         assert!(rows.iter().all(|&(s, e, a, b)| s <= a && a <= b && b <= e && e - s <= width));
     }
 }
+
+#[test]
+fn name_words_follow_conll_tokens() {
+    let words = |t: &str| name_words(t).into_iter().map(|(a, b)| t[a..b].to_owned()).collect::<Vec<_>>();
+    let cases: [(&str, &[&str]); 12] = [
+        ("(Paris) said", &["(", "Paris", ")", "said"]),
+        ("\"Paris,\" he", &["\"", "Paris", ",", "\"", "he"]),
+        ("Macron. Merkel's", &["Macron", ".", "Merkel", "'s"]),
+        ("the U.N. and U.S.-based AT&T", &["the", "U.N.", "and", "U.S.-based", "AT&T"]),
+        ("1. Jesper 12. C. Spearman", &["1.", "Jesper", "12.", "C.", "Spearman"]),
+        ("in 1996. Mr. Smith of Acme Inc.", &["in", "1996", ".", "Mr.", "Smith", "of", "Acme", "Inc."]),
+        ("'s 'Paris' Jones'", &["'s", "'", "Paris", "'", "Jones", "'"]),
+        ("rock'n'roll O'Neill", &["rock'n'roll", "O'Neill"]),
+        ("Who? Paris! Done...", &["Who", "?", "Paris", "!", "Done..."]),
+        ("(Bonn).", &["(", "Bonn", ")", "."]),
+        (". , -", &[".", ",", "-"]),
+        ("\u{6771}\u{4eac}x", &["\u{6771}", "\u{4eac}", "x"]),
+    ];
+    for (t, want) in cases {
+        assert_eq!(words(t), want, "{t:?}");
+    }
+    // Every word is a union of pre-tokens, so no piece crosses one.
+    let t = "A (U.N.) envoy's \u{201c}talk\u{201d}, 3. Mr. X.";
+    let pre = turbo::tokenizer::pre_words(t);
+    for (a, b) in name_words(t) {
+        assert!(pre.iter().any(|p| p.0 == a) && pre.iter().any(|p| p.1 == b), "{:?}", &t[a..b]);
+    }
+}
