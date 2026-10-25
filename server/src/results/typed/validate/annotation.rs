@@ -176,11 +176,13 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
             }
         }
         Value::Asset(asset) => {
-            if let Some(ps) = &asset.payload_span {
-                let p_span = offsetter.from_wire(text, lid, ps.start, ps.end)?;
-                if p_span.is_empty() || spans.first().is_some_and(|o| !o.contains(p_span)) {
-                    return Err(bad(format!("{lid}[{i}] asset payload_span is empty or outside outer span")));
-                }
+            let ps = asset.payload_span.as_ref().ok_or_else(|| bad(format!("{lid}[{i}] asset has no payload_span")))?;
+            let p_span = offsetter.from_wire(text, lid, ps.start, ps.end)?;
+            let outer = spans.first().ok_or_else(|| bad(format!("{lid}[{i}] asset has no outer span")))?;
+            // A deleted payload retains presence as an empty span, including
+            // at the outer boundary. Containment still applies after projection.
+            if !outer.contains(p_span) {
+                return Err(bad(format!("{lid}[{i}] asset payload_span is outside outer span")));
             }
         }
         Value::RuleMatch(m) => check_token_range(token_len, "rule_match", lid, i, m.token_start, m.token_end)?,

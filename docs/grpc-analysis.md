@@ -212,6 +212,13 @@ does not invent chain resolution or require a chain layer. Confidence,
 kind, payload/scope and projected offsets are validated; invalid nested
 offsets are refused with `TURBO_E_INVALID_ARGUMENT`, never snapped.
 
+Projected event arguments and asset payloads also retain their span
+presence when text deletion collapses them to an empty span. Their native
+source layers still require nonempty spans. Typed validation requires
+event argument spans and checks their offsets and anchor references;
+asset payload spans and outer spans are required, and the payload must
+remain inside its projected outer span, including at an empty boundary.
+
 ## Streaming bulk document analysis (issue #722)
 
 `AnalyzeStream` is one bidirectional stream for many documents. The

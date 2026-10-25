@@ -32,10 +32,9 @@ pub(super) fn event(ctx: &LayerCtx<'_>, i: usize, event: &EventAnnotation) -> Re
     target(ctx, "opennlp:sentences", event.sentence_index)?;
     for argument in &event.arguments {
         let span = argument.span.as_ref().ok_or_else(|| bad("event argument has no span"))?;
-        let span = ctx.offsetter.from_wire(ctx.text, ctx.lid, span.start, span.end)?;
-        if span.is_empty() {
-            return Err(bad("event argument has an empty span"));
-        }
+        // Native arguments are nonempty, but text deletion can project them
+        // to an empty span. Presence, boundaries and anchors still apply.
+        ctx.offsetter.from_wire(ctx.text, ctx.lid, span.start, span.end)?;
         match (argument.anchored_layer.as_str(), argument.anchored_index) {
             ("none", None) => {}
             (layer @ ("turbo:temporal" | "turbo:money" | "turbo:quantities" | "opennlp:entities"), Some(index)) => {
