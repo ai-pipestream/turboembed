@@ -113,16 +113,9 @@ impl<'a> ProjectionCx<'a> {
     }
 
     pub(crate) fn register_producer(&mut self, annotator: &str, model: Option<&ModelRef>) -> String {
-        if let Some(found) = self.models.iter().find(|m| {
-            m.annotator == annotator
-                && match (&m.bundle, model) {
-                    (Some(b), Some(want)) => b.id == want.id && b.revision == want.revision && b.sha256 == want.sha256,
-                    (None, None) => true,
-                    _ => false,
-                }
-        }) {
-            return found.model_ref.clone();
-        }
+        // Producer records only annotator and model identity. A matching
+        // layer may have another configuration or execution environment;
+        // never borrow its richer provenance for an evidence producer.
         let (model_id, model_rev, model_sha) = match model {
             Some(m) => (m.id.clone(), m.revision.clone(), m.sha256.clone()),
             None => (String::new(), String::new(), String::new()),

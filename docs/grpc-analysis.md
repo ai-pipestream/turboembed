@@ -192,6 +192,14 @@ reads one back with the message's own validation.
 for a requested view and offset mode. `RoundTripTypedDocument` validates
 and echoes the typed message; it does not reconstruct a native `Document`.
 
+Evidence producers record only annotator and optional model identity.
+Their model-table entries use version `"0"`, config hash `0`, and absent
+execution metadata for the unrecorded fields. They do not borrow those
+fields from another layer with the same annotator/model. Complete layer
+provenance remains separately available through the layer and annotation
+model references. Identical producer identities share one entry; distinct
+model revisions or digests remain distinct.
+
 `turbo:quotations` uses the additive `quotation` payload (oneof tag 94).
 Content is carried by the annotation's spans; optional speaker and cue
 spans use the same requested view and offset mode. Kind and native f32
