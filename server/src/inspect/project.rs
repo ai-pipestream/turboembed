@@ -66,7 +66,7 @@ pub fn project_chunks(req: &ProjectChunksRequest) -> Result<ProjectChunksRespons
     let projection = build_projection(&doc, text, &offsetter, pca_dims)?;
     let drift_curve = if req.include_drift_curve { build_drift_curve(&doc, text, &offsetter)? } else { None };
     let (chunk_term_stacks, document_term_stack) =
-        build_term_stacks(&doc, view, text, &offsetter, max_stack_segments as usize);
+        build_term_stacks(&doc, view, text, &offsetter, max_stack_segments as usize)?;
     let strategy_matrix = if req.include_strategy_matrix {
         build_strategy_matrix(&doc, text, &offsetter, &req.strategy_budgets)?
     } else {
@@ -227,12 +227,16 @@ fn build_drift_curve(
     };
 
     let mut gaps = Vec::with_capacity(n);
+    // Where level-0 chunks end, once, rather than a scan of every chunk
+    // per sentence.
+    let mut chunk_ends: Vec<u32> = chunks.map_or_else(Vec::new, |c| {
+        (0..c.spans.len()).filter(|&ci| c.level[ci] == 0).map(|ci| c.spans.get(Ix::new(ci as u32)).end).collect()
+    });
+    chunk_ends.sort_unstable();
     for i in 0..n {
         let sent_end = sentences.spans.get(Ix::new(i as u32)).end;
         let gap_offset = offsetter.to_wire(text, Span::new(sent_end, sent_end)).0;
-        let is_chunk_cut = chunks.is_some_and(|c| {
-            (0..c.spans.len()).any(|ci| c.level[ci] == 0 && c.spans.get(Ix::new(ci as u32)).end == sent_end)
-        });
+        let is_chunk_cut = chunk_ends.binary_search(&sent_end).is_ok();
         gaps.push(DriftGapPointProto {
             sentence: i as u32,
             gap_offset,

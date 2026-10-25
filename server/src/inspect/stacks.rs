@@ -2,14 +2,86 @@
 //! [`SparseTerms`], [`TermStats`], or [`Tokens`] (`ProjectChunks`,
 //! issue #1220).
 
+use std::any::TypeId;
 use std::collections::BTreeMap;
 
-use turbo_analysis::{Document, Ix, Layer, Span, View, ViewId};
+use turbo_analysis::{Document, Ix, Key, Layer, Span, View, ViewId};
 use turbo_analysis_layers::{Chunks, SparseTerms, Tokens};
 use turbo_chunker::terms::{IndexedTerms, TermStats, Vocabulary};
 
+use super::bad;
+use crate::api::Failure;
 use crate::offsets::Offsetter;
 use crate::proto::result::{TermVectorStackProto, TermWeightSegmentProto};
+
+/// Token indices sorted by span start, so the tokens inside a unit are one
+/// binary search away rather than a scan of every token per unit. Tokens
+/// may overlap, so the order is not their stored one.
+struct TokenIndex<'a> {
+    tokens: &'a Tokens,
+    by_start: Vec<u32>,
+}
+
+impl<'a> TokenIndex<'a> {
+    fn new(tokens: &'a Tokens) -> Self {
+        let mut by_start: Vec<u32> = (0..tokens.spans.len() as u32).collect();
+        by_start.sort_by_key(|&i| (tokens.spans.get(Ix::new(i)).start, i));
+        TokenIndex { tokens, by_start }
+    }
+
+    /// The tokens wholly inside `span`, in stored order.
+    fn inside(&self, span: Span) -> Vec<(usize, Span)> {
+        let first = self.by_start.partition_point(|&i| self.tokens.spans.get(Ix::new(i)).start < span.start);
+        let mut out: Vec<(usize, Span)> = self.by_start[first..]
+            .iter()
+            .map(|&i| (i as usize, self.tokens.spans.get(Ix::new(i))))
+            .take_while(|(_, t)| t.start <= span.end)
+            .filter(|(_, t)| t.end <= span.end)
+            .collect();
+        out.sort_unstable_by_key(|&(i, _)| i);
+        out
+    }
+}
+
+/// The view a `SparseTerms<L>` instance's spans are in: that of the `L`
+/// instance it was made on, else of the default `L`.
+fn sparse_view<L: Layer>(doc: &Document) -> Option<ViewId> {
+    let key = Key::<SparseTerms<L>>::DEFAULT.id();
+    let anchor = doc.made_on(key).iter().find(|k| k.ty == TypeId::of::<L>()).map_or("", |k| k.name);
+    if TypeId::of::<L>() == TypeId::of::<Chunks>() {
+        doc.get_key(&Key::<Chunks>::named(anchor)).map(|c| c.spans.view())
+    } else if TypeId::of::<L>() == TypeId::of::<View>() {
+        doc.get_key(&Key::<View>::named(anchor)).map(View::id)
+    } else {
+        None
+    }
+}
+
+/// Refuses sparse terms whose spans are in another view, or that do not lie
+/// on `text`: converting them with `text` would misplace them or panic.
+fn check_sparse<L: Layer>(doc: &Document, sparse: &SparseTerms<L>, view: ViewId, text: &str) -> Result<(), Failure> {
+    let id = SparseTerms::<L>::NAME;
+    if let Some(at) = sparse_view::<L>(doc)
+        && at != view
+    {
+        return Err(bad(format!("{id} spans are in view {}, but the projection view is {}", at.0, view.0)));
+    }
+    let fits = |s: &Span| {
+        s.start <= s.end
+            && (s.end as usize) <= text.len()
+            && text.is_char_boundary(s.start as usize)
+            && text.is_char_boundary(s.end as usize)
+    };
+    if let Some(bad_span) = sparse.span.iter().flatten().chain(&sparse.occ).find(|s| !fits(s)) {
+        return Err(bad(format!(
+            "{id} span {}..{} does not lie on the {}-byte projection view text",
+            bad_span.start,
+            bad_span.end,
+            text.len()
+        )));
+    }
+    Ok(())
+}
 
 #[derive(Clone)]
 struct RawStackItem {
@@ -75,13 +147,15 @@ pub(crate) fn build_term_stacks(
     text: &str,
     offsetter: &Offsetter,
     max_segments: usize,
-) -> (Vec<TermVectorStackProto>, Option<TermVectorStackProto>) {
+) -> Result<(Vec<TermVectorStackProto>, Option<TermVectorStackProto>), Failure> {
     let vocab = doc.get::<Vocabulary>();
-    let tokens = doc.get::<Tokens>().filter(|t| t.spans.view() == view);
+    let tokens = doc.get::<Tokens>().filter(|t| t.spans.view() == view).map(TokenIndex::new);
+    let tokens = tokens.as_ref();
     let indexed = doc.get::<IndexedTerms>();
 
     let mut chunk_stacks = Vec::new();
     if let Some(sparse_chunks) = doc.get::<SparseTerms<Chunks>>() {
+        check_sparse(doc, sparse_chunks, view, text)?;
         let units = sparse_chunks.row.len().saturating_sub(1);
         for u in 0..units {
             chunk_stacks.push(stack_from_sparse(sparse_chunks, u, vocab, max_segments, text, offsetter));
@@ -104,6 +178,7 @@ pub(crate) fn build_term_stacks(
     let doc_stack = if let Some(sparse_doc) = doc.get::<SparseTerms<View>>()
         && sparse_doc.row.len() >= 2
     {
+        check_sparse(doc, sparse_doc, view, text)?;
         Some(stack_from_sparse(sparse_doc, 0, vocab, max_segments, text, offsetter))
     } else if let (Some(v), Some(stats_doc)) = (vocab, doc.get::<TermStats<View>>())
         && !stats_doc.length.is_empty()
@@ -117,7 +192,7 @@ pub(crate) fn build_term_stacks(
         None
     };
 
-    (chunk_stacks, doc_stack)
+    Ok((chunk_stacks, doc_stack))
 }
 
 fn stack_from_sparse<L: Layer>(
@@ -162,29 +237,29 @@ fn stack_from_stats<L: Layer>(
     stats: &TermStats<L>,
     unit: usize,
     unit_span: Option<Span>,
-    tokens: Option<&Tokens>,
+    tokens: Option<&TokenIndex>,
     indexed: Option<&IndexedTerms>,
     max_segments: usize,
     text: &str,
     offsetter: &Offsetter,
 ) -> TermVectorStackProto {
+    // The unit's tokens once, grouped by term, instead of a scan of every
+    // token per entry.
+    let mut by_term: BTreeMap<usize, Vec<Span>> = BTreeMap::new();
+    if let (Some(sp), Some(toks), Some(idx)) = (unit_span, tokens, indexed) {
+        for (ti, tsp) in toks.inside(sp) {
+            if let Some(Some(t)) = idx.term.get(ti) {
+                by_term.entry(t.get()).or_default().push(tsp);
+            }
+        }
+    }
     let r = stats.row[unit] as usize..stats.row[unit + 1] as usize;
     let mut raw = Vec::with_capacity(r.len());
     for e in r {
         let tid = stats.term[e];
         let tf = stats.tf[e];
         let term_str = if tid.get() < vocab.len() { vocab.get(tid).to_owned() } else { format!("term:{}", tid.get()) };
-        let mut occs = Vec::new();
-        if let (Some(sp), Some(toks), Some(idx)) = (unit_span, tokens, indexed) {
-            for (ti, &t_opt) in idx.term.iter().enumerate().take(toks.spans.len()) {
-                if t_opt == Some(tid) {
-                    let tsp = toks.spans.get(Ix::new(ti as u32));
-                    if tsp.start >= sp.start && tsp.end <= sp.end {
-                        occs.push(tsp);
-                    }
-                }
-            }
-        }
+        let occs = by_term.get(&tid.get()).cloned().unwrap_or_default();
         raw.push(RawStackItem {
             term: term_str,
             term_id: tid.get() as u32,
@@ -199,18 +274,14 @@ fn stack_from_stats<L: Layer>(
 
 fn stack_from_tokens_in_span(
     unit: u32,
-    tokens: &Tokens,
+    tokens: &TokenIndex,
     span: Span,
     max_segments: usize,
     text: &str,
     offsetter: &Offsetter,
 ) -> TermVectorStackProto {
     let mut map: BTreeMap<String, Vec<Span>> = BTreeMap::new();
-    for i in 0..tokens.spans.len() {
-        let tsp = tokens.spans.get(Ix::new(i as u32));
-        if tsp.start < span.start || tsp.end > span.end {
-            continue;
-        }
+    for (_, tsp) in tokens.inside(span) {
         let s = &text[tsp.range()];
         if s.chars().any(char::is_alphanumeric) {
             map.entry(s.to_lowercase()).or_default().push(tsp);
