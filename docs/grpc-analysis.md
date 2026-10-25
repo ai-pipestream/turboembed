@@ -199,6 +199,8 @@ fields from another layer with the same annotator/model. Complete layer
 provenance remains separately available through the layer and annotation
 model references. Identical producer identities share one entry; distinct
 model revisions or digests remain distinct.
+Optional model and execution record presence is part of that identity:
+an absent record is distinct from a present record with empty strings.
 
 `turbo:quotations` uses the additive `quotation` payload (oneof tag 94).
 Content is carried by the annotation's spans; optional speaker and cue
