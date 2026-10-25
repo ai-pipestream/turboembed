@@ -453,9 +453,11 @@ fn viterbi_beam_pruning_scales_linearly_with_lm_order_and_candidate_width() {
             .with_confusables(conf.clone())
             .max_candidates(64)
             .max_beam_width(64);
-        // Without pruning the states grow as 64 to the model's order; pruned,
-        // a run takes milliseconds. The bound sits far above that and takes
-        // the best of three runs, so a loaded debug runner does not trip it.
+        // A smoke bound only: the beam's states and work are counted against
+        // its width in spellcheck/trellis/tests.rs. Without pruning the
+        // states grow as 64 to the model's order; pruned, a run takes
+        // milliseconds. The bound sits far above that and takes the best of
+        // three runs, so a loaded debug runner does not trip it.
         let best = (0..3)
             .map(|_| {
                 let t0 = Instant::now();
