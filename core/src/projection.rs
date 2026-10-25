@@ -141,7 +141,7 @@ impl ProjectionHead {
     fn apply_f64_l2(&self, state: &[f32], dst: &mut [f32]) {
         let mut row_f64 = Vec::with_capacity(self.dim);
         let mut max_abs = 0.0f64;
-        for (w_row, &b) in self.linear.weight.chunks_exact(self.hidden).zip(&self.linear.bias) {
+        for (w_row, &b) in self.linear.weight().chunks_exact(self.hidden).zip(self.linear.bias()) {
             let mut sum = f64::from(b);
             for (&w, &xi) in w_row.iter().zip(state) {
                 sum += f64::from(w) * f64::from(xi);
