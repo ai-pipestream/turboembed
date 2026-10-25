@@ -264,7 +264,9 @@ impl Word2VecTrainer {
         h.write_u64(corpus.len() as u64);
         for sentence in &corpus {
             h.write_u64(sentence.len() as u64);
-            sentence.iter().for_each(|w| h.str(w));
+            sentence.iter().for_each(|w| {
+                h.str(w);
+            });
         }
         Ok(Word2VecVectors::new(self.params.dimension, vocab, vectors, h.finish()))
     }

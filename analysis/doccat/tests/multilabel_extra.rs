@@ -390,7 +390,7 @@ fn feature_generator_settings_round_trip_and_custom_generators_error() {
 }
 
 #[test]
-fn categorizer_annotators_report_distinct_config_hashes() {
+fn hash_compat_categorizer_annotators_report_distinct_config_hashes() {
     use turbo_analysis::Annotator;
     use turbo_analysis_layers::{Chunks, Sentences};
     use turbo_doccat::features::PatternMode;
@@ -450,4 +450,38 @@ fn categorizer_annotators_report_distinct_config_hashes() {
     assert_ne!(span1.config_hash(), 0);
     assert_ne!(span1.config_hash(), span2.config_hash());
     assert_ne!(span1.config_hash(), span_chunk.config_hash());
+    let hashes = [
+        h_base,
+        ml_thresh.config_hash(),
+        ml_max.config_hash(),
+        ml_min.config_hash(),
+        ml_score.config_hash(),
+        ml_cg.config_hash(),
+        ml_spans_sent.config_hash(),
+        ml_spans_chunk.config_hash(),
+        doc_cat1.config_hash(),
+        doc_cat2.config_hash(),
+        span1.config_hash(),
+        span2.config_hash(),
+        span_chunk.config_hash(),
+    ];
+    // Fixed values from the previous implementation, before migration.
+    assert_eq!(
+        hashes,
+        [
+            2406797393651371811,
+            14589794838530488386,
+            8067442491044145641,
+            2163154702620036970,
+            2483390473169040282,
+            5785359090408478346,
+            902727703835235239,
+            5322199426368607831,
+            14593223505865006032,
+            15804804405288898674,
+            11971614223886549790,
+            18330262021213611080,
+            10610587880484796636
+        ]
+    );
 }

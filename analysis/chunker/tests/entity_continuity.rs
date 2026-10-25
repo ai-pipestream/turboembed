@@ -229,7 +229,11 @@ fn legacy_distilled_hash_is_unchanged_and_providers_build_the_steps() {
     let legacy = |w: &DistilledWeights| {
         [w.structure.0, w.drift.0, w.sentiment.0, w.coref.0, w.lexical_overlap, w.entity_continuity, w.bias]
             .iter()
-            .fold(0xcbf2_9ce4_8422_2325u64, |h, &x| (h ^ x as u32 as u64).wrapping_mul(0x0100_0000_01b3))
+            .fold(turbo_analysis::Fnv1a::new(), |mut h, &x| {
+                h.u64(u64::from(x as u32));
+                h
+            })
+            .finish()
     };
     let d = DistilledWeights::default();
     assert_eq!(d.entity_runs, Weight::ONE);

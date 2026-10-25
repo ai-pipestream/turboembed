@@ -58,11 +58,7 @@ const MAX_DOC_TOKENS: usize = 48;
 const MAX_QUERY_TOKENS: usize = 16;
 
 fn fnv1a_64(bytes: &[u8], seed: u64) -> u64 {
-    let mut h = 0xcbf2_9ce4_8422_2325u64 ^ seed;
-    for &b in bytes {
-        h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
-    }
-    h
+    turbo_analysis::Fnv1a::with_seed(turbo_analysis::FNV1A_OFFSET_BASIS ^ seed).bytes(bytes).finish()
 }
 
 fn stem_key(word: &str) -> &str {

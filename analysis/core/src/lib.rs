@@ -17,6 +17,7 @@ pub mod error;
 pub mod evidence;
 pub mod export;
 pub mod graph;
+pub mod hash;
 pub mod layer;
 pub mod markup;
 pub mod math;
@@ -24,6 +25,7 @@ pub mod offsets;
 pub mod phrase;
 pub mod predicate;
 pub mod registry;
+pub mod shape;
 pub mod span;
 pub mod text;
 pub mod topk;
@@ -42,6 +44,7 @@ pub use export::{
     get_tagset, import, layer_ref, node_ref, put_spans, put_tagset,
 };
 pub use graph::{Edge, Edges, Groups, ReachScratch};
+pub use hash::{FNV1A_OFFSET_BASIS, FNV1A_PRIME, Fnv1a, fnv1a};
 pub use layer::{Anchor, Execution, Key, KeyId, Layer, LayerName, ModelRef, Provenance, Tag, TagSet};
 pub use markup::{MarkupError, MarkupText, TagKind, TagSpan, TextRun, TextRunKind};
 pub use offsets::{
@@ -52,6 +55,7 @@ pub use predicate::{
     ConditionalAnnotator, ConditionalStep, DocPredicate, FilterAnnotator, FilterableLayer, SpanFilter,
     co_written_aligned_anchors, retain_aligned_anchor,
 };
+pub use shape::{DocumentWindow, PreparedSegments, ShapeMember, ShapeSegment, WindowShape};
 pub use span::{
     ContainedJoin, FilterRule, FragmentError, Fragments, Ix, IxRange, Overlap, OverlappingJoin, Span, Spans, TextSpans,
     filter_spans,

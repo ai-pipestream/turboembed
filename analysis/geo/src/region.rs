@@ -33,7 +33,6 @@ const COUNTRY_NAME_CONFIDENCE: f64 = 0.95;
 const FLAG_EMOJI_CONFIDENCE: f64 = 0.95;
 const REGIONAL_INDICATOR_A: u32 = 0x1F1E6;
 const REGIONAL_INDICATOR_Z: u32 = 0x1F1FF;
-const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 
 /// Reusable two-buffer scratch space for normalizing and accent-stripping
 /// candidate country surface strings without per-entity heap allocations.
@@ -243,7 +242,7 @@ impl Annotator for DocumentRegionAnnotator {
     }
 
     fn config_hash(&self) -> u64 {
-        hash_location_types(FNV_OFFSET_BASIS, &self.location_types)
+        hash_location_types(turbo_analysis::FNV1A_OFFSET_BASIS, &self.location_types)
     }
 }
 

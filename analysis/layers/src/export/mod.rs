@@ -43,6 +43,7 @@ use crate::{LexicalExpansions, WordNetSenses};
 mod boilerplate;
 mod calibrated;
 mod core_layers;
+mod discourse;
 mod emotion;
 mod entity_graph;
 mod events;
@@ -92,6 +93,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Dependencies<Tokens>>()
         .register::<Dependencies<Words>>()
         .register::<Entities>()
+        .register::<crate::Quotations>()
         .register::<crate::DocumentEntities>()
         .register::<crate::EntitySalience>()
         .register::<ChunkTags>()

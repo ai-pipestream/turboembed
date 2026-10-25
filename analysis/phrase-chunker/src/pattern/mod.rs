@@ -419,27 +419,24 @@ fn compile_expr(expr: &Expr, target: usize, ops: &mut Vec<StepOp>) -> Result<usi
 }
 
 fn expr_fingerprint(expr: &Expr) -> u64 {
-    let mut h = 0xcbf2_9ce4_8422_2325_u64;
+    let mut h = turbo_analysis::Fnv1a::new();
     hash_expr(expr, &mut h);
-    h
+    h.finish()
 }
 
 fn compute_rule_fingerprint(kind: &str, pattern: &str, expr: &Expr) -> u64 {
-    let mut h = 0xcbf2_9ce4_8422_2325_u64;
+    let mut h = turbo_analysis::Fnv1a::new();
     mix_bytes(&mut h, kind.as_bytes());
     mix_bytes(&mut h, pattern.as_bytes());
     hash_expr(expr, &mut h);
-    h
+    h.finish()
 }
 
-fn mix_bytes(h: &mut u64, bytes: &[u8]) {
-    for &b in bytes {
-        *h = (*h ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3);
-    }
-    *h = (*h ^ 0xff).wrapping_mul(0x0000_0100_0000_01b3);
+fn mix_bytes(h: &mut turbo_analysis::Fnv1a, bytes: &[u8]) {
+    h.bytes(bytes).bytes(&[0xff]);
 }
 
-fn hash_expr(expr: &Expr, h: &mut u64) {
+fn hash_expr(expr: &Expr, h: &mut turbo_analysis::Fnv1a) {
     match expr {
         Expr::Atom(m) => {
             mix_bytes(h, &[1, u8::from(m.negate_tag)]);

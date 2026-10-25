@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use turbo_analysis::Fnv1a;
 use turbo_stopword::{StopwordLanguage, StopwordList};
 use turbo_unicode::java;
 
@@ -48,8 +49,7 @@ impl Lexicon {
                 self.lower.push(lower);
             }
         }
-        let hash =
-            self.lower.bytes().fold(0xcbf2_9ce4_8422_2325u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3));
+        let hash = Fnv1a::new().bytes(self.lower.as_bytes()).finish();
         Lexeme {
             id: (letter || digit).then(|| self.intern_hash(hash)),
             syllables: if letter { groups.max(1) } else { 0 },
@@ -168,5 +168,96 @@ mod tests {
         // Reverse: bd cbaa reaches 4/6 and makes exactly one factor.
         // Mean = (6/(1+25/28) + 6)/2 = 243/53.
         assert!((d.measure(&[0, 0, 1, 2, 3, 1]).0 - 243.0 / 53.0).abs() < 1e-5);
+    }
+}
+
+#[cfg(test)]
+mod hash_compat {
+    use super::*;
+
+    /// Bucket keys and observations captured from actual main2b89 intern calls.
+    #[test]
+    fn incoming_lexicon_byte_hashes_and_reused_ids_are_preserved() {
+        let inputs: &[&[&str]] = &[
+            &["Hello"],
+            &["HELLO"],
+            &["inter", "national"],
+            &["international"],
+            &["ÉTÉ"],
+            &["é", "té"],
+            &["e\u{301}té"],
+            &["İ"],
+            &["𐐀"],
+            &["𐐨"],
+            &["TH", "E"],
+            &["the"],
+            &["123"],
+            &["東京"],
+            &["..."],
+        ];
+        let hashes: [Option<u64>; 15] = [
+            Some(11831194018420276491),
+            Some(11831194018420276491),
+            Some(16137356515000361059),
+            Some(16137356515000361059),
+            Some(43504438999324759),
+            Some(43504438999324759),
+            Some(6764854889036258317),
+            Some(12638195996648667684),
+            Some(9068547849196537949),
+            Some(9068547849196537949),
+            Some(6266135566914540924),
+            Some(6266135566914540924),
+            Some(5003431119771845851),
+            Some(3403600855798853039),
+            None,
+        ];
+        let ids: [Option<usize>; 15] = [
+            Some(0),
+            Some(0),
+            Some(1),
+            Some(1),
+            Some(2),
+            Some(2),
+            Some(3),
+            Some(4),
+            Some(5),
+            Some(5),
+            Some(6),
+            Some(6),
+            Some(7),
+            Some(8),
+            None,
+        ];
+        let syllables = [2, 2, 5, 5, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 0];
+        let content = [true, true, true, true, true, true, true, false, true, true, false, false, false, true, false];
+        let lower = [
+            "hello",
+            "hello",
+            "international",
+            "international",
+            "été",
+            "été",
+            "e\u{301}té",
+            "i",
+            "𐐨",
+            "𐐨",
+            "the",
+            "the",
+            "123",
+            "東京",
+            "...",
+        ];
+        let mut lex = Lexicon::default();
+        for _ in 0..2 {
+            lex.clear();
+            for (i, parts) in inputs.iter().enumerate() {
+                let item = lex.intern(parts.iter().copied());
+                let hash = item.id.map(|id| *lex.buckets.iter().find(|(_, head)| **head == id).unwrap().0);
+                assert_eq!(hash, hashes[i], "parts {parts:?}");
+                assert_eq!((item.id, item.syllables, item.content), (ids[i], syllables[i], content[i]));
+                assert_eq!(lex.lower, lower[i]);
+            }
+        }
     }
 }

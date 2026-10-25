@@ -25,7 +25,7 @@
 use std::collections::{BTreeMap, HashSet};
 use std::marker::PhantomData;
 
-use turbo_analysis::{Annotator, Edge, Edges, Error, Execution, Ix, ModelRef, Refs, Span, View};
+use turbo_analysis::{Annotator, Edge, Edges, Error, Execution, Fnv1a, Ix, ModelRef, Refs, Span, View};
 use turbo_analysis_layers::{ClaimRelationKind, Entities, Vectors};
 
 use crate::layer::SpanCategorizable;
@@ -183,7 +183,7 @@ impl<S: NliScorer, L: SpanCategorizable> ClaimVerificationAnnotator<S, L> {
 
 impl<S: NliScorer + Send + Sync + 'static, L: SpanCategorizable> Annotator for ClaimVerificationAnnotator<S, L> {
     const ID: &'static str = "turbo:claim-verifier";
-    const VERSION: &'static str = "1";
+    const VERSION: &'static str = CLAIM_VERSION;
     type Reads = (View, L, Option<Entities>, Option<Vectors<L>>);
     type Writes = (Edges<L, L>,);
 
@@ -255,20 +255,48 @@ impl<S: NliScorer + Send + Sync + 'static, L: SpanCategorizable> Annotator for C
     }
 
     fn config_hash(&self) -> u64 {
-        let mut h = 0xcbf29ce484222325u64;
-        let mut eat = |bytes: &[u8]| {
-            for &b in bytes {
-                h ^= u64::from(b);
-                h = h.wrapping_mul(0x100000001b3);
-            }
-        };
-        let c = &self.config;
-        eat(Self::VERSION.as_bytes());
-        for f in [c.min_similarity, c.max_similarity, c.min_word_overlap.unwrap_or(-1.0), c.entail_threshold] {
-            eat(&f.to_bits().to_le_bytes());
-        }
-        eat(&c.contradict_threshold.to_bits().to_le_bytes());
-        eat(&(c.max_pairs as u64).to_le_bytes());
-        h
+        configuration_hash(&self.config, Self::VERSION)
+    }
+}
+
+const CLAIM_VERSION: &str = "1";
+
+fn configuration_hash(c: &ClaimVerifyConfig, version: &str) -> u64 {
+    let mut h = Fnv1a::new();
+    h.bytes(version.as_bytes());
+    for f in [c.min_similarity, c.max_similarity, c.min_word_overlap.unwrap_or(-1.0), c.entail_threshold] {
+        h.bytes(&f.to_bits().to_le_bytes());
+    }
+    h.bytes(&c.contradict_threshold.to_bits().to_le_bytes()).bytes(&(c.max_pairs as u64).to_le_bytes());
+    h.finish()
+}
+
+#[cfg(test)]
+mod hash_compat {
+    use super::*;
+
+    #[test]
+    fn merged_claim_hash_values_are_preserved() {
+        let cases = [
+            ClaimVerifyConfig::default(),
+            ClaimVerifyConfig { min_word_overlap: None, ..ClaimVerifyConfig::default() },
+            ClaimVerifyConfig { min_similarity: -0.0, ..ClaimVerifyConfig::default() },
+            ClaimVerifyConfig { min_similarity: 0.0, ..ClaimVerifyConfig::default() },
+            ClaimVerifyConfig { max_pairs: u32::MAX as usize, ..ClaimVerifyConfig::default() },
+            ClaimVerifyConfig { max_pairs: usize::MAX, ..ClaimVerifyConfig::default() },
+        ];
+        let values = cases.map(|c| configuration_hash(&c, CLAIM_VERSION));
+        let widest = if usize::BITS == 64 { 17671229628621543886 } else { 3314949245565464178 };
+        assert_eq!(
+            values,
+            [
+                4849403230667177878,
+                7730317987745542065,
+                14177422443529457367,
+                2272633255458087255,
+                3314949245565464178,
+                widest,
+            ]
+        );
     }
 }

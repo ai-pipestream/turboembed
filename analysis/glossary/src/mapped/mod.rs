@@ -114,10 +114,13 @@ impl Counts {
 /// the checksum's own word (bytes 48 to 56) read as zero. `image.len()` is
 /// a multiple of 8.
 pub(crate) fn checksum(image: &[u8]) -> u64 {
-    let mut h = 0xcbf2_9ce4_8422_2325u64;
+    // A persisted format checksum: the step is the format's own
+    // (xor a whole word, then multiply), seeded from the
+    // canonical FNV-1a constants so values never drift.
+    let mut h = turbo_analysis::FNV1A_OFFSET_BASIS;
     for (i, w) in image.as_chunks::<8>().0.iter().enumerate() {
         let w = if i == 6 { 0 } else { u64::from_le_bytes(*w) };
-        h = (h ^ w).wrapping_mul(0x0000_0100_0000_01b3);
+        h = (h ^ w).wrapping_mul(turbo_analysis::FNV1A_PRIME);
     }
     h
 }

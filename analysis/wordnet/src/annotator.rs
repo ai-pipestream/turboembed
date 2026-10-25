@@ -188,15 +188,15 @@ impl<L: LexicalKnowledgeBase + Send + Sync + 'static> Annotator for WordNetAnnot
     }
 
     fn config_hash(&self) -> u64 {
-        const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
-        const FNV_PRIME: u64 = 0x0100_0000_01b3;
         let o = &self.options;
-        let mut h = FNV_OFFSET;
-        let fields =
-            [o.max_senses as u64, o.hypernym_depth as u64, u64::from(o.include_hyponyms), o.max_expansions as u64];
-        for b in self.lexicon_id.bytes().chain(fields.iter().flat_map(|f| f.to_le_bytes())) {
-            h = (h ^ u64::from(b)).wrapping_mul(FNV_PRIME);
-        }
-        h ^ u64::from(self.morphy.is_some())
+        // The persisted stream encodes each option as eight little-endian bytes.
+        // Keep that width for the boolean too.
+        let mut h = turbo_analysis::Fnv1a::new();
+        h.bytes(self.lexicon_id.as_bytes())
+            .u64(o.max_senses as u64)
+            .u64(o.hypernym_depth as u64)
+            .u64(u64::from(o.include_hyponyms))
+            .u64(o.max_expansions as u64);
+        h.finish() ^ u64::from(self.morphy.is_some())
     }
 }

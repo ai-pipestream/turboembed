@@ -14,7 +14,7 @@
 use std::collections::BTreeSet;
 use std::marker::PhantomData;
 
-use turbo_analysis::{Annotator, Error, Ix, Layer, Overlap, Refs, Span, View};
+use turbo_analysis::{Annotator, Error, Fnv1a, Ix, Layer, Overlap, Refs, Span, View};
 use turbo_analysis_layers::{Subwords, TokenVectorWindows, Vectors};
 
 /// How an item's selected subword vectors become one vector.
@@ -378,22 +378,16 @@ impl<L: Layer> Annotator for LateChunkAnnotator<L> {
     }
 
     fn config_hash(&self) -> u64 {
-        fn feed(hash: &mut u64, bytes: &[u8]) {
-            for &b in bytes {
-                *hash = (*hash ^ u64::from(b)).wrapping_mul(0x100000001b3);
-            }
-        }
-        let mut hash = 0xcbf29ce484222325u64;
-        feed(&mut hash, Self::ID.as_bytes());
-        feed(&mut hash, &[self.pooling as u8, self.window_policy as u8, u8::from(self.normalize)]);
+        let mut hash = Fnv1a::new();
+        hash.str(Self::ID);
+        hash.bytes(&[self.pooling as u8, self.window_policy as u8, u8::from(self.normalize)]);
         // Folded, matching how the set is read at use: a word
         // inserted in any case hashes as its folded form.
         let folded: BTreeSet<String> = self.stopwords.iter().map(|w| fold(w)).collect();
         for word in &folded {
-            feed(&mut hash, word.as_bytes());
-            feed(&mut hash, &[0]);
+            hash.str(word);
         }
-        hash
+        hash.finish()
     }
 }
 

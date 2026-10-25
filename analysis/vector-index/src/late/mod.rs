@@ -115,4 +115,151 @@ impl<M> TokenIndex<M> {
     pub fn total_tokens(&self) -> usize {
         self.sources.len()
     }
+
+    /// Serializes the [`Space`], candidate boundaries, token sources,
+    /// pruning rules, and token vectors into a deterministic binary
+    /// snapshot (`b"TTOKIX\x01"`).
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let dim = self.space.dim as usize;
+        let mut out = Vec::with_capacity(64 + self.sources.len() * (dim * 4 + 13));
+        out.extend_from_slice(b"TTOKIX\x01");
+        rows::write_space(&self.space, &mut out);
+        out.extend_from_slice(&(self.len() as u64).to_le_bytes());
+        for &f in &self.first {
+            out.extend_from_slice(&f.to_le_bytes());
+        }
+        out.extend_from_slice(&(self.rules.len() as u32).to_le_bytes());
+        for rule in &self.rules {
+            rows::write_str(rule, &mut out);
+        }
+        for p in &self.pruned {
+            match p {
+                None => out.push(0),
+                Some((r, dropped)) => {
+                    out.push(1);
+                    out.extend_from_slice(&r.to_le_bytes());
+                    out.extend_from_slice(&dropped.to_le_bytes());
+                }
+            }
+        }
+        for s in &self.sources {
+            out.extend_from_slice(&s.piece.to_le_bytes());
+            match s.span {
+                None => out.push(0),
+                Some(span) => {
+                    out.push(1);
+                    out.extend_from_slice(&span.start.to_le_bytes());
+                    out.extend_from_slice(&span.end.to_le_bytes());
+                }
+            }
+        }
+        for tok in 0..self.sources.len() {
+            let at = tok * self.bpr;
+            for &v in &rows::flat(&self.rows[at..at + self.bpr])[..dim] {
+                out.extend_from_slice(&v.to_le_bytes());
+            }
+        }
+        out
+    }
+
+    /// Restores a [`TokenIndex`] from [`TokenIndex::to_bytes`] and caller
+    /// candidate metadata `meta`.
+    pub fn from_bytes(bytes: &[u8], meta: Vec<M>) -> Result<TokenIndex<M>, crate::IndexError> {
+        use crate::{IndexError, Which, kernel};
+        let mut r = rows::ByteReader(bytes);
+        if r.take(7).map_err(IndexError::Layer)? != b"TTOKIX\x01" {
+            return Err(IndexError::Layer("not a TokenIndex snapshot of version 1".into()));
+        }
+        let space = rows::read_space(&mut r).map_err(IndexError::Layer)?;
+        let n_cand = usize::try_from(r.u64().map_err(IndexError::Layer)?).map_err(|_| IndexError::Full)?;
+        if n_cand > u32::MAX as usize {
+            return Err(IndexError::Full);
+        }
+        if meta.len() != n_cand {
+            return Err(IndexError::Layer(format!("meta length {} does not match candidates {n_cand}", meta.len())));
+        }
+        if n_cand > r.0.len() / 4 {
+            return Err(IndexError::Layer("TokenIndex candidate count exceeds remaining bytes".into()));
+        }
+        let mut first = Vec::with_capacity(n_cand + 1);
+        for _ in 0..=n_cand {
+            let f = r.u32().map_err(IndexError::Layer)?;
+            if let Some(&prev) = first.last()
+                && f <= prev
+            {
+                return Err(IndexError::Layer("TokenIndex snapshot candidate offsets not strictly ascending".into()));
+            }
+            first.push(f);
+        }
+        if first[0] != 0 {
+            return Err(IndexError::Layer("TokenIndex snapshot first offset must be 0".into()));
+        }
+        let total_tok = *first.last().unwrap() as usize;
+        let n_rules = r.u32().map_err(IndexError::Layer)? as usize;
+        if n_rules > u16::MAX as usize {
+            return Err(IndexError::Full);
+        }
+        if n_rules > r.0.len() / 4 {
+            return Err(IndexError::Layer("TokenIndex rules count exceeds remaining bytes".into()));
+        }
+        let mut rules = Vec::with_capacity(n_rules);
+        for _ in 0..n_rules {
+            rules.push(r.str().map_err(IndexError::Layer)?);
+        }
+        if n_cand > r.0.len() {
+            return Err(IndexError::Layer("TokenIndex pruned count exceeds remaining bytes".into()));
+        }
+        let mut pruned = Vec::with_capacity(n_cand);
+        for _ in 0..n_cand {
+            match r.u8().map_err(IndexError::Layer)? {
+                0 => pruned.push(None),
+                1 => {
+                    let rule_ix = r.u16().map_err(IndexError::Layer)?;
+                    if (rule_ix as usize) >= n_rules {
+                        return Err(IndexError::Layer("TokenIndex pruning rule index out of bounds".into()));
+                    }
+                    let dropped = r.u32().map_err(IndexError::Layer)?;
+                    pruned.push(Some((rule_ix, dropped)));
+                }
+                b => return Err(IndexError::Layer(format!("invalid pruning tag {b}"))),
+            }
+        }
+        if total_tok > r.0.len() / 5 {
+            return Err(IndexError::Layer("TokenIndex token count exceeds remaining bytes".into()));
+        }
+        let mut sources = Vec::with_capacity(total_tok);
+        for _ in 0..total_tok {
+            let piece = r.u32().map_err(IndexError::Layer)?;
+            let span = match r.u8().map_err(IndexError::Layer)? {
+                0 => None,
+                1 => {
+                    let start = r.u32().map_err(IndexError::Layer)?;
+                    let end = r.u32().map_err(IndexError::Layer)?;
+                    if start > end {
+                        return Err(IndexError::Layer("TokenIndex token span start > end".into()));
+                    }
+                    Some(Span::new(start, end))
+                }
+                b => return Err(IndexError::Layer(format!("invalid span tag {b}"))),
+            };
+            sources.push(Source { piece, span });
+        }
+        let dim = space.dim as usize;
+        if r.0.len() != total_tok.saturating_mul(dim).saturating_mul(4) {
+            return Err(IndexError::Layer("TokenIndex payload does not match total_tokens * dim * 4".into()));
+        }
+        let bpr = rows::blocks(space.dim);
+        let mut row_blocks = vec![Block::default(); total_tok * bpr];
+        for (tok_i, block_slice) in row_blocks.chunks_exact_mut(bpr).enumerate() {
+            let flat = rows::flat_mut(block_slice);
+            for (j, slot) in flat.iter_mut().enumerate().take(dim) {
+                let v = r.f32().map_err(IndexError::Layer)?;
+                if !v.is_finite() {
+                    return Err(IndexError::NonFinite(Which::Row(tok_i), j));
+                }
+                *slot = v;
+            }
+        }
+        Ok(TokenIndex { space, bpr, rows: row_blocks, first, sources, meta, pruned, rules, path: kernel::detect() })
+    }
 }

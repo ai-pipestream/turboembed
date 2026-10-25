@@ -154,7 +154,7 @@ fn the_exact_best_row_is_near_the_top() {
 }
 
 fn fnv(bytes: &[u8]) -> u64 {
-    bytes.iter().fold(0xcbf2_9ce4_8422_2325u64, |h, &b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3))
+    turbo_analysis::fnv1a(bytes)
 }
 
 #[test]
@@ -217,4 +217,34 @@ fn rows_too_far_below_the_longest_are_refused() {
 fn one_row_builds_with_calibration_asked_for() {
     let index = quantized(&space(16), Metric::Dot, &[values(1, 16)], TurboQuant::new(3, true).unwrap()).unwrap();
     assert_eq!(index.top_k(&space(16), &values(2, 16), 3).unwrap().len(), 1);
+}
+
+#[test]
+fn quantized_and_exact_and_token_snapshots_round_trip() {
+    use turbo_vector_index::{TokenIndex, TokenIndexBuilder, VectorIndex};
+
+    let sp = space(16);
+    let rows: Vec<Vec<f32>> = (0..12).map(|i| values(i + 1, 16)).collect();
+    let exact = index_of(&sp, Metric::Cosine, &rows);
+    let exact_bytes = exact.to_bytes();
+    let exact_restored = VectorIndex::from_bytes(&exact_bytes, (0..12).collect()).unwrap();
+    let q = values(77, 16);
+    assert_eq!(exact_restored.top_k(&sp, &q, 5).unwrap(), exact.top_k(&sp, &q, 5).unwrap());
+
+    let cfg = TurboQuant::new(4, true).unwrap();
+    let quant = quantized(&sp, Metric::Cosine, &rows, cfg).unwrap();
+    let quant_bytes = quant.to_bytes();
+    let quant_restored =
+        QuantizedIndex::from_bytes(sp.clone(), Metric::Cosine, cfg, quant.scale(), &quant_bytes, (0..12).collect())
+            .unwrap();
+    assert_eq!(quant_restored.top_k(&sp, &q, 5).unwrap(), quant.top_k(&sp, &q, 5).unwrap());
+
+    let mut tb = TokenIndexBuilder::new(sp.clone()).unwrap();
+    tb.push(&values(10, 32), 0usize).unwrap();
+    tb.push(&values(20, 48), 1usize).unwrap();
+    let tok_ix = tb.build();
+    let tok_bytes = tok_ix.to_bytes();
+    let tok_restored = TokenIndex::from_bytes(&tok_bytes, vec![0usize, 1usize]).unwrap();
+    let tq = values(99, 32);
+    assert_eq!(tok_restored.top_k(&sp, &tq, 2).unwrap(), tok_ix.top_k(&sp, &tq, 2).unwrap());
 }

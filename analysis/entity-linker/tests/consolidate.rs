@@ -237,13 +237,17 @@ fn an_ambiguous_alias_and_a_different_kind_stay_apart() {
 }
 
 #[test]
-fn config_hash_is_deterministic_and_tracks_the_switches() {
+fn hash_compat_config_hash_is_deterministic_and_tracks_the_switches() {
     let a = EntityConsolidator::new();
     assert_eq!(a.config_hash(), EntityConsolidator::new().config_hash());
     let b = EntityConsolidator::new().with_config(ConsolidatorConfig { surface_merge: false, alias_merge: true });
     let c = EntityConsolidator::new().with_config(ConsolidatorConfig { surface_merge: true, alias_merge: false });
     assert_ne!(a.config_hash(), b.config_hash());
     assert_ne!(b.config_hash(), c.config_hash());
+    let d = EntityConsolidator::new().with_config(ConsolidatorConfig { surface_merge: false, alias_merge: false });
+    let hashes = [a.config_hash(), b.config_hash(), c.config_hash(), d.config_hash()];
+    // Fixed values from the previous implementation, before migration.
+    assert_eq!(hashes, [5048337373682345938, 5047382997589248015, 5048338473193974149, 5047381898077619804]);
 }
 
 #[test]

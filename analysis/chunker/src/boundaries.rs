@@ -2,7 +2,7 @@
 //! sentence costs, from the strongest break the document's structure
 //! makes there.
 
-use turbo_analysis::{Annotator, Error, Refs};
+use turbo_analysis::{Annotator, Error, Fnv1a, Refs};
 use turbo_analysis_layers::{Boundaries, Cut, Sentences, Structure};
 
 use crate::gaps::gaps;
@@ -85,6 +85,10 @@ impl Annotator for StructureBoundaries {
         let c = self.costs;
         [c.section, c.heading, c.paragraph, c.item, c.sentence, c.after_heading]
             .iter()
-            .fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x as u32 as u64).wrapping_mul(0x0100_0000_01b3))
+            .fold(Fnv1a::new(), |mut h, &x| {
+                h.u64(u64::from(x as u32));
+                h
+            })
+            .finish()
     }
 }

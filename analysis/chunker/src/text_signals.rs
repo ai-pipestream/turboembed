@@ -1,6 +1,6 @@
 //! Optional lexical and discourse costs combined with an existing signal.
 
-use turbo_analysis::{Annotator, Bound, Error, Layer, Refs};
+use turbo_analysis::{Annotator, Bound, Error, Fnv1a, Layer, Refs};
 use turbo_analysis_layers::{Boundaries, Sentences};
 
 use crate::{DISCOURSE, LEXICAL, STRUCTURE, Weight, weigh_with_sentiment};
@@ -56,8 +56,10 @@ impl Annotator for WeighTextBoundaries {
     }
 
     fn config_hash(&self) -> u64 {
-        [self.base.0, self.lexical.0, self.discourse.0]
-            .iter()
-            .fold(0xcbf2_9ce4_8422_2325, |h, &w| (h ^ u64::from(w as u32)).wrapping_mul(0x0100_0000_01b3))
+        let mut h = Fnv1a::new();
+        for w in [self.base.0, self.lexical.0, self.discourse.0] {
+            h.fold_u64(u64::from(w as u32));
+        }
+        h.finish()
     }
 }
