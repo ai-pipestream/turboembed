@@ -18,7 +18,7 @@
 //! and boost must be finite (boosts also positive), and a sparse term id
 //! the lookup cannot resolve is refused, never blank-attributed.
 
-use turbo_analysis::{Ix, Layer, Span};
+use turbo_analysis::{Ix, Layer, Span, ViewId};
 use turbo_analysis_layers::{Chunks, Levels, SparseTerms, Tokens};
 
 use crate::cascade::{FilterMode, UnitFilter};
@@ -72,6 +72,9 @@ pub struct LateMatch {
 }
 
 /// Everything that matched inside one chunk, by signal family.
+/// Construct with [`Self::new`] to retain the source view and exact
+/// fragments; builders and heat accept equivalent geometry in other
+/// allocations, and refuse a different view or fragment layout.
 #[derive(Clone, Debug, PartialEq)]
 pub struct ChunkAttribution {
     pub chunk: Ix<Chunks>,
@@ -83,6 +86,8 @@ pub struct ChunkAttribution {
     pub late_score: Option<f32>,
     pub filter_boost: Option<f32>,
     pub matched_spans: Vec<MatchedSpan>,
+    view: ViewId,
+    fragments: Vec<Span>,
 }
 
 fn finite(what: &str, v: f32) -> Result<f32, String> {
@@ -124,15 +129,24 @@ impl ChunkAttribution {
             late_score: None,
             filter_boost: None,
             matched_spans: Vec::new(),
+            view: chunks.spans.view(),
+            fragments: chunks.spans.fragments(chunk).collect(),
         })
     }
 
-    /// Refuses a `chunks` other than the one this attribution was opened
-    /// over: its chunk must exist there with the same envelope.
+    /// The selected chunk must retain the original view, envelope and
+    /// complete fragment geometry, regardless of allocation or storage.
     fn owns(&self, chunks: &Chunks) -> Result<(), String> {
         let at = self.chunk.get();
-        if at >= chunks.spans.len() || chunks.spans.get(self.chunk) != self.span {
-            return Err(format!("chunk {at} {}..{} is not in these chunks", self.span.start, self.span.end));
+        if at >= chunks.spans.len()
+            || chunks.spans.view() != self.view
+            || chunks.spans.get(self.chunk) != self.span
+            || !chunks.spans.fragments(self.chunk).eq(self.fragments.iter().copied())
+        {
+            return Err(format!(
+                "chunk {at} {}..{} does not retain its original view {} and fragments",
+                self.span.start, self.span.end, self.view.0
+            ));
         }
         Ok(())
     }

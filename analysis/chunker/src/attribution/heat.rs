@@ -39,9 +39,12 @@ impl DocumentHeat {
     /// `total_cmp`, so `+0.0` outranks `-0.0` whatever the chunk index.
     ///
     /// Refuses an unknown view, invalid or other-view chunks, duplicate
-    /// or non-level-0 attributions, a span that is not its chunk's
-    /// envelope, a non-finite total, and a matched span reversed, past
+    /// or non-level-0 attributions, a different source view or fragment
+    /// geometry, a non-finite total, and a matched span reversed, past
     /// the view end, off a character boundary, or outside its envelope.
+    /// All chunk endpoints, including internal fragments and empty spans,
+    /// must be within the view and on character boundaries, even when
+    /// the chunk has no attribution or matched spans.
     pub fn build(
         doc: &Document,
         view: ViewId,
@@ -63,6 +66,9 @@ impl DocumentHeat {
                 detail: format!("chunks are in view {}, the heat is over view {}", chunks.spans.view().0, view.0),
             });
         }
+        // Share the document's full column/endpoint validation, including
+        // zero-width and internal fragment edges, before partitioning.
+        doc.prepare_segments(view, &[(Key::<Chunks>::DEFAULT.id(), chunks.spans.text_spans())])?;
         let text = doc.text(view);
         let len = text.len() as u32;
         let mut by_chunk: BTreeMap<u32, &ChunkAttribution> = BTreeMap::new();
@@ -71,17 +77,12 @@ impl DocumentHeat {
             if at >= chunks.spans.len() {
                 return Err(invalid(format!("attribution names chunk {at} of {}", chunks.spans.len())));
             }
+            a.owns(chunks).map_err(invalid)?;
             if chunks.level[at] != 0 {
                 return Err(invalid(format!("attribution names chunk {at} at level {}, not 0", chunks.level[at])));
             }
             if by_chunk.insert(at as u32, a).is_some() {
                 return Err(invalid(format!("chunk {at} is attributed twice")));
-            }
-            if a.span != chunks.spans.get(a.chunk) {
-                return Err(invalid(format!(
-                    "attribution span {}..{} is not chunk {at}'s envelope",
-                    a.span.start, a.span.end
-                )));
             }
             if !a.total_score.is_finite() {
                 return Err(invalid(format!("chunk {at} has a non-finite total score {}", a.total_score)));
@@ -111,8 +112,8 @@ impl DocumentHeat {
         let mut cuts = vec![0u32, len];
         for a in by_chunk.values() {
             for f in chunks.spans.fragments(a.chunk) {
-                cuts.push(f.start.min(len));
-                cuts.push(f.end.min(len));
+                cuts.push(f.start);
+                cuts.push(f.end);
             }
         }
         cuts.sort_unstable();
