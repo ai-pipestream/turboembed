@@ -24,12 +24,15 @@ pub mod proto {
     tonic::include_proto!("inference");
 }
 
-/// The messages and client of turbo_analysis.proto; the demo calls only
-/// `Capabilities`, to list the served models.
+/// The messages and client of turbo_analysis.proto, with serde for the
+/// page's JSON (build.rs).
 pub mod analysis {
     #![allow(clippy::all)]
     tonic::include_proto!("turbo.result");
 }
+
+mod gateway;
+mod wire;
 
 use analysis::CapabilitiesRequest;
 use analysis::analysis_service_client::AnalysisServiceClient;
@@ -75,7 +78,9 @@ impl Demo {
         let client = GrpcInferenceServiceClient::new(channel.clone())
             .max_decoding_message_size(MAX_REPLY_BYTES)
             .max_encoding_message_size(MAX_REPLY_BYTES);
-        let analysis = AnalysisServiceClient::new(channel).max_decoding_message_size(MAX_REPLY_BYTES);
+        let analysis = AnalysisServiceClient::new(channel)
+            .max_decoding_message_size(MAX_REPLY_BYTES)
+            .max_encoding_message_size(MAX_REPLY_BYTES);
         let app = App { client, analysis, server: server.to_string(), models };
         let router = Router::new()
             .route("/", get(|| async { asset("text/html; charset=utf-8", INDEX) }))
@@ -84,6 +89,10 @@ impl Demo {
             .route("/api/status", get(status))
             .route("/api/models/{name}", get(metadata))
             .route("/api/infer", post(infer))
+            .route("/api/capabilities", get(gateway::capabilities))
+            .route("/api/bundles/load", post(gateway::load))
+            .route("/api/bundles/unload", post(gateway::unload))
+            .route("/api/analyze/stream", post(gateway::analyze_stream))
             .with_state(app);
         let listener = TcpListener::bind(listen).await.map_err(|e| format!("listen on {listen}: {e}"))?;
         let addr = listener.local_addr().map_err(|e| format!("listen on {listen}: {e}"))?;
@@ -126,14 +135,17 @@ fn asset(kind: &'static str, body: &'static str) -> Response {
 /// A gRPC status as the page shows it: the status, the library's message,
 /// and the `turbo-code` and `turbo-field` trailers when the server sent them.
 fn failure(s: tonic::Status) -> Response {
+    (StatusCode::BAD_GATEWAY, Json(error_body(&s))).into_response()
+}
+
+fn error_body(s: &tonic::Status) -> Value {
     let meta = |k: &str| s.metadata().get(k).and_then(|v| v.to_str().ok()).map(str::to_string);
-    let body = json!({ "error": {
+    json!({ "error": {
         "grpc": format!("{:?}", s.code()),
         "message": s.message(),
         "turbo_code": meta("turbo-code"),
         "turbo_field": meta("turbo-field"),
-    }});
-    (StatusCode::BAD_GATEWAY, Json(body)).into_response()
+    }})
 }
 
 fn bad_gateway(message: String) -> Response {
