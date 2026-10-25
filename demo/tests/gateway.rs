@@ -117,7 +117,11 @@ async fn refusals_carry_the_turbo_trailers() {
     let (s, d) = start(false).await;
     // A header over the server's cap fails the call before it streams.
     let over = json!({ "header": { "max_inflight": u32::MAX }, "documents": [] });
-    let (status, e) = call(&d, "POST", "/api/analyze/stream", over).await;
+    // Accept a stream representation so this exercises the gRPC refusal,
+    // rather than the gateway's earlier HTTP format negotiation refusal.
+    let (status, kind, body) = http(&d, "POST", "/api/analyze/stream", "*/*", &over.to_string()).await;
+    assert_eq!(kind, "application/json");
+    let e: Value = serde_json::from_str(&body).unwrap();
     assert_eq!(status, 502, "{e}");
     assert_eq!(e["error"]["grpc"], "InvalidArgument", "{e}");
     assert!(e["error"]["message"].as_str().unwrap().contains("max_inflight"), "{e}");
@@ -147,4 +151,52 @@ async fn bundles_unload_and_load_through_the_admin_calls() {
     assert_eq!(r["capabilities"]["name"], NAME, "{r}");
     d.stop().await;
     s.stop().await;
+}
+
+#[tokio::test]
+async fn stream_format_respects_accept_ranges_and_quality() {
+    let (s, d) = start(false).await;
+    let cases = [
+        ("text/event-stream;q=0, application/x-ndjson", 200, "application/x-ndjson"),
+        ("text/event-stream;q=0.1, application/x-ndjson;q=0.9", 200, "application/x-ndjson"),
+        ("text/event-stream-extra, application/x-ndjson", 200, "application/x-ndjson"),
+        ("TEXT/EVENT-STREAM", 200, "text/event-stream"),
+        ("text/event-stream;q=0, */*;q=1", 200, "application/x-ndjson"),
+        ("text/*;q=0.9, application/*;q=0.1", 200, "text/event-stream"),
+        ("text/event-stream;q=1, application/x-ndjson;q=0.1", 200, "text/event-stream"),
+        ("text/event-stream;q=0, application/x-ndjson;q=0", 406, "application/json"),
+    ];
+    let mut failures = Vec::new();
+    for (accept, expected_status, expected_kind) in cases {
+        let (status, kind, body) = http(&d, "POST", "/api/analyze/stream", accept, &stream_body().to_string()).await;
+        if status != expected_status || kind != expected_kind {
+            failures.push(format!("{accept}: got {status} {kind}, expected {expected_status} {expected_kind}"));
+            continue;
+        }
+        if status == 200 {
+            let first = if kind == "text/event-stream" {
+                body.lines().next().unwrap().strip_prefix("data: ").unwrap()
+            } else {
+                body.lines().next().unwrap()
+            };
+            let answer: Value = serde_json::from_str(first).unwrap();
+            assert_eq!(answer["id"], "a");
+            assert!(answer["outcome"]["vectors"]["dim"].as_u64().unwrap() > 0);
+        }
+    }
+    d.stop().await;
+    s.stop().await;
+    assert!(failures.is_empty(), "{}", failures.join("\n"));
+}
+
+#[tokio::test]
+async fn unacceptable_stream_format_is_refused_without_an_upstream_server() {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    drop(listener);
+    let d = Demo::start("127.0.0.1:0".parse().unwrap(), &format!("http://{addr}"), vec![]).await.unwrap();
+    let (status, kind, body) = http(&d, "POST", "/api/analyze/stream", "*/*;q=0", r#"{"documents":[]}"#).await;
+    d.stop().await;
+    assert_eq!((status, kind.as_str()), (406, "application/json"), "{body}");
+    assert_eq!(serde_json::from_str::<Value>(&body).unwrap()["error"]["grpc"], Value::Null);
 }
