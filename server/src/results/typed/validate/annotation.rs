@@ -19,6 +19,7 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
         Value::Evidence(e) => evidence::record(ctx, i, ann, e)?,
         Value::TextQuality(m) => quality::metrics(ctx, ann, m, true)?,
         Value::SpanQuality(m) => quality::metrics(ctx, ann, m, false)?,
+        Value::Quotation(q) => quotations::record(ctx, i, ann, q)?,
         Value::PosTag(p) => check_aligned_index("target_index", lid, i, p.target_index, layer_len)?,
         Value::MorphFeatures(m) => check_aligned_index("target_index", lid, i, m.target_index, layer_len)?,
         Value::Lemma(l) => check_aligned_index("target_index", lid, i, l.target_index, layer_len)?,

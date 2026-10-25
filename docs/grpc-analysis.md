@@ -186,6 +186,32 @@ From Rust, the crate's generated client does the same, and
 layers: `Wire::to_msg` builds a message from a result, `Wire::from_msg`
 reads one back with the message's own validation.
 
+## Typed document inspection (issue #1219)
+
+`InspectDocumentGraph` projects a binary graph into `TypedDocumentResult`
+for a requested view and offset mode. `RoundTripTypedDocument` validates
+and echoes the typed message; it does not reconstruct a native `Document`.
+
+`turbo:quotations` uses the additive `quotation` payload (oneof tag 94).
+Content is carried by the annotation's spans; optional speaker and cue
+spans use the same requested view and offset mode. Kind and native f32
+confidence have explicit presence, preserving direct-kind zero and every
+confidence bit, including negative zero. The confidence stays in its own
+field; no calibrated annotation probability is synthesized.
+
+Content can be discontinuous. Normalization can remove fragments, merge
+overlapping projections or collapse a whole item to one empty span.
+Present speaker/cue spans can also collapse without becoming absent.
+Native record order is retained, including when deletion of an early
+fragment moves its visible start beyond a later record. Projected content
+does not require exactly one fragment or a new cross-record sort.
+
+`speaker_chain` preserves the native raw contextual row, including zero
+and `u32::MAX`. It is not an `indexes_layer` reference, and the typed API
+does not invent chain resolution or require a chain layer. Confidence,
+kind, payload/scope and projected offsets are validated; invalid nested
+offsets are refused with `TURBO_E_INVALID_ARGUMENT`, never snapped.
+
 ## Streaming bulk document analysis (issue #722)
 
 `AnalyzeStream` is one bidirectional stream for many documents. The

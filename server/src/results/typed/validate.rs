@@ -6,6 +6,7 @@
 mod annotation;
 mod evidence;
 mod quality;
+mod quotations;
 mod shared;
 
 use std::collections::{HashMap, HashSet};
@@ -215,6 +216,7 @@ fn validate_layer(
 ) -> Result<(), Failure> {
     let lid = layer.id.as_str();
     quality::layer(layer)?;
+    quotations::layer(layer)?;
     evidence::layer(layer)?;
     for mref in &layer.model_refs {
         check_model_ref(known_models, &format!("layer {lid}.model_refs"), mref)?;

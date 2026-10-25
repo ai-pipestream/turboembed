@@ -56,7 +56,7 @@ async fn malformed_quotation_payloads_and_nested_offsets_are_refused() {
                         [variant];
             } else if variant < 11 {
                 quote(&mut bad).kind = [None, Some(-1), Some(3), Some(255), Some(i32::MAX)][variant - 6];
-            } else if variant >= 17 && variant < 23 {
+            } else if (17..23).contains(&variant) {
                 let span = match (variant - 17) % 3 {
                     0 => SpanFragment { start: 2, end: 1 },
                     1 => SpanFragment { start: 0, end: u32::MAX },
