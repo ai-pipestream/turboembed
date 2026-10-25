@@ -7,7 +7,9 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use turbo_unicode::java::code_point::to_lower_case;
+use turbo_unicode::java::{
+    lowercase_code_points as java_lowercase, lowercase_code_points_changes as needs_java_lowercase,
+};
 
 use crate::error::{Error, Result};
 use crate::model::{decode_utf16_slice, lowercase_utf16_units};
@@ -152,15 +154,4 @@ impl fmt::Display for NGramCharModel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "Size: {}", self.size())
     }
-}
-
-fn needs_java_lowercase(text: &str) -> bool {
-    if text.is_ascii() {
-        return text.bytes().any(|b| b.is_ascii_uppercase());
-    }
-    text.chars().any(|c| to_lower_case(u32::from(c)) != u32::from(c))
-}
-
-fn java_lowercase(text: &str) -> String {
-    text.chars().map(|c| char::from_u32(to_lower_case(u32::from(c))).unwrap_or(c)).collect()
 }

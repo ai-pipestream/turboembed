@@ -6,7 +6,8 @@
 //! Sets TURBO_BENCH_BUILD_COMMIT (40 hex, or empty outside a git tree) and
 //! TURBO_BENCH_BUILD_CHANGES (the changed paths, as `git status
 //! --porcelain` gives them, joined with `, `; empty when clean). New files
-//! under benchmarks/records/ are not changes, as in git.rs.
+//! under benchmarks/records/ or benchmarks/static/ are not changes, as in
+//! git.rs.
 //!
 //! Cargo takes a watched path that does not exist as always changed, and
 //! would run this, and rebuild the tool, on every call: so of a clean
@@ -47,6 +48,15 @@ fn status_paths(line: &str) -> Vec<String> {
 }
 
 fn main() {
+    // Cargo supplies these for the package being built, independently of
+    // debug assertions. PROFILE is the inherited debug/release family,
+    // including for custom profiles; OPT_LEVEL is the configured level.
+    for (name, key) in [("PROFILE", "CARGO_PROFILE"), ("OPT_LEVEL", "CARGO_OPT_LEVEL")] {
+        // Provenance tests also execute this script directly, outside
+        // Cargo. Leave unavailable settings empty, never guess them.
+        let value = std::env::var(name).unwrap_or_default();
+        println!("cargo:rustc-env=TURBO_BENCH_{key}={value}");
+    }
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     // Canonical, so no path handed to cargo has `..` in it.
     let top = Path::new(&manifest).join("..").canonicalize().unwrap();
@@ -90,7 +100,10 @@ fn main() {
     let changes: Vec<String> = match status {
         Some(s) => s
             .lines()
-            .filter(|l| !l.strip_prefix("?? ").is_some_and(|p| p.starts_with("benchmarks/records/")))
+            .filter(|l| {
+                !l.strip_prefix("?? ")
+                    .is_some_and(|p| ["benchmarks/records/", "benchmarks/static/"].iter().any(|d| p.starts_with(d)))
+            })
             .map(str::to_owned)
             .collect(),
         None => vec!["(git status failed)".to_owned()],

@@ -188,7 +188,7 @@ pub struct DistantSupervisionMiner {
 }
 
 fn fold(s: &str) -> String {
-    s.trim().chars().map(turbo_unicode::java::to_lower_char).collect()
+    turbo_unicode::java::lowercase_code_points(s.trim())
 }
 
 impl DistantSupervisionMiner {

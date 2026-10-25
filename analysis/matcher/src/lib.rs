@@ -49,7 +49,9 @@ mod matcher;
 mod nfa;
 mod pattern;
 mod phrase;
+mod predicates;
 mod ruler;
+pub mod spacy;
 mod vocab;
 
 pub use attr::{Attr, Cmp, Field, Flag, Iob};
@@ -58,6 +60,7 @@ pub use input::Input;
 pub use matcher::{Greedy, Match, Matcher, PatternId};
 pub use pattern::{Test, TextTest, Tok};
 pub use phrase::{PhraseId, PhraseMatch, PhraseMatcher};
+pub use predicates::{SetRelation, ValueTest};
 pub use ruler::{Policy, SpanRuler};
 pub use turbo_analysis_layers::Matches;
 pub use vocab::Label;

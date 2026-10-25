@@ -105,6 +105,32 @@ The page uses three calls, which a script can use as well:
 A gRPC error is HTTP 502 with `{"error": {"grpc", "message",
 "turbo_code", "turbo_field"}}`; a body the demo cannot read is HTTP 400.
 
+## The AnalysisService calls
+
+These routes are each one `turbo.result.AnalysisService` call
+(server/proto/turbo_analysis.proto), for a workbench page or a script.
+The page itself does not use them yet. Their JSON is the proto message
+itself: the field names of the .proto, a missing field its default, a
+oneof as an object keyed by the field set (`{"vectors": {...}}`), and an
+enum as its number. A document's `text` is a string, and vector `data`
+(`AnalyzeVectors`, `TokenVectorsResult`, `ChunkLevelsResult`) is an
+array of numbers, the server's little-endian floats in order. Other
+`bytes` fields are arrays of byte values.
+
+| Call | gRPC call and answer |
+|---|---|
+| `GET /api/capabilities` | `Capabilities`: `CapabilitiesResponse`. |
+| `POST /api/bundles/load` | Body a `LoadBundleRequest`; answers `LoadBundleResponse`. An admin call: a server started without `--admin` refuses it. |
+| `POST /api/bundles/unload` | Body an `UnloadBundleRequest`; answers `{}`. An admin call too. |
+| `POST /api/analyze/stream` | Body `{"header": AnalyzeStreamHeader, "documents": [AnalyzeDocument, ...]}`, the header optional. Opens one `AnalyzeStream` with the header and the documents, and passes each `AnalyzeStreamResponse` on as it arrives: one JSON line each (`application/x-ndjson`), or one `data:` event each when the request accepts `text/event-stream`. |
+
+A refusal before the stream starts, such as a header over the server's
+caps, is the HTTP 502 above. A status that ends a stream after it
+started is its last line, `{"error": {...}}` in the same shape, or an
+`error` event. A failed document is not an error: it is its own answer,
+with a `failure` outcome, and the stream goes on. When the page goes
+away, the demo drops the call.
+
 ## Tests
 
 `cargo test -p turbo-kserve-demo` starts the server in-process on the
@@ -113,4 +139,8 @@ in front of it, and makes every call over HTTP: the page and its files,
 status and metadata, texts at each tier giving exactly the floats the
 server answers over gRPC and the bundle's reference vectors, parameters
 and the server's refusals, and a server that is not there. Nothing is
-mocked.
+mocked. `demo/tests/gateway.rs` does the same for the AnalysisService
+routes: the capability listing, a stream as lines and as events with a
+failed document among them, its vector equal to `/api/infer`'s, the
+`turbo-code` and `turbo-field` of a refused header and of an admin call
+on a server without them, and an unload and a load.

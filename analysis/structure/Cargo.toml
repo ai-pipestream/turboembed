@@ -11,6 +11,7 @@ name = "turbo_structure"
 [dependencies]
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
+turbo-unicode = { path = "../unicode" }
 
 [dev-dependencies]
 turbo-normalize = { path = "../normalize" }

@@ -1,0 +1,30 @@
+score pku opennlp gold=104372 returned=102198 correct=84241 oov=6006 oov_correct=2519 output_fnv64=19a527fc0c0846ef
+score pku dictionary gold=104372 returned=98986 correct=84985 oov=6006 oov_correct=3262 output_fnv64=4dca8fb72d62a8df
+score pku chinese gold=104372 returned=96562 correct=82137 oov=6006 oov_correct=3481 output_fnv64=fa3c53dacc87d6ff
+score pku jieba-dictionary gold=104372 returned=98982 correct=84986 oov=6006 oov_correct=3264 output_fnv64=8205a792772e7f37
+score pku jieba-hmm gold=104372 returned=96271 correct=82100 oov=6006 oov_correct=3500 output_fnv64=7c26c5f0e9c7abb7
+timing pku jieba-hmm pass=1 ms=5.214549980 count=4813550
+timing pku jieba-dictionary pass=1 ms=4.968076740 count=4949100
+timing pku chinese pass=1 ms=5.756551580 count=4828100
+timing pku dictionary pass=1 ms=4.719498120 count=4949300
+timing pku opennlp pass=1 ms=4.317935680 count=5109900
+timing pku opennlp pass=2 ms=3.856459320 count=5109900
+timing pku dictionary pass=2 ms=4.357142000 count=4949300
+timing pku chinese pass=2 ms=5.935762840 count=4828100
+timing pku jieba-dictionary pass=2 ms=5.171771500 count=4949100
+timing pku jieba-hmm pass=2 ms=5.508231460 count=4813550
+score msr opennlp gold=106873 returned=108642 correct=89087 oov=2829 oov_correct=955 output_fnv64=c60d9811e2e7d817
+score msr dictionary gold=106873 returned=108642 correct=89087 oov=2829 oov_correct=955 output_fnv64=c60d9811e2e7d817
+score msr chinese gold=106873 returned=106224 correct=86799 oov=2829 oov_correct=1271 output_fnv64=9a1f7197358402e3
+score msr jieba-dictionary gold=106873 returned=108642 correct=89087 oov=2829 oov_correct=955 output_fnv64=c60d9811e2e7d817
+score msr jieba-hmm gold=106873 returned=106102 correct=86610 oov=2829 oov_correct=1271 output_fnv64=1cd628cba49edf2f
+timing msr jieba-hmm pass=1 ms=15.844356000 count=5305350
+timing msr jieba-dictionary pass=1 ms=11.249654640 count=5432350
+timing msr chinese pass=1 ms=10.910094000 count=5311200
+timing msr dictionary pass=1 ms=4.792731600 count=5432100
+timing msr opennlp pass=1 ms=5.152241160 count=5432100
+timing msr opennlp pass=2 ms=5.155969820 count=5432100
+timing msr dictionary pass=2 ms=15.102032240 count=5432100
+timing msr chinese pass=2 ms=14.946544240 count=5311200
+timing msr jieba-dictionary pass=2 ms=10.961008460 count=5432350
+timing msr jieba-hmm pass=2 ms=18.862644520 count=5305350

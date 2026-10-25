@@ -3,6 +3,9 @@ impl Unigram {
     /// The ids of `piece`, the bytes of `text` from `base` on with no
     /// special token in them.
     pub(crate) fn encode<S: Sink>(&self, text: &str, base: usize, piece: &str, out: &mut S) {
+        if self.whitespace_split {
+            return self.encode_words(text, base, piece, out);
+        }
         // The normalized text with the metaspace in place of each space
         // and in front, and when spans are kept, each byte's source.
         let mut s = String::new();
@@ -40,6 +43,43 @@ impl Unigram {
         }
         if start < s.len() {
             self.segment(&s[start..], |a, b| span(start + a, start + b), &mut best, out);
+        }
+    }
+
+    /// `encode` after a WhitespaceSplit.
+    fn encode_words<S: Sink>(&self, text: &str, base: usize, piece: &str, out: &mut S) {
+        self.split_words(text, &self.normalized_chars(piece, base), out);
+    }
+
+    /// Normalized characters, each with its source in `text`, cut at
+    /// each whitespace character, which is dropped; each word, with the
+    /// metaspace in front, is cut at each metaspace as `encode` cuts.
+    pub(super) fn split_words<S: Sink>(&self, text: &str, chars: &[(char, Span)], out: &mut S) {
+        let (mut s, mut sources, mut best) = (String::new(), Vec::new(), Vec::new());
+        for word in chars.split(|(c, _)| c.is_whitespace()).filter(|w| !w.is_empty()) {
+            s.clear();
+            sources.clear();
+            let mut put = |c: char, at: Span| {
+                s.push(c);
+                sources.extend(std::iter::repeat_n(at, c.len_utf8()));
+            };
+            if self.add_prefix_space && word[0].0 != self.metaspace {
+                put(self.metaspace, word[0].1);
+            }
+            for &(c, at) in word {
+                put(c, at);
+            }
+            let span = |from: usize, to: usize| covering(text, &sources[from..to]);
+            let mut start = 0;
+            for (i, c) in s.char_indices() {
+                if c == self.metaspace && i > start {
+                    self.segment(&s[start..i], |a, b| span(start + a, start + b), &mut best, out);
+                    start = i;
+                }
+            }
+            if start < s.len() {
+                self.segment(&s[start..], |a, b| span(start + a, start + b), &mut best, out);
+            }
         }
     }
 
