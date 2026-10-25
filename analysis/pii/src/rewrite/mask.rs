@@ -115,7 +115,8 @@ impl MaskPolicy {
             | PiiKind::GithubToken
             | PiiKind::UrlCredential
             | PiiKind::BtcAddress
-            | PiiKind::EthAddress => whole,
+            | PiiKind::EthAddress
+            | PiiKind::Custom(_) => whole,
         })
     }
 
@@ -174,11 +175,12 @@ pub fn mask_all(text: &str, pii: &Pii, mask_char: char) -> Result<String, MaskEr
 /// policy of its kind and `mask`: `Masker.mask` with
 /// `MaskPolicies.byType`.
 pub fn mask_by_kind(text: &str, pii: &Pii, mask_char: char) -> Result<String, MaskError> {
-    let mut policies = [None; PiiKind::ALL.len()];
-    for k in PiiKind::ALL {
-        policies[k.rank() as usize] = Some(MaskPolicy::for_kind(k, mask_char)?);
-    }
-    mask(text, pii.mentions().map(|m: PiiMention<'_>| (m.span, policies[m.kind.rank() as usize].expect("every kind"))))
+    let _ = MaskPolicy::new(mask_char)?;
+    mask(
+        text,
+        pii.mentions()
+            .map(|m: PiiMention<'_>| (m.span, MaskPolicy::for_kind(m.kind, mask_char).expect("validated ASCII mask"))),
+    )
 }
 
 #[cfg(test)]

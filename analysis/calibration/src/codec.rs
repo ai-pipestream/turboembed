@@ -24,6 +24,7 @@ impl Calibration {
         b.push(match i.task {
             Task::Categorization => 0,
             Task::TokenTagging => 1,
+            Task::SpanTagging => 2,
         });
         b.extend(i.inference_hash.to_le_bytes());
         put_u32(&mut b, i.labels.len());
@@ -63,6 +64,7 @@ impl Calibration {
         let task = match r.byte()? {
             0 => Task::Categorization,
             1 => Task::TokenTagging,
+            2 => Task::SpanTagging,
             _ => return Err("unknown calibration task".into()),
         };
         let inference_hash = u64::from_le_bytes(r.take(8)?.try_into().unwrap());

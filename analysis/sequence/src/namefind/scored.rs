@@ -1,6 +1,6 @@
 //! Optional full token distributions along the decoded best prefix.
 use super::*;
-impl NameFinder<'_> {
+impl<C: BorrowMut<DefaultNameContext>> NameFinder<'_, C> {
     /// Find names and return one full model distribution per token, in
     /// model outcome order, conditioned on the decoded prefix. These are
     /// local tag probabilities, not CRF marginals or joint sequence sets.
@@ -18,12 +18,13 @@ impl NameFinder<'_> {
     /// Find names with row-major token probabilities in model outcome order.
     /// Adaptive state advances once, exactly as in `find_scored`.
     pub fn find_scored_flat(&mut self, tokens: &[&str]) -> (Vec<FoundName>, Vec<f64>) {
-        self.context.set_additional_context(&[]);
-        let Some((best, rows)) = self.search.best_sequence_scored_flat(tokens, &mut self.context, &self.codec) else {
+        self.context.borrow_mut().set_additional_context(&[]);
+        let Some((best, rows)) = self.search.best_sequence_scored_flat(tokens, self.context.borrow_mut(), &self.codec)
+        else {
             self.probs.clear();
             return (Vec::new(), Vec::new());
         };
-        self.context.update_adaptive_data(tokens, best.outcomes());
+        self.context.borrow_mut().update_adaptive_data(tokens, best.outcomes());
         self.probs.clear();
         self.probs.extend_from_slice(best.probs());
         let names = self
