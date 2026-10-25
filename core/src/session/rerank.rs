@@ -75,9 +75,11 @@ pub unsafe extern "C" fn turbo_rerank_write_pairs(
             let mut windows = Vec::new();
             let mut owners = Vec::new();
             for (i, p) in pairs.iter().enumerate() {
-                let query = text(p.query, "pair.query")?;
-                let passage = text(p.passage, "pair.passage")?;
-                let encoded = s.model.tokenizer.encode_pair(query, passage, o.query_tokens, max_tokens, o.stride)?;
+                let at = |e: Error| Error { message: format!("pairs[{i}]: {}", e.message), ..e };
+                let query = text(p.query, "pair.query").map_err(at)?;
+                let passage = text(p.passage, "pair.passage").map_err(at)?;
+                let encoded =
+                    s.model.tokenizer.encode_pair(query, passage, o.query_tokens, max_tokens, o.stride).map_err(at)?;
                 owners.extend(std::iter::repeat_n(i, encoded.len()));
                 windows.extend(encoded);
             }

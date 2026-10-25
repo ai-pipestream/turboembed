@@ -21,29 +21,21 @@ use serde_json::Value;
 use turbo::deberta::package::digest;
 use turbo_relation::GlirelRelations;
 use turbo_relation::glirel::words::split;
-use turbo_zoo::{Acceptances, Http, Index, Policy, Zoo};
+use turbo_zoo::{Acceptances, Home, Http, Index, Policy, UserId, Zoo};
 
 const ID: &str = "jackboyla-glirel-large-v0";
 const TOKENIZER: &str = "microsoft-deberta-v3-large-tokenizer";
-
-fn home() -> PathBuf {
-    let var = |k: &str| std::env::var_os(k).filter(|v| !v.is_empty()).map(PathBuf::from);
-    var("TURBO_ZOO_HOME")
-        .or_else(|| var("XDG_DATA_HOME").map(|x| x.join("turbo-zoo")))
-        .or_else(|| var("HOME").map(|h| h.join(".local/share/turbo-zoo")))
-        .expect("a zoo home")
-}
 
 /// The package, made once from the checkpoint and the tokenizer, and the
 /// tokenizer's directory.
 fn model() -> GlirelRelations {
     static ONCE: std::sync::Mutex<()> = std::sync::Mutex::new(());
     let _held = ONCE.lock().unwrap_or_else(|e| e.into_inner());
-    let home = home();
+    let home = Home::from_env().expect("a zoo home");
     let index = Index::builtin();
-    let zoo = Zoo::new(Index::builtin(), home.join("artifacts"), Policy::default(), &Http);
-    let user = std::env::var("USER").unwrap_or_else(|_| "test".into()).parse().unwrap();
-    let accepted = || Acceptances::load(&home.join("acceptances.json"));
+    let zoo = Zoo::new(Index::builtin(), home.artifacts(), Policy::default(), &Http);
+    let user = UserId::from_env().unwrap_or_else(|_| "test".parse().unwrap());
+    let accepted = || Acceptances::load(&home.acceptances());
     let tokenizer = zoo.fetch_with(TOKENIZER, &user, accepted).unwrap().dir.clone();
     let entry = index.get(ID).unwrap();
     let checkpoint = match std::env::var_os("TURBO_GLIREL_CHECKPOINT") {
@@ -54,7 +46,7 @@ fn model() -> GlirelRelations {
             .dir
             .clone(),
     };
-    let package = home.join("packages").join(ID);
+    let package = home.dir().join("packages").join(ID);
     if !package.join("glirel.json").exists() {
         let bin = std::fs::read(checkpoint.join("pytorch_model.bin")).unwrap();
         assert_eq!(digest(&bin), entry.files[0].sha256.to_string(), "the checkpoint is the index's");
