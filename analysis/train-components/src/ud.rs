@@ -50,7 +50,7 @@ use turbo_maxent::ModelFile;
 use turbo_train::{GisModel, Key, TimeZone, TrainingConfiguration, TrainingParameters};
 use turbo_unicode::WhitespaceMode;
 use turbo_zoo::{
-    Acceptances, Artifact, Http, Index, Kind, Licence, Policy, UserId, Zoo, class_of, index::Format as ZooFormat,
+    Acceptances, Artifact, Home, Http, Index, Kind, Licence, Policy, UserId, Zoo, class_of, index::Format as ZooFormat,
 };
 
 use crate::error::{Error, Result};
@@ -410,22 +410,13 @@ pub fn datasets() -> Index {
     Index::parse(Index::to_canonical_json(&artifacts).as_bytes()).expect("the recipes make a valid index")
 }
 
-/// The zoo's home as the `turbo-zoo` command finds it: `$TURBO_ZOO_HOME`,
-/// else `$XDG_DATA_HOME/turbo-zoo`, else `~/.local/share/turbo-zoo`.
-pub fn zoo_home() -> Option<PathBuf> {
-    let var = |k: &str| std::env::var_os(k).filter(|v| !v.is_empty()).map(PathBuf::from);
-    var("TURBO_ZOO_HOME")
-        .or_else(|| var("XDG_DATA_HOME").map(|x| x.join("turbo-zoo")))
-        .or_else(|| var("HOME").map(|h| h.join(".local/share/turbo-zoo")))
-}
-
 /// Fetches a treebank's `train` file into the zoo cache under `home` and
 /// returns its path. A share-alike treebank needs `user`'s acceptance of
 /// its licence there first (`turbo-zoo accept CC-BY-SA-4.0 --yes` for the
 /// five in [`TREEBANKS`]); a permissive one needs none.
-pub fn fetch_treebank(treebank: &Treebank, home: &Path, user: &UserId) -> Result<PathBuf> {
-    let zoo = Zoo::new(datasets(), home.join("artifacts"), Policy::default(), &Http);
-    let acceptances = home.join("acceptances.json");
+pub fn fetch_treebank(treebank: &Treebank, home: &Home, user: &UserId) -> Result<PathBuf> {
+    let zoo = Zoo::new(datasets(), home.artifacts(), Policy::default(), &Http);
+    let acceptances = home.acceptances();
     let fetched = zoo.fetch_with(&treebank.dataset_id(), user, || Acceptances::load(&acceptances))?;
     Ok(fetched.single().expect("one file per treebank").to_path_buf())
 }
@@ -438,9 +429,9 @@ pub fn fetch_treebank(treebank: &Treebank, home: &Path, user: &UserId) -> Result
 /// are share-alike, so the fetch needs `user`'s acceptance of
 /// CC-BY-SA-4.0 under `home` (`turbo-zoo accept CC-BY-SA-4.0 --yes`);
 /// only the Catalan AnCora models (CC BY 4.0) are permissive.
-pub fn fetch_published_model(recipe: &Recipe, home: &Path, user: &UserId) -> Result<PathBuf> {
-    let zoo = Zoo::new(Index::builtin(), home.join("artifacts"), Policy::default(), &Http);
-    let acceptances = home.join("acceptances.json");
+pub fn fetch_published_model(recipe: &Recipe, home: &Home, user: &UserId) -> Result<PathBuf> {
+    let zoo = Zoo::new(Index::builtin(), home.artifacts(), Policy::default(), &Http);
+    let acceptances = home.acceptances();
     let fetched = zoo.fetch_with(&recipe.model_id(), user, || Acceptances::load(&acceptances))?;
     Ok(fetched.single().expect("one file per model").to_path_buf())
 }
