@@ -93,7 +93,8 @@ A file already in the cache is read and verified instead of fetched, so
 installing an installed artifact streams `ADMITTED` with 0 bytes, then
 `VERIFIED`, while a cached file whose bytes no longer verify is fetched
 again and counted. Two files may be fetched from one address; each
-reports its own `file_index` and `path`. Each fetched file is checked as docs/zoo.md says, by its
+reports its own `file_index` and `path`, also when one of them is kept
+from the cache. Each fetched file is checked as docs/zoo.md says, by its
 wire size and SHA-256 when served compressed, then unpacked and checked
 by size, SHA-256 and SHA-512, before it is written; it is written under
 its name only whole. A file that fails ends the stream with `DATA_LOSS`
@@ -104,4 +105,7 @@ fetched are cached for the next one.
 
 The server fetches over HTTPS as the `turbo-zoo` command does: redirects
 followed over HTTPS only, at most one byte more read than the index
-expects.
+expects, and the bytes asked for unencoded (`Accept-Encoding:
+identity`). A file served compressed reaches the wire check as sent;
+if a server encodes it anyway and the transport decodes that, the bytes
+that arrive are the file itself, kept when they verify as it.

@@ -269,20 +269,28 @@ async fn an_install_streams_its_progress_and_a_second_fetches_nothing() {
 async fn files_that_share_an_address_report_their_own_index_and_path() {
     let home = Home::new("pair");
     let (s, mut c) = start(&home.0, true, Arc::new(transport())).await;
-    let updates = install(&mut c, "alice", "pair").await.unwrap();
-    let got: Vec<(i32, u32, &str)> = updates
-        .iter()
-        .filter_map(|u| match u {
-            Update::Progress(p)
-                if p.stage != InstallStage::Admitted as i32 && p.stage != InstallStage::Verified as i32 =>
-            {
-                Some((p.stage, p.file_index, p.path.as_str()))
-            }
-            _ => None,
-        })
-        .collect();
+    let fetches = |updates: Vec<Update>| -> Vec<(i32, u32, String)> {
+        updates
+            .into_iter()
+            .filter_map(|u| match u {
+                Update::Progress(p)
+                    if p.stage != InstallStage::Admitted as i32 && p.stage != InstallStage::Verified as i32 =>
+                {
+                    Some((p.stage, p.file_index, p.path))
+                }
+                _ => None,
+            })
+            .collect()
+    };
     let (down, done) = (InstallStage::Downloading as i32, InstallStage::Downloaded as i32);
-    assert_eq!(got, [(down, 0, "one.txt"), (done, 0, "one.txt"), (down, 1, "two.txt"), (done, 1, "two.txt")]);
+    let report = |i: u32, path: &str| [(down, i, path.to_owned()), (done, i, path.to_owned())];
+    let got = fetches(install(&mut c, "alice", "pair").await.unwrap());
+    assert_eq!(got, [report(0, "one.txt"), report(1, "two.txt")].concat());
+    // With the first file kept from the cache, the one request is still
+    // the second file's.
+    fs::remove_file(home.0.join("artifacts/pair/two.txt")).unwrap();
+    let got = fetches(install(&mut c, "alice", "pair").await.unwrap());
+    assert_eq!(got, report(1, "two.txt"));
     s.stop().await;
 }
 

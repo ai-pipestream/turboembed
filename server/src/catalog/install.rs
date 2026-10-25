@@ -109,12 +109,13 @@ fn admit(catalog: &Catalog, user: &UserId, id: &str) -> Result<(u64, u32), Statu
 }
 
 /// The catalog's transport, reporting each request and arrival. The fetch
-/// asks for the files in index order and skips the cached ones, so a
-/// request is for the first file at or after `next` with its address:
-/// two files may share one.
+/// asks for the files it does not keep from the cache, `pending`, in index
+/// order, so a request is for the first of them at or after `next` with
+/// its address: two files may share one.
 struct Reporting<'a> {
     inner: &'a (dyn Transport + Send + Sync),
     artifact: &'a Artifact,
+    pending: Vec<usize>,
     tx: &'a Tx,
     next: AtomicUsize,
 }
@@ -124,14 +125,16 @@ impl Transport for Reporting<'_> {
         let files = &self.artifact.files;
         let count = files.len() as u32;
         let from = self.next.load(Ordering::Relaxed);
-        let (at, path) = match files.iter().enumerate().skip(from).find(|(_, f)| f.url == *url) {
-            Some((i, f)) => {
-                self.next.store(i + 1, Ordering::Relaxed);
-                (i as u32, f.path.as_str().to_owned())
+        let found = self.pending.iter().enumerate().skip(from).find(|&(_, &i)| files[i].url == *url);
+        let (at, path, wire) = match found {
+            Some((k, &i)) => {
+                self.next.store(k + 1, Ordering::Relaxed);
+                let f = &files[i];
+                (i as u32, f.path.as_str().to_owned(), f.download.as_ref().map_or(f.size, |d| d.download_bytes))
             }
-            None => (0, String::new()),
+            None => (0, String::new(), size),
         };
-        let _ = self.tx.blocking_send(Ok(progress(InstallStage::Downloading, at, count, &path, size)));
+        let _ = self.tx.blocking_send(Ok(progress(InstallStage::Downloading, at, count, &path, wire)));
         let got = self.inner.get(url, size)?;
         let _ = self.tx.blocking_send(Ok(progress(InstallStage::Downloaded, at, count, &path, got.len() as u64)));
         Ok(got)
@@ -143,7 +146,10 @@ impl Transport for Reporting<'_> {
 fn run(catalog: Catalog, user: UserId, id: String, tx: Tx, _slot: Slot) {
     let outcome = (|| {
         let a = catalog.index.get(&id).map_err(zoo_status)?;
-        let reporting = Reporting { inner: &*catalog.transport, artifact: a, tx: &tx, next: AtomicUsize::new(0) };
+        let cache = catalog.cache();
+        let pending = (0..a.files.len()).filter(|&i| !cached(&cache, a, &a.files[i])).collect();
+        let reporting =
+            Reporting { inner: &*catalog.transport, artifact: a, pending, tx: &tx, next: AtomicUsize::new(0) };
         let zoo = Zoo::new((*catalog.index).clone(), catalog.cache(), Policy::default(), &reporting);
         let fetched = zoo.fetch_with(&id, &user, || catalog.acceptances()).map_err(zoo_status)?;
         let total: u64 = a.files.iter().map(|f| f.size).sum();
