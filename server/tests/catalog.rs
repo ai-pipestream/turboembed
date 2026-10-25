@@ -54,6 +54,11 @@ impl Transport for Fixed {
 }
 
 fn file(path: &str, bytes: &[u8], wire: Option<&[u8]>) -> String {
+    file_at(path, path, bytes, wire)
+}
+
+/// A file named `path` fetched from `BASE/url`.
+fn file_at(path: &str, url: &str, bytes: &[u8], wire: Option<&[u8]>) -> String {
     let download = wire.map_or(String::new(), |w| {
         format!(
             r#", "download": {{"compression": "gzip", "download_bytes": {}, "download_sha256": "{}"}}"#,
@@ -62,7 +67,7 @@ fn file(path: &str, bytes: &[u8], wire: Option<&[u8]>) -> String {
         )
     });
     format!(
-        r#"{{"path": "{path}", "url": "{BASE}/{path}", "size": {}, "sha256": "{}", "sha512": "{}"{download}}}"#,
+        r#"{{"path": "{path}", "url": "{BASE}/{url}", "size": {}, "sha256": "{}", "sha512": "{}"{download}}}"#,
         bytes.len(),
         Sha256::of(bytes),
         Sha512::of(bytes),
@@ -70,7 +75,8 @@ fn file(path: &str, bytes: &[u8], wire: Option<&[u8]>) -> String {
 }
 
 /// An index of a permissive English lexicon served gzip compressed, a
-/// share-alike German one, and one far larger than any disk.
+/// share-alike German one, one far larger than any disk, and two files
+/// fetched from one address.
 fn index() -> Index {
     let artifact = |id: &str, lang: &str, licence: &str, class: &str, files: String| {
         format!(
@@ -86,10 +92,17 @@ fn index() -> Index {
         Sha512::of(b""),
     );
     let json = format!(
-        r#"{{"zoo_version": 1, "artifacts": [{}, {}, {}]}}"#,
+        r#"{{"zoo_version": 1, "artifacts": [{}, {}, {}, {}]}}"#,
         artifact("hello", "en", "Apache-2.0", "CLASS_PERMISSIVE", file("hello.txt", TEXT, Some(&TEXT_GZ))),
         artifact("sa", "de", "CC-BY-SA-4.0", "CLASS_SHARE_ALIKE", file("sa.txt", SA, None)),
         artifact("huge", "en", "Apache-2.0", "CLASS_PERMISSIVE", huge),
+        artifact(
+            "pair",
+            "en",
+            "Apache-2.0",
+            "CLASS_PERMISSIVE",
+            format!("{}, {}", file_at("one.txt", "same.txt", TEXT, None), file_at("two.txt", "same.txt", TEXT, None))
+        ),
     );
     Index::parse(json.as_bytes()).unwrap()
 }
@@ -98,6 +111,7 @@ fn transport() -> Fixed {
     let mut files = HashMap::new();
     files.insert(format!("{BASE}/hello.txt"), TEXT_GZ.to_vec());
     files.insert(format!("{BASE}/sa.txt"), SA.to_vec());
+    files.insert(format!("{BASE}/same.txt"), TEXT.to_vec());
     Fixed { files, ..Fixed::default() }
 }
 
@@ -179,7 +193,7 @@ async fn the_catalog_lists_every_artifact_with_its_terms_and_files() {
     let home = Home::new("list");
     let (s, mut c) = start(&home.0, false, Arc::new(transport())).await;
     let all = c.list_model_catalog(ListModelCatalogRequest::default()).await.unwrap().into_inner().entries;
-    assert_eq!(all.iter().map(|e| e.id.as_str()).collect::<Vec<_>>(), ["hello", "sa", "huge"]);
+    assert_eq!(all.iter().map(|e| e.id.as_str()).collect::<Vec<_>>(), ["hello", "sa", "huge", "pair"]);
     let hello = &all[0];
     assert_eq!((hello.kind.as_str(), hello.format.as_str()), ("KIND_LEXICON", "FORMAT_TEXT"));
     assert_eq!((hello.licence.as_str(), hello.licence_class.as_str()), ("Apache-2.0", "CLASS_PERMISSIVE"));
@@ -242,6 +256,33 @@ async fn an_install_streams_its_progress_and_a_second_fetches_nothing() {
     let again = install(&mut c, "alice", "hello").await.unwrap();
     let want = [(InstallStage::Admitted as i32, 0), (InstallStage::Verified as i32, n)];
     assert_eq!((stages(&again), t.gets.load(Ordering::SeqCst)), (want.to_vec(), 1));
+    // A cached file of the right size whose bytes do not verify is fetched
+    // again, and its bytes count against the disk.
+    fs::write(&m.files[0], vec![b'x'; TEXT.len()]).unwrap();
+    let repaired = install(&mut c, "alice", "hello").await.unwrap();
+    assert_eq!((stages(&repaired)[0], t.gets.load(Ordering::SeqCst)), ((InstallStage::Admitted as i32, n), 2));
+    assert_eq!(fs::read(&m.files[0]).unwrap(), TEXT);
+    s.stop().await;
+}
+
+#[tokio::test]
+async fn files_that_share_an_address_report_their_own_index_and_path() {
+    let home = Home::new("pair");
+    let (s, mut c) = start(&home.0, true, Arc::new(transport())).await;
+    let updates = install(&mut c, "alice", "pair").await.unwrap();
+    let got: Vec<(i32, u32, &str)> = updates
+        .iter()
+        .filter_map(|u| match u {
+            Update::Progress(p)
+                if p.stage != InstallStage::Admitted as i32 && p.stage != InstallStage::Verified as i32 =>
+            {
+                Some((p.stage, p.file_index, p.path.as_str()))
+            }
+            _ => None,
+        })
+        .collect();
+    let (down, done) = (InstallStage::Downloading as i32, InstallStage::Downloaded as i32);
+    assert_eq!(got, [(down, 0, "one.txt"), (done, 0, "one.txt"), (down, 1, "two.txt"), (done, 1, "two.txt")]);
     s.stop().await;
 }
 

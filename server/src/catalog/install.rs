@@ -8,13 +8,13 @@
 use std::fs;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use tokio::sync::mpsc;
 use tokio_stream::Stream;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
-use turbo_zoo::{Artifact, Offline, Policy, Transport, Url, UserId, Zoo, ZooError};
+use turbo_zoo::{Artifact, Offline, Policy, Transport, Url, UserId, Zoo, ZooError, verify};
 
 use super::{Catalog, blocking, disk, invalid, plain, zoo_status};
 use crate::api::{Failure, TURBO_E_BUSY, TURBO_E_CAPACITY, TURBO_E_RUNTIME};
@@ -72,9 +72,15 @@ pub(super) async fn start(
     Ok(Box::pin(ReceiverStream::new(rx)))
 }
 
-fn absent(cache: &std::path::Path, a: &Artifact, f: &turbo_zoo::File) -> bool {
+/// Whether the fetch will keep the cached copy of `f`: a plain file of its
+/// size whose bytes verify, the test the zoo's fetch makes. Any other file
+/// is fetched again and written whole, so its bytes count.
+fn cached(cache: &std::path::Path, a: &Artifact, f: &turbo_zoo::File) -> bool {
     let p = cache.join(a.id.as_str()).join(f.path.as_str());
-    fs::symlink_metadata(p).map_or(true, |m| !m.is_file() || m.len() != f.size)
+    match fs::symlink_metadata(&p) {
+        Ok(m) if m.is_file() && m.len() == f.size => fs::read(&p).is_ok_and(|b| verify(a, f, &b).is_ok()),
+        _ => false,
+    }
 }
 
 /// The licence check, then the bytes the files still to fetch take, which
@@ -85,7 +91,7 @@ fn admit(catalog: &Catalog, user: &UserId, id: &str) -> Result<(u64, u32), Statu
     let a = zoo.permit_with(id, user, || catalog.acceptances()).map_err(zoo_status)?;
     let cache = catalog.cache();
     fs::create_dir_all(&cache).map_err(|e| zoo_status(ZooError::Io { path: cache.clone(), message: e.to_string() }))?;
-    let needed: u64 = a.files.iter().filter(|f| absent(&cache, a, f)).map(|f| f.size).sum();
+    let needed: u64 = a.files.iter().filter(|f| !cached(&cache, a, f)).map(|f| f.size).sum();
     if needed > 0 {
         let free = disk::free_bytes(&cache)
             .map_err(|e| plain(Failure::new(TURBO_E_RUNTIME, 0, format!("free space of {}: {e}", cache.display()))))?;
@@ -102,22 +108,29 @@ fn admit(catalog: &Catalog, user: &UserId, id: &str) -> Result<(u64, u32), Statu
     Ok((needed, a.files.len() as u32))
 }
 
-/// The catalog's transport, reporting each request and arrival.
+/// The catalog's transport, reporting each request and arrival. The fetch
+/// asks for the files in index order and skips the cached ones, so a
+/// request is for the first file at or after `next` with its address:
+/// two files may share one.
 struct Reporting<'a> {
     inner: &'a (dyn Transport + Send + Sync),
     artifact: &'a Artifact,
     tx: &'a Tx,
+    next: AtomicUsize,
 }
 
 impl Transport for Reporting<'_> {
     fn get(&self, url: &Url, size: u64) -> Result<Vec<u8>, String> {
         let files = &self.artifact.files;
         let count = files.len() as u32;
-        let (at, path) = files
-            .iter()
-            .enumerate()
-            .find(|(_, f)| f.url == *url)
-            .map_or((0, String::new()), |(i, f)| (i as u32, f.path.as_str().to_owned()));
+        let from = self.next.load(Ordering::Relaxed);
+        let (at, path) = match files.iter().enumerate().skip(from).find(|(_, f)| f.url == *url) {
+            Some((i, f)) => {
+                self.next.store(i + 1, Ordering::Relaxed);
+                (i as u32, f.path.as_str().to_owned())
+            }
+            None => (0, String::new()),
+        };
         let _ = self.tx.blocking_send(Ok(progress(InstallStage::Downloading, at, count, &path, size)));
         let got = self.inner.get(url, size)?;
         let _ = self.tx.blocking_send(Ok(progress(InstallStage::Downloaded, at, count, &path, got.len() as u64)));
@@ -130,7 +143,7 @@ impl Transport for Reporting<'_> {
 fn run(catalog: Catalog, user: UserId, id: String, tx: Tx, _slot: Slot) {
     let outcome = (|| {
         let a = catalog.index.get(&id).map_err(zoo_status)?;
-        let reporting = Reporting { inner: &*catalog.transport, artifact: a, tx: &tx };
+        let reporting = Reporting { inner: &*catalog.transport, artifact: a, tx: &tx, next: AtomicUsize::new(0) };
         let zoo = Zoo::new((*catalog.index).clone(), catalog.cache(), Policy::default(), &reporting);
         let fetched = zoo.fetch_with(&id, &user, || catalog.acceptances()).map_err(zoo_status)?;
         let total: u64 = a.files.iter().map(|f| f.size).sum();

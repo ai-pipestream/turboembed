@@ -75,8 +75,8 @@ message it checks, in order:
 4. The user accepted every term the artifact's class needs:
    `FAILED_PRECONDITION` (`TURBO_E_INVALID_STATE`) otherwise, naming
    the missing terms. A refused artifact is refused the same way.
-5. The files still to fetch fit on the cache's file system with 64 MiB
-   to spare: `OUT_OF_RANGE` (`TURBO_E_CAPACITY`) otherwise, naming the
+5. The files still to fetch, every file not in the cache whole and
+   verified, fit on the cache's file system with 64 MiB to spare: `OUT_OF_RANGE` (`TURBO_E_CAPACITY`) otherwise, naming the
    bytes needed and free.
 
 It then streams `InstallProgress` messages and ends with one
@@ -91,7 +91,9 @@ It then streams `InstallProgress` messages and ends with one
 
 A file already in the cache is read and verified instead of fetched, so
 installing an installed artifact streams `ADMITTED` with 0 bytes, then
-`VERIFIED`. Each fetched file is checked as docs/zoo.md says, by its
+`VERIFIED`, while a cached file whose bytes no longer verify is fetched
+again and counted. Two files may be fetched from one address; each
+reports its own `file_index` and `path`. Each fetched file is checked as docs/zoo.md says, by its
 wire size and SHA-256 when served compressed, then unpacked and checked
 by size, SHA-256 and SHA-512, before it is written; it is written under
 its name only whole. A file that fails ends the stream with `DATA_LOSS`
