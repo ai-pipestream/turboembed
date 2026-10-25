@@ -1,10 +1,11 @@
-//! The Open Inference Protocol (KServe v2) and the analysis result
-//! layer over gRPC, served from the library's C interface as
+//! The Open Inference Protocol (KServe v2), the analysis result layer
+//! and the model catalog over gRPC, served from the library's C interface as
 //! docs/kserve.md and docs/grpc-analysis.md map them.
 
 pub mod analysis;
 pub mod api;
 pub mod capabilities;
+pub mod catalog;
 pub mod config;
 mod health;
 mod infer;
@@ -30,6 +31,10 @@ pub mod proto {
     pub mod health {
         tonic::include_proto!("grpc.health.v1");
     }
+    /// The model catalog (docs/grpc-catalog.md).
+    pub mod training {
+        tonic::include_proto!("turbo.training");
+    }
 }
 
 use std::net::SocketAddr;
@@ -46,6 +51,7 @@ use crate::config::ModelConfig;
 use crate::proto::grpc_inference_service_server::GrpcInferenceServiceServer;
 use crate::proto::health::health_server::HealthServer;
 use crate::proto::result::analysis_service_server::AnalysisServiceServer;
+use crate::proto::training::turbo_catalog_service_server::TurboCatalogServiceServer;
 use crate::state::State;
 
 /// tonic refuses a request message over the decoding limit with
@@ -73,12 +79,14 @@ pub struct Server {
     task: JoinHandle<std::result::Result<(), tonic::transport::Error>>,
 }
 
-/// Whether the server builder serves the admin calls, LoadBundle and
-/// UnloadBundle: the explicit opt-in this listener needs before any
-/// client may add or remove bundles.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// What the server serves beyond inference and analysis. `admin` is the
+/// explicit opt-in this listener needs before any client may add or remove
+/// bundles, record a licence acceptance or install a model; `catalog` is
+/// the model catalog, which refuses every call when absent.
+#[derive(Debug, Clone, Default)]
 pub struct Serve {
     pub admin: bool,
+    pub catalog: Option<catalog::Catalog>,
 }
 
 impl Server {
@@ -86,8 +94,8 @@ impl Server {
     /// path that names no bundle, or two models of one name, is refused. A
     /// request message over `max_message_bytes` is refused by gRPC with
     /// RESOURCE_EXHAUSTED before it is read. `serve.admin` opts in to the
-    /// admin calls LoadBundle and UnloadBundle; off, they refuse
-    /// UNIMPLEMENTED.
+    /// admin calls LoadBundle, UnloadBundle, RecordLicenceAcceptance and
+    /// InstallModel; off, they refuse UNIMPLEMENTED.
     pub async fn start(
         listen: SocketAddr,
         models: Vec<ModelConfig>,
@@ -104,6 +112,7 @@ impl Server {
             .max_decoding_message_size(max_message_bytes);
         let health = HealthServer::new(health::HealthService { state: state.clone() })
             .max_decoding_message_size(max_message_bytes);
+        let catalog = TurboCatalogServiceServer::new(catalog::CatalogService::new(serve.catalog, serve.admin));
         let (stop, stopped) = oneshot::channel::<()>();
         // TCP_NODELAY on every accepted socket. The builder's tcp_nodelay
         // does not reach a listener served with serve_with_incoming, and
@@ -116,6 +125,7 @@ impl Server {
                 .add_service(kserve)
                 .add_service(analysis)
                 .add_service(health)
+                .add_service(catalog)
                 .serve_with_incoming_shutdown(incoming, async {
                     let _ = stopped.await;
                 }),

@@ -87,8 +87,8 @@ match the JVM bit for bit:
   for context generators, `StringPattern` and character n-grams;
   `utf16_len` is `String.length()`; `compare_to` is `String.compareTo`,
   which orders by code unit and so differs from `str::cmp` for
-  characters outside the Basic Multilingual Plane; `is_java_whitespace`
-  is `Character.isWhitespace`.
+  characters outside the Basic Multilingual Plane. `Character.isWhitespace`
+  comes from `turbo_unicode::java::code_point::is_whitespace`.
 - `random`: `JavaRandom` is `java.util.Random` from a seed, and its
   `shuffle` is `Collections.shuffle(List, Random)`, as OpenNLP's readers,
   cross-validation and trainers use them.
@@ -131,6 +131,11 @@ forward pass over the text, and `OffsetTable::column_to_utf16` and
 `column_to_code_point` use it to fill a vector the caller provides.
 
 ## Views
+
+`NormalizationXray::between` inspects composed view alignments as complete
+byte partitions, with borrowed run text, recorded step provenance and
+typed UTF-16/code-point projection. See [Normalization x-ray](normalization-xray.md)
+for the source-byte domain and allocation contracts.
 
 The source text never changes. A step that changes text (Unicode
 normalization, dehyphenation) writes a new `View`, with an `Alignment`
@@ -1306,19 +1311,27 @@ one delimiter), and fenced and indented code. Tabs stop every four
 columns. A list item's indentation is measured from where its parent's
 content starts on each line, as CommonMark does, so `> > 1.  one` and
 `>>     two` continue one item. The hand-labelled fixtures in
-`analysis/structure/tests/fixtures.rs` pin these rules down, including
-the cases of the CommonMark specification that are easy to get wrong;
-the crate is not tested against the specification's examples or against
-another Markdown parser, since it takes no dependency on one.
+`analysis/structure/tests/fixtures.rs` pin these rules down. The offline
+CommonMark 0.31.2 corpus checks 652 block trees against cmark 0.31.1:
+577 match, up from 500 at the baseline. This checks block topology,
+heading levels and list tightness, not inline rendering. The 75 known
+differences are pinned individually. See [the structure conformance
+receipt](structure-conformance.md) for scope, provenance and timing.
 Front matter is skipped: when the view starts (after a byte order mark,
 if any) with a line `---` and a later line is `---` or `...`, the lines
 up to and including that one are in no block, as static site generators
 read YAML metadata. CommonMark has no front matter and reads such a
 start as a thematic break and a setext heading. Without the closing
 line, or anywhere but the start, `---` is a thematic break as usual.
-What it does not do: HTML blocks and link reference definitions are
-paragraphs, footnote definitions are not recognized, and a list is not
-marked tight or loose.
+HTML blocks follow the 7 CommonMark start/end rules and are opaque
+`Block::Html` leaves. Footnote definitions (`[^label]: text`) are
+`Block::Footnote` leaves, continuing through blank lines and lines
+indented at least 4 columns from the current container. Footnote bodies
+are opaque; references are not resolved. Link reference definitions
+still become paragraphs. Lists expose `Block::list_tightness()`:
+`List` is tight and `LooseList` is loose. Blank lines inside code or a
+nested quote do not loosen the enclosing list. Older stored results
+predate this flag; only parser version 1 records it.
 
 GFM pipe tables are tables: a delimiter row (`|---|:-:|`, with at least
 one `|`) under a line with as many cells turns that line into the
@@ -1349,9 +1362,13 @@ year.`), from which it is split off. Such headings in capitals with
 nothing after them but more of the same, like a name and a country
 under a letter's closing, are paragraphs, so they open no section. An
 underline under a paragraph of several lines ends the paragraph and is
-no heading. There are no `#` headings, no code, no tables and no front
-matter, so an indented line is text.
-Tables of aligned columns in plain text are not detected.
+no heading. There are no `#` headings, code or front matter.
+Repeated aligned columns form tables: at least 2 cells separated by
+2 or more spaces or a tab, with the same column starts in 2 consecutive
+lines. Column positions count Unicode scalars and 4-column tab stops,
+not terminal display widths. Subsequent aligned rows continue the table;
+a blank or unaligned line ends it. Each cell keeps its exact UTF-8 span.
+Other indented lines remain text.
 
 ## Abbreviations
 
@@ -5155,6 +5172,9 @@ recorded), so those did not run.
 
 The [cut-identity checker](chunker-cut-identity.md) compares flat chunk
 partitions across backend runs with optional DP runner-up margins.
+
+The [shared whitespace definitions and timing receipt](whitespace.md) describe
+the Unicode and Java predicates used by normalization, lexing and segmentation.
 
 ## BiLSTM-CRF numerics
 

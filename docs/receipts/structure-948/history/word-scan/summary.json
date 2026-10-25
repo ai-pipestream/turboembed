@@ -1,0 +1,41 @@
+[
+  {
+    "case": "analysis-markdown",
+    "median_ms": {
+      "main": 0.3462645,
+      "blocked": 0.33035400000000004,
+      "fixed": 0.3375125
+    },
+    "median_paired_ratios": {
+      "fixed/main": 0.9712486954424315,
+      "blocked/main": 0.953635328049163,
+      "fixed/blocked": 1.0180330574808911
+    }
+  },
+  {
+    "case": "analysis-plain",
+    "median_ms": {
+      "main": 0.217777,
+      "blocked": 0.2721895,
+      "fixed": 0.2563445
+    },
+    "median_paired_ratios": {
+      "fixed/main": 1.19002797903996,
+      "blocked/main": 1.2947583591361171,
+      "fixed/blocked": 0.9397534911593651
+    }
+  },
+  {
+    "case": "ewt-plain",
+    "median_ms": {
+      "main": 1.482513,
+      "blocked": 1.4212865,
+      "fixed": 1.4665275
+    },
+    "median_paired_ratios": {
+      "fixed/main": 0.9945254298026476,
+      "blocked/main": 0.9557097108302193,
+      "fixed/blocked": 1.042644112206177
+    }
+  }
+]

@@ -7,7 +7,6 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use turbo_analysis::{Error, Span, Spans, View};
 use turbo_analysis_layers::{Abbreviations, Entities, Money, Pii, Quantities, Temporals};
 use turbo_normalize_layers::{Placeholders, ProtectedSpans};
-use turbo_unicode::java;
 
 /// Built-in English real-word confusable and homophone groups.
 const DEFAULT_ENGLISH_GROUPS: &[&[&str]] = &[
@@ -33,9 +32,7 @@ const DEFAULT_ENGLISH_GROUPS: &[&[&str]] = &[
 ];
 
 /// Lowercase conversion matching OpenNLP's `Character.toLowerCase`.
-pub(crate) fn to_lowercase(s: &str) -> String {
-    s.chars().map(java::to_lower_char).collect()
-}
+pub(crate) use turbo_unicode::java::lowercase_code_points as to_lowercase;
 
 /// Equivalence classes of real-word confusables and homophones (for example
 /// `{"there", "their", "they're"}` or `{"to", "too", "two"}`).
