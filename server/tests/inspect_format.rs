@@ -186,6 +186,7 @@ fn build_rich_graph_bytes() -> (Document, Vec<u8>) {
             doc.get::<Boundaries>().unwrap(),
             None,
             None,
+            None,
         ))
         .unwrap()
         .0;
