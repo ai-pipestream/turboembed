@@ -2174,6 +2174,7 @@ dependencies = [
  "turbo-maxent",
  "turbo-normalize",
  "turbo-parser",
+ "turbo-stopword-layers",
  "turbo-structure",
  "turbo-tokenize",
  "turbo-unicode",
