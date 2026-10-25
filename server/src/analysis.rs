@@ -15,11 +15,13 @@ use crate::kserve::Reply;
 use crate::proto::result::analysis_service_server::AnalysisService;
 use crate::proto::result::{
     AnalyzeStreamRequest, CapabilitiesRequest, CapabilitiesResponse, ChunkLevelsResult, DocumentGraphRequest,
-    DocumentGraphResponse, ExtractionResult, LoadBundleRequest, LoadBundleResponse, RerankScoresResult,
+    DocumentGraphResponse, ExtractionResult, LoadBundleRequest, LoadBundleResponse, RecordsResult, RerankScoresResult,
     SparseTermsResult, TokenVectorsResult, UnloadBundleRequest, UnloadBundleResponse,
 };
 use crate::results::Wire;
-use crate::results::{extraction::Extraction, layers::ChunkLevels, rerank::RerankScores, tokens::TokenVectors};
+use crate::results::{
+    extraction::Extraction, layers::ChunkLevels, records::RecordSet, rerank::RerankScores, tokens::TokenVectors,
+};
 use crate::state::{Loaded, State};
 use crate::status::to_status;
 use crate::stream;
@@ -124,6 +126,10 @@ impl AnalysisService for Analysis {
 
     async fn round_trip_extraction(&self, req: Request<ExtractionResult>) -> Reply<ExtractionResult> {
         round_trip::<_, Extraction>(req)
+    }
+
+    async fn round_trip_records(&self, req: Request<RecordsResult>) -> Reply<RecordsResult> {
+        round_trip::<_, RecordSet>(req)
     }
 
     async fn round_trip_chunk_levels(&self, req: Request<ChunkLevelsResult>) -> Reply<ChunkLevelsResult> {

@@ -361,8 +361,11 @@ impl Annotator for NameFinderDl {
 /// overlaps and the tokens are not in text order, so no range names them.
 fn token_range(tokens: &Tokens, ordered: bool, start: u32, end: u32) -> Result<IxRange<Tokens>, String> {
     let spans = &tokens.spans;
-    let (starts, ends) = spans.columns();
+    if ordered && start < end {
+        return Ok(spans.overlapping_range(turbo_analysis::Span::new(start, end)));
+    }
     if ordered {
+        let (starts, ends) = spans.columns();
         let first = ends.partition_point(|&e| e <= start);
         let last = starts.partition_point(|&s| s < end).max(first);
         return Ok(IxRange::new(first as u32, last as u32));
