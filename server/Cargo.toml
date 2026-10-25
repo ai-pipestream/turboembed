@@ -48,8 +48,6 @@ turbo-glossary = { path = "../analysis/glossary" }
 turbo-lemmatizer = { path = "../analysis/lemmatizer" }
 turbo-maxent = { path = "../analysis/maxent" }
 turbo-sequence = { path = "../analysis/sequence" }
-turbo-stopword = { path = "../analysis/stopword" }
-turbo-tokenize = { path = "../analysis/tokenize" }
 turbo-wordnet = { path = "../analysis/wordnet" }
 # The model catalog: the zoo index, licence acceptances, verified fetches.
 turbo-zoo = { path = "../analysis/zoo", default-features = false }
