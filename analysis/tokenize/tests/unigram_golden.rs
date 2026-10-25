@@ -32,7 +32,7 @@ fn cases(run_name: &str, lexicon: &str, mode: WhitespaceMode) -> Vec<Case> {
 /// number of goldens and of tokens.
 fn matches(run_name: &str, lexicon: &str, mode: WhitespaceMode) -> (usize, usize) {
     let lex = UnigramLexicon::read(fixtures_dir().join(lexicon), mode).unwrap();
-    let segmenter = UnigramSegmenter::new(lex, mode);
+    let segmenter = UnigramSegmenter::new(lex, mode).with_mode(turbo_tokenize::unigram::UnigramMode::OpenNlp);
     let cases = cases(run_name, lexicon, mode);
     let mut tokens = 0;
     for case in &cases {
@@ -125,7 +125,8 @@ fn near_ties_follow_the_rounding_of_the_logarithm() {
     assert!(p("研究生") + p("物") > p("研究") + p("生物"));
     assert!(p("人民大") + p("会") > p("人民") + p("大会"));
     let total = lexicon.total() as f64;
-    let s = UnigramSegmenter::new(lexicon, WhitespaceMode::Unicode);
+    let s = UnigramSegmenter::new(lexicon, WhitespaceMode::Unicode)
+        .with_mode(turbo_tokenize::unigram::UnigramMode::OpenNlp);
     let words = |text: &str| {
         let mut out = Vec::new();
         s.segment(text, &mut out);

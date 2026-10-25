@@ -42,7 +42,9 @@
 //! under its name fails.
 
 mod args;
+mod prepared;
 mod tree;
+pub use prepared::Prepared;
 
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -137,8 +139,11 @@ pub fn build(xml: &[u8], resources: Option<&dyn Resources>, mode: PatternMode) -
     }
     let mut kinds = HashMap::new();
     resource_kinds(&root, &mut kinds);
-    let mut builder = Builder { resources, mode, kinds, loaded: HashMap::new() };
+    let mut builder = Builder { resources, mode, kinds: &kinds, loaded: HashMap::new(), shared: None };
+    build_root(&root, &mut builder)
+}
 
+fn build_root(root: &Element, builder: &mut Builder<'_>) -> Result<BoxedGenerator> {
     let mut generators = Vec::new();
     let mut single_is_cached = false;
     for child in root.elements() {
@@ -231,8 +236,9 @@ fn resource_kinds(element: &Element, kinds: &mut HashMap<String, Kind>) {
 struct Builder<'r> {
     resources: Option<&'r dyn Resources>,
     mode: PatternMode,
-    kinds: HashMap<String, Kind>,
+    kinds: &'r HashMap<String, Kind>,
     loaded: HashMap<String, Resource>,
+    shared: Option<&'r HashMap<String, Resource>>,
 }
 
 impl Builder<'_> {
@@ -314,7 +320,7 @@ impl Builder<'_> {
             "DefinitionFeatureGeneratorFactory" => Box::new(OutcomePrior),
             "DictionaryFeatureGeneratorFactory" => {
                 let key = args.str("dict")?;
-                if self.resources.is_none() {
+                if !self.has_resources() {
                     return Err(Error::Descriptor(format!("No dictionary resource at: '{key}")));
                 }
                 match self.resource(key)? {
@@ -325,7 +331,7 @@ impl Builder<'_> {
             "DocumentBeginFeatureGeneratorFactory" => Box::new(DocumentBegin::new()),
             "EmojiAnnotationFeatureGeneratorFactory" => return Err(Error::Unsupported(class.into())),
             "POSTaggerNameFeatureGeneratorFactory" => {
-                if self.resources.is_none() {
+                if !self.has_resources() {
                     return Ok(None);
                 }
                 return Err(Error::Unsupported(class.into()));
@@ -358,7 +364,7 @@ impl Builder<'_> {
                 Box::new(Window::new(inner, prev, next))
             }
             "WordClusterFeatureGeneratorFactory" => {
-                if self.resources.is_none() {
+                if !self.has_resources() {
                     return Ok(None);
                 }
                 let key = args.str("dict")?;
@@ -377,7 +383,7 @@ impl Builder<'_> {
 
     /// The Brown cluster a Brown factory names, `None` without resources.
     fn brown(&mut self, args: &Args) -> Result<Option<Arc<BrownCluster>>> {
-        if self.resources.is_none() {
+        if !self.has_resources() {
             return Ok(None);
         }
         let key = args.str("dict")?;
@@ -391,6 +397,9 @@ impl Builder<'_> {
     /// `None` when the model does not have it or holds it as a kind this
     /// crate does not read.
     fn resource(&mut self, name: &str) -> Result<Option<Resource>> {
+        if let Some(r) = self.shared.and_then(|shared| shared.get(name)) {
+            return Ok(Some(r.clone()));
+        }
         if let Some(r) = self.loaded.get(name) {
             return Ok(Some(r.clone()));
         }
@@ -413,6 +422,10 @@ impl Builder<'_> {
         };
         self.loaded.insert(name.to_owned(), resource.clone());
         Ok(Some(resource))
+    }
+
+    fn has_resources(&self) -> bool {
+        self.resources.is_some() || self.shared.is_some()
     }
 }
 
