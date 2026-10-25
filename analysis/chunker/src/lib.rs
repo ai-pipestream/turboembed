@@ -63,7 +63,7 @@ pub use coref::{
 };
 pub use discourse::{DISCOURSE, DiscourseBoundaries, DiscourseLanguage};
 pub use discourse_graph::DiscourseAnnotator;
-pub use drift::{Drift, DriftBoundaries, Score, drift};
+pub use drift::{Drift, DriftBoundaries, MICRO, Score, cosines, drift};
 pub use entity::{
     ChunkEntities, ChunkEntityHeaders, EntityBoundaries, EntityContinuity, EntityKeys, HeaderPolicy, Keying,
     SalienceHeaders, chunk_entities, entity_boundaries,

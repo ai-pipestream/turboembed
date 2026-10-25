@@ -25,6 +25,7 @@ turbo-chunker = { path = "../analysis/chunker" }
 turbo-coref = { path = "../analysis/coref" }
 turbo-encoding-layers = { path = "../analysis/encoding-layers" }
 turbo-entity-linker = { path = "../analysis/entity-linker" }
+turbo-formats = { path = "../analysis/formats" }
 turbo-geo = { path = "../analysis/geo" }
 turbo-gliner = { path = "../analysis/gliner" }
 turbo-glossary-layers = { path = "../analysis/glossary-layers" }
