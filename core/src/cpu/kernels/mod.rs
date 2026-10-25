@@ -11,10 +11,12 @@
 //! its bias. Attention is written once over sixteen lanes (Simd) and keeps
 //! the same rule: each score and each context value is one chain in a
 //! fixed order. The AVX-512 and AVX2 kernels, chosen at run time, fuse
-//! each multiply-add, so they give the same bits as each other. The
-//! portable kernel fuses only where it is compiled for aarch64, where
-//! every processor has FMA: a compile-time choice, not a detected one; on
-//! x86_64 it multiplies and adds in two roundings.
+//! each multiply-add, so they give the same bits as each other. On
+//! aarch64 the NEON kernels, which every processor there has, fuse each
+//! one too. The portable kernel fuses only where it is compiled for
+//! aarch64, where every processor has FMA: a compile-time choice, not a
+//! detected one; on x86_64 it multiplies and adds in two roundings. So on
+//! aarch64 the NEON and portable kernels give the same bits.
 
 mod attend;
 mod dense;
@@ -27,6 +29,8 @@ pub(super) use attend::{Attend, LANES};
 pub(crate) use dense::softmax;
 pub use dense::{Matrix, Mode};
 pub(super) use gemm::{Epilogue, Gemm};
+#[cfg(target_arch = "aarch64")]
+pub(super) use micro::Neon;
 #[cfg(target_arch = "x86_64")]
 pub(super) use micro::{Avx2, Avx512};
 pub(super) use micro::{Micro, Portable};
@@ -48,6 +52,9 @@ pub(super) enum Isa {
     Avx2,
     #[cfg(target_arch = "x86_64")]
     Avx512,
+    /// NEON with FMA: every aarch64 processor's.
+    #[cfg(target_arch = "aarch64")]
+    Neon,
 }
 
 impl Isa {
@@ -62,12 +69,17 @@ impl Isa {
                 return Isa::Avx2;
             }
         }
+        #[cfg(target_arch = "aarch64")]
+        if Isa::Neon.available() {
+            return Isa::Neon;
+        }
         Isa::Portable
     }
 
-    /// Whether this processor runs the instruction set. Only x86_64 has
-    /// more than one to choose from; elsewhere the tests alone ask.
-    #[cfg(any(target_arch = "x86_64", test))]
+    /// Whether this processor runs the instruction set. Only x86_64 and
+    /// aarch64 have more than one to choose from; elsewhere the tests
+    /// alone ask.
+    #[cfg(any(target_arch = "x86_64", target_arch = "aarch64", test))]
     pub(super) fn available(self) -> bool {
         match self {
             Isa::Portable => true,
@@ -79,6 +91,8 @@ impl Isa {
                     && std::arch::is_x86_feature_detected!("avx512f")
                     && std::arch::is_x86_feature_detected!("avx512vl")
             }
+            #[cfg(target_arch = "aarch64")]
+            Isa::Neon => std::arch::is_aarch64_feature_detected!("neon"),
         }
     }
 
@@ -91,6 +105,8 @@ impl Isa {
             Isa::Avx2 => (Avx2::MR, Avx2::NR),
             #[cfg(target_arch = "x86_64")]
             Isa::Avx512 => (Avx512::MR, Avx512::NR),
+            #[cfg(target_arch = "aarch64")]
+            Isa::Neon => (Neon::MR, Neon::NR),
         }
     }
 }
@@ -196,7 +212,9 @@ impl Packed {
 pub(super) fn isas() -> Vec<Isa> {
     #[cfg(target_arch = "x86_64")]
     let all = vec![Isa::Portable, Isa::Avx2, Isa::Avx512];
-    #[cfg(not(target_arch = "x86_64"))]
+    #[cfg(target_arch = "aarch64")]
+    let all = vec![Isa::Portable, Isa::Neon];
+    #[cfg(not(any(target_arch = "x86_64", target_arch = "aarch64")))]
     let all = vec![Isa::Portable];
     all.into_iter().filter(|i| i.available()).collect()
 }
