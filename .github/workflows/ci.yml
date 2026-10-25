@@ -59,6 +59,22 @@ jobs:
         run: cargo clippy --workspace --all-targets
       - name: clippy (fuzz)
         run: cargo clippy -p turbo-goldens-tool --features fuzz --all-targets
+      - name: bench feature configurations
+        run: |
+          cargo clippy --locked -p turbo-bench --all-targets -- -D warnings
+          cargo clippy --locked -p turbo-bench --all-targets --features grammar -- -D warnings
+          cargo clippy --locked -p turbo-bench --all-targets --features lattice -- -D warnings
+          cargo clippy --locked -p turbo-bench --all-targets --features lattice,grammar,postag -- -D warnings
+      - name: throughput refuses opt-level zero with assertions disabled
+        env:
+          CARGO_PROFILE_DEV_DEBUG_ASSERTIONS: "false"
+        run: cargo test --locked -p turbo-bench --features lattice,grammar --test throughput_build
+      - name: optimized throughput accepts debug assertions
+        env:
+          CARGO_PROFILE_DEV_OPT_LEVEL: "1"
+          CARGO_PROFILE_DEV_DEBUG_ASSERTIONS: "true"
+          TURBO_BENCH_REQUIRE_THROUGHPUT: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && '1' || '0' }}
+        run: cargo test --locked -p turbo-bench --features lattice,grammar --test throughput_build
       - name: clippy (npu)
         run: cargo clippy -p turbo --features npu --all-targets
       - name: clippy (turboquant)

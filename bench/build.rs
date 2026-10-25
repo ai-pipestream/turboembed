@@ -47,6 +47,15 @@ fn status_paths(line: &str) -> Vec<String> {
 }
 
 fn main() {
+    // Cargo supplies these for the package being built, independently of
+    // debug assertions. PROFILE is the inherited debug/release family,
+    // including for custom profiles; OPT_LEVEL is the configured level.
+    for (name, key) in [("PROFILE", "CARGO_PROFILE"), ("OPT_LEVEL", "CARGO_OPT_LEVEL")] {
+        // Provenance tests also execute this script directly, outside
+        // Cargo. Leave unavailable settings empty, never guess them.
+        let value = std::env::var(name).unwrap_or_default();
+        println!("cargo:rustc-env=TURBO_BENCH_{key}={value}");
+    }
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     // Canonical, so no path handed to cargo has `..` in it.
     let top = Path::new(&manifest).join("..").canonicalize().unwrap();
