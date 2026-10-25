@@ -13,7 +13,9 @@
 //! and `hashes` gives every unit a content-addressed ID. `eval` scores a
 //! chunking against a gold one and sweeps the chunker's settings.
 
+pub mod attribution;
 mod boundaries;
+pub use attribution::{ChunkAttribution, DocumentHeat, HeatSegment, LateMatch, LexicalTerm, MatchSignal, MatchedSpan};
 pub mod cascade;
 pub mod clauses;
 mod cohesion;
