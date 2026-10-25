@@ -21,8 +21,7 @@ use crate::proto::result::typed_annotation::Value;
 use crate::proto::result::{
     AbbreviationAnnotation, CorefChainAnnotation, CorefMentionAnnotation, EntityAnnotation, EntityVote,
     GlossaryTermAnnotation, KeywordAnnotation, LinkedEntityAnnotation, MatchAnnotation, ReadingAnnotation,
-    RelationAnnotation, SpanFragment, SpeakerAnnotation, StopwordFlagAnnotation, TypedAnnotation, TypedLayer,
-    WordTypeAnnotation,
+    RelationAnnotation, SpeakerAnnotation, StopwordFlagAnnotation, TypedAnnotation, TypedLayer, WordTypeAnnotation,
 };
 
 fn mention_kind_name(k: MentionKind) -> &'static str {
@@ -327,8 +326,12 @@ fn project_entities(cx: &mut ProjectionCx<'_>, key: KeyId) -> TypedLayer {
                 {
                     let prod = ev.producer_of(i);
                     let vote_mref = cx.register_producer(&prod.annotator, prod.model.as_ref());
-                    let vote_spans: Vec<SpanFragment> =
-                        ev.spans_of(i).iter().map(|&s| cx.project_wire_span(ViewId::SOURCE, s)).collect();
+                    // Evidence is stored in source coordinates. A target view
+                    // can delete or collapse its fragments just like the
+                    // entity's own spans; nested votes obey the same contract.
+                    let vote_spans = coalesce_wire_spans(
+                        ev.spans_of(i).iter().map(|&s| cx.project_wire_span(ViewId::SOURCE, s)).collect(),
+                    );
                     let raw = ev.raw_of(i).filter(|&v| v.is_finite() && (0.0..=1.0).contains(&v));
                     let cal = ev.calibrated_of(i);
                     if probability.is_none() {
