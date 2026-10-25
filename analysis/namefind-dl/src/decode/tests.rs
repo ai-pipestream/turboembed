@@ -93,3 +93,64 @@ fn overlaps_keep_the_longest_then_the_most_probable() {
     // padded to the same bytes.
     assert_eq!(resolve(text, vec![c(16, 23, 0.5), c(17, 24, 0.9)]), [c(17, 24, 0.9)]);
 }
+
+#[test]
+fn rows_overlap_and_give_each_piece_one_label() {
+    assert_eq!(row_ranges(0, 8), [(0, 0, 0, 0)]);
+    assert_eq!(row_ranges(8, 8), [(0, 8, 0, 8)]);
+    // Rows of 8 step by 4, each keeping the labels of its middle half.
+    assert_eq!(row_ranges(17, 8), [(0, 8, 0, 6), (4, 12, 6, 10), (8, 16, 10, 14), (12, 17, 14, 17)]);
+    for (count, width) in [(9, 1), (10, 3), (100, 7), (513, 510)] {
+        let rows = row_ranges(count, width);
+        assert_eq!((rows[0].2, rows.last().unwrap().3), (0, count));
+        for w in rows.windows(2) {
+            assert_eq!(w[0].3, w[1].2, "{count} {width}");
+        }
+        assert!(rows.iter().all(|&(s, e, a, b)| s <= a && a <= b && b <= e && e - s <= width));
+    }
+}
+
+#[test]
+fn name_words_follow_conll_tokens() {
+    let words = |t: &str| name_words(t).into_iter().map(|(a, b)| t[a..b].to_owned()).collect::<Vec<_>>();
+    let cases: [(&str, &[&str]); 12] = [
+        ("(Paris) said", &["(", "Paris", ")", "said"]),
+        ("\"Paris,\" he", &["\"", "Paris", ",", "\"", "he"]),
+        ("Macron. Merkel's", &["Macron", ".", "Merkel", "'s"]),
+        ("the U.N. and U.S.-based AT&T", &["the", "U.N.", "and", "U.S.-based", "AT&T"]),
+        ("1. Jesper 12. C. Spearman", &["1.", "Jesper", "12.", "C.", "Spearman"]),
+        ("in 1996. Mr. Smith of Acme Inc.", &["in", "1996", ".", "Mr.", "Smith", "of", "Acme", "Inc."]),
+        ("'s 'Paris' Jones'", &["'s", "'", "Paris", "'", "Jones", "'"]),
+        ("rock'n'roll O'Neill", &["rock'n'roll", "O'Neill"]),
+        ("Who? Paris! Done...", &["Who", "?", "Paris", "!", "Done", ".", ".", "."]),
+        ("(Bonn).", &["(", "Bonn", ")", "."]),
+        (". , -", &[".", ",", "-"]),
+        ("\u{6771}\u{4eac}x", &["\u{6771}", "\u{4eac}", "x"]),
+    ];
+    for (t, want) in cases {
+        assert_eq!(words(t), want, "{t:?}");
+    }
+    // Every word is a union of pre-tokens, so no piece crosses one.
+    let t = "A (U.N.) envoy's \u{201c}talk\u{201d}, 3. Mr. X.";
+    let pre = turbo::tokenizer::pre_words(t);
+    for (a, b) in name_words(t) {
+        assert!(pre.iter().any(|p| p.0 == a) && pre.iter().any(|p| p.1 == b), "{:?}", &t[a..b]);
+    }
+}
+
+#[test]
+fn interior_punctuation_and_ellipsis_do_not_join_names() {
+    let cases: [(&str, &[&str]); 7] = [
+        ("Paris...", &["Paris", ".", ".", "."]),
+        ("Paris,France.", &["Paris", ",", "France", "."]),
+        ("(Paris),France.", &["(", "Paris", ")", ",", "France", "."]),
+        ("Paris;Bonn:Rome!", &["Paris", ";", "Bonn", ":", "Rome", "!"]),
+        ("U.N.,France", &["U.N.", ",", "France"]),
+        ("U.N...", &["U.N.", ".", "."]),
+        ("1,200 12:30 O'Neill U.S.-based AT&T", &["1,200", "12:30", "O'Neill", "U.S.-based", "AT&T"]),
+    ];
+    for (text, expected) in cases {
+        let got: Vec<_> = name_words(text).into_iter().map(|(a, b)| &text[a..b]).collect();
+        assert_eq!(got, expected, "{text:?}");
+    }
+}

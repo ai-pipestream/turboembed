@@ -292,21 +292,11 @@ fn tiny_mlm_head() -> MlmHead {
     MlmHead::new(
         hidden,
         vocab,
-        Linear {
-            in_dim: hidden,
-            out_dim: hidden,
-            weight: line(-0.2, 0.3, hidden * hidden),
-            bias: line(-0.1, 0.1, hidden),
-        },
+        Linear::new(hidden, hidden, line(-0.2, 0.3, hidden * hidden), line(-0.1, 0.1, hidden)).unwrap(),
         vec![1.0; hidden],
         vec![0.0; hidden],
         1e-12,
-        Linear {
-            in_dim: hidden,
-            out_dim: vocab,
-            weight: st.f32s("embeddings.word_embeddings.weight"),
-            bias: line(-0.05, 0.05, vocab),
-        },
+        Linear::new(hidden, vocab, st.f32s("embeddings.word_embeddings.weight"), line(-0.05, 0.05, vocab)).unwrap(),
     )
 }
 

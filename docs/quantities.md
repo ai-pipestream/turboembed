@@ -102,12 +102,15 @@ Native extraction inherits the extended money policy described in
 `HK$2m` are money, so the trailing metres are excluded. The pinned OpenNLP
 extractor instead returns the `2m` quantity in these cases.
 
-`QuantityExtractor::with_opennlp_parity(true)` selects the pinned money
-policy for exact JVM comparisons; it does not change unit parsing or
-comparison tolerances. The getter `opennlp_parity()` reports this choice.
-Native mode remains the default and keeps its existing configuration hash;
-parity mode has a distinct hash. Both the checked-in JVM tests and the
-differential adapter explicitly select parity mode.
+`QuantityExtractor::with_opennlp_parity(true)` selects the pinned numeric
+and money policies for exact JVM comparisons. It rejects the native
+extensions for Indian grouping, exponents and non-ASCII digits, and uses
+the JVM money exclusions. Unit definitions and comparison tolerances stay
+the same. The getter `opennlp_parity()` reports this shared choice.
+Native mode remains the default. Both modes retain the configuration
+identities of the current numeric implementation, including its explicit
+mode field; switching back restores the native identity. The checked-in
+JVM tests and differential adapter explicitly select parity mode.
 
 Earlier documentation reported a two-million-text oracle run of the
 original port, with about 1.4 million mentions. That campaign is historical

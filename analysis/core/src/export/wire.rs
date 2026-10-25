@@ -111,6 +111,17 @@ impl<'a> Reader<'a> {
         String::from_utf8(self.bytes()?.to_vec()).map_err(|_| malformed("a string that is not UTF-8"))
     }
 
+    /// A length-prefixed string borrowed from the input, for readers
+    /// that index a payload without copying it.
+    pub fn str(&mut self) -> Result<&'a str, ExportError> {
+        std::str::from_utf8(self.bytes()?).map_err(|_| malformed("a string that is not UTF-8"))
+    }
+
+    /// How many bytes have been read so far.
+    pub fn position(&self) -> usize {
+        self.at
+    }
+
     pub fn span(&mut self) -> Result<Span, ExportError> {
         let (start, end) = (self.u32()?, self.u32()?);
         if start > end {
