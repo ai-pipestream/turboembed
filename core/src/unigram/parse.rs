@@ -10,7 +10,9 @@ impl Unigram {
             .filter(|_| chars.next().is_none())
             .ok_or_else(|| invalid(format!("{file}: metaspace must be one character")))?;
         let model = &json["model"];
-        if model["type"] != "Unigram" {
+        // An older file has no type; its vocabulary of [piece, score]
+        // pairs, checked below, is what makes it Unigram.
+        if model["type"] != "Unigram" && !(model["type"].is_null() && model["vocab"].is_array()) {
             return Err(invalid(format!("{file}: model.type is {}, not Unigram", model["type"])));
         }
         if model["unk_id"] != unk_id {
@@ -124,8 +126,22 @@ impl Unigram {
         }
 
         // The pre-tokenizer: Metaspace, prepending to every piece of text
-        // when the manifest says so, and splitting at the metaspace.
-        let pre = &json["pre_tokenizer"];
+        // when the manifest says so, and splitting at the metaspace; or
+        // WhitespaceSplit and then that Metaspace.
+        let mut pre = &json["pre_tokenizer"];
+        let whitespace_split = match pre["pretokenizers"].as_array().map(Vec::as_slice) {
+            Some([split, metaspace]) if pre["type"] == "Sequence" && split["type"] == "WhitespaceSplit" => {
+                pre = metaspace;
+                true
+            }
+            _ => false,
+        };
+        if whitespace_split != m.whitespace_split {
+            return Err(disagree("pre_tokenizer (WhitespaceSplit)"));
+        }
+        if whitespace_split && m.whole_text {
+            return Err(invalid(format!("{file}: whole_text: a text cut at whitespace is not segmented whole")));
+        }
         if pre["type"] != "Metaspace" {
             return Err(invalid(format!("{file}: pre_tokenizer is {}, not Metaspace", pre["type"])));
         }
@@ -165,6 +181,7 @@ impl Unigram {
             collapse_whitespace,
             strip,
             whole_text: m.whole_text,
+            whitespace_split,
             metaspace,
             add_prefix_space: m.add_prefix_space,
         })
