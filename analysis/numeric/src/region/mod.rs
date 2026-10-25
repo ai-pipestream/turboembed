@@ -241,7 +241,7 @@ impl Annotator for RegionAwareMoneyAnnotator {
     }
 
     fn config_hash(&self) -> u64 {
-        Fnv1a::with_seed(0).fold_u64(self.minimum_margin.to_bits()).finish() ^ turbo_analysis::hash::FNV1A_OFFSET_BASIS
+        Fnv1a::new().f64(self.minimum_margin).finish()
     }
 }
 

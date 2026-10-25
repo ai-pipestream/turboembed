@@ -1,13 +1,11 @@
-//! Values captured from the production methods before shared-hash migration.
+//! Incoming region values and the canonical money identity from before its module move.
 use turbo_analysis::Annotator;
 use turbo_numeric::{RegionAwareMoneyAnnotator, RegionAwareNumberAnnotator, RegionAwareQuantityAnnotator};
 #[test]
-fn region_settings_keep_previous_hash_values() {
-    let mut money = Vec::new();
+fn region_number_and_quantity_keep_previous_hash_values() {
     let mut numbers = Vec::new();
     let mut quantities = Vec::new();
     for margin in [0.0, -0.0, 0.1, 1.0] {
-        money.push(RegionAwareMoneyAnnotator::with_minimum_margin(margin).unwrap().config_hash());
         for scale in [false, true] {
             numbers
                 .push(RegionAwareNumberAnnotator::with_minimum_margin(margin).unwrap().with_scale(scale).config_hash());
@@ -22,7 +20,6 @@ fn region_settings_keep_previous_hash_values() {
         );
     }
 
-    assert_eq!(money, [14695981039346656037, 5472609002491880229, 3029522752875930507, 8008135592701469477]);
     assert_eq!(
         numbers,
         [
@@ -49,4 +46,14 @@ fn region_settings_keep_previous_hash_values() {
             4075884804208473728
         ]
     );
+}
+
+#[test]
+fn money_region_keeps_canonical_hash_from_before_module_move() {
+    // Captured by calling the original feature's public API at 90a609be.
+    let hashes: Vec<_> = [0.0, -0.0, 0.1, 1.0]
+        .into_iter()
+        .map(|margin| RegionAwareMoneyAnnotator::with_minimum_margin(margin).unwrap().config_hash())
+        .collect();
+    assert_eq!(hashes, [12161962213042174405, 12161962213042174405, 5737758277723427012, 12299727721494879672]);
 }
