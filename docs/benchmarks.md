@@ -954,6 +954,51 @@ machine, backend, the model file's hash and the commit:
 `x86-64.cpu.postag.bilstm-crf.<model8>.<commit12>.json`.
 docs/analysis.md ("BiLSTM-CRF numerics") reads the committed record.
 
+## Throughput records
+
+`turbo-bench lattice` (built with `--features lattice`) and
+`turbo-bench grammar` (`--features grammar`) record characters per
+second for the lattice tokenizer (`analysis/tokenize`) and the
+English number, unit and time grammars (`analysis/grammar`), the
+work the `lattice_throughput` and `grammar_bench` examples time.
+They are not embed records and back no capability cell, so they go
+to `benchmarks/records/throughput/`, a directory `core/build.rs` and
+the embed record tests do not read; `bench/tests/tree.rs` checks each
+file there against its name and `turbo_bench::throughput::check`. The
+provenance is the embed record's: a clean, pushed commit the tool
+was built from, checked before and after the run.
+
+The lattice mode times, per published MeCab dictionary (`ipadic`,
+`ko-dic`, `unidic`, from `--dictionaries` or
+`target/turbo-goldens/models` as `turbo-goldens fetch-models` leaves
+them), the tokenizer's analyze pass over its language's goldens
+inputs repeated to at least 10 MiB, and with `--readings` also the
+analyzer writing the readings layer through a document. The grammar
+mode times find, lex, parse, parse with the unit rules, and time
+mention finding over the number, quantity, money and temporal
+goldens inputs. Each record (`bench/src/throughput/mod.rs`,
+`ThroughputRecord`) names its subject (the dictionary, with its
+manifest SHA-256 and load seconds, or the compiled-in English
+grammars), the text (its source sets, bytes, characters and
+SHA-256), and per phase the units produced, the median pass's
+seconds over `--rounds` passes after one warm pass, and the
+characters and bytes per second those divide into. A record holds
+exactly the phases its mode times (the lattice readings phase only
+with --readings), on the CPU device. A build with Cargo opt-level 0
+refuses before loading inputs, whether debug assertions are enabled or
+disabled. New records include `cargo_build`: Cargo's `PROFILE` (the
+inherited debug/release family, also for custom profiles), `OPT_LEVEL`
+for the benchmark crate, and its debug-assertion setting. These fields
+describe that crate's Cargo settings, not every dependency's settings
+or compiler flags. An optimized dev or custom build can measure; its
+record is not labeled as a release run. The `command` names the
+executable invocation with path placeholders, not an inferred Cargo
+build command. The four historical records predate `cargo_build`; they
+remain valid without it, and their recorded timings are unchanged.
+The name is
+machine, backend, mode, subject and commit:
+`x86-64.cpu.throughput.lattice.ipadic.<commit12>.json`.
+
 ## Tests
 
 `bench/tests/` runs without docker or a GPU:
