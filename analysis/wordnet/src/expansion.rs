@@ -99,6 +99,15 @@ impl Expansion {
     }
 }
 
+/// Where an [`Expansion`] came from: the synset its term is a member
+/// of, and the relation followed to reach that synset from the input's
+/// sense, `None` when it is one of the input's own synsets.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExpansionSource {
+    pub synset_id: String,
+    pub relation: Option<WordNetRelation>,
+}
+
 type LemmatizeFn = Arc<dyn Fn(&str, &str) -> String + Send + Sync>;
 
 /// Bounded lexical expander for query and index expansion (`opennlp.wordnet.LexicalExpander`).
@@ -149,6 +158,20 @@ impl<L: LexicalKnowledgeBase> LexicalExpander<L> {
     ///
     /// Returns [`WordNetError::InvalidInput`] if `term` is blank.
     pub fn expand(&self, term: &str, pos: WordNetPos) -> Result<Vec<Expansion>, WordNetError> {
+        Ok(self.collect(term, &[pos])?.into_iter().map(|(e, _)| e).collect())
+    }
+
+    /// [`Self::expand`], with the synset and relation each expansion
+    /// came from.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`WordNetError::InvalidInput`] if `term` is blank.
+    pub fn expand_sourced(
+        &self,
+        term: &str,
+        pos: WordNetPos,
+    ) -> Result<Vec<(Expansion, ExpansionSource)>, WordNetError> {
         self.collect(term, &[pos])
     }
 
@@ -158,14 +181,14 @@ impl<L: LexicalKnowledgeBase> LexicalExpander<L> {
     ///
     /// Returns [`WordNetError::InvalidInput`] if `term` is blank.
     pub fn expand_all_pos(&self, term: &str) -> Result<Vec<Expansion>, WordNetError> {
-        self.collect(term, &WordNetPos::ALL)
+        Ok(self.collect(term, &WordNetPos::ALL)?.into_iter().map(|(e, _)| e).collect())
     }
 
-    fn collect(&self, term: &str, poses: &[WordNetPos]) -> Result<Vec<Expansion>, WordNetError> {
+    fn collect(&self, term: &str, poses: &[WordNetPos]) -> Result<Vec<(Expansion, ExpansionSource)>, WordNetError> {
         if term.trim().is_empty() {
             return Err(WordNetError::invalid("term must not be null or blank"));
         }
-        let mut best: HashMap<String, Expansion> = HashMap::new();
+        let mut best: HashMap<String, (Expansion, ExpansionSource)> = HashMap::new();
         let mut excluded: HashSet<String> = HashSet::new();
         excluded.insert(fold(term));
 
@@ -181,8 +204,8 @@ impl<L: LexicalKnowledgeBase> LexicalExpander<L> {
             }
         }
 
-        let mut ordered: Vec<Expansion> = best.into_values().collect();
-        ordered.sort_by(|a, b| {
+        let mut ordered: Vec<(Expansion, ExpansionSource)> = best.into_values().collect();
+        ordered.sort_by(|(a, _), (b, _)| {
             b.weight
                 .partial_cmp(&a.weight)
                 .unwrap_or(Ordering::Equal)
@@ -212,23 +235,24 @@ impl<L: LexicalKnowledgeBase> LexicalExpander<L> {
         sense: &Synset,
         rank: usize,
         sense_weight: f64,
-        best: &mut HashMap<String, Expansion>,
+        best: &mut HashMap<String, (Expansion, ExpansionSource)>,
         excluded: &HashSet<String>,
     ) {
         if sense_weight == 0.0 {
             return;
         }
+        let source = |synset: &Synset, relation| ExpansionSource { synset_id: synset.id().to_string(), relation };
         for lemma in sense.lemmas() {
             if let Ok(exp) = Expansion::new(lemma.clone(), ExpansionKind::Synonym, 0, rank, sense_weight) {
-                Self::offer(best, excluded, exp);
+                Self::offer(best, excluded, exp, || source(sense, None));
             }
         }
 
         if self.hypernym_depth > 0 {
             let mut visited: HashSet<String> = HashSet::new();
             visited.insert(sense.id().to_string());
-            let mut frontier: VecDeque<String> = Self::hypernyms_of(sense).into();
-            let mut next: VecDeque<String> = VecDeque::new();
+            let mut frontier: VecDeque<(String, WordNetRelation)> = Self::hypernyms_of(sense).into();
+            let mut next: VecDeque<(String, WordNetRelation)> = VecDeque::new();
             for depth in 1..=self.hypernym_depth {
                 if frontier.is_empty() {
                     break;
@@ -237,7 +261,7 @@ impl<L: LexicalKnowledgeBase> LexicalExpander<L> {
                 if depth_weight == 0.0 {
                     break;
                 }
-                while let Some(id) = frontier.pop_front() {
+                while let Some((id, relation)) = frontier.pop_front() {
                     if !visited.insert(id.clone()) {
                         continue;
                     }
@@ -248,7 +272,7 @@ impl<L: LexicalKnowledgeBase> LexicalExpander<L> {
                         if let Ok(exp) =
                             Expansion::new(lemma.clone(), ExpansionKind::Hypernym, depth, rank, depth_weight)
                         {
-                            Self::offer(best, excluded, exp);
+                            Self::offer(best, excluded, exp, || source(ancestor, Some(relation)));
                         }
                     }
                     next.extend(Self::hypernyms_of(ancestor));
@@ -259,16 +283,15 @@ impl<L: LexicalKnowledgeBase> LexicalExpander<L> {
 
         let hyponym_weight = sense_weight * self.depth_decay;
         if self.include_hyponyms && hyponym_weight > 0.0 {
-            let children = sense
-                .related(WordNetRelation::Hyponym)
-                .iter()
-                .chain(sense.related(WordNetRelation::InstanceHyponym).iter());
-            for id in children {
+            let children = [WordNetRelation::Hyponym, WordNetRelation::InstanceHyponym]
+                .into_iter()
+                .flat_map(|r| sense.related(r).iter().map(move |id| (id, r)));
+            for (id, relation) in children {
                 if let Some(child) = self.lexicon.synset(id) {
                     for lemma in child.lemmas() {
                         if let Ok(exp) = Expansion::new(lemma.clone(), ExpansionKind::Hyponym, 1, rank, hyponym_weight)
                         {
-                            Self::offer(best, excluded, exp);
+                            Self::offer(best, excluded, exp, || source(child, Some(relation)));
                         }
                     }
                 }
@@ -276,28 +299,30 @@ impl<L: LexicalKnowledgeBase> LexicalExpander<L> {
         }
     }
 
-    fn hypernyms_of(synset: &Synset) -> Vec<String> {
+    fn hypernyms_of(synset: &Synset) -> Vec<(String, WordNetRelation)> {
         let direct = synset.related(WordNetRelation::Hypernym);
         let instance = synset.related(WordNetRelation::InstanceHypernym);
         let mut all = Vec::with_capacity(direct.len() + instance.len());
-        all.extend(direct.iter().cloned());
-        all.extend(instance.iter().cloned());
+        all.extend(direct.iter().map(|id| (id.clone(), WordNetRelation::Hypernym)));
+        all.extend(instance.iter().map(|id| (id.clone(), WordNetRelation::InstanceHypernym)));
         all
     }
 
-    fn offer(best: &mut HashMap<String, Expansion>, excluded: &HashSet<String>, candidate: Expansion) {
+    fn offer(
+        best: &mut HashMap<String, (Expansion, ExpansionSource)>,
+        excluded: &HashSet<String>,
+        candidate: Expansion,
+        source: impl FnOnce() -> ExpansionSource,
+    ) {
         let key = fold(candidate.term());
         if excluded.contains(&key) {
             return;
         }
         match best.get(&key) {
-            None => {
-                best.insert(key, candidate);
+            Some((current, _)) if candidate.weight() <= current.weight() => {}
+            _ => {
+                best.insert(key, (candidate, source()));
             }
-            Some(current) if candidate.weight() > current.weight() => {
-                best.insert(key, candidate);
-            }
-            _ => {}
         }
     }
 }

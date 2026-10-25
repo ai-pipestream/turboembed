@@ -1996,8 +1996,11 @@ dependencies = [
  "serde_json",
  "turbo",
  "turbo-analysis",
+ "turbo-analysis-layers",
  "turbo-bundle",
+ "turbo-grammar",
  "turbo-postag",
+ "turbo-tokenize",
  "ureq",
 ]
 
@@ -2379,10 +2382,12 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-calibration",
  "turbo-goldens",
  "turbo-langdetect",
  "turbo-maxent",
  "turbo-normalize",
+ "turbo-train",
  "turbo-unicode",
 ]
 
@@ -2497,6 +2502,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-goldens",
+ "turbo-grammar",
  "turbo-unicode",
 ]
 

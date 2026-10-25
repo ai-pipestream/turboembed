@@ -27,6 +27,7 @@ pub(crate) enum Compiled {
     Iob(Iob),
     Length(Cmp, u32),
     Text(TextTest),
+    Value(Attr, crate::ValueTest),
 }
 
 /// A token's compiled tests.
@@ -47,6 +48,7 @@ impl TokTests {
             Compiled::Iob(i) => cols.iob[rel] == *i,
             Compiled::Length(c, n) => c.holds(cols.chars[rel], *n),
             Compiled::Text(f) => f(input.token(abs)),
+            Compiled::Value(a, t) => t.holds(input.value(*a, abs, &mut String::new())),
         });
         all != self.negated
     }
@@ -92,6 +94,10 @@ fn compile_tests(tok: &Tok, vocab: &mut Vocab, needs: &mut Needs) -> TokTests {
                 Compiled::Length(*c, *n)
             }
             Test::Text(f) => Compiled::Text(f.clone()),
+            Test::Value(a, t) => {
+                needs.attr(*a);
+                Compiled::Value(*a, t.clone())
+            }
         })
         .collect();
     TokTests { tests, negated: tok.negated }

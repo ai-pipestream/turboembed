@@ -1,5 +1,6 @@
 //! What is committed in the tree, checked as a reader would: the records
-//! under benchmarks/records, benchmarks/records/postag, benchmarks/records/tag and
+//! under benchmarks/records, benchmarks/records/postag,
+//! benchmarks/records/tag, benchmarks/records/throughput and
 //! benchmarks/ranges are what their names say, the README and the
 //! docs point at files that exist, and no committed text names a home
 //! directory on one of our machines.
@@ -13,6 +14,7 @@ use turbo::record::{self, HOST_PATHS, Record};
 use turbo_bench::postag::{self, PosRecord};
 use turbo_bench::ranges::{self, RangeRecord};
 use turbo_bench::tag::{self, TagRecord};
+use turbo_bench::throughput::{self, ThroughputRecord};
 
 /// The `*.json` files under benchmarks/records, by name.
 fn committed_records() -> Vec<(String, Vec<u8>)> {
@@ -108,6 +110,28 @@ fn the_committed_postag_records_carry_the_name_of_their_contents() {
 
 /// The paths a document names in backticks: a slash in them and one of
 /// the extensions a reader would open, no placeholder characters.
+/// The `*.json` files under benchmarks/records/throughput, by name.
+fn committed_throughput_records() -> Vec<(String, Vec<u8>)> {
+    let Ok(rd) = std::fs::read_dir(workspace().join(throughput::THROUGHPUT_DIR)) else { return Vec::new() };
+    let mut out: Vec<(String, Vec<u8>)> = rd
+        .map(|e| e.unwrap().path())
+        .filter(|p| p.extension().is_some_and(|x| x == "json"))
+        .map(|p| (p.file_name().unwrap().to_str().unwrap().to_owned(), std::fs::read(&p).unwrap()))
+        .collect();
+    out.sort();
+    out
+}
+
+#[test]
+fn the_committed_throughput_records_carry_the_name_of_their_contents() {
+    for (name, bytes) in committed_throughput_records() {
+        let r: ThroughputRecord =
+            serde_json::from_slice(&bytes).unwrap_or_else(|e| panic!("{name}: not a throughput record: {e}"));
+        assert_eq!(throughput::file_name(&r), name, "{name}: named for other contents");
+        throughput::check(&r).unwrap_or_else(|e| panic!("{name}: {e}"));
+    }
+}
+
 fn named_paths(text: &str) -> Vec<String> {
     let mut out = Vec::new();
     for piece in text.split('`').skip(1).step_by(2) {
@@ -177,6 +201,7 @@ fn the_committed_text_carries_no_host_path() {
     files.extend(committed_range_records().iter().map(|(n, _)| root.join("benchmarks/ranges").join(n)));
     files.extend(committed_postag_records().iter().map(|(n, _)| root.join(postag::POSTAG_DIR).join(n)));
     files.extend(committed_tag_records().iter().map(|(n, _)| root.join(tag::TAG_DIR).join(n)));
+    files.extend(committed_throughput_records().iter().map(|(n, _)| root.join(throughput::THROUGHPUT_DIR).join(n)));
     for dir in ["bundle/recipes", "include/turbo", ".github/workflows"] {
         if let Ok(rd) = std::fs::read_dir(root.join(dir)) {
             files.extend(rd.map(|e| e.unwrap().path()).filter(|p| p.is_file()));

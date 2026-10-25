@@ -1,0 +1,812 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-24T15:13:52Z",
+  "machine": {
+    "arch": "x86_64",
+    "host_cpu": "AMD Ryzen 9 9950X 16-Core Processor",
+    "os": "linux"
+  },
+  "device": {
+    "backend": "cpu",
+    "kind": "DEVICE_CPU",
+    "name": "AMD Ryzen 9 9950X 16-Core Processor",
+    "vendor": "AuthenticAMD",
+    "driver_version": "",
+    "runtime_version": "",
+    "memory_total": 65923383296
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 cpu",
+    "commit": "35a2d4f7bb2543663312db3e4930add41c31810c",
+    "pushed_to": [
+      "origin/claude/964-static-records"
+    ],
+    "settings": []
+  },
+  "precision": "PRECISION_MODEL",
+  "model_id": "minishlab/potion-multilingual-128M",
+  "revision": "1",
+  "manifest_sha256": "a095d52bc7d09862f7739ab1c6bde93a2a59145e42304aa259f533f91eb4e669",
+  "sets": [
+    {
+      "name": "golden",
+      "texts": 88,
+      "sha256": "43d375d0619285be6bcd85382e9bd59fd548fd7a4c163cfe03e5fef23bd02dd1"
+    },
+    {
+      "name": "t60",
+      "texts": 2000,
+      "sha256": "9aab2e2256c19342b106fa3f6e03550aff00499210a7a950df30e6903f27e8e1"
+    },
+    {
+      "name": "w256",
+      "texts": 1000,
+      "sha256": "45743ba25b876540bf492d14888395cf98514381b76ee639c46453a0b5514d5f"
+    }
+  ],
+  "batches": [
+    1,
+    32,
+    256,
+    1024
+  ],
+  "turbo": [
+    {
+      "set": "golden",
+      "batch": 1,
+      "texts_per_second": 188051.55013616916
+    },
+    {
+      "set": "t60",
+      "batch": 1,
+      "texts_per_second": 172506.886907439
+    },
+    {
+      "set": "w256",
+      "batch": 1,
+      "texts_per_second": 33558.12783178504
+    },
+    {
+      "set": "golden",
+      "batch": 32,
+      "texts_per_second": 344138.4142484578
+    },
+    {
+      "set": "t60",
+      "batch": 32,
+      "texts_per_second": 525169.1498444588
+    },
+    {
+      "set": "w256",
+      "batch": 32,
+      "texts_per_second": 147875.04529097903
+    },
+    {
+      "set": "golden",
+      "batch": 256,
+      "texts_per_second": 350943.7018733253
+    },
+    {
+      "set": "t60",
+      "batch": 256,
+      "texts_per_second": 1102120.990178831
+    },
+    {
+      "set": "w256",
+      "batch": 256,
+      "texts_per_second": 349320.3703832193
+    },
+    {
+      "set": "golden",
+      "batch": 1024,
+      "texts_per_second": 339500.69784646237
+    },
+    {
+      "set": "t60",
+      "batch": 1024,
+      "texts_per_second": 1716340.0835431085
+    },
+    {
+      "set": "w256",
+      "batch": 1024,
+      "texts_per_second": 416099.2462858675
+    }
+  ],
+  "peers": [
+    {
+      "name": "statembed",
+      "version": "statembed 1.0.0",
+      "procedure": "rs/src/bin/statembed.rs",
+      "commands": [
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "statembed",
+          "potion-multilingual-128M",
+          "<set:golden>",
+          "1,32,256,1024"
+        ],
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "statembed",
+          "potion-multilingual-128M",
+          "<set:t60>",
+          "1,32,256,1024"
+        ],
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "statembed",
+          "potion-multilingual-128M",
+          "<set:w256>",
+          "1,32,256,1024"
+        ],
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "statembed",
+          "potion-multilingual-128M",
+          "<set:golden>",
+          "-",
+          "<vectors>"
+        ]
+      ],
+      "rates": [
+        {
+          "set": "golden",
+          "batch": 1,
+          "texts_per_second": 85638.0
+        },
+        {
+          "set": "golden",
+          "batch": 32,
+          "texts_per_second": 136148.0
+        },
+        {
+          "set": "golden",
+          "batch": 256,
+          "texts_per_second": 162304.0
+        },
+        {
+          "set": "golden",
+          "batch": 1024,
+          "texts_per_second": 152100.0
+        },
+        {
+          "set": "t60",
+          "batch": 1,
+          "texts_per_second": 110881.0
+        },
+        {
+          "set": "t60",
+          "batch": 32,
+          "texts_per_second": 125775.0
+        },
+        {
+          "set": "t60",
+          "batch": 256,
+          "texts_per_second": 308133.0
+        },
+        {
+          "set": "t60",
+          "batch": 1024,
+          "texts_per_second": 404463.0
+        },
+        {
+          "set": "w256",
+          "batch": 1,
+          "texts_per_second": 22650.0
+        },
+        {
+          "set": "w256",
+          "batch": 32,
+          "texts_per_second": 61188.0
+        },
+        {
+          "set": "w256",
+          "batch": 256,
+          "texts_per_second": 99316.0
+        },
+        {
+          "set": "w256",
+          "batch": 1024,
+          "texts_per_second": 109501.0
+        }
+      ],
+      "vectors": {
+        "set": "golden",
+        "rows": 88,
+        "bit_equal": 21,
+        "refused": 0,
+        "min_cosine": -0.05941120409203683
+      },
+      "not_run": null
+    },
+    {
+      "name": "statembed-rayon",
+      "version": "statembed 1.0.0 with rayon",
+      "procedure": "rs/src/bin/statembed.rs, built with rayon",
+      "commands": [
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "statembed-rayon",
+          "potion-multilingual-128M",
+          "<set:golden>",
+          "1,32,256,1024"
+        ],
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "statembed-rayon",
+          "potion-multilingual-128M",
+          "<set:t60>",
+          "1,32,256,1024"
+        ],
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "statembed-rayon",
+          "potion-multilingual-128M",
+          "<set:w256>",
+          "1,32,256,1024"
+        ],
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "statembed-rayon",
+          "potion-multilingual-128M",
+          "<set:golden>",
+          "-",
+          "<vectors>"
+        ]
+      ],
+      "rates": [
+        {
+          "set": "golden",
+          "batch": 1,
+          "texts_per_second": 81870.0
+        },
+        {
+          "set": "golden",
+          "batch": 32,
+          "texts_per_second": 92902.0
+        },
+        {
+          "set": "golden",
+          "batch": 256,
+          "texts_per_second": 137670.0
+        },
+        {
+          "set": "golden",
+          "batch": 1024,
+          "texts_per_second": 140652.0
+        },
+        {
+          "set": "t60",
+          "batch": 1,
+          "texts_per_second": 109274.0
+        },
+        {
+          "set": "t60",
+          "batch": 32,
+          "texts_per_second": 98567.0
+        },
+        {
+          "set": "t60",
+          "batch": 256,
+          "texts_per_second": 327559.0
+        },
+        {
+          "set": "t60",
+          "batch": 1024,
+          "texts_per_second": 535166.0
+        },
+        {
+          "set": "w256",
+          "batch": 1,
+          "texts_per_second": 23359.0
+        },
+        {
+          "set": "w256",
+          "batch": 32,
+          "texts_per_second": 55304.0
+        },
+        {
+          "set": "w256",
+          "batch": 256,
+          "texts_per_second": 152260.0
+        },
+        {
+          "set": "w256",
+          "batch": 1024,
+          "texts_per_second": 187931.0
+        }
+      ],
+      "vectors": {
+        "set": "golden",
+        "rows": 88,
+        "bit_equal": 21,
+        "refused": 0,
+        "min_cosine": -0.05941120409203683
+      },
+      "not_run": null
+    },
+    {
+      "name": "model2vec-rs",
+      "version": "model2vec-rs 1567eaa",
+      "procedure": "rs/src/bin/m2vrs.rs",
+      "commands": [
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "model2vec-rs",
+          "potion-multilingual-128M",
+          "<set:golden>",
+          "1,32,256,1024"
+        ],
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "model2vec-rs",
+          "potion-multilingual-128M",
+          "<set:t60>",
+          "1,32,256,1024"
+        ],
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "model2vec-rs",
+          "potion-multilingual-128M",
+          "<set:w256>",
+          "1,32,256,1024"
+        ],
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "model2vec-rs",
+          "potion-multilingual-128M",
+          "<set:golden>",
+          "-",
+          "<vectors>"
+        ]
+      ],
+      "rates": [
+        {
+          "set": "golden",
+          "batch": 1,
+          "texts_per_second": 20519.0
+        },
+        {
+          "set": "golden",
+          "batch": 32,
+          "texts_per_second": 55447.0
+        },
+        {
+          "set": "golden",
+          "batch": 256,
+          "texts_per_second": 62012.0
+        },
+        {
+          "set": "golden",
+          "batch": 1024,
+          "texts_per_second": 61863.0
+        },
+        {
+          "set": "t60",
+          "batch": 1,
+          "texts_per_second": 19416.0
+        },
+        {
+          "set": "t60",
+          "batch": 32,
+          "texts_per_second": 123205.0
+        },
+        {
+          "set": "t60",
+          "batch": 256,
+          "texts_per_second": 208560.0
+        },
+        {
+          "set": "t60",
+          "batch": 1024,
+          "texts_per_second": 247960.0
+        },
+        {
+          "set": "w256",
+          "batch": 1,
+          "texts_per_second": 3418.0
+        },
+        {
+          "set": "w256",
+          "batch": 32,
+          "texts_per_second": 28922.0
+        },
+        {
+          "set": "w256",
+          "batch": 256,
+          "texts_per_second": 52304.0
+        },
+        {
+          "set": "w256",
+          "batch": 1024,
+          "texts_per_second": 57969.0
+        }
+      ],
+      "vectors": {
+        "set": "golden",
+        "rows": 88,
+        "bit_equal": 22,
+        "refused": 0,
+        "min_cosine": 0.9999997911241926
+      },
+      "not_run": null
+    },
+    {
+      "name": "go-potion",
+      "version": "go-potion v0.1.2",
+      "procedure": "go/main.go",
+      "commands": [
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "go-potion",
+          "potion-multilingual-128M",
+          "<set:golden>",
+          "1,32,256,1024"
+        ],
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "go-potion",
+          "potion-multilingual-128M",
+          "<set:t60>",
+          "1,32,256,1024"
+        ],
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "go-potion",
+          "potion-multilingual-128M",
+          "<set:w256>",
+          "1,32,256,1024"
+        ],
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "go-potion",
+          "potion-multilingual-128M",
+          "<set:golden>",
+          "-",
+          "<vectors>"
+        ]
+      ],
+      "rates": [
+        {
+          "set": "golden",
+          "batch": 1,
+          "texts_per_second": 841.0
+        },
+        {
+          "set": "golden",
+          "batch": 32,
+          "texts_per_second": 1771.0
+        },
+        {
+          "set": "golden",
+          "batch": 256,
+          "texts_per_second": 1763.0
+        },
+        {
+          "set": "golden",
+          "batch": 1024,
+          "texts_per_second": 1763.0
+        },
+        {
+          "set": "t60",
+          "batch": 1,
+          "texts_per_second": 1961.0
+        },
+        {
+          "set": "t60",
+          "batch": 32,
+          "texts_per_second": 15990.0
+        },
+        {
+          "set": "t60",
+          "batch": 256,
+          "texts_per_second": 25453.0
+        },
+        {
+          "set": "t60",
+          "batch": 1024,
+          "texts_per_second": 27084.0
+        },
+        {
+          "set": "w256",
+          "batch": 1,
+          "texts_per_second": 192.0
+        },
+        {
+          "set": "w256",
+          "batch": 32,
+          "texts_per_second": 1809.0
+        },
+        {
+          "set": "w256",
+          "batch": 256,
+          "texts_per_second": 2799.0
+        },
+        {
+          "set": "w256",
+          "batch": 1024,
+          "texts_per_second": 2929.0
+        }
+      ],
+      "vectors": {
+        "set": "golden",
+        "rows": 88,
+        "bit_equal": 65,
+        "refused": 0,
+        "min_cosine": -0.059411204678280496
+      },
+      "not_run": null
+    },
+    {
+      "name": "model2vec-zig",
+      "version": "model2vec-zig ed5b443 (0.2.0)",
+      "procedure": "zig/src/main.zig; it has no batch API, so a batch above 1 runs every text over one thread per CPU",
+      "commands": [
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "model2vec-zig",
+          "potion-multilingual-128M",
+          "<set:golden>",
+          "1,32,256,1024"
+        ],
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "model2vec-zig",
+          "potion-multilingual-128M",
+          "<set:t60>",
+          "1,32,256,1024"
+        ],
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "model2vec-zig",
+          "potion-multilingual-128M",
+          "<set:w256>",
+          "1,32,256,1024"
+        ]
+      ],
+      "rates": [],
+      "vectors": null,
+      "not_run": "w256: no rate (exit status: 1): "
+    },
+    {
+      "name": "model2vec",
+      "version": "Model2Vec 3ef2bf2",
+      "procedure": "py/bench.py model2vec",
+      "commands": [
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "model2vec",
+          "potion-multilingual-128M",
+          "<set:golden>",
+          "1,32,256,1024"
+        ],
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "model2vec",
+          "potion-multilingual-128M",
+          "<set:t60>",
+          "1,32,256,1024"
+        ],
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "model2vec",
+          "potion-multilingual-128M",
+          "<set:w256>",
+          "1,32,256,1024"
+        ],
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "model2vec",
+          "potion-multilingual-128M",
+          "<set:golden>",
+          "-",
+          "<vectors>"
+        ]
+      ],
+      "rates": [
+        {
+          "set": "golden",
+          "batch": 1,
+          "texts_per_second": 14027.0
+        },
+        {
+          "set": "golden",
+          "batch": 32,
+          "texts_per_second": 43233.0
+        },
+        {
+          "set": "golden",
+          "batch": 256,
+          "texts_per_second": 52442.0
+        },
+        {
+          "set": "golden",
+          "batch": 1024,
+          "texts_per_second": 52159.0
+        },
+        {
+          "set": "t60",
+          "batch": 1,
+          "texts_per_second": 12185.0
+        },
+        {
+          "set": "t60",
+          "batch": 32,
+          "texts_per_second": 59361.0
+        },
+        {
+          "set": "t60",
+          "batch": 256,
+          "texts_per_second": 88409.0
+        },
+        {
+          "set": "t60",
+          "batch": 1024,
+          "texts_per_second": 87087.0
+        },
+        {
+          "set": "w256",
+          "batch": 1,
+          "texts_per_second": 2551.0
+        },
+        {
+          "set": "w256",
+          "batch": 32,
+          "texts_per_second": 14863.0
+        },
+        {
+          "set": "w256",
+          "batch": 256,
+          "texts_per_second": 18604.0
+        },
+        {
+          "set": "w256",
+          "batch": 1024,
+          "texts_per_second": 16549.0
+        }
+      ],
+      "vectors": {
+        "set": "golden",
+        "rows": 88,
+        "bit_equal": 88,
+        "refused": 0,
+        "min_cosine": 0.9999999999999998
+      },
+      "not_run": null
+    },
+    {
+      "name": "st",
+      "version": "sentence-transformers 6.1.0 StaticEmbedding",
+      "procedure": "py/bench.py st",
+      "commands": [
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "st",
+          "potion-multilingual-128M",
+          "<set:golden>",
+          "1,32,256,1024"
+        ],
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "st",
+          "potion-multilingual-128M",
+          "<set:t60>",
+          "1,32,256,1024"
+        ],
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "st",
+          "potion-multilingual-128M",
+          "<set:w256>",
+          "1,32,256,1024"
+        ],
+        [
+          "bench/static-peers/peers.sh",
+          "run",
+          "st",
+          "potion-multilingual-128M",
+          "<set:golden>",
+          "-",
+          "<vectors>"
+        ]
+      ],
+      "rates": [
+        {
+          "set": "golden",
+          "batch": 1,
+          "texts_per_second": 5032.0
+        },
+        {
+          "set": "golden",
+          "batch": 32,
+          "texts_per_second": 13963.0
+        },
+        {
+          "set": "golden",
+          "batch": 256,
+          "texts_per_second": 16891.0
+        },
+        {
+          "set": "golden",
+          "batch": 1024,
+          "texts_per_second": 16847.0
+        },
+        {
+          "set": "t60",
+          "batch": 1,
+          "texts_per_second": 6281.0
+        },
+        {
+          "set": "t60",
+          "batch": 32,
+          "texts_per_second": 37513.0
+        },
+        {
+          "set": "t60",
+          "batch": 256,
+          "texts_per_second": 55301.0
+        },
+        {
+          "set": "t60",
+          "batch": 1024,
+          "texts_per_second": 90419.0
+        },
+        {
+          "set": "w256",
+          "batch": 1,
+          "texts_per_second": 1940.0
+        },
+        {
+          "set": "w256",
+          "batch": 32,
+          "texts_per_second": 10847.0
+        },
+        {
+          "set": "w256",
+          "batch": 256,
+          "texts_per_second": 19598.0
+        },
+        {
+          "set": "w256",
+          "batch": 1024,
+          "texts_per_second": 22926.0
+        }
+      ],
+      "vectors": {
+        "set": "golden",
+        "rows": 88,
+        "bit_equal": 59,
+        "refused": 0,
+        "min_cosine": -0.059411204678280496
+      },
+      "not_run": null
+    }
+  ]
+}

@@ -139,21 +139,10 @@ pub fn lengths_name(min: u32, max: Option<u32>) -> String {
 
 /// The record's file name: machine, backend, model and commit.
 pub fn file_name(r: &PosRecord) -> String {
-    let slug = |s: &str| {
-        let mut out = String::new();
-        for c in s.chars() {
-            if c.is_ascii_alphanumeric() {
-                out.push(c.to_ascii_lowercase());
-            } else if !out.is_empty() && !out.ends_with('-') {
-                out.push('-');
-            }
-        }
-        out.trim_end_matches('-').to_owned()
-    };
     format!(
         "{}.{}.postag.bilstm-crf.{}.{}.json",
-        slug(&r.machine.arch),
-        slug(&r.device.backend),
+        crate::throughput::slug(&r.machine.arch),
+        crate::throughput::slug(&r.device.backend),
         r.model.file_sha256.get(..8).unwrap_or(""),
         r.library.commit.get(..12).unwrap_or("")
     )

@@ -4,6 +4,7 @@
 mod cli;
 mod qa_cmd;
 mod references;
+mod static_cmd;
 use references::Given;
 
 use std::path::{Path, PathBuf};
@@ -36,7 +37,10 @@ fn run(args: &[String]) -> Result<()> {
         Some("ranges") => ranges_cmd(&args[1..]),
         Some("postag") => turbo_bench::postag::cmd(&args[1..]),
         Some("tag") => turbo_bench::tag::cmd(&args[1..]),
+        Some("lattice") => turbo_bench::throughput::lattice_cmd(&args[1..]),
+        Some("grammar") => turbo_bench::throughput::grammar_cmd(&args[1..]),
         Some("qa") => qa_cmd::run(&args[1..]),
+        Some("static") => static_cmd::run(&args[1..]),
         Some("check") if args.len() > 1 => {
             for a in &args[1..] {
                 check(Path::new(a))?;
