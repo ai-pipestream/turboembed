@@ -926,6 +926,29 @@ message EvidenceAnnotation
 }
 
 // One strongly-typed annotation in a TypedLayer.
+// Content is carried by the enclosing annotation's projected spans. Optional
+// speaker/cue messages retain presence even when normalization deletes their
+// text and projects them to an empty span.
+message QuotationAnnotation
+{
+  enum Kind
+  {
+    DIRECT = 0;
+    INDIRECT = 1;
+    MIXED = 2;
+  }
+  optional Kind kind = 1;
+  // Required on successful quotation records. Explicit presence preserves
+  // every native f32 bit, including negative zero, and distinguishes omission.
+  optional float confidence = 2;
+  SpanFragment speaker = 3;
+  SpanFragment cue_verb = 4;
+  // Raw contextual row in the producer's default coreference chains. The
+  // native layer does not bounds-check or resolve this field; it may be
+  // present without a chain layer, and is not an indexes_layer reference.
+  optional uint32 speaker_chain = 5;
+}
+
 message TypedAnnotation
 {
   repeated SpanFragment spans = 1;
@@ -1018,5 +1041,6 @@ message TypedAnnotation
     QualityMetricsAnnotation text_quality = 91;
     QualityMetricsAnnotation span_quality = 92;
     EvidenceAnnotation evidence = 93;
+    QuotationAnnotation quotation = 94;
   }
 }

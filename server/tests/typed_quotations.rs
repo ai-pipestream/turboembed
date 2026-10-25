@@ -7,6 +7,7 @@ use turbo_analysis::{
     export::{DocumentGraph, export, import},
 };
 use turbo_analysis_layers::Quotations;
+use turbo_kserve::proto::result::typed_annotation::Value;
 use turbo_kserve::{
     proto::result::{AnchorKind, DocumentGraphRequest, InspectDocumentGraphRequest, OffsetMode},
     results::document::codecs,
@@ -72,8 +73,20 @@ async fn registered_quotations_do_not_disappear_in_typed_projection() {
                         a.spans,
                         vec![fixture::projected(&doc, native.spans.view(), ViewId(view as u16), q.content, mode)]
                     );
-                    assert_eq!(a.probability.unwrap().to_bits(), f64::from(q.confidence).to_bits());
+                    assert_eq!(a.probability, None);
                     assert_eq!(a.model_ref, Some(producer.model_ref.clone()));
+                    let Some(Value::Quotation(value)) = &a.value else { panic!("missing quotation payload") };
+                    assert_eq!(value.kind, Some(i32::from(q.kind.to_byte())));
+                    assert_eq!(value.confidence.unwrap().to_bits(), q.confidence.to_bits());
+                    let project = |s| fixture::projected(&doc, native.spans.view(), ViewId(view as u16), s, mode);
+                    assert_eq!(value.speaker, q.speaker.map(project));
+                    assert_eq!(value.cue_verb, q.cue_verb.map(project));
+                    assert_eq!(value.speaker_chain, q.speaker_chain);
+                    let echoed = echo.layers.iter().find(|l| l.id == Quotations::ID && l.instance == name).unwrap();
+                    let Some(Value::Quotation(echoed)) = &echoed.annotations[i].value else {
+                        panic!("lost quotation payload")
+                    };
+                    assert_eq!(echoed.confidence.unwrap().to_bits(), q.confidence.to_bits());
                 }
             }
         }
