@@ -31,7 +31,7 @@ impl DocumentFormatter for JsonLdFormatter {
             media_type: "application/ld+json; charset=utf-8",
             file_extension: "jsonld",
             binary: false,
-            lossless: true,
+            lossless: false,
             required_layers: REQUIRED_LAYERS,
             description: "Deterministic JSON-LD / UIMA-style typed layer and provenance export with ExportOffsetMode spans.",
         }

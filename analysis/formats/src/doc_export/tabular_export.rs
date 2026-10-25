@@ -3,7 +3,7 @@
 use std::fmt::Write as _;
 use std::io::Write;
 
-use turbo_analysis::{Document, Ix};
+use turbo_analysis::{Document, Ix, Span};
 use turbo_analysis_layers::{Entities, Lemmas, PosTags, Sentences, Stems, Terms, Tokens};
 use turbo_stopword_layers::Stopwords;
 
@@ -171,20 +171,38 @@ fn collect_token_rows(doc: &Document, offsets: ExportOffsetMode) -> Result<Vec<T
     let tok_len = tokens.spans.len();
     let mut bio_tags = vec!["O".to_owned(); tok_len];
     if let Some(ents) = entities {
+        let ent_view = ents.spans.view();
         for (e_ix, _span) in ents.spans.iter() {
             let row = e_ix.get();
             let label = ents.kinds.label(ents.kind[row]);
             let range = ents.tokens[row];
             let start_t = range.start.get();
             let end_t = range.end.get().min(tok_len);
-            for (offset, slot) in bio_tags[start_t..end_t].iter_mut().enumerate() {
-                if slot == "O" {
-                    let prefix = if offset == 0 { "B" } else { "I" };
+            let frags_src: Vec<Span> = ents.spans.fragments(e_ix).map(|frag| doc.to_source(ent_view, frag)).collect();
+            let mut began = false;
+            for (t_idx, slot) in bio_tags[start_t..end_t].iter_mut().enumerate() {
+                let tok_src = doc.to_source(tok_view, tokens.spans.get(Ix::new((start_t + t_idx) as u32)));
+                let overlaps_frag = frags_src.iter().any(|f| f.start < tok_src.end && f.end > tok_src.start);
+                if overlaps_frag && slot == "O" {
+                    let prefix = if !began {
+                        began = true;
+                        "B"
+                    } else {
+                        "I"
+                    };
                     *slot = format!("{prefix}-{label}");
                 }
             }
         }
     }
+
+    let sent_src_spans: Vec<Span> = sentences
+        .filter(|_| tokens.sentence.is_none())
+        .map(|sents| {
+            let s_view = sents.spans.view();
+            sents.spans.iter().map(|(_, sp)| doc.to_source(s_view, sp)).collect()
+        })
+        .unwrap_or_default();
 
     let mut rows = Vec::with_capacity(tok_len);
     for (t_ix, tok_span) in tokens.spans.iter() {
@@ -195,14 +213,12 @@ fn collect_token_rows(doc: &Document, offsets: ExportOffsetMode) -> Result<Vec<T
 
         let sentence = if let Some(sent_col) = &tokens.sentence {
             sent_col[i].get()
-        } else if let Some(sents) = sentences {
-            let s_view = sents.spans.view();
-            (0..sents.spans.len() as u32)
-                .find(|&s_i| {
-                    let s_src = doc.to_source(s_view, sents.spans.get(Ix::new(s_i)));
-                    src_span.start >= s_src.start && src_span.end <= s_src.end
-                })
-                .unwrap_or(0) as usize
+        } else if !sent_src_spans.is_empty() {
+            let idx = sent_src_spans.partition_point(|s_src| s_src.end <= src_span.start);
+            sent_src_spans
+                .get(idx)
+                .filter(|s_src| src_span.start >= s_src.start && src_span.end <= s_src.end)
+                .map_or(0, |_| idx)
         } else {
             0
         };
