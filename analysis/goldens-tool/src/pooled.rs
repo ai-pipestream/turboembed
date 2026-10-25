@@ -59,10 +59,13 @@ pub fn derive(dir: &Path) -> Result<(), String> {
     if let Some(user) = current_user() {
         cmd.args(["--user", &user]);
     }
-    cmd.args(["--entrypoint", "python", REFERENCE_IMAGE, "/mean_pool_onnx.py", "/source.onnx"])
+    // CI builds the reference recipe locally; the derived file must still
+    // match POOLED_SHA512 before it is accepted.
+    let image = std::env::var("TURBO_GOLDENS_REFERENCE_IMAGE").unwrap_or_else(|_| REFERENCE_IMAGE.into());
+    cmd.args(["--entrypoint", "python", &image, "/mean_pool_onnx.py", "/source.onnx"])
         .args(["/out/pooled.onnx", "/out/pooled.json"]);
     run(&mut cmd).map_err(|e| {
-        format!("{e}\nderiving {POOLED} needs the bundle tool's reference image {REFERENCE_IMAGE} (bundle/README.md)")
+        format!("{e}\nderiving {POOLED} needs the bundle tool's reference image {image} (bundle/README.md)")
     })?;
     let made = work.join("pooled.onnx");
     check(&made)?;

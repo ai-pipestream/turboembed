@@ -10,6 +10,7 @@
 pub mod code_point;
 mod codepoint_strings;
 mod ignore_case;
+pub mod locale;
 mod strings;
 mod word_classes;
 use crate::ascii::push_lowercase_run;

@@ -27,6 +27,10 @@ pub enum CaseFoldMode {
     TurkicSimple,
     /// Full case folding with the Turkic entries.
     TurkicFull,
+    /// Turkish locale lowercase, including contextual dot removal.
+    TurkishLowercase,
+    /// Azerbaijani locale lowercase (the same SpecialCasing rules as Turkish).
+    AzerbaijaniLowercase,
 }
 
 /// Lowercases or case folds the text, one character at a time.
@@ -34,9 +38,9 @@ pub enum CaseFoldMode {
 /// Each character whose mapping differs from itself is replaced on its
 /// own, so a character that expands ("ß" to "ss" under full folding) maps
 /// back to exactly its source character. Every other character is kept.
-/// Only U+03A3 in [`CaseFoldMode::Lowercase`] looks at its neighbours,
-/// through `turbo_unicode::java::lowercase_at`; the folds are context
-/// free.
+/// Lowercasing uses the shared JDK sigma rule. Turkish/Azerbaijani modes
+/// also inspect the original combining context of I and U+0307. Case
+/// folds themselves are context free.
 ///
 /// Case folding is meant for caseless matching, not for display: the full
 /// fold maps "ß" to "ss", final sigma to "σ", and U+00B5 MICRO SIGN to
@@ -92,6 +96,20 @@ impl CaseFold {
         CaseFold::new(CaseFoldMode::TurkicFull)
     }
 
+    /// `String.toLowerCase(Locale.forLanguageTag("tr"))`.
+    pub fn turkish_lowercase() -> CaseFold {
+        CaseFold::new(CaseFoldMode::TurkishLowercase)
+    }
+
+    /// `String.toLowerCase(Locale.forLanguageTag("az"))`.
+    pub fn azerbaijani_lowercase() -> CaseFold {
+        CaseFold::new(CaseFoldMode::AzerbaijaniLowercase)
+    }
+
+    fn locale_lowercase(&self) -> bool {
+        matches!(self.mode, CaseFoldMode::TurkishLowercase | CaseFoldMode::AzerbaijaniLowercase)
+    }
+
     pub fn mode(&self) -> CaseFoldMode {
         self.mode
     }
@@ -112,11 +130,17 @@ impl CaseFold {
         let end = at + c.len_utf8();
         let mut buf = [0u8; 4];
         let with: &str = match self.mode {
-            CaseFoldMode::Lowercase => match java::lowercase_at(text, at, c) {
-                Lowercase::Char(lower) if lower == c => return,
-                Lowercase::Char(lower) => lower.encode_utf8(&mut buf),
-                Lowercase::Str(lower) => lower,
-            },
+            CaseFoldMode::Lowercase | CaseFoldMode::TurkishLowercase | CaseFoldMode::AzerbaijaniLowercase => {
+                match if self.locale_lowercase() {
+                    java::locale::turkic_lowercase_at(text, at, c)
+                } else {
+                    java::lowercase_at(text, at, c)
+                } {
+                    Lowercase::Char(lower) if lower == c => return,
+                    Lowercase::Char(lower) => lower.encode_utf8(&mut buf),
+                    Lowercase::Str(lower) => lower,
+                }
+            }
             CaseFoldMode::Simple => match casefold::simple(c) {
                 folded if folded == c => return,
                 folded => folded.encode_utf8(&mut buf),
@@ -147,7 +171,10 @@ impl Normalizer for CaseFold {
         let mut i = skip_unchanged_ascii(bytes, 0);
         while i < bytes.len() {
             let b = bytes[i];
-            if b.is_ascii_uppercase() {
+            if b == b'I' && self.locale_lowercase() {
+                self.fold_char(text, i, 'I', out);
+                i += 1;
+            } else if b.is_ascii_uppercase() {
                 out.keep(i);
                 out.replace(i + 1, self.ascii_upper(b));
                 i += 1;

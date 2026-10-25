@@ -140,6 +140,11 @@ impl QuantityExtractor {
         self.notation
     }
 
+    /// Whether numeric scanning and money exclusion follow OpenNLP parity.
+    pub fn opennlp_parity(&self) -> bool {
+        self.opennlp_parity
+    }
+
     /// Replaces the money extractor used to exclude currency amounts before
     /// scanning quantities.
     pub(crate) fn with_money(mut self, money: MoneyExtractor) -> QuantityExtractor {

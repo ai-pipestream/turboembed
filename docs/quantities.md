@@ -99,12 +99,26 @@ percent sign and word are read with any set.
 
 ## Differences from OpenNLP
 
-None in the results are intended and none are known. The tests port the
-cases of the add-on's `CursorQuantityExtractorTest`, and a JVM oracle
-(outside the repository) compared the port with the Java on 2,000,000
-generated texts in three configurations (the default units in both
-notations, and a custom set with a unit outside the Basic Multilingual
-Plane), about 1,400,000 mentions, with no difference.
+Native extraction inherits the extended money policy described in
+[money.md](money.md). Regional dollar forms such as `A$2m`, `US$2m` and
+`HK$2m` are money, so the trailing metres are excluded. The pinned OpenNLP
+extractor instead returns the `2m` quantity in these cases.
+
+`QuantityExtractor::with_opennlp_parity(true)` selects the pinned numeric
+and money policies for exact JVM comparisons. It rejects the native
+extensions for Indian grouping, exponents and non-ASCII digits, and uses
+the JVM money exclusions. Unit definitions and comparison tolerances stay
+the same. The getter `opennlp_parity()` reports this shared choice.
+Native mode remains the default. Both modes retain the configuration
+identities of the current numeric implementation, including its explicit
+mode field; switching back restores the native identity. The checked-in
+JVM tests and differential adapter explicitly select parity mode.
+
+Earlier documentation reported a two-million-text oracle run of the
+original port, with about 1.4 million mentions. That campaign is historical
+and was not repeated for the later money-policy extensions. New checked-in
+goldens cover the nightly regional-dollar failure and its controls in both
+notations, using the actual pinned JVM generator.
 
 Where the APIs differ:
 
@@ -145,7 +159,7 @@ JVM goldens for quantities come from the goldens tool
 ([analysis.md](analysis.md#golden-files)).
 
 - Inputs: the `quantity` set, `analysis/goldens/data/inputs/quantity/`,
-  61 texts.
+  69 texts.
 - Goldens: `analysis/goldens/data/quantity/<notation>/quantity/<id>.golden`,
   `latin-us` or `latin-eu`, from `QuantityAnnotator` over
   `CursorQuantityExtractor` with its default units. Layer
@@ -156,5 +170,5 @@ The columns are `start`, `end` (UTF-8 byte offsets of the whole mention),
 value's sign), `scale`, `plain` (`toPlainString()`) and `unit`. The value
 is `(-1)^negative * coefficient / 10^scale`. The `config` record is
 `notation` (`LATIN_US` or `LATIN_EU`). `analysis/numeric/tests/quantity_goldens.rs`
-runs `QuantityExtractor` over the set in both notations and compares the
+runs `QuantityExtractor` in OpenNLP parity mode over both notations and compares the
 layer with the goldens row for row.

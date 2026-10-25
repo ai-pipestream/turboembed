@@ -66,7 +66,7 @@ pub const COREF_ADDONS_COMMIT: &str = "be11df610e24a9a2a10f80b7199349fe5b3594a9"
 /// The tag `turbo-goldens image` gives the image it builds. It names the
 /// OpenNLP and addons commits, so an image built from other commits has
 /// another tag.
-pub const IMAGE_TAG: &str = "turbo-goldens-java:opennlp-cdf33c653d5d-addons-33e95a4956f1";
+pub const IMAGE_TAG: &str = "turbo-goldens-java:locked-opennlp-cdf33c653d5d-addons-33e95a4956f1";
 
 mod excerpts;
 mod fixtures;
