@@ -448,3 +448,14 @@ fn fuzzy_pruning_preserves_threshold_equal_matches_across_metrics() {
         }
     }
 }
+
+#[test]
+fn possessive_and_quoted_country_names_still_signal() {
+    let scorer = CountryProximityScorer::default();
+    let codes = |text: &str| {
+        scorer.extract_text_signals(text).iter().map(|s| s.country.as_str().to_string()).collect::<Vec<_>>()
+    };
+    assert_eq!(codes("the United States' position"), ["US"]);
+    assert_eq!(codes("the Philippines' coast"), ["PH"]);
+    assert_eq!(codes("they said 'France' was"), ["FR"]);
+}
