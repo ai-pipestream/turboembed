@@ -113,12 +113,11 @@ impl Annotator for EntityConsolidator {
 
     /// FNV-1a over the version and each switch.
     fn config_hash(&self) -> u64 {
-        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-        for b in Self::VERSION.bytes().chain([u8::from(self.config.surface_merge), u8::from(self.config.alias_merge)]) {
-            h ^= u64::from(b);
-            h = h.wrapping_mul(0x0000_0100_0000_01b3);
-        }
-        h
+        turbo_analysis::Fnv1a::new()
+            .bytes(Self::VERSION.as_bytes())
+            .bool(self.config.surface_merge)
+            .bool(self.config.alias_merge)
+            .finish()
     }
 
     fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error> {

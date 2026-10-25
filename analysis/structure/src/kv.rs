@@ -1,6 +1,6 @@
 //! Bounded line-oriented source key/value fields.
 use crate::table_grid::{code_lines, lines, trim};
-use turbo_analysis::{Annotator, Error, Layer, Refs, Span, View};
+use turbo_analysis::{Annotator, Error, Fnv1a, Layer, Refs, Span, View};
 use turbo_analysis_layers::{KeyValuePair, KeyValuePairs};
 use turbo_unicode::{WhitespaceMode, java};
 
@@ -61,6 +61,6 @@ impl Annotator for KeyValueAnnotator {
         Ok((out,))
     }
     fn config_hash(&self) -> u64 {
-        (0x6b76_0000_0000_0001 ^ u64::from(self.max_key_tokens)).wrapping_mul(0x0100_0000_01b3)
+        Fnv1a::with_seed(0x6b76_0000_0000_0001).fold_u64(u64::from(self.max_key_tokens)).finish()
     }
 }

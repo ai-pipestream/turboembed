@@ -177,11 +177,11 @@ impl SparseAnnotator {
     /// the prompt and the top-k cut, before the layer that lays out the
     /// windows.
     pub fn config(&self) -> u64 {
-        let mut h = 0xcbf2_9ce4_8422_2325u64;
-        for b in self.settings.iter().flat_map(|v| v.to_le_bytes()) {
-            h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
-        }
-        h
+        let mut h = turbo_analysis::Fnv1a::new();
+        self.settings.iter().for_each(|&v| {
+            h.u32(v);
+        });
+        h.finish()
     }
 
     /// The terms of one document per input, a result for each. A document

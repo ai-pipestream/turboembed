@@ -44,7 +44,7 @@ impl CustomExtractor for AccountExtractor {
     }
 
     fn config_hash(&self) -> u64 {
-        self.prefix.iter().fold(0xcbf2_9ce4_8422_2325, |h, &b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3))
+        turbo_analysis::Fnv1a::new().bytes(self.prefix).finish()
     }
 
     fn scan(&self, text: &str, sink: &mut PiiSink<'_>) {
@@ -420,4 +420,46 @@ fn custom_kind_ordering_export_round_trip_and_sink_validation() {
     let all_dash = MaskedView::all(dash);
     assert_ne!(overridden.policy(ACCOUNT_KIND), all_dash.policy(ACCOUNT_KIND));
     assert_ne!(overridden.config_hash(), all_dash.config_hash());
+}
+
+#[test]
+fn hash_compat_scanners_custom_names_and_mask_policies() {
+    let star = MaskPolicy::new('*').unwrap();
+    let dash = MaskPolicy::new('-').unwrap();
+    let hashes = [
+        AccountExtractor { prefix: b"acct" }.config_hash(),
+        AccountExtractor { prefix: b"" }.config_hash(),
+        PiiDetector::cursor().config_hash(),
+        PiiDetector::new(vec![]).config_hash(),
+        PiiDetector::cursor().keeping_nested().config_hash(),
+        PiiDetector::new(vec![]).keeping_nested().config_hash(),
+        PiiDetector::cursor().with_custom(AccountExtractor { prefix: b"acct" }).config_hash(),
+        PiiDetector::cursor().with_custom(AccountExtractor { prefix: b"iban" }).config_hash(),
+        PiiDetector::cursor().with_custom_fn("ä", ACCOUNT_KIND, scan_se_personnummer).config_hash(),
+        PiiDetector::cursor().with_custom_fn("A", PERSONNUMMER_KIND, scan_se_personnummer).config_hash(),
+        MaskedView::all(star).config_hash(),
+        MaskedView::all(dash).config_hash(),
+        MaskedView::all(star).with(ACCOUNT_KIND, dash).config_hash(),
+        MaskedView::all(star).with(ACCOUNT_KIND, dash).with(PiiKind::Email, dash).config_hash(),
+    ];
+    // Fixed values from the previous implementation, before migration.
+    assert_eq!(
+        hashes,
+        [
+            528282918550767338,
+            14695981039346656037,
+            1167021675049562525,
+            14695981039346656037,
+            563074402314603540,
+            12638152016183539244,
+            15922930802516518628,
+            7989329234783511033,
+            10850096530196813776,
+            17854510877846885541,
+            12419471227701003101,
+            2275885573526886244,
+            17517181143009779942,
+            8950731020175384035
+        ]
+    );
 }

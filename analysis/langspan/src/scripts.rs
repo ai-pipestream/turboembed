@@ -87,28 +87,20 @@ pub struct Candidates {
 
 impl Candidates {
     pub(crate) fn config_hash(&self) -> u64 {
-        // Fixed-width lengths and outcome indices, and Unicode script names,
-        // keep persisted provenance independent of Rust's Hasher and usize.
-        let mut h = 0xcbf29ce484222325_u64;
-        let mut feed = |bytes: &[u8]| {
-            for &b in bytes {
-                h = (h ^ u64::from(b)).wrapping_mul(0x100000001b3);
-            }
-        };
-        feed(&(self.by_group.len() as u32).to_le_bytes());
+        // Preserve the u32 lengths/indices and raw UTF-8 script names from main.
+        let mut h = turbo_analysis::Fnv1a::new();
+        h.u32(self.by_group.len() as u32);
         for (script, outcomes) in &self.by_group {
-            feed(&(script.name().len() as u32).to_le_bytes());
-            feed(script.name().as_bytes());
-            feed(&(outcomes.len() as u32).to_le_bytes());
-            for outcome in outcomes {
-                feed(&outcome.to_le_bytes());
+            h.u32(script.name().len() as u32).bytes(script.name().as_bytes()).u32(outcomes.len() as u32);
+            for &outcome in outcomes {
+                h.u32(outcome);
             }
         }
-        feed(&(self.anywhere.len() as u32).to_le_bytes());
-        for outcome in &self.anywhere {
-            feed(&outcome.to_le_bytes());
+        h.u32(self.anywhere.len() as u32);
+        for &outcome in &self.anywhere {
+            h.u32(outcome);
         }
-        h
+        h.finish()
     }
 
     /// The candidates for a model's outcome `codes`, in outcome order,
@@ -139,7 +131,7 @@ impl Candidates {
     }
 
     pub(crate) fn fingerprint(&self) -> u64 {
-        let mut h = 0xcbf2_9ce4_8422_2325u64;
+        let mut h = turbo_analysis::Fnv1a::new();
         for word in self
             .by_group
             .iter()
@@ -149,9 +141,9 @@ impl Candidates {
             .chain([u64::MAX, self.anywhere.len() as u64])
             .chain(self.anywhere.iter().map(|&v| u64::from(v)))
         {
-            h = (h ^ word).wrapping_mul(0x0000_0100_0000_01b3);
+            h.fold_u64(word);
         }
-        h
+        h.finish()
     }
 
     /// The languages a run of script group `group` can be, in outcome
@@ -206,3 +198,6 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod config_hash_compat;

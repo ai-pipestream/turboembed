@@ -11,7 +11,8 @@ use crate::graph::{Edges, Groups};
 use crate::layer::{Anchor, Key, KeyId, Layer, Provenance};
 use crate::span::Ix;
 
-use super::{FNV_OFFSET_BASIS, check_required_inputs, fnv_mix_key, fnv_mix_str, panicked};
+use super::{check_required_inputs, panicked};
+use crate::hash::Fnv1a;
 
 /// A layer whose items can be filtered by index into a new layer instance
 /// while preserving spans, discontinuous fragments, and per-item columns.
@@ -190,14 +191,12 @@ impl<L: FilterableLayer> FilterAnnotator<L> {
     }
 
     pub fn config_hash(&self) -> u64 {
-        let mut h = fnv_mix_str(FNV_OFFSET_BASIS, Self::ID);
-        h = fnv_mix_str(h, self.predicate_name);
-        h = fnv_mix_key(h, self.source.id());
-        h = fnv_mix_key(h, self.target.id());
+        let mut h = Fnv1a::new();
+        h.str(Self::ID).str(self.predicate_name).key_id(self.source.id()).key_id(self.target.id());
         for &r in &self.extra_reads {
-            h = fnv_mix_key(h, r);
+            h.key_id(r);
         }
-        h
+        h.finish()
     }
 
     /// Runs this filter step on a single document.

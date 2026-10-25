@@ -21,7 +21,7 @@ pub use mentions::{
 
 use std::num::NonZeroU32;
 
-use turbo_analysis::{Annotator, Bound, Edges, Error, Groups, Refs, Span, View};
+use turbo_analysis::{Annotator, Bound, Edges, Error, Fnv1a, Groups, Refs, Span, View};
 use turbo_analysis_layers::{Boundaries, Cut, Entities, Sentences};
 
 use crate::TERM_MAX;
@@ -306,6 +306,10 @@ impl Annotator for CorefBoundaries {
             u64::from(c.shift_threshold),
         ]
         .iter()
-        .fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x).wrapping_mul(0x0100_0000_01b3))
+        .fold(Fnv1a::new(), |mut h, &x| {
+            h.u64(x);
+            h
+        })
+        .finish()
     }
 }

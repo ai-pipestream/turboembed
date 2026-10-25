@@ -1,27 +1,15 @@
-//! Training the lemmatizer: `LemmatizerFactory`, the events of
-//! `LemmaSampleEventStream`, and the model file `LemmatizerME.train`
-//! returns as a `LemmatizerModel`.
+//! Trains lemma edit classes with the existing context generator and GIS
+//! trainer. The default factory keeps the token and lemma case and writes
+//! a versioned native factory name. `LemmatizerFactory::opennlp` selects
+//! the original lowercase classes for JVM goldens and published models.
 //!
-//! `LemmaSampleEventStream` first turns a sample's lemmas into classes,
-//! `LemmatizerME.encodeLemmas`: the shortest edit script from each token
-//! to its lemma (`turbo_lemmatizer::edit_script`), `_` when the script is
-//! empty (a token or lemma with no characters). Then it makes one event
-//! per token: the class as the outcome, and the features of
-//! `DefaultLemmatizerContextGenerator` for the token, its tag and the
-//! class of the token before it. The factory adds nothing to the model
-//! file but `factory` and `BeamSize` in the manifest.
-//!
-//! A class is written over UTF-16 units, so a token or lemma with a
-//! character outside the Basic Multilingual Plane can give a class that
-//! holds half of a surrogate pair. The class is a [`JavaString`], as the
-//! outcome of every event is, so such a sample makes the events the JVM
-//! makes (the `train-events` goldens), and the class is written to the
-//! model file as `writeUTF` writes it (the writer's unit tests; no golden
-//! holds a model the JVM trained on such a class).
+//! Both formats use UTF-16 operations and `JavaString` outcomes, so an
+//! operation can hold a surrogate half. The native format delimits its
+//! indices; OpenNLP's one-digit decoder is kept only for compatibility.
 
 use turbo_formats::LemmaSample;
-use turbo_lemmatizer::LemmaContext;
 use turbo_lemmatizer::edit_script;
+use turbo_lemmatizer::{CASE_SENSITIVE_FACTORY, LemmaContext, LemmaEncoding};
 use turbo_sequence::Features;
 use turbo_train::{
     Event, GisModel, JavaString, ModelPackage, TrainingConfiguration, TrainingParameters, TrainingReport, gis,
@@ -43,16 +31,27 @@ pub const DEFAULT_BEAM_SIZE: i32 = 3;
 /// The class of a token whose edit script is empty (`encodeLemmas`).
 pub const EMPTY_CLASS: &str = "_";
 
-/// `new LemmatizerFactory()`: it has no settings and no artifacts; the
-/// language only names the model.
+/// A case-preserving factory by default. Use `opennlp` explicitly for
+/// the JVM format; the language names the model.
 #[derive(Debug, Clone)]
 pub struct LemmatizerFactory {
     language: String,
+    encoding: LemmaEncoding,
 }
 
 impl LemmatizerFactory {
+    /// Native case-preserving classes and delimited edit indices.
     pub fn new(language: &str) -> LemmatizerFactory {
-        LemmatizerFactory { language: language.to_owned() }
+        LemmatizerFactory { language: language.to_owned(), encoding: LemmaEncoding::CaseSensitiveV1 }
+    }
+
+    /// The original lowercase format for JVM goldens and reproduction.
+    pub fn opennlp(language: &str) -> LemmatizerFactory {
+        LemmatizerFactory { language: language.to_owned(), encoding: LemmaEncoding::OpenNlp }
+    }
+
+    pub fn encoding(&self) -> LemmaEncoding {
+        self.encoding
     }
 
     pub fn language(&self) -> &str {
@@ -67,11 +66,15 @@ impl LemmatizerFactory {
     /// `factory`, as `BaseModel` adds it; the factory has no entries of
     /// its own.
     pub fn manifest_entries(&self) -> Vec<(String, String)> {
-        vec![(FACTORY_KEY.to_owned(), FACTORY.to_owned())]
+        let factory = match self.encoding {
+            LemmaEncoding::OpenNlp => FACTORY,
+            LemmaEncoding::CaseSensitiveV1 => CASE_SENSITIVE_FACTORY,
+        };
+        vec![(FACTORY_KEY.to_owned(), factory.to_owned())]
     }
 }
 
-/// `LemmatizerME.encodeLemmas(toks, lemmas)` for one token: the shortest
+/// Compatibility helper: `LemmatizerME.encodeLemmas(toks, lemmas)` for one token: the shortest
 /// edit script, `_` when it is empty.
 pub fn lemma_class(token: &str, lemma: &str) -> JavaString {
     let class = edit_script::encode(token, lemma);
@@ -81,13 +84,19 @@ pub fn lemma_class(token: &str, lemma: &str) -> JavaString {
 /// `LemmaSampleEventStream` over the default context generator.
 pub struct LemmaEventStream {
     context: LemmaContext,
+    encoding: LemmaEncoding,
     features: Features,
     classes: Vec<JavaString>,
 }
 
 impl LemmaEventStream {
     pub fn new(factory: &LemmatizerFactory) -> LemmaEventStream {
-        LemmaEventStream { context: factory.context_generator(), features: Features::new(), classes: Vec::new() }
+        LemmaEventStream {
+            context: factory.context_generator(),
+            encoding: factory.encoding(),
+            features: Features::new(),
+            classes: Vec::new(),
+        }
     }
 
     /// `createEvents(sample)`: appends one event per token to `out`, in
@@ -96,7 +105,7 @@ impl LemmaEventStream {
     pub fn events(&mut self, sample: &LemmaSample<'_>, out: &mut Vec<Event>) {
         self.classes.clear();
         for (token, lemma) in sample.tokens().iter().zip(sample.lemmas()) {
-            self.classes.push(lemma_class(token.as_str(), lemma.as_str()));
+            self.classes.push(self.encoding.encode(token.as_str(), lemma.as_str()));
         }
         for (i, (token, tag)) in sample.tokens().iter().zip(sample.tags()).enumerate() {
             self.features.clear();
@@ -201,7 +210,7 @@ mod tests {
 
     #[test]
     fn classes_are_edit_scripts_and_the_previous_class_is_the_samples() {
-        let f = LemmatizerFactory::new("en");
+        let f = LemmatizerFactory::opennlp("en");
         let s = samples("He\tPRP\the\nreckons\tVBZ\treckon\n\nDogs\tNNS\tdog\n");
         let events = lemma_events(&s, &f);
         let outcomes: Vec<&JavaString> = events.iter().map(Event::outcome).collect();
@@ -225,7 +234,7 @@ mod tests {
         // token's p_1= features hold the class as modified UTF-8.
         let class = lemma_class("\u{1F600}", "_");
         assert_eq!(class, JavaString::from_utf16(&[0x52, 0x31, 0xDE00, 0x5F, 0x44, 0x30, 0xD83D]));
-        let f = LemmatizerFactory::new("en");
+        let f = LemmatizerFactory::opennlp("en");
         let s = samples("\u{1F600}\t_\t_\nx\t_\t_\n");
         let events = lemma_events(&s, &f);
         assert_eq!(events.len(), 2);
@@ -239,7 +248,7 @@ mod tests {
 
     #[test]
     fn the_model_file_has_the_factory_and_the_beam_size() {
-        let f = LemmatizerFactory::new("de");
+        let f = LemmatizerFactory::opennlp("de");
         let report = TrainingReport { event_hash: Some(1), trainer_type: turbo_train::TrainerType::Event };
         let package = package_lemmatizer_model(&f, &report, vec![1], 5, Stamp::at(0)).unwrap();
         assert_eq!(package.entry_names(), ["manifest.properties", "lemmatizer.model"]);

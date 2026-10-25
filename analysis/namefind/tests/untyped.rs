@@ -117,3 +117,48 @@ fn calibrated_annotator_handles_untyped_unit_and_clears_document_state() {
         }
     }
 }
+
+#[test]
+fn hash_compat_crf_model_and_calibration_identity() {
+    let mut hashes = Vec::new();
+    for codec in [NameCodec::Bio, NameCodec::Bilou] {
+        let suffix = if codec == NameCodec::Bio { "start" } else { "unit" };
+        let model = CrfSequenceModel::new(
+            vec!["other".into(), format!("person-{suffix}")],
+            vec![],
+            codec,
+            vec![0.0, 0.0, 0.0, 0.0, 0.0, 5.0, 0.0, 0.0],
+        )
+        .unwrap();
+        let mut manifest = Manifest::new("TokenNameFinder", "en", 1700000000000);
+        manifest.set("Model-Type", crf::MODEL_TYPE);
+        manifest.set(CODEC_PROPERTY, codec.class_name());
+        let mut package = ModelPackage::new(manifest);
+        package.add_entry(crf::MODEL_ENTRY, model.to_bytes());
+        let file = ModelFile::open(package.to_bytes()).unwrap();
+        for k in [1, 2, 4096] {
+            hashes.push(CrfNameAnnotator::new(file.clone(), k).unwrap().config_hash());
+            hashes.push(
+                turbo_namefind::calibrated::crf_identity_with_candidates(&file, "fixture", k).unwrap().inference_hash,
+            );
+        }
+    }
+    // Fixed values from the previous implementation, before migration.
+    assert_eq!(
+        hashes,
+        [
+            18391168008607507920,
+            13510644368543982392,
+            6641370155800724531,
+            1760846515737199003,
+            8312815378480799137,
+            9606883738896318377,
+            6099489347948913068,
+            16322318960098287261,
+            12796435568851681295,
+            107890293356325054,
+            2195728718301249053,
+            7953927516515444428
+        ]
+    );
+}

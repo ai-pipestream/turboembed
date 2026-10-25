@@ -287,12 +287,7 @@ impl<L: SpanCategorizable> Annotator for SpanCategorizer<L> {
     }
 
     fn config_hash(&self) -> u64 {
-        let mut h = self.categorizer.config_hash();
-        for &b in L::ID.as_bytes() {
-            h ^= b as u64;
-            h = h.wrapping_mul(0x100000001b3);
-        }
-        h
+        turbo_analysis::Fnv1a::with_seed(self.categorizer.config_hash()).bytes(L::ID.as_bytes()).finish()
     }
 }
 

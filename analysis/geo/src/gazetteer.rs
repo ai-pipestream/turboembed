@@ -56,39 +56,38 @@ pub trait Gazetteer {
 }
 
 pub(crate) fn fingerprint_index(index: &crate::index::GazetteerIndex) -> u64 {
-    const P: u64 = 0x0100_0000_01b3;
-    let mix = |h: u64, v: u64| (h ^ v).wrapping_mul(P);
     let store = &index.store;
-    let mut h = mix(0xcbf2_9ce4_8422_2325, crate::checksum::checksum(store.text.as_bytes()));
-    h = mix(h, store.bounds.len() as u64);
-    for &b in &store.bounds {
-        h = mix(h, u64::from(b));
-    }
+    let mut h = turbo_analysis::Fnv1a::new();
+    h.u64(crate::checksum::checksum(store.text.as_bytes())).usize(store.bounds.len());
+    store.bounds.iter().for_each(|&b| {
+        h.u32(b);
+    });
     for name in store.codes.names() {
-        h = mix(h, crate::checksum::checksum(name.as_bytes()));
+        h.u64(crate::checksum::checksum(name.as_bytes()));
     }
     for i in 0..store.len() {
-        h = mix(h, store.latitude[i].to_bits());
-        h = mix(h, store.longitude[i].to_bits());
-        h = mix(h, store.population[i]);
-        h = mix(h, (u64::from(store.strings[i]) << 32) | u64::from(store.alternates[i]));
-        h = mix(h, (u64::from(store.attributes[i]) << 32) | u64::from(store.box_of[i]));
-        let meta = (u64::from(store.source[i]) << 32)
-            | (u64::from(store.feature[i]) << 16)
-            | u64::from(u16::from_le_bytes(store.country[i]));
-        h = mix(h, meta);
+        h.f64(store.latitude[i])
+            .f64(store.longitude[i])
+            .u64(store.population[i])
+            .u64((u64::from(store.strings[i]) << 32) | u64::from(store.alternates[i]))
+            .u64((u64::from(store.attributes[i]) << 32) | u64::from(store.box_of[i]))
+            .u64(
+                (u64::from(store.source[i]) << 32)
+                    | (u64::from(store.feature[i]) << 16)
+                    | u64::from(u16::from_le_bytes(store.country[i])),
+            );
     }
     for &[w, s, e, n] in &store.boxes {
-        h = mix(mix(mix(mix(h, w.to_bits()), s.to_bits()), e.to_bits()), n.to_bits());
+        h.f64(w).f64(s).f64(e).f64(n);
     }
     for i in 0..store.attribute_key.len() {
-        h = mix(h, (u64::from(store.attribute_key[i]) << 32) | u64::from(store.attribute_value[i]));
-        h = mix(h, (u64::from(store.attribute_notes[i]) << 16) | u64::from(store.attribute_source[i]));
+        h.u64((u64::from(store.attribute_key[i]) << 32) | u64::from(store.attribute_value[i]))
+            .u64((u64::from(store.attribute_notes[i]) << 16) | u64::from(store.attribute_source[i]));
     }
-    for &src in &index.sources {
-        h = mix(h, u64::from(src));
-    }
-    h
+    index.sources.iter().for_each(|&src| {
+        h.u16(src);
+    });
+    h.finish()
 }
 
 impl<G: Gazetteer + ?Sized> Gazetteer for &G {

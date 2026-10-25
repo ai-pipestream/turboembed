@@ -70,11 +70,9 @@ impl Embedder {
 
 /// FNV-1a over the texts and their lengths: the cache file's name.
 fn fnv(texts: &[&str]) -> u64 {
-    let mut h = 0xcbf2_9ce4_8422_2325u64;
+    let mut h = turbo_analysis::Fnv1a::new();
     for t in texts {
-        for b in (t.len() as u64).to_le_bytes().iter().chain(t.as_bytes()) {
-            h = (h ^ u64::from(*b)).wrapping_mul(0x0100_0000_01b3);
-        }
+        h.str(t);
     }
-    h
+    h.finish()
 }

@@ -254,8 +254,7 @@ impl<G: Gazetteer> Geocoder for PopulationPriorGeocoder<G> {
 
     fn fingerprint(&self) -> u64 {
         const TAG: u64 = 0x504f_505f_5052_494f;
-        let h = (0xcbf2_9ce4_8422_2325 ^ TAG).wrapping_mul(0x0100_0000_01b3);
-        (h ^ self.gazetteer.fingerprint()).wrapping_mul(0x0100_0000_01b3)
+        turbo_analysis::Fnv1a::new().fold_u64(TAG).fold_u64(self.gazetteer.fingerprint()).finish()
     }
 }
 
@@ -372,7 +371,6 @@ impl<G: Gazetteer> Geocoder for SpatialCoherenceGeocoder<G> {
 
     fn fingerprint(&self) -> u64 {
         const TAG: u64 = 0x5350_4154_5f43_4f48;
-        let h = (0xcbf2_9ce4_8422_2325 ^ TAG).wrapping_mul(0x0100_0000_01b3);
-        (h ^ self.gazetteer.fingerprint()).wrapping_mul(0x0100_0000_01b3)
+        turbo_analysis::Fnv1a::new().fold_u64(TAG).fold_u64(self.gazetteer.fingerprint()).finish()
     }
 }

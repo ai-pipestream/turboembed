@@ -1,8 +1,8 @@
 use crate::{ExtractionSchema, Model};
 use std::sync::Arc;
 use turbo_analysis::{
-    Anchor, Annotator, Document, Error, Evidence, EvidenceStep, IxRange, Key, Layer, ModelRef, Refs, Span, Spans,
-    Support, Tag, TagSet, View,
+    Anchor, Annotator, Document, Error, Evidence, EvidenceStep, Fnv1a, IxRange, Key, Layer, ModelRef, Refs, Span,
+    Spans, Support, Tag, TagSet, View,
 };
 use turbo_analysis_layers::{Entities, Sentences, Tokens};
 
@@ -147,15 +147,9 @@ impl GlinerAnnotator {
 /// is length-prefixed, and the threshold's bits are taken after `+ 0.0`,
 /// so `-0.0` and `0.0` hash alike.
 fn config_hash(config: &[u8], labels: &[String], threshold: f32, mode: u8, model: &ModelRef) -> u64 {
-    let mut h = 0xcbf29ce484222325u64;
-    let mut eat = |bytes: &[u8]| {
-        for &b in bytes {
-            h = (h ^ u64::from(b)).wrapping_mul(0x100000001b3);
-        }
-    };
+    let mut h = Fnv1a::new();
     let mut field = |bytes: &[u8]| {
-        eat(&(bytes.len() as u64).to_le_bytes());
-        eat(bytes);
+        h.bytes(&(bytes.len() as u64).to_le_bytes()).bytes(bytes);
     };
     field(config);
     field(&(labels.len() as u64).to_le_bytes());
@@ -167,12 +161,37 @@ fn config_hash(config: &[u8], labels: &[String], threshold: f32, mode: u8, model
     for part in [&model.id, &model.revision, &model.sha256] {
         field(part.as_bytes());
     }
-    h
+    h.finish()
 }
 
 #[cfg(test)]
 mod hash_tests {
     use super::*;
+
+    #[test]
+    fn merged_config_hash_values_are_preserved() {
+        let model = ModelRef { id: "model".into(), revision: "rev".into(), sha256: "digest".into() };
+        let labels = vec!["person".into(), "pläce".into()];
+        let values = [
+            config_hash(b"{}", &[], 0.0, 0, &model),
+            config_hash(b"{}", &labels, -0.0, 0, &model),
+            config_hash(b"{}", &labels, 0.0, 0, &model),
+            config_hash(b"{\"x\":1}", &labels, 0.5, 1, &model),
+            config_hash(b"{}", &["ab".into(), "c".into()], 0.5, 2, &model),
+            config_hash(b"{}", &["a".into(), "bc".into()], 0.5, 2, &model),
+        ];
+        assert_eq!(
+            values,
+            [
+                9266100171189233566,
+                1346310481041391278,
+                1346310481041391278,
+                2144601169207960186,
+                2955565300295920268,
+                9442726282928443616,
+            ]
+        );
+    }
 
     #[test]
     fn config_hash_is_fnv_and_folds_negative_zero_threshold() {

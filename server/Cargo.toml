@@ -25,6 +25,7 @@ turbo-chunker = { path = "../analysis/chunker" }
 turbo-coref = { path = "../analysis/coref" }
 turbo-encoding-layers = { path = "../analysis/encoding-layers" }
 turbo-entity-linker = { path = "../analysis/entity-linker" }
+turbo-formats = { path = "../analysis/formats" }
 turbo-geo = { path = "../analysis/geo" }
 turbo-gliner = { path = "../analysis/gliner" }
 turbo-glossary-layers = { path = "../analysis/glossary-layers" }
@@ -37,6 +38,10 @@ turbo-relation = { path = "../analysis/relation" }
 turbo-schema-extract = { path = "../analysis/schema-extract" }
 turbo-stopword-layers = { path = "../analysis/stopword-layers" }
 turbo-tokenize-layers = { path = "../analysis/tokenize-layers" }
+turbo-vector-index = { path = "../analysis/vector-index", features = ["turboquant"] }
+turbo-query = { path = "../analysis/query" }
+turbo-sentdetect = { path = "../analysis/sentdetect" }
+turbo-stem = { path = "../analysis/stem" }
 # The vocabulary store's readers: each upload is parsed by the crate that
 # owns its format, and the learner counts UAX #29 words.
 turbo-glossary = { path = "../analysis/glossary" }

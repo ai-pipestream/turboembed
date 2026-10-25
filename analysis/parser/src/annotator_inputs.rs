@@ -48,19 +48,12 @@ pub(crate) fn token_text(text: &str, i: usize, span: Span) -> Result<&str, Strin
 /// parser type, the beam size and the advance percentage. The percentage is
 /// hashed by its bits after adding `0.0`, so `-0.0` and `0.0` agree.
 pub(crate) fn config_hash(parser_type: ParserType, beam_size: usize, advance_percentage: f64) -> u64 {
-    const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
-    const PRIME: u64 = 0x0000_0100_0000_01b3;
     let kind: u8 = match parser_type {
         ParserType::Chunking => 1,
         ParserType::TreeInsert => 2,
     };
     let advance = (advance_percentage + 0.0).to_bits();
-    let mut h = OFFSET;
-    for &b in [kind].iter().chain(&(beam_size as u64).to_le_bytes()).chain(&advance.to_le_bytes()) {
-        h ^= u64::from(b);
-        h = h.wrapping_mul(PRIME);
-    }
-    h
+    turbo_analysis::Fnv1a::new().u8(kind).usize(beam_size).u64(advance).finish()
 }
 
 #[cfg(test)]

@@ -135,17 +135,12 @@ impl Annotator for ExtractiveQaAnnotator {
         Some(self.model.clone())
     }
     fn config_hash(&self) -> u64 {
-        let mut h = 0xcbf29ce484222325u64;
-        for b in (self.options.top_k as u64)
-            .to_le_bytes()
-            .into_iter()
-            .chain((self.options.max_answer_tokens as u64).to_le_bytes())
-            .chain(self.options.null_threshold.to_bits().to_le_bytes())
-            .chain([u8::from(self.options.non_overlapping)])
-        {
-            h = (h ^ u64::from(b)).wrapping_mul(0x100000001b3);
-        }
-        h
+        turbo_analysis::Fnv1a::new()
+            .u64(self.options.top_k as u64)
+            .u64(self.options.max_answer_tokens as u64)
+            .f64(self.options.null_threshold)
+            .bool(self.options.non_overlapping)
+            .finish()
     }
     fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error> {
         self.annotate_batch(vec![input]).remove(0)

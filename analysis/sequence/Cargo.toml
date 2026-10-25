@@ -9,6 +9,8 @@ publish = false
 name = "turbo_sequence"
 
 [dependencies]
+# The canonical deterministic FNV-1a hasher for configuration hashes.
+turbo-analysis = { path = "../core" }
 # The maxent models the beam search asks, the model archive the feature
 # generator descriptor and its resources are read from, the dictionary
 # XML reader and the XML reader for the descriptors.

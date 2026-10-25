@@ -43,6 +43,7 @@ use crate::{LexicalExpansions, WordNetSenses};
 mod boilerplate;
 mod calibrated;
 mod core_layers;
+mod discourse;
 mod emotion;
 mod entity_graph;
 mod events;
@@ -51,6 +52,7 @@ mod indexes;
 mod lexical;
 mod modality;
 mod numeric;
+mod quality;
 mod relations;
 mod rhetoric;
 mod sentiment;
@@ -91,6 +93,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Dependencies<Tokens>>()
         .register::<Dependencies<Words>>()
         .register::<Entities>()
+        .register::<crate::Quotations>()
         .register::<crate::DocumentEntities>()
         .register::<crate::EntitySalience>()
         .register::<ChunkTags>()
@@ -102,6 +105,8 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<crate::ChunkTableHeaders>()
         .register::<Chunks>()
         .register::<Language>()
+        .register::<crate::TextQuality>()
+        .register::<crate::SpanQuality>()
         .register::<LanguageSpans>()
         .register::<Temporals>()
         .register::<DocumentDate>()
