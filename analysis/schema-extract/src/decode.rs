@@ -75,8 +75,10 @@ pub struct Classified {
     pub task: usize,
     pub labels: Vec<(usize, f32, f32)>,
     /// The probability of each of the task's labels, chosen or not, in the
-    /// schema's label order: the softmax of a single-label task (summing to
-    /// 1), each label's sigmoid for a multi-label one.
+    /// schema's label order: the softmax of a single-label pass (summing to
+    /// 1), each label's sigmoid for a multi-label one. A merged windowed
+    /// extraction keeps each label's maximum probability across passes,
+    /// without renormalizing; those maxima need not sum to 1.
     pub probs: Vec<f32>,
 }
 

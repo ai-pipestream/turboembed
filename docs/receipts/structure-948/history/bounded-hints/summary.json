@@ -1,0 +1,15 @@
+[
+  {
+    "case": "analysis-plain",
+    "median_ms": {
+      "main": 0.3772935,
+      "blocked": 0.433555,
+      "fixed": 0.4261755
+    },
+    "median_paired_ratios": {
+      "fixed/main": 1.141199863276189,
+      "blocked/main": 1.1440992075355219,
+      "fixed/blocked": 0.9873189245606168
+    }
+  }
+]

@@ -17,6 +17,10 @@ and `Edges<Entities, Entities>` with each (subject, object, type)
 triple once at its best confidence. Both cross the document
 graph boundary (`turbo_relation::export::register_codecs`).
 
+Negation scope, epistemic factuality and deontic modality over the
+same dependency trees (`ModalityAnnotator`) are in
+[modality.md](modality.md).
+
 Patterns validate as the reference records they port do: the
 path splits on the project whitespace predicate, up steps precede
 down steps, and a trigger must already be in the project's simple
@@ -121,3 +125,6 @@ The libraries are unchanged by this measurement; narrowing them (the
 `>obl` passive agent, the copular attribute, the voice and object
 variants above) changes what they extract and is left to its own
 change, measured on this fixture.
+
+Predicate-argument events with N-ary, anchored arguments are in
+[events.md](events.md).

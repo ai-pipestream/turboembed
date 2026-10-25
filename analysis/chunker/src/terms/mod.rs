@@ -22,6 +22,7 @@ pub mod index;
 pub mod layer;
 pub mod posting;
 pub mod sparse;
+pub mod stack;
 pub mod weighted;
 
 pub use bm25::{Bm25, Collection, LocalCollection, Query};
@@ -32,4 +33,5 @@ pub use index::{NormalizedTermIndexer, TermForm, TermIndexer};
 pub use layer::{IndexedTerms, TermStats, Terms, Vocabulary};
 pub use posting::{Bm25PostingIndex, Bm25PostingIndexBuilder};
 pub use sparse::SparseLevelTerms;
+pub use stack::{TermStackSegment, TermVectorStack};
 pub use weighted::WeightedTerms;
