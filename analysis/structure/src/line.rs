@@ -9,13 +9,13 @@
 /// The lines of `bytes[from..]`, each as its content `(start, end)`
 /// without the break. No line is yielded after a break that ends the text.
 pub(crate) struct Lines<'a> {
-    bytes: &'a [u8],
+    text: &'a str,
     at: usize,
 }
 
 impl<'a> Lines<'a> {
-    pub(crate) fn new(bytes: &'a [u8], from: usize) -> Lines<'a> {
-        Lines { bytes, at: from }
+    pub(crate) fn new(text: &'a str, from: usize) -> Lines<'a> {
+        Lines { text, at: from }
     }
 
     /// Where the next line starts.
@@ -28,12 +28,12 @@ impl Iterator for Lines<'_> {
     type Item = (usize, usize);
 
     fn next(&mut self) -> Option<(usize, usize)> {
-        let b = self.bytes;
+        let b = self.text.as_bytes();
         if self.at >= b.len() {
             return None;
         }
         let start = self.at;
-        let end = b[start..].iter().position(|&x| x == b'\n' || x == b'\r').map_or(b.len(), |k| start + k);
+        let end = line_end(&b[start..]).map_or(b.len(), |k| start + k);
         self.at = match b.get(end) {
             Some(b'\r') if b.get(end + 1) == Some(&b'\n') => end + 2,
             Some(_) => end + 1,
@@ -41,6 +41,21 @@ impl Iterator for Lines<'_> {
         };
         Some((start, end))
     }
+}
+
+/// Search eight bytes at a time without reading past the slice. The
+/// zero-byte test only selects a candidate word; byte order does not
+/// matter, and the exact first CR or LF is then found in that word.
+fn line_end(bytes: &[u8]) -> Option<usize> {
+    let zero = |x: u64| x.wrapping_sub(0x0101_0101_0101_0101) & !x & 0x8080_8080_8080_8080 != 0;
+    let (chunks, tail) = bytes.as_chunks::<8>();
+    for (i, chunk) in chunks.iter().enumerate() {
+        let word = u64::from_ne_bytes(*chunk);
+        if zero(word ^ 0x0a0a_0a0a_0a0a_0a0a) || zero(word ^ 0x0d0d_0d0d_0d0d_0d0d) {
+            return chunk.iter().position(|&b| b == b'\r' || b == b'\n').map(|at| i * 8 + at);
+        }
+    }
+    tail.iter().position(|&b| b == b'\r' || b == b'\n').map(|at| bytes.len() - tail.len() + at)
 }
 
 /// A position in one line, in bytes and in columns. A tab that is only
@@ -125,7 +140,7 @@ mod tests {
     use super::*;
 
     fn lines(s: &str) -> Vec<&str> {
-        Lines::new(s.as_bytes(), 0).map(|(a, b)| &s[a..b]).collect()
+        Lines::new(s, 0).map(|(a, b)| &s[a..b]).collect()
     }
 
     #[test]

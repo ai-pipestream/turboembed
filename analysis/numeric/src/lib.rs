@@ -35,7 +35,7 @@ pub use money::{
 pub use quantity::{DEFAULT_UNITS, QuantityExtractor, UnitError};
 pub use region::{RegionAwareNumberAnnotator, RegionAwareQuantityAnnotator, locale_notation, region_notation};
 pub use scan::{ScanResult, parse, parse_with_parity};
-pub use temporal::{DocumentDateSelector, TemporalExtractor};
+pub use temporal::{DocumentDateSelector, TemporalExtractor, TimesDocumentDateSelector};
 pub use turbo_analysis_layers::{
     DecimalRef, DocumentDate, Granularity, Multiplier, NumberNotation, Numbers, Origin, PERCENT, Quantities,
     QuantityMention, ScaleMarker, TemporalMention, TemporalValue, Temporals,

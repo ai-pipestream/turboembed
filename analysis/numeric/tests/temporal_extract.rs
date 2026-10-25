@@ -239,16 +239,13 @@ fn generated_calendar_dates() {
     }
 }
 
-/// Years outside 1000 to 2999 and dates that do not exist are not repaired.
+/// Years outside 0001 to 9999 and dates that do not exist are not repaired.
 #[test]
 fn invalid_absolute_dates() {
     for text in [
-        "0999-12-31",
-        "3000-01-01",
-        "January 0999",
-        "January 3000",
-        "Q1 0999",
-        "Q4 3000",
+        "0000-12-31",
+        "January 0000",
+        "Q1 0000",
         "2024-00-01",
         "2024-13-01",
         "2024-01-00",

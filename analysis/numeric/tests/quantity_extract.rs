@@ -119,7 +119,7 @@ fn custom_units() {
 fn custom_unit_validation() {
     let empty: [&str; 0] = [];
     assert_eq!(QuantityExtractor::with_units(empty, LatinUs), Err(UnitError::Empty));
-    for bad in ["toolongunit", "m2", "kg/m", "\u{00B0}C", ""] {
+    for bad in ["averyverylongunit", "m2", "kg/m", "\u{00B0}C", ""] {
         assert_eq!(
             QuantityExtractor::with_units(["kg", bad], LatinUs),
             Err(UnitError::NotAUnitToken(bad.into())),
@@ -389,8 +389,8 @@ fn custom_units_outside_the_basic_plane() {
     assert_eq!(m.span, Span::new(0, 10));
     assert_eq!(m.unit, bold);
     assert_eq!(single_with(&custom, "3\u{E9}t").span, Span::new(0, 4));
-    // Six units is the limit, counted in UTF-16 as in the Java.
-    let four = bold.repeat(2);
+    // Fourteen UTF-16 units is the limit (eight bold letters is sixteen).
+    let four = bold.repeat(4);
     assert_eq!(QuantityExtractor::with_units([&four], LatinUs), Err(UnitError::NotAUnitToken(four.as_str().into())));
     assert!(QuantityExtractor::with_units(["abcdef"], LatinUs).is_ok());
     assert!(QuantityExtractor::with_units([format!("{bold}\u{1D41A}")], LatinUs).is_ok());

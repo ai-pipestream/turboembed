@@ -55,6 +55,10 @@ impl Default for AccentFold {
     }
 }
 
+/// Reusable buffers for [`AccentFold::fold_str`].
+#[derive(Default)]
+pub struct FoldScratch(Scratch);
+
 impl AccentFold {
     /// Latin, Greek and Cyrillic, with OpenNLP's stroke letter list.
     pub fn new() -> AccentFold {
@@ -108,6 +112,17 @@ impl AccentFold {
             out.push(c);
             *base = Some(script(c));
         }
+    }
+
+    /// Appends the accent fold of the whole of `text` to `out`:
+    /// the text in NFD, every non-spacing mark whose base is a
+    /// letter of a folded script removed, every stroke letter
+    /// replaced, and the result in NFC. For callers folding names
+    /// and lookup keys rather than running text through a view.
+    /// Reuse one `scratch` across calls to keep its buffers.
+    pub fn fold_str(&self, text: &str, scratch: &mut FoldScratch, out: &mut String) {
+        let mut base = None;
+        self.fold_into(text, &mut base, out, &mut scratch.0);
     }
 
     /// NFD of `text`, marks removed and stroke letters mapped, NFC of that.

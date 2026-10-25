@@ -23,35 +23,15 @@
 //! everywhere (`WhitespaceMode::Legacy` here), and the JVM that wrote the
 //! files had its clock in Central European Summer Time.
 //!
-//! The iteration count is the one setting the repository does not give
-//! correctly: the published English sentence model's parameters are those
-//! of a run of 300 iterations (the parameters after every iteration of a
-//! longer run were compared with the file; 300 agrees to within a few
-//! thousand units in the last place, 299 and 301 do not), so the models
-//! were trained with `Iterations=300`, not the committed 150. The recipes
-//! use 300 ([`ITERATIONS`]); [`CONF_ITERATIONS`] is what the file says.
-//!
-//! With those settings the event checksum (`Training-Eventhash`) and the
-//! manifest of a published model come out exactly, and the model entry's
-//! labels and outcome patterns too. The parameters differ from the
-//! published ones in their last bits: for the eighteen models, between
-//! 2.2e-15 (German sentences) and 9.8e-15 (French tokens) for the sentence
-//! and token models, 1.6e-14 (English) and 1.4e-13 (Spanish) for the
-//! taggers, and 8.0e-15 (English) and 1.8e-14 (Portuguese) for the
-//! lemmatizers, in absolute value at most, with 60 to 97 percent of the
-//! parameters differing; the widest, 1.37e-13, is about seven times under
-//! the 1e-12 the reproduction test allows. For the eight sentence and
-//! token models, the JVM of the goldens container (Temurin 21 on x86-64),
-//! running the same training with the fork's trainer, writes exactly the
-//! parameters this crate writes and shows the same residual against the
-//! published file, so for them the residual is not between this port and
-//! the fork's trainer; the taggers and lemmatizers have not been run
-//! through the fork's trainer in the container. Its cause is not
-//! known: `GISTrainer` uses `StrictMath` throughout and merges its
-//! threads' sums in a fixed order, so neither platform `Math` intrinsics
-//! nor thread timing explain it. The next experiment is to run the OpenNLP
-//! 2.5.4 command line itself in the container on the same treebank and
-//! compare its parameters with both.
+//! Two committed settings differ from those that reproduce the published
+//! models: the recipes use 300 iterations and 12 training partitions,
+//! instead of `ud-train.conf`'s 150 and 4. The English sentence model
+//! has identical model-entry bytes from OpenNLP 2.5.4 and this crate with those
+//! settings. At 4 partitions both runtimes instead produce the same
+//! small parameter residual. GIS sums events within each partition, then
+//! merges the partial sums in partition order. Changing the partition
+//! count changes floating-point grouping, even though scheduling cannot
+//! change the result. See docs/analysis.md for the full reproduction.
 //!
 //! A treebank's dataset takes its licence class from its licence
 //! (`turbo_zoo::class_of`): the five treebanks here are CC BY-SA 4.0, so
@@ -70,7 +50,7 @@ use turbo_maxent::ModelFile;
 use turbo_train::{GisModel, Key, TimeZone, TrainingConfiguration, TrainingParameters};
 use turbo_unicode::WhitespaceMode;
 use turbo_zoo::{
-    Acceptances, Artifact, Http, Index, Kind, Licence, Policy, UserId, Zoo, class_of, index::Format as ZooFormat,
+    Acceptances, Artifact, Home, Http, Index, Kind, Licence, Policy, UserId, Zoo, class_of, index::Format as ZooFormat,
 };
 
 use crate::error::{Error, Result};
@@ -103,12 +83,14 @@ pub const ITERATIONS: i32 = 300;
 pub const CONF_ITERATIONS: i32 = 150;
 /// `ud-train.conf`.
 pub const CUTOFF: i32 = 5;
-/// `ud-train.conf`.
-pub const THREADS: i32 = 4;
+/// The partitions that reproduce the published parameter bytes.
+pub const THREADS: i32 = 12;
+/// `Threads` as committed in `ud-train.conf`, unlike the published models.
+pub const CONF_THREADS: i32 = 4;
 
 /// The training parameters as `CmdLineUtil.loadTrainingParameters` reads
 /// a parameters file: every value a string. `ud-train.conf` with
-/// `Iterations` at [`ITERATIONS`].
+/// `Iterations` at [`ITERATIONS`] and `Threads` at [`THREADS`].
 pub fn training_parameters() -> TrainingParameters {
     let mut p = TrainingParameters::new();
     p.put_str(Key::ALGORITHM, "MAXENT");
@@ -182,6 +164,7 @@ impl Treebank {
                 size: self.size,
                 sha256: parse("sha256", self.sha256),
                 sha512: parse("sha512", self.sha512),
+                download: None,
             }],
         }
     }
@@ -428,22 +411,13 @@ pub fn datasets() -> Index {
     Index::parse(Index::to_canonical_json(&artifacts).as_bytes()).expect("the recipes make a valid index")
 }
 
-/// The zoo's home as the `turbo-zoo` command finds it: `$TURBO_ZOO_HOME`,
-/// else `$XDG_DATA_HOME/turbo-zoo`, else `~/.local/share/turbo-zoo`.
-pub fn zoo_home() -> Option<PathBuf> {
-    let var = |k: &str| std::env::var_os(k).filter(|v| !v.is_empty()).map(PathBuf::from);
-    var("TURBO_ZOO_HOME")
-        .or_else(|| var("XDG_DATA_HOME").map(|x| x.join("turbo-zoo")))
-        .or_else(|| var("HOME").map(|h| h.join(".local/share/turbo-zoo")))
-}
-
 /// Fetches a treebank's `train` file into the zoo cache under `home` and
 /// returns its path. A share-alike treebank needs `user`'s acceptance of
 /// its licence there first (`turbo-zoo accept CC-BY-SA-4.0 --yes` for the
 /// five in [`TREEBANKS`]); a permissive one needs none.
-pub fn fetch_treebank(treebank: &Treebank, home: &Path, user: &UserId) -> Result<PathBuf> {
-    let zoo = Zoo::new(datasets(), home.join("artifacts"), Policy::default(), &Http);
-    let acceptances = home.join("acceptances.json");
+pub fn fetch_treebank(treebank: &Treebank, home: &Home, user: &UserId) -> Result<PathBuf> {
+    let zoo = Zoo::new(datasets(), home.artifacts(), Policy::default(), &Http);
+    let acceptances = home.acceptances();
     let fetched = zoo.fetch_with(&treebank.dataset_id(), user, || Acceptances::load(&acceptances))?;
     Ok(fetched.single().expect("one file per treebank").to_path_buf())
 }
@@ -456,9 +430,9 @@ pub fn fetch_treebank(treebank: &Treebank, home: &Path, user: &UserId) -> Result
 /// are share-alike, so the fetch needs `user`'s acceptance of
 /// CC-BY-SA-4.0 under `home` (`turbo-zoo accept CC-BY-SA-4.0 --yes`);
 /// only the Catalan AnCora models (CC BY 4.0) are permissive.
-pub fn fetch_published_model(recipe: &Recipe, home: &Path, user: &UserId) -> Result<PathBuf> {
-    let zoo = Zoo::new(Index::builtin(), home.join("artifacts"), Policy::default(), &Http);
-    let acceptances = home.join("acceptances.json");
+pub fn fetch_published_model(recipe: &Recipe, home: &Home, user: &UserId) -> Result<PathBuf> {
+    let zoo = Zoo::new(Index::builtin(), home.artifacts(), Policy::default(), &Http);
+    let acceptances = home.acceptances();
     let fetched = zoo.fetch_with(&recipe.model_id(), user, || Acceptances::load(&acceptances))?;
     Ok(fetched.single().expect("one file per model").to_path_buf())
 }

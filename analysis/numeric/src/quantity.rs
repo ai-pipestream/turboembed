@@ -39,12 +39,17 @@ pub const DEFAULT_UNITS: [&str; 37] = [
 const PERCENT_WORD: &str = "percent";
 
 /// The longest unit token a caller may give, in UTF-16 units.
-const MAX_UNIT_UNITS: usize = 6;
+/// Fourteen admits spelled-out English units (`milliseconds`,
+/// `kilocalories` are twelve) in custom sets; the default set
+/// stays the short forms.
+const MAX_UNIT_UNITS: usize = 14;
 
-/// How many UTF-16 units of letters a candidate unit token may have before
-/// the scan gives up: one more than `percent`, the longest token that is
-/// not a unit from the set. A longer run of letters is no unit.
-const MAX_TOKEN_UNITS: usize = 8;
+/// How many UTF-16 units of letters a candidate unit token may
+/// have before the scan gives up. A longer run of letters is
+/// no unit. The bound only sizes the scan: a token still counts
+/// only when it matches a known unit exactly, so widening it
+/// changes no reading, on the default document path either.
+const MAX_TOKEN_UNITS: usize = 16;
 
 /// Writes `turbo:quantities` over a text view: every number followed by a
 /// percent marker or a known unit token.
@@ -73,8 +78,9 @@ pub struct QuantityExtractor {
 pub enum UnitError {
     /// The set has no unit.
     Empty,
-    /// The token is empty, longer than six UTF-16 units, or has a
-    /// character that is not a letter (`Character.isLetter`).
+    /// The token is empty, longer than the unit cap in UTF-16
+    /// units, or has a character that is not a letter
+    /// (`Character.isLetter`).
     NotAUnitToken(Box<str>),
 }
 
@@ -102,7 +108,7 @@ impl QuantityExtractor {
     }
 
     /// A custom unit set in place of the default one, reading numbers in
-    /// `notation`. Each token must be one to six UTF-16 units of letters.
+    /// `notation`. Each token must be one to fourteen UTF-16 units of letters.
     /// The percent marker and the word `percent` are read with any set.
     pub fn with_units<S: AsRef<str>>(
         units: impl IntoIterator<Item = S>,
@@ -285,7 +291,7 @@ impl QuantityExtractor {
     }
 }
 
-/// `validUnit`: one to six UTF-16 units, every character a letter.
+/// `validUnit`: one to the unit cap in UTF-16 units, every character a letter.
 fn valid_unit(unit: &str) -> bool {
     !unit.is_empty() && unit.encode_utf16().count() <= MAX_UNIT_UNITS && unit.chars().all(java::is_letter)
 }

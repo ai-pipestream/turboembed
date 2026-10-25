@@ -25,10 +25,10 @@ impl Temporal {
     pub(crate) fn open(run: &str) -> Result<Box<dyn Run>, Unavailable> {
         let broken = |what: String| Unavailable::Broken(what);
         let (extractor, reference) = match run {
-            "dateline" => (TemporalExtractor::new(), DATELINE),
+            "dateline" => (TemporalExtractor::new().with_opennlp_parity(true), DATELINE),
             "fixed" => {
                 let date = Date::parse(REFERENCE).ok_or_else(|| broken("the reference date".into()))?;
-                (TemporalExtractor::with_reference(date), REFERENCE)
+                (TemporalExtractor::with_reference(date).with_opennlp_parity(true), REFERENCE)
             }
             other => return Err(Unavailable::NotCovered(format!("the temporal run {other}"))),
         };

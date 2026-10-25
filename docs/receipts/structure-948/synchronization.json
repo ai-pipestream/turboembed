@@ -1,0 +1,20 @@
+{
+  "measured_runtime_commit": "ba8e6f1e77c2b8bcc5e7745a2bab0c5baa7fdf94",
+  "synchronized_runtime_commit": "bd19bfddbaa41739cbdf5a31bbbf794e3eebeeb7",
+  "measured_main_commit": "6f7a6ea6a16d1fc36972d57a883c67255146887e",
+  "synchronized_main_commit": "bf52319dfc49486e5109f2c76faccb8fcd6edc02",
+  "runtime_tree_before": "3390128c46c800f7fda6cff35e5ceb50a03c6974",
+  "runtime_tree_after": "3390128c46c800f7fda6cff35e5ceb50a03c6974",
+  "main_tree_before": "e5b7498be923b071e2c9d49f9f1601214b1d825b",
+  "main_tree_after": "e5b7498be923b071e2c9d49f9f1601214b1d825b",
+  "binary_sha256_after_sync": {
+    "fixed": "d24baa87ed518cc0514a27f09f80327394decb282893d1890e4fa74f83c2cf90",
+    "main": "18ded1405bc926d94f2576faf5a03b69022b0a81af63578ff903024bfd473c98"
+  },
+  "binary_rebuild_identity": "sha256sum -c binaries-before-sync.sha256 passed for both fixed and main after normal main merge/rebuild",
+  "commonmark_full_tree_sha256": "c0cbff34126b38008a81aeca1c15aa4dd1ce4edf5d6444480d0bbb75363e63ec",
+  "scanner_source_sha256": "2a4325fa12d1f044468f731c4a1bf385c2ccb91c0ddbdb21684c9182e03b7fc3",
+  "guard_probe_source_sha256": "8c1f9c0442285beb093608bfc369579219ac846c986bfa5b98534f2f6abb3fdf",
+  "guard_probe_binary_sha256": "a56e1aec025712283aac4f5aba4cd97563858611b77f7bbbdd17372e9087a06f",
+  "guard_probe_output_sha256": "ac4014a056b64a19a78cdfb142bce8f2991876c58256a6d15fdd9176b6a12c00"
+}

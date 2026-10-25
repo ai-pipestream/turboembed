@@ -73,6 +73,7 @@ impl Clock {
 /// A part of the day, with its TIMEX3 code and hours.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Part {
+    Dawn,
     Morning,
     Afternoon,
     Evening,
@@ -85,9 +86,10 @@ pub enum Part {
 }
 
 impl Part {
-    /// `MO`, `AF`, `EV`, `NI`, `DT`, `NT`, `MEB`, `MEL` or `MED`.
+    /// `DA`, `MO`, `AF`, `EV`, `NI`, `DT`, `NT`, `MEB`, `MEL` or `MED`.
     pub fn code(self) -> &'static str {
         match self {
+            Part::Dawn => "DA",
             Part::Morning => "MO",
             Part::Afternoon => "AF",
             Part::Evening => "EV",
@@ -105,6 +107,7 @@ impl Part {
     pub fn seconds(self) -> (u32, u32) {
         let h = |x: u32| x * 3600;
         match self {
+            Part::Dawn => (h(4), h(8)),
             Part::Morning | Part::Breakfast => (h(8), h(12)),
             Part::Afternoon => (h(12), h(16)),
             Part::Evening | Part::Dinner => (h(16), h(20)),
@@ -119,7 +122,7 @@ impl Part {
     /// the hour from which a night time is still the early morning.
     pub fn meridiem(self, hour: u8) -> Meridiem {
         match self {
-            Part::Morning | Part::Breakfast | Part::NightTime => Meridiem::Am,
+            Part::Dawn | Part::Morning | Part::Breakfast | Part::NightTime => Meridiem::Am,
             Part::Night if (1..=4).contains(&hour) => Meridiem::Am,
             Part::Lunch if hour >= 11 => Meridiem::Am,
             _ => Meridiem::Pm,

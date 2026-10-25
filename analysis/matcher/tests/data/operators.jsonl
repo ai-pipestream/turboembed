@@ -1,0 +1,15 @@
+{"label":"FUZZY","pattern":[{"LOWER":{"FUZZY":"engineers"}}]}
+{"label":"FUZZY1","pattern":[{"LOWER":{"FUZZY1":"system"}}]}
+{"label":"FUZZY_IN","pattern":[{"LOWER":{"FUZZY2":{"IN":["design","school","friend"]}}}]}
+{"label":"FUZZY_NOT_IN","pattern":[{"LOWER":{"FUZZY1":{"NOT_IN":["the","and","a"]}},"IS_ALPHA":true}]}
+{"label":"SET","pattern":[{"LOWER":{"IN":["the","a"],"NOT_IN":["a"]}}]}
+{"label":"MORPH_SUPER","pattern":[{"MORPH":{"IS_SUPERSET":["Number=Sing"]}}]}
+{"label":"MORPH_INTER","pattern":[{"MORPH":{"INTERSECTS":["Tense=Past","Number=Plur"]}}]}
+{"label":"MORPH_SUB","pattern":[{"MORPH":{"IS_SUBSET":["Number=Sing","PronType=Art","Definite=Def"]}}]}
+{"label":"MORPH_EQ","pattern":[{"MORPH":"PronType=Art|Definite=Def"}]}
+{"label":"MORPH_IN","pattern":[{"MORPH":{"IN":["PronType=Art|Definite=Def","_"]}}]}
+{"label":"MORPH_NOT_IN","pattern":[{"MORPH":{"NOT_IN":["_"]}}]}
+{"label":"POS_TAG","pattern":[{"POS":"NOUN","TAG":{"IN":["NN","NNS"]}}]}
+{"label":"LENGTH","pattern":[{"LENGTH":{">":3,"<=":8},"IS_ALPHA":true}]}
+{"label":"QUANT","pattern":[{"LOWER":"the","OP":"?"},{"IS_ALPHA":true,"OP":"{1,2}"}]}
+{"label":"MORPH_CANONICAL_EQ","pattern":[{"MORPH":"Definite=Def|PronType=Art"}]}
