@@ -125,6 +125,18 @@ impl QuantityExtractor {
         self.notation
     }
 
+    /// Uses OpenNLP's money-exclusion behavior for JVM parity checks.
+    /// Native mode remains the default, including regional dollar prefixes.
+    pub fn with_opennlp_parity(mut self, enabled: bool) -> Self {
+        self.money = self.money.with_opennlp_parity(enabled);
+        self
+    }
+
+    /// Whether money exclusion follows the pinned OpenNLP behavior.
+    pub fn opennlp_parity(&self) -> bool {
+        self.money.opennlp_parity()
+    }
+
     /// Replaces the money extractor used to exclude currency amounts before
     /// scanning quantities.
     pub(crate) fn with_money(mut self, money: MoneyExtractor) -> QuantityExtractor {
@@ -319,6 +331,8 @@ impl Annotator for QuantityExtractor {
         let units = self.units.iter().flat_map(|u| u.bytes().chain([0]).map(u64::from));
         std::iter::once(notation)
             .chain(units)
+            // Keep the default identity; the parity marker is not a unit byte.
+            .chain(self.opennlp_parity().then_some(1))
             .fold(0xcbf2_9ce4_8422_2325, |h, x| (h ^ x).wrapping_mul(0x0100_0000_01b3))
     }
 }
