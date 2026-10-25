@@ -20,15 +20,17 @@ impl PreparedLayer<'_> {
         if !self.ordered {
             return 0..self.spans.start.len();
         }
-        let (start, end) = (self.spans.start, self.spans.end);
-        // Keep empty items at either closed window edge, while
-        // excluding non-empty items merely touching an edge. Empty
-        // runs precede a non-empty item with the same start on an
-        // ordered layer, so both columns can be searched directly.
-        let lo = start.partition_point(|&s| s < window.start).min(end.partition_point(|&e| e <= window.start));
-        let hi = start.partition_point(|&s| s < window.end).max(end.partition_point(|&e| e <= window.end));
-        lo..hi.max(lo)
+        ordered_range(self.spans.start, self.spans.end, window)
     }
+}
+
+/// Both ordered item envelopes and one item's checked fragment table
+/// have monotone starts and ends. Keep empty points at either closed
+/// edge, excluding non-empty spans that merely touch a window edge.
+pub(super) fn ordered_range(start: &[u32], end: &[u32], window: Span) -> Range<usize> {
+    let lo = start.partition_point(|&s| s < window.start).min(end.partition_point(|&e| e <= window.start));
+    let hi = start.partition_point(|&s| s < window.end).max(end.partition_point(|&e| e <= window.end));
+    lo..hi.max(lo)
 }
 
 impl Document {

@@ -21,7 +21,10 @@ pub(super) fn segment<'a>(
                 collect(ts.start[item], ts.end[item], member, ws, we, &mut starts, &mut ends, &mut cuts, &mut zero);
             } else {
                 let r = ts.item_frag_range(item);
-                for f in r {
+                let kept = prepared::ordered_range(&ts.frag_start[r.clone()], &ts.frag_end[r.clone()], window.span);
+                for f in (r.start + kept.start)..(r.start + kept.end) {
+                    #[cfg(test)]
+                    super::FRAGMENT_VISITS.with(|n| n.set(n.get() + 1));
                     collect(
                         ts.frag_start[f],
                         ts.frag_end[f],

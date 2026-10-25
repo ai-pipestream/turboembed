@@ -24,6 +24,7 @@ pub use prepared::PreparedSegments;
 #[cfg(test)]
 std::thread_local! {
     static ITEM_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static FRAGMENT_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
     static VALIDATED_ENDPOINTS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
