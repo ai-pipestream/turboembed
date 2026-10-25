@@ -50,7 +50,7 @@ async fn turbo_search_service_end_to_end() {
     let _ = std::fs::remove_dir_all(&snap_dir);
     std::fs::create_dir_all(&snap_dir).unwrap();
     let srv =
-        Server::start("127.0.0.1:0".parse().unwrap(), default_models(), MAX, Serve { admin: true, catalog: None })
+        Server::start("127.0.0.1:0".parse().unwrap(), default_models(), MAX, Serve { admin: true, ..Serve::default() })
             .await
             .expect("start server");
     srv.set_search_snapshot_dir(&snap_dir);

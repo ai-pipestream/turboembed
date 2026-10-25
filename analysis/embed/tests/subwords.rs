@@ -144,6 +144,7 @@ fn unigram() -> (TempBundle, SubwordAnnotator) {
             collapse_whitespace: false,
             strip: false,
             whole_text: false,
+            whitespace_split: false,
         });
         roberta_specials(m, 28232);
         let a = m.architecture.as_mut().unwrap();

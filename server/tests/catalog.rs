@@ -133,7 +133,7 @@ impl Drop for Home {
 
 async fn start(home: &Path, admin: bool, transport: Arc<Fixed>) -> (Server, Client) {
     let catalog = Catalog { home: home.to_path_buf(), index: Arc::new(index()), transport };
-    start_with(Serve { admin, catalog: Some(catalog) }).await
+    start_with(Serve { admin, catalog: Some(catalog), ..Serve::default() }).await
 }
 
 async fn start_with(serve: Serve) -> (Server, Client) {
@@ -228,7 +228,7 @@ async fn mutations_need_the_admin_flag_and_every_call_needs_a_catalog() {
     assert_eq!(refusal(&e), (Code::Unimplemented, TURBO_E_UNSUPPORTED));
     assert!(!home.0.exists(), "a refused call writes nothing");
     s.stop().await;
-    let (s, mut c) = start_with(Serve { admin: true, catalog: None }).await;
+    let (s, mut c) = start_with(Serve { admin: true, ..Serve::default() }).await;
     let e = c.list_installed_models(ListInstalledModelsRequest {}).await.unwrap_err();
     assert_eq!(refusal(&e), (Code::Unimplemented, TURBO_E_UNSUPPORTED));
     s.stop().await;
