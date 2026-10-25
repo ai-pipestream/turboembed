@@ -378,13 +378,13 @@ fn build_strategy_matrix(
             .map_err(|e| bad(format!("structure_only boundaries: {e}")))?
             .0;
         let struct_chunks = Chunker { budget: b }
-            .annotate((sentences, subwords, &struct_bounds, structure, None))
+            .annotate((sentences, subwords, &struct_bounds, structure, None, None))
             .map_err(|e| bad(format!("structure_only chunker: {e}")))?
             .0;
         runs.push((BudgetSpec { name: "structure_only".into(), ..base_spec.clone() }, b, struct_chunks));
 
         let sem_chunks = Chunker { budget: b }
-            .annotate((sentences, subwords, bounds, structure, clauses))
+            .annotate((sentences, subwords, bounds, structure, clauses, None))
             .map_err(|e| bad(format!("semantic_dp chunker: {e}")))?
             .0;
         runs.push((base_spec, b, sem_chunks));
@@ -400,7 +400,7 @@ fn build_strategy_matrix(
                 overhead: spec.overhead,
             };
             let chunks = Chunker { budget: b }
-                .annotate((sentences, subwords, bounds, structure, clauses))
+                .annotate((sentences, subwords, bounds, structure, clauses, None))
                 .map_err(|e| bad(format!("strategy_budgets[{idx}] chunker: {e}")))?
                 .0;
             runs.push((spec, b, chunks));
