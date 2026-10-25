@@ -453,9 +453,13 @@ fn viterbi_beam_pruning_scales_linearly_with_lm_order_and_candidate_width() {
             .with_confusables(conf.clone())
             .max_candidates(64)
             .max_beam_width(64);
+        // Pruned, a sentence is a few thousand transitions per word, well
+        // under a second unoptimized. Unpruned, the order-6 beam holds
+        // 64^5 histories and takes hours. The bound sits between the two
+        // with room for a loaded runner, where 200 ms was missed.
         let t0 = Instant::now();
         assert!(!apply(&corrector, &sentence).is_empty());
-        assert!(t0.elapsed().as_millis() < 200);
+        assert!(t0.elapsed().as_secs() < 10, "order {order}: {:?}", t0.elapsed());
     }
 
     let (mut lm_fwd, mut lm_rev) = (NGramLanguageModel::new(2).unwrap(), NGramLanguageModel::new(2).unwrap());
