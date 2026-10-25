@@ -289,25 +289,25 @@ fn tiny_mlm_head() -> MlmHead {
     let line = |lo: f32, hi: f32, n: usize| -> Vec<f32> {
         (0..n).map(|i| lo + (hi - lo) * i as f32 / (n - 1) as f32).collect()
     };
-    MlmHead {
+    MlmHead::new(
         hidden,
         vocab,
-        transform: Linear {
+        Linear {
             in_dim: hidden,
             out_dim: hidden,
             weight: line(-0.2, 0.3, hidden * hidden),
             bias: line(-0.1, 0.1, hidden),
         },
-        ln_weight: vec![1.0; hidden],
-        ln_bias: vec![0.0; hidden],
-        ln_eps: 1e-12,
-        decoder: Linear {
+        vec![1.0; hidden],
+        vec![0.0; hidden],
+        1e-12,
+        Linear {
             in_dim: hidden,
             out_dim: vocab,
             weight: st.f32s("embeddings.word_embeddings.weight"),
             bias: line(-0.05, 0.05, vocab),
         },
-    }
+    )
 }
 
 /// The SPLADE max-log pool of `states` through `head`.
