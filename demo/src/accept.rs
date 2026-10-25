@@ -16,21 +16,26 @@ pub(crate) fn stream_sse(headers: &HeaderMap) -> Option<bool> {
     }
     let mut best: [Option<Preference>; 2] = [None, None];
     for value in headers.get_all(header::ACCEPT) {
-        let Ok(value) = value.to_str() else { continue };
         let (mut quoted, mut escaped) = (false, false);
         // A comma inside a quoted parameter is not another media range.
-        for entry in value.split(|c| {
+        for entry in value.as_bytes().split(|&c| {
             if escaped {
                 escaped = false;
-            } else if quoted && c == '\\' {
+            } else if quoted && c == b'\\' {
                 escaped = true;
-            } else if c == '"' {
+            } else if c == b'"' {
                 quoted = !quoted;
-            } else if c == ',' && !quoted {
+            } else if c == b',' && !quoted {
                 return true;
             }
             false
         }) {
+            // Offered parameters are ASCII. Opaque bytes in another range
+            // must not discard a later usable range in the same field.
+            let Ok(entry) = std::str::from_utf8(entry) else { continue };
+            if !entry.is_ascii() {
+                continue;
+            }
             for (slot, media) in best.iter_mut().zip(["application/x-ndjson", "text/event-stream"]) {
                 let Some(p) = preference(entry, media) else { continue };
                 if slot.is_none_or(|old| (p.specificity, p.quality) > (old.specificity, old.quality)) {
@@ -67,8 +72,7 @@ fn preference(entry: &str, media: &str) -> Option<Preference> {
         if name.eq_ignore_ascii_case("q") && quality.is_none() {
             quality = Some(qvalue(value)?);
         } else if name.eq_ignore_ascii_case("charset") && !charset {
-            let value = value.strip_prefix('"').and_then(|v| v.strip_suffix('"')).unwrap_or(value);
-            if !value.eq_ignore_ascii_case("utf-8") {
+            if !utf8_charset(value) {
                 return None;
             }
             charset = true;
@@ -79,6 +83,24 @@ fn preference(entry: &str, media: &str) -> Option<Preference> {
         }
     }
     Some(Preference { specificity, quality: quality.unwrap_or(1000) })
+}
+
+fn utf8_charset(value: &str) -> bool {
+    let Some(quoted) = value.strip_prefix('"').and_then(|v| v.strip_suffix('"')) else {
+        return value.eq_ignore_ascii_case("utf-8");
+    };
+    let mut bytes = quoted.bytes();
+    for expected in b"utf-8" {
+        let Some(mut byte) = bytes.next() else { return false };
+        if byte == b'\\' {
+            let Some(unescaped) = bytes.next() else { return false };
+            byte = unescaped;
+        }
+        if !byte.eq_ignore_ascii_case(expected) {
+            return false;
+        }
+    }
+    bytes.next().is_none()
 }
 
 fn qvalue(value: &str) -> Option<u16> {
@@ -164,6 +186,21 @@ mod tests {
             let mut headers = HeaderMap::new();
             headers.insert(header::ACCEPT, HeaderValue::from_bytes(value).unwrap());
             assert_eq!(stream_sse(&headers), Some(true), "{value:?}");
+        }
+    }
+
+    #[test]
+    fn quoted_charset_decoding_keeps_invalid_values_and_zero_quality_excluded() {
+        for value in [
+            r#"text/event-stream;charset="utf\,8""#,
+            r#"text/event-stream;charset="utf-8\""#,
+            r#"text/event-stream;charset="utf-8"extra"#,
+            r#"text/event-stream;charset="utf\-8";q=0"#,
+            r#"text/event-stream;charset="utf\-8";q=0.1234"#,
+        ] {
+            let mut headers = HeaderMap::new();
+            headers.insert(header::ACCEPT, HeaderValue::from_str(value).unwrap());
+            assert_eq!(stream_sse(&headers), None, "{value}");
         }
     }
 }

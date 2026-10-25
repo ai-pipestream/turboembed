@@ -135,7 +135,9 @@ Stream format selection honors case-insensitive `Accept` media ranges,
 quality weights and explicit `q=0` exclusions. More specific ranges take
 precedence over wildcards. An absent header or wildcard tie selects NDJSON;
 an equally preferred explicit SSE range selects SSE. The two formats use
-UTF-8. If neither format is acceptable, the demo returns HTTP 406 before
+UTF-8. Quoted charset values decode escaped characters; opaque bytes in an
+unsupported quoted parameter do not hide later supported media ranges.
+If neither format is acceptable, the demo returns HTTP 406 before
 opening a gRPC call. Invalid weights and unsupported media parameters do
 not match a representation.
 
