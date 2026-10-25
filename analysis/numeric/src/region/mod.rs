@@ -19,7 +19,7 @@ mod tests;
 
 pub(crate) use table::REGION_CONFIGS;
 
-use turbo_analysis::{Annotator, Error, Refs, View};
+use turbo_analysis::{Annotator, Error, Fnv1a, Refs, View};
 use turbo_analysis_layers::{MarginError, Money, NumberNotation, Numbers, Quantities, RegionCode, Regions};
 
 use crate::annotator::NumberScanner;
@@ -241,7 +241,7 @@ impl Annotator for RegionAwareMoneyAnnotator {
     }
 
     fn config_hash(&self) -> u64 {
-        self.minimum_margin.to_bits().wrapping_mul(0x0100_0000_01b3) ^ 0xcbf2_9ce4_8422_2325
+        Fnv1a::with_seed(0).fold_u64(self.minimum_margin.to_bits()).finish() ^ turbo_analysis::hash::FNV1A_OFFSET_BASIS
     }
 }
 
@@ -319,9 +319,7 @@ impl Annotator for RegionAwareNumberAnnotator {
     }
 
     fn config_hash(&self) -> u64 {
-        [self.minimum_margin.to_bits(), u64::from(self.apply_scale)]
-            .iter()
-            .fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x).wrapping_mul(0x0100_0000_01b3))
+        Fnv1a::new().fold_u64(self.minimum_margin.to_bits()).fold_u64(u64::from(self.apply_scale)).finish()
     }
 }
 
@@ -424,6 +422,10 @@ impl Annotator for RegionAwareQuantityAnnotator {
         let units = self.us_extractor.units().flat_map(|u| u.bytes().chain([0]).map(u64::from));
         std::iter::once(self.minimum_margin.to_bits())
             .chain(units)
-            .fold(0xcbf2_9ce4_8422_2325, |h, x| (h ^ x).wrapping_mul(0x0100_0000_01b3))
+            .fold(Fnv1a::new(), |mut hash, word| {
+                hash.fold_u64(word);
+                hash
+            })
+            .finish()
     }
 }
