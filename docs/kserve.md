@@ -116,7 +116,8 @@ A model is ready only after `turbo_model_load` and every one of its
 state it needs. Before load the revision is unknown, so `ModelReady`
 with any version is false. A client polls `ModelReady` until it is true rather
 than retrying `ModelInfer` on that status. Once ready, a model stays
-ready until the server stops; the server has no unload.
+ready until it is unloaded (`UnloadBundle`, admin-gated) or the
+server stops.
 
 The server does not serve `grpc.health.v1.Health`. An orchestrator
 probes liveness with `ServerLive` and readiness with `ServerReady`.
