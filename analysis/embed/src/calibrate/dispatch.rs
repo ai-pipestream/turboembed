@@ -38,18 +38,22 @@ impl Cost {
     /// costs, none below 0, that make the sum of the squared relative
     /// errors least, so one sentence counts as much as the whole set. Each
     /// subset of the three costs is solved with the others at 0, and the
-    /// best that has none below 0 is kept. None when no subset is solved.
+    /// best that has none below 0 is kept. None for invalid timings,
+    /// nonfinite arithmetic or when no subset is solved.
     pub fn fit(samples: &[(Shape, f64)]) -> Option<Cost> {
-        let rows: Vec<([f64; 3], f64)> = samples
-            .iter()
-            .filter(|(_, t)| *t > 0.0)
-            .map(|(s, t)| ([s.runs as f64 / t, s.rows as f64 / t, s.tokens as f64 / t], 1.0))
-            .collect();
+        if samples.iter().any(|(_, t)| !t.is_finite() || *t <= 0.0) {
+            return None;
+        }
+        let rows: Vec<([f64; 3], f64)> =
+            samples.iter().map(|(s, t)| ([s.runs as f64 / t, s.rows as f64 / t, s.tokens as f64 / t], 1.0)).collect();
+        if rows.iter().any(|(a, _)| a.iter().any(|v| !v.is_finite())) {
+            return None;
+        }
         let mut best: Option<(f64, [f64; 3])> = None;
         for mask in 1..8u32 {
             let used: Vec<usize> = (0..3).filter(|i| mask & (1 << i) != 0).collect();
             let Some(x) = solve(&rows, &used) else { continue };
-            if x.iter().any(|&v| v < 0.0) {
+            if x.iter().any(|&v| !v.is_finite() || v < 0.0) {
                 continue;
             }
             let mut full = [0f64; 3];
@@ -58,6 +62,9 @@ impl Cost {
             }
             let err: f64 =
                 rows.iter().map(|(a, b)| (a.iter().zip(&full).map(|(p, q)| p * q).sum::<f64>() - b).powi(2)).sum();
+            if !err.is_finite() {
+                continue;
+            }
             if best.is_none_or(|(e, _)| err < e) {
                 best = Some((err, full));
             }

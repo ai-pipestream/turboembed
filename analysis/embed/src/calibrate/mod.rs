@@ -358,6 +358,9 @@ fn device_options(o: &CalibrationOptions, max_seq: u32, max_batch: u32) -> Encod
 
 /// The key, and the model's own window.
 fn probe(bundle: &Path, o: &CalibrationOptions, texts: &[Text]) -> Result<(String, u32), CoreError> {
+    if o.floor.is_some_and(|f| !f.is_finite()) {
+        return Err(CoreError::new(INVALID_ARGUMENT, "calibration floor must be finite"));
+    }
     let model = crate::model_ref(&Bundle::open(bundle)?);
     let enc = Encoder::open(bundle, &device_options(o, 0, 1))?;
     let d = enc.device_info();

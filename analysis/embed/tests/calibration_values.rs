@@ -113,3 +113,20 @@ fn invalid_cache_is_replaced_by_actual_cpu_measurement() {
     assert_eq!(Calibration::parse(&std::fs::read_to_string(&path).unwrap()), Some(loaded));
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn nonfinite_requested_floor_fails_before_opening_the_model() {
+    let options = CalibrationOptions {
+        device: Device::Cpu,
+        precision: Precision::Exact,
+        windows: vec![24],
+        batches: vec![1],
+        floor: None,
+        reps: 1,
+    };
+    for floor in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY] {
+        let o = CalibrationOptions { floor: Some(floor), ..options.clone() };
+        let err = Calibration::key(Path::new("absent-calibration-model"), &o, &[]).unwrap_err();
+        assert!(err.message.contains("floor"), "invalid floor reached model opening: {}", err.message);
+    }
+}
