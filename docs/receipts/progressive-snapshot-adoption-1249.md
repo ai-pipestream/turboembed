@@ -13,7 +13,15 @@ failure reporting, final batch equivalence, cancellation and named views.
   against the live remote before merging. The fetch mapping covers all
   branches; the main ref was also fetched explicitly.
 - Regression-only commit: `c5e095294734c9735a09a038edcd6f95572f0036`.
-- Clean tested implementation: `a3622b614f6ba37a04906c76d4510a9a4e7378bd`.
+- Repair implementation: `a3622b614f6ba37a04906c76d4510a9a4e7378bd`.
+- Additional normal main merge: `60789726dada342682e540bfb28ed4cc4a14bc1f`,
+  incorporating live-verified main `098b6e7b92fabaaf2eca487c045dddb4ab82990c`.
+- Final clean tested integration: `f0edfb1928cdb0f39157575a0abf8e8e117bcbf2`.
+
+The additional sync retained both sides of the vocabulary/progressive
+dependency lockfile union. Its automatic manifest merge introduced two
+duplicate path dependencies, which the integration fix deduplicated.
+The scheduler repair and permanent regression source are unchanged.
 
 ## Correction
 
@@ -64,7 +72,8 @@ All checks ran in an isolated checkout and target with jobs 2,
 incremental compilation disabled and development debug info disabled.
 
 - `cargo test --locked -p turbo-analysis -p turbo-kserve --lib --tests`:
-  329 passed, 0 failed, 2 existing release-only ignores across 34 targets.
+  344 passed, 0 failed, 2 existing release-only ignores across 36 targets
+  on the final integrated code (initial repair verification was 329/34).
 - `cargo clippy --locked -p turbo-analysis -p turbo-kserve --all-targets -- -D warnings`:
   passed.
 - `cargo fmt --all -- --check`: passed.
