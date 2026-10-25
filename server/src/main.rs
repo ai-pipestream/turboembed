@@ -1,7 +1,6 @@
 //! turbo-kserve: the Open Inference Protocol over gRPC for turboembed
 //! bundles (docs/kserve.md).
 
-use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use turbo_kserve::catalog::Catalog;
@@ -33,6 +32,18 @@ async fn stop_signal() -> &'static str {
     }
 }
 
+/// The catalog in `dir`, fetching over HTTPS.
+#[cfg(feature = "catalog-http")]
+fn catalog(dir: &str, index: Option<&str>) -> Result<Catalog, String> {
+    Catalog::http(std::path::PathBuf::from(dir), index.map(std::path::Path::new))
+}
+
+/// A server built without `catalog-http` has no way to fetch a model.
+#[cfg(not(feature = "catalog-http"))]
+fn catalog(_dir: &str, _index: Option<&str>) -> Result<Catalog, String> {
+    Err("this turbo-kserve was built without the catalog-http feature, so it cannot fetch models".into())
+}
+
 #[tokio::main]
 async fn main() -> ExitCode {
     let args = match Args::parse(std::env::args().skip(1)) {
@@ -43,7 +54,7 @@ async fn main() -> ExitCode {
         }
     };
     let catalog = match &args.catalog_dir {
-        Some(dir) => match Catalog::http(PathBuf::from(dir), args.catalog_index.as_deref().map(Path::new)) {
+        Some(dir) => match catalog(dir, args.catalog_index.as_deref()) {
             Ok(c) => Some(c),
             Err(e) => {
                 eprintln!("turbo-kserve: catalog: {e}");

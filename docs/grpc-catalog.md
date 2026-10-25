@@ -25,6 +25,9 @@ that index instead of the built-in one.
 The admin calls are served only when the server is started with
 `--admin`; without it they refuse with `UNIMPLEMENTED` and touch no
 file. Without `--catalog-dir` every call refuses with `UNIMPLEMENTED`.
+Fetching needs the server's `catalog-http` feature, which is on by
+default; a server built with `--no-default-features` has no TLS stack
+and exits at start when given `--catalog-dir`.
 
 ## Listing
 

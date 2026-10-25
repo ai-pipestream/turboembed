@@ -9,7 +9,7 @@ mod entry;
 mod install;
 
 use std::fmt;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -47,7 +47,8 @@ impl fmt::Debug for Catalog {
 
 impl Catalog {
     /// The catalog over HTTPS: the index at `index`, or the built-in one.
-    pub fn http(home: PathBuf, index: Option<&Path>) -> Result<Catalog, String> {
+    #[cfg(feature = "catalog-http")]
+    pub fn http(home: PathBuf, index: Option<&std::path::Path>) -> Result<Catalog, String> {
         let index = match index {
             Some(p) => {
                 let bytes = std::fs::read(p).map_err(|e| format!("{}: {e}", p.display()))?;
