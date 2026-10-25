@@ -307,8 +307,10 @@ of the Compute Module 5's whole set at window 32 and cap 1, on the CPU.
 One cell gave no reading: the Raspberry Pi 5's whole set at window 16
 and cap 1, which ran on the CPU (dispatched 1618.9 ms; CPU 1616.7 ms,
 1610.7 to 1620.5; Hailo-8 2998.7 ms, 2998.6 to 2998.7). Fewer than four
-of its six pairs were quiet in each of three sets, so the test reports
-it inconclusive instead of passing or failing it. Every other reading
+of its six pairs were quiet in each of three sets, so the test reported
+it inconclusive. That cell is unverified: under
+`TURBO_TEST_REQUIRE_HAILO=1` the test now fails on an inconclusive
+submission, so it needs a quieter run to pass. Every other reading
 was within the planning time and 0.5% of the fixed time, which the test
 requires.
 

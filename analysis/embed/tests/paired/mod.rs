@@ -32,6 +32,30 @@ pub fn added(pairs: &[(f64, f64)]) -> Option<(f64, f64)> {
     Some((middle(&quiet.iter().map(|(x, y)| x - y).collect::<Vec<_>>()), fixed))
 }
 
+/// Whether a run with these inconclusive submissions passes. A run under
+/// TURBO_TEST_REQUIRE_HAILO=1 is evidence that dispatch adds no more than
+/// the planning and RESOLUTION, and a submission left inconclusive after
+/// ATTEMPTS sets is a gap in that evidence: the run fails and names each
+/// one. Without it they are only reported.
+pub fn settle(inconclusive: &[String], require: bool) -> Result<(), String> {
+    if require && !inconclusive.is_empty() {
+        return Err(format!(
+            "what dispatch adds is unchecked after {ATTEMPTS} sets of pairs for {}: time them again",
+            inconclusive.join(", ")
+        ));
+    }
+    Ok(())
+}
+
+#[test]
+fn an_inconclusive_submission_fails_only_a_required_run() {
+    let left = vec!["16x1 all".to_string()];
+    assert_eq!(settle(&left, false), Ok(()));
+    assert_eq!(settle(&[], true), Ok(()));
+    let why = settle(&left, true).unwrap_err();
+    assert!(why.contains("16x1 all") && why.contains("3 sets"), "{why}");
+}
+
 /// Pairs from the Hailo-8 boards' paired run at 2787fa1e. The Compute
 /// Module 5's one sentence at 16 x 8 had three pairs lifted by 3 to 7 ms;
 /// the Raspberry Pi 5's whole set at 16 x 1 had one, by about 80 ms.

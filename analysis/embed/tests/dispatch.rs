@@ -24,7 +24,7 @@ use turbo_analysis_layers::{Sentences, Subwords, Vectors};
 mod held_out;
 use held_out::held_out;
 mod paired;
-use paired::{ATTEMPTS, RESOLUTION, added};
+use paired::{ATTEMPTS, RESOLUTION, added, settle};
 
 fn bert() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle")
@@ -307,7 +307,8 @@ fn the_shape_predicted_is_the_shape_run() {
 /// dispatched calls and the step they run on, back to back: what dispatch
 /// adds (see `paired::added`) is no more than the planning (timed on its
 /// own) and RESOLUTION. Pairs too noisy to read are timed again, up to
-/// ATTEMPTS sets, and then reported inconclusive rather than failed.
+/// ATTEMPTS sets, and then reported inconclusive; under
+/// TURBO_TEST_REQUIRE_HAILO=1 an inconclusive submission fails the run.
 /// Prints each side's middle and spread, what dispatch adds, every set of
 /// pairs, and the inconclusive submissions.
 #[test]
@@ -453,4 +454,8 @@ fn on_the_device_every_submission_runs_at_the_faster_side() {
     }
     println!("inconclusive\t{}\t{}", inconclusive.len(), inconclusive.join(", "));
     std::fs::remove_dir_all(&dir).unwrap();
+    let require = std::env::var("TURBO_TEST_REQUIRE_HAILO").as_deref() == Ok("1");
+    if let Err(why) = settle(&inconclusive, require) {
+        panic!("{why}");
+    }
 }
