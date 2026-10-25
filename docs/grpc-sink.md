@@ -38,11 +38,13 @@ then: sequences follow the order items are sent in, whatever stream
 completed them. A call that fails is counted as it fails, also while no
 item is waiting, and a new one opens half a second later; the items it
 had taken are lost with it. `Server::sink_stats` gives the counts:
-offered, forwarded (taken by a call to send), dropped, queued items and bytes, failed calls with the last
+offered, forwarded (taken by a call to send), dropped (refused by a full
+queue), abandoned (left in the queue when a close stopped the drain),
+queued items and bytes, failed calls with the last
 error, and the last summary a sink answered with. When the server
 stops, it closes the queue and waits up to 10 seconds for what the queue
-holds to be sent and the sink's summary to arrive, then stops the drain,
-so a sink that is down is not retried after the server stops; `Server::close_sink`
+holds to be sent and the sink's summary to arrive, then stops the drain
+and counts what the queue still holds as abandoned, so a sink that is down is not retried after the server stops; `Server::close_sink`
 does that on its own and answers with the final counts.
 
 ## Serving the sink

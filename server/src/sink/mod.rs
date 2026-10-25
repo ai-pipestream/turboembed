@@ -56,6 +56,8 @@ pub struct SinkStats {
     pub forwarded: u64,
     /// Refused by a full queue.
     pub dropped: u64,
+    /// Left in the queue when close stopped a drain at its deadline.
+    pub abandoned: u64,
     /// Items in the queue now, and their encoded bytes.
     pub queued: u64,
     pub queued_bytes: u64,
@@ -72,6 +74,7 @@ struct Counters {
     offered: AtomicU64,
     forwarded: AtomicU64,
     dropped: AtomicU64,
+    abandoned: AtomicU64,
     queued: AtomicU64,
     queued_bytes: AtomicU64,
     failed_calls: AtomicU64,
@@ -84,6 +87,7 @@ type Queued = (DocumentSinkItem, u64);
 /// The tee every analysis stream offers its answers to.
 pub(crate) struct SinkForwarder {
     tx: Mutex<Option<mpsc::Sender<Queued>>>,
+    rx: Arc<Mutex<mpsc::Receiver<Queued>>>,
     max_bytes: u64,
     counters: Arc<Counters>,
     task: Mutex<Option<JoinHandle<()>>>,
@@ -99,10 +103,12 @@ impl SinkForwarder {
             return Err("the sink queue's item and byte bounds must be over 0".into());
         }
         let (tx, rx) = mpsc::channel(config.max_queue_items);
+        let rx = Arc::new(Mutex::new(rx));
         let counters = Arc::new(Counters::default());
-        let task = tokio::spawn(drain(endpoint, rx, counters.clone()));
+        let task = tokio::spawn(drain(endpoint, rx.clone(), counters.clone()));
         Ok(Arc::new(SinkForwarder {
             tx: Mutex::new(Some(tx)),
+            rx,
             max_bytes: config.max_queue_bytes,
             counters,
             task: Mutex::new(Some(task)),
@@ -151,6 +157,7 @@ impl SinkForwarder {
             offered: c.offered.load(Ordering::Relaxed),
             forwarded: c.forwarded.load(Ordering::Relaxed),
             dropped: c.dropped.load(Ordering::Relaxed),
+            abandoned: c.abandoned.load(Ordering::Relaxed),
             queued: c.queued.load(Ordering::Relaxed),
             queued_bytes: c.queued_bytes.load(Ordering::Relaxed),
             failed_calls: c.failed_calls.load(Ordering::Relaxed),
@@ -161,7 +168,8 @@ impl SinkForwarder {
 
     /// Closes the queue and waits up to `within` for what it holds to be
     /// sent and the sink's summary to arrive. A drain still running then,
-    /// with a sink that is down, is stopped: what it held is not sent.
+    /// with a sink that is down, is stopped: what the queue still holds
+    /// is taken out of it and counted abandoned.
     pub(crate) async fn close(&self, within: Duration) {
         self.tx.lock().unwrap_or_else(|p| p.into_inner()).take();
         let task = self.task.lock().unwrap_or_else(|p| p.into_inner()).take();
@@ -169,6 +177,15 @@ impl SinkForwarder {
             && tokio::time::timeout(within, &mut t).await.is_err()
         {
             t.abort();
+            let _ = t.await;
+            let c = &self.counters;
+            let mut rx = self.rx.lock().unwrap_or_else(|p| p.into_inner());
+            rx.close();
+            while let Ok((_, bytes)) = rx.try_recv() {
+                c.queued.fetch_sub(1, Ordering::Relaxed);
+                c.queued_bytes.fetch_sub(bytes, Ordering::AcqRel);
+                c.abandoned.fetch_add(1, Ordering::Relaxed);
+            }
         }
     }
 }
@@ -222,9 +239,8 @@ impl Stream for Feed {
 /// Drains the queue into StreamDocuments calls until it is closed and
 /// empty, opening a new call after one ends in an error. A call that
 /// fails ends as it fails, with or without items waiting.
-async fn drain(endpoint: Endpoint, rx: mpsc::Receiver<Queued>, c: Arc<Counters>) {
+async fn drain(endpoint: Endpoint, rx: Arc<Mutex<mpsc::Receiver<Queued>>>, c: Arc<Counters>) {
     let channel = endpoint.connect_lazy();
-    let rx = Arc::new(Mutex::new(rx));
     let closed = Arc::new(AtomicBool::new(false));
     loop {
         let mut client = TurboSinkServiceClient::new(channel.clone());

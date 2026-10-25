@@ -276,10 +276,14 @@ async fn items_offered_before_the_sink_starts_reach_it_once_it_does() {
 async fn closing_with_the_sink_down_stops_the_drain_at_the_deadline() {
     let gone = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
     let s = teeing(format!("http://{gone}"), 4).await;
-    analyze(&s, "d", 2).await;
+    analyze(&s, "d", 3).await;
+    until(&s, |s| s.failed_calls > 0).await;
     let start = Instant::now();
     let stats = s.close_sink(Duration::from_millis(300)).await.unwrap();
     assert!(start.elapsed() < Duration::from_secs(2), "{:?}", start.elapsed());
+    // What the queue held is counted abandoned, not left counted queued.
+    let held = (stats.forwarded, stats.dropped, stats.abandoned, stats.queued, stats.queued_bytes);
+    assert_eq!(held, (0, 0, 3, 0, 0), "{stats:?}");
     let failed = stats.failed_calls;
     tokio::time::sleep(Duration::from_millis(1200)).await;
     assert_eq!(s.sink_stats().unwrap().failed_calls, failed, "the drain kept retrying after close");
