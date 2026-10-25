@@ -26,16 +26,17 @@ fn hash_compat_candidate_tables_and_profiles() {
         .unwrap();
         hashes.push(CalibratedSpanDetector::new(detector, profile, "hash-fixture").unwrap().config_hash());
     }
-    // Fixed values from the previous implementation, before migration.
+    // Main #1103 adds model and retained-language inputs. These values were
+    // captured from that merge before replacing the arithmetic with Fnv1a.
     assert_eq!(
         hashes,
         [
-            9271805774357292529,
-            13746497565560355511,
-            6098002148004997526,
-            9271805774357292529,
-            3148810852425046655,
-            4123920057459090545
+            10198147997765475433,
+            693950649760826463,
+            5437517471414260919,
+            16938217562532895248,
+            14980512779310312396,
+            10487642117907239850
         ]
     );
 }

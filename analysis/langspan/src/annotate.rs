@@ -53,23 +53,17 @@ pub fn summary(detector: &SpanDetector, runs: &[Run]) -> Language {
 /// an empty `opennlp:language`.
 impl Annotator for SpanDetector {
     const ID: &'static str = "turbo-langspan:script-ngram";
-    const VERSION: &'static str = "1";
+    const VERSION: &'static str = "2";
     type Reads = (View, Option<Sentences>, Option<Tokens>);
     type Writes = (LanguageSpans, Language);
 
     fn annotate(&self, (view, sentences, tokens): Refs<'_, Self>) -> Result<(LanguageSpans, Language), Error> {
-        let other_view =
-            |what: &str| Error::Annotator { annotator: Self::ID, detail: format!("the {what} are in another view") };
-        if sentences.is_some_and(|s| s.spans.view() != view.id()) {
-            return Err(other_view("sentences"));
+        let invalid = |detail| Error::Annotator { annotator: Self::ID, detail };
+        if let Some(s) = sentences {
+            s.check_contiguous_in(view).map_err(invalid)?;
         }
-        if tokens.is_some_and(|t| t.spans.view() != view.id()) {
-            return Err(other_view("tokens"));
-        }
-        // Sentences are in text order: the layer refuses to be added
-        // otherwise. A token layer may be out of order, so it is checked.
-        if tokens.is_some_and(|t| !t.spans.is_ordered()) {
-            return Err(Error::Annotator { annotator: Self::ID, detail: "the tokens are not in text order".into() });
+        if let Some(t) = tokens {
+            t.check_contiguous_in(view).map_err(invalid)?;
         }
         let sentence_starts = sentences.map(|s| s.spans.columns().0);
         let token_columns = tokens.map(|t| t.spans.columns());
@@ -93,13 +87,19 @@ impl Annotator for SpanDetector {
 
     fn config_hash(&self) -> u64 {
         let s = self.settings();
-        turbo_analysis::Fnv1a::new()
-            .f64(s.switch.space)
-            .f64(s.switch.punctuation)
-            .f64(s.switch.sentence)
-            .u32(s.clause_letters)
-            .f64(s.rescore_margin)
-            .bool(s.shortlist)
-            .finish()
+        let mut h = turbo_analysis::Fnv1a::new();
+        for word in [
+            s.switch.space.to_bits(),
+            s.switch.punctuation.to_bits(),
+            s.switch.sentence.to_bits(),
+            u64::from(s.clause_letters),
+            s.rescore_margin.to_bits(),
+            u64::from(s.shortlist),
+            self.detector().config_hash(),
+            self.candidates.config_hash(),
+        ] {
+            h.fold_u64(word);
+        }
+        h.finish()
     }
 }

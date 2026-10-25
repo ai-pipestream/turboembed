@@ -77,7 +77,7 @@ pub fn written_in(code: &str) -> Option<&'static [Script]> {
 /// be. A language the table does not know is a candidate in every group.
 /// A language left out by the caller (to restrict a detector to the
 /// languages a collection can hold) is a candidate in none.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub struct Candidates {
     /// Each group the table names with its languages, in outcome order.
     by_group: Vec<(Script, Vec<u32>)>,
@@ -86,6 +86,23 @@ pub struct Candidates {
 }
 
 impl Candidates {
+    pub(crate) fn config_hash(&self) -> u64 {
+        // Preserve the u32 lengths/indices and raw UTF-8 script names from main.
+        let mut h = turbo_analysis::Fnv1a::new();
+        h.u32(self.by_group.len() as u32);
+        for (script, outcomes) in &self.by_group {
+            h.u32(script.name().len() as u32).bytes(script.name().as_bytes()).u32(outcomes.len() as u32);
+            for &outcome in outcomes {
+                h.u32(outcome);
+            }
+        }
+        h.u32(self.anywhere.len() as u32);
+        for &outcome in &self.anywhere {
+            h.u32(outcome);
+        }
+        h.finish()
+    }
+
     /// The candidates for a model's outcome `codes`, in outcome order,
     /// keeping the codes `keep` accepts.
     pub fn new<'a>(codes: impl Iterator<Item = &'a str>, keep: impl Fn(&str) -> bool) -> Candidates {
@@ -141,6 +158,12 @@ mod tests {
     use super::*;
 
     #[test]
+    fn candidate_identity_uses_a_fixed_byte_encoding() {
+        let candidates = Candidates::new(["eng"].into_iter(), |_| true);
+        assert_eq!(candidates.config_hash(), 0x82c1004aaf42047c);
+    }
+
+    #[test]
     fn kana_and_bopomofo_go_with_han_and_neutral_scripts_with_nothing() {
         assert_eq!(group(Script::Hiragana), Some(Script::Han));
         assert_eq!(group(Script::Katakana), Some(Script::Han));
@@ -175,3 +198,6 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+mod config_hash_compat;
