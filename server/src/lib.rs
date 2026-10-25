@@ -11,20 +11,30 @@ mod infer;
 mod kserve;
 pub mod offsets;
 pub mod results;
+pub mod sink;
 pub mod state;
 pub mod status;
 pub mod stream;
 pub mod tasks;
+pub mod vocabulary;
 
 pub use crate::state::Held;
 
-/// The messages and services of the two protos.
+/// The messages and services of the three protos.
 pub mod proto {
     #![allow(clippy::all)]
     tonic::include_proto!("inference");
     /// The analysis result layer (docs/grpc-analysis.md).
     pub mod result {
         tonic::include_proto!("turbo.result");
+    }
+    /// The downstream document sink (docs/grpc-sink.md).
+    pub mod sink {
+        tonic::include_proto!("turbo.sink");
+    }
+    /// The vocabulary store's service (docs/grpc-vocabulary.md).
+    pub mod vocabulary {
+        tonic::include_proto!("turbo.vocabulary");
     }
     /// The model catalog (docs/grpc-catalog.md).
     pub mod training {
@@ -33,6 +43,7 @@ pub mod proto {
 }
 
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use tokio::net::TcpListener;
@@ -45,7 +56,10 @@ use tonic::transport::server::TcpIncoming;
 use crate::config::ModelConfig;
 use crate::proto::grpc_inference_service_server::GrpcInferenceServiceServer;
 use crate::proto::result::analysis_service_server::AnalysisServiceServer;
+use crate::proto::sink::turbo_sink_service_server::TurboSinkServiceServer;
 use crate::proto::training::turbo_catalog_service_server::TurboCatalogServiceServer;
+use crate::proto::vocabulary::turbo_vocabulary_service_server::TurboVocabularyServiceServer;
+use crate::sink::{SinkConfig, SinkForwarder, SinkReceiver, SinkStats};
 use crate::state::State;
 
 /// tonic refuses a request message over the decoding limit with
@@ -71,16 +85,24 @@ pub struct Server {
     addr: SocketAddr,
     stop: Option<oneshot::Sender<()>>,
     task: JoinHandle<std::result::Result<(), tonic::transport::Error>>,
+    sink: Option<Arc<SinkForwarder>>,
 }
 
 /// What the server serves beyond inference and analysis. `admin` is the
 /// explicit opt-in this listener needs before any client may add or remove
-/// bundles, record a licence acceptance or install a model; `catalog` is
-/// the model catalog, which refuses every call when absent.
+/// bundles or vocabulary artifacts, record a licence acceptance or install
+/// a model. `vocabulary` is the vocabulary store's directory; without one
+/// the store holds nothing and refuses writes. `catalog` is the model
+/// catalog, which refuses every call when absent. `sink` forwards every
+/// document an analysis stream completes to a downstream TurboSinkService;
+/// `sink_receiver` serves that service here, handing it each accepted item.
 #[derive(Debug, Clone, Default)]
 pub struct Serve {
     pub admin: bool,
+    pub vocabulary: Option<PathBuf>,
     pub catalog: Option<catalog::Catalog>,
+    pub sink: Option<SinkConfig>,
+    pub sink_receiver: Option<SinkReceiver>,
 }
 
 impl Server {
@@ -102,7 +124,22 @@ impl Server {
         let state = Arc::new(State::new(names, models));
         let kserve = GrpcInferenceServiceServer::new(kserve::Inference { state: state.clone() })
             .max_decoding_message_size(max_message_bytes);
-        let analysis = AnalysisServiceServer::new(analysis::Analysis { state: state.clone(), admin: serve.admin })
+        let store = match &serve.vocabulary {
+            Some(dir) => Some(Arc::new(vocabulary::Store::open(dir).map_err(|e| format!("vocabulary store: {e}"))?)),
+            None => None,
+        };
+        // The forwarder spawns its drain, so it starts after every step that
+        // can refuse the start: a refused start leaves no task behind.
+        let sink = serve.sink.as_ref().map(SinkForwarder::start).transpose()?;
+        let analysis = AnalysisServiceServer::new(analysis::Analysis {
+            state: state.clone(),
+            admin: serve.admin,
+            sink: sink.clone(),
+        })
+        .max_decoding_message_size(max_message_bytes);
+        let receiver =
+            serve.sink_receiver.map(|r| TurboSinkServiceServer::new(r).max_decoding_message_size(max_message_bytes));
+        let vocabulary = TurboVocabularyServiceServer::new(vocabulary::Vocabulary { store, admin: serve.admin })
             .max_decoding_message_size(max_message_bytes);
         let catalog = TurboCatalogServiceServer::new(catalog::CatalogService::new(serve.catalog, serve.admin));
         let (stop, stopped) = oneshot::channel::<()>();
@@ -116,12 +153,14 @@ impl Server {
                 .layer(tower::util::MapResponseLayer::new(too_large))
                 .add_service(kserve)
                 .add_service(analysis)
+                .add_service(vocabulary)
                 .add_service(catalog)
+                .add_optional_service(receiver)
                 .serve_with_incoming_shutdown(incoming, async {
                     let _ = stopped.await;
                 }),
         );
-        Ok(Server { state, addr, stop: Some(stop), task })
+        Ok(Server { state, addr, stop: Some(stop), task, sink })
     }
 
     pub fn local_addr(&self) -> SocketAddr {
@@ -151,11 +190,28 @@ impl Server {
         self.state.stream.stats()
     }
 
-    /// Stops answering and waits for the server to finish.
+    /// What the forwarder to the downstream sink did so far; `None`
+    /// without a sink.
+    pub fn sink_stats(&self) -> Option<SinkStats> {
+        self.sink.as_ref().map(|s| s.stats())
+    }
+
+    /// Stops forwarding to the sink: no answer is offered after this, and
+    /// what the queue holds is sent, waiting up to `within` for it and the
+    /// sink's summary. Answers with the forwarder's final counts.
+    pub async fn close_sink(&self, within: std::time::Duration) -> Option<SinkStats> {
+        let sink = self.sink.as_ref()?;
+        sink.close(within).await;
+        Some(sink.stats())
+    }
+
+    /// Stops answering and waits for the server to finish, then for the
+    /// documents queued for the sink, up to 10 seconds.
     pub async fn stop(mut self) {
         if let Some(s) = self.stop.take() {
             let _ = s.send(());
         }
         let _ = (&mut self.task).await;
+        self.close_sink(std::time::Duration::from_secs(10)).await;
     }
 }

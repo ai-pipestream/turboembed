@@ -14,3 +14,11 @@ turbo-normalize = { path = "../normalize" }
 turbo-unicode = { path = "../unicode" }
 turbo-vector-index = { path = "../vector-index" }
 turbo-wordnet = { path = "../wordnet" }
+
+[dev-dependencies]
+turbo-analysis-embed = { path = "../embed" }
+turbo-chunker = { path = "../chunker" }
+turbo-maxent = { path = "../maxent" }
+turbo-namefind = { path = "../namefind" }
+turbo-sentdetect = { path = "../sentdetect" }
+turbo-tokenize = { path = "../tokenize" }

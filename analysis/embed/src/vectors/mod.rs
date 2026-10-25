@@ -256,7 +256,7 @@ impl VectorAnnotator {
         let mut h = config_hash(&[self.settings[0], self.settings[1], self.stride, self.token_dim()]);
         if let Some(proj) = &self.projection {
             h = (h ^ u64::from(proj.has_bias)).wrapping_mul(0x0100_0000_01b3);
-            for &v in proj.linear.weight.iter().chain(&proj.linear.bias) {
+            for &v in proj.linear.weight().iter().chain(proj.linear.bias()) {
                 for b in v.to_bits().to_le_bytes() {
                     h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
                 }

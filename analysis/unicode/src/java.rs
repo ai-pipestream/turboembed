@@ -9,6 +9,7 @@
 
 pub mod code_point;
 mod codepoint_strings;
+mod ignore_case;
 mod strings;
 mod word_classes;
 use crate::ascii::push_lowercase_run;
@@ -23,6 +24,7 @@ use crate::trie::find;
 pub use codepoint_strings::{
     eq_lowercase_code_points, lowercase_code_points, lowercase_code_points_changes, to_lowercase_code_points,
 };
+pub use ignore_case::equals_ignore_case;
 pub use strings::is_blank;
 
 const CAPITAL_SIGMA: char = '\u{3A3}';

@@ -12,6 +12,7 @@
 use std::fmt;
 
 use turbo_analysis::{Annotator, Error, Refs, Span, View, ViewId};
+pub use turbo_analysis_layers::unit::DEFAULT_UNITS;
 use turbo_analysis_layers::{Money, NumberNotation, PERCENT, Quantities, QuantityMention};
 use turbo_unicode::java;
 
@@ -20,20 +21,6 @@ use crate::scan::{
     boundary_after, boundary_before, byte_at, char_at, continues_number_with_parity, is_nd_at, next_candidate_pos,
     parse_with_parity, sign_boundary_before, utf8_char_width, whitespace_at, word_end,
 };
-
-/// The units OpenNLP's extractor knows unless a caller gives its own set:
-/// common measurement tokens, matched exactly and case-sensitively.
-/// Ambiguous English words such as `in` are left out on purpose.
-pub const DEFAULT_UNITS: [&str; 37] = [
-    "km", "m", "cm", "mm", "nm", "mi", "ft", "yd", //
-    "kg", "g", "mg", "t", "lb", "lbs", "oz", //
-    "L", "mL", "ml", //
-    "ms", "ns", "min", "hr", //
-    "KB", "MB", "GB", "TB", "PB", //
-    "Hz", "kHz", "MHz", "GHz", //
-    "kW", "MW", "GW", "kWh", //
-    "mph", "kph",
-];
 
 /// The word a percentage may be written with instead of `%`, in any case.
 const PERCENT_WORD: &str = "percent";

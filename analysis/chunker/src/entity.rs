@@ -14,10 +14,12 @@ mod build;
 mod carry;
 mod header;
 mod keys;
+mod salient;
 
 pub use build::chunk_entities;
 pub use header::{ChunkEntities, ChunkEntityHeaders, HeaderPolicy};
 pub use keys::{Chains, EntityKeys, KeyMention, Keying, normalize_surface};
+pub use salient::SalienceHeaders;
 
 use std::num::NonZeroU32;
 

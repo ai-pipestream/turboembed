@@ -19,6 +19,7 @@ pub mod clauses;
 mod cohesion;
 pub mod coref;
 mod discourse;
+pub mod discourse_graph;
 mod drift;
 pub mod entity;
 pub mod expand;
@@ -38,6 +39,8 @@ pub use trace::ChunkTrace;
 pub mod rechunk;
 pub mod route;
 pub mod scorer;
+pub mod strategy;
+pub use strategy::{ChunkStrategy, StrategyMatrix, StrategySummary};
 mod sentiment;
 mod sums;
 mod weigh;
@@ -55,10 +58,11 @@ pub use coref::{
     chunk_antecedents, coref_boundaries, coref_boundaries_from_chains, extract_chains,
 };
 pub use discourse::{DISCOURSE, DiscourseBoundaries, DiscourseLanguage};
+pub use discourse_graph::DiscourseAnnotator;
 pub use drift::{Drift, DriftBoundaries, Score, drift};
 pub use entity::{
     ChunkEntities, ChunkEntityHeaders, EntityBoundaries, EntityContinuity, EntityKeys, HeaderPolicy, Keying,
-    chunk_entities, entity_boundaries,
+    SalienceHeaders, chunk_entities, entity_boundaries,
 };
 pub use expand::{ExpandedHit, ExpansionPolicy, ParentExpander, ScoreAggregation, unit_tokens};
 pub use hashes::{ChunkId, ContentHashBuilder, ContentHashes, LevelHashBuilder};
