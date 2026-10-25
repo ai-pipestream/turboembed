@@ -13,7 +13,9 @@
 //! and `hashes` gives every unit a content-addressed ID. `eval` scores a
 //! chunking against a gold one and sweeps the chunker's settings.
 
+pub mod attribution;
 mod boundaries;
+pub use attribution::{ChunkAttribution, DocumentHeat, HeatSegment, LateMatch, LexicalTerm, MatchSignal, MatchedSpan};
 pub mod cascade;
 pub mod clauses;
 mod cohesion;
@@ -104,7 +106,7 @@ pub mod eval;
 
 use std::ops::Range;
 
-use turbo_analysis::{Annotator, Error, Ix, IxRange, Refs, Span, Spans};
+use turbo_analysis::{Annotator, Error, Fnv1a, Ix, IxRange, Refs, Span, Spans};
 use turbo_analysis_layers::{Boundaries, Chunks, Cut, Sentences, Structure, Subwords, Tables};
 
 /// The token budget of a chunk, in the embedder's own tokens.
@@ -295,7 +297,11 @@ impl Annotator for Chunker {
         let b = self.budget;
         [u64::from(b.max), u64::from(b.target), u64::from(b.size_weight), u64::from(b.overhead)]
             .iter()
-            .fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x).wrapping_mul(0x0100_0000_01b3))
+            .fold(Fnv1a::new(), |mut h, &x| {
+                h.u64(x);
+                h
+            })
+            .finish()
     }
 }
 

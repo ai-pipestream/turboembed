@@ -106,6 +106,44 @@ impl<M> QuantizedIndex<M> {
         self.codes.to_bytes()
     }
 
+    /// The global scaling factor applied to rows before quantization.
+    pub fn scale(&self) -> f64 {
+        self.scale
+    }
+
+    /// Restores a [`QuantizedIndex`] from turbovec `.tv` bytes produced by
+    /// [`QuantizedIndex::to_bytes`], along with its [`Space`], [`Metric`],
+    /// [`TurboQuant`] configuration, `scale`, and caller metadata `meta`.
+    pub fn from_bytes(
+        space: Space,
+        metric: Metric,
+        config: TurboQuant,
+        scale: f64,
+        bytes: &[u8],
+        meta: Vec<M>,
+    ) -> Result<QuantizedIndex<M>, IndexError> {
+        if space.dim == 0 {
+            return Err(IndexError::ZeroDimension);
+        }
+        TurboQuant::new(config.bits, config.calibrate)?;
+        if !scale.is_finite() || scale <= 0.0 {
+            return Err(refused(format!("invalid scale {scale}")));
+        }
+        let codes = TurboQuantIndex::from_bytes(bytes).map_err(refused)?;
+        if let Some(dim) = codes.dim_opt()
+            && dim != space.dim as usize
+        {
+            return Err(IndexError::Dimension { index: space.dim, other: dim });
+        }
+        if codes.len() != meta.len() {
+            return Err(refused(format!("meta length {} does not match quantized rows {}", meta.len(), codes.len())));
+        }
+        if codes.len() < 32_768 || config.bits == 3 {
+            codes.prepare();
+        }
+        Ok(QuantizedIndex { space, metric, config, codes, exhaustive: std::sync::OnceLock::new(), meta, scale })
+    }
+
     /// The estimated score of `query`, a vector of `space`, against `row`:
     /// the value a [`Hit`] for that row carries. Panics if `row` is not
     /// below [`QuantizedIndex::len`]. Each call is a masked search over

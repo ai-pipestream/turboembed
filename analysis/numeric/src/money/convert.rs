@@ -97,13 +97,14 @@ fn convert<R: FxRates>(
 fn config_hash(target: Currency, as_of: Option<Date>, minor_unit_rounding: bool) -> u64 {
     let [a, b, c] = target.code();
     let date = as_of.map_or([0, 0], |d| [1, d.epoch_day() as u64]);
-    let mut h = [u64::from(a), u64::from(b), u64::from(c), date[0], date[1]]
-        .iter()
-        .fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x).wrapping_mul(0x0100_0000_01b3));
-    if minor_unit_rounding {
-        h = (h ^ 1).wrapping_mul(0x0100_0000_01b3);
+    let mut h = turbo_analysis::Fnv1a::new();
+    for x in [u64::from(a), u64::from(b), u64::from(c), date[0], date[1]] {
+        h.fold_u64(x);
     }
-    h
+    if minor_unit_rounding {
+        h.fold_u64(1);
+    }
+    h.finish()
 }
 
 impl<R: FxRates + Send + Sync + 'static> Annotator for MoneyConverter<R> {

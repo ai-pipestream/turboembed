@@ -323,10 +323,11 @@ impl Annotator for BilstmPosTagger {
             Numerics::Packed => b"packed",
             Numerics::JvmParity => b"jvm-parity",
         };
-        [numerics, b"\0", self.model.model_ref().sha256.as_bytes()]
-            .into_iter()
-            .flatten()
-            .fold(0xcbf2_9ce4_8422_2325, |h, &b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3))
+        turbo_analysis::Fnv1a::new()
+            .bytes(numerics)
+            .bytes(b"\0")
+            .bytes(self.model.model_ref().sha256.as_bytes())
+            .finish()
     }
 }
 

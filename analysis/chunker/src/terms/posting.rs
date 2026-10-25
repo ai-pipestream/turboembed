@@ -14,18 +14,26 @@
 //! order, so the scores are the same bits a full scan gives; equal scores
 //! go to the earlier row.
 
-use std::collections::HashMap;
+#[path = "posting_ext.rs"]
+mod ext;
 
-use turbo_analysis::TopK;
+use std::collections::{BTreeMap, HashMap};
+use std::marker::PhantomData;
+
+use turbo_analysis::{Ix, IxRange, Layer, TopK};
+use turbo_analysis_layers::{Strs, Tokens};
 
 use super::bm25::{Bm25, Collection};
 use super::collection::{CollectionStatistics, CollectionStatisticsBuilder};
-use super::layer::{TermStats, Vocabulary};
+use super::layer::{IndexedTerms, TermStats, Vocabulary};
+
+pub(super) type RowPositions = Vec<(u32, Vec<u32>)>;
 
 /// Rows being added.
 #[derive(Default)]
 pub struct Bm25PostingIndexBuilder {
     terms: HashMap<String, Vec<(u32, u32)>>,
+    positions: HashMap<String, RowPositions>,
     length: Vec<u32>,
     statistics: CollectionStatisticsBuilder,
 }
@@ -57,14 +65,90 @@ impl Bm25PostingIndexBuilder {
         Ok(first)
     }
 
-    pub fn build(self) -> Bm25PostingIndex {
+    /// Adds every unit of `stats` along with per-unit token positions read
+    /// from `indexed` over `unit_tokens`.
+    pub fn add_with_positions<L>(
+        &mut self,
+        stats: &TermStats<L>,
+        vocabulary: &Vocabulary,
+        indexed: &IndexedTerms,
+        unit_tokens: &[IxRange<Tokens>],
+    ) -> Result<u32, String> {
+        if unit_tokens.len() != stats.length.len() {
+            return Err("unit_tokens length does not match stats units".into());
+        }
+        let max_tok = indexed.len();
+        if unit_tokens.iter().any(|r| r.end.get() > max_tok) {
+            return Err("unit token range exceeds indexed terms length".into());
+        }
+        let first = self.add(stats, vocabulary)?;
+        for (i, range) in unit_tokens.iter().enumerate() {
+            let row = first + i as u32;
+            let mut by_term: BTreeMap<Ix<Vocabulary>, Vec<u32>> = BTreeMap::new();
+            let mut pos = 0u32;
+            for tok_i in range.start.get()..range.end.get() {
+                if let Some(t_ix) = indexed.term[tok_i] {
+                    by_term.entry(t_ix).or_default().push(pos);
+                    pos += 1;
+                }
+            }
+            for (t_ix, pos_list) in by_term {
+                self.positions.entry(vocabulary.get(t_ix).to_owned()).or_default().push((row, pos_list));
+            }
+        }
+        Ok(first)
+    }
+
+    /// Adds a single row directly from its ordered sequence of normalized
+    /// term strings, recording both term frequencies and 0-based positions
+    /// for phrase queries.
+    pub fn add_row_tokens(&mut self, row_terms: &[&str]) -> Result<u32, String> {
+        let mut counts: BTreeMap<&str, (u32, Vec<u32>)> = BTreeMap::new();
+        let mut kept = 0u32;
+        for &raw in row_terms {
+            if raw.is_empty() {
+                continue;
+            }
+            let entry = counts.entry(raw).or_insert_with(|| (0, Vec::new()));
+            entry.0 = entry.0.checked_add(1).ok_or("term count overflow")?;
+            entry.1.push(kept);
+            kept = kept.checked_add(1).ok_or("row position overflow")?;
+        }
+        let mut vocab_strs = Strs::default();
+        let mut term_col = Vec::with_capacity(counts.len());
+        let mut tf_col = Vec::with_capacity(counts.len());
+        let mut df_col = Vec::with_capacity(counts.len());
+        for (idx, (&t, &(tf, _))) in counts.iter().enumerate() {
+            vocab_strs.push(t);
+            term_col.push(Ix::new(idx as u32));
+            tf_col.push(tf);
+            df_col.push(1);
+        }
+        let vocab = Vocabulary { text: vocab_strs };
+        let stats = TermStats::<()> {
+            row: vec![0, term_col.len() as u32],
+            term: term_col,
+            tf: tf_col,
+            length: vec![kept],
+            df: df_col,
+            _of: PhantomData,
+        };
+        let row = self.add(&stats, &vocab)?;
+        for (t, (_, pos_list)) in counts {
+            self.positions.entry(t.to_owned()).or_default().push((row, pos_list));
+        }
+        Ok(row)
+    }
+
+    pub fn build(mut self) -> Bm25PostingIndex {
         let mut terms: Vec<(String, Posting)> = self
             .terms
             .into_iter()
             .map(|(term, rows)| {
                 let max_tf = rows.iter().map(|&(_, n)| n).max().unwrap_or(0);
                 let min_length = rows.iter().map(|&(r, _)| self.length[r as usize]).min().unwrap_or(0);
-                (term, Posting { rows, max_tf, min_length })
+                let positions = self.positions.remove(&term).unwrap_or_default();
+                (term, Posting { rows, positions, max_tf, min_length })
             })
             .collect();
         terms.sort_unstable_by(|a, b| a.0.cmp(&b.0));
@@ -72,24 +156,33 @@ impl Bm25PostingIndexBuilder {
     }
 }
 
-struct Posting {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct Posting {
     /// `(row, count)`, rows ascending.
-    rows: Vec<(u32, u32)>,
-    max_tf: u32,
-    min_length: u32,
+    pub(super) rows: Vec<(u32, u32)>,
+    /// `(row, sorted_positions)`, rows ascending.
+    pub(super) positions: RowPositions,
+    pub(super) max_tf: u32,
+    pub(super) min_length: u32,
 }
 
 /// The posting lists of the rows added, terms in byte order.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Bm25PostingIndex {
-    terms: Vec<(String, Posting)>,
-    length: Vec<u32>,
-    statistics: CollectionStatistics,
+    pub(super) terms: Vec<(String, Posting)>,
+    pub(super) length: Vec<u32>,
+    pub(super) statistics: CollectionStatistics,
 }
 
 impl Bm25PostingIndex {
     /// The rows: every unit added, those with no terms included.
     pub fn rows(&self) -> usize {
         self.length.len()
+    }
+
+    /// The length (in indexed terms) of `row`.
+    pub fn row_length(&self, row: u32) -> Option<u32> {
+        self.length.get(row as usize).copied()
     }
 
     /// The statistics of the rows added, as a collection of its own.
@@ -102,7 +195,14 @@ impl Bm25PostingIndex {
         self.posting(term).map_or(&[], |p| &p.rows[..])
     }
 
-    fn posting(&self, term: &str) -> Option<&Posting> {
+    /// The token positions of `term` in `row`, if positional postings were
+    /// recorded for that row.
+    pub fn positions(&self, term: &str, row: u32) -> &[u32] {
+        let Some(p) = self.posting(term) else { return &[] };
+        p.positions.binary_search_by_key(&row, |&(r, _)| r).ok().map_or(&[], |i| &p.positions[i].1[..])
+    }
+
+    pub(super) fn posting(&self, term: &str) -> Option<&Posting> {
         self.terms.binary_search_by(|(t, _)| t.as_str().cmp(term)).ok().map(|i| &self.terms[i].1)
     }
 

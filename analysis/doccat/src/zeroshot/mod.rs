@@ -428,27 +428,21 @@ impl<S: NliScorer> ZeroShotCategorizer<S> {
     }
 
     pub(super) fn config_hash(&self) -> u64 {
-        fn feed(hash: &mut u64, bytes: &[u8]) {
-            for &b in bytes {
-                *hash = (*hash ^ u64::from(b)).wrapping_mul(0x100000001b3);
-            }
-        }
-        let mut hash = 0xcbf29ce484222325u64;
-        feed(&mut hash, b"turbo:zero-shot");
-        feed(&mut hash, self.config.template.as_bytes());
-        feed(&mut hash, &[self.config.mode as u8, self.config.aggregation as u8]);
-        feed(&mut hash, &(self.config.overlap_words as u64).to_le_bytes());
-        // The resolved scoring shape: the window budget and
-        // which outcome columns are read as entailment and
-        // contradiction.
-        feed(&mut hash, &(self.premise_budget as u64).to_le_bytes());
-        feed(&mut hash, &(self.entail as u64).to_le_bytes());
-        feed(&mut hash, &(self.contra as u64).to_le_bytes());
+        let mut hash = turbo_analysis::Fnv1a::new();
+        hash.str("turbo:zero-shot")
+            .str(&self.config.template)
+            .bytes(&[self.config.mode as u8, self.config.aggregation as u8])
+            .u64(self.config.overlap_words as u64)
+            // The resolved scoring shape: the window budget and
+            // which outcome columns are read as entailment and
+            // contradiction.
+            .u64(self.premise_budget as u64)
+            .u64(self.entail as u64)
+            .u64(self.contra as u64);
         for label in &self.labels {
-            feed(&mut hash, label.as_bytes());
-            feed(&mut hash, &[0]);
+            hash.str(label);
         }
-        hash
+        hash.finish()
     }
 }
 
