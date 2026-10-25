@@ -17,7 +17,19 @@
 //! segment at its position, between its neighbours, and is a member of
 //! no non-empty segment.
 
-use std::collections::{BTreeMap, BTreeSet};
+mod prepared;
+mod segments;
+pub use prepared::PreparedSegments;
+
+#[cfg(test)]
+std::thread_local! {
+    static ITEM_VISITS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static VALIDATED_ENDPOINTS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+#[cfg(test)]
+#[path = "shape/progress_tests.rs"]
+mod progress_tests;
 use std::ops::Range;
 
 use crate::Document;
@@ -33,8 +45,8 @@ use crate::text::ViewId;
 /// `page` and `pages` count the tiling of the view by windows of the
 /// requested length starting at byte 0: `page` is the tile the snapped
 /// start falls in, `pages` is the tile count (at least 1, so an empty
-/// view is page 0 of 1). `clamped` records that `from + len` ran past
-/// the end of the view, so the span is shorter than requested.
+/// view is page 0 of 1). An empty EOF window belongs to the last page.
+/// `clamped` records that `from + len` ran past the end of the view.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DocumentWindow {
     pub view: ViewId,
@@ -46,8 +58,8 @@ pub struct DocumentWindow {
 
 impl DocumentWindow {
     /// The window's text. The window must come from `doc` (or name a
-    /// span of the same view text): the span is sliced unchecked past
-    /// the usual bounds checks of `str` indexing.
+    /// span of the same view text). Ordinary `str` indexing checks the
+    /// span; a foreign or manually invalid window can panic here.
     pub fn text<'a>(&self, doc: &'a Document) -> &'a str {
         &doc.text(self.view)[self.span.range()]
     }
@@ -124,9 +136,10 @@ impl Document {
     /// A window of `len` bytes from byte `from` of `view`, snapped to
     /// character boundaries: the start snaps down to the boundary at or
     /// before `from`, the end snaps down to the boundary at or before
-    /// `from + len` (so the span is never longer than `len` unless one
-    /// character alone is wider, in which case that character is
-    /// included whole). The end is clamped to the view's length.
+    /// `from + len`. If no character fits, the first character is
+    /// included whole. Snapping a start inside a character can also
+    /// make the span longer than `len`. The end is clamped to the view's
+    /// length, and an empty EOF window belongs to the final page.
     ///
     /// Refuses a view the document does not have, a zero `len`, and a
     /// `from` past the end of the view, each as [`Error::Bounds`]
@@ -160,7 +173,7 @@ impl Document {
         }
         let clamped = from as u64 + len as u64 > text_len as u64;
         let pages = (text_len as u64).div_ceil(len as u64).max(1) as usize;
-        let page = if text_len == 0 { 0 } else { (start / len) as usize };
+        let page = ((start / len) as usize).min(pages - 1);
         Ok(DocumentWindow { view, span: Span { start, end }, page, pages, clamped })
     }
 
@@ -185,152 +198,69 @@ impl Document {
     /// accepted), an endpoint past the end of the view text, and an
     /// endpoint off a character boundary. A window naming a view the
     /// document does not have, or a span outside that view, is refused
-    /// the same way. Runs in O((F + B) log F) for F fragments meeting
-    /// the window and B cut points.
+    /// the same way. This raw-column entry point validates and scans all
+    /// supplied items on every call. For repeated windows, validate once
+    /// with [`Document::prepare_segments`] and use [`PreparedSegments`].
     pub fn combined_segments(
         &self,
         window: &DocumentWindow,
         layers: &[(KeyId, TextSpans<'_>)],
     ) -> Result<WindowShape, Error> {
-        let (view, ws, we) = (window.view, window.span.start, window.span.end);
-        if view.0 as usize >= self.view_count() {
-            return Err(Error::Bounds {
-                layer: view_key(),
-                view,
-                detail: format!("the document has {} views, view {} does not exist", self.view_count(), view.0),
-            });
+        let text = validate_window(self, window)?;
+        for &(key, ts) in layers {
+            validate_layer(text, window.view, key, ts)?;
         }
-        let text = self.text(view);
-        let text_len = text.len() as u32;
-        if ws > we || we > text_len || !text.is_char_boundary(ws as usize) || !text.is_char_boundary(we as usize) {
-            return Err(Error::Bounds {
-                layer: view_key(),
-                view,
-                detail: format!("window span {ws}..{we} is not a character-aligned span of the {text_len}-byte view"),
-            });
-        }
-
-        // Clipped non-empty fragments as sweep events, plus zero-width
-        // items by position.
-        let mut starts: BTreeMap<u32, Vec<ShapeMember>> = BTreeMap::new();
-        let mut ends: BTreeMap<u32, Vec<ShapeMember>> = BTreeMap::new();
-        let mut cuts: Vec<u32> = vec![ws, we];
-        let mut zero: BTreeMap<u32, BTreeSet<ShapeMember>> = BTreeMap::new();
-        for (layer_ix, (key, ts)) in layers.iter().enumerate() {
-            let bounds = |detail: String| Error::Bounds { layer: *key, view, detail };
-            if ts.view != view {
-                return Err(bounds(format!("spans are in view {}, the window is in view {}", ts.view.0, view.0)));
-            }
-            ts.check(Overlap::Any).map_err(bounds)?;
-            for (cols, what) in
-                [(ts.start, "start"), (ts.end, "end"), (ts.frag_start, "fragment start"), (ts.frag_end, "fragment end")]
-            {
-                for (i, &at) in cols.iter().enumerate() {
-                    if at > text_len {
-                        return Err(bounds(format!(
-                            "{what} {i} is byte {at}, past the end of the view at {text_len} bytes"
-                        )));
-                    }
-                    if !text.is_char_boundary(at as usize) {
-                        return Err(bounds(format!("{what} {i} is byte {at}, inside a character of the view")));
-                    }
-                }
-            }
-            for item in 0..ts.start.len() {
-                let member = ShapeMember { layer: layer_ix, item: item as u32 };
-                if ts.frag_item_end.is_empty() {
-                    collect(ts.start[item], ts.end[item], member, ws, we, &mut starts, &mut ends, &mut cuts, &mut zero);
-                } else {
-                    let r = ts.item_frag_range(item);
-                    for f in r {
-                        collect(
-                            ts.frag_start[f],
-                            ts.frag_end[f],
-                            member,
-                            ws,
-                            we,
-                            &mut starts,
-                            &mut ends,
-                            &mut cuts,
-                            &mut zero,
-                        );
-                    }
-                }
-            }
-        }
-        cuts.sort_unstable();
-        cuts.dedup();
-
-        let mut shape = WindowShape { window: *window, segments: Vec::new(), members: Vec::new() };
-        let mut active: BTreeSet<ShapeMember> = BTreeSet::new();
-        let mut zero_between = false;
-        for (i, &at) in cuts.iter().enumerate() {
-            if let Some(set) = zero.get(&at) {
-                let from = shape.members.len();
-                shape.members.extend(set.iter().copied());
-                shape
-                    .segments
-                    .push(ShapeSegment { span: Span { start: at, end: at }, members: from..shape.members.len() });
-                zero_between = true;
-            }
-            if let Some(gone) = ends.get(&at) {
-                for m in gone {
-                    active.remove(m);
-                }
-            }
-            if let Some(fresh) = starts.get(&at) {
-                for m in fresh {
-                    active.insert(*m);
-                }
-            }
-            if i + 1 < cuts.len() {
-                let next = cuts[i + 1];
-                let candidate: Vec<ShapeMember> = active.iter().copied().collect();
-                let extends = !zero_between
-                    && shape.segments.last().is_some_and(|last| {
-                        last.span.end == at && shape.members[last.members.clone()] == candidate[..]
-                    });
-                if extends {
-                    shape.segments.last_mut().expect("checked above").span.end = next;
-                } else {
-                    let from = shape.members.len();
-                    shape.members.extend(candidate);
-                    shape
-                        .segments
-                        .push(ShapeSegment { span: Span { start: at, end: next }, members: from..shape.members.len() });
-                }
-                zero_between = false;
-            }
-        }
-        Ok(shape)
+        Ok(segments::segment(window, layers.iter().enumerate().map(|(i, (_, ts))| (i, *ts, 0..ts.start.len()))))
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-fn collect(
-    start: u32,
-    end: u32,
-    member: ShapeMember,
-    ws: u32,
-    we: u32,
-    starts: &mut BTreeMap<u32, Vec<ShapeMember>>,
-    ends: &mut BTreeMap<u32, Vec<ShapeMember>>,
-    cuts: &mut Vec<u32>,
-    zero: &mut BTreeMap<u32, BTreeSet<ShapeMember>>,
-) {
-    if start == end {
-        if (ws..=we).contains(&start) {
-            zero.entry(start).or_default().insert(member);
-            cuts.push(start);
+fn view_text(doc: &Document, view: ViewId) -> Result<&str, Error> {
+    if view.0 as usize >= doc.view_count() {
+        return Err(Error::Bounds {
+            layer: view_key(),
+            view,
+            detail: format!("the document has {} views, view {} does not exist", doc.view_count(), view.0),
+        });
+    }
+    Ok(doc.text(view))
+}
+
+fn validate_window<'a>(doc: &'a Document, window: &DocumentWindow) -> Result<&'a str, Error> {
+    let text = view_text(doc, window.view)?;
+    let (ws, we) = (window.span.start, window.span.end);
+    if ws > we || we as usize > text.len() || !text.is_char_boundary(ws as usize) || !text.is_char_boundary(we as usize)
+    {
+        return Err(Error::Bounds {
+            layer: view_key(),
+            view: window.view,
+            detail: format!("window span {ws}..{we} is not a character-aligned span of the {}-byte view", text.len()),
+        });
+    }
+    Ok(text)
+}
+
+fn validate_layer(text: &str, view: ViewId, key: KeyId, ts: TextSpans<'_>) -> Result<(), Error> {
+    let bounds = |detail: String| Error::Bounds { layer: key, view, detail };
+    if ts.view != view {
+        return Err(bounds(format!("spans are in view {}, the window is in view {}", ts.view.0, view.0)));
+    }
+    ts.check(Overlap::Any).map_err(bounds)?;
+    for (cols, what) in
+        [(ts.start, "start"), (ts.end, "end"), (ts.frag_start, "fragment start"), (ts.frag_end, "fragment end")]
+    {
+        for (i, &at) in cols.iter().enumerate() {
+            #[cfg(test)]
+            VALIDATED_ENDPOINTS.with(|n| n.set(n.get() + 1));
+            if at as usize > text.len() {
+                return Err(bounds(format!(
+                    "{what} {i} is byte {at}, past the end of the view at {} bytes",
+                    text.len()
+                )));
+            }
+            if !text.is_char_boundary(at as usize) {
+                return Err(bounds(format!("{what} {i} is byte {at}, inside a character of the view")));
+            }
         }
-        return;
     }
-    if end <= ws || start >= we {
-        return;
-    }
-    let (s, e) = (start.max(ws), end.min(we));
-    starts.entry(s).or_default().push(member);
-    ends.entry(e).or_default().push(member);
-    cuts.push(s);
-    cuts.push(e);
+    Ok(())
 }
