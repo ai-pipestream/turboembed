@@ -113,6 +113,22 @@ fn the_sink_comes_from_its_flags_or_their_variables() {
 }
 
 #[test]
+fn the_catalog_comes_from_its_flags_or_their_variables() {
+    let base = "--listen 127.0.0.1:0 --model bundle=/b/a,device=0,sessions=1";
+    let a = args(base).unwrap();
+    assert_eq!((a.catalog_dir, a.catalog_index), (None, None));
+    let a = args(&format!("{base} --catalog-dir /z --catalog-index=/z/zoo.json")).unwrap();
+    assert_eq!((a.catalog_dir.as_deref(), a.catalog_index.as_deref()), (Some("/z"), Some("/z/zoo.json")));
+    let env = |k: &str| (k == ENV_CATALOG_DIR).then(|| "/from-env".to_string());
+    let parsed = |s: &str| Args::parse_with(s.split_whitespace().map(String::from), env);
+    assert_eq!(parsed(base).unwrap().catalog_dir.as_deref(), Some("/from-env"));
+    assert_eq!(parsed(&format!("{base} --catalog-dir=/z")).unwrap().catalog_dir.as_deref(), Some("/z"));
+    assert!(args(&format!("{base} --catalog-dir /z --catalog-dir /y")).is_err());
+    assert!(args(&format!("{base} --catalog-dir=")).is_err());
+    assert_eq!(args(&format!("{base} --catalog-index /i")).unwrap_err(), "--catalog-index needs --catalog-dir");
+}
+
+#[test]
 fn refusals() {
     assert_eq!(names(&[]).unwrap_err(), "at least one --model is required");
     let zero_sessions = ModelConfig {

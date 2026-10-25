@@ -6,7 +6,9 @@ KServe deployment, or any client of that protocol, embeds text through
 the library without linking it. On the same port it serves
 `turbo.result.AnalysisService`: the analysis result kinds on the wire and
 a capability call that lists what every loaded bundle is
-(docs/grpc-analysis.md). It can forward what its analysis streams
+(docs/grpc-analysis.md), and `turbo.training.TurboCatalogService`, the
+model catalog: the zoo's artifacts, licence acceptances and verified
+installs (docs/grpc-catalog.md). It can forward what its analysis streams
 complete to a downstream `turbo.sink.TurboSinkService`, and serve that
 service itself (docs/grpc-sink.md). This page says how to run it. What every RPC,
 tensor, parameter and status of the Open Inference Protocol means, call
@@ -69,7 +71,9 @@ no way to stop a load part way.
 | `--model SETTINGS` | One served model; repeat for more. | At least one model (from `--model` or `--bundle-dir`) is required unless `--admin` is set. |
 | `--bundle-dir DIR` | Discover immediate child directories containing `manifest.json` and serve each on device 0 with 1 session unless overridden by an explicit `--model` of the same name. | Off. |
 | `--max-message-bytes N` | The largest request message read; a larger one is refused with `RESOURCE_EXHAUSTED` before it is read. | 64 MiB. |
-| `--admin` | Answer the analysis service's admin calls, `LoadBundle` and `UnloadBundle` (docs/grpc-analysis.md), and allow starting with zero models. Without it they refuse with `UNIMPLEMENTED`. | Off. |
+| `--admin` | Answer the admin calls: the analysis service's `LoadBundle` and `UnloadBundle` (docs/grpc-analysis.md) and the catalog's `RecordLicenceAcceptance` and `InstallModel` (docs/grpc-catalog.md), and allow starting with zero models. Without it they refuse with `UNIMPLEMENTED`. | Off. |
+| `--catalog-dir PATH` | Serve the model catalog with this zoo home: the cache under `artifacts/`, the acceptance file `acceptances.json`, as the `turbo-zoo` command keeps them (docs/zoo.md). | No catalog; its calls refuse with `UNIMPLEMENTED`. |
+| `--catalog-index FILE` | The zoo index the catalog serves. Needs `--catalog-dir`. | The built-in index. |
 | `--sink-endpoint URI` | Forward every document an `AnalyzeStream` completes to the `TurboSinkService` at this address, such as `http://sink:8081` (docs/grpc-sink.md). | No forwarding. |
 | `--sink-queue-items N` | The most documents waiting for the sink; one more is dropped and counted. Needs `--sink-endpoint`. | 1024. |
 | `--sink-queue-bytes N` | The most encoded bytes waiting for the sink. Needs `--sink-endpoint`. | 64 MiB. |
@@ -120,6 +124,8 @@ twice; `TURBO_KSERVE_MODELS` lists every model in one.
 | `TURBO_KSERVE_SINK_ENDPOINT` | `--sink-endpoint` |
 | `TURBO_KSERVE_SINK_QUEUE_ITEMS` | `--sink-queue-items` |
 | `TURBO_KSERVE_SINK_QUEUE_BYTES` | `--sink-queue-bytes` |
+| `TURBO_KSERVE_CATALOG_DIR` | `--catalog-dir` |
+| `TURBO_KSERVE_CATALOG_INDEX` | `--catalog-index` |
 
 ```
 TURBO_KSERVE_LISTEN=0.0.0.0:8081 \
@@ -202,10 +208,11 @@ Errors).
 Protocol's own file, vendored (Apache-2.0); its first lines say where
 from. `server/proto/turbo_analysis.proto` is the crate's own file, the
 analysis result layer's messages and service
-(docs/grpc-analysis.md), and `server/proto/turbo_sink.proto` the
-document sink's (docs/grpc-sink.md). Generate a client from any of them
-in any language with gRPC. The build compiles them with a Rust protobuf
-compiler, so building the server needs no `protoc`.
+(docs/grpc-analysis.md), `server/proto/turbo_training.proto` the
+model catalog's (docs/grpc-catalog.md), and `server/proto/turbo_sink.proto`
+the document sink's (docs/grpc-sink.md). Generate a client from any of
+them in any language with gRPC. The build compiles them with a Rust
+protobuf compiler, so building the server needs no `protoc`.
 
 ## A client call
 

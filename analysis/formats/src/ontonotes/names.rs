@@ -5,7 +5,7 @@ use std::ops::Range;
 
 use turbo_analysis::Span;
 use turbo_unicode::WhitespaceMode;
-use turbo_unicode::java::to_lower_char;
+use turbo_unicode::java::lowercase_code_points;
 
 use super::OntoNotesError;
 use crate::sample::{Name, NameSample};
@@ -141,7 +141,7 @@ impl<'a> NameDocument<'a> {
                         token: token.span,
                         len: text.encode_utf16().count(),
                     })?;
-                    let lower: String = rest[..close].chars().map(to_lower_char).collect();
+                    let lower: String = lowercase_code_points(&rest[..close]);
                     let next = self.types.len() as u32;
                     let id = *type_ids.entry(lower).or_insert_with_key(|k| {
                         self.types.push(k.clone());

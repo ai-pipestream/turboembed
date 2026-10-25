@@ -1,0 +1,146 @@
+{
+  "schema": 1,
+  "cpu": 4,
+  "iterations": 201,
+  "warmups": 3,
+  "untimed_output_parse": 1,
+  "rounds": 12,
+  "protocol": "all six variant orders repeated four times; case order rotates by round; output-only calls use zero iterations and no clocks",
+  "machine": {
+    "Architecture": "x86_64",
+    "CPU(s)": "32",
+    "Model name": "AMD Ryzen 9 9950X3D 16-Core Processor",
+    "Thread(s) per core": "2",
+    "Core(s) per socket": "16",
+    "Socket(s)": "1"
+  },
+  "governor": "powersave",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1",
+  "environment": {},
+  "build_command": "CARGO_BUILD_JOBS=2 cargo build --locked --release -p turbo-structure --example block_bench (variant workspace; separate target directory)",
+  "variants": [
+    {
+      "name": "main",
+      "commit": "bf52319dfc49486e5109f2c76faccb8fcd6edc02",
+      "binary_sha256": "18ded1405bc926d94f2576faf5a03b69022b0a81af63578ff903024bfd473c98",
+      "harness_sha256": "dfe5495b478decd819892578013db705f7f038dfd5ead75b42f19edeb1603795",
+      "cargo_lock_sha256": "59370f9c73b558b48657901dc90178535150d1dcdb96070ba21c565e88defcc6",
+      "structure_sources": {
+        "analysis/structure/src/lib.rs": "95a0061318754436727a93f8f496c856d3f3bf719c51ffbe471434dc322f8507",
+        "analysis/structure/src/line.rs": "94bc1133cbffc5549d53c9f3af10c196ecf803d577157d7aa056aa319de7f54a",
+        "analysis/structure/src/marker.rs": "b46b260bdf47909e8869a5f0561fff49f4308bfbbbdee5422f2908427768dd84",
+        "analysis/structure/src/parse/leaf.rs": "d0a70a15e151217a2ba26dc6a0c25a2dd48af7fb35282c3814f723c9f9fffd09",
+        "analysis/structure/src/parse/mod.rs": "9d08f2f50d016c49e414904f9e1bb39f253216ef2ffda28eb23bb1126eac7d77",
+        "analysis/structure/src/project.rs": "a69a3fc07d50b893cce61f7248715d18b35d214bc008113af03554ca8a812e71",
+        "analysis/structure/src/table.rs": "be5e574db7c8465618b5aa0080086d736d0482ccbd1fa3c0b5f7c0eb86223d92",
+        "analysis/structure/src/tree.rs": "6892598656df31bc412e04305c5459f1368f003e550bbe09a5ac15780e3be294"
+      },
+      "harness_overlay": true
+    },
+    {
+      "name": "blocked",
+      "commit": "f3b5ac0a6aca3bdeb0ec82b4648c457009b636cc",
+      "binary_sha256": "a30fb45a8d91827f42ddc7b610ff21b578fa9acb58632bc60cdb8d978ef6dbce",
+      "harness_sha256": "dfe5495b478decd819892578013db705f7f038dfd5ead75b42f19edeb1603795",
+      "cargo_lock_sha256": "58d33ab6ff76d85e4361f45a42c9ee3c5fcc6e88b13e813a6802f82a1ea8ac43",
+      "structure_sources": {
+        "analysis/structure/src/columns.rs": "cbfebdac7311839c8e1c21e67fe856c5d99cf2c108ce3c03960b9c998bf88d20",
+        "analysis/structure/src/html.rs": "76b082ef25e6c02560f3f3f9deb2010b7e2934474e8b2d00f4edb6b422658361",
+        "analysis/structure/src/lib.rs": "5401777792c9fa5b01eb947f189b65e3c62d222fb118376ffea92c1854c025e0",
+        "analysis/structure/src/line.rs": "96f00d8eb6e73233dff49e3d1f6f7d825f49a43bfc0868df09a71a12d14871bc",
+        "analysis/structure/src/marker.rs": "b46b260bdf47909e8869a5f0561fff49f4308bfbbbdee5422f2908427768dd84",
+        "analysis/structure/src/parse/extra.rs": "6362be13a0fb8eff5fc1a3480434a23ed227c17ad0e7a4cd03eae37fbad6a5a2",
+        "analysis/structure/src/parse/leaf.rs": "cb22fb3fc51cedf3871991bd669b9ad7b111ed199b7e59bc77a360004c3192e5",
+        "analysis/structure/src/parse/mod.rs": "c2b682d98e50d528e59c9fbc3194a11553a7d12daee86c51a8b576a58f114160",
+        "analysis/structure/src/project.rs": "a69a3fc07d50b893cce61f7248715d18b35d214bc008113af03554ca8a812e71",
+        "analysis/structure/src/table.rs": "be5e574db7c8465618b5aa0080086d736d0482ccbd1fa3c0b5f7c0eb86223d92",
+        "analysis/structure/src/tree.rs": "8e9ae867fa2142a2cb771b092ee07a57cfe1270ce01b143bcaa4a5dec1bf21a8"
+      },
+      "harness_overlay": true
+    },
+    {
+      "name": "fixed",
+      "commit": "bd19bfddbaa41739cbdf5a31bbbf794e3eebeeb7",
+      "binary_sha256": "d24baa87ed518cc0514a27f09f80327394decb282893d1890e4fa74f83c2cf90",
+      "harness_sha256": "dfe5495b478decd819892578013db705f7f038dfd5ead75b42f19edeb1603795",
+      "cargo_lock_sha256": "59370f9c73b558b48657901dc90178535150d1dcdb96070ba21c565e88defcc6",
+      "structure_sources": {
+        "analysis/structure/src/columns/scan.rs": "2a4325fa12d1f044468f731c4a1bf385c2ccb91c0ddbdb21684c9182e03b7fc3",
+        "analysis/structure/src/columns.rs": "b814c3c07e14741fa00eb50afd296211e0ed8361f0cb1ccd1aead96b87c7b92c",
+        "analysis/structure/src/html.rs": "76b082ef25e6c02560f3f3f9deb2010b7e2934474e8b2d00f4edb6b422658361",
+        "analysis/structure/src/lib.rs": "5401777792c9fa5b01eb947f189b65e3c62d222fb118376ffea92c1854c025e0",
+        "analysis/structure/src/line.rs": "96f00d8eb6e73233dff49e3d1f6f7d825f49a43bfc0868df09a71a12d14871bc",
+        "analysis/structure/src/marker.rs": "b46b260bdf47909e8869a5f0561fff49f4308bfbbbdee5422f2908427768dd84",
+        "analysis/structure/src/parse/extra.rs": "db13a6bf5262eedf4baeec4b6923d2fac8b92cb01dd2828502ef22a4a0a57045",
+        "analysis/structure/src/parse/leaf.rs": "cb22fb3fc51cedf3871991bd669b9ad7b111ed199b7e59bc77a360004c3192e5",
+        "analysis/structure/src/parse/mod.rs": "c2b682d98e50d528e59c9fbc3194a11553a7d12daee86c51a8b576a58f114160",
+        "analysis/structure/src/project.rs": "a69a3fc07d50b893cce61f7248715d18b35d214bc008113af03554ca8a812e71",
+        "analysis/structure/src/table.rs": "be5e574db7c8465618b5aa0080086d736d0482ccbd1fa3c0b5f7c0eb86223d92",
+        "analysis/structure/src/tree.rs": "8e9ae867fa2142a2cb771b092ee07a57cfe1270ce01b143bcaa4a5dec1bf21a8"
+      },
+      "harness_overlay": false
+    }
+  ],
+  "cases": [
+    {
+      "name": "analysis-markdown",
+      "input_sha256": "1b3145c00bcde19da0ba88a49cb3b5eb4ef5c84ec74533374f1318c65309b28c",
+      "input_bytes": 324322,
+      "syntax": "markdown",
+      "outputs": {
+        "main": {
+          "sha256": "0fd697ff94818a26606581f47a708c980d51933aae2220bb1e2872b08a854498",
+          "bytes": 81837,
+          "counts": "blocks 2329 tables 18"
+        },
+        "blocked": {
+          "sha256": "ddb74bca861b1b96b9a786387b3b43c3b06097dd215a3239194d10bc0dca96cc",
+          "bytes": 81842,
+          "counts": "blocks 2329 tables 18"
+        },
+        "fixed": {
+          "sha256": "ddb74bca861b1b96b9a786387b3b43c3b06097dd215a3239194d10bc0dca96cc",
+          "bytes": 81842,
+          "counts": "blocks 2329 tables 18"
+        }
+      }
+    },
+    {
+      "name": "ewt-plain",
+      "input_sha256": "f68a568dd94566c9d5b8b207bdd5c9603f281fdea09239136fb3bca76ee14676",
+      "input_bytes": 1021035,
+      "syntax": "plain",
+      "outputs": {
+        "main": {
+          "sha256": "967f78cc19aac02c53e2d5f7cd2be7d0feb95b0c85ec0352d61f2feb26605447",
+          "bytes": 472485,
+          "counts": "blocks 12834 tables 0"
+        },
+        "blocked": {
+          "sha256": "1af25545b99ea0eb8ff265c092c18659ba7ce4f0d1ccece2d10188bbef43efc6",
+          "bytes": 472610,
+          "counts": "blocks 12834 tables 0"
+        },
+        "fixed": {
+          "sha256": "1af25545b99ea0eb8ff265c092c18659ba7ce4f0d1ccece2d10188bbef43efc6",
+          "bytes": 472610,
+          "counts": "blocks 12834 tables 0"
+        }
+      }
+    }
+  ],
+  "host_isolation": "shared host; no isolation or governor changes; paired results are local observations",
+  "before": {
+    "utc": "2026-10-24T21:18:57.053Z",
+    "loadavg": "116.16 94.93 82.20 122/15226 2563848",
+    "cpu_frequency_khz": "5178256"
+  },
+  "after": {
+    "utc": "2026-10-24T21:19:26.646Z",
+    "loadavg": "101.66 93.68 82.21 31/14956 2599517",
+    "cpu_frequency_khz": "5045017"
+  },
+  "samples_json_sha256": "076782cb3d4cf561ec857b749e027864d31bee5ffdbfc24ed8f765907c8e106a",
+  "samples_gzip_sha256": "891443b76a37839b209fcfffdabf66731673b64a75ac165e3750fc2d38144409",
+  "pairs_csv_sha256": "5c0a5ea9323ec91e11f0fd7c5311325c244ef50564729cc76eb7a2d7c81a2206"
+}

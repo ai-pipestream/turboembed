@@ -1,9 +1,15 @@
 //! Generates the gRPC services and messages from the vendored
 //! proto/open_inference_grpc.proto and the crate's own
-//! proto/turbo_analysis.proto and proto/turbo_sink.proto with a
-//! protobuf compiler written in Rust, so building needs no protoc.
+//! proto/turbo_analysis.proto, proto/turbo_training.proto and
+//! proto/turbo_sink.proto with a protobuf compiler written in Rust, so
+//! building needs no protoc.
 
-const PROTOS: [&str; 3] = ["proto/open_inference_grpc.proto", "proto/turbo_analysis.proto", "proto/turbo_sink.proto"];
+const PROTOS: [&str; 4] = [
+    "proto/open_inference_grpc.proto",
+    "proto/turbo_analysis.proto",
+    "proto/turbo_training.proto",
+    "proto/turbo_sink.proto",
+];
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     for proto in PROTOS {

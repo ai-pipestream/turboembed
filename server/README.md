@@ -12,6 +12,8 @@ analysis result layer beside it.
   messages, the capability call, and load and unload.
 - [docs/grpc-sink.md](../docs/grpc-sink.md): forwarding analyzed
   documents to a downstream sink, and serving one.
+- [docs/grpc-catalog.md](../docs/grpc-catalog.md): the model catalog,
+  licence acceptances and verified installs from the zoo.
 
 ```
 cargo run --release -p turbo-kserve -- \
@@ -21,6 +23,6 @@ cargo run --release -p turbo-kserve -- \
 
 `proto/open_inference_grpc.proto` is vendored from the Open Inference
 Protocol specification (Apache-2.0); its first lines say where from.
-`proto/turbo_analysis.proto` and `proto/turbo_sink.proto` are this
-crate's own. The build compiles all three with a Rust protobuf compiler,
-so no `protoc` is needed.
+`proto/turbo_analysis.proto`, `proto/turbo_training.proto` and
+`proto/turbo_sink.proto` are this crate's own. The build compiles them
+with a Rust protobuf compiler, so no `protoc` is needed.
