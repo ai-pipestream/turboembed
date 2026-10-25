@@ -11,6 +11,9 @@
 //! segment's fraction of the total weight, and the `other_*` fields
 //! aggregate exactly the entries past the segment cap, so kept shares
 //! plus `other_weight / total_weight` account for the whole unit.
+//! Constructors refuse an aggregate that cannot be represented by finite
+//! `f32` output. The capped tail is summed directly so small weights are
+//! not lost by subtracting a much larger retained weight.
 
 use turbo_analysis::{Ix, Layer, Span};
 use turbo_analysis_layers::{SparseTerms, Tokens};
@@ -59,9 +62,13 @@ struct Raw {
     occurrences: Vec<Span>,
 }
 
-fn build(raw: Vec<Raw>, max_segments: usize) -> TermVectorStack {
+fn build(raw: Vec<Raw>, max_segments: usize) -> Result<TermVectorStack, String> {
     let total_frequency: u64 = raw.iter().map(|r| r.frequency as u64).sum();
     let total: f64 = raw.iter().map(|r| r.weight as f64).sum();
+    let total_weight = total as f32;
+    if !total_weight.is_finite() {
+        return Err("aggregate term weight exceeds finite f32 output".into());
+    }
     let mut raw = raw;
     raw.sort_by(|a, b| {
         b.weight
@@ -72,7 +79,10 @@ fn build(raw: Vec<Raw>, max_segments: usize) -> TermVectorStack {
     let total_terms = raw.len() as u32;
     let kept = max_segments.min(raw.len());
     let (kept_raw, other_raw) = raw.split_at(kept);
-    let kept_weight: f64 = kept_raw.iter().map(|r| r.weight as f64).sum();
+    let other_weight = other_raw.iter().map(|r| r.weight as f64).sum::<f64>() as f32;
+    if !other_weight.is_finite() {
+        return Err("aggregate tail weight exceeds finite f32 output".into());
+    }
     let segments = kept_raw
         .iter()
         .map(|r| TermStackSegment {
@@ -85,15 +95,15 @@ fn build(raw: Vec<Raw>, max_segments: usize) -> TermVectorStack {
             occurrences: r.occurrences.clone(),
         })
         .collect();
-    TermVectorStack {
+    Ok(TermVectorStack {
         segments,
         total_terms,
         total_frequency,
-        total_weight: total as f32,
+        total_weight,
         other_term_count: other_raw.len() as u32,
         other_frequency: other_raw.iter().map(|r| r.frequency as u64).sum(),
-        other_weight: (total - kept_weight) as f32,
-    }
+        other_weight,
+    })
 }
 
 fn unit_range(row: &[u32], unit: usize, what: &str) -> Result<std::ops::Range<usize>, String> {
@@ -135,7 +145,7 @@ impl TermVectorStack {
                 occurrences: Vec::new(),
             });
         }
-        Ok(build(raw, max_segments))
+        build(raw, max_segments)
     }
 
     /// The stack of a whole document's `indexed` terms: every token's
@@ -187,7 +197,7 @@ impl TermVectorStack {
                 })
             })
             .collect();
-        Ok(build(raw, max_segments))
+        build(raw, max_segments)
     }
 
     /// The stack of one unit of `sparse`: weight is the learned entry
@@ -226,6 +236,6 @@ impl TermVectorStack {
                 occurrences,
             });
         }
-        Ok(build(raw, max_segments))
+        build(raw, max_segments)
     }
 }
