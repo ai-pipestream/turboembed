@@ -19,9 +19,14 @@ The query is truncated on the right to its budget before allocating passage
 space. Every passage token is covered by a window, and the largest window
 logit is the pair's score. An empty passage still has one window. Runtime
 options can lower the sequence limit, change the query budget, or request
-an overlapping passage stride. Zero selects the manifest limit or, for
-stride, non-overlapping windows. Invalid budgets or a stride exceeding
-passage capacity return an error. Window storage grows with passage length;
+an overlapping passage stride. A `max_tokens` of zero selects the session's
+`max_seq` in `turbo_rerank_write_pairs`, where a larger value is
+`TURBO_E_CAPACITY`, and the manifest's rerank `max_seq` in
+`turbo_tokenizer_encode_pair`, which has no session and where a larger
+value is `TURBO_E_INVALID_ARGUMENT` on field 2. A `query_tokens` of zero
+selects the manifest's budget, and a `stride` of zero non-overlapping
+windows. Invalid budgets or a stride exceeding passage capacity return an
+error. Window storage grows with passage length;
 callers should bound document sizes at ingestion.
 
 ## APIs

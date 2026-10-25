@@ -80,12 +80,7 @@ pub fn digit(c: char) -> Option<u8> {
 /// LINE is not whitespace by this definition.
 #[inline]
 pub fn is_whitespace(c: char) -> bool {
-    match c {
-        ' ' | '\t'..='\r' | '\u{1C}'..='\u{1F}' => true,
-        '\u{A0}' | '\u{2007}' | '\u{202F}' => false,
-        _ if c.is_ascii() => false,
-        _ => general_category(c).is_separator(),
-    }
+    code_point::is_whitespace(c as u32)
 }
 
 /// `Character.isSpaceChar`: general category Zs, Zl or Zp.

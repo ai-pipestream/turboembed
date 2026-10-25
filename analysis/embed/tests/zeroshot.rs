@@ -11,6 +11,8 @@
 //!    `ModelRef` and `Execution` provenance.
 //! 4. Real-checkpoint conformance against PyTorch `AutoModelForSequenceClassification`
 //!    and zero-shot categorization accuracy when `TURBO_TEST_NLI_BUNDLE` is set.
+//! 5. `ClaimVerificationAnnotator` over the bundle scorer: one batch, and
+//!    edge scores equal to the softmaxed logits of each direction.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -22,10 +24,13 @@ use turbo::bundle::{Bundle, sha256_hex};
 use turbo::head::Head;
 use turbo::safetensors::{Dtype, File};
 use turbo::tokenizer::Tokenizer;
-use turbo_analysis::{Analyzer, Document, Key, Layer, Provenance, Span, Spans, ViewId};
+use turbo_analysis::{Analyzer, Annotator, Document, Key, Layer, Provenance, Span, Spans, View, ViewId};
 use turbo_analysis_embed::{BundleNliScorer, Device, Encoder, EncoderOptions, Precision, Rows};
-use turbo_analysis_layers::{Categories, Sentences};
-use turbo_doccat::{NliScorer, WindowAggregation, ZeroShotConfig, ZeroShotMode, ZeroShotSpanAnnotator};
+use turbo_analysis_layers::{Categories, ClaimRelationKind, Sentences};
+use turbo_doccat::{
+    ClaimVerificationAnnotator, ClaimVerifyConfig, NliScorer, WindowAggregation, ZeroShotConfig, ZeroShotMode,
+    ZeroShotSpanAnnotator,
+};
 
 struct TempDir(PathBuf);
 
@@ -395,5 +400,57 @@ fn real_nli_bundle_conformance_and_zero_shot_classification() {
             elapsed,
             elapsed / examples.len() as u32
         );
+    }
+}
+
+#[test]
+fn claim_verifier_runs_on_the_bundle_scorer_in_one_batch() {
+    let dir = make_nli_bundle("claims", &["contradiction", "entailment", "neutral"], |_| {});
+    let enc_opts =
+        EncoderOptions { device: Device::Cpu, precision: Precision::Model, max_seq: 16, ..Default::default() };
+    let scorer = BundleNliScorer::open(&dir.0, &enc_opts).unwrap();
+    let text = "Acme sells parts. Acme sells tools. Rain fell.";
+    let mut spans = Spans::new(ViewId(0));
+    for s in [Span::new(0, 17), Span::new(18, 35), Span::new(36, 46)] {
+        spans.push(s);
+    }
+    let mut d = Document::new(text);
+    d.add(&Key::<Sentences>::DEFAULT, Sentences { spans }, Provenance::by("test")).unwrap();
+    // The tiny model is untrained: zero thresholds make every candidate
+    // an edge, so the scores can be checked against the raw logits.
+    let config = ClaimVerifyConfig { entail_threshold: 0.0, contradict_threshold: 0.0, ..Default::default() };
+    let v = ClaimVerificationAnnotator::<_, Sentences>::with_config(scorer, config);
+    let (edges,) = v
+        .annotate((
+            d.require(&Key::<View>::DEFAULT).unwrap(),
+            d.require(&Key::<Sentences>::DEFAULT).unwrap(),
+            None,
+            None,
+        ))
+        .unwrap();
+    edges.check().unwrap();
+    assert_eq!(v.scorer().run_count(), 1, "both directions of every candidate in one batch");
+    let (a, b) = ("Acme sells parts.", "Acme sells tools.");
+    let logits = v.scorer().score_pairs(&[(a, b), (b, a)]).unwrap();
+    let soft = |l: &[f32]| -> Vec<f64> {
+        let m = l.iter().copied().fold(f32::MIN, f32::max);
+        let e: Vec<f64> = l.iter().map(|x| f64::from((x - m).exp())).collect();
+        let z: f64 = e.iter().sum();
+        e.iter().map(|x| x / z).collect()
+    };
+    let (fwd, back) = (soft(&logits[0]), soft(&logits[1]));
+    let got: Vec<(u32, u32, ClaimRelationKind, f64)> = edges
+        .iter()
+        .map(|(_, e)| (e.from.get() as u32, e.to.get() as u32, ClaimRelationKind::from_tag(e.kind).unwrap(), e.score))
+        .collect();
+    assert_eq!(got.len(), 2, "only the overlapping pair is a candidate: {got:?}");
+    for (from, to, kind, score) in got {
+        assert_eq!((from, to), (0, 1));
+        let want = match kind {
+            ClaimRelationKind::Redundant => fwd[1].min(back[1]),
+            ClaimRelationKind::Contradicts => fwd[0].max(back[0]),
+            ClaimRelationKind::Entails => unreachable!("both directions pass a zero threshold"),
+        };
+        assert!((score - want).abs() < 1e-5, "{kind:?}: {score} vs {want}");
     }
 }

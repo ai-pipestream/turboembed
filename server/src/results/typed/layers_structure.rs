@@ -35,6 +35,8 @@ fn block_name(b: Block) -> &'static str {
         Block::Footnote => "footnote",
         Block::PageHeader => "page_header",
         Block::PageFooter => "page_footer",
+        Block::LooseList => "loose_list",
+        Block::Html => "html",
     }
 }
 

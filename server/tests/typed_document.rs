@@ -46,6 +46,17 @@ fn typed_document_projects_layers_discontinuous_spans_and_entity_votes_in_all_of
 
         let ent_layer = typed.layers.iter().find(|l| l.id == "opennlp:entities").unwrap();
         assert_eq!(ent_layer.annotations.len(), 2);
+
+        let struct_layer = typed.layers.iter().find(|l| l.id == "turbo:structure").unwrap();
+        let struct_kinds: Vec<&str> = struct_layer
+            .annotations
+            .iter()
+            .map(|a| match &a.value {
+                Some(Value::Structure(s)) => s.kind.as_str(),
+                other => panic!("expected Structure value, got {other:?}"),
+            })
+            .collect();
+        assert_eq!(struct_kinds, vec!["paragraph", "loose_list", "html"]);
         let ent0 = &ent_layer.annotations[0];
         assert_eq!(ent0.spans.len(), 1);
         assert!((ent0.probability.unwrap() - 0.92).abs() < 1e-6);

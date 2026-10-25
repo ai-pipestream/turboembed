@@ -409,7 +409,12 @@ pub fn build_rich_document() -> Document {
 
     add(
         &mut doc,
-        Structure { spans: spans(&[whole]), kind: vec![Block::Paragraph], parent: vec![None], depth: vec![0] },
+        Structure {
+            spans: spans(&[whole, cafe, beijing]),
+            kind: vec![Block::Paragraph, Block::LooseList, Block::Html],
+            parent: vec![None, Some(Ix::new(0)), Some(Ix::new(0))],
+            depth: vec![0, 1, 1],
+        },
         Provenance::by("test:struct"),
     );
     let mut chunk_spans = Spans::<Chunks>::new(ViewId::SOURCE);

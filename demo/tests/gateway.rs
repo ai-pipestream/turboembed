@@ -25,7 +25,7 @@ fn cpu() -> u32 {
 
 async fn start(admin: bool) -> (Server, Demo) {
     let model = ModelConfig::parse(&format!("bundle={},device={},sessions=1", tiny().display(), cpu())).unwrap();
-    let serve = Serve { admin };
+    let serve = Serve { admin, ..Serve::default() };
     let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model], DEFAULT_MAX_MESSAGE_BYTES, serve).await.unwrap();
     s.load().await.unwrap();
     let d = Demo::start("127.0.0.1:0".parse().unwrap(), &format!("http://{}", s.local_addr()), vec![]).await.unwrap();
