@@ -140,19 +140,15 @@ impl YakeExtractor {
     }
 
     pub(crate) fn config_hash(&self) -> u64 {
-        let mut h = 0xCBF2_9CE4_8422_2325u64;
-        for v in [
-            self.window_size as u64,
-            self.min_ngram as u64,
-            self.max_ngram as u64,
-            self.top_n as u64,
-            self.threshold.to_bits(),
-            self.dedup.config_hash(),
-            self.stopwords.config_hash(),
-        ] {
-            h = (h ^ v).wrapping_mul(0x100_0000_01b3);
-        }
-        h
+        turbo_analysis::Fnv1a::new()
+            .u64(self.window_size as u64)
+            .u64(self.min_ngram as u64)
+            .u64(self.max_ngram as u64)
+            .u64(self.top_n as u64)
+            .f64(self.threshold)
+            .u64(self.dedup.config_hash())
+            .u64(self.stopwords.config_hash())
+            .finish()
     }
 }
 

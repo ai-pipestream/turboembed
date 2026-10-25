@@ -68,14 +68,11 @@ impl Stopwords {
         match self {
             Stopwords::Bundled(language) => 0x11 | ((*language as u64) << 8),
             Stopwords::List(words) => {
-                let mut h = 0x22u64;
+                let mut h = turbo_analysis::Fnv1a::with_seed(0x22);
                 for w in words.iter() {
-                    for &b in w.as_bytes() {
-                        h = (h ^ b as u64).wrapping_mul(0x100_0000_01b3);
-                    }
-                    h ^= 0xFF;
+                    h.str(w);
                 }
-                h
+                h.finish()
             }
         }
     }

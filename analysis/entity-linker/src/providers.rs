@@ -64,9 +64,7 @@ pub trait KbProvider: Send + Sync {
 
     /// Returns a 64-bit content fingerprint of this provider for provenance hashing.
     fn fingerprint(&self) -> u64 {
-        self.provider_id()
-            .bytes()
-            .fold(0xcbf2_9ce4_8422_2325_u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x1000_0000_01b3))
+        turbo_analysis::fnv1a(self.provider_id().as_bytes())
     }
 }
 

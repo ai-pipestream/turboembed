@@ -25,9 +25,6 @@ use crate::text::{Lines, is_blank};
 /// (`ContainmentSpine.MAX_DEPTH`).
 pub const MAX_CONTAINMENT_DEPTH: usize = 64;
 
-const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-const FNV_PRIME: u64 = 0x0100_0000_01b3;
-
 /// Why building or querying a [`ContainmentSpine`] or [`HierarchyAnnotator`]
 /// failed.
 #[derive(Debug)]
@@ -368,10 +365,6 @@ impl<H: PlaceHierarchy + Send + Sync + 'static> Annotator for HierarchyAnnotator
     }
 
     fn config_hash(&self) -> u64 {
-        let mut hash = FNV_OFFSET_BASIS;
-        for byte in self.attribute_key.bytes().chain(std::iter::once(0xff)) {
-            hash = (hash ^ u64::from(byte)).wrapping_mul(FNV_PRIME);
-        }
-        hash
+        turbo_analysis::Fnv1a::new().str(&self.attribute_key).finish()
     }
 }

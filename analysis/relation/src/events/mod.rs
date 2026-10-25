@@ -26,7 +26,7 @@
 
 mod frames;
 
-use turbo_analysis::{Annotator, Document, Error, Key, Refs, Span, View};
+use turbo_analysis::{Annotator, Document, Error, Fnv1a, Key, Refs, Span, View};
 use turbo_analysis_layers::{
     Dependencies, Entities, Events, Lemmas, Money, PosTags, Quantities, Sentences, Temporals, Tokens,
 };
@@ -168,19 +168,11 @@ impl Annotator for EventExtractor {
     }
 
     fn config_hash(&self) -> u64 {
-        let mut h = 0xcbf29ce484222325u64;
-        let mut eat = |bytes: &[u8]| {
-            for &b in bytes {
-                h ^= u64::from(b);
-                h = h.wrapping_mul(0x100000001b3);
-            }
-        };
-        eat(Self::VERSION.as_bytes());
-        eat(&[u8::from(self.config.anchor), u8::from(self.config.propagate_conj)]);
+        let mut h = Fnv1a::new();
+        h.bytes(Self::VERSION.as_bytes()).bytes(&[u8::from(self.config.anchor), u8::from(self.config.propagate_conj)]);
         for t in &self.config.nominal_triggers {
-            eat(t.as_bytes());
-            eat(&[0]);
+            h.bytes(t.as_bytes()).bytes(&[0]);
         }
-        h
+        h.finish()
     }
 }

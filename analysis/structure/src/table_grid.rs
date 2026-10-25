@@ -156,6 +156,6 @@ impl Annotator for TableGridAnnotator {
             .map_err(|detail| Error::Annotator { annotator: Self::ID, detail })
     }
     fn config_hash(&self) -> u64 {
-        (0x7461_626c_6500_0001 ^ self.max_cells as u64).wrapping_mul(0x0100_0000_01b3)
+        turbo_analysis::Fnv1a::with_seed(0x7461_626c_6500_0001).fold_u64(self.max_cells as u64).finish()
     }
 }

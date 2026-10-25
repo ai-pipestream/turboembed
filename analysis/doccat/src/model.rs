@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use turbo_analysis::{ModelRef, Tag, TagSet};
+use turbo_analysis::{Fnv1a, ModelRef, Tag, TagSet};
 use turbo_maxent::{MaxentModel, ModelFile};
 
 use crate::error::DoccatError;
@@ -168,15 +168,13 @@ impl DoccatModel {
 }
 
 pub(crate) fn feed_bytes(hash: &mut u64, bytes: &[u8]) {
-    for &b in bytes {
-        *hash = (*hash ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
-    }
+    *hash = Fnv1a::with_seed(*hash).bytes(bytes).finish();
 }
 
 /// Deterministic FNV-1a hash over a [`DoccatContextGenerator`]'s built-in and
 /// custom feature generators.
 pub(crate) fn context_generator_config_hash(cg: &DoccatContextGenerator) -> u64 {
-    let mut hash = 0xcbf2_9ce4_8422_2325u64;
+    let mut hash = Fnv1a::new().finish();
     for g in cg.builtins() {
         match g {
             BuiltinFeatureGenerator::BagOfWords(g) => {

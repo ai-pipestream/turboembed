@@ -4,6 +4,7 @@
 //! a flat list of items.
 
 use crate::hash::{self, BANDS};
+use turbo_analysis::Fnv1a;
 
 /// How two linked items relate.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -59,7 +60,11 @@ impl Thresholds {
     pub(crate) fn hash(&self) -> u64 {
         [self.near.to_bits(), self.version.to_bits(), u64::from(self.min_words)]
             .iter()
-            .fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x).wrapping_mul(0x0100_0000_01b3))
+            .fold(Fnv1a::new(), |mut h, &x| {
+                h.u64(x);
+                h
+            })
+            .finish()
     }
 }
 

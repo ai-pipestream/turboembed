@@ -15,32 +15,8 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use crate::annotate::{AnchorUse, Annotator, Bound, Step};
 use crate::doc::{Document, Status};
 use crate::error::Error;
+use crate::hash::Fnv1a;
 use crate::layer::{Key, KeyId, Layer, Provenance};
-
-pub(crate) const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-const FNV_PRIME: u64 = 0x0100_0000_01b3;
-
-pub(crate) fn fnv_mix_bytes(mut h: u64, bytes: &[u8]) -> u64 {
-    for &b in bytes {
-        h ^= u64::from(b);
-        h = h.wrapping_mul(FNV_PRIME);
-    }
-    h
-}
-
-pub(crate) fn fnv_mix_str(h: u64, s: &str) -> u64 {
-    let h = fnv_mix_bytes(h, s.as_bytes());
-    fnv_mix_bytes(h, &[0xff])
-}
-
-pub(crate) fn fnv_mix_u64(h: u64, v: u64) -> u64 {
-    fnv_mix_bytes(h, &v.to_le_bytes())
-}
-
-pub(crate) fn fnv_mix_key(mut h: u64, k: KeyId) -> u64 {
-    h = fnv_mix_str(h, &k.layer.to_string());
-    fnv_mix_str(h, k.name)
-}
 
 pub(crate) fn panicked(annotator: &'static str, panic: Box<dyn Any + Send>) -> Error {
     let what = panic.downcast_ref::<&str>().copied().or_else(|| panic.downcast_ref::<String>().map(String::as_str));
@@ -243,50 +219,64 @@ impl ConditionalAnnotator {
     /// Deterministic hash combining the predicate identifier and the branch
     /// steps' identifiers, `config_hash` values, and ordered read/write bindings.
     pub fn config_hash(&self) -> u64 {
-        fn hash_step(mut h: u64, step: &dyn Step) -> u64 {
-            h = fnv_mix_str(h, step.id());
-            h = fnv_mix_u64(h, step.config_hash());
+        fn text(h: &mut Fnv1a, value: &str, legacy: bool) {
+            if legacy {
+                h.bytes(value.as_bytes()).u8(0xff);
+            } else {
+                h.str(value);
+            }
+        }
+        fn key(h: &mut Fnv1a, value: KeyId, legacy: bool) {
+            text(h, &value.layer.to_string(), legacy);
+            text(h, value.name, legacy);
+        }
+        fn hash_step(h: &mut Fnv1a, step: &dyn Step, legacy: bool) {
+            text(h, step.id(), legacy);
+            h.u64(step.config_hash());
             let reads = step.reads();
             let required = step.required();
-            h = fnv_mix_u64(h, reads.len() as u64);
+            h.usize(reads.len());
             for (slot, (&r, &req)) in reads.iter().zip(&required).enumerate() {
-                h = fnv_mix_u64(h, slot as u64);
-                h = fnv_mix_key(h, r);
-                h = fnv_mix_bytes(h, &[u8::from(req)]);
+                h.usize(slot);
+                key(h, r, legacy);
+                h.bool(req);
             }
             let writes = step.writes();
-            h = fnv_mix_u64(h, writes.len() as u64);
+            h.usize(writes.len());
             for (slot, &w) in writes.iter().enumerate() {
-                h = fnv_mix_u64(h, slot as u64);
-                h = fnv_mix_key(h, w);
+                h.usize(slot);
+                key(h, w, legacy);
             }
-            h
         }
 
-        let mut h = fnv_mix_str(FNV_OFFSET_BASIS, Self::ID);
-        h = fnv_mix_str(h, self.predicate_name);
+        let mut h = Fnv1a::new();
+        // Typed predicates arrived with delimiter-framed provenance. Retain
+        // their existing stream; closure constructors keep canonical framing.
+        let legacy = self.predicate_config.is_some();
+        text(&mut h, Self::ID, legacy);
+        text(&mut h, self.predicate_name, legacy);
         if let Some(config) = self.predicate_config {
-            h = fnv_mix_str(h, "typed-predicate");
-            h = fnv_mix_u64(h, config);
+            text(&mut h, "typed-predicate", legacy);
+            h.u64(config);
         }
-        h = hash_step(h, self.when_true.as_ref());
+        hash_step(&mut h, self.when_true.as_ref(), legacy);
         match &self.when_false {
             Some(wf) => {
-                h = fnv_mix_bytes(h, &[1]);
-                h = hash_step(h, wf.as_ref());
+                h.bool(true);
+                hash_step(&mut h, wf.as_ref(), legacy);
             }
             None => {
-                h = fnv_mix_bytes(h, &[0]);
+                h.bool(false);
             }
         }
         for (&r, &req) in self.reads.iter().zip(&self.required) {
-            h = fnv_mix_key(h, r);
-            h = fnv_mix_bytes(h, &[u8::from(req)]);
+            key(&mut h, r, legacy);
+            h.bool(req);
         }
         for &w in &self.writes {
-            h = fnv_mix_key(h, w);
+            key(&mut h, w, legacy);
         }
-        h
+        h.finish()
     }
 
     /// Runs this conditional step on a single document.
