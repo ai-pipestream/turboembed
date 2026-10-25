@@ -170,7 +170,10 @@ impl<'a> ProjectionCx<'a> {
 
     pub(crate) fn project_spans<L>(&self, spans: &Spans<L>, item: Ix<L>) -> Vec<SpanFragment> {
         let view = spans.view();
-        spans.fragments(item).map(|frag| self.project_wire_span(view, frag)).collect()
+        let frags: Vec<SpanFragment> = spans.fragments(item).map(|frag| self.project_wire_span(view, frag)).collect();
+        // Onto another view a fragment can land on deleted text (empty) or
+        // run into its neighbour; coalesce so the result stays valid input.
+        if view == self.target_view { frags } else { coalesce_wire_spans(frags) }
     }
 
     pub(crate) fn target_slice(&self, layer_view: ViewId, span: Span) -> &'a str {
@@ -183,7 +186,12 @@ pub(crate) fn coalesce_wire_spans(mut frags: Vec<SpanFragment>) -> Vec<SpanFragm
     if frags.len() <= 1 {
         return frags;
     }
+    let first = frags[0];
     frags.retain(|f| f.start < f.end);
+    if frags.is_empty() {
+        // Every fragment is empty: keep one, so the item keeps its place.
+        return vec![first];
+    }
     frags.sort_by_key(|f| (f.start, f.end));
     let mut out: Vec<SpanFragment> = Vec::with_capacity(frags.len());
     for f in frags {
