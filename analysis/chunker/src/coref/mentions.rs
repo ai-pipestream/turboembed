@@ -2,7 +2,7 @@
 //! re-exported from [`turbo_coref`] and per-chunk antecedent header context
 //! (`ChunkAntecedents`, `ChunkAntecedentBuilder`) for coreference-aware chunking.
 
-use turbo_analysis::{Anchor, Annotator, Edges, Error, Groups, Ix, Layer, Refs, Span, View};
+use turbo_analysis::{Anchor, Annotator, Edges, Error, Groups, Ix, Key, KeyId, Layer, Refs, Span, View};
 use turbo_analysis_layers::{Chunks, Entities, Sentences};
 pub use turbo_coref::{Agreement, Animacy, Gender, MentionKind, Mentions, Number, Origin as MentionOrigin, Person};
 
@@ -69,10 +69,19 @@ impl Layer for ChunkAntecedents {
         self.headers.len()
     }
 
+    fn indexes(&self) -> Vec<(KeyId, usize)> {
+        let bound =
+            self.links.iter().map(|l| l.mention_sentence.get().max(l.antecedent_sentence.get()) + 1).max().unwrap_or(0);
+        if bound > 0 { vec![(Key::<Sentences>::DEFAULT.id(), bound)] } else { Vec::new() }
+    }
+
     fn check(&self) -> Result<(), String> {
         let n = self.headers.len();
         if self.row.len() != n + 1 {
             return Err(format!("{} row offsets for {n} chunks", self.row.len()));
+        }
+        if self.row.first() != Some(&0) {
+            return Err("chunk antecedent row offsets do not start at 0".into());
         }
         if *self.row.last().unwrap_or(&0) as usize != self.links.len() {
             return Err("chunk antecedent row offsets do not end at links.len()".into());
@@ -116,11 +125,13 @@ pub fn chunk_antecedents(
         let start_links = links.len();
 
         for cluster in &chains.clusters {
-            // Find the canonical antecedent strictly before `s_start` (preferring non-pronoun).
-            let antecedent: Option<&ResolvedMention> = cluster
-                .iter()
-                .find(|m| m.sentence < s_start && !m.is_pronoun)
-                .or_else(|| cluster.iter().find(|m| m.sentence < s_start));
+            // Find the canonical antecedent strictly before this chunk
+            // (preferring non-pronoun). A mention in an earlier clause
+            // chunk of the same first sentence also precedes the chunk.
+            let precedes =
+                |m: &ResolvedMention| m.sentence < s_start || (m.sentence == s_start && m.span.end <= chunk_span.start);
+            let antecedent: Option<&ResolvedMention> =
+                cluster.iter().find(|m| precedes(m) && !m.is_pronoun).or_else(|| cluster.iter().find(|m| precedes(m)));
             let Some(ant) = antecedent else {
                 continue;
             };
@@ -197,12 +208,13 @@ impl Annotator for ChunkAntecedentBuilder {
         Option<Edges<Mentions, Mentions>>,
         Option<Entities>,
         Option<Groups<Entities>>,
+        Option<Edges<Entities, Entities>>,
     );
     type Writes = (ChunkAntecedents,);
 
     fn annotate(
         &self,
-        (sentences, chunks, view, mentions, m_groups, m_edges, entities, e_groups): Refs<'_, Self>,
+        (sentences, chunks, view, mentions, m_groups, m_edges, entities, e_groups, e_edges): Refs<'_, Self>,
     ) -> Result<(ChunkAntecedents,), Error> {
         let v = sentences.spans.view();
         if chunks.spans.view() != v
@@ -212,6 +224,6 @@ impl Annotator for ChunkAntecedentBuilder {
         {
             return Err(Error::Annotator { annotator: Self::ID, detail: "its inputs are in different views".into() });
         }
-        Ok((chunk_antecedents(sentences, chunks, view, mentions, m_groups, m_edges, entities, e_groups, None),))
+        Ok((chunk_antecedents(sentences, chunks, view, mentions, m_groups, m_edges, entities, e_groups, e_edges),))
     }
 }

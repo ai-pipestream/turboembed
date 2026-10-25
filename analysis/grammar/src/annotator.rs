@@ -101,7 +101,7 @@ impl GrammarAnnotator {
         parser.select(text, Output::Number, &mut mentions);
         for m in &mentions {
             if let Value::Num(n) = m.value {
-                push_number(&mut found.numbers, m, n.value, self.grammar.notation(), &mut digits);
+                push_number(&mut found.numbers, text, m, n.value, self.grammar.notation(), &mut digits);
             }
         }
         mentions.clear();
@@ -148,8 +148,8 @@ impl GrammarAnnotator {
 fn push_quantity(found: &mut Found, m: &Mention, value: Dec, unit: Unit, digits: &mut String, symbol: &mut String) {
     digits.clear();
     let span = Span::new(m.start, m.end);
-    match unit {
-        Unit::Currency(c) => {
+    match unit.currency() {
+        Some(c) => {
             let Some((currency, e)) = CurrencyUnit::currency(c) else { return };
             let Some(amount) = value.shift(-i32::from(e)) else { return };
             let scale = amount.write_coefficient(digits);
@@ -209,19 +209,40 @@ fn merge(percents: &Quantities, quantities: &Quantities) -> Quantities {
     out
 }
 
-fn push_number(numbers: &mut Numbers, m: &Mention, value: Dec, notation: NumberNotation, digits: &mut String) {
+fn push_number(
+    numbers: &mut Numbers,
+    text: &str,
+    m: &Mention,
+    value: Dec,
+    notation: NumberNotation,
+    digits: &mut String,
+) {
     digits.clear();
     let scale = value.write_coefficient(digits);
-    numbers.push(NumberMention {
-        span: Span::new(m.start, m.end),
-        numeral_end: m.end,
-        negative: value.is_negative(),
-        coefficient: digits,
-        scale,
-        multiplier: Multiplier::One,
-        marker: ScaleMarker::None,
-        notation,
-    });
+    let slice = &text[m.start as usize..m.end as usize];
+    let sign_bytes = if value.is_negative() {
+        if let Some(rest) = slice.strip_prefix('-').or_else(|| slice.strip_prefix('\u{2212}')) {
+            let trimmed = rest.trim_start();
+            if trimmed.is_empty() { 0 } else { slice.len() - trimmed.len() }
+        } else {
+            0
+        }
+    } else {
+        0
+    };
+    numbers.push_with_numeral_start(
+        m.start + sign_bytes as u32,
+        NumberMention {
+            span: Span::new(m.start, m.end),
+            numeral_end: m.end,
+            negative: value.is_negative(),
+            coefficient: digits,
+            scale,
+            multiplier: Multiplier::One,
+            marker: ScaleMarker::None,
+            notation,
+        },
+    );
 }
 
 impl Annotator for GrammarAnnotator {
@@ -281,6 +302,19 @@ mod tests {
             ]
         );
         assert!(f.numbers.negative[0]);
+        assert_eq!(&text[f.numbers.numeral(Ix::new(0)).range()], "minus five");
+
+        let signed_text = "-42 and \u{2212}42";
+        let signed = GrammarAnnotator::english().find(signed_text, ViewId::SOURCE);
+        assert_eq!(signed.numbers.check(), Ok(()));
+        assert_eq!(&signed_text[signed.numbers.numeral(Ix::new(0)).range()], "42");
+        assert_eq!(&signed_text[signed.numbers.numeral(Ix::new(1)).range()], "42");
+
+        let es_text = "menos cinco y -12";
+        let es_found = GrammarAnnotator::spanish().find(es_text, ViewId::SOURCE);
+        assert_eq!(es_found.numbers.check(), Ok(()));
+        assert_eq!(&es_text[es_found.numbers.numeral(Ix::new(0)).range()], "menos cinco");
+        assert_eq!(&es_text[es_found.numbers.numeral(Ix::new(1)).range()], "12");
         assert_eq!(f.percents.len(), 1);
         assert_eq!(f.percents.value(Ix::new(0)).to_plain_string(), "-5");
         assert!(f.percents.is_percent(Ix::new(0)));
@@ -349,6 +383,21 @@ mod tests {
         let merged = merge(&f.percents, &f.quantities);
         assert_eq!(merged.len(), 3);
         assert!(merged.is_percent(Ix::new(2)));
+    }
+
+    #[test]
+    fn rates_reach_the_quantities_and_money_layers() {
+        let text = "a 10 Mb/s link at $5 per hour";
+        let f = GrammarAnnotator::english().find(text, ViewId::SOURCE);
+        assert_eq!(f.quantities.check(), Ok(()));
+        assert_eq!(f.quantities.len(), 1, "quantities in {text}");
+        assert_eq!(f.quantities.unit(Ix::new(0)), "Mbit/s");
+        assert_eq!(&text[f.quantities.spans.get(Ix::new(0)).range()], "10 Mb/s");
+        assert_eq!(f.money.check(), Ok(()));
+        assert_eq!(f.money.len(), 1, "money in {text}");
+        assert_eq!(f.money.get(Ix::new(0)).currency.as_str(), "USD");
+        assert_eq!(f.money.amount(Ix::new(0)).to_plain_string(), "5");
+        assert_eq!(&text[f.money.spans.get(Ix::new(0)).range()], "$5 per hour", "the span carries the rate");
     }
 
     #[test]

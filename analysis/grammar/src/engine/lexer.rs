@@ -23,6 +23,7 @@
 //! into `tres` and `millonesimo`). Spans stay those of the text as written.
 
 use crate::dec::Dec;
+use turbo_unicode::whitespace::WhitespaceMode;
 
 use super::numeral::{NumeralStyle, Reading, digits_end};
 
@@ -117,11 +118,6 @@ fn is_word_char(c: char) -> bool {
     turbo_unicode::props::alphabetic(c) || turbo_unicode::category::general_category(c).is_mark()
 }
 
-/// Whether ASCII byte `b` is `White_Space`.
-fn ascii_space(b: u8) -> bool {
-    matches!(b, b' ' | b'\t'..=b'\r')
-}
-
 /// The character at byte `i`, which is a character boundary.
 fn char_at(text: &str, i: usize) -> char {
     let b = text.as_bytes()[i];
@@ -133,13 +129,13 @@ fn chunk_end(text: &str, mut i: usize) -> usize {
     let b = text.as_bytes();
     while i < b.len() {
         if b[i] < 0x80 {
-            if ascii_space(b[i]) {
+            if WhitespaceMode::Unicode.is_ascii_whitespace(b[i]) {
                 return i;
             }
             i += 1;
         } else {
             let c = char_at(text, i);
-            if turbo_unicode::props::white_space(c) {
+            if WhitespaceMode::Unicode.is_whitespace(c as u32) {
                 return i;
             }
             i += c.len_utf8();
@@ -182,7 +178,7 @@ impl Lexed {
         let mut plain_until = 0;
         while i < b.len() {
             let c = char_at(text, i);
-            if if c.is_ascii() { ascii_space(b[i]) } else { turbo_unicode::props::white_space(c) } {
+            if WhitespaceMode::Unicode.is_whitespace(c as u32) {
                 i += c.len_utf8();
                 glued = false;
                 continue;
@@ -241,8 +237,11 @@ impl Lexed {
                         self.lower.extend(c.to_lowercase());
                     } else if is_accent_mark(c) {
                         // `n` and a combining tilde is `ñ`; other accents go.
-                        if c == '\u{303}' && self.lower.ends_with('n') {
+                        if c == '\u{303}' && self.lower[low_start..].ends_with('n') {
                             self.lower.pop();
+                            while self.bounds.last().is_some_and(|&(low, _)| low as usize > self.lower.len()) {
+                                self.bounds.pop();
+                            }
                             self.lower.push('ñ');
                         }
                     } else {
@@ -424,10 +423,12 @@ mod tests {
         }
 
         fn split(&self, word: &str, cuts: &mut Vec<u32>) {
-            if let Some(rest) = word.strip_prefix("dos")
-                && !rest.is_empty()
-            {
-                cuts.push(3);
+            for prefix in ["dos", "añ"] {
+                if let Some(rest) = word.strip_prefix(prefix)
+                    && !rest.is_empty()
+                {
+                    cuts.push(prefix.len() as u32);
+                }
             }
         }
     }
@@ -442,11 +443,18 @@ mod tests {
     fn folding_drops_accents_and_keeps_spans() {
         let text = "Miércoles 1º Año a\u{301}n\u{303}o";
         let l = lex_folded(text);
+        for &(low_off, text_off) in &l.bounds {
+            assert!(l.lower.is_char_boundary(low_off as usize));
+            assert!(text.is_char_boundary(text_off as usize));
+        }
         let words: Vec<&str> = (0..l.len()).map(|i| l.word(i)).collect();
-        assert_eq!(words, ["miercoles", "1", "o", "año", "año"]);
+        assert_eq!(words, ["miercoles", "1", "o", "añ", "o", "añ", "o"]);
         assert_eq!(l.raw(text, 0), "Miércoles");
         assert_eq!(l.raw(text, 2), "º");
-        assert_eq!(l.raw(text, 4), "a\u{301}n\u{303}o");
+        assert_eq!(l.raw(text, 3), "Añ");
+        assert_eq!(l.raw(text, 4), "o");
+        assert_eq!(l.raw(text, 5), "a\u{301}n\u{303}");
+        assert_eq!(l.raw(text, 6), "o");
         assert_eq!(fold('Ü'), 'Ü', "fold takes a lowercase letter");
         assert_eq!(fold('ü'), 'u');
     }

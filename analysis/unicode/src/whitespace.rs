@@ -1,4 +1,4 @@
-//! OpenNLP's two definitions of whitespace.
+//! OpenNLP's two definitions of whitespace and Python's str.isspace.
 //!
 //! OpenNLP 3.x picks one process-wide through its `WhitespaceMode`
 //! (`opennlp.tools.util.WhitespaceMode`, read by `StringUtil.isWhitespace`).
@@ -6,6 +6,14 @@
 //! it is a value every annotator takes as a parameter, never a global.
 
 use crate::java::code_point;
+
+/// Python's `str.isspace` and Unicode-pattern `\s`: Unicode `White_Space`
+/// plus the four information separators U+001C through U+001F. In
+/// particular this includes U+0085, unlike OpenNLP's legacy mode.
+#[inline]
+pub fn is_python_space(c: char) -> bool {
+    if c.is_ascii() { matches!(c, '\u{09}'..='\u{0d}' | '\u{1c}'..='\u{20}') } else { crate::props::white_space(c) }
+}
 
 /// Which characters count as whitespace.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
@@ -75,6 +83,19 @@ const LEGACY_ASCII: [bool; 128] = ascii_table(true);
 const UNICODE_ASCII: [bool; 128] = ascii_table(false);
 
 impl WhitespaceMode {
+    /// OpenNLP StringUtil's blank check in this mode. Empty text is blank.
+    #[inline]
+    pub fn is_blank(self, text: &str) -> bool {
+        text.chars().all(|c| self.is_whitespace(c as u32))
+    }
+
+    /// Borrows `text` without leading and trailing whitespace in this mode.
+    #[inline]
+    pub fn trim(self, text: &str) -> &str {
+        text.trim_start_matches(|c: char| self.is_whitespace(c as u32))
+            .trim_end_matches(|c: char| self.is_whitespace(c as u32))
+    }
+
     /// Whether `cp` is whitespace in this mode. `cp` may be a surrogate
     /// code unit, which is never whitespace. A code point below U+0080 is
     /// answered from a 128-entry table.
@@ -94,13 +115,25 @@ impl WhitespaceMode {
     /// Whether the ASCII byte `byte` is whitespace in this mode. A byte of
     /// 0x80 or above is never ASCII whitespace.
     #[inline]
-    pub fn is_ascii_whitespace(self, byte: u8) -> bool {
+    pub const fn is_ascii_whitespace(self, byte: u8) -> bool {
         let table = match self {
             WhitespaceMode::Legacy => &LEGACY_ASCII,
             WhitespaceMode::Unicode => &UNICODE_ASCII,
         };
         byte < 0x80 && table[(byte & 0x7F) as usize]
     }
+}
+
+/// StringUtil.isUnicodeBlank as a function suitable for callbacks/re-exports.
+#[inline]
+pub fn is_unicode_blank(text: &str) -> bool {
+    WhitespaceMode::Unicode.is_blank(text)
+}
+
+/// StringUtil.trimUnicodeWhitespace as a function suitable for callbacks.
+#[inline]
+pub fn trim_unicode_whitespace(text: &str) -> &str {
+    WhitespaceMode::Unicode.trim(text)
 }
 
 #[cfg(test)]
@@ -111,6 +144,22 @@ mod tests {
     #[test]
     fn default_is_unicode() {
         assert_eq!(WhitespaceMode::default(), Unicode);
+    }
+
+    #[test]
+    fn python_space_is_exactly_the_29_code_points() {
+        // Independently enumerated by Python 3.14 str.isspace over all code points.
+        let expected: Vec<_> = (0x09..=0x0d)
+            .chain(0x1c..=0x20)
+            .chain([0x85, 0xa0, 0x1680])
+            .chain(0x2000..=0x200a)
+            .chain([0x2028, 0x2029, 0x202f, 0x205f, 0x3000])
+            .collect();
+        assert_eq!(expected.len(), 29);
+        for cp in 0..=0x10_ffff {
+            let actual = char::from_u32(cp).is_some_and(is_python_space);
+            assert_eq!(actual, expected.contains(&cp), "U+{cp:04X}");
+        }
     }
 
     #[test]

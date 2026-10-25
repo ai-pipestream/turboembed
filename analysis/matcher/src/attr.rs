@@ -43,10 +43,14 @@ pub enum Attr {
     /// `ENT_TYPE`. When entities overlap, the first one in the layer that
     /// covers the token gives it.
     Entity,
+    /// Morphological features from the token-aligned UD FEATS column.
+    Morph,
+    /// Fine-grained tags supplied separately from `Pos`.
+    Tag,
 }
 
 impl Attr {
-    pub(crate) const ALL: [Attr; 10] = [
+    pub(crate) const ALL: [Attr; 12] = [
         Attr::Text,
         Attr::Lower,
         Attr::Prefix,
@@ -57,6 +61,8 @@ impl Attr {
         Attr::Stem,
         Attr::Pos,
         Attr::Entity,
+        Attr::Morph,
+        Attr::Tag,
     ];
 
     /// The attribute's value for a string standing for a token, when the
@@ -310,7 +316,7 @@ fn is_title(text: &str) -> bool {
 /// Python's `str.isspace`: the White_Space property, and the separators
 /// U+001C to U+001F, which Python also counts.
 fn is_space(text: &str) -> bool {
-    !text.is_empty() && all(text, |c| props::white_space(c) || ('\u{1c}'..='\u{1f}').contains(&c))
+    !text.is_empty() && all(text, turbo_unicode::whitespace::is_python_space)
 }
 
 fn digits(text: &str) -> bool {

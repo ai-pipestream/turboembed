@@ -21,7 +21,7 @@
 
 use std::collections::HashSet;
 
-use turbo_unicode::java::code_point::to_lower_case;
+use turbo_unicode::java::{lowercase_code_points_changes as needs_lowering, to_lowercase_code_points};
 
 use crate::error::{Error, Result};
 use crate::hash::BuildFoldHasher;
@@ -185,14 +185,6 @@ impl Dictionary {
     }
 }
 
-/// Whether lowercasing `token` per character with Java's mapping changes it.
-fn needs_lowering(token: &str) -> bool {
-    if token.is_ascii() {
-        return token.bytes().any(|b| b.is_ascii_uppercase());
-    }
-    token.chars().any(|c| to_lower_case(c as u32) != c as u32)
-}
-
 /// Appends the tokens joined by [`SEPARATOR`], each character lowercased
 /// with Java's mapping unless `case_sensitive`.
 fn push_joined<'t>(out: &mut String, tokens: impl Iterator<Item = &'t str>, case_sensitive: bool) {
@@ -203,7 +195,7 @@ fn push_joined<'t>(out: &mut String, tokens: impl Iterator<Item = &'t str>, case
         if case_sensitive {
             out.push_str(token);
         } else {
-            out.extend(token.chars().map(|c| char::from_u32(to_lower_case(c as u32)).unwrap_or(c)));
+            to_lowercase_code_points(token, out);
         }
     }
 }

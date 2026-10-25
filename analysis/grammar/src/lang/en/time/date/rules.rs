@@ -27,6 +27,9 @@ pub(in crate::lang::en::time) static RULES: &[Rule] = &[
     rr("md_day_month", MD, &[node(MDAY), opt_word("of"), node(MONTH)], b_md_day_month),
     rr("md_the_day_month", MD, &[word("the"), node(MDAY), opt_word("of"), node(MONTH)], b_md_day_month),
     rr("md_day_of_month", MD, &[node(MDAY), word("day"), word("of"), node(MONTH)], b_md_day_month),
+    rr("md_the_day_of_month", MD, &[word("the"), node(MDAY), word("day"), word("of"), node(MONTH)], |v, c| {
+        c.before().is_some_and(|p| c.word(p) != "on").then(|| b_md_day_month(v, c))?
+    }),
     rr("md_month_sep_day", MD, &[node(MONTH), glued(SEP), glued(DIG)], |v, c| b_md_month_digits(&[v[0], v[2]], c)),
     rr("md_slash", MD, &[node(DIG), glued_word("/"), glued(DIG)], b_md_slash),
     rr("md_paren", MD, &[node(MD), word("("), node(WEEKDAY), word(")")], b_same),
@@ -246,6 +249,49 @@ pub(in crate::lang::en::time) static RULES: &[Rule] = &[
     rr("period_cy", PERIOD, &[word("cy"), node(YEAR)], b_year_word),
     rr("period_cy_glued", PERIOD, &[word("cy"), glued(DIG)], b_calendar_year_glued),
     rr("period_rel_calendar_year", PERIOD, &[node(RELW), word("calendar"), word("year")], b_rel_calendar_year),
+    rr("period_year_to_date", PERIOD, &[word("year"), word("to"), word("date")], |_, c| {
+        emit_date(c, DateSpec::YearToDate)
+    }),
+    rr("date_current_date", DATE, &[word("current"), word("date")], |_, c| emit_date(c, DateSpec::CurrentDate)),
+    rr("date_to_date", DATE, &[word("to"), word("date")], |_, c| {
+        super::super::context::adverbial_to_date(c).then(|| emit_date(c, DateSpec::CurrentDate))?
+    }),
+    rr("period_workweek", PERIOD, &[node(RELW), word("workweek")], b_workweek),
+    rr("period_working_week", PERIOD, &[node(RELW), word("working"), word("week")], b_workweek),
+    rr("period_work_week", PERIOD, &[node(RELW), word("work"), word("week")], b_workweek),
+    rr("period_rest_of_week", PERIOD, &[word("remaining"), word("of"), word("the"), word("week")], |_, c| {
+        emit_date(c, DateSpec::RestOfWeek)
+    }),
+    rr("period_rest_of_week_rest", PERIOD, &[word("rest"), word("of"), word("the"), word("week")], |_, c| {
+        emit_date(c, DateSpec::RestOfWeek)
+    }),
+    rr("period_first_slice", PERIOD, &[word("first"), node(AMOUNT), node(UNIT), word("of"), node(PERIOD)], |v, c| {
+        b_year_slice(v, c, false)
+    }),
+    rr(
+        "period_the_first_slice",
+        PERIOD,
+        &[word("the"), word("first"), node(AMOUNT), node(UNIT), word("of"), node(PERIOD)],
+        |v, c| b_year_slice(v, c, false),
+    ),
+    rr("period_last_slice", PERIOD, &[word("last"), node(AMOUNT), node(UNIT), word("of"), node(PERIOD)], |v, c| {
+        b_year_slice(v, c, true)
+    }),
+    rr(
+        "period_the_last_slice",
+        PERIOD,
+        &[word("the"), word("last"), node(AMOUNT), node(UNIT), word("of"), node(PERIOD)],
+        |v, c| b_year_slice(v, c, true),
+    ),
+    rr("period_weekend_of_hol", PERIOD, &[word("weekend"), word("of"), node(HOL)], b_holiday_weekend),
+    rr("period_the_weekend_of_hol", PERIOD, &[word("the"), word("weekend"), word("of"), node(HOL)], b_holiday_weekend),
+    rr("period_hol_weekend", PERIOD, &[node(HOL), word("weekend")], b_holiday_weekend),
+    rr(
+        "period_hol_weekend_year",
+        PERIOD,
+        &[node(HOL), word("weekend"), opt_word("of"), node(YEAR)],
+        b_holiday_weekend_year,
+    ),
     // Holidays.
     rr("hol", HOL, &[node(HOLIDAY)], b_holiday),
     rr("hol_christmas_eve", HOL, &[word("christmas"), word("eve")], |_, c| hol(c, lexicon::CHRISTMAS_EVE)),
@@ -261,12 +307,12 @@ pub(in crate::lang::en::time) static RULES: &[Rule] = &[
     }),
     rr("hol_new_years_eve", HOL, &[word("new"), word("years"), word("eve")], |_, c| hol(c, lexicon::NEW_YEARS_EVE)),
     rr("hol_independence", HOL, &[word("independence"), word("day")], |_, c| hol(c, lexicon::INDEPENDENCE)),
-    rr("hol_labor", HOL, &[word("labor"), word("day")], |_, c| hol(c, lexicon::LABOR)),
-    rr("hol_labour", HOL, &[word("labour"), word("day")], |_, c| hol(c, lexicon::LABOR)),
+    r("hol_labor", HOL, 4, &[word("labor"), word("day")], |_, c| hol(c, lexicon::LABOR)),
+    r("hol_labour", HOL, 4, &[word("labour"), word("day")], |_, c| hol(c, lexicon::LABOR)),
     rr("hol_black_friday", HOL, &[word("black"), word("friday")], |_, c| hol(c, lexicon::BLACK_FRIDAY)),
     rr("hol_earth", HOL, &[word("earth"), word("day")], |_, c| hol(c, lexicon::EARTH)),
-    rr("hol_easter_monday", HOL, &[word("easter"), word("monday")], |_, c| hol(c, lexicon::EASTER_MONDAY)),
-    rr("hol_easter_sunday", HOL, &[word("easter"), word("sunday")], |_, c| hol(c, lexicon::EASTER)),
+    r("hol_easter_monday", HOL, 4, &[word("easter"), word("monday")], |_, c| hol(c, lexicon::EASTER_MONDAY)),
+    r("hol_easter_sunday", HOL, 4, &[word("easter"), word("sunday")], |_, c| hol(c, lexicon::EASTER)),
     rr("hol_good_friday", HOL, &[word("good"), word("friday")], |_, c| hol(c, lexicon::GOOD_FRIDAY)),
     rr("hol_saint_patrick", HOL, &[word("saint"), word("patrick")], |_, c| hol(c, lexicon::PATRICK)),
     rr("hol_st_patrick", HOL, &[word("st"), opt_word("."), word("patrick")], |_, c| hol(c, lexicon::PATRICK)),

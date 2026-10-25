@@ -6,10 +6,12 @@ use std::sync::Arc;
 use crate::error::Error;
 use crate::layer::{Key, KeyId, Layer};
 use crate::offsets::{CodePointSpan, Utf16Span};
-use crate::span::{Ix, Span, Spans};
+use crate::span::{Span, Spans};
 use crate::text::{Alignment, Side, ViewId};
 
 use super::{Document, View, check_spans};
+
+mod monotonic;
 
 impl Document {
     fn view_checked(&self, v: ViewId, layer: KeyId) -> Result<&Arc<View>, Error> {
@@ -113,24 +115,8 @@ impl Document {
     /// discontinuous [`crate::Fragments`] invariants (coalescing fragments
     /// whose intermediate gap collapsed to zero bytes under an edit).
     pub fn project_spans<L: Layer>(&self, spans: &Spans<L>, to: ViewId) -> Result<Spans<L>, Error> {
-        let layer_id = Key::<L>::DEFAULT.id();
-        let from = spans.view();
-        let from_view = self.view_checked(from, layer_id)?;
-        let ts = spans.text_spans();
-        check_spans(&from_view.text, ts.start, ts.end).map_err(|detail| Error::Bounds {
-            layer: layer_id,
-            view: from,
-            detail,
-        })?;
-        if !ts.frag_item_end.is_empty() {
-            check_spans(&from_view.text, ts.frag_start, ts.frag_end).map_err(|detail| Error::Bounds {
-                layer: layer_id,
-                view: from,
-                detail,
-            })?;
-        }
-        let (_, up_from, down_to) = self.lca_path(from, to, layer_id)?;
-        let map_one = |mut s: Span| -> Span {
+        let (layer_id, up_from, down_to) = self.projection_path(spans, to)?;
+        self.project_with(spans, to, layer_id, &mut |mut s: Span| -> Span {
             for v in &up_from {
                 s = v.alignment.span_to_parent(s);
             }
@@ -138,52 +124,7 @@ impl Document {
                 s = v.alignment.span_to_child(s);
             }
             s
-        };
-
-        let mut out = Spans::with_capacity(to, spans.len());
-        if !spans.has_discontinuous() {
-            for (_, s) in spans.iter() {
-                out.push(map_one(s));
-            }
-            return Ok(out);
-        }
-
-        let mut coalesced: Vec<Span> = Vec::new();
-        for idx in 0..spans.len() {
-            let ix = Ix::new(idx as u32);
-            if !spans.is_discontinuous(ix) {
-                out.push(map_one(spans.get(ix)));
-                continue;
-            }
-            coalesced.clear();
-            for frag in spans.fragments(ix) {
-                let mapped = map_one(frag);
-                if mapped.is_empty() {
-                    continue;
-                }
-                if let Some(last) = coalesced.last_mut()
-                    && last.end >= mapped.start
-                {
-                    last.end = last.end.max(mapped.end);
-                } else {
-                    coalesced.push(mapped);
-                }
-            }
-            match coalesced.len() {
-                0 => {
-                    let env = map_one(spans.get(ix));
-                    out.push(Span::new(env.start, env.start));
-                }
-                1 => {
-                    out.push(coalesced[0]);
-                }
-                _ => {
-                    out.try_push_fragments(&coalesced)
-                        .map_err(|e| Error::Invalid { layer: layer_id, detail: e.to_string() })?;
-                }
-            }
-        }
-        Ok(out)
+        })
     }
 
     /// Converts byte [`Span`] `s` in view `v` into a [`Utf16Span`] in `v`.
@@ -493,6 +434,56 @@ mod tests {
                 s_doc.map_span(sv2_id, ViewId::SOURCE, empty_z).unwrap(),
                 sa1.span_to_parent(sa2.span_to_parent(empty_z))
             );
+        }
+    }
+
+    /// The cursor projection matches the binary-search projection
+    /// bit-for-bit on ordered spans across a two-view chain, and the
+    /// discontinuous fallback returns the same column too.
+    #[test]
+    fn project_spans_monotonic_matches_project_spans() {
+        // Source "aa bb cc dd ee" -> v1 drops " cc" and inserts "XX"
+        // at 2 -> v2 replaces "dd" with "Y".
+        let mut doc = Document::new("aa bb cc dd ee");
+        let v0 = doc.get::<View>().unwrap().clone();
+        let mut b1 = ViewBuilder::new(v0.text());
+        b1.keep(2);
+        b1.replace(2, "XX");
+        b1.keep(5);
+        b1.replace(8, "");
+        let (t1, a1) = b1.finish();
+        doc.add(&Key::<View>::named("v1"), View::derived(&v0, t1, a1), Provenance::by("test")).unwrap();
+        let v1 = doc.get_key(&Key::<View>::named("v1")).unwrap().clone();
+        let dd = v1.text().find("dd").unwrap() as u32;
+        let mut b2 = ViewBuilder::new(v1.text());
+        b2.keep(dd as usize);
+        b2.replace((dd + 2) as usize, "Y");
+        let (t2, a2) = b2.finish();
+        doc.add(&Key::<View>::named("v2"), View::derived(&v1, t2, a2), Provenance::by("test")).unwrap();
+        let v2_id = doc.get_key(&Key::<View>::named("v2")).unwrap().id();
+
+        let mut spans = Spans::<Phrases>::new(ViewId::SOURCE);
+        for s in [(0, 0), (0, 2), (2, 2), (2, 3), (3, 5), (5, 5), (6, 8), (8, 9), (9, 11), (11, 11), (12, 14), (14, 14)]
+        {
+            spans.push(Span::new(s.0, s.1));
+        }
+        assert!(spans.is_ordered());
+        let want = doc.project_spans(&spans, v2_id).unwrap();
+        let got = doc.project_spans_monotonic(&spans, v2_id).unwrap();
+        assert_eq!(got.columns(), want.columns());
+        let back = doc.project_spans(&want, ViewId::SOURCE).unwrap();
+        let back_mono = doc.project_spans_monotonic(&want, ViewId::SOURCE).unwrap();
+        assert_eq!(back_mono.columns(), back.columns());
+
+        // Discontinuous items delegate, still bit-for-bit.
+        let mut disc = Spans::<Phrases>::new(ViewId::SOURCE);
+        disc.try_push_fragments(&[Span::new(0, 2), Span::new(9, 11)]).unwrap();
+        disc.push(Span::new(12, 14));
+        let want = doc.project_spans(&disc, v2_id).unwrap();
+        let got = doc.project_spans_monotonic(&disc, v2_id).unwrap();
+        assert_eq!(got.columns(), want.columns());
+        for (ix, _) in want.iter() {
+            assert_eq!(got.fragments(ix).collect::<Vec<_>>(), want.fragments(ix).collect::<Vec<_>>());
         }
     }
 }

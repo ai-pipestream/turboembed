@@ -12,8 +12,8 @@ package of the OpenNLP fork the other ports follow (commit `cdf33c6`):
 |---|---|
 | `PiiDetector` | `CompositePiiExtractor` and `PiiAnnotator` |
 | `Pack`, `PiiDetector::pack` | `PiiPacks` |
-| `Extractor`, `Scanner` | the extractor classes (`CursorPiiExtractor`, `NetworkPiiExtractor` and the others) and their type selection |
-| `Pii`, `PiiMention`, `PiiKind` | `PiiMention`, the type strings, `PiiTypePriority` |
+| `Extractor`, `Scanner`, `CustomExtractor`, `PiiSink` | `PiiExtractor`, the extractor classes (`CursorPiiExtractor`, `NetworkPiiExtractor` and the others) and their type selection |
+| `Pii`, `PiiMention`, `PiiKind`, `PiiKind::Custom` | `PiiMention`, the type strings, `PiiTypePriority` |
 | `PiiConfidence` | none (below) |
 | `rewrite::mask`, `mask_all`, `mask_by_kind`, `MaskPolicy` | `Masker`, `MaskPolicy`, `MaskPolicies` |
 | `rewrite::MaskedView`, `mask_view` | `Masker` with `MaskPolicies.byType()`, as a view |
@@ -203,13 +203,24 @@ spans over multi-byte texts, and that the text equals `mask`.
   unit offset 2 more). The goldens record UTF-8 offsets, so the
   comparison is exact.
 - Masks keep the byte length, not the UTF-16 length (above).
-- A detector is built from the extractor classes the package has.
-  OpenNLP's `PiiExtractor` interface also takes extractors written by a
-  caller with type strings of their own; there is no such extension here,
-  so the Java tests of custom types (`PseudonymizerIdentity` with custom
-  types, the audit escaping of custom type names, the read counts of a
-  custom `CharSequence`) are not ported. Their ordering and masking cases
-  are ported with built-in kinds.
+- Caller-defined extractors implement `CustomExtractor` (with optional
+  `config_hash` for stateful settings, or pass a scan function to
+  `Scanner::custom_fn` / `PiiDetector::with_custom_fn`) and emit
+  mentions with `PiiKind::custom("...")`, their own `PiiConfidence`, and
+  `checksum` / `text` helpers via `PiiSink`
+  (`analysis/pii/tests/custom_extractors.rs`). Built-in kinds rank
+  `0..20` (`PiiKind::ALL`); `PiiKind::Custom` has rank `20` and orders
+  after built-in kinds on an exact span tie, then by kind name. A custom
+  kind name must be 1 to 64 UTF-8 bytes (`PiiKind::MAX_CUSTOM_NAME_BYTES`)
+  and not one of the reserved built-in names in `PiiKind::ALL`; the
+  process-wide custom kind registry holds up to 256 distinct custom
+  kind names (`PiiKind::MAX_CUSTOM_KINDS`). Once 256 distinct custom names
+  are registered, known names continue to succeed while a 257th new custom
+  name is refused by `PiiKind::remember_custom`, `PiiSink`, `Pii::check`,
+  `Pii::export` and `PiiKind::intern_custom`. Caller kinds flow
+  through `mask_all`, `mask_by_kind`, `MaskedView` (with
+  `MaskedView::with` overrides), `Pseudonymizer`, `HmacTokenizer`,
+  `PiiAuditReport` and binary graph export/import.
 - `PiiConfidence` is added (above).
 - By default, `PiiDetector` drops a mention whose span lies strictly
   inside a longer mention, so trailing groups of a grouped IBAN are not
@@ -304,13 +315,21 @@ reports rather than layers.
 
 ## Precision and recall
 
-`analysis/pii/tests/precision_recall.rs` measures the widest pack on a
-labelled set made from a fixed seed (40 values of every kind built to
-pass their checks, each in a sentence, and near misses of the
-checksummed kinds with no label) together with OpenNLP's golden true and
-false positive corpora: 1112 texts, 720 labels made in the test. A found
-mention is true when a label has its span and kind; every other found
-mention is false.
+`analysis/pii/tests/precision_recall.rs` measures the widest pack
+(`Pack::AllStructured`) on two sets: a synthetic set built to exercise
+the scanners' rules, and a mixed evaluation set providing partial
+human-written-text evidence in
+`analysis/pii/tests/data/human-eval/` (`analysis/pii/tests/data/human-eval/README.md`).
+A found mention is true when a label has its span and kind; every other
+found mention is false. `PII_SHOW_FALSE=1` lists the false mentions.
+
+### Synthetic set
+
+`precision_and_recall_on_the_synthetic_set` runs on a labelled set made
+from a fixed seed (40 values of every kind built to pass their checks,
+each in a sentence, and near misses of the checksummed kinds with no
+label) together with OpenNLP's golden true and false positive corpora:
+1112 texts, 720 labels made in the test.
 
 | | true | false | missed | precision | recall |
 |---|---|---|---|---|---|
@@ -323,7 +342,131 @@ digits are a phone shape); phones and cards nested inside grouped IBANs
 and NHS numbers nested inside US phone numbers are dropped by default.
 The set is made to pass the checks the scanners make, so recall on it
 says the scanners find what they are built to find, not how they do on
-text written by people. `PII_SHOW_FALSE=1` lists the false mentions.
+text written by people.
+
+### Mixed evaluation set (third-party MASC, adapted specifications, and project-authored memos)
+
+`precision_and_recall_on_human_written_text` scores the same pack on a
+mixed eight-document evaluation set (`45,401` UTF-8 bytes, `87` gold
+mentions across all 20 built-in kinds in
+`analysis/pii/tests/data/human-eval/labels.tsv`; licences and SHA-256
+digests in `analysis/pii/tests/data/human-eval/README.md` and
+`docs/licences.md`). This is partial work for #968, not completion of its
+licensed human-written-text requirement per kind. Only `phone` is currently
+evaluated on unedited third-party prose (`masc-*.escaped`), `btc-address`
+and `eth-address` are evaluated on project-adapted specification summaries
+embedding the canonical BIP-173/350 and ERC-55 test vectors, and the
+remaining 17 kinds are evaluated on project-authored operational memos
+(`operational-memos.txt`):
+
+- Five third-party documents from MASC 3.0.0 (`34,969` bytes, CC BY 3.0
+  US, `12` gold spans, all `phone`: `10` true, `1` false, `2` missed,
+  precision `0.909`, recall `0.833`): three corporate and non-profit
+  solicitation letters (`masc-att2.escaped`, `masc-hsus4.escaped`,
+  `masc-united1.escaped`), one New York Times News Service travel
+  dispatch (`masc-nyt6.escaped`), and one Legal Services Corporation
+  protocol full of CFR, statutory and federal case citations
+  (`masc-lsc-access.escaped`, `0` gold spans).
+- Two project-adapted specification summaries (`4,360` bytes, Apache-2.0
+  prose, `18` gold spans) embedding the canonical published checksum test
+  vectors from ERC-55 (`analysis/pii/tests/data/human-eval/eip-55.txt`,
+  `10` `eth-address` spans, CC0-1.0) and BIP-173 / BIP-350
+  (`analysis/pii/tests/data/human-eval/bip-173-350.txt`, `8`
+  `btc-address` spans, BSD-2-Clause), plus invalid mixed-case and
+  Bech32/Bech32m near misses and the detector's all-zero burn-address
+  exclusion.
+- Project-authored incident, treasury, network, payroll/tax, clinical
+  and mobile fleet memos (`analysis/pii/tests/data/human-eval/operational-memos.txt`,
+  `6,072` bytes, Apache-2.0, `57` gold spans: `3` `phone` spans and every
+  gold mention of the remaining 17 kinds) written with documentation,
+  test, and synthetic checksum-valid specimen identifiers (RFC 2606,
+  RFC 5737, RFC 3849, RFC 7042, RFC 7519, AWS documentation example keys,
+  ISO 13616 / Bundesbank specimen IBANs, Federal Reserve routing numbers,
+  NHS test numbers, ISO 7064 test Steuer-IDs, SIN `046 454 286`, and
+  Luhn-valid test IMEIs), paired with mistyped check digits, order and
+  invoice numbers, timestamps, software versions and statutory citations.
+
+| Kind | Source partition | true | false | missed | precision | recall |
+|---|---|---:|---:|---:|---:|---:|
+| `jwt` | project-authored (`operational-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
+| `aws-access-key` | project-authored (`operational-memos.txt`) | 2 | 0 | 0 | 1.000 | 1.000 |
+| `github-token` | project-authored (`operational-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
+| `url-credential` | project-authored (`operational-memos.txt`) | 2 | 0 | 0 | 1.000 | 1.000 |
+| `email` | project-authored (`operational-memos.txt`) | 3 | 2 | 0 | 0.600 | 1.000 |
+| `iban` | project-authored (`operational-memos.txt`) | 4 | 0 | 0 | 1.000 | 1.000 |
+| `imei` | project-authored (`operational-memos.txt`) | 3 | 0 | 2 | 1.000 | 0.600 |
+| `card` | project-authored (`operational-memos.txt`) | 4 | 2 | 0 | 0.667 | 1.000 |
+| `btc-address` | adapted spec (`bip-173-350.txt`, BSD-2-Clause vectors) | 8 | 0 | 0 | 1.000 | 1.000 |
+| `eth-address` | adapted spec (`eip-55.txt`, CC0-1.0 vectors) | 10 | 0 | 0 | 1.000 | 1.000 |
+| `mac` | project-authored (`operational-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
+| `ipv6` | project-authored (`operational-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
+| `ipv4` | project-authored (`operational-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
+| `us-ssn` | project-authored (`operational-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
+| `us-itin` | project-authored (`operational-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
+| `uk-nhs` | project-authored (`operational-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
+| `de-steuer-id` | project-authored (`operational-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
+| `ca-sin` | project-authored (`operational-memos.txt`) | 3 | 0 | 1 | 1.000 | 0.750 |
+| `aba-routing` | project-authored (`operational-memos.txt`) | 3 | 0 | 0 | 1.000 | 1.000 |
+| `phone` (MASC only) | third-party human-written (`masc-*.escaped`, CC BY 3.0 US) | 10 | 1 | 2 | 0.909 | 0.833 |
+| `phone` (all) | third-party MASC (`12`) + project-authored (`3`) | 13 | 5 | 2 | 0.722 | 0.867 |
+| **all kinds** | **mixed (`12` MASC + `18` adapted spec + `57` project-authored)** | **82** | **9** | **5** | **0.901** | **0.943** |
+
+#### Outstanding work for #968
+
+#968 remains open with its original acceptance requirements. Independent
+human-written prose coverage has not been established for the 17 memo-only
+kinds: `card`, `email`, `iban`, `imei`, `ipv4`, `ipv6`, `jwt`, `mac`, `us-ssn`,
+`us-itin`, `uk-nhs`, `ca-sin`, `de-steuer-id`, `aba-routing`, `aws-access-key`,
+`github-token`, and `url-credential`. The `btc-address` and `eth-address` rows
+also remain results from adapted specifications, without established coverage
+on externally authored prose.
+
+Further corpus additions need attributable, licensed source passages with
+appropriate context and per-occurrence gold labels, including scanner misses
+and negative examples. Preserve the fixture policy for safe specimen values;
+where a source requires replacement of a value, record that transformation
+and retain the source context rather than authoring replacement prose. Pin
+the source version, licence, text digest and final UTF-8 annotation offsets.
+Source-partition disclosure or an agent's scope decision does not waive the
+original requirement. The existing mixed metrics remain useful partial
+evidence and must stay separate from future measurements on external prose.
+
+What the false positives and misses are:
+
+- **`phone` false positives (5)**: `2002-07-31 13` in the NYT wire
+  timestamp `2002-07-31 13:47` (`masc-nyt6.escaped`), where the date and
+  two-digit hour before `:47` form ten digits separated by hyphens and a
+  space; `0532 0130 00` inside the rejected near-miss IBAN
+  `DE88 3704 0044 0532 0130 00` (`operational-memos.txt`), because when
+  the outer IBAN fails mod 97 no `iban` mention is emitted to suppress
+  its trailing ten grouped digits; `12 134 567 895`
+  (`operational-memos.txt`), where an 11-digit grouped German Steuer-ID
+  shares the exact span of an 11-digit domestic phone candidate (default
+  nesting suppression drops strictly nested spans, not identical spans);
+  `943 476 5919` (`operational-memos.txt`), where the space-grouped UK
+  NHS number also matches the ten-digit phone rule on the same span; and
+  `943 476 5918` in `NHS 943 476 5918` (`operational-memos.txt`), where
+  the mistyped NHS check digit is rejected by `uk-nhs`, leaving ten
+  grouped digits.
+- **`card` false positives (2)**: both occurrences of the 15-digit GSMA
+  test IMEI `490154203237518` (`operational-memos.txt`) begin with `49`
+  and pass Luhn, matching the 13-to-19-digit Visa card rule on the same
+  span as `imei` (and once without an `IMEI` label in a prose back-reference).
+- **`email` false positives (2)**: in the `https://` and `ftp://`
+  credential URLs of `operational-memos.txt`, the `password@host` tails
+  (`stage-pass99@artifacts.example.com` and `mirror-key42@ftp.example.org`)
+  match `email` crossing `url-credential`.
+- **`phone` misses (2)**: `973.504.6215` and `(919) 807.2214` in the
+  state charity-registration disclosures of `masc-hsus4.escaped` use `.`
+  as a digit group separator, whereas the phone scanner accepts spaces,
+  hyphens and parentheses only.
+- **`ca-sin` (1) and `imei` (2) misses**: `SIN (ON) 046 454 286` and
+  `IMEI (primary) 001970012345677` in `operational-memos.txt` place a
+  parenthesised qualifier between the keyword label and the digits,
+  outside the `:`, `=`, `#`, `-` and whitespace separators the labelled
+  scanners skip; and the second occurrence of `490154203237518` in
+  `"Note that 490154203237518 begins with..."` (`operational-memos.txt`)
+  has no immediately preceding `IMEI` keyword.
 
 ## Parity checks
 

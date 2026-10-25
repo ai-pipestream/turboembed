@@ -13,7 +13,8 @@ use crate::bundle::Bundle;
 use crate::head::{Linear, read_f32};
 use crate::manifest::Format;
 use crate::model::{Expected, mlm_tensors, place};
-use crate::status::{BUNDLE_NO_ARTIFACT, Error, INVALID_ARGUMENT, INVALID_SHAPE, Result, invalid};
+use crate::status::{BUNDLE_NO_ARTIFACT, Error, INTERNAL, INVALID_ARGUMENT, INVALID_SHAPE, Result, invalid};
+use std::sync::OnceLock;
 /// A masked language model head: `transform`, then its LayerNorm, then
 /// `decoder` logits over the vocabulary.
 #[derive(Debug, Clone, PartialEq)]
@@ -28,11 +29,80 @@ pub struct MlmHead {
     pub ln_bias: Vec<f32>,
     pub ln_eps: f32,
     /// The decoder, `hidden` to `vocab`; its weight is the word embedding
-    /// table when the bundle ties it (BERT's default).
-    pub decoder: Linear,
+    /// table when the bundle ties it (BERT's default). Private, so that
+    /// every change goes through `decoder_mut`, which drops the transpose
+    /// the sparse path keeps of it.
+    decoder: Linear,
+    decoder_t: Transposed,
+}
+
+/// The decoder weight as `[hidden, vocab]`, the layout the sparse decoder
+/// kernels read (sparse/decode.rs), made the first time
+/// `MlmHead::relu_peak_into` runs and kept for the head's life: as much
+/// memory again as the decoder weight, in place of a copy made on every
+/// call; `MlmHead::decoder_mut` drops it. Equality ignores whether it has
+/// been made.
+#[derive(Clone, Default)]
+struct Transposed(OnceLock<Box<[f32]>>);
+
+impl PartialEq for Transposed {
+    fn eq(&self, _: &Transposed) -> bool {
+        true
+    }
+}
+
+impl std::fmt::Debug for Transposed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Transposed").field("made", &self.0.get().is_some()).finish()
+    }
 }
 
 impl MlmHead {
+    /// A head from its parts, checked by `validate` when it is used.
+    pub fn new(
+        hidden: usize,
+        vocab: usize,
+        transform: Linear,
+        ln_weight: Vec<f32>,
+        ln_bias: Vec<f32>,
+        ln_eps: f32,
+        decoder: Linear,
+    ) -> MlmHead {
+        MlmHead { hidden, vocab, transform, ln_weight, ln_bias, ln_eps, decoder, decoder_t: Transposed::default() }
+    }
+
+    /// The decoder, `hidden` to `vocab`.
+    pub fn decoder(&self) -> &Linear {
+        &self.decoder
+    }
+
+    /// The decoder, to change. The transpose the sparse path keeps is
+    /// dropped here and made again from the changed decoder on its next
+    /// call, so the sparse path and `logits` always read the same weights.
+    pub fn decoder_mut(&mut self) -> &mut Linear {
+        self.decoder_t = Transposed::default();
+        &mut self.decoder
+    }
+
+    /// The decoder weight as `[hidden, vocab]` (`Transposed`), made on the
+    /// first call. Call after `validate`.
+    pub(crate) fn decoder_transposed(&self) -> Result<&[f32]> {
+        let (h, v) = (self.hidden, self.vocab);
+        let wt = self.decoder_t.0.get_or_init(|| {
+            let mut wt = vec![0.0f32; h * v].into_boxed_slice();
+            for (i, w) in self.decoder.weight.chunks_exact(h).enumerate() {
+                for (j, &x) in w.iter().enumerate() {
+                    wt[j * v + i] = x;
+                }
+            }
+            wt
+        });
+        if wt.len() != h * v {
+            return Err(Error::new(INTERNAL, "MLM decoder changed shape after its transpose was made"));
+        }
+        Ok(wt)
+    }
+
     /// The head's own consistency: the transform is `hidden -> hidden`,
     /// the decoder `hidden -> vocab` with a `vocab` bias, the LayerNorm
     /// vectors `hidden` each, the epsilon positive. The fields are
@@ -120,10 +190,9 @@ impl MlmHead {
         // the decoder's name when the artifact names no decoder weight.
         let tied = expected.len() == 5;
         if tied {
-            let name = art
-                .tensor_names
-                .get(&crate::manifest::TensorRole::WordEmbeddings)
-                .ok_or_else(|| invalid("manifest.json: artifacts[{index}].tensor_names: no word_embeddings"))?;
+            let name = art.tensor_names.get(&crate::manifest::TensorRole::WordEmbeddings).ok_or_else(|| {
+                invalid(format!("manifest.json: artifacts[{index}].tensor_names: no word_embeddings"))
+            })?;
             expected.push(Expected {
                 name: name.clone(),
                 shape: vec![a.vocab_size as u64, a.hidden as u64],
@@ -145,7 +214,7 @@ impl MlmHead {
         let dw = read_f32(&files, &placed[5]);
         let db = read_f32(&files, &placed[4]);
         let decoder = Linear::new(hidden, vocab, dw, db)?;
-        Ok(Self { hidden, vocab, transform, ln_weight, ln_bias, ln_eps: a.layer_norm_eps as f32, decoder })
+        Ok(Self::new(hidden, vocab, transform, ln_weight, ln_bias, a.layer_norm_eps as f32, decoder))
     }
 
     /// Vocabulary logits for `n` hidden states (`[n, hidden]`) into `out`
@@ -261,15 +330,15 @@ mod tests {
     use crate::sparse::SparseOptions;
 
     fn head() -> MlmHead {
-        MlmHead {
-            hidden: 2,
-            vocab: 2,
-            transform: Linear::new(2, 2, vec![1.0; 4], vec![0.0; 2]).unwrap(),
-            ln_weight: vec![1.0; 2],
-            ln_bias: vec![0.0; 2],
-            ln_eps: 1e-5,
-            decoder: Linear::new(2, 2, vec![1.0; 4], vec![0.0; 2]).unwrap(),
-        }
+        MlmHead::new(
+            2,
+            2,
+            Linear::new(2, 2, vec![1.0; 4], vec![0.0; 2]).unwrap(),
+            vec![1.0; 2],
+            vec![0.0; 2],
+            1e-5,
+            Linear::new(2, 2, vec![1.0; 4], vec![0.0; 2]).unwrap(),
+        )
     }
 
     #[test]

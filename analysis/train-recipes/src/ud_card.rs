@@ -157,7 +157,7 @@ impl UdModelCard {
                     algorithm: "MAXENT".to_owned(),
                     iterations: published::ITERATIONS,
                     cutoff: published::CUTOFF,
-                    threads: published::THREADS,
+                    threads: crate::ud::THREADS,
                 },
                 sentences_per_sample: (recipe.component == published::Component::Sentence)
                     .then_some(SENTENCES_PER_SAMPLE),
@@ -247,6 +247,7 @@ impl UdModelCard {
                 size: self.file.size,
                 sha256: self.file.sha256.parse().map_err(|e| bad("sha256", e))?,
                 sha512: self.file.sha512.parse().map_err(|e| bad("sha512", e))?,
+                download: None,
             }],
         })
     }

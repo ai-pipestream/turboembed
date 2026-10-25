@@ -16,12 +16,20 @@ serde_json = { version = "1", features = ["float_roundtrip"] }
 ureq = "3"
 # The part-of-speech tagger `turbo-bench postag` measures (the postag feature).
 turbo-analysis = { path = "../analysis/core", optional = true }
+turbo-analysis-layers = { path = "../analysis/layers", optional = true }
+turbo-grammar = { path = "../analysis/grammar", optional = true }
 turbo-postag = { path = "../analysis/postag", optional = true }
+turbo-tokenize = { path = "../analysis/tokenize", optional = true }
 
 [features]
 # Links the BiLSTM-CRF part-of-speech tagger for `turbo-bench postag`
 # (docs/benchmarks.md, "Part-of-speech records").
 postag = ["dep:turbo-analysis", "dep:turbo-postag"]
+# Links the lattice tokenizer for `turbo-bench lattice`
+# (docs/benchmarks.md, "Throughput records").
+lattice = ["dep:turbo-analysis", "dep:turbo-analysis-layers", "dep:turbo-tokenize"]
+# Links the number, unit and time grammars for `turbo-bench grammar`.
+grammar = ["dep:turbo-analysis", "dep:turbo-analysis-layers", "dep:turbo-grammar"]
 # Links the CUDA backend into the library the tool measures (docs/cuda.md).
 cuda = ["turbo/cuda"]
 # cuBLAS in that library as well, for a record with TURBO_CUDA_CUBLAS set.
@@ -34,3 +42,5 @@ npu = ["turbo/npu"]
 # Links the Metal backend (docs/metal.md); TEI is then its router built
 # natively with Metal (--tei-bin).
 metal = ["turbo/metal"]
+# Native Hailo hardware evidence; the vendor runner is separate.
+hailo = ["turbo/hailo"]

@@ -1,0 +1,22 @@
+# One ephemeral runner per instance, kept going by supervise.sh. The
+# instance's settings are in /etc/turbo-ci/<instance>.env:
+#   NAME=x86-64-1
+#   LABELS=turbo-ci,x86-64
+#   DOCKER_OPTS=--cpus 8 --memory 16g --memory-swap 16g -e CARGO_BUILD_JOBS=8
+#   DOCKER=docker
+# User= is an account with docker access and a gh login allowed to
+# create runners for the repository.
+[Unit]
+Description=turboembed CI runner %i
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+User=runner-admin
+EnvironmentFile=/etc/turbo-ci/%i.env
+ExecStart=/opt/turbo-ci/supervise.sh ${NAME} ${LABELS} $DOCKER_OPTS
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

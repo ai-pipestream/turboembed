@@ -1,12 +1,11 @@
 //! `turbo-zoo`: list, accept licences for, and fetch the zoo's artifacts.
 
-use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use turbo_zoo::{
-    Acceptances, Http, Index, Licence, LicenceClass, LocalOnlyReason, Policy, Requirement, Sha256, Sha512, UserId, Zoo,
-    ZooError,
+    Acceptances, Home, Http, Index, Licence, LicenceClass, LocalOnlyReason, Policy, Requirement, Sha256, Sha512,
+    UserId, Zoo, ZooError,
 };
 
 const USAGE: &str = "usage: turbo-zoo [--index <zoo.json>] <command>
@@ -35,22 +34,6 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
-}
-
-fn home() -> Result<PathBuf, String> {
-    let var = |k| std::env::var_os(k).filter(|v| !v.is_empty()).map(PathBuf::from);
-    if let Some(h) = var("TURBO_ZOO_HOME") {
-        return Ok(h);
-    }
-    if let Some(x) = var("XDG_DATA_HOME") {
-        return Ok(x.join("turbo-zoo"));
-    }
-    var("HOME").map(|h| h.join(".local/share/turbo-zoo")).ok_or_else(|| "set TURBO_ZOO_HOME or HOME".into())
-}
-
-fn user() -> Result<UserId, String> {
-    let name = std::env::var("USER").or_else(|_| std::env::var("USERNAME")).map_err(|_| "set USER".to_string())?;
-    name.parse()
 }
 
 /// The terms `accept` and `revoke` name: a licence with its own text, or
@@ -93,8 +76,8 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
         Index::builtin()
     };
     let e = |e: ZooError| e.to_string();
-    let home = home()?;
-    let accept_path = home.join("acceptances.json");
+    let home = Home::from_env().ok_or("set TURBO_ZOO_HOME or HOME")?;
+    let accept_path = home.acceptances();
     match args.iter().map(String::as_str).collect::<Vec<_>>().as_slice() {
         ["list"] => {
             for a in index.list() {
@@ -156,7 +139,7 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
                             again with --yes"
                     .into());
             }
-            let user = user()?;
+            let user = UserId::from_env()?;
             let mut acc = Acceptances::load(&accept_path).map_err(e)?;
             let now = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_secs();
             acc.accept_terms(&user, &r, now).map_err(e)?;
@@ -166,7 +149,7 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
         }
         ["revoke", licence, rest @ ..] if rest.len() <= 1 => {
             let r = requirement(acceptable(licence, "revoke")?, rest.first().copied())?;
-            let user = user()?;
+            let user = UserId::from_env()?;
             let mut acc = Acceptances::load(&accept_path).map_err(e)?;
             if acc.revoke(&user, &r) {
                 acc.save(&accept_path).map_err(e)?;
@@ -177,15 +160,15 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
             Ok(())
         }
         ["accepted"] => {
-            let user = user()?;
+            let user = UserId::from_env()?;
             for a in Acceptances::load(&accept_path).map_err(e)?.iter().filter(|a| a.user == user) {
                 println!("{}\t{}\t{}", a.license, a.accepted_at, a.license_text);
             }
             Ok(())
         }
         ["fetch", id] => {
-            let user = user()?;
-            let zoo = Zoo::new(index, home.join("artifacts"), Policy::default(), &Http);
+            let user = UserId::from_env()?;
+            let zoo = Zoo::new(index, home.artifacts(), Policy::default(), &Http);
             // The acceptance file is read only for an artifact that needs it.
             let fetched = zoo.fetch_with(id, &user, || Acceptances::load(&accept_path)).map_err(e)?;
             for f in &fetched.files {

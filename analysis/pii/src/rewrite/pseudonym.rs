@@ -44,7 +44,7 @@ impl Pseudonymizer {
     /// label.
     pub fn rewrite(&self, text: &str, pii: &Pii) -> Result<PiiRewrite, RewriteError> {
         let mut assigned: HashMap<(PiiKind, &str), String> = HashMap::new();
-        let mut counters = [0u32; PiiKind::ALL.len()];
+        let mut counters: HashMap<PiiKind, u32> = HashMap::new();
         let mentions: Vec<_> = if self.refuse_overlaps {
             pii.mentions().collect()
         } else {
@@ -52,7 +52,7 @@ impl Pseudonymizer {
         };
         PiiRewrite::replace(text, mentions, |m, out| {
             let label = assigned.entry((m.kind, m.normalized)).or_insert_with(|| {
-                let n = &mut counters[m.kind.rank() as usize];
+                let n = counters.entry(m.kind).or_insert(0);
                 *n += 1;
                 let mut l = String::new();
                 l.push_str(&self.prefix);
