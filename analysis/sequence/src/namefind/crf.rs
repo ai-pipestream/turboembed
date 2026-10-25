@@ -4,6 +4,7 @@
 use super::{DefaultNameContext, FoundName, NameCodec};
 use crate::crf::{CrfError, CrfSequenceModel, FeatureRow};
 use crate::{ContextGenerator, Features, PatternMode};
+use std::borrow::BorrowMut;
 use turbo_maxent::{JavaString, ModelFile};
 
 pub const MODEL_ENTRY: &str = "nameFinder.crf";
@@ -43,14 +44,11 @@ pub struct CrfNameSequence {
     pub token_probabilities: Vec<f64>,
 }
 
-pub struct CrfNameFinder<'m> {
+pub struct CrfNameFinder<'m, C = DefaultNameContext> {
     model: &'m CrfSequenceModel,
-    context: DefaultNameContext,
+    context: C,
 }
 impl<'m> CrfNameFinder<'m> {
-    pub fn new(model: &'m CrfSequenceModel, context: DefaultNameContext) -> Self {
-        Self { model, context }
-    }
     pub fn from_file(model: &'m CrfSequenceModel, file: &ModelFile, mode: PatternMode) -> Result<Self, CrfError> {
         if file.manifest().get("Model-Type") != Some(MODEL_TYPE)
             || file.manifest().get(super::CODEC_PROPERTY) != Some(model.codec().class_name())
@@ -71,6 +69,14 @@ impl<'m> CrfNameFinder<'m> {
         }
         Ok(model)
     }
+}
+impl<'m, C: BorrowMut<DefaultNameContext>> CrfNameFinder<'m, C> {
+    pub fn new(model: &'m CrfSequenceModel, context: C) -> Self {
+        Self { model, context }
+    }
+    pub fn into_context(self) -> C {
+        self.context
+    }
     pub fn find(&mut self, tokens: &[&str]) -> Result<Vec<FoundName>, CrfError> {
         Ok(self.best_sequences(tokens, &[], &[], 1)?.remove(0).names)
     }
@@ -89,7 +95,7 @@ impl<'m> CrfNameFinder<'m> {
         {
             return Err(CrfError::Invalid("per-token feature lengths".into()));
         }
-        let mut rows = self.context.sequence_features(tokens, additional);
+        let mut rows = self.context.borrow_mut().sequence_features(tokens, additional);
         for (row, extra) in rows.iter_mut().zip(numeric) {
             row.extend_from_slice(extra);
         }
@@ -107,7 +113,7 @@ impl<'m> CrfNameFinder<'m> {
                     .into_iter()
                     .map(|span| {
                         let forbidden = if self.model.codec() == NameCodec::Bio {
-                            let label = format!("{}-cont", span.kind.as_deref().unwrap_or("default"));
+                            let label = span.kind.as_ref().map_or_else(|| "cont".into(), |kind| format!("{kind}-cont"));
                             self.model.labels().iter().position(|s| s == &label)
                         } else {
                             None

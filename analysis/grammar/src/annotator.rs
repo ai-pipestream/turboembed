@@ -148,8 +148,8 @@ impl GrammarAnnotator {
 fn push_quantity(found: &mut Found, m: &Mention, value: Dec, unit: Unit, digits: &mut String, symbol: &mut String) {
     digits.clear();
     let span = Span::new(m.start, m.end);
-    match unit {
-        Unit::Currency(c) => {
+    match unit.currency() {
+        Some(c) => {
             let Some((currency, e)) = CurrencyUnit::currency(c) else { return };
             let Some(amount) = value.shift(-i32::from(e)) else { return };
             let scale = amount.write_coefficient(digits);
@@ -383,6 +383,21 @@ mod tests {
         let merged = merge(&f.percents, &f.quantities);
         assert_eq!(merged.len(), 3);
         assert!(merged.is_percent(Ix::new(2)));
+    }
+
+    #[test]
+    fn rates_reach_the_quantities_and_money_layers() {
+        let text = "a 10 Mb/s link at $5 per hour";
+        let f = GrammarAnnotator::english().find(text, ViewId::SOURCE);
+        assert_eq!(f.quantities.check(), Ok(()));
+        assert_eq!(f.quantities.len(), 1, "quantities in {text}");
+        assert_eq!(f.quantities.unit(Ix::new(0)), "Mbit/s");
+        assert_eq!(&text[f.quantities.spans.get(Ix::new(0)).range()], "10 Mb/s");
+        assert_eq!(f.money.check(), Ok(()));
+        assert_eq!(f.money.len(), 1, "money in {text}");
+        assert_eq!(f.money.get(Ix::new(0)).currency.as_str(), "USD");
+        assert_eq!(f.money.amount(Ix::new(0)).to_plain_string(), "5");
+        assert_eq!(&text[f.money.spans.get(Ix::new(0)).range()], "$5 per hour", "the span carries the rate");
     }
 
     #[test]

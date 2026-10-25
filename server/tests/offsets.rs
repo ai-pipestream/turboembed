@@ -143,7 +143,7 @@ fn graph_bytes() -> (Vec<u8>, DocumentGraph) {
 #[test]
 fn document_graph_round_trips_with_layer_listing() {
     let (bytes, graph) = graph_bytes();
-    let out = round_trip_document(&DocumentGraphRequest { graph: bytes }).unwrap();
+    let out = round_trip_document(&DocumentGraphRequest { graph: bytes.into() }).unwrap();
     assert_eq!(out.source_text, TEXT);
     let ids: Vec<(&str, LayerWireStatus)> =
         out.layers.iter().map(|l| (l.layer.as_str(), LayerWireStatus::try_from(l.status).unwrap())).collect();
@@ -158,7 +158,7 @@ fn document_graph_round_trips_with_layer_listing() {
     let doc = import(&back, &codecs()).unwrap();
     assert_eq!(doc.get::<Chunks>().unwrap().spans.len(), 2);
 
-    let err = round_trip_document(&DocumentGraphRequest { graph: vec![1, 2, 3] }).expect_err("garbage refused");
+    let err = round_trip_document(&DocumentGraphRequest { graph: vec![1, 2, 3].into() }).expect_err("garbage refused");
     assert_eq!(err.code, turbo_kserve::api::TURBO_E_INVALID_ARGUMENT);
 }
 
@@ -171,7 +171,8 @@ async fn chunk_levels_and_document_graph_cross_grpc() {
     assert_eq!(back, msg);
 
     let (bytes, _) = graph_bytes();
-    let out = client.round_trip_document_graph(DocumentGraphRequest { graph: bytes }).await.unwrap().into_inner();
+    let out =
+        client.round_trip_document_graph(DocumentGraphRequest { graph: bytes.into() }).await.unwrap().into_inner();
     assert!(out.layers.iter().any(|l| l.layer == "turbo:levels" && l.status == LayerWireStatus::Ok as i32));
 
     let mut bad: ChunkLevelsResult = fixture(OffsetMode::Utf16).to_msg();

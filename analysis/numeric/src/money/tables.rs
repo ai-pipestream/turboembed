@@ -5,6 +5,8 @@
 use turbo_analysis_layers::Currency;
 use turbo_unicode::java;
 
+use crate::scan::{byte_at, char_at, whitespace_at, word_end};
+
 /// A currency code from a literal the tables know to be well formed.
 const fn code(c: &[u8; 3]) -> Currency {
     match Currency::new(*c) {
@@ -22,6 +24,33 @@ const RUB: Currency = code(b"RUB");
 const ILS: Currency = code(b"ILS");
 const THB: Currency = code(b"THB");
 const CNY: Currency = code(b"CNY");
+
+/// Dollar-prefixed region symbols (`HK$`, `US$`, `CA$`, `C$`, `A$`, `AU$`,
+/// `NZ$`, `R$`, `S$`, `SG$`, `NT$`, `MX$`, `TW$`, `Z$`) and the currency
+/// each denotes by convention when `$` is in the symbol table.
+pub const DOLLAR_PREFIXES: [(&[u8], Currency); 14] = [
+    (b"A$", code(b"AUD")),
+    (b"AU$", code(b"AUD")),
+    (b"C$", code(b"CAD")),
+    (b"CA$", code(b"CAD")),
+    (b"HK$", code(b"HKD")),
+    (b"MX$", code(b"MXN")),
+    (b"NT$", code(b"TWD")),
+    (b"NZ$", code(b"NZD")),
+    (b"R$", code(b"BRL")),
+    (b"S$", code(b"SGD")),
+    (b"SG$", code(b"SGD")),
+    (b"TW$", code(b"TWD")),
+    (b"US$", USD),
+    (b"Z$", code(b"ZWL")),
+];
+
+/// Returns the currency denoted by a dollar-prefixed region symbol (`HK$`,
+/// `US$`, `CA$`, `R$`, `A$`) starting at `prefix` (`1..=2` ASCII letters
+/// followed by `'$'`).
+pub(crate) fn dollar_prefix(prefix: &[u8]) -> Option<Currency> {
+    DOLLAR_PREFIXES.binary_search_by_key(&prefix, |&(p, _)| p).ok().map(|i| DOLLAR_PREFIXES[i].1)
+}
 
 /// The default symbol table: each symbol mapped to the currency it most
 /// commonly denotes. A caller in another convention passes its own table
@@ -96,6 +125,56 @@ pub fn is_iso_currency(code: Currency) -> bool {
     ISO_CODES.binary_search(&code.code()).is_ok()
 }
 
+/// Whether `code` is an ISO 4217 testing (`XTS`) or no-currency (`XXX`)
+/// code. By default [`MoneyExtractor`](super::MoneyExtractor) refuses these
+/// codes as money mentions; [`MoneyExtractor::with_opennlp_parity`](super::MoneyExtractor::with_opennlp_parity)
+/// accepts them to match OpenNLP.
+pub fn is_test_currency(code: Currency) -> bool {
+    matches!(&code.code(), b"XTS" | b"XXX")
+}
+
+/// Returns the ISO 4217 default fraction digits (minor-unit decimal places)
+/// for `code` as `java.util.Currency.getDefaultFractionDigits()` reports it
+/// on JDK 21 (`0` for `JPY`/`KRW`/`VND`, `2` for `USD`/`EUR`/`GBP`, `3` for
+/// `BHD`/`JOD`/`KWD`, `4` for `CLF`), or `None` when the code has no minor
+/// unit (`XAU`, `XDR`, `XTS`, `XXX`) or is not in the ISO table.
+pub fn minor_units(code: Currency) -> Option<u8> {
+    if !is_iso_currency(code) {
+        return None;
+    }
+    let bytes = code.code();
+    if NO_MINOR_UNIT_CODES.binary_search(&bytes).is_ok() {
+        return None;
+    }
+    if ZERO_MINOR_UNIT_CODES.binary_search(&bytes).is_ok() {
+        return Some(0);
+    }
+    if THREE_MINOR_UNIT_CODES.binary_search(&bytes).is_ok() {
+        return Some(3);
+    }
+    if bytes == *b"CLF" {
+        return Some(4);
+    }
+    Some(2)
+}
+
+/// Codes where `Currency.getDefaultFractionDigits()` returns `-1` (precious
+/// metals, composite units, testing, and no-currency codes), sorted.
+const NO_MINOR_UNIT_CODES: [[u8; 3]; 15] = [
+    *b"XAG", *b"XAU", *b"XBA", *b"XBB", *b"XBC", *b"XBD", *b"XDR", *b"XFO", *b"XFU", *b"XPD", *b"XPT", *b"XSU",
+    *b"XTS", *b"XUA", *b"XXX",
+];
+
+/// Codes where `Currency.getDefaultFractionDigits()` returns `0`, sorted.
+const ZERO_MINOR_UNIT_CODES: [[u8; 3]; 30] = [
+    *b"ADP", *b"BEF", *b"BIF", *b"BYB", *b"BYR", *b"CLP", *b"DJF", *b"ESP", *b"GNF", *b"GRD", *b"ISK", *b"ITL",
+    *b"JPY", *b"KMF", *b"KRW", *b"LUF", *b"MGF", *b"PTE", *b"PYG", *b"ROL", *b"RWF", *b"TPE", *b"TRL", *b"UGX",
+    *b"UYI", *b"VND", *b"VUV", *b"XAF", *b"XOF", *b"XPF",
+];
+
+/// Codes where `Currency.getDefaultFractionDigits()` returns `3`, sorted.
+const THREE_MINOR_UNIT_CODES: [[u8; 3]; 7] = [*b"BHD", *b"IQD", *b"JOD", *b"KWD", *b"LYD", *b"OMR", *b"TND"];
+
 /// The JDK's currency codes, sorted.
 const ISO_CODES: [[u8; 3]; 233] = [
     *b"ADP", *b"AED", *b"AFA", *b"AFN", *b"ALL", *b"AMD", *b"ANG", *b"AOA", *b"ARS", *b"ATS", *b"AUD", *b"AWG",
@@ -120,6 +199,164 @@ const ISO_CODES: [[u8; 3]; 233] = [
     *b"ZWD", *b"ZWG", *b"ZWL", *b"ZWN", *b"ZWR",
 ];
 
+/// Whether `word` is `pound` or `pounds` under `Character.toLowerCase`.
+pub(crate) fn is_pound_word(word: &str) -> bool {
+    lower_eq(word, "pound") || lower_eq(word, "pounds")
+}
+
+/// If `sterling` follows one whitespace character after `end`, returns the
+/// byte offset after `sterling`.
+pub(crate) fn trailing_sterling(text: &str, end: usize) -> Option<usize> {
+    if !whitespace_at(text, end) {
+        return None;
+    }
+    let next_start = end + char_at(text, end).map_or(1, char::len_utf8);
+    let next_end = word_end(text, next_start, MAX_CURRENCY_WORD_UNITS)?;
+    lower_eq(&text[next_start..next_end], "sterling").then_some(next_end)
+}
+
+const POUND_WEIGHT_FOLLOWING_CUES: &[&str] =
+    &["bag", "box", "carton", "crate", "ounce", "ounces", "oz", "package", "sack"];
+const POUND_WEIGHT_OF_NOUNS: &[&str] = &[
+    "apples",
+    "beef",
+    "butter",
+    "cheese",
+    "coal",
+    "coffee",
+    "corn",
+    "equipment",
+    "fat",
+    "fish",
+    "flour",
+    "food",
+    "force",
+    "freight",
+    "fruit",
+    "grain",
+    "ice",
+    "iron",
+    "lead",
+    "luggage",
+    "meat",
+    "milk",
+    "muscle",
+    "payload",
+    "pork",
+    "potatoes",
+    "pressure",
+    "rice",
+    "salt",
+    "sand",
+    "sugar",
+    "thrust",
+    "water",
+    "weight",
+    "wheat",
+    "wood",
+];
+const POUND_WEIGHT_PRECEDING_CUES: &[&str] = &[
+    "benched",
+    "carried",
+    "carrying",
+    "deadlifted",
+    "gained",
+    "gaining",
+    "heavier",
+    "heavy",
+    "lifted",
+    "lifting",
+    "weigh",
+    "weighed",
+    "weighing",
+    "weighs",
+];
+const POUND_MONEY_LOSS_PREPOSITIONS: &[&str] = &["at", "betting", "by", "from", "in", "on", "to"];
+
+/// Returns `true` when `pound(s)` ending at `end` (after a numeral starting at
+/// `digit_start`) stands in a weight context (`3 pounds of flour`, `weighs 150 pounds`).
+pub(crate) fn is_pound_weight_context(text: &str, digit_start: usize, end: usize) -> bool {
+    let mut next_word_slice: Option<&str> = None;
+    if whitespace_at(text, end) {
+        let next_start = end + char_at(text, end).map_or(1, char::len_utf8);
+        if let Some(next_end) = word_end(text, next_start, 12) {
+            let next_word = &text[next_start..next_end];
+            next_word_slice = Some(next_word);
+            if POUND_WEIGHT_FOLLOWING_CUES.iter().any(|&w| lower_eq(next_word, w)) {
+                return true;
+            }
+            if whitespace_at(text, next_end) {
+                let after = next_end + char_at(text, next_end).map_or(1, char::len_utf8);
+                if let Some(after_end) = word_end(text, after, 12) {
+                    let second = &text[after..after_end];
+                    if lower_eq(next_word, "of") && POUND_WEIGHT_OF_NOUNS.iter().any(|&w| lower_eq(second, w)) {
+                        return true;
+                    }
+                    if lower_eq(next_word, "in") && lower_eq(second, "weight") {
+                        return true;
+                    }
+                    if lower_eq(next_word, "per")
+                        && (lower_eq(second, "square") || lower_eq(second, "sq"))
+                        && whitespace_at(text, after_end)
+                    {
+                        let third_start = after_end + char_at(text, after_end).map_or(1, char::len_utf8);
+                        if let Some(third_end) = word_end(text, third_start, 12) {
+                            let third = &text[third_start..third_end];
+                            if ["in", "inch", "inches"].iter().any(|&w| lower_eq(third, w)) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        } else if byte_at(text.as_bytes(), next_start).is_ascii_digit() {
+            let mut sub_idx = next_start;
+            while byte_at(text.as_bytes(), sub_idx).is_ascii_digit() {
+                sub_idx += 1;
+            }
+            let unit_start = if whitespace_at(text, sub_idx) {
+                sub_idx + char_at(text, sub_idx).map_or(1, char::len_utf8)
+            } else {
+                sub_idx
+            };
+            if let Some(unit_end) = word_end(text, unit_start, 12)
+                && ["ounce", "ounces", "oz"].iter().any(|&w| lower_eq(&text[unit_start..unit_end], w))
+            {
+                return true;
+            }
+        }
+    }
+    if let Some(prev) = word_before(text, digit_start) {
+        if POUND_WEIGHT_PRECEDING_CUES.iter().any(|&w| lower_eq(prev, w)) {
+            return true;
+        }
+        if lower_eq(prev, "lost") {
+            return !next_word_slice.is_some_and(|nw| POUND_MONEY_LOSS_PREPOSITIONS.iter().any(|&p| lower_eq(nw, p)));
+        }
+    }
+    false
+}
+
+fn word_before(text: &str, index: usize) -> Option<&str> {
+    let mut chars = text.get(..index)?.char_indices().rev().peekable();
+    if chars.peek().is_some_and(|&(_, c)| c == '-') {
+        chars.next();
+    }
+    if !whitespace_at(text, chars.peek()?.0) {
+        return None;
+    }
+    while chars.peek().is_some_and(|&(idx, _)| whitespace_at(text, idx)) {
+        chars.next();
+    }
+    let (last_idx, last_ch) = chars.next().filter(|&(_, ch)| java::is_letter(ch))?;
+    let word_start = chars.take_while(|&(_, ch)| java::is_letter(ch)).last().map_or(last_idx, |(idx, _)| idx);
+    text.get(word_start..last_idx + last_ch.len_utf8())
+}
+
+pub(crate) fn lower_eq(word: &str, ascii_lower: &str) -> bool {
+    word.chars().map(java::to_lower_char).eq(ascii_lower.chars())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -138,6 +375,20 @@ mod tests {
         assert!(is_iso_currency(code(b"EEK")));
         assert!(!is_iso_currency(code(b"USX")));
         assert!(!is_iso_currency(code(b"AAA")));
+        assert!(DOLLAR_PREFIXES.windows(2).all(|w| w[0].0 < w[1].0));
+        assert!(NO_MINOR_UNIT_CODES.windows(2).all(|w| w[0] < w[1]));
+        assert!(ZERO_MINOR_UNIT_CODES.windows(2).all(|w| w[0] < w[1]));
+        assert!(THREE_MINOR_UNIT_CODES.windows(2).all(|w| w[0] < w[1]));
+        assert!(is_test_currency(code(b"XTS")));
+        assert!(is_test_currency(code(b"XXX")));
+        assert!(!is_test_currency(USD));
+        assert_eq!(minor_units(USD), Some(2));
+        assert_eq!(minor_units(JPY), Some(0));
+        assert_eq!(minor_units(code(b"KWD")), Some(3));
+        assert_eq!(minor_units(code(b"CLF")), Some(4));
+        assert_eq!(minor_units(code(b"XAU")), None);
+        assert_eq!(minor_units(code(b"XXX")), None);
+        assert_eq!(minor_units(code(b"USX")), None);
     }
 
     #[test]

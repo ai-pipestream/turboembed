@@ -77,11 +77,11 @@ pub struct Unigram {
     pub whole_text: bool,
 }
 
-/// Byte-level BPE as upstream `tokenizers` runs it for GPT-2 and
-/// RoBERTa: the text, unnormalized, is cut into words by GPT-2's pattern
-/// (with a space put in front of each piece of text between special
-/// tokens that does not start with one, when `add_prefix_space`), each
-/// word's bytes are written as GPT-2's printable characters, and the
+/// Byte-level BPE as upstream `tokenizers` runs it for GPT-2, RoBERTa,
+/// Llama-3 and Qwen2: the text, put in NFC when `nfc`, is cut into words
+/// by `pattern` (with a space put in front of each piece of text between
+/// special tokens that does not start with one, when `add_prefix_space`),
+/// each word's bytes are written as GPT-2's printable characters, and the
 /// tokenizer file's merges join them pair by pair, lowest rank first. With
 /// `ignore_merges`, a word that is a piece of the vocabulary is that
 /// piece.
@@ -91,6 +91,31 @@ pub struct Bpe {
     pub add_prefix_space: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub ignore_merges: bool,
+    #[serde(default, skip_serializing_if = "BpePattern::is_gpt2")]
+    pub pattern: BpePattern,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub nfc: bool,
+}
+
+/// The pattern that cuts a byte-level BPE's text into words. GPT-2's is
+/// the ByteLevel pre-tokenizer's own; Llama-3's and Qwen2's are a Split
+/// before a ByteLevel that splits nothing, and differ only in digits:
+/// Llama-3 takes runs of up to three, Qwen2 one at a time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum BpePattern {
+    #[default]
+    #[serde(rename = "BPE_PATTERN_GPT2")]
+    Gpt2,
+    #[serde(rename = "BPE_PATTERN_LLAMA3")]
+    Llama3,
+    #[serde(rename = "BPE_PATTERN_QWEN2")]
+    Qwen2,
+}
+
+impl BpePattern {
+    fn is_gpt2(&self) -> bool {
+        *self == BpePattern::Gpt2
+    }
 }
 
 /// SentencePiece's own tokenizer, as Google's sentencepiece library runs
