@@ -86,8 +86,12 @@ fn an_optimized_clean_pushed_cli_records_real_settings_and_grammar_counts() {
     assert_eq!(r.library.commit, turbo_bench::BUILD_COMMIT);
     assert_eq!(r.cargo_build, Some(CargoBuild::current()));
     assert_eq!(r.command, "turbo-bench grammar --rounds 1 --repo <repo> --out <dir>");
-    assert_eq!(r.text.bytes, 106407);
-    assert_eq!(r.text.chars, 100282);
-    assert_eq!(r.runs.iter().map(|r| r.units).collect::<Vec<_>>(), [11081, 31073, 32529, 45640, 1344]);
+    // The text is the goldens num, quantity, money and temporal inputs
+    // repeated past 100 KiB, so these move whenever an input is added:
+    // #1192's eight nightly quantity inputs took them from 106407 bytes,
+    // 100282 chars and [11081, 31073, 32529, 45640, 1344].
+    assert_eq!(r.text.bytes, 106722);
+    assert_eq!(r.text.chars, 100590);
+    assert_eq!(r.runs.iter().map(|r| r.units).collect::<Vec<_>>(), [11137, 31283, 32711, 46382, 1344]);
     assert!(r.runs.iter().all(|r| r.seconds > 0.0 && r.seconds.is_finite()));
 }
