@@ -10,12 +10,13 @@
 //! itself absent. `BoundaryDrift`'s source lives in the chunker crate,
 //! which depends on this one, so `build` never emits it; the kind
 //! exists so chunker-side lanes share this vocabulary.
-//! Default source instances select the lanes; category rows use their
+//! `build` selects default source instances; `build_instances` selects
+//! every complete source instance on its requested view. Category rows use their
 //! recorded sentence or chunk anchor instance, including its view and
 //! individual fragments.
 //!
-//! With no bucket count a lane is segmented exactly, by the combined
-//! segmentation of its items' fragments over the whole view (see
+//! With no bucket count a lane is segmented exactly with the same elementary
+//! segmentation as its items' fragments over the whole view (see
 //! [`Document::combined_segments`]); with one, the view is cut into
 //! that many equal-width bins. A density segment's score is its
 //! covering item count; a scored segment's score is its primary item's
@@ -32,7 +33,9 @@ use crate::sentiment::{EmotionLayer, Incivility};
 use crate::{Categories, Chunks, Entities, Pii, Sentences, Tokens};
 
 mod buckets;
+mod instances;
 mod lanes;
+mod sweep;
 
 use buckets::bucket_segments;
 
@@ -169,16 +172,16 @@ impl DocumentHeatmap {
             )?);
         }
         if let Some(cats) = doc.get::<Categories<Sentences>>() {
-            lanes.push(sentiment_lane(doc, view, text_len, buckets, cats)?);
+            lanes.push(sentiment_lane(doc, view, text_len, buckets, Key::<Categories<Sentences>>::DEFAULT.id(), cats)?);
         }
         if let Some(inc) = doc.get::<Incivility>() {
-            lanes.push(incivility_lane(doc, view, text_len, buckets, inc)?);
+            lanes.push(incivility_lane(doc, view, text_len, buckets, Key::<Incivility>::DEFAULT.id(), inc, false)?);
         }
         if let Some(emotion) = doc.get::<EmotionLayer>() {
-            lanes.push(emotion_lane(doc, view, text_len, buckets, emotion)?);
+            lanes.push(emotion_lane(doc, view, text_len, buckets, Key::<EmotionLayer>::DEFAULT.id(), emotion, false)?);
         }
         if let Some(cats) = doc.get::<Categories<Chunks>>() {
-            lanes.push(chunk_score_lane(doc, view, text_len, buckets, cats)?);
+            lanes.push(chunk_score_lane(doc, view, text_len, buckets, Key::<Categories<Chunks>>::DEFAULT.id(), cats)?);
         }
         Ok(DocumentHeatmap { view, lanes })
     }
@@ -231,13 +234,11 @@ fn spanned_lane(
     let items: Vec<Item> = (0..ts.start.len())
         .map(|i| Item { source: i as u32, score: 0.0, view: ts.view, frags: frags_of(&ts, i) })
         .collect();
-    finish_lane(doc, view, text_len, buckets, kind, key, &items, Some(ts))
+    finish_lane(doc, view, text_len, buckets, kind, key, &items)
 }
 
 /// Segments `items` exactly or by bucket and aggregates each segment.
-/// `columns` reuses an existing layer's span columns in exact mode
-/// when the items are exactly that layer's items in order; otherwise
-/// columns are synthesized from the item fragments.
+/// The sweep maintains item summaries instead of materializing active memberships.
 #[allow(clippy::too_many_arguments)]
 fn finish_lane(
     doc: &Document,
@@ -247,7 +248,6 @@ fn finish_lane(
     kind: HeatmapLaneKind,
     key: KeyId,
     items: &[Item],
-    columns: Option<TextSpans<'_>>,
 ) -> Result<HeatmapLane, Error> {
     for it in items {
         if !kind.is_density() && !it.score.is_finite() {
@@ -255,7 +255,7 @@ fn finish_lane(
         }
     }
     let segments = match buckets {
-        None => exact_segments(doc, view, text_len, kind, key, items, columns)?,
+        None => exact_segments(doc, view, text_len, kind, key, items)?,
         Some(n) => bucket_segments(doc, view, key, text_len, n.get(), kind, items)?,
     };
     let (mut min_score, mut max_score) = (0.0f32, 0.0f32);
@@ -268,25 +268,6 @@ fn finish_lane(
         }
     }
     Ok(HeatmapLane { id: kind.name().to_string(), kind, view, min_score, max_score, segments })
-}
-
-fn aggregate(kind: HeatmapLaneKind, items: &[Item], covering: &[usize]) -> (f32, u32, Option<u32>) {
-    let count = covering.len() as u32;
-    if covering.is_empty() {
-        return (0.0, 0, None);
-    }
-    if kind.is_density() {
-        let first = covering.iter().map(|&i| items[i].source).min();
-        return (count as f32, count, first);
-    }
-    let mut best = covering[0];
-    for &i in &covering[1..] {
-        let (a, b) = (items[best].score.abs(), items[i].score.abs());
-        if b > a || (b == a && items[i].source < items[best].source) {
-            best = i;
-        }
-    }
-    (items[best].score, count, Some(items[best].source))
 }
 
 /// Refuses an item whose spans are in a view other than `view`, or a
@@ -302,6 +283,9 @@ fn check_items(doc: &Document, view: ViewId, key: KeyId, text_len: u32, items: &
             return Err(bounds(detail));
         }
         for &(s, e) in &it.frags {
+            if it.frags.len() > 1 && s == e {
+                return Err(bounds(format!("item {} has an empty discontinuous fragment", it.source)));
+            }
             if s > e || e > text_len {
                 let detail =
                     format!("item {} fragment {s}..{e} is past the end of the {text_len}-byte view", it.source);
@@ -310,6 +294,9 @@ fn check_items(doc: &Document, view: ViewId, key: KeyId, text_len: u32, items: &
             if !text.is_char_boundary(s as usize) || !text.is_char_boundary(e as usize) {
                 return Err(bounds(format!("item {} fragment {s}..{e} is inside a character of the view", it.source)));
             }
+        }
+        if it.frags.windows(2).any(|pair| pair[0].1 >= pair[1].0) {
+            return Err(bounds(format!("item {} fragments are not separated in text order", it.source)));
         }
     }
     Ok(())
@@ -323,46 +310,9 @@ fn exact_segments(
     kind: HeatmapLaneKind,
     key: KeyId,
     items: &[Item],
-    columns: Option<TextSpans<'_>>,
 ) -> Result<Vec<HeatmapSegment>, Error> {
     check_items(doc, view, key, text_len, items)?;
-    // Synthesized columns when items are not a layer's own, kept alive
-    // for the combined call.
-    let (mut start, mut end, mut frag_start, mut frag_end, mut frag_item_end) =
-        (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new());
-    let ts = match columns {
-        Some(ts) => ts,
-        None => {
-            for it in items {
-                start.push(it.frags.first().map_or(0, |f| f.0));
-                end.push(it.frags.last().map_or(0, |f| f.1));
-                for f in &it.frags {
-                    frag_start.push(f.0);
-                    frag_end.push(f.1);
-                }
-                frag_item_end.push(frag_start.len() as u32);
-            }
-            TextSpans {
-                view,
-                start: &start,
-                end: &end,
-                frag_start: &frag_start,
-                frag_end: &frag_end,
-                frag_item_end: &frag_item_end,
-            }
-        }
-    };
-    let window = doc.window(view, 0, text_len.max(1))?;
-    let shape = doc.combined_segments(&window, &[(key, ts)])?;
-    Ok(shape
-        .segments
-        .iter()
-        .map(|seg| {
-            let covering: Vec<usize> = shape.members_of(seg).iter().map(|m| m.item as usize).collect();
-            let (score, count, primary_item) = aggregate(kind, items, &covering);
-            HeatmapSegment { span: seg.span, score, count, primary_item }
-        })
-        .collect())
+    sweep::exact(text_len, key, kind, items)
 }
 
 #[cfg(test)]

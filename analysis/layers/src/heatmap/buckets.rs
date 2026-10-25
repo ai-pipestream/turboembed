@@ -1,9 +1,7 @@
 //! Checked bucket storage with fallible count-controlled reservations.
 use std::alloc::Layout;
 
-use super::{
-    Document, Error, HeatmapLaneKind, HeatmapSegment, Item, KeyId, Span, ViewId, aggregate, check_items, invalid,
-};
+use super::{Document, Error, HeatmapLaneKind, HeatmapSegment, Item, KeyId, Span, ViewId, check_items, invalid, sweep};
 
 // Check array sizes before reservation. On 32-bit targets, u32::MAX
 // buckets would need an unrepresentable N + 1 edges.
@@ -50,17 +48,13 @@ pub(super) fn bucket_segments(
         return Ok(segments);
     }
     let mut edges = reserved(key, edge_count, "bucket edges")?;
-    let mut covering: Vec<Vec<usize>> = reserved(key, n, "bucket membership lists")?;
-    let mut seen = reserved(key, n, "bucket item markers")?;
+    let mut events = sweep::events(key, items)?;
     edges.extend((0..edge_count).map(edge));
-    covering.resize_with(n, Vec::new);
-    seen.resize(n, 0u32);
     for (ix, it) in items.iter().enumerate() {
-        let mark = ix as u32 + 1;
         for &(s, e) in &it.frags {
             // Use the emitted rounded edges for positive overlap and points;
             // positive-length fragments must not cover empty bins.
-            let (first, end) = if s == e {
+            if s == e {
                 let at = if text_len == 0 {
                     0
                 } else if s == text_len {
@@ -68,24 +62,18 @@ pub(super) fn bucket_segments(
                 } else {
                     edges[1..].partition_point(|&end| end <= s)
                 };
-                (at, at + 1)
+                events.push(sweep::Event { at: at as u32, item: ix, delta: 0 });
             } else {
-                (edges[1..].partition_point(|&end| end <= s), edges[..n].partition_point(|&start| start < e))
-            };
-            for (b, cov) in covering.iter_mut().enumerate().take(end).skip(first) {
-                if (s == e || edges[b] < edges[b + 1]) && seen[b] != mark {
-                    seen[b] = mark;
-                    cov.try_reserve(1)
-                        .map_err(|e| invalid(key, format!("cannot reserve heatmap bucket membership: {e}")))?;
-                    cov.push(ix);
+                let first = edges[1..].partition_point(|&end| end <= s);
+                let end = edges[..n].partition_point(|&start| start < e);
+                if first < end {
+                    events.push(sweep::Event { at: first as u32, item: ix, delta: 1 });
+                    events.push(sweep::Event { at: end as u32, item: ix, delta: -1 });
                 }
             }
         }
     }
-    segments.extend((0..n).map(|i| {
-        let (score, count, primary_item) = aggregate(kind, items, &covering[i]);
-        HeatmapSegment { span: Span { start: edges[i], end: edges[i + 1] }, score, count, primary_item }
-    }));
+    sweep::buckets(&edges, kind, items, events, &mut segments);
     Ok(segments)
 }
 

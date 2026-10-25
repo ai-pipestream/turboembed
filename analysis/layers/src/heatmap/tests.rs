@@ -29,7 +29,7 @@ fn both_modes_refuse_items_from_another_view() {
     let doc = Document::new("0123456789");
     let items = token_items(ViewId(1), &[(0, 2)]);
     let key = Key::<Tokens>::DEFAULT.id();
-    let exact = exact_segments(&doc, ViewId::SOURCE, 10, HeatmapLaneKind::TokenDensity, key, &items, None);
+    let exact = exact_segments(&doc, ViewId::SOURCE, 10, HeatmapLaneKind::TokenDensity, key, &items);
     for refused in [exact, bucket(&doc, &items)] {
         match refused {
             Err(Error::Bounds { detail, .. }) => assert!(detail.contains("in view 1"), "{detail}"),
