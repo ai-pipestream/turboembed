@@ -31,6 +31,8 @@ mod limits;
 pub mod multirep;
 mod optimizer;
 mod providers;
+pub mod quality_filter;
+pub use quality_filter::QualityChunkFilter;
 mod run;
 pub mod table_header;
 mod text_signals;
@@ -92,6 +94,8 @@ pub use weigh::{
 };
 
 pub mod export;
+pub mod projection;
+pub use projection::{ProjectionDims, VectorProjection};
 pub mod levels;
 pub mod terms;
 
