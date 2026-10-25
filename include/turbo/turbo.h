@@ -312,7 +312,10 @@ int32_t turbo_runtime_capability(turbo_runtime *rt, uint32_t index, uint32_t tas
 
 /* The device that will run task fastest here: the highest capability status
  * at TURBO_PRECISION_MODEL, then the best speed_ratio among equals. Embedding excludes
- * CPUs; reranking currently selects a CPU. Among devices that still tie, the first in device order. reason
+ * CPUs; reranking and extractive QA include them, and their cells tie as experimental
+ * until a task record backs one, so a GPU listed before the CPU is chosen. Reranking
+ * runs only on the CPU and CUDA, so on other GPUs it selects the CPU. Among devices
+ * that still tie, the first in device order. reason
  * receives one line saying why, if non-NULL and reason_len is not 0.
  * TURBO_E_DEVICE_NOT_FOUND when nothing offers the task. */
 int32_t turbo_runtime_select(turbo_runtime *rt, uint32_t task, uint32_t *out,
@@ -629,7 +632,7 @@ int32_t turbo_embed_write_ranges(turbo_session *s, const turbo_token_batch *batc
  * session is TURBO_E_BUSY. */
 int32_t turbo_session_run(turbo_session *s, turbo_result **out, turbo_error *err);
 
-/* CPU cross-encoder reranking. Output is [pair_count, 1] F32 raw relevance
+/* Cross-encoder reranking, on the CPU or through CUDA's embedding encoder. Output is [pair_count, 1] F32 raw relevance
  * logits, max-pooled over passage windows. Model and artifact identity are
  * in turbo_result_info. No sigmoid is applied. */
 typedef struct turbo_rerank_options {

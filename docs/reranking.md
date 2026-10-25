@@ -1,10 +1,12 @@
 # Cross-encoder reranking
 
 `TASK_RERANK` scores a query and passage jointly with a single relevance logit.
-It runs the native CPU BERT or RoBERTa encoder and sequence-classification head.
+It runs the native BERT or RoBERTa encoder and sequence-classification head,
+on the CPU or on a device backend (see [Devices](#devices)).
 The score is a raw logit, not a probability and not an embedding similarity.
 The initial supported bundles are `cross-encoder/ms-marco-MiniLM-L6-v2` and
-`BAAI/bge-reranker-base`. Other backends return an unsupported-task error.
+`BAAI/bge-reranker-base`. A backend with no embedding encoder returns an
+unsupported-task error that names the embedding encoder.
 
 ## Pair construction
 
@@ -30,6 +32,8 @@ callers should bound document sizes at ingestion.
 ## APIs
 
 `turbo::rerank::Reranker::open(bundle, threads)` creates a safe CPU session.
+`Reranker::open_with(bundle, &RerankSessionOptions { backend, precision, cpu_threads })`
+names the backend instead; `backend()` and `device_info()` say where it runs.
 `score(&[(query, passage)], RerankOptions::default())` returns raw scores in
 input order plus the model ID, revision, manifest hash, and artifact hash.
 It batches any number of pairs to the model capacity. Empty input returns
@@ -41,7 +45,13 @@ shape `[pair_count, 1]`. `turbo_tokenizer_encode_pair` exposes the first window'
 joint IDs and segment IDs for inspection. `turbo_model_info` reports the task,
 query budget, and pair-template constant; both previous structure sizes
 remain accepted. Rerank sessions report tokenization, encoding, head, and
-pooling stages separately in the stage placement array.
+pooling stages separately in the stage placement array. The encoding stage
+is where the backend ran the encoder (`TURBO_STAGE_DEVICE` on a GPU). The
+classifier head and the max over windows always run on the host. On a device
+the scores are read back into the session's host memory, so the result is
+`TURBO_PLACE_HOST` on every backend. A buffer from `turbo_result_buffer`
+exports only `TURBO_HANDLE_HOST_PTR`, which is the address
+`turbo_buffer_host_ptr` gives.
 
 `turbo_analysis_embed::RerankAnnotator` reads a view, `Levels`, and a
 `Shortlist<Levels>` and writes `Reranked<Levels>`. Build a shortlist with
@@ -105,3 +115,75 @@ For TEI, run the CPU image with the same affinity and thread settings, mount
 the upstream model at `/data`, select F32, and send the four passages from
 `core/examples/rerank_speed.rs` to `/rerank` with `raw_scores: true`.
 Compact run outputs are in `docs/receipts/rerank-707/`.
+
+## Devices
+
+A rerank bundle loads on the CPU and on CUDA. Those are the backends whose
+rerank scores and timing are recorded below. Metal and Level Zero would take
+the same code path, but `turbo_model_load` refuses a rerank bundle on them
+with `TURBO_E_UNSUPPORTED_TASK`, and their rerank cell is UNSUPPORTED, until
+they have been run. The pair windows go
+through the embedding encoder with CLS pooling and no normalization. When
+the backend leaves the hidden states in device memory, the CLS states
+(`hidden` floats a window) are copied to the host. The pooler, the
+classifier and the largest window logit then run on the host in F64, as on
+the CPU. The result is a host buffer, and `d2h_bytes` counts the copy.
+
+`Reranker::open` stays on the CPU even when a device is present: every
+rerank cell ties as experimental, so device order would otherwise pick a
+GPU. Name a device with `open_with`. The rerank cell on CUDA is
+EXPERIMENTAL until a compiled benchmark record backs it.
+
+### Parity
+
+`core/tests/cuda_rerank.rs` scores a bundle's pinned reference pairs on the
+device and on the CPU, with a bound of `1e-4` against both. Set
+`TURBO_TEST_RERANK_BUNDLES` to comma-separated bundle directories to run the
+real bundles at EXACT and MODEL precision:
+
+```sh
+TURBO_TEST_REQUIRE_CUDA=1 TURBO_TEST_RERANK_BUNDLES=<minilm bundle>,<bge bundle> \
+  cargo test --release -p turbo --features cuda --test cuda_rerank -- --test-threads=1 --nocapture
+```
+
+| Backend | Model | Precision | Largest error to the reference | Largest difference to the CPU path |
+| --- | --- | --- | ---: | ---: |
+| CUDA, RTX 4080 SUPER | MS MARCO MiniLM L6 v2 | EXACT, MODEL | 0.0000024 | 0.0000026 |
+| CUDA, RTX 4080 SUPER | BGE reranker base | EXACT, MODEL | 0.0000075 | 0.0000048 |
+
+EXACT and MODEL gave the same scores on both bundles. Metal and Level Zero
+have no recorded parity yet, so they are refused.
+
+### Throughput
+
+`turbo-bench rerank` takes its pairs from a SQuAD-format file. Request `i` is
+the first question of paragraph `i` with 16 contexts from paragraph `i` on,
+using only contexts that fit one pair window uncut, so neither side
+truncates. A pass scores all 64 requests in turn; the figure is the median
+of ten passes after two warmups. TEI runs on the same GPU in a container
+pinned by digest, in float32, timed on `/rerank` with `raw_scores: true` and
+`truncate: false`, so its figure includes loopback HTTP.
+
+Measured on 2026-10-24 at commit `66bbe5e2`, NVIDIA RTX 4080 SUPER (CUDA
+runtime 12.4, driver 615.71.09), which was also driving a desktop session,
+with SQuAD 2.0 dev, precision EXACT, and TEI 89-1.8 (image digest
+`sha256:1a3d7c897bdaf42cd4d1cad57b3134b91b3b5db129995d30db9fb2fc8bf8fd64`).
+
+| Model | Library pairs/s | TEI pairs/s | Library over TEI | Largest score difference to TEI |
+| --- | ---: | ---: | ---: | ---: |
+| MS MARCO MiniLM L6 v2 | 4303.7 | 1276.1 | 3.37x | 0.0129 |
+| BGE reranker base | 663.9 | 427.9 | 1.55x | 0.116 |
+
+The records are in `benchmarks/rerank/`. The score differences are TEI's:
+the library is within `1e-5` of the Transformers FP32 reference on both
+bundles (above), and TEI's BGE scores also differ from that reference on
+the CPU. Reproduce from a clean, pushed commit (the tool stops on a dirty
+tree), with the upstream directory the bundle was made from as TEI's model:
+
+```sh
+cargo build --release -p turbo-bench --features cuda
+target/release/turbo-bench rerank --bundle <bundle> --questions <dev-v2.0.json> \
+  --device cuda --precision exact \
+  --tei-image ghcr.io/huggingface/text-embeddings-inference@sha256:1a3d7c897bdaf42cd4d1cad57b3134b91b3b5db129995d30db9fb2fc8bf8fd64 \
+  --tei-model <upstream dir>
+```

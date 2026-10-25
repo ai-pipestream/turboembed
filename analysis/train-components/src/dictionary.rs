@@ -28,7 +28,7 @@ use std::fmt::Write as _;
 use turbo_formats::Lines;
 use turbo_formats::ner::CensusReader;
 use turbo_maxent::{Dictionary, Entries};
-use turbo_unicode::java::code_point::to_lower_case;
+use turbo_unicode::java::lowercase_code_points;
 
 use crate::error::{Error, Result};
 use crate::java_hash::{hash_map_order, string_list_hash_code};
@@ -206,7 +206,7 @@ pub fn build_census_dictionary_xml(source: &str) -> Result<Vec<u8>> {
 /// tab and an entry of the two tokens around it are different, as
 /// `StringList.equals` says.
 fn fold_key(tokens: &[String]) -> Vec<String> {
-    tokens.iter().map(|t| t.chars().map(|c| char::from_u32(to_lower_case(c as u32)).unwrap_or(c)).collect()).collect()
+    tokens.iter().map(|t| lowercase_code_points(t)).collect()
 }
 
 /// Whether XML 1.0 character data can hold `c`: everything but a C0

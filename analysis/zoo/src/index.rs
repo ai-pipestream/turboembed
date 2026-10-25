@@ -8,7 +8,6 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::digest::{Sha256, Sha512};
 use crate::error::ZooError;
 use crate::licence::{Licence, LicenceClass, Requirement};
 
@@ -155,8 +154,11 @@ impl fmt::Display for Language {
     }
 }
 
+#[path = "file.rs"]
+mod file;
 #[path = "origin.rs"]
 mod origin;
+pub use file::File;
 pub use origin::{RelPath, Url};
 use origin::{origin_is_a_location, under_origin};
 
@@ -188,22 +190,6 @@ pub struct TrainingData {
     pub license: Licence,
     /// Where the dataset's publisher states the licence.
     pub license_terms: Url,
-}
-
-/// One file of an artifact.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct File {
-    /// Where the file goes in the artifact's directory.
-    pub path: RelPath,
-    /// Where it is fetched from. The address must serve the same bytes for
-    /// as long as the entry exists: a release archive, or a repository
-    /// path at a commit.
-    pub url: Url,
-    pub size: u64,
-    pub sha256: Sha256,
-    /// The digest OpenNLP's `DownloadUtil` checks.
-    pub sha512: Sha512,
 }
 
 /// One artifact of the index.

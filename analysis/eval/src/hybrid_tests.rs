@@ -16,6 +16,8 @@ fn pipeline(hybrid: Hybrid) -> Pipeline {
         titles: Titles::Ignore,
         lexical: None,
         hybrid: Some(hybrid),
+        cascade: None,
+        static_embedder: None,
     }
 }
 

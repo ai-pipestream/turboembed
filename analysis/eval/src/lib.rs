@@ -11,6 +11,7 @@
 //! plug into a run at [`run::SetLoader`].
 //!
 //! - [`analysis`]: the layers each document is given before chunking.
+//! - [`cascade`]: corpus-scale static-to-contextual cascade retrieval.
 //! - [`chunkers`]: the chunkers behind one trait: fixed token windows,
 //!   sentence windows, the OpenNLP sandbox's semantic chunker, and
 //!   turbo-chunker's optimizer.
@@ -41,6 +42,7 @@
 pub use turbo_calibration::metrics as calibration;
 
 pub mod analysis;
+pub mod cascade;
 pub mod chunkers;
 pub mod cost;
 pub mod embedder;

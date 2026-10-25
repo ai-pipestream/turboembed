@@ -6,7 +6,7 @@ use std::path::Path;
 
 use turbo_analysis::{Annotator, Error, ModelRef, Refs, View};
 use turbo_analysis_layers::{Lemmas, PosTags, Strs, Tokens};
-use turbo_unicode::java::code_point::is_whitespace;
+use turbo_unicode::WhitespaceMode;
 use turbo_unicode::java::to_lowercase;
 
 use crate::charset::DictionaryCharset;
@@ -272,6 +272,8 @@ pub(crate) fn index_of(slice: &[u8], value: u8, from: usize) -> Option<usize> {
 
 /// Builds an [`ExpandedDictionaryLemmatizer`] from a tab-separated `surfaceForm\tlemma\ttag`
 /// table (`opennlp.tools.formats.PoliMorfDictionaryReader`).
+/// Blank lines use Unicode White_Space, the default StringUtil mode: NEL
+/// and no-break spaces are skipped; U+001C..U+001F are not blank.
 pub struct PoliMorfDictionaryReader;
 
 impl PoliMorfDictionaryReader {
@@ -290,7 +292,7 @@ impl PoliMorfDictionaryReader {
         let mut entries = LemmatizerEntries::default();
         for (idx, line) in java_lines(&text).enumerate() {
             let line_number = idx + 1;
-            if is_blank_opennlp(line) {
+            if line.chars().all(|c| WhitespaceMode::Unicode.is_whitespace(c as u32)) {
                 continue;
             }
             let Some(first_tab) = line.find('\t') else {
@@ -320,17 +322,6 @@ impl PoliMorfDictionaryReader {
             "opennlp:PoliMorfDictionaryReader",
         ))
     }
-}
-
-/// Checks whether `line` is empty or consists entirely of code points for which
-/// `StringUtil.isWhitespace(int)` (`Character.isWhitespace` or `Character.isSpaceChar`,
-/// including `U+00A0` and `U+202F`) is true.
-fn is_blank_opennlp(line: &str) -> bool {
-    use turbo_unicode::java::code_point::is_space_char;
-    line.chars().all(|c| {
-        let cp = c as u32;
-        is_whitespace(cp) || is_space_char(cp)
-    })
 }
 
 fn java_lines(text: &str) -> impl Iterator<Item = &str> {
