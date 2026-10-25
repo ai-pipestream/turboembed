@@ -1,15 +1,15 @@
-//! The words `Decoding::Word` labels: the words a token classifier such
-//! as `dslim/bert-base-NER` was trained on, CoNLL-2003's, which follow the
-//! Penn Treebank's conventions. A run of text with no space in it is one
+//! The CoNLL-style raw-text words `Decoding::Word` labels.
+//! A run of text with no space in it is one
 //! word, except that:
 //!
-//! - opening brackets and quotes before it, and closing ones, commas,
-//!   colons, semicolons and question or exclamation marks after it, are
-//!   words of their own (`(Paris)` is `(`, `Paris`, `)`);
+//! - brackets, quotes, commas, colons, semicolons and question or
+//!   exclamation marks are words of their own, including inside a run;
+//!   commas and colons between numeric pre-tokens stay in the number;
 //! - a full stop after it is a word of its own (`Macron.`), unless it ends
 //!   an abbreviation: a word that already holds a full stop (`U.N.`), a
 //!   single letter or digit (`C.`, `1.`), up to three digits (`12.`), or a
 //!   common English title, company or month abbreviation (`Mr.`, `Inc.`);
+//! - repeated trailing full stops are punctuation, including after names;
 //! - a closing `'s` is a word of its own (`Merkel's` is `Merkel`, `'s`);
 //! - each CJK ideograph is a word, as BERT's normalizer spaces them.
 //!
@@ -58,6 +58,28 @@ pub fn name_words(text: &str) -> Vec<(usize, usize)> {
 }
 
 fn split_run(text: &str, els: &[(usize, usize)], out: &mut Vec<(usize, usize)>) {
+    let digits = |k: usize| text[els[k].0..els[k].1].bytes().all(|b| b.is_ascii_digit());
+    let mut from = 0;
+    for (k, &(a, b)) in els.iter().enumerate() {
+        let mut chars = text[a..b].chars();
+        let Some(c) = chars.next() else { continue };
+        if chars.next().is_some() {
+            continue;
+        }
+        let numeric = matches!(c, ',' | ':') && k > 0 && k + 1 < els.len() && digits(k - 1) && digits(k + 1);
+        if (OPEN.contains(&c) || CLOSE.contains(&c)) && !numeric {
+            split_word(text, &els[from..k], out);
+            out.push((a, b));
+            from = k + 1;
+        }
+    }
+    split_word(text, &els[from..], out);
+}
+
+fn split_word(text: &str, els: &[(usize, usize)], out: &mut Vec<(usize, usize)>) {
+    if els.is_empty() {
+        return;
+    }
     let s = |k: usize| &text[els[k].0..els[k].1];
     let one = |k: usize| {
         let mut cs = s(k).chars();
@@ -113,7 +135,8 @@ fn keeps_stop<'a>(any: bool, stem: impl FnOnce() -> &'a str) -> bool {
     let stem = stem();
     let mut cs = stem.chars();
     let single = cs.next().is_some_and(char::is_alphanumeric) && cs.next().is_none();
-    stem.contains('.')
+    // A repeated trailing stop is punctuation, not an abbreviation.
+    (stem.contains('.') && !stem.ends_with('.'))
         || single
         || (stem.len() <= 3 && stem.bytes().all(|b| b.is_ascii_digit()))
         || ABBREVIATIONS.contains(&stem)

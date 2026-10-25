@@ -28,16 +28,18 @@ For each sentence (the whole text when there is no sentence layer):
    probability, with OpenNLP's handling of infinities
    (`NameFinderDL.labelProbability`).
 4. By default (`Decoding::Word`) each word takes its first piece's
-   label and probability, as the model was trained, and covers all its
-   pieces. The words are CoNLL-2003's, the words the model was trained
-   on, which follow the Penn Treebank's conventions
-   (`turbo_namefind_dl::decode::name_words`): a run of text with no space
-   is one word, but brackets and quotes around it, a comma, colon,
-   semicolon, question or exclamation mark after it, a closing `'s`, and
+   label and probability and covers all its pieces. CoNLL-style word
+   units are formed from raw text by `turbo_namefind_dl::decode::name_words`:
+   a run with no space is one word, but brackets, quotes, commas, colons,
+   semicolons, question or exclamation marks, a closing `'s`, and
    a full stop that ends a sentence rather than an abbreviation are words
    of their own, and so is each CJK ideograph. So `(Paris)` is `(`,
    `Paris`, `)`, `Macron.` is `Macron`, `.`, while `U.N.`, `C.`, `1.`
-   and `Mr.` keep their full stops, as CoNLL's tokens do. A full stop
+   and `Mr.` keep their full stops, as CoNLL's tokens do. Interior punctuation
+   separates names too: `Paris,France` is `Paris`, `,`, `France`. Commas
+   and colons between numeric pre-tokens stay in `1,200` and `12:30`.
+   Trailing ellipsis stops are punctuation: `Paris...` covers only `Paris`.
+   A full stop
    ends an abbreviation after a word that holds one already, a single
    letter or digit, up to three digits, or a short list of English
    titles, company words and months. Each word is a union of BERT's
@@ -121,6 +123,10 @@ checks on `dslim/bert-base-NER` that rows of 10 to 23 pieces, which cut
 every name of more than one piece somewhere, give the entities one row
 gives.
 
+`analysis/namefind-dl/tests/raw.rs` (ignored; the same bundle) checks
+entity bytes on raw prose with attached punctuation, brackets, quotes,
+ellipsis and adjacent names in both decoding modes.
+
 ## CoNLL-2003
 
 `analysis/namefind-dl/tests/conll.rs` (ignored; set `TURBO_NER_BUNDLE`
@@ -146,14 +152,13 @@ its first piece, the finder gives 5,688, of which 5,190 are right:
 | location | 0.9337 | 0.9293 | 0.9315 |
 | misc | 0.8031 | 0.8248 | 0.8138 |
 
-Of the set's 46,435 tokens, the word rules part two (`Fla.` and `ST.`,
-whose full stops the abbreviation list does not hold); BERT's pre-tokens
-alone part 2,824. Labelling those pre-tokens as words scored 0.8952
-(5,945 found, 5,189 right): a token such as `1.`, `C.` or `U.N.` parts
-at each full stop, and a `B-` the model gives a lone full stop, as it
-does after `1`, is a false name. The rules were written from the Penn
-Treebank's conventions, not fitted to this set, and the abbreviation
-list was not extended for the two tokens it misses.
+The earlier decoder labelled BERT's pre-tokens as words and scored
+0.8952 (5,945 found, 5,189 right): a token such as `1.`, `C.` or `U.N.`
+parts at each full stop, and a `B-` the model gives a lone full stop,
+as it does after `1`, is a false name. The raw boundary regression is
+checked separately from the space-joined CoNLL corpus. The interior
+punctuation and ellipsis correction leaves the abbreviation list and
+the measured 0.9157 default result unchanged.
 
 The model card reports a test F1 of 0.913 from its own evaluation, which
 scores its own word-level labels rather than names over these tokens.

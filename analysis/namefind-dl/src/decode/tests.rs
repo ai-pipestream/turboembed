@@ -122,7 +122,7 @@ fn name_words_follow_conll_tokens() {
         ("in 1996. Mr. Smith of Acme Inc.", &["in", "1996", ".", "Mr.", "Smith", "of", "Acme", "Inc."]),
         ("'s 'Paris' Jones'", &["'s", "'", "Paris", "'", "Jones", "'"]),
         ("rock'n'roll O'Neill", &["rock'n'roll", "O'Neill"]),
-        ("Who? Paris! Done...", &["Who", "?", "Paris", "!", "Done..."]),
+        ("Who? Paris! Done...", &["Who", "?", "Paris", "!", "Done", ".", ".", "."]),
         ("(Bonn).", &["(", "Bonn", ")", "."]),
         (". , -", &[".", ",", "-"]),
         ("\u{6771}\u{4eac}x", &["\u{6771}", "\u{4eac}", "x"]),
@@ -135,5 +135,22 @@ fn name_words_follow_conll_tokens() {
     let pre = turbo::tokenizer::pre_words(t);
     for (a, b) in name_words(t) {
         assert!(pre.iter().any(|p| p.0 == a) && pre.iter().any(|p| p.1 == b), "{:?}", &t[a..b]);
+    }
+}
+
+#[test]
+fn interior_punctuation_and_ellipsis_do_not_join_names() {
+    let cases: [(&str, &[&str]); 7] = [
+        ("Paris...", &["Paris", ".", ".", "."]),
+        ("Paris,France.", &["Paris", ",", "France", "."]),
+        ("(Paris),France.", &["(", "Paris", ")", ",", "France", "."]),
+        ("Paris;Bonn:Rome!", &["Paris", ";", "Bonn", ":", "Rome", "!"]),
+        ("U.N.,France", &["U.N.", ",", "France"]),
+        ("U.N...", &["U.N.", ".", "."]),
+        ("1,200 12:30 O'Neill U.S.-based AT&T", &["1,200", "12:30", "O'Neill", "U.S.-based", "AT&T"]),
+    ];
+    for (text, expected) in cases {
+        let got: Vec<_> = name_words(text).into_iter().map(|(a, b)| &text[a..b]).collect();
+        assert_eq!(got, expected, "{text:?}");
     }
 }
