@@ -91,6 +91,7 @@ async fn main() -> ExitCode {
     // The listener closes, requests in flight finish, and new connections
     // are refused; then the process exits.
     eprintln!("turbo-kserve: stopping on {name}");
+    server.drain();
     server.stop().await;
     eprintln!("turbo-kserve: stopped");
     ExitCode::SUCCESS

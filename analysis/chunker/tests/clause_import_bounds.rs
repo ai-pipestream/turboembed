@@ -124,6 +124,7 @@ fn valid_restored_multibyte_cuts_still_feed_the_real_chunker() {
                 back.get::<Boundaries>().unwrap(),
                 None,
                 back.get_key(&CUTS),
+                None,
             ))
             .unwrap();
         assert!(chunks.spans.len() >= 2);

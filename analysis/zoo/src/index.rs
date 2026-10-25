@@ -78,7 +78,11 @@ constant_enum! {
         Safetensors => "FORMAT_SAFETENSORS",
         Conllu => "FORMAT_CONLLU",
         Text => "FORMAT_TEXT",
+        Tsv => "FORMAT_TSV",
+        Csv => "FORMAT_CSV",
+        Parquet => "FORMAT_PARQUET",
         Zip => "FORMAT_ZIP",
+        TarBz2 => "FORMAT_TAR_BZ2",
         /// A PyTorch checkpoint in `torch.save`'s zip form only (the legacy
         /// non-zip form is refused): a stored zip of a pickled state dict
         /// and its tensor data. The zoo only fetches and checks its bytes.

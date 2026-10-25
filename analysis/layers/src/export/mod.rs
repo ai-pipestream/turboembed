@@ -51,6 +51,7 @@ mod indexes;
 mod lexical;
 mod modality;
 mod numeric;
+mod quality;
 mod relations;
 mod rhetoric;
 mod sentiment;
@@ -99,8 +100,11 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Structure>()
         .register::<crate::Tables>()
         .register::<crate::KeyValuePairs>()
+        .register::<crate::ChunkTableHeaders>()
         .register::<Chunks>()
         .register::<Language>()
+        .register::<crate::TextQuality>()
+        .register::<crate::SpanQuality>()
         .register::<LanguageSpans>()
         .register::<Temporals>()
         .register::<DocumentDate>()
