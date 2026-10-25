@@ -153,6 +153,19 @@ fn map(edits: &[Edit], x: u32, side: Side, from: impl Fn(&Edit) -> Span, to: imp
         Side::Start => edits.partition_point(|e| from(e).end <= x),
         Side::End => edits.partition_point(|e| from(e).end < x),
     };
+    map_at(edits, k, x, side, from, to)
+}
+
+/// [`map`] with its partition point already found: `k` edits end at or
+/// before `x` on the `from` side, by the rule of `side`.
+fn map_at(
+    edits: &[Edit],
+    k: usize,
+    x: u32,
+    side: Side,
+    from: impl Fn(&Edit) -> Span,
+    to: impl Fn(&Edit) -> Span,
+) -> u32 {
     if let Some(e) = edits.get(k) {
         let (f, t) = (from(e), to(e));
         if f.start < x && x <= f.end && !(side == Side::Start && x == f.end) {
@@ -165,6 +178,82 @@ fn map(edits: &[Edit], x: u32, side: Side, from: impl Fn(&Edit) -> Span, to: imp
     match k.checked_sub(1).map(|p| &edits[p]) {
         Some(prev) => to(prev).end + (x - from(prev).end),
         None => x,
+    }
+}
+
+/// A forward cursor over one [`Alignment`], for mapping many offsets
+/// in order: each of the four (direction, side) streams advances its
+/// own edit index and never retreats, so a whole layer of monotonic
+/// spans maps in $O(\text{edits} + \text{spans})$ with no binary
+/// search per offset and no allocation. Offsets in each stream must
+/// be non-decreasing (debug-asserted); results are bit-for-bit what
+/// [`Alignment::to_parent`], [`Alignment::to_child`],
+/// [`Alignment::span_to_parent`] and [`Alignment::span_to_child`]
+/// give. Interleaving the streams is fine: mapping a span's start
+/// then its end advances two independent streams.
+#[derive(Debug)]
+pub struct AlignmentCursor<'a> {
+    edits: &'a [Edit],
+    at: [usize; 4],
+    last: [u32; 4],
+}
+
+const PARENT_START: usize = 0;
+const PARENT_END: usize = 1;
+const CHILD_START: usize = 2;
+const CHILD_END: usize = 3;
+
+impl<'a> AlignmentCursor<'a> {
+    pub fn new(alignment: &'a Alignment) -> AlignmentCursor<'a> {
+        AlignmentCursor { edits: &alignment.edits, at: [0; 4], last: [0; 4] }
+    }
+
+    fn advance(&mut self, stream: usize, x: u32, side: Side, from: impl Fn(&Edit) -> Span) -> usize {
+        debug_assert!(x >= self.last[stream], "alignment cursor offsets must not decrease");
+        self.last[stream] = x;
+        let mut k = self.at[stream];
+        while let Some(e) = self.edits.get(k) {
+            let end = from(e).end;
+            if side == Side::Start && end <= x || side == Side::End && end < x {
+                k += 1;
+            } else {
+                break;
+            }
+        }
+        self.at[stream] = k;
+        k
+    }
+
+    /// A child offset in parent bytes, as [`Alignment::to_parent`].
+    pub fn to_parent(&mut self, x: u32, side: Side) -> u32 {
+        let stream = if side == Side::Start { PARENT_START } else { PARENT_END };
+        let k = self.advance(stream, x, side, |e| e.child);
+        map_at(self.edits, k, x, side, |e| e.child, |e| e.parent)
+    }
+
+    /// A parent offset in child bytes, as [`Alignment::to_child`].
+    pub fn to_child(&mut self, x: u32, side: Side) -> u32 {
+        let stream = if side == Side::Start { CHILD_START } else { CHILD_END };
+        let k = self.advance(stream, x, side, |e| e.parent);
+        map_at(self.edits, k, x, side, |e| e.parent, |e| e.child)
+    }
+
+    /// A child span in parent bytes, as [`Alignment::span_to_parent`].
+    pub fn span_to_parent(&mut self, s: Span) -> Span {
+        ordered(self.to_parent(s.start, Side::Start), self.to_parent(s.end, Side::End))
+    }
+
+    /// A parent span in child bytes, as [`Alignment::span_to_child`].
+    pub fn span_to_child(&mut self, s: Span) -> Span {
+        ordered(self.to_child(s.start, Side::Start), self.to_child(s.end, Side::End))
+    }
+}
+
+impl Alignment {
+    /// A forward cursor over this alignment's edits, for mapping a
+    /// monotonic run of offsets or spans; see [`AlignmentCursor`].
+    pub fn cursor(&self) -> AlignmentCursor<'_> {
+        AlignmentCursor::new(self)
     }
 }
 
