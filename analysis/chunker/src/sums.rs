@@ -6,7 +6,7 @@
 
 use std::ops::Range;
 
-use turbo_analysis::Ix;
+use turbo_analysis::{Ix, Layer};
 use turbo_analysis_layers::{Sentences, Vectors};
 
 /// The rows of a vectors layer with the length of each, read in place.
@@ -86,6 +86,17 @@ impl<'a> Rows<'a> {
         }
         (nx > 0.0 && ny > 0.0).then(|| (dot / (nx.sqrt() * ny.sqrt())).clamp(-1.0, 1.0))
     }
+}
+
+/// Check the layer before Rows can discard a partial or non-finite row.
+pub(crate) fn checked_rows(v: &Vectors<Sentences>) -> Result<Rows<'_>, String> {
+    v.check()?;
+    for (i, row) in v.data.chunks_exact(v.dim as usize).enumerate() {
+        if let Some(coordinate) = row.iter().position(|x| !x.is_finite()) {
+            return Err(format!("row {i} coordinate {coordinate} is not finite"));
+        }
+    }
+    Ok(Rows::of(v))
 }
 
 /// The unit vectors of a run of sentences summed from the run's start, in

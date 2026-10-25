@@ -95,6 +95,49 @@ fn projection_refusals() {
 }
 
 #[test]
+fn drift_curve_matches_drift_bit_for_bit() {
+    use turbo_analysis_layers::Cut;
+    use turbo_chunker::Rows;
+    use turbo_chunker::projection::BoundaryDriftCurve;
+    use turbo_chunker::{Drift, Score, drift};
+
+    // Six sentences near 0 degrees, six near 90 (the drift tests' own
+    // fixture shape), as unit vectors in the plane.
+    let mut deg: Vec<f64> = (0..6).map(|i| f64::from(i % 3) * 4.0).collect();
+    deg.extend((0..6).map(|i| 90.0 - f64::from(i % 2) * 5.0));
+    let data: Vec<f32> = deg.iter().flat_map(|d| [d.to_radians().cos() as f32, d.to_radians().sin() as f32]).collect();
+    let v = Vectors::<Sentences>::new(2, data, vec![], model());
+    for d in [Drift::default(), Drift { score: Score::Distance, floor: 0, ..Drift::default() }] {
+        let curve = BoundaryDriftCurve::compute(&v, &d);
+        let (cost, reason) = drift(&Rows::of(&v), &d);
+        assert_eq!(curve.cost, cost, "costs differ under {:?}", d.score);
+        assert_eq!(curve.reason, reason);
+        assert_eq!(curve.raw_cosine_micro.len(), 12);
+        // Unscored ends: no cosine, no smoothed value, zero score/cost.
+        for g in [0, 1, 10, 11] {
+            assert_eq!(curve.raw_cosine_micro[g], None, "gap {g}");
+            assert_eq!(curve.smoothed_cosine_micro[g], None);
+            assert_eq!((curve.depth_score_micro[g], curve.cost[g]), (0, 0));
+        }
+        // Scored gaps have both series, and the smoothed value at the
+        // valley is the minimum of the smoothed series.
+        assert!(curve.raw_cosine_micro[5].is_some() && curve.smoothed_cosine_micro[5].is_some());
+        if d.score == Score::Depth {
+            assert_eq!(curve.cheapest_gap(), Some(5));
+            assert_eq!(curve.topic_shift_gaps().collect::<Vec<_>>(), vec![5]);
+            assert_eq!(curve.reason[5], Cut::TopicShift);
+            assert!(curve.depth_score_micro[5] > 0);
+            let min_smoothed = curve.smoothed_cosine_micro.iter().flatten().min().unwrap();
+            assert_eq!(curve.smoothed_cosine_micro[5], Some(*min_smoothed));
+        }
+    }
+    // No sentences at all: every series is empty.
+    let empty = Vectors::<Sentences>::new(2, vec![], vec![], model());
+    let curve = BoundaryDriftCurve::compute(&empty, &Drift::default());
+    assert!(curve.raw_cosine_micro.is_empty() && curve.cost.is_empty() && curve.cheapest_gap().is_none());
+}
+
+#[test]
 fn finite_inputs_with_unrepresentable_projection_are_refused() {
     // Two rows in two dimensions select covariance; three select Gram.
     for dim in [2, 3] {
