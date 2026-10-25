@@ -138,8 +138,10 @@ impl<M> QuantizedIndex<M> {
         if codes.len() != meta.len() {
             return Err(refused(format!("meta length {} does not match quantized rows {}", meta.len(), codes.len())));
         }
-        codes.prepare();
-        Ok(QuantizedIndex { space, metric, config, codes, meta, scale })
+        if codes.len() < 32_768 || config.bits == 3 {
+            codes.prepare();
+        }
+        Ok(QuantizedIndex { space, metric, config, codes, exhaustive: std::sync::OnceLock::new(), meta, scale })
     }
 
     /// The estimated score of `query`, a vector of `space`, against `row`:
