@@ -3,9 +3,10 @@
 //! and remove entries, and every listing reads the current list.
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
+use tokio::sync::watch;
 use turbo::{
     TURBO_DTYPE_I32, TURBO_PLACE_PINNED, TURBO_TASK_EMBED, TURBO_TASK_EXTRACTIVE_QA, TURBO_TASK_RERANK,
     turbo_model_info, turbo_session_desc, turbo_session_info,
@@ -103,6 +104,12 @@ pub(crate) struct State {
     /// The streaming bulk analysis call's server-wide state, shared by
     /// every stream of this server.
     pub(crate) stream: Arc<stream::Shared>,
+    /// Set once the server begins draining before shutdown.
+    draining: AtomicBool,
+    /// Set once `Server::stop` closes active health watch streams.
+    stopping: AtomicBool,
+    /// Notifies `grpc.health.v1.Health/Watch` subscribers of state changes.
+    health_tx: watch::Sender<u64>,
     /// Serializes load(): one load at a time, so two LoadBundle calls
     /// never load the same new model twice.
     loading: Mutex<()>,
@@ -121,6 +128,7 @@ pub(crate) const MAX_LOADED_MODELS: usize = 64;
 
 impl State {
     pub(crate) fn new(names: Vec<String>, models: Vec<ModelConfig>) -> Self {
+        let (health_tx, _) = watch::channel(0);
         Self {
             models: RwLock::new(
                 names
@@ -132,8 +140,53 @@ impl State {
             runtime: OnceLock::new(),
             contexts: Mutex::new(Vec::new()),
             stream: stream::Shared::new(),
+            draining: AtomicBool::new(false),
+            stopping: AtomicBool::new(false),
+            health_tx,
             loading: Mutex::new(()),
         }
+    }
+
+    fn notify_health(&self) {
+        self.health_tx.send_modify(|v| *v = v.wrapping_add(1));
+    }
+
+    /// True when the server is not draining and every configured model is loaded.
+    pub(crate) fn is_ready(&self) -> bool {
+        if self.draining.load(Ordering::Acquire) {
+            return false;
+        }
+        self.models.read().unwrap_or_else(|e| e.into_inner()).iter().all(|m| m.loaded.get().is_some())
+    }
+
+    /// True when the server is draining.
+    pub(crate) fn is_draining(&self) -> bool {
+        self.draining.load(Ordering::Acquire)
+    }
+
+    /// True when `Server::stop` has been called.
+    pub(crate) fn is_stopping(&self) -> bool {
+        self.stopping.load(Ordering::Acquire)
+    }
+
+    /// Marks the server as draining and notifies health watchers.
+    pub(crate) fn drain(&self) {
+        if !self.draining.swap(true, Ordering::AcqRel) {
+            self.notify_health();
+        }
+    }
+
+    /// Marks the server as draining and stopping so active health watch
+    /// streams emit their final `NOT_SERVING` frame and close cleanly.
+    pub(crate) fn shutdown(&self) {
+        self.draining.store(true, Ordering::Release);
+        self.stopping.store(true, Ordering::Release);
+        self.notify_health();
+    }
+
+    /// Subscribes to health state transitions.
+    pub(crate) fn subscribe_health(&self) -> watch::Receiver<u64> {
+        self.health_tx.subscribe()
     }
 
     /// The served model and, when it is loaded, its load. The answer is
@@ -181,6 +234,8 @@ impl State {
         }
         let m = Arc::new(Served { name, config, loaded: OnceLock::new() });
         models.push(m.clone());
+        drop(models);
+        self.notify_health();
         Ok(m)
     }
 
@@ -192,8 +247,10 @@ impl State {
     /// theirs to roll back.
     pub(crate) fn remove_if(&self, expected: &Arc<Served>) -> api::Result<()> {
         let mut models = self.models.write().unwrap_or_else(|e| e.into_inner());
-        if let Some(i) = models.iter().position(|m| Arc::ptr_eq(m, expected)) {
-            models.remove(i);
+        let removed = models.iter().position(|m| Arc::ptr_eq(m, expected)).map(|i| models.remove(i)).is_some();
+        drop(models);
+        if removed {
+            self.notify_health();
         }
         Ok(())
     }
@@ -205,6 +262,8 @@ impl State {
         let mut models = self.models.write().unwrap_or_else(|e| e.into_inner());
         let i = models.iter().position(|m| m.name == name).ok_or_else(|| not_found(name))?;
         models.remove(i);
+        drop(models);
+        self.notify_health();
         Ok(())
     }
 
@@ -332,6 +391,7 @@ impl State {
         // The caller holds the loading mutex: no other load can have set
         // this entry's load.
         let _ = m.loaded.set(Arc::new(loaded));
+        self.notify_health();
         Ok(())
     }
 }
@@ -426,83 +486,4 @@ pub(crate) fn properties(state: &State, loaded: &Loaded) -> api::Result<HashMap<
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::config::Device;
-
-    fn config(name: &str) -> ModelConfig {
-        ModelConfig {
-            bundle: format!("b/{name}"),
-            name: Some(name.into()),
-            device: Device::Index(0),
-            precision: 0,
-            max_batch: 0,
-            max_seq: 0,
-            sessions: 1,
-        }
-    }
-
-    /// The error of a refused registration.
-    fn refused(r: api::Result<Arc<Served>>) -> Failure {
-        match r {
-            Err(e) => e,
-            Ok(_) => panic!("a capped registration was accepted"),
-        }
-    }
-
-    #[test]
-    fn registration_is_capped_with_the_limit_named() {
-        let state = State::new(vec!["base".into()], vec![config("base")]);
-        for k in 0..MAX_LOADED_MODELS - 1 {
-            state.add(format!("m{k}"), config(&format!("m{k}"))).unwrap();
-        }
-        let e = refused(state.add("one-more".into(), config("one-more")));
-        assert_eq!(e.code, TURBO_E_CAPACITY);
-        assert!(e.message.contains("max_loaded_models"), "{e:?}");
-        // The base model still serves.
-        assert!(state.peek("base").is_ok());
-    }
-
-    #[test]
-    fn rollback_removes_only_the_exact_registration() {
-        let state = State::new(Vec::new(), Vec::new());
-        let a = state.add("x".into(), config("x")).unwrap();
-        // A same-named registration is a different identity: rolling
-        // back against it must not remove the live one.
-        state.remove("x").unwrap();
-        let b = state.add("x".into(), config("x")).unwrap();
-        assert!(!Arc::ptr_eq(&a, &b));
-        state.remove_if(&a).unwrap();
-        assert!(state.peek("x").is_ok(), "the replacement registration stands");
-        assert!(Arc::ptr_eq(&state.peek("x").unwrap().0, &b));
-        // Rolling back the live one removes it.
-        state.remove_if(&b).unwrap();
-        assert!(state.peek("x").is_err());
-        // Rolling back what is already gone is not an error.
-        state.remove_if(&b).unwrap();
-    }
-
-    #[test]
-    fn peek_returns_the_registration_without_cloning_the_name() {
-        let state = State::new(vec!["x".into()], vec![config("x")]);
-        let (m, loaded) = state.peek("x").unwrap();
-        assert_eq!(m.name, "x");
-        assert!(loaded.is_none(), "nothing is loaded yet; ready() reports that on the same path");
-        assert!(state.ready("x", "").is_err());
-    }
-
-    #[test]
-    fn load_error_preserves_status() {
-        let err = LoadError {
-            model: "m".into(),
-            call: "turbo_session_create",
-            failure: Failure::new(TURBO_E_UNSUPPORTED_OPTION, 2, "over max_seq"),
-            fields: &SESSION_DESC,
-        };
-        let status = err.to_status();
-        assert_eq!(status.code(), tonic::Code::Unimplemented);
-        assert_eq!(status.metadata().get("turbo-code").unwrap(), "513");
-        assert_eq!(status.metadata().get("turbo-field").unwrap(), "2");
-        assert!(status.message().contains("field 2 (max_seq)"), "{}", status.message());
-    }
-}
+mod tests;

@@ -7,14 +7,15 @@
 //! [`MaxentLemmatizer`] runs the beam search over the tagged tokens of
 //! each sentence: the classifier's outcomes are lemma classes, shortest
 //! edit scripts from a word to its lemma ([`edit_script`]), which are
-//! applied to the lowercased tokens. It also writes
+//! decoded with the model's format. Native models preserve case; published
+//! OpenNLP models keep their lowercase decoder. It also writes
 //! `turbo:confidence<opennlp:lemmas>`, the probability of each token's
 //! class. [`DictionaryLemmatizer`] reads a `word<tab>tag<tab>lemma`
 //! dictionary and writes the first lemma listed for each lowercased token
 //! and its tag, or `O`. The beam search and the feature buffer are
 //! `turbo-sequence`'s.
 //!
-//! The lemmas are the JVM's and the probabilities are the JVM's doubles,
+//! For OpenNLP models, lemma text and probability bits match the JVM,
 //! bit for bit; the tests compare both with files the JVM wrote
 //! (`analysis/goldens/data/lemmatize` and `lemmatize-dictionary`, see
 //! `README.md` here).
@@ -61,12 +62,14 @@
 pub mod context;
 pub mod dictionary;
 pub mod edit_script;
+pub mod encoding;
 pub mod error;
 pub mod maxent;
 pub mod model;
 
 pub use context::LemmaContext;
 pub use dictionary::{DictionaryLemmatizer, NOT_FOUND};
+pub use encoding::{CASE_SENSITIVE_FACTORY, LemmaEncoding};
 pub use error::{DictionaryError, EditScriptError, ModelError};
 pub use maxent::MaxentLemmatizer;
 pub use model::{COMPONENT_NAME, DEFAULT_BEAM_SIZE, FACTORY, LemmatizerModel, MODEL_ENTRY_NAME};
