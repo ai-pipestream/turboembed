@@ -4,6 +4,7 @@
 
 use std::num::NonZeroU32;
 
+use turbo_analysis::annotate::Step;
 use turbo_analysis::{
     Analyzer, Document, Evidence, FilterRule, IxRange, Key, ModelRef, Provenance, Span, Spans, Tag, TagSet, ViewId,
 };
@@ -272,6 +273,17 @@ fn nested_priority_entities_keep_verifiable_pipeline_evidence() {
     let mut docs = vec![doc];
     assert!(analyzer.run(&mut docs).iter().all(Result::is_ok));
     let doc = &docs[0];
+    let output_provenance = doc.provenance(Key::<Entities>::named("merged").id()).unwrap();
+    let evidence_provenance = doc.provenance(Key::<Evidence<Entities>>::named("merged").id()).unwrap();
+    assert_eq!(
+        (output_provenance.version, output_provenance.config),
+        (evidence_provenance.version, evidence_provenance.config)
+    );
+    assert_ne!(
+        (output_provenance.version, output_provenance.config),
+        ("0", 2),
+        "corrected priority output still identifies the original grouping implementation"
+    );
     let merged = doc.get_key(&Key::<Entities>::named("merged")).unwrap();
     assert_eq!(rows(merged), [(0, 3, "person", 0.4), (1, 2, "person", 0.9), (6, 7, "location", 0.8)]);
     let evidence = doc.get_key(&Key::<Evidence<Entities>>::named("merged")).unwrap();
@@ -282,5 +294,30 @@ fn nested_priority_entities_keep_verifiable_pipeline_evidence() {
         assert_eq!(support.len(), 1);
         assert_eq!((support[0].layer, support[0].start, support[0].end), (input, entity, entity + 1));
         assert_eq!(evidence.raw_of(i), Some(merged.score[i]));
+    }
+}
+
+#[test]
+fn revised_grouping_has_a_distinct_identity_for_every_policy() {
+    let mut cases = vec![(EntityMergePolicy::RawUnion, 1), (EntityMergePolicy::PriorityFallback, 2)];
+    for votes in [1, 2, 256, u32::MAX] {
+        for (rule, old_rule) in
+            [(FilterRule::LongestFirst, 1), (FilterRule::HighestScore, 2), (FilterRule::LeftmostLongest, 3)]
+        {
+            // Published revision-zero identities, including the largest quorum.
+            let legacy = (u64::from(votes) << 8) | (old_rule << 4) | 3;
+            cases.push((
+                EntityMergePolicy::Consensus { min_votes: NonZeroU32::new(votes).unwrap(), overlap_rule: rule },
+                legacy,
+            ));
+        }
+    }
+    let mut current = std::collections::BTreeSet::new();
+    for (policy, legacy) in cases {
+        let step = ConsensusEntityMerger::new(vec![Key::named("first")], Key::named("merged"), policy);
+        let identity = step.config_hash();
+        assert_ne!(identity, legacy, "revised grouping shares legacy identity for {policy:?}");
+        assert_eq!(identity, step.config_hash());
+        assert!(current.insert(identity), "policies or quorum counts collide for {policy:?}");
     }
 }
