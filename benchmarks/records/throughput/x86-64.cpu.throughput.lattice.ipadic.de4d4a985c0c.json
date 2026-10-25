@@ -1,0 +1,58 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-24T16:53:06Z",
+  "machine": {
+    "arch": "x86_64",
+    "host_cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
+    "os": "linux"
+  },
+  "device": {
+    "backend": "cpu",
+    "kind": "DEVICE_CPU",
+    "name": "AMD Ryzen 9 9950X3D 16-Core Processor",
+    "vendor": "AuthenticAMD",
+    "driver_version": "",
+    "runtime_version": "",
+    "memory_total": 130171322368
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 cpu",
+    "commit": "de4d4a985c0cb232073f96decf3394a97e1c9921",
+    "pushed_to": [
+      "origin/muse/965-bench-throughput-modes"
+    ],
+    "settings": []
+  },
+  "procedure": "the tool ran unpinned, the tokenizer on one thread",
+  "command": "cargo run --release -p turbo-bench --features lattice -- lattice --dictionaries <dir> ipadic --readings --rounds 5",
+  "mode": "lattice",
+  "subject": {
+    "name": "ipadic",
+    "sha256": "6103f8e96a3c1cc7275da1efea6257656f8e50d2c427ab08646d920a4aece735",
+    "load_seconds": 0.481220382
+  },
+  "text": {
+    "source": "analysis/goldens/data/inputs/{ja} in name order, repeated to at least 10485760 bytes",
+    "bytes": 10485900,
+    "chars": 3940600,
+    "sha256": "97b817559b05be586c663b559bc837996a1473eae7b731c1dbe3f4805d5c6d24"
+  },
+  "rounds": 5,
+  "runs": [
+    {
+      "phase": "analyze",
+      "units": 2220400,
+      "seconds": 0.279222243,
+      "chars_per_second": 14112772.527223056,
+      "bytes_per_second": 37553956.61655795
+    },
+    {
+      "phase": "analyzer-readings",
+      "units": 2220400,
+      "seconds": 0.37678716,
+      "chars_per_second": 10458424.326349124,
+      "bytes_per_second": 27829769.995346975
+    }
+  ]
+}
