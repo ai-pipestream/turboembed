@@ -75,16 +75,11 @@ fn check_token_range(
     Ok(())
 }
 
-fn check_model_ref(
-    known_models: &HashSet<&str>,
-    enforce_known: bool,
-    where_desc: &str,
-    mref: &str,
-) -> Result<(), Failure> {
+fn check_model_ref(known_models: &HashSet<&str>, where_desc: &str, mref: &str) -> Result<(), Failure> {
     if mref.trim().is_empty() {
         return Err(bad(format!("{where_desc} has an empty model_ref")));
     }
-    if enforce_known && !known_models.contains(mref) {
+    if !known_models.contains(mref) {
         return Err(bad(format!("{where_desc} references unknown model_ref {mref:?}")));
     }
     Ok(())
@@ -112,7 +107,6 @@ pub fn validate_typed_document(msg: &TypedDocumentResult) -> Result<(), Failure>
             return Err(bad(format!("duplicate model_ref {:?} in models", m.model_ref)));
         }
     }
-    let enforce_models = !msg.models.is_empty();
 
     let mut layer_lengths: HashMap<(&str, &str), usize> = HashMap::with_capacity(msg.layers.len());
     let mut layer_by_id: HashMap<&str, usize> = HashMap::with_capacity(msg.layers.len());
@@ -140,7 +134,7 @@ pub fn validate_typed_document(msg: &TypedDocumentResult) -> Result<(), Failure>
     }
 
     for layer in &msg.layers {
-        validate_layer(msg, &offsetter, &known_models, enforce_models, &layer_lengths, &layer_by_id, layer)?;
+        validate_layer(msg, &offsetter, &known_models, &layer_lengths, &layer_by_id, layer)?;
     }
 
     Ok(())
@@ -150,16 +144,16 @@ fn validate_layer(
     msg: &TypedDocumentResult,
     offsetter: &Offsetter,
     known_models: &HashSet<&str>,
-    enforce_models: bool,
     layer_lengths: &HashMap<(&str, &str), usize>,
     layer_by_id: &HashMap<&str, usize>,
     layer: &TypedLayer,
 ) -> Result<(), Failure> {
     let lid = layer.id.as_str();
     for mref in &layer.model_refs {
-        check_model_ref(known_models, enforce_models, &format!("layer {lid}.model_refs"), mref)?;
+        check_model_ref(known_models, &format!("layer {lid}.model_refs"), mref)?;
     }
 
+    let mut target_bounds: Vec<usize> = Vec::with_capacity(layer.indexes_layer.len());
     for bound in &layer.indexes_layer {
         if bound.layer.trim().is_empty() {
             return Err(bad(format!("layer {lid} indexes_layer has an empty target layer id")));
@@ -180,23 +174,39 @@ fn validate_layer(
                 bound.layer, bound.instance, bound.bound
             )));
         }
+        target_bounds.push(target_len);
     }
 
     if AnchorKind::try_from(layer.scope) == Ok(AnchorKind::Aligned)
         && LayerWireStatus::try_from(layer.status) == Ok(LayerWireStatus::Ok)
         && let Some(anchor) = &layer.anchor_layer
-        && let Some(&anchor_len) =
-            layer_lengths.get(&(anchor.as_str(), "")).or_else(|| layer_by_id.get(anchor.as_str()))
-        && layer.annotations.len() != anchor_len
     {
-        return Err(bad(format!(
-            "aligned layer {lid} has {} annotations, but anchor_layer {anchor:?} has {anchor_len}",
-            layer.annotations.len()
-        )));
+        let (anchor_lid, anchor_inst) = anchor.split_once('@').unwrap_or((anchor.as_str(), ""));
+        if let Some(&anchor_len) = layer_lengths
+            .get(&(anchor_lid, anchor_inst))
+            .or_else(|| anchor_inst.is_empty().then(|| layer_by_id.get(anchor_lid)).flatten())
+            && layer.annotations.len() != anchor_len
+        {
+            return Err(bad(format!(
+                "aligned layer {lid} has {} annotations, but anchor_layer {anchor:?} has {anchor_len}",
+                layer.annotations.len()
+            )));
+        }
     }
 
+    let layer_len = layer.annotations.len();
     for (i, ann) in layer.annotations.iter().enumerate() {
-        validate_annotation(&msg.raw_text, offsetter, known_models, enforce_models, layer_by_id, lid, i, ann)?;
+        validate_annotation(
+            &msg.raw_text,
+            offsetter,
+            known_models,
+            layer_by_id,
+            &target_bounds,
+            layer_len,
+            lid,
+            i,
+            ann,
+        )?;
     }
 
     Ok(())
@@ -207,14 +217,15 @@ fn validate_annotation(
     text: &str,
     offsetter: &Offsetter,
     known_models: &HashSet<&str>,
-    enforce_models: bool,
     layer_by_id: &HashMap<&str, usize>,
+    target_bounds: &[usize],
+    layer_len: usize,
     lid: &str,
     i: usize,
     ann: &TypedAnnotation,
 ) -> Result<(), Failure> {
     if let Some(mref) = &ann.model_ref {
-        check_model_ref(known_models, enforce_models, &format!("{lid}[{i}].model_ref"), mref)?;
+        check_model_ref(known_models, &format!("{lid}[{i}].model_ref"), mref)?;
     }
     if let Some(p) = ann.probability {
         check_prob("probability", lid, i, p)?;
@@ -251,7 +262,7 @@ fn validate_annotation(
             check_token_range(layer_by_id, "entity", lid, i, ent.token_start, ent.token_end)?;
             for (v_ix, vote) in ent.votes.iter().enumerate() {
                 if let Some(vm) = &vote.model_ref {
-                    check_model_ref(known_models, enforce_models, &format!("{lid}[{i}].votes[{v_ix}]"), vm)?;
+                    check_model_ref(known_models, &format!("{lid}[{i}].votes[{v_ix}]"), vm)?;
                 }
                 if let Some(vp) = vote.probability {
                     check_prob("vote.probability", lid, i, vp)?;
@@ -260,6 +271,25 @@ fn validate_annotation(
                     check_prob("vote.calibrated_probability", lid, i, vc)?;
                 }
                 check_spans(offsetter, text, lid, i, &vote.spans)?;
+            }
+        }
+        Value::Dependency(dep) => {
+            if let Some(h) = dep.head_index
+                && (h as usize) >= layer_len
+            {
+                return Err(bad(format!("{lid}[{i}] dependency head_index {h} exceeds layer length {layer_len}")));
+            }
+        }
+        Value::Edge(edge) => {
+            if let Some(&from_lim) = target_bounds.first()
+                && (edge.from_index as usize) >= from_lim
+            {
+                return Err(bad(format!("{lid}[{i}] edge from_index {} exceeds target {from_lim}", edge.from_index)));
+            }
+            if let Some(&to_lim) = target_bounds.get(1).or_else(|| target_bounds.first())
+                && (edge.to_index as usize) >= to_lim
+            {
+                return Err(bad(format!("{lid}[{i}] edge to_index {} exceeds target {to_lim}", edge.to_index)));
             }
         }
         Value::CorefMention(cm) => {
@@ -274,6 +304,11 @@ fn validate_annotation(
         Value::CorefChain(cc) => {
             if cc.mention_indices.is_empty() {
                 return Err(bad(format!("{lid}[{i}] coref_chain has no mention_indices")));
+            }
+            if let Some(&lim) = target_bounds.first().or_else(|| layer_by_id.get("turbo:mentions"))
+                && let Some(&bad_m) = cc.mention_indices.iter().find(|&&m| (m as usize) >= lim)
+            {
+                return Err(bad(format!("{lid}[{i}] coref_chain mention_index {bad_m} exceeds target {lim}")));
             }
         }
         Value::GlossaryTerm(gt) => {
@@ -413,6 +448,11 @@ fn validate_annotation(
         Value::Group(grp) => {
             if grp.members.is_empty() {
                 return Err(bad(format!("{lid}[{i}] group has no members")));
+            }
+            if let Some(&lim) = target_bounds.first()
+                && let Some(&bad_m) = grp.members.iter().find(|&&m| (m as usize) >= lim)
+            {
+                return Err(bad(format!("{lid}[{i}] group member {bad_m} exceeds target {lim}")));
             }
         }
         Value::LinkedEntity(le) => check_prob("score", lid, i, le.score)?,

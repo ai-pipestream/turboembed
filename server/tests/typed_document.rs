@@ -188,6 +188,33 @@ async fn inspect_and_round_trip_typed_document_over_grpc_with_refusals() {
     let err = round_trip_typed_document(&bad_ix).unwrap_err();
     assert_eq!(err.code, TURBO_E_INVALID_ARGUMENT);
 
+    // Duplicate model_ref in models table must be refused.
+    let mut dup_model = inspected.clone();
+    dup_model.models.push(dup_model.models[0].clone());
+    let err = round_trip_typed_document(&dup_model).unwrap_err();
+    assert_eq!(err.code, TURBO_E_INVALID_ARGUMENT);
+
+    // Unknown model_ref on a layer or annotation must be refused, both when
+    // models is populated and when models is empty.
+    let mut unknown_model = inspected.clone();
+    unknown_model.layers[0].model_refs = vec!["bogus".into()];
+    let err = round_trip_typed_document(&unknown_model).unwrap_err();
+    assert_eq!(err.code, TURBO_E_INVALID_ARGUMENT);
+
+    let mut empty_models_with_ref = inspected.clone();
+    empty_models_with_ref.models.clear();
+    empty_models_with_ref.layers[0].model_refs = vec!["bogus".into()];
+    empty_models_with_ref.layers[0].annotations[0].model_ref = Some("also-bogus".into());
+    let err = client.round_trip_typed_document(empty_models_with_ref).await.unwrap_err();
+    assert_eq!(err.code(), tonic::Code::InvalidArgument, "{err}");
+
+    // Out-of-bounds indexes_layer bound must be refused.
+    let mut bad_bound = inspected.clone();
+    let ent_layer = bad_bound.layers.iter_mut().find(|l| l.id == "opennlp:entities").unwrap();
+    ent_layer.indexes_layer[0].bound = 999;
+    let err = client.round_trip_typed_document(bad_bound).await.unwrap_err();
+    assert_eq!(err.code(), tonic::Code::InvalidArgument, "{err}");
+
     let err = inspect_document_graph(&InspectDocumentGraphRequest {
         doc_id: "bad".into(),
         graph: vec![0xff, 0x00, 0x01],
