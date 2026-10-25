@@ -124,6 +124,12 @@ impl Server {
         let state = Arc::new(State::new(names, models));
         let kserve = GrpcInferenceServiceServer::new(kserve::Inference { state: state.clone() })
             .max_decoding_message_size(max_message_bytes);
+        let store = match &serve.vocabulary {
+            Some(dir) => Some(Arc::new(vocabulary::Store::open(dir).map_err(|e| format!("vocabulary store: {e}"))?)),
+            None => None,
+        };
+        // The forwarder spawns its drain, so it starts after every step that
+        // can refuse the start: a refused start leaves no task behind.
         let sink = serve.sink.as_ref().map(SinkForwarder::start).transpose()?;
         let analysis = AnalysisServiceServer::new(analysis::Analysis {
             state: state.clone(),
@@ -133,10 +139,6 @@ impl Server {
         .max_decoding_message_size(max_message_bytes);
         let receiver =
             serve.sink_receiver.map(|r| TurboSinkServiceServer::new(r).max_decoding_message_size(max_message_bytes));
-        let store = match &serve.vocabulary {
-            Some(dir) => Some(Arc::new(vocabulary::Store::open(dir).map_err(|e| format!("vocabulary store: {e}"))?)),
-            None => None,
-        };
         let vocabulary = TurboVocabularyServiceServer::new(vocabulary::Vocabulary { store, admin: serve.admin })
             .max_decoding_message_size(max_message_bytes);
         let catalog = TurboCatalogServiceServer::new(catalog::CatalogService::new(serve.catalog, serve.admin));

@@ -289,3 +289,29 @@ async fn closing_with_the_sink_down_stops_the_drain_at_the_deadline() {
     assert_eq!(s.sink_stats().unwrap().failed_calls, failed, "the drain kept retrying after close");
     s.stop().await;
 }
+
+#[tokio::test]
+async fn a_refused_start_leaves_no_drain_calling_the_sink() {
+    // A sink that takes each connection and closes it at once: every call
+    // fails, and each one is counted here.
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let seen = calls.clone();
+    tokio::spawn(async move {
+        while let Ok((conn, _)) = listener.accept().await {
+            seen.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            drop(conn);
+        }
+    });
+    // A file where the vocabulary store wants a directory refuses the start.
+    let file = std::env::temp_dir().join(format!("turbo-sink-refused-{}", std::process::id()));
+    std::fs::write(&file, b"not a directory").unwrap();
+    let config = SinkConfig { endpoint: format!("http://{addr}"), max_queue_items: 4, max_queue_bytes: 1 << 20 };
+    let serve = Serve { sink: Some(config), vocabulary: Some(file.clone()), ..Serve::default() };
+    let refused = Server::start("127.0.0.1:0".parse().unwrap(), vec![model()], MAX, serve).await;
+    std::fs::remove_file(&file).unwrap();
+    assert!(refused.err().is_some_and(|e| e.contains("vocabulary store")));
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+    assert_eq!(calls.load(std::sync::atomic::Ordering::Relaxed), 0, "a drain outlived the refused start");
+}
