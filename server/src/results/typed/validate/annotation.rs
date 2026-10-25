@@ -35,6 +35,11 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
         Value::EntitySalience(salience) => shared::salience(ctx, i, salience)?,
         Value::ChunkTableHeader(header) => shared::table_header(ctx, i, header)?,
         Value::KeyValuePair(pair) => shared::key_value(ctx, i, pair)?,
+        Value::Token(t) => {
+            if let Some(sentence) = t.sentence_index {
+                shared::target(ctx, "opennlp:sentences", sentence)?;
+            }
+        }
         Value::Word(w) => {
             check_token_range(token_len, "word", lid, i, w.token_start, w.token_end)?;
             if let Some(sub) = &w.subspan {
@@ -73,9 +78,8 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
                 ("from_index", edge.from_index, target_bounds.first()),
                 ("to_index", edge.to_index, target_bounds.get(1).or_else(|| target_bounds.first())),
             ] {
-                if let Some(&l) = lim
-                    && (idx as usize) >= l
-                {
+                let l = lim.copied().ok_or_else(|| bad(format!("{lid}[{i}] edge {what} has no index target")))?;
+                if (idx as usize) >= l {
                     return Err(bad(format!("{lid}[{i}] edge {what} {idx} exceeds target {l}")));
                 }
             }
@@ -116,6 +120,12 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
         }
         Value::Aspect(asp) => {
             check_opt_tokens(token_len, "aspect", lid, i, asp.token_start, asp.token_end)?;
+            if let Some(sentence) = asp.sentence_index {
+                shared::target(ctx, "opennlp:sentences", sentence)?;
+            }
+            for &opinion in &asp.opinion_indices {
+                shared::target(ctx, "turbo:opinions", opinion)?;
+            }
             for (name, v) in [("positive", asp.positive), ("negative", asp.negative), ("neutral", asp.neutral)] {
                 check_nonneg(name, lid, i, v)?;
             }
@@ -184,6 +194,9 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
                     "{lid}[{i}] chunk sentence range {}..{} is inverted",
                     ch.sentence_start, ch.sentence_end
                 )));
+            }
+            if ch.sentence_end > 0 && ch.sentence_end as usize > shared::bound(ctx, "opennlp:sentences")? {
+                return Err(bad(format!("{lid}[{i}] chunk sentence_end exceeds its sentence target")));
             }
             check_parent("chunk", lid, i, ch.parent_index)?;
         }

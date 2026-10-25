@@ -187,8 +187,10 @@ fn check_opt_tokens(
     s: Option<u32>,
     e: Option<u32>,
 ) -> Result<(), Failure> {
-    if let (Some(ts), Some(te)) = (s, e) {
-        check_token_range(tlen, what, lid, i, ts, te)?;
+    match (s, e) {
+        (Some(ts), Some(te)) => check_token_range(tlen, what, lid, i, ts, te)?,
+        (None, None) => {}
+        _ => return Err(bad(format!("{lid}[{i}] {what} token range needs both start and end"))),
     }
     Ok(())
 }
@@ -197,9 +199,8 @@ fn check_index_slice(what: &str, lid: &str, i: usize, indices: &[u32], lim: Opti
     if indices.is_empty() {
         return Err(bad(format!("{lid}[{i}] {what} is empty")));
     }
-    if let Some(l) = lim
-        && let Some(&bad_m) = indices.iter().find(|&&m| (m as usize) >= l)
-    {
+    let l = lim.ok_or_else(|| bad(format!("{lid}[{i}] {what} has no index target")))?;
+    if let Some(&bad_m) = indices.iter().find(|&&m| (m as usize) >= l) {
         return Err(bad(format!("{lid}[{i}] {what} index {bad_m} exceeds target {l}")));
     }
     Ok(())

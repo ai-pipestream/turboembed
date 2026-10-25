@@ -7,12 +7,12 @@ use crate::proto::result::{
     KeyValuePairAnnotation, NBestAnnotation, SparseTermsAnnotation,
 };
 
-fn target(ctx: &LayerCtx<'_>, layer: &str, index: u32) -> Result<usize, Failure> {
-    let len = ctx
-        .target_lengths
-        .get(layer)
-        .copied()
-        .ok_or_else(|| bad(format!("{} has no {layer} index target", ctx.lid)))?;
+pub(super) fn bound(ctx: &LayerCtx<'_>, layer: &str) -> Result<usize, Failure> {
+    ctx.target_lengths.get(layer).copied().ok_or_else(|| bad(format!("{} has no {layer} index target", ctx.lid)))
+}
+
+pub(super) fn target(ctx: &LayerCtx<'_>, layer: &str, index: u32) -> Result<usize, Failure> {
+    let len = bound(ctx, layer)?;
     if index as usize >= len {
         return Err(bad(format!("{} index {index} exceeds {layer} target {len}", ctx.lid)));
     }
