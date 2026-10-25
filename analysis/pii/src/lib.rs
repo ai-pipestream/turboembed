@@ -20,8 +20,9 @@ mod hits;
 pub mod rewrite;
 mod scan;
 mod tables;
-mod text;
+pub mod text;
 
 pub use detector::{Pack, PiiDetector};
-pub use scan::{Extractor, Scanner, ScannerError};
+pub use hits::{PiiSink, SinkError};
+pub use scan::{CustomExtractor, Extractor, Scanner, ScannerError};
 pub use turbo_analysis_layers::{Pii, PiiConfidence, PiiKind, PiiKinds, PiiMention};

@@ -15,6 +15,7 @@
 
 pub(crate) mod clock;
 pub(crate) mod compose;
+mod context;
 pub(crate) mod date;
 pub(crate) mod duration;
 pub(crate) mod lexicon;
@@ -249,7 +250,11 @@ fn keep(rules: &[Rule], node: &Node, ctx: &Ctx<'_>) -> bool {
             !ambiguous || ends_clause(ctx)
         }
         // `on Sun`, not `the sun`.
-        "wd" | "date_wd" => !starts_ambiguous(ctx, WEEKDAY) || !matches!(before, Some("the" | "a")),
+        "wd" | "date_wd" => {
+            (!starts_ambiguous(ctx, WEEKDAY) || !matches!(before, Some("the" | "a")))
+                && !(before == Some("easter") && matches!(ctx.word(ctx.start), "monday" | "sunday"))
+        }
+        "dt_date_at_clock" => !(before == Some("easter") && matches!(ctx.word(ctx.start), "monday" | "sunday")),
         // `lunch` alone is a meal, `at lunch` a time.
         "partd" => before != Some("good") && !matches!(ctx.word(ctx.start), "lunch" | "dinner" | "breakfast"),
         // `in the year 2008` names `year 2008`; `before the year 2019`
@@ -268,8 +273,14 @@ fn keep(rules: &[Rule], node: &Node, ctx: &Ctx<'_>) -> bool {
         }
         // `at the end of 2000` is `the end of 2000` without its article.
         "moded_end_of_the" | "moded_beginning_of_the" | "moded_middle_of_the" | "moded_start_of_the" => {
-            !matches!(before, Some("at" | "from"))
+            !matches!(before, Some("at" | "from")) && !(before == Some("by") && ctx.word(ctx.end - 1) == "week")
         }
+        "moded_the_eod" => before == Some("at"),
+        // The point form is internal to ranges. Its context is checked
+        // when built, alongside the standalone modified form.
+        "date_to_date" => false,
+        "range_the_next_n" => ctx.word(ctx.end - 1) == "decades",
+        "wd_on_of_week" => false,
         // `will last two hours` is a duration.
         "range_next_n" | "range_next_dur" | "range_next_unit" if ctx.word(ctx.start) == "last" => {
             !before.is_some_and(|b| VERB_CUES.contains(&b))

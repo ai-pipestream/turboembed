@@ -6,6 +6,7 @@ use turbo_analysis::{Annotator, Error, Ix, IxRange, Layer, ModelRef, Refs, Spans
 use turbo_analysis_layers::{Calibrated, Entities, Sentences, Tokens};
 use turbo_calibration::{Calibration, Identity, Policy, Predictor, Task};
 use turbo_maxent::{MaxentModel, ModelFile};
+use turbo_sequence::namefind::{NameCodec, NameContextFactory};
 use turbo_sequence::{
     PatternMode,
     namefind::{DEFAULT_BEAM_SIZE, MODEL_ENTRY_NAME, NameFinder},
@@ -37,7 +38,9 @@ pub fn identity(file: &ModelFile, domain: &str) -> Result<Identity, String> {
     Ok(i)
 }
 pub struct CalibratedNameAnnotator {
-    file: Arc<ModelFile>,
+    context: NameContextFactory,
+    beam: usize,
+    codec: NameCodec,
     model: MaxentModel,
     predictor: Predictor,
     kinds: Arc<TagSet>,
@@ -47,16 +50,16 @@ impl CalibratedNameAnnotator {
         let expected = identity(&file, domain)?;
         let predictor = Predictor::new(calibration, &expected, policy)?;
         let model = file.maxent(MODEL_ENTRY_NAME).map_err(|e| e.to_string())?;
-        NameFinder::new(&file, &model, PatternMode::Utf16Units).map_err(|e| e.to_string())?;
-        let mut types: Vec<_> =
-            predictor.artifact().identity().labels.iter().filter_map(|s| s.rsplit_once('-').map(|(t, _)| t)).collect();
-        if predictor.artifact().identity().labels.iter().any(|s| matches!(s.as_str(), "start" | "cont")) {
-            types.push("default");
-        }
-        types.sort_unstable();
-        types.dedup();
-        let kinds = TagSet::new("turbo:calibrated-name-types", &types);
-        Ok(Self { file, model, predictor, kinds })
+        let codec = NameCodec::for_model(&file);
+        let context = NameContextFactory::for_model(&file, PatternMode::Utf16Units).map_err(|e| e.to_string())?;
+        let beam = turbo_sequence::manifest_beam_size(&file, DEFAULT_BEAM_SIZE).map_err(|e| e.to_string())?;
+        NameFinder::with_context(&model, beam, codec, context.create().map_err(|e| e.to_string())?)
+            .map_err(|e| e.to_string())?;
+        let kinds = crate::entity_kinds::from_labels(
+            "turbo:calibrated-name-types",
+            predictor.artifact().identity().labels.iter().map(String::as_str),
+        );
+        Ok(Self { context, beam, codec, model, predictor, kinds })
     }
     pub fn predictor(&self) -> &Predictor {
         &self.predictor
@@ -64,7 +67,7 @@ impl CalibratedNameAnnotator {
 }
 impl Annotator for CalibratedNameAnnotator {
     const ID: &'static str = "turbo-namefind:calibrated";
-    const VERSION: &'static str = "1";
+    const VERSION: &'static str = "2";
     type Reads = (View, Sentences, Tokens);
     type Writes = (Entities, Calibrated<Tokens>);
     fn config_hash(&self) -> u64 {
@@ -88,8 +91,9 @@ impl Annotator for CalibratedNameAnnotator {
             score: Vec::new(),
         };
         let mut calibrated = Calibrated::new(&self.predictor);
-        let mut finder =
-            NameFinder::new(&self.file, &self.model, PatternMode::Utf16Units).map_err(|e| fail(e.to_string()))?;
+        let mut context = self.context.create().map_err(|e| fail(e.to_string()))?;
+        let mut finder = NameFinder::with_context(&self.model, self.beam, self.codec, &mut context)
+            .map_err(|e| fail(e.to_string()))?;
         let (starts, ends) = tokens.spans.columns();
         let mut base = 0;
         for si in 0..sentences.len() {

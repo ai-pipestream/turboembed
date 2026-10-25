@@ -2026,6 +2026,8 @@ dependencies = [
  "serde_path_to_error",
  "turbo",
  "turbo-gliner",
+ "turbo-goldens",
+ "turbo-postag",
  "turbo-zoo",
  "ureq",
 ]
@@ -2122,6 +2124,7 @@ dependencies = [
  "turbo-coref",
  "turbo-geo",
  "turbo-glossary-layers",
+ "turbo-normalize",
  "turbo-unicode",
  "turbo-vector-index",
  "turbo-wordnet",
@@ -2499,6 +2502,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-goldens",
+ "turbo-grammar",
  "turbo-unicode",
 ]
 
