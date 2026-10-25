@@ -87,7 +87,8 @@ joined; named layers are not silently substituted for default layers.
 
 `pca_dims` accepts 2 or 3; 0 defaults to 2. The projection prefers chunk
 vectors and otherwise sentence vectors. Without either, it returns an
-empty projection. Present vectors must be finite. PCA centers nonempty
+empty projection. Present vectors must be finite. The projection is
+`turbo_chunker::VectorProjection`, the library's PCA: it centers nonempty
 rows, canonicalizes axis signs, and reports explained-variance fractions;
 empty rows retain `empty = true` and zero coordinates. In 2D, `z` is zero.
 An adjacent cosine exists only when the current and immediately following
@@ -98,7 +99,9 @@ Term stacks are built from available sparse terms, otherwise vocabulary
 and term statistics, otherwise token counts. `max_stack_segments` is
 the retained top-K per stack, default 10 when zero. Omitted terms remain
 in the stack totals and `other_*` fields. No supporting layers means no
-corresponding stacks.
+corresponding stacks. Sparse terms whose spans are in another view than
+the projection's, or do not lie on its text, are refused with
+`INVALID_ARGUMENT`.
 
 `include_drift_curve` requests sentence-gap cosine/depth/cost information.
 Without sentences the field is absent. Without sentence vectors it uses
