@@ -1,5 +1,7 @@
 use std::num::NonZeroU32;
-use turbo_analysis::{Document, Error, Ix, IxRange, Key, Provenance, Span, Spans, Tag, TagSet, ViewId};
+use turbo_analysis::{
+    Document, Error, Ix, IxRange, Key, Provenance, Span, Spans, Tag, TagSet, View, ViewBuilder, ViewId,
+};
 use turbo_analysis_layers::{
     Categories, Chunks, Cut, DocumentHeatmap, EmotionItem, EmotionLayer, EmotionScores, EmotionTarget, Entities,
     HeatmapLaneKind, Incivility, IncivilityItem, IncivilityScores, IncivilityTarget, Pii, PiiConfidence, PiiKind,
@@ -250,4 +252,46 @@ fn heatmap_refusals() {
     let empty = Document::new("");
     let h = DocumentHeatmap::build(&empty, ViewId::SOURCE, None).unwrap();
     assert!(h.lanes.is_empty());
+}
+
+/// Adds the view "01234", the source's first five bytes, and returns its
+/// id: offsets 5..10 of the source are past its end.
+fn add_short_view(doc: &mut Document) -> ViewId {
+    let mut b = ViewBuilder::new("0123456789");
+    b.keep(5);
+    b.replace(10, "");
+    let (text, alignment) = b.finish();
+    let view = View::derived(doc.get::<View>().unwrap(), text, alignment);
+    doc.add(&Key::named("short"), view, by()).unwrap();
+    doc.get_key(&Key::<View>::named("short")).unwrap().id()
+}
+
+fn refused_as_other_view(doc: &Document, view: ViewId, buckets: Option<NonZeroU32>) {
+    match DocumentHeatmap::build(doc, view, buckets) {
+        Err(Error::Bounds { detail, .. }) => assert!(detail.contains("in view 0"), "{buckets:?}: {detail}"),
+        other => panic!("{buckets:?}: {other:?}"),
+    }
+}
+
+#[test]
+fn scored_lanes_refuse_spans_from_another_view() {
+    // Only a sentiment lane: its spans are synthesized from Sentences on
+    // the source, so they must not be laid on the short view's text.
+    let mut doc = Document::new("0123456789");
+    doc.add(&Key::DEFAULT, Sentences { spans: spans(&[(0, 5), (5, 10)]) }, by()).unwrap();
+    let rows: &[(u16, &[f64])] = &[(0, &[0.9, 0.1]), (1, &[0.2, 0.8])];
+    doc.add(&Key::DEFAULT, cats::<Sentences>(&["positive", "negative"], rows), by()).unwrap();
+    let short = add_short_view(&mut doc);
+    assert_eq!(DocumentHeatmap::build(&doc, ViewId::SOURCE, None).unwrap().lanes.len(), 1);
+    assert_eq!(DocumentHeatmap::build(&doc, ViewId::SOURCE, NonZeroU32::new(4)).unwrap().lanes.len(), 1);
+    refused_as_other_view(&doc, short, None);
+    refused_as_other_view(&doc, short, NonZeroU32::new(4));
+}
+
+#[test]
+fn density_lanes_refuse_spans_from_another_view_in_both_modes() {
+    let mut doc = base_doc();
+    let short = add_short_view(&mut doc);
+    refused_as_other_view(&doc, short, None);
+    refused_as_other_view(&doc, short, NonZeroU32::new(4));
 }

@@ -22,10 +22,14 @@
 
 use std::num::NonZeroU32;
 
-use turbo_analysis::{Document, Error, Key, KeyId, Layer, Span, Tag, TextSpans, ViewId};
+use turbo_analysis::{Document, Error, Key, KeyId, Layer, Span, TextSpans, ViewId};
 
-use crate::sentiment::{EMOTION_DIMENSIONS, EmotionLayer, EmotionTarget, Incivility, IncivilityTarget};
-use crate::{Categories, Chunks, Entities, Pii, Sentences, Structure, Tokens};
+use crate::sentiment::{EmotionLayer, Incivility};
+use crate::{Categories, Chunks, Entities, Pii, Sentences, Tokens};
+
+mod lanes;
+
+use lanes::{chunk_score_lane, emotion_lane, incivility_lane, sentiment_lane};
 
 /// What one heatmap lane measures.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -119,6 +123,7 @@ impl DocumentHeatmap {
         let text_len = doc.text(view).len() as u32;
         let mut lanes = Vec::new();
         if let Some(tokens) = doc.get::<Tokens>() {
+            tokens.check().map_err(|d| invalid(Key::<Tokens>::DEFAULT.id(), d))?;
             lanes.push(spanned_lane(
                 doc,
                 view,
@@ -130,6 +135,7 @@ impl DocumentHeatmap {
             )?);
         }
         if let Some(entities) = doc.get::<Entities>() {
+            entities.check().map_err(|d| invalid(Key::<Entities>::DEFAULT.id(), d))?;
             lanes.push(spanned_lane(
                 doc,
                 view,
@@ -141,6 +147,7 @@ impl DocumentHeatmap {
             )?);
         }
         if let Some(pii) = doc.get::<Pii>() {
+            pii.check().map_err(|d| invalid(Key::<Pii>::DEFAULT.id(), d))?;
             lanes.push(spanned_lane(
                 doc,
                 view,
@@ -167,9 +174,12 @@ impl DocumentHeatmap {
     }
 }
 
+/// One source item: its index, score, the view its spans are in and
+/// its fragments there.
 struct Item {
     source: u32,
     score: f32,
+    view: ViewId,
     frags: Vec<(u32, u32)>,
 }
 
@@ -196,8 +206,9 @@ fn spanned_lane(
     key: KeyId,
     ts: TextSpans<'_>,
 ) -> Result<HeatmapLane, Error> {
-    let items: Vec<Item> =
-        (0..ts.start.len()).map(|i| Item { source: i as u32, score: 0.0, frags: frags_of(&ts, i) }).collect();
+    let items: Vec<Item> = (0..ts.start.len())
+        .map(|i| Item { source: i as u32, score: 0.0, view: ts.view, frags: frags_of(&ts, i) })
+        .collect();
     finish_lane(doc, view, text_len, buckets, kind, key, &items, Some(ts))
 }
 
@@ -223,7 +234,7 @@ fn finish_lane(
     }
     let segments = match buckets {
         None => exact_segments(doc, view, text_len, kind, key, items, columns)?,
-        Some(n) => bucket_segments(text_len, n.get(), kind, items),
+        Some(n) => bucket_segments(doc, view, key, text_len, n.get(), kind, items)?,
     };
     let (mut min_score, mut max_score) = (0.0f32, 0.0f32);
     for (i, s) in segments.iter().enumerate() {
@@ -256,6 +267,32 @@ fn aggregate(kind: HeatmapLaneKind, items: &[Item], covering: &[usize]) -> (f32,
     (items[best].score, count, Some(items[best].source))
 }
 
+/// Refuses an item whose spans are in a view other than `view`, or a
+/// fragment that is reversed, past the view's `text_len` bytes or inside
+/// a character: both modes lay the offsets on `view`'s text as they are.
+fn check_items(doc: &Document, view: ViewId, key: KeyId, text_len: u32, items: &[Item]) -> Result<(), Error> {
+    let text = doc.text(view);
+    let bounds = |detail: String| Error::Bounds { layer: key, view, detail };
+    for it in items {
+        if it.view != view {
+            let detail =
+                format!("item {} spans are in view {}, the heatmap is over view {}", it.source, it.view.0, view.0);
+            return Err(bounds(detail));
+        }
+        for &(s, e) in &it.frags {
+            if s > e || e > text_len {
+                let detail =
+                    format!("item {} fragment {s}..{e} is past the end of the {text_len}-byte view", it.source);
+                return Err(bounds(detail));
+            }
+            if !text.is_char_boundary(s as usize) || !text.is_char_boundary(e as usize) {
+                return Err(bounds(format!("item {} fragment {s}..{e} is inside a character of the view", it.source)));
+            }
+        }
+    }
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 fn exact_segments(
     doc: &Document,
@@ -266,6 +303,7 @@ fn exact_segments(
     items: &[Item],
     columns: Option<TextSpans<'_>>,
 ) -> Result<Vec<HeatmapSegment>, Error> {
+    check_items(doc, view, key, text_len, items)?;
     // Synthesized columns when items are not a layer's own, kept alive
     // for the combined call.
     let (mut start, mut end, mut frag_start, mut frag_end, mut frag_item_end) =
@@ -305,7 +343,16 @@ fn exact_segments(
         .collect())
 }
 
-fn bucket_segments(text_len: u32, buckets: u32, kind: HeatmapLaneKind, items: &[Item]) -> Vec<HeatmapSegment> {
+fn bucket_segments(
+    doc: &Document,
+    view: ViewId,
+    key: KeyId,
+    text_len: u32,
+    buckets: u32,
+    kind: HeatmapLaneKind,
+    items: &[Item],
+) -> Result<Vec<HeatmapSegment>, Error> {
+    check_items(doc, view, key, text_len, items)?;
     let n = buckets as usize;
     let edge = |i: usize| -> u32 { (i as u64 * text_len as u64 / buckets as u64) as u32 };
     let mut covering: Vec<Vec<usize>> = vec![Vec::new(); n];
@@ -315,11 +362,13 @@ fn bucket_segments(text_len: u32, buckets: u32, kind: HeatmapLaneKind, items: &[
         for &(s, e) in &it.frags {
             // Bins a fragment touches: positive-length overlap, or the
             // bin holding a zero-width point (the last bin at the end).
-            if text_len == 0 && s != e {
-                continue;
-            }
+            // check_items has kept every offset within the view.
             let bin = |at: u32| -> usize {
-                if text_len == 0 { 0 } else { ((at as u64 * buckets as u64 / text_len as u64) as usize).min(n - 1) }
+                match at {
+                    _ if text_len == 0 => 0,
+                    _ if at == text_len => n - 1,
+                    _ => (at as u64 * buckets as u64 / text_len as u64) as usize,
+                }
             };
             let (first, last) = if s == e { (bin(s), bin(s)) } else { (bin(s), bin(e - 1)) };
             for (b, cov) in covering.iter_mut().enumerate().take(last + 1).skip(first) {
@@ -330,170 +379,13 @@ fn bucket_segments(text_len: u32, buckets: u32, kind: HeatmapLaneKind, items: &[
             }
         }
     }
-    (0..n)
+    Ok((0..n)
         .map(|i| {
             let (score, count, primary_item) = aggregate(kind, items, &covering[i]);
             HeatmapSegment { span: Span { start: edge(i), end: edge(i + 1) }, score, count, primary_item }
         })
-        .collect()
+        .collect())
 }
 
-fn sentiment_lane(
-    doc: &Document,
-    view: ViewId,
-    text_len: u32,
-    buckets: Option<NonZeroU32>,
-    cats: &Categories<Sentences>,
-) -> Result<HeatmapLane, Error> {
-    let key = Key::<Categories<Sentences>>::DEFAULT.id();
-    cats.check().map_err(|d| invalid(key, d))?;
-    let sentences = doc.get::<Sentences>().ok_or(Error::Missing(Key::<Sentences>::DEFAULT.id()))?;
-    if cats.len() != sentences.spans.len() {
-        return Err(invalid(key, format!("{} category rows for {} sentences", cats.len(), sentences.spans.len())));
-    }
-    let ts = sentences.spans.text_spans();
-    let items = cats
-        .iter()
-        .enumerate()
-        .filter_map(|(i, row)| polarity_of(&row).map(|score| Item { source: i as u32, score, frags: frags_of(&ts, i) }))
-        .collect::<Vec<_>>();
-    // Non-finite category scores would hide inside polarity_of; refuse
-    // them up front so a lane never silently drops a scored sentence.
-    for (i, row) in cats.iter().enumerate() {
-        if row.scores.iter().any(|s| !s.is_finite()) {
-            return Err(invalid(key, format!("sentence {i} has a non-finite category score")));
-        }
-    }
-    finish_lane(doc, view, text_len, buckets, HeatmapLaneKind::SentimentPolarity, key, &items, None)
-}
-
-fn polarity_of(row: &crate::CategoryRow<'_>) -> Option<f32> {
-    let pos = row.score_of("positive").or_else(|| row.score_of("pos"));
-    let neg = row.score_of("negative").or_else(|| row.score_of("neg"));
-    if let (Some(p), Some(n)) = (pos, neg) {
-        return Some((p - n).clamp(-1.0, 1.0) as f32);
-    }
-    if row.best_tag == Tag::NONE {
-        return None;
-    }
-    let mag = row.best_score().clamp(0.0, 1.0) as f32;
-    if row.best.eq_ignore_ascii_case("positive") || row.best.eq_ignore_ascii_case("pos") {
-        Some(mag)
-    } else if row.best.eq_ignore_ascii_case("negative") || row.best.eq_ignore_ascii_case("neg") {
-        Some(-mag)
-    } else {
-        None
-    }
-}
-
-fn chunk_score_lane(
-    doc: &Document,
-    view: ViewId,
-    text_len: u32,
-    buckets: Option<NonZeroU32>,
-    cats: &Categories<Chunks>,
-) -> Result<HeatmapLane, Error> {
-    let key = Key::<Categories<Chunks>>::DEFAULT.id();
-    cats.check().map_err(|d| invalid(key, d))?;
-    let chunks = doc.get::<Chunks>().ok_or(Error::Missing(Key::<Chunks>::DEFAULT.id()))?;
-    if cats.len() != chunks.spans.len() {
-        return Err(invalid(key, format!("{} category rows for {} chunks", cats.len(), chunks.spans.len())));
-    }
-    let ts = chunks.spans.text_spans();
-    let mut items = Vec::new();
-    for (i, row) in cats.iter().enumerate() {
-        if row.scores.iter().any(|s| !s.is_finite()) {
-            return Err(invalid(key, format!("chunk {i} has a non-finite category score")));
-        }
-        if row.best_tag != Tag::NONE {
-            items.push(Item { source: i as u32, score: row.best_score() as f32, frags: frags_of(&ts, i) });
-        }
-    }
-    finish_lane(doc, view, text_len, buckets, HeatmapLaneKind::ChunkScore, key, &items, None)
-}
-
-fn target_frags(key: KeyId, spans_of: &str, item: usize, ts: &TextSpans<'_>) -> Result<Vec<(u32, u32)>, Error> {
-    if item >= ts.start.len() {
-        return Err(invalid(key, format!("target {item} is outside {spans_of} with {} items", ts.start.len())));
-    }
-    Ok(frags_of(ts, item))
-}
-
-fn incivility_lane(
-    doc: &Document,
-    view: ViewId,
-    text_len: u32,
-    buckets: Option<NonZeroU32>,
-    inc: &Incivility,
-) -> Result<HeatmapLane, Error> {
-    let key = Key::<Incivility>::DEFAULT.id();
-    inc.check().map_err(|d| invalid(key, d))?;
-    let mut items = Vec::with_capacity(inc.target.len());
-    for (i, target) in inc.target.iter().enumerate() {
-        let score = [
-            inc.insult[i],
-            inc.profanity[i],
-            inc.threat[i],
-            inc.identity_attack[i],
-            inc.intolerance[i],
-            inc.severe_toxicity[i],
-        ]
-        .iter()
-        .fold(0.0f64, |m, &s| m.max(s));
-        if !score.is_finite() {
-            return Err(invalid(key, format!("item {i} has a non-finite incivility score")));
-        }
-        let frags = match target {
-            IncivilityTarget::Sentence(s) => {
-                let layer =
-                    doc.get_key::<Sentences>(&inc.sentences_key).ok_or(Error::Missing(inc.sentences_key.id()))?;
-                target_frags(key, "sentences", s.get(), &layer.spans.text_spans())?
-            }
-            IncivilityTarget::Chunk(c) => {
-                let layer = doc.get_key::<Chunks>(&inc.chunks_key).ok_or(Error::Missing(inc.chunks_key.id()))?;
-                target_frags(key, "chunks", c.get(), &layer.spans.text_spans())?
-            }
-            IncivilityTarget::Block(b) => {
-                let layer =
-                    doc.get_key::<Structure>(&inc.structure_key).ok_or(Error::Missing(inc.structure_key.id()))?;
-                target_frags(key, "structure blocks", b.get(), &layer.spans.text_spans())?
-            }
-        };
-        items.push(Item { source: i as u32, score: score as f32, frags });
-    }
-    finish_lane(doc, view, text_len, buckets, HeatmapLaneKind::IncivilityScore, key, &items, None)
-}
-
-fn emotion_lane(
-    doc: &Document,
-    view: ViewId,
-    text_len: u32,
-    buckets: Option<NonZeroU32>,
-    emotion: &EmotionLayer,
-) -> Result<HeatmapLane, Error> {
-    let key = Key::<EmotionLayer>::DEFAULT.id();
-    emotion.check().map_err(|d| invalid(key, d))?;
-    let mut items = Vec::with_capacity(emotion.target.len());
-    for (i, target) in emotion.target.iter().enumerate() {
-        let row = &emotion.scores[i * EMOTION_DIMENSIONS..(i + 1) * EMOTION_DIMENSIONS];
-        if row.iter().any(|s| !s.is_finite()) {
-            return Err(invalid(key, format!("item {i} has a non-finite emotion score")));
-        }
-        let score = row.iter().fold(0.0f64, |m, &s| m.max(s));
-        let frags = match target {
-            EmotionTarget::Sentence(s) => {
-                let layer = doc
-                    .get_key::<Sentences>(&emotion.sentences_key)
-                    .ok_or(Error::Missing(emotion.sentences_key.id()))?;
-                target_frags(key, "sentences", s.get(), &layer.spans.text_spans())?
-            }
-            EmotionTarget::Chunk(c) => {
-                let layer =
-                    doc.get_key::<Chunks>(&emotion.chunks_key).ok_or(Error::Missing(emotion.chunks_key.id()))?;
-                target_frags(key, "chunks", c.get(), &layer.spans.text_spans())?
-            }
-        };
-        items.push(Item { source: i as u32, score: score as f32, frags });
-    }
-    finish_lane(doc, view, text_len, buckets, HeatmapLaneKind::EmotionIntensity, key, &items, None)
-}
+#[cfg(test)]
+mod tests;
