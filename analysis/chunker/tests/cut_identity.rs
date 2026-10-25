@@ -138,7 +138,7 @@ fn layers() -> (Sentences, Subwords, Boundaries) {
 fn trace_matches_real_annotator_and_forced_sections_have_no_margin() {
     let (s, w, b) = layers();
     let c = Chunker { budget: budget(4) };
-    let (normal,) = c.annotate((&s, &w, &b, None, None)).unwrap();
+    let (normal,) = c.annotate((&s, &w, &b, None, None, None)).unwrap();
     let traced = c.chunk_with_trace(&s, &w, &b, None, None).unwrap();
     assert_eq!(normal.spans.columns(), traced.chunks().spans.columns());
     assert_eq!(normal.cost, traced.chunks().cost);

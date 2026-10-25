@@ -4,12 +4,13 @@ Part of #391, #714 and #715. The Rust `turbo::deberta` API executes the
 shared-key DeBERTa-v3 encoder used by GLiNER2. It returns hidden states for
 extraction heads without Python, ONNX or an external inference engine.
 
-This first CPU implementation establishes the equations and the checkpoint
-boundary. It does not add a C session task, tokenizer/prompt construction,
-GLiNER span heads, GLiREL relation heads, GLiNER2 schema decoding, SaT,
-quantization, GPU execution or a throughput acceptance claim. Those issues
-stay open. In particular, the separate relation-layer work in #784 does not
-complete the neural portion of #714.
+This CPU implementation establishes the equations and the checkpoint
+boundary. On top of it now sit the GLiNER span heads (`turbo-gliner`),
+the GLiREL relation scorer (`turbo-relation`) and GLiNER2 schema
+decoding (`turbo-schema-extract`); the span and schema work in #714
+and #715 is built on this encoder. SaT (`turbo-sat`) is separate: it
+runs on the generic encoder token-state path with an XLM-R/RoBERTa
+bundle, not on this DeBERTa encoder.
 
 ## Supported computation
 

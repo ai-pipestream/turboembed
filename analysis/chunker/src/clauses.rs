@@ -404,7 +404,7 @@ mod tests {
             }],
         };
         let chunker = Chunker { budget: Budget { target: 1, max: 1, size_weight: 10, overhead: 0 } };
-        let (chunks,) = chunker.annotate((&sentences, &subwords, &bounds, None, Some(&cuts))).unwrap();
+        let (chunks,) = chunker.annotate((&sentences, &subwords, &bounds, None, Some(&cuts), None)).unwrap();
         assert_eq!(chunks.spans.len(), 2);
         assert_eq!(chunks.spans.get(Ix::new(0)), Span::new(0, 2));
         assert_eq!(chunks.spans.get(Ix::new(1)), Span::new(3, 7));
@@ -419,7 +419,7 @@ mod tests {
             .annotate((&sentences, &tokens, None, None, None, None, None))
             .unwrap();
         assert_eq!(derived_cuts.sentences[0].breaks[1], ClauseBreak::Held);
-        let (chunks2,) = chunker.annotate((&sentences, &subwords, &bounds, None, Some(&derived_cuts))).unwrap();
+        let (chunks2,) = chunker.annotate((&sentences, &subwords, &bounds, None, Some(&derived_cuts), None)).unwrap();
         assert_eq!(chunks2.spans.len(), 2);
     }
 }
