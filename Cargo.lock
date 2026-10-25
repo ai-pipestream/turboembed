@@ -2066,6 +2066,9 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-jvm",
  "turbo-maxent",
+ "turbo-normalize",
+ "turbo-sentdetect",
+ "turbo-tokenize",
  "turbo-train",
  "turbo-unicode",
 ]

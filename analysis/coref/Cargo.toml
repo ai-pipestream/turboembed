@@ -20,3 +20,8 @@ turbo-maxent = { path = "../maxent" }
 turbo-train = { path = "../train" }
 # Java's lower case mapping and character classes.
 turbo-unicode = { path = "../unicode" }
+
+[dev-dependencies]
+turbo-normalize = { path = "../normalize" }
+turbo-sentdetect = { path = "../sentdetect" }
+turbo-tokenize = { path = "../tokenize" }
