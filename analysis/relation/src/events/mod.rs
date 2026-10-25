@@ -130,6 +130,8 @@ impl Annotator for EventExtractor {
         if deps.head.len() != n {
             return Err(Self::fail(format!("{} dependencies for {n} tokens", deps.head.len())));
         }
+        // The frame walks climb heads and descend children; a cycle would never end.
+        deps.check_forest().map_err(Self::fail)?;
         if pos.is_some_and(|p| p.tags.len() != n) || lemmas.is_some_and(|l| l.lemma.len() != n) {
             return Err(Self::fail("tags or lemmas not aligned to the tokens".into()));
         }

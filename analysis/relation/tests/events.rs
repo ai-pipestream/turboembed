@@ -92,6 +92,13 @@ fn passive_with_subtyped_relations() {
 }
 
 #[test]
+fn cyclic_dependencies_are_refused() {
+    let d = parsed("a b", "2:nsubj 1:nsubj");
+    let err = EventExtractor::new().events(&d).unwrap_err().to_string();
+    assert!(err.contains("cycle"), "{err}");
+}
+
+#[test]
 fn passive_from_tags_without_subtypes() {
     let mut d = parsed("Prices were cut by Acme .", "3:nsubj 3:aux 0:root 5:case 3:obl 3:punct");
     add_pos(&mut d, "NNS VBD VBN IN NNP .");

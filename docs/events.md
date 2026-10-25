@@ -20,6 +20,10 @@ word with a subject, object, `obl` or `aux` dependent), the head of a
 copula (the copula is the trigger, the head its `Attribute` and the
 subject its `Patient`), or a noun whose lemma is in
 `EventConfig::nominal_triggers` (`acquisition`, `merger`, ...).
+The copula's `Attribute` spans the words from after the copula through
+the head only, so the head's right dependents are left out (*is the
+largest bank in Ohio* gives *the largest bank*). A dependency layer with
+a cycle is refused with an error before any walk.
 
 | Dependent | Role |
 | --- | --- |
