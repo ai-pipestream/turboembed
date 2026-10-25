@@ -5,12 +5,13 @@
 //! an `Evidence<Entities>` record per entity that names every
 //! recognizer that voted for it.
 //!
-//! Candidates of one type vote together when their token ranges overlap
-//! (for [`EntityMergePolicy::RawUnion`], when they are the same range).
-//! A group's entity is the candidate with the highest score, the earlier
+//! The candidates are taken best first: the highest score, the earlier
 //! recognizer winning a tie (under [`EntityMergePolicy::PriorityFallback`],
-//! the earliest recognizer's candidate), and its score is the highest
-//! score in the group. Its
+//! the earliest recognizer's first). Each one not yet taken is a group's
+//! entity, and every candidate of its type not yet taken whose token range
+//! overlaps it (for [`EntityMergePolicy::RawUnion`], is the same range)
+//! votes for it, so a vote always overlaps the entity it is for. The
+//! group's score is the highest score in it. Its
 //! evidence record holds, for each vote in recognizer order, the voter's
 //! own span in the source text and a support range that points at the
 //! voter's entity in the voter's instance, where its own score is; the
@@ -123,22 +124,16 @@ pub fn consensus(layers: &[&Entities], policy: EntityMergePolicy) -> Result<Cons
             });
         }
     }
-    let mut groups = group(&candidates, matches!(policy, EntityMergePolicy::RawUnion));
-    // Each group's winner: the highest score, the earlier recognizer and
-    // then the earlier entity winning a tie; under PriorityFallback the
-    // earliest recognizer first.
+    // The order winners are taken in: the highest score, the earlier
+    // recognizer and then the earlier entity winning a tie; under
+    // PriorityFallback the earliest recognizer first.
     let priority = matches!(policy, EntityMergePolicy::PriorityFallback);
-    let rank = |c: usize| {
+    let mut order: Vec<usize> = (0..candidates.len()).collect();
+    order.sort_by_key(|&c| {
         let c = &candidates[c];
         (if priority { c.vote.input } else { 0 }, std::cmp::Reverse(Score(c.score)), c.vote.input, c.vote.entity)
-    };
-    let mut kept: Vec<(Vec<usize>, usize)> = groups
-        .drain(..)
-        .map(|g| {
-            let w = *g.iter().min_by_key(|&&c| rank(c)).expect("a group has a member");
-            (g, w)
-        })
-        .collect();
+    });
+    let mut kept = group(&candidates, &order, matches!(policy, EntityMergePolicy::RawUnion));
     match policy {
         EntityMergePolicy::RawUnion => {}
         EntityMergePolicy::PriorityFallback => {
@@ -212,38 +207,50 @@ pub fn consensus(layers: &[&Entities], policy: EntityMergePolicy) -> Result<Cons
     Ok(out)
 }
 
-/// The candidates that vote together, each group in candidate order:
-/// one type, and ranges that overlap one another in a chain (or, when
-/// `exact`, the same range).
-fn group(candidates: &[Candidate<'_>], exact: bool) -> Vec<Vec<usize>> {
-    let mut order: Vec<usize> = (0..candidates.len()).collect();
-    order.sort_by(|&a, &b| {
-        let (x, y) = (&candidates[a], &candidates[b]);
-        (x.label, x.start, x.end, a).cmp(&(y.label, y.start, y.end, b))
-    });
-    let mut groups: Vec<Vec<usize>> = Vec::new();
-    // The open group's type, range and members.
-    let mut open: Option<(&str, usize, usize)> = None;
-    for i in order {
-        let c = &candidates[i];
-        let joins = open.is_some_and(|(label, start, end)| {
-            label == c.label
-                && match exact {
-                    true => (start, end) == (c.start, c.end),
-                    false => c.start < end || (start, end) == (c.start, c.end),
-                }
-        });
-        if joins {
-            let (label, start, end) = open.expect("an open group");
-            open = Some((label, start, end.max(c.end)));
-            groups.last_mut().expect("an open group").push(i);
-        } else {
-            open = Some((c.label, c.start, c.end));
-            groups.push(vec![i]);
+/// The groups and their winners: each candidate in `order` not yet in a
+/// group wins one, with every candidate of its type not yet in one whose
+/// range overlaps the winner's (or, when `exact`, is the same range). A
+/// group's members are in candidate order.
+fn group(candidates: &[Candidate<'_>], order: &[usize], exact: bool) -> Vec<(Vec<usize>, usize)> {
+    // By type and first token, so the candidates that may overlap a
+    // winner are a short run: those of its type that start within the
+    // type's longest range before it and no later than its end.
+    let mut sorted: Vec<usize> = (0..candidates.len()).collect();
+    sorted.sort_by_key(|&c| (candidates[c].label, candidates[c].start, candidates[c].end, c));
+    // Each type's longest range, in tokens.
+    let mut reach: Vec<(&str, usize)> = Vec::new();
+    for &c in &sorted {
+        let (label, len) = (candidates[c].label, candidates[c].end - candidates[c].start);
+        match reach.last_mut() {
+            Some((l, n)) if *l == label => *n = (*n).max(len),
+            _ => reach.push((label, len)),
         }
     }
-    for g in &mut groups {
-        g.sort_unstable();
+    let mut taken = vec![false; candidates.len()];
+    let mut groups = Vec::new();
+    for &w in order {
+        if taken[w] {
+            continue;
+        }
+        taken[w] = true;
+        let win = &candidates[w];
+        let longest = reach.iter().find(|&&(l, _)| l == win.label).map_or(0, |&(_, n)| n);
+        let from = win.start.saturating_sub(longest);
+        let at = sorted.partition_point(|&c| (candidates[c].label, candidates[c].start) < (win.label, from));
+        let mut members = vec![w];
+        for &c in &sorted[at..] {
+            let x = &candidates[c];
+            if x.label != win.label || x.start > win.end {
+                break;
+            }
+            let votes = if exact { (x.start, x.end) == (win.start, win.end) } else { overlaps(x, win) };
+            if !taken[c] && votes {
+                taken[c] = true;
+                members.push(c);
+            }
+        }
+        members.sort_unstable();
+        groups.push((members, w));
     }
     groups
 }

@@ -172,3 +172,45 @@ fn inputs_in_different_views_are_refused() {
     let refs: Vec<&Entities> = layers.iter().collect();
     assert!(consensus(&refs, EntityMergePolicy::RawUnion).err().unwrap().contains("different views"));
 }
+
+#[test]
+fn an_entity_that_bridges_two_keeps_the_first_recognizers_both() {
+    // The CRF's "Lovelace met Charles" overlaps both of the dictionary's
+    // names: it votes for the first, and the second is still kept.
+    let first = entities(&[(0, 2, PERSON, 0.9), (3, 5, PERSON, 0.8)]);
+    let bridge = entities(&[(1, 4, PERSON, 0.95)]);
+    let c = consensus(&[&first, &bridge], EntityMergePolicy::PriorityFallback).unwrap();
+    assert_eq!(rows(&c.entities), [(0, 2, "person", 0.95), (3, 5, "person", 0.8)]);
+    assert_eq!(c.votes_of(0), [Vote { input: 0, entity: 0 }, Vote { input: 1, entity: 0 }]);
+    assert_eq!(c.votes_of(1), [Vote { input: 0, entity: 1 }]);
+    // Best score first, the bridge wins and both names vote for it.
+    let one = EntityMergePolicy::Consensus { min_votes: NonZeroU32::MIN, overlap_rule: FilterRule::HighestScore };
+    let c = consensus(&[&first, &bridge], one).unwrap();
+    assert_eq!(rows(&c.entities), [(1, 4, "person", 0.95)]);
+    assert_eq!(c.votes_of(0).len(), 3);
+}
+
+#[test]
+fn every_vote_overlaps_the_entity_it_is_for() {
+    // A chain of overlapping ranges from two recognizers: no vote may
+    // reach past its own entity to the far end of the chain.
+    let a = entities(&[(0, 2, PERSON, 0.5), (3, 5, PERSON, 0.6), (6, 8, PERSON, 0.7)]);
+    let b = entities(&[(1, 4, PERSON, 0.9), (4, 7, PERSON, 0.4)]);
+    let layers = [&a, &b];
+    for policy in [
+        EntityMergePolicy::PriorityFallback,
+        EntityMergePolicy::Consensus { min_votes: NonZeroU32::MIN, overlap_rule: FilterRule::LongestFirst },
+        EntityMergePolicy::RawUnion,
+    ] {
+        let c = consensus(&layers, policy).unwrap();
+        for i in 0..c.winner.len() {
+            let w = c.entities.tokens[i];
+            for v in c.votes_of(i) {
+                let t = layers[v.input as usize].tokens[v.entity as usize];
+                assert!(t.start < w.end && w.start < t.end, "{policy:?}: vote {v:?} {t:?} for {w:?}");
+            }
+        }
+        // Each candidate votes once.
+        assert_eq!(c.votes.len(), 5, "{policy:?}");
+    }
+}
