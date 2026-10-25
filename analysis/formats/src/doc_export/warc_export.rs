@@ -46,7 +46,7 @@ impl DocumentFormatter for WarcFormatter {
             media_type: "application/warc",
             file_extension: "warc",
             binary: true,
-            lossless: true,
+            lossless: false,
             required_layers: REQUIRED_LAYERS,
             description: "WARC/1.1 archive with warcinfo and resource records for urn:turbo:document:<doc_id>, exact Content-Length, and CRLF framing.",
         }

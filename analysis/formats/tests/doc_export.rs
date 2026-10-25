@@ -45,15 +45,6 @@ fn registry_standard_orders_and_validates_format_ids() {
 
 #[test]
 fn conllu_round_trips_multiword_tokens_lemmas_pos_deps_and_space_after_no() {
-    // Sentence: "Wait, don't go!"
-    // Tokens: "Wait" (0..4), "," (4..5), "don't" (6..11), "go" (12..14), "!" (14..15)
-    // Words:
-    //   0: "Wait" (token 0..1)
-    //   1: "," (token 1..2)
-    //   2: "do" (token 2..3, subspan 6..8)
-    //   3: "n't" (token 2..3, subspan 8..11)
-    //   4: "go" (token 3..4)
-    //   5: "!" (token 4..5)
     let text = "Wait, don't go!";
     let mut doc = Document::new(text);
 
@@ -157,21 +148,7 @@ fn conllu_round_trips_multiword_tokens_lemmas_pos_deps_and_space_after_no() {
 
 #[test]
 fn brat_preserves_continuous_and_discontinuous_entities_and_relations_across_offset_modes() {
-    // Multibyte UTF-8 text with BMP accented char ("Café", 'é' is 2 UTF-8 bytes, 1 UTF-16 unit, 1 code point)
-    // and astral emoji ("🚀", 4 UTF-8 bytes, 2 UTF-16 units, 1 code point):
-    // "Café 🚀 New York and Jersey"
-    // Byte offsets:
-    //   "Café"       -> 0..5   (UTF-16: 0..4,   CP: 0..4)
-    //   " "          -> 5..6   (UTF-16: 4..5,   CP: 4..5)
-    //   "🚀"         -> 6..10  (UTF-16: 5..7,   CP: 5..6)
-    //   " "          -> 10..11 (UTF-16: 7..8,   CP: 6..7)
-    //   "New"        -> 11..14 (UTF-16: 8..11,  CP: 7..10)
-    //   " "          -> 14..15 (UTF-16: 11..12, CP: 10..11)
-    //   "York"       -> 15..19 (UTF-16: 12..16, CP: 11..15)
-    //   " "          -> 19..20 (UTF-16: 16..17, CP: 15..16)
-    //   "and"        -> 20..23 (UTF-16: 17..20, CP: 16..19)
-    //   " "          -> 23..24 (UTF-16: 20..21, CP: 19..20)
-    //   "Jersey"     -> 24..30 (UTF-16: 21..27, CP: 20..26)
+    // Multibyte UTF-8 text with BMP accented char ("Café") and astral emoji ("🚀"):
     let text = "Café 🚀 New York and Jersey";
     let mut doc = Document::new(text);
 
@@ -235,6 +212,9 @@ fn brat_preserves_continuous_and_discontinuous_entities_and_relations_across_off
             assert!(ann_str.contains("T2\tLOC 7 10;20 26\tNew Jersey\n"));
         }
     }
+    let tsv = TsvFormatter.format_to_string("brat-doc", &doc, ExportOffsetMode::Utf8).unwrap();
+    assert!(tsv.contains("0\t4\t20\t23\tand\t\t\t\tO\tfalse\n"));
+    assert!(tsv.contains("0\t5\t24\t30\tJersey\t\t\t\tB-LOC\tfalse\n"));
 }
 
 #[test]
@@ -458,5 +438,47 @@ fn all_builtin_descriptors_stay_well_formed() {
         assert!(!d.media_type.is_empty());
         assert!(!d.file_extension.is_empty());
         assert!(!d.description.is_empty());
+        assert!(!d.lossless);
     }
+}
+
+#[test]
+fn conllu_projects_child_view_multiword_subspans_across_offset_modes() {
+    let source = ">>> é don't\ngo";
+    let mut doc = Document::new(source);
+    let mut vb = ViewBuilder::new(source);
+    vb.replace(4, "");
+    let (derived_text, alignment) = vb.finish();
+    assert_eq!(derived_text, "é don't\ngo");
+    let src_view = doc.get::<View>().unwrap().clone();
+    let view_key = Key::<View>::named("stripped");
+    doc.add(&view_key, View::derived(&src_view, derived_text.clone(), alignment), Provenance::by("test")).unwrap();
+    let child_view = doc.get_key(&view_key).unwrap().id();
+
+    let mut sent_spans = Spans::<Sentences>::new(child_view);
+    sent_spans.push(Span::new(0, derived_text.len() as u32));
+    doc.add(&Key::DEFAULT, Sentences { spans: sent_spans }, Provenance::by("test")).unwrap();
+
+    let mut tok_spans = Spans::<Tokens>::new(child_view);
+    for (s, e) in [(0, 2), (3, 8), (9, 11)] {
+        tok_spans.push(Span::new(s, e));
+    }
+    doc.add(&Key::DEFAULT, Tokens { spans: tok_spans, sentence: Some(vec![Ix::new(0); 3]) }, Provenance::by("test"))
+        .unwrap();
+
+    let mut words = Words::new();
+    words.push_token(Ix::new(0));
+    words.push_word(IxRange::new(1, 2), None, Some(Span::new(3, 5)));
+    words.push_word(IxRange::new(1, 2), None, Some(Span::new(5, 8)));
+    words.push_token(Ix::new(2));
+    doc.add(&Key::DEFAULT, words, Provenance::by("test")).unwrap();
+
+    let u8_out = ConlluFormatter.format_to_string("mwt-view", &doc, ExportOffsetMode::Utf8).unwrap();
+    assert!(u8_out.contains("2-3\tdon't\t_\t_\t_\t_\t_\t_\t_\tSpacesAfter=\\n\n"));
+    let u16_out = ConlluFormatter.format_to_string("mwt-view", &doc, ExportOffsetMode::Utf16).unwrap();
+    assert!(u16_out.contains("2\tdo\t_\t_\t_\t_\t_\t_\t_\tTokenRangeUtf16=6:8\n"));
+    assert!(u16_out.contains("3\tn't\t_\t_\t_\t_\t_\t_\t_\tTokenRangeUtf16=8:11\n"));
+    let cp_out = ConlluFormatter.format_to_string("mwt-view", &doc, ExportOffsetMode::CodePoint).unwrap();
+    assert!(cp_out.contains("2\tdo\t_\t_\t_\t_\t_\t_\t_\tTokenRangeCp=6:8\n"));
+    assert!(cp_out.contains("3\tn't\t_\t_\t_\t_\t_\t_\t_\tTokenRangeCp=8:11\n"));
 }

@@ -3,7 +3,7 @@
 use std::fmt::Write as _;
 use std::io::Write;
 
-use turbo_analysis::{Document, Ix, IxRange, Span, ViewId};
+use turbo_analysis::{Document, Ix, IxRange, Span};
 use turbo_analysis_layers::{
     Dependencies, Lemmas, MorphFeatures, PosTags, Sentences, Tokens, WordDependencies, WordLemmas, WordPosTags, Words,
 };
@@ -222,7 +222,7 @@ impl DocumentFormatter for ConlluFormatter {
                     let word_misc = if group_end - w_idx == 1 {
                         surface_misc.clone()
                     } else if let Some(sub_span) = words.subspan.as_ref().and_then(|s| s[cur]) {
-                        let sub_src = doc.to_source(ViewId::SOURCE, sub_span);
+                        let sub_src = doc.to_source(tok_view, sub_span);
                         let (ws, we) = offsets.convert_source_span(doc, sub_src)?;
                         build_misc(None, offsets, ws, we)
                     } else {
