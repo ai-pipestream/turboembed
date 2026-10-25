@@ -62,9 +62,14 @@ run options:
   --titles <t>            ignore, or prefix each chunk with the document's
                           title (default ignore)
   --retrieval <r>         dense (the embedder's vectors, by cosine),
-                          bm25 (the chunks' terms; nothing is embedded) or
+                          bm25 (the chunks' terms; nothing is embedded),
                           hybrid (BM25 and exact cosine fused over chunks)
-                          (default dense)
+                          or cascade (static and BM25 shortlists reranked
+                          in the bundle's contextual space; needs
+                          --static-bundle) (default dense)
+  --static-bundle <dir>   with cascade: the static embedder's bundle
+  --candidates <n>        with cascade: per-signal stage-1 shortlist
+                          size (default 64)
   --k1 <f>, --b <f>       BM25's parameters (default 1.2 and 0.75, Lucene's)
   --terms <t>             BM25's terms: folded (lowercased word tokens) or
                           english (also Lucene's English stop words,
@@ -347,8 +352,17 @@ fn run_cmd(args: &[String]) -> Result<()> {
         "prefix" => Titles::Prefix,
         t => return Err(format!("--titles {t}: ignore or prefix")),
     };
+    let mut cascade = None;
+    let mut static_bundle = None;
     let (lexical, hybrid) = match o.take("--retrieval").as_deref().unwrap_or("dense") {
         "dense" => (None, None),
+        "cascade" => {
+            let (model, terms) = bm25_opts(&mut o)?;
+            let candidates: usize = o.parsed("--candidates")?.unwrap_or(64);
+            static_bundle = Some(PathBuf::from(o.need("--static-bundle")?));
+            cascade = Some(turbo_eval::cascade::Cascade { candidates, model, terms });
+            (None, None)
+        }
         "bm25" => {
             let (model, terms) = bm25_opts(&mut o)?;
             (Some(Lexical { model, terms, dump: o.take("--dump-terms").map(PathBuf::from) }), None)
@@ -370,7 +384,7 @@ fn run_cmd(args: &[String]) -> Result<()> {
             fusion.check()?;
             (None, Some(Hybrid { model, terms, fusion }))
         }
-        r => return Err(format!("--retrieval {r}: dense, bm25 or hybrid")),
+        r => return Err(format!("--retrieval {r}: dense, bm25, hybrid or cascade")),
     };
     let repo = o.take("--repo").map_or(workspace, PathBuf::from);
     if sets.is_empty() {
@@ -380,6 +394,12 @@ fn run_cmd(args: &[String]) -> Result<()> {
     // Refused before the model loads, and checked again before writing.
     let source = turbo_eval::source::source(&repo)?;
     let embedder = TurboEmbedder::open(&bundle, device.clone(), precision)?;
+    let static_embedder =
+        match &static_bundle {
+            Some(dir) => Some(Box::new(TurboEmbedder::open(dir, device.clone(), precision)?)
+                as Box<dyn turbo_eval::embedder::Embedder>),
+            None => None,
+        };
     let chunker = chunker(&mut o, &embedder, (&bundle, &device, precision))?;
     if let Some(unknown) = o.0.keys().next() {
         return Err(format!("{unknown}: not an option here\n{USAGE}"));
@@ -391,6 +411,8 @@ fn run_cmd(args: &[String]) -> Result<()> {
         titles,
         lexical,
         hybrid,
+        cascade,
+        static_embedder,
     };
     let written = run_sets(&mut pipeline, &sets, &cache, load_set, &out, &source)?;
     if turbo_eval::source::source(&repo)? != source {

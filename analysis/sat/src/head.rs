@@ -1,29 +1,15 @@
 //! The token classifier over the encoder's final states: wtpsplit's
 //! `classifier`, a linear layer from the hidden size to the labels, of
-//! which the boundary score is label 0 (`Constants.NEWLINE_INDEX`).
+//! which the boundary score is label 0 (`Constants.NEWLINE_INDEX`). The
+//! bundle's manifest declares it as a `CLASSIFIER_TOKEN` head.
 
 use turbo::bundle::Bundle;
-use turbo::manifest::Format;
-use turbo::safetensors::{self, Dtype};
+use turbo::manifest::ClassifierKind;
 use turbo::status::{Error, INVALID_ARGUMENT, Result};
 
-/// Where the classifier's tensors are in the bundle's weights.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct HeadNames {
-    /// `[labels, hidden]`, F32.
-    pub weight: String,
-    /// `[labels]`, F32.
-    pub bias: String,
-    /// The label whose score is the sentence boundary.
-    pub label: u32,
-}
-
-impl Default for HeadNames {
-    /// SaT's: `classifier.weight` and `classifier.bias`, label 0.
-    fn default() -> Self {
-        HeadNames { weight: "classifier.weight".into(), bias: "classifier.bias".into(), label: 0 }
-    }
-}
+/// wtpsplit's `Constants.NEWLINE_INDEX`: the label whose score is the
+/// sentence boundary.
+pub const BOUNDARY_LABEL: u32 = 0;
 
 /// One label's row of the classifier: a score is the row's dot product
 /// with a token's final state, plus the bias.
@@ -33,46 +19,29 @@ pub struct Head {
 }
 
 impl Head {
-    /// The head `names` gives, read from the first raw-weights artifact
-    /// of `bundle` whose file holds the weight, after the file's size and
-    /// hash are checked. Its width must be `dim`, the encoder's.
-    pub fn load(bundle: &Bundle, names: &HeadNames, dim: u32) -> Result<Head> {
-        for a in bundle.manifest.artifacts.iter().filter(|a| a.format == Format::Safetensors) {
-            for file in &a.files {
-                let bytes = bundle.map_verified(file)?;
-                let st = safetensors::File::parse(file, &bytes[..])?;
-                if st.tensor(&names.weight).is_none() {
-                    continue;
-                }
-                let w = st.get(&names.weight, Dtype::F32, 2)?;
-                let b = st.get(&names.bias, Dtype::F32, 1)?;
-                let (labels, width) = (w.shape[0], w.shape[1]);
-                if width != u64::from(dim) || b.shape[0] != labels {
-                    return Err(Error::new(
-                        INVALID_ARGUMENT,
-                        format!(
-                            "{file}: {} {:?} and {} {:?} are not a classifier over {dim} values",
-                            names.weight, w.shape, names.bias, b.shape
-                        ),
-                    ));
-                }
-                if u64::from(names.label) >= labels {
-                    return Err(Error::new(
-                        INVALID_ARGUMENT,
-                        format!("{file}: label {} of a classifier with {labels} labels", names.label),
-                    ));
-                }
-                let l = names.label as usize;
-                let d = dim as usize;
-                let row = w.f32s()[l * d..(l + 1) * d].to_vec();
-                let bias = b.f32s()[l];
-                return Head::new(row, bias);
+    /// Label `label` of the token classifier the manifest of `bundle`
+    /// declares, read from its raw-weights artifact after the files' sizes
+    /// and hashes are checked. Its width must be `dim`, the encoder's.
+    pub fn load(bundle: &Bundle, label: u32, dim: u32) -> Result<Head> {
+        let invalid = |m: String| Error::new(INVALID_ARGUMENT, format!("{}: {m}", bundle.manifest.model.id));
+        match &bundle.manifest.classifier {
+            None => return Err(invalid("the manifest declares no classifier".into())),
+            Some(c) if c.kind != ClassifierKind::Token => {
+                return Err(invalid("the manifest's classifier is not CLASSIFIER_TOKEN".into()));
             }
+            Some(_) => {}
         }
-        Err(Error::new(
-            INVALID_ARGUMENT,
-            format!("{}: no raw-weights artifact holds {}", bundle.manifest.model.id, names.weight),
-        ))
+        let h = turbo::head::Head::load(bundle)?;
+        if h.hidden != dim as usize {
+            return Err(invalid(format!("a classifier over {} values, the encoder gives {dim}", h.hidden)));
+        }
+        let labels = h.num_labels();
+        if label as usize >= labels {
+            return Err(invalid(format!("label {label} of a classifier with {labels} labels")));
+        }
+        let (l, d) = (label as usize, h.hidden);
+        let c = h.classifier;
+        Head::new(c.weight[l * d..(l + 1) * d].to_vec(), c.bias[l])
     }
 
     /// A head from its row and bias, which must be finite.

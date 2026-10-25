@@ -44,6 +44,7 @@ mod boilerplate;
 mod calibrated;
 mod core_layers;
 mod emotion;
+mod entity_graph;
 mod helpers;
 mod indexes;
 mod lexical;
@@ -67,6 +68,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
     codecs
         .register::<crate::Calibrated<Categories>>()
         .register::<crate::Calibrated<Tokens>>()
+        .register::<crate::Calibrated<Entities>>()
         .register::<Sentences>()
         .register::<Tokens>()
         .register::<Words>()
@@ -85,6 +87,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Dependencies<Tokens>>()
         .register::<Dependencies<Words>>()
         .register::<Entities>()
+        .register::<crate::DocumentEntities>()
         .register::<ChunkTags>()
         .register::<PhraseChunks>()
         .register::<Boundaries>()

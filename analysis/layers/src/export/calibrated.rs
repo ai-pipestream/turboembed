@@ -14,6 +14,7 @@ impl<L: Layer> LayerCodec for Calibrated<L> {
         w.u8(match i.task {
             Task::Categorization => 0,
             Task::TokenTagging => 1,
+            Task::SpanTagging => 2,
         });
         w.u64(i.inference_hash);
         w.usize(i.labels.len())?;
@@ -48,6 +49,7 @@ impl<L: Layer> LayerCodec for Calibrated<L> {
         let task = match r.u8()? {
             0 => Task::Categorization,
             1 => Task::TokenTagging,
+            2 => Task::SpanTagging,
             _ => return Err(malformed("unknown calibrated task")),
         };
         let inference_hash = r.u64()?;
