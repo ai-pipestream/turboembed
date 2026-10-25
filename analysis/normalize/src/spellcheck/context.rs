@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use turbo_analysis::{Annotator, Error, Refs, Span, View, ViewBuilder};
+use turbo_analysis::{Annotator, Error, Overlap, Refs, Span, View, ViewBuilder};
 use turbo_analysis_layers::{Abbreviations, Entities, Money, Pii, Quantities, Sentences, Temporals};
 use turbo_ngram::NGramLanguageModel;
 use turbo_normalize_layers::{Corrections, Placeholders, ProtectedSpans};
@@ -319,7 +319,7 @@ impl ContextSpellCorrector {
 
 impl Normalizer for ContextSpellCorrector {
     const ID: &'static str = "turbo:normalize:context-spell-correct";
-    const VERSION: &'static str = "1";
+    const VERSION: &'static str = "2";
 
     fn normalize(&self, text: &str, out: &mut ViewBuilder<'_>) {
         self.run_sentences(text, out, None, None, &mut |_, _, _| {});
@@ -372,9 +372,29 @@ impl Annotator for ContextSpellCorrector {
         } else {
             None
         };
-        let sent_spans: Option<Vec<Span>> = sentences.and_then(|s| {
-            if s.spans.view() == src.id() { Some(s.spans.iter().map(|(_, sp)| sp).collect()) } else { None }
-        });
+        let sent_spans = sentences
+            .map(|s| {
+                let invalid = |detail| Error::Annotator { annotator: <Self as Annotator>::ID, detail };
+                if s.spans.view() != src.id() {
+                    return Err(invalid(format!(
+                        "sentences are in view {}, text in view {}",
+                        s.spans.view().0,
+                        src.id().0
+                    )));
+                }
+                s.spans.check(Overlap::None).map_err(invalid)?;
+                let mut spans = Vec::with_capacity(s.spans.len());
+                for (ix, span) in s.spans.iter() {
+                    if s.spans.is_discontinuous(ix) || src.text().get(span.range()).is_none() {
+                        return Err(invalid(format!(
+                            "sentence {ix:?} must be a contiguous UTF-8 span within the view"
+                        )));
+                    }
+                    spans.push(span);
+                }
+                Ok(spans)
+            })
+            .transpose()?;
         let text = src.text();
         let mut out = ViewBuilder::new(text);
         let mut corrections = Corrections::new(src.id());

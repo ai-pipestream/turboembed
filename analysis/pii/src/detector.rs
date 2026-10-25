@@ -4,8 +4,8 @@
 use turbo_analysis::{Annotator, Error, Refs, View, ViewId};
 use turbo_analysis_layers::{Pii, PiiKind, PiiKinds};
 
-use crate::hits::Hits;
-use crate::scan::{Extractor, Scanner};
+use crate::hits::{Hits, PiiSink};
+use crate::scan::{CustomExtractor, Extractor, Scanner};
 
 /// The packs of `PiiPacks`, by kind of data.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -130,6 +130,31 @@ impl PiiDetector {
         PiiDetector::new(vec![Scanner::all(Extractor::Cursor)])
     }
 
+    /// This detector with `scanner` appended in composition order.
+    pub fn with_scanner(mut self, scanner: Scanner) -> PiiDetector {
+        self.scanners.push(scanner);
+        self
+    }
+
+    /// This detector with a caller-defined [`CustomExtractor`] appended in
+    /// composition order.
+    pub fn with_custom<E: CustomExtractor + 'static>(mut self, extractor: E) -> PiiDetector {
+        self.scanners.push(Scanner::custom(extractor));
+        self
+    }
+
+    /// This detector with a stateless caller function for `kind` appended
+    /// in composition order.
+    pub fn with_custom_fn(
+        mut self,
+        name: &'static str,
+        kind: PiiKind,
+        scan: fn(&str, &mut PiiSink<'_>),
+    ) -> PiiDetector {
+        self.scanners.push(Scanner::custom_fn(name, kind, scan));
+        self
+    }
+
     /// This detector, keeping mentions strictly nested inside a longer
     /// mention as OpenNLP does.
     pub fn keeping_nested(mut self) -> PiiDetector {
@@ -193,11 +218,28 @@ impl Annotator for PiiDetector {
     /// FNV-1a over each scanner's extractor and kind bits, fixed so that
     /// stored provenance stays comparable across builds.
     fn config_hash(&self) -> u64 {
-        let words = self.scanners.iter().flat_map(|s| {
+        const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+        const PRIME: u64 = 0x0100_0000_01b3;
+        let fold = |h: u64, x: u64| (h ^ x).wrapping_mul(PRIME);
+        let fold_bytes = |mut h: u64, bytes: &[u8]| {
+            for &b in bytes {
+                h = fold(h, u64::from(b));
+            }
+            fold(h, 0xff)
+        };
+        let mut h = OFFSET;
+        for s in &self.scanners {
             let kinds = s.kinds().iter().fold(0u64, |b, k| b | 1 << k.rank());
-            [s.extractor() as u64, kinds]
-        });
-        let h = words.fold(0xcbf2_9ce4_8422_2325, |h, x| (h ^ x).wrapping_mul(0x0100_0000_01b3));
-        if self.keep_nested { (h ^ 1).wrapping_mul(0x0100_0000_01b3) } else { h }
+            h = fold(h, s.extractor().tag());
+            h = fold(h, kinds);
+            if let Extractor::Custom(name) = s.extractor() {
+                h = fold_bytes(h, name.as_bytes());
+                for k in s.custom_kinds() {
+                    h = fold_bytes(h, k.name().as_bytes());
+                }
+                h = fold(h, s.custom_config_hash());
+            }
+        }
+        if self.keep_nested { fold(h, 1) } else { h }
     }
 }

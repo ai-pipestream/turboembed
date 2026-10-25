@@ -72,3 +72,6 @@ pub mod units;
 
 pub use annotate::summary;
 pub use detector::{Run, Settings, SpanDetector, SpanScratch};
+
+mod calibrated;
+pub use calibrated::{CalibratedSpanDetector, calibration_identity};

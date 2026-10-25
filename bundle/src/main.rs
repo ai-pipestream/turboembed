@@ -19,6 +19,11 @@ usage:
   turbo-bundle glirel-convert <pytorch_model.bin> <base-config.json> <spm.model> <repo> <revision> <license> <new-dir>
       write a GLiREL checkpoint as the native scorer's package: the encoder,
       the heads and glirel.json
+  turbo-bundle postag-convert <model.bin> <license> <new-dir>
+      write a BiLSTM(-CRF) part-of-speech model (ONLP-BLPT-1 to -5) as a
+      bundle: F32 and F16 safetensors, vocabularies and a manifest
+  turbo-bundle postag-verify <directory> [<model.bin>]
+      check a part-of-speech bundle's digests, and that it came from model.bin
   turbo-bundle torch-convert <checkpoint.bin> <new.safetensors>
       write a torch.save checkpoint's F32 tensors as safetensors, reading
       its pickle as data without running it
@@ -70,6 +75,15 @@ fn run(args: &[&str]) -> Result<()> {
             (repo, revision, license),
             Path::new(out),
         ),
+        ["postag-convert", bin, license, out] => {
+            let bytes = std::fs::read(bin).map_err(|e| format!("{bin}: {e}"))?;
+            turbo_bundle::postag::convert(&bytes, license, Path::new(out))
+        }
+        ["postag-verify", dir] => turbo_bundle::postag::verify(Path::new(dir), None).map(|_| ()),
+        ["postag-verify", dir, bin] => {
+            let bytes = std::fs::read(bin).map_err(|e| format!("{bin}: {e}"))?;
+            turbo_bundle::postag::verify(Path::new(dir), Some(&bytes)).map(|_| ())
+        }
         ["gliner-verify", dir] => turbo_gliner::package::Manifest::load(Path::new(dir)).map(|_| ()),
         ["deberta-convert", config, weights, prefix, repo, revision, license, out] => {
             turbo_bundle::deberta::convert_files(

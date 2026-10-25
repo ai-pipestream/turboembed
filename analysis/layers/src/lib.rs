@@ -23,10 +23,14 @@ pub use calibrated::{Calibrated, CalibratedRow};
 pub use categories::{Categories, CategoryRow, CategoryScope};
 pub use containment::{Containment, ContainmentChain, ContainmentError, PlaceAncestor, PlaceAncestorRef};
 pub use date::{DAY_SECONDS, Date, DateTime, write_year};
+pub use entity_graph::{
+    ConsolidatedMention, DocumentEntities, DocumentEntity, EntityRelation, SyntacticRole, SyntacticRoleCounts,
+};
 pub use generic::{Confidence, Language, TokenVectorWindows, Utf16Spans, Vectors};
 pub use language_spans::{LanguageSpan, LanguageSpans, UNDETERMINED};
 pub use levels::{Level, Levels, Unit, VectorKind};
 pub use matches::Matches;
+pub use modality::{DeonticKind, EpistemicStatus, Modality, ModalityTag, Polarity as ModalityPolarity};
 pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
 pub use ordinals::{OrdinalBase, OrdinalMention, Ordinals};
@@ -45,6 +49,9 @@ pub use syntax::{
 };
 pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
 pub use times::{Modifier, Portion, Relation, TimeGrain, TimeKind, TimeMention, Times};
+pub use wordnet::{
+    ExpansionRow, LexicalExpansions, SAME_SYNSET, SenseRow, WORDNET_POS, WORDNET_RELATIONS, WordNetSenses,
+};
 pub use words::{
     MorphFeatures, MorphPosTags, MwtLanguage, RuleMwtExpander, TokenExpansion, Word, WordLemmas, WordOrTokenAnchor,
     WordPosTags, Words,
@@ -112,12 +119,14 @@ mod containment;
 #[cfg(test)]
 mod core_tests;
 mod date;
+mod entity_graph;
 mod evidence;
 pub mod export;
 mod generic;
 mod language_spans;
 mod levels;
 mod matches;
+pub mod modality;
 mod money;
 mod numbers;
 mod ordinals;
@@ -131,4 +140,5 @@ mod sparse;
 mod syntax;
 mod temporal;
 mod times;
+mod wordnet;
 mod words;

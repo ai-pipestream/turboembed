@@ -49,6 +49,20 @@ pub(super) fn length(v: &Value) -> bool {
     is_unit(v, |u| matches!(u, Unit::Length(_)))
 }
 
+pub(super) fn information(v: &Value) -> bool {
+    is_unit(v, |u| matches!(u, Unit::Information(_)))
+}
+
+/// A quantity in a major imperial unit that takes a bare minor
+/// count after it: feet (inches), stone (pounds), pounds (ounces).
+pub(super) fn compound_major(v: &Value) -> bool {
+    v.quantity().is_some_and(|q| {
+        q.value().is_integer()
+            && !q.value().is_negative()
+            && matches!(q.unit(), Unit::Length(Length::Foot) | Unit::Weight(Weight::Stone | Weight::Pound))
+    })
+}
+
 pub(super) fn ton(v: &Value) -> bool {
     is_unit(v, |u| matches!(u, Unit::Weight(Weight::ShortTon | Weight::MetricTon)))
 }
@@ -111,6 +125,23 @@ pub(super) fn per_time(v: &Value) -> bool {
     v.term().is_some_and(|(t, _)| Time::of(t) <= Time::Hour)
 }
 
+/// Any time word: a money rate runs per day or per year as well
+/// as per hour.
+pub(super) fn rate_time(v: &Value) -> bool {
+    v.term().is_some()
+}
+
+/// Whether what follows an `a <time>` rate keeps it a rate: not
+/// the temporal reference of `a year earlier` or `a day ago`.
+pub(super) fn not_temporal_reference(ctx: &Ctx<'_>) -> bool {
+    match ctx.after() {
+        Some(a) if ctx.lexeme(a).kind == Kind::Word => {
+            !matches!(ctx.word(a), "earlier" | "later" | "ago" | "before" | "after" | "prior" | "hence")
+        }
+        _ => true,
+    }
+}
+
 pub(super) fn age_time(v: &Value) -> bool {
     v.term().is_some_and(|(t, _)| Time::of(t) >= Time::Day)
 }
@@ -156,13 +187,32 @@ pub(super) fn feet(v: &Value) -> bool {
     v.quantity().is_some_and(|q| q.unit() == Unit::Length(Length::Foot))
 }
 
-/// Money in a major unit, a whole amount: `15 dollars`, not `$4.25`.
+/// Money in a major unit, a whole amount or a yuan amount with tenths
+/// (`one kuai and five mao`), so a minor unit (`cents`, `fen`) can follow.
 pub(super) fn whole_major(v: &Value) -> bool {
     v.quantity().is_some_and(|q| {
-        q.value().is_integer()
-            && !q.value().is_negative()
+        !q.value().is_negative()
             && matches!(q.unit(), Unit::Currency(c) if c.has_hundredths())
+            && (q.value().is_integer()
+                || (q.unit() == Unit::Currency(CurrencyUnit::Code(code("cny").expect("cny")))
+                    && q.value().shift(1).is_some_and(|x| x.is_integer())))
     })
+}
+
+/// A yuan amount with a non-zero tenths digit (`one kuai and five mao`),
+/// before a bare fen digit (`one kuai and five mao five`).
+pub(super) fn cny_tenths(v: &Value) -> bool {
+    v.quantity().is_some_and(|q| {
+        !q.value().is_negative()
+            && !q.value().is_integer()
+            && q.unit() == Unit::Currency(CurrencyUnit::Code(code("cny").expect("cny")))
+            && q.value().shift(1).is_some_and(|x| x.is_integer())
+    })
+}
+
+/// A single non-zero digit (`1..=9`), as the fen after `mao` (`five mao five`).
+pub(super) fn single_digit(v: &Value) -> bool {
+    v.num().is_some_and(|n| n.kind == NumKind::Integer && n.value > Dec::ZERO && n.value < Dec::from_i64(10))
 }
 
 pub(super) fn minor_unit(v: &Value) -> bool {
