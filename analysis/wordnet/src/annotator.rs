@@ -51,6 +51,7 @@ pub struct WordNetAnnotator<L: LexicalKnowledgeBase + Send + Sync + 'static> {
     options: WordNetOptions,
     expander: LexicalExpander<Arc<L>>,
     morphy: Option<MorphyLemmatizer<Arc<L>>>,
+    config: u64,
 }
 
 impl<L: LexicalKnowledgeBase + Send + Sync + 'static> WordNetAnnotator<L> {
@@ -74,12 +75,14 @@ impl<L: LexicalKnowledgeBase + Send + Sync + 'static> WordNetAnnotator<L> {
             .include_hyponyms(options.include_hyponyms)
             .max_expansions(options.max_expansions)?
             .build();
-        Ok(WordNetAnnotator { lexicon, lexicon_id: lexicon_id.into(), options, expander, morphy: None })
+        let config = configuration_hash(lexicon_id, options, None);
+        Ok(WordNetAnnotator { lexicon, lexicon_id: lexicon_id.into(), options, expander, morphy: None, config })
     }
 
     /// Lemmatizes tokens with Morphy and `exceptions` when the document
     /// has no lemma for them.
     pub fn with_morphy(mut self, exceptions: MorphyExceptions) -> Self {
+        self.config = configuration_hash(&self.lexicon_id, self.options, Some(&exceptions));
         self.morphy = Some(MorphyLemmatizer::new(Arc::clone(&self.lexicon), exceptions));
         self
     }
@@ -111,6 +114,38 @@ fn fail(detail: String) -> Error {
 /// The layer code of an expansion's relation.
 fn relation_code(source: &ExpansionSource) -> u8 {
     source.relation.map_or(SAME_SYNSET, WordNetRelation::layer_code)
+}
+
+// Resource contents are immutable; sort and hash them once during construction.
+fn configuration_hash(lexicon_id: &str, options: WordNetOptions, exceptions: Option<&MorphyExceptions>) -> u64 {
+    const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+    const FNV_PRIME: u64 = 0x0100_0000_01b3;
+    let o = &options;
+    let mut h = FNV_OFFSET;
+    let fields = [o.max_senses as u64, o.hypernym_depth as u64, u64::from(o.include_hyponyms), o.max_expansions as u64];
+    let mut mix = |bytes: &[u8]| {
+        for &b in bytes {
+            h = (h ^ u64::from(b)).wrapping_mul(FNV_PRIME);
+        }
+    };
+    mix(lexicon_id.as_bytes());
+    for field in fields {
+        mix(&field.to_le_bytes());
+    }
+    if let Some(exceptions) = exceptions {
+        mix(b"morphy-exceptions-v1");
+        exceptions.visit_entries(|pos, form, bases| {
+            mix(&[pos.code() as u8]);
+            mix(&(form.len() as u64).to_le_bytes());
+            mix(form.as_bytes());
+            mix(&(bases.len() as u64).to_le_bytes());
+            for base in bases {
+                mix(&(base.len() as u64).to_le_bytes());
+                mix(base.as_bytes());
+            }
+        });
+    }
+    h ^ u64::from(exceptions.is_some())
 }
 
 impl<L: LexicalKnowledgeBase + Send + Sync + 'static> Annotator for WordNetAnnotator<L> {
@@ -188,15 +223,6 @@ impl<L: LexicalKnowledgeBase + Send + Sync + 'static> Annotator for WordNetAnnot
     }
 
     fn config_hash(&self) -> u64 {
-        const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
-        const FNV_PRIME: u64 = 0x0100_0000_01b3;
-        let o = &self.options;
-        let mut h = FNV_OFFSET;
-        let fields =
-            [o.max_senses as u64, o.hypernym_depth as u64, u64::from(o.include_hyponyms), o.max_expansions as u64];
-        for b in self.lexicon_id.bytes().chain(fields.iter().flat_map(|f| f.to_le_bytes())) {
-            h = (h ^ u64::from(b)).wrapping_mul(FNV_PRIME);
-        }
-        h ^ u64::from(self.morphy.is_some())
+        self.config
     }
 }

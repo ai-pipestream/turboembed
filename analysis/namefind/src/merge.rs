@@ -18,7 +18,7 @@
 use std::cmp::Ordering;
 use std::sync::Arc;
 
-use turbo_analysis::{Annotator, Error, FilterRule, Refs, Spans};
+use turbo_analysis::{Annotator, Error, FilterRule, Layer, Refs, Spans};
 use turbo_analysis_layers::{Entities, Tag, TagSet};
 use turbo_jvm::chars::compare_to;
 
@@ -88,6 +88,7 @@ pub(crate) fn union_kinds(layers: &[&Entities]) -> Result<Arc<TagSet>, String> {
                 ));
             }
         }
+        layer.check().map_err(|detail| format!("entity layer {l}: {detail}"))?;
     }
     let labels: Vec<&str> =
         layers.iter().flat_map(|l| (0..l.kinds.len()).map(|i| l.kinds.label(Tag(i as u16)))).collect();

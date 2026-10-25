@@ -99,3 +99,68 @@ fn direct_consensus_refuses_a_layer_with_nan_score() {
     assert!(layer.check().is_err());
     assert!(consensus(&[&layer], EntityMergePolicy::RawUnion).is_err(), "direct consensus bypassed layer validation");
 }
+
+#[test]
+fn named_resolved_binding_and_evidence_survive_graph_transport() {
+    use turbo_analysis::export::{DocumentGraph, export, import};
+    let mut doc = Document::new("Ada Bob");
+    doc.add(&Key::DEFAULT, tokens(&[(0, 3), (4, 7)]), Provenance::by("test:tokens")).unwrap();
+    let gold = Key::<Tokens>::named("gold");
+    doc.add(&gold, tokens(&[(0, 3), (4, 7)]), Provenance::by("test:gold")).unwrap();
+    doc.add(&Key::named("one"), entity(), Provenance { on: vec![gold.id()], ..Provenance::by("test:finder") }).unwrap();
+    let mut merger =
+        ConsensusEntityMerger::new(vec![Key::named("one")], Key::named("merged"), EntityMergePolicy::RawUnion);
+    merger.tokens = gold;
+    let pipeline = Analyzer::builder().given(gold).given(Key::<Entities>::named("one")).step(merger).build().unwrap();
+    let codecs = turbo_analysis_layers::export::codecs();
+    let bytes = export(&doc, &codecs).unwrap().to_bytes().unwrap();
+    let mut back = import(&DocumentGraph::from_bytes(&bytes).unwrap(), &codecs).unwrap();
+    assert_eq!(pipeline.run(std::slice::from_mut(&mut back)), [Ok(())]);
+    assert_eq!(back.made_on(Key::<Entities>::named("merged").id()), [gold.id()]);
+    let evidence = back.get_key(&Key::<Evidence<Entities>>::named("merged")).unwrap();
+    evidence.verify(&back).unwrap();
+    assert_eq!(evidence.producer_of(0).annotator, "test:finder");
+    let bytes = export(&back, &codecs).unwrap().to_bytes().unwrap();
+    let restored = import(&DocumentGraph::from_bytes(&bytes).unwrap(), &codecs).unwrap();
+    restored.get_key(&Key::<Evidence<Entities>>::named("merged")).unwrap().verify(&restored).unwrap();
+    assert_eq!(restored.made_on(Key::<Entities>::named("merged").id()), [gold.id()]);
+}
+
+#[test]
+fn transitive_grouping_retains_distinct_recognizer_votes() {
+    let layers: Vec<_> = (0..3)
+        .map(|i| {
+            let mut e = entity();
+            e.spans = Spans::new(ViewId::SOURCE);
+            e.spans.push(Span::new(i, i + 2));
+            e.tokens[0] = IxRange::new(i, i + 2);
+            e.score[0] = 0.9 - f64::from(i) * 0.1;
+            e
+        })
+        .collect();
+    let refs: Vec<_> = layers.iter().collect();
+    let out = consensus(
+        &refs,
+        EntityMergePolicy::Consensus { min_votes: NonZeroU32::new(3).unwrap(), overlap_rule: FilterRule::HighestScore },
+    )
+    .unwrap();
+    assert_eq!(out.entities.tokens, [IxRange::new(0, 2)]);
+    assert_eq!(out.votes_of(0).len(), 3);
+    assert_eq!(out.votes_of(0).iter().map(|v| v.input).collect::<Vec<_>>(), [0, 1, 2]);
+}
+
+#[test]
+fn two_candidates_from_one_recognizer_do_not_form_a_quorum() {
+    let mut e = entity();
+    e.tokens[0] = IxRange::new(0, 3);
+    e.spans.push(Span::new(1, 4));
+    e.tokens.push(IxRange::new(1, 4));
+    e.kind.push(Tag(0));
+    e.score.push(0.9);
+    let out = consensus(
+        &[&e],
+        EntityMergePolicy::Consensus { min_votes: NonZeroU32::new(2).unwrap(), overlap_rule: FilterRule::HighestScore },
+    )
+    .unwrap();
+    assert!(out.entities.score.is_empty());
+}

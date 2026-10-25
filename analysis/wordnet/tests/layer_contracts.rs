@@ -120,3 +120,62 @@ fn morphy_exception_resources_change_actual_senses_and_configuration_identity() 
     assert_eq!(run(&cat).synset_id.get(0), "s-cat");
     assert_ne!(dog.config_hash(), cat.config_hash(), "different exception resources alias the pipeline cache key");
 }
+
+#[test]
+fn exception_identity_is_independent_of_map_order_but_keeps_lemma_preference() {
+    let make = |reverse: bool, bases: &[&str]| {
+        let mut table = HashMap::new();
+        let rows = [("mice", bases.iter().map(|s| s.to_string()).collect()), ("geese", vec!["cat".to_string()])];
+        for i in if reverse { [1, 0] } else { [0, 1] } {
+            table.insert(rows[i].0.to_owned(), rows[i].1.clone());
+        }
+        let exceptions = MorphyExceptions::from_map(HashMap::from([(WordNetPos::Noun, table)]));
+        WordNetAnnotator::new(lexicon(), "test:identity", WordNetOptions::default()).unwrap().with_morphy(exceptions)
+    };
+    let (a, b, reversed) = (make(false, &["dog", "cat"]), make(true, &["dog", "cat"]), make(false, &["cat", "dog"]));
+    assert_eq!(a.config_hash(), b.config_hash());
+    assert_ne!(a.config_hash(), reversed.config_hash());
+    let mut doc = Document::new("mice");
+    add_tokens(&mut doc, Key::DEFAULT, ViewId::SOURCE, &[(0, 4)]);
+    for (annotator, expected) in [(&a, "s-dog"), (&reversed, "s-cat")] {
+        let senses =
+            annotator.annotate((doc.get::<View>().unwrap(), doc.get::<Tokens>().unwrap(), None, None)).unwrap().0;
+        assert_eq!(senses.synset_id.get(0), expected);
+    }
+}
+
+#[test]
+fn lexical_layer_rejects_nonfinite_weights_and_character_splits() {
+    let mut doc = Document::new("é");
+    add_tokens(&mut doc, Key::DEFAULT, ViewId::SOURCE, &[(0, 2)]);
+    for weight in [f64::NAN, f64::INFINITY, 0.0, -0.5] {
+        let mut layer = LexicalExpansions::new(ViewId::SOURCE, "test:bad".into());
+        layer.push(
+            Span::new(0, 2),
+            ExpansionRow {
+                token: Ix::new(0),
+                term: "x",
+                relation: SAME_SYNSET,
+                depth: 0,
+                sense_rank: 0,
+                weight,
+                synset_id: "s",
+            },
+        );
+        assert!(doc.add(&Key::DEFAULT, layer, Provenance::by("test:bad")).is_err());
+    }
+    let mut layer = LexicalExpansions::new(ViewId::SOURCE, "test:split".into());
+    layer.push(
+        Span::new(1, 2),
+        ExpansionRow {
+            token: Ix::new(0),
+            term: "x",
+            relation: SAME_SYNSET,
+            depth: 0,
+            sense_rank: 0,
+            weight: 1.0,
+            synset_id: "s",
+        },
+    );
+    assert!(doc.add(&Key::DEFAULT, layer, Provenance::by("test:split")).is_err());
+}
