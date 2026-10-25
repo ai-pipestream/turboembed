@@ -1,6 +1,8 @@
 //! The micro-kernels of the matrix product: a register tile of rows by
 //! one panel of columns, per instruction set.
 
+#[cfg(target_arch = "aarch64")]
+use super::simd::N16;
 #[cfg(target_arch = "x86_64")]
 use super::simd::{Y16, Z16};
 
@@ -195,6 +197,68 @@ pub(super) unsafe fn avx512_tile<const R: usize>(
         unsafe {
             _mm512_storeu_ps(acc.as_mut_ptr().add(i * 32), c0[i]);
             _mm512_storeu_ps(acc.as_mut_ptr().add(i * 32 + 16), c1[i]);
+        }
+    }
+}
+
+#[cfg(target_arch = "aarch64")]
+pub(in crate::cpu) struct Neon;
+
+#[cfg(target_arch = "aarch64")]
+impl Micro for Neon {
+    // 6 rows by 4 vectors of accumulators, the panel's 4 vectors and the
+    // broadcast row value: 29 of the 32 vector registers.
+    const MR: usize = 6;
+    const NR: usize = 16;
+    const FMA: bool = true;
+    type V = N16;
+
+    #[inline(always)]
+    unsafe fn tile(rows: usize, x: *const f32, ldx: usize, p: *const f32, k: usize, acc: &mut [f32; ACC]) {
+        // SAFETY: as the trait says, for each arm.
+        unsafe {
+            match rows {
+                1 => neon_tile::<1>(x, ldx, p, k, acc),
+                2 => neon_tile::<2>(x, ldx, p, k, acc),
+                3 => neon_tile::<3>(x, ldx, p, k, acc),
+                4 => neon_tile::<4>(x, ldx, p, k, acc),
+                5 => neon_tile::<5>(x, ldx, p, k, acc),
+                _ => neon_tile::<6>(x, ldx, p, k, acc),
+            }
+        }
+    }
+}
+
+#[cfg(target_arch = "aarch64")]
+#[target_feature(enable = "neon")]
+#[inline]
+pub(super) unsafe fn neon_tile<const R: usize>(
+    x: *const f32,
+    ldx: usize,
+    p: *const f32,
+    k: usize,
+    acc: &mut [f32; ACC],
+) {
+    use std::arch::aarch64::*;
+    let mut c = [[vdupq_n_f32(0.0); 4]; R];
+    for kk in 0..k {
+        // SAFETY: kk < k: the panel has 16 floats at kk * 16, and each
+        // row under R has float kk.
+        let b = unsafe {
+            let q = p.add(kk * 16);
+            [vld1q_f32(q), vld1q_f32(q.add(4)), vld1q_f32(q.add(8)), vld1q_f32(q.add(12))]
+        };
+        for (i, ci) in c.iter_mut().enumerate() {
+            let a = vdupq_n_f32(unsafe { *x.add(i * ldx + kk) });
+            for v in 0..4 {
+                ci[v] = vfmaq_f32(ci[v], a, b[v]);
+            }
+        }
+    }
+    for (i, ci) in c.iter().enumerate() {
+        for (v, cv) in ci.iter().enumerate() {
+            // SAFETY: R * 16 <= ACC.
+            unsafe { vst1q_f32(acc.as_mut_ptr().add(i * 16 + v * 4), *cv) }
         }
     }
 }
