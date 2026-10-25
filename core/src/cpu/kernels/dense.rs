@@ -8,6 +8,8 @@
 //! (turbo::cpu) so that model heads outside this crate (turbo-gliner) use
 //! the same packed kernels.
 
+#[cfg(target_arch = "aarch64")]
+use super::Neon;
 use super::gemm::{Epilogue, Gemm};
 #[cfg(target_arch = "x86_64")]
 use super::{Avx2, Avx512};
@@ -196,6 +198,8 @@ impl Matrix {
                 Isa::Avx2 => avx2(&g),
                 #[cfg(target_arch = "x86_64")]
                 Isa::Avx512 => avx512(&g),
+                #[cfg(target_arch = "aarch64")]
+                Isa::Neon => neon(&g),
             }
         }
     }
@@ -222,6 +226,8 @@ unsafe fn one(g: &Gemm, isa: Isa, t: usize) {
             Isa::Avx2 => avx2_one(g, t),
             #[cfg(target_arch = "x86_64")]
             Isa::Avx512 => avx512_one(g, t),
+            #[cfg(target_arch = "aarch64")]
+            Isa::Neon => neon_one(g, t),
         }
     }
 }
@@ -238,6 +244,13 @@ unsafe fn avx2_one(g: &Gemm, t: usize) {
 unsafe fn avx512_one(g: &Gemm, t: usize) {
     // SAFETY: as one.
     unsafe { g.task::<Avx512>(t) }
+}
+
+#[cfg(target_arch = "aarch64")]
+#[target_feature(enable = "neon")]
+unsafe fn neon_one(g: &Gemm, t: usize) {
+    // SAFETY: as one.
+    unsafe { g.task::<Neon>(t) }
 }
 
 /// Floats from the first of `rows` rows `ld` apart to the end of the last
@@ -266,6 +279,13 @@ unsafe fn avx2(g: &Gemm) {
 unsafe fn avx512(g: &Gemm) {
     // SAFETY: as apply.
     unsafe { all::<Avx512>(g) }
+}
+
+#[cfg(target_arch = "aarch64")]
+#[target_feature(enable = "neon")]
+unsafe fn neon(g: &Gemm) {
+    // SAFETY: as apply.
+    unsafe { all::<Neon>(g) }
 }
 
 /// The row's softmax in place, in F32: the max, then e^(v - max) with the

@@ -59,16 +59,24 @@ pub fn lowercase_units(text: &str) -> Vec<u16> {
 /// either is empty the class is empty, since `levenshteinDistance`
 /// returns a zero matrix then.
 pub fn encode_units(word: &str, lemma: &str) -> Vec<u16> {
-    let mut w = lowercase_units(word);
-    let mut l = lowercase_units(lemma);
+    encode_with_case(word, lemma, false)
+}
+
+// The native format keeps case and uses delimited indices.
+pub(super) fn encode_with_case(word: &str, lemma: &str, keep_case: bool) -> Vec<u16> {
+    let mut w = if keep_case { word.encode_utf16().collect() } else { lowercase_units(word) };
+    let mut l = if keep_case { lemma.encode_utf16().collect() } else { lowercase_units(lemma) };
     java_reverse(&mut w);
     java_reverse(&mut l);
     if w == l {
         return SAME.encode_utf16().collect();
     }
+    if !keep_case && (w.is_empty() || l.is_empty()) {
+        return Vec::new();
+    }
     let distance = levenshtein(&w, &l);
     let mut script = Vec::new();
-    shortest_edit_script(&w, &l, &distance, &mut script);
+    shortest_edit_script(&w, &l, &distance, &mut script, keep_case);
     script
 }
 
@@ -79,13 +87,10 @@ pub fn encode(word: &str, lemma: &str) -> JavaString {
 }
 
 /// `levenshteinDistance`: the matrix of edit distances between the
-/// prefixes of `word` and `lemma`, all zeros when either is empty.
+/// prefixes of `word` and `lemma`.
 fn levenshtein(word: &[u16], lemma: &[u16]) -> Vec<Vec<u32>> {
     let (n, m) = (word.len(), lemma.len());
     let mut d = vec![vec![0u32; m + 1]; n + 1];
-    if n == 0 || m == 0 {
-        return d;
-    }
     for (i, row) in d.iter_mut().enumerate() {
         row[0] = i as u32;
     }
@@ -103,7 +108,7 @@ fn levenshtein(word: &[u16], lemma: &[u16]) -> Vec<Vec<u32>> {
 
 /// `computeShortestEditScript`: walks the distance matrix back from the
 /// corner, appending an operation for each step that lowers the distance.
-fn shortest_edit_script(word: &[u16], lemma: &[u16], d: &[Vec<u32>], out: &mut Vec<u16>) {
+fn shortest_edit_script(word: &[u16], lemma: &[u16], d: &[Vec<u32>], out: &mut Vec<u16>, delimited: bool) {
     let (mut w, mut l) = (word.len(), lemma.len());
     loop {
         if d[w][l] == 0 {
@@ -111,7 +116,7 @@ fn shortest_edit_script(word: &[u16], lemma: &[u16], d: &[Vec<u32>], out: &mut V
         }
         if l > 0 && w > 0 && d[w - 1][l - 1] < d[w][l] {
             out.push(u16::from(b'R'));
-            push_index(out, w - 1);
+            push_index(out, w - 1, delimited);
             out.push(word[w - 1]);
             out.push(lemma[l - 1]);
             l -= 1;
@@ -120,14 +125,14 @@ fn shortest_edit_script(word: &[u16], lemma: &[u16], d: &[Vec<u32>], out: &mut V
         }
         if l > 0 && d[w][l - 1] < d[w][l] {
             out.push(u16::from(b'I'));
-            push_index(out, w);
+            push_index(out, w, delimited);
             out.push(lemma[l - 1]);
             l -= 1;
             continue;
         }
         if w > 0 && d[w - 1][l] < d[w][l] {
             out.push(u16::from(b'D'));
-            push_index(out, w - 1);
+            push_index(out, w - 1, delimited);
             out.push(word[w - 1]);
             w -= 1;
             continue;
@@ -148,8 +153,11 @@ fn shortest_edit_script(word: &[u16], lemma: &[u16], d: &[Vec<u32>], out: &mut V
 }
 
 /// `StringBuffer.append(int)`: the decimal digits of the index.
-fn push_index(out: &mut Vec<u16>, index: usize) {
+fn push_index(out: &mut Vec<u16>, index: usize, delimited: bool) {
     out.extend(index.to_string().encode_utf16());
+    if delimited {
+        out.push(u16::from(b':'));
+    }
 }
 
 /// `decodeShortestEditScript`: `script` applied to `word`, as UTF-16
@@ -161,18 +169,45 @@ fn push_index(out: &mut Vec<u16>, index: usize) {
 /// first, [`decode_lemma`] does that.
 pub fn decode_units(word: &[u16], script: &[u16]) -> Result<Vec<u16>, EditScriptError> {
     let mut lemma = Vec::with_capacity(word.len());
-    decode_units_into(word, script, &mut lemma)?;
+    decode_units_into(word, script, &mut lemma, false)?;
     Ok(lemma)
 }
 
-fn decode_units_into(word: &[u16], script: &[u16], lemma: &mut Vec<u16>) -> Result<(), EditScriptError> {
+fn decode_units_into(
+    word: &[u16],
+    script: &[u16],
+    lemma: &mut Vec<u16>,
+    delimited: bool,
+) -> Result<(), EditScriptError> {
     lemma.clear();
     lemma.extend_from_slice(word);
     java_reverse(lemma);
     let at = |i: usize| script.get(i).copied().ok_or(EditScriptError::Truncated);
-    let index = |i: usize| -> Result<usize, EditScriptError> {
-        let unit = at(i)?;
-        char::from_u32(u32::from(unit)).and_then(digit).map(usize::from).ok_or(EditScriptError::NotADigit { unit })
+    let index = |p: &mut usize| -> Result<usize, EditScriptError> {
+        if !delimited {
+            let unit = at(*p)?;
+            *p += 1;
+            return char::from_u32(u32::from(unit))
+                .and_then(digit)
+                .map(usize::from)
+                .ok_or(EditScriptError::NotADigit { unit });
+        }
+        let mut value = 0usize;
+        let start = *p;
+        loop {
+            let unit = at(*p)?;
+            *p += 1;
+            if unit == u16::from(b':') && *p > start + 1 {
+                return Ok(value);
+            }
+            if !(u16::from(b'0')..=u16::from(b'9')).contains(&unit) {
+                return Err(EditScriptError::NotADigit { unit });
+            }
+            value = value
+                .checked_mul(10)
+                .and_then(|v| v.checked_add(usize::from(unit - u16::from(b'0'))))
+                .ok_or(EditScriptError::IndexOverflow)?;
+        }
     };
     let mut p = 0;
     while p < script.len() {
@@ -180,9 +215,9 @@ fn decode_units_into(word: &[u16], script: &[u16], lemma: &mut Vec<u16>) -> Resu
         p += 1;
         match op {
             0x52 => {
-                let i = index(p)?;
-                let replace = at(p + 1)?;
-                let with = at(p + 2)?;
+                let i = index(&mut p)?;
+                let replace = at(p)?;
+                let with = at(p + 1)?;
                 if lemma.len() <= i {
                     lemma.clear();
                     lemma.extend_from_slice(word);
@@ -191,30 +226,31 @@ fn decode_units_into(word: &[u16], script: &[u16], lemma: &mut Vec<u16>) -> Resu
                 if lemma[i] == replace {
                     lemma[i] = with;
                 }
-                p += 3;
+                p += 2;
             }
             0x49 => {
-                let i = index(p)?;
-                let unit = at(p + 1)?;
+                let i = index(&mut p)?;
+                let unit = at(p)?;
                 if lemma.len() < i {
                     lemma.clear();
                     lemma.extend_from_slice(word);
                     return Ok(());
                 }
                 lemma.insert(i, unit);
-                p += 2;
+                p += 1;
             }
             0x44 => {
-                let i = index(p)?;
-                let _unit = at(p + 1)?;
+                let i = index(&mut p)?;
+                let _unit = at(p)?;
                 if lemma.len() <= i {
                     lemma.clear();
                     lemma.extend_from_slice(word);
                     return Ok(());
                 }
                 lemma.remove(i);
-                p += 2;
+                p += 1;
             }
+            _ if delimited => return Err(EditScriptError::Operation { unit: op }),
             _ => {}
         }
     }
@@ -235,11 +271,29 @@ pub(crate) struct DecodeScratch {
 
 impl DecodeScratch {
     pub(crate) fn decode<'a>(&'a mut self, word: &'a str, class: &JavaString) -> Result<&'a str, EditScriptError> {
-        if class.as_bytes() == SAME.as_bytes() {
+        self.decode_with_case(word, class, false)
+    }
+
+    pub(crate) fn decode_with_case<'a>(
+        &'a mut self,
+        word: &'a str,
+        class: &JavaString,
+        native: bool,
+    ) -> Result<&'a str, EditScriptError> {
+        let (keep_case, skip) = if native {
+            match class.as_bytes().get(..2) {
+                Some(b"K:") => (true, 2),
+                Some(b"L:") => (false, 2),
+                _ => return Err(EditScriptError::Truncated),
+            }
+        } else {
+            (false, 0)
+        };
+        if class.as_bytes().get(skip..) == Some(SAME.as_bytes()) {
             if word.is_empty() {
                 return Ok("_");
             }
-            if word.bytes().all(|b| b.is_ascii() && !b.is_ascii_uppercase()) {
+            if keep_case || word.bytes().all(|b| b.is_ascii() && !b.is_ascii_uppercase()) {
                 return Ok(word);
             }
             self.lower.clear();
@@ -250,12 +304,16 @@ impl DecodeScratch {
             return Ok(&self.lower);
         }
         self.lower.clear();
-        to_lowercase(word, &mut self.lower);
+        if keep_case {
+            self.lower.push_str(word);
+        } else {
+            to_lowercase(word, &mut self.lower);
+        }
         self.word_units.clear();
         self.word_units.extend(self.lower.encode_utf16());
         self.script.clear();
-        self.script.extend(class.utf16_units());
-        decode_units_into(&self.word_units, &self.script, &mut self.lemma_units)?;
+        self.script.extend(class.utf16_units().skip(skip));
+        decode_units_into(&self.word_units, &self.script, &mut self.lemma_units, native)?;
         if self.lemma_units.is_empty() {
             return Ok("_");
         }
@@ -278,164 +336,4 @@ pub fn decode_lemma(word: &str, class: &JavaString) -> Result<String, EditScript
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn enc(word: &str, lemma: &str) -> String {
-        encode(word, lemma).to_str().unwrap().into_owned()
-    }
-
-    fn dec(word: &str, class: &str) -> String {
-        decode_lemma(word, &JavaString::new(class)).unwrap()
-    }
-
-    #[test]
-    fn a_word_equal_to_its_lemma_has_the_class_o() {
-        assert_eq!(enc("dog", "dog"), "O");
-        assert_eq!(enc("Dog", "dog"), "O");
-        assert_eq!(dec("Dog", "O"), "dog");
-    }
-
-    #[test]
-    fn suffix_changes_are_operations_at_the_end_of_the_word() {
-        // Reversed: "sgod" to "god": delete the s at index 0.
-        assert_eq!(enc("dogs", "dog"), "D0s");
-        assert_eq!(dec("dogs", "D0s"), "dog");
-        // "gniklaw" to "klaw": delete three units, the walk back from the
-        // corner of the distance matrix names the highest index first.
-        assert_eq!(enc("walking", "walk"), "D2iD1nD0g");
-        assert_eq!(dec("walking", "D2iD1nD0g"), "walk");
-        // "deilp" to "ylp": replace the i by y, then delete e and d.
-        assert_eq!(enc("plied", "ply"), "R2iyD1eD0d");
-        assert_eq!(dec("plied", "R2iyD1eD0d"), "ply");
-        for (word, lemma) in [("went", "go"), ("were", "be"), ("slept", "sleep"), ("mice", "mouse"), ("is", "be")] {
-            assert_eq!(dec(word, &enc(word, lemma)), lemma, "{word}");
-        }
-    }
-
-    #[test]
-    fn insertions_name_the_index_after_which_the_unit_goes() {
-        // "ylf" to "seilf": insert at the end (index 0 of the reversed
-        // word), then replace and insert.
-        assert_eq!(enc("fly", "flies"), "I0sR0yeI1i".replace("I0sR0yeI1i", &enc("fly", "flies")));
-        assert_eq!(dec("fly", &enc("fly", "flies")), "flies");
-        assert_eq!(enc("flies", "fly"), "R2iyD1eD0s");
-        assert_eq!(dec("flies", "R2iyD1eD0s"), "fly");
-        assert_eq!(dec("go", "I0s"), "gos");
-    }
-
-    #[test]
-    fn an_empty_word_or_lemma_has_an_empty_class_and_decodes_to_underscore() {
-        assert_eq!(enc("", "dog"), "");
-        assert_eq!(enc("dog", ""), "");
-        assert_eq!(dec("", "O"), "_");
-        assert_eq!(dec("", ""), "_");
-    }
-
-    #[test]
-    fn an_index_beyond_the_word_returns_the_lowercased_word_unreversed() {
-        assert_eq!(dec("Go", "D5x"), "go");
-        assert_eq!(dec("Go", "R9ab"), "go");
-        // Insert at the length is allowed, one past it is not.
-        assert_eq!(dec("go", "I2x"), "xgo");
-        assert_eq!(dec("go", "I3x"), "go");
-    }
-
-    #[test]
-    fn a_replacement_applies_only_when_the_unit_matches() {
-        assert_eq!(dec("dog", "R0xy"), "dog");
-        assert_eq!(dec("dog", "R0gy"), "doy");
-    }
-
-    #[test]
-    fn an_index_of_ten_or_more_is_read_as_one_digit() {
-        // Encoded with two digits, decoded as the digit 1 followed by the
-        // operation characters shifted by one: OpenNLP's behaviour.
-        let class = enc("internationalization", "international");
-        assert_eq!(class, "D6iD5zD4aD3tD2iD1oD0n");
-        assert_eq!(dec("internationalization", &class), "international");
-        let long = enc("abcdefghijklmnop", "abcdefghijklmnoq");
-        assert_eq!(long, "R0pq");
-        let far = enc("xbcdefghijklmnop", "abcdefghijklmnop");
-        assert_eq!(far, "R15xa");
-        // Read as R, index 1, replace '5' with 'x', then 'a' is an unknown
-        // operation letter and is skipped.
-        assert_eq!(dec("xbcdefghijklmnop", &far), "xbcdefghijklmnop");
-    }
-
-    #[test]
-    fn unknown_operation_letters_are_skipped() {
-        assert_eq!(dec("dogs", "ZD0s"), "dog");
-        assert_eq!(dec("dogs", "_"), "dogs");
-    }
-
-    #[test]
-    fn malformed_classes_are_errors() {
-        let class = |s: &str| JavaString::new(s);
-        assert_eq!(decode_lemma("dogs", &class("Dx")), Err(EditScriptError::NotADigit { unit: u16::from(b'x') }));
-        assert_eq!(decode_lemma("dogs", &class("D")), Err(EditScriptError::Truncated));
-        assert_eq!(decode_lemma("dogs", &class("D0")), Err(EditScriptError::Truncated));
-        assert_eq!(decode_lemma("dogs", &class("D9")), Err(EditScriptError::Truncated));
-        assert_eq!(decode_lemma("dogs", &class("R0s")), Err(EditScriptError::Truncated));
-        assert_eq!(decode_lemma("dogs", &class("I0")), Err(EditScriptError::Truncated));
-        // Any decimal digit is an index, as Integer.parseInt reads it.
-        assert_eq!(dec("dogs", "D\u{0660}s"), "dog");
-    }
-
-    #[test]
-    fn java_reverse_keeps_surrogate_pairs() {
-        let mut units: Vec<u16> = "a\u{1F600}b".encode_utf16().collect();
-        java_reverse(&mut units);
-        assert_eq!(String::from_utf16(&units).unwrap(), "b\u{1F600}a");
-        // Halves that are not a pair are plain units.
-        let mut lone = vec![0xD83D, 0x0061, 0xDE00];
-        java_reverse(&mut lone);
-        assert_eq!(lone, [0xDE00, 0x0061, 0xD83D]);
-    }
-
-    #[test]
-    fn characters_outside_the_bmp_are_two_units() {
-        assert_eq!(enc("\u{1F600}s", "\u{1F600}"), "D0s");
-        assert_eq!(dec("\u{1F600}s", "D0s"), "\u{1F600}");
-        // Replacing the character by a letter writes its two units into
-        // the class: the low half replaced, the high half deleted. The
-        // class is a Java string holding both halves alone.
-        let class = encode("\u{1F600}", "a");
-        assert_eq!(class.utf16_len(), 7);
-        assert_eq!(class.utf16_units().collect::<Vec<_>>(), [0x52, 0x31, 0xDE00, 0x61, 0x44, 0x30, 0xD83D]);
-        assert_eq!(class.to_str(), None);
-        assert_eq!(decode_lemma("\u{1F600}", &class).unwrap(), "a");
-        // The classes of the goldens: "été" to "été 😀" inserts the low
-        // half, a space is inserted after it, and "😀" to "_" replaces the
-        // low half and deletes the high half.
-        let class = encode("été", "été \u{1F600}");
-        assert_eq!(class.utf16_units().collect::<Vec<_>>(), [0x49, 0x30, 0x20, 0x49, 0x30, 0xDE00, 0x49, 0x30, 0xD83D]);
-        assert_eq!(decode_lemma("été", &class).unwrap(), "été \u{1F600}");
-        let class = encode("\u{1F600}", "_");
-        assert_eq!(class.utf16_units().collect::<Vec<_>>(), [0x52, 0x31, 0xDE00, 0x5F, 0x44, 0x30, 0xD83D]);
-        assert_eq!(decode_lemma("\u{1F600}", &class).unwrap(), "_");
-        // The pair is kept in order by the reverse, so index 0 is its
-        // high half; deleting it leaves the low half alone, which the
-        // lemma string replaces.
-        let script = [0x44, 0x30, 0xD83D];
-        let out = decode_units(&"\u{1F600}".encode_utf16().collect::<Vec<_>>(), &script).unwrap();
-        assert_eq!(out, [0xDE00]);
-        assert_eq!(decode_lemma("\u{1F600}", &JavaString::from_utf16(&script)).unwrap(), "\u{FFFD}");
-    }
-
-    #[test]
-    fn lowercasing_is_javas() {
-        // Final sigma, and U+0130 becoming two characters.
-        assert_eq!(dec("ΣΟΦΟΣ", "O"), "σοφος");
-        // The JDK's final sigma condition walks the whole word: Thai
-        // letters are passed over and the cased letter after them makes
-        // the sigma non-final, where Unicode's Final_Sigma would stop at
-        // the first Thai letter. Found by the differential fuzzing against
-        // LemmatizerME (docs/analysis.md, "Differential fuzzing").
-        assert_eq!(dec("ΣΟΦΟΣขอบค\u{e38}ณǰ", "O"), "σοφοσขอบค\u{e38}ณǰ");
-        assert_eq!(dec("ΣΟΦΟΣ1", "O"), "σοφος1");
-        assert_eq!(dec("ΣΟΦΟΣ1a", "O"), "σοφοσ1a");
-        assert_eq!(dec("İs", "O"), "i\u{307}s");
-        assert_eq!(enc("İ", "i\u{307}"), "O");
-    }
-}
+mod tests;

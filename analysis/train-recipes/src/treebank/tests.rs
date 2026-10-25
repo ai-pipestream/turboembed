@@ -90,6 +90,7 @@ fn the_treebanks_are_recorded_as_permissive_datasets_at_the_release() {
         // Only Porttinari's text is another's with no licence shown.
         let settled = t.text_rights == TextRights::Granted;
         assert_eq!(settled, t.repository != "UD_Portuguese-Porttinari", "{}", t.repository);
+        assert_eq!(Index::builtin().get(&t.dataset_id()).ok(), settled.then_some(&a), "{}", t.repository);
         // Only FTB's LICENSE.txt gives a copyright notice, which the
         // attribution keeps.
         assert_eq!(t.copyright.is_some(), t.repository == "UD_Finnish-FTB", "{}", t.repository);

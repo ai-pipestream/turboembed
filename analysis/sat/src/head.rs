@@ -41,7 +41,7 @@ impl Head {
         }
         let (l, d) = (label as usize, h.hidden);
         let c = h.classifier;
-        Head::new(c.weight[l * d..(l + 1) * d].to_vec(), c.bias[l])
+        Head::new(c.weight()[l * d..(l + 1) * d].to_vec(), c.bias()[l])
     }
 
     /// A head from its row and bias, which must be finite.

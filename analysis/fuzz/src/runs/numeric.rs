@@ -55,13 +55,15 @@ enum Compared {
 impl Numeric {
     pub(crate) fn open_numbers(run: &str) -> Result<Box<dyn Run>, Unavailable> {
         let (n, config) = notation(run)?;
-        let analyzer = Analyzer::builder().add(NumberScanner::new(n)).build().map_err(broken)?;
+        let analyzer =
+            Analyzer::builder().add(NumberScanner::new(n).with_opennlp_parity(true)).build().map_err(broken)?;
         Ok(Box::new(Numeric { analyzer, config, layer: Compared::Numbers }))
     }
 
     pub(crate) fn open_quantities(run: &str) -> Result<Box<dyn Run>, Unavailable> {
         let (n, config) = notation(run)?;
-        let analyzer = Analyzer::builder().add(QuantityExtractor::new(n)).build().map_err(broken)?;
+        let analyzer =
+            Analyzer::builder().add(QuantityExtractor::new(n).with_opennlp_parity(true)).build().map_err(broken)?;
         Ok(Box::new(Numeric { analyzer, config, layer: Compared::Quantities }))
     }
 

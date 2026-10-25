@@ -21,6 +21,7 @@ pub mod clauses;
 mod cohesion;
 pub mod coref;
 mod discourse;
+pub mod discourse_graph;
 mod drift;
 pub mod entity;
 pub mod expand;
@@ -32,14 +33,20 @@ mod limits;
 pub mod multirep;
 mod optimizer;
 mod providers;
+pub mod quality_filter;
+pub use quality_filter::QualityChunkFilter;
 mod run;
+pub mod table_header;
 mod text_signals;
+pub use table_header::{TableBoundaryAnnotator, TableHeaderAnnotator};
 mod trace;
 pub use optimizer::{DecisionMargin, SegmentTrace, segment_with_trace};
 pub use trace::ChunkTrace;
 pub mod rechunk;
 pub mod route;
 pub mod scorer;
+pub mod strategy;
+pub use strategy::{ChunkStrategy, StrategyMatrix, StrategySummary};
 mod sentiment;
 mod sums;
 mod weigh;
@@ -57,10 +64,11 @@ pub use coref::{
     chunk_antecedents, coref_boundaries, coref_boundaries_from_chains, extract_chains,
 };
 pub use discourse::{DISCOURSE, DiscourseBoundaries, DiscourseLanguage};
+pub use discourse_graph::DiscourseAnnotator;
 pub use drift::{Drift, DriftBoundaries, Score, drift};
 pub use entity::{
     ChunkEntities, ChunkEntityHeaders, EntityBoundaries, EntityContinuity, EntityKeys, HeaderPolicy, Keying,
-    chunk_entities, entity_boundaries,
+    SalienceHeaders, chunk_entities, entity_boundaries,
 };
 pub use expand::{ExpandedHit, ExpansionPolicy, ParentExpander, ScoreAggregation, unit_tokens};
 pub use hashes::{ChunkId, ContentHashBuilder, ContentHashes, LevelHashBuilder};
@@ -88,6 +96,8 @@ pub use weigh::{
 };
 
 pub mod export;
+pub mod projection;
+pub use projection::{ProjectionDims, VectorProjection};
 pub mod levels;
 pub mod terms;
 
@@ -97,14 +107,14 @@ pub mod eval;
 use std::ops::Range;
 
 use turbo_analysis::{Annotator, Error, Ix, IxRange, Refs, Span, Spans};
-use turbo_analysis_layers::{Boundaries, Chunks, Cut, Sentences, Structure, Subwords};
+use turbo_analysis_layers::{Boundaries, Chunks, Cut, Sentences, Structure, Subwords, Tables};
 
 /// The token budget of a chunk, in the embedder's own tokens.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Budget {
-    /// Never more than this, unless one sentence alone is longer: it then
-    /// becomes a chunk of its own, marked `Chunks::over_budget`, for a clause
-    /// splitter to cut further.
+    /// Never more than this, unless a sentence or atomic table row is longer.
+    /// It becomes a chunk marked `Chunks::over_budget`. Clause splitting can
+    /// split a sentence, but preserves rows from the optional `Tables` input.
     pub max: u32,
     /// The size retrieval works best at; a chunk pays for its distance
     /// from it.
@@ -253,18 +263,34 @@ pub fn no_term(_: usize, _: usize) -> i64 {
 /// over the budget, are cut too, with `Cut::Overlap`. When `ClauseCuts` is
 /// present, a single sentence that exceeds `budget.max` is split at syntactic
 /// clause boundaries (`Cut::Clause`) or token windows; otherwise it becomes a
-/// chunk of its own, marked in `Chunks::over_budget`.
+/// chunk of its own, marked in `Chunks::over_budget`. With `Tables`, logical
+/// rows remain whole even over budget; row envelopes include syntax and line
+/// breaks. Sentences and top-level sections must align with those rows.
 pub struct Chunker {
     pub budget: Budget,
 }
 
 impl Annotator for Chunker {
     const ID: &'static str = "turbo:chunker";
-    type Reads = (Sentences, Subwords, Boundaries, Option<Structure>, Option<ClauseCuts>);
+    const VERSION: &'static str = "2";
+    type Reads = (Sentences, Subwords, Boundaries, Option<Structure>, Option<ClauseCuts>, Option<Tables>);
     type Writes = (Chunks,);
 
-    fn annotate(&self, (sentences, subwords, bounds, structure, clauses): Refs<'_, Self>) -> Result<(Chunks,), Error> {
-        Ok((self.chunk(Self::ID, sentences, subwords, bounds, structure, clauses, |_| no_term)?,))
+    fn annotate(
+        &self,
+        (sentences, subwords, bounds, structure, clauses, tables): Refs<'_, Self>,
+    ) -> Result<(Chunks,), Error> {
+        Ok((self.chunk_record_tables(
+            Self::ID,
+            sentences,
+            subwords,
+            bounds,
+            structure,
+            clauses,
+            tables,
+            |_| no_term,
+            None,
+        )?,))
     }
 
     fn config_hash(&self) -> u64 {
@@ -304,6 +330,22 @@ impl Chunker {
         structure: Option<&Structure>,
         clauses: Option<&ClauseCuts>,
         term: impl Fn(Range<usize>) -> T,
+        trace: Option<&mut Vec<Option<DecisionMargin>>>,
+    ) -> Result<Chunks, Error> {
+        self.chunk_record_tables(id, sentences, subwords, bounds, structure, clauses, None, term, trace)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn chunk_record_tables<T: Fn(usize, usize) -> i64>(
+        &self,
+        id: &'static str,
+        sentences: &Sentences,
+        subwords: &Subwords,
+        bounds: &Boundaries,
+        structure: Option<&Structure>,
+        clauses: Option<&ClauseCuts>,
+        tables: Option<&Tables>,
+        term: impl Fn(Range<usize>) -> T,
         mut trace: Option<&mut Vec<Option<DecisionMargin>>>,
     ) -> Result<Chunks, Error> {
         let view = sentences.spans.view();
@@ -329,16 +371,22 @@ impl Chunker {
                 detail: format!("{} clause-cut entries for {n} sentences", cl.sentences.len()),
             });
         }
-        let lengths = Lengths::new(&sentences.spans, &subwords.spans);
+        let mut lengths = Lengths::new(&sentences.spans, &subwords.spans);
         let b = self.budget;
-        let size = |r: Range<usize>| u64::from(lengths.run(r.start, r.end)) + u64::from(b.overhead);
         let gaps = gaps::gaps(&sentences.spans, structure);
-        let limits = limits::limits(&gaps.units, n, |u| size(u.clone()) <= u64::from(b.max));
         let runs = match structure {
             Some(st) => gaps::sections(sentences, st),
             None if n == 0 => Vec::new(),
             None => std::iter::once(0..n).collect(),
         };
+        if let Some(tables) = tables {
+            table_header::table_rows(id, tables, sentences, subwords, &mut lengths, &runs)?;
+        }
+        let size = |r: Range<usize>| u64::from(lengths.run(r.start, r.end)) + u64::from(b.overhead);
+        let mut limits = limits::limits(&gaps.units, n, |u| size(u.clone()) <= u64::from(b.max));
+        if let Some(tables) = tables {
+            table_header::atomic_table_rows(tables, sentences, &mut limits);
+        }
         let mut chunks = Chunks {
             spans: Spans::new(view),
             level: Vec::new(),
@@ -350,7 +398,7 @@ impl Chunker {
             over_budget: Vec::new(),
             prompt_overhead: b.overhead,
         };
-        let cx = RunCx { sentences, subwords, lengths: &lengths, bounds, limits: &limits, clauses };
+        let cx = RunCx { sentences, subwords, lengths: &lengths, bounds, limits: &limits, clauses, tables };
         for run in runs {
             let term = term(run.clone());
             self.push_run_with_trace(id, &cx, run, structure.is_some(), term, &mut chunks, trace.as_deref_mut())?;
@@ -369,6 +417,7 @@ pub(crate) struct RunCx<'a> {
     pub bounds: &'a Boundaries,
     pub limits: &'a [limits::Limit],
     pub clauses: Option<&'a ClauseCuts>,
+    pub tables: Option<&'a Tables>,
 }
 
 /// A run's atoms under the hard limits, as `push_run` cuts them.

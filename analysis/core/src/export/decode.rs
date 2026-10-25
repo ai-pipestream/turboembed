@@ -98,30 +98,7 @@ pub fn import(graph: &DocumentGraph, codecs: &Codecs) -> Result<Document, Export
     // document gives the source view `turbo:source` and nothing else),
     // so a record claiming another is refused rather than silently
     // replaced on import.
-    match graph.views.first() {
-        None => return Err(ExportError::InvalidSource("the graph holds no views".into())),
-        Some(first_view) => {
-            let p = &first_view.provenance;
-            let fixed = Provenance::by("turbo:source");
-            if !matches!(first_view.status, StatusRecord::Complete)
-                || !first_view.instance.is_empty()
-                || first_view.parent.is_some()
-                || !first_view.edits.is_empty()
-                || first_view.text.as_deref() != Some(graph.source.text.as_str())
-                || p.annotator != fixed.annotator
-                || p.version != fixed.version
-                || p.config != fixed.config
-                || p.model.is_some()
-                || p.execution.is_some()
-                || !p.reads.is_empty()
-                || !p.on.is_empty()
-            {
-                return Err(ExportError::InvalidSource(
-                    "the first view is not the source view of the source text".into(),
-                ));
-            }
-        }
-    }
+    super::validate_views::source_view(graph)?;
 
     let mut cx = ImportCx {
         views: HashMap::from([(String::new(), ViewId::SOURCE)]),

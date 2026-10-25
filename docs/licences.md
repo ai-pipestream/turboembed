@@ -331,6 +331,33 @@ that of `onnx/model.onnx` (431,172,619 bytes) is
 `963039b81eec5b33e23d84826ccdf1e8f8ada776f320e692113034cfae384617`; both
 match the hub's LFS object ids at that revision.
 
+## Frequency lexicons
+
+The word frequency lists spell correction loads (docs on the
+normalize spell checker, #935). Both are in the zoo's index as
+permissive `KIND_LEXICON` entries, fetched from their publisher
+with nothing to accept: `wolfgarbe/SymSpell`'s
+`frequency_dictionary_en_82_765.txt`
+(`symspell-frequency-dictionary-en-82-765`, 1,332,881 bytes,
+SHA-256 `c604e1121e398ae7c7fbf777f11e0a0f2fa66eda932cb9fba1321466cf3acd7b`)
+and `frequency_bigramdictionary_en_243_342.txt`
+(`symspell-frequency-bigramdictionary-en-243-342`, 5,137,213
+bytes, SHA-256
+`fd892a160184101dd7ae807ac5a302d01fcea1c47304181a8ed7ed9c94545bcd`),
+both at revision `c239062ae02961df18ab7da1671d01b4388204e0` under the
+repository's MIT licence (Wolf Garbe). The project's README states
+that the unigram list was compiled as the intersection of Google
+Books Ngram data (CC BY 3.0) with SCOWL, Kevin Atkinson's
+permissively licensed spell-checker word lists
+(http://wordlist.aspell.net/). For the bigram list the README says
+only that it is included and gives no source; its counts look like
+Ngram counts, so the index records the Ngram data as its training
+source too, but that origin is inferred and unconfirmed, and the
+bigram entry's attribution says so. The attribution, which names
+the Ngram data and SCOWL, must travel with either list. Other frequency sources can join
+later as further lexicon entries behind the same
+`FrequencyDictionary` text loader.
+
 ## Datasets
 
 | Dataset | Use | Licence | Class | Notes | Checked |
@@ -380,6 +407,7 @@ match the hub's LFS object ids at that revision.
 | [DBpedia-14](https://huggingface.co/datasets/fancyzhx/dbpedia_14) | document categorizer | CC BY-SA 3.0 and GFDL | share-alike | | plan |
 | [SNLI](https://huggingface.co/datasets/stanfordnlp/snli) | natural language inference | CC BY-SA 4.0 | share-alike | training data of `cross-encoder/nli-MiniLM2-L6-H768` | here |
 | [MultiNLI](https://huggingface.co/datasets/nyu-mll/multi_nli) | natural language inference | CC BY-SA 3.0 (majority of OANC genres; remaining genres OANC, public domain, or CC BY) | share-alike | training data of `cross-encoder/nli-MiniLM2-L6-H768` | here |
+| [Google Books Ngram data](https://storage.googleapis.com/books/ngrams/books/datasetsv2.html) | word frequencies | CC BY 3.0 | permissive | one of the two sources the SymSpell unigram list above was compiled from (intersected with SCOWL), and the inferred, unconfirmed source of its bigram list; the data itself is not fetched or used here, only named as what the lists derive from | here, 2026-10-24 |
 | [SQuAD 2.0](https://rajpurkar.github.io/SQuAD-explorer/) | extractive QA | CC BY-SA 4.0 | share-alike | the dev set `dev-v2.0.json` (4,370,528 bytes, SHA-256 `80a5225e94905956a6446d296ca1093975c4d3b3260f1d6c8f68bc2ab77182d8`) is used for evaluation only (docs/extractive-qa.md); it is not in the repository | here, 2026-10-23 |
 | [MS MARCO](https://microsoft.github.io/msmarco/) | passage retrieval training | Microsoft's terms: non-commercial research only, free of charge without extending any license or other intellectual property rights (named `LicenseRef-RestrictedPublic` in the zoo) | local-only | training data of `opensearch-project/opensearch-neural-sparse-encoding-v1` and `colbert-ir/colbertv2.0` above; the dataset itself is not fetched or used here, only named as what puts those checkpoints in their class | here, 2026-10-24 |
 | [UD_English-GUM r2.16](https://github.com/UniversalDependencies/UD_English-GUM/blob/r2.16/README.md) | | CC BY-NC-SA 4.0 | local-only | non-commercial | here |
@@ -416,8 +444,8 @@ No external dataset or checkpoint is added by this audit.
 
 | Material and provenance | Licence | Project disposition and obligations |
 |---|---|---|
-| [Civil Comments / Jigsaw Unintended Bias in Toxicity Classification (2019)](https://www.tensorflow.org/datasets/catalog/civil_comments), comments from Civil Comments and crowd-labelled toxicity/identity annotations | CC0-1.0, including the underlying comment text according to the publisher's dataset catalogue | `CLASS_PERMISSIVE`: may train redistributable models and be included in bundles. Record the release, source and digest even though CC0 requires no attribution. This approval does not cover the 2018 Wikipedia challenge or the multilingual challenge. |
-| [GoEmotions](https://github.com/google-research/google-research/tree/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions), Google's released Reddit comments with 27 emotion labels plus neutral | **CC-BY-4.0 for data**, Apache-2.0 for source code: the [root README](https://github.com/google-research/google-research/blob/7de3624754e2b0f2f505ae496db3ba194bb40be9/README.md) states the distinction | `CLASS_PERMISSIVE` for this published dataset under the #326 approval. Preserve Google Research/Demszky et al. attribution, source and licence links, and describe changes. Record whether raw annotations or the filtered train/dev/test split was used. This does not approve new Reddit collection or unrelated Reddit datasets. |
+| [Civil Comments / Jigsaw Unintended Bias in Toxicity Classification (2019)](https://www.tensorflow.org/datasets/catalog/civil_comments), comments from Civil Comments and crowd-labelled toxicity/identity annotations | CC0-1.0, including the underlying comment text according to the publisher's dataset catalogue | `CLASS_PERMISSIVE`: listed in the zoo as `civil-comments` (`KIND_DATASET`, `FORMAT_PARQUET`) from Google's [`google/civil_comments`](https://huggingface.co/datasets/google/civil_comments/tree/f2970eb3a55777454c94069077cc8d9b5866312d) repository at revision `f2970eb3a55777454c94069077cc8d9b5866312d` (`README.md`, `train-00000-of-00002.parquet`, `train-00001-of-00002.parquet`, `validation-00000-of-00001.parquet`, and `test-00000-of-00001.parquet`; checked on 2026-10-25, #945). May train redistributable models and be included in bundles. Record the release, source and digest even though CC0 requires no attribution. This approval does not cover the 2018 Wikipedia challenge or the multilingual challenge. |
+| [GoEmotions](https://github.com/google-research/google-research/tree/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions), Google's released Reddit comments with 27 emotion labels plus neutral | **CC-BY-4.0 for data**, Apache-2.0 for source code: the [root README](https://github.com/google-research/google-research/blob/7de3624754e2b0f2f505ae496db3ba194bb40be9/README.md) states the distinction | `CLASS_PERMISSIVE` for this published dataset under the #326 approval: listed in the zoo at revision `7de3624754e2b0f2f505ae496db3ba194bb40be9` as `goemotions` (`KIND_DATASET`, `FORMAT_TSV`, the filtered train/dev/test split `train.tsv`, `dev.tsv`, and `test.tsv` with `README.md`, `emotions.txt`, `ekman_mapping.json`, and `sentiment_mapping.json`) and `goemotions-raw` (`KIND_DATASET`, `FORMAT_CSV`, the raw rater annotations `goemotions_1.csv`, `goemotions_2.csv`, and `goemotions_3.csv` at `storage.googleapis.com/gresearch/goemotions/data/full_dataset/`; checked on 2026-10-25, #945). Preserve Google Research/Demszky et al. attribution, source and licence links, and describe changes. Record whether raw annotations or the filtered train/dev/test split was used. This does not approve new Reddit collection or unrelated Reddit datasets. |
 | [Jigsaw sentence templates ("bias madlibs")](https://github.com/conversationai/unintended-ml-bias-analysis/tree/1244018d92bed14bd0a2b0197292add67dbac97f), `sentence_templates/en_sentence_templates.csv` and the identity terms of `archive/unintended_ml_bias/new_madlibber/input_data/en/en-us/words.csv`, synthetic sentences built from templates | **CC-BY-4.0 for data**, Apache-2.0 for code: the [README at that commit](https://github.com/conversationai/unintended-ml-bias-analysis/blob/1244018d92bed14bd0a2b0197292add67dbac97f/README.md) states both | `CLASS_PERMISSIVE`: evaluation only for the incivility bias metrics (#889); the files are not in the repository. Credit Jigsaw / Conversation AI with the source link, as `docs/sentiment.md` does where it reports numbers. |
 | Project-authored English incivility vocabulary and phrase rules in `analysis/doccat/src/sentiment/incivility/tables.rs` and `analysis/doccat/src/sentiment/incivility/vocabulary.rs` | Apache-2.0, repository licence | `CLASS_PERMISSIVE`: already in-tree; retain repository notices. The six-label taxonomy is a design reference, not permission to copy an external incivility corpus. |
 | Project-authored aspect seeds and rules in `analysis/doccat/src/sentiment/aspect/tables/`, and pragmatics cues in `analysis/doccat/src/sentiment/pragmatics/tables.rs` | Apache-2.0, repository licence | `CLASS_PERMISSIVE`: may be compiled and shipped, including project-authored regression fixtures. There is no separate reporting lexicon in the current sentiment tree; a future one needs its own provenance entry. Imported VADER scores retain their separate MIT provenance. |

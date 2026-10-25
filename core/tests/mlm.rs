@@ -211,7 +211,7 @@ fn the_tied_decoder_is_the_word_embedding_table() {
 
     let hu = MlmHead::load(&Bundle::open(&dir_u).unwrap()).unwrap();
     let ht = MlmHead::load(&Bundle::open(&dir_t).unwrap()).unwrap();
-    assert_eq!(hu.decoder().weight, ht.decoder().weight);
+    assert_eq!(hu.decoder().weight(), ht.decoder().weight());
     let s = states();
     assert_eq!(hu.logits(&s).unwrap(), ht.logits(&s).unwrap());
 }
@@ -312,5 +312,5 @@ fn logits_refuse_non_finite_states_and_bad_shapes() {
     let f = File::parse("weights/model.safetensors", &bytes).unwrap();
     let bias = f.get("mlm.decoder.bias", Dtype::F32, 1).unwrap();
     assert_eq!(bias.shape, [30522]);
-    assert_eq!(head.decoder().bias, bias.f32s());
+    assert_eq!(head.decoder().bias(), bias.f32s());
 }

@@ -30,13 +30,9 @@ impl Chunker {
         chunks: &mut Chunks,
         mut trace: Option<&mut Vec<Option<DecisionMargin>>>,
     ) -> Result<(), Error> {
-        let (b, sentences, lengths, bounds) = (self.budget, cx.sentences, cx.lengths, cx.bounds);
+        let (b, lengths, bounds) = (self.budget, cx.lengths, cx.bounds);
         let size = |r: Range<usize>| u64::from(lengths.run(r.start, r.end)) + u64::from(b.overhead);
-        let span = |r: &Range<usize>| {
-            let (first, last) =
-                (sentences.spans.get(Ix::new(r.start as u32)), sentences.spans.get(Ix::new(r.end as u32 - 1)));
-            Span::new(first.start, last.end)
-        };
+        let span = |r: &Range<usize>| cx.span(r);
         let tokens = |t: u64| {
             u32::try_from(t).map_err(|_| Error::Annotator {
                 annotator: id,
@@ -77,6 +73,7 @@ impl Chunker {
             let over_budget = s.tokens > u64::from(b.max);
             if over_budget
                 && r.len() == 1
+                && !cx.starts_in_table(r.start)
                 && let Some(clauses) = cx.clauses
                 && clauses::push_clause_rows(id, cx, r.start, cut, parent, b, clauses, chunks)?
             {

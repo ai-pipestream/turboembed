@@ -9,6 +9,13 @@ fn scan(text: &str, apply_scale: bool, notation: NumberNotation) -> Option<(Stri
     Some((value.to_plain_string(), r.end))
 }
 
+fn scan_parity(text: &str, apply_scale: bool, notation: NumberNotation) -> Option<(String, usize)> {
+    let mut digits = String::new();
+    let r = parse_with_parity(text, 0, apply_scale, notation, true, &mut digits)?;
+    let value = turbo_analysis_layers::DecimalRef { negative: false, digits: &digits, scale: r.scale.into() };
+    Some((value.to_plain_string(), r.end))
+}
+
 #[test]
 fn digits_without_leading_zeros() {
     let mut digits = String::from("left over");
@@ -111,7 +118,8 @@ fn grouping_is_strict() {
     // Read in the other notation, 1.234 is a fraction and the comma then
     // goes on with a digit.
     assert_eq!(scan("1.234,5", false, LatinUs), None);
-    assert_eq!(scan("1,00,000", false, LatinUs), None);
+    assert_eq!(scan("1,00,000", false, LatinUs), Some(("100000".into(), 8)));
+    assert_eq!(scan_parity("1,00,000", false, LatinUs), None);
     assert_eq!(scan("1234,567", false, LatinUs), None);
     assert_eq!(scan("1,2345", false, LatinUs), None);
     assert_eq!(scan("1,23", false, LatinUs), None);
@@ -130,7 +138,9 @@ fn other_separators_before_a_digit_reject_the_scan() {
     for sep in ['\u{A0}', '\u{2009}', '\u{202F}', '\'', '\u{2019}', '\u{66B}', '\u{66C}'] {
         for notation in [LatinUs, LatinEu] {
             let text = format!("1{sep}234");
-            assert_eq!(scan(&text, false, notation), None, "{text:?}");
+            let expected = if sep == '\u{66B}' { "1.234" } else { "1234" };
+            assert_eq!(scan(&text, false, notation), Some((expected.into(), text.len())), "{text:?}");
+            assert_eq!(scan_parity(&text, false, notation), None, "{text:?}");
             assert!(continues_number(&text, 1 + sep.len_utf8(), notation), "{text:?}");
             // Not followed by a digit, the separator ends the number.
             let text = format!("1{sep}x");
@@ -141,7 +151,11 @@ fn other_separators_before_a_digit_reject_the_scan() {
 
 #[test]
 fn exponents_reject_the_scan() {
-    for text in ["1e3", "1E3", "1e-3", "1e+3", "1.5e3", "1.e3", "1,e3"] {
+    for (text, expected) in [("1e3", "1000"), ("1E3", "1000"), ("1e-3", "0.001"), ("1e+3", "1000"), ("1.5e3", "1500")] {
+        assert_eq!(scan(text, true, LatinUs), Some((expected.into(), text.len())), "{text:?}");
+        assert_eq!(scan_parity(text, true, LatinUs), None, "{text:?}");
+    }
+    for text in ["1.e3", "1,e3"] {
         assert_eq!(scan(text, true, LatinUs), None, "{text:?}");
     }
     assert_eq!(scan("1,e3", true, LatinEu), None);
@@ -227,4 +241,13 @@ fn whitespace_past_the_end() {
     assert!(whitespace_at("5", 9));
     assert!(whitespace_at("5\u{2009}", 1));
     assert!(!whitespace_at("5x", 1));
+}
+
+#[test]
+fn non_ascii_nd_byte_prefilter_matches_unicode_table() {
+    let mut buf = [0u8; 4];
+    for c in (0x80..=0x10_FFFF).filter_map(char::from_u32) {
+        let s = c.encode_utf8(&mut buf);
+        assert_eq!(is_nd_at(s, 0), turbo_unicode::java::is_digit(c), "U+{:04X}", c as u32);
+    }
 }
