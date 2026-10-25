@@ -47,6 +47,7 @@ mod helpers;
 mod indexes;
 mod lexical;
 mod numeric;
+mod quality;
 mod relations;
 mod sentiment;
 mod sparse;
@@ -88,6 +89,8 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Structure>()
         .register::<Chunks>()
         .register::<Language>()
+        .register::<crate::TextQuality>()
+        .register::<crate::SpanQuality>()
         .register::<LanguageSpans>()
         .register::<Temporals>()
         .register::<DocumentDate>()

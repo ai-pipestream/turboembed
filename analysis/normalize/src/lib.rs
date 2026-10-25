@@ -30,6 +30,7 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 
 use turbo_analysis::text::Side;
 use turbo_analysis::{Alignment, Annotator, Error, Refs, Span, View, ViewBuilder};
+pub use turbo_normalize_layers::{QualityScratch, TextQualityAnnotator};
 
 pub mod accent_fold;
 pub mod artifacts;

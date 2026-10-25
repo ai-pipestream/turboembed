@@ -2490,6 +2490,10 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-sentdetect",
+ "turbo-stopword",
+ "turbo-tokenize",
+ "turbo-unicode",
 ]
 
 [[package]]
