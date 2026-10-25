@@ -83,3 +83,22 @@ fn bucketed_heatmaps_query_one_aggregate_per_bucket() {
         eprintln!("{n} whole-view spans: {queries} aggregate queries for 128 buckets");
     }
 }
+
+#[test]
+fn a_discontinuous_item_counts_once_per_bucket() {
+    // Entities, Pii and Chunks push one ScoredSpan per fragment, all with the
+    // same item; a bucket holding two fragments of one entity holds one item.
+    let text = "abcdef";
+    let offsetter = Offsetter::new(text, OffsetMode::Utf8);
+    let items = [
+        ScoredSpan { span: Span::new(0, 2), score: 0.5, item: 0 },
+        ScoredSpan { span: Span::new(4, 6), score: 0.5, item: 0 },
+    ];
+    for density in [false, true] {
+        let buckets = binned_buckets(text, &offsetter, 1, &items, density);
+        assert_eq!(buckets[0].count, 1, "density={density}");
+        if density {
+            assert_eq!(buckets[0].score, 0.5);
+        }
+    }
+}

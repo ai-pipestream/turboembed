@@ -149,11 +149,14 @@ fn gram_pca(centered: &[f64], m: usize, d: usize, k: usize) -> (Vec<f64>, Vec<Ve
         }
     }
     let (eigvals, eigvecs) = jacobi_eigen(&mut gram, m);
+    // Relative to the largest eigenvalue, so scaling every vector by a
+    // constant scales the projection and leaves the axes alone.
+    let floor = JACOBI_TOL * eigvals.first().copied().unwrap_or(0.0).max(0.0);
     let mut axes = Vec::with_capacity(k);
     for c in 0..k.min(m) {
         let lambda = eigvals[c];
         let mut axis = vec![0.0_f64; d];
-        if lambda > JACOBI_TOL {
+        if lambda > floor && lambda > 0.0 {
             let u = &eigvecs[c];
             for (p_idx, &u_val) in u.iter().enumerate() {
                 let row_c = &centered[p_idx * d..(p_idx + 1) * d];
@@ -218,12 +221,16 @@ fn normalize_and_canonicalize(axis: &mut [f64]) {
 }
 
 /// Cyclic Jacobi eigendecomposition of symmetric `n x n` matrix `a`, returning
-/// `(eigenvalues_desc, eigenvectors_desc)`.
+/// `(eigenvalues_desc, eigenvectors_desc)`. The tolerance is relative to the
+/// largest diagonal entry, which bounds every entry of a Gram or covariance
+/// matrix, so tiny but nonzero vectors still rotate.
 fn jacobi_eigen(a: &mut [f64], n: usize) -> (Vec<f64>, Vec<Vec<f64>>) {
     let mut v = vec![0.0_f64; n * n];
     for i in 0..n {
         v[i * n + i] = 1.0;
     }
+    let scale = (0..n).map(|i| a[i * n + i].abs()).fold(0.0_f64, f64::max);
+    let tol = JACOBI_TOL * scale;
     for _sweep in 0..JACOBI_MAX_SWEEPS {
         let mut max_off = 0.0_f64;
         for p in 0..n {
@@ -231,13 +238,13 @@ fn jacobi_eigen(a: &mut [f64], n: usize) -> (Vec<f64>, Vec<Vec<f64>>) {
                 max_off = max_off.max(a[p * n + q].abs());
             }
         }
-        if max_off <= JACOBI_TOL {
+        if max_off <= tol {
             break;
         }
         for p in 0..n {
             for q in (p + 1)..n {
                 let apq = a[p * n + q];
-                if apq.abs() <= JACOBI_TOL {
+                if apq.abs() <= tol {
                     continue;
                 }
                 let app = a[p * n + p];
@@ -301,3 +308,6 @@ fn compute_adjacent_cosines<L: Layer>(vectors: &Vectors<L>, n: usize) -> Vec<Opt
     }
     out
 }
+
+#[cfg(test)]
+mod tests;
