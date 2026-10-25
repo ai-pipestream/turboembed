@@ -4,12 +4,18 @@
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 
 use crate::accept::{Acceptances, UserId};
 use crate::digest::{Sha256, Sha512};
 use crate::error::{Check, ZooError};
 use crate::index::{Artifact, File, Index, Url};
 use crate::licence::Policy;
+
+mod status;
+
+pub use status::CacheStatus;
+use status::{Local, local_file};
 
 /// Fetches the bytes at an address. The zoo verifies whatever it returns,
 /// so a transport needs no checks of its own; `size` is what the index
@@ -148,25 +154,7 @@ impl<'t> Zoo<'t> {
         for f in &a.files {
             let local = dir.join(f.path.as_str());
             make_dirs(&self.cache, a.id.as_str(), f.path.as_str())?;
-            let cached = match fs::symlink_metadata(&local) {
-                Ok(m) if m.file_type().is_symlink() => {
-                    return Err(ZooError::Io {
-                        path: local,
-                        message: "is a symlink; the zoo writes only plain files".into(),
-                    });
-                }
-                Ok(m) if !m.is_file() => {
-                    return Err(ZooError::Io { path: local, message: "is not a plain file".into() });
-                }
-                Ok(m) if m.len() != f.size => false,
-                Ok(_) => {
-                    let bytes =
-                        fs::read(&local).map_err(|e| ZooError::Io { path: local.clone(), message: e.to_string() })?;
-                    verify(a, f, &bytes).is_ok()
-                }
-                Err(e) if e.kind() == std::io::ErrorKind::NotFound => false,
-                Err(e) => return Err(ZooError::Io { path: local, message: e.to_string() }),
-            };
+            let cached = matches!(local_file(a, f, &local)?, Local::Verified);
             if !cached {
                 let bytes = self
                     .transport
@@ -248,36 +236,59 @@ fn make_dirs(cache: &Path, id: &str, path: &str) -> Result<(), ZooError> {
 }
 
 /// Write through a temporary name beside `dest`, so an interrupted write
-/// leaves no file that looks complete. A file or symlink left at the
-/// temporary name is removed (a symlink itself, never its target), and the
-/// temporary file is created anew, never opened through a symlink. The
-/// rename replaces `dest` itself, also when `dest` is a symlink.
+/// leaves no file that looks complete. The name is this write's own
+/// (`<name>.partial.<pid>.<n>`, the next `n` when a name is taken) and is
+/// created anew, never opened through a symlink, so writers of the same file in other threads or processes
+/// never touch each other's bytes: the last rename wins, and each rename
+/// puts a whole file in place. The temporary file is removed when a write
+/// fails. The rename replaces `dest` itself, also when `dest` is a symlink.
 pub(crate) fn write_atomic(dest: &Path, bytes: &[u8]) -> Result<(), ZooError> {
+    static WRITES: AtomicU64 = AtomicU64::new(0);
     let io = |p: &Path, e: std::io::Error| ZooError::Io { path: p.to_path_buf(), message: e.to_string() };
     let parent = dest
         .parent()
         .ok_or_else(|| ZooError::Io { path: dest.to_path_buf(), message: "no parent directory".into() })?;
     fs::create_dir_all(parent).map_err(|e| io(parent, e))?;
-    let mut name = dest
+    let base = dest
         .file_name()
         .ok_or_else(|| ZooError::Io { path: dest.to_path_buf(), message: "no file name".into() })?
         .to_owned();
-    name.push(".partial");
-    let tmp = dest.with_file_name(name);
-    match fs::symlink_metadata(&tmp) {
-        Ok(m) if m.is_dir() => {
-            return Err(ZooError::Io { path: tmp, message: "is a directory".into() });
+    // A name left by a killed process whose pid came round again is
+    // passed over, neither opened nor removed.
+    let (tmp, mut f) = loop {
+        let mut name = base.clone();
+        name.push(format!(".partial.{}.{}", std::process::id(), WRITES.fetch_add(1, Ordering::Relaxed)));
+        let tmp = dest.with_file_name(name);
+        match fs::OpenOptions::new().write(true).create_new(true).open(&tmp) {
+            Ok(f) => break (tmp, f),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(e) => return Err(io(&tmp, e)),
         }
-        Ok(_) => fs::remove_file(&tmp).map_err(|e| io(&tmp, e))?,
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
-        Err(e) => return Err(io(&tmp, e)),
-    }
-    let mut f = fs::OpenOptions::new().write(true).create_new(true).open(&tmp).map_err(|e| io(&tmp, e))?;
-    if let Err(e) = f.write_all(bytes).and_then(|_| f.sync_all()) {
+    };
+    let written = f.write_all(bytes).and_then(|_| f.sync_all()).map_err(|e| io(&tmp, e));
+    drop(f);
+    let renamed = written.and_then(|_| denied_again(|| fs::rename(&tmp, dest)).map_err(|e| io(dest, e)));
+    if renamed.is_err() {
         let _ = fs::remove_file(&tmp);
-        return Err(io(&tmp, e));
     }
-    fs::rename(&tmp, dest).map_err(|e| io(dest, e))
+    renamed
+}
+
+/// `op`, tried again on Windows while it is denied, up to about a second.
+/// Windows refuses to stat, open or replace a file that another handle is
+/// deleting or replacing with access denied; such a handle is short-lived.
+/// A denial that lasts longer is returned.
+pub(super) fn denied_again<T>(mut op: impl FnMut() -> std::io::Result<T>) -> std::io::Result<T> {
+    let mut tries = 0;
+    loop {
+        match op() {
+            Err(e) if cfg!(windows) && e.kind() == std::io::ErrorKind::PermissionDenied && tries < 100 => {
+                tries += 1;
+                std::thread::sleep(std::time::Duration::from_millis(10));
+            }
+            done => return done,
+        }
+    }
 }
 
 #[cfg(all(test, feature = "http"))]

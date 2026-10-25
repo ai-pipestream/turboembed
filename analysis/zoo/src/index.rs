@@ -401,7 +401,7 @@ impl Index {
             let mut paths = BTreeSet::new();
             for f in &a.files {
                 let p = f.path.as_str();
-                if p.split('/').any(|part| part.ends_with(".partial")) {
+                if p.split('/').any(|part| part.ends_with(".partial") || part.contains(".partial.")) {
                     return Err(ZooError::Index(format!(
                         "{}: {} uses a .partial name, which the cache reserves for temporary files",
                         a.id, f.path
