@@ -102,3 +102,36 @@ fn a_discontinuous_item_counts_once_per_bucket() {
         }
     }
 }
+
+#[test]
+fn discontinuous_items_enter_and_leave_buckets_without_duplicate_scores() {
+    let text = "abcdefghijkl";
+    let offsetter = Offsetter::new(text, OffsetMode::Utf8);
+    let items = [
+        ScoredSpan { span: Span::new(0, 2), score: -0.75, item: 0 },
+        ScoredSpan { span: Span::new(3, 5), score: -0.75, item: 0 },
+        ScoredSpan { span: Span::new(9, 11), score: -0.75, item: 0 },
+        ScoredSpan { span: Span::new(1, 7), score: 0.5, item: 1 },
+    ];
+    for n in [1, 2, 3, 4, 12] {
+        for density in [false, true] {
+            for bucket in binned_buckets(text, &offsetter, n, &items, density) {
+                let mut unique = std::collections::BTreeMap::new();
+                for item in &items {
+                    if item.span.start < bucket.end && item.span.end > bucket.start {
+                        unique.entry(item.item).or_insert(item.score);
+                    }
+                }
+                assert_eq!(bucket.count as usize, unique.len());
+                let primary = if density {
+                    unique.keys().next().copied()
+                } else {
+                    unique.iter().max_by(|a, b| a.1.abs().total_cmp(&b.1.abs())).map(|(&id, _)| id)
+                };
+                let score = if density { unique.values().sum() } else { primary.map_or(0.0, |id| unique[&id]) };
+                assert_eq!(bucket.primary_item, primary, "buckets={n}, density={density}");
+                assert_eq!(bucket.score, score, "buckets={n}, density={density}");
+            }
+        }
+    }
+}

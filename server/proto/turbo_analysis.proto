@@ -866,10 +866,23 @@ message DocumentChipProto
 
 message HeatmapBucketProto
 {
+  // Half-open range in the request's OffsetMode, relative to the whole view.
+  // Minimap boundaries are snapped down to UTF-8 character boundaries before
+  // conversion; when buckets outnumber characters, ranges can be empty.
   uint32 start = 1;
   uint32 end = 2;
+  // TokenDensity sums one unit per distinct overlapping token. Other lane
+  // kinds use the signed score with greatest absolute magnitude among the
+  // overlapping items, breaking ties by layer item/fragment traversal order.
+  // An empty bucket has score 0. This is not an average or a length-weighted sum.
   float score = 3;
+  // Distinct layer items overlapping the bucket, not fragment count. Multiple
+  // fragments of one item contribute once. Exact mode omits uncovered ranges;
+  // minimap mode retains empty buckets with count 0.
   uint32 count = 4;
+  // Index in this lane's source layer, absent when count is 0. TokenDensity
+  // uses the first overlapping item in traversal order; other kinds use the
+  // item supplying score. This is a representative, not the count or a span.
   optional uint32 primary_item = 5;
 }
 
