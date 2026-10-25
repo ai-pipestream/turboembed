@@ -167,8 +167,9 @@ takes `le16k`'s. A variant whose median is more than 25% above its least
 is timed again, up to three times in all; still apart, the device is
 shared or throttling, and the session keeps the incumbent, reports
 `default`, is not cached, and an INFO line says so. The budget
-(docs/autotune.md) counts the timed runs alone; past it, what is left is
-not timed, and a bin whose challenger was not timed keeps its incumbent.
+(docs/autotune.md) counts the timed runs alone; past it, what is left
+does not run, untimed runs included, and a bin whose challenger was not
+timed keeps its incumbent.
 A measured session reports `measured`, gives its timings as
 `<bin>/linear/<choice>=<least ms>` lines, one per count and choice timed,
 and logs at INFO `levelzero device <n>: linear layers chosen in <ms> ms:

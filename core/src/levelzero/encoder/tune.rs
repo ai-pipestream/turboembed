@@ -234,7 +234,7 @@ pub(super) enum Measured {
 /// rows of max_seq tokens or fewer, ids 1. At each, the bin's incumbent
 /// then the challenger run once untimed, then TUNE_RUNS timed while the
 /// budget lasts, which the untimed runs (where a variant's kernels are
-/// built) do not count against. A variant whose times are apart is timed
+/// built) do not count against; past it, no variant runs at all. A variant whose times are apart is timed
 /// again, TUNE_TRIES times in all.
 pub(super) fn measure(s: &mut Session, incumbent: Linears, budget_ms: u32) -> Res<Measured> {
     let cap = s.max_batch.saturating_mul(s.max_seq).min(TUNE_COUNTS[3]);
@@ -250,6 +250,11 @@ pub(super) fn measure(s: &mut Session, incumbent: Linears, budget_ms: u32) -> Re
         let inc = incumbent.0[bin];
         let mut count = Count { bin, times: Vec::new() };
         for l in [inc, inc.other()] {
+            // Past the budget nothing more is built or timed.
+            if spent >= budget {
+                cut = true;
+                continue;
+            }
             s.linear = Linears::all(l);
             s.encode_and_wait(1)?;
             let mut tries = 0;
