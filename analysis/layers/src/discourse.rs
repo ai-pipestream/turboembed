@@ -2,7 +2,7 @@
 //! statement with its speaker, its reporting verb and the coreference
 //! chain the speaker belongs to.
 
-use turbo_analysis::{Layer, Overlap, Span, Spans, TextSpans, ViewId};
+use turbo_analysis::{Document, KeyId, Layer, Overlap, Span, Spans, TextSpans, ViewId};
 
 /// How a statement is reported.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -143,11 +143,31 @@ impl Layer for Quotations {
             if q.content.is_empty() {
                 return Err(format!("an empty quotation at {}", q.content.start));
             }
-            if [q.speaker, q.cue_verb].iter().flatten().any(|s| s.is_empty()) {
-                return Err(format!("an empty speaker or cue span on the quotation at {}", q.content.start));
+            if [q.speaker, q.cue_verb].iter().flatten().any(|s| s.start >= s.end) {
+                return Err(format!(
+                    "an empty or reversed speaker or cue span on the quotation at {}",
+                    q.content.start
+                ));
             }
             if !(0.0..=1.0).contains(&q.confidence) {
                 return Err(format!("quotation confidence {} outside [0, 1]", q.confidence));
+            }
+        }
+        Ok(())
+    }
+
+    fn check_document(&self, doc: &Document, _: &[KeyId]) -> Result<(), String> {
+        let text = doc.text(self.spans.view());
+        for (i, q) in self.iter().enumerate() {
+            for (name, span) in [("speaker", q.speaker), ("cue", q.cue_verb)] {
+                if let Some(span) = span
+                    && text.get(span.range()).is_none()
+                {
+                    return Err(format!(
+                        "quotation {i} {name} span {}..{} outside the view text or not on UTF-8 boundaries",
+                        span.start, span.end
+                    ));
+                }
             }
         }
         Ok(())

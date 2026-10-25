@@ -31,7 +31,7 @@ mod sieves;
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct QuotationConfig {
     /// The most tokens between a quotation mark and its verb of speech for
-    /// the surface sieve.
+    /// the surface sieve. Values larger than the document search to its ends.
     pub max_cue_distance: usize,
     /// Give an unattributed quote the speaker before last in a dialog.
     pub alternate_dialog: bool,
@@ -76,7 +76,7 @@ impl QuotationAnnotator {
 
 impl Annotator for QuotationAnnotator {
     const ID: &'static str = "turbo:quotation_annotator";
-    const VERSION: &'static str = "1";
+    const VERSION: &'static str = "2";
 
     type Reads = (View, Tokens, Option<Dependencies>, Option<Mentions>, Option<Groups<Mentions>>);
     type Writes = (Quotations,);
@@ -96,6 +96,12 @@ impl Annotator for QuotationAnnotator {
         if tokens.spans.view() != view.id() {
             return Err(Error::Annotator { annotator: Self::ID, detail: "the tokens are not of the view read".into() });
         }
+        if mentions.is_some_and(|m| m.spans.view() != view.id()) {
+            return Err(Error::Annotator {
+                annotator: Self::ID,
+                detail: "the mentions are not of the view read".into(),
+            });
+        }
         let text = view.text();
         let spans: Vec<_> = tokens.spans.iter().map(|(_, s)| s).collect();
         let forms: Vec<&str> = spans.iter().map(|s| text.get(s.start as usize..s.end as usize).unwrap_or("")).collect();
@@ -103,7 +109,7 @@ impl Annotator for QuotationAnnotator {
             spans: &spans,
             forms: &forms,
             deps: deps.filter(|d| d.head.len() == spans.len()),
-            mentions: mentions.filter(|m| m.spans.view() == view.id()),
+            mentions,
             chains,
         };
         let mut out = Quotations::new(view.id());

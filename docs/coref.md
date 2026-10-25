@@ -156,6 +156,12 @@ row of the `Groups<Mentions>` chain the speaker belongs to, its kind
 `Dependencies`, `Mentions` and `Groups<Mentions>` are used when present.
 Quote scanning is shared with the speaker sieve.
 
+Version 2 rejects supplied mentions from a different text view instead of
+silently ignoring them. Cue distances larger than the document search to
+its ends without overflowing. `Document::add` validates speaker and cue
+spans against the quotation view, including UTF-8 boundaries. The speaker
+chain remains a documented unchecked raw row number.
+
 | Sieve | Finds | Confidence |
 | --- | --- | --- |
 | dependencies | a verb of speech outside quotes with an arc into the quote; its `nsubj` is the speaker | 0.9 |

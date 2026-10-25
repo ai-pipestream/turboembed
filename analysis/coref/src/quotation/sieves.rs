@@ -172,9 +172,11 @@ fn by_surface(
     let n = inp.forms.len();
     let free = |t: usize| regions.quote_of[t] == 0 && !regions.is_mark(t);
     let stop = |t: usize| matches!(inp.forms[t], "." | "?" | "!");
-    let after = (close + 1..n.min(close + 1 + max)).take_while(|&t| free(t)).find(|&t| speech_verb(inp.forms[t]));
+    let after = (close + 1..n.min((close + 1).saturating_add(max)))
+        .take_while(|&t| free(t))
+        .find(|&t| speech_verb(inp.forms[t]));
     if let Some(v) = after {
-        let leads_on = (v + 1..n.min(v + 2 + max))
+        let leads_on = (v + 1..n.min(v.saturating_add(2).saturating_add(max)))
             .find(|&t| !inp.word(t) && inp.forms[t] != ",")
             .is_some_and(|t| regions.starts.contains(&t));
         if !(stop(last) && leads_on) {
