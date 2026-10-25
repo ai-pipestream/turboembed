@@ -30,11 +30,14 @@ encoded bytes (default 64 MiB), and an answer that does not fit is
 dropped and counted. A slow or absent sink therefore never holds back
 the stream that produced the answer.
 
-One task drains the queue into a long-lived `StreamDocuments` call. A
-call that fails is counted, and a new one opens half a second later; an
-item taken from the queue when its call failed is counted as dropped.
-`Server::sink_stats` gives the counts: offered, forwarded (handed to a
-call), dropped, queued items and bytes, failed calls with the last
+One task drains the queue into a long-lived `StreamDocuments` call. The
+call takes each item from the queue as it sends it, so items waiting on
+a slow sink stay in the queue and in its counts, and each is numbered
+then: sequences follow the order items are sent in, whatever stream
+completed them. A call that fails is counted as it fails, also while no
+item is waiting, and a new one opens half a second later; the items it
+had taken are lost with it. `Server::sink_stats` gives the counts:
+offered, forwarded (taken by a call to send), dropped, queued items and bytes, failed calls with the last
 error, and the last summary a sink answered with. When the server
 stops, it closes the queue and waits up to 10 seconds for what the queue
 holds to be sent and the sink's summary to arrive; `Server::close_sink`

@@ -4,18 +4,22 @@
 //! the queue is full, by items or by bytes, the item is dropped and
 //! counted, so a slow sink never holds back the stream that produced it.
 //! One task drains the queue into a long-lived StreamDocuments call,
-//! opening a new one after a failure.
+//! opening a new one after a failure. The call takes each item from the
+//! queue itself, as it sends it, so what waits is the queue's and counted
+//! there, and the sequence follows the order the items are sent in.
 
 mod receiver;
 
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
+use std::task::{Context, Poll};
 use std::time::Duration;
 
 use prost::Message;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::Stream;
 use tonic::transport::Endpoint;
 
 pub use receiver::{MAX_SUMMARY_ERRORS, SinkReceiver};
@@ -47,8 +51,8 @@ pub struct SinkConfig {
 pub struct SinkStats {
     /// Completed answers offered to the queue.
     pub offered: u64,
-    /// Handed to a StreamDocuments call. The sink's summary says what it
-    /// accepted.
+    /// Taken by a StreamDocuments call to send. Items a call held when it
+    /// failed are lost with it; the sink's summary says what it accepted.
     pub forwarded: u64,
     /// Refused by a full queue.
     pub dropped: u64,
@@ -74,9 +78,12 @@ struct Counters {
     last: Mutex<(Option<String>, Option<DocumentSinkSummary>)>,
 }
 
+/// A queued item and the bytes it is counted at.
+type Queued = (DocumentSinkItem, u64);
+
 /// The tee every analysis stream offers its answers to.
 pub(crate) struct SinkForwarder {
-    tx: Mutex<Option<mpsc::Sender<(DocumentSinkItem, u64)>>>,
+    tx: Mutex<Option<mpsc::Sender<Queued>>>,
     max_bytes: u64,
     counters: Arc<Counters>,
     task: Mutex<Option<JoinHandle<()>>>,
@@ -110,17 +117,16 @@ impl SinkForwarder {
         }
         let c = &self.counters;
         c.offered.fetch_add(1, Ordering::Relaxed);
+        // The sequence is set as the item is sent; measured at its widest
+        // here, so the queue's byte count is never under what it sends.
         let item = DocumentSinkItem {
-            sequence: c.sequence.fetch_add(1, Ordering::Relaxed) + 1,
+            sequence: u64::MAX,
             doc_id: answer.id.clone(),
             analyzed: Some(answer.clone()),
             ..Default::default()
         };
         let bytes = item.encoded_len() as u64;
-        let fits = c
-            .queued_bytes
-            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |q| (q + bytes <= self.max_bytes).then_some(q + bytes))
-            .is_ok();
+        let fits = reserve(&c.queued_bytes, bytes, self.max_bytes);
         let sent = fits
             && self
                 .tx
@@ -164,39 +170,74 @@ impl SinkForwarder {
     }
 }
 
-/// Drains the queue into StreamDocuments calls until it is closed and
-/// empty, opening a new call after one ends in an error.
-async fn drain(endpoint: Endpoint, mut rx: mpsc::Receiver<(DocumentSinkItem, u64)>, c: Arc<Counters>) {
-    let channel = endpoint.connect_lazy();
+/// Adds `bytes` to `queued` if the sum stays within `max`.
+fn reserve(queued: &AtomicU64, bytes: u64, max: u64) -> bool {
+    let mut q = queued.load(Ordering::Acquire);
     loop {
-        let (call_tx, call_rx) = mpsc::channel::<DocumentSinkItem>(64);
-        let mut client = TurboSinkServiceClient::new(channel.clone());
-        let call = tokio::spawn(async move { client.stream_documents(ReceiverStream::new(call_rx)).await });
-        let mut closed = true;
-        while let Some((item, bytes)) = rx.recv().await {
-            c.queued.fetch_sub(1, Ordering::Relaxed);
-            c.queued_bytes.fetch_sub(bytes, Ordering::AcqRel);
-            if call_tx.send(item).await.is_err() {
-                // The call ended under it: this item is lost with it.
-                c.dropped.fetch_add(1, Ordering::Relaxed);
-                closed = false;
-                break;
-            }
-            c.forwarded.fetch_add(1, Ordering::Relaxed);
+        if q + bytes > max {
+            return false;
         }
-        drop(call_tx);
-        let ended = call.await.map_err(|e| e.to_string()).and_then(|r| r.map_err(|s| s.to_string()));
+        match queued.compare_exchange_weak(q, q + bytes, Ordering::AcqRel, Ordering::Acquire) {
+            Ok(_) => return true,
+            Err(now) => q = now,
+        }
+    }
+}
+
+/// One call's request stream: each item taken from the queue as the call
+/// asks for it, uncounted from the queue, numbered and counted forwarded.
+/// The queue's end ends the stream and is recorded in `closed`.
+struct Feed {
+    rx: Arc<Mutex<mpsc::Receiver<Queued>>>,
+    c: Arc<Counters>,
+    closed: Arc<AtomicBool>,
+}
+
+impl Stream for Feed {
+    type Item = DocumentSinkItem;
+
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<DocumentSinkItem>> {
+        let polled = self.rx.lock().unwrap_or_else(|p| p.into_inner()).poll_recv(cx);
+        match polled {
+            Poll::Ready(Some((mut item, bytes))) => {
+                let c = &self.c;
+                c.queued.fetch_sub(1, Ordering::Relaxed);
+                c.queued_bytes.fetch_sub(bytes, Ordering::AcqRel);
+                item.sequence = c.sequence.fetch_add(1, Ordering::Relaxed) + 1;
+                c.forwarded.fetch_add(1, Ordering::Relaxed);
+                Poll::Ready(Some(item))
+            }
+            Poll::Ready(None) => {
+                self.closed.store(true, Ordering::Release);
+                Poll::Ready(None)
+            }
+            Poll::Pending => Poll::Pending,
+        }
+    }
+}
+
+/// Drains the queue into StreamDocuments calls until it is closed and
+/// empty, opening a new call after one ends in an error. A call that
+/// fails ends as it fails, with or without items waiting.
+async fn drain(endpoint: Endpoint, rx: mpsc::Receiver<Queued>, c: Arc<Counters>) {
+    let channel = endpoint.connect_lazy();
+    let rx = Arc::new(Mutex::new(rx));
+    let closed = Arc::new(AtomicBool::new(false));
+    loop {
+        let mut client = TurboSinkServiceClient::new(channel.clone());
+        let feed = Feed { rx: rx.clone(), c: c.clone(), closed: closed.clone() };
+        let ended = client.stream_documents(feed).await;
         {
             let mut last = c.last.lock().unwrap_or_else(|p| p.into_inner());
             match ended {
                 Ok(summary) => last.1 = Some(summary.into_inner()),
                 Err(e) => {
                     c.failed_calls.fetch_add(1, Ordering::Relaxed);
-                    last.0 = Some(e);
+                    last.0 = Some(e.to_string());
                 }
             }
         }
-        if closed {
+        if closed.load(Ordering::Acquire) {
             return;
         }
         tokio::time::sleep(RETRY).await;
