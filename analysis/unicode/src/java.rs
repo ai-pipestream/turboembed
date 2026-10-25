@@ -9,6 +9,7 @@
 
 pub mod code_point;
 mod codepoint_strings;
+mod ignore_case;
 mod strings;
 mod word_classes;
 use crate::ascii::push_lowercase_run;
@@ -23,6 +24,7 @@ use crate::trie::find;
 pub use codepoint_strings::{
     eq_lowercase_code_points, lowercase_code_points, lowercase_code_points_changes, to_lowercase_code_points,
 };
+pub use ignore_case::equals_ignore_case;
 pub use strings::is_blank;
 
 const CAPITAL_SIGMA: char = '\u{3A3}';
@@ -80,12 +82,7 @@ pub fn digit(c: char) -> Option<u8> {
 /// LINE is not whitespace by this definition.
 #[inline]
 pub fn is_whitespace(c: char) -> bool {
-    match c {
-        ' ' | '\t'..='\r' | '\u{1C}'..='\u{1F}' => true,
-        '\u{A0}' | '\u{2007}' | '\u{202F}' => false,
-        _ if c.is_ascii() => false,
-        _ => general_category(c).is_separator(),
-    }
+    code_point::is_whitespace(c as u32)
 }
 
 /// `Character.isSpaceChar`: general category Zs, Zl or Zp.

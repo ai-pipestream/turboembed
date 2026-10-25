@@ -1,12 +1,14 @@
 //! The wire form of `DocumentEntities`: the view, then each entity's
 //! columns and mentions, then the relations. A mention's `Entities` row is
 //! written against the default `Entities` instance, named once.
+//! `EntitySalience` is its row count, then each score's columns.
 
-use turbo_analysis::{Span, ViewId};
+use turbo_analysis::ViewId;
 
 use super::*;
 use crate::{
-    ConsolidatedMention, DocumentEntities, DocumentEntity, EntityRelation, SyntacticRole, SyntacticRoleCounts,
+    ConsolidatedMention, DocumentEntities, DocumentEntity, EntityRelation, EntitySalience, EntitySalienceScore,
+    SyntacticRole, SyntacticRoleCounts,
 };
 
 fn put_opt_str(w: &mut Writer, s: Option<&str>) -> Result<(), ExportError> {
@@ -55,7 +57,7 @@ fn get_mention(
     cx: &mut ImportCx,
     rows: &Option<LayerRef>,
 ) -> Result<ConsolidatedMention, ExportError> {
-    let span = Span::new(r.u32()?, r.u32()?);
+    let span = r.span()?;
     let entity = match r.u8()? {
         0 => None,
         1 => {
@@ -191,6 +193,42 @@ impl LayerCodec for DocumentEntities {
             });
         }
         done(&r, "document entities")?;
+        Ok(out)
+    }
+}
+
+impl LayerCodec for EntitySalience {
+    fn export(&self, _cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        w.usize(self.scores.len())?;
+        for s in &self.scores {
+            w.u32(s.entity_ix);
+            w.u32(s.rank);
+            for v in [s.salience, s.position_score, s.syntax_score, s.frequency_score, s.centrality_score] {
+                put_f32(&mut w, v);
+            }
+        }
+        Ok(w.finish())
+    }
+
+    fn import(data: &[u8], _cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let mut scores = Vec::new();
+        for _ in 0..r.usize()? {
+            let (entity_ix, rank) = (r.u32()?, r.u32()?);
+            scores.push(EntitySalienceScore {
+                entity_ix,
+                rank,
+                salience: get_f32(&mut r)?,
+                position_score: get_f32(&mut r)?,
+                syntax_score: get_f32(&mut r)?,
+                frequency_score: get_f32(&mut r)?,
+                centrality_score: get_f32(&mut r)?,
+            });
+        }
+        done(&r, "entity salience")?;
+        let out = EntitySalience { scores };
+        out.check().map_err(malformed)?;
         Ok(out)
     }
 }

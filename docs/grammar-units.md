@@ -11,9 +11,9 @@ runs it.
 ## Types
 
 Units are enums grouped by what they measure, in
-`analysis/grammar/src/unit/physical.rs` and
-`analysis/grammar/src/unit/kinds.rs`, re-exported from
-`analysis/grammar/src/unit/mod.rs`: `Length`, `Area`, `Volume`,
+`analysis/layers/src/unit/physical.rs` and
+`analysis/layers/src/unit/kinds.rs`, re-exported from
+`analysis/layers/src/unit/mod.rs` and `analysis/grammar/src/unit/mod.rs`: `Length`, `Area`, `Volume`,
 `Weight`, `Speed`, `Information`, `Angle`, `Temperature` and `Age`, with
 `Unit` over them and `Unit::Currency` for money. `Area::Square`,
 `Volume::Cubic` and `Speed::Per` take a `Length` (and a time), so `km²`,
@@ -39,7 +39,7 @@ measure; with `imperial`, `UK` or `British` before it, it is the
 imperial one (`Volume::ImperialGallon`, symbol `imp gal`, and so on).
 `nautical miles` and `nmi` are `Length::NauticalMile`.
 
-Money units are in `analysis/grammar/src/unit/currency.rs`:
+Money units are in `analysis/layers/src/unit/currency.rs`:
 
 - `CurrencyUnit::Code` holds an ISO 4217 `Currency` from
   `turbo-analysis-layers`, for codes, signs and named currencies (`EUR`,

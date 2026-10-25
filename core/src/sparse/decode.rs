@@ -5,8 +5,7 @@
 //! kernels (AVX2 on x86_64, NEON on aarch64) fuse each multiply-add, in
 //! the vector loop and in the tail alike, so they give the same bits as
 //! `fused` on the same input. The portable loop rounds the product and
-//! the sum separately, as `Linear::apply` compiles without FMA, so it
-//! differs from them by that rounding alone.
+//! the sum separately, so it differs from them by that rounding alone.
 
 /// The kernel this processor runs.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

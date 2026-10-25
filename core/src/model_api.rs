@@ -110,8 +110,8 @@ fn head_tensors(l: &head::Linear) -> [backend::turbo_backend_tensor; 2] {
         };
     let (out, hidden) = (l.out_dim as u64, l.in_dim as u64);
     [
-        f32_tensor(c"classifier_weight", &l.weight, [out, hidden], 2),
-        f32_tensor(c"classifier_bias", &l.bias, [out, 0], 1),
+        f32_tensor(c"classifier_weight", l.weight(), [out, hidden], 2),
+        f32_tensor(c"classifier_bias", l.bias(), [out, 0], 1),
     ]
 }
 
@@ -169,10 +169,15 @@ pub unsafe extern "C" fn turbo_model_get_info(
                 sized(size, want, "turbo_model_info")?;
             }
             let mut info = m.inner.info;
-            if info.task == TURBO_TASK_RERANK {
-                info.dim = 0;
+            // turbo.h: the fields marked embed are 0 for another task. A
+            // rerank row is one score, so its dim is 0 too; an extractive
+            // QA row is a token's hidden state, and its dim stays.
+            if info.task != TURBO_TASK_EMBED {
                 info.pooling = 0;
                 info.normalize = 0;
+            }
+            if info.task == TURBO_TASK_RERANK {
+                info.dim = 0;
             }
             std::ptr::copy_nonoverlapping(
                 (&info as *const turbo_model_info).cast::<u8>().add(4),

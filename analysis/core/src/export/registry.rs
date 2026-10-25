@@ -2,11 +2,13 @@ use super::*;
 
 type Exporter = fn(&dyn Any, &ExportCx) -> Result<Vec<u8>, ExportError>;
 type Importer = fn(&mut Document, &LayerRecord, Vec<u8>, &mut ImportCx, Provenance) -> Result<usize, ExportError>;
+type Slicer = fn(&[u8], &SliceCx) -> Result<SlicedBody, ExportError>;
 
 pub(super) struct Codec {
     pub(super) schema: u16,
     pub(super) export: Exporter,
     pub(super) import: Importer,
+    pub(super) slice: Slicer,
     pub(super) key: fn(&'static str) -> KeyId,
 }
 
@@ -41,6 +43,7 @@ impl Codecs {
                     .map_err(|e| ExportError::InvalidLayer { layer: record.layer.clone(), detail: e.to_string() })?;
                 Ok(len)
             },
+            slice: |data, cx| L::slice_body(data, cx),
             key: |instance| Key::<L>::named(instance).id(),
         };
         self.by_name.insert(L::NAME.to_string(), TypeId::of::<L>());

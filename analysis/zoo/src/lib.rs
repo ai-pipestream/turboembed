@@ -16,6 +16,8 @@
 //!   is checked by size, SHA-256 and SHA-512, cached or fetched; a file
 //!   served compressed is also checked on the wire before it is unpacked
 //!   ([`transfer`]).
+//! - [`Home`]: where the `turbo-zoo` command keeps the cache and the
+//!   acceptance file, found from the environment.
 //!
 //! docs/licences.md is the table of approved and refused datasets and
 //! checkpoints the index is built from.
@@ -24,6 +26,7 @@ pub mod accept;
 pub mod digest;
 pub mod error;
 pub mod fetch;
+pub mod home;
 pub mod index;
 pub mod licence;
 pub mod transfer;
@@ -33,7 +36,8 @@ pub use digest::{Sha256, Sha512};
 pub use error::{Check, ZooError};
 #[cfg(feature = "http")]
 pub use fetch::Http;
-pub use fetch::{Fetched, Offline, Transport, Zoo, unpack, verify};
+pub use fetch::{CacheStatus, Fetched, Offline, Transport, Zoo, unpack, verify};
+pub use home::Home;
 pub use index::{Artifact, ArtifactId, Component, File, Format, Index, Kind, Language, TrainingData, Url};
 pub use licence::{
     GplAcceptance, Licence, LicenceClass, LocalOnlyReason, Policy, RefusalReason, Requirement, class_of,

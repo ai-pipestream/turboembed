@@ -9,7 +9,7 @@ of its results depend on the platform rather than on OpenNLP:
   `String.compareTo` (BeamSearch tie breaks) orders strings by them.
   `Utf16Units` yields the UTF-16 units of a `&str` with the UTF-8 byte
   offset of each unit's character; `compare_to` and `compare` are
-  `String.compareTo`; `is_java_whitespace` is `Character.isWhitespace`.
+  `String.compareTo`. Java whitespace is provided by `turbo-unicode`.
 - `strict_math`: `exp` and `log` are ports of fdlibm (`e_exp.c`,
   `e_log.c`), which is what `StrictMath.exp` and `StrictMath.log` compute
   and what OpenNLP's maxent, perceptron and naive Bayes models call.
@@ -36,7 +36,8 @@ of its results depend on the platform rather than on OpenNLP:
   cannot compare, which the JVM orders by `System.identityHashCode`;
   `is_jvm_exact` says when that happened.
 
-The crate has no dependencies.
+The only runtime dependency is the standard-library-only `turbo-unicode`,
+which supplies the shared UTF-16 length helper.
 
 ## Test vectors
 
@@ -50,7 +51,7 @@ pattern). The vectors are in `tests/vectors/`:
 | `strict_math_log.tsv` | `StrictMath.log` of about 11,500 inputs: values near 1, both sides of every threshold in `e_log.c` at several exponents, every power of two and its neighbours, subnormals, negative values, zeros, infinities, NaN, a logarithmic sweep and random bit patterns |
 | `random.tsv` | For nine seeds (0, 1, -1, 42, `Long.MIN_VALUE`, `Long.MAX_VALUE` and others): the first 64 values of each `java.util.Random` method from a fresh generator (`nextInt(bound)` for twelve bounds), a run mixing methods, and `Collections.shuffle` of the list 0..n for eight sizes |
 | `compare.tsv` | `String.compareTo` over pairs of strings with ASCII, Latin-1, BMP and supplementary characters |
-| `whitespace.tsv` | Every code point for which `Character.isWhitespace` is true |
+| `whitespace.tsv` | Every code point for which `Character.isWhitespace` is true; consumed by turbo-unicode tests |
 | `text.tsv` | `Double.toString` and `Float.toString` of values on both sides of every rule of their specification (layout thresholds, subnormals, k x 10^n for every exponent, random bit patterns), and `parseDouble`, `parseFloat`, `parseInt` and `parseBoolean` of texts on both sides of their grammars |
 | `hash_map.tsv` | `String.hashCode`, `CharBuffer.hashCode`, 2-component record `hashCode`, `concat` `hashCode` and `List.hashCode`, plus `HashMap` entry iteration order across resize thresholds for `put`, `merge` (with and without trailing duplicates at `threshold + 1`), `putAll` (`tableSizeFor` pre-sizing), `clear` (retained capacity) and 8/9-key colliding bins below `MIN_TREEIFY_CAPACITY` |
 
@@ -91,6 +92,9 @@ number of scenarios.
 defined by the Unicode general categories (L* and Nd) of the JDK's
 Unicode version, which the standard library does not expose, and a
 correct version needs those category tables in the crate.
-`is_java_whitespace` is provided because the set it accepts is 25 code
-points, listed in its documentation and checked against the JVM for
-every code point.
+`Character.isWhitespace` is provided by
+`turbo_unicode::java::code_point::is_whitespace`. Its exhaustive test consumes
+the JVM-derived `whitespace.tsv` vector retained here beside its generator.
+The redundant `turbo_jvm::chars::is_java_whitespace` helper was removed;
+callers should use the shared Unicode predicate. This crate remains
+dependency-free.

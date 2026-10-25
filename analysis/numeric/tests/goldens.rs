@@ -37,7 +37,7 @@ fn golden_path(notation: &str, id: &str) -> PathBuf {
 /// Runs the scanner in `notation` over every text and compares each with
 /// its golden; returns how many numbers were compared.
 fn check(dir: &str, notation: NumberNotation, config: &str) -> usize {
-    let scanner = NumberScanner::new(notation);
+    let scanner = NumberScanner::new(notation).with_opennlp_parity(true);
     let ids = inputs();
     assert!(!ids.is_empty(), "no inputs in the num set");
     let mut numbers = 0;

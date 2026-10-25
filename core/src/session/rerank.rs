@@ -75,9 +75,11 @@ pub unsafe extern "C" fn turbo_rerank_write_pairs(
             let mut windows = Vec::new();
             let mut owners = Vec::new();
             for (i, p) in pairs.iter().enumerate() {
-                let query = text(p.query, "pair.query")?;
-                let passage = text(p.passage, "pair.passage")?;
-                let encoded = s.model.tokenizer.encode_pair(query, passage, o.query_tokens, max_tokens, o.stride)?;
+                let at = |e: Error| Error { message: format!("pairs[{i}]: {}", e.message), ..e };
+                let query = text(p.query, "pair.query").map_err(at)?;
+                let passage = text(p.passage, "pair.passage").map_err(at)?;
+                let encoded =
+                    s.model.tokenizer.encode_pair(query, passage, o.query_tokens, max_tokens, o.stride).map_err(at)?;
                 owners.extend(std::iter::repeat_n(i, encoded.len()));
                 windows.extend(encoded);
             }
@@ -164,7 +166,7 @@ pub(super) unsafe fn run_pairs(s: &SessionInner, state: &mut State) -> Result<tu
             }
             let hidden = if let Some(pooler) = &head.pooler {
                 for (dst, (w, &bias)) in
-                    state.pooled.iter_mut().zip(pooler.weight.chunks_exact(head.hidden).zip(&pooler.bias))
+                    state.pooled.iter_mut().zip(pooler.weight().chunks_exact(head.hidden).zip(pooler.bias()))
                 {
                     let sum = w.iter().zip(input).fold(f64::from(bias), |a, (&w, &x)| a + f64::from(w) * f64::from(x));
                     *dst = sum.tanh() as f32;
@@ -175,10 +177,10 @@ pub(super) unsafe fn run_pairs(s: &SessionInner, state: &mut State) -> Result<tu
             };
             let value = head
                 .classifier
-                .weight
+                .weight()
                 .iter()
                 .zip(hidden)
-                .fold(f64::from(head.classifier.bias[0]), |a, (&w, &x)| a + f64::from(w) * f64::from(x))
+                .fold(f64::from(head.classifier.bias()[0]), |a, (&w, &x)| a + f64::from(w) * f64::from(x))
                 as f32;
             if !value.is_finite() {
                 return Err(Error::new(INTERNAL, "rerank relevance overflows F32"));

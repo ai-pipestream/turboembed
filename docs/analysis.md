@@ -26,7 +26,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-matcher` | `analysis/matcher/` | Rule matching after spaCy's `Matcher`, `PhraseMatcher` and `SpanRuler`: token patterns over any token layer, compiled to an automaton simulated without backtracking; phrase lists as a trie over token ids; and the span ruler step, which writes `turbo:matches` under a named instance (Rule matching, below) |
 | `turbo-analysis-embed` | `analysis/embed/` | The embedding model as analysis steps: the subwords of a text view from the bundle's tokenizer, a vector per sentence and per chunk, and `BundleSequenceScorer` (`DlSequenceScorer` over the bundle's encoder and sequence-classification `head.bin` for `turbo-doccat`'s `DocumentCategorizerDL`) |
 | `turbo-sat` | `analysis/sat/` | Sentence boundaries from a SaT model (wtpsplit's Segment any Text) on the core's encoder: a score per token from the bundle's classifier over the encoder's final states, wtpsplit's windows and cuts, each cut moved to a grapheme cluster boundary, written as `opennlp:sentences` ([neural-annotators.md](neural-annotators.md); `analysis/sat/README.md` describes its reference fixtures) |
-| `turbo-numeric` | `analysis/numeric/` | The number scanner, which writes `turbo:numbers` ([numbers.md](numbers.md)); the money extractor (`MoneyExtractor`, `MoneyExtractor::for_region`) and `RegionAwareMoneyAnnotator` (reading `turbo:regions`), which write `turbo:money`, the ECB rate table and the conversion step, which writes the `converted` instance of `turbo:money` ([money.md](money.md)); the quantity extractor, which writes `turbo:quantities` ([quantities.md](quantities.md)); the temporal extractor, which writes `turbo:temporal`, the document date selector, which writes `turbo:document-date`, and the conversion step that reads it ([temporal.md](temporal.md)) |
+| `turbo-numeric` | `analysis/numeric/` | The number scanner (`NumberScanner`, `NumberScanner::for_region`, `NumberScanner::for_locale`) and `RegionAwareNumberAnnotator` (reading `turbo:regions`), which write `turbo:numbers` ([numbers.md](numbers.md)); the money extractor (`MoneyExtractor`, `MoneyExtractor::for_region`) and `RegionAwareMoneyAnnotator` (reading `turbo:regions`), which write `turbo:money`, the ECB rate table and the conversion step, which writes the `converted` instance of `turbo:money` ([money.md](money.md)); the quantity extractor (`QuantityExtractor`, `QuantityExtractor::for_region`, `QuantityExtractor::for_locale`) and `RegionAwareQuantityAnnotator` (reading `turbo:regions`), which write `turbo:quantities` ([quantities.md](quantities.md)); the temporal extractor, which writes `turbo:temporal`, the document date selector, which writes `turbo:document-date`, and the conversion step that reads it ([temporal.md](temporal.md)) |
 | `turbo-pii` | `analysis/pii/` | PII detection ported from OpenNLP's `opennlp.tools.pii`: e-mail, phone, IBAN, card, ABA routing, network, credential, Bitcoin and Ethereum, national and device identifiers, each checked with its check digit or checksum (Luhn, mod 97, mod 11, ISO 7064, base58check, bech32, EIP-55 over Keccak-256, all written in the crate), in the packs of `PiiPacks`; writes `turbo:pii` with a kind, a confidence and a normalized form per mention; masking in place or as the `masked` view (`MaskedView`), numbered and keyed (HMAC-SHA-256) labels and audit reports ([pii.md](pii.md)) |
 | `turbo-grammar` | `analysis/grammar/` | A rule grammar with a chart parser for numbers, ordinals and percentages in words or digits (English), which writes the `grammar` instances of `turbo:numbers` and `turbo:quantities` and the `turbo:ordinals` layer, with its Recognizers-Text conformance tests ([grammar.md](grammar.md)) |
 | `turbo-jvm` | `analysis/jvm/` | JVM behaviour the OpenNLP ports must reproduce bit for bit |
@@ -87,8 +87,8 @@ match the JVM bit for bit:
   for context generators, `StringPattern` and character n-grams;
   `utf16_len` is `String.length()`; `compare_to` is `String.compareTo`,
   which orders by code unit and so differs from `str::cmp` for
-  characters outside the Basic Multilingual Plane; `is_java_whitespace`
-  is `Character.isWhitespace`.
+  characters outside the Basic Multilingual Plane. `Character.isWhitespace`
+  comes from `turbo_unicode::java::code_point::is_whitespace`.
 - `random`: `JavaRandom` is `java.util.Random` from a seed, and its
   `shuffle` is `Collections.shuffle(List, Random)`, as OpenNLP's readers,
   cross-validation and trainers use them.
@@ -1258,6 +1258,11 @@ bytes, is an error, never a shorter set of vectors.
 
 ## Structure
 
+First-class cell grids and line-oriented key/value fields are separate
+layers: `TableGridAnnotator` writes `Tables`, and `KeyValueAnnotator`
+writes `KeyValuePairs`, with standard graph codecs and exact source
+coordinates ([tables.md](tables.md)). Existing block detection is unchanged.
+
 `Structure` (`turbo:structure`) is a document's blocks as a tree:
 sections, headings, paragraphs, lists and list items, tables with their
 rows and cells, code blocks and block quotes (`Block` also has captions,
@@ -1311,19 +1316,27 @@ one delimiter), and fenced and indented code. Tabs stop every four
 columns. A list item's indentation is measured from where its parent's
 content starts on each line, as CommonMark does, so `> > 1.  one` and
 `>>     two` continue one item. The hand-labelled fixtures in
-`analysis/structure/tests/fixtures.rs` pin these rules down, including
-the cases of the CommonMark specification that are easy to get wrong;
-the crate is not tested against the specification's examples or against
-another Markdown parser, since it takes no dependency on one.
+`analysis/structure/tests/fixtures.rs` pin these rules down. The offline
+CommonMark 0.31.2 corpus checks 652 block trees against cmark 0.31.1:
+577 match, up from 500 at the baseline. This checks block topology,
+heading levels and list tightness, not inline rendering. The 75 known
+differences are pinned individually. See [the structure conformance
+receipt](structure-conformance.md) for scope, provenance and timing.
 Front matter is skipped: when the view starts (after a byte order mark,
 if any) with a line `---` and a later line is `---` or `...`, the lines
 up to and including that one are in no block, as static site generators
 read YAML metadata. CommonMark has no front matter and reads such a
 start as a thematic break and a setext heading. Without the closing
 line, or anywhere but the start, `---` is a thematic break as usual.
-What it does not do: HTML blocks and link reference definitions are
-paragraphs, footnote definitions are not recognized, and a list is not
-marked tight or loose.
+HTML blocks follow the 7 CommonMark start/end rules and are opaque
+`Block::Html` leaves. Footnote definitions (`[^label]: text`) are
+`Block::Footnote` leaves, continuing through blank lines and lines
+indented at least 4 columns from the current container. Footnote bodies
+are opaque; references are not resolved. Link reference definitions
+still become paragraphs. Lists expose `Block::list_tightness()`:
+`List` is tight and `LooseList` is loose. Blank lines inside code or a
+nested quote do not loosen the enclosing list. Older stored results
+predate this flag; only parser version 1 records it.
 
 GFM pipe tables are tables: a delimiter row (`|---|:-:|`, with at least
 one `|`) under a line with as many cells turns that line into the
@@ -1354,9 +1367,13 @@ year.`), from which it is split off. Such headings in capitals with
 nothing after them but more of the same, like a name and a country
 under a letter's closing, are paragraphs, so they open no section. An
 underline under a paragraph of several lines ends the paragraph and is
-no heading. There are no `#` headings, no code, no tables and no front
-matter, so an indented line is text.
-Tables of aligned columns in plain text are not detected.
+no heading. There are no `#` headings, code or front matter.
+Repeated aligned columns form tables: at least 2 cells separated by
+2 or more spaces or a tab, with the same column starts in 2 consecutive
+lines. Column positions count Unicode scalars and 4-column tab stops,
+not terminal display widths. Subsequent aligned rows continue the table;
+a blank or unaligned line ends it. Each cell keeps its exact UTF-8 span.
+Other indented lines remain text.
 
 ## Abbreviations
 
@@ -5160,6 +5177,9 @@ recorded), so those did not run.
 
 The [cut-identity checker](chunker-cut-identity.md) compares flat chunk
 partitions across backend runs with optional DP runner-up margins.
+
+The [shared whitespace definitions and timing receipt](whitespace.md) describe
+the Unicode and Java predicates used by normalization, lexing and segmentation.
 
 ## BiLSTM-CRF numerics
 

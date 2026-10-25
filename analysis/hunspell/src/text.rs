@@ -9,9 +9,7 @@ use turbo_unicode::category::{GeneralCategory, general_category};
 use turbo_unicode::{java, props};
 
 /// `String.length()`: the number of UTF-16 units.
-pub(crate) fn utf16_len(s: &str) -> usize {
-    s.chars().map(char::len_utf16).sum()
-}
+pub(crate) use turbo_unicode::utf16::utf16_len;
 
 /// `StringUtil.isWhitespace(char)` in its default mode: the Unicode
 /// `White_Space` property. No supplementary character has it, so a

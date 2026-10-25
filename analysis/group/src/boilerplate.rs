@@ -31,7 +31,7 @@ impl BoilerplateUnit for Structure {
             match self.kind[b.get()] {
                 Block::PageHeader => return Some(BoilerplateKind::Header),
                 Block::PageFooter => return Some(BoilerplateKind::Footer),
-                Block::List | Block::ListItem => return Some(BoilerplateKind::Navigation),
+                Block::List | Block::LooseList | Block::ListItem => return Some(BoilerplateKind::Navigation),
                 _ => at = self.parent[b.get()],
             }
         }

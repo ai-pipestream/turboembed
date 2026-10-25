@@ -260,11 +260,11 @@ pub unsafe fn run_window_batch(
                     logits.copy_from_slice(x);
                 } else {
                     for (label, logit) in logits.iter_mut().enumerate() {
-                        let weights = &h.weight[label * h.in_dim..(label + 1) * h.in_dim];
+                        let weights = &h.weight()[label * h.in_dim..(label + 1) * h.in_dim];
                         *logit = weights
                             .iter()
                             .zip(x)
-                            .fold(f64::from(h.bias[label]), |a, (&w_val, &v)| a + f64::from(w_val) * f64::from(v))
+                            .fold(f64::from(h.bias()[label]), |a, (&w_val, &v)| a + f64::from(w_val) * f64::from(v))
                             as f32;
                     }
                 }
@@ -295,7 +295,8 @@ unsafe fn device_of(rt: *mut turbo_runtime, name: &str) -> Result<u32> {
         let mut info: turbo_device_info = unsafe { std::mem::zeroed() };
         info.struct_size = size_of::<turbo_device_info>() as u32;
         check(unsafe { turbo_runtime_device_info(rt, i, &mut info, &mut e) }, &e)?;
-        let b: Vec<u8> = info.backend.iter().take_while(|&&c| c != 0).map(|&c| c as u8).collect();
+        let b: Vec<u8> =
+            info.backend.iter().take_while(|&&c| c != 0).map(|&c| u8::from_ne_bytes(c.to_ne_bytes())).collect();
         if b == name.as_bytes() {
             return Ok(i);
         }

@@ -40,6 +40,58 @@ pub fn get_spans<L>(r: &mut Reader<'_>, cx: &mut ImportCx) -> Result<Spans<L>, E
     Ok(spans)
 }
 
+/// Slices a [`put_spans`] payload to its view's kept range (see
+/// [`SliceCx::view_range`]), for span-only codecs to implement
+/// [`LayerCodec::slice_body`] with: the same format back out, with
+/// clipped and rebased fragments, plus the old-to-new item remap.
+/// A payload with trailing fields after the span column is refused
+/// by the caller's own length checks, not read here.
+/// Reads the raw fragment table of a [`put_spans`] column at the
+/// reader's position, without resolving its view: the view
+/// instance and every item's fragments. For payload surgery
+/// (slicing) that must not allocate a document context.
+pub fn get_spans_raw(r: &mut Reader<'_>) -> Result<(String, Vec<Vec<Span>>), ExportError> {
+    let instance = r.str()?.to_owned();
+    let mut items: Vec<Vec<Span>> = Vec::new();
+    for _ in 0..r.usize()? {
+        let mut fragments = Vec::new();
+        for _ in 0..r.usize()? {
+            fragments.push(r.span()?);
+        }
+        if fragments.is_empty() {
+            return Err(malformed("a span item with no fragments"));
+        }
+        items.push(fragments);
+    }
+    Ok((instance, items))
+}
+
+/// Writes a raw fragment table in the [`put_spans`] format.
+pub fn put_spans_raw(w: &mut Writer, instance: &str, items: &[Vec<Span>]) -> Result<(), ExportError> {
+    w.str(instance)?;
+    w.usize(items.len())?;
+    for fragments in items {
+        w.usize(fragments.len())?;
+        for fragment in fragments {
+            w.span(*fragment);
+        }
+    }
+    Ok(())
+}
+
+pub fn slice_spans_payload(data: &[u8], cx: &SliceCx) -> Result<(Vec<u8>, Vec<Option<u32>>), ExportError> {
+    let mut r = Reader::new(data);
+    let (instance, items) = get_spans_raw(&mut r)?;
+    let range = cx.view_range(&instance)?;
+    if !r.is_done() {
+        return Err(malformed("trailing bytes in a spans payload being sliced"));
+    }
+    let (clipped, remap) = crate::span::slice::clip_items(&items, range);
+    let mut w = Writer::new();
+    put_spans_raw(&mut w, &instance, &clipped)?;
+    Ok((w.finish(), remap))
+}
+
 /// Writes a tag set: its name and its labels in tag order.
 pub fn put_tagset(w: &mut Writer, kinds: &TagSet) -> Result<(), ExportError> {
     w.str(&kinds.name)?;

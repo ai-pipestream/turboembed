@@ -63,7 +63,7 @@ unsafe fn dot_avx2(a: &[f32], b: &[f32]) -> f32 {
 /// `l` on one row, through [`dot`].
 pub(crate) fn apply(l: &Linear, x: &[f32], out: &mut [f32]) {
     assert!(x.len() == l.in_dim && out.len() == l.out_dim, "a row of the layer's widths");
-    for ((o, w), &b) in out.iter_mut().zip(l.weight.chunks_exact(l.in_dim)).zip(&l.bias) {
+    for ((o, w), &b) in out.iter_mut().zip(l.weight().chunks_exact(l.in_dim)).zip(l.bias()) {
         *o = dot(w, x) + b;
     }
 }
@@ -83,9 +83,9 @@ impl Packed {
     /// Packs `l`'s row-major `[out][in]` weights. The error is the
     /// allocation the packing could not make, in bytes.
     pub fn new(l: &Linear) -> Result<Packed, String> {
-        let w = Matrix::from_rows(&[&l.weight], l.in_dim)
+        let w = Matrix::from_rows(&[l.weight()], l.in_dim)
             .map_err(|bytes| format!("packing a {}x{} layer needs {bytes} bytes", l.out_dim, l.in_dim))?;
-        Ok(Packed { in_dim: l.in_dim, out_dim: l.out_dim, w, bias: l.bias.clone() })
+        Ok(Packed { in_dim: l.in_dim, out_dim: l.out_dim, w, bias: l.bias().to_vec() })
     }
 
     /// The layer on each of the `n` rows of `x`, `[n][out]`.

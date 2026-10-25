@@ -1997,6 +1997,7 @@ dependencies = [
  "turbo",
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-bundle",
  "turbo-grammar",
  "turbo-postag",
  "turbo-tokenize",
@@ -2046,6 +2047,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-coref",
+ "turbo-matcher",
  "turbo-normalize",
  "turbo-stem",
  "turbo-structure",
@@ -2123,11 +2125,17 @@ name = "turbo-entity-linker"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
+ "turbo-analysis-embed",
  "turbo-analysis-layers",
+ "turbo-chunker",
  "turbo-coref",
  "turbo-geo",
  "turbo-glossary-layers",
+ "turbo-maxent",
+ "turbo-namefind",
  "turbo-normalize",
+ "turbo-sentdetect",
+ "turbo-tokenize",
  "turbo-unicode",
  "turbo-vector-index",
  "turbo-wordnet",
@@ -2170,6 +2178,7 @@ dependencies = [
  "turbo-maxent",
  "turbo-normalize",
  "turbo-parser",
+ "turbo-stopword-layers",
  "turbo-structure",
  "turbo-tokenize",
  "turbo-unicode",
@@ -2304,6 +2313,9 @@ dependencies = [
 [[package]]
 name = "turbo-jvm"
 version = "0.1.0"
+dependencies = [
+ "turbo-unicode",
+]
 
 [[package]]
 name = "turbo-keywords"
@@ -2340,14 +2352,21 @@ dependencies = [
  "turbo-entity-linker",
  "turbo-geo",
  "turbo-gliner",
+ "turbo-glossary",
  "turbo-glossary-layers",
  "turbo-group",
  "turbo-keywords",
+ "turbo-lemmatizer",
+ "turbo-maxent",
  "turbo-normalize-layers",
  "turbo-relation",
  "turbo-schema-extract",
+ "turbo-sequence",
+ "turbo-stopword",
  "turbo-stopword-layers",
+ "turbo-tokenize",
  "turbo-tokenize-layers",
+ "turbo-wordnet",
  "turbo-zoo",
 ]
 
@@ -2713,6 +2732,7 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-chunker",
  "turbo-normalize",
+ "turbo-unicode",
 ]
 
 [[package]]
