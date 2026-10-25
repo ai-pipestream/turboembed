@@ -83,6 +83,7 @@ pub(in crate::lang) static UNITS: &[Word] = &[
     len("nanometers", Length::Nanometer, 0),
     len("nanometre", Length::Nanometer, 0),
     len("nanometres", Length::Nanometer, 0),
+    len("pm", Length::Picometer, ABBR | AMBIG | LOWER),
     len("picometer", Length::Picometer, 0),
     len("picometers", Length::Picometer, 0),
     len("picometre", Length::Picometer, 0),

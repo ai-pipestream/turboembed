@@ -39,7 +39,30 @@ pub(crate) fn collect_tokens(text: &str, protected: Option<&[Span]>) -> Vec<Toke
     let mut out = Vec::new();
     let spans = protected.unwrap_or(&[]);
     let mut p_idx = 0;
-    for tok in tokens(text) {
+    // Whitespace tokenization keeps unspaced CJK text in one
+    // token; split after unambiguous non-ASCII sentence
+    // terminators (STerm, not the ambiguous full stop) so
+    // sentence grouping and trellis context stay per sentence.
+    // ASCII terminators do not split: a `?` inside a URL or a
+    // `!` glued to a word must reach the guards as one token,
+    // as it did before this split existed.
+    let is_sterm = |c: char| {
+        !c.is_ascii() && turbo_unicode::sentence_break::sentence_break(c as u32) == turbo_unicode::SentenceBreak::STerm
+    };
+    let tokens = tokens(text).into_iter().flat_map(|tok| {
+        let mut pieces = Vec::new();
+        let mut start = tok.start;
+        for (off, c) in text[tok.clone()].char_indices() {
+            let end = tok.start + off + c.len_utf8();
+            if is_sterm(c) && end < tok.end {
+                pieces.push(start..end);
+                start = end;
+            }
+        }
+        pieces.push(start..tok.end);
+        pieces
+    });
+    for tok in tokens {
         while p_idx < spans.len() && (spans[p_idx].end as usize) <= tok.start {
             p_idx += 1;
         }
@@ -88,8 +111,13 @@ pub(crate) fn group_into_sentences<'a>(
     let mut groups = Vec::new();
     let mut start = 0;
     for (i, tok) in all_tokens.iter().enumerate() {
-        let ends_sent = text[tok.core.end..tok.full.end].chars().any(|c| matches!(c, '.' | '!' | '?'))
-            || all_tokens.get(i + 1).is_some_and(|next| text[tok.full.end..next.full.start].contains('\n'));
+        let ends_sent =
+            text[tok.core.end..tok.full.end].chars().any(|c| {
+                matches!(
+                    turbo_unicode::sentence_break::sentence_break(c as u32),
+                    turbo_unicode::SentenceBreak::STerm | turbo_unicode::SentenceBreak::ATerm
+                )
+            }) || all_tokens.get(i + 1).is_some_and(|next| text[tok.full.end..next.full.start].contains('\n'));
         if ends_sent {
             groups.push(&all_tokens[start..=i]);
             start = i + 1;
@@ -141,6 +169,18 @@ pub(crate) fn lm_fingerprint(lm: &NGramLanguageModel) -> u64 {
     splitmix64(hash)
 }
 
+/// What one decode did, for the tests that hold the beam to its bound.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct DecodeStats {
+    /// Candidates scored: every first-layer candidate, then every (state,
+    /// candidate) pair.
+    pub expansions: usize,
+    /// The most states one layer built before pruning.
+    pub widest_built: usize,
+    /// The most states one layer kept after pruning.
+    pub widest_kept: usize,
+}
+
 /// Decodes the minimum-cost candidate sequence across `cand_sets` via Viterbi
 /// with beam width `max_beam_width`.
 pub(crate) fn viterbi_decode(
@@ -148,6 +188,17 @@ pub(crate) fn viterbi_decode(
     edit_weight: f64,
     max_beam_width: usize,
     cand_sets: Vec<Vec<Candidate>>,
+) -> Vec<Candidate> {
+    viterbi_decode_counted(lm, edit_weight, max_beam_width, cand_sets, &mut DecodeStats::default())
+}
+
+/// [`viterbi_decode`], recording what it did in `stats`.
+pub(crate) fn viterbi_decode_counted(
+    lm: &NGramLanguageModel,
+    edit_weight: f64,
+    max_beam_width: usize,
+    cand_sets: Vec<Vec<Candidate>>,
+    stats: &mut DecodeStats,
 ) -> Vec<Candidate> {
     if cand_sets.iter().all(|cs| cs.len() <= 1 && cs.first().is_some_and(|c| c.is_original)) {
         return cand_sets.into_iter().map(|mut cs| cs.remove(0)).collect();
@@ -173,6 +224,7 @@ pub(crate) fn viterbi_decode(
                 let cost = edit_weight * cand.trellis_edit_cost + lm_cost;
                 next_states.push(TrellisState { history: vec![c_idx], cand_idx: c_idx, cost, backptr: 0 });
             }
+            stats.expansions += cands.len();
         } else {
             let prev_states = &layers[i - 1];
             let cand_unigram_probs: Vec<f64> = cands.iter().map(|c| unigram_prob(lm, c.word.as_str(), total)).collect();
@@ -215,6 +267,7 @@ pub(crate) fn viterbi_decode(
                     let p = backoff_prob_with_prefix_counts(lm, &ngram_buf, &prefix_counts, cand_unigram_probs[c_idx]);
                     let total_cost = prev.cost + cand_edit_costs[c_idx] - p.ln();
 
+                    stats.expansions += 1;
                     let mut new_hist = if history_len == 0 { Vec::with_capacity(1) } else { base_hist.clone() };
                     new_hist.push(c_idx);
 
@@ -237,6 +290,7 @@ pub(crate) fn viterbi_decode(
                 }
             }
         }
+        stats.widest_built = stats.widest_built.max(next_states.len());
         if next_states.len() > beam_width {
             next_states.sort_by(|a, b| {
                 a.cost
@@ -246,6 +300,7 @@ pub(crate) fn viterbi_decode(
             });
             next_states.truncate(beam_width);
         }
+        stats.widest_kept = stats.widest_kept.max(next_states.len());
         layers.push(next_states);
     }
 
@@ -324,5 +379,23 @@ fn stupid_backoff_prob(lm: &NGramLanguageModel, ngram: &[&str], total: f64) -> f
         STUPID_BACKOFF_ALPHA * stupid_backoff_prob(lm, &ngram[1..], total)
     } else {
         unigram_prob(lm, ngram[0], total)
+    }
+}
+
+#[cfg(test)]
+mod tests;
+
+#[cfg(test)]
+mod grouping_tests {
+    #[test]
+    fn fallback_grouping_ends_at_unicode_terminators() {
+        for text in [
+            "\u{4ECA}\u{65E5}\u{306F}\u{96E8}\u{3002}\u{660E}\u{65E5}\u{306F}\u{6674}\u{308C}\u{3002}",
+            "\u{092F}\u{0939} \u{0939}\u{0948}\u{0964} \u{0935}\u{0939} \u{0939}\u{0948}\u{0964}",
+        ] {
+            let toks = super::collect_tokens(text, None);
+            let groups = super::group_into_sentences(text, &toks, None);
+            assert_eq!(groups.len(), 2, "{text:?} grouped as {}", groups.len());
+        }
     }
 }

@@ -31,6 +31,9 @@ fn the_symspell_frequency_lists_are_pinned_and_permissive() {
         assert!(notice.contains(revision), "{id}");
         assert!(notice.contains("Google Books Ngram data"), "{id}");
         assert!(notice.contains("SCOWL"), "{id}");
+        // The README names the Ngram data and SCOWL for the unigram list
+        // only; the bigram list's source is inferred.
+        assert_eq!(notice.contains("unconfirmed"), id.contains("bigram"), "{id}");
         assert!(a.licences_to_accept(Policy::default()).is_empty(), "{id}");
     }
 }

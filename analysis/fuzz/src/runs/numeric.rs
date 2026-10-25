@@ -71,7 +71,7 @@ impl Numeric {
         let as_of = Date::parse(AS_OF).ok_or_else(|| broken("the as-of date"))?;
         let rates = EcbRates::load(res.rates()).map_err(|e| broken(format!("{}: {e}", res.rates().display())))?;
         let analyzer = Analyzer::builder()
-            .add(MoneyExtractor::new(n))
+            .add(MoneyExtractor::new(n).with_opennlp_parity(true))
             .step(MoneyConverter::new(rates, target, as_of).bound())
             .build()
             .map_err(broken)?;

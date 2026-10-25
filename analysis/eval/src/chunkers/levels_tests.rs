@@ -111,6 +111,8 @@ fn the_pipeline_retrieves_by_the_pooled_vectors() {
             titles,
             lexical,
             hybrid: None,
+            cascade: None,
+            static_embedder: None,
         };
         p.evaluate(&set(Some("cat cat cat cat")))
     };

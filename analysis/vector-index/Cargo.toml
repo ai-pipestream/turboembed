@@ -25,3 +25,7 @@ required-features = ["turboquant"]
 [[test]]
 name = "quantized"
 required-features = ["turboquant"]
+
+[[example]]
+name = "quant_search_compare"
+required-features = ["turboquant"]

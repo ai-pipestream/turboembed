@@ -29,7 +29,9 @@ int main(int argc, char **argv) {
     if (turbo_runtime_capability(rt, 0, TURBO_TASK_EMBED, TURBO_PRECISION_MODEL, &cap, &err)) {
         printf("capability %s\n", err.message); return 1;
     }
-    printf("devices %u, device 0 is %s kind %u, embed status %u\n", n, info.backend, info.kind, cap.status);
+    /* EXPERIMENTAL or SUPPORTED: SUPPORTED on a CPU with a benchmark record in this build. */
+    printf("devices %u, device 0 is %s kind %u, embed runs %d\n", n, info.backend, info.kind,
+           cap.status == TURBO_CAP_EXPERIMENTAL || cap.status == TURBO_CAP_SUPPORTED);
     rc = turbo_runtime_select(rt, TURBO_TASK_EMBED, &pick, NULL, 0, &err);
     printf("select %s %u\n", turbo_status_name(rc), pick);
     turbo_context *ctx = NULL;
@@ -256,7 +258,7 @@ fn a_c_program_loads_a_model_tokenizes_and_embeds() {
     let spans: String =
         upstream().encode(text, true).unwrap().get_offsets().iter().map(|(a, b)| format!(" {a}-{b}")).collect();
     let want = format!(
-        "devices 1, device 0 is cpu kind 1, embed status 1\nselect TURBO_E_DEVICE_NOT_FOUND 99\n\
+        "devices 1, device 0 is cpu kind 1, embed runs 1\nselect TURBO_E_DEVICE_NOT_FOUND 99\n\
          context on device 0, buffer 48 bytes, aligned 1\nimport at +8, stack[3] 7, export same 1\n\
          device placement TURBO_E_UNSUPPORTED\n\
          missing TURBO_E_BUNDLE_NOT_FOUND {}\n\
