@@ -12,7 +12,7 @@ use turbo_geo::{BundledGazetteer, Gazetteer};
 use turbo_glossary::{Case, Glossary, GlossaryAnnotator, GlossaryMatcher, TextMatcher};
 use turbo_langspan::SpanDetector;
 use turbo_namefind::{BuiltIn, DictionaryNameFinder, RegexNameFinder, TokenNameFinder};
-use turbo_numeric::{MoneyExtractor, QuantityExtractor, TemporalExtractor};
+use turbo_numeric::{MoneyExtractor, TemporalExtractor};
 
 use crate::annotators::{
     QueryGeocodeAnnotator, QueryGrammarAnnotator, QuerySpanDetector, QueryTimeAnnotator, SequentialBuilder,
@@ -186,7 +186,7 @@ impl QueryProfileBuilder {
         qb = qb.step_skip_when(
             Bound::new(QueryCursorNumericAnnotator {
                 money: MoneyExtractor::new(self.notation),
-                quantity: QuantityExtractor::new(self.notation),
+                quantity: crate::query_quantity_extractor(self.notation),
                 temporal: temporal_extractor,
             }),
             Some(|doc| !doc.source().bytes().any(|b| b.is_ascii_digit())),

@@ -148,8 +148,12 @@ fn next_member(text: &str, from: usize) -> Option<(usize, char)> {
     while i < bytes.len() {
         let b = bytes[i];
         match b {
-            b'\t'..=b'\r' | b' ' => return Some((i, b as char)),
-            0x00..=0x7F => i += 1,
+            0x00..=0x7F => {
+                if turbo_unicode::whitespace::WhitespaceMode::Unicode.is_ascii_whitespace(b) {
+                    return Some((i, b as char));
+                }
+                i += 1;
+            }
             0xC2 | 0xE1 | 0xE2 | 0xE3 => {
                 let c = decode_at(text, i);
                 if is_whitespace(c) {
@@ -166,6 +170,18 @@ fn next_member(text: &str, from: usize) -> Option<(usize, char)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn byte_prefilter_covers_the_shared_unicode_table() {
+        for cp in turbo_unicode::whitespace::UNICODE_WHITESPACE {
+            let c = char::from_u32(cp).unwrap();
+            if !c.is_ascii() {
+                let mut bytes = [0; 4];
+                let lead = c.encode_utf8(&mut bytes).as_bytes()[0];
+                assert!(matches!(lead, 0xC2 | 0xE1 | 0xE2 | 0xE3), "prefilter omits U+{cp:04X}");
+            }
+        }
+    }
 
     #[test]
     fn next_member_finds_every_table_entry_after_other_text() {

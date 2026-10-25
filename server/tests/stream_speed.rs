@@ -128,7 +128,7 @@ async fn serve_many(sessions: u32) -> (turbo_kserve::Server, Analysis) {
         "127.0.0.1:0".parse().unwrap(),
         vec![model_config(sessions)],
         turbo_kserve::config::DEFAULT_MAX_MESSAGE_BYTES,
-        turbo_kserve::Serve { admin: true, ..Default::default() },
+        turbo_kserve::Serve { admin: true, ..turbo_kserve::Serve::default() },
     )
     .await
     .unwrap();

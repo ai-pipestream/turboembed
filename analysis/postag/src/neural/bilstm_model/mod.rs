@@ -5,19 +5,21 @@ mod infer;
 mod load;
 mod packed;
 mod serialize;
+mod tensors;
 mod validate;
 
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
 use turbo_analysis::ModelRef;
-use turbo_unicode::java::to_lower_char;
+use turbo_unicode::java::lowercase_code_points;
 
 use crate::neural::NeuralError;
 use crate::neural::lstm::LstmLayer;
 
 pub use load::{char_key_from_unit, char_vocabulary_from_strs};
 pub(crate) use packed::Packed;
+pub use tensors::{NamedTensor, Shaped, Vocabularies};
 use validate::validate_tensors;
 
 /// Unknown word and character symbol, always stored at row `0`.
@@ -208,7 +210,7 @@ impl BilstmPosModel {
     /// Normalizes a token for vocabulary lookup: tokens starting with `'*'` are returned unchanged;
     /// all other tokens are lowercased character-by-character via `Character.toLowerCase(int)`.
     pub fn normalize(token: &str) -> String {
-        if token.starts_with('*') { token.to_owned() } else { token.chars().map(to_lower_char).collect() }
+        if token.starts_with('*') { token.to_owned() } else { lowercase_code_points(token) }
     }
 
     /// Returns the word embedding row index for `token` (`0` for unseen words).

@@ -45,6 +45,15 @@ usage:
       questions each (default 256), --batch questions per call (default
       8), --max-batch windows per run (default the model's), precision
       exact by default; write the record to <repo>/benchmarks/qa
+  turbo-bench rerank --bundle <dir> --questions <squad.json>
+                     (--tei-image <name@sha256:..> --tei-model <dir> | --no-tei)
+                     [--device <d>] [--precision <p>] [--requests <n>]
+                     [--passages <n>] [--warmup <n>] [--iterations <n>]
+                     [--repo <dir>] [--out <dir>]
+      cross-encoder pairs per second on one device: --requests queries
+      (default 64), each with --passages passages that fit one window
+      (default 16), and TEI's /rerank on the same pairs, in float32;
+      write the record to <repo>/benchmarks/rerank
   turbo-bench static --bundle <dir> --texts <name=file.json,...>
                      (--peers <dir> | --no-peers) [--precision <p>]
                      [--batches <n,...>] [--repo <dir>] [--out <dir>]

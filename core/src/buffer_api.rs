@@ -191,6 +191,22 @@ pub unsafe extern "C" fn turbo_buffer_export(
             let out = out_ptr(out, "out")?;
             sized(out.struct_size, size_of::<turbo_native_handle>(), "turbo_native_handle")?;
             handle_kind(kind)?;
+            if buf.raw.is_null() {
+                // Host memory the core owns (a rerank result's scores): no
+                // backend object to ask, and a host pointer is all it has.
+                if kind != TURBO_HANDLE_HOST_PTR {
+                    let m = format!("kind: {kind}: a result in the core's host memory exports TURBO_HANDLE_HOST_PTR");
+                    return Err(Error::new(status::UNSUPPORTED, m));
+                }
+                *out = turbo_native_handle {
+                    struct_size: size_of::<turbo_native_handle>() as u32,
+                    kind,
+                    handle: buf.host as usize as u64,
+                    aux: 0,
+                    offset: 0,
+                };
+                return Ok(());
+            }
             let b = buf.context.backend;
             let export = backend::offered!(b, buffer_export)?;
             let mut h: turbo_native_handle = std::mem::zeroed();

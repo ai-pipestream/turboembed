@@ -15,11 +15,24 @@
 //! per-coordinate calibration (TQ+) on up to 1024 of its rows, taken at an
 //! even stride, so the same rows always give the same calibration.
 
+mod compact;
 mod index;
 
 pub use index::QuantizedIndex;
 
 use crate::IndexError;
+
+/// How a quantized query selects candidates; independent of stored codes.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum QuantizedSearch {
+    /// Scan every quantized estimate. Avoids additional shortlist recall loss.
+    #[default]
+    Exhaustive,
+    /// Use the pinned kernel's sign shortlist for large 2/4-bit indexes.
+    /// Faster on some sets, but may omit high-scoring rows. Three-bit and
+    /// small indexes still scan all codes. Kernel environment settings apply.
+    Staged,
+}
 
 /// How a [`QuantizedIndex`] codes its rows.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]

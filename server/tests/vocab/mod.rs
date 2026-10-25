@@ -33,7 +33,14 @@ pub async fn start(admin: bool, vocabulary: Option<PathBuf>) -> (Server, Client)
         max_seq: 0,
         sessions: 1,
     };
-    let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model], MAX, Serve { admin, vocabulary }).await.unwrap();
+    let s = Server::start(
+        "127.0.0.1:0".parse().unwrap(),
+        vec![model],
+        MAX,
+        Serve { admin, vocabulary, ..Serve::default() },
+    )
+    .await
+    .unwrap();
     let c = TurboVocabularyServiceClient::connect(format!("http://{}", s.local_addr()))
         .await
         .unwrap()
