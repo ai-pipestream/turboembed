@@ -297,10 +297,12 @@ For `fetch(id, user)`:
    they are written. The first failure is `Integrity`, naming the
    artifact, the path, the check and both values; nothing is written.
    Bytes that pass are written through a temporary name beside the
-   file: whatever is left at that name is removed first (a symlink
-   itself, never its target), the temporary file is created anew,
-   never opened through a link, and renamed onto the file. The
-   transport is told the expected size; the HTTP transport reads at
+   file that is this write's own (`<path>.partial.<pid>.<n>`), created
+   anew, never opened through a link, and renamed onto the file; it is
+   removed if the write fails. Fetches of one artifact in several
+   threads or processes therefore never touch each other's bytes, and
+   each rename puts a whole, verified file in place. The acceptance file
+   is saved the same way. The transport is told the expected size; the HTTP transport reads at
    most one byte more, and asks for the bytes unencoded
    (`Accept-Encoding: identity`). For a file with a `download` entry,
    the transport is told the larger of `download_bytes` and `size`; the
@@ -315,6 +317,16 @@ For `fetch(id, user)`:
 
 Step 2 runs on every call, cached files or not, so a revoked acceptance
 takes effect at once. There is no hash cache, as in the bundle loader.
+
+`Zoo::cache_status(id)` reads and checks the cached files as step 4
+does, and reports `Cached`, `Missing` (the first absent file) or
+`Corrupt` (the first file that fails, and why), with no fetch, no write
+and no directory made. It checks no licence and hands out no path:
+`fetch` does that. `Home::from_env` finds the directory the `turbo-zoo`
+command uses (`$TURBO_ZOO_HOME`, else `$XDG_DATA_HOME/turbo-zoo`, else
+`~/.local/share/turbo-zoo`), with the cache at `Home::artifacts` and the
+acceptance file at `Home::acceptances`; `UserId::from_env` reads `$USER`,
+else `$USERNAME`.
 
 ## Reading the index from OpenNLP
 

@@ -172,3 +172,60 @@ impl Simd for Z16 {
         unsafe { Z16(_mm512_max_ps(self.0, b.0)) }
     }
 }
+
+#[cfg(target_arch = "aarch64")]
+#[derive(Clone, Copy)]
+pub(in crate::cpu) struct N16([std::arch::aarch64::float32x4_t; 4]);
+
+// SAFETY, for every method: the trait's contract; the intrinsics need
+// NEON, which every aarch64 processor has.
+#[cfg(target_arch = "aarch64")]
+impl Simd for N16 {
+    const GROUP: usize = 4;
+    #[inline(always)]
+    unsafe fn zero() -> Self {
+        use std::arch::aarch64::*;
+        unsafe { N16([vdupq_n_f32(0.0); 4]) }
+    }
+    #[inline(always)]
+    unsafe fn splat(x: f32) -> Self {
+        use std::arch::aarch64::*;
+        unsafe { N16([vdupq_n_f32(x); 4]) }
+    }
+    #[inline(always)]
+    unsafe fn load(p: *const f32) -> Self {
+        use std::arch::aarch64::*;
+        unsafe { N16([vld1q_f32(p), vld1q_f32(p.add(4)), vld1q_f32(p.add(8)), vld1q_f32(p.add(12))]) }
+    }
+    #[inline(always)]
+    unsafe fn store(self, p: *mut f32) {
+        use std::arch::aarch64::*;
+        unsafe {
+            for (v, x) in self.0.iter().enumerate() {
+                vst1q_f32(p.add(4 * v), *x);
+            }
+        }
+    }
+    #[inline(always)]
+    unsafe fn madd(self, b: Self, c: Self) -> Self {
+        use std::arch::aarch64::*;
+        unsafe { N16(std::array::from_fn(|v| vfmaq_f32(c.0[v], self.0[v], b.0[v]))) }
+    }
+    #[inline(always)]
+    unsafe fn add(self, b: Self) -> Self {
+        use std::arch::aarch64::*;
+        unsafe { N16(std::array::from_fn(|v| vaddq_f32(self.0[v], b.0[v]))) }
+    }
+    #[inline(always)]
+    unsafe fn mul(self, b: Self) -> Self {
+        use std::arch::aarch64::*;
+        unsafe { N16(std::array::from_fn(|v| vmulq_f32(self.0[v], b.0[v]))) }
+    }
+    #[inline(always)]
+    unsafe fn max(self, b: Self) -> Self {
+        use std::arch::aarch64::*;
+        // b where it is the larger, else self: P16's choice, so a tie of
+        // 0.0 and -0.0 keeps the same zero.
+        unsafe { N16(std::array::from_fn(|v| vbslq_f32(vcgtq_f32(b.0[v], self.0[v]), b.0[v], self.0[v]))) }
+    }
+}

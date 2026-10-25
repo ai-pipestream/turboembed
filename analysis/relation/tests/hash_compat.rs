@@ -29,3 +29,40 @@ fn merged_modality_hash_values_are_preserved() {
         ]
     );
 }
+
+#[test]
+fn merged_event_hash_values_are_preserved() {
+    use turbo_relation::{EventConfig, EventExtractor};
+    let mut values = vec![EventExtractor::default().config_hash()];
+    for anchor in [false, true] {
+        for propagate_conj in [false, true] {
+            values.push(
+                EventExtractor::with_config(EventConfig {
+                    nominal_triggers: vec!["ab".into(), "c".into()],
+                    anchor,
+                    propagate_conj,
+                })
+                .config_hash(),
+            );
+        }
+    }
+    for nominal_triggers in [vec!["a".into(), "bc".into()], vec!["é".into()], vec![]] {
+        values.push(
+            EventExtractor::with_config(EventConfig { nominal_triggers, anchor: true, propagate_conj: true })
+                .config_hash(),
+        );
+    }
+    assert_eq!(
+        values,
+        [
+            13442099224136037103,
+            15104243488633165598,
+            17097080763888345955,
+            6248665144614772709,
+            4194607061912914272,
+            18358868678729455144,
+            1499377304164905690,
+            5048337373682345938,
+        ]
+    );
+}

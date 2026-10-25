@@ -1,24 +1,5 @@
 use super::*;
-pub(crate) fn softmax_in_place(logits: &mut [f64]) {
-    if logits.is_empty() {
-        return;
-    }
-    let max_val = logits.iter().copied().fold(f64::NEG_INFINITY, f64::max);
-    let mut sum = 0.0f64;
-    for z in logits.iter_mut() {
-        *z = (*z - max_val).exp();
-        sum += *z;
-    }
-    if sum > 0.0 && sum.is_finite() {
-        let inv = 1.0 / sum;
-        for z in logits.iter_mut() {
-            *z *= inv;
-        }
-    } else {
-        let u = 1.0 / logits.len() as f64;
-        logits.fill(u);
-    }
-}
+pub(crate) use turbo::head::softmax_f64_in_place as softmax_in_place;
 
 pub(crate) use turbo::head::sigmoid_f64 as sigmoid;
 

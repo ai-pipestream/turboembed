@@ -26,6 +26,7 @@ pub use date::{DAY_SECONDS, Date, DateTime, write_year};
 pub use entity_graph::{
     ConsolidatedMention, DocumentEntities, DocumentEntity, EntityRelation, SyntacticRole, SyntacticRoleCounts,
 };
+pub use events::{AnchoredLayerKind, ArgumentRole, EventArgument, EventFrame, Events};
 pub use generic::{Confidence, Language, TokenVectorWindows, Utf16Spans, Vectors};
 pub use language_spans::{LanguageSpan, LanguageSpans, UNDETERMINED};
 pub use levels::{Level, Levels, Unit, VectorKind};
@@ -37,6 +38,9 @@ pub use ordinals::{OrdinalBase, OrdinalMention, Ordinals};
 pub use pii::{Pii, PiiConfidence, PiiKind, PiiKinds, PiiMention};
 pub use quantities::{PERCENT, Quantities, QuantityMention};
 pub use regions::{InvalidRegionCode, MarginError, RegionCode, RegionVote, Regions, VoteError};
+pub use rhetoric::{
+    ClaimLinks, ClaimRelationKind, Discourse, DiscourseEdgeLabel, DiscourseRel, Edus, Nuclearity, SentenceClaimLinks,
+};
 pub use segmentation::{Block, Boundaries, Chunks, Cut, Sentences, Structure, Subwords, Tokens};
 pub use sentiment::{
     Aspect, AspectTarget, Aspects, EMOTION_DIMENSIONS, EmotionDimension, EmotionItem, EmotionLayer, EmotionScores,
@@ -120,6 +124,7 @@ mod containment;
 mod core_tests;
 mod date;
 mod entity_graph;
+mod events;
 mod evidence;
 pub mod export;
 mod generic;
@@ -134,6 +139,7 @@ mod pii;
 mod predicate;
 mod quantities;
 mod regions;
+pub mod rhetoric;
 mod segmentation;
 mod sentiment;
 mod sparse;

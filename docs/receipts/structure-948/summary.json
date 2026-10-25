@@ -1,0 +1,50 @@
+[
+  {
+    "case": "analysis-plain",
+    "campaign": "vector",
+    "rounds": 24,
+    "median_ms": {
+      "main": 0.397216,
+      "blocked": 0.4403375,
+      "fixed": 0.3845315
+    },
+    "ratio_of_medians": 0.9680664927898172,
+    "median_paired_ratio": 0.9661578169724674,
+    "paired_min": 0.5794551800501866,
+    "paired_p25": 0.9451988908247652,
+    "paired_p75": 1.067987494374837,
+    "paired_max": 1.6511955123161375
+  },
+  {
+    "case": "analysis-markdown",
+    "campaign": "guards",
+    "rounds": 12,
+    "median_ms": {
+      "main": 0.6045484999999999,
+      "blocked": 0.558952,
+      "fixed": 0.5274719999999999
+    },
+    "ratio_of_medians": 0.8725056798586053,
+    "median_paired_ratio": 0.8717235036688037,
+    "paired_min": 0.8120286229493504,
+    "paired_p25": 0.8464687182181273,
+    "paired_p75": 0.9255798005798005,
+    "paired_max": 1.1129350031981176
+  },
+  {
+    "case": "ewt-plain",
+    "campaign": "guards",
+    "rounds": 12,
+    "median_ms": {
+      "main": 2.731815,
+      "blocked": 2.387569,
+      "fixed": 2.5604055
+    },
+    "ratio_of_medians": 0.9372543528752861,
+    "median_paired_ratio": 0.9407938678859233,
+    "paired_min": 0.649471002319249,
+    "paired_p25": 0.903910031924568,
+    "paired_p75": 1.1497893211319454,
+    "paired_max": 1.9008486133935243
+  }
+]

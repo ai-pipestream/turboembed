@@ -15,6 +15,39 @@ use turbo_bench::postag::{self, PosRecord};
 use turbo_bench::ranges::{self, RangeRecord};
 use turbo_bench::throughput::{self, ThroughputRecord};
 
+#[test]
+fn analysis_uses_shared_fnv_constants() {
+    let root = workspace();
+    let files = std::process::Command::new("git")
+        .current_dir(&root)
+        .args(["ls-files", "-z", "--", "analysis/**/*.rs"])
+        .output()
+        .expect("git lists analysis source files");
+    assert!(files.status.success(), "git could not list analysis sources");
+    let files = String::from_utf8(files.stdout).expect("UTF-8 source paths");
+    let mut duplicate = Vec::new();
+    let mut seen = 0;
+    for path in files.split('\0').filter(|p| !p.is_empty()) {
+        if path.starts_with("analysis/core/src/hash/") {
+            continue;
+        }
+        seen += 1;
+        let mut text = std::fs::read_to_string(root.join(path)).unwrap();
+        text.retain(|c| c != '_');
+        text.make_ascii_lowercase();
+        for tail in text.split("0x").skip(1) {
+            let end = tail.find(|c: char| !c.is_ascii_hexdigit()).unwrap_or(tail.len());
+            let value = u64::from_str_radix(&tail[..end], 16);
+            if matches!(value, Ok(1099511628211 | 14695981039346656037)) {
+                duplicate.push(path.to_owned());
+                break;
+            }
+        }
+    }
+    assert!(seen > 100, "analysis source scan is too narrow");
+    assert!(duplicate.is_empty(), "use the shared hash builder: {}", duplicate.join(", "));
+}
+
 /// The `*.json` files under benchmarks/records, by name.
 fn committed_records() -> Vec<(String, Vec<u8>)> {
     let dir = workspace().join("benchmarks/records");
