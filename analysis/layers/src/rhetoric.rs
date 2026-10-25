@@ -10,7 +10,7 @@
 
 use std::sync::Arc;
 
-use turbo_analysis::{Edges, Ix, Key, KeyId, Layer, Overlap, Span, Spans, Tag, TagSet, TextSpans, ViewId};
+use turbo_analysis::{Document, Edges, Ix, Key, KeyId, Layer, Overlap, Span, Spans, Tag, TagSet, TextSpans, ViewId};
 
 use crate::{Chunks, Sentences};
 
@@ -191,6 +191,26 @@ impl Layer for Edus {
             .max()
             .map(|bound| vec![(Key::<Sentences>::DEFAULT.id(), bound)])
             .unwrap_or_default()
+    }
+
+    fn check_document(&self, doc: &Document, on: &[KeyId]) -> Result<(), String> {
+        if self.sentence.is_empty() {
+            return Ok(());
+        }
+        let target = on
+            .iter()
+            .find(|key| key.ty == Key::<Sentences>::DEFAULT.id().ty)
+            .ok_or("discourse units need a resolved sentence instance")?;
+        let sentences = doc.require(&Key::<Sentences>::named(target.name)).map_err(|e| e.to_string())?;
+        if sentences.spans.view() != self.spans.view() {
+            return Err("discourse units and sentences belong to different views".into());
+        }
+        for ((_, span), &sentence) in self.spans.iter().zip(&self.sentence) {
+            if sentence.get() >= sentences.spans.len() || !sentences.spans.get(sentence).contains(span) {
+                return Err("a discourse unit is outside its referenced sentence".into());
+            }
+        }
+        Ok(())
     }
 
     fn check(&self) -> Result<(), String> {
