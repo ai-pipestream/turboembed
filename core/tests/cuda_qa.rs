@@ -189,8 +189,8 @@ fn cuda_applies_the_span_head_and_copies_back_only_the_logits() {
         .iter()
         .map(|x| {
             std::array::from_fn(|o| {
-                let w = &h.weight[o * h.in_dim..(o + 1) * h.in_dim];
-                w.iter().zip(x).fold(f64::from(h.bias[o]), |a, (&w, &v)| a + f64::from(w) * f64::from(v)) as f32
+                let w = &h.weight()[o * h.in_dim..(o + 1) * h.in_dim];
+                w.iter().zip(x).fold(f64::from(h.bias()[o]), |a, (&w, &v)| a + f64::from(w) * f64::from(v)) as f32
             })
         })
         .collect();
