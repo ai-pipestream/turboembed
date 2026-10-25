@@ -114,8 +114,8 @@ impl DocumentGraph {
     /// Folds `other`'s views and layers into this graph. The format
     /// versions and the source records must match exactly, and a
     /// view both graphs hold must be the same record; those are
-    /// refused whatever `overwrite` says, because every layer in
-    /// both graphs names its view by position among them. A layer
+    /// refused whatever `overwrite` says, because a shared view instance
+    /// must retain the text and alignment its layers refer to. A layer
     /// both graphs hold must be the same record too, unless
     /// `overwrite` is set, in which case `other`'s record replaces
     /// this one's. New views and layers are appended in `other`'s

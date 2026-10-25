@@ -11,7 +11,7 @@
 //! the directory costs a few small strings per record and nothing
 //! per body byte. [`DocumentGraphRef::import_selected`] then
 //! decodes the source, every view (a document cannot exist without
-//! its view texts, and layer spans name views by position), and
+//! its view texts, and layer spans name views by instance), and
 //! exactly the selected layer records, and hands that graph to
 //! [`import`].
 
@@ -100,7 +100,10 @@ fn skip_error(r: &mut Reader<'_>) -> Result<(), ExportError> {
         }
         8 => skip_strs(r, 2)?,
         10 => {
-            r.u8()?;
+            match r.u8()? {
+                0 | 1 => {}
+                tag => return Err(malformed(format!("an offset unit tag of {tag}"))),
+            }
             r.u32()?;
             match r.u8()? {
                 0 => {
@@ -285,10 +288,24 @@ impl<'a> DocumentGraphRef<'a> {
 
     /// The graph holding only the selected `(layer, instance)`
     /// layers (all views and the source are kept whole, as layer
-    /// spans name views by position), with unselected codec bodies
-    /// neither copied nor decoded. A selected instance the graph
-    /// does not hold is an [`ExportError::DanglingReference`].
+    /// spans name views by instance), with unselected codec bodies
+    /// neither copied nor decoded. Records retain graph dependency order,
+    /// regardless of selection order. A missing selection is an
+    /// [`ExportError::DanglingReference`]; a repeated selection is an
+    /// [`ExportError::DuplicateLayer`].
     pub fn selected_graph(&self, selected: &[(&str, &str)]) -> Result<DocumentGraph, ExportError> {
+        let mut wanted = HashSet::with_capacity(selected.len());
+        for &(layer, instance) in selected {
+            if !wanted.insert((layer, instance)) {
+                return Err(ExportError::DuplicateLayer { layer: layer.to_owned(), instance: instance.to_owned() });
+            }
+            if self.layer(layer, instance).is_none() {
+                return Err(ExportError::DanglingReference {
+                    layer: layer.to_owned(),
+                    reference: LayerRef { layer: layer.to_owned(), instance: instance.to_owned() },
+                });
+            }
+        }
         // Decode the head (source) and view records from their
         // ranges with the same readers `from_bytes` uses.
         let mut r = Reader::new(&self.bytes[self.source_head.clone()]);
@@ -324,11 +341,7 @@ impl<'a> DocumentGraphRef<'a> {
             });
         }
         let mut layers = Vec::with_capacity(selected.len());
-        for &(layer, instance) in selected {
-            let entry = self.layer(layer, instance).ok_or_else(|| ExportError::DanglingReference {
-                layer: layer.to_string(),
-                reference: LayerRef { layer: layer.to_string(), instance: instance.to_string() },
-            })?;
+        for entry in self.layers.iter().filter(|entry| wanted.contains(&(entry.layer, entry.instance))) {
             let mut r = Reader::new(&self.bytes[entry.record.clone()]);
             layers.push(LayerRecord {
                 layer: r.string()?,

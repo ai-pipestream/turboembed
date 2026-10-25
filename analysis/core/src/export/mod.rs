@@ -64,6 +64,7 @@ mod records;
 mod registry;
 mod relations;
 mod slice;
+mod validate_views;
 mod view_ref;
 mod wire;
 

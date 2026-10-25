@@ -85,7 +85,13 @@ impl DocumentGraph {
     /// codec in `codecs` that supports slicing
     /// ([`LayerCodec::slice_body`]); the first that does not
     /// refuses the whole slice by name.
+    /// Source bytes, unique ordered view parents, and complete alignments
+    /// are checked before projection, including edits outside `range`.
     pub fn slice_source_span(&self, range: Range<u32>, codecs: &Codecs) -> Result<DocumentGraph, ExportError> {
+        // Wire decoding proves record shape, not text relationships. Check
+        // whole alignments before any projection, including edits outside
+        // the requested range and parents preceding their children.
+        super::validate_views::check(self)?;
         if range.start > range.end {
             return Err(invalid_source("a slice range that ends before it starts"));
         }
@@ -149,7 +155,9 @@ impl DocumentGraph {
                     (range, parent_record.text.as_deref().unwrap_or("").as_bytes())
                 }
             };
-            let sliced_parent = &parent_text[parent_range.start as usize..parent_range.end as usize];
+            let sliced_parent = parent_text
+                .get(parent_range.start as usize..parent_range.end as usize)
+                .ok_or_else(|| invalid_source("the slice range maps outside the parent text"))?;
             if view.edits.is_empty() && view.parent.is_none() {
                 // The source view itself: its text is the source
                 // text in the record shape, sliced the same way.
