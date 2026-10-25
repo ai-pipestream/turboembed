@@ -6,8 +6,9 @@ fn hash_compat_sat_raw_float_bits_and_window_options() {
     for threshold in [0.0, -0.0, 0.25, 1.0] {
         for split in [false, true] {
             for label in [0, 1, u32::MAX] {
-                let options = SatOptions { threshold, split_on_newlines: split, label, ..Default::default() };
-                hashes.push(config_hash(&options, 512, 64));
+                let options =
+                    SatOptions { threshold: Some(threshold), split_on_newlines: split, label, ..Default::default() };
+                hashes.push(config_hash(&options, threshold, 512, 64));
             }
         }
     }

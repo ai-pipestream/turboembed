@@ -1,0 +1,328 @@
+{
+  "manifest": {
+    "bundle_version": 1,
+    "model": {
+      "id": "segment-any-text/sat-3l",
+      "revision": "1",
+      "source": {
+        "repository": "https://huggingface.co/segment-any-text/sat-3l",
+        "commit": "a3b7ba6b61881d619989757aea971cde7d3d6a98"
+      },
+      "license": "MIT"
+    },
+    "task": "TASK_EMBED",
+    "embed": {
+      "dim": 768,
+      "pooling": "POOLING_MEAN",
+      "normalize": "NORMALIZE_NONE",
+      "max_seq": 512,
+      "max_batch": 64
+    },
+    "tokenizer": {
+      "file": "tokenizer.json",
+      "unigram": {
+        "precompiled_charsmap": true,
+        "collapse_spaces": true,
+        "metaspace": "▁",
+        "add_prefix_space": true
+      },
+      "special_tokens": [
+        {
+          "role": "SPECIAL_BOS",
+          "content": "<s>",
+          "id": 0
+        },
+        {
+          "role": "SPECIAL_PAD",
+          "content": "<pad>",
+          "id": 1
+        },
+        {
+          "role": "SPECIAL_EOS",
+          "content": "</s>",
+          "id": 2
+        },
+        {
+          "role": "SPECIAL_UNK",
+          "content": "<unk>",
+          "id": 3
+        },
+        {
+          "role": "SPECIAL_MASK",
+          "content": "<mask>",
+          "id": 250001,
+          "lstrip": true
+        }
+      ],
+      "template": [
+        "<s>",
+        "$TEXT",
+        "</s>"
+      ],
+      "truncation": "TRUNCATE_RIGHT"
+    },
+    "architecture": {
+      "family": "FAMILY_ROBERTA",
+      "layers": 3,
+      "hidden": 768,
+      "heads": 12,
+      "intermediate": 3072,
+      "activation": "ACTIVATION_GELU_ERF",
+      "layer_norm_eps": 0.00001,
+      "position_embedding": "POSITION_ABSOLUTE",
+      "max_positions": 514,
+      "position_offset": 2,
+      "token_types": 1,
+      "vocab_size": 250002,
+      "lookahead": 16
+    },
+    "classifier": {
+      "kind": "CLASSIFIER_TOKEN",
+      "labels": [
+        "LABEL_0",
+        "LABEL_1",
+        "LABEL_2",
+        "LABEL_3",
+        "LABEL_4",
+        "LABEL_5",
+        "LABEL_6",
+        "LABEL_7",
+        "LABEL_8",
+        "LABEL_9",
+        "LABEL_10",
+        "LABEL_11",
+        "LABEL_12",
+        "LABEL_13",
+        "LABEL_14",
+        "LABEL_15",
+        "LABEL_16",
+        "LABEL_17",
+        "LABEL_18",
+        "LABEL_19",
+        "LABEL_20",
+        "LABEL_21",
+        "LABEL_22",
+        "LABEL_23",
+        "LABEL_24",
+        "LABEL_25",
+        "LABEL_26",
+        "LABEL_27",
+        "LABEL_28",
+        "LABEL_29",
+        "LABEL_30",
+        "LABEL_31",
+        "LABEL_32",
+        "LABEL_33",
+        "LABEL_34",
+        "LABEL_35",
+        "LABEL_36",
+        "LABEL_37",
+        "LABEL_38",
+        "LABEL_39",
+        "LABEL_40",
+        "LABEL_41",
+        "LABEL_42",
+        "LABEL_43",
+        "LABEL_44",
+        "LABEL_45",
+        "LABEL_46",
+        "LABEL_47",
+        "LABEL_48",
+        "LABEL_49",
+        "LABEL_50",
+        "LABEL_51",
+        "LABEL_52",
+        "LABEL_53",
+        "LABEL_54",
+        "LABEL_55",
+        "LABEL_56",
+        "LABEL_57",
+        "LABEL_58",
+        "LABEL_59",
+        "LABEL_60",
+        "LABEL_61",
+        "LABEL_62",
+        "LABEL_63",
+        "LABEL_64",
+        "LABEL_65",
+        "LABEL_66",
+        "LABEL_67",
+        "LABEL_68",
+        "LABEL_69",
+        "LABEL_70",
+        "LABEL_71",
+        "LABEL_72",
+        "LABEL_73",
+        "LABEL_74",
+        "LABEL_75",
+        "LABEL_76",
+        "LABEL_77",
+        "LABEL_78",
+        "LABEL_79",
+        "LABEL_80",
+        "LABEL_81",
+        "LABEL_82",
+        "LABEL_83",
+        "LABEL_84",
+        "LABEL_85",
+        "LABEL_86",
+        "LABEL_87",
+        "LABEL_88",
+        "LABEL_89",
+        "LABEL_90",
+        "LABEL_91",
+        "LABEL_92",
+        "LABEL_93",
+        "LABEL_94",
+        "LABEL_95",
+        "LABEL_96",
+        "LABEL_97",
+        "LABEL_98",
+        "LABEL_99",
+        "LABEL_100",
+        "LABEL_101",
+        "LABEL_102",
+        "LABEL_103",
+        "LABEL_104",
+        "LABEL_105",
+        "LABEL_106",
+        "LABEL_107",
+        "LABEL_108",
+        "LABEL_109",
+        "LABEL_110"
+      ]
+    },
+    "artifacts": [
+      {
+        "name": "weights-f32",
+        "format": "FORMAT_SAFETENSORS",
+        "files": [
+          "weights/model.safetensors"
+        ],
+        "backends": [
+          "cuda",
+          "metal",
+          "levelzero",
+          "cpu"
+        ],
+        "graph_input": "INPUT_TOKEN_IDS",
+        "graph_output": "OUTPUT_HIDDEN_STATES",
+        "tensor_names": {
+          "word_embeddings": "roberta.embeddings.word_embeddings.weight",
+          "position_embeddings": "roberta.embeddings.position_embeddings.weight",
+          "token_type_embeddings": "roberta.embeddings.token_type_embeddings.weight",
+          "embeddings_ln_weight": "roberta.embeddings.LayerNorm.weight",
+          "embeddings_ln_bias": "roberta.embeddings.LayerNorm.bias",
+          "q_weight": "roberta.encoder.layer.{layer}.attention.self.query.weight",
+          "q_bias": "roberta.encoder.layer.{layer}.attention.self.query.bias",
+          "k_weight": "roberta.encoder.layer.{layer}.attention.self.key.weight",
+          "k_bias": "roberta.encoder.layer.{layer}.attention.self.key.bias",
+          "v_weight": "roberta.encoder.layer.{layer}.attention.self.value.weight",
+          "v_bias": "roberta.encoder.layer.{layer}.attention.self.value.bias",
+          "attn_out_weight": "roberta.encoder.layer.{layer}.attention.output.dense.weight",
+          "attn_out_bias": "roberta.encoder.layer.{layer}.attention.output.dense.bias",
+          "attn_ln_weight": "roberta.encoder.layer.{layer}.attention.output.LayerNorm.weight",
+          "attn_ln_bias": "roberta.encoder.layer.{layer}.attention.output.LayerNorm.bias",
+          "ffn_in_weight": "roberta.encoder.layer.{layer}.intermediate.dense.weight",
+          "ffn_in_bias": "roberta.encoder.layer.{layer}.intermediate.dense.bias",
+          "ffn_out_weight": "roberta.encoder.layer.{layer}.output.dense.weight",
+          "ffn_out_bias": "roberta.encoder.layer.{layer}.output.dense.bias",
+          "ffn_ln_weight": "roberta.encoder.layer.{layer}.output.LayerNorm.weight",
+          "ffn_ln_bias": "roberta.encoder.layer.{layer}.output.LayerNorm.bias",
+          "classifier_weight": "classifier.weight",
+          "classifier_bias": "classifier.bias"
+        },
+        "produced_by": {
+          "upstream": "pytorch_model.bin"
+        }
+      }
+    ],
+    "reference": {
+      "file": "reference/reference.safetensors",
+      "cases": [
+        {
+          "text": "",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "The quick brown fox jumps over the lazy dog.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "Café naïve RÉSUMÉ, Ｆｕｌｌｗｉｄｔｈ and ﬁ ligatures",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "东京是日本的首都。日本語の文章にはスペースがありません。한국어 문장입니다.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "La recherche multilingue retrouve des documents écrits dans une autre langue que la requête.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "Mehrsprachige Suche findet Dokumente, die in einer anderen Sprache als die Anfrage geschrieben sind.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "La búsqueda multilingüe encuentra documentos escritos en un idioma distinto al de la consulta.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "Многоязычный поиск находит документы, написанные не на языке запроса.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "البحث متعدد اللغات يعثر على مستندات مكتوبة بلغة غير لغة الاستعلام.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "बहुभाषी खोज उन दस्तावेज़ों को ढूंढती है जो प्रश्न की भाषा से भिन्न भाषा में लिखे गए हैं।",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "การค้นหาหลายภาษาจะพบเอกสารที่เขียนด้วยภาษาอื่นที่ไม่ใช่ภาษาของคำค้น",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "emoji 🙂 👨‍👩‍👧 and tabs\tand\nnewlines  with   runs of spaces",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "how do I reset a password",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "To reset a password, open Settings and choose Security.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "A bundle is a directory that carries one model, so that the same program gives the same answer on every machine. The manifest names every file with its size and hash, says exactly how to tokenize for the model, what it computes, and which artifact each backend runs. It also carries a small reference: token ids and vectors produced by the upstream pipeline in full precision on a CPU. Every machine that loads the bundle encodes the reference texts again and compares the ids exactly, so a tokenizer that drifts is caught before a single vector is computed.",
+          "prompt_role": "PROMPT_NONE"
+        },
+        {
+          "text": "Embedding models turn text into vectors whose distances track meaning, and most of the cost of serving them is not the arithmetic but the movement of data around it. A request arrives as text, is split into tokens on the host, copied to the device, looked up in an embedding table, passed through a stack of attention layers, pooled into one vector per row, normalized, and copied back. Each of those steps can be a separate kernel launch or a separate allocation, and each copy between host and device costs time that the model itself never needed. A library that keeps the pipeline on the device, fuses the small steps into their neighbours, and reports every byte that crosses the bus lets a caller see where the time goes instead of guessing. The same library can then run on a laptop with no accelerator at all, using plain kernels on the CPU, and give the same token ids and vectors within a published tolerance, so that code written on a developer's machine behaves the same way in production. When a device cannot honor an option, the call fails and names the option, rather than quietly doing something else. When a caller is willing to trade a little accuracy for speed, the library says how much accuracy was traded, measured against the reference, not estimated. None of this needs a framework or a graph interpreter at run time; it needs a small, exact contract between the caller, the model bundle, and the hardware. Embedding models turn text into vectors whose distances track meaning, and most of the cost of serving them is not the arithmetic but the movement of data around it. A request arrives as text, is split into tokens on the host, copied to the device, looked up in an embedding table, passed through a stack of attention layers, pooled into one vector per row, normalized, and copied back. Each of those steps can be a separate kernel launch or a separate allocation, and each copy between host and device costs time that the model itself never needed. A library that keeps the pipeline on the device, fuses the small steps into their neighbours, and reports every byte that crosses the bus lets a caller see where the time goes instead of guessing. The same library can then run on a laptop with no accelerator at all, using plain kernels on the CPU, and give the same token ids and vectors within a published tolerance, so that code written on a developer's machine behaves the same way in production. When a device cannot honor an option, the call fails and names the option, rather than quietly doing something else. When a caller is willing to trade a little accuracy for speed, the library says how much accuracy was traded, measured against the reference, not estimated. None of this needs a framework or a graph interpreter at run time; it needs a small, exact contract between the caller, the model bundle, and the hardware. Embedding models turn text into vectors whose distances track meaning, and most of the cost of serving them is not the arithmetic but the movement of data around it. A request arrives as text, is split into tokens on the host, copied to the device, looked up in an embedding table, passed through a stack of attention layers, pooled into one vector per row, normalized, and copied back. Each of those steps can be a separate kernel launch or a separate allocation, and each copy between host and device costs time that the model itself never needed. A library that keeps the pipeline on the device, fuses the small steps into their neighbours, and reports every byte that crosses the bus lets a caller see where the time goes instead of guessing. The same library can then run on a laptop with no accelerator at all, using plain kernels on the CPU, and give the same token ids and vectors within a published tolerance, so that code written on a developer's machine behaves the same way in production. When a device cannot honor an option, the call fails and names the option, rather than quietly doing something else. When a caller is willing to trade a little accuracy for speed, the library says how much accuracy was traded, measured against the reference, not estimated. None of this needs a framework or a graph interpreter at run time; it needs a small, exact contract between the caller, the model bundle, and the hardware.",
+          "prompt_role": "PROMPT_NONE"
+        }
+      ],
+      "produced_by": {
+        "container": "turbo-sat-reference@sha256:71f05fa32779f77c99d93cdfc9b8bc99b74d307bd1e55b13af2c5050346f4a77"
+      }
+    }
+  },
+  "upstream": [
+    {
+      "path": "tokenizer.json",
+      "to": "tokenizer.json",
+      "sha256": "21106b6d7dab2952c1d496fb21d5dc9db75c28ed361a05f5020bbba27810dd08"
+    },
+    {
+      "path": "pytorch_model.bin",
+      "sha256": "a08dee669c6ba359895c1325ea006aee4bcb0382fe76e5b42306d7bbc0e45aa4"
+    },
+    {
+      "path": "config.json",
+      "sha256": "6776b6599eb276cfcc0a0f37bb7c723d70812653c1bfc05e300cdbed6000932e"
+    }
+  ]
+}

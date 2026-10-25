@@ -23,6 +23,12 @@ use crate::head::{BOUNDARY_LABEL, Head};
 /// score, in token order.
 pub type Scored = (Vec<[u32; 2]>, Vec<f32>);
 
+/// wtpsplit's threshold for a model of limited lookahead (`sat-3l`).
+const LOOKAHEAD_THRESHOLD: f64 = 0.025;
+
+/// wtpsplit's threshold for the supervised mixture models (`-sm`).
+const SM_THRESHOLD: f64 = 0.25;
+
 /// wtpsplit's stride in `split`.
 const DEFAULT_STRIDE: u32 = 64;
 
@@ -31,10 +37,13 @@ const DEFAULT_STRIDE: u32 = 64;
 pub struct SatOptions {
     pub encoder: EncoderOptions,
     /// A token ends a sentence when the logistic of its score is over
-    /// this: wtpsplit's `threshold`. The default, 0.25, is wtpsplit's for
-    /// the supervised mixture (`-sm`) models; it picks 0.025 or 0.01 for
-    /// the others, which need limited lookahead (docs/neural-annotators.md).
-    pub threshold: f64,
+    /// this: wtpsplit's `threshold`. None, the default, is wtpsplit's for
+    /// the model: 0.025 for a model of limited lookahead
+    /// (architecture.lookahead, `sat-3l` and the other `sat-Nl`), 0.25
+    /// for the others, as the supervised mixture (`-sm`) models are.
+    /// wtpsplit takes 0.01 for `sat-Nl-no-limited-lookahead`, which has
+    /// to be set here (docs/neural-annotators.md).
+    pub threshold: Option<f64>,
     /// Tokens from the start of one window to the start of the next:
     /// wtpsplit's `stride`. At most the block size; 0 is wtpsplit's 64
     /// in `split`, or the block size when that is smaller.
@@ -55,7 +64,7 @@ impl Default for SatOptions {
     fn default() -> Self {
         SatOptions {
             encoder: EncoderOptions::default(),
-            threshold: 0.25,
+            threshold: None,
             stride: 0,
             block_size: 0,
             split_on_newlines: true,
@@ -156,8 +165,10 @@ impl SatAnnotator {
                 format!("stride {stride}: 1 to the block size, {block}, so every token is read"),
             ));
         }
-        if !(0.0..=1.0).contains(&o.threshold) {
-            return Err(CoreError::new(INVALID_ARGUMENT, format!("threshold {}: a probability, 0 to 1", o.threshold)));
+        let banded = m.architecture.as_ref().is_some_and(|a| a.lookahead.is_some());
+        let threshold = o.threshold.unwrap_or(if banded { LOOKAHEAD_THRESHOLD } else { SM_THRESHOLD }) + 0.0;
+        if !(0.0..=1.0).contains(&threshold) {
+            return Err(CoreError::new(INVALID_ARGUMENT, format!("threshold {threshold}: a probability, 0 to 1")));
         }
         let mut eo = o.encoder.clone();
         eo.max_batch = max_batch;
@@ -166,7 +177,7 @@ impl SatAnnotator {
         let encoder = Encoder::open(dir, &eo)?;
         let info = encoder.info().clone();
         let head = Head::load(&bundle, o.label, info.dim)?;
-        let config = config_hash(o, block, stride);
+        let config = config_hash(o, threshold, block, stride);
         let word_start = (0..tokenizer.vocab_size() as i32).find(|&i| tokenizer.piece(i) == Some("\u{2581}"));
         Ok(SatAnnotator {
             run: Mutex::new(Run {
@@ -180,7 +191,7 @@ impl SatAnnotator {
             head,
             model: crate::model_ref(&bundle),
             execution: info.execution,
-            threshold: o.threshold + 0.0,
+            threshold,
             stride,
             block,
             split_on_newlines: o.split_on_newlines,
@@ -190,6 +201,11 @@ impl SatAnnotator {
             row_tail,
             config,
         })
+    }
+
+    /// The probability a token's score must be over to end a sentence.
+    pub fn threshold(&self) -> f64 {
+        self.threshold
     }
 
     /// The tokens a window holds besides the special tokens.
@@ -362,9 +378,9 @@ impl Annotator for SatAnnotator {
 /// FNV-1a over everything besides the model and where it runs that
 /// changes the sentences: the threshold's bits, the stride, the block
 /// size, the line feed switch and the classifier's label.
-fn config_hash(o: &SatOptions, block: u32, stride: u32) -> u64 {
+fn config_hash(o: &SatOptions, threshold: f64, block: u32, stride: u32) -> u64 {
     turbo_analysis::Fnv1a::new()
-        .bytes(&(o.threshold + 0.0).to_bits().to_le_bytes())
+        .bytes(&(threshold + 0.0).to_bits().to_le_bytes())
         .u32(stride)
         .u32(block)
         .bool(o.split_on_newlines)
@@ -375,7 +391,8 @@ fn config_hash(o: &SatOptions, block: u32, stride: u32) -> u64 {
 /// Offers `SatAnnotator` to pipelines built from configuration, as "sat".
 /// The spec's location is the bundle directory; its options:
 ///
-/// - `threshold`: a probability, 0.25 by default;
+/// - `threshold`: a probability; by default 0.025 for a model of limited
+///   lookahead and 0.25 for the others, as wtpsplit picks;
 /// - `stride` (0, which is 64 or the block size when that is smaller)
 ///   and `block_size` (0, all a row has room for), in tokens;
 /// - `newlines`: `split` (the default) to end a sentence at every line
@@ -411,7 +428,10 @@ fn parse_options(spec: &Spec) -> Result<SatOptions, String> {
     };
     Ok(SatOptions {
         encoder: EncoderOptions { device, precision, ..EncoderOptions::default() },
-        threshold: number(spec, "threshold", "0.25")?,
+        threshold: match spec.option("threshold", "") {
+            "" => None,
+            _ => Some(number(spec, "threshold", "")?),
+        },
         stride: number(spec, "stride", "0")?,
         block_size: number(spec, "block_size", "0")?,
         split_on_newlines,
@@ -442,9 +462,8 @@ mod tests {
 
     #[test]
     fn config_hash_normalizes_negative_zero_threshold() {
-        let pos = SatOptions { threshold: 0.0, ..SatOptions::default() };
-        let neg = SatOptions { threshold: -0.0, ..SatOptions::default() };
-        assert_eq!(config_hash(&pos, 510, 64), config_hash(&neg, 510, 64));
+        let o = SatOptions::default();
+        assert_eq!(config_hash(&o, 0.0, 510, 64), config_hash(&o, -0.0, 510, 64));
     }
 }
 

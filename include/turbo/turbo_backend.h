@@ -255,7 +255,8 @@ typedef struct turbo_backend_model {
      * [head_out] F32. NULL, with head_out 0, on every other model. */
     const turbo_backend_tensor *head;
     uint32_t    head_out;         /* 2 for the span head: start, then end */
-    uint32_t    reserved;
+    uint32_t    lookahead;        /* keys a query attends to past itself, 0 for the whole
+                                     row; the core loads a banded model on the CPU only */
 } turbo_backend_model;
 
 /* A session as session_open receives it: turbo_session_desc's fields with

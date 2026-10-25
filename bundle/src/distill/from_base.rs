@@ -1,7 +1,7 @@
 //! A static recipe made from a base bundle alone, for a caller that
 //! distils a bundle it already serves with no recipe file: the manifest
 //! the bundle's own static recipes have (bundle/recipes/*-static.json),
-//! with the base's model source, licence and tokenizer.
+//! with the base's model source, licence, licence text and tokenizer.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -46,7 +46,7 @@ pub fn recipe(base: &Path, o: &Options, work: &Path) -> Result<Recipe> {
     tokenizer["file"] = json!("tokenizer.json");
     tokenizer["template"] = json!(["$TEXT"]);
     let cases: Value = serde_json::from_str(CASES_FROM).map_err(|e| e.to_string())?;
-    let manifest = json!({
+    let mut manifest = json!({
         "bundle_version": 1,
         "model": {
             "id": o.id,
@@ -84,15 +84,28 @@ pub fn recipe(base: &Path, o: &Options, work: &Path) -> Result<Recipe> {
     });
     fs::create_dir_all(work).map_err(|e| format!("{}: {e}", work.display()))?;
     crate::fetch::write_atomic(&work.join("static-quality.jsonl"), QUALITY.as_bytes())?;
+    let mut local = vec![Local {
+        path: "static-quality.jsonl".into(),
+        to: "quality/texts.jsonl".into(),
+        sha256: turbo::bundle::sha256_hex(QUALITY.as_bytes()),
+    }];
+    // Carry the verified licence bytes, but reserve their output path:
+    // a base path may name a generated table, quality file or report.
+    if let Some(l) = bm["model"].get("license_file").filter(|v| !v.is_null()) {
+        let l = l.as_str().ok_or("base bundle: model.license_file is not a path")?;
+        crate::check_rel(l)?;
+        let source = turbo::bundle::Bundle::open(base).map_err(|e| format!("base bundle: {}", e.message))?;
+        let text = source.read_verified(l).map_err(|e| format!("base licence: {}", e.message))?;
+        crate::fetch::write_atomic(&work.join("base-license"), &text)?;
+        let to = "licenses/base-license";
+        manifest["model"]["license_file"] = json!(to);
+        local.push(Local { path: "base-license".into(), to: to.into(), sha256: turbo::bundle::sha256_hex(&text) });
+    }
     Ok(Recipe {
         manifest,
         notice: None,
         upstream: Vec::new(),
-        local: vec![Local {
-            path: "static-quality.jsonl".into(),
-            to: "quality/texts.jsonl".into(),
-            sha256: turbo::bundle::sha256_hex(QUALITY.as_bytes()),
-        }],
+        local,
         bpe_tokenizer: None,
         distill: Some(Spec {
             pca_dims: o.pca_dims,

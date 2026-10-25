@@ -65,7 +65,7 @@ pub use coref::{
 };
 pub use discourse::{DISCOURSE, DiscourseBoundaries, DiscourseLanguage};
 pub use discourse_graph::DiscourseAnnotator;
-pub use drift::{Drift, DriftBoundaries, MICRO, Score, cosines, drift};
+pub use drift::{Drift, DriftBoundaries, MICRO, Score, cosines, drift, try_drift};
 pub use entity::{
     ChunkEntities, ChunkEntityHeaders, EntityBoundaries, EntityContinuity, EntityKeys, HeaderPolicy, Keying,
     SalienceHeaders, chunk_entities, entity_boundaries,
@@ -97,7 +97,7 @@ pub use weigh::{
 
 pub mod export;
 pub mod projection;
-pub use projection::{ProjectionDims, VectorProjection};
+pub use projection::{BoundaryDriftCurve, ProjectionDims, VectorProjection};
 pub mod levels;
 pub mod terms;
 

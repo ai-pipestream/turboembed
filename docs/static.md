@@ -341,6 +341,12 @@ licence and tokenizer, the shared quality texts
 rows embedded, the PCA's explained variance, the quality numbers) to
 the caller instead of printing.
 
+When the base names a licence file, the recipe reads it through the
+bundle's verified reader, checking containment, size and SHA-256. The
+static bundle carries those bytes at `licenses/base-license` and names
+that path in `model.license_file`. It does not reuse the source path,
+which could collide with a generated table, report or quality file.
+
 `stage_with` also takes learned terms, such as a corpus vocabulary the
 vocabulary service learns (#1222), as Model2Vec's `distill` takes a
 vocabulary of its own. Each term that is one word to the base's WordPiece

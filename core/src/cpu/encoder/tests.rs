@@ -49,7 +49,7 @@ impl Model {
             artifact2_bytes: 0,
             head: std::ptr::null(),
             head_out: 0,
-            reserved: 0,
+            lookahead: 0,
         };
         Model { desc, tensors }
     }

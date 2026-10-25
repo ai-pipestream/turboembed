@@ -1,0 +1,3 @@
+# Reuse the pinned SaT environment; only the reference writer changes.
+FROM turbo-sat-reference@sha256:7d04f90fa49995db743d7ad9a528e52bc6a700b105a36e04a62e930e49f75480
+COPY sat_reference.py /sat_reference.py

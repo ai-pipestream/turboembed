@@ -66,6 +66,13 @@ service AnalysisService
   // raw_output_contents row for the same text and options.
   rpc AnalyzeStream(stream AnalyzeStreamRequest) returns (stream AnalyzeStreamResponse) {}
 
+  // Progressive single-document pipeline analysis (issue #1218): runs an
+  // Analyzer DAG over one document and streams each step's completion
+  // (or non-backbone branch failure) with a strictly increasing 1-based
+  // sequence number as soon as that step finishes, ending with the final
+  // canonical DocumentGraphResponse.
+  rpc AnalyzeDocumentProgressive(AnalyzePipelineRequest) returns (stream AnalyzeProgressiveEvent) {}
+
   // Windowed inspection of one view of a DocumentGraph (#1220):
   // elementary annotation segments inside a paginated viewport,
   // document-level category chips, multi-lane document heatmaps, and
@@ -778,6 +785,87 @@ message ChunkLevelsResult
   uint32 dim = 21;
   bytes data = 22;
   repeated uint32 empty = 23;
+}
+
+// Request for AnalyzeDocumentProgressive (issue #1218).
+message AnalyzePipelineRequest
+{
+  // Client document identifier, echoed in AnalysisStarted.
+  string doc_id = 1;
+
+  // Input UTF-8 text to analyze (used when source_bytes and initial_graph
+  // are empty).
+  string text = 2;
+
+  // Raw UTF-8 source bytes to analyze (used when non-empty and
+  // initial_graph is empty).
+  bytes source_bytes = 3;
+
+  // Wire offset unit for spans and metadata; 0 is OFFSET_MODE_UTF8.
+  OffsetMode offsets = 4;
+
+  // Named pipeline profile ("default", "minimal", "chunking"); empty uses
+  // "default".
+  string profile = 5;
+
+  // Explicit list of step IDs to run in the Analyzer DAG; when non-empty,
+  // overrides profile.
+  repeated string steps = 6;
+
+  // Optional served bundle name for model-backed steps.
+  string model = 7;
+
+  // Optional pre-existing DocumentGraph bytes to seed the Document before
+  // running the pipeline.
+  bytes initial_graph = 8;
+}
+
+// One server-streamed event from AnalyzeDocumentProgressive, numbered with
+// a strictly increasing 1-based sequence.
+message AnalyzeProgressiveEvent
+{
+  uint64 sequence = 1;
+
+  oneof event
+  {
+    AnalysisStarted started = 2;
+    AnalysisLayerBatch layers_ready = 3;
+    AnalysisStepFailure step_failed = 4;
+    DocumentGraphResponse complete = 5;
+  }
+}
+
+// Emitted first (sequence = 1) once the Analyzer DAG is built and ready.
+message AnalysisStarted
+{
+  string doc_id = 1;
+  OffsetMode offsets = 2;
+  repeated string step_ids = 3;
+  repeated ViewInfo views = 4;
+}
+
+// Emitted as soon as an individual DAG step completes successfully.
+message AnalysisLayerBatch
+{
+  string completed_step = 1;
+  uint32 stage = 2;
+  uint64 duration_us = 3;
+  repeated LayerInfo layers = 4;
+  repeated ViewInfo views = 5;
+  bytes graph = 6;
+}
+
+// Emitted when a step fails on the document, naming the step, its
+// structured AnalyzeFailure, and any downstream steps whose required
+// inputs were skipped as a consequence.
+message AnalysisStepFailure
+{
+  string step_id = 1;
+  uint32 stage = 2;
+  uint64 duration_us = 3;
+  AnalyzeFailure failure = 4;
+  repeated string skipped_dependents = 5;
+  repeated LayerInfo layers = 6;
 }
 
 // ============================================================================
