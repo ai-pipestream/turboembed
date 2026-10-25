@@ -62,7 +62,25 @@ impl QuotationAnnotator {
     }
 
     /// The quotations of the default layers of `doc`, without adding them.
+    /// Refuses inputs bound to another instance, as the Analyzer does.
     pub fn quotations(&self, doc: &Document) -> Result<Quotations, Error> {
+        // Match Bound's alignment rule before pairing default input instances.
+        let reads = [
+            Key::<View>::DEFAULT.id(),
+            Key::<Tokens>::DEFAULT.id(),
+            Key::<Dependencies>::DEFAULT.id(),
+            Key::<Mentions>::DEFAULT.id(),
+            Key::<Groups<Mentions>>::DEFAULT.id(),
+        ];
+        for &layer in &reads {
+            for &on in doc.made_on(layer) {
+                if !reads.contains(&on)
+                    && let Some(read) = reads.iter().find(|r| r.ty == on.ty && doc.present(**r))
+                {
+                    return Err(Error::Unaligned { layer, on, read: read.name });
+                }
+            }
+        }
         let (q,) = self.annotate((
             doc.require(&Key::<View>::DEFAULT)?,
             doc.require(&Key::<Tokens>::DEFAULT)?,

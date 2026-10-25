@@ -4,8 +4,8 @@
 mod quotation_support;
 use quotation_support::*;
 use turbo_analysis::export::{DocumentGraph, export, import};
-use turbo_analysis::{Analyzer, Annotator, Bound, Groups, Ix, Key, Layer, Provenance, Span, Spans, View};
-use turbo_analysis_layers::{Quotations, QuoteKind, Tokens};
+use turbo_analysis::{Analyzer, Annotator, Bound, Error, Groups, Ix, Key, Layer, Provenance, Span, Spans, View};
+use turbo_analysis_layers::{Dependencies, Quotations, QuoteKind, Tokens};
 use turbo_coref::{Mentions, QuotationAnnotator, QuotationConfig, codecs};
 use turbo_normalize::{NormalizeStep, UnicodeForm};
 
@@ -220,4 +220,91 @@ fn wrong_view_mentions_are_rejected() {
         direct_rejected && result[0].is_err(),
         "wrong-view mentions are silently dropped: direct_rejected={direct_rejected}, pipeline_result={result:?}, stored_chains={stored:?}"
     );
+}
+
+fn mismatched_binding(case: usize) {
+    let mut source = prepared(TEXT);
+    add_mentions(&mut source, &[(0, 1)]);
+    add_dependencies(
+        &mut source,
+        &[
+            (Some(1), "nsubj"),
+            (None, "root"),
+            (Some(1), "punct"),
+            (Some(5), "punct"),
+            (Some(5), "nsubj"),
+            (Some(1), "parataxis"),
+            (Some(5), "punct"),
+            (Some(5), "punct"),
+        ],
+    );
+    {
+        let mut d = prepared(TEXT);
+        let mut p = Provenance::by("test:named-bindings");
+        match case {
+            0 => {
+                d.add(
+                    &Key::<Tokens>::named("other"),
+                    Tokens {
+                        spans: source.get::<Tokens>().unwrap().spans.clone(),
+                        sentence: source.get::<Tokens>().unwrap().sentence.clone(),
+                    },
+                    p.clone(),
+                )
+                .unwrap();
+                p.reads.push(Key::<Tokens>::named("other").id());
+                d.add(&Key::DEFAULT, source.get::<Dependencies>().unwrap().clone(), p).unwrap();
+            }
+            1 => {
+                d.add(
+                    &Key::<Tokens>::named("other"),
+                    Tokens {
+                        spans: source.get::<Tokens>().unwrap().spans.clone(),
+                        sentence: source.get::<Tokens>().unwrap().sentence.clone(),
+                    },
+                    p.clone(),
+                )
+                .unwrap();
+                p.reads.push(Key::<Tokens>::named("other").id());
+                d.add(&Key::DEFAULT, source.get::<Mentions>().unwrap().clone(), p).unwrap();
+            }
+            _ => {
+                d.add(&Key::<Mentions>::DEFAULT, source.get::<Mentions>().unwrap().clone(), p.clone()).unwrap();
+                d.add(&Key::<Mentions>::named("other"), source.get::<Mentions>().unwrap().clone(), p.clone()).unwrap();
+                p.reads.push(Key::<Mentions>::named("other").id());
+                d.add(&Key::DEFAULT, source.get::<Groups<Mentions>>().unwrap().clone(), p).unwrap();
+            }
+        }
+        let graph = export(&d, &codecs()).unwrap();
+        let mut d = import(&DocumentGraph::from_bytes(&graph.to_bytes().unwrap()).unwrap(), &codecs()).unwrap();
+        let direct = QuotationAnnotator::new().quotations(&d);
+        let mut b = Analyzer::builder().given(Key::<Tokens>::DEFAULT);
+        if d.get::<Dependencies>().is_some() {
+            b = b.given(Key::<Dependencies>::DEFAULT);
+        }
+        if d.get::<Mentions>().is_some() {
+            b = b.given(Key::<Mentions>::DEFAULT);
+        }
+        if d.get::<Groups<Mentions>>().is_some() {
+            b = b.given(Key::<Groups<Mentions>>::DEFAULT);
+        }
+        let pipeline = b.step(Bound::new(QuotationAnnotator::new())).build().unwrap();
+        let scheduled = pipeline.run(std::slice::from_mut(&mut d)).remove(0);
+        assert!(matches!(scheduled, Err(Error::Unaligned { .. })), "case {case}: {scheduled:?}");
+        assert!(matches!(direct, Err(Error::Unaligned { .. })), "case {case}: convenience accepted mismatched inputs");
+        assert_eq!(direct.err(), scheduled.err(), "case {case}: error differs from Analyzer");
+    }
+}
+
+#[test]
+fn convenience_rejects_foreign_dependency_tokens() {
+    mismatched_binding(0);
+}
+#[test]
+fn convenience_rejects_foreign_mention_tokens() {
+    mismatched_binding(1);
+}
+#[test]
+fn convenience_rejects_foreign_chain_mentions() {
+    mismatched_binding(2);
 }
