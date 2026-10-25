@@ -40,6 +40,9 @@ pub fn inspect_document_window(req: &DocumentWindowRequest) -> Result<DocumentWi
         return Err(bad("graph: document graph bytes are required"));
     }
     let offset_mode = OffsetMode::from_proto(req.offsets)?;
+    if req.heatmap_buckets > heatmap::MAX_HEATMAP_BUCKETS {
+        return Err(over("max_heatmap_buckets", "heatmap_buckets", req.heatmap_buckets as u64));
+    }
 
     let graph = DocumentGraph::from_bytes(&req.graph).map_err(|e| bad(format!("document graph: {e}")))?;
     let doc = import(&graph, codecs()).map_err(|e| bad(format!("document graph import: {e}")))?;

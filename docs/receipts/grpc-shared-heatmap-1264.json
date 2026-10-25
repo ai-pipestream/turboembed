@@ -1,0 +1,79 @@
+{
+  "kind": "correctness-verification",
+  "issue": 1220,
+  "follow_up_to_merged_pr": 1264,
+  "tested_clean_commit": "dac320e7134e072742a1683d84e506645cf77663",
+  "integrated_main": "df3f37e0f8adf58319723116857ddbddc6145b2b",
+  "shared_dependency": {
+    "pr": 1259,
+    "commit": "60baadce0aa6ac515f430ce74530c12f694ca963",
+    "integration": "normal merges; dependency history retained"
+  },
+  "changes": [
+    "RPC uses DocumentHeatmap::build_instances for complete named/default sources on the requested view",
+    "existing DocumentHeatmap::build retains default-instance and strict source-view behavior",
+    "shared event summaries preserve item counts, original-index ties, point segments and raw byte-bin geometry",
+    "byte_start/byte_end preserve exact raw coverage alongside snapped and converted display start/end",
+    "candidate inputs and aggregate prospective heatmap output are checked before shared construction"
+  ],
+  "red_proof": [
+    {
+      "commit": "b3402aee3c3af7baa18d0e0255d16a62ae06f27a",
+      "target": "turbo-kserve/inspect_heatmap_shared",
+      "passed": 4,
+      "failed": 7,
+      "failures": [
+        "binary polarity: 0.7 instead of 0.4",
+        "generic negotiation topic: invented sentiment -0.9",
+        "chunk category score: model token count 17 instead of 0.9",
+        "omitted sentence emotion",
+        "omitted structure-block incivility",
+        "entity confidence 0.9 instead of density 1",
+        "PII confidence 0.5 instead of density 1"
+      ]
+    },
+    {
+      "commit": "ceef7f53d5b6a7961ad769469fae77ad9b931de9",
+      "test": "empty_named_sources_cannot_expand_past_the_response_budget",
+      "passed": 0,
+      "failed": 1,
+      "observed": "real adapter returned six bins under a five-segment budget; final code returns TURBO_E_CAPACITY"
+    }
+  ],
+  "native_tests": {
+    "command": "cargo test --locked -p turbo-analysis -p turbo-analysis-layers -p turbo-chunker -p turbo-formats -p turbo-kserve -p turbo-kserve-demo -- --skip term_stacks_scale_with_the_document_not_its_square",
+    "passed": 1342,
+    "failed": 0,
+    "existing_ignored": 3,
+    "explicit_timing_filter": 1,
+    "packages": {
+      "turbo-analysis": 229,
+      "turbo-analysis-layers": 247,
+      "turbo-chunker": 387,
+      "turbo-formats": 268,
+      "turbo-kserve": 197,
+      "turbo-kserve-demo": 14
+    }
+  },
+  "retained_proof": [
+    "seven permanent graph-based mismatch regressions across three offset modes and exact/one-bin/three-bin output",
+    "BMP/astral/empty-view raw bins, including empty bins inside scalars and covered bins with collapsed display coordinates",
+    "real RPC named sources, nonidentity view selection and mixed-view targets retaining original item indices",
+    "failed/skipped source metadata and bucket/fragment/response capacity refusals",
+    "shared exact and bucket aggregate-query guards plus distinct discontinuous-item oracles",
+    "128 varied fixtures compared with the independent combined-segmentation implementation"
+  ],
+  "checks": {
+    "workspace_all_target_clippy": "pass",
+    "workspace_fmt": "pass",
+    "diff_check": "pass",
+    "repository_tree": { "passed": 8, "failed": 0 },
+    "wasm32_unknown_unknown_layer_tests": "compile pass; not 32-bit execution",
+    "largest_follow_up_rust_file_lines": 495
+  },
+  "cargo_jobs": 2,
+  "timing_campaign": false,
+  "hardware_campaign": false,
+  "independent_approval": false,
+  "remaining": "fresh external review and hosted CI; full issue 1220 acceptance remains open"
+}
