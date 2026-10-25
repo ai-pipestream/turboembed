@@ -11,3 +11,9 @@ name = "turbo_normalize_layers"
 [dependencies]
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
+turbo-stopword = { path = "../stopword" }
+turbo-unicode = { path = "../unicode" }
+
+[dev-dependencies]
+turbo-tokenize = { path = "../tokenize" }
+turbo-sentdetect = { path = "../sentdetect" }

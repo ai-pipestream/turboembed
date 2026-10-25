@@ -9,6 +9,7 @@ use turbo_analysis_layers::{Confidence, Lemmas, PosTags, Strs, Tokens};
 use turbo_maxent::JavaString;
 use turbo_sequence::{AcceptAll, BeamSearch, TokenTag};
 
+use crate::LemmaEncoding;
 use crate::context::LemmaContext;
 use crate::edit_script::DecodeScratch;
 use crate::model::LemmatizerModel;
@@ -19,9 +20,8 @@ use crate::model::LemmatizerModel;
 /// The search is `BeamSearch.bestSequence` over
 /// `DefaultLemmatizerContextGenerator` with a validator that accepts every
 /// class, as `LemmatizerME.lemmatize(String[], String[])` runs it; the
-/// classes found are applied to the lowercased tokens
-/// (`LemmatizerME.decodeLemmas`), so a lemma is lowercase and `_` where
-/// the class leaves nothing. The probabilities (`probs()`) are the JVM's
+/// classes use the model's decoder. OpenNLP models lowercase tokens;
+/// native models preserve case. An empty decoded lemma is `_`. The probabilities (`probs()`) are the JVM's
 /// doubles bit for bit. A sentence is lemmatized on its own.
 ///
 /// The classes are the model's outcomes as [`JavaString`]s: a class edits
@@ -90,7 +90,7 @@ impl MaxentLemmatizer {
         if !self.classes(words, &mut classes, &mut next_probs) {
             return Ok(false);
         }
-        decode_classes_into(words, &classes, &next_probs, lemmas, probs)?;
+        decode_classes_into(words, &classes, &next_probs, lemmas, probs, self.model.encoding())?;
         Ok(true)
     }
 }
@@ -101,14 +101,17 @@ fn decode_classes_into(
     next_probs: &[f64],
     lemmas: &mut Strs,
     probs: &mut Vec<f64>,
+    encoding: LemmaEncoding,
 ) -> Result<(), Error> {
     let mut scratch = DecodeScratch::default();
     let mut decoded = Vec::with_capacity(words.len());
     for (item, class) in words.iter().zip(classes) {
         let word = item.token;
-        let lemma = scratch.decode(word, class).map_err(|e| Error::Annotator {
-            annotator: MaxentLemmatizer::ID,
-            detail: format!("{word:?} with the class {class:?}: {e}"),
+        let lemma = scratch.decode_with_case(word, class, encoding == LemmaEncoding::CaseSensitiveV1).map_err(|e| {
+            Error::Annotator {
+                annotator: MaxentLemmatizer::ID,
+                detail: format!("{word:?} with the class {class:?}: {e}"),
+            }
         })?;
         decoded.push(lemma.to_owned());
     }
@@ -198,10 +201,12 @@ impl Annotator for MaxentLemmatizer {
             }
             for (item, class) in tagged.iter().zip(&classes) {
                 let word = item.token;
-                let lemma = scratch.decode(word, class).map_err(|e| Error::Annotator {
-                    annotator: Self::ID,
-                    detail: format!("{word:?} with the class {class:?}: {e}"),
-                })?;
+                let lemma = scratch
+                    .decode_with_case(word, class, self.model.encoding() == LemmaEncoding::CaseSensitiveV1)
+                    .map_err(|e| Error::Annotator {
+                        annotator: Self::ID,
+                        detail: format!("{word:?} with the class {class:?}: {e}"),
+                    })?;
                 lemmas.push(lemma);
             }
         }
@@ -315,7 +320,8 @@ mod tests {
         let c0 = JavaString::new("D0s");
         let c1 = JavaString::new("D0");
         let classes = [&c0, &c1];
-        let err = decode_classes_into(&words, &classes, &[0.8, 0.7], &mut lemmas, &mut probs).unwrap_err();
+        let err = decode_classes_into(&words, &classes, &[0.8, 0.7], &mut lemmas, &mut probs, LemmaEncoding::OpenNlp)
+            .unwrap_err();
         assert!(matches!(err, Error::Annotator { annotator: MaxentLemmatizer::ID, .. }));
         assert_eq!(lemmas.iter().collect::<Vec<_>>(), ["prior"]);
         assert_eq!(probs, [0.9]);
