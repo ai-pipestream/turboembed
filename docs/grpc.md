@@ -8,7 +8,9 @@ the library without linking it. On the same port it serves
 a capability call that lists what every loaded bundle is
 (docs/grpc-analysis.md), and `turbo.training.TurboCatalogService`, the
 model catalog: the zoo's artifacts, licence acceptances and verified
-installs (docs/grpc-catalog.md). This page says how to run it. What every RPC,
+installs (docs/grpc-catalog.md). It can forward what its analysis streams
+complete to a downstream `turbo.sink.TurboSinkService`, and serve that
+service itself (docs/grpc-sink.md). This page says how to run it. What every RPC,
 tensor, parameter and status of the Open Inference Protocol means, call
 by call against the C interface, is in [kserve.md](kserve.md).
 
@@ -73,6 +75,9 @@ no way to stop a load part way.
 | `--vocabulary-dir PATH` | The vocabulary store's directory, made when it does not exist (docs/grpc-vocabulary.md). | No store: it lists nothing and refuses writes with `FAILED_PRECONDITION`. |
 | `--catalog-dir PATH` | Serve the model catalog with this zoo home: the cache under `artifacts/`, the acceptance file `acceptances.json`, as the `turbo-zoo` command keeps them (docs/zoo.md). | No catalog; its calls refuse with `UNIMPLEMENTED`. |
 | `--catalog-index FILE` | The zoo index the catalog serves. Needs `--catalog-dir`. | The built-in index. |
+| `--sink-endpoint URI` | Forward every document an `AnalyzeStream` completes to the `TurboSinkService` at this address, such as `http://sink:8081` (docs/grpc-sink.md). | No forwarding. |
+| `--sink-queue-items N` | The most documents waiting for the sink; one more is dropped and counted. Needs `--sink-endpoint`. | 1024. |
+| `--sink-queue-bytes N` | The most encoded bytes waiting for the sink. Needs `--sink-endpoint`. | 64 MiB. |
 
 `SETTINGS` is comma-separated `key=value` pairs:
 
@@ -118,6 +123,9 @@ twice; `TURBO_KSERVE_MODELS` lists every model in one.
 | `TURBO_KSERVE_MAX_MESSAGE_BYTES` | `--max-message-bytes` |
 | `TURBO_KSERVE_ADMIN` | `--admin` (`1`, `true`, `yes`, `0`, `false`, `no`) |
 | `TURBO_KSERVE_VOCABULARY_DIR` | `--vocabulary-dir` |
+| `TURBO_KSERVE_SINK_ENDPOINT` | `--sink-endpoint` |
+| `TURBO_KSERVE_SINK_QUEUE_ITEMS` | `--sink-queue-items` |
+| `TURBO_KSERVE_SINK_QUEUE_BYTES` | `--sink-queue-bytes` |
 | `TURBO_KSERVE_CATALOG_DIR` | `--catalog-dir` |
 | `TURBO_KSERVE_CATALOG_INDEX` | `--catalog-index` |
 
@@ -203,11 +211,12 @@ Protocol's own file, vendored (Apache-2.0); its first lines say where
 from. `server/proto/turbo_analysis.proto` is the crate's own file, the
 analysis result layer's messages and service
 (docs/grpc-analysis.md), `server/proto/turbo_vocabulary.proto` the
-vocabulary store's (docs/grpc-vocabulary.md), and
+vocabulary store's (docs/grpc-vocabulary.md),
 `server/proto/turbo_training.proto` the model catalog's
-(docs/grpc-catalog.md). Generate a client from any of them in any language
-with gRPC. The build compiles them with a Rust protobuf compiler, so
-building the server needs no `protoc`.
+(docs/grpc-catalog.md), and `server/proto/turbo_sink.proto` the document
+sink's (docs/grpc-sink.md). Generate a client from any of them in any
+language with gRPC. The build compiles them with a Rust protobuf compiler,
+so building the server needs no `protoc`.
 
 ## A client call
 

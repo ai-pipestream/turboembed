@@ -11,7 +11,8 @@ use crate::proto::search::{ChunkInput, IndexDocumentRequest, VectorStorageKind};
 use crate::results::document::codecs;
 use crate::results::{MAX_GRAPH_BYTES, over};
 use crate::search::registry::{
-    CompiledDense, HybridIndex, RetainedDocument, StoredChunk, bad_arg, bad_state, verify_embed_bundle_matches_space,
+    CompiledDense, HybridIndex, RetainedDocument, StoredChunk, bad_arg, bad_state, io_err,
+    verify_embed_bundle_matches_space,
 };
 use crate::search::segment::{extract_chunks_from_doc, segment_raw_text};
 use crate::state::State;
@@ -311,6 +312,13 @@ pub(crate) fn populate_embeddings_from_bundle(
         let info = res.info()?;
         let bytes = res.read(info.bytes)?;
         let dim = info.dim as usize;
+        let expected_bytes = need_indices.len().saturating_mul(dim).saturating_mul(4);
+        if bytes.len() < expected_bytes {
+            return Err(io_err(format!(
+                "embedding session returned {} bytes, expected at least {expected_bytes}",
+                bytes.len()
+            )));
+        }
         for (bi, &ci) in need_indices.iter().enumerate() {
             let offset = bi * dim * 4;
             let floats: Vec<f32> =

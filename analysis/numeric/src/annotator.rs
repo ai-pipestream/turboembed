@@ -9,10 +9,12 @@ use crate::scan::{boundary_before, continues_number, parse, sign_boundary_before
 
 /// Writes `turbo:numbers` over a text view.
 ///
-/// The notation is the caller's choice. OpenNLP can also pick it from a
-/// `java.util.Locale` (`NumberNotation.forLocale`, which reads the JDK's
-/// locale data); that lookup is not here, so a caller that knows the
-/// document's locale maps it to a notation itself.
+/// The notation can be chosen directly, resolved from an ISO 3166-1 alpha-2
+/// [`RegionCode`](turbo_analysis_layers::RegionCode) via
+/// [`NumberScanner::for_region`] or a BCP-47 locale tag via
+/// [`NumberScanner::for_locale`], or selected per document from the
+/// [`Regions`](turbo_analysis_layers::Regions) ballot with
+/// [`RegionAwareNumberAnnotator`](crate::RegionAwareNumberAnnotator).
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct NumberScanner {
     /// The convention the text groups digits and marks fractions in.
@@ -49,8 +51,16 @@ impl NumberScanner {
     ///
     /// When `text` is longer than `u32::MAX` bytes, since offsets are `u32`.
     pub fn scan(&self, text: &str, out: &mut Numbers) {
+        self.scan_with_fallback(text, None, out);
+    }
+
+    /// Scans `text` in `self.notation`, falling back to `fallback` at
+    /// candidate positions that fail in `self.notation` when a document's
+    /// region ballot carries both conventions.
+    pub(crate) fn scan_with_fallback(&self, text: &str, fallback: Option<NumberNotation>, out: &mut Numbers) {
         assert!(u32::try_from(text.len()).is_ok(), "a text of at most u32::MAX bytes");
         let b = text.as_bytes();
+        let fallback = fallback.filter(|&n| n != self.notation);
         // One buffer for the digits of every number in the text.
         let mut digits = String::new();
         let mut i = 0;
@@ -63,7 +73,10 @@ impl NumberScanner {
                 Some(skip) => i += skip,
                 None => break,
             }
-            match self.match_at(text, i, &mut digits, out) {
+            let matched = self
+                .match_at(text, i, self.notation, &mut digits, out)
+                .or_else(|| fallback.and_then(|alt| self.match_at(text, i, alt, &mut digits, out)));
+            match matched {
                 Some(end) => i = end,
                 // A minus or a digit is one byte.
                 None => i += 1,
@@ -72,19 +85,27 @@ impl NumberScanner {
     }
 
     /// `CursorQuantityExtractor.matchAt` without the unit: adds the
-    /// number that starts at byte `start` to `out` and returns its end.
-    fn match_at(&self, text: &str, start: usize, digits: &mut String, out: &mut Numbers) -> Option<usize> {
+    /// number that starts at byte `start` in `notation` to `out` and
+    /// returns its end.
+    fn match_at(
+        &self,
+        text: &str,
+        start: usize,
+        notation: NumberNotation,
+        digits: &mut String,
+        out: &mut Numbers,
+    ) -> Option<usize> {
         let b = text.as_bytes();
         let negative = b[start] == b'-';
         let first = start + usize::from(negative);
-        if !b.get(first).is_some_and(u8::is_ascii_digit) || continues_number(text, first, self.notation) {
+        if !b.get(first).is_some_and(u8::is_ascii_digit) || continues_number(text, first, notation) {
             return None;
         }
         let boundary = if negative { sign_boundary_before(text, start) } else { boundary_before(text, start) };
         if !boundary {
             return None;
         }
-        let r = parse(text, first, self.apply_scale, self.notation, digits)?;
+        let r = parse(text, first, self.apply_scale, notation, digits)?;
         out.push(NumberMention {
             span: Span::new(start as u32, r.end as u32),
             numeral_end: r.numeral_end as u32,
@@ -93,7 +114,7 @@ impl NumberScanner {
             scale: r.scale,
             multiplier: r.multiplier,
             marker: r.marker,
-            notation: self.notation,
+            notation,
         });
         Some(r.end)
     }

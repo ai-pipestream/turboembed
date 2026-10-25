@@ -11,6 +11,7 @@ use crate::search::ingest::analyze_chunk_terms;
 use crate::search::registry::{HybridIndex, ScoreMap, bad_arg, parse_space};
 
 pub const MAX_TOP_K: usize = 10_000;
+pub const MAX_PHRASE_TERMS: usize = 64;
 
 pub(crate) fn bounded_top_k(raw: u32, fallback: usize) -> Result<usize> {
     if raw as usize > MAX_TOP_K {
@@ -65,6 +66,12 @@ pub(crate) fn eval_phrase_clause(ix: &HybridIndex, c: &PhraseClause, default_k: 
     let terms = normalize_clause_terms(&c.terms);
     if terms.is_empty() {
         return Ok(ScoreMap::new());
+    }
+    if terms.len() > MAX_PHRASE_TERMS {
+        return Err(bad_arg(format!(
+            "PhraseClause term count ({}) exceeds maximum allowed ({MAX_PHRASE_TERMS})",
+            terms.len()
+        )));
     }
     let refs: Vec<&str> = terms.iter().map(String::as_str).collect();
     let hits = ix.bm25.phrase(Bm25::LUCENE, &refs, c.slop, k);
