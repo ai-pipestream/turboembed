@@ -94,6 +94,7 @@ fn elementwise_groups(n: u64) -> u32 {
 
 mod encode;
 mod kernels;
+mod linears;
 mod model;
 mod session;
 mod tune;
@@ -264,6 +265,14 @@ impl Linear {
         match self {
             Linear::Own => "own",
             Linear::Onednn => "onednn",
+        }
+    }
+
+    /// The variant the tuner times against this one.
+    fn other(self) -> Linear {
+        match self {
+            Linear::Own => Linear::Onednn,
+            Linear::Onednn => Linear::Own,
         }
     }
 }

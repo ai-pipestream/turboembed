@@ -1460,14 +1460,22 @@ fn each_linear_kernel_matches_the_cpu_and_is_reported() {
         // Tuned: measured where there are two to time.
         let i = make(None, precision, TURBO_AUTOTUNE_RETUNE).unwrap().info();
         if onednn {
-            assert_eq!(i.tuned, TURBO_TUNED_MEASURED, "{}", field(&i.choices));
-            assert!(["linear=own;forced=", "linear=onednn;forced="].contains(&field(&i.choices).as_str()));
+            let line = field(&i.choices);
+            assert_eq!(i.tuned, TURBO_TUNED_MEASURED, "{line}");
+            assert!(line.starts_with("linear=") && line.ends_with(";forced="), "{line}");
+            // Each bin's choice, as reported, forces the same kernels back.
+            let back = make(Some(&line), precision, TURBO_AUTOTUNE_OFF).unwrap().info();
+            assert_eq!(field(&back.choices), format!("{line}linear"));
         } else {
             assert_eq!((field(&i.choices), i.tuned), (String::new(), TURBO_TUNED_DEFAULT));
         }
     }
     // A reported line forces back; anything else is refused.
     assert!(make(Some("linear=own;forced=linear"), TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_OFF).is_ok());
+    if onednn {
+        let i = make(Some("le256:linear=own"), TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_OFF).unwrap().info();
+        assert_eq!(field(&i.choices), "linear=onednn;le256:linear=own;forced=linear");
+    }
     let e = make(Some("linear=fast"), TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_OFF).err().unwrap();
     assert_eq!(e.code, INVALID_ARGUMENT, "{e:?}");
 }

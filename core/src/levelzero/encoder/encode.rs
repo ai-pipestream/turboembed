@@ -26,12 +26,13 @@ impl Session {
         // Attention on the matrix engines reads F16 projections and writes
         // an F16 context.
         let half_attention = matches!(k.attention, Attention::Xmx(..));
-        // With linear=onednn, oneDNN takes the linear layers of a batch
-        // past the few-token kernels: at FASTEST in F16 with its own
-        // LayerNorm after the projections back to the hidden width, in
-        // F32 with the backend's; the two queues are ordered by waiting.
+        // Where the run's token bin takes linear=onednn, oneDNN takes the
+        // linear layers of a batch past the few-token kernels: at FASTEST
+        // in F16 with its own LayerNorm after the projections back to the
+        // hidden width, in F32 with the backend's; the two queues are
+        // ordered by waiting.
         #[cfg(feature = "levelzero-onednn")]
-        let dnnl = if self.linear == Linear::Onednn && tokens > FEW_TOKENS_DPAS { c.dnnl() } else { None };
+        let dnnl = if self.linear.at(tokens) == Linear::Onednn && tokens > FEW_TOKENS_DPAS { c.dnnl() } else { None };
         #[cfg(not(feature = "levelzero-onednn"))]
         let dnnl: Option<()> = None;
         // oneDNN's tokens, the batch's binned, and the primitives the run

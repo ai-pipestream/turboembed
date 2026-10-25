@@ -35,7 +35,7 @@ impl Session {
         // the scratch. Its events are let go.
         #[cfg(feature = "levelzero-onednn")]
         let waited = match c.dnnl() {
-            Some(dn) if self.linear == Linear::Onednn => dn.wait(),
+            Some(dn) if self.linear.uses(Linear::Onednn) => dn.wait(),
             _ => Ok(()),
         };
         #[cfg(not(feature = "levelzero-onednn"))]

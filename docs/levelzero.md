@@ -117,26 +117,33 @@ and among others.
 
 A session reports one choice in `turbo_session_get_info`'s `choices`
 (docs/autotune.md): which kernels run its linear layers past 8 tokens,
+per bin of a run's packed tokens (up to 256, 1024, 4096, 16384, and
+more: `le256`, `le1k`, `le4k`, `le16k`, `gt16k`),
 
 ```
-linear=onednn;forced=
+linear=onednn;le256:linear=own;forced=
 ```
 
-`linear=own` is the backend's kernels, `linear=onednn` oneDNN's; `forced=`
-names `linear` when the environment fixed it. A build without the
-feature, or a device where oneDNN does not open, has one path and reports
-no choices unless the environment names one. A session nothing forces or
-tunes runs oneDNN where it runs, at every precision: on a B70 it is the
-faster at each precision, row mix and model measured (all-MiniLM-L6-v2,
-bge-small, bge-base, bge-large, at 32 rows of 256 tokens and in mixed
-rows), but for all-MiniLM-L6-v2's mixed rows at FASTEST, where the two
-are within 2% of each other.
+`linear=own` is the backend's kernels, `linear=onednn` oneDNN's. The first
+item is the choice of the session's largest bin; each bin below it that
+runs the other kernels follows as `<bin>:linear=`, and a line with no such
+item runs one choice at every bin. `forced=` names `linear` when the
+environment fixed it. A build without the feature, or a device where
+oneDNN does not open, has one path and reports no choices unless the
+environment names one. A session nothing forces or tunes runs oneDNN at
+every bin where it runs, at every precision: on a B70 it is the faster at
+each precision, row mix and model measured (all-MiniLM-L6-v2, bge-small,
+bge-base, bge-large, at 32 rows of 256 tokens and in mixed rows), but for
+all-MiniLM-L6-v2's mixed rows at FASTEST, where the two are within 2% of
+each other.
 
-`TURBO_LEVELZERO_CHOICES`, read when a session is made, forces the item
-it names (`linear=own` or `linear=onednn`); a line a session reported,
-`forced=` and all, forces the same kernels back. `linear=onednn` where
-oneDNN does not run is `TURBO_E_UNSUPPORTED_OPTION`, and any other item
-is `TURBO_E_INVALID_ARGUMENT`.
+`TURBO_LEVELZERO_CHOICES`, read when a session is made, forces the items
+it names: `linear=own` or `linear=onednn` for every bin, and
+`<bin>:linear=` for one, which wins over the first whatever the order (a
+bin it does not name runs the default). A line a session reported,
+`forced=` and all, forces the same kernels back. `linear=onednn` at any
+bin where oneDNN does not run is `TURBO_E_UNSUPPORTED_OPTION`, and any
+other item is `TURBO_E_INVALID_ARGUMENT`.
 
 ### Autotuning
 
@@ -146,20 +153,27 @@ it is made and runs the faster; docs/autotune.md has the switches, the
 cache and what holds across backends. It is off by default, and a forced
 choice is never timed.
 
-How: on the session's own memory, under the context's lock, with rows of
-`max_seq` tokens, ids 1, as many as fill 8192 tokens (all of the
-session's rows when it holds fewer). Each variant runs the encoder's
-first layer once untimed, which builds its kernels, then five times timed
-from the host, each run waited for. The least time ranks, and the
-challenger replaces the incumbent (the cached choice, else the default)
-only when 5% faster. A variant whose median is more than 25% above its
-least is timed again, up to three times in all; still apart, the device
-is shared or throttling, and the session keeps the incumbent, reports
+How: on the session's own memory, under the context's lock, at 256,
+1024, 4096 and 8192 packed tokens, each that the session's `max_batch` x
+`max_seq` holds, and at its capacity when that lies past the last of them
+(under 8192): rows of `max_seq` tokens or fewer, ids 1, as many as make
+the count. The counts go smallest first. At each, the bin's incumbent
+(the cached choice, else the default) and then the other kernels run the
+encoder's first layer once untimed, which builds their kernels, then five
+times timed from the host, each run waited for. The least time ranks, and
+at each bin timed the challenger replaces the incumbent only when 5%
+faster, so a bin keeps its own choice; `gt16k`, past the last count,
+takes `le16k`'s. A variant whose median is more than 25% above its least
+is timed again, up to three times in all; still apart, the device is
+shared or throttling, and the session keeps the incumbent, reports
 `default`, is not cached, and an INFO line says so. The budget
 (docs/autotune.md) counts the timed runs alone; past it, what is left is
-not timed. A measured session reports `measured` and logs at INFO
-`levelzero device <n>: linear layers chosen in <ms> ms: <choice> (<bin>,
-a layer: own <ms> ms, onednn <ms> ms)`.
+not timed, and a bin whose challenger was not timed keeps its incumbent.
+A measured session reports `measured`, gives its timings as
+`<bin>/linear/<choice>=<least ms>` lines, one per count and choice timed,
+and logs at INFO `levelzero device <n>: linear layers chosen in <ms> ms:
+<choices> (a layer at le256: own <ms> ms, onednn <ms> ms; le1k: ...)`,
+ending with a note when the budget left something untimed.
 
 ## What it does
 

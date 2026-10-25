@@ -3,6 +3,7 @@
 use std::ffi::c_void;
 
 use super::kernels::*;
+use super::linears::*;
 use super::model::*;
 use super::tune::*;
 use super::*;
@@ -23,8 +24,8 @@ pub(super) struct Session {
     /// The linear layers' F32 weights transposed, for a session in F32
     /// whose widths linear_sgemm takes.
     pub(super) f32t: Option<Transposed>,
-    /// The linear layers' kernels.
-    pub(super) linear: Linear,
+    /// The linear layers' kernels, per token bin.
+    pub(super) linear: Linears,
     pub(super) max_batch: u32,
     pub(super) max_seq: u32,
     /// The most ranges one embed_write_ranges may hold.
@@ -255,7 +256,7 @@ pub(super) unsafe fn create(
                 weights,
                 half,
                 f32t,
-                linear: Linear::Own,
+                linear: Linears::all(Linear::Own),
                 max_batch,
                 max_seq,
                 max_ranges,
@@ -299,15 +300,16 @@ pub(super) unsafe fn create(
             s.ffn = take(ffn);
             let out_ptr = take(output) as usize as *mut c_void;
             s.output = Box::new(Buffer::session_output(c, out_ptr, vectors as u64 * d.hidden as u64 * 4));
-            s.linear = match forced_linear()? {
-                Some(l) if l == Linear::Onednn && !onednn_runs(c, s.half.as_ref()) => {
+            let default = Linears::all(default_linear(c, s.half.as_ref()));
+            s.linear = match forced_linear()?.map(|p| p.or(default)) {
+                Some(l) if l.uses(Linear::Onednn) && !onednn_runs(c, s.half.as_ref()) => {
                     return Err(fail(
                         UNSUPPORTED_OPTION,
                         "TURBO_LEVELZERO_CHOICES: linear=onednn, and oneDNN does not run on this device in this build",
                     ));
                 }
                 Some(l) => l,
-                None => default_linear(c, s.half.as_ref()),
+                None => default,
             };
             *compute_dtype = if xmx { TURBO_DTYPE_F16 } else { TURBO_DTYPE_F32 };
             *out = Box::into_raw(s) as *mut c_void;
@@ -346,30 +348,17 @@ pub(crate) fn use_choices(choices: Option<&str>) {
 
 /// The linear layers' kernels TURBO_LEVELZERO_CHOICES forces, read when a
 /// session is made; None when unset or it names no linear item.
-pub(super) fn forced_linear() -> Res<Option<Linear>> {
+pub(super) fn forced_linear() -> Res<Option<Picks>> {
+    let parse =
+        |line: &str| parse_linears(line).map_err(|e| fail(INVALID_ARGUMENT, format!("TURBO_LEVELZERO_CHOICES: {e}")));
     #[cfg(feature = "internals")]
     if let Some(line) = TEST_CHOICES.lock().unwrap_or_else(|p| p.into_inner()).clone() {
-        return parse_linear(&line).map_err(|e| fail(INVALID_ARGUMENT, format!("TURBO_LEVELZERO_CHOICES: {e}")));
+        return parse(&line);
     }
     match std::env::var("TURBO_LEVELZERO_CHOICES") {
-        Ok(line) => parse_linear(&line).map_err(|e| fail(INVALID_ARGUMENT, format!("TURBO_LEVELZERO_CHOICES: {e}"))),
+        Ok(line) => parse(&line),
         Err(_) => Ok(None),
     }
-}
-
-/// The linear item of a choices line, `linear=own` or `linear=onednn`,
-/// among `;`-separated items; a `forced=` item, as a session reports it,
-/// is passed over. None when it names no linear item.
-pub(super) fn parse_linear(line: &str) -> Result<Option<Linear>, String> {
-    let mut linear = None;
-    for item in line.split(';').filter(|i| !i.is_empty() && !i.starts_with("forced=")) {
-        linear = match item.split_once('=') {
-            Some(("linear", "own")) => Some(Linear::Own),
-            Some(("linear", "onednn")) => Some(Linear::Onednn),
-            _ => return Err(format!("{item:?} is not linear=own or linear=onednn")),
-        };
-    }
-    Ok(linear)
 }
 
 pub(crate) unsafe extern "C" fn session_release(session: *mut c_void) {
