@@ -247,3 +247,41 @@ async fn a_call_cut_while_idle_is_counted_failed_without_waiting_for_the_next_it
     s.stop().await;
     sink.stop().await;
 }
+
+#[tokio::test]
+async fn items_offered_before_the_sink_starts_reach_it_once_it_does() {
+    let free = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = free.local_addr().unwrap();
+    drop(free);
+    let s = teeing(format!("http://{addr}"), 16).await;
+    analyze(&s, "early", 3).await;
+    let stats = until(&s, |st| st.failed_calls > 0).await;
+    assert_eq!((stats.forwarded, stats.queued, stats.dropped), (0, 3, 0), "{stats:?}");
+    let got: Got = Arc::default();
+    let keep = got.clone();
+    let receiver = SinkReceiver::new(move |item| keep.lock().unwrap().push(item));
+    let serve = Serve { sink_receiver: Some(receiver), ..Serve::default() };
+    let sink = Server::start(addr, vec![model()], MAX, serve).await.unwrap();
+    let stats = until(&s, |st| st.forwarded == 3).await;
+    assert_eq!((stats.forwarded, stats.queued, stats.dropped), (3, 0, 0), "{stats:?}");
+    let stats = s.close_sink(Duration::from_secs(10)).await.unwrap();
+    let summary = stats.last_summary.unwrap();
+    assert_eq!((summary.accepted_count, summary.rejected_count), (3, 0), "{:?}", summary.errors);
+    assert_eq!(got.lock().unwrap().len(), 3);
+    s.stop().await;
+    sink.stop().await;
+}
+
+#[tokio::test]
+async fn closing_with_the_sink_down_stops_the_drain_at_the_deadline() {
+    let gone = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap();
+    let s = teeing(format!("http://{gone}"), 4).await;
+    analyze(&s, "d", 2).await;
+    let start = Instant::now();
+    let stats = s.close_sink(Duration::from_millis(300)).await.unwrap();
+    assert!(start.elapsed() < Duration::from_secs(2), "{:?}", start.elapsed());
+    let failed = stats.failed_calls;
+    tokio::time::sleep(Duration::from_millis(1200)).await;
+    assert_eq!(s.sink_stats().unwrap().failed_calls, failed, "the drain kept retrying after close");
+    s.stop().await;
+}

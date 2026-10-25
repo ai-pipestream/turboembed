@@ -23,7 +23,8 @@ typed document projection (#1219) and the document's analysis time.
 
 With `--sink-endpoint URI`, every answer an `AnalyzeStream` call
 completes is offered to the forwarder as the client is handed it, as an
-item carrying that answer. A failed document is not a completed one and
+item carrying that answer. Answers a client never takes, because it went
+away first, are not offered. A failed document is not a completed one and
 is not offered. The offer never waits: the queue holds at most
 `--sink-queue-items` items (default 1024) and `--sink-queue-bytes`
 encoded bytes (default 64 MiB), and an answer that does not fit is
@@ -40,7 +41,8 @@ had taken are lost with it. `Server::sink_stats` gives the counts:
 offered, forwarded (taken by a call to send), dropped, queued items and bytes, failed calls with the last
 error, and the last summary a sink answered with. When the server
 stops, it closes the queue and waits up to 10 seconds for what the queue
-holds to be sent and the sink's summary to arrive; `Server::close_sink`
+holds to be sent and the sink's summary to arrive, then stops the drain,
+so a sink that is down is not retried after the server stops; `Server::close_sink`
 does that on its own and answers with the final counts.
 
 ## Serving the sink

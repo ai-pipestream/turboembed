@@ -160,12 +160,15 @@ impl SinkForwarder {
     }
 
     /// Closes the queue and waits up to `within` for what it holds to be
-    /// sent and the sink's summary to arrive.
+    /// sent and the sink's summary to arrive. A drain still running then,
+    /// with a sink that is down, is stopped: what it held is not sent.
     pub(crate) async fn close(&self, within: Duration) {
         self.tx.lock().unwrap_or_else(|p| p.into_inner()).take();
         let task = self.task.lock().unwrap_or_else(|p| p.into_inner()).take();
-        if let Some(t) = task {
-            let _ = tokio::time::timeout(within, t).await;
+        if let Some(mut t) = task
+            && tokio::time::timeout(within, &mut t).await.is_err()
+        {
+            t.abort();
         }
     }
 }
