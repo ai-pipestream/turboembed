@@ -48,6 +48,7 @@ mod entity_graph;
 mod helpers;
 mod indexes;
 mod lexical;
+mod modality;
 mod numeric;
 mod relations;
 mod sentiment;
@@ -117,6 +118,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Incivility>()
         .register::<crate::EmotionLayer>()
         .register::<Pragmatics>()
+        .register::<crate::Modality>()
         .register::<Numbers>()
         .register::<Money>()
         .register::<Ordinals>()

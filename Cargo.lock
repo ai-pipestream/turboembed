@@ -2358,6 +2358,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "tokio-stream",
  "tonic",
  "tonic-prost",
  "tonic-prost-build",
@@ -2601,6 +2602,7 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-bundle",
  "turbo-depparse",
+ "turbo-matcher",
  "turbo-unicode",
  "turbo-zoo",
 ]
