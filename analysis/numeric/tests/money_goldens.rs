@@ -64,7 +64,7 @@ fn check(dir: &str, notation: NumberNotation, name: &str) -> Counts {
         let as_of = Date::parse(config(&converted, "as_of")).expect("an ISO date");
         let rates = EcbRates::load(data_dir().join(config(&converted, "snapshot"))).expect("the rate snapshot");
         let analyzer = Analyzer::builder()
-            .add(MoneyExtractor::new(notation))
+            .add(MoneyExtractor::new(notation).with_opennlp_parity(true))
             .step(MoneyConverter::new(rates, target, as_of).bound())
             .build()
             .expect("the analyzer");

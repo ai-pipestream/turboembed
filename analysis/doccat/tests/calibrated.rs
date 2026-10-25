@@ -145,6 +145,89 @@ fn heldout_receipts_for_each_categorizer() {
 }
 
 #[test]
+fn real_passage_corpus_receipts_across_all_transforms() {
+    let topics = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/inputs/svm-doccat-train/topics.txt"),
+    )
+    .unwrap();
+    let feedback = std::fs::read_to_string(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/inputs/sentiment-train/feedback.txt"),
+    )
+    .unwrap();
+    let mut all: Vec<(&str, Vec<&str>)> = Vec::new();
+    for line in topics.lines().chain(feedback.lines()).filter(|l| !l.trim().is_empty()) {
+        let mut words: Vec<&str> = line.split_whitespace().collect();
+        let cat = words.remove(0);
+        let group = if matches!(cat, "weather" | "cooking" | "sports" | "finance") { "topical" } else { "opinion" };
+        all.push((group, words));
+    }
+    let mut train_events = Vec::new();
+    let mut fit_set = Vec::new();
+    let mut conf_set = Vec::new();
+    let mut test_set = Vec::new();
+    for (i, (label, words)) in all.into_iter().enumerate() {
+        match i % 4 {
+            0 => {
+                let feats: Vec<String> = words.iter().map(|w| format!("bow={w}")).collect();
+                let refs: Vec<&str> = feats.iter().map(String::as_str).collect();
+                train_events.push(Event::from_strs(label, &refs));
+            }
+            1 => fit_set.push((label, words)),
+            2 => conf_set.push((label, words)),
+            _ => test_set.push((label, words)),
+        }
+    }
+    let mut params = TrainingParameters::new();
+    params.put(Key::ALGORITHM, "MAXENT");
+    params.put(Key::ITERATIONS, 80);
+    params.put(Key::CUTOFF, 1);
+    let (trained, _) = trainer::train_events(&train_events, &params, &mut TrainingConfiguration::default()).unwrap();
+    let mut package =
+        turbo_train::ModelPackage::new(turbo_train::Manifest::new("DocumentCategorizerME", "en", 1700000000000));
+    package.add_entry("doccat.model", trained.write().unwrap());
+    let cat = DocumentCategorizerME::new(DoccatModel::open(ModelFile::open(package.to_bytes()).unwrap()).unwrap());
+    let id = identity(&cat, "checked-in-passages").unwrap();
+    let collect = |split: &[(&str, Vec<&str>)]| {
+        let mut rows = Vec::with_capacity(split.len());
+        let mut gold = Vec::with_capacity(split.len());
+        for (label, words) in split {
+            rows.push(cat.categorize(words));
+            gold.push(id.labels.iter().position(|l| l == label).unwrap());
+        }
+        (rows, gold)
+    };
+    let (f_r, f_g) = collect(&fit_set);
+    let (c_r, c_g) = collect(&conf_set);
+    let (t_r, t_g) = collect(&test_set);
+    let before = metrics::reliability(&t_r, &t_g, 10).unwrap();
+    for method in [Method::Temperature, Method::Platt, Method::Isotonic] {
+        let a = fit(
+            id.clone(),
+            method,
+            Samples { split: "passages-fit", probabilities: &f_r, gold: &f_g },
+            Samples { split: "passages-conformal", probabilities: &c_r, gold: &c_g },
+        )
+        .unwrap();
+        let p = turbo_calibration::Predictor::new(
+            a,
+            &id,
+            Policy { coverage: 0.90, max_set_size: id.labels.len(), min_confidence: 0.0 },
+        )
+        .unwrap();
+        let preds: Vec<_> = t_r.iter().map(|r| p.predict(r).unwrap()).collect();
+        let after =
+            metrics::reliability(&preds.iter().map(|r| r.calibrated.clone()).collect::<Vec<_>>(), &t_g, 10).unwrap();
+        let cov = metrics::coverage(&preds, &t_g).unwrap();
+        assert!(after.ece.is_finite() && after.brier.is_finite());
+        assert!(cov.set_coverage >= 0.80, "{method:?} coverage {:.6}", cov.set_coverage);
+        println!(
+            "Checked-in doccat {method:?}: ECE {:.6} -> {:.6}, Brier {:.6} -> {:.6}, set_cov {:.6}",
+            before.ece, after.ece, before.brier, after.brier, cov.set_coverage
+        );
+    }
+}
+
+#[test]
 fn producer_feature_configuration_is_bound_and_custom_features_are_rejected() {
     let cat = maxent();
     let original = identity(&cat, "reviews").unwrap();

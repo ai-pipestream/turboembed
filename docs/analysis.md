@@ -38,7 +38,8 @@ gRPC server serves analysis documents and layers over them
 | `turbo-postag` | `analysis/postag/` | OpenNLP's `POSTaggerME`: `PosModel` opens a `POSModel` file with its descriptor, tag dictionary, beam size and tag format, and `PosTagger` writes `opennlp:pos` (a tag and its probability per token, aligned to `opennlp:tokens`, one beam search per sentence). Tags and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/postag/README.md` describes its goldens and its accuracy on UD English EWT |
 | `turbo-lemmatizer` | `analysis/lemmatizer/` | OpenNLP's `LemmatizerME` (`LemmatizerModel`, `MaxentLemmatizer`: a beam search per sentence over the tagged tokens whose outcomes are lemma classes, shortest edit scripts applied to the lowercased token) and `DictionaryLemmatizer` (a `word<tab>tag<tab>lemma` lookup). Both read `opennlp:tokens` and `opennlp:pos` and write `opennlp:lemmas`; the maxent one also writes `turbo:confidence<opennlp:lemmas>`. Lemmas and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/lemmatizer/README.md` describes its goldens |
 | `turbo-phrase-chunker` | `analysis/phrase-chunker/` | OpenNLP's `ChunkerME`: `ChunkerModel` opens a `ChunkerModel` file and `PhraseChunker` writes `opennlp:chunk-tags` (a chunk tag and its probability per token, aligned to `opennlp:tokens`, one beam search per sentence over the tokens and their part-of-speech tags) and `opennlp:chunks` (the phrases those tags make, as `chunkAsSpans` returns them). Tags and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/phrase-chunker/README.md` describes its goldens. It is not `turbo-chunker`, which cuts retrieval units |
-| `turbo-namefind` | `analysis/namefind/` | OpenNLP's `DictionaryNameFinder`, `RegexNameFinder` and the patterns of `RegexNameFinderFactory`, which write `opennlp:entities` from `opennlp:tokens`, `FilterEntities` to resolve overlapping or nested entities by `FilterRule`, and the merge of several entity layers by `dropOverlappingSpans`. Built-in patterns use hand-written UTF-8 scanners and user patterns in Java syntax are compiled by `JavaRegex` to a direct bytecode matcher or refused with a typed error; the crate documentation lists what is refused and the OpenNLP behaviour that is surprising, and `analysis/namefind/README.md` describes its JVM golden files |
+| `turbo-namefind` | `analysis/namefind/` | OpenNLP's `DictionaryNameFinder`, `RegexNameFinder` and the patterns of `RegexNameFinderFactory`, which write `opennlp:entities` from `opennlp:tokens`, `FilterEntities` to resolve overlapping or nested entities by `FilterRule`, the merge of several entity layers by `dropOverlappingSpans`, and `ConsensusEntityMerger`, which merges several recognizers' entity instances by `EntityMergePolicy` (`RawUnion`, `PriorityFallback` or `Consensus { min_votes, overlap_rule }`) and writes an `Evidence<Entities>` record per entity naming every recognizer that voted for it. Built-in patterns use hand-written UTF-8 scanners and user patterns in Java syntax are compiled by `JavaRegex` to a direct bytecode matcher or refused with a typed error; the crate documentation lists what is refused and the OpenNLP behaviour that is surprising, and `analysis/namefind/README.md` describes its JVM golden files |
+| `turbo-wordnet` | `analysis/wordnet/` | OpenNLP's WordNet API: WNDB and WN-LMF readers, `InMemoryWordNetLexicon`, the Morphy lemmatizer, `LexicalExpander`, taxonomy similarity and hypernym typing, and `WordNetAnnotator`, which writes `WordNetSenses` (`turbo:wordnet-senses`) and `LexicalExpansions` (`turbo:lexical-expansions`) per token from `Tokens` and, when present, `PosTags` and `Lemmas` |
 | `turbo-stem` | `analysis/stem/` | OpenNLP's stemmers: `PorterStemmer`, the 21 Snowball stemmers (generated from the Snowball sources OpenNLP's classes come from, over UTF-16 code units as in Java), the light and minimal stemmers, `CachingStemmer`, and `StemAnnotator` (OpenNLP's `StemmerAnnotator`), which writes `turbo:stems` from `opennlp:tokens`. Its crate documentation lists the OpenNLP behaviour that is surprising; `analysis/stem/README.md` describes its JVM golden files and how OpenNLP's Snowball stems differ from current Snowball's |
 | `turbo-stem-layers` | `analysis/stem-layers/` | The stemmers' layer, `turbo:stems` |
 | `turbo-hunspell` | `analysis/hunspell/` | OpenNLP's Hunspell stemmer, from the `OPENNLP-1927-hunspell-compatibility` branch: a reader of `.aff` and `.dic` files (`HunspellDictionary` with its affix, condition, compound rule and conversion tables), `HunspellStemmer`, and `HunspellAnnotator`, which writes `turbo:stems` from `opennlp:tokens`. No dictionary ships with it; `analysis/hunspell/README.md` lists the licences of the ones the goldens download |
@@ -1694,11 +1695,9 @@ here with the words joined by a space. Not ported:
 - Callbacks (`on_match`: `test_issue615`, `test_matcher_from_usage_docs`,
   `test_matcher_callback`, `test_phrase_matcher_callback` and the like):
   a caller acts on the returned matches instead.
-- `MORPH`, `IS_SUBSET`, `IS_SUPERSET`, `INTERSECTS` and list-valued
-  extension attributes: morphological features and set-valued
-  attributes are not attributes here.
-- `REGEX` and `FUZZY`: no regular expression engine or edit distance is
-  built in; `Tok::text_where` takes the caller's own test.
+- Custom list-valued extension attributes are not imported.
+- `REGEX` returns a typed import error naming the operator. There is no
+  regular expression engine; `Tok::text_where` takes a caller's predicate.
 - `LIKE_URL`, `LIKE_EMAIL`, `DEP` and dependency patterns: the first two
   are spaCy's heuristics, not ported; dependency-tree patterns are a
   separate effort.
@@ -1711,6 +1710,61 @@ here with the words joined by a space. Not ported:
   span ruler: there is no serialization or Python pipeline here, the
   ruler writes `turbo:matches` rather than entities, and a rule number
   stands in for an `id`.
+
+### spaCy JSON rules and predicates
+
+`turbo_matcher::spacy::read_pattern` reads a token-pattern array.
+`read_rules` reads the JSON array or JSONL format exported by EntityRuler
+and SpanRuler. Each `Rule` retains its label, optional id, and either
+compiled-ready token tests or a phrase string. `Rule::add_to` adds token
+rules to a Matcher. A phrase needs the caller's tokenizer, then can be
+added to a PhraseMatcher or SpanRuler; the importer does not guess token
+boundaries. Parse the entire file before adding its rules.
+
+String `IN` and `NOT_IN` keep the existing interned-value path. `FUZZY`
+and `FUZZY1` through `FUZZY9` compare Unicode characters by Levenshtein
+distance, including nested `IN` and `NOT_IN`. The default bound is
+`max(2, round(0.3 * pattern_length))` with ties to even, as in spaCy 3.8.7.
+`MORPH` reads token-aligned `MorphFeatures<Tokens>` through
+`Input::with_morph`; the SpanRuler pipeline reads that optional layer too.
+`IS_SUBSET`, `IS_SUPERSET`, and `INTERSECTS` compare individual `Feat=Val`
+items, expanding comma-separated values. Literal `MORPH` strings compare
+as written; membership sets canonicalize their strings, matching spaCy.
+`TAG` reads `Input::with_tags`, independently of the `POS` column. The
+pipeline ruler does not infer fine-grained tags from its POS layer.
+
+Unknown attributes and operators (including `REGEX`, dependency patterns,
+and custom extensions) return `ImportError::Unsupported` naming the key.
+Wrong types, invalid repeats and excessively large automata refuse.
+The JSON reader limits files to 16 MiB, nesting to 32, and object members
+to 64. Duplicate keys and unpaired surrogate escapes refuse. It adds no
+crate dependencies. Dependency-tree rules remain outside this reader.
+
+The optional local [oracle fixture](../analysis/matcher/tests/data/README.md) compares
+2,580 exact labelled token spans over 31 original EWT sentences (485
+tokens), using spaCy 3.8.7 in the pinned reference container. They include
+Explosion's unchanged 118-rule published drug-pattern file and additional
+operator rules, with original UTF-8 byte spans checked in Rust. The EWT
+corpus and generated JSON remain outside the committed tree because their
+licence is CC BY-SA 4.0. Set `TURBO_SPACY_ORACLE` to the generated file and
+`TURBO_TEST_REQUIRE_SPACY_ORACLE=1` to require the external comparison. A pipeline
+test checks morphology matches and their source offsets; malformed files,
+Unicode edit distance, missing layers, and alignment errors are tested.
+
+The [existing-path timing receipt](../analysis/matcher/reference/existing-path-timing.json)
+compares main `bf52319d` with measured candidate `89c2ed76` on the complete
+EWT r2.16 train file: 204,577 tokens and 51,765 byte-identical matches.
+On an AMD Ryzen 9 9950X3D, native release builds ran on logical CPU 7 in
+twelve alternating-order pairs, fifteen timed calls per process after one
+warmup. Median of process medians: main 13.439 ms, candidate 13.514 ms
+(ratio 1.0056); the median paired ratio is 0.9894. Individual ratios range
+from 0.7757 to 1.3104 on the shared host. These observations are consistent
+with timing parity within the observed variation; no speedup or
+isolated-host result is claimed. This does not measure the added fuzzy or
+morphology predicates. All twelve raw pairs, source/corpus/output hashes
+and ambient load are in the receipt; the oracle's README gives the exact
+reproduction commands. The receipt and subsequent documentation/CI sync
+do not change the measured matcher or example.
 
 ## Term analyzer and per-language normalization profiles (`turbo:terms`, `turbo:stems`)
 
@@ -3209,8 +3263,8 @@ The `ud` module holds the recipes of the eighteen published
 models as typed data: the treebank (`UniversalDependencies/UD_*` at
 release 2.16, its `train` file, size and digests, CC BY-SA 4.0), the
 component, the factory the 2.5.4 trainer tool builds and the training
-parameters of `ud-train.conf` in `apache/opennlp-models` (`MAXENT`,
-cutoff 5, four threads) with OpenNLP 2.5.4's whitespace definition, the
+parameters recovered from the published models (`MAXENT`, 300 iterations,
+cutoff 5, 12 training partitions) with OpenNLP 2.5.4's whitespace definition, the
 universal tag set and the publisher's time zone. The treebanks are CC
 BY-SA, so the recipes fetch them through `turbo-zoo` by digest after the
 licence is accepted and never check them in; `ud::datasets()` is their
@@ -3224,31 +3278,101 @@ cargo run -p turbo-goldens-tool -- fetch-models <dir>
 TURBO_GOLDENS_MODELS=<dir> cargo test -p turbo-train-components --release --test reproduce -- --ignored --nocapture
 ```
 
-It reports per model whether the event checksum, the manifest and the
-zip entries agree, and how the model entry compares: byte for byte, or
-the same predicates and patterns with the number of differing parameters
-and the largest difference. Two things were found. The published models
-were trained with 300 iterations, not the 150 the committed
-`ud-train.conf` says (the English sentence model's parameters after
-every iteration of a longer run were compared with the file; 300 agrees,
-299 and 301 do not), so the recipes use 300. And with 300 iterations the
-events, manifests, predicates and patterns of all eighteen models come out
-exactly while the parameters differ in their last bits, by 2.2e-15 to
-9.8e-15 at most for the sentence and token models, by 1.6e-14 to 1.4e-13
-for the taggers and by 8.0e-15 to 1.8e-14 for the lemmatizers, depending
-on the model. For the eight sentence and token models the JVM of the
-goldens container, running the fork's trainer on the same events, writes
-the parameters this port writes and shows the same residual against the
-published file (checked in #394), so for them the residual is not between
-the port and the fork's trainer; the taggers and lemmatizers were not run
-through the fork's trainer in the container, only compared with the
-published files. Its cause is not known (`GISTrainer` uses `StrictMath` and
-merges its threads' sums in a fixed order, so platform `Math` intrinsics
-and thread timing do not explain it), and the next experiment is to run
-the OpenNLP 2.5.4 command line itself in the container on the same
-treebank. The test
-asserts agreement to within `1e-12` and says which models match byte for
-byte (none does); a model that did not come out this close would fail it.
+It reports per model whether the event checksum, manifest and ZIP entry
+names agree, and compares the model entry byte for byte. The published
+models require **300 iterations and 12 training partitions**, while the
+committed `ud-train.conf` says 150 and 4. The recipes now use 300 and 12;
+`CONF_ITERATIONS` and `CONF_THREADS` preserve the committed settings.
+
+The last-bit residual was caused by the partition count, not the Rust
+arithmetic or a data change. GIS sums events within each partition and
+then combines the partial sums in partition order. Changing the number
+of partitions changes floating-point grouping. Thread scheduling does not.
+The original OpenNLP 2.5.4 CLI with 4 partitions reproduces the previous
+Rust English sentence entry exactly (SHA-256
+`3502c0d12a9b228e6d7bcfdab29c2a9cbcf56074e4443565e7f5bdf6e7683789`).
+With 12 it matches the published entry exactly. Counts 1, 2, 3, 6, 8,
+16, 24, 32, 48 and 64 did not match. The 4-partition run on JDK 25 also
+produced the same residual as the pinned JDK 21 run.
+
+The original CLI was run in the pinned goldens container's Temurin
+21.0.12.1+1, using the release JAR ahead of any fork code (the classpath
+contained only the release and SLF4J). Inputs were the digest-checked
+UD r2.16 English EWT training file, SHA-256
+`3fb78e2b55482c8ee00caa653af436c88c9e5bc9a73ce26e4ae3ddc79d2b7e7b`,
+and the same tokenizer, sentence, POS and lemma defaults as the recipes.
+The CLI's English entries match the published ones at 12 partitions:
+
+| Component | Model entry bytes | Entry SHA-256 |
+| --- | ---: | --- |
+| Sentence | 24452 | `675b37c8c75162c0ad0546099c2e923e356db7318e91fdab254ec16e302024c6` |
+| Tokens | 519655 | `c6202d54abfa652a2ba50153cd3087320f5871e498f5b72e1a6b15133eccf1c8` |
+| POS | 1620749 | `8ef3da3d3aeefe589cd44e8a4fbdcc961e36e6446a9007a04db1378fcaf3d97e` |
+| Lemmas | 899284 | `41dc851fbd9a789062c6e8a80a1e56f2b0b11bd63ee6cc11b4b24f0ffeaacc47` |
+
+Release inputs from Maven Central (SHA-256):
+
+- [opennlp-tools 2.5.4](https://repo.maven.apache.org/maven2/org/apache/opennlp/opennlp-tools/2.5.4/):
+  `5efedb26d0e97e53707a8d2f0e2e28f05fcf654fce2a33f8bfe11c2d4c2a4fe9`.
+- The matching sources JAR:
+  `34921ed6fc85a1e87b4d2996e989d9a941162618712e35f927b790138eed273e`.
+- [slf4j-api 2.0.17](https://repo.maven.apache.org/maven2/org/slf4j/slf4j-api/2.0.17/):
+  `7b751d952061954d5abfed7181c1f645d336091b679891591d63329c622eb832`.
+- [slf4j-simple 2.0.17](https://repo.maven.apache.org/maven2/org/slf4j/slf4j-simple/2.0.17/):
+  `ddfea59ac074c6d3e24ac2c38622d2d963895e17f70b38ed4bdae4d780be6964`.
+
+To repeat the release CLI comparison, put those runtime JARs in a local
+`jars` directory and set `TREEBANK` to the verified English EWT file:
+
+```sh
+printf 'Algorithm=MAXENT\nIterations=300\nCutoff=5\nThreads=12\n' > train.conf
+java -cp 'jars/*' opennlp.tools.cmdline.CLI SentenceDetectorTrainer.conllu \
+  -params train.conf -lang en -model en-sentence.bin -sentencesPerSample 10 \
+  -data "$TREEBANK" -encoding UTF-8
+```
+
+For the other components, replace the tool with `TokenizerTrainer.conllu`,
+`POSTaggerTrainer.conllu` or `LemmatizerTrainerME.conllu`, choose a distinct
+output file, and omit `-sentencesPerSample 10`. Compare the uncompressed
+`sent.model`, `token.model`, `pos.model` or `lemmatizer.model` entries.
+The CLI writes a new manifest timestamp; the Rust reproduction reuses the
+published timestamp to compare the manifest too. ZIP container bytes are
+not an equality gate because the runtimes use different compression.
+No corpus text or generated model is committed.
+
+The reproduction test now requires exact equality rather than the former
+`1e-12` tolerance, and a filter selecting no models fails.
+
+The full release run reproduced all 18 models in 2,687 seconds. An independent
+ZIP-entry comparison also found identical names, order and bytes for all
+entries, including each manifest. The table gives the uncompressed model
+entry digests. The final strict test additionally passed for the English
+sentence model; forcing 4 partitions made it fail, and an empty model filter
+failed as intended. The full training run used the same 12-partition code
+before its tolerance assertion was replaced; its exact-match count and the
+independent byte comparison establish exact equality for all 18 outputs.
+
+| Published model | Entry | Bytes | SHA-256 |
+| --- | --- | ---: | --- |
+| `opennlp-de-ud-gsd-lemmas-1.3-2.5.4` | `lemmatizer.model` | 1401630 | `d956fc98e8af4be8bc1bffb4bb34f4800ca5346c7ee6b479182c21b182dcf221` |
+| `opennlp-de-ud-gsd-pos-1.3-2.5.4` | `pos.model` | 1775723 | `0d7b88d4c7acb2ce31919d6310bb713b781a37b70df156a2685b21f9c3065664` |
+| `opennlp-de-ud-gsd-sentence-1.3-2.5.4` | `sent.model` | 19119 | `efd004c77cb65b07241caa9d4b4a7d81b163240e2c8e434f5c01e14975dda416` |
+| `opennlp-de-ud-gsd-tokens-1.3-2.5.4` | `token.model` | 872136 | `af256135459e85168aa21ac37ff9a9a05a9e9350a519ad8fc7266c7583646d4c` |
+| `opennlp-en-ud-ewt-lemmas-1.3-2.5.4` | `lemmatizer.model` | 899284 | `41dc851fbd9a789062c6e8a80a1e56f2b0b11bd63ee6cc11b4b24f0ffeaacc47` |
+| `opennlp-en-ud-ewt-pos-1.3-2.5.4` | `pos.model` | 1620749 | `8ef3da3d3aeefe589cd44e8a4fbdcc961e36e6446a9007a04db1378fcaf3d97e` |
+| `opennlp-en-ud-ewt-sentence-1.3-2.5.4` | `sent.model` | 24452 | `675b37c8c75162c0ad0546099c2e923e356db7318e91fdab254ec16e302024c6` |
+| `opennlp-en-ud-ewt-tokens-1.3-2.5.4` | `token.model` | 519655 | `c6202d54abfa652a2ba50153cd3087320f5871e498f5b72e1a6b15133eccf1c8` |
+| `opennlp-es-ud-gsd-lemmas-1.3-2.5.4` | `lemmatizer.model` | 1743916 | `f5f16256bf99b2cfcf3b2f97d9081a7ec6b57f6f4531689306023a93ec4f9059` |
+| `opennlp-es-ud-gsd-pos-1.3-2.5.4` | `pos.model` | 2430222 | `5338cf23eba3b2317005559375354278df5feb2b7aaf19be8787b5597565a400` |
+| `opennlp-es-ud-gsd-tokens-1.3-2.5.4` | `token.model` | 908469 | `343209c259a6b884c44a1ca0bb51e3cb936933b586f76c428cc0b6eb20297dcd` |
+| `opennlp-fr-ud-gsd-lemmas-1.3-2.5.4` | `lemmatizer.model` | 1555405 | `3cf426c999fe050f3f8762f378020edeefd322e9827862386372701a5916176a` |
+| `opennlp-fr-ud-gsd-pos-1.3-2.5.4` | `pos.model` | 2180689 | `eaed1b2c2ccbf56cea093c4a8dcc168f56e1a6366674bdb7699d18933519b338` |
+| `opennlp-fr-ud-gsd-tokens-1.3-2.5.4` | `token.model` | 906232 | `40fd826bd1561be799eb9d82c93ea7be52bc26f3bbee5fed9f521654283ab4d8` |
+| `opennlp-pt-ud-gsd-lemmas-1.3-2.5.4` | `lemmatizer.model` | 3183448 | `b4db1eae86f657f63cb5210beefc0b73ddd2c79f550b23584529283664fc0862` |
+| `opennlp-pt-ud-gsd-pos-1.3-2.5.4` | `pos.model` | 1776578 | `26090fd13e28959c9069bde6b9403da50ea3b56a2b1125be7d05bb5d01df4496` |
+| `opennlp-pt-ud-gsd-sentence-1.3-2.5.4` | `sent.model` | 23994 | `c079b542da8aaa40d64cbfa0d8052f6f16903784f4bbaf88deab65deabd21bad` |
+| `opennlp-pt-ud-gsd-tokens-1.3-2.5.4` | `token.model` | 669251 | `f7dc70bdd9c1a397bacbab18e59464235eeb7d224a8b31a8e46cb214ac4b27dd` |
+
 
 ## Generating golden files
 
@@ -3598,12 +3722,12 @@ trained on MASC 3.0.0 (CC BY 3.0 US), gated against
   tweets is not settled, and the licence policy refuses data under a
   platform's terms. The places count every document read, so no other
   document changes side, and the card lists the documents left out.
-- The training: the factory defaults and the settings of the UD 1.3
-  models (GIS, 300 iterations, cutoff 5, 4 threads, OpenNLP 2.5.4's
+- The training: the factory defaults and the released MASC settings
+  (GIS, 300 iterations, cutoff 5, 4 partitions, OpenNLP 2.5.4's
   whitespace, 10 sentences per sentence detector sample, the default
   feature generator descriptor and no tag dictionary for the tagger). The
-  sentence detector and the tokenizer differ from their references in
-  their data, not their settings. The tagger's reference was trained
+  sentence detector and the tokenizer differ from their UD 1.3
+  references in data and training partitions (the references use 12). The tagger's reference was trained
   otherwise (its manifest records OpenNLP 1.5.0, 100 iterations and
   cutoff 5, and it holds a tag dictionary and no feature generator
   descriptor), so its gate compares data and settings together. The
@@ -3754,9 +3878,10 @@ files, and its recipe's component and language.
   and the README's `License: CC BY 4.0` line, before every file is
   checked against its record.
 - The split: UD's own, trained on `train` and gated on `test`, `dev`
-  not read. The training has the settings of the MASC recipes (those of
-  the UD 1.3 models) with the factory defaults of the treebank's
-  language. The samples are those of OpenNLP's CoNLL-U streams, except
+  not read. The training keeps the released UD 2.16 settings (GIS, 300
+  iterations, cutoff 5, 4 partitions) with the factory defaults of the
+  treebank's language. OpenNLP UD 1.3 reproduction separately uses 12
+  partitions. The samples are those of OpenNLP's CoNLL-U streams, except
   that the tagger's and lemmatizer's leave out empty nodes, which are
   not words of the text.
 - The gate: against the OpenNLP UD 1.3 model for the language and
@@ -4318,6 +4443,32 @@ Every `weighted` setting across `0.35..=0.50` on `turbo-chunker-254-200`
 `39.42`, `+1.66` points above `bm25-document`) clears `turbo-eval gate`
 against all three stage-0 baselines, `bm25-document`, and both dense
 `turbo-chunker` records.
+
+Those gates compare a hybrid candidate against dense-only baselines,
+so they credit the chunker with BM25's share of the gain. Recorded
+like for like (`--retrieval hybrid --fusion weighted
+--bm25-weight 0.35` on both sides, all-MiniLM-L6-v2, CPU, one
+commit, in `analysis/eval/records/sentence-windows-5-hybrid`,
+`fixed-tokens-200-hybrid`, `opennlp-sandbox-semantic-hybrid` and
+`turbo-chunker-254-200-hybrid-cpu`; the CPU candidate reproduces
+the CUDA record's nDCG@10 on three sets and differs by 0.18 points
+on `arguana`), the chunker's own share is within noise of the
+simple baselines:
+
+| Baseline (hybrid) | `scifact` | `nfcorpus` | `arguana` | `qasper` | Gate (candidate `69.24` / `34.28` / `51.47` / `37.85`) |
+| :--- | ---: | ---: | ---: | ---: | :--- |
+| `sentence-windows-5-hybrid` | `70.14` | `33.91` | `51.74` | `38.11` | FAIL (0 gains; `scifact` below the floor) |
+| `fixed-tokens-200-hybrid` | `69.48` | `33.56` | `52.17` | `38.13` | FAIL (0 gains; `arguana` below the floor, p = 0.0079) |
+| `opennlp-sandbox-semantic-hybrid` | `66.49` | `32.01` | `41.36` | `39.37` | FAIL (3 gains; `qasper` -1.52 below the floor) |
+
+So at `w = 0.35` the earlier stage-0 PASSes measure mostly the
+addition of BM25, not the chunker: hybrid against hybrid,
+`turbo-chunker-254-200` ties `sentence-windows-5` on every set,
+and against `fixed-tokens-200` it is significantly better on
+`nfcorpus` (`+0.71`, 95% interval `+0.16` to `+1.30`, p = 0.0147,
+real but under the gate's 2-point gain threshold), significantly
+worse on `arguana`, and tied on `scifact` and `qasper`. It beats
+the sandbox semantic chunker everywhere but `qasper`.
 
 ### Structure in the chunker
 

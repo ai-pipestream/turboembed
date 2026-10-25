@@ -196,7 +196,8 @@ fn the_recipes_name_the_published_files_and_the_training_settings() {
     assert_eq!(p.get_int(Key::ITERATIONS).unwrap(), Some(300));
     assert_eq!(CONF_ITERATIONS, 150);
     assert_eq!(p.get_int(Key::CUTOFF).unwrap(), Some(5));
-    assert_eq!(p.get_int(Key::THREADS).unwrap(), Some(4));
+    assert_eq!(p.get_int(Key::THREADS).unwrap(), Some(12));
+    assert_eq!(CONF_THREADS, 4);
     assert_eq!(p.algorithm().unwrap(), Some("MAXENT"));
     let pt = RECIPES[8].sentence_factory().unwrap();
     assert_eq!(pt.eos_string(), ".?!;:()\u{AB}\u{BB}'\"");

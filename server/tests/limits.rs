@@ -261,3 +261,39 @@ async fn concurrent_loads_fail_only_their_own_registration() {
     let list = c.capabilities(CapabilitiesRequest {}).await.unwrap().into_inner();
     assert_eq!(list.bundles.len(), 1);
 }
+
+#[tokio::test]
+async fn load_bundle_preserves_structured_failure_codes_and_field_metadata() {
+    let (_s, mut c) = serve().await;
+    let bundle = tiny().to_str().unwrap().to_string();
+
+    // Missing path -> Code::NotFound with turbo-code = 1280 (TURBO_E_BUNDLE_NOT_FOUND).
+    let e = c.load_bundle(load_req("missing", "/no/such/bundle", 1, 0)).await.expect_err("missing bundle");
+    assert_eq!(refusal(&e), (Code::NotFound, 1280));
+    assert_eq!(e.metadata().get("turbo-field").unwrap(), "0");
+
+    // Unsupported session descriptor field -> Code::Unimplemented with turbo-code = 513 and turbo-field = 2.
+    let mut bad_seq = load_req("over-seq", &bundle, 1, 0);
+    bad_seq.max_seq = 65;
+    let e = c.load_bundle(bad_seq).await.expect_err("max_seq over bundle limit");
+    assert_eq!(refusal(&e), (Code::Unimplemented, 513));
+    assert_eq!(e.metadata().get("turbo-field").unwrap(), "2");
+    assert!(e.message().contains("field 2 (max_seq)"), "{}", e.message());
+
+    // Setting both select_device = true and a non-zero device index -> Code::InvalidArgument (256).
+    let mut bad_dev = load_req("bad-dev", &bundle, 1, 0);
+    bad_dev.device = 1;
+    bad_dev.select_device = true;
+    let e = c.load_bundle(bad_dev).await.expect_err("conflicting device selection");
+    assert_eq!(refusal(&e), (Code::InvalidArgument, 256));
+
+    // On a CPU-only runtime, select_device = true with device = 0 reaches turbo_runtime_select
+    // and returns Code::FailedPrecondition with turbo-code = 1024 (TURBO_E_DEVICE_NOT_FOUND).
+    if turbo_kserve::api::version().split_whitespace().skip(1).all(|b| b == "cpu") {
+        let mut sel = load_req("auto-dev", &bundle, 1, 0);
+        sel.device = 0;
+        sel.select_device = true;
+        let e = c.load_bundle(sel).await.expect_err("no non-CPU accelerator");
+        assert_eq!(refusal(&e), (Code::FailedPrecondition, 1024));
+    }
+}

@@ -215,9 +215,23 @@ fn keep(rules: &[Rule], node: &Node, ctx: &Ctx<'_>) -> bool {
         "partd_of" => false,
         // `el año anterior a la revolución` relates the year to what
         // follows.
-        "period_rel_after" | "period_art_rel_after" => !matches!(after, Some("a" | "al" | "de" | "del")),
+        "period_rel_after" => !matches!(after, Some("a" | "al" | "de" | "del")),
+        "period_art_rel_after" => {
+            !matches!(after, Some("a" | "al" | "de" | "del"))
+                && !(ctx.word(ctx.start + 1) == "trimestre" && matches!(before, Some("en" | "para")))
+        }
+        "period_art_rel" if ctx.word(ctx.end - 1) == "trimestre" => !matches!(before, Some("en" | "para")),
+        "period_el_nth_part" if ctx.word(ctx.start + 2) == "semestre" => false,
+        "period_nth_week_month" => {
+            !(ctx.end + 1 < ctx.lexed.len()
+                && ctx.word(ctx.end) == "el"
+                && SPANISH_TIMES.lexicon().lookup(ctx.word(ctx.end + 1)).iter().any(|e| e.dim == WEEKDAY))
+        }
+        "range_art_next_n" => matches!(ctx.word(ctx.end - 1), "decadas" | "decenios"),
+        "moded_ultimos" => before == Some("los"),
+        "dt_clock_date" => !matches!(ctx.word(ctx.start), "de" | "del" | "a"),
         // `el año`, `la semana`: the reference's own.
-        "period_the_unit" => matches!(before, Some("el" | "la" | "del")),
+        "period_the_unit" => matches!(before, Some("el" | "la" | "del")) && after != Some("hasta"),
         // `y después de las 6` starts another mention.
         "moded_y_despues" | "moded_o_despues" => !matches!(after, Some("de" | "del")),
         _ => true,
