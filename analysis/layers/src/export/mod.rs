@@ -56,6 +56,7 @@ mod rhetoric;
 mod sentiment;
 mod sparse;
 mod structure;
+mod tables;
 mod temporal;
 mod vectors;
 
@@ -95,6 +96,8 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<PhraseChunks>()
         .register::<Boundaries>()
         .register::<Structure>()
+        .register::<crate::Tables>()
+        .register::<crate::KeyValuePairs>()
         .register::<Chunks>()
         .register::<Language>()
         .register::<LanguageSpans>()

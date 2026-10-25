@@ -12,6 +12,7 @@
 use std::fmt;
 
 use turbo_analysis::{Annotator, Error, Fnv1a, Refs, Span, View, ViewId};
+pub use turbo_analysis_layers::unit::DEFAULT_UNITS;
 use turbo_analysis_layers::{Money, NumberNotation, PERCENT, Quantities, QuantityMention};
 use turbo_unicode::java;
 
@@ -20,20 +21,6 @@ use crate::scan::{
     boundary_after, boundary_before, byte_at, char_at, continues_number, parse, sign_boundary_before, whitespace_at,
     word_end,
 };
-
-/// The units OpenNLP's extractor knows unless a caller gives its own set:
-/// common measurement tokens, matched exactly and case-sensitively.
-/// Ambiguous English words such as `in` are left out on purpose.
-pub const DEFAULT_UNITS: [&str; 37] = [
-    "km", "m", "cm", "mm", "nm", "mi", "ft", "yd", //
-    "kg", "g", "mg", "t", "lb", "lbs", "oz", //
-    "L", "mL", "ml", //
-    "ms", "ns", "min", "hr", //
-    "KB", "MB", "GB", "TB", "PB", //
-    "Hz", "kHz", "MHz", "GHz", //
-    "kW", "MW", "GW", "kWh", //
-    "mph", "kph",
-];
 
 /// The word a percentage may be written with instead of `%`, in any case.
 const PERCENT_WORD: &str = "percent";
@@ -138,6 +125,13 @@ impl QuantityExtractor {
         self.notation
     }
 
+    /// Replaces the money extractor used to exclude currency amounts before
+    /// scanning quantities.
+    pub(crate) fn with_money(mut self, money: MoneyExtractor) -> QuantityExtractor {
+        self.money = money;
+        self
+    }
+
     /// Appends every quantity mention in `text` to `out`, in text order,
     /// with byte offsets into `text`.
     ///
@@ -150,9 +144,32 @@ impl QuantityExtractor {
     ///
     /// When `text` is longer than `i32::MAX` bytes, as the money scan does.
     pub fn scan(&self, text: &str, out: &mut Quantities) {
+        self.scan_with_fallback(text, None, out);
+    }
+
+    /// Scans `text` with `self`, falling back to `fallback` at candidate
+    /// positions that fail in `self.notation` when a document's region
+    /// ballot carries both notations.
+    pub(crate) fn scan_with_fallback(&self, text: &str, fallback: Option<&QuantityExtractor>, out: &mut Quantities) {
         let mut money = Money::new(ViewId::SOURCE);
         self.money.scan(text, &mut money);
-        let (money_start, money_end) = money.spans.columns();
+        let (mut money_start, mut money_end): (Vec<u32>, Vec<u32>) = {
+            let (s, e) = money.spans.columns();
+            (s.to_vec(), e.to_vec())
+        };
+        if let Some(alt) = fallback.filter(|alt| alt.notation != self.notation) {
+            let mut alt_money = Money::new(ViewId::SOURCE);
+            alt.money.scan(text, &mut alt_money);
+            let (alt_s, alt_e) = alt_money.spans.columns();
+            for (&s, &e) in alt_s.iter().zip(alt_e.iter()) {
+                let overlaps = money_start.iter().zip(money_end.iter()).any(|(&ms, &me)| s < me && ms < e);
+                if !overlaps {
+                    let pos = money_start.partition_point(|&ms| ms < s);
+                    money_start.insert(pos, s);
+                    money_end.insert(pos, e);
+                }
+            }
+        }
         let b = text.as_bytes();
         let mut digits = String::new();
         let mut amount = 0;
@@ -174,7 +191,10 @@ impl QuantityExtractor {
                 i = money_end[amount] as usize;
                 continue;
             }
-            let Some(found) = self.match_at(text, i, &mut digits) else {
+            let found = self.match_at(text, i, &mut digits).or_else(|| {
+                fallback.filter(|alt| alt.notation != self.notation).and_then(|alt| alt.match_at(text, i, &mut digits))
+            });
+            let Some(found) = found else {
                 // A minus or a digit is one byte.
                 i += 1;
                 continue;

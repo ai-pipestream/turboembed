@@ -64,7 +64,13 @@ async fn main() -> ExitCode {
         },
         None => None,
     };
-    let serve = Serve { admin: args.admin, vocabulary: args.vocabulary_dir.map(PathBuf::from), catalog };
+    let serve = Serve {
+        admin: args.admin,
+        vocabulary: args.vocabulary_dir.map(PathBuf::from),
+        catalog,
+        sink: args.sink,
+        ..Serve::default()
+    };
     let server = match Server::start(args.listen, args.models, args.max_message_bytes, serve).await {
         Ok(s) => s,
         Err(e) => {

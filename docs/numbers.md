@@ -44,10 +44,16 @@ Offsets are UTF-8 byte offsets into the view, on character boundaries.
   or after an exponent marker (`1e-3`), never starts a mention: it goes
   on with the number before it.
 - `NumberNotation::LatinUs` groups with `,` and marks the fraction with
-  `.`; `LatinEu` the other way round. The caller chooses. OpenNLP can
-  also pick the notation from a `java.util.Locale` with the JDK's locale
-  data; that lookup is not ported, so a caller that knows the locale maps
-  it to a notation itself.
+  `.`; `LatinEu` the other way round. Callers can choose a fixed notation,
+  resolve one from a `RegionCode` (`region_notation` /
+  `NumberScanner::for_region`) or a BCP-47 locale tag (`locale_notation` /
+  `NumberScanner::for_locale`), or run `RegionAwareNumberAnnotator`
+  (`turbo-numeric:region-aware-numbers`) over `(View, Regions)`. When a
+  document's `Regions` ballot carries votes for both `LatinEu` and
+  `LatinUs` countries, `RegionAwareNumberAnnotator` tries the winning
+  region's notation first and falls back to the secondary notation when a
+  candidate numeral is written in the other convention (`1.234,5`
+  alongside `1,234.5`).
 - Grouping is strict: a group separator may follow at most three leading
   digits, and every further group has exactly three.
 - The scan fails, rather than returning the prefix it read, when it stops

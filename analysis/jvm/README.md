@@ -36,7 +36,8 @@ of its results depend on the platform rather than on OpenNLP:
   cannot compare, which the JVM orders by `System.identityHashCode`;
   `is_jvm_exact` says when that happened.
 
-The crate has no dependencies.
+The only runtime dependency is the standard-library-only `turbo-unicode`,
+which supplies the shared UTF-16 length helper.
 
 ## Test vectors
 
