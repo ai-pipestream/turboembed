@@ -9,8 +9,9 @@ compiler holds them to it.
 
 It is the base the chunker is built on, and the base OpenNLP 3.x is to
 be rewritten on, as add-ons: OpenNLP is the reference, and the Rust side
-follows it on its own schedule. The crates are Rust only for now;
-nothing here is in the C header or the gRPC server.
+follows it on its own schedule. The crates are Rust only; the
+gRPC server serves analysis documents and layers over them
+(`server/src/analysis.rs`, docs/grpc-analysis.md).
 
 ## Crates
 
@@ -4520,8 +4521,9 @@ inside one of the top 10 chunks rises from 0.088 with no structure to
 all-MiniLM-L6-v2 does) or by the first token (as BGE does).
 `analysis/eval/tests/bundle_pooling.rs` checks the harness's vectors
 against each bundle's own reference vectors when `TURBO_EVAL_BUNDLES`
-names the bundles. The BGE bundles carry no query prompt, so queries are
-embedded without BGE's retrieval instruction.
+names the bundles. The table below embeds queries without BGE's retrieval
+instruction; the v1.5 recipes now carry it as their query prompt, and the
+next table measures it.
 
 With `turbo-chunker --max 254 --target 200`, nDCG@10:
 
@@ -4544,6 +4546,53 @@ on arguana and 1.5 on scifact against BGE alone; the dense BGE records
 pass the gate against `sentence-windows-5` and `fixed-tokens-200` but
 not against the semantic chunker (qasper under the floor), and the BGE
 hybrids pass against all three stage 0 baselines and `bm25-document`.
+
+#### The query instruction
+
+The v1.5 recipes (`bge-small-en-v1.5`, `bge-base-en-v1.5`,
+`bge-large-en-v1.5`) give `embed.prefix_query` as each model card gives
+the instruction: `Represent this sentence for searching relevant
+passages: `, trailing space included. `TURBO_PROMPT_QUERY` prepends it;
+documents get no prefix. bge-m3 asks for no instruction and its recipes
+set none. Each bundle's reference has one query case, so the instruction
+is in its sealed vectors. The same pipeline as above, on the 4080 at one
+commit, without the instruction and with it, nDCG@10:
+
+| Embedder | Retrieval | Query | `scifact` | `nfcorpus` | `arguana` | `qasper` | Mean |
+| :--- | :--- | :--- | ---: | ---: | ---: | ---: | ---: |
+| bge-small-en-v1.5 | dense | none | `70.32` | `35.21` | `62.86` | `30.32` | `49.68` |
+| bge-small-en-v1.5 | dense | instruction | `70.21` | `35.15` | `61.39` | `31.28` | `49.51` |
+| bge-base-en-v1.5 | dense | none | `73.74` | `36.65` | `64.51` | `30.82` | `51.43` |
+| bge-base-en-v1.5 | dense | instruction | `73.90` | `36.70` | `62.84` | `31.64` | `51.27` |
+| bge-small-en-v1.5 | hybrid, `w = 0.35` | none | `70.55` | `34.90` | `58.57` | `38.62` | `50.66` |
+| bge-small-en-v1.5 | hybrid, `w = 0.35` | instruction | `70.44` | `35.16` | `57.66` | `38.63` | `50.47` |
+| bge-base-en-v1.5 | hybrid, `w = 0.35` | none | `72.26` | `36.05` | `60.47` | `39.21` | `52.00` |
+| bge-base-en-v1.5 | hybrid, `w = 0.35` | instruction | `71.77` | `36.42` | `59.29` | `39.22` | `51.68` |
+
+The instruction does not pass the gate against the same embedder
+without it (`turbo-eval gate`). It costs arguana 1.48 (-2.19 to -0.76)
+and 1.68 (-2.34 to -1.01) points dense, and 0.92 and 1.18 in the
+hybrids, every interval below zero and the drop below the -0.5 floor.
+arguana's queries are whole arguments, not short searches, which the
+instruction was not written for. It gains qasper +0.96 (+0.29 to +1.66)
+and +0.82 (+0.15 to +1.50) points dense, and nothing in the hybrids.
+scifact and nfcorpus move inside their intervals. The records with the
+instruction are `analysis/eval/records/bge-small-turbo-chunker-254-200-instruction`,
+`bge-base-turbo-chunker-254-200-instruction` and their `-hybrid` twins;
+the records without it were made again at the same commit, from bundles
+that differ from the instructed ones in `prefix_query` alone, and give the
+numbers above to the last digit.
+
+All of these records were measured at commit `1d7d2cbf`, whose recipes
+name the reference image `turbo-reference@sha256:2d74a1a9…`. The recipes
+now name `turbo-reference@sha256:ca155518…`, built from main's Dockerfile.
+The image computes only the bundle's reference, the token ids and vectors
+each machine checks itself against when it loads the bundle; the weights
+and the tokenizer the evaluation runs are copied from the pinned upstream
+files without it. So the change of pin can move the sealed reference, and
+with it `manifest_sha256`, but not `artifact_sha256` or
+`tokenizer_sha256`, nor anything these records measure. They have not
+been measured again under the new pin.
 
 ### Measures and the gate
 
@@ -5065,15 +5114,9 @@ runs them on any machine:
 
 ## Not built yet
 
-- The annotators themselves: normalizers, sentence detection,
-  tokenization, and the boundary signals besides structure and drift
-  (lexical cohesion, coreference, discourse markers).
-- The rest of the evaluation harness: baseline records for
-  `legalbench-rag-mini`, which is placed by hand, a published copy and
-  licence for HiCBench, and the chunker's records on it. It is also where the BM25 only baseline
-  is to be reported, from the term statistics above, and what each
-  level and each kind of level vector adds.
-- A gRPC surface, to be shared with the OpenNLP standard.
+- A published copy and licence for HiCBench, and the chunker's
+  records on it. The other evaluation records, including the BM25
+  only baseline, are in `analysis/eval/records/`.
 - A reader for spaCy's JSON pattern files, building `Tok` patterns from
   them.
 
