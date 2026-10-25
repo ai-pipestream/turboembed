@@ -107,6 +107,12 @@ fn project_alternatives<L: Layer>(cx: &mut ProjectionCx<'_>, key: KeyId) -> Type
     })
 }
 
+fn nbest_token_spans<L: Layer>(cx: &ProjectionCx<'_>, key: KeyId, index: usize) -> Vec<SpanFragment> {
+    let anchor =
+        cx.doc.made_on(key).iter().find(|k| k.ty == TypeId::of::<L>()).copied().unwrap_or(Key::<L>::DEFAULT.id());
+    token_spans(cx, anchor, index)
+}
+
 fn project_nbest<L: Layer>(
     cx: &mut ProjectionCx<'_>,
     key: KeyId,
@@ -416,10 +422,10 @@ pub(crate) fn project_shared_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Opt
         return Some(project_alternatives::<Entities>(cx, key));
     }
     if ty == TypeId::of::<NBest<PosTags>>() {
-        return Some(project_nbest::<PosTags>(cx, key, token_spans));
+        return Some(project_nbest::<PosTags>(cx, key, nbest_token_spans::<PosTags>));
     }
     if ty == TypeId::of::<NBest<ChunkTags>>() {
-        return Some(project_nbest::<ChunkTags>(cx, key, token_spans));
+        return Some(project_nbest::<ChunkTags>(cx, key, nbest_token_spans::<ChunkTags>));
     }
     if ty == TypeId::of::<NBest<Tokens>>() {
         return Some(project_nbest::<Tokens>(cx, key, token_spans));
