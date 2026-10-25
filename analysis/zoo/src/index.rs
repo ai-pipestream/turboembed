@@ -8,7 +8,6 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::digest::{Sha256, Sha512};
 use crate::error::ZooError;
 use crate::licence::{Licence, LicenceClass, Requirement};
 
@@ -56,6 +55,10 @@ macro_rules! constant_enum {
     };
 }
 
+mod component;
+
+pub use component::Component;
+
 constant_enum! {
     /// What an artifact is.
     Kind, "an artifact kind" {
@@ -64,23 +67,6 @@ constant_enum! {
         Lexicon => "KIND_LEXICON",
         Centroids => "KIND_CENTROIDS",
         Dataset => "KIND_DATASET",
-    }
-}
-
-constant_enum! {
-    /// The analysis component a model serves. The first eight are
-    /// OpenNLP's `opennlp.tools.models.ModelType` constants, prefixed.
-    Component, "a component" {
-        Lemmatizer => "COMPONENT_LEMMATIZER",
-        Tokenizer => "COMPONENT_TOKENIZER",
-        SentenceDetector => "COMPONENT_SENTENCE_DETECTOR",
-        Pos => "COMPONENT_POS",
-        PosGeneric => "COMPONENT_POS_GENERIC",
-        NameFinder => "COMPONENT_NAME_FINDER",
-        Chunker => "COMPONENT_CHUNKER",
-        Parser => "COMPONENT_PARSER",
-        LanguageDetector => "COMPONENT_LANGUAGE_DETECTOR",
-        DocumentCategorizer => "COMPONENT_DOCUMENT_CATEGORIZER",
     }
 }
 
@@ -168,8 +154,11 @@ impl fmt::Display for Language {
     }
 }
 
+#[path = "file.rs"]
+mod file;
 #[path = "origin.rs"]
 mod origin;
+pub use file::File;
 pub use origin::{RelPath, Url};
 use origin::{origin_is_a_location, under_origin};
 
@@ -201,22 +190,6 @@ pub struct TrainingData {
     pub license: Licence,
     /// Where the dataset's publisher states the licence.
     pub license_terms: Url,
-}
-
-/// One file of an artifact.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct File {
-    /// Where the file goes in the artifact's directory.
-    pub path: RelPath,
-    /// Where it is fetched from. The address must serve the same bytes for
-    /// as long as the entry exists: a release archive, or a repository
-    /// path at a commit.
-    pub url: Url,
-    pub size: u64,
-    pub sha256: Sha256,
-    /// The digest OpenNLP's `DownloadUtil` checks.
-    pub sha512: Sha512,
 }
 
 /// One artifact of the index.
@@ -401,7 +374,7 @@ impl Index {
             let mut paths = BTreeSet::new();
             for f in &a.files {
                 let p = f.path.as_str();
-                if p.split('/').any(|part| part.ends_with(".partial")) {
+                if p.split('/').any(|part| part.ends_with(".partial") || part.contains(".partial.")) {
                     return Err(ZooError::Index(format!(
                         "{}: {} uses a .partial name, which the cache reserves for temporary files",
                         a.id, f.path
@@ -473,16 +446,6 @@ impl Index {
             return Err(ZooError::Refused { id: r.id.clone(), licences: r.licences.clone() });
         }
         Err(ZooError::NotFound(id.to_owned()))
-    }
-
-    /// The listed models for `component` in `language`, in index order, as
-    /// OpenNLP's `DownloadUtil` looks a model up by language and
-    /// `ModelType`.
-    pub fn find(&self, language: &str, component: Component) -> impl Iterator<Item = &Artifact> + '_ {
-        let language = language.to_owned();
-        self.artifacts.iter().filter(move |a| {
-            a.component == Some(component) && a.language.as_ref().is_some_and(|l| l.as_str() == language)
-        })
     }
 
     /// `artifacts` written as an index in the canonical form: serde_json's

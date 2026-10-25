@@ -12,7 +12,7 @@
 //! smaller).
 
 use turbo_jvm::hash_map::{HashMapOrder, Insert, put_order, spread};
-use turbo_unicode::java::code_point::to_lower_case;
+use turbo_unicode::java::to_lower_char;
 
 use crate::error::{Error, Result};
 
@@ -41,7 +41,7 @@ pub fn string_list_hash_code<'t>(tokens: impl IntoIterator<Item = &'t str>) -> i
             h = h.wrapping_mul(31).wrapping_add(i32::from(b','));
         }
         for c in token.chars() {
-            let lowered = char::from_u32(to_lower_case(c as u32)).unwrap_or(c);
+            let lowered = to_lower_char(c);
             for &u in lowered.encode_utf16(&mut buf).iter() {
                 h = h.wrapping_mul(31).wrapping_add(i32::from(u));
             }

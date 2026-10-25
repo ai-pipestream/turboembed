@@ -24,6 +24,7 @@ pub fn digest(bytes: &[u8]) -> String {
 pub enum Task {
     Categorization,
     TokenTagging,
+    SpanTagging,
 }
 
 /// Label order, domain and inference configuration are part of identity.

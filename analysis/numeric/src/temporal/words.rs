@@ -41,9 +41,7 @@ pub(super) fn word(text: &str, start: usize) -> Option<usize> {
 }
 
 /// Whether `word`, lowercased as OpenNLP lowercases it, is `lower`.
-fn is(word: &str, lower: &str) -> bool {
-    word.chars().map(java::to_lower_char).eq(lower.chars())
-}
+use turbo_unicode::java::eq_lowercase_code_points as is;
 
 /// The month, 1 to 12, that `word` names in full or by its first three
 /// letters.
@@ -95,10 +93,12 @@ const UNITS: [(&str, Granularity); 5] = [
     ("year", Granularity::Year),
 ];
 
-/// The granularity a unit word names as written: after `last`, `this` and
-/// `next` OpenNLP takes the singular only, so `next weeks` is no mention.
-pub(super) fn unit(word: &str) -> Option<Granularity> {
-    UNITS.iter().find(|(u, _)| is(word, u)).map(|&(_, g)| g)
+/// The granularity a unit word names as written: in OpenNLP parity mode,
+/// after `last`, `this` and `next` only the singular is taken (`next weeks`
+/// is no mention); by default both singular and plural (`next weeks`,
+/// `last months`) are accepted.
+pub(super) fn unit(word: &str, opennlp_parity: bool) -> Option<Granularity> {
+    if opennlp_parity { UNITS.iter().find(|(u, _)| is(word, u)).map(|&(_, g)| g) } else { counted_unit(word) }
 }
 
 /// The granularity a counted unit word names: `CursorTemporalExtractor.singular`
@@ -110,9 +110,9 @@ pub(super) fn counted_unit(word: &str) -> Option<Granularity> {
         word.chars().fold((0, None), |(n, _), c| (n + java::to_lower_char(c).len_utf16(), Some(c)));
     let last = last?;
     if java::to_lower_char(last) == 's' && lowered_len > 1 {
-        return unit(&word[..word.len() - last.len_utf8()]);
+        return UNITS.iter().find(|(u, _)| is(&word[..word.len() - last.len_utf8()], u)).map(|&(_, g)| g);
     }
-    unit(word)
+    UNITS.iter().find(|(u, _)| is(word, u)).map(|&(_, g)| g)
 }
 
 #[cfg(test)]
@@ -141,7 +141,7 @@ mod tests {
             .collect();
         assert_eq!(into_ascii, [0x130, 0x212A]);
         assert_eq!(keyword("\u{130}n"), Some(Keyword::In));
-        assert_eq!(unit("wee\u{212A}"), Some(Granularity::Week));
+        assert_eq!(unit("wee\u{212A}", true), Some(Granularity::Week));
     }
 
     #[test]
@@ -151,7 +151,8 @@ mod tests {
         assert_eq!(counted_unit("quarter"), Some(Granularity::Quarter));
         assert_eq!(counted_unit("dayss"), None);
         assert_eq!(counted_unit("s"), None);
-        assert_eq!(unit("days"), None);
+        assert_eq!(unit("days", true), None);
+        assert_eq!(unit("days", false), Some(Granularity::Day));
         assert_eq!(counted_unit("year\u{17F}"), None);
     }
 
