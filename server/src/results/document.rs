@@ -86,7 +86,7 @@ pub fn export_document_response(doc: &turbo_analysis::Document) -> Result<Docume
         return Err(over("max_graph_bytes", "document graph bytes", bytes.len() as u64));
     }
     Ok(DocumentGraphResponse {
-        graph: bytes,
+        graph: bytes.into(),
         layers: out.layers.iter().map(layer_info).collect(),
         views: out.views.iter().map(view_info).collect(),
         source_text: out.source.text.clone(),
