@@ -9,3 +9,4 @@ publish = false
 name = "turbo_jvm"
 
 [dependencies]
+turbo-unicode = { path = "../unicode" }
