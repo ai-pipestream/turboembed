@@ -7,9 +7,9 @@
 //! exact match is equality after normalization, F1 the token overlap; a
 //! question with no gold answer counts only an empty prediction as right;
 //! a question's score is its best over its gold answers. Lowercasing is
-//! Java's root-locale mapping and whitespace Java's and Unicode's, both
-//! from `turbo_unicode`; the script uses Python's, which agree with them on the
-//! dev set's text.
+//! Java's root-locale mapping and whitespace Python's shared predicate,
+//! both from `turbo_unicode`; the lowercase mappings agree on the dev
+//! set's text.
 //!
 //! A prediction is the best span and its margin over the no-answer score.
 //! With threshold `t`, the bundle answers when the margin is above `t`
@@ -19,8 +19,8 @@
 
 use std::collections::HashMap;
 
-use turbo_unicode::WhitespaceMode;
 use turbo_unicode::category::general_category;
+use turbo_unicode::whitespace::is_python_space;
 
 use crate::Result;
 
@@ -75,13 +75,9 @@ pub fn normalize(s: &str) -> String {
     tokens(&no_articles).join(" ")
 }
 
-/// `s` split at Unicode whitespace, as Python's `str.split()` splits.
+/// `s` split as Python's `str.split()` splits.
 fn tokens(s: &str) -> Vec<&str> {
-    // Python's str.isspace is Unicode's White_Space (U+0085 among them)
-    // and the separators U+001C to U+001F: the two modes together.
-    let space =
-        |c: char| WhitespaceMode::Unicode.is_whitespace(c as u32) || WhitespaceMode::Legacy.is_whitespace(c as u32);
-    s.split(space).filter(|t| !t.is_empty()).collect()
+    s.split(is_python_space).filter(|t| !t.is_empty()).collect()
 }
 
 /// Exact match after normalization.

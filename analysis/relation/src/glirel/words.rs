@@ -5,18 +5,13 @@
 //! its byte range in the text; the text keeps its case.
 
 use turbo_unicode::category::general_category;
+use turbo_unicode::whitespace::is_python_space;
 
 /// One word: its byte range in the text.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Word {
     pub start: usize,
     pub end: usize,
-}
-
-/// Python's `\s` for `str` patterns: Unicode whitespace plus the four
-/// separators U+001C to U+001F.
-fn is_space(c: char) -> bool {
-    c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c)
 }
 
 fn is_word(c: char) -> bool {
@@ -34,7 +29,7 @@ pub fn split(text: &str) -> Vec<Word> {
     let mut out = Vec::new();
     let mut at = 0;
     while let Some(c) = text[at..].chars().next() {
-        if is_space(c) {
+        if is_python_space(c) {
             at += c.len_utf8();
             continue;
         }

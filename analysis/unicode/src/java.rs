@@ -1,22 +1,16 @@
-//! `java.lang.Character` and `String.toLowerCase(Locale.ROOT)` semantics
-//! on this crate's Unicode data.
+//! `java.lang.Character` and `String.toLowerCase(Locale.ROOT)` semantics on this crate's Unicode data.
 //!
-//! The OpenNLP normalizers are written against these JDK methods. The
-//! functions here follow the JDK's definitions (which categories count as
-//! letters, which spaces count as whitespace) but read the Unicode 18.0
-//! tables of this crate, so for characters assigned after the JDK's own
-//! Unicode version the answers can differ from a given JVM.
+//! The OpenNLP normalizers use these JDK methods. The functions follow the JDK's definitions
+//! of letters and whitespace, using this crate's Unicode 18.0 tables. Characters assigned after
+//! a JVM's Unicode version can therefore have different results.
 //!
-//! The functions here take a `char`. [`code_point`] has the classes the
-//! segmentation ports need on a code point given as `u32`, which may be a
-//! lone surrogate code unit, with `getType`'s numbering and
-//! `UnicodeScript.of`.
+//! The functions here take a `char`. [`code_point`] has the segmentation classes on `u32`,
+//! including lone surrogate code units, with `getType`'s numbering and `UnicodeScript.of`.
 
 pub mod code_point;
+mod codepoint_strings;
 mod strings;
 mod word_classes;
-pub use strings::is_blank;
-
 use crate::ascii::push_lowercase_run;
 use crate::category::{GeneralCategory, general_category};
 use crate::props::bits;
@@ -26,6 +20,10 @@ use crate::tables::case::{
 use crate::tables::category::DECIMAL_ZEROS;
 use crate::tables::props::{HAS_LOWER, HAS_SPECIAL_LOWER, HAS_UPPER};
 use crate::trie::find;
+pub use codepoint_strings::{
+    eq_lowercase_code_points, lowercase_code_points, lowercase_code_points_changes, to_lowercase_code_points,
+};
+pub use strings::is_blank;
 
 const CAPITAL_SIGMA: char = '\u{3A3}';
 const FINAL_SIGMA: char = '\u{3C2}';
