@@ -96,7 +96,7 @@ fn b_afternoon(_: &[Value], c: &Ctx<'_>) -> Option<Value> {
 /// mediodía`, `más tarde pasado el mediodía`.
 fn b_late_partd(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     let p = en::part_value(c, v.last()?)?;
-    if !matches!(p, Part::Morning | Part::Afternoon | Part::Evening | Part::Night) {
+    if !matches!(p, Part::Dawn | Part::Morning | Part::Afternoon | Part::Evening | Part::Night) {
         return None;
     }
     en::emit_part(c, p, Modifier::portion(turbo_analysis_layers::Portion::End))
@@ -139,10 +139,12 @@ pub(super) static RULES: &[Rule] = &[
     rr("clock_medianoche", CLOCK, &[word("medianoche")], en::b_midnight),
     // Parts of the day.
     rr("of_part", OF_PART, &[node(DE), node(ART), node(PART)], b_part),
+    rr("of_part_de", OF_PART, &[node(DE), node(PART)], b_part),
     rr("of_part_a_la", OF_PART, &[word("a"), word("la"), node(PART)], b_part),
     rr("partd_of", PARTD, &[node(OF_PART)], |v, _| Some(v[0])),
     rr("partd_por_la", PARTD, &[word("por"), word("la"), node(PART)], b_part),
     rr("partd_en_la", PARTD, &[word("en"), word("la"), node(PART)], b_part),
+    rr("partd_madrugada", PARTD, &[word("madrugada")], |_, c| en::emit_part(c, Part::Dawn, Modifier::NONE)),
     rr("partd_early", PARTD, &[word("temprano"), word("en"), word("la"), node(PART)], en::b_early_part),
     rr("partd_later_en", PARTD, &[word("mas"), word("tarde"), word("en"), word("la"), node(PART)], en::b_late_part),
     rr("partd_later_por", PARTD, &[word("mas"), word("tarde"), word("por"), word("la"), node(PART)], en::b_late_part),

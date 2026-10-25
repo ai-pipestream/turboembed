@@ -143,7 +143,7 @@ fn score_handles_empty_held_out_sample_without_nan_panic() {
         stream.events(&train_sample, &mut events);
     }
     let mut config = TrainingConfiguration::default();
-    let params = ud::training_parameters();
+    let params = crate::masc::training_parameters();
     let trained = postag::train_pos_model_from_events(&events, &f, &params, &mut config, Stamp::at(TIMESTAMP_MS))
         .unwrap()
         .package

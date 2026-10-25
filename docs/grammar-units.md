@@ -146,19 +146,11 @@ for that name.
 | File | Cases | Eligible | Passing |
 |---|---|---|---|
 | `AgeModel.json` | 19 | 19 | 19 |
-| `CurrencyModel.json` | 180 | 177 | 175 |
-| `DimensionModel.json` | 100 | 100 | 99 |
+| `CurrencyModel.json` | 180 | 177 | 177 |
+| `DimensionModel.json` | 100 | 100 | 100 |
 | `TemperatureModel.json` | 43 | 43 | 43 |
 
-The cases that fail:
-
-- `DimensionModel.json` #52, `2 pm is 2 picometer`: `pm` is read as a
-  time of day, not a unit.
-- `CurrencyModel.json` #102, `one kuai and five mao five`: a trailing
-  bare count is the next minor unit (fen); the grammar reads only one
-  minor unit after the major.
-- `CurrencyModel.json` #110, `sen 100,000`: `sen` is not read as a unit
-  before a number.
+Every eligible case of the four files passes.
 
 ## Speed
 
