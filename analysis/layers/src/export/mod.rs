@@ -38,6 +38,7 @@ use crate::{
     Sentences, Stems, Strs, Structure, Subwords, Terms, TimeGrain, TimeKind, Times, TokenVectorWindows, Tokens, Unit,
     Utf16Spans, Vectors,
 };
+use crate::{LexicalExpansions, WordNetSenses};
 
 mod boilerplate;
 mod calibrated;
@@ -79,6 +80,8 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Lemmas>()
         .register::<WordLemmas>()
         .register::<Stems>()
+        .register::<WordNetSenses>()
+        .register::<LexicalExpansions>()
         .register::<Terms>()
         .register::<Dependencies<Tokens>>()
         .register::<Dependencies<Words>>()
