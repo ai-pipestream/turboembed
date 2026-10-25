@@ -1,0 +1,117 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-24T15:30:07Z",
+  "machine": {
+    "arch": "x86_64",
+    "host_cpu": "AMD Ryzen 9 9950X 16-Core Processor",
+    "os": "linux"
+  },
+  "device": {
+    "backend": "cpu",
+    "kind": "DEVICE_CPU",
+    "name": "AMD Ryzen 9 9950X 16-Core Processor",
+    "vendor": "AuthenticAMD",
+    "driver_version": "",
+    "runtime_version": "",
+    "memory_total": 65923383296
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 cpu",
+    "commit": "d95afdbd0727ac657bc347b445cb2b52bdf6d105",
+    "pushed_to": [
+      "origin/claude/964-static-records"
+    ],
+    "settings": []
+  },
+  "precision": "PRECISION_FASTEST",
+  "model_id": "minishlab/potion-code-16M",
+  "revision": "1",
+  "manifest_sha256": "6aa8a4101c7a06cf87ad62e6cfce31a3dfc7261d671facfb9b325914fd5451ef",
+  "sets": [
+    {
+      "name": "golden",
+      "texts": 88,
+      "sha256": "43d375d0619285be6bcd85382e9bd59fd548fd7a4c163cfe03e5fef23bd02dd1"
+    },
+    {
+      "name": "t60",
+      "texts": 2000,
+      "sha256": "9aab2e2256c19342b106fa3f6e03550aff00499210a7a950df30e6903f27e8e1"
+    },
+    {
+      "name": "w256",
+      "texts": 1000,
+      "sha256": "45743ba25b876540bf492d14888395cf98514381b76ee639c46453a0b5514d5f"
+    }
+  ],
+  "batches": [
+    1,
+    32,
+    256,
+    1024
+  ],
+  "turbo": [
+    {
+      "set": "golden",
+      "batch": 1,
+      "texts_per_second": 304561.1686929862
+    },
+    {
+      "set": "t60",
+      "batch": 1,
+      "texts_per_second": 332560.32316071034
+    },
+    {
+      "set": "w256",
+      "batch": 1,
+      "texts_per_second": 63716.11469872715
+    },
+    {
+      "set": "golden",
+      "batch": 32,
+      "texts_per_second": 367770.3943540635
+    },
+    {
+      "set": "t60",
+      "batch": 32,
+      "texts_per_second": 597870.454924503
+    },
+    {
+      "set": "w256",
+      "batch": 32,
+      "texts_per_second": 222202.16887871956
+    },
+    {
+      "set": "golden",
+      "batch": 256,
+      "texts_per_second": 356479.14897921
+    },
+    {
+      "set": "t60",
+      "batch": 256,
+      "texts_per_second": 1476462.5351550276
+    },
+    {
+      "set": "w256",
+      "batch": 256,
+      "texts_per_second": 555704.6129901466
+    },
+    {
+      "set": "golden",
+      "batch": 1024,
+      "texts_per_second": 361015.5557180013
+    },
+    {
+      "set": "t60",
+      "batch": 1024,
+      "texts_per_second": 2370127.237381806
+    },
+    {
+      "set": "w256",
+      "batch": 1024,
+      "texts_per_second": 672142.4675932844
+    }
+  ],
+  "peers": []
+}

@@ -21,6 +21,7 @@
 //!   explicit `NIL` reason and surface/coreference `nil_cluster` ID, and top-$k$ ranked
 //!   candidates, together with [`DocumentGraph`](turbo_analysis::DocumentGraph) binary codecs.
 
+pub mod consolidate;
 mod fuzzy_index;
 pub mod kb;
 pub mod layer;
@@ -31,6 +32,7 @@ pub mod similarity;
 mod snapshot;
 mod validate;
 
+pub use consolidate::{ConsolidatorConfig, EntityConsolidator};
 pub use kb::{CatalogError, KbEntity, KnowledgeBase};
 pub use layer::{CandidateLink, LinkedEntities, LinkedEntityView, NilReason, codecs, register_codecs};
 pub use linker::EntityLinker;

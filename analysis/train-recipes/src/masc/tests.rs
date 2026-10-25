@@ -4,6 +4,18 @@ use turbo_zoo::RefusalReason;
 use super::*;
 
 #[test]
+fn masc_keeps_its_released_partitions_when_ud_changes() {
+    let masc = training_parameters();
+    let ud = turbo_train_components::ud::training_parameters();
+    assert_eq!(masc.get_int(Key::THREADS).unwrap(), Some(4));
+    assert_eq!(ud.get_int(Key::THREADS).unwrap(), Some(12));
+    for key in [Key::ITERATIONS, Key::CUTOFF] {
+        assert_eq!(masc.get_int(key).unwrap(), ud.get_int(key).unwrap());
+    }
+    assert_eq!(turbo_train::GisParams::default().threads, 1);
+}
+
+#[test]
 fn the_split_holds_out_one_in_ten() {
     let held: Vec<usize> = (0..35).filter(|&i| SPLIT.is_held_out(i)).collect();
     assert_eq!(held, [9, 19, 29]);

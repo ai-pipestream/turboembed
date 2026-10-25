@@ -21,3 +21,9 @@ half = "2"
 turbo-gliner = { path = "../analysis/gliner" }
 # The licence classes and their rules (licence.rs).
 turbo-zoo = { path = "../analysis/zoo", default-features = false }
+# The BiLSTM-CRF part-of-speech model postag-convert reads (postag.rs).
+turbo-postag = { path = "../analysis/postag" }
+
+[dev-dependencies]
+# The postag-neural goldens tests/postag.rs converts.
+turbo-goldens = { path = "../analysis/goldens" }

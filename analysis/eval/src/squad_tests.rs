@@ -15,6 +15,27 @@ fn normalize_matches_the_official_script() {
 }
 
 #[test]
+fn python_whitespace_preserves_squad_answer_scores() {
+    let whitespace = [
+        '\u{09}', '\u{0a}', '\u{0b}', '\u{0c}', '\u{0d}', '\u{1c}', '\u{1d}', '\u{1e}', '\u{1f}', ' ', '\u{85}',
+        '\u{a0}', '\u{1680}', '\u{2000}', '\u{2001}', '\u{2002}', '\u{2003}', '\u{2004}', '\u{2005}', '\u{2006}',
+        '\u{2007}', '\u{2008}', '\u{2009}', '\u{200a}', '\u{2028}', '\u{2029}', '\u{202f}', '\u{205f}', '\u{3000}',
+    ];
+    for c in whitespace {
+        let answer = format!("{c}The{c}{c}New{c}York{c}");
+        assert_eq!(normalize(&answer), "new york", "U+{:04X}", c as u32);
+        assert_eq!(exact(&answer, "New York"), 1.0);
+        assert_eq!(f1(&answer, "New York"), 1.0);
+    }
+    for c in ['\u{200b}', '\u{feff}', '\u{180e}'] {
+        let answer = format!("New{c}York");
+        assert_eq!(normalize(&answer), format!("new{c}york"));
+        assert_eq!(exact(&answer, "New York"), 0.0);
+        assert_eq!(f1(&answer, "New York"), 0.0);
+    }
+}
+
+#[test]
 fn exact_and_f1_on_known_pairs() {
     assert_eq!(exact("the Eiffel Tower", "Eiffel tower."), 1.0);
     assert_eq!(exact("Eiffel", "Eiffel Tower"), 0.0);

@@ -1,0 +1,40 @@
+{
+  "fixed_runtime_commit": "6891e12a9523f2703f3f122154a7d4a8f1135eb7",
+  "fixed_segmenter_blob": "899ee2379343b4290addffbbe2f7153fcb8b115e",
+  "main_commit": "bf52319dfc49486e5109f2c76faccb8fcd6edc02",
+  "main_source_tree": "6ae36ebca8ec6c345e5f05edd01223b740932622",
+  "main_segmenter_blob": "a88f5d3608545c08416b5bb40452ff7720927e22",
+  "blocked_commit": "059947a90031c5081605512087a63cc925ba6565",
+  "previous_prototypes": [
+    "1b91641b6881ee8716734d4b2d2225c7ef47c250",
+    "adebe6fb1f05bfe3c480bb53cbb1b088d9724674"
+  ],
+  "driver_sha256": "839fc171c32ccd74a6be7fa997924daf58e88d6e8bd581ae490b54e3a1627ecf",
+  "paired_lock_sha256": "3bade4de9f349c11db97c8b26dbbda474d852054ecc89bf2562e6301f0ac23da",
+  "bmes_sha256": "b72dbb9f25a088473b0f7b4bb892514bbadbd8a510d6360449c29b0e64054bd5",
+  "platform": {
+    "cpu": "AMD Ryzen 9 9950X3D",
+    "architecture": "x86_64",
+    "logical_cpus": 32,
+    "affinity_cpu": 16
+  },
+  "profile": {
+    "name": "release",
+    "opt_level": 3,
+    "debug_assertions": false,
+    "lto": false,
+    "target_cpu": "compiler default",
+    "rustflags": "",
+    "encoded_rustflags": "",
+    "build_jobs": 2
+  },
+  "baseline_alias": "Unmodified main src/data via symlinks, distinct private package/lib names, shared dependencies whose source is unchanged between main and fixed. No product manifest change.",
+  "environment": "Shared host; other CPU work, GPU compilation and CUDA correctness work active. Local measurements, no isolated-host significance claim.",
+  "main_sync": {
+    "main_commit": "93aa4ba2401809ea955b1608fa57db9cdf021246",
+    "fixed_merge_commit": "fc1e0170cb991dced701c50f15804d9110dc290c",
+    "runtime_sources_unchanged": true,
+    "rebuilt_main_binary_sha256": "1e12aca29a1c9359d8f1e25ec5d10b5e35b8acdf309012a87539fdf799fdd22f",
+    "rebuilt_fixed_binary_sha256": "ca2de023fdce0a844c2a3d2ba421818f8086d4a58a4c75268de73a4d9841e86d"
+  }
+}

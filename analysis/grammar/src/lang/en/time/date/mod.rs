@@ -12,9 +12,9 @@ use crate::value::Value;
 use crate::lang::en::time::clock::{dig_len, dig_zero};
 use crate::lang::en::time::lexicon::{self, rel};
 use crate::lang::en::time::{
-    ABBR, DATE, DAYWORD, DECADEW, DIG, DOM, HOL, HOLIDAY, MD, MDAY, MONTH, MONTHD, ORDINAL, PERIOD, PLURAL, QTR, RELW,
-    SEASON, SEP, SHORT, SPELLED, TONIGHT, UNIT, WD, WEEKDAY, YEAR, date_of, emit, emit_date, r, term, term_value,
-    year_ref,
+    ABBR, AMOUNT, DATE, DAYWORD, DECADEW, DIG, DOM, HOL, HOLIDAY, MD, MDAY, MONTH, MONTHD, ORDINAL, PERIOD, PLURAL,
+    QTR, RELW, SEASON, SEP, SHORT, SPELLED, TONIGHT, UNIT, WD, WEEKDAY, YEAR, date_of, emit, emit_date, r, term,
+    term_value, year_ref,
 };
 use crate::lang::en::{INT, NUMERAL, ORD, ORD_SUFFIX};
 
@@ -38,14 +38,14 @@ mod periods;
 pub(in crate::lang) use periods::{
     b_century, b_century_decade, b_decade, b_decade_word, b_last_week, b_nth_quarter_of, b_nth_quarter_the_year,
     b_nth_week, b_period_rel, b_period_the, b_qtr, b_quarter, b_quarter_year, b_undefined, b_week_after_next, b_week_n,
-    b_weekend, b_year_half, b_year_quarter, b_years_quarter, quarter, unit_grain,
+    b_weekend, b_workweek, b_year_half, b_year_quarter, b_year_slice, b_years_quarter, quarter, unit_grain,
 };
 
 mod named;
 pub(in crate::lang) use named::{
-    b_calendar_year_glued, b_holiday, b_holiday_near, b_holiday_of_year, b_holiday_year, b_other_year,
-    b_other_year_glued, b_other_year_n, b_rel_calendar_year, b_rel_other_year, b_rel_season, b_season, b_season_year,
-    b_sep, b_week_of, hol,
+    b_calendar_year_glued, b_holiday, b_holiday_near, b_holiday_of_year, b_holiday_weekend, b_holiday_weekend_year,
+    b_holiday_year, b_other_year, b_other_year_glued, b_other_year_n, b_rel_calendar_year, b_rel_other_year,
+    b_rel_season, b_season, b_season_year, b_sep, b_week_of, hol,
 };
 
 mod rules;

@@ -23,35 +23,15 @@
 //! everywhere (`WhitespaceMode::Legacy` here), and the JVM that wrote the
 //! files had its clock in Central European Summer Time.
 //!
-//! The iteration count is the one setting the repository does not give
-//! correctly: the published English sentence model's parameters are those
-//! of a run of 300 iterations (the parameters after every iteration of a
-//! longer run were compared with the file; 300 agrees to within a few
-//! thousand units in the last place, 299 and 301 do not), so the models
-//! were trained with `Iterations=300`, not the committed 150. The recipes
-//! use 300 ([`ITERATIONS`]); [`CONF_ITERATIONS`] is what the file says.
-//!
-//! With those settings the event checksum (`Training-Eventhash`) and the
-//! manifest of a published model come out exactly, and the model entry's
-//! labels and outcome patterns too. The parameters differ from the
-//! published ones in their last bits: for the eighteen models, between
-//! 2.2e-15 (German sentences) and 9.8e-15 (French tokens) for the sentence
-//! and token models, 1.6e-14 (English) and 1.4e-13 (Spanish) for the
-//! taggers, and 8.0e-15 (English) and 1.8e-14 (Portuguese) for the
-//! lemmatizers, in absolute value at most, with 60 to 97 percent of the
-//! parameters differing; the widest, 1.37e-13, is about seven times under
-//! the 1e-12 the reproduction test allows. For the eight sentence and
-//! token models, the JVM of the goldens container (Temurin 21 on x86-64),
-//! running the same training with the fork's trainer, writes exactly the
-//! parameters this crate writes and shows the same residual against the
-//! published file, so for them the residual is not between this port and
-//! the fork's trainer; the taggers and lemmatizers have not been run
-//! through the fork's trainer in the container. Its cause is not
-//! known: `GISTrainer` uses `StrictMath` throughout and merges its
-//! threads' sums in a fixed order, so neither platform `Math` intrinsics
-//! nor thread timing explain it. The next experiment is to run the OpenNLP
-//! 2.5.4 command line itself in the container on the same treebank and
-//! compare its parameters with both.
+//! Two committed settings differ from those that reproduce the published
+//! models: the recipes use 300 iterations and 12 training partitions,
+//! instead of `ud-train.conf`'s 150 and 4. The English sentence model
+//! has identical model-entry bytes from OpenNLP 2.5.4 and this crate with those
+//! settings. At 4 partitions both runtimes instead produce the same
+//! small parameter residual. GIS sums events within each partition, then
+//! merges the partial sums in partition order. Changing the partition
+//! count changes floating-point grouping, even though scheduling cannot
+//! change the result. See docs/analysis.md for the full reproduction.
 //!
 //! A treebank's dataset takes its licence class from its licence
 //! (`turbo_zoo::class_of`): the five treebanks here are CC BY-SA 4.0, so
@@ -103,12 +83,14 @@ pub const ITERATIONS: i32 = 300;
 pub const CONF_ITERATIONS: i32 = 150;
 /// `ud-train.conf`.
 pub const CUTOFF: i32 = 5;
-/// `ud-train.conf`.
-pub const THREADS: i32 = 4;
+/// The partitions that reproduce the published parameter bytes.
+pub const THREADS: i32 = 12;
+/// `Threads` as committed in `ud-train.conf`, unlike the published models.
+pub const CONF_THREADS: i32 = 4;
 
 /// The training parameters as `CmdLineUtil.loadTrainingParameters` reads
 /// a parameters file: every value a string. `ud-train.conf` with
-/// `Iterations` at [`ITERATIONS`].
+/// `Iterations` at [`ITERATIONS`] and `Threads` at [`THREADS`].
 pub fn training_parameters() -> TrainingParameters {
     let mut p = TrainingParameters::new();
     p.put_str(Key::ALGORITHM, "MAXENT");
@@ -182,6 +164,7 @@ impl Treebank {
                 size: self.size,
                 sha256: parse("sha256", self.sha256),
                 sha512: parse("sha512", self.sha512),
+                download: None,
             }],
         }
     }

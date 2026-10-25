@@ -15,6 +15,8 @@ pub mod openvino;
 pub mod postag;
 pub mod qa;
 pub mod ranges;
+pub mod rerank;
+pub mod statics;
 pub mod tei;
 pub mod tensorrt;
 pub mod throughput;

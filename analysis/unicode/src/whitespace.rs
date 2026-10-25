@@ -1,4 +1,4 @@
-//! OpenNLP's two definitions of whitespace.
+//! OpenNLP's two definitions of whitespace and Python's str.isspace.
 //!
 //! OpenNLP 3.x picks one process-wide through its `WhitespaceMode`
 //! (`opennlp.tools.util.WhitespaceMode`, read by `StringUtil.isWhitespace`).
@@ -6,6 +6,14 @@
 //! it is a value every annotator takes as a parameter, never a global.
 
 use crate::java::code_point;
+
+/// Python's `str.isspace` and Unicode-pattern `\s`: Unicode `White_Space`
+/// plus the four information separators U+001C through U+001F. In
+/// particular this includes U+0085, unlike OpenNLP's legacy mode.
+#[inline]
+pub fn is_python_space(c: char) -> bool {
+    if c.is_ascii() { matches!(c, '\u{09}'..='\u{0d}' | '\u{1c}'..='\u{20}') } else { crate::props::white_space(c) }
+}
 
 /// Which characters count as whitespace.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
@@ -136,6 +144,22 @@ mod tests {
     #[test]
     fn default_is_unicode() {
         assert_eq!(WhitespaceMode::default(), Unicode);
+    }
+
+    #[test]
+    fn python_space_is_exactly_the_29_code_points() {
+        // Independently enumerated by Python 3.14 str.isspace over all code points.
+        let expected: Vec<_> = (0x09..=0x0d)
+            .chain(0x1c..=0x20)
+            .chain([0x85, 0xa0, 0x1680])
+            .chain(0x2000..=0x200a)
+            .chain([0x2028, 0x2029, 0x202f, 0x205f, 0x3000])
+            .collect();
+        assert_eq!(expected.len(), 29);
+        for cp in 0..=0x10_ffff {
+            let actual = char::from_u32(cp).is_some_and(is_python_space);
+            assert_eq!(actual, expected.contains(&cp), "U+{cp:04X}");
+        }
     }
 
     #[test]

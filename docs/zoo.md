@@ -185,7 +185,7 @@ is in that form and a test keeps it there.
 | `zoo_version` | uint32 | yes | 1. Anything else is rejected. |
 | `artifacts[].id` | string | yes | Unique. Lowercase ASCII letters, digits, `.`, `_`, `-`, starting with a letter or digit, at most 128 bytes. It names the artifact's cache directory. For a published file it is the file name without its extension. |
 | `.kind` | enum | yes | `KIND_MODEL`, `KIND_HEAD` (a classifier head over an encoder, #321), `KIND_LEXICON` (#320), `KIND_CENTROIDS` (a label centroid set), `KIND_DATASET`. |
-| `.component` | enum | no | The component a model serves. `COMPONENT_LEMMATIZER`, `COMPONENT_TOKENIZER`, `COMPONENT_SENTENCE_DETECTOR`, `COMPONENT_POS`, `COMPONENT_POS_GENERIC`, `COMPONENT_NAME_FINDER`, `COMPONENT_CHUNKER` and `COMPONENT_PARSER` are OpenNLP's `ModelType` constants; `COMPONENT_LANGUAGE_DETECTOR` and `COMPONENT_DOCUMENT_CATEGORIZER` have no `ModelType`. |
+| `.component` | enum | no | The component a model serves. `COMPONENT_LEMMATIZER`, `COMPONENT_TOKENIZER`, `COMPONENT_SENTENCE_DETECTOR`, `COMPONENT_POS`, `COMPONENT_POS_GENERIC`, `COMPONENT_NAME_FINDER`, `COMPONENT_CHUNKER` and `COMPONENT_PARSER` are OpenNLP's `ModelType` constants; `COMPONENT_LANGUAGE_DETECTOR`, `COMPONENT_DOCUMENT_CATEGORIZER`, `COMPONENT_ENTITY_EXTRACTOR` (GLiNER), `COMPONENT_SCHEMA_EXTRACTOR` (GLiNER2), `COMPONENT_RELATION_EXTRACTOR` (GLiREL), `COMPONENT_EXTRACTIVE_QA` and `COMPONENT_ZERO_SHOT_CATEGORIZER` (an NLI cross-encoder) have no `ModelType`. A tokenizer fetched beside a model by id has none. |
 | `.language` | string | no | A language tag: two or three lowercase letters, then optional `-` subtags of one to eight letters or digits. Absent for a multilingual artifact. |
 | `.format` | enum | yes | `FORMAT_OPENNLP_MODEL` (an OpenNLP `.bin` archive), `FORMAT_SAFETENSORS`, `FORMAT_CONLLU`, `FORMAT_TEXT`, `FORMAT_ZIP`, `FORMAT_PYTORCH` (a `torch.save` checkpoint in its zip form, read without running its pickle), `FORMAT_SENTENCEPIECE` (an `spm.model` with the model's `config.json`). |
 | `.version` | string | yes | The publisher's version. Not empty. |
@@ -204,6 +204,10 @@ is in that form and a test keeps it there.
 | `.files[].size` | uint64 | yes | Bytes. |
 | `.files[].sha256` | 64 lowercase hex | yes | Checked as the bundle tool checks files. |
 | `.files[].sha512` | 128 lowercase hex | yes | Checked as OpenNLP's `DownloadUtil` checks files. |
+| `.files[].download` | message | for a file served compressed | The file as the `url` serves it. `size`, `sha256` and `sha512` above stay the unpacked file's, which is what the cache holds. |
+| `.files[].download.compression` | `gzip` or `zstd` | yes | `gzip` is one RFC 1952 member, whose trailer CRC-32 and length must match; `zstd` is one or more RFC 8878 frames. |
+| `.files[].download.download_bytes` | uint64 | yes | The compressed bytes' size. |
+| `.files[].download.download_sha256` | 64 lowercase hex | yes | The compressed bytes' SHA-256. |
 
 Every field of type https URL (`.license_terms`,
 `.trained_on[].license_terms`, `.origin` and `.files[].url` here, and
@@ -297,7 +301,17 @@ For `fetch(id, user)`:
    itself, never its target), the temporary file is created anew,
    never opened through a link, and renamed onto the file. The
    transport is told the expected size; the HTTP transport reads at
-   most one byte more.
+   most one byte more, and asks for the bytes unencoded
+   (`Accept-Encoding: identity`). For a file with a `download` entry,
+   the transport is told the larger of `download_bytes` and `size`; the
+   fetched bytes are checked by `download_bytes` and `download_sha256`
+   (`Check::DownloadSize`, `Check::DownloadSha256`), unpacked to exactly
+   `size` bytes (`Check::Unpack` when they do not), and the unpacked
+   bytes are then checked by size, SHA-256 and SHA-512 as any other
+   file before they are written. Fetched bytes that fail the wire check
+   but verify as the file itself are kept: a server encoded the file
+   anyway (`Content-Encoding: gzip`) and the transport decoded it. The
+   zoo's own HTTP transport is built without that decoding.
 
 Step 2 runs on every call, cached files or not, so a revoked acceptance
 takes effect at once. There is no hash cache, as in the bundle loader.
@@ -320,7 +334,9 @@ The index is meant to replace that page for OpenNLP 3.1 too:
 - `component` names `ModelType` constants with a `COMPONENT_` prefix,
   and `language` is the code `DownloadUtil` keys its map by, so
   `(language, component)` gives the same lookup `downloadModel(language,
-  modelType, type)` does. `Index::find` is that lookup here.
+  modelType, type)` does. `Index::find` is that lookup here;
+  `Index::find_within` keeps the models of a class or less restrictive
+  ones, the least restrictive first.
 - `sha512` is the digest `DownloadUtil.verifyChecksum` compares, in the
   form the published `.sha512` files hold, so OpenNLP checks a file
   against the index without fetching a checksum file.
