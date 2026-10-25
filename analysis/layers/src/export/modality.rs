@@ -28,7 +28,7 @@ impl LayerCodec for Modality {
     fn import(data: &[u8], cx: &mut ImportCx, doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let spans: turbo_analysis::Spans<Modality> = get_spans(&mut r, cx)?;
-        let text_len = doc.text(spans.view()).len() as u32;
+        let text = doc.text(spans.view());
         let mut out = Modality::new(spans.view());
         for (_, scope) in spans.iter() {
             let byte = |b: u8, what: &str| malformed(format!("a {what} of {b}"));
@@ -43,8 +43,8 @@ impl LayerCodec for Modality {
                 1 => Some(r.span()?),
                 b => return Err(byte(b, "cue tag")),
             };
-            if cue.is_some_and(|c| c.end > text_len) {
-                return Err(malformed("a modality cue outside the view text"));
+            if cue.is_some_and(|c| text.get(c.range()).is_none()) {
+                return Err(malformed("a modality cue outside view or off UTF-8 boundaries"));
             }
             let confidence = f32::from_bits(r.u32()?);
             out.push(scope, ModalityTag { polarity, epistemic, deontic, cue, confidence });

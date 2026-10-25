@@ -6,7 +6,7 @@
 //! [`Polarity`] is re-exported at the crate root as `ModalityPolarity`,
 //! since the root `Polarity` is the sentiment one.
 
-use turbo_analysis::{Ix, Layer, Overlap, Span, Spans, TextSpans, ViewId};
+use turbo_analysis::{Document, Ix, KeyId, Layer, Overlap, Span, Spans, TextSpans, ViewId};
 
 /// Whether a scope is affirmed or negated.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -201,6 +201,16 @@ impl Layer for Modality {
 
     fn text_spans(&self) -> Option<TextSpans<'_>> {
         Some(self.spans.text_spans())
+    }
+
+    fn check_document(&self, doc: &Document, _on: &[KeyId]) -> Result<(), String> {
+        let text = doc.text(self.spans.view());
+        for cue in self.cue.iter().flatten() {
+            if text.get(cue.range()).is_none() {
+                return Err("a modality cue outside view or off UTF-8 boundaries".into());
+            }
+        }
+        Ok(())
     }
 
     fn check(&self) -> Result<(), String> {

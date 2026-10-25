@@ -168,8 +168,9 @@ impl<'a> Input<'a> {
     /// `window` tokens past the cue.
     fn window_scope(&self, cue: &Cue, window: usize) -> Scope {
         let n = self.spans.len();
+        let end = cue.end.saturating_add(window).min(n);
         let mut hi = cue.end - 1;
-        while hi + 1 < n && hi + 1 < cue.end + window && !STOPS.contains(&self.lower(hi + 1).as_str()) {
+        while hi + 1 < end && !STOPS.contains(&self.lower(hi + 1).as_str()) {
             hi += 1;
         }
         let lo = if cue.class == Class::Factive { Self::anchor(cue) } else { cue.start };
