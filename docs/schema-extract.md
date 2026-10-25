@@ -42,7 +42,32 @@ Each limit in `Limits` is refused by its name: `max_entity_types`,
 `max_classification_tasks`, `max_labels_per_task`, `max_structures`,
 `max_fields_per_structure` and `max_text_bytes`. After the prompt is built
 come `max_prompt_subwords`, `max_words` and the encoder's `max_sequence`.
-Text longer than the limits is refused, not cut.
+`Gliner2Extractor::prompt` and `pass` refuse text over `max_words` or
+`max_sequence`; the annotator reads such text in windows instead.
+
+## Long text
+
+`SchemaAnnotator` reads text that fits one pass in one pass, as before.
+Longer text is cut into sentence-aligned windows (the document's
+`Sentences` when it has them, its tokens otherwise), each the longest run
+of sentences that fits `max_words` and `max_sequence`, each window after
+the first starting one sentence back so a value cut by a boundary is seen
+whole. `SchemaAnnotator::windows` lists them. A sentence that does not fit
+alone is refused, naming it. Each window is extracted on its own, its
+spans mapped back to the source view's bytes, and the results merged:
+
+- a span value found in more than one window is one value, with the
+  highest score a window gave it (and that window's logit and support);
+  an entity type of `Single` cardinality keeps its best value over all
+  windows;
+- a record lives in one window: its fields never combine values from
+  different windows. A record whose values all equal an earlier record's
+  is the same record seen again in the overlap and is dropped; instances
+  count the records kept, per type, in text order;
+- every classification label's probability, chosen or not, is the highest
+  a window gave it, without renormalizing the maxima;
+  the chosen labels are every window's, best first, one for a
+  single-label task and at most `top_k` for a multi-label one.
 
 ## What runs
 
@@ -99,6 +124,8 @@ any of the four deterministic layers present. It writes:
   `task: label`. Each score is the label's probability within its task,
   whether or not the label was chosen: a single-label task's scores are
   one softmax summing to 1, a multi-label task's are independent sigmoids.
+  For windowed text, each label keeps its maximum over the passes, so
+  single-label scores across the whole document need not sum to 1.
   The selected set is every task's chosen labels; the best category is the
   highest-scoring selected label.
 - `Records` (`turbo:records`). Each span value has an exact byte span of

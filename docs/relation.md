@@ -17,6 +17,10 @@ and `Edges<Entities, Entities>` with each (subject, object, type)
 triple once at its best confidence. Both cross the document
 graph boundary (`turbo_relation::export::register_codecs`).
 
+Negation scope, epistemic factuality and deontic modality over the
+same dependency trees (`ModalityAnnotator`) are in
+[modality.md](modality.md).
+
 Patterns validate as the reference records they port do: the
 path splits on the project whitespace predicate, up steps precede
 down steps, and a trigger must already be in the project's simple

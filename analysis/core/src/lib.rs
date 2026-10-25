@@ -41,7 +41,7 @@ pub use export::{
     LayerRef, NodeRef, ProvenanceRecord, Reader, SourceRecord, StatusRecord, ViewRecord, Writer, export, get_spans,
     get_tagset, import, layer_ref, node_ref, put_spans, put_tagset,
 };
-pub use graph::{Edge, Edges, Groups};
+pub use graph::{Edge, Edges, Groups, ReachScratch};
 pub use hash::{FNV1A_OFFSET_BASIS, FNV1A_PRIME, Fnv1a, fnv1a};
 pub use layer::{Anchor, Execution, Key, KeyId, Layer, LayerName, ModelRef, Provenance, Tag, TagSet};
 pub use markup::{MarkupError, MarkupText, TagKind, TagSpan, TextRun, TextRunKind};
@@ -52,7 +52,10 @@ pub use predicate::{
     ConditionalAnnotator, ConditionalStep, FilterAnnotator, FilterableLayer, SpanFilter, co_written_aligned_anchors,
     retain_aligned_anchor,
 };
-pub use span::{FilterRule, FragmentError, Fragments, Ix, IxRange, Overlap, Span, Spans, TextSpans, filter_spans};
-pub use text::{Alignment, Edit, Side, ViewBuilder, ViewId};
+pub use span::{
+    ContainedJoin, FilterRule, FragmentError, Fragments, Ix, IxRange, Overlap, OverlappingJoin, Span, Spans, TextSpans,
+    filter_spans,
+};
+pub use text::{Alignment, AlignmentCursor, Edit, Side, ViewBuilder, ViewId};
 pub use topk::TopK;
 pub use xray::{NormalizationXray, ViewStepSummary, XrayProjection, XrayRun, XrayRunKind};
