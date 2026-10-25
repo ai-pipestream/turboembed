@@ -3,8 +3,8 @@
 
 use super::*;
 use crate::proto::result::{
-    ChunkTableHeaderAnnotation, DocumentEntityAnnotation, EntitySalienceAnnotation, EventAnnotation, NBestAnnotation,
-    SparseTermsAnnotation,
+    ChunkTableHeaderAnnotation, DocumentEntityAnnotation, EntitySalienceAnnotation, EventAnnotation,
+    KeyValuePairAnnotation, NBestAnnotation, SparseTermsAnnotation,
 };
 
 fn target(ctx: &LayerCtx<'_>, layer: &str, index: u32) -> Result<usize, Failure> {
@@ -17,6 +17,14 @@ fn target(ctx: &LayerCtx<'_>, layer: &str, index: u32) -> Result<usize, Failure>
         return Err(bad(format!("{} index {index} exceeds {layer} target {len}", ctx.lid)));
     }
     Ok(len)
+}
+
+pub(super) fn key_value(ctx: &LayerCtx<'_>, i: usize, pair: &KeyValuePairAnnotation) -> Result<(), Failure> {
+    for (field, span) in [("key", &pair.key_span), ("separator", &pair.separator_span), ("value", &pair.value_span)] {
+        let span = span.as_ref().ok_or_else(|| bad(format!("{}[{i}] key/value {field} span is missing", ctx.lid)))?;
+        ctx.offsetter.from_wire(ctx.text, ctx.lid, span.start, span.end)?;
+    }
+    Ok(())
 }
 
 pub(super) fn event(ctx: &LayerCtx<'_>, i: usize, event: &EventAnnotation) -> Result<(), Failure> {

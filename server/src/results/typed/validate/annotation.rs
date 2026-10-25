@@ -31,6 +31,7 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
         Value::DocumentEntity(entity) => shared::document_entity(ctx, i, entity)?,
         Value::EntitySalience(salience) => shared::salience(ctx, i, salience)?,
         Value::ChunkTableHeader(header) => shared::table_header(ctx, i, header)?,
+        Value::KeyValuePair(pair) => shared::key_value(ctx, i, pair)?,
         Value::Word(w) => {
             check_token_range(token_len, "word", lid, i, w.token_start, w.token_end)?;
             if let Some(sub) = &w.subspan {
