@@ -4,6 +4,7 @@
 
 use std::num::NonZeroU32;
 
+use turbo_analysis::annotate::Step;
 use turbo_analysis::{
     Analyzer, Document, Evidence, FilterRule, IxRange, Key, ModelRef, Provenance, Span, Spans, Tag, TagSet, ViewId,
 };
@@ -171,4 +172,152 @@ fn inputs_in_different_views_are_refused() {
     layers[2].spans = Spans::new(ViewId(1));
     let refs: Vec<&Entities> = layers.iter().collect();
     assert!(consensus(&refs, EntityMergePolicy::RawUnion).err().unwrap().contains("different views"));
+}
+
+#[test]
+fn an_entity_that_bridges_two_keeps_the_first_recognizers_both() {
+    // The CRF's "Lovelace met Charles" overlaps both of the dictionary's
+    // names: it votes for the first, and the second is still kept.
+    let first = entities(&[(0, 2, PERSON, 0.9), (3, 5, PERSON, 0.8)]);
+    let bridge = entities(&[(1, 4, PERSON, 0.95)]);
+    let c = consensus(&[&first, &bridge], EntityMergePolicy::PriorityFallback).unwrap();
+    assert_eq!(rows(&c.entities), [(0, 2, "person", 0.95), (3, 5, "person", 0.8)]);
+    assert_eq!(c.votes_of(0), [Vote { input: 0, entity: 0 }, Vote { input: 1, entity: 0 }]);
+    assert_eq!(c.votes_of(1), [Vote { input: 0, entity: 1 }]);
+    // Best score first, the bridge wins and both names vote for it.
+    let one = EntityMergePolicy::Consensus { min_votes: NonZeroU32::MIN, overlap_rule: FilterRule::HighestScore };
+    let c = consensus(&[&first, &bridge], one).unwrap();
+    assert_eq!(rows(&c.entities), [(1, 4, "person", 0.95)]);
+    assert_eq!(c.votes_of(0).len(), 3);
+}
+
+#[test]
+fn every_vote_overlaps_the_entity_it_is_for() {
+    // A chain of overlapping ranges from two recognizers: no vote may
+    // reach past its own entity to the far end of the chain.
+    let a = entities(&[(0, 2, PERSON, 0.5), (3, 5, PERSON, 0.6), (6, 8, PERSON, 0.7)]);
+    let b = entities(&[(1, 4, PERSON, 0.9), (4, 7, PERSON, 0.4)]);
+    let layers = [&a, &b];
+    for policy in [
+        EntityMergePolicy::PriorityFallback,
+        EntityMergePolicy::Consensus { min_votes: NonZeroU32::MIN, overlap_rule: FilterRule::LongestFirst },
+        EntityMergePolicy::RawUnion,
+    ] {
+        let c = consensus(&layers, policy).unwrap();
+        for i in 0..c.winner.len() {
+            let w = c.entities.tokens[i];
+            for v in c.votes_of(i) {
+                let t = layers[v.input as usize].tokens[v.entity as usize];
+                assert!(t.start < w.end && w.start < t.end, "{policy:?}: vote {v:?} {t:?} for {w:?}");
+            }
+        }
+        // Each candidate votes once.
+        assert_eq!(c.votes.len(), 5, "{policy:?}");
+    }
+}
+
+#[test]
+fn priority_fallback_preserves_nested_entities_from_the_first_recognizer() {
+    for inner_kind in [PERSON, ORGANIZATION] {
+        let first = entities(&[(0, 3, PERSON, 0.4), (1, 2, inner_kind, 0.9)]);
+        let later = entities(&[(6, 7, LOCATION, 0.8)]);
+        let merged = consensus(&[&first, &later], EntityMergePolicy::PriorityFallback).unwrap();
+        assert_eq!(
+            rows(&merged.entities),
+            [
+                (0, 3, "person", 0.4),
+                (1, 2, if inner_kind == PERSON { "person" } else { "organization" }, 0.9),
+                (6, 7, "location", 0.8)
+            ]
+        );
+    }
+}
+
+#[test]
+fn rejected_priority_candidate_does_not_consume_a_usable_fallback() {
+    let first = entities(&[(0, 1, PERSON, 0.7)]);
+    let later = entities(&[(0, 3, ORGANIZATION, 0.9), (2, 4, ORGANIZATION, 0.8)]);
+    let merged = consensus(&[&first, &later], EntityMergePolicy::PriorityFallback).unwrap();
+    assert_eq!(rows(&merged.entities), [(0, 1, "person", 0.7), (2, 4, "organization", 0.9)]);
+    assert_eq!(merged.votes_of(1), [Vote { input: 1, entity: 0 }, Vote { input: 1, entity: 1 }]);
+}
+
+#[test]
+fn nested_priority_entities_keep_verifiable_pipeline_evidence() {
+    let mut doc = Document::new(TEXT);
+    let mut spans = Spans::new(ViewId::SOURCE);
+    for (a, b) in TOKENS {
+        spans.push(Span::new(a, b));
+    }
+    doc.add(&Key::DEFAULT, Tokens { spans, sentence: None }, Provenance::by("tokens")).unwrap();
+    for (name, layer) in [
+        ("first", entities(&[(0, 3, PERSON, 0.4), (1, 2, PERSON, 0.9)])),
+        ("later", entities(&[(6, 7, LOCATION, 0.8)])),
+    ] {
+        let p =
+            Provenance { reads: vec![Key::<Tokens>::DEFAULT.id()], model: Some(model(name)), ..Provenance::by(name) };
+        doc.add(&Key::named(name), layer, p).unwrap();
+    }
+    let step = ConsensusEntityMerger::new(
+        vec![Key::named("first"), Key::named("later")],
+        Key::named("merged"),
+        EntityMergePolicy::PriorityFallback,
+    );
+    let analyzer = Analyzer::builder()
+        .given(Key::<Tokens>::DEFAULT)
+        .given(Key::<Entities>::named("first"))
+        .given(Key::<Entities>::named("later"))
+        .step(step)
+        .build()
+        .unwrap();
+    let mut docs = vec![doc];
+    assert!(analyzer.run(&mut docs).iter().all(Result::is_ok));
+    let doc = &docs[0];
+    let output_provenance = doc.provenance(Key::<Entities>::named("merged").id()).unwrap();
+    let evidence_provenance = doc.provenance(Key::<Evidence<Entities>>::named("merged").id()).unwrap();
+    assert_eq!(
+        (output_provenance.version, output_provenance.config),
+        (evidence_provenance.version, evidence_provenance.config)
+    );
+    assert_ne!(
+        (output_provenance.version, output_provenance.config),
+        ("0", 2),
+        "corrected priority output still identifies the original grouping implementation"
+    );
+    let merged = doc.get_key(&Key::<Entities>::named("merged")).unwrap();
+    assert_eq!(rows(merged), [(0, 3, "person", 0.4), (1, 2, "person", 0.9), (6, 7, "location", 0.8)]);
+    let evidence = doc.get_key(&Key::<Evidence<Entities>>::named("merged")).unwrap();
+    evidence.verify(doc).unwrap();
+    assert_eq!(evidence.records(), 3);
+    for (i, (input, entity)) in [(0, 0), (0, 1), (1, 0)].into_iter().enumerate() {
+        let support = evidence.support_of(i);
+        assert_eq!(support.len(), 1);
+        assert_eq!((support[0].layer, support[0].start, support[0].end), (input, entity, entity + 1));
+        assert_eq!(evidence.raw_of(i), Some(merged.score[i]));
+    }
+}
+
+#[test]
+fn revised_grouping_has_a_distinct_identity_for_every_policy() {
+    let mut cases = vec![(EntityMergePolicy::RawUnion, 1), (EntityMergePolicy::PriorityFallback, 2)];
+    for votes in [1, 2, 256, u32::MAX] {
+        for (rule, old_rule) in
+            [(FilterRule::LongestFirst, 1), (FilterRule::HighestScore, 2), (FilterRule::LeftmostLongest, 3)]
+        {
+            // Published revision-zero identities, including the largest quorum.
+            let legacy = (u64::from(votes) << 8) | (old_rule << 4) | 3;
+            cases.push((
+                EntityMergePolicy::Consensus { min_votes: NonZeroU32::new(votes).unwrap(), overlap_rule: rule },
+                legacy,
+            ));
+        }
+    }
+    let mut current = std::collections::BTreeSet::new();
+    for (policy, legacy) in cases {
+        let step = ConsensusEntityMerger::new(vec![Key::named("first")], Key::named("merged"), policy);
+        let identity = step.config_hash();
+        assert_ne!(identity, legacy, "revised grouping shares legacy identity for {policy:?}");
+        assert_eq!(identity, step.config_hash());
+        assert!(current.insert(identity), "policies or quorum counts collide for {policy:?}");
+    }
 }

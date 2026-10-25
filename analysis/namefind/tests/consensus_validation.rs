@@ -127,24 +127,33 @@ fn named_resolved_binding_and_evidence_survive_graph_transport() {
 }
 
 #[test]
-fn transitive_grouping_retains_distinct_recognizer_votes() {
-    let layers: Vec<_> = (0..3)
-        .map(|i| {
-            let mut e = entity();
-            e.spans = Spans::new(ViewId::SOURCE);
-            e.spans.push(Span::new(i, i + 2));
-            e.tokens[0] = IxRange::new(i, i + 2);
-            e.score[0] = 0.9 - f64::from(i) * 0.1;
-            e
-        })
-        .collect();
-    let refs: Vec<_> = layers.iter().collect();
-    let out = consensus(
-        &refs,
-        EntityMergePolicy::Consensus { min_votes: NonZeroU32::new(3).unwrap(), overlap_rule: FilterRule::HighestScore },
-    )
-    .unwrap();
-    assert_eq!(out.entities.tokens, [IxRange::new(0, 2)]);
+fn winner_centered_grouping_retains_overlapping_distinct_recognizer_votes() {
+    let build_layers = |scores: [f64; 3]| -> Vec<Entities> {
+        (0..3)
+            .map(|i| {
+                let mut e = entity();
+                e.spans = Spans::new(ViewId::SOURCE);
+                e.spans.push(Span::new(i, i + 2));
+                e.tokens[0] = IxRange::new(i, i + 2);
+                e.score[0] = scores[i as usize];
+                e
+            })
+            .collect()
+    };
+    let policy =
+        EntityMergePolicy::Consensus { min_votes: NonZeroU32::new(3).unwrap(), overlap_rule: FilterRule::HighestScore };
+
+    // When 0..2 wins, 2..4 does not overlap the winner and cannot form a transitive quorum.
+    let disjoint = build_layers([0.9, 0.8, 0.7]);
+    let disjoint_refs: Vec<_> = disjoint.iter().collect();
+    let out = consensus(&disjoint_refs, policy).unwrap();
+    assert!(out.entities.tokens.is_empty());
+
+    // When 1..3 wins, both 0..2 and 2..4 overlap the winner and contribute distinct recognizer votes.
+    let centered = build_layers([0.8, 0.9, 0.7]);
+    let centered_refs: Vec<_> = centered.iter().collect();
+    let out = consensus(&centered_refs, policy).unwrap();
+    assert_eq!(out.entities.tokens, [IxRange::new(1, 3)]);
     assert_eq!(out.votes_of(0).len(), 3);
     assert_eq!(out.votes_of(0).iter().map(|v| v.input).collect::<Vec<_>>(), [0, 1, 2]);
 }
