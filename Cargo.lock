@@ -2124,6 +2124,7 @@ dependencies = [
  "turbo-coref",
  "turbo-geo",
  "turbo-glossary-layers",
+ "turbo-normalize",
  "turbo-unicode",
  "turbo-vector-index",
  "turbo-wordnet",
