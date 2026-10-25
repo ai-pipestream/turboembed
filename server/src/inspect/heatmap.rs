@@ -3,16 +3,21 @@
 //! (`heatmap_buckets > 0`), with all bucket boundaries projected into the
 //! caller's [`OffsetMode`].
 
+use std::collections::BTreeMap;
+
 use turbo_analysis::{Document, Ix, Span, ViewId};
 use turbo_analysis_layers::{
     Categories, Chunks, Entities, Incivility, IncivilityTarget, Pii, PiiConfidence, Sentences, Tag, Tokens,
 };
 
-use super::window::{snap_down, snap_up};
+use super::window::snap_down;
 use crate::api::Failure;
 use crate::offsets::Offsetter;
 use crate::proto::result::{HeatmapBucketProto, HeatmapLaneProto};
-use crate::results::{MAX_WINDOWS, over};
+use crate::results::{MAX_FRAGMENTS, over};
+
+/// Maximum number of minimap buckets allowed per heatmap lane.
+pub const MAX_HEATMAP_BUCKETS: u32 = 4_096;
 
 #[derive(Clone, Copy)]
 struct ScoredSpan {
@@ -31,8 +36,8 @@ pub(crate) fn build_heatmap_lanes(
     offsetter: &Offsetter,
     heatmap_buckets: u32,
 ) -> Result<Vec<HeatmapLaneProto>, Failure> {
-    if heatmap_buckets as u64 > MAX_WINDOWS {
-        return Err(over("max_windows", "heatmap_buckets", heatmap_buckets as u64));
+    if heatmap_buckets > MAX_HEATMAP_BUCKETS {
+        return Err(over("max_heatmap_buckets", "heatmap_buckets", heatmap_buckets as u64));
     }
     let mut lanes = Vec::new();
 
@@ -43,7 +48,7 @@ pub(crate) fn build_heatmap_lanes(
         let items: Vec<ScoredSpan> = (0..tokens.spans.len())
             .map(|i| ScoredSpan { span: tokens.spans.get(Ix::new(i as u32)), score: 1.0, item: i as u32 })
             .collect();
-        lanes.push(make_lane("tokens", "TokenDensity", view.0 as u32, text, offsetter, heatmap_buckets, &items, true));
+        lanes.push(make_lane("tokens", "TokenDensity", view.0 as u32, text, offsetter, heatmap_buckets, &items, true)?);
     }
 
     if let Some(entities) = doc.get::<Entities>()
@@ -67,7 +72,7 @@ pub(crate) fn build_heatmap_lanes(
             heatmap_buckets,
             &items,
             false,
-        ));
+        )?);
     }
 
     if let Some(pii) = doc.get::<Pii>()
@@ -86,7 +91,7 @@ pub(crate) fn build_heatmap_lanes(
                 items.push(ScoredSpan { span: frag, score: sc, item: i as u32 });
             }
         }
-        lanes.push(make_lane("pii", "PiiDensity", view.0 as u32, text, offsetter, heatmap_buckets, &items, false));
+        lanes.push(make_lane("pii", "PiiDensity", view.0 as u32, text, offsetter, heatmap_buckets, &items, false)?);
     }
 
     if let Some(sentences) = doc.get::<Sentences>()
@@ -117,7 +122,7 @@ pub(crate) fn build_heatmap_lanes(
                 heatmap_buckets,
                 &items,
                 false,
-            ));
+            )?);
         }
     }
 
@@ -161,7 +166,7 @@ pub(crate) fn build_heatmap_lanes(
                 heatmap_buckets,
                 &items,
                 false,
-            ));
+            )?);
         }
     }
 
@@ -177,7 +182,7 @@ pub(crate) fn build_heatmap_lanes(
                 items.push(ScoredSpan { span: frag, score: sc, item: i as u32 });
             }
         }
-        lanes.push(make_lane("chunks", "ChunkScore", view.0 as u32, text, offsetter, heatmap_buckets, &items, false));
+        lanes.push(make_lane("chunks", "ChunkScore", view.0 as u32, text, offsetter, heatmap_buckets, &items, false)?);
     }
 
     Ok(lanes)
@@ -193,9 +198,9 @@ fn make_lane(
     heatmap_buckets: u32,
     items: &[ScoredSpan],
     sum_density: bool,
-) -> HeatmapLaneProto {
+) -> Result<HeatmapLaneProto, Failure> {
     let buckets = if heatmap_buckets == 0 {
-        exact_segments(text, offsetter, items, sum_density)
+        exact_segments(text, offsetter, items, sum_density)?
     } else {
         binned_buckets(text, offsetter, heatmap_buckets, items, sum_density)
     };
@@ -210,54 +215,68 @@ fn make_lane(
             max_score = max_score.max(b.score);
         }
     }
-    HeatmapLaneProto { id: id.to_owned(), kind: kind.to_owned(), view, min_score, max_score, buckets }
+    Ok(HeatmapLaneProto { id: id.to_owned(), kind: kind.to_owned(), view, min_score, max_score, buckets })
 }
 
+/// Sweep-line exact elementary segmentation: sorts endpoints once and maintains
+/// an active map of open [`ScoredSpan`]s so cost is linear in the number of
+/// endpoints (`O(M log M)`).
 fn exact_segments(
     text: &str,
     offsetter: &Offsetter,
     items: &[ScoredSpan],
     sum_density: bool,
-) -> Vec<HeatmapBucketProto> {
-    let mut bounds = Vec::with_capacity(items.len() * 2);
-    for it in items {
+) -> Result<Vec<HeatmapBucketProto>, Failure> {
+    // (byte_pos, is_start, idx_in_items)
+    let mut events: Vec<(u32, bool, usize)> = Vec::with_capacity(items.len() * 2);
+    for (idx, it) in items.iter().enumerate() {
         if !it.span.is_empty() {
-            bounds.push(it.span.start);
-            bounds.push(it.span.end);
+            events.push((it.span.start, true, idx));
+            events.push((it.span.end, false, idx));
         }
     }
-    bounds.sort_unstable();
-    bounds.dedup();
+    if events.len() as u64 > MAX_FRAGMENTS * 2 {
+        return Err(over("max_fragments", "heatmap span endpoints", events.len() as u64));
+    }
+    events.sort_unstable_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)).then(a.2.cmp(&b.2)));
 
+    let mut active: BTreeMap<usize, ScoredSpan> = BTreeMap::new();
     let mut out = Vec::new();
-    for pair in bounds.windows(2) {
-        let (a, b) = (pair[0], pair[1]);
-        if a >= b {
-            continue;
+    let mut i = 0usize;
+    while i < events.len() {
+        let pos = events[i].0;
+        while i < events.len() && events[i].0 == pos {
+            let (_, is_start, idx) = events[i];
+            if is_start {
+                active.insert(idx, items[idx]);
+            } else {
+                active.remove(&idx);
+            }
+            i += 1;
         }
-        let mut count = 0u32;
-        let mut best_score = 0.0_f32;
-        let mut primary_item: Option<u32> = None;
-        for it in items {
-            if it.span.start <= a && it.span.end >= b {
-                count += 1;
-                if sum_density {
-                    best_score += it.score;
-                    if primary_item.is_none() {
+        if i < events.len() && !active.is_empty() {
+            let next_pos = events[i].0;
+            if pos < next_pos {
+                let count = active.len() as u32;
+                let mut best_score = 0.0_f32;
+                let mut primary_item: Option<u32> = None;
+                for it in active.values() {
+                    if sum_density {
+                        best_score += it.score;
+                        if primary_item.is_none() {
+                            primary_item = Some(it.item);
+                        }
+                    } else if primary_item.is_none() || it.score.abs() > best_score.abs() {
+                        best_score = it.score;
                         primary_item = Some(it.item);
                     }
-                } else if primary_item.is_none() || it.score.abs() > best_score.abs() {
-                    best_score = it.score;
-                    primary_item = Some(it.item);
                 }
+                let (start, end) = offsetter.to_wire(text, Span::new(pos, next_pos));
+                out.push(HeatmapBucketProto { start, end, score: best_score, count, primary_item });
             }
         }
-        if count > 0 {
-            let (start, end) = offsetter.to_wire(text, Span::new(a, b));
-            out.push(HeatmapBucketProto { start, end, score: best_score, count, primary_item });
-        }
     }
-    out
+    Ok(out)
 }
 
 fn binned_buckets(
@@ -272,31 +291,52 @@ fn binned_buckets(
         return Vec::new();
     }
     let n = num_buckets as usize;
-    let mut out = Vec::with_capacity(n);
+    let mut bounds = Vec::with_capacity(n + 1);
     for b_idx in 0..n {
-        let raw_a = (b_idx * len) / n;
-        let raw_b = ((b_idx + 1) * len) / n;
-        let a = snap_down(text, raw_a) as u32;
-        let b = snap_up(text, raw_b).max(a as usize) as u32;
-        let mut count = 0u32;
-        let mut score = 0.0_f32;
-        let mut primary_item: Option<u32> = None;
-        for it in items {
+        bounds.push(snap_down(text, (b_idx * len) / n) as u32);
+    }
+    bounds.push(len as u32);
+
+    let mut counts = vec![0u32; n];
+    let mut scores = vec![0.0_f32; n];
+    let mut primaries: Vec<Option<u32>> = vec![None; n];
+
+    for it in items {
+        if it.span.is_empty() {
+            continue;
+        }
+        let first_b = bounds[1..].partition_point(|&b_end| b_end <= it.span.start);
+        let last_b = bounds[..n].partition_point(|&b_start| b_start < it.span.end);
+        for b_idx in first_b..last_b.min(n) {
+            let a = bounds[b_idx];
+            let b = bounds[b_idx + 1];
             if it.span.start < b && it.span.end > a {
-                count += 1;
+                counts[b_idx] += 1;
                 if sum_density {
-                    score += it.score;
-                    if primary_item.is_none() {
-                        primary_item = Some(it.item);
+                    scores[b_idx] += it.score;
+                    if primaries[b_idx].is_none() {
+                        primaries[b_idx] = Some(it.item);
                     }
-                } else if primary_item.is_none() || it.score.abs() > score.abs() {
-                    score = it.score;
-                    primary_item = Some(it.item);
+                } else if primaries[b_idx].is_none() || it.score.abs() > scores[b_idx].abs() {
+                    scores[b_idx] = it.score;
+                    primaries[b_idx] = Some(it.item);
                 }
             }
         }
+    }
+
+    let mut out = Vec::with_capacity(n);
+    for b_idx in 0..n {
+        let a = bounds[b_idx];
+        let b = bounds[b_idx + 1].max(a);
         let (start, end) = offsetter.to_wire(text, Span::new(a, b));
-        out.push(HeatmapBucketProto { start, end, score, count, primary_item });
+        out.push(HeatmapBucketProto {
+            start,
+            end,
+            score: scores[b_idx],
+            count: counts[b_idx],
+            primary_item: primaries[b_idx],
+        });
     }
     out
 }

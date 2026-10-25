@@ -1,7 +1,9 @@
 //! Windowed viewport pagination, sweep-line combined elementary segmentation,
 //! and document-level chip extraction (`InspectDocumentWindow`, issue #1220).
 
-use turbo_analysis::{Document, Ix, Layer, Span, Spans, View, ViewId};
+use std::collections::BTreeMap;
+
+use turbo_analysis::{Document, Ix, Key, Layer, Span, Spans, View, ViewId};
 use turbo_analysis_layers::{
     Abbreviations, Boilerplate, Categories, Chunks, EmotionDimension, EmotionLayer, Entities, Incivility, Language,
     LanguageSpans, Numbers, Pii, PiiConfidence, PosTags, Regions, Sentences, Structure, Subwords, Tag, Tokens,
@@ -15,6 +17,9 @@ use crate::results::{MAX_FRAGMENTS, MAX_WINDOWS, over};
 /// Default viewport window size in UTF-8 bytes when `page_size == 0`.
 pub const DEFAULT_PAGE_SIZE: u32 = 16_000;
 
+/// Maximum viewport window size in UTF-8 bytes allowed on `InspectDocumentWindow`.
+pub const MAX_PAGE_SIZE: u32 = 65_536;
+
 fn bad(message: impl Into<String>) -> Failure {
     Failure::new(TURBO_E_INVALID_ARGUMENT, 0, message)
 }
@@ -23,15 +28,6 @@ pub(crate) fn snap_down(text: &str, mut at: usize) -> usize {
     at = at.min(text.len());
     while at > 0 && !text.is_char_boundary(at) {
         at -= 1;
-    }
-    at
-}
-
-pub(crate) fn snap_up(text: &str, mut at: usize) -> usize {
-    let len = text.len();
-    at = at.min(len);
-    while at < len && !text.is_char_boundary(at) {
-        at += 1;
     }
     at
 }
@@ -45,6 +41,9 @@ pub(crate) fn compute_window(
     page_size: u32,
     page: u32,
 ) -> Result<(DocumentWindowProto, Span), Failure> {
+    if page_size > MAX_PAGE_SIZE {
+        return Err(over("max_page_size", "window page_size", page_size as u64));
+    }
     let step = if page_size == 0 { DEFAULT_PAGE_SIZE } else { page_size } as usize;
     let total_bytes = text.len();
     let page_count = if total_bytes == 0 { 1 } else { total_bytes.div_ceil(step) as u32 };
@@ -58,13 +57,13 @@ pub(crate) fn compute_window(
     let raw_end = raw_start.saturating_add(step);
     let clamped = raw_end > total_bytes;
     let byte_start = snap_down(text, raw_start) as u32;
-    let byte_end = snap_up(text, raw_end.min(total_bytes)) as u32;
-    let span = Span::new(byte_start, byte_end);
+    let byte_end = if raw_end >= total_bytes { total_bytes as u32 } else { snap_down(text, raw_end) as u32 };
+    let span = Span::new(byte_start, byte_end.max(byte_start));
     let (start, end) = offsetter.to_wire(text, span);
     let proto = DocumentWindowProto {
         view,
-        byte_start,
-        byte_end,
+        byte_start: span.start,
+        byte_end: span.end,
         start,
         end,
         page,
@@ -85,8 +84,8 @@ fn layer_allowed(filter_layers: &[String], layer_id: &str) -> bool {
     filter_layers.is_empty() || filter_layers.iter().any(|f| f.trim() == layer_id)
 }
 
-/// Binary-searches an ordered [`Spans`] column for the index range of items
-/// whose bounding spans may overlap `window`.
+/// Binary-searches a strictly non-overlapping (`Overlap::None`) [`Spans`]
+/// column for the index range of items whose spans may overlap `window`.
 fn ordered_range<L>(spans: &Spans<L>, window: Span) -> std::ops::Range<usize> {
     let (starts, ends) = spans.columns();
     let first = ends.partition_point(|&e| e <= window.start);
@@ -123,7 +122,7 @@ fn push_clipped_item<L>(
 }
 
 /// Computes the combined elementary segmentation of all requested positional
-/// layers on `view` inside `window`.
+/// layers on `view` inside `window` via a sweep-line over fragment endpoints.
 pub(crate) fn combined_segments(
     doc: &Document,
     view: ViewId,
@@ -150,8 +149,12 @@ pub(crate) fn combined_segments(
         && let Some(tokens) = doc.get::<Tokens>()
         && tokens.spans.view() == view
     {
-        let pos = doc.get::<PosTags>();
-        for i in ordered_range(&tokens.spans, window) {
+        let tok_key = Key::<Tokens>::DEFAULT.id();
+        let pos_key = Key::<PosTags>::DEFAULT.id();
+        let pos_bound_to_default =
+            doc.made_on(pos_key).iter().find(|k| k.ty == tok_key.ty).is_none_or(|&k| k == tok_key);
+        let pos = if pos_bound_to_default { doc.get::<PosTags>() } else { None };
+        for i in 0..tokens.spans.len() {
             let (label, score) = match pos {
                 Some(p) if i < p.tags.len() => {
                     let lbl = p.tagset.label(p.tags[i]).to_owned();
@@ -164,11 +167,13 @@ pub(crate) fn combined_segments(
         }
     }
 
+    // Subwords uses Overlap::Any, so its ends column is not guaranteed monotonic;
+    // scan items directly rather than binary-searching ends.
     if layer_allowed(filter_layers, Subwords::ID)
         && let Some(subwords) = doc.get::<Subwords>()
         && subwords.spans.view() == view
     {
-        for i in ordered_range(&subwords.spans, window) {
+        for i in 0..subwords.spans.len() {
             push_clipped_item(&mut clipped, &subwords.spans, i, window, Subwords::ID, "subword".to_owned(), 1.0);
         }
     }
@@ -279,39 +284,58 @@ pub(crate) fn combined_segments(
         }
     }
 
-    let mut bounds = Vec::with_capacity(clipped.len() * 2 + 2);
-    bounds.push(window.start);
-    bounds.push(window.end);
-    for c in &clipped {
-        bounds.push(c.span.start);
-        bounds.push(c.span.end);
-    }
-    bounds.sort_unstable();
-    bounds.dedup();
-
-    if bounds.len().saturating_sub(1) as u64 > MAX_FRAGMENTS {
-        return Err(over("max_fragments", "combined window segments", bounds.len().saturating_sub(1) as u64));
+    if clipped.len() as u64 > MAX_FRAGMENTS {
+        return Err(over("max_fragments", "clipped window fragments", clipped.len() as u64));
     }
 
+    // Sweep-line events: (byte_pos, kind: 0 = close, 1 = open, 2 = window_bound, frag_idx).
+    let mut events: Vec<(u32, u8, usize)> = Vec::with_capacity(clipped.len() * 2 + 2);
+    events.push((window.start, 2, usize::MAX));
+    events.push((window.end, 2, usize::MAX));
+    for (idx, c) in clipped.iter().enumerate() {
+        events.push((c.span.start, 1, idx));
+        events.push((c.span.end, 0, idx));
+    }
+    events.sort_unstable_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)).then(a.2.cmp(&b.2)));
+
+    let mut active_set: BTreeMap<usize, &SegmentAnnotationProto> = BTreeMap::new();
     let mut raw_segments: Vec<(Span, Vec<SegmentAnnotationProto>)> = Vec::new();
-    for pair in bounds.windows(2) {
-        let (a, b) = (pair[0], pair[1]);
-        if a >= b {
-            continue;
+    let mut i = 0usize;
+    while i < events.len() {
+        let pos = events[i].0;
+        while i < events.len() && events[i].0 == pos {
+            let (_, kind, idx) = events[i];
+            match kind {
+                0 => {
+                    active_set.remove(&idx);
+                }
+                1 => {
+                    active_set.insert(idx, &clipped[idx].ann);
+                }
+                _ => {}
+            }
+            i += 1;
         }
-        let seg_span = Span::new(a, b);
-        let mut active: Vec<SegmentAnnotationProto> =
-            clipped.iter().filter(|c| c.span.start <= a && c.span.end >= b).map(|c| c.ann.clone()).collect();
-        active
-            .sort_by(|x, y| x.layer.cmp(&y.layer).then_with(|| x.instance.cmp(&y.instance)).then(x.item.cmp(&y.item)));
-        if let Some((last_span, last_active)) = raw_segments.last_mut()
-            && last_span.end == a
-            && *last_active == active
-        {
-            last_span.end = b;
-            continue;
+        if i < events.len() {
+            let next_pos = events[i].0;
+            if pos >= window.start && next_pos <= window.end && pos < next_pos {
+                if raw_segments.len() as u64 >= MAX_FRAGMENTS {
+                    return Err(over("max_fragments", "combined window segments", raw_segments.len() as u64 + 1));
+                }
+                let mut active: Vec<SegmentAnnotationProto> = active_set.values().map(|&a| a.clone()).collect();
+                active.sort_by(|x, y| {
+                    x.layer.cmp(&y.layer).then_with(|| x.instance.cmp(&y.instance)).then(x.item.cmp(&y.item))
+                });
+                if let Some((last_span, last_active)) = raw_segments.last_mut()
+                    && last_span.end == pos
+                    && *last_active == active
+                {
+                    last_span.end = next_pos;
+                } else {
+                    raw_segments.push((Span::new(pos, next_pos), active));
+                }
+            }
         }
-        raw_segments.push((seg_span, active));
     }
 
     let mut out = Vec::with_capacity(raw_segments.len());
