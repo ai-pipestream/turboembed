@@ -84,7 +84,18 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
                 }
             }
         }
+        Value::Relation(relation) => {
+            shared::target(ctx, "opennlp:entities", relation.subject_entity)?;
+            shared::target(ctx, "opennlp:entities", relation.object_entity)?;
+            if relation.subject_entity == relation.object_entity {
+                return Err(bad(format!("{lid}[{i}] relation has identical subject and object")));
+            }
+        }
         Value::CorefMention(cm) => {
+            shared::target(ctx, "opennlp:sentences", cm.sentence_index)?;
+            if let Some(entity) = cm.entity_index {
+                shared::target(ctx, "opennlp:entities", entity)?;
+            }
             check_token_range(token_len, "coref_mention", lid, i, cm.token_start, cm.token_end)?;
             check_head_in_range("coref_mention", lid, i, cm.head_token, cm.token_start, cm.token_end)?;
         }
@@ -200,7 +211,17 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
             }
             check_parent("chunk", lid, i, ch.parent_index)?;
         }
-        Value::LevelUnit(lv) => check_parent("level", lid, i, lv.parent_index)?,
+        Value::LevelUnit(lv) => {
+            check_parent("level", lid, i, lv.parent_index)?;
+            match lv.kind.as_str() {
+                "document" if i == 0 && lv.unit_index == 0 && lv.parent_index.is_none() => {}
+                kind @ ("chunk" | "section") if i > 0 && lv.parent_index.is_some() => {
+                    let target = if kind == "chunk" { "turbo:chunks" } else { "turbo:structure" };
+                    shared::target(ctx, target, lv.unit_index)?;
+                }
+                _ => return Err(bad(format!("{lid}[{i}] invalid level kind, root or parent"))),
+            }
+        }
         Value::Structure(st) => check_parent("structure", lid, i, st.parent_index)?,
         Value::Answer(ans) => {
             check_prob("probability", lid, i, ans.probability)?;
