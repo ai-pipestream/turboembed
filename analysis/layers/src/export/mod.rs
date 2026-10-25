@@ -92,6 +92,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Dependencies<Words>>()
         .register::<Entities>()
         .register::<crate::DocumentEntities>()
+        .register::<crate::EntitySalience>()
         .register::<ChunkTags>()
         .register::<PhraseChunks>()
         .register::<Boundaries>()
