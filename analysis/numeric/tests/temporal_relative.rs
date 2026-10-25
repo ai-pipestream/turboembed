@@ -285,12 +285,13 @@ fn iso_weeks() {
 }
 
 /// Without a reference no relative expression is read, so `3 days ago`
-/// alone is nothing and `in 2026` is not a count.
+/// alone is nothing; multi-digit counts up to nine digits are read by
+/// default.
 #[test]
-fn counts_have_one_or_two_digits() {
+fn counts_have_up_to_nine_digits() {
     let r = Some(day("2026-07-17"));
-    assert_eq!(found("100 days ago", r), []);
-    assert_eq!(found("in 100 days", r), []);
+    assert_eq!(found("100 days ago", r), [relative(0, 12, "2026-04-08", Day)]);
+    assert_eq!(found("in 100 days", r), [relative(0, 11, "2026-10-25", Day)]);
     assert_eq!(found("in 07 days", r), [relative(0, 10, "2026-07-24", Day)]);
     assert_eq!(found("3 days ago", None), []);
 }
