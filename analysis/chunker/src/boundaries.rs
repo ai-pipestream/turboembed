@@ -39,7 +39,7 @@ impl Default for Costs {
 }
 
 impl Costs {
-    fn of(&self, reason: Cut) -> i32 {
+    pub(crate) fn of(&self, reason: Cut) -> i32 {
         match reason {
             Cut::Section => self.section,
             Cut::Heading => self.heading,

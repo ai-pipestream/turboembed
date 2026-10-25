@@ -2046,6 +2046,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-coref",
+ "turbo-matcher",
  "turbo-normalize",
  "turbo-stem",
  "turbo-structure",
@@ -2316,6 +2317,7 @@ name = "turbo-kserve"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "libc",
  "prost",
  "protox",
  "serde_json",
@@ -2336,14 +2338,22 @@ dependencies = [
  "turbo-entity-linker",
  "turbo-geo",
  "turbo-gliner",
+ "turbo-glossary",
  "turbo-glossary-layers",
  "turbo-group",
  "turbo-keywords",
+ "turbo-lemmatizer",
+ "turbo-maxent",
  "turbo-normalize-layers",
  "turbo-relation",
  "turbo-schema-extract",
+ "turbo-sequence",
+ "turbo-stopword",
  "turbo-stopword-layers",
+ "turbo-tokenize",
  "turbo-tokenize-layers",
+ "turbo-wordnet",
+ "turbo-zoo",
 ]
 
 [[package]]
@@ -2356,6 +2366,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "tokio-stream",
  "tonic",
  "tonic-prost",
  "tonic-prost-build",
@@ -2599,6 +2610,7 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-bundle",
  "turbo-depparse",
+ "turbo-matcher",
  "turbo-unicode",
  "turbo-zoo",
 ]
@@ -2830,6 +2842,8 @@ dependencies = [
  "serde_json",
  "sha2",
  "turbo-goldens",
+ "turbo-maxent",
+ "turbo-zstd",
  "ureq",
 ]
 

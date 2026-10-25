@@ -113,9 +113,7 @@ pub(crate) fn upper_char(c: char) -> char {
 
 /// `StringUtil.toLowerCase`: `Character.toLowerCase(int)` on each code
 /// point, appended to `out`.
-pub(crate) fn push_lowercase(s: &str, out: &mut String) {
-    out.extend(s.chars().map(lower_char));
-}
+pub(crate) use turbo_unicode::java::to_lowercase_code_points as push_lowercase;
 
 /// `StringUtil.toUpperCase` on one character: `Character.toUpperCase(char)`
 /// on each UTF-16 unit, so a character outside the Basic Multilingual

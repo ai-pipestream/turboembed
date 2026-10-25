@@ -238,6 +238,29 @@ pub fn sigmoid_f64(x: f64) -> f64 {
     }
 }
 
+/// Softmax over `logits` in place, in `f64`: the largest logit is
+/// subtracted before exponentiating, and a row whose exponentials
+/// do not sum to a positive finite number becomes uniform.
+pub fn softmax_f64_in_place(logits: &mut [f64]) {
+    if logits.is_empty() {
+        return;
+    }
+    let max = logits.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    let mut sum = 0.0f64;
+    for z in logits.iter_mut() {
+        *z = (*z - max).exp();
+        sum += *z;
+    }
+    if sum > 0.0 && sum.is_finite() {
+        let inv = 1.0 / sum;
+        for z in logits.iter_mut() {
+            *z *= inv;
+        }
+    } else {
+        logits.fill(1.0 / logits.len() as f64);
+    }
+}
+
 /// Numerically stable softmax over a single row of `logits`, written as `f64`
 /// probabilities into `out`.
 pub fn softmax(logits: &[f32], out: &mut [f64]) -> Result<()> {

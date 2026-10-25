@@ -1,6 +1,20 @@
 use super::*;
 
 #[test]
+fn softmax_f64_in_place_is_stable_and_uniform_on_degenerate_rows() {
+    let mut v = [1000.0f64, 999.0, -1000.0];
+    softmax_f64_in_place(&mut v);
+    assert!((v.iter().sum::<f64>() - 1.0).abs() < 1e-12);
+    assert!(v[0] > 0.73 && v[0] < 0.74);
+    assert_eq!(v[2], 0.0);
+    let mut empty: [f64; 0] = [];
+    softmax_f64_in_place(&mut empty);
+    let mut nan = [f64::NAN, f64::NAN];
+    softmax_f64_in_place(&mut nan);
+    assert_eq!(nan, [0.5, 0.5]);
+}
+
+#[test]
 fn sigmoid_is_stable_at_the_tails() {
     assert_eq!(sigmoid(0.0), 0.5);
     assert_eq!(sigmoid(-1000.0), 0.0);

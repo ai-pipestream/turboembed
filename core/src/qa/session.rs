@@ -295,7 +295,8 @@ unsafe fn device_of(rt: *mut turbo_runtime, name: &str) -> Result<u32> {
         let mut info: turbo_device_info = unsafe { std::mem::zeroed() };
         info.struct_size = size_of::<turbo_device_info>() as u32;
         check(unsafe { turbo_runtime_device_info(rt, i, &mut info, &mut e) }, &e)?;
-        let b: Vec<u8> = info.backend.iter().take_while(|&&c| c != 0).map(|&c| c as u8).collect();
+        let b: Vec<u8> =
+            info.backend.iter().take_while(|&&c| c != 0).map(|&c| u8::from_ne_bytes(c.to_ne_bytes())).collect();
         if b == name.as_bytes() {
             return Ok(i);
         }

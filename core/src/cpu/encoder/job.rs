@@ -192,6 +192,8 @@ pub(super) fn entry(isa: Isa) -> Entry {
         Isa::Avx2 => entry_avx2,
         #[cfg(target_arch = "x86_64")]
         Isa::Avx512 => entry_avx512,
+        #[cfg(target_arch = "aarch64")]
+        Isa::Neon => entry_neon,
     }
 }
 
@@ -212,4 +214,11 @@ pub(super) unsafe fn entry_avx2(j: &Job, t: usize, th: usize) {
 pub(super) unsafe fn entry_avx512(j: &Job, t: usize, th: usize) {
     // SAFETY: as Entry.
     unsafe { j.task::<crate::cpu::kernels::Avx512>(t, th) }
+}
+
+#[cfg(target_arch = "aarch64")]
+#[target_feature(enable = "neon")]
+pub(super) unsafe fn entry_neon(j: &Job, t: usize, th: usize) {
+    // SAFETY: as Entry.
+    unsafe { j.task::<crate::cpu::kernels::Neon>(t, th) }
 }

@@ -1,10 +1,11 @@
-//! The Open Inference Protocol (KServe v2) and the analysis result
-//! layer over gRPC, served from the library's C interface as
+//! The Open Inference Protocol (KServe v2), the analysis result layer
+//! and the model catalog over gRPC, served from the library's C interface as
 //! docs/kserve.md and docs/grpc-analysis.md map them.
 
 pub mod analysis;
 pub mod api;
 pub mod capabilities;
+pub mod catalog;
 pub mod config;
 mod infer;
 mod kserve;
@@ -14,10 +15,11 @@ pub mod state;
 pub mod status;
 pub mod stream;
 pub mod tasks;
+pub mod vocabulary;
 
 pub use crate::state::Held;
 
-/// The messages and services of the two protos.
+/// The messages and services of the three protos.
 pub mod proto {
     #![allow(clippy::all)]
     tonic::include_proto!("inference");
@@ -25,9 +27,18 @@ pub mod proto {
     pub mod result {
         tonic::include_proto!("turbo.result");
     }
+    /// The vocabulary store's service (docs/grpc-vocabulary.md).
+    pub mod vocabulary {
+        tonic::include_proto!("turbo.vocabulary");
+    }
+    /// The model catalog (docs/grpc-catalog.md).
+    pub mod training {
+        tonic::include_proto!("turbo.training");
+    }
 }
 
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use tokio::net::TcpListener;
@@ -40,6 +51,8 @@ use tonic::transport::server::TcpIncoming;
 use crate::config::ModelConfig;
 use crate::proto::grpc_inference_service_server::GrpcInferenceServiceServer;
 use crate::proto::result::analysis_service_server::AnalysisServiceServer;
+use crate::proto::training::turbo_catalog_service_server::TurboCatalogServiceServer;
+use crate::proto::vocabulary::turbo_vocabulary_service_server::TurboVocabularyServiceServer;
 use crate::state::State;
 
 /// tonic refuses a request message over the decoding limit with
@@ -67,12 +80,17 @@ pub struct Server {
     task: JoinHandle<std::result::Result<(), tonic::transport::Error>>,
 }
 
-/// Whether the server builder serves the admin calls, LoadBundle and
-/// UnloadBundle: the explicit opt-in this listener needs before any
-/// client may add or remove bundles.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+/// What the server serves beyond inference and analysis. `admin` is the
+/// explicit opt-in this listener needs before any client may add or remove
+/// bundles or vocabulary artifacts, record a licence acceptance or install
+/// a model. `vocabulary` is the vocabulary store's directory; without one
+/// the store holds nothing and refuses writes. `catalog` is the model
+/// catalog, which refuses every call when absent.
+#[derive(Debug, Clone, Default)]
 pub struct Serve {
     pub admin: bool,
+    pub vocabulary: Option<PathBuf>,
+    pub catalog: Option<catalog::Catalog>,
 }
 
 impl Server {
@@ -80,8 +98,8 @@ impl Server {
     /// path that names no bundle, or two models of one name, is refused. A
     /// request message over `max_message_bytes` is refused by gRPC with
     /// RESOURCE_EXHAUSTED before it is read. `serve.admin` opts in to the
-    /// admin calls LoadBundle and UnloadBundle; off, they refuse
-    /// UNIMPLEMENTED.
+    /// admin calls LoadBundle, UnloadBundle, RecordLicenceAcceptance and
+    /// InstallModel; off, they refuse UNIMPLEMENTED.
     pub async fn start(
         listen: SocketAddr,
         models: Vec<ModelConfig>,
@@ -96,6 +114,13 @@ impl Server {
             .max_decoding_message_size(max_message_bytes);
         let analysis = AnalysisServiceServer::new(analysis::Analysis { state: state.clone(), admin: serve.admin })
             .max_decoding_message_size(max_message_bytes);
+        let store = match &serve.vocabulary {
+            Some(dir) => Some(Arc::new(vocabulary::Store::open(dir).map_err(|e| format!("vocabulary store: {e}"))?)),
+            None => None,
+        };
+        let vocabulary = TurboVocabularyServiceServer::new(vocabulary::Vocabulary { store, admin: serve.admin })
+            .max_decoding_message_size(max_message_bytes);
+        let catalog = TurboCatalogServiceServer::new(catalog::CatalogService::new(serve.catalog, serve.admin));
         let (stop, stopped) = oneshot::channel::<()>();
         // TCP_NODELAY on every accepted socket. The builder's tcp_nodelay
         // does not reach a listener served with serve_with_incoming, and
@@ -107,6 +132,8 @@ impl Server {
                 .layer(tower::util::MapResponseLayer::new(too_large))
                 .add_service(kserve)
                 .add_service(analysis)
+                .add_service(vocabulary)
+                .add_service(catalog)
                 .serve_with_incoming_shutdown(incoming, async {
                     let _ = stopped.await;
                 }),
