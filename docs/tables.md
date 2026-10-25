@@ -24,7 +24,10 @@ logical row and column, row/column extent, header flag and alignment.
 `cells_in_table` yields borrowed metadata and source envelopes in
 row-major order. `headers_for_table` selects its header cells.
 `governing_headers` returns the nearest preceding column header and the
-column-zero cell of the same row, the row label.
+column-zero cell of the same row, the row label. These convenience queries
+collect and sort the table cells on each call: O(C log C) time and O(C)
+scratch for C cells. Cache their results for repeated cell queries;
+calling governing_headers for every cell costs O(C^2 log C).
 
 `table_bounds` holds each complete table. `rows`, `row_table` and `row_ix`
 hold logical row bounds and coordinates. Rows partition the full source
@@ -45,7 +48,10 @@ ASCII `+---+` grids use a `+===+` header separator to identify header
 rows. Grids without that separator have no inferred header. Consecutive
 physical content lines form one logical row; multiline cell content uses
 the standard discontinuous-span fragments. Parsed cell extents are one
-row and one column; merged grid cells are not inferred.
+row and one column; merged grid cells are not inferred. A content row
+with a different column count ends the grid at its last closed row. A
+later border may start another grid; unsupported spanning-cell rows
+are excluded rather than treated as rectangular cells.
 
 The default cell limit is 1,000,000 per view, including implied empty
 cells. `TableGridAnnotator::max_cells` configures it and participates in

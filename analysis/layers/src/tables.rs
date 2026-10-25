@@ -85,6 +85,8 @@ impl Tables {
         TableCellRef { index, span: self.spans.get(index), cell: &self.cells[index.get()] }
     }
 
+    /// Collects and sorts this table: O(C log C) time and O(C) scratch.
+    /// Cache the result when making repeated queries over the same table.
     pub fn cells_in_table(&self, table_id: u32) -> impl Iterator<Item = TableCellRef<'_>> {
         let first = self.cells.partition_point(|c| c.table_id < table_id);
         let mut cells: Vec<_> = self.cells[first..]
