@@ -68,7 +68,10 @@ pub struct Quotations {
 
 impl PartialEq for Quotations {
     fn eq(&self, other: &Self) -> bool {
-        self.spans.view() == other.spans.view() && self.iter().eq(other.iter())
+        self.spans.view() == other.spans.view()
+            && self.iter().eq(other.iter())
+            // Rows expose only the envelope; gaps are part of the content too.
+            && self.spans.iter().all(|(i, _)| self.spans.fragments(i).eq(other.spans.fragments(i)))
     }
 }
 
