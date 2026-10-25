@@ -1,0 +1,109 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-25T20:12:42Z",
+  "machine": {
+    "arch": "aarch64",
+    "host_cpu": "Raspberry Pi 5 Model B Rev 1.1",
+    "os": "linux"
+  },
+  "device": {
+    "backend": "cpu",
+    "kind": "DEVICE_CPU",
+    "name": "Raspberry Pi 5 Model B Rev 1.1",
+    "vendor": "0x41",
+    "driver_version": "",
+    "runtime_version": "",
+    "memory_total": 17006116864
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 cpu",
+    "commit": "1d4205acf700ee63a1ef7f1c69b4889461401bb0",
+    "pushed_to": [
+      "origin/hailo-8-runtime",
+      "origin/main"
+    ],
+    "settings": []
+  },
+  "task": "TASK_EMBED",
+  "precision": "PRECISION_MODEL",
+  "compute_dtype": "DTYPE_F32",
+  "bundle": {
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "revision": "1",
+    "manifest_sha256": "0f17adc4b795ed27bbe59ec88d35d37bf10f25af15f07b09f3249e5c1001b6d3",
+    "artifact_sha256": "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db",
+    "tokenizer_sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
+  },
+  "rows": {
+    "kind": "ROWS_DENSE",
+    "batch": 32,
+    "seq": 256,
+    "live_tokens": 8192,
+    "cases": [
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8
+    ],
+    "sha256": "0c85ff407a58448a04661fa81fda7ae4e5ff72e378e19e3bbcafe070f9fdfcc3"
+  },
+  "timing": {
+    "warmup": 20,
+    "iterations": 200,
+    "p50_ms": 2988.280317,
+    "p99_ms": 3163.502457,
+    "mean_ms": 3004.5935422049993,
+    "min_ms": 2944.502219,
+    "max_ms": 3167.992468,
+    "rows_per_second": 10.650357284941562,
+    "computed_tokens": 8192
+  },
+  "conformance": {
+    "rows": 41,
+    "min_cosine": 0.9999999999982059,
+    "max_abs_diff": 3.427267074584961e-7
+  },
+  "references": [
+    {
+      "name": "text-embeddings-inference",
+      "role": "end_to_end",
+      "pinned": "",
+      "version": "",
+      "commands": [],
+      "procedure": "",
+      "measured": null,
+      "not_run": "disabled on the command line (--no-tei)"
+    }
+  ],
+  "speed_ratio": null,
+  "speed_reference": null
+}
