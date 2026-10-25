@@ -6,7 +6,9 @@ KServe deployment, or any client of that protocol, embeds text through
 the library without linking it. On the same port it serves
 `turbo.result.AnalysisService`: the analysis result kinds on the wire and
 a capability call that lists what every loaded bundle is
-(docs/grpc-analysis.md). This page says how to run it. What every RPC,
+(docs/grpc-analysis.md). It can forward what its analysis streams
+complete to a downstream `turbo.sink.TurboSinkService`, and serve that
+service itself (docs/grpc-sink.md). This page says how to run it. What every RPC,
 tensor, parameter and status of the Open Inference Protocol means, call
 by call against the C interface, is in [kserve.md](kserve.md).
 
@@ -67,6 +69,9 @@ no way to stop a load part way.
 | `--model SETTINGS` | One served model; repeat for more. | At least one is required. |
 | `--max-message-bytes N` | The largest request message read; a larger one is refused with `RESOURCE_EXHAUSTED` before it is read. | 64 MiB. |
 | `--admin` | Answer the analysis service's admin calls, `LoadBundle` and `UnloadBundle` (docs/grpc-analysis.md). Without it they refuse with `UNIMPLEMENTED`. | Off. |
+| `--sink-endpoint URI` | Forward every document an `AnalyzeStream` completes to the `TurboSinkService` at this address, such as `http://sink:8081` (docs/grpc-sink.md). | No forwarding. |
+| `--sink-queue-items N` | The most documents waiting for the sink; one more is dropped and counted. Needs `--sink-endpoint`. | 1024. |
+| `--sink-queue-bytes N` | The most encoded bytes waiting for the sink. Needs `--sink-endpoint`. | 64 MiB. |
 
 `SETTINGS` is comma-separated `key=value` pairs:
 
@@ -110,6 +115,9 @@ twice; `TURBO_KSERVE_MODELS` lists every model in one.
 | `TURBO_KSERVE_MODELS` | `--model`, one or more values separated by `;` |
 | `TURBO_KSERVE_MAX_MESSAGE_BYTES` | `--max-message-bytes` |
 | `TURBO_KSERVE_ADMIN` | `--admin` (`1`, `true`, `yes`, `0`, `false`, `no`) |
+| `TURBO_KSERVE_SINK_ENDPOINT` | `--sink-endpoint` |
+| `TURBO_KSERVE_SINK_QUEUE_ITEMS` | `--sink-queue-items` |
+| `TURBO_KSERVE_SINK_QUEUE_BYTES` | `--sink-queue-bytes` |
 
 ```
 TURBO_KSERVE_LISTEN=0.0.0.0:8081 \
@@ -192,9 +200,10 @@ Errors).
 Protocol's own file, vendored (Apache-2.0); its first lines say where
 from. `server/proto/turbo_analysis.proto` is the crate's own file, the
 analysis result layer's messages and service
-(docs/grpc-analysis.md). Generate a client from either in any language
-with gRPC. The build compiles them with a Rust protobuf compiler, so
-building the server needs no `protoc`.
+(docs/grpc-analysis.md), and `server/proto/turbo_sink.proto` the
+document sink's (docs/grpc-sink.md). Generate a client from any of them
+in any language with gRPC. The build compiles them with a Rust protobuf
+compiler, so building the server needs no `protoc`.
 
 ## A client call
 

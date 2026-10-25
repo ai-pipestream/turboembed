@@ -40,14 +40,14 @@ async fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
-    let server =
-        match Server::start(args.listen, args.models, args.max_message_bytes, Serve { admin: args.admin }).await {
-            Ok(s) => s,
-            Err(e) => {
-                eprintln!("turbo-kserve: {e}");
-                return ExitCode::FAILURE;
-            }
-        };
+    let serve = Serve { admin: args.admin, sink: args.sink, ..Serve::default() };
+    let server = match Server::start(args.listen, args.models, args.max_message_bytes, serve).await {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("turbo-kserve: {e}");
+            return ExitCode::FAILURE;
+        }
+    };
     eprintln!("turbo-kserve: listening on {}", server.local_addr());
     // A stop signal during load stops the server once the load returns:
     // the library has no way to stop a load part way.
