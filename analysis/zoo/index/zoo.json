@@ -3619,6 +3619,7 @@
     {
       "id": "fastino-gliner2-base-v1",
       "kind": "KIND_MODEL",
+      "component": "COMPONENT_SCHEMA_EXTRACTOR",
       "language": "en",
       "format": "FORMAT_SAFETENSORS",
       "version": "f9634218e53580c56edf0de97ca1a7d3f1c2354e",
@@ -3702,6 +3703,7 @@
     {
       "id": "jackboyla-glirel-large-v0",
       "kind": "KIND_MODEL",
+      "component": "COMPONENT_RELATION_EXTRACTOR",
       "language": "en",
       "format": "FORMAT_PYTORCH",
       "version": "40a523e12a8432d6da364cf2a195a28755ff04d3",
@@ -3737,6 +3739,7 @@
     {
       "id": "cross-encoder-nli-minilm2-l6-h768",
       "kind": "KIND_MODEL",
+      "component": "COMPONENT_ZERO_SHOT_CATEGORIZER",
       "language": "en",
       "format": "FORMAT_SAFETENSORS",
       "version": "b95119ce93d3e065de6214e38cd4a97b0f2f2c6d",
@@ -3816,6 +3819,7 @@
     {
       "id": "deepset-roberta-base-squad2",
       "kind": "KIND_MODEL",
+      "component": "COMPONENT_EXTRACTIVE_QA",
       "language": "en",
       "format": "FORMAT_SAFETENSORS",
       "version": "adc3b06f79f797d1c575d5479d6f5efe54a9e3b4",
@@ -3883,6 +3887,7 @@
     {
       "id": "urchade-gliner-small-v2.1",
       "kind": "KIND_MODEL",
+      "component": "COMPONENT_ENTITY_EXTRACTOR",
       "language": "en",
       "format": "FORMAT_PYTORCH",
       "version": "4e091416cf7c3481db542c2a3d26156916f3a47f",
@@ -3950,6 +3955,7 @@
     {
       "id": "urchade-gliner-multi-v2.1",
       "kind": "KIND_MODEL",
+      "component": "COMPONENT_ENTITY_EXTRACTOR",
       "language": "mul",
       "format": "FORMAT_SAFETENSORS",
       "version": "443d26d654e0324125a96bebd8e796c14ff2efe6",
@@ -4051,6 +4057,107 @@
           "size": 5571,
           "sha256": "6776b6599eb276cfcc0a0f37bb7c723d70812653c1bfc05e300cdbed6000932e",
           "sha512": "b3243220d6db143c84cd92a0a3ffcbb4055643a1549312d471575baf5ebbf8e0bfbca5af2baa3fc9cdaef34d0403affe81ede334b5522c764e3db5f19b37d52b"
+        }
+      ]
+    },
+    {
+      "id": "opensearch-neural-sparse-encoding-v1",
+      "kind": "KIND_MODEL",
+      "language": "en",
+      "format": "FORMAT_SAFETENSORS",
+      "version": "708f7e68f4aada15c2d59144a5187c521da6d8db",
+      "license": "Apache-2.0",
+      "license_terms": "https://huggingface.co/opensearch-project/opensearch-neural-sparse-encoding-v1/blob/708f7e68f4aada15c2d59144a5187c521da6d8db/README.md",
+      "trained_on": [
+        {
+          "name": "google-bert/bert-base-uncased",
+          "license": "Apache-2.0",
+          "license_terms": "https://huggingface.co/google-bert/bert-base-uncased"
+        },
+        {
+          "name": "MS MARCO",
+          "license": "LicenseRef-RestrictedPublic",
+          "license_terms": "https://microsoft.github.io/msmarco/"
+        }
+      ],
+      "class": "CLASS_LOCAL_ONLY",
+      "attribution": "opensearch-project/opensearch-neural-sparse-encoding-v1 at 708f7e68f4aada15c2d59144a5187c521da6d8db (Apache-2.0, https://huggingface.co/opensearch-project/opensearch-neural-sparse-encoding-v1/blob/708f7e68f4aada15c2d59144a5187c521da6d8db/README.md), derived from google-bert/bert-base-uncased (Apache-2.0, https://huggingface.co/google-bert/bert-base-uncased); MS MARCO (LicenseRef-RestrictedPublic, https://microsoft.github.io/msmarco/).",
+      "origin": "https://huggingface.co/opensearch-project/opensearch-neural-sparse-encoding-v1",
+      "files": [
+        {
+          "path": "model.safetensors",
+          "url": "https://huggingface.co/opensearch-project/opensearch-neural-sparse-encoding-v1/resolve/708f7e68f4aada15c2d59144a5187c521da6d8db/model.safetensors",
+          "size": 531848824,
+          "sha256": "9642a9d3ea8b8a31212847d960f8baa01e87a72e18dcb95705aa84335d4e8851",
+          "sha512": "63a882a706d0c402d774b90d94b0d35f9aa1cb8335f8adb5b218b9c9f228880f1b6a6e35e7630cd336b5f2a318ced2631b0a7a30321e5bb7dbd6aca4c2394d6b"
+        },
+        {
+          "path": "config.json",
+          "url": "https://huggingface.co/opensearch-project/opensearch-neural-sparse-encoding-v1/resolve/708f7e68f4aada15c2d59144a5187c521da6d8db/config.json",
+          "size": 725,
+          "sha256": "8342a3dae93a6d06ced5d160649c8bb3ac847e081dbe7a19618d7964c56f737b",
+          "sha512": "5c5c1f1eecdcdfd5d13073e5dd46007713e1d0dd0b197a2ccc25db0d45ca0b0aaf9fd9fa169838648c1e9da3705f61208689b471ff582ac8f9d8629c3dc0e1dd"
+        },
+        {
+          "path": "tokenizer.json",
+          "url": "https://huggingface.co/opensearch-project/opensearch-neural-sparse-encoding-v1/resolve/708f7e68f4aada15c2d59144a5187c521da6d8db/tokenizer.json",
+          "size": 711396,
+          "sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+          "sha512": "0194b6aa6a1a8e7583e11a5c3d720a1ab052d035026053af4e4afc207f54589ab45b2215b1e26cff9fb412b5aa0e635bf93689cafb700a92a39b0b2993ff6731"
+        },
+        {
+          "path": "1_SpladePooling/config.json",
+          "url": "https://huggingface.co/opensearch-project/opensearch-neural-sparse-encoding-v1/resolve/708f7e68f4aada15c2d59144a5187c521da6d8db/1_SpladePooling/config.json",
+          "size": 106,
+          "sha256": "07580f9ee2553c16b418853be6811a7b0abd7393ee96c487f32b6b0ba1a5e6b4",
+          "sha512": "afc7a73d65cb875ae8fca567900184f185e6ae23b937261286076b3c9a471e5535452eb9828cd10e1d229d9af670fa8f461c34c671432bb4dc632ae14fde27c4"
+        }
+      ]
+    },
+    {
+      "id": "colbert-ir-colbertv2.0",
+      "kind": "KIND_MODEL",
+      "language": "en",
+      "format": "FORMAT_SAFETENSORS",
+      "version": "c1e84128e85ef755c096a95bdb06b47793b13acf",
+      "license": "MIT",
+      "license_terms": "https://huggingface.co/colbert-ir/colbertv2.0/blob/c1e84128e85ef755c096a95bdb06b47793b13acf/README.md",
+      "trained_on": [
+        {
+          "name": "google-bert/bert-base-uncased",
+          "license": "Apache-2.0",
+          "license_terms": "https://huggingface.co/google-bert/bert-base-uncased"
+        },
+        {
+          "name": "MS MARCO",
+          "license": "LicenseRef-RestrictedPublic",
+          "license_terms": "https://microsoft.github.io/msmarco/"
+        }
+      ],
+      "class": "CLASS_LOCAL_ONLY",
+      "attribution": "colbert-ir/colbertv2.0 at c1e84128e85ef755c096a95bdb06b47793b13acf (MIT, https://huggingface.co/colbert-ir/colbertv2.0/blob/c1e84128e85ef755c096a95bdb06b47793b13acf/README.md), derived from google-bert/bert-base-uncased (Apache-2.0, https://huggingface.co/google-bert/bert-base-uncased); MS MARCO (LicenseRef-RestrictedPublic, https://microsoft.github.io/msmarco/).",
+      "origin": "https://huggingface.co/colbert-ir/colbertv2.0",
+      "files": [
+        {
+          "path": "model.safetensors",
+          "url": "https://huggingface.co/colbert-ir/colbertv2.0/resolve/c1e84128e85ef755c096a95bdb06b47793b13acf/model.safetensors",
+          "size": 438349816,
+          "sha256": "3f58890b1dfdfec066ef12ba431fa9d56992da9e30a53489242c4156e37e9017",
+          "sha512": "7598e22ffe9bbffdc64a2f0f91f74d6ea1a2569fc3766cbce78e8772e08bbff7284d8cf7d22ac4672ad2bbad5e3de0569d4924a8bde5ef9850e29b57032d6244"
+        },
+        {
+          "path": "config.json",
+          "url": "https://huggingface.co/colbert-ir/colbertv2.0/resolve/c1e84128e85ef755c096a95bdb06b47793b13acf/config.json",
+          "size": 743,
+          "sha256": "cbdcc01dc7772fd0e5e1d85d5de695faf8c4935ae3c7ea3fdb6c24397b284f3c",
+          "sha512": "8c01f6a44a4444b01d39607908deab9d001bc17ca1e451930609c4612ebfe90d2e5cb68163ae9f946abc1cededf2e26a4c280bd600824262b3e0d3fc475e7726"
+        },
+        {
+          "path": "tokenizer.json",
+          "url": "https://huggingface.co/colbert-ir/colbertv2.0/resolve/c1e84128e85ef755c096a95bdb06b47793b13acf/tokenizer.json",
+          "size": 466081,
+          "sha256": "5fd1c882abbd30517dced455a2c9768945ec726b96727927e4959348d9de550b",
+          "sha512": "c151402c7df0585adf2ae1d6a710d88a8bf8e42fa08766733fcf6b167b6e4fb9bbba687bfbcb7e430b88f29dbc2e89ac79dc74aeb2645c915b973631a0cd024b"
         }
       ]
     }

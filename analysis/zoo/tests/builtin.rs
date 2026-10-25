@@ -8,6 +8,9 @@ use std::collections::BTreeSet;
 
 use turbo_zoo::{Component, Format, Index, Kind, Licence, LicenceClass, Policy, verify};
 
+#[path = "builtin/components.rs"]
+mod components;
+
 #[test]
 fn the_builtin_index_parses_and_is_canonical() {
     let index = Index::builtin();
@@ -140,6 +143,11 @@ const SHARE_ALIKE_CHECKPOINTS: [&str; 2] = ["cross-encoder-nli-minilm2-l6-h768",
 /// The local-only checkpoints the index lists: fetched only for a user
 /// who has accepted their licence.
 const LOCAL_CHECKPOINTS: [&str; 1] = ["jackboyla-glirel-large-v0"];
+
+/// The retrieval checkpoints the SPLATE study lists (#913): permissive
+/// model licences over MS MARCO, so local-only through their training
+/// data and fetched only after accepting MS MARCO's terms.
+const RETRIEVAL_CHECKPOINTS: [&str; 2] = ["opensearch-neural-sparse-encoding-v1", "colbert-ir-colbertv2.0"];
 
 #[test]
 fn the_squad2_checkpoint_is_pinned_and_share_alike_through_its_data() {
@@ -349,6 +357,7 @@ fn the_ud_models_carry_their_treebank_licences() {
     expected.extend(CHECKPOINTS.map(str::to_owned));
     expected.extend(SHARE_ALIKE_CHECKPOINTS.map(str::to_owned));
     expected.extend(LOCAL_CHECKPOINTS.map(str::to_owned));
+    expected.extend(RETRIEVAL_CHECKPOINTS.map(str::to_owned));
     let listed: BTreeSet<String> = index.list().iter().map(|a| a.id.to_string()).collect();
     assert_eq!(listed, expected);
     for (lang, tb) in NON_COMMERCIAL_TREEBANKS {
@@ -417,6 +426,16 @@ fn only_catalan_and_the_models_trained_here_need_no_acceptance() {
                     turbo_zoo::Requirement::of(Licence::CcBySa30).unwrap(),
                     turbo_zoo::Requirement::of(Licence::CcBySa40).unwrap(),
                 ],
+                "{}",
+                a.id
+            );
+        } else if RETRIEVAL_CHECKPOINTS.contains(&a.id.as_str()) {
+            assert_eq!(
+                needs,
+                [turbo_zoo::Requirement {
+                    licence: Licence::RestrictedPublic,
+                    text: "https://microsoft.github.io/msmarco/".into(),
+                }],
                 "{}",
                 a.id
             );

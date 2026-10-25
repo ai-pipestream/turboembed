@@ -53,20 +53,25 @@ Offsets are UTF-8 byte offsets into the view, on character boundaries.
 At each character the scan tries three shapes, in this order, and after
 a mention goes on at its end:
 
-- **Symbol first** (`$1,234.56`, `-$5`, `$1.2M`, `$ 100`): a symbol
-  from the table, not directly after an ASCII letter (combining marks
-  skipped), so `HK$50` and `US$50` give nothing. One `White_Space`
+- **Symbol first** (`$1,234.56`, `-$5`, `$1.2M`, `$ 100`, `HK$50`, `US$50`):
+  a symbol from the table, or a dollar-prefixed region symbol (`HK$`, `US$`,
+  `CA$`, `C$`, `A$`, `AU$`, `NZ$`, `R$`, `S$`, `SG$`, `NT$`, `MX$`, `TW$`,
+  `Z$`) when `$` is in the symbol table. A single-character symbol is rejected
+  when preceded by a letter (combining marks skipped). One `White_Space`
   character may follow the symbol. A minus before the symbol counts only
   where a minus may open a negative number (numbers.md), so the hyphen in
   `$100-$200` is not a sign.
-- **Code first** (`USD 100`, `USD 1.2 million`): three ASCII capitals
-  between word boundaries that make a known code, one `White_Space`
-  character, then the number. This shape takes no minus.
+- **Code first** (`USD 100`, `USD 1.2 million`, `-USD 5`): three ASCII capitals
+  between word boundaries that make a known non-test code, one `White_Space`
+  character, then the number, with an optional leading minus at a sign
+  boundary.
 - **Number first** (`100 USD`, `50€`, `1.2 million dollars`): a
   number, then a symbol directly after it, or one `White_Space` character
   and a code or a currency word. A digit that goes on with a number
   before it never starts one, so `1,00,000 USD` gives nothing rather than
-  `000 USD`.
+  `000 USD`. Unscaled `pound` and `pounds` in a weight context (`3 pounds of
+  flour`, `weighs 150 pounds`) are not read as GBP, while `3 pounds sterling`
+  includes `sterling` in the mention span.
 
 Every shape must end at a word boundary. The number follows the scan
 rules of numbers.md with scale markers read, in the extractor's
@@ -140,9 +145,12 @@ result was compared with the JVM's, scale included.
   currency is kept as it is, digits and scale, but still needs a quote.
 - A quotient's scale is the preferred scale (dividend scale minus
   divisor scale) when the exact quotient fits 16 digits there, and the
-  16-digit scale otherwise, as in `BigDecimal`. No rounding to a
-  currency's minor unit follows: 1 USD in EUR at 1.2 is
-  `0.8333333333333333`.
+  16-digit scale otherwise, as in `BigDecimal`. By default no rounding to a
+  currency's minor unit follows (1 USD in EUR at 1.2 is
+  `0.8333333333333333`); `MoneyConverter::with_minor_unit_rounding(true)`
+  and `DatedMoneyConverter::with_minor_unit_rounding(true)` round converted
+  amounts half to even (`RoundingMode.HALF_EVEN`) to the target currency's
+  ISO 4217 minor unit (`minor_units`).
 - When a scale leaves the `int` range the JDK throws, and `EcbFxRates`
   divides the unscaled values instead and applies the combined scale;
   that fails only when the result itself does not fit. The port follows
@@ -190,19 +198,35 @@ Where the APIs differ:
 - The character classes come from the Unicode 18.0 tables of
   `turbo-unicode`, as in numbers.md.
 
-Behaviour that comes from the Java and is kept, though it looks wrong:
+Where the default behaviour improves on OpenNLP (with OpenNLP's original
+behaviour preserved under `MoneyExtractor::with_opennlp_parity(true)` for
+the JVM goldens):
 
-- A minus before a code is dropped: `-USD 5` is a mention `USD 5` of
-  plus 5 USD, while `-5 USD` and `-$5` are minus 5.
-- Only an ASCII letter before a symbol marks it as part of a longer
-  symbol: `HK$50` gives nothing, `Ü$5` gives 5 USD.
+- A minus before a code is kept (`-USD 5` is minus 5 USD with span `0..6`);
+  in parity mode the minus is dropped (`USD 5`, plus 5 USD).
+- Dollar-prefixed region symbols (`HK$50`, `US$50`, `CA$50`, `C$50`, `A$50`,
+  `AU$50`, `NZ$50`, `R$50`, `S$50`, `SG$50`, `NT$50`, `MX$50`, `TW$50`,
+  `Z$50`) resolve to their currencies when `$` is in the symbol table, and
+  any Unicode letter before a single-character symbol (`Ü$5`) rejects the
+  symbol; in parity mode only an ASCII letter before a symbol marks it as
+  part of a longer symbol, so `HK$50` gives nothing and `Ü$5` gives 5 USD.
+- The ISO 4217 testing and no-currency codes `XTS` and `XXX` (`is_test_currency`)
+  are refused by default, while historical codes (`DEM`, `FRF`) remain
+  accepted; in parity mode `XTS` and `XXX` are accepted as money.
+- Unscaled `pound` and `pounds` in a weight context (`3 pounds of flour`,
+  `weighs 150 pounds`) are refused by default, and `3 pounds sterling`
+  includes `sterling` in the span; in parity mode `3 pounds of flour` is 3 GBP.
+- `MoneyConverter::with_minor_unit_rounding(true)` and
+  `DatedMoneyConverter::with_minor_unit_rounding(true)` round converted
+  amounts half to even to the target currency's ISO 4217 minor unit
+  (`minor_units`); by default converted amounts keep all 16 digits of the
+  division.
+
+Other behaviour that comes from the Java and is kept in both modes:
+
 - The one gap a shape allows is any `White_Space` character, a line
   break included: `$` at the end of a line and `100` on the next are
   one mention.
-- Every code the JDK lists is a currency, withdrawn ones (`DEM`, `FRF`)
-  and the testing and no-currency codes `XTS` and `XXX` included:
-  `XXX 5` is money.
-- `3 pounds of flour` is 3 GBP; the Java documents this.
 - Currency words are lowercased code point by code point with
   `Character.toLowerCase`, so `RENMİNBİ`, with U+0130, is `renminbi`.
 - A rate field accepts what `new BigDecimal(String)` accepts, a leading
@@ -210,9 +234,6 @@ Behaviour that comes from the Java and is kept, though it looks wrong:
   the file is described as ASCII.
 - DEL (U+007F) and U+0085 are not refused as control characters; they
   stay in the field and make it an invalid code or rate.
-- A converted amount keeps the 16 digits of the division, with no
-  rounding to cents, and its scale depends on the scales of the inputs
-  (`12.000` divided by `1.2` is `10.00`).
 
 ## Golden files
 

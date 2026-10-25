@@ -19,6 +19,7 @@ pub mod glirel;
 pub mod licence;
 pub mod lookahead;
 pub mod matryoshka;
+pub mod postag;
 pub mod qa;
 pub mod recipe;
 pub mod reference;

@@ -228,13 +228,28 @@ impl Weight {
     }
 }
 
-/// The time a speed is measured over.
+use super::currency::CurrencyUnit;
+use super::kinds::Information;
+
+/// The time a speed or another rate is measured over.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Per {
     Millisecond,
     Second,
     Minute,
     Hour,
+    Day,
+    Week,
+    Month,
+    Year,
+}
+
+/// A rate other than a speed: information or money over a time
+/// (`10 Mb/s`, `$5 per hour`).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+pub enum Rate {
+    Information(Information, Per),
+    Currency(CurrencyUnit, Per),
 }
 
 impl Per {
@@ -244,6 +259,10 @@ impl Per {
             Per::Second => "second",
             Per::Minute => "minute",
             Per::Hour => "hour",
+            Per::Day => "day",
+            Per::Week => "week",
+            Per::Month => "month",
+            Per::Year => "year",
         }
     }
 
@@ -253,6 +272,10 @@ impl Per {
             Per::Second => "s",
             Per::Minute => "min",
             Per::Hour => "h",
+            Per::Day => "d",
+            Per::Week => "wk",
+            Per::Month => "mo",
+            Per::Year => "yr",
         }
     }
 }

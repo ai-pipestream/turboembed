@@ -2,8 +2,12 @@
 //! (`opennlp.tools.namefind`).
 
 pub mod crf;
+mod factory;
 mod scored;
 pub use crf::{CrfNameFinder, CrfNameSequence};
+pub use factory::NameContextFactory;
+
+use std::borrow::BorrowMut;
 
 use crate::beam::{BEAM_SIZE_PROPERTY, BeamSearch, ContextGenerator, SequenceValidator, manifest_beam_size};
 use crate::codec::{BilouCodec, BilouValidator, BioCodec, BioValidator, SequenceCodec, Span};
@@ -192,9 +196,9 @@ pub struct FoundName {
 /// the model's codec with its sequence validator. Sentences are given in
 /// document order; the context generator's adaptive data carries over
 /// from one to the next until [`NameFinder::clear_adaptive_data`].
-pub struct NameFinder<'m> {
+pub struct NameFinder<'m, C = DefaultNameContext> {
     search: BeamSearch<'m>,
-    context: DefaultNameContext,
+    context: C,
     codec: NameCodec,
     probs: Vec<f64>,
 }
@@ -212,12 +216,22 @@ impl<'m> NameFinder<'m> {
         if beam == 0 {
             return Err(Error::Manifest { property: BEAM_SIZE_PROPERTY.into(), value: "0".into() });
         }
-        Ok(NameFinder {
-            search: BeamSearch::new(beam, model)?,
-            context: DefaultNameContext::for_model(file, mode)?,
-            codec: NameCodec::for_model(file),
-            probs: Vec::new(),
-        })
+        Self::with_context(model, beam, NameCodec::for_model(file), DefaultNameContext::for_model(file, mode)?)
+    }
+}
+
+impl<'m, C: BorrowMut<DefaultNameContext>> NameFinder<'m, C> {
+    /// Builds a finder from parsed resources, owned or borrowed. Callers reusing
+    /// a context must clear its adaptive data at each document boundary.
+    pub fn with_context(model: &'m MaxentModel, beam: usize, codec: NameCodec, context: C) -> Result<Self> {
+        if beam == 0 {
+            return Err(Error::Manifest { property: BEAM_SIZE_PROPERTY.into(), value: "0".into() });
+        }
+        Ok(Self { search: BeamSearch::new(beam, model)?, context, codec, probs: Vec::new() })
+    }
+
+    pub fn into_context(self) -> C {
+        self.context
     }
 
     pub fn codec(&self) -> NameCodec {
@@ -236,11 +250,11 @@ impl<'m> NameFinder<'m> {
     /// `find(tokens, additionalContext)`: the names of one sentence with
     /// caller-supplied per-token additional context features (`ne=<val>`).
     pub fn find_with_context(&mut self, tokens: &[&str], additional_context: &[Vec<String>]) -> Vec<FoundName> {
-        self.context.set_additional_context(additional_context);
-        let Some(best) = self.search.best_sequence(tokens, &mut self.context, &self.codec) else {
+        self.context.borrow_mut().set_additional_context(additional_context);
+        let Some(best) = self.search.best_sequence(tokens, self.context.borrow_mut(), &self.codec) else {
             return Vec::new();
         };
-        self.context.update_adaptive_data(tokens, best.outcomes());
+        self.context.borrow_mut().update_adaptive_data(tokens, best.outcomes());
         self.probs.clear();
         self.probs.extend_from_slice(best.probs());
         let probs = best.probs();
@@ -266,7 +280,7 @@ impl<'m> NameFinder<'m> {
 
     /// `clearAdaptiveData`: the next sentence starts a document.
     pub fn clear_adaptive_data(&mut self) {
-        self.context.clear_adaptive_data();
+        self.context.borrow_mut().clear_adaptive_data();
     }
 }
 
