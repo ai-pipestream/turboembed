@@ -1,6 +1,7 @@
 //! Strongly-typed `TypedDocumentResult` projection (`proto/turbo_typed_annotations.proto`,
 //! issue #1219) and validation (`RoundTripTypedDocument`, `InspectDocumentGraph`).
 
+mod layers_context;
 mod layers_core;
 mod layers_domain;
 mod layers_entities;
@@ -356,6 +357,7 @@ pub fn document_to_typed(
             .or_else(|| layers_quality::project_quality_layer(&mut cx, key))
             .or_else(|| layers_structure::project_structure_layer(&mut cx, key))
             .or_else(|| layers_shared::project_shared_layer(&mut cx, key))
+            .or_else(|| layers_context::project_context_layer(&mut cx, key))
         {
             layers.push(typed);
         } else {

@@ -158,6 +158,8 @@ struct LayerCtx<'a> {
     layer_lengths: &'a HashMap<(&'a str, &'a str), usize>,
     token_len: Option<usize>,
     entity_len: Option<usize>,
+    target_lengths: HashMap<&'a str, usize>,
+    table_ids: HashSet<u32>,
     target_bounds: Vec<usize>,
     layer_len: usize,
     lid: &'a str,
@@ -273,6 +275,23 @@ fn validate_layer(
         layer_lengths,
         token_len,
         entity_len,
+        target_lengths: layer.indexes_layer.iter().zip(&target_bounds).map(|(b, &n)| (b.layer.as_str(), n)).collect(),
+        table_ids: layer
+            .indexes_layer
+            .iter()
+            .find(|b| b.layer == "turbo:tables")
+            .and_then(|b| msg.layers.iter().find(|l| l.id == b.layer && l.instance == b.instance))
+            .map(|tables| {
+                tables
+                    .annotations
+                    .iter()
+                    .filter_map(|a| match &a.value {
+                        Some(Value::TableCell(cell)) => Some(cell.table_id),
+                        _ => None,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default(),
         target_bounds,
         layer_len: layer.annotations.len(),
         lid,
@@ -280,5 +299,6 @@ fn validate_layer(
     for (i, ann) in layer.annotations.iter().enumerate() {
         annotation::validate_annotation(&ctx, i, ann)?;
     }
+    shared::salience_order(&ctx, layer)?;
     Ok(())
 }

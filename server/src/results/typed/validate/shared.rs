@@ -2,7 +2,94 @@
 //! outer annotations; their references retain the selected layer instance.
 
 use super::*;
-use crate::proto::result::{DocumentEntityAnnotation, NBestAnnotation, SparseTermsAnnotation};
+use crate::proto::result::{
+    ChunkTableHeaderAnnotation, DocumentEntityAnnotation, EntitySalienceAnnotation, EventAnnotation, NBestAnnotation,
+    SparseTermsAnnotation,
+};
+
+fn target(ctx: &LayerCtx<'_>, layer: &str, index: u32) -> Result<usize, Failure> {
+    let len = ctx
+        .target_lengths
+        .get(layer)
+        .copied()
+        .ok_or_else(|| bad(format!("{} has no {layer} index target", ctx.lid)))?;
+    if index as usize >= len {
+        return Err(bad(format!("{} index {index} exceeds {layer} target {len}", ctx.lid)));
+    }
+    Ok(len)
+}
+
+pub(super) fn event(ctx: &LayerCtx<'_>, i: usize, event: &EventAnnotation) -> Result<(), Failure> {
+    check_f32_prob("confidence", ctx.lid, i, event.confidence)?;
+    target(ctx, "opennlp:sentences", event.sentence_index)?;
+    for argument in &event.arguments {
+        let span = argument.span.as_ref().ok_or_else(|| bad("event argument has no span"))?;
+        let span = ctx.offsetter.from_wire(ctx.text, ctx.lid, span.start, span.end)?;
+        if span.is_empty() {
+            return Err(bad("event argument has an empty span"));
+        }
+        match (argument.anchored_layer.as_str(), argument.anchored_index) {
+            ("none", None) => {}
+            (layer @ ("turbo:temporal" | "turbo:money" | "turbo:quantities" | "opennlp:entities"), Some(index)) => {
+                target(ctx, layer, index)?;
+            }
+            _ => return Err(bad("event argument anchor layer/index is missing or inconsistent")),
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn salience(ctx: &LayerCtx<'_>, i: usize, score: &EntitySalienceAnnotation) -> Result<(), Failure> {
+    let len = target(ctx, "turbo:document-entities", score.entity_index)?;
+    check_aligned_index("entity_index", ctx.lid, i, score.entity_index, len)?;
+    if ctx.layer_len != len || score.rank as usize >= len {
+        return Err(bad(format!("{}[{i}] salience rank or entity count differs from target", ctx.lid)));
+    }
+    for (name, p) in [
+        ("salience", score.salience),
+        ("position", score.position_score),
+        ("syntax", score.syntax_score),
+        ("frequency", score.frequency_score),
+        ("centrality", score.centrality_score),
+    ] {
+        check_f32_prob(name, ctx.lid, i, p)?;
+    }
+    Ok(())
+}
+
+pub(super) fn salience_order(ctx: &LayerCtx<'_>, layer: &TypedLayer) -> Result<(), Failure> {
+    if layer.id != "turbo:entity-salience" {
+        return Ok(());
+    }
+    if ctx.target_lengths.get("turbo:document-entities").copied() != Some(layer.annotations.len()) {
+        return Err(bad("salience needs one row for every selected consolidated entity"));
+    }
+    let mut scores = vec![None; layer.annotations.len()];
+    for annotation in &layer.annotations {
+        let Some(Value::EntitySalience(score)) = &annotation.value else {
+            return Err(bad("salience layer has a different payload"));
+        };
+        let slot = scores.get_mut(score.rank as usize).ok_or_else(|| bad("salience rank exceeds layer length"))?;
+        if slot.replace(score.salience).is_some() {
+            return Err(bad("duplicate salience rank"));
+        }
+    }
+    if scores.windows(2).any(|w| w[0] < w[1]) {
+        return Err(bad("salience ranks are not best-first"));
+    }
+    Ok(())
+}
+
+pub(super) fn table_header(ctx: &LayerCtx<'_>, i: usize, header: &ChunkTableHeaderAnnotation) -> Result<(), Failure> {
+    target(ctx, "turbo:chunks", header.chunk_index)?;
+    if !ctx.table_ids.contains(&header.table_id) {
+        return Err(bad(format!("{}[{i}] table_id has no selected table target", ctx.lid)));
+    }
+    for span in &header.header_cells {
+        ctx.offsetter.from_wire(ctx.text, ctx.lid, span.start, span.end)?;
+    }
+    Ok(())
+}
 
 pub(super) fn nbest(ctx: &LayerCtx<'_>, i: usize, nbest: &NBestAnnotation) -> Result<(), Failure> {
     check_aligned_index("target_index", ctx.lid, i, nbest.target_index, ctx.layer_len)?;
@@ -38,6 +125,9 @@ pub(super) fn sparse(ctx: &LayerCtx<'_>, i: usize, sparse: &SparseTermsAnnotatio
 
 pub(super) fn document_entity(ctx: &LayerCtx<'_>, i: usize, entity: &DocumentEntityAnnotation) -> Result<(), Failure> {
     check_f32_prob("document entity confidence", ctx.lid, i, entity.confidence)?;
+    if entity.mentions.is_empty() {
+        return Err(bad(format!("{}[{i}] document entity has no mention", ctx.lid)));
+    }
     if !entity.mean_sentiment.is_finite() {
         return Err(bad(format!("{}[{i}] document entity mean_sentiment is non-finite", ctx.lid)));
     }

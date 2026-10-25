@@ -29,6 +29,8 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
         Value::SparseTerms(st) => shared::sparse(ctx, i, st)?,
         Value::Nbest(nb) => shared::nbest(ctx, i, nb)?,
         Value::DocumentEntity(entity) => shared::document_entity(ctx, i, entity)?,
+        Value::EntitySalience(salience) => shared::salience(ctx, i, salience)?,
+        Value::ChunkTableHeader(header) => shared::table_header(ctx, i, header)?,
         Value::Word(w) => {
             check_token_range(token_len, "word", lid, i, w.token_start, w.token_end)?;
             if let Some(sub) = &w.subspan {
@@ -213,12 +215,7 @@ pub(super) fn validate_annotation(ctx: &LayerCtx, i: usize, ann: &TypedAnnotatio
                 offsetter.from_wire(text, lid, cue.start, cue.end)?;
             }
         }
-        Value::Event(ev) => {
-            check_f32_prob("confidence", lid, i, ev.confidence)?;
-            for sp in ev.arguments.iter().filter_map(|a| a.span.as_ref()) {
-                offsetter.from_wire(text, lid, sp.start, sp.end)?;
-            }
-        }
+        Value::Event(ev) => shared::event(ctx, i, ev)?,
         Value::LexicalExpansion(le) => check_prob("weight", lid, i, le.weight)?,
         Value::RecordValue(rv) => check_prob("score", lid, i, rv.score)?,
         _ => {}

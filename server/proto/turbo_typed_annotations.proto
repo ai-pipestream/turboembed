@@ -853,6 +853,26 @@ message KeyValuePairAnnotation
   string value_text = 5;
 }
 
+message EntitySalienceAnnotation
+{
+  uint32 entity_index = 1;
+  float salience = 2;
+  uint32 rank = 3;
+  float position_score = 4;
+  float syntax_score = 5;
+  float frequency_score = 6;
+  float centrality_score = 7;
+}
+
+message ChunkTableHeaderAnnotation
+{
+  uint32 chunk_index = 1;
+  uint32 table_id = 2;
+  bool is_continuation = 3;
+  repeated SpanFragment header_cells = 4;
+  string header_prefix = 5;
+}
+
 message RecordValueAnnotation
 {
   uint32 record_index = 1;
@@ -951,5 +971,7 @@ message TypedAnnotation
     TableCellAnnotation table_cell = 86;
     KeyValuePairAnnotation key_value_pair = 87;
     RecordValueAnnotation record_value = 88;
+    EntitySalienceAnnotation entity_salience = 89;
+    ChunkTableHeaderAnnotation chunk_table_header = 90;
   }
 }
