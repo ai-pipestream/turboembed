@@ -371,7 +371,7 @@ ending with a note when the budget left something untimed.
 ## Testing on a machine with an Intel GPU
 
 From the workspace root. `TURBO_TEST_REQUIRE_LEVELZERO=1` makes every test
-in `core/tests/levelzero.rs` that needs a device fail when the backend
+in `core/tests/levelzero/` that needs a device fail when the backend
 lists none, where without it the test passes with a line saying it was
 skipped; set it on a machine with an Intel GPU, so a run that found none
 cannot pass.
@@ -379,7 +379,7 @@ cannot pass.
 ```
 export TURBO_TEST_REQUIRE_LEVELZERO=1
 
-# Everything, with the levelzero-only tests in core/tests/levelzero.rs:
+# Everything, with the levelzero-only tests in core/tests/levelzero/:
 cargo test -p turbo --features levelzero
 
 # The levelzero-only tests, with what they print (the device, the largest
@@ -399,7 +399,7 @@ TURBO_TEST_BUNDLE=<bundle-dir> \
 
 `TURBO_TEST_DEVICE=levelzero` picks the first device the levelzero
 backend lists, and the conformance test fails when it lists none. The
-tests in `core/tests/levelzero.rs` also check the listing against the
+tests in `core/tests/levelzero/` also check the listing against the
 Intel GPUs the kernel drives, from `/sys/class/drm`, and read device
 memory from the caller's side through the loader, so they need no other
 tool.

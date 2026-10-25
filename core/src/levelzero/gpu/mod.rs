@@ -274,7 +274,7 @@ pub(crate) unsafe fn create(
 /// appended, then a launch the driver refuses (more local memory than the
 /// device has). sync must return once the copy is done, the copy's bytes
 /// must all have arrived, and the new queue must work. Built only with
-/// `internals`, for tests/levelzero.rs.
+/// `internals`, for tests/levelzero/.
 #[cfg(feature = "internals")]
 pub(crate) fn append_failure_recovers(
     driver: &'static super::Driver,
