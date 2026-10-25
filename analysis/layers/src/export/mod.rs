@@ -38,19 +38,25 @@ use crate::{
     Sentences, Stems, Strs, Structure, Subwords, Terms, TimeGrain, TimeKind, Times, TokenVectorWindows, Tokens, Unit,
     Utf16Spans, Vectors,
 };
+use crate::{LexicalExpansions, WordNetSenses};
 
 mod boilerplate;
 mod calibrated;
 mod core_layers;
 mod emotion;
+mod entity_graph;
+mod events;
 mod helpers;
 mod indexes;
 mod lexical;
+mod modality;
 mod numeric;
 mod relations;
+mod rhetoric;
 mod sentiment;
 mod sparse;
 mod structure;
+mod tables;
 mod temporal;
 mod vectors;
 
@@ -66,6 +72,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
     codecs
         .register::<crate::Calibrated<Categories>>()
         .register::<crate::Calibrated<Tokens>>()
+        .register::<crate::Calibrated<Entities>>()
         .register::<Sentences>()
         .register::<Tokens>()
         .register::<Words>()
@@ -78,14 +85,19 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Lemmas>()
         .register::<WordLemmas>()
         .register::<Stems>()
+        .register::<WordNetSenses>()
+        .register::<LexicalExpansions>()
         .register::<Terms>()
         .register::<Dependencies<Tokens>>()
         .register::<Dependencies<Words>>()
         .register::<Entities>()
+        .register::<crate::DocumentEntities>()
         .register::<ChunkTags>()
         .register::<PhraseChunks>()
         .register::<Boundaries>()
         .register::<Structure>()
+        .register::<crate::Tables>()
+        .register::<crate::KeyValuePairs>()
         .register::<Chunks>()
         .register::<Language>()
         .register::<LanguageSpans>()
@@ -111,11 +123,13 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Incivility>()
         .register::<crate::EmotionLayer>()
         .register::<Pragmatics>()
+        .register::<crate::Modality>()
         .register::<Numbers>()
         .register::<Money>()
         .register::<Ordinals>()
         .register::<Quantities>()
         .register::<Times>()
+        .register::<crate::Events>()
         .register::<Pii>()
         .register::<Regions>()
         .register::<Matches>()
@@ -137,6 +151,10 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Utf16Spans<Sentences>>()
         .register::<Abbreviations>()
         .register::<Edges<Abbreviations, Abbreviations>>()
+        .register::<crate::Edus>()
+        .register::<crate::Discourse>()
+        .register::<crate::ClaimLinks>()
+        .register::<crate::SentenceClaimLinks>()
         .register::<Groups<Abbreviations>>()
         .register::<Alternatives<Tokens>>()
         .register::<Alternatives<PosTags>>()

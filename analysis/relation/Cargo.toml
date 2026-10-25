@@ -16,6 +16,8 @@ serde_json = "1"
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
 turbo-depparse = { path = "../depparse" }
+# Phrase matching of the modality cue lexicon.
+turbo-matcher = { path = "../matcher" }
 turbo-unicode = { path = "../unicode" }
 
 [dev-dependencies]

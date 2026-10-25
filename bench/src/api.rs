@@ -284,6 +284,20 @@ impl Session {
         self.read_into(out)
     }
 
+    /// Write `texts` with `opts`, run, and copy the vectors into `out`,
+    /// which holds texts x dim values. Returns the result's info.
+    pub fn embed_texts_into(
+        &self,
+        texts: &[&str],
+        opts: &turbo_embed_options,
+        out: &mut [f32],
+    ) -> Result<turbo_result_info> {
+        let views: Vec<turbo_text> = texts.iter().map(|s| text(s)).collect();
+        let n = u32::try_from(views.len()).map_err(|_| "more texts than a u32 counts".to_owned())?;
+        check("turbo_embed_write_text", |e| unsafe { turbo_embed_write_text(self.0, views.as_ptr(), n, opts, e) })?;
+        self.read_into(out)
+    }
+
     /// Write `rows` and one vector per range of `ranges` (each mean
     /// pooled over its tokens), run, and copy the vectors into `out`,
     /// which holds ranges x dim values.

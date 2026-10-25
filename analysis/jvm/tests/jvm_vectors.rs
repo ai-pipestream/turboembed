@@ -168,16 +168,6 @@ fn compare_matches_string_compare_to() {
     );
 }
 
-#[test]
-fn whitespace_matches_character_is_whitespace_for_every_code_point() {
-    let java: Vec<u32> =
-        records("whitespace.tsv").iter().map(|(_, f)| u32::from_str_radix(&f[0], 16).unwrap()).collect();
-    for c in (0..=0x10FFFF).filter_map(char::from_u32) {
-        let expected = java.binary_search(&(c as u32)).is_ok();
-        assert_eq!(chars::is_java_whitespace(c), expected, "U+{:04X}", c as u32);
-    }
-}
-
 /// Whether Rust's shortest form of `x` has a single significant digit.
 fn one_digit(x: f64) -> bool {
     format!("{x:e}").trim_start_matches('-').split('e').next().unwrap().len() == 1

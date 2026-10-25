@@ -888,3 +888,46 @@ The three annotators use version `1` for these boundary and scoring fixes.
 The raw `score_text` path retains the existing VADER rules. The low-level
 `score_sentence` method requires prevalidated spans and token ranges; the
 annotator is the checked document entry point.
+
+
+### Python whitespace parity
+
+Raw-text VADER uses `turbo_unicode::whitespace::is_python_space`, the shared
+predicate also used by GLiREL, GLiNER2, SaT, matcher attributes and encoding
+repair. It recognizes Unicode White_Space plus U+001C through U+001F. Repeated
+and leading/trailing separators do not create empty tokens. For example,
+`good\u{001F}movie` now has exactly the score of `good movie`, including the
+positive compound score 0.44043357076016854. Format characters such as U+200B
+remain inside words. The shared predicate is tested against all Unicode code
+points; the expected 29-character set was also enumerated with Python 3.14.8.
+
+A release timing comparison against main `b1a8a030` used the same Rust compiler,
+same source probes, one fixed logical CPU and six alternating before/after
+runs. The probes call the actual relation word splitters and SaT boundary
+postprocessor, not a replacement implementation. Timings are total milliseconds
+per run; the median is descriptive on a shared host, not a throughput guarantee.
+
+| Path | Calls per run | Before median ms | After median ms |
+| --- | ---: | ---: | ---: |
+| GLiREL word split | 20,000 | 80.214 | 77.033 |
+| GLiNER2 word split | 20,000 | 311.777 | 301.912 |
+| SaT cut points | 100,000 | 77.599 | 61.295 |
+
+No slowdown was observed in these probes. They isolate text preprocessing;
+encoder inference is not timed. The relation probe repeats multilingual text,
+URLs, punctuation and a legacy separator; SaT uses mixed ASCII/Unicode spaces
+at sentence boundaries. Run the checked-in probes with:
+
+```sh
+cargo run --locked --release -p turbo-relation --example relation_whitespace_timing
+cargo run --locked --release -p turbo-sat --example sat_whitespace_timing
+```
+
+Retain separately built binaries of main and the change and alternate their
+execution order when comparing. Raw six-run samples (milliseconds):
+
+| Path | Before | After |
+| --- | --- | --- |
+| GLiREL | 93.634, 83.627, 80.103, 78.713, 80.324, 79.540 | 78.568, 78.589, 80.977, 72.234, 75.498, 74.043 |
+| GLiNER2 | 364.053, 310.985, 319.985, 312.569, 302.608, 303.863 | 303.214, 351.832, 301.616, 300.673, 302.207, 298.797 |
+| SaT | 77.445, 81.898, 81.034, 74.445, 76.735, 77.753 | 62.754, 62.958, 58.943, 64.465, 58.403, 59.835 |

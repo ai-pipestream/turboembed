@@ -33,6 +33,8 @@ pub(crate) struct Analysis {
     /// Whether the admin calls, LoadBundle and UnloadBundle, are served
     /// (the server's --admin flag, off by default).
     pub(crate) admin: bool,
+    /// Where completed stream documents are forwarded, when anywhere.
+    pub(crate) sink: Option<Arc<crate::sink::SinkForwarder>>,
 }
 
 fn plain(f: Failure) -> Status {
@@ -94,7 +96,7 @@ impl AnalysisService for Analysis {
             loaded.map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("the load's task failed: {e}"))))?;
         if let Err(e) = loaded {
             let _ = self.state.remove_if(&registered);
-            return Err(Status::internal(e));
+            return Err(e.to_status());
         }
         let l: Arc<Loaded> = registered.loaded.get().cloned().ok_or_else(|| {
             plain(Failure::new(TURBO_E_INVALID_STATE, 0, format!("model {} is not loaded yet", registered.name)))
@@ -150,6 +152,6 @@ impl AnalysisService for Analysis {
         &self,
         req: Request<tonic::Streaming<AnalyzeStreamRequest>>,
     ) -> Reply<Self::AnalyzeStreamStream> {
-        crate::stream::handler::start(self.state.clone(), req.into_inner()).await
+        crate::stream::handler::start(self.state.clone(), req.into_inner(), self.sink.clone()).await
     }
 }

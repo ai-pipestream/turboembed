@@ -7,12 +7,11 @@
 
 use std::pin::Pin;
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
 use tokio::sync::{Semaphore, mpsc};
-use tokio_stream::Stream;
 use tokio_stream::wrappers::ReceiverStream;
+use tokio_stream::{Stream, StreamExt};
 use tonic::{Response, Status, Streaming};
 
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_ENUM, names};
@@ -20,12 +19,13 @@ use crate::kserve::Reply;
 use crate::offsets::OffsetMode;
 use crate::proto::result::analyze_stream_request::Kind;
 use crate::proto::result::{AnalyzeOptions, AnalyzeOrder, AnalyzeOutput, AnalyzeStreamRequest, AnalyzeStreamResponse};
+use crate::sink::SinkForwarder;
 use crate::state::State;
 use crate::status::to_status;
 use crate::stream::engine::{self, Config};
 use crate::stream::reader;
 use crate::stream::{
-    DEFAULT_BATCH_LINGER, MAX_BATCH_LINGER, MAX_INFLIGHT_ITEMS_PER_STREAM, MAX_QUEUED_BYTES_PER_STREAM,
+    DEFAULT_BATCH_LINGER, Dead, MAX_BATCH_LINGER, MAX_INFLIGHT_ITEMS_PER_STREAM, MAX_QUEUED_BYTES_PER_STREAM,
     MAX_QUEUED_ITEMS_PER_STREAM, Shared,
 };
 
@@ -122,7 +122,11 @@ fn config(header: crate::proto::result::AnalyzeStreamHeader) -> Result<Config, S
 /// Serves one AnalyzeStream call: reads the header, then hands the
 /// rest to the reader and the engine, whose answers fill the bounded
 /// response channel the client reads.
-pub(crate) async fn start(state: Arc<State>, mut inbound: Streaming<AnalyzeStreamRequest>) -> Reply<AnswerStream> {
+pub(crate) async fn start(
+    state: Arc<State>,
+    mut inbound: Streaming<AnalyzeStreamRequest>,
+    sink: Option<Arc<SinkForwarder>>,
+) -> Reply<AnswerStream> {
     let header = match inbound.message().await {
         Err(e) => return Err(e),
         Ok(None) => return Err(invalid("the stream's first message must be the header")),
@@ -136,7 +140,7 @@ pub(crate) async fn start(state: Arc<State>, mut inbound: Streaming<AnalyzeStrea
     let stream_bytes = Arc::new(Semaphore::new(MAX_QUEUED_BYTES_PER_STREAM));
     let (work_tx, work_rx) = mpsc::channel(MAX_QUEUED_ITEMS_PER_STREAM);
     let (answers_tx, answers_rx) = mpsc::channel(window);
-    let dead = Arc::new(AtomicBool::new(false));
+    let dead = Dead::new();
     tokio::spawn(reader::run(
         state.clone(),
         shared.clone(),
@@ -147,7 +151,17 @@ pub(crate) async fn start(state: Arc<State>, mut inbound: Streaming<AnalyzeStrea
         dead.clone(),
     ));
     engine::start(shared, config, work_rx, answers_tx, dead);
-    Ok(Response::new(Box::pin(ReceiverStream::new(answers_rx))))
+    let answers = ReceiverStream::new(answers_rx);
+    match sink {
+        // Each answer is offered to the sink as the client is handed it.
+        Some(sink) => Ok(Response::new(Box::pin(answers.map(move |a| {
+            if let Ok(answer) = &a {
+                sink.offer(answer);
+            }
+            a
+        })))),
+        None => Ok(Response::new(Box::pin(answers))),
+    }
 }
 
 #[cfg(test)]

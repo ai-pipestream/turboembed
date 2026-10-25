@@ -113,12 +113,20 @@ pub(crate) fn load_config(req: &LoadBundleRequest) -> Result<(String, ModelConfi
             format!("precision {}: not PRECISION_MODEL, PRECISION_FASTEST or PRECISION_EXACT", req.precision),
         ));
     }
+    let device = if req.select_device {
+        if req.device != 0 {
+            return Err(bad("device: cannot set both select_device and a non-zero device index"));
+        }
+        Device::Select
+    } else {
+        Device::Index(req.device)
+    };
     Ok((
         name,
         ModelConfig {
             bundle: req.bundle.clone(),
             name: if req.name.is_empty() { None } else { Some(req.name.clone()) },
-            device: Device::Index(req.device),
+            device,
             precision: req.precision,
             max_batch: req.max_batch,
             max_seq: req.max_seq,
@@ -142,6 +150,7 @@ mod tests {
             precision: 0,
             max_batch: 0,
             max_seq: 0,
+            select_device: false,
         }
     }
 
@@ -156,6 +165,19 @@ mod tests {
         assert!(e.message.contains(&(MAX_SESSIONS_PER_MODEL + 1).to_string()), "{e:?}");
         let e = load_config(&req(0)).unwrap_err();
         assert_eq!(e.code, TURBO_E_INVALID_ARGUMENT);
+    }
+
+    #[test]
+    fn select_device_maps_to_select_and_rejects_non_zero_device() {
+        let mut r = req(1);
+        r.select_device = true;
+        let (_, config) = load_config(&r).unwrap();
+        assert_eq!(config.device, Device::Select);
+
+        r.device = 2;
+        let e = load_config(&r).unwrap_err();
+        assert_eq!(e.code, TURBO_E_INVALID_ARGUMENT);
+        assert!(e.message.contains("select_device"), "{e:?}");
     }
 
     #[test]

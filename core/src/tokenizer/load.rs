@@ -106,7 +106,17 @@ impl Tokenizer {
                 }
             }
             (None, Some(u), _) => Kind::Unigram(Unigram::parse(file, &json, u, unk.id)?),
-            (None, None, Some(b)) => Kind::Bpe(Bpe::parse(file, &json, b, unk.id)?),
+            (None, None, Some(b)) => {
+                // A normalized token would be matched in the NFC text,
+                // which the core does not do.
+                if let Some(s) = t.special_tokens.iter().find(|s| b.nfc && s.normalized) {
+                    return Err(invalid(format!(
+                        "tokenizer.special_tokens: {:?} is normalized, and the core matches no token after NFC",
+                        s.content
+                    )));
+                }
+                Kind::Bpe(Bpe::parse(file, &json, b, unk.id)?)
+            }
             (None, None, None) => {
                 let spec = t.sentencepiece.as_ref().expect("validated");
                 let sp = SentencePiece::parse(&bytes).map_err(|e| invalid(format!("{file}: {}", e.message)))?;

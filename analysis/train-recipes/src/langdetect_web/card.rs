@@ -365,6 +365,7 @@ impl WebLanguageCard {
                 size,
                 sha256: sha256.parse().map_err(|e| bad("sha256", e))?,
                 sha512: sha512.parse().map_err(|e| bad("sha512", e))?,
+                download: None,
             })
         };
         let (s, d) = (&self.training_sentences, &self.training_documents);
