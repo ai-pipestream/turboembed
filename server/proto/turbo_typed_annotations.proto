@@ -904,6 +904,27 @@ message QualityMetricsAnnotation
   uint32 flags = 12;
 }
 
+// Exact layer instance and item range supporting an evidence record.
+message EvidenceSupport
+{
+  string layer = 1;
+  string instance = 2;
+  uint32 start = 3;
+  uint32 end = 4;
+}
+
+// One record aligned to its selected category row. The producer is the
+// annotation's model_ref; annotation spans are projected source evidence.
+// Raw scores are finite and may be negative; calibrated scores are [0,1].
+message EvidenceAnnotation
+{
+  uint32 target_index = 1;
+  optional double raw_score = 2;
+  optional double calibrated_probability = 3;
+  optional string abstention = 4;
+  repeated EvidenceSupport support = 5;
+}
+
 // One strongly-typed annotation in a TypedLayer.
 message TypedAnnotation
 {
@@ -996,5 +1017,6 @@ message TypedAnnotation
     ChunkTableHeaderAnnotation chunk_table_header = 90;
     QualityMetricsAnnotation text_quality = 91;
     QualityMetricsAnnotation span_quality = 92;
+    EvidenceAnnotation evidence = 93;
   }
 }

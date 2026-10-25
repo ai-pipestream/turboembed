@@ -5,6 +5,7 @@ mod layers_context;
 mod layers_core;
 mod layers_domain;
 mod layers_entities;
+mod layers_evidence;
 mod layers_quality;
 mod layers_sentiment;
 mod layers_shared;
@@ -19,7 +20,7 @@ use turbo_analysis::{
     Anchor, Document, Evidence, Execution, Ix, Key, KeyId, Layer, ModelRef, Provenance, Span, Spans, Status, View,
     ViewId,
 };
-use turbo_analysis_layers::{Categories, Chunks, Entities, Opinions, Sentences, Structure};
+use turbo_analysis_layers::{Categories, Entities, Opinions};
 
 use super::document::codecs;
 use super::{MAX_GRAPH_BYTES, Wire, model_to_proto, over};
@@ -294,10 +295,6 @@ pub(crate) fn build_layer<L: Layer>(
 
 fn is_evidence_layer(ty: TypeId) -> bool {
     ty == TypeId::of::<Evidence<Entities>>()
-        || ty == TypeId::of::<Evidence<Categories<View>>>()
-        || ty == TypeId::of::<Evidence<Categories<Sentences>>>()
-        || ty == TypeId::of::<Evidence<Categories<Structure>>>()
-        || ty == TypeId::of::<Evidence<Categories<Chunks>>>()
         || ty == TypeId::of::<Evidence<Categories<Opinions>>>()
         || ty == TypeId::of::<Evidence<Categories<turbo_analysis_layers::Aspects>>>()
         || ty == TypeId::of::<Evidence<turbo_relation::Relations>>()
@@ -352,6 +349,7 @@ pub fn document_to_typed(
         }
         if let Some(typed) = layers_core::project_core_layer(&mut cx, key)
             .or_else(|| layers_entities::project_entity_layer(&mut cx, key))
+            .or_else(|| layers_evidence::project_evidence_layer(&mut cx, key))
             .or_else(|| layers_domain::project_domain_layer(&mut cx, key))
             .or_else(|| layers_sentiment::project_sentiment_layer(&mut cx, key))
             .or_else(|| layers_quality::project_quality_layer(&mut cx, key))
