@@ -7,6 +7,8 @@
 use turbo_analysis::{Document, Ix, KeyId, Layer, Overlap, Span, Spans, TextSpans, ViewId};
 
 mod check;
+mod context;
+pub use context::{ChunkTableContext, ChunkTableHeaders};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 #[repr(u8)]

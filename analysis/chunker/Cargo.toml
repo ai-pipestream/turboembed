@@ -18,3 +18,6 @@ turbo-unicode = { path = "../unicode" }
 turbo-stem = { path = "../stem" }
 turbo-normalize = { path = "../normalize" }
 turbo-structure = { path = "../structure" }
+turbo-sentdetect = { path = "../sentdetect" }
+turbo-tokenize = { path = "../tokenize" }
+turbo-analysis-embed = { path = "../embed" }

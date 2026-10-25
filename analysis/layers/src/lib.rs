@@ -43,7 +43,9 @@ pub use sparse::SparseTerms;
 pub use syntax::{
     ChunkTags, Dependencies, Entities, Lemmas, PhraseChunks, Phrases, PosTags, Stems, TermSlot, Terms, WordDependencies,
 };
-pub use tables::{ColumnAlign, KeyValuePair, KeyValuePairs, TableCell, TableCellRef, Tables};
+pub use tables::{
+    ChunkTableContext, ChunkTableHeaders, ColumnAlign, KeyValuePair, KeyValuePairs, TableCell, TableCellRef, Tables,
+};
 pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
 pub use times::{Modifier, Portion, Relation, TimeGrain, TimeKind, TimeMention, Times};
 pub use wordnet::{

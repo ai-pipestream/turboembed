@@ -204,6 +204,7 @@ impl Chunker {
             bounds: new.bounds,
             limits: &new.limits,
             clauses: None,
+            tables: None,
         };
         for run in &new.runs {
             let carried = old_run_for(edit, &old, &new, run)

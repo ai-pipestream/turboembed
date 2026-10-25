@@ -92,6 +92,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Structure>()
         .register::<crate::Tables>()
         .register::<crate::KeyValuePairs>()
+        .register::<crate::ChunkTableHeaders>()
         .register::<Chunks>()
         .register::<Language>()
         .register::<LanguageSpans>()
