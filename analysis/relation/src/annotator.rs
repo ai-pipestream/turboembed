@@ -136,12 +136,10 @@ impl<A: WordOrTokenAnchor> Annotator for RelationAnnotator<A> {
                     {
                         continue;
                     }
-                    if let Some(trigger) = &pattern.trigger {
-                        let form: String =
-                            words[pivot.get()].form.chars().map(turbo_unicode::java::to_lower_char).collect();
-                        if form != *trigger {
-                            continue;
-                        }
+                    if let Some(trigger) = &pattern.trigger
+                        && !turbo_unicode::java::eq_lowercase_code_points(words[pivot.get()].form, trigger)
+                    {
+                        continue;
                     }
                     if let Some(want) = &pattern.pivot_pos
                         && pos.and_then(|p| p.label(pivot.get())) != Some(want.as_str())

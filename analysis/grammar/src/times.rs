@@ -92,13 +92,8 @@ impl TimeAnnotator {
             let Some(value) = parser.times().get(&m.value) else { continue };
             let open = reference.is_none() && depends_on_reference(&value);
             let Some(r) = resolve(&value, now) else { continue };
-            let timed = matches!(
-                r.kind,
-                turbo_analysis_layers::TimeKind::Time
-                    | turbo_analysis_layers::TimeKind::TimeRange
-                    | turbo_analysis_layers::TimeKind::DateTime
-                    | turbo_analysis_layers::TimeKind::DateTimeRange
-            );
+            // Match selection: only an explicit clock can consume a zone.
+            let timed = crate::time::zone::has_clock(value);
             let zone =
                 self.zones.filter(|_| timed).and_then(|region| crate::time::zone::at(text, m.end as usize, region));
             let offsets = zone.and_then(|z| crate::time::zone::Offsets::for_resolution(&r, z.zone, reference));
@@ -161,7 +156,7 @@ fn push(
 }
 
 impl Annotator for TimeAnnotator {
-    const VERSION: &'static str = "3";
+    const VERSION: &'static str = "4";
     const ID: &'static str = "turbo-grammar:times";
     type Reads = (View, Option<DocumentDate>);
     type Writes = (Times,);
