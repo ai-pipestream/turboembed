@@ -300,7 +300,8 @@ stays out of MODEL. On an RTX 4080 SUPER it ran MODEL's GEMMs 9 to 17%
 faster on all-MiniLM-L6-v2 and bge-small, -base and -large, and kept
 MODEL's cosine bound, but it broke MODEL's largest absolute difference
 of 1e-4 on all-MiniLM-L6-v2 (1.437e-4) and bge-large (1.296e-4), and
-passed on the other two with less than 1.1x of margin. A kernel of it
+passed on bge-small (9.32e-5, 1.07x of margin) and bge-base (7.89e-5,
+1.27x). A kernel of it
 forced through `TURBO_CUDA_CHOICES` is `TURBO_E_UNSUPPORTED_OPTION`
 naming field 3 and the kernel, unless its experiment's switch is set for
 the session (`TURBO_CUDA_TF32=1` at MODEL), which widens that session's
