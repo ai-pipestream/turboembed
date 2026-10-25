@@ -5,7 +5,7 @@
 //!
 //! - `cuts` turns the scores into sentences as wtpsplit's `split` does,
 //!   then keeps every boundary on a grapheme cluster boundary.
-//! - `head` is the classifier, read from the bundle's weights.
+//! - `head` is the classifier the bundle's manifest declares.
 //!
 //! docs/neural-annotators.md describes the design and what is not built
 //! yet; analysis/sat/README.md the reference fixtures.
@@ -17,7 +17,7 @@ pub mod head;
 
 pub use annotator::{SatAnnotator, SatOptions, SatProvider, Scored};
 pub use fallback::{rule_detector_with_sat, rule_splitter_with_sat};
-pub use head::{Head, HeadNames};
+pub use head::{BOUNDARY_LABEL, Head};
 
 use turbo::bundle::Bundle;
 use turbo_analysis::ModelRef;

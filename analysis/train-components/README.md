@@ -260,33 +260,23 @@ cargo run -p turbo-goldens-tool -- fetch-models <dir>
 TURBO_GOLDENS_MODELS=<dir> cargo test -p turbo-train-components --release --test reproduce -- --ignored --nocapture
 ```
 
-The test is ignored by default and prints a report per model: the event
-checksum, the model entry's digest and first differing byte, how many
-parameters differ and by how much, and whether the manifest and the zip
-entries agree. The settings the models were trained with come from
-`ud-train.sh` and `ud-train.conf` in `apache/opennlp-models` and the
-2.5.4 trainer tools' defaults, except the iteration count: the published
-English sentence model's parameters are those of a run of 300
-iterations, not the committed 150 (every iteration of a longer run was
-compared with the file; 300 agrees to within a few thousand units in the
-last place, 299 and 301 do not). With 300 iterations the events, the
-manifest, the predicates and the outcome patterns of a published model
-come out exactly for all eighteen models, and the parameters to within
-2.2e-15 (German sentences) to 9.8e-15 (French tokens) for the sentence
-and token models, 1.6e-14 (English) to 1.4e-13 (Spanish) for the taggers
-and 8.0e-15 (English) to 1.8e-14 (Portuguese) for the lemmatizers, with
-60 to 97 percent of them differing in their last bits. For the eight
-sentence and token models, the JVM of the goldens container, running the
-fork's trainer on the same events, writes exactly the parameters this
-crate writes and shows the same residual against the published file
-(checked in #394), so for them the residual is not between this port and
-the fork's trainer; the taggers and lemmatizers have not been run through
-the fork's trainer in the container, and their residual is only known to
-be of the same size. Its cause is not known: `GISTrainer` uses `StrictMath`
-throughout and merges its threads' sums in a fixed order, so neither
-platform `Math` intrinsics nor thread timing explain it. The next
-experiment is to run the OpenNLP 2.5.4 command line itself in the
-container on the same treebank and compare its parameters with both.
-The test asserts agreement to within `1e-12` and reports which
-models match byte for byte (none does); the model files it writes under
-`TURBO_REPRODUCE_OUT` load in `turbo-maxent` and in OpenNLP.
+The test is ignored by default and prints the event hash, model entry's
+digest, manifest and ZIP entry names for each model. The recipes use the
+2.5.4 tools' defaults except for two values in the upstream `ud-train.conf`:
+the published models require `Iterations=300` and `Threads=12`, while the
+committed file says 150 and 4. `CONF_ITERATIONS` and `CONF_THREADS` preserve
+the file's values; `ITERATIONS` and `THREADS` are the reproduction settings.
+
+The old last-bit residual came from the partition count. GIS adds events
+within each partition and then combines partial sums in partition order.
+The thread count changes that grouping, even though thread scheduling does
+not change it. The original OpenNLP 2.5.4 CLI at 4 produces the same English
+sentence parameters as Rust at 4; at 12 it matches the published entry
+exactly. The English token, POS and lemma CLI runs also match at 12.
+See docs/analysis.md for artifact hashes, commands and the complete run.
+
+The gate requires exact model-entry bytes, event hash, manifest text and
+entry names. The old `1e-12` tolerance is no longer accepted. A filter that
+selects no recipe fails. ZIP compression is not compared: Rust stores its
+entries and Java deflates them. Model files written to `TURBO_REPRODUCE_OUT`
+load in both runtimes. No corpus text or generated model is checked in.
