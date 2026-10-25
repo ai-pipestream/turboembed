@@ -21,10 +21,21 @@ pub(crate) fn build_heatmap_lanes(
     offsetter: &Offsetter,
     heatmap_buckets: u32,
 ) -> Result<Vec<HeatmapLaneProto>, Failure> {
+    build_with_budget(doc, view, text, offsetter, heatmap_buckets, crate::results::MAX_FRAGMENTS)
+}
+
+fn build_with_budget(
+    doc: &Document,
+    view: ViewId,
+    text: &str,
+    offsetter: &Offsetter,
+    heatmap_buckets: u32,
+    fragment_budget: u64,
+) -> Result<Vec<HeatmapLaneProto>, Failure> {
     if heatmap_buckets > MAX_HEATMAP_BUCKETS {
         return Err(over("max_heatmap_buckets", "heatmap_buckets", heatmap_buckets as u64));
     }
-    preflight::check(doc, view, crate::results::MAX_FRAGMENTS)?;
+    preflight::check(doc, view, fragment_budget)?;
     let heatmap = DocumentHeatmap::build_instances(doc, view, NonZeroU32::new(heatmap_buckets))
         .map_err(|e| bad(format!("document heatmap: {e}")))?;
     heatmap

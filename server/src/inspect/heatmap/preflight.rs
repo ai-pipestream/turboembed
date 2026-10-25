@@ -108,4 +108,23 @@ mod tests {
         assert_eq!(e.code, crate::api::TURBO_E_CAPACITY);
         assert!(e.message.contains("max_fragments"));
     }
+    #[test]
+    fn empty_named_sources_cannot_expand_past_the_response_budget() {
+        let mut d = Document::new("abc");
+        for name in ["a", "b"] {
+            d.add(
+                &Key::named(name),
+                Tokens { spans: Spans::new(ViewId::SOURCE), sentence: None },
+                Provenance::by("test"),
+            )
+            .unwrap();
+        }
+        // Use the real adapter and its production budget path, with a small
+        // limit so no oversized graph or allocation is needed.
+        let offsetter = crate::offsets::Offsetter::new(d.source(), crate::offsets::OffsetMode::Utf8);
+        let build = |limit| super::super::build_with_budget(&d, ViewId::SOURCE, d.source(), &offsetter, 3, limit);
+        assert_eq!(build(6).unwrap().iter().map(|l| l.buckets.len()).sum::<usize>(), 6);
+        let e = build(5).expect_err("two three-bin lanes exceed a five-segment result budget");
+        assert_eq!(e.code, crate::api::TURBO_E_CAPACITY);
+    }
 }
