@@ -6,8 +6,8 @@ use turbo_analysis::export::export;
 use turbo_analysis::{Document, Key, Layer, Provenance, Span, View, ViewBuilder, ViewId};
 use turbo_analysis_layers::{QualityFlags, QualityMetrics, SpanQuality, TextQuality};
 use turbo_kserve::proto::result::{
-    AnchorKind, DocumentGraphRequest, InspectDocumentGraphRequest, LayerWireStatus, OffsetMode, SpanFragment,
-    TypedDocumentResult,
+    AnchorKind, DocumentGraphRequest, InspectDocumentGraphRequest, LayerWireStatus, OffsetMode,
+    QualityMetricsAnnotation, SpanFragment, TypedDocumentResult, typed_annotation::Value,
 };
 use turbo_kserve::results::document::codecs;
 
@@ -106,14 +106,30 @@ async fn quality_round_trip(layer_id: &str) {
                 } else {
                     vec![(0, 6), (7, 8)]
                 };
-                for (ann, (start, end)) in layer.annotations.iter().zip(pairs) {
+                for (i, (ann, (start, end))) in layer.annotations.iter().zip(pairs).enumerate() {
                     assert_eq!(ann.spans, [wire_span(&out.raw_text, mode, start, end)]);
-                    assert!(ann.value.is_some(), "quality metrics are missing");
+                    let actual = match &ann.value {
+                        Some(Value::TextQuality(m)) if layer_id == TextQuality::ID => m,
+                        Some(Value::SpanQuality(m)) if layer_id == SpanQuality::ID => m,
+                        other => panic!("wrong quality payload: {other:?}"),
+                    };
+                    let expected = metrics((usize::from(!layer.instance.is_empty()) + i) % 2 != 0);
+                    check_metrics(actual, expected);
                     assert_eq!(ann.probability, None, "quality heuristics are not probabilities");
                     assert_eq!(ann.model_ref.as_ref(), layer.model_refs.first());
                 }
             }
-            assert_eq!(client.round_trip_typed_document(out.clone()).await.unwrap().into_inner(), out);
+            let echoed = client.round_trip_typed_document(out.clone()).await.unwrap().into_inner();
+            assert_eq!(echoed, out);
+            for layer in echoed.layers.iter().filter(|l| l.id == layer_id) {
+                for ann in &layer.annotations {
+                    let m = match ann.value.as_ref().unwrap() {
+                        Value::TextQuality(m) | Value::SpanQuality(m) => m,
+                        _ => unreachable!(),
+                    };
+                    assert_eq!(m.automated_readability_index.unwrap().to_bits(), (-0.0f32).to_bits());
+                }
+            }
         }
     }
     server.stop().await;
@@ -127,4 +143,141 @@ async fn text_quality_metrics_survive_named_views_and_every_offset_mode() {
 #[tokio::test]
 async fn span_quality_metrics_survive_named_views_and_every_offset_mode() {
     quality_round_trip(SpanQuality::ID).await;
+}
+
+fn fields(m: &QualityMetricsAnnotation) -> [Option<f32>; 11] {
+    [
+        m.composite_score,
+        m.mtld_lexical_diversity,
+        m.flesch_kincaid_grade,
+        m.automated_readability_index,
+        m.coleman_liau_index,
+        m.information_density,
+        m.alpha_ratio,
+        m.digit_ratio,
+        m.symbol_ratio,
+        m.whitespace_ratio,
+        m.replacement_ratio,
+    ]
+}
+
+fn fields_mut(m: &mut QualityMetricsAnnotation) -> [&mut Option<f32>; 11] {
+    [
+        &mut m.composite_score,
+        &mut m.mtld_lexical_diversity,
+        &mut m.flesch_kincaid_grade,
+        &mut m.automated_readability_index,
+        &mut m.coleman_liau_index,
+        &mut m.information_density,
+        &mut m.alpha_ratio,
+        &mut m.digit_ratio,
+        &mut m.symbol_ratio,
+        &mut m.whitespace_ratio,
+        &mut m.replacement_ratio,
+    ]
+}
+
+fn check_metrics(actual: &QualityMetricsAnnotation, expected: QualityMetrics) {
+    let want = [
+        expected.composite_score,
+        expected.mtld_lexical_diversity,
+        expected.flesch_kincaid_grade,
+        expected.automated_readability_index,
+        expected.coleman_liau_index,
+        expected.information_density,
+        expected.alpha_ratio,
+        expected.digit_ratio,
+        expected.symbol_ratio,
+        expected.whitespace_ratio,
+        expected.replacement_ratio,
+    ];
+    assert_eq!(fields(actual).map(|x| x.unwrap().to_bits()), want.map(f32::to_bits));
+    assert_eq!(actual.flags, u32::from(expected.flags.0));
+}
+
+fn malformed_metrics(good: &QualityMetricsAnnotation) -> Vec<QualityMetricsAnnotation> {
+    let mut bad = Vec::new();
+    for field in 0..11 {
+        let mut m = *good;
+        *fields_mut(&mut m)[field] = None;
+        bad.push(m);
+        let values: &[f32] = match field {
+            1 => &[-0.1, f32::NAN, f32::INFINITY, f32::NEG_INFINITY],
+            2..=4 => &[f32::NAN, f32::INFINITY, f32::NEG_INFINITY],
+            _ => &[-0.1, 1.1, f32::NAN, f32::INFINITY, f32::NEG_INFINITY],
+        };
+        for &value in values {
+            let mut m = *good;
+            *fields_mut(&mut m)[field] = Some(value);
+            bad.push(m);
+        }
+    }
+    for flags in [1 << 7, 1 << 16, u32::MAX] {
+        bad.push(QualityMetricsAnnotation { flags, ..*good });
+    }
+    bad
+}
+
+fn invalid(error: tonic::Status) {
+    assert_eq!(error.code(), tonic::Code::InvalidArgument, "{error}");
+    assert_eq!(error.metadata().get("turbo-code").unwrap(), "256");
+    assert_eq!(error.metadata().get("turbo-field").unwrap(), "0");
+}
+
+#[tokio::test]
+async fn typed_quality_refuses_malformed_metrics_payloads_and_spans() {
+    let (server, mut client) = common::serve_no_admin().await;
+    let graph = export(&fixture(), codecs()).unwrap().to_bytes().unwrap();
+    let mut accepted = 0;
+    let mut cases = 0;
+    for view in [0, 1] {
+        for mode in [OffsetMode::Utf8, OffsetMode::Utf16, OffsetMode::CodePoint] {
+            let good = project(&mut client, &graph, mode, view).await;
+            assert_eq!(client.round_trip_typed_document(good.clone()).await.unwrap().into_inner(), good);
+            for id in [TextQuality::ID, SpanQuality::ID] {
+                let layer_ix = good.layers.iter().position(|l| l.id == id && l.instance == "selected").unwrap();
+                let m = match good.layers[layer_ix].annotations[0].value.as_ref().unwrap() {
+                    Value::TextQuality(m) | Value::SpanQuality(m) => m,
+                    _ => unreachable!(),
+                };
+                let mut mutations = Vec::new();
+                for bad in malformed_metrics(m) {
+                    let mut msg = good.clone();
+                    msg.layers[layer_ix].annotations[0].value =
+                        Some(if id == TextQuality::ID { Value::TextQuality(bad) } else { Value::SpanQuality(bad) });
+                    mutations.push(msg);
+                }
+                for shape in 0..7 {
+                    let mut msg = good.clone();
+                    let l = &mut msg.layers[layer_ix];
+                    match shape {
+                        0 => l.annotations[0].spans.clear(),
+                        1 => l.scope = AnchorKind::Document as i32,
+                        2 => {
+                            l.annotations[0].value = Some(if id == TextQuality::ID {
+                                Value::SpanQuality(*m)
+                            } else {
+                                Value::TextQuality(*m)
+                            })
+                        }
+                        3 => l.annotations[0].spans[0].end = u32::MAX,
+                        4 => l.annotations[0].spans[0] = SpanFragment { start: 2, end: 1 },
+                        5 if id == TextQuality::ID => l.annotations.clear(),
+                        6 if id == TextQuality::ID => l.annotations.push(l.annotations[0].clone()),
+                        _ => continue,
+                    }
+                    mutations.push(msg);
+                }
+                for msg in mutations {
+                    cases += 1;
+                    match client.round_trip_typed_document(msg).await {
+                        Ok(_) => accepted += 1,
+                        Err(error) => invalid(error),
+                    }
+                }
+            }
+        }
+    }
+    server.stop().await;
+    assert_eq!(accepted, 0, "accepted {accepted}/{cases} malformed quality messages");
 }

@@ -1,11 +1,12 @@
 //! Text quality, privacy, and encoding layer projections
-//! (`Pii`, `Noise`, `Artifacts`, `Assets`, `Corrections`, `Placeholders`,
-//! `Emoji`, `ProtectedSpans`, and `SourceEncoding`).
+//! (`TextQuality`, `SpanQuality`, privacy, artifacts, and encoding).
 
 use std::any::TypeId;
 
 use turbo_analysis::{Ix, KeyId, Layer};
-use turbo_analysis_layers::{ColumnAlign, KeyValuePairs, LexicalExpansions, Pii, Tables, WordNetSenses};
+use turbo_analysis_layers::{
+    ColumnAlign, KeyValuePairs, LexicalExpansions, Pii, QualityMetrics, SpanQuality, Tables, TextQuality, WordNetSenses,
+};
 use turbo_encoding_layers::{EncodingEvidence, SourceEncoding};
 use turbo_normalize_layers::{
     Artifacts, AssetEncoding, Assets, Corrections, Emoji, EmojiKind, Noise, PlaceholderKind, Placeholders,
@@ -17,8 +18,9 @@ use super::{ProjectionCx, build_layer};
 use crate::proto::result::typed_annotation::Value;
 use crate::proto::result::{
     EmbeddedAsset, EmojiAnnotation, KeyValuePairAnnotation, LexicalExpansionAnnotation, NoiseSpan, PiiMention,
-    PlaceholderAnnotation, ProtectedSpanAnnotation, RecordValueAnnotation, SourceEncodingAnnotation,
-    SpellingCorrection, TableCellAnnotation, TextArtifact, TypedAnnotation, TypedLayer, WordNetSenseAnnotation,
+    PlaceholderAnnotation, ProtectedSpanAnnotation, QualityMetricsAnnotation, RecordValueAnnotation,
+    SourceEncodingAnnotation, SpellingCorrection, TableCellAnnotation, TextArtifact, TypedAnnotation, TypedLayer,
+    WordNetSenseAnnotation,
 };
 
 fn placeholder_kind_name(k: PlaceholderKind) -> &'static str {
@@ -64,8 +66,49 @@ fn encoding_evidence_name(e: EncodingEvidence) -> &'static str {
     }
 }
 
+fn quality_metrics(m: QualityMetrics) -> QualityMetricsAnnotation {
+    QualityMetricsAnnotation {
+        composite_score: Some(m.composite_score),
+        mtld_lexical_diversity: Some(m.mtld_lexical_diversity),
+        flesch_kincaid_grade: Some(m.flesch_kincaid_grade),
+        automated_readability_index: Some(m.automated_readability_index),
+        coleman_liau_index: Some(m.coleman_liau_index),
+        information_density: Some(m.information_density),
+        alpha_ratio: Some(m.alpha_ratio),
+        digit_ratio: Some(m.digit_ratio),
+        symbol_ratio: Some(m.symbol_ratio),
+        whitespace_ratio: Some(m.whitespace_ratio),
+        replacement_ratio: Some(m.replacement_ratio),
+        flags: u32::from(m.flags.0),
+    }
+}
+
 pub(crate) fn project_quality_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Option<TypedLayer> {
     let ty = key.ty;
+    if ty == TypeId::of::<TextQuality>() {
+        return Some(build_layer::<TextQuality>(cx, key, |cx, l, mref| {
+            vec![TypedAnnotation {
+                spans: cx.project_spans(&l.spans, Ix::new(0)),
+                probability: None,
+                model_ref: mref.map(ToOwned::to_owned),
+                value: Some(Value::TextQuality(quality_metrics(l.metrics))),
+            }]
+        }));
+    }
+    if ty == TypeId::of::<SpanQuality>() {
+        return Some(build_layer::<SpanQuality>(cx, key, |cx, l, mref| {
+            l.metrics
+                .iter()
+                .enumerate()
+                .map(|(i, &metrics)| TypedAnnotation {
+                    spans: cx.project_spans(&l.spans, Ix::new(i as u32)),
+                    probability: None,
+                    model_ref: mref.map(ToOwned::to_owned),
+                    value: Some(Value::SpanQuality(quality_metrics(metrics))),
+                })
+                .collect()
+        }));
+    }
     if ty == TypeId::of::<Pii>() {
         return Some(build_layer::<Pii>(cx, key, |cx, l, mref| {
             let mref = mref.map(ToOwned::to_owned);

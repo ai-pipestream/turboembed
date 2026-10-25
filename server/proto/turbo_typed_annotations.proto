@@ -883,6 +883,27 @@ message RecordValueAnnotation
   double logit = 6;
 }
 
+// View-specific heuristic metrics, not annotation probabilities. Every metric
+// must be present. Explicit presence preserves zero values, including -0.0.
+// Ratios/composite score are finite [0,1], MTLD is finite and nonnegative,
+// and readability indices are finite but may be negative. Flags use the
+// shared QualityFlags bit set (currently bits 0 through 6).
+message QualityMetricsAnnotation
+{
+  optional float composite_score = 1;
+  optional float mtld_lexical_diversity = 2;
+  optional float flesch_kincaid_grade = 3;
+  optional float automated_readability_index = 4;
+  optional float coleman_liau_index = 5;
+  optional float information_density = 6;
+  optional float alpha_ratio = 7;
+  optional float digit_ratio = 8;
+  optional float symbol_ratio = 9;
+  optional float whitespace_ratio = 10;
+  optional float replacement_ratio = 11;
+  uint32 flags = 12;
+}
+
 // One strongly-typed annotation in a TypedLayer.
 message TypedAnnotation
 {
@@ -973,5 +994,7 @@ message TypedAnnotation
     RecordValueAnnotation record_value = 88;
     EntitySalienceAnnotation entity_salience = 89;
     ChunkTableHeaderAnnotation chunk_table_header = 90;
+    QualityMetricsAnnotation text_quality = 91;
+    QualityMetricsAnnotation span_quality = 92;
   }
 }
