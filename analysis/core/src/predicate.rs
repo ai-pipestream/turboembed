@@ -3,6 +3,8 @@
 //! (filtering items of a source layer into a distinct target layer instance).
 
 mod filter;
+mod typed;
+pub use typed::DocPredicate;
 
 pub use filter::{FilterAnnotator, FilterableLayer, SpanFilter, co_written_aligned_anchors, retain_aligned_anchor};
 
@@ -76,13 +78,14 @@ pub(crate) fn check_required_inputs(doc: &Document, reads: &[KeyId], required: &
     Ok(())
 }
 
-type DocPredicate = Box<dyn Fn(&Document) -> bool + Send + Sync>;
+type PredicateFn = Box<dyn Fn(&Document) -> bool + Send + Sync>;
 
 /// Chooses whether to run `when_true` or `when_false` (or skip output layers
 /// when `when_false` is `None`) according to a predicate over the [`Document`].
 pub struct ConditionalAnnotator {
     predicate_name: &'static str,
-    predicate: DocPredicate,
+    predicate: PredicateFn,
+    predicate_config: Option<u64>,
     when_true: Box<dyn Step>,
     when_false: Option<Box<dyn Step>>,
     reads: Vec<KeyId>,
@@ -127,6 +130,7 @@ impl ConditionalAnnotator {
         ConditionalAnnotator {
             predicate_name,
             predicate: Box::new(predicate),
+            predicate_config: None,
             when_true: Box::new(when_true),
             when_false: None,
             reads,
@@ -192,6 +196,7 @@ impl ConditionalAnnotator {
         Ok(ConditionalAnnotator {
             predicate_name,
             predicate: Box::new(predicate),
+            predicate_config: None,
             when_true: Box::new(when_true),
             when_false: Some(Box::new(when_false)),
             reads,
@@ -260,6 +265,10 @@ impl ConditionalAnnotator {
 
         let mut h = fnv_mix_str(FNV_OFFSET_BASIS, Self::ID);
         h = fnv_mix_str(h, self.predicate_name);
+        if let Some(config) = self.predicate_config {
+            h = fnv_mix_str(h, "typed-predicate");
+            h = fnv_mix_u64(h, config);
+        }
         h = hash_step(h, self.when_true.as_ref());
         match &self.when_false {
             Some(wf) => {

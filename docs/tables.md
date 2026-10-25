@@ -80,3 +80,67 @@ existing `Layer::check_document` hook, including on graph import.
 `cargo test --locked -p turbo-structure --test tables --test table_syntax --test table_refusals`
 exercises both parsers, the repository analysis document, analyzer
 provenance, graph bytes and malformed secondary-coordinate records.
+
+## Table-aware chunks and header context
+
+`turbo_chunker::TableBoundaryAnnotator` reads the view, sentences, tokens
+and `Tables`. It writes `Boundaries`: a high positive cost inside a
+logical row and a lower cost between rows. The optimizer minimizes costs.
+Both configured costs participate in its deterministic configuration hash;
+inside-row cost must exceed row-edge cost. Token endpoints must be in
+source order.
+
+The base `Chunker` now has an optional sixth read, `Tables`. The existing
+sentence, subword, boundary, structure and clause slots retain their
+positions. When tables are present, each logical row is an atomic unit,
+including the header's delimiter or a multiline ASCII row. An oversized
+row stays whole and is marked `Chunks::over_budget`, even when clause
+splitting is enabled. Sentence spans and top-level section cuts must align
+with rows; a crossing returns an error naming the conflict. A newline
+sentence detector supplies suitable spans for the supported grid formats.
+Chunk spans include complete row envelopes, and model-token counts include
+subwords overlapping those source envelopes, including line breaks.
+Enclosing structure is tested against that complete token count before
+its hard limits are chosen. Chunker provenance uses version 2.
+
+The incremental `Chunker::rechunk` API has no `Tables` argument. Its
+full-chunking equality guarantee concerns the inputs it accepts, without
+table-row atomicity. After a table edit, use a full Chunker run with the
+updated tables, followed by TableHeaderAnnotator to replace header context.
+
+After chunking, `turbo_chunker::TableHeaderAnnotator` reads the view,
+`Chunks` and `Tables`, writing `ChunkTableHeaders`
+(`turbo:chunk-table-headers`). `for_chunk(chunk_ix)` returns all contexts
+for that chunk, ordered by table ID. Each context has the chunk and table
+IDs, original header cell envelopes, a Markdown header/alignment prefix,
+and `is_continuation`. The flag is true when the chunk lacks any original
+header fragment. The prefix and coordinates are available on every chunk;
+consumers prepend the prefix only when continuation is true. Headerless
+grids have empty header fields and a false continuation flag.
+
+Multiline headers render their actual cell fragments, separated by spaces.
+Multiple header rows render one label per governed column, joined with
+` / `. Literal pipes are escaped without doubling existing source escapes.
+A per-table index collects and sorts only header cells once per layer;
+it never collects or sorts body cells per chunk.
+
+The prefix is context metadata. Consumers that prepend it before embedding
+must reserve its model-token cost in their chunk budget. `Chunker` counts
+source spans plus its configured overhead; it does not silently add the
+rendered header to either source text or token counts.
+
+The standard layer codecs register `ChunkTableHeaders` too. Its primary
+spans copy each chunk's fragments. Validation resolves the actual named
+chunk/table dependencies and checks IDs, exact source spans, prefix,
+continuation and every overlapping chunk/table pair. Secondary header
+coordinates may be outside a continuation chunk, but must match the
+original table and the exact view's UTF-8 boundaries. These checks also
+run on binary graph import.
+
+`cargo test --locked -p turbo-chunker --test table_header --test table_header_named --test table_header_refusals --test table_header_allocations`
+exercises the production detector, tokenizer, bundle tokenizer, chunker,
+header annotators and graph codecs. The 30-row Markdown case has exactly
+four chunks, preserves every logical row and carries the original headers
+on all four chunks. The allocation regression checks that the header stage
+allocates a bounded amount when body rows grow from 30 to 3,000, with the
+same four chunks; it makes no timing claim.

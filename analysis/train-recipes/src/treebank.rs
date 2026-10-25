@@ -371,9 +371,13 @@ impl Treebank {
     ///
     /// What the zoo fails on.
     pub fn fetch(&self, home: &Path, user: &UserId) -> Result<PathBuf> {
-        let artifact = self.dataset()?;
-        let id = artifact.id.to_string();
-        let index = Index::parse(Index::to_canonical_json(std::slice::from_ref(&artifact)).as_bytes())?;
+        let id = self.dataset_id();
+        let index = if self.text_rights == TextRights::Granted {
+            Index::builtin()
+        } else {
+            let artifact = self.dataset()?;
+            Index::parse(Index::to_canonical_json(std::slice::from_ref(&artifact)).as_bytes())?
+        };
         let zoo = Zoo::new(index, home.join("artifacts"), Policy::default(), &Http);
         Ok(zoo.fetch_with(&id, user, || Ok(Acceptances::default()))?.dir)
     }
