@@ -189,7 +189,6 @@ impl StrategyMatrix {
 
     /// The disagreement report of strategy `i` against the reference
     /// strategy, priced with each side's own boundaries and budget.
-    /// Refuses an index outside the matrix.
     /// `None` when `i` is outside the matrix.
     pub fn report<'a>(&'a self, doc: &'a Document, i: usize) -> Option<Result<compare::Report<'a>, compare::Refused>> {
         let b = self.summaries.get(i)?;
@@ -221,15 +220,18 @@ fn structure_boundaries(sentences: &Sentences, structure: Option<&Structure>) ->
 }
 
 /// Whole sentences packed left to right: a chunk closes when the next
-/// sentence would take it over `limit` tokens. A single sentence over
-/// the limit is a chunk of its own.
+/// sentence would take it over `limit` tokens. A chunk's size is its
+/// text tokens plus `budget.overhead`, as the optimizer counts it, in
+/// the limit, the price and the over-budget flag. A single sentence
+/// over the limit is a chunk of its own.
 fn pack(sentences: &Sentences, lengths: &Lengths, budget: Budget, limit: u32) -> Chunks {
     let n = sentences.spans.len();
+    let size = |a: usize, b: usize| u64::from(lengths.run(a, b)) + u64::from(budget.overhead);
     let mut ranges: Vec<(usize, usize)> = Vec::new();
     let mut i = 0;
     while i < n {
         let mut j = i + 1;
-        while j < n && lengths.run(i, j + 1) <= limit {
+        while j < n && size(i, j + 1) <= u64::from(limit) {
             j += 1;
         }
         ranges.push((i, j));
@@ -249,6 +251,7 @@ fn pack(sentences: &Sentences, lengths: &Lengths, budget: Budget, limit: u32) ->
     };
     for (k, &(a, b)) in ranges.iter().enumerate() {
         let tokens = lengths.run(a, b);
+        let chunk_size = size(a, b);
         spans.push(Span {
             start: sentences.spans.get(Ix::new(a as u32)).start,
             end: sentences.spans.get(Ix::new(b as u32 - 1)).end,
@@ -259,10 +262,9 @@ fn pack(sentences: &Sentences, lengths: &Lengths, budget: Budget, limit: u32) ->
         out.cut.push(if k == 0 { Cut::DocumentStart } else { Cut::Sentence });
         let closing = if k + 1 == ranges.len() { 0 } else { Boundaries::UNIT };
         out.cost
-            .push(chunk_cost(closing, u64::from(tokens), budget, 0).clamp(i128::from(i64::MIN), i128::from(i64::MAX))
-                as i64);
+            .push(chunk_cost(closing, chunk_size, budget, 0).clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64);
         out.model_tokens.push(tokens.saturating_add(budget.overhead));
-        out.over_budget.push(tokens > budget.max);
+        out.over_budget.push(chunk_size > u64::from(budget.max));
     }
     out.spans = spans;
     out

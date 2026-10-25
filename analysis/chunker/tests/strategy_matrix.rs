@@ -10,7 +10,17 @@ fn toy_model() -> ModelRef {
 /// Six sentences of three subwords each (two words and the period),
 /// with a cheap topic-shift boundary after the third.
 fn make_doc() -> Document {
-    let text = "Cats purr. Cats nap. Cats hunt. Rust compiles. Rust checks. Rust ships.";
+    let mut doc = sentences_and_subwords("Cats purr. Cats nap. Cats hunt. Rust compiles. Rust checks. Rust ships.");
+    let mut reason = vec![Cut::Sentence; 6];
+    reason[2] = Cut::TopicShift;
+    doc.add(&Key::DEFAULT, Boundaries { cost: vec![1000, 1000, 100, 1000, 1000, 1000], reason }, Provenance::by("t"))
+        .unwrap();
+    doc
+}
+
+/// `text`'s sentences, each ending at a period, and its subwords: each
+/// word without its period, and the period.
+fn sentences_and_subwords(text: &str) -> Document {
     let mut doc = Document::new(text);
     let (mut sentences, mut pieces) = (Spans::new(ViewId::SOURCE), Spans::new(ViewId::SOURCE));
     let mut start = 0;
@@ -32,10 +42,6 @@ fn make_doc() -> Document {
     let ids = vec![0; pieces.len()];
     doc.add(&Key::DEFAULT, Sentences { spans: sentences }, Provenance::by("t")).unwrap();
     doc.add(&Key::DEFAULT, Subwords { spans: pieces, ids, model: toy_model(), token: None }, Provenance::by("t"))
-        .unwrap();
-    let mut reason = vec![Cut::Sentence; 6];
-    reason[2] = Cut::TopicShift;
-    doc.add(&Key::DEFAULT, Boundaries { cost: vec![1000, 1000, 100, 1000, 1000, 1000], reason }, Provenance::by("t"))
         .unwrap();
     doc
 }
@@ -135,4 +141,33 @@ fn over_budget_sentences_are_chunks_of_their_own() {
     assert_eq!(s.over_budget_count, 6);
     assert_eq!(s.mean_tokens, 3.0, "overhead is stripped from the statistics");
     assert_eq!(s.chunks.prompt_overhead, 1);
+}
+
+/// The baselines count the prompt overhead as the optimizer does: in the
+/// packing limit, the price and the over-budget flag.
+#[test]
+fn the_baselines_count_the_overhead() {
+    // Two 3-token sentences: 6 text tokens fit a max of 6, but not with
+    // an overhead of 1, so each sentence is a chunk of 4 model tokens.
+    let doc = sentences_and_subwords("Cats purr. Cats nap.");
+    let b = Budget { max: 6, target: 6, size_weight: 1000, overhead: 1 };
+    let strategies = [
+        ChunkStrategy::FixedTokenWindow { budget: b },
+        ChunkStrategy::GreedySentence { budget: b },
+        ChunkStrategy::StructureOnly { budget: b },
+    ];
+    let m = StrategyMatrix::run(&doc, &strategies, 2).unwrap();
+    for (i, s) in m.summaries.iter().enumerate() {
+        assert_eq!(level0_ranges(&m, i), [(0, 1), (1, 2)], "{}", s.id);
+        assert_eq!(s.chunks.model_tokens, [4, 4], "{}", s.id);
+        assert_eq!(s.over_budget_count, 0, "{}", s.id);
+        assert_eq!(s.mean_tokens, 3.0, "{}", s.id);
+    }
+    // Priced on 4 tokens each, as the optimizer prices them.
+    assert_eq!(m.summaries[1].chunks.cost[1], m.summaries[2].chunks.cost[1]);
+    // With a max of 3 each 3-token sentence is over once the overhead is
+    // in, though its text alone fits.
+    let tight = Budget { max: 3, target: 3, size_weight: 1000, overhead: 1 };
+    let m = StrategyMatrix::run(&doc, &[ChunkStrategy::GreedySentence { budget: tight }], 0).unwrap();
+    assert_eq!(m.summaries[0].over_budget_count, 2);
 }
