@@ -12,7 +12,7 @@ pub enum ModelError {
     Sequence(turbo_sequence::Error),
     /// The manifest's `Component-Name` is not `StatisticalLemmatizer`.
     Component(String),
-    /// The manifest names a factory other than `LemmatizerFactory`. A
+    /// The manifest names an unknown OpenNLP or native factory. A
     /// subclass can change the context generator and the validator, which
     /// this port does not reproduce.
     Factory(String),
@@ -30,7 +30,7 @@ impl fmt::Display for ModelError {
             ModelError::Sequence(e) => write!(f, "lemmatizer model: {e}"),
             ModelError::Component(c) => write!(f, "lemmatizer model: component {c:?} is not StatisticalLemmatizer"),
             ModelError::Factory(c) => {
-                write!(f, "lemmatizer model: factory {c:?} is not opennlp.tools.lemmatizer.LemmatizerFactory")
+                write!(f, "lemmatizer model: unsupported factory {c:?}")
             }
             ModelError::NoOutcomes => write!(f, "lemmatizer model: the classifier has no outcome"),
             ModelError::ZeroBeam => write!(f, "lemmatizer model: a beam size of zero lemmatizes nothing"),
@@ -84,6 +84,10 @@ impl std::error::Error for DictionaryError {}
 /// class from elsewhere can.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum EditScriptError {
+    /// A native edit index does not fit in memory.
+    IndexOverflow,
+    /// A native script contains an unknown operation.
+    Operation { unit: u16 },
     /// An operation's index is not a decimal digit
     /// (`NumberFormatException`).
     NotADigit { unit: u16 },
@@ -95,6 +99,8 @@ pub enum EditScriptError {
 impl fmt::Display for EditScriptError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            EditScriptError::IndexOverflow => write!(f, "lemma class: index overflow"),
+            EditScriptError::Operation { unit } => write!(f, "lemma class: unknown operation U+{unit:04X}"),
             EditScriptError::NotADigit { unit } => {
                 write!(f, "lemma class: the index U+{unit:04X} is not a decimal digit")
             }

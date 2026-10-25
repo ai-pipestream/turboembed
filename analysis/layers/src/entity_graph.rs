@@ -8,7 +8,8 @@
 //! coreference chains, linked entities, locations, dependencies, aspects
 //! and relation edges; it lives here so a reader needs none of them.
 
-use turbo_analysis::{Anchor, Ix, Key, KeyId, Layer, Span, ViewId};
+use std::any::TypeId;
+use turbo_analysis::{Anchor, Document, Ix, Key, KeyId, Layer, Span, View, ViewId};
 
 use crate::Entities;
 
@@ -164,6 +165,37 @@ impl Layer for DocumentEntities {
         self.entities.len()
     }
 
+    fn check_document(&self, doc: &Document, on: &[KeyId]) -> Result<(), String> {
+        let view = doc
+            .layers()
+            .filter(|k| k.ty == TypeId::of::<View>())
+            .filter_map(|k| doc.get_key(&Key::<View>::named(k.name)))
+            .find(|v| v.id() == self.view)
+            .ok_or("document entities refer to an unknown view")?;
+        let source = on
+            .iter()
+            .find(|k| k.ty == TypeId::of::<Entities>())
+            .map(|k| doc.require(&Key::<Entities>::named(k.name)).map_err(|e| e.to_string()))
+            .transpose()?;
+        if source.is_some_and(|s| s.spans.view() != self.view) {
+            return Err("document entity references are in a different view".into());
+        }
+        for e in &self.entities {
+            for m in &e.mentions {
+                if view.text().get(m.span.start as usize..m.span.end as usize).is_none() {
+                    return Err("consolidated mention outside view or not on UTF-8 boundaries".into());
+                }
+                if let Some(row) = m.entity {
+                    let s = source.ok_or("consolidated mention has no source entity layer")?;
+                    if row.get() >= s.spans.len() || s.spans.get(row) != m.span {
+                        return Err("consolidated mention differs from its source entity".into());
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         let rows = self.entities.iter().flat_map(|e| e.mentions.iter()).filter_map(|m| m.entity);
         match rows.map(|r| r.get() + 1).max() {
@@ -215,6 +247,104 @@ impl Layer for DocumentEntities {
         let key = |r: &EntityRelation| (r.subject, r.object, r.kind.clone());
         if self.relations.windows(2).any(|w| key(&w[0]) >= key(&w[1])) {
             return Err("relations are not sorted by subject, object and kind without repeats".to_owned());
+        }
+        Ok(())
+    }
+}
+
+/// How central one consolidated entity is to its document
+/// (`turbo:entity-salience`), and the features that say so.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct EntitySalienceScore {
+    /// The entity's row of the default `DocumentEntities`.
+    pub entity_ix: u32,
+    /// The weighted features, in `[0, 1]`.
+    pub salience: f32,
+    /// 0 for the most salient entity; ties go to the lower `entity_ix`.
+    pub rank: u32,
+    /// How early its first mention is, raised when a heading mentions it.
+    pub position_score: f32,
+    /// How often its mentions are subjects or objects.
+    pub syntax_score: f32,
+    /// Its mention count, log-scaled against the most mentioned entity.
+    pub frequency_score: f32,
+    /// Its PageRank over entity co-occurrence and relations, scaled so the
+    /// most central entity is 1.
+    pub centrality_score: f32,
+}
+
+/// One score per entity of the default `DocumentEntities`, by `entity_ix`.
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct EntitySalience {
+    pub scores: Vec<EntitySalienceScore>,
+}
+
+impl EntitySalience {
+    pub fn as_slice(&self) -> &[EntitySalienceScore] {
+        &self.scores
+    }
+
+    /// The score of entity `entity_ix`.
+    pub fn get(&self, entity_ix: u32) -> Option<&EntitySalienceScore> {
+        self.scores.get(entity_ix as usize).filter(|s| s.entity_ix == entity_ix)
+    }
+
+    /// The `k` most salient entities, most salient first.
+    pub fn top_k(&self, k: usize) -> Vec<EntitySalienceScore> {
+        let mut by_rank = self.scores.clone();
+        by_rank.sort_by_key(|s| s.rank);
+        by_rank.truncate(k);
+        by_rank
+    }
+}
+
+impl Layer for EntitySalience {
+    const ID: &'static str = "turbo:entity-salience";
+
+    fn anchor() -> Anchor {
+        Anchor::Document
+    }
+
+    fn len(&self) -> usize {
+        self.scores.len()
+    }
+
+    fn indexes(&self) -> Vec<(KeyId, usize)> {
+        vec![(Key::<DocumentEntities>::DEFAULT.id(), self.scores.len())]
+    }
+
+    fn check_document(&self, doc: &Document, on: &[KeyId]) -> Result<(), String> {
+        let key = on
+            .iter()
+            .find(|k| k.ty == TypeId::of::<DocumentEntities>())
+            .ok_or("salience needs its consolidated entities")?;
+        let entities = doc.require(&Key::<DocumentEntities>::named(key.name)).map_err(|e| e.to_string())?;
+        if entities.entities.len() != self.scores.len() {
+            return Err("one salience score per consolidated entity".into());
+        }
+        Ok(())
+    }
+
+    fn check(&self) -> Result<(), String> {
+        let n = self.scores.len();
+        let mut seen = vec![false; n];
+        for (i, s) in self.scores.iter().enumerate() {
+            if s.entity_ix as usize != i {
+                return Err(format!("score {i} is for entity {}, not {i}", s.entity_ix));
+            }
+            let parts = [s.salience, s.position_score, s.syntax_score, s.frequency_score, s.centrality_score];
+            if parts.iter().any(|v| !(0.0..=1.0).contains(v)) {
+                return Err(format!("entity {i} has a score outside [0, 1]"));
+            }
+            match seen.get_mut(s.rank as usize) {
+                Some(slot) if !*slot => *slot = true,
+                _ => return Err(format!("entity {i} has rank {}, repeated or past {n}", s.rank)),
+            }
+        }
+        let mut by_rank: Vec<&EntitySalienceScore> = self.scores.iter().collect();
+        by_rank.sort_by_key(|s| s.rank);
+        if by_rank.windows(2).any(|w| w[0].salience < w[1].salience) {
+            return Err("a rank above a more salient entity".to_owned());
         }
         Ok(())
     }

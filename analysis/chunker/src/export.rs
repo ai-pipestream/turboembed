@@ -19,6 +19,8 @@ use crate::hashes::{ChunkId, ContentHashes};
 use crate::sentiment::ChunkFacets;
 use crate::terms::{IndexedTerms, TermStats, Vocabulary, WeightedTerms};
 
+mod density;
+
 /// The polarities in wire order: a variant crosses as its position
 /// here, so a position outside the table is refused rather than
 /// read as some other polarity.
@@ -393,6 +395,7 @@ mod extra;
 /// token-vector windows late pooling checks against are a
 /// shared layer, registered by `turbo-analysis-layers`.
 pub fn register_codecs(codecs: &mut Codecs) {
+    density::register(codecs);
     codecs
         .register::<Vocabulary>()
         .register::<IndexedTerms>()

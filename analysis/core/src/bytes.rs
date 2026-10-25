@@ -71,6 +71,12 @@ impl SourceBytes {
     /// boundaries of `text`, and every unchanged stretch the same bytes on
     /// both sides.
     pub fn new(bytes: Arc<[u8]>, text: &str, alignment: Alignment) -> Result<SourceBytes, SourceError> {
+        Self::validate(&bytes, text, &alignment)?;
+        Ok(SourceBytes { bytes, alignment })
+    }
+
+    /// The constructor's checks without copying or retaining the source.
+    pub(crate) fn validate(bytes: &[u8], text: &str, alignment: &Alignment) -> Result<(), SourceError> {
         check_len(bytes.len())?;
         check_len(text.len())?;
         let (mut parent_at, mut child_at) = (0usize, 0usize);
@@ -92,7 +98,7 @@ impl SourceBytes {
             (parent_at, child_at) = (p.end, c.end);
         }
         same_bytes(&bytes[parent_at..], &text.as_bytes()[child_at..], parent_at)?;
-        Ok(SourceBytes { bytes, alignment })
+        Ok(())
     }
 
     pub fn bytes(&self) -> &[u8] {

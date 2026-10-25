@@ -2,10 +2,11 @@
 
 use std::marker::PhantomData;
 
-use turbo_analysis::{Annotator, Error, Layer, Refs};
+use turbo_analysis::{Annotator, Error, Ix, Layer, Refs};
 use turbo_analysis_layers::{Boilerplate, Covered, Structure, Tokens};
 
 use super::count::{count_multi, unit_ranges};
+use super::density::QualityContentTermCounter;
 use super::layer::{TermStats, Terms, Vocabulary};
 
 /// `TermCounter<L>` with boilerplate left out: reads the tokens, their
@@ -25,6 +26,12 @@ impl<L, B> ContentTermCounter<L, B> {
     pub fn new() -> ContentTermCounter<L, B> {
         ContentTermCounter { _of: PhantomData }
     }
+
+    /// Preserve fractional information-density weights in DensityTermStats,
+    /// with SpanQuality as an additional required pipeline input.
+    pub fn with_quality(self) -> QualityContentTermCounter<L, B> {
+        QualityContentTermCounter { _of: PhantomData }
+    }
 }
 
 impl<L, B> Default for ContentTermCounter<L, B> {
@@ -43,21 +50,26 @@ impl<L: Layer, B: Layer> Annotator for ContentTermCounter<L, B> {
         (tokens, terms, vocabulary, units, blocks, flags): Refs<'_, Self>,
     ) -> Result<(TermStats<L>,), Error> {
         let fail = |detail: String| Error::Annotator { annotator: Self::ID, detail };
-        let ts = blocks.text_spans().ok_or_else(|| fail(format!("{} has no spans", B::NAME)))?;
-        if ts.view != tokens.spans.view() {
-            return Err(fail(format!(
-                "the boilerplate is in view {}, the tokens in view {}",
-                ts.view.0,
-                tokens.spans.view().0
-            )));
-        }
         let ranges = unit_ranges(tokens, units).map_err(fail)?;
-        let covered = Covered::new(&ts, flags).map_err(fail)?;
-        let (starts, _) = tokens.spans.columns();
-        if terms.term.len() != starts.len() {
-            return Err(fail(format!("{} terms for {} tokens", terms.term.len(), starts.len())));
-        }
-        let term: Vec<_> = terms.term.iter().zip(starts).map(|(&t, &s)| t.filter(|_| !covered.contains(s))).collect();
+        let term = content_terms(tokens, terms, blocks, flags).map_err(fail)?;
         Ok((count_multi(&term, vocabulary.len(), &ranges).map_err(fail)?,))
     }
+}
+
+pub(super) fn content_terms<B: Layer>(
+    tokens: &Tokens,
+    terms: &Terms,
+    blocks: &B,
+    flags: &Boilerplate<B>,
+) -> Result<Vec<Option<Ix<Vocabulary>>>, String> {
+    let ts = blocks.text_spans().ok_or_else(|| format!("{} has no spans", B::NAME))?;
+    if ts.view != tokens.spans.view() {
+        return Err(format!("the boilerplate is in view {}, the tokens in view {}", ts.view.0, tokens.spans.view().0));
+    }
+    let covered = Covered::new(&ts, flags)?;
+    let (starts, _) = tokens.spans.columns();
+    if terms.term.len() != starts.len() {
+        return Err(format!("{} terms for {} tokens", terms.term.len(), starts.len()));
+    }
+    Ok(terms.term.iter().zip(starts).map(|(&t, &s)| t.filter(|_| !covered.contains(s))).collect())
 }

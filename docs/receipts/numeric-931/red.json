@@ -1,0 +1,1157 @@
+{
+  "meta": {
+    "label": "red",
+    "started": "2026-10-24T18:57:19.499Z",
+    "cpu": 12,
+    "baseline": "97dee9b334a06216ff6cdb4bc7bc764f26ade70c",
+    "head": "d70008607396eedb92b8ed3d6bca5ace9d44e120",
+    "tracked_diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "harness_sha256": "c7b59dd6c85fa10b5828fe379766be830e0ff02cb9cd831f4525d97e1930d613",
+    "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+    "cpu_model": "AMD Ryzen 9 9950X3D 16-Core Processor",
+    "governor": "powersave",
+    "ambient_start": "6.84 10.00 17.96 7/12996 1232434",
+    "corpora": {
+      "ascii": "6599e42821a0800d5c77ab00e8342da050ef653e4a1e237b0ac8c60c217025ce",
+      "non_latin": "7f953fc3ffcaf66d0fcfdac73a8f8dc4801a178af73e76b0bf1ac3b69770e8cc",
+      "non_latin_nd": "958671e70265ac26f118f8ec8a8045391356ace7d102d8e11486bae4d58ef962"
+    },
+    "finished": "2026-10-24T18:57:26.592Z",
+    "ambient_end": "7.40 10.02 17.88 6/12998 1233583"
+  },
+  "rows": [
+    {
+      "corpus": "ascii",
+      "round": 1,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 100,
+      "ms": 20.88741,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "6.84 10.00 17.96 7/12996 1232436"
+    },
+    {
+      "corpus": "ascii",
+      "round": 1,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 100,
+      "ms": 22.048204,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "6.84 10.00 17.96 37/12996 1232438"
+    },
+    {
+      "corpus": "ascii",
+      "round": 2,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 100,
+      "ms": 20.827626,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "6.84 10.00 17.96 5/12999 1232460"
+    },
+    {
+      "corpus": "ascii",
+      "round": 2,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 100,
+      "ms": 20.739931,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "6.84 10.00 17.96 6/12996 1232462"
+    },
+    {
+      "corpus": "ascii",
+      "round": 3,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 100,
+      "ms": 21.014951,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "6.84 10.00 17.96 8/12996 1232464"
+    },
+    {
+      "corpus": "ascii",
+      "round": 3,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 100,
+      "ms": 20.95649,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "6.84 10.00 17.96 5/12996 1232466"
+    },
+    {
+      "corpus": "ascii",
+      "round": 4,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 100,
+      "ms": 20.693243,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "6.84 10.00 17.96 6/12996 1232468"
+    },
+    {
+      "corpus": "ascii",
+      "round": 4,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 100,
+      "ms": 20.815844,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "6.84 10.00 17.96 6/12996 1232470"
+    },
+    {
+      "corpus": "ascii",
+      "round": 5,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 100,
+      "ms": 20.997527,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "6.84 10.00 17.96 6/12996 1232472"
+    },
+    {
+      "corpus": "ascii",
+      "round": 5,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 100,
+      "ms": 20.605667,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "6.84 10.00 17.96 6/12996 1232474"
+    },
+    {
+      "corpus": "ascii",
+      "round": 6,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 100,
+      "ms": 20.901275,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "6.84 10.00 17.96 5/12996 1232476"
+    },
+    {
+      "corpus": "ascii",
+      "round": 6,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 100,
+      "ms": 20.676561,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "6.84 10.00 17.96 5/12996 1232478"
+    },
+    {
+      "corpus": "ascii",
+      "round": 7,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 100,
+      "ms": 20.749929,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "6.84 10.00 17.96 5/12996 1232480"
+    },
+    {
+      "corpus": "ascii",
+      "round": 7,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 100,
+      "ms": 20.978703,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "6.84 10.00 17.96 5/12996 1232482"
+    },
+    {
+      "corpus": "ascii",
+      "round": 8,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 100,
+      "ms": 20.636646,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "6.84 10.00 17.96 7/12996 1232484"
+    },
+    {
+      "corpus": "ascii",
+      "round": 8,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 100,
+      "ms": 20.878893,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "6.84 10.00 17.96 5/12996 1232486"
+    },
+    {
+      "corpus": "ascii",
+      "round": 9,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 100,
+      "ms": 20.712238,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "6.84 10.00 17.96 6/13011 1232506"
+    },
+    {
+      "corpus": "ascii",
+      "round": 9,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 100,
+      "ms": 22.071889,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "6.84 10.00 17.96 5/12996 1232510"
+    },
+    {
+      "corpus": "ascii",
+      "round": 10,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 100,
+      "ms": 24.768369,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "6.84 10.00 17.96 8/12996 1232512"
+    },
+    {
+      "corpus": "ascii",
+      "round": 10,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 100,
+      "ms": 24.034061,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "6.84 10.00 17.96 7/13002 1232526"
+    },
+    {
+      "corpus": "ascii",
+      "round": 11,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 100,
+      "ms": 24.220312,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "6.84 10.00 17.96 7/12987 1232562"
+    },
+    {
+      "corpus": "ascii",
+      "round": 11,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 112800,
+      "iters": 100,
+      "ms": 20.9087,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "6.84 10.00 17.96 8/12987 1232564"
+    },
+    {
+      "corpus": "ascii",
+      "round": 12,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 100,
+      "ms": 20.560221,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "6.84 10.00 17.96 8/12987 1232566"
+    },
+    {
+      "corpus": "ascii",
+      "round": 12,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 112800,
+      "iters": 100,
+      "ms": 20.584497,
+      "mentions": 6000,
+      "output_fnv64": "8f111db360795c34",
+      "ambient": "6.84 10.00 17.96 4/12987 1232568"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 1,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 100,
+      "ms": 87.090614,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "6.84 10.00 17.96 6/12987 1232571"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 1,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 100,
+      "ms": 126.597364,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "6.84 10.00 17.96 9/12986 1232573"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 2,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 100,
+      "ms": 171.841113,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "6.84 10.00 17.96 5/12985 1232575"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 2,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 100,
+      "ms": 87.251178,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "6.84 10.00 17.96 7/12991 1232583"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 3,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 100,
+      "ms": 90.421122,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "6.84 10.00 17.96 6/12985 1232595"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 3,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 100,
+      "ms": 128.049731,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "7.09 10.00 17.92 6/12985 1232597"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 4,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 100,
+      "ms": 128.461529,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "7.09 10.00 17.92 7/12984 1232679"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 4,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 100,
+      "ms": 88.368049,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "7.09 10.00 17.92 4/12991 1232688"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 5,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 100,
+      "ms": 88.952435,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "7.09 10.00 17.92 7/12991 1232690"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 5,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 100,
+      "ms": 128.755255,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "7.09 10.00 17.92 8/12998 1232725"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 6,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 100,
+      "ms": 124.705046,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "7.09 10.00 17.92 5/12998 1232727"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 6,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 100,
+      "ms": 86.977691,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "7.09 10.00 17.92 8/12998 1232729"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 7,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 100,
+      "ms": 89.202267,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "7.09 10.00 17.92 6/12998 1232731"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 7,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 100,
+      "ms": 127.588478,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "7.09 10.00 17.92 6/12999 1232734"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 8,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 100,
+      "ms": 133.986558,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "7.09 10.00 17.92 4/12999 1232894"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 8,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 100,
+      "ms": 86.652947,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "7.09 10.00 17.92 5/12999 1232896"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 9,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 100,
+      "ms": 92.75173,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "7.09 10.00 17.92 7/12999 1232898"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 9,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 100,
+      "ms": 128.26081,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "7.09 10.00 17.92 6/12999 1232900"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 10,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 100,
+      "ms": 123.876969,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "7.09 10.00 17.92 7/12999 1232902"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 10,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 100,
+      "ms": 87.008198,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "7.09 10.00 17.92 6/12999 1232904"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 11,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 100,
+      "ms": 86.911566,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "7.09 10.00 17.92 5/12999 1232906"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 11,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1577500,
+      "iters": 100,
+      "ms": 130.745528,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "7.09 10.00 17.92 6/13000 1232909"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 12,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 100,
+      "ms": 128.448415,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "7.09 10.00 17.92 5/13000 1232957"
+    },
+    {
+      "corpus": "non_latin",
+      "round": 12,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1577500,
+      "iters": 100,
+      "ms": 87.527921,
+      "mentions": 15000,
+      "output_fnv64": "c2e189ecda130558",
+      "ambient": "7.09 10.00 17.92 6/13000 1232959"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 1,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 100,
+      "ms": 63.819457,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "7.09 10.00 17.92 6/13000 1232962"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 1,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 100,
+      "ms": 167.648875,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "7.09 10.00 17.92 5/13000 1232987"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 2,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 100,
+      "ms": 166.46666,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "7.09 10.00 17.92 4/13000 1233027"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 2,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 100,
+      "ms": 63.163918,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "7.09 10.00 17.92 5/13000 1233029"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 3,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 100,
+      "ms": 62.411044,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "7.09 10.00 17.92 5/13000 1233031"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 3,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 100,
+      "ms": 163.088562,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "7.09 10.00 17.92 6/13000 1233080"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 4,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 100,
+      "ms": 163.142142,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "7.09 10.00 17.92 5/13000 1233101"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 4,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 100,
+      "ms": 62.923503,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "7.09 10.00 17.92 4/13000 1233103"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 5,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 100,
+      "ms": 62.802464,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "7.09 10.00 17.92 5/13000 1233105"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 5,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 100,
+      "ms": 165.957718,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "7.09 10.00 17.92 4/13000 1233107"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 6,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 100,
+      "ms": 166.454416,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "7.09 10.00 17.92 5/13000 1233125"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 6,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 100,
+      "ms": 64.446934,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "7.09 10.00 17.92 4/12961 1233131"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 7,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 100,
+      "ms": 70.245729,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "7.09 10.00 17.92 4/12961 1233133"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 7,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 100,
+      "ms": 165.709478,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "7.09 10.00 17.92 9/12984 1233268"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 8,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 100,
+      "ms": 184.381377,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "7.09 10.00 17.92 6/13025 1233365"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 8,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 100,
+      "ms": 64.998566,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "7.09 10.00 17.92 6/13027 1233370"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 9,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 100,
+      "ms": 70.170457,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "7.09 10.00 17.92 7/13027 1233376"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 9,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 100,
+      "ms": 162.961852,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "7.09 10.00 17.92 4/13031 1233391"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 10,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 100,
+      "ms": 169.434652,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "7.09 10.00 17.92 10/12977 1233407"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 10,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 100,
+      "ms": 63.498871,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "7.40 10.02 17.88 10/12977 1233409"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 11,
+      "tree": "main",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 100,
+      "ms": 65.61923,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "7.40 10.02 17.88 9/12984 1233426"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 11,
+      "tree": "head",
+      "order": [
+        "main",
+        "head"
+      ],
+      "bytes": 1702500,
+      "iters": 100,
+      "ms": 171.559591,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "7.40 10.02 17.88 15/12980 1233536"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 12,
+      "tree": "head",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 100,
+      "ms": 174.437904,
+      "mentions": 15000,
+      "output_fnv64": "a1ff2a2ca7c850cf",
+      "ambient": "7.40 10.02 17.88 9/12983 1233561"
+    },
+    {
+      "corpus": "non_latin_nd",
+      "round": 12,
+      "tree": "main",
+      "order": [
+        "head",
+        "main"
+      ],
+      "bytes": 1702500,
+      "iters": 100,
+      "ms": 79.541057,
+      "mentions": 7500,
+      "output_fnv64": "7065d6328d40e585",
+      "ambient": "7.40 10.02 17.88 8/12998 1233583"
+    }
+  ],
+  "summary": {
+    "ascii": {
+      "main_ms": 20.8473685,
+      "head_ms": 20.904987499999997,
+      "paired_ratio": 1.0015244913634906,
+      "main_mentions": [
+        6000
+      ],
+      "head_mentions": [
+        6000
+      ],
+      "main_output": [
+        "8f111db360795c34"
+      ],
+      "head_output": [
+        "8f111db360795c34"
+      ]
+    },
+    "non_latin": {
+      "main_ms": 87.3895495,
+      "head_ms": 128.3546125,
+      "paired_ratio": 1.4505449700616535,
+      "main_mentions": [
+        15000
+      ],
+      "head_mentions": [
+        15000
+      ],
+      "main_output": [
+        "c2e189ecda130558"
+      ],
+      "head_output": [
+        "c2e189ecda130558"
+      ]
+    },
+    "non_latin_nd": {
+      "main_ms": 64.1331955,
+      "head_ms": 166.46053799999999,
+      "paired_ratio": 2.6138037596619164,
+      "main_mentions": [
+        7500
+      ],
+      "head_mentions": [
+        15000
+      ],
+      "main_output": [
+        "7065d6328d40e585"
+      ],
+      "head_output": [
+        "a1ff2a2ca7c850cf"
+      ]
+    }
+  }
+}

@@ -178,8 +178,12 @@ pub fn dataset(release: Release) -> Result<Artifact> {
 /// [`Error::NotRecorded`] while the release is not recorded, or what the zoo
 /// fails on.
 pub fn fetch_release(release: Release, home: &Path, user: &UserId) -> Result<PathBuf> {
-    let artifact = dataset(release)?;
-    let index = Index::parse(Index::to_canonical_json(std::slice::from_ref(&artifact)).as_bytes())?;
+    let index = if release == RELEASE {
+        Index::builtin()
+    } else {
+        let artifact = dataset(release)?;
+        Index::parse(Index::to_canonical_json(std::slice::from_ref(&artifact)).as_bytes())?
+    };
     let zoo = Zoo::new(index, home.join("artifacts"), Policy::default(), &Http);
     let fetched = zoo.fetch_with(DATASET_ID, user, || Ok(Acceptances::default()))?;
     Ok(fetched.single().expect("one file in the release").to_path_buf())

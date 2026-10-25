@@ -160,3 +160,27 @@ fn sentiment_family_refusals() {
     splice(&mut graph, "turbo:money", w.finish(), 1);
     assert!(import(&graph, &codecs()).is_err(), "an unknown currency code imported");
 }
+
+#[test]
+fn quantities_schema_1_is_refused() {
+    let mut doc = document();
+    let mut q = Quantities::new(ViewId::SOURCE);
+    q.push(turbo_analysis_layers::QuantityMention {
+        span: Span::new(0, 5),
+        negative: false,
+        coefficient: "5",
+        scale: 0,
+        unit: "km",
+    });
+    doc.add(&Key::DEFAULT, q, Provenance::by("test")).unwrap();
+    let mut graph = export(&doc, &codecs()).unwrap();
+    for layer in &mut graph.layers {
+        if layer.layer == "turbo:quantities" {
+            layer.schema = 1;
+        }
+    }
+    assert!(matches!(
+        import(&graph, &codecs()),
+        Err(ExportError::IncompatibleSchema { ref layer, exported: 1, supported: 2 }) if layer == "turbo:quantities"
+    ));
+}

@@ -13,6 +13,8 @@ name = "turbo_formats"
 turbo-analysis = { path = "../core" }
 # Tokens, Words, Entities and the word-anchored layers for CoNLL-U and brat conversion.
 turbo-analysis-layers = { path = "../layers" }
+# Stopword flags for token tabular/JSON-LD document exports.
+turbo-stopword-layers = { path = "../stopword-layers" }
 # OpenNLP's two whitespace definitions, which split the lines of the
 # whitespace separated formats.
 turbo-unicode = { path = "../unicode" }

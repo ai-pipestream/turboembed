@@ -26,6 +26,7 @@ use turbo_analysis_layers::{Level, Levels, Vectors};
 use crate::terms::{Bm25, Collection, Query, TermStats, Vocabulary};
 
 mod facets;
+mod quality;
 
 /// A query encoded in one named vector space.
 #[derive(Copy, Clone, Debug)]
@@ -191,6 +192,7 @@ pub struct Cascade<'a> {
     contextual_space: Option<VectorSpace<'a>>,
     contextual_norm: f64,
     lexical: Option<LexicalSpace<'a>>,
+    quality_allowed: Option<Vec<bool>>,
 }
 
 impl<'a> Cascade<'a> {
@@ -272,7 +274,16 @@ impl<'a> Cascade<'a> {
                 return Err("term stats df does not match the vocabulary".into());
             }
         }
-        Ok(Cascade { levels, config, static_space, static_norm, contextual_space, contextual_norm, lexical })
+        Ok(Cascade {
+            levels,
+            config,
+            static_space,
+            static_norm,
+            contextual_space,
+            contextual_norm,
+            lexical,
+            quality_allowed: None,
+        })
     }
 
     /// Runs the cascade for one query: its terms feed the
@@ -299,7 +310,11 @@ impl<'a> Cascade<'a> {
         let mut pool: Vec<Ix<Levels>> = Vec::new();
         let mut admitted: Vec<Vec<Stage>> = vec![Vec::new(); n];
         for (scores, stage) in [(&static_scores, Stage::Static), (&lexical_scores, Stage::Lexical)] {
-            let mut ranked: Vec<Ix<Levels>> = units().filter(|&i| scores[i.get()].is_some()).collect();
+            let mut ranked: Vec<Ix<Levels>> = units()
+                .filter(|&i| {
+                    scores[i.get()].is_some() && self.quality_allowed.as_ref().is_none_or(|allowed| allowed[i.get()])
+                })
+                .collect();
             ranked.sort_by(|&a, &b| {
                 scores[b.get()].unwrap().total_cmp(&scores[a.get()].unwrap()).then(a.get().cmp(&b.get()))
             });

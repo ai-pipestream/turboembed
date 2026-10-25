@@ -12,6 +12,26 @@ describes the modules and where OpenNLP's behaviour is surprising.
 It follows OpenNLP at commit `cdf33c653d5d61d5af7d37ffee189a83bd8392ea` of the
 OpenNLP fork.
 
+## Native lemma classes
+
+New training through `LemmatizerFactory::new` keeps lemma case. Its
+`turbo.lemmatizer.CaseSensitiveV1` factory selects a versioned format:
+`K:` keeps the token as written, `L:` lowercases it with the shared Java
+helper, and the remaining shortest edit script operates on UTF-16 units.
+The class is learned, including the `K:` or `L:` choice. Thus `K:O` can
+preserve an unseen proper name and `L:O` can lowercase a sentence-initial
+common word. There is no inference-time POS rule for capitalization.
+Edit indices end in `:`, so indices above nine decode without ambiguity.
+
+`LemmatizerFactory::opennlp` retains the original training behavior for
+JVM goldens and UD reproduction. Published models and manifests without a
+factory keep the original decoder. Native models use a distinct factory
+name so a JVM without that factory refuses them instead of silently
+misreading the new classes. Unknown factory versions are refused here.
+
+See [the case evaluation](../../docs/lemma-case-evaluation.md) for
+full-corpus results, model hashes and the Italian gate diagnosis.
+
 ## Models
 
 | File | Origin | SHA-256 |

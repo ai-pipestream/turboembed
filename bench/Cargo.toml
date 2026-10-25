@@ -20,11 +20,13 @@ turbo-analysis-layers = { path = "../analysis/layers", optional = true }
 turbo-grammar = { path = "../analysis/grammar", optional = true }
 turbo-postag = { path = "../analysis/postag", optional = true }
 turbo-tokenize = { path = "../analysis/tokenize", optional = true }
+# Reads a part-of-speech bundle for `turbo-bench tag` (bundle/src/postag.rs).
+turbo-bundle = { path = "../bundle", optional = true }
 
 [features]
 # Links the BiLSTM-CRF part-of-speech tagger for `turbo-bench postag`
 # (docs/benchmarks.md, "Part-of-speech records").
-postag = ["dep:turbo-analysis", "dep:turbo-postag"]
+postag = ["dep:turbo-analysis", "dep:turbo-postag", "dep:turbo-bundle"]
 # Links the lattice tokenizer for `turbo-bench lattice`
 # (docs/benchmarks.md, "Throughput records").
 lattice = ["dep:turbo-analysis", "dep:turbo-analysis-layers", "dep:turbo-tokenize"]

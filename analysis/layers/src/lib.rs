@@ -23,8 +23,10 @@ pub use calibrated::{Calibrated, CalibratedRow};
 pub use categories::{Categories, CategoryRow, CategoryScope};
 pub use containment::{Containment, ContainmentChain, ContainmentError, PlaceAncestor, PlaceAncestorRef};
 pub use date::{DAY_SECONDS, Date, DateTime, write_year};
+pub use dec::Dec;
 pub use entity_graph::{
-    ConsolidatedMention, DocumentEntities, DocumentEntity, EntityRelation, SyntacticRole, SyntacticRoleCounts,
+    ConsolidatedMention, DocumentEntities, DocumentEntity, EntityRelation, EntitySalience, EntitySalienceScore,
+    SyntacticRole, SyntacticRoleCounts,
 };
 pub use events::{AnchoredLayerKind, ArgumentRole, EventArgument, EventFrame, Events};
 pub use generic::{Confidence, Language, TokenVectorWindows, Utf16Spans, Vectors};
@@ -36,6 +38,10 @@ pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
 pub use ordinals::{OrdinalBase, OrdinalMention, Ordinals};
 pub use pii::{Pii, PiiConfidence, PiiKind, PiiKinds, PiiMention};
+pub use quality::{
+    QualityFlags, QualityMetrics, QualityPredicate, SpanQuality, TextQuality, lexical_quality_gate,
+    lexical_quality_gate_on, quality_gate, quality_gate_on,
+};
 pub use quantities::{PERCENT, Quantities, QuantityMention};
 pub use regions::{InvalidRegionCode, MarginError, RegionCode, RegionVote, Regions, VoteError};
 pub use rhetoric::{
@@ -51,7 +57,9 @@ pub use sparse::SparseTerms;
 pub use syntax::{
     ChunkTags, Dependencies, Entities, Lemmas, PhraseChunks, Phrases, PosTags, Stems, TermSlot, Terms, WordDependencies,
 };
-pub use tables::{ColumnAlign, KeyValuePair, KeyValuePairs, TableCell, TableCellRef, Tables};
+pub use tables::{
+    ChunkTableContext, ChunkTableHeaders, ColumnAlign, KeyValuePair, KeyValuePairs, TableCell, TableCellRef, Tables,
+};
 pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
 pub use times::{Modifier, Portion, Relation, TimeGrain, TimeKind, TimeMention, Times};
 pub use wordnet::{
@@ -124,6 +132,7 @@ mod containment;
 #[cfg(test)]
 mod core_tests;
 mod date;
+pub mod dec;
 mod entity_graph;
 mod events;
 mod evidence;
@@ -138,6 +147,7 @@ mod numbers;
 mod ordinals;
 mod pii;
 mod predicate;
+mod quality;
 mod quantities;
 mod regions;
 pub mod rhetoric;
@@ -148,5 +158,6 @@ mod syntax;
 pub mod tables;
 mod temporal;
 mod times;
+pub mod unit;
 mod wordnet;
 mod words;

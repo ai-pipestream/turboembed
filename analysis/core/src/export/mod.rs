@@ -54,6 +54,7 @@ mod alternatives;
 mod columns;
 mod context;
 mod decode;
+mod diff;
 mod encode;
 mod error;
 mod error_wire;
@@ -62,11 +63,15 @@ mod provenance;
 mod records;
 mod registry;
 mod relations;
+mod slice;
+mod validate_views;
+mod view_ref;
 mod wire;
 
-pub use columns::{get_spans, get_tagset, put_spans, put_tagset};
-pub use context::{ExportCx, ImportCx, LayerCodec};
+pub use columns::{get_spans, get_spans_raw, get_tagset, put_spans, put_spans_raw, put_tagset, slice_spans_payload};
+pub use context::{ExportCx, ImportCx, LayerCodec, SliceCx, SlicedBody};
 pub use decode::import;
+pub use diff::{GraphDiff, LayerDiffSummary};
 pub use encode::export;
 pub use error::ExportError;
 pub use records::{
@@ -74,6 +79,7 @@ pub use records::{
     StatusRecord, ViewRecord, layer_ref, node_ref,
 };
 pub use registry::Codecs;
+pub use view_ref::{DocumentGraphRef, LayerWireEntry, ViewWireEntry};
 pub use wire::{Reader, Writer};
 
 use columns::{get_layer_ref, put_layer_ref};
