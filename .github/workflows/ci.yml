@@ -73,16 +73,6 @@ jobs:
           cargo clippy --locked -p turbo-bench --all-targets --features grammar -- -D warnings
           cargo clippy --locked -p turbo-bench --all-targets --features lattice -- -D warnings
           cargo clippy --locked -p turbo-bench --all-targets --features lattice,grammar,postag -- -D warnings
-      - name: throughput refuses opt-level zero with assertions disabled
-        env:
-          CARGO_PROFILE_DEV_DEBUG_ASSERTIONS: "false"
-        run: cargo test --locked -p turbo-bench --features lattice,grammar --test throughput_build
-      - name: optimized throughput accepts debug assertions
-        env:
-          CARGO_PROFILE_DEV_OPT_LEVEL: "1"
-          CARGO_PROFILE_DEV_DEBUG_ASSERTIONS: "true"
-          TURBO_BENCH_REQUIRE_THROUGHPUT: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && '1' || '0' }}
-        run: cargo test --locked -p turbo-bench --features lattice,grammar --test throughput_build
       - name: clippy (npu)
         run: cargo clippy -p turbo --features npu --all-targets
       - name: clippy (turboquant)
@@ -97,6 +87,29 @@ jobs:
             --exclude turbo-bench --exclude turbo-bundle --exclude turbo-eval --exclude turbo-kserve \
             --exclude turbo-zoo --exclude turbo-train-components --exclude turbo-train-recipes
           cargo check -p turbo-kserve --no-default-features --target aarch64-unknown-linux-gnu
+
+  # turbo-bench's throughput CLI across Cargo profile settings. A job of
+  # its own, not steps in lint: its record test pins counts over the
+  # goldens inputs, so a pull request that adds an input fails here, and
+  # in lint it showed as a red lint and skipped the lint steps after it.
+  bench-throughput:
+    runs-on: ${{ github.event.pull_request.head.repo.fork != true && vars.TURBO_CI_LINUX && fromJSON(vars.TURBO_CI_LINUX) || 'ubuntu-24.04' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - name: throughput refuses opt-level zero with assertions disabled
+        env:
+          CARGO_PROFILE_DEV_DEBUG_ASSERTIONS: "false"
+        run: cargo test --locked -p turbo-bench --features lattice,grammar --test throughput_build
+      - name: optimized throughput accepts debug assertions
+        env:
+          CARGO_PROFILE_DEV_OPT_LEVEL: "1"
+          CARGO_PROFILE_DEV_DEBUG_ASSERTIONS: "true"
+          TURBO_BENCH_REQUIRE_THROUGHPUT: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && '1' || '0' }}
+        run: cargo test --locked -p turbo-bench --features lattice,grammar --test throughput_build
 
   # The workspace tests other than the core's and turbo-fuzz's, the
   # crates dealt round robin by sorted name into four shards, from `cargo
@@ -363,7 +376,7 @@ jobs:
 
   check:
     if: always()
-    needs: [lint, test, fuzz, features, parity, static-parity, windows-lint, windows-test, windows-fuzz, windows-core]
+    needs: [lint, bench-throughput, test, fuzz, features, parity, static-parity, windows-lint, windows-test, windows-fuzz, windows-core]
     # Hosted: it takes seconds, and on the self-hosted runners it would
     # wait behind the queue of test jobs.
     runs-on: ubuntu-24.04
