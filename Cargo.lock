@@ -2302,6 +2302,9 @@ dependencies = [
 [[package]]
 name = "turbo-jvm"
 version = "0.1.0"
+dependencies = [
+ "turbo-unicode",
+]
 
 [[package]]
 name = "turbo-keywords"
@@ -2718,6 +2721,7 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-chunker",
  "turbo-normalize",
+ "turbo-unicode",
 ]
 
 [[package]]
