@@ -5,7 +5,7 @@
 
 use std::any::TypeId;
 
-use turbo_analysis::{Evidence, Groups, Ix, Key, KeyId, Layer, ViewId};
+use turbo_analysis::{Evidence, Groups, Ix, KeyId, Layer, ViewId};
 use turbo_analysis_layers::{AbbreviationForm, Abbreviations, Entities, Matches};
 use turbo_coref::{MentionKind, Mentions, Speakers};
 use turbo_entity_linker::LinkedEntities;
@@ -16,7 +16,7 @@ use turbo_stopword_layers::Stopwords;
 use turbo_tokenize_layers::{Readings, WordTypes};
 
 use super::layers_core::token_spans;
-use super::{ProjectionCx, build_layer};
+use super::{ProjectionCx, build_layer, coalesce_wire_spans, find_aligned_to};
 use crate::proto::result::typed_annotation::Value;
 use crate::proto::result::{
     AbbreviationAnnotation, CorefChainAnnotation, CorefMentionAnnotation, EntityAnnotation, EntityVote,
@@ -132,7 +132,7 @@ pub(crate) fn project_entity_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Opt
                         }
                     }
                     TypedAnnotation {
-                        spans,
+                        spans: coalesce_wire_spans(spans),
                         probability: None,
                         model_ref: mref.clone(),
                         value: Some(Value::CorefChain(CorefChainAnnotation {
@@ -308,9 +308,8 @@ pub(crate) fn project_entity_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> Opt
 
 fn project_entities(cx: &mut ProjectionCx<'_>, key: KeyId) -> TypedLayer {
     let has_model = cx.doc.provenance(key).and_then(|p| p.model.as_ref()).is_some();
-    let evidence =
-        cx.doc.get_key(&Key::<Evidence<Entities>>::named(key.name)).or_else(|| cx.doc.get::<Evidence<Entities>>());
-    let linked = cx.doc.get_key(&Key::<LinkedEntities>::named(key.name)).or_else(|| cx.doc.get::<LinkedEntities>());
+    let evidence = find_aligned_to::<Evidence<Entities>>(cx.doc, key);
+    let linked = find_aligned_to::<LinkedEntities>(cx.doc, key);
 
     build_layer::<Entities>(cx, key, |cx, l, mref| {
         let mref = mref.map(ToOwned::to_owned);

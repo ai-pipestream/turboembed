@@ -240,3 +240,163 @@ async fn inspect_and_round_trip_typed_document_over_grpc_with_refusals() {
 
     server.stop().await;
 }
+
+#[test]
+fn shared_modality_named_evidence_exact_instances_aligned_anchors_and_nested_groups() {
+    use turbo_analysis::{Evidence, EvidenceStep, Groups};
+    use turbo_analysis_layers::{
+        Block, DeonticKind, EpistemicStatus, Modality, ModalityPolarity, ModalityTag, Structure,
+    };
+
+    // 1. Shared Modality payload preserved in all 3 offset modes + 5. Nested Structure group round-trips.
+    let mut doc = Document::new("A B C");
+    let mut modality = Modality::new(ViewId::SOURCE);
+    modality.push(
+        Span::new(0, 5),
+        ModalityTag {
+            polarity: ModalityPolarity::Negated,
+            epistemic: EpistemicStatus::Hedged,
+            deontic: DeonticKind::Prohibition,
+            cue: Some(Span::new(0, 1)),
+            confidence: 0.85,
+        },
+    );
+    doc.add(&Key::<Modality>::DEFAULT, modality, Provenance::by("test:modality")).unwrap();
+
+    let structure = Structure {
+        spans: spans(&[Span::new(0, 5), Span::new(0, 1)]),
+        kind: vec![Block::Section, Block::Paragraph],
+        parent: vec![None, Some(Ix::new(0))],
+        depth: vec![0, 1],
+    };
+    doc.add(&Key::<Structure>::DEFAULT, structure, Provenance::by("test:struct")).unwrap();
+    doc.add(
+        &Key::<Groups<Structure>>::DEFAULT,
+        Groups::new([[Ix::new(0), Ix::new(1)]]),
+        Provenance { reads: vec![Key::<Structure>::DEFAULT.id()], ..Provenance::by("test:struct-groups") },
+    )
+    .unwrap();
+
+    // 2. Default entity at 0..1 with default evidence, plus named "gold" entity at 4..5 with no evidence.
+    doc.add(
+        &Key::<Tokens>::DEFAULT,
+        Tokens { spans: spans(&[Span::new(0, 1)]), sentence: None },
+        Provenance::by("test:tok-default"),
+    )
+    .unwrap();
+    doc.add(
+        &Key::<Tokens>::named("gold"),
+        Tokens { spans: spans(&[Span::new(0, 1), Span::new(2, 3), Span::new(4, 5)]), sentence: None },
+        Provenance::by("test:tok-gold"),
+    )
+    .unwrap();
+    doc.add(
+        &Key::<Entities>::DEFAULT,
+        Entities {
+            spans: spans(&[Span::new(0, 1)]),
+            tokens: vec![IxRange::new(0, 1)],
+            kind: vec![Tag(0)],
+            kinds: tagset("ner", &["PER"]),
+            score: vec![0.9],
+        },
+        Provenance { reads: vec![Key::<Tokens>::DEFAULT.id()], ..Provenance::by("review:default-ner") },
+    )
+    .unwrap();
+    let ev = EvidenceStep::new(Key::<Entities>::DEFAULT).build(&doc).unwrap();
+    doc.add(
+        &Key::<Evidence<Entities>>::DEFAULT,
+        ev,
+        Provenance { on: vec![Key::<Entities>::DEFAULT.id()], ..Provenance::by("test:ev") },
+    )
+    .unwrap();
+
+    // 3. Named entity indexing named "gold" tokens at token range 2..3 (exceeding default token len 1).
+    doc.add(
+        &Key::<Entities>::named("gold"),
+        Entities {
+            spans: spans(&[Span::new(4, 5)]),
+            tokens: vec![IxRange::new(2, 3)],
+            kind: vec![Tag(0)],
+            kinds: tagset("ner", &["ORG"]),
+            score: vec![0.95],
+        },
+        Provenance { reads: vec![Key::<Tokens>::named("gold").id()], ..Provenance::by("review:gold-ner") },
+    )
+    .unwrap();
+
+    for mode in [OffsetMode::Utf8, OffsetMode::Utf16, OffsetMode::CodePoint] {
+        let typed = document_to_typed("probe-doc", &doc, ViewId::SOURCE, mode).unwrap();
+        let mod_layer = typed.layers.iter().find(|l| l.id == "turbo:modality").unwrap();
+        assert_eq!(mod_layer.annotations.len(), 1);
+        let Some(Value::Modality(m)) = &mod_layer.annotations[0].value else {
+            panic!("expected Modality value");
+        };
+        assert_eq!(m.polarity, "negated");
+        assert_eq!(m.epistemic, "hedged");
+        assert_eq!(m.deontic, "prohibition");
+
+        let gold_ent = typed.layers.iter().find(|l| l.id == "opennlp:entities" && l.instance == "gold").unwrap();
+        let Some(Value::Entity(ge)) = &gold_ent.annotations[0].value else {
+            panic!("expected Entity value");
+        };
+        assert!(ge.votes.is_empty(), "named gold entity must not inherit default entity evidence");
+        assert_eq!(ge.token_start, 2);
+        assert_eq!(ge.token_end, 3);
+
+        let grp_layer = typed.layers.iter().find(|l| l.id.starts_with("turbo:groups")).unwrap();
+        let Some(Value::Group(grp)) = &grp_layer.annotations[0].value else {
+            panic!("expected Group value");
+        };
+        assert_eq!(grp.members, vec![0, 1]);
+
+        assert_eq!(round_trip_typed_document(&typed).unwrap(), typed);
+    }
+
+    let base = document_to_typed("probe-doc", &doc, ViewId::SOURCE, OffsetMode::Utf8).unwrap();
+
+    // Missing default index target is not replaced by named instance ("gold").
+    let mut missing_default_tok = base.clone();
+    missing_default_tok.layers.retain(|l| !(l.id == "opennlp:tokens" && l.instance.is_empty()));
+    assert!(round_trip_typed_document(&missing_default_tok).is_err());
+
+    // Missing aligned anchor (opennlp:tokens@absent) is refused.
+    let mut missing_anchor = base.clone();
+    missing_anchor.layers.push(TypedLayer {
+        id: "opennlp:pos".into(),
+        instance: String::new(),
+        status: LayerWireStatus::Ok as i32,
+        status_detail: String::new(),
+        scope: AnchorKind::Aligned as i32,
+        model_refs: Vec::new(),
+        anchor_layer: Some("opennlp:tokens@absent".into()),
+        annotations: Vec::new(),
+        indexes_layer: Vec::new(),
+    });
+    assert!(round_trip_typed_document(&missing_anchor).is_err());
+
+    // Aligned POS annotation with out-of-range target_index (99) is refused.
+    let mut bad_aligned_idx = base;
+    bad_aligned_idx.layers.push(TypedLayer {
+        id: "opennlp:pos".into(),
+        instance: "gold".into(),
+        status: LayerWireStatus::Ok as i32,
+        status_detail: String::new(),
+        scope: AnchorKind::Aligned as i32,
+        model_refs: Vec::new(),
+        anchor_layer: Some("opennlp:tokens@gold".into()),
+        annotations: (0..3)
+            .map(|i| TypedAnnotation {
+                spans: vec![SpanFragment { start: i * 2, end: i * 2 + 1 }],
+                probability: Some(0.9),
+                model_ref: None,
+                value: Some(Value::PosTag(turbo_kserve::proto::result::PosTagAnnotation {
+                    tagset: "pos".into(),
+                    tag: "NN".into(),
+                    target_index: if i == 1 { 99 } else { i },
+                })),
+            })
+            .collect(),
+        indexes_layer: Vec::new(),
+    });
+    assert!(round_trip_typed_document(&bad_aligned_idx).is_err());
+}

@@ -165,13 +165,16 @@ fn push_quantity(found: &mut Found, m: &Mention, value: Dec, unit: Unit, digits:
             symbol.clear();
             unit.write_symbol(symbol);
             let scale = value.write_coefficient(digits);
-            found.quantities.push(QuantityMention {
-                span,
-                negative: value.is_negative(),
-                coefficient: digits,
-                scale: i32::try_from(scale).unwrap_or(i32::MAX),
-                unit: symbol,
-            });
+            found.quantities.push_with_unit(
+                QuantityMention {
+                    span,
+                    negative: value.is_negative(),
+                    coefficient: digits,
+                    scale: i32::try_from(scale).unwrap_or(i32::MAX),
+                    unit: symbol,
+                },
+                unit,
+            );
         }
     }
 }
@@ -406,6 +409,42 @@ mod tests {
         let f = GrammarAnnotator::english().find(text, ViewId::SOURCE);
         let units: Vec<&str> = (0..f.quantities.len()).map(|i| f.quantities.unit(Ix::new(i as u32))).collect();
         assert_eq!(units, ["t", "sh tn", "long tn"]);
+        let normalized: Vec<(String, &str)> = (0..f.quantities.len())
+            .map(|i| {
+                let ix = Ix::new(i as u32);
+                (f.quantities.normalized_value(ix).to_plain_string(), f.quantities.base_unit(ix))
+            })
+            .collect();
+        assert_eq!(
+            normalized,
+            [("3500".to_string(), "kg"), ("1814.36948".to_string(), "kg"), ("1016.0469088".to_string(), "kg"),]
+        );
+    }
+
+    #[test]
+    fn grammar_quantities_carry_normalized_base_units() {
+        let text = "2.5 kilometers at 100 degrees Celsius and 36 kilometers per hour";
+        let f = GrammarAnnotator::english().find(text, ViewId::SOURCE);
+        assert_eq!(f.quantities.check(), Ok(()));
+        let got: Vec<(String, &str, String, &str)> = (0..f.quantities.len())
+            .map(|i| {
+                let ix = Ix::new(i as u32);
+                (
+                    f.quantities.value(ix).to_plain_string(),
+                    f.quantities.unit(ix),
+                    f.quantities.normalized_value(ix).to_plain_string(),
+                    f.quantities.base_unit(ix),
+                )
+            })
+            .collect();
+        assert_eq!(
+            got,
+            [
+                ("2.5".to_string(), "km", "2500".to_string(), "m"),
+                ("100".to_string(), "°C", "373.15".to_string(), "K"),
+                ("36".to_string(), "km/h", "10".to_string(), "m/s"),
+            ]
+        );
     }
 
     #[test]

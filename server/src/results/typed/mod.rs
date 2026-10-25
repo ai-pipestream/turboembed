@@ -6,6 +6,7 @@ mod layers_domain;
 mod layers_entities;
 mod layers_quality;
 mod layers_sentiment;
+mod layers_shared;
 mod layers_structure;
 mod validate;
 
@@ -176,6 +177,42 @@ impl<'a> ProjectionCx<'a> {
     }
 }
 
+pub(crate) fn coalesce_wire_spans(mut frags: Vec<SpanFragment>) -> Vec<SpanFragment> {
+    if frags.len() <= 1 {
+        return frags;
+    }
+    frags.retain(|f| f.start < f.end);
+    frags.sort_by_key(|f| (f.start, f.end));
+    let mut out: Vec<SpanFragment> = Vec::with_capacity(frags.len());
+    for f in frags {
+        if let Some(last) = out.last_mut()
+            && f.start < last.end
+        {
+            last.end = last.end.max(f.end);
+        } else {
+            out.push(f);
+        }
+    }
+    out
+}
+
+pub(crate) fn find_aligned_to<A: Layer>(doc: &Document, anchor_key: KeyId) -> Option<&A> {
+    for k in doc.layers() {
+        if k.ty != TypeId::of::<A>() {
+            continue;
+        }
+        let made = doc.made_on(k);
+        let bound_to_anchor = match made.first() {
+            Some(&first) => first == anchor_key,
+            None => k.name == anchor_key.name,
+        };
+        if bound_to_anchor {
+            return doc.get_key(&Key::<A>::named(k.name));
+        }
+    }
+    None
+}
+
 pub(crate) fn status_to_wire(status: Option<&Status>) -> (LayerWireStatus, String) {
     match status {
         Some(Status::Complete) | None => (LayerWireStatus::Ok, String::new()),
@@ -194,25 +231,25 @@ pub(crate) fn build_layer<L: Layer>(
     let mut model_refs: Vec<String> = model_ref.iter().cloned().collect();
     let made_on = cx.doc.made_on(key);
 
-    let (scope, anchor_layer, index_start) = match L::anchor() {
-        Anchor::Text => (AnchorKind::Text, None, 0usize),
+    let (scope, anchor_layer) = match L::anchor() {
+        Anchor::Text => (AnchorKind::Text, None),
         Anchor::Aligned { layer, .. } => {
             let resolved = made_on.first().map(ToString::to_string).unwrap_or_else(|| layer.to_string());
-            (AnchorKind::Aligned, Some(resolved), 1usize)
+            (AnchorKind::Aligned, Some(resolved))
         }
-        Anchor::Document => (AnchorKind::Document, None, 0usize),
+        Anchor::Document => (AnchorKind::Document, None),
     };
 
     let (annotations, indexes_layer) = match cx.doc.get_key(&Key::<L>::named(key.name)) {
         Some(layer) => {
             let raw_indexes = layer.indexes();
             let mut bounds = Vec::with_capacity(raw_indexes.len());
-            for (idx_pos, (idx_key, bound)) in raw_indexes.into_iter().enumerate() {
-                let resolved = made_on
-                    .get(index_start + idx_pos)
-                    .copied()
-                    .or_else(|| made_on.iter().copied().find(|k| k.ty == idx_key.ty))
-                    .unwrap_or(idx_key);
+            for (idx_key, bound) in raw_indexes {
+                let resolved = if !idx_key.name.is_empty() {
+                    idx_key
+                } else {
+                    made_on.iter().copied().find(|k| k.ty == idx_key.ty).unwrap_or(idx_key)
+                };
                 bounds.push(LayerIndexBound {
                     layer: resolved.layer.to_string(),
                     instance: resolved.name.to_owned(),
@@ -262,6 +299,8 @@ fn is_evidence_layer(ty: TypeId) -> bool {
         || ty == TypeId::of::<Evidence<Categories<Chunks>>>()
         || ty == TypeId::of::<Evidence<Categories<Opinions>>>()
         || ty == TypeId::of::<Evidence<Categories<turbo_analysis_layers::Aspects>>>()
+        || ty == TypeId::of::<Evidence<turbo_relation::Relations>>()
+        || ty == TypeId::of::<Evidence<turbo_schema_extract::Records>>()
 }
 
 fn collect_views(doc: &Document) -> (Vec<ViewInfo>, Vec<(ViewId, String)>) {
@@ -316,6 +355,7 @@ pub fn document_to_typed(
             .or_else(|| layers_sentiment::project_sentiment_layer(&mut cx, key))
             .or_else(|| layers_quality::project_quality_layer(&mut cx, key))
             .or_else(|| layers_structure::project_structure_layer(&mut cx, key))
+            .or_else(|| layers_shared::project_shared_layer(&mut cx, key))
         {
             layers.push(typed);
         } else {

@@ -11,7 +11,7 @@ use turbo_analysis_layers::{
 };
 use turbo_coref::Mentions;
 
-use super::{ProjectionCx, build_layer};
+use super::{ProjectionCx, build_layer, coalesce_wire_spans};
 use crate::proto::result::typed_annotation::Value;
 use crate::proto::result::{
     AnswerAnnotation, BoilerplateAnnotation, BoundaryAnnotation, CalibratedAnnotation, ChunkAnnotation,
@@ -237,7 +237,7 @@ fn project_groups<L: Layer>(cx: &mut ProjectionCx<'_>, key: KeyId, spans_of: fn(
                     }
                 }
                 TypedAnnotation {
-                    spans,
+                    spans: coalesce_wire_spans(spans),
                     probability: None,
                     model_ref: mref.clone(),
                     value: Some(Value::Group(GroupAnnotation {
@@ -366,6 +366,11 @@ pub(crate) fn project_structure_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> 
     if ty == TypeId::of::<Vectors<Levels>>() {
         return Some(project_vectors::<Levels>(cx, key, |cx, k, i| aligned_spans::<Levels>(cx, k, i, |s| &s.spans)));
     }
+    if ty == TypeId::of::<Vectors<Entities>>() {
+        return Some(project_vectors::<Entities>(cx, key, |cx, k, i| {
+            aligned_spans::<Entities>(cx, k, i, |e| &e.spans)
+        }));
+    }
     if ty == TypeId::of::<TokenVectorWindows>() {
         return Some(build_layer::<TokenVectorWindows>(cx, key, |cx, l, mref| {
             let mref = mref.map(ToOwned::to_owned);
@@ -411,6 +416,11 @@ pub(crate) fn project_structure_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> 
     }
     if ty == TypeId::of::<Calibrated<Tokens>>() {
         return Some(project_calibrated::<Tokens>(cx, key, |cx, k, i| aligned_spans::<Tokens>(cx, k, i, |t| &t.spans)));
+    }
+    if ty == TypeId::of::<Calibrated<Entities>>() {
+        return Some(project_calibrated::<Entities>(cx, key, |cx, k, i| {
+            aligned_spans::<Entities>(cx, k, i, |e| &e.spans)
+        }));
     }
     if ty == TypeId::of::<Answers>() {
         return Some(build_layer::<Answers>(cx, key, |cx, l, mref| {
@@ -465,6 +475,9 @@ pub(crate) fn project_structure_layer(cx: &mut ProjectionCx<'_>, key: KeyId) -> 
     }
     if ty == TypeId::of::<Groups<Abbreviations>>() {
         return Some(project_groups::<Abbreviations>(cx, key, |a| &a.spans));
+    }
+    if ty == TypeId::of::<Groups<Entities>>() {
+        return Some(project_groups::<Entities>(cx, key, |e| &e.spans));
     }
     None
 }

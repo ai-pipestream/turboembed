@@ -287,6 +287,11 @@ message WordNetSenseAnnotation
   string gloss = 5;
   repeated string lemmas = 6;
   repeated uint32 hypernym_offsets = 7;
+  string synset_id = 8;
+  string sense_id = 9;
+  string lemma = 10;
+  uint32 sense_rank = 11;
+  string lexicon_id = 12;
 }
 
 message LexicalExpansionAnnotation
@@ -296,6 +301,13 @@ message LexicalExpansionAnnotation
   repeated string hypernyms = 3;
   repeated string derivations = 4;
   repeated string morph_roots = 5;
+  string term = 6;
+  uint32 relation = 7;
+  uint32 depth = 8;
+  uint32 sense_rank = 9;
+  double weight = 10;
+  string synset_id = 11;
+  string lexicon_id = 12;
 }
 
 message GlossaryTermAnnotation
@@ -715,6 +727,142 @@ message Utf16SpanAnnotation
   bool cut = 4;
 }
 
+message ModalityAnnotation
+{
+  string polarity = 1;
+  string epistemic = 2;
+  string deontic = 3;
+  optional SpanFragment cue = 4;
+  float confidence = 5;
+}
+
+message ConsolidatedMentionProto
+{
+  SpanFragment span = 1;
+  optional uint32 entity_index = 2;
+  bool is_representative = 3;
+  optional string role = 4;
+}
+
+message EntityRelationProto
+{
+  uint32 subject = 1;
+  uint32 object = 2;
+  string kind = 3;
+  float score = 4;
+  uint32 support = 5;
+}
+
+message DocumentEntityAnnotation
+{
+  string canonical_name = 1;
+  string kind = 2;
+  optional string kb_id = 3;
+  optional float latitude = 4;
+  optional float longitude = 5;
+  optional string country_code = 6;
+  repeated ConsolidatedMentionProto mentions = 7;
+  uint32 subject_count = 8;
+  uint32 object_count = 9;
+  uint32 modifier_count = 10;
+  uint32 other_count = 11;
+  float mean_sentiment = 12;
+  uint32 sentiment_mentions = 13;
+  float confidence = 14;
+  repeated EntityRelationProto relations = 15;
+}
+
+message EventArgumentProto
+{
+  SpanFragment span = 1;
+  string role = 2;
+  string anchored_layer = 3;
+  optional uint32 anchored_index = 4;
+}
+
+message EventAnnotation
+{
+  optional string trigger_lemma = 1;
+  uint32 sentence_index = 2;
+  float confidence = 3;
+  repeated EventArgumentProto arguments = 4;
+}
+
+message EduAnnotation
+{
+  uint32 index = 1;
+  uint32 sentence_index = 2;
+  string text = 3;
+}
+
+message SparseTermEntryProto
+{
+  uint32 term_id = 1;
+  float weight = 2;
+  optional SpanFragment span = 3;
+  repeated SpanFragment occurrences = 4;
+}
+
+message SparseTermsAnnotation
+{
+  uint32 target_index = 1;
+  repeated SparseTermEntryProto entries = 2;
+}
+
+message AlternativeAnnotation
+{
+  uint32 position = 1;
+  uint32 position_length = 2;
+  uint32 mode_bits = 3;
+  optional double score = 4;
+  optional string form = 5;
+}
+
+message NBestCandidateProto
+{
+  uint32 rank = 1;
+  double sequence_score = 2;
+  string tag = 3;
+  optional double probability = 4;
+}
+
+message NBestAnnotation
+{
+  uint32 target_index = 1;
+  string tagset = 2;
+  repeated NBestCandidateProto candidates = 3;
+}
+
+message TableCellAnnotation
+{
+  uint32 table_id = 1;
+  uint32 row_index = 2;
+  uint32 col_index = 3;
+  uint32 row_span = 4;
+  uint32 col_span = 5;
+  bool is_header = 6;
+  string align = 7;
+}
+
+message KeyValuePairAnnotation
+{
+  SpanFragment key_span = 1;
+  SpanFragment separator_span = 2;
+  SpanFragment value_span = 3;
+  string key_text = 4;
+  string value_text = 5;
+}
+
+message RecordValueAnnotation
+{
+  uint32 record_index = 1;
+  string record_type = 2;
+  uint32 instance = 3;
+  string path = 4;
+  double score = 5;
+  double logit = 6;
+}
+
 // One strongly-typed annotation in a TypedLayer.
 message TypedAnnotation
 {
@@ -793,5 +941,15 @@ message TypedAnnotation
     CalibratedAnnotation calibrated = 76;
     TokenVectorWindowAnnotation token_vector_window = 77;
     Utf16SpanAnnotation utf16_span = 78;
+    ModalityAnnotation modality = 79;
+    DocumentEntityAnnotation document_entity = 80;
+    EventAnnotation event = 81;
+    EduAnnotation edu = 82;
+    SparseTermsAnnotation sparse_terms = 83;
+    AlternativeAnnotation alternative = 84;
+    NBestAnnotation nbest = 85;
+    TableCellAnnotation table_cell = 86;
+    KeyValuePairAnnotation key_value_pair = 87;
+    RecordValueAnnotation record_value = 88;
   }
 }

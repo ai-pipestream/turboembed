@@ -34,6 +34,8 @@ pub(crate) struct Analysis {
     /// Whether the admin calls, LoadBundle and UnloadBundle, are served
     /// (the server's --admin flag, off by default).
     pub(crate) admin: bool,
+    /// Where completed stream documents are forwarded, when anywhere.
+    pub(crate) sink: Option<Arc<crate::sink::SinkForwarder>>,
 }
 
 fn plain(f: Failure) -> Status {
@@ -163,6 +165,6 @@ impl AnalysisService for Analysis {
         &self,
         req: Request<tonic::Streaming<AnalyzeStreamRequest>>,
     ) -> Reply<Self::AnalyzeStreamStream> {
-        crate::stream::handler::start(self.state.clone(), req.into_inner()).await
+        crate::stream::handler::start(self.state.clone(), req.into_inner(), self.sink.clone()).await
     }
 }

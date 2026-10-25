@@ -10,7 +10,7 @@
 syntax = "proto3";
 package turbo.result;
 
-import "turbo_typed_annotations.proto";
+import public "turbo_typed_annotations.proto";
 
 // Analysis results and the server's bundle capabilities.
 //

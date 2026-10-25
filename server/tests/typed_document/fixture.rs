@@ -226,6 +226,10 @@ pub fn build_rich_document() -> Document {
             coefficient: strs(&["1"]),
             scale: vec![0],
             unit: strs(&["cup"]),
+            normalized_negative: vec![false],
+            normalized_coefficient: strs(&["1"]),
+            normalized_scale: vec![0],
+            base_unit: strs(&["cup"]),
         },
         Provenance::by("test:qty"),
     );
