@@ -50,8 +50,12 @@ fn accepted_builders(original: &Chunks, supplied: &Chunks, span: Span) -> Vec<St
     } else {
         assert_eq!(a, base);
     }
+    // Empty rows retain alignment when the equivalent chunk storage has
+    // additional unrelated chunks. This probe varies geometry, not shape.
+    let mut rows = vec![1; supplied.spans.len() + 1];
+    rows[0] = 0;
     let sparse = SparseTerms::<Chunks> {
-        row: vec![0, 1],
+        row: rows,
         term: vec![0],
         weight: vec![1.0],
         span: vec![Some(span)],

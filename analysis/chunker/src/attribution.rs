@@ -16,7 +16,8 @@
 //! fuse differently may set `total_score` themselves, since
 //! [`DocumentHeat`] ranks overlapping chunks by it. Every weight, score,
 //! and boost must be finite (boosts also positive), and a sparse term id
-//! the lookup cannot resolve is refused, never blank-attributed.
+//! the lookup cannot resolve is refused, never blank-attributed. Builders
+//! returning an error preserve all existing matches and score fields.
 
 use turbo_analysis::{Ix, Layer, Span, ViewId};
 use turbo_analysis_layers::{Chunks, Levels, SparseTerms, Tokens};
@@ -185,51 +186,60 @@ impl ChunkAttribution {
             return Err(format!("IndexedTerms has {} entries, Tokens has {}", indexed.term.len(), tokens.spans.len()));
         }
         let range = tokens.spans.overlapping_range(self.span);
-        let mut added = 0;
-        let mut score = self.lexical_score.unwrap_or(0.0);
-        for q in query {
-            finite("lexical weight", q.weight)?;
-            if !matches!(
-                q.signal,
-                MatchSignal::ExactTerm
-                    | MatchSignal::FoldedTerm
-                    | MatchSignal::StemmedTerm
-                    | MatchSignal::PhraseSlop { .. }
-            ) {
-                return Err("a lexical term carries a non-lexical signal".into());
-            }
-            if q.term.get() >= vocab.len() {
-                return Err(format!("term {} outside the {}-term vocabulary", q.term.get(), vocab.len()));
-            }
-            for t in range.start.get()..range.end.get() {
-                if indexed.term[t] != Some(q.term) {
-                    continue;
+        let original_len = self.matched_spans.len();
+        let result = (|| {
+            let mut added = 0;
+            let mut score = self.lexical_score.unwrap_or(0.0);
+            for q in query {
+                finite("lexical weight", q.weight)?;
+                if !matches!(
+                    q.signal,
+                    MatchSignal::ExactTerm
+                        | MatchSignal::FoldedTerm
+                        | MatchSignal::StemmedTerm
+                        | MatchSignal::PhraseSlop { .. }
+                ) {
+                    return Err("a lexical term carries a non-lexical signal".into());
                 }
-                for frag in tokens.spans.fragments(Ix::new(t as u32)) {
-                    for span in clip(chunks, self.chunk, frag) {
-                        self.matched_spans.push(MatchedSpan {
-                            span,
-                            query_span: q.query_span,
-                            term: vocab.get(q.term).to_string(),
-                            weight: q.weight,
-                            signal: q.signal.clone(),
-                        });
-                        score += q.weight;
-                        added += 1;
+                if q.term.get() >= vocab.len() {
+                    return Err(format!("term {} outside the {}-term vocabulary", q.term.get(), vocab.len()));
+                }
+                for t in range.start.get()..range.end.get() {
+                    if indexed.term[t] != Some(q.term) {
+                        continue;
+                    }
+                    for frag in tokens.spans.fragments(Ix::new(t as u32)) {
+                        for span in clip(chunks, self.chunk, frag) {
+                            self.matched_spans.push(MatchedSpan {
+                                span,
+                                query_span: q.query_span,
+                                term: vocab.get(q.term).to_string(),
+                                weight: q.weight,
+                                signal: q.signal.clone(),
+                            });
+                            score = finite("lexical score sum", score + q.weight)?;
+                            added += 1;
+                        }
                     }
                 }
             }
+            if added > 0 || self.lexical_score.is_some() {
+                self.lexical_score = Some(score);
+            }
+            Ok(added)
+        })();
+        if result.is_err() {
+            self.matched_spans.truncate(original_len);
         }
-        if added > 0 || self.lexical_score.is_some() {
-            self.lexical_score = Some(score);
-        }
-        Ok(added)
+        result
     }
 
     /// Adds one matched span per recorded occurrence of each
     /// `SparseTerms` entry of this chunk (only `wanted` ids when given),
     /// adding each matched entry's weight once to `sparse_score`.
-    /// Expanded entries have no occurrences and add nothing.
+    /// Expanded entries have no occurrences and add nothing. The row count
+    /// must match `chunks`; callers must supply the bound chunk instance,
+    /// since these raw references carry no document binding identity.
     pub fn add_sparse<'a>(
         &mut self,
         chunks: &Chunks,
@@ -239,51 +249,58 @@ impl ChunkAttribution {
     ) -> Result<usize, String> {
         self.owns(chunks)?;
         sparse.check()?;
-        if self.chunk.get() + 1 >= sparse.row.len() {
+        if sparse.row.len().saturating_sub(1) != chunks.spans.len() {
             return Err(format!(
-                "SparseTerms has {} units, chunk {} does not exist",
+                "SparseTerms has {} units, Chunks has {}",
                 sparse.row.len().saturating_sub(1),
-                self.chunk.get()
+                chunks.spans.len()
             ));
         }
         let range = sparse.row[self.chunk.get()] as usize..sparse.row[self.chunk.get() + 1] as usize;
-        let mut added = 0;
-        let mut score = self.sparse_score.unwrap_or(0.0);
-        for e in range {
-            let term_id = sparse.term[e];
-            if wanted.is_some_and(|w| !w.contains(&term_id)) {
-                continue;
-            }
-            let term = vocab_lookup(term_id)
-                .ok_or_else(|| format!("SparseTerms entry {e} names unresolvable term id {term_id}"))?;
-            finite("sparse weight", sparse.weight[e])?;
-            let occurrences: Vec<Span> = if sparse.has_occurrences() {
-                sparse.occurrences(e).to_vec()
-            } else {
-                sparse.span.get(e).copied().flatten().into_iter().collect()
-            };
-            let mut matched = false;
-            for occ in occurrences {
-                for span in clip(chunks, self.chunk, occ) {
-                    self.matched_spans.push(MatchedSpan {
-                        span,
-                        query_span: None,
-                        term: term.to_string(),
-                        weight: sparse.weight[e],
-                        signal: MatchSignal::SparseTerm { term_id, expanded: false },
-                    });
-                    matched = true;
-                    added += 1;
+        let original_len = self.matched_spans.len();
+        let result = (|| {
+            let mut added = 0;
+            let mut score = self.sparse_score.unwrap_or(0.0);
+            for e in range {
+                let term_id = sparse.term[e];
+                if wanted.is_some_and(|w| !w.contains(&term_id)) {
+                    continue;
+                }
+                let term = vocab_lookup(term_id)
+                    .ok_or_else(|| format!("SparseTerms entry {e} names unresolvable term id {term_id}"))?;
+                finite("sparse weight", sparse.weight[e])?;
+                let occurrences: Vec<Span> = if sparse.has_occurrences() {
+                    sparse.occurrences(e).to_vec()
+                } else {
+                    sparse.span.get(e).copied().flatten().into_iter().collect()
+                };
+                let mut matched = false;
+                for occ in occurrences {
+                    for span in clip(chunks, self.chunk, occ) {
+                        self.matched_spans.push(MatchedSpan {
+                            span,
+                            query_span: None,
+                            term: term.to_string(),
+                            weight: sparse.weight[e],
+                            signal: MatchSignal::SparseTerm { term_id, expanded: false },
+                        });
+                        matched = true;
+                        added += 1;
+                    }
+                }
+                if matched {
+                    score = finite("sparse score sum", score + sparse.weight[e])?;
                 }
             }
-            if matched {
-                score += sparse.weight[e];
+            if added > 0 || self.sparse_score.is_some() {
+                self.sparse_score = Some(score);
             }
+            Ok(added)
+        })();
+        if result.is_err() {
+            self.matched_spans.truncate(original_len);
         }
-        if added > 0 || self.sparse_score.is_some() {
-            self.sparse_score = Some(score);
-        }
-        Ok(added)
+        result
     }
 
     /// Adds one matched span per intersection of each late match with
@@ -291,29 +308,36 @@ impl ChunkAttribution {
     /// to `late_score`.
     pub fn add_late(&mut self, chunks: &Chunks, matches: &[LateMatch]) -> Result<usize, String> {
         self.owns(chunks)?;
-        let mut added = 0;
-        let mut score = self.late_score.unwrap_or(0.0);
-        for m in matches {
-            finite("late score", m.score)?;
-            let spans = clip(chunks, self.chunk, m.span);
-            if !spans.is_empty() {
-                score += m.score;
+        let original_len = self.matched_spans.len();
+        let result = (|| {
+            let mut added = 0;
+            let mut score = self.late_score.unwrap_or(0.0);
+            for m in matches {
+                finite("late score", m.score)?;
+                let spans = clip(chunks, self.chunk, m.span);
+                if !spans.is_empty() {
+                    score = finite("late score sum", score + m.score)?;
+                }
+                for span in spans {
+                    self.matched_spans.push(MatchedSpan {
+                        span,
+                        query_span: m.query_span,
+                        term: m.term.clone(),
+                        weight: m.score,
+                        signal: MatchSignal::LateToken { query_token: m.query_token, score: m.score },
+                    });
+                    added += 1;
+                }
             }
-            for span in spans {
-                self.matched_spans.push(MatchedSpan {
-                    span,
-                    query_span: m.query_span,
-                    term: m.term.clone(),
-                    weight: m.score,
-                    signal: MatchSignal::LateToken { query_token: m.query_token, score: m.score },
-                });
-                added += 1;
+            if added > 0 || self.late_score.is_some() {
+                self.late_score = Some(score);
             }
+            Ok(added)
+        })();
+        if result.is_err() {
+            self.matched_spans.truncate(original_len);
         }
-        if added > 0 || self.late_score.is_some() {
-            self.late_score = Some(score);
-        }
-        Ok(added)
+        result
     }
 
     /// Adds matched spans for the intersections of `spans` with the
@@ -382,7 +406,11 @@ impl ChunkAttribution {
                 if !(f.is_finite() && f > 0.0) {
                     return Err(format!("filter {} boost is not finite and positive: {f}", filter.name));
                 }
-                Some(f as f32)
+                let narrowed = f as f32;
+                if !(narrowed.is_finite() && narrowed > 0.0) {
+                    return Err(format!("filter {} boost is not finite and positive as f32: {f}", filter.name));
+                }
+                Some(narrowed)
             }
         };
         let added = self.add_filter_spans(chunks, filter.name.clone(), &spans, None)?;
