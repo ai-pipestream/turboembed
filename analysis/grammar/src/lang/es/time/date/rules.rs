@@ -70,12 +70,22 @@ pub(crate) static RULES: &[Rule] = &[
     rr("date_el_dia", DATE, &[word("el"), node(UNIT)], |v, c| {
         (term(&v[0]) == (words::unit(words::DAY, 1), 0)).then(|| en::day_rel(c, 0))?
     }),
+    rr("date_del_dia", DATE, &[word("del"), node(UNIT)], |v, c| {
+        (term(&v[0]) == (words::unit(words::DAY, 1), 0)).then(|| en::day_rel(c, 0))?
+    }),
     rr("date_el_dia_rel", DATE, &[word("el"), node(UNIT), node(RELW)], b_day_rel),
     rr(
         "date_day_this_month",
         DATE,
         &[word("el"), word("dia"), node(MDAY), node(DE), node(RELW), word("mes")],
         |v, c| b_day_this_month(&[v[0], v[2]], c),
+    ),
+    r(
+        "date_nth_week_weekday",
+        DATE,
+        2,
+        &[node(ORD), word("semana"), node(DE), node(MONTH), word("el"), node(WEEKDAY)],
+        |v, c| en::b_nth_week_weekday(&[v[0], v[2], v[3]], c),
     ),
     // Weekdays.
     rr("wd", WD, &[node(WEEKDAY)], en::b_wd),
@@ -227,6 +237,45 @@ pub(crate) static RULES: &[Rule] = &[
     rr("period_rel_kind_year", PERIOD, &[node(RELW), node(KIND), word("año")], b_rel_other_year),
     rr("period_el_rel_year_kind", PERIOD, &[word("el"), node(RELW), word("año"), node(KIND)], b_rel_other_year),
     rr("period_el_rel_kind_year", PERIOD, &[word("el"), node(RELW), node(KIND), word("año")], b_rel_other_year),
+    rr("period_year_to_date", PERIOD, &[word("año"), word("hasta"), word("la"), word("fecha")], |_, c| {
+        emit_date(c, DateSpec::YearToDate)
+    }),
+    rr("period_rest_of_week", PERIOD, &[word("resto"), word("de"), word("la"), word("semana")], |_, c| {
+        emit_date(c, DateSpec::RestOfWeek)
+    }),
+    rr("period_first_slice", PERIOD, &[word("primeros"), node(AMOUNT), node(UNIT), node(DE), node(PERIOD)], |v, c| {
+        en::b_year_slice(&[v[0], v[1], v[3]], c, false)
+    }),
+    rr(
+        "period_art_first_slice",
+        PERIOD,
+        &[node(ART), word("primeros"), node(AMOUNT), node(UNIT), node(DE), node(PERIOD)],
+        |v, c| en::b_year_slice(&[v[1], v[2], v[4]], c, false),
+    ),
+    rr(
+        "period_first_slice_f",
+        PERIOD,
+        &[word("primeras"), node(AMOUNT), node(UNIT), node(DE), node(PERIOD)],
+        |v, c| en::b_year_slice(&[v[0], v[1], v[3]], c, false),
+    ),
+    rr(
+        "period_art_first_slice_f",
+        PERIOD,
+        &[node(ART), word("primeras"), node(AMOUNT), node(UNIT), node(DE), node(PERIOD)],
+        |v, c| en::b_year_slice(&[v[1], v[2], v[4]], c, false),
+    ),
+    rr("period_last_slice", PERIOD, &[node(RELW), node(AMOUNT), node(UNIT), node(DE), node(PERIOD)], |v, c| {
+        matches!(c.word(c.start), "ultimos" | "ultimas").then(|| en::b_year_slice(&[v[1], v[2], v[4]], c, true))?
+    }),
+    rr(
+        "period_art_last_slice",
+        PERIOD,
+        &[node(ART), node(RELW), node(AMOUNT), node(UNIT), node(DE), node(PERIOD)],
+        |v, c| {
+            matches!(c.word(c.start + 1), "ultimos" | "ultimas")
+                .then(|| en::b_year_slice(&[v[2], v[3], v[5]], c, true))?
+        },
+    ),
     // Holidays.
     rr("hol", HOL, &[node(HOLIDAY)], en::b_holiday),
     rr("hol_trabajador", HOL, &[word("dia"), word("del"), word("trabajador")], |_, c| hol(c, WORKERS)),

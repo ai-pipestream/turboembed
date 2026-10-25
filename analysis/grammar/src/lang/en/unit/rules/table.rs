@@ -155,6 +155,13 @@ pub static RULES: &[Rule] = &[
         &[node_if(MONEY, whole_major), opt_word("and"), node_if(NUM, hundredths)],
         b_major_hundredths,
     ),
+    r(
+        "money_cny_fen_digit",
+        MONEY,
+        1,
+        &[node_if(MONEY, cny_tenths), opt_word("and"), node_if(NUM, single_digit)],
+        b_major_hundredths,
+    ),
     // Ages.
     r("age_old", AGE, 0, &[node_if(NUM, positive), node_if(TIMEW, age_time), word("old")], b_age),
     r("age_of_age", AGE, 0, &[node_if(NUM, positive), node_if(TIMEW, age_time), word("of"), word("age")], b_age),
