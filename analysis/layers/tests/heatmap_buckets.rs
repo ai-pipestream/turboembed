@@ -87,3 +87,17 @@ fn abstention_only_scored_lane_preserves_empty_bins() {
     assert_empty_bins(&lane.segments, 3, 257);
     assert_eq!((lane.min_score, lane.max_score), (0.0, 0.0));
 }
+
+#[test]
+fn zero_bucket_option_selects_exact_mode() {
+    let mut doc = Document::new("abc");
+    let mut spans = Spans::new(ViewId::SOURCE);
+    spans.push(Span::new(0, 3));
+    doc.add(&Key::DEFAULT, Tokens { spans, sentence: None }, Provenance::by("test:tokens")).unwrap();
+    let zero = NonZeroU32::new(0);
+    assert_eq!(zero, None);
+    let heatmap = DocumentHeatmap::build(&doc, ViewId::SOURCE, zero).unwrap();
+    assert_eq!(heatmap, DocumentHeatmap::build(&doc, ViewId::SOURCE, None).unwrap());
+    let lane = heatmap.lane(HeatmapLaneKind::TokenDensity).unwrap();
+    assert_eq!(lane.segments, [HeatmapSegment { span: Span::new(0, 3), score: 1.0, count: 1, primary_item: Some(0) }]);
+}
