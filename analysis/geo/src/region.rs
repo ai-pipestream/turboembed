@@ -45,27 +45,46 @@ struct CountryNameScratch {
 
 impl CountryNameScratch {
     fn country_code_for_name(&mut self, mention: &str) -> Option<RegionCode> {
-        self.buf_a.clear();
-        normalize(Form::Nfkc, mention, &mut self.buf_a);
-
-        self.buf_b.clear();
-        for c in self.buf_a.chars() {
-            self.buf_b.push(if c == '\u{2019}' { '\'' } else { c });
-        }
-
-        self.buf_a.clear();
-        to_lowercase(&self.buf_b, &mut self.buf_a);
-        let normalized = self.buf_a.trim_matches(|c: char| c <= '\u{0020}');
-        if let Some(code) = lookup_english_country(normalized) {
-            return Some(code);
-        }
-
-        self.buf_b.clear();
-        normalize(Form::Nfd, normalized, &mut self.buf_b);
-        self.buf_a.clear();
-        self.buf_a.extend(self.buf_b.chars().filter(|&c| general_category(c) != GeneralCategory::Mn));
-        lookup_english_country(&self.buf_a)
+        country_code_for_name(mention, &mut self.buf_a, &mut self.buf_b)
     }
+}
+
+/// The one country-name normalization both region votes and
+/// spatial scoring use: NFKC, curly apostrophes read as `'`,
+/// whitespace collapsed to one space, lowercased, trimmed of
+/// whitespace at the ends (table keys keep meaningful
+/// punctuation, as in `myanmar (burma)`); when that names no country,
+/// the same with non-spacing marks stripped.
+pub(crate) fn country_code_for_name(raw: &str, buf_a: &mut String, buf_b: &mut String) -> Option<RegionCode> {
+    buf_a.clear();
+    normalize(Form::Nfkc, raw, buf_a);
+    buf_b.clear();
+    let mut prev_ws = false;
+    for ch in buf_a.chars() {
+        if ch.is_whitespace() {
+            if !prev_ws {
+                buf_b.push(' ');
+                prev_ws = true;
+            }
+        } else {
+            buf_b.push(if ch == '\u{2019}' { '\'' } else { ch });
+            prev_ws = false;
+        }
+    }
+    buf_a.clear();
+    to_lowercase(buf_b, buf_a);
+    let normalized = buf_a.trim_matches(|c: char| c.is_whitespace());
+    if normalized.is_empty() {
+        return None;
+    }
+    if let Some(code) = lookup_english_country(normalized) {
+        return Some(code);
+    }
+    buf_b.clear();
+    normalize(Form::Nfd, normalized, buf_b);
+    buf_a.clear();
+    buf_a.extend(buf_b.chars().filter(|&c| general_category(c) != GeneralCategory::Mn));
+    lookup_english_country(buf_a)
 }
 
 fn is_regional_indicator(c: char) -> bool {
@@ -225,5 +244,26 @@ impl Annotator for DocumentRegionAnnotator {
 
     fn config_hash(&self) -> u64 {
         hash_location_types(FNV_OFFSET_BASIS, &self.location_types)
+    }
+}
+
+#[cfg(test)]
+mod country_key_tests {
+    #[test]
+    fn whitespace_and_case_variants_resolve_the_same() {
+        let (mut a, mut b) = (String::new(), String::new());
+        let us = super::country_code_for_name("United States", &mut a, &mut b);
+        assert!(us.is_some());
+        assert_eq!(super::country_code_for_name("United\nStates", &mut a, &mut b), us);
+        let ci = super::country_code_for_name("C\u{00F4}te d\u{2019}Ivoire", &mut a, &mut b);
+        assert!(ci.is_some());
+        assert_eq!(super::country_code_for_name("C\u{00D4}TE D'IVOIRE", &mut a, &mut b), ci);
+    }
+
+    #[test]
+    fn parenthesized_country_names_keep_their_closing_paren() {
+        let (mut a, mut b) = (String::new(), String::new());
+        let mm = super::country_code_for_name("Myanmar (Burma)", &mut a, &mut b);
+        assert_eq!(mm.map(|c| c.as_str().to_string()), Some("MM".to_string()));
     }
 }

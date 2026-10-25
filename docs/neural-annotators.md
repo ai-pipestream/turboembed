@@ -81,9 +81,10 @@ Face hub):
    window is one row with the template's `<s>` and `</s>` around it.
    The windows of all documents of a batch fill the session's rows
    together.
-3. Each token's final state goes through the classifier
-   (`classifier.weight` row 0 and `classifier.bias`, read from the
-   bundle's raw weights after its hash is checked). A token in several
+3. Each token's final state goes through the classifier, label 0 of
+   the `CLASSIFIER_TOKEN` head the manifest declares (`classifier` and
+   the `classifier_weight` and `classifier_bias` tensor roles), read
+   from the bundle's raw weights after its hash is checked. A token in several
    windows gets the mean of its scores.
 4. A token whose probability is over `threshold` ends a sentence at
    the end of its span; the cut moves past the whitespace after it.

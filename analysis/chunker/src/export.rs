@@ -6,13 +6,15 @@
 use std::marker::PhantomData;
 
 use turbo_analysis::export::{Codecs, ExportCx, ExportError, ImportCx, LayerCodec, LayerRef, NodeRef, Reader, Writer};
-use turbo_analysis::{Document, Ix, Layer, View};
+use turbo_analysis::{Document, Ix, Layer, Span, View};
 use turbo_analysis_layers::{
     Aspects, Chunks, Entities, IncivilityLabel, IncivilityScores, Levels, Polarity, Sentences, Strs, Structure, Tokens,
 };
 
 use crate::entity::ChunkEntities;
 
+use crate::clauses::{ClauseBreak, ClauseCuts, SentenceClauseCuts};
+use crate::coref::{AntecedentLink, ChunkAntecedents};
 use crate::hashes::{ChunkId, ContentHashes};
 use crate::sentiment::ChunkFacets;
 use crate::terms::{IndexedTerms, TermStats, Vocabulary, WeightedTerms};
@@ -381,6 +383,8 @@ impl<L: Layer> LayerCodec for ContentHashes<L> {
     }
 }
 
+mod extra;
+
 /// Registers this crate's layer codecs on `codecs`: the vocabulary,
 /// the indexed terms, term statistics at the chunk, sentence,
 /// structure and whole-view levels, term weights at the chunk, level
@@ -396,13 +400,16 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<TermStats<Sentences>>()
         .register::<TermStats<Structure>>()
         .register::<TermStats<View>>()
+        .register::<TermStats<Levels>>()
         .register::<WeightedTerms<Chunks>>()
         .register::<WeightedTerms<Levels>>()
         .register::<WeightedTerms<View>>()
         .register::<ChunkFacets>()
         .register::<ChunkEntities>()
         .register::<ContentHashes<Chunks>>()
-        .register::<ContentHashes<Levels>>();
+        .register::<ContentHashes<Levels>>()
+        .register::<ClauseCuts>()
+        .register::<ChunkAntecedents>();
 }
 
 /// A registry holding this crate's codecs and nothing else.

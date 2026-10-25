@@ -1,0 +1,1 @@
+Stopped early after three complete paired rounds and a partial fourth. Byte pre-scan still exceeded the default-overhead target. All raw samples and exact binary/source identities retained; this trial is not final acceptance evidence.

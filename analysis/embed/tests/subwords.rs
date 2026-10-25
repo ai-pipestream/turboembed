@@ -18,6 +18,8 @@ use turbo_analysis::*;
 use turbo_analysis_embed::{SubwordAnnotator, SubwordsProvider};
 use turbo_analysis_layers::{Subwords, Tokens};
 
+#[path = "subwords/nfc.rs"]
+mod nfc;
 #[path = "subwords/sentencepiece.rs"]
 mod sentencepiece;
 
@@ -121,7 +123,8 @@ fn roberta_specials(m: &mut Manifest, mask: u32) {
 fn bpe() -> (TempBundle, SubwordAnnotator) {
     let (dir, tok, bundle) = bundle_with("bpe", &testdata().join("tiny-bpe/tokenizer.json"), |m| {
         m.model.id = "turbo-testdata/tiny-bpe".into();
-        m.tokenizer.bpe = Some(Bpe { add_prefix_space: false, ignore_merges: false });
+        m.tokenizer.bpe =
+            Some(Bpe { add_prefix_space: false, ignore_merges: false, pattern: Default::default(), nfc: false });
         roberta_specials(m, 4);
     });
     assert_eq!(tok.kind_name(), "bpe");
