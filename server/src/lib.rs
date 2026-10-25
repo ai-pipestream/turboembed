@@ -10,6 +10,7 @@ mod infer;
 mod kserve;
 pub mod offsets;
 pub mod results;
+pub mod search;
 pub mod state;
 pub mod status;
 pub mod stream;
@@ -17,13 +18,17 @@ pub mod tasks;
 
 pub use crate::state::Held;
 
-/// The messages and services of the two protos.
+/// The messages and services of the protos.
 pub mod proto {
     #![allow(clippy::all)]
     tonic::include_proto!("inference");
     /// The analysis result layer (docs/grpc-analysis.md).
     pub mod result {
         tonic::include_proto!("turbo.result");
+    }
+    /// Hybrid search, index lifecycle, aliases, and collection drift (issue #1221).
+    pub mod search {
+        tonic::include_proto!("turbo.search");
     }
 }
 
@@ -40,6 +45,7 @@ use tonic::transport::server::TcpIncoming;
 use crate::config::ModelConfig;
 use crate::proto::grpc_inference_service_server::GrpcInferenceServiceServer;
 use crate::proto::result::analysis_service_server::AnalysisServiceServer;
+use crate::proto::search::turbo_search_service_server::TurboSearchServiceServer;
 use crate::state::State;
 
 /// tonic refuses a request message over the decoding limit with
@@ -96,6 +102,11 @@ impl Server {
             .max_decoding_message_size(max_message_bytes);
         let analysis = AnalysisServiceServer::new(analysis::Analysis { state: state.clone(), admin: serve.admin })
             .max_decoding_message_size(max_message_bytes);
+        let search = TurboSearchServiceServer::new(search::SearchService {
+            state: state.clone(),
+            registry: Arc::new(search::SearchRegistry::new()),
+        })
+        .max_decoding_message_size(max_message_bytes);
         let (stop, stopped) = oneshot::channel::<()>();
         // TCP_NODELAY on every accepted socket. The builder's tcp_nodelay
         // does not reach a listener served with serve_with_incoming, and
@@ -107,6 +118,7 @@ impl Server {
                 .layer(tower::util::MapResponseLayer::new(too_large))
                 .add_service(kserve)
                 .add_service(analysis)
+                .add_service(search)
                 .serve_with_incoming_shutdown(incoming, async {
                     let _ = stopped.await;
                 }),

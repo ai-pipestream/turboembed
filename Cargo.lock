@@ -2334,10 +2334,16 @@ dependencies = [
  "turbo-group",
  "turbo-keywords",
  "turbo-normalize-layers",
+ "turbo-query",
  "turbo-relation",
  "turbo-schema-extract",
+ "turbo-sentdetect",
+ "turbo-stem",
+ "turbo-stopword",
  "turbo-stopword-layers",
+ "turbo-tokenize",
  "turbo-tokenize-layers",
+ "turbo-vector-index",
 ]
 
 [[package]]

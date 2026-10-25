@@ -37,6 +37,12 @@ turbo-relation = { path = "../analysis/relation" }
 turbo-schema-extract = { path = "../analysis/schema-extract" }
 turbo-stopword-layers = { path = "../analysis/stopword-layers" }
 turbo-tokenize-layers = { path = "../analysis/tokenize-layers" }
+turbo-vector-index = { path = "../analysis/vector-index", features = ["turboquant"] }
+turbo-query = { path = "../analysis/query" }
+turbo-sentdetect = { path = "../analysis/sentdetect" }
+turbo-tokenize = { path = "../analysis/tokenize" }
+turbo-stem = { path = "../analysis/stem" }
+turbo-stopword = { path = "../analysis/stopword" }
 # The response's vectors are handed to the encoder in place (Bytes::from_owner).
 bytes = "1.9"
 prost = "0.14"

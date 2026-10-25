@@ -6,8 +6,8 @@ use std::marker::PhantomData;
 use turbo_analysis::Ix;
 use turbo_analysis_layers::{Chunks, Strs};
 use turbo_chunker::terms::{
-    Bm25, Bm25PostingIndexBuilder, Collection, CollectionStatistics, CollectionStatisticsBuilder, LocalCollection,
-    Query, TermStats, Vocabulary, WeightedTerms,
+    Bm25, Bm25PostingIndex, Bm25PostingIndexBuilder, Collection, CollectionStatistics, CollectionStatisticsBuilder,
+    LocalCollection, Query, TermStats, Vocabulary, WeightedTerms,
 };
 
 /// One document: its vocabulary and the term counts of its units.
@@ -382,4 +382,42 @@ fn invalid_term_stats_are_refused_before_anything_changes() {
 
         assert!(WeightedTerms::bm25(&d.stats, &d.vocabulary, &stats, Bm25::LUCENE).is_err(), "{what}: weights");
     }
+}
+
+#[test]
+fn positional_phrases_with_slop_and_snapshot_bytes_round_trip() {
+    let mut builder = Bm25PostingIndexBuilder::new();
+    assert_eq!(builder.add_row_tokens(&["neural", "retrieval", "pipeline"]).unwrap(), 0);
+    assert_eq!(builder.add_row_tokens(&["neural", "sparse", "retrieval", "pipeline"]).unwrap(), 1);
+    assert_eq!(builder.add_row_tokens(&["retrieval", "neural", "pipeline"]).unwrap(), 2);
+    assert_eq!(builder.add_row_tokens(&["lexical", "posting", "list"]).unwrap(), 3);
+    let index = builder.build();
+
+    assert_eq!(index.positions("retrieval", 0), &[1]);
+    assert_eq!(index.positions("retrieval", 1), &[2]);
+    assert_eq!(index.row_length(0), Some(3));
+    assert_eq!(index.row_length(99), None);
+
+    // Exact phrase (slop = 0) matches only row 0 ("neural retrieval").
+    let exact = index.phrase(Bm25::LUCENE, &["neural", "retrieval"], 0, 10);
+    assert_eq!(exact.iter().map(|&(r, _)| r).collect::<Vec<_>>(), vec![0]);
+
+    // Slop = 1 matches row 0 ("neural retrieval") and row 1 ("neural sparse retrieval").
+    let slop1 = index.phrase(Bm25::LUCENE, &["neural", "retrieval"], 1, 10);
+    let rows1: Vec<u32> = slop1.iter().map(|&(r, _)| r).collect();
+    assert_eq!(rows1, vec![0, 1]);
+
+    // Snapshot round-trip preserves exact bytes, top_k, and phrase results.
+    let bytes = index.to_bytes();
+    let restored = Bm25PostingIndex::from_bytes(&bytes).expect("valid snapshot");
+    assert_eq!(restored, index);
+    assert_eq!(restored.to_bytes(), bytes);
+    assert_eq!(restored.phrase(Bm25::LUCENE, &["neural", "retrieval"], 1, 10), slop1);
+
+    for cut in [0, 4, 8, bytes.len() / 2, bytes.len() - 1] {
+        assert!(Bm25PostingIndex::from_bytes(&bytes[..cut]).is_err());
+    }
+    let mut trailing = bytes.clone();
+    trailing.push(0);
+    assert!(Bm25PostingIndex::from_bytes(&trailing).is_err());
 }
