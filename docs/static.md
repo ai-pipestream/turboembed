@@ -329,6 +329,39 @@ Every step runs in this tool and the library: no container, no Python.
 
 The table is the base model's, so it keeps the base model's licence.
 
+### Learned terms and a recipe made from the base
+
+A caller that distils a bundle it already has, such as the gRPC
+server, needs no recipe file. `distill::from_base::recipe` makes the
+recipe the bundled static recipes have: the base's model source,
+licence and tokenizer, the shared quality texts
+(`bundle/recipes/static-quality.jsonl`), and the reference cases of
+`all-minilm-l6-v2-static.json`. `distill::stage_with` stages it as
+`stage` does, reporting each step (`distill::Progress`: entries kept,
+rows embedded, the PCA's explained variance, the quality numbers) to
+the caller instead of printing.
+
+`stage_with` also takes learned terms, such as a corpus vocabulary the
+vocabulary service learns (#1222), as Model2Vec's `distill` takes a
+vocabulary of its own. Each term that is one word to the base's WordPiece
+tokenizer becomes one more vocabulary entry, after the base's ids. Its
+entry is the term's pieces joined without the `##` prefix, so it is
+already in the tokenizer's normalized form. Its row is the base
+encoder's mean-pooled vector of the term between the template's
+special tokens. The rows are reduced by one PCA with the base entries,
+and weighted by Zipf rank after them. A term is refused, and reported
+with the reason, when nothing is left of it after normalization, when
+it holds a character the tokenizer cannot encode, when it is already
+one entry, when it is more than one word, when it splits into more than
+32 pieces, or when an earlier term gives the same entry.
+
+WordPiece matches the longest entry from the start of each word, so a
+new entry also changes how longer words that begin with it are split,
+as in Model2Vec. The quality texts are therefore encoded with the
+grown tokenizer, through the staged bundle, as the library will encode
+them, and `seal` records the grown `static_embedding.vocab_size` and
+the count as the `learned_terms=` argument of the table's `produced_by`.
+
 ## Speed
 
 `turbo-bench static` times a bundle on the CPU and each program of

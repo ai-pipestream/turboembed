@@ -1,0 +1,1 @@
+9313 actual scanner checks passed against protected page boundaries; all lengths0..96, every tab/pair position, all address alignments

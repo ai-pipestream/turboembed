@@ -51,6 +51,16 @@ impl Container {
 
 #[derive(Copy, Clone, Debug)]
 enum Leaf {
+    Html {
+        node: u32,
+        end: crate::html::End,
+    },
+    Footnote {
+        node: u32,
+    },
+    Columns {
+        node: u32,
+    },
     None,
     /// `last_start`: where its last line's content starts; `prev_end`:
     /// where the line before that ends. A table's header is the last line.
@@ -93,6 +103,7 @@ pub(crate) struct Parser<'a> {
     not_thematic: Option<(u8, usize)>,
     runs: Vec<(usize, usize)>,
     cells: Vec<(usize, usize)>,
+    column_starts: Vec<usize>,
 }
 
 /// A depth, at most 255.
@@ -105,12 +116,13 @@ fn saturate(n: usize) -> u8 {
 /// one at `from`, else `from`. Front matter is a line `---` at the start,
 /// up to and including the next line `---` or `...`; without that closing
 /// line there is none. Spaces and tabs may end either line.
-fn front_matter(b: &[u8], from: usize) -> usize {
+fn front_matter(text: &str, from: usize) -> usize {
+    let b = text.as_bytes();
     let is = |(s, e): (usize, usize), mark: &[u8]| {
         let t = &b[s..e];
         t.starts_with(mark) && t[mark.len()..].iter().all(|&x| x == b' ' || x == b'\t')
     };
-    let mut lines = Lines::new(b, from);
+    let mut lines = Lines::new(text, from);
     if !lines.next().is_some_and(|l| is(l, b"---")) {
         return from;
     }
@@ -130,6 +142,7 @@ fn after_quote_marker(c: &mut Cursor<'_>) {
     }
 }
 
+mod extra;
 mod leaf;
 
 impl<'a> Parser<'a> {
@@ -147,6 +160,7 @@ impl<'a> Parser<'a> {
             not_thematic: None,
             runs: Vec::new(),
             cells: Vec::new(),
+            column_starts: Vec::new(),
         }
     }
 
@@ -155,14 +169,15 @@ impl<'a> Parser<'a> {
     pub(crate) fn run(mut self) -> Tree {
         let mut from = if self.text.starts_with('\u{FEFF}') { '\u{FEFF}'.len_utf8() } else { 0 };
         if self.markdown {
-            from = front_matter(self.bytes, from);
+            from = front_matter(self.text, from);
         }
-        for (start, end) in Lines::new(self.bytes, from) {
+        for (start, end) in Lines::new(self.text, from) {
             self.line(start, end);
         }
         self.close_leaf();
         self.close_containers(0);
         self.uncap_signature();
+        self.tree.list_tightness(self.text);
         self.tree
     }
 
@@ -190,6 +205,9 @@ impl<'a> Parser<'a> {
         let matched = self.match_containers(&mut c, le);
         let all = matched == self.stack.len();
 
+        if all && matches!(self.leaf, Leaf::Html { .. } | Leaf::Footnote { .. }) && self.extra_continue(&mut c, le) {
+            return;
+        }
         if all {
             match self.leaf {
                 Leaf::Fenced { node, ch, len } => {
@@ -223,7 +241,7 @@ impl<'a> Parser<'a> {
             self.close_unmatched(matched);
         }
         if blank {
-            if matches!(self.leaf, Leaf::Paragraph { .. } | Leaf::Table { .. }) {
+            if matches!(self.leaf, Leaf::Paragraph { .. } | Leaf::Table { .. } | Leaf::Columns { .. }) {
                 self.close_leaf();
             }
             return;
@@ -364,6 +382,9 @@ impl<'a> Parser<'a> {
         let Leaf::Paragraph { .. } = self.leaf else { return false };
         let (cols, p) = c.indent();
         if cols < 4 && (self.markdown && (atx(self.bytes, p, le).is_some() || fence(self.bytes, p, le).is_some())) {
+            return false;
+        }
+        if self.markdown && cols < 4 && crate::html::start(&self.text[p..le], true).is_some() {
             return false;
         }
         if cols < 4 && self.thematic(p, le) {
