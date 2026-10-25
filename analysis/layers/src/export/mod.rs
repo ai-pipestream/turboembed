@@ -52,6 +52,7 @@ mod lexical;
 mod modality;
 mod numeric;
 mod relations;
+mod rhetoric;
 mod sentiment;
 mod sparse;
 mod structure;
@@ -147,6 +148,10 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Utf16Spans<Sentences>>()
         .register::<Abbreviations>()
         .register::<Edges<Abbreviations, Abbreviations>>()
+        .register::<crate::Edus>()
+        .register::<crate::Discourse>()
+        .register::<crate::ClaimLinks>()
+        .register::<crate::SentenceClaimLinks>()
         .register::<Groups<Abbreviations>>()
         .register::<Alternatives<Tokens>>()
         .register::<Alternatives<PosTags>>()
