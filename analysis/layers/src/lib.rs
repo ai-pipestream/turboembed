@@ -24,12 +24,14 @@ pub use categories::{Categories, CategoryRow, CategoryScope};
 pub use containment::{Containment, ContainmentChain, ContainmentError, PlaceAncestor, PlaceAncestorRef};
 pub use date::{DAY_SECONDS, Date, DateTime, write_year};
 pub use dec::Dec;
+pub use discourse::{Quotation, Quotations, QuoteKind};
 pub use entity_graph::{
     ConsolidatedMention, DocumentEntities, DocumentEntity, EntityRelation, EntitySalience, EntitySalienceScore,
     SyntacticRole, SyntacticRoleCounts,
 };
 pub use events::{AnchoredLayerKind, ArgumentRole, EventArgument, EventFrame, Events};
 pub use generic::{Confidence, Language, TokenVectorWindows, Utf16Spans, Vectors};
+pub use heatmap::{DocumentHeatmap, HeatmapLane, HeatmapLaneKind, HeatmapSegment};
 pub use language_spans::{LanguageSpan, LanguageSpans, UNDETERMINED};
 pub use levels::{Level, Levels, Unit, VectorKind};
 pub use matches::Matches;
@@ -133,11 +135,13 @@ mod containment;
 mod core_tests;
 mod date;
 pub mod dec;
+mod discourse;
 mod entity_graph;
 mod events;
 mod evidence;
 pub mod export;
 mod generic;
+mod heatmap;
 mod language_spans;
 mod levels;
 mod matches;

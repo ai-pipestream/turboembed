@@ -49,6 +49,9 @@ impl LayerCodec for Modality {
             let confidence = f32::from_bits(r.u32()?);
             out.push(scope, ModalityTag { polarity, epistemic, deontic, cue, confidence });
         }
+        // push rebuilds tags and reach from the envelopes; retain the actual
+        // decoded fragment coverage rather than replacing it with envelopes.
+        out.spans = spans;
         done(&r, "modality")?;
         out.check().map_err(malformed)?;
         Ok(out)

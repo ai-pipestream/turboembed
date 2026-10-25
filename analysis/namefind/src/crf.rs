@@ -28,12 +28,7 @@ impl CrfNameAnnotator {
         let model = CrfNameFinder::read_model(&file).map_err(|e| e.to_string())?;
         let context = NameContextFactory::for_model(&file, PatternMode::Utf16Units).map_err(|e| e.to_string())?;
         let kinds = crate::entity_kinds::from_labels("turbo:crf-entities", model.labels().iter().map(String::as_str));
-        let hash = file
-            .bytes()
-            .iter()
-            .copied()
-            .chain((k as u64).to_le_bytes())
-            .fold(0xcbf29ce484222325, |h, b| (h ^ u64::from(b)).wrapping_mul(0x100000001b3));
+        let hash = turbo_analysis::Fnv1a::new().bytes(file.bytes()).u64(k as u64).finish();
         // The model's identity, computed once: the provenance of every
         // document it runs on names it.
         let model_ref = ModelRef {

@@ -7,6 +7,8 @@
 //!
 //! Candidates of one type vote together when their token ranges overlap
 //! (for [`EntityMergePolicy::RawUnion`], when they are the same range).
+//! Grouping is transitive: a chain can connect candidates whose own ranges
+//! do not overlap. Each input instance contributes at most one quorum vote.
 //! A group's entity is the candidate with the highest score, the earlier
 //! recognizer winning a tie (under [`EntityMergePolicy::PriorityFallback`],
 //! the earliest recognizer's candidate), and its score is the highest
@@ -19,11 +21,11 @@
 //! run none write 0 for a score they do not have.
 
 use std::any::Any;
+use std::collections::HashSet;
 use std::num::NonZeroU32;
 use std::sync::Arc;
 
 use turbo_analysis::annotate::{AnchorUse, Step};
-use turbo_analysis::evidence::read_of;
 use turbo_analysis::export::LayerRef;
 use turbo_analysis::{
     Document, Error, Evidence, FilterRule, Ix, Key, KeyId, Layer, Producer, Provenance, Span, Spans, Status, Support,
@@ -269,15 +271,24 @@ impl ConsensusEntityMerger {
         Key::named(self.output.name)
     }
 
-    /// The merged layer and its evidence for one document.
+    /// The merged layer and evidence for one document. Refuses missing
+    /// selected tokens, repeated input instances, and inputs whose resolved
+    /// token binding differs from the selected instance.
     pub fn build(&self, doc: &Document) -> Result<(Entities, Evidence<Entities>), Error> {
         let fail = |detail: String| Error::Annotator { annotator: Self::ID, detail };
+        doc.require(&self.tokens)?;
+        let mut seen = HashSet::with_capacity(self.inputs.len());
+        for key in &self.inputs {
+            if !seen.insert(key.id()) {
+                return Err(fail(format!("duplicate recognizer input {}", key.id())));
+            }
+        }
         let layers: Vec<&Entities> = self.inputs.iter().map(|k| doc.require(k)).collect::<Result<_, _>>()?;
         let mut producers: Vec<Producer> = Vec::with_capacity(layers.len());
         let mut ran_model: Vec<bool> = Vec::with_capacity(layers.len());
         for k in &self.inputs {
             let p = doc.provenance(k.id()).ok_or(Error::Missing(k.id()))?;
-            if read_of::<Tokens>(p).is_some_and(|t| t != self.tokens.id()) {
+            if !doc.made_on(k.id()).contains(&self.tokens.id()) {
                 return Err(fail(format!("{} was made on other tokens than {}", k.id(), self.tokens.id())));
             }
             producers.push(Producer { annotator: p.annotator.to_owned(), model: p.model.clone() });

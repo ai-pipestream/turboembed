@@ -259,16 +259,15 @@ impl VectorAnnotator {
 
     /// The configuration hash of per-token contextual vectors (`SubwordVectors`).
     pub fn token_config(&self) -> u64 {
-        let mut h = config_hash(&[self.settings[0], self.settings[1], self.stride, self.token_dim()]);
+        let seed = config_hash(&[self.settings[0], self.settings[1], self.stride, self.token_dim()]);
+        let mut h = turbo_analysis::Fnv1a::with_seed(seed);
         if let Some(proj) = &self.projection {
-            h = (h ^ u64::from(proj.has_bias)).wrapping_mul(0x0100_0000_01b3);
-            for &v in proj.linear.weight().iter().chain(proj.linear.bias()) {
-                for b in v.to_bits().to_le_bytes() {
-                    h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
-                }
-            }
+            h.bool(proj.has_bias);
+            proj.linear.weight().iter().chain(proj.linear.bias()).for_each(|&v| {
+                h.f32(v);
+            });
         }
-        h
+        h.finish()
     }
 
     pub fn tokenizer(&self) -> &Tokenizer {
@@ -362,11 +361,11 @@ fn pooling_name(pooling: u32) -> &'static str {
 /// where it runs: the row length, the prompt and the layer that lays out
 /// the windows.
 fn config_hash(values: &[u32]) -> u64 {
-    let mut h = 0xcbf2_9ce4_8422_2325u64;
-    for b in values.iter().flat_map(|v| v.to_le_bytes()) {
-        h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
-    }
-    h
+    let mut h = turbo_analysis::Fnv1a::new();
+    values.iter().for_each(|&v| {
+        h.u32(v);
+    });
+    h.finish()
 }
 
 mod execute;

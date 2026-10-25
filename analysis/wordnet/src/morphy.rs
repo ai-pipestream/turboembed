@@ -20,6 +20,20 @@ pub struct MorphyExceptions {
 }
 
 impl MorphyExceptions {
+    /// Visits normalized forms in POS/key order, retaining each lemma list's
+    /// preference order for configuration identity.
+    pub(crate) fn visit_entries(&self, mut visit: impl FnMut(WordNetPos, &str, &[String])) {
+        for pos in WordNetPos::ALL {
+            if let Some(table) = self.by_pos.get(&pos) {
+                let mut entries: Vec<_> = table.iter().collect();
+                entries.sort_unstable_by_key(|(form, _)| *form);
+                for (form, bases) in entries {
+                    visit(pos, form, bases);
+                }
+            }
+        }
+    }
+
     /// Creates an empty exception table.
     pub fn empty() -> Self {
         Self::default()

@@ -135,10 +135,7 @@ impl Annotator for MultiLabelCategorizer {
 fn multilabel_config_hash(model: &MultiLabelDoccatModel) -> u64 {
     let mut h = crate::model::context_generator_config_hash(model.context_generator());
     let mix = |h: &mut u64, bytes: &[u8]| {
-        for &b in bytes {
-            *h ^= b as u64;
-            *h = h.wrapping_mul(0x100000001b3);
-        }
+        *h = turbo_analysis::Fnv1a::with_seed(*h).bytes(bytes).finish();
     };
     mix(&mut h, model.language().as_bytes());
     mix(&mut h, &(model.num_labels() as u64).to_le_bytes());
@@ -261,11 +258,6 @@ impl<L: SpanCategorizable> Annotator for MultiLabelSpanCategorizer<L> {
     }
 
     fn config_hash(&self) -> u64 {
-        let mut h = self.categorizer.config_hash();
-        for &b in L::ID.as_bytes() {
-            h ^= b as u64;
-            h = h.wrapping_mul(0x100000001b3);
-        }
-        h
+        turbo_analysis::Fnv1a::with_seed(self.categorizer.config_hash()).bytes(L::ID.as_bytes()).finish()
     }
 }

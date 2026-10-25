@@ -65,6 +65,33 @@ service AnalysisService
   // it. The answer bytes per document equal the single-document call's
   // raw_output_contents row for the same text and options.
   rpc AnalyzeStream(stream AnalyzeStreamRequest) returns (stream AnalyzeStreamResponse) {}
+
+  // Progressive single-document pipeline analysis (issue #1218): runs an
+  // Analyzer DAG over one document and streams each step's completion
+  // (or non-backbone branch failure) with a strictly increasing 1-based
+  // sequence number as soon as that step finishes, ending with the final
+  // canonical DocumentGraphResponse.
+  rpc AnalyzeDocumentProgressive(AnalyzePipelineRequest) returns (stream AnalyzeProgressiveEvent) {}
+
+  // Windowed inspection of one view of a DocumentGraph (#1220):
+  // elementary annotation segments inside a paginated viewport,
+  // document-level category chips, multi-lane document heatmaps, and
+  // optional normalization x-ray diff runs against a target view.
+  rpc InspectDocumentWindow(DocumentWindowRequest) returns (DocumentWindowResponse) {}
+
+  // Deterministic 2D/3D PCA chunk embedding projection, sentence
+  // boundary drift curve, ranked term-vector stacks, and multi-budget
+  // strategy comparison over a DocumentGraph (#1220).
+  rpc ProjectChunks(ProjectChunksRequest) returns (ProjectChunksResponse) {}
+
+  // Lists the standard document output formatters registered on the
+  // server (#1220).
+  rpc ListOutputFormats(ListOutputFormatsRequest) returns (ListOutputFormatsResponse) {}
+
+  // Exports a DocumentGraph into a registered interchange format
+  // (conllu, brat, tsv, csv, markdown, jsonld, warc) in the requested
+  // OffsetMode (#1220).
+  rpc FormatDocument(FormatDocumentRequest) returns (FormatDocumentResponse) {}
 }
 
 message CapabilitiesRequest {}
@@ -758,4 +785,408 @@ message ChunkLevelsResult
   uint32 dim = 21;
   bytes data = 22;
   repeated uint32 empty = 23;
+}
+
+// Request for AnalyzeDocumentProgressive (issue #1218).
+message AnalyzePipelineRequest
+{
+  // Client document identifier, echoed in AnalysisStarted.
+  string doc_id = 1;
+
+  // Input UTF-8 text to analyze (used when source_bytes and initial_graph
+  // are empty).
+  string text = 2;
+
+  // Raw UTF-8 source bytes to analyze (used when non-empty and
+  // initial_graph is empty).
+  bytes source_bytes = 3;
+
+  // Wire offset unit for spans and metadata; 0 is OFFSET_MODE_UTF8.
+  OffsetMode offsets = 4;
+
+  // Named pipeline profile ("default", "minimal", "chunking"); empty uses
+  // "default".
+  string profile = 5;
+
+  // Explicit list of step IDs to run in the Analyzer DAG; when non-empty,
+  // overrides profile.
+  repeated string steps = 6;
+
+  // Optional served bundle name for model-backed steps.
+  string model = 7;
+
+  // Optional pre-existing DocumentGraph bytes to seed the Document before
+  // running the pipeline.
+  bytes initial_graph = 8;
+}
+
+// One server-streamed event from AnalyzeDocumentProgressive, numbered with
+// a strictly increasing 1-based sequence.
+message AnalyzeProgressiveEvent
+{
+  uint64 sequence = 1;
+
+  oneof event
+  {
+    AnalysisStarted started = 2;
+    AnalysisLayerBatch layers_ready = 3;
+    AnalysisStepFailure step_failed = 4;
+    DocumentGraphResponse complete = 5;
+  }
+}
+
+// Emitted first (sequence = 1) once the Analyzer DAG is built and ready.
+message AnalysisStarted
+{
+  string doc_id = 1;
+  OffsetMode offsets = 2;
+  repeated string step_ids = 3;
+  repeated ViewInfo views = 4;
+}
+
+// Emitted as soon as an individual DAG step completes successfully.
+message AnalysisLayerBatch
+{
+  string completed_step = 1;
+  uint32 stage = 2;
+  uint64 duration_us = 3;
+  repeated LayerInfo layers = 4;
+  repeated ViewInfo views = 5;
+  bytes graph = 6;
+}
+
+// Emitted when a step fails on the document, naming the step, its
+// structured AnalyzeFailure, and any downstream steps whose required
+// inputs were skipped as a consequence.
+message AnalysisStepFailure
+{
+  string step_id = 1;
+  uint32 stage = 2;
+  uint64 duration_us = 3;
+  AnalyzeFailure failure = 4;
+  repeated string skipped_dependents = 5;
+  repeated LayerInfo layers = 6;
+}
+
+// ============================================================================
+// Issue #1220: InspectDocumentWindow, ProjectChunks, ListOutputFormats,
+// and FormatDocument RPC messages.
+// ============================================================================
+
+message DocumentWindowRequest
+{
+  // Binary DocumentGraph bytes.
+  bytes graph = 1;
+
+  // Target text view id (0 is the source view).
+  uint32 view = 2;
+
+  // Wire offset unit for all spans in the response.
+  OffsetMode offsets = 3;
+
+  // Page size in UTF-8 bytes (0 defaults to 16000 bytes).
+  uint32 page_size = 4;
+
+  // Zero-based page index into the view.
+  uint32 page = 5;
+
+  // Optional allow-list of layer ids (e.g. "opennlp:entities",
+  // "turbo:chunks"); empty includes all positional layers on the view.
+  repeated string filter_layers = 6;
+
+  // Number of minimap buckets for heatmap lanes (0 uses exact segment
+  // mode; > 0 bins into equal-width buckets).
+  uint32 heatmap_buckets = 7;
+
+  // When set, computes NormalizationXray diff runs from `view` to
+  // `xray_target_view`.
+  optional uint32 xray_target_view = 8;
+}
+
+message DocumentShapeSummaryProto
+{
+  uint32 view = 1;
+  uint32 total_bytes = 2;
+  uint32 total_units = 3;
+  uint32 view_count = 4;
+  uint32 layer_count = 5;
+  repeated LayerInfo layers = 6;
+  repeated ViewInfo views = 7;
+}
+
+message DocumentWindowProto
+{
+  uint32 view = 1;
+  uint32 byte_start = 2;
+  uint32 byte_end = 3;
+  uint32 start = 4;
+  uint32 end = 5;
+  uint32 page = 6;
+  uint32 page_count = 7;
+  bool clamped = 8;
+  string text = 9;
+}
+
+message SegmentAnnotationProto
+{
+  string layer = 1;
+  string instance = 2;
+  uint32 item = 3;
+  string label = 4;
+  double score = 5;
+}
+
+message CombinedSegmentProto
+{
+  uint32 start = 1;
+  uint32 end = 2;
+  string text = 3;
+  repeated SegmentAnnotationProto annotations = 4;
+}
+
+message DocumentChipProto
+{
+  string layer = 1;
+  string instance = 2;
+  string label = 3;
+  double score = 4;
+}
+
+message HeatmapBucketProto
+{
+  // Half-open range in the request's OffsetMode, relative to the whole view.
+  // Minimap boundaries are snapped down to UTF-8 character boundaries before
+  // conversion. These display coordinates may collapse even a covered raw
+  // bin. Exact coverage coordinates remain in byte_start/byte_end below.
+  uint32 start = 1;
+  uint32 end = 2;
+  // Token/Entity/PiiDensity count distinct source items. Scored lanes use the
+  // signed score with greatest absolute magnitude, ties to lowest item index.
+  // Coverage is over the raw byte bin, before display-coordinate snapping.
+  // An uncovered raw bin has score 0; scores are not length-weighted averages.
+  float score = 3;
+  // Distinct layer items overlapping the bucket, not fragment count. Multiple
+  // fragments of one item contribute once. Exact mode includes uncovered
+  // ranges; minimap mode retains every requested raw bin, including empty bins.
+  uint32 count = 4;
+  // Index in this lane's source layer, absent when count is 0. Density lanes
+  // use the lowest overlapping item index; scored lanes use the
+  // item supplying score. This is a representative, not the count or a span.
+  optional uint32 primary_item = 5;
+  // Exact shared-library coverage bounds in source-view UTF-8 bytes,
+  // independent of the requested OffsetMode. Minimap bins can split scalars,
+  // including empty bins inside a scalar; these bounds are not text slices.
+  uint32 byte_start = 6;
+  uint32 byte_end = 7;
+}
+
+message HeatmapLaneProto
+{
+  string id = 1;
+  string kind = 2;
+  uint32 view = 3;
+  float min_score = 4;
+  float max_score = 5;
+  repeated HeatmapBucketProto buckets = 6;
+}
+
+enum XrayEditKindProto
+{
+  XRAY_EDIT_KIND_PROTO_EQUAL = 0;
+  XRAY_EDIT_KIND_PROTO_REPLACED = 1;
+  XRAY_EDIT_KIND_PROTO_INSERTED = 2;
+  XRAY_EDIT_KIND_PROTO_DELETED = 3;
+}
+
+message XrayEditRunProto
+{
+  uint32 parent_start = 1;
+  uint32 parent_end = 2;
+  uint32 child_start = 3;
+  uint32 child_end = 4;
+  XrayEditKindProto kind = 5;
+  string parent_text = 6;
+  string child_text = 7;
+}
+
+message XrayStepSummaryProto
+{
+  uint32 view = 1;
+  optional uint32 parent_view = 2;
+  string instance = 3;
+  string annotator = 4;
+  string version = 5;
+  uint64 config_hash = 6;
+  uint32 edit_count = 7;
+  uint32 parent_bytes = 8;
+  uint32 child_bytes = 9;
+}
+
+message NormalizationXrayProto
+{
+  uint32 from_view = 1;
+  uint32 to_view = 2;
+  OffsetMode offsets = 3;
+  repeated XrayEditRunProto runs = 4;
+  repeated XrayStepSummaryProto steps = 5;
+}
+
+message DocumentWindowResponse
+{
+  DocumentShapeSummaryProto summary = 1;
+  DocumentWindowProto window = 2;
+  repeated CombinedSegmentProto segments = 3;
+  repeated DocumentChipProto document_chips = 4;
+  repeated HeatmapLaneProto heatmap_lanes = 5;
+  optional NormalizationXrayProto xray = 6;
+}
+
+message BudgetSpec
+{
+  string name = 1;
+  uint32 max_tokens = 2;
+  uint32 target_tokens = 3;
+  uint32 size_weight = 4;
+  uint32 overhead = 5;
+}
+
+message ProjectChunksRequest
+{
+  // Projection joins the default layer instances. Aligned columns bound to a
+  // different instance are refused with TURBO_E_INVALID_ARGUMENT instead of
+  // attaching their rows to unrelated default spans.
+  bytes graph = 1;
+  OffsetMode offsets = 2;
+  // Number of principal components: 2 or 3 (0 defaults to 2).
+  uint32 pca_dims = 3;
+  // Maximum top-K term segments per TermVectorStack (0 defaults to 10).
+  uint32 max_stack_segments = 4;
+  bool include_drift_curve = 5;
+  bool include_strategy_matrix = 6;
+  repeated BudgetSpec strategy_budgets = 7;
+}
+
+message ProjectedPointProto
+{
+  uint32 item = 1;
+  uint32 start = 2;
+  uint32 end = 3;
+  uint32 level = 4;
+  float x = 5;
+  float y = 6;
+  float z = 7;
+  bool empty = 8;
+  optional float adjacent_cosine = 9;
+}
+
+message VectorProjectionProto
+{
+  ModelRef model = 1;
+  uint32 pca_dims = 2;
+  repeated float explained_variance = 3;
+  repeated ProjectedPointProto points = 4;
+}
+
+message DriftGapPointProto
+{
+  uint32 sentence = 1;
+  uint32 gap_offset = 2;
+  optional int64 raw_cosine_micro = 3;
+  optional int64 smoothed_cosine_micro = 4;
+  int64 depth_score_micro = 5;
+  int32 cost = 6;
+  uint32 reason = 7;
+  bool is_chunk_cut = 8;
+}
+
+message BoundaryDriftCurveProto
+{
+  uint32 window = 1;
+  uint32 smoothing = 2;
+  repeated DriftGapPointProto gaps = 3;
+}
+
+message TermWeightSegmentProto
+{
+  string term = 1;
+  uint32 term_id = 2;
+  uint32 frequency = 3;
+  float weight = 4;
+  float share = 5;
+  bool is_expanded = 6;
+  repeated uint32 occ_start = 7;
+  repeated uint32 occ_end = 8;
+}
+
+message TermVectorStackProto
+{
+  uint32 unit = 1;
+  repeated TermWeightSegmentProto segments = 2;
+  uint32 total_terms = 3;
+  uint64 total_frequency = 4;
+  float total_weight = 5;
+  uint32 other_term_count = 6;
+  uint64 other_frequency = 7;
+  float other_weight = 8;
+}
+
+message StrategyComparisonEntryProto
+{
+  string name = 1;
+  BudgetSpec budget = 2;
+  uint32 chunk_count = 3;
+  uint32 over_budget_count = 4;
+  int64 total_cost = 5;
+  uint32 matched_cuts_with_baseline = 6;
+  uint32 disagreements_with_baseline = 7;
+  repeated uint32 cut_starts = 8;
+}
+
+message StrategyMatrixProto
+{
+  repeated StrategyComparisonEntryProto strategies = 1;
+}
+
+message ProjectChunksResponse
+{
+  VectorProjectionProto projection = 1;
+  optional BoundaryDriftCurveProto drift_curve = 2;
+  repeated TermVectorStackProto chunk_term_stacks = 3;
+  optional TermVectorStackProto document_term_stack = 4;
+  optional StrategyMatrixProto strategy_matrix = 5;
+}
+
+message ListOutputFormatsRequest {}
+
+message OutputFormatDescriptorProto
+{
+  string format_id = 1;
+  string display_name = 2;
+  string media_type = 3;
+  string file_extension = 4;
+  bool binary = 5;
+  bool lossless = 6;
+  repeated string required_layers = 7;
+  string description = 8;
+}
+
+message ListOutputFormatsResponse
+{
+  repeated OutputFormatDescriptorProto formats = 1;
+}
+
+message FormatDocumentRequest
+{
+  string doc_id = 1;
+  bytes graph = 2;
+  string format_id = 3;
+  OffsetMode offsets = 4;
+}
+
+message FormatDocumentResponse
+{
+  string format_id = 1;
+  string media_type = 2;
+  string file_extension = 3;
+  bytes content = 4;
 }

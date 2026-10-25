@@ -19,7 +19,8 @@ pub fn calibration_identity(detector: &SpanDetector, domain: &str) -> Identity {
         task: Task::TokenTagging,
         domain: format!("langspan-text-only-v1:{domain}"),
         labels: model.supported_languages().map(str::to_owned).collect(),
-        inference_hash: detector.config_hash().wrapping_mul(0x0000_0100_0000_01b3) ^ detector.candidate_hash(),
+        inference_hash: turbo_analysis::Fnv1a::with_seed(detector.config_hash()).fold_u64(0).finish()
+            ^ detector.candidate_hash(),
     }
 }
 
@@ -90,8 +91,8 @@ impl Annotator for CalibratedSpanDetector {
         Some(self.detector.detector().model().model_ref().clone())
     }
     fn config_hash(&self) -> u64 {
-        self.profile.to_bytes().iter().fold(self.profile.identity().inference_hash, |h, &b| {
-            (h ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3)
-        })
+        turbo_analysis::Fnv1a::with_seed(self.profile.identity().inference_hash)
+            .bytes(&self.profile.to_bytes())
+            .finish()
     }
 }

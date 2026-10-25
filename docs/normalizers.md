@@ -1617,6 +1617,7 @@ text. The config hash is the hash of the mode (`CaseFoldMode`):
 | Constructor | Mapping |
 |---|---|
 | `CaseFold::lowercase()` | `String.toLowerCase(Locale.ROOT)`: the simple lowercase mapping, U+0130 to "i" U+0307, and U+03A3 to final sigma U+03C2 where the Final_Sigma condition holds (`turbo_unicode::java::lowercase_at`). |
+| `CaseFold::turkish_lowercase()`, `azerbaijani_lowercase()` | Locale lowercase with the original-text Before_Dot and After_I conditions: decomposed I + U+0307 becomes i. |
 | `CaseFold::simple()` | Simple case folding, CaseFolding.txt status C and S: one character to one. |
 | `CaseFold::full()` | Full case folding, status C and F: "ß" to "ss", U+FB00 to "ff", U+0390 to three characters. |
 | `CaseFold::turkic_simple()`, `turkic_full()` | The same with the status T rows: "I" to dotless U+0131, U+0130 to "i". |
@@ -1624,10 +1625,10 @@ text. The config hash is the hash of the mode (`CaseFoldMode`):
 Each character whose mapping differs from itself is its own `replace`, so
 an expansion maps back to exactly its source character. ASCII is tested
 eight bytes at a time; a stretch of ASCII without uppercase letters is
-skipped without decoding. Only U+03A3 under `lowercase` looks at its
-neighbours (through `turbo_unicode::java::lowercase_at`, which applies the
-JDK's final sigma condition to the whole text); the folds are context
-free.
+skipped without decoding. Lowercase modes inspect the original text for
+final sigma. Turkish and Azerbaijani also inspect combining classes around
+I and U+0307 through `turbo_unicode::java::locale`. The case folds remain
+context free.
 
 Folding does not keep a normalization form: the full fold of U+01F0 is
 "j" U+030C, which is not NFC, and the combining mark U+0345 (class 240)
@@ -1653,15 +1654,12 @@ Differences from OpenNLP:
   OpenNLP's `buildAligned()` rejects it, although `Locale.ROOT`
   lowercasing changes the length of the text (U+0130 becomes two
   characters). Here it has an exact alignment.
-- Turkish. OpenNLP's `CaseFoldCharSequenceNormalizer` takes a `Locale`
-  and lowercases by its rules. `CaseFold` offers no locale-dependent
-  lowercasing; for Turkish and Azerbaijani it offers the Turkic folds of
-  CaseFolding.txt, which map "I" to "ı" and U+0130 to "i" as Turkish
-  lowercasing does. A decomposed "I" U+0307 folds to "ı" U+0307 (Turkish
-  lowercasing gives "i"); `UnicodeForm::nfc()` before the fold composes it
-  to U+0130 first, and the chain gives "i" for both spellings. The
-  Lithuanian rules of SpecialCasing.txt (adding U+0307 above "i" before
-  accents) are not applied.
+- Turkish and Azerbaijani. The locale lowercase constructors implement
+  the [SpecialCasing rules](https://www.unicode.org/Public/18.0.0/ucd/SpecialCasing.txt).
+  Before_Dot and After_I inspect the original text, stopping at combining
+  class 0 or 230. The context-free Turkic folds retain their existing
+  behavior: decomposed I + U+0307 folds to dotless i + U+0307, whereas
+  locale lowercase gives i. Lithuanian locale lowercase is not implemented.
 - The simple fold and the Turkic folds are additions.
 - Unicode version. CaseFolding.txt 18.0.0 has 1501 C rows and 105 F rows
   (1606); OpenNLP bundles 17.0.0 (1585) for the full fold, and
@@ -1699,6 +1697,13 @@ cross the eight-byte ASCII test at every offset, and 2000 generated texts
 in all five modes against a reference fold, each checked for the
 invariants of the previous section. A unit test in `analysis/normalize/src/case_fold.rs` checks
 the eight-byte ASCII test with each stop byte at each position.
+
+`analysis/normalize/tests/locale_lowercase.rs` compares both locale constructors with 425
+outputs each from the pinned JDK 21 generator in
+`analysis/normalize/reference/LocaleLowercase.java`. These include class 0/230 barriers,
+other combining classes, repeated dots, final sigma and source/view
+sentence-span projection in both directions. The Turkish checked-in
+OpenNLP run participates in the differential without skips.
 
 ### Accent folding (`analysis/normalize/src/accent_fold/mod.rs`) and the run pass (`analysis/normalize/src/fold_runs.rs`)
 

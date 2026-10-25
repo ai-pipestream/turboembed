@@ -167,6 +167,7 @@ pub const RUNS: &[(&str, &str)] = &[
     ("normalize", "nfc"),
     ("normalize", "nfkc"),
     ("normalize", "case-fold"),
+    ("normalize", "case-fold-tr"),
     ("normalize", "full-case-fold"),
     ("normalize", "accent-fold"),
     ("normalize", "german-umlaut"),
@@ -269,9 +270,6 @@ mod tests {
         if !data.join("pii").is_dir() {
             listed.retain(|(a, _)| a != "pii");
         }
-        // One run has goldens the differential leaves out: the Turkish
-        // locale case fold, which the port has no counterpart of.
-        on_disk.retain(|(a, r)| !(a == "normalize" && r == "case-fold-tr"));
         assert_eq!(listed, on_disk);
     }
 
@@ -293,6 +291,6 @@ mod tests {
         }
         assert!(matches!(open("tokenize", "opennlp-en-ud-ewt-tokens-1.3-2.5.4", &res), Err(Unavailable::Missing(_))));
         assert!(matches!(open("train", "anything", &res), Err(Unavailable::NotCovered(_))));
-        assert!(matches!(open("normalize", "case-fold-tr", &res), Err(Unavailable::NotCovered(_))));
+        assert!(open("normalize", "case-fold-tr", &res).is_ok());
     }
 }

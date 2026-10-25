@@ -162,3 +162,39 @@ fn options_past_what_the_layer_holds_are_refused() {
     let none = WordNetOptions { max_senses: 0, ..WordNetOptions::default() };
     assert!(WordNetAnnotator::new(lexicon(), "fixture:1", none).is_err());
 }
+
+#[test]
+fn hash_compat_options_identity_and_morphy() {
+    use turbo_analysis::Annotator;
+    let mut hashes = Vec::new();
+    for id in ["fixture:1", "fixture:2", "é:词"] {
+        for options in [
+            WordNetOptions::default(),
+            WordNetOptions { max_senses: 1, hypernym_depth: 0, include_hyponyms: true, max_expansions: 2 },
+        ] {
+            let plain = WordNetAnnotator::new(lexicon(), id, options).unwrap();
+            let morphy = WordNetAnnotator::new(lexicon(), id, options).unwrap().with_morphy(MorphyExceptions::empty());
+            hashes.extend([plain.config_hash(), morphy.config_hash()]);
+        }
+    }
+    // Plain values retain the pre-migration byte stream. Morphy values
+    // include the resource tag introduced by the identity repair in #1303,
+    // pinned before replacing its local FNV loop with the canonical hasher.
+    assert_eq!(
+        hashes,
+        [
+            10151469796173529181,
+            3680983188007610824,
+            1611157893381296233,
+            758218860574209860,
+            9154899751243379368,
+            1934318102296041461,
+            10306967913311042588,
+            16914308485395794521,
+            17548468750267158981,
+            11483478524313537840,
+            6655273575599580657,
+            5617332801517433580
+        ]
+    );
+}

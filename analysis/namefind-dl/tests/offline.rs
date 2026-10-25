@@ -413,3 +413,28 @@ fn throughput() {
     assert_eq!(a, b);
     println!("one at a time: {one:.0} docs/s; annotate_batch: {batch:.0} docs/s ({a} entities)");
 }
+
+#[test]
+fn incoming_decoding_configuration_hashes_are_preserved() {
+    use turbo_analysis::Annotator;
+    let actual = [
+        finder_by(Decoding::Word, 250, 50, 0, 0).config_hash(),
+        finder_by(Decoding::Piece, 250, 50, 0, 0).config_hash(),
+        finder_by(Decoding::Word, 250, 50, 4, 0).config_hash(),
+        finder_by(Decoding::Piece, 250, 50, 16, 0).config_hash(),
+        finder_by(Decoding::Word, 249, 50, 16, 0).config_hash(),
+        finder_by(Decoding::Word, 250, 49, 16, 0).config_hash(),
+    ];
+    // Captured from the incoming four-setting implementation on real bundle opens.
+    assert_eq!(
+        actual,
+        [
+            6658229060589688275,
+            4425913653622098866,
+            13838384022699247,
+            3264368134685183938,
+            4958085615164733728,
+            3960764871557555008
+        ]
+    );
+}

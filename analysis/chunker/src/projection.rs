@@ -1,10 +1,10 @@
-//! Deterministic 2D/3D PCA projection of a `Vectors<L>` layer, for
-//! inspecting chunk and sentence geometry without leaving the base
-//! library.
+//! Deterministic 2D/3D PCA projection of a `Vectors<L>` layer and the
+//! boundary drift curve over sentence vectors, for inspecting chunk
+//! and sentence geometry without leaving the base library.
 //!
 //! The projection is computed in `f64` over the non-empty rows only:
 //! mean-centering, then the leading eigenvectors of the covariance by
-//! cyclic Jacobi rotations. When there are fewer rows than dimensions
+//! Householder tridiagonalization and implicit QL (`eigen.rs`). When there are fewer rows than dimensions
 //! (the usual case: tens to hundreds of chunks at 384 to 1024
 //! dimensions), the eigendecomposition runs on the `[m, m]` Gram
 //! matrix instead and the coordinates come from its eigenvectors
@@ -22,9 +22,15 @@
 
 use std::marker::PhantomData;
 
+mod eigen;
+use eigen::symmetric_eigen;
+
 use turbo_analysis::math::{dot_f64, sum_sq_f64};
 use turbo_analysis::{Ix, Layer, ModelRef};
-use turbo_analysis_layers::Vectors;
+use turbo_analysis_layers::{Cut, Sentences, Vectors};
+
+use crate::drift::{Drift, cosines, score_series};
+use crate::sums::{Rows, checked_rows};
 
 /// How many coordinates a projection carries per row.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -197,7 +203,7 @@ fn covariance_basis(centred: &[f64], m: usize, d: usize) -> (Vec<f64>, Vec<f64>,
             cov[j * d + i] = v;
         }
     }
-    let (values, vecs) = jacobi(&mut cov, d);
+    let (values, vecs) = symmetric_eigen(&cov, d);
     let mut order: Vec<usize> = (0..d).collect();
     order.sort_by(|&a, &b| values[b].total_cmp(&values[a]).then(a.cmp(&b)));
     let keep = 3.min(d);
@@ -224,7 +230,7 @@ fn dual_basis(centred: &[f64], m: usize, d: usize) -> (Vec<f64>, Vec<f64>, Vec<f
             gram[j * m + i] = v;
         }
     }
-    let (values, vecs) = jacobi(&mut gram, m);
+    let (values, vecs) = symmetric_eigen(&gram, m);
     let mut order: Vec<usize> = (0..m).collect();
     order.sort_by(|&a, &b| values[b].total_cmp(&values[a]).then(a.cmp(&b)));
     let mut signs = vec![1.0f64; 3];
@@ -246,50 +252,60 @@ fn dual_basis(centred: &[f64], m: usize, d: usize) -> (Vec<f64>, Vec<f64>, Vec<f
     (values, vecs, signs)
 }
 
-/// Eigenvalues and eigenvectors (as columns) of the symmetric matrix
-/// `a` by cyclic Jacobi rotations, in fixed sweep order. `a` is
-/// overwritten. The same rotation sequence the bundle distiller uses.
-fn jacobi(a: &mut [f64], n: usize) -> (Vec<f64>, Vec<f64>) {
-    let mut v = vec![0f64; n * n];
-    for i in 0..n {
-        v[i * n + i] = 1.0;
+/// The drift computation of [`crate::drift`] with every intermediate
+/// series kept, per sentence gap (one entry per sentence, the last for
+/// the gap after it), for inspection and tuning tools.
+///
+/// `raw_cosine_micro` is the windowed cosine in millionths (`None`
+/// where either side has fewer than `window` sentences with a vector),
+/// `smoothed_cosine_micro` its moving average over the scored gaps,
+/// and `depth_score_micro` the score the cost is taken from before the
+/// floor: the TextTiling depth under [`crate::Score::Depth`], the
+/// distance under [`crate::Score::Distance`], and 0 at unscored gaps.
+/// `cost` and `reason` are exactly what [`crate::drift`] returns for
+/// the same inputs, bit for bit, because both come from the one
+/// scoring routine.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BoundaryDriftCurve {
+    pub raw_cosine_micro: Vec<Option<i64>>,
+    pub smoothed_cosine_micro: Vec<Option<i64>>,
+    pub depth_score_micro: Vec<i64>,
+    pub cost: Vec<i32>,
+    pub reason: Vec<Cut>,
+}
+
+impl BoundaryDriftCurve {
+    /// Computes the curve for `vectors` under `drift`, the same inputs
+    /// [`crate::DriftBoundaries`] scores. Retains [`Rows::of`]'s permissive
+    /// input handling; use [`Self::try_compute`] to validate the layer.
+    pub fn compute(vectors: &Vectors<Sentences>, drift: &Drift) -> BoundaryDriftCurve {
+        Self::from_rows(&Rows::of(vectors), drift)
     }
-    let norm: f64 = a.iter().map(|x| x * x).sum::<f64>().sqrt();
-    for _sweep in 0..100 {
-        let off: f64 = (0..n).flat_map(|p| (p + 1..n).map(move |q| (p, q))).map(|(p, q)| a[p * n + q].powi(2)).sum();
-        if off.sqrt() <= 1e-15 * norm {
-            break;
-        }
-        for p in 0..n {
-            for q in p + 1..n {
-                let apq = a[p * n + q];
-                if apq.abs() <= 1e-300 {
-                    continue;
-                }
-                let (app, aqq) = (a[p * n + p], a[q * n + q]);
-                let theta = (aqq - app) / (2.0 * apq);
-                let t = if theta == 0.0 { 1.0 } else { theta.signum() / (theta.abs() + (theta * theta + 1.0).sqrt()) };
-                let c = 1.0 / (t * t + 1.0).sqrt();
-                let s = t * c;
-                for k in 0..n {
-                    let (akp, akq) = (a[k * n + p], a[k * n + q]);
-                    a[k * n + p] = c * akp - s * akq;
-                    a[k * n + q] = s * akp + c * akq;
-                }
-                for k in 0..n {
-                    let (apk, aqk) = (a[p * n + k], a[q * n + k]);
-                    a[p * n + k] = c * apk - s * aqk;
-                    a[q * n + k] = s * apk + c * aqk;
-                }
-                for k in 0..n {
-                    let (vkp, vkq) = (v[k * n + p], v[k * n + q]);
-                    v[k * n + p] = c * vkp - s * vkq;
-                    v[k * n + q] = s * vkp + c * vkq;
-                }
-            }
-        }
+
+    /// Validates vector shape and empty-row metadata, then refuses any
+    /// non-finite coordinate before computing the same drift series.
+    /// Finite zero-norm and explicitly empty rows keep their gap slots.
+    pub fn try_compute(vectors: &Vectors<Sentences>, drift: &Drift) -> Result<BoundaryDriftCurve, String> {
+        Ok(Self::from_rows(&checked_rows(vectors)?, drift))
     }
-    ((0..n).map(|i| a[i * n + i]).collect(), v)
+
+    fn from_rows(rows: &Rows<'_>, drift: &Drift) -> BoundaryDriftCurve {
+        let raw = cosines(rows, drift.window);
+        let (smoothed_cosine_micro, depth_score_micro, cost, reason) = score_series(&raw, drift);
+        BoundaryDriftCurve { raw_cosine_micro: raw, smoothed_cosine_micro, depth_score_micro, cost, reason }
+    }
+
+    /// The gaps reasoned `Cut::TopicShift`: the selected valley
+    /// bottoms, in gap order.
+    pub fn topic_shift_gaps(&self) -> impl Iterator<Item = usize> + '_ {
+        self.reason.iter().enumerate().filter_map(|(g, &r)| (r == Cut::TopicShift).then_some(g))
+    }
+
+    /// The gap of least cost, the earliest of equals, or `None` when
+    /// there are no gaps.
+    pub fn cheapest_gap(&self) -> Option<usize> {
+        (0..self.cost.len()).min_by_key(|&g| (self.cost[g], g))
+    }
 }
 
 #[cfg(test)]

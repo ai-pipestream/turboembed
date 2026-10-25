@@ -1,5 +1,7 @@
 name: Nightly JVM differential
 on:
+  schedule:
+    - cron: '25 3 * * *'
   workflow_dispatch:
 permissions:
   contents: read

@@ -110,7 +110,7 @@ fn struct_layouts_match_the_header() {
         ("turbo_backend_model", "artifact2_bytes", offset_of!(turbo_backend_model, artifact2_bytes)),
         ("turbo_backend_model", "head", offset_of!(turbo_backend_model, head)),
         ("turbo_backend_model", "head_out", offset_of!(turbo_backend_model, head_out)),
-        ("turbo_backend_model", "reserved", offset_of!(turbo_backend_model, reserved)),
+        ("turbo_backend_model", "lookahead", offset_of!(turbo_backend_model, lookahead)),
         ("turbo_backend", "formats", offset_of!(turbo_backend, formats)),
         ("turbo_backend", "reserved2", offset_of!(turbo_backend, reserved2)),
     ];

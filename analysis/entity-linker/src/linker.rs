@@ -152,18 +152,11 @@ impl Annotator for EntityLinker {
     type Writes = (LinkedEntities,);
 
     fn config_hash(&self) -> u64 {
-        const OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
-        const PRIME: u64 = 0x0000_0100_0000_01b3;
-        let mix = |mut h: u64, bytes: &[u8]| -> u64 {
-            for &b in bytes {
-                h ^= u64::from(b);
-                h = h.wrapping_mul(PRIME);
-            }
-            h ^= 0xff;
-            h.wrapping_mul(PRIME)
-        };
+        fn mix(h: &mut turbo_analysis::Fnv1a, bytes: &[u8]) {
+            h.bytes(bytes).bytes(&[0xff]);
+        }
         let w = &self.config.weights;
-        let mut h = OFFSET;
+        let mut h = turbo_analysis::Fnv1a::new();
         for bits in [
             w.prior_weight.to_bits(),
             w.type_weight.to_bits(),
@@ -182,13 +175,13 @@ impl Annotator for EntityLinker {
             },
             self.providers.len() as u64,
         ] {
-            h = mix(h, &bits.to_le_bytes());
+            mix(&mut h, &bits.to_le_bytes());
         }
         for p in &self.providers {
-            h = mix(h, p.provider_id().as_bytes());
-            h = mix(h, &p.fingerprint().to_le_bytes());
+            mix(&mut h, p.provider_id().as_bytes());
+            mix(&mut h, &p.fingerprint().to_le_bytes());
         }
-        h
+        h.finish()
     }
 
     fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error> {

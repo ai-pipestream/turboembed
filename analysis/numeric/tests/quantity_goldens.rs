@@ -4,7 +4,7 @@
 //! `quantity/<notation>/quantity/<id>.golden` holds the mentions OpenNLP's
 //! `QuantityAnnotator` found with `CursorQuantityExtractor` and its default
 //! units (see `analysis/goldens-tool/README.md`). Each test runs
-//! `QuantityExtractor` in an analyzer over every text and compares the
+//! `QuantityExtractor` in explicit OpenNLP parity mode over every text and compares the
 //! `turbo:quantities` layer with the golden row for row. No tolerance is
 //! applied.
 

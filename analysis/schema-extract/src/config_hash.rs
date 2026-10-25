@@ -4,80 +4,65 @@
 //! and enums carry a tag byte, and every float is hashed by its bits after
 //! adding `0.0`, so `-0.0` and `0.0` agree and no formatting is involved.
 
+use turbo_analysis::Fnv1a;
+
 use crate::schema::{Cardinality, Check, ExtractionSchema, Limits, Source};
 
-struct Fnv(u64);
+/// Floats are hashed by their bits after adding `0.0`: like
+/// [`Fnv1a::f32`] for finite values, but NaN payloads are kept.
+fn f32_bits(h: &mut Fnv1a, v: f32) {
+    h.u32((v + 0.0).to_bits());
+}
 
-impl Fnv {
-    fn bytes(&mut self, bytes: &[u8]) {
-        for &b in bytes {
-            self.0 = (self.0 ^ u64::from(b)).wrapping_mul(0x0000_0100_0000_01b3);
+fn opt_str(h: &mut Fnv1a, s: Option<&String>) {
+    match s {
+        None => {
+            h.u8(0);
+        }
+        Some(s) => {
+            h.u8(1);
+            h.str(s);
         }
     }
+}
 
-    fn u8(&mut self, v: u8) {
-        self.bytes(&[v]);
+fn opt_f32(h: &mut Fnv1a, v: Option<f32>) {
+    match v {
+        None => {
+            h.u8(0);
+        }
+        Some(v) => {
+            h.u8(1);
+            f32_bits(h, v);
+        }
     }
+}
 
-    fn usize(&mut self, v: usize) {
-        self.bytes(&(v as u64).to_le_bytes());
-    }
+fn cardinality(h: &mut Fnv1a, c: Cardinality) {
+    h.u8(match c {
+        Cardinality::Single => 0,
+        Cardinality::Repeated => 1,
+    });
+}
 
-    fn f32(&mut self, v: f32) {
-        self.bytes(&(v + 0.0).to_bits().to_le_bytes());
-    }
-
-    fn str(&mut self, s: &str) {
-        self.usize(s.len());
-        self.bytes(s.as_bytes());
-    }
-
-    fn opt_str(&mut self, s: Option<&String>) {
-        match s {
-            None => self.u8(0),
-            Some(s) => {
-                self.u8(1);
-                self.str(s);
+fn checks(h: &mut Fnv1a, checks: &[Check]) {
+    let source = |s: Source| match s {
+        Source::Glossary => 0u8,
+        Source::Pii => 1,
+        Source::Numbers => 2,
+        Source::Locations => 3,
+    };
+    h.usize(checks.len());
+    for c in checks {
+        match *c {
+            Check::Require(s) => {
+                h.u8(0);
+                h.u8(source(s));
             }
-        }
-    }
-
-    fn opt_f32(&mut self, v: Option<f32>) {
-        match v {
-            None => self.u8(0),
-            Some(v) => {
-                self.u8(1);
-                self.f32(v);
-            }
-        }
-    }
-
-    fn cardinality(&mut self, c: Cardinality) {
-        self.u8(match c {
-            Cardinality::Single => 0,
-            Cardinality::Repeated => 1,
-        });
-    }
-
-    fn checks(&mut self, checks: &[Check]) {
-        let source = |s: Source| match s {
-            Source::Glossary => 0u8,
-            Source::Pii => 1,
-            Source::Numbers => 2,
-            Source::Locations => 3,
-        };
-        self.usize(checks.len());
-        for c in checks {
-            match *c {
-                Check::Require(s) => {
-                    self.u8(0);
-                    self.u8(source(s));
-                }
-                Check::Boost(s, b) => {
-                    self.u8(1);
-                    self.u8(source(s));
-                    self.f32(b);
-                }
+            Check::Boost(s, b) => {
+                h.u8(1);
+                h.u8(source(s));
+                f32_bits(h, b);
             }
         }
     }
@@ -86,14 +71,14 @@ impl Fnv {
 /// The hash of `schema` at `threshold`, checked against `limits`, decoded
 /// with span heads `max_width` words wide.
 pub(crate) fn config_hash(schema: &ExtractionSchema, threshold: f32, limits: &Limits, max_width: usize) -> u64 {
-    let mut h = Fnv(0xcbf2_9ce4_8422_2325);
+    let mut h = Fnv1a::new();
     h.usize(schema.entities.len());
     for e in &schema.entities {
         h.str(&e.name);
-        h.opt_str(e.description.as_ref());
-        h.opt_f32(e.threshold);
-        h.cardinality(e.cardinality);
-        h.checks(&e.checks);
+        opt_str(&mut h, e.description.as_ref());
+        opt_f32(&mut h, e.threshold);
+        cardinality(&mut h, e.cardinality);
+        checks(&mut h, &e.checks);
     }
     h.usize(schema.classifications.len());
     for t in &schema.classifications {
@@ -101,12 +86,14 @@ pub(crate) fn config_hash(schema: &ExtractionSchema, threshold: f32, limits: &Li
         h.usize(t.labels.len());
         for l in &t.labels {
             h.str(&l.name);
-            h.opt_str(l.description.as_ref());
+            opt_str(&mut h, l.description.as_ref());
         }
         h.u8(u8::from(t.multi_label));
-        h.f32(t.threshold);
+        f32_bits(&mut h, t.threshold);
         match t.top_k {
-            None => h.u8(0),
+            None => {
+                h.u8(0);
+            }
             Some(k) => {
                 h.u8(1);
                 h.usize(k);
@@ -119,11 +106,13 @@ pub(crate) fn config_hash(schema: &ExtractionSchema, threshold: f32, limits: &Li
         h.usize(s.fields.len());
         for f in &s.fields {
             h.str(&f.name);
-            h.opt_str(f.description.as_ref());
-            h.opt_f32(f.threshold);
-            h.cardinality(f.cardinality);
+            opt_str(&mut h, f.description.as_ref());
+            opt_f32(&mut h, f.threshold);
+            cardinality(&mut h, f.cardinality);
             match &f.choices {
-                None => h.u8(0),
+                None => {
+                    h.u8(0);
+                }
                 Some(choices) => {
                     h.u8(1);
                     h.usize(choices.len());
@@ -132,7 +121,7 @@ pub(crate) fn config_hash(schema: &ExtractionSchema, threshold: f32, limits: &Li
                     }
                 }
             }
-            h.checks(&f.checks);
+            checks(&mut h, &f.checks);
         }
     }
     let Limits {
@@ -157,9 +146,9 @@ pub(crate) fn config_hash(schema: &ExtractionSchema, threshold: f32, limits: &Li
     ] {
         h.usize(v);
     }
-    h.f32(threshold);
+    f32_bits(&mut h, threshold);
     h.usize(max_width);
-    h.0
+    h.finish()
 }
 
 #[cfg(test)]

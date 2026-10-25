@@ -26,6 +26,7 @@ pub(super) fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
     let arch = cstr(&c.runtime.devices[c.device as usize].info.arch);
     let index = model::choose(m, b.name(), b.formats(), &arch)?; // rule 6
     let weights = model::Weights::load(&bundle, index)?; // rules 7 and 8
+    model::runs_band(b.name(), weights.lookahead)?;
     let art = &m.artifacts[index];
 
     let e = m.encoder();

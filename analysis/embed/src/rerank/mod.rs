@@ -41,19 +41,12 @@ impl Annotator for RerankAnnotator {
         Some(self.model.clone())
     }
     fn config_hash(&self) -> u64 {
-        let mut hash = 0xcbf29ce484222325u64;
-        for b in self
-            .options
-            .query_tokens
-            .to_le_bytes()
-            .into_iter()
-            .chain(self.options.max_tokens.to_le_bytes())
-            .chain(self.options.stride.to_le_bytes())
-            .chain(self.levels.name.bytes())
-        {
-            hash = (hash ^ u64::from(b)).wrapping_mul(0x100000001b3);
-        }
-        hash
+        turbo_analysis::Fnv1a::new()
+            .u32(self.options.query_tokens)
+            .u32(self.options.max_tokens)
+            .u32(self.options.stride)
+            .str(self.levels.name)
+            .finish()
     }
     fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error> {
         self.annotate_batch(vec![input]).remove(0)
