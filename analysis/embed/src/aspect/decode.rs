@@ -4,7 +4,16 @@
 use turbo_analysis::{Ix, IxRange, Layer, Span};
 use turbo_analysis_layers::{Dependencies, PhraseChunks, Subwords, Tokens};
 
+use turbo_doccat::sentiment::aspect::shared::{self, LinkPolicy, LinkedSpan};
+
 use crate::window::pieces_of;
+
+/// Clause-boundary adversatives for the learned decoder.
+/// Deliberately narrower than the rule extractor's
+/// `ASPECT_ADVERSATIVES` (no `even`/`despite`/`sadly` family),
+/// matching what this decoder has always split on; `and`, `;`,
+/// and `,` always split in the shared implementation.
+const DECODE_ADVERSATIVES: &[&str] = &["but", "however", "yet", "although", "though", "whereas", "while", "except"];
 
 pub(super) const TAG_O: u16 = 0;
 pub(super) const TAG_B_ASP: u16 = 1;
@@ -234,21 +243,7 @@ pub(super) fn assign_clauses(
     sent_start: usize,
     sent_end: usize,
 ) -> Vec<usize> {
-    let mut clauses = Vec::with_capacity(sent_end - sent_start);
-    let mut current = 0usize;
-    for tok in sent_start..sent_end {
-        let w = token_lower[tok].as_str();
-        let raw = text.get(tok_starts[tok] as usize..tok_ends[tok] as usize).unwrap_or("");
-        if tok > sent_start
-            && (matches!(w, "but" | "however" | "yet" | "although" | "though" | "whereas" | "while" | "except" | "and")
-                || raw == ";"
-                || raw == ",")
-        {
-            current += 1;
-        }
-        clauses.push(current);
-    }
-    clauses
+    shared::assign_clauses(token_lower, text, tok_starts, tok_ends, sent_start, sent_end, DECODE_ADVERSATIVES)
 }
 
 pub(super) fn is_token_negated(
@@ -259,34 +254,7 @@ pub(super) fn is_token_negated(
     clause_ids: &[usize],
     deps: Option<&Dependencies>,
 ) -> bool {
-    if let Some(d) = deps
-        && d.len() >= sent_end
-    {
-        for i in sent_start..sent_end {
-            if !is_negation_word(&token_lower[i]) {
-                continue;
-            }
-            let h = d.head[i].map(|ix| ix.get());
-            if h == Some(tok) {
-                return true;
-            }
-            if let Some(th) = d.head[tok].map(|ix| ix.get())
-                && h == Some(th)
-                && i < tok
-                && clause_ids[i - sent_start] == clause_ids[tok - sent_start]
-            {
-                return true;
-            }
-        }
-    }
-    let min_i = sent_start.max(tok.saturating_sub(3));
-    let c = clause_ids[tok - sent_start];
-    for i in min_i..tok {
-        if clause_ids[i - sent_start] == c && is_negation_word(&token_lower[i]) {
-            return true;
-        }
-    }
-    false
+    shared::is_token_negated(tok, sent_start, sent_end, token_lower, clause_ids, deps, is_negation_word)
 }
 
 fn is_negation_word(w: &str) -> bool {
@@ -307,6 +275,30 @@ fn is_negation_word(w: &str) -> bool {
     ) || w.ends_with("n't")
 }
 
+impl LinkedSpan for DecodedAspect {
+    fn tokens(&self) -> IxRange<Tokens> {
+        self.tokens
+    }
+    fn head_token(&self) -> usize {
+        self.head_token
+    }
+    fn clause_id(&self) -> usize {
+        self.clause_id
+    }
+}
+
+impl LinkedSpan for DecodedOpinion {
+    fn tokens(&self) -> IxRange<Tokens> {
+        self.tokens
+    }
+    fn head_token(&self) -> usize {
+        self.head_token
+    }
+    fn clause_id(&self) -> usize {
+        self.clause_id
+    }
+}
+
 pub(super) fn link_decoded_opinions(
     asp: &DecodedAspect,
     asp_pos: usize,
@@ -315,67 +307,17 @@ pub(super) fn link_decoded_opinions(
     deps: Option<&Dependencies>,
     sent_end: usize,
 ) -> Vec<usize> {
-    if sent_opinions.is_empty() {
-        return Vec::new();
-    }
-    let mut linked = Vec::new();
-
-    if let Some(d) = deps
-        && d.len() >= sent_end
-    {
-        let t_tok = asp.head_token;
-        let t_head = d.head[t_tok].map(|ix| ix.get());
-        for (o_idx, op) in sent_opinions.iter().enumerate() {
-            let o_tok = op.head_token;
-            let o_head = d.head[o_tok].map(|ix| ix.get());
-            if o_head == Some(t_tok) || t_head == Some(o_tok) || (t_head.is_some() && t_head == o_head) {
-                linked.push(o_idx);
-            }
-        }
-        if !linked.is_empty() {
-            return linked;
-        }
-    }
-
-    let same_clause: Vec<(usize, &DecodedAspect)> =
-        sent_aspects.iter().enumerate().filter(|(_, a)| a.clause_id == asp.clause_id).collect();
-    for (o_idx, op) in sent_opinions.iter().enumerate() {
-        if op.clause_id != asp.clause_id {
-            continue;
-        }
-        let closest = same_clause.iter().min_by_key(|(_, a)| token_distance(a.tokens, op.tokens)).map(|(idx, _)| *idx);
-        if closest == Some(asp_pos) {
-            linked.push(o_idx);
-        }
-    }
-    if !linked.is_empty() {
-        return linked;
-    }
-
-    if let Some((o_idx, _)) = sent_opinions
-        .iter()
-        .enumerate()
-        .filter(|(_, op)| op.clause_id == asp.clause_id)
-        .min_by_key(|(_, op)| token_distance(asp.tokens, op.tokens))
-    {
-        linked.push(o_idx);
-        return linked;
-    }
-
-    if let Some((o_idx, _)) =
-        sent_opinions.iter().enumerate().min_by_key(|(_, op)| token_distance(asp.tokens, op.tokens))
-    {
-        linked.push(o_idx);
-    }
-    linked
-}
-
-fn token_distance(a: IxRange<Tokens>, b: IxRange<Tokens>) -> usize {
-    if a.end.get() <= b.start.get() {
-        b.start.get() - a.end.get()
-    } else if b.end.get() <= a.start.get() {
-        a.start.get() - b.end.get()
-    } else {
-        0
-    }
+    // No adversative veto and no conjunction chains: the plain
+    // shared-head dependency link this decoder has always used.
+    // The empty token slice is never read under that policy.
+    shared::link_opinions_to_aspect(
+        asp,
+        asp_pos,
+        sent_aspects,
+        sent_opinions,
+        deps,
+        &[],
+        sent_end,
+        LinkPolicy { adversatives: &[], conjunction_chains: false },
+    )
 }

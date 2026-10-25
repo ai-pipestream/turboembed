@@ -39,21 +39,15 @@ pub(in super::super) fn assign_clauses(
     sent_start: usize,
     sent_end: usize,
 ) -> Vec<usize> {
-    let mut clauses = Vec::with_capacity(sent_end - sent_start);
-    let mut current_clause = 0usize;
-    for tok in sent_start..sent_end {
-        let w = token_lower[tok].as_str();
-        let raw = text.get(tok_starts[tok] as usize..tok_ends[tok] as usize).unwrap_or("");
-        if tok > sent_start
-            && (ADVERSATIVE_CONJUNCTIONS.contains(&w) || raw == ";" || raw == "," || w == "and" || w == "while")
-        {
-            // Advance clause ID on adversative conjunctions, semicolons, or commas/coordinators
-            // that separate clauses.
-            current_clause += 1;
-        }
-        clauses.push(current_clause);
-    }
-    clauses
+    super::super::shared::assign_clauses(
+        token_lower,
+        text,
+        tok_starts,
+        tok_ends,
+        sent_start,
+        sent_end,
+        ASPECT_ADVERSATIVES,
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -161,9 +155,7 @@ pub(super) fn is_compound_rel(rel: &str) -> bool {
     rel.eq_ignore_ascii_case("compound") || rel.eq_ignore_ascii_case("nn") || rel.eq_ignore_ascii_case("flat")
 }
 
-pub(in super::super) fn is_conj_rel(rel: &str) -> bool {
-    rel.eq_ignore_ascii_case("conj") || rel.eq_ignore_ascii_case("appos")
-}
+pub(in super::super) use super::super::shared::is_conj_rel;
 
 pub(super) fn is_mr_opinion_to_head_rel(rel: &str) -> bool {
     let r = rel.split(':').next().unwrap_or(rel);
@@ -188,38 +180,7 @@ pub(super) fn is_token_negated(
     clause_ids: &[usize],
     deps: Option<&Dependencies>,
 ) -> bool {
-    // 1. Check dependency negation (`neg` or `advmod`/`det` child of `tok` or its copular head).
-    if let Some(d) = deps
-        && d.len() >= sent_end
-    {
-        for i in sent_start..sent_end {
-            let w = token_lower[i].as_str();
-            if !is_negation_word(w) {
-                continue;
-            }
-            let h = d.head[i].map(|ix| ix.get());
-            if h == Some(tok) {
-                return true;
-            }
-            if let Some(tok_head) = d.head[tok].map(|ix| ix.get())
-                && h == Some(tok_head)
-                && i < tok
-                && clause_ids[i - sent_start] == clause_ids[tok - sent_start]
-            {
-                return true;
-            }
-        }
-    }
-
-    // 2. Check up to 3 preceding tokens within the same clause.
-    let min_i = sent_start.max(tok.saturating_sub(3));
-    let tok_clause = clause_ids[tok - sent_start];
-    for i in min_i..tok {
-        if clause_ids[i - sent_start] == tok_clause && is_negation_word(token_lower[i].as_str()) {
-            return true;
-        }
-    }
-    false
+    super::super::shared::is_token_negated(tok, sent_start, sent_end, token_lower, clause_ids, deps, is_negation_word)
 }
 
 pub(super) fn compute_token_intensity(

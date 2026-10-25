@@ -5,6 +5,8 @@ use std::collections::HashMap;
 
 use turbo::sparse::{MaxLogPool, SparseOptions as SparseCut, SparseTerm};
 
+use turbo_analysis::TopK;
+
 use crate::Result;
 
 /// Builder for [`SparsePostingIndex`], numbering documents sequentially
@@ -134,7 +136,7 @@ impl SparsePostingIndex {
             cumulative.push(sum);
         }
 
-        let mut top = TopDocs::new(k);
+        let mut top = TopK::new(k);
         let mut essential = 0usize;
         loop {
             if let Some(threshold) = top.threshold() {
@@ -181,7 +183,7 @@ impl SparsePostingIndex {
                 }
             }
         }
-        let mut top = TopDocs::new(k);
+        let mut top = TopK::new(k);
         for (d, (&s, &hit)) in scores.iter().zip(&touched).enumerate() {
             if hit && s > 0.0 {
                 top.offer(d as u32, s);
@@ -206,34 +208,6 @@ impl SparseCursor<'_> {
     fn seek(&mut self, doc_id: u32) -> Option<f32> {
         self.at += self.rows[self.at..].partition_point(|&(d, _)| d < doc_id);
         self.rows.get(self.at).filter(|&&(d, _)| d == doc_id).map(|&(_, w)| w)
-    }
-}
-
-struct TopDocs {
-    k: usize,
-    best: Vec<(u32, f64)>,
-}
-
-impl TopDocs {
-    fn new(k: usize) -> Self {
-        Self { k, best: Vec::with_capacity(k.min(1024) + 1) }
-    }
-
-    fn threshold(&self) -> Option<f64> {
-        (self.best.len() == self.k).then(|| self.best[self.k - 1].1)
-    }
-
-    fn offer(&mut self, doc_id: u32, score: f64) {
-        if self.threshold().is_some_and(|t| score.total_cmp(&t).is_le()) {
-            return;
-        }
-        let at = self.best.partition_point(|&(_, s)| s.total_cmp(&score).is_ge());
-        self.best.insert(at, (doc_id, score));
-        self.best.truncate(self.k);
-    }
-
-    fn into_sorted(self) -> Vec<(u32, f64)> {
-        self.best
     }
 }
 
