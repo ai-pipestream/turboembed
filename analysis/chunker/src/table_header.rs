@@ -3,7 +3,7 @@ use turbo_analysis::{Annotator, Error, Ix, Refs, View};
 use turbo_analysis_layers::{Block, Boundaries, ChunkTableHeaders, Chunks, Cut, Sentences, Tables, Tokens};
 
 mod rows;
-pub(crate) use rows::table_rows;
+pub(crate) use rows::{atomic_table_rows, table_rows};
 
 /// The optimizer minimizes costs: an inside-row cut costs more than a row edge.
 /// `Chunker` additionally reads `Tables` to keep logical rows atomic, including

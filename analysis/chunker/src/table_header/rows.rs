@@ -17,7 +17,6 @@ pub(crate) fn table_rows(
     sentences: &Sentences,
     subwords: &Subwords,
     lengths: &mut Lengths,
-    limits: &mut [Limit],
     runs: &[Range<usize>],
 ) -> Result<(), Error> {
     let fail = |detail: &str| Error::Annotator { annotator: id, detail: detail.into() };
@@ -42,11 +41,18 @@ pub(crate) fn table_rows(
         }
         lengths.start[a] = pieces_end.partition_point(|&e| e <= row.start) as u32;
         lengths.end[b - 1] = pieces_start.partition_point(|&s| s < row.end) as u32;
-        for gap in &mut limits[a..b - 1] {
-            *gap = Limit::Atomic;
-        }
     }
     Ok(())
+}
+
+pub(crate) fn atomic_table_rows(tables: &Tables, sentences: &Sentences, limits: &mut [Limit]) {
+    let (starts, ends) = sentences.spans.columns();
+    for (_, row) in tables.rows.iter() {
+        // table_rows has validated these ranges before the structural fit pass.
+        let a = ends.partition_point(|&e| e <= row.start);
+        let b = starts.partition_point(|&s| s < row.end);
+        limits[a..b - 1].fill(Limit::Atomic);
+    }
 }
 
 impl RunCx<'_> {

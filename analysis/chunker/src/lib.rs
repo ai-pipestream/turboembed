@@ -262,6 +262,7 @@ pub struct Chunker {
 
 impl Annotator for Chunker {
     const ID: &'static str = "turbo:chunker";
+    const VERSION: &'static str = "2";
     type Reads = (Sentences, Subwords, Boundaries, Option<Structure>, Option<ClauseCuts>, Option<Tables>);
     type Writes = (Chunks,);
 
@@ -362,16 +363,19 @@ impl Chunker {
         }
         let mut lengths = Lengths::new(&sentences.spans, &subwords.spans);
         let b = self.budget;
-        let size = |r: Range<usize>| u64::from(lengths.run(r.start, r.end)) + u64::from(b.overhead);
         let gaps = gaps::gaps(&sentences.spans, structure);
-        let mut limits = limits::limits(&gaps.units, n, |u| size(u.clone()) <= u64::from(b.max));
         let runs = match structure {
             Some(st) => gaps::sections(sentences, st),
             None if n == 0 => Vec::new(),
             None => std::iter::once(0..n).collect(),
         };
         if let Some(tables) = tables {
-            table_header::table_rows(id, tables, sentences, subwords, &mut lengths, &mut limits, &runs)?;
+            table_header::table_rows(id, tables, sentences, subwords, &mut lengths, &runs)?;
+        }
+        let size = |r: Range<usize>| u64::from(lengths.run(r.start, r.end)) + u64::from(b.overhead);
+        let mut limits = limits::limits(&gaps.units, n, |u| size(u.clone()) <= u64::from(b.max));
+        if let Some(tables) = tables {
+            table_header::atomic_table_rows(tables, sentences, &mut limits);
         }
         let mut chunks = Chunks {
             spans: Spans::new(view),

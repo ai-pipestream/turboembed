@@ -94,6 +94,13 @@ with rows; a crossing returns an error naming the conflict. A newline
 sentence detector supplies suitable spans for the supported grid formats.
 Chunk spans include complete row envelopes, and model-token counts include
 subwords overlapping those source envelopes, including line breaks.
+Enclosing structure is tested against that complete token count before
+its hard limits are chosen. Chunker provenance uses version 2.
+
+The incremental `Chunker::rechunk` API has no `Tables` argument. Its
+full-chunking equality guarantee concerns the inputs it accepts, without
+table-row atomicity. After a table edit, use a full Chunker run with the
+updated tables, followed by TableHeaderAnnotator to replace header context.
 
 After chunking, `turbo_chunker::TableHeaderAnnotator` reads the view,
 `Chunks` and `Tables`, writing `ChunkTableHeaders`
