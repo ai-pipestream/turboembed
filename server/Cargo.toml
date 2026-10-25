@@ -37,6 +37,15 @@ turbo-relation = { path = "../analysis/relation" }
 turbo-schema-extract = { path = "../analysis/schema-extract" }
 turbo-stopword-layers = { path = "../analysis/stopword-layers" }
 turbo-tokenize-layers = { path = "../analysis/tokenize-layers" }
+# The vocabulary store's readers: each upload is parsed by the crate that
+# owns its format, and the learner counts UAX #29 words.
+turbo-glossary = { path = "../analysis/glossary" }
+turbo-lemmatizer = { path = "../analysis/lemmatizer" }
+turbo-maxent = { path = "../analysis/maxent" }
+turbo-sequence = { path = "../analysis/sequence" }
+turbo-stopword = { path = "../analysis/stopword" }
+turbo-tokenize = { path = "../analysis/tokenize" }
+turbo-wordnet = { path = "../analysis/wordnet" }
 # The model catalog: the zoo index, licence acceptances, verified fetches.
 turbo-zoo = { path = "../analysis/zoo", default-features = false }
 # The response's vectors are handed to the encoder in place (Bytes::from_owner).

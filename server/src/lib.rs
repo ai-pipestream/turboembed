@@ -16,6 +16,7 @@ pub mod state;
 pub mod status;
 pub mod stream;
 pub mod tasks;
+pub mod vocabulary;
 
 pub use crate::state::Held;
 
@@ -31,6 +32,10 @@ pub mod proto {
     pub mod health {
         tonic::include_proto!("grpc.health.v1");
     }
+    /// The vocabulary store's service (docs/grpc-vocabulary.md).
+    pub mod vocabulary {
+        tonic::include_proto!("turbo.vocabulary");
+    }
     /// The model catalog (docs/grpc-catalog.md).
     pub mod training {
         tonic::include_proto!("turbo.training");
@@ -38,6 +43,7 @@ pub mod proto {
 }
 
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use tokio::net::TcpListener;
@@ -52,6 +58,7 @@ use crate::proto::grpc_inference_service_server::GrpcInferenceServiceServer;
 use crate::proto::health::health_server::HealthServer;
 use crate::proto::result::analysis_service_server::AnalysisServiceServer;
 use crate::proto::training::turbo_catalog_service_server::TurboCatalogServiceServer;
+use crate::proto::vocabulary::turbo_vocabulary_service_server::TurboVocabularyServiceServer;
 use crate::state::State;
 
 /// tonic refuses a request message over the decoding limit with
@@ -81,11 +88,14 @@ pub struct Server {
 
 /// What the server serves beyond inference and analysis. `admin` is the
 /// explicit opt-in this listener needs before any client may add or remove
-/// bundles, record a licence acceptance or install a model; `catalog` is
-/// the model catalog, which refuses every call when absent.
+/// bundles or vocabulary artifacts, record a licence acceptance or install
+/// a model. `vocabulary` is the vocabulary store's directory; without one
+/// the store holds nothing and refuses writes. `catalog` is the model
+/// catalog, which refuses every call when absent.
 #[derive(Debug, Clone, Default)]
 pub struct Serve {
     pub admin: bool,
+    pub vocabulary: Option<PathBuf>,
     pub catalog: Option<catalog::Catalog>,
 }
 
@@ -112,6 +122,12 @@ impl Server {
             .max_decoding_message_size(max_message_bytes);
         let health = HealthServer::new(health::HealthService { state: state.clone() })
             .max_decoding_message_size(max_message_bytes);
+        let store = match &serve.vocabulary {
+            Some(dir) => Some(Arc::new(vocabulary::Store::open(dir).map_err(|e| format!("vocabulary store: {e}"))?)),
+            None => None,
+        };
+        let vocabulary = TurboVocabularyServiceServer::new(vocabulary::Vocabulary { store, admin: serve.admin })
+            .max_decoding_message_size(max_message_bytes);
         let catalog = TurboCatalogServiceServer::new(catalog::CatalogService::new(serve.catalog, serve.admin));
         let (stop, stopped) = oneshot::channel::<()>();
         // TCP_NODELAY on every accepted socket. The builder's tcp_nodelay
@@ -125,6 +141,7 @@ impl Server {
                 .add_service(kserve)
                 .add_service(analysis)
                 .add_service(health)
+                .add_service(vocabulary)
                 .add_service(catalog)
                 .serve_with_incoming_shutdown(incoming, async {
                     let _ = stopped.await;
