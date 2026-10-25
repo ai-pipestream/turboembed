@@ -159,6 +159,8 @@ mod catalogue;
 mod licence;
 #[path = "seal/lookahead.rs"]
 mod lookahead;
+#[path = "seal/sat_checkpoint.rs"]
+mod sat_checkpoint;
 #[path = "seal/staging.rs"]
 mod staging;
 #[path = "seal/validation.rs"]

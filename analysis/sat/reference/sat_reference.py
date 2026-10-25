@@ -109,14 +109,30 @@ def reference(model_dir, tokenizer_dir, recipe_path, out_path, report_path, cont
     worst = float(np.abs(one - batched).max())
     if worst > 1e-4:
         sys.exit(f"the batch differs from one text at a time by {worst}")
-    save_file(
-        {
-            "ids": np.ascontiguousarray(ids.numpy().astype(np.int32)),
-            "lengths": np.ascontiguousarray(mask.numpy().sum(axis=1).astype(np.int32)),
-            "embeddings": np.ascontiguousarray(one.astype(np.float32)),
-        },
-        out_path,
-    )
+    tensors = {
+        "ids": np.ascontiguousarray(ids.numpy().astype(np.int32)),
+        "lengths": np.ascontiguousarray(mask.numpy().sum(axis=1).astype(np.int32)),
+        "embeddings": np.ascontiguousarray(one.astype(np.float32)),
+    }
+    if "classifier" in manifest:
+        classifier = manifest["classifier"]
+        if classifier["kind"] != "CLASSIFIER_TOKEN":
+            sys.exit("the SaT reference requires CLASSIFIER_TOKEN")
+        labels = classifier["labels"]
+        upstream = [model.config.id2label[i] for i in range(model.classifier.out_features)]
+        if labels != upstream:
+            sys.exit("the SaT classifier labels differ from upstream id2label")
+        # Unpadded rows in reference order, including special tokens, as
+        # the token-classifier bundle verifier expects. Preserve every
+        # output column; SaT's boundary consumer selects NEWLINE_INDEX.
+        with torch.no_grad():
+            logits = [
+                model(input_ids=ids[k:k + 1, :int(mask[k].sum())],
+                      attention_mask=mask[k:k + 1, :int(mask[k].sum())]).logits[0].numpy()
+                for k in range(len(texts))
+            ]
+        tensors["logits"] = np.ascontiguousarray(np.concatenate(logits).astype(np.float32))
+    save_file(tensors, out_path)
     with open(report_path, "w", encoding="utf-8") as f:
         json.dump({"tool": "wtpsplit", "tool_version": versions(), "args": sys.argv[2:], "container": container}, f)
 

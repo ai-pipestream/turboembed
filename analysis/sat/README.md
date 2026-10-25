@@ -95,7 +95,8 @@ cargo test --release -p turbo-sat --test speed -- --ignored --nocapture
   `segment` made from its weights, when `TURBO_TEST_SAT_BUNDLE` names
   the bundle and `TURBO_TEST_SAT_FIXTURES` the fixtures, separated by
   commas. `bundle/recipes/sat-1l-sm.json` is the recipe for `sat-1l-sm`
-  (local-only, docs/licences.md). Its upstream directory holds the
+  (refused under the current training-source policy, docs/licences.md).
+  Its upstream directory holds the
   checkpoint's `model.safetensors` and, as `tokenizer.json`,
   BAAI/bge-m3's at revision `5617a9f61b028005a4858fdac845db406aefb181`
   (the checkpoint has no tokenizer of its own). Its reference vectors
@@ -112,6 +113,22 @@ cargo test --release -p turbo-sat --test speed -- --ignored --nocapture
   `weights/model.safetensors.report.json` before `seal`. The reference
   reads the `.bin` directory; `segment` reads a directory holding
   `config.json` and the written `model.safetensors`.
+  Its classifier preserves all 111 columns in the pinned config's
+  `id2label` order, using the upstream neutral names `LABEL_0` through
+  `LABEL_110`. These names assign no semantics to the other outputs.
+  SaT selects row zero, wtpsplit's `Constants.NEWLINE_INDEX`, for the
+  boundary probability. The reference writer emits all unpadded token
+  logits, including special tokens, so sealing verifies the full head.
+  The recipe pins the updated reference image. With the prior pinned
+  environment already present, rebuild it without fetching dependencies:
+
+  ```sh
+  docker build --network=none --pull=false -t turbo-sat-reference:classifier \
+      -f analysis/sat/reference/Dockerfile.classifier analysis/sat/reference
+  ```
+
+  This updates only the writer over the same locked dependency image;
+  the full environment remains described by `reference/Dockerfile`.
 - `tests/annotator.rs`: batching, texts longer than a window, texts
   without words, the threshold and line feeds, the options, the
   configuration hash, the provider and the analyzer.
