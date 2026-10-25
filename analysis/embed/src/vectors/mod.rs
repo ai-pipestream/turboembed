@@ -262,7 +262,7 @@ impl VectorAnnotator {
         let mut h = config_hash(&[self.settings[0], self.settings[1], self.stride, self.token_dim()]);
         if let Some(proj) = &self.projection {
             h = (h ^ u64::from(proj.has_bias)).wrapping_mul(0x0100_0000_01b3);
-            for &v in proj.linear.weight.iter().chain(&proj.linear.bias) {
+            for &v in proj.linear.weight().iter().chain(proj.linear.bias()) {
                 for b in v.to_bits().to_le_bytes() {
                     h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
                 }
@@ -319,6 +319,14 @@ impl VectorAnnotator {
         self.lock().plan.width()
     }
 
+    /// What every row holds besides its text: the template's
+    /// special tokens and this annotator's prompt prefix, in
+    /// tokens. A `Chunks` layer whose `prompt_overhead` records a
+    /// different nonzero count was budgeted for another prompt.
+    pub fn overhead(&self) -> u32 {
+        (self.head.len() + self.tail.len()) as u32
+    }
+
     /// What every row holds besides its window's pieces: the template's
     /// special tokens and the prompt's prefix, before and after.
     pub fn row_ends(&self) -> (&[i32], &[i32]) {
@@ -367,3 +375,7 @@ mod tokens;
 pub use execute::{Planned, Shape};
 pub use steps::{ChunkVectors, Embedder, SentenceChunkVectors, SentenceVectors, SubwordVectors, VectorsProvider};
 pub use tokens::ContextualTokens;
+mod cached;
+pub(crate) use cached::CachedWindows;
+#[cfg(test)]
+mod cache_tests;

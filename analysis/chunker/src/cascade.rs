@@ -25,6 +25,8 @@ use turbo_analysis_layers::{Level, Levels, Vectors};
 
 use crate::terms::{Bm25, Collection, Query, TermStats, Vocabulary};
 
+mod facets;
+
 /// A query encoded in one named vector space.
 #[derive(Copy, Clone, Debug)]
 pub struct QueryVector<'a> {
@@ -395,7 +397,7 @@ fn check_space(levels: &Levels, space: &VectorSpace<'_>, stage: &str) -> Result<
     if space.query.vector.iter().any(|v| !v.is_finite()) {
         return Err(format!("{stage} query vector must be finite"));
     }
-    let norm = space.query.vector.iter().map(|v| f64::from(*v).powi(2)).sum::<f64>().sqrt();
+    let norm = turbo_analysis::math::sum_sq_f64(space.query.vector).sqrt();
     if norm <= 0.0 {
         return Err(format!("{stage} query vector has no direction"));
     }
@@ -413,11 +415,11 @@ fn cosine(space: &VectorSpace<'_>, query_norm: f64, unit: Ix<Levels>) -> Option<
     if row.iter().any(|v| !v.is_finite()) {
         return None;
     }
-    let norm = row.iter().map(|v| f64::from(*v).powi(2)).sum::<f64>().sqrt();
+    let norm = turbo_analysis::math::sum_sq_f64(row).sqrt();
     if norm <= 0.0 {
         return None;
     }
-    let dot: f64 = row.iter().zip(space.query.vector).map(|(a, b)| f64::from(*a) * f64::from(*b)).sum();
+    let dot = turbo_analysis::math::dot_f64(row, space.query.vector);
     Some(((dot / (norm * query_norm)).clamp(-1.0, 1.0) + 1.0) / 2.0)
 }
 

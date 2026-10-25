@@ -440,8 +440,8 @@ fn run(a: &Analyzer, texts: &[Text]) -> Result<Vec<f32>, CoreError> {
 }
 
 fn cosine(g: &[f32], w: &[f32]) -> f64 {
-    let dot: f64 = g.iter().zip(w).map(|(a, b)| *a as f64 * *b as f64).sum();
-    let n = |v: &[f32]| v.iter().map(|&x| x as f64 * x as f64).sum::<f64>().sqrt();
+    let dot = turbo_analysis::math::dot_f64(g, w);
+    let n = |v: &[f32]| turbo_analysis::math::sum_sq_f64(v).sqrt();
     let d = n(g) * n(w);
     if d == 0.0 { if n(g) == n(w) { 1.0 } else { 0.0 } } else { dot / d }
 }

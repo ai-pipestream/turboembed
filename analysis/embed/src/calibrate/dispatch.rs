@@ -283,6 +283,10 @@ impl Embedder for Dispatch {
         self.device.execution()
     }
 
+    fn overhead(&self) -> u32 {
+        self.device.overhead()
+    }
+
     fn config(&self, layout: Which) -> u64 {
         self.device.config(layout)
     }

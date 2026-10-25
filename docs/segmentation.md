@@ -372,10 +372,44 @@ conformance results below.
 - From ICU's suppressions: they are applied to the word before any full
   stop that UAX #29 breaks after, and a sentence starter after the
   abbreviation restores the break in English; ICU has no starters.
-- Thai, Lao, Khmer and other languages written without sentence
-  punctuation get one sentence per paragraph: UAX #29 has nothing to
-  break at, and there is no rule here that finds sentence ends in
-  unpunctuated text.
+- Without a fallback model, Thai, Lao, Khmer and other scripts written
+  without sentence-ending punctuation get one sentence per paragraph:
+  UAX #29 has nothing to break at, and there is no character rule that
+  finds sentence ends in unpunctuated text. When an
+  `UnpunctuatedSplitter` fallback (`analysis/sentdetect/src/rules/fallback.rs`)
+  such as `turbo_sat::SatAnnotator` (`analysis/sat/src/fallback.rs`,
+  `rule_splitter_with_sat`, `rule_detector_with_sat`) is attached via
+  `RuleSplitter::with_unpunctuated_fallback` or
+  `RuleSentenceDetector::with_unpunctuated_fallback`, the rule splitter
+  first runs UAX #29 and language tailorings, then routes any candidate
+  sentence span that contains `Thai`, `Lao` or `Khmer` characters and is
+  not already terminated by a Khmer full stop (`U+17D4` KHAN or `U+17D5`
+  BARIYOOSAN) through the SaT fallback in a single batch across the
+  document or batch of documents, validating, trimming and shifting the
+  resulting sub-spans back into document byte offsets.
+
+**Unpunctuated script evaluation (`analysis/sat/tests/unpunctuated_eval.rs`).**
+Evaluated on 200 five-sentence paragraphs (1,000 gold sentences, 800
+internal sentence boundaries per corpus) joined by single spaces with
+`split_on_newlines: false` against `segment-any-text/sat-1l-sm` (commit
+`00a783439c201b20ee91ee1624dc817f1bf0e578`): UD Thai PUD (`th_pud`,
+commit `d3735d6b7cfb2fb2bf9aa2ca5fb9ffd5fb09b011`), Khmer `khPOS` 1.0
+(commit `87a6dc83c2beee822dd8ff33ac1c0b9fd7c53eb6`, 1,000 `KAN`-terminated
+sentences evaluated both unpunctuated with `U+17D4`/`U+17D5` stripped and
+as punctuated in `khPOS`), and Lao POS (`SeqLabeling` `Lao_train.txt`,
+commit `ac2e2aa1dd6cf2eb2a3eb9d560cdbe9da8449989`):
+
+| Corpus | Detector | Gold / Pred / Match Spans | Span P | Span R | Span F1 | Gold / Pred / Match Boundaries | Boundary P | Boundary R | Boundary F1 |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| Thai (`th_pud`) | `rules` | 1000 / 209 / 3 | 0.014 | 0.003 | 0.005 | 800 / 9 / 4 | 0.444 | 0.005 | 0.010 |
+| Thai (`th_pud`) | `rules + sat-1l-sm` (`t = 0.25`) | 1000 / 1134 / 437 | 0.385 | 0.437 | **0.410** | 800 / 934 / 590 | 0.632 | 0.738 | **0.681** |
+| Lao (`lao_pos`) | `rules` | 1000 / 536 / 272 | 0.507 | 0.272 | 0.354 | 800 / 336 / 333 | 0.991 | 0.416 | 0.586 |
+| Lao (`lao_pos`) | `rules + sat-1l-sm` (`t = 0.25`) | 1000 / 957 / 655 | 0.684 | 0.655 | **0.669** | 800 / 757 / 652 | 0.861 | 0.815 | **0.838** |
+| Khmer unpunctuated (`khpos_unpunc`) | `rules` | 1000 / 265 / 2 | 0.008 | 0.002 | 0.003 | 800 / 65 / 3 | 0.046 | 0.004 | 0.007 |
+| Khmer unpunctuated (`khpos_unpunc`) | `rules + sat-1l-sm` (`t = 0.25`) | 1000 / 430 / 8 | 0.019 | 0.008 | **0.011** | 800 / 230 / 16 | 0.070 | 0.020 | **0.031** |
+| Khmer unpunctuated (`khpos_unpunc`) | `rules + sat-1l-sm` (`t = 0.025`) | 1000 / 1195 / 27 | 0.023 | 0.027 | **0.025** | 800 / 995 / 119 | 0.120 | 0.149 | **0.133** |
+| Khmer punctuated (`khpos_raw`) | `rules` | 1000 / 1097 / 907 | 0.827 | 0.907 | 0.865 | 800 / 897 / 777 | 0.866 | 0.971 | 0.916 |
+| Khmer punctuated (`khpos_raw`) | `rules + sat-1l-sm` (`t = 0.25`) | 1000 / 1105 / 907 | 0.821 | 0.907 | **0.862** | 800 / 905 / 777 | 0.859 | 0.971 | **0.911** |
 
 **Conformance.** `analysis/sentdetect/tests/conformance.rs` runs three detectors over three
 suites stored as typed test data in
@@ -400,21 +434,20 @@ cleaning step rewrote, and fail for every detector that runs them.
 
 | Detector | Pragmatic Segmenter | Golden Rules (English) | pySBD | `SentenceBreakTest.txt` |
 |---|---|---|---|---|
-| `rules` | 437 of 585 | 46 of 52 | 377 of 471 | 504 of 512 |
+| `rules` | 444 of 585 | 46 of 52 | 385 of 471 | 504 of 512 |
 | `uax29` | 305 of 585 | 29 of 52 | 264 of 471 | 512 of 512 |
 | maxent, English UD model, parity | 133 of 289 (English cases) | 31 of 52 | 98 of 193 (English) | 467 of 512 |
 | maxent, English UD model, default | 155 of 289 (English cases) | 36 of 52 | 112 of 193 (English) | |
 | maxent, German UD model | 22 of 37 (German cases) | | 20 of 35 (German) | |
 
 The Portuguese model has no case in its language. Among the rules
-detector's failures are abbreviations it has no data for (there is no
-list for Dutch or Slovak, and CLDR's lists are short), a sentence that
+detector's failures are remaining abbreviation contexts, a sentence that
 starts with a lower case letter after a full stop (the Greek cases,
 which SB8 keeps together), `:` as a sentence end in Arabic, and the
 references' document cleaning. By language, the rules detector passes
 all cases of `am bg fa fr hi hy mr my pl ur zh`, and 342 of 482 English,
-61 of 72 German, 86 of 109 Danish, 78 of 84 Russian, 60 of 72 Italian
-and 54 of 72 Spanish cases, against 234, 29, 63, 72, 56 and 41 for
+65 of 72 German, 86 of 109 Danish, 78 of 84 Russian, 68 of 72 Italian
+and 56 of 72 Spanish cases, against 234, 29, 63, 72, 56 and 41 for
 plain UAX #29.
 
 **Agreement with the maxent detector.** `analysis/sentdetect/tests/agreement.rs` runs the
@@ -432,7 +465,7 @@ that the rule splitter places.
 | English, golden inputs | 45 | 33 | 121, 119, 99 | 78, 76, 69 | 90.8% | 88.5% |
 | English, conformance texts | 482 | 292 | 3180, 2649, 1803 | 2698, 2167, 1934 | 89.2% | 71.7% |
 | German, golden inputs | 2 | 1 | 7, 6, 5 | 5, 4, 4 | 100% | 80.0% |
-| German, conformance texts | 72 | 42 | 194, 179, 100 | 122, 107, 76 | 71.0% | 62.3% |
+| German, conformance texts | 72 | 48 | 190, 175, 106 | 118, 103, 76 | 73.8% | 64.4% |
 | Portuguese, golden inputs | 1 | 1 | 5, 5, 5 | 4, 4, 4 | 100% | 100% |
 
 The maxent detector places more boundaries than the rule splitter on
@@ -452,10 +485,12 @@ splitter consult at a full stop, on top of a model's dictionary or a
 language's CLDR suppressions. It is on by default:
 `SentenceDetector::new` takes the bundled inventory of the model's
 language and `RuleSplitter::new` (and so `RuleSentenceDetector::new`)
-that of its tag, through `AbbreviationInventories::for_language`. Only
-English has a bundled inventory; every other language gets
-`AbbreviationInventory::EMPTY`, and splits as before. `RuleSplitter::uax29`
-has none. `with_abbreviations` sets another inventory.
+that of its tag, through `AbbreviationInventories::for_language`. Bundled
+inventories cover English and the thirteen languages in the table below.
+Other languages get `AbbreviationInventory::EMPTY` and retain their rule
+profiles. `RuleSplitter::uax29` has none. `with_abbreviations` sets another
+inventory; `for_language_with_classes` selects classes or a preset for any
+bundled language.
 
 **JVM parity mode.** `SentenceDetector::with_jvm_parity()` drops the
 inventory (it is `with_abbreviations(AbbreviationInventory::EMPTY)`), and
@@ -518,6 +553,55 @@ On the conformance suites the inventory adds 8 Pragmatic Segmenter and
 model, and fails no case that passed without it. The fixed cases are
 abbreviations before a name, a number or a lower case word (`St.`, `Mt.`,
 `e.g.`, `p.`, `no.`, `co.`, `Ph.D.`, `a.m.`, `Jan. 20, former Sen.`).
+
+The additional inventories use CLDR 48.2, Pragmatic Segmenter and pySBD
+Slovak data, with project classifications for titles, references,
+connectives and company suffixes. Pinned revisions, licences and the
+regeneration command are in
+[the inventory README](../analysis/sentdetect/data/inventory/README.md)
+and [licences](licences.md#sentence-abbreviation-inventories).
+Each table is initialized once per language; the English tables, lookup
+index and matching code are unchanged.
+
+`analysis/sentdetect/tests/inventory_languages.rs` compares each conformance text with and
+without its inventory and refuses any lost pass. Counts below are
+**without / with / total**. The same corpora informed upstream lists, so
+these are conformance results, not held-out accuracy estimates.
+
+| Language | Pragmatic Segmenter | pySBD |
+|---|---|---|
+| Arabic | 2 / 2 / 10 | 1 / 1 / 5 |
+| Bulgarian | 4 / 4 / 4 | 4 / 4 / 4 |
+| Danish | 44 / 44 / 60 | 42 / 42 / 49 |
+| German | 31 / 33 / 37 | 30 / 32 / 35 |
+| Spanish | 27 / 28 / 36 | 27 / 28 / 36 |
+| French | 5 / 5 / 5 | 5 / 5 / 5 |
+| Italian | 30 / 34 / 36 | 30 / 34 / 36 |
+| Kazakh | 11 / 11 / 13 | 11 / 11 / 13 |
+| Dutch | 1 / 1 / 3 | 1 / 1 / 3 |
+| Polish | 1 / 1 / 1 | 1 / 1 / 1 |
+| Portuguese | no cases | no cases |
+| Russian | 39 / 39 / 42 | 39 / 39 / 42 |
+| Slovak | no cases | 2 / 3 / 5 |
+| English (unchanged) | 192 / 200 / 289 | 137 / 142 / 193 |
+
+No previously passing case is lost. Dutch's remaining failures are a
+numeric sentence start and an ellipsis start, not an unknown abbreviation.
+French and Polish already pass all cases; Portuguese has no cases in
+these suites. Title-context tests exercise all seven requested languages,
+but do not supply missing corpus accuracy evidence. The German UD maxent
+model gains two cases in each suite with its inventory (24/37 and 22/35,
+compared with 22/37 and 20/35 in parity mode). Its model probabilities and
+parity mode remain unchanged.
+
+An English release-mode probe split a repeated abbreviation-rich paragraph
+2,000 times per sample, alternating the parent and changed builds for six
+rounds. Parent times were 422.163, 360.158, 361.172, 616.921, 670.270 and
+378.316 ms; changed times were 364.172, 383.991, 364.027, 396.989, 382.411
+and 354.514 ms. Medians were 400.240 and 373.292 ms. The shared host was
+noisy, so this shows no observed slowdown, not a speedup claim. The English
+entry tables and per-boundary lookup implementation are byte-for-byte
+unchanged.
 
 ## Tokenization
 
@@ -874,6 +958,11 @@ include inputs on which every model splits inside U+1F600.
 
 ### `UnigramSegmenter` (Chinese)
 
+The default now groups ASCII letter/digit runs; optional BMES and explicit
+OpenNLP modes are documented in [Chinese unigram evaluation](unigram-chinese.md),
+with current PKU/MSR accuracy and a matched jieba-rs speed record. The Java
+port details and older measurements below describe `UnigramMode::OpenNlp`.
+
 `opennlp.tools.tokenize.lattice.UnigramSegmenter`
 (`turbo_tokenize::unigram`): dictionary and frequency segmentation for
 Chinese and other text written without spaces. It reads a `View` and an
@@ -997,7 +1086,7 @@ computed from the end of the sentence, keeps `手牵着|手`. The port keeps
 OpenNLP's behaviour in both; grouping such runs would be a change to
 OpenNLP.
 
-Speed is not measured here: no matched benchmark against jieba-rs is
+The historical run below did not measure speed: no matched benchmark against jieba-rs was
 committed, so this section makes no speed claim (AGENTS.md, rule 7).
 
 ### `LatticeTokenizer` (Japanese, Korean)
@@ -1217,7 +1306,7 @@ Apache-2.0). Neither is a dependency, and no code was taken from either.
 | Input | MeCab source directory: `*.csv`, `matrix.def`, `char.def`, `unk.def` | MeCab source directory, with a `metadata.json` per dictionary that names its columns, encoding and options | MeCab source files, given as readers (the lexicon as one concatenated `lex.csv`) |
 | Encodings | UTF-8 only (IPADIC from a UTF-8 copy) | any `encoding_rs` encoding the metadata names | UTF-8 |
 | MeCab's compiled `sys.dic`, `matrix.bin`, `char.bin`, `unk.dic` | not read | not read | not read |
-| Own compiled format | none: the source is parsed at load | yes (built with `rkyv`) | yes (built with `bincode`) |
+| Own compiled format | versioned shared runtime tables; see [prebuilt dictionaries](lattice-prebuilt.md) | yes (built with `rkyv`) | yes (built with `bincode`) |
 | Dictionaries packaged | none | IPADIC, IPADIC-NEologd, UniDic 2.1.2 (from the source distribution), mecab-ko-dic, CC-CEDICT, Jieba, SudachiDict | none in the crate |
 | Feature columns | the string; typed readings via `DictionaryFormat` | the string, and named fields from `metadata.json` (`token.get("reading")`) | the string |
 | Origin | a port of OpenNLP's `LatticeTokenizer`, checked against JVM goldens | a fork of kuromoji-rs | its own, with options for MeCab-compatible output |
@@ -1251,7 +1340,8 @@ the source, so no golden covers the compiled path. The entries of one
 surface are in the order `mecab-dict-index` wrote them, and that order
 decides ties, so a compiled dictionary could segment differently from
 its source here without any test noticing. The source distributions
-remain the input, and `unidic-mecab-2.1.2` is fetched by
+remain the compiler input for the [prebuilt format](lattice-prebuilt.md),
+and `unidic-mecab-2.1.2` is fetched by
 `turbo-goldens fetch-models` and checked in the lattice goldens.
 
 #### Throughput

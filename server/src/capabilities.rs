@@ -7,8 +7,8 @@ use crate::api::{self, Failure, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_ENUM};
 use crate::config::{Device, ModelConfig};
 use crate::proto::result::{BundleCapabilities, LoadBundleRequest, ModelRef, ResultLimits, ServerLimits};
 use crate::results::{
-    MAX_ANSWER_FRAGMENTS, MAX_ANSWERS, MAX_CHUNKS, MAX_FRAGMENTS, MAX_GRAPH_BYTES, MAX_LEVELS, MAX_RERANK_ITEMS,
-    MAX_SPARSE_ENTRIES, MAX_SPARSE_OCCURRENCES, MAX_TOKEN_VECTOR_BYTES, MAX_WINDOWS, over,
+    MAX_ANSWER_FRAGMENTS, MAX_ANSWERS, MAX_CHUNKS, MAX_FRAGMENTS, MAX_GRAPH_BYTES, MAX_LEVELS, MAX_RECORD_VALUES,
+    MAX_RERANK_ITEMS, MAX_SPARSE_ENTRIES, MAX_SPARSE_OCCURRENCES, MAX_TOKEN_VECTOR_BYTES, MAX_WINDOWS, over,
 };
 use crate::state::{Loaded, MAX_LOADED_MODELS, MAX_SESSIONS_PER_MODEL};
 
@@ -30,6 +30,7 @@ pub(crate) fn result_limits() -> ResultLimits {
         max_levels: MAX_LEVELS,
         max_fragments: MAX_FRAGMENTS,
         max_graph_bytes: MAX_GRAPH_BYTES,
+        max_record_values: MAX_RECORD_VALUES,
     }
 }
 
@@ -61,7 +62,7 @@ pub(crate) fn bundle_capabilities(name: &str, loaded: &Loaded) -> api::Result<Bu
     if roles.is_empty() {
         roles.push("PROMPT_NONE".to_string());
     }
-    let mut widths = vec![mi.dim];
+    let mut widths = if mi.task == turbo::TURBO_TASK_EMBED { vec![mi.dim] } else { Vec::new() };
     widths.extend(mi.output_dims.iter().take((mi.output_dims_count as usize).min(mi.output_dims.len())));
     Ok(BundleCapabilities {
         name: name.to_string(),
@@ -75,8 +76,8 @@ pub(crate) fn bundle_capabilities(name: &str, loaded: &Loaded) -> api::Result<Bu
         widths,
         context_limit: si.max_seq,
         batch_limit: si.max_batch,
-        // No merged task reads an extraction schema yet (issue #715); a
-        // bundle that does will fill this.
+        // No task the server loads reads an extraction schema yet; a
+        // schema-extraction bundle fills this with `records::schema_limits`.
         schema: None,
     })
 }
@@ -112,12 +113,20 @@ pub(crate) fn load_config(req: &LoadBundleRequest) -> Result<(String, ModelConfi
             format!("precision {}: not PRECISION_MODEL, PRECISION_FASTEST or PRECISION_EXACT", req.precision),
         ));
     }
+    let device = if req.select_device {
+        if req.device != 0 {
+            return Err(bad("device: cannot set both select_device and a non-zero device index"));
+        }
+        Device::Select
+    } else {
+        Device::Index(req.device)
+    };
     Ok((
         name,
         ModelConfig {
             bundle: req.bundle.clone(),
             name: if req.name.is_empty() { None } else { Some(req.name.clone()) },
-            device: Device::Index(req.device),
+            device,
             precision: req.precision,
             max_batch: req.max_batch,
             max_seq: req.max_seq,
@@ -141,6 +150,7 @@ mod tests {
             precision: 0,
             max_batch: 0,
             max_seq: 0,
+            select_device: false,
         }
     }
 
@@ -155,6 +165,19 @@ mod tests {
         assert!(e.message.contains(&(MAX_SESSIONS_PER_MODEL + 1).to_string()), "{e:?}");
         let e = load_config(&req(0)).unwrap_err();
         assert_eq!(e.code, TURBO_E_INVALID_ARGUMENT);
+    }
+
+    #[test]
+    fn select_device_maps_to_select_and_rejects_non_zero_device() {
+        let mut r = req(1);
+        r.select_device = true;
+        let (_, config) = load_config(&r).unwrap();
+        assert_eq!(config.device, Device::Select);
+
+        r.device = 2;
+        let e = load_config(&r).unwrap_err();
+        assert_eq!(e.code, TURBO_E_INVALID_ARGUMENT);
+        assert!(e.message.contains("select_device"), "{e:?}");
     }
 
     #[test]

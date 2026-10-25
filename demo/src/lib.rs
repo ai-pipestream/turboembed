@@ -24,6 +24,18 @@ pub mod proto {
     tonic::include_proto!("inference");
 }
 
+/// The messages and client of turbo_analysis.proto, with serde for the
+/// page's JSON (build.rs).
+pub mod analysis {
+    #![allow(clippy::all)]
+    tonic::include_proto!("turbo.result");
+}
+
+mod gateway;
+mod wire;
+
+use analysis::CapabilitiesRequest;
+use analysis::analysis_service_client::AnalysisServiceClient;
 use proto::grpc_inference_service_client::GrpcInferenceServiceClient;
 use proto::infer_parameter::ParameterChoice;
 use proto::model_infer_request::InferInputTensor;
@@ -39,6 +51,7 @@ const STYLE: &str = include_str!("../static/style.css");
 #[derive(Clone)]
 struct App {
     client: GrpcInferenceServiceClient<Channel>,
+    analysis: AnalysisServiceClient<Channel>,
     server: String,
     models: Vec<String>,
 }
@@ -53,17 +66,22 @@ pub struct Demo {
 impl Demo {
     /// Listens on `listen` and calls the server at `server`
     /// (`http://HOST:PORT`). `models` are the names the page offers first;
-    /// the protocol has no call that lists them. The server need not be up:
-    /// each call connects as needed.
+    /// when empty, the page offers the bundles the server's
+    /// `AnalysisService/Capabilities` lists. The server need not be up: each
+    /// call connects as needed.
     pub async fn start(listen: SocketAddr, server: &str, models: Vec<String>) -> Result<Demo, String> {
         let endpoint = Endpoint::from_shared(server.to_string()).map_err(|e| format!("server {server}: {e}"))?;
         if !matches!(endpoint.uri().scheme_str(), Some("http" | "https")) || endpoint.uri().authority().is_none() {
             return Err(format!("server {server}: must be an http:// or https:// URL"));
         }
-        let client = GrpcInferenceServiceClient::new(endpoint.connect_lazy())
+        let channel = endpoint.connect_lazy();
+        let client = GrpcInferenceServiceClient::new(channel.clone())
             .max_decoding_message_size(MAX_REPLY_BYTES)
             .max_encoding_message_size(MAX_REPLY_BYTES);
-        let app = App { client, server: server.to_string(), models };
+        let analysis = AnalysisServiceClient::new(channel)
+            .max_decoding_message_size(MAX_REPLY_BYTES)
+            .max_encoding_message_size(MAX_REPLY_BYTES);
+        let app = App { client, analysis, server: server.to_string(), models };
         let router = Router::new()
             .route("/", get(|| async { asset("text/html; charset=utf-8", INDEX) }))
             .route("/app.js", get(|| async { asset("text/javascript; charset=utf-8", SCRIPT) }))
@@ -71,6 +89,10 @@ impl Demo {
             .route("/api/status", get(status))
             .route("/api/models/{name}", get(metadata))
             .route("/api/infer", post(infer))
+            .route("/api/capabilities", get(gateway::capabilities))
+            .route("/api/bundles/load", post(gateway::load))
+            .route("/api/bundles/unload", post(gateway::unload))
+            .route("/api/analyze/stream", post(gateway::analyze_stream))
             .with_state(app);
         let listener = TcpListener::bind(listen).await.map_err(|e| format!("listen on {listen}: {e}"))?;
         let addr = listener.local_addr().map_err(|e| format!("listen on {listen}: {e}"))?;
@@ -113,14 +135,17 @@ fn asset(kind: &'static str, body: &'static str) -> Response {
 /// A gRPC status as the page shows it: the status, the library's message,
 /// and the `turbo-code` and `turbo-field` trailers when the server sent them.
 fn failure(s: tonic::Status) -> Response {
+    (StatusCode::BAD_GATEWAY, Json(error_body(&s))).into_response()
+}
+
+fn error_body(s: &tonic::Status) -> Value {
     let meta = |k: &str| s.metadata().get(k).and_then(|v| v.to_str().ok()).map(str::to_string);
-    let body = json!({ "error": {
+    json!({ "error": {
         "grpc": format!("{:?}", s.code()),
         "message": s.message(),
         "turbo_code": meta("turbo-code"),
         "turbo_field": meta("turbo-field"),
-    }});
-    (StatusCode::BAD_GATEWAY, Json(body)).into_response()
+    }})
 }
 
 fn bad_gateway(message: String) -> Response {
@@ -131,6 +156,29 @@ fn refused(message: String) -> Response {
     (StatusCode::BAD_REQUEST, Json(json!({ "error": { "grpc": null, "message": message } }))).into_response()
 }
 
+/// The names the page offers and where they came from: the names the demo
+/// was started with when there are any, else the bundles the server's
+/// Capabilities lists, in the order it serves them. A server without the
+/// analysis service, or one that fails the call, offers none; the page can
+/// still add a name by hand.
+async fn offered(app: &App) -> (Vec<String>, &'static str) {
+    if !app.models.is_empty() {
+        return (app.models.clone(), "flags");
+    }
+    match app.analysis.clone().capabilities(CapabilitiesRequest {}).await {
+        Ok(r) => {
+            let mut names: Vec<String> = Vec::new();
+            for b in r.into_inner().bundles {
+                if !b.name.is_empty() && !names.contains(&b.name) {
+                    names.push(b.name);
+                }
+            }
+            (names, "capabilities")
+        }
+        Err(_) => (Vec::new(), "none"),
+    }
+}
+
 /// The server's liveness, readiness and metadata, and each offered model's
 /// readiness. A call that fails is reported in place of its answer.
 async fn status(State(app): State<App>) -> Response {
@@ -139,13 +187,15 @@ async fn status(State(app): State<App>) -> Response {
     let Ok(live) = live else {
         let e = live.unwrap_err();
         return Json(json!({ "server": app.server, "reachable": false, "message": e.message(),
+                            "models_from": if app.models.is_empty() { "none" } else { "flags" },
                             "models": app.models.iter().map(|m| json!({ "name": m })).collect::<Vec<_>>() }))
         .into_response();
     };
+    let (names, models_from) = offered(&app).await;
     let ready = c.server_ready(ServerReadyRequest {}).await.map(|r| r.into_inner().ready).unwrap_or(false);
     let meta = c.server_metadata(ServerMetadataRequest {}).await.ok().map(|r| r.into_inner());
     let mut models = Vec::new();
-    for m in &app.models {
+    for m in &names {
         let r = c.model_ready(ModelReadyRequest { name: m.clone(), version: String::new() }).await;
         models.push(match r {
             Ok(r) => json!({ "name": m, "ready": r.into_inner().ready }),
@@ -160,6 +210,7 @@ async fn status(State(app): State<App>) -> Response {
         "name": meta.as_ref().map(|m| m.name.clone()),
         "version": meta.as_ref().map(|m| m.version.clone()),
         "extensions": meta.map(|m| m.extensions).unwrap_or_default(),
+        "models_from": models_from,
         "models": models,
     }))
     .into_response()

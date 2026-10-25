@@ -19,11 +19,19 @@
 //! rather than the JDK's. [`java::code_point`] has the same classes on a
 //! code point given as `u32`, for the segmentation ports, which walk text
 //! in UTF-16 code units as OpenNLP does and so meet lone surrogates.
+//! [`java::equals_ignore_case`] shares String.equalsIgnoreCase with ASCII
+//! target handling. [`utf16::utf16_len`] is usable in const expressions.
+//! [`chars::is_ascii_alnum`] retains the ASCII classification used by the
+//! unigram tokenizer. The unused ASCII lowercase and comparison wrappers
+//! are removed; use Rust's `to_ascii_lowercase` and `eq_ignore_ascii_case`.
 //!
 //! The modules the segmentation ports use besides [`java`]:
 //!
 //! - [`whitespace`]: OpenNLP's two whitespace definitions, chosen by a
-//!   [`WhitespaceMode`] value.
+//!   [`WhitespaceMode`] value, including `is_blank` and borrowed `trim`.
+//!   Unicode blank includes NBSP and NEL but excludes U+001C;
+//!   [`java::is_blank`] follows `String.isBlank`, with the reverse choices.
+//!   Empty strings are blank under all three definitions.
 //! - [`grapheme`]: UAX #29 extended grapheme cluster boundaries.
 //! - [`word_break`]: the UAX #29 `Word_Break` and `Extended_Pictographic`
 //!   properties.

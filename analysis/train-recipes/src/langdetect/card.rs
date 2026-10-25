@@ -260,6 +260,9 @@ impl LanguageCard {
         if self.language != ZOO_LANGUAGE {
             return Err(bad("language", format!("{} is not {ZOO_LANGUAGE}, its recipe's", self.language)));
         }
+        if self.attribution.trim().is_empty() || self.attribution.chars().any(char::is_control) {
+            return Err(bad("attribution", format!("{:?} is empty or holds a control character", self.attribution)));
+        }
         Ok(Artifact {
             id: self.id.parse().map_err(|e| bad("id", e))?,
             kind: Kind::Model,
@@ -271,6 +274,7 @@ impl LanguageCard {
             license_terms: self.license_terms.parse().map_err(|e| bad("licence terms", e))?,
             trained_on: self.trained_on.clone(),
             class: self.class,
+            attribution: Some(self.attribution.clone()),
             origin: None,
             files: vec![
                 File {
@@ -279,6 +283,7 @@ impl LanguageCard {
                     size: self.file.size,
                     sha256: self.file.sha256.parse().map_err(|e| bad("sha256", e))?,
                     sha512: self.file.sha512.parse().map_err(|e| bad("sha512", e))?,
+                    download: None,
                 },
                 File {
                     path: self.training_sentences.name.parse().map_err(|e| bad("sentences file name", e))?,
@@ -286,6 +291,7 @@ impl LanguageCard {
                     size: self.training_sentences.size,
                     sha256: self.training_sentences.sha256.parse().map_err(|e| bad("sentences sha256", e))?,
                     sha512: self.training_sentences.sha512.parse().map_err(|e| bad("sentences sha512", e))?,
+                    download: None,
                 },
             ],
         })

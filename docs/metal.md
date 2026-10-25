@@ -148,11 +148,13 @@ frameworks and libc++, which every macOS has.
   FASTEST the same two shapes run with F16 weights: the few-token kernel
   reads them straight from device memory and stages each group's 32 rows
   of x as F16, up to 64 tokens, where it is the faster in F16; past that
-  a threadgroup's tile is 32 x 64, 64 x 64 or 128 x 64 (Kernel choices),
-  staged in steps of 32 along k as F16, 16 bytes a thread at a time, so
-  its operands take half the threadgroup memory of the F32 kernel's. The
-  weights' part of the tile is staged transposed, so their SIMD-group
-  matrices load without a transpose. The LayerNorms also write the residual
+  a threadgroup's tile is 32 x 32, 32 x 64, 64 x 64 or 128 x 64 (Kernel
+  choices), staged in steps of 32 along k as F16, 16 bytes a thread at a
+  time, so its operands take half the threadgroup memory of the F32
+  kernel's. In the wider tiles the weights' part is staged transposed, so
+  their SIMD-group matrices load without a transpose; the 32 x 32 tile
+  stages it as it lies and loads each lane's two values of a fragment
+  itself. The LayerNorms also write the residual
   stream in F16, which the Q, K and V projections and the feed-forward
   input read, and Q, K, V, the attention context and the feed-forward
   block's middle are F16 between kernels. Attention takes
@@ -247,16 +249,23 @@ linear=auto;attn=auto;forced=
 ```
 
 `linear=h64` is the 64 x 64 tile, each of its four SIMD groups 32 x 32
-of it; `linear=h32` the 32 x 64 tile, each of four groups 16 x 32; and
+of it; `linear=h32` the 32 x 64 tile, each of four groups 16 x 32;
 `linear=h128` the 128 x 64 tile, each of eight groups 32 x 32, on a
-device that runs threadgroups of 256. `linear=auto` picks per run: the
-32 x 64 tile up to 1024 packed tokens, where its extra threadgroups fill
-the GPU, and the 64 x 64 tile above, which on the M2 is the faster of
-the two on each side of that line but at about 512 tokens (3% slower
-there). All are F16 operands with F32 sums
-(`TURBO_NUMERIC_F16_F32ACC`); the tile can change how many parts a
-small layer's k is split into, so a different choice moves the bits
-within FASTEST's floor.
+device that runs threadgroups of 256; and `linear=h32n32` the 32 x 32
+tile, after the fragment handling of MLX's steel GEMM: each of four
+groups holds four 8 x 8 fragments spread across the tile, 16 rows and 16
+columns apart, loaded lane by lane from threadgroup memory as F32, with
+the weights staged as they lie, so nothing is transposed on the way.
+`linear=auto` picks per run: the 32 x 32 tile up to 1024 packed tokens,
+where its extra threadgroups fill the GPU, and the 64 x 64 tile above.
+On the M2 (all-minilm-l6-v2, six alternating rounds, FASTEST against
+main's `auto`, which ran the 32 x 64 tile up to 1024 tokens) the 32 x 32
+tile takes 13.8% off a run at 1 x 128 tokens, 8.8% at 2 x 128, 7.2% at
+4 x 128 and 8.5% at 8 x 128; from 2048 tokens up it was level with or
+slower than the 64 x 64 tile, so `auto` keeps that there. All are F16
+operands with F32 sums (`TURBO_NUMERIC_F16_F32ACC`); the tile can change
+how many parts a small layer's k is split into, so a different choice
+moves the bits within FASTEST's floor.
 
 `attn=staged` passes each SIMD group's 8 x 32 scores and probabilities
 through threadgroup memory, a query's row to four lanes; `attn=registers`
@@ -275,7 +284,8 @@ EXACT and MODEL have one path, the F32 kernels, and report no choices. A
 session nothing forces or tunes runs `auto` for both.
 
 `TURBO_METAL_CHOICES`, read when a session is made, forces the items it
-names (`linear=h32`, `linear=h64`, `linear=h128`, `linear=auto`, or
+names (`linear=h32`, `linear=h64`, `linear=h128`, `linear=h32n32`,
+`linear=auto`, or
 `linear=f32` at EXACT and MODEL; `attn=staged`, `attn=registers` or
 `attn=auto`), and a session with any item forced is not tuned; a line a
 session reported, `forced=` and all, forces the same kernels back. A
@@ -381,6 +391,32 @@ FASTEST is level with MLX float16 at 32 x 256 and ahead at 1 x 32, and
 MLX is 4% to 12% faster from 2 to 8 rows of 128. On those rows the
 linear layers are about three quarters of the time; at 8 x 128 they
 run at about 2.2 TFLOPS, against MLX's 3 TFLOPS for its larger products.
+
+### The 32 x 32 tile
+
+`linear=h32n32`, which `auto` runs up to 1024 packed tokens (Kernel
+choices). all-minilm-l6-v2 dense rows, `turbo-bench record --device metal
+--precision fastest --warmup 5 --iterations 50` and `mlx_bench.py` float16,
+six rounds on an M2, each started once the 5-minute load average was
+under 3 (the 1-minute average reached 8 in the first rounds), the order of
+the two trees alternating by round; median p50 / least p50 in ms, main
+before the tile (`auto` on the 32 x 64 tile up to 1024 tokens) against
+after:
+
+| Rows | FASTEST before | FASTEST | MLX float16 |
+|---|---|---|---|
+| 32 x 256 | 102.53 / 99.87 | 101.84 / 99.83 | 107.54 / 105.52 |
+| 32 x 128 | 46.45 / 45.51 | 46.98 / 45.46 | 47.72 / 46.39 |
+| 16 x 128 | 24.25 / 22.98 | 23.72 / 23.32 | 23.68 / 22.68 |
+| 8 x 128 | 12.61 / 12.50 | 11.54 / 11.50 | 12.14 / 11.82 |
+| 4 x 128 | 6.67 / 6.52 | 6.19 / 5.99 | 6.47 / 6.34 |
+| 2 x 128 | 3.88 / 3.67 | 3.54 / 3.41 | 3.77 / 3.72 |
+| 1 x 128 | 2.68 / 2.65 | 2.31 / 2.30 | 2.48 / 2.45 |
+
+From 1 to 8 rows of 128 FASTEST is now ahead of MLX float16; from 2048
+tokens up the kernels are the same as before, so those rows differ by
+noise alone, and MLX's larger products still run at about 3 TFLOPS
+against our 2.5.
 
 ## Testing
 

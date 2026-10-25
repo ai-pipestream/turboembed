@@ -161,15 +161,15 @@ fn the_head_matches_the_numpy_reference() {
     };
     let hidden = g["hidden"].as_u64().unwrap() as usize;
     let vocab = g["vocab"].as_u64().unwrap() as usize;
-    let head = MlmHead {
+    let head = MlmHead::new(
         hidden,
         vocab,
-        transform: Linear::new(hidden, hidden, flat("transform_weight", true), flat("transform_bias", false)).unwrap(),
-        ln_weight: flat("ln_weight", false),
-        ln_bias: flat("ln_bias", false),
-        ln_eps: g["eps"].as_f64().unwrap() as f32,
-        decoder: Linear::new(hidden, vocab, flat("decoder_weight", true), flat("decoder_bias", false)).unwrap(),
-    };
+        Linear::new(hidden, hidden, flat("transform_weight", true), flat("transform_bias", false)).unwrap(),
+        flat("ln_weight", false),
+        flat("ln_bias", false),
+        g["eps"].as_f64().unwrap() as f32,
+        Linear::new(hidden, vocab, flat("decoder_weight", true), flat("decoder_bias", false)).unwrap(),
+    );
     let states = flat("states", true);
     let logits = head.logits(&states).unwrap();
     let want = flat("logits", true);
@@ -211,7 +211,7 @@ fn the_tied_decoder_is_the_word_embedding_table() {
 
     let hu = MlmHead::load(&Bundle::open(&dir_u).unwrap()).unwrap();
     let ht = MlmHead::load(&Bundle::open(&dir_t).unwrap()).unwrap();
-    assert_eq!(hu.decoder.weight, ht.decoder.weight);
+    assert_eq!(hu.decoder().weight(), ht.decoder().weight());
     let s = states();
     assert_eq!(hu.logits(&s).unwrap(), ht.logits(&s).unwrap());
 }
@@ -312,5 +312,5 @@ fn logits_refuse_non_finite_states_and_bad_shapes() {
     let f = File::parse("weights/model.safetensors", &bytes).unwrap();
     let bias = f.get("mlm.decoder.bias", Dtype::F32, 1).unwrap();
     assert_eq!(bias.shape, [30522]);
-    assert_eq!(head.decoder.bias, bias.f32s());
+    assert_eq!(head.decoder().bias(), bias.f32s());
 }

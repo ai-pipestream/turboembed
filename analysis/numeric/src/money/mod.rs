@@ -20,17 +20,16 @@ mod divide;
 mod ecb;
 mod extract;
 mod natural;
-mod region;
 mod tables;
 
 use std::fmt;
 
+pub use crate::region::RegionAwareMoneyAnnotator;
 pub use convert::{DatedMoneyConverter, MoneyConverter};
 pub use decimal::{Decimal, DecimalParseError, cmp_values};
 pub use ecb::{EcbError, EcbRates, MAX_STALENESS_DAYS};
 pub use extract::{MoneyExtractor, SymbolError};
-pub use region::RegionAwareMoneyAnnotator;
-pub use tables::{DEFAULT_SYMBOLS, is_iso_currency};
+pub use tables::{DEFAULT_SYMBOLS, DOLLAR_PREFIXES, is_iso_currency, is_test_currency, minor_units};
 pub use turbo_analysis_layers::{
     CONVERTED_MONEY, Currency, Date, MarginError, Money, MoneyMention, RegionCode, RegionVote, Regions,
 };

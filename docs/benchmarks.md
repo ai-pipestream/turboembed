@@ -96,6 +96,9 @@ cargo run --release -p turbo-bench -- record \
     --tei-model upstream/
 ```
 
+The committed CPU records, made this way on a Ryzen 9 9950X, are listed
+with their times in docs/cpu.md ("Benchmark records").
+
 On an Intel Arc GPU, with Level Zero installed, one Intel GPU listed,
 and both images pulled:
 
@@ -279,7 +282,7 @@ Then, with git, in `--repo`, before measuring and again before writing:
 1. `git rev-parse --show-toplevel`: it is a working tree.
 2. `git status --porcelain=v1 --untracked-files=all
    --ignore-submodules=none` lists nothing but new, untracked files
-   under `benchmarks/records/`: no change, staged or not, and no
+   under `benchmarks/records/` or `benchmarks/static/`: no change, staged or not, and no
    untracked file git does not ignore. New records are left out because
    they are not what is measured, so several can be made before they are
    committed; a committed record changed or deleted is a change like any
@@ -373,12 +376,12 @@ may lack: `rows.kind`, read as `ROWS_MIXED` (then the only rows), and
 | `library.commit`, `.pushed_to` | See Provenance. |
 | `library.settings` | What changed what the backend ran, as `NAME=value`, in this order and each once: the environment variables that were set, `TURBO_CPU_THREADS` on cpu; `TURBO_CUDA_TILE`, `TURBO_CUDA_SK_STEPS`, `TURBO_CUDA_ATTENTION`, `TURBO_CUDA_CUBLAS`, `TURBO_CUDA_LAYER_NORM`, `TURBO_CUDA_POOL`, `TURBO_CUDA_TF32`, `TURBO_CUDA_F16_ACCUMULATE`, `TURBO_CUDA_GELU`, `TURBO_CUDA_RESIDUAL`, `TURBO_CUDA_PRODUCT`, `TURBO_AUTOTUNE` and `TURBO_AUTOTUNE_BUDGET_MS` on cuda, levelzero and metal; then, on cuda, always, and on levelzero and metal where the session reports a choice (on metal, a session whose linear layers have more than one path, as at FASTEST), what the session reported of its kernels (`turbo_session_info`, docs/autotune.md): `TURBO_CUDA_TUNED`, `TURBO_LEVELZERO_TUNED` or `TURBO_METAL_TUNED`, where the choices came from (`default`, `forced`, `measured` or `cache`), and `TURBO_CUDA_CHOICES`, `TURBO_LEVELZERO_CHOICES` or `TURBO_METAL_CHOICES`, the choices themselves, whatever the environment said. Setting the CHOICES variable to a record's value runs the same kernels again. On npu, always, `TURBO_NPU_GRAPH_FORMAT` (`NGRAPH_LITE` or `NATIVE`, the format the device selected; an environment variable does not change it) and `TURBO_NPU_GRAPH_INPUT` (`INPUT_TOKEN_IDS` or `INPUT_EMBEDDINGS`, the loaded artifact). An npu record that omits either does not parse. `INPUT_EMBEDDINGS` with a `speed_ratio` does not parse. Empty when nothing was set on a backend that reports no choices, or in a record made before the field was; a record made before the choices has only the variables. |
 | `task`, `precision` | `TASK_EMBED`; `PRECISION_*` as the session asked. |
-| `compute_dtype` | `DTYPE_*` as `turbo_session_get_info` reported it. `DTYPE_I8` is accepted and has no floor. |
+| `compute_dtype` | `DTYPE_*` as `turbo_session_get_info` reported it. `DTYPE_I8` has a minimum cosine of 0.93 against the F32 reference. |
 | `bundle.*` | `turbo_model_info`: model id and revision, and the manifest, artifact and tokenizer hashes. |
 | `rows` | `kind`, `ROWS_MIXED` or `ROWS_DENSE` (`--rows`); the shape; `live_tokens`, the mask's ones across the measured rows, which for dense rows must be `batch` x `seq`; the reference case each row is (one per row of the batch, or one per frame when `batch` is 1 and the pass cycles every fitting case); and the hash of the rows (below). |
 | `timing` | The library: `warmup` untimed runs, then `iterations` timed ones, each a pass over the rows (`turbo_embed_write_tokens`, `turbo_session_run`, `turbo_result_read` of every vector and `turbo_result_release`), timed from the host. A batch-1 mixed cycle's pass is one embed per fitting case. Nearest-rank p50 and p99, mean, min, max, and rows per second over the timed runs' wall time. `computed_tokens`: the token positions each run computed. cpu, cuda and levelzero count each row through its last live token. npu counts every position of each compiled frame in the pass: `batch` x `seq` for one frame, and one `[1, seq]` frame per fitting case when the frame batch is 1 (What each time covers). An npu record whose count is anything else does not parse. |
 | `conformance` | Vectors compared with the bundle's fp32 reference on this device, through the C interface: each reference case no longer than `seq` alone, as a batch of one at its own length, then every measured row of the pass that is its case whole. A batch-1 mixed cycle measures one row per fitting case. A dense row cut to `seq` has no reference vector; it must give, within the dtype's tolerance, what it gives alone, or the tool stops with an error. The lowest cosine, in [-1, 1], and the largest absolute difference, not negative. |
-| `references[]` | Each reference program the tool knows for the backend: `name` and `role`, which are `text-embeddings-inference` and `end_to_end`, `tensorrt` and `kernel`, or `openvino` and `kernel` (any other pair is refused), `pinned` (the image as `name@sha256:<64 hex>`, the name of `[a-z0-9][a-z0-9._/:-]*`; empty only when disabled before one was named), `version` (as the program reported it), `commands` (every external command, as its argv, host paths as placeholders: Reference programs), `procedure` (what the tool did around them), and either `measured` (`iterations`, `p50_ms`, `p99_ms`, `rows_per_second`, `min_cosine` against the reference when the program returns vectors, and `computed_tokens`, the token positions it computed per run, null when that cannot be known) or `not_run` with the reason. Every `computed_tokens` lies between `rows.live_tokens` and the padded pass (one frame is `batch` x `seq`; a batch-1 cycle is one frame per case). |
+| `references[]` | Each reference program the tool knows for the backend: `name` and `role`, which are `text-embeddings-inference` and `end_to_end`, `tensorrt` and `kernel`, `openvino` and `kernel`, or `hailort` and `kernel` (any other pair is refused), `pinned` (the image as `name@sha256:<64 hex>`, the name of `[a-z0-9][a-z0-9._/:-]*`; empty only when disabled before one was named), `version` (as the program reported it), `commands` (every external command, as its argv, host paths as placeholders: Reference programs), `procedure` (what the tool did around them), and either `measured` (`iterations`, `p50_ms`, `p99_ms`, `rows_per_second`, `min_cosine` against the reference when the program returns vectors, and `computed_tokens`, the token positions it computed per run, null when that cannot be known) or `not_run` with the reason. Every `computed_tokens` lies between `rows.live_tokens` and the padded pass (one frame is `batch` x `seq`; a batch-1 cycle is one frame per case). |
 | `speed_ratio` | `timing.p50_ms` over the p50 of the fastest measured reference, named in `speed_reference`; both null when none was measured. The core recomputes it and refuses a record where it differs. |
 
 ### Token rows
@@ -526,6 +529,7 @@ with dense rows `rtx4080.cuda.embed.model-dense.all-minilm-l6-v2-<8 hex>.<12 hex
 | npu | OpenVINO `benchmark_app` | kernel | an OpenVINO container with `-d NPU`, or `benchmark_app` on the machine (`--openvino-bin`) when the container cannot see the NPU driver |
 | npu | text-embeddings-inference | end to end | its CPU image, over HTTP: the end-to-end baseline on that machine |
 | metal | text-embeddings-inference | end to end | its router built natively with the Metal feature, over HTTP |
+| hailo | HailoRT `hailortcli` | kernel | native CLI on the same verified HEF and F32 embedding inputs (`--hailort-bin`), or explicitly disabled (`--no-hailort`) |
 | any other | none yet | | a record of it backs nothing |
 
 Images are pinned as `name@sha256:<64 hex>`, the name of lower-case
@@ -830,10 +834,10 @@ A record for the cell backs SUPPORTED when all of these hold:
    |---|---|---|
    | F32 | 0.9999 | 1e-4 |
    | F16, BF16 | 0.999 | not bounded |
-   | I8 | none: never SUPPORTED | |
+   | I8 | 0.93 | not bounded |
 
 4. At least one of the known reference programs,
-   `text-embeddings-inference`, `tensorrt` or `openvino`, was measured.
+   `text-embeddings-inference`, `tensorrt`, `openvino` or `hailort`, was measured.
    (A record naming any other program, or one with another's role, does
    not parse.) The tool gives each backend its own programs (Reference
    programs), so a levelzero or npu record is backed by OpenVINO or TEI.
@@ -920,6 +924,111 @@ less. A range over a whole row gave the row's vector to the bit, and
 the lowest cosine of a chunk's range vector to its chunk row's was
 0.69.
 
+## Part-of-speech records
+
+`turbo-bench postag --model <file> --treebank <file.conllu> [--cpus <list>]
+[--rounds <n>]`, in a build with `--features postag`, measures the
+BiLSTM-CRF part-of-speech tagger (`analysis/postag/`) in its two
+numerics, `Packed` (f32 on the CPU backend's packed GEMM) and
+`JvmParity` (the f64 reference), on the syntactic words of a CoNLL-U
+treebank. It is not an embed record and backs no capability cell, so
+it goes to `benchmarks/records/postag/`, a directory `core/build.rs`
+and the embed record tests do not read; `bench/tests/tree.rs` checks
+each file there against its name and `turbo_bench::postag::check`. The
+provenance is the embed record's: a clean, pushed commit the tool was
+built from, checked before and after the run.
+
+The record (`bench/src/postag/mod.rs`, `PosRecord`) names the model (its
+ModelRef, the file's SHA-256 and size, and each numerics'
+`config_hash`, which must differ), the treebank (file name, SHA-256,
+sentences, words), the words each numerics tags as the treebank does,
+the words they tag the same, and the largest difference between their
+emission scores and between their marginal probabilities of a word's
+tag. Then, per configuration (1, 8, 32 and 128 sentences per call over
+the whole treebank; 32 per call over the sentences of 1 to 9, 10 to 24
+and 25 or more words), each numerics' words per second (the median over
+the passes) and the p50 and p95 of a call's time. Each round times every
+configuration packed, parity, parity, packed, after one untimed warm
+pass of each, so the ratio holds however the clock moves. The name is
+machine, backend, the model file's hash and the commit:
+`x86-64.cpu.postag.bilstm-crf.<model8>.<commit12>.json`.
+docs/analysis.md ("BiLSTM-CRF numerics") reads the committed record.
+
+## Tagger records
+
+`turbo-bench tag --model <bundle-dir | file> --corpus <file.conllu>
+[--device cpu] [--precision exact|model|fastest] [--sentences-per-call <n>]
+[--rounds <n>] [--cpus <list>]`, in a build with `--features postag`, is
+the tagger mode every backend records through: it measures one tier of
+the BiLSTM-CRF part-of-speech tagger, a device and a precision, on the
+syntactic words of a CoNLL-U corpus. `--model` takes the bundle form
+`turbo-bundle postag-convert` writes (`analysis/postag/README.md`,
+"Bundle form"), verified before it is read, or the `ONLP-BLPT` file
+itself. The CPU tiers are `exact` (the `JvmParity` f64 numerics, on the
+file's f64 or the bundle's F32 weights), `model` (the `Packed` numerics on
+the same weights) and `fastest` (`Packed` on the bundle's F16 copy, so a
+bundle is needed). Another device is refused: no tier of the tagger runs
+there yet. The records go to `benchmarks/records/tag/`, read by neither
+`core/build.rs` nor the embed and postag record tests;
+`bench/tests/tree.rs` checks each one against its name and
+`turbo_bench::tag::check`. The provenance is the embed record's.
+
+The record (`bench/src/tag/mod.rs`, `TagRecord`) names the model (its
+ModelRef, the source file's SHA-256, the bundle manifest's SHA-256 when
+a bundle was read, the weights and the tag count), the tier (device,
+precision, numerics and the tagger's `config_hash`) and the corpus,
+then the words tagged as the corpus does and two speeds, each words per
+second with the p50 and p99 of a call's time: cold, the first pass of a
+tagger loaded just before it, and warm, the median of `--rounds` passes
+(3 by default) after it, every call of them in the percentiles. The
+name is machine, backend, precision, the source file's hash and the
+commit: `x86-64.cpu.tag.bilstm-crf.<precision>.<source8>.<commit12>.json`.
+
+## Throughput records
+
+`turbo-bench lattice` (built with `--features lattice`) and
+`turbo-bench grammar` (`--features grammar`) record characters per
+second for the lattice tokenizer (`analysis/tokenize`) and the
+English number, unit and time grammars (`analysis/grammar`), the
+work the `lattice_throughput` and `grammar_bench` examples time.
+They are not embed records and back no capability cell, so they go
+to `benchmarks/records/throughput/`, a directory `core/build.rs` and
+the embed record tests do not read; `bench/tests/tree.rs` checks each
+file there against its name and `turbo_bench::throughput::check`. The
+provenance is the embed record's: a clean, pushed commit the tool
+was built from, checked before and after the run.
+
+The lattice mode times, per published MeCab dictionary (`ipadic`,
+`ko-dic`, `unidic`, from `--dictionaries` or
+`target/turbo-goldens/models` as `turbo-goldens fetch-models` leaves
+them), the tokenizer's analyze pass over its language's goldens
+inputs repeated to at least 10 MiB, and with `--readings` also the
+analyzer writing the readings layer through a document. The grammar
+mode times find, lex, parse, parse with the unit rules, and time
+mention finding over the number, quantity, money and temporal
+goldens inputs. Each record (`bench/src/throughput/mod.rs`,
+`ThroughputRecord`) names its subject (the dictionary, with its
+manifest SHA-256 and load seconds, or the compiled-in English
+grammars), the text (its source sets, bytes, characters and
+SHA-256), and per phase the units produced, the median pass's
+seconds over `--rounds` passes after one warm pass, and the
+characters and bytes per second those divide into. A record holds
+exactly the phases its mode times (the lattice readings phase only
+with --readings), on the CPU device. A build with Cargo opt-level 0
+refuses before loading inputs, whether debug assertions are enabled or
+disabled. New records include `cargo_build`: Cargo's `PROFILE` (the
+inherited debug/release family, also for custom profiles), `OPT_LEVEL`
+for the benchmark crate, and its debug-assertion setting. These fields
+describe that crate's Cargo settings, not every dependency's settings
+or compiler flags. An optimized dev or custom build can measure; its
+record is not labeled as a release run. The `command` names the
+executable invocation with path placeholders, not an inferred Cargo
+build command. The four historical records predate `cargo_build`; they
+remain valid without it, and their recorded timings are unchanged.
+The name is
+machine, backend, mode, subject and commit:
+`x86-64.cpu.throughput.lattice.ipadic.<commit12>.json`.
+
 ## Tests
 
 `bench/tests/` runs without docker or a GPU:
@@ -949,6 +1058,9 @@ the lowest cosine of a chunk's range vector to its chunk row's was
   from a local socket, on directories under a path with a sentinel user
   name in it: the commands run name the real paths, and the records name
   only the placeholders.
+- `tree.rs`: the committed records, range records and part-of-speech
+  records against their names and checks, the paths the docs name, and
+  no host path in committed text.
 - `runners.rs`: the reference programs' commands, argument by argument;
   their output parsed from examples in the form TEI, trtexec and
   benchmark_app print it; which programs each backend gets; and the
@@ -957,3 +1069,102 @@ the lowest cosine of a chunk's range vector to its chunk row's was
 What they cannot check is the programs themselves: a TEI, trtexec or
 benchmark_app run needs docker and the images, trtexec an NVIDIA GPU,
 and benchmark_app an Intel one.
+
+## Hailo I8 reference records
+
+I8 embedding conformance requires minimum cosine 0.93 against the bundle's
+F32 reference. CPU Exact still requires cosine 0.9999 and maximum absolute
+difference 1e-4. This is an I8 quality decision, not permission to run a
+quantized HEF under Precision::Exact. Hailo continues to refuse Exact.
+
+Build `turbo-bench` with `--features hailo` on the board and run, substituting
+the bundle and native CLI locations:
+
+```sh
+turbo-bench record --bundle <bundle> --device hailo --precision model \
+  --batch 32 --seq 128 --warmup 3 --iterations 20 \
+  --hailort-bin <hailortcli> --work <scratch> --out <records>
+```
+
+The native runner uses HailoRT 4's `run` on Hailo-8 and HailoRT 5's
+`run2 --mode full_async` on Hailo-10H. It verifies the bundle files, copies
+the HEF into scratch, and writes F32 word embeddings and attention bias
+from the same mixed token rows as the library. The receipt is checked
+against the library's manifest, HEF, architecture, token hash and case list.
+The native CLI binary is pinned by SHA-256; its version, commands and
+runner hash are recorded. Only one attached Hailo device, a full 32-frame
+burst and the HEF's fixed sequence length are accepted. Other shapes need
+separate runner work; they are not inferred from these records.
+
+One untimed native process precedes five measured five-second processes.
+The reference time is `batch * 1000 / FPS` for each process. Its `p50_ms`
+and `p99_ms` describe the median and upper aggregate service-time estimate
+across those processes, **not individual request latency percentiles**.
+`speed_ratio` compares library request p50 to that throughput-derived
+service time. It is a measure of overhead relative to sustained native
+throughput, not a claim that the two paths have identical latency scope.
+The CLI includes F32 input conversion, but excludes host word gather,
+tokenization, pooling and normalization. The library time includes token
+write, host gather, inference, pooling and vector read. Both compute the
+full padded 32 x 128 positions. The CPU packs the live tokens.
+
+Native output vectors are not read by this runner; conformance comes from
+the library's real outputs against the F32 bundle reference. The separate
+`hailo_evidence` example also compares the same rows directly against CPU
+Exact and records that CPU's own F32 conformance. No mock device or
+invented timing supplies these checks. Hailo-8L is not measured.
+
+### Measured MiniLM records, 2026-10-24
+
+The clean pushed build was `94a833f60389` on both boards. These are real
+MiniLM runs on eight fitting reference cases cycled into 32 rows, 724
+live tokens and 4096 computed positions per Hailo pass. Conformance
+checks all eight cases alone plus all 32 timed rows. No corpus text or
+model weights are included in the receipts.
+
+| Device | HailoRT | Library Model p50 / p99 ms | Library Fastest p50 / p99 ms | Native Model service-time p50 ms | Minimum F32-reference cosine |
+|---|---|---:|---:|---:|---:|
+| Hailo-8 | 4.23.0 | 94.4046 / 94.4923 | 94.4156 / 100.7251 | 76.7165 | 0.9356557854 |
+| Hailo-10H | 5.1.1 | 42.8469 / 44.3788 | 42.9875 / 45.3751 | 168.9353 | 0.9367578756 |
+
+The native Hailo-10H CLI result is slower than the library in this run.
+The CLI includes its own F32 conversion and streaming overhead; these
+measurements do not isolate the cause or claim the CLI is the fastest
+possible HailoRT configuration. Its commands and five independent
+throughput samples are preserved for reproduction.
+
+The four capability records are:
+
+- `benchmarks/records/hailo10h.hailo.embed.fastest.all-minilm-l6-v2-e57c4f36.94a833f60389.json`
+- `benchmarks/records/hailo10h.hailo.embed.model.all-minilm-l6-v2-e57c4f36.94a833f60389.json`
+- `benchmarks/records/hailo8.hailo.embed.fastest.all-minilm-l6-v2-f4256cb3.94a833f60389.json`
+- `benchmarks/records/hailo8.hailo.embed.model.all-minilm-l6-v2-f4256cb3.94a833f60389.json`
+
+A separate same-input CPU Exact comparison uses four CPU threads, three
+warmups and 20 measured passes on each Raspberry Pi 5 host. These
+comparison receipts are evidence, not additional capability records:
+
+| Board / device | CPU Exact p50 ms | Hailo Model p50 ms | Minimum CPU Exact / Hailo cosine |
+|---|---:|---:|---:|
+| pi5-hailo8 / Hailo-8 | 329.7469 | 94.4036 | 0.9356558408 |
+| pi5-hailo10h / Hailo-10H | 339.8066 | 42.7378 | 0.9367579579 |
+
+See `docs/receipts/hailo-937/hailo8.json` and
+`docs/receipts/hailo-937/hailo10h.json` for bundle, HEF, input, CLI and
+build hashes, versions, timings and native throughput samples. Both CPU
+runs reached cosine 0.9999999999982 and maximum absolute difference
+3.4273e-7 against the F32 reference. Both Hailo boards beat their CPU at
+this measured shape while clearing 0.93. This does not establish the
+crossover at other windows or batch sizes, or alter dispatch policy.
+
+The record tests use these measured records to check Model/Fastest
+support, Exact and Hailo-8L exclusions, the inclusive I8 floor, complete
+case coverage, and padded token accounting. The opt-in `hailo_native`
+test runs the real library on a board with `TURBO_HAILO_BUNDLE` and
+`TURBO_HAILO_RECEIPT` set to the deployment bundle and a receipt written
+by the native runner. It accepts the matching receipt and rejects
+changed input/device hashes, case lists, shapes, sample durations and
+invalid native timing or provenance fields.
+
+The hardware test's command, required inputs, saved output and source
+revision are recorded in [its receipt](receipts/hailo-937/native-test.md).

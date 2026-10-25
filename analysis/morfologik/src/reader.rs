@@ -6,8 +6,7 @@ use std::path::Path;
 
 use turbo_analysis::{Annotator, Error, ModelRef, Refs, View};
 use turbo_analysis_layers::{Lemmas, PosTags, Strs, Tokens};
-use turbo_maxent::sha256;
-use turbo_unicode::java::code_point::is_whitespace;
+use turbo_unicode::WhitespaceMode;
 use turbo_unicode::java::to_lowercase;
 
 use crate::charset::DictionaryCharset;
@@ -25,26 +24,29 @@ pub const NOT_FOUND: &str = "O";
 /// `MorfologikInputConversion.ConvertedLemmatizer`.
 #[derive(Debug, Clone)]
 pub struct ExpandedDictionaryLemmatizer {
-    entries: HashMap<(String, String), Vec<String>>,
+    entries: HashMap<String, HashMap<String, Vec<String>>>,
     conversion: MorfologikInputConversion,
     model_ref: ModelRef,
 }
 
 impl ExpandedDictionaryLemmatizer {
     pub(crate) fn new(
-        entries: HashMap<(String, String), Vec<String>>,
+        entries: HashMap<String, HashMap<String, Vec<String>>>,
         conversion: MorfologikInputConversion,
-        bytes_for_digest: &[u8],
+        parts_for_digest: &[&[u8]],
         id_prefix: &str,
     ) -> Self {
-        let model_ref =
-            ModelRef { id: id_prefix.to_owned(), revision: String::new(), sha256: sha256(bytes_for_digest).to_hex() };
+        let model_ref = ModelRef {
+            id: id_prefix.to_owned(),
+            revision: String::new(),
+            sha256: crate::identity::digest(parts_for_digest),
+        };
         Self { entries, conversion, model_ref }
     }
 
     /// Number of `(lowercased_form, tag)` keys in the dictionary map (`getDictMap().size()`).
     pub fn len(&self) -> usize {
-        self.entries.len()
+        self.entries.values().map(HashMap::len).sum()
     }
 
     /// Whether the dictionary map is empty.
@@ -54,20 +56,25 @@ impl ExpandedDictionaryLemmatizer {
 
     /// Inserts or replaces the lemma list for `(lowercased_form, tag)` in the dictionary map
     /// (`getDictMap().put(List.of(form, tag), lemmas)`).
+    /// The provenance digest includes the ordered edits after the original input.
     pub fn put(&mut self, lowercased_form: impl Into<String>, tag: impl Into<String>, lemmas: Vec<String>) {
-        self.entries.insert((lowercased_form.into(), tag.into()), lemmas);
+        let word = lowercased_form.into();
+        let tag = tag.into();
+        let mut parts = vec![self.model_ref.sha256.as_bytes(), word.as_bytes(), tag.as_bytes()];
+        parts.extend(lemmas.iter().map(String::as_bytes));
+        self.model_ref.sha256 = crate::identity::digest(&parts);
+        self.entries.entry(word).or_default().insert(tag, lemmas);
     }
 
     /// Looks up the first lemma for `(word, tag)`, returning [`NOT_FOUND`] (`"O"`) on a miss.
     pub fn lemma<'a>(&'a self, word: &str, tag: &str) -> &'a str {
-        let key_word = self.conversion.convert(word);
-        self.entries.get(&(key_word, tag.to_owned())).and_then(|v| v.first()).map_or(NOT_FOUND, String::as_str)
+        self.lemmas_for(word, tag).and_then(|v| v.first()).map_or(NOT_FOUND, String::as_str)
     }
 
     /// Looks up all lemmas for `(word, tag)` in first-seen order, or `None` on a miss.
     pub fn lemmas_for(&self, word: &str, tag: &str) -> Option<&[String]> {
-        let key_word = self.conversion.convert(word);
-        self.entries.get(&(key_word, tag.to_owned())).map(Vec::as_slice)
+        let key_word = self.conversion.convert_cow(word);
+        self.entries.get(key_word.as_ref())?.get(tag).map(Vec::as_slice)
     }
 
     /// `DictionaryLemmatizer.lemmatize(String[] tokens, String[] tags)`: returns the first
@@ -99,6 +106,7 @@ impl ExpandedDictionaryLemmatizer {
 
 impl Annotator for ExpandedDictionaryLemmatizer {
     const ID: &'static str = "turbo-morfologik:dictionary-lemmatizer";
+    const VERSION: &'static str = "2";
     type Reads = (View, Tokens, PosTags);
     type Writes = (Lemmas,);
 
@@ -126,6 +134,12 @@ impl Annotator for ExpandedDictionaryLemmatizer {
                 annotator: Self::ID,
                 detail: format!("token span {}..{} out of bounds", span.start, span.end),
             })?;
+            if usize::from(tag.0) >= tags.tagset.len() {
+                return Err(Error::Annotator {
+                    annotator: Self::ID,
+                    detail: format!("POS tag {} outside tag set", tag.0),
+                });
+            }
             out.push(self.lemma(word, tags.tagset.label(tag)));
         }
         Ok((Lemmas { lemma: out },))
@@ -140,14 +154,14 @@ impl Annotator for ExpandedDictionaryLemmatizer {
 /// (`opennlp.tools.formats.LemmatizerEntries`).
 #[derive(Default)]
 struct LemmatizerEntries {
-    entries: HashMap<(String, String), Vec<String>>,
+    entries: HashMap<String, HashMap<String, Vec<String>>>,
 }
 
 impl LemmatizerEntries {
     fn add(&mut self, form: &str, tag: String, lemma: String) {
         let mut lower = String::with_capacity(form.len());
         to_lowercase(form, &mut lower);
-        let list = self.entries.entry((lower, tag)).or_default();
+        let list = self.entries.entry(lower).or_default().entry(tag).or_default();
         if !list.contains(&lemma) {
             list.push(lemma);
         }
@@ -171,7 +185,7 @@ impl MorfologikDictionaryReader {
         Ok(ExpandedDictionaryLemmatizer::new(
             entries.entries,
             MorfologikInputConversion::default(),
-            dictionary,
+            &[dictionary, &[separator], encoding.as_str().as_bytes(), charset.canonical_name().as_bytes()],
             "opennlp:MorfologikDictionaryReader",
         ))
     }
@@ -184,7 +198,7 @@ impl MorfologikDictionaryReader {
         Ok(ExpandedDictionaryLemmatizer::new(
             entries.entries,
             meta.input_conversion,
-            dictionary,
+            &[dictionary, info],
             "opennlp:MorfologikDictionaryReader",
         ))
     }
@@ -202,7 +216,7 @@ impl MorfologikDictionaryReader {
         Ok(ExpandedDictionaryLemmatizer::new(
             entries.entries,
             meta.input_conversion,
-            &dict_bytes,
+            &[&dict_bytes, &info_bytes],
             "opennlp:MorfologikDictionaryReader",
         ))
     }
@@ -258,6 +272,8 @@ pub(crate) fn index_of(slice: &[u8], value: u8, from: usize) -> Option<usize> {
 
 /// Builds an [`ExpandedDictionaryLemmatizer`] from a tab-separated `surfaceForm\tlemma\ttag`
 /// table (`opennlp.tools.formats.PoliMorfDictionaryReader`).
+/// Blank lines use Unicode White_Space, the default StringUtil mode: NEL
+/// and no-break spaces are skipped; U+001C..U+001F are not blank.
 pub struct PoliMorfDictionaryReader;
 
 impl PoliMorfDictionaryReader {
@@ -276,7 +292,7 @@ impl PoliMorfDictionaryReader {
         let mut entries = LemmatizerEntries::default();
         for (idx, line) in java_lines(&text).enumerate() {
             let line_number = idx + 1;
-            if is_blank_opennlp(line) {
+            if line.chars().all(|c| WhitespaceMode::Unicode.is_whitespace(c as u32)) {
                 continue;
             }
             let Some(first_tab) = line.find('\t') else {
@@ -302,21 +318,10 @@ impl PoliMorfDictionaryReader {
         Ok(ExpandedDictionaryLemmatizer::new(
             entries.entries,
             MorfologikInputConversion::default(),
-            dictionary,
+            &[dictionary, charset.canonical_name().as_bytes()],
             "opennlp:PoliMorfDictionaryReader",
         ))
     }
-}
-
-/// Checks whether `line` is empty or consists entirely of code points for which
-/// `StringUtil.isWhitespace(int)` (`Character.isWhitespace` or `Character.isSpaceChar`,
-/// including `U+00A0` and `U+202F`) is true.
-fn is_blank_opennlp(line: &str) -> bool {
-    use turbo_unicode::java::code_point::is_space_char;
-    line.chars().all(|c| {
-        let cp = c as u32;
-        is_whitespace(cp) || is_space_char(cp)
-    })
 }
 
 fn java_lines(text: &str) -> impl Iterator<Item = &str> {

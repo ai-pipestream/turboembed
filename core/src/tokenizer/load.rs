@@ -106,7 +106,17 @@ impl Tokenizer {
                 }
             }
             (None, Some(u), _) => Kind::Unigram(Unigram::parse(file, &json, u, unk.id)?),
-            (None, None, Some(b)) => Kind::Bpe(Bpe::parse(file, &json, b, unk.id)?),
+            (None, None, Some(b)) => {
+                // A normalized token would be matched in the NFC text,
+                // which the core does not do.
+                if let Some(s) = t.special_tokens.iter().find(|s| b.nfc && s.normalized) {
+                    return Err(invalid(format!(
+                        "tokenizer.special_tokens: {:?} is normalized, and the core matches no token after NFC",
+                        s.content
+                    )));
+                }
+                Kind::Bpe(Bpe::parse(file, &json, b, unk.id)?)
+            }
             (None, None, None) => {
                 let spec = t.sentencepiece.as_ref().expect("validated");
                 let sp = SentencePiece::parse(&bytes).map_err(|e| invalid(format!("{file}: {}", e.message)))?;
@@ -248,8 +258,29 @@ impl Tokenizer {
         let mut pieces = vec![Box::<str>::from(""); vocab_size as usize];
         kind.each_piece(|piece, id| pieces[id as usize] = piece.into());
         let e = m.encoder();
+        let rerank = m.rerank.clone().or_else(|| {
+            let a = m.architecture.as_ref()?;
+            if t.template.len() != 3 || t.template[1] != "$TEXT" {
+                return None;
+            }
+            let pair_template = match a.family {
+                crate::manifest::Family::Bert if a.token_types >= 2 => crate::manifest::PairTemplate::Bert,
+                crate::manifest::Family::Roberta => crate::manifest::PairTemplate::Roberta,
+                crate::manifest::Family::Bert => return None,
+            };
+            let specials = pair_template.specials();
+            if e.max_seq <= specials + 1 {
+                return None;
+            }
+            Some(crate::manifest::Rerank {
+                max_seq: e.max_seq,
+                max_batch: e.max_batch,
+                query_tokens: ((e.max_seq - specials) / 2).max(1),
+                pair_template,
+            })
+        });
         Ok(Tokenizer {
-            rerank: m.rerank.clone(),
+            rerank,
             kind,
             specials,
             normalized_specials,

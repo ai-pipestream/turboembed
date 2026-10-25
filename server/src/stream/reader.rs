@@ -11,19 +11,17 @@
 
 use std::collections::VecDeque;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::Duration;
 
 use tokio::sync::{Semaphore, mpsc};
 use tonic::{Status, Streaming};
 
-use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
+use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_UTF8};
 use crate::proto::result::analyze_stream_request::Kind;
-use crate::proto::result::{AnalyzeDocument, AnalyzeStreamRequest};
+use crate::proto::result::{AnalyzeDocument, AnalyzeOutput, AnalyzeStreamRequest};
 use crate::state::State;
 use crate::stream::handler;
 use crate::stream::run::Doc;
-use crate::stream::{Envelope, Room, Shared, admit, admit_refusal, bound_retained_id, over_byte_cap, over_bytes};
+use crate::stream::{Dead, Envelope, Room, Shared, admit, admit_refusal, bound_retained_id, over_byte_cap, over_bytes};
 
 /// Validates one document the way the single-document call validates
 /// its model and options, and builds the work the scheduler queues.
@@ -43,13 +41,43 @@ fn check(state: &State, d: AnalyzeDocument, room: Room) -> Result<Doc, Box<(Stri
             Ok(v) => v,
             Err(f) => return Err((f, room)),
         };
-        let opts = match handler::options(d.options.as_ref()) {
+        if loaded.task != turbo::TURBO_TASK_EMBED {
+            return Err((Failure::new(crate::api::TURBO_E_UNSUPPORTED_TASK, 0, "the model's task is not embed"), room));
+        }
+        let doc_opts = match handler::doc_options(d.output, d.offsets, d.options.as_ref()) {
             Ok(o) => o,
             Err(f) => return Err((f, room)),
         };
+        if doc_opts.output != AnalyzeOutput::Vectors {
+            if std::str::from_utf8(&d.text).is_err() {
+                return Err((Failure::new(TURBO_E_INVALID_UTF8, 0, "document text is not valid UTF-8"), room));
+            }
+            let embed = match loaded.embed() {
+                Ok(e) => e,
+                Err(f) => return Err((f, room)),
+            };
+            if let Err(f) = embed.validate_options(doc_opts.output, &doc_opts.embed, doc_opts.sparse_top_k) {
+                return Err((f, room));
+            }
+        }
         let batch_limit = loaded.slots[0].info.max_batch;
         let version = loaded.revision.clone();
-        Ok(Doc { seq: 0, id: d.id, text: d.text, opts, loaded, model: served.name.clone(), version, batch_limit, room })
+        Ok(Doc {
+            seq: 0,
+            id: d.id,
+            text: d.text,
+            opts: doc_opts.embed,
+            output: doc_opts.output,
+            offsets: doc_opts.offsets,
+            sparse_top_k: doc_opts.sparse_top_k,
+            sparse_floor: doc_opts.sparse_floor,
+            token_stride: doc_opts.token_stride,
+            loaded,
+            model: served.name.clone(),
+            version,
+            batch_limit,
+            room,
+        })
     })(d, room);
     checked.map_err(|(f, room)| Box::new((id, f, room)))
 }
@@ -64,12 +92,12 @@ pub(crate) async fn run(
     stream_bytes: Arc<Semaphore>,
     mut inbound: Streaming<AnalyzeStreamRequest>,
     work: mpsc::Sender<Envelope>,
-    dead: Arc<AtomicBool>,
+    dead: Arc<Dead>,
 ) {
     let mut backlog: VecDeque<AnalyzeDocument> = VecDeque::new();
     let mut input_closed = false;
     loop {
-        if dead.load(Ordering::SeqCst) {
+        if dead.is_set() {
             return;
         }
         let document = match backlog.pop_front() {
@@ -150,22 +178,14 @@ pub(crate) async fn run(
     }
 }
 
-/// Waits out an admission, checking the stream's death on a short
-/// beat: an over-cap or flooded admission never outlives the stream.
-async fn wait_room(
-    admit: &mut (impl std::future::Future<Output = Room> + Unpin),
-    dead: &Arc<AtomicBool>,
-) -> Option<Room> {
-    loop {
-        if dead.load(Ordering::SeqCst) {
-            return None;
-        }
-        let room = tokio::select! {
-            room = &mut *admit => Some(room),
-            _ = tokio::time::sleep(Duration::from_millis(5)) => None,
-        };
-        if let Some(room) = room {
-            return Some(room);
-        }
+/// Waits out an admission, or until the stream dies: an over-cap or
+/// flooded admission never outlives the stream.
+async fn wait_room(admit: &mut (impl std::future::Future<Output = Room> + Unpin), dead: &Arc<Dead>) -> Option<Room> {
+    if dead.is_set() {
+        return None;
+    }
+    tokio::select! {
+        room = &mut *admit => Some(room),
+        _ = dead.wait() => None,
     }
 }

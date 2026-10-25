@@ -14,8 +14,9 @@
 //! - `CASE_INSENSITIVE` (`(?i)`) folds ASCII letters only, as Java does
 //!   without `UNICODE_CASE`; each letter and range is expanded to the
 //!   characters Java accepts.
-//! - `^` is `\A` and `$` is `\z` (see the limits below); `\b` and `\B` are
-//!   ASCII word boundaries.
+//! - `^` is `\A`; `$` and `\Z` also match before a final line terminator,
+//!   while `\z` requires the end. `\b` and `\B` use ASCII word characters
+//!   plus nonspacing marks with a letter or digit base, as JDK 21 does.
 //! - Groups do not report sub-captures.
 //!
 //! Refused when compiled, with [`Error::Unsupported`]: lookahead,
@@ -26,15 +27,9 @@
 //! string, and the flags other than `i` and `s` (`m`, `x`, `u`, `U`, `d`
 //! and `c`). A pattern Java itself refuses is [`Error::Syntax`].
 //!
-//! Three constructs match as Java's do on most texts but not all, and the
-//! texts where they differ are refused when matched, with
-//! [`Error::Text`]:
+//! Some constructs can expose Java's UTF-16 search positions and are
+//! refused on supplementary text with [`Error::Text`]:
 //!
-//! - `\b` and `\B` treat a nonspacing mark that follows a letter or digit
-//!   as a word character in Java (`Pattern.Bound`), even though `\w` does
-//!   not match it. A text with such a mark is refused.
-//! - `$` and `\Z` also match before a line terminator that ends the text.
-//!   A text that ends with one is refused.
 //! - Java's matcher tries every UTF-16 position, including the second half
 //!   of a surrogate pair. `\B` holds there, a class that holds a surrogate
 //!   but not every character outside the BMP can match the lone half
@@ -43,6 +38,7 @@
 //!   a pattern on a text with a character outside the Basic Multilingual
 //!   Plane is refused.
 
+mod assertions;
 mod class;
 mod compile;
 mod escape;
@@ -50,9 +46,6 @@ mod parse;
 mod pike;
 #[cfg(test)]
 mod tests;
-
-use turbo_unicode::GeneralCategory;
-use turbo_unicode::java::code_point::{general_category, is_letter_or_digit};
 
 use crate::error::{Error, TextLimit};
 
@@ -170,11 +163,7 @@ impl JavaRegex {
 
     /// The first limit `facts` breaks, as an error.
     pub(crate) fn check(&self, facts: &TextFacts) -> Result<(), Error> {
-        let limit = if self.limits.word_boundary && facts.mark_at_boundary {
-            TextLimit::MarkAtBoundary
-        } else if self.limits.dollar && facts.final_line_terminator {
-            TextLimit::FinalLineTerminator
-        } else if self.limits.mid_pair && facts.supplementary {
+        let limit = if self.limits.mid_pair && facts.supplementary {
             TextLimit::Supplementary
         } else {
             return Ok(());
@@ -188,7 +177,8 @@ impl JavaRegex {
     /// and there the first match in Java's backtracking order.
     ///
     /// A search takes time and memory linear in the pattern's instructions
-    /// times the length of `text` after `from`, never exponential.
+    /// times the length of `text` after `from`, apart from Java's backward
+    /// nonspacing-mark walks at word assertions; it is never exponential.
     pub(crate) fn find_at(&self, text: &str, from: usize, scratch: &mut Scratch) -> Option<(usize, usize)> {
         self.find_at_with(text, from, scratch, Engine::Auto)
     }
@@ -284,7 +274,7 @@ impl JavaRegex {
                     continue;
                 }
                 Inst::Assert(assertion) => {
-                    let pass = assertion.holds(text.as_bytes(), pos);
+                    let pass = assertion.holds(text, pos);
                     if pass {
                         pc += 1;
                     }
@@ -340,23 +330,6 @@ impl Scratch {
     }
 }
 
-impl Assertion {
-    #[inline]
-    fn holds(self, bytes: &[u8], pos: usize) -> bool {
-        let boundary = || {
-            let prev = pos > 0 && is_ascii_word(bytes[pos - 1]);
-            let next = pos < bytes.len() && is_ascii_word(bytes[pos]);
-            prev != next
-        };
-        match self {
-            Assertion::StartText => pos == 0,
-            Assertion::EndText => pos == bytes.len(),
-            Assertion::AsciiWordBoundary => boundary(),
-            Assertion::AsciiNonWordBoundary => !boundary(),
-        }
-    }
-}
-
 #[inline]
 fn next_char(text: &str, pos: usize) -> Option<(char, usize)> {
     let b = *text.as_bytes().get(pos)?;
@@ -369,59 +342,18 @@ fn next_char(text: &str, pos: usize) -> Option<(char, usize)> {
 }
 
 #[inline]
-fn is_ascii_word(b: u8) -> bool {
-    b.is_ascii_alphanumeric() || b == b'_'
-}
-
-#[inline]
 fn is_line_terminator(c: char) -> bool {
     matches!(c, '\n' | '\r' | '\u{85}' | '\u{2028}' | '\u{2029}')
 }
 
-/// What the limits ask of a text, found in one pass. A nonspacing mark
-/// counts at a boundary as `Pattern.Bound` counts it (`hasBaseCharacter`):
-/// walking back over UTF-16 units from the mark, a letter or digit comes
-/// before anything but nonspacing marks. A mark outside the BMP counts
-/// when it follows a letter or digit, since the walk starts at its first
-/// unit, though Java sees it as a word character only on its right side.
+/// Whether a text can expose Java's UTF-16 mid-pair search positions.
 #[derive(Copy, Clone, Debug, Default)]
 pub(crate) struct TextFacts {
-    pub mark_at_boundary: bool,
-    pub final_line_terminator: bool,
     pub supplementary: bool,
 }
 
 impl TextFacts {
     pub fn of(text: &str) -> TextFacts {
-        let mut facts = TextFacts {
-            final_line_terminator: text.ends_with(['\n', '\r', '\u{85}', '\u{2028}', '\u{2029}']),
-            ..TextFacts::default()
-        };
-        if text.is_ascii() {
-            return facts;
-        }
-        // Whether a walk back from the next character would find a letter
-        // or digit before anything but nonspacing marks.
-        let mut based = false;
-        for c in text.chars() {
-            let cp = c as u32;
-            let mark = is_nonspacing_mark(cp);
-            facts.mark_at_boundary |= mark && based;
-            facts.supplementary |= cp > 0xFFFF;
-            if cp > 0xFFFF {
-                // The walk reads this character's second unit as a lone
-                // surrogate, which ends it.
-                based = false;
-            } else if !mark {
-                based = is_letter_or_digit(cp);
-            }
-        }
-        facts
+        TextFacts { supplementary: !text.is_ascii() && text.chars().any(|c| c as u32 > 0xFFFF) }
     }
-}
-
-/// `Character.getType(cp) == NON_SPACING_MARK` in JDK 21: U+1171E became a
-/// spacing mark in Unicode 16.0, after the JDK's Unicode 15.0.
-fn is_nonspacing_mark(cp: u32) -> bool {
-    general_category(cp) == GeneralCategory::Mn || cp == 0x1171E
 }

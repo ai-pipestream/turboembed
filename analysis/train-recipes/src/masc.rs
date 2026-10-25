@@ -25,6 +25,7 @@ mod tests;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 
+use turbo_train::{Key, TrainingParameters};
 use turbo_zoo::{
     Acceptances, Artifact, File, Http, Index, Kind, Licence, LicenceClass, Policy, Sha256, TrainingData, UserId, Zoo,
     index::Format,
@@ -38,6 +39,16 @@ pub use self::split::{Categories, EXCLUSIONS, ExcludedDocument, Exclusion, SPLIT
 pub const NAME: &str = "MASC 3.0.0";
 /// The release's version.
 pub const VERSION: &str = "3.0.0";
+/// GIS partitions used for the published MASC segmentation and POS models.
+pub const THREADS: i32 = 4;
+
+/// The original MASC parameters, independent of the published UD models.
+pub(crate) fn training_parameters() -> TrainingParameters {
+    let mut params = turbo_train_components::ud::training_parameters();
+    params.put_str(Key::THREADS, &THREADS.to_string());
+    params
+}
+
 /// MASC's licence.
 pub const LICENCE: Licence = Licence::CcBy30Us;
 /// Where MASC's publisher states the licence.
@@ -146,6 +157,7 @@ pub fn dataset(release: Release) -> Result<Artifact> {
         license_terms: TERMS.parse().map_err(parse("terms", TERMS))?,
         trained_on: Vec::new(),
         class: LicenceClass::Permissive,
+        attribution: Some(ATTRIBUTION.to_owned()),
         origin: None,
         files: vec![File {
             path: r.file.parse().map_err(parse("file", r.file))?,
@@ -153,6 +165,7 @@ pub fn dataset(release: Release) -> Result<Artifact> {
             size: r.size,
             sha256: r.sha256.parse().map_err(parse("sha256", r.sha256))?,
             sha512: r.sha512.parse().map_err(parse("sha512", r.sha512))?,
+            download: None,
         }],
     })
 }

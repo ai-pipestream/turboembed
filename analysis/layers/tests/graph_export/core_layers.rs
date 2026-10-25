@@ -53,6 +53,30 @@ fn core_pipeline_layers_round_trip() {
 }
 
 #[test]
+fn subword_and_level_vectors_round_trip() {
+    let mut doc = document();
+    let model = ModelRef { id: "m".into(), revision: "r".into(), sha256: "s".into() };
+    doc.add(
+        &Key::DEFAULT,
+        Levels { spans: spans(&[(0, 21)]), unit: vec![Unit::Document], parent: vec![None] },
+        Provenance::by("test"),
+    )
+    .unwrap();
+    doc.add(
+        &Key::DEFAULT,
+        Vectors::<Subwords>::new(2, vec![0.25, -0.5, 0.75, 1.0, -0.25, 0.5], vec![], model.clone()),
+        Provenance::by("test"),
+    )
+    .unwrap();
+    doc.add(&Key::DEFAULT, Vectors::<Levels>::new(2, vec![1.0, 2.0], vec![], model), Provenance::by("test")).unwrap();
+
+    let graph = export(&doc, &codecs()).unwrap();
+    let back = import(&DocumentGraph::from_bytes(&graph.to_bytes().unwrap()).unwrap(), &codecs()).unwrap();
+    assert_eq!(back.get::<Vectors<Subwords>>().unwrap().data, [0.25, -0.5, 0.75, 1.0, -0.25, 0.5]);
+    assert_eq!(back.get::<Vectors<Levels>>().unwrap().data, [1.0, 2.0]);
+}
+
+#[test]
 fn layers_on_a_derived_view_round_trip() {
     use turbo_analysis::{Alignment, View, ViewBuilder};
     let mut doc = Document::decoded(

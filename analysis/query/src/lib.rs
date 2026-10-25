@@ -81,9 +81,11 @@ impl turbo_analysis::Annotator for QueryTermAnnotator {
 
     fn annotate(&self, (view,): turbo_analysis::Refs<'_, Self>) -> Result<Self::Writes, turbo_analysis::Error> {
         let text = view.text();
+        let edge_ws =
+            |c: Option<char>| c.is_some_and(|c| turbo_unicode::WhitespaceMode::Unicode.is_whitespace(c as u32));
         let sentences = if !text.is_empty()
-            && !text.as_bytes()[0].is_ascii_whitespace()
-            && !text.as_bytes()[text.len() - 1].is_ascii_whitespace()
+            && !edge_ws(text.chars().next())
+            && !edge_ws(text.chars().next_back())
             && !text.bytes().any(|b| matches!(b, b'.' | b'!' | b'?' | b'\n' | b'\r'))
         {
             let mut s = turbo_analysis_layers::Sentences { spans: turbo_analysis::Spans::new(view.id()) };
@@ -270,7 +272,7 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
             let tok = &text[s as usize..e as usize];
             if tok.bytes().any(|b| b.is_ascii_digit()) {
                 let lo = if k >= 2 && (ends[k - 1] - starts[k - 1]) <= 2 { k - 2 } else { k.saturating_sub(1) };
-                let hi = (k + 3).min(n);
+                let hi = (k + 5).min(n);
                 let is_clock_meridian = tok.len() >= 3
                     && matches!(&tok.as_bytes()[tok.len() - 2..], b"am" | b"pm" | b"AM" | b"PM" | b"Am" | b"Pm")
                     && tok.as_bytes()[..tok.len() - 2].iter().all(u8::is_ascii_digit);
@@ -278,7 +280,7 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
                 let qty_cue = (!is_clock_meridian
                     && tok.bytes().any(|b| !b.is_ascii_digit() && !matches!(b, b'.' | b',' | b'-')))
                     || next_tok.is_some_and(|nt| {
-                        nt.len() <= 7
+                        nt.len() <= 20
                             && !matches!(
                                 nt,
                                 "at" | "on" | "in" | "to" | "of" | "by" | "for" | "from" | "with" | "and" | "or"
@@ -286,7 +288,7 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
                     });
                 if let Some(last) = d_wins.last_mut()
                     && prev_d != usize::MAX
-                    && k <= prev_d + 1
+                    && (k <= prev_d + 1 || k < last.1)
                 {
                     last.1 = last.1.max(hi);
                     last.2 += 1;
@@ -302,6 +304,32 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
                 lt = k;
             }
         }
+        // A lowercase ISO code counts only right after an amount
+        // (`500 usd`, never `top 10`), and only from a small
+        // allowlist of codes unambiguous in lowercase queries: a
+        // denylist of English-word codes (php, cop, ron, top, ...)
+        // can never be completed, so anything else stays a word.
+        let token_at = |i: usize| &text[starts[i] as usize..ends[i] as usize];
+        let lowercase_iso_after_amount = |i: usize| {
+            const LOWERCASE_CODES: [&str; 18] = [
+                "aud", "brl", "chf", "cny", "dkk", "eur", "gbp", "hkd", "inr", "jpy", "krw", "mxn", "nok", "nzd",
+                "sek", "sgd", "usd", "zar",
+            ];
+            let w = token_at(i);
+            if i == 0 || !LOWERCASE_CODES.contains(&w) {
+                return false;
+            }
+            let prev = token_at(i - 1);
+            let amount_before = prev.bytes().next().is_some_and(|b| b.is_ascii_digit())
+                || (prev.len() > 1 && prev.starts_with('$') && prev.as_bytes()[1].is_ascii_digit());
+            amount_before
+                && turbo_analysis_layers::Currency::new([
+                    w.as_bytes()[0].to_ascii_uppercase(),
+                    w.as_bytes()[1].to_ascii_uppercase(),
+                    w.as_bytes()[2].to_ascii_uppercase(),
+                ])
+                .is_some_and(turbo_numeric::money::is_iso_currency)
+        };
         let mut money = turbo_analysis_layers::Money::new(view.id());
         let mut quantities = turbo_analysis_layers::Quantities::new(view.id());
         for (tok_lo, tok_hi, d_cnt, qty_cue) in d_wins {
@@ -311,13 +339,28 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
             let money_cue = !sub_text.is_ascii()
                 || sub_text.bytes().any(|b| b == b'$' || b.is_ascii_uppercase())
                 || (tok_lo..tok_hi).any(|i| {
+                    let w = &text[starts[i] as usize..ends[i] as usize];
                     matches!(
-                        &text[starts[i] as usize..ends[i] as usize],
+                        w,
                         "dollar" | "dollars" | "euro" | "euros" | "pound" | "pounds" | "sterling" | "yen"
                             | "rupee" | "rupees" | "yuan" | "renminbi" | "ruble" | "rubles" | "rouble"
                             | "roubles" | "shekel" | "shekels" | "baht"
-                    )
+                    ) || lowercase_iso_after_amount(i)
                 });
+            // The money extractor reads ISO codes in capitals only
+            // (its document behavior is pinned by JVM goldens), but
+            // queries write `500 usd`: scan a copy with such tokens
+            // uppercased in place, which keeps every byte offset
+            // unchanged.
+            let mut owned: Option<String> = None;
+            for (off_i, &start) in starts[tok_lo..tok_hi].iter().enumerate() {
+                if lowercase_iso_after_amount(tok_lo + off_i) {
+                    let buf = owned.get_or_insert_with(|| sub_text.to_owned());
+                    let at = start as usize - lo;
+                    buf[at..at + 3].make_ascii_uppercase();
+                }
+            }
+            let sub_text: &str = owned.as_deref().unwrap_or(sub_text);
             let mut m_cnt = 0usize;
             if money_cue {
                 let mut sm = turbo_analysis_layers::Money::new(view.id());
@@ -367,3 +410,79 @@ impl turbo_analysis::Annotator for QueryCursorNumericAnnotator {
         h
     }
 }
+
+/// The quantity extractor for queries: the default short units
+/// plus their spelled-out English forms, since queries write
+/// `10 kilometers` and `2 kilograms`, not only abbreviations.
+pub(crate) fn query_quantity_extractor(
+    notation: turbo_analysis_layers::NumberNotation,
+) -> turbo_numeric::QuantityExtractor {
+    const LONG_UNITS: [&str; 57] = [
+        "kilometer",
+        "kilometers",
+        "kilometre",
+        "kilometres",
+        "meter",
+        "meters",
+        "metre",
+        "metres",
+        "centimeter",
+        "centimeters",
+        "millimeter",
+        "millimeters",
+        "mile",
+        "miles",
+        "yard",
+        "yards",
+        "inch",
+        "inches",
+        "feet",
+        "kilogram",
+        "kilograms",
+        "gram",
+        "grams",
+        "milligram",
+        "milligrams",
+        "ton",
+        "tons",
+        "liter",
+        "liters",
+        "milliliter",
+        "milliliters",
+        "millisecond",
+        "milliseconds",
+        "microsecond",
+        "microseconds",
+        "minute",
+        "minutes",
+        "hour",
+        "hours",
+        "kilobyte",
+        "kilobytes",
+        "megabyte",
+        "megabytes",
+        "gigabyte",
+        "gigabytes",
+        "terabyte",
+        "terabytes",
+        "petabyte",
+        "petabytes",
+        "kilowatt",
+        "kilowatts",
+        "megawatt",
+        "megawatts",
+        "calorie",
+        "calories",
+        "kilocalorie",
+        "kilocalories",
+    ];
+    turbo_numeric::QuantityExtractor::with_units(
+        turbo_numeric::DEFAULT_UNITS.iter().chain(LONG_UNITS.iter()).copied(),
+        notation,
+    )
+    .unwrap_or_else(|_| turbo_numeric::QuantityExtractor::new(notation))
+}
+
+#[cfg(test)]
+#[path = "lib_tests.rs"]
+mod tests;

@@ -1,10 +1,7 @@
 //! Alias normalization, string similarity (Jaro-Winkler and token Dice),
 //! and context term extraction for entity candidate generation and scoring.
 
-use turbo_unicode::GeneralCategory;
 use turbo_unicode::casefold;
-use turbo_unicode::category::general_category;
-use turbo_unicode::normalize::{Form, normalize};
 
 /// Common English stop words excluded from context overlap scoring so
 /// disambiguation focuses on content-bearing terms.
@@ -20,33 +17,24 @@ const STOP_WORDS: &[&str] = &[
 ];
 
 /// Folds a surface mention or KB alias into a canonical lookup key:
-/// decomposes with NFD, strips non-spacing combining marks (diacritics),
-/// applies full Unicode case folding, collapses dotted initialisms
+/// accent-folds with the shared `turbo_normalize::AccentFold` (marks
+/// of Latin, Greek, and Cyrillic bases removed, other scripts' marks
+/// kept, stroke letters mapped), applies full Unicode case folding,
+/// collapses dotted initialisms
 /// (`"U.S.A."` -> `"usa"`), splits on punctuation and whitespace, and
 /// joins alphanumeric tokens with a single ASCII space.
 pub fn fold_alias(input: &str) -> String {
     if input.is_empty() {
         return String::new();
     }
-    let mut nfd = String::with_capacity(input.len());
-    normalize(Form::Nfd, input, &mut nfd);
-
-    let mut stripped = String::with_capacity(nfd.len());
-    for ch in nfd.chars() {
-        if general_category(ch) == GeneralCategory::Mn {
-            continue;
-        }
-        match ch {
-            'ß' | 'ẞ' => stripped.push_str("ss"),
-            'æ' | 'Æ' => stripped.push_str("ae"),
-            'œ' | 'Œ' => stripped.push_str("oe"),
-            'ø' | 'Ø' => stripped.push('o'),
-            'ł' | 'Ł' => stripped.push('l'),
-            'đ' | 'Đ' | 'ð' | 'Ð' => stripped.push('d'),
-            'ı' => stripped.push('i'),
-            _ => stripped.push(ch),
-        }
+    let mut stripped = String::with_capacity(input.len());
+    thread_local! {
+        static FOLD_SCRATCH: std::cell::RefCell<turbo_normalize::FoldScratch> =
+            std::cell::RefCell::new(turbo_normalize::FoldScratch::default());
     }
+    FOLD_SCRATCH.with(|scratch| {
+        turbo_normalize::AccentFold::new().fold_str(input, &mut scratch.borrow_mut(), &mut stripped);
+    });
 
     let mut folded = String::with_capacity(stripped.len());
     casefold::fold(&stripped, &mut folded);
@@ -119,119 +107,23 @@ pub fn extract_context_terms(text: &str) -> Vec<String> {
     let folded = fold_alias(text);
     folded
         .split_whitespace()
-        .filter(|w| (w.len() >= 2 || w.chars().all(|c| c.is_ascii_digit())) && !is_stop_word(w))
+        .filter(|w| (w.chars().count() >= 2 || w.chars().all(|c| c.is_ascii_digit())) && !is_stop_word(w))
         .map(str::to_owned)
         .collect()
 }
 
-/// Computes the Jaro similarity in `[0.0, 1.0]` between two strings over `char`s.
+/// Computes the Jaro similarity in `[0.0, 1.0]` between two strings
+/// over `char`s: the shared `turbo_geo` implementation (ASCII bitmask
+/// fast path, thread-local scratch otherwise).
 pub fn jaro_similarity(a: &str, b: &str) -> f64 {
-    if a == b {
-        return 1.0;
-    }
-    if a.is_ascii() && b.is_ascii() && a.len() <= 128 && b.len() <= 128 {
-        let a_bytes = a.as_bytes();
-        let b_bytes = b.as_bytes();
-        let a_len = a_bytes.len();
-        let b_len = b_bytes.len();
-        if a_len == 0 || b_len == 0 {
-            return 0.0;
-        }
-        let match_distance = (a_len.max(b_len) / 2).saturating_sub(1);
-        let mut a_matches = 0u128;
-        let mut b_matches = 0u128;
-        let mut matches = 0usize;
-        for (i, &ac) in a_bytes.iter().enumerate() {
-            let start = i.saturating_sub(match_distance);
-            let end = (i + match_distance + 1).min(b_len);
-            for (j, &bc) in b_bytes.iter().enumerate().take(end).skip(start) {
-                let b_bit = 1u128 << j;
-                if (b_matches & b_bit) == 0 && ac == bc {
-                    a_matches |= 1u128 << i;
-                    b_matches |= b_bit;
-                    matches += 1;
-                    break;
-                }
-            }
-        }
-        if matches == 0 {
-            return 0.0;
-        }
-        let mut transpositions = 0usize;
-        let mut rem_b = b_matches;
-        for (i, &ac) in a_bytes.iter().enumerate() {
-            if (a_matches & (1u128 << i)) == 0 {
-                continue;
-            }
-            let k = rem_b.trailing_zeros() as usize;
-            rem_b &= rem_b - 1;
-            if ac != b_bytes[k] {
-                transpositions += 1;
-            }
-        }
-        let m = matches as f64;
-        let t = (transpositions as f64) / 2.0;
-        return ((m / (a_len as f64)) + (m / (b_len as f64)) + ((m - t) / m)) / 3.0;
-    }
-
-    let a_chars: Vec<char> = a.chars().collect();
-    let b_chars: Vec<char> = b.chars().collect();
-    let a_len = a_chars.len();
-    let b_len = b_chars.len();
-    if a_len == 0 || b_len == 0 {
-        return 0.0;
-    }
-
-    let match_distance = (a_len.max(b_len) / 2).saturating_sub(1);
-    let mut a_matches = vec![false; a_len];
-    let mut b_matches = vec![false; b_len];
-
-    let mut matches = 0usize;
-    for i in 0..a_len {
-        let start = i.saturating_sub(match_distance);
-        let end = (i + match_distance + 1).min(b_len);
-        for j in start..end {
-            if !b_matches[j] && a_chars[i] == b_chars[j] {
-                a_matches[i] = true;
-                b_matches[j] = true;
-                matches += 1;
-                break;
-            }
-        }
-    }
-
-    if matches == 0 {
-        return 0.0;
-    }
-
-    let mut transpositions = 0usize;
-    let mut k = 0usize;
-    for i in 0..a_len {
-        if !a_matches[i] {
-            continue;
-        }
-        while !b_matches[k] {
-            k += 1;
-        }
-        if a_chars[i] != b_chars[k] {
-            transpositions += 1;
-        }
-        k += 1;
-    }
-
-    let m = matches as f64;
-    let t = (transpositions as f64) / 2.0;
-    ((m / (a_len as f64)) + (m / (b_len as f64)) + ((m - t) / m)) / 3.0
+    turbo_geo::jaro_similarity(a, b)
 }
 
-/// Computes the Jaro-Winkler similarity in `[0.0, 1.0]` between two strings.
+/// Computes the Jaro-Winkler similarity in `[0.0, 1.0]` between two
+/// strings: the shared `turbo_geo` implementation, with the standard
+/// 0.7 boost threshold.
 pub fn jaro_winkler(a: &str, b: &str) -> f64 {
-    let jaro = jaro_similarity(a, b);
-    if jaro <= 0.0 {
-        return 0.0;
-    }
-    let prefix = a.chars().zip(b.chars()).take(4).take_while(|(ca, cb)| ca == cb).count() as f64;
-    (jaro + prefix * 0.1 * (1.0 - jaro)).clamp(0.0, 1.0)
+    turbo_geo::jaro_winkler(a, b)
 }
 
 /// Computes the Sørensen-Dice coefficient over space-separated tokens of two
@@ -415,4 +307,25 @@ pub(crate) fn min_jaro_matches(q_len: usize, k_len: usize, prefix_len: usize, th
     let numer = rhs * (q_len as f64) * (k_len as f64);
     let denom = (q_len + k_len) as f64;
     ((numer / denom) - 1e-9).ceil().max(1.0) as usize
+}
+
+#[cfg(test)]
+mod fold_alias_accent_tests {
+    #[test]
+    fn marks_outside_folded_scripts_survive_and_thorn_maps() {
+        // Devanagari anusvara (Mn) is kept: the two words stay distinct.
+        assert_ne!(super::fold_alias("\u{0938}\u{0902}\u{0924}"), super::fold_alias("\u{0938}\u{0924}"));
+        assert_eq!(super::fold_alias("\u{00DE}ingvellir"), "thingvellir");
+        assert_eq!(super::fold_alias("\u{0126}amrun"), "hamrun");
+        assert_eq!(super::fold_alias("S\u{00E3}o Paulo"), "sao paulo");
+    }
+}
+
+#[cfg(test)]
+mod char_count_tests {
+    #[test]
+    fn single_character_terms_drop_by_character_count() {
+        let terms = super::extract_context_terms("\u{4EAC} \u{00E9} a tokyo paris");
+        assert_eq!(terms, vec!["tokyo".to_string(), "paris".to_string()]);
+    }
 }

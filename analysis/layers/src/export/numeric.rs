@@ -50,6 +50,7 @@ impl LayerCodec for Numbers {
     fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
         let mut w = Writer::new();
         put_spans(&mut w, &self.spans, cx)?;
+        put_u32s(&mut w, &self.numeral_start)?;
         put_u32s(&mut w, &self.numeral_end)?;
         put_bools(&mut w, &self.negative)?;
         put_strs(&mut w, &self.coefficient)?;
@@ -62,6 +63,7 @@ impl LayerCodec for Numbers {
     fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
         let mut r = Reader::new(data);
         let spans = get_spans(&mut r, cx)?;
+        let numeral_start = get_u32s(&mut r)?;
         let numeral_end = get_u32s(&mut r)?;
         let negative = get_bools(&mut r)?;
         let coefficient = get_strs(&mut r)?;
@@ -70,6 +72,7 @@ impl LayerCodec for Numbers {
         let marker = get_variants(&mut r, &MARKERS, "scale marker")?;
         let notation = get_variants(&mut r, &NOTATIONS, "number notation")?;
         let n = spans.len();
+        want_len(numeral_start.len(), n, "numeral starts")?;
         want_len(numeral_end.len(), n, "numeral ends")?;
         want_len(negative.len(), n, "negatives")?;
         want_len(coefficient.len(), n, "coefficients")?;
@@ -78,7 +81,7 @@ impl LayerCodec for Numbers {
         want_len(marker.len(), n, "markers")?;
         want_len(notation.len(), n, "notations")?;
         done(&r, "numbers")?;
-        Ok(Numbers { spans, numeral_end, negative, coefficient, scale, multiplier, marker, notation })
+        Ok(Numbers { spans, numeral_start, numeral_end, negative, coefficient, scale, multiplier, marker, notation })
     }
 }
 
@@ -145,6 +148,10 @@ impl LayerCodec for Quantities {
         put_strs(&mut w, &self.coefficient)?;
         put_i32s(&mut w, &self.scale)?;
         put_strs(&mut w, &self.unit)?;
+        put_bools(&mut w, &self.normalized_negative)?;
+        put_strs(&mut w, &self.normalized_coefficient)?;
+        put_i32s(&mut w, &self.normalized_scale)?;
+        put_strs(&mut w, &self.base_unit)?;
         Ok(w.finish())
     }
     fn import(data: &[u8], cx: &mut ImportCx, _doc: &Document) -> Result<Self, ExportError> {
@@ -154,13 +161,31 @@ impl LayerCodec for Quantities {
         let coefficient = get_strs(&mut r)?;
         let scale = get_i32s(&mut r)?;
         let unit = get_strs(&mut r)?;
+        let normalized_negative = get_bools(&mut r)?;
+        let normalized_coefficient = get_strs(&mut r)?;
+        let normalized_scale = get_i32s(&mut r)?;
+        let base_unit = get_strs(&mut r)?;
         let n = spans.len();
         want_len(negative.len(), n, "negatives")?;
         want_len(coefficient.len(), n, "coefficients")?;
         want_len(scale.len(), n, "scales")?;
         want_len(unit.len(), n, "units")?;
+        want_len(normalized_negative.len(), n, "normalized negatives")?;
+        want_len(normalized_coefficient.len(), n, "normalized coefficients")?;
+        want_len(normalized_scale.len(), n, "normalized scales")?;
+        want_len(base_unit.len(), n, "base units")?;
         done(&r, "quantities")?;
-        Ok(Quantities { spans, negative, coefficient, scale, unit })
+        Ok(Quantities {
+            spans,
+            negative,
+            coefficient,
+            scale,
+            unit,
+            normalized_negative,
+            normalized_coefficient,
+            normalized_scale,
+            base_unit,
+        })
     }
 }
 
@@ -218,7 +243,18 @@ impl LayerCodec for Pii {
         let mut w = Writer::new();
         put_spans(&mut w, &self.spans, cx)?;
         w.usize(self.kind.len())?;
-        for k in &self.kind {
+        for &k in &self.kind {
+            if let PiiKind::Custom(name) = k {
+                if name.is_empty() || name.len() > PiiKind::MAX_CUSTOM_NAME_BYTES || PiiKind::parse(name).is_some() {
+                    return Err(malformed(format!("invalid custom pii kind {name:?}")));
+                }
+                if !PiiKind::remember_custom(k) {
+                    return Err(malformed(format!(
+                        "custom pii kind {name:?} exceeds registry capacity ({})",
+                        PiiKind::MAX_CUSTOM_KINDS
+                    )));
+                }
+            }
             w.str(k.name())?;
         }
         put_variants(&mut w, &PII_CONFIDENCES, &self.confidence)?;
@@ -232,10 +268,8 @@ impl LayerCodec for Pii {
         for _ in 0..r.usize()? {
             let name = r.string()?;
             kind.push(
-                PiiKind::ALL
-                    .iter()
-                    .copied()
-                    .find(|k| k.name() == name)
+                PiiKind::parse(&name)
+                    .or_else(|| PiiKind::intern_custom(&name))
                     .ok_or_else(|| malformed(format!("an unknown pii kind {name:?}")))?,
             );
         }

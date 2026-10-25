@@ -312,7 +312,10 @@ int32_t turbo_runtime_capability(turbo_runtime *rt, uint32_t index, uint32_t tas
 
 /* The device that will run task fastest here: the highest capability status
  * at TURBO_PRECISION_MODEL, then the best speed_ratio among equals. Embedding excludes
- * CPUs; reranking currently selects a CPU. Among devices that still tie, the first in device order. reason
+ * CPUs; reranking and extractive QA include them, and their cells tie as experimental
+ * until a task record backs one, so a GPU listed before the CPU is chosen. Reranking
+ * runs only on the CPU and CUDA, so on other GPUs it selects the CPU. Among devices
+ * that still tie, the first in device order. reason
  * receives one line saying why, if non-NULL and reason_len is not 0.
  * TURBO_E_DEVICE_NOT_FOUND when nothing offers the task. */
 int32_t turbo_runtime_select(turbo_runtime *rt, uint32_t task, uint32_t *out,
@@ -605,7 +608,18 @@ int32_t turbo_embed_write_tokens(turbo_session *s, const turbo_token_batch *batc
  * count over the session's max_ranges is TURBO_E_CAPACITY; a range whose
  * row is not under batch, whose start is not under its end, whose end is
  * over seq, or that holds no token with mask 1 is TURBO_E_INVALID_ARGUMENT
- * naming the range by its index. opts may be NULL. */
+ * naming the range by its index. opts may be NULL.
+ *
+ * On an extractive QA model (TURBO_TASK_EXTRACTIVE_QA) whose device applies
+ * the span head (the cuda backend), each range's vector goes through the
+ * head on the device and its row is the head's [start, end] logits: dim
+ * is 2, and a read copies 8 bytes a range. The head reads the whole
+ * vector, so there a normalization that resolves to other than
+ * TURBO_NORMALIZE_NONE (the bundle's included, with opts NULL) is
+ * TURBO_E_UNSUPPORTED_OPTION naming field 4, and an output_dim that
+ * resolves to other than the model's dim the same naming field 6.
+ * Elsewhere a QA model's range rows are the vectors, as for any model,
+ * and the caller applies the head. */
 int32_t turbo_embed_write_ranges(turbo_session *s, const turbo_token_batch *batch,
                                  const turbo_token_range *ranges, uint32_t count,
                                  const turbo_embed_options *opts, turbo_error *err);
@@ -618,13 +632,17 @@ int32_t turbo_embed_write_ranges(turbo_session *s, const turbo_token_batch *batc
  * session is TURBO_E_BUSY. */
 int32_t turbo_session_run(turbo_session *s, turbo_result **out, turbo_error *err);
 
-/* CPU cross-encoder reranking. Output is [pair_count, 1] F32 raw relevance
+/* Cross-encoder reranking, on the CPU or through CUDA's embedding encoder. Output is [pair_count, 1] F32 raw relevance
  * logits, max-pooled over passage windows. Model and artifact identity are
  * in turbo_result_info. No sigmoid is applied. */
 typedef struct turbo_rerank_options {
     uint32_t struct_size;
     uint32_t query_tokens; /* 1: query budget excluding specials; 0 uses bundle */
-    uint32_t max_tokens;   /* 2: pair length including specials; 0 uses bundle */
+    uint32_t max_tokens;   /* 2: pair length including specials. In
+                              turbo_rerank_write_pairs: 0 = the session's max_seq,
+                              above it is TURBO_E_CAPACITY. In
+                              turbo_tokenizer_encode_pair: 0 = the bundle's rerank
+                              max_seq, above it is TURBO_E_INVALID_ARGUMENT on field 2 */
     uint32_t stride;       /* 3: passage window advance; 0 uses full window */
 } turbo_rerank_options;
 

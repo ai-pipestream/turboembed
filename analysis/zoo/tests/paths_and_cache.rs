@@ -4,8 +4,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use turbo_zoo::accept::{Acceptances, UserId};
 use turbo_zoo::digest::{Sha256, Sha512};
-use turbo_zoo::error::ZooError;
-use turbo_zoo::fetch::{Transport, Zoo};
+use turbo_zoo::error::{Check, ZooError};
+use turbo_zoo::fetch::{CacheStatus, Transport, Zoo};
 use turbo_zoo::index::{Index, Url};
 use turbo_zoo::licence::Policy;
 
@@ -68,7 +68,8 @@ fn index_with_files(files_json: &str, origin_json: &str) -> String {
       "license": "{license}",
       "license_terms": "https://example.org/terms",
       "trained_on": [],
-      "class": "{class}",{origin_json}
+      "class": "{class}",
+      "attribution": "Example attribution for test-art.",{origin_json}
       "files": [{files_json}]
     }}
   ]
@@ -78,7 +79,7 @@ fn index_with_files(files_json: &str, origin_json: &str) -> String {
 
 #[test]
 fn index_rejects_partial_file_paths() {
-    for bad in ["model.bin.partial", "sub/model.partial", "sub.partial/model.bin"] {
+    for bad in ["model.bin.partial", "sub/model.partial", "sub.partial/model.bin", "model.bin.partial.7.0"] {
         let json = index_with_files(&file_json(bad, "https://example.org/m.bin"), "");
         match Index::parse(json.as_bytes()) {
             Err(ZooError::Index(m)) => assert!(m.contains(".partial"), "{bad}: {m}"),
@@ -146,4 +147,64 @@ fn fetch_rejects_directory_at_target_file_path_and_refetches_wrong_size_file() {
     fs::write(&target, b"wrong-size-cached-content").unwrap();
     let fetched = zoo.fetch("test-art", &user, &acceptances).unwrap();
     assert_eq!(fs::read(fetched.single().unwrap()).unwrap(), BYTES);
+}
+
+#[test]
+fn concurrent_fetches_and_saves_of_one_file_all_succeed_with_whole_files() {
+    let dir = TempDir::new("concurrent");
+    let json = index_with_files(&file_json("model.bin", "https://example.org/m.bin"), "");
+    let accepted = dir.0.join("acceptances.json");
+    std::thread::scope(|s| {
+        for _ in 0..8 {
+            s.spawn(|| {
+                let index = Index::parse(json.as_bytes()).unwrap();
+                let transport = FixedTransport(BYTES);
+                let zoo = Zoo::new(index, dir.0.join("artifacts"), Policy::default(), &transport);
+                let user: UserId = "alice".parse().unwrap();
+                for _ in 0..20 {
+                    // Each fetch writes again: the file is removed between
+                    // them by whichever thread comes next.
+                    let _ = fs::remove_file(dir.0.join("artifacts/test-art/model.bin"));
+                    let fetched = zoo.fetch("test-art", &user, &Acceptances::default()).unwrap();
+                    assert_eq!(fetched.files.len(), 1);
+                    Acceptances::default().save(&accepted).unwrap();
+                }
+            });
+        }
+    });
+    assert_eq!(fs::read(dir.0.join("artifacts/test-art/model.bin")).unwrap(), BYTES);
+    assert_eq!(Acceptances::load(&accepted).unwrap(), Acceptances::default());
+    for d in [dir.0.clone(), dir.0.join("artifacts/test-art")] {
+        let names: Vec<_> = fs::read_dir(&d).unwrap().map(|e| e.unwrap().file_name()).collect();
+        assert!(names.iter().all(|n| !n.to_string_lossy().contains(".partial")), "{names:?}");
+    }
+}
+
+#[test]
+fn cache_status_reads_the_cache_and_writes_nothing() {
+    let dir = TempDir::new("status");
+    let json = index_with_files(&file_json("sub/model.bin", "https://example.org/m.bin"), "");
+    let transport = FixedTransport(BYTES);
+    let cache = dir.0.join("artifacts");
+    let zoo = Zoo::new(Index::parse(json.as_bytes()).unwrap(), cache.clone(), Policy::default(), &transport);
+    let missing = CacheStatus::Missing { file: "sub/model.bin".into() };
+    assert_eq!(zoo.cache_status("test-art").unwrap(), missing);
+    assert!(!cache.exists(), "a status check makes no directory");
+    zoo.fetch("test-art", &"alice".parse().unwrap(), &Acceptances::default()).unwrap();
+    assert_eq!(zoo.cache_status("test-art").unwrap(), CacheStatus::Cached);
+    let local = cache.join("test-art/sub/model.bin");
+    fs::write(&local, b"model-paylo4d").unwrap();
+    match zoo.cache_status("test-art").unwrap() {
+        CacheStatus::Corrupt { file, reason: ZooError::Integrity { check: Check::Sha256, .. } } => {
+            assert_eq!(file, "sub/model.bin")
+        }
+        other => panic!("expected a SHA-256 mismatch, got {other:?}"),
+    }
+    assert_eq!(fs::read(&local).unwrap(), b"model-paylo4d", "the corrupt file is left as it is");
+    fs::write(&local, b"short").unwrap();
+    assert!(matches!(
+        zoo.cache_status("test-art").unwrap(),
+        CacheStatus::Corrupt { reason: ZooError::Integrity { check: Check::Size, .. }, .. }
+    ));
+    assert!(matches!(zoo.cache_status("no-such-id"), Err(ZooError::NotFound(_))));
 }

@@ -15,6 +15,8 @@ pub trait Embedder: Send + Sync + 'static {
     fn model(&self) -> &ModelRef;
     /// Where the model runs when a call does not say.
     fn execution(&self) -> &Execution;
+    /// The special tokens and prompt prefix included in each row.
+    fn overhead(&self) -> u32;
     /// The configuration hash of the vectors when `layout` lays out the
     /// windows (`VectorAnnotator::config`).
     fn config(&self, layout: Which) -> u64;
@@ -37,6 +39,10 @@ impl Embedder for VectorAnnotator {
         &self.execution
     }
 
+    fn overhead(&self) -> u32 {
+        VectorAnnotator::overhead(self)
+    }
+
     fn config(&self, layout: Which) -> u64 {
         VectorAnnotator::config(self, layout)
     }
@@ -47,11 +53,57 @@ fn placed<W>((out, at): (Vec<Result<Output, Error>>, Option<Execution>), take: i
     out.into_iter().map(|r| r.map(|o| (take(o), at.clone()))).collect()
 }
 
+/// Apply the recorded chunk budget check before choosing a backend,
+/// retaining each result's original slot and the valid call's execution.
+fn embed_checked<E: Embedder>(
+    ann: &E,
+    id: &'static str,
+    inputs: Vec<Input<'_>>,
+    overheads: &[u32],
+) -> (Vec<Result<Output, Error>>, Option<Execution>) {
+    let want = ann.overhead();
+    let mut slots = Vec::with_capacity(inputs.len());
+    let mut ok = Vec::new();
+    let mut ok_at = Vec::new();
+    for (i, input) in inputs.into_iter().enumerate() {
+        let recorded = overheads[i];
+        if recorded != 0 && recorded != want {
+            slots.push(Some(Err(Error::Annotator {
+                annotator: id,
+                detail: format!(
+                    "the chunks were budgeted with {recorded} tokens of prompt overhead, this step embeds with {want}"
+                ),
+            })));
+        } else {
+            slots.push(None);
+            ok_at.push(i);
+            ok.push(input);
+        }
+    }
+    let (out, execution) = ann.embed_placed(id, &ok);
+    for (at, result) in ok_at.into_iter().zip(out) {
+        slots[at] = Some(result);
+    }
+    (slots.into_iter().map(|s| s.expect("every slot filled")).collect(), execution)
+}
+
 /// The provenance every vector step gives: the model, where it ran and
 /// the settings, with the layer that lays out the step's windows; and the
 /// batch run, which records where each call ran.
+macro_rules! vector_inputs {
+    ($step:expr, $inputs:expr) => {{
+        let inputs: Vec<Input<'_>> = $inputs.into_iter().map(Self::input).collect();
+        $step.0.embed_placed(Self::ID, &inputs)
+    }};
+    ($step:expr, $inputs:expr, $overhead:expr) => {{
+        let overheads: Vec<u32> = $inputs.iter().map($overhead).collect();
+        let inputs: Vec<Input<'_>> = $inputs.into_iter().map(Self::input).collect();
+        embed_checked(&*$step.0, Self::ID, inputs, &overheads)
+    }};
+}
+
 macro_rules! vector_step {
-    ($layout:expr, $take:expr) => {
+    ($layout:expr, $take:expr $(, $overhead:expr)?) => {
         const VERSION: &'static str = "1";
 
         fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error> {
@@ -63,8 +115,7 @@ macro_rules! vector_step {
         }
 
         fn annotate_batch_placed<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Placed<Self::Writes>> {
-            let inputs: Vec<Input<'_>> = inputs.into_iter().map(Self::input).collect();
-            placed(self.0.embed_placed(Self::ID, &inputs), $take)
+            placed(vector_inputs!(self, inputs $(, $overhead)?), $take)
         }
 
         fn model(&self) -> Option<ModelRef> {
@@ -125,7 +176,7 @@ impl<E: Embedder> Annotator for ChunkVectors<E> {
     type Reads = (Subwords, Chunks);
     type Writes = (Vectors<Chunks>,);
 
-    vector_step!(Which::Chunks, |o: Output| (o.chunks.expect("asked for"),));
+    vector_step!(Which::Chunks, |o: Output| (o.chunks.expect("asked for"),), |(_, c)| c.prompt_overhead);
 }
 
 /// Writes both, from the same windows: a sentence and the chunk it is in
@@ -149,7 +200,11 @@ impl<E: Embedder> Annotator for SentenceChunkVectors<E> {
     type Reads = (Subwords, Sentences, Chunks);
     type Writes = (Vectors<Sentences>, Vectors<Chunks>);
 
-    vector_step!(Which::Sentences, |o: Output| (o.sentences.expect("asked for"), o.chunks.expect("asked for")));
+    vector_step!(
+        Which::Sentences,
+        |o: Output| (o.sentences.expect("asked for"), o.chunks.expect("asked for")),
+        |(_, _, c)| c.prompt_overhead
+    );
 }
 
 /// Writes `opennlp:embeddings<opennlp:subwords>`: a contextual vector per

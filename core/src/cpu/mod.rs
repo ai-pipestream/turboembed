@@ -8,6 +8,7 @@ mod buffers;
 mod encoder;
 mod host;
 mod kernels;
+pub mod lstm;
 mod model;
 pub(crate) mod pool;
 mod run;
@@ -33,6 +34,7 @@ use session::*;
 
 pub use kernels::{Matrix, Mode};
 pub(crate) use kernels::{gelu, softmax};
+pub(crate) use session::{MAX_THREADS, threads};
 
 pub static BACKEND: turbo_backend = turbo_backend {
     struct_size: size_of::<turbo_backend>() as u32,
@@ -61,6 +63,8 @@ pub static BACKEND: turbo_backend = turbo_backend {
     session_create_tuned: None,
     session_open: Some(session_open),
     embed_write_ranges: Some(embed_write_ranges),
+    token_head: 0,
+    reserved3: 0,
 };
 
 unsafe extern "C" fn device_count(out: *mut u32, _err: *mut turbo_error) -> i32 {

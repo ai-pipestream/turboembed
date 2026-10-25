@@ -9,6 +9,8 @@
 
 use turbo_analysis::Span;
 use turbo_unicode::grapheme::grapheme_boundaries;
+// Retain the public path used by callers while sharing one implementation.
+pub use turbo_unicode::whitespace::is_python_space;
 
 /// The tokens `[start, end)` one window reads, not counting the
 /// template's special tokens around them.
@@ -63,7 +65,7 @@ pub fn place_prefix(text: &str, lone: i32, ids: &[i32], spans: &mut [[u32; 2]]) 
 /// The logistic function in f32, as wtpsplit computes it from its
 /// stitched scores (`1 / (1 + exp(-x))`).
 pub fn sigmoid(x: f32) -> f32 {
-    1.0 / (1.0 + (-x).exp())
+    turbo::head::sigmoid(x)
 }
 
 /// The byte offsets a sentence may end at: for each token whose score's
@@ -93,13 +95,6 @@ pub fn boundaries(spans: &[[u32; 2]], scores: &[f32], threshold: f64, out: &mut 
     }
     out.sort_unstable();
     out.dedup();
-}
-
-/// Whether Python's `str.isspace` holds for `c`, which is what wtpsplit
-/// asks of the characters after a boundary: the Unicode `White_Space`
-/// characters and the four information separators U+001C to U+001F.
-pub fn is_python_space(c: char) -> bool {
-    c.is_whitespace() || ('\u{1c}'..='\u{1f}').contains(&c)
 }
 
 /// The cuts wtpsplit makes at `boundaries` (`indices_to_sentences`): each

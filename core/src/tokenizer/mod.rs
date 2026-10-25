@@ -199,6 +199,7 @@ mod decode;
 use decode::*;
 
 mod normalize;
+pub use normalize::pre_words;
 pub(crate) use normalize::*;
 
 #[cfg(test)]

@@ -613,6 +613,9 @@ int32_t session_run(void *session, turbo_backend_run *out, turbo_error *err) {
 
 extern "C" {
 
+/* turbo_hailo::retired_frames, for core/tests/hailo_release.rs. */
+uint32_t turbo_hailo_retired_frames(void) { return turbo_hailo::retired_frames(); }
+
 extern const turbo_backend turbo_hailo_backend;
 
 const turbo_backend turbo_hailo_backend = {
@@ -643,6 +646,8 @@ const turbo_backend turbo_hailo_backend = {
     nullptr,
     session_open,
     embed_write_ranges,
+    0,
+    0,
 };
 
 } // extern "C"

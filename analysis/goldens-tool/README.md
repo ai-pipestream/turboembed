@@ -158,6 +158,7 @@ a directory with the same model run without them, and its options are
 | | `chunker-fixture+beam1` | `en` | `beamSize 1` |
 | | `chunker-fixture-rust` (fixture) | `en`, `multi`, `edge` | |
 | `langdetect` (`LanguageDetectorME`) | `langdetect-183`, `langdetect-fixture-rust` (fixture) | `en`, `multi` | |
+| | `langdetect-183+probing`, `langdetect-183+probing-chunk50`, `langdetect-fixture-rust+probing`, `langdetect-fixture-rust+probing-chunk50` | `en`, `multi`, `langdetect` | `probing true`, `chunkSize`, `maxLength`, `minConsecImprovements`, `minDiff` |
 | `normalize` (each normalizer) | the normalizer's name | `norm` | see below |
 | `numbers` (`NumberScan` of the addons `numeric` module) | `latin-us`, `latin-eu` | `num` | `notation` |
 | `money`, `money-convert` (`MoneyAnnotator`, `MoneyConversionAnnotator`) | `latin-us`, `latin-eu` | `money` | `notation`; for conversions also `target`, `as_of`, `snapshot` |
@@ -217,7 +218,7 @@ a directory with the same model run without them, and its options are
 | `hunspell` (`HunspellDictionary`, `HunspellStemmer` of the `OPENNLP-1927-hunspell-compatibility` branch) | `en_US`, `de_DE_frami`, `hu_HU` (downloaded); `fixture-<name>` for each fixture in `hunspell/`, and `fixture-unsupported-directives+partial` | `hunspell`: `edge` and the run's own; `stem`: the Snowball sample of the dictionary's language | `mode`, `branchCommit` |
 | `stopword` (`StopwordLists`, `StopwordFilter`, `StopwordFilteringTokenizer`) | `lists`, `codes`, `words`, `filter`, `letters` | `stopword`: `codes` for `codes`, `words` for the others | |
 | `glossary` (`AhoCorasickGlossaryMatcher`, `TermAnalyzingGlossaryMatcher`, `CompositeGlossaryMatcher`, `CsvGlossaryReader`, `TbxGlossaryReader`) | `exact`, `ignore-case`, `whitespace+ignore-case`, `analyzed`, `composite` (the fixture `glossary-terms.tsv`); `csv`, `tsv-header`, `tbx-en`, `tbx-de` | `glossary`: the `text-` inputs for the matchers, the `csv-`, `tsv-` and `tbx-` inputs for the readers | `ignoreCase`, `normalizer`, `analyzer`; `delimiter`, `skipHeader`; `languageTag` |
-| `svm-doccat` (`DocumentCategorizerSVM.train`, `categorize`) | `topics-linear-<weighting>-<selection>` for the four weightings (`binary`, `tf`, `tfidf`, `lognorm`) and five selections (`none`, `ig`, `chi2`, `tf`, `df`); `topics-rbf-tfidf`, `topics-poly-tf`, `topics-sigmoid-binary`, `topics-nu-linear-tfidf`, `topics-nu-rbf-lognorm`, `topics-linear-tfidf-noscale`, `topics-rbf-tfidf-scale-1`, `topics-linear-lognorm-ngram`, `topics-linear-binary-c10`, `pair-linear-tfidf`, `pair-rbf-binary` | `svm-doccat`; the run's corpus in `svm-doccat-train` | `run`, `corpus`, `language`, `seed`, `weighting`, `selection`, `max-features`, `svm-type`, `kernel`, `degree`, `gamma`, `coef0`, `cost`, `scaling`, `generators` |
+| `svm-doccat` (`DocumentCategorizerSVM.train`, `categorize`) | `topics-linear-<weighting>-<selection>` for the four weightings (`binary`, `tf`, `tfidf`, `lognorm`) and five selections (`none`, `ig`, `chi2`, `tf`, `df`); `topics-rbf-tfidf`, `topics-poly-tf`, `topics-sigmoid-binary`, `topics-sigmoid-tfidf`, `topics-nu-linear-tfidf`, `topics-nu-rbf-lognorm`, `topics-linear-tfidf-noscale`, `topics-rbf-tfidf-scale-1`, `topics-linear-lognorm-ngram`, `topics-linear-binary-c10`, `pair-linear-tfidf`, `pair-rbf-binary` | `svm-doccat`; the run's corpus in `svm-doccat-train` | `run`, `corpus`, `language`, `seed`, `weighting`, `selection`, `max-features`, `svm-type`, `kernel`, `degree`, `gamma`, `coef0`, `cost`, `scaling`, `generators` |
 | `sentiment` (`SentimentME.train`, `probabilities`) | `tokens-maxent`, `emoji-maxent`, `emoji-default`, `emoji-qn`, `emoji-perceptron` | `sentiment`; the corpus `feedback` in `sentiment-train` | `run`, `corpus`, `language`, `factory`, `Algorithm`, `Iterations`, `Cutoff` |
 | `doccat` (`DocumentCategorizerME.train`, `categorize`) | `sms-default`, `sms-maxent`, `sms-qn`, `sms-perceptron` | `doccat`; the corpus `emoji` in `doccat-train` | `run`, `corpus`, `language`, `generators`, `Algorithm`, `Iterations`, `Cutoff` |
 | `postag-neural` (`BilstmPOSTagger`, `FeedforwardPOSTagger` of the addons `neural-postag` module, `topKSequences`) | `bilstm`, `bilstm-crf`, `bilstm-two-layer`, `bilstm-two-layer-crf`, `bilstm-vectors-crf`, `bilstm-adapter-crf`, `feedforward`, `feedforward-vectors` | `tagged` (the `wordtag` input, also the training corpus), `sequence` (the `sentences` input) | `run`, `corpus`, `neuralPostagCommit`, `settings`, `vectors` |
@@ -986,6 +987,31 @@ space), which makes it join changes that lie one or two characters apart.
 
 The `norm` inputs are written for the project and use characters of the
 Unicode 15.0 repertoire only, which is what JDK 21 implements.
+
+### Chained views
+
+`umlaut-full-case-whitespace-chain` runs German umlaut expansion, full case
+folding and whitespace collapse on all 61 `norm` inputs. The generator calls
+OpenNLP's `normalizeAligned` on each step, then `Alignment.andThen` twice.
+The output rows come from that composed JVM alignment, with UTF-16 spans
+converted to source UTF-8 bytes. No diff or Rust output supplies the oracle.
+
+The Rust test stores three separate views on a document and compares the
+last one through `GoldenCompare`. Parent edits are composed to the source
+with `Document::view_alignment`, then the text and edit rows are checked
+exactly as for a direct view. Direct-view edit boundaries are unchanged.
+The test also maps changed spans both ways and repeats the comparison after
+adding an identity view. Invalid parent references report `ViewAlignment`.
+
+The normal generator includes the chain. It can also be regenerated without
+loading other models using `NormalizerChainGolden.main`. Compile the two
+normalizer generator classes against the pinned generator jar, then run the
+class with the input directory, output directory, and OpenNLP commit. For the
+checked-in files the image is
+`turbo-goldens-java:opennlp-cdf33c653d5d-addons-33e95a4956f1`, OpenNLP commit
+`cdf33c653d5d61d5af7d37ffee189a83bd8392ea`, and Temurin 21.0.12.1+1-LTS.
+The headers report the actual jar version, JDK and input digest. Running this
+generator twice produced the same 61 files byte for byte.
 
 ## Number goldens
 

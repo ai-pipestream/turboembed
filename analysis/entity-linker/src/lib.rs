@@ -20,20 +20,27 @@
 //!   recording the resolved KB ID, provider ID, canonical name, matched alias, score,
 //!   explicit `NIL` reason and surface/coreference `nil_cluster` ID, and top-$k$ ranked
 //!   candidates, together with [`DocumentGraph`](turbo_analysis::DocumentGraph) binary codecs.
+//! - [`EntityConsolidator`] and [`EntitySalienceAnnotator`]: the document-level
+//!   entity graph and how central each of its entities is.
 
+pub mod consolidate;
 mod fuzzy_index;
 pub mod kb;
 pub mod layer;
 pub mod linker;
 pub mod providers;
+pub mod salience;
 pub mod scorer;
 pub mod similarity;
 mod snapshot;
+mod validate;
 
+pub use consolidate::{ConsolidatorConfig, EntityConsolidator};
 pub use kb::{CatalogError, KbEntity, KnowledgeBase};
 pub use layer::{CandidateLink, LinkedEntities, LinkedEntityView, NilReason, codecs, register_codecs};
 pub use linker::EntityLinker;
 pub use providers::{CatalogProvider, GazetteerProvider, GlossaryProvider, KbProvider, RawCandidate, WordNetProvider};
+pub use salience::{EntitySalienceAnnotator, SalienceConfig};
 pub use scorer::{LinkerConfig, LinkerWeights, context_overlap_score, prior_score, type_compatibility};
 pub use similarity::{
     alias_similarity, extract_context_terms, fold_alias, jaro_similarity, jaro_winkler, token_dice_similarity,

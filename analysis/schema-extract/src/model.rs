@@ -216,6 +216,11 @@ impl Gliner2Extractor {
         &self.limits
     }
 
+    /// The widest span, in words, the span heads score.
+    pub fn max_width(&self) -> usize {
+        self.heads.max_width
+    }
+
     /// The input for `schema` over `text`, checked against every limit,
     /// without running the model.
     pub fn prompt(&self, text: &str, schema: &ExtractionSchema) -> Result<Prompt, ExtractError> {
@@ -245,6 +250,11 @@ impl Gliner2Extractor {
     /// One encoder pass and every head over `text` and `schema`.
     pub fn pass(&self, text: &str, schema: &ExtractionSchema) -> Result<Pass, ExtractError> {
         run(&self.encoder, &self.heads, &self.classifier, self.prompt(text, schema)?)
+    }
+
+    /// One encoder pass and every head over an input [`Self::prompt`] built.
+    pub fn pass_prompt(&self, prompt: Prompt) -> Result<Pass, ExtractError> {
+        run(&self.encoder, &self.heads, &self.classifier, prompt)
     }
 }
 

@@ -55,13 +55,15 @@ enum Compared {
 impl Numeric {
     pub(crate) fn open_numbers(run: &str) -> Result<Box<dyn Run>, Unavailable> {
         let (n, config) = notation(run)?;
-        let analyzer = Analyzer::builder().add(NumberScanner::new(n)).build().map_err(broken)?;
+        let analyzer =
+            Analyzer::builder().add(NumberScanner::new(n).with_opennlp_parity(true)).build().map_err(broken)?;
         Ok(Box::new(Numeric { analyzer, config, layer: Compared::Numbers }))
     }
 
     pub(crate) fn open_quantities(run: &str) -> Result<Box<dyn Run>, Unavailable> {
         let (n, config) = notation(run)?;
-        let analyzer = Analyzer::builder().add(QuantityExtractor::new(n)).build().map_err(broken)?;
+        let analyzer =
+            Analyzer::builder().add(QuantityExtractor::new(n).with_opennlp_parity(true)).build().map_err(broken)?;
         Ok(Box::new(Numeric { analyzer, config, layer: Compared::Quantities }))
     }
 
@@ -71,7 +73,7 @@ impl Numeric {
         let as_of = Date::parse(AS_OF).ok_or_else(|| broken("the as-of date"))?;
         let rates = EcbRates::load(res.rates()).map_err(|e| broken(format!("{}: {e}", res.rates().display())))?;
         let analyzer = Analyzer::builder()
-            .add(MoneyExtractor::new(n))
+            .add(MoneyExtractor::new(n).with_opennlp_parity(true))
             .step(MoneyConverter::new(rates, target, as_of).bound())
             .build()
             .map_err(broken)?;

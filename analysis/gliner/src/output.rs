@@ -1,8 +1,5 @@
 use crate::{ExtractionSchema, Model};
-use std::{
-    hash::{Hash, Hasher},
-    sync::Arc,
-};
+use std::sync::Arc;
 use turbo_analysis::{
     Anchor, Annotator, Document, Error, Evidence, EvidenceStep, IxRange, Key, Layer, ModelRef, Refs, Span, Spans,
     Support, Tag, TagSet, View,
@@ -90,17 +87,31 @@ impl Annotator for GlinerAnnotator {
         Some(self.model.identity().clone())
     }
     fn config_hash(&self) -> u64 {
-        let mut h = std::collections::hash_map::DefaultHasher::new();
-        serde_json::to_vec(self.model.config()).expect("finite validated config").hash(&mut h);
-        self.schema.labels().hash(&mut h);
-        self.schema.threshold().to_bits().hash(&mut h);
-        (self.schema.mode() as u8).hash(&mut h);
-        self.model.identity().id.hash(&mut h);
-        self.model.identity().revision.hash(&mut h);
-        self.model.identity().sha256.hash(&mut h);
-        h.finish()
+        let config = serde_json::to_vec(self.model.config()).expect("finite validated config");
+        config_hash(
+            &config,
+            self.schema.labels(),
+            self.schema.threshold(),
+            self.schema.mode() as u8,
+            self.model.identity(),
+        )
     }
-    fn annotate(&self, (view, tokens, sentences): Refs<'_, Self>) -> Result<Self::Writes, Error> {
+    fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error> {
+        self.annotate_with_work(input, &mut crate::heads::Work::default())
+    }
+
+    fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
+        let mut work = crate::heads::Work::default();
+        inputs.into_iter().map(|i| self.annotate_with_work(i, &mut work)).collect()
+    }
+}
+
+impl GlinerAnnotator {
+    fn annotate_with_work(
+        &self,
+        (view, tokens, sentences): Refs<'_, Self>,
+        work: &mut crate::heads::Work,
+    ) -> Result<(Entities, Decisions), Error> {
         let fail = |detail: String| Error::Annotator { annotator: Self::ID, detail };
         let windows = crate::window::pack_windows(&self.model, &self.schema, view, tokens, sentences).map_err(fail)?;
         let (starts, ends) = tokens.spans.columns();
@@ -113,8 +124,10 @@ impl Annotator for GlinerAnnotator {
         };
         let mut decisions = Decisions { logits: Vec::new(), threshold: self.schema.threshold() };
         for window in windows {
-            let candidates =
-                crate::decode(self.model.score_packed(&window.packed, &self.schema).map_err(fail)?, &self.schema);
+            let candidates = crate::decode(
+                self.model.score_packed_with_work(&window.packed, &self.schema, work).map_err(fail)?,
+                &self.schema,
+            );
             for c in candidates {
                 let start = window.tokens.start + c.start;
                 let end = window.tokens.start + c.end;
@@ -126,5 +139,49 @@ impl Annotator for GlinerAnnotator {
             }
         }
         Ok((entities, decisions))
+    }
+}
+
+/// FNV-1a over the model config's JSON, the schema's labels, threshold
+/// and decode mode, and the model identity. Every variable-length field
+/// is length-prefixed, and the threshold's bits are taken after `+ 0.0`,
+/// so `-0.0` and `0.0` hash alike.
+fn config_hash(config: &[u8], labels: &[String], threshold: f32, mode: u8, model: &ModelRef) -> u64 {
+    let mut h = 0xcbf29ce484222325u64;
+    let mut eat = |bytes: &[u8]| {
+        for &b in bytes {
+            h = (h ^ u64::from(b)).wrapping_mul(0x100000001b3);
+        }
+    };
+    let mut field = |bytes: &[u8]| {
+        eat(&(bytes.len() as u64).to_le_bytes());
+        eat(bytes);
+    };
+    field(config);
+    field(&(labels.len() as u64).to_le_bytes());
+    for label in labels {
+        field(label.as_bytes());
+    }
+    field(&(threshold + 0.0).to_bits().to_le_bytes());
+    field(&[mode]);
+    for part in [&model.id, &model.revision, &model.sha256] {
+        field(part.as_bytes());
+    }
+    h
+}
+
+#[cfg(test)]
+mod hash_tests {
+    use super::*;
+
+    #[test]
+    fn config_hash_is_fnv_and_folds_negative_zero_threshold() {
+        let model = ModelRef { id: "m".into(), revision: "r".into(), sha256: "s".into() };
+        let labels = vec!["person".to_string(), "place".to_string()];
+        let hash = |t: f32, labels: &[String]| config_hash(b"{}", labels, t, 0, &model);
+        assert_eq!(hash(-0.0, &labels), hash(0.0, &labels));
+        assert_ne!(hash(0.5, &labels), hash(0.0, &labels));
+        assert_ne!(hash(0.5, &labels), hash(0.5, &["personplace".to_string()]));
+        assert_eq!(hash(0.5, &labels), hash(0.5, &labels));
     }
 }

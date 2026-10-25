@@ -75,9 +75,11 @@ pub unsafe extern "C" fn turbo_rerank_write_pairs(
             let mut windows = Vec::new();
             let mut owners = Vec::new();
             for (i, p) in pairs.iter().enumerate() {
-                let query = text(p.query, "pair.query")?;
-                let passage = text(p.passage, "pair.passage")?;
-                let encoded = s.model.tokenizer.encode_pair(query, passage, o.query_tokens, max_tokens, o.stride)?;
+                let at = |e: Error| Error { message: format!("pairs[{i}]: {}", e.message), ..e };
+                let query = text(p.query, "pair.query").map_err(at)?;
+                let passage = text(p.passage, "pair.passage").map_err(at)?;
+                let encoded =
+                    s.model.tokenizer.encode_pair(query, passage, o.query_tokens, max_tokens, o.stride).map_err(at)?;
                 owners.extend(std::iter::repeat_n(i, encoded.len()));
                 windows.extend(encoded);
             }
@@ -112,6 +114,12 @@ pub(super) unsafe fn run_pairs(s: &SessionInner, state: &mut State) -> Result<tu
     let write = backend::offered!(s.backend, embed_write)?;
     let mut result: turbo_backend_run = unsafe { std::mem::zeroed() };
     let mut allocations = 0u64;
+    // A device backend leaves the states in device memory: they are read
+    // back here, and the scores the run returns are the session's own.
+    let mut staged: Vec<f32> = Vec::new();
+    let mut read_back = 0u64;
+    // Each encoder run reports its own transfers; the public run is all of them.
+    let (mut uploaded, mut downloaded, mut device_allocations) = (0u64, 0u64, 0u64);
     for start in (0..batch.pair.len()).step_by(s.info.max_batch as usize) {
         let n = (batch.pair.len() - start).min(s.info.max_batch as usize);
         let at = start * batch.seq;
@@ -126,25 +134,39 @@ pub(super) unsafe fn run_pairs(s: &SessionInner, state: &mut State) -> Result<tu
             pooling: TURBO_POOLING_CLS,
             normalize: TURBO_NORMALIZE_NONE,
             output_dim: head.hidden as u32,
-            reserved: 0,
+            head: 0,
         };
         backend::check(s.backend, "rerank encode write", |err| unsafe { write(s.raw, &rows, err) })?;
         result.struct_size = size_of::<turbo_backend_run>() as u32;
         result.stage[TURBO_EMBED_STAGE_TOKENIZE] = TURBO_STAGE_HOST;
         backend::check(s.backend, "rerank encode run", |err| unsafe { (s.run)(s.raw, &mut result, err) })?;
         check_run(s.backend, &result, true)?;
-        if result.host.is_null() {
-            return Err(Error::new(INTERNAL, "rerank encoder output must be on host"));
-        }
         allocations += result.host_allocs;
-        let states = unsafe { std::slice::from_raw_parts(result.host.cast::<f32>(), n * head.hidden) };
+        uploaded += result.h2d_bytes;
+        downloaded += result.d2h_bytes;
+        device_allocations += result.device_allocs;
+        let states: &[f32] = if result.host.is_null() {
+            let read = backend::offered!(s.backend, buffer_read)?;
+            if staged.is_empty() {
+                allocations += 1;
+            }
+            staged.resize(n * head.hidden, 0.0);
+            let bytes = size_of_val(staged.as_slice()) as u64;
+            backend::check(s.backend, "rerank encode read", |err| unsafe {
+                read(result.output, staged.as_mut_ptr().cast(), bytes, err)
+            })?;
+            read_back += bytes;
+            &staged
+        } else {
+            unsafe { std::slice::from_raw_parts(result.host.cast::<f32>(), n * head.hidden) }
+        };
         for (j, input) in states.chunks_exact(head.hidden).enumerate() {
             if input.iter().any(|v| !v.is_finite()) {
                 return Err(Error::new(INTERNAL, "non-finite rerank encoder output"));
             }
             let hidden = if let Some(pooler) = &head.pooler {
                 for (dst, (w, &bias)) in
-                    state.pooled.iter_mut().zip(pooler.weight.chunks_exact(head.hidden).zip(&pooler.bias))
+                    state.pooled.iter_mut().zip(pooler.weight().chunks_exact(head.hidden).zip(pooler.bias()))
                 {
                     let sum = w.iter().zip(input).fold(f64::from(bias), |a, (&w, &x)| a + f64::from(w) * f64::from(x));
                     *dst = sum.tanh() as f32;
@@ -155,10 +177,10 @@ pub(super) unsafe fn run_pairs(s: &SessionInner, state: &mut State) -> Result<tu
             };
             let value = head
                 .classifier
-                .weight
+                .weight()
                 .iter()
                 .zip(hidden)
-                .fold(f64::from(head.classifier.bias[0]), |a, (&w, &x)| a + f64::from(w) * f64::from(x))
+                .fold(f64::from(head.classifier.bias()[0]), |a, (&w, &x)| a + f64::from(w) * f64::from(x))
                 as f32;
             if !value.is_finite() {
                 return Err(Error::new(INTERNAL, "rerank relevance overflows F32"));
@@ -167,14 +189,30 @@ pub(super) unsafe fn run_pairs(s: &SessionInner, state: &mut State) -> Result<tu
             *score = score.max(value);
         }
     }
-    // CPU output reserves max_batch * hidden elements, including when the
-    // final window batch is shorter. Compact scores into its leading values.
-    unsafe {
-        std::ptr::copy_nonoverlapping(state.scores.as_ptr(), result.host.cast::<f32>(), batch.count);
+    let encode = result.stage[TURBO_EMBED_STAGE_ENCODE];
+    if result.host.is_null() {
+        // The scores are the session's own host memory, held with the
+        // result. No backend object holds them, so the output handle is
+        // NULL: a buffer of the result is exported by the core.
+        result.placement = TURBO_PLACE_HOST;
+        result.output = std::ptr::null_mut();
+        result.host = state.scores.as_mut_ptr().cast();
+    } else {
+        // CPU output reserves max_batch * hidden elements, including when the
+        // final window batch is shorter. Compact scores into its leading values.
+        unsafe {
+            std::ptr::copy_nonoverlapping(state.scores.as_ptr(), result.host.cast::<f32>(), batch.count);
+        }
     }
     result.host_allocs = allocations;
+    result.h2d_bytes = uploaded;
+    result.device_allocs = device_allocations;
+    result.d2h_bytes = downloaded + read_back;
     result.stage.fill(TURBO_STAGE_UNUSED);
     result.stage[..TURBO_RERANK_STAGE_COUNT].fill(TURBO_STAGE_HOST);
+    // The encoder ran where the backend ran it; the head and the window
+    // reduction are the core's, on the host.
+    result.stage[TURBO_RERANK_STAGE_ENCODE] = encode;
     Ok(result)
 }
 

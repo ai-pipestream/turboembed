@@ -15,6 +15,36 @@ usage:
       or its max_seq), time one vector per row, one per chunk of --chunk
       text tokens (default 64) by ranges, and one per chunk embedded as a
       row of its own; write the record to <repo>/benchmarks/ranges
+  turbo-bench postag --model <file> --treebank <file.conllu> [--cpus <list>]
+                     [--rounds <n>] [--repo <dir>] [--out <dir>]
+      the BiLSTM-CRF tagger's packed and JVM parity numerics on a CoNLL-U
+      treebank: accuracy, agreement, emission and marginal drift, and words
+      per second and call latency at 1, 8, 32 and 128 sentences per call
+      and by sentence length, interleaved over --rounds (default 3); write
+      the record to <repo>/benchmarks/records/postag (needs --features postag)
+  turbo-bench tag --model <bundle-dir | ONLP-BLPT file> --corpus <file.conllu>
+                  [--device cpu] [--precision exact|model|fastest]
+                  [--sentences-per-call <n>] [--rounds <n>] [--cpus <list>]
+                  [--repo <dir>] [--out <dir>]
+      one tier of the BiLSTM-CRF tagger on a CoNLL-U corpus: accuracy, and
+      words per second and call p50/p99 cold (the first pass of a freshly
+      loaded tagger) and warm (the median of --rounds passes, default 3);
+      write the record to <repo>/benchmarks/records/tag (needs --features
+      postag)
+  turbo-bench lattice [--dictionaries <dir>] [--rounds <n>] [--readings]
+                     [--cpus <list>] [--repo <dir>] [--out <dir>]
+                     [ipadic|ko-dic|unidic ...]
+      the lattice tokenizer's characters per second per MeCab
+      dictionary over its language's goldens inputs, repeated to
+      10 MiB; write the records to
+      <repo>/benchmarks/records/throughput (needs --features lattice)
+  turbo-bench grammar [--rounds <n>] [--cpus <list>] [--repo <dir>]
+                     [--out <dir>]
+      the English number, unit and time grammars' characters per
+      second per phase (find, lex, parse, parse-units, times) over
+      the number, quantity, money and temporal goldens inputs;
+      write the record to <repo>/benchmarks/records/throughput
+      (needs --features grammar)
   turbo-bench qa --bundle <dir> --questions <squad.json> [--device <d>]
                  [--precision <p>] [--batch <n>] [--max-batch <n>]
                  [--per-bin <n>] [--warmup <n>] [--iterations <n>]
@@ -24,6 +54,24 @@ usage:
       questions each (default 256), --batch questions per call (default
       8), --max-batch windows per run (default the model's), precision
       exact by default; write the record to <repo>/benchmarks/qa
+  turbo-bench rerank --bundle <dir> --questions <squad.json>
+                     (--tei-image <name@sha256:..> --tei-model <dir> | --no-tei)
+                     [--device <d>] [--precision <p>] [--requests <n>]
+                     [--passages <n>] [--warmup <n>] [--iterations <n>]
+                     [--repo <dir>] [--out <dir>]
+      cross-encoder pairs per second on one device: --requests queries
+      (default 64), each with --passages passages that fit one window
+      (default 16), and TEI's /rerank on the same pairs, in float32;
+      write the record to <repo>/benchmarks/rerank
+  turbo-bench static --bundle <dir> --texts <name=file.json,...>
+                     (--peers <dir> | --no-peers) [--precision <p>]
+                     [--batches <n,...>] [--repo <dir>] [--out <dir>]
+      a static bundle's texts per second on the CPU for each text set and
+      batch (default 1,32,256,1024), precision model or fastest (default
+      model), and each peer of bench/static-peers through peers.sh run,
+      with --peers the directory its setup wrote; each peer's vectors for
+      the first set are compared with the library's. Write the record to
+      <repo>/benchmarks/static, which decides no capability cell
   turbo-bench check <record.json>...
       parse records and say whether each backs SUPPORTED for its cell
 
@@ -61,6 +109,9 @@ record options:
   --tei-bin <path>             TEI's router built natively, run in place of
                                an image (metal, which no container reaches)
   --tei-model <dir>            the model in the upstream layout
+  --hailort-bin <path>        native hailortcli (Hailo-8: 4.x; Hailo-10H: 5.x),
+                               batch 32 and the HEF fixed sequence length
+  --no-hailort                record that HailoRT was not run
   --no-tei                     record that TEI was not run
   --tensorrt-image <name@sha256:..>
                                NVIDIA's TensorRT container, pinned (cuda)
@@ -94,7 +145,7 @@ record options:
 /// `--name value` pairs and bare `--flag`s.
 pub(crate) struct Opts(pub(crate) BTreeMap<String, Option<String>>);
 
-const FLAGS: [&str; 3] = ["--no-tei", "--no-tensorrt", "--no-openvino"];
+const FLAGS: [&str; 5] = ["--no-tei", "--no-tensorrt", "--no-openvino", "--no-hailort", "--no-peers"];
 
 impl Opts {
     pub(crate) fn parse(args: &[String]) -> Result<Opts> {

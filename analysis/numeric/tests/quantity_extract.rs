@@ -10,67 +10,13 @@
 
 mod money_common;
 
-use money_common::{dec, same};
-use turbo_analysis::{Analyzer, Annotator, Document, Ix, Layer, Span, ViewId};
+use money_common::{
+    assert_quantity as assert_mention, extract_quantity as extract, none_quantity as none,
+    none_quantity_with as none_with, same, single_quantity as single, single_quantity_with as single_with, whole,
+};
+use turbo_analysis::{Analyzer, Annotator, Document, Ix, Layer, Span};
 use turbo_numeric::NumberNotation::{LatinEu, LatinUs};
-use turbo_numeric::money::Decimal;
 use turbo_numeric::{DEFAULT_UNITS, PERCENT, Quantities, QuantityExtractor, UnitError};
-
-/// One extracted mention: its span, its value and its unit.
-#[derive(Debug)]
-struct Found {
-    span: Span,
-    value: Decimal,
-    unit: String,
-}
-
-/// Every mention `x` finds in `text`, after checking the layer.
-fn extract(x: &QuantityExtractor, text: &str) -> Vec<Found> {
-    let mut q = Quantities::new(ViewId::SOURCE);
-    x.scan(text, &mut q);
-    assert_eq!(q.check(), Ok(()), "{text:?}");
-    q.spans
-        .iter()
-        .map(|(i, span)| {
-            let v = q.value(i);
-            let value = Decimal { negative: v.negative, digits: v.digits.into(), scale: v.scale as i32 };
-            Found { span, value, unit: q.unit(i).into() }
-        })
-        .collect()
-}
-
-/// The single mention `x` finds in `text`.
-fn single_with(x: &QuantityExtractor, text: &str) -> Found {
-    let mut all = extract(x, text);
-    assert_eq!(all.len(), 1, "expected one mention in {text:?}: {all:?}");
-    all.pop().unwrap()
-}
-
-/// The single mention the default extractor finds in `text`.
-fn single(text: &str) -> Found {
-    single_with(&QuantityExtractor::default(), text)
-}
-
-fn none_with(x: &QuantityExtractor, text: &str) {
-    let found = extract(x, text);
-    assert!(found.is_empty(), "{text:?}: {found:?}");
-}
-
-fn none(text: &str) {
-    none_with(&QuantityExtractor::default(), text);
-}
-
-/// The span of the whole of `text`, in bytes.
-fn whole(text: &str) -> Span {
-    Span::new(0, text.len() as u32)
-}
-
-/// Asserts the mention's value, at any scale, and unit.
-#[track_caller]
-fn assert_mention(m: &Found, value: &str, unit: &str) {
-    assert!(same(&dec(value), &m.value), "expected {value}, got {}", m.value);
-    assert_eq!(m.unit, unit);
-}
 
 fn eu() -> QuantityExtractor {
     QuantityExtractor::new(LatinEu)
@@ -131,7 +77,9 @@ fn hyphenated_percent_range_yields_two_positive_mentions() {
 /// not `0 kg` and `1,2345 km` not `2345 km`.
 #[test]
 fn grouping_the_scanner_cannot_parse_yields_no_mention() {
-    for text in ["1,00,000 kg", "1,2345 km", "12,34 m", "1.234,5 kg"] {
+    assert_mention(&single("1,00,000 kg"), "100000", "kg");
+    none_with(&QuantityExtractor::default().with_opennlp_parity(true), "1,00,000 kg");
+    for text in ["1,2345 km", "12,34 m", "1.234,5 kg"] {
         none(text);
     }
 }
@@ -171,7 +119,7 @@ fn custom_units() {
 fn custom_unit_validation() {
     let empty: [&str; 0] = [];
     assert_eq!(QuantityExtractor::with_units(empty, LatinUs), Err(UnitError::Empty));
-    for bad in ["toolongunit", "m2", "kg/m", "\u{00B0}C", ""] {
+    for bad in ["averyverylongunit", "m2", "kg/m", "\u{00B0}C", ""] {
         assert_eq!(
             QuantityExtractor::with_units(["kg", bad], LatinUs),
             Err(UnitError::NotAUnitToken(bad.into())),
@@ -360,8 +308,13 @@ fn only_one_gap_is_allowed() {
 fn scale_markers_are_not_read() {
     // The number scan runs without scale markers, so a suffix or word is
     // where a unit would be, and none of them is one.
-    for text in ["3 million km", "5k kg", "1.5k km", "2bn GB", "1e3 kg", "1.5e-3 kg"] {
+    for text in ["3 million km", "5k kg", "1.5k km", "2bn GB"] {
         none(text);
+    }
+    assert_mention(&single("1e3 kg"), "1000", "kg");
+    assert_mention(&single("1.5e-3 kg"), "0.0015", "kg");
+    for text in ["1e3 kg", "1.5e-3 kg"] {
+        none_with(&QuantityExtractor::default().with_opennlp_parity(true), text);
     }
     // `m` as a suffix would be a million; here it is a metre.
     assert_mention(&single("3m"), "3", "m");
@@ -436,8 +389,8 @@ fn custom_units_outside_the_basic_plane() {
     assert_eq!(m.span, Span::new(0, 10));
     assert_eq!(m.unit, bold);
     assert_eq!(single_with(&custom, "3\u{E9}t").span, Span::new(0, 4));
-    // Six units is the limit, counted in UTF-16 as in the Java.
-    let four = bold.repeat(2);
+    // Fourteen UTF-16 units is the limit (eight bold letters is sixteen).
+    let four = bold.repeat(4);
     assert_eq!(QuantityExtractor::with_units([&four], LatinUs), Err(UnitError::NotAUnitToken(four.as_str().into())));
     assert!(QuantityExtractor::with_units(["abcdef"], LatinUs).is_ok());
     assert!(QuantityExtractor::with_units([format!("{bold}\u{1D41A}")], LatinUs).is_ok());

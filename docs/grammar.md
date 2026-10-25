@@ -226,6 +226,17 @@ where they choose a reading:
   reference.
 - `may`, `sun` and a few other words with a common sense need a cue to
   be a date (`in May`, `on Sun`); `last` after `will` or `to` is a verb.
+- Bare `to date` needs an adverbial context: a clause boundary or a
+  recognized finite predicate (`sales to date exceed ...`). An infinitive
+  governor (`wanted to date`) or following object or noun modifier
+  (`to date him`, `to date night`) suppresses both the standalone node
+  and its use inside a larger time expression. These lexical checks are
+  conservative; they do not perform general syntactic tagging.
+- A yearless range with February 29 at either endpoint pairs both dates
+  around the same leap-day occurrence. A range crossing December takes
+  the neighboring year for its other endpoint; inclusive edges apply
+  after pairing. This avoids combining independent year searches into
+  multi-year ranges for adjacent calendar days.
 - A date with a dot after a full month name (`April. One`) is two
   sentences, and a slash pair after a number or before `of` (`21 1/4`,
   `3/4 of`) is a fraction.
@@ -401,21 +412,21 @@ type (`none` for a case that expects no mention):
 
 | Type | Eligible | Passing |
 |---|---|---|
-| `date` | 198 | 175 |
-| `daterange` | 357 | 325 |
-| `datetime` | 82 | 78 |
-| `datetimerange` | 96 | 85 |
+| `date` | 198 | 183 |
+| `daterange` | 357 | 347 |
+| `datetime` | 82 | 79 |
+| `datetimerange` | 96 | 89 |
 | `duration` | 46 | 46 |
 | `set` | 46 | 46 |
 | `time` | 34 | 34 |
-| `timerange` | 47 | 43 |
+| `timerange` | 47 | 42 |
 | none | 64 | 61 |
-| All | 970 | 893 |
+| All | 970 | 927 |
 
-The cases that fail include time zones, a weekday after a shift,
-`year to date`, holiday weekends, `the first
-N weeks of`, leap-day ranges and a few readings the specification gives
-in a form the rules do not produce for the same words elsewhere. The rules are written for
+Every remaining eligible case that does not pass across all 16
+specification files is documented in
+`analysis/grammar/tests/spec/reasons.rs` and verified by `ratchet`.
+The rules are written for
 English forms, not for single cases, and read forms the specifications
 do not test (`third to last`, a U+2212 minus, `3 in 2009`); the unit
 tests in `analysis/grammar/src/lang/en/tests.rs` cover them.
@@ -428,27 +439,27 @@ way, with the lists in `analysis/grammar/tests/data/pass/Dutch/`:
 | `NumberModel.json` | 161 | 159 |
 | `OrdinalModel.json` | 48 | 48 |
 | `PercentModel.json` | 13 | 13 |
-| `DateTimeModel.json` | 605 | 561 |
+| `DateTimeModel.json` | 605 | 579 |
 
 | Date-time type | Eligible | Passing |
 |---|---|---|
-| `date` | 126 | 117 |
-| `daterange` | 205 | 188 |
-| `datetime` | 51 | 47 |
+| `date` | 126 | 119 |
+| `daterange` | 205 | 199 |
+| `datetime` | 51 | 49 |
 | `datetimerange` | 74 | 66 |
 | `duration` | 28 | 28 |
-| `set` | 23 | 21 |
+| `set` | 23 | 23 |
 | `time` | 23 | 21 |
-| `timerange` | 24 | 22 |
+| `timerange` | 24 | 23 |
 | none | 51 | 51 |
 
 The two number cases that fail are `192.168.1.2`, which the
-specification reads as 192168, 1 and 2, and a lone `een` the
-specification counts as 1. The date-time cases that fail include `op`
-taken into some spans and not others, `voor` meaning for, ranges across
-two dates, the year up to a date, leap days, and a few readings the
-specification gives in a form it does not give for the same words
-elsewhere. The unit tests in `analysis/grammar/src/lang/nl/tests.rs` and
+specification reads as 192.168 and 1.2, and `1 234 567,89`, where the
+specification expects only `567,89`. The date-time cases that fail
+include `op` taken into some spans and not others, `voor` meaning for,
+and a few readings the specification gives in a form it does not give
+for the same words elsewhere (each listed in
+`analysis/grammar/tests/spec/reasons.rs`). The unit tests in `analysis/grammar/src/lang/nl/tests.rs` and
 `analysis/grammar/src/lang/nl/time/tests.rs` cover forms the
 specifications do not test.
 
@@ -496,21 +507,20 @@ dot. The pass lists are under `analysis/grammar/tests/data/pass/Spanish/`.
 | `NumberModel.json` | 206 | 204 |
 | `OrdinalModel.json` | 82 | 82 |
 | `PercentModel.json` | 66 | 66 |
-| `DateTimeModel.json` | 744 | 686 |
+| `DateTimeModel.json` | 744 | 706 |
 
-`DateTimeModel.json` by the first expected type: `date` 147 of 160,
-`daterange` 269 of 295, `datetime` 62 of 68, `datetimerange` 57 of 64,
-`duration` 29 of 29, `set` 18 of 18, `time` 33 of 33, `timerange` 18
+`DateTimeModel.json` by the first expected type: `date` 149 of 160,
+`daterange` 284 of 295, `datetime` 62 of 68, `datetimerange` 58 of 64,
+`duration` 29 of 29, `set` 18 of 18, `time` 33 of 33, `timerange` 20
 of 22, none 53 of 55.
 
 The number cases that fail are `192.168.1.2` (the specification reads
-192168, 1 and 2) and `un cientocincoavos` (a singular numerator with a
+192.168 and 1.2) and `un cientocincoavos` (a singular numerator with a
 plural denominator). The time cases that fail include a date said with
 `este` or `próximo` (`el próximo 6 de abril`) that the specification
-resolves to one year, `madrugada`, `las primeras 2 semanas de 2021`,
-`el resto de la semana`, an article the specification takes for some
-units and not others (`la semana pasada` but `próximo trimestre`), and a
-few misspellings.
+resolves to one year, an article the specification takes for some
+units and not others, and a few misspellings (all listed in
+`analysis/grammar/tests/spec/reasons.rs`).
 
 In a release build, a 100 KB text made of the Spanish date-time inputs
 parsed and selected with `SPANISH` at about 13 MB/s and with
@@ -528,7 +538,9 @@ The benchmark also times the parse with the unit rules and
 
 ## Not yet done
 
-The time grammar reads no time zones.
+Time zones are available through `TimeAnnotator::with_time_zones`;
+the default parser retains the existing zone-free specification contract.
+See the explicit-zone section below.
 
 ## Parser boundary checks
 
@@ -548,3 +560,81 @@ grammar and time annotators record version `2` for these parser semantics.
 
 Decimal normalization returns `None` if reducing the scale would underflow.
 The existing unresolved-date convention, including `Feb 30`, is unchanged.
+
+
+## Explicit time zones
+
+Enable zone suffixes with
+`TimeAnnotator::english().with_time_zones(Region::Unspecified)` using
+`time::zone::Region`; Spanish and Dutch annotators use the same zone reader.
+`3pm EST` writes `T15-05:00`; `14:00 UTC+2` writes `T14:00+02:00`.
+The resulting source span includes the zone, and range TIMEX3 values carry
+an offset on each endpoint. Zone suffixes participate in chart selection,
+so `02:30 hora de Madrid` cannot be split into a bare hour and a duration.
+`time::zone::at` also reads a standalone zone at a supplied byte offset.
+
+Only expressions with an explicit clock consume a zone suffix, both during
+selection and when writing the result. Part-of-day expressions keep their
+local TIMEX3 value and source span: `this morning CST` keeps `this morning`
+and its resolved range rather than consuming the unresolved abbreviation.
+
+UTC/GMT accept signed hours, HHMM or HH:MM, within -14:00..+14:00.
+Malformed offsets are refused as a whole. Standard/daylight abbreviations
+have fixed offsets: EST/EDT, PST/PDT, MST/MDT, CET/CEST, EET/EEST and CDT.
+`CST` needs `NorthAmerica` (-06:00) or `China` (+08:00); `IST` needs `India`
+(+05:30) or `Ireland` (+01:00). Without that context the recognized zone
+stays unresolved and the time has no numeric value or TIMEX3 string.
+Unrecognized zones are not consumed. Generic Pacific and Mountain names
+mean standard time, -08:00 and -07:00 respectively. They do not imply a
+geographic daylight-saving rule. Other ambiguous abbreviations, including
+`PT`, are not accepted. Callers can use an explicit numeric offset instead.
+
+`hora de Madrid`, Madrid time, Amsterdam time forms, and London/Londres
+forms use the modern EU rule for 1996 through 2099. A time-only city needs
+a reference date; a dated expression uses that expression's date. A date
+emitted as a separate mention does not override the clock's reference date.
+The last Sundays of March and October change at 01:00 UTC. Missing spring
+hours and repeated autumn hours are unresolved rather than guessed.
+Dates outside that supported interval are refused. This is a bounded
+rule implementation, not a complete historical IANA database; future
+legislation can require an update. Rule source:
+[IANA Europe](https://data.iana.org/time-zones/tzdb/europe).
+Fixed North American abbreviations follow
+[IANA North America](https://data.iana.org/time-zones/tzdb/northamerica).
+
+The `Times` start/end columns retain their existing **local-clock** units;
+the offset is in TIMEX3. Subtract the offset for an absolute UTC instant.
+A time-only value has no absolute date. Range durations remain local-clock
+durations, so a range crossing a daylight-saving transition can differ
+from elapsed UTC duration. Zone policy and region enter the configuration
+hash; the annotator version is 4, separating these results from the earlier
+part-of-day suffix behavior. No external dependency is added.
+
+### Specification status
+
+Re-running the existing DateTimeModel suite gives 927/970 English,
+579/605 Dutch and 706/744 Spanish: **43, 26 and 38 failures** remain.
+The English `timerange` row previously claimed 43 passing (893 total)
+in the table when the actual passing count on `main` was 42 of 47 (891
+total); no `timerange` pass-list entry was removed, and the 5 remaining
+`timerange` failures are documented in
+`analysis/grammar/tests/spec/reasons.rs`. Zone-free counts are
+unchanged by the explicit-zone reader.
+
+All nine fixture cases carrying an expected `utcOffsetMins` are marked
+unsupported by .NET, which the existing conformance test excludes. Thus
+there is no eligible upstream zone case whose pass count can increase.
+The added zone-offset audit runs those cases separately: six offsets agree,
+two generic Mountain cases expect -06:00 in November rather than the
+standard -07:00 policy, and the Dutch `9-6 pt` case uses an unsupported
+abbreviation and expects -07:00 in November. This audit compares offsets,
+not full span/type/alternative conformance. It does not turn disabled cases
+into passing claims or modify the upstream fixture files.
+
+New real-text tests cover English, Spanish and Dutch aligned zone suffixes,
+invalid offsets, regional CST/IST, Madrid summer/winter dates, transition
+boundaries, missing/repeated hours, missing reference dates and provenance.
+Issue #927 stays open for full upstream zone-case resolution, including
+bare `9-6 pt` ranges and an explicit decision about the contradictory
+Mountain/PT expectations. Standalone zones are exposed by the reader,
+not represented as a new `Times` layer kind.

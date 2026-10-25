@@ -1,14 +1,50 @@
-//! Full-width checkpoint parity. Requires the independently generated package;
-//! reduced real-weight head parity runs offline in the library unit tests.
+//! Full-width checkpoint parity for `urchade/gliner_small-v2.1` and
+//! `urchade/gliner_multi-v2.1`. Fetches the permissive checkpoints and
+//! tokenizers through `turbo-zoo` and packages them via `turbo-bundle` when
+//! `GLINER_PACKAGE` / `GLINER_MULTI_PACKAGE` are not set.
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+
 use serde_json::Value;
-use turbo_gliner::{Decode, ExtractionSchema, package::Manifest};
-#[test]
-#[ignore = "requires converted Apache-2.0 GLiNER checkpoint; see docs/gliner.md"]
-fn full_checkpoint_matches_python() {
-    let root = std::env::var("GLINER_PACKAGE").expect("GLINER_PACKAGE");
-    let reference = std::env::var("GLINER_REFERENCE").expect("GLINER_REFERENCE");
-    let model = std::sync::Arc::new(Manifest::load(std::path::Path::new(&root)).unwrap());
-    let data: Value = serde_json::from_slice(&std::fs::read(reference).unwrap()).unwrap();
+use turbo_gliner::{Decode, ExtractionSchema, Model, package::Manifest};
+use turbo_zoo::{Acceptances, Home, Http, Index, Policy, UserId, Zoo};
+
+fn load_or_fetch(env_var: &str, id: &str, tokenizer_id: &str, repo: &str, weights_file: &str) -> Arc<Model> {
+    if let Some(root) = std::env::var_os(env_var).filter(|v| !v.is_empty()) {
+        return Arc::new(Manifest::load(Path::new(&root)).unwrap());
+    }
+    static ONCE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    let _held = ONCE.lock().unwrap_or_else(|e| e.into_inner());
+    let home = Home::from_env().expect("a zoo home");
+    let index = Index::builtin();
+    let zoo = Zoo::new(Index::builtin(), home.artifacts(), Policy::default(), &Http);
+    let user = UserId::from_env().unwrap_or_else(|_| "test".parse().unwrap());
+    let accepted = || Acceptances::load(&home.acceptances());
+    let tok_dir = zoo.fetch_with(tokenizer_id, &user, accepted).unwrap().dir.clone();
+    let ckpt_dir = zoo.fetch_with(id, &user, accepted).unwrap().dir.clone();
+    let entry = index.get(id).unwrap();
+    let package = home.dir().join("packages").join(id);
+    if !package.join("gliner.json").exists() {
+        std::fs::create_dir_all(package.parent().unwrap()).unwrap();
+        let staging = package.with_extension(format!("tmp-{}", std::process::id()));
+        turbo_bundle::gliner::convert_files(
+            &tok_dir.join("config.json"),
+            &ckpt_dir.join("gliner_config.json"),
+            &ckpt_dir.join(weights_file),
+            &tok_dir.join("spm.model"),
+            (repo, &entry.version, "Apache-2.0"),
+            &staging,
+        )
+        .unwrap();
+        if std::fs::rename(&staging, &package).is_err() && package.join("gliner.json").exists() {
+            std::fs::remove_dir_all(&staging).unwrap();
+        }
+    }
+    Arc::new(Manifest::load(&package).unwrap())
+}
+
+fn verify_reference(model: Arc<Model>, reference_path: &Path) {
+    let data: Value = serde_json::from_slice(&std::fs::read(reference_path).unwrap()).unwrap();
     let mut maximum = 0f64;
     for case in data["cases"].as_array().unwrap() {
         let labels = case["labels"].as_array().unwrap().iter().map(|x| x.as_str().unwrap().to_string()).collect();
@@ -41,6 +77,38 @@ fn full_checkpoint_matches_python() {
     }
     verify_offsets_and_evidence(model);
     println!("full checkpoint maximum logit absolute error: {maximum}");
+}
+
+#[test]
+#[ignore = "fetches or loads Apache-2.0 GLiNER small-v2.1 checkpoint; see docs/gliner.md"]
+fn full_checkpoint_matches_python() {
+    let model = load_or_fetch(
+        "GLINER_PACKAGE",
+        "urchade-gliner-small-v2.1",
+        "microsoft-deberta-v3-small-tokenizer",
+        "urchade/gliner_small-v2.1",
+        "pytorch_model.bin",
+    );
+    let reference = std::env::var_os("GLINER_REFERENCE")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/full-reference.json"));
+    verify_reference(model, &reference);
+}
+
+#[test]
+#[ignore = "fetches or loads Apache-2.0 GLiNER multi-v2.1 checkpoint; see docs/gliner.md"]
+fn multi_checkpoint_matches_python() {
+    let model = load_or_fetch(
+        "GLINER_MULTI_PACKAGE",
+        "urchade-gliner-multi-v2.1",
+        "microsoft-mdeberta-v3-base-tokenizer",
+        "urchade/gliner_multi-v2.1",
+        "model.safetensors",
+    );
+    let reference = std::env::var_os("GLINER_MULTI_REFERENCE")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/multi-reference.json"));
+    verify_reference(model, &reference);
 }
 
 fn verify_offsets_and_evidence(model: std::sync::Arc<turbo_gliner::Model>) {

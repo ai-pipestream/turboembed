@@ -101,6 +101,9 @@ pub struct turbo_backend_model {
     pub artifact_bytes: u64,
     pub artifact2: *const c_void,
     pub artifact2_bytes: u64,
+    pub head: *const turbo_backend_tensor,
+    pub head_out: u32,
+    pub reserved: u32,
 }
 
 /// A session as session_open receives it: turbo_session_desc's fields with
@@ -131,7 +134,7 @@ pub struct turbo_backend_embed_rows {
     pub pooling: u32,
     pub normalize: u32,
     pub output_dim: u32,
-    pub reserved: u32,
+    pub head: u32,
 }
 
 #[repr(C)]
@@ -267,6 +270,8 @@ pub struct turbo_backend {
             err: *mut turbo_error,
         ) -> i32,
     >,
+    pub token_head: u32,
+    pub reserved3: u32,
 }
 
 // The table is immutable static data, read from any thread.
@@ -285,6 +290,21 @@ impl turbo_backend {
             None | Some(0) => format_bit(TURBO_FORMAT_SAFETENSORS),
             Some(f) => f,
         }
+    }
+
+    /// Whether this backend runs a rerank bundle: the CPU, and CUDA, the one
+    /// device backend whose rerank scores and timing are recorded
+    /// (docs/reranking.md). Metal, Level Zero and the rest take the same code
+    /// path but stay refused until they have been run.
+    pub fn runs_rerank(&self) -> bool {
+        matches!(self.name(), "cpu" | "cuda")
+    }
+
+    /// Whether model_load takes a token head and embed_write_ranges
+    /// applies it: 0 for a table that ends before token_head.
+    pub fn token_head(&self) -> bool {
+        let covers = self.struct_size as usize >= std::mem::offset_of!(turbo_backend, token_head) + size_of::<u32>();
+        covers && self.token_head == 1
     }
 }
 
@@ -320,7 +340,7 @@ static LINKED: &[&turbo_backend] = &[
 ];
 
 /// The sizes the table has had, one per group of functions appended to it.
-const TABLE_SIZES: [usize; 8] = [
+const TABLE_SIZES: [usize; 9] = [
     std::mem::offset_of!(turbo_backend, context_create),
     std::mem::offset_of!(turbo_backend, model_load),
     std::mem::offset_of!(turbo_backend, session_create),
@@ -328,6 +348,7 @@ const TABLE_SIZES: [usize; 8] = [
     std::mem::offset_of!(turbo_backend, formats),
     std::mem::offset_of!(turbo_backend, session_create_tuned),
     std::mem::offset_of!(turbo_backend, session_open),
+    std::mem::offset_of!(turbo_backend, token_head),
     size_of::<turbo_backend>(),
 ];
 

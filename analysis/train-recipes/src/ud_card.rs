@@ -157,7 +157,7 @@ impl UdModelCard {
                     algorithm: "MAXENT".to_owned(),
                     iterations: published::ITERATIONS,
                     cutoff: published::CUTOFF,
-                    threads: published::THREADS,
+                    threads: crate::ud::THREADS,
                 },
                 sentences_per_sample: (recipe.component == published::Component::Sentence)
                     .then_some(SENTENCES_PER_SAMPLE),
@@ -225,6 +225,9 @@ impl UdModelCard {
         if self.language != t.language {
             return Err(bad("language", format!("{} is not {}, its recipe's", self.language, t.language)));
         }
+        if self.attribution.trim().is_empty() || self.attribution.chars().any(char::is_control) {
+            return Err(bad("attribution", format!("{:?} is empty or holds a control character", self.attribution)));
+        }
         Ok(Artifact {
             id: self.id.parse().map_err(|e| bad("id", e))?,
             kind: Kind::Model,
@@ -236,6 +239,7 @@ impl UdModelCard {
             license_terms: self.license_terms.parse().map_err(|e| bad("licence terms", e))?,
             trained_on: self.trained_on.clone(),
             class: self.class,
+            attribution: Some(self.attribution.clone()),
             origin: None,
             files: vec![File {
                 path: self.file.name.parse().map_err(|e| bad("file name", e))?,
@@ -243,6 +247,7 @@ impl UdModelCard {
                 size: self.file.size,
                 sha256: self.file.sha256.parse().map_err(|e| bad("sha256", e))?,
                 sha512: self.file.sha512.parse().map_err(|e| bad("sha512", e))?,
+                download: None,
             }],
         })
     }

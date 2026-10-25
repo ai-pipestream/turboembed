@@ -205,6 +205,15 @@ fn a_cosine_that_is_not_a_number_is_the_lowest() {
 }
 
 #[test]
+fn cosine_keeps_its_iterator_sum_zero_sign_and_zero_vector_rules() {
+    let score = lowest_cosine(&[1.0, -0.0], &[-0.0, 1.0], 2);
+    assert_eq!(score.to_bits(), (-0.0f64).to_bits());
+    assert_eq!(lowest_cosine(&[1.0, 0.0], &[0.0, 1.0], 2).to_bits(), 0.0f64.to_bits());
+    assert_eq!(lowest_cosine(&[0.0, -0.0], &[-0.0, 0.0], 2).to_bits(), 1.0f64.to_bits());
+    assert_eq!(lowest_cosine(&[0.0, -0.0], &[1.0, -0.0], 2).to_bits(), 0.0f64.to_bits());
+}
+
+#[test]
 fn windows_and_batches_are_each_given_once_and_in_range() {
     for windows in [vec![], vec![24, 24], vec![0], vec![65]] {
         let o = CalibrationOptions { windows: windows.clone(), ..options(None) };

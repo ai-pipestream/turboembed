@@ -49,6 +49,7 @@ fn fixture(offsets: OffsetMode) -> ChunkLevels {
         cost: vec![0, 7],
         model_tokens: vec![3, 5],
         over_budget: vec![false, false],
+        prompt_overhead: 0,
     };
     let mut level_spans = Spans::<Levels>::new(ViewId::SOURCE);
     level_spans.push_fragments(&[whole]);
@@ -142,7 +143,7 @@ fn graph_bytes() -> (Vec<u8>, DocumentGraph) {
 #[test]
 fn document_graph_round_trips_with_layer_listing() {
     let (bytes, graph) = graph_bytes();
-    let out = round_trip_document(&DocumentGraphRequest { graph: bytes }).unwrap();
+    let out = round_trip_document(&DocumentGraphRequest { graph: bytes.into() }).unwrap();
     assert_eq!(out.source_text, TEXT);
     let ids: Vec<(&str, LayerWireStatus)> =
         out.layers.iter().map(|l| (l.layer.as_str(), LayerWireStatus::try_from(l.status).unwrap())).collect();
@@ -157,7 +158,7 @@ fn document_graph_round_trips_with_layer_listing() {
     let doc = import(&back, &codecs()).unwrap();
     assert_eq!(doc.get::<Chunks>().unwrap().spans.len(), 2);
 
-    let err = round_trip_document(&DocumentGraphRequest { graph: vec![1, 2, 3] }).expect_err("garbage refused");
+    let err = round_trip_document(&DocumentGraphRequest { graph: vec![1, 2, 3].into() }).expect_err("garbage refused");
     assert_eq!(err.code, turbo_kserve::api::TURBO_E_INVALID_ARGUMENT);
 }
 
@@ -170,7 +171,8 @@ async fn chunk_levels_and_document_graph_cross_grpc() {
     assert_eq!(back, msg);
 
     let (bytes, _) = graph_bytes();
-    let out = client.round_trip_document_graph(DocumentGraphRequest { graph: bytes }).await.unwrap().into_inner();
+    let out =
+        client.round_trip_document_graph(DocumentGraphRequest { graph: bytes.into() }).await.unwrap().into_inner();
     assert!(out.layers.iter().any(|l| l.layer == "turbo:levels" && l.status == LayerWireStatus::Ok as i32));
 
     let mut bad: ChunkLevelsResult = fixture(OffsetMode::Utf16).to_msg();
@@ -265,6 +267,8 @@ fn u32_max_wire_indices_are_refused_not_panicked() {
     let tokens = turbo_kserve::results::tokens::TokenVectors {
         model: model(),
         view: ViewId::SOURCE.0,
+        text: String::new(),
+        offsets: OffsetMode::Utf8,
         dim: 2,
         data: vec![1.0, 0.0],
         empty: vec![u32::MAX],

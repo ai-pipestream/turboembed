@@ -227,6 +227,14 @@ TURBO_PARITY_BUNDLE=<bundle-dir> TURBO_PARITY_GOLDEN=<golden-dir>/out \
 All nine potion models agree with `StaticModel` at main's commit
 3ef2bf2 on every text of such a run, ids and vectors.
 
+CI runs this check on every pull request (the `static-parity` lane of
+`.github/workflows/ci.yml`): it makes the potion-base-2M bundle from the
+recipe's pinned files, builds the golden image (its base pinned by
+digest), writes the goldens for `testdata/tokenizer-texts.jsonl` with no
+network, and runs `static_parity` against them. The model files are
+cached under a key made from the recipe, so they are fetched again only
+when its digests change, and the image's layers are cached by content.
+
 ## The bundle
 
 A static bundle has a `static_embedding` block instead of
@@ -320,6 +328,132 @@ The tokenizer block must be the base bundle's with the template
 Every step runs in this tool and the library: no container, no Python.
 
 The table is the base model's, so it keeps the base model's licence.
+
+### Learned terms and a recipe made from the base
+
+A caller that distils a bundle it already has, such as the gRPC
+server, needs no recipe file. `distill::from_base::recipe` makes the
+recipe the bundled static recipes have: the base's model source,
+licence and tokenizer, the shared quality texts
+(`bundle/recipes/static-quality.jsonl`), and the reference cases of
+`all-minilm-l6-v2-static.json`. `distill::stage_with` stages it as
+`stage` does, reporting each step (`distill::Progress`: entries kept,
+rows embedded, the PCA's explained variance, the quality numbers) to
+the caller instead of printing.
+
+`stage_with` also takes learned terms, such as a corpus vocabulary the
+vocabulary service learns (#1222), as Model2Vec's `distill` takes a
+vocabulary of its own. Each term that is one word to the base's WordPiece
+tokenizer becomes one more vocabulary entry, after the base's ids. Its
+entry is the term's pieces joined without the `##` prefix, so it is
+already in the tokenizer's normalized form. Its row is the base
+encoder's mean-pooled vector of the term between the template's
+special tokens. The rows are reduced by one PCA with the base entries,
+and weighted by Zipf rank after them. A term is refused, and reported
+with the reason, when nothing is left of it after normalization, when
+it holds a character the tokenizer cannot encode, when it is already
+one entry, when it is more than one word, when it splits into more than
+32 pieces, or when an earlier term gives the same entry.
+
+WordPiece matches the longest entry from the start of each word, so a
+new entry also changes how longer words that begin with it are split,
+as in Model2Vec. The quality texts are therefore encoded with the
+grown tokenizer, through the staged bundle, as the library will encode
+them, and `seal` records the grown `static_embedding.vocab_size` and
+the count as the `learned_terms=` argument of the table's `produced_by`.
+
+## Speed
+
+`turbo-bench static` times a bundle on the CPU and each program of
+`bench/static-peers` beside it, on the same machine and the same texts,
+and writes the result under `benchmarks/static/`. These records are not
+compiled into the library and decide no capability cell: they compare
+the library with other programs and say nothing about a device's support.
+Each text set is embedded in order, batch by batch, at `max_length` with
+L2 normalization, one warm pass and then at least two seconds three
+times, the best of the three. Each peer also writes its vectors for the
+first set, which the record compares with the library's.
+
+```
+bench/static-peers/peers.sh setup          # MODELS_DIR, GOLDEN_DIR as its README says
+cargo build --release -p turbo-bench
+target/release/turbo-bench static --bundle <bundle-dir> \
+  --texts golden=<W>/texts/golden.json,t60=<W>/texts/t60.json,w256=<W>/texts/w256.json \
+  --precision model --peers <W>
+target/release/turbo-bench static --bundle <bundle-dir> --texts ... --precision fastest --no-peers
+```
+
+The committed records were made on 2026-10-24 on an AMD Ryzen 9 9950X
+(16 cores, 32 threads), Linux: MODEL with every peer at commit
+`35a2d4f7`, FASTEST with the library alone at `d95afdbd`. A vLLM engine
+held one core (CPU 0) at 100% throughout, which takes from the batches
+that use every thread more than from batch 1. The text sets come from
+the golden texts of `testdata/tokenizer-texts.jsonl` (88 texts with the
+edge cases), by `bench/static-peers/texts.py`: `golden`, `t60` (2000
+texts of 45 words) and `w256` (1000 chunks of 256 words).
+potion-retrieval-32M is not recorded: fetching it needs its MS MARCO
+terms accepted, which has not been done.
+
+Texts a second on `t60`, one text a call:
+
+| Model | turbo MODEL | turbo FASTEST | Model2Vec | model2vec-rs | StaticEmbedding | statembed | statembed+rayon | go-potion | model2vec-zig |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| potion-base-2M | 418k | 413k | 18k | 31k | 7.5k | 218k | 216k | 248k | 148k |
+| potion-base-4M | 404k | 385k | 18k | 31k | 7.1k | 215k | 213k | 244k | 141k |
+| potion-base-8M | 374k | 362k | 18k | 31k | 7.4k | 190k | 195k | 210k | 116k |
+| potion-base-32M | 320k | 325k | 17k | 29k | 7.2k | 166k | 159k | 198k | 90k |
+| potion-science-32M | 370k | 364k | 16k | 30k | 7.2k | 192k | 194k | 222k | 117k |
+| potion-code-16M | 262k | 333k | 16k | 29k | 7.1k | 194k | 192k | 131k | - |
+| potion-code-16M-v2 | 344k | 354k | 14k | 30k | 7.2k | 187k | 191k | 244k | - |
+| potion-multilingual-128M | 173k | 172k | 12k | 19k | 6.3k | 111k | 109k | 2.0k | - |
+
+On `t60`, 1024 texts a call:
+
+| Model | turbo MODEL | turbo FASTEST | Model2Vec | model2vec-rs | StaticEmbedding | statembed | statembed+rayon | go-potion | model2vec-zig |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| potion-base-2M | 2711k | 2652k | 133k | 318k | 96k | 889k | 847k | 915k | 844k |
+| potion-base-4M | 2602k | 2621k | 124k | 310k | 95k | 762k | 829k | 912k | 830k |
+| potion-base-8M | 2483k | 2479k | 91k | 314k | 91k | 569k | 810k | 873k | 783k |
+| potion-base-32M | 2059k | 2197k | 66k | 289k | 83k | 373k | 774k | 874k | 639k |
+| potion-science-32M | 2443k | 2324k | 79k | 288k | 84k | 559k | 799k | 1194k | 728k |
+| potion-code-16M | 2021k | 2370k | 59k | 158k | 87k | 561k | 802k | 760k | - |
+| potion-code-16M-v2 | 2132k | 2445k | 47k | 153k | 92k | 562k | 702k | 2101k | - |
+| potion-multilingual-128M | 1716k | 1746k | 87k | 248k | 90k | 404k | 535k | 27k | - |
+
+On `w256`, 1024 texts a call:
+
+| Model | turbo MODEL | turbo FASTEST | Model2Vec | model2vec-rs | StaticEmbedding | statembed | statembed+rayon | go-potion | model2vec-zig |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| potion-base-2M | 766k | 749k | 30k | 84k | 25k | 267k | 354k | 224k | 235k |
+| potion-base-4M | 747k | 741k | 27k | 83k | 25k | 218k | 345k | 226k | 226k |
+| potion-base-8M | 714k | 706k | 23k | 82k | 24k | 152k | 328k | 225k | 206k |
+| potion-base-32M | 631k | 640k | 15k | 74k | 23k | 91k | 292k | 233k | 165k |
+| potion-science-32M | 694k | 699k | 18k | 80k | 24k | 149k | 319k | 292k | 199k |
+| potion-code-16M | 542k | 672k | 14k | 55k | 23k | 152k | 266k | 200k | - |
+| potion-code-16M-v2 | 611k | 693k | 9.0k | 61k | 24k | 150k | 285k | 484k | - |
+| potion-multilingual-128M | 416k | 418k | 17k | 58k | 23k | 110k | 188k | 2.9k | - |
+
+model2vec-zig reads WordPiece tables in F32 or I8 only, so it is not run
+on the code and multilingual models, and its batches above 1 split the
+texts over one thread per CPU. Each record has every set at batches 1,
+32, 256 and 1024.
+
+Each peer's vectors for the 88 golden texts against the library's (which
+are Model2Vec's to the bit): rows equal to the bit, and the lowest
+cosine. The lowest cosine is one row's; a record keeps the counts, not
+the rows, and `peers.sh accuracy` prints the rows under 0.999 with their
+texts.
+
+| Model | Model2Vec | model2vec-rs | StaticEmbedding | statembed | statembed+rayon | go-potion | model2vec-zig |
+|---|---|---|---|---|---|---|---|
+| potion-base-2M | 88/88, 1.000000 | 46/88, 1.000000 | 48/88, 0.742468 | 47/88, 0.896444 | 47/88, 0.896444 | 16/88, 0.896444 | 13/88, 0.140055 |
+| potion-base-4M | 88/88, 1.000000 | 43/88, 1.000000 | 52/88, 0.742119 | 45/88, 0.880880 | 45/88, 0.880880 | 70/88, 0.880880 | 13/88, 0.055388 |
+| potion-base-8M | 88/88, 1.000000 | 33/88, 1.000000 | 47/88, 0.709418 | 32/88, 0.877154 | 32/88, 0.877154 | 70/88, 0.877154 | 13/88, 0.089679 |
+| potion-base-32M | 88/88, 1.000000 | 27/88, 1.000000 | 46/88, 0.589825 | 28/88, 0.896862 | 28/88, 0.896862 | 66/88, 0.896862 | 13/88, 0.010651 |
+| potion-science-32M | 88/88, 1.000000 | 30/88, 1.000000 | 47/88, 0.861295 | 31/88, 0.892953 | 31/88, 0.892953 | 69/88, 0.892953 | 13/88, 0.199497 |
+| potion-code-16M | 88/88, 1.000000 | 1/88, 0.059055 | 8/88, 0.364622 | 14/88, 0.540645 | 14/88, 0.540645 | 13/88, 0.059713 | not run |
+| potion-code-16M-v2 | 88/88, 1.000000 | 1/88, 0.902368 | 0/88, 0.677058, 8 refused | 14/88, 0.400679 | 14/88, 0.400679 | 13/88, 0.400679 | not run |
+| potion-multilingual-128M | 88/88, 1.000000 | 22/88, 1.000000 | 59/88, -0.059411 | 21/88, -0.059411 | 21/88, -0.059411 | 65/88, -0.059411 | not run |
 
 ## References
 

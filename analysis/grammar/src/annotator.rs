@@ -101,7 +101,7 @@ impl GrammarAnnotator {
         parser.select(text, Output::Number, &mut mentions);
         for m in &mentions {
             if let Value::Num(n) = m.value {
-                push_number(&mut found.numbers, m, n.value, self.grammar.notation(), &mut digits);
+                push_number(&mut found.numbers, text, m, n.value, self.grammar.notation(), &mut digits);
             }
         }
         mentions.clear();
@@ -148,8 +148,8 @@ impl GrammarAnnotator {
 fn push_quantity(found: &mut Found, m: &Mention, value: Dec, unit: Unit, digits: &mut String, symbol: &mut String) {
     digits.clear();
     let span = Span::new(m.start, m.end);
-    match unit {
-        Unit::Currency(c) => {
+    match unit.currency() {
+        Some(c) => {
             let Some((currency, e)) = CurrencyUnit::currency(c) else { return };
             let Some(amount) = value.shift(-i32::from(e)) else { return };
             let scale = amount.write_coefficient(digits);
@@ -165,13 +165,16 @@ fn push_quantity(found: &mut Found, m: &Mention, value: Dec, unit: Unit, digits:
             symbol.clear();
             unit.write_symbol(symbol);
             let scale = value.write_coefficient(digits);
-            found.quantities.push(QuantityMention {
-                span,
-                negative: value.is_negative(),
-                coefficient: digits,
-                scale: i32::try_from(scale).unwrap_or(i32::MAX),
-                unit: symbol,
-            });
+            found.quantities.push_with_unit(
+                QuantityMention {
+                    span,
+                    negative: value.is_negative(),
+                    coefficient: digits,
+                    scale: i32::try_from(scale).unwrap_or(i32::MAX),
+                    unit: symbol,
+                },
+                unit,
+            );
         }
     }
 }
@@ -209,19 +212,40 @@ fn merge(percents: &Quantities, quantities: &Quantities) -> Quantities {
     out
 }
 
-fn push_number(numbers: &mut Numbers, m: &Mention, value: Dec, notation: NumberNotation, digits: &mut String) {
+fn push_number(
+    numbers: &mut Numbers,
+    text: &str,
+    m: &Mention,
+    value: Dec,
+    notation: NumberNotation,
+    digits: &mut String,
+) {
     digits.clear();
     let scale = value.write_coefficient(digits);
-    numbers.push(NumberMention {
-        span: Span::new(m.start, m.end),
-        numeral_end: m.end,
-        negative: value.is_negative(),
-        coefficient: digits,
-        scale,
-        multiplier: Multiplier::One,
-        marker: ScaleMarker::None,
-        notation,
-    });
+    let slice = &text[m.start as usize..m.end as usize];
+    let sign_bytes = if value.is_negative() {
+        if let Some(rest) = slice.strip_prefix('-').or_else(|| slice.strip_prefix('\u{2212}')) {
+            let trimmed = rest.trim_start();
+            if trimmed.is_empty() { 0 } else { slice.len() - trimmed.len() }
+        } else {
+            0
+        }
+    } else {
+        0
+    };
+    numbers.push_with_numeral_start(
+        m.start + sign_bytes as u32,
+        NumberMention {
+            span: Span::new(m.start, m.end),
+            numeral_end: m.end,
+            negative: value.is_negative(),
+            coefficient: digits,
+            scale,
+            multiplier: Multiplier::One,
+            marker: ScaleMarker::None,
+            notation,
+        },
+    );
 }
 
 impl Annotator for GrammarAnnotator {
@@ -281,6 +305,19 @@ mod tests {
             ]
         );
         assert!(f.numbers.negative[0]);
+        assert_eq!(&text[f.numbers.numeral(Ix::new(0)).range()], "minus five");
+
+        let signed_text = "-42 and \u{2212}42";
+        let signed = GrammarAnnotator::english().find(signed_text, ViewId::SOURCE);
+        assert_eq!(signed.numbers.check(), Ok(()));
+        assert_eq!(&signed_text[signed.numbers.numeral(Ix::new(0)).range()], "42");
+        assert_eq!(&signed_text[signed.numbers.numeral(Ix::new(1)).range()], "42");
+
+        let es_text = "menos cinco y -12";
+        let es_found = GrammarAnnotator::spanish().find(es_text, ViewId::SOURCE);
+        assert_eq!(es_found.numbers.check(), Ok(()));
+        assert_eq!(&es_text[es_found.numbers.numeral(Ix::new(0)).range()], "menos cinco");
+        assert_eq!(&es_text[es_found.numbers.numeral(Ix::new(1)).range()], "12");
         assert_eq!(f.percents.len(), 1);
         assert_eq!(f.percents.value(Ix::new(0)).to_plain_string(), "-5");
         assert!(f.percents.is_percent(Ix::new(0)));
@@ -352,11 +389,62 @@ mod tests {
     }
 
     #[test]
+    fn rates_reach_the_quantities_and_money_layers() {
+        let text = "a 10 Mb/s link at $5 per hour";
+        let f = GrammarAnnotator::english().find(text, ViewId::SOURCE);
+        assert_eq!(f.quantities.check(), Ok(()));
+        assert_eq!(f.quantities.len(), 1, "quantities in {text}");
+        assert_eq!(f.quantities.unit(Ix::new(0)), "Mbit/s");
+        assert_eq!(&text[f.quantities.spans.get(Ix::new(0)).range()], "10 Mb/s");
+        assert_eq!(f.money.check(), Ok(()));
+        assert_eq!(f.money.len(), 1, "money in {text}");
+        assert_eq!(f.money.get(Ix::new(0)).currency.as_str(), "USD");
+        assert_eq!(f.money.amount(Ix::new(0)).to_plain_string(), "5");
+        assert_eq!(&text[f.money.spans.get(Ix::new(0)).range()], "$5 per hour", "the span carries the rate");
+    }
+
+    #[test]
     fn tonnes_and_tons_have_their_own_symbols() {
         let text = "3.5 tonnes, 2 tons and 1 long ton";
         let f = GrammarAnnotator::english().find(text, ViewId::SOURCE);
         let units: Vec<&str> = (0..f.quantities.len()).map(|i| f.quantities.unit(Ix::new(i as u32))).collect();
         assert_eq!(units, ["t", "sh tn", "long tn"]);
+        let normalized: Vec<(String, &str)> = (0..f.quantities.len())
+            .map(|i| {
+                let ix = Ix::new(i as u32);
+                (f.quantities.normalized_value(ix).to_plain_string(), f.quantities.base_unit(ix))
+            })
+            .collect();
+        assert_eq!(
+            normalized,
+            [("3500".to_string(), "kg"), ("1814.36948".to_string(), "kg"), ("1016.0469088".to_string(), "kg"),]
+        );
+    }
+
+    #[test]
+    fn grammar_quantities_carry_normalized_base_units() {
+        let text = "2.5 kilometers at 100 degrees Celsius and 36 kilometers per hour";
+        let f = GrammarAnnotator::english().find(text, ViewId::SOURCE);
+        assert_eq!(f.quantities.check(), Ok(()));
+        let got: Vec<(String, &str, String, &str)> = (0..f.quantities.len())
+            .map(|i| {
+                let ix = Ix::new(i as u32);
+                (
+                    f.quantities.value(ix).to_plain_string(),
+                    f.quantities.unit(ix),
+                    f.quantities.normalized_value(ix).to_plain_string(),
+                    f.quantities.base_unit(ix),
+                )
+            })
+            .collect();
+        assert_eq!(
+            got,
+            [
+                ("2.5".to_string(), "km", "2500".to_string(), "m"),
+                ("100".to_string(), "°C", "373.15".to_string(), "K"),
+                ("36".to_string(), "km/h", "10".to_string(), "m/s"),
+            ]
+        );
     }
 
     #[test]

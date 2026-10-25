@@ -8,57 +8,16 @@
 
 mod money_common;
 
-use money_common::{cur, dec, same, unscaled};
-use turbo_analysis::{Analyzer, Annotator, Document, Ix, Layer, Span, ViewId};
+use money_common::{
+    cur, dec, extract_money as extract, none_money as none, same, single_money as single,
+    single_money_with as single_with, unscaled, whole,
+};
+use turbo_analysis::{Analyzer, Document, Ix, Layer, Span};
 use turbo_numeric::NumberNotation::{LatinEu, LatinUs};
-use turbo_numeric::money::{Currency, DEFAULT_SYMBOLS, Decimal, Money, MoneyExtractor, SymbolError, is_iso_currency};
-
-/// One extracted mention: its span, its amount and its currency.
-#[derive(Debug)]
-pub struct Found {
-    pub span: Span,
-    pub amount: Decimal,
-    pub currency: Currency,
-}
-
-/// Every mention `x` finds in `text`, after checking the layer.
-pub fn extract(x: &MoneyExtractor, text: &str) -> Vec<Found> {
-    let mut m = Money::new(ViewId::SOURCE);
-    x.scan(text, &mut m);
-    assert_eq!(m.check(), Ok(()), "{text:?}");
-    m.spans
-        .iter()
-        .map(|(i, span)| {
-            let a = m.amount(i);
-            let amount = Decimal { negative: a.negative, digits: a.digits.into(), scale: a.scale as i32 };
-            Found { span, amount, currency: m.currency[i.get()] }
-        })
-        .collect()
-}
-
-/// The single mention the default extractor finds in `text`.
-pub fn single(text: &str) -> Found {
-    single_with(&MoneyExtractor::default(), text)
-}
-
-pub fn single_with(x: &MoneyExtractor, text: &str) -> Found {
-    let mut all = extract(x, text);
-    assert_eq!(all.len(), 1, "expected one mention in {text:?}: {all:?}");
-    all.pop().unwrap()
-}
-
-/// The span of the whole of `text`, in bytes.
-pub fn whole(text: &str) -> Span {
-    Span::new(0, text.len() as u32)
-}
+use turbo_numeric::money::{DEFAULT_SYMBOLS, Money, MoneyExtractor, SymbolError, is_iso_currency};
 
 fn eu() -> MoneyExtractor {
     MoneyExtractor::new(LatinEu)
-}
-
-fn none(x: &MoneyExtractor, text: &str) {
-    let found = extract(x, text);
-    assert!(found.is_empty(), "{text:?}: {found:?}");
 }
 
 #[test]
@@ -100,7 +59,11 @@ fn mention_inside_sentence_has_exact_span() {
 
 #[test]
 fn symbol_after_letter_is_a_longer_symbol_and_yields_no_mention() {
+    let parity = MoneyExtractor::default().with_opennlp_parity(true);
     for text in ["HK$50", "NZ$50", "R$50", "US$50"] {
+        none(&parity, text);
+    }
+    for text in ["FOO$50", "Rs$50"] {
         none(&MoneyExtractor::default(), text);
     }
 }
@@ -175,7 +138,13 @@ fn negative_symbol_first_at_boundaries_keeps_the_sign() {
 
 #[test]
 fn grouping_the_scanner_cannot_parse_yields_no_mention() {
-    for text in ["\u{20B9}1,00,000", "1,00,000 USD", "USD 1,00,000", "$1,23", "\u{20AC}1.234,56"] {
+    for (text, cur_code) in [("\u{20B9}1,00,000", "INR"), ("1,00,000 USD", "USD"), ("USD 1,00,000", "USD")] {
+        let m = single(text);
+        assert!(same(&dec("100000"), &m.amount), "{text:?}");
+        assert_eq!(m.currency, cur(cur_code), "{text:?}");
+        none(&MoneyExtractor::default().with_opennlp_parity(true), text);
+    }
+    for text in ["$1,23", "\u{20AC}1.234,56"] {
         none(&MoneyExtractor::default(), text);
     }
 }
@@ -486,34 +455,4 @@ fn a_scale_suffix_then_a_symbol() {
     assert!(same(&dec("5000"), &m.amount));
     assert_eq!(m.span, whole("5k\u{20AC}"));
     none(&MoneyExtractor::default(), "5kg\u{20AC}");
-}
-
-#[test]
-fn the_annotator_names_its_configuration() {
-    let us = MoneyExtractor::default();
-    let au = MoneyExtractor::default().with_symbol('$', cur("AUD")).unwrap();
-    assert_ne!(us.config_hash(), au.config_hash());
-    assert_ne!(us.config_hash(), eu().config_hash());
-    assert_eq!(us.config_hash(), MoneyExtractor::new(LatinUs).config_hash());
-}
-
-/// Behaviour of the Java that looks wrong and is kept, checked against a
-/// JVM: see docs/money.md.
-#[test]
-fn opennlp_behaviour_kept() {
-    // A minus before a code is dropped, so the amount turns positive.
-    let m = single("-USD 5");
-    assert_eq!(m.span, Span::new(1, 6));
-    assert!(same(&dec("5"), &m.amount));
-    // Only an ASCII letter makes a symbol the tail of a longer one.
-    assert_eq!(single("\u{DC}$5").span, Span::new(2, 4));
-    // The one gap may be a line break.
-    assert_eq!(single("$\n100").span, Span::new(0, 5));
-    assert_eq!(single("100\nUSD").span, Span::new(0, 7));
-    // Withdrawn, testing and no-currency codes are currencies.
-    for code in ["DEM", "XTS", "XXX"] {
-        assert_eq!(single(&format!("{code} 5")).currency, cur(code));
-    }
-    // A weight in pounds is sterling.
-    assert_eq!(single("3 pounds of flour").currency, cur("GBP"));
 }

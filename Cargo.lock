@@ -1970,6 +1970,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-chunker",
+ "turbo-coref",
  "turbo-doccat",
  "turbo-goldens",
  "turbo-normalize",
@@ -1994,6 +1995,12 @@ dependencies = [
  "serde",
  "serde_json",
  "turbo",
+ "turbo-analysis",
+ "turbo-analysis-layers",
+ "turbo-bundle",
+ "turbo-grammar",
+ "turbo-postag",
+ "turbo-tokenize",
  "ureq",
 ]
 
@@ -2020,6 +2027,9 @@ dependencies = [
  "serde_path_to_error",
  "turbo",
  "turbo-gliner",
+ "turbo-goldens",
+ "turbo-postag",
+ "turbo-zoo",
  "ureq",
 ]
 
@@ -2037,6 +2047,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-coref",
+ "turbo-matcher",
  "turbo-normalize",
  "turbo-stem",
  "turbo-structure",
@@ -2111,10 +2122,17 @@ name = "turbo-entity-linker"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
+ "turbo-analysis-embed",
  "turbo-analysis-layers",
+ "turbo-chunker",
  "turbo-coref",
  "turbo-geo",
  "turbo-glossary-layers",
+ "turbo-maxent",
+ "turbo-namefind",
+ "turbo-normalize",
+ "turbo-sentdetect",
+ "turbo-tokenize",
  "turbo-unicode",
  "turbo-vector-index",
  "turbo-wordnet",
@@ -2157,6 +2175,7 @@ dependencies = [
  "turbo-maxent",
  "turbo-normalize",
  "turbo-parser",
+ "turbo-stopword-layers",
  "turbo-structure",
  "turbo-tokenize",
  "turbo-unicode",
@@ -2208,6 +2227,8 @@ dependencies = [
  "turbo",
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-bundle",
+ "turbo-zoo",
 ]
 
 [[package]]
@@ -2289,6 +2310,9 @@ dependencies = [
 [[package]]
 name = "turbo-jvm"
 version = "0.1.0"
+dependencies = [
+ "turbo-unicode",
+]
 
 [[package]]
 name = "turbo-keywords"
@@ -2304,6 +2328,7 @@ name = "turbo-kserve"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "libc",
  "prost",
  "protox",
  "serde_json",
@@ -2314,9 +2339,32 @@ dependencies = [
  "tonic-prost-build",
  "tower",
  "turbo",
+ "turbo-abbrev",
  "turbo-analysis",
  "turbo-analysis-embed",
  "turbo-analysis-layers",
+ "turbo-chunker",
+ "turbo-coref",
+ "turbo-encoding-layers",
+ "turbo-entity-linker",
+ "turbo-geo",
+ "turbo-gliner",
+ "turbo-glossary",
+ "turbo-glossary-layers",
+ "turbo-group",
+ "turbo-keywords",
+ "turbo-lemmatizer",
+ "turbo-maxent",
+ "turbo-normalize-layers",
+ "turbo-relation",
+ "turbo-schema-extract",
+ "turbo-sequence",
+ "turbo-stopword",
+ "turbo-stopword-layers",
+ "turbo-tokenize",
+ "turbo-tokenize-layers",
+ "turbo-wordnet",
+ "turbo-zoo",
 ]
 
 [[package]]
@@ -2329,6 +2377,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tokio",
+ "tokio-stream",
  "tonic",
  "tonic-prost",
  "tonic-prost-build",
@@ -2355,10 +2404,12 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-calibration",
  "turbo-goldens",
  "turbo-langdetect",
  "turbo-maxent",
  "turbo-normalize",
+ "turbo-train",
  "turbo-unicode",
 ]
 
@@ -2450,8 +2501,11 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-encoding",
  "turbo-goldens",
+ "turbo-hunspell",
+ "turbo-morfologik",
  "turbo-ngram",
  "turbo-normalize-layers",
+ "turbo-tokenize",
  "turbo-unicode",
 ]
 
@@ -2470,6 +2524,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-goldens",
+ "turbo-grammar",
  "turbo-unicode",
 ]
 
@@ -2494,6 +2549,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-goldens",
+ "turbo-jvm",
  "turbo-maxent",
  "turbo-sequence",
  "turbo-train",
@@ -2565,6 +2621,7 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-bundle",
  "turbo-depparse",
+ "turbo-matcher",
  "turbo-unicode",
  "turbo-zoo",
 ]
@@ -2578,6 +2635,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-embed",
  "turbo-analysis-layers",
+ "turbo-sentdetect",
  "turbo-unicode",
 ]
 
@@ -2595,6 +2653,7 @@ dependencies = [
  "turbo-numeric",
  "turbo-pii",
  "turbo-relation",
+ "turbo-unicode",
  "turbo-zoo",
 ]
 
@@ -2670,6 +2729,7 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-chunker",
  "turbo-normalize",
+ "turbo-unicode",
 ]
 
 [[package]]
@@ -2738,12 +2798,14 @@ dependencies = [
  "serde",
  "serde_json",
  "turbo-analysis",
+ "turbo-analysis-layers",
  "turbo-eval",
  "turbo-formats",
  "turbo-jvm",
  "turbo-langdetect",
  "turbo-lemmatizer",
  "turbo-maxent",
+ "turbo-namefind",
  "turbo-phrase-chunker",
  "turbo-postag",
  "turbo-sentdetect",
@@ -2792,6 +2854,8 @@ dependencies = [
  "serde_json",
  "sha2",
  "turbo-goldens",
+ "turbo-maxent",
+ "turbo-zstd",
  "ureq",
 ]
 

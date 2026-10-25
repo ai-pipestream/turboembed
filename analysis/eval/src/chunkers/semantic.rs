@@ -78,7 +78,10 @@ impl Semantic {
 }
 
 /// `cosineSimilarity` of the sandbox: each product in f32, summed in f64,
-/// the quotient rounded to f32; 0 when either vector is zero.
+/// the quotient rounded to f32; 0 when either vector is zero. The
+/// f32 product rounding is pinned for sandbox parity and
+/// intentionally not the shared widened dot in
+/// `turbo_analysis::math`.
 pub fn cosine(a: &[f32], b: &[f32]) -> f32 {
     let (mut dot, mut na, mut nb) = (0f64, 0f64, 0f64);
     for (&x, &y) in a.iter().zip(b) {

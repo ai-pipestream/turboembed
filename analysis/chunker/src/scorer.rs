@@ -202,9 +202,10 @@ fn sentence_token_sets(sentences: &Sentences, tokens: &Tokens, text: &str) -> Ve
             for ti in lo..hi {
                 let span = Span::new(t_starts[ti], t_ends[ti]);
                 if let Some(raw) = text.get(span.range()) {
-                    let norm: String =
-                        raw.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect();
-                    if norm.len() >= 3 && !is_stopword(&norm) {
+                    let filtered: String = raw.chars().filter(|c| c.is_alphanumeric()).collect();
+                    let mut norm = String::new();
+                    turbo_unicode::casefold::fold(&filtered, &mut norm);
+                    if norm.chars().count() >= 3 && !is_stopword(&norm) {
                         set.insert(norm);
                     }
                 }
@@ -219,14 +220,18 @@ fn sentence_entity_sets(sentences: &Sentences, entities: &Entities, text: &str) 
     if entities.spans.view() != view {
         return Vec::new();
     }
-    let (s_starts, s_ends) = sentences.spans.columns();
     let mut sets = vec![BTreeSet::new(); sentences.spans.len()];
     for (_, span) in entities.spans.iter() {
-        let Some(si) = sentence_of(s_starts, s_ends, span) else { continue };
+        let Some(si) = sentences.spans.covering_at(span.start).map(|i| i.get()) else { continue };
         if let Some(raw) = text.get(span.range()) {
             let norm: String = raw
                 .split_whitespace()
-                .map(|w| w.chars().filter(|c| c.is_alphanumeric()).flat_map(char::to_lowercase).collect::<String>())
+                .map(|w| {
+                    let filtered: String = w.chars().filter(|c| c.is_alphanumeric()).collect();
+                    let mut folded = String::new();
+                    turbo_unicode::casefold::fold(&filtered, &mut folded);
+                    folded
+                })
                 .filter(|w| !w.is_empty())
                 .collect::<Vec<_>>()
                 .join(" ");
@@ -236,11 +241,6 @@ fn sentence_entity_sets(sentences: &Sentences, entities: &Entities, text: &str) 
         }
     }
     sets
-}
-
-fn sentence_of(starts: &[u32], ends: &[u32], span: Span) -> Option<usize> {
-    let idx = starts.partition_point(|&s| s <= span.start).checked_sub(1)?;
-    (span.start < ends[idx]).then_some(idx)
 }
 
 fn jaccard_permille(a: &BTreeSet<String>, b: &BTreeSet<String>) -> u32 {

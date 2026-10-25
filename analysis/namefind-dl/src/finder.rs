@@ -6,12 +6,15 @@
 //! single spaces as `AbstractDL` rejoins them, are tokenized without
 //! special tokens and read in one row, `[CLS] pieces [SEP]`, as
 //! `NameFinderDL` encodes a chunk. A chunk with more pieces than a row
-//! holds, which OpenNLP's model would refuse, is read in consecutive rows;
-//! an entity across two rows then ends at the first, the next row starting
-//! on an `I-` piece.
-//! Every position of a row, its special tokens too, gets its own label
-//! scores from the bundle's token classification head, and decode.rs
-//! turns them into entities, resolved across the whole document.
+//! holds, which OpenNLP's model would refuse, is read in rows overlapping
+//! by half a row (`decode::row_ranges`), each piece labelled by the row
+//! where it has the most context on both sides, and the chunk's pieces
+//! decoded as one run, the special tokens between rows left out, so an
+//! entity across a row boundary is whole.
+//! Every position of a row gets its own label scores from the bundle's
+//! token classification head, and decode.rs turns them into entities,
+//! each word labelled by its first piece unless `Decoding::Piece` asks
+//! for every piece's own label, resolved across the whole document.
 //!
 //! An entity's token range is the tokens its bytes overlap; one between
 //! tokens is the empty range where it would start.
@@ -25,11 +28,12 @@ use turbo::manifest::{ClassifierKind, PromptRole, Truncation};
 use turbo::status::{Error as CoreError, INVALID_ARGUMENT};
 use turbo::tokenizer::{Encode, Tokenizer};
 use turbo::turbo_token_range;
-use turbo_analysis::{Annotator, Error, Execution, IxRange, ModelRef, Refs, Span, Spans, TagSet, View};
+use turbo_analysis::{Annotator, Error, Execution, IxRange, Layer, ModelRef, Refs, Span, Spans, TagSet, View};
 use turbo_analysis_embed::{Encoder, EncoderOptions, Rows};
 use turbo_analysis_layers::{Entities, Sentences, Tag, Tokens};
 
-use crate::decode::{self, Candidate, Label};
+use crate::decode::{self, Candidate, Decoding, Label};
+use crate::place::{Word, place};
 
 /// How a `NameFinderDl` runs its model and cuts its input.
 #[derive(Clone, Debug)]
@@ -39,11 +43,13 @@ pub struct NameFinderDlOptions {
     pub split: usize,
     /// Words consecutive chunks share: `InferenceOptions.splitOverlapSize`.
     pub overlap: usize,
+    /// Word labels by default; `Decoding::Piece` as `NameFinderDL` decodes.
+    pub decoding: Decoding,
 }
 
 impl Default for NameFinderDlOptions {
     fn default() -> NameFinderDlOptions {
-        NameFinderDlOptions { encoder: EncoderOptions::default(), split: 250, overlap: 50 }
+        NameFinderDlOptions { encoder: EncoderOptions::default(), split: 250, overlap: 50, decoding: Decoding::Word }
     }
 }
 
@@ -65,10 +71,30 @@ pub struct NameFinderDl {
     max_ranges: usize,
     split: usize,
     overlap: usize,
+    decoding: Decoding,
 }
 
 /// Each position of a row: its bytes in the text, none for a special token.
 type Positions = Vec<Option<(usize, usize)>>;
+
+/// One row's positions: its document, the positions whose labels it gives
+/// (`keep`), whether it ends its chunk, and each position's bytes in the
+/// text and word in the chunk, none for a special token.
+struct Row {
+    doc: usize,
+    keep: std::ops::Range<usize>,
+    last: bool,
+    bytes: Positions,
+    words: Vec<Option<usize>>,
+}
+
+/// A chunk's positions and scores so far, its rows joined.
+#[derive(Default)]
+struct Chunk {
+    bytes: Positions,
+    words: Vec<Option<usize>>,
+    scores: Vec<f32>,
+}
 
 /// The rows being built, one range per position, and each row's pieces.
 struct Run {
@@ -76,8 +102,9 @@ struct Run {
     rows: Rows,
     ranges: Vec<turbo_token_range>,
     states: Vec<f32>,
-    /// Per row: its document and each position's bytes in the text.
-    pieces: Vec<(usize, Positions)>,
+    pieces: Vec<Row>,
+    /// The chunk whose rows are being read, across flushes.
+    chunk: Chunk,
 }
 
 impl NameFinderDl {
@@ -119,6 +146,7 @@ impl NameFinderDl {
                 ranges: Vec::new(),
                 states: Vec::new(),
                 pieces: Vec::new(),
+                chunk: Chunk::default(),
                 encoder,
             }),
             kinds: TagSet::new("namefind-dl", &types),
@@ -129,6 +157,7 @@ impl NameFinderDl {
             max_ranges: eo.max_ranges as usize,
             split: o.split,
             overlap: o.overlap,
+            decoding: o.decoding,
             tokenizer,
             head,
             labels,
@@ -149,12 +178,13 @@ impl NameFinderDl {
         run.rows.clear();
         run.ranges.clear();
         run.pieces.clear();
+        run.chunk = Chunk::default();
         let mut ids = Vec::new();
         let mut spans = Vec::new();
         // A chunk's words rejoined with single spaces, as `AbstractDL`
         // rejoins them, and each word's start there and in the text.
         let mut joined = String::new();
-        let mut starts: Vec<(usize, usize)> = Vec::new();
+        let mut starts: Vec<Word> = Vec::new();
         let bare = Encode {
             add_special_tokens: false,
             truncation: Truncation::None,
@@ -172,34 +202,59 @@ impl NameFinderDl {
                         if !joined.is_empty() {
                             joined.push(' ');
                         }
-                        starts.push((joined.len(), lo + ws));
+                        starts.push((joined.len(), lo + ws, we - ws));
                         joined.push_str(&region[ws..we]);
                     }
                     ids.clear();
                     spans.clear();
                     self.tokenizer.encode_spans(&joined, bare, &mut ids, &mut spans).map_err(|e| e.to_string())?;
-                    // A piece lies inside one word of `joined`: shift it to
-                    // that word in the text.
-                    let place = |s: &[u32; 2]| {
-                        let (j, t) = starts[starts.partition_point(|&(j, _)| j <= s[0] as usize) - 1];
-                        (t + s[0] as usize - j, t + s[1] as usize - j)
+                    // A piece's word is the CoNLL-style word it starts in
+                    // (decode/words.rs), not the whitespace word: `(Paris)`
+                    // is `(`, `Paris` and `)`, `U.N.` and `1.` one word
+                    // each, and `東京` two words.
+                    let pre = decode::name_words(&joined);
+                    // Each end of a piece maps through its own word of
+                    // `joined` (place.rs), so one touching or crossing a
+                    // joining space still lands on the text's words.
+                    let locate = |s: &[u32; 2]| -> Result<Option<(usize, usize)>, String> {
+                        let at = place(&starts, *s);
+                        match at {
+                            Some((a, b)) if !(text.is_char_boundary(a) && text.is_char_boundary(b) && b <= hi) => {
+                                Err(format!("piece {}..{} maps to {a}..{b}, not text characters", s[0], s[1]))
+                            }
+                            _ => Ok(at),
+                        }
                     };
                     // A chunk of no pieces is still read, as `[CLS] [SEP]`.
-                    let parts: Vec<&[i32]> = if ids.is_empty() { vec![&[]] } else { ids.chunks(self.width).collect() };
-                    for (k, part) in parts.into_iter().enumerate() {
-                        let first = k * self.width;
+                    let parts = decode::row_ranges(ids.len(), self.width);
+                    let count = parts.len();
+                    for (k, &(first, end, own_start, own_end)) in parts.iter().enumerate() {
+                        let part = &ids[first..end];
                         let rows = self.cls.len() + part.len() + self.sep.len();
                         if run.rows.len() as usize == self.max_batch || run.ranges.len() + rows > self.max_ranges {
                             self.flush(&mut run, &mut found)?;
                         }
                         let row = run.rows.push(&[&self.cls, part, &self.sep]);
-                        let mut at: Positions = vec![None; self.cls.len()];
-                        at.extend(spans[first..first + part.len()].iter().map(|s| (s[0] < s[1]).then(|| place(s))));
-                        at.resize(rows, None);
+                        let mut bytes: Positions = vec![None; self.cls.len()];
+                        let piece = &spans[first..first + part.len()];
+                        for s in piece {
+                            bytes.push(locate(s)?);
+                        }
+                        bytes.resize(rows, None);
+                        let mut words = vec![None; self.cls.len()];
+                        words.extend(
+                            piece.iter().map(|s| Some(pre.partition_point(|w| w.0 <= s[0] as usize).saturating_sub(1))),
+                        );
+                        words.resize(rows, None);
                         for p in 0..rows as u32 {
                             run.ranges.push(turbo_token_range { row, start: p, end: p + 1 });
                         }
-                        run.pieces.push((d, at));
+                        // The first row gives `[CLS]`'s label and the last
+                        // `[SEP]`'s, as one row would.
+                        let c = self.cls.len();
+                        let lo = if k == 0 { 0 } else { c + own_start - first };
+                        let hi = if k + 1 == count { rows } else { c + own_end - first };
+                        run.pieces.push(Row { doc: d, keep: lo..hi, last: k + 1 == count, bytes, words });
                     }
                 }
             }
@@ -213,14 +268,27 @@ impl NameFinderDl {
         if run.rows.is_empty() {
             return Ok(());
         }
-        let Run { encoder, rows, ranges, states, pieces } = run;
+        let Run { encoder, rows, ranges, states, pieces, chunk } = run;
         encoder.run_ranges(rows, ranges, states).map_err(|e| e.to_string())?;
         let logits = self.head.logits(states).map_err(|e| e.to_string())?;
         let n = self.labels.len();
         let mut at = 0;
-        for (d, p) in pieces.iter() {
-            found[*d].extend(decode::decode(p, &logits[at * n..(at + p.len()) * n], &self.labels)?);
-            at += p.len();
+        for row in pieces.iter() {
+            // Each row gives the labels of the pieces it keeps, the special
+            // tokens between two rows left out, so the chunk is one run.
+            let (lo, hi) = (row.keep.start, row.keep.end);
+            chunk.bytes.extend_from_slice(&row.bytes[lo..hi]);
+            chunk.words.extend_from_slice(&row.words[lo..hi]);
+            chunk.scores.extend_from_slice(&logits[(at + lo) * n..(at + hi) * n]);
+            at += row.bytes.len();
+            if row.last {
+                let Chunk { bytes, words, scores } = &*chunk;
+                found[row.doc].extend(match self.decoding {
+                    Decoding::Word => decode::decode_words(bytes, words, scores, &self.labels)?,
+                    Decoding::Piece => decode::decode(bytes, scores, &self.labels)?,
+                });
+                *chunk = Chunk::default();
+            }
         }
         rows.clear();
         ranges.clear();
@@ -228,19 +296,32 @@ impl NameFinderDl {
         Ok(())
     }
 
-    fn entities(&self, view: &View, tokens: &Tokens, sentences: Option<&Sentences>) -> Result<Entities, String> {
+    /// The regions a document is read in, once its inputs are checked:
+    /// its sentences, or the whole text.
+    fn regions(
+        &self,
+        view: &View,
+        tokens: &Tokens,
+        sentences: Option<&Sentences>,
+    ) -> Result<Vec<(usize, usize)>, String> {
         if tokens.spans.view() != view.id() || sentences.is_some_and(|s| s.spans.view() != view.id()) {
             return Err("the tokens or sentences are in another view".into());
         }
-        let text = view.text();
-        let regions: Vec<(usize, usize)> = match sentences {
+        tokens.check().map_err(|e| format!("invalid tokens: {e}"))?;
+        if let Some(s) = sentences {
+            s.check().map_err(|e| format!("invalid sentences: {e}"))?;
+        }
+        Ok(match sentences {
             Some(s) => (0..s.spans.len())
                 .map(|i| s.spans.get(turbo_analysis::Ix::new(i as u32)).range())
                 .map(|r| (r.start, r.end))
                 .collect(),
-            None => vec![(0, text.len())],
-        };
-        let found = self.find(&[(text, regions)])?.remove(0);
+            None => vec![(0, view.text().len())],
+        })
+    }
+
+    /// The entities of a document's resolved candidates.
+    fn build(&self, view: &View, tokens: &Tokens, found: Vec<Candidate>) -> Result<Entities, String> {
         let ordered = in_text_order(tokens);
         let mut out = Entities {
             spans: Spans::new(view.id()),
@@ -257,6 +338,41 @@ impl NameFinderDl {
         }
         Ok(out)
     }
+
+    fn entities(&self, view: &View, tokens: &Tokens, sentences: Option<&Sentences>) -> Result<Entities, String> {
+        let regions = self.regions(view, tokens, sentences)?;
+        let found = self.find(&[(view.text(), regions)])?.remove(0);
+        self.build(view, tokens, found)
+    }
+
+    /// Every document of a batch, its chunks read in shared encoder runs.
+    /// A document whose inputs fail their checks fails alone; when the
+    /// shared read fails, each document is read alone, so only the one at
+    /// fault fails.
+    fn entities_batch(&self, inputs: &[Refs<'_, Self>]) -> Vec<Result<Entities, String>> {
+        let regions: Vec<_> = inputs.iter().map(|(v, t, s)| self.regions(v, t, *s)).collect();
+        let valid: Vec<usize> = (0..inputs.len()).filter(|&i| regions[i].is_ok()).collect();
+        let batch: Vec<(&str, Vec<(usize, usize)>)> =
+            valid.iter().map(|&i| (inputs[i].0.text(), regions[i].clone().unwrap_or_default())).collect();
+        let mut found: Vec<Option<Vec<Candidate>>> = (0..inputs.len()).map(|_| None).collect();
+        if let Ok(all) = self.find(&batch) {
+            for (&i, c) in valid.iter().zip(all) {
+                found[i] = Some(c);
+            }
+        }
+        inputs
+            .iter()
+            .zip(regions)
+            .zip(found)
+            .map(|(((view, tokens, _), regions), found)| {
+                let found = match found {
+                    Some(c) => c,
+                    None => self.find(&[(view.text(), regions?)])?.remove(0),
+                };
+                self.build(view, tokens, found)
+            })
+            .collect()
+    }
 }
 
 impl Annotator for NameFinderDl {
@@ -270,6 +386,13 @@ impl Annotator for NameFinderDl {
             .map_err(|detail| Error::Annotator { annotator: Self::ID, detail })
     }
 
+    fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
+        self.entities_batch(&inputs)
+            .into_iter()
+            .map(|r| r.map(|e| (e,)).map_err(|detail| Error::Annotator { annotator: Self::ID, detail }))
+            .collect()
+    }
+
     fn model(&self) -> Option<ModelRef> {
         Some(self.model.clone())
     }
@@ -279,10 +402,14 @@ impl Annotator for NameFinderDl {
     }
 
     fn config_hash(&self) -> u64 {
-        // What changes the entities beside the model: the chunks, and the
-        // pieces a row holds, where a long chunk is cut.
+        // What changes the entities beside the model: the chunks, the
+        // pieces a row holds, where a long chunk is cut, and the decoding.
         let mut h = 0xcbf2_9ce4_8422_2325u64;
-        for b in [self.split, self.overlap, self.width].iter().flat_map(|v| (*v as u64).to_le_bytes()) {
+        let decoding = match self.decoding {
+            Decoding::Word => 0,
+            Decoding::Piece => 1,
+        };
+        for b in [self.split, self.overlap, self.width, decoding].iter().flat_map(|v| (*v as u64).to_le_bytes()) {
             h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
         }
         h
@@ -297,8 +424,11 @@ impl Annotator for NameFinderDl {
 /// overlaps and the tokens are not in text order, so no range names them.
 fn token_range(tokens: &Tokens, ordered: bool, start: u32, end: u32) -> Result<IxRange<Tokens>, String> {
     let spans = &tokens.spans;
-    let (starts, ends) = spans.columns();
+    if ordered && start < end {
+        return Ok(spans.overlapping_range(turbo_analysis::Span::new(start, end)));
+    }
     if ordered {
+        let (starts, ends) = spans.columns();
         let first = ends.partition_point(|&e| e <= start);
         let last = starts.partition_point(|&s| s < end).max(first);
         return Ok(IxRange::new(first as u32, last as u32));
@@ -313,10 +443,12 @@ fn token_range(tokens: &Tokens, ordered: bool, start: u32, end: u32) -> Result<I
     }
 }
 
-/// Whether the tokens are single fragments in text order, none overlapping
-/// the next: checked once per document, as each lookup is then a search.
+/// Whether the tokens are single fragments in text order, none inverted
+/// and none overlapping the next: checked once per document, as each
+/// lookup is then a search.
 fn in_text_order(tokens: &Tokens) -> bool {
     let (starts, ends) = tokens.spans.columns();
     !tokens.spans.has_discontinuous()
+        && starts.iter().zip(ends).all(|(s, e)| s <= e)
         && starts.windows(2).zip(ends.windows(2)).all(|(s, e)| e[0] <= s[1] && s[0] <= s[1])
 }

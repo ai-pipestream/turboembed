@@ -8,7 +8,6 @@ use std::str::FromStr;
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::digest::{Sha256, Sha512};
 use crate::error::ZooError;
 use crate::licence::{Licence, LicenceClass, Requirement};
 
@@ -31,34 +30,23 @@ macro_rules! constant_enum {
 
         impl $name {
             pub const ALL: &'static [$name] = &[$($name::$variant,)*];
-
             /// The constant the index writes.
             pub const fn name(self) -> &'static str {
-                match self {
-                    $($name::$variant => $text,)*
-                }
+                match self { $($name::$variant => $text,)* }
             }
         }
-
         impl fmt::Display for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.write_str(self.name())
-            }
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result { f.write_str(self.name()) }
         }
-
         impl FromStr for $name {
             type Err = String;
             fn from_str(s: &str) -> Result<Self, String> {
                 $name::ALL.iter().copied().find(|v| v.name() == s).ok_or_else(|| format!("{s:?} is not {}", $what))
             }
         }
-
         impl Serialize for $name {
-            fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
-                s.serialize_str(self.name())
-            }
+            fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> { s.serialize_str(self.name()) }
         }
-
         impl<'de> Deserialize<'de> for $name {
             fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
                 String::deserialize(d)?.parse().map_err(serde::de::Error::custom)
@@ -66,6 +54,10 @@ macro_rules! constant_enum {
         }
     };
 }
+
+mod component;
+
+pub use component::Component;
 
 constant_enum! {
     /// What an artifact is.
@@ -75,23 +67,6 @@ constant_enum! {
         Lexicon => "KIND_LEXICON",
         Centroids => "KIND_CENTROIDS",
         Dataset => "KIND_DATASET",
-    }
-}
-
-constant_enum! {
-    /// The analysis component a model serves. The first eight are
-    /// OpenNLP's `opennlp.tools.models.ModelType` constants, prefixed.
-    Component, "a component" {
-        Lemmatizer => "COMPONENT_LEMMATIZER",
-        Tokenizer => "COMPONENT_TOKENIZER",
-        SentenceDetector => "COMPONENT_SENTENCE_DETECTOR",
-        Pos => "COMPONENT_POS",
-        PosGeneric => "COMPONENT_POS_GENERIC",
-        NameFinder => "COMPONENT_NAME_FINDER",
-        Chunker => "COMPONENT_CHUNKER",
-        Parser => "COMPONENT_PARSER",
-        LanguageDetector => "COMPONENT_LANGUAGE_DETECTOR",
-        DocumentCategorizer => "COMPONENT_DOCUMENT_CATEGORIZER",
     }
 }
 
@@ -179,8 +154,11 @@ impl fmt::Display for Language {
     }
 }
 
+#[path = "file.rs"]
+mod file;
 #[path = "origin.rs"]
 mod origin;
+pub use file::File;
 pub use origin::{RelPath, Url};
 use origin::{origin_is_a_location, under_origin};
 
@@ -214,22 +192,6 @@ pub struct TrainingData {
     pub license_terms: Url,
 }
 
-/// One file of an artifact.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct File {
-    /// Where the file goes in the artifact's directory.
-    pub path: RelPath,
-    /// Where it is fetched from. The address must serve the same bytes for
-    /// as long as the entry exists: a release archive, or a repository
-    /// path at a commit.
-    pub url: Url,
-    pub size: u64,
-    pub sha256: Sha256,
-    /// The digest OpenNLP's `DownloadUtil` checks.
-    pub sha512: Sha512,
-}
-
 /// One artifact of the index.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -254,6 +216,11 @@ pub struct Artifact {
     /// `trained_on[].license`. Written out so a reader that does not know
     /// a licence still sees the class; checked against the computed one.
     pub class: LicenceClass,
+    /// The credit or copyright notice the artifact's licence or training
+    /// data's licences ask for. Required when any licence of the artifact
+    /// requires attribution ([`Licence::requires_attribution`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attribution: Option<String>,
     /// For a `CLASS_LOCAL_ONLY` artifact, and only for one: the original
     /// publisher's own location, which every file's `url` must lie under.
     /// For a dataset it is the data's own place on its host, such as a
@@ -293,6 +260,12 @@ impl Artifact {
     /// order.
     pub fn licences(&self) -> impl Iterator<Item = Licence> + '_ {
         std::iter::once(self.license).chain(self.trained_on.iter().map(|t| t.license))
+    }
+
+    /// Whether the artifact's own licence or any training licence requires
+    /// attribution ([`Licence::requires_attribution`]).
+    pub fn requires_attribution(&self) -> bool {
+        self.licences().any(Licence::requires_attribution)
     }
 
     /// The distinct terms the user must accept under `policy`, in
@@ -401,7 +374,7 @@ impl Index {
             let mut paths = BTreeSet::new();
             for f in &a.files {
                 let p = f.path.as_str();
-                if p.split('/').any(|part| part.ends_with(".partial")) {
+                if p.split('/').any(|part| part.ends_with(".partial") || part.contains(".partial.")) {
                     return Err(ZooError::Index(format!(
                         "{}: {} uses a .partial name, which the cache reserves for temporary files",
                         a.id, f.path
@@ -432,6 +405,12 @@ impl Index {
                         a.id, t.name
                     )));
                 }
+            }
+            if a.attribution.as_ref().is_some_and(|s| s.trim().is_empty() || s.chars().any(char::is_control)) {
+                return Err(ZooError::Index(format!("{}: attribution is empty or holds a control character", a.id)));
+            }
+            if a.attribution.is_none() && a.requires_attribution() {
+                return Err(ZooError::Index(format!("{}: requires attribution under its licence", a.id)));
             }
             if computed == LicenceClass::Refused {
                 let licences = a.licences().filter(|l| l.class() == LicenceClass::Refused).collect();
@@ -467,16 +446,6 @@ impl Index {
             return Err(ZooError::Refused { id: r.id.clone(), licences: r.licences.clone() });
         }
         Err(ZooError::NotFound(id.to_owned()))
-    }
-
-    /// The listed models for `component` in `language`, in index order, as
-    /// OpenNLP's `DownloadUtil` looks a model up by language and
-    /// `ModelType`.
-    pub fn find(&self, language: &str, component: Component) -> impl Iterator<Item = &Artifact> + '_ {
-        let language = language.to_owned();
-        self.artifacts.iter().filter(move |a| {
-            a.component == Some(component) && a.language.as_ref().is_some_and(|l| l.as_str() == language)
-        })
     }
 
     /// `artifacts` written as an index in the canonical form: serde_json's

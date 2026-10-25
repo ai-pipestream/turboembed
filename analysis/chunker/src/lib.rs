@@ -18,18 +18,29 @@ pub mod cascade;
 pub mod clauses;
 mod cohesion;
 pub mod coref;
+mod discourse;
+pub mod discourse_graph;
 mod drift;
 pub mod entity;
 pub mod expand;
 mod gaps;
 mod hashes;
 pub mod late;
+mod lexical;
 mod limits;
 pub mod multirep;
+mod optimizer;
 mod providers;
+mod run;
+mod text_signals;
+mod trace;
+pub use optimizer::{DecisionMargin, SegmentTrace, segment_with_trace};
+pub use trace::ChunkTrace;
 pub mod rechunk;
 pub mod route;
 pub mod scorer;
+pub mod strategy;
+pub use strategy::{ChunkStrategy, StrategyMatrix, StrategySummary};
 mod sentiment;
 mod sums;
 mod weigh;
@@ -46,14 +57,17 @@ pub use coref::{
     CorefCohesion, CorefLink, Gender, MentionKind, MentionOrigin, Mentions, Number, Person, ResolvedMention,
     chunk_antecedents, coref_boundaries, coref_boundaries_from_chains, extract_chains,
 };
+pub use discourse::{DISCOURSE, DiscourseBoundaries, DiscourseLanguage};
+pub use discourse_graph::DiscourseAnnotator;
 pub use drift::{Drift, DriftBoundaries, Score, drift};
 pub use entity::{
     ChunkEntities, ChunkEntityHeaders, EntityBoundaries, EntityContinuity, EntityKeys, HeaderPolicy, Keying,
-    chunk_entities, entity_boundaries,
+    SalienceHeaders, chunk_entities, entity_boundaries,
 };
 pub use expand::{ExpandedHit, ExpansionPolicy, ParentExpander, ScoreAggregation, unit_tokens};
 pub use hashes::{ChunkId, ContentHashBuilder, ContentHashes, LevelHashBuilder};
 pub use late::{LateChunkAnnotator, Pooling, WindowPolicy};
+pub use lexical::{LEXICAL, LexicalBoundaries, LexicalForm};
 pub use multirep::{ChunkRepresentation, MultiRepChunkIndex, RepHit, RepresentationKind};
 pub use providers::{
     ClauseCutProvider, CorefBoundariesProvider, DistilledBoundariesProvider, DriftProvider, EntityBoundariesProvider,
@@ -68,6 +82,7 @@ pub use sentiment::{
     sentiment_shift,
 };
 pub use sums::{Rows, Sums};
+pub use text_signals::WeighTextBoundaries;
 pub use turbo_analysis_layers::TokenVectorWindows;
 pub use weigh::{
     COREF, DRIFT, ENTITY, SENTIMENT, STRUCTURE, WeighAllBoundaries, WeighBoundaries, Weight, weigh, weigh_with_coref,
@@ -212,37 +227,7 @@ pub fn segment(
     b: Budget,
     term: impl Fn(usize, usize) -> i64,
 ) -> Vec<Segment> {
-    let n = cut.len();
-    let size = |i: usize, j: usize| u64::from(tokens(i, j)) + u64::from(b.overhead);
-    let cost = |i: usize, j: usize| {
-        let boundary = if j < n { cut[j - 1] } else { 0 };
-        chunk_cost(boundary, size(i, j), b, term(i, j))
-    };
-    // best[i]: the least cost of cutting units [i, n); next[i]: where the
-    // first chunk of that cut ends. The first end tried, one unit, is
-    // always allowed, so every entry has one.
-    let mut best = vec![0i128; n + 1];
-    let mut next = vec![n; n + 1];
-    for i in (0..n).rev() {
-        for j in i + 1..=n {
-            if j - i > 1 && size(i, j) > u64::from(b.max) {
-                break;
-            }
-            let c = cost(i, j).saturating_add(best[j]);
-            if j == i + 1 || c < best[i] {
-                best[i] = c;
-                next[i] = j;
-            }
-        }
-    }
-    let mut out = Vec::new();
-    let mut i = 0;
-    while i < n {
-        let j = next[i];
-        out.push(Segment { start: i, end: j, tokens: size(i, j), cost: cost(i, j) });
-        i = j;
-    }
-    out
+    optimizer::solve::<false>(cut, tokens, b, term).segments
 }
 
 /// The chunk term that adds nothing.
@@ -308,6 +293,21 @@ impl Chunker {
         clauses: Option<&ClauseCuts>,
         term: impl Fn(Range<usize>) -> T,
     ) -> Result<Chunks, Error> {
+        self.chunk_record(id, sentences, subwords, bounds, structure, clauses, term, None)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn chunk_record<T: Fn(usize, usize) -> i64>(
+        &self,
+        id: &'static str,
+        sentences: &Sentences,
+        subwords: &Subwords,
+        bounds: &Boundaries,
+        structure: Option<&Structure>,
+        clauses: Option<&ClauseCuts>,
+        term: impl Fn(Range<usize>) -> T,
+        mut trace: Option<&mut Vec<Option<DecisionMargin>>>,
+    ) -> Result<Chunks, Error> {
         let view = sentences.spans.view();
         if subwords.spans.view() != view || structure.is_some_and(|s| s.spans.view() != view) {
             return Err(Error::Annotator { annotator: id, detail: "its inputs are in different views".into() });
@@ -350,73 +350,14 @@ impl Chunker {
             cost: Vec::new(),
             model_tokens: Vec::new(),
             over_budget: Vec::new(),
+            prompt_overhead: b.overhead,
         };
         let cx = RunCx { sentences, subwords, lengths: &lengths, bounds, limits: &limits, clauses };
         for run in runs {
             let term = term(run.clone());
-            self.push_run(id, &cx, run, structure.is_some(), term, &mut chunks)?;
+            self.push_run_with_trace(id, &cx, run, structure.is_some(), term, &mut chunks, trace.as_deref_mut())?;
         }
         Ok(chunks)
-    }
-
-    /// Appends one run's rows to `chunks`: its parent row first when
-    /// `with_parent` (the run is a top-level section), then the chunks
-    /// the optimizer cuts from it. The one place a run becomes rows,
-    /// shared by a full chunking and by the dirty runs of a
-    /// re-chunking (`crate::rechunk`).
-    pub(crate) fn push_run<T: Fn(usize, usize) -> i64>(
-        &self,
-        id: &'static str,
-        cx: &RunCx<'_>,
-        run: Range<usize>,
-        with_parent: bool,
-        term: T,
-        chunks: &mut Chunks,
-    ) -> Result<(), Error> {
-        let (b, sentences, lengths, bounds) = (self.budget, cx.sentences, cx.lengths, cx.bounds);
-        let size = |r: Range<usize>| u64::from(lengths.run(r.start, r.end)) + u64::from(b.overhead);
-        let span = |r: &Range<usize>| {
-            let (first, last) =
-                (sentences.spans.get(Ix::new(r.start as u32)), sentences.spans.get(Ix::new(r.end as u32 - 1)));
-            Span::new(first.start, last.end)
-        };
-        let tokens = |t: u64| {
-            u32::try_from(t).map_err(|_| Error::Annotator {
-                annotator: id,
-                detail: format!("a chunk of {t} tokens, more than a u32 holds"),
-            })
-        };
-        let opening = if run.start == 0 { Cut::DocumentStart } else { Cut::Section };
-        let parent = if with_parent {
-            let t = size(run.clone());
-            let row = Row { span: span(&run), level: 1, parent: None, cut: opening, cost: 0, tokens: tokens(t)? };
-            Some(row.push(chunks, run.clone(), t > u64::from(b.max)))
-        } else {
-            None
-        };
-        // The optimizer's units are the atoms: sentence `at[k].0` up
-        // to `at[k + 1].0`.
-        let at = run_atoms(cx.limits, run.clone(), &size, b);
-        let cut: Vec<i32> = at[1..].iter().map(|&(e, _)| bounds.cost[e - 1]).collect();
-        for s in segment(&cut, |i, j| lengths.run(at[i].0, at[j].0), b, |i, j| term(at[i].0, at[j].0)) {
-            let r = at[s.start].0..at[s.end].0;
-            let cut = match at[s.start] {
-                (i, _) if i == run.start => opening,
-                (_, Some(forced)) => forced,
-                (i, None) => bounds.reason[i - 1],
-            };
-            let over_budget = s.tokens > u64::from(b.max);
-            if over_budget
-                && r.len() == 1
-                && let Some(clauses) = cx.clauses
-                && clauses::push_clause_rows(id, cx, r.start, cut, parent, b, clauses, chunks)?
-            {
-                continue;
-            }
-            let row = Row { span: span(&r), level: 0, parent, cut, cost: saturate(s.cost), tokens: tokens(s.tokens)? };
-            row.push(chunks, r, over_budget);
-        }
-        Ok(())
     }
 }
 

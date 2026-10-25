@@ -3,6 +3,7 @@
 //! (docs/schema-extract.md).
 
 pub mod annotator;
+mod config_hash;
 pub mod decode;
 mod evidence;
 pub mod export;
@@ -10,6 +11,7 @@ pub mod layer;
 pub mod model;
 pub mod prompt;
 pub mod schema;
+pub mod window;
 
 pub use annotator::SchemaAnnotator;
 pub use decode::{Corroborate, Extraction, decode};

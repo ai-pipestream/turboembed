@@ -278,6 +278,11 @@ impl Weights {
                 {
                     expected.extend(projection_tensors(t, ta, a, p)?);
                 }
+                // Rule 8 covers the MLM head too: its tensors share the
+                // artifact's dtype, though MlmHead reads them, not the backend.
+                if t == index && m.embed.as_ref().is_some_and(|e| e.sparse.is_some()) {
+                    expected.extend(mlm_tensors(t, ta, a)?);
+                }
                 let files = ta.files.iter().map(|f| bundle.read_verified_aligned(f)).collect::<Result<Vec<_>>>()?;
                 let (mut tensors, dtype) = place(ta, &files, &expected)?;
                 tensors.truncate(encoder_len);
@@ -382,6 +387,9 @@ impl Weights {
             artifact_bytes,
             artifact2,
             artifact2_bytes,
+            head: std::ptr::null(),
+            head_out: 0,
+            reserved: 0,
         }
     }
 

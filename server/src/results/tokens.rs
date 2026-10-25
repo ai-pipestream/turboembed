@@ -7,6 +7,7 @@ use turbo_analysis_layers::{Subwords, TokenVectorWindows, Vectors};
 
 use super::{MAX_TOKEN_VECTOR_BYTES, MAX_WINDOWS, Wire, mismatched, model_from_proto, model_to_proto, over};
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
+use crate::offsets::{OffsetMode, Offsetter};
 use crate::proto::result::TokenVectorsResult;
 
 /// The token-vector result unbundled from its two layers: the vectors and
@@ -23,6 +24,11 @@ pub struct TokenVectors {
     pub empty: Vec<u32>,
     /// The text view the windows are offsets into; 0 is the source text.
     pub view: u16,
+    /// The view text the windows are offsets into; empty when `offsets`
+    /// is `OffsetMode::Utf8` and no reference text is carried.
+    pub text: String,
+    /// The wire unit `to_msg` emits.
+    pub offsets: OffsetMode,
     /// The encoder windows, in text order, non-overlapping.
     pub windows: Vec<Span>,
 }
@@ -36,8 +42,17 @@ impl TokenVectors {
             data: v.data.clone(),
             empty: v.empty.iter().map(|i| i.get() as u32).collect(),
             view: windows.spans.view().0,
+            text: String::new(),
+            offsets: OffsetMode::Utf8,
             windows: (0..windows.spans.len()).map(|i| windows.spans.get(turbo_analysis::Ix::new(i as u32))).collect(),
         }
+    }
+
+    /// Attaches reference view text and wire [`OffsetMode`].
+    pub fn with_offsets(mut self, text: impl Into<String>, offsets: OffsetMode) -> Self {
+        self.text = text.into();
+        self.offsets = offsets;
+        self
     }
 
     /// The vectors layer this result's rows make, checked.
@@ -79,22 +94,27 @@ impl Wire for TokenVectors {
     type Msg = TokenVectorsResult;
 
     fn to_msg(&self) -> TokenVectorsResult {
-        let mut data = Vec::with_capacity(self.data.len() * 4);
-        for v in &self.data {
-            data.extend_from_slice(&v.to_le_bytes());
-        }
+        let data = super::f32_bytes(&self.data);
+        let (window_start, window_end) = if self.text.is_empty() && self.offsets == OffsetMode::Utf8 {
+            (self.windows.iter().map(|s| s.start).collect(), self.windows.iter().map(|s| s.end).collect())
+        } else {
+            Offsetter::new(&self.text, self.offsets).spans_to_wire(&self.text, &self.windows)
+        };
         TokenVectorsResult {
             model: Some(model_to_proto(&self.model)),
             dim: self.dim,
             data: data.into(),
             empty: self.empty.clone(),
             view: self.view as u32,
-            window_start: self.windows.iter().map(|s| s.start).collect(),
-            window_end: self.windows.iter().map(|s| s.end).collect(),
+            window_start,
+            window_end,
+            text: self.text.clone(),
+            offsets: self.offsets.to_proto(),
         }
     }
 
     fn from_msg(msg: &TokenVectorsResult) -> Result<Self, Failure> {
+        let offsets = OffsetMode::from_proto(msg.offsets)?;
         if msg.data.len() as u64 > MAX_TOKEN_VECTOR_BYTES {
             return Err(over("max_token_vector_bytes", "token vector data", msg.data.len() as u64));
         }
@@ -128,10 +148,17 @@ impl Wire for TokenVectors {
         if msg.window_start.len() != msg.window_end.len() {
             return Err(mismatched("window_start", msg.window_start.len(), msg.window_end.len()));
         }
-        let mut data = Vec::with_capacity(values);
-        for c in msg.data.as_chunks::<4>().0 {
-            data.push(f32::from_le_bytes(*c));
-        }
+        let windows = if msg.text.is_empty() && offsets == OffsetMode::Utf8 {
+            msg.window_start.iter().zip(&msg.window_end).map(|(&s, &e)| Span { start: s, end: e }).collect()
+        } else {
+            Offsetter::new(&msg.text, offsets).spans_from_wire(
+                &msg.text,
+                "encoder window",
+                &msg.window_start,
+                &msg.window_end,
+            )?
+        };
+        let data = super::f32s(&msg.data);
         let out = TokenVectors {
             model: msg.model.as_ref().map(model_from_proto).unwrap_or(ModelRef {
                 id: String::new(),
@@ -142,7 +169,9 @@ impl Wire for TokenVectors {
             data,
             empty: msg.empty.clone(),
             view: msg.view as u16,
-            windows: msg.window_start.iter().zip(&msg.window_end).map(|(&s, &e)| Span { start: s, end: e }).collect(),
+            text: msg.text.clone(),
+            offsets,
+            windows,
         };
         out.vectors()?;
         out.windows_layer(rows)?;

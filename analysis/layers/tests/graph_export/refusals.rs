@@ -55,6 +55,7 @@ fn sentiment_family_refusals() {
         &Key::DEFAULT,
         Numbers {
             spans: spans(&[(0, 5)]),
+            numeral_start: vec![0],
             numeral_end: vec![5],
             negative: vec![false],
             coefficient: strs(&["42"]),
@@ -109,6 +110,21 @@ fn sentiment_family_refusals() {
     splice(&mut graph, "turbo:numbers", w.finish(), 1);
     assert!(import(&graph, &codecs()).is_err(), "a number at the end of the address space imported");
 
+    // A schema-1 turbo:numbers record must be refused by schema version.
+    let mut graph = export(&doc, &codecs()).unwrap();
+    for record in &mut graph.layers {
+        if record.layer == "turbo:numbers" {
+            record.schema = 1;
+        }
+    }
+    match import(&graph, &codecs()) {
+        Err(ExportError::IncompatibleSchema { layer, exported, supported }) => {
+            assert_eq!((layer.as_str(), exported, supported), ("turbo:numbers", 1, 2));
+        }
+        Ok(_) => panic!("a schema-1 turbo:numbers record imported"),
+        Err(other) => panic!("a schema-1 turbo:numbers record failed as {other}"),
+    }
+
     // A phrase head outside its token range.
     let mut graph = export(&doc, &codecs()).unwrap();
     let mut w = Writer::new();
@@ -143,4 +159,28 @@ fn sentiment_family_refusals() {
     w.str("not-a-currency").unwrap();
     splice(&mut graph, "turbo:money", w.finish(), 1);
     assert!(import(&graph, &codecs()).is_err(), "an unknown currency code imported");
+}
+
+#[test]
+fn quantities_schema_1_is_refused() {
+    let mut doc = document();
+    let mut q = Quantities::new(ViewId::SOURCE);
+    q.push(turbo_analysis_layers::QuantityMention {
+        span: Span::new(0, 5),
+        negative: false,
+        coefficient: "5",
+        scale: 0,
+        unit: "km",
+    });
+    doc.add(&Key::DEFAULT, q, Provenance::by("test")).unwrap();
+    let mut graph = export(&doc, &codecs()).unwrap();
+    for layer in &mut graph.layers {
+        if layer.layer == "turbo:quantities" {
+            layer.schema = 1;
+        }
+    }
+    assert!(matches!(
+        import(&graph, &codecs()),
+        Err(ExportError::IncompatibleSchema { ref layer, exported: 1, supported: 2 }) if layer == "turbo:quantities"
+    ));
 }

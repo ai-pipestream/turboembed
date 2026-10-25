@@ -32,22 +32,32 @@ target/release/turbo-kserve --listen 127.0.0.1:8081 \
     --model name=bge-small-exact,bundle=/models/bge-small-en-v1.5,device=0,sessions=2,precision=PRECISION_EXACT
 ```
 
-Then the demo, naming the models the page should offer:
+Then the demo:
+
+```
+target/release/turbo-kserve-demo --server http://127.0.0.1:8081
+```
+
+and open `http://127.0.0.1:8080`. The Open Inference Protocol has no
+call that lists a server's models, so the demo asks the server's
+`AnalysisService/Capabilities` (docs/grpc-analysis.md) and offers every
+bundle it lists, in the order served. Naming models overrides the
+listing, and the page offers only those:
 
 ```
 target/release/turbo-kserve-demo --server http://127.0.0.1:8081 \
-    --model bge-small-en-v1.5 --model bge-small-fastest --model bge-small-exact
+    --model bge-small-fastest --model bge-small-exact
 ```
 
-and open `http://127.0.0.1:8080`. The protocol has no call that lists a
-server's models, so the page offers the names given here, and a field on
-the page adds any other name the server serves.
+A server without the analysis service offers no names unless given
+some. Either way, a field on the page adds any other name the server
+serves.
 
 | Flag | Meaning | Absent |
 |---|---|---|
 | `--listen ADDR:PORT` | Where the page is served. | `TURBO_DEMO_LISTEN`, else `127.0.0.1:8080`. |
 | `--server URL` | The server to call, `http://HOST:PORT`. | `TURBO_DEMO_SERVER`, else `http://127.0.0.1:8081`. |
-| `--model NAME` | A model name the page offers; repeat for more. | `TURBO_DEMO_MODELS`, comma-separated, else none. |
+| `--model NAME` | A model name the page offers; repeat for more. | `TURBO_DEMO_MODELS`, comma-separated, else the bundles `Capabilities` lists. |
 
 The demo has no authentication and serves on the loopback address
 unless told otherwise. It need not start after the server: it connects
@@ -88,12 +98,38 @@ The page uses three calls, which a script can use as well:
 
 | Call | Answer |
 |---|---|
-| `GET /api/status` | The server address, whether it is reachable, live and ready, its name, version and extensions, and each offered model's readiness. |
+| `GET /api/status` | The server address, whether it is reachable, live and ready, its name, version and extensions, each offered model's readiness, and `models_from`: `flags`, `capabilities` or `none`. |
 | `GET /api/models/NAME` | `ModelMetadata`: `name`, `versions`, `inputs`, `outputs`, `properties`. |
 | `POST /api/infer` | Body `{"model": NAME, "texts": [...], "parameters": {...}}`, a parameter's value a string or an integer. Answers `model`, `version`, `shape`, `vectors` (one array of numbers per text, each the server's float exactly) and `summary`, the response parameters. |
 
 A gRPC error is HTTP 502 with `{"error": {"grpc", "message",
 "turbo_code", "turbo_field"}}`; a body the demo cannot read is HTTP 400.
+
+## The AnalysisService calls
+
+These routes are each one `turbo.result.AnalysisService` call
+(server/proto/turbo_analysis.proto), for a workbench page or a script.
+The page itself does not use them yet. Their JSON is the proto message
+itself: the field names of the .proto, a missing field its default, a
+oneof as an object keyed by the field set (`{"vectors": {...}}`), and an
+enum as its number. A document's `text` is a string, and vector `data`
+(`AnalyzeVectors`, `TokenVectorsResult`, `ChunkLevelsResult`) is an
+array of numbers, the server's little-endian floats in order. Other
+`bytes` fields are arrays of byte values.
+
+| Call | gRPC call and answer |
+|---|---|
+| `GET /api/capabilities` | `Capabilities`: `CapabilitiesResponse`. |
+| `POST /api/bundles/load` | Body a `LoadBundleRequest`; answers `LoadBundleResponse`. An admin call: a server started without `--admin` refuses it. |
+| `POST /api/bundles/unload` | Body an `UnloadBundleRequest`; answers `{}`. An admin call too. |
+| `POST /api/analyze/stream` | Body `{"header": AnalyzeStreamHeader, "documents": [AnalyzeDocument, ...]}`, the header optional. Opens one `AnalyzeStream` with the header and the documents, and passes each `AnalyzeStreamResponse` on as it arrives: one JSON line each (`application/x-ndjson`), or one `data:` event each when the request accepts `text/event-stream`. |
+
+A refusal before the stream starts, such as a header over the server's
+caps, is the HTTP 502 above. A status that ends a stream after it
+started is its last line, `{"error": {...}}` in the same shape, or an
+`error` event. A failed document is not an error: it is its own answer,
+with a `failure` outcome, and the stream goes on. When the page goes
+away, the demo drops the call.
 
 ## Tests
 
@@ -103,4 +139,8 @@ in front of it, and makes every call over HTTP: the page and its files,
 status and metadata, texts at each tier giving exactly the floats the
 server answers over gRPC and the bundle's reference vectors, parameters
 and the server's refusals, and a server that is not there. Nothing is
-mocked.
+mocked. `demo/tests/gateway.rs` does the same for the AnalysisService
+routes: the capability listing, a stream as lines and as events with a
+failed document among them, its vector equal to `/api/infer`'s, the
+`turbo-code` and `turbo-field` of a refused header and of an admin call
+on a server without them, and an unload and a load.

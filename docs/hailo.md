@@ -92,9 +92,27 @@ device.
   times out on the device (10 s) fails the run with `TURBO_E_RUNTIME`
   and HailoRT's status, and the session then refuses every write and run
   with `TURBO_E_INVALID_STATE`: the device may still own the frame's
-  memory. Releasing the session waits for HailoRT to finish with its
-  frames, with no timeout, so on a device that stopped answering it
-  does not return. A token type other
+  memory. Releasing the session waits for each frame still in flight
+  for 10 s at most; once one has not come back, there or in a run, the
+  rest are not waited for, so on a device that stopped answering the
+  session's release returns after 10 s at most instead of hanging. The
+  frame sets whose frames did not come back are kept by the model, since
+  the device may still write into them, and freed as soon as their jobs
+  finish, checked each time a session on the model is made or released.
+  When the model goes, those still running are detached from HailoRT and
+  their memory is left allocated. That bound is for the session: the
+  model's own last release runs HailoRT's shutdown of the configured
+  model, which waits for its transfers on a timeout of its own (10 s in
+  HailoRT 4.23) that this backend does not set.
+  `TURBO_HAILO_FRAME_TIMEOUT_MS`, read when a session is made, sets the
+  frame timeout to a whole number of ms from 0 to 600000 instead of 10 s;
+  any other value refuses the session with `TURBO_E_INVALID_ARGUMENT`.
+  `core/tests/hailo_release.rs` sets 0, so frames genuinely miss it on a
+  device that answers, and checks that the release then returns at once,
+  that the frame sets kept are freed once their frames come back, over
+  timeouts and recoveries repeated, that the model released straight
+  after such a session returns as soon as the device answers, and that
+  the device runs a new session. A token type other
   than 0 is `TURBO_E_UNSUPPORTED_OPTION`, naming the row: the HEF
   computes type 0 only.
 - **Late pooling and `cpu_threads`.** The session is made through
@@ -320,6 +338,11 @@ TURBO_TEST_BUNDLE=<bundle-dir> \
     cargo test --release -p turbo --features hailo --test hailo -- --include-ignored --nocapture
 TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=hailo \
     cargo test --release -p turbo --features hailo --test conformance -- --include-ignored --nocapture
+
+# A session released after its frames missed their timeout (in a binary of
+# its own, since it sets TURBO_HAILO_FRAME_TIMEOUT_MS):
+TURBO_TEST_BUNDLE=<bundle-dir> \
+    cargo test --release -p turbo --features hailo --test hailo_release -- --include-ignored --nocapture
 ```
 
 The tests that need a bundle are ignored without `--include-ignored`,

@@ -35,7 +35,7 @@ fn bad(message: impl Into<String>) -> Failure {
     Failure::new(TURBO_E_INVALID_ARGUMENT, 0, message)
 }
 
-const BLOCKS: [Block; 14] = [
+const BLOCKS: [Block; 16] = [
     Block::Section,
     Block::Heading,
     Block::Paragraph,
@@ -50,6 +50,8 @@ const BLOCKS: [Block; 14] = [
     Block::Footnote,
     Block::PageHeader,
     Block::PageFooter,
+    Block::LooseList,
+    Block::Html,
 ];
 
 fn cut_to_wire(cut: Cut) -> (u32, u32) {
@@ -86,20 +88,19 @@ fn cut_from_wire(tag: u32, block: u32) -> Result<Cut, Failure> {
     })
 }
 
-fn spans_to_wire<L>(spans: &Spans<L>, text: &str, offsetter: &Offsetter) -> (Vec<u32>, Vec<u32>, Vec<u32>) {
+pub(crate) fn spans_to_wire<L>(spans: &Spans<L>, text: &str, offsetter: &Offsetter) -> (Vec<u32>, Vec<u32>, Vec<u32>) {
     let (mut start, mut end, mut at) = (Vec::new(), Vec::new(), Vec::new());
     for i in 0..spans.len() as u32 {
         for frag in spans.fragments(Ix::new(i)) {
-            let (s, e) = offsetter.to_wire(text, frag);
-            start.push(s);
-            end.push(e);
+            start.push(frag.start);
+            end.push(frag.end);
         }
         at.push(start.len() as u32);
     }
-    (start, end, at)
+    (offsetter.column_to_wire(text, &start), offsetter.column_to_wire(text, &end), at)
 }
 
-fn spans_from_wire<L>(
+pub(crate) fn spans_from_wire<L>(
     what: &str,
     view: ViewId,
     text: &str,
@@ -187,7 +188,7 @@ impl Wire for ChunkLevels {
             level_parent: self.levels.parent.iter().map(|p| p.map_or(-1, |i| i.get() as i32)).collect(),
             model: Some(model_to_proto(&self.vectors.model)),
             dim: self.vectors.dim,
-            data: self.vectors.data.iter().flat_map(|v| v.to_le_bytes()).collect(),
+            data: super::f32_bytes(&self.vectors.data).into(),
             empty: self.vectors.empty.iter().map(|i| i.get() as u32).collect(),
         }
     }
@@ -287,6 +288,7 @@ impl Wire for ChunkLevels {
             cost: msg.chunk_cost.clone(),
             model_tokens: msg.chunk_model_tokens.clone(),
             over_budget: msg.chunk_over_budget.clone(),
+            prompt_overhead: 0,
         };
         chunks.check().map_err(bad)?;
         let mut unit = Vec::with_capacity(n_levels);
@@ -314,7 +316,7 @@ impl Wire for ChunkLevels {
         if msg.dim == 0 || !msg.data.len().is_multiple_of(4) {
             return Err(bad("embedding data: whole little-endian f32 values at a positive dim"));
         }
-        let data: Vec<f32> = msg.data.as_chunks::<4>().0.iter().map(|b| f32::from_le_bytes(*b)).collect();
+        let data = super::f32s(&msg.data);
         let model =
             msg.model.as_ref().map(model_from_proto).ok_or_else(|| bad("embeddings carry no model identity"))?;
         let vectors = Vectors::<Chunks> {
@@ -329,5 +331,25 @@ impl Wire for ChunkLevels {
             return Err(mismatched("embedding rows", vectors.len(), n_chunks));
         }
         Ok(ChunkLevels { text: msg.text.clone(), view, offsets, chunks, levels, vectors })
+    }
+}
+
+#[cfg(test)]
+mod block_tags {
+    use super::*;
+
+    #[test]
+    fn list_tightness_and_html_have_new_tags_after_the_old_tags() {
+        assert_eq!(cut_to_wire(Cut::Inside(Block::List)), (8, 3));
+        assert_eq!(cut_to_wire(Cut::Inside(Block::PageFooter)), (8, 13));
+        assert_eq!(cut_to_wire(Cut::Inside(Block::LooseList)), (8, 14));
+        assert_eq!(cut_to_wire(Cut::Inside(Block::Html)), (8, 15));
+        for b in BLOCKS {
+            for cut in [Cut::Inside(b), Cut::Overlap(b)] {
+                let (tag, block) = cut_to_wire(cut);
+                assert_eq!(cut_from_wire(tag, block).unwrap(), cut);
+            }
+        }
+        assert!(cut_from_wire(8, 16).is_err());
     }
 }

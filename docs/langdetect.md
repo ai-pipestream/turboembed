@@ -71,6 +71,37 @@ least one n-gram of the text is a predicate of the model; without one,
 every probability is the model's prior and the ranking is the outcome
 order.
 
+`LanguageDetector::probing_predict_languages` and
+`probing_predict_languages_with` (`ProbingConfig`, `ProbingContext`)
+reproduce `LanguageDetectorME.probingPredictLanguages`:
+
+1. The text is stepped through in chunks of at most
+   `min(chunk_size, max_length - start)` Unicode code points
+   (`CharSequence.codePoints().skip(start).limit(actualChunkSize)`),
+   with `chunk_size = 200` and `max_length = 10_000` in
+   `ProbingConfig::default()` (`LanguageDetectorConfig.DEFAULT_LANGUAGE_DETECTOR_CONFIG`),
+   stopping when no code points remain before `max_length` or when
+   `seenEnough` returns true.
+2. Each chunk is normalized, lowercased and counted on its own
+   (`ContextGenerator::generate_chunk`), and each n-gram not yet in the
+   cumulative `ProbingContext` is inserted in the chunk's first `HashMap`
+   bucket order (`updateCounts` into `ngramCounts`).
+3. After each chunk, the model evaluates the cumulative map's keys in
+   its current `HashMap` bucket order (each with weight 1.0) and ranks
+   the outcomes as `predict_languages` does.
+4. `seenEnough` keeps a sliding window of up to
+   `min_consec_improvements + 1` top `(outcome, confidence)` pairs
+   (`min_consec_improvements = 2` by default) and returns true once at
+   least `min_consec_improvements` earlier chunks have been recorded,
+   the margin `p[0] - p[1]` is at least `min_diff` (`0.20` by default,
+   when `min_diff > 0.0`), and across the window the top outcome is
+   unchanged and its confidence is non-decreasing (`!(last_conf > conf)`).
+5. When the loop ends, `out` holds the last chunk's ranking (or the
+   evaluation of the empty `ngramCounts` map when zero chunks were read,
+   as on an empty text or `max_length == 0`), and the call returns the
+   number of Unicode code points processed
+   (`ProbingLanguageDetectionResult.getLength()`).
+
 The buffers live in a `Scratch` the caller keeps, so a detector run over
 many texts allocates for the n-grams and the probabilities only while
 they grow. The normalizers return a new string for a text they change
@@ -105,6 +136,21 @@ each outcome (docs/analysis.md, "Decision point dumps").
   annotator writes in a pipeline: the ranking exactly and every
   probability with `Tolerance::exact()`;
 - `predict_language` against row 0 of every golden.
+
+The golden files under `langdetect/langdetect-183+probing` (default
+`LanguageDetectorConfig`: `chunkSize=200`, `maxLength=10000`,
+`minConsecImprovements=2`, `minDiff=0.20`) and
+`langdetect/langdetect-183+probing-chunk50` (`chunkSize=50`,
+`maxLength=250`, `minConsecImprovements=2`, `minDiff=0.20`) were made by
+`LanguageDetectorME.probingPredictLanguages` on the JVM over the 24 texts
+of the `en`, `multi` and `langdetect` (`samples.txt` and
+`tree-bucket.txt`) input sets. Each golden records `opennlp:language`
+and `turbo:probing-length` (the code point count `getLength()` returned),
+and each dump records one decision point per `predict(ngramCounts)`
+evaluation. `analysis/langdetect/tests/goldens.rs` checks every chunk
+context and outcome probability of every dump (100+ chunk evaluations and
+over 25,000 n-grams in all), the final ranking and probabilities bit for
+bit, and `turbo:probing-length` on every input.
 
 The model is not checked in: `langdetect-183.bin` is fetched with
 `cargo run -p turbo-goldens-tool -- fetch-models target/turbo-goldens/models`,
@@ -225,6 +271,12 @@ reaches a tree bucket, where equal-hash n-grams could change the last
 bits); the
 annotator declines the two texts in which the model knows no n-gram
 (Japanese and Chinese), where the JVM ranks every language equal.
+The goldens and dumps under `langdetect/langdetect-fixture-rust+probing`
+and `langdetect/langdetect-fixture-rust+probing-chunk50` run
+`probingPredictLanguages` with the same fixture model over the 24 inputs
+of `en`, `multi` and `langdetect`, and `analysis/langdetect/tests/fixture.rs`
+checks every chunk context, every chunk and final probability bit for
+bit, every ranking, and every stopping `length`.
 
 The recipe that trains a model on Tatoeba and gates it against
 `langdetect-183.bin` is in `analysis/train-recipes` (its README, "The
@@ -232,8 +284,6 @@ language detector recipe").
 
 ## Not ported
 
-- `probingPredictLanguages`, which detects over growing chunks of the
-  text and stops when the best language is stable: no golden covers it.
 - Evaluation (`LanguageDetectorEvaluator`) and cross validation.
 
 ## OpenNLP findings
@@ -330,9 +380,9 @@ of `opennlp:language`.
    for the run's whole text, normalized over the languages of its
    script. The published model's probabilities are flat (a clear
    French sentence gets around 0.07 over the 65 Latin-script languages),
-   so the confidence ranks runs against each other, is not calibrated,
-   and should not be thresholded, rather than reading
-   as a calibrated probability.
+   so raw confidence is not a probability of correct labelling. For a
+   confidence cutoff, use `CalibratedSpanDetector` with a profile fitted
+   to the target domain. The measured text-only profile below uses 0.9.
 6. Spans: a run starts at a sentence start between the word before it
    and its first word, when there is one (snapped to the sentence layer);
    otherwise at its first word less the opening punctuation right before
@@ -481,3 +531,96 @@ checks that the script table covers every language of
 model and skips without it, unless `TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`,
 which the CI step "parity against the JVM with the published models,
 models required" sets.
+
+## Calibrated text-only span confidence
+
+`CalibratedSpanDetector` applies `turbo-calibration` to the full distribution
+of each run, restricted to its script's allowed languages. It keeps the
+original labels, byte spans, scripts and document language shares. This
+wrapper reads only the text view: adding token or sentence layers cannot
+silently change the inference that the calibration was fitted on. Profiles
+bind the model hash, outcome order, detector settings, kept-language
+inventory and named domain. The profile bytes enter the step's config hash.
+An unsupported script retains `und` and zero confidence.
+
+The target is the dominant gold language among letters and marks inside
+**each predicted run**, with ties settled by model outcome order. Confidence
+does not mean that the entire run is monolingual or that its boundaries are
+correct. ECE uses ten equal-width bins and the decoder-selected label,
+which need not be the maximum of the final full distribution. Brier is the
+sum of squared errors over all model outcomes.
+
+The authored mixed-language fixtures are in-tree under the repository
+licence. The first 20 development documents supply 46 fitting runs; the last
+10 supply 21 disjoint conformal rows. All 40 test documents are held out,
+with 82 predicted runs and 87 gold spans. No row was excluded. Detector
+settings previously used all 30 development documents, so only the confidence
+transform has this 20/10 split; it is not an independent boundary validation
+set. Neither development subset contains a wrong predicted label.
+Temperature fitting reaches its lower search bound, approximately
+`T=0.0024787521766664817`. This is a small, easy fitting population, not
+evidence of perfect certainty on arbitrary text.
+
+| Split | Runs | Raw ECE | Calibrated ECE | Raw Brier | Calibrated Brier | Label accuracy |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Fit | 46 | 0.820854360 | 0.000000000 | 0.764684707 | 0.000000000 | 46/46 |
+| Conformal reserve | 21 | 0.876212966 | 0.000000000 | 0.826013635 | 0.000000000 | 21/21 |
+| Held-out test | 82 | 0.772541765 | 0.045177907 | 0.758232320 | 0.085279141 | 78/82 |
+
+For this profile and authored-text domain, the recommended starting cutoff
+is **calibrated confidence >= 0.9**, fixed before test evaluation. It retains
+81/82 runs (98.78%), with 78/81 correct labels (96.30%); the one rejected run
+is wrong. Raw confidence at the same cutoff retains just 4/82, all correct.
+The calibrated cutoff does not guarantee 90% accuracy on a different domain.
+Refit on representative labelled text and measure retained accuracy there.
+The stored conformal scores are available to callers, but this cutoff is
+not a conformal guarantee and the experiment reports no such guarantee.
+
+### Remaining short-run errors
+
+Calibration cannot restore missed boundaries: the existing 33/40 exact
+documents, 81/87 gold-span accuracy, 41/47 boundary recall and 3845/4020
+correct letters are unchanged. The single-word German quotation and the
+two absorbed short French/English quotations still lack their own run.
+All four wrong predicted-run labels have the gold language ranked second:
+
+| Document | Selected / gold | Letters | Raw | Calibrated | At 0.9 |
+| --- | --- | ---: | ---: | ---: | --- |
+| `test-fra-eng-tech` | Waray / French | 23 | 0.024630931 | 0.999999982 | retained, wrong |
+| `test-jpn-eng-mixed` | Waray / English | 31 | 0.027507219 | 0.704588411 | rejected |
+| `test-hin-eng-short` | Waray / English | 21 | 0.023765371 | 1.000000000 | retained, wrong |
+| `test-ind-eng` | Sundanese / Indonesian | 45 | 0.040059481 | 1.000000000 | retained, wrong |
+
+Thus the Indonesian/Sundanese miss is a model-ranking error, not merely a
+low confidence score. Temperature preserves that ranking and sharpens the
+wrong choice. Fixing it requires better language evidence or a genuinely
+known restricted inventory; removing Sundanese or Waray just to pass these
+examples would invalidate a general-language evaluation. The unchanged
+boundary misses and three confident wrong labels remain explicit limits.
+
+### Reproduce the calibration
+
+Use the published `langdetect-183.bin` and a new output path:
+
+```sh
+cargo run --locked --release -p turbo-langspan --example calibrate --   langdetect-183.bin analysis/langspan/tests/data/mixed-dev.txt   analysis/langspan/tests/data/mixed-test.txt langspan-calibration.bin
+```
+
+The command refuses an existing output, fits temperature, saves a bound
+binary profile, and verifies that the deployed wrapper preserves all test
+labels and spans. Load it with `Calibration::from_bytes(bytes, &identity)`
+and `CalibratedSpanDetector::new(detector, profile, "mixed-authored-v1")`.
+Tests use the real published model, assert the held-out counts and ECE,
+exercise the analysis pipeline, and reject mismatched inventories, settings
+and domains. Set `TURBO_GOLDENS_MODELS` to the model directory when running
+`cargo test --locked -p turbo-langspan --test calibrated`.
+
+| Input or output | SHA-256 |
+| --- | --- |
+| Language model | `2ddf585fac2e02a9dcfb9a4a9cc9417562eaac351be2efb506a2eaa87f19e9d4` |
+| Development fixture | `e48e544f5a2a788c243eb61c46df21715eead4909a79c17ed81c7c6d2919c9c0` |
+| Test fixture | `cd336412ea2621ccef880bb42ef09e0c2dd071fd98ebca0d27256b7f8454892f` |
+| Calibration profile on the recorded build | `03c52c6301b0a9be23103b2b4e3a8bbc3934dbc270b58c5ebaf22d22f84d41e4` |
+
+No model or generated calibration binary is checked in. This change reuses
+workspace calibration and training crates and adds no external packages.

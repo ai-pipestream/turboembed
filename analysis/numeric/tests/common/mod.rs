@@ -8,8 +8,18 @@ use turbo_numeric::{NumberNotation, NumberScanner, Numbers};
 /// Every mention in `text` as its covered text and its value, written as
 /// `BigDecimal.toPlainString` writes it.
 pub fn found(text: &str, notation: NumberNotation, apply_scale: bool) -> Vec<(String, String)> {
+    found_with_parity(text, notation, apply_scale, false)
+}
+
+/// Every mention in `text` with `opennlp_parity` configured.
+pub fn found_with_parity(
+    text: &str,
+    notation: NumberNotation,
+    apply_scale: bool,
+    opennlp_parity: bool,
+) -> Vec<(String, String)> {
     let mut out = Numbers::new(ViewId::SOURCE);
-    NumberScanner { notation, apply_scale }.scan(text, &mut out);
+    NumberScanner { notation, apply_scale, opennlp_parity }.scan(text, &mut out);
     out.spans.iter().map(|(i, s)| (text[s.range()].to_string(), out.value(i).to_plain_string())).collect()
 }
 
