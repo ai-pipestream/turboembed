@@ -81,12 +81,14 @@ jobs:
         run: cargo clippy -p turbo-vector-index --features turboquant --all-targets
       # The arm64 machines (aarch64 Linux, Apple silicon) build without
       # the x86_64 kernels. Checked only: the crates left out reach ring
-      # through ureq, whose build script needs an aarch64 C compiler.
+      # through ureq, whose build script needs an aarch64 C compiler. The
+      # server is checked without catalog-http, its one way to ureq.
       - name: check (aarch64)
-        run: >-
-          cargo check --workspace --target aarch64-unknown-linux-gnu
-          --exclude turbo-bench --exclude turbo-bundle --exclude turbo-eval
-          --exclude turbo-zoo --exclude turbo-train-components --exclude turbo-train-recipes
+        run: |
+          cargo check --workspace --target aarch64-unknown-linux-gnu \
+            --exclude turbo-bench --exclude turbo-bundle --exclude turbo-eval --exclude turbo-kserve \
+            --exclude turbo-zoo --exclude turbo-train-components --exclude turbo-train-recipes
+          cargo check -p turbo-kserve --no-default-features --target aarch64-unknown-linux-gnu
 
   # The workspace tests other than the core's and turbo-fuzz's, the
   # crates dealt round robin by sorted name into four shards, from `cargo
@@ -270,17 +272,70 @@ jobs:
           TURBO_MECAB_DICTIONARIES: ${{ github.workspace }}/.opennlp-models
         run: cargo test -p turbo-tokenize --test lattice_golden --test lattice_readings -- --ignored
 
+  # A static bundle against Model2Vec's own ids and vectors
+  # (core/tests/static_parity.rs, docs/static.md). potion-base-2M, the
+  # smallest potion model, is fetched at its recipe's pinned commit, and
+  # turbo-bundle checks every file's SHA-256 before it uses it; the cache
+  # is keyed by the recipe, so it changes only with those digests. The
+  # golden image is built from bundle/model2vec-golden, whose base is
+  # pinned by digest and whose packages are pinned by version and commit;
+  # its layers are cached by content, so a run rebuilds it only when one of
+  # those files changes. The goldens are made from the repository's
+  # tokenizer texts, with no network in the container.
+  static-parity:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: actions/cache@v4
+        with:
+          path: .potion/upstream
+          key: potion-base-2M-${{ hashFiles('bundle/recipes/potion/potion-base-2M.json') }}
+      - name: the potion-base-2M bundle, from its pinned files
+        run: cargo run -q --release -p turbo-bundle -- make minishlab/potion-base-2M .potion/upstream .potion/bundle
+      - uses: docker/setup-buildx-action@v3
+      - name: the Model2Vec golden image
+        uses: docker/build-push-action@v6
+        with:
+          context: bundle/model2vec-golden
+          load: true
+          tags: turbo-model2vec-golden
+          cache-from: type=gha,scope=model2vec-golden
+          cache-to: type=gha,scope=model2vec-golden,mode=max
+      - name: Model2Vec's ids and vectors for the tokenizer texts
+        run: |
+          mkdir -p .potion/golden
+          cp testdata/tokenizer-texts.jsonl .potion/golden/texts.jsonl
+          docker run --rm --network none --user "$(id -u):$(id -g)" \
+            --mount type=bind,src="$PWD/.potion/upstream",dst=/model,readonly \
+            --mount type=bind,src="$PWD/.potion/golden",dst=/golden \
+            turbo-model2vec-golden /model /golden/texts.jsonl /golden/out
+      # The core's tests build in a target directory of their own (#358,
+      # the features lane).
+      - name: parity with Model2Vec, to the bit
+        env:
+          CARGO_TARGET_DIR: target/core
+          TURBO_PARITY_BUNDLE: ${{ github.workspace }}/.potion/bundle
+          TURBO_PARITY_GOLDEN: ${{ github.workspace }}/.potion/golden/out
+        run: cargo test --release -p turbo --test static_parity -- --nocapture
+
   check:
     if: always()
-    needs: [lint, test, fuzz, features, parity, windows-lint, windows-test, windows-fuzz, windows-core]
-    runs-on: ${{ github.event.pull_request.head.repo.fork != true && vars.TURBO_CI_LINUX && fromJSON(vars.TURBO_CI_LINUX) || 'ubuntu-24.04' }}
+    needs: [lint, test, fuzz, features, parity, static-parity, windows-lint, windows-test, windows-fuzz, windows-core]
+    # Hosted: it takes seconds, and on the self-hosted runners it would
+    # wait behind the queue of test jobs.
+    runs-on: ubuntu-24.04
     steps:
       - name: every lane passed
         env:
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
           echo "$RESULTS"
-          for r in $RESULTS; do [ "$r" = success ] || exit 1; done
+          # The Windows lanes are skipped on pull requests.
+          for r in $RESULTS; do [ "$r" = success ] || [ "$r" = skipped ] || exit 1; done
 
   # Windows, the host the Intel NPU machines run (#1011). The CPU backend
   # and the host-only NPU build: the CUDA, Metal, Level Zero and Hailo
@@ -290,7 +345,11 @@ jobs:
   # shards, turbo-fuzz optimized, and the core with its C ABI tests.
   # Skipped in the shards: two docker runner tests (unix exit status
   # text, unix mount paths; the docker runners are Linux-only).
+  # They run on pushes to main, not on pull requests: the hosted pool
+  # runs few Windows jobs at once, and six per pull request push queued
+  # every run behind them.
   windows-lint:
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     steps:
       # The goldens and fixtures are compared byte for byte; a checkout
@@ -326,6 +385,7 @@ jobs:
   # windows-core, the shards run what `cargo test --workspace` ran.
   windows-test:
     name: windows test (shard ${{ matrix.shard }}/4)
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -366,6 +426,7 @@ jobs:
   # overflow checks kept on.
   windows-fuzz:
     name: windows test (turbo-fuzz)
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     steps:
       # The goldens and fixtures are compared byte for byte; a checkout
@@ -389,6 +450,7 @@ jobs:
   # The core and its C ABI tests, in their own target directory, as in
   # the features job (#358).
   windows-core:
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     steps:
       # The goldens and fixtures are compared byte for byte; a checkout

@@ -8,7 +8,7 @@ pub mod package;
 mod packing;
 mod schema;
 mod window;
-pub use codec::register_codecs;
+pub use codec::{codecs, register_codecs};
 pub use config::Config;
 pub use output::{Decisions, GlinerAnnotator};
 pub use packing::PackedInput;
