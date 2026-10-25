@@ -3,13 +3,16 @@
 use std::fmt::Write as _;
 use std::io::Write;
 
-use turbo_analysis::{Document, Ix, Span};
+use turbo_analysis::{Document, Ix, Key, Span};
 use turbo_analysis_layers::{
     Aspects, Categories, Chunks, EmotionDimension, EmotionLayer, Entities, Language, Opinions, Pii, PolarityScores,
     Sentences, Tokens,
 };
 
-use super::{DocumentFormatter, ExportOffsetMode, FormatExportError, OutputFormatDescriptor, sanitize_single_line};
+use super::{
+    DocumentFormatter, ExportOffsetMode, FormatExportError, OutputFormatDescriptor, get_bound_layer,
+    sanitize_single_line,
+};
 
 const REQUIRED_LAYERS: &[&str] = &[];
 
@@ -121,8 +124,8 @@ impl DocumentFormatter for MarkdownFormatter {
             buf.push('\n');
         }
 
-        let opinions = doc.get::<Opinions>();
-        let aspects = doc.get::<Aspects>();
+        let opinions = get_bound_layer::<Opinions>(doc, Key::<Tokens>::DEFAULT.id(), None)?;
+        let aspects = get_bound_layer::<Aspects>(doc, Key::<Tokens>::DEFAULT.id(), None)?;
         let emotions = doc.get::<EmotionLayer>();
         let has_sentiment = opinions.is_some_and(|o| !o.tokens.is_empty())
             || aspects.is_some_and(|a| !a.tokens.is_empty())

@@ -3,12 +3,15 @@
 use std::fmt::Write as _;
 use std::io::Write;
 
-use turbo_analysis::{Document, Ix, IxRange, Span};
+use turbo_analysis::{Document, Ix, IxRange, Key, Layer as _, Span};
 use turbo_analysis_layers::{
     Dependencies, Lemmas, MorphFeatures, PosTags, Sentences, Tokens, WordDependencies, WordLemmas, WordPosTags, Words,
 };
 
-use super::{DocumentFormatter, ExportOffsetMode, FormatExportError, OutputFormatDescriptor, sanitize_single_line};
+use super::{
+    DocumentFormatter, ExportOffsetMode, FormatExportError, OutputFormatDescriptor, get_bound_layer,
+    sanitize_single_line,
+};
 use crate::error::FormatError;
 
 const REQUIRED_LAYERS: &[&str] = &["opennlp:tokens"];
@@ -48,9 +51,12 @@ impl DocumentFormatter for ConlluFormatter {
         out: &mut dyn Write,
     ) -> Result<(), FormatExportError> {
         let tokens = doc.get::<Tokens>().ok_or(FormatExportError::MissingLayer("opennlp:tokens"))?;
-        let has_explicit_words = doc.get::<Words>().is_some();
+        let tok_key = Key::<Tokens>::DEFAULT.id();
+        let tok_len = tokens.spans.len();
+        let explicit_words = get_bound_layer::<Words>(doc, tok_key, None)?;
+        let has_explicit_words = explicit_words.is_some();
         let default_words;
-        let words = match doc.get::<Words>() {
+        let words = match explicit_words {
             Some(w) => w,
             None => {
                 default_words = Words::from_tokens(tokens);
@@ -62,14 +68,27 @@ impl DocumentFormatter for ConlluFormatter {
         let view_text = doc.text(tok_view);
         let source_text = doc.source();
 
-        let word_pos = doc.get::<WordPosTags>();
-        let tok_pos = doc.get::<PosTags>();
-        let word_lemmas = doc.get::<WordLemmas>();
-        let tok_lemmas = doc.get::<Lemmas>();
-        let word_feats = doc.get::<MorphFeatures<Words>>();
-        let tok_feats = doc.get::<MorphFeatures<Tokens>>();
-        let word_deps = doc.get::<WordDependencies>();
-        let tok_deps = doc.get::<Dependencies<Tokens>>();
+        let word_key = Key::<Words>::DEFAULT.id();
+        let word_len = words.len();
+        let word_pos =
+            if has_explicit_words { get_bound_layer::<WordPosTags>(doc, word_key, Some(word_len))? } else { None };
+        let tok_pos = get_bound_layer::<PosTags>(doc, tok_key, Some(tok_len))?;
+        let word_lemmas =
+            if has_explicit_words { get_bound_layer::<WordLemmas>(doc, word_key, Some(word_len))? } else { None };
+        let tok_lemmas = get_bound_layer::<Lemmas>(doc, tok_key, Some(tok_len))?;
+        let word_feats = if has_explicit_words {
+            get_bound_layer::<MorphFeatures<Words>>(doc, word_key, Some(word_len))?
+        } else {
+            None
+        };
+        let tok_feats = get_bound_layer::<MorphFeatures<Tokens>>(doc, tok_key, Some(tok_len))?;
+        let word_deps =
+            if has_explicit_words { get_bound_layer::<WordDependencies>(doc, word_key, Some(word_len))? } else { None };
+        let tok_deps = get_bound_layer::<Dependencies<Tokens>>(doc, tok_key, Some(tok_len))?;
+
+        if tokens.sentence.is_some() {
+            let _ = get_bound_layer::<Tokens>(doc, Key::<Sentences>::DEFAULT.id(), None)?;
+        }
 
         let sentence_ranges: Vec<(Span, IxRange<Tokens>)> = match doc.get::<Sentences>() {
             Some(sents) if tokens.sentence.is_some() => (0..sents.spans.len() as u32)

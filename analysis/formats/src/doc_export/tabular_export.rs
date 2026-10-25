@@ -3,11 +3,14 @@
 use std::fmt::Write as _;
 use std::io::Write;
 
-use turbo_analysis::{Document, Ix, Span};
+use turbo_analysis::{Document, Ix, Key, Span};
 use turbo_analysis_layers::{Entities, Lemmas, PosTags, Sentences, Stems, Terms, Tokens};
 use turbo_stopword_layers::Stopwords;
 
-use super::{DocumentFormatter, ExportOffsetMode, FormatExportError, OutputFormatDescriptor, sanitize_single_line};
+use super::{
+    DocumentFormatter, ExportOffsetMode, FormatExportError, OutputFormatDescriptor, get_bound_layer,
+    sanitize_single_line,
+};
 
 const REQUIRED_LAYERS: &[&str] = &["opennlp:tokens"];
 const HEADER_COLUMNS: [&str; 10] =
@@ -157,18 +160,23 @@ fn write_csv_field(out: &mut String, field: &str) {
 
 fn collect_token_rows(doc: &Document, offsets: ExportOffsetMode) -> Result<Vec<TokenRow>, FormatExportError> {
     let tokens = doc.get::<Tokens>().ok_or(FormatExportError::MissingLayer("opennlp:tokens"))?;
+    let tok_key = Key::<Tokens>::DEFAULT.id();
     let tok_view = tokens.spans.view();
     let source_text = doc.source();
 
-    let sentences = doc.get::<Sentences>();
-    let pos = doc.get::<PosTags>();
-    let lemmas = doc.get::<Lemmas>();
-    let stems = doc.get::<Stems>();
-    let terms = doc.get::<Terms>();
-    let entities = doc.get::<Entities>();
-    let stopwords = doc.get::<Stopwords>();
+    if tokens.sentence.is_some() {
+        let _ = get_bound_layer::<Tokens>(doc, Key::<Sentences>::DEFAULT.id(), None)?;
+    }
 
     let tok_len = tokens.spans.len();
+    let sentences = doc.get::<Sentences>();
+    let pos = get_bound_layer::<PosTags>(doc, tok_key, Some(tok_len))?;
+    let lemmas = get_bound_layer::<Lemmas>(doc, tok_key, Some(tok_len))?;
+    let stems = get_bound_layer::<Stems>(doc, tok_key, Some(tok_len))?;
+    let terms = get_bound_layer::<Terms>(doc, tok_key, Some(tok_len))?;
+    let entities = get_bound_layer::<Entities>(doc, tok_key, None)?;
+    let stopwords = get_bound_layer::<Stopwords>(doc, tok_key, Some(tok_len))?;
+
     let mut bio_tags = vec!["O".to_owned(); tok_len];
     if let Some(ents) = entities {
         let ent_view = ents.spans.view();
@@ -177,7 +185,12 @@ fn collect_token_rows(doc: &Document, offsets: ExportOffsetMode) -> Result<Vec<T
             let label = ents.kinds.label(ents.kind[row]);
             let range = ents.tokens[row];
             let start_t = range.start.get();
-            let end_t = range.end.get().min(tok_len);
+            let end_t = range.end.get();
+            if start_t > end_t || end_t > tok_len {
+                return Err(FormatExportError::InvalidData(format!(
+                    "entity {row} token range {start_t}..{end_t} out of bounds for {tok_len} tokens"
+                )));
+            }
             let frags_src: Vec<Span> = ents.spans.fragments(e_ix).map(|frag| doc.to_source(ent_view, frag)).collect();
             let mut began = false;
             for (t_idx, slot) in bio_tags[start_t..end_t].iter_mut().enumerate() {
