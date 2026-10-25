@@ -10,14 +10,24 @@ use crate::proto::search::{
 use crate::search::ingest::analyze_chunk_terms;
 use crate::search::registry::{HybridIndex, ScoreMap, bad_arg, parse_space};
 
+pub const MAX_TOP_K: usize = 10_000;
+
+pub(crate) fn bounded_top_k(raw: u32, fallback: usize) -> Result<usize> {
+    if raw as usize > MAX_TOP_K {
+        return Err(bad_arg(format!("top_k ({raw}) exceeds maximum allowed ({MAX_TOP_K})")));
+    }
+    let k = if raw == 0 { fallback.max(1) } else { raw as usize };
+    Ok(k.min(MAX_TOP_K))
+}
+
 pub(crate) fn eval_term_clause(ix: &HybridIndex, c: &TermClause) -> Result<ScoreMap> {
     let mode = TermMatchMode::try_from(c.mode).map_err(|_| bad_arg(format!("invalid TermMatchMode {}", c.mode)))?;
+    let k = bounded_top_k(c.top_k, ix.chunks.len().max(1))?;
     let normalized_terms = normalize_clause_terms(&c.terms);
     if normalized_terms.is_empty() {
         return Ok(ScoreMap::new());
     }
     let refs: Vec<&str> = normalized_terms.iter().map(String::as_str).collect();
-    let k = if c.top_k == 0 { ix.chunks.len().max(1) } else { c.top_k as usize };
     let hits = ix.bm25.top_k(Bm25::LUCENE, &refs, ix.chunks.len().max(1));
 
     let mut out = ScoreMap::new();
@@ -51,12 +61,12 @@ pub(crate) fn eval_term_clause(ix: &HybridIndex, c: &TermClause) -> Result<Score
 }
 
 pub(crate) fn eval_phrase_clause(ix: &HybridIndex, c: &PhraseClause, default_k: usize) -> Result<ScoreMap> {
+    let k = bounded_top_k(c.top_k, default_k)?;
     let terms = normalize_clause_terms(&c.terms);
     if terms.is_empty() {
         return Ok(ScoreMap::new());
     }
     let refs: Vec<&str> = terms.iter().map(String::as_str).collect();
-    let k = if c.top_k == 0 { default_k.max(1) } else { c.top_k as usize };
     let hits = ix.bm25.phrase(Bm25::LUCENE, &refs, c.slop, k);
     let label = terms.join(" ");
     let mut out = ScoreMap::new();
@@ -92,7 +102,7 @@ pub(crate) fn eval_phrase_clause(ix: &HybridIndex, c: &PhraseClause, default_k: 
 }
 
 pub(crate) fn eval_sparse_clause(ix: &HybridIndex, c: &SparseClause, default_k: usize) -> Result<ScoreMap> {
-    let k = if c.top_k == 0 { default_k.max(1) } else { c.top_k as usize };
+    let k = bounded_top_k(c.top_k, default_k)?;
     let mut ranked = Vec::new();
     for (row, ch) in ix.chunks.iter().enumerate() {
         if ch.sparse_terms.is_empty() {
@@ -130,14 +140,12 @@ pub(crate) fn eval_sparse_clause(ix: &HybridIndex, c: &SparseClause, default_k: 
 }
 
 pub(crate) fn eval_late_clause(ix: &HybridIndex, c: &LateInteractionClause, default_k: usize) -> Result<ScoreMap> {
+    let k = bounded_top_k(c.top_k, default_k)?;
+    let q_space = parse_space(c.query_space.as_ref())
+        .map_err(|f| bad_arg(format!("LateInteractionClause.query_space: {}", f.message)))?;
     let Some(tok_ix) = &ix.token_index else {
         return Ok(ScoreMap::new());
     };
-    let q_space = match &c.query_space {
-        Some(sp) => parse_space(Some(sp))?,
-        None => ix.space.clone(),
-    };
-    let k = if c.top_k == 0 { default_k.max(1) } else { c.top_k as usize };
     let hits = tok_ix.top_k(&q_space, &c.query_token_vectors, k).map_err(|e| bad_arg(e.to_string()))?;
     let mut out = ScoreMap::new();
     for h in hits {

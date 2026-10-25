@@ -178,6 +178,9 @@ impl<M> TokenIndex<M> {
         if meta.len() != n_cand {
             return Err(IndexError::Layer(format!("meta length {} does not match candidates {n_cand}", meta.len())));
         }
+        if n_cand > r.0.len() / 4 {
+            return Err(IndexError::Layer("TokenIndex candidate count exceeds remaining bytes".into()));
+        }
         let mut first = Vec::with_capacity(n_cand + 1);
         for _ in 0..=n_cand {
             let f = r.u32().map_err(IndexError::Layer)?;
@@ -196,9 +199,15 @@ impl<M> TokenIndex<M> {
         if n_rules > u16::MAX as usize {
             return Err(IndexError::Full);
         }
+        if n_rules > r.0.len() / 4 {
+            return Err(IndexError::Layer("TokenIndex rules count exceeds remaining bytes".into()));
+        }
         let mut rules = Vec::with_capacity(n_rules);
         for _ in 0..n_rules {
             rules.push(r.str().map_err(IndexError::Layer)?);
+        }
+        if n_cand > r.0.len() {
+            return Err(IndexError::Layer("TokenIndex pruned count exceeds remaining bytes".into()));
         }
         let mut pruned = Vec::with_capacity(n_cand);
         for _ in 0..n_cand {
@@ -214,6 +223,9 @@ impl<M> TokenIndex<M> {
                 }
                 b => return Err(IndexError::Layer(format!("invalid pruning tag {b}"))),
             }
+        }
+        if total_tok > r.0.len() / 5 {
+            return Err(IndexError::Layer("TokenIndex token count exceeds remaining bytes".into()));
         }
         let mut sources = Vec::with_capacity(total_tok);
         for _ in 0..total_tok {

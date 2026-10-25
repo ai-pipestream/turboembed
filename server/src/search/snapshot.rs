@@ -2,36 +2,67 @@
 //! `HybridIndex` (`#1221`).
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::Path;
+use std::path::{Component, Path, PathBuf};
 
 use prost::Message;
 use turbo_analysis::Span;
-use turbo_chunker::terms::{Bm25PostingIndex, Bm25PostingIndexBuilder};
+use turbo_chunker::terms::Bm25PostingIndex;
 use turbo_vector_index::{QuantizedIndex, TokenIndex, TurboQuant, VectorIndex};
 
 use crate::api::Result;
 use crate::proto::search::{ChunkInput, IndexSpec, SparseEntryProto, TokenVectorInput, VectorStorageKind};
 use crate::search::registry::{
-    CompiledDense, HybridIndex, RetainedDocument, StoredChunk, bad_arg, parse_metric, parse_space,
+    CompiledDense, HybridIndex, RetainedDocument, StoredChunk, bad_arg, corrupt_snapshot, io_err, not_found,
+    parse_metric, parse_space,
 };
 
 const SNAPSHOT_MAGIC: &[u8; 8] = b"TSRCHIX\x01";
+const MAX_SNAPSHOT_BYTES: u64 = 128 << 20;
 
-pub fn persist_index_to_path(ix: &HybridIndex, path: &Path) -> Result<u64> {
-    let bytes = encode_snapshot(ix);
-    if let Some(parent) = path.parent()
-        && !parent.as_os_str().is_empty()
-    {
-        std::fs::create_dir_all(parent).map_err(|e| bad_arg(format!("create snapshot parent dir: {e}")))?;
+/// Validates that `file_name` is a single relative file name with no path
+/// separators, parent traversal, or root prefix, and resolves it inside
+/// `base_dir`.
+pub fn resolve_snapshot_path(base_dir: &Path, file_name: &str) -> Result<PathBuf> {
+    if file_name.is_empty() {
+        return Err(bad_arg("snapshot file name must not be empty"));
     }
+    if file_name.contains('/') || file_name.contains('\\') || file_name.contains(':') || file_name.contains('\0') {
+        return Err(bad_arg("snapshot file name must be a plain file name without path separators"));
+    }
+    let rel = Path::new(file_name);
+    let mut comps = rel.components();
+    match (comps.next(), comps.next()) {
+        (Some(Component::Normal(os)), None) if !os.is_empty() && os != "." && os != ".." => Ok(base_dir.join(os)),
+        _ => Err(bad_arg("snapshot file name must be a single normal file name")),
+    }
+}
+
+pub fn persist_index_to_dir(ix: &HybridIndex, base_dir: &Path, file_name: &str) -> Result<u64> {
+    let path = resolve_snapshot_path(base_dir, file_name)?;
+    let bytes = encode_snapshot(ix);
+    std::fs::create_dir_all(base_dir).map_err(|e| io_err(format!("create snapshot dir: {e}")))?;
     let tmp = path.with_extension("tmp_snapshot");
-    std::fs::write(&tmp, &bytes).map_err(|e| bad_arg(format!("write snapshot temp file: {e}")))?;
-    std::fs::rename(&tmp, path).map_err(|e| bad_arg(format!("atomic rename snapshot file: {e}")))?;
+    std::fs::write(&tmp, &bytes).map_err(|e| io_err(format!("write snapshot temp file: {e}")))?;
+    std::fs::rename(&tmp, &path).map_err(|e| io_err(format!("atomic rename snapshot file: {e}")))?;
     Ok(bytes.len() as u64)
 }
 
-pub fn load_index_from_path(path: &Path, override_name: Option<&str>) -> Result<HybridIndex> {
-    let bytes = std::fs::read(path).map_err(|e| bad_arg(format!("read snapshot file: {e}")))?;
+pub fn load_index_from_dir(base_dir: &Path, file_name: &str, override_name: Option<&str>) -> Result<HybridIndex> {
+    let path = resolve_snapshot_path(base_dir, file_name)?;
+    let meta = match std::fs::symlink_metadata(&path) {
+        Ok(m) => m,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Err(not_found(format!("snapshot file `{file_name}` does not exist")));
+        }
+        Err(e) => return Err(io_err(format!("stat snapshot file: {e}"))),
+    };
+    if !meta.is_file() {
+        return Err(bad_arg(format!("snapshot `{file_name}` is not a regular file")));
+    }
+    if meta.len() > MAX_SNAPSHOT_BYTES {
+        return Err(bad_arg(format!("snapshot `{file_name}` exceeds maximum allowed size")));
+    }
+    let bytes = std::fs::read(&path).map_err(|e| io_err(format!("read snapshot file: {e}")))?;
     let mut ix = decode_snapshot(&bytes)?;
     if let Some(name) = override_name
         && !name.is_empty()
@@ -53,6 +84,10 @@ pub fn encode_snapshot(ix: &HybridIndex) -> Vec<u8> {
         write_str(&d.doc_id, &mut out);
         write_str(&d.text, &mut out);
         write_bytes(&d.graph, &mut out);
+        out.extend_from_slice(&(d.raw_chunks.len() as u32).to_le_bytes());
+        for c in &d.raw_chunks {
+            write_bytes(&c.encode_to_vec(), &mut out);
+        }
         out.extend_from_slice(&(d.chunks.len() as u32).to_le_bytes());
         for c in &d.chunks {
             write_bytes(&c.encode_to_vec(), &mut out);
@@ -144,41 +179,59 @@ pub fn encode_snapshot(ix: &HybridIndex) -> Vec<u8> {
 pub fn decode_snapshot(bytes: &[u8]) -> Result<HybridIndex> {
     let mut r = SnapReader(bytes);
     if r.take(SNAPSHOT_MAGIC.len())? != SNAPSHOT_MAGIC {
-        return Err(bad_arg("not a valid TurboSearchService snapshot"));
+        return Err(corrupt_snapshot("not a valid TurboSearchService snapshot"));
     }
     let spec_bytes = r.bytes()?;
-    let spec = IndexSpec::decode(spec_bytes).map_err(|e| bad_arg(format!("decode IndexSpec: {e}")))?;
-    let space = parse_space(spec.space.as_ref())?;
-    let metric = parse_metric(spec.metric)?;
-    let storage = VectorStorageKind::try_from(spec.storage).map_err(|_| bad_arg("invalid storage kind in snapshot"))?;
+    let spec = IndexSpec::decode(spec_bytes).map_err(|e| corrupt_snapshot(format!("decode IndexSpec: {e}")))?;
+    let space = parse_space(spec.space.as_ref()).map_err(|f| corrupt_snapshot(f.message))?;
+    let metric = parse_metric(spec.metric).map_err(|f| corrupt_snapshot(f.message))?;
+    let storage =
+        VectorStorageKind::try_from(spec.storage).map_err(|_| corrupt_snapshot("invalid storage kind in snapshot"))?;
     let quant = match storage {
         VectorStorageKind::FlatF32 => None,
         VectorStorageKind::TurboQuant => {
             let bits = if spec.quant_bits == 0 { 4 } else { spec.quant_bits as u8 };
-            Some(TurboQuant::new(bits, spec.quant_calibrate).map_err(|e| bad_arg(e.to_string()))?)
+            Some(TurboQuant::new(bits, spec.quant_calibrate).map_err(|e| corrupt_snapshot(e.to_string()))?)
         }
     };
     let sealed = r.u8()? != 0;
 
     let n_docs = r.u32()? as usize;
+    if n_docs > r.0.len() / 24 {
+        return Err(corrupt_snapshot("snapshot document count exceeds remaining bytes"));
+    }
     let mut docs = Vec::with_capacity(n_docs);
     for _ in 0..n_docs {
         let doc_id = r.str()?;
         let text = r.str()?;
         let graph = r.bytes()?.to_vec();
+        let n_raw = r.u32()? as usize;
+        if n_raw > r.0.len() / 4 {
+            return Err(corrupt_snapshot("snapshot raw_chunks count exceeds remaining bytes"));
+        }
+        let mut raw_chunks = Vec::with_capacity(n_raw);
+        for _ in 0..n_raw {
+            let cb = r.bytes()?;
+            raw_chunks.push(ChunkInput::decode(cb).map_err(|e| corrupt_snapshot(format!("decode ChunkInput: {e}")))?);
+        }
         let n_ch = r.u32()? as usize;
+        if n_ch > r.0.len() / 4 {
+            return Err(corrupt_snapshot("snapshot doc chunks count exceeds remaining bytes"));
+        }
         let mut chunks = Vec::with_capacity(n_ch);
         for _ in 0..n_ch {
             let cb = r.bytes()?;
-            chunks.push(ChunkInput::decode(cb).map_err(|e| bad_arg(format!("decode ChunkInput: {e}")))?);
+            chunks.push(ChunkInput::decode(cb).map_err(|e| corrupt_snapshot(format!("decode ChunkInput: {e}")))?);
         }
         let attributes = r.map()?;
-        docs.push(RetainedDocument { doc_id, text, graph, chunks, attributes });
+        docs.push(RetainedDocument { doc_id, text, graph, raw_chunks, chunks, attributes });
     }
 
     let n_chunks = r.u32()? as usize;
+    if n_chunks > r.0.len() / 49 {
+        return Err(corrupt_snapshot("snapshot chunk count exceeds remaining bytes"));
+    }
     let mut chunks = Vec::with_capacity(n_chunks);
-    let mut bm25_builder = Bm25PostingIndexBuilder::new();
     let mut seen_terms = BTreeSet::new();
     let mut term_df = BTreeMap::new();
 
@@ -186,20 +239,37 @@ pub fn decode_snapshot(bytes: &[u8]) -> Result<HybridIndex> {
         let chunk_id = r.str()?;
         let doc_id = r.str()?;
         let level_kind = r.str()?;
-        let span = Span::new(r.u32()?, r.u32()?);
+        let (s0, s1) = (r.u32()?, r.u32()?);
+        if s0 > s1 {
+            return Err(corrupt_snapshot("snapshot chunk span start > end"));
+        }
+        let span = Span::new(s0, s1);
         let parent_span = match r.u8()? {
             0 => None,
-            1 => Some(Span::new(r.u32()?, r.u32()?)),
-            b => return Err(bad_arg(format!("invalid parent_span tag {b}"))),
+            1 => {
+                let (p0, p1) = (r.u32()?, r.u32()?);
+                if p0 > p1 {
+                    return Err(corrupt_snapshot("snapshot parent_span start > end"));
+                }
+                Some(Span::new(p0, p1))
+            }
+            b => return Err(corrupt_snapshot(format!("invalid parent_span tag {b}"))),
         };
         let text = r.str()?;
         let parent_text = r.str()?;
         let n_terms = r.u32()? as usize;
+        if n_terms > r.0.len() / 12 {
+            return Err(corrupt_snapshot("snapshot term count exceeds remaining bytes"));
+        }
         let mut terms = Vec::with_capacity(n_terms);
         let mut unique = BTreeSet::new();
         for _ in 0..n_terms {
             let t = r.str()?;
-            let sp = Span::new(r.u32()?, r.u32()?);
+            let (ts0, ts1) = (r.u32()?, r.u32()?);
+            if ts0 > ts1 {
+                return Err(corrupt_snapshot("snapshot term span start > end"));
+            }
+            let sp = Span::new(ts0, ts1);
             seen_terms.insert(t.clone());
             unique.insert(t.clone());
             terms.push((t, sp));
@@ -207,30 +277,46 @@ pub fn decode_snapshot(bytes: &[u8]) -> Result<HybridIndex> {
         for u in unique {
             *term_df.entry(u).or_insert(0) += 1;
         }
-        let term_refs: Vec<&str> = terms.iter().map(|(t, _)| t.as_str()).collect();
-        bm25_builder.add_row_tokens(&term_refs).map_err(bad_arg)?;
 
         let vec_len = r.u32()? as usize;
+        if vec_len > r.0.len() / 4 {
+            return Err(corrupt_snapshot("snapshot dense vector length exceeds remaining bytes"));
+        }
         let dense_vector = if vec_len == 0 {
             None
         } else {
+            if vec_len != space.dim as usize {
+                return Err(corrupt_snapshot("snapshot dense vector dimension mismatch"));
+            }
             let mut v = Vec::with_capacity(vec_len);
             for _ in 0..vec_len {
-                v.push(r.f32()?);
+                let f = r.f32()?;
+                if !f.is_finite() {
+                    return Err(corrupt_snapshot("non-finite float in snapshot dense vector"));
+                }
+                v.push(f);
             }
             Some(v)
         };
         let n_sparse = r.u32()? as usize;
+        if n_sparse > r.0.len() / 4 {
+            return Err(corrupt_snapshot("snapshot sparse terms count exceeds remaining bytes"));
+        }
         let mut sparse_terms = Vec::with_capacity(n_sparse);
         for _ in 0..n_sparse {
             let sb = r.bytes()?;
-            sparse_terms.push(SparseEntryProto::decode(sb).map_err(|e| bad_arg(format!("decode SparseEntry: {e}")))?);
+            sparse_terms
+                .push(SparseEntryProto::decode(sb).map_err(|e| corrupt_snapshot(format!("decode SparseEntry: {e}")))?);
         }
         let n_tv = r.u32()? as usize;
+        if n_tv > r.0.len() / 4 {
+            return Err(corrupt_snapshot("snapshot token vectors count exceeds remaining bytes"));
+        }
         let mut token_vectors = Vec::with_capacity(n_tv);
         for _ in 0..n_tv {
             let tvb = r.bytes()?;
-            token_vectors.push(TokenVectorInput::decode(tvb).map_err(|e| bad_arg(format!("decode TokenVec: {e}")))?);
+            token_vectors
+                .push(TokenVectorInput::decode(tvb).map_err(|e| corrupt_snapshot(format!("decode TokenVec: {e}")))?);
         }
         let attributes = r.map()?;
         chunks.push(StoredChunk {
@@ -250,52 +336,61 @@ pub fn decode_snapshot(bytes: &[u8]) -> Result<HybridIndex> {
     }
 
     let bm25_bytes = r.bytes()?;
-    let bm25 = Bm25PostingIndex::from_bytes(bm25_bytes).map_err(bad_arg)?;
+    let bm25 = Bm25PostingIndex::from_bytes(bm25_bytes).map_err(corrupt_snapshot)?;
 
     let dense = match r.u8()? {
         0 => CompiledDense::Empty,
         1 => {
             let n = r.u32()? as usize;
+            if n > r.0.len() / 4 {
+                return Err(corrupt_snapshot("snapshot dense meta count exceeds remaining bytes"));
+            }
             let mut meta = Vec::with_capacity(n);
             for _ in 0..n {
                 meta.push(r.u32()?);
             }
             let vb = r.bytes()?;
-            CompiledDense::Flat(VectorIndex::from_bytes(vb, meta).map_err(|e| bad_arg(e.to_string()))?)
+            CompiledDense::Flat(VectorIndex::from_bytes(vb, meta).map_err(|e| corrupt_snapshot(e.to_string()))?)
         }
         2 => {
             let scale = r.f64()?;
             let n = r.u32()? as usize;
+            if n > r.0.len() / 4 {
+                return Err(corrupt_snapshot("snapshot quantized meta count exceeds remaining bytes"));
+            }
             let mut meta = Vec::with_capacity(n);
             for _ in 0..n {
                 meta.push(r.u32()?);
             }
             let qb = r.bytes()?;
-            let q_cfg = quant.ok_or_else(|| bad_arg("missing TurboQuant config"))?;
+            let q_cfg = quant.ok_or_else(|| corrupt_snapshot("missing TurboQuant config"))?;
             let q_ix = QuantizedIndex::from_bytes(space.clone(), metric, q_cfg, scale, qb, meta)
-                .map_err(|e| bad_arg(e.to_string()))?;
+                .map_err(|e| corrupt_snapshot(e.to_string()))?;
             CompiledDense::Quantized(Box::new(q_ix))
         }
-        b => return Err(bad_arg(format!("invalid dense snapshot tag {b}"))),
+        b => return Err(corrupt_snapshot(format!("invalid dense snapshot tag {b}"))),
     };
 
     let (token_index, token_candidates) = match r.u8()? {
         0 => (None, Vec::new()),
         1 => {
             let n = r.u32()? as usize;
+            if n > r.0.len() / 4 {
+                return Err(corrupt_snapshot("snapshot token candidate count exceeds remaining bytes"));
+            }
             let mut cands = Vec::with_capacity(n);
             for _ in 0..n {
                 cands.push(r.u32()?);
             }
             let tb = r.bytes()?;
-            let t_ix = TokenIndex::from_bytes(tb, cands.clone()).map_err(|e| bad_arg(e.to_string()))?;
+            let t_ix = TokenIndex::from_bytes(tb, cands.clone()).map_err(|e| corrupt_snapshot(e.to_string()))?;
             (Some(t_ix), cands)
         }
-        b => return Err(bad_arg(format!("invalid token_index tag {b}"))),
+        b => return Err(corrupt_snapshot(format!("invalid token_index tag {b}"))),
     };
 
     if !r.0.is_empty() {
-        return Err(bad_arg("trailing bytes in search index snapshot"));
+        return Err(corrupt_snapshot("trailing bytes in search index snapshot"));
     }
 
     Ok(HybridIndex {
@@ -307,7 +402,6 @@ pub fn decode_snapshot(bytes: &[u8]) -> Result<HybridIndex> {
         sealed,
         docs,
         chunks,
-        bm25_builder,
         bm25,
         dense,
         token_index,
@@ -339,7 +433,7 @@ struct SnapReader<'a>(&'a [u8]);
 impl<'a> SnapReader<'a> {
     fn take(&mut self, n: usize) -> Result<&'a [u8]> {
         if self.0.len() < n {
-            return Err(bad_arg("truncated search index snapshot"));
+            return Err(corrupt_snapshot("truncated search index snapshot"));
         }
         let (h, t) = self.0.split_at(n);
         self.0 = t;
@@ -369,11 +463,14 @@ impl<'a> SnapReader<'a> {
 
     fn str(&mut self) -> Result<String> {
         let b = self.bytes()?;
-        std::str::from_utf8(b).map(str::to_owned).map_err(|_| bad_arg("invalid UTF-8 in snapshot"))
+        std::str::from_utf8(b).map(str::to_owned).map_err(|_| corrupt_snapshot("invalid UTF-8 in snapshot"))
     }
 
     fn map(&mut self) -> Result<BTreeMap<String, String>> {
         let n = self.u32()? as usize;
+        if n > self.0.len() / 8 {
+            return Err(corrupt_snapshot("snapshot map entry count exceeds remaining bytes"));
+        }
         let mut out = BTreeMap::new();
         for _ in 0..n {
             out.insert(self.str()?, self.str()?);

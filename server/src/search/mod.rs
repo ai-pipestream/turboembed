@@ -1,12 +1,11 @@
-//! Stateful hybrid search service (`TurboSearchService`, issue `#1221`)
-//! uniting `turbo-chunker`, `turbo-vector-index`, and `turbo-query` over
-//! gRPC with index lifecycle, aliases, snapshot persistence, and live
-//! collection vocabulary drift monitoring.
+//! Hybrid search, index lifecycle, aliases, snapshots, and collection drift
+//! over gRPC (`TurboSearchService`, issue `#1221`).
 
-pub(crate) mod clauses;
+pub mod clauses;
 pub mod ingest;
 pub mod query;
 pub mod registry;
+pub mod segment;
 pub mod service;
 pub mod snapshot;
 

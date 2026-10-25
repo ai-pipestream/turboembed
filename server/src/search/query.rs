@@ -6,6 +6,7 @@ use std::collections::{BTreeMap, HashMap};
 
 use turbo::{TURBO_TASK_RERANK, turbo_rerank_options, turbo_text, turbo_text_pair};
 use turbo_query::FilterKind;
+use turbo_vector_index::{Normalization, Space};
 
 use crate::api::Result;
 use crate::proto::search::query_node::Clause;
@@ -15,9 +16,12 @@ use crate::proto::search::{
     TermClause, TermMatchMode,
 };
 use crate::search::clauses::{
-    eval_filter_clause, eval_late_clause, eval_phrase_clause, eval_sparse_clause, eval_term_clause,
+    MAX_TOP_K, bounded_top_k, eval_filter_clause, eval_late_clause, eval_phrase_clause, eval_sparse_clause,
+    eval_term_clause,
 };
-use crate::search::registry::{CompiledDense, HybridIndex, ScoreMap, bad_arg, parse_space, shared_query_profile};
+use crate::search::registry::{
+    CompiledDense, HybridIndex, ScoreMap, bad_arg, parse_space, shared_query_profile, verify_embed_bundle_matches_space,
+};
 use crate::state::State;
 
 pub(crate) fn execute_search(
@@ -26,7 +30,10 @@ pub(crate) fn execute_search(
     state: &State,
     req: SearchRequest,
 ) -> Result<SearchResponse> {
-    let top_k = if req.top_k == 0 { 10usize } else { req.top_k as usize };
+    let top_k = bounded_top_k(req.top_k, 10)?;
+    let cand_k = top_k.saturating_mul(4).min(MAX_TOP_K);
+    let rerank_query = resolve_rerank_query(&req)?;
+
     if ix.chunks.is_empty() {
         return Ok(SearchResponse {
             resolved_index,
@@ -40,6 +47,7 @@ pub(crate) fn execute_search(
     let mut analyzed_query_terms = Vec::new();
     let mut extracted_filters = Vec::new();
     let mut top_nodes: Vec<ScoreMap> = Vec::new();
+    let mut narrowing_filters: Vec<ScoreMap> = Vec::new();
 
     if !req.natural_query.is_empty() {
         let qa = shared_query_profile()
@@ -60,16 +68,6 @@ pub(crate) fn execute_search(
                 summary,
                 span: Some(SpanProto { start: f.span.start, end: f.span.end }),
             });
-        }
-        if !analyzed_query_terms.is_empty() {
-            let term_clause = TermClause {
-                terms: analyzed_query_terms.clone(),
-                mode: TermMatchMode::Any as i32,
-                top_k: (top_k * 4) as u32,
-            };
-            top_nodes.push(eval_term_clause(ix, &term_clause)?);
-        }
-        for f in &qa.filters {
             let mut m = ScoreMap::new();
             let needle = f.surface.to_ascii_lowercase();
             for (row, ch) in ix.chunks.iter().enumerate() {
@@ -79,20 +77,26 @@ pub(crate) fn execute_search(
                     m.insert(
                         row as u32,
                         (
-                            0.25,
+                            1.0,
                             vec![MatchedSpan {
                                 source: "filter".into(),
                                 label: f.surface.clone(),
                                 span: Some(SpanProto { start: s, end: e }),
-                                score: 0.25,
+                                score: 1.0,
                             }],
                         ),
                     );
                 }
             }
-            if !m.is_empty() {
-                top_nodes.push(m);
-            }
+            narrowing_filters.push(m);
+        }
+        if !analyzed_query_terms.is_empty() {
+            let term_clause = TermClause {
+                terms: analyzed_query_terms.clone(),
+                mode: TermMatchMode::Any as i32,
+                top_k: cand_k as u32,
+            };
+            top_nodes.push(eval_term_clause(ix, &term_clause)?);
         }
     }
 
@@ -101,30 +105,54 @@ pub(crate) fn execute_search(
             query_vector: req.query_vector.clone(),
             query_space: req.query_space.clone(),
             query_text: String::new(),
-            top_k: (top_k * 4) as u32,
+            top_k: cand_k as u32,
         };
         top_nodes.push(eval_semantic_clause(ix, state, &sem)?);
     }
 
     if let Some(ast) = &req.query_ast {
-        top_nodes.push(eval_node(ix, state, ast, top_k * 4)?);
+        if let Some(Clause::Filter(fc)) = &ast.clause
+            && !top_nodes.is_empty()
+        {
+            narrowing_filters.push(eval_filter_clause(ix, fc));
+        } else {
+            top_nodes.push(eval_node(ix, state, ast, cand_k)?);
+        }
     }
 
-    let combined = if top_nodes.is_empty() {
-        ScoreMap::new()
-    } else if top_nodes.len() == 1 {
-        top_nodes.pop().unwrap()
+    let mut combined = if !top_nodes.is_empty() {
+        if top_nodes.len() == 1 {
+            top_nodes.pop().unwrap()
+        } else {
+            fuse_score_maps(&top_nodes, JoinOperator::Or, FusionStrategy::ReciprocalRank, 60.0)
+        }
+    } else if !narrowing_filters.is_empty() {
+        fuse_score_maps(&narrowing_filters, JoinOperator::And, FusionStrategy::Score, 60.0)
     } else {
-        fuse_score_maps(&top_nodes, JoinOperator::Or, FusionStrategy::ReciprocalRank, 60.0)
+        ScoreMap::new()
     };
+
+    if !top_nodes_were_empty(&req, &analyzed_query_terms) && !narrowing_filters.is_empty() {
+        for nf in &narrowing_filters {
+            combined.retain(|row, (_, spans)| {
+                if let Some((_, f_spans)) = nf.get(row) {
+                    spans.extend(f_spans.iter().cloned());
+                    true
+                } else {
+                    false
+                }
+            });
+        }
+    }
 
     let mut ranked: Vec<(u32, f64, Vec<MatchedSpan>)> =
         combined.into_iter().map(|(r, (s, spans))| (r, s, spans)).collect();
     ranked.sort_by(|a, b| b.1.total_cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
     ranked.truncate(top_k);
 
-    if !req.rerank_bundle.is_empty() && !ranked.is_empty() {
-        let q_text = if !req.natural_query.is_empty() { req.natural_query.as_str() } else { "query" };
+    if let Some(q_text) = rerank_query.as_deref()
+        && !ranked.is_empty()
+    {
         rerank_candidates(ix, state, &req.rerank_bundle, q_text, &mut ranked)?;
     }
 
@@ -188,6 +216,34 @@ pub(crate) fn execute_search(
     Ok(SearchResponse { resolved_index, hits, document_heat, analyzed_query_terms, extracted_filters })
 }
 
+fn top_nodes_were_empty(req: &SearchRequest, analyzed_query_terms: &[String]) -> bool {
+    analyzed_query_terms.is_empty() && req.query_vector.is_empty() && req.query_ast.is_none()
+}
+
+fn resolve_rerank_query(req: &SearchRequest) -> Result<Option<String>> {
+    if req.rerank_bundle.is_empty() {
+        return Ok(None);
+    }
+    if !req.natural_query.trim().is_empty() {
+        return Ok(Some(req.natural_query.clone()));
+    }
+    if let Some(ast) = &req.query_ast
+        && let Some(q) = extract_ast_query_text(ast)
+    {
+        return Ok(Some(q));
+    }
+    Err(bad_arg("rerank_bundle requires a non-empty natural_query or SemanticClause.query_text"))
+}
+
+fn extract_ast_query_text(node: &QueryNode) -> Option<String> {
+    match node.clause.as_ref()? {
+        Clause::Semantic(s) if !s.query_text.trim().is_empty() => Some(s.query_text.clone()),
+        Clause::Boost(b) => b.child.as_deref().and_then(extract_ast_query_text),
+        Clause::Join(j) => j.children.iter().find_map(extract_ast_query_text),
+        _ => None,
+    }
+}
+
 fn eval_node(ix: &HybridIndex, state: &State, node: &QueryNode, default_k: usize) -> Result<ScoreMap> {
     let Some(clause) = &node.clause else {
         return Err(bad_arg("QueryNode.clause must be set"));
@@ -232,22 +288,36 @@ fn eval_node(ix: &HybridIndex, state: &State, node: &QueryNode, default_k: usize
 }
 
 fn eval_semantic_clause(ix: &HybridIndex, state: &State, c: &SemanticClause) -> Result<ScoreMap> {
-    let q_space = match &c.query_space {
-        Some(sp) => parse_space(Some(sp))?,
-        None => ix.space.clone(),
-    };
-    let q_vec = if !c.query_vector.is_empty() {
-        c.query_vector.clone()
+    let k = bounded_top_k(c.top_k, ix.chunks.len().max(1))?;
+    let (q_space, q_vec) = if !c.query_vector.is_empty() {
+        let sp = parse_space(c.query_space.as_ref())
+            .map_err(|f| bad_arg(format!("SemanticClause.query_space: {}", f.message)))?;
+        (sp, c.query_vector.clone())
     } else if !c.query_text.is_empty() && !ix.spec.embed_bundle.is_empty() {
-        embed_query_text(state, &ix.spec.embed_bundle, &c.query_text)?
+        let sp = match &c.query_space {
+            Some(s) => parse_space(Some(s))?,
+            None => ix.space.clone(),
+        };
+        let vec = embed_query_text(state, &ix.spec.embed_bundle, &ix.space, &c.query_text)?;
+        (sp, vec)
     } else {
-        return Err(bad_arg("SemanticClause requires query_vector or query_text with embed_bundle"));
+        return Err(bad_arg("SemanticClause requires query_vector with query_space, or query_text with embed_bundle"));
     };
 
-    let k = if c.top_k == 0 { ix.chunks.len().max(1) } else { c.top_k as usize };
     let mut out = ScoreMap::new();
     match &ix.dense {
-        CompiledDense::Empty => {}
+        CompiledDense::Empty => {
+            if q_space != ix.space {
+                return Err(bad_arg("query_space does not match index SpaceSpec"));
+            }
+            if q_vec.len() != ix.space.dim as usize {
+                return Err(bad_arg(format!(
+                    "query_vector has dimension {}, index holds {}",
+                    q_vec.len(),
+                    ix.space.dim
+                )));
+            }
+        }
         CompiledDense::Flat(vec_ix) => {
             let hits = vec_ix.top_k(&q_space, &q_vec, k).map_err(|e| bad_arg(e.to_string()))?;
             for h in hits {
@@ -329,18 +399,23 @@ fn fuse_score_maps(maps: &[ScoreMap], op: JoinOperator, fusion: FusionStrategy, 
     out
 }
 
-fn embed_query_text(state: &State, bundle_name: &str, text: &str) -> Result<Vec<f32>> {
-    let (_, loaded) = state.ready(bundle_name, "")?;
+fn embed_query_text(state: &State, bundle_name: &str, space: &Space, text: &str) -> Result<Vec<f32>> {
+    let loaded = verify_embed_bundle_matches_space(state, bundle_name, space)?;
     let held = loaded.take()?;
     let slot = held.slot();
+    let output_dim = if space.dim != loaded.model_info.dim { space.dim } else { 0 };
+    let normalize = match space.normalization {
+        Normalization::Unit => turbo::TURBO_NORMALIZE_L2,
+        Normalization::None => turbo::TURBO_NORMALIZE_NONE,
+    };
     let opts = turbo::turbo_embed_options {
         struct_size: size_of::<turbo::turbo_embed_options>() as u32,
         truncate: 0,
         max_tokens: 0,
         prompt_role: turbo::TURBO_PROMPT_QUERY,
-        normalize: 0,
+        normalize,
         pooling: 0,
-        output_dim: 0,
+        output_dim,
     };
     let views = [turbo_text { ptr: text.as_ptr().cast(), len: text.len() as u64 }];
     slot.session.write_text(&views, &opts)?;

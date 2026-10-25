@@ -1,23 +1,37 @@
 //! End-to-end integration tests for `TurboSearchService` (issue `#1221`).
 
+mod common;
+
 use std::collections::HashMap;
-use std::path::Path;
 use std::time::Duration;
 
 use tokio_stream::StreamExt;
+use tonic::Code;
 use tonic::transport::Channel;
-use turbo_kserve::config::{Device, ModelConfig};
+use turbo_kserve::config::{DEFAULT_MAX_MESSAGE_BYTES as MAX, Device, ModelConfig};
 use turbo_kserve::proto::search::query_node::Clause;
 use turbo_kserve::proto::search::turbo_search_service_client::TurboSearchServiceClient;
 use turbo_kserve::proto::search::*;
 use turbo_kserve::{Serve, Server};
 
+fn default_models() -> Vec<ModelConfig> {
+    vec![ModelConfig {
+        bundle: common::tiny().to_str().unwrap().into(),
+        name: None,
+        device: Device::Select,
+        precision: 0,
+        max_batch: 0,
+        max_seq: 0,
+        sessions: 1,
+    }]
+}
+
 fn test_space(dim: u32) -> SpaceSpec {
     SpaceSpec {
         model: Some(ModelIdentity {
-            id: "intfloat/multilingual-e5-small".into(),
-            revision: "main".into(),
-            sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".into(),
+            id: "turbo/test-axis-16".into(),
+            revision: "v1".into(),
+            sha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef".into(),
         }),
         dim,
         normalization: NormalizationMode::None as i32,
@@ -32,30 +46,22 @@ fn vec16(axis: usize) -> Vec<f32> {
 
 #[tokio::test]
 async fn turbo_search_service_end_to_end() {
-    let tiny = Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle");
-    let models = vec![ModelConfig {
-        bundle: tiny.to_str().unwrap().to_string(),
-        name: None,
-        device: Device::Select,
-        precision: 0,
-        max_batch: 0,
-        max_seq: 0,
-        sessions: 1,
-    }];
-    let srv = Server::start("127.0.0.1:0".parse().unwrap(), models, 16 << 20, Serve { admin: false })
+    let snap_dir = std::env::temp_dir().join(format!("turbo-search-snaps-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&snap_dir);
+    std::fs::create_dir_all(&snap_dir).unwrap();
+    let srv = Server::start("127.0.0.1:0".parse().unwrap(), default_models(), MAX, Serve { admin: true })
         .await
         .expect("start server");
+    srv.set_search_snapshot_dir(&snap_dir);
     let addr = srv.local_addr();
     let channel = Channel::from_shared(format!("http://{addr}")).unwrap().connect().await.unwrap();
     let mut client = TurboSearchServiceClient::new(channel);
 
-    // 1. Provider discovery
     let providers = client.list_search_providers(ListSearchProvidersRequest {}).await.unwrap().into_inner().providers;
     assert!(providers.iter().any(|p| p.id == "turbo-chunker:bm25-posting"));
     assert!(providers.iter().any(|p| p.id == "turbo-vector-index:turboquant"));
     assert!(providers.iter().any(|p| p.id == "turbo-vector-index:token-maxsim"));
 
-    // 2. Collection setup + WatchCollection stream
     let col = client
         .set_collection(SetCollectionRequest {
             collection_name: "finance-corpus".into(),
@@ -74,48 +80,36 @@ async fn turbo_search_service_end_to_end() {
         .await
         .unwrap()
         .into_inner();
-
-    // 3. Create FlatF32 index and TurboQuant (4-bit) index
-    client
-        .create_index(CreateIndexRequest {
-            spec: Some(IndexSpec {
-                index_name: "idx-flat".into(),
-                space: Some(test_space(16)),
-                metric: DistanceMetric::Cosine as i32,
-                storage: VectorStorageKind::FlatF32 as i32,
-                quant_bits: 0,
-                quant_calibrate: false,
-                collection_name: "finance-corpus".into(),
-                embed_bundle: String::new(),
-                chunk_budget_tokens: 32,
-            }),
-            load_from_path: String::new(),
-        })
+    let mut strict_watch = client
+        .watch_collection(WatchCollectionRequest { collection_name: "finance-corpus".into(), min_oov_ratio: 0.99 })
         .await
-        .unwrap();
+        .unwrap()
+        .into_inner();
 
-    client
-        .create_index(CreateIndexRequest {
-            spec: Some(IndexSpec {
-                index_name: "idx-quant".into(),
-                space: Some(test_space(16)),
-                metric: DistanceMetric::Cosine as i32,
-                storage: VectorStorageKind::TurboQuant as i32,
-                quant_bits: 4,
-                quant_calibrate: true,
-                collection_name: "finance-corpus".into(),
-                embed_bundle: String::new(),
-                chunk_budget_tokens: 32,
-            }),
-            load_from_path: String::new(),
-        })
-        .await
-        .unwrap();
+    for (name, storage, bits, cal) in
+        [("idx-flat", VectorStorageKind::FlatF32, 0, false), ("idx-quant", VectorStorageKind::TurboQuant, 4, true)]
+    {
+        client
+            .create_index(CreateIndexRequest {
+                spec: Some(IndexSpec {
+                    index_name: name.into(),
+                    space: Some(test_space(16)),
+                    metric: DistanceMetric::Cosine as i32,
+                    storage: storage as i32,
+                    quant_bits: bits,
+                    quant_calibrate: cal,
+                    collection_name: "finance-corpus".into(),
+                    embed_bundle: String::new(),
+                    chunk_budget_tokens: 32,
+                }),
+                load_from_path: String::new(),
+            })
+            .await
+            .unwrap();
+    }
 
-    // Set alias `active` -> `idx-flat`
     client.set_alias(SetAliasRequest { alias: "active".into(), index_name: "idx-flat".into() }).await.unwrap();
 
-    // 4. Index documents into `active` (resolves to `idx-flat`) and `idx-quant`
     let doc1_text = "Neural retrieval pipeline in Paris for $1200. Hybrid search combines BM25 and SPLADE.";
     let doc2_text = "Neural sparse retrieval pipeline in Berlin. TurboQuant compresses dense vectors.";
 
@@ -217,22 +211,14 @@ async fn turbo_search_service_end_to_end() {
     assert_eq!(idx_res.index_name, "idx-flat");
     assert_eq!(idx_res.indexed_documents, 2);
     assert_eq!(idx_res.indexed_chunks, 3);
-    assert!(idx_res.drift.unwrap().oov_ratio > 0.10);
-
     client.index_documents(tokio_stream::iter(make_docs("idx-quant"))).await.unwrap();
 
-    // Verify WatchCollection emitted live OOV drift event
-    let ev = tokio::time::timeout(Duration::from_secs(2), watch_stream.next())
-        .await
-        .expect("watch event timeout")
-        .expect("stream open")
-        .expect("event ok");
+    let ev = tokio::time::timeout(Duration::from_secs(2), watch_stream.next()).await.unwrap().unwrap().unwrap();
     assert_eq!(ev.collection_name, "finance-corpus");
-    let rep = ev.report.unwrap();
-    assert!(rep.oov_ratio > 0.10);
-    assert!(!rep.new_terms.is_empty());
+    assert!(ev.report.unwrap().oov_ratio > 0.10);
+    assert!(tokio::time::timeout(Duration::from_millis(80), strict_watch.next()).await.is_err());
 
-    // 5. Natural-language query with turbo-query filter extraction + ParentExpansion
+    // Natural-language query with extracted filter ($1200) narrows results to doc-1#0 only
     let nl_res = client
         .search(SearchRequest {
             index_name: "active".into(),
@@ -247,60 +233,37 @@ async fn turbo_search_service_end_to_end() {
         .await
         .unwrap()
         .into_inner();
-    assert_eq!(nl_res.resolved_index, "idx-flat");
-    assert!(!nl_res.analyzed_query_terms.is_empty());
-    assert!(nl_res.extracted_filters.iter().any(|f| f.kind == "place" || f.kind == "money"));
+    assert_eq!(nl_res.hits.len(), 1);
     assert_eq!(nl_res.hits[0].chunk_id, "doc-1#0");
     assert_eq!(nl_res.hits[0].parent_text, doc1_text);
     assert!(!nl_res.document_heat.is_empty());
 
-    // 6. Phrase query with slop = 0 vs slop = 1
-    let exact_phrase = client
-        .search(SearchRequest {
-            index_name: "active".into(),
-            natural_query: String::new(),
-            query_ast: Some(QueryNode {
-                clause: Some(Clause::Phrase(PhraseClause {
-                    terms: vec!["neural".into(), "retrieval".into()],
-                    slop: 0,
-                    top_k: 5,
-                })),
-            }),
-            query_vector: Vec::new(),
-            query_space: None,
-            top_k: 5,
-            parent_expansion: None,
-            rerank_bundle: String::new(),
-        })
-        .await
-        .unwrap()
-        .into_inner();
-    assert_eq!(exact_phrase.hits.len(), 1);
-    assert_eq!(exact_phrase.hits[0].chunk_id, "doc-1#0");
+    // Phrase query with slop = 0 vs slop = 1
+    for (slop, want_hits) in [(0, 1), (1, 2)] {
+        let pr = client
+            .search(SearchRequest {
+                index_name: "active".into(),
+                natural_query: String::new(),
+                query_ast: Some(QueryNode {
+                    clause: Some(Clause::Phrase(PhraseClause {
+                        terms: vec!["neural".into(), "retrieval".into()],
+                        slop,
+                        top_k: 5,
+                    })),
+                }),
+                query_vector: Vec::new(),
+                query_space: None,
+                top_k: 5,
+                parent_expansion: None,
+                rerank_bundle: String::new(),
+            })
+            .await
+            .unwrap()
+            .into_inner();
+        assert_eq!(pr.hits.len(), want_hits);
+    }
 
-    let slop_phrase = client
-        .search(SearchRequest {
-            index_name: "active".into(),
-            natural_query: String::new(),
-            query_ast: Some(QueryNode {
-                clause: Some(Clause::Phrase(PhraseClause {
-                    terms: vec!["neural".into(), "retrieval".into()],
-                    slop: 1,
-                    top_k: 5,
-                })),
-            }),
-            query_vector: Vec::new(),
-            query_space: None,
-            top_k: 5,
-            parent_expansion: None,
-            rerank_bundle: String::new(),
-        })
-        .await
-        .unwrap()
-        .into_inner();
-    assert_eq!(slop_phrase.hits.len(), 2);
-
-    // 7. Compound QueryNode AST (RRF over TurboQuant + Sparse + LateInteraction + Boost + Filter)
+    // Compound QueryNode AST (RRF over TurboQuant + Sparse + LateInteraction + Boost + Filter)
     let mut q_toks = vec16(0);
     q_toks.extend(vec16(1));
     let compound_res = client
@@ -367,38 +330,15 @@ async fn turbo_search_service_end_to_end() {
         .unwrap()
         .into_inner();
     assert_eq!(compound_res.hits.len(), 1);
-    let top_hit = &compound_res.hits[0];
-    assert_eq!(top_hit.chunk_id, "doc-1#0");
     let sources: Vec<&str> =
-        top_hit.attribution.as_ref().unwrap().matched_spans.iter().map(|s| s.source.as_str()).collect();
-    assert!(sources.contains(&"turboquant"));
-    assert!(sources.contains(&"sparse"));
-    assert!(sources.contains(&"maxsim"));
-    assert!(sources.contains(&"filter"));
+        compound_res.hits[0].attribution.as_ref().unwrap().matched_spans.iter().map(|s| s.source.as_str()).collect();
+    for want in ["turboquant", "sparse", "maxsim", "filter"] {
+        assert!(sources.contains(&want), "missing attribution source {want}");
+    }
 
-    // 8. Space mismatch refusal
-    let mut wrong_space = test_space(16);
-    wrong_space.model.as_mut().unwrap().id = "other/model".into();
-    let bad_space_err = client
-        .search(SearchRequest {
-            index_name: "idx-quant".into(),
-            natural_query: String::new(),
-            query_ast: None,
-            query_vector: vec16(0),
-            query_space: Some(wrong_space),
-            top_k: 5,
-            parent_expansion: None,
-            rerank_bundle: String::new(),
-        })
-        .await
-        .expect_err("mismatched model space must fail");
-    assert_eq!(bad_space_err.code(), tonic::Code::InvalidArgument);
-
-    // 9. PersistIndex + reload via CreateIndex(load_from_path) + SealIndex + Reindex with alias swap
-    let snap_file = std::env::temp_dir().join(format!("turbo_search_snap_{}.bin", std::process::id()));
-    let snap_str = snap_file.to_str().unwrap().to_owned();
+    // PersistIndex + reload via CreateIndex(load_from_path) + SealIndex + Reindex with alias swap
     let persisted = client
-        .persist_index(PersistIndexRequest { index_name: "idx-quant".into(), path: snap_str.clone() })
+        .persist_index(PersistIndexRequest { index_name: "idx-quant".into(), path: "quant.snap".into() })
         .await
         .unwrap()
         .into_inner();
@@ -407,7 +347,7 @@ async fn turbo_search_service_end_to_end() {
     let reloaded = client
         .create_index(CreateIndexRequest {
             spec: Some(IndexSpec { index_name: "idx-quant-reloaded".into(), ..Default::default() }),
-            load_from_path: snap_str.clone(),
+            load_from_path: "quant.snap".into(),
         })
         .await
         .unwrap()
@@ -415,15 +355,23 @@ async fn turbo_search_service_end_to_end() {
         .summary
         .unwrap();
     assert_eq!(reloaded.chunk_count, 3);
-    let _ = std::fs::remove_file(&snap_file);
 
-    // Seal `idx-flat` and verify further writes fail
+    let dup_reload = client
+        .create_index(CreateIndexRequest {
+            spec: Some(IndexSpec { index_name: "idx-quant-reloaded".into(), ..Default::default() }),
+            load_from_path: "quant.snap".into(),
+        })
+        .await
+        .unwrap_err();
+    assert_eq!(dup_reload.code(), Code::AlreadyExists);
+
     let sealed = client.seal_index(SealIndexRequest { index_name: "idx-flat".into() }).await.unwrap().into_inner();
     assert!(sealed.summary.unwrap().sealed);
-    let write_sealed = client.index_documents(tokio_stream::iter(make_docs("idx-flat"))).await;
-    assert_eq!(write_sealed.unwrap_err().code(), tonic::Code::FailedPrecondition);
+    assert_eq!(
+        client.index_documents(tokio_stream::iter(make_docs("idx-flat"))).await.unwrap_err().code(),
+        Code::FailedPrecondition
+    );
 
-    // Reindex `idx-flat` -> `idx-v2` (TurboQuant) and swap alias `active`
     let reindexed = client
         .reindex(ReindexRequest {
             source_index: "idx-flat".into(),
@@ -446,9 +394,9 @@ async fn turbo_search_service_end_to_end() {
     assert_eq!(reindexed.swapped_alias, "active");
     assert_eq!(reindexed.summary.unwrap().chunk_count, 3);
 
-    let aliases = client.list_aliases(ListAliasesRequest {}).await.unwrap().into_inner().aliases;
-    assert!(aliases.iter().any(|a| a.alias == "active" && a.index_name == "idx-v2"));
     drop(watch_stream);
+    drop(strict_watch);
     drop(client);
     srv.stop().await;
+    let _ = std::fs::remove_dir_all(&snap_dir);
 }

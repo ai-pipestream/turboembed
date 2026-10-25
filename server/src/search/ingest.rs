@@ -2,25 +2,27 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use turbo::TURBO_TASK_EMBED;
 use turbo_analysis::export::{DocumentGraph, import};
-use turbo_analysis::{Document, Ix, Layer, Span};
-use turbo_analysis_layers::{Chunks, Level, Levels, Sentences, SparseTerms, Subwords, Vectors};
-use turbo_vector_index::{IndexBuilder, Source, TokenIndexBuilder};
+use turbo_analysis::{Document, Span};
+use turbo_vector_index::{IndexBuilder, Normalization, Space, TokenIndexBuilder};
 
 use crate::api::Result;
-use crate::proto::search::{ChunkInput, IndexDocumentRequest, SparseEntryProto, TokenVectorInput, VectorStorageKind};
+use crate::proto::search::{ChunkInput, IndexDocumentRequest, VectorStorageKind};
 use crate::results::document::codecs;
 use crate::results::{MAX_GRAPH_BYTES, over};
-use crate::search::registry::{CompiledDense, HybridIndex, RetainedDocument, StoredChunk, bad_arg, bad_state};
+use crate::search::registry::{
+    CompiledDense, HybridIndex, RetainedDocument, StoredChunk, bad_arg, bad_state, verify_embed_bundle_matches_space,
+};
+use crate::search::segment::{extract_chunks_from_doc, segment_raw_text};
 use crate::state::State;
 
-pub(crate) fn ingest_document(
-    ix: &mut HybridIndex,
-    state: &State,
-    req: IndexDocumentRequest,
-    batch_chunk_terms: &mut Vec<Vec<String>>,
-) -> Result<u32> {
+pub(crate) struct StagedDocument {
+    pub retained: RetainedDocument,
+    pub chunks: Vec<StoredChunk>,
+    pub chunk_terms: Vec<Vec<String>>,
+}
+
+pub(crate) fn stage_document(ix: &HybridIndex, state: &State, req: IndexDocumentRequest) -> Result<StagedDocument> {
     if ix.sealed {
         return Err(bad_state(format!("search index `{}` is sealed and accepts no writes", ix.spec.index_name)));
     }
@@ -46,6 +48,7 @@ pub(crate) fn ingest_document(
         return Err(bad_arg("either text or graph must be provided on IndexDocumentRequest"));
     };
 
+    let raw_chunks = req.chunks.clone();
     let doc_attrs: BTreeMap<String, String> = req.attributes.clone().into_iter().collect();
     let mut prepared_chunks: Vec<ChunkInput> = if !req.chunks.is_empty() {
         req.chunks.clone()
@@ -55,41 +58,33 @@ pub(crate) fn ingest_document(
         segment_raw_text(&doc_text, &req.doc_id, ix.spec.chunk_budget_tokens)
     };
 
+    for (ci, c) in prepared_chunks.iter().enumerate() {
+        validate_utf8_span(&doc_text, c.span_start, c.span_end, &format!("chunk {ci} span"))?;
+        if c.has_parent {
+            validate_utf8_span(&doc_text, c.parent_start, c.parent_end, &format!("chunk {ci} parent_span"))?;
+        }
+    }
+
     if !ix.spec.embed_bundle.is_empty() {
-        populate_embeddings_from_bundle(state, &ix.spec.embed_bundle, &doc_text, &mut prepared_chunks)?;
+        populate_embeddings_from_bundle(state, &ix.spec.embed_bundle, &ix.space, &doc_text, &mut prepared_chunks)?;
     }
 
     let dim = ix.space.dim as usize;
     let mut staged_chunks = Vec::with_capacity(prepared_chunks.len());
+    let mut chunk_terms = Vec::with_capacity(prepared_chunks.len());
+
     for (ci, c) in prepared_chunks.iter().enumerate() {
-        if c.span_start > c.span_end || (c.span_end as usize) > doc_text.len() {
-            return Err(bad_arg(format!(
-                "chunk {ci} span {}..{} is out of bounds for document length {}",
-                c.span_start,
-                c.span_end,
-                doc_text.len()
-            )));
-        }
-        if !doc_text.is_char_boundary(c.span_start as usize) || !doc_text.is_char_boundary(c.span_end as usize) {
-            return Err(bad_arg(format!(
-                "chunk {ci} span {}..{} is not on UTF-8 char boundaries",
-                c.span_start, c.span_end
-            )));
-        }
-        let chunk_slice = &doc_text[c.span_start as usize..c.span_end as usize];
-        let parent_span = if c.has_parent {
-            if c.parent_start > c.parent_end || (c.parent_end as usize) > doc_text.len() {
-                return Err(bad_arg(format!(
-                    "chunk {ci} parent_span {}..{} out of bounds",
-                    c.parent_start, c.parent_end
-                )));
-            }
-            Some(Span::new(c.parent_start, c.parent_end))
+        let chunk_slice = doc_text
+            .get(c.span_start as usize..c.span_end as usize)
+            .ok_or_else(|| bad_arg(format!("chunk {ci} span {}..{} is invalid", c.span_start, c.span_end)))?;
+        let (parent_span, parent_text) = if c.has_parent {
+            let ps_slice = doc_text.get(c.parent_start as usize..c.parent_end as usize).ok_or_else(|| {
+                bad_arg(format!("chunk {ci} parent_span {}..{} is invalid", c.parent_start, c.parent_end))
+            })?;
+            (Some(Span::new(c.parent_start, c.parent_end)), ps_slice.to_owned())
         } else {
-            None
+            (None, String::new())
         };
-        let parent_text =
-            parent_span.map(|ps| doc_text[ps.start as usize..ps.end as usize].to_owned()).unwrap_or_default();
 
         let dense_vector = if c.dense_vector.is_empty() {
             None
@@ -99,6 +94,9 @@ pub(crate) fn ingest_document(
                     "chunk {ci} dense_vector has dimension {}, index holds {dim}",
                     c.dense_vector.len()
                 )));
+            }
+            if c.dense_vector.iter().any(|v| !v.is_finite()) {
+                return Err(bad_arg(format!("chunk {ci} dense_vector contains non-finite value")));
             }
             Some(c.dense_vector.clone())
         };
@@ -110,9 +108,13 @@ pub(crate) fn ingest_document(
                     tv.values.len()
                 )));
             }
+            if tv.values.iter().any(|v| !v.is_finite()) {
+                return Err(bad_arg(format!("chunk {ci} token_vector {ti} contains non-finite value")));
+            }
         }
 
         let terms = analyze_chunk_terms(chunk_slice, c.span_start);
+        chunk_terms.push(terms.iter().map(|(t, _)| t.clone()).collect());
         let mut attrs = doc_attrs.clone();
         for (k, v) in &c.attributes {
             attrs.insert(k.clone(), v.clone());
@@ -135,31 +137,57 @@ pub(crate) fn ingest_document(
         });
     }
 
-    for sc in &staged_chunks {
-        let term_refs: Vec<&str> = sc.terms.iter().map(|(t, _)| t.as_str()).collect();
-        ix.bm25_builder.add_row_tokens(&term_refs).map_err(bad_arg)?;
-        let term_strings: Vec<String> = sc.terms.iter().map(|(t, _)| t.clone()).collect();
-        let mut unique = BTreeSet::new();
-        for t in &term_strings {
-            ix.seen_terms.insert(t.clone());
-            unique.insert(t.clone());
-        }
-        for t in unique {
-            *ix.term_df.entry(t).or_insert(0) += 1;
-        }
-        batch_chunk_terms.push(term_strings);
-    }
+    Ok(StagedDocument {
+        retained: RetainedDocument {
+            doc_id: req.doc_id,
+            text: doc_text,
+            graph: req.graph,
+            raw_chunks,
+            chunks: prepared_chunks,
+            attributes: doc_attrs,
+        },
+        chunks: staged_chunks,
+        chunk_terms,
+    })
+}
 
-    let added = staged_chunks.len() as u32;
-    ix.chunks.extend(staged_chunks);
-    ix.docs.push(RetainedDocument {
-        doc_id: req.doc_id,
-        text: doc_text,
-        graph: req.graph,
-        chunks: prepared_chunks,
-        attributes: doc_attrs,
-    });
-    Ok(added)
+pub(crate) fn commit_staged_documents(
+    ix: &mut HybridIndex,
+    staged: Vec<StagedDocument>,
+    batch_chunk_terms: &mut Vec<Vec<String>>,
+) -> Result<(u32, u32)> {
+    let mut indexed_docs = 0u32;
+    let mut indexed_chunks = 0u32;
+    for sd in staged {
+        for terms in &sd.chunk_terms {
+            let mut unique = BTreeSet::new();
+            for t in terms {
+                ix.seen_terms.insert(t.clone());
+                unique.insert(t.clone());
+            }
+            for t in unique {
+                *ix.term_df.entry(t).or_insert(0) += 1;
+            }
+            batch_chunk_terms.push(terms.clone());
+        }
+        indexed_docs += 1;
+        indexed_chunks += sd.chunks.len() as u32;
+        ix.chunks.extend(sd.chunks);
+        ix.docs.push(sd.retained);
+    }
+    rebuild_compiled_indexes(ix)?;
+    Ok((indexed_docs, indexed_chunks))
+}
+
+fn validate_utf8_span(doc_text: &str, start: u32, end: u32, label: &str) -> Result<()> {
+    let (s, e) = (start as usize, end as usize);
+    if s > e || e > doc_text.len() {
+        return Err(bad_arg(format!("{label} {start}..{end} is out of bounds for document length {}", doc_text.len())));
+    }
+    if !doc_text.is_char_boundary(s) || !doc_text.is_char_boundary(e) {
+        return Err(bad_arg(format!("{label} {start}..{end} is not on UTF-8 char boundaries")));
+    }
+    Ok(())
 }
 
 pub fn rebuild_compiled_indexes(ix: &mut HybridIndex) -> Result<()> {
@@ -202,7 +230,6 @@ pub fn rebuild_compiled_indexes(ix: &mut HybridIndex) -> Result<()> {
             tb.push(&flat, row_idx as u32).map_err(|e| bad_arg(e.to_string()))?;
             candidates.push(row_idx as u32);
         }
-        let _ = Source { piece: 0, span: None };
         ix.token_index = Some(tb.build());
         ix.token_candidates = candidates;
     } else {
@@ -223,7 +250,9 @@ pub fn analyze_chunk_terms(chunk_text: &str, chunk_offset: u32) -> Vec<(String, 
     let (starts, ends) = tokens.spans.columns();
     let mut out = Vec::new();
     for (&s, &e) in starts.iter().zip(ends) {
-        let slice = &chunk_text[s as usize..e as usize];
+        let Some(slice) = chunk_text.get(s as usize..e as usize) else {
+            continue;
+        };
         if !slice.chars().any(char::is_alphanumeric) {
             continue;
         }
@@ -234,228 +263,42 @@ pub fn analyze_chunk_terms(chunk_text: &str, chunk_offset: u32) -> Vec<(String, 
     out
 }
 
-fn extract_chunks_from_doc(doc: &Document, doc_id: &str, budget_tokens: u32) -> Result<Vec<ChunkInput>> {
-    let text = doc.source();
-    let dense_chunks = doc.get::<Vectors<Chunks>>();
-    let sparse_chunks = doc.get::<SparseTerms<Chunks>>();
-    let subwords = doc.get::<Subwords>();
-    let subword_vecs = doc.get::<Vectors<Subwords>>();
-
-    if let Some(levels) = doc.get::<Levels>()
-        && !levels.is_empty()
-    {
-        let mut out = Vec::new();
-        for i in 0..levels.len() {
-            let ix = Ix::<Levels>::new(i as u32);
-            let span = levels.spans.get(ix);
-            let kind_str = match levels.level(ix) {
-                Level::Chunk => "chunk",
-                Level::Section => "section",
-                Level::Document => "document",
-            };
-            let (parent_start, parent_end, has_parent) = match levels.parent[i] {
-                Some(p) => {
-                    let ps = levels.spans.get(p);
-                    (ps.start, ps.end, true)
-                }
-                None => (0, 0, false),
-            };
-            out.push(ChunkInput {
-                chunk_id: format!("{doc_id}#L{i}"),
-                level_kind: kind_str.to_owned(),
-                span_start: span.start,
-                span_end: span.end,
-                parent_start,
-                parent_end,
-                has_parent,
-                dense_vector: Vec::new(),
-                sparse_terms: Vec::new(),
-                token_vectors: extract_token_vecs_in_span(subwords, subword_vecs, span),
-                attributes: Default::default(),
-            });
-        }
-        return Ok(out);
-    }
-
-    if let Some(chunks) = doc.get::<Chunks>()
-        && !chunks.is_empty()
-    {
-        let mut out = Vec::with_capacity(chunks.len());
-        for i in 0..chunks.len() {
-            let ix = Ix::<Chunks>::new(i as u32);
-            let span = chunks.spans.get(ix);
-            let dense_vector =
-                dense_chunks.filter(|v| i < v.len() && !v.is_empty(ix)).map(|v| v.row(ix).to_vec()).unwrap_or_default();
-            let sparse_terms =
-                sparse_chunks.filter(|s| i < s.len()).map(|s| extract_sparse_unit(s, i)).unwrap_or_default();
-            out.push(ChunkInput {
-                chunk_id: format!("{doc_id}#C{i}"),
-                level_kind: "chunk".to_owned(),
-                span_start: span.start,
-                span_end: span.end,
-                parent_start: 0,
-                parent_end: text.len() as u32,
-                has_parent: true,
-                dense_vector,
-                sparse_terms,
-                token_vectors: extract_token_vecs_in_span(subwords, subword_vecs, span),
-                attributes: Default::default(),
-            });
-        }
-        return Ok(out);
-    }
-
-    if let Some(sents) = doc.get::<Sentences>()
-        && !sents.is_empty()
-    {
-        let mut out = Vec::with_capacity(sents.len());
-        for i in 0..sents.len() {
-            let ix = Ix::<Sentences>::new(i as u32);
-            let span = sents.spans.get(ix);
-            out.push(ChunkInput {
-                chunk_id: format!("{doc_id}#S{i}"),
-                level_kind: "sentence".to_owned(),
-                span_start: span.start,
-                span_end: span.end,
-                parent_start: 0,
-                parent_end: text.len() as u32,
-                has_parent: true,
-                dense_vector: Vec::new(),
-                sparse_terms: Vec::new(),
-                token_vectors: extract_token_vecs_in_span(subwords, subword_vecs, span),
-                attributes: Default::default(),
-            });
-        }
-        return Ok(out);
-    }
-
-    Ok(segment_raw_text(text, doc_id, budget_tokens))
-}
-
-fn extract_sparse_unit(sparse: &SparseTerms<Chunks>, unit: usize) -> Vec<SparseEntryProto> {
-    let start = sparse.row[unit] as usize;
-    let end = sparse.row[unit + 1] as usize;
-    (start..end)
-        .map(|e| {
-            let sp = sparse.span.get(e).copied().flatten();
-            SparseEntryProto {
-                term_id: sparse.term[e],
-                term_text: String::new(),
-                weight: sparse.weight[e],
-                span_start: sp.map_or(0, |s| s.start),
-                span_end: sp.map_or(0, |s| s.end),
-                has_span: sp.is_some(),
-            }
-        })
-        .collect()
-}
-
-fn extract_token_vecs_in_span(
-    subwords: Option<&Subwords>,
-    vecs: Option<&Vectors<Subwords>>,
-    span: Span,
-) -> Vec<TokenVectorInput> {
-    let (Some(sub), Some(v)) = (subwords, vecs) else { return Vec::new() };
-    let r = sub.spans.within(span);
-    let mut out = Vec::new();
-    for i in r.start.get()..r.end.get() {
-        let ix = Ix::<Subwords>::new(i as u32);
-        if !v.is_empty(ix) {
-            let sp = sub.spans.get(ix);
-            out.push(TokenVectorInput {
-                values: v.row(ix).to_vec(),
-                span_start: sp.start,
-                span_end: sp.end,
-                has_span: true,
-            });
-        }
-    }
-    out
-}
-
-pub fn segment_raw_text(text: &str, doc_id: &str, budget_tokens: u32) -> Vec<ChunkInput> {
-    if text.is_empty() {
-        return Vec::new();
-    }
-    let budget = if budget_tokens == 0 { 64usize } else { budget_tokens as usize };
-    let det = turbo_sentdetect::RuleSentenceDetector::new("en");
-    let doc = Document::new(text);
-    let view = doc.get::<turbo_analysis::View>().expect("source view");
-    let sents = turbo_analysis::Annotator::annotate(&det, (view,)).map(|(s,)| s).unwrap_or_else(|_| {
-        let mut s = Sentences { spans: turbo_analysis::Spans::new(view.id()) };
-        s.spans.push(Span::new(0, text.len() as u32));
-        s
-    });
-    let mut chunks = Vec::new();
-    let mut cur_start = sents.spans.get(Ix::new(0)).start;
-    let mut cur_end = sents.spans.get(Ix::new(0)).end;
-    let mut cur_words = text[cur_start as usize..cur_end as usize].split_whitespace().count();
-    let make_chunk = |idx: usize, start: u32, end: u32| ChunkInput {
-        chunk_id: format!("{doc_id}#{idx}"),
-        level_kind: "chunk".to_owned(),
-        span_start: start,
-        span_end: end,
-        parent_start: 0,
-        parent_end: text.len() as u32,
-        has_parent: true,
-        dense_vector: Vec::new(),
-        sparse_terms: Vec::new(),
-        token_vectors: Vec::new(),
-        attributes: Default::default(),
-    };
-    if sents.is_empty() {
-        return vec![make_chunk(0, 0, text.len() as u32)];
-    }
-    for i in 1..sents.len() {
-        let sp = sents.spans.get(Ix::new(i as u32));
-        let words = text[sp.start as usize..sp.end as usize].split_whitespace().count();
-        if cur_words + words > budget && cur_words > 0 {
-            let idx = chunks.len();
-            chunks.push(make_chunk(idx, cur_start, cur_end));
-            cur_start = sp.start;
-            cur_end = sp.end;
-            cur_words = words;
-        } else {
-            cur_end = sp.end;
-            cur_words += words;
-        }
-    }
-    let idx = chunks.len();
-    chunks.push(make_chunk(idx, cur_start, cur_end));
-    chunks
-}
-
 pub(crate) fn populate_embeddings_from_bundle(
     state: &State,
     bundle_name: &str,
+    space: &Space,
     doc_text: &str,
     chunks: &mut [ChunkInput],
 ) -> Result<()> {
     if chunks.is_empty() {
         return Ok(());
     }
-    let (_, loaded) = state.ready(bundle_name, "")?;
-    if loaded.task != TURBO_TASK_EMBED {
-        return Err(bad_arg(format!("bundle `{bundle_name}` is not a TASK_EMBED model")));
-    }
+    let loaded = verify_embed_bundle_matches_space(state, bundle_name, space)?;
     let held = loaded.take()?;
     let slot = held.slot();
     let max_batch = slot.info.max_batch as usize;
+    let output_dim = if space.dim != loaded.model_info.dim { space.dim } else { 0 };
+    let normalize = match space.normalization {
+        Normalization::Unit => turbo::TURBO_NORMALIZE_L2,
+        Normalization::None => turbo::TURBO_NORMALIZE_NONE,
+    };
     let opts = turbo::turbo_embed_options {
         struct_size: size_of::<turbo::turbo_embed_options>() as u32,
         truncate: 0,
         max_tokens: 0,
         prompt_role: turbo::TURBO_PROMPT_DOCUMENT,
-        normalize: 0,
+        normalize,
         pooling: 0,
-        output_dim: 0,
+        output_dim,
     };
     for batch in chunks.chunks_mut(max_batch.max(1)) {
         let mut need_indices = Vec::new();
         let mut views = Vec::new();
         for (i, c) in batch.iter().enumerate() {
             if c.dense_vector.is_empty() {
-                let slice = &doc_text[c.span_start as usize..c.span_end as usize];
+                let slice = doc_text
+                    .get(c.span_start as usize..c.span_end as usize)
+                    .ok_or_else(|| bad_arg(format!("chunk span {}..{} is out of bounds", c.span_start, c.span_end)))?;
                 views.push(turbo::turbo_text { ptr: slice.as_ptr().cast(), len: slice.len() as u64 });
                 need_indices.push(i);
             }

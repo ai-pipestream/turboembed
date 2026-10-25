@@ -68,6 +68,7 @@ fn too_large<B>(mut r: http::Response<B>) -> http::Response<B> {
 /// analysis service adds and removes bundles while serving.
 pub struct Server {
     state: Arc<State>,
+    search_registry: Arc<search::SearchRegistry>,
     addr: SocketAddr,
     stop: Option<oneshot::Sender<()>>,
     task: JoinHandle<std::result::Result<(), tonic::transport::Error>>,
@@ -102,9 +103,11 @@ impl Server {
             .max_decoding_message_size(max_message_bytes);
         let analysis = AnalysisServiceServer::new(analysis::Analysis { state: state.clone(), admin: serve.admin })
             .max_decoding_message_size(max_message_bytes);
+        let search_registry = Arc::new(search::SearchRegistry::new());
         let search = TurboSearchServiceServer::new(search::SearchService {
             state: state.clone(),
-            registry: Arc::new(search::SearchRegistry::new()),
+            registry: search_registry.clone(),
+            admin: serve.admin,
         })
         .max_decoding_message_size(max_message_bytes);
         let (stop, stopped) = oneshot::channel::<()>();
@@ -123,7 +126,13 @@ impl Server {
                     let _ = stopped.await;
                 }),
         );
-        Ok(Server { state, addr, stop: Some(stop), task })
+        Ok(Server { state, search_registry, addr, stop: Some(stop), task })
+    }
+
+    /// Configures the directory within which `PersistIndex` and
+    /// `CreateIndex.load_from_path` read and write plain snapshot file names.
+    pub fn set_search_snapshot_dir(&self, dir: impl Into<std::path::PathBuf>) {
+        self.search_registry.set_snapshot_dir(dir.into());
     }
 
     pub fn local_addr(&self) -> SocketAddr {

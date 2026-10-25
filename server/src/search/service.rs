@@ -1,31 +1,46 @@
 //! Tonic `TurboSearchService` implementation (`#1221`).
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::Path;
 use std::pin::Pin;
 use std::sync::{Arc, RwLock};
 
-use tokio::sync::mpsc;
+use tokio::sync::{broadcast, mpsc};
 use tokio_stream::StreamExt;
 use tokio_stream::wrappers::ReceiverStream;
-use tonic::{Request, Response, Status, Streaming};
+use tonic::metadata::MetadataMap;
+use tonic::{Code, Request, Response, Status, Streaming};
 
+use crate::api::Failure;
 use crate::proto::search::turbo_search_service_server::TurboSearchService;
 use crate::proto::search::*;
-use crate::search::ingest::{analyze_chunk_terms, ingest_document, rebuild_compiled_indexes};
+use crate::search::ingest::{analyze_chunk_terms, commit_staged_documents, stage_document};
 use crate::search::query::execute_search;
-use crate::search::registry::{CollectionState, SearchRegistry, bad_arg, providers_list};
-use crate::search::snapshot::{load_index_from_path, persist_index_to_path};
+use crate::search::registry::{
+    ALREADY_EXISTS_FIELD, CollectionState, SearchRegistry, already_exists, bad_arg, not_admin, not_found, parse_space,
+    providers_list,
+};
+use crate::search::snapshot::{load_index_from_dir, persist_index_to_dir};
 use crate::state::State;
-use crate::status::to_status;
+use crate::status::{describe, to_status};
 
 pub struct SearchService {
     pub(crate) state: Arc<State>,
     pub(crate) registry: Arc<SearchRegistry>,
+    pub(crate) admin: bool,
 }
 
 fn reply<T>(r: crate::api::Result<T>) -> std::result::Result<Response<T>, Status> {
-    r.map(Response::new).map_err(|f| to_status(&f, &[]))
+    r.map(Response::new).map_err(|f| {
+        if f.field == ALREADY_EXISTS_FIELD {
+            let clean = Failure::new(f.code, 0, f.message);
+            let mut md = MetadataMap::new();
+            md.insert("turbo-code", clean.code.to_string().parse().expect("ASCII"));
+            md.insert("turbo-field", "0".parse().expect("ASCII"));
+            Status::with_metadata(Code::AlreadyExists, describe(&clean, &[]), md)
+        } else {
+            to_status(&f, &[])
+        }
+    })
 }
 
 #[tonic::async_trait]
@@ -55,19 +70,27 @@ impl TurboSearchService for SearchService {
         req: Request<CreateIndexRequest>,
     ) -> std::result::Result<Response<CreateIndexResponse>, Status> {
         let r = req.into_inner();
+        if !r.load_from_path.is_empty() && !self.admin {
+            return reply(Err(not_admin("CreateIndex.load_from_path")));
+        }
+        let state = self.state.clone();
         let registry = self.registry.clone();
         let res = tokio::task::spawn_blocking(move || -> crate::api::Result<CreateIndexResponse> {
             if !r.load_from_path.is_empty() {
                 let override_name = r.spec.as_ref().map(|s| s.index_name.as_str()).filter(|s| !s.is_empty());
-                let loaded = load_index_from_path(Path::new(&r.load_from_path), override_name)?;
+                let snap_dir = registry.snapshot_dir();
+                let loaded = load_index_from_dir(&snap_dir, &r.load_from_path, override_name)?;
                 let name = loaded.spec.index_name.clone();
                 let summary = loaded.summary();
                 let mut indexes = registry.indexes.write().unwrap_or_else(|e| e.into_inner());
+                if indexes.contains_key(&name) {
+                    return Err(already_exists(format!("search index `{name}` already exists")));
+                }
                 indexes.insert(name, Arc::new(RwLock::new(loaded)));
                 return Ok(CreateIndexResponse { summary: Some(summary) });
             }
             let spec = r.spec.ok_or_else(|| bad_arg("CreateIndexRequest.spec is required"))?;
-            let summary = registry.create_index(spec)?;
+            let summary = registry.create_index(&state, spec)?;
             Ok(CreateIndexResponse { summary: Some(summary) })
         })
         .await
@@ -85,7 +108,7 @@ impl TurboSearchService for SearchService {
         }
         let mut indexes = self.registry.indexes.write().unwrap_or_else(|e| e.into_inner());
         if indexes.remove(&name).is_none() {
-            return reply(Err(bad_arg(format!("no search index `{name}` exists"))));
+            return reply(Err(not_found(format!("no search index `{name}` exists"))));
         }
         let mut aliases = self.registry.aliases.write().unwrap_or_else(|e| e.into_inner());
         aliases.retain(|_, target| target != &name);
@@ -110,22 +133,18 @@ impl TurboSearchService for SearchService {
         let res = tokio::task::spawn_blocking(move || -> crate::api::Result<IndexDocumentsResponse> {
             let (resolved_name, ix_lock) = registry.resolve_index(&target_arg)?;
             let mut ix = ix_lock.write().unwrap_or_else(|e| e.into_inner());
-            let mut indexed_docs = 0u32;
-            let mut indexed_chunks = 0u32;
-            let mut batch_chunk_terms = Vec::new();
+            let mut staged = Vec::with_capacity(items.len());
             for doc_req in items {
-                let added = ingest_document(&mut ix, &state, doc_req, &mut batch_chunk_terms)?;
-                indexed_docs += 1;
-                indexed_chunks += added;
+                staged.push(stage_document(&ix, &state, doc_req)?);
             }
-            rebuild_compiled_indexes(&mut ix)?;
+            let mut batch_chunk_terms = Vec::new();
+            let (indexed_docs, indexed_chunks) = commit_staged_documents(&mut ix, staged, &mut batch_chunk_terms)?;
             let col_name = if !ix.spec.collection_name.is_empty() {
                 ix.spec.collection_name.clone()
             } else {
                 resolved_name.clone()
             };
-            let drift =
-                registry.record_collection_update(&col_name, &resolved_name, &batch_chunk_terms, ix.bm25.statistics());
+            let drift = registry.record_collection_update(&col_name, &resolved_name, &batch_chunk_terms);
             Ok(IndexDocumentsResponse {
                 index_name: resolved_name,
                 indexed_documents: indexed_docs,
@@ -156,6 +175,9 @@ impl TurboSearchService for SearchService {
         &self,
         req: Request<PersistIndexRequest>,
     ) -> std::result::Result<Response<PersistIndexResponse>, Status> {
+        if !self.admin {
+            return reply(Err(not_admin("PersistIndex")));
+        }
         let r = req.into_inner();
         if r.path.is_empty() {
             return reply(Err(bad_arg("path must not be empty")));
@@ -164,7 +186,8 @@ impl TurboSearchService for SearchService {
         let res = tokio::task::spawn_blocking(move || -> crate::api::Result<PersistIndexResponse> {
             let (resolved_name, ix_lock) = registry.resolve_index(&r.index_name)?;
             let ix = ix_lock.read().unwrap_or_else(|e| e.into_inner());
-            let written = persist_index_to_path(&ix, Path::new(&r.path))?;
+            let snap_dir = registry.snapshot_dir();
+            let written = persist_index_to_dir(&ix, &snap_dir, &r.path)?;
             Ok(PersistIndexResponse { index_name: resolved_name, bytes_written: written })
         })
         .await
@@ -192,29 +215,51 @@ impl TurboSearchService for SearchService {
         let registry = self.registry.clone();
         let res = tokio::task::spawn_blocking(move || -> crate::api::Result<ReindexResponse> {
             let target_spec = r.target_spec.ok_or_else(|| bad_arg("ReindexRequest.target_spec is required"))?;
+            let target_space = parse_space(target_spec.space.as_ref())?;
             let target_name = target_spec.index_name.clone();
             let (_, src_lock) = registry.resolve_index(&r.source_index)?;
-            let retained_docs = {
+            let (src_space, src_budget, src_had_vectors, retained_docs) = {
                 let src = src_lock.read().unwrap_or_else(|e| e.into_inner());
-                src.docs.clone()
+                let had_vecs = src.chunks.iter().any(|c| c.dense_vector.is_some() || !c.token_vectors.is_empty());
+                (src.space.clone(), src.spec.chunk_budget_tokens, had_vecs, src.docs.clone())
             };
-            registry.create_index(target_spec)?;
+            let space_changed = target_space != src_space;
+            let budget_changed = target_spec.chunk_budget_tokens != src_budget;
+            if space_changed && src_had_vectors && target_spec.embed_bundle.is_empty() {
+                return Err(bad_arg(
+                    "cannot reindex vectors into a different SpaceSpec without a matching target embed_bundle",
+                ));
+            }
+            registry.create_index(&state, target_spec)?;
             let (_, dst_lock) = registry.resolve_index(&target_name)?;
             {
                 let mut dst = dst_lock.write().unwrap_or_else(|e| e.into_inner());
-                let mut batch_terms = Vec::new();
+                let mut staged = Vec::with_capacity(retained_docs.len());
                 for d in retained_docs {
+                    let chunks = if space_changed {
+                        let mut stripped = d.raw_chunks;
+                        for c in &mut stripped {
+                            c.dense_vector.clear();
+                            c.token_vectors.clear();
+                        }
+                        stripped
+                    } else if budget_changed && d.raw_chunks.is_empty() {
+                        Vec::new()
+                    } else {
+                        d.chunks
+                    };
                     let doc_req = IndexDocumentRequest {
                         index_name: target_name.clone(),
                         doc_id: d.doc_id,
                         text: d.text,
                         graph: d.graph,
-                        chunks: d.chunks,
+                        chunks,
                         attributes: d.attributes.into_iter().collect(),
                     };
-                    ingest_document(&mut dst, &state, doc_req, &mut batch_terms)?;
+                    staged.push(stage_document(&dst, &state, doc_req)?);
                 }
-                rebuild_compiled_indexes(&mut dst)?;
+                let mut batch_terms = Vec::new();
+                commit_staged_documents(&mut dst, staged, &mut batch_terms)?;
             }
             if !r.swap_alias.is_empty() {
                 let mut aliases = registry.aliases.write().unwrap_or_else(|e| e.into_inner());
@@ -238,7 +283,7 @@ impl TurboSearchService for SearchService {
         }
         let indexes = self.registry.indexes.read().unwrap_or_else(|e| e.into_inner());
         if !indexes.contains_key(&r.index_name) {
-            return reply(Err(bad_arg(format!("target index `{}` does not exist", r.index_name))));
+            return reply(Err(not_found(format!("target index `{}` does not exist", r.index_name))));
         }
         drop(indexes);
         let mut aliases = self.registry.aliases.write().unwrap_or_else(|e| e.into_inner());
@@ -253,7 +298,7 @@ impl TurboSearchService for SearchService {
         let alias = req.into_inner().alias;
         let mut aliases = self.registry.aliases.write().unwrap_or_else(|e| e.into_inner());
         if aliases.remove(&alias).is_none() {
-            return reply(Err(bad_arg(format!("alias `{alias}` does not exist"))));
+            return reply(Err(not_found(format!("alias `{alias}` does not exist"))));
         }
         Ok(Response::new(DeleteAliasResponse {}))
     }
@@ -314,7 +359,7 @@ impl TurboSearchService for SearchService {
         let name = req.into_inner().collection_name;
         let cols = self.registry.collections.read().unwrap_or_else(|e| e.into_inner());
         let Some(c) = cols.get(&name) else {
-            return reply(Err(bad_arg(format!("collection `{name}` does not exist"))));
+            return reply(Err(not_found(format!("collection `{name}` does not exist"))));
         };
         Ok(Response::new(GetCollectionResponse { collection: Some(c.to_info()) }))
     }
@@ -335,7 +380,7 @@ impl TurboSearchService for SearchService {
         let name = req.into_inner().collection_name;
         let mut cols = self.registry.collections.write().unwrap_or_else(|e| e.into_inner());
         if cols.remove(&name).is_none() {
-            return reply(Err(bad_arg(format!("collection `{name}` does not exist"))));
+            return reply(Err(not_found(format!("collection `{name}` does not exist"))));
         }
         Ok(Response::new(DeleteCollectionResponse {}))
     }
@@ -356,13 +401,19 @@ impl TurboSearchService for SearchService {
         let col_name = r.collection_name;
         let min_oov = r.min_oov_ratio.max(0.0);
         tokio::spawn(async move {
-            while let Ok(ev) = rx.recv().await {
-                if ev.collection_name != col_name {
-                    continue;
-                }
-                let oov = ev.report.as_ref().map_or(0.0, |rep| rep.oov_ratio);
-                if oov >= min_oov && tx.send(Ok(ev)).await.is_err() {
-                    break;
+            loop {
+                match rx.recv().await {
+                    Ok(ev) => {
+                        if ev.collection_name != col_name {
+                            continue;
+                        }
+                        let oov = ev.report.as_ref().map_or(0.0, |rep| rep.oov_ratio);
+                        if oov >= min_oov && tx.send(Ok(ev)).await.is_err() {
+                            break;
+                        }
+                    }
+                    Err(broadcast::error::RecvError::Lagged(_)) => continue,
+                    Err(broadcast::error::RecvError::Closed) => break,
                 }
             }
         });

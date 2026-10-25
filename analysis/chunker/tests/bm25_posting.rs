@@ -420,4 +420,15 @@ fn positional_phrases_with_slop_and_snapshot_bytes_round_trip() {
     let mut trailing = bytes.clone();
     trailing.push(0);
     assert!(Bm25PostingIndex::from_bytes(&trailing).is_err());
+
+    // Repeated terms with large slop must not backtrack exponentially when the final term is far away.
+    let mut dense_builder = Bm25PostingIndexBuilder::new();
+    let mut row_tokens = vec!["omega"];
+    row_tokens.extend(std::iter::repeat_n("filler", 30));
+    row_tokens.extend(std::iter::repeat_n("alpha", 60));
+    dense_builder.add_row_tokens(&row_tokens).unwrap();
+    let dense_ix = dense_builder.build();
+    let query_terms = ["alpha", "alpha", "alpha", "alpha", "alpha", "alpha", "alpha", "alpha", "omega"];
+    assert!(dense_ix.phrase(Bm25::LUCENE, &query_terms, 20, 5).is_empty());
+    assert_eq!(dense_ix.phrase(Bm25::LUCENE, &query_terms, 45, 5).len(), 1);
 }
