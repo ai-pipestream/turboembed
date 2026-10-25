@@ -15,14 +15,18 @@
 //! docs/analysis.md says which parts of CommonMark and GFM are followed
 //! and where the detector differs from them.
 
+mod kv;
 mod line;
 mod marker;
 mod parse;
 mod project;
 mod table;
+mod table_grid;
 mod tree;
 
+pub use kv::KeyValueAnnotator;
 pub use project::StructureProjector;
+pub use table_grid::{TableGridAnnotator, detect_tables};
 
 use turbo_analysis::annotate::Step;
 use turbo_analysis::registry::{Provider, Spec};

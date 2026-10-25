@@ -1252,6 +1252,11 @@ bytes, is an error, never a shorter set of vectors.
 
 ## Structure
 
+First-class cell grids and line-oriented key/value fields are separate
+layers: `TableGridAnnotator` writes `Tables`, and `KeyValueAnnotator`
+writes `KeyValuePairs`, with standard graph codecs and exact source
+coordinates ([tables.md](tables.md)). Existing block detection is unchanged.
+
 `Structure` (`turbo:structure`) is a document's blocks as a tree:
 sections, headings, paragraphs, lists and list items, tables with their
 rows and cells, code blocks and block quotes (`Block` also has captions,
