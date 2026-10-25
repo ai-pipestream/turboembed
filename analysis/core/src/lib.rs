@@ -19,11 +19,13 @@ pub mod export;
 pub mod graph;
 pub mod layer;
 pub mod markup;
+pub mod math;
 pub mod offsets;
 pub mod predicate;
 pub mod registry;
 pub mod span;
 pub mod text;
+pub mod topk;
 
 pub use alternatives::{Alternative, Alternatives, ModeSet, NBest, SplitMode};
 pub use analyzer::Analyzer;
@@ -49,3 +51,4 @@ pub use predicate::{
 };
 pub use span::{FilterRule, FragmentError, Fragments, Ix, IxRange, Overlap, Span, Spans, TextSpans, filter_spans};
 pub use text::{Alignment, Edit, Side, ViewBuilder, ViewId};
+pub use topk::TopK;

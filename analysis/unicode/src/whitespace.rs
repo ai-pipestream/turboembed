@@ -83,6 +83,19 @@ const LEGACY_ASCII: [bool; 128] = ascii_table(true);
 const UNICODE_ASCII: [bool; 128] = ascii_table(false);
 
 impl WhitespaceMode {
+    /// OpenNLP StringUtil's blank check in this mode. Empty text is blank.
+    #[inline]
+    pub fn is_blank(self, text: &str) -> bool {
+        text.chars().all(|c| self.is_whitespace(c as u32))
+    }
+
+    /// Borrows `text` without leading and trailing whitespace in this mode.
+    #[inline]
+    pub fn trim(self, text: &str) -> &str {
+        text.trim_start_matches(|c: char| self.is_whitespace(c as u32))
+            .trim_end_matches(|c: char| self.is_whitespace(c as u32))
+    }
+
     /// Whether `cp` is whitespace in this mode. `cp` may be a surrogate
     /// code unit, which is never whitespace. A code point below U+0080 is
     /// answered from a 128-entry table.
@@ -109,6 +122,18 @@ impl WhitespaceMode {
         };
         byte < 0x80 && table[(byte & 0x7F) as usize]
     }
+}
+
+/// StringUtil.isUnicodeBlank as a function suitable for callbacks/re-exports.
+#[inline]
+pub fn is_unicode_blank(text: &str) -> bool {
+    WhitespaceMode::Unicode.is_blank(text)
+}
+
+/// StringUtil.trimUnicodeWhitespace as a function suitable for callbacks.
+#[inline]
+pub fn trim_unicode_whitespace(text: &str) -> &str {
+    WhitespaceMode::Unicode.trim(text)
 }
 
 #[cfg(test)]

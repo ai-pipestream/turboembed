@@ -9,7 +9,17 @@ pub struct Reliability {
     pub samples: usize,
 }
 pub fn reliability(rows: &[Vec<f64>], gold: &[usize], bins: usize) -> Result<Reliability> {
-    if rows.is_empty() || rows.len() != gold.len() || bins == 0 || bins > 65536 {
+    let selected: Vec<_> = rows
+        .iter()
+        .map(|row| (0..row.len()).max_by(|&a, &b| row[a].total_cmp(&row[b]).then(b.cmp(&a))).unwrap_or(0))
+        .collect();
+    reliability_selected(rows, gold, &selected, bins)
+}
+/// Reliability of caller-selected labels, which need not be row maxima
+/// when a structured decoder uses surrounding text. Brier still scores
+/// the complete distribution; accuracy and ECE score the selected label.
+pub fn reliability_selected(rows: &[Vec<f64>], gold: &[usize], selected: &[usize], bins: usize) -> Result<Reliability> {
+    if rows.is_empty() || rows.len() != gold.len() || rows.len() != selected.len() || bins == 0 || bins > 65536 {
         return Err("invalid reliability inputs or bin count".into());
     }
     let k = rows[0].len();
@@ -18,12 +28,11 @@ pub fn reliability(rows: &[Vec<f64>], gold: &[usize], bins: usize) -> Result<Rel
     let mut correct = vec![0usize; bins];
     let mut brier = 0.0;
     let n = rows.len() as f64;
-    for (row, &y) in rows.iter().zip(gold) {
+    for ((row, &y), &best) in rows.iter().zip(gold).zip(selected) {
         check_distribution(row)?;
-        if row.len() != k || y >= k {
+        if row.len() != k || y >= k || best >= k {
             return Err("reliability label dimension mismatch".into());
         }
-        let best = (0..k).max_by(|&a, &b| row[a].total_cmp(&row[b]).then(b.cmp(&a))).unwrap();
         let bin = ((row[best] * bins as f64) as usize).min(bins - 1);
         counts[bin] += 1;
         conf[bin] += row[best];

@@ -1,23 +1,20 @@
 //! Numbers written in a text view, with the exact value each one states.
 //!
-//! The layer holds what OpenNLP's `NumberScan` reads: ASCII digits with
-//! strict grouping, an optional fraction, an optional leading minus and an
-//! optional scale marker (`12k`, `3 million`). The value is kept as a
-//! decimal, the way Java's `BigDecimal` holds it, so `0.1` stays `0.1`
-//! and a reader that needs a float asks for one.
+//! The layer holds ASCII digits with strict grouping, an optional fraction,
+//! an optional leading minus and an optional scale marker (`12k`, `3 million`),
+//! as well as grammar-parsed numbers, mirroring OpenNLP's `NumberScan`. The
+//! value is kept as a decimal, the way Java's `BigDecimal` holds it, so `0.1`
+//! stays `0.1`.
 
 use turbo_analysis::{Ix, Layer, Span, Spans, ViewId};
 
 use crate::Strs;
 
-/// The written convention a number groups digits and marks its fraction
-/// in. A text such as `1.234` is a valid number in both conventions with
-/// two different values, so the caller says which one the text is in;
-/// nothing in this crate guesses it from a locale.
+/// The written convention a number groups digits and marks its fraction in.
+/// Nothing in this crate guesses it from a locale (`1.234` is valid in both).
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub enum NumberNotation {
     /// Commas group digits and a dot marks the fraction: `1,234.56`.
-    /// OpenNLP's numeric extractors read this one unless told otherwise.
     #[default]
     LatinUs,
     /// Dots group digits and a comma marks the fraction: `1.234,56`.
@@ -88,24 +85,22 @@ pub enum ScaleMarker {
 /// Every number in a view, one item per mention.
 ///
 /// A mention's span covers all of it: the minus sign, the digits and the
-/// scale marker. The numeral (digits, group separators and fraction)
-/// starts at the span's start, or one byte later when the mention is
-/// negative, and ends at `numeral_end`.
+/// scale marker. The numeral covers `numeral_start..numeral_end`.
 ///
-/// The value is a decimal: `coefficient` times ten to the power of minus
-/// `scale`, negated when `negative`, and it includes the multiplier, so
-/// `1.5k` has the coefficient `15000` and the scale 1 (1500.0). These are
-/// the unscaled value and the scale of the Java `BigDecimal` OpenNLP
-/// computes for the same mention.
+/// The value is `coefficient` times ten to the power of minus `scale`,
+/// negated when `negative`, including the multiplier (`1.5k` has
+/// coefficient `15000` and scale 1, matching Java's `BigDecimal`).
 pub struct Numbers {
     pub spans: Spans<Numbers>,
+    /// Where the numeral starts: after a leading sign when one is present,
+    /// or at the span's start.
+    pub numeral_start: Vec<u32>,
     /// Where the numeral ends: before the scale marker, or at the span's
     /// end when there is none.
     pub numeral_end: Vec<u32>,
-    /// Whether the mention starts with a minus sign.
+    /// Whether the value is negative.
     pub negative: Vec<bool>,
-    /// The value's digits without sign, without a decimal point and
-    /// without leading zeros; `0` for zero.
+    /// The value's digits without sign, decimal point or leading zeros (`0` for zero).
     pub coefficient: Strs,
     /// How many of the coefficient's digits are the fraction.
     pub scale: Vec<u32>,
@@ -133,6 +128,7 @@ impl Numbers {
     pub fn new(view: ViewId) -> Numbers {
         Numbers {
             spans: Spans::new(view),
+            numeral_start: Vec::new(),
             numeral_end: Vec::new(),
             negative: Vec::new(),
             coefficient: Strs::default(),
@@ -143,8 +139,16 @@ impl Numbers {
         }
     }
 
-    /// Appends one mention to every column.
+    /// Appends one mention whose negative sign, when `m.negative` is set,
+    /// is a leading one-byte ASCII `'-'`.
     pub fn push(&mut self, m: NumberMention<'_>) -> Ix<Numbers> {
+        let start = m.span.start.saturating_add(u32::from(m.negative));
+        self.push_with_numeral_start(start, m)
+    }
+
+    /// Appends one mention with an explicit `numeral_start` byte offset.
+    pub fn push_with_numeral_start(&mut self, numeral_start: u32, m: NumberMention<'_>) -> Ix<Numbers> {
+        self.numeral_start.push(numeral_start);
         self.numeral_end.push(m.numeral_end);
         self.negative.push(m.negative);
         self.coefficient.push(m.coefficient);
@@ -155,11 +159,11 @@ impl Numbers {
         self.spans.push(m.span)
     }
 
-    /// The span of the numeral alone, without the sign and the scale
-    /// marker.
+    /// The span of the numeral (`numeral_start..numeral_end`), without a
+    /// leading minus symbol or trailing scale marker (spelled negatives keep
+    /// the full phrase).
     pub fn numeral(&self, i: Ix<Numbers>) -> Span {
-        let span = self.spans.get(i);
-        Span::new(span.start.saturating_add(u32::from(self.negative[i.get()])), self.numeral_end[i.get()])
+        Span::new(self.numeral_start[i.get()], self.numeral_end[i.get()])
     }
 
     /// The value of mention `i`.
@@ -171,11 +175,13 @@ impl Numbers {
 
 impl Layer for Numbers {
     const ID: &'static str = "turbo:numbers";
+    const SCHEMA: u16 = 2;
     positional!(Numbers);
 
     fn check(&self) -> Result<(), String> {
         let n = self.spans.len();
-        let columns = [
+        let cols = [
+            self.numeral_start.len(),
             self.numeral_end.len(),
             self.negative.len(),
             self.coefficient.len(),
@@ -184,17 +190,13 @@ impl Layer for Numbers {
             self.marker.len(),
             self.notation.len(),
         ];
-        if columns.iter().any(|&l| l != n) {
+        if cols.iter().any(|&l| l != n) {
             return Err("every column as long as the spans".into());
         }
         self.spans.check(Self::OVERLAP).map_err(|_| "numbers in text order, not overlapping")?;
         for (i, span) in self.spans.iter() {
-            let i = i.get();
-            let end = self.numeral_end[i];
-            let Some(numeral_start) = span.start.checked_add(u32::from(self.negative[i])) else {
-                return Err(format!("number {i} has its numeral end {end} outside {}..{}", span.start, span.end));
-            };
-            if end <= numeral_start || end > span.end {
+            let (i, numeral_start, end) = (i.get(), self.numeral_start[i.get()], self.numeral_end[i.get()]);
+            if numeral_start < span.start || end <= numeral_start || end > span.end {
                 return Err(format!("number {i} has its numeral end {end} outside {}..{}", span.start, span.end));
             }
             let digits = self.coefficient.get(i);
@@ -413,12 +415,8 @@ mod tests {
     }
 
     #[test]
-    fn check_accepts_an_empty_layer() {
+    fn check_accepts_an_empty_layer_and_wants_every_column() {
         assert_eq!(Numbers::new(ViewId::SOURCE).check(), Ok(()));
-    }
-
-    #[test]
-    fn check_wants_every_column() {
         let mut n = Numbers::new(ViewId::SOURCE);
         n.push(mention(0, 2, "12"));
         n.scale.pop();
@@ -445,10 +443,14 @@ mod tests {
         let mut n = Numbers::new(ViewId::SOURCE);
         n.push(NumberMention { numeral_end: 0, ..mention(0, 2, "12") });
         assert!(n.check().unwrap_err().contains("outside"));
-        // A negative numeral needs a digit after the sign.
+        // A negative numeral needs a digit after the sign, while a spelled negative starts at span.start.
         let mut n = Numbers::new(ViewId::SOURCE);
         n.push(NumberMention { negative: true, numeral_end: 1, ..mention(0, 1, "1") });
         assert!(n.check().unwrap_err().contains("outside"));
+        let mut spelled = Numbers::new(ViewId::SOURCE);
+        spelled.push_with_numeral_start(0, NumberMention { negative: true, ..mention(0, 10, "5") });
+        assert_eq!(spelled.check(), Ok(()));
+        assert_eq!(spelled.numeral(Ix::new(0)), Span::new(0, 10));
         let mut max_span = Numbers::new(ViewId::SOURCE);
         max_span.push(NumberMention { negative: true, numeral_end: u32::MAX, ..mention(u32::MAX, u32::MAX, "1") });
         assert!(max_span.check().unwrap_err().contains("outside"));
