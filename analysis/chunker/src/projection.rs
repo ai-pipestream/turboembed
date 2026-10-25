@@ -27,7 +27,7 @@ use turbo_analysis::{Ix, Layer, ModelRef};
 use turbo_analysis_layers::{Cut, Sentences, Vectors};
 
 use crate::drift::{Drift, cosines, score_series};
-use crate::sums::Rows;
+use crate::sums::{Rows, checked_rows};
 
 /// How many coordinates a projection carries per row.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -319,10 +319,21 @@ pub struct BoundaryDriftCurve {
 
 impl BoundaryDriftCurve {
     /// Computes the curve for `vectors` under `drift`, the same inputs
-    /// [`crate::DriftBoundaries`] scores.
+    /// [`crate::DriftBoundaries`] scores. Retains [`Rows::of`]'s permissive
+    /// input handling; use [`Self::try_compute`] to validate the layer.
     pub fn compute(vectors: &Vectors<Sentences>, drift: &Drift) -> BoundaryDriftCurve {
-        let rows = Rows::of(vectors);
-        let raw = cosines(&rows, drift.window);
+        Self::from_rows(&Rows::of(vectors), drift)
+    }
+
+    /// Validates vector shape and empty-row metadata, then refuses any
+    /// non-finite coordinate before computing the same drift series.
+    /// Finite zero-norm and explicitly empty rows keep their gap slots.
+    pub fn try_compute(vectors: &Vectors<Sentences>, drift: &Drift) -> Result<BoundaryDriftCurve, String> {
+        Ok(Self::from_rows(&checked_rows(vectors)?, drift))
+    }
+
+    fn from_rows(rows: &Rows<'_>, drift: &Drift) -> BoundaryDriftCurve {
+        let raw = cosines(rows, drift.window);
         let (smoothed_cosine_micro, depth_score_micro, cost, reason) = score_series(&raw, drift);
         BoundaryDriftCurve { raw_cosine_micro: raw, smoothed_cosine_micro, depth_score_micro, cost, reason }
     }

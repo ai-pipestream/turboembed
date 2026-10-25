@@ -26,7 +26,7 @@ use std::num::NonZeroU32;
 use turbo_analysis::{Annotator, Bound, Error, Layer, Refs};
 use turbo_analysis_layers::{Boundaries, Cut, Sentences, Vectors};
 
-use crate::sums::Rows;
+use crate::sums::{Rows, checked_rows};
 use crate::weigh::DRIFT;
 
 /// A cosine of one, in the integer units the drift is computed in.
@@ -149,6 +149,17 @@ fn depths(xs: &[i64]) -> Vec<i64> {
 pub fn drift(rows: &Rows<'_>, d: &Drift) -> (Vec<i32>, Vec<Cut>) {
     let cos = cosines(rows, d.window);
     score_cosines(&cos, d)
+}
+
+/// Checked vector-layer entry point for [`drift`]. Refuses invalid row
+/// shape/empty metadata and non-finite coordinates with the same string
+/// errors as vector projection. Scores are identical to `drift` for valid
+/// finite layers, including zero-norm and explicitly empty rows.
+///
+/// Validation takes the original layer, before [`Rows::of`] can discard
+/// a trailing coordinate or treat a non-finite row as having no direction.
+pub fn try_drift(vectors: &Vectors<Sentences>, d: &Drift) -> Result<(Vec<i32>, Vec<Cut>), String> {
+    Ok(drift(&checked_rows(vectors)?, d))
 }
 
 /// Shared integer TextTiling scoring for embedding and lexical cosines.
