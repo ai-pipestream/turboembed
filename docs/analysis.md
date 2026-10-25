@@ -4400,6 +4400,17 @@ the records without it were made again at the same commit, from bundles
 that differ from the instructed ones in `prefix_query` alone, and give the
 numbers above to the last digit.
 
+All of these records were measured at commit `1d7d2cbf`, whose recipes
+name the reference image `turbo-reference@sha256:2d74a1a9…`. The recipes
+now name `turbo-reference@sha256:ca155518…`, built from main's Dockerfile.
+The image computes only the bundle's reference, the token ids and vectors
+each machine checks itself against when it loads the bundle; the weights
+and the tokenizer the evaluation runs are copied from the pinned upstream
+files without it. So the change of pin can move the sealed reference, and
+with it `manifest_sha256`, but not `artifact_sha256` or
+`tokenizer_sha256`, nor anything these records measure. They have not
+been measured again under the new pin.
+
 ### Measures and the gate
 
 - `metrics`: nDCG@10 with linear graded gain and a `log2(rank + 1)`
