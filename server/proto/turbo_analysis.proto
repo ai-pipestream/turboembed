@@ -868,22 +868,28 @@ message HeatmapBucketProto
 {
   // Half-open range in the request's OffsetMode, relative to the whole view.
   // Minimap boundaries are snapped down to UTF-8 character boundaries before
-  // conversion; when buckets outnumber characters, ranges can be empty.
+  // conversion. These display coordinates may collapse even a covered raw
+  // bin. Exact coverage coordinates remain in byte_start/byte_end below.
   uint32 start = 1;
   uint32 end = 2;
-  // TokenDensity sums one unit per distinct overlapping token. Other lane
-  // kinds use the signed score with greatest absolute magnitude among the
-  // overlapping items, breaking ties by layer item/fragment traversal order.
-  // An empty bucket has score 0. This is not an average or a length-weighted sum.
+  // Token/Entity/PiiDensity count distinct source items. Scored lanes use the
+  // signed score with greatest absolute magnitude, ties to lowest item index.
+  // Coverage is over the raw byte bin, before display-coordinate snapping.
+  // An uncovered raw bin has score 0; scores are not length-weighted averages.
   float score = 3;
   // Distinct layer items overlapping the bucket, not fragment count. Multiple
-  // fragments of one item contribute once. Exact mode omits uncovered ranges;
-  // minimap mode retains empty buckets with count 0.
+  // fragments of one item contribute once. Exact mode includes uncovered
+  // ranges; minimap mode retains every requested raw bin, including empty bins.
   uint32 count = 4;
-  // Index in this lane's source layer, absent when count is 0. TokenDensity
-  // uses the first overlapping item in traversal order; other kinds use the
+  // Index in this lane's source layer, absent when count is 0. Density lanes
+  // use the lowest overlapping item index; scored lanes use the
   // item supplying score. This is a representative, not the count or a span.
   optional uint32 primary_item = 5;
+  // Exact shared-library coverage bounds in source-view UTF-8 bytes,
+  // independent of the requested OffsetMode. Minimap bins can split scalars,
+  // including empty bins inside a scalar; these bounds are not text slices.
+  uint32 byte_start = 6;
+  uint32 byte_end = 7;
 }
 
 message HeatmapLaneProto

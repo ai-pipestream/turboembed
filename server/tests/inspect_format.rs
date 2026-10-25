@@ -192,6 +192,11 @@ fn build_rich_graph_bytes() -> (Document, Vec<u8>) {
         .0;
     assert_eq!(chunks.spans.len(), 2, "budget max=8 cuts the 2 sentences into 2 chunks");
     doc.add(&Key::DEFAULT, chunks, Provenance::by("test:chunker")).unwrap();
+    let mut chunk_scores = Categories::<Chunks>::new(TagSet::new("relevance", &["useful"]));
+    for _ in 0..2 {
+        chunk_scores.push(Tag(0), &[0.9]);
+    }
+    doc.add(&Key::DEFAULT, chunk_scores, Provenance::by("test:chunk-score")).unwrap();
 
     // TermIndexer + TermCounter<Chunks> + TermCounter<View>.
     let (vocab, indexed) = TermIndexer.annotate((doc.get::<View>().unwrap(), doc.get::<Tokens>().unwrap())).unwrap();

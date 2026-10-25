@@ -46,36 +46,45 @@ only: chips, heatmaps and summary metadata are not filtered or paginated.
 
 ### Heatmaps
 
-Each lane retains a layer instance in its ID, for example `tokens@gold`.
-`heatmap_buckets = 0` emits exact covered intervals and omits uncovered
-gaps. A positive value emits that many buckets across the view, including
-empty buckets; an empty view emits none. The maximum is 4,096. Bucket
-boundaries are computed in bytes and snapped down before offset
-conversion, so several buckets may share a boundary.
+Heatmaps come from `turbo_analysis_layers::DocumentHeatmap::build_instances`.
+Each lane retains its source instance in its ID, for example `tokens@gold`.
+Sources on other views are omitted; category instances follow their recorded
+anchor. Incivility and emotion retain targets on the selected view and keep
+original source item indices. Failed/skipped sources remain summary metadata.
 
-`count` counts distinct overlapping items. Two fragments of the same
-entity in one bucket count once. Token density sums one per token; other
-lanes choose the score with greatest absolute magnitude, preserving its
-sign. Ties retain the earliest item/fragment in traversal order.
-`primary_item` is the source-layer item supplying that score, or the
-first overlapping token for token density. Empty buckets have score 0,
-count 0 and no primary item. Scores are neither length-weighted nor
-averaged. Lane min/max are over the emitted bucket scores.
+`heatmap_buckets = 0` tiles the view with exact elementary intervals,
+including uncovered gaps and zero-width point segments. A positive value
+emits that many raw byte bins with edges `floor(i * byte_length / N)`,
+including empty bins and bins on an empty view when a source lane exists.
+The maximum is 4,096; candidate input fragments are capped before the shared
+builder allocates lane items. Inputs and outputs are never truncated to fit.
 
-| Kind | Item score before bucket aggregation |
+`byte_start`/`byte_end` preserve the shared bin's exact coverage coordinates,
+independent of the request's offset mode. Raw bins can split UTF-8 scalars,
+including empty bins inside a scalar, and are not guaranteed text slices.
+`start`/`end` are display coordinates: raw boundaries are snapped down to
+character boundaries, then converted to the requested offset mode. Display
+ranges can coincide or collapse even when the raw bin has coverage. Scores,
+counts and primary items belong to the raw bin; display projection does not
+resample or reaggregate them.
+
+`count` counts distinct overlapping source items. Multiple fragments of one
+item contribute once. Token, entity and PII density all use that count as the
+score and the lowest item index as `primary_item`. Scored lanes choose the
+score with greatest absolute magnitude, preserving its sign; ties choose the
+lowest original item index. Uncovered raw bins have score/count 0 and no
+primary item. Scores are neither length-weighted nor averaged. Lane min/max
+come directly from shared segment scores.
+
+| Kind | Shared item/coverage semantics |
 |---|---|
-| `TokenDensity` | 1 per token. |
-| `EntityDensity` | Entity confidence, despite the lane kind's name. |
-| `PiiDensity` | 0.5 for format, 0.85 for checksum, 1 for labelled checksum. |
-| `SentimentPolarity` | Selected sentence category confidence, negated when its lowercased label contains `neg`. |
-| `IncivilityScore` | Maximum of the six abuse scores for sentence/chunk targets; block targets are omitted. |
-| `ChunkScore` | The chunk's `model_tokens`. |
-
-The current sentiment lane uses generic sentence categories and that
-label heuristic; it does not establish that a category model is a
-sentiment model or assign neutral polarity. Clients must not interpret
-arbitrary category labels as calibrated sentiment. This is a known
-semantic limitation, not a model-independent sentiment contract.
+| `TokenDensity` | Number of covering tokens. |
+| `EntityDensity` | Number of covering entities. |
+| `PiiDensity` | Number of covering PII mentions. |
+| `SentimentPolarity` | Positive minus negative when both labels exist; otherwise a signed best score for exact positive/pos or negative/neg labels. Other labels contribute no sentiment item. |
+| `IncivilityScore` | Maximum of the six abuse scores for sentence, chunk or structure-block targets. |
+| `EmotionIntensity` | Maximum emotion score for sentence/chunk targets. |
+| `ChunkScore` | Best non-abstained `Categories<Chunks>` score, not token count. |
 
 ## ProjectChunks
 
