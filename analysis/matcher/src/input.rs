@@ -379,14 +379,10 @@ fn flag_column(input: &Input<'_>, range: &Range<usize>, wanted: u32) -> Result<V
                 actual: numbers.spans.view(),
             });
         }
-        let (n_starts, n_ends) = numbers.spans.columns();
         for (b, i) in bits.iter_mut().zip(range.clone()) {
             let token = Span::new(input.starts[i], input.ends[i]);
-            // Number mentions are in text order and do not overlap, so
-            // the first one ending after the token's start is the only
-            // one it can overlap first.
-            let at = n_ends.partition_point(|&e| e <= token.start);
-            if at < n_starts.len() && Span::new(n_starts[at], n_ends[at]).overlaps(token) {
+            // Number mentions are in text order and do not overlap.
+            if !numbers.spans.overlapping_range(token).is_empty() {
                 *b |= Flag::Number.bit();
             }
         }
