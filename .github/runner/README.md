@@ -61,9 +61,11 @@ account (with `loginctl enable-linger` so they outlive the login):
       /opt/turbo-ci/supervise.sh x86-64-extra-1 turbo-ci,x86-64 \
       --cpus 8 --memory 16g --memory-swap 16g -e CARGO_BUILD_JOBS=8
 
-A transient unit is gone after a reboot. To keep one, give it a settings
-file and enable it as above (`systemctl enable --now
-turbo-ci-runner@extra-1`), then stop the transient one with
+A transient unit is gone after a reboot. To keep one, make it a system
+unit as in the steps above, which needs root: write
+/etc/turbo-ci/extra-1.env with its NAME, LABELS and DOCKER_OPTS, run
+`systemctl enable --now turbo-ci-runner@extra-1`, then, as the runner's
+account, stop the transient one with
 `systemctl --user stop turbo-ci-runner-extra-1`.
 
 Each runner takes one job at a time. A host whose runners leave its

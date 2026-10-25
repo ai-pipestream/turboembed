@@ -17,9 +17,11 @@ permissions:
 # A new push to a pull request cancels the run still going on its older
 # head. On main the run going is never cancelled, but only the newest
 # push waits behind it: GitHub keeps one pending run per group and
-# cancels the older one, whose commit the newer run also tests.
+# cancels the older one, whose commit the newer run also tests. The daily
+# run has a group of its own, so it never cancels a pending push run, whose
+# Windows lanes and main-only steps it does not run.
 concurrency:
-  group: ci-${{ github.event.pull_request.number || github.ref }}
+  group: ci-${{ github.event_name == 'schedule' && 'schedule-' || '' }}${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
@@ -104,7 +106,9 @@ jobs:
   test:
     name: test (shard ${{ matrix.shard }}/4)
     # Skipped on pushes to main: the merge queue ran this lane on the very
-    # commit main now points to, and direct pushes to main are refused.
+    # commit main now points to, and direct pushes to main are refused. A
+    # push that bypasses the queue is not tested by these lanes, nor by
+    # fuzz and parity, until the daily run.
     if: github.event_name != 'push'
     runs-on: ${{ github.event.pull_request.head.repo.fork != true && vars.TURBO_CI_LINUX && fromJSON(vars.TURBO_CI_LINUX) || 'ubuntu-24.04' }}
     strategy:
