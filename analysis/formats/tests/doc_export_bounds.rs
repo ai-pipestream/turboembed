@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
-use turbo_analysis::{Document, DocumentGraph, Key, Provenance, Span, Spans, ViewId, export, import};
-use turbo_analysis_layers::{PosTags, Sentences, TagSet, Tokens};
+use turbo_analysis::{
+    Document, DocumentGraph, Edge, Edges, Ix, IxRange, Key, Provenance, Span, Spans, ViewId, export, import,
+};
+use turbo_analysis_layers::{Entities, PosTags, Sentences, TagSet, Tokens};
 use turbo_formats::doc_export::{
-    ConlluFormatter, CsvFormatter, DocumentFormatter, ExportOffsetMode, FormatExportError, JsonLdFormatter,
-    TsvFormatter, WarcFormatter, parse_warc_records,
+    BratFormatter, ConlluFormatter, CsvFormatter, DocumentFormatter, ExportOffsetMode, FormatExportError,
+    JsonLdFormatter, TsvFormatter, WarcFormatter, parse_warc_records,
 };
 
 fn build_doc_with_default_tokens(text: &str, spans: &[(u32, u32)]) -> Document {
@@ -46,7 +48,8 @@ fn formatters_refuse_pos_tags_bound_to_named_gold_tokens() {
         )
         .unwrap();
 
-    let codec_reg = turbo_analysis_layers::export::codecs();
+    let mut codec_reg = turbo_analysis_layers::export::codecs();
+    codec_reg.register::<Edges<Entities, Entities>>();
     let graph_bytes = export(&doc_short, &codec_reg).unwrap().to_bytes().unwrap();
     let imported_short = import(&DocumentGraph::from_bytes(&graph_bytes).unwrap(), &codec_reg).unwrap();
 
@@ -124,4 +127,115 @@ fn parse_warc_records_rejects_overflowing_lengths_and_truncated_trailers() {
     let bad_trailer = b"WARC/1.1\r\nContent-Length: 2\r\n\r\nhiXXXX";
     let err = parse_warc_records(bad_trailer).unwrap_err();
     assert!(matches!(err, FormatExportError::InvalidData(_)), "expected InvalidData for bad trailer, got {err:?}");
+}
+
+#[test]
+fn formatters_refuse_mixed_endpoint_entity_relations_and_accept_matching_default() {
+    // Source "é 😀": token 0 is "é" (0..2), token 1 is "😀" (3..7).
+    let text = "é 😀";
+    let default_spans = [(0, 2), (3, 7)];
+    let mut doc_mixed = build_doc_with_default_tokens(text, &default_spans);
+
+    let ner_set = TagSet::new("ner", &["MISC"]);
+    let misc = ner_set.tag("MISC").unwrap();
+
+    // Default Entities[0] covers the emoji (3..7, token 1..2).
+    let mut def_ent_spans = Spans::<Entities>::new(ViewId::SOURCE);
+    def_ent_spans.push(Span::new(3, 7));
+    doc_mixed
+        .add(
+            &Key::DEFAULT,
+            Entities {
+                spans: def_ent_spans,
+                tokens: vec![IxRange::new(1, 2)],
+                kind: vec![misc],
+                kinds: Arc::clone(&ner_set),
+                score: vec![0.9],
+            },
+            Provenance::by("test"),
+        )
+        .unwrap();
+
+    // Named `gold` Entities[0] covers "é" (0..2, token 0..1).
+    let gold_ents_key = Key::<Entities>::named("gold");
+    let mut gold_ent_spans = Spans::<Entities>::new(ViewId::SOURCE);
+    gold_ent_spans.push(Span::new(0, 2));
+    doc_mixed
+        .add(
+            &gold_ents_key,
+            Entities {
+                spans: gold_ent_spans,
+                tokens: vec![IxRange::new(0, 1)],
+                kind: vec![misc],
+                kinds: Arc::clone(&ner_set),
+                score: vec![0.95],
+            },
+            Provenance::by("gold"),
+        )
+        .unwrap();
+
+    // Mixed-endpoint relation: `Edges::between(&Key::DEFAULT, &gold_ents_key, ...)`
+    // records bindings `[opennlp:entities, opennlp:entities@gold]`.
+    let rel_set = TagSet::new("rel", &["LINK"]);
+    let link = rel_set.tag("LINK").unwrap();
+    let mixed_edges = Edges::<Entities, Entities>::between(
+        Key::DEFAULT,
+        gold_ents_key,
+        Arc::clone(&rel_set),
+        [Edge::new(Ix::new(0), Ix::new(0), link, 1.0)],
+    );
+    let mut mixed_prov = Provenance::by("mixed-rel");
+    mixed_prov.reads = vec![Key::<Entities>::DEFAULT.id(), gold_ents_key.id()];
+    doc_mixed.add(&Key::DEFAULT, mixed_edges, mixed_prov).unwrap();
+
+    let mut codec_reg = turbo_analysis_layers::export::codecs();
+    codec_reg.register::<Edges<Entities, Entities>>();
+    let graph_bytes = export(&doc_mixed, &codec_reg).unwrap().to_bytes().unwrap();
+    let imported_mixed = import(&DocumentGraph::from_bytes(&graph_bytes).unwrap(), &codec_reg).unwrap();
+
+    for target_doc in [&doc_mixed, &imported_mixed] {
+        for fmt in [&BratFormatter as &dyn DocumentFormatter, &JsonLdFormatter, &WarcFormatter] {
+            let err = fmt.format_to_vec("mixed-rel", target_doc, ExportOffsetMode::Utf8).unwrap_err();
+            assert!(
+                matches!(&err, FormatExportError::InvalidData(msg) if msg.contains("bound to opennlp:entities@gold")),
+                "expected InvalidData naming opennlp:entities@gold from {}, got {err:?}",
+                fmt.descriptor().format_id
+            );
+        }
+    }
+
+    // Matching-default control: both endpoints bound to `Key::<Entities>::DEFAULT`.
+    let mut doc_default = build_doc_with_default_tokens(text, &default_spans);
+    let mut both_spans = Spans::<Entities>::new(ViewId::SOURCE);
+    both_spans.push(Span::new(0, 2));
+    both_spans.push(Span::new(3, 7));
+    doc_default
+        .add(
+            &Key::DEFAULT,
+            Entities {
+                spans: both_spans,
+                tokens: vec![IxRange::new(0, 1), IxRange::new(1, 2)],
+                kind: vec![misc, misc],
+                kinds: ner_set,
+                score: vec![0.9, 0.95],
+            },
+            Provenance::by("test"),
+        )
+        .unwrap();
+    let default_edges = Edges::<Entities, Entities>::between(
+        Key::DEFAULT,
+        Key::DEFAULT,
+        rel_set,
+        [Edge::new(Ix::new(0), Ix::new(1), link, 1.0)],
+    );
+    let mut default_prov = Provenance::by("default-rel");
+    default_prov.reads = vec![Key::<Entities>::DEFAULT.id(), Key::<Entities>::DEFAULT.id()];
+    doc_default.add(&Key::DEFAULT, default_edges, default_prov).unwrap();
+
+    let brat_out = BratFormatter.format_to_string("default-rel", &doc_default, ExportOffsetMode::Utf8).unwrap();
+    assert!(brat_out.contains("R1\tLINK Arg1:T1 Arg2:T2\n"), "unexpected brat output: {brat_out}");
+    let jsonld_out = JsonLdFormatter.format_to_string("default-rel", &doc_default, ExportOffsetMode::Utf8).unwrap();
+    assert!(jsonld_out.contains("\"kind\": \"LINK\""), "unexpected jsonld output: {jsonld_out}");
+    let warc_out = WarcFormatter.format_to_vec("default-rel", &doc_default, ExportOffsetMode::Utf8).unwrap();
+    assert!(!warc_out.is_empty());
 }

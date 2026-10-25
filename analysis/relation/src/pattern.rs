@@ -36,12 +36,8 @@ impl Step {
 
 use turbo_unicode::whitespace::is_unicode_blank as is_blank;
 
-/// The project `StringUtil.toLowerCase`: the simple
-/// per-character lowercase mapping (not the JDK's full string
-/// mapping, so U+0130 lowers to a plain `i`).
-fn java_lowercase(s: &str) -> String {
-    s.chars().map(turbo_unicode::java::to_lower_char).collect()
-}
+// Checks StringUtil's simple mapping without allocating the lowercase text.
+use turbo_unicode::java::lowercase_code_points_changes;
 
 fn split_steps(path: &str) -> Vec<&str> {
     path.split(char::is_whitespace).filter(|s| !s.is_empty()).collect()
@@ -129,7 +125,7 @@ impl RelationPattern {
                     "trigger must not contain whitespace, since it is matched against a single token: {trigger}"
                 ));
             }
-            if java_lowercase(trigger) != *trigger {
+            if lowercase_code_points_changes(trigger) {
                 return Err(format!("trigger must be lowercased, but was: {trigger}"));
             }
         }
