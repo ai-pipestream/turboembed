@@ -131,6 +131,11 @@ forward pass over the text, and `OffsetTable::column_to_utf16` and
 
 ## Views
 
+`NormalizationXray::between` inspects composed view alignments as complete
+byte partitions, with borrowed run text, recorded step provenance and
+typed UTF-16/code-point projection. See [Normalization x-ray](normalization-xray.md)
+for the source-byte domain and allocation contracts.
+
 The source text never changes. A step that changes text (Unicode
 normalization, dehyphenation) writes a new `View`, with an `Alignment`
 to its parent: the edits, in text order on both sides. Outside the edits
