@@ -20,14 +20,14 @@ const USAGE: &str = "turbo-bench postag --model <ONLP-BLPT file> --treebank <fil
                      [--repo <dir>] [--out <dir>]";
 
 /// A sentence of the treebank: its words and their UPOS tags.
-struct Sentence {
-    words: Vec<String>,
-    tags: Vec<String>,
+pub(crate) struct Sentence {
+    pub(crate) words: Vec<String>,
+    pub(crate) tags: Vec<String>,
 }
 
 /// The syntactic words of a CoNLL-U file, by sentence: a multiword
 /// token's range line and an empty node are not words.
-fn conllu(text: &str) -> Vec<Sentence> {
+pub(crate) fn conllu(text: &str) -> Vec<Sentence> {
     let mut out = Vec::new();
     let (mut words, mut tags) = (Vec::new(), Vec::new());
     for line in text.lines().chain(std::iter::once("")) {
@@ -65,7 +65,7 @@ fn options(args: &[String]) -> Result<BTreeMap<String, String>> {
 
 /// One timed pass: every sentence of `set` through `tagger`, `per_call`
 /// at a time. Its seconds, and each call's milliseconds.
-fn pass(tagger: &BilstmPosTagger, set: &[&Sentence], per_call: usize) -> Result<(f64, Vec<f64>)> {
+pub(crate) fn pass(tagger: &BilstmPosTagger, set: &[&Sentence], per_call: usize) -> Result<(f64, Vec<f64>)> {
     let mut calls = Vec::with_capacity(set.len().div_ceil(per_call));
     let start = Instant::now();
     for chunk in set.chunks(per_call) {

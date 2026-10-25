@@ -1997,6 +1997,7 @@ dependencies = [
  "turbo",
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-bundle",
  "turbo-grammar",
  "turbo-postag",
  "turbo-tokenize",
