@@ -332,7 +332,10 @@ impl Unigram {
         let mode = whitespace_mode(options)?;
         let path = res.fixture(&format!("{lexicon}.txt"))?;
         let lexicon = UnigramLexicon::read(&path, mode).map_err(|e| broken(format!("{}: {e}", path.display())))?;
-        let analyzer = Analyzer::builder().add(UnigramSegmenter::new(lexicon, mode)).build().map_err(broken)?;
+        let analyzer = Analyzer::builder()
+            .add(UnigramSegmenter::new(lexicon, mode).with_mode(turbo_tokenize::unigram::UnigramMode::OpenNlp))
+            .build()
+            .map_err(broken)?;
         Ok(Box::new(Unigram { analyzer }))
     }
 }

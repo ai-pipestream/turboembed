@@ -370,11 +370,19 @@ pub(super) static RULES: &[Rule] = &[
     rr("period_season", PERIOD, &[node(SEASON)], en::b_season),
     rr("period_rel_season", PERIOD, &[node(RELW), node(SEASON)], en::b_rel_season),
     rr("period_season_year", PERIOD, &[node(SEASON), opt_word("van"), node(YEAR)], en::b_season_year),
+    rr("period_year_to_date", PERIOD, &[word("jaar"), word("tot"), word("op"), word("heden")], |_, c| {
+        emit_date(c, DateSpec::YearToDate)
+    }),
+    rr("period_workweek", PERIOD, &[node(RELW), word("werkweek")], en::b_workweek),
+    rr("period_rest_of_week", PERIOD, &[word("rest"), word("van"), word("de"), word("week")], |_, c| {
+        emit_date(c, DateSpec::RestOfWeek)
+    }),
     // Holidays.
     rr("hol", HOL, &[node(HOLIDAY)], b_holiday),
     rr("hol_earth", HOL, &[word("dag"), word("van"), word("de"), word("aarde")], |_, c| hol(c, lexicon::EARTH)),
     rr("hol_labor", HOL, &[word("dag"), word("van"), word("de"), word("arbeid")], |_, c| hol(c, lexicon::LABOR)),
     rr("hol_black_friday", HOL, &[word("black"), word("friday")], |_, c| hol(c, lexicon::BLACK_FRIDAY)),
+    rr("hol_jubilee", HOL, &[word("jubilee"), word("day")], |_, c| hol(c, lexicon::JUNETEENTH)),
     rr("hol_good_friday", HOL, &[word("goede"), word("vrijdag")], |_, c| hol(c, lexicon::GOOD_FRIDAY)),
     rr("hol_christmas_1", HOL, &[word("eerste"), word("kerstdag")], |_, c| hol(c, lexicon::CHRISTMAS)),
     rr("hol_christmas_2", HOL, &[word("tweede"), word("kerstdag")], |_, c| hol(c, lexicon::BOXING_DAY)),

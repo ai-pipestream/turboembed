@@ -362,7 +362,8 @@ mod tests {
         let e =
             UnigramLexicon::parse_with_limit("\u{1c}5 3\nb 1\n".as_bytes(), WhitespaceMode::Legacy, 1).err().unwrap();
         assert_eq!(e.to_string(), "lexicon entry count exceeds safe limit of 1");
-        let s = super::super::UnigramSegmenter::new(lexicon, WhitespaceMode::Legacy);
+        let s = super::super::UnigramSegmenter::new(lexicon, WhitespaceMode::Legacy)
+            .with_mode(super::super::UnigramMode::OpenNlp);
         let mut out = Vec::new();
         s.segment("ab", &mut out);
         assert_eq!(out.len(), 2);
