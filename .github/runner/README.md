@@ -54,6 +54,23 @@ loaded on that host.
 Name runners by architecture, not by host name: runner names show in the
 public job logs.
 
+Runners can be added without root, as transient user units of the same
+account (with `loginctl enable-linger` so they outlive the login):
+
+    systemd-run --user --unit=turbo-ci-runner-extra-1 --property=Restart=always \
+      /opt/turbo-ci/supervise.sh x86-64-extra-1 turbo-ci,x86-64 \
+      --cpus 8 --memory 16g --memory-swap 16g -e CARGO_BUILD_JOBS=8
+
+A transient unit is gone after a reboot. To keep one, give it a settings
+file and enable it as above (`systemctl enable --now
+turbo-ci-runner@extra-1`), then stop the transient one with
+`systemctl --user stop turbo-ci-runner-extra-1`.
+
+Each runner takes one job at a time. A host whose runners leave its
+cores idle can take more runners; the `--cpus` and `--memory` of all its
+runners may add up to more than the host has, since few jobs use all of
+theirs at once.
+
 ## GPUs
 
 On a host with a GPU, add the device to `DOCKER_OPTS` and a label for
