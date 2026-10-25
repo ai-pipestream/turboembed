@@ -1,14 +1,16 @@
 //! Recall and speed of TurboQuant storage against the exact index.
 //!
 //! `cargo run --release -p turbo-vector-index --features turboquant
-//! --example quant_bench -- VECTORS QUERY_EVERY K [DUMP]`. VECTORS is a
+//! --example quant_bench -- VECTORS QUERY_EVERY K [DUMP] [ERROR_QUERIES]`. VECTORS is a
 //! text file of one vector a line, a token then its values separated by
 //! spaces (the GloVe text format), or `random:ROWS:DIM` for rows from a
 //! fixed LCG. Every QUERY_EVERY-th vector is held out as a query and the
 //! rest are indexed, all scaled to unit length and compared by cosine.
 //! With DUMP the indexed rows and the queries are also written there as
 //! little-endian `f32` files, `rows.f32` and `queries.f32`, for another
-//! program to time the same data. TurboQuant search runs on rayon's
+//! program to time the same data. The default error scan uses 20 queries;
+//! ERROR_QUERIES changes that diagnostic only, not recall or timing.
+//! TurboQuant search runs on rayon's
 //! pool; `RAYON_NUM_THREADS=1` times it on one thread, as the exact index
 //! runs.
 
@@ -81,7 +83,16 @@ fn main() {
     let flat: Vec<f32> = queries.iter().flatten().copied().collect();
     let exact = builder().build();
     let truth = exact.top_k_batch(&space, &flat, k).unwrap();
+    if let Some(dir) = args.get(3) {
+        let ids: Vec<u8> = truth.iter().flatten().flat_map(|h| h.row.to_le_bytes()).collect();
+        std::fs::write(format!("{dir}/truth.u32"), ids).unwrap();
+    }
     let time_queries = |run: &dyn Fn(&[f32]) -> u32| {
+        for _ in 0..3 {
+            for q in &queries {
+                std::hint::black_box(run(q));
+            }
+        }
         let mut times = Vec::new();
         let mut check = 0u32;
         for _pass in 0..3 {
@@ -94,6 +105,9 @@ fn main() {
         (median(times), check)
     };
     let time_batch = |run: &dyn Fn() -> usize| {
+        for _ in 0..3 {
+            std::hint::black_box(run());
+        }
         let times = (0..5)
             .map(|_| {
                 let t = Instant::now();
@@ -129,7 +143,7 @@ fn main() {
             let batch = time_batch(&|| index.top_k_batch(&space, &flat, k).unwrap().len());
             // The error of every estimated score of the first 20 queries.
             let (mut sum, mut squares, mut n) = (0.0f64, 0.0f64, 0.0f64);
-            for q in queries.iter().take(20) {
+            for q in queries.iter().take(args.get(4).map_or(20, |s| s.parse().unwrap())) {
                 for hit in index.top_k(&space, q, rows.len()).unwrap() {
                     let r = &rows[hit.row as usize];
                     let exact: f64 = q.iter().zip(r).map(|(&a, &b)| f64::from(a) * f64::from(b)).sum();
@@ -138,9 +152,10 @@ fn main() {
                 }
             }
             println!(
-                "turboquant bits={bits} calibrate={calibrate} bytes_per_row={:.1} encode_rows_per_s={:.0} query_ms={ms:.4} \
+                "turboquant bits={bits} calibrate={calibrate} bytes_per_row={:.1} compact_bytes_per_row={:.1} encode_rows_per_s={:.0} query_ms={ms:.4} \
                  batch_ms_per_query={batch:.4} recall@{k}={recall:.4} mean_error={:.6} mse={:.3e}",
                 index.to_bytes().len() as f64 / rows.len() as f64,
+                index.to_compact_bytes().len() as f64 / rows.len() as f64,
                 rows.len() as f64 / encode_s,
                 sum / n,
                 squares / n
