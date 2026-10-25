@@ -51,6 +51,7 @@ pub struct WordNetAnnotator<L: LexicalKnowledgeBase + Send + Sync + 'static> {
     options: WordNetOptions,
     expander: LexicalExpander<Arc<L>>,
     morphy: Option<MorphyLemmatizer<Arc<L>>>,
+    config: u64,
 }
 
 impl<L: LexicalKnowledgeBase + Send + Sync + 'static> WordNetAnnotator<L> {
@@ -74,12 +75,14 @@ impl<L: LexicalKnowledgeBase + Send + Sync + 'static> WordNetAnnotator<L> {
             .include_hyponyms(options.include_hyponyms)
             .max_expansions(options.max_expansions)?
             .build();
-        Ok(WordNetAnnotator { lexicon, lexicon_id: lexicon_id.into(), options, expander, morphy: None })
+        let config = configuration_hash(lexicon_id, options, None);
+        Ok(WordNetAnnotator { lexicon, lexicon_id: lexicon_id.into(), options, expander, morphy: None, config })
     }
 
     /// Lemmatizes tokens with Morphy and `exceptions` when the document
     /// has no lemma for them.
     pub fn with_morphy(mut self, exceptions: MorphyExceptions) -> Self {
+        self.config = configuration_hash(&self.lexicon_id, self.options, Some(&exceptions));
         self.morphy = Some(MorphyLemmatizer::new(Arc::clone(&self.lexicon), exceptions));
         self
     }
@@ -111,6 +114,29 @@ fn fail(detail: String) -> Error {
 /// The layer code of an expansion's relation.
 fn relation_code(source: &ExpansionSource) -> u8 {
     source.relation.map_or(SAME_SYNSET, WordNetRelation::layer_code)
+}
+
+// Resource contents are immutable; sort and hash them once during construction.
+fn configuration_hash(lexicon_id: &str, options: WordNetOptions, exceptions: Option<&MorphyExceptions>) -> u64 {
+    let o = &options;
+    let mut h = turbo_analysis::Fnv1a::new();
+    // Preserve the unframed lexicon id and eight-byte option widths,
+    // including the boolean, from the persisted configuration stream.
+    h.bytes(lexicon_id.as_bytes())
+        .u64(o.max_senses as u64)
+        .u64(o.hypernym_depth as u64)
+        .u64(u64::from(o.include_hyponyms))
+        .u64(o.max_expansions as u64);
+    if let Some(exceptions) = exceptions {
+        h.bytes(b"morphy-exceptions-v1");
+        exceptions.visit_entries(|pos, form, bases| {
+            h.u8(pos.code() as u8).str(form).u64(bases.len() as u64);
+            for base in bases {
+                h.str(base);
+            }
+        });
+    }
+    h.finish() ^ u64::from(exceptions.is_some())
 }
 
 impl<L: LexicalKnowledgeBase + Send + Sync + 'static> Annotator for WordNetAnnotator<L> {
@@ -188,15 +214,6 @@ impl<L: LexicalKnowledgeBase + Send + Sync + 'static> Annotator for WordNetAnnot
     }
 
     fn config_hash(&self) -> u64 {
-        let o = &self.options;
-        // The persisted stream encodes each option as eight little-endian bytes.
-        // Keep that width for the boolean too.
-        let mut h = turbo_analysis::Fnv1a::new();
-        h.bytes(self.lexicon_id.as_bytes())
-            .u64(o.max_senses as u64)
-            .u64(o.hypernym_depth as u64)
-            .u64(u64::from(o.include_hyponyms))
-            .u64(o.max_expansions as u64);
-        h.finish() ^ u64::from(self.morphy.is_some())
+        self.config
     }
 }
