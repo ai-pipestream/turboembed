@@ -27,6 +27,7 @@ pub mod shape;
 pub mod span;
 pub mod text;
 pub mod topk;
+pub mod xray;
 
 pub use alternatives::{Alternative, Alternatives, ModeSet, NBest, SplitMode};
 pub use analyzer::Analyzer;
@@ -40,7 +41,7 @@ pub use export::{
     LayerRef, NodeRef, ProvenanceRecord, Reader, SourceRecord, StatusRecord, ViewRecord, Writer, export, get_spans,
     get_tagset, import, layer_ref, node_ref, put_spans, put_tagset,
 };
-pub use graph::{Edge, Edges, Groups};
+pub use graph::{Edge, Edges, Groups, ReachScratch};
 pub use layer::{Anchor, Execution, Key, KeyId, Layer, LayerName, ModelRef, Provenance, Tag, TagSet};
 pub use markup::{MarkupError, MarkupText, TagKind, TagSpan, TextRun, TextRunKind};
 pub use offsets::{
@@ -51,6 +52,10 @@ pub use predicate::{
     retain_aligned_anchor,
 };
 pub use shape::{DocumentWindow, PreparedSegments, ShapeMember, ShapeSegment, WindowShape};
-pub use span::{FilterRule, FragmentError, Fragments, Ix, IxRange, Overlap, Span, Spans, TextSpans, filter_spans};
-pub use text::{Alignment, Edit, Side, ViewBuilder, ViewId};
+pub use span::{
+    ContainedJoin, FilterRule, FragmentError, Fragments, Ix, IxRange, Overlap, OverlappingJoin, Span, Spans, TextSpans,
+    filter_spans,
+};
+pub use text::{Alignment, AlignmentCursor, Edit, Side, ViewBuilder, ViewId};
 pub use topk::TopK;
+pub use xray::{NormalizationXray, ViewStepSummary, XrayProjection, XrayRun, XrayRunKind};

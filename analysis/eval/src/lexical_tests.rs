@@ -35,6 +35,8 @@ fn pipeline(lexical: Lexical) -> Pipeline {
         titles: Titles::Ignore,
         lexical: Some(lexical),
         hybrid: None,
+        cascade: None,
+        static_embedder: None,
     }
 }
 

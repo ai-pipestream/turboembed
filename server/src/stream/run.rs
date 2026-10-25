@@ -41,7 +41,7 @@ pub(crate) struct Doc {
 
 /// The computed payload for one document in a batch.
 pub(crate) enum RowPayload {
-    Vector(Vec<u8>),
+    Vector(prost::bytes::Bytes),
     Outcome(Box<ProtoOutcome>),
 }
 
@@ -137,15 +137,22 @@ pub(crate) fn run(
         Ok(v) => v,
         Err(f) => return fail(f, docs, permits),
     };
+    // One copy out of the result, which frees the session for the next
+    // batch; each document's vector is a slice of it.
     let row = dim as usize * 4;
+    if data.len() < docs.len() * row {
+        let f = Failure::new(TURBO_E_INTERNAL, 0, format!("{} bytes for {} rows of {row}", data.len(), docs.len()));
+        return fail(f, docs, permits);
+    }
+    let data = prost::bytes::Bytes::from(data);
     let mut permits = permits.into_iter();
-    let rows: Vec<Row> = data
-        .chunks_exact(row)
+    let rows: Vec<Row> = (0..docs.len())
+        .map(|i| data.slice(i * row..(i + 1) * row))
         .zip(docs)
         .map(|(c, d)| Row {
             seq: d.seq,
             id: d.id,
-            payload: RowPayload::Vector(c.to_vec()),
+            payload: RowPayload::Vector(c),
             room: d.room,
             window: permits.next().expect("one window permit per document"),
         })

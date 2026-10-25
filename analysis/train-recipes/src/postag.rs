@@ -3,9 +3,8 @@
 //!
 //! The recipe trains on the training documents of [`crate::masc::SPLIT`]
 //! with the factory defaults (the default feature generator descriptor,
-//! no tag dictionary) and the parameters the published UD 1.3 models were
-//! trained with ([`turbo_train_components::ud`]: GIS, 300 iterations,
-//! cutoff 5, 4 threads). Training uses no randomness, so the recipe has
+//! no tag dictionary) and the released MASC parameters: GIS, 300
+//! iterations, cutoff 5, 4 partitions. Training uses no randomness, so the recipe has
 //! no seed. The reference was trained otherwise: its manifest records
 //! OpenNLP 1.5.0, 100 iterations and cutoff 5, and it holds a tag
 //! dictionary (`tags.tagdict`) and no feature generator descriptor, so
@@ -76,7 +75,7 @@ use turbo_formats::masc::{MascCorpus, MascError, MascPosReader};
 use turbo_formats::sample::PosSample;
 use turbo_postag::PosTagFormat;
 use turbo_train::TrainingConfiguration;
-use turbo_train_components::{PosTaggerFactory, Stamp, postag, ud};
+use turbo_train_components::{PosTaggerFactory, Stamp, postag};
 use turbo_zoo::Sha256;
 
 use crate::card::{HeldOutCard, TagCount, TokenCoverage};
@@ -273,7 +272,7 @@ impl PosRecipe {
             return Err(Error::EmptySplit { what: "training part-of-speech sample" });
         }
         check_skipped(LeftOut::TrainingSentences, skipped, samples)?;
-        let params = ud::training_parameters();
+        let params = crate::masc::training_parameters();
         let mut config = TrainingConfiguration::default();
         let t = postag::train_pos_model_from_events(&events, &factory, &params, &mut config, Stamp::at(TIMESTAMP_MS))?;
         Ok(Trained {

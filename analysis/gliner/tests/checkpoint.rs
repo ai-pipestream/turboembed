@@ -7,15 +7,7 @@ use std::sync::Arc;
 
 use serde_json::Value;
 use turbo_gliner::{Decode, ExtractionSchema, Model, package::Manifest};
-use turbo_zoo::{Acceptances, Http, Index, Policy, Zoo};
-
-fn home() -> PathBuf {
-    let var = |k: &str| std::env::var_os(k).filter(|v| !v.is_empty()).map(PathBuf::from);
-    var("TURBO_ZOO_HOME")
-        .or_else(|| var("XDG_DATA_HOME").map(|x| x.join("turbo-zoo")))
-        .or_else(|| var("HOME").map(|h| h.join(".local/share/turbo-zoo")))
-        .expect("a zoo home")
-}
+use turbo_zoo::{Acceptances, Home, Http, Index, Policy, UserId, Zoo};
 
 fn load_or_fetch(env_var: &str, id: &str, tokenizer_id: &str, repo: &str, weights_file: &str) -> Arc<Model> {
     if let Some(root) = std::env::var_os(env_var).filter(|v| !v.is_empty()) {
@@ -23,15 +15,15 @@ fn load_or_fetch(env_var: &str, id: &str, tokenizer_id: &str, repo: &str, weight
     }
     static ONCE: std::sync::Mutex<()> = std::sync::Mutex::new(());
     let _held = ONCE.lock().unwrap_or_else(|e| e.into_inner());
-    let home = home();
+    let home = Home::from_env().expect("a zoo home");
     let index = Index::builtin();
-    let zoo = Zoo::new(Index::builtin(), home.join("artifacts"), Policy::default(), &Http);
-    let user = std::env::var("USER").unwrap_or_else(|_| "test".into()).parse().unwrap();
-    let accepted = || Acceptances::load(&home.join("acceptances.json"));
+    let zoo = Zoo::new(Index::builtin(), home.artifacts(), Policy::default(), &Http);
+    let user = UserId::from_env().unwrap_or_else(|_| "test".parse().unwrap());
+    let accepted = || Acceptances::load(&home.acceptances());
     let tok_dir = zoo.fetch_with(tokenizer_id, &user, accepted).unwrap().dir.clone();
     let ckpt_dir = zoo.fetch_with(id, &user, accepted).unwrap().dir.clone();
     let entry = index.get(id).unwrap();
-    let package = home.join("packages").join(id);
+    let package = home.dir().join("packages").join(id);
     if !package.join("gliner.json").exists() {
         std::fs::create_dir_all(package.parent().unwrap()).unwrap();
         let staging = package.with_extension(format!("tmp-{}", std::process::id()));

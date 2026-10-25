@@ -189,7 +189,7 @@ fn parse_scale(text: &str, end: usize) -> Scale {
 /// letter whose simple lowercase mapping is an ASCII letter matches it:
 /// `mİllion`, with U+0130, is `million`.
 fn scale_word(word: &str) -> Option<Multiplier> {
-    SCALE_WORDS.iter().find(|(w, _)| word.chars().map(java::to_lower_char).eq(w.chars())).map(|&(_, m)| m)
+    SCALE_WORDS.iter().find(|(w, _)| java::eq_lowercase_code_points(word, w)).map(|&(_, m)| m)
 }
 
 /// `NumberScan.continuesNumber`: whether a digit at byte `index` goes on

@@ -10,6 +10,7 @@ turbo-analysis-layers = { path = "../layers" }
 turbo-coref = { path = "../coref" }
 turbo-geo = { path = "../geo" }
 turbo-glossary-layers = { path = "../glossary-layers" }
+turbo-normalize = { path = "../normalize" }
 turbo-unicode = { path = "../unicode" }
 turbo-vector-index = { path = "../vector-index" }
 turbo-wordnet = { path = "../wordnet" }

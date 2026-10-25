@@ -226,3 +226,64 @@ fn the_binary_exits_on_a_load_failure() {
         .unwrap();
     assert_eq!(out.status.code(), Some(2));
 }
+
+#[tokio::test]
+async fn admin_starts_empty_and_bundle_dir_loads_sealed_bundles() {
+    use turbo_kserve::proto::result::analysis_service_client::AnalysisServiceClient;
+    use turbo_kserve::proto::result::{CapabilitiesRequest, LoadBundleRequest};
+
+    let at = "127.0.0.1:0".parse().unwrap();
+    // Without --admin, an empty model list is refused.
+    assert!(Server::start(at, Vec::new(), MAX, Serve::default()).await.is_err());
+
+    // With --admin, the server starts with zero models, answers Capabilities
+    // with an empty bundle list, and then accepts LoadBundle.
+    let s = Server::start(at, Vec::new(), MAX, Serve { admin: true, ..Serve::default() }).await.unwrap();
+    s.load().await.unwrap();
+    let mut k = client(&s).await;
+    assert!(k.server_ready(ServerReadyRequest {}).await.unwrap().into_inner().ready);
+    let mut ac = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
+    let caps = ac.capabilities(CapabilitiesRequest {}).await.unwrap().into_inner();
+    assert!(caps.bundles.is_empty());
+    let loaded = ac
+        .load_bundle(LoadBundleRequest {
+            name: String::new(),
+            bundle: tiny().to_str().unwrap().into(),
+            device: cpu(),
+            sessions: 1,
+            precision: 0,
+            max_batch: 0,
+            max_seq: 0,
+            select_device: false,
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    assert_eq!(loaded.capabilities.unwrap().name, NAME);
+    let caps = ac.capabilities(CapabilitiesRequest {}).await.unwrap().into_inner();
+    assert_eq!(caps.bundles.len(), 1);
+    assert_eq!(embed(&mut k, texts(&["hello"])).await.len(), 1);
+    s.stop().await;
+
+    // --bundle-dir and TURBO_KSERVE_BUNDLE_DIR discover testdata/tiny-bert-bundle
+    // from testdata/ and load it cleanly.
+    let testdata = tiny().parent().unwrap().to_str().unwrap().to_string();
+    let parsed = turbo_kserve::config::Args::parse_with(
+        ["--listen", "127.0.0.1:0", "--bundle-dir", &testdata].into_iter().map(String::from),
+        |_| None,
+    )
+    .unwrap();
+    assert!(parsed.models.iter().any(|m| m.name() == Some(NAME)));
+    let only_tiny: Vec<ModelConfig> = parsed
+        .models
+        .into_iter()
+        .filter(|m| m.name() == Some(NAME))
+        .map(|m| ModelConfig { device: Device::Index(cpu()), ..m })
+        .collect();
+    assert_eq!(only_tiny.len(), 1);
+    let s = Server::start(at, only_tiny, MAX, Serve::default()).await.unwrap();
+    s.load().await.unwrap();
+    let mut k = client(&s).await;
+    assert_eq!(embed(&mut k, texts(&["hello"])).await.len(), 1);
+    s.stop().await;
+}

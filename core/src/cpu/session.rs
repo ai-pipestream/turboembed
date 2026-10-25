@@ -257,7 +257,7 @@ pub(super) fn static_pages(var: Option<&str>) -> Result<bool, String> {
 /// turbo_session_desc.cpu_threads, when it is not 0; else TURBO_CPU_THREADS,
 /// `var`, when set; else one per processor this process may run on, which
 /// available_parallelism reads from its affinity mask and cgroup quota.
-pub(super) fn threads(field: u32, var: Option<&str>) -> Result<usize, Refusal> {
+pub(crate) fn threads(field: u32, var: Option<&str>) -> Result<usize, Refusal> {
     if field != 0 {
         return match field as usize {
             n @ 1..=MAX_THREADS => Ok(n),
@@ -283,15 +283,15 @@ pub(super) fn threads(field: u32, var: Option<&str>) -> Result<usize, Refusal> {
 
 /// The most threads a session may ask for, by either cpu_threads or
 /// TURBO_CPU_THREADS.
-pub(super) const MAX_THREADS: usize = 1024;
+pub(crate) const MAX_THREADS: usize = 1024;
 
 /// Why a session is refused: the status, the turbo_session_desc field it
 /// names (0 for none), and the message.
 #[derive(Debug, PartialEq)]
-pub(super) struct Refusal {
-    pub(super) code: i32,
-    pub(super) field: u32,
-    pub(super) message: String,
+pub(crate) struct Refusal {
+    pub(crate) code: i32,
+    pub(crate) field: u32,
+    pub(crate) message: String,
 }
 
 impl Refusal {

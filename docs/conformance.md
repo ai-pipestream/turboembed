@@ -77,3 +77,67 @@ tolerance.
 `a_fixed_shape_refuses_the_cases_it_cannot_hold` runs the same check on
 the small bundle with its artifact fixed at 32 tokens, so the capacity
 path is exercised on every build.
+
+## Other outputs
+
+The same run checks the outputs besides pooled vectors, on the same
+device and at the same precision (`core/tests/conformance/tasks.rs`).
+Token vectors and sparse weights are held, row by row, to the table
+above for the compute dtype the session reports. Rerank scores and QA
+logits are held to the score bounds below instead.
+
+| Check | Through | Against |
+|---|---|---|
+| `rerank_scores_match_upstream` | `turbo_rerank_write_pairs`, one pair a write and `max_batch` pairs a write | the transformers scores in `testdata/tiny-rerank-reference` |
+| `extractive_qa_logits_match_upstream` | `turbo::qa::ExtractiveQa` on the backend's first device, one window a run and `max_batch` windows a run | the transformers start and end logits in `testdata/tiny-qa-reference` |
+| `token_vectors_match_the_reference_encoder_and_pool_to_upstream` | `turbo_embed_write_ranges` with one range a token, `TURBO_NORMALIZE_NONE`, one row a write and full batches | each token: the f64 encoder over the bundle's weights (`PlainBert` in `core/tests/common`); their mean, normalized: the sentence-transformers vector of `testdata/tiny-bert-bundle` |
+| `sparse_weights_match_the_reference_encoder` | the token vectors above, through an MLM head and the max-log pool on the host, as `turbo-embed`'s sparse encoder reads them | the same head and pool over the f64 encoder's states |
+
+The small bundle has no trained MLM head, so the sparse check builds one
+on its hidden width with the decoder tied to the word embeddings; the
+head's arithmetic is held to numpy in `core/tests/mlm.rs`. The head and
+the pool run on the host, so the check covers the device's token states
+only, not a sparse path that runs on the device.
+
+### Scores
+
+A cosine over a run of scores does not see the run rescaled, and a
+rescale changes which QA answers win over the null score. So every
+rerank score and every QA start or end logit is bounded on its own: its
+difference from the reference's is at most the bound times the run's
+scale, the largest reference value in magnitude
+(`core/tests/conformance/scores.rs`).
+
+| Compute dtype | Largest difference, as a fraction of the scale |
+|---|---|
+| F32 | 1e-4 |
+| F16 | 1e-2 |
+| BF16 | 4e-2 |
+| I8 | 0.15 |
+
+The F32 bound is the one `core/tests/rerank.rs` and
+`core/tests/qa_inference.rs` hold the CPU to. The F16, BF16 and I8
+bounds are set from each format's precision and have not yet been
+measured on a device; a device run that fails one is to be looked at
+before the bound is changed.
+
+The decisions are checked too:
+
+- Rerank: every two pairs come out in the reference's order, unless the
+  reference's two scores are within twice the bound of each other,
+  where the bound cannot tell them apart.
+- Extractive QA: each case gives the reference's best span, or no
+  answer where the reference gives none, with `turbo::qa::decode` and
+  the default null threshold on both, unless the reference's best span
+  is within four times the bound of its second span or of the null
+  score (each is the sum of two logits).
+
+`--nocapture` prints how many pairs and cases were decided and how many
+were too close to say.
+
+A check is skipped, with the reason printed, when the device does not
+offer what it needs: `turbo_runtime_capability` reports the task
+`TURBO_CAP_UNSUPPORTED` (rerank, extractive QA), or
+`turbo_embed_write_ranges` is `TURBO_E_UNSUPPORTED` (token vectors,
+sparse). A skip passes; a check the device offers and fails is a
+failure.
