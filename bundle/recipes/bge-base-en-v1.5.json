@@ -16,7 +16,8 @@
       "pooling": "POOLING_CLS",
       "normalize": "NORMALIZE_L2",
       "max_seq": 512,
-      "max_batch": 64
+      "max_batch": 64,
+      "prefix_query": "Represent this sentence for searching relevant passages: "
     },
     "tokenizer": {
       "file": "tokenizer.json",
@@ -202,7 +203,7 @@
         }
       ],
       "produced_by": {
-        "container": "turbo-reference@sha256:994f2d1b0c61669a2cf3c3d89b1b6d58fe9b82b7560602801e0da69d83b5786a"
+        "container": "turbo-reference@sha256:2d74a1a9c964ac5c2940b9b8090ba67f78826bacb598a9f098239cb2e04a16fb"
       }
     }
   },
