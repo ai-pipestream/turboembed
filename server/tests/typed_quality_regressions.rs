@@ -45,7 +45,7 @@ fn fixture() -> Document {
         .unwrap();
         let mut layer = SpanQuality::new(view);
         for (i, (start, end)) in pairs.into_iter().enumerate() {
-            layer.push(Span::new(start, end), metrics((view.0 as usize + i) % 2 != 0));
+            layer.push(Span::new(start, end), metrics(!(view.0 as usize + i).is_multiple_of(2)));
         }
         doc.add(&Key::<SpanQuality>::named(name), layer, Provenance::by("quality:regions")).unwrap();
     }
@@ -113,7 +113,7 @@ async fn quality_round_trip(layer_id: &str) {
                         Some(Value::SpanQuality(m)) if layer_id == SpanQuality::ID => m,
                         other => panic!("wrong quality payload: {other:?}"),
                     };
-                    let expected = metrics((usize::from(!layer.instance.is_empty()) + i) % 2 != 0);
+                    let expected = metrics(!(usize::from(!layer.instance.is_empty()) + i).is_multiple_of(2));
                     check_metrics(actual, expected);
                     assert_eq!(ann.probability, None, "quality heuristics are not probabilities");
                     assert_eq!(ann.model_ref.as_ref(), layer.model_refs.first());
