@@ -71,6 +71,8 @@ fn suffix(out: &mut impl Write, offset: i16) -> fmt::Result {
 }
 /// Write an explicit offset on each timed endpoint. Duration is a local
 /// wall-clock duration, as in the unzoned grammar; it is not elapsed UTC time.
+/// An unresolved calendar date range (`Timex::UnresolvedRange`) has no clock
+/// endpoints and is written unchanged (`(s,e,PXD)`).
 pub fn write_timex(out: &mut impl Write, timex: Timex, offsets: Offsets) -> fmt::Result {
     match timex {
         Timex::Point(p) => {
@@ -84,6 +86,7 @@ pub fn write_timex(out: &mut impl Write, timex: Timex, offsets: Offsets) -> fmt:
             suffix(out, offsets.end)?;
             write!(out, ",{d})")
         }
+        Timex::UnresolvedRange(a, b) => write!(out, "({a},{b},PXD)"),
         Timex::Duration(d) => write!(out, "{d}"),
     }
 }

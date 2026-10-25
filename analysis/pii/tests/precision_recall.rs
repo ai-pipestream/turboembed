@@ -18,7 +18,9 @@ mod support;
 
 use std::collections::BTreeMap;
 
-use support::{rows, wide};
+use support::{layer, rows, wide};
+use turbo_analysis::Layer as _;
+use turbo_goldens::{escape::unescape, hex::to_hex, sha256};
 use turbo_pii::PiiKind;
 use turbo_pii::checksum::{base58, keccak, luhn, mod97};
 
@@ -307,3 +309,121 @@ fn precision_and_recall_on_the_synthetic_set() {
 /// docs/pii.md has the table.
 const PRECISION_FLOOR: f64 = 0.94;
 const RECALL_FLOOR: f64 = 1.0;
+
+/// One document of the human-written evaluation set (`tests/data/human-eval/`):
+/// id, whether the file is `turbo_goldens::escape`-encoded, file name, and
+/// expected UTF-8 SHA-256 digest.
+const HUMAN_DOCS: [(&str, bool, &str, &str); 8] = [
+    ("masc-att2", true, "masc-att2.escaped", "f8f2cfd3ca288dcb9728092365b5c6d315de7b8b399f9f34bfc1da15302750ee"),
+    ("masc-hsus4", true, "masc-hsus4.escaped", "88f06a9dc3c1338f01959b2599c0a3b6b10058c77a1c5e5811c5ff9f0aa0d700"),
+    ("masc-united1", true, "masc-united1.escaped", "f9f0a966371aadd4ea29166109700d0ff77cc9e6d2899da90b204d945756ffaf"),
+    ("masc-nyt6", true, "masc-nyt6.escaped", "d380182bfb346fb3e73bcf2189964dbab1adf1b269abe5b4c77ff0befba3bb2f"),
+    (
+        "masc-lsc-access",
+        true,
+        "masc-lsc-access.escaped",
+        "ec16a1e1e8d0deca3db0d6e25800e815e518441c29b7187b4bed6fd2773275f3",
+    ),
+    ("eip-55", false, "eip-55.txt", "5359191d91cf2c6e707bc4a790ef90155da0499e788b386805ba10022ef6b848"),
+    ("bip-173-350", false, "bip-173-350.txt", "a8d1e9b7621ff57df9a51e67fe636cd08cd7bd14ed1ef7014473a0402a9d14ae"),
+    (
+        "operational-memos",
+        false,
+        "operational-memos.txt",
+        "260fc461b579030279741b25a1b1c7f03c4fa5c3929fb5585bf12ee38dc3fe9c",
+    ),
+];
+
+fn human_written_set() -> Vec<Labelled> {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/human-eval");
+    let mut docs: Vec<(&'static str, Labelled)> = Vec::with_capacity(HUMAN_DOCS.len());
+    for &(id, escaped, file, expected_sha) in &HUMAN_DOCS {
+        let raw = std::fs::read_to_string(dir.join(file)).expect("human-eval document on disk");
+        let text = if escaped { unescape(raw.trim_end_matches('\n')).expect("valid escaped text") } else { raw };
+        assert_eq!(to_hex(&sha256(text.as_bytes())), expected_sha, "{id} SHA-256");
+        docs.push((id, Labelled { text, labels: Vec::new() }));
+    }
+    let labels_raw = std::fs::read_to_string(dir.join("labels.tsv")).expect("human-eval labels.tsv");
+    for line in labels_raw.lines().filter(|l| !l.trim().is_empty() && !l.starts_with('#')) {
+        let f: Vec<&str> = line.splitn(5, '\t').collect();
+        assert_eq!(f.len(), 5, "five columns in labels.tsv: {line:?}");
+        let start: u32 = f[1].parse().expect("start offset");
+        let end: u32 = f[2].parse().expect("end offset");
+        let kind = PiiKind::parse(f[3]).expect("a built-in kind").name();
+        let (_, doc) = docs.iter_mut().find(|(id, _)| *id == f[0]).expect("known document id");
+        assert_eq!(&doc.text[start as usize..end as usize], f[4], "{} {start}..{end}", f[0]);
+        let label = (start, end, kind);
+        assert!(!doc.labels.contains(&label), "duplicate label {label:?} in {}", f[0]);
+        doc.labels.push(label);
+    }
+    docs.into_iter().map(|(_, d)| d).collect()
+}
+
+#[test]
+fn precision_and_recall_on_human_written_text() {
+    let set = human_written_set();
+    let d = wide();
+    for l in &set {
+        let pii = layer(&d, &l.text);
+        pii.check().expect("layer is ordered");
+        for m in pii.mentions() {
+            assert!(!l.text[m.span.range()].is_empty());
+        }
+    }
+    let by_kind = measure(&set);
+    let mut total = Counts::default();
+    eprintln!("\nhuman-written evaluation set:");
+    eprintln!("{:<16} {:>5} {:>5} {:>5} {:>9} {:>7}", "kind", "tp", "fp", "fn", "precision", "recall");
+    for &kind in &PiiKind::ALL {
+        let name = kind.name();
+        let c = by_kind.get(name).expect("every built-in kind is represented in the human-written set");
+        assert!(c.tp > 0, "{name} has no true positive in the human-written set");
+        eprintln!(
+            "{name:<16} {:>5} {:>5} {:>5} {:>9.3} {:>7.3}",
+            c.tp,
+            c.fp,
+            c.fn_,
+            ratio(c.tp, c.tp + c.fp),
+            ratio(c.tp, c.tp + c.fn_)
+        );
+        total.tp += c.tp;
+        total.fp += c.fp;
+        total.fn_ += c.fn_;
+    }
+    let (precision, recall) = (ratio(total.tp, total.tp + total.fp), ratio(total.tp, total.tp + total.fn_));
+    eprintln!(
+        "{} documents, {} bytes; all: tp {} fp {} fn {}, precision {precision:.4}, recall {recall:.4}",
+        set.len(),
+        set.iter().map(|l| l.text.len()).sum::<usize>(),
+        total.tp,
+        total.fp,
+        total.fn_
+    );
+    let want_by_kind: [(&str, usize, usize, usize); 20] = [
+        ("jwt", 3, 0, 0),
+        ("aws-access-key", 2, 0, 0),
+        ("github-token", 3, 0, 0),
+        ("url-credential", 2, 0, 0),
+        ("email", 3, 2, 0),
+        ("iban", 4, 0, 0),
+        ("imei", 3, 0, 2),
+        ("card", 4, 2, 0),
+        ("btc-address", 8, 0, 0),
+        ("eth-address", 10, 0, 0),
+        ("mac", 3, 0, 0),
+        ("ipv6", 3, 0, 0),
+        ("ipv4", 3, 0, 0),
+        ("us-ssn", 3, 0, 0),
+        ("us-itin", 3, 0, 0),
+        ("uk-nhs", 3, 0, 0),
+        ("de-steuer-id", 3, 0, 0),
+        ("ca-sin", 3, 0, 1),
+        ("aba-routing", 3, 0, 0),
+        ("phone", 13, 5, 2),
+    ];
+    for (kind, tp, fp, fn_) in want_by_kind {
+        let c = by_kind.get(kind).unwrap();
+        assert_eq!((c.tp, c.fp, c.fn_), (tp, fp, fn_), "{kind}");
+    }
+    assert_eq!((total.tp, total.fp, total.fn_), (82, 9, 5));
+}

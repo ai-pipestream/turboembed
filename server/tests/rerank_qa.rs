@@ -399,7 +399,7 @@ async fn rerank_and_qa_refusals_report_status_code_and_field() {
 
     let mut a = AnalysisServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
     let load_err = a.load_bundle(common::load_req("bad-task", bad_bundle.0.to_str().unwrap(), 1, 0)).await.unwrap_err();
-    assert_eq!(load_err.code(), Code::Internal);
+    assert_eq!(refusal_field(&load_err), (Code::Unimplemented, 514, 0));
     assert!(load_err.message().contains("TASK_TOKEN_CLASSIFICATION"), "{load_err:?}");
     s.stop().await;
 }
