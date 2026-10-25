@@ -295,7 +295,12 @@ by the decision of 2026-09-26 that made `ctk` the default, F16 sums
 within a chunk (the `acc16-` tiles, the `f16k` and `ctk` tiles, whose
 chunk is a block's whole k, and the `mma128` attention's scores and
 output), and F32 FMAs for a model past F16's range.
-TF32 is in no precision's set until a decision adds it; a kernel of it
+TF32 is in no precision's set: by the decision of 2026-10-25 (#975) it
+stays out of MODEL. On an RTX 4080 SUPER it ran MODEL's GEMMs 9 to 17%
+faster on all-MiniLM-L6-v2 and bge-small, -base and -large, and kept
+MODEL's cosine bound, but it broke MODEL's largest absolute difference
+of 1e-4 on all-MiniLM-L6-v2 (1.437e-4) and bge-large (1.296e-4), and
+passed on the other two with less than 1.1x of margin. A kernel of it
 forced through `TURBO_CUDA_CHOICES` is `TURBO_E_UNSUPPORTED_OPTION`
 naming field 3 and the kernel, unless its experiment's switch is set for
 the session (`TURBO_CUDA_TF32=1` at MODEL), which widens that session's
@@ -319,7 +324,13 @@ precision's classes allow: at FASTEST on tensor cores `ctk`, `8w`,
 MODEL, `128x64/tf32` and `128x128/tf32` too. The other tiles, and the
 `f16k` tiles, are forced only. A GEMM whose tile a switch forces is not
 timed. Stream-K, attention, the LayerNorm and the pooling keep their
-defaults.
+defaults. Measured on an RTX 4080 SUPER (2026-10-25, #975), one knob at
+a time against the default at 32 x 256 dense rows (`le16k`) and 32
+short rows (`le1k`) on the same four models, no attention, LayerNorm
+or pooling choice beat the default by more than the noise at FASTEST.
+At MODEL, `ln=fused` was 0.6 to 1.1% faster at `le16k` on hidden 384
+and 21 to 23% slower at `le1k`, and `pool=columns` had no consistent
+sign, so timing them would buy about 1% in one bin.
 
 How: after the session's memory is allocated and cleared, under the
 context's lock, on its stream and its own buffers. Each bin, those
