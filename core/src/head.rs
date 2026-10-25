@@ -10,75 +10,8 @@ pub use crate::projection::ProjectionHead;
 use crate::status::{BUNDLE_NO_ARTIFACT, Error, INVALID_ARGUMENT, INVALID_SHAPE, Result, invalid};
 use crate::{TURBO_DTYPE_F16, TURBO_DTYPE_F32};
 
-/// A host-side linear layer `y = x * W^T + b`, with `weight` stored row-major
-/// as `[out_dim, in_dim]` and `bias` as `[out_dim]`.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Linear {
-    pub in_dim: usize,
-    pub out_dim: usize,
-    pub weight: Vec<f32>,
-    pub bias: Vec<f32>,
-}
-
-fn validate_linear_parts(what: &str, in_dim: usize, out_dim: usize, weight: &[f32], bias: &[f32]) -> Result<()> {
-    if in_dim == 0 || out_dim == 0 {
-        return Err(Error::new(INVALID_ARGUMENT, format!("{what} dimensions [{out_dim}, {in_dim}] must be positive")));
-    }
-    let Some(expected) = out_dim.checked_mul(in_dim) else {
-        return Err(Error::new(INVALID_SHAPE, format!("{what} dimensions [{out_dim}, {in_dim}] overflow usize")));
-    };
-    if weight.len() != expected {
-        return Err(Error::new(
-            INVALID_SHAPE,
-            format!("{what} weight has {} values, expected {expected} ({out_dim}x{in_dim})", weight.len()),
-        ));
-    }
-    if bias.len() != out_dim {
-        return Err(Error::new(INVALID_SHAPE, format!("{what} bias has {} values, expected {out_dim}", bias.len())));
-    }
-    if !weight.iter().all(|v| v.is_finite()) || !bias.iter().all(|v| v.is_finite()) {
-        return Err(Error::new(INVALID_ARGUMENT, format!("{what} contains non-finite weights or biases")));
-    }
-    Ok(())
-}
-
-impl Linear {
-    /// Construct a linear layer from row-major `weight` (`[out_dim, in_dim]`)
-    /// and `bias` (`[out_dim]`).
-    pub fn new(in_dim: usize, out_dim: usize, weight: Vec<f32>, bias: Vec<f32>) -> Result<Self> {
-        validate_linear_parts("linear layer", in_dim, out_dim, &weight, &bias)?;
-        Ok(Self { in_dim, out_dim, weight, bias })
-    }
-
-    /// Validate that dimensions, `weight` cardinality, `bias` length, and
-    /// finiteness hold on this layer.
-    pub fn validate(&self, what: &str) -> Result<()> {
-        validate_linear_parts(what, self.in_dim, self.out_dim, &self.weight, &self.bias)
-    }
-
-    /// Compute `out = x * W^T + b` for a single vector `x` of length `in_dim`.
-    pub fn apply(&self, x: &[f32], out: &mut [f32]) {
-        assert_eq!(x.len(), self.in_dim);
-        assert_eq!(out.len(), self.out_dim);
-        assert_eq!(self.bias.len(), self.out_dim);
-        assert_eq!(self.weight.len(), self.out_dim.checked_mul(self.in_dim).expect("linear weight size overflows"));
-        for (dst, (row, &b)) in out.iter_mut().zip(self.weight.chunks_exact(self.in_dim).zip(&self.bias)) {
-            let mut sum = b;
-            for (&w, &xi) in row.iter().zip(x) {
-                sum += w * xi;
-            }
-            *dst = sum;
-        }
-    }
-
-    /// Compute `out = tanh(x * W^T + b)` for a single vector `x` of length `in_dim`.
-    pub fn apply_tanh(&self, x: &[f32], out: &mut [f32]) {
-        self.apply(x, out);
-        for v in out.iter_mut() {
-            *v = v.tanh();
-        }
-    }
-}
+mod linear;
+pub use linear::Linear;
 
 /// A classification head loaded from a bundle's raw-weights artifact.
 #[derive(Debug, Clone, PartialEq)]
@@ -175,19 +108,34 @@ impl Head {
                 format!("logits output has {} values, expected {total} ({rows}x{num_labels})", out.len()),
             ));
         }
-        let mut pooled = if self.pooler.is_some() { vec![0.0f32; self.hidden] } else { Vec::new() };
-        for (state, dst) in states.chunks_exact(self.hidden).zip(out.chunks_exact_mut(num_labels)) {
-            if !state.iter().all(|v| v.is_finite()) {
-                return Err(Error::new(INVALID_ARGUMENT, "hidden state contains non-finite value"));
-            }
-            if let Some(pooler) = &self.pooler {
-                pooler.apply_tanh(state, &mut pooled);
-                self.classifier.apply(&pooled, dst);
-            } else {
-                self.classifier.apply(state, dst);
-            }
-        }
+        self.check_finite(states)?;
+        self.logits_batched(states, rows, out);
         Ok(())
+    }
+
+    /// Every state finite, checked before any product runs so a refused
+    /// call leaves the caller's output untouched.
+    fn check_finite(&self, states: &[f32]) -> Result<()> {
+        if states.iter().all(|v| v.is_finite()) {
+            Ok(())
+        } else {
+            Err(Error::new(INVALID_ARGUMENT, "hidden state contains non-finite value"))
+        }
+    }
+
+    /// The pooler (when the head has one) and the classifier over all
+    /// `rows` states at once, one packed product each.
+    fn logits_batched(&self, states: &[f32], rows: usize, out: &mut [f32]) {
+        if let Some(pooler) = &self.pooler {
+            let mut pooled = vec![0.0f32; rows * self.hidden];
+            pooler.apply_rows(states, rows, &mut pooled);
+            for v in &mut pooled {
+                *v = v.tanh();
+            }
+            self.classifier.apply_rows(&pooled, rows, out);
+        } else {
+            self.classifier.apply_rows(states, rows, out);
+        }
     }
 
     /// Compute softmax probabilities (`[n, num_labels]`) in `f64` for `n`
@@ -211,19 +159,11 @@ impl Head {
                 format!("probabilities output has {} values, expected {total} ({rows}x{num_labels})", out.len()),
             ));
         }
-        let mut row_logits = vec![0.0f32; num_labels];
-        let mut pooled = if self.pooler.is_some() { vec![0.0f32; self.hidden] } else { Vec::new() };
-        for (state, dst) in states.chunks_exact(self.hidden).zip(out.chunks_exact_mut(num_labels)) {
-            if !state.iter().all(|v| v.is_finite()) {
-                return Err(Error::new(INVALID_ARGUMENT, "hidden state contains non-finite value"));
-            }
-            if let Some(pooler) = &self.pooler {
-                pooler.apply_tanh(state, &mut pooled);
-                self.classifier.apply(&pooled, &mut row_logits);
-            } else {
-                self.classifier.apply(state, &mut row_logits);
-            }
-            softmax(&row_logits, dst)?;
+        self.check_finite(states)?;
+        let mut logits = vec![0.0f32; total];
+        self.logits_batched(states, rows, &mut logits);
+        for (row, dst) in logits.chunks_exact(num_labels).zip(out.chunks_exact_mut(num_labels)) {
+            softmax(row, dst)?;
         }
         Ok(())
     }
@@ -387,78 +327,5 @@ fn bf16_to_f32(h: u16) -> f32 {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn softmax_f64_in_place_is_stable_and_uniform_on_degenerate_rows() {
-        let mut v = [1000.0f64, 999.0, -1000.0];
-        softmax_f64_in_place(&mut v);
-        assert!((v.iter().sum::<f64>() - 1.0).abs() < 1e-12);
-        assert!(v[0] > 0.73 && v[0] < 0.74);
-        assert_eq!(v[2], 0.0);
-        let mut empty: [f64; 0] = [];
-        softmax_f64_in_place(&mut empty);
-        let mut nan = [f64::NAN, f64::NAN];
-        softmax_f64_in_place(&mut nan);
-        assert_eq!(nan, [0.5, 0.5]);
-    }
-
-    #[test]
-    fn sigmoid_is_stable_at_the_tails() {
-        assert_eq!(sigmoid(0.0), 0.5);
-        assert_eq!(sigmoid(-1000.0), 0.0);
-        assert_eq!(sigmoid(1000.0), 1.0);
-        assert!(sigmoid(-100.0).is_finite() && sigmoid(-100.0) > 0.0);
-        assert_eq!(sigmoid_f64(0.0), 0.5);
-        assert_eq!(sigmoid_f64(-1000.0), 0.0);
-        assert_eq!(sigmoid_f64(1000.0), 1.0);
-    }
-
-    #[test]
-    fn linear_and_head_reject_overflowing_misaligned_and_non_finite_inputs() {
-        let err = Linear::new(usize::MAX, 2, vec![], vec![0.0, 0.0]).unwrap_err();
-        assert_eq!(err.code, INVALID_SHAPE);
-
-        let cls = Linear::new(2, 2, vec![1.0, 0.0, 0.0, 1.0], vec![0.0, 0.0]).unwrap();
-        let head = Head {
-            kind: ClassifierKind::Sequence,
-            hidden: 2,
-            labels: vec!["neg".into(), "pos".into()],
-            pooler: Some(cls.clone()),
-            classifier: cls,
-        };
-        assert!(head.logits(&[1.0, 2.0]).is_ok());
-        assert_eq!(head.logits(&[f32::NAN, 1.0]).unwrap_err().code, INVALID_ARGUMENT);
-
-        let zero_hidden = Head { hidden: 0, ..head.clone() };
-        assert_eq!(zero_hidden.logits(&[]).unwrap_err().code, INVALID_ARGUMENT);
-
-        let bad_cls = Head { hidden: 3, ..head.clone() };
-        assert_eq!(bad_cls.logits(&[1.0, 2.0, 3.0]).unwrap_err().code, INVALID_SHAPE);
-
-        // Short and long mutated classifier/pooler weight and bias storage are rejected
-        // across logits, logits_into, probabilities, and probabilities_into.
-        let mut short_cls = head.clone();
-        short_cls.classifier.weight.clear();
-        let mut out_f32 = [0.0f32; 2];
-        let mut out_f64 = [0.0f64; 2];
-        assert_eq!(short_cls.logits(&[1.0, 2.0]).unwrap_err().code, INVALID_SHAPE);
-        assert_eq!(short_cls.logits_into(&[1.0, 2.0], &mut out_f32).unwrap_err().code, INVALID_SHAPE);
-        assert_eq!(short_cls.probabilities(&[1.0, 2.0]).unwrap_err().code, INVALID_SHAPE);
-        assert_eq!(short_cls.probabilities_into(&[1.0, 2.0], &mut out_f64).unwrap_err().code, INVALID_SHAPE);
-
-        let mut long_cls = head.clone();
-        long_cls.classifier.weight.extend([1.0, 1.0]);
-        long_cls.classifier.bias.push(0.0);
-        assert_eq!(long_cls.logits(&[1.0, 2.0]).unwrap_err().code, INVALID_SHAPE);
-        assert_eq!(long_cls.logits_into(&[1.0, 2.0], &mut out_f32).unwrap_err().code, INVALID_SHAPE);
-        assert_eq!(long_cls.probabilities(&[1.0, 2.0]).unwrap_err().code, INVALID_SHAPE);
-        assert_eq!(long_cls.probabilities_into(&[1.0, 2.0], &mut out_f64).unwrap_err().code, INVALID_SHAPE);
-
-        let mut bad_pooler = head;
-        bad_pooler.pooler.as_mut().unwrap().bias.pop();
-        assert_eq!(bad_pooler.logits(&[1.0, 2.0]).unwrap_err().code, INVALID_SHAPE);
-        assert_eq!(bad_pooler.probabilities(&[1.0, 2.0]).unwrap_err().code, INVALID_SHAPE);
-    }
-}
+#[path = "head/tests.rs"]
+mod tests;

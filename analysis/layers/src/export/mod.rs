@@ -16,8 +16,8 @@
 
 use turbo_analysis::Evidence;
 use turbo_analysis::export::{
-    Codecs, ExportCx, ExportError, ImportCx, LayerCodec, LayerRef, NodeRef, Reader, Writer, get_spans, get_tagset,
-    put_spans, put_tagset,
+    Codecs, ExportCx, ExportError, ImportCx, LayerCodec, LayerRef, NodeRef, Reader, SliceCx, SlicedBody, Writer,
+    get_spans, get_spans_raw, get_tagset, put_spans, put_spans_raw, put_tagset, slice_spans_payload,
 };
 use turbo_analysis::{
     Alternatives, Document, Edges, Groups, Ix, IxRange, Key, Layer, ModelRef, NBest, Tag, TagSet, View,
@@ -92,6 +92,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Dependencies<Words>>()
         .register::<Entities>()
         .register::<crate::DocumentEntities>()
+        .register::<crate::EntitySalience>()
         .register::<ChunkTags>()
         .register::<PhraseChunks>()
         .register::<Boundaries>()

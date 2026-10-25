@@ -7,19 +7,31 @@
 
 mod common;
 
-use common::{Rng, eu, found, pairs, us};
+use common::{Rng, found_with_parity, pairs};
 use turbo_numeric::scan::{base_char_before, boundary_before, continues_number, sign_boundary_before, word_end};
-use turbo_numeric::{DecimalRef, Multiplier, NumberNotation, parse};
+use turbo_numeric::{DecimalRef, Multiplier, NumberNotation, parse_with_parity};
 
 use NumberNotation::{LatinEu, LatinUs};
 
 const NOTATIONS: [NumberNotation; 2] = [LatinUs, LatinEu];
 
-/// The value `parse` reads at the start of `text`, and its end.
+/// The value `parse_with_parity(..., true)` reads at the start of `text`, and its end.
 fn value(text: &str, apply_scale: bool, notation: NumberNotation) -> Option<(String, usize)> {
     let mut digits = String::new();
-    let r = parse(text, 0, apply_scale, notation, &mut digits)?;
+    let r = parse_with_parity(text, 0, apply_scale, notation, true, &mut digits)?;
     Some((DecimalRef { negative: false, digits: &digits, scale: r.scale.into() }.to_plain_string(), r.end))
+}
+
+fn found(text: &str, notation: NumberNotation, apply_scale: bool) -> Vec<(String, String)> {
+    found_with_parity(text, notation, apply_scale, true)
+}
+
+fn us(text: &str) -> Vec<(String, String)> {
+    found(text, LatinUs, true)
+}
+
+fn eu(text: &str) -> Vec<(String, String)> {
+    found(text, LatinEu, true)
 }
 
 // NumberNotationTest
@@ -169,7 +181,7 @@ fn generated_decimals_keep_their_exact_value_and_scale() {
             assert_eq!(value(&text, false, n), Some((expected.clone(), text.len())), "{text}");
             let mut digits = String::new();
             let scaled = format!("{text}M");
-            let r = parse(&scaled, 0, true, n, &mut digits).unwrap();
+            let r = parse_with_parity(&scaled, 0, true, n, true, &mut digits).unwrap();
             assert_eq!(r.end, text.len() + 1);
             assert_eq!(r.multiplier, Multiplier::Million);
             // The value times a million keeps the four fraction digits.

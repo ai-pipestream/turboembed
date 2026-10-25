@@ -110,8 +110,8 @@ fn head_tensors(l: &head::Linear) -> [backend::turbo_backend_tensor; 2] {
         };
     let (out, hidden) = (l.out_dim as u64, l.in_dim as u64);
     [
-        f32_tensor(c"classifier_weight", &l.weight, [out, hidden], 2),
-        f32_tensor(c"classifier_bias", &l.bias, [out, 0], 1),
+        f32_tensor(c"classifier_weight", l.weight(), [out, hidden], 2),
+        f32_tensor(c"classifier_bias", l.bias(), [out, 0], 1),
     ]
 }
 

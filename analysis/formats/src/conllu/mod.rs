@@ -191,6 +191,9 @@ pub struct ConlluReader<'a> {
     lines: Lines<'a>,
 }
 
+/// Type alias for [`ConlluReader`], matching OpenNLP's `ConlluStream`.
+pub type ConlluStream<'a> = ConlluReader<'a>;
+
 impl<'a> ConlluReader<'a> {
     pub fn new(source: &'a str) -> Result<ConlluReader<'a>, FormatError> {
         Ok(ConlluReader { lines: Lines::new(source)? })

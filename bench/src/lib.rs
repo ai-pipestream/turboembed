@@ -17,6 +17,7 @@ pub mod qa;
 pub mod ranges;
 pub mod rerank;
 pub mod statics;
+pub mod tag;
 pub mod tei;
 pub mod tensorrt;
 pub mod throughput;
