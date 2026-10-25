@@ -42,7 +42,10 @@ fn config<'g>(golden: &'g Golden, key: &str) -> &'g str {
 fn check(dir: &str, notation: NumberNotation, name: &str) -> usize {
     let ids = inputs();
     assert!(!ids.is_empty(), "no inputs in the quantity set");
-    let analyzer = Analyzer::builder().add(QuantityExtractor::new(notation)).build().expect("the analyzer");
+    let analyzer = Analyzer::builder()
+        .add(QuantityExtractor::new(notation).with_opennlp_parity(true))
+        .build()
+        .expect("the analyzer");
     let mut found = 0;
     let mut failures = Vec::new();
     for id in &ids {

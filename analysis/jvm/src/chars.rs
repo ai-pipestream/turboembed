@@ -1,5 +1,4 @@
-//! Java's view of text: UTF-16 code units, `String.compareTo` order and
-//! `Character.isWhitespace`.
+//! Java's view of text: UTF-16 code units and `String.compareTo` order.
 //!
 //! The analysis crates hold text as UTF-8 and every offset as a UTF-8 byte
 //! offset. Java code sees the same text as a sequence of `char` values,
@@ -117,14 +116,7 @@ impl Iterator for Utf16Units<'_> {
 
 impl FusedIterator for Utf16Units<'_> {}
 
-/// The number of UTF-16 code units in `text`: Java's `String.length()` of
-/// the same text. Counts from the bytes without decoding or allocating.
-pub fn utf16_len(text: &str) -> usize {
-    // Every character starts with one byte that is not a continuation byte
-    // (10xxxxxx), and a character of four bytes (lead byte 11110xxx) is two
-    // units.
-    text.as_bytes().iter().map(|&b| usize::from(b & 0xC0 != 0x80) + usize::from(b >= 0xF0)).sum()
-}
+pub use turbo_unicode::utf16::utf16_len;
 
 /// Exactly Java's `a.compareTo(b)`: the difference of the first UTF-16 code
 /// units that differ, or else the difference of the lengths in UTF-16 code
@@ -170,30 +162,6 @@ pub fn compare_to(a: &str, b: &str) -> i32 {
 /// Java's `String.compareTo` order as an [`Ordering`]; see [`compare_to`].
 pub fn compare(a: &str, b: &str) -> Ordering {
     compare_to(a, b).cmp(&0)
-}
-
-/// Java's `Character.isWhitespace(int)` for the Unicode version of JDK 21
-/// (Unicode 15.0).
-///
-/// A character is whitespace when it is a space, line or paragraph
-/// separator (general category Zs, Zl or Zp) other than the no-break spaces
-/// U+00A0, U+2007 and U+202F, or one of U+0009 to U+000D and U+001C to
-/// U+001F. The separators of Unicode 15.0 are U+0020, U+00A0, U+1680,
-/// U+2000 to U+200A, U+202F, U+205F and U+3000 (Zs), U+2028 (Zl) and U+2029
-/// (Zp). The test vectors hold the JVM's answer for every code point.
-pub fn is_java_whitespace(c: char) -> bool {
-    matches!(
-        c,
-        '\u{0009}'..='\u{000D}'
-            | '\u{001C}'..='\u{0020}'
-            | '\u{1680}'
-            | '\u{2000}'..='\u{2006}'
-            | '\u{2008}'..='\u{200A}'
-            | '\u{2028}'
-            | '\u{2029}'
-            | '\u{205F}'
-            | '\u{3000}'
-    )
 }
 
 #[cfg(test)]
@@ -279,19 +247,6 @@ mod tests {
             for b in &strings {
                 assert_eq!(compare_to(a, b), naive_compare_to(a, b), "{a:?} vs {b:?}");
             }
-        }
-    }
-
-    #[test]
-    fn whitespace_follows_the_java_definition() {
-        for c in ['\t', '\n', '\u{B}', '\u{C}', '\r', '\u{1C}', '\u{1F}', ' ', '\u{2000}', '\u{2028}', '\u{3000}'] {
-            assert!(is_java_whitespace(c), "{c:?}");
-        }
-        // The no-break spaces are space separators that Java excludes.
-        // U+0085 is whitespace to Rust but not to Java, and U+180E was a
-        // space separator before Unicode 6.3.
-        for c in ['\u{A0}', '\u{2007}', '\u{202F}', '\u{85}', '\u{180E}', '\u{200B}', 'a'] {
-            assert!(!is_java_whitespace(c), "{c:?}");
         }
     }
 }

@@ -22,6 +22,15 @@ usage:
       per second and call latency at 1, 8, 32 and 128 sentences per call
       and by sentence length, interleaved over --rounds (default 3); write
       the record to <repo>/benchmarks/records/postag (needs --features postag)
+  turbo-bench tag --model <bundle-dir | ONLP-BLPT file> --corpus <file.conllu>
+                  [--device cpu] [--precision exact|model|fastest]
+                  [--sentences-per-call <n>] [--rounds <n>] [--cpus <list>]
+                  [--repo <dir>] [--out <dir>]
+      one tier of the BiLSTM-CRF tagger on a CoNLL-U corpus: accuracy, and
+      words per second and call p50/p99 cold (the first pass of a freshly
+      loaded tagger) and warm (the median of --rounds passes, default 3);
+      write the record to <repo>/benchmarks/records/tag (needs --features
+      postag)
   turbo-bench lattice [--dictionaries <dir>] [--rounds <n>] [--readings]
                      [--cpus <list>] [--repo <dir>] [--out <dir>]
                      [ipadic|ko-dic|unidic ...]
@@ -45,6 +54,15 @@ usage:
       questions each (default 256), --batch questions per call (default
       8), --max-batch windows per run (default the model's), precision
       exact by default; write the record to <repo>/benchmarks/qa
+  turbo-bench rerank --bundle <dir> --questions <squad.json>
+                     (--tei-image <name@sha256:..> --tei-model <dir> | --no-tei)
+                     [--device <d>] [--precision <p>] [--requests <n>]
+                     [--passages <n>] [--warmup <n>] [--iterations <n>]
+                     [--repo <dir>] [--out <dir>]
+      cross-encoder pairs per second on one device: --requests queries
+      (default 64), each with --passages passages that fit one window
+      (default 16), and TEI's /rerank on the same pairs, in float32;
+      write the record to <repo>/benchmarks/rerank
   turbo-bench static --bundle <dir> --texts <name=file.json,...>
                      (--peers <dir> | --no-peers) [--precision <p>]
                      [--batches <n,...>] [--repo <dir>] [--out <dir>]

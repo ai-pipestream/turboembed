@@ -3,7 +3,7 @@
 
 use turbo_analysis::Span;
 use turbo_glossary_layers::{EntryError, Glossary, is_blank, trim_blank};
-use turbo_unicode::java::to_lower_char;
+use turbo_unicode::java::lowercase_code_points as java_lower;
 
 use super::xml::{Event, Start, Xml};
 use super::{GlossaryFile, decode};
@@ -69,11 +69,6 @@ pub struct TbxReader {
     /// The tag, lowercased, and the same followed by a hyphen.
     language: String,
     prefix: String,
-}
-
-/// Lowercases `s` per character, as `StringUtil.toLowerCase` does.
-fn java_lower(s: &str) -> String {
-    s.chars().map(to_lower_char).collect()
 }
 
 impl TbxReader {

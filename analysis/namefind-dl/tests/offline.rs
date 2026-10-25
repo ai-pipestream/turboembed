@@ -18,7 +18,7 @@ use turbo::tokenizer::{Encode, Tokenizer};
 use turbo_analysis::{Analyzer, Annotator, Bound, Document, Key, Provenance, Span, Spans, View, ViewId};
 use turbo_analysis_embed::EncoderOptions;
 use turbo_analysis_layers::{Entities, Sentences, Tokens};
-use turbo_namefind_dl::decode::label_probability;
+use turbo_namefind_dl::decode::{Decoding, label_probability, name_words};
 use turbo_namefind_dl::{NameFinderDl, NameFinderDlOptions};
 
 const BIAS: [f32; 3] = [0.0, 2.0, 0.0];
@@ -88,9 +88,14 @@ fn pieces(text: &str) -> Vec<(usize, usize)> {
     spans.iter().filter(|s| s[0] < s[1]).map(|s| (s[0] as usize, s[1] as usize)).collect()
 }
 
+/// A finder decoding every piece, as `NameFinderDL` does.
 fn finder(split: usize, overlap: usize, max_seq: u32, max_batch: u32) -> NameFinderDl {
+    finder_by(Decoding::Piece, split, overlap, max_seq, max_batch)
+}
+
+fn finder_by(decoding: Decoding, split: usize, overlap: usize, max_seq: u32, max_batch: u32) -> NameFinderDl {
     let encoder = EncoderOptions { max_seq, max_batch, ..EncoderOptions::default() };
-    NameFinderDl::open(&bundle(), &NameFinderDlOptions { encoder, split, overlap }).unwrap()
+    NameFinderDl::open(&bundle(), &NameFinderDlOptions { encoder, split, overlap, decoding }).unwrap()
 }
 
 const TEXT: &str = "Hello world, this is an unbelievable test of the finder's chunks.";
@@ -117,7 +122,7 @@ fn every_piece_once_however_the_text_is_cut() {
 fn options_that_cannot_cut_are_errors() {
     let open = |split, overlap, max_seq| {
         let encoder = EncoderOptions { max_seq, ..EncoderOptions::default() };
-        NameFinderDl::open(&bundle(), &NameFinderDlOptions { encoder, split, overlap })
+        NameFinderDl::open(&bundle(), &NameFinderDlOptions { encoder, split, overlap, ..Default::default() })
     };
     assert!(open(5, 5, 0).is_err());
     assert!(open(0, 0, 0).is_err());
@@ -209,6 +214,69 @@ fn the_configuration_hash_follows_the_row_length() {
     assert_ne!(hash(250, 50, 0), hash(250, 49, 0));
     assert_ne!(hash(250, 50, 0), hash(249, 50, 0));
     assert_eq!(hash(250, 50, 16), hash(250, 50, 16));
+    let word = finder_by(Decoding::Word, 250, 50, 0, 0).config_hash();
+    assert_ne!(word, hash(250, 50, 0));
+}
+
+#[test]
+fn by_default_each_word_is_labelled_by_its_first_piece() {
+    // Every piece is `B-PER`: by words, each word is one entity, whole,
+    // where by pieces each piece is. Its words part punctuation from a
+    // name: `world` and `,`, `finder` and `'s`, `chunks` and `.`.
+    let want = name_words(TEXT);
+    assert!(want.contains(&(6, 11)) && want.contains(&(11, 12)));
+    assert!(want.contains(&(49, 55)) && want.contains(&(55, 57)));
+    assert!(pieces(TEXT).len() > want.len());
+    let p = label_probability(&BIAS, 1);
+    let f = NameFinderDl::open(&bundle(), &NameFinderDlOptions::default()).unwrap();
+    let got = f.find(&[(TEXT, vec![(0, TEXT.len())])]).unwrap();
+    assert_eq!(got[0].iter().map(|c| (c.start, c.end)).collect::<Vec<_>>(), want);
+    assert!(got[0].iter().all(|c| c.kind == 0 && (c.probability - p).abs() < 1e-12));
+}
+
+#[test]
+fn a_word_across_a_row_boundary_is_one_entity() {
+    // The word of most pieces is more than a row of 2 pieces holds, so
+    // its pieces fall in two or more rows; it is still one entity.
+    let text = "Hello world, a zqxjkvbw test of the finder's chunks.";
+    let all = pieces(text);
+    let count = |&(a, b): &(usize, usize)| all.iter().filter(|&&(s, e)| a <= s && e <= b).count();
+    let (a, b) = name_words(text).into_iter().max_by_key(count).unwrap();
+    assert!(count(&(a, b)) > 2, "{:?} is {} pieces", &text[a..b], count(&(a, b)));
+    let want = name_words(text);
+    for (split, overlap, max_seq, max_batch) in [(250, 50, 4, 0), (250, 50, 5, 1), (3, 1, 4, 2), (4, 2, 5, 0)] {
+        let f = finder_by(Decoding::Word, split, overlap, max_seq, max_batch);
+        let got = f.find(&[(text, vec![(0, text.len())]), (text, vec![(a, b)])]).unwrap();
+        let spans = |i: usize| got[i].iter().map(|c| (c.start, c.end)).collect::<Vec<_>>();
+        assert_eq!(spans(0), want, "split {split}, overlap {overlap}, max_seq {max_seq}");
+        assert_eq!(spans(1), [(a, b)]);
+    }
+}
+
+#[test]
+fn a_name_keeps_apart_from_the_punctuation_and_ideographs_around_it() {
+    // The words are CoNLL's, not the whitespace's: a name behind a
+    // bracket or a quote is still the name's first piece, a name before a
+    // full stop or comma ends before it, an abbreviation keeps its full
+    // stops, and ideographs unspaced are a word each.
+    let f = NameFinderDl::open(&bundle(), &NameFinderDlOptions::default()).unwrap();
+    for (t, name) in [
+        ("(Paris)", (1, 6)),
+        ("\"Paris\" said", (1, 6)),
+        ("Macron.", (0, 6)),
+        ("Merkel, too", (0, 6)),
+        ("Merkel's", (0, 6)),
+        ("\u{6771}\u{4eac}", (3, 6)),
+        ("U.N. troops", (0, 4)),
+        ("1. Jesper Ronnback", (0, 2)),
+        ("C. Spearman", (0, 2)),
+        ("Mr. Smith.", (0, 3)),
+    ] {
+        let got = f.find(&[(t, vec![(0, t.len())])]).unwrap();
+        let spans: Vec<_> = got[0].iter().map(|c| (c.start, c.end)).collect();
+        assert!(spans.contains(&name), "{t:?}: {spans:?}");
+        assert_eq!(spans, name_words(t), "{t:?}");
+    }
 }
 
 #[test]

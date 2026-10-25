@@ -9,8 +9,11 @@ pub(super) fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
     let load = backend::offered!(b, model_load)?;
     let release = backend::offered!(b, model_release)?;
     let bundle = bundle::Bundle::open(Path::new(path))?; // rules 1 to 4
-    if bundle.manifest.rerank.is_some() && b.name() != "cpu" {
-        return Err(Error::new(status::UNSUPPORTED_TASK, "rerank requires the CPU backend"));
+    if bundle.manifest.rerank.is_some() && !b.runs_rerank() {
+        return Err(Error::new(
+            status::UNSUPPORTED_TASK,
+            format!("rerank has run on the CPU and CUDA only, not the {} backend", b.name()),
+        ));
     }
     if bundle.manifest.qa.is_some() && backend::offered!(b, embed_write_ranges).is_err() {
         return Err(Error::new(
@@ -108,8 +111,8 @@ fn head_tensors(l: &head::Linear) -> [backend::turbo_backend_tensor; 2] {
         };
     let (out, hidden) = (l.out_dim as u64, l.in_dim as u64);
     [
-        f32_tensor(c"classifier_weight", &l.weight, [out, hidden], 2),
-        f32_tensor(c"classifier_bias", &l.bias, [out, 0], 1),
+        f32_tensor(c"classifier_weight", l.weight(), [out, hidden], 2),
+        f32_tensor(c"classifier_bias", l.bias(), [out, 0], 1),
     ]
 }
 
@@ -167,10 +170,15 @@ pub unsafe extern "C" fn turbo_model_get_info(
                 sized(size, want, "turbo_model_info")?;
             }
             let mut info = m.inner.info;
-            if info.task == TURBO_TASK_RERANK {
-                info.dim = 0;
+            // turbo.h: the fields marked embed are 0 for another task. A
+            // rerank row is one score, so its dim is 0 too; an extractive
+            // QA row is a token's hidden state, and its dim stays.
+            if info.task != TURBO_TASK_EMBED {
                 info.pooling = 0;
                 info.normalize = 0;
+            }
+            if info.task == TURBO_TASK_RERANK {
+                info.dim = 0;
             }
             std::ptr::copy_nonoverlapping(
                 (&info as *const turbo_model_info).cast::<u8>().add(4),

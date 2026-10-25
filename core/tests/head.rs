@@ -275,8 +275,8 @@ fn f16_and_bf16_head_weights_are_widened_to_f32() {
         let dir = f.write();
         let b = Bundle::open(dir).unwrap();
         let head = Head::load(&b).unwrap();
-        assert_eq!(head.classifier.weight, vec![1.0f32; 16]);
-        assert_eq!(head.classifier.bias, vec![1.0f32, -0.5f32]);
+        assert_eq!(head.classifier.weight(), vec![1.0f32; 16]);
+        assert_eq!(head.classifier.bias(), vec![1.0f32, -0.5f32]);
         let logits = head.logits(&[0.25f32; 8]).unwrap();
         assert_eq!(logits, vec![3.0f32, 1.5f32]);
     }

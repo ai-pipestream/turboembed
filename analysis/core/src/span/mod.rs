@@ -7,10 +7,13 @@ use std::fmt;
 use std::ops::Range;
 
 mod index;
+mod join;
+pub(crate) mod slice;
 mod spans;
 mod text;
 
 pub use index::{Ix, IxRange};
+pub use join::{ContainedJoin, OverlappingJoin};
 pub use spans::{Fragments, Spans, filter_spans};
 pub use text::TextSpans;
 

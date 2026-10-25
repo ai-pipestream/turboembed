@@ -387,8 +387,8 @@ mod tests {
         fs::remove_dir_all(&dir).unwrap();
     }
 
-    /// A symlink left at the temporary name is replaced, never written
-    /// through.
+    /// A symlink left at a temporary name is never written through: each
+    /// write makes a name of its own, and leaves no temporary file.
     #[cfg(unix)]
     #[test]
     fn save_never_writes_through_a_symlinked_temporary_file() {
@@ -405,7 +405,8 @@ mod tests {
         assert_eq!(fs::read(&victim).unwrap(), b"untouched");
         assert!(!fs::symlink_metadata(&path).unwrap().file_type().is_symlink());
         assert_eq!(Acceptances::load(&path).unwrap(), a);
-        assert!(!dir.join("home").join("acceptances.json.partial").exists());
+        let names: Vec<_> = fs::read_dir(dir.join("home")).unwrap().map(|e| e.unwrap().file_name()).collect();
+        assert_eq!(names.len(), 2, "acceptances.json and the symlink left before: {names:?}");
         fs::remove_dir_all(&dir).unwrap();
     }
 }

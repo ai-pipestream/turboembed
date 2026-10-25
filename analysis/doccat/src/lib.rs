@@ -52,6 +52,7 @@
 
 pub mod calibrated;
 pub mod categorizer;
+pub mod claim_verify;
 pub mod dl;
 pub mod error;
 pub mod features;
@@ -66,6 +67,7 @@ pub mod train;
 pub mod zeroshot;
 
 pub use categorizer::{DocumentCategorizerME, SpanCategorizer};
+pub use claim_verify::{ClaimVerificationAnnotator, ClaimVerifyConfig};
 pub use dl::{
     AverageClassificationScoringStrategy, ClassificationScoringStrategy, DlChunkingMode, DlDoccatError,
     DlInferenceOptions, DlSequenceScorer, DlSpanCategorizer, DocumentCategorizerConfig, DocumentCategorizerDL,

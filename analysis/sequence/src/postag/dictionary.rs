@@ -16,7 +16,7 @@ use std::sync::Arc;
 
 use turbo_jvm::hash_map::put_order;
 use turbo_maxent::{Entries, ModelFile};
-use turbo_unicode::java::code_point::to_lower_case;
+use turbo_unicode::java::lowercase_code_points_changes;
 
 use super::TAG_DICTIONARY_ENTRY_NAME;
 use crate::beam::SequenceValidator;
@@ -120,7 +120,7 @@ impl TagDictionary {
     /// does not list it. A case-insensitive dictionary lowercases the
     /// word first, into a new string only when lowercasing changes it.
     pub fn tags(&self, word: &str) -> Option<&[String]> {
-        if self.case_sensitive || word.chars().all(|c| to_lower_case(c as u32) == c as u32) {
+        if self.case_sensitive || !lowercase_code_points_changes(word) {
             return self.tags.get(word).map(Vec::as_slice);
         }
         let mut lower = String::with_capacity(word.len());

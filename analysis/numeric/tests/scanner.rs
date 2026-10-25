@@ -3,7 +3,7 @@
 
 mod common;
 
-use common::{eu, found, pairs, us};
+use common::{eu, found, found_with_parity, pairs, us};
 use turbo_analysis::{Analyzer, Annotator, Document, Ix, Layer, Span, ViewId};
 use turbo_numeric::{Multiplier, NumberNotation, NumberScanner, Numbers, ScaleMarker};
 
@@ -44,9 +44,11 @@ fn grouped_numbers() {
     // In the US notation 1.234 is a fraction that a comma and a digit go on
     // from, so nothing is read, and no tail starts a number of its own.
     assert_eq!(us("1.234,5"), []);
-    assert_eq!(us("1,00,000"), []);
+    assert_eq!(us("1,00,000"), pairs(&[("1,00,000", "100000")]));
+    assert_eq!(found_with_parity("1,00,000", LatinUs, true, true), []);
     assert_eq!(eu("1,00,000"), []);
-    assert_eq!(us("pay 1,00,000 now, or 7"), pairs(&[("7", "7")]));
+    assert_eq!(us("pay 1,00,000 now, or 7"), pairs(&[("1,00,000", "100000"), ("7", "7")]));
+    assert_eq!(found_with_parity("pay 1,00,000 now, or 7", LatinUs, true, true), pairs(&[("7", "7")]));
     // Four leading digits cannot be grouped.
     assert_eq!(us("1234,567"), []);
 }
@@ -62,14 +64,16 @@ fn scale_markers() {
     assert_eq!(us("4 trillion"), pairs(&[("4 trillion", "4000000000000")]));
     assert_eq!(us("5x"), []);
     assert_eq!(us("12abc and 5"), pairs(&[("5", "5")]));
-    assert_eq!(us("1e-3"), []);
+    assert_eq!(us("1e-3"), pairs(&[("1e-3", "0.001")]));
+    assert_eq!(found_with_parity("1e-3", LatinUs, true, true), []);
     // Without scaling, the number ends with its digits and the letter after
     // it is not looked at.
     let plain = |text| found(text, LatinUs, false);
     assert_eq!(plain("12k"), pairs(&[("12", "12")]));
     assert_eq!(plain("3 million"), pairs(&[("3", "3")]));
     assert_eq!(plain("5x"), pairs(&[("5", "5")]));
-    assert_eq!(plain("1e-3"), []);
+    assert_eq!(plain("1e-3"), pairs(&[("1e-3", "0.001")]));
+    assert_eq!(found_with_parity("1e-3", LatinUs, false, true), []);
 }
 
 #[test]
@@ -118,7 +122,8 @@ fn multibyte_text_around_numbers() {
 #[test]
 fn digits_after_a_thin_space() {
     assert_eq!(us("x\u{2009}123 1\u{2009}3 \u{2009}123"), pairs(&[("123", "123"), ("123", "123")]));
-    assert_eq!(us("1\u{2009}234"), []);
+    assert_eq!(us("1\u{2009}234"), pairs(&[("1\u{2009}234", "1234")]));
+    assert_eq!(found_with_parity("1\u{2009}234", LatinUs, true, true), []);
     assert_eq!(us("1\u{2009}million"), pairs(&[("1\u{2009}million", "1000000")]));
 }
 
@@ -176,8 +181,9 @@ fn the_configuration_is_in_the_hash() {
     let hashes: Vec<u64> = [
         NumberScanner::new(LatinUs),
         NumberScanner::new(LatinEu),
-        NumberScanner { notation: LatinUs, apply_scale: false },
-        NumberScanner { notation: LatinEu, apply_scale: false },
+        NumberScanner::new(LatinUs).with_scale(false),
+        NumberScanner::new(LatinEu).with_scale(false),
+        NumberScanner::new(LatinUs).with_opennlp_parity(true),
     ]
     .iter()
     .map(Annotator::config_hash)

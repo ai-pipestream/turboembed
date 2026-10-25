@@ -16,8 +16,8 @@
 
 use turbo_analysis::Evidence;
 use turbo_analysis::export::{
-    Codecs, ExportCx, ExportError, ImportCx, LayerCodec, LayerRef, NodeRef, Reader, Writer, get_spans, get_tagset,
-    put_spans, put_tagset,
+    Codecs, ExportCx, ExportError, ImportCx, LayerCodec, LayerRef, NodeRef, Reader, SliceCx, SlicedBody, Writer,
+    get_spans, get_spans_raw, get_tagset, put_spans, put_spans_raw, put_tagset, slice_spans_payload,
 };
 use turbo_analysis::{
     Alternatives, Document, Edges, Groups, Ix, IxRange, Key, Layer, ModelRef, NBest, Tag, TagSet, View,
@@ -45,14 +45,18 @@ mod calibrated;
 mod core_layers;
 mod emotion;
 mod entity_graph;
+mod events;
 mod helpers;
 mod indexes;
 mod lexical;
+mod modality;
 mod numeric;
 mod relations;
+mod rhetoric;
 mod sentiment;
 mod sparse;
 mod structure;
+mod tables;
 mod temporal;
 mod vectors;
 
@@ -88,10 +92,13 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Dependencies<Words>>()
         .register::<Entities>()
         .register::<crate::DocumentEntities>()
+        .register::<crate::EntitySalience>()
         .register::<ChunkTags>()
         .register::<PhraseChunks>()
         .register::<Boundaries>()
         .register::<Structure>()
+        .register::<crate::Tables>()
+        .register::<crate::KeyValuePairs>()
         .register::<Chunks>()
         .register::<Language>()
         .register::<LanguageSpans>()
@@ -117,11 +124,13 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Incivility>()
         .register::<crate::EmotionLayer>()
         .register::<Pragmatics>()
+        .register::<crate::Modality>()
         .register::<Numbers>()
         .register::<Money>()
         .register::<Ordinals>()
         .register::<Quantities>()
         .register::<Times>()
+        .register::<crate::Events>()
         .register::<Pii>()
         .register::<Regions>()
         .register::<Matches>()
@@ -143,6 +152,10 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Utf16Spans<Sentences>>()
         .register::<Abbreviations>()
         .register::<Edges<Abbreviations, Abbreviations>>()
+        .register::<crate::Edus>()
+        .register::<crate::Discourse>()
+        .register::<crate::ClaimLinks>()
+        .register::<crate::SentenceClaimLinks>()
         .register::<Groups<Abbreviations>>()
         .register::<Alternatives<Tokens>>()
         .register::<Alternatives<PosTags>>()

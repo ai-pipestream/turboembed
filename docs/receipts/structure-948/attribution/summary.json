@@ -1,0 +1,18 @@
+{
+  "blocked": {
+    "median_ms": 0.44505649999999997,
+    "median_paired_ratio_vs_blocked": 1
+  },
+  "no-columns": {
+    "median_ms": 0.306219,
+    "median_paired_ratio_vs_blocked": 0.6910744944948163
+  },
+  "no-tightness": {
+    "median_ms": 0.449094,
+    "median_paired_ratio_vs_blocked": 1.0327655398960522
+  },
+  "neither": {
+    "median_ms": 0.30726549999999997,
+    "median_paired_ratio_vs_blocked": 0.7064521714435311
+  }
+}

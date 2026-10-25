@@ -71,9 +71,15 @@ Face hub):
 - `sat-1l-sm` to `sat-12l-sm`: the supervised mixture models, with no
   lookahead and one label. These need nothing the core lacks;
   `sat-1l-sm` matches wtpsplit (Against wtpsplit, below), and the others
-  have not been run here. Their training mixture holds UD
-  treebanks under CC BY-NC-SA, so they are local-only
-  (docs/licences.md, "Neural annotator checkpoints").
+  have not been run here. The 2026-10-24 source audit classifies `sat-1l-sm`
+  and `sat-12l-sm` as refused: their published training recipe includes
+  OPUS-100 with unconfirmed terms. UD non-commercial terms alone would
+  permit local-only use, but accepting them cannot override that refusal.
+  Neither checkpoint is added to the zoo (docs/licences.md,
+  "SaT supervised-mixture source audit"). Existing local parity results
+  are historical measurements, not distribution approval. `sat-3l`, trained
+  on mC4 without this supervised mixture, remains the permissive option,
+  gated on the limited-lookahead work in #887.
 
 ### The step
 
@@ -175,8 +181,8 @@ the fixtures from the same weights. The tokenizer is BAAI/bge-m3's
 `tokenizer.json` at revision `5617a9f61b028005a4858fdac845db406aefb181`
 (MIT): it has XLM-R's vocabulary and character map, in the Unigram form
 the core reads. `FacebookAI/xlm-roberta-base`'s own `tokenizer.json`
-names no model type, which the core refuses, so both sides read the
-bge-m3 file, as the tiny model's fixtures do. The two files are not the
+names no model type, which the core refused until #1020, so both sides
+read the bge-m3 file, as the tiny model's fixtures do. The two files are not the
 same tokenizer pipeline, so this is wtpsplit with the bge-m3 file, not
 wtpsplit as it ships (below, "The released checkpoint's tokenizer").
 `a_released_checkpoint_matches_wtpsplit` in
@@ -251,8 +257,11 @@ What the step does differently, and why:
   probabilities are the same within 1e-3 and the pieces are the same.
   Upstream's offsets there start before the space in front of a word
   where the core's start after it; wtpsplit reads a token's score at its
-  end, so this does not move a probability. Reading `xlm-roberta-base`'s
-  file in the core would remove the difference.
+  end, so this does not move a probability. The core now reads
+  `xlm-roberta-base`'s file too (`tokenizer.unigram.whitespace_split`,
+  #1020), matching upstream `tokenizers`' ids on that form in
+  `core/tests/tokenizer_xlmr.rs`. The table above has not yet been
+  measured again with a bundle sealed with that file.
 - **The prefix piece.** Before a text's first word, when no piece
   starts with that word's first characters, the tokenizer emits the
   bare word start `▁`. The core gives it an empty span, as it stands for
@@ -291,11 +300,11 @@ the stride is the main setting for throughput.
 
 ### Not done
 
-- A zoo entry for the `-sm` checkpoints. An entry needs each file's
-  SHA-512, and the checkpoints are local-only (docs/licences.md): the
-  zoo would fetch one only after its user accepts the licence, and CI
-  never fetches it, so the comparison above runs only where a user has
-  the checkpoint. `sat-12l-sm` and the other sizes have not been run.
+- Zoo downloads of `sat-1l-sm` and `sat-12l-sm` are refused following
+  the complete source audit in docs/licences.md. The OPUS-100 terms
+  must be established before this decision can change; local licence
+  acceptance is insufficient. No entry or download receipt is created.
+  `sat-12l-sm` and the other sizes have not been run here.
 - Limited lookahead, for the models without `-sm`.
 - A bundle task for token classification. The bundle carries a SaT
   model as `TASK_EMBED` with the classifier in its raw weights, read by
