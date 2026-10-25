@@ -96,6 +96,7 @@ fn an_unrecorded_release_is_neither_fetched_nor_taken_for_a_corpus() {
 fn the_release_is_recorded_as_a_permissive_dataset_of_the_zoo() {
     let Release::Recorded(r) = RELEASE else { panic!("the release is recorded") };
     let a = dataset(RELEASE).unwrap();
+    assert_eq!(Index::builtin().get(DATASET_ID).unwrap(), &a);
     let index = Index::parse(Index::to_canonical_json(std::slice::from_ref(&a)).as_bytes()).unwrap();
     let got = index.get(DATASET_ID).unwrap();
     assert_eq!(got.class, LicenceClass::Permissive);
