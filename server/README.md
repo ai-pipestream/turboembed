@@ -10,6 +10,8 @@ analysis result layer beside it.
   and status of the Open Inference Protocol means, against the header.
 - [docs/grpc-analysis.md](../docs/grpc-analysis.md): the analysis result
   messages, the capability call, and load and unload.
+- [docs/grpc-catalog.md](../docs/grpc-catalog.md): the model catalog,
+  licence acceptances and verified installs from the zoo.
 
 ```
 cargo run --release -p turbo-kserve -- \
@@ -19,5 +21,6 @@ cargo run --release -p turbo-kserve -- \
 
 `proto/open_inference_grpc.proto` is vendored from the Open Inference
 Protocol specification (Apache-2.0); its first lines say where from.
-`proto/turbo_analysis.proto` is this crate's own. The build compiles both
-with a Rust protobuf compiler, so no `protoc` is needed.
+`proto/turbo_analysis.proto` and `proto/turbo_training.proto` are this
+crate's own. The build compiles all three with a Rust protobuf compiler,
+so no `protoc` is needed.
