@@ -51,6 +51,7 @@ pub use sparse::SparseTerms;
 pub use syntax::{
     ChunkTags, Dependencies, Entities, Lemmas, PhraseChunks, Phrases, PosTags, Stems, TermSlot, Terms, WordDependencies,
 };
+pub use tables::{ColumnAlign, KeyValuePair, KeyValuePairs, TableCell, TableCellRef, Tables};
 pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
 pub use times::{Modifier, Portion, Relation, TimeGrain, TimeKind, TimeMention, Times};
 pub use wordnet::{
@@ -144,6 +145,7 @@ mod segmentation;
 mod sentiment;
 mod sparse;
 mod syntax;
+pub mod tables;
 mod temporal;
 mod times;
 mod wordnet;
