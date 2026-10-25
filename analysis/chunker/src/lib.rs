@@ -39,6 +39,8 @@ pub use trace::ChunkTrace;
 pub mod rechunk;
 pub mod route;
 pub mod scorer;
+pub mod strategy;
+pub use strategy::{ChunkStrategy, StrategyMatrix, StrategySummary};
 mod sentiment;
 mod sums;
 mod weigh;
