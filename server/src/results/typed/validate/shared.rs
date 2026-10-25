@@ -143,7 +143,10 @@ pub(super) fn document_entity(ctx: &LayerCtx<'_>, i: usize, entity: &DocumentEnt
         let span = mention.span.as_ref().ok_or_else(|| bad(format!("{}[{i}] mention has no span", ctx.lid)))?;
         ctx.offsetter.from_wire(ctx.text, ctx.lid, span.start, span.end)?;
         if let Some(index) = mention.entity_index {
-            let len = ctx.entity_len.ok_or_else(|| bad(format!("{}[{i}] mention has no entity target", ctx.lid)))?;
+            let len = ctx
+                .entity_len
+                .get(ctx.lid)?
+                .ok_or_else(|| bad(format!("{}[{i}] mention has no entity target", ctx.lid)))?;
             if index as usize >= len {
                 return Err(bad(format!("{}[{i}] mention entity_index {index} exceeds target {len}", ctx.lid)));
             }

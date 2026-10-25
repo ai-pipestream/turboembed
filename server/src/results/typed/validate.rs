@@ -72,13 +72,13 @@ fn check_spans(
     Ok(out)
 }
 
-fn check_token_range(tlen: Option<usize>, what: &str, lid: &str, i: usize, s: u32, e: u32) -> Result<(), Failure> {
+fn check_token_range(tlen: TargetLen, what: &str, lid: &str, i: usize, s: u32, e: u32) -> Result<(), Failure> {
     if s >= e {
         return Err(bad(format!("{lid}[{i}] {what} has empty or inverted token range {s}..{e}")));
     }
     // A projection always carries the tokens layer its token ranges index;
     // without it nothing bounds the range, so refuse rather than skip.
-    let Some(lim) = tlen else {
+    let Some(lim) = tlen.get(lid)? else {
         return Err(bad(format!("{lid}[{i}] {what} has a token range but no opennlp:tokens layer to bound it")));
     };
     if (e as usize) > lim {
@@ -164,8 +164,8 @@ struct LayerCtx<'a> {
     offsetter: &'a Offsetter,
     known_models: &'a HashSet<&'a str>,
     layer_lengths: &'a HashMap<(&'a str, &'a str), usize>,
-    token_len: Option<usize>,
-    entity_len: Option<usize>,
+    token_len: TargetLen,
+    entity_len: TargetLen,
     target_lengths: HashMap<(&'a str, &'a str), usize>,
     table_ids: HashSet<u32>,
     target_bounds: Vec<usize>,
@@ -181,7 +181,7 @@ fn check_nonneg(what: &str, layer: &str, index: usize, v: f64) -> Result<(), Fai
 }
 
 fn check_opt_tokens(
-    tlen: Option<usize>,
+    tlen: TargetLen,
     what: &str,
     lid: &str,
     i: usize,
@@ -218,6 +218,31 @@ fn unique_target_len(
         return Err(bad(format!("{lid} has ambiguous {layer} index targets")));
     }
     Ok(len)
+}
+
+/// One target type's length for a layer, judged where an annotation reads
+/// it: a layer may bound two instances of a type, as an edge between them
+/// does, so long as nothing in it reads that type's length.
+#[derive(Clone, Copy)]
+enum TargetLen {
+    One(Option<usize>),
+    Ambiguous(&'static str),
+}
+
+impl TargetLen {
+    fn of(target_lengths: &HashMap<(&str, &str), usize>, layer: &'static str) -> Self {
+        match unique_target_len(target_lengths, "", layer) {
+            Ok(len) => TargetLen::One(len),
+            Err(_) => TargetLen::Ambiguous(layer),
+        }
+    }
+
+    fn get(self, lid: &str) -> Result<Option<usize>, Failure> {
+        match self {
+            TargetLen::One(len) => Ok(len),
+            TargetLen::Ambiguous(layer) => Err(bad(format!("{lid} has ambiguous {layer} index targets"))),
+        }
+    }
 }
 
 fn validate_layer(
@@ -281,13 +306,16 @@ fn validate_layer(
         .zip(&target_bounds)
         .map(|(b, &n)| ((b.layer.as_str(), b.instance.as_str()), n))
         .collect();
-    let token_len = unique_target_len(&target_lengths, lid, "opennlp:tokens")?.or_else(|| {
-        layer_lengths
-            .get(&("opennlp:tokens", layer.instance.as_str()))
-            .or_else(|| layer_lengths.get(&("opennlp:tokens", "")))
-            .copied()
-    });
-    let entity_len = unique_target_len(&target_lengths, lid, "opennlp:entities")?;
+    let token_len = match TargetLen::of(&target_lengths, "opennlp:tokens") {
+        TargetLen::One(None) => TargetLen::One(
+            layer_lengths
+                .get(&("opennlp:tokens", layer.instance.as_str()))
+                .or_else(|| layer_lengths.get(&("opennlp:tokens", "")))
+                .copied(),
+        ),
+        bound => bound,
+    };
+    let entity_len = TargetLen::of(&target_lengths, "opennlp:entities");
 
     let ctx = LayerCtx {
         text: &msg.raw_text,
