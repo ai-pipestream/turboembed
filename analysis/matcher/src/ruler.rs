@@ -6,7 +6,7 @@ use std::hash::Hasher;
 use std::sync::Arc;
 
 use turbo_analysis::{Annotator, Bound, Error, FilterRule, IxRange, Refs, Spans, TagSet, View, ViewId, filter_spans};
-use turbo_analysis_layers::{Entities, Lemmas, Matches, Numbers, PosTags, Tokens};
+use turbo_analysis_layers::{Entities, Lemmas, Matches, MorphFeatures, Numbers, PosTags, Tokens};
 use turbo_stem_layers::Stems;
 use turbo_stopword_layers::Stopwords;
 
@@ -285,11 +285,12 @@ impl Annotator for SpanRuler {
         Option<Stopwords>,
         Option<Numbers>,
         Option<Stems>,
+        Option<MorphFeatures<Tokens>>,
     );
     type Writes = (Matches,);
 
     fn annotate(&self, reads: Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        let (view, tokens, pos, lemmas, entities, stop, numbers, stems) = reads;
+        let (view, tokens, pos, lemmas, entities, stop, numbers, stems, morph) = reads;
         let fail = |detail: String| Error::Annotator { annotator: Self::ID, detail };
         if tokens.spans.view() != view.id() {
             return Err(fail("the tokens are in another view".into()));
@@ -319,6 +320,9 @@ impl Annotator for SpanRuler {
             }
             if let Some(s) = stems {
                 input = input.with_stems(&s.stem)?;
+            }
+            if let Some(m) = morph {
+                input = input.with_morph(m)?;
             }
             Ok(input)
         })()

@@ -163,6 +163,7 @@ pub(in crate::lang) static MONEY: &[Word] = &[
     minor("centimes", Minor::Centime, 0),
     minor("paisa", Minor::Paisa, 0),
     minor("paise", Minor::Paisa, 0),
+    minor("sen", Minor::Sen, PREFIX | AMBIG),
 ];
 
 /// Codes that are also English words or common abbreviations. They name

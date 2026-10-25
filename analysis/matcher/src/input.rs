@@ -28,6 +28,8 @@ pub struct Input<'a> {
     entities: Option<&'a Entities>,
     stop: Option<&'a [bool]>,
     numbers: Option<&'a Numbers>,
+    morph: Option<&'a Strs>,
+    tags: Option<&'a Strs>,
 }
 
 impl<'a> Input<'a> {
@@ -62,6 +64,8 @@ impl<'a> Input<'a> {
             entities: None,
             stop: None,
             numbers: None,
+            morph: None,
+            tags: None,
         })
     }
 
@@ -104,6 +108,20 @@ impl<'a> Input<'a> {
     pub fn with_stems(mut self, stems: &'a Strs) -> Result<Self, MatchError> {
         self.aligned("turbo:stems", stems.len())?;
         self.stems = Some(stems);
+        Ok(self)
+    }
+
+    /// UD features, one string per token. `_` means no features.
+    pub fn with_morph(mut self, morph: &'a turbo_analysis_layers::MorphFeatures<Tokens>) -> Result<Self, MatchError> {
+        self.aligned("turbo:feats", morph.feats.len())?;
+        self.morph = Some(&morph.feats);
+        Ok(self)
+    }
+
+    /// Fine-grained tags for spaCy `TAG`, independently of `POS`.
+    pub fn with_tags(mut self, tags: &'a Strs) -> Result<Self, MatchError> {
+        self.aligned("tags", tags.len())?;
+        self.tags = Some(tags);
         Ok(self)
     }
 
@@ -194,9 +212,35 @@ impl<'a> Input<'a> {
             Attr::Norm => (self.norms, "norms"),
             Attr::Lemma => (self.lemmas, "opennlp:lemmas"),
             Attr::Stem => (self.stems, "turbo:stems"),
+            Attr::Morph => (self.morph, "turbo:feats"),
+            Attr::Tag => (self.tags, "tags"),
             _ => unreachable!("a string column"),
         };
         column.ok_or(MatchError::Missing(layer))
+    }
+
+    pub(crate) fn value<'b>(&'b self, attr: Attr, i: usize, scratch: &'b mut String) -> &'b str {
+        match attr {
+            Attr::Norm | Attr::Lemma | Attr::Stem | Attr::Tag => self.strings(attr).expect("validated column").get(i),
+            Attr::Morph => {
+                *scratch = crate::predicates::morph(self.strings(attr).expect("validated column").get(i));
+                scratch
+            }
+            Attr::Pos => {
+                let pos = self.pos.expect("validated column");
+                pos.tagset.label(pos.tags[i])
+            }
+            Attr::Entity => {
+                let of = self.entity_of(&(i..i + 1)).expect("validated column")[0];
+                if of == u32::MAX {
+                    ""
+                } else {
+                    let e = self.entities.expect("validated column");
+                    e.kinds.label(e.kind[of as usize])
+                }
+            }
+            _ => attr.of_text(self.token(i), scratch),
+        }
     }
 
     /// The first entity covering each token of `range`, as an index into
@@ -259,7 +303,7 @@ impl Needs {
 /// Index `i` is token `range.start + i`.
 #[derive(Default)]
 pub(crate) struct Columns {
-    pub(crate) values: [Vec<u32>; 10],
+    pub(crate) values: [Vec<u32>; 12],
     pub(crate) flags: Vec<u32>,
     pub(crate) iob: Vec<Iob>,
     pub(crate) chars: Vec<u32>,
@@ -292,9 +336,13 @@ impl Columns {
                 Attr::Text | Attr::Lower | Attr::Prefix | Attr::Suffix | Attr::Shape => {
                     range.clone().map(|i| vocab.get(attr.of_text(input.token(i), &mut scratch))).collect()
                 }
-                Attr::Norm | Attr::Lemma | Attr::Stem => {
+                Attr::Norm | Attr::Lemma | Attr::Stem | Attr::Tag => {
                     let strs = input.strings(attr)?;
                     range.clone().map(|i| vocab.get(strs.get(i))).collect()
+                }
+                Attr::Morph => {
+                    let strs = input.strings(attr)?;
+                    range.clone().map(|i| vocab.get(&crate::predicates::morph(strs.get(i)))).collect()
                 }
                 Attr::Pos => {
                     let pos = input.pos.ok_or(MatchError::Missing("opennlp:pos"))?;

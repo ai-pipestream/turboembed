@@ -50,11 +50,11 @@ pub fn drop_overlapping(spans: &[(u32, u32, &str)]) -> Vec<usize> {
     order
 }
 
-/// The entities of `layers` taken together, as `drop_overlapping` leaves
-/// them, in its order. Every layer must be in the same view and made on
-/// the same tokens; the types are the union of theirs, in order of first
-/// appearance.
-pub fn merge(layers: &[&Entities]) -> Result<Entities, String> {
+/// Checks that `layers` can be merged: at least one, all in one view,
+/// and each with matching columns, forward token ranges and tags in its
+/// tag set. Returns the union of their types, in order of first
+/// appearance, under the first layer's tag set name.
+pub(crate) fn union_kinds(layers: &[&Entities]) -> Result<Arc<TagSet>, String> {
     let Some(first) = layers.first() else {
         return Err("nothing to merge".into());
     };
@@ -100,7 +100,17 @@ pub fn merge(layers: &[&Entities]) -> Result<Entities, String> {
     if unique.len() > u16::MAX as usize + 1 {
         return Err("more than 65536 entity types".into());
     }
-    let kinds = TagSet::new(&first.kinds.name, &unique);
+    Ok(TagSet::new(&first.kinds.name, &unique))
+}
+
+/// The entities of `layers` taken together, as `drop_overlapping` leaves
+/// them, in its order. Every layer must be in the same view and made on
+/// the same tokens; the types are the union of theirs, in order of first
+/// appearance.
+pub fn merge(layers: &[&Entities]) -> Result<Entities, String> {
+    let kinds = union_kinds(layers)?;
+    let first = layers[0];
+    let view = first.spans.view();
     // (layer, entity) pairs and their spans, in finder order.
     let items: Vec<(usize, usize)> =
         layers.iter().enumerate().flat_map(|(l, layer)| (0..layer.spans.len()).map(move |e| (l, e))).collect();

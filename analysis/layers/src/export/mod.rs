@@ -38,12 +38,14 @@ use crate::{
     Sentences, Stems, Strs, Structure, Subwords, Terms, TimeGrain, TimeKind, Times, TokenVectorWindows, Tokens, Unit,
     Utf16Spans, Vectors,
 };
+use crate::{LexicalExpansions, WordNetSenses};
 
 mod boilerplate;
 mod calibrated;
 mod core_layers;
 mod discourse;
 mod emotion;
+mod entity_graph;
 mod helpers;
 mod indexes;
 mod lexical;
@@ -67,6 +69,7 @@ pub fn register_codecs(codecs: &mut Codecs) {
     codecs
         .register::<crate::Calibrated<Categories>>()
         .register::<crate::Calibrated<Tokens>>()
+        .register::<crate::Calibrated<Entities>>()
         .register::<Sentences>()
         .register::<Tokens>()
         .register::<Words>()
@@ -79,11 +82,14 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Lemmas>()
         .register::<WordLemmas>()
         .register::<Stems>()
+        .register::<WordNetSenses>()
+        .register::<LexicalExpansions>()
         .register::<Terms>()
         .register::<Dependencies<Tokens>>()
         .register::<Dependencies<Words>>()
         .register::<Entities>()
         .register::<crate::Quotations>()
+        .register::<crate::DocumentEntities>()
         .register::<ChunkTags>()
         .register::<PhraseChunks>()
         .register::<Boundaries>()

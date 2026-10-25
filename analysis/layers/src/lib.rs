@@ -24,6 +24,9 @@ pub use categories::{Categories, CategoryRow, CategoryScope};
 pub use containment::{Containment, ContainmentChain, ContainmentError, PlaceAncestor, PlaceAncestorRef};
 pub use date::{DAY_SECONDS, Date, DateTime, write_year};
 pub use discourse::{Quotation, Quotations, QuoteKind};
+pub use entity_graph::{
+    ConsolidatedMention, DocumentEntities, DocumentEntity, EntityRelation, SyntacticRole, SyntacticRoleCounts,
+};
 pub use generic::{Confidence, Language, TokenVectorWindows, Utf16Spans, Vectors};
 pub use language_spans::{LanguageSpan, LanguageSpans, UNDETERMINED};
 pub use levels::{Level, Levels, Unit, VectorKind};
@@ -46,6 +49,9 @@ pub use syntax::{
 };
 pub use temporal::{DocumentDate, Granularity, Origin, TemporalMention, TemporalValue, Temporals};
 pub use times::{Modifier, Portion, Relation, TimeGrain, TimeKind, TimeMention, Times};
+pub use wordnet::{
+    ExpansionRow, LexicalExpansions, SAME_SYNSET, SenseRow, WORDNET_POS, WORDNET_RELATIONS, WordNetSenses,
+};
 pub use words::{
     MorphFeatures, MorphPosTags, MwtLanguage, RuleMwtExpander, TokenExpansion, Word, WordLemmas, WordOrTokenAnchor,
     WordPosTags, Words,
@@ -114,6 +120,7 @@ mod containment;
 mod core_tests;
 mod date;
 mod discourse;
+mod entity_graph;
 mod evidence;
 pub mod export;
 mod generic;
@@ -133,4 +140,5 @@ mod sparse;
 mod syntax;
 mod temporal;
 mod times;
+mod wordnet;
 mod words;

@@ -1,0 +1,88 @@
+# document	start	end	kind	covered_text
+masc-att2	2245	2259	phone	1 800 741-9302
+masc-att2	2420	2434	phone	1 800 423-4343
+masc-hsus4	4757	4771	phone	(202) 452-1100
+masc-hsus4	4928	4942	phone	1-800-435-7352
+masc-hsus4	5303	5317	phone	1-888-236-6167
+masc-hsus4	5590	5602	phone	973.504.6215
+masc-hsus4	6030	6044	phone	(919) 807.2214
+masc-hsus4	6341	6355	phone	1-800-732-0999
+masc-hsus4	6528	6542	phone	1-800-552-9963
+masc-hsus4	6657	6671	phone	1-800-332-4483
+masc-united1	1453	1467	phone	1-800-822-2841
+masc-nyt6	5180	5194	phone	(707) 259-1600
+eip-55	1173	1215	eth-address	0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed
+eip-55	1218	1260	eth-address	0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359
+eip-55	1313	1355	eth-address	0x52908400098527886E0F7030069857D2E4169EE7
+eip-55	1358	1400	eth-address	0x8617E340B3D01FA5F11F306F4090FD50E238070D
+eip-55	1403	1445	eth-address	0xde709f2102306220921060314715629080e2fb77
+eip-55	1448	1490	eth-address	0x27b1fdb04752bbc536007a920d24acb045561c26
+eip-55	1531	1573	eth-address	0xdbF03B407c01E7cD3CBea99509d93f8DDDC8C6FB
+eip-55	1576	1618	eth-address	0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb
+eip-55	1741	1783	eth-address	0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed
+eip-55	1787	1829	eth-address	0xFB6916095CA1DF60BB79CE92CE3EA74C37C5D359
+bip-173-350	1096	1130	btc-address	1Pjk7c5ipz7ZpbVT3VKwcFNGeqgBFpbQdw
+bip-173-350	1135	1169	btc-address	3APADkvHwo6aV4ZRCY7H7RZTcdvMxbYyNR
+bip-173-350	1264	1306	btc-address	BC1QW508D6QEJXTDG4Y5R3ZARVARY0C5XW7KV8F3T4
+bip-173-350	1309	1351	btc-address	bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4
+bip-173-350	1418	1480	btc-address	bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0
+bip-173-350	1483	1557	btc-address	bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kt5nd6y
+bip-173-350	1560	1574	btc-address	BC1SW50QGDZ25J
+bip-173-350	1577	1613	btc-address	bc1zw508d6qejxtdg4y5r3zarvaryvaxxpcs
+operational-memos	753	774	url-credential	buildbot:stage-pass99
+operational-memos	834	855	url-credential	readonly:mirror-key42
+operational-memos	1128	1148	aws-access-key	AKIAIOSFODNN7EXAMPLE
+operational-memos	1153	1173	aws-access-key	ASIAQYLCMZ2R4EXAMPLE
+operational-memos	1376	1416	github-token	ghp_1234567890abcdefghijklmnopqrstuvwxyz
+operational-memos	1418	1458	github-token	gho_ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789
+operational-memos	1464	1508	github-token	ghs_0123456789abcdefghijklmnopqrstuvwxyzABCD
+operational-memos	1687	1795	jwt	eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+operational-memos	1797	1897	jwt	eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJhdXRoLmV4YW1wbGUuY29tIn0.c2lnbmF0dXJlX2J5dGVzX2hlcmU
+operational-memos	1903	1986	jwt	eyJhbGciOiJFUzI1NiJ9.eyJhdWQiOiJhcGkuZXhhbXBsZS5vcmcifQ.dGVzdF9zaWduYXR1cmVfdmFsdWU
+operational-memos	2150	2177	email	security-alerts@example.com
+operational-memos	2179	2213	email	incident.response@mail.example.org
+operational-memos	2219	2241	email	ops+oncall@example.net
+operational-memos	2438	2465	iban	DE89 3704 0044 0532 0130 00
+operational-memos	2480	2502	iban	GB82WEST12345698765432
+operational-memos	2514	2532	iban	NL91ABNA0417164300
+operational-memos	2551	2584	iban	FR14 2004 1010 0505 0001 3M02 606
+operational-memos	2786	2795	aba-routing	021000021
+operational-memos	2797	2806	aba-routing	121000248
+operational-memos	2812	2821	aba-routing	011000138
+operational-memos	3019	3038	card	4111 1111 1111 1111
+operational-memos	3051	3070	card	5555-5555-5555-4444
+operational-memos	3089	3104	card	378282246310005
+operational-memos	3119	3138	card	6011 1111 1111 1117
+operational-memos	3260	3276	phone	+44 20 7946 0958
+operational-memos	3301	3316	phone	+1 202-555-0143
+operational-memos	3349	3363	phone	(312) 555-0199
+operational-memos	3535	3545	ipv4	192.0.2.10
+operational-memos	3547	3560	ipv4	198.51.100.42
+operational-memos	3566	3579	ipv4	203.0.113.200
+operational-memos	3614	3642	ipv6	2001:db8:85a3::8a2e:370:7334
+operational-memos	3644	3683	ipv6	2001:0db8:0000:0042:0000:8a2e:0370:7334
+operational-memos	3689	3713	ipv6	fe80::1ff:fe23:4567:890a
+operational-memos	3949	3966	mac	00:00:5e:00:53:af
+operational-memos	3968	3985	mac	02:42:ac:11:00:02
+operational-memos	3991	4008	mac	00-1B-44-11-3A-B7
+operational-memos	4258	4269	us-ssn	123-45-6789
+operational-memos	4271	4282	us-ssn	234-56-7890
+operational-memos	4288	4299	us-ssn	345 67 8901
+operational-memos	4386	4397	us-itin	900-70-1234
+operational-memos	4399	4410	us-itin	911-55-4321
+operational-memos	4416	4427	us-itin	922 78 9012
+operational-memos	4605	4616	ca-sin	046 454 286
+operational-memos	4642	4653	ca-sin	046-454-286
+operational-memos	4664	4673	ca-sin	046454286
+operational-memos	4780	4791	ca-sin	046 454 286
+operational-memos	4995	5006	de-steuer-id	65929970489
+operational-memos	5008	5019	de-steuer-id	86095742719
+operational-memos	5025	5039	de-steuer-id	12 134 567 895
+operational-memos	5158	5168	uk-nhs	9434765919
+operational-memos	5173	5183	uk-nhs	9991234578
+operational-memos	5225	5237	uk-nhs	943 476 5919
+operational-memos	5588	5603	imei	001970012345677
+operational-memos	5611	5626	imei	004400152020002
+operational-memos	5638	5653	imei	490154203237518
+operational-memos	5665	5680	imei	490154203237518
+operational-memos	5942	5957	imei	001970012345677
