@@ -168,6 +168,6 @@ impl CrfSequenceModel {
         self.lattice(rows)?.best_paths(k)
     }
     pub fn config_hash(&self) -> u64 {
-        self.to_bytes().iter().fold(0xcbf29ce484222325, |h, &b| (h ^ u64::from(b)).wrapping_mul(0x100000001b3))
+        turbo_analysis::fnv1a(&self.to_bytes())
     }
 }

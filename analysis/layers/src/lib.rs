@@ -24,6 +24,7 @@ pub use categories::{Categories, CategoryRow, CategoryScope};
 pub use containment::{Containment, ContainmentChain, ContainmentError, PlaceAncestor, PlaceAncestorRef};
 pub use date::{DAY_SECONDS, Date, DateTime, write_year};
 pub use dec::Dec;
+pub use discourse::{Quotation, Quotations, QuoteKind};
 pub use entity_graph::{
     ConsolidatedMention, DocumentEntities, DocumentEntity, EntityRelation, EntitySalience, EntitySalienceScore,
     SyntacticRole, SyntacticRoleCounts,
@@ -133,6 +134,7 @@ mod containment;
 mod core_tests;
 mod date;
 pub mod dec;
+mod discourse;
 mod entity_graph;
 mod events;
 mod evidence;

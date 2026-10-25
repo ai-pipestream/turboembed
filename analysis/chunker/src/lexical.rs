@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use turbo_analysis::{Annotator, Bound, Error, Layer, Overlap, Refs, View};
+use turbo_analysis::{Annotator, Bound, Error, Fnv1a, Layer, Overlap, Refs, View};
 use turbo_analysis_layers::{Boundaries, Sentences, Terms, Tokens};
 use turbo_unicode::category::general_category;
 
@@ -141,6 +141,6 @@ impl Annotator for LexicalBoundaries {
     }
 
     fn config_hash(&self) -> u64 {
-        (DriftBoundaries { drift: self.drift }.config_hash() ^ (self.form as u64)).wrapping_mul(0x0100_0000_01b3)
+        Fnv1a::with_seed(DriftBoundaries { drift: self.drift }.config_hash()).fold_u64(self.form as u64).finish()
     }
 }

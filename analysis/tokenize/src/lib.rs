@@ -85,7 +85,7 @@ impl TokenizerOptions {
 /// The 64-bit FNV-1a hash of `bytes`: small, fixed and the same on every
 /// platform, which is all a configuration hash needs.
 pub(crate) fn fnv1a(bytes: &[u8]) -> u64 {
-    bytes.iter().fold(0xCBF2_9CE4_8422_2325, |h, &b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01B3))
+    turbo_analysis::fnv1a(bytes)
 }
 
 #[cfg(test)]
@@ -116,7 +116,7 @@ mod tests {
 
     #[test]
     fn fnv1a_reference_values() {
-        assert_eq!(fnv1a(b""), 0xCBF2_9CE4_8422_2325);
+        assert_eq!(fnv1a(b""), turbo_analysis::FNV1A_OFFSET_BASIS);
         assert_eq!(fnv1a(b"a"), 0xAF63_DC4C_8601_EC8C);
     }
 }

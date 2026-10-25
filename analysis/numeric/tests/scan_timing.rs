@@ -76,7 +76,7 @@ fn paired_release() {
     }
     let elapsed = t.elapsed();
     out.check().unwrap();
-    let mut digest = 0xcbf29ce484222325u64;
+    let mut digest = turbo_analysis::Fnv1a::new();
     for i in 0..out.len() {
         let ix = Ix::new(i as u32);
         let row = format!(
@@ -93,10 +93,9 @@ fn paired_release() {
                 out.notation[i]
             )
         );
-        for b in row.bytes() {
-            digest = (digest ^ u64::from(b)).wrapping_mul(0x100000001b3);
-        }
+        digest.bytes(row.as_bytes());
     }
+    let digest = digest.finish();
     println!(
         "corpus={which} bytes={} iters={iters} ms={:.6} mentions={} output_fnv64={digest:016x}",
         corpus.len(),

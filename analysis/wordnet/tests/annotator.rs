@@ -162,3 +162,37 @@ fn options_past_what_the_layer_holds_are_refused() {
     let none = WordNetOptions { max_senses: 0, ..WordNetOptions::default() };
     assert!(WordNetAnnotator::new(lexicon(), "fixture:1", none).is_err());
 }
+
+#[test]
+fn hash_compat_options_identity_and_morphy() {
+    use turbo_analysis::Annotator;
+    let mut hashes = Vec::new();
+    for id in ["fixture:1", "fixture:2", "é:词"] {
+        for options in [
+            WordNetOptions::default(),
+            WordNetOptions { max_senses: 1, hypernym_depth: 0, include_hyponyms: true, max_expansions: 2 },
+        ] {
+            let plain = WordNetAnnotator::new(lexicon(), id, options).unwrap();
+            let morphy = WordNetAnnotator::new(lexicon(), id, options).unwrap().with_morphy(MorphyExceptions::empty());
+            hashes.extend([plain.config_hash(), morphy.config_hash()]);
+        }
+    }
+    // Fixed values from the previous implementation, before migration.
+    assert_eq!(
+        hashes,
+        [
+            10151469796173529181,
+            10151469796173529180,
+            1611157893381296233,
+            1611157893381296232,
+            9154899751243379368,
+            9154899751243379369,
+            10306967913311042588,
+            10306967913311042589,
+            17548468750267158981,
+            17548468750267158980,
+            6655273575599580657,
+            6655273575599580656
+        ]
+    );
+}

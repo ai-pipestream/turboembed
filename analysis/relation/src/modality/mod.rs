@@ -22,7 +22,7 @@ mod scope;
 
 use std::collections::BTreeMap;
 
-use turbo_analysis::{Annotator, Document, Error, Key, Refs, Span, View};
+use turbo_analysis::{Annotator, Document, Error, Fnv1a, Key, Refs, Span, View};
 use turbo_analysis_layers::modality::{DeonticKind, EpistemicStatus, Modality, ModalityTag, Polarity};
 use turbo_analysis_layers::{Dependencies, Tokens};
 
@@ -171,21 +171,14 @@ impl Annotator for ModalityAnnotator {
     }
 
     fn config_hash(&self) -> u64 {
-        let mut h = 0xcbf29ce484222325u64;
-        let mut eat = |bytes: &[u8]| {
-            for &b in bytes {
-                h ^= u64::from(b);
-                h = h.wrapping_mul(0x100000001b3);
-            }
-        };
-        eat(Self::VERSION.as_bytes());
-        eat(&(self.config.max_window_tokens as u64).to_le_bytes());
-        eat(&(self.lexicon.phrases() as u64).to_le_bytes());
+        let mut h = Fnv1a::new();
+        h.bytes(Self::VERSION.as_bytes())
+            .bytes(&(self.config.max_window_tokens as u64).to_le_bytes())
+            .bytes(&(self.lexicon.phrases() as u64).to_le_bytes());
         for s in &self.config.deontic_subjects {
-            eat(s.as_bytes());
-            eat(&[0]);
+            h.bytes(s.as_bytes()).bytes(&[0]);
         }
-        h
+        h.finish()
     }
 }
 

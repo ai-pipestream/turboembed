@@ -16,9 +16,10 @@ use crate::progressive;
 use crate::proto::result::analysis_service_server::AnalysisService;
 use crate::proto::result::{
     AnalyzePipelineRequest, AnalyzeStreamRequest, CapabilitiesRequest, CapabilitiesResponse, ChunkLevelsResult,
-    DocumentGraphRequest, DocumentGraphResponse, ExtractionResult, LoadBundleRequest, LoadBundleResponse,
-    RecordsResult, RerankScoresResult, SparseTermsResult, TokenVectorsResult, UnloadBundleRequest,
-    UnloadBundleResponse,
+    DocumentGraphRequest, DocumentGraphResponse, DocumentWindowRequest, DocumentWindowResponse, ExtractionResult,
+    FormatDocumentRequest, FormatDocumentResponse, ListOutputFormatsRequest, ListOutputFormatsResponse,
+    LoadBundleRequest, LoadBundleResponse, ProjectChunksRequest, ProjectChunksResponse, RecordsResult,
+    RerankScoresResult, SparseTermsResult, TokenVectorsResult, UnloadBundleRequest, UnloadBundleResponse,
 };
 use crate::results::Wire;
 use crate::results::{
@@ -163,5 +164,34 @@ impl AnalysisService for Analysis {
         req: Request<AnalyzePipelineRequest>,
     ) -> Reply<Self::AnalyzeDocumentProgressiveStream> {
         progressive::start_progressive(req).await
+    }
+
+    async fn inspect_document_window(&self, req: Request<DocumentWindowRequest>) -> Reply<DocumentWindowResponse> {
+        let req = req.into_inner();
+        let out =
+            tokio::task::spawn_blocking(move || crate::inspect::inspect_document_window(&req)).await.map_err(|e| {
+                plain(Failure::new(TURBO_E_INTERNAL, 0, format!("inspect_document_window task failed: {e}")))
+            })?;
+        Ok(Response::new(out.map_err(plain)?))
+    }
+
+    async fn project_chunks(&self, req: Request<ProjectChunksRequest>) -> Reply<ProjectChunksResponse> {
+        let req = req.into_inner();
+        let out = tokio::task::spawn_blocking(move || crate::inspect::project_chunks(&req))
+            .await
+            .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("project_chunks task failed: {e}"))))?;
+        Ok(Response::new(out.map_err(plain)?))
+    }
+
+    async fn list_output_formats(&self, req: Request<ListOutputFormatsRequest>) -> Reply<ListOutputFormatsResponse> {
+        Ok(Response::new(crate::format::list_output_formats(req.get_ref())))
+    }
+
+    async fn format_document(&self, req: Request<FormatDocumentRequest>) -> Reply<FormatDocumentResponse> {
+        let req = req.into_inner();
+        let out = tokio::task::spawn_blocking(move || crate::format::format_document(&req))
+            .await
+            .map_err(|e| plain(Failure::new(TURBO_E_INTERNAL, 0, format!("format_document task failed: {e}"))))?;
+        Ok(Response::new(out.map_err(plain)?))
     }
 }

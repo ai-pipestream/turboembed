@@ -2,7 +2,7 @@
 //! `CursorQuantityExtractor.extract` and `matchAt`, without the money
 //! exclusion and without the unit after the number.
 
-use turbo_analysis::{Annotator, Error, Refs, Span, View};
+use turbo_analysis::{Annotator, Error, Fnv1a, Refs, Span, View};
 use turbo_analysis_layers::{NumberMention, NumberNotation, Numbers};
 
 use crate::scan::{
@@ -171,6 +171,10 @@ impl Annotator for NumberScanner {
         };
         [notation, u64::from(self.apply_scale), u64::from(self.opennlp_parity)]
             .iter()
-            .fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x).wrapping_mul(0x0100_0000_01b3))
+            .fold(Fnv1a::new(), |mut h, &x| {
+                h.u64(x);
+                h
+            })
+            .finish()
     }
 }

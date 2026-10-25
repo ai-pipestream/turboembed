@@ -10,7 +10,8 @@
 //! stands after them all. Scores are 0, the probability OpenNLP's `Span`
 //! carries when a finder gives none.
 
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
+use turbo_analysis::Fnv1a as Fnv;
 
 use turbo_analysis::{Annotator, Error, IxRange, Refs, Span, Spans, View};
 use turbo_analysis_layers::{Entities, Tokens};
@@ -146,27 +147,6 @@ fn sentences(tokens: &Tokens) -> Vec<IxRange<Tokens>> {
         }
     }
     out
-}
-
-/// 64-bit FNV-1a, for configuration hashes that stay the same across runs.
-struct Fnv(u64);
-
-impl Default for Fnv {
-    fn default() -> Fnv {
-        Fnv(0xcbf2_9ce4_8422_2325)
-    }
-}
-
-impl Hasher for Fnv {
-    fn finish(&self) -> u64 {
-        self.0
-    }
-
-    fn write(&mut self, bytes: &[u8]) {
-        for &b in bytes {
-            self.0 = (self.0 ^ b as u64).wrapping_mul(0x0100_0000_01b3);
-        }
-    }
 }
 
 #[cfg(test)]

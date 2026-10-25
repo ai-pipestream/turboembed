@@ -15,9 +15,6 @@ use super::{GeoResolution, GeocodeError, Geocoder, MentionPolicy};
 /// The conventional entity type label for location mentions.
 pub const DEFAULT_LOCATION_TYPE: &str = "location";
 
-const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
-const FNV_PRIME: u64 = 0x0100_0000_01b3;
-
 /// Resolved location mentions over a text view (`turbo:locations`), matching
 /// OpenNLP's `GeocodeAnnotator.LOCATIONS`.
 ///
@@ -113,13 +110,11 @@ pub(crate) fn normalize_location_types<'a>(
 pub(crate) fn hash_location_types(seed: u64, location_types: &HashSet<String>) -> u64 {
     let mut labels: Vec<_> = location_types.iter().collect();
     labels.sort_unstable();
-    let mut hash = seed;
+    let mut hash = turbo_analysis::Fnv1a::with_seed(seed);
     for label in labels {
-        for byte in label.bytes().chain(std::iter::once(0xff)) {
-            hash = (hash ^ u64::from(byte)).wrapping_mul(FNV_PRIME);
-        }
+        hash.bytes(label.as_bytes()).u8(0xff);
     }
-    hash
+    hash.finish()
 }
 
 /// Resolves location entities from `opennlp:entities` into `turbo:locations`
@@ -217,8 +212,7 @@ impl<G: Geocoder + Send + Sync + 'static> Annotator for GeocodeAnnotator<G> {
             MentionPolicy::All => 0,
             MentionPolicy::ExcludeSingleAsciiLetters => 1,
         };
-        let seed =
-            ((FNV_OFFSET_BASIS ^ policy).wrapping_mul(FNV_PRIME) ^ self.geocoder.fingerprint()).wrapping_mul(FNV_PRIME);
+        let seed = turbo_analysis::Fnv1a::new().fold_u64(policy).fold_u64(self.geocoder.fingerprint()).finish();
         hash_location_types(seed, &self.location_types)
     }
 }

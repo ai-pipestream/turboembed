@@ -78,7 +78,79 @@ pub(crate) fn flat(blocks: &[Block]) -> &[f32] {
     unsafe { std::slice::from_raw_parts(blocks.as_ptr().cast::<f32>(), blocks.len() * LANES) }
 }
 
-fn flat_mut(blocks: &mut [Block]) -> &mut [f32] {
+pub(crate) fn flat_mut(blocks: &mut [Block]) -> &mut [f32] {
     // SAFETY: as in `flat`, and the borrow is unique.
     unsafe { std::slice::from_raw_parts_mut(blocks.as_mut_ptr().cast::<f32>(), blocks.len() * LANES) }
+}
+
+pub(crate) fn write_space(space: &Space, out: &mut Vec<u8>) {
+    write_str(&space.model.id, out);
+    write_str(&space.model.revision, out);
+    write_str(&space.model.sha256, out);
+    out.extend_from_slice(&space.dim.to_le_bytes());
+    let norm = match space.normalization {
+        Normalization::Unit => 0u8,
+        Normalization::None => 1u8,
+    };
+    out.push(norm);
+}
+
+pub(crate) fn read_space(r: &mut ByteReader<'_>) -> Result<Space, String> {
+    let id = r.str()?;
+    let revision = r.str()?;
+    let sha256 = r.str()?;
+    let dim = r.u32()?;
+    if dim == 0 {
+        return Err("snapshot space has dimension 0".into());
+    }
+    let normalization = match r.u8()? {
+        0 => Normalization::Unit,
+        1 => Normalization::None,
+        b => return Err(format!("invalid normalization tag {b}")),
+    };
+    Ok(Space::new(turbo_analysis::ModelRef { id, revision, sha256 }, dim, normalization))
+}
+
+pub(crate) fn write_str(s: &str, out: &mut Vec<u8>) {
+    out.extend_from_slice(&(s.len() as u32).to_le_bytes());
+    out.extend_from_slice(s.as_bytes());
+}
+
+pub(crate) struct ByteReader<'a>(pub(crate) &'a [u8]);
+
+impl<'a> ByteReader<'a> {
+    pub(crate) fn take(&mut self, n: usize) -> Result<&'a [u8], String> {
+        if self.0.len() < n {
+            return Err("truncated vector-index snapshot".into());
+        }
+        let (head, tail) = self.0.split_at(n);
+        self.0 = tail;
+        Ok(head)
+    }
+
+    pub(crate) fn u8(&mut self) -> Result<u8, String> {
+        Ok(self.take(1)?[0])
+    }
+
+    pub(crate) fn u16(&mut self) -> Result<u16, String> {
+        Ok(u16::from_le_bytes(self.take(2)?.try_into().unwrap()))
+    }
+
+    pub(crate) fn u32(&mut self) -> Result<u32, String> {
+        Ok(u32::from_le_bytes(self.take(4)?.try_into().unwrap()))
+    }
+
+    pub(crate) fn u64(&mut self) -> Result<u64, String> {
+        Ok(u64::from_le_bytes(self.take(8)?.try_into().unwrap()))
+    }
+
+    pub(crate) fn f32(&mut self) -> Result<f32, String> {
+        Ok(f32::from_le_bytes(self.take(4)?.try_into().unwrap()))
+    }
+
+    pub(crate) fn str(&mut self) -> Result<String, String> {
+        let len = self.u32()? as usize;
+        let bytes = self.take(len)?;
+        std::str::from_utf8(bytes).map(str::to_owned).map_err(|_| "invalid UTF-8 in snapshot".into())
+    }
 }

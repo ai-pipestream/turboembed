@@ -25,6 +25,7 @@ turbo-chunker = { path = "../analysis/chunker" }
 turbo-coref = { path = "../analysis/coref" }
 turbo-encoding-layers = { path = "../analysis/encoding-layers" }
 turbo-entity-linker = { path = "../analysis/entity-linker" }
+turbo-formats = { path = "../analysis/formats" }
 turbo-geo = { path = "../analysis/geo" }
 turbo-gliner = { path = "../analysis/gliner" }
 turbo-glossary-layers = { path = "../analysis/glossary-layers" }
@@ -35,19 +36,21 @@ turbo-relation = { path = "../analysis/relation" }
 # The structured records of a schema extraction and the limits its
 # schemas are held to.
 turbo-schema-extract = { path = "../analysis/schema-extract" }
-turbo-sentdetect = { path = "../analysis/sentdetect" }
-turbo-stem = { path = "../analysis/stem" }
-turbo-stopword = { path = "../analysis/stopword" }
 turbo-stopword-layers = { path = "../analysis/stopword-layers" }
 turbo-structure = { path = "../analysis/structure" }
-turbo-tokenize = { path = "../analysis/tokenize" }
 turbo-tokenize-layers = { path = "../analysis/tokenize-layers" }
+turbo-vector-index = { path = "../analysis/vector-index", features = ["turboquant"] }
+turbo-query = { path = "../analysis/query" }
+turbo-sentdetect = { path = "../analysis/sentdetect" }
+turbo-stem = { path = "../analysis/stem" }
 # The vocabulary store's readers: each upload is parsed by the crate that
 # owns its format, and the learner counts UAX #29 words.
 turbo-glossary = { path = "../analysis/glossary" }
 turbo-lemmatizer = { path = "../analysis/lemmatizer" }
 turbo-maxent = { path = "../analysis/maxent" }
 turbo-sequence = { path = "../analysis/sequence" }
+turbo-stopword = { path = "../analysis/stopword" }
+turbo-tokenize = { path = "../analysis/tokenize" }
 turbo-wordnet = { path = "../analysis/wordnet" }
 # The model catalog: the zoo index, licence acceptances, verified fetches.
 turbo-zoo = { path = "../analysis/zoo", default-features = false }

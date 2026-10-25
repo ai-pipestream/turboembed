@@ -164,6 +164,11 @@ impl Document {
         &self.views[v.0 as usize].text
     }
 
+    /// How many views the document has: valid `ViewId`s are `0..view_count()`.
+    pub fn view_count(&self) -> usize {
+        self.views.len()
+    }
+
     /// The offset table of a view: see `View::offsets`.
     pub fn offsets(&self, v: ViewId) -> &OffsetTable {
         self.views[v.0 as usize].offsets()
