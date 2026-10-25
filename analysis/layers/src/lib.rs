@@ -25,7 +25,8 @@ pub use containment::{Containment, ContainmentChain, ContainmentError, PlaceAnce
 pub use date::{DAY_SECONDS, Date, DateTime, write_year};
 pub use dec::Dec;
 pub use entity_graph::{
-    ConsolidatedMention, DocumentEntities, DocumentEntity, EntityRelation, SyntacticRole, SyntacticRoleCounts,
+    ConsolidatedMention, DocumentEntities, DocumentEntity, EntityRelation, EntitySalience, EntitySalienceScore,
+    SyntacticRole, SyntacticRoleCounts,
 };
 pub use events::{AnchoredLayerKind, ArgumentRole, EventArgument, EventFrame, Events};
 pub use generic::{Confidence, Language, TokenVectorWindows, Utf16Spans, Vectors};

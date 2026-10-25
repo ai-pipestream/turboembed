@@ -257,7 +257,7 @@ impl VectorAnnotator {
         let mut h = turbo_analysis::Fnv1a::with_seed(seed);
         if let Some(proj) = &self.projection {
             h.bool(proj.has_bias);
-            proj.linear.weight.iter().chain(&proj.linear.bias).for_each(|&v| {
+            proj.linear.weight().iter().chain(proj.linear.bias()).for_each(|&v| {
                 h.f32(v);
             });
         }

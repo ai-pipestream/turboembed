@@ -14,8 +14,9 @@ use super::tables::{
     is_pound_word, is_test_currency, trailing_sterling,
 };
 use crate::scan::{
-    ScanResult, base_char_before, boundary_after, boundary_before, byte_at, char_at, continues_number, parse,
-    sign_boundary_before, whitespace_at, word_end,
+    EXTENDED_START_BYTES, ScanResult, base_char_before, boundary_after, boundary_before, byte_at, char_at,
+    continues_number_with_parity, is_nd_at, parse_with_parity, sign_boundary_before, utf8_char_width, whitespace_at,
+    word_end,
 };
 use turbo_analysis::{Annotator, Error, Refs, Span, View};
 use turbo_analysis_layers::{Currency, Money, MoneyMention, Multiplier, NumberNotation};
@@ -104,9 +105,8 @@ impl MoneyExtractor {
             return Err(SymbolError::Empty);
         }
         table.sort_unstable_by_key(|&(s, _)| s);
-        let mut starts = [false; 256];
-        starts[usize::from(b'-')] = true;
-        for b in (b'0'..=b'9').chain(b'A'..=b'Z') {
+        let mut starts = EXTENDED_START_BYTES;
+        for b in b'A'..=b'Z' {
             starts[usize::from(b)] = true;
         }
         for &(s, _) in &table {
@@ -129,8 +129,9 @@ impl MoneyExtractor {
     ///
     /// When `false` (default), leading minuses before ISO codes (`-USD 5`),
     /// dollar-prefixed region symbols (`HK$50`, `US$50`, `CA$50`), weight-context
-    /// filtering on `pound(s)` (`3 pounds of flour`), and test-code refusal
-    /// (`XTS`, `XXX`) are active. When `true`, matches OpenNLP's
+    /// filtering on `pound(s)` (`3 pounds of flour`), test-code refusal
+    /// (`XTS`, `XXX`), Indian/space/apostrophe grouping, scientific notation,
+    /// and Unicode `Nd` digits are active. When `true`, matches OpenNLP's
     /// `CursorMoneyExtractor` behavior for JVM golden verification.
     pub fn with_opennlp_parity(mut self, enabled: bool) -> Self {
         self.opennlp_parity = enabled;
@@ -166,9 +167,6 @@ impl MoneyExtractor {
         let mut digits = String::new();
         let mut i = 0;
         while i < b.len() {
-            // Only these bytes can start a mention. Each is ASCII or the
-            // first byte of a symbol, so where one is found is a character
-            // boundary, as the Java's step by code points would reach.
             match b[i..].iter().position(|&x| self.starts[usize::from(x)]) {
                 Some(skip) => i += skip,
                 None => break,
@@ -184,7 +182,7 @@ impl MoneyExtractor {
                     });
                     i = found.end;
                 }
-                None => i += char_at(text, i).map_or(1, char::len_utf8),
+                None => i += utf8_char_width(b[i]),
             }
         }
     }
@@ -217,7 +215,8 @@ impl MoneyExtractor {
         {
             return Some(found);
         }
-        if byte_at(b, i).is_ascii_digit() && !continues_number(text, i, self.notation) && boundary {
+        let is_digit = byte_at(b, i).is_ascii_digit() || (!self.opennlp_parity && is_nd_at(text, i));
+        if is_digit && !continues_number_with_parity(text, i, self.notation, self.opennlp_parity) && boundary {
             return self.number_first(text, i, negative, digits);
         }
         None
@@ -234,7 +233,7 @@ impl MoneyExtractor {
         digits: &mut String,
     ) -> Option<Found> {
         let number_start = skip_whitespace(text, after_symbol);
-        let r = parse(text, number_start, true, self.notation, digits)?;
+        let r = parse_with_parity(text, number_start, true, self.notation, self.opennlp_parity, digits)?;
         mention(text, r.end, &r, currency, negative)
     }
 
@@ -245,7 +244,14 @@ impl MoneyExtractor {
         if !whitespace_at(text, code_start + 3) {
             return None;
         }
-        let r = parse(text, skip_whitespace(text, code_start + 3), true, self.notation, digits)?;
+        let r = parse_with_parity(
+            text,
+            skip_whitespace(text, code_start + 3),
+            true,
+            self.notation,
+            self.opennlp_parity,
+            digits,
+        )?;
         mention(text, r.end, &r, code, negative)
     }
 
@@ -253,7 +259,7 @@ impl MoneyExtractor {
     /// at `digit_start`, then a symbol directly, or one whitespace
     /// character and a code or a currency word.
     fn number_first(&self, text: &str, digit_start: usize, negative: bool, digits: &mut String) -> Option<Found> {
-        let r = parse(text, digit_start, true, self.notation, digits)?;
+        let r = parse_with_parity(text, digit_start, true, self.notation, self.opennlp_parity, digits)?;
         let next = char_at(text, r.end)?;
         if let Some(currency) = self.symbol(next) {
             return mention(text, r.end + next.len_utf8(), &r, currency, negative);

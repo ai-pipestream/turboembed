@@ -312,7 +312,7 @@ impl Annotator for RegionAwareNumberAnnotator {
             });
         }
         let (primary, secondary) = ballot_notations(regions, self.minimum_margin);
-        let scanner = NumberScanner { notation: primary, apply_scale: self.apply_scale };
+        let scanner = NumberScanner::new(primary).with_scale(self.apply_scale);
         let mut numbers = Numbers::new(view.id());
         scanner.scan_with_fallback(text, secondary, &mut numbers);
         Ok((numbers,))

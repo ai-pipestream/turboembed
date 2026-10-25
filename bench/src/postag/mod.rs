@@ -12,7 +12,7 @@
 //! clean, pushed commit; nothing in it is typed by hand.
 
 #[cfg(feature = "postag")]
-mod measure;
+pub(crate) mod measure;
 
 use std::path::{Path, PathBuf};
 

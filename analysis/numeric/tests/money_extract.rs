@@ -8,57 +8,16 @@
 
 mod money_common;
 
-use money_common::{cur, dec, same, unscaled};
-use turbo_analysis::{Analyzer, Document, Ix, Layer, Span, ViewId};
+use money_common::{
+    cur, dec, extract_money as extract, none_money as none, same, single_money as single,
+    single_money_with as single_with, unscaled, whole,
+};
+use turbo_analysis::{Analyzer, Document, Ix, Layer, Span};
 use turbo_numeric::NumberNotation::{LatinEu, LatinUs};
-use turbo_numeric::money::{Currency, DEFAULT_SYMBOLS, Decimal, Money, MoneyExtractor, SymbolError, is_iso_currency};
-
-/// One extracted mention: its span, its amount and its currency.
-#[derive(Debug)]
-pub struct Found {
-    pub span: Span,
-    pub amount: Decimal,
-    pub currency: Currency,
-}
-
-/// Every mention `x` finds in `text`, after checking the layer.
-pub fn extract(x: &MoneyExtractor, text: &str) -> Vec<Found> {
-    let mut m = Money::new(ViewId::SOURCE);
-    x.scan(text, &mut m);
-    assert_eq!(m.check(), Ok(()), "{text:?}");
-    m.spans
-        .iter()
-        .map(|(i, span)| {
-            let a = m.amount(i);
-            let amount = Decimal { negative: a.negative, digits: a.digits.into(), scale: a.scale as i32 };
-            Found { span, amount, currency: m.currency[i.get()] }
-        })
-        .collect()
-}
-
-/// The single mention the default extractor finds in `text`.
-pub fn single(text: &str) -> Found {
-    single_with(&MoneyExtractor::default(), text)
-}
-
-pub fn single_with(x: &MoneyExtractor, text: &str) -> Found {
-    let mut all = extract(x, text);
-    assert_eq!(all.len(), 1, "expected one mention in {text:?}: {all:?}");
-    all.pop().unwrap()
-}
-
-/// The span of the whole of `text`, in bytes.
-pub fn whole(text: &str) -> Span {
-    Span::new(0, text.len() as u32)
-}
+use turbo_numeric::money::{DEFAULT_SYMBOLS, Money, MoneyExtractor, SymbolError, is_iso_currency};
 
 fn eu() -> MoneyExtractor {
     MoneyExtractor::new(LatinEu)
-}
-
-fn none(x: &MoneyExtractor, text: &str) {
-    let found = extract(x, text);
-    assert!(found.is_empty(), "{text:?}: {found:?}");
 }
 
 #[test]
@@ -179,7 +138,13 @@ fn negative_symbol_first_at_boundaries_keeps_the_sign() {
 
 #[test]
 fn grouping_the_scanner_cannot_parse_yields_no_mention() {
-    for text in ["\u{20B9}1,00,000", "1,00,000 USD", "USD 1,00,000", "$1,23", "\u{20AC}1.234,56"] {
+    for (text, cur_code) in [("\u{20B9}1,00,000", "INR"), ("1,00,000 USD", "USD"), ("USD 1,00,000", "USD")] {
+        let m = single(text);
+        assert!(same(&dec("100000"), &m.amount), "{text:?}");
+        assert_eq!(m.currency, cur(cur_code), "{text:?}");
+        none(&MoneyExtractor::default().with_opennlp_parity(true), text);
+    }
+    for text in ["$1,23", "\u{20AC}1.234,56"] {
         none(&MoneyExtractor::default(), text);
     }
 }
