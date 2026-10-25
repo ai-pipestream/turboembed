@@ -269,6 +269,8 @@ pub struct ConsensusEntityMerger {
 
 impl ConsensusEntityMerger {
     pub const ID: &'static str = "turbo-namefind:consensus";
+    /// Winner-centered grouping with priority eligibility before voting.
+    pub const VERSION: &'static str = "1";
 
     pub fn new(inputs: Vec<Key<Entities>>, output: Key<Entities>, policy: EntityMergePolicy) -> Self {
         ConsensusEntityMerger { inputs, output, tokens: Key::DEFAULT, policy }
@@ -327,7 +329,7 @@ impl ConsensusEntityMerger {
         if doc.has(self.tokens.id()) {
             reads.push(self.tokens.id());
         }
-        Provenance { reads, config: Step::config_hash(self), ..Provenance::by(Self::ID) }
+        Provenance { reads, version: Self::VERSION, config: Step::config_hash(self), ..Provenance::by(Self::ID) }
     }
 }
 
@@ -355,7 +357,7 @@ impl Step for ConsensusEntityMerger {
     }
 
     fn config_hash(&self) -> u64 {
-        match self.policy {
+        let policy = match self.policy {
             EntityMergePolicy::RawUnion => 1,
             EntityMergePolicy::PriorityFallback => 2,
             EntityMergePolicy::Consensus { min_votes, overlap_rule } => {
@@ -366,7 +368,9 @@ impl Step for ConsensusEntityMerger {
                 };
                 (u64::from(min_votes.get()) << 8) | (rule << 4) | 3
             }
-        }
+        };
+        // Revision 1 uses the bit above the 32-bit quorum and 8-bit policy.
+        (1u64 << 40) | policy
     }
 
     fn compute(&self, docs: &[Document]) -> Box<dyn Any + Send> {
