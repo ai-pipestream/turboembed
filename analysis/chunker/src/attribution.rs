@@ -18,13 +18,15 @@
 //! and boost must be finite (boosts also positive), and a sparse term id
 //! the lookup cannot resolve is refused, never blank-attributed.
 
-use std::collections::BTreeMap;
-
-use turbo_analysis::{Document, Error, Ix, Key, Layer, Span, ViewId};
+use turbo_analysis::{Ix, Layer, Span};
 use turbo_analysis_layers::{Chunks, Levels, SparseTerms, Tokens};
 
 use crate::cascade::{FilterMode, UnitFilter};
 use crate::terms::{IndexedTerms, Vocabulary};
+
+mod heat;
+
+pub use heat::{DocumentHeat, HeatSegment};
 
 /// Which query signal produced a matched span.
 #[derive(Clone, Debug, PartialEq)]
@@ -125,6 +127,16 @@ impl ChunkAttribution {
         })
     }
 
+    /// Refuses a `chunks` other than the one this attribution was opened
+    /// over: its chunk must exist there with the same envelope.
+    fn owns(&self, chunks: &Chunks) -> Result<(), String> {
+        let at = self.chunk.get();
+        if at >= chunks.spans.len() || chunks.spans.get(self.chunk) != self.span {
+            return Err(format!("chunk {at} {}..{} is not in these chunks", self.span.start, self.span.end));
+        }
+        Ok(())
+    }
+
     /// Sets `total_score` to the present signal scores' sum, times any boost.
     pub fn recompute_total(&mut self) {
         let sum = self.lexical_score.unwrap_or(0.0)
@@ -137,8 +149,8 @@ impl ChunkAttribution {
     /// Adds one matched span per occurrence of each query term among the
     /// tokens overlapping this chunk (token/chunk fragment intersections),
     /// summing weights into `lexical_score`; returns the span count.
-    /// Refuses other families' signals, terms outside `vocab`, and an
-    /// `indexed`/`tokens` length mismatch.
+    /// Refuses other families' signals, terms outside `vocab`, an
+    /// `indexed`/`tokens` length mismatch, and tokens in another view.
     pub fn add_lexical(
         &mut self,
         chunks: &Chunks,
@@ -147,6 +159,14 @@ impl ChunkAttribution {
         vocab: &Vocabulary,
         query: &[LexicalTerm],
     ) -> Result<usize, String> {
+        self.owns(chunks)?;
+        if tokens.spans.view() != chunks.spans.view() {
+            return Err(format!(
+                "tokens are in view {}, chunks in view {}",
+                tokens.spans.view().0,
+                chunks.spans.view().0
+            ));
+        }
         if indexed.term.len() != tokens.spans.len() {
             return Err(format!("IndexedTerms has {} entries, Tokens has {}", indexed.term.len(), tokens.spans.len()));
         }
@@ -203,6 +223,7 @@ impl ChunkAttribution {
         vocab_lookup: impl Fn(u32) -> Option<&'a str>,
         wanted: Option<&std::collections::BTreeSet<u32>>,
     ) -> Result<usize, String> {
+        self.owns(chunks)?;
         sparse.check()?;
         if self.chunk.get() + 1 >= sparse.row.len() {
             return Err(format!(
@@ -255,6 +276,7 @@ impl ChunkAttribution {
     /// the chunk's fragments, and each intersecting match's score once
     /// to `late_score`.
     pub fn add_late(&mut self, chunks: &Chunks, matches: &[LateMatch]) -> Result<usize, String> {
+        self.owns(chunks)?;
         let mut added = 0;
         let mut score = self.late_score.unwrap_or(0.0);
         for m in matches {
@@ -291,6 +313,7 @@ impl ChunkAttribution {
         spans: &[Span],
         boost: Option<f32>,
     ) -> Result<usize, String> {
+        self.owns(chunks)?;
         if let Some(b) = boost
             && !(b.is_finite() && b > 0.0)
         {
@@ -318,13 +341,25 @@ impl ChunkAttribution {
 
     /// Applies a cascade [`UnitFilter`] (named units' fragments are the
     /// filter spans, a `Boost` mode the boost). A chunk no named unit
-    /// overlaps gains nothing, boost included.
+    /// overlaps gains nothing, boost included. Refuses levels in another
+    /// view and units past the end of `levels`.
     pub fn apply_unit_filter(
         &mut self,
         chunks: &Chunks,
         levels: &Levels,
         filter: &UnitFilter,
     ) -> Result<usize, String> {
+        self.owns(chunks)?;
+        if levels.spans.view() != chunks.spans.view() {
+            return Err(format!(
+                "levels are in view {}, chunks in view {}",
+                levels.spans.view().0,
+                chunks.spans.view().0
+            ));
+        }
+        if let Some(u) = filter.units.iter().find(|u| u.get() >= levels.spans.len()) {
+            return Err(format!("filter {} names unit {} of {}", filter.name, u.get(), levels.spans.len()));
+        }
         let spans: Vec<Span> =
             filter.units.iter().flat_map(|&u| levels.spans.fragments(u).collect::<Vec<_>>()).collect();
         let boost = match filter.mode {
@@ -346,153 +381,5 @@ impl ChunkAttribution {
             }
         }
         Ok(added)
-    }
-}
-
-/// One run of the document heat partition: an unscored gap (`score`
-/// and `chunk` both `None`) or a stretch of one winning chunk.
-#[derive(Clone, Debug, PartialEq)]
-pub struct HeatSegment {
-    pub span: Span,
-    pub score: Option<f32>,
-    pub chunk: Option<Ix<Chunks>>,
-    pub matched_spans: Vec<MatchedSpan>,
-}
-
-/// The whole view partitioned into contiguous scored and unscored
-/// heat segments.
-#[derive(Clone, Debug, PartialEq)]
-pub struct DocumentHeat {
-    pub view: ViewId,
-    pub segments: Vec<HeatSegment>,
-}
-
-fn invalid(detail: String) -> Error {
-    Error::Invalid { layer: Key::<Chunks>::DEFAULT.id(), detail }
-}
-
-impl DocumentHeat {
-    /// Partitions `view` of `doc` by the attributed level-0 chunks:
-    /// where they overlap the highest `total_score` wins (ties to the
-    /// lowest chunk index); elsewhere the segment is an unscored gap. A
-    /// matched span rides with the segment its start falls in.
-    ///
-    /// Refuses an unknown view, invalid or other-view chunks, duplicate
-    /// or non-level-0 attributions, a span that is not its chunk's
-    /// envelope, a non-finite total, and a matched span reversed, past
-    /// the view end, off a character boundary, or outside its envelope.
-    pub fn build(
-        doc: &Document,
-        view: ViewId,
-        chunks: &Chunks,
-        attributions: &[ChunkAttribution],
-    ) -> Result<DocumentHeat, Error> {
-        if view.0 as usize >= doc.view_count() {
-            return Err(Error::Bounds {
-                layer: Key::<Chunks>::DEFAULT.id(),
-                view,
-                detail: format!("the document has {} views, view {} does not exist", doc.view_count(), view.0),
-            });
-        }
-        chunks.check().map_err(invalid)?;
-        if chunks.spans.view() != view {
-            return Err(Error::Bounds {
-                layer: Key::<Chunks>::DEFAULT.id(),
-                view,
-                detail: format!("chunks are in view {}, the heat is over view {}", chunks.spans.view().0, view.0),
-            });
-        }
-        let text = doc.text(view);
-        let len = text.len() as u32;
-        let mut by_chunk: BTreeMap<u32, &ChunkAttribution> = BTreeMap::new();
-        for a in attributions {
-            let at = a.chunk.get();
-            if at >= chunks.spans.len() {
-                return Err(invalid(format!("attribution names chunk {at} of {}", chunks.spans.len())));
-            }
-            if chunks.level[at] != 0 {
-                return Err(invalid(format!("attribution names chunk {at} at level {}, not 0", chunks.level[at])));
-            }
-            if by_chunk.insert(at as u32, a).is_some() {
-                return Err(invalid(format!("chunk {at} is attributed twice")));
-            }
-            if a.span != chunks.spans.get(a.chunk) {
-                return Err(invalid(format!(
-                    "attribution span {}..{} is not chunk {at}'s envelope",
-                    a.span.start, a.span.end
-                )));
-            }
-            if !a.total_score.is_finite() {
-                return Err(invalid(format!("chunk {at} has a non-finite total score {}", a.total_score)));
-            }
-            for m in &a.matched_spans {
-                if m.span.start > m.span.end
-                    || m.span.end > len
-                    || m.span.start < a.span.start
-                    || m.span.end > a.span.end
-                {
-                    return Err(invalid(format!(
-                        "chunk {at} matched span {}..{} is outside its envelope {}..{}",
-                        m.span.start, m.span.end, a.span.start, a.span.end
-                    )));
-                }
-                if !text.is_char_boundary(m.span.start as usize) || !text.is_char_boundary(m.span.end as usize) {
-                    return Err(invalid(format!(
-                        "chunk {at} matched span {}..{} splits a character",
-                        m.span.start, m.span.end
-                    )));
-                }
-            }
-        }
-        if len == 0 {
-            return Ok(DocumentHeat { view, segments: Vec::new() });
-        }
-        let mut cuts = vec![0u32, len];
-        for a in by_chunk.values() {
-            for f in chunks.spans.fragments(a.chunk) {
-                cuts.push(f.start.min(len));
-                cuts.push(f.end.min(len));
-            }
-        }
-        cuts.sort_unstable();
-        cuts.dedup();
-        let mut segments: Vec<HeatSegment> = Vec::new();
-        for w in cuts.windows(2) {
-            let (s, e) = (w[0], w[1]);
-            if s == e {
-                continue;
-            }
-            let mut winner: Option<&ChunkAttribution> = None;
-            for a in by_chunk.values() {
-                let covers = chunks.spans.fragments(a.chunk).any(|f| f.start <= s && e <= f.end);
-                if covers
-                    && winner.is_none_or(|w| {
-                        a.total_score.total_cmp(&w.total_score) == std::cmp::Ordering::Greater
-                            || (a.total_score == w.total_score && a.chunk < w.chunk)
-                    })
-                {
-                    winner = Some(a);
-                }
-            }
-            let (score, chunk) = match winner {
-                Some(a) => (Some(a.total_score), Some(a.chunk)),
-                None => (None, None),
-            };
-            let matched: Vec<MatchedSpan> = match winner {
-                Some(a) => a.matched_spans.iter().filter(|m| s <= m.span.start && m.span.start < e).cloned().collect(),
-                None => Vec::new(),
-            };
-            if let Some(last) = segments.last_mut()
-                && last.chunk == chunk
-                && last.score == score
-                && last.span.end == s
-            {
-                last.span.end = e;
-                last.matched_spans.extend(matched);
-            } else {
-                segments.push(HeatSegment { span: Span { start: s, end: e }, score, chunk, matched_spans: matched });
-            }
-        }
-        Ok(DocumentHeat { view, segments })
     }
 }
