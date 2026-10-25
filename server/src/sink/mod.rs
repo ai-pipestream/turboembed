@@ -255,7 +255,7 @@ mod tests {
     fn answer(id: &str, failed: bool) -> AnalyzeStreamResponse {
         let outcome = match failed {
             true => Outcome::Failure(AnalyzeFailure::default()),
-            false => Outcome::Vectors(AnalyzeVectors { dim: 1, data: vec![0; 4], ..Default::default() }),
+            false => Outcome::Vectors(AnalyzeVectors { dim: 1, data: vec![0; 4].into(), ..Default::default() }),
         };
         AnalyzeStreamResponse { id: id.into(), outcome: Some(outcome) }
     }

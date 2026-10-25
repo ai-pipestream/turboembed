@@ -78,7 +78,7 @@ async fn completed_stream_documents_reach_the_sink_in_order() {
 }
 
 fn answer(id: &str) -> AnalyzeStreamResponse {
-    let vectors = AnalyzeVectors { model: "m".into(), version: "1".into(), dim: 1, data: vec![0, 0, 128, 63] };
+    let vectors = AnalyzeVectors { model: "m".into(), version: "1".into(), dim: 1, data: vec![0, 0, 128, 63].into() };
     AnalyzeStreamResponse { id: id.into(), outcome: Some(Outcome::Vectors(vectors)) }
 }
 
