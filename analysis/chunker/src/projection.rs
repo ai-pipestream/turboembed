@@ -67,7 +67,8 @@ impl<L: Layer> VectorProjection<L> {
     }
 
     /// Computes the projection, refusing an invalid `vectors` layer
-    /// and any non-finite value in a non-empty row.
+    /// and any non-finite value in a non-empty row. Refuses projected
+    /// coordinates that cannot be represented as finite `f32` values.
     pub fn compute(vectors: &Vectors<L>, dims: ProjectionDims) -> Result<VectorProjection<L>, String> {
         vectors.check()?;
         let present: Vec<usize> = (0..vectors.len()).filter(|&i| !vectors.is_empty(Ix::new(i as u32))).collect();
@@ -144,7 +145,11 @@ impl<L: Layer> VectorProjection<L> {
                 } else {
                     centred_row.iter().zip(&comps[c * d..(c + 1) * d]).map(|(a, b)| a * b).sum::<f64>()
                 };
-                out.coords[row_ix * k + c] = v as f32;
+                let coordinate = v as f32;
+                if !coordinate.is_finite() {
+                    return Err(format!("row {row_ix} projection coordinate {c} is not finite"));
+                }
+                out.coords[row_ix * k + c] = coordinate;
             }
         }
         Ok(out)

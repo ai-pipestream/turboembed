@@ -93,3 +93,35 @@ fn projection_refusals() {
     }
     assert!((p.explained_variance[0] - 1.0).abs() < 1e-6);
 }
+
+#[test]
+fn finite_inputs_with_unrepresentable_projection_are_refused() {
+    // Two rows in two dimensions select covariance; three select Gram.
+    for dim in [2, 3] {
+        let positive = vec![f32::MAX; dim];
+        let negative = vec![-f32::MAX; dim];
+        let input = vectors::<Chunks>(dim as u32, &[&positive, &negative], &[]);
+        for dims in [ProjectionDims::D2, ProjectionDims::D3] {
+            match VectorProjection::compute(&input, dims) {
+                Err(error) => assert!(error.contains("row 0 projection coordinate 0"), "{error}"),
+                Ok(_) => panic!("unrepresentable projected coordinates accepted"),
+            }
+        }
+    }
+}
+
+#[test]
+fn large_finite_representable_projections_are_preserved() {
+    for dim in [2, 3] {
+        let positive = vec![f32::MAX / 4.0; dim];
+        let negative = vec![-f32::MAX / 4.0; dim];
+        let input = vectors::<Chunks>(dim as u32, &[&positive, &negative], &[]);
+        for dims in [ProjectionDims::D2, ProjectionDims::D3] {
+            let projection = VectorProjection::compute(&input, dims).unwrap();
+            assert!(projection.coords.iter().all(|coordinate| coordinate.is_finite()));
+            assert!(projection.coords[0] > 0.0);
+            assert!((projection.explained_variance[0] - 1.0).abs() < 1e-6);
+            assert!((projection.adjacent_cosine[0].unwrap() + 1.0).abs() < 1e-6);
+        }
+    }
+}
