@@ -36,6 +36,10 @@ impl Unigram {
         if piece.is_empty() {
             return;
         }
+        if self.whitespace_split {
+            let chars: Vec<(char, Span)> = piece.char_indices().map(|(i, c)| (c, original[i])).collect();
+            return self.split_words(text, &chars, out);
+        }
         let mut s = String::new();
         let mut sources = Vec::new();
         if self.add_prefix_space && !piece.starts_with(' ') && !piece.starts_with(self.metaspace) {

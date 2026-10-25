@@ -1,6 +1,7 @@
 //! turbo-kserve: the Open Inference Protocol over gRPC for turboembed
 //! bundles (docs/kserve.md).
 
+use std::path::PathBuf;
 use std::process::ExitCode;
 
 use turbo_kserve::catalog::Catalog;
@@ -63,7 +64,13 @@ async fn main() -> ExitCode {
         },
         None => None,
     };
-    let serve = Serve { admin: args.admin, catalog, sink: args.sink, ..Serve::default() };
+    let serve = Serve {
+        admin: args.admin,
+        vocabulary: args.vocabulary_dir.map(PathBuf::from),
+        catalog,
+        sink: args.sink,
+        ..Serve::default()
+    };
     let server = match Server::start(args.listen, args.models, args.max_message_bytes, serve).await {
         Ok(s) => s,
         Err(e) => {

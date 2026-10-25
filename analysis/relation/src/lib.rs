@@ -22,6 +22,7 @@
 pub mod annotator;
 pub mod defaults;
 pub mod discover;
+pub mod events;
 mod evidence;
 pub mod explore;
 pub mod export;
@@ -37,6 +38,7 @@ pub mod zeroshot;
 
 pub use annotator::RelationAnnotator;
 pub use discover::RelationPathAnnotator;
+pub use events::{EventConfig, EventExtractor};
 pub use explore::{DistantSupervisionMiner, MinedRule, RelationPathExplorer, Seed, SignatureKey, SignatureRow};
 pub use gliner2::Gliner2Relations;
 pub use glirel::GlirelRelations;
