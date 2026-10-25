@@ -26,6 +26,12 @@ use super::Span;
 use super::index::{Ix, IxRange};
 use super::spans::Spans;
 
+#[cfg(test)]
+std::thread_local! {
+    static ADVANCES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static SEARCH_PROBES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// One outer item and the inner items it joins with.
 type Joined<A, B> = (Ix<A>, Span, IxRange<B>);
 
@@ -44,10 +50,12 @@ struct Sweep<'a> {
 }
 
 impl Sweep<'_> {
-    /// The first inner index at or after `from` whose start is at
-    /// least `x`.
-    fn start_at_least(&self, mut from: usize, x: u32) -> usize {
-        while from < self.inner_start.len() && self.inner_start[from] < x {
+    /// The first start at least `x`, or strictly past it for a point
+    /// query (`after`). The caller keeps the forward position.
+    fn start_from(&self, mut from: usize, x: u32, after: bool) -> usize {
+        while from < self.inner_start.len() && (self.inner_start[from] < x || (after && self.inner_start[from] == x)) {
+            #[cfg(test)]
+            ADVANCES.with(|n| n.set(n.get() + 1));
             from += 1;
         }
         from
@@ -57,35 +65,47 @@ impl Sweep<'_> {
     /// `x` (strictly greater).
     fn end_past(&self, mut from: usize, x: u32) -> usize {
         while from < self.inner_end.len() && self.inner_end[from] <= x {
+            #[cfg(test)]
+            ADVANCES.with(|n| n.set(n.get() + 1));
             from += 1;
         }
         from
     }
 
-    /// The end bound for an outer end `x`, continuing from the last
-    /// call's answer when `x` has not decreased (the sweep) and
-    /// binary-searching from the lead when it has (a nested outer
-    /// span), so nested outers stay correct without rescanning.
+    /// Keep the largest end and its forward position. Nested queries
+    /// below that high-water mark search without rewinding it, so a
+    /// later wide query never scans the same prefix again.
     fn end_bound(&self, hint: &mut (u32, usize), x: u32) -> usize {
-        let hi = if x >= hint.0 {
-            self.end_past(hint.1.max(self.lead), x)
+        if x >= hint.0 {
+            let hi = self.end_past(hint.1.max(self.lead), x);
+            *hint = (x, hi);
+            hi
         } else {
-            self.lead + self.inner_end[self.lead..].partition_point(|&e| e <= x)
-        };
-        *hint = (x, hi);
-        hi
+            self.lead
+                + self.inner_end[self.lead..].partition_point(|&e| {
+                    #[cfg(test)]
+                    SEARCH_PROBES.with(|n| n.set(n.get() + 1));
+                    e <= x
+                })
+        }
     }
 
-    /// The start bound for an outer end `x`, with the same
-    /// continue-or-search rule as [`Sweep::end_bound`].
-    fn start_bound(&self, hint: &mut (u32, usize), x: u32) -> usize {
-        let hi = if x >= hint.0 {
-            self.start_at_least(hint.1.max(self.lead), x)
+    /// The same high-water rule for starts. Include starts at `x`
+    /// for point queries, without an overflowing `x + 1` sentinel.
+    fn start_bound(&self, hint: &mut ((u32, bool), usize), x: u32, after: bool) -> usize {
+        let bound = (x, after);
+        if bound >= hint.0 {
+            let hi = self.start_from(hint.1.max(self.lead), x, after);
+            *hint = (bound, hi);
+            hi
         } else {
-            self.lead + self.inner_start[self.lead..].partition_point(|&s| s < x)
-        };
-        *hint = (x, hi);
-        hi
+            self.lead
+                + self.inner_start[self.lead..].partition_point(|&s| {
+                    #[cfg(test)]
+                    SEARCH_PROBES.with(|n| n.set(n.get() + 1));
+                    s < x || (after && s == x)
+                })
+        }
     }
 }
 
@@ -112,7 +132,7 @@ impl<A, B> Iterator for ContainedJoin<'_, A, B> {
         let outer = span(self.outer_start, self.outer_end, self.at);
         let ix = Ix::new(self.at as u32);
         self.at += 1;
-        self.sweep.lead = self.sweep.start_at_least(self.sweep.lead, outer.start);
+        self.sweep.lead = self.sweep.start_from(self.sweep.lead, outer.start, false);
         // Inner ends rise with inner starts on an ordered layer, so
         // the first end past the outer end closes the range; every
         // item before it starts at or after the outer start (the
@@ -140,7 +160,9 @@ pub struct OverlappingJoin<'a, A, B> {
     outer_end: &'a [u32],
     sweep: Sweep<'a>,
     at: usize,
-    hi_hint: (u32, usize),
+    hi_hint: ((u32, bool), usize),
+    start_lead: usize,
+    end_lead: usize,
     _layers: std::marker::PhantomData<fn() -> (A, B)>,
 }
 
@@ -158,18 +180,13 @@ impl<A, B> Iterator for OverlappingJoin<'_, A, B> {
         // at or after the outer start and the first item ending after
         // it, exactly as `overlapping_range` bounds it; both bounds
         // only rise as outer starts rise, so each can sweep.
-        let by_start = self.sweep.start_at_least(self.sweep.lead, outer.start);
-        let by_end = self.sweep.end_past(self.sweep.lead, outer.start);
-        let lo = by_start.min(by_end);
+        // Keep the two lower bounds independently: a run of empty
+        // inner items at this start can separate them by many rows.
+        self.start_lead = self.sweep.start_from(self.start_lead, outer.start, false);
+        self.end_lead = self.sweep.end_past(self.end_lead, outer.start);
+        let lo = self.start_lead.min(self.end_lead);
         self.sweep.lead = lo;
-        let hi = if outer.is_empty() {
-            // A point query also overlaps the item covering the point
-            // and empty items at it: everything from `lo` that starts
-            // at or before the point.
-            lo + self.sweep.inner_start[lo..].partition_point(|&s| s <= outer.start)
-        } else {
-            self.sweep.start_bound(&mut self.hi_hint, outer.end).max(lo)
-        };
+        let hi = self.sweep.start_bound(&mut self.hi_hint, outer.end, outer.is_empty()).max(lo);
         Some((ix, outer, IxRange::new(lo as u32, hi as u32)))
     }
 
@@ -181,10 +198,15 @@ impl<A, B> Iterator for OverlappingJoin<'_, A, B> {
 
 impl<A, B> ExactSizeIterator for OverlappingJoin<'_, A, B> {}
 
+#[cfg(test)]
+#[path = "join/progress_tests.rs"]
+mod progress_tests;
+
 impl<A> Spans<A> {
     /// Joins every item of this layer against the items of `inner`
-    /// it contains, sweeping both layers once: $O(M + N)$ and no
-    /// allocation, against a binary search per item for
+    /// it contains, with no allocation: $O(M + N)$ when outer ends
+    /// do not decrease, $O(M \log N + N)$ with nested outer spans,
+    /// against a binary search per item for
     /// [`Spans::within`]. This layer must be in start order and
     /// `inner` must be ordered without overlaps (debug-asserted);
     /// both must be spans of one view. Discontinuous items join by
@@ -207,8 +229,8 @@ impl<A> Spans<A> {
     }
 
     /// Joins every item of this layer against the items of `inner`
-    /// overlapping it, sweeping both layers once: $O(M + N)$ and no
-    /// allocation, against a binary search per item for
+    /// overlapping it, with the same complexity and no allocation as
+    /// [`Spans::join_contained`], against a binary search per item for
     /// [`Spans::overlapping_range`]. The same ordering conditions as
     /// [`Spans::join_contained`] apply (debug-asserted), both layers
     /// must be spans of one view, and discontinuous items join by
@@ -225,7 +247,9 @@ impl<A> Spans<A> {
             outer_end,
             sweep: Sweep { inner_start, inner_end, lead: 0 },
             at: 0,
-            hi_hint: (0, 0),
+            hi_hint: ((0, false), 0),
+            start_lead: 0,
+            end_lead: 0,
             _layers: std::marker::PhantomData,
         }
     }
