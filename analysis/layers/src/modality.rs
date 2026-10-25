@@ -102,7 +102,9 @@ impl Default for Modality {
 
 impl PartialEq for Modality {
     fn eq(&self, other: &Self) -> bool {
-        self.spans.view() == other.spans.view() && self.iter().eq(other.iter())
+        self.spans.view() == other.spans.view()
+            && self.iter().eq(other.iter())
+            && self.spans.iter().all(|(ix, _)| self.spans.fragments(ix).eq(other.spans.fragments(ix)))
     }
 }
 
