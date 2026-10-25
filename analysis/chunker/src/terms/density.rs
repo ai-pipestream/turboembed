@@ -25,7 +25,6 @@ impl<L: Layer> DensityTermStats<L> {
     /// Score one unit with the existing BM25 query's idf and parameters,
     /// retaining fractional frequencies and effective unit lengths.
     pub fn score(&self, query: &Query, unit: Ix<L>) -> Result<f64, String> {
-        self.check()?;
         if unit.get() >= self.length.len()
             || !query.model.k1.is_finite()
             || query.model.k1 < 0.0
@@ -35,9 +34,28 @@ impl<L: Layer> DensityTermStats<L> {
         {
             return Err("invalid density BM25 unit or parameters".into());
         }
+        if self.row.len() != self.length.len() + 1 || self.term.len() != self.tf.len() {
+            return Err("invalid density BM25 columns".into());
+        }
         let a = self.row[unit.get()] as usize;
         let b = self.row[unit.get() + 1] as usize;
+        if a > b || b > self.term.len() {
+            return Err("invalid density BM25 row".into());
+        }
         let terms = &self.term[a..b];
+        let tf = &self.tf[a..b];
+        let sum: f64 = tf.iter().sum();
+        let length = self.length[unit.get()];
+        if !terms.windows(2).all(|w| w[0] < w[1])
+            || terms.iter().any(|t| t.get() >= self.df.len())
+            || tf.iter().any(|v| !v.is_finite() || *v <= 0.0)
+            || !sum.is_finite()
+            || !length.is_finite()
+            || length < 0.0
+            || (sum - length).abs() > 1e-10 * sum.max(1.0)
+        {
+            return Err("invalid density BM25 row values".into());
+        }
         let relative = if query.mean_length > 0.0 { self.length[unit.get()] / query.mean_length } else { 1.0 };
         let norm = query.model.k1 * (1.0 - query.model.b + query.model.b * relative);
         let mut score = 0.0;
@@ -76,6 +94,17 @@ impl<L: Layer> Layer for DensityTermStats<L> {
     }
     fn indexes(&self) -> Vec<(KeyId, usize)> {
         vec![(Key::<Vocabulary>::DEFAULT.id(), self.df.len())]
+    }
+    fn check_document(&self, doc: &turbo_analysis::Document, on: &[KeyId]) -> Result<(), String> {
+        let vocab = on
+            .iter()
+            .find(|k| k.ty == std::any::TypeId::of::<Vocabulary>())
+            .and_then(|k| doc.get_key(&Key::<Vocabulary>::named(k.name)))
+            .ok_or("density vocabulary must resolve on the document")?;
+        if self.df.len() != vocab.len() {
+            return Err("density df must cover the full resolved vocabulary".into());
+        }
+        Ok(())
     }
     fn check(&self) -> Result<(), String> {
         if self.row.len() != self.length.len() + 1

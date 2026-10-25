@@ -1,7 +1,10 @@
 use turbo_analysis::export::{DocumentGraph, export, import};
 use turbo_analysis::*;
 use turbo_analysis_layers::{Block, Boilerplate, BoilerplateKind, QualityMetrics, SpanQuality, Structure, Tokens};
-use turbo_chunker::terms::{Bm25, ContentTermCounter, DensityTermStats, Query, TermIndexer, TermStats, Vocabulary};
+use turbo_chunker::terms::{
+    Bm25, Collection, ContentTermCounter, DensityCollection, DensityTermStats, Query, TermIndexer, TermStats,
+    Vocabulary,
+};
 
 fn document(density: bool) -> Document {
     let mut doc = Document::new("alpha beta alpha gamma footer");
@@ -71,6 +74,12 @@ fn opt_in_counts_preserve_fractional_contributions_zero_density_and_boilerplate_
     };
     assert!((density.score(&query, Ix::new(0)).unwrap() - 2.0 / 3.0).abs() < 1e-12);
     assert!(density.score(&query, Ix::new(1)).is_err());
+    let collection = DensityCollection::new(density, vocabulary).unwrap();
+    assert_eq!(collection.units(), 1);
+    assert_eq!(collection.mean_length(), 1.25);
+    assert_eq!(collection.df("footer"), 0);
+    let query = Query::new(Bm25 { k1: 1.0, b: 0.0 }, &collection, vocabulary, &["alpha"]);
+    assert!((density.score(&query, Ix::new(0)).unwrap() - (4.0f64 / 3.0).ln() / 3.0).abs() < 1e-12);
 }
 
 #[test]
@@ -120,4 +129,33 @@ fn fractional_layer_refuses_nonfinite_or_inconsistent_counts_and_scores_large_va
     stats.length[0] = 0.5;
     stats.df[0] = 0;
     assert!(stats.check().is_err());
+}
+
+#[test]
+fn effective_collection_means_do_not_overflow_on_valid_large_lengths() {
+    let mut vocabulary = Vocabulary { text: turbo_analysis_layers::Strs::default() };
+    vocabulary.text.push("alpha");
+    let stats = DensityTermStats::<View> {
+        row: vec![0, 1, 2],
+        term: vec![Ix::new(0), Ix::new(0)],
+        tf: vec![f64::MAX; 2],
+        length: vec![f64::MAX; 2],
+        df: vec![2],
+        _of: std::marker::PhantomData,
+    };
+    let collection = DensityCollection::new(&stats, &vocabulary).unwrap();
+    assert_eq!(collection.units(), 2);
+    assert_eq!(collection.mean_length(), f64::MAX);
+    let empty = DensityTermStats::<View> {
+        row: vec![0, 0],
+        term: vec![],
+        tf: vec![],
+        length: vec![0.0],
+        df: vec![0],
+        _of: std::marker::PhantomData,
+    };
+    let collection = DensityCollection::new(&empty, &vocabulary).unwrap();
+    assert_eq!(collection.units(), 0);
+    assert_eq!(collection.mean_length(), 0.0);
+    assert_eq!(collection.df("alpha"), 0);
 }

@@ -30,6 +30,8 @@ mod limits;
 pub mod multirep;
 mod optimizer;
 mod providers;
+pub mod quality_filter;
+pub use quality_filter::QualityChunkFilter;
 mod run;
 mod text_signals;
 mod trace;

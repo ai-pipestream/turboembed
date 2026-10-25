@@ -46,8 +46,8 @@ pub use offsets::{
     CodePointOffset, CodePointSpan, OffsetCursor, OffsetError, OffsetTable, OffsetUnit, Utf16Offset, Utf16Span,
 };
 pub use predicate::{
-    ConditionalAnnotator, ConditionalStep, FilterAnnotator, FilterableLayer, SpanFilter, co_written_aligned_anchors,
-    retain_aligned_anchor,
+    ConditionalAnnotator, ConditionalStep, DocPredicate, FilterAnnotator, FilterableLayer, SpanFilter,
+    co_written_aligned_anchors, retain_aligned_anchor,
 };
 pub use span::{
     ContainedJoin, FilterRule, FragmentError, Fragments, Ix, IxRange, Overlap, OverlappingJoin, Span, Spans, TextSpans,
