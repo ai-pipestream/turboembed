@@ -10,9 +10,73 @@ use super::*;
 /// document built so far, for checks that need the actual layers and
 /// view texts already restored (a word's subspan against its token's
 /// text, for one), which item counts alone cannot prove.
+/// What a slicing codec returns: the sliced body in the codec's
+/// own format and, per old item index, its new index or `None`
+/// when the item fell outside the slice.
+pub type SlicedBody = Option<(Vec<u8>, Vec<Option<u32>>)>;
+
 pub trait LayerCodec: Layer {
     fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError>;
     fn import(data: &[u8], cx: &mut ImportCx, doc: &Document) -> Result<Self, ExportError>;
+
+    /// Slices one exported body to the source range being cut by
+    /// [`DocumentGraph::slice_source_span`]: the sliced body in
+    /// this codec's own format and, per old item index, its new
+    /// index or `None` when the item fell outside the slice, so
+    /// relation codecs can re-point endpoints through
+    /// [`SliceCx::remapped`]. The default refuses by returning
+    /// `Ok(None)`: slicing a graph holding such a layer fails
+    /// naming it, rather than dropping or mangling it. Codecs for
+    /// span columns use [`crate::export::slice_spans_payload`].
+    fn slice_body(data: &[u8], cx: &SliceCx) -> Result<SlicedBody, ExportError> {
+        let _ = (data, cx);
+        Ok(None)
+    }
+}
+
+/// What a slicing codec needs: the source range being cut, the
+/// corresponding range in every view, and the item remaps of the
+/// layers already sliced (layers slice in graph order, so a
+/// relation layer's endpoint layers are sliced before it).
+pub struct SliceCx {
+    pub(super) source: Span,
+    pub(super) views: HashMap<String, Span>,
+    pub(super) remaps: HashMap<LayerRef, Vec<Option<u32>>>,
+    pub(super) layer: String,
+}
+
+impl SliceCx {
+    /// The range of the source text being kept.
+    pub fn source_range(&self) -> Span {
+        self.source
+    }
+
+    /// The range of view `instance`'s text that corresponds to the
+    /// kept source range, in that view's own offsets.
+    pub fn view_range(&self, instance: &str) -> Result<Span, ExportError> {
+        self.views.get(instance).copied().ok_or_else(|| ExportError::UnknownView { instance: instance.to_owned() })
+    }
+
+    /// The new index of item `ix` of an already-sliced layer, or
+    /// `None` when the item fell outside the slice. A layer that
+    /// has not been sliced yet (or is not in the graph) is a
+    /// dangling reference; an index past its items is refused the
+    /// same way.
+    pub fn remapped(&self, layer: &LayerRef, ix: u32) -> Result<Option<u32>, ExportError> {
+        let remap = self
+            .remaps
+            .get(layer)
+            .ok_or_else(|| ExportError::DanglingReference { layer: self.layer.clone(), reference: layer.clone() })?;
+        remap.get(ix as usize).copied().ok_or_else(|| ExportError::DanglingEndpoint {
+            layer: self.layer.clone(),
+            endpoint: NodeRef { layer: layer.clone(), index: ix },
+        })
+    }
+
+    /// The layer instance being sliced, for error fields.
+    pub fn layer(&self) -> &str {
+        &self.layer
+    }
 }
 
 /// What an exporting codec needs beyond its own layer: the instance
