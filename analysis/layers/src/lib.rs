@@ -38,7 +38,10 @@ pub use money::{CONVERTED_MONEY, Currency, Money, MoneyMention};
 pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers, ScaleMarker};
 pub use ordinals::{OrdinalBase, OrdinalMention, Ordinals};
 pub use pii::{Pii, PiiConfidence, PiiKind, PiiKinds, PiiMention};
-pub use quality::{QualityFlags, QualityMetrics, SpanQuality, TextQuality};
+pub use quality::{
+    QualityFlags, QualityMetrics, QualityPredicate, SpanQuality, TextQuality, lexical_quality_gate,
+    lexical_quality_gate_on, quality_gate, quality_gate_on,
+};
 pub use quantities::{PERCENT, Quantities, QuantityMention};
 pub use regions::{InvalidRegionCode, MarginError, RegionCode, RegionVote, Regions, VoteError};
 pub use rhetoric::{

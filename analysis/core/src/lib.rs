@@ -30,7 +30,7 @@ pub mod topk;
 pub mod xray;
 
 pub use alternatives::{Alternative, Alternatives, ModeSet, NBest, SplitMode};
-pub use analyzer::Analyzer;
+pub use analyzer::{Analyzer, ExecutionReport, LayerExecution, StepExecution};
 pub use annotate::{Annotator, Bound, Refs};
 pub use bytes::{DecodeBuilder, MAX_SOURCE_LEN, SourceBytes, SourceError};
 pub use doc::{Document, LayerStatus, Status, View};
@@ -49,8 +49,8 @@ pub use offsets::{
 };
 pub use phrase::PhraseIndex;
 pub use predicate::{
-    ConditionalAnnotator, ConditionalStep, FilterAnnotator, FilterableLayer, SpanFilter, co_written_aligned_anchors,
-    retain_aligned_anchor,
+    ConditionalAnnotator, ConditionalStep, DocPredicate, FilterAnnotator, FilterableLayer, SpanFilter,
+    co_written_aligned_anchors, retain_aligned_anchor,
 };
 pub use span::{
     ContainedJoin, FilterRule, FragmentError, Fragments, Ix, IxRange, Overlap, OverlappingJoin, Span, Spans, TextSpans,
