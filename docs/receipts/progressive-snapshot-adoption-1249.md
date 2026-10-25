@@ -79,6 +79,13 @@ incremental compilation disabled and development debug info disabled.
   module is 263 lines and the permanent regression file is 130 lines.
   The largest feature Rust file is the pre-existing document module at 494.
 
+The first receipt-only guard rebuild after standalone probe compilation
+hit conflicting Serde crate identities in the reused build output. A fresh
+dedicated guard target rebuilt the same head and passed tree 6, tool 7 and
+provenance 7 without source changes. The failed output and successful
+rebuild logs are retained. Workspace guard and standalone probe outputs
+are kept separate for subsequent verification.
+
 The server's private cancellation counters are not exposed; downstream
 stopping is asserted at the real core API, with RPC drop and subsequent
 service availability exercised separately. Hosted CI and independent
