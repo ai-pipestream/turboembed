@@ -23,6 +23,7 @@ pub mod math;
 pub mod offsets;
 pub mod predicate;
 pub mod registry;
+pub mod shape;
 pub mod span;
 pub mod text;
 pub mod topk;
@@ -49,6 +50,7 @@ pub use predicate::{
     ConditionalAnnotator, ConditionalStep, FilterAnnotator, FilterableLayer, SpanFilter, co_written_aligned_anchors,
     retain_aligned_anchor,
 };
+pub use shape::{DocumentWindow, ShapeMember, ShapeSegment, WindowShape};
 pub use span::{FilterRule, FragmentError, Fragments, Ix, IxRange, Overlap, Span, Spans, TextSpans, filter_spans};
 pub use text::{Alignment, Edit, Side, ViewBuilder, ViewId};
 pub use topk::TopK;
