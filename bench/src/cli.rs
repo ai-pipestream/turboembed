@@ -45,6 +45,15 @@ usage:
       questions each (default 256), --batch questions per call (default
       8), --max-batch windows per run (default the model's), precision
       exact by default; write the record to <repo>/benchmarks/qa
+  turbo-bench static --bundle <dir> --texts <name=file.json,...>
+                     (--peers <dir> | --no-peers) [--precision <p>]
+                     [--batches <n,...>] [--repo <dir>] [--out <dir>]
+      a static bundle's texts per second on the CPU for each text set and
+      batch (default 1,32,256,1024), precision model or fastest (default
+      model), and each peer of bench/static-peers through peers.sh run,
+      with --peers the directory its setup wrote; each peer's vectors for
+      the first set are compared with the library's. Write the record to
+      <repo>/benchmarks/static, which decides no capability cell
   turbo-bench check <record.json>...
       parse records and say whether each backs SUPPORTED for its cell
 
@@ -118,7 +127,7 @@ record options:
 /// `--name value` pairs and bare `--flag`s.
 pub(crate) struct Opts(pub(crate) BTreeMap<String, Option<String>>);
 
-const FLAGS: [&str; 4] = ["--no-tei", "--no-tensorrt", "--no-openvino", "--no-hailort"];
+const FLAGS: [&str; 5] = ["--no-tei", "--no-tensorrt", "--no-openvino", "--no-hailort", "--no-peers"];
 
 impl Opts {
     pub(crate) fn parse(args: &[String]) -> Result<Opts> {

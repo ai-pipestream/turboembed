@@ -8,8 +8,10 @@
 //! `DoccatFactory` adds `factory` and `doccat.featureGenerators`, the
 //! comma-separated class names of its feature generators.
 
-use turbo_doccat::model::{COMPONENT_NAME, MODEL_ENTRY};
-use turbo_doccat::{DoccatError, DoccatFactory, DoccatModel, doccat_events};
+pub use turbo_doccat::model::{COMPONENT_NAME, MODEL_ENTRY};
+pub use turbo_doccat::{
+    DoccatError, DoccatFactory, DoccatModel, DocumentCategorizerME, calibrated as doccat_calibrated, doccat_events,
+};
 use turbo_formats::DocumentSample;
 use turbo_maxent::ModelFile;
 use turbo_train::{

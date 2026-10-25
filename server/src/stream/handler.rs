@@ -7,7 +7,6 @@
 
 use std::pin::Pin;
 use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
 use tokio::sync::{Semaphore, mpsc};
@@ -25,7 +24,7 @@ use crate::status::to_status;
 use crate::stream::engine::{self, Config};
 use crate::stream::reader;
 use crate::stream::{
-    DEFAULT_BATCH_LINGER, MAX_BATCH_LINGER, MAX_INFLIGHT_ITEMS_PER_STREAM, MAX_QUEUED_BYTES_PER_STREAM,
+    DEFAULT_BATCH_LINGER, Dead, MAX_BATCH_LINGER, MAX_INFLIGHT_ITEMS_PER_STREAM, MAX_QUEUED_BYTES_PER_STREAM,
     MAX_QUEUED_ITEMS_PER_STREAM, Shared,
 };
 
@@ -136,7 +135,7 @@ pub(crate) async fn start(state: Arc<State>, mut inbound: Streaming<AnalyzeStrea
     let stream_bytes = Arc::new(Semaphore::new(MAX_QUEUED_BYTES_PER_STREAM));
     let (work_tx, work_rx) = mpsc::channel(MAX_QUEUED_ITEMS_PER_STREAM);
     let (answers_tx, answers_rx) = mpsc::channel(window);
-    let dead = Arc::new(AtomicBool::new(false));
+    let dead = Dead::new();
     tokio::spawn(reader::run(
         state.clone(),
         shared.clone(),

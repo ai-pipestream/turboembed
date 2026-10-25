@@ -13,9 +13,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .build_client(true)
         .build_server(true)
         // The vectors go to the encoder from the library's memory in place,
-        // and a token-vector block crosses in one piece.
+        // a token-vector block, a chunk-levels vector block and a
+        // document graph each cross in one piece, and a stream's documents
+        // are slices of their batch's one copy.
         .bytes(".inference.ModelInferResponse.raw_output_contents")
         .bytes(".turbo.result.TokenVectorsResult.data")
+        .bytes(".turbo.result.AnalyzeVectors.data")
+        .bytes(".turbo.result.ChunkLevelsResult.data")
+        .bytes(".turbo.result.DocumentGraphRequest.graph")
+        .bytes(".turbo.result.DocumentGraphResponse.graph")
         .compile_fds(fds)?;
     Ok(())
 }

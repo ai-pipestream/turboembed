@@ -290,8 +290,17 @@ fn keep(rules: &[Rule], node: &Node, ctx: &Ctx<'_>) -> bool {
         "monthd_month" | "wd" | "wd_dot" | "date_wd" => {
             !starts_ambiguous(ctx, MONTH) && !starts_ambiguous(ctx, WEEKDAY)
                 || before.is_some_and(|b| CUES.contains(&b))
+                || (rule_name(rules, node) == "monthd_month"
+                    && after.is_some_and(|a| DUTCH_TIMES.lexicon().lookup(a).iter().any(|e| e.dim == MONTH)))
                 || abbreviation_dot(ctx)
         }
+        "moded_before" => {
+            !matches!(before, Some("plan" | "meeting" | "boeking" | "reservering" | "afspraak"))
+                || matches!(ctx.word(ctx.start + 1), "dec" | "volgende")
+        }
+        "moded_until" => before != Some("terug"),
+        "moded_the_start" => before != Some("aan"),
+        "dt_clock_date" => !(ctx.word(ctx.start) == "om" && ctx.word(ctx.end - 1) == "vandaag"),
         // A meal alone is no time: `lunch eten`.
         "partd" => !matches!(ctx.word(ctx.start), "lunch" | "diner" | "ontbijt" | "avondeten" | "middageten"),
         // `30 minuten later`, but `later deze week`.
