@@ -23,6 +23,7 @@ pub use calibrated::{Calibrated, CalibratedRow};
 pub use categories::{Categories, CategoryRow, CategoryScope};
 pub use containment::{Containment, ContainmentChain, ContainmentError, PlaceAncestor, PlaceAncestorRef};
 pub use date::{DAY_SECONDS, Date, DateTime, write_year};
+pub use dec::Dec;
 pub use entity_graph::{
     ConsolidatedMention, DocumentEntities, DocumentEntity, EntityRelation, SyntacticRole, SyntacticRoleCounts,
 };
@@ -124,6 +125,7 @@ mod containment;
 #[cfg(test)]
 mod core_tests;
 mod date;
+pub mod dec;
 mod entity_graph;
 mod events;
 mod evidence;
@@ -148,5 +150,6 @@ mod syntax;
 pub mod tables;
 mod temporal;
 mod times;
+pub mod unit;
 mod wordnet;
 mod words;

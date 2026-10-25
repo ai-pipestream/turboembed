@@ -108,6 +108,10 @@ fn sentiment_numeric_and_vector_layers_round_trip() {
             coefficient: strs(&["50"]),
             scale: vec![0],
             unit: strs(&["%"]),
+            normalized_negative: vec![false],
+            normalized_coefficient: strs(&["50"]),
+            normalized_scale: vec![0],
+            base_unit: strs(&["%"]),
         },
         by.clone(),
     )
