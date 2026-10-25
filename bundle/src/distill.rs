@@ -355,6 +355,8 @@ pub mod from_base;
 mod math;
 mod progress;
 mod quality;
+#[cfg(test)]
+mod tests;
 
 pub use extra::Refusal;
 pub use progress::Progress;
