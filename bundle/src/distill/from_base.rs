@@ -89,16 +89,17 @@ pub fn recipe(base: &Path, o: &Options, work: &Path) -> Result<Recipe> {
         to: "quality/texts.jsonl".into(),
         sha256: turbo::bundle::sha256_hex(QUALITY.as_bytes()),
     }];
-    // The static model is made from the base's weights, so the base's
-    // licence text goes with it, at the same path.
-    if let Some(l) = bm["model"].get("license_file") {
+    // Carry the verified licence bytes, but reserve their output path:
+    // a base path may name a generated table, quality file or report.
+    if let Some(l) = bm["model"].get("license_file").filter(|v| !v.is_null()) {
         let l = l.as_str().ok_or("base bundle: model.license_file is not a path")?;
         crate::check_rel(l)?;
-        let from = base.join(l);
-        let text = fs::read(&from).map_err(|e| format!("{}: {e}", from.display()))?;
+        let source = turbo::bundle::Bundle::open(base).map_err(|e| format!("base bundle: {}", e.message))?;
+        let text = source.read_verified(l).map_err(|e| format!("base licence: {}", e.message))?;
         crate::fetch::write_atomic(&work.join("base-license"), &text)?;
-        manifest["model"]["license_file"] = json!(l);
-        local.push(Local { path: "base-license".into(), to: l.into(), sha256: turbo::bundle::sha256_hex(&text) });
+        let to = "licenses/base-license";
+        manifest["model"]["license_file"] = json!(to);
+        local.push(Local { path: "base-license".into(), to: to.into(), sha256: turbo::bundle::sha256_hex(&text) });
     }
     Ok(Recipe {
         manifest,

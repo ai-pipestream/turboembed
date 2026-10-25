@@ -128,14 +128,18 @@ fn the_bases_licence_text_goes_with_the_static_model() {
     fs::write(base.join("manifest.json"), serde_json::to_vec_pretty(&m).unwrap()).unwrap();
 
     let mut recipe = from_base::recipe(&base, &options(), &d.join("work")).unwrap();
-    assert_eq!(recipe.manifest["model"]["license_file"], "LICENSE");
+    assert_eq!(recipe.manifest["model"]["license_file"], "licenses/base-license");
     let bundle = d.join("bundle");
     turbo_bundle::distill::stage_with(&recipe, &base, &bundle, &[], &mut |_| {}).unwrap();
     turbo_bundle::distill::seal(&mut recipe, &bundle).unwrap();
-    assert_eq!(fs::read(bundle.join("LICENSE")).unwrap(), text);
+    assert_eq!(fs::read(bundle.join("licenses/base-license")).unwrap(), text);
     let sealed: Value = serde_json::from_slice(&fs::read(bundle.join("manifest.json")).unwrap()).unwrap();
-    assert_eq!(sealed["model"]["license_file"], "LICENSE");
-    assert!(sealed["files"].as_array().unwrap().iter().any(|f| f["path"] == "LICENSE"), "{}", sealed["files"]);
+    assert_eq!(sealed["model"]["license_file"], "licenses/base-license");
+    assert!(
+        sealed["files"].as_array().unwrap().iter().any(|f| f["path"] == "licenses/base-license"),
+        "{}",
+        sealed["files"]
+    );
     Bundle::open(&bundle).unwrap();
 
     // A licence path that leaves the bundle is refused.
