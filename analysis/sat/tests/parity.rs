@@ -108,7 +108,7 @@ fn open(f: &Fixture) -> SatAnnotator {
 fn open_at(f: &Fixture, bundle: &Path) -> SatAnnotator {
     let o = SatOptions {
         encoder: encoder(),
-        threshold: f.threshold,
+        threshold: Some(f.threshold),
         stride: f.stride,
         block_size: f.block,
         ..SatOptions::default()
@@ -293,6 +293,40 @@ fn many_overlapping_windows_match_wtpsplit() {
     let s = compare("t0.5-s7-b30.jsonl");
     eprintln!("t0.5-s7-b30: {s:?}");
     assert_eq!((s.texts, s.near_threshold, s.widened, s.pad_in_text), (90, 0, 6, 1));
+}
+
+/// The tiny bundle with limited lookahead: the same weights, and
+/// architecture.lookahead 4, which is wtpsplit's lookahead 8 over its two
+/// layers, as `sat_reference.py tiny <tokenizer> <out> 8` writes them.
+fn banded_bundle() -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("turbo-sat-lookahead-{}", std::process::id()));
+    for f in ["manifest.json", "tokenizer.json", "weights/model.safetensors", "reference/reference.safetensors"] {
+        let to = dir.join(f);
+        std::fs::create_dir_all(to.parent().unwrap()).unwrap();
+        std::fs::copy(bundle().join(f), &to).unwrap();
+    }
+    let path = dir.join("manifest.json");
+    let mut m: Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    m["architecture"]["lookahead"] = 4.into();
+    std::fs::write(&path, serde_json::to_vec_pretty(&m).unwrap()).unwrap();
+    dir
+}
+
+/// Limited lookahead against wtpsplit's, on the tiny weights, at the
+/// threshold wtpsplit takes for such a model and at 0.5; a model of
+/// limited lookahead reads 0.025 by default.
+#[test]
+fn limited_lookahead_matches_wtpsplit() {
+    let dir = banded_bundle();
+    for (name, near) in [("la8-t0.5-s16-b62.jsonl", 0), ("la8-t0.025-s7-b30.jsonl", 0)] {
+        let s = compare_at(&Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data").join(name), &dir);
+        eprintln!("{name}: {s:?}");
+        assert_eq!((s.texts, s.near_threshold, s.widened, s.pad_in_text), (90, near, 6, 1), "{name}");
+    }
+    let banded = SatAnnotator::open(&dir, &SatOptions { encoder: encoder(), ..SatOptions::default() }).unwrap();
+    let whole = SatAnnotator::open(&bundle(), &SatOptions { encoder: encoder(), ..SatOptions::default() }).unwrap();
+    assert_eq!((banded.threshold(), whole.threshold()), (0.025, 0.25));
+    std::fs::remove_dir_all(dir).unwrap();
 }
 
 /// A released checkpoint against wtpsplit: TURBO_TEST_SAT_BUNDLE names a

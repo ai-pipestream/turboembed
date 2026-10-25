@@ -47,6 +47,20 @@ impl Manifest {
                 }
                 _ => {}
             }
+            if let Some(n) = a.lookahead {
+                if !matches!(a.family, Family::Bert | Family::Roberta) {
+                    return Err(invalid(
+                        "manifest.json: architecture.lookahead: only FAMILY_BERT and FAMILY_ROBERTA attention takes a band",
+                    ));
+                }
+                // 0 would be causal attention, which no checkpoint here
+                // uses; the backend description keeps 0 for no band.
+                if n == 0 || n == u32::MAX {
+                    return Err(invalid(format!(
+                        "manifest.json: architecture.lookahead: {n} is not a band of 1 key or more"
+                    )));
+                }
+            }
             if e.max_seq as u64 + a.position_offset as u64 > a.max_positions as u64 {
                 return Err(invalid(format!(
                     "manifest.json: embed.max_seq: {} from position {} is over architecture.max_positions {}",

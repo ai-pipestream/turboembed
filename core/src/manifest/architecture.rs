@@ -16,6 +16,12 @@ pub struct Architecture {
     /// XLM-RoBERTa's is 2 and its table holds two rows more than it uses.
     #[serde(default, skip_serializing_if = "is_zero")]
     pub position_offset: u32,
+    /// Limited lookahead: each layer's query attends to every key before
+    /// it and to at most this many keys ahead of it, as SaT's `sat-1l` to
+    /// `sat-12l` were trained (wtpsplit's `lookahead` over the layers).
+    /// Absent, attention sees the whole row. Only the CPU backend runs it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub lookahead: Option<u32>,
     pub token_types: u32,
     pub vocab_size: u32,
 }

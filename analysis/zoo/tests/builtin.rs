@@ -129,13 +129,14 @@ fn trained_here(id: &str) -> bool {
 
 /// The published neural checkpoints the index lists (docs/licences.md,
 /// "Neural annotator checkpoints"): permissive, so nothing to accept.
-pub(crate) const CHECKPOINTS: [&str; 6] = [
+pub(crate) const CHECKPOINTS: [&str; 7] = [
     "fastino-gliner2-base-v1",
     "microsoft-deberta-v3-large-tokenizer",
     "urchade-gliner-small-v2.1",
     "microsoft-deberta-v3-small-tokenizer",
     "urchade-gliner-multi-v2.1",
     "microsoft-mdeberta-v3-base-tokenizer",
+    "segment-any-text-sat-3l",
 ];
 
 /// The share-alike neural checkpoints the index lists: fetched after the user

@@ -4021,6 +4021,46 @@
       ]
     },
     {
+      "id": "segment-any-text-sat-3l",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "language": "mul",
+      "format": "FORMAT_PYTORCH",
+      "version": "a3b7ba6b61881d619989757aea971cde7d3d6a98",
+      "license": "MIT",
+      "license_terms": "https://huggingface.co/segment-any-text/sat-3l/blob/a3b7ba6b61881d619989757aea971cde7d3d6a98/README.md",
+      "trained_on": [
+        {
+          "name": "FacebookAI/xlm-roberta-base",
+          "license": "MIT",
+          "license_terms": "https://huggingface.co/FacebookAI/xlm-roberta-base"
+        },
+        {
+          "name": "allenai/c4 (mC4)",
+          "license": "ODC-By-1.0",
+          "license_terms": "https://huggingface.co/datasets/allenai/c4"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "segment-any-text/sat-3l at a3b7ba6b61881d619989757aea971cde7d3d6a98 (MIT, https://huggingface.co/segment-any-text/sat-3l/blob/a3b7ba6b61881d619989757aea971cde7d3d6a98/README.md), from Segment any Text (Frohmann et al., 2024, wtpsplit), derived from FacebookAI/xlm-roberta-base (MIT, https://huggingface.co/FacebookAI/xlm-roberta-base); trained on mC4 (ODC-By-1.0, https://huggingface.co/datasets/allenai/c4).",
+      "files": [
+        {
+          "path": "pytorch_model.bin",
+          "url": "https://huggingface.co/segment-any-text/sat-3l/resolve/a3b7ba6b61881d619989757aea971cde7d3d6a98/pytorch_model.bin",
+          "size": 855012505,
+          "sha256": "a08dee669c6ba359895c1325ea006aee4bcb0382fe76e5b42306d7bbc0e45aa4",
+          "sha512": "cd1031a0c7c2421cecef057ecf435d77e39e66bd857a7bef5ff0c677b63e1b1e46ed31d6764c2e563814133a6c415b5c9f03560a314617e76259f41bb16e6c91"
+        },
+        {
+          "path": "config.json",
+          "url": "https://huggingface.co/segment-any-text/sat-3l/resolve/a3b7ba6b61881d619989757aea971cde7d3d6a98/config.json",
+          "size": 5571,
+          "sha256": "6776b6599eb276cfcc0a0f37bb7c723d70812653c1bfc05e300cdbed6000932e",
+          "sha512": "b3243220d6db143c84cd92a0a3ffcbb4055643a1549312d471575baf5ebbf8e0bfbca5af2baa3fc9cdaef34d0403affe81ede334b5522c764e3db5f19b37d52b"
+        }
+      ]
+    },
+    {
       "id": "opensearch-neural-sparse-encoding-v1",
       "kind": "KIND_MODEL",
       "language": "en",
