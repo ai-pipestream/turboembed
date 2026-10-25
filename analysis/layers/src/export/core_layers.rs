@@ -14,6 +14,9 @@ macro_rules! spans_only {
                 done(&r, $what)?;
                 Ok(Self { spans })
             }
+            fn slice_body(data: &[u8], cx: &SliceCx) -> Result<SlicedBody, ExportError> {
+                slice_spans_payload(data, cx).map(Some)
+            }
         }
     };
 }
@@ -37,6 +40,70 @@ impl LayerCodec for Tokens {
         }
         done(&r, "tokens")?;
         Ok(Tokens { spans, sentence })
+    }
+
+    /// Clips the token spans and re-points the sentence column
+    /// through the sentences remap; a surviving token whose
+    /// sentence fell outside the slice refuses, since its column
+    /// has no per-item empty case to fall back to.
+    fn slice_body(data: &[u8], cx: &SliceCx) -> Result<SlicedBody, ExportError> {
+        use turbo_analysis::{Span, Spans, ViewId};
+        let mut r = Reader::new(data);
+        let (instance, items) = get_spans_raw(&mut r)?;
+        let range = cx.view_range(&instance)?;
+        let mut spans = Spans::<Tokens>::new(ViewId::SOURCE);
+        for fragments in &items {
+            match &fragments[..] {
+                [one] => {
+                    spans.push(*one);
+                }
+                many => {
+                    spans
+                        .try_push_fragments(many)
+                        .map_err(|e| malformed(format!("token fragments being sliced: {e}")))?;
+                }
+            }
+        }
+        let (sliced, remap) = spans.sliced(range);
+        let sentence = match r.u8()? {
+            0 => None,
+            1 => {
+                let target = get_ref(&mut r)?;
+                let mut kept: Vec<u32> = Vec::new();
+                for old in 0..r.usize()? {
+                    let index = r.u32()?;
+                    if remap.get(old).copied().flatten().is_some() {
+                        let new = cx.remapped(&target, index)?.ok_or_else(|| ExportError::InvalidLayer {
+                            layer: "opennlp:tokens".to_string(),
+                            detail: "a token in the slice names a sentence outside it".to_string(),
+                        })?;
+                        kept.push(new);
+                    }
+                }
+                Some((target, kept))
+            }
+            tag => {
+                return Err(malformed(format!("an optional column tag of {tag}")));
+            }
+        };
+        if !r.is_done() {
+            return Err(malformed("trailing bytes in a tokens payload being sliced"));
+        }
+        let clipped: Vec<Vec<Span>> = sliced.iter().map(|(ix, _)| sliced.fragments(ix).collect()).collect();
+        let mut w = Writer::new();
+        put_spans_raw(&mut w, &instance, &clipped)?;
+        match sentence {
+            None => w.u8(0),
+            Some((target, kept)) => {
+                w.u8(1);
+                put_ref(&mut w, &target)?;
+                w.usize(kept.len())?;
+                for index in kept {
+                    w.u32(index);
+                }
+            }
+        }
+        Ok(Some((w.finish(), remap)))
     }
 }
 

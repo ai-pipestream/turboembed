@@ -1,6 +1,8 @@
 //! The layers the normalizers write besides their views, so another
 //! add-on can read what a normalizer found without depending on the
 //! normalizer itself.
+//! The quality annotator also lives here so it can be reused without loading
+//! any normalization dictionaries.
 
 use turbo_analysis::{Layer, Spans, TextSpans, ViewId};
 use turbo_analysis_layers::Strs;
@@ -11,10 +13,12 @@ mod asset_format;
 mod asset_names;
 mod assets;
 mod protected;
+pub mod quality;
 
 pub use asset_format::{AssetEncoding, AssetFormat, subtype};
 pub use assets::Assets;
 pub use protected::ProtectedSpans;
+pub use quality::{QualityScratch, TextQualityAnnotator};
 
 /// What a placeholder stands for.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]

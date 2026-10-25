@@ -246,7 +246,7 @@ impl MlmHead {
                 // filling the whole block first costs the x86 decoder
                 // about 2%. A kernel that takes one token a pass gets
                 // exactly one row per call, which keeps that gain.
-                let bias = &self.decoder().bias[i0..i0 + w];
+                let bias = &self.decoder().bias()[i0..i0 + w];
                 let k = kernel.tokens_per_pass();
                 if k == 1 {
                     for (x, o) in block.chunks_exact(h).zip(out.chunks_exact_mut(w)) {
@@ -431,9 +431,9 @@ mod head_tests {
         };
         let mut m = head(h, v);
         pool(&m);
-        m.decoder_mut().weight.iter_mut().for_each(|w| *w = -*w);
+        m.decoder_mut().weight_mut().iter_mut().for_each(|w| *w = -*w);
         let mut fresh = head(h, v);
-        fresh.decoder_mut().weight.iter_mut().for_each(|w| *w = -*w);
+        fresh.decoder_mut().weight_mut().iter_mut().for_each(|w| *w = -*w);
         assert_eq!(pool(&m), pool(&fresh));
         assert_ne!(pool(&m), pool(&head(h, v)), "the change is one the pool sees");
 

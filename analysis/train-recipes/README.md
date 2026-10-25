@@ -6,6 +6,11 @@ docs/analysis.md ("Models trained on permissive data" and "Model gates")
 describes both. The MASC recipes come first here; the recipes on the
 CC BY 4.0 Universal Dependencies treebanks are under "The UD recipes".
 
+New lemma training preserves case by default. Published UD recipe ids keep
+the OpenNLP lowercase format; the local native-v1 route preserves case under
+distinct ids. Per-language accuracy, hashes, commands and the Italian gate diagnosis are in
+[docs/lemma-case-evaluation.md](../../docs/lemma-case-evaluation.md).
+
 The UD reproduction investigation in #953 identified 12 training partitions
 as the setting that gives the published parameter bytes. New runs using
 `turbo_train_components::ud::training_parameters` use 12. MASC segmentation
@@ -965,7 +970,7 @@ read on 2026-10-14 (#415):
   one no recipe of `UD_RECIPES` trains, one whose class is not the one
   its licences give, one whose gate's reference is not the recipe's (by
   id and by the SHA-256 the zoo lists or the recipe records), and one
-  whose gate failed, as the Italian models' do; and also one trained on
+  whose gate failed, such as the Italian POS model; and also one trained on
   a treebank whose text rights are not settled, Porttinari, whatever its
   gate says.
 
@@ -1050,7 +1055,7 @@ models scored on every token):
   to two places; FTB's tagger moves most, +2.00 against +4.55. Each card
   lists the reference's ten most frequent mismatches on the scored
   tokens (for FTB's tagger, `VERB` tagged `AUX` 303 times comes first).
-- No model gives a lemma with a capital letter: OpenNLP's `decodeLemmas`
+- In the historical run below, no model gave a lemma with a capital letter: OpenNLP's `decodeLemmas`
   applies a class to the lowercased token, and training makes every
   class from the lowercased lemma. The `test` tokens whose lemma has one
   are 4,093 of 52,454 for Spanish (7.80 percent), 5,323 of 57,894 for
@@ -1061,13 +1066,10 @@ models scored on every token):
   Portuguese and 8 Finnish tokens (the Finnish ones through an index of
   ten or more, which OpenNLP reads as one digit). Both models get all of
   these wrong, so they stay in the scores, as `LemmatizerEvaluator`
-  counts them, and cap both models' accuracy. Making classes from the
-  lemma as written and applying them to the token as written would let
-  a model give capitalised lemmas: an improvement over OpenNLP found
-  here and not made, so that the recipes train and score as OpenNLP
-  does. The Spanish reference's five most frequent mismatches are such
+  counts them, and capped both models' accuracy. The native format now
+  keeps case; the linked evaluation above supersedes that limitation. The Spanish reference's five most frequent mismatches are such
   lemmas (`Gobierno` given as `gobierno` 67 times, `España` 43).
-- The Italian models lose to OpenNLP's: the tagger by 2.21 points
+- In that run the Italian models lost to OpenNLP's: the tagger by 2.21 points
   (interval -2.92 to -1.49) and the lemmatizer by 0.98 (-1.44 to
   -0.53), so a loss of more than 0.5 points is not ruled out for
   either, and `UdModelCard::artifact` makes no zoo entry for them.

@@ -13,6 +13,9 @@ use crate::doc::{Document, View};
 use crate::error::Error;
 use crate::layer::{Key, KeyId, Layer, LayerName};
 
+mod report;
+pub use report::{ExecutionReport, LayerExecution, StepExecution};
+
 /// A pipeline. Steps are ordered by what they read and write, not by the
 /// order they were added; steps that do not depend on each other form one
 /// stage and compute side by side. A stage runs over the whole batch
