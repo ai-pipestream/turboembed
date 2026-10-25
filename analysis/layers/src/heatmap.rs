@@ -10,6 +10,9 @@
 //! itself absent. `BoundaryDrift`'s source lives in the chunker crate,
 //! which depends on this one, so `build` never emits it; the kind
 //! exists so chunker-side lanes share this vocabulary.
+//! Default source instances select the lanes; category rows use their
+//! recorded sentence or chunk anchor instance, including its view and
+//! individual fragments.
 //!
 //! With no bucket count a lane is segmented exactly, by the combined
 //! segmentation of its items' fragments over the whole view (see
@@ -19,6 +22,7 @@
 //! (largest by absolute value, ties to the lowest item index); an
 //! uncovered segment scores 0 with no primary item. Exact lanes tile
 //! the view, uncovered runs included.
+//! Positive-length fragments never cover empty bins.
 
 use std::num::NonZeroU32;
 
@@ -187,6 +191,17 @@ fn invalid(layer: KeyId, detail: String) -> Error {
     Error::Invalid { layer, detail }
 }
 
+fn check_source_view(layer: KeyId, source: ViewId, view: ViewId) -> Result<(), Error> {
+    if source != view {
+        return Err(Error::Bounds {
+            layer,
+            view,
+            detail: format!("source spans are in view {}, the heatmap is over view {}", source.0, view.0),
+        });
+    }
+    Ok(())
+}
+
 fn frags_of(ts: &TextSpans<'_>, item: usize) -> Vec<(u32, u32)> {
     if ts.frag_item_end.is_empty() {
         vec![(ts.start[item], ts.end[item])]
@@ -206,6 +221,7 @@ fn spanned_lane(
     key: KeyId,
     ts: TextSpans<'_>,
 ) -> Result<HeatmapLane, Error> {
+    check_source_view(key, ts.view, view)?;
     let items: Vec<Item> = (0..ts.start.len())
         .map(|i| Item { source: i as u32, score: 0.0, view: ts.view, frags: frags_of(&ts, i) })
         .collect();
@@ -355,6 +371,7 @@ fn bucket_segments(
     check_items(doc, view, key, text_len, items)?;
     let n = buckets as usize;
     let edge = |i: usize| -> u32 { (i as u64 * text_len as u64 / buckets as u64) as u32 };
+    let edges: Vec<u32> = (0..=n).map(edge).collect();
     let mut covering: Vec<Vec<usize>> = vec![Vec::new(); n];
     let mut stamp: Vec<u32> = vec![0; n];
     for (ix, it) in items.iter().enumerate() {
@@ -362,17 +379,22 @@ fn bucket_segments(
         for &(s, e) in &it.frags {
             // Bins a fragment touches: positive-length overlap, or the
             // bin holding a zero-width point (the last bin at the end).
-            // check_items has kept every offset within the view.
-            let bin = |at: u32| -> usize {
-                match at {
-                    _ if text_len == 0 => 0,
-                    _ if at == text_len => n - 1,
-                    _ => (at as u64 * buckets as u64 / text_len as u64) as usize,
-                }
+            // Search the actual rounded edges; multiplying by N/length
+            // is not their inverse when bins have unequal widths.
+            let (first, end) = if s == e {
+                let at = if text_len == 0 {
+                    0
+                } else if s == text_len {
+                    n - 1
+                } else {
+                    edges[1..].partition_point(|&end| end <= s)
+                };
+                (at, at + 1)
+            } else {
+                (edges[1..].partition_point(|&end| end <= s), edges[..n].partition_point(|&start| start < e))
             };
-            let (first, last) = if s == e { (bin(s), bin(s)) } else { (bin(s), bin(e - 1)) };
-            for (b, cov) in covering.iter_mut().enumerate().take(last + 1).skip(first) {
-                if stamp[b] != mark {
+            for (b, cov) in covering.iter_mut().enumerate().take(end).skip(first) {
+                if (s == e || edges[b] < edges[b + 1]) && stamp[b] != mark {
                     stamp[b] = mark;
                     cov.push(ix);
                 }
@@ -382,7 +404,7 @@ fn bucket_segments(
     Ok((0..n)
         .map(|i| {
             let (score, count, primary_item) = aggregate(kind, items, &covering[i]);
-            HeatmapSegment { span: Span { start: edge(i), end: edge(i + 1) }, score, count, primary_item }
+            HeatmapSegment { span: Span { start: edges[i], end: edges[i + 1] }, score, count, primary_item }
         })
         .collect())
 }

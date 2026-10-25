@@ -1,13 +1,24 @@
 //! The scored lanes: sentiment polarity, chunk scores, incivility and
 //! emotion intensity, each item carrying the view its spans are in.
 
+use std::any::TypeId;
 use std::num::NonZeroU32;
 
 use turbo_analysis::{Document, Error, Key, KeyId, Layer, Tag, TextSpans, ViewId};
 
-use super::{HeatmapLane, HeatmapLaneKind, Item, finish_lane, frags_of, invalid};
+use super::{HeatmapLane, HeatmapLaneKind, Item, check_source_view, finish_lane, frags_of, invalid};
 use crate::sentiment::{EMOTION_DIMENSIONS, EmotionLayer, EmotionTarget, Incivility, IncivilityTarget};
 use crate::{Categories, Chunks, Sentences, Structure};
+
+fn scored_target<L: Layer>(doc: &Document, key: KeyId, view: ViewId) -> Result<&L, Error> {
+    let target = doc.made_on(key).iter().find(|k| k.ty == TypeId::of::<L>()).copied().unwrap_or(Key::<L>::DEFAULT.id());
+    let layer = doc.get_key(&Key::<L>::named(target.name)).ok_or(Error::Missing(target))?;
+    layer.check().map_err(|detail| invalid(target, detail))?;
+    if let Some(spans) = layer.text_spans() {
+        check_source_view(key, spans.view, view)?;
+    }
+    Ok(layer)
+}
 
 pub(super) fn sentiment_lane(
     doc: &Document,
@@ -18,7 +29,7 @@ pub(super) fn sentiment_lane(
 ) -> Result<HeatmapLane, Error> {
     let key = Key::<Categories<Sentences>>::DEFAULT.id();
     cats.check().map_err(|d| invalid(key, d))?;
-    let sentences = doc.get::<Sentences>().ok_or(Error::Missing(Key::<Sentences>::DEFAULT.id()))?;
+    let sentences = scored_target::<Sentences>(doc, key, view)?;
     if cats.len() != sentences.spans.len() {
         return Err(invalid(key, format!("{} category rows for {} sentences", cats.len(), sentences.spans.len())));
     }
@@ -41,13 +52,13 @@ pub(super) fn sentiment_lane(
 }
 
 fn polarity_of(row: &crate::CategoryRow<'_>) -> Option<f32> {
+    if row.best_tag == Tag::NONE {
+        return None;
+    }
     let pos = row.score_of("positive").or_else(|| row.score_of("pos"));
     let neg = row.score_of("negative").or_else(|| row.score_of("neg"));
     if let (Some(p), Some(n)) = (pos, neg) {
         return Some((p - n).clamp(-1.0, 1.0) as f32);
-    }
-    if row.best_tag == Tag::NONE {
-        return None;
     }
     let mag = row.best_score().clamp(0.0, 1.0) as f32;
     if row.best.eq_ignore_ascii_case("positive") || row.best.eq_ignore_ascii_case("pos") {
@@ -68,7 +79,7 @@ pub(super) fn chunk_score_lane(
 ) -> Result<HeatmapLane, Error> {
     let key = Key::<Categories<Chunks>>::DEFAULT.id();
     cats.check().map_err(|d| invalid(key, d))?;
-    let chunks = doc.get::<Chunks>().ok_or(Error::Missing(Key::<Chunks>::DEFAULT.id()))?;
+    let chunks = scored_target::<Chunks>(doc, key, view)?;
     if cats.len() != chunks.spans.len() {
         return Err(invalid(key, format!("{} category rows for {} chunks", cats.len(), chunks.spans.len())));
     }
