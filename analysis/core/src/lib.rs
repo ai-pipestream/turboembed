@@ -24,6 +24,7 @@ pub mod offsets;
 pub mod phrase;
 pub mod predicate;
 pub mod registry;
+pub mod shape;
 pub mod span;
 pub mod text;
 pub mod topk;
@@ -52,6 +53,7 @@ pub use predicate::{
     ConditionalAnnotator, ConditionalStep, DocPredicate, FilterAnnotator, FilterableLayer, SpanFilter,
     co_written_aligned_anchors, retain_aligned_anchor,
 };
+pub use shape::{DocumentWindow, PreparedSegments, ShapeMember, ShapeSegment, WindowShape};
 pub use span::{
     ContainedJoin, FilterRule, FragmentError, Fragments, Ix, IxRange, Overlap, OverlappingJoin, Span, Spans, TextSpans,
     filter_spans,
