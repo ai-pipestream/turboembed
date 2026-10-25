@@ -140,6 +140,65 @@ impl<M> VectorIndex<M> {
             Metric::Cosine => s.clamp(-1.0, 1.0),
         }
     }
+
+    /// Serializes the space, metric, and stored row vectors into a
+    /// deterministic binary snapshot (`b"TVECIX\x01"`).
+    pub fn to_bytes(&self) -> Vec<u8> {
+        let dim = self.space.dim as usize;
+        let mut out = Vec::with_capacity(64 + self.len() * dim * 4);
+        out.extend_from_slice(b"TVECIX\x01");
+        rows::write_space(&self.space, &mut out);
+        out.push(match self.metric {
+            Metric::Dot => 0,
+            Metric::Cosine => 1,
+        });
+        out.extend_from_slice(&(self.len() as u64).to_le_bytes());
+        for r in 0..self.len() as u32 {
+            for &v in self.row(r) {
+                out.extend_from_slice(&v.to_le_bytes());
+            }
+        }
+        out
+    }
+
+    /// Restores a [`VectorIndex`] from [`VectorIndex::to_bytes`] and caller
+    /// metadata `meta` (which must have one entry per stored row).
+    pub fn from_bytes(bytes: &[u8], meta: Vec<M>) -> Result<VectorIndex<M>, IndexError> {
+        let mut r = rows::ByteReader(bytes);
+        if r.take(7).map_err(IndexError::Layer)? != b"TVECIX\x01" {
+            return Err(IndexError::Layer("not a VectorIndex snapshot of version 1".into()));
+        }
+        let space = rows::read_space(&mut r).map_err(IndexError::Layer)?;
+        let metric = match r.u8().map_err(IndexError::Layer)? {
+            0 => Metric::Dot,
+            1 => Metric::Cosine,
+            b => return Err(IndexError::Layer(format!("invalid metric tag {b}"))),
+        };
+        let n = usize::try_from(r.u64().map_err(IndexError::Layer)?).map_err(|_| IndexError::Full)?;
+        if n > u32::MAX as usize {
+            return Err(IndexError::Full);
+        }
+        if meta.len() != n {
+            return Err(IndexError::Layer(format!("meta length {} does not match snapshot rows {n}", meta.len())));
+        }
+        let dim = space.dim as usize;
+        if r.0.len() != n.saturating_mul(dim).saturating_mul(4) {
+            return Err(IndexError::Layer("snapshot payload size does not match rows * dim * 4".into()));
+        }
+        let bpr = rows::blocks(space.dim);
+        let mut row_blocks = vec![Block::default(); n * bpr];
+        for (i, block_slice) in row_blocks.chunks_exact_mut(bpr).enumerate() {
+            let flat = rows::flat_mut(block_slice);
+            for (j, slot) in flat.iter_mut().enumerate().take(dim) {
+                let v = r.f32().map_err(IndexError::Layer)?;
+                if !v.is_finite() {
+                    return Err(IndexError::NonFinite(Which::Row(i), j));
+                }
+                *slot = v;
+            }
+        }
+        Ok(VectorIndex { space, metric, bpr, rows: row_blocks, meta, path: kernel::detect() })
+    }
 }
 
 #[cfg(test)]
