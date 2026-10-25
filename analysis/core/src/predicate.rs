@@ -219,41 +219,62 @@ impl ConditionalAnnotator {
     /// Deterministic hash combining the predicate identifier and the branch
     /// steps' identifiers, `config_hash` values, and ordered read/write bindings.
     pub fn config_hash(&self) -> u64 {
-        fn hash_step(h: &mut Fnv1a, step: &dyn Step) {
-            h.str(step.id()).u64(step.config_hash());
+        fn text(h: &mut Fnv1a, value: &str, legacy: bool) {
+            if legacy {
+                h.bytes(value.as_bytes()).u8(0xff);
+            } else {
+                h.str(value);
+            }
+        }
+        fn key(h: &mut Fnv1a, value: KeyId, legacy: bool) {
+            text(h, &value.layer.to_string(), legacy);
+            text(h, value.name, legacy);
+        }
+        fn hash_step(h: &mut Fnv1a, step: &dyn Step, legacy: bool) {
+            text(h, step.id(), legacy);
+            h.u64(step.config_hash());
             let reads = step.reads();
             let required = step.required();
             h.usize(reads.len());
             for (slot, (&r, &req)) in reads.iter().zip(&required).enumerate() {
-                h.usize(slot).key_id(r).bool(req);
+                h.usize(slot);
+                key(h, r, legacy);
+                h.bool(req);
             }
             let writes = step.writes();
             h.usize(writes.len());
             for (slot, &w) in writes.iter().enumerate() {
-                h.usize(slot).key_id(w);
+                h.usize(slot);
+                key(h, w, legacy);
             }
         }
 
         let mut h = Fnv1a::new();
-        h.str(Self::ID).str(self.predicate_name);
+        // Typed predicates arrived with delimiter-framed provenance. Retain
+        // their existing stream; closure constructors keep canonical framing.
+        let legacy = self.predicate_config.is_some();
+        text(&mut h, Self::ID, legacy);
+        text(&mut h, self.predicate_name, legacy);
         if let Some(config) = self.predicate_config {
-            h.str("typed-predicate").u64(config);
+            text(&mut h, "typed-predicate", legacy);
+            h.u64(config);
         }
-        hash_step(&mut h, self.when_true.as_ref());
+        hash_step(&mut h, self.when_true.as_ref(), legacy);
         match &self.when_false {
             Some(wf) => {
                 h.bool(true);
-                hash_step(&mut h, wf.as_ref());
+                hash_step(&mut h, wf.as_ref(), legacy);
             }
             None => {
                 h.bool(false);
             }
         }
         for (&r, &req) in self.reads.iter().zip(&self.required) {
-            h.key_id(r).bool(req);
+            key(&mut h, r, legacy);
+            h.bool(req);
         }
         for &w in &self.writes {
-            h.key_id(w);
+            key(&mut h, w, legacy);
         }
         h.finish()
     }
