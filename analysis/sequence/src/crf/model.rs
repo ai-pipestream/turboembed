@@ -65,6 +65,78 @@ impl CrfSequenceModel {
     pub fn constraints(&self) -> &CrfConstraints {
         &self.mask
     }
+    pub fn entity_kinds(&self) -> Vec<String> {
+        let mut kinds: Vec<_> =
+            self.labels.iter().filter_map(|s| s.rsplit_once('-').map(|(k, _)| k.to_owned())).collect();
+        kinds.sort_unstable();
+        kinds.dedup();
+        kinds
+    }
+    pub fn span_outcomes(&self) -> Vec<String> {
+        std::iter::once("other".to_owned()).chain(self.entity_kinds()).collect()
+    }
+    pub fn span_distribution(&self, lattice: &CrfLattice, start: usize, end: usize) -> Result<Vec<f64>> {
+        if start >= end || end > lattice.alpha.len() || lattice.mask.labels() != self.labels.len() {
+            return Err(invalid("span bounds"));
+        }
+        let len = end - start;
+        let label_ix = |name: &str| self.labels.iter().position(|s| s == name);
+        let kinds = self.entity_kinds();
+        let mut probs = Vec::with_capacity(1 + kinds.len());
+        probs.push(0.0);
+        let mut sum = 0.0;
+        for kind in &kinds {
+            let spec = if self.codec == NameCodec::Bio {
+                let s = label_ix(&format!("{kind}-start"));
+                let c = label_ix(&format!("{kind}-cont"));
+                match (len, s, c) {
+                    (1, Some(s), c) => Some((vec![s], c)),
+                    (_, Some(s), Some(c)) => {
+                        let mut seq = vec![c; len];
+                        seq[0] = s;
+                        Some((seq, Some(c)))
+                    }
+                    _ => None,
+                }
+            } else {
+                match len {
+                    1 => label_ix(&format!("{kind}-unit")).map(|u| (vec![u], None)),
+                    2 => match (label_ix(&format!("{kind}-start")), label_ix(&format!("{kind}-last"))) {
+                        (Some(s), Some(l)) => Some((vec![s, l], None)),
+                        _ => None,
+                    },
+                    _ => match (
+                        label_ix(&format!("{kind}-start")),
+                        label_ix(&format!("{kind}-cont")),
+                        label_ix(&format!("{kind}-last")),
+                    ) {
+                        (Some(s), Some(c), Some(l)) => {
+                            let mut seq = vec![c; len];
+                            seq[0] = s;
+                            seq[len - 1] = l;
+                            Some((seq, None))
+                        }
+                        _ => None,
+                    },
+                }
+            };
+            let p = match spec {
+                Some((seq, forbid)) => lattice.span_probability(start, &seq, forbid)?,
+                None => 0.0,
+            };
+            sum = finite(sum + p)?;
+            probs.push(p);
+        }
+        probs[0] = (1.0 - sum).max(0.0);
+        let total = finite(probs.iter().sum())?;
+        if total <= 0.0 {
+            return Err(CrfError::NonFinite);
+        }
+        for p in &mut probs {
+            *p = (*p / total).clamp(0.0, 1.0);
+        }
+        Ok(probs)
+    }
     pub fn lattice(&self, rows: &[FeatureRow]) -> Result<CrfLattice> {
         let n = self.labels.len();
         if rows.len().checked_mul(n).is_none_or(|x| x > 16_000_000) {

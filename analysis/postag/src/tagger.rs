@@ -150,12 +150,8 @@ impl Annotator for PosTagger {
         let mut words: Vec<&str> = Vec::new();
         let mut context = self.take_context()?;
         let search = self.search();
-        let mut from = 0;
-        while from < n {
-            let to = match &tokens.sentence {
-                Some(col) => from + col[from..].partition_point(|&s| s == col[from]),
-                None => n,
-            };
+        let ranges: Vec<(usize, usize)> = tokens.sentence_ranges().map(|(_, r)| (r.start.get(), r.end.get())).collect();
+        for (from, to) in ranges {
             if let Err(err) = slice_sentence_words(Self::ID, text, starts, ends, from, to, &mut words) {
                 self.contexts.lock().unwrap_or_else(|e| e.into_inner()).push(context);
                 return Err(err);
@@ -167,7 +163,6 @@ impl Annotator for PosTagger {
                     detail: format!("no tag sequence of tokens {from}..{to} scored above the minimum"),
                 });
             }
-            from = to;
         }
         self.contexts.lock().unwrap_or_else(|e| e.into_inner()).push(context);
         Ok((PosTags { tagset: self.model.tagset().clone(), tags, prob: Some(probs) },))

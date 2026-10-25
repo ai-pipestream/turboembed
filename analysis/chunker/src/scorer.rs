@@ -220,10 +220,9 @@ fn sentence_entity_sets(sentences: &Sentences, entities: &Entities, text: &str) 
     if entities.spans.view() != view {
         return Vec::new();
     }
-    let (s_starts, s_ends) = sentences.spans.columns();
     let mut sets = vec![BTreeSet::new(); sentences.spans.len()];
     for (_, span) in entities.spans.iter() {
-        let Some(si) = sentence_of(s_starts, s_ends, span) else { continue };
+        let Some(si) = sentences.spans.covering_at(span.start).map(|i| i.get()) else { continue };
         if let Some(raw) = text.get(span.range()) {
             let norm: String = raw
                 .split_whitespace()
@@ -242,11 +241,6 @@ fn sentence_entity_sets(sentences: &Sentences, entities: &Entities, text: &str) 
         }
     }
     sets
-}
-
-fn sentence_of(starts: &[u32], ends: &[u32], span: Span) -> Option<usize> {
-    let idx = starts.partition_point(|&s| s <= span.start).checked_sub(1)?;
-    (span.start < ends[idx]).then_some(idx)
 }
 
 fn jaccard_permille(a: &BTreeSet<String>, b: &BTreeSet<String>) -> u32 {

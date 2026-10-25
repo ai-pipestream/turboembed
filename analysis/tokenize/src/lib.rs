@@ -54,7 +54,7 @@ pub use simple::{SimpleTokenizer, simple_spans};
 pub use turbo_tokenize_layers::{Readings, WordType, WordTypes};
 pub use turbo_unicode::WhitespaceMode;
 pub use uax29::{UntypedWordTokenizer, WordTokenizer, word_boundaries, word_tokens};
-pub use unigram::{LexiconError, UnigramLexicon, UnigramSegmenter};
+pub use unigram::{LexiconError, UnigramLexicon, UnigramMode, UnigramSegmenter};
 pub use unit::{UnitToken, tokenize_units, tokenize_units_with};
 pub use whitespace::{WhitespaceTokenizer, whitespace_spans};
 

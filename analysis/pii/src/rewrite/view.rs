@@ -9,7 +9,7 @@
 //! whose bytes already are the mask (a `*` masked with `*`) is left out of
 //! the edits, since nothing changed there.
 
-use turbo_analysis::{Annotator, Bound, Error, Fnv1a, Key, Refs, Span, View, ViewBuilder};
+use turbo_analysis::{Annotator, Bound, Error, Key, Refs, Span, View, ViewBuilder};
 use turbo_analysis_layers::{Pii, PiiKind};
 
 use super::MaskPolicy;
@@ -123,16 +123,18 @@ pub fn mask_view(src: &View, spans: impl IntoIterator<Item = (Span, MaskPolicy)>
 
 /// Writes the `masked` view: the text it reads with every mention of the
 /// pii layer over it masked with its kind's policy.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct MaskedView {
     policies: [MaskPolicy; PiiKind::ALL.len()],
+    default_policy: MaskPolicy,
+    custom: Vec<(&'static str, MaskPolicy)>,
 }
 
 impl MaskedView {
     /// Every mention masked with `policy`: `Masker.mask(document, layer,
     /// policy)`.
     pub fn all(policy: MaskPolicy) -> MaskedView {
-        MaskedView { policies: [policy; PiiKind::ALL.len()] }
+        MaskedView { policies: [policy; PiiKind::ALL.len()], default_policy: policy, custom: Vec::new() }
     }
 
     /// Each mention masked with its kind's default policy and `mask`:
@@ -147,12 +149,24 @@ impl MaskedView {
 
     /// This view with the mentions of `kind` masked with `policy`.
     pub fn with(mut self, kind: PiiKind, policy: MaskPolicy) -> MaskedView {
-        self.policies[kind.rank() as usize] = policy;
+        if let PiiKind::Custom(name) = kind {
+            PiiKind::remember_custom(kind);
+            match self.custom.binary_search_by_key(&name, |&(k, _)| k) {
+                Ok(at) => self.custom[at].1 = policy,
+                Err(at) => self.custom.insert(at, (name, policy)),
+            }
+        } else {
+            self.policies[kind.rank() as usize] = policy;
+        }
         self
     }
 
     pub fn policy(&self, kind: PiiKind) -> MaskPolicy {
-        self.policies[kind.rank() as usize]
+        if let PiiKind::Custom(name) = kind {
+            self.custom.binary_search_by_key(&name, |&(k, _)| k).map_or(self.default_policy, |at| self.custom[at].1)
+        } else {
+            self.policies[kind.rank() as usize]
+        }
     }
 
     /// The step for a pipeline, writing the view as [`MASKED`].
@@ -185,15 +199,15 @@ impl Annotator for MaskedView {
     /// FNV-1a over each kind's mask byte and options, fixed so that stored
     /// provenance stays comparable across builds.
     fn config_hash(&self) -> u64 {
-        let words = self
-            .policies
-            .iter()
-            .map(|p| u64::from(p.mask() as u8) | u64::from(p.keeps_format()) << 8 | (p.trailing() as u64) << 16);
-        words
-            .fold(Fnv1a::new(), |mut h, x| {
-                h.u64(x);
-                h
-            })
-            .finish()
+        let pack_policy =
+            |p: MaskPolicy| u64::from(p.mask() as u8) | u64::from(p.keeps_format()) << 8 | (p.trailing() as u64) << 16;
+        let mut h = turbo_analysis::Fnv1a::new();
+        for policy in self.policies.iter().copied().chain(std::iter::once(self.default_policy)) {
+            h.fold_u64(pack_policy(policy));
+        }
+        for &(name, policy) in &self.custom {
+            h.bytes(name.as_bytes()).u8(0xff).fold_u64(pack_policy(policy));
+        }
+        h.finish()
     }
 }

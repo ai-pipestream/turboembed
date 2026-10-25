@@ -45,7 +45,8 @@ pub(super) fn date_bound(c: &Ctx<'_>, v: &Value) -> Option<(Point, Edge)> {
         return None;
     }
     let edge = match modifier.portion {
-        Portion::Whole | Portion::Start => Edge::Start,
+        Portion::Whole => Edge::Start,
+        Portion::Start => Edge::ExplicitStart,
         Portion::Mid => Edge::Mid,
         Portion::End => Edge::End,
         _ => return None,
@@ -56,6 +57,11 @@ pub(super) fn date_bound(c: &Ctx<'_>, v: &Value) -> Option<(Point, Edge)> {
 /// The start's year, when the text gives it only with the end: `May to
 /// Oct 2020`, `Nov-Feb 2017` (the November before).
 pub(super) fn with_end_year(start: DateSpec, end: DateSpec) -> DateSpec {
+    if let (DateSpec::Cal { year: YearRef::Any, month: month @ 1.., day, weekday }, DateSpec::CurrentDate) =
+        (start, end)
+    {
+        return DateSpec::Cal { year: YearRef::Rel(0), month, day, weekday };
+    }
     let (DateSpec::Cal { year: YearRef::Any, month, day, weekday }, DateSpec::Cal { year, month: em, day: ed, .. }) =
         (start, end)
     else {
@@ -95,6 +101,24 @@ pub(super) fn time_bound(c: &Ctx<'_>, v: &Value) -> Option<Point> {
 }
 
 pub(super) fn between(c: &Ctx<'_>, a: &Value, b: &Value) -> Option<Value> {
+    if let (Some(s), Some(e)) = (plain(c, a), plain(c, b)) {
+        let now_to_shift = s.date == DateSpec::None
+            && s.time == TimeOfDay::Now
+            && s.shift.is_zero()
+            && e.date == DateSpec::None
+            && e.time == TimeOfDay::Now
+            && !e.shift.is_zero();
+        let dt_to_clock = s.date.is_day()
+            && matches!(s.time, TimeOfDay::Clock(_))
+            && s.shift.is_zero()
+            && e.date == DateSpec::None
+            && matches!(e.time, TimeOfDay::Clock(_))
+            && e.shift.is_zero();
+        if now_to_shift || dt_to_clock {
+            let range = Range::Between { start: s, start_edge: Edge::Start, end: e, end_edge: Edge::Start };
+            return emit(c, TimeValue::range(range));
+        }
+    }
     if let (Some(s), Some(e)) = (time_bound(c, a), time_bound(c, b))
         && (s.time == TimeOfDay::Now) != (e.time == TimeOfDay::Now)
     {

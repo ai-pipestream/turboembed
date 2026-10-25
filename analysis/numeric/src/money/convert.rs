@@ -2,9 +2,10 @@
 //! `MoneyConversionAnnotator`, as of a fixed date ([`MoneyConverter`]) or
 //! as of each document's date ([`DatedMoneyConverter`]).
 
-use turbo_analysis::{Annotator, Bound, Error, Fnv1a, Refs};
+use turbo_analysis::{Annotator, Bound, Error, Refs};
 use turbo_analysis_layers::{CONVERTED_MONEY, Currency, DocumentDate, Money, MoneyMention};
 
+use super::tables::minor_units;
 use super::{Date, Decimal, FxRates};
 
 /// Reads `turbo:money` and writes, under [`CONVERTED_MONEY`], each
@@ -22,11 +23,24 @@ pub struct MoneyConverter<R> {
     rates: R,
     target: Currency,
     as_of: Date,
+    minor_unit_rounding: bool,
 }
 
 impl<R: FxRates + Send + Sync + 'static> MoneyConverter<R> {
     pub fn new(rates: R, target: Currency, as_of: Date) -> MoneyConverter<R> {
-        MoneyConverter { rates, target, as_of }
+        MoneyConverter { rates, target, as_of, minor_unit_rounding: false }
+    }
+
+    /// Configures whether converted values are rounded half-to-even to the
+    /// target currency's ISO 4217 minor unit ([`minor_units`]).
+    pub fn with_minor_unit_rounding(mut self, enabled: bool) -> Self {
+        self.minor_unit_rounding = enabled;
+        self
+    }
+
+    /// Whether converted values are rounded to the target currency's minor unit.
+    pub fn minor_unit_rounding(&self) -> bool {
+        self.minor_unit_rounding
     }
 
     /// The step for a pipeline: reads the default money instance, writes
@@ -45,7 +59,7 @@ impl<R: FxRates + Send + Sync + 'static> MoneyConverter<R> {
 
     /// Appends the converted mentions of `money` to `out`, in order.
     pub fn convert(&self, money: &Money, out: &mut Money) -> Result<(), R::Error> {
-        convert(&self.rates, self.target, self.as_of, money, out)
+        convert(&self.rates, self.target, self.as_of, self.minor_unit_rounding, money, out)
     }
 }
 
@@ -55,13 +69,18 @@ fn convert<R: FxRates>(
     rates: &R,
     target: Currency,
     as_of: Date,
+    minor_unit_rounding: bool,
     money: &Money,
     out: &mut Money,
 ) -> Result<(), R::Error> {
     let mut amount = Decimal::default();
+    let round_scale = if minor_unit_rounding { minor_units(target).map(i32::from) } else { None };
     for (i, span) in money.spans.iter() {
         let from = money.currency[i.get()];
         if rates.convert(money.amount(i), from, target, as_of, &mut amount)? {
+            if let Some(scale) = round_scale {
+                amount.round_to_scale(scale);
+            }
             out.push(MoneyMention {
                 span,
                 negative: amount.negative,
@@ -74,17 +93,18 @@ fn convert<R: FxRates>(
     Ok(())
 }
 
-/// FNV-1a over a target code and, for a fixed date, the date.
-fn config_hash(target: Currency, as_of: Option<Date>) -> u64 {
+/// FNV-1a over a target code, optional fixed date, and minor-unit rounding flag.
+fn config_hash(target: Currency, as_of: Option<Date>, minor_unit_rounding: bool) -> u64 {
     let [a, b, c] = target.code();
     let date = as_of.map_or([0, 0], |d| [1, d.epoch_day() as u64]);
-    [u64::from(a), u64::from(b), u64::from(c), date[0], date[1]]
-        .iter()
-        .fold(Fnv1a::new(), |mut h, &x| {
-            h.u64(x);
-            h
-        })
-        .finish()
+    let mut h = turbo_analysis::Fnv1a::new();
+    for x in [u64::from(a), u64::from(b), u64::from(c), date[0], date[1]] {
+        h.fold_u64(x);
+    }
+    if minor_unit_rounding {
+        h.fold_u64(1);
+    }
+    h.finish()
 }
 
 impl<R: FxRates + Send + Sync + 'static> Annotator for MoneyConverter<R> {
@@ -98,10 +118,10 @@ impl<R: FxRates + Send + Sync + 'static> Annotator for MoneyConverter<R> {
         Ok((out,))
     }
 
-    /// FNV-1a over the target code and the date. The rates themselves are
-    /// data the caller loads and are not part of it.
+    /// FNV-1a over the target code, the date, and the rounding flag. The rates
+    /// themselves are data the caller loads and are not part of it.
     fn config_hash(&self) -> u64 {
-        config_hash(self.target, Some(self.as_of))
+        config_hash(self.target, Some(self.as_of), self.minor_unit_rounding)
     }
 }
 
@@ -120,11 +140,24 @@ impl<R: FxRates + Send + Sync + 'static> Annotator for MoneyConverter<R> {
 pub struct DatedMoneyConverter<R> {
     rates: R,
     target: Currency,
+    minor_unit_rounding: bool,
 }
 
 impl<R: FxRates + Send + Sync + 'static> DatedMoneyConverter<R> {
     pub fn new(rates: R, target: Currency) -> DatedMoneyConverter<R> {
-        DatedMoneyConverter { rates, target }
+        DatedMoneyConverter { rates, target, minor_unit_rounding: false }
+    }
+
+    /// Configures whether converted values are rounded half-to-even to the
+    /// target currency's ISO 4217 minor unit ([`minor_units`]).
+    pub fn with_minor_unit_rounding(mut self, enabled: bool) -> Self {
+        self.minor_unit_rounding = enabled;
+        self
+    }
+
+    /// Whether converted values are rounded to the target currency's minor unit.
+    pub fn minor_unit_rounding(&self) -> bool {
+        self.minor_unit_rounding
     }
 
     /// The step for a pipeline: reads the default money and document date
@@ -141,7 +174,7 @@ impl<R: FxRates + Send + Sync + 'static> DatedMoneyConverter<R> {
     /// order; nothing when `date` holds no date.
     pub fn convert(&self, money: &Money, date: &DocumentDate, out: &mut Money) -> Result<(), R::Error> {
         match date.date {
-            Some(as_of) => convert(&self.rates, self.target, as_of, money, out),
+            Some(as_of) => convert(&self.rates, self.target, as_of, self.minor_unit_rounding, money, out),
             None => Ok(()),
         }
     }
@@ -159,8 +192,8 @@ impl<R: FxRates + Send + Sync + 'static> Annotator for DatedMoneyConverter<R> {
         Ok((out,))
     }
 
-    /// FNV-1a over the target code, with no date.
+    /// FNV-1a over the target code and rounding flag, with no date.
     fn config_hash(&self) -> u64 {
-        config_hash(self.target, None)
+        config_hash(self.target, None, self.minor_unit_rounding)
     }
 }

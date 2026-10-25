@@ -277,14 +277,7 @@ fn in_text<L>(spans: &Spans<L>, text: &str) -> Result<(), String> {
 /// so one binary search each.
 fn sentence_of(mentions: &[Mention<'_>], sentences: Option<&Sentences>) -> Vec<Option<usize>> {
     let Some(s) = sentences else { return vec![None; mentions.len()] };
-    let (starts, ends) = s.spans.columns();
-    mentions
-        .iter()
-        .map(|m| {
-            let k = starts.partition_point(|&x| x <= m.span.start);
-            Some(if k > 0 && m.span.start < ends[k - 1] { k - 1 } else { usize::MAX })
-        })
-        .collect()
+    mentions.iter().map(|m| Some(s.spans.covering_at(m.span.start).map_or(usize::MAX, |i| i.get()))).collect()
 }
 
 fn config_hash(c: &ZeroShotRelationConfig, model: Option<ModelRef>) -> u64 {

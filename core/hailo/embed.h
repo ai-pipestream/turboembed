@@ -16,6 +16,7 @@
 
 #include <hailo/hailort.hpp>
 
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
@@ -56,6 +57,31 @@ struct ModelDesc {
     uint32_t seq = 0;   // the HEF's fixed frame length
 };
 
+/* A frame's memory, aligned to FRAME_ALIGN (embed.cpp): HailoRT warns on
+ * every frame in memory it finds unaligned, and moves it slower. */
+struct Frame {
+    std::unique_ptr<uint8_t, void (*)(void *)> p{nullptr, std::free};
+    size_t n = 0;
+    bool resize(size_t bytes);
+    uint8_t *data() { return p.get(); }
+    const uint8_t *data() const { return p.get(); }
+    size_t size() const { return n; }
+};
+
+/* One frame set of a session: the frames the device reads and writes,
+ * their bindings, and the job running them. */
+struct Slot {
+    Frame rows, bias, hidden;
+    std::optional<hailort::ConfiguredInferModel::Bindings> bindings;
+    hailort::AsyncInferJob job;
+    bool busy = false;
+    uint32_t row = 0;
+};
+
+/* Frame sets a released session left with the device, kept by their model
+ * and not yet reclaimed, over every model: for tests. */
+uint32_t retired_frames();
+
 class Model {
   public:
     /* The HEF configured on vdevice, checked against desc: two inputs, the
@@ -79,6 +105,21 @@ class Model {
     /* Frames HailoRT queues at once. */
     uint32_t queue() const { return queue_; }
 
+    /* Keeps a frame set whose frame had not come back when its session
+     * was released: the device may still write into it, so it lives as
+     * long as the model at most. */
+    void retire(std::unique_ptr<Slot> slot);
+    /* Frees each kept frame set whose job has finished, by success or by
+     * failure: HailoRT holds none of its memory then. Run when a session
+     * is made or released. */
+    void reap();
+
+    /* Reaps; a frame set whose job is still running when the model goes is
+     * detached from HailoRT and its memory is left allocated. The model's
+     * own release then waits as HailoRT's shutdown of a configured model
+     * does, which this file does not bound (docs/hailo.md). */
+    ~Model();
+
   private:
     ModelDesc desc_;
     std::shared_ptr<hailort::InferModel> infer_;
@@ -86,6 +127,8 @@ class Model {
     Stream rows_, bias_, hidden_;
     uint32_t burst_ = 0, queue_ = 0;
     std::mutex runs_;
+    std::mutex retired_mu_;
+    std::vector<std::unique_ptr<Slot>> retired_;
 };
 
 /* The rows of one run, as embed_write and embed_write_ranges pass them. */
@@ -125,28 +168,17 @@ class Session {
      * range's index. h2d and d2h count the frames' bytes. */
     Failure run(float *out, uint64_t &h2d, uint64_t &d2h);
 
+    /* Waits for each frame still in flight, the frame timeout at most, as
+     * a run does; once one has not come back, here or in a run, the rest
+     * are not waited for, so a device that stopped answering costs the
+     * release one frame timeout at most. A frame set whose frame did not
+     * come back goes to the model (Model::retire), which frees it once
+     * its job finishes. */
+    ~Session();
+
     uint32_t normalize() const { return rows_.normalize; }
 
   private:
-    /* A frame's memory, aligned to FRAME_ALIGN (embed.cpp): HailoRT warns
-     * on every frame in memory it finds unaligned, and moves it slower. */
-    struct Frame {
-        std::unique_ptr<uint8_t, void (*)(void *)> p{nullptr, std::free};
-        size_t n = 0;
-        bool resize(size_t bytes);
-        uint8_t *data() { return p.get(); }
-        const uint8_t *data() const { return p.get(); }
-        size_t size() const { return n; }
-    };
-
-    struct Slot {
-        Frame rows, bias, hidden;
-        std::optional<hailort::ConfiguredInferModel::Bindings> bindings;
-        hailort::AsyncInferJob job;
-        bool busy = false;
-        uint32_t row = 0;
-    };
-
     void fill(Slot &slot, uint32_t row);
     void pool(const Slot &slot, float *out);
     void mean(const Slot &slot, const int32_t *mask, uint32_t start, uint32_t end);
@@ -164,6 +196,9 @@ class Session {
     std::vector<double> sum_;   // one row's pooled values, before the cut and the norm
     std::vector<std::unique_ptr<Slot>> slots_;
     bool written_ = false;
+    /* How long a run, and the release, wait for a frame (frame_timeout,
+     * embed.cpp). */
+    std::chrono::milliseconds frame_timeout_{0};
     /* Set when a frame failed or timed out: the device may still own a
      * slot's memory, so the session runs nothing more. */
     std::string broken_;

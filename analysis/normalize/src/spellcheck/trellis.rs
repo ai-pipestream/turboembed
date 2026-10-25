@@ -158,6 +158,18 @@ pub(crate) fn lm_fingerprint(lm: &NGramLanguageModel) -> u64 {
     splitmix64(hash.finish())
 }
 
+/// What one decode did, for the tests that hold the beam to its bound.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct DecodeStats {
+    /// Candidates scored: every first-layer candidate, then every (state,
+    /// candidate) pair.
+    pub expansions: usize,
+    /// The most states one layer built before pruning.
+    pub widest_built: usize,
+    /// The most states one layer kept after pruning.
+    pub widest_kept: usize,
+}
+
 /// Decodes the minimum-cost candidate sequence across `cand_sets` via Viterbi
 /// with beam width `max_beam_width`.
 pub(crate) fn viterbi_decode(
@@ -165,6 +177,17 @@ pub(crate) fn viterbi_decode(
     edit_weight: f64,
     max_beam_width: usize,
     cand_sets: Vec<Vec<Candidate>>,
+) -> Vec<Candidate> {
+    viterbi_decode_counted(lm, edit_weight, max_beam_width, cand_sets, &mut DecodeStats::default())
+}
+
+/// [`viterbi_decode`], recording what it did in `stats`.
+pub(crate) fn viterbi_decode_counted(
+    lm: &NGramLanguageModel,
+    edit_weight: f64,
+    max_beam_width: usize,
+    cand_sets: Vec<Vec<Candidate>>,
+    stats: &mut DecodeStats,
 ) -> Vec<Candidate> {
     if cand_sets.iter().all(|cs| cs.len() <= 1 && cs.first().is_some_and(|c| c.is_original)) {
         return cand_sets.into_iter().map(|mut cs| cs.remove(0)).collect();
@@ -190,6 +213,7 @@ pub(crate) fn viterbi_decode(
                 let cost = edit_weight * cand.trellis_edit_cost + lm_cost;
                 next_states.push(TrellisState { history: vec![c_idx], cand_idx: c_idx, cost, backptr: 0 });
             }
+            stats.expansions += cands.len();
         } else {
             let prev_states = &layers[i - 1];
             let cand_unigram_probs: Vec<f64> = cands.iter().map(|c| unigram_prob(lm, c.word.as_str(), total)).collect();
@@ -232,6 +256,7 @@ pub(crate) fn viterbi_decode(
                     let p = backoff_prob_with_prefix_counts(lm, &ngram_buf, &prefix_counts, cand_unigram_probs[c_idx]);
                     let total_cost = prev.cost + cand_edit_costs[c_idx] - p.ln();
 
+                    stats.expansions += 1;
                     let mut new_hist = if history_len == 0 { Vec::with_capacity(1) } else { base_hist.clone() };
                     new_hist.push(c_idx);
 
@@ -254,6 +279,7 @@ pub(crate) fn viterbi_decode(
                 }
             }
         }
+        stats.widest_built = stats.widest_built.max(next_states.len());
         if next_states.len() > beam_width {
             next_states.sort_by(|a, b| {
                 a.cost
@@ -263,6 +289,7 @@ pub(crate) fn viterbi_decode(
             });
             next_states.truncate(beam_width);
         }
+        stats.widest_kept = stats.widest_kept.max(next_states.len());
         layers.push(next_states);
     }
 
@@ -343,6 +370,9 @@ fn stupid_backoff_prob(lm: &NGramLanguageModel, ngram: &[&str], total: f64) -> f
         unigram_prob(lm, ngram[0], total)
     }
 }
+
+#[cfg(test)]
+mod tests;
 
 #[cfg(test)]
 mod grouping_tests {

@@ -113,6 +113,22 @@ impl Candidates {
         Candidates { by_group, anywhere }
     }
 
+    pub(crate) fn fingerprint(&self) -> u64 {
+        let mut h = turbo_analysis::Fnv1a::new();
+        for word in self
+            .by_group
+            .iter()
+            .flat_map(|(group, list)| {
+                [*group as u64, list.len() as u64].into_iter().chain(list.iter().map(|&v| u64::from(v)))
+            })
+            .chain([u64::MAX, self.anywhere.len() as u64])
+            .chain(self.anywhere.iter().map(|&v| u64::from(v)))
+        {
+            h.fold_u64(word);
+        }
+        h.finish()
+    }
+
     /// The languages a run of script group `group` can be, in outcome
     /// order: empty when the model has none written in it.
     pub fn of(&self, group: Script) -> &[u32] {

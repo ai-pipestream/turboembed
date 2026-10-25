@@ -122,18 +122,7 @@ fn decode_classes_into(
 /// The `(from, to)` token ranges of each sentence of `tokens`, or one
 /// range over all of them when they were not made per sentence.
 pub(crate) fn sentence_ranges(tokens: &Tokens) -> Vec<(usize, usize)> {
-    let n = tokens.spans.columns().0.len();
-    let mut ranges = Vec::new();
-    let mut from = 0;
-    while from < n {
-        let to = match &tokens.sentence {
-            Some(col) => from + col[from..].partition_point(|&s| s == col[from]),
-            None => n,
-        };
-        ranges.push((from, to));
-        from = to;
-    }
-    ranges
+    tokens.sentence_ranges().map(|(_, r)| (r.start.get(), r.end.get())).collect()
 }
 
 /// Checks that the tokens are valid UTF-8 spans of the view and the tags

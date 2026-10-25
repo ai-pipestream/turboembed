@@ -8,7 +8,7 @@ use turbo_analysis_layers::{Modifier, Portion, TimeGrain};
 use crate::engine::{Ctx, Item, Rule, node, opt_word, word};
 use crate::time::TimeValue;
 use crate::time::duration::Duration;
-use crate::time::spec::{Clock, DateSpec, Part, Point, Shown, TimeOfDay};
+use crate::time::spec::{Clock, DateSpec, HolidayOrRel, Part, Point, Shown, TimeOfDay, YearRef};
 use crate::value::Value;
 
 use super::clock::{is_meal, part};
@@ -117,7 +117,7 @@ pub(crate) fn b_rel_part(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
 
 pub(crate) fn portion(c: &Ctx<'_>, v: &[Value], p: Portion) -> Option<Value> {
     let part = single_part(&v[1])?;
-    if !matches!(part, Part::Morning | Part::Afternoon | Part::Evening | Part::Night) {
+    if !matches!(part, Part::Dawn | Part::Morning | Part::Afternoon | Part::Evening | Part::Night) {
         return None;
     }
     day_part(c, rel_day(&v[0])?, part, Modifier::portion(p))
@@ -219,6 +219,34 @@ pub(crate) fn b_before(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
     shifted(c, duration_of(c, &v[0])?.negated(), v.last()?)
 }
 
+fn with_shifted_weekday(c: &Ctx<'_>, wd_v: &Value, dt_v: &Value) -> Option<Value> {
+    let (wd, flags) = term(wd_v);
+    if flags & super::PLURAL != 0 {
+        return None;
+    }
+    let p = plain(c, dt_v)?;
+    if p.shift.is_zero() || p.time != TimeOfDay::None || p.shift.parts().iter().any(|(u, _)| u.is_clock()) {
+        return None;
+    }
+    let base = match p.date {
+        DateSpec::Rel { grain: TimeGrain::Day, n: 0 } => HolidayOrRel::Today,
+        DateSpec::Cal { year: YearRef::Any, month: m @ 1.., day: d @ 1.., weekday: 0 } => {
+            HolidayOrRel::MonthDay { month: m, day: d }
+        }
+        DateSpec::Holiday { holiday, year: YearRef::Any } => HolidayOrRel::Holiday(holiday),
+        _ => return None,
+    };
+    emit_point(c, Point { date: DateSpec::ShiftedWeekday { base, weekday: wd as u8 }, ..p })
+}
+
+pub(crate) fn b_weekday_dt(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+    with_shifted_weekday(c, &v[0], v.last()?)
+}
+
+pub(crate) fn b_dt_weekday(v: &[Value], c: &Ctx<'_>) -> Option<Value> {
+    with_shifted_weekday(c, v.last()?, &v[0])
+}
+
 const fn rr(name: &'static str, dim: crate::engine::Dim, items: &'static [Item], build: crate::engine::Build) -> Rule {
     r(name, dim, 0, items, build)
 }
@@ -271,4 +299,6 @@ pub(super) static RULES: &[Rule] = &[
     rr("dt_before", DT, &[node(DUR), word("before"), node(DATE)], b_before),
     rr("dt_after_hol", DT, &[node(DUR), word("after"), node(HOL)], b_after),
     rr("dt_before_hol", DT, &[node(DUR), word("before"), node(HOL)], b_before),
+    rr("dt_weekday_shift", DT, &[node(WEEKDAY), opt_word(","), node(DT)], b_weekday_dt),
+    rr("dt_shift_on_weekday", DT, &[node(DT), word("on"), node(WEEKDAY)], b_dt_weekday),
 ];

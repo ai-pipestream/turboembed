@@ -139,9 +139,7 @@ pub(super) fn resolve_aspect_sentence(
         return (s_ix.get() < n).then_some(s_ix.get());
     }
     let tok_start = toks.spans.get(r.start).start;
-    let (_, ends) = sents.spans.columns();
-    let idx = ends.partition_point(|&e| e <= tok_start);
-    (idx < n).then_some(idx)
+    sents.spans.covering_at(tok_start).map(|i| i.get()).filter(|&i| i < n)
 }
 
 pub(super) fn resolve_aspect_label(
