@@ -1,0 +1,45 @@
+EIP-55: Mixed-case checksum address encoding (adapt.)
+Source authors: Vitalik Buterin, Alex Van de Sande
+Source licence: CC0-1.0 (creativecommons.org/publicdomain/zero/1.0)
+Source: https://eips.ethereum.org/EIPS/eip-55
+
+Abstract and Rationale
+
+Ethereum hexadecimal addresses lack a built-in checksum mechanism, so a
+single mistyped hexadecimal digit in a 40-character address is accepted
+by wallets without warning. This specification introduces a backwards-
+compatible mixed-case checksum encoding that uses the Keccak-256 hash of
+the lowercase hexadecimal address to uppercase selected letters from A
+through F, providing an average of 15checksum bits per address with zero
+increase in byte length and preserving compatibility with parsers that
+accept case-insensitive 20-byte hex strings.
+
+Specification and Test Vectors
+
+Convert the address to lowercase hexadecimal (without the 0x prefix),
+compute the Keccak-256 hash of those 40 ASCII bytes, and print the i-th
+hexadecimal letter in uppercase if and only if the i-th nibble of the
+digest is greater than or equal to 8. The canonical mixed-case test
+cases from the specification are:
+
+- Normal mixed-case addresses:
+  0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed
+  0xfB6916095ca1df60bB79Ce92cE3Ea74c37c5d359
+- All-uppercase and all-lowercase EIP-55 results:
+  0x52908400098527886E0F7030069857D2E4169EE7
+  0x8617E340B3D01FA5F11F306F4090FD50E238070D
+  0xde709f2102306220921060314715629080e2fb77
+  0x27b1fdb04752bbc536007a920d24acb045561c26
+- Additional mixed-case test vectors:
+  0xdbF03B407c01E7cD3CBea99509d93f8DDDC8C6FB
+  0xD1220A0cf47c7B9Be7A2E6BA89F429762e7b9aDb
+
+Addresses written entirely in one case carry no EIP-55 checksum and
+remain valid unchecksummed format addresses, such as
+0x5aaeb6053f3e94c9b9a09f33669435e7ef1beaed or
+0xFB6916095CA1DF60BB79CE92CE3EA74C37C5D359. By contrast, a mixed-case
+address whose letter casing disagrees with the Keccak-256 nibble rule,
+such as 0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAeD or
+0x52908400098527886E0F7030069857D2E4169Ee7, fails the EIP-55 checksum,
+and this detector's policy also excludes the all-zero burn address
+0x0000000000000000000000000000000000000000.

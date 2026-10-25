@@ -16,20 +16,29 @@ use super::clock::{digits, time_of_day_at};
 use super::words::{Keyword, counted_unit, is_ago, is_ordinal, keyword, month, unit, word};
 use crate::scan::{boundary_after, boundary_before, byte_at, char_at, continues_number, whitespace_at};
 
-/// The years an absolute mention may have.
-const MIN_YEAR: u32 = 1000;
-const MAX_YEAR: u32 = 2999;
+/// The years an absolute mention may have in OpenNLP parity mode, and by
+/// default across four-digit years (`0001..=9999`).
+const PARITY_MIN_YEAR: u32 = 1000;
+const PARITY_MAX_YEAR: u32 = 2999;
+const DEFAULT_MIN_YEAR: u32 = 1;
+const DEFAULT_MAX_YEAR: u32 = 9999;
 
 /// `matchAt`: the mention that starts at byte `start`, trying an ISO date,
 /// a day-first date and then a counted relative form at a digit, and a
 /// quarter, a month-first date and then a relative keyword at a letter.
 /// The relative forms are tried only with a reference date.
-pub(super) fn match_at(text: &str, start: usize, reference: Option<Date>) -> Option<TemporalMention> {
+pub(super) fn match_at(
+    text: &str,
+    start: usize,
+    reference: Option<Date>,
+    opennlp_parity: bool,
+) -> Option<TemporalMention> {
     let c = char_at(text, start)?;
     let digit = c.is_ascii_digit();
-    // The Java tests one UTF-16 unit with `Character.isLetter`, which is
-    // never true for half of a surrogate pair.
-    let letter = !java::is_supplementary(c) && java::is_letter(c);
+    // In OpenNLP parity mode the Java tests one UTF-16 unit with
+    // `Character.isLetter`, which is never true for half of a surrogate pair;
+    // by default supplementary letters are treated as letters.
+    let letter = if opennlp_parity { !java::is_supplementary(c) && java::is_letter(c) } else { java::is_letter(c) };
     if (!digit && !letter) || !boundary_before(text, start) {
         return None;
     }
@@ -38,19 +47,19 @@ pub(super) fn match_at(text: &str, start: usize, reference: Option<Date>) -> Opt
         if continues_number(text, start, NumberNotation::LatinUs) {
             return None;
         }
-        return iso_date(b, text, start)
-            .or_else(|| day_first(b, text, start))
-            .or_else(|| count_ago(b, text, start, reference?));
+        return iso_date(b, text, start, opennlp_parity)
+            .or_else(|| day_first(b, text, start, opennlp_parity))
+            .or_else(|| count_ago(b, text, start, reference?, opennlp_parity));
     }
     if matches!(c, 'Q' | 'q') && byte_at(b, start + 1).is_ascii_digit() {
-        return quarter(b, text, start);
+        return quarter(b, text, start, opennlp_parity);
     }
-    month_first(b, text, start).or_else(|| relative_keyword(b, text, start, reference?))
+    month_first(b, text, start, opennlp_parity).or_else(|| relative_keyword(b, text, start, reference?, opennlp_parity))
 }
 
 /// `2026-07-14`, alone or as the date of a timestamp (`2026-07-14T09:30Z`),
 /// whose span is the date's ten bytes.
-fn iso_date(b: &[u8], text: &str, start: usize) -> Option<TemporalMention> {
+fn iso_date(b: &[u8], text: &str, start: usize, opennlp_parity: bool) -> Option<TemporalMention> {
     let year = digits(b, start, 4)?;
     if byte_at(b, start + 4) != b'-' {
         return None;
@@ -64,25 +73,25 @@ fn iso_date(b: &[u8], text: &str, start: usize) -> Option<TemporalMention> {
     if !boundary_after(text, end) && !time_of_day_at(b, text, end) {
         return None;
     }
-    day_mention(start, end, year, month, day)
+    day_mention(start, end, year, month, day, opennlp_parity)
 }
 
 /// `14 July 2026` and `14th July 2026`.
-fn day_first(b: &[u8], text: &str, start: usize) -> Option<TemporalMention> {
+fn day_first(b: &[u8], text: &str, start: usize, opennlp_parity: bool) -> Option<TemporalMention> {
     let (day, day_end) = short_number(b, start)?;
     let month_start = gap(text, skip_ordinal(text, day_end))?;
     let month_end = word(text, month_start)?;
     let month = month(&text[month_start..month_end])?;
-    let (year, end) = year_at(b, text, gap(text, month_end)?)?;
-    day_mention(start, end, year, u32::from(month), day)
+    let (year, end) = year_at(b, text, gap(text, month_end)?, opennlp_parity)?;
+    day_mention(start, end, year, u32::from(month), day, opennlp_parity)
 }
 
 /// `July 2026`, `July 14, 2026`, `Jul 14 2026` and `July 14th, 2026`.
-fn month_first(b: &[u8], text: &str, start: usize) -> Option<TemporalMention> {
+fn month_first(b: &[u8], text: &str, start: usize, opennlp_parity: bool) -> Option<TemporalMention> {
     let month_end = word(text, start)?;
     let month = month(&text[start..month_end])?;
     let after = gap(text, month_end)?;
-    if let Some((year, end)) = year_at(b, text, after) {
+    if let Some((year, end)) = year_at(b, text, after, opennlp_parity) {
         let value = TemporalValue::Month { year: year as i32, month };
         return Some(absolute(start, end, value));
     }
@@ -91,23 +100,29 @@ fn month_first(b: &[u8], text: &str, start: usize) -> Option<TemporalMention> {
     if byte_at(b, i) == b',' {
         i += 1;
     }
-    let (year, end) = year_at(b, text, gap(text, i)?)?;
-    day_mention(start, end, year, u32::from(month), day)
+    let (year, end) = year_at(b, text, gap(text, i)?, opennlp_parity)?;
+    day_mention(start, end, year, u32::from(month), day, opennlp_parity)
 }
 
 /// `Q3 2024`; the caller has seen the `Q` and a digit.
-fn quarter(b: &[u8], text: &str, start: usize) -> Option<TemporalMention> {
+fn quarter(b: &[u8], text: &str, start: usize, opennlp_parity: bool) -> Option<TemporalMention> {
     let quarter = byte_at(b, start + 1) - b'0';
     if !(1..=4).contains(&quarter) {
         return None;
     }
-    let (year, end) = year_at(b, text, gap(text, start + 2)?)?;
+    let (year, end) = year_at(b, text, gap(text, start + 2)?, opennlp_parity)?;
     Some(absolute(start, end, TemporalValue::Quarter { year: year as i32, quarter }))
 }
 
 /// `today`, `yesterday` and `tomorrow`; `last`, `this` or `next` and a
 /// unit; `in`, a count and a unit, plural or not.
-fn relative_keyword(b: &[u8], text: &str, start: usize, reference: Date) -> Option<TemporalMention> {
+fn relative_keyword(
+    b: &[u8],
+    text: &str,
+    start: usize,
+    reference: Date,
+    opennlp_parity: bool,
+) -> Option<TemporalMention> {
     let keyword_end = word(text, start)?;
     let keyword = keyword(&text[start..keyword_end])?;
     let steps = match keyword {
@@ -118,21 +133,21 @@ fn relative_keyword(b: &[u8], text: &str, start: usize, reference: Date) -> Opti
         Keyword::This => 0,
         Keyword::Next => 1,
         Keyword::In => {
-            let (count, count_end) = short_number(b, gap(text, keyword_end)?)?;
+            let (count, count_end) = count_number(b, gap(text, keyword_end)?, opennlp_parity)?;
             let unit_start = gap(text, count_end)?;
             let unit_end = word(text, unit_start)?;
             let granularity = counted_unit(&text[unit_start..unit_end])?;
-            return shifted(start, unit_end, granularity, i64::from(count), reference);
+            return shifted(start, unit_end, granularity, count, reference);
         }
     };
     let unit_start = gap(text, keyword_end)?;
     let unit_end = word(text, unit_start)?;
-    shifted(start, unit_end, unit(&text[unit_start..unit_end])?, steps, reference)
+    shifted(start, unit_end, unit(&text[unit_start..unit_end], opennlp_parity)?, steps, reference)
 }
 
 /// `3 days ago` and the same with weeks, months, quarters and years.
-fn count_ago(b: &[u8], text: &str, start: usize, reference: Date) -> Option<TemporalMention> {
-    let (count, count_end) = short_number(b, start)?;
+fn count_ago(b: &[u8], text: &str, start: usize, reference: Date, opennlp_parity: bool) -> Option<TemporalMention> {
+    let (count, count_end) = count_number(b, start, opennlp_parity)?;
     let unit_start = gap(text, count_end)?;
     let unit_end = word(text, unit_start)?;
     let ago_start = gap(text, unit_end)?;
@@ -141,7 +156,7 @@ fn count_ago(b: &[u8], text: &str, start: usize, reference: Date) -> Option<Temp
         return None;
     }
     let granularity = counted_unit(&text[unit_start..unit_end])?;
-    shifted(start, ago_end, granularity, -i64::from(count), reference)
+    shifted(start, ago_end, granularity, -count, reference)
 }
 
 /// `shifted`: the reference moved by `steps` of the unit, at the unit's
@@ -162,10 +177,17 @@ fn shifted(start: usize, end: usize, granularity: Granularity, steps: i64, refer
     })
 }
 
-/// `day`: an absolute day mention, when the year is from 1000 to 2999 and
-/// the date exists.
-fn day_mention(start: usize, end: usize, year: u32, month: u32, day: u32) -> Option<TemporalMention> {
-    if !(MIN_YEAR..=MAX_YEAR).contains(&year) {
+/// `day`: an absolute day mention, when the year is in range (`0001..=9999`
+/// by default, `1000..=2999` in OpenNLP parity mode) and the date exists.
+fn day_mention(
+    start: usize,
+    end: usize,
+    year: u32,
+    month: u32,
+    day: u32,
+    opennlp_parity: bool,
+) -> Option<TemporalMention> {
+    if !year_in_range(year, opennlp_parity) {
         return None;
     }
     // Month and day are at most two digits, so they fit.
@@ -182,12 +204,20 @@ fn span(start: usize, end: usize) -> Span {
     Span::new(start as u32, end as u32)
 }
 
-/// `yearAt`: four digits from 1000 to 2999, not part of a longer run of
-/// digits and followed by a word boundary.
-fn year_at(b: &[u8], text: &str, start: usize) -> Option<(u32, usize)> {
+fn year_in_range(year: u32, opennlp_parity: bool) -> bool {
+    if opennlp_parity {
+        (PARITY_MIN_YEAR..=PARITY_MAX_YEAR).contains(&year)
+    } else {
+        (DEFAULT_MIN_YEAR..=DEFAULT_MAX_YEAR).contains(&year)
+    }
+}
+
+/// `yearAt`: four digits in range, not part of a longer run of digits and
+/// followed by a word boundary.
+fn year_at(b: &[u8], text: &str, start: usize, opennlp_parity: bool) -> Option<(u32, usize)> {
     let year = digits(b, start, 4)?;
     let end = start + 4;
-    ((MIN_YEAR..=MAX_YEAR).contains(&year) && boundary_after(text, end)).then_some((year, end))
+    (year_in_range(year, opennlp_parity) && boundary_after(text, end)).then_some((year, end))
 }
 
 /// `shortNumber`: one or two digits, not part of a longer run.
@@ -197,6 +227,18 @@ fn short_number(b: &[u8], start: usize) -> Option<(u32, usize)> {
         return None;
     }
     let value = b[start..start + run].iter().fold(0, |v, &d| v * 10 + u32::from(d - b'0'));
+    Some((value, start + run))
+}
+
+/// Reads a relative count: `1..=9` digits by default (`1..=2` digits in
+/// OpenNLP parity mode), not part of a longer run of digits.
+fn count_number(b: &[u8], start: usize, opennlp_parity: bool) -> Option<(i64, usize)> {
+    let max_digits = if opennlp_parity { 2 } else { 9 };
+    let run = b.get(start..).unwrap_or_default().iter().take(max_digits + 1).take_while(|d| d.is_ascii_digit()).count();
+    if !(1..=max_digits).contains(&run) {
+        return None;
+    }
+    let value = b[start..start + run].iter().fold(0i64, |v, &d| v * 10 + i64::from(d - b'0'));
     Some((value, start + run))
 }
 
