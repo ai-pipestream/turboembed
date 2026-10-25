@@ -1,0 +1,52 @@
+{
+  "kind": "typed-evidence-producer-provenance-verification",
+  "pr": 1253,
+  "issue": 1219,
+  "baseline_head": "024e1f0a87a8a687717e7765bb0baefbc6e4d65a",
+  "tested_source": "615b0a81831cac316fa43f72eac38fdfeb85a7b0",
+  "test_only_red_commit": "1e0e2f6f6a0e79b2b77a1e04976fa42a50c900f6",
+  "claim": 6399233444,
+  "problem": "Producer records only annotator and optional model identity, but projection reused the first matching full layer provenance and could report an unrelated configuration, version and execution environment.",
+  "red": {
+    "private_rpc": "Named category sources with configs 101 and 202 both produce config 101/version known-version.",
+    "permanent_tests": {
+      "passed": 0,
+      "failed": 2,
+      "failure": "Unrecorded producer configuration is 101 instead of the existing producer-only placeholder 0."
+    }
+  },
+  "repair": "Remove partial-identity full-provenance lookup. Deduplicate producer-only entries by their complete recorded identity with existing unrecorded-field placeholders; preserve full layer provenance separately. No schema or native evidence format change.",
+  "permanent_tests": {
+    "target": "typed_producer_provenance",
+    "tests": 2,
+    "families": [
+      "category evidence",
+      "entity votes"
+    ],
+    "real_transport": "native DocumentGraph export, RoundTripDocumentGraph, InspectDocumentGraph and RoundTripTypedDocument through a real local server/client",
+    "matrix": "Each family covers six default/named instances, both insertion orders and all three offset modes. Same producer identities deduplicate; model revision/digest identities remain distinct. All six full layer configuration/version/execution records remain exact.",
+    "limitations": "Programmatically constructed valid native documents; no model inference, hardware or performance claim."
+  },
+  "validation": {
+    "command": "cargo test --locked -p turbo-analysis -p turbo-analysis-layers -p turbo-kserve -p turbo-kserve-demo -- --skip term_stacks_scale_with_the_document_not_its_square",
+    "passed": 687,
+    "failed": 0,
+    "ignored": 2,
+    "measured": 0,
+    "filtered": 1,
+    "counting": "Final complete suite only, includes the two new tests; targeted/private runs are not added. Existing timing test explicitly filtered, not claimed passing.",
+    "workspace_clippy": "cargo clippy --locked --workspace --all-targets -- -D warnings: pass",
+    "workspace_fmt": "cargo fmt --all -- --check: pass",
+    "tree": "cargo test --locked -p turbo-bench --test tree: 8 passed",
+    "jobs": 2,
+    "changed_rust_lines": {
+      "projection_module": 421,
+      "regression_tests": 157
+    }
+  },
+  "limits": [
+    "Implementation proof only; fresh independent reviews and hosted checks required.",
+    "Original issue acceptance remains open, including the separate native Modality transport integration.",
+    "Existing deletion, quotation, reference and evidence tests are unchanged."
+  ]
+}
