@@ -334,7 +334,7 @@ impl Annotator for QuantityExtractor {
             .into_iter()
             .chain(units)
             .fold(Fnv1a::new(), |mut h, x| {
-                h.fold_u64(x);
+                h.u64(x);
                 h
             })
             .finish()

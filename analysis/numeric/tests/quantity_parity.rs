@@ -26,15 +26,15 @@ fn parity_selects_legacy_money_exclusion_without_changing_native_defaults() {
 
 #[test]
 fn parity_identity_preserves_current_main_modes_and_units() {
-    // Actual public API values captured on incoming main f3d10cb7.
+    // Actual public API values captured on main df3f37e0f, after #1118.
     let cases = [
         (
             NumberNotation::LatinUs,
-            [15676901307674456763, 6775125584621861070, 6040691781845600814, 18243062135851126261],
+            [3579201725418412135, 14626777977041468134, 15580912941686647918, 2572961467638822223],
         ),
         (
             NumberNotation::LatinEu,
-            [6241264112553325702, 10819214315860654899, 17423958123388179277, 8689324141470668998],
+            [5607633216433797316, 18014003347783595333, 1222417029061241965, 3124893668151280012],
         ),
     ];
     for (notation, expected) in cases {
