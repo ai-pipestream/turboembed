@@ -101,14 +101,8 @@ pub(crate) fn prepare<'a, A: WordOrTokenAnchor>(
                 .map(|i| Ix::new(i as u32))
         })
         .collect();
-    let (sent_starts, sent_ends) = sentences.spans.columns();
-    let word_sentence: Vec<Option<usize>> = words
-        .iter()
-        .map(|w| {
-            let at = sent_starts.partition_point(|&s| s <= w.token_span.start);
-            at.checked_sub(1).filter(|&s| w.token_span.start < sent_ends[s])
-        })
-        .collect();
+    let word_sentence: Vec<Option<usize>> =
+        words.iter().map(|w| sentences.spans.covering_at(w.token_span.start).map(|i| i.get())).collect();
     Ok(Prepared { words, graph, entity_heads, word_sentence })
 }
 

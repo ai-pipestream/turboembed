@@ -61,3 +61,18 @@ fn peek_returns_the_registration_without_cloning_the_name() {
     assert!(loaded.is_none(), "nothing is loaded yet; ready() reports that on the same path");
     assert!(state.ready("x", "").is_err());
 }
+
+#[test]
+fn load_error_preserves_status() {
+    let err = LoadError {
+        model: "m".into(),
+        call: "turbo_session_create",
+        failure: Failure::new(TURBO_E_UNSUPPORTED_OPTION, 2, "over max_seq"),
+        fields: &SESSION_DESC,
+    };
+    let status = err.to_status();
+    assert_eq!(status.code(), tonic::Code::Unimplemented);
+    assert_eq!(status.metadata().get("turbo-code").unwrap(), "513");
+    assert_eq!(status.metadata().get("turbo-field").unwrap(), "2");
+    assert!(status.message().contains("field 2 (max_seq)"), "{}", status.message());
+}

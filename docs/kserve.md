@@ -57,8 +57,10 @@ no per-run choice, so a request cannot name either; a request parameter
 `precision` or `device` is an unknown parameter (Errors).
 
 The command line gives each model as one `--model` of comma-separated
-settings, so a bundle path may not contain a comma. Each flag has an
-environment variable read when the flag is absent (docs/grpc.md).
+settings, so a bundle path may not contain a comma, or discovers immediate
+child bundle directories from `--bundle-dir`. When `--admin` is enabled, the
+server may also start with zero models and load bundles through `LoadBundle`.
+Each flag has an environment variable read when the flag is absent (docs/grpc.md).
 
 One setting is the server's, not a model's: `--max-message-bytes`, the
 largest request message gRPC reads, 64 MiB when absent. A request larger
@@ -113,8 +115,8 @@ A model is ready only after `turbo_model_load` and every one of its
 `ModelInfer` for it are `TURBO_E_INVALID_STATE`: a call made before the
 state it needs. Before load the revision is unknown, so `ModelReady`
 with any version is false. A client polls `ModelReady` until it is true rather
-than retrying `ModelInfer` on that status. Once ready, a model stays
-ready until the server stops; the server has no unload.
+than retrying `ModelInfer` on that status. A model remains ready while it
+is loaded and the server is not draining.
 
 The server also serves `grpc.health.v1.Health` (`Check` and `Watch`),
 mapping `SERVING` to the same state as `ServerReady` (or `ModelReady`

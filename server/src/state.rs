@@ -239,7 +239,12 @@ impl State {
         Ok(m)
     }
 
-    ///Removes the caller's own registration if it is still the live entry.
+    /// Removes the caller's own registration, whatever name it carries:
+    /// the entry goes only when it is still the one the caller
+    /// registered, under the write lock, so a concurrent unload and
+    /// re-registration of the same name is never touched. An entry the
+    /// caller no longer holds is not an error: there is nothing of
+    /// theirs to roll back.
     pub(crate) fn remove_if(&self, expected: &Arc<Served>) -> api::Result<()> {
         let mut models = self.models.write().unwrap_or_else(|e| e.into_inner());
         let removed = models.iter().position(|m| Arc::ptr_eq(m, expected)).map(|i| models.remove(i)).is_some();
@@ -270,7 +275,7 @@ impl State {
         let _one = self.loading.lock().unwrap_or_else(|e| e.into_inner());
         for m in self.listing() {
             if m.loaded.get().is_none() {
-                self.load_model(&m)?;
+                self.load_model(&m).map_err(|e| e.to_string())?;
             }
         }
         Ok(())
@@ -280,7 +285,7 @@ impl State {
     /// no-op. Every other registration is untouched, and a same-named
     /// replacement is a different registration, so one LoadBundle's
     /// failure cannot fail or roll back another's.
-    pub(crate) fn load_one(&self, m: &Arc<Served>) -> std::result::Result<(), String> {
+    pub(crate) fn load_one(&self, m: &Arc<Served>) -> std::result::Result<(), LoadError> {
         let _one = self.loading.lock().unwrap_or_else(|e| e.into_inner());
         if m.loaded.get().is_none() {
             self.load_model(m)?;
@@ -291,14 +296,10 @@ impl State {
     /// One model's load: its context, model, sessions and pinned buffers,
     /// published on its entry. The loading mutex is held by the caller, so
     /// this entry cannot load twice.
-    fn load_model(&self, m: &Arc<Served>) -> std::result::Result<(), String> {
-        let fail = |call: &str, fields: &[&str]| {
-            let (name, call) = (m.name.clone(), call.to_string());
-            let fields: Vec<String> = fields.iter().map(|s| s.to_string()).collect();
-            move |f: Failure| {
-                let fields: Vec<&str> = fields.iter().map(String::as_str).collect();
-                format!("model {name}: {call}: {}", describe(&f, &fields))
-            }
+    fn load_model(&self, m: &Arc<Served>) -> std::result::Result<(), LoadError> {
+        let fail = |call: &'static str, fields: &'static [&'static str]| {
+            let model = m.name.clone();
+            move |failure: Failure| LoadError { model, call, failure, fields }
         };
         let rt = match self.runtime.get() {
             Some(rt) => rt,
@@ -362,7 +363,7 @@ impl State {
                     .alloc(TURBO_PLACE_PINNED, TURBO_DTYPE_I32, si.max_batch, si.max_seq)
                     .map_err(fail("turbo_buffer_alloc", &[]))?;
                 let p = b.host_ptr().map_err(fail("turbo_buffer_host_ptr", &[]))?;
-                Ok::<_, String>((b, p))
+                Ok::<_, LoadError>((b, p))
             };
             let ((ids, a), (mask, b), (types, t)) = (alloc()?, alloc()?, alloc()?);
             slots.push(Slot {
@@ -392,6 +393,35 @@ impl State {
         let _ = m.loaded.set(Arc::new(loaded));
         self.notify_health();
         Ok(())
+    }
+}
+
+/// A structured failure from loading a model or creating its sessions,
+/// preserving the turbo status code, field index, and field name table.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct LoadError {
+    pub model: String,
+    pub call: &'static str,
+    pub failure: Failure,
+    pub fields: &'static [&'static str],
+}
+
+impl std::fmt::Display for LoadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "model {}: {}: {}", self.model, self.call, describe(&self.failure, self.fields))
+    }
+}
+
+impl LoadError {
+    /// Converts the load failure to its mapped gRPC Status with `turbo-code`
+    /// and `turbo-field` trailing metadata.
+    pub fn to_status(&self) -> tonic::Status {
+        let f = Failure::new(
+            self.failure.code,
+            self.failure.field,
+            format!("model {}: {}: {}", self.model, self.call, self.failure.message),
+        );
+        crate::status::to_status(&f, self.fields)
     }
 }
 
