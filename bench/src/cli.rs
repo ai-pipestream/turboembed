@@ -22,6 +22,20 @@ usage:
       per second and call latency at 1, 8, 32 and 128 sentences per call
       and by sentence length, interleaved over --rounds (default 3); write
       the record to <repo>/benchmarks/records/postag (needs --features postag)
+  turbo-bench lattice [--dictionaries <dir>] [--rounds <n>] [--readings]
+                     [--cpus <list>] [--repo <dir>] [--out <dir>]
+                     [ipadic|ko-dic|unidic ...]
+      the lattice tokenizer's characters per second per MeCab
+      dictionary over its language's goldens inputs, repeated to
+      10 MiB; write the records to
+      <repo>/benchmarks/records/throughput (needs --features lattice)
+  turbo-bench grammar [--rounds <n>] [--cpus <list>] [--repo <dir>]
+                     [--out <dir>]
+      the English number, unit and time grammars' characters per
+      second per phase (find, lex, parse, parse-units, times) over
+      the number, quantity, money and temporal goldens inputs;
+      write the record to <repo>/benchmarks/records/throughput
+      (needs --features grammar)
   turbo-bench qa --bundle <dir> --questions <squad.json> [--device <d>]
                  [--precision <p>] [--batch <n>] [--max-batch <n>]
                  [--per-bin <n>] [--warmup <n>] [--iterations <n>]
