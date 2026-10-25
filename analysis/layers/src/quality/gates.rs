@@ -1,4 +1,4 @@
-use turbo_analysis::{DocPredicate, Document, Key, KeyId, ViewId};
+use turbo_analysis::{DocPredicate, Document, Fnv1a, Key, KeyId, ViewId};
 
 use super::{QualityFlags, TextQuality};
 
@@ -74,14 +74,16 @@ impl DocPredicate for QualityPredicate {
             Rule::Score(min, flags) => (0u8, min.to_bits(), u32::from(flags.0)),
             Rule::Lexical(density, mtld) => (1, density.to_bits(), mtld.to_bits()),
         };
-        b"quality-predicate-v1"
-            .iter()
-            .copied()
-            .chain(self.key.name.bytes())
-            .chain([0xff, tag])
-            .chain(self.view.0.to_le_bytes())
-            .chain(a.to_le_bytes())
-            .chain(b.to_le_bytes())
-            .fold(0xcbf2_9ce4_8422_2325u64, |h, byte| (h ^ u64::from(byte)).wrapping_mul(0x0100_0000_01b3))
+        // This existing boundary includes raw float bits, retaining zero signs
+        // and NaN payloads even for configurations the predicate will refuse.
+        Fnv1a::new()
+            .bytes(b"quality-predicate-v1")
+            .bytes(self.key.name.as_bytes())
+            .u8(0xff)
+            .u8(tag)
+            .u16(self.view.0)
+            .u32(a)
+            .u32(b)
+            .finish()
     }
 }

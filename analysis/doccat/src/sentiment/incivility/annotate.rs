@@ -267,28 +267,26 @@ impl Annotator for IncivilityAnnotator {
     }
 
     fn config_hash(&self) -> u64 {
-        let mut h: u64 = 0xcbf29ce484222325;
-        for &b in self.lexicon.sha256().as_bytes() {
-            h ^= b as u64;
-            h = h.wrapping_mul(0x100000001b3);
-        }
-        h ^= (self.unit as u64).wrapping_mul(0x9e3779b97f4a7c15);
-        h ^= self.threshold.to_bits();
-        h ^= u64::from(self.use_reply_context);
+        let mut h = turbo_analysis::Fnv1a::new();
+        h.bytes(self.lexicon.sha256().as_bytes())
+            .u64(self.unit as u64)
+            .f64(self.threshold)
+            .bool(self.use_reply_context);
         if let Some(s) = self.vector_scorer.as_ref().filter(|_| self.stage != IncivilityStage::Lexicon) {
-            h ^= s.config_hash();
+            h.u64(s.config_hash());
         }
-        h ^= (self.stage as u64 + 1).wrapping_mul(0xbf58_476d_1ce4_e5b9);
-        let mut c: u64 = match &self.vector_context {
-            IncivilityVectorContext::None => 0,
-            IncivilityVectorContext::Preceding => 1,
-            IncivilityVectorContext::Parent(_) => 2,
-        };
-        if let IncivilityVectorContext::Parent(p) = &self.vector_context {
-            for v in p.iter() {
-                c = (c ^ u64::from(v.to_bits())).wrapping_mul(0x0100_0000_01b3);
+        h.u64(self.stage as u64);
+        match &self.vector_context {
+            IncivilityVectorContext::None => h.u8(0),
+            IncivilityVectorContext::Preceding => h.u8(1),
+            IncivilityVectorContext::Parent(p) => {
+                h.u8(2);
+                p.iter().for_each(|&v| {
+                    h.f32(v);
+                });
+                &mut h
             }
-        }
-        h ^ c.wrapping_mul(0x94d0_49bb_1331_11eb)
+        };
+        h.finish()
     }
 }

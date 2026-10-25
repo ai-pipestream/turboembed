@@ -408,34 +408,24 @@ impl<S: DlSequenceScorer, C: ClassificationScoringStrategy> DocumentCategorizerD
     }
 
     pub(crate) fn config_hash_value(&self) -> u64 {
-        fn feed(hash: &mut u64, bytes: &[u8]) {
-            for &b in bytes {
-                *hash = (*hash ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
-            }
-        }
-        let mut hash = 0xcbf2_9ce4_8422_2325u64;
-        feed(&mut hash, b"opennlp:doccat-dl");
-        feed(
-            &mut hash,
-            &[
+        let mut hash = turbo_analysis::Fnv1a::new();
+        hash.str("opennlp:doccat-dl")
+            .bytes(&[
                 u8::from(self.options.lower_case),
                 u8::from(self.options.normalize_whitespace),
                 u8::from(self.options.normalize_dashes),
                 u8::from(self.options.include_token_type_ids),
                 self.options.chunking_mode as u8,
-            ],
-        );
-        feed(&mut hash, &(self.options.document_split_size as u64).to_le_bytes());
-        feed(&mut hash, &(self.options.split_overlap_size as u64).to_le_bytes());
-        feed(&mut hash, &(self.scorer.max_content_tokens() as u64).to_le_bytes());
-        feed(&mut hash, &self.scorer.scorer_config_hash().to_le_bytes());
-        feed(&mut hash, self.strategy.strategy_id().as_bytes());
-        feed(&mut hash, &[0]);
-        feed(&mut hash, &self.strategy.strategy_hash().to_le_bytes());
+            ])
+            .u64(self.options.document_split_size as u64)
+            .u64(self.options.split_overlap_size as u64)
+            .u64(self.scorer.max_content_tokens() as u64)
+            .u64(self.scorer.scorer_config_hash())
+            .str(self.strategy.strategy_id())
+            .u64(self.strategy.strategy_hash());
         for cat in &self.categories {
-            feed(&mut hash, cat.as_bytes());
-            feed(&mut hash, &[0]);
+            hash.str(cat);
         }
-        hash
+        hash.finish()
     }
 }

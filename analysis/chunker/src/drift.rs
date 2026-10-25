@@ -23,7 +23,7 @@
 
 use std::num::NonZeroU32;
 
-use turbo_analysis::{Annotator, Bound, Error, Layer, Refs};
+use turbo_analysis::{Annotator, Bound, Error, Fnv1a, Layer, Refs};
 use turbo_analysis_layers::{Boundaries, Cut, Sentences, Vectors};
 
 use crate::sums::Rows;
@@ -220,7 +220,11 @@ impl Annotator for DriftBoundaries {
             u64::from(d.shift),
         ]
         .iter()
-        .fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x).wrapping_mul(0x0100_0000_01b3))
+        .fold(Fnv1a::new(), |mut h, &x| {
+            h.u64(x);
+            h
+        })
+        .finish()
     }
 }
 

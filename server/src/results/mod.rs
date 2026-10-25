@@ -112,7 +112,7 @@ pub fn ix_bounded<L>(what: &str, i: u32, n: usize) -> Result<turbo_analysis::Ix<
     ix_from_wire(what, i)
 }
 
-fn model_to_proto(m: &ModelRef) -> proto::ModelRef {
+pub(crate) fn model_to_proto(m: &ModelRef) -> proto::ModelRef {
     proto::ModelRef { id: m.id.clone(), revision: m.revision.clone(), sha256: m.sha256.clone() }
 }
 

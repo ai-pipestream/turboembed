@@ -67,7 +67,11 @@ impl Annotator for TableBoundaryAnnotator {
     fn config_hash(&self) -> u64 {
         [self.inside_cost, self.row_boundary_cost]
             .iter()
-            .fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ u64::from(x as u32)).wrapping_mul(0x0100_0000_01b3))
+            .fold(turbo_analysis::Fnv1a::new(), |mut h, &x| {
+                h.fold_u64(u64::from(x as u32));
+                h
+            })
+            .finish()
     }
 }
 use turbo_analysis::Layer;

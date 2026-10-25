@@ -132,21 +132,11 @@ impl<B: Gazetteer, A: Gazetteer> Gazetteer for OverlayGazetteer<B, A> {
     }
 
     fn fingerprint(&self) -> u64 {
-        const P: u64 = 0x0100_0000_01b3;
-        let mut h = (0xcbf2_9ce4_8422_2325 ^ self.base.fingerprint()).wrapping_mul(P);
-        h = (h ^ self.additions.as_ref().map_or(0, Gazetteer::fingerprint)).wrapping_mul(P);
+        let mut h = turbo_analysis::Fnv1a::new();
+        h.u64(self.base.fingerprint()).u64(self.additions.as_ref().map_or(0, Gazetteer::fingerprint));
         for s in &self.suppressions {
-            for b in s
-                .name()
-                .bytes()
-                .chain(std::iter::once(0xff))
-                .chain(s.country().map_or([0, 0], RegionCode::bytes))
-                .chain(std::iter::once(0xff))
-                .chain(s.feature_class().unwrap_or("").bytes())
-            {
-                h = (h ^ u64::from(b)).wrapping_mul(P);
-            }
+            h.str(s.name()).bytes(&s.country().map_or([0, 0], RegionCode::bytes)).str(s.feature_class().unwrap_or(""));
         }
-        h
+        h.finish()
     }
 }

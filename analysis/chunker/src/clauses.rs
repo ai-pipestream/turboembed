@@ -18,7 +18,7 @@ mod detect;
 
 use std::ops::Range;
 
-use turbo_analysis::{Anchor, Annotator, Bound, Error, Ix, Layer, Refs, Span, View};
+use turbo_analysis::{Anchor, Annotator, Bound, Error, Fnv1a, Ix, Layer, Refs, Span, View};
 use turbo_analysis_layers::{Chunks, Cut, Dependencies, PhraseChunks, Phrases, PosTags, Sentences, Tokens};
 
 use crate::{Budget, Lengths, Row, RunCx, no_term, saturate, segment};
@@ -242,7 +242,11 @@ impl Annotator for ClauseBoundaries {
         let c = self.costs;
         [c.clause, c.subordinate, c.phrase, c.token]
             .iter()
-            .fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x as u32 as u64).wrapping_mul(0x0100_0000_01b3))
+            .fold(Fnv1a::new(), |mut h, &x| {
+                h.u64(u64::from(x as u32));
+                h
+            })
+            .finish()
     }
 }
 
