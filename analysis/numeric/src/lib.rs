@@ -23,6 +23,7 @@
 pub mod annotator;
 pub mod money;
 pub mod quantity;
+pub mod region;
 pub mod scan;
 pub mod temporal;
 
@@ -32,6 +33,7 @@ pub use money::{
     MoneyConverter, MoneyExtractor, RegionAwareMoneyAnnotator, RegionCode, RegionVote, Regions, ScaleRangeError,
 };
 pub use quantity::{DEFAULT_UNITS, QuantityExtractor, UnitError};
+pub use region::{RegionAwareNumberAnnotator, RegionAwareQuantityAnnotator, locale_notation, region_notation};
 pub use scan::{ScanResult, parse};
 pub use temporal::{DocumentDateSelector, TemporalExtractor, TimesDocumentDateSelector};
 pub use turbo_analysis_layers::{
