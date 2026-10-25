@@ -74,6 +74,8 @@ tonic-prost-build = { version = "0.14", default-features = false, features = ["t
 # The tests read the bundle's manifest and reference.
 serde_json = "1"
 turbo-normalize = { path = "../analysis/normalize" }
+# The sink tests relay a call over TCP and cut it.
+tokio = { version = "1", features = ["io-util"] }
 
 [features]
 default = ["catalog-http"]

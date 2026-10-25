@@ -147,7 +147,7 @@ fn check(pack: Pack) -> Counts {
         .step(MaskedView::by_kind('*').unwrap().bound())
         .build()
         .expect("the analyzer");
-    let tokenizer = HmacTokenizer::new(KEY.as_bytes()).unwrap();
+    let tokenizer = HmacTokenizer::new(KEY.as_bytes()).unwrap().refusing_overlaps();
     let shapes = shapes();
     let mut counts = Counts::default();
     let mut failures = Vec::new();
@@ -188,7 +188,7 @@ fn check(pack: Pack) -> Counts {
         let (texts, errors) = (strs(rewrites, "text"), strs(rewrites, "error"));
         for (k, op) in ops.iter().enumerate() {
             let rust = match op.as_str() {
-                "pseudonymize" => Pseudonymizer::default().rewrite(&text, pii),
+                "pseudonymize" => Pseudonymizer::default().refusing_overlaps().rewrite(&text, pii),
                 _ => tokenizer.rewrite(&text, pii),
             };
             match rust {

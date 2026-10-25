@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+// A downstream sink for analyzed documents (docs/grpc-sink.md): one
+// turbo-kserve forwards what its analysis calls complete to another
+// service over this contract, so servers chain into a pipeline or end in
+// an ingestion sink. turbo-kserve serves the receiving side too.
+package turbo.sink;
+
+import "turbo_analysis.proto";
+
+service TurboSinkService {
+  // The sender streams items, and the sink answers once the sender closes
+  // the stream: what it received, accepted and rejected.
+  rpc StreamDocuments(stream DocumentSinkItem) returns (DocumentSinkSummary) {}
+}
+
+// One analyzed document. It carries a document graph, or one
+// AnalyzeStream answer, or both; an item with neither is rejected.
+message DocumentSinkItem {
+  // Assigned by the sender, strictly increasing within one stream.
+  uint64 sequence = 1;
+
+  // The document's correlation id: the AnalyzeDocument id for an answer.
+  string doc_id = 2;
+
+  // Binary DocumentGraph bytes (turbo-analysis export), empty when the
+  // item carries none; the sink imports them before it accepts the item.
+  bytes graph = 3;
+
+  // The graph's layers and views as RoundTripDocumentGraph lists them.
+  repeated turbo.result.LayerInfo layers = 4;
+  repeated turbo.result.ViewInfo views = 5;
+
+  // Reserved for the typed document projection (#1219) and the document's
+  // analysis time.
+  reserved 6, 7;
+
+  // The AnalyzeStream answer, when the item is one.
+  turbo.result.AnalyzeStreamResponse analyzed = 8;
+}
+
+message DocumentSinkSummary {
+  uint64 received_count = 1;
+  uint64 accepted_count = 2;
+  uint64 rejected_count = 3;
+
+  // Why items were rejected, each naming the item's sequence; at most the
+  // first 100.
+  repeated string errors = 4;
+}
