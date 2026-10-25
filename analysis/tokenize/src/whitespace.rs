@@ -34,11 +34,11 @@ const DECODE: u8 = 2;
 /// U+205F) or 0xE3 (U+3000); a character starting with any other byte is
 /// never whitespace, and neither is a continuation byte, so the scan steps
 /// over them without decoding.
-const fn byte_table(legacy: bool) -> [u8; 256] {
+const fn byte_table(mode: WhitespaceMode) -> [u8; 256] {
     let mut table = [TOKEN; 256];
     let mut b = 0;
     while b < 0x80 {
-        if (b >= 0x09 && b <= 0x0D) || b == 0x20 || (legacy && b >= 0x1C && b <= 0x1F) {
+        if mode.is_ascii_whitespace(b as u8) {
             table[b] = SPACE;
         }
         b += 1;
@@ -50,8 +50,8 @@ const fn byte_table(legacy: bool) -> [u8; 256] {
     table
 }
 
-static UNICODE_BYTES: [u8; 256] = byte_table(false);
-static LEGACY_BYTES: [u8; 256] = byte_table(true);
+static UNICODE_BYTES: [u8; 256] = byte_table(WhitespaceMode::Unicode);
+static LEGACY_BYTES: [u8; 256] = byte_table(WhitespaceMode::Legacy);
 
 /// Appends the whitespace tokens of `text` to `out`, as byte spans of
 /// `text`.
