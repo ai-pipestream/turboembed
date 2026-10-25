@@ -16,7 +16,7 @@
 //! pulls toward cuts between sentences that differ, and the boundary
 //! costs and the size penalty decide how many cuts that is worth.
 
-use turbo_analysis::{Annotator, Error, Layer, Refs};
+use turbo_analysis::{Annotator, Error, Fnv1a, Layer, Refs};
 use turbo_analysis_layers::{Boundaries, Chunks, Sentences, Structure, Subwords, Vectors};
 
 use crate::clauses::ClauseCuts;
@@ -90,7 +90,7 @@ impl Annotator for CohesiveChunker {
 
     fn config_hash(&self) -> u64 {
         let h = self.chunker.config_hash();
-        (h ^ u64::from(self.cohesion.weight)).wrapping_mul(0x0100_0000_01b3)
+        Fnv1a::with_seed(h).u64(u64::from(self.cohesion.weight)).finish()
     }
 }
 

@@ -17,19 +17,22 @@ pub mod error;
 pub mod evidence;
 pub mod export;
 pub mod graph;
+pub mod hash;
 pub mod layer;
 pub mod markup;
 pub mod math;
 pub mod offsets;
+pub mod phrase;
 pub mod predicate;
 pub mod registry;
+pub mod shape;
 pub mod span;
 pub mod text;
 pub mod topk;
 pub mod xray;
 
 pub use alternatives::{Alternative, Alternatives, ModeSet, NBest, SplitMode};
-pub use analyzer::Analyzer;
+pub use analyzer::{Analyzer, ExecutionReport, LayerExecution, StepExecution};
 pub use annotate::{Annotator, Bound, Refs};
 pub use bytes::{DecodeBuilder, MAX_SOURCE_LEN, SourceBytes, SourceError};
 pub use doc::{Document, LayerStatus, Status, View};
@@ -41,15 +44,18 @@ pub use export::{
     get_tagset, import, layer_ref, node_ref, put_spans, put_tagset,
 };
 pub use graph::{Edge, Edges, Groups, ReachScratch};
+pub use hash::{FNV1A_OFFSET_BASIS, FNV1A_PRIME, Fnv1a, fnv1a};
 pub use layer::{Anchor, Execution, Key, KeyId, Layer, LayerName, ModelRef, Provenance, Tag, TagSet};
 pub use markup::{MarkupError, MarkupText, TagKind, TagSpan, TextRun, TextRunKind};
 pub use offsets::{
     CodePointOffset, CodePointSpan, OffsetCursor, OffsetError, OffsetTable, OffsetUnit, Utf16Offset, Utf16Span,
 };
+pub use phrase::PhraseIndex;
 pub use predicate::{
-    ConditionalAnnotator, ConditionalStep, FilterAnnotator, FilterableLayer, SpanFilter, co_written_aligned_anchors,
-    retain_aligned_anchor,
+    ConditionalAnnotator, ConditionalStep, DocPredicate, FilterAnnotator, FilterableLayer, SpanFilter,
+    co_written_aligned_anchors, retain_aligned_anchor,
 };
+pub use shape::{DocumentWindow, PreparedSegments, ShapeMember, ShapeSegment, WindowShape};
 pub use span::{
     ContainedJoin, FilterRule, FragmentError, Fragments, Ix, IxRange, Overlap, OverlappingJoin, Span, Spans, TextSpans,
     filter_spans,

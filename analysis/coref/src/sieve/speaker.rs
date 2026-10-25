@@ -4,9 +4,8 @@
 use std::collections::HashMap;
 
 use super::{Resolver, Sieve};
-use crate::input::lowercase;
 use crate::layer::{Number, Person};
-use crate::lexicon;
+use crate::quotes::{QuoteRegions, speech_verb};
 
 /// The speaker of text outside every quotation when no speakers layer
 /// says otherwise.
@@ -74,24 +73,7 @@ impl Resolver<'_> {
                 })
                 .collect();
         }
-        let n = self.forms.len();
-        // quote_of[t] is the 1-based index of the quotation t lies in, or 0.
-        let mut quote_of = vec![0usize; n];
-        let mut starts: Vec<usize> = Vec::new();
-        let mut ends: Vec<usize> = Vec::new();
-        let mut open = 0;
-        for (t, form) in self.forms.iter().enumerate() {
-            if open == 0 && lexicon::opens_quote(form) {
-                starts.push(t);
-                ends.push(n - 1);
-                open = starts.len();
-            } else if open > 0 && lexicon::closes_quote(form) {
-                ends[open - 1] = t;
-                open = 0;
-            } else if open > 0 {
-                quote_of[t] = open;
-            }
-        }
+        let QuoteRegions { quote_of, starts, ends } = QuoteRegions::scan(self.forms);
         let mut attributed_to: HashMap<usize, usize> = HashMap::new();
         for q in 0..starts.len() {
             if let Some(attributed) = self.attribute(starts[q], ends[q], &quote_of) {
@@ -139,7 +121,7 @@ impl Resolver<'_> {
             if t >= self.forms.len() || quote_of[t] != 0 {
                 return false;
             }
-            if lexicon::speech_verb(&lowercase(self.forms[t])) {
+            if speech_verb(self.forms[t]) {
                 return true;
             }
             if forward {

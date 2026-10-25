@@ -9,8 +9,9 @@ compiler holds them to it.
 
 It is the base the chunker is built on, and the base OpenNLP 3.x is to
 be rewritten on, as add-ons: OpenNLP is the reference, and the Rust side
-follows it on its own schedule. The crates are Rust only for now;
-nothing here is in the C header or the gRPC server.
+follows it on its own schedule. The crates are Rust only; the
+gRPC server serves analysis documents and layers over them
+(`server/src/analysis.rs`, docs/grpc-analysis.md).
 
 ## Crates
 
@@ -35,7 +36,7 @@ nothing here is in the C header or the gRPC server.
 | `turbo-relation` | `analysis/relation/` | Dependency-path relation extraction over entity heads ([relation.md](relation.md)) |
 | `turbo-sequence` | `analysis/sequence/` | OpenNLP's beam search, BIO and BILOU codecs and feature generation framework (generators, `StringPattern` and the XML descriptors), with the context generators and validators of the part-of-speech tagger, chunker and name finder, the part-of-speech tag dictionary (`tags.tagdict`) and the Penn Treebank and Universal Dependencies tag mapping. Its crate documentation lists the OpenNLP behaviour it reproduces that is surprising, and the explicit `BeamSearch::opennlp` session for QN probability carry between evaluations and sentences; `analysis/sequence/README.md` describes its JVM golden files |
 | `turbo-postag` | `analysis/postag/` | OpenNLP's `POSTaggerME`: `PosModel` opens a `POSModel` file with its descriptor, tag dictionary, beam size and tag format, and `PosTagger` writes `opennlp:pos` (a tag and its probability per token, aligned to `opennlp:tokens`, one beam search per sentence). Tags and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/postag/README.md` describes its goldens and its accuracy on UD English EWT |
-| `turbo-lemmatizer` | `analysis/lemmatizer/` | OpenNLP's `LemmatizerME` (`LemmatizerModel`, `MaxentLemmatizer`: a beam search per sentence over the tagged tokens whose outcomes are lemma classes, shortest edit scripts applied to the lowercased token) and `DictionaryLemmatizer` (a `word<tab>tag<tab>lemma` lookup). Both read `opennlp:tokens` and `opennlp:pos` and write `opennlp:lemmas`; the maxent one also writes `turbo:confidence<opennlp:lemmas>`. Lemmas and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/lemmatizer/README.md` describes its goldens |
+| `turbo-lemmatizer` | `analysis/lemmatizer/` | OpenNLP's `LemmatizerME` (`LemmatizerModel`, `MaxentLemmatizer`: a beam search per sentence over the tagged tokens whose outcomes are lemma classes, shortest edit scripts applied to the lowercased token) and `DictionaryLemmatizer` (a `word<tab>tag<tab>lemma` lookup). Both read `opennlp:tokens` and `opennlp:pos` and write `opennlp:lemmas`; the maxent one also writes `turbo:confidence<opennlp:lemmas>`. Published OpenNLP models match the JVM bit for bit; native models use a case-preserving class format. The crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/lemmatizer/README.md` describes its goldens |
 | `turbo-phrase-chunker` | `analysis/phrase-chunker/` | OpenNLP's `ChunkerME`: `ChunkerModel` opens a `ChunkerModel` file and `PhraseChunker` writes `opennlp:chunk-tags` (a chunk tag and its probability per token, aligned to `opennlp:tokens`, one beam search per sentence over the tokens and their part-of-speech tags) and `opennlp:chunks` (the phrases those tags make, as `chunkAsSpans` returns them). Tags and probabilities are the JVM's bit for bit; the crate documentation lists the OpenNLP behaviour that is surprising, and `analysis/phrase-chunker/README.md` describes its goldens. It is not `turbo-chunker`, which cuts retrieval units |
 | `turbo-namefind` | `analysis/namefind/` | OpenNLP's `DictionaryNameFinder`, `RegexNameFinder` and the patterns of `RegexNameFinderFactory`, which write `opennlp:entities` from `opennlp:tokens`, `FilterEntities` to resolve overlapping or nested entities by `FilterRule`, the merge of several entity layers by `dropOverlappingSpans`, and `ConsensusEntityMerger`, which merges several recognizers' entity instances by `EntityMergePolicy` (`RawUnion`, `PriorityFallback` or `Consensus { min_votes, overlap_rule }`) and writes an `Evidence<Entities>` record per entity naming every recognizer that voted for it. Built-in patterns use hand-written UTF-8 scanners and user patterns in Java syntax are compiled by `JavaRegex` to a direct bytecode matcher or refused with a typed error; the crate documentation lists what is refused and the OpenNLP behaviour that is surprising, and `analysis/namefind/README.md` describes its JVM golden files |
 | `turbo-wordnet` | `analysis/wordnet/` | OpenNLP's WordNet API: WNDB and WN-LMF readers, `InMemoryWordNetLexicon`, the Morphy lemmatizer, `LexicalExpander`, taxonomy similarity and hypernym typing, and `WordNetAnnotator`, which writes `WordNetSenses` (`turbo:wordnet-senses`) and `LexicalExpansions` (`turbo:lexical-expansions`) per token from `Tokens` and, when present, `PosTags` and `Lemmas` |
@@ -3953,7 +3954,7 @@ cargo run --release -p turbo-train-recipes -- ud --treebanks <zoo-home>/artifact
     --references <dir with the OpenNLP UD models> --out <dir> [--recipe <model id>]...
 ```
 
-Results of a release-mode run of all sixteen recipes, with the five
+Historical results before the native lemma format, from all sixteen recipes, with the five
 lemmatizers run again after the last change to the tokens their gates
 leave out (each model file is the one the runs before the review wrote,
 by SHA-256), in points (F-measure for sentences and tokens, accuracy for
@@ -3969,8 +3970,13 @@ and each gate's lead with its left-out tokens counted:
 | Finnish FTB vs `fi-ud-tdt` |  |  | 89.25 vs 87.25, +1.47 to +2.53 | 88.87 vs 83.97, +4.35 to +5.45 |
 | Italian MarkIT vs `it-ud-vit` |  |  | 89.96 vs 92.17, -2.92 to -1.49, fail | 82.57 vs 83.55, -1.44 to -0.53, fail |
 
-The fourteen models gated against references of the zoo pass, and the
-two Italian models fail: they lose 2.21 points (tagger) and 0.98
+The current lemma recipes keep case. The [case evaluation](lemma-case-evaluation.md)
+records the new full-token and capitalized-lemma accuracy, exact model
+hashes and Italian error strata. It retains the paired gate and its
+coverage mask. The table above is the earlier lowercase run.
+
+In that earlier run the fourteen models gated against zoo references passed,
+and the two Italian models failed: they lose 2.21 points (tagger) and 0.98
 (lemmatizer) to OpenNLP's Italian models, so they get no zoo entry. The
 gates leave out the test tokens the reference cannot get right: the
 Finnish tagger's 635 of 16,261 (3.91 percent: `DET`, `PART` and
@@ -3978,12 +3984,12 @@ Finnish tagger's 635 of 16,261 (3.91 percent: `DET`, `PART` and
 of 9,654, and the lemmatizers' 57 (Spanish), 18 (Catalan), 100
 (Portuguese), 177 (Finnish) and 33 (Italian). Every such gate's lead is
 lower with them left out than with them counted, or the same: most for
-the Finnish tagger, +2.00 against +4.55. No model gives a lemma with a
-capital letter, as no OpenNLP lemmatizer does (it applies a class to the
+the Finnish tagger, +2.00 against +4.55. Those older models gave no lemma with a
+capital letter, as the OpenNLP format does (it applies a class to the
 lowercased token), so both models get wrong the test tokens whose lemma
 has one: from 7.14 percent of the Portuguese ones to 12.12 percent of
-the Italian ones, and 1 Finnish token. Giving them would be an
-improvement over OpenNLP, found here and not made. The Catalan references are OpenNLP's models of the same
+the Italian ones, and 1 Finnish token. The native class format now learns those lemmas; the linked case evaluation
+reports the new results. The Catalan references are OpenNLP's models of the same
 treebank: the sentence detector and tokenizer recipes make OpenNLP's
 events exactly and their models differ from the references only in the
 last bits of some parameters, so those gates check that the recipes
@@ -4254,7 +4260,7 @@ forty inputs of the `edge` set to exercise the reducer. Across them the
 Rust side matched or explained every golden; no offset invariant broke.
 What it took to get there:
 
-- The lemmatizers lowercase with `turbo_unicode::java::to_lowercase`,
+- OpenNLP-format lemmatizers lowercase with `turbo_unicode::java::to_lowercase`,
   which wrote final sigma under Unicode's Final_Sigma condition. The JDK's
   `String.toLowerCase` has its own: it walks the sigma's word, as its word
   break iterator for the root locale delimits it, passing over every
@@ -4548,8 +4554,9 @@ inside one of the top 10 chunks rises from 0.088 with no structure to
 all-MiniLM-L6-v2 does) or by the first token (as BGE does).
 `analysis/eval/tests/bundle_pooling.rs` checks the harness's vectors
 against each bundle's own reference vectors when `TURBO_EVAL_BUNDLES`
-names the bundles. The BGE bundles carry no query prompt, so queries are
-embedded without BGE's retrieval instruction.
+names the bundles. The table below embeds queries without BGE's retrieval
+instruction; the v1.5 recipes now carry it as their query prompt, and the
+next table measures it.
 
 With `turbo-chunker --max 254 --target 200`, nDCG@10:
 
@@ -4572,6 +4579,53 @@ on arguana and 1.5 on scifact against BGE alone; the dense BGE records
 pass the gate against `sentence-windows-5` and `fixed-tokens-200` but
 not against the semantic chunker (qasper under the floor), and the BGE
 hybrids pass against all three stage 0 baselines and `bm25-document`.
+
+#### The query instruction
+
+The v1.5 recipes (`bge-small-en-v1.5`, `bge-base-en-v1.5`,
+`bge-large-en-v1.5`) give `embed.prefix_query` as each model card gives
+the instruction: `Represent this sentence for searching relevant
+passages: `, trailing space included. `TURBO_PROMPT_QUERY` prepends it;
+documents get no prefix. bge-m3 asks for no instruction and its recipes
+set none. Each bundle's reference has one query case, so the instruction
+is in its sealed vectors. The same pipeline as above, on the 4080 at one
+commit, without the instruction and with it, nDCG@10:
+
+| Embedder | Retrieval | Query | `scifact` | `nfcorpus` | `arguana` | `qasper` | Mean |
+| :--- | :--- | :--- | ---: | ---: | ---: | ---: | ---: |
+| bge-small-en-v1.5 | dense | none | `70.32` | `35.21` | `62.86` | `30.32` | `49.68` |
+| bge-small-en-v1.5 | dense | instruction | `70.21` | `35.15` | `61.39` | `31.28` | `49.51` |
+| bge-base-en-v1.5 | dense | none | `73.74` | `36.65` | `64.51` | `30.82` | `51.43` |
+| bge-base-en-v1.5 | dense | instruction | `73.90` | `36.70` | `62.84` | `31.64` | `51.27` |
+| bge-small-en-v1.5 | hybrid, `w = 0.35` | none | `70.55` | `34.90` | `58.57` | `38.62` | `50.66` |
+| bge-small-en-v1.5 | hybrid, `w = 0.35` | instruction | `70.44` | `35.16` | `57.66` | `38.63` | `50.47` |
+| bge-base-en-v1.5 | hybrid, `w = 0.35` | none | `72.26` | `36.05` | `60.47` | `39.21` | `52.00` |
+| bge-base-en-v1.5 | hybrid, `w = 0.35` | instruction | `71.77` | `36.42` | `59.29` | `39.22` | `51.68` |
+
+The instruction does not pass the gate against the same embedder
+without it (`turbo-eval gate`). It costs arguana 1.48 (-2.19 to -0.76)
+and 1.68 (-2.34 to -1.01) points dense, and 0.92 and 1.18 in the
+hybrids, every interval below zero and the drop below the -0.5 floor.
+arguana's queries are whole arguments, not short searches, which the
+instruction was not written for. It gains qasper +0.96 (+0.29 to +1.66)
+and +0.82 (+0.15 to +1.50) points dense, and nothing in the hybrids.
+scifact and nfcorpus move inside their intervals. The records with the
+instruction are `analysis/eval/records/bge-small-turbo-chunker-254-200-instruction`,
+`bge-base-turbo-chunker-254-200-instruction` and their `-hybrid` twins;
+the records without it were made again at the same commit, from bundles
+that differ from the instructed ones in `prefix_query` alone, and give the
+numbers above to the last digit.
+
+All of these records were measured at commit `1d7d2cbf`, whose recipes
+name the reference image `turbo-reference@sha256:2d74a1a9…`. The recipes
+now name `turbo-reference@sha256:ca155518…`, built from main's Dockerfile.
+The image computes only the bundle's reference, the token ids and vectors
+each machine checks itself against when it loads the bundle; the weights
+and the tokenizer the evaluation runs are copied from the pinned upstream
+files without it. So the change of pin can move the sealed reference, and
+with it `manifest_sha256`, but not `artifact_sha256` or
+`tokenizer_sha256`, nor anything these records measure. They have not
+been measured again under the new pin.
 
 ### Measures and the gate
 
@@ -5093,15 +5147,9 @@ runs them on any machine:
 
 ## Not built yet
 
-- The annotators themselves: normalizers, sentence detection,
-  tokenization, and the boundary signals besides structure and drift
-  (lexical cohesion, coreference, discourse markers).
-- The rest of the evaluation harness: baseline records for
-  `legalbench-rag-mini`, which is placed by hand, a published copy and
-  licence for HiCBench, and the chunker's records on it. It is also where the BM25 only baseline
-  is to be reported, from the term statistics above, and what each
-  level and each kind of level vector adds.
-- A gRPC surface, to be shared with the OpenNLP standard.
+- A published copy and licence for HiCBench, and the chunker's
+  records on it. The other evaluation records, including the BM25
+  only baseline, are in `analysis/eval/records/`.
 - A reader for spaCy's JSON pattern files, building `Tok` patterns from
   them.
 

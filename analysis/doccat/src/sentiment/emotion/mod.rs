@@ -209,19 +209,15 @@ impl EmotionAnnotator {
     }
 
     fn config(&self) -> u64 {
-        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        let mut h = turbo_analysis::Fnv1a::new();
         let head = self.vector_scorer.as_ref().filter(|_| self.stage != EmotionStage::Lexicon);
-        let words = lexicon::WORDS.iter().chain(lexicon::EMOJI).map(|(w, d, x)| (w.as_bytes(), *d as u8, x.to_bits()));
-        let mut mix = |b: u64| h = (h ^ b).wrapping_mul(0x0100_0000_01b3);
-        for (w, d, x) in words {
-            w.iter().for_each(|&b| mix(u64::from(b)));
-            mix(u64::from(d));
-            mix(x);
+        for (w, d, x) in
+            lexicon::WORDS.iter().chain(lexicon::EMOJI).map(|(w, d, x)| (w.as_bytes(), *d as u8, x.to_bits()))
+        {
+            h.bytes(w).u8(d).u64(x);
         }
-        mix(self.unit as u64);
-        mix(self.stage as u64);
-        mix(self.threshold.to_bits());
-        mix(head.map_or(0, |s| s.config_hash()));
-        h
+        h.u64(self.unit as u64).u64(self.stage as u64).u64(self.threshold.to_bits());
+        h.u64(head.map_or(0, |s| s.config_hash()));
+        h.finish()
     }
 }

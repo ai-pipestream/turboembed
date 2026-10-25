@@ -377,38 +377,36 @@ impl AbbreviationInventory {
     /// classes, every active entry and its rule, the never-abbreviation
     /// words, the additions and the exclusions.
     pub fn config_hash(&self) -> u64 {
-        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-        let mut eat = |bytes: &[u8]| {
-            for &b in bytes {
-                h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
-            }
-        };
-        eat(b"turbo-sentdetect:abbreviations:1\0");
-        eat(self.language().unwrap_or("").as_bytes());
-        eat(&[0, self.classes.bits()]);
-        for (class, a) in self.bundled() {
-            eat(&[class as u8, a.rule as u8]);
-            eat(a.text.as_bytes());
-            eat(&[0]);
+        let mut h = turbo_analysis::Fnv1a::new();
+        fn eat(h: &mut turbo_analysis::Fnv1a, bytes: &[u8]) {
+            h.bytes(bytes);
         }
-        eat(&[0xFE]);
+        eat(&mut h, b"turbo-sentdetect:abbreviations:1\0");
+        eat(&mut h, self.language().unwrap_or("").as_bytes());
+        eat(&mut h, &[0, self.classes.bits()]);
+        for (class, a) in self.bundled() {
+            eat(&mut h, &[class as u8, a.rule as u8]);
+            eat(&mut h, a.text.as_bytes());
+            eat(&mut h, &[0]);
+        }
+        eat(&mut h, &[0xFE]);
         if !self.classes.is_empty() {
             for w in self.bundle.map_or(&[][..], |b| b.penultimates) {
-                eat(w.as_bytes());
-                eat(&[0]);
+                eat(&mut h, w.as_bytes());
+                eat(&mut h, &[0]);
             }
         }
-        eat(&[0xFD]);
+        eat(&mut h, &[0xFD]);
         for (text, rule) in &self.additions {
-            eat(&[*rule as u8]);
-            eat(text.as_bytes());
-            eat(&[0]);
+            eat(&mut h, &[*rule as u8]);
+            eat(&mut h, text.as_bytes());
+            eat(&mut h, &[0]);
         }
-        eat(&[0xFC]);
+        eat(&mut h, &[0xFC]);
         for text in &self.exclusions {
-            eat(text.as_bytes());
-            eat(&[0]);
+            eat(&mut h, text.as_bytes());
+            eat(&mut h, &[0]);
         }
-        h
+        h.finish()
     }
 }

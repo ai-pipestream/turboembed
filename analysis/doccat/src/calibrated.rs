@@ -33,7 +33,7 @@ impl CalibratableCategorizer for DocumentCategorizerME {
                 crate::BuiltinFeatureGenerator::Emoji(_) => bytes.push(2),
             }
         }
-        Ok(bytes.iter().fold(0xcbf29ce484222325, |h, &b| (h ^ u64::from(b)).wrapping_mul(0x100000001b3)))
+        Ok(turbo_analysis::fnv1a(&bytes))
     }
     fn calibration_labels(&self) -> Vec<String> {
         (0..self.number_of_categories())

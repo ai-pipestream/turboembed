@@ -26,6 +26,8 @@ pub mod layer;
 pub mod lexicon;
 mod mention;
 mod model;
+mod quotation;
+mod quotes;
 pub mod scorer;
 mod sieve;
 pub mod train;
@@ -42,6 +44,7 @@ pub use layer::{Agreement, Animacy, Gender, MentionKind, Mentions, Number, Origi
 pub use model::{
     APART, COMPONENT_NAME, CorefModel, LINK, MODEL_ENTRY, RANKING_PROPERTY, TOKEN_VECTOR_DIMENSION_PROPERTY,
 };
+pub use quotation::{QuotationAnnotator, QuotationConfig};
 pub use scorer::{CorefScorer, CorefScores, Score};
 pub use sieve::Sieve;
 pub use vectors::{MapWordVectors, TokenVectors, WordVectors};

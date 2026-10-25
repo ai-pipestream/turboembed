@@ -3,7 +3,7 @@
 //! not copied from a third-party lexicon. They suggest a cut, not a
 //! linguistic guarantee that every connective starts a new topic.
 
-use turbo_analysis::{Annotator, Bound, Error, Layer, Refs, View};
+use turbo_analysis::{Annotator, Bound, Error, Fnv1a, Layer, Refs, View};
 use turbo_analysis_layers::{Boundaries, Cut, Sentences};
 use turbo_unicode::category::{GeneralCategory, general_category};
 use turbo_unicode::{casefold, whitespace::WhitespaceMode};
@@ -134,10 +134,10 @@ impl Annotator for DiscourseBoundaries {
     }
 
     fn config_hash(&self) -> u64 {
-        let mut h = 0xcbf2_9ce4_8422_2325u64;
-        for b in self.language.markers().iter().flat_map(|s| s.bytes().chain([0])).chain(self.discount.to_le_bytes()) {
-            h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
+        let mut h = Fnv1a::new();
+        for marker in self.language.markers() {
+            h.bytes(marker.as_bytes()).u8(0);
         }
-        h
+        h.u32(self.discount).finish()
     }
 }

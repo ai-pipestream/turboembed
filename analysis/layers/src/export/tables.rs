@@ -77,3 +77,49 @@ impl LayerCodec for KeyValuePairs {
         Ok(Self { spans, pairs })
     }
 }
+
+impl LayerCodec for crate::ChunkTableHeaders {
+    fn export(&self, cx: &ExportCx) -> Result<Vec<u8>, ExportError> {
+        let mut w = Writer::new();
+        put_spans(&mut w, &self.spans, cx)?;
+        for c in &self.contexts {
+            w.u32(c.chunk_ix);
+            w.u32(c.table_id);
+            w.u8(u8::from(c.is_continuation));
+            w.u32(u32::try_from(c.header_cells.len()).map_err(|_| malformed("too many header cells"))?);
+            for &s in &c.header_cells {
+                w.span(s);
+            }
+            w.str(&c.header_prefix)?;
+        }
+        Ok(w.finish())
+    }
+    fn import(data: &[u8], cx: &mut ImportCx, _: &Document) -> Result<Self, ExportError> {
+        let mut r = Reader::new(data);
+        let spans = get_spans(&mut r, cx)?;
+        let mut contexts = Vec::new();
+        for _ in 0..spans.len() {
+            let chunk_ix = r.u32()?;
+            let table_id = r.u32()?;
+            let is_continuation = match r.u8()? {
+                0 => false,
+                1 => true,
+                _ => return Err(malformed("invalid continuation flag")),
+            };
+            let mut header_cells = Vec::new();
+            for _ in 0..r.u32()? {
+                header_cells.push(r.span()?);
+            }
+            let header_prefix = r.string()?.into_boxed_str();
+            contexts.push(crate::ChunkTableContext {
+                chunk_ix,
+                table_id,
+                is_continuation,
+                header_cells: header_cells.into_boxed_slice(),
+                header_prefix,
+            });
+        }
+        done(&r, "chunk table headers")?;
+        Ok(Self { spans, contexts })
+    }
+}

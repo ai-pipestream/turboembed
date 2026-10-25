@@ -50,7 +50,7 @@ fn status(status: &StatusRecord) -> (LayerWireStatus, String) {
     }
 }
 
-fn layer_info(record: &LayerRecord) -> LayerInfo {
+pub(crate) fn layer_info(record: &LayerRecord) -> LayerInfo {
     let (status, status_detail) = status(&record.status);
     LayerInfo {
         layer: record.layer.clone(),
@@ -65,7 +65,7 @@ fn layer_info(record: &LayerRecord) -> LayerInfo {
     }
 }
 
-fn view_info(record: &ViewRecord) -> ViewInfo {
+pub(crate) fn view_info(record: &ViewRecord) -> ViewInfo {
     let (status, status_detail) = status(&record.status);
     ViewInfo {
         instance: record.instance.clone(),

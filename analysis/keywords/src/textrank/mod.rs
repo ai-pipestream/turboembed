@@ -220,11 +220,12 @@ impl TextRankExtractor {
     }
 
     pub(crate) fn config_hash(&self) -> u64 {
-        let mut h = 0x9E37_79B9_7F4A_7C15u64;
-        for v in [self.window as u64, self.top_n as u64, self.damping.to_bits(), self.epsilon.to_bits()] {
-            h = (h ^ v).wrapping_mul(0x100_0000_01b3);
-        }
-        h
+        turbo_analysis::Fnv1a::with_seed(0x9E37_79B9_7F4A_7C15)
+            .u64(self.window as u64)
+            .u64(self.top_n as u64)
+            .f64(self.damping)
+            .f64(self.epsilon)
+            .finish()
     }
 }
 
