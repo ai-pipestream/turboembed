@@ -92,6 +92,28 @@ fn speeds_information_and_angles() {
 }
 
 #[test]
+fn rates_other_than_speeds() {
+    check("a 10 Mb/s link", &["10 Mb/s = 10 Megabit per second"]);
+    check("5 megabytes per second", &["5 megabytes per second = 5 Megabyte per second"]);
+    check("uploads at 2 GB an hour", &["2 GB an hour = 2 Gigabyte per hour"]);
+    check("he earns $5 per hour", &["$5 per hour = 5 Dollar per hour"]);
+    check("rent is 20 euros a day", &["20 euros a day = 20 Euro per day"]);
+    check("paid 100 USD/month", &["100 USD/month = 100 United States dollar per month"]);
+    check("up from $5 a year earlier", &["$5 = 5 Dollar"]);
+    check("it moved 2 GB a year ago", &["2 GB = 2 Gigabyte"]);
+}
+
+#[test]
+fn bare_compound_imperial_measures() {
+    check("he is 6 foot 3", &["6 foot 3 = 6.25 Foot"]);
+    check("he is 6 foot 3 tall", &["6 foot 3 = 6.25 Foot"]);
+    check("she weighs 10 stone 7", &["10 stone 7 = 10.5 Stone"]);
+    check("a baby of 5 pounds 8", &["5 pounds 8 = 5.5 Pound"]);
+    check("say 6 foot 2 times a week", &["6 foot = 6 Foot"]);
+    check("a 6 foot 12 board", &["6 foot = 6 Foot"]);
+}
+
+#[test]
 fn temperatures() {
     check("it was minus 40 degrees outside", &["minus 40 degrees = -40 Degree"]);
     check("heat to 180 °C", &["180 °C = 180 C"]);

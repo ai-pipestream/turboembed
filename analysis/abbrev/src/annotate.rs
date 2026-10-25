@@ -22,20 +22,17 @@ pub struct AbbreviationAnnotator;
 
 impl Annotator for AbbreviationAnnotator {
     const ID: &'static str = "turbo-abbrev:schwartz-hearst";
+    const VERSION: &'static str = "2";
     type Reads = (View, Sentences, Option<Tokens>);
     type Writes = (Abbreviations, Edges<Abbreviations, Abbreviations>);
 
     fn annotate(&self, (view, sentences, tokens): Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        let fail = |detail: &str| Error::Annotator { annotator: Self::ID, detail: detail.into() };
-        if sentences.spans.view() != view.id() {
-            return Err(fail("the sentences are in another view"));
+        let invalid = |detail| Error::Annotator { annotator: Self::ID, detail };
+        sentences.check_contiguous_in(view).map_err(invalid)?;
+        if let Some(t) = tokens {
+            t.check_contiguous_in(view).map_err(invalid)?;
         }
-        let bounds = match tokens {
-            Some(t) if t.spans.view() != view.id() => return Err(fail("the tokens are in another view")),
-            Some(t) if !t.spans.is_ordered() => return Err(fail("the tokens are not in text order")),
-            Some(t) => Some(t.spans.columns()),
-            None => None,
-        };
+        let bounds = tokens.map(|t| t.spans.columns());
         let sentence_spans = sentences.spans.iter().map(|(_, s)| s);
         Ok(detect(view.text(), view.id(), sentence_spans, bounds))
     }

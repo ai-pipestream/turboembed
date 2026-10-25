@@ -121,9 +121,9 @@ impl Comparison {
     /// Whether everything but the parameters' last bits agrees: the same
     /// events, manifest and zip entries, the same predicates and patterns,
     /// and no parameter further than `max_abs` from the published one. The
-    /// published models differ from this port in their parameters' last
-    /// bits for a reason not yet known (the module comment says how far),
-    /// so this is the agreement they can show.
+    /// reproduction gate uses exact [`reproduced`](Self::reproduced)
+    /// agreement. This method remains useful for diagnosing a run with
+    /// different settings, such as its number of training partitions.
     pub fn agrees_within(&self, max_abs: f64) -> bool {
         let parameters = match &self.parameters {
             None => self.model_entry.is_same() && max_abs >= 0.0,

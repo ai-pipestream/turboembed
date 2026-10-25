@@ -377,3 +377,51 @@ fn compose_overlapping_and_cancelling_edits_coalesces_cleanly() {
     assert_eq!(ac.span_to_child(Span::new(2, 4)), Span::new(2, 4));
     assert_eq!(ac.span_to_child(Span::new(4, 5)), Span::new(4, 5));
 }
+
+/// The forward cursor agrees with the binary-search mapping on every
+/// offset and span of a mixed alignment (insertion, deletion,
+/// replacement, and an empty edit side), in both directions.
+#[test]
+fn alignment_cursor_matches_map_on_every_offset_and_span() {
+    // Parent: "aa bb cc dd ee" (14 bytes). Insert "XX" at 2, delete
+    // " cc" (5..8), replace "dd" (9..11) with "Y".
+    let a = Alignment::from_edits(vec![
+        Edit { parent: Span::new(2, 2), child: Span::new(2, 4) },
+        Edit { parent: Span::new(5, 8), child: Span::new(7, 7) },
+        Edit { parent: Span::new(9, 11), child: Span::new(8, 9) },
+    ])
+    .unwrap();
+    let mut cursor = a.cursor();
+    for x in 0..=14u32 {
+        assert_eq!(cursor.to_child(x, Side::Start), a.to_child(x, Side::Start), "to_child start {x}");
+        assert_eq!(cursor.to_child(x, Side::End), a.to_child(x, Side::End), "to_child end {x}");
+    }
+    let mut cursor = a.cursor();
+    for x in 0..=12u32 {
+        assert_eq!(cursor.to_parent(x, Side::Start), a.to_parent(x, Side::Start), "to_parent start {x}");
+        assert_eq!(cursor.to_parent(x, Side::End), a.to_parent(x, Side::End), "to_parent end {x}");
+    }
+    // One cursor per start: within it, starts are constant and ends
+    // rise, so both streams stay non-decreasing as required.
+    for s in 0..=14u32 {
+        let mut cursor = a.cursor();
+        for e in s..=14u32 {
+            let span = Span::new(s, e);
+            assert_eq!(cursor.span_to_child(span), a.span_to_child(span), "span_to_child {span:?}");
+        }
+    }
+    for s in 0..=12u32 {
+        let mut cursor = a.cursor();
+        for e in s..=12u32 {
+            let span = Span::new(s, e);
+            assert_eq!(cursor.span_to_parent(span), a.span_to_parent(span), "span_to_parent {span:?}");
+        }
+    }
+    // The identity alignment maps through a cursor unchanged.
+    let id = Alignment::identity();
+    let mut cursor = id.cursor();
+    for x in 0..4u32 {
+        assert_eq!(cursor.to_parent(x, Side::Start), x);
+        assert_eq!(cursor.span_to_child(Span::new(x, x + 1)), Span::new(x, x + 1));
+    }
+}

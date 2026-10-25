@@ -77,7 +77,7 @@ pub fn written_in(code: &str) -> Option<&'static [Script]> {
 /// be. A language the table does not know is a candidate in every group.
 /// A language left out by the caller (to restrict a detector to the
 /// languages a collection can hold) is a candidate in none.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Hash)]
 pub struct Candidates {
     /// Each group the table names with its languages, in outcome order.
     by_group: Vec<(Script, Vec<u32>)>,
@@ -86,6 +86,31 @@ pub struct Candidates {
 }
 
 impl Candidates {
+    pub(crate) fn config_hash(&self) -> u64 {
+        // Fixed-width lengths and outcome indices, and Unicode script names,
+        // keep persisted provenance independent of Rust's Hasher and usize.
+        let mut h = 0xcbf29ce484222325_u64;
+        let mut feed = |bytes: &[u8]| {
+            for &b in bytes {
+                h = (h ^ u64::from(b)).wrapping_mul(0x100000001b3);
+            }
+        };
+        feed(&(self.by_group.len() as u32).to_le_bytes());
+        for (script, outcomes) in &self.by_group {
+            feed(&(script.name().len() as u32).to_le_bytes());
+            feed(script.name().as_bytes());
+            feed(&(outcomes.len() as u32).to_le_bytes());
+            for outcome in outcomes {
+                feed(&outcome.to_le_bytes());
+            }
+        }
+        feed(&(self.anywhere.len() as u32).to_le_bytes());
+        for outcome in &self.anywhere {
+            feed(&outcome.to_le_bytes());
+        }
+        h
+    }
+
     /// The candidates for a model's outcome `codes`, in outcome order,
     /// keeping the codes `keep` accepts.
     pub fn new<'a>(codes: impl Iterator<Item = &'a str>, keep: impl Fn(&str) -> bool) -> Candidates {
@@ -113,6 +138,22 @@ impl Candidates {
         Candidates { by_group, anywhere }
     }
 
+    pub(crate) fn fingerprint(&self) -> u64 {
+        let mut h = 0xcbf2_9ce4_8422_2325u64;
+        for word in self
+            .by_group
+            .iter()
+            .flat_map(|(group, list)| {
+                [*group as u64, list.len() as u64].into_iter().chain(list.iter().map(|&v| u64::from(v)))
+            })
+            .chain([u64::MAX, self.anywhere.len() as u64])
+            .chain(self.anywhere.iter().map(|&v| u64::from(v)))
+        {
+            h = (h ^ word).wrapping_mul(0x0000_0100_0000_01b3);
+        }
+        h
+    }
+
     /// The languages a run of script group `group` can be, in outcome
     /// order: empty when the model has none written in it.
     pub fn of(&self, group: Script) -> &[u32] {
@@ -123,6 +164,12 @@ impl Candidates {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn candidate_identity_uses_a_fixed_byte_encoding() {
+        let candidates = Candidates::new(["eng"].into_iter(), |_| true);
+        assert_eq!(candidates.config_hash(), 0x82c1004aaf42047c);
+    }
 
     #[test]
     fn kana_and_bopomofo_go_with_han_and_neutral_scripts_with_nothing() {

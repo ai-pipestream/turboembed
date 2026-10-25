@@ -12,34 +12,26 @@
 
 mod common;
 
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use serde_json::Value;
 use turbo_schema_extract::decode::{FieldValue, Nothing};
 use turbo_schema_extract::model::Scores;
 use turbo_schema_extract::{Cardinality, Gliner2Extractor, decode};
-use turbo_zoo::{Acceptances, Http, Index, Policy, Zoo};
+use turbo_zoo::{Acceptances, Home, Http, Index, Policy, UserId, Zoo};
 
 const ID: &str = "fastino-gliner2-base-v1";
 const REPOSITORY: &str = "fastino/gliner2-base-v1";
 const REVISION: &str = "f9634218e53580c56edf0de97ca1a7d3f1c2354e";
 
-fn home() -> PathBuf {
-    let var = |k: &str| std::env::var_os(k).filter(|v| !v.is_empty()).map(PathBuf::from);
-    var("TURBO_ZOO_HOME")
-        .or_else(|| var("XDG_DATA_HOME").map(|x| x.join("turbo-zoo")))
-        .or_else(|| var("HOME").map(|h| h.join(".local/share/turbo-zoo")))
-        .expect("a zoo home")
-}
-
 pub fn model() -> Gliner2Extractor {
     static ONCE: std::sync::Mutex<()> = std::sync::Mutex::new(());
     let _held = ONCE.lock().unwrap_or_else(|e| e.into_inner());
-    let home = home();
-    let zoo = Zoo::new(Index::builtin(), home.join("artifacts"), Policy::default(), &Http);
-    let user = std::env::var("USER").unwrap_or_else(|_| "test".into()).parse().unwrap();
-    let dir = zoo.fetch_with(ID, &user, || Acceptances::load(&home.join("acceptances.json"))).unwrap().dir.clone();
-    let package = home.join("packages").join(format!("{ID}-encoder"));
+    let home = Home::from_env().expect("a zoo home");
+    let zoo = Zoo::new(Index::builtin(), home.artifacts(), Policy::default(), &Http);
+    let user = UserId::from_env().unwrap_or_else(|_| "test".parse().unwrap());
+    let dir = zoo.fetch_with(ID, &user, || Acceptances::load(&home.acceptances())).unwrap().dir.clone();
+    let package = home.dir().join("packages").join(format!("{ID}-encoder"));
     if !package.join("deberta.json").exists() {
         std::fs::create_dir_all(package.parent().unwrap()).unwrap();
         let config: Value =

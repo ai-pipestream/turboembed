@@ -389,8 +389,8 @@ fn a_symlink_above_a_nested_path_creates_nothing_outside() {
     assert_eq!(got.single().unwrap(), cache.join("m").join("sub").join("deeper").join("m.bin"));
 }
 
-/// A symlink left at the temporary name is removed, never written
-/// through, and never renamed onto the file.
+/// A symlink left at a temporary name is never written through and never
+/// renamed onto the file: each write makes a name of its own.
 #[cfg(unix)]
 #[test]
 fn a_symlinked_temporary_file_is_never_written_through() {
@@ -408,7 +408,7 @@ fn a_symlinked_temporary_file_is_never_written_through() {
     assert_eq!(fs::read(&victim).unwrap(), b"untouched");
     assert!(!fs::symlink_metadata(path).unwrap().file_type().is_symlink());
     assert_eq!(fs::read(path).unwrap(), BYTES);
-    assert!(fs::symlink_metadata(cache.join("permissive").join("permissive.bin.partial")).is_err());
+    assert!(fs::symlink_metadata(cache.join("permissive").join("permissive.bin.partial")).unwrap().is_symlink());
 }
 
 #[test]

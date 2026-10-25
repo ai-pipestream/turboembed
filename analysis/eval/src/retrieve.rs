@@ -32,7 +32,10 @@ pub struct Index<'a> {
     pub docs: &'a [String],
 }
 
-/// The dot product of two vectors of one length.
+/// The dot product of two vectors of one length. The eight-lane
+/// `f32` accumulation is pinned for cross-machine record
+/// reproducibility and intentionally not the shared sequential
+/// `f64` dot in `turbo_analysis::math`.
 pub fn dot(a: &[f32], b: &[f32]) -> f32 {
     let (a8, a_rest) = a.as_chunks::<8>();
     let (b8, b_rest) = b.as_chunks::<8>();

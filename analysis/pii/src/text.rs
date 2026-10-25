@@ -13,39 +13,44 @@ use turbo_unicode::java::code_point;
 
 /// `Character.isLetterOrDigit(int)`.
 #[inline]
-pub(crate) fn letter_or_digit(c: char) -> bool {
+pub fn letter_or_digit(c: char) -> bool {
     code_point::is_letter_or_digit(c as u32)
 }
 
 /// `Character.isWhitespace(int)`.
 #[inline]
-pub(crate) fn whitespace(c: char) -> bool {
+pub fn whitespace(c: char) -> bool {
     code_point::is_whitespace(c as u32)
 }
 
-/// The character that ends at byte `at`, a character boundary.
+/// The character that ends at byte `at`, when `at` is a character boundary.
 #[inline]
-pub(crate) fn before(text: &str, at: usize) -> Option<char> {
-    text[..at].chars().next_back()
+pub fn before(text: &str, at: usize) -> Option<char> {
+    text.get(..at)?.chars().next_back()
 }
 
-/// The character that starts at byte `at`, a character boundary.
+/// The character that starts at byte `at`, when `at` is a character boundary.
 #[inline]
-pub(crate) fn after(text: &str, at: usize) -> Option<char> {
-    text[at..].chars().next()
+pub fn after(text: &str, at: usize) -> Option<char> {
+    text.get(at..)?.chars().next()
 }
 
-/// `Boundaries.onWordStart`: no letter or digit before `start`.
+/// `Boundaries.onWordStart`: `start` is a character boundary with no
+/// letter or digit before it.
 #[inline]
-pub(crate) fn on_word_start(text: &str, start: usize) -> bool {
-    !before(text, start).is_some_and(letter_or_digit)
+pub fn on_word_start(text: &str, start: usize) -> bool {
+    text.is_char_boundary(start) && !before(text, start).is_some_and(letter_or_digit)
 }
 
-/// `Boundaries.onNumberStart`: no letter or digit before `start`, and no
-/// `.` or `,` directly after an ASCII digit, so a number is not read from
-/// inside a decimal or a grouped number.
+/// `Boundaries.onNumberStart`: `start` is a character boundary with no
+/// letter or digit before it, and no `.` or `,` directly after an ASCII
+/// digit, so a number is not read from inside a decimal or a grouped
+/// number.
 #[inline]
-pub(crate) fn on_number_start(text: &str, start: usize) -> bool {
+pub fn on_number_start(text: &str, start: usize) -> bool {
+    if !text.is_char_boundary(start) {
+        return false;
+    }
     let Some(previous) = before(text, start) else { return true };
     if letter_or_digit(previous) {
         return false;
@@ -53,15 +58,16 @@ pub(crate) fn on_number_start(text: &str, start: usize) -> bool {
     (previous != '.' && previous != ',') || start < 2 || !text.as_bytes()[start - 2].is_ascii_digit()
 }
 
-/// `Boundaries.onEnd`: no letter or digit at `end`.
+/// `Boundaries.onEnd`: `end` is a character boundary with no letter or
+/// digit at `end`.
 #[inline]
-pub(crate) fn on_end(text: &str, end: usize) -> bool {
-    !after(text, end).is_some_and(letter_or_digit)
+pub fn on_end(text: &str, end: usize) -> bool {
+    text.is_char_boundary(end) && !after(text, end).is_some_and(letter_or_digit)
 }
 
 /// `Boundaries.onEndBefore`: [`on_end`], and a run of `separator` at
 /// `end` is not followed by a letter or digit.
-pub(crate) fn on_end_before(text: &str, end: usize, separator: u8) -> bool {
+pub fn on_end_before(text: &str, end: usize, separator: u8) -> bool {
     if !on_end(text, end) {
         return false;
     }
