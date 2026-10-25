@@ -177,7 +177,7 @@ fn bundle(name: &str, json: &str, add_prefix_space: bool) -> (TempDir, Tokenizer
     m.model.id = format!("turbo-testdata/{name}");
     m.tokenizer.normalizer = None;
     m.tokenizer.wordpiece = None;
-    m.tokenizer.bpe = Some(Bpe { add_prefix_space, ignore_merges: false });
+    m.tokenizer.bpe = Some(Bpe { add_prefix_space, ignore_merges: false, pattern: Default::default(), nfc: false });
     let special = |role, content: &str, id, lstrip| Special {
         role,
         content: content.into(),

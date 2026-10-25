@@ -48,7 +48,7 @@ pub use build::IndexBuilder;
 pub use index::VectorIndex;
 pub use late::{LateHit, Prune, Source, TokenIndex, TokenIndexBuilder, TokenMatch};
 #[cfg(feature = "turboquant")]
-pub use quant::{QuantizedIndex, TurboQuant};
+pub use quant::{QuantizedIndex, QuantizedSearch, TurboQuant};
 
 use std::fmt;
 

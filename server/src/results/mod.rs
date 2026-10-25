@@ -36,6 +36,34 @@ pub const MAX_GRAPH_BYTES: u64 = 64 << 20;
 /// RecordsResult, each counted on its own.
 pub const MAX_RECORD_VALUES: u64 = 1 << 20;
 
+/// `values` as little-endian bytes, in one copy on a little-endian target.
+pub(crate) fn f32_bytes(values: &[f32]) -> Vec<u8> {
+    if cfg!(target_endian = "little") {
+        // SAFETY: an f32 is 4 bytes with no padding, each readable as a u8.
+        unsafe { std::slice::from_raw_parts(values.as_ptr().cast::<u8>(), values.len() * 4) }.to_vec()
+    } else {
+        values.iter().flat_map(|v| v.to_le_bytes()).collect()
+    }
+}
+
+/// The whole little-endian f32 values of `bytes`, in one copy on a
+/// little-endian target; a trailing part of a value is not read.
+pub(crate) fn f32s(bytes: &[u8]) -> Vec<f32> {
+    let n = bytes.len() / 4;
+    if cfg!(target_endian = "little") {
+        let mut out = Vec::<f32>::with_capacity(n);
+        // SAFETY: out has room for n values, written in full before the
+        // length is set; every bit pattern is an f32.
+        unsafe {
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), out.as_mut_ptr().cast::<u8>(), n * 4);
+            out.set_len(n);
+        }
+        out
+    } else {
+        bytes.as_chunks::<4>().0.iter().map(|b| f32::from_le_bytes(*b)).collect()
+    }
+}
+
 /// One result kind's wire form: to the message, and back with the
 /// message's own validation, whose refusal names what it found.
 ///
@@ -112,5 +140,23 @@ mod tests {
         let p = model_to_proto(&m);
         assert_eq!((p.id.as_str(), p.revision.as_str(), p.sha256.as_str()), ("org/model", "v1", "abc"));
         assert_eq!(model_from_proto(&p), m);
+    }
+}
+
+#[cfg(test)]
+mod f32_tests {
+    use super::{f32_bytes, f32s};
+
+    #[test]
+    fn f32_values_cross_as_their_little_endian_bits() {
+        let values = [0.0f32, -0.0, 1.5, f32::MIN_POSITIVE, f32::INFINITY, f32::from_bits(0x7fc0_1234)];
+        let bytes = f32_bytes(&values);
+        let expected: Vec<u8> = values.iter().flat_map(|v| v.to_le_bytes()).collect();
+        assert_eq!(bytes, expected);
+        let back = f32s(&bytes);
+        assert_eq!(back.iter().map(|v| v.to_bits()).collect::<Vec<_>>(), values.map(f32::to_bits));
+        // A trailing part of a value is not read.
+        assert_eq!(f32s(&bytes[..9]).len(), 2);
+        assert!(f32s(&[]).is_empty());
     }
 }

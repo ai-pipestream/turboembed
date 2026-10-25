@@ -24,6 +24,47 @@ use crate::proto::result::StreamLimits;
 use crate::status::to_status;
 use crate::stream::run::Doc;
 
+/// That the stream died: set once, by the engine as it stops, and read by
+/// the reader, whose waits for queue room end the moment it is set.
+pub(crate) struct Dead {
+    set: std::sync::atomic::AtomicBool,
+    notify: tokio::sync::Notify,
+}
+
+impl Dead {
+    pub(crate) fn new() -> Arc<Dead> {
+        Arc::new(Dead { set: false.into(), notify: tokio::sync::Notify::new() })
+    }
+
+    pub(crate) fn set(&self) {
+        self.set.store(true, Ordering::SeqCst);
+        self.notify.notify_waiters();
+    }
+
+    pub(crate) fn is_set(&self) -> bool {
+        self.set.load(Ordering::SeqCst)
+    }
+
+    /// The flag alone, for a run that checks it between rows.
+    pub(crate) fn flag(&self) -> &std::sync::atomic::AtomicBool {
+        &self.set
+    }
+
+    /// Returns once the stream has died. The waiter is registered before
+    /// the flag is read, so a `set` between the two is not missed.
+    pub(crate) async fn wait(&self) {
+        loop {
+            let notified = self.notify.notified();
+            let mut notified = std::pin::pin!(notified);
+            notified.as_mut().enable();
+            if self.is_set() {
+                return;
+            }
+            notified.await;
+        }
+    }
+}
+
 /// The batching key: the load's identity, output kind, offset mode, and
 /// options. Documents batch together only under one key.
 pub(crate) type BatchKey = (usize, i32, i32, u32, u32, u32, u32, u32, u32, u32, u32, u32);
