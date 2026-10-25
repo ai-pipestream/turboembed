@@ -1,0 +1,558 @@
+// Hybrid search, index lifecycle, aliases, and collection vocabulary drift
+// monitoring over gRPC (issue #1221).
+//
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+package turbo.search;
+
+service TurboSearchService
+{
+  // Lists the retrieval backends and scoring engines compiled into this server.
+  rpc ListSearchProviders(ListSearchProvidersRequest) returns (ListSearchProvidersResponse) {}
+
+  // Lists all active search indexes and their row counts, storage format, and seal state.
+  rpc ListIndexes(ListIndexesRequest) returns (ListIndexesResponse) {}
+
+  // Creates a new named hybrid search index.
+  rpc CreateIndex(CreateIndexRequest) returns (CreateIndexResponse) {}
+
+  // Deletes an existing search index (and any pointing aliases if not referenced).
+  rpc DeleteIndex(DeleteIndexRequest) returns (DeleteIndexResponse) {}
+
+  // Streams documents (raw text or pre-analyzed DocumentGraph bytes, plus optional
+  // dense/sparse/late-interaction vectors) into a target index or alias.
+  rpc IndexDocuments(stream IndexDocumentRequest) returns (IndexDocumentsResponse) {}
+
+  // Executes a natural-language or compound QueryNode AST hybrid search over an
+  // index or alias, with optional parent expansion and cross-encoder reranking.
+  rpc Search(SearchRequest) returns (SearchResponse) {}
+
+  // Writes an atomic binary snapshot of an index to a file path on disk (or reloads
+  // an index from a snapshot file when load_from_path is set on CreateIndex).
+  rpc PersistIndex(PersistIndexRequest) returns (PersistIndexResponse) {}
+
+  // Seals an index so subsequent IndexDocuments writes are refused with FAILED_PRECONDITION.
+  rpc SealIndex(SealIndexRequest) returns (SealIndexResponse) {}
+
+  // Re-indexes the retained source documents of a source index into a destination index
+  // under a new configuration or model bundle, optionally swapping an alias atomically.
+  rpc Reindex(ReindexRequest) returns (ReindexResponse) {}
+
+  // Atomically binds or updates a logical alias name to a target index.
+  rpc SetAlias(SetAliasRequest) returns (SetAliasResponse) {}
+
+  // Removes a logical alias name.
+  rpc DeleteAlias(DeleteAliasRequest) returns (DeleteAliasResponse) {}
+
+  // Lists all logical aliases and their current target index names.
+  rpc ListAliases(ListAliasesRequest) returns (ListAliasesResponse) {}
+
+  // Creates or updates a named corpus collection vocabulary baseline.
+  rpc SetCollection(SetCollectionRequest) returns (SetCollectionResponse) {}
+
+  // Retrieves a named corpus collection's statistics and baseline terms.
+  rpc GetCollection(GetCollectionRequest) returns (GetCollectionResponse) {}
+
+  // Lists all named corpus collections.
+  rpc ListCollections(ListCollectionsRequest) returns (ListCollectionsResponse) {}
+
+  // Deletes a named corpus collection.
+  rpc DeleteCollection(DeleteCollectionRequest) returns (DeleteCollectionResponse) {}
+
+  // Streams live VocabularyDriftReport events as documents are indexed into
+  // indexes associated with the watched collection.
+  rpc WatchCollection(WatchCollectionRequest) returns (stream CollectionEvent) {}
+}
+
+enum VectorStorageKind
+{
+  VECTOR_STORAGE_KIND_FLAT_F32 = 0;
+  VECTOR_STORAGE_KIND_TURBO_QUANT = 1;
+}
+
+enum DistanceMetric
+{
+  DISTANCE_METRIC_COSINE = 0;
+  DISTANCE_METRIC_DOT = 1;
+}
+
+enum NormalizationMode
+{
+  NORMALIZATION_MODE_NONE = 0;
+  NORMALIZATION_MODE_UNIT = 1;
+}
+
+message ModelIdentity
+{
+  string id = 1;
+  string revision = 2;
+  string sha256 = 3;
+}
+
+message SpaceSpec
+{
+  ModelIdentity model = 1;
+  uint32 dim = 2;
+  NormalizationMode normalization = 3;
+}
+
+message IndexSpec
+{
+  string index_name = 1;
+  SpaceSpec space = 2;
+  DistanceMetric metric = 3;
+  VectorStorageKind storage = 4;
+  // TurboQuant bit width (2, 3, or 4) when storage == VECTOR_STORAGE_KIND_TURBO_QUANT.
+  uint32 quant_bits = 5;
+  bool quant_calibrate = 6;
+  // Optional associated collection name for corpus-wide IDF and OOV drift tracking.
+  string collection_name = 7;
+  // Optional model bundle name served by this server to compute embeddings automatically.
+  string embed_bundle = 8;
+  // Target chunk token budget when chunking raw text documents (0 uses default 64).
+  uint32 chunk_budget_tokens = 9;
+}
+
+message IndexSummary
+{
+  string index_name = 1;
+  SpaceSpec space = 2;
+  DistanceMetric metric = 3;
+  VectorStorageKind storage = 4;
+  uint32 quant_bits = 5;
+  bool sealed = 6;
+  uint32 document_count = 7;
+  uint32 chunk_count = 8;
+  uint32 dense_row_count = 9;
+  uint32 sparse_row_count = 10;
+  uint32 token_candidate_count = 11;
+  string collection_name = 12;
+}
+
+message SearchProviderDescriptor
+{
+  string id = 1;
+  string kind = 2;
+  string description = 3;
+}
+
+message ListSearchProvidersRequest {}
+
+message ListSearchProvidersResponse
+{
+  repeated SearchProviderDescriptor providers = 1;
+}
+
+message ListIndexesRequest {}
+
+message ListIndexesResponse
+{
+  repeated IndexSummary indexes = 1;
+}
+
+message CreateIndexRequest
+{
+  IndexSpec spec = 1;
+  // When non-empty, loads the index from a persisted snapshot file at this path.
+  string load_from_path = 2;
+}
+
+message CreateIndexResponse
+{
+  IndexSummary summary = 1;
+}
+
+message DeleteIndexRequest
+{
+  string index_name = 1;
+}
+
+message DeleteIndexResponse {}
+
+message SparseEntryProto
+{
+  uint32 term_id = 1;
+  string term_text = 2;
+  float weight = 3;
+  uint32 span_start = 4;
+  uint32 span_end = 5;
+  bool has_span = 6;
+}
+
+message TokenVectorInput
+{
+  repeated float values = 1;
+  uint32 span_start = 2;
+  uint32 span_end = 3;
+  bool has_span = 4;
+}
+
+message ChunkInput
+{
+  string chunk_id = 1;
+  string level_kind = 2;
+  uint32 span_start = 3;
+  uint32 span_end = 4;
+  uint32 parent_start = 5;
+  uint32 parent_end = 6;
+  bool has_parent = 7;
+  repeated float dense_vector = 8;
+  repeated SparseEntryProto sparse_terms = 9;
+  repeated TokenVectorInput token_vectors = 10;
+  map<string, string> attributes = 11;
+}
+
+message IndexDocumentRequest
+{
+  // Target index name or alias (required on the first message of the stream).
+  string index_name = 1;
+  string doc_id = 2;
+  // Raw UTF-8 document text (optional if graph is provided).
+  string text = 3;
+  // Optional serialized DocumentGraph bytes.
+  bytes graph = 4;
+  // Optional pre-segmented chunks with pre-computed vectors/sparse terms/token vectors.
+  // When empty, the server segments the document into sentence/paragraph chunks and
+  // computes lexical terms (and embeddings if embed_bundle or document_vector is given).
+  repeated ChunkInput chunks = 5;
+  map<string, string> attributes = 6;
+}
+
+message IndexDocumentsResponse
+{
+  string index_name = 1;
+  uint32 indexed_documents = 2;
+  uint32 indexed_chunks = 3;
+  VocabularyDriftReport drift = 4;
+}
+
+enum TermMatchMode
+{
+  TERM_MATCH_MODE_ANY = 0;
+  TERM_MATCH_MODE_ALL = 1;
+}
+
+enum JoinOperator
+{
+  JOIN_OPERATOR_OR = 0;
+  JOIN_OPERATOR_AND = 1;
+}
+
+enum FusionStrategy
+{
+  FUSION_STRATEGY_SCORE = 0;
+  FUSION_STRATEGY_RECIPROCAL_RANK = 1;
+}
+
+message SemanticClause
+{
+  // Query vector in space.
+  repeated float query_vector = 1;
+  // Optional query SpaceSpec to verify compatibility against the index's SpaceSpec.
+  SpaceSpec query_space = 2;
+  // Optional query text when using the index's configured embed_bundle.
+  string query_text = 3;
+  uint32 top_k = 4;
+}
+
+message TermClause
+{
+  repeated string terms = 1;
+  TermMatchMode mode = 2;
+  uint32 top_k = 3;
+}
+
+message PhraseClause
+{
+  repeated string terms = 1;
+  uint32 slop = 2;
+  uint32 top_k = 3;
+}
+
+message SparseClause
+{
+  repeated SparseEntryProto query_terms = 1;
+  uint32 top_k = 2;
+}
+
+message LateInteractionClause
+{
+  // Flattened query token vectors (n_tokens * dim).
+  repeated float query_token_vectors = 1;
+  SpaceSpec query_space = 2;
+  uint32 top_k = 3;
+}
+
+message FilterClause
+{
+  // Matches doc_id if non-empty.
+  string doc_id = 1;
+  // Matches level_kind if non-empty ("sentence", "chunk", "section", "document").
+  string level_kind = 2;
+  // Matches chunk or document attributes (all pairs must match).
+  map<string, string> attributes = 3;
+  // Optional substring or normalized entity/place/temporal value must appear in chunk.
+  string contains_text = 4;
+}
+
+message BoostClause
+{
+  QueryNode child = 1;
+  float boost = 2;
+}
+
+message JoinClause
+{
+  JoinOperator op = 1;
+  FusionStrategy fusion = 2;
+  repeated QueryNode children = 3;
+  // RRF constant k (defaults to 60.0 when 0).
+  float rrf_k = 4;
+}
+
+message QueryNode
+{
+  oneof clause
+  {
+    SemanticClause semantic = 1;
+    TermClause term = 2;
+    PhraseClause phrase = 3;
+    SparseClause sparse = 4;
+    LateInteractionClause late_interaction = 5;
+    FilterClause filter = 6;
+    BoostClause boost = 7;
+    JoinClause join = 8;
+  }
+}
+
+message ParentExpansionSpec
+{
+  bool enabled = 1;
+  uint32 max_parent_tokens = 2;
+}
+
+message SearchRequest
+{
+  // Index name or alias name.
+  string index_name = 1;
+  // Natural-language query analyzed by turbo-query into BM25 terms and filters.
+  string natural_query = 2;
+  // Optional structured compound QueryNode AST. When both natural_query and query_ast
+  // are supplied, both are evaluated and combined according to top-level fusion.
+  QueryNode query_ast = 3;
+  // Optional query dense vector for natural-language hybrid search.
+  repeated float query_vector = 4;
+  SpaceSpec query_space = 5;
+  uint32 top_k = 6;
+  ParentExpansionSpec parent_expansion = 7;
+  // Optional loaded TASK_RERANK bundle name to cross-encode the top candidates.
+  string rerank_bundle = 8;
+}
+
+message SpanProto
+{
+  uint32 start = 1;
+  uint32 end = 2;
+}
+
+message MatchedSpan
+{
+  // "bm25_term", "phrase", "dense", "turboquant", "sparse", "maxsim", "filter", "rerank"
+  string source = 1;
+  string label = 2;
+  SpanProto span = 3;
+  float score = 4;
+}
+
+message ChunkAttribution
+{
+  repeated MatchedSpan matched_spans = 1;
+  map<string, float> signal_scores = 2;
+}
+
+message SearchHit
+{
+  string chunk_id = 1;
+  string doc_id = 2;
+  string level_kind = 3;
+  float score = 4;
+  SpanProto chunk_span = 5;
+  SpanProto parent_span = 6;
+  bool has_parent = 7;
+  string text = 8;
+  string parent_text = 9;
+  ChunkAttribution attribution = 10;
+  map<string, string> attributes = 11;
+}
+
+message HeatSegment
+{
+  SpanProto span = 1;
+  float score = 2;
+  string chunk_id = 3;
+}
+
+message DocumentHeat
+{
+  string doc_id = 1;
+  float max_score = 2;
+  repeated HeatSegment segments = 3;
+}
+
+message ExtractedFilterProto
+{
+  string kind = 1;
+  string summary = 2;
+  SpanProto span = 3;
+}
+
+message SearchResponse
+{
+  string resolved_index = 1;
+  repeated SearchHit hits = 2;
+  repeated DocumentHeat document_heat = 3;
+  repeated string analyzed_query_terms = 4;
+  repeated ExtractedFilterProto extracted_filters = 5;
+}
+
+message PersistIndexRequest
+{
+  string index_name = 1;
+  string path = 2;
+}
+
+message PersistIndexResponse
+{
+  string index_name = 1;
+  uint64 bytes_written = 2;
+}
+
+message SealIndexRequest
+{
+  string index_name = 1;
+}
+
+message SealIndexResponse
+{
+  IndexSummary summary = 1;
+}
+
+message ReindexRequest
+{
+  string source_index = 1;
+  IndexSpec target_spec = 2;
+  // Optional alias to atomically repoint to target_spec.index_name once built.
+  string swap_alias = 3;
+}
+
+message ReindexResponse
+{
+  IndexSummary summary = 1;
+  string swapped_alias = 2;
+}
+
+message SetAliasRequest
+{
+  string alias = 1;
+  string index_name = 2;
+}
+
+message SetAliasResponse {}
+
+message DeleteAliasRequest
+{
+  string alias = 1;
+}
+
+message DeleteAliasResponse {}
+
+message AliasEntry
+{
+  string alias = 1;
+  string index_name = 2;
+}
+
+message ListAliasesRequest {}
+
+message ListAliasesResponse
+{
+  repeated AliasEntry aliases = 1;
+}
+
+message TermFrequencyEntry
+{
+  string term = 1;
+  uint64 document_frequency = 2;
+}
+
+message SetCollectionRequest
+{
+  string collection_name = 1;
+  repeated string baseline_terms = 2;
+  // Drift notification threshold on oov_ratio in [0.0, 1.0].
+  double oov_alert_threshold = 3;
+}
+
+message SetCollectionResponse
+{
+  CollectionInfo collection = 1;
+}
+
+message GetCollectionRequest
+{
+  string collection_name = 1;
+}
+
+message GetCollectionResponse
+{
+  CollectionInfo collection = 1;
+}
+
+message ListCollectionsRequest {}
+
+message ListCollectionsResponse
+{
+  repeated CollectionInfo collections = 1;
+}
+
+message DeleteCollectionRequest
+{
+  string collection_name = 1;
+}
+
+message DeleteCollectionResponse {}
+
+message CollectionInfo
+{
+  string collection_name = 1;
+  uint64 total_units = 2;
+  double mean_length = 3;
+  uint64 vocabulary_size = 4;
+  double oov_alert_threshold = 5;
+  repeated TermFrequencyEntry top_terms = 6;
+}
+
+message VocabularyDriftReport
+{
+  string collection_name = 1;
+  double vocabulary_coverage = 2;
+  double oov_ratio = 3;
+  repeated string new_terms = 4;
+  repeated TermFrequencyEntry top_terms = 5;
+  uint64 total_units = 6;
+}
+
+message WatchCollectionRequest
+{
+  string collection_name = 1;
+  // Minimum oov_ratio required to emit an event (0.0 emits on every update).
+  double min_oov_ratio = 2;
+}
+
+message CollectionEvent
+{
+  string collection_name = 1;
+  string source_index = 2;
+  VocabularyDriftReport report = 3;
+}

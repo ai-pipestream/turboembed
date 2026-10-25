@@ -211,11 +211,7 @@ impl Annotator for PhraseChunker {
     /// FNV-1a over the beam size, the one setting a `ChunkerME` is built
     /// with.
     fn config_hash(&self) -> u64 {
-        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-        for b in (self.model.beam_size() as u64).to_le_bytes() {
-            h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
-        }
-        h
+        turbo_analysis::Fnv1a::new().u64(self.model.beam_size() as u64).finish()
     }
 }
 

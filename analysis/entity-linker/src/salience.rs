@@ -280,12 +280,12 @@ impl Annotator for EntitySalienceAnnotator {
             c.pagerank_damping.to_bits(),
             c.pagerank_iters,
         ];
-        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-        for b in Self::VERSION.bytes().chain(words.iter().flat_map(|w| w.to_le_bytes())) {
-            h ^= u64::from(b);
-            h = h.wrapping_mul(0x0000_0100_0000_01b3);
+        let mut h = turbo_analysis::Fnv1a::new();
+        h.bytes(Self::VERSION.as_bytes());
+        for word in words {
+            h.u32(word);
         }
-        h
+        h.finish()
     }
 
     fn annotate(&self, (view, entities, sentences, structure): Refs<'_, Self>) -> Result<Self::Writes, Error> {

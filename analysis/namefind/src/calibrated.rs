@@ -29,12 +29,10 @@ pub fn identity(file: &ModelFile, domain: &str) -> Result<Identity, String> {
         task: Task::TokenTagging,
         domain: domain.into(),
         labels,
-        inference_hash: (turbo_sequence::manifest_beam_size(file, DEFAULT_BEAM_SIZE).map_err(|e| e.to_string())?
-            as u64)
-            .to_le_bytes()
-            .into_iter()
-            .chain(b"PatternMode=Utf16Units".iter().copied())
-            .fold(0xcbf29ce484222325, |h, b| (h ^ u64::from(b)).wrapping_mul(0x100000001b3)),
+        inference_hash: turbo_analysis::Fnv1a::new()
+            .u64(turbo_sequence::manifest_beam_size(file, DEFAULT_BEAM_SIZE).map_err(|e| e.to_string())? as u64)
+            .bytes(b"PatternMode=Utf16Units")
+            .finish(),
     };
     i.check()?;
     Ok(i)
@@ -159,13 +157,11 @@ pub fn crf_identity_with_candidates(file: &ModelFile, domain: &str, k: usize) ->
     }
     let model = CrfNameFinder::read_model(file).map_err(|e| e.to_string())?;
     CrfNameFinder::from_file(&model, file, PatternMode::Utf16Units).map_err(|e| e.to_string())?;
-    let inference_hash = model
-        .codec()
-        .class_name()
-        .bytes()
-        .chain(b";PatternMode=Utf16Units;CandidatePaths=".iter().copied())
-        .chain((k as u64).to_le_bytes())
-        .fold(0xcbf29ce484222325, |h, b| (h ^ u64::from(b)).wrapping_mul(0x100000001b3));
+    let inference_hash = turbo_analysis::Fnv1a::new()
+        .bytes(model.codec().class_name().as_bytes())
+        .bytes(b";PatternMode=Utf16Units;CandidatePaths=")
+        .u64(k as u64)
+        .finish();
     let i = Identity {
         model: "turbo-namefind:crf".into(),
         revision: file.opennlp_version().into(),

@@ -2038,6 +2038,7 @@ name = "turbo-calibration"
 version = "0.1.0"
 dependencies = [
  "sha2",
+ "turbo-analysis",
 ]
 
 [[package]]
@@ -2350,6 +2351,7 @@ dependencies = [
  "turbo-coref",
  "turbo-encoding-layers",
  "turbo-entity-linker",
+ "turbo-formats",
  "turbo-geo",
  "turbo-gliner",
  "turbo-glossary",
@@ -2359,13 +2361,17 @@ dependencies = [
  "turbo-lemmatizer",
  "turbo-maxent",
  "turbo-normalize-layers",
+ "turbo-query",
  "turbo-relation",
  "turbo-schema-extract",
+ "turbo-sentdetect",
  "turbo-sequence",
+ "turbo-stem",
  "turbo-stopword",
  "turbo-stopword-layers",
  "turbo-tokenize",
  "turbo-tokenize-layers",
+ "turbo-vector-index",
  "turbo-wordnet",
  "turbo-zoo",
 ]
@@ -2679,6 +2685,7 @@ dependencies = [
 name = "turbo-sequence"
 version = "0.1.0"
 dependencies = [
+ "turbo-analysis",
  "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",

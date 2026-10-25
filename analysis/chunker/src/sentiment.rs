@@ -18,7 +18,7 @@ pub use facets::{ChunkFacetBuilder, ChunkFacets, boundary_similarity, chunk_boun
 
 use std::num::NonZeroU32;
 
-use turbo_analysis::{Annotator, Bound, Error, Ix, Layer, Refs, View};
+use turbo_analysis::{Annotator, Bound, Error, Fnv1a, Ix, Layer, Refs, View};
 use turbo_analysis_layers::{
     Aspects, Boundaries, Categories, Cut, Incivility, IncivilityLabel, IncivilityScores, IncivilityTarget, Polarity,
     Sentences, Tokens,
@@ -425,6 +425,10 @@ impl Annotator for SentimentBoundaries {
             u64::from(s.shift),
         ]
         .iter()
-        .fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x).wrapping_mul(0x0100_0000_01b3))
+        .fold(Fnv1a::new(), |mut h, &x| {
+            h.u64(x);
+            h
+        })
+        .finish()
     }
 }

@@ -1,7 +1,7 @@
 //! The step that weighs the boundary signals and sums them into the
 //! default `turbo:boundaries` instance, the one the chunker reads.
 
-use turbo_analysis::{Annotator, Bound, Error, Refs};
+use turbo_analysis::{Annotator, Bound, Error, Fnv1a, Refs};
 use turbo_analysis_layers::{Boundaries, Cut, Sentences};
 
 /// The instance the structural costs are written to beside other signals.
@@ -195,7 +195,11 @@ impl Annotator for WeighBoundaries {
     fn config_hash(&self) -> u64 {
         [self.structure.0, self.drift.0]
             .iter()
-            .fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x as u32 as u64).wrapping_mul(0x0100_0000_01b3))
+            .fold(Fnv1a::new(), |mut h, &x| {
+                h.u64(u64::from(x as u32));
+                h
+            })
+            .finish()
     }
 }
 
@@ -279,7 +283,11 @@ impl Annotator for WeighAllBoundaries {
     fn config_hash(&self) -> u64 {
         [self.structure.0, self.drift.0, self.sentiment.0]
             .iter()
-            .fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x as u32 as u64).wrapping_mul(0x0100_0000_01b3))
+            .fold(Fnv1a::new(), |mut h, &x| {
+                h.u64(u64::from(x as u32));
+                h
+            })
+            .finish()
     }
 }
 

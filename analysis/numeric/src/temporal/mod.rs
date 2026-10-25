@@ -212,11 +212,14 @@ impl Annotator for TemporalExtractor {
             None => [0, 0],
             Some(d) => [1, d.epoch_day() as u64],
         };
-        let mut h = reference.iter().fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x).wrapping_mul(0x0100_0000_01b3));
+        let mut h = reference.iter().fold(turbo_analysis::Fnv1a::new(), |mut h, &x| {
+            h.fold_u64(x);
+            h
+        });
         if self.opennlp_parity {
-            h = (h ^ 1).wrapping_mul(0x0100_0000_01b3);
+            h.fold_u64(1);
         }
-        h
+        h.finish()
     }
 }
 
