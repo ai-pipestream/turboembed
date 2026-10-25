@@ -153,6 +153,16 @@ pub fn drift(rows: &Rows<'_>, d: &Drift) -> (Vec<i32>, Vec<Cut>) {
 
 /// Shared integer TextTiling scoring for embedding and lexical cosines.
 pub(crate) fn score_cosines(cos: &[Option<i64>], d: &Drift) -> (Vec<i32>, Vec<Cut>) {
+    let (_, _, cost, reason) = score_series(cos, d);
+    (cost, reason)
+}
+
+/// The full scoring series behind [`score_cosines`], per gap: the
+/// smoothed cosine (`None` where the gap has no cosine), the score the
+/// cost is taken from before the floor (TextTiling depth, or distance
+/// under [`Score::Distance`]; 0 where unscored), then the cost and
+/// reason exactly as `score_cosines` returns them.
+pub(crate) fn score_series(cos: &[Option<i64>], d: &Drift) -> (Vec<Option<i64>>, Vec<i64>, Vec<i32>, Vec<Cut>) {
     let at: Vec<usize> = (0..cos.len()).filter(|&g| cos[g].is_some()).collect();
     let raw: Vec<i64> = at.iter().filter_map(|&g| cos[g]).collect();
     let sm = smooth(&raw, d.smoothing as usize);
@@ -160,9 +170,13 @@ pub(crate) fn score_cosines(cos: &[Option<i64>], d: &Drift) -> (Vec<i32>, Vec<Cu
         Score::Depth => depths(&sm),
         Score::Distance => sm.iter().map(|&c| MICRO - c).collect(),
     };
+    let mut smoothed = vec![None; cos.len()];
+    let mut scored = vec![0i64; cos.len()];
     let mut cost = vec![0i32; cos.len()];
     let mut reason = vec![Cut::Sentence; cos.len()];
     for (k, &g) in at.iter().enumerate() {
+        smoothed[g] = Some(sm[k]);
+        scored[g] = score[k];
         let s = if score[k] < i64::from(d.floor) { 0 } else { score[k] };
         let c = -(s * i64::from(d.scale) / MICRO);
         cost[g] = c.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32;
@@ -173,7 +187,7 @@ pub(crate) fn score_cosines(cos: &[Option<i64>], d: &Drift) -> (Vec<i32>, Vec<Cu
             reason[g] = Cut::TopicShift;
         }
     }
-    (cost, reason)
+    (smoothed, scored, cost, reason)
 }
 
 /// Writes the drift term as the `drift` instance of the boundaries, for

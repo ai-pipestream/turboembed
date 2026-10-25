@@ -1,6 +1,6 @@
-//! Deterministic 2D/3D PCA projection of a `Vectors<L>` layer, for
-//! inspecting chunk and sentence geometry without leaving the base
-//! library.
+//! Deterministic 2D/3D PCA projection of a `Vectors<L>` layer and the
+//! boundary drift curve over sentence vectors, for inspecting chunk
+//! and sentence geometry without leaving the base library.
 //!
 //! The projection is computed in `f64` over the non-empty rows only:
 //! mean-centering, then the leading eigenvectors of the covariance by
@@ -24,7 +24,10 @@ use std::marker::PhantomData;
 
 use turbo_analysis::math::{dot_f64, sum_sq_f64};
 use turbo_analysis::{Ix, Layer, ModelRef};
-use turbo_analysis_layers::Vectors;
+use turbo_analysis_layers::{Cut, Sentences, Vectors};
+
+use crate::drift::{Drift, cosines, score_series};
+use crate::sums::Rows;
 
 /// How many coordinates a projection carries per row.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -285,6 +288,51 @@ fn jacobi(a: &mut [f64], n: usize) -> (Vec<f64>, Vec<f64>) {
         }
     }
     ((0..n).map(|i| a[i * n + i]).collect(), v)
+}
+
+/// The drift computation of [`crate::drift`] with every intermediate
+/// series kept, per sentence gap (one entry per sentence, the last for
+/// the gap after it), for inspection and tuning tools.
+///
+/// `raw_cosine_micro` is the windowed cosine in millionths (`None`
+/// where either side has fewer than `window` sentences with a vector),
+/// `smoothed_cosine_micro` its moving average over the scored gaps,
+/// and `depth_score_micro` the score the cost is taken from before the
+/// floor: the TextTiling depth under [`crate::Score::Depth`], the
+/// distance under [`crate::Score::Distance`], and 0 at unscored gaps.
+/// `cost` and `reason` are exactly what [`crate::drift`] returns for
+/// the same inputs, bit for bit, because both come from the one
+/// scoring routine.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct BoundaryDriftCurve {
+    pub raw_cosine_micro: Vec<Option<i64>>,
+    pub smoothed_cosine_micro: Vec<Option<i64>>,
+    pub depth_score_micro: Vec<i64>,
+    pub cost: Vec<i32>,
+    pub reason: Vec<Cut>,
+}
+
+impl BoundaryDriftCurve {
+    /// Computes the curve for `vectors` under `drift`, the same inputs
+    /// [`crate::DriftBoundaries`] scores.
+    pub fn compute(vectors: &Vectors<Sentences>, drift: &Drift) -> BoundaryDriftCurve {
+        let rows = Rows::of(vectors);
+        let raw = cosines(&rows, drift.window);
+        let (smoothed_cosine_micro, depth_score_micro, cost, reason) = score_series(&raw, drift);
+        BoundaryDriftCurve { raw_cosine_micro: raw, smoothed_cosine_micro, depth_score_micro, cost, reason }
+    }
+
+    /// The gaps reasoned `Cut::TopicShift`: the selected valley
+    /// bottoms, in gap order.
+    pub fn topic_shift_gaps(&self) -> impl Iterator<Item = usize> + '_ {
+        self.reason.iter().enumerate().filter_map(|(g, &r)| (r == Cut::TopicShift).then_some(g))
+    }
+
+    /// The gap of least cost, the earliest of equals, or `None` when
+    /// there are no gaps.
+    pub fn cheapest_gap(&self) -> Option<usize> {
+        (0..self.cost.len()).min_by_key(|&g| (self.cost[g], g))
+    }
 }
 
 #[cfg(test)]

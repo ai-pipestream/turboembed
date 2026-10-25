@@ -87,7 +87,7 @@ pub use weigh::{
 
 pub mod export;
 pub mod projection;
-pub use projection::{ProjectionDims, VectorProjection};
+pub use projection::{BoundaryDriftCurve, ProjectionDims, VectorProjection};
 pub mod levels;
 pub mod terms;
 
