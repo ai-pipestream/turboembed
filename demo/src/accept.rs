@@ -58,7 +58,11 @@ fn preference(entry: &str, media: &str) -> Option<Preference> {
     };
     let (mut quality, mut charset) = (None, false);
     for part in parts {
-        let (name, value) = part.trim().split_once('=')?;
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        let (name, value) = part.split_once('=')?;
         let (name, value) = (name.trim(), value.trim());
         if name.eq_ignore_ascii_case("q") && quality.is_none() {
             quality = Some(qvalue(value)?);
@@ -115,6 +119,11 @@ mod tests {
             ("text/event-stream;q=0;q=1", None),
             ("text/event-stream;q=0.001", Some(true)),
             ("text/event-stream;q=1.000", Some(true)),
+            ("text/event-stream;", Some(true)),
+            ("text/event-stream ;", Some(true)),
+            ("text/event-stream; q=0.5;", Some(true)),
+            ("text/event-stream;;q=1", Some(true)),
+            ("application/x-ndjson;", Some(false)),
         ] {
             headers.insert(header::ACCEPT, value.parse().unwrap());
             assert_eq!(stream_sse(&headers), expected, "{value}");
