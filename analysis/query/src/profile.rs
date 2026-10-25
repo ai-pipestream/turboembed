@@ -5,7 +5,7 @@
 
 use std::sync::{Arc, OnceLock};
 
-use turbo_analysis::{Analyzer, Annotator, Bound, Document, Error, IxRange, Refs, Span, Spans, View};
+use turbo_analysis::{Analyzer, Annotator, Bound, Document, Error, Refs, Span, Spans, View};
 use turbo_analysis_layers::{Date, DateTime, Entities, NumberNotation, Times, Tokens};
 use turbo_chunker::terms::{IndexedTerms, TermForm, Vocabulary};
 use turbo_geo::{BundledGazetteer, Gazetteer};
@@ -293,7 +293,6 @@ impl Annotator for QueryRegexEntityAnnotator {
                 score: Vec::new(),
             },));
         }
-        let (tok_starts, tok_ends) = tokens.spans.columns();
         let mut ws_spans: Vec<(u32, u32)> = Vec::new();
         let mut ws_words: Vec<&str> = Vec::new();
         let mut in_word = None;
@@ -328,10 +327,8 @@ impl Annotator for QueryRegexEntityAnnotator {
                 continue;
             }
             let span = Span::new(ws_spans[a].0, ws_spans[b - 1].1);
-            let t_start = tok_ends.partition_point(|&e| e <= span.start) as u32;
-            let t_end = tok_starts.partition_point(|&s| s < span.end) as u32;
             entities.spans.push(span);
-            entities.tokens.push(IxRange::new(t_start, t_end.max(t_start)));
+            entities.tokens.push(tokens.spans.overlapping_range(span));
             entities.kind.push(n.kind);
             entities.score.push(0.0);
         }
