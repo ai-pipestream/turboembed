@@ -29,3 +29,4 @@ zig-pkg/
 .zig-cache/
 zig-out/
 /.opennlp-models
+/.potion

@@ -1,0 +1,20 @@
+{
+  "binaries": {
+    "fixed": "ca2de023fdce0a844c2a3d2ba421818f8086d4a58a4c75268de73a4d9841e86d",
+    "main": "1e12aca29a1c9359d8f1e25ec5d10b5e35b8acdf309012a87539fdf799fdd22f",
+    "blocked": "af730350bb6dd684a05cc88b81981ce7277d1566e8a6c83d754e54735845b158"
+  },
+  "inputs": {
+    "dict.txt": "7197c3211ddd98962b036cdf40324d1ea2bfaa12bd028e68faa70111a88e12a8",
+    "pku_test.utf8": "48c2655b535ea33802c873373f3176e57d39ba1a45a4dbba164e9125d7ce149e",
+    "pku_test_gold.utf8": "913f78b20b17ea1e154f6246644d7d624b2710641f109a15daee9d63c9fb88d4",
+    "pku_training_words.utf8": "68fdbcef065d315e5dc3dc4c0e1b68997b1849141ba93b8fa2325fb088b5b0f3",
+    "msr_test.utf8": "8068b0c5a8f309e2ff2ba88dc26de7a8dac2f2684c9c7d8094337d9ce272f601",
+    "msr_test_gold.utf8": "cd1a8473841f1b2fcddd14d12599ad8872e6167feb64807af5bac2f6a32cb75d",
+    "msr_training_words.utf8": "d5328d5cc8576c8e008e70ad33882aae4ce2cbbbf6cd1130c59a66a248961b8c"
+  },
+  "core": 16,
+  "rounds": 12,
+  "measured_passes": 2,
+  "repetitions": 50
+}

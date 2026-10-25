@@ -16,7 +16,7 @@ use crate::lang::en::time::duration::{duration_of, length};
 use crate::lang::en::time::lexicon::rel;
 use crate::lang::en::time::{
     AMOUNT, BARE, CLOCK, DATE, DPOINT, DT, DTP, DUR, HOL, LRANGE, MDAY, MODED, MONTH, MONTHD, PARTD, PERIOD, RANGE,
-    RELW, TO, TPOINT, TRANGE, UNIT, YEAR, any_point, clock_of, emit, r, term, tval, year_ref,
+    RELW, TO, TPOINT, TRANGE, UNIT, YEAR, any_point, clock_of, date_of, emit, plain, r, term, tval, year_ref,
 };
 
 mod bounds;
