@@ -19,6 +19,11 @@
 //! rather than the JDK's. [`java::code_point`] has the same classes on a
 //! code point given as `u32`, for the segmentation ports, which walk text
 //! in UTF-16 code units as OpenNLP does and so meet lone surrogates.
+//! [`java::equals_ignore_case`] shares String.equalsIgnoreCase with ASCII
+//! target handling. [`utf16::utf16_len`] is usable in const expressions.
+//! [`chars::is_ascii_alnum`] retains the ASCII classification used by the
+//! unigram tokenizer. The unused ASCII lowercase and comparison wrappers
+//! are removed; use Rust's `to_ascii_lowercase` and `eq_ignore_ascii_case`.
 //!
 //! The modules the segmentation ports use besides [`java`]:
 //!
