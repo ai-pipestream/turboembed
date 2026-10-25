@@ -1,24 +1,18 @@
-//! The unigram frequency segmenter for Chinese and other text written
-//! without spaces, a port of OpenNLP's
-//! `opennlp.tools.tokenize.lattice.UnigramSegmenter`.
+//! Frequency segmentation for Chinese, with a trained unknown-word model.
 //!
-//! The text is split at whitespace, and each whitespace-free stretch is
-//! cut into the words of a frequency lexicon ([`UnigramLexicon`]) that
-//! give the highest sum of log probabilities, a character the lexicon
-//! does not list being a word of its own at a score below every listed
-//! word. This is the dictionary route of jieba (its `get_DAG` and `calc`)
-//! without jieba's hidden Markov model for unlisted words.
-//!
-//! [`UnigramSegmenter`] segments a `&str` into byte spans and is the
-//! annotator that writes `Tokens`. The words are those of the Java,
-//! checked against files the JVM wrote (docs/segmentation.md).
+//! [`UnigramMode::Chinese`] groups ASCII alphanumerics and applies jieba's
+//! BMES model to unresolved Han runs. The default [`UnigramMode::Dictionary`] groups
+//! ASCII without the HMM. [`UnigramMode::OpenNlp`] keeps the original
+//! dictionary-only segmentation and tie rules for JVM goldens.
+//! All modes write byte spans into the unchanged input view.
 
+mod hmm;
 mod lexicon;
 mod segmenter;
 mod trie;
 
 pub use lexicon::{DEFAULT_MAX_ENTRIES, LexiconError, UnigramLexicon};
-pub use segmenter::{Scratch, UnigramSegmenter};
+pub use segmenter::{Scratch, UnigramMode, UnigramSegmenter};
 
 use turbo_analysis::{Annotator, Error, ModelRef, Refs, View};
 use turbo_analysis_layers::{Sentences, Tokens};
@@ -52,14 +46,26 @@ impl Annotator for UnigramSegmenter {
         })
     }
 
-    /// The whitespace mode of the text and the one the lexicon's lines
-    /// were split in, which changes the lexicon read from the same bytes.
+    /// Both whitespace modes and the segmentation policy. Chinese mode also
+    /// includes the packed HMM SHA-256; OpenNLP retains its original hash.
     fn config_hash(&self) -> u64 {
         let mode = |m: WhitespaceMode| match m {
             WhitespaceMode::Legacy => 0,
             WhitespaceMode::Unicode => 1,
         };
-        fnv1a(&[mode(self.whitespace), mode(self.lexicon.whitespace())])
+        let whitespace = [mode(self.whitespace), mode(self.lexicon.whitespace())];
+        if self.mode == UnigramMode::OpenNlp {
+            return fnv1a(&whitespace);
+        }
+        let policy = match self.mode {
+            UnigramMode::Chinese => hmm::SHA256.as_bytes(),
+            UnigramMode::Dictionary => b"ascii-alphanumeric-v1",
+            UnigramMode::OpenNlp => unreachable!(),
+        };
+        let mut bytes = whitespace.to_vec();
+        bytes.extend_from_slice(b"unigram-policy-v1:");
+        bytes.extend_from_slice(policy);
+        fnv1a(&bytes)
     }
 }
 
@@ -71,7 +77,7 @@ mod tests {
     fn segmenter(text_mode: WhitespaceMode, lexicon_mode: WhitespaceMode) -> UnigramSegmenter {
         let lexicon =
             UnigramLexicon::parse("\u{5317}\u{4eac} 3\n\u{5927}\u{5b66} 2\n".as_bytes(), lexicon_mode).unwrap();
-        UnigramSegmenter::new(lexicon, text_mode)
+        UnigramSegmenter::new(lexicon, text_mode).with_mode(UnigramMode::OpenNlp)
     }
 
     #[test]

@@ -22,6 +22,20 @@ usage:
       per second and call latency at 1, 8, 32 and 128 sentences per call
       and by sentence length, interleaved over --rounds (default 3); write
       the record to <repo>/benchmarks/records/postag (needs --features postag)
+  turbo-bench lattice [--dictionaries <dir>] [--rounds <n>] [--readings]
+                     [--cpus <list>] [--repo <dir>] [--out <dir>]
+                     [ipadic|ko-dic|unidic ...]
+      the lattice tokenizer's characters per second per MeCab
+      dictionary over its language's goldens inputs, repeated to
+      10 MiB; write the records to
+      <repo>/benchmarks/records/throughput (needs --features lattice)
+  turbo-bench grammar [--rounds <n>] [--cpus <list>] [--repo <dir>]
+                     [--out <dir>]
+      the English number, unit and time grammars' characters per
+      second per phase (find, lex, parse, parse-units, times) over
+      the number, quantity, money and temporal goldens inputs;
+      write the record to <repo>/benchmarks/records/throughput
+      (needs --features grammar)
   turbo-bench qa --bundle <dir> --questions <squad.json> [--device <d>]
                  [--precision <p>] [--batch <n>] [--max-batch <n>]
                  [--per-bin <n>] [--warmup <n>] [--iterations <n>]
@@ -40,6 +54,15 @@ usage:
       (default 64), each with --passages passages that fit one window
       (default 16), and TEI's /rerank on the same pairs, in float32;
       write the record to <repo>/benchmarks/rerank
+  turbo-bench static --bundle <dir> --texts <name=file.json,...>
+                     (--peers <dir> | --no-peers) [--precision <p>]
+                     [--batches <n,...>] [--repo <dir>] [--out <dir>]
+      a static bundle's texts per second on the CPU for each text set and
+      batch (default 1,32,256,1024), precision model or fastest (default
+      model), and each peer of bench/static-peers through peers.sh run,
+      with --peers the directory its setup wrote; each peer's vectors for
+      the first set are compared with the library's. Write the record to
+      <repo>/benchmarks/static, which decides no capability cell
   turbo-bench check <record.json>...
       parse records and say whether each backs SUPPORTED for its cell
 
@@ -113,7 +136,7 @@ record options:
 /// `--name value` pairs and bare `--flag`s.
 pub(crate) struct Opts(pub(crate) BTreeMap<String, Option<String>>);
 
-const FLAGS: [&str; 4] = ["--no-tei", "--no-tensorrt", "--no-openvino", "--no-hailort"];
+const FLAGS: [&str; 5] = ["--no-tei", "--no-tensorrt", "--no-openvino", "--no-hailort", "--no-peers"];
 
 impl Opts {
     pub(crate) fn parse(args: &[String]) -> Result<Opts> {

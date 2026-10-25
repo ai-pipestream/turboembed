@@ -1,0 +1,24 @@
+2026-10-24T22:04:08Z
+88.66 73.22 62.99 72/13701 1092255
+COMMAND         %CPU
+ps               700
+compiler         546
+rustc            142
+clippy-driver    135
+clippy-driver    125
+rustc            118
+MainThread      90.5
+turbo-train-rec 85.8
+turbo-train-rec 83.3
+rustc           76.9
+rustc           74.3
+rustc           64.1
+unigram-compari 63.4
+rustc           61.6
+rustc           57.5
+rustc           57.1
+rustc           56.6
+name, utilization.gpu [%], utilization.memory [%], memory.used [MiB]
+NVIDIA GeForce RTX 4080 SUPER, 16 %, 4 %, 3156 MiB
+2026-10-24T22:14:14Z
+54.76 60.54 61.12 72/14201 1602717

@@ -21,6 +21,8 @@
 mod datetime;
 #[path = "spec/dutch.rs"]
 mod dutch;
+#[path = "spec/reasons.rs"]
+mod reasons;
 #[path = "spec/spanish.rs"]
 mod spanish;
 
@@ -154,9 +156,10 @@ fn describe(input: &str, got: &[Mention]) -> String {
     s
 }
 
-/// Checks the passing cases of a file against its pass list, or with
-/// `bless` and `BLESS` set rewrites the list.
-fn ratchet(language: &str, file: &str, passing: &BTreeSet<usize>, bless: bool) {
+/// Checks the passing cases of a file against its pass list and
+/// documented failure reasons, or with `bless` and `BLESS` set rewrites
+/// the list.
+fn ratchet(language: &str, file: &str, eligible: usize, passing: &BTreeSet<usize>, bless: bool) {
     let list_path = data().join("pass").join(language).join(file.replace(".json", ".txt"));
     let listed: BTreeSet<usize> = std::fs::read_to_string(&list_path)
         .unwrap_or_default()
@@ -175,6 +178,7 @@ fn ratchet(language: &str, file: &str, passing: &BTreeSet<usize>, bless: bool) {
         if !gained.is_empty() {
             println!("{file}: passing but not listed (BLESS=1 adds them): {gained:?}");
         }
+        reasons::verify(language, file, eligible, passing);
     }
 }
 
@@ -203,11 +207,19 @@ fn check_cases(grammar: &'static dyn Grammar, spec: &Spec, cases: &[Case], bless
         let (pass, got) = run(&mut parser, spec.output, case);
         if pass {
             passing.insert(i);
-        } else if show {
-            println!("{} #{i} {:?} found{}", spec.file, case.input, describe(&case.input, &got));
+        } else {
+            assert!(
+                reasons::reason(spec.language, spec.file, i).is_some(),
+                "{}/{} #{i} fails without a documented reason",
+                spec.language,
+                spec.file
+            );
+            if show {
+                println!("{} #{i} {:?} found{}", spec.file, case.input, describe(&case.input, &got));
+            }
         }
     }
-    ratchet(spec.language, spec.file, &passing, bless);
+    ratchet(spec.language, spec.file, eligible, &passing, bless);
     println!("{}/{}/{}: {} of {} eligible cases pass", spec.language, spec.kind, spec.file, passing.len(), eligible);
     (eligible, passing.len())
 }
@@ -248,7 +260,7 @@ const UNIT_FILES: [(&str, turbo_grammar::Measure, usize); 4] = [
 fn check_units(k: usize, bless: bool) -> (usize, usize) {
     let (file, measure, want) = UNIT_FILES[k];
     let (eligible, passing) = units::run_file(file, measure);
-    ratchet("English", file, &passing, bless);
+    ratchet("English", file, eligible, &passing, bless);
     println!("English/NumberWithUnit/{file}: {} of {eligible} eligible cases pass", passing.len());
     assert_eq!(eligible, want);
     (eligible, passing.len())
@@ -291,7 +303,7 @@ fn english_datetimes() {
     for (name, (eligible, passing)) in &run.by_type {
         println!("  {name:<28}{eligible:>5}{passing:>6}");
     }
-    ratchet("English", "DateTimeModel.json", &run.passing, true);
+    ratchet("English", "DateTimeModel.json", run.eligible, &run.passing, true);
     assert_eq!(run.eligible, 970);
 }
 
@@ -309,7 +321,7 @@ fn summary() {
         let _ = writeln!(table, "{:<46}{eligible:>8}{passing:>9}", format!("English/NumberWithUnit/{file}"));
     }
     let run = datetime::run_all(&datetime_cases(), false);
-    ratchet("English", "DateTimeModel.json", &run.passing, false);
+    ratchet("English", "DateTimeModel.json", run.eligible, &run.passing, false);
     let _ = writeln!(table, "{:<46}{:>8}{:>9}", "English/DateTime/DateTimeModel.json", run.eligible, run.passing.len());
     println!("{table}");
 }

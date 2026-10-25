@@ -44,6 +44,15 @@ fn an_untracked_file_is_refused_unless_it_is_a_record_or_ignored() {
     std::fs::create_dir_all(work.join("benchmarks/records")).unwrap();
     std::fs::write(work.join("benchmarks/records/a.json"), "{}").unwrap();
     provenance(&work).unwrap();
+    // A static record waiting to be committed, as between the MODEL and
+    // FASTEST runs of docs/static.md.
+    std::fs::create_dir_all(work.join("benchmarks/static")).unwrap();
+    std::fs::write(work.join("benchmarks/static/a.json"), "{}").unwrap();
+    provenance(&work).unwrap();
+    std::fs::write(work.join("benchmarks/qa.json"), "{}").unwrap();
+    let e = provenance(&work).unwrap_err();
+    assert!(e.contains("not clean (1 path: ?? benchmarks/qa.json)"), "{e}");
+    std::fs::remove_file(work.join("benchmarks/qa.json")).unwrap();
     std::fs::write(work.join(".git/info/exclude"), "build/\n").unwrap();
     std::fs::create_dir_all(work.join("build")).unwrap();
     std::fs::write(work.join("build/out.o"), "").unwrap();

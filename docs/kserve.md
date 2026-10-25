@@ -57,8 +57,10 @@ no per-run choice, so a request cannot name either; a request parameter
 `precision` or `device` is an unknown parameter (Errors).
 
 The command line gives each model as one `--model` of comma-separated
-settings, so a bundle path may not contain a comma. Each flag has an
-environment variable read when the flag is absent (docs/grpc.md).
+settings, so a bundle path may not contain a comma, or discovers immediate
+child bundle directories from `--bundle-dir`. When `--admin` is enabled, the
+server may also start with zero models and load bundles through `LoadBundle`.
+Each flag has an environment variable read when the flag is absent (docs/grpc.md).
 
 One setting is the server's, not a model's: `--max-message-bytes`, the
 largest request message gRPC reads, 64 MiB when absent. A request larger

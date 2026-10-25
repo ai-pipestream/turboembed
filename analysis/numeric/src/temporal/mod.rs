@@ -21,7 +21,7 @@ mod words;
 use turbo_analysis::{Annotator, Error, Refs, View};
 use turbo_analysis_layers::{Date, Granularity, Temporals};
 
-pub use select::DocumentDateSelector;
+pub use select::{DocumentDateSelector, TimesDocumentDateSelector};
 pub use turbo_analysis_layers::{DocumentDate, Origin, TemporalMention, TemporalValue};
 
 use crate::scan;
@@ -39,6 +39,7 @@ use crate::scan;
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
 pub struct TemporalExtractor {
     reference: Option<Date>,
+    opennlp_parity: bool,
 }
 
 impl TemporalExtractor {
@@ -50,7 +51,25 @@ impl TemporalExtractor {
     /// An extractor that resolves relative expressions against `reference`
     /// in every text.
     pub fn with_reference(reference: Date) -> TemporalExtractor {
-        TemporalExtractor { reference: Some(reference) }
+        TemporalExtractor { reference: Some(reference), opennlp_parity: false }
+    }
+
+    /// Configures OpenNLP-compatible parity mode (`false` by default).
+    ///
+    /// When `false` (default), absolute mentions accept four-digit years from
+    /// `0001` to `9999`, relative counts accept up to nine digits (`in 100 days`,
+    /// `365 days ago`), `last`/`this`/`next` accept plural units (`next weeks`),
+    /// and supplementary-plane letters are treated as letters. When `true`,
+    /// matches OpenNLP's `CursorTemporalExtractor` behavior for JVM golden
+    /// verification.
+    pub fn with_opennlp_parity(mut self, enabled: bool) -> Self {
+        self.opennlp_parity = enabled;
+        self
+    }
+
+    /// Whether OpenNLP-compatible parity mode is enabled.
+    pub fn opennlp_parity(&self) -> bool {
+        self.opennlp_parity
     }
 
     /// The fixed reference date, or `None` for the dateline.
@@ -66,8 +85,8 @@ impl TemporalExtractor {
     ///
     /// When `text` is longer than `u32::MAX` bytes, since offsets are `u32`.
     pub fn extract(&self, text: &str, out: &mut Temporals) {
-        let reference = self.reference.or_else(|| dateline(text));
-        scan(text, reference, out);
+        let reference = self.reference.or_else(|| dateline_with_parity(text, self.opennlp_parity));
+        scan_with_parity(text, reference, self.opennlp_parity, out);
     }
 }
 
@@ -84,7 +103,12 @@ impl TemporalExtractor {
 ///
 /// When `text` is longer than `u32::MAX` bytes, since offsets are `u32`.
 pub fn scan(text: &str, reference: Option<Date>, out: &mut Temporals) {
-    scan_with(text, reference, |m| {
+    scan_with_parity(text, reference, false, out);
+}
+
+/// Like [`scan`], with OpenNLP-compatible parity mode configured.
+pub fn scan_with_parity(text: &str, reference: Option<Date>, opennlp_parity: bool, out: &mut Temporals) {
+    scan_with(text, reference, opennlp_parity, |m| {
         out.push(m);
         true
     });
@@ -94,8 +118,13 @@ pub fn scan(text: &str, reference: Option<Date>, out: &mut Temporals) {
 /// `TemporalAnnotator` elects when it has none of its own. The scan stops
 /// there, since the absolute pass is used for nothing else.
 pub fn dateline(text: &str) -> Option<Date> {
+    dateline_with_parity(text, false)
+}
+
+/// Like [`dateline`], with OpenNLP-compatible parity mode configured.
+pub fn dateline_with_parity(text: &str, opennlp_parity: bool) -> Option<Date> {
     let mut found = None;
-    scan_with(text, None, |m| match m.value {
+    scan_with(text, None, opennlp_parity, |m| match m.value {
         TemporalValue::Day(date) => {
             found = Some(date);
             false
@@ -106,7 +135,12 @@ pub fn dateline(text: &str) -> Option<Date> {
 }
 
 /// The scan loop, handing each mention to `found` until it returns false.
-fn scan_with(text: &str, reference: Option<Date>, mut found: impl FnMut(TemporalMention) -> bool) {
+fn scan_with(
+    text: &str,
+    reference: Option<Date>,
+    opennlp_parity: bool,
+    mut found: impl FnMut(TemporalMention) -> bool,
+) {
     assert!(u32::try_from(text.len()).is_ok(), "a text of at most u32::MAX bytes");
     let b = text.as_bytes();
     let mut i = 0;
@@ -118,7 +152,7 @@ fn scan_with(text: &str, reference: Option<Date>, mut found: impl FnMut(Temporal
             Some(skip) => i += skip,
             None => break,
         }
-        match shapes::match_at(text, i, reference) {
+        match shapes::match_at(text, i, reference, opennlp_parity) {
             Some(m) => {
                 i = m.span.end as usize;
                 if !found(m) {
@@ -171,14 +205,18 @@ impl Annotator for TemporalExtractor {
         Ok((temporals,))
     }
 
-    /// FNV-1a over the reference date, fixed so that stored provenance
-    /// stays comparable across builds.
+    /// FNV-1a over the reference date and parity flag, fixed so that stored
+    /// provenance stays comparable across builds.
     fn config_hash(&self) -> u64 {
         let reference = match self.reference {
             None => [0, 0],
             Some(d) => [1, d.epoch_day() as u64],
         };
-        reference.iter().fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x).wrapping_mul(0x0100_0000_01b3))
+        let mut h = reference.iter().fold(0xcbf2_9ce4_8422_2325, |h, &x| (h ^ x).wrapping_mul(0x0100_0000_01b3));
+        if self.opennlp_parity {
+            h = (h ^ 1).wrapping_mul(0x0100_0000_01b3);
+        }
+        h
     }
 }
 
