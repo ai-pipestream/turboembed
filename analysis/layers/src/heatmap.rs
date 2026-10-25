@@ -17,7 +17,12 @@
 //! With no bucket count a lane is segmented exactly, by the combined
 //! segmentation of its items' fragments over the whole view (see
 //! [`Document::combined_segments`]); with one, the view is cut into
-//! that many equal-width bins. A density segment's score is its
+//! that many byte bins, with edges at `floor(i * view_byte_len / N)`.
+//! These output coordinates can fall inside a UTF-8 scalar, including
+//! for empty bins. They describe minimap geometry, not guaranteed text
+//! slices or boundaries for UTF-16/code-point conversion. Exact mode
+//! uses the validated input boundaries and remains UTF-8 aligned.
+//! A density segment's score is its
 //! covering item count; a scored segment's score is its primary item's
 //! (largest by absolute value, ties to the lowest item index); an
 //! uncovered segment scores 0 with no primary item. Exact lanes tile
@@ -77,6 +82,9 @@ impl HeatmapLaneKind {
 /// item on density lanes), or `None` when nothing covers it.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct HeatmapSegment {
+    /// Half-open byte coordinates in the lane's view. Bucket-mode edges
+    /// can be inside UTF-8 scalars; check boundaries before using them to
+    /// slice text or convert offset units. Exact-mode edges are aligned.
     pub span: Span,
     pub score: f32,
     pub count: u32,
@@ -110,7 +118,9 @@ impl DocumentHeatmap {
 
     /// Builds every lane the document's layers support over `view`:
     /// exact elementary segments when `buckets` is `None`, that many
-    /// equal-width bins when it is `Some`.
+    /// byte-rounded bins when it is `Some`. Bucket edges are not snapped
+    /// to character boundaries; see [`HeatmapSegment::span`]. The requested
+    /// bin count is retained even when boundaries repeat or split scalars.
     ///
     /// Refuses a view the document does not have, a present source
     /// layer that fails its own `check`, source spans anchored to a
