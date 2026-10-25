@@ -35,7 +35,7 @@ fn build_with_budget(
     if heatmap_buckets > MAX_HEATMAP_BUCKETS {
         return Err(over("max_heatmap_buckets", "heatmap_buckets", heatmap_buckets as u64));
     }
-    preflight::check(doc, view, fragment_budget)?;
+    preflight::check(doc, view, heatmap_buckets, fragment_budget)?;
     let heatmap = DocumentHeatmap::build_instances(doc, view, NonZeroU32::new(heatmap_buckets))
         .map_err(|e| bad(format!("document heatmap: {e}")))?;
     heatmap

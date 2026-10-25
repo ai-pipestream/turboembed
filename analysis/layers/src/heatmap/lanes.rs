@@ -104,11 +104,20 @@ pub(super) fn chunk_score_lane(
 /// The view and fragments of target `item` in `spans_of`'s columns.
 type Frags = (ViewId, Vec<(u32, u32)>);
 
-fn target_frags(key: KeyId, spans_of: &str, item: usize, ts: &TextSpans<'_>) -> Result<Frags, Error> {
+fn target_frags(
+    key: KeyId,
+    spans_of: &str,
+    item: usize,
+    ts: &TextSpans<'_>,
+    selected: Option<ViewId>,
+) -> Result<Option<Frags>, Error> {
     if item >= ts.start.len() {
         return Err(invalid(key, format!("target {item} is outside {spans_of} with {} items", ts.start.len())));
     }
-    Ok((ts.view, frags_of(ts, item)))
+    if selected.is_some_and(|view| view != ts.view) {
+        return Ok(None);
+    }
+    Ok(Some((ts.view, frags_of(ts, item))))
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -137,25 +146,34 @@ pub(super) fn incivility_lane(
             return Err(invalid(key, format!("item {i} has a non-finite incivility score")));
         }
         let score = scores.iter().fold(0.0f64, |m, &s| m.max(s));
-        let (view_of, frags) = match target {
+        let target = match target {
             IncivilityTarget::Sentence(s) => {
                 let layer =
                     doc.get_key::<Sentences>(&inc.sentences_key).ok_or(Error::Missing(inc.sentences_key.id()))?;
-                target_frags(key, "sentences", s.get(), &layer.spans.text_spans())?
+                target_frags(key, "sentences", s.get(), &layer.spans.text_spans(), selected_view.then_some(view))?
             }
             IncivilityTarget::Chunk(c) => {
                 let layer = doc.get_key::<Chunks>(&inc.chunks_key).ok_or(Error::Missing(inc.chunks_key.id()))?;
-                target_frags(key, "chunks", c.get(), &layer.spans.text_spans())?
+                target_frags(key, "chunks", c.get(), &layer.spans.text_spans(), selected_view.then_some(view))?
             }
             IncivilityTarget::Block(b) => {
                 let layer =
                     doc.get_key::<Structure>(&inc.structure_key).ok_or(Error::Missing(inc.structure_key.id()))?;
-                target_frags(key, "structure blocks", b.get(), &layer.spans.text_spans())?
+                target_frags(
+                    key,
+                    "structure blocks",
+                    b.get(),
+                    &layer.spans.text_spans(),
+                    selected_view.then_some(view),
+                )?
             }
         };
-        if !selected_view || view_of == view {
+        if let Some((view_of, frags)) = target {
             items.push(Item { source: i as u32, score: score as f32, view: view_of, frags });
         }
+    }
+    if selected_view && items.is_empty() {
+        return Ok(empty_lane(HeatmapLaneKind::IncivilityScore, view));
     }
     finish_lane(doc, view, text_len, buckets, HeatmapLaneKind::IncivilityScore, key, &items)
 }
@@ -178,22 +196,29 @@ pub(super) fn emotion_lane(
             return Err(invalid(key, format!("item {i} has a non-finite emotion score")));
         }
         let score = row.iter().fold(0.0f64, |m, &s| m.max(s));
-        let (view_of, frags) = match target {
+        let target = match target {
             EmotionTarget::Sentence(s) => {
                 let layer = doc
                     .get_key::<Sentences>(&emotion.sentences_key)
                     .ok_or(Error::Missing(emotion.sentences_key.id()))?;
-                target_frags(key, "sentences", s.get(), &layer.spans.text_spans())?
+                target_frags(key, "sentences", s.get(), &layer.spans.text_spans(), selected_view.then_some(view))?
             }
             EmotionTarget::Chunk(c) => {
                 let layer =
                     doc.get_key::<Chunks>(&emotion.chunks_key).ok_or(Error::Missing(emotion.chunks_key.id()))?;
-                target_frags(key, "chunks", c.get(), &layer.spans.text_spans())?
+                target_frags(key, "chunks", c.get(), &layer.spans.text_spans(), selected_view.then_some(view))?
             }
         };
-        if !selected_view || view_of == view {
+        if let Some((view_of, frags)) = target {
             items.push(Item { source: i as u32, score: score as f32, view: view_of, frags });
         }
     }
+    if selected_view && items.is_empty() {
+        return Ok(empty_lane(HeatmapLaneKind::EmotionIntensity, view));
+    }
     finish_lane(doc, view, text_len, buckets, HeatmapLaneKind::EmotionIntensity, key, &items)
+}
+
+fn empty_lane(kind: HeatmapLaneKind, view: ViewId) -> HeatmapLane {
+    HeatmapLane { id: kind.name().into(), kind, view, min_score: 0.0, max_score: 0.0, segments: Vec::new() }
 }

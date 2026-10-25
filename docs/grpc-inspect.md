@@ -56,8 +56,12 @@ original source item indices. Failed/skipped sources remain summary metadata.
 including uncovered gaps and zero-width point segments. A positive value
 emits that many raw byte bins with edges `floor(i * byte_length / N)`,
 including empty bins and bins on an empty view when a source lane exists.
-The maximum is 4,096; candidate input fragments are capped before the shared
-builder allocates lane items. Inputs and outputs are never truncated to fit.
+The maximum is 4,096. Before shared construction, each lane's candidate input
+fragments and the aggregate prospective output are checked against
+`max_fragments`. The output bound is N per selected lane for minimaps and at
+most twice the candidate fragments plus one interval per lane for exact mode.
+Other-view sources do not consume this budget. Inputs and outputs are never
+truncated to fit.
 
 `byte_start`/`byte_end` preserve the shared bin's exact coverage coordinates,
 independent of the request's offset mode. Raw bins can split UTF-8 scalars,

@@ -7,11 +7,11 @@ use turbo_analysis_layers::{
     Categories, Chunks, EmotionLayer, EmotionTarget, Entities, Incivility, IncivilityTarget, Pii, Sentences, Tokens,
 };
 
-fn all<L: Layer>(doc: &Document, key: KeyId, view: ViewId) -> u64 {
+fn all<L: Layer>(doc: &Document, key: KeyId, view: ViewId) -> Option<u64> {
     doc.get_key(&Key::<L>::named(key.name))
         .and_then(Layer::text_spans)
         .filter(|s| s.view == view)
-        .map_or(0, |s| if s.frag_item_end.is_empty() { s.start.len() } else { s.frag_start.len() }) as u64
+        .map(|s| if s.frag_item_end.is_empty() { s.start.len() } else { s.frag_start.len() } as u64)
 }
 fn anchor<L: Layer>(doc: &Document, key: KeyId) -> KeyId {
     doc.made_on(key).iter().find(|k| k.ty == TypeId::of::<L>()).copied().unwrap_or(Key::<L>::DEFAULT.id())
@@ -29,7 +29,8 @@ fn missing() -> Failure {
     bad("heatmap target anchor missing")
 }
 
-pub(super) fn check(doc: &Document, view: ViewId, limit: u64) -> Result<(), Failure> {
+pub(super) fn check(doc: &Document, view: ViewId, buckets: u32, limit: u64) -> Result<(), Failure> {
+    let mut response_bound = 0u64;
     for key in doc.layers() {
         if !matches!(doc.status(key), Some(Status::Complete)) {
             continue;
@@ -63,7 +64,7 @@ pub(super) fn check(doc: &Document, view: ViewId, limit: u64) -> Result<(), Fail
                     break;
                 }
             }
-            n
+            (n > 0).then_some(n)
         } else if key.ty == TypeId::of::<EmotionLayer>() {
             let layer = doc.get_key(&Key::<EmotionLayer>::named(key.name)).ok_or_else(missing)?;
             let mut n = 0u64;
@@ -80,12 +81,28 @@ pub(super) fn check(doc: &Document, view: ViewId, limit: u64) -> Result<(), Fail
                     break;
                 }
             }
-            n
+            (n > 0).then_some(n)
         } else {
-            0
+            None
+        };
+        let Some(n) = n else {
+            continue;
         };
         if n > limit {
             return Err(over("max_fragments", "heatmap input fragments", n));
+        }
+        // Exact segmentation has at most two boundaries/point contributions
+        // per fragment plus one uncovered interval. Binned output is exact N.
+        let segments = if buckets > 0 {
+            u64::from(buckets)
+        } else if doc.text(view).is_empty() {
+            u64::from(n > 0)
+        } else {
+            n.saturating_mul(2).saturating_add(1)
+        };
+        response_bound = response_bound.saturating_add(segments);
+        if response_bound > limit {
+            return Err(over("max_fragments", "heatmap prospective segments", response_bound));
         }
     }
     Ok(())
@@ -103,8 +120,8 @@ mod tests {
             spans.push(Span::new(i, i + 1));
         }
         d.add(&Key::DEFAULT, Tokens { spans, sentence: None }, Provenance::by("test")).unwrap();
-        assert!(check(&d, ViewId::SOURCE, 3).is_ok());
-        let e = check(&d, ViewId::SOURCE, 2).unwrap_err();
+        assert!(check(&d, ViewId::SOURCE, 1, 3).is_ok());
+        let e = check(&d, ViewId::SOURCE, 1, 2).unwrap_err();
         assert_eq!(e.code, crate::api::TURBO_E_CAPACITY);
         assert!(e.message.contains("max_fragments"));
     }
@@ -119,6 +136,14 @@ mod tests {
             )
             .unwrap();
         }
+        let source = d.get::<turbo_analysis::View>().unwrap().clone();
+        let mut b = turbo_analysis::ViewBuilder::new(source.text());
+        b.keep(source.text().len());
+        let (text, align) = b.finish();
+        d.add(&Key::named("child"), turbo_analysis::View::derived(&source, text, align), Provenance::by("test"))
+            .unwrap();
+        d.add(&Key::named("other"), Tokens { spans: Spans::new(ViewId(1)), sentence: None }, Provenance::by("test"))
+            .unwrap();
         // Use the real adapter and its production budget path, with a small
         // limit so no oversized graph or allocation is needed.
         let offsetter = crate::offsets::Offsetter::new(d.source(), crate::offsets::OffsetMode::Utf8);
@@ -126,5 +151,8 @@ mod tests {
         assert_eq!(build(6).unwrap().iter().map(|l| l.buckets.len()).sum::<usize>(), 6);
         let e = build(5).expect_err("two three-bin lanes exceed a five-segment result budget");
         assert_eq!(e.code, crate::api::TURBO_E_CAPACITY);
+        let exact = |limit| super::super::build_with_budget(&d, ViewId::SOURCE, d.source(), &offsetter, 0, limit);
+        assert_eq!(exact(2).unwrap().iter().map(|l| l.buckets.len()).sum::<usize>(), 2);
+        assert_eq!(exact(1).unwrap_err().code, crate::api::TURBO_E_CAPACITY);
     }
 }
