@@ -180,6 +180,9 @@ impl Layer for DocumentEntities {
             if e.mentions.iter().any(|m| m.span.start > m.span.end) {
                 return Err(format!("document entity {i} has a mention that ends before it starts"));
             }
+            if e.mentions.windows(2).any(|w| (w[0].span.start, w[0].span.end) > (w[1].span.start, w[1].span.end)) {
+                return Err(format!("document entity {i} has mentions out of text order"));
+            }
             if e.mentions.iter().filter(|m| m.is_representative).count() > 1 {
                 return Err(format!("document entity {i} has more than one representative mention"));
             }
@@ -196,6 +199,10 @@ impl Layer for DocumentEntities {
                 return Err(format!("document entity {i} has a country code that is not two upper-case letters"));
             }
         }
+        let first = |e: &DocumentEntity| (e.mentions[0].span.start, e.mentions[0].span.end);
+        if self.entities.windows(2).any(|w| first(&w[0]) > first(&w[1])) {
+            return Err("document entities are not in order of their first mention".to_owned());
+        }
         let n = self.entities.len() as u32;
         for (i, r) in self.relations.iter().enumerate() {
             if r.subject >= n || r.object >= n {
@@ -204,6 +211,10 @@ impl Layer for DocumentEntities {
             if !r.score.is_finite() || r.support == 0 {
                 return Err(format!("relation {i} has no finite score or no support"));
             }
+        }
+        let key = |r: &EntityRelation| (r.subject, r.object, r.kind.clone());
+        if self.relations.windows(2).any(|w| key(&w[0]) >= key(&w[1])) {
+            return Err("relations are not sorted by subject, object and kind without repeats".to_owned());
         }
         Ok(())
     }

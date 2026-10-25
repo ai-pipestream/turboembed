@@ -54,7 +54,9 @@ pub(super) fn build(inp: &Inputs<'_>, config: ConsolidatorConfig) -> Result<Docu
             continue;
         }
         drafts.sort_by_key(|d| (d.span.start, d.span.end, d.entity.is_none()));
-        drafts.dedup_by(|b, a| a.span == b.span);
+        // A pronoun or noun phrase on a name's bytes is that name; two
+        // `Entities` rows on the same bytes both stay, so each keeps its owner.
+        drafts.dedup_by(|b, a| a.span == b.span && b.entity.is_none());
         out.entities.push(entity(inp, &drafts));
     }
     out.entities.sort_by_key(|x| (x.mentions[0].span.start, x.mentions[0].span.end));
