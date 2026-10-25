@@ -5,4 +5,5 @@ pub mod decode;
 pub mod finder;
 pub mod place;
 
+pub use decode::Decoding;
 pub use finder::{NameFinderDl, NameFinderDlOptions};

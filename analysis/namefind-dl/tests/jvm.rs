@@ -3,13 +3,16 @@
 //! wrote for each line of `tests/data/jvm-cases.txt`, running the model's
 //! ONNX export in ONNX Runtime with the default inference options.
 //!
+//! The finder decodes every piece here, as `NameFinderDL` does
+//! (`Decoding::Piece`).
+//!
 //! Every entity must have the same bytes and type, and a probability
 //! within `TOLERANCE` of OpenNLP's: the two compute the same model in
 //! float32 in a different order.
 
 use std::path::PathBuf;
 
-use turbo_namefind_dl::{NameFinderDl, NameFinderDlOptions};
+use turbo_namefind_dl::{Decoding, NameFinderDl, NameFinderDlOptions};
 
 const TOLERANCE: f64 = 1e-5;
 
@@ -17,7 +20,8 @@ const TOLERANCE: f64 = 1e-5;
 #[ignore = "needs TURBO_NER_BUNDLE naming a dslim/bert-base-NER bundle (bundle/recipes/dslim-bert-base-ner.json)"]
 fn finds_what_opennlp_finds() {
     let dir = PathBuf::from(std::env::var("TURBO_NER_BUNDLE").expect("TURBO_NER_BUNDLE"));
-    let finder = NameFinderDl::open(&dir, &NameFinderDlOptions::default()).unwrap();
+    let options = NameFinderDlOptions { decoding: Decoding::Piece, ..NameFinderDlOptions::default() };
+    let finder = NameFinderDl::open(&dir, &options).unwrap();
     let golden: serde_json::Value = serde_json::from_str(include_str!("data/jvm-golden.json")).unwrap();
     let cases = golden["cases"].as_array().unwrap();
     let lines: Vec<&str> = include_str!("data/jvm-cases.txt").lines().collect();
