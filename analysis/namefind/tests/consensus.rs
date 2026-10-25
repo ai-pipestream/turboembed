@@ -221,9 +221,14 @@ fn priority_fallback_preserves_nested_entities_from_the_first_recognizer() {
         let first = entities(&[(0, 3, PERSON, 0.4), (1, 2, inner_kind, 0.9)]);
         let later = entities(&[(6, 7, LOCATION, 0.8)]);
         let merged = consensus(&[&first, &later], EntityMergePolicy::PriorityFallback).unwrap();
-        assert_eq!(rows(&merged.entities), [(0, 3, "person", 0.4),
-            (1, 2, if inner_kind == PERSON { "person" } else { "organization" }, 0.9),
-            (6, 7, "location", 0.8)]);
+        assert_eq!(
+            rows(&merged.entities),
+            [
+                (0, 3, "person", 0.4),
+                (1, 2, if inner_kind == PERSON { "person" } else { "organization" }, 0.9),
+                (6, 7, "location", 0.8)
+            ]
+        );
     }
 }
 
@@ -234,4 +239,48 @@ fn rejected_priority_candidate_does_not_consume_a_usable_fallback() {
     let merged = consensus(&[&first, &later], EntityMergePolicy::PriorityFallback).unwrap();
     assert_eq!(rows(&merged.entities), [(0, 1, "person", 0.7), (2, 4, "organization", 0.9)]);
     assert_eq!(merged.votes_of(1), [Vote { input: 1, entity: 0 }, Vote { input: 1, entity: 1 }]);
+}
+
+#[test]
+fn nested_priority_entities_keep_verifiable_pipeline_evidence() {
+    let mut doc = Document::new(TEXT);
+    let mut spans = Spans::new(ViewId::SOURCE);
+    for (a, b) in TOKENS {
+        spans.push(Span::new(a, b));
+    }
+    doc.add(&Key::DEFAULT, Tokens { spans, sentence: None }, Provenance::by("tokens")).unwrap();
+    for (name, layer) in [
+        ("first", entities(&[(0, 3, PERSON, 0.4), (1, 2, PERSON, 0.9)])),
+        ("later", entities(&[(6, 7, LOCATION, 0.8)])),
+    ] {
+        let p =
+            Provenance { reads: vec![Key::<Tokens>::DEFAULT.id()], model: Some(model(name)), ..Provenance::by(name) };
+        doc.add(&Key::named(name), layer, p).unwrap();
+    }
+    let step = ConsensusEntityMerger::new(
+        vec![Key::named("first"), Key::named("later")],
+        Key::named("merged"),
+        EntityMergePolicy::PriorityFallback,
+    );
+    let analyzer = Analyzer::builder()
+        .given(Key::<Tokens>::DEFAULT)
+        .given(Key::<Entities>::named("first"))
+        .given(Key::<Entities>::named("later"))
+        .step(step)
+        .build()
+        .unwrap();
+    let mut docs = vec![doc];
+    assert!(analyzer.run(&mut docs).iter().all(Result::is_ok));
+    let doc = &docs[0];
+    let merged = doc.get_key(&Key::<Entities>::named("merged")).unwrap();
+    assert_eq!(rows(merged), [(0, 3, "person", 0.4), (1, 2, "person", 0.9), (6, 7, "location", 0.8)]);
+    let evidence = doc.get_key(&Key::<Evidence<Entities>>::named("merged")).unwrap();
+    evidence.verify(doc).unwrap();
+    assert_eq!(evidence.records(), 3);
+    for (i, (input, entity)) in [(0, 0), (0, 1), (1, 0)].into_iter().enumerate() {
+        let support = evidence.support_of(i);
+        assert_eq!(support.len(), 1);
+        assert_eq!((support[0].layer, support[0].start, support[0].end), (input, entity, entity + 1));
+        assert_eq!(evidence.raw_of(i), Some(merged.score[i]));
+    }
 }

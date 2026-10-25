@@ -10,7 +10,9 @@
 //! the earliest recognizer's first). Each one not yet taken is a group's
 //! entity, and every candidate of its type not yet taken whose token range
 //! overlaps it (for [`EntityMergePolicy::RawUnion`], is the same range)
-//! votes for it, so a vote always overlaps the entity it is for. The
+//! votes for it, so a vote always overlaps the entity it is for. Priority
+//! fallback keeps every first-recognizer entity and checks each later
+//! candidate against retained winners before it can consume votes. The
 //! group's score is the highest score in it. Its
 //! evidence record holds, for each vote in recognizer order, the voter's
 //! own span in the source text and a support range that points at the
@@ -133,22 +135,12 @@ pub fn consensus(layers: &[&Entities], policy: EntityMergePolicy) -> Result<Cons
         let c = &candidates[c];
         (if priority { c.vote.input } else { 0 }, std::cmp::Reverse(Score(c.score)), c.vote.input, c.vote.entity)
     });
-    let mut kept = group(&candidates, &order, matches!(policy, EntityMergePolicy::RawUnion));
+    let mut kept = group(&candidates, &order, matches!(policy, EntityMergePolicy::RawUnion), priority);
     match policy {
         EntityMergePolicy::RawUnion => {}
-        EntityMergePolicy::PriorityFallback => {
-            // By the earliest recognizer that voted, then text order.
-            let first = |g: &[usize]| g.iter().map(|&c| candidates[c].vote.input).min().unwrap_or(0);
-            kept.sort_by_key(|(g, w)| (first(g), candidates[*w].start, std::cmp::Reverse(candidates[*w].end)));
-            let mut taken: Vec<usize> = Vec::new();
-            kept.retain(|(_, w)| {
-                let free = taken.iter().all(|&t| !overlaps(&candidates[t], &candidates[*w]));
-                if free {
-                    taken.push(*w);
-                }
-                free
-            });
-        }
+        // Priority eligibility is checked before grouping so a rejected
+        // winner cannot consume candidates that are still usable.
+        EntityMergePolicy::PriorityFallback => {}
         EntityMergePolicy::Consensus { min_votes, overlap_rule } => {
             let voters = |g: &[usize]| {
                 let mut inputs: Vec<u32> = g.iter().map(|&c| candidates[c].vote.input).collect();
@@ -210,8 +202,10 @@ pub fn consensus(layers: &[&Entities], policy: EntityMergePolicy) -> Result<Cons
 /// The groups and their winners: each candidate in `order` not yet in a
 /// group wins one, with every candidate of its type not yet in one whose
 /// range overlaps the winner's (or, when `exact`, is the same range). A
-/// group's members are in candidate order.
-fn group(candidates: &[Candidate<'_>], order: &[usize], exact: bool) -> Vec<(Vec<usize>, usize)> {
+/// group's members are in candidate order. In priority mode, a later
+/// winner must not overlap a retained winner, and first-recognizer
+/// candidates remain separate winners rather than voting for one another.
+fn group(candidates: &[Candidate<'_>], order: &[usize], exact: bool, priority: bool) -> Vec<(Vec<usize>, usize)> {
     // By type and first token, so the candidates that may overlap a
     // winner are a short run: those of its type that start within the
     // type's longest range before it and no later than its end.
@@ -227,13 +221,16 @@ fn group(candidates: &[Candidate<'_>], order: &[usize], exact: bool) -> Vec<(Vec
         }
     }
     let mut taken = vec![false; candidates.len()];
-    let mut groups = Vec::new();
+    let mut groups: Vec<(Vec<usize>, usize)> = Vec::new();
     for &w in order {
         if taken[w] {
             continue;
         }
-        taken[w] = true;
         let win = &candidates[w];
+        if priority && win.vote.input != 0 && groups.iter().any(|(_, kept)| overlaps(win, &candidates[*kept])) {
+            continue;
+        }
+        taken[w] = true;
         let longest = reach.iter().find(|&&(l, _)| l == win.label).map_or(0, |&(_, n)| n);
         let from = win.start.saturating_sub(longest);
         let at = sorted.partition_point(|&c| (candidates[c].label, candidates[c].start) < (win.label, from));
@@ -244,6 +241,11 @@ fn group(candidates: &[Candidate<'_>], order: &[usize], exact: bool) -> Vec<(Vec
                 break;
             }
             let votes = if exact { (x.start, x.end) == (win.start, win.end) } else { overlaps(x, win) };
+            // Every candidate from the first recognizer must survive,
+            // including its nested or overlapping entities.
+            if priority && x.vote.input == 0 {
+                continue;
+            }
             if !taken[c] && votes {
                 taken[c] = true;
                 members.push(c);
