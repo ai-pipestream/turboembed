@@ -220,7 +220,12 @@ impl Layer for Modality {
         if !self.spans.is_start_ordered() {
             return Err("modality scopes must be in start order".into());
         }
-        for (scope, tag) in self.iter() {
+        let mut reach = 0;
+        for (i, (scope, tag)) in self.iter().enumerate() {
+            reach = if i == 0 { scope.end } else { reach.max(scope.end) };
+            if self.reach[i] != reach {
+                return Err(format!("stale reach {} at scope {i}, expected {reach}", self.reach[i]));
+            }
             if scope.is_empty() {
                 return Err(format!("an empty modality scope at {}", scope.start));
             }

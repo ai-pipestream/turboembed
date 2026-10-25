@@ -18,6 +18,13 @@ fn bought() -> turbo_analysis::Document {
 }
 
 #[test]
+fn cyclic_dependencies_are_refused() {
+    let d = parsed("not a", "2:advmod 1:advmod");
+    let err = ModalityAnnotator::new().modality(&d).unwrap_err().to_string();
+    assert!(err.contains("cycle"), "{err}");
+}
+
+#[test]
 fn negation_scope_stops_at_a_conjunct() {
     let d = bought();
     let m = modality(&d);

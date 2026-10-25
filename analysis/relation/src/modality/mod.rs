@@ -138,6 +138,10 @@ impl Annotator for ModalityAnnotator {
         if deps.is_some_and(|d| d.head.len() != n) {
             return Err(Self::fail(format!("dependencies not aligned to the {n} tokens")));
         }
+        // The scope walks climb heads and descend children; a cycle would never end.
+        if let Some(d) = deps {
+            d.check_forest().map_err(Self::fail)?;
+        }
         let mut out = Modality::new(view.id());
         if n == 0 {
             return Ok((out,));
