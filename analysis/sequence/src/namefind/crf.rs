@@ -86,7 +86,7 @@ impl<'m, C: BorrowMut<DefaultNameContext>> CrfNameFinder<'m, C> {
         if tokens.is_empty() {
             return Ok((Vec::new(), Vec::new()));
         }
-        let rows = self.context.sequence_features(tokens, &[]);
+        let rows = self.context.borrow_mut().sequence_features(tokens, &[]);
         let lattice = self.model.lattice(&rows)?;
         let path = lattice.best_paths(1)?.remove(0);
         let outcomes: Vec<_> = path.labels.iter().map(|&y| self.model.labels()[y].as_str()).collect();
@@ -116,7 +116,7 @@ impl<'m, C: BorrowMut<DefaultNameContext>> CrfNameFinder<'m, C> {
         if tokens.is_empty() {
             return Ok(Vec::new());
         }
-        let rows = self.context.sequence_features(tokens, &[]);
+        let rows = self.context.borrow_mut().sequence_features(tokens, &[]);
         let lattice = self.model.lattice(&rows)?;
         let paths = lattice.best_paths(k)?;
         let mut intervals: Vec<(usize, usize)> = Vec::new();
