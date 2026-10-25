@@ -1,0 +1,79 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-24T16:52:49Z",
+  "machine": {
+    "arch": "x86_64",
+    "host_cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
+    "os": "linux"
+  },
+  "device": {
+    "backend": "cpu",
+    "kind": "DEVICE_CPU",
+    "name": "AMD Ryzen 9 9950X3D 16-Core Processor",
+    "vendor": "AuthenticAMD",
+    "driver_version": "",
+    "runtime_version": "",
+    "memory_total": 130171322368
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 cpu",
+    "commit": "de4d4a985c0cb232073f96decf3394a97e1c9921",
+    "pushed_to": [
+      "origin/muse/965-bench-throughput-modes"
+    ],
+    "settings": []
+  },
+  "procedure": "the tool ran unpinned, the grammar on one thread",
+  "command": "cargo run --release -p turbo-bench --features grammar -- grammar --rounds 5",
+  "mode": "grammar",
+  "subject": {
+    "name": "english",
+    "sha256": "",
+    "load_seconds": null
+  },
+  "text": {
+    "source": "analysis/goldens/data/inputs/{num,quantity,money,temporal} in name order, repeated to at least 102400 bytes",
+    "bytes": 106407,
+    "chars": 100282,
+    "sha256": "67f9dd759655723d4a1dc73219eadee17ee082ebd0a4d8cc1a6d0f91d766abce"
+  },
+  "rounds": 5,
+  "runs": [
+    {
+      "phase": "find",
+      "units": 11081,
+      "seconds": 0.011283932,
+      "chars_per_second": 8887150.33022177,
+      "bytes_per_second": 9429957.571527371
+    },
+    {
+      "phase": "lex",
+      "units": 31073,
+      "seconds": 0.000545301,
+      "chars_per_second": 183902101.774983,
+      "bytes_per_second": 195134430.34214133
+    },
+    {
+      "phase": "parse",
+      "units": 32529,
+      "seconds": 0.004937735,
+      "chars_per_second": 20309311.86060005,
+      "bytes_per_second": 21549759.150703713
+    },
+    {
+      "phase": "parse-units",
+      "units": 45619,
+      "seconds": 0.009213177,
+      "chars_per_second": 10884627.528593015,
+      "bytes_per_second": 11549436.204253973
+    },
+    {
+      "phase": "times",
+      "units": 1344,
+      "seconds": 0.015369686,
+      "chars_per_second": 6524661.596860209,
+      "bytes_per_second": 6923173.316618179
+    }
+  ]
+}

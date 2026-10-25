@@ -73,8 +73,29 @@ pub(super) fn per(t: i64) -> Per {
         Time::Millisecond => Per::Millisecond,
         Time::Second => Per::Second,
         Time::Minute => Per::Minute,
-        _ => Per::Hour,
+        Time::Hour => Per::Hour,
+        Time::Day => Per::Day,
+        Time::Week => Per::Week,
+        Time::Month => Per::Month,
+        Time::Year => Per::Year,
     }
+}
+
+pub(super) fn the_information(v: &[Value]) -> Information {
+    match v.iter().find_map(Value::unit) {
+        Some(Unit::Information(i)) => i,
+        _ => unreachable!("an information child"),
+    }
+}
+
+/// `10 Mb/s`, `5 megabytes per second`.
+pub(super) fn b_info_rate(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
+    Some(Value::Unit(Unit::Rate(Rate::Information(the_information(v), per(term(&v[1]).0)))))
+}
+
+/// `2 GB an hour`, but not the `a year earlier` of a date.
+pub(super) fn b_info_rate_a(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
+    if not_temporal_reference(ctx) { b_info_rate(v, ctx) } else { None }
 }
 
 pub(super) fn b_speed(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
