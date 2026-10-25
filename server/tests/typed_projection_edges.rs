@@ -63,3 +63,48 @@ async fn an_item_wholly_on_deleted_text_keeps_one_empty_fragment() {
     // Both hyphens: nothing of the token is left in the plain view.
     project_and_round_trip(&[Span::new(1, 2), Span::new(3, 4)], (1, 1)).await;
 }
+
+#[tokio::test]
+async fn token_ranges_without_a_tokens_layer_are_refused() {
+    use turbo_analysis::{IxRange, Tag, TagSet};
+    use turbo_analysis_layers::Entities;
+    use turbo_kserve::proto::result::typed_annotation::Value;
+
+    let (server, mut client) = common::serve_no_admin().await;
+    let mut doc = Document::new("A B");
+    let mut t = Spans::new(ViewId::SOURCE);
+    t.push(Span::new(0, 1));
+    t.push(Span::new(2, 3));
+    doc.add(&Key::<Tokens>::DEFAULT, Tokens { spans: t, sentence: None }, Provenance::by("test:tokens")).unwrap();
+    let mut e = Spans::new(ViewId::SOURCE);
+    e.push(Span::new(2, 3));
+    let entities = Entities {
+        spans: e,
+        tokens: vec![IxRange::new(1, 2)],
+        kind: vec![Tag(0)],
+        kinds: TagSet::new("ner", &["THING"]),
+        score: vec![0.5],
+    };
+    doc.add(&Key::<Entities>::DEFAULT, entities, Provenance::by("test:ner")).unwrap();
+    let graph = export(&doc, codecs()).unwrap().to_bytes().unwrap();
+    let mut out = client
+        .inspect_document_graph(InspectDocumentGraphRequest {
+            doc_id: "edges".into(),
+            graph,
+            view: 0,
+            offsets: OffsetMode::Utf8 as i32,
+        })
+        .await
+        .unwrap()
+        .into_inner();
+    // Drop the tokens layer and the entity layer's declaration of it; with
+    // nothing to bound it, a token range past any tokens must not pass.
+    out.layers.retain(|l| l.id != Tokens::NAME.to_string());
+    let ent = out.layers.iter_mut().find(|l| l.id == Entities::NAME.to_string()).unwrap();
+    ent.indexes_layer.retain(|b| b.layer != Tokens::NAME.to_string());
+    let Some(Value::Entity(entity)) = ent.annotations[0].value.as_mut() else { panic!("an entity") };
+    entity.token_end = 999;
+    let err = client.round_trip_typed_document(out).await.expect_err("token_end 999 accepted with no tokens layer");
+    assert_eq!(err.code(), tonic::Code::InvalidArgument, "{err}");
+    server.stop().await;
+}

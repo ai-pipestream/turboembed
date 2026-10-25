@@ -75,7 +75,12 @@ fn check_token_range(tlen: Option<usize>, what: &str, lid: &str, i: usize, s: u3
     if s >= e {
         return Err(bad(format!("{lid}[{i}] {what} has empty or inverted token range {s}..{e}")));
     }
-    if tlen.is_some_and(|lim| (e as usize) > lim) {
+    // A projection always carries the tokens layer its token ranges index;
+    // without it nothing bounds the range, so refuse rather than skip.
+    let Some(lim) = tlen else {
+        return Err(bad(format!("{lid}[{i}] {what} has a token range but no opennlp:tokens layer to bound it")));
+    };
+    if (e as usize) > lim {
         return Err(bad(format!("{lid}[{i}] {what} token_end {e} exceeds opennlp:tokens length")));
     }
     Ok(())
