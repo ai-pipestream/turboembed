@@ -26,6 +26,7 @@ pub use date::{DAY_SECONDS, Date, DateTime, write_year};
 pub use entity_graph::{
     ConsolidatedMention, DocumentEntities, DocumentEntity, EntityRelation, SyntacticRole, SyntacticRoleCounts,
 };
+pub use events::{AnchoredLayerKind, ArgumentRole, EventArgument, EventFrame, Events};
 pub use generic::{Confidence, Language, TokenVectorWindows, Utf16Spans, Vectors};
 pub use language_spans::{LanguageSpan, LanguageSpans, UNDETERMINED};
 pub use levels::{Level, Levels, Unit, VectorKind};
@@ -120,6 +121,7 @@ mod containment;
 mod core_tests;
 mod date;
 mod entity_graph;
+mod events;
 mod evidence;
 pub mod export;
 mod generic;
