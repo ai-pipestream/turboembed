@@ -19,6 +19,7 @@ pub mod clauses;
 mod cohesion;
 pub mod coref;
 mod discourse;
+pub mod discourse_graph;
 mod drift;
 pub mod entity;
 pub mod expand;
@@ -57,6 +58,7 @@ pub use coref::{
     chunk_antecedents, coref_boundaries, coref_boundaries_from_chains, extract_chains,
 };
 pub use discourse::{DISCOURSE, DiscourseBoundaries, DiscourseLanguage};
+pub use discourse_graph::DiscourseAnnotator;
 pub use drift::{Drift, DriftBoundaries, Score, drift};
 pub use entity::{
     ChunkEntities, ChunkEntityHeaders, EntityBoundaries, EntityContinuity, EntityKeys, HeaderPolicy, Keying,

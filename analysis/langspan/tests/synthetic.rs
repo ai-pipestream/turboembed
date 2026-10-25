@@ -101,10 +101,10 @@ fn with_a_sentence_layer_a_span_starts_where_its_sentence_does() {
     assert_eq!(spans(&doc)[0].0, "\"xxxx xxxx xxxx\"");
     let spans_prov = doc.provenance(Key::<LanguageSpans>::DEFAULT.id()).unwrap();
     assert_eq!(spans_prov.annotator, "turbo-langspan:script-ngram");
-    assert_eq!(spans_prov.version, "1");
+    assert_eq!(spans_prov.version, "2");
     let lang_prov = doc.provenance(Key::<Language>::DEFAULT.id()).unwrap();
     assert_eq!(lang_prov.annotator, "turbo-langspan:script-ngram");
-    assert_eq!(lang_prov.version, "1");
+    assert_eq!(lang_prov.version, "2");
 }
 
 #[test]

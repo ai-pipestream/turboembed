@@ -84,9 +84,14 @@ fn model(bundle: &Path, name: Option<&str>, sessions: u32) -> ModelConfig {
 
 /// A server whose admin calls are served, for the load and unload tests.
 pub async fn serve() -> (Server, Analysis) {
-    let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model(&tiny(), None, 2)], MAX, Serve { admin: true })
-        .await
-        .unwrap();
+    let s = Server::start(
+        "127.0.0.1:0".parse().unwrap(),
+        vec![model(&tiny(), None, 2)],
+        MAX,
+        Serve { admin: true, ..Serve::default() },
+    )
+    .await
+    .unwrap();
     s.load().await.unwrap();
     // The client decodes answers up to the same message budget the server
     // decodes requests with: a refusal can carry an id bounded by the

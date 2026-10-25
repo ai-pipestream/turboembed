@@ -35,7 +35,7 @@ fn bad(message: impl Into<String>) -> Failure {
     Failure::new(TURBO_E_INVALID_ARGUMENT, 0, message)
 }
 
-const BLOCKS: [Block; 14] = [
+const BLOCKS: [Block; 16] = [
     Block::Section,
     Block::Heading,
     Block::Paragraph,
@@ -50,6 +50,8 @@ const BLOCKS: [Block; 14] = [
     Block::Footnote,
     Block::PageHeader,
     Block::PageFooter,
+    Block::LooseList,
+    Block::Html,
 ];
 
 fn cut_to_wire(cut: Cut) -> (u32, u32) {
@@ -329,5 +331,25 @@ impl Wire for ChunkLevels {
             return Err(mismatched("embedding rows", vectors.len(), n_chunks));
         }
         Ok(ChunkLevels { text: msg.text.clone(), view, offsets, chunks, levels, vectors })
+    }
+}
+
+#[cfg(test)]
+mod block_tags {
+    use super::*;
+
+    #[test]
+    fn list_tightness_and_html_have_new_tags_after_the_old_tags() {
+        assert_eq!(cut_to_wire(Cut::Inside(Block::List)), (8, 3));
+        assert_eq!(cut_to_wire(Cut::Inside(Block::PageFooter)), (8, 13));
+        assert_eq!(cut_to_wire(Cut::Inside(Block::LooseList)), (8, 14));
+        assert_eq!(cut_to_wire(Cut::Inside(Block::Html)), (8, 15));
+        for b in BLOCKS {
+            for cut in [Cut::Inside(b), Cut::Overlap(b)] {
+                let (tag, block) = cut_to_wire(cut);
+                assert_eq!(cut_from_wire(tag, block).unwrap(), cut);
+            }
+        }
+        assert!(cut_from_wire(8, 16).is_err());
     }
 }

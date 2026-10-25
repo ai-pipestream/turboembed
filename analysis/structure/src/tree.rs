@@ -48,6 +48,60 @@ impl Tree {
         self.nodes.len() > i as usize + 1
     }
 
+    /// A blank line between direct siblings loosens their list, not any
+    /// enclosing list. Blank lines inside a code leaf do not count.
+    pub(crate) fn list_tightness(&mut self, text: &str) {
+        if !self.nodes.iter().any(|n| n.kind == Block::List) {
+            return;
+        }
+        let mut previous = vec![None; self.nodes.len()];
+        for i in 0..self.nodes.len() {
+            let n = self.nodes[i];
+            let Some(p) = n.parent.map(|p| p as usize) else { continue };
+            let parent = self.nodes[p];
+            let list = if parent.kind.list_tightness().is_some() {
+                Some(p)
+            } else if parent.kind == Block::ListItem {
+                parent.parent.map(|p| p as usize)
+            } else {
+                None
+            };
+            let Some(list) = list else { continue };
+            if let Some(end) = previous[p] {
+                let gap = &text[end..n.start as usize];
+                let mut lines = crate::line::Lines::new(gap, 0);
+                lines.next(); // The remainder of the previous block's line.
+                if lines.any(|(a, b)| b < gap.len() && self.blank_between(&gap[a..b], p)) {
+                    self.nodes[list].kind = Block::LooseList;
+                }
+            }
+            previous[p] = Some(n.end as usize);
+        }
+    }
+
+    fn blank_between(&self, line: &str, parent: usize) -> bool {
+        let mut quotes = 0;
+        for b in line.bytes() {
+            match b {
+                b' ' | b'\t' => {}
+                b'>' => quotes += 1,
+                _ => return false,
+            }
+        }
+        if quotes == 0 {
+            return true;
+        }
+        let mut up = Some(parent as u32);
+        while let Some(i) = up {
+            let n = self.nodes[i as usize];
+            if n.kind == Block::Quote {
+                return quotes == n.depth as usize;
+            }
+            up = n.parent;
+        }
+        false
+    }
+
     /// The layer, with a section around each top-level heading: from the
     /// heading to the end of the last top-level block before the next
     /// heading of the same or a higher level (a smaller number), nested by
