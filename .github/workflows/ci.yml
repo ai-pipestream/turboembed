@@ -273,14 +273,17 @@ jobs:
   check:
     if: always()
     needs: [lint, test, fuzz, features, parity, windows-lint, windows-test, windows-fuzz, windows-core]
-    runs-on: ${{ github.event.pull_request.head.repo.fork != true && vars.TURBO_CI_LINUX && fromJSON(vars.TURBO_CI_LINUX) || 'ubuntu-24.04' }}
+    # Hosted: it takes seconds, and on the self-hosted runners it would
+    # wait behind the queue of test jobs.
+    runs-on: ubuntu-24.04
     steps:
       - name: every lane passed
         env:
           RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
           echo "$RESULTS"
-          for r in $RESULTS; do [ "$r" = success ] || exit 1; done
+          # The Windows lanes are skipped on pull requests.
+          for r in $RESULTS; do [ "$r" = success ] || [ "$r" = skipped ] || exit 1; done
 
   # Windows, the host the Intel NPU machines run (#1011). The CPU backend
   # and the host-only NPU build: the CUDA, Metal, Level Zero and Hailo
@@ -290,7 +293,11 @@ jobs:
   # shards, turbo-fuzz optimized, and the core with its C ABI tests.
   # Skipped in the shards: two docker runner tests (unix exit status
   # text, unix mount paths; the docker runners are Linux-only).
+  # They run on pushes to main, not on pull requests: the hosted pool
+  # runs few Windows jobs at once, and six per pull request push queued
+  # every run behind them.
   windows-lint:
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     steps:
       # The goldens and fixtures are compared byte for byte; a checkout
@@ -326,6 +333,7 @@ jobs:
   # windows-core, the shards run what `cargo test --workspace` ran.
   windows-test:
     name: windows test (shard ${{ matrix.shard }}/4)
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     strategy:
       fail-fast: false
@@ -366,6 +374,7 @@ jobs:
   # overflow checks kept on.
   windows-fuzz:
     name: windows test (turbo-fuzz)
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     steps:
       # The goldens and fixtures are compared byte for byte; a checkout
@@ -389,6 +398,7 @@ jobs:
   # The core and its C ABI tests, in their own target directory, as in
   # the features job (#358).
   windows-core:
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     steps:
       # The goldens and fixtures are compared byte for byte; a checkout
