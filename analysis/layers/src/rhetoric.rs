@@ -10,7 +10,7 @@
 
 use std::sync::Arc;
 
-use turbo_analysis::{Edges, Ix, Layer, Overlap, Span, Spans, Tag, TagSet, TextSpans, ViewId};
+use turbo_analysis::{Edges, Ix, Key, KeyId, Layer, Overlap, Span, Spans, Tag, TagSet, TextSpans, ViewId};
 
 use crate::{Chunks, Sentences};
 
@@ -182,6 +182,15 @@ impl Layer for Edus {
 
     fn text_spans(&self) -> Option<TextSpans<'_>> {
         Some(self.spans.text_spans())
+    }
+
+    fn indexes(&self) -> Vec<(KeyId, usize)> {
+        self.sentence
+            .iter()
+            .map(|s| s.get().saturating_add(1))
+            .max()
+            .map(|bound| vec![(Key::<Sentences>::DEFAULT.id(), bound)])
+            .unwrap_or_default()
     }
 
     fn check(&self) -> Result<(), String> {

@@ -19,7 +19,11 @@ impl LayerCodec for Edus {
         let spans: turbo_analysis::Spans<Edus> = get_spans(&mut r, cx)?;
         let mut sentence = Vec::with_capacity(spans.len());
         for _ in 0..spans.len() {
-            sentence.push(Ix::new(r.u32()?));
+            let index = r.u32()?;
+            if index == u32::MAX {
+                return Err(malformed("a discourse sentence uses the reserved u32::MAX index"));
+            }
+            sentence.push(Ix::new(index));
         }
         done(&r, "discourse units")?;
         let out = Edus { spans, sentence };
