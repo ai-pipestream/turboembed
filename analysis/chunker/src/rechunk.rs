@@ -15,7 +15,10 @@
 //! [`Chunker`] chunking of the new inputs, however the edit fell.
 //! The upstream layers of the edited text (sentences, subwords,
 //! boundaries, structure) are inputs, as they are for a chunking;
-//! only the chunker's own DP is skipped, run by run.
+//! only the chunker's own DP is skipped, run by run. This API has no
+//! `Tables` input: the equality guarantee compares plain chunkings without
+//! table-row atomicity. After editing table-aware chunks, run the full
+//! chunker with the updated tables and rebuild their header contexts.
 
 use std::ops::Range;
 
@@ -167,7 +170,9 @@ impl Chunker {
     /// also survive wherever the text itself did.
     ///
     /// This is the plain [`Chunker`]'s re-chunking (no chunk term);
-    /// a cohesion term over whole chunks is not carried.
+    /// a cohesion term over whole chunks is not carried. It also has no
+    /// `Tables` input. Table-aware edits require full chunking with updated
+    /// tables and a new `TableHeaderAnnotator` pass.
     pub fn rechunk(
         &self,
         edit: &Alignment,
@@ -204,6 +209,7 @@ impl Chunker {
             bounds: new.bounds,
             limits: &new.limits,
             clauses: None,
+            tables: None,
         };
         for run in &new.runs {
             let carried = old_run_for(edit, &old, &new, run)

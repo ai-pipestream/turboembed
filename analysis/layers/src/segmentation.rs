@@ -16,6 +16,7 @@ pub enum Block {
     Section,
     Heading,
     Paragraph,
+    /// A tight list. See `list_tightness` for both list variants.
     List,
     ListItem,
     Table,
@@ -27,6 +28,21 @@ pub enum Block {
     Footnote,
     PageHeader,
     PageFooter,
+    /// A list with blank lines between items or item blocks.
+    LooseList,
+    /// A raw HTML block; its contents are not parsed as Markdown.
+    Html,
+}
+
+impl Block {
+    /// The list tightness flag, or `None` for a non-list block.
+    pub fn list_tightness(self) -> Option<bool> {
+        match self {
+            Self::List => Some(true),
+            Self::LooseList => Some(false),
+            _ => None,
+        }
+    }
 }
 
 impl Layer for Structure {
@@ -340,8 +356,8 @@ pub struct Chunks {
     /// span, with the overhead every row carries.
     pub model_tokens: Vec<u32>,
     /// Whether it is longer than the budget's maximum. At level 0 that is
-    /// one sentence alone, for a clause splitter to cut further; a row
-    /// above holds the chunks cut from it. Its `cut` still says why it
+    /// one sentence or an atomic table row; clause splitting preserves table
+    /// rows. A row above holds the chunks cut from it. Its `cut` still says why it
     /// starts where it does.
     pub over_budget: Vec<bool>,
     /// Tokens every row was counted as carrying besides its text

@@ -263,3 +263,10 @@ fn normalizing_by_runs_is_normalizing_the_whole_text() {
         }
     }
 }
+
+#[test]
+fn pre_words_part_punctuation_and_ideographs() {
+    let t = "(Paris) Merkel's\u{3000}\u{6771}\u{4eac}x \u{ff0c}y";
+    let got: Vec<&str> = pre_words(t).into_iter().map(|(a, b)| &t[a..b]).collect();
+    assert_eq!(got, ["(", "Paris", ")", "Merkel", "'", "s", "\u{6771}", "\u{4eac}", "x", "\u{ff0c}", "y"]);
+}

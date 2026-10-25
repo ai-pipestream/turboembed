@@ -128,3 +128,15 @@ fn bias_metrics_reject_a_count_mismatch_and_a_bad_score() {
     gold.pop();
     assert!(evaluate_incivility_bias(&gold, &layer, 0.5).is_err());
 }
+
+#[test]
+fn nested_identity_groups_are_all_preserved() {
+    let terms = IdentityTerms::new([("african", "african"), ("african american", "african american")]).unwrap();
+    assert_eq!(terms.find(&["an", "african", "american", "author"]), vec!["african", "african american"]);
+}
+
+#[test]
+fn shared_term_keeps_every_group() {
+    let terms = IdentityTerms::new([("a", "x"), ("b", "x")]).unwrap();
+    assert_eq!(terms.find(&["x"]), vec!["a", "b"]);
+}

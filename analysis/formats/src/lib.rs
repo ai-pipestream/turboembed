@@ -124,6 +124,7 @@ pub mod conllu;
 pub mod convert;
 pub mod corpora;
 pub mod directory;
+pub mod doc_export;
 pub mod encoding;
 pub mod error;
 pub mod evaluate;

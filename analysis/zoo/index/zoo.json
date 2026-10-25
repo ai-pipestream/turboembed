@@ -4120,6 +4120,452 @@
           "sha512": "c151402c7df0585adf2ae1d6a710d88a8bf8e42fa08766733fcf6b167b6e4fb9bbba687bfbcb7e430b88f29dbc2e89ac79dc74aeb2645c915b973631a0cd024b"
         }
       ]
+    },
+    {
+      "id": "symspell-frequency-dictionary-en-82-765",
+      "kind": "KIND_LEXICON",
+      "language": "en",
+      "format": "FORMAT_TEXT",
+      "version": "c239062ae02961df18ab7da1671d01b4388204e0",
+      "license": "MIT",
+      "license_terms": "https://github.com/wolfgarbe/SymSpell/blob/c239062ae02961df18ab7da1671d01b4388204e0/LICENSE",
+      "trained_on": [
+        {
+          "name": "Google Books Ngram data",
+          "license": "CC-BY-3.0",
+          "license_terms": "https://storage.googleapis.com/books/ngrams/books/datasetsv2.html"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "SymSpell frequency lists by Wolf Garbe at c239062ae02961df18ab7da1671d01b4388204e0 (MIT, https://github.com/wolfgarbe/SymSpell/blob/c239062ae02961df18ab7da1671d01b4388204e0/LICENSE), compiled as the intersection of Google Books Ngram data (CC-BY-3.0, https://storage.googleapis.com/books/ngrams/books/datasetsv2.html) with SCOWL (http://wordlist.aspell.net/).",
+      "files": [
+        {
+          "path": "frequency_dictionary_en_82_765.txt",
+          "url": "https://raw.githubusercontent.com/wolfgarbe/SymSpell/c239062ae02961df18ab7da1671d01b4388204e0/SymSpell/frequency_dictionary_en_82_765.txt",
+          "size": 1332881,
+          "sha256": "c604e1121e398ae7c7fbf777f11e0a0f2fa66eda932cb9fba1321466cf3acd7b",
+          "sha512": "c89ad6785ba97e6179049e7033dc2b9c1f7d000982b24c12bfb66841c7b5344a96b7b2d6bbfa8c679bf081ffdb1da9a41fa50c2a9bf7d7aef6a02181d48c04e7"
+        }
+      ]
+    },
+    {
+      "id": "symspell-frequency-bigramdictionary-en-243-342",
+      "kind": "KIND_LEXICON",
+      "language": "en",
+      "format": "FORMAT_TEXT",
+      "version": "c239062ae02961df18ab7da1671d01b4388204e0",
+      "license": "MIT",
+      "license_terms": "https://github.com/wolfgarbe/SymSpell/blob/c239062ae02961df18ab7da1671d01b4388204e0/LICENSE",
+      "trained_on": [
+        {
+          "name": "Google Books Ngram data",
+          "license": "CC-BY-3.0",
+          "license_terms": "https://storage.googleapis.com/books/ngrams/books/datasetsv2.html"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "SymSpell bigram frequency list by Wolf Garbe at c239062ae02961df18ab7da1671d01b4388204e0 (MIT, https://github.com/wolfgarbe/SymSpell/blob/c239062ae02961df18ab7da1671d01b4388204e0/LICENSE). The project's README states no source for this list; Google Books Ngram data (CC-BY-3.0, https://storage.googleapis.com/books/ngrams/books/datasetsv2.html) is recorded as its source by inference from the unigram list, which the README describes as the intersection of that data with SCOWL (http://wordlist.aspell.net/), so the bigram list's source is unconfirmed.",
+      "files": [
+        {
+          "path": "frequency_bigramdictionary_en_243_342.txt",
+          "url": "https://raw.githubusercontent.com/wolfgarbe/SymSpell/c239062ae02961df18ab7da1671d01b4388204e0/SymSpell/frequency_bigramdictionary_en_243_342.txt",
+          "size": 5137213,
+          "sha256": "fd892a160184101dd7ae807ac5a302d01fcea1c47304181a8ed7ed9c94545bcd",
+          "sha512": "9e73122f1dd3f3490995e3dbfbacba1503006e7000bde0116e0801b0a04838dd0b12eb0fb870743321c8dd234978ca6fc7783c040a980aa7cfb62d0c0af7426c"
+        }
+      ]
+    },
+    {
+      "id": "masc-3.0.0",
+      "kind": "KIND_DATASET",
+      "language": "en",
+      "format": "FORMAT_ZIP",
+      "version": "3.0.0",
+      "license": "CC-BY-3.0-US",
+      "license_terms": "https://anc.org/data/masc/",
+      "trained_on": [],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on MASC 3.0.0, the Manually Annotated Sub-Corpus of the American National Corpus, by the American National Corpus project (https://anc.org/), published at https://anc.org/data/masc/ under the Creative Commons Attribution 3.0 United States licence (https://creativecommons.org/licenses/by/3.0/us/).",
+      "files": [
+        {
+          "path": "MASC-3.0.0.zip",
+          "url": "https://github.com/nancyide/anc-website/releases/download/datasets-2026-09-25/MASC-3.0.0.zip",
+          "size": 36358521,
+          "sha256": "0b300d96016233c7c79b43559b477a6bb0ed16bb416d5c517eccb108a6228493",
+          "sha512": "a88795055fab5c600f26215cbe6143c2325627adaf9ae80d06c7e815a76834debd4b7728a745aa67608ee1d028b35ca139b2b90760e69d0e7227af83bf05d6a9"
+        }
+      ]
+    },
+    {
+      "id": "ud-spanish-ancora-r2.16",
+      "kind": "KIND_DATASET",
+      "language": "es",
+      "format": "FORMAT_CONLLU",
+      "version": "r2.16",
+      "license": "CC-BY-4.0",
+      "license_terms": "https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/LICENSE.txt",
+      "trained_on": [],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Spanish-AnCora r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Spanish-AnCora/tree/r2.16), by Héctor Martínez Alonso and Daniel Zeman, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). The model is derived from the treebank; the treebank itself is not included.",
+      "files": [
+        {
+          "path": "LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Spanish-AnCora/r2.16/LICENSE.txt",
+          "size": 189,
+          "sha256": "653702c7fdee69f7d7a439c9ba4c178c26e745479f6e6d2943bed1a9b9c7bf67",
+          "sha512": "22412f70abfa24f53c5eaccf97e2660bc1091bb62a983294e533a967347118309a8952a6deafe8b79c6930b2b297e88a1cae269bf6d45d8b8f307f6adbef596d"
+        },
+        {
+          "path": "README.md",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Spanish-AnCora/r2.16/README.md",
+          "size": 5623,
+          "sha256": "94041e7d42b86a189fc7866799e1119eea1d32ce02444c26b251d518548a7c1c",
+          "sha512": "a09395a7e62b9a5561d950b99e4c7d93ffa47fa7d843af20e0aab3418c740df97cd62b1bf5c9fb3dc11d8cd2c6c4c31be2780b186f055b91628c79b041326dd8"
+        },
+        {
+          "path": "es_ancora-ud-train.conllu",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Spanish-AnCora/r2.16/es_ancora-ud-train.conllu",
+          "size": 42958918,
+          "sha256": "79e7463700e75bdf921c85b6e04495af118462a2b032bbff590fb82aa6ad8d5d",
+          "sha512": "9014bfc581e2f4140d92b6cbfa20c68939c53b830cecbb965d5b62ef45e1ed056c2babade29c63af0f8733d32d4be05a43bdc182d6e9adcdb298fe9da3541df2"
+        },
+        {
+          "path": "es_ancora-ud-dev.conllu",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Spanish-AnCora/r2.16/es_ancora-ud-dev.conllu",
+          "size": 5104844,
+          "sha256": "e257745f4c339be53d5158867a28a2bfbcb98d890db86faa324e5f45f0284afc",
+          "sha512": "03c6e5e5511ecba1025f07bd3e55103dadb2e0dcd66de989913eb825c927808e5efd232c4000448beee7d0aefbf72b13d232e854e3781abadf025e033d055676"
+        },
+        {
+          "path": "es_ancora-ud-test.conllu",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Spanish-AnCora/r2.16/es_ancora-ud-test.conllu",
+          "size": 5106509,
+          "sha256": "2a24316503a56e171f07b38cf2ec13c22e3b62a337c6dbf2d9d1a54ada2b012b",
+          "sha512": "9ff7e8cd44f95bc7821260bfda6e45444528547a0368cae484ae25e22b704d16d173c0b3af1174fd7d5b53104fd02d05d9763699f5672eda93660cb5743f81c1"
+        }
+      ]
+    },
+    {
+      "id": "ud-catalan-ancora-r2.16",
+      "kind": "KIND_DATASET",
+      "language": "ca",
+      "format": "FORMAT_CONLLU",
+      "version": "r2.16",
+      "license": "CC-BY-4.0",
+      "license_terms": "https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/LICENSE.txt",
+      "trained_on": [],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Catalan-AnCora r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Catalan-AnCora/tree/r2.16), by Héctor Martínez Alonso, Elena Pascual and Daniel Zeman, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). The model is derived from the treebank; the treebank itself is not included.",
+      "files": [
+        {
+          "path": "LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Catalan-AnCora/r2.16/LICENSE.txt",
+          "size": 189,
+          "sha256": "653702c7fdee69f7d7a439c9ba4c178c26e745479f6e6d2943bed1a9b9c7bf67",
+          "sha512": "22412f70abfa24f53c5eaccf97e2660bc1091bb62a983294e533a967347118309a8952a6deafe8b79c6930b2b297e88a1cae269bf6d45d8b8f307f6adbef596d"
+        },
+        {
+          "path": "README.md",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Catalan-AnCora/r2.16/README.md",
+          "size": 4726,
+          "sha256": "655c2547a513087644b94315fca88a38a105ae11a1673f7f701d1659194ac1e3",
+          "sha512": "c107336a2b8ecc33b8f29c6e8b689245531036f35e76670bd14e06fa52ed87e512a89ce6c6893ad50ab256e2b76ae8f93e72d06ced429c217ab5d11470219572"
+        },
+        {
+          "path": "ca_ancora-ud-train.conllu",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Catalan-AnCora/r2.16/ca_ancora-ud-train.conllu",
+          "size": 39714229,
+          "sha256": "bb5d06fb14336bae2c3aa64aa7e65afe183295a4669ce4f45bf0ed57c18ccccd",
+          "sha512": "ceffa3d603470e86640b6f2cbdbcedea0ac4582136eb01ea63169f6f30b985e889adc392677a6677d703caec74b0199dbf0a5f7de35f1d86bf25ebc1c6e8ee00"
+        },
+        {
+          "path": "ca_ancora-ud-dev.conllu",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Catalan-AnCora/r2.16/ca_ancora-ud-dev.conllu",
+          "size": 5421739,
+          "sha256": "bfcb95de30b6ea0b250619386a281add3e2bbd153804a89da4dbe2938ad28199",
+          "sha512": "be53e9a60a36f81b8a2eea14523c4d2cd2ab27c054be4a8bfde24a4f94d48df18420b1948ffdea0c994a8bdc97af85631b03a3a0f11880616c5972959d682481"
+        },
+        {
+          "path": "ca_ancora-ud-test.conllu",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Catalan-AnCora/r2.16/ca_ancora-ud-test.conllu",
+          "size": 5515247,
+          "sha256": "f68ff102b9bf8bc197be3262a1caf25682683c4db4c648663c7a791bfbfa115f",
+          "sha512": "f32af8db3d37698e1af3ff8d4a4940fafe3a28a7ae8d2ad46f9935f5224a01a852b04fb6cec63446f30af5ceaa7ca5e765cd8dd7c36e595a2328b6308d97c7a8"
+        }
+      ]
+    },
+    {
+      "id": "ud-finnish-ftb-r2.16",
+      "kind": "KIND_DATASET",
+      "language": "fi",
+      "format": "FORMAT_CONLLU",
+      "version": "r2.16",
+      "license": "CC-BY-4.0",
+      "license_terms": "https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/LICENSE.txt",
+      "trained_on": [],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Finnish-FTB r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Finnish-FTB/tree/r2.16), by Jussi Piitulainen, Hanna Nurmi and Jack Rueter, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). FTB1U is Copyright 2014 FIN-CLARIN. The model is derived from the treebank; the treebank itself is not included.",
+      "files": [
+        {
+          "path": "LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Finnish-FTB/r2.16/LICENSE.txt",
+          "size": 44134,
+          "sha256": "492fc0da8e9e5beecf59f5740e90482a256c8b59da6a46766aa778475969c507",
+          "sha512": "2cde368f977c49d493ed1f2696d53aede83ad1100cab5b6f9341d25de8f7ffdedb1d2bb95ad60827bb990887512b147b8fae65aab16b94fd710fbc431656a202"
+        },
+        {
+          "path": "README.md",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Finnish-FTB/r2.16/README.md",
+          "size": 5531,
+          "sha256": "9bb99c1912f08475aa6344a8399d2b86db99f9c6f36fc4548ce08c33ee7b59ce",
+          "sha512": "2c6b4504ef19320fb6dd5d43d3cf461e6374754d5ac72ca93f6870cfba123e6b07a5b790bebdea062e7660f2e6157e6b3eab848b6ee5739d78fb27baed066184"
+        },
+        {
+          "path": "fi_ftb-ud-train.conllu",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Finnish-FTB/r2.16/fi_ftb-ud-train.conllu",
+          "size": 10505459,
+          "sha256": "0cc04932f18613c4491ace06f597b7b8caed36e557168b9b6ef154da7ae2d71b",
+          "sha512": "3d15a8473440c42960254438f761608afdbb6072918aba145d83095c876611c2e3fdab0bab8ff920309ddee09ece3746873433b3ca7a6185db267aebbeee6d5d"
+        },
+        {
+          "path": "fi_ftb-ud-dev.conllu",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Finnish-FTB/r2.16/fi_ftb-ud-dev.conllu",
+          "size": 1296909,
+          "sha256": "1e46f7f88b6f1fa4f39b010b4ac8b8664b1be2c899f531f21b7bdc3fcf2e9142",
+          "sha512": "ca0469394a38185b00a5acd20cd6feda94820849edfcdd4317c79728b4cf212ebd365529e1cc8d903711e9ff4d7ddb44cb4a0ddbcdab7885b74f38eca294c590"
+        },
+        {
+          "path": "fi_ftb-ud-test.conllu",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Finnish-FTB/r2.16/fi_ftb-ud-test.conllu",
+          "size": 1342602,
+          "sha256": "3aca7fbd727846c0955e9db581571a0fca89d46f825ee7f2a32fab1ea0bc31ba",
+          "sha512": "cfa0708711a3d8deea4720ea36e82a6387f8946a465269a53dc63bfba49698d2108ae9bd55bd9b72ed1b1670cb0e2041d646aba08552b37330b596e0b4c7ba65"
+        }
+      ]
+    },
+    {
+      "id": "ud-italian-markit-r2.16",
+      "kind": "KIND_DATASET",
+      "language": "it",
+      "format": "FORMAT_CONLLU",
+      "version": "r2.16",
+      "license": "CC-BY-4.0",
+      "license_terms": "https://github.com/UniversalDependencies/UD_Italian-MarkIT/blob/r2.16/LICENSE.txt",
+      "trained_on": [],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Italian-MarkIT r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Italian-MarkIT/tree/r2.16), by Teresa Paccosi, Alessio Palmero Aprosio and Sara Tonelli, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). The model is derived from the treebank; the treebank itself is not included.",
+      "files": [
+        {
+          "path": "LICENSE.txt",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Italian-MarkIT/r2.16/LICENSE.txt",
+          "size": 188,
+          "sha256": "5cbfe2d4d12938f9961bf5a0028390f4b6b60749b075e228a5740848afcb4a9b",
+          "sha512": "10ef47a6ae80a0011f995aaf0ab6a40eded49199ed1bfe798d6a290fa3ad9f0ca24d30743775c916b12a73e0440538a5e962b9f1f50f0e7fbf09e52d12200475"
+        },
+        {
+          "path": "README.md",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Italian-MarkIT/r2.16/README.md",
+          "size": 1955,
+          "sha256": "3efbd63f62359b2be61af8822c6dfd27af67f93c184fb1a9018208267e726732",
+          "sha512": "0f26b24181605ddd54644385445fde8397d6b89cecadfd815932ee01f68c17a9da452a5090390a146e1d035aff639ef67325da06306d1ab58f5227104c86d179"
+        },
+        {
+          "path": "it_markit-ud-train.conllu",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Italian-MarkIT/r2.16/it_markit-ud-train.conllu",
+          "size": 1266080,
+          "sha256": "4f6fc3423acb00d49e1e167bd21b11ebbc23e22275fd6f5eeb4d75cfbbccc5c6",
+          "sha512": "7c6243a80f7a147360cf21fd03a8bc01f90b47d4230b3c22a203e4b3db6d96acf52ba99be3e27205e0ae73c94d12719f42f386af533243f8b1e79c320df9fedf"
+        },
+        {
+          "path": "it_markit-ud-dev.conllu",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Italian-MarkIT/r2.16/it_markit-ud-dev.conllu",
+          "size": 665430,
+          "sha256": "633b6186f47ecfebfcff4ff9c7e19a0cbffd1f655f14fc1e9265b12bda597f97",
+          "sha512": "85976b63e421e917d8c5ddfe99f1417b1dc7383b36c5fdbd4e42339b6b9301c708888d165767d601de58e45f7b5386944f6d561b85ea4ec699048c3fec9c79dd"
+        },
+        {
+          "path": "it_markit-ud-test.conllu",
+          "url": "https://raw.githubusercontent.com/UniversalDependencies/UD_Italian-MarkIT/r2.16/it_markit-ud-test.conllu",
+          "size": 658412,
+          "sha256": "9048ed0064e3989e2c37377755a28c25c7e462b1ad916e5808dc0a7ce95fc3fc",
+          "sha512": "ce160a7f7077c00d1a5111167bf5d1e8d5767208dc0f174f82160bf7c6e7b19666340f95a97d2df4746de2ce8f37d892f022656344f8d1f2d31ac3915aeba732"
+        }
+      ]
+    },
+    {
+      "id": "tatoeba-2026-10-10",
+      "kind": "KIND_DATASET",
+      "language": "mul",
+      "format": "FORMAT_TAR_BZ2",
+      "version": "2026-10-10",
+      "license": "LicenseRef-CC-BY-2.0-FR",
+      "license_terms": "https://tatoeba.org/en/terms_of_use",
+      "trained_on": [],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Tatoeba weekly export of 2026-10-10 (https://tatoeba.org), by Tatoeba's contributors, under CC BY 2.0 FR (https://creativecommons.org/licenses/by/2.0/fr/) and CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/) for sentences listed in sentences_CC0.csv (https://tatoeba.org/en/terms_of_use).",
+      "files": [
+        {
+          "path": "sentences_detailed.tar.bz2",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/data-tatoeba-2026-10-10/sentences_detailed.tar.bz2",
+          "size": 303565606,
+          "sha256": "776e298918d984b0e6ea3c8c48eb32ca6f79df624827025d463ce16e019a749f",
+          "sha512": "2df224d00c88d53108b4c463382413c51b6a5f081e860112ef65c893f8687a1a331d1ef74cae95d8df1fda1caa61e07c7cc19af9e7b84d12a2c353d35042dac9"
+        },
+        {
+          "path": "sentences_CC0.tar.bz2",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/data-tatoeba-2026-10-10/sentences_CC0.tar.bz2",
+          "size": 7959741,
+          "sha256": "74a1577f35d9f11134b281be3125cf17e5531b8a29054f68b3e858418387e17f",
+          "sha512": "b742797cb212c5730efef8e222729625249867ce49edd3f952b7008b2652f82dd92c00340611a7bbed3beb71a99a596dd5471315d2e1eabac301782ca422a013"
+        }
+      ]
+    },
+    {
+      "id": "civil-comments",
+      "kind": "KIND_DATASET",
+      "language": "en",
+      "format": "FORMAT_PARQUET",
+      "version": "f2970eb3a55777454c94069077cc8d9b5866312d",
+      "license": "CC0-1.0",
+      "license_terms": "https://huggingface.co/datasets/google/civil_comments/blob/f2970eb3a55777454c94069077cc8d9b5866312d/README.md",
+      "trained_on": [],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Civil Comments (google/civil_comments at f2970eb3a55777454c94069077cc8d9b5866312d, https://huggingface.co/datasets/google/civil_comments), by Conversation AI / Jigsaw (Borkan et al., 2019), released into the public domain under CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/).",
+      "files": [
+        {
+          "path": "README.md",
+          "url": "https://huggingface.co/datasets/google/civil_comments/resolve/f2970eb3a55777454c94069077cc8d9b5866312d/README.md",
+          "size": 7734,
+          "sha256": "8ce0fee0cce0d54ddd5daaad7ba7cd5ed31d78b8e8f2d5cd2345b0dd015932c6",
+          "sha512": "fe06be2aaed020e5d415e6d3e583ebd55c85103684fe9e3f3859e34ad1ffb6ee43adfee2155a58cc9bc62bd25110dc4a7cd829dfa8f27f007e3cd693f37e28c3"
+        },
+        {
+          "path": "data/train-00000-of-00002.parquet",
+          "url": "https://huggingface.co/datasets/google/civil_comments/resolve/f2970eb3a55777454c94069077cc8d9b5866312d/data/train-00000-of-00002.parquet",
+          "size": 193527147,
+          "sha256": "c20f01c3aecbdd942886cacb0ee67e995df33bc712a622fde75927ed3d6ccefe",
+          "sha512": "0cf7e3d3f46c5122904b20480bdd61b9988863fcf55b509ac0defccb7dbe586848cc97b8d302245f1b9dce9cc8a68ea1e5ad8a17fadff3e4addfb056fdf2f668"
+        },
+        {
+          "path": "data/train-00001-of-00002.parquet",
+          "url": "https://huggingface.co/datasets/google/civil_comments/resolve/f2970eb3a55777454c94069077cc8d9b5866312d/data/train-00001-of-00002.parquet",
+          "size": 186778090,
+          "sha256": "a76af69d7b24758bc38b196bc422d4767935c1dd7d3c1465554649c546d99ccb",
+          "sha512": "c33d718688f0a341b2d28be7c26dc1619604f62ae521341258211dfa9251926c1dea5b5e89c6a291a18993bef540bb84514df63eb4e4ef6de18d93b9e674006d"
+        },
+        {
+          "path": "data/validation-00000-of-00001.parquet",
+          "url": "https://huggingface.co/datasets/google/civil_comments/resolve/f2970eb3a55777454c94069077cc8d9b5866312d/data/validation-00000-of-00001.parquet",
+          "size": 20955569,
+          "sha256": "2e0eb65474e7e1290df8689fc93eea783160c898c09ae15382c0a9662367bd03",
+          "sha512": "9c1bb6f47f4776a6b50a32657e4af4d2b0787ce89134fcd7ca5407118d6e02f07576b68174b70a24dd87638ad34e80bb6a45370d2b922450d760dbdbf5a20f52"
+        },
+        {
+          "path": "data/test-00000-of-00001.parquet",
+          "url": "https://huggingface.co/datasets/google/civil_comments/resolve/f2970eb3a55777454c94069077cc8d9b5866312d/data/test-00000-of-00001.parquet",
+          "size": 20800265,
+          "sha256": "410f803ff161e7c4ba005db7de5b444cac413f4861bf056b0fd69d670d75aa08",
+          "sha512": "499ec76d00e63d8b2ca6b3265958da7178bd48b7263d8f54ff1bff4ac28ca4cea2e5c1283c0dab3994bce78587e2e951c338cac0062b32c7af3d0ac933c329ec"
+        }
+      ]
+    },
+    {
+      "id": "goemotions",
+      "kind": "KIND_DATASET",
+      "language": "en",
+      "format": "FORMAT_TSV",
+      "version": "7de3624754e2b0f2f505ae496db3ba194bb40be9",
+      "license": "CC-BY-4.0",
+      "license_terms": "https://github.com/google-research/google-research/blob/7de3624754e2b0f2f505ae496db3ba194bb40be9/README.md",
+      "trained_on": [],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "GoEmotions filtered train/dev/test split (google-research/google-research/goemotions at 7de3624754e2b0f2f505ae496db3ba194bb40be9, https://github.com/google-research/google-research/tree/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions), by Dorottya Demszky, Dana Movshovitz-Attias, Jeongwoo Ko, Alan Cowen, Gaurav Nemade and Sujith Ravi (Google Research, 2020), under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).",
+      "files": [
+        {
+          "path": "README.md",
+          "url": "https://raw.githubusercontent.com/google-research/google-research/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions/README.md",
+          "size": 7968,
+          "sha256": "c882c69be9f400129bce8535319606434481a085be9c20263930670890e171a7",
+          "sha512": "f13858916e0cae0243a56ff643728bdab2a7913c6ef539bb34a60911fddd01a2f6308dfb62b04d1ddeaec45893722f8a050b125154f0d411206f762a79ac64f9"
+        },
+        {
+          "path": "data/emotions.txt",
+          "url": "https://raw.githubusercontent.com/google-research/google-research/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions/data/emotions.txt",
+          "size": 248,
+          "sha256": "45c3ef86782d2a4d7fedcd6d8c111aa0d0e94720689bd164fac94fefb4495a89",
+          "sha512": "6a33eaed721764a8fc9b0b37356c3ff7ee0391190f3252d4d08f3ed5691f66003e595ea96d29da4891634f830a1641c0873e1b7605a2179e8d04e91981f6c530"
+        },
+        {
+          "path": "data/ekman_mapping.json",
+          "url": "https://raw.githubusercontent.com/google-research/google-research/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions/data/ekman_mapping.json",
+          "size": 396,
+          "sha256": "d6b1fea382917c1685c42e1324a0344106be9390f52a3850ce032656d103a328",
+          "sha512": "01179b527d49a9e0a3e1b22846ed3bc996814e76a660718118d639cf1e86847209c0e7f08692fa10b1070b6036356bacfe05aa60d6ac656ef986d870698ba19a"
+        },
+        {
+          "path": "data/sentiment_mapping.json",
+          "url": "https://raw.githubusercontent.com/google-research/google-research/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions/data/sentiment_mapping.json",
+          "size": 367,
+          "sha256": "801f6f028082141bd38541a4b14d65b33bdc55d29c7b2aaa029fefecf206f76b",
+          "sha512": "c7218126084d4dcecb28e250fbc6e41205292ae7ef74e7a61f3426ef55584d6b0b9cd37f3eb22edc88b7efd7f9481df74f9f361d4ee35f22b9596674c6de9d77"
+        },
+        {
+          "path": "data/train.tsv",
+          "url": "https://raw.githubusercontent.com/google-research/google-research/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions/data/train.tsv",
+          "size": 3519053,
+          "sha256": "1c254a142be5c00e80d819b9ae1bbd36d94b2eeb8f4b1271846508d57e57d9c5",
+          "sha512": "ef32b2e1790c6c612fa286129127c912a13d265a9d0cf37a65220ce972a6466621305af9ee2c1f484608cda71528b6de85aea4a1aae0539b3fdcd92b5e223a9d"
+        },
+        {
+          "path": "data/dev.tsv",
+          "url": "https://raw.githubusercontent.com/google-research/google-research/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions/data/dev.tsv",
+          "size": 439059,
+          "sha256": "575489c079c9de1097062a01738f998590d6b7ead66dd1c9fd1d2ba01fd8bc62",
+          "sha512": "5e58d65c6234516ab7ed00ae95075ff42ce265d3f6fee798aa3bedeef567c5402d4fde6cd748c0210d3ddc65bd21cfea05fb98be343f3cc58c416734c15db95e"
+        },
+        {
+          "path": "data/test.tsv",
+          "url": "https://raw.githubusercontent.com/google-research/google-research/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions/data/test.tsv",
+          "size": 436706,
+          "sha256": "0587b2dd8b27b97352adbfc3fb083d46005c8946657fdc2b1ca8b1cc7f1f8be4",
+          "sha512": "4d40b5a0b7ac79f50dcb5a63eb2c6d60b26fcaa08f985112b36d62da362dbee4b6da6fa8de42ff90f862d0ba94e1191532b5efef5b220ab6d23904e715e28cc4"
+        }
+      ]
+    },
+    {
+      "id": "goemotions-raw",
+      "kind": "KIND_DATASET",
+      "language": "en",
+      "format": "FORMAT_CSV",
+      "version": "7de3624754e2b0f2f505ae496db3ba194bb40be9",
+      "license": "CC-BY-4.0",
+      "license_terms": "https://github.com/google-research/google-research/blob/7de3624754e2b0f2f505ae496db3ba194bb40be9/README.md",
+      "trained_on": [],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "GoEmotions raw rater annotations (goemotions_1.csv, goemotions_2.csv and goemotions_3.csv as linked from google-research/google-research/goemotions at 7de3624754e2b0f2f505ae496db3ba194bb40be9, https://github.com/google-research/google-research/tree/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions), by Dorottya Demszky, Dana Movshovitz-Attias, Jeongwoo Ko, Alan Cowen, Gaurav Nemade and Sujith Ravi (Google Research, 2020), under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).",
+      "files": [
+        {
+          "path": "goemotions_1.csv",
+          "url": "https://storage.googleapis.com/gresearch/goemotions/data/full_dataset/goemotions_1.csv",
+          "size": 14174600,
+          "sha256": "cac049036bad5d68d1081f72b65f2cc51e4df82af05e3e22cfa747051cac1af3",
+          "sha512": "ada213594e06f11ab1b5e339e04e8563523f0a4f33c8c123b4625c4e80a0cebd29ad57acc9b7ab929b70a67cef018f41124c456968aa1f85f233377c2e13fdec"
+        },
+        {
+          "path": "goemotions_2.csv",
+          "url": "https://storage.googleapis.com/gresearch/goemotions/data/full_dataset/goemotions_2.csv",
+          "size": 14173154,
+          "sha256": "f699ecc5aa425c1720c1d02475f1e41815244b680bd75b282eb770d2c76cd84d",
+          "sha512": "f247e161865b6d24ffb4fd51acfe884fc7874624aba76369e2a977f772fe571f7a7bc65ef7fe0506b2be7e9254404fdedde131d8490c82ecbc94d52e541ef52b"
+        },
+        {
+          "path": "goemotions_3.csv",
+          "url": "https://storage.googleapis.com/gresearch/goemotions/data/full_dataset/goemotions_3.csv",
+          "size": 14395164,
+          "sha256": "467f1e7191af00f2e76cc7f425885c2dc304bea8aff284b10e8c460d22f2e1af",
+          "sha512": "2c3743a0dc1ef5c4389b3c63dbf23c7c41b97ba6c1c091ee8f325e26dd0207072660f5fd037e370e5460024ec45f56f1a237ed7111d680088d494e8677b0dbd1"
+        }
+      ]
     }
   ]
 }

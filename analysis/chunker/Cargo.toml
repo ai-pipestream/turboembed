@@ -12,9 +12,14 @@ name = "turbo_chunker"
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
 turbo-coref = { path = "../coref" }
+# The discourse connective automaton of DiscourseAnnotator.
+turbo-matcher = { path = "../matcher" }
 turbo-unicode = { path = "../unicode" }
 
 [dev-dependencies]
 turbo-stem = { path = "../stem" }
 turbo-normalize = { path = "../normalize" }
 turbo-structure = { path = "../structure" }
+turbo-sentdetect = { path = "../sentdetect" }
+turbo-tokenize = { path = "../tokenize" }
+turbo-analysis-embed = { path = "../embed" }

@@ -2,12 +2,15 @@
 //! the one docs/licences.md gives, and in agreement with the model files
 //! the repository checks in. Beside OpenNLP's UD models it lists the models
 //! the MASC, UD and language detector recipes train, which
-//! turbo-train-recipes checks (`release`).
+//! turbo-train-recipes checks (`release`), and the permissive datasets
+//! (`datasets`).
 
 use std::collections::BTreeSet;
 
 use turbo_zoo::{Component, Format, Index, Kind, Licence, LicenceClass, Policy, verify};
 
+#[path = "builtin/checkpoints.rs"]
+mod checkpoints;
 #[path = "builtin/components.rs"]
 mod components;
 
@@ -126,7 +129,7 @@ fn trained_here(id: &str) -> bool {
 
 /// The published neural checkpoints the index lists (docs/licences.md,
 /// "Neural annotator checkpoints"): permissive, so nothing to accept.
-const CHECKPOINTS: [&str; 6] = [
+pub(crate) const CHECKPOINTS: [&str; 6] = [
     "fastino-gliner2-base-v1",
     "microsoft-deberta-v3-large-tokenizer",
     "urchade-gliner-small-v2.1",
@@ -137,169 +140,38 @@ const CHECKPOINTS: [&str; 6] = [
 
 /// The share-alike neural checkpoints the index lists: fetched after the user
 /// accepts their training data's CC BY-SA terms, and never bundled.
-const SHARE_ALIKE_CHECKPOINTS: [&str; 2] = ["cross-encoder-nli-minilm2-l6-h768", "deepset-roberta-base-squad2"];
+pub(crate) const SHARE_ALIKE_CHECKPOINTS: [&str; 2] =
+    ["cross-encoder-nli-minilm2-l6-h768", "deepset-roberta-base-squad2"];
 
 /// The local-only checkpoints the index lists: fetched only for a user
 /// who has accepted their licence.
-const LOCAL_CHECKPOINTS: [&str; 1] = ["jackboyla-glirel-large-v0"];
+pub(crate) const LOCAL_CHECKPOINTS: [&str; 1] = ["jackboyla-glirel-large-v0"];
+
+/// The frequency lexicons the spell checker loads (#935): MIT lists, so
+/// permissive and nothing to accept. The README gives CC BY Ngram data
+/// as the unigram list's source; the bigram list's is unconfirmed.
+const LEXICONS: [&str; 2] =
+    ["symspell-frequency-dictionary-en-82-765", "symspell-frequency-bigramdictionary-en-243-342"];
 
 /// The retrieval checkpoints the SPLATE study lists (#913): permissive
 /// model licences over MS MARCO, so local-only through their training
 /// data and fetched only after accepting MS MARCO's terms.
 const RETRIEVAL_CHECKPOINTS: [&str; 2] = ["opensearch-neural-sparse-encoding-v1", "colbert-ir-colbertv2.0"];
 
-#[test]
-fn the_squad2_checkpoint_is_pinned_and_share_alike_through_its_data() {
-    let index = Index::builtin();
-    let a = index.get(SHARE_ALIKE_CHECKPOINTS[1]).unwrap();
-    assert_eq!(
-        (a.kind, a.format, a.license, a.class),
-        (Kind::Model, Format::Safetensors, Licence::CcBy40, LicenceClass::ShareAlike)
-    );
-    assert!(a.trained_on.iter().any(|t| t.license == Licence::CcBySa40));
-    let revision = "adc3b06f79f797d1c575d5479d6f5efe54a9e3b4";
-    assert_eq!(a.version, revision);
-    let paths: Vec<&str> = a.files.iter().map(|f| f.path.as_str()).collect();
-    assert_eq!(
-        paths,
-        [
-            "config.json",
-            "model.safetensors",
-            "vocab.json",
-            "merges.txt",
-            "special_tokens_map.json",
-            "tokenizer_config.json"
-        ]
-    );
-    for f in &a.files {
-        let url = format!("https://huggingface.co/deepset/roberta-base-squad2/resolve/{revision}/{}", f.path.as_str());
-        assert_eq!(f.url.as_str(), url);
-    }
-}
-
-#[test]
-fn the_glirel_tokenizer_is_pinned_and_permissive() {
-    let index = Index::builtin();
-    let a = index.get(CHECKPOINTS[1]).unwrap();
-    assert_eq!(
-        (a.kind, a.format, a.license, a.class),
-        (Kind::Model, Format::Sentencepiece, Licence::Mit, LicenceClass::Permissive)
-    );
-    let revision = "64a8c8eab3e352a784c658aef62be1662607476f";
-    assert_eq!(a.version, revision);
-    let paths: Vec<&str> = a.files.iter().map(|f| f.path.as_str()).collect();
-    assert_eq!(paths, ["spm.model", "config.json"]);
-    for f in &a.files {
-        let url = format!("https://huggingface.co/microsoft/deberta-v3-large/resolve/{revision}/{}", f.path.as_str());
-        assert_eq!(f.url.as_str(), url);
-    }
-    // The same SentencePiece model GLiNER2's checkpoint carries.
-    let gliner2 = index.get(CHECKPOINTS[0]).unwrap();
-    let spm =
-        |a: &turbo_zoo::Artifact| a.files.iter().find(|f| f.path.as_str() == "spm.model").unwrap().sha256.to_string();
-    assert_eq!(spm(a), spm(gliner2));
-}
-
-#[test]
-fn the_glirel_checkpoint_is_pinned_local_only_and_needs_its_licence() {
-    let index = Index::builtin();
-    let a = index.get(LOCAL_CHECKPOINTS[0]).unwrap();
-    assert_eq!(
-        (a.kind, a.format, a.license, a.class),
-        (Kind::Model, Format::Pytorch, Licence::CcByNcSa40, LicenceClass::LocalOnly)
-    );
-    let revision = "40a523e12a8432d6da364cf2a195a28755ff04d3";
-    assert_eq!(a.version, revision);
-    let origin = "https://huggingface.co/jackboyla/glirel-large-v0";
-    assert_eq!(a.origin.as_ref().map(|o| o.as_str()), Some(origin));
-    let paths: Vec<&str> = a.files.iter().map(|f| f.path.as_str()).collect();
-    assert_eq!(paths, ["pytorch_model.bin", "glirel_config.json"]);
-    for f in &a.files {
-        assert_eq!(f.url.as_str(), format!("{origin}/resolve/{revision}/{}", f.path.as_str()));
-    }
-    assert_eq!(a.licences_to_accept(Policy::default()), [turbo_zoo::Requirement::of(Licence::CcByNcSa40).unwrap()]);
-}
-
-#[test]
-fn the_gliner2_checkpoint_is_pinned_and_permissive() {
-    let index = Index::builtin();
-    let a = index.get(CHECKPOINTS[0]).unwrap();
-    assert_eq!(
-        (a.kind, a.format, a.license, a.class),
-        (Kind::Model, Format::Safetensors, Licence::Apache2, LicenceClass::Permissive)
-    );
-    let revision = "f9634218e53580c56edf0de97ca1a7d3f1c2354e";
-    assert_eq!(a.version, revision);
-    let paths: Vec<&str> = a.files.iter().map(|f| f.path.as_str()).collect();
-    assert_eq!(
-        paths,
-        ["model.safetensors", "config.json", "added_tokens.json", "spm.model", "encoder_config/config.json"]
-    );
-    for f in &a.files {
-        let url = format!("https://huggingface.co/fastino/gliner2-base-v1/resolve/{revision}/{}", f.path.as_str());
-        assert_eq!(f.url.as_str(), url);
-    }
-}
-
-#[test]
-fn the_gliner_v2_1_checkpoints_and_tokenizers_are_pinned_and_permissive() {
-    let index = Index::builtin();
-    for (id, repo, rev, format, licence, lang, files) in [
-        (
-            "urchade-gliner-small-v2.1",
-            "urchade/gliner_small-v2.1",
-            "4e091416cf7c3481db542c2a3d26156916f3a47f",
-            Format::Pytorch,
-            Licence::Apache2,
-            "en",
-            &["pytorch_model.bin", "gliner_config.json"][..],
-        ),
-        (
-            "microsoft-deberta-v3-small-tokenizer",
-            "microsoft/deberta-v3-small",
-            "a36c739020e01763fe789b4b85e2df55d6180012",
-            Format::Sentencepiece,
-            Licence::Mit,
-            "en",
-            &["spm.model", "config.json"][..],
-        ),
-        (
-            "urchade-gliner-multi-v2.1",
-            "urchade/gliner_multi-v2.1",
-            "443d26d654e0324125a96bebd8e796c14ff2efe6",
-            Format::Safetensors,
-            Licence::Apache2,
-            "mul",
-            &["model.safetensors", "gliner_config.json"][..],
-        ),
-        (
-            "microsoft-mdeberta-v3-base-tokenizer",
-            "microsoft/mdeberta-v3-base",
-            "a0484667b22365f84929a935b5e50a51f71f159d",
-            Format::Sentencepiece,
-            Licence::Mit,
-            "mul",
-            &["spm.model", "config.json"][..],
-        ),
-    ] {
-        let a = index.get(id).unwrap();
-        assert_eq!((a.kind, a.format, a.license, a.class), (Kind::Model, format, licence, LicenceClass::Permissive));
-        assert_eq!(a.language.as_ref().map(|l| l.as_str()), Some(lang));
-        assert_eq!(a.version, rev);
-        let notice = a.attribution.as_deref().unwrap();
-        assert!(notice.contains(repo) && notice.contains(rev));
-        for source in &a.trained_on {
-            assert!(notice.contains(&source.name));
-            assert!(notice.contains(source.license_terms.as_str()));
-        }
-        let paths: Vec<&str> = a.files.iter().map(|f| f.path.as_str()).collect();
-        assert_eq!(paths, files);
-        for f in &a.files {
-            assert_eq!(f.url.as_str(), format!("https://huggingface.co/{repo}/resolve/{rev}/{}", f.path.as_str()));
-        }
-        assert!(a.licences_to_accept(Policy::default()).is_empty());
-    }
-}
+/// The permissive training datasets in the built-in index (#945): MASC,
+/// the four settled CC BY 4.0 UD 2.16 treebanks, the Tatoeba export,
+/// Civil Comments, and GoEmotions (filtered split and raw annotations).
+const DATASETS: [&str; 9] = [
+    "masc-3.0.0",
+    "ud-spanish-ancora-r2.16",
+    "ud-catalan-ancora-r2.16",
+    "ud-finnish-ftb-r2.16",
+    "ud-italian-markit-r2.16",
+    "tatoeba-2026-10-10",
+    "civil-comments",
+    "goemotions",
+    "goemotions-raw",
+];
 
 #[test]
 fn the_ud_models_carry_their_treebank_licences() {
@@ -339,56 +211,14 @@ fn the_ud_models_carry_their_treebank_licences() {
     expected.extend(CHECKPOINTS.map(str::to_owned));
     expected.extend(SHARE_ALIKE_CHECKPOINTS.map(str::to_owned));
     expected.extend(LOCAL_CHECKPOINTS.map(str::to_owned));
+    expected.extend(LEXICONS.map(str::to_owned));
     expected.extend(RETRIEVAL_CHECKPOINTS.map(str::to_owned));
+    expected.extend(DATASETS.map(str::to_owned));
     let listed: BTreeSet<String> = index.list().iter().map(|a| a.id.to_string()).collect();
     assert_eq!(listed, expected);
     for (lang, tb) in NON_COMMERCIAL_TREEBANKS {
         assert!(!listed.iter().any(|id| id.starts_with(&format!("opennlp-{lang}-ud-{tb}-"))), "{lang}-{tb}");
     }
-}
-
-#[test]
-fn the_nli_checkpoint_is_pinned_and_share_alike() {
-    let index = Index::builtin();
-    let a = index.get(SHARE_ALIKE_CHECKPOINTS[0]).unwrap();
-    assert_eq!(
-        (a.kind, a.format, a.license, a.class),
-        (Kind::Model, Format::Safetensors, Licence::Apache2, LicenceClass::ShareAlike)
-    );
-    let revision = "b95119ce93d3e065de6214e38cd4a97b0f2f2c6d";
-    assert_eq!(a.version, revision);
-    let notice = a.attribution.as_deref().unwrap();
-    assert!(notice.contains(revision));
-    for source in &a.trained_on {
-        assert!(notice.contains(&source.name));
-        assert!(notice.contains(source.license_terms.as_str()));
-    }
-
-    let paths: Vec<&str> = a.files.iter().map(|f| f.path.as_str()).collect();
-    assert_eq!(
-        paths,
-        [
-            "model.safetensors",
-            "config.json",
-            "tokenizer.json",
-            "tokenizer_config.json",
-            "special_tokens_map.json",
-            "vocab.json",
-            "merges.txt"
-        ]
-    );
-    for f in &a.files {
-        let url =
-            format!("https://huggingface.co/cross-encoder/nli-MiniLM2-L6-H768/resolve/{revision}/{}", f.path.as_str());
-        assert_eq!(f.url.as_str(), url);
-    }
-    assert_eq!(
-        a.licences_to_accept(Policy::default()),
-        [
-            turbo_zoo::Requirement::of(Licence::CcBySa30).unwrap(),
-            turbo_zoo::Requirement::of(Licence::CcBySa40).unwrap(),
-        ]
-    );
 }
 
 #[test]
@@ -399,6 +229,8 @@ fn only_catalan_and_the_models_trained_here_need_no_acceptance() {
         if a.id.as_str().starts_with("opennlp-ca-ud-ancora-")
             || trained_here(a.id.as_str())
             || CHECKPOINTS.contains(&a.id.as_str())
+            || LEXICONS.contains(&a.id.as_str())
+            || DATASETS.contains(&a.id.as_str())
         {
             assert!(needs.is_empty(), "{}", a.id);
         } else if a.id.as_str() == SHARE_ALIKE_CHECKPOINTS[0] {

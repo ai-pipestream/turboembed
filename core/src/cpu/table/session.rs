@@ -301,6 +301,10 @@ pub(super) fn entry(isa: Isa) -> Entry {
         Isa::Avx2 => entry_avx2,
         #[cfg(target_arch = "x86_64")]
         Isa::Avx512 => entry_avx512,
+        // The table's arithmetic is plain Rust, which NEON, the aarch64
+        // baseline, already compiles for.
+        #[cfg(target_arch = "aarch64")]
+        Isa::Neon => entry_portable,
     }
 }
 

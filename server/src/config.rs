@@ -163,6 +163,11 @@ pub struct Args {
     pub max_message_bytes: usize,
     /// Whether the admin calls, LoadBundle and UnloadBundle, are served.
     pub admin: bool,
+    /// The vocabulary store's directory, made when absent.
+    pub vocabulary_dir: Option<String>,
+    /// Where completed analysis documents are forwarded, and the queue's
+    /// bounds.
+    pub sink: Option<crate::sink::SinkConfig>,
     /// The model catalog's zoo home, and the index it serves when not the
     /// built-in one.
     pub catalog_dir: Option<String>,
@@ -184,15 +189,21 @@ pub const ENV_BUNDLE_DIR: &str = "TURBO_KSERVE_BUNDLE_DIR";
 pub const ENV_LISTEN: &str = "TURBO_KSERVE_LISTEN";
 pub const ENV_MODELS: &str = "TURBO_KSERVE_MODELS";
 pub const ENV_MAX_MESSAGE_BYTES: &str = "TURBO_KSERVE_MAX_MESSAGE_BYTES";
+pub const ENV_VOCABULARY_DIR: &str = "TURBO_KSERVE_VOCABULARY_DIR";
 pub const ENV_CATALOG_DIR: &str = "TURBO_KSERVE_CATALOG_DIR";
 pub const ENV_CATALOG_INDEX: &str = "TURBO_KSERVE_CATALOG_INDEX";
+pub const ENV_SINK_ENDPOINT: &str = "TURBO_KSERVE_SINK_ENDPOINT";
+pub const ENV_SINK_QUEUE_ITEMS: &str = "TURBO_KSERVE_SINK_QUEUE_ITEMS";
+pub const ENV_SINK_QUEUE_BYTES: &str = "TURBO_KSERVE_SINK_QUEUE_BYTES";
 
 pub const USAGE: &str = "usage: turbo-kserve --listen ADDR:PORT [--model bundle=PATH,device=INDEX|select,sessions=N\
 [,name=NAME][,precision=PRECISION_MODEL|PRECISION_FASTEST|PRECISION_EXACT][,max_batch=N][,max_seq=N] ...] \
-[--bundle-dir DIR] [--max-message-bytes N] [--admin] [--catalog-dir PATH [--catalog-index FILE]]\n\
+[--bundle-dir DIR] [--max-message-bytes N] [--admin] [--vocabulary-dir PATH] [--catalog-dir PATH [--catalog-index FILE]] \
+[--sink-endpoint URI [--sink-queue-items N] [--sink-queue-bytes N]]\n\
 environment: TURBO_KSERVE_LISTEN, TURBO_KSERVE_MODELS (--model values separated by `;`), \
-TURBO_KSERVE_BUNDLE_DIR, TURBO_KSERVE_MAX_MESSAGE_BYTES, TURBO_KSERVE_ADMIN, TURBO_KSERVE_CATALOG_DIR, \
-TURBO_KSERVE_CATALOG_INDEX; a flag on the command line replaces its variable";
+TURBO_KSERVE_BUNDLE_DIR, TURBO_KSERVE_MAX_MESSAGE_BYTES, TURBO_KSERVE_ADMIN, TURBO_KSERVE_VOCABULARY_DIR, \
+TURBO_KSERVE_CATALOG_DIR, TURBO_KSERVE_CATALOG_INDEX, TURBO_KSERVE_SINK_ENDPOINT, TURBO_KSERVE_SINK_QUEUE_ITEMS, \
+TURBO_KSERVE_SINK_QUEUE_BYTES; a flag on the command line replaces its variable";
 
 /// Sets a path flag's value, given once and not empty.
 fn path_once(flag: &str, v: String, slot: &mut Option<String>) -> Result<(), String> {
@@ -200,6 +211,43 @@ fn path_once(flag: &str, v: String, slot: &mut Option<String>) -> Result<(), Str
         return Err(format!("{flag} needs a path and may be given once"));
     }
     Ok(())
+}
+
+/// A flag's value, given once.
+fn once(flag: &str, v: String, slot: &mut Option<String>) -> Result<(), String> {
+    if v.is_empty() || slot.replace(v).is_some() {
+        return Err(format!("{flag} needs a value and may be given once"));
+    }
+    Ok(())
+}
+
+/// The sink settings from their flags or variables: the queue bounds only
+/// with an endpoint, each a count over 0.
+fn sink(
+    endpoint: Option<String>,
+    items: Option<String>,
+    bytes: Option<String>,
+) -> Result<Option<crate::sink::SinkConfig>, String> {
+    let count = |name: &str, v: Option<String>, default: u64| -> Result<u64, String> {
+        match v {
+            None => Ok(default),
+            Some(v) => match v.parse::<u64>() {
+                Ok(n) if n > 0 => Ok(n),
+                _ => Err(format!("{name} {v}: not a count over 0")),
+            },
+        }
+    };
+    let Some(endpoint) = endpoint else {
+        if items.is_some() || bytes.is_some() {
+            return Err("--sink-queue-items and --sink-queue-bytes need --sink-endpoint".into());
+        }
+        return Ok(None);
+    };
+    Ok(Some(crate::sink::SinkConfig {
+        endpoint,
+        max_queue_items: count("--sink-queue-items", items, crate::sink::DEFAULT_SINK_QUEUE_ITEMS as u64)? as usize,
+        max_queue_bytes: count("--sink-queue-bytes", bytes, crate::sink::DEFAULT_SINK_QUEUE_BYTES)?,
+    }))
 }
 
 impl Args {
@@ -217,6 +265,8 @@ impl Args {
         let mut listen = None;
         let mut max_message_bytes = None;
         let mut admin = None;
+        let mut vocabulary_dir = None;
+        let (mut sink_endpoint, mut sink_items, mut sink_bytes) = (None, None, None);
         let (mut catalog_dir, mut catalog_index) = (None, None);
         let mut bundle_dir = None;
         let mut models = Vec::new();
@@ -250,6 +300,10 @@ impl Args {
                         return Err("--admin takes no value and may be given once".into());
                     }
                 }
+                "--vocabulary-dir" => path_once(&flag, value()?, &mut vocabulary_dir)?,
+                "--sink-endpoint" => once(&flag, value()?, &mut sink_endpoint)?,
+                "--sink-queue-items" => once(&flag, value()?, &mut sink_items)?,
+                "--sink-queue-bytes" => once(&flag, value()?, &mut sink_bytes)?,
                 "--catalog-dir" => path_once(&flag, value()?, &mut catalog_dir)?,
                 "--catalog-index" => path_once(&flag, value()?, &mut catalog_index)?,
                 "--max-message-bytes" => {
@@ -293,11 +347,18 @@ impl Args {
                 _ => return Err(format!("{ENV_ADMIN}={v}: not one of 1, true, yes, 0, false, no")),
             });
         }
+        vocabulary_dir = vocabulary_dir.or_else(|| env(ENV_VOCABULARY_DIR).filter(|v| !v.is_empty()));
         catalog_dir = catalog_dir.or_else(|| env(ENV_CATALOG_DIR).filter(|v| !v.is_empty()));
         catalog_index = catalog_index.or_else(|| env(ENV_CATALOG_INDEX).filter(|v| !v.is_empty()));
         if catalog_index.is_some() && catalog_dir.is_none() {
             return Err("--catalog-index needs --catalog-dir".into());
         }
+        let from_env = |slot: Option<String>, k: &str| slot.or_else(|| env(k).filter(|v| !v.is_empty()));
+        let sink = sink(
+            from_env(sink_endpoint, ENV_SINK_ENDPOINT),
+            from_env(sink_items, ENV_SINK_QUEUE_ITEMS),
+            from_env(sink_bytes, ENV_SINK_QUEUE_BYTES),
+        )?;
         if let Some(dir) = &bundle_dir {
             discover_bundles(dir, &mut models)?;
         }
@@ -309,6 +370,8 @@ impl Args {
             models,
             max_message_bytes: max_message_bytes.unwrap_or(DEFAULT_MAX_MESSAGE_BYTES),
             admin,
+            vocabulary_dir,
+            sink,
             catalog_dir,
             catalog_index,
         })

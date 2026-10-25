@@ -254,9 +254,7 @@ impl GrpcInferenceService for Inference {
     }
 
     async fn server_ready(&self, _: Request<ServerReadyRequest>) -> Reply<ServerReadyResponse> {
-        let ready =
-            self.state.models.read().unwrap_or_else(|e| e.into_inner()).iter().all(|m| m.loaded.get().is_some());
-        Ok(Response::new(ServerReadyResponse { ready }))
+        Ok(Response::new(ServerReadyResponse { ready: self.state.is_ready() }))
     }
 
     async fn model_ready(&self, req: Request<ModelReadyRequest>) -> Reply<ModelReadyResponse> {
@@ -272,7 +270,7 @@ impl GrpcInferenceService for Inference {
                         format!("model {} has version {}, not {}", req.name, l.revision, req.version),
                     )));
                 }
-                true
+                !self.state.is_draining()
             }
         };
         Ok(Response::new(ModelReadyResponse { ready }))

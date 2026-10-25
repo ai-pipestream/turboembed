@@ -15,14 +15,20 @@
 //! docs/analysis.md says which parts of CommonMark and GFM are followed
 //! and where the detector differs from them.
 
+mod columns;
+mod html;
+mod kv;
 mod line;
 mod marker;
 mod parse;
 mod project;
 mod table;
+mod table_grid;
 mod tree;
 
+pub use kv::KeyValueAnnotator;
 pub use project::StructureProjector;
+pub use table_grid::{TableGridAnnotator, detect_tables};
 
 use turbo_analysis::annotate::Step;
 use turbo_analysis::registry::{Provider, Spec};
@@ -41,7 +47,7 @@ pub enum Syntax {
     /// a short line in capitals at the top level, either on its own or
     /// over a line with lower case letters, from which it is split off
     /// ("INTRODUCTION", then "This report covers the year."). No `#`
-    /// headings, no code, no tables: an indented line is text, as in a
+    /// headings or code. Repeated aligned columns form tables; otherwise an indented line is text, as in a
     /// letter or a contract.
     Plain,
 }
@@ -87,6 +93,7 @@ impl StructureAnnotator {
 }
 
 impl Annotator for StructureAnnotator {
+    const VERSION: &'static str = "1";
     const ID: &'static str = "turbo-structure:blocks";
     type Reads = (View,);
     type Writes = (Structure,);
