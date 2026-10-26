@@ -91,6 +91,7 @@ use crate::spans::{self, SpanTypes};
 use crate::{GateRun, RecordedReference, Reference, Trained, check_skipped};
 
 mod samples;
+pub mod selection;
 
 pub use self::samples::{NameSamples, read_samples};
 

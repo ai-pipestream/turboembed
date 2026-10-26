@@ -1,0 +1,145 @@
+### commit 9a4a1c0bc5184bd946a4983c13fb96d520a4f858; TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --no-fail-fast; 2026-10-26T21:17:05Z
+     Running unittests src/lib.rs (target/release/deps/turbo-f12c1b64e13a1c82)
+test result: ok. 126 passed; 0 failed; 4 ignored; 0 measured; 0 filtered out; finished in 0.84s
+     Running tests/abi/main.rs (target/release/deps/abi-c57b3892aae19245)
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 20.31s
+     Running tests/allocations.rs (target/release/deps/allocations-d57ece6a7baf477b)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+     Running tests/bpe_split.rs (target/release/deps/bpe_split-49e22204f626c70a)
+test result: ok. 6 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 9.95s
+     Running tests/buffers.rs (target/release/deps/buffers-c6b82a08665e2a5c)
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+     Running tests/bundle.rs (target/release/deps/bundle-a1077285ff446080)
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/conformance.rs (target/release/deps/conformance-dfe66ed63ac82d1e)
+test result: ok. 6 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.29s
+     Running tests/core_boundaries.rs (target/release/deps/core_boundaries-2bdcb8bf8348db96)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+     Running tests/cpu_speed.rs (target/release/deps/cpu_speed-ce37056f3b891a70)
+test result: ok. 0 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/cuda_attention.rs (target/release/deps/cuda_attention-c4e8fb83123f3dc0)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/cuda_deberta.rs (target/release/deps/cuda_deberta-a2c405d97e8b6763)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/cuda_devices.rs (target/release/deps/cuda_devices-71ab6f80dc96ca45)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/cuda_gelu.rs (target/release/deps/cuda_gelu-5d3560a8c7a15505)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running tests/cuda_gemms.rs (target/release/deps/cuda_gemms-4ee6ae2ebd367b48)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/cuda_kernels.rs (target/release/deps/cuda_kernels-fa8372e98b9f2f1e)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/cuda_qa.rs (target/release/deps/cuda_qa-2437958cc19b2e9d)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/cuda_ranges.rs (target/release/deps/cuda_ranges-7ac22225d91f001d)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/cuda_rerank.rs (target/release/deps/cuda_rerank-e0be11b8c06493f9)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/cuda_runs.rs (target/release/deps/cuda_runs-f541f0d7621e198e)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/cuda_tuning.rs (target/release/deps/cuda_tuning-2d48d4ab20b5fe57)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/cuda_variants.rs (target/release/deps/cuda_variants-3a29e7beb3afaf28)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/deberta.rs (target/release/deps/deberta-0a21686ed35aa87c)
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/deberta_load.rs (target/release/deps/deberta_load-7f7b266cafd26c9e)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+     Running tests/deberta_manifest.rs (target/release/deps/deberta_manifest-a72ebbf29e6d164f)
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/deberta_speed.rs (target/release/deps/deberta_speed-e99b2cf018baa7aa)
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/deberta_threads.rs (target/release/deps/deberta_threads-d8a2a2a1ffa8367f)
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+     Running tests/device_lstm.rs (target/release/deps/device_lstm-9ca2035d12d88041)
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+     Running tests/devices.rs (target/release/deps/devices-773f85333b0c575b)
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+     Running tests/format_boundaries.rs (target/release/deps/format_boundaries-f75c93a49e7ad861)
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running tests/hailo.rs (target/release/deps/hailo-51b375265cb8c476)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/hailo_release.rs (target/release/deps/hailo_release-f4ec66b3c4cc1fac)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/head.rs (target/release/deps/head-e9aa2484585e03f9)
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+     Running tests/levelzero.rs (target/release/deps/levelzero-2cf55f4a3acdddc1)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/levelzero_boundaries.rs (target/release/deps/levelzero_boundaries-e8ac95cb640a3144)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/levelzero_deberta.rs (target/release/deps/levelzero_deberta-36ee82424655418c)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/levelzero_loads.rs (target/release/deps/levelzero_loads-14ef5be2ec599366)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/levelzero_lstm.rs (target/release/deps/levelzero_lstm-de8c273165a725b3)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/levelzero_rerank.rs (target/release/deps/levelzero_rerank-a3670067fa2a35cc)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/loader.rs (target/release/deps/loader-d21d9784f4b09b0a)
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.67s
+     Running tests/lookahead.rs (target/release/deps/lookahead-aa3921c0951cf372)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+     Running tests/masked_columns.rs (target/release/deps/masked_columns-572696253434110b)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+     Running tests/matryoshka.rs (target/release/deps/matryoshka-e8c2af1554eab3db)
+test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.18s
+     Running tests/metal.rs (target/release/deps/metal-aa7fe1d6a6af8c78)
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.58s
+     Running tests/metal_deberta.rs (target/release/deps/metal_deberta-7f6bebb0eb204503)
+test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 20.55s
+     Running tests/metal_f16.rs (target/release/deps/metal_f16-da4191faefc61c3b)
+test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 12.10s
+     Running tests/metal_narrow_bits.rs (target/release/deps/metal_narrow_bits-76ef1e5299fd2f19)
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/metal_ranges.rs (target/release/deps/metal_ranges-4ed99cdaf3c9f066)
+test result: ok. 7 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 11.24s
+     Running tests/metal_runs.rs (target/release/deps/metal_runs-c9e43e3e10528413)
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.93s
+     Running tests/mlm.rs (target/release/deps/mlm-4618529bc8ed5683)
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+     Running tests/mlm_load.rs (target/release/deps/mlm_load-c785e7a4a8296d52)
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+     Running tests/models.rs (target/release/deps/models-1d53572e3295fea5)
+test result: ok. 45 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.03s
+     Running tests/npu.rs (target/release/deps/npu-d9c903db6c31f4ed)
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/projection.rs (target/release/deps/projection-df928d4a5ab7bacd)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+     Running tests/qa_decode.rs (target/release/deps/qa_decode-c428ca0958d5f042)
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/qa_head_output.rs (target/release/deps/qa_head_output-c49d708fb9dbf0e9)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+     Running tests/qa_inference.rs (target/release/deps/qa_inference-084cff70fa5b26c2)
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+     Running tests/ranges.rs (target/release/deps/ranges-a4d9660785b02603)
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s
+     Running tests/rerank.rs (target/release/deps/rerank-35e881f57e0b535d)
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+     Running tests/rerank_abi.rs (target/release/deps/rerank_abi-5e27ba85e1336088)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+     Running tests/rerank_options.rs (target/release/deps/rerank_options-21223488d7acdbc3)
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+     Running tests/sentencepiece.rs (target/release/deps/sentencepiece-4b04b3eb5a0f5793)
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+     Running tests/sentencepiece_allocations.rs (target/release/deps/sentencepiece_allocations-2abdd47646076110)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+     Running tests/sessions.rs (target/release/deps/sessions-d5156937a263d46f)
+test result_calls_refuse_what_they_cannot_take ... ok
+test result: ok. 34 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.74s
+     Running tests/sparse_golden.rs (target/release/deps/sparse_golden-604abcd8dda08193)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/static_model.rs (target/release/deps/static_model-427b7a706ecaa8fe)
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.59s
+     Running tests/static_pages.rs (target/release/deps/static_pages-6cacd03aca55182c)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+     Running tests/static_parity.rs (target/release/deps/static_parity-3e5f1196601e0f53)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/static_speed.rs (target/release/deps/static_speed-32ea06c620abf232)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/task_info.rs (target/release/deps/task_info-e37f315c04ea2890)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+     Running tests/tokenizer.rs (target/release/deps/tokenizer-88b4f7048338e354)
+test result: ok. 38 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 4.74s
+     Running tests/tokenizer_xlmr.rs (target/release/deps/tokenizer_xlmr-0a5b88d67bb5cefd)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s

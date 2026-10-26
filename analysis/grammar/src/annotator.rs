@@ -78,6 +78,10 @@ impl GrammarAnnotator {
         GrammarAnnotator::new(&crate::lang::nl::DUTCH_UNITS)
     }
 
+    pub fn italian() -> GrammarAnnotator {
+        GrammarAnnotator::new(&crate::ITALIAN_UNITS)
+    }
+
     pub fn portuguese() -> GrammarAnnotator {
         GrammarAnnotator::new(&crate::PORTUGUESE_UNITS)
     }
