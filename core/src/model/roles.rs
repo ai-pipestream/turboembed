@@ -94,10 +94,11 @@ pub fn embedding_tensors(index: usize, art: &Artifact, a: &Architecture) -> Resu
 }
 
 fn tensors_of(index: usize, art: &Artifact, a: &Architecture, layers: u32) -> Result<Vec<Expected>> {
+    let encoder = if a.family == Family::DebertaV2 { "a DeBERTa-v2" } else { "a BERT" };
     let name = |role: TensorRole| {
         art.tensor_names.get(&role).ok_or_else(|| {
             invalid(format!(
-                "manifest.json: artifacts[{index}].tensor_names: no {}, which the encoder needs",
+                "manifest.json: artifacts[{index}].tensor_names: no {}, which {encoder} encoder needs",
                 role_name(role)
             ))
         })

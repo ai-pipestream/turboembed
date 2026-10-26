@@ -18,6 +18,8 @@ mod table;
 
 #[cfg(test)]
 mod boundary_tests;
+#[cfg(test)]
+mod deberta_tests;
 
 use std::ffi::c_char;
 

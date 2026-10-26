@@ -411,4 +411,15 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn only_the_cpu_runs_a_deberta_model() {
+        assert!(runs_family("cpu", TURBO_FAMILY_DEBERTA_V2).is_ok());
+        for b in ["cuda", "metal", "levelzero", "npu", "hailo"] {
+            assert!(runs_family(b, crate::backend::TURBO_FAMILY_BERT).is_ok());
+            let e = runs_family(b, TURBO_FAMILY_DEBERTA_V2).err().unwrap();
+            assert_eq!(e.code, UNSUPPORTED);
+            assert!(e.message.contains(&format!("the {b} backend has no DeBERTa-v2 encoder")), "{}", e.message);
+        }
+    }
 }
