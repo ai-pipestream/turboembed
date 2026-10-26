@@ -11,7 +11,7 @@ it started, and no other client used the B70's compute engine.
 
 ## Parity
 
-Twenty runs at each of `TURBO_TEST_PRECISION` `model` and `exact` of
+`parity.log`: forty runs of
 
 ```
 GLIREL_PACKAGE=... GLIREL_BUNDLE=... GLIREL_SPM=... DEVICE_REPS=1 \
@@ -21,11 +21,17 @@ GLIREL_PACKAGE=... GLIREL_BUNDLE=... GLIREL_SPM=... DEVICE_REPS=1 \
 ```
 
 40 test binaries, every one passing, and every repeat printing the same
-numbers:
+numbers. Half were labelled `exact`, but the test did not read
+`TURBO_TEST_PRECISION` then (`device_support::options` took
+`EncoderOptions::default()`), so all forty ran at `model`. The exact leg
+is twenty runs with the variable read and the precision printed, in
+docs/receipts/gliner2-levelzero-920/parity-exact.log: every one printed
+`f32 (exact)`, logits within 5.7e-6, 52 pair labels held, the same
+numbers as at `model`.
 
 | Head | Test | Encoder | Largest difference from the CPU encoder | Decisions the same as the CPU's |
 |---|---|---|---|---|
-| GLiREL | `analysis/relation/tests/device_real.rs` `glirel_on_the_real_checkpoint` | `jackboyla/glirel-large-v0`, sealed here | 5.7e-6 | 52 pair labels, and every extracted relation |
+| GLiREL, `model` (40 runs) and `exact` (20) | `analysis/relation/tests/device_real.rs` `glirel_on_the_real_checkpoint` | `jackboyla/glirel-large-v0`, sealed here | 5.7e-6 at each | 52 pair labels, and every extracted relation |
 
 The difference is `|a - b| / max(1, |a|)` per logit, `a` the CPU
 encoder's, against a bound of 1e-4; decisions are held where the CPU's
