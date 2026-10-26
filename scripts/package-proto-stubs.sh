@@ -18,10 +18,20 @@ fi
 VERSION="${CLEAN_TAG#v}"
 CLEAN_TAG="v${VERSION}"
 
-GRPC_JAVA_VERSION="1.68.2"
-PROTOC_VERSION="3.25.5"
-GRPCIO_PYTHON_VERSION="1.70.0"
-PROTOBUF_PYTHON_VERSION="5.29.3"
+# The Java pins live in clients/java/pom.xml (protoc and protobuf-java share
+# protobuf.version); the Python generator pins are here. The wheel's
+# Requires-Dist floors are read back from the generated code (build_wheel.py).
+pom_property() {
+  sed -n "s|.*<$1>\(.*\)</$1>.*|\1|p" "$ROOT/clients/java/pom.xml" | head -1
+}
+GRPC_JAVA_VERSION="$(pom_property grpc.version)"
+PROTOC_VERSION="$(pom_property protobuf.version)"
+GRPCIO_PYTHON_VERSION="1.85.0"
+PROTOBUF_PYTHON_VERSION="7.36.2"
+# The build interpreter, and the oldest one the wheel declares, which the
+# smoke test runs on. uv fetches either if the machine lacks it.
+BUILD_PYTHON_VERSION="3.13"
+SMOKE_PYTHON_VERSION="3.10"
 
 mkdir -p "$OUT_DIR"
 OUT_DIR="$(cd "$OUT_DIR" && pwd)"
@@ -64,8 +74,8 @@ cp "$JAVA_BUILD_DIR/pom.xml" "$OUT_DIR/$POM_NAME"
 
 # 3. Python wheel stub artifact: turboembed_proto-<version>-py3-none-any.whl + .sha256
 VENV_DIR="$WORK_DIR/py-venv"
-python3 -m venv "$VENV_DIR"
-"$VENV_DIR/bin/pip" install --quiet --disable-pip-version-check \
+uv venv --quiet --python "$BUILD_PYTHON_VERSION" "$VENV_DIR"
+uv pip install --quiet --python "$VENV_DIR/bin/python" \
   "grpcio==${GRPCIO_PYTHON_VERSION}" \
   "grpcio-tools==${GRPCIO_PYTHON_VERSION}" \
   "protobuf==${PROTOBUF_PYTHON_VERSION}"
@@ -82,7 +92,7 @@ WHEEL_NAME="$(basename "$WHEEL_PATH")"
   echo "turboembed proto and client stubs ${CLEAN_TAG}, commit ${GITHUB_SHA:-local}"
   echo "proto archive: ${PROTO_ARCHIVE_DIR}.tar.gz"
   echo "java maven artifact: ai.pipestream:turboembed-grpc:${VERSION} (protoc ${PROTOC_VERSION}, grpc-java ${GRPC_JAVA_VERSION})"
-  echo "python wheel: ${WHEEL_NAME} (grpcio-tools ${GRPCIO_PYTHON_VERSION}, protobuf ${PROTOBUF_PYTHON_VERSION})"
+  echo "python wheel: ${WHEEL_NAME} (grpcio-tools ${GRPCIO_PYTHON_VERSION}, protobuf ${PROTOBUF_PYTHON_VERSION}; requires $(unzip -p "$OUT_DIR/$WHEEL_NAME" '*.dist-info/METADATA' | sed -n 's/^Requires-Dist: //p' | paste -sd ' '))"
 } > "$OUT_DIR/proto-stubs.BUILD"
 
 # 5. Optional end-to-end smoke check against a running turbo-kserve instance
@@ -98,7 +108,22 @@ if [[ -n "$SMOKE_ADDR" ]]; then
   java -cp "$JAVA_SMOKE_CLASSES:$OUT_DIR/$JAR_NAME:$RUNTIME_CP" \
     ai.pipestream.turboembed.ClientSmoke "$SMOKE_ADDR"
 
-  # 5b. Install ONLY the packaged wheel in the clean venv and run the Python client outside the repo
-  "$VENV_DIR/bin/pip" install --quiet --no-deps "$OUT_DIR/$WHEEL_NAME"
-  (cd "$WORK_DIR" && "$VENV_DIR/bin/python" "$ROOT/clients/python/smoke_test.py" "$SMOKE_ADDR")
+  # 5b. Install the packaged wheel into a fresh venv on the oldest Python it
+  # declares, its dependencies resolved to the lowest versions its
+  # Requires-Dist allows, and run the Python client outside the repo. A
+  # floor below what the generated code checks at import fails here.
+  SMOKE_VENV_DIR="$WORK_DIR/py-smoke-venv"
+  uv venv --quiet --python "$SMOKE_PYTHON_VERSION" "$SMOKE_VENV_DIR"
+  uv pip install --quiet --python "$SMOKE_VENV_DIR/bin/python" --resolution lowest "$OUT_DIR/$WHEEL_NAME"
+  "$SMOKE_VENV_DIR/bin/python" -I - <<'PY'
+import importlib.metadata as md
+for req in md.requires("turboembed-proto"):
+    name, spec = req.split(">=", 1)
+    floor = spec.split(",", 1)[0]
+    have = md.version(name)
+    print(f"{name} {have} (floor {floor})")
+    if have != floor:
+        raise SystemExit(f"{name} resolved to {have}, not its declared floor {floor}")
+PY
+  (cd "$WORK_DIR" && "$SMOKE_VENV_DIR/bin/python" "$ROOT/clients/python/smoke_test.py" "$SMOKE_ADDR")
 fi
