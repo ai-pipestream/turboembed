@@ -1,200 +1,1200 @@
-### TURBO_TEST_PRECISION=model run 1, load { 26.28 14.16 10.69 }
-     Running tests/heads.rs (target/release/deps/heads-eb098b052ebfd941)
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 1; 2026-10-26T20:17:42Z; load { 7.02 9.16 11.78 }
+running 10 tests
 test centroids_match_opennlp_grpc_centroids_test ... ok
 test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
 test label_centroids_from_text_examples_and_binary_roundtrip ... ok
 test vector_head_and_span_heads_write_expected_layers ... ok
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
 test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
 Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
 test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
 test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
 test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
-test heads_and_centroids_cpu_and_device_parity ... ok
 test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
-test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
-     Running tests/heads_device.rs (target/release/deps/heads_device-a111ee37481bce19)
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.56s
+running 2 tests
 dense classifier on metal Apple M2 (f32 (model)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
 test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
 bundle nli scorer on metal Apple M2 (f32 (model)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
 test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
-### TURBO_TEST_PRECISION=model run 2, load { 26.28 14.16 10.69 }
-     Running tests/heads.rs (target/release/deps/heads-eb098b052ebfd941)
-test centroids_match_opennlp_grpc_centroids_test ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 2; 2026-10-26T20:19:41Z; load { 48.21 27.04 18.72 }
+running 10 tests
 test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test centroids_match_opennlp_grpc_centroids_test ... ok
 test label_centroids_from_text_examples_and_binary_roundtrip ... ok
 test vector_head_and_span_heads_write_expected_layers ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
 test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
-test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
 test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
 Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
 test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
 test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
 test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
-test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
-     Running tests/heads_device.rs (target/release/deps/heads_device-a111ee37481bce19)
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.74s
+running 2 tests
 dense classifier on metal Apple M2 (f32 (model)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
 test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
 bundle nli scorer on metal Apple M2 (f32 (model)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
 test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
-### TURBO_TEST_PRECISION=model run 3, load { 26.28 14.16 10.69 }
-     Running tests/heads.rs (target/release/deps/heads-eb098b052ebfd941)
-test centroids_match_opennlp_grpc_centroids_test ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 3; 2026-10-26T20:19:42Z; load { 44.51 26.62 18.62 }
+running 10 tests
 test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test centroids_match_opennlp_grpc_centroids_test ... ok
 test label_centroids_from_text_examples_and_binary_roundtrip ... ok
 test vector_head_and_span_heads_write_expected_layers ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
 test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
-test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
 Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
-test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
 test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
 test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
 test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
-test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
-     Running tests/heads_device.rs (target/release/deps/heads_device-a111ee37481bce19)
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.58s
+running 2 tests
 dense classifier on metal Apple M2 (f32 (model)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
 test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
 bundle nli scorer on metal Apple M2 (f32 (model)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
 test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.26s
-### TURBO_TEST_PRECISION=model run 4, load { 24.82 14.06 10.68 }
-     Running tests/heads.rs (target/release/deps/heads-eb098b052ebfd941)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 4; 2026-10-26T20:19:43Z; load { 44.51 26.62 18.62 }
+running 10 tests
 test centroids_match_opennlp_grpc_centroids_test ... ok
 test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
 test label_centroids_from_text_examples_and_binary_roundtrip ... ok
 test vector_head_and_span_heads_write_expected_layers ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
 test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
-test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
 Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
-test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
 test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
 test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
 test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
-test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
-     Running tests/heads_device.rs (target/release/deps/heads_device-a111ee37481bce19)
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.72s
+running 2 tests
 dense classifier on metal Apple M2 (f32 (model)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
 test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
 bundle nli scorer on metal Apple M2 (f32 (model)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
 test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
-### TURBO_TEST_PRECISION=model run 5, load { 24.82 14.06 10.68 }
-     Running tests/heads.rs (target/release/deps/heads-eb098b052ebfd941)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 5; 2026-10-26T20:19:45Z; load { 44.51 26.62 18.62 }
+running 10 tests
 test centroids_match_opennlp_grpc_centroids_test ... ok
 test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
 test label_centroids_from_text_examples_and_binary_roundtrip ... ok
-test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
 test vector_head_and_span_heads_write_expected_layers ... ok
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
 Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
-test heads_and_centroids_cpu_and_device_parity ... ok
 test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
 test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
 test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
 test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
-test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.70s
-     Running tests/heads_device.rs (target/release/deps/heads_device-a111ee37481bce19)
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.60s
+running 2 tests
 dense classifier on metal Apple M2 (f32 (model)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
 test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
 bundle nli scorer on metal Apple M2 (f32 (model)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
 test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
-### TURBO_TEST_PRECISION=exact run 1, load { 24.82 14.06 10.68 }
-     Running tests/heads.rs (target/release/deps/heads-eb098b052ebfd941)
-test centroids_match_opennlp_grpc_centroids_test ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 6; 2026-10-26T20:19:46Z; load { 44.51 26.62 18.62 }
+running 10 tests
 test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
-test label_centroids_from_text_examples_and_binary_roundtrip ... ok
-test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
-test vector_head_and_span_heads_write_expected_layers ... ok
-Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
-test heads_and_centroids_cpu_and_device_parity ... ok
-test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
-test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
-test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
-test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
-test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
-     Running tests/heads_device.rs (target/release/deps/heads_device-a111ee37481bce19)
-dense classifier on metal Apple M2 (f32 (exact)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
-test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
-bundle nli scorer on metal Apple M2 (f32 (exact)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
-test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
-### TURBO_TEST_PRECISION=exact run 2, load { 24.82 14.06 10.68 }
-     Running tests/heads.rs (target/release/deps/heads-eb098b052ebfd941)
 test centroids_match_opennlp_grpc_centroids_test ... ok
-test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
 test label_centroids_from_text_examples_and_binary_roundtrip ... ok
 test vector_head_and_span_heads_write_expected_layers ... ok
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
 test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
-test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
-Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
-test heads_and_centroids_cpu_and_device_parity ... ok
-test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
-test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
-test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
-test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
-     Running tests/heads_device.rs (target/release/deps/heads_device-a111ee37481bce19)
-dense classifier on metal Apple M2 (f32 (exact)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
-test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
-bundle nli scorer on metal Apple M2 (f32 (exact)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
-test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
-### TURBO_TEST_PRECISION=exact run 3, load { 24.82 14.06 10.68 }
-     Running tests/heads.rs (target/release/deps/heads-eb098b052ebfd941)
-test centroids_match_opennlp_grpc_centroids_test ... ok
-test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
-test label_centroids_from_text_examples_and_binary_roundtrip ... ok
-test vector_head_and_span_heads_write_expected_layers ... ok
-test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
 Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
 test heads_and_centroids_cpu_and_device_parity ... ok
 test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
 test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
 test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
 test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
-test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
-     Running tests/heads_device.rs (target/release/deps/heads_device-a111ee37481bce19)
-dense classifier on metal Apple M2 (f32 (exact)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.59s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (model)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
 test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
-bundle nli scorer on metal Apple M2 (f32 (exact)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (model)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
 test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
-### TURBO_TEST_PRECISION=exact run 4, load { 24.82 14.06 10.68 }
-     Running tests/heads.rs (target/release/deps/heads-eb098b052ebfd941)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 7; 2026-10-26T20:19:47Z; load { 41.34 26.26 18.54 }
+running 10 tests
 test centroids_match_opennlp_grpc_centroids_test ... ok
 test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
 test label_centroids_from_text_examples_and_binary_roundtrip ... ok
 test vector_head_and_span_heads_write_expected_layers ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
 test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.66s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (model)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (model)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 8; 2026-10-26T20:19:49Z; load { 41.34 26.26 18.54 }
+running 10 tests
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.62s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (model)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (model)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 9; 2026-10-26T20:19:50Z; load { 41.34 26.26 18.54 }
+running 10 tests
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.60s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (model)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (model)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 10; 2026-10-26T20:19:51Z; load { 41.34 26.26 18.54 }
+running 10 tests
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+test vector_head_and_span_heads_write_expected_layers ... ok
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
 test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
 Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
 test heads_and_centroids_cpu_and_device_parity ... ok
 test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
 test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
 test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
-test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
-     Running tests/heads_device.rs (target/release/deps/heads_device-a111ee37481bce19)
-dense classifier on metal Apple M2 (f32 (exact)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.66s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (model)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
 test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
-bundle nli scorer on metal Apple M2 (f32 (exact)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (model)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
 test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
-### TURBO_TEST_PRECISION=exact run 5, load { 25.07 14.29 10.78 }
-     Running tests/heads.rs (target/release/deps/heads-eb098b052ebfd941)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 11; 2026-10-26T20:19:52Z; load { 38.51 25.93 18.47 }
+running 10 tests
 test centroids_match_opennlp_grpc_centroids_test ... ok
 test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
 test label_centroids_from_text_examples_and_binary_roundtrip ... ok
 test vector_head_and_span_heads_write_expected_layers ... ok
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
 test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
 test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
 Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
 test heads_and_centroids_cpu_and_device_parity ... ok
 test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
 test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
 test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
-test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
-     Running tests/heads_device.rs (target/release/deps/heads_device-a111ee37481bce19)
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.61s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (model)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (model)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 12; 2026-10-26T20:19:54Z; load { 38.51 25.93 18.47 }
+running 10 tests
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.73s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (model)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (model)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 13; 2026-10-26T20:19:55Z; load { 38.51 25.93 18.47 }
+running 10 tests
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.62s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (model)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (model)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 14; 2026-10-26T20:19:56Z; load { 38.51 25.93 18.47 }
+running 10 tests
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.58s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (model)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (model)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 15; 2026-10-26T20:19:58Z; load { 35.75 25.56 18.38 }
+running 10 tests
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.80s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (model)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (model)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 16; 2026-10-26T20:19:59Z; load { 35.75 25.56 18.38 }
+running 10 tests
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.71s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (model)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (model)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 17; 2026-10-26T20:20:01Z; load { 35.75 25.56 18.38 }
+running 10 tests
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.56s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (model)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (model)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.45s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 18; 2026-10-26T20:20:02Z; load { 35.75 25.56 18.38 }
+running 10 tests
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.63s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (model)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (model)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 19; 2026-10-26T20:20:03Z; load { 34.89 25.55 18.42 }
+running 10 tests
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.66s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (model)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (model)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 20; 2026-10-26T20:20:04Z; load { 34.89 25.55 18.42 }
+running 10 tests
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.57s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (model)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (model)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 1; 2026-10-26T20:20:06Z; load { 34.89 25.55 18.42 }
+running 10 tests
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.63s
+running 2 tests
 dense classifier on metal Apple M2 (f32 (exact)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
 test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
 bundle nli scorer on metal Apple M2 (f32 (exact)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
 test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
-test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 2; 2026-10-26T20:20:07Z; load { 34.89 25.55 18.42 }
+running 10 tests
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.67s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (exact)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (exact)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 3; 2026-10-26T20:20:08Z; load { 34.18 25.56 18.46 }
+running 10 tests
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.58s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (exact)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (exact)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.45s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 4; 2026-10-26T20:20:09Z; load { 34.18 25.56 18.46 }
+running 10 tests
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.59s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (exact)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (exact)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 5; 2026-10-26T20:20:11Z; load { 34.18 25.56 18.46 }
+running 10 tests
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (exact)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (exact)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 6; 2026-10-26T20:20:12Z; load { 34.18 25.56 18.46 }
+running 10 tests
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.57s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (exact)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (exact)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 7; 2026-10-26T20:20:13Z; load { 33.12 25.48 18.48 }
+running 10 tests
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.58s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (exact)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (exact)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 8; 2026-10-26T20:20:14Z; load { 33.12 25.48 18.48 }
+running 10 tests
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.72s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (exact)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (exact)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 9; 2026-10-26T20:20:16Z; load { 33.12 25.48 18.48 }
+running 10 tests
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.57s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (exact)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (exact)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 10; 2026-10-26T20:20:17Z; load { 33.12 25.48 18.48 }
+running 10 tests
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.59s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (exact)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (exact)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 11; 2026-10-26T20:20:18Z; load { 31.27 25.23 18.43 }
+running 10 tests
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.62s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (exact)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (exact)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 12; 2026-10-26T20:20:19Z; load { 31.27 25.23 18.43 }
+running 10 tests
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.58s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (exact)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (exact)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 13; 2026-10-26T20:20:20Z; load { 31.27 25.23 18.43 }
+running 10 tests
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.59s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (exact)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (exact)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 14; 2026-10-26T20:20:22Z; load { 31.27 25.23 18.43 }
+running 10 tests
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.67s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (exact)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (exact)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 15; 2026-10-26T20:20:23Z; load { 29.40 24.94 18.37 }
+running 10 tests
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.60s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (exact)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (exact)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 16; 2026-10-26T20:20:24Z; load { 29.40 24.94 18.37 }
+running 10 tests
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.61s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (exact)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (exact)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 17; 2026-10-26T20:20:25Z; load { 29.40 24.94 18.37 }
+running 10 tests
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.56s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (exact)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (exact)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 18; 2026-10-26T20:20:26Z; load { 29.40 24.94 18.37 }
+running 10 tests
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.67s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (exact)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (exact)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 19; 2026-10-26T20:20:28Z; load { 27.77 24.68 18.31 }
+running 10 tests
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.61s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (exact)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (exact)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+### commit 8d9acddbff992badcd6e875731e6697748cb1256; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/metal -p turbo-analysis-embed --test heads_device --test heads -- --nocapture; run 20; 2026-10-26T20:20:29Z; load { 27.77 24.68 18.31 }
+running 10 tests
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+Incivility regression fixture (5 sentences): macro_P=1.000, macro_R=1.000, macro_F1=1.000, micro_F1=1.000, evidence=6/6
+Self-contained eval (12 sentences): Lexicon=12/12, Centroids=10/12, LinearHead=10/12
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+ABSA training fixture (9 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=0.971, triplet F1=0.971]
+ABSA held-out (4 docs): Rule [aspect F1=1.000, opinion F1=1.000, triplet F1=1.000], Learned [aspect F1=1.000, opinion F1=1.000, triplet F1=0.857]
+Execution { backend: "metal", device: "Apple M2", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.58s
+running 2 tests
+dense classifier on metal Apple M2 (f32 (exact)): vectors 5.960464477539063e-8, probabilities 6.598696478121724e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on metal Apple M2 (f32 (exact)): logits 9.5367431640625e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s

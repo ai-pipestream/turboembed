@@ -1,14 +1,19 @@
 # Embedding heads on Metal (#989)
 
-Base: `e7397a14` (origin/main at branch time). Device: Apple M2 through
-the Metal backend, F32 at both precisions. `tests.log` is the run: five
-release runs at each of `TURBO_TEST_PRECISION=model` and `exact`, twenty
-test binaries in all. Every one passed, and every repeat printed the
-same numbers.
+Code: `8d9acddbff992badcd6e875731e6697748cb1256` (the commit each run in the log
+names, with its full command). Device: Apple M2 through the Metal backend,
+F32 at both precisions. `tests.log` is the run, unfiltered but for cargo's
+build lines: twenty release runs at each of `TURBO_TEST_PRECISION=model`
+and `exact`, eighty test binaries in all, as #1416's Level Zero receipt
+ran them. Every one passed, and every repeat printed the same numbers,
+the NLI test's per-pair lines included.
 
 These are correctness runs, not timings. The M2 is a desktop in use,
 and other work was running: the one-minute load average was between
-24.8 and 26.3 (the log records it before each run).
+7.0 and 48.2 (the log records it before each run).
+
+F16 is not covered: every run here is F32, at MODEL and at EXACT, since
+the bundle's FASTEST is not one these tests ask for.
 
 | Head | Test | Against the CPU | Largest difference |
 |---|---|---|---|
@@ -32,7 +37,12 @@ How each test reaches the device:
 
 The bounds are `docs/conformance.md`'s F32 score bounds; every
 difference is far inside them. The NLI head is the test's own, centred on
-its six pairs (docs/receipts/heads-levelzero-989 says how).
+its six pairs (docs/receipts/heads-levelzero-989 says how). Each per-pair line
+in the log gives the CPU's label and margin, every run: pair 0 contradiction by 0.047,
+pair 1 neutral by 0.378, pair 2 entailment by 0.057, pair 3
+contradiction by 0.018, pair 4 contradiction by 0.0043 and pair 5
+entailment by 0.0079, each margin over twice the 1e-4 bound, so the
+test held every pair's Metal label to the CPU's, and it passed each time.
 
 Command, per run:
 
