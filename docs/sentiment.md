@@ -770,28 +770,139 @@ the dimension and flags (bit 1 an encoder; all `u32` little-endian), the
 biases and the weights as little-endian `f32`, then, for a head bound to
 an encoder, its id, revision and SHA-256 as `u32`-length-prefixed UTF-8.
 `from_bytes` checks each part and the exact length, and a head read back
-keeps its encoder.
+keeps its encoder. `EmotionVectorHead::fit` fits the 28-label linear head
+deterministically by full-batch L2-regularized logistic regression from zero
+(`EmotionFitOptions`, default 300 epochs, learning rate `0.5`, L2 `1e-4`), and
+`EmotionVectorHead::from_zoo` loads a `KIND_HEAD` / `FORMAT_HEAD` (`TEVH`)
+artifact from `turbo-zoo` (`GOEMOTIONS_MINILM_HEAD = "turbo-en-goemotions-minilm-l6-v2-head-1"`
+and `GOEMOTIONS_BGE_SMALL_HEAD = "turbo-en-goemotions-bge-small-en-v1.5-head-1"`).
 
-`evaluate_emotion_corpus` gives per-label precision, recall and F1, macro
-and micro averages, and how many active emotions carry evidence.
+`EmotionAnnotator::with_thresholds` configures per-label activation thresholds
+in `EmotionDimension::ALL` order (controlling which emotions receive token
+evidence spans and `Provenance` hash differentiation), and
+`evaluate_emotion_corpus` / `evaluate_emotion_corpus_with_thresholds` compute
+per-label precision, recall and F1, macro and micro averages, and how many
+active emotions carry evidence.
+
+### Trained GoEmotions heads and evaluation (`#926`)
+
+`analysis/embed/examples/goemotions_eval` trains and evaluates
+`EmotionVectorHead` on the GoEmotions filtered split (`goemotions` in
+`analysis/zoo/index/zoo.json`, `google-research/google-research/goemotions` at
+`7de3624754e2b0f2f505ae496db3ba194bb40be9`, CC BY 4.0: 43,410 train, 5,426 dev,
+and 5,427 test Reddit comments across 27 emotions plus `neutral`). Each comment
+is embedded as one unit vector (up to 256 tokens for
+`sentence-transformers/all-MiniLM-L6-v2` and 512 tokens for
+`BAAI/bge-small-en-v1.5`), and `EmotionVectorHead::fit` is run on the 43,410
+train comments with `EmotionFitOptions { epochs: 500, learning_rate: 16.0, l2: 1e-4 }`.
+The two resulting `.tevh` heads are published in the `models-goemotions-1`
+release under `Apache-2.0` and registered in `analysis/zoo/index/zoo.json` as
+`KIND_HEAD` (`FORMAT_HEAD`, `COMPONENT_DOCUMENT_CATEGORIZER`, `CLASS_PERMISSIVE`):
+
+- `turbo-en-goemotions-minilm-l6-v2-head-1` (`43,251` bytes, SHA-256
+  `9b280043bff1293280808a38d35d0cf0489cde4c6f92c08423d5c88fc5021723`, bound to
+  `sentence-transformers/all-MiniLM-L6-v2` rev `2`)
+- `turbo-en-goemotions-bge-small-en-v1.5-head-1` (`43,235` bytes, SHA-256
+  `f82b1beb02642576d12e8932b6f3cf0b8487d3f150c0066b576c50011665123a`, bound to
+  `BAAI/bge-small-en-v1.5` rev `1`)
+
+Full evaluation receipts are committed in
+`docs/receipts/goemotions-926/all-minilm-l6-v2.json` and
+`docs/receipts/goemotions-926/bge-small-en-v1.5.json`. Across all stages and
+threshold regimes on the 5,427 test comments, every active non-neutral emotion
+prediction carries a non-empty token evidence span (`active == active_with_evidence`).
+
+#### Macro and micro precision, recall, and F1 on the GoEmotions test split (5,427 comments)
+
+Uniform and per-label thresholds are selected on the 5,426 dev comments (from
+`0.05` to `0.95` in steps of `0.05` to maximize dev F1 per label or macro F1
+uniformly) and evaluated once on the 5,427 test comments:
+
+| Stage | Encoder | Threshold regime | Macro P / R / F1 | Micro P / R / F1 | Active emotions (with evidence) |
+| --- | --- | --- | --- | --- | ---: |
+| `lexicon` | none | default (`0.50`) | `0.652 / 0.267 / 0.301` | `0.497 / 0.448 / 0.471` | `1,678 (1,678)` |
+| `lexicon` | none | per-label dev tuned | `0.661 / 0.262 / 0.304` | `0.501 / 0.447 / 0.472` | `1,615 (1,615)` |
+| `learned` | `all-MiniLM-L6-v2` | default (`0.50`) | `0.836 / 0.103 / 0.127` | `0.498 / 0.343 / 0.406` | `682 (682)` |
+| `learned` | `all-MiniLM-L6-v2` | uniform dev tuned (`0.15`) | `0.468 / 0.313 / 0.291` | `0.387 / 0.576 / 0.463` | `5,834 (5,834)` |
+| `learned` | `all-MiniLM-L6-v2` | per-label dev tuned | `0.403 / 0.395 / 0.314` | `0.332 / 0.576 / 0.421` | `7,949 (7,949)` |
+| `hybrid` | `all-MiniLM-L6-v2` | default (`0.50`) | `0.640 / 0.284 / 0.322` | `0.557 / 0.446 / 0.495` | `1,980 (1,980)` |
+| `hybrid` | `all-MiniLM-L6-v2` | uniform dev tuned (`0.30`) | `0.591 / 0.324 / 0.350` | `0.512 / 0.513 / 0.512` | `3,000 (3,000)` |
+| `hybrid` | `all-MiniLM-L6-v2` | per-label dev tuned | `0.504 / 0.407 / 0.396` | `0.446 / 0.555 / 0.494` | `5,351 (5,351)` |
+| `learned` | `bge-small-en-v1.5` | default (`0.50`) | `0.786 / 0.089 / 0.111` | `0.534 / 0.321 / 0.401` | `624 (624)` |
+| `learned` | `bge-small-en-v1.5` | uniform dev tuned (`0.20`) | `0.557 / 0.260 / 0.273` | `0.434 / 0.529 / 0.477` | `4,295 (4,295)` |
+| `learned` | `bge-small-en-v1.5` | per-label dev tuned | `0.477 / 0.370 / 0.331` | `0.413 / 0.564 / 0.476` | `5,680 (5,680)` |
+| `hybrid` | `bge-small-en-v1.5` | default (`0.50`) | `0.643 / 0.282 / 0.326` | `0.584 / 0.435 / 0.498` | `1,992 (1,992)` |
+| `hybrid` | `bge-small-en-v1.5` | uniform dev tuned (`0.30`) | `0.601 / 0.338 / 0.370` | `0.526 / 0.526 / 0.526` | `2,994 (2,994)` |
+| `hybrid` | `bge-small-en-v1.5` | per-label dev tuned | `0.486 / 0.440 / 0.410` | `0.446 / 0.597 / 0.511` | `5,539 (5,539)` |
+
+The `hybrid` stage consistently improves over both `lexicon` and `learned`
+alone: with per-label dev thresholds, `hybrid` reaches `0.396` macro F1 / `0.494`
+micro F1 on `all-MiniLM-L6-v2` (versus `0.304` macro F1 for `lexicon` and
+`0.314` macro F1 for `learned`) and `0.410` macro F1 / `0.511` micro F1 on
+`bge-small-en-v1.5` (versus `0.331` macro F1 for `learned`), and with a single
+uniform dev-tuned threshold (`0.30`) reaches `0.512` micro F1 on
+`all-MiniLM-L6-v2` and `0.526` micro F1 on `bge-small-en-v1.5`.
+
+#### Per-label precision, recall, and F1 on the GoEmotions test split
+
+Each cell is `precision / recall / F1` on the 5,427 test comments (`lexicon` at
+`0.50`, `learned` and `hybrid` at their per-label dev-tuned thresholds):
+
+| Label | Gold test | `lexicon` (`0.50`) | `learned` (`MiniLM`) | `hybrid` (`MiniLM`) | `learned` (`BGE-small`) | `hybrid` (`BGE-small`) |
+| --- | ---: | --- | --- | --- | --- | --- |
+| `admiration` | 504 | 0.872 / 0.067 / 0.125 | 0.491 / 0.520 / 0.505 | 0.498 / 0.538 / 0.517 | 0.493 / 0.589 / 0.537 | 0.549 / 0.526 / 0.537 |
+| `amusement` | 264 | 0.739 / 0.674 / 0.705 | 0.692 / 0.723 / 0.707 | 0.713 / 0.830 / 0.767 | 0.557 / 0.644 / 0.598 | 0.704 / 0.803 / 0.750 |
+| `anger` | 198 | 0.471 / 0.040 / 0.074 | 0.398 / 0.333 / 0.363 | 0.409 / 0.364 / 0.385 | 0.386 / 0.247 / 0.302 | 0.390 / 0.278 / 0.324 |
+| `annoyance` | 320 | 0.867 / 0.041 / 0.078 | 0.264 / 0.294 / 0.278 | 0.272 / 0.306 / 0.288 | 0.244 / 0.319 / 0.276 | 0.251 / 0.331 / 0.285 |
+| `approval` | 351 | 0.478 / 0.094 / 0.157 | 0.183 / 0.484 / 0.266 | 0.185 / 0.499 / 0.269 | 0.281 / 0.333 / 0.305 | 0.289 / 0.373 / 0.325 |
+| `caring` | 135 | 0.348 / 0.059 / 0.101 | 0.233 / 0.393 / 0.293 | 0.292 / 0.311 / 0.301 | 0.240 / 0.370 / 0.292 | 0.241 / 0.407 / 0.303 |
+| `confusion` | 153 | 0.765 / 0.085 / 0.153 | 0.112 / 0.686 / 0.193 | 0.531 / 0.170 / 0.257 | 0.259 / 0.510 / 0.344 | 0.261 / 0.523 / 0.349 |
+| `curiosity` | 284 | 0.556 / 0.035 / 0.066 | 0.333 / 0.356 / 0.344 | 0.331 / 0.363 / 0.346 | 0.382 / 0.500 / 0.433 | 0.382 / 0.511 / 0.437 |
+| `desire` | 83 | 0.238 / 0.410 / 0.301 | 0.382 / 0.157 / 0.222 | 0.525 / 0.253 / 0.341 | 0.432 / 0.193 / 0.267 | 0.511 / 0.277 / 0.359 |
+| `disappointment` | 151 | 0.778 / 0.046 / 0.088 | 0.091 / 0.464 / 0.152 | 0.180 / 0.192 / 0.186 | 0.168 / 0.265 / 0.206 | 0.172 / 0.272 / 0.210 |
+| `disapproval` | 267 | 0.455 / 0.019 / 0.036 | 0.192 / 0.438 / 0.267 | 0.195 / 0.464 / 0.275 | 0.222 / 0.614 / 0.326 | 0.221 / 0.640 / 0.329 |
+| `disgust` | 123 | 0.815 / 0.179 / 0.293 | 0.459 / 0.366 / 0.407 | 0.462 / 0.390 / 0.423 | 0.353 / 0.398 / 0.374 | 0.359 / 0.423 / 0.388 |
+| `embarrassment` | 37 | 0.500 / 0.108 / 0.178 | 0.286 / 0.054 / 0.091 | 0.500 / 0.108 / 0.178 | 0.500 / 0.027 / 0.051 | 0.444 / 0.108 / 0.174 |
+| `excitement` | 103 | 0.870 / 0.194 / 0.317 | 0.278 / 0.340 / 0.306 | 0.295 / 0.379 / 0.332 | 0.286 / 0.291 / 0.288 | 0.313 / 0.340 / 0.326 |
+| `fear` | 78 | 0.679 / 0.244 / 0.358 | 0.481 / 0.487 / 0.484 | 0.500 / 0.564 / 0.530 | 0.565 / 0.500 / 0.531 | 0.537 / 0.564 / 0.550 |
+| `gratitude` | 352 | 0.971 / 0.847 / 0.904 | 0.662 / 0.807 / 0.727 | 0.956 / 0.861 / 0.906 | 0.747 / 0.781 / 0.764 | 0.965 / 0.861 / 0.910 |
+| `grief` | 6 | 1.000 / 0.000 / 0.000 | 1.000 / 0.000 / 0.000 | 1.000 / 0.000 / 0.000 | 1.000 / 0.000 / 0.000 | 1.000 / 0.000 / 0.000 |
+| `joy` | 161 | 0.560 / 0.404 / 0.469 | 0.246 / 0.528 / 0.336 | 0.451 / 0.509 / 0.478 | 0.380 / 0.453 / 0.414 | 0.552 / 0.460 / 0.502 |
+| `love` | 238 | 0.716 / 0.697 / 0.706 | 0.560 / 0.651 / 0.602 | 0.710 / 0.739 / 0.724 | 0.624 / 0.580 / 0.601 | 0.649 / 0.807 / 0.719 |
+| `nervousness` | 23 | 0.375 / 0.130 / 0.194 | 0.000 / 0.000 / 0.000 | 0.429 / 0.130 / 0.200 | 1.000 / 0.000 / 0.000 | 0.429 / 0.130 / 0.200 |
+| `optimism` | 186 | 0.756 / 0.349 / 0.478 | 0.392 / 0.441 / 0.415 | 0.528 / 0.505 / 0.516 | 0.275 / 0.597 / 0.377 | 0.518 / 0.473 / 0.494 |
+| `pride` | 16 | 0.667 / 0.375 / 0.480 | 1.000 / 0.000 / 0.000 | 0.667 / 0.375 / 0.480 | 1.000 / 0.000 / 0.000 | 0.667 / 0.375 / 0.480 |
+| `realization` | 145 | 0.722 / 0.090 / 0.160 | 0.088 / 0.290 / 0.135 | 0.609 / 0.097 / 0.167 | 0.264 / 0.131 / 0.175 | 0.333 / 0.200 / 0.250 |
+| `relief` | 11 | 1.000 / 0.091 / 0.167 | 1.000 / 0.000 / 0.000 | 1.000 / 0.091 / 0.167 | 1.000 / 0.000 / 0.000 | 1.000 / 0.091 / 0.167 |
+| `remorse` | 56 | 0.517 / 0.804 / 0.629 | 0.443 / 0.482 / 0.462 | 0.511 / 0.804 / 0.625 | 0.481 / 0.446 / 0.463 | 0.511 / 0.804 / 0.625 |
+| `sadness` | 156 | 0.696 / 0.205 / 0.317 | 0.405 / 0.436 / 0.420 | 0.415 / 0.500 / 0.453 | 0.460 / 0.558 / 0.504 | 0.456 / 0.596 / 0.517 |
+| `surprise` | 141 | 0.425 / 0.241 / 0.308 | 0.130 / 0.496 / 0.206 | 0.408 / 0.298 / 0.344 | 0.262 / 0.191 / 0.221 | 0.402 / 0.305 / 0.347 |
+| `neutral` | 1787 | 0.422 / 0.950 / 0.584 | 0.484 / 0.821 / 0.609 | 0.536 / 0.756 / 0.627 | 0.495 / 0.822 / 0.618 | 0.507 / 0.831 / 0.630 |
 
 ### Tests and license posture
 
-No emotion lexicon or dataset is fetched: the common emotion lexicons
-carry non-commercial terms, and the GoEmotions text is not in the
-repository, so the seed list is the crate's own and no trained head
-weights ship.
+The common emotion lexicons (NRC Emotion Lexicon, LIWC) carry non-commercial
+terms and are not used; the seed lexicon is project-authored under the
+repository licence. GoEmotions (`google-research/google-research/goemotions`,
+CC BY 4.0) is approved in [docs/licences.md](licences.md#complex-sentiment-licence-audit-326)
+and pinned in `analysis/zoo/index/zoo.json` (`goemotions` and `goemotions-raw`),
+and the two trained linear heads (`turbo-en-goemotions-minilm-l6-v2-head-1` and
+`turbo-en-goemotions-bge-small-en-v1.5-head-1`) are published in the
+`models-goemotions-1` release under `Apache-2.0` with CC BY 4.0 attribution.
 
 - `analysis/doccat/src/sentiment/emotion/tests/mod.rs`: cues with their
   token evidence and the noisy-or; negated cues that do not count, and a
   negator out of reach that does not negate; text with no cue that is
   neutral with no evidence; an emoji cue; the three stages on vectors
-  given as data, with their model ids and hashes; the errors for a
+  given as data, with their model ids and hashes; per-label thresholds
+  (`with_thresholds`, `evaluate_emotion_corpus_with_thresholds`); the errors for a
   missing head, a missing vector and another encoder; the layer through
   the document graph; and the evaluation counts.
 - `analysis/doccat/src/sentiment/emotion/tests/head.rs`: the head's
   arithmetic, its bytes with and without an encoder, every cut of them
-  and every bad header field.
+  and every bad header field, `EmotionVectorHead::fit` on multi-label vectors,
+  and `EmotionVectorHead::from_zoo` validation (`Kind::Head`, `Format::Head`,
+  SHA-256/SHA-512 verification).
 - `analysis/layers/src/sentiment/emotion_tests.rs`: the taxonomy, the
   checks on each pushed item, and `EmotionLayer::check` on broken
   layers.

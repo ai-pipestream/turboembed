@@ -30,6 +30,10 @@ turbo-sequence = { path = "../sequence" }
 turbo-train = { path = "../train" }
 # Unicode punctuation and case folding, for the emotion lexicon's lookups.
 turbo-unicode = { path = "../unicode" }
+# Classifier heads by zoo id (#926, #888), without the HTTP transport: the
+# caller hands the zoo its own.
+turbo-zoo = { path = "../zoo", default-features = false }
 
 [dev-dependencies]
 turbo-goldens = { path = "../goldens" }
+turbo-zoo = { path = "../zoo" }
