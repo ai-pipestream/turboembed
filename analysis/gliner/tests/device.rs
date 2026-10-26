@@ -1,12 +1,12 @@
 //! GLiNER through the backend table against the CPU encoder (#883): the
 //! tiny DeBERTa-v2 bundle of testdata/tiny-deberta-bundle as the encoder,
 //! with the heads of tests/fixtures and a small SentencePiece model, on the
-//! device TURBO_TEST_DEVICE names (`cpu`, `levelzero`, `cuda`; the CPU when
+//! device TURBO_TEST_DEVICE names (`cpu`, `levelzero`, `cuda`, `metal`; the CPU when
 //! it is not set) at the precision TURBO_TEST_PRECISION names (model, or
 //! exact). Every logit within 1e-4 of the CPU encoder's and within 1e-3 of
 //! the largest logit of its input, the decoded
-//! entities the same. With TURBO_TEST_REQUIRE_CUDA or
-//! TURBO_TEST_REQUIRE_LEVELZERO set, the test fails unless it runs there.
+//! entities the same. With TURBO_TEST_REQUIRE_CUDA,
+//! TURBO_TEST_REQUIRE_LEVELZERO or TURBO_TEST_REQUIRE_METAL set, the test fails unless it runs there.
 
 use std::path::{Path, PathBuf};
 
@@ -31,10 +31,14 @@ fn bundle() -> PathBuf {
 /// The backend a TURBO_TEST_REQUIRE_* variable requires, if any.
 fn required() -> Option<&'static str> {
     let set = |v: &str| std::env::var(v).is_ok_and(|v| !v.is_empty() && v != "0");
-    [("TURBO_TEST_REQUIRE_CUDA", "cuda"), ("TURBO_TEST_REQUIRE_LEVELZERO", "levelzero")]
-        .into_iter()
-        .find(|(v, _)| set(v))
-        .map(|(_, b)| b)
+    [
+        ("TURBO_TEST_REQUIRE_CUDA", "cuda"),
+        ("TURBO_TEST_REQUIRE_LEVELZERO", "levelzero"),
+        ("TURBO_TEST_REQUIRE_METAL", "metal"),
+    ]
+    .into_iter()
+    .find(|(v, _)| set(v))
+    .map(|(_, b)| b)
 }
 
 fn options() -> EncoderOptions {

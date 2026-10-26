@@ -8,6 +8,7 @@
 //! a bound its tests name, not to its bits.
 
 use super::Device;
+use super::gpu::{self, Gpu};
 use crate::cpu::lstm as cpu;
 use crate::status::{Error, INVALID_ARGUMENT, INVALID_SHAPE, Result};
 
@@ -18,8 +19,7 @@ pub struct Lstm {
     device: Device,
     /// The CPU form, which checked the weights and runs on the CPU.
     cpu: cpu::Lstm,
-    #[cfg(feature = "cuda")]
-    cuda: Option<super::cuda_lstm::Lstm>,
+    gpu: Option<Gpu>,
 }
 
 /// Input projections made once per distinct row (a character table, say),
@@ -37,8 +37,7 @@ pub struct Table {
 
 enum TableInner {
     Cpu(Vec<f32>),
-    #[cfg(feature = "cuda")]
-    Cuda(super::cuda_lstm::Table),
+    Gpu(gpu::Table),
 }
 
 /// What a run computes in, kept across runs so that a run of the same or
@@ -46,16 +45,9 @@ enum TableInner {
 #[derive(Default)]
 pub struct Work {
     cpu: cpu::Work,
-    #[cfg(feature = "cuda")]
-    cuda: super::cuda_lstm::Work,
+    gpu: gpu::Work,
     lengths: Vec<i64>,
     index: Vec<i64>,
-}
-
-/// A device this library cannot run the op on.
-#[cfg(not(feature = "cuda"))]
-fn unsupported(device: Device) -> Error {
-    Error::new(crate::status::UNSUPPORTED, format!("lstm: device {device:?} is not built into this library"))
 }
 
 fn finite(v: &[f32]) -> bool {
@@ -69,28 +61,11 @@ impl Lstm {
     /// and one that is not there with DEVICE_NOT_FOUND.
     pub fn new(device: Device, input: usize, hidden: usize, dirs: &[Weights<'_>]) -> Result<Lstm> {
         let cpu = cpu::Lstm::new(input, hidden, dirs)?;
-        match device {
-            Device::Cpu => Ok(Lstm {
-                device,
-                cpu,
-                #[cfg(feature = "cuda")]
-                cuda: None,
-            }),
-            #[cfg(feature = "cuda")]
-            Device::Cuda(ordinal) => {
-                let (mut w, mut u, mut b) = (Vec::new(), Vec::new(), Vec::new());
-                for d in dirs {
-                    w.extend_from_slice(d.w);
-                    u.extend_from_slice(d.u);
-                    b.extend_from_slice(d.b);
-                }
-                let reverse: Vec<i32> = dirs.iter().map(|d| i32::from(d.reverse)).collect();
-                let cuda = super::cuda_lstm::Lstm::new(ordinal, input, hidden, &w, &u, &b, &reverse)?;
-                Ok(Lstm { device, cpu, cuda: Some(cuda) })
-            }
-            #[cfg(not(feature = "cuda"))]
-            Device::Cuda(_) => Err(unsupported(device)),
+        if device == Device::Cpu {
+            return Ok(Lstm { device, cpu, gpu: None });
         }
+        let gpu = Gpu::new(device, input, hidden, dirs)?;
+        Ok(Lstm { device, cpu, gpu: Some(gpu) })
     }
 
     pub fn device(&self) -> Device {
@@ -127,19 +102,11 @@ impl Lstm {
             let message = format!("lstm: a table of {} values is not whole rows of {pw}", values.len());
             return Err(Error::new(INVALID_SHAPE, message));
         }
-        let inner = match self.device {
-            Device::Cpu => TableInner::Cpu(values.to_vec()),
-            #[cfg(feature = "cuda")]
-            Device::Cuda(_) => TableInner::Cuda(self.on_cuda().table(values)?),
-            #[cfg(not(feature = "cuda"))]
-            Device::Cuda(_) => unreachable!("an LSTM on a device not built in"),
+        let inner = match &self.gpu {
+            None => TableInner::Cpu(values.to_vec()),
+            Some(g) => TableInner::Gpu(g.table(values)?),
         };
         Ok(Table { device: self.device, values: values.len(), rows: values.len() / pw, finite: finite(values), inner })
-    }
-
-    #[cfg(feature = "cuda")]
-    fn on_cuda(&self) -> &super::cuda_lstm::Lstm {
-        self.cuda.as_ref().expect("an LSTM on CUDA holds its device weights")
     }
 
     /// [`cpu::Lstm::run`](crate::cpu::lstm::Lstm::run) on the device: the
@@ -214,7 +181,6 @@ impl Lstm {
     }
 
     /// A checked run on a GPU.
-    #[allow(unused_variables)]
     fn on_device(
         &self,
         x: Option<&[f32]>,
@@ -229,16 +195,12 @@ impl Lstm {
         }
         w.lengths.clear();
         w.lengths.extend(lengths.iter().map(|&n| n as i64));
-        #[cfg(feature = "cuda")]
-        {
-            let table = table.map(|(t, i)| match &t.inner {
-                TableInner::Cuda(t) => (t, i),
-                TableInner::Cpu(_) => unreachable!("a CPU table on a GPU run"),
-            });
-            self.on_cuda().run(x, table, &w.lengths, rows, out, &mut w.cuda)
-        }
-        #[cfg(not(feature = "cuda"))]
-        unreachable!("an LSTM on a device not built in")
+        let table = table.map(|(t, i)| match &t.inner {
+            TableInner::Gpu(t) => (t, i),
+            TableInner::Cpu(_) => unreachable!("a CPU table on a GPU run"),
+        });
+        let gpu = self.gpu.as_ref().expect("an LSTM on a GPU holds its weights there");
+        gpu.run(x, table, &w.lengths, rows, out, &mut w.gpu)
     }
 }
 
@@ -246,8 +208,7 @@ impl Table {
     fn on_cpu(&self) -> Option<&[f32]> {
         match &self.inner {
             TableInner::Cpu(t) => Some(t),
-            #[cfg(feature = "cuda")]
-            TableInner::Cuda(_) => None,
+            TableInner::Gpu(_) => None,
         }
     }
 
