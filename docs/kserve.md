@@ -66,7 +66,9 @@ One setting is the server's, not a model's: `--max-message-bytes`, the
 largest request message gRPC reads, 64 MiB when absent. A request larger
 than it is refused by gRPC with `RESOURCE_EXHAUSTED` before it is read,
 and carries no `turbo-code`: no turbo call is made for it, and texts have
-no session bound that would refuse it first.
+no session bound that would refuse it first. So is a request whose
+frames pass `--max-stream-bytes` in all, 2 GiB when absent, at the frame
+that passes it (docs/grpc.md).
 
 A failure in any of these calls stops the server before it is ready. It
 logs the call, `turbo_status_name` of the code, the field if the error
@@ -372,7 +374,8 @@ ends and the result is released; the answer is then dropped.
 ## Errors
 
 Every error the server answers is a turbo status code, except a message
-over `--max-message-bytes` (Serving a bundle). The gRPC status
+over `--max-message-bytes` or a request over `--max-stream-bytes`
+(Serving a bundle). The gRPC status
 code is from the table; the status message is
 
 ```

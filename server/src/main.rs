@@ -102,6 +102,7 @@ async fn main() -> ExitCode {
         catalog,
         training: args.training_dir.map(PathBuf::from),
         sink: args.sink,
+        max_stream_bytes: Some(args.max_stream_bytes),
         ..Serve::default()
     };
     let server = match Server::start(args.listen, args.models, args.max_message_bytes, serve).await {

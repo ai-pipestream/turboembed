@@ -2360,6 +2360,7 @@ name = "turbo-kserve"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "http-body",
  "libc",
  "prost",
  "protox",

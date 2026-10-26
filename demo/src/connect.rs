@@ -21,9 +21,10 @@ use tonic::codec::Streaming;
 use tonic::codegen::http::uri::PathAndQuery;
 use tonic::metadata::{KeyAndValueRef, MetadataMap};
 
+use crate::App;
 use crate::budget::Budget;
 use crate::codec::Raw;
-use crate::{App, MAX_MESSAGE_BYTES};
+use crate::limits::{self, MAX_REPLY_BYTES, MAX_REQUEST_BYTES};
 
 pub const UNARY: &str = "application/proto";
 pub const STREAM: &str = "application/connect+proto";
@@ -81,8 +82,8 @@ async fn forward(app: &App, req: Request) -> Response {
             Err(r) => return refuse(protocol, r),
         };
         let mut grpc = Grpc::new(app.channel.clone())
-            .max_decoding_message_size(MAX_MESSAGE_BYTES)
-            .max_encoding_message_size(MAX_MESSAGE_BYTES);
+            .max_decoding_message_size(MAX_REPLY_BYTES)
+            .max_encoding_message_size(MAX_REQUEST_BYTES);
         if let Err(e) = grpc.ready().await {
             return refuse(protocol, Refusal(Code::Unavailable, format!("the server: {e}")));
         }
@@ -127,21 +128,27 @@ fn unsupported() -> Response {
     (StatusCode::UNSUPPORTED_MEDIA_TYPE, [(HeaderName::from_static("accept-post"), accept)]).into_response()
 }
 
-/// The request message, read whole up to the message limit, with the
-/// call's deadline. Compression is not offered, so a compressed request is
-/// refused.
+/// The request message, read whole up to the request limit (limits.rs),
+/// with the call's deadline. A body whose Content-Length or envelope says
+/// it is over the limit is refused before it is read. Compression is not
+/// offered, so a compressed request is refused.
 async fn request(headers: &HeaderMap, protocol: Protocol, body: Body) -> Result<tonic::Request<Bytes>, Refusal> {
     let encoding = if protocol == Protocol::Unary { "content-encoding" } else { "connect-content-encoding" };
     if headers.get(encoding).is_some_and(|v| v.as_bytes() != b"identity") {
         return Err(Refusal(Code::Unimplemented, "the demo accepts no compressed requests".into()));
     }
-    let framing = if protocol == Protocol::Stream { 5 } else { 0 };
-    let body = read(body, MAX_MESSAGE_BYTES + framing).await?;
+    let enveloped = protocol == Protocol::Stream;
+    let limit = limits::body_limit(enveloped);
+    let length = headers.get(header::CONTENT_LENGTH).and_then(|v| v.to_str().ok()?.parse().ok());
+    limits::declared(length, limit).map_err(|m| Refusal(Code::ResourceExhausted, m))?;
+    let body = read(body, limit, enveloped).await?;
     let message = if protocol == Protocol::Stream { unenvelope(body)? } else { body };
     Ok(tonic::Request::new(message))
 }
 
-async fn read(body: Body, limit: usize) -> Result<Bytes, Refusal> {
+/// The body up to `limit`; `enveloped`, refused once its envelope says the
+/// message is over the request limit.
+async fn read(body: Body, limit: usize, enveloped: bool) -> Result<Bytes, Refusal> {
     let mut out = BytesMut::new();
     let mut data = body.into_data_stream();
     while let Some(chunk) = data.next().await {
@@ -149,7 +156,12 @@ async fn read(body: Body, limit: usize) -> Result<Bytes, Refusal> {
         if out.len() + chunk.len() > limit {
             return Err(Refusal(Code::ResourceExhausted, format!("the request is over {limit} bytes")));
         }
+        let before = out.len();
         out.extend_from_slice(&chunk);
+        if enveloped && before < 5 && out.len() >= 5 {
+            let length = u32::from_be_bytes([out[1], out[2], out[3], out[4]]);
+            limits::enveloped(length).map_err(|m| Refusal(Code::ResourceExhausted, m))?;
+        }
     }
     Ok(out.freeze())
 }
