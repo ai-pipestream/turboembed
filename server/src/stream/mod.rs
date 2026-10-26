@@ -20,6 +20,7 @@ use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 use tonic::Status;
 
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT};
+use crate::metrics::{DocGuard, Metrics};
 use crate::proto::result::StreamLimits;
 use crate::status::to_status;
 use crate::stream::run::Doc;
@@ -152,16 +153,20 @@ pub(crate) struct Shared {
 
     /// Their bytes, right now.
     pub(crate) queued_byte_count: AtomicUsize,
+
+    /// Server-wide Prometheus metrics registry.
+    pub(crate) metrics: Arc<Metrics>,
 }
 
 impl Shared {
-    pub(crate) fn new() -> Arc<Shared> {
+    pub(crate) fn with_metrics(metrics: Arc<Metrics>) -> Arc<Shared> {
         Arc::new(Shared {
             queued_items: Arc::new(Semaphore::new(MAX_QUEUED_ITEMS_SERVER)),
             queued_bytes: Arc::new(Semaphore::new(MAX_QUEUED_BYTES_SERVER)),
             runs: AtomicU64::new(0),
             queued_item_count: AtomicUsize::new(0),
             queued_byte_count: AtomicUsize::new(0),
+            metrics,
         })
     }
 }
@@ -201,8 +206,15 @@ pub(crate) struct Room {
     _server_bytes: OwnedSemaphorePermit,
     _stream_items: OwnedSemaphorePermit,
     _stream_bytes: OwnedSemaphorePermit,
+    doc_guard: DocGuard,
     shared: Arc<Shared>,
     bytes: usize,
+}
+
+impl Room {
+    pub(crate) fn bind_device(&mut self, device: u32) {
+        self.doc_guard.bind_device(device);
+    }
 }
 
 impl Drop for Room {
@@ -286,11 +298,13 @@ async fn admit_permits(
     let stream_bytes = stream_bytes.acquire_many_owned(bytes).await.expect("queue semaphore open");
     shared.queued_item_count.fetch_add(1, Ordering::Relaxed);
     shared.queued_byte_count.fetch_add(bytes as usize, Ordering::Relaxed);
+    let doc_guard = shared.metrics.track_docs(1, None);
     Room {
         _server_items: server_items,
         _server_bytes: server_bytes,
         _stream_items: stream_items,
         _stream_bytes: stream_bytes,
+        doc_guard,
         shared,
         bytes: bytes as usize,
     }

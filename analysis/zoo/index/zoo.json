@@ -4258,6 +4258,34 @@
       ]
     },
     {
+      "id": "csc-conversational-sarcasm-2024",
+      "kind": "KIND_DATASET",
+      "language": "en",
+      "format": "FORMAT_CSV",
+      "version": "f11c92b8d54686f64cf1d92766cef07201efb986",
+      "license": "MIT",
+      "license_terms": "https://github.com/CoPsyN/CSC/blob/f11c92b8d54686f64cf1d92766cef07201efb986/LICENSE",
+      "trained_on": [],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Conversational Sarcasm Corpus (CSC) by Hyewon Jang, Bettina Braun, and Diego Frassinelli, at CoPsyN/CSC commit f11c92b8d54686f64cf1d92766cef07201efb986 under the MIT License. Response-level evaluator ratings are aggregated for sarcasm training and evaluation in issue #925.",
+      "files": [
+        {
+          "path": "data_full.csv",
+          "url": "https://raw.githubusercontent.com/CoPsyN/CSC/f11c92b8d54686f64cf1d92766cef07201efb986/data_full.csv",
+          "size": 9966538,
+          "sha256": "fd8ca7531887823a315e91f5d0edbcc9ec685a557c333c37f485a15a9e55ad7a",
+          "sha512": "f905c13d77a2f103e7c9451410bf8057418ba2132091aa82fc1338d7c133e4102c075c5fa1043d2446e2890645de89185c397f6e964d4986ee86d42d7d56b05b"
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/CoPsyN/CSC/f11c92b8d54686f64cf1d92766cef07201efb986/LICENSE",
+          "size": 1063,
+          "sha256": "390830edfee0a5ac38d9f84de152a37bf1f6b3c574a074ea6eaef9ba4db799e0",
+          "sha512": "0300f9b7786af81a3ede7849a6ab82fb5c6ca54f1ab8fcb3a71df6e16a8120b0bc93f1ab5055c74834a89a65d67387d47542ed80f02f018f3963e38c3a7c6e49"
+        }
+      ]
+    },
+    {
       "id": "masc-3.0.0",
       "kind": "KIND_DATASET",
       "language": "en",
@@ -4275,6 +4303,38 @@
           "size": 36358521,
           "sha256": "0b300d96016233c7c79b43559b477a6bb0ed16bb416d5c517eccb108a6228493",
           "sha512": "a88795055fab5c600f26215cbe6143c2325627adaf9ae80d06c7e815a76834debd4b7728a745aa67608ee1d028b35ca139b2b90760e69d0e7227af83bf05d6a9"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-masc-3.0.0-aspect-sentiment-1",
+      "kind": "KIND_MODEL",
+      "language": "en",
+      "format": "FORMAT_ZIP",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "MASC 3.0.0 MPQA aspect, attitude, and opinion annotations",
+          "license": "CC-BY-3.0-US",
+          "license_terms": "https://anc.org/data/masc/"
+        },
+        {
+          "name": "sentence-transformers/all-MiniLM-L6-v2",
+          "license": "Apache-2.0",
+          "license_terms": "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/LICENSE"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Experimental BIO and polarity heads trained on 56 MASC 3.0.0 documents with MPQA annotations and sentence-transformers/all-MiniLM-L6-v2. MASC is by the American National Corpus project under CC BY 3.0 US. Held-out aspect F1 is 0.013491, so this head is not the default extractor. Configuration and evaluation are included in the zip.",
+      "files": [
+        {
+          "path": "aspect-sentiment-1.zip",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-sentiment-924-1/aspect-sentiment-1.zip",
+          "size": 25106,
+          "sha256": "109c0eea8f2f0d5aa979b9f819820504456d236b372222a9ad9e34362d241be3",
+          "sha512": "0507c12e88de97842bf94de856f1faf391b4e78f5159938324c5e2bdde2e4c215ca8173c37a907b16a2e40c9980618174daef72e3522bca5a58d4fdeac9d55fc"
         }
       ]
     },

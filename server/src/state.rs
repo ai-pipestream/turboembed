@@ -2,7 +2,6 @@
 //! while serving: the analysis service's LoadBundle and UnloadBundle add
 //! and remove entries, and every listing reads the current list.
 
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
@@ -14,6 +13,7 @@ use turbo::{
 
 use crate::api::{self, *};
 use crate::config::ModelConfig;
+use crate::metrics::Metrics;
 use crate::results::over;
 use crate::status::{SESSION_DESC, describe};
 use crate::stream;
@@ -56,6 +56,7 @@ pub(crate) struct Loaded {
     pub(crate) device: u32,
     pub(crate) revision: String,
     pub(crate) idle: Mutex<Vec<usize>>,
+    pub(crate) metrics: Arc<Metrics>,
 }
 
 /// A session taken from its model's pool, returned when this is dropped.
@@ -104,6 +105,8 @@ pub(crate) struct State {
     /// The streaming bulk analysis call's server-wide state, shared by
     /// every stream of this server.
     pub(crate) stream: Arc<stream::Shared>,
+    /// Server-wide Prometheus metrics registry.
+    pub(crate) metrics: Arc<Metrics>,
     /// Set once the server begins draining before shutdown.
     draining: AtomicBool,
     /// Set once `Server::stop` closes active health watch streams.
@@ -129,6 +132,7 @@ pub(crate) const MAX_LOADED_MODELS: usize = 64;
 impl State {
     pub(crate) fn new(names: Vec<String>, models: Vec<ModelConfig>) -> Self {
         let (health_tx, _) = watch::channel(0);
+        let metrics = Metrics::new();
         Self {
             models: RwLock::new(
                 names
@@ -139,7 +143,8 @@ impl State {
             ),
             runtime: OnceLock::new(),
             contexts: Mutex::new(Vec::new()),
-            stream: stream::Shared::new(),
+            stream: stream::Shared::with_metrics(Arc::clone(&metrics)),
+            metrics,
             draining: AtomicBool::new(false),
             stopping: AtomicBool::new(false),
             health_tx,
@@ -263,6 +268,7 @@ impl State {
         let i = models.iter().position(|m| m.name == name).ok_or_else(|| not_found(name))?;
         models.remove(i);
         drop(models);
+        self.metrics.record_bundle_unload();
         self.notify_health();
         Ok(())
     }
@@ -297,6 +303,12 @@ impl State {
     /// published on its entry. The loading mutex is held by the caller, so
     /// this entry cannot load twice.
     fn load_model(&self, m: &Arc<Served>) -> std::result::Result<(), LoadError> {
+        let res = self.load_model_inner(m);
+        self.metrics.record_bundle_load(res.is_ok());
+        res
+    }
+
+    fn load_model_inner(&self, m: &Arc<Served>) -> std::result::Result<(), LoadError> {
         let fail = |call: &'static str, fields: &'static [&'static str]| {
             let model = m.name.clone();
             move |failure: Failure| LoadError { model, call, failure, fields }
@@ -387,6 +399,7 @@ impl State {
             device,
             revision: api::field(&info.revision),
             idle,
+            metrics: Arc::clone(&self.metrics),
         };
         // The caller holds the loading mutex: no other load can have set
         // this entry's load.
@@ -423,66 +436,6 @@ impl LoadError {
         );
         crate::status::to_status(&f, self.fields)
     }
-}
-
-/// The model's properties, read from the library on each call.
-pub(crate) fn properties(state: &State, loaded: &Loaded) -> api::Result<HashMap<String, String>> {
-    let rt = state.runtime.get().ok_or_else(|| Failure::new(TURBO_E_INVALID_STATE, 0, "no runtime"))?;
-    let mi = loaded.model.info()?;
-    let si = loaded.slots[0].info;
-    let di = rt.device_info(loaded.device)?;
-    let cap = rt.capability(loaded.device, mi.task, si.precision)?;
-    let dims: Vec<String> = mi
-        .output_dims
-        .iter()
-        .take((mi.output_dims_count as usize).min(mi.output_dims.len()))
-        .map(u32::to_string)
-        .collect();
-    let mut p: Vec<(&str, String)> = vec![
-        ("model_info.task", names::task(mi.task)),
-        ("model_info.dim", mi.dim.to_string()),
-        ("model_info.pooling", names::pooling(mi.pooling)),
-        ("model_info.normalize", names::normalize(mi.normalize)),
-        ("model_info.max_seq", mi.max_seq.to_string()),
-        ("model_info.max_batch", mi.max_batch.to_string()),
-        ("model_info.dtype", names::dtype(mi.dtype)),
-        ("model_info.model_id", api::field(&mi.model_id)),
-        ("model_info.revision", api::field(&mi.revision)),
-        ("model_info.manifest_sha256", api::field(&mi.manifest_sha256)),
-        ("model_info.artifact_sha256", api::field(&mi.artifact_sha256)),
-        ("model_info.tokenizer_sha256", api::field(&mi.tokenizer_sha256)),
-        ("model_info.prefix_query", api::field(&mi.prefix_query)),
-        ("model_info.prefix_document", api::field(&mi.prefix_document)),
-        ("model_info.output_dims_count", mi.output_dims_count.to_string()),
-        ("model_info.output_dims", dims.join(",")),
-        ("session_info.max_batch", si.max_batch.to_string()),
-        ("session_info.max_seq", si.max_seq.to_string()),
-        ("session_info.precision", names::precision(si.precision)),
-        ("session_info.compute_dtype", names::dtype(si.compute_dtype)),
-        ("device_info.kind", names::device_kind(di.kind)),
-        ("device_info.ordinal", di.ordinal.to_string()),
-        ("device_info.unified_memory", di.unified_memory.to_string()),
-        ("device_info.memory_total", di.memory_total.to_string()),
-        ("device_info.arch", api::field(&di.arch)),
-        ("device_info.name", api::field(&di.name)),
-        ("device_info.vendor", api::field(&di.vendor)),
-        ("device_info.backend", api::field(&di.backend)),
-        ("device_info.runtime_version", api::field(&di.runtime_version)),
-        ("device_info.driver_version", api::field(&di.driver_version)),
-        ("capability.status", names::cap(cap.status)),
-        ("capability.dtype", names::dtype(cap.dtype)),
-        ("capability.options_honored", cap.options_honored.to_string()),
-        // Display gives the shortest decimal that reads back as the same f32.
-        ("capability.cosine_floor", cap.cosine_floor.to_string()),
-        ("capability.speed_ratio", cap.speed_ratio.to_string()),
-        ("capability.benchmark", api::field(&cap.benchmark)),
-        ("capability.reason", api::field(&cap.reason)),
-    ];
-    if mi.task == TURBO_TASK_RERANK {
-        p.push(("model_info.rerank_query_tokens", mi.rerank_query_tokens.to_string()));
-        p.push(("model_info.rerank_pair_template", names::pair_template(mi.rerank_pair_template)));
-    }
-    Ok(p.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
 }
 
 #[cfg(test)]
