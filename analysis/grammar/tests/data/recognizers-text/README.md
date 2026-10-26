@@ -36,3 +36,13 @@ pinned revision and MIT license. `tests/spanish_unit_specs.rs` checks every case
 | `Spanish/NumberWithUnit/CurrencyModel.json` | `Specs/NumberWithUnit/Spanish/CurrencyModel.json` |
 | `Spanish/NumberWithUnit/DimensionModel.json` | `Specs/NumberWithUnit/Spanish/DimensionModel.json` |
 | `Spanish/NumberWithUnit/TemperatureModel.json` | `Specs/NumberWithUnit/Spanish/TemperatureModel.json` |
+
+## Chinese NumberWithUnit
+
+The four `Chinese/NumberWithUnit/*Model.json` files are unchanged copies from
+revision `da7edcff59f669b2a460ab9d400e36298f0d658e` of
+[Microsoft Recognizers-Text](https://github.com/microsoft/Recognizers-Text/tree/da7edcff59f669b2a460ab9d400e36298f0d658e/Specs/NumberWithUnit/Chinese),
+under the existing vendored MIT license. `chinese_unit_specs.rs` checks all
+91 cases, including upstream unsupported cases, with original offsets and
+all supplied resolution fields. Optional absent subtype fields are unspecified.
+See `docs/grammar-units-chinese.md` for exact unit conventions and native tests.

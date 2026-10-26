@@ -199,3 +199,10 @@ with the number rules and about 7.5 to 8.5 ms with the unit rules, and
 - Glued rate words (`200 Mbps`) and rates over units other than time
   (`$5 per person`).
 - Dutch unit and currency rules remain the next separate slice of #929.
+
+## Chinese
+
+`CHINESE_UNITS` runs through `GrammarAnnotator::new(&CHINESE_UNITS)` with source
+spans intact. Its 91-case pinned corpus, currency composition, CJK boundaries,
+modern mainland conversion conventions and explicit limits are documented in
+[Chinese unit conventions](grammar-units-chinese.md).

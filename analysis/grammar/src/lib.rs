@@ -38,6 +38,7 @@ pub use lang::en::{ENGLISH, ENGLISH_TIMES, English, EnglishTimes};
 pub use lang::es::unit::{SPANISH_UNITS, SpanishUnits};
 pub use lang::es::{SPANISH, SPANISH_TIMES, Spanish, SpanishTimes};
 pub use lang::nl::{DUTCH, DUTCH_TIMES, Dutch, DutchTimes};
+pub use lang::zh::{CHINESE_UNITS, ChineseUnits};
 pub use times::TimeAnnotator;
 pub use unit::{CurrencyUnit, Measure, Unit};
 pub use value::{Num, NumKind, Ordinal, Quantity, Relative, Value, flag};
