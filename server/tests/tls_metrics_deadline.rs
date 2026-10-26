@@ -3,6 +3,8 @@
 //! propagation across unary and streaming RPCs without leaking sessions.
 
 mod common;
+#[path = "tls_metrics_deadline/wire.rs"]
+mod wire;
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -308,32 +310,34 @@ async fn grpc_timeout_expires_on_unary_and_mid_stream_without_leaking_sessions()
     //    and leaves the single session idle.
     let mut k = kserve(&s).await;
     assert!(k.server_ready(ServerReadyRequest {}).await.unwrap().into_inner().ready);
-    let mut req = Request::new(texts_req(NAME, &[b"deadline test"]));
-    req.metadata_mut().insert("grpc-timeout", MetadataValue::from_static("0n"));
-    let err = k.model_infer(req).await.expect_err("zero timeout must expire");
-    assert_eq!(err.code(), Code::DeadlineExceeded, "unary ModelInfer status: {err:?}");
+    let status = wire::zero_budget_status(
+        &s,
+        "/inference.GRPCInferenceService/ModelInfer",
+        texts_req(NAME, &[b"deadline test"]),
+    )
+    .await;
+    assert_eq!(status, "4", "unary ModelInfer server status");
     drop(s.hold(NAME).expect("unary deadline expiry must not leak the model session"));
 
     // 2. Streaming AnalyzeDocumentProgressive with a zero-duration grpc-timeout returns
     //    DEADLINE_EXCEEDED and leaves the single session idle.
-    let mut c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr()))
-        .await
-        .unwrap()
-        .max_decoding_message_size(MAX);
-    let mut prog_req = Request::new(AnalyzePipelineRequest {
-        doc_id: "prog-deadline".into(),
-        text: "hello world".into(),
-        ..Default::default()
-    });
-    prog_req.metadata_mut().insert("grpc-timeout", MetadataValue::from_static("0n"));
-    let prog_err = c.analyze_document_progressive(prog_req).await.expect_err("zero timeout must expire");
-    assert_eq!(prog_err.code(), Code::DeadlineExceeded, "progressive status: {prog_err:?}");
+    let status = wire::zero_budget_status(
+        &s,
+        "/turbo.result.v1.AnalysisService/AnalyzeDocumentProgressive",
+        AnalyzePipelineRequest { doc_id: "prog-deadline".into(), text: "hello world".into(), ..Default::default() },
+    )
+    .await;
+    assert_eq!(status, "4", "progressive server status");
     drop(s.hold(NAME).expect("progressive deadline expiry must not leak the model session"));
 
     // 3. Streaming AnalyzeStream with max_batch=2, sessions=1, and a deadline that
     //    expires mid-stream after the first full batch (doc-0, doc-1) executes while
     //    doc-2 is queued in the stream: returns DEADLINE_EXCEEDED, drains queued
     //    items to 0, and returns the single session to the idle pool.
+    let mut c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr()))
+        .await
+        .unwrap()
+        .max_decoding_message_size(MAX);
     let (tx, rx) = tokio::sync::mpsc::channel(64);
     tx.send(stream_header(0, 16, 20)).await.unwrap();
     tx.send(stream_doc("doc-0", NAME, "stream deadline batch 1 a", None)).await.unwrap();
