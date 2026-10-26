@@ -4,7 +4,7 @@
 use std::ops::Range;
 
 use turbo_analysis::{Ix, IxRange, Span, ViewId};
-use turbo_analysis_layers::{Entities, Numbers, PosTags, Sentences, Strs, Tokens};
+use turbo_analysis_layers::{Dependencies, Entities, Numbers, PosTags, Sentences, Strs, Tokens};
 
 use crate::attr::{Attr, Flag, Iob, text_flags};
 use crate::error::MatchError;
@@ -30,6 +30,7 @@ pub struct Input<'a> {
     numbers: Option<&'a Numbers>,
     morph: Option<&'a Strs>,
     tags: Option<&'a Strs>,
+    pub(crate) dependencies: Option<&'a Dependencies>,
 }
 
 impl<'a> Input<'a> {
@@ -66,6 +67,7 @@ impl<'a> Input<'a> {
             numbers: None,
             morph: None,
             tags: None,
+            dependencies: None,
         })
     }
 
@@ -122,6 +124,21 @@ impl<'a> Input<'a> {
     pub fn with_tags(mut self, tags: &'a Strs) -> Result<Self, MatchError> {
         self.aligned("tags", tags.len())?;
         self.tags = Some(tags);
+        Ok(self)
+    }
+
+    /// A checked dependency forest, borrowed without copying its columns.
+    pub fn with_dependencies(mut self, dependencies: &'a Dependencies) -> Result<Self, MatchError> {
+        self.aligned("opennlp:dependencies", dependencies.head.len())?;
+        dependencies.check_forest().map_err(MatchError::Dependencies)?;
+        if let Some(sentences) = self.sentence {
+            for (i, head) in dependencies.head.iter().enumerate() {
+                if head.is_some_and(|h| sentences[i] != sentences[h.get()]) {
+                    return Err(MatchError::Dependencies("head crosses a sentence boundary".into()));
+                }
+            }
+        }
+        self.dependencies = Some(dependencies);
         Ok(self)
     }
 
@@ -230,6 +247,10 @@ impl<'a> Input<'a> {
                 let pos = self.pos.expect("validated column");
                 pos.tagset.label(pos.tags[i])
             }
+            Attr::Dep => {
+                let dep = self.dependencies.expect("validated column");
+                dep.relations.label(dep.relation[i])
+            }
             Attr::Entity => {
                 let of = self.entity_of(&(i..i + 1)).expect("validated column")[0];
                 if of == u32::MAX {
@@ -303,7 +324,7 @@ impl Needs {
 /// Index `i` is token `range.start + i`.
 #[derive(Default)]
 pub(crate) struct Columns {
-    pub(crate) values: [Vec<u32>; 12],
+    pub(crate) values: [Vec<u32>; 13],
     pub(crate) flags: Vec<u32>,
     pub(crate) iob: Vec<Iob>,
     pub(crate) chars: Vec<u32>,
@@ -350,6 +371,10 @@ impl Columns {
                         .map(|t| vocab.get(pos.tagset.label(turbo_analysis::Tag(t as u16))))
                         .collect();
                     pos.tags[range.clone()].iter().map(|t| ids[t.0 as usize]).collect()
+                }
+                Attr::Dep => {
+                    let dep = input.dependencies.ok_or(MatchError::Missing("opennlp:dependencies"))?;
+                    range.clone().map(|i| vocab.get(dep.relations.label(dep.relation[i]))).collect()
                 }
                 Attr::Entity => {
                     let entities = input.entities.expect("checked by entity_of");
