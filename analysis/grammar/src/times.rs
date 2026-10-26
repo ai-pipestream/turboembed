@@ -56,7 +56,7 @@ impl TimeAnnotator {
         self
     }
 
-    /// Enable explicit time zones. CST and IST require a matching region;
+    /// Enable explicit time zones. CST, IST and PT require a matching region;
     /// other abbreviations have documented fixed offsets. City names need
     /// a reference date, except when the expression supplies one itself.
     pub fn with_time_zones(mut self, region: crate::time::zone::Region) -> Self {
@@ -156,7 +156,7 @@ fn push(
 }
 
 impl Annotator for TimeAnnotator {
-    const VERSION: &'static str = "4";
+    const VERSION: &'static str = "5";
     const ID: &'static str = "turbo-grammar:times";
     type Reads = (View, Option<DocumentDate>);
     type Writes = (Times,);

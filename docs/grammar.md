@@ -582,12 +582,21 @@ UTC/GMT accept signed hours, HHMM or HH:MM, within -14:00..+14:00.
 Malformed offsets are refused as a whole. Standard/daylight abbreviations
 have fixed offsets: EST/EDT, PST/PDT, MST/MDT, CET/CEST, EET/EEST and CDT.
 `CST` needs `NorthAmerica` (-06:00) or `China` (+08:00); `IST` needs `India`
-(+05:30) or `Ireland` (+01:00). Without that context the recognized zone
+(+05:30) or `Ireland` (+01:00); `PT` needs `NorthAmerica` (-08:00).
+Without that context the recognized zone
 stays unresolved and the time has no numeric value or TIMEX3 string.
-Unrecognized zones are not consumed. Generic Pacific and Mountain names
-mean standard time, -08:00 and -07:00 respectively. They do not imply a
-geographic daylight-saving rule. Other ambiguous abbreviations, including
-`PT`, are not accepted. Callers can use an explicit numeric offset instead.
+Unrecognized zones are not consumed. Generic Pacific, Mountain and Eastern
+names mean standard time, -08:00, -07:00 and -05:00 respectively. They do
+not imply a geographic daylight-saving rule. Explicit standard/daylight
+names retain their specified offsets. Other ambiguous abbreviations are
+not accepted; callers can use an explicit numeric offset.
+
+A recognized suffix supplies context for a bare clock range in each
+language: `between 9-6 PST`, `entre 9-6 PST`, `tussen 9-6 PT`. It enables
+only the grammar's latent clock-range category and reserves the suffix
+during overlap selection. With zones disabled or an invalid/unrecognized
+suffix, these latent ranges remain excluded. Currency-prefixed numeric
+ranges do not gain a clock interpretation through this path.
 
 `hora de Madrid`, Madrid time, Amsterdam time forms, and London/Londres
 forms use the modern EU rule for 1996 through 2099. A time-only city needs
@@ -603,12 +612,15 @@ Fixed North American abbreviations follow
 [IANA North America](https://data.iana.org/time-zones/tzdb/northamerica).
 
 The `Times` start/end columns retain their existing **local-clock** units;
-the offset is in TIMEX3. Subtract the offset for an absolute UTC instant.
+the offset is in TIMEX3. For a dated value, subtract the signed offset in
+seconds for an absolute UTC instant: `2018-11-28T13-07:00` becomes
+`2018-11-28T20:00Z`. This correction does not reinterpret local columns as
+UTC epoch seconds.
 A time-only value has no absolute date. Range durations remain local-clock
 durations, so a range crossing a daylight-saving transition can differ
 from elapsed UTC duration. Zone policy and region enter the configuration
-hash; the annotator version is 4, separating these results from the earlier
-part-of-day suffix behavior. No external dependency is added.
+hash; the annotator version is 5, identifying contextual ranges and PT
+recognition separately from version 4. No external dependency is added.
 
 ### Specification status
 
@@ -624,17 +636,33 @@ unchanged by the explicit-zone reader.
 All nine fixture cases carrying an expected `utcOffsetMins` are marked
 unsupported by .NET, which the existing conformance test excludes. Thus
 there is no eligible upstream zone case whose pass count can increase.
-The added zone-offset audit runs those cases separately: six offsets agree,
-two generic Mountain cases expect -06:00 in November rather than the
-standard -07:00 policy, and the Dutch `9-6 pt` case uses an unsupported
-abbreviation and expects -07:00 in November. This audit compares offsets,
-not full span/type/alternative conformance. It does not turn disabled cases
-into passing claims or modify the upstream fixture files.
+The zone-offset audit runs those cases separately: six offsets agree;
+the English 517 and Dutch 494 Mountain cases expect -06:00 in November,
+and Dutch 293 (`tussen 9-6 pt`) expects -07:00. These are intentional
+standard-time policy divergences: Mountain is -07:00 and Pacific is
+-08:00. The upstream files are unchanged.
+
+`zone_fixture_audit.rs` also checks the actual output for all nine cases:
+- English 349, Spanish 392 and Dutch 294: aligned PST ranges, local
+  endpoints 06:30 and 09:00, and a 2h30m duration. Spanish 392's expected
+  text writes `past` although the input writes `pst`, and supplies shifted
+  UTF-16 bounds; the test asserts the actual input span.
+- Dutch 293: the weekday mentions plus `tussen 9-6 pt`, preferred local
+  endpoints 09:00 and 18:00, 9h duration, and standard offset -08:00.
+- English 517 and Dutch 494: 13:00 at -07:00. Native Dutch extraction
+  includes `om` and preserves minute precision (`T13:00`), unlike the
+  upstream span beginning at `13.00` and `T13` value.
+- English 516, Spanish 556 and Dutch 493: the standalone reader covers
+  the full zone name with -08:00. `Times` has no standalone-zone kind, so
+  these texts do not become time mentions.
+
+`Times` stores the preferred reading plus an ambiguity flag, not every
+upstream alternative. These tests establish specific outputs and expose
+differences; they do not count the disabled fixtures as full conformance.
 
 New real-text tests cover English, Spanish and Dutch aligned zone suffixes,
 invalid offsets, regional CST/IST, Madrid summer/winter dates, transition
 boundaries, missing/repeated hours, missing reference dates and provenance.
-Issue #927 stays open for full upstream zone-case resolution, including
-bare `9-6 pt` ranges and an explicit decision about the contradictory
-Mountain/PT expectations. Standalone zones are exposed by the reader,
-not represented as a new `Times` layer kind.
+Issue #927 stays open for full server/layer representation of standalone
+zones and upstream span/alternative parity. Bare `9-6 pt` ranges are now
+covered; the generic-zone standard-time policy is intentional.

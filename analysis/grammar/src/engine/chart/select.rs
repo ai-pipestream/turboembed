@@ -60,7 +60,10 @@ impl Parser {
         let lex = &self.lexed.lexemes;
         self.cands.clear();
         for (id, node) in self.chart.nodes.iter().enumerate() {
-            if node.dim == Dim::DEAD || self.grammar.output(node.dim) != Some(output) {
+            let needs_zone = self.grammar.output(node.dim) != Some(output);
+            if node.dim == Dim::DEAD
+                || needs_zone && !(output == Output::Time && self.grammar.time_zone_context(node.dim))
+            {
                 continue;
             }
             let (s, e) = (node.start as usize, node.end as usize);
@@ -84,11 +87,22 @@ impl Parser {
                 continue;
             }
             let ctx = Ctx { text, lexed: &self.lexed, start: s, end: e, times: &self.times };
+            if needs_zone
+                && ctx.before().and_then(|i| ctx.punct(i)).is_some_and(|c| {
+                    turbo_unicode::category::general_category(c) == turbo_unicode::category::GeneralCategory::Sc
+                })
+            {
+                continue;
+            }
             if !self.grammar.keep(output, node, &ctx) {
                 continue;
             }
             let end = suffix(&self.times, &node.value, lex[e - 1].end);
-            if end < lex[e - 1].end || end as usize > text.len() || !text.is_char_boundary(end as usize) {
+            if end < lex[e - 1].end
+                || needs_zone && end == lex[e - 1].end
+                || end as usize > text.len()
+                || !text.is_char_boundary(end as usize)
+            {
                 continue;
             }
             self.cands.push((id as u32, lex[s].start, end));
