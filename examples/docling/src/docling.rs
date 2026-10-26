@@ -17,6 +17,7 @@
 //! inside its `text` ([`Docling::locate`]).
 
 use serde_json::Value;
+use std::collections::BTreeSet;
 use turbo_analysis::{Ix, Span, Spans, ViewId};
 use turbo_analysis_layers::{Block, Structure};
 
@@ -72,8 +73,12 @@ pub fn parse(json: &str) -> Result<(Docling, Structure), String> {
     if doc["schema_name"] != "DoclingDocument" {
         return Err("not a DoclingDocument (schema_name)".into());
     }
+    let body = doc.get("body").filter(|b| b.is_object()).ok_or("missing or invalid body")?;
+    if body.get("children").is_none() {
+        return Err("body has no children array".into());
+    }
     let mut b = Builder { doc: &doc, ..Builder::default() };
-    for child in children(&doc["body"])? {
+    for child in children(body)? {
         b.node(child, false)?;
     }
     b.close_sections(0);
@@ -88,9 +93,8 @@ pub fn parse(json: &str) -> Result<(Docling, Structure), String> {
 }
 
 fn children(node: &Value) -> Result<Vec<&str>, String> {
-    let Some(list) = node["children"].as_array() else {
-        return Ok(Vec::new());
-    };
+    let Some(value) = node.get("children") else { return Ok(Vec::new()) };
+    let list = value.as_array().ok_or("children must be an array")?;
     list.iter().map(|c| c["$ref"].as_str().ok_or_else(|| format!("a child without $ref: {c}"))).collect()
 }
 
@@ -108,6 +112,9 @@ struct Builder<'a> {
     /// The open list, while its items are laid down, and how many it has.
     list: Option<usize>,
     list_items: usize,
+    /// Docling references form a tree, not a cyclic graph or a shared subtree.
+    visited: BTreeSet<String>,
+    nesting: usize,
 }
 
 impl<'a> Builder<'a> {
@@ -154,6 +161,19 @@ impl<'a> Builder<'a> {
     }
 
     fn node(&mut self, r: &str, in_list: bool) -> Result<(), String> {
+        if self.nesting >= 128 {
+            return Err(format!("{r}: reference nesting exceeds 128"));
+        }
+        if !self.visited.insert(r.to_owned()) {
+            return Err(format!("{r}: repeated or cyclic reference"));
+        }
+        self.nesting += 1;
+        let result = self.visit(r, in_list);
+        self.nesting -= 1;
+        result
+    }
+
+    fn visit(&mut self, r: &str, in_list: bool) -> Result<(), String> {
         let node = self.resolve(r)?;
         if r.starts_with("#/groups/") {
             return self.group(r, node, in_list);
@@ -161,14 +181,21 @@ impl<'a> Builder<'a> {
         if !r.starts_with("#/texts/") {
             return Err(format!("{r}: only text items and groups are converted"));
         }
+        if !children(node)?.is_empty() {
+            return Err(format!("{r}: text children are not converted"));
+        }
         let label = node["label"].as_str().ok_or_else(|| format!("{r}: no label"))?;
         let text = node["text"].as_str().ok_or_else(|| format!("{r}: no text"))?;
         let section = self.sections.last().copied();
         let (kind, depth) = match label {
             "title" => (Block::Heading, 1),
             "section_header" => {
-                let level = node["level"].as_u64().unwrap_or(1);
-                (Block::Heading, u8::try_from(level + 1).map_err(|_| format!("{r}: level {level}"))?)
+                let level = match node.get("level") {
+                    None => 1,
+                    Some(value) => value.as_u64().ok_or_else(|| format!("{r}: invalid heading level"))?,
+                };
+                let depth = u8::try_from(level).ok().and_then(|n| n.checked_add(1));
+                (Block::Heading, depth.ok_or_else(|| format!("{r}: level {level}"))?)
             }
             "text" | "paragraph" | "reference" => (Block::Paragraph, 0),
             "caption" => (Block::Caption, 0),

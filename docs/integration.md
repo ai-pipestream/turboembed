@@ -124,11 +124,13 @@ is joined or copied after it. Each item becomes a block of a
 | `caption`, `footnote`, `code` | `Caption`, `Footnote`, `Code` | 0 |
 
 A section runs to the next heading at its depth or above. Furniture
-(page headers and footers) is not read. Tables, pictures, a list inside
-a list and any other label are refused with the item's reference: a
+(page headers and footers) is not read. Tables, pictures, text items with children, a list inside
+a list and unsupported text labels are refused with the item's reference: a
 converter that drops content quietly would lose offsets too. Every
 item's reference and source span are kept, so any span maps back to the
-item and to the offset in its own `text`.
+item and to the offset in its own `text`. Malformed body/children fields,
+out-of-range heading levels, repeated/cyclic references and nesting past
+128 references return errors. Unsupported descendants are not discarded.
 
 ### The pipeline
 
