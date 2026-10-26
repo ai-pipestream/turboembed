@@ -1,6 +1,6 @@
 # Static model training over gRPC
 
-`turbo-kserve` serves `turbo.training.TurboTrainingService` on its port:
+`turbo-kserve` serves `turbo.training.v1.TurboTrainingService` on its port:
 static models distilled from an encoder the server already serves
 (docs/static.md), sealed into a training directory, and served under
 their own name as soon as they are sealed. `server/proto/turbo_training.proto`

@@ -158,6 +158,11 @@ const LEXICONS: [&str; 2] =
 /// SymSpell's MIT benchmark queries, so permissive and nothing to accept.
 const EVAL_SETS: [&str; 1] = ["symspell-noisy-query-en-1000"];
 
+/// The human misspelling set spell correction is also measured on (#935):
+/// codespell's list, derived from English Wikipedia under CC BY-SA 3.0, so
+/// fetched only after the user accepts that licence.
+const SHARE_ALIKE_EVAL_SETS: [&str; 1] = ["codespell-dictionary-en"];
+
 /// The retrieval checkpoints the SPLATE study lists (#913): permissive
 /// model licences over MS MARCO, so local-only through their training
 /// data and fetched only after accepting MS MARCO's terms.
@@ -218,6 +223,7 @@ fn the_ud_models_carry_their_treebank_licences() {
     expected.extend(LOCAL_CHECKPOINTS.map(str::to_owned));
     expected.extend(LEXICONS.map(str::to_owned));
     expected.extend(EVAL_SETS.map(str::to_owned));
+    expected.extend(SHARE_ALIKE_EVAL_SETS.map(str::to_owned));
     expected.extend(RETRIEVAL_CHECKPOINTS.map(str::to_owned));
     expected.extend(DATASETS.map(str::to_owned));
     let listed: BTreeSet<String> = index.list().iter().map(|a| a.id.to_string()).collect();
@@ -262,7 +268,7 @@ fn only_catalan_and_the_models_trained_here_need_no_acceptance() {
             );
         } else if LOCAL_CHECKPOINTS.contains(&a.id.as_str()) {
             assert_eq!(needs, [turbo_zoo::Requirement::of(Licence::CcByNcSa40).unwrap()], "{}", a.id);
-        } else if a.id.as_str().starts_with("opennlp-ga-") {
+        } else if a.id.as_str().starts_with("opennlp-ga-") || SHARE_ALIKE_EVAL_SETS.contains(&a.id.as_str()) {
             assert_eq!(needs, [turbo_zoo::Requirement::of(Licence::CcBySa30).unwrap()], "{}", a.id);
         } else {
             assert_eq!(needs, [turbo_zoo::Requirement::of(Licence::CcBySa40).unwrap()], "{}", a.id);
