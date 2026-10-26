@@ -226,3 +226,28 @@ fn a_table_of_another_width_is_refused_as_the_cpu_refuses_it() {
     let got = reader.run_gathered(&odd, &[0, 0, 0], &[3], &mut [0.0; 24], &mut Work::default());
     assert_eq!(got.map_err(|e| e.code), Err(INVALID_SHAPE));
 }
+
+/// A table read by the first run after it is made, many times over: its
+/// values must have arrived on the device before that run reads them
+/// (CUDA's copy from pageable memory can return before its transfer
+/// lands).
+#[test]
+fn a_new_table_is_whole_for_the_first_run() {
+    let m = Model::new(100, 128, 31);
+    let lengths = [40, 20, 3, 1];
+    let rows: usize = lengths.iter().sum();
+    let reference = m.cpu();
+    let lstm = m.on(device());
+    for seed in 0..40 {
+        let mut rng = Rng(500 + seed);
+        let values = rng.values(300 * 8 * 128, 2.0);
+        let index: Vec<usize> = (0..rows).map(|r| (r * 37 + seed as usize) % 300).collect();
+        let mut want = vec![f32::NAN; rows * 256];
+        reference.run_gathered(&values, &index, &lengths, &mut want, &mut cpu::Work::default()).unwrap();
+        let table = lstm.table(&values).unwrap();
+        let mut got = vec![f32::NAN; want.len()];
+        lstm.run_gathered(&table, &index, &lengths, &mut got, &mut Work::default()).unwrap();
+        let d = max_diff(&got, &want);
+        assert!(d <= BOUND, "{:?} table {seed}: {d}", device());
+    }
+}

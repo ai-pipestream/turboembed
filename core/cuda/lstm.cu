@@ -212,6 +212,9 @@ int turbo_cuda_lstm_new(int ordinal, int input, int hidden, int dirs, const floa
     for (const auto &part : parts) {
         cudaError_t e = part.dst->fit(part.bytes);
         if (e == cudaSuccess) e = cudaMemcpy(part.dst->p, part.src, part.bytes, cudaMemcpyHostToDevice);
+        /* A copy from pageable memory can return before its DMA lands, and
+         * a run's stream does not wait for the default one: wait here. */
+        if (e == cudaSuccess) e = cudaDeviceSynchronize();
         if (e != cudaSuccess) {
             delete l;
             return failed(e, "copying the LSTM weights to the device", msg, len);
@@ -234,6 +237,8 @@ int turbo_cuda_lstm_table_new(const turbo_cuda_lstm *l, const float *values, siz
     auto *t = new turbo_cuda_lstm_table{l->ordinal, {}};
     cudaError_t e = t->values.fit(count ? count * sizeof(float) : 1);
     if (e == cudaSuccess && count) e = cudaMemcpy(t->values.p, values, count * sizeof(float), cudaMemcpyHostToDevice);
+    /* As for the weights: the copy has landed before a run reads it. */
+    if (e == cudaSuccess) e = cudaDeviceSynchronize();
     if (e != cudaSuccess) {
         delete t;
         return failed(e, "copying the LSTM table to the device", msg, len);
