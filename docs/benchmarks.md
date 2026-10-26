@@ -924,6 +924,26 @@ less. A range over a whole row gave the row's vector to the bit, and
 the lowest cosine of a chunk's range vector to its chunk row's was
 0.69.
 
+On the Arc Pro B70 (Level Zero, own kernels) with the same bundle and
+shape, at commit `68eda0ef`:
+
+| Precision | Rows p50 | Ranges p50 | One row per chunk p50 | Ranges over rows | One row per chunk over ranges |
+| --- | --- | --- | --- | --- | --- |
+| FASTEST (F16) | 3.2984 ms | 3.2767 ms | 3.6927 ms | 0.993 | 1.127 |
+| MODEL (F32) | 50.4385 ms | 49.5343 ms | 51.8582 ms | 0.982 | 1.047 |
+
+The GPU clock (xe, sampled every 100 ms) had a median of 2800 MHz, its
+maximum, in both runs and never throttled; the package peaked at 72 C
+(MODEL) and 70 C (FASTEST). A desktop client held the render engine
+about 65 percent busy and no other client used the compute engine, so
+read the ratios here too (MODEL's 72 C is also over the 70 C bound).
+The ranges' p50 came out 1 to 2 percent under the rows', so a vector
+per chunk by ranges costs nothing measurable over reading the rows. One
+row per chunk takes 13 percent longer than the ranges in F16 and 5
+percent longer in F32. A
+range over a whole row gave the row's vector to the bit, and the lowest
+cosine of a chunk's range vector to its chunk row's was 0.69.
+
 ## Part-of-speech records
 
 `turbo-bench postag --model <file> --treebank <file.conllu> [--cpus <list>]
