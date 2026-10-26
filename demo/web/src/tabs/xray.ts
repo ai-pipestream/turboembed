@@ -11,6 +11,12 @@ import { analysis, describe } from "../rpc.js";
 const box = () => $("xray-out");
 const from = () => $("xray-from") as HTMLSelectElement;
 const to = () => $("xray-to") as HTMLSelectElement;
+const unit = () => $("xray-offsets") as HTMLSelectElement;
+const UNITS: Record<string, [OffsetMode, string]> = {
+  utf8: [OffsetMode.UTF8, "UTF-8 bytes"],
+  utf16: [OffsetMode.UTF16, "UTF-16 units"],
+  cp: [OffsetMode.CODE_POINT, "code points"],
+};
 
 export function viewName(instance: string, i: number): string {
   return `${i}: ${instance || "source"}`;
@@ -36,13 +42,14 @@ async function render(): Promise<void> {
   }
   const a = parseInt(from().value, 10) || 0;
   const b = parseInt(to().value, 10) || 0;
+  const [offsets, unitName] = UNITS[unit().value] ?? UNITS.utf16;
   try {
-    const r = await analysis.inspectDocumentWindow({ graph: d.graph, view: a, offsets: OffsetMode.UTF16, pageSize: 1, page: 0, xrayTargetView: b });
+    const r = await analysis.inspectDocumentWindow({ graph: d.graph, view: a, offsets, pageSize: 1, page: 0, xrayTargetView: b });
     const x = r.xray;
     if (!x) return void box().replaceChildren(el("p", { class: "muted", text: "The server gave no X-Ray for these views." }));
     const edits = x.runs.filter((r) => r.kind !== XrayEditKindProto.EQUAL).length;
     box().replaceChildren(
-      el("p", { class: "muted", text: `${edits} edits from view ${x.fromView} to view ${x.toView}, offsets in UTF-16 units. Hover an edit for its spans.` }),
+      el("p", { class: "muted", text: `${edits} edits from view ${x.fromView} to view ${x.toView}, offsets in ${unitName}. Hover an edit for its spans.` }),
       runs(x),
       el("h3", { text: "Steps" }),
       table(
@@ -68,5 +75,6 @@ export function init(): void {
     again();
   });
   from().addEventListener("change", () => void render());
+  unit().addEventListener("change", () => void render());
   to().addEventListener("change", () => void render());
 }

@@ -315,8 +315,9 @@ for any refused call.
   names, shown when it is text and offered as a download. Four panels
   below it each call when opened, and again when the graph changes:
   - Normalization X-Ray: `InspectDocumentWindow` with
-    `xray_target_view` between any two views, the text with each edit
-    run inserted or deleted inline, and a row per normalization step.
+    `xray_target_view` between any two views, offsets in UTF-8 bytes,
+    UTF-16 units or code points, the text with each edit run inserted
+    or deleted inline, and a row per normalization step.
   - Annotation drawer: `InspectDocumentGraph`'s typed layers for a
     view, a chip per layer, and the picked layer's annotations, 200 to
     a page, each with its span, text, kind, probability and fields

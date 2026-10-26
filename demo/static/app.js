@@ -7409,6 +7409,12 @@ function brief(desc, m, depth = 0, skip = []) {
 var box = () => $("xray-out");
 var from = () => $("xray-from");
 var to = () => $("xray-to");
+var unit = () => $("xray-offsets");
+var UNITS = {
+  utf8: [0 /* UTF8 */, "UTF-8 bytes"],
+  utf16: [1 /* UTF16 */, "UTF-16 units"],
+  cp: [2 /* CODE_POINT */, "code points"]
+};
 function viewName(instance, i) {
   return `${i}: ${instance || "source"}`;
 }
@@ -7431,13 +7437,14 @@ async function render() {
   }
   const a = parseInt(from().value, 10) || 0;
   const b = parseInt(to().value, 10) || 0;
+  const [offsets, unitName] = UNITS[unit().value] ?? UNITS.utf16;
   try {
-    const r = await analysis.inspectDocumentWindow({ graph: d.graph, view: a, offsets: 1 /* UTF16 */, pageSize: 1, page: 0, xrayTargetView: b });
+    const r = await analysis.inspectDocumentWindow({ graph: d.graph, view: a, offsets, pageSize: 1, page: 0, xrayTargetView: b });
     const x = r.xray;
     if (!x) return void box().replaceChildren(el("p", { class: "muted", text: "The server gave no X-Ray for these views." }));
     const edits2 = x.runs.filter((r2) => r2.kind !== 0 /* EQUAL */).length;
     box().replaceChildren(
-      el("p", { class: "muted", text: `${edits2} edits from view ${x.fromView} to view ${x.toView}, offsets in UTF-16 units. Hover an edit for its spans.` }),
+      el("p", { class: "muted", text: `${edits2} edits from view ${x.fromView} to view ${x.toView}, offsets in ${unitName}. Hover an edit for its spans.` }),
       runs(x),
       el("h3", { text: "Steps" }),
       table(
@@ -7462,6 +7469,7 @@ function init3() {
     again();
   });
   from().addEventListener("change", () => void render());
+  unit().addEventListener("change", () => void render());
   to().addEventListener("change", () => void render());
 }
 
