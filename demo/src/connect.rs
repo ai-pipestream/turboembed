@@ -37,11 +37,23 @@ enum Protocol {
 /// A refusal before or instead of the server's answer.
 struct Refusal(Code, String);
 
-/// One Connect call, forwarded to the server when its method is allowed.
+/// One Connect call, forwarded to the server when the gate lets it
+/// through and its method is allowed; with CORS headers for a listed
+/// origin.
 pub(crate) async fn call(State(app): State<App>, req: Request) -> Response {
+    let origin = req.headers().get(header::ORIGIN).cloned();
+    let mut reply = forward(&app, req).await;
+    app.gate.grant(origin.as_ref(), reply.headers_mut());
+    reply
+}
+
+async fn forward(app: &App, req: Request) -> Response {
     let started = tokio::time::Instant::now();
     let (parts, body) = req.into_parts();
     let Some(protocol) = protocol(&parts.headers) else { return unsupported() };
+    if let Err((code, msg)) = app.gate.check(&parts.headers) {
+        return refuse(protocol, Refusal(code, msg));
+    }
     let path = parts.uri.path();
     let method = match app.allow.get(path) {
         Ok(m) => m,

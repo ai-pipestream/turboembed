@@ -230,7 +230,8 @@ fn a_weight_past_f16_s_range_computes_its_layer_in_f32() {
 /// Heads FASTEST's F16 attention takes past the 64-wide kernel: wider than
 /// 64, not a multiple of 8, not a multiple of 4, and 128, the widest; each
 /// attention kernel against the CPU within FASTEST's floor at every
-/// shape. A head of 136 runs in F32 and reports no attention choice.
+/// shape. A head of 136 runs in F32 and reports no attention choice. At
+/// EXACT every one of them runs the F32 narrow kernel, at every shape.
 #[test]
 fn heads_past_64_or_not_a_multiple_of_8_run_f16_attention() {
     let _t = turn();
@@ -262,24 +263,24 @@ fn heads_past_64_or_not_a_multiple_of_8_run_f16_attention() {
             let i = s.info();
             for (what, t) in shapes(&f.dir, i.max_batch as usize, i.max_seq as usize) {
                 let what = format!("heads of {hd}, {line}, {what}");
-                // Past 128 the F32 narrow kernel, one query at a time, can
-                // run long enough at the largest shape for macOS to stop it
-                // on a busy desktop (#1406). That error alone is printed and
-                // passed over, for that kernel alone; anything else fails.
+                // Past 128 the F32 narrow kernel runs the shape; one SIMD
+                // group a query at a time ran long enough here for macOS to
+                // stop the command buffer on a busy desktop (#1406).
                 s.write_tokens(&t.batch(), None).unwrap();
-                let got = match s.run() {
-                    Err(e) if hd > 128 && e.message.contains("ImpactingInteractivity") => {
-                        println!("{what}: stopped by macOS, #1406: {}", e.message);
-                        continue;
-                    }
-                    r => r.unwrap().rows(),
-                };
+                let got = s.run().unwrap_or_else(|e| panic!("{what}: {e:?}")).rows();
                 cpu.write_tokens(&t.batch(), None).unwrap();
                 let want = cpu.run().unwrap().rows();
                 let lowest = got.iter().zip(&want).map(|(a, b)| cosine(a, b)).fold(1f64, f64::min);
                 assert!(lowest >= FASTEST_FLOOR, "{what}: cosine {lowest} with the cpu");
                 println!("{what}: 1 - lowest cosine with the cpu {:.3e}", 1.0 - lowest);
             }
+        }
+        // EXACT runs every one of these heads in the F32 narrow kernel.
+        let s = make(g.m, None, TURBO_PRECISION_EXACT, TURBO_AUTOTUNE_OFF).unwrap();
+        let i = s.info();
+        for (what, t) in shapes(&f.dir, i.max_batch as usize, i.max_seq as usize) {
+            let lowest = against_cpu(&s, &cpu, &t, 0.9999, &format!("heads of {hd}, EXACT, {what}"));
+            println!("heads of {hd}, EXACT, {what}: 1 - lowest cosine with the cpu {:.3e}", 1.0 - lowest);
         }
     }
 }

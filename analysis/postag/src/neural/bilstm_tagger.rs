@@ -359,6 +359,8 @@ impl Annotator for BilstmPosTagger {
             (Numerics::Packed, Device::Cpu, _) => b"packed",
             (Numerics::Packed, Device::Cuda(_), Precision::Model) => b"packed-cuda-f32",
             (Numerics::Packed, Device::Cuda(_), Precision::Fastest) => b"packed-cuda-f16-weights",
+            (Numerics::Packed, Device::LevelZero(_), Precision::Model) => b"packed-levelzero-f32",
+            (Numerics::Packed, Device::LevelZero(_), Precision::Fastest) => b"packed-levelzero-f16-weights",
             (Numerics::JvmParity, _, _) => b"jvm-parity",
         };
         turbo_analysis::Fnv1a::new()
