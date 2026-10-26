@@ -32,6 +32,15 @@ The generator pins live in `clients/java/pom.xml` (`protobuf.version`,
 Rust server builds its own stubs with tonic 0.14.6 and prost 0.14.4
 (`Cargo.lock`).
 
+The demo page's TypeScript code is not a release artifact: it is
+generated into `demo/web/src/gen` by `scripts/generate-web-stubs.sh`
+from `server/proto/buf.gen.yaml`, committed, and checked against the
+protos by the `proto` CI job. Its pins are exact, in
+`demo/web/package.json` and its lockfile: the `buf` CLI 1.70.0
+(`@bufbuild/buf`, the version the `proto` job lints with),
+`@bufbuild/protoc-gen-es` 2.16.0, `@bufbuild/protobuf` 2.16.0, and
+`@connectrpc/connect` and `@connectrpc/connect-web` 2.2.0.
+
 Running the workflow by hand (`workflow_dispatch`) is the dry run: it
 builds and checks the release archives and client stubs and keeps them,
 with their sums, as the run's artifacts, and publishes nothing. What

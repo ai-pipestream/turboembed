@@ -193,7 +193,7 @@ pub fn use_general_attention(on: bool) {
     encoder::use_general_attention(on);
 }
 #[cfg(feature = "internals")]
-pub use encoder::tiled_rows;
+pub use encoder::{last_attention, tiled_rows};
 
 /// Recovery from a failed append on the first listed device's queue, as
 /// gpu/mod.rs describes it. Built only with `internals`.
