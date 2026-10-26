@@ -79,7 +79,7 @@ same figures, so the minimum and the maximum are equal:
 | --- | --- | ---: | ---: | ---: | ---: |
 | Arc Pro B70 | MODEL, EXACT | 5 each | 3.4e-5 | 1.000000000 | 5.1e-5 |
 | RTX 4080 SUPER | MODEL, EXACT | 5 each | 4.8e-5 | 1.000000000 | 5.7e-5 |
-| Apple M2 (metal) | MODEL, EXACT | 5 each | 3.4e-5 | 1.000000000 | 6.1e-5 |
+| Apple M2 (metal) | MODEL, EXACT | 20 each | 3.4e-5 | 1.000000000 | 6.1e-5 |
 
 The packed ids and the decoded entities were the same in every run.
 

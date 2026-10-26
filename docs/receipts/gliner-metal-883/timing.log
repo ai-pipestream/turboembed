@@ -1,3 +1,4 @@
+### commit 3ad6699a9f870aabdec2aa4147806fa01bbf9823; GLINER_REPS=50 TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_PRECISION=model cargo test --release -p turbo-gliner --features turbo/metal --test real_device real_checkpoint_timing -- --ignored --nocapture
 load before { 6.50 13.34 15.21 } gpu "Device Utilization %"=33
 
 running 1 test
