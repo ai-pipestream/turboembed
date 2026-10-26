@@ -810,7 +810,14 @@ Full evaluation receipts are committed in
 `docs/receipts/goemotions-926/all-minilm-l6-v2.json` and
 `docs/receipts/goemotions-926/bge-small-en-v1.5.json`. Across all stages and
 threshold regimes on the 5,427 test comments, every active non-neutral emotion
-prediction carries a non-empty token evidence span (`active == active_with_evidence`).
+prediction carries a non-empty token evidence span (`active == active_with_evidence`). The
+evaluator retains original tokenizer byte spans rather than one-byte token
+positions. Each comment has a byte base in the corpus address space;
+subtracting that base recovers the original source span without constructing
+a joined string. Evidence is checked against the borrowed original comment,
+and empty comments receive no synthetic tokens. Permanent tests cover
+UTF-8/UTF-16/code-point projection and parity with the production annotator
+on the original GoEmotions comments `eecwqtt` and `ed5f85d`.
 
 #### Macro and micro precision, recall, and F1 on the GoEmotions test split (5,427 comments)
 
