@@ -156,7 +156,8 @@ impl CurrencyUnit {
     }
 
     /// Whether the unit's major unit is divided into hundredths, so that
-    /// `15 dollars 50` is 15.50. True for every unit but a few codes.
+    /// `15 dollars 50` is 15.50. Minor units, unspecified cents and
+    /// currencies without hundredths do not accept this shorthand.
     pub fn has_hundredths(self) -> bool {
         match self {
             CurrencyUnit::Code(c) => !NO_HUNDREDTHS.contains(&c.code()),
