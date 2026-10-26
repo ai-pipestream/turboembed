@@ -1,6 +1,6 @@
 # The vocabulary store over gRPC
 
-`turbo.vocabulary.TurboVocabularyService`
+`turbo.vocabulary.v1.TurboVocabularyService`
 (`server/proto/turbo_vocabulary.proto`) is served by `turbo-kserve` on the
 same port as the inference and analysis services (docs/grpc.md). It keeps
 two kinds of artifact in a directory on the server:

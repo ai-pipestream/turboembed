@@ -88,6 +88,38 @@ jobs:
             --exclude turbo-zoo --exclude turbo-train-components --exclude turbo-train-recipes
           cargo check -p turbo-kserve --no-default-features --target aarch64-unknown-linux-gnu
 
+  # Lints the versioned turbo.*.v1 proto contracts and checks pull requests
+  # that touch server/proto/ for wire or file-level breaking changes against
+  # main (issue #1296, docs/grpc.md).
+  proto:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: bufbuild/buf-setup-action@v1
+        with:
+          version: 1.70.0
+      - name: buf lint
+        run: buf lint server/proto
+      - name: buf breaking against main
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        run: |
+          if git diff --quiet origin/main...HEAD -- server/proto; then
+            echo "server/proto unchanged from origin/main"
+            exit 0
+          fi
+          mkdir -p "$RUNNER_TEMP/base"
+          git archive origin/main server/proto | tar -x -C "$RUNNER_TEMP/base"
+          if [ ! -f "$RUNNER_TEMP/base/server/proto/buf.yaml" ]; then
+            cp server/proto/buf.yaml "$RUNNER_TEMP/base/server/proto/buf.yaml"
+            sed -i \
+              -e 's/^package turbo\.\([a-z_]*\);$/package turbo.\1.v1;/' \
+              -e 's/turbo\.result\.\([A-Z]\)/turbo.result.v1.\1/g' \
+              "$RUNNER_TEMP"/base/server/proto/turbo_*.proto
+          fi
+          buf breaking server/proto --against "$RUNNER_TEMP/base/server/proto"
+
   # turbo-bench's throughput CLI across Cargo profile settings. A job of
   # its own, not steps in lint: its record test pins counts over the
   # goldens inputs, so a pull request that adds an input fails here, and
@@ -376,7 +408,7 @@ jobs:
 
   check:
     if: always()
-    needs: [lint, bench-throughput, test, fuzz, features, parity, static-parity, windows-lint, windows-test, windows-fuzz, windows-core]
+    needs: [lint, proto, bench-throughput, test, fuzz, features, parity, static-parity, windows-lint, windows-test, windows-fuzz, windows-core]
     # Hosted: it takes seconds, and on the self-hosted runners it would
     # wait behind the queue of test jobs.
     runs-on: ubuntu-24.04

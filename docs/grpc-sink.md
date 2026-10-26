@@ -1,6 +1,6 @@
 # The document sink over gRPC
 
-`turbo.sink.TurboSinkService` (`server/proto/turbo_sink.proto`) carries
+`turbo.sink.v1.TurboSinkService` (`server/proto/turbo_sink.proto`) carries
 analyzed documents from one `turbo-kserve` to the next stage of an
 ingestion pipeline: another server, or a sink that writes them to an
 index. A server forwards to a sink when started with `--sink-endpoint`,

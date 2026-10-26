@@ -37,11 +37,17 @@ pub mod proto {
     tonic::include_proto!("inference");
     /// The analysis result layer (docs/grpc-analysis.md).
     pub mod result {
-        tonic::include_proto!("turbo.result");
+        pub mod v1 {
+            tonic::include_proto!("turbo.result.v1");
+        }
+        pub use v1::*;
     }
     /// Hybrid search, index lifecycle, aliases, and collection drift (issue #1221).
     pub mod search {
-        tonic::include_proto!("turbo.search");
+        pub mod v1 {
+            tonic::include_proto!("turbo.search.v1");
+        }
+        pub use v1::*;
     }
     /// The gRPC health checking protocol (`grpc.health.v1.Health`).
     pub mod health {
@@ -49,16 +55,25 @@ pub mod proto {
     }
     /// The downstream document sink (docs/grpc-sink.md).
     pub mod sink {
-        tonic::include_proto!("turbo.sink");
+        pub mod v1 {
+            tonic::include_proto!("turbo.sink.v1");
+        }
+        pub use v1::*;
     }
     /// The vocabulary store's service (docs/grpc-vocabulary.md).
     pub mod vocabulary {
-        tonic::include_proto!("turbo.vocabulary");
+        pub mod v1 {
+            tonic::include_proto!("turbo.vocabulary.v1");
+        }
+        pub use v1::*;
     }
     /// The model catalog and static model training (docs/grpc-catalog.md,
     /// docs/grpc-training.md).
     pub mod training {
-        tonic::include_proto!("turbo.training");
+        pub mod v1 {
+            tonic::include_proto!("turbo.training.v1");
+        }
+        pub use v1::*;
     }
 }
 
