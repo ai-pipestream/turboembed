@@ -140,6 +140,19 @@ not answered. A certificate or key that does not load stops the demo at
 startup. A token sent off loopback without TLS crosses the network in
 the clear; the demo says so when it starts.
 
+## Generated clients
+
+The page's protobuf and Connect-ES code is generated, never written by
+hand: `scripts/generate-web-stubs.sh` runs `buf generate` with
+`server/proto/buf.gen.yaml` and `protoc-gen-es` v2 (`target=ts`) into
+`demo/web/src/gen`, one `*_pb.ts` per proto file with its message
+schemas and service descriptors. The output is committed; the `proto` CI
+job regenerates it and fails on any difference, so a `.proto` change
+lands with its regenerated TypeScript. The script needs Node and npm and
+installs the exact versions in `demo/web/package-lock.json`
+(docs/release.md); no `build.rs` runs it, and `cargo build` needs
+neither.
+
 ## Starting it
 
 Build both binaries:

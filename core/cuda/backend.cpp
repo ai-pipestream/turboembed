@@ -1241,6 +1241,9 @@ std::atomic<int> split_attention_override{-1};
 /* A test's choice of DeBERTa-v2's general attention kernel in place of the
  * tiled one (turbo_cuda_use_general_attention): 1 general, 0 the default. */
 std::atomic<int> deberta_general_override{0};
+/* The attention kernel the last DeBERTa-v2 session picked, for the tests:
+ * 2 tiled, 1 general, 0 before any. */
+std::atomic<int> deberta_last_pick{0};
 std::atomic<int> wide_attention_override{-1};
 std::atomic<int> exact_attention_override{-1};
 std::atomic<int> fa32_attention_override{-1};
@@ -2808,6 +2811,12 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
                                       (size_t)optin, overridden(deberta_general_override) == 1, table.data(),
                                       &s->deberta),
                          "planning DeBERTa-v2 attention");
+            if (deberta) {
+                deberta_last_pick.store(s->deberta.tiled ? 2 : 1, std::memory_order_relaxed);
+                if (!s->deberta.tiled && !s->deberta.why.empty())
+                    c->say(LOG_DEBUG, "cuda device %d: DeBERTa-v2 attention is the general kernel: %s", c->ordinal,
+                           s->deberta.why.c_str());
+            }
             TRY(send_buckets());
             if (measure) {
                 const Clock::time_point tune_start = Clock::now();
@@ -3449,9 +3458,6 @@ void turbo_cuda_fail_variant(const char *name) {
 
 void turbo_cuda_use_sk_steps(int32_t steps) { sk_override.store(steps, std::memory_order_relaxed); }
 
-/* The FMA attention of sessions made from now on: 1 the key-split kernel
- * (TURBO_CUDA_ATTENTION=split), 0 the default, -1 to read the variable
- * again. */
 /* DeBERTa-v2 sessions made from now on run the general attention kernel
  * when general is 1, the tiled one for their head width at 0. */
 void turbo_cuda_use_general_attention(int32_t general) {
@@ -3469,6 +3475,13 @@ int32_t turbo_cuda_deberta_tiled_rows(uint32_t buckets, uint32_t maximum, int32_
     return deberta_tiled_rows(head_dim, seq_cap, table.data(), reach, room) ? 1 : 0;
 }
 
+/* The attention kernel the last DeBERTa-v2 session made picked: 2 tiled,
+ * 1 general, 0 before any. */
+int32_t turbo_cuda_last_deberta_attention(void) { return deberta_last_pick.load(std::memory_order_relaxed); }
+
+/* The FMA attention of sessions made from now on: 1 the key-split kernel
+ * (TURBO_CUDA_ATTENTION=split), 0 the default, -1 to read the variable
+ * again. */
 void turbo_cuda_use_split_attention(int32_t split) {
     split_attention_override.store(split, std::memory_order_relaxed);
 }

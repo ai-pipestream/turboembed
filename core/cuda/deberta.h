@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <cuda_runtime.h>
 
 #include "kernels.h"
@@ -63,6 +64,9 @@ struct DebertaPlan {
     bool tiled = false;
     int threads = 0, grid = 0;
     size_t smem = 0;
+    /* Why a width with a tiled kernel takes the general one; empty when it
+     * does not, or when a test forced it. */
+    std::string why;
 };
 cudaError_t deberta_plan(int head_dim, int batch_cap, int seq_cap, int heads, int sms, size_t smem_optin,
                          bool general, const int32_t *buckets, DebertaPlan *out);

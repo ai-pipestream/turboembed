@@ -16,6 +16,7 @@
 
 mod alignment;
 mod hangul;
+pub mod hf;
 mod run;
 mod segment;
 
