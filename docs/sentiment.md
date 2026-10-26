@@ -719,11 +719,11 @@ Training runs 500 epochs of full-batch logistic regression (`learning_rate = 16.
 targets), with hard-target (`>= 0.5`) heads fitted alongside for comparison
 (MiniLM hard no-context 228.12 s, hard parent-context 296.06 s; BGE-small hard
 no-context 222.07 s, hard parent-context 278.60 s). Across all four fits on
-269,038 train comments (41,658 with a parent comment vector present in the
-dataset; 6,951 in val and 20,702 in test), process peak RSS (`VmHWM`) stays at
+269,038 train comments (59,986 with a parent comment vector present in the
+dataset; 10,360 in val and 20,702 in test), process peak RSS (`VmHWM`) stays at
 2,019,728 KB (`1.93 GiB`) for MiniLM and 2,214,208 KB (`2.11 GiB`) for
-BGE-small, with zero heap growth above the pre-fit embedding buffer. Full
-JSON receipts are committed in
+BGE-small. The unchanged high-water marks do not measure allocation counts
+or prove zero heap growth within the earlier peak. Full JSON receipts are in
 `docs/receipts/incivility-888-963-890/all-minilm-l6-v2.json` and
 `docs/receipts/incivility-888-963-890/bge-small-en-v1.5.json`. As in
 `goemotions_eval`, `incivility_eval` retains original tokenizer UTF-8 byte
@@ -791,7 +791,7 @@ units (`5,000` 2-sentence documents) using the 384-dimensional published
 `IncivilityAnnotator::annotate` runs in `min = 29.08 ms`, `median = 30.80 ms`
 (`3.08 us / unit`), `max = 32.14 ms` on `origin/main` vs `min = 28.93 ms`,
 `median = 30.35 ms` (`3.03 us / unit`), `max = 34.85 ms` on the PR (`PR / main`
-median ratio `0.9852`, raw interleaved rounds `[32.14 / 30.05, 30.25 / 34.85,
+median ratio approximately `0.9854` from the rounded samples below, raw rounds `[32.14 / 30.05, 30.25 / 34.85,
 31.11 / 30.60, 30.66 / 30.35, 30.80 / 30.73, 29.08 / 29.20, 30.90 / 28.93] ms`).
 In the within-binary configuration timing check over 10,000 units
 (`analysis/embed/examples/incivility_eval/tests.rs::score_unit_interleaved_timing_receipt`),
