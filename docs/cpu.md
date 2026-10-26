@@ -114,3 +114,24 @@ SUPPORTED for EXACT and MODEL on that processor, with `speed_ratio`
 rows are mostly padding, which the library does not compute (each mixed
 record computes only its live tokens), and their ratios are lower than
 the dense records' 0.39 to 0.64.
+
+`benchmarks/records/aarch64-749c9420.cpu.*` are the M2's (Apple M2,
+macOS, the NEON kernels), made at library commit `fb5c4217a199` with
+`turbo-bench record --bundle <bundle> --device cpu --precision
+<exact|model> --rows <mixed|dense> --no-tei` from a release build, 20
+untimed and 200 timed runs, 32 rows of 256 tokens, TEI not run. Their
+bundle is all-minilm-l6-v2 sealed as manifest `3c305237`, not the
+`0f17adc4` seal of the x86_64 and Arm Linux records, so the M2's figures
+are not comparable with theirs. The M2 is a desktop and was in use: at
+the batch's checks just before it started, the 5-minute load average
+read 2.8 to 3.6, with the desktop's apps running, and the records do not
+carry that load. min / mean / p50 / p99 in ms:
+
+| Rows | EXACT | MODEL |
+|---|---|---|
+| mixed | 187.4 / 211.5 / 207.4 / 275.5 | 196.0 / 220.7 / 216.1 / 272.2 |
+| dense | 1311.2 / 1392.3 / 1382.6 / 1522.8 | 1279.5 / 1387.5 / 1379.8 / 1572.5 |
+
+The slowest MODEL mixed run took 416.6 ms, twice its median. The
+library's lowest cosine is 0.9999999999982 on every record. With no
+reference measured they back no cell.

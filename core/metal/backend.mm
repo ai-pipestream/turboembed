@@ -337,7 +337,8 @@ constexpr uint32_t LOG_DEBUG = 3;
 enum Kernel {
     EMBED_LN, ADD_LN, GEMM, GEMM_SMALL, ATTENTION, ATTENTION_NARROW, POOL, POOL_RANGES, WIDEN_F16, WIDEN_BF16,
     NARROW_F16, ATTENTION_H, ATTENTION_HR, GEMM_H32, GEMM_H64 = GEMM_H32 + 4, GEMM_H128 = GEMM_H64 + 4,
-    GEMM_H32N32 = GEMM_H128 + 4, GEMM_SMALL_H = GEMM_H32N32 + 4, ABS_MAX_F16 = GEMM_SMALL_H + 4, KERNELS
+    GEMM_H32N32 = GEMM_H128 + 4, GEMM_SMALL_H = GEMM_H32N32 + 4, ABS_MAX_F16 = GEMM_SMALL_H + 4, ATTENTION_H128,
+    ATTENTION_HR128, KERNELS
 };
 const char *const KERNEL_NAMES[KERNELS] = {
     "embed_layer_norm", "add_layer_norm",  "gemm",            "gemm_small",      "attention",       "attention_narrow",
@@ -346,7 +347,8 @@ const char *const KERNEL_NAMES[KERNELS] = {
     "gemm_h32_ff",      "gemm_h32_fh",     "gemm_h32_hf",     "gemm_h32_hh",     "gemm_h64_ff",     "gemm_h64_fh",
     "gemm_h64_hf",      "gemm_h64_hh",     "gemm_h128_ff",    "gemm_h128_fh",    "gemm_h128_hf",    "gemm_h128_hh",
     "gemm_h32n32_ff",   "gemm_h32n32_fh",  "gemm_h32n32_hf",  "gemm_h32n32_hh",
-    "gemm_small_h_ff",  "gemm_small_h_fh", "gemm_small_h_hf", "gemm_small_h_hh", "abs_max_f16"};
+    "gemm_small_h_ff",  "gemm_small_h_fh", "gemm_small_h_hf", "gemm_small_h_hh", "abs_max_f16",
+    "attention_h128",   "attention_hr128"};
 
 /* The kernels compiled for one device. */
 struct Kernels {
@@ -738,8 +740,12 @@ struct Model {
     id<MTLBuffer> narrowed = nil;
     std::vector<Ref> f16;
     /* Whether a session tried to make f16; it stays empty when a weight
-     * is past F16's range, and FASTEST then computes in F32. */
+     * of every layer is past F16's range, and FASTEST then computes in
+     * F32. */
     bool narrow_tried = false;
+    /* Per layer, whether one of its linear layers' weights is past F16's
+     * range: FASTEST computes that layer in F32, its f16 entries empty. */
+    std::vector<uint8_t> f32_layer;
 };
 
 const char *dtype_name(uint32_t d) { return d == TURBO_DTYPE_F32 ? "F32" : d == TURBO_DTYPE_F16 ? "F16" : "BF16"; }
@@ -886,15 +892,22 @@ bool linear_weight(uint32_t i) {
            r == TURBO_BERT_ATTN_OUT_WEIGHT || r == TURBO_BERT_FFN_IN_WEIGHT || r == TURBO_BERT_FFN_OUT_WEIGHT;
 }
 
+/* The encoder layer tensor i belongs to, for a layer's tensor. */
+uint32_t layer_of(uint32_t i) { return (i - TURBO_BERT_EMBEDDING_TENSORS) / TURBO_BERT_LAYER_TENSORS; }
+
 /* The linear layers' weights in F16, made on first need from the F32
  * ones, which f32_weights has made. An F16 model's are its own where each
  * starts 4-byte aligned, as the kernels read them 16 bytes at a time. A
- * finite F32 or BF16 weight past F16's range (65504) leaves f16 empty, with
- * a warning, and the model's sessions run no F16 kernels. */
+ * finite F32 or BF16 weight past F16's range (65504) marks its encoder
+ * layer in f32_layer, with a warning, and FASTEST computes that layer in
+ * F32, as CUDA computes such a model; when every layer is marked, f16 is
+ * left empty and the model's sessions run no F16 kernels. */
 int32_t f16_weights(Model *m, turbo_error *err) {
     std::lock_guard<std::mutex> g(m->widen_lock);
     if (m->narrow_tried) return TURBO_OK;
     const size_t n = m->counts.size();
+    const uint32_t layers = m->desc.layers;
+    m->f32_layer.assign(layers, 0);
     bool aligned = m->desc.dtype == TURBO_DTYPE_F16;
     for (size_t i = 0; i < n && aligned; i++)
         aligned = !linear_weight((uint32_t)i) || m->stored[i].at % 4 == 0;
@@ -914,10 +927,13 @@ int32_t f16_weights(Model *m, turbo_error *err) {
         total += round_up(m->counts[i] * 2, 256);
     }
     id<MTLBuffer> half = new_buffer(c->device, std::max<size_t>(total, 1), MTLResourceStorageModePrivate | WEIGHTS);
-    id<MTLBuffer> flag = new_buffer(c->device, sizeof(uint32_t), MTLResourceStorageModeShared);
+    // A flag per encoder layer, set by the narrowing kernel when one of
+    // the layer's weights is past F16's range.
+    id<MTLBuffer> flag = new_buffer(c->device, layers * sizeof(uint32_t), MTLResourceStorageModeShared);
     if (!half || !flag)
         return refuse(err, TURBO_E_OUT_OF_MEMORY, "%zu bytes for the linear layers' weights in F16", total);
-    *static_cast<uint32_t *>(flag.contents) = 0;
+    uint32_t *flags = static_cast<uint32_t *>(flag.contents);
+    memset(flags, 0, layers * sizeof(uint32_t));
     {
         std::lock_guard<std::mutex> cg(c->lock);
         id<MTLCommandBuffer> cb = [c->queue commandBuffer];
@@ -929,24 +945,34 @@ int32_t f16_weights(Model *m, turbo_error *err) {
             [enc setBuffer:m->f32[i].buf offset:m->f32[i].at atIndex:0];
             [enc setBuffer:half offset:at[i] atIndex:1];
             [enc setBytes:&count length:sizeof count atIndex:2];
-            [enc setBuffer:flag offset:0 atIndex:3];
+            [enc setBuffer:flag offset:layer_of((uint32_t)i) * sizeof(uint32_t) atIndex:3];
             [enc dispatchThreads:MTLSizeMake(count, 1, 1) threadsPerThreadgroup:MTLSizeMake(256, 1, 1)];
         }
         [enc endEncoding];
         TRY(finish(cb, err, "narrowing the weights"));
     }
     m->narrow_tried = true;
-    if (*static_cast<const uint32_t *>(flag.contents) != 0) {
+    uint32_t past = 0;
+    for (uint32_t l = 0; l < layers; l++) {
+        m->f32_layer[l] = flags[l] != 0;
+        past += m->f32_layer[l];
+    }
+    if (past == layers) {
         c->say(LOG_WARNING,
-               "metal device %u: a linear layer's weight of this %s model is past F16's range; its sessions run "
-               "no F16 kernels",
+               "metal device %u: a linear layer's weight in each layer of this %s model is past F16's range; "
+               "FASTEST computes it in F32",
                c->ordinal, dtype_name(m->desc.dtype));
         return TURBO_OK;
     }
+    if (past > 0)
+        c->say(LOG_WARNING,
+               "metal device %u: a linear layer's weight in %u of the %u layers of this %s model is past F16's "
+               "range; FASTEST computes those layers in F32",
+               c->ordinal, past, layers, dtype_name(m->desc.dtype));
     m->narrowed = half;
     m->f16.assign(n, Ref{});
     for (size_t i = 0; i < n; i++)
-        if (linear_weight((uint32_t)i)) m->f16[i] = Ref{half, at[i]};
+        if (linear_weight((uint32_t)i) && !m->f32_layer[layer_of((uint32_t)i)]) m->f16[i] = Ref{half, at[i]};
     return TURBO_OK;
 }
 
@@ -1050,6 +1076,11 @@ bool runs_linear(const Context *c, Linear l) {
 /* Whether attention runs on SIMD-group matrices for this head width. */
 bool wide_heads(uint32_t head_dim) { return head_dim % 8 == 0 && head_dim <= 64; }
 
+/* Whether FASTEST's attention runs on SIMD-group matrices in F16 for this
+ * head width: attention_h up to 64 in multiples of 8, attention_h128 for
+ * the rest up to 128, padded to a multiple of 8. */
+bool half_heads(uint32_t head_dim) { return head_dim <= 128; }
+
 /* Attention's threadgroup memory: for the matrix kernel, 32 queries and a
  * chunk of 32 keys' K and V, rows padded by 4 floats, and four groups' 8 x
  * 32 scores; for the narrow one, one query's scores against seq keys. */
@@ -1063,7 +1094,8 @@ size_t attention_bytes(uint32_t head_dim, uint32_t seq) {
  * scores in F32 and probabilities in F16; and the chunk's 32 key biases
  * in F32. */
 size_t attention_h_bytes(uint32_t head_dim, bool registers) {
-    return round_up(2 * (head_dim * (32 + 8) + 32 * (head_dim + 8)) + (registers ? 0 : 6 * 4 * 8 * 32) + 4 * 32, 16);
+    const size_t hp = round_up(head_dim, 8);
+    return round_up(2 * (hp * (32 + 8) + 32 * (hp + 8)) + (registers ? 0 : 6 * 4 * 8 * 32) + 4 * 32, 16);
 }
 
 struct Session {
@@ -1248,9 +1280,10 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
                                 LINEAR_NAMES[forced], c->ordinal);
         TRY(f32_weights(m, err));
         // The linear layers' kernels: the forced ones, else F16 where
-        // allowed, else F32 where allowed. A model with a weight past
-        // F16's range has no F16 kernels; a precision that allows only F16
-        // is refused for it.
+        // allowed, else F32 where allowed. A layer with a weight past F16's
+        // range computes in F32, at FASTEST too, as on CUDA; a forced F16
+        // choice runs in the other layers, and is refused when there are
+        // none.
         const bool f32 = (numerics & TURBO_NUMERIC_F32_FMA) != 0;
         if (forced < 0 && !half && !f32)
             return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
@@ -1261,20 +1294,20 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
         if (linear != LINEAR_F32) {
             TRY(f16_weights(m, err));
             if (m->f16.empty()) {
-                if (forced >= 0 || !f32)
+                if (forced >= 0)
                     return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
-                                        "precision %u: a linear layer's weight of this model is past F16's range "
-                                        "(65504), and the F32 kernels it needs are outside the precision's numerics",
-                                        precision);
+                                        "TURBO_METAL_CHOICES linear=%s: a linear layer's weight in each layer of "
+                                        "this model is past F16's range (65504), so no layer runs F16 kernels",
+                                        LINEAR_NAMES[forced]);
                 linear = LINEAR_F32;
             }
         }
         // Attention's kernels are F16 ones, and run where the linear
-        // layers' do and the heads are ones the matrix kernel takes.
-        if (forced_attn >= 0 && !(linear != LINEAR_F32 && wide_heads(d.hidden / d.heads)))
+        // layers' do and the heads are ones the matrix kernels take.
+        if (forced_attn >= 0 && !(linear != LINEAR_F32 && half_heads(d.hidden / d.heads)))
             return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
                                 "TURBO_METAL_CHOICES attn=%s: its kernels compute in F16 with F32 sums, for heads "
-                                "of a multiple of 8 up to 64, and this session's attention runs in F32 (heads of %u)",
+                                "up to 128, and this session's attention runs in F32 (heads of %u)",
                                 ATTN_NAMES[forced_attn], d.hidden / d.heads);
 
         Session *s = make<Session>();
@@ -1468,19 +1501,19 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
     id<MTLBuffer> sc = s.scratch, rows = s.rows;
     auto bind = [&](const Ref &r, NSUInteger i) { [enc setBuffer:r.buf offset:r.at atIndex:i]; };
     // At FASTEST the weights are F16, and the feed-forward block's middle,
-    // GELU's output, is F16 too: x_half and y_half say which side is.
+    // GELU's output, is F16 too: x_half and y_half say which side is. A
+    // layer with a weight past F16's range computes in F32 (f16_weights);
+    // the residual stream keeps its F16 copy for the layers that do not.
     const bool f16 = s.linear != LINEAR_F32;
-    // At FASTEST with heads the matrix kernel takes, Q, K, V and the
+    // At FASTEST with heads the matrix kernels take, Q, K, V and the
     // context are F16 too.
-    const bool f16_att = f16 && wide_heads(hd);
-    const bool registers =
-        f16_att && (s.attn == ATTN_REGISTERS || (s.attn == ATTN_AUTO && tokens > ATTN_REGISTERS_TOKENS));
-    const std::vector<Ref> &lw = f16 ? s.model->f16 : w;
+    const bool registers = f16 && half_heads(hd) &&
+                           (s.attn == ATTN_REGISTERS || (s.attn == ATTN_AUTO && tokens > ATTN_REGISTERS_TOKENS));
+    const Kernel att_h = wide_heads(hd) ? (registers ? ATTENTION_HR : ATTENTION_H)
+                                        : (registers ? ATTENTION_HR128 : ATTENTION_H128);
+    const std::vector<uint8_t> &f32_layer = s.model->f32_layer;
     auto layer = [&](uint32_t l, int r) -> const Ref & {
         return w[TURBO_BERT_EMBEDDING_TENSORS + l * TURBO_BERT_LAYER_TENSORS + r];
-    };
-    auto weight = [&](uint32_t l, int r) -> const Ref * {
-        return &lw[TURBO_BERT_EMBEDDING_TENSORS + l * TURBO_BERT_LAYER_TENSORS + r];
     };
     auto per_token = [&]() {
         [enc dispatchThreadgroups:MTLSizeMake(tokens / 4, 1, 1) threadsPerThreadgroup:MTLSizeMake(128, 1, 1)];
@@ -1490,13 +1523,17 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
     // most of the GPU idle has its k split, so more threadgroups share the
     // work; the splits land side by side in its output, which holds
     // capacity rows, and add_ln sums them. Returns the splits.
-    auto gemm = [&](uint64_t x, uint32_t n_in, uint32_t n_out, uint32_t epilogue,
+    auto gemm = [&](bool f16, uint64_t x, uint32_t n_in, uint32_t n_out, uint32_t epilogue,
                     std::initializer_list<std::pair<const Ref *, uint64_t>> outs,
                     std::initializer_list<const Ref *> biases, bool x_half = false, bool y_half = false) -> uint32_t {
         // Few tokens: the small kernel, over all of k.
         const bool small = tokens <= (f16 ? SMALL_TOKENS_F16 : SMALL_TOKENS) && n_out % 16 == 0;
-        const Linear tile =
-            s.linear != LINEAR_AUTO ? s.linear : tokens <= AUTO_H32_TOKENS ? LINEAR_H32N32 : LINEAR_H64;
+        // A layer in F32 runs the F32 kernels' 32 x 64 tile whatever the
+        // session's F16 choice.
+        const Linear tile = !f16                        ? LINEAR_F32
+                            : s.linear != LINEAR_AUTO   ? s.linear
+                            : tokens <= AUTO_H32_TOKENS ? LINEAR_H32N32
+                                                        : LINEAR_H64;
         const uint32_t bm = tile == LINEAR_H128 ? 128 : tile == LINEAR_H64 ? 64 : 32, bk = f16 ? 32 : 16;
         const uint32_t bn = f16 && tile == LINEAR_H32N32 ? 32 : 64;
         const uint32_t tiles = (n_out + bn - 1) / bn * ((tokens + bm - 1) / bm);
@@ -1584,23 +1621,28 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
     };
     const AttentionParams ap{h, hd, 1.0f / sqrtf((float)hd)};
     for (uint32_t l = 0; l < d.layers; l++) {
-        gemm(f16 ? s.xh : s.x, h, h, EPILOGUE_BIAS,
-             {{weight(l, TURBO_BERT_Q_WEIGHT), s.q}, {weight(l, TURBO_BERT_K_WEIGHT), s.k},
-              {weight(l, TURBO_BERT_V_WEIGHT), s.v}},
-             {&layer(l, TURBO_BERT_Q_BIAS), &layer(l, TURBO_BERT_K_BIAS), &layer(l, TURBO_BERT_V_BIAS)}, f16,
+        // This layer's kernels: F16 at FASTEST unless a weight of the
+        // layer is past F16's range.
+        const bool f16l = f16 && !(l < f32_layer.size() && f32_layer[l]);
+        const bool f16_att = f16l && half_heads(hd);
+        const std::vector<Ref> &lw = f16l ? s.model->f16 : w;
+        auto weight = [&](int r) -> const Ref * {
+            return &lw[TURBO_BERT_EMBEDDING_TENSORS + l * TURBO_BERT_LAYER_TENSORS + r];
+        };
+        gemm(f16l, f16l ? s.xh : s.x, h, h, EPILOGUE_BIAS,
+             {{weight(TURBO_BERT_Q_WEIGHT), s.q}, {weight(TURBO_BERT_K_WEIGHT), s.k},
+              {weight(TURBO_BERT_V_WEIGHT), s.v}},
+             {&layer(l, TURBO_BERT_Q_BIAS), &layer(l, TURBO_BERT_K_BIAS), &layer(l, TURBO_BERT_V_BIAS)}, f16l,
              f16_att);
 
-        if (f16) peak(s.xh, h, 5);
+        if (f16l) peak(s.xh, h, 5);
         if (f16_att) {
             peak(s.q, h, 0);
             peak(s.k, h, 1);
             peak(s.v, h, 2);
         }
-        const bool wide = wide_heads(hd);
-        [enc setComputePipelineState:kn.k[registers ? ATTENTION_HR
-                                          : f16_att ? ATTENTION_H
-                                          : wide    ? ATTENTION
-                                                    : ATTENTION_NARROW]];
+        const bool wide = f16_att || wide_heads(hd);
+        [enc setComputePipelineState:kn.k[f16_att ? att_h : wide ? ATTENTION : ATTENTION_NARROW]];
         [enc setBuffer:sc offset:s.q atIndex:0];
         [enc setBuffer:sc offset:s.k atIndex:1];
         [enc setBuffer:sc offset:s.v atIndex:2];
@@ -1615,16 +1657,16 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
 
         if (f16_att) peak(s.att, h, 3);
         uint32_t splits =
-            gemm(s.att, h, h, EPILOGUE_NONE, {{weight(l, TURBO_BERT_ATTN_OUT_WEIGHT), s.tmp}}, {}, f16_att);
+            gemm(f16l, s.att, h, h, EPILOGUE_NONE, {{weight(TURBO_BERT_ATTN_OUT_WEIGHT), s.tmp}}, {}, f16_att);
         add_ln(s.tmp, splits, layer(l, TURBO_BERT_ATTN_OUT_BIAS), layer(l, TURBO_BERT_ATTN_LN_WEIGHT),
                layer(l, TURBO_BERT_ATTN_LN_BIAS));
-        gemm(f16 ? s.xh : s.x, h, inter, EPILOGUE_BIAS_GELU, {{weight(l, TURBO_BERT_FFN_IN_WEIGHT), s.ffn}},
-             {&layer(l, TURBO_BERT_FFN_IN_BIAS)}, f16, f16);
-        if (f16) {
+        gemm(f16l, f16l ? s.xh : s.x, h, inter, EPILOGUE_BIAS_GELU, {{weight(TURBO_BERT_FFN_IN_WEIGHT), s.ffn}},
+             {&layer(l, TURBO_BERT_FFN_IN_BIAS)}, f16l, f16l);
+        if (f16l) {
             peak(s.xh, h, 5);
             peak(s.ffn, inter, 4);
         }
-        splits = gemm(s.ffn, inter, h, EPILOGUE_NONE, {{weight(l, TURBO_BERT_FFN_OUT_WEIGHT), s.tmp}}, {}, f16);
+        splits = gemm(f16l, s.ffn, inter, h, EPILOGUE_NONE, {{weight(TURBO_BERT_FFN_OUT_WEIGHT), s.tmp}}, {}, f16l);
         add_ln(s.tmp, splits, layer(l, TURBO_BERT_FFN_OUT_BIAS), layer(l, TURBO_BERT_FFN_LN_WEIGHT),
                layer(l, TURBO_BERT_FFN_LN_BIAS));
     }
@@ -1728,7 +1770,7 @@ void write_choices(char *dst, const std::string &text) {
 std::string choice_line(const Session &s) {
     const turbo_backend_model &d = s.model->desc;
     std::string line = std::string("linear=") + LINEAR_NAMES[s.linear];
-    if (s.linear != LINEAR_F32 && wide_heads(d.hidden / d.heads)) line += std::string(";attn=") + ATTN_NAMES[s.attn];
+    if (s.linear != LINEAR_F32 && half_heads(d.hidden / d.heads)) line += std::string(";attn=") + ATTN_NAMES[s.attn];
     line += ";forced=";
     if (s.forced) line += "linear";
     if (s.attn_forced) line += s.forced ? ",attn" : "attn";

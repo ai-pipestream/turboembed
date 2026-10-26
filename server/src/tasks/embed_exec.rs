@@ -201,8 +201,11 @@ fn run_ranges_on_slot(
             f
         }
     })?;
+    check_alive(dead)?;
+    shared.metrics.record_batch_size(rows.len() as usize);
     shared.runs.fetch_add(1, Ordering::Relaxed);
     let result = slot.session.run()?;
+    check_alive(dead)?;
     let info = result.info()?;
     if info.dtype != TURBO_DTYPE_F32 {
         return Err(Failure::new(TURBO_E_UNSUPPORTED_OPTION, 0, "range result is not f32"));
