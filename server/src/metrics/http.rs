@@ -230,11 +230,16 @@ impl<B: Body<Data = Bytes>> Body for MetricsBody<B> {
     }
 }
 
+include!(concat!(env!("OUT_DIR"), "/grpc_methods.rs"));
+
+/// The service and method labels of a gRPC path: those of a method the
+/// protos define, else `unknown` for both, so a client cannot add series
+/// by sending junk paths.
 fn split_grpc_path(path: &str) -> (String, String) {
-    let trimmed = path.trim_start_matches('/');
-    match trimmed.split_once('/') {
-        Some((svc, method)) if !svc.is_empty() && !method.is_empty() => (svc.to_owned(), method.to_owned()),
-        _ => ("unknown".to_owned(), trimmed.to_owned()),
+    let known = GRPC_METHODS.binary_search(&path).is_ok();
+    match path.trim_start_matches('/').split_once('/') {
+        Some((svc, method)) if known => (svc.to_owned(), method.to_owned()),
+        _ => ("unknown".to_owned(), "unknown".to_owned()),
     }
 }
 
@@ -316,4 +321,30 @@ pub(crate) async fn start_http_listener(
         }
     });
     Ok((addr, stop_tx, handle))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_defined_methods_get_their_own_labels() {
+        assert!(GRPC_METHODS.windows(2).all(|w| w[0] < w[1]), "binary search needs the list sorted");
+        let named = |s: &str, m: &str| (s.to_owned(), m.to_owned());
+        assert_eq!(
+            split_grpc_path("/inference.GRPCInferenceService/ServerReady"),
+            named("inference.GRPCInferenceService", "ServerReady")
+        );
+        assert_eq!(split_grpc_path("/grpc.health.v1.Health/Check"), named("grpc.health.v1.Health", "Check"));
+        for junk in [
+            "/inference.GRPCInferenceService/Nope",
+            "/junk.Svc/x",
+            "/",
+            "",
+            "/a/b/c",
+            "inference.GRPCInferenceService/ServerReady",
+        ] {
+            assert_eq!(split_grpc_path(junk), named("unknown", "unknown"), "{junk:?}");
+        }
+    }
 }

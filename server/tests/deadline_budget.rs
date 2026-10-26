@@ -87,7 +87,7 @@ async fn completed_ready_calls_do_not_accumulate_hour_long_timers() {
     tokio::task::yield_now().await;
     let metrics = tokio::runtime::Handle::current().metrics();
     let before = metrics.num_alive_tasks();
-    for _ in 0..32 {
+    for _ in 0..200 {
         let mut req = Request::new(ServerReadyRequest {});
         req.metadata_mut().insert("grpc-timeout", MetadataValue::from_static("1H"));
         assert!(client.server_ready(req).await.unwrap().into_inner().ready);
