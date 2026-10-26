@@ -6,13 +6,14 @@ use turbo_jvm::{hash_map::JavaHashMap, random::JavaRandom};
 pub(super) fn initialize<A: WordOrTokenAnchor>(
     samples: &[DependencySample<A>],
     settings: &FeedforwardSettings,
+    pseudo_projective: bool,
 ) -> Result<FeedforwardDependencyModel> {
     let mut counts = JavaHashMap::<String, usize>::new();
     let mut tags = JavaHashMap::new();
     let mut labels = JavaHashMap::new();
     let mut transitions = BTreeMap::new();
     for sample in samples {
-        let graph = sample.graph().projectivize()?;
+        let graph = sample.training_graph(pseudo_projective)?;
         for word in sample.tokens() {
             counts.merge(normalize(word), 1, |n, v| *n += v);
         }

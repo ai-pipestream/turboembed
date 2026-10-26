@@ -118,21 +118,23 @@ pub(super) fn run(args: &[String]) -> Result<()> {
         if !sample.graph().is_projective() {
             skipped += 1;
             skipped_words += sample.tokens().len();
+            continue;
         }
         samples.push(sample);
     }
     eprintln!(
         "sentences={} words={words} excluded_nonprojective_sentences={skipped} excluded_nonprojective_words={skipped_words}",
-        samples.len()
+        samples.len() + skipped
     );
-    if samples.len() == skipped {
+    eprintln!("trained_sentences={} trained_words={}", samples.len(), words - skipped_words);
+    if samples.is_empty() {
         return Err("no projective training sentences".into());
     }
     eprintln!("language={} kind={} neural_settings={neural:?}", args[2], args[1]);
     let start = Instant::now();
     let model = match neural {
-        Some(settings) => Model::Feedforward(FeedforwardDependencyTrainer::train(&samples, &settings)?),
-        None => Model::Linear(DependencyModel::train(&args[2], &samples, &params)?),
+        Some(settings) => Model::Feedforward(FeedforwardDependencyTrainer::train_projective(&samples, &settings)?),
+        None => Model::Linear(DependencyModel::train_projective(&args[2], &samples, &params)?),
     };
     let bytes = model.bytes()?;
     write_new(&args[5], &bytes)?;

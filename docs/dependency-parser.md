@@ -55,8 +55,11 @@ and explicit-parameter `train` for both linear and feedforward models.
 It needs no Python installation and does not overwrite source or existing
 output files. See the [CLI commands and training limits](feedforward-dependency-parser.md#native-command-line).
 Existing raw and packaged model APIs remain directly loadable; conversion is
-optional. Current training requires explicit projective-only acceptance and
-reports excluded sentence and word counts.
+optional. CLI training requires explicit projective-only acceptance and
+reports input, retained and excluded sentence and word counts. Its
+`train_projective` Rust APIs reject crossing trees and retain literal relation
+labels with `Plain` encoding. Default `train` APIs retain non-projective trees
+through pseudo-projectivization and use `EscapedV1` labels.
 
 Evaluation reports token-weighted UAS/LAS, with optional punctuation exclusion
 (default POS `PUNCT`). LAS requires a matching head and label. Cross-validation

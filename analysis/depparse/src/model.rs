@@ -83,13 +83,31 @@ impl DependencyModel {
         samples: &[DependencySample<A>],
         params: &TrainingParameters,
     ) -> Result<Self> {
-        let stream = DependencyEventStream::generate(samples)?;
+        Self::train_with_projectivization(language, samples, params, true)
+    }
+    /// Train plain arc-standard labels. Every sample must already be projective;
+    /// crossing trees produce an error rather than implicit sample filtering.
+    pub fn train_projective<A: WordOrTokenAnchor>(
+        language: &str,
+        samples: &[DependencySample<A>],
+        params: &TrainingParameters,
+    ) -> Result<Self> {
+        Self::train_with_projectivization(language, samples, params, false)
+    }
+    fn train_with_projectivization<A: WordOrTokenAnchor>(
+        language: &str,
+        samples: &[DependencySample<A>],
+        params: &TrainingParameters,
+        pseudo_projective: bool,
+    ) -> Result<Self> {
+        let stream = DependencyEventStream::generate_with_projectivization(samples, pseudo_projective)?;
         let (model, report) =
             turbo_train::trainer::train_events(&stream.events, params, &mut TrainingConfiguration::default())
                 .map_err(error)?;
         let mut manifest = Manifest::new(COMPONENT_NAME, language, 0);
         manifest.set_training(&report);
-        manifest.set("Turbo-Dependency-Label-Encoding", crate::LabelEncoding::EscapedV1.name());
+        let encoding = if pseudo_projective { crate::LabelEncoding::EscapedV1 } else { crate::LabelEncoding::Plain };
+        manifest.set("Turbo-Dependency-Label-Encoding", encoding.name());
         let mut package = ModelPackage::new(manifest);
         package.add_entry(MODEL_ENTRY, model.write().map_err(error)?);
         Self::open(package.to_bytes())

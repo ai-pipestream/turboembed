@@ -48,6 +48,15 @@ impl<A: WordOrTokenAnchor> DependencySample<A> {
     pub fn graph(&self) -> &DependencyGraph<A> {
         &self.graph
     }
+    pub(crate) fn training_graph(&self, pseudo_projective: bool) -> Result<DependencyGraph<A>> {
+        if pseudo_projective {
+            self.graph.projectivize()
+        } else if self.graph.label_encoding != crate::LabelEncoding::Plain || !self.graph.is_projective() {
+            Err(error("projective training requires plain projective trees"))
+        } else {
+            Ok(self.graph.clone())
+        }
+    }
     pub fn from_format(sample: &FormatSample<'_>) -> Result<Self> {
         let heads = sample
             .tree()
@@ -127,9 +136,15 @@ pub struct DependencyEventStream {
 }
 impl DependencyEventStream {
     pub fn generate<A: WordOrTokenAnchor>(samples: &[DependencySample<A>]) -> Result<Self> {
+        Self::generate_with_projectivization(samples, true)
+    }
+    pub(crate) fn generate_with_projectivization<A: WordOrTokenAnchor>(
+        samples: &[DependencySample<A>],
+        pseudo_projective: bool,
+    ) -> Result<Self> {
         let mut out = Self::default();
         for sample in samples {
-            let graph = sample.graph.projectivize()?;
+            let graph = sample.training_graph(pseudo_projective)?;
             let steps = ArcStandardOracle::transitions(&graph)?;
             let mut state = ArcStandardState::<A>::new(sample.tokens.len())?;
             let tokens: Vec<_> = sample.tokens.iter().map(String::as_str).collect();
