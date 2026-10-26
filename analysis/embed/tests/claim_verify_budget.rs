@@ -62,6 +62,8 @@ fn verify(dir: &TempDir, max_seq: u32, max_pairs: usize, sents: &[&str]) -> (BTr
             d.require(&Key::<Sentences>::DEFAULT).unwrap(),
             None,
             None,
+            None,
+            None,
         ))
         .unwrap();
     let scored = edges.iter().map(|(_, e)| (e.from.get() as u32, e.to.get() as u32)).collect();
