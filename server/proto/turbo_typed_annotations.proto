@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 syntax = "proto3";
-package turbo.result;
+package turbo.result.v1;
 
 // Which model produced a result, by the bundle's own identity: the
 // manifest's model id and revision, and the manifest's sha256, the

@@ -118,11 +118,11 @@ Compact run outputs are in `docs/receipts/rerank-707/`.
 
 ## Devices
 
-A rerank bundle loads on the CPU and on CUDA. Those are the backends whose
-rerank scores and timing are recorded below. Metal and Level Zero would take
-the same code path, but `turbo_model_load` refuses a rerank bundle on them
-with `TURBO_E_UNSUPPORTED_TASK`, and their rerank cell is UNSUPPORTED, until
-they have been run. The pair windows go
+A rerank bundle loads on the CPU, on CUDA and on Level Zero. Those are the
+backends whose rerank scores and timing are recorded below. Metal would take
+the same code path, but `turbo_model_load` refuses a rerank bundle on it
+with `TURBO_E_UNSUPPORTED_TASK`, and its rerank cell is UNSUPPORTED, until
+it has been run. The pair windows go
 through the embedding encoder with CLS pooling and no normalization. When
 the backend leaves the hidden states in device memory, the CLS states
 (`hidden` floats a window) are copied to the host. The pooler, the
@@ -131,28 +131,41 @@ the CPU. The result is a host buffer, and `d2h_bytes` counts the copy.
 
 `Reranker::open` stays on the CPU even when a device is present: every
 rerank cell ties as experimental, so device order would otherwise pick a
-GPU. Name a device with `open_with`. The rerank cell on CUDA is
-EXPERIMENTAL until a compiled benchmark record backs it.
+GPU. Name a device with `open_with`. The rerank cells on CUDA and Level
+Zero are EXPERIMENTAL until a compiled benchmark record backs them.
 
 ### Parity
 
-`core/tests/cuda_rerank.rs` scores a bundle's pinned reference pairs on the
-device and on the CPU, with a bound of `1e-4` against both. Set
+`core/tests/cuda_rerank.rs` and `core/tests/levelzero_rerank.rs` score a
+bundle's pinned reference pairs on the device and on the CPU, with a bound
+of `1e-4` against both. Set
 `TURBO_TEST_RERANK_BUNDLES` to comma-separated bundle directories to run the
 real bundles at EXACT and MODEL precision:
 
 ```sh
 TURBO_TEST_REQUIRE_CUDA=1 TURBO_TEST_RERANK_BUNDLES=<minilm bundle>,<bge bundle> \
   cargo test --release -p turbo --features cuda --test cuda_rerank -- --test-threads=1 --nocapture
+TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_RERANK_BUNDLES=<minilm bundle>,<bge bundle> \
+  cargo test --release -p turbo --features levelzero --test levelzero_rerank -- --test-threads=1 --nocapture
 ```
+
+The Level Zero rows were run with `--features levelzero` (the own kernels)
+and, separately, `--features levelzero-onednn`, on an Arc Pro B70
+(compute-runtime 26.27.39122.14, loader 1.32.0, oneAPI 2025.3.3).
 
 | Backend | Model | Precision | Largest error to the reference | Largest difference to the CPU path |
 | --- | --- | --- | ---: | ---: |
 | CUDA, RTX 4080 SUPER | MS MARCO MiniLM L6 v2 | EXACT, MODEL | 0.0000024 | 0.0000026 |
 | CUDA, RTX 4080 SUPER | BGE reranker base | EXACT, MODEL | 0.0000075 | 0.0000048 |
+| Level Zero, Arc Pro B70 | MS MARCO MiniLM L6 v2 | EXACT, MODEL | 0.0000033 | 0.0000026 |
+| Level Zero, Arc Pro B70 | BGE reranker base | EXACT, MODEL | 0.0000067 | 0.0000098 |
+| Level Zero with oneDNN | MS MARCO MiniLM L6 v2 | EXACT | 0.0000038 | 0.0000026 |
+| Level Zero with oneDNN | MS MARCO MiniLM L6 v2 | MODEL | 0.0000033 | 0.0000031 |
+| Level Zero with oneDNN | BGE reranker base | EXACT, MODEL | 0.0000083 | 0.0000091 |
 
-EXACT and MODEL gave the same scores on both bundles. Metal and Level Zero
-have no recorded parity yet, so they are refused.
+EXACT and MODEL gave the same scores on both bundles on CUDA and with the
+Level Zero kernels; with oneDNN they differ on MiniLM by under `1e-6`.
+Metal has no recorded parity yet, so it is refused.
 
 ### Throughput
 
@@ -173,6 +186,16 @@ with SQuAD 2.0 dev, precision EXACT, and TEI 89-1.8 (image digest
 | --- | ---: | ---: | ---: | ---: |
 | MS MARCO MiniLM L6 v2 | 4303.7 | 1276.1 | 3.37x | 0.0129 |
 | BGE reranker base | 663.9 | 427.9 | 1.55x | 0.116 |
+
+On Level Zero, measured on 2026-10-26 at commit `6b982643` on an Arc Pro
+B70 with the own kernels, MS MARCO MiniLM L6 v2 at EXACT scored 889.6
+pairs/s (a second run 876.2), against 665.4 on the host CPU, an AMD Ryzen 9
+9950X, unpinned, in the same tool: 1.34x. TEI was not run, since the TEI
+image above is the CUDA build. The bench's compute engine was about 29%
+busy during the run (xe fdinfo), so the run is bound by the host and the
+launches, not by compute; a desktop client held the render engine about
+68% busy. BGE was not timed on Level Zero, and these records are not in
+`benchmarks/rerank/`.
 
 The records are in `benchmarks/rerank/`. The score differences are TEI's:
 the library is within `1e-5` of the Transformers FP32 reference on both

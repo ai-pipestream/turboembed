@@ -471,6 +471,6 @@ fn a_pass_that_does_not_fit_its_schema_is_an_error() {
 fn pass_parts(
     m: &turbo_schema_extract::Gliner2Extractor,
     s: &ExtractionSchema,
-) -> (turbo_schema_extract::prompt::Prompt, usize, Vec<turbo_schema_extract::model::Scores>) {
+) -> (turbo_schema_extract::prompt::Prompt<'static>, usize, Vec<turbo_schema_extract::model::Scores>) {
     m.pass("Send 42 units.", s).unwrap().into_parts()
 }

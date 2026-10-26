@@ -47,10 +47,12 @@ pub enum Attr {
     Morph,
     /// Fine-grained tags supplied separately from `Pos`.
     Tag,
+    /// Dependency relation supplied with `Input::with_dependencies`: spaCy `DEP`.
+    Dep,
 }
 
 impl Attr {
-    pub(crate) const ALL: [Attr; 12] = [
+    pub(crate) const ALL: [Attr; 13] = [
         Attr::Text,
         Attr::Lower,
         Attr::Prefix,
@@ -63,6 +65,7 @@ impl Attr {
         Attr::Entity,
         Attr::Morph,
         Attr::Tag,
+        Attr::Dep,
     ];
 
     /// The attribute's value for a string standing for a token, when the

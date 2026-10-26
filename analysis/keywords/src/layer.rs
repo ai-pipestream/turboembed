@@ -9,7 +9,7 @@
 
 use std::sync::{Arc, OnceLock};
 
-use turbo_analysis::{Layer, Overlap, Span, Spans, Tag, TagSet, ViewId};
+use turbo_analysis::{Document, Error, Layer, Overlap, ProjectableLayer, Span, Spans, Tag, TagSet, ViewId};
 use turbo_analysis_layers::Strs;
 
 /// The `yake` entry of the algorithm tag set: items Campos et al.'s YAKE
@@ -132,6 +132,19 @@ impl Layer for Keywords {
     }
 }
 
+impl ProjectableLayer for Keywords {
+    fn project_view(&self, doc: &Document, to: ViewId) -> Result<Self, Error> {
+        Ok(Keywords {
+            spans: doc.project_spans_monotonic(&self.spans, to)?,
+            phrase: self.phrase.clone(),
+            score: self.score.clone(),
+            algorithm: self.algorithm.clone(),
+            algorithms: Arc::clone(&self.algorithms),
+            terms: self.terms.clone(),
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -173,5 +186,25 @@ mod tests {
         k.push(Span::new(0, 3), "abc", 0.5, yake, 1);
         k.terms.pop();
         assert!(k.check().unwrap_err().starts_with("a phrase, a score"));
+    }
+
+    #[test]
+    fn projects_keywords_across_views() {
+        use turbo_analysis::{Ix, Key, Provenance, View, ViewBuilder};
+
+        let mut doc = Document::new(">>> machine learning");
+        let v0 = doc.get::<View>().unwrap().clone();
+        let mut b = ViewBuilder::new(v0.text());
+        b.replace(4, "");
+        let (t1, a1) = b.finish();
+        doc.add(&Key::<View>::named("clean"), View::derived(&v0, t1, a1), Provenance::by("test")).unwrap();
+        let v1_id = doc.get_key(&Key::<View>::named("clean")).unwrap().id();
+
+        let yake = algorithm_tagset().tag(YAKE).unwrap();
+        let mut k = Keywords::new(v1_id);
+        k.push(Span::new(0, 16), "machine learning", 0.9, yake, 2);
+        let projected = doc.project_layer(&k, ViewId::SOURCE).unwrap();
+        assert_eq!(projected.spans.view(), ViewId::SOURCE);
+        assert_eq!(projected.spans.get(Ix::new(0)), Span::new(4, 20));
     }
 }
