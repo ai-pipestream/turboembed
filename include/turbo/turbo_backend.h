@@ -90,6 +90,20 @@ extern "C" {
 #define TURBO_BERT_FFN_LN_BIAS    15
 #define TURBO_BERT_LAYER_TENSORS  16
 
+/* Where each tensor of a DeBERTa-v2 encoder (TURBO_FAMILY_DEBERTA_V2) sits
+ * in turbo_backend_model.tensors: these embedding tensors first, then each
+ * layer's in the TURBO_BERT_* layer order, so layer l's tensor r is at
+ * TURBO_DEBERTA_EMBEDDING_TENSORS + l * TURBO_BERT_LAYER_TENSORS + r. The
+ * relative table is normalized by its own LayerNorm, and every layer's
+ * query and key projections also project its rows (shared keys). */
+#define TURBO_DEBERTA_WORD_EMBEDDINGS        0   /* [vocab_size, hidden] */
+#define TURBO_DEBERTA_EMBEDDINGS_LN_WEIGHT   1
+#define TURBO_DEBERTA_EMBEDDINGS_LN_BIAS     2
+#define TURBO_DEBERTA_RELATIVE_EMBEDDINGS    3   /* [2 * position_buckets, hidden] */
+#define TURBO_DEBERTA_RELATIVE_LN_WEIGHT     4
+#define TURBO_DEBERTA_RELATIVE_LN_BIAS       5
+#define TURBO_DEBERTA_EMBEDDING_TENSORS      6
+
 /* Where each tensor of a static model sits in turbo_backend_model.tensors.
  * A row's vector is computed from its tokens alone, with no encoder
  * (docs/static.md): each live token's table row (the
@@ -113,6 +127,9 @@ extern "C" {
 #define TURBO_FAMILY_BERT    1   /* GELU (erf), absolute positions, post-LayerNorm */
 #define TURBO_FAMILY_ROBERTA 2   /* as BERT, the positions counted from position_offset */
 #define TURBO_FAMILY_STATIC  3   /* one vector per vocabulary entry, no encoder: TURBO_STATIC_* */
+#define TURBO_FAMILY_DEBERTA_V2 4 /* DeBERTa-v2/v3 shared-key disentangled attention over
+                                     log-bucketed relative positions, no absolute positions
+                                     or token types: TURBO_DEBERTA_* */
 
 /* An artifact's format, as docs/bundle.md's artifacts[].format names it.
  * turbo_backend.formats has bit TURBO_FORMAT_BIT(f) set for each format f
@@ -257,6 +274,10 @@ typedef struct turbo_backend_model {
     uint32_t    head_out;         /* 2 for the span head: start, then end */
     uint32_t    lookahead;        /* keys a query attends to past itself, 0 for the whole
                                      row; the core loads a banded model on the CPU only */
+    uint32_t    position_buckets;       /* TURBO_FAMILY_DEBERTA_V2: half the relative table's
+                                           rows; 0 for every other family */
+    uint32_t    max_relative_positions; /* TURBO_FAMILY_DEBERTA_V2: the distance the log buckets
+                                           reach; 0 for every other family */
 } turbo_backend_model;
 
 /* A session as session_open receives it: turbo_session_desc's fields with
