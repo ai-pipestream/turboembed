@@ -304,17 +304,17 @@ async fn grpc_timeout_expires_on_unary_and_mid_stream_without_leaking_sessions()
     .unwrap();
     s.load().await.unwrap();
 
-    // 1. Unary ModelInfer with a 12-millisecond grpc-timeout returns DEADLINE_EXCEEDED
+    // 1. Unary ModelInfer with a zero-duration grpc-timeout returns DEADLINE_EXCEEDED
     //    and leaves the single session idle.
     let mut k = kserve(&s).await;
     assert!(k.server_ready(ServerReadyRequest {}).await.unwrap().into_inner().ready);
     let mut req = Request::new(texts_req(NAME, &[b"deadline test"]));
-    req.metadata_mut().insert("grpc-timeout", MetadataValue::from_static("12m"));
-    let err = k.model_infer(req).await.expect_err("12m timeout must expire");
+    req.metadata_mut().insert("grpc-timeout", MetadataValue::from_static("0n"));
+    let err = k.model_infer(req).await.expect_err("zero timeout must expire");
     assert_eq!(err.code(), Code::DeadlineExceeded, "unary ModelInfer status: {err:?}");
     drop(s.hold(NAME).expect("unary deadline expiry must not leak the model session"));
 
-    // 2. Streaming AnalyzeDocumentProgressive with a 12-millisecond grpc-timeout returns
+    // 2. Streaming AnalyzeDocumentProgressive with a zero-duration grpc-timeout returns
     //    DEADLINE_EXCEEDED and leaves the single session idle.
     let mut c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr()))
         .await
@@ -325,8 +325,8 @@ async fn grpc_timeout_expires_on_unary_and_mid_stream_without_leaking_sessions()
         text: "hello world".into(),
         ..Default::default()
     });
-    prog_req.metadata_mut().insert("grpc-timeout", MetadataValue::from_static("12m"));
-    let prog_err = c.analyze_document_progressive(prog_req).await.expect_err("12m timeout must expire");
+    prog_req.metadata_mut().insert("grpc-timeout", MetadataValue::from_static("0n"));
+    let prog_err = c.analyze_document_progressive(prog_req).await.expect_err("zero timeout must expire");
     assert_eq!(prog_err.code(), Code::DeadlineExceeded, "progressive status: {prog_err:?}");
     drop(s.hold(NAME).expect("progressive deadline expiry must not leak the model session"));
 

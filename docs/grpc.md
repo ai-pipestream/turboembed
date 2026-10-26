@@ -258,7 +258,9 @@ Per-call `grpc-timeout` metadata is propagated into unary (`ModelInfer`)
 and streaming (`AnalyzeStream`, `AnalyzeDocumentProgressive`) workers.
 When a deadline expires, in-flight batches and pipeline steps stop
 cooperatively, return held model sessions to their pool, release stream
-queue room, and answer `DEADLINE_EXCEEDED`.
+queue room, and answer `DEADLINE_EXCEEDED`. Positive timeout budgets are
+not shortened, including budgets of 15 ms or less. Deadline timers are
+released when the final active call or worker drops its deadline handle.
 
 ## The proto
 

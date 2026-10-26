@@ -1,8 +1,8 @@
 //! gRPC deadline (`grpc-timeout`) parsing and cooperative cancellation
 //! across unary and streaming RPCs (issue `#1300`).
 
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use tokio::time::Instant;
@@ -38,17 +38,17 @@ pub fn parse_grpc_timeout(raw: &[u8]) -> Option<Duration> {
     }
 }
 
-/// Computes the cooperative worker stop budget and outer hard cutoff for a
-/// requested `grpc-timeout` duration so in-flight steps finish, release their
-/// held sessions, and answer `DEADLINE_EXCEEDED` before tonic's transport
-/// timeout maps an elapsed timer to `CANCELLED`.
-fn budgets(requested: Duration) -> (Duration, Duration) {
-    if requested <= Duration::from_millis(15) {
-        return (Duration::ZERO, Duration::ZERO);
+/// Timer tasks belong to the last active deadline clone. Dropping a completed
+/// call aborts sleepers even when a client supplied an hours-long timeout.
+#[derive(Debug, Default)]
+struct Timers(Mutex<Vec<tokio::task::AbortHandle>>);
+
+impl Drop for Timers {
+    fn drop(&mut self) {
+        for task in self.0.get_mut().unwrap_or_else(|e| e.into_inner()).drain(..) {
+            task.abort();
+        }
     }
-    let stop_margin = (requested / 4).clamp(Duration::from_millis(2), Duration::from_millis(20));
-    let hard_margin = (requested / 8).clamp(Duration::from_millis(1), Duration::from_millis(10));
-    (requested.saturating_sub(stop_margin), requested.saturating_sub(hard_margin))
 }
 
 /// Cooperative deadline and cancellation token for an in-flight gRPC call.
@@ -58,6 +58,7 @@ pub struct Deadline {
     hard_at: Option<Instant>,
     cancel: Arc<AtomicBool>,
     timed_out: Arc<AtomicBool>,
+    timers: Arc<Timers>,
 }
 
 impl Default for Deadline {
@@ -74,28 +75,31 @@ impl Deadline {
             hard_at: None,
             cancel: Arc::new(AtomicBool::new(false)),
             timed_out: Arc::new(AtomicBool::new(false)),
+            timers: Arc::new(Timers::default()),
         }
     }
 
     /// Creates a [`Deadline`] expiring after `requested`.
     pub fn with_timeout(requested: Duration) -> Self {
         let now = Instant::now();
-        let (stop_dur, hard_dur) = budgets(requested);
+        let (stop_dur, hard_dur) = (requested, requested);
         let expired = stop_dur.is_zero();
         let stop_at = now + stop_dur;
         let hard_at = now + hard_dur;
         let cancel = Arc::new(AtomicBool::new(expired));
         let timed_out = Arc::new(AtomicBool::new(expired));
+        let timers = Arc::new(Timers::default());
         if !expired && let Ok(handle) = tokio::runtime::Handle::try_current() {
             let cancel_t = Arc::clone(&cancel);
             let timed_out_t = Arc::clone(&timed_out);
-            handle.spawn(async move {
+            let task = handle.spawn(async move {
                 tokio::time::sleep_until(stop_at).await;
                 timed_out_t.store(true, Ordering::Release);
                 cancel_t.store(true, Ordering::Release);
             });
+            timers.0.lock().unwrap_or_else(|e| e.into_inner()).push(task.abort_handle());
         }
-        Self { stop_at: Some(stop_at), hard_at: Some(hard_at), cancel, timed_out }
+        Self { stop_at: Some(stop_at), hard_at: Some(hard_at), cancel, timed_out, timers }
     }
 
     /// Parses `grpc-timeout` from an HTTP header map.
@@ -192,12 +196,13 @@ impl Deadline {
         if let Ok(handle) = tokio::runtime::Handle::try_current() {
             let timed_out = Arc::clone(&self.timed_out);
             let cancel = Arc::clone(&self.cancel);
-            handle.spawn(async move {
+            let task = handle.spawn(async move {
                 tokio::time::sleep_until(at).await;
                 timed_out.store(true, Ordering::Release);
                 cancel.store(true, Ordering::Release);
                 dead.set();
             });
+            self.timers.0.lock().unwrap_or_else(|e| e.into_inner()).push(task.abort_handle());
         }
     }
 }
@@ -210,6 +215,33 @@ pub fn deadline_status() -> Status {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn completed_stream_releases_bound_dead_state() {
+        let d = Deadline::with_timeout(Duration::from_secs(3600));
+        let dead = crate::stream::Dead::new();
+        let weak = Arc::downgrade(&dead);
+        d.bind_stream_dead(dead);
+        drop(d);
+        tokio::task::yield_now().await;
+        assert!(weak.upgrade().is_none());
+    }
+
+    #[tokio::test]
+    async fn a_clone_keeps_the_stream_expiry_timer_alive() {
+        let d = Deadline::with_timeout(Duration::from_millis(20));
+        let dead = crate::stream::Dead::new();
+        let weak = Arc::downgrade(&dead);
+        d.bind_stream_dead(dead.clone());
+        let active = d.clone();
+        drop(d);
+        tokio::time::timeout(Duration::from_secs(1), dead.wait()).await.unwrap();
+        assert!(active.is_expired());
+        drop(dead);
+        drop(active);
+        tokio::task::yield_now().await;
+        assert!(weak.upgrade().is_none());
+    }
 
     #[test]
     fn parses_all_grpc_timeout_units_and_rejects_invalid_headers() {
