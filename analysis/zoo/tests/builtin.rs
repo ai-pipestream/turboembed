@@ -154,6 +154,10 @@ pub(crate) const LOCAL_CHECKPOINTS: [&str; 1] = ["jackboyla-glirel-large-v0"];
 const LEXICONS: [&str; 2] =
     ["symspell-frequency-dictionary-en-82-765", "symspell-frequency-bigramdictionary-en-243-342"];
 
+/// The spelling evaluation set the spell checker is measured on (#935):
+/// SymSpell's MIT benchmark queries, so permissive and nothing to accept.
+const EVAL_SETS: [&str; 1] = ["symspell-noisy-query-en-1000"];
+
 /// The retrieval checkpoints the SPLATE study lists (#913): permissive
 /// model licences over MS MARCO, so local-only through their training
 /// data and fetched only after accepting MS MARCO's terms.
@@ -213,6 +217,7 @@ fn the_ud_models_carry_their_treebank_licences() {
     expected.extend(SHARE_ALIKE_CHECKPOINTS.map(str::to_owned));
     expected.extend(LOCAL_CHECKPOINTS.map(str::to_owned));
     expected.extend(LEXICONS.map(str::to_owned));
+    expected.extend(EVAL_SETS.map(str::to_owned));
     expected.extend(RETRIEVAL_CHECKPOINTS.map(str::to_owned));
     expected.extend(DATASETS.map(str::to_owned));
     let listed: BTreeSet<String> = index.list().iter().map(|a| a.id.to_string()).collect();
@@ -231,6 +236,7 @@ fn only_catalan_and_the_models_trained_here_need_no_acceptance() {
             || trained_here(a.id.as_str())
             || CHECKPOINTS.contains(&a.id.as_str())
             || LEXICONS.contains(&a.id.as_str())
+            || EVAL_SETS.contains(&a.id.as_str())
             || DATASETS.contains(&a.id.as_str())
         {
             assert!(needs.is_empty(), "{}", a.id);

@@ -8,6 +8,9 @@
 //! - [`FrequencyDictionary`] reads the plain-text dictionaries and
 //!   [`SymSpellModel`] the binary models of OpenNLP's
 //!   `SymSpellModelSerializer`; no dictionary ships with this crate.
+//! - [`Lexicon`] fetches a frequency list from the model zoo by id, and
+//!   [`SymSpell::from_lexicons`] and [`language_model`] build the engine
+//!   and the context corrector's language model from it.
 //! - [`SpellCorrect`] is the normalizer: per token or per phrase, with an
 //!   exact alignment, and as an annotator a `Corrections` layer.
 //!
@@ -28,6 +31,7 @@ mod deletes;
 mod dictionary;
 mod distance;
 mod guards;
+mod lexicon;
 mod lookup;
 mod model;
 mod suggestion;
@@ -45,6 +49,7 @@ pub use context::{
 pub use correct::{DEFAULT_MIN_TOKEN_LENGTH, SpellCorrect, SpellCorrectMode};
 pub use dictionary::{FrequencyDictionary, MalformedLine, MalformedReason};
 pub use distance::{DamerauOsa, EditDistance, Levenshtein, Metric};
+pub use lexicon::{EN_BIGRAMS, EN_UNIGRAMS, Lexicon, LexiconError, language_model};
 pub use model::{
     DEFAULT_MODEL_NAME, DEFAULT_MODEL_VERSION, FORMAT_VERSION, MAGIC, MAX_ENTRIES, ModelError, SymSpellModel,
 };

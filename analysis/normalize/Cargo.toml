@@ -17,7 +17,12 @@ turbo-morfologik = { path = "../morfologik" }
 turbo-ngram = { path = "../ngram" }
 turbo-normalize-layers = { path = "../normalize-layers" }
 turbo-unicode = { path = "../unicode" }
+# Frequency lexicons by zoo id (#935), without the HTTP transport: the
+# caller hands the zoo its own.
+turbo-zoo = { path = "../zoo", default-features = false }
 
 [dev-dependencies]
 turbo-goldens = { path = "../goldens" }
 turbo-tokenize = { path = "../tokenize" }
+# The real-lexicon tests fetch over HTTPS.
+turbo-zoo = { path = "../zoo" }
