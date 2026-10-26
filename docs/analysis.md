@@ -5336,6 +5336,15 @@ f64; `JvmParity` is the f64 forward pass and exact-sum CRF scorer that
 reproduce the JVM (`analysis/postag/README.md`). There is no GPU or NPU
 path.
 
+`Packed` runs each BiLSTM, character and sentence, as one
+`turbo::cpu::lstm::Lstm` over both directions (#859): every sequence of
+the call, sorted longest first, in one recurrent product per step. The
+character LSTM reads its input projections from the per-model character
+table by id (`Lstm::run_gathered`), with no copy. Its emissions and
+marginals are bit-identical to the tagger's earlier in-crate recurrence
+(`analysis/postag/tests/bilstm_batched.rs` holds the default-size
+random-weight model and timing), so the record below stands.
+
 Each numerics has its own `Annotator::config_hash` (FNV-1a over the
 numerics' name and the model's SHA-256: the same in every run and
 build), and that hash is the `config` of the provenance of every tag
