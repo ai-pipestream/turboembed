@@ -8,6 +8,7 @@
 
 mod encoder;
 mod gpu;
+pub(crate) mod lstm;
 #[cfg(feature = "levelzero-onednn")]
 mod onednn;
 mod ze;

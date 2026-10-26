@@ -354,6 +354,25 @@ a layer: own <ms> ms, onednn <ms> ms)`.
   time a context runs a bin of tokens (oneDNN for the linear layers,
   above).
 
+## The LSTM for the taggers
+
+`turbo::device::lstm::Lstm` on `Device::LevelZero(n)` is the batched
+LSTM of `turbo::cpu::lstm` on an Intel GPU, for the analysis crates'
+sequence taggers (#860). It is a Rust surface, not part of the backend
+table. core/src/levelzero/lstm.rs makes its own context on the listed
+device and runs the kernels `lstm_project` and `lstm_step` of
+core/levelzero/encoder.cl. The weights and a gathered run's table are
+copied to the device once, and the copy is waited for. A run stages its
+rows (or its table row ids), lengths and starts in pinned memory, then
+appends to the context's in-order queue, under its lock: the copies,
+one product for every row's input projections, one launch per step over
+the sequences still running (every direction at once), and the copy of
+the states back. It then waits once. A non-finite gate or state is
+refused at the end of the run with INVALID_ARGUMENT, as the CPU form
+refuses it. `core/tests/device_lstm.rs` holds it to the CPU form at 1e-5
+with `TURBO_TEST_REQUIRE_LEVELZERO=1` (or `TURBO_TEST_DEVICE=levelzero`),
+and fails when the LSTM cannot be made there.
+
 ## Testing on a machine with an Intel GPU
 
 From the workspace root. `TURBO_TEST_REQUIRE_LEVELZERO=1` makes every test
