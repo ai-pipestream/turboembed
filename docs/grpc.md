@@ -236,7 +236,9 @@ certificate signed by a CA in `FILE`.
 
 Pass `--metrics-listen ADDR:PORT` (`TURBO_KSERVE_METRICS_LISTEN`) to
 expose Prometheus metrics in text exposition format (`0.0.4`) on `GET
-/metrics`:
+/metrics`. This separate listener is plaintext and unauthenticated, even
+when the gRPC listener uses TLS. Bind it to loopback or a trusted internal
+interface. It exposes these metrics:
 
 | Metric | Type | Labels | Meaning |
 |---|---|---|---|
