@@ -27,8 +27,10 @@ use serde_json::Value;
 use turbo_relation::encoder::DebertaEncoder;
 use turbo_relation::{gliner2, glirel};
 
-/// The largest logit difference from the CPU encoder: the F32 device bound
-/// the encoder itself is held to (#883).
+/// The largest logit difference from the CPU encoder, absolute up to a
+/// logit of 1 and relative above (device_support::worst_scaled): the F32
+/// device bound the encoder itself is held to (#883). The real heads'
+/// logits reach the hundreds, where F32 has no absolute 1e-4.
 const REAL_BOUND: f32 = 1e-4;
 
 fn env(name: &str) -> PathBuf {
@@ -91,7 +93,7 @@ fn gliner2_relations_on_the_real_checkpoint() {
             let size = a.prompt.words.len() * a.width;
             for (l, (x, y)) in a.labels.iter().zip(&b.labels).enumerate() {
                 assert_eq!(x.count, y.count, "case {k} label {l}: instance count");
-                let d = device_support::worst(&x.logits, &y.logits, text);
+                let d = worst_scaled(&x.logits, &y.logits, text);
                 assert!(d <= REAL_BOUND, "case {k} label {l}: span logits {d}");
                 worst_seen = worst_seen.max(d);
             }
@@ -152,7 +154,7 @@ fn glirel_on_the_real_checkpoint() {
             let pairs: Vec<(usize, usize)> =
                 (0..ents.len()).flat_map(|h| (0..ents.len()).filter(move |&t| t != h).map(move |t| (h, t))).collect();
             let (x, y) = (cpu.logits(&a, &ents, &pairs).unwrap(), on.logits(&b, &ents, &pairs).unwrap());
-            let d = device_support::worst(&x, &y, text);
+            let d = worst_scaled(&x, &y, text);
             assert!(d <= REAL_BOUND, "case {k}: relation logits {d}");
             worst_seen = worst_seen.max(d);
             // Each pair's best label.

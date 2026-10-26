@@ -25,6 +25,10 @@ use serde_json::Value;
 use turbo_relation::encoder::DebertaEncoder;
 use turbo_schema_extract::model::{Gliner2Extractor, Scores};
 
+/// The largest logit difference from the CPU encoder, absolute up to a
+/// logit of 1 and relative above (device_support::worst_scaled): the F32
+/// device bound the encoder itself is held to (#883). The real heads'
+/// logits reach the thousands, where F32 has no absolute 1e-4.
 const REAL_BOUND: f32 = 1e-4;
 
 fn env(name: &str) -> PathBuf {
@@ -60,7 +64,7 @@ fn schema_extraction_on_the_real_checkpoint() {
                 {
                     assert_eq!((c, i), (d, j), "case {k} task {t}: counts");
                 }
-                let d = worst(&logits(x), &logits(y), text);
+                let d = worst_scaled(&logits(x), &logits(y), text);
                 assert!(d <= REAL_BOUND, "case {k} task {t}: logits {d}");
                 worst_seen = worst_seen.max(d);
             }

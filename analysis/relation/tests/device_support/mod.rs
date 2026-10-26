@@ -126,9 +126,29 @@ pub const TEXTS: [&str; 4] = [
     "the quick brown fox jumps over the lazy dog while seven wizards judge a match",
 ];
 
+/// The largest difference of two outputs as a fraction of the CPU's value,
+/// and of 1 below it: `|a - b| / max(1, |a|)`. Absolute at logits up to 1,
+/// relative above, where an F32 logit of a few hundred has no absolute
+/// 1e-4 to give (its own spacing is 3e-5 at 256 and 1.2e-4 at 1024).
+pub fn worst_scaled(a: &[f32], b: &[f32], what: &str) -> f32 {
+    assert_eq!(a.len(), b.len(), "{what}: lengths");
+    a.iter()
+        .zip(b)
+        .map(|(x, y)| {
+            if x == y {
+                0.0
+            } else {
+                assert!(x.is_finite() && y.is_finite(), "{what}: {x} against {y}");
+                (x - y).abs() / x.abs().max(1.0)
+            }
+        })
+        .fold(0.0, f32::max)
+}
+
 /// The choice of each of `rows` (logits over the choices; non-finite ones
 /// are no choice) whose CPU margin, the best less the next, is over twice
-/// `bound`: the decisions a device within `bound` must make the same.
+/// `bound` (of the best, above a best of 1, as worst_scaled measures): the
+/// decisions a device within `bound` must make the same.
 /// `None` for a row whose margin is not.
 pub fn decisions(rows: &[&[f32]], bound: f32) -> Vec<Option<usize>> {
     rows.iter()
@@ -146,7 +166,7 @@ pub fn decisions(rows: &[&[f32]], bound: f32) -> Vec<Option<usize>> {
                     }
                 }
             }
-            best.filter(|&(_, b)| b - next > 2.0 * bound).map(|(i, _)| i)
+            best.filter(|&(_, b)| b - next > 2.0 * bound * b.abs().max(1.0)).map(|(i, _)| i)
         })
         .collect()
 }
