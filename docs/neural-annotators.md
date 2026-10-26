@@ -14,7 +14,8 @@ The answer this page records:
   is XLM-RoBERTa, which the core runs as `FAMILY_ROBERTA`; the head is
   one linear layer. The `turbo-sat` crate (`analysis/sat/`) is that
   annotator, on the CPU, compared with wtpsplit itself on a small model
-  with random weights (below); no real checkpoint has been run yet.
+  with random weights and on the released `sat-1l-sm` and `sat-3l`
+  (below).
 - GLiNER did not at the time this page was first written. It has
   since been built on exactly the pieces listed below as missing:
   the native DeBERTa-v3 encoder (`turbo::deberta`) and the GLiNER
@@ -299,6 +300,12 @@ not the work per token. A document longer than one window is read
 `block_size / stride` times over, about 8 times with the defaults, so
 the stride is the main setting for throughput.
 
+With the released `sat-1l-sm` weights and the whole XLM-R vocabulary
+the same 36 documents are 11612 tokens; with the defaults (block 510,
+stride 64) a pass takes 445 ms at `model`, 26,000 tokens a second,
+measured on the host of the RTX 4080 SUPER run (median of 7, passes
+interleaved with the device's).
+
 ### Not done
 
 - Zoo downloads of `sat-1l-sm` and `sat-12l-sm` are refused following
@@ -306,7 +313,9 @@ the stride is the main setting for throughput.
   must be established before this decision can change; local licence
   acceptance is insufficient. No entry or download receipt is created.
   `sat-12l-sm` and the other sizes have not been run here.
-- Limited lookahead, for the models without `-sm`.
+- Limited lookahead on a device: every backend but the CPU refuses a
+  bundle with `architecture.lookahead` (`turbo::model::runs_band`), so
+  `sat-3l` runs on the CPU only.
 - A bundle task for token classification. The bundle carries a SaT
   model as `TASK_EMBED` with the classifier in its raw weights, read by
   name; the manifest has no place to say what the head is.
