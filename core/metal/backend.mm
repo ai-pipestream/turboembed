@@ -1079,6 +1079,7 @@ struct GemmParams {
 struct AttentionParams {
     uint32_t hidden, head_dim;
     float scale;
+    uint32_t narrow_stride;
 };
 struct PoolParams {
     uint32_t hidden, output_dim, pooling, l2;
@@ -1791,17 +1792,21 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
         [enc setBuffer:s.peaks offset:slot * sizeof(uint32_t) atIndex:2];
         [enc dispatchThreads:MTLSizeMake(n, 1, 1) threadsPerThreadgroup:MTLSizeMake(256, 1, 1)];
     };
-    const AttentionParams ap{h, hd, 1.0f / sqrtf((float)hd)};
-    // DeBERTa-v2's attention runs as many SIMD groups, each on its own
-    // queries and its own row of scores, as the threadgroup memory holds,
-    // up to the 32 queries of a block.
+    // The narrow kernel runs as many SIMD groups, each on its own queries
+    // and its own scores, as the threadgroup memory holds rows of the
+    // longest row's scores, up to the 32 queries of a block (#1406): one
+    // group a query at a time ran long enough at large shapes for macOS
+    // to stop the command buffer. DeBERTa-v2's attention is shared out the
+    // same way, with its own group count from its own kernel's limits.
     const uint32_t stride = (uint32_t)round_up(std::max(s.longest, 1u), 8);
+    auto groups_for = [&](Kernel k) {
+        const size_t room = s.ctx->device.maxThreadgroupMemoryLength - kn.k[k].staticThreadgroupMemoryLength;
+        return (uint32_t)std::max<size_t>(1, std::min<size_t>({32, room / (sizeof(float) * stride),
+                                                                kn.k[k].maxTotalThreadsPerThreadgroup / 32}));
+    };
+    const uint32_t narrow_groups = groups_for(ATTENTION_NARROW), deberta_groups = groups_for(DEBERTA_ATTENTION);
+    const AttentionParams ap{h, hd, 1.0f / sqrtf((float)hd), stride};
     const DebertaParams dp{h, hd, 1.0f / sqrtf(3.0f * (float)hd), s.max_seq - 1, stride};
-    const size_t room = s.ctx->device.maxThreadgroupMemoryLength -
-                        kn.k[DEBERTA_ATTENTION].staticThreadgroupMemoryLength;
-    const uint32_t deberta_groups = (uint32_t)std::max<size_t>(
-        1, std::min<size_t>({32, room / (sizeof(float) * stride),
-                             kn.k[DEBERTA_ATTENTION].maxTotalThreadsPerThreadgroup / 32}));
     for (uint32_t l = 0; l < d.layers; l++) {
         // This layer's kernels: F16 at FASTEST unless a weight of the
         // layer is past F16's range.
@@ -1849,10 +1854,12 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
             [enc setBuffer:rows offset:s.blocks atIndex:5];
             [enc setBuffer:sc offset:s.att atIndex:6];
             [enc setBytes:&ap length:sizeof ap atIndex:7];
-            [enc setThreadgroupMemoryLength:f16_att ? attention_h_bytes(hd, registers) : attention_bytes(hd, s.longest)
+            [enc setThreadgroupMemoryLength:f16_att ? attention_h_bytes(hd, registers)
+                                            : wide  ? attention_bytes(hd, s.longest)
+                                                    : round_up(sizeof(float) * stride * narrow_groups, 16)
                                     atIndex:0];
             [enc dispatchThreadgroups:MTLSizeMake(s.nblocks, d.heads, 1)
-                threadsPerThreadgroup:MTLSizeMake(wide ? 128 : 32, 1, 1)];
+                threadsPerThreadgroup:MTLSizeMake(wide ? 128 : 32 * narrow_groups, 1, 1)];
         }
 
         if (f16_att) peak(s.att, h, 3);

@@ -5344,13 +5344,13 @@ the output layer in f32 on the CPU backend's packed GEMM
 (`turbo::cpu::Matrix`, on the calling thread) and decodes the CRF in
 f64; `JvmParity` is the f64 forward pass and exact-sum CRF scorer that
 reproduce the JVM (`analysis/postag/README.md`).
-`BilstmPosTagger::on_device` (feature `cuda`) is `Packed` with its
-character and sentence BiLSTMs on an NVIDIA GPU through
-`turbo::device::lstm::Lstm` (#860, docs/cuda.md); the output layer and
+`BilstmPosTagger::on_device` (feature `cuda` or `levelzero`) is `Packed`
+with its character and sentence BiLSTMs on an NVIDIA or Intel GPU through
+`turbo::device::lstm::Lstm` (#860, docs/cuda.md, docs/levelzero.md); the output layer and
 the f64 CRF stay on the host, and an LSTM that cannot be made on the
 device is an error, never a CPU run. It has its own `config_hash`, and
 `analysis/postag/tests/bilstm_device.rs` holds it to the CPU path and
-times the two. There is no Level Zero, Metal or NPU path yet.
+times the two. There is no Metal or NPU path yet.
 
 `Packed` runs each BiLSTM, character and sentence, as one
 `turbo::cpu::lstm::Lstm` over both directions (#859): every sequence of

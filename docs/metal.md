@@ -174,8 +174,11 @@ frameworks and libc++, which every macOS has.
   to a multiple of 8 by zeros in threadgroup memory and, when its width
   is not a multiple of 4, read from device memory a value at a time. At
   EXACT and MODEL, in a FASTEST layer computed in F32, and past 128 at
-  any precision, such a head runs a narrower kernel, one query at a
-  time, in F32. The run waits for the pass to
+  any precision, such a head runs a narrower kernel in F32: each query's
+  scores one key per lane of a SIMD group, the block's 32 queries shared
+  out over as many SIMD groups as the threadgroup memory holds rows of
+  the longest row's scores (up to 32; one at a time ran long enough at
+  large shapes for macOS to stop the command buffer, #1406). The run waits for the pass to
   complete before it returns, and leaves the vectors in the session's
   `SHARED` buffer, which `turbo_result_buffer` hands out and
   `turbo_result_read` copies from.
@@ -457,6 +460,43 @@ From 1 to 8 rows of 128 FASTEST is now ahead of MLX float16; from 2048
 tokens up the kernels are the same as before, so those rows differ by
 noise alone, and MLX's larger products still run at about 3 TFLOPS
 against our 2.5.
+
+### MLX as a recorded reference
+
+`turbo-bench record` on metal runs MLX beside TEI (docs/benchmarks.md,
+Reference programs), so a record holds the MLX comparison. The two dense
+records in `benchmarks/records/` (`m2.metal.embed.*-dense.*.3484a9d48f34`)
+were made from a release build of that commit:
+
+```
+cargo build --release -p turbo-bench --features metal
+target/release/turbo-bench record --bundle <all-minilm-l6-v2> --device metal \
+    --precision <fastest|model> --rows dense --batch 32 --seq 256 --warmup 5 --iterations 50 \
+    --tei-bin <text-embeddings-router> --tei-model <upstream model> --mlx-model <upstream model>
+```
+
+The M2 is a desktop and was in use. Each record started once the
+5-minute load average was under 3.5 and the GPU's utilization had read
+under 35% six times over 30 s (16 to 19% just before), with the
+desktop's apps running; MLX's `procedure` gives the load averages just
+before it ran (2.95 3.35 4.87 and 2.20 3.02 4.60). The library, TEI and
+MLX run one after another within each record, about a minute apart, so
+the load can differ between them. min / mean / p50 / p99 in ms; MLX's
+min and mean are in its `procedure`, and its time is host wall time
+over the encoder and pooling, with the rows already on the device and
+the vectors not read back, where the library's includes writing the
+rows and reading the vectors:
+
+| Precision | turbo | MLX (wall time) | TEI end to end p50 / p99 | MLX's lowest cosine |
+|---|---|---|---|---|
+| FASTEST (F16; MLX float16) | 97.59 / 98.96 / 98.74 / 101.57 | 102.95 / 104.90 / 104.84 / 107.65 | 1109.9 / 1202.7 | 0.9999991 |
+| MODEL (F32; MLX float32) | 142.29 / 145.51 / 145.27 / 149.38 | 150.22 / 152.90 / 152.27 / 159.40 | 1151.0 / 1233.8 | 1 - 2.7e-13 |
+
+Each record's `speed_ratio`, against MLX, its fastest reference, is
+0.94 at FASTEST and 0.95 at MODEL. MLX is pinned by the SHA-256 of
+`mlx/lib/libmlx.dylib` (`mlx@sha256:2ea12324...`), with `mlx.metallib`'s
+and `mlx.core`'s in its `procedure`, and the runner refuses an MLX other
+than 0.29.3.
 
 ### Wide heads and weights past F16's range
 

@@ -3,8 +3,9 @@
 //! path's within 1e-5, a sentence tags the same alone as in a batch, and
 //! a release timing interleaved against the CPU path.
 //!
-//! The device is TURBO_TEST_DEVICE (cuda or cuda:N), else cuda with
-//! TURBO_TEST_REQUIRE_CUDA=1; without either the tests say they were
+//! The device is TURBO_TEST_DEVICE (cuda, levelzero, or either with :N),
+//! else cuda with TURBO_TEST_REQUIRE_CUDA=1 or levelzero with
+//! TURBO_TEST_REQUIRE_LEVELZERO=1; without any the tests say they were
 //! skipped. A named device the tagger cannot be made on fails them.
 
 mod bilstm_random;
@@ -20,6 +21,7 @@ fn device() -> Option<Device> {
     let device = match std::env::var("TURBO_TEST_DEVICE") {
         Ok(name) => Device::parse(&name).unwrap_or_else(|e| panic!("TURBO_TEST_DEVICE={name}: {}", e.message)),
         Err(_) if std::env::var("TURBO_TEST_REQUIRE_CUDA").is_ok_and(|v| v == "1") => Device::Cuda(0),
+        Err(_) if std::env::var("TURBO_TEST_REQUIRE_LEVELZERO").is_ok_and(|v| v == "1") => Device::LevelZero(0),
         Err(_) => return None,
     };
     (device != Device::Cpu).then_some(device)
@@ -32,7 +34,7 @@ fn on(device: Device, m: &turbo_postag::neural::BilstmPosModel) -> BilstmPosTagg
 #[test]
 fn device_emissions_match_the_cpu() {
     let Some(device) = device() else {
-        println!("skipped: neither TURBO_TEST_DEVICE nor TURBO_TEST_REQUIRE_CUDA=1 is set");
+        println!("skipped: no TURBO_TEST_DEVICE or TURBO_TEST_REQUIRE_* is set");
         return;
     };
     for (seed, stacked, crf) in [(1, false, true), (2, true, true), (3, false, false)] {
@@ -52,7 +54,7 @@ fn device_emissions_match_the_cpu() {
 #[test]
 fn a_sentence_tags_the_same_alone_and_in_a_batch_on_the_device() {
     let Some(device) = device() else {
-        println!("skipped: neither TURBO_TEST_DEVICE nor TURBO_TEST_REQUIRE_CUDA=1 is set");
+        println!("skipped: no TURBO_TEST_DEVICE or TURBO_TEST_REQUIRE_* is set");
         return;
     };
     let m = model(4, true, true);
@@ -67,7 +69,7 @@ fn a_sentence_tags_the_same_alone_and_in_a_batch_on_the_device() {
 #[test]
 fn each_backend_hashes_apart_and_the_same_every_time() {
     let Some(device) = device() else {
-        println!("skipped: neither TURBO_TEST_DEVICE nor TURBO_TEST_REQUIRE_CUDA=1 is set");
+        println!("skipped: no TURBO_TEST_DEVICE or TURBO_TEST_REQUIRE_* is set");
         return;
     };
     let m = model(6, false, true);
@@ -97,7 +99,7 @@ fn summary(v: &mut [f64]) -> String {
 #[test]
 #[ignore = "timing; run in release on an idle machine with a quiet GPU"]
 fn device_tagger_timing() {
-    let device = device().expect("set TURBO_TEST_DEVICE or TURBO_TEST_REQUIRE_CUDA=1");
+    let device = device().expect("set TURBO_TEST_DEVICE or a TURBO_TEST_REQUIRE_*=1");
     let reps: usize = std::env::var("BILSTM_REPS").ok().and_then(|v| v.parse().ok()).unwrap_or(30);
     for stacked in [false, true] {
         let m = model(5, stacked, true);

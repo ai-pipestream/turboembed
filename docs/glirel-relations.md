@@ -90,6 +90,17 @@ names where the encoder ran. `analysis/relation/tests/device.rs` holds a device 
 over `testdata/tiny-deberta-bundle`, with every count equal and every
 logit within 1e-4.
 
+The real checkpoint is CC BY-NC-SA 4.0, and the zoo fetches it only after
+that licence is accepted. Its encoder is sealed as a core bundle the same
+way GLiNER2's is (docs/gliner2-relations.md), by
+`bundle/reference/gliner_encoder.py` with the default prefix and an
+`added_tokens.json` of GLiREL's five added pieces (`[MASK]`, `[FLERT]`,
+`[REL]`, `[E]` and `[/E]` at 128000 to 128004). The bundle is made
+locally and is not shipped. `analysis/relation/tests/device_real.rs`
+(ignored; `GLIREL_BUNDLE`, `GLIREL_PACKAGE`, `GLIREL_SPM`,
+`TURBO_TEST_DEVICE`) holds the device to the CPU encoder of the package's
+`encoder/` DeBERTa package, to which the bundle is bound, and times both.
+
 ## Parity
 
 `analysis/relation/reference/glirel/build_fixture.py`, pinned in its

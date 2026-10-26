@@ -3,8 +3,9 @@
 //! batches, both directions, `run` and `run_gathered`, and the same
 //! refusals.
 //!
-//! The device is TURBO_TEST_DEVICE (cpu, cuda or cuda:N), else cuda when
-//! TURBO_TEST_REQUIRE_CUDA=1, else the CPU, where the harness checks
+//! The device is TURBO_TEST_DEVICE (cpu, cuda, levelzero, or either GPU
+//! with :N), else cuda with TURBO_TEST_REQUIRE_CUDA=1 or levelzero with
+//! TURBO_TEST_REQUIRE_LEVELZERO=1, else the CPU, where the harness checks
 //! itself bit for bit. A named device that cannot make the LSTM fails the
 //! test; it never falls back to the CPU.
 
@@ -17,10 +18,11 @@ use turbo::status::{INVALID_ARGUMENT, INVALID_SHAPE};
 const BOUND: f32 = 1e-5;
 
 fn device() -> Device {
-    let required = std::env::var("TURBO_TEST_REQUIRE_CUDA").is_ok_and(|v| v == "1");
+    let required = |v: &str| std::env::var(v).is_ok_and(|v| v == "1");
     match std::env::var("TURBO_TEST_DEVICE") {
         Ok(name) => Device::parse(&name).unwrap_or_else(|e| panic!("TURBO_TEST_DEVICE={name}: {}", e.message)),
-        Err(_) if required => Device::Cuda(0),
+        Err(_) if required("TURBO_TEST_REQUIRE_CUDA") => Device::Cuda(0),
+        Err(_) if required("TURBO_TEST_REQUIRE_LEVELZERO") => Device::LevelZero(0),
         Err(_) => Device::Cpu,
     }
 }
@@ -190,12 +192,14 @@ fn refusals_match_the_cpu() {
 }
 
 /// A device the library has no LSTM for is refused when the LSTM is made.
-#[cfg(not(feature = "cuda"))]
 #[test]
 fn a_device_not_built_in_is_refused() {
     let m = Model::new(3, 2, 1);
-    let e = Lstm::new(Device::Cuda(0), 3, 2, &m.dirs()).err().expect("an LSTM on a CUDA device in a build without it");
-    assert_eq!(e.code, turbo::status::UNSUPPORTED);
+    let absent = [(Device::Cuda(0), cfg!(feature = "cuda")), (Device::LevelZero(0), cfg!(feature = "levelzero"))];
+    for (device, _) in absent.into_iter().filter(|&(_, built)| !built) {
+        let e = Lstm::new(device, 3, 2, &m.dirs()).err().expect("an LSTM on a device not built in");
+        assert_eq!(e.code, turbo::status::UNSUPPORTED, "{device:?}");
+    }
 }
 
 /// A table made by an LSTM of another width is read as the CPU form reads
