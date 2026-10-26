@@ -55,7 +55,7 @@ fn runs() -> Vec<Run> {
     let file = std::fs::read_to_string(repo().join("analysis/bpe-trainer/testdata/sentencepiece.jsonl")).unwrap();
     file.lines()
         .map(|l| {
-            let v: serde_json::Value = serde_json::from_str(l).unwrap();
+            let v: Json = parse(l).unwrap();
             let config = SentencePieceConfig {
                 vocab_size: v["vocab_size"].as_u64().unwrap() as usize,
                 character_coverage: v["character_coverage"].as_f64().unwrap() as f32,
@@ -222,7 +222,7 @@ fn random_corpora_at_the_largest_size_give_the_librarys_pieces() {
         std::fs::read_to_string(repo().join("analysis/bpe-trainer/testdata/sentencepiece-random.jsonl")).unwrap();
     let mut runs = 0;
     for line in file.lines() {
-        let v: serde_json::Value = serde_json::from_str(line).unwrap();
+        let v: Json = parse(line).unwrap();
         let strings = |k: &str| -> Vec<String> {
             v[k].as_array().unwrap().iter().map(|x| x.as_str().unwrap().to_owned()).collect()
         };

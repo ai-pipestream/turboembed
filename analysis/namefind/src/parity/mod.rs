@@ -1,15 +1,10 @@
-//! Differential tests of the matchers against the `regex` crate
-//! translations they replaced ([`old_java_regex`] and [`old_builtin`]),
-//! which the goldens check against Java. Both sides must report the
-//! same match, at the same offsets, from every start offset tried, on the
-//! golden sentences and on generated patterns and texts.
+//! Structural and engine-consistency checks on golden sentences and generated
+//! patterns and texts. JVM goldens independently check Java behavior.
 //!
 //! The texts are seeded, so a failure repeats. `TURBO_TEST_PARITY_ROUNDS`
 //! (default 1) multiplies the number of generated cases.
 
 mod builtin;
-mod old_builtin;
-mod old_java_regex;
 mod user;
 
 /// SplitMix64.

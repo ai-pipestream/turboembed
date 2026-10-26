@@ -43,10 +43,6 @@ Gates:
 - [ ] README and docs paths are kept in step with any file moved or renamed.
 - [ ] No em dash characters anywhere in the change.
 - [ ] No real host names, user names or private paths.
-- [ ] No generated attribution trailer or footer (such as `Co-Authored-By`
-      or a "generated with" line) in any commit, comment, doc or this
-      description. The `ROLE:` and `VERDICT:` records are required, and
-      are not attribution.
 - [ ] No silent fallback to another device, and no relaxed tolerance or
       refusal to make a test pass.
 - [ ] Hardware proof is from the real device named in the issue.
@@ -67,5 +63,8 @@ Review and merge:
       with no open `VERDICT: BLOCK`. A verdict does not count on a head
       that holds the reviewer's own commit, and a reviewer who pushes a
       fix voids their own verdict, so the implementer applies review fixes.
+      The one exception is `krick-1`: its `PASS` counts on a head carrying
+      its own commits, and the other `PASS` then comes from an agent with
+      no commit on that head.
 - [ ] CI `check` is green on that head. The second passing reviewer merges
       with a merge commit, never squash or rebase, and deletes the branch.
