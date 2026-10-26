@@ -13,6 +13,7 @@ use std::time::Instant;
 
 use bilstm_random::{model, sentences};
 use turbo::device::Device;
+use turbo_analysis::Annotator;
 use turbo_postag::neural::BilstmPosTagger;
 
 fn device() -> Option<Device> {
@@ -61,6 +62,22 @@ fn a_sentence_tags_the_same_alone_and_in_a_batch_on_the_device() {
         let alone = on(device, &m).best_sequences(&[sentence]).unwrap().remove(0);
         assert_eq!(alone.outcomes(), seq.outcomes(), "{sentence:?}");
     }
+}
+
+#[test]
+fn each_backend_hashes_apart_and_the_same_every_time() {
+    let Some(device) = device() else {
+        println!("skipped: neither TURBO_TEST_DEVICE nor TURBO_TEST_REQUIRE_CUDA=1 is set");
+        return;
+    };
+    let m = model(6, false, true);
+    let hashes = [
+        BilstmPosTagger::new(m.clone()).config_hash(),
+        BilstmPosTagger::jvm_parity(m.clone()).config_hash(),
+        on(device, &m).config_hash(),
+    ];
+    assert_eq!(on(device, &m).config_hash(), hashes[2], "the hash on {device:?} repeats");
+    assert!(hashes[0] != hashes[1] && hashes[1] != hashes[2] && hashes[0] != hashes[2], "{hashes:x?}");
 }
 
 /// min, p50, mean and p99 of `v`, in ms.
