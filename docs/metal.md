@@ -174,8 +174,11 @@ frameworks and libc++, which every macOS has.
   to a multiple of 8 by zeros in threadgroup memory and, when its width
   is not a multiple of 4, read from device memory a value at a time. At
   EXACT and MODEL, in a FASTEST layer computed in F32, and past 128 at
-  any precision, such a head runs a narrower kernel, one query at a
-  time, in F32. The run waits for the pass to
+  any precision, such a head runs a narrower kernel in F32: each query's
+  scores one key per lane of a SIMD group, the block's 32 queries shared
+  out over as many SIMD groups as the threadgroup memory holds rows of
+  the longest row's scores (up to 32; one at a time ran long enough at
+  large shapes for macOS to stop the command buffer, #1406). The run waits for the pass to
   complete before it returns, and leaves the vectors in the session's
   `SHARED` buffer, which `turbo_result_buffer` hands out and
   `turbo_result_read` copies from.

@@ -611,6 +611,9 @@ struct AttentionParams {
     uint hidden;
     uint head_dim;
     float scale;
+    // attention_narrow's floats of scores per SIMD group: the run's
+    // longest row, rounded up to 8.
+    uint narrow_stride;
 };
 
 constant uint KC = 32;       // keys per chunk
@@ -940,19 +943,23 @@ ATTENTION_H(false, 128, "attention_h128")
 ATTENTION_H(true, 128, "attention_hr128")
 
 // The same, for a head width that is not a multiple of 8 or over 64: each
-// query of the 32 in turn, in one SIMD group, its scores one key per lane.
+// of the threadgroup's SIMD groups takes every groups-th query of the 32,
+// its scores one key per lane in its own narrow_stride floats. A query's
+// arithmetic is the same whatever the group count, so its bits are too.
 kernel void attention_narrow(device const float *q [[buffer(0)]], device const float *k [[buffer(1)]],
                              device const float *v [[buffer(2)]], device const int *mask [[buffer(3)]],
                              device const uint2 *rows [[buffer(4)]], device const uint2 *blocks [[buffer(5)]],
                              device float *ctx [[buffer(6)]], constant AttentionParams &p [[buffer(7)]],
-                             threadgroup float *sc [[threadgroup(0)]], uint2 tg [[threadgroup_position_in_grid]],
-                             ushort lane [[thread_index_in_simdgroup]]) {
+                             threadgroup float *scores [[threadgroup(0)]], uint2 tg [[threadgroup_position_in_grid]],
+                             ushort sg [[simdgroup_index_in_threadgroup]],
+                             ushort groups [[simdgroups_per_threadgroup]], ushort lane [[thread_index_in_simdgroup]]) {
+    threadgroup float *sc = scores + sg * p.narrow_stride;
     const uint2 blk = blocks[tg.x];
     const uint2 row = rows[blk.x];
     const uint p0 = row.x, len = row.y;
     const uint h = p.hidden, hd = p.head_dim, col = tg.y * hd;
     device const int *m = mask + p0;
-    for (uint i = blk.y * 32; i < min(len, blk.y * 32 + 32); i++) {
+    for (uint i = blk.y * 32 + sg; i < min(len, blk.y * 32 + 32); i += groups) {
         device const float *qi = q + ulong(p0 + i) * h + col;
         float mx = -INFINITY;
         for (uint j = lane; j < len; j += 32) {
