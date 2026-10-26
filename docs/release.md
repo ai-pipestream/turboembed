@@ -15,11 +15,31 @@ each with its SHA-256:
   definitions and `buf.yaml`.
 - `turboembed-grpc-<version>.jar`, `turboembed-grpc-<version>-sources.jar`,
   and `turboembed-grpc-<version>.pom`: the generated Java Maven stub artifact
-  (`ai.pipestream:turboembed-grpc:<version>`, built with pinned `protoc 3.25.5`
-  and `protoc-gen-grpc-java 1.68.2`).
+  (`ai.pipestream:turboembed-grpc:<version>`, built with pinned `protoc 4.36.2`
+  and `protoc-gen-grpc-java 1.85.1`, depending on `protobuf-java 4.36.2` and
+  `grpc-protobuf` and `grpc-stub` 1.85.1, Java 17 or newer).
 - `turboembed_proto-<version>-py3-none-any.whl`: the generated Python wheel
-  stub package (`turboembed-proto`, built with pinned `grpcio-tools 1.70.0`
-  and `protobuf 5.29.3`).
+  stub package (`turboembed-proto`, built with pinned `grpcio-tools 1.85.0`
+  and `protobuf 7.36.2` on uv-managed Python). It requires Python 3.10 or
+  newer, `grpcio>=1.85.0` and `protobuf>=7.35.1,<8`. `build_wheel.py` reads
+  those floors from the generated code (`GRPC_GENERATED_VERSION` and the
+  protobuf gencode version that grpcio-tools 1.85.0 bundles), and the
+  smoke test installs the wheel on Python 3.10 with its dependencies
+  resolved to exactly those floors before calling the server.
+
+The generator pins live in `clients/java/pom.xml` (`protobuf.version`,
+`grpc.version`) and `scripts/package-proto-stubs.sh` (the Python pins). The
+Rust server builds its own stubs with tonic 0.14.6 and prost 0.14.4
+(`Cargo.lock`).
+
+The demo page's TypeScript code is not a release artifact: it is
+generated into `demo/web/src/gen` by `scripts/generate-web-stubs.sh`
+from `server/proto/buf.gen.yaml`, committed, and checked against the
+protos by the `proto` CI job. Its pins are exact, in
+`demo/web/package.json` and its lockfile: the `buf` CLI 1.70.0
+(`@bufbuild/buf`, the version the `proto` job lints with),
+`@bufbuild/protoc-gen-es` 2.16.0, `@bufbuild/protobuf` 2.16.0, and
+`@connectrpc/connect` and `@connectrpc/connect-web` 2.2.0.
 
 Running the workflow by hand (`workflow_dispatch`) is the dry run: it
 builds and checks the release archives and client stubs and keeps them,

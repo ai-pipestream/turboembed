@@ -23,6 +23,14 @@ _SEMVER_RE = re.compile(
     r"^v?(?P<core>[0-9]+\.[0-9]+\.[0-9]+)"
     r"(?:-(?P<pre_tag>alpha|a|beta|b|rc|pre|dev)[.-]?(?P<pre_num>[0-9]+))?$"
 )
+_GRPC_GENERATED_RE = re.compile(r"^GRPC_GENERATED_VERSION = '([0-9]+\.[0-9]+\.[0-9]+)'$", re.M)
+_PROTOBUF_GENCODE_RE = re.compile(
+    r"ValidateProtobufRuntimeVersion\(\s*_runtime_version\.Domain\.PUBLIC,"
+    r"\s*([0-9]+),\s*([0-9]+),\s*([0-9]+),"
+)
+# grpcio 1.85 dropped Python 3.9; the release job smoke-tests on this floor.
+REQUIRES_PYTHON = ">=3.10"
+
 _PRE_MAP = {
     "alpha": "a",
     "a": "a",
@@ -64,6 +72,32 @@ def rewrite_relative_imports(pkg_dir: pathlib.Path, modules: set[str]) -> None:
         py_file.write_text("".join(out), encoding="utf-8")
 
 
+def _single_version(found: set[str], what: str) -> str:
+    if len(found) != 1:
+        raise RuntimeError(f"expected one {what} across the generated stubs, found {sorted(found)}")
+    return found.pop()
+
+
+def generated_runtime_floors(pkg_dir: pathlib.Path) -> list[str]:
+    """Requires-Dist lines equal to the versions the generated code checks at import.
+
+    The *_grpc.py modules refuse a grpcio older than GRPC_GENERATED_VERSION,
+    and the *_pb2.py modules refuse a protobuf runtime older than their
+    gencode version or of another major version.
+    """
+    grpc_found: set[str] = set()
+    for py_file in pkg_dir.glob("*_pb2_grpc.py"):
+        grpc_found.update(_GRPC_GENERATED_RE.findall(py_file.read_text(encoding="utf-8")))
+    pb_found: set[str] = set()
+    for py_file in pkg_dir.glob("*_pb2.py"):
+        for major, minor, patch in _PROTOBUF_GENCODE_RE.findall(py_file.read_text(encoding="utf-8")):
+            pb_found.add(f"{major}.{minor}.{patch}")
+    grpc_floor = _single_version(grpc_found, "GRPC_GENERATED_VERSION")
+    pb_floor = _single_version(pb_found, "protobuf gencode version")
+    pb_next_major = int(pb_floor.split(".")[0]) + 1
+    return [f"grpcio>={grpc_floor}", f"protobuf>={pb_floor},<{pb_next_major}"]
+
+
 def urlsafe_b64_nopad(digest: bytes) -> str:
     return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
 
@@ -97,6 +131,7 @@ def build_wheel(proto_dir: pathlib.Path, out_dir: pathlib.Path, version: str) ->
 
         pb2_modules = {p.stem for p in pkg_dir.glob("*_pb2.py")}
         rewrite_relative_imports(pkg_dir, pb2_modules)
+        requires_dist = "".join(f"Requires-Dist: {req}\n" for req in generated_runtime_floors(pkg_dir))
 
         init_lines = [
             '"""Generated Protobuf and gRPC Python stubs for turboembed (v1)."""\n',
@@ -123,9 +158,8 @@ def build_wheel(proto_dir: pathlib.Path, out_dir: pathlib.Path, version: str) ->
             f"License: Apache-2.0\n"
             f"License-File: licenses/LICENSE\n"
             f"License-File: licenses/NOTICE\n"
-            f"Requires-Python: >=3.9\n"
-            f"Requires-Dist: grpcio>=1.70.0\n"
-            f"Requires-Dist: protobuf>=5.29.0\n",
+            f"Requires-Python: {REQUIRES_PYTHON}\n"
+            f"{requires_dist}",
             encoding="utf-8",
         )
         (dist_info / "WHEEL").write_text(

@@ -196,3 +196,11 @@ impl EmotionVectorScorer for EmotionVectorHead {
         turbo_analysis::fnv1a(&self.to_bytes())
     }
 }
+
+#[path = "fit.rs"]
+mod fit;
+pub use fit::EmotionFitOptions;
+
+#[path = "zoo.rs"]
+mod zoo;
+pub use zoo::{EmotionZooError, GOEMOTIONS_BGE_SMALL_HEAD, GOEMOTIONS_MINILM_HEAD};

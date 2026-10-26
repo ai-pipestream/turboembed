@@ -3,17 +3,27 @@
 
 from __future__ import annotations
 
+import importlib
 import os
+import pkgutil
 import sys
 
 import grpc
+import turboembed_proto
 from turboembed_proto import turbo_analysis_pb2, turbo_analysis_pb2_grpc
+
+
+def import_every_stub() -> None:
+    # Each generated module checks its grpcio or protobuf runtime at import.
+    for mod in pkgutil.iter_modules(turboembed_proto.__path__):
+        importlib.import_module(f"turboembed_proto.{mod.name}")
 
 
 def main() -> None:
     target = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("TURBO_KSERVE_SMOKE_ADDR", "")
     if not target:
         raise SystemExit("Expected server address as argv[1] or TURBO_KSERVE_SMOKE_ADDR")
+    import_every_stub()
 
     with grpc.insecure_channel(target) as channel:
         stub = turbo_analysis_pb2_grpc.AnalysisServiceStub(channel)

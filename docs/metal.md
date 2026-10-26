@@ -58,10 +58,13 @@ frameworks and libc++, which every macOS has.
   FASTEST, whose linear layers take F16 operands (Numerics). A model
   stored in F16 or BF16 computes from an F32 copy at EXACT and FASTEST;
   its session at MODEL is refused (`TURBO_E_UNSUPPORTED_OPTION`, field 3),
-  as on the CPU. A model with a linear layer's weight past F16's range
-  (65504) has no F16 kernels: its session at FASTEST, whose numerics
-  allow only F16 operands, is refused (`TURBO_E_UNSUPPORTED_OPTION`,
-  field 3), with a warning in the log, and EXACT runs it in F32. A cell is SUPPORTED where a benchmark record in
+  as on the CPU. An encoder layer with a linear layer's weight past
+  F16's range (65504) computes in F32 at FASTEST, as CUDA computes such
+  a model, with a warning in the log naming how many layers; the other
+  layers run in F16. When every layer has one, the session computes in
+  F32 and reports it in `compute_dtype`, and a `TURBO_METAL_CHOICES`
+  line that forces an F16 tiling is refused
+  (`TURBO_E_UNSUPPORTED_OPTION`, field 3). A cell is SUPPORTED where a benchmark record in
   `benchmarks/records/` backs it (docs/benchmarks.md): on the M2, the
   records against TEI's router built natively with Metal, FASTEST's
   against TEI 1.8.3 in float16. Elsewhere it is EXPERIMENTAL. At FASTEST,
@@ -115,8 +118,9 @@ frameworks and libc++, which every macOS has.
   The first FASTEST session makes the linear layers' weights in F16 the
   same way, narrowed on the device from the F32 ones, shared by every
   later FASTEST session and freed with the model; an F16 model's are
-  read where they are. The narrowing kernel flags a finite weight that
-  F16 cannot hold, and then the copy is dropped and the session refused.
+  read where they are. The narrowing kernel flags each encoder layer
+  with a finite weight that F16 cannot hold, and that layer's F16
+  weights go unused; when every layer is flagged, the copy is dropped.
 - **Sessions.** Every byte a run touches is allocated when the session is
   made, for its `max_batch` rows of `max_seq` tokens: private scratch,
   shared memory for the rows, the shared buffer the vectors are written
@@ -164,10 +168,14 @@ frameworks and libc++, which every macOS has.
   SIMD-group matrices load without a transpose) and each chunk's mask as
   an additive bias, keeps its queries in registers and runs the softmax
   in base 2, with each group's scores and probabilities in threadgroup
-  memory or in the SIMD-group matrices' registers (Kernel choices). A
-  head width that is not a
-  multiple of 8, or is over 64, runs a narrower kernel, one query at a
-  time, in F32 at every precision. The run waits for the pass to
+  memory or in the SIMD-group matrices' registers (Kernel choices). At
+  FASTEST a head width over 64 or not a multiple of 8, up to 128, runs
+  the same F16 kernel built for heads of up to 128, with the head padded
+  to a multiple of 8 by zeros in threadgroup memory and, when its width
+  is not a multiple of 4, read from device memory a value at a time. At
+  EXACT and MODEL, in a FASTEST layer computed in F32, and past 128 at
+  any precision, such a head runs a narrower kernel, one query at a
+  time, in F32. The run waits for the pass to
   complete before it returns, and leaves the vectors in the session's
   `SHARED` buffer, which `turbo_result_buffer` hands out and
   `turbo_result_read` copies from.
@@ -240,7 +248,7 @@ frameworks and libc++, which every macOS has.
 ## Kernel choices
 
 At FASTEST a session chooses two items, which tile its linear layers
-run in past 64 packed tokens and, for heads a multiple of 8 up to 64,
+run in past 64 packed tokens and, for heads up to 128,
 which kernel runs attention, and reports them in
 `turbo_session_get_info`'s `choices` (docs/autotune.md):
 
@@ -417,6 +425,58 @@ From 1 to 8 rows of 128 FASTEST is now ahead of MLX float16; from 2048
 tokens up the kernels are the same as before, so those rows differ by
 noise alone, and MLX's larger products still run at about 3 TFLOPS
 against our 2.5.
+
+### Wide heads and weights past F16's range
+
+Six-layer BERTs written by the tests' `bert_weights` (weights scaled by
+0.05, no real model of either kind is among the sealed bundles), dense
+rows, 8 untimed then 32 timed runs from the host on an M2, p50 / least
+in ms; main from before these changes and after, two rounds each in
+alternating order (the machine's 5-minute load average 3 to 5):
+
+| Model | Rows | FASTEST before | FASTEST | EXACT |
+|---|---|---|---|---|
+| hidden 768, heads of 128 | 32 x 256 | 1968 / 1352 | 518 / 507 | 2286 / 2048 |
+| hidden 768, heads of 128 | 8 x 128 | 161 / 154 | 59.2 / 58.3 | 165 / 163 |
+| hidden 768, heads of 128 | 1 x 128 | 35.7 / 32.7 | 8.05 / 7.67 | 36.5 / 36.2 |
+| hidden 640, heads of 80 | 32 x 256 | 1436 / 1367 | 341 / 312 | 1602 / 1553 |
+| hidden 640, heads of 80 | 8 x 128 | 125 / 121 | 42.0 / 40.8 | 137 / 136 |
+| hidden 640, heads of 80 | 1 x 128 | 27.6 / 25.5 | 6.29 / 5.88 | 28.0 / 26.9 |
+| hidden 384, layer 0 past F16 | 32 x 256 | refused | 156 / 130 | 218 / 212 |
+| hidden 384, layer 0 past F16 | 8 x 128 | refused | 19.5 / 18.8 | 25.6 / 24.4 |
+| hidden 384, layer 0 past F16 | 1 x 128 | refused | 3.49 / 3.19 | 4.80 / 4.37 |
+
+FASTEST before ran these heads in the F32 narrow kernel; the F16 one is
+2.6x to 4.4x faster on them (by p50 or by least). A model with one
+layer past F16's range, refused at FASTEST before, now runs it about
+1.4x faster than EXACT.
+The kernels for heads a multiple of 8 up to 64 are unchanged:
+all-minilm-l6-v2 and bge-base-en-v1.5 give main's vectors bit for bit at
+MODEL and FASTEST.
+
+### LayerNorm in registers, not kept
+
+`embed_layer_norm` and `add_layer_norm` read each row from device memory
+three times (the mean, the variance, the output). A version that held
+rows of up to 1024 values in registers, 32 to a lane, read each once
+and gave main's vectors bit for bit (all-minilm-l6-v2, bge-base-en-v1.5
+and the tiny bundle, MODEL and FASTEST, 1 x 128 to 32 x 256). It was
+slower. all-minilm-l6-v2 at FASTEST, dense rows, p50 in ms, two
+`turbo-bench record` rounds in alternating order:
+
+| Rows | main | registers |
+|---|---|---|
+| 32 x 256 | 104.6, 100.8 | 109.4, 105.0 |
+| 8 x 128 | 12.28, 12.17 | 13.04, 12.93 |
+| 2 x 128 | 3.67, 3.56 | 3.99, 4.10 |
+| 1 x 128 | 2.28, 2.29 | 2.42, 2.41 |
+
+Sized to the width (12 values to a lane for hidden 384) it was level
+with main, within the rounds' spread, and at bge-base-en-v1.5's 768 the
+32-value version was level as well. LayerNorm is a small part of a
+layer, so the reads saved do not show, and the larger register file a
+lane needs costs more than they save. `core/tests/metal_ranges.rs`
+keeps a test at widths around 1024 for any later try.
 
 ## Testing
 
