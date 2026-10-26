@@ -4,6 +4,10 @@
 
 use std::path::Path;
 
+// This self-signed key is used only by the demo's ephemeral localhost TLS
+// tests. It is not a credential for any deployment. Every other key is refused.
+const LOCALHOST_TEST_KEYS: &[&str] = &["demo/tests/tls/key.pem"];
+
 /// A private key PEM starts its first line at the left edge; a key pasted
 /// into a Rust string constant does not, so the fixtures in
 /// `server/tests/` do not trip this.
@@ -25,6 +29,9 @@ pub fn violations(root: &Path) -> Vec<String> {
     assert!(out.status.success());
     let mut found = Vec::new();
     for p in String::from_utf8(out.stdout).unwrap().split('\0').filter(|s| !s.is_empty()) {
+        if LOCALHOST_TEST_KEYS.contains(&p) {
+            continue;
+        }
         let path = root.join(p);
         let Ok(text) = std::fs::read_to_string(&path) else { continue };
         if has_key_block(&text) {
