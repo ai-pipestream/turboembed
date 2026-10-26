@@ -92,10 +92,12 @@ fn elementwise_groups(n: u64) -> u32 {
     n.div_ceil(WIDE as u64).clamp(1, 65535) as u32
 }
 
+mod deberta;
 mod encode;
 mod kernels;
 mod model;
 mod session;
+mod stages;
 mod tune;
 mod write;
 

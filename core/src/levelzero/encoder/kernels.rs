@@ -47,6 +47,8 @@ pub(super) struct Kernels {
     /// The mean over each range of embed_write_ranges, in place of pool.
     pub(super) pool_ranges: Kernel,
     pub(super) normalize: Kernel,
+    /// For a DeBERTa-v2 model, its lookup and its attention (deberta.rs).
+    pub(super) deberta: Option<[Kernel; 2]>,
 }
 
 /// Attention for the model's head width: a tiled kernel where one is
@@ -63,7 +65,14 @@ pub(super) enum Attention {
 }
 
 impl Kernels {
-    pub(super) fn new(c: &Context, hidden: u32, intermediate: u32, head_dim: u32, xmx: bool) -> Res<Kernels> {
+    pub(super) fn new(
+        c: &Context,
+        hidden: u32,
+        intermediate: u32,
+        head_dim: u32,
+        xmx: bool,
+        deberta: bool,
+    ) -> Res<Kernels> {
         let row = [BLOCK, 1, 1];
         // At FASTEST the context is the next layer's F16 operand.
         let attention = match head_dim {
@@ -129,6 +138,11 @@ impl Kernels {
             pool: c.kernel("pool", [16 * POOL_SLICES, 1, 1])?,
             pool_ranges: c.kernel("pool_ranges", [16 * POOL_SLICES, 1, 1])?,
             normalize: c.kernel("normalize", row)?,
+            deberta: if deberta {
+                Some([c.kernel("deberta_embed", row)?, c.kernel("deberta_attention", row)?])
+            } else {
+                None
+            },
         })
     }
 }

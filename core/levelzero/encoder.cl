@@ -1211,6 +1211,133 @@ __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void attention(
     }
 }
 
+/* ---- DeBERTa-v2 -------------------------------------------------------------
+ *
+ * The lookup: each token's word row, LayerNormed, then multiplied by its
+ * mask, so a masked position is zero, as upstream's embeddings give it. A
+ * group per token, as embed_layer_norm_group, which also copies the mask
+ * and the row table to the device. There are no position or type rows. */
+__kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void deberta_embed(
+    __global const int *ids, __global const int *mask, __global const int *rows, int batch,
+    __global const float *word, __global const float *ln_w, __global const float *ln_b, float eps, int hidden,
+    __global float *x, __global int *packed_mask, __global int *device_rows) {
+    const int t = get_group_id(0), lid = get_local_id(0);
+    const int live = mask[t];
+    __global float *row = x + (size_t)t * hidden;
+    if (lid == 0) packed_mask[t] = live;
+    if (t < batch && lid < 2) device_rows[2 * t + lid] = rows[2 * t + lid];
+    if (live == 0) {
+        for (int d = lid; d < hidden; d += BLOCK) row[d] = 0.0f;
+        return;
+    }
+    __global const float *wr = word + (size_t)ids[t] * hidden;
+    for (int d = lid; d < hidden; d += BLOCK) row[d] = wr[d];
+    layer_norm_row_group(row, hidden, ln_w, ln_b, eps, 0);
+}
+
+/* Each row of x LayerNormed in place, a group a row: the relative table,
+ * once a model. */
+__kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void layer_norm_rows(
+    __global float *x, __global const float *ln_w, __global const float *ln_b, float eps, int hidden) {
+    layer_norm_row_group(x + (size_t)get_group_id(0) * hidden, hidden, ln_w, ln_b, eps, 0);
+}
+
+/* Disentangled attention, as the general kernel walks a query: a group
+ * per query, head and row. pos is the layer's relative rows through its own
+ * query, key and value projections, [2 * buckets, 3 * hidden];
+ * buckets[i - j + span] is the relative row of distance i - j. A visible
+ * query's score of a visible key is
+ * (q_i . k_j + q_i . pos_key[b] + k_j . pos_query[b]) * scale, b that
+ * bucket and scale 1 / sqrt(3 head_dim); it attends to visible keys alone.
+ * A masked query attends evenly to every position of its row, as
+ * upstream's mask leaves it, and reads every value. */
+__kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void deberta_attention(
+    __global const float *qkv, __global const int *mask, __global const int *rows, int hidden, int head_dim,
+    float scale, __global float *ctx, __global const float *pos, __global const int *buckets, int span,
+    __local float *sm) {
+    const int i = get_group_id(0), head = get_group_id(1), r = get_num_groups(2) - 1 - get_group_id(2);
+    const int start = rows[2 * r], len = rows[2 * r + 1];
+    if (i >= len) return;
+    __local float *qi = sm;
+    __local float *score = qi + head_dim;
+    __local float *part = score + len;
+    const int lid = get_local_id(0);
+    const int lane = get_sub_group_local_id(), sg = get_sub_group_id();
+    const int lanes = get_max_sub_group_size(), groups_of_lanes = get_num_sub_groups();
+    const int stride = 3 * hidden, col = head * head_dim;
+    __global const int *m = mask + start;
+    __global const float *base = qkv + (size_t)start * stride + col;
+    __global const float *pq = pos + col, *pk = pos + hidden + col;
+    const bool live = m[i] != 0;
+    for (int d = lid; d < head_dim; d += BLOCK) qi[d] = base[(size_t)i * stride + d];
+    barrier(CLK_LOCAL_MEM_FENCE);
+    // A sub-group per key: its lanes split the head's width.
+    for (int j = sg; j < len; j += groups_of_lanes) {
+        if (!live) {
+            if (lane == 0) score[j] = 0.0f;
+            continue;
+        }
+        if (m[j] == 0) continue;
+        __global const float *krow = base + (size_t)j * stride + hidden;
+        const size_t b = (size_t)buckets[i - j + span] * stride;
+        float c2c = 0.0f, c2p = 0.0f, p2c = 0.0f;
+        for (int d = lane; d < head_dim; d += lanes) {
+            c2c += qi[d] * krow[d];
+            c2p += qi[d] * pk[b + d];
+            p2c += krow[d] * pq[b + d];
+        }
+        c2c = sub_group_reduce_add(c2c);
+        c2p = sub_group_reduce_add(c2p);
+        p2c = sub_group_reduce_add(p2c);
+        if (lane == 0) score[j] = (c2c + c2p + p2c) * scale;
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+    float mx = -INFINITY;
+    for (int j = lid; j < len; j += BLOCK)
+        if (!live || m[j] != 0) mx = fmax(mx, score[j]);
+    mx = work_group_reduce_max(mx);
+    float sum = 0.0f;
+    for (int j = lid; j < len; j += BLOCK) {
+        float e = 0.0f;
+        if (!live || m[j] != 0) {
+            e = exp(score[j] - mx);
+            sum += e;
+        }
+        score[j] = e;
+    }
+    sum = work_group_reduce_add(sum);
+    const float inv = 1.0f / sum;
+    barrier(CLK_LOCAL_MEM_FENCE);
+    const size_t at = (size_t)(start + i) * hidden + col;
+    if (head_dim <= BLOCK) {
+        const int groups = BLOCK / head_dim;
+        const int d = lid % head_dim, g = lid / head_dim;
+        if (g < groups) {
+            float c = 0.0f;
+            for (int j = g; j < len; j += groups) {
+                if (live && m[j] == 0) continue;
+                c += score[j] * inv * base[(size_t)j * stride + 2 * hidden + d];
+            }
+            part[g * head_dim + d] = c;
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
+        if (lid < head_dim) {
+            float c = 0.0f;
+            for (int gg = 0; gg < groups; gg++) c += part[gg * head_dim + lid];
+            ctx[at + lid] = c;
+        }
+    } else {
+        for (int d = lid; d < head_dim; d += BLOCK) {
+            float c = 0.0f;
+            for (int j = 0; j < len; j++) {
+                if (live && m[j] == 0) continue;
+                c += score[j] * inv * base[(size_t)j * stride + 2 * hidden + d];
+            }
+            ctx[at + d] = c;
+        }
+    }
+}
+
 /* ---- Pooling ----------------------------------------------------------------
  *
  * Each row's vector, cut to output_dim: the mean over the tokens whose mask

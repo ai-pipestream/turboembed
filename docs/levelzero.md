@@ -354,6 +354,49 @@ a layer: own <ms> ms, onednn <ms> ms)`.
   time a context runs a bin of tokens (oneDNN for the linear layers,
   above).
 
+### DeBERTa-v2
+
+A `FAMILY_DEBERTA_V2` model (docs/bundle.md) runs in F32 at MODEL and
+EXACT; a session at FASTEST is refused (`TURBO_E_UNSUPPORTED_OPTION`,
+field 3, naming the precision and the family), never run in F32 in its
+place. The CPU encoder (`core/src/deberta`) is the reference. The first
+session makes, beside the fused projections, the relative table
+LayerNormed and each layer's query, key and value projection of it
+(shared keys), once for the model. A session holds the bucket of every
+distance a row of its `max_seq` tokens spans, made when it is made. The
+lookup is the word row LayerNormed, zero at a masked position, with no
+position or type rows. Attention is `deberta_attention`, a group per
+query, head and row: a visible query's score of a visible key is
+`(q_i . k_j + q_i . pos_key[b] + k_j . pos_query[b]) / sqrt(3 head_dim)`,
+`b` the bucket of `i - j`, over visible keys alone; a masked query attends
+evenly to its row's every position, as upstream's mask leaves it. The
+linear layers, LayerNorms and pooling are the BERT encoder's in F32, with
+oneDNN's linear layers where they run.
+
+`core/tests/levelzero_deberta.rs` holds the device to the CPU on the same
+bundle at MODEL, within 1e-4 of every value: the tiny model of
+`core/tests/deberta_load.rs` and a generated one at GLiNER-small's size
+(hidden 768, 12 heads, 6 layers, 256 buckets), over mixed lengths with
+padding on either side and masked holes, a row of one token and one of
+512, mean, CLS and last-token pooling, and token ranges.
+
+On the B70 (2026-10-26, `TURBO_SPEED_RUNS=7`, the GLiNER-small-sized
+model at MODEL, the CPU, an AMD Ryzen 9 9950X on all its threads,
+interleaved with the device; milliseconds a pass, min / median / max):
+
+| Batch x tokens | CPU | levelzero |
+| --- | ---: | ---: |
+| 32 x 128 | 984.0 / 1005.6 / 1168.3 | 112.5 / 163.1 / 185.6 |
+| 8 x 512 | 665.9 / 687.5 / 1057.2 | 443.4 / 469.3 / 505.4 |
+
+The GPU clock's median was 2800 MHz (2300 at the lowest), the package at
+most 67 C and memory 66 C, with no throttling; another client held the
+render engine about half busy, and none other the compute engines. At
+512 tokens a row the same 4096 tokens take 2.9 times as long as at 128:
+the general attention kernel, which reads every key and relative row
+from global memory for each query, is what grows, so a tiled kernel is
+the next step before an F16 tier.
+
 ## Testing on a machine with an Intel GPU
 
 From the workspace root. `TURBO_TEST_REQUIRE_LEVELZERO=1` makes every test
@@ -381,6 +424,11 @@ TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=levelzero \
     cargo test --release -p turbo --features levelzero --test conformance -- --include-ignored --nocapture
 TURBO_TEST_BUNDLE=<bundle-dir> \
     cargo test --release -p turbo --features levelzero --test levelzero -- --include-ignored --nocapture
+
+# DeBERTa-v2 against the CPU, and its speed (DeBERTa-v2, above):
+TURBO_TEST_DEVICE=levelzero cargo test --release -p turbo --features levelzero --test levelzero_deberta -- --nocapture
+TURBO_TEST_DEVICE=levelzero TURBO_SPEED_RUNS=7 \
+    cargo test --release -p turbo --features levelzero --test levelzero_deberta deberta_speed -- --ignored --nocapture
 ```
 
 `TURBO_TEST_DEVICE=levelzero` picks the first device the levelzero

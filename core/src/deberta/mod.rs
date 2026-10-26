@@ -24,6 +24,8 @@ use crate::{
 };
 use attention::Run;
 pub use config::Config;
+#[cfg(feature = "levelzero")]
+pub(crate) use math::bucket;
 pub use projections::TokenPromptProjections;
 use weights::Weights;
 
