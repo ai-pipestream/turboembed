@@ -36,3 +36,5 @@ tonic-prost-build = { version = "0.14", default-features = false, features = ["t
 turbo-kserve = { path = "../server" }
 # Finds the CPU's runtime index for the server the tests start.
 turbo = { path = "../core" }
+# The SHA-256 a dictionary upload's header carries.
+turbo-maxent = { path = "../analysis/maxent" }

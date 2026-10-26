@@ -1,6 +1,16 @@
-//! The demo's AnalysisService routes in front of the real server: the
-//! tiny bundle on the CPU, the demo calling it over gRPC, and these tests
-//! calling the demo over HTTP as a page does.
+//! The demo's gateway routes in front of the real server: the tiny
+//! bundle on the CPU, the demo calling it over gRPC, and these tests
+//! calling the demo over HTTP as a page does. The AnalysisService stream
+//! and bundle routes are here; the other routes are in gateway/.
+
+#[path = "gateway/analysis.rs"]
+mod analysis;
+#[path = "gateway/catalog.rs"]
+mod catalog;
+#[path = "gateway/search.rs"]
+mod search;
+#[path = "gateway/vocabulary.rs"]
+mod vocabulary;
 
 use std::path::{Path, PathBuf};
 
@@ -24,8 +34,13 @@ fn cpu() -> u32 {
 }
 
 async fn start(admin: bool) -> (Server, Demo) {
+    start_with(Serve { admin, ..Serve::default() }).await
+}
+
+/// The server with the tiny bundle loaded and `serve`'s services, and the
+/// demo in front of it.
+async fn start_with(serve: Serve) -> (Server, Demo) {
     let model = ModelConfig::parse(&format!("bundle={},device={},sessions=1", tiny().display(), cpu())).unwrap();
-    let serve = Serve { admin, ..Serve::default() };
     let s = Server::start("127.0.0.1:0".parse().unwrap(), vec![model], DEFAULT_MAX_MESSAGE_BYTES, serve).await.unwrap();
     s.load().await.unwrap();
     let d = Demo::start("127.0.0.1:0".parse().unwrap(), &format!("http://{}", s.local_addr()), vec![]).await.unwrap();
@@ -67,6 +82,82 @@ async fn call(d: &Demo, method: &str, path: &str, body: Value) -> (u16, Value) {
     let (status, kind, body) = http(d, method, path, "application/json", &body.to_string()).await;
     assert_eq!(kind, "application/json", "{path}: {body}");
     (status, serde_json::from_str(&body).unwrap())
+}
+
+/// A call that must answer 200 with JSON.
+async fn ok(d: &Demo, method: &str, path: &str, body: Value) -> Value {
+    let (status, v) = call(d, method, path, body).await;
+    assert_eq!(status, 200, "{method} {path}: {v}");
+    v
+}
+
+/// A call that must fail with the gRPC `code` and carry a `turbo-code`.
+async fn refused(d: &Demo, method: &str, path: &str, body: Value, code: &str) -> Value {
+    let (status, e) = call(d, method, path, body).await;
+    assert_eq!((status, &e["error"]["grpc"]), (502, &json!(code)), "{method} {path}: {e}");
+    assert!(e["error"]["turbo_code"].as_str().unwrap().parse::<u32>().unwrap() > 0, "{e}");
+    e
+}
+
+/// A streamed call refused before its first message: a JSON error with
+/// the gRPC `code` and a `turbo-code`.
+async fn stream_refused(d: &Demo, path: &str, body: Value, code: &str) -> Value {
+    let (status, kind, text) = http(d, "POST", path, "application/x-ndjson", &body.to_string()).await;
+    assert_eq!((status, kind.as_str()), (502, "application/json"), "{path}: {text}");
+    let e: Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(e["error"]["grpc"], code, "{path}: {e}");
+    assert!(e["error"]["turbo_code"].as_str().unwrap().parse::<u32>().unwrap() > 0, "{e}");
+    e
+}
+
+/// A streamed answer as NDJSON lines, each parsed.
+async fn lines(d: &Demo, path: &str, body: Value) -> Vec<Value> {
+    let (status, kind, text) = http(d, "POST", path, "application/x-ndjson", &body.to_string()).await;
+    assert_eq!((status, kind.as_str()), (200, "application/x-ndjson"), "{path}: {text}");
+    text.lines().map(|l| serde_json::from_str(l).unwrap()).collect()
+}
+
+/// A scratch directory for one test.
+fn scratch(name: &str) -> PathBuf {
+    let d = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("demo-gateway-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&d);
+    std::fs::create_dir_all(&d).unwrap();
+    d
+}
+
+/// Standard base64 with padding, as the protobuf JSON mapping writes bytes.
+fn base64(bytes: &[u8]) -> String {
+    const A: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    for g in bytes.chunks(3) {
+        let n = g.iter().enumerate().fold(0u32, |n, (i, &v)| n | (v as u32) << (16 - 8 * i));
+        for i in 0..4 {
+            out.push(if i <= g.len() { A[(n >> (18 - 6 * i) & 63) as usize] as char } else { '=' });
+        }
+    }
+    out
+}
+
+fn unbase64(text: &str) -> Vec<u8> {
+    let mut out = Vec::new();
+    let (mut n, mut bits) = (0u32, 0);
+    for c in text.trim_end_matches('=').bytes() {
+        let v = match c {
+            b'A'..=b'Z' => c - b'A',
+            b'a'..=b'z' => c - b'a' + 26,
+            b'0'..=b'9' => c - b'0' + 52,
+            b'+' => 62,
+            _ => 63,
+        };
+        n = n << 6 | v as u32;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((n >> bits) as u8);
+            n &= (1 << bits) - 1;
+        }
+    }
+    out
 }
 
 fn stream_body() -> Value {

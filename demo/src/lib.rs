@@ -31,6 +31,25 @@ pub mod analysis {
     tonic::include_proto!("turbo.result.v1");
 }
 
+/// The messages and client of turbo_search.proto, with serde.
+pub mod search {
+    #![allow(clippy::all)]
+    tonic::include_proto!("turbo.search.v1");
+}
+
+/// The messages and client of turbo_vocabulary.proto, with serde.
+pub mod vocabulary {
+    #![allow(clippy::all)]
+    tonic::include_proto!("turbo.vocabulary.v1");
+}
+
+/// The messages and the catalog and training clients of
+/// turbo_training.proto, with serde.
+pub mod training {
+    #![allow(clippy::all)]
+    tonic::include_proto!("turbo.training.v1");
+}
+
 mod accept;
 mod gateway;
 mod wire;
@@ -41,6 +60,10 @@ use proto::grpc_inference_service_client::GrpcInferenceServiceClient;
 use proto::infer_parameter::ParameterChoice;
 use proto::model_infer_request::InferInputTensor;
 use proto::*;
+use search::turbo_search_service_client::TurboSearchServiceClient;
+use training::turbo_catalog_service_client::TurboCatalogServiceClient;
+use training::turbo_training_service_client::TurboTrainingServiceClient;
+use vocabulary::turbo_vocabulary_service_client::TurboVocabularyServiceClient;
 
 /// The largest reply read from the server: the server's own default limit.
 pub const MAX_REPLY_BYTES: usize = 64 << 20;
@@ -53,6 +76,10 @@ const STYLE: &str = include_str!("../static/style.css");
 struct App {
     client: GrpcInferenceServiceClient<Channel>,
     analysis: AnalysisServiceClient<Channel>,
+    search: TurboSearchServiceClient<Channel>,
+    vocabulary: TurboVocabularyServiceClient<Channel>,
+    catalog: TurboCatalogServiceClient<Channel>,
+    training: TurboTrainingServiceClient<Channel>,
     server: String,
     models: Vec<String>,
 }
@@ -79,22 +106,30 @@ impl Demo {
         let client = GrpcInferenceServiceClient::new(channel.clone())
             .max_decoding_message_size(MAX_REPLY_BYTES)
             .max_encoding_message_size(MAX_REPLY_BYTES);
-        let analysis = AnalysisServiceClient::new(channel)
+        let analysis = AnalysisServiceClient::new(channel.clone())
             .max_decoding_message_size(MAX_REPLY_BYTES)
             .max_encoding_message_size(MAX_REPLY_BYTES);
-        let app = App { client, analysis, server: server.to_string(), models };
+        let search = TurboSearchServiceClient::new(channel.clone())
+            .max_decoding_message_size(MAX_REPLY_BYTES)
+            .max_encoding_message_size(MAX_REPLY_BYTES);
+        let vocabulary = TurboVocabularyServiceClient::new(channel.clone())
+            .max_decoding_message_size(MAX_REPLY_BYTES)
+            .max_encoding_message_size(MAX_REPLY_BYTES);
+        let catalog = TurboCatalogServiceClient::new(channel.clone())
+            .max_decoding_message_size(MAX_REPLY_BYTES)
+            .max_encoding_message_size(MAX_REPLY_BYTES);
+        let training = TurboTrainingServiceClient::new(channel)
+            .max_decoding_message_size(MAX_REPLY_BYTES)
+            .max_encoding_message_size(MAX_REPLY_BYTES);
+        let app = App { client, analysis, search, vocabulary, catalog, training, server: server.to_string(), models };
         let router = Router::new()
             .route("/", get(|| async { asset("text/html; charset=utf-8", INDEX) }))
             .route("/app.js", get(|| async { asset("text/javascript; charset=utf-8", SCRIPT) }))
             .route("/style.css", get(|| async { asset("text/css; charset=utf-8", STYLE) }))
             .route("/api/status", get(status))
             .route("/api/models/{name}", get(metadata))
-            .route("/api/infer", post(infer))
-            .route("/api/capabilities", get(gateway::capabilities))
-            .route("/api/bundles/load", post(gateway::load))
-            .route("/api/bundles/unload", post(gateway::unload))
-            .route("/api/analyze/stream", post(gateway::analyze_stream))
-            .with_state(app);
+            .route("/api/infer", post(infer));
+        let router = gateway::routes(router).with_state(app);
         let listener = TcpListener::bind(listen).await.map_err(|e| format!("listen on {listen}: {e}"))?;
         let addr = listener.local_addr().map_err(|e| format!("listen on {listen}: {e}"))?;
         let (stop, stopped) = oneshot::channel::<()>();

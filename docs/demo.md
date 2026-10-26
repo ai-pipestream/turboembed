@@ -105,24 +105,103 @@ The page uses three calls, which a script can use as well:
 A gRPC error is HTTP 502 with `{"error": {"grpc", "message",
 "turbo_code", "turbo_field"}}`; a body the demo cannot read is HTTP 400.
 
-## The AnalysisService calls
+## The gateway calls
 
-These routes are each one `turbo.result.v1.AnalysisService` call
-(server/proto/turbo_analysis.proto), for a workbench page or a script.
-The page itself does not use them yet. Their JSON is the proto message
-itself: the field names of the .proto, a missing field its default, a
-oneof as an object keyed by the field set (`{"vectors": {...}}`), and an
-enum as its number. A document's `text` is a string, and vector `data`
-(`AnalyzeVectors`, `TokenVectorsResult`, `ChunkLevelsResult`) is an
-array of numbers, the server's little-endian floats in order. Other
-`bytes` fields are arrays of byte values.
+These routes are each one gRPC call to the server's
+`turbo.result.v1.AnalysisService` (server/proto/turbo_analysis.proto),
+`turbo.search.v1.TurboSearchService` (server/proto/turbo_search.proto),
+`turbo.vocabulary.v1.TurboVocabularyService`
+(server/proto/turbo_vocabulary.proto), or `turbo.training.v1`'s
+`TurboCatalogService` and `TurboTrainingService`
+(server/proto/turbo_training.proto), for a workbench page or a script.
+The page itself does not use them yet. The demo keeps no state between
+calls: a graph, an index name or an artifact id is whatever the caller
+sends.
 
-| Call | gRPC call and answer |
+Their JSON is the proto message itself: the field names of the .proto,
+a missing field its default, a oneof as an object keyed by the field set
+(`{"vectors": {...}}`), and an enum as its number. A document's `text`
+is a string, and vector `data` (`AnalyzeVectors`, `TokenVectorsResult`,
+`ChunkLevelsResult`) is an array of numbers, the server's little-endian
+floats in order. A serialized document graph (`graph`,
+`initial_graph`), an upload's `source_bytes`, a formatted document's
+`content`, a dictionary upload's `chunk` and a download's `data` are
+base64 strings, as in the protobuf JSON mapping; base64url and missing
+padding are read too. Other `bytes` fields are arrays of byte values.
+
+A `GET` route sends the call's empty request and takes no body. A
+`POST` route takes the request message as its body. A route marked
+streamed answers one JSON line per message (`application/x-ndjson`), or
+one `data:` event per message when the request accepts
+`text/event-stream`.
+
+### AnalysisService
+
+| Route | gRPC call |
 |---|---|
-| `GET /api/capabilities` | `Capabilities`: `CapabilitiesResponse`. |
-| `POST /api/bundles/load` | Body a `LoadBundleRequest`; answers `LoadBundleResponse`. An admin call: a server started without `--admin` refuses it. |
-| `POST /api/bundles/unload` | Body an `UnloadBundleRequest`; answers `{}`. An admin call too. |
-| `POST /api/analyze/stream` | Body `{"header": AnalyzeStreamHeader, "documents": [AnalyzeDocument, ...]}`, the header optional. Opens one `AnalyzeStream` with the header and the documents, and passes each `AnalyzeStreamResponse` on as it arrives: one JSON line each (`application/x-ndjson`), or one `data:` event each when the request accepts `text/event-stream`. |
+| `GET /api/capabilities` | `Capabilities`. |
+| `POST /api/bundles/load` | `LoadBundle`. An admin call: a server started without `--admin` refuses it. |
+| `POST /api/bundles/unload` | `UnloadBundle`, answering `{}`. An admin call too. |
+| `POST /api/analyze/stream` | `AnalyzeStream`, streamed. Body `{"header": AnalyzeStreamHeader, "documents": [AnalyzeDocument, ...]}`, the header optional; the demo sends the header and then the documents. |
+| `POST /api/analyze/progressive` | `AnalyzeDocumentProgressive`, streamed: `started`, one `layers_ready` per step, then `complete` with the graph. |
+| `POST /api/analyze/window` | `InspectDocumentWindow`. |
+| `POST /api/analyze/typed` | `InspectDocumentGraph`, answering a `TypedDocumentResult`. |
+| `GET /api/analyze/formats` | `ListOutputFormats`. |
+| `POST /api/analyze/format` | `FormatDocument`. |
+| `POST /api/chunks/project` | `ProjectChunks`. |
+
+### TurboSearchService
+
+| Route | gRPC call |
+|---|---|
+| `GET /api/search/providers` | `ListSearchProviders`. |
+| `GET /api/search/indexes` | `ListIndexes`. |
+| `POST /api/search/create` | `CreateIndex`. |
+| `POST /api/search/index` | `IndexDocuments`. Body `{"documents": [IndexDocumentRequest, ...]}`, sent in order as the client stream; the first names the index. |
+| `POST /api/search/query` | `Search`. |
+| `POST /api/search/persist` | `PersistIndex`. Needs the server's snapshot directory. |
+| `POST /api/search/seal` | `SealIndex`. |
+| `POST /api/search/reindex` | `Reindex`. |
+| `POST /api/search/alias` | `SetAlias`. |
+| `DELETE /api/search/alias` | `DeleteAlias`. |
+| `GET /api/search/aliases` | `ListAliases`. |
+| `POST /api/search/delete` | `DeleteIndex`. |
+| `POST /api/search/collection` | `SetCollection`. |
+| `GET /api/search/collections` | `ListCollections`. |
+| `POST /api/search/watch` | `WatchCollection`, streamed. The stream has no end; it closes when the caller goes away. |
+
+### TurboVocabularyService
+
+| Route | gRPC call |
+|---|---|
+| `GET /api/vocabulary/formats` | `ListDictionaryFormats`. |
+| `GET /api/vocabulary/dictionaries` | `ListDictionaries`. |
+| `GET /api/vocabulary/vocabularies` | `ListVocabularies`. |
+| `POST /api/vocabulary/import` | `ImportDictionary`. Body `{"header": ImportDictionaryHeader, "data": base64}`; the demo sends the header and then the data in frames of at most 64 KiB. An admin call. |
+| `POST /api/vocabulary/learn` | `LearnVocabulary`. Body `{"header": LearnVocabularyHeader, "documents": [{"text": ...}, ...]}`, the header optional. An admin call. |
+| `POST /api/vocabulary/download` | `DownloadVocabulary`, streamed: the descriptor, then the data frames. |
+| `POST /api/vocabulary/delete` | `DeleteVocabularyArtifact`. An admin call. |
+
+### TurboCatalogService and TurboTrainingService
+
+| Route | gRPC call |
+|---|---|
+| `GET /api/catalog/models` | `ListModelCatalog`, unfiltered. |
+| `POST /api/catalog/models` | `ListModelCatalog` with the body's `user`, `kind` and `language`. |
+| `GET /api/catalog/installed` | `ListInstalledModels`. |
+| `POST /api/catalog/accept` | `RecordLicenceAcceptance`. An admin call. |
+| `POST /api/catalog/install` | `InstallModel`, streamed. An admin call. |
+| `GET /api/training/teachers` | `ListTeachers`. |
+| `POST /api/training/static` | `TrainStaticModel`, streamed: the progress stages, then `trained`. An admin call. |
+| `GET /api/training/models` | `ListStaticModels`. |
+| `POST /api/training/delete` | `DeleteStaticModel`. An admin call. |
+
+The training service has no call that trains a single analysis
+component, so there is no route for one.
+
+A gRPC error is the HTTP 502 above, with the `turbo-code` and
+`turbo-field` trailers as `turbo_code` and `turbo_field`; a body the
+demo cannot read, base64 included, is HTTP 400.
 
 A refusal before the stream starts, such as a header over the server's
 caps, is the HTTP 502 above. A status that ends a stream after it
@@ -149,8 +228,21 @@ in front of it, and makes every call over HTTP: the page and its files,
 status and metadata, texts at each tier giving exactly the floats the
 server answers over gRPC and the bundle's reference vectors, parameters
 and the server's refusals, and a server that is not there. Nothing is
-mocked. `demo/tests/gateway.rs` does the same for the AnalysisService
-routes: the capability listing, a stream as lines and as events with a
-failed document among them, its vector equal to `/api/infer`'s, the
-`turbo-code` and `turbo-field` of a refused header and of an admin call
-on a server without them, and an unload and a load.
+mocked. `demo/tests/gateway.rs` does the same for the gateway routes:
+
+- the capability listing, a stream as lines and as events with a failed
+  document among them, its vector equal to `/api/infer`'s, the
+  `turbo-code` and `turbo-field` of a refused header and of an admin
+  call on a server without them, and an unload and a load;
+- a progressive analysis as lines and as events, its graph read back
+  through the window, typed, format and projection routes, and an
+  unknown step refused;
+- an index created, aliased, filled, queried, persisted, sealed,
+  reindexed and deleted, and a collection watch seeing the documents
+  arrive;
+- a dictionary of more than one frame imported and downloaded byte for
+  byte, a vocabulary learned, listed, downloaded and deleted, a wrong
+  digest refused, and writes refused without `--admin`;
+- a static model trained from the tiny bundle, streamed to its trained
+  update, listed, refused again by name and deleted, and every catalog
+  route refused by a server with no catalog.
