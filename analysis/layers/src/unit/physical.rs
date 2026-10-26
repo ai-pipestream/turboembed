@@ -69,6 +69,8 @@ impl Length {
 pub enum Area {
     Square(Length),
     Acre,
+    /// Modern mainland Chinese mu: exactly one fifteenth hectare.
+    Mu,
 }
 
 /// A volume. `Gallon`, `Quart`, `Pint` and `FluidOunce` are the US
@@ -188,6 +190,10 @@ pub enum Weight {
     ShortTon,
     Stone,
     Dram,
+    /// Modern mainland Chinese jin: 500 grams.
+    Jin,
+    /// Modern mainland Chinese liang: 50 grams.
+    Liang,
 }
 
 impl Weight {
@@ -206,6 +212,8 @@ impl Weight {
             Weight::ShortTon => "Short ton (US)",
             Weight::Stone => "Stone",
             Weight::Dram => "Dram",
+            Weight::Jin => "Jin",
+            Weight::Liang => "Liang",
         }
     }
 
@@ -224,6 +232,8 @@ impl Weight {
             Weight::ShortTon => "sh tn",
             Weight::Stone => "st",
             Weight::Dram => "dr",
+            Weight::Jin => "jin",
+            Weight::Liang => "liang",
         }
     }
 }
