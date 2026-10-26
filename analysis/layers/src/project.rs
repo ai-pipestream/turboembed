@@ -431,41 +431,56 @@ impl ProjectableLayer for TokenVectorWindows {
     }
 }
 
+fn retarget_span_key<L: ProjectableLayer>(
+    doc: &Document,
+    key: Key<L>,
+    to: ViewId,
+    spans_of: impl Fn(&L) -> &Spans<L>,
+) -> Result<(ViewId, Key<L>), Error> {
+    let src = doc.require(&key)?;
+    let src_spans = spans_of(src);
+    let from = src_spans.view();
+    if from == to {
+        return Ok((from, key));
+    }
+    let projected = doc.project_spans_monotonic(src_spans, to)?;
+    let dst = doc.require(&Key::<L>::DEFAULT).map_err(|_| Error::Bounds {
+        layer: Key::<L>::DEFAULT.id(),
+        view: to,
+        detail: format!("no projected {} at default key matching {}", L::NAME, key.id()),
+    })?;
+    let dst_spans = spans_of(dst);
+    let matches = projected.view() == dst_spans.view()
+        && projected.len() == dst_spans.len()
+        && (0..projected.len() as u32).all(|i| {
+            let ix = turbo_analysis::Ix::new(i);
+            projected.get(ix) == dst_spans.get(ix) && projected.fragments(ix).eq(dst_spans.fragments(ix))
+        });
+    if !matches {
+        return Err(Error::Bounds {
+            layer: Key::<L>::DEFAULT.id(),
+            view: to,
+            detail: format!("default {} does not match projected spans of {}", L::NAME, key.id()),
+        });
+    }
+    Ok((from, Key::DEFAULT))
+}
+
 impl ProjectableLayer for Opinions {
     fn project_view(&self, doc: &Document, to: ViewId) -> Result<Self, Error> {
-        let from = doc.get_key(&self.tokens_key).map_or(ViewId::SOURCE, |t| t.spans.view());
-        let _ = doc.lca_view(from, to)?;
-        let mut out = self.clone();
-        if !self.tokens_key.name.is_empty()
-            && doc.get_key(&self.tokens_key).is_some_and(|t| t.spans.view() != to)
-            && doc.get::<Tokens>().is_some_and(|t| t.spans.view() == to)
-        {
-            out.tokens_key = Key::DEFAULT;
-        }
-        Ok(out)
+        let (_, tokens_key) = retarget_span_key(doc, self.tokens_key, to, |t| &t.spans)?;
+        Ok(Opinions { tokens_key, ..self.clone() })
     }
 }
 
 impl ProjectableLayer for Aspects {
     fn project_view(&self, doc: &Document, to: ViewId) -> Result<Self, Error> {
-        let from = doc
-            .get_key(&self.tokens_key)
-            .map(|t| t.spans.view())
-            .or_else(|| doc.get_key(&self.sentences_key).map(|s| s.spans.view()))
-            .unwrap_or(ViewId::SOURCE);
-        let _ = doc.lca_view(from, to)?;
         let mut out = self.clone();
-        if !self.tokens_key.name.is_empty()
-            && doc.get_key(&self.tokens_key).is_some_and(|t| t.spans.view() != to)
-            && doc.get::<Tokens>().is_some_and(|t| t.spans.view() == to)
-        {
-            out.tokens_key = Key::DEFAULT;
+        if self.tokens.iter().any(Option::is_some) || !self.tokens_key.name.is_empty() {
+            out.tokens_key = retarget_span_key(doc, self.tokens_key, to, |t| &t.spans)?.1;
         }
-        if !self.sentences_key.name.is_empty()
-            && doc.get_key(&self.sentences_key).is_some_and(|s| s.spans.view() != to)
-            && doc.get::<Sentences>().is_some_and(|s| s.spans.view() == to)
-        {
-            out.sentences_key = Key::DEFAULT;
+        if self.sentence.iter().any(Option::is_some) || !self.sentences_key.name.is_empty() {
+            out.sentences_key = retarget_span_key(doc, self.sentences_key, to, |s| &s.spans)?.1;
         }
         Ok(out)
     }
@@ -473,16 +488,8 @@ impl ProjectableLayer for Aspects {
 
 impl ProjectableLayer for Words {
     fn project_view(&self, doc: &Document, to: ViewId) -> Result<Self, Error> {
-        let from = doc.get_key(&self.tokens_key).map_or(ViewId::SOURCE, |t| t.spans.view());
-        let _ = doc.lca_view(from, to)?;
+        let (from, tokens_key) = retarget_span_key(doc, self.tokens_key, to, |t| &t.spans)?;
         let subspan = self.subspan.as_ref().map(|subs| map_opt_spans(doc, from, to, subs)).transpose()?;
-        let mut tokens_key = self.tokens_key;
-        if !tokens_key.name.is_empty()
-            && doc.get_key(&tokens_key).is_some_and(|t| t.spans.view() != to)
-            && doc.get::<Tokens>().is_some_and(|t| t.spans.view() == to)
-        {
-            tokens_key = Key::DEFAULT;
-        }
         Ok(Words { tokens: self.tokens.clone(), form: self.form.clone(), subspan, tokens_key })
     }
 }

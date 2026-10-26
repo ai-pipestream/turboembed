@@ -1,13 +1,11 @@
-//! One LSTM direction over a batch of sequences on the CPU backend's
-//! packed product (`turbo::cpu::Matrix`). The input projections are made
-//! by the caller in one product over every step; here only the recurrent
-//! product runs step by step, over every sequence still running, so a
-//! step is one product of `[active, h]` by `U^T` however many sentences
-//! or words are in the batch. Each output row of the packed product is one
-//! chain of multiply-adds, so a sequence's states do not depend on what
-//! else is in the batch.
+//! The tagger's LSTM weights packed for the CPU backend: the stacked
+//! products as `turbo::cpu::Matrix`, and each BiLSTM as one
+//! `turbo::cpu::lstm::Lstm` over both directions (#859), which runs every
+//! sequence of a call in one recurrent product per step.
 
-use turbo::cpu::{Matrix, Mode};
+use turbo::cpu::Matrix;
+use turbo::cpu::lstm::{Lstm, Weights};
+use turbo::status::{Error, INVALID_ARGUMENT};
 
 use crate::neural::NeuralError;
 use crate::neural::lstm::LstmLayer;
@@ -34,74 +32,24 @@ pub(super) fn to_f32(v: &[f64]) -> Vec<f32> {
     v.iter().map(|&x| x as f32).collect()
 }
 
-use turbo::head::sigmoid;
-
-/// The reusable buffers of the recurrences of one call.
-#[derive(Default)]
-pub(super) struct Steps {
-    gates: Vec<f32>,
-    state: Vec<f32>,
-    cell: Vec<f32>,
+/// A forward and a backward [`LstmLayer`] as one two-direction [`Lstm`]:
+/// an output row is the forward state, then the backward one. Gates are
+/// `(i, f, g, o)` in both. A weight past f32's range is refused.
+pub(super) fn bidirectional(fwd: &LstmLayer, bwd: &LstmLayer) -> Result<Lstm, NeuralError> {
+    let flat = |m: &[Vec<f64>]| -> Vec<f32> { m.iter().flatten().map(|&v| v as f32).collect() };
+    let (wf, uf, bf) = (flat(fwd.w()), flat(fwd.u()), to_f32(fwd.b()));
+    let (wb, ub, bb) = (flat(bwd.w()), flat(bwd.u()), to_f32(bwd.b()));
+    let dirs = [Weights { w: &wf, u: &uf, b: &bf, reverse: false }, Weights { w: &wb, u: &ub, b: &bb, reverse: true }];
+    Lstm::new(fwd.input_size(), fwd.hidden_size(), &dirs).map_err(|e| NeuralError::InvalidArgument(e.message))
 }
 
-/// The recurrent weights `U [4h, h]` of one direction, packed.
-pub(super) struct Recurrent {
-    u: Matrix,
-    h: usize,
-}
-
-impl Recurrent {
-    pub(super) fn new(layer: &LstmLayer) -> Result<Self, NeuralError> {
-        let h = layer.hidden_size();
-        Ok(Self { u: pack(&[layer.u()], h)?, h })
-    }
-
-    pub(super) fn hidden(&self) -> usize {
-        self.h
-    }
-
-    /// Runs the direction over sequences whose lengths `lens` are sorted
-    /// longest first. `pre(s, t)` is the `[4h]` input pre-activation
-    /// (bias included) of step `t` of sequence `s`; `emit(s, t, state)`
-    /// receives the state after that step. Gates are `(i, f, g, o)` as in
-    /// [`LstmLayer`]; the first step has no recurrent product (the state
-    /// is zero), as in Java.
-    pub(super) fn run<'a>(
-        &self,
-        lens: &[usize],
-        pre: impl Fn(usize, usize) -> &'a [f32],
-        mut emit: impl FnMut(usize, usize, &[f32]),
-        work: &mut Steps,
-    ) {
-        debug_assert!(lens.windows(2).all(|w| w[0] >= w[1]), "lengths sorted longest first");
-        let (h, g) = (self.h, 4 * self.h);
-        let Steps { gates, state, cell } = work;
-        for v in [&mut *state, &mut *cell] {
-            v.clear();
-            v.resize(lens.len() * h, 0.0);
-        }
-        gates.clear();
-        gates.resize(lens.len() * g, 0.0);
-        for t in 0..lens.first().copied().unwrap_or(0) {
-            let active = lens.partition_point(|&l| l > t);
-            for s in 0..active {
-                gates[s * g..(s + 1) * g].copy_from_slice(&pre(s, t)[..g]);
-            }
-            if t > 0 {
-                self.u.apply(state, h, active, None, gates, g, Mode::Residual);
-            }
-            for s in 0..active {
-                let gs = &gates[s * g..(s + 1) * g];
-                let (st, ce) = (&mut state[s * h..(s + 1) * h], &mut cell[s * h..(s + 1) * h]);
-                for j in 0..h {
-                    let i = sigmoid(gs[j]);
-                    let f = sigmoid(gs[h + j]);
-                    let c = f * ce[j] + i * gs[2 * h + j].tanh();
-                    ce[j] = c;
-                    st[j] = sigmoid(gs[3 * h + j]) * c.tanh();
-                }
-                emit(s, t, st);
-            }
-        }
+/// A refused run as the tagger reports it. The lengths passed are checked
+/// positive and sorted, so INVALID_ARGUMENT is a value past f32's range,
+/// which the tagger answers from the f64 reference.
+pub(super) fn run_error(e: Error) -> NeuralError {
+    if e.code == INVALID_ARGUMENT {
+        NeuralError::NonFiniteScore(e.message)
+    } else {
+        NeuralError::InvalidArgument(e.message)
     }
 }

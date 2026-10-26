@@ -22,9 +22,10 @@
       "file": "tokenizer.json",
       "unigram": {
         "precompiled_charsmap": true,
-        "collapse_spaces": true,
+        "collapse_spaces": false,
         "metaspace": "▁",
-        "add_prefix_space": true
+        "add_prefix_space": true,
+        "whitespace_split": true
       },
       "special_tokens": [
         {
@@ -50,8 +51,7 @@
         {
           "role": "SPECIAL_MASK",
           "content": "<mask>",
-          "id": 250001,
-          "lstrip": true
+          "id": 250001
         }
       ],
       "template": [
@@ -78,7 +78,7 @@
     "classifier": {
       "kind": "CLASSIFIER_TOKEN",
       "labels": [
-        "newline"
+        "LABEL_0"
       ]
     },
     "artifacts": [
@@ -192,7 +192,7 @@
         }
       ],
       "produced_by": {
-        "container": "turbo-sat-reference@sha256:7a1f0329507f6769687d35bd86d477d3a1f99d94662ad4d58073bc824f8f3e16"
+        "container": "turbo-sat-reference@sha256:71f05fa32779f77c99d93cdfc9b8bc99b74d307bd1e55b13af2c5050346f4a77"
       }
     }
   },
@@ -201,7 +201,7 @@
     {
       "path": "tokenizer.json",
       "to": "tokenizer.json",
-      "sha256": "21106b6d7dab2952c1d496fb21d5dc9db75c28ed361a05f5020bbba27810dd08"
+      "sha256": "a898ea75433890f6610f4e470b8ebeb0c21dce5c8dd61f892eb09eb5919d2e2c"
     },
     {
       "path": "model.safetensors",
