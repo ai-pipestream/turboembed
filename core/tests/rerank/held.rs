@@ -22,6 +22,13 @@ fn write(s: &Session) -> i32 {
 /// `refused`; the scores read the same through the result, the pointer and
 /// after the result is released; the session is busy until the buffer is.
 pub fn held_scores(loaded: &Loaded, encode: u32, refused: u32) {
+    held_scores_in(loaded, encode, refused, TURBO_PLACE_HOST);
+}
+
+/// As held_scores, with the scores in `placement`: the session's own
+/// host memory, or a backend's output buffer the core writes them into,
+/// as Metal's shared one.
+pub fn held_scores_in(loaded: &Loaded, encode: u32, refused: u32, placement: u32) {
     let s = Session::create(loaded.m, Some(&session_desc(2, 32, TURBO_PRECISION_EXACT))).unwrap();
     assert_eq!(write(&s), 0);
     let mut err = new_error();
@@ -34,7 +41,7 @@ pub fn held_scores(loaded: &Loaded, encode: u32, refused: u32) {
     want[..TURBO_RERANK_STAGE_COUNT].fill(TURBO_STAGE_HOST);
     want[TURBO_RERANK_STAGE_ENCODE] = encode;
     assert_eq!(info.stage, want);
-    assert_eq!(info.placement, TURBO_PLACE_HOST);
+    assert_eq!(info.placement, placement);
 
     let mut read = [f32::NAN; PAIRS.len()];
     let (bytes, mut written) = (size_of_val(&read) as u64, 0);
