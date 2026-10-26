@@ -47,5 +47,8 @@
   },
   "projection_checks": 276116,
   "shifted_projections": 262323,
-  "limits": "Gold annotation matcher parity; no trained parser accuracy claim. Oracle tests refuse missing files when the required flag is set."
+  "limits": "Gold annotation matcher parity; no trained parser accuracy claim. Oracle tests refuse missing files when the required flag is set.",
+  "verified_after_main_merge": "6cc73a0afe302d4c53b3f3f70b1b648a59da71e7",
+  "matcher_tests_passed": 126,
+  "tree_tests_passed": 12
 }

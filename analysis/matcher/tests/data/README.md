@@ -158,12 +158,15 @@ results. Input/output digests and environment versions are recorded in
 [`dependency-oracle-receipt.json`](../../reference/dependency-oracle-receipt.json).
 
 [Token-path timing](../../reference/dependency-existing-path-timing.json)
-compares candidate `93afa287d99274093636b2ef63939304b2305f29` with main
-`6a2ba1d67ef7d92256d569dcd5125add676cc96e`. Reuse the build/run recipe above
-with these revisions. All 12 alternating pairs and 15 calls per process
-are retained. Output dumps match exactly: 204,577 tokens, 51,765 hits.
-Main/candidate process medians are 21.832/20.873 ms (ratio 0.9561), and
-the median paired ratio is 0.9329. Individual ratios span 0.4637..1.2473
-on a heavily loaded shared host. These samples show no aggregate
-regression; they do not establish an isolated-host speedup. The follow-up
-adds only docs and receipts, leaving matcher source and example unchanged.
+compares candidate `6cc73a0afe302d4c53b3f3f70b1b648a59da71e7` with main
+`726da63a9e65584ba4754f18f1620bcd387b699a`, after a normal main merge.
+Reuse the build/run recipe above with these revisions. All 12 alternating
+pairs and 15 calls per process are retained. Output dumps match exactly:
+204,577 tokens, 51,765 hits. Main/candidate process medians are
+17.102/16.915 ms (ratio 0.9891); median paired ratio is 1.0158. Individual
+ratios span 0.8287..1.1536 on a heavily loaded shared host. These mixed
+samples are consistent with parity within their observed variation; no
+isolated-host speedup is claimed. The earlier comparison at `93afa287`
+versus `6a2ba1d6` is preserved in the
+[initial receipt](../../reference/dependency-initial-path-timing.json).
+The final receipt update leaves matcher source and example unchanged.
