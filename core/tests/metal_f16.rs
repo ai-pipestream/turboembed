@@ -267,14 +267,17 @@ fn heads_past_64_or_not_a_multiple_of_8_run_f16_attention() {
                 // on a busy desktop (#1406). That error alone is printed and
                 // passed over, for that kernel alone; anything else fails.
                 s.write_tokens(&t.batch(), None).unwrap();
-                match s.run() {
+                let got = match s.run() {
                     Err(e) if hd > 128 && e.message.contains("ImpactingInteractivity") => {
                         println!("{what}: stopped by macOS, #1406: {}", e.message);
                         continue;
                     }
-                    r => drop(r.unwrap()),
-                }
-                let lowest = against_cpu(&s, &cpu, &t, FASTEST_FLOOR, &what);
+                    r => r.unwrap().rows(),
+                };
+                cpu.write_tokens(&t.batch(), None).unwrap();
+                let want = cpu.run().unwrap().rows();
+                let lowest = got.iter().zip(&want).map(|(a, b)| cosine(a, b)).fold(1f64, f64::min);
+                assert!(lowest >= FASTEST_FLOOR, "{what}: cosine {lowest} with the cpu");
                 println!("{what}: 1 - lowest cosine with the cpu {:.3e}", 1.0 - lowest);
             }
         }
