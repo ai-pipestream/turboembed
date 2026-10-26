@@ -27,3 +27,41 @@ Primary references:
   gives fifteen mu per hectare.
 - [NIST conversion factors](https://www.nist.gov/pml/special-publication-811/nist-guide-si-appendix-b-conversion-factors/nist-guide-si-appendix-b9)
   distinguish the thermochemical kilocalorie from other calorie conventions.
+
+
+## Grammar and source evidence
+
+`CHINESE_UNITS` and `GrammarAnnotator::new(&CHINESE_UNITS)` recognize Chinese
+ages, physical measures, temperatures and currencies. The shared CJK reader
+works directly on borrowed source text, including fullwidth decimal digits,
+Arabic/ideographic mixtures, traditional variants, negatives and large integer
+amounts. Chinese uses only its numeral vocabulary, not Japanese kana spellings.
+Longest complete unit spellings take precedence over numeric prefixes:
+`12千米` means twelve kilometres, while `三百米` means three hundred metres.
+
+Currency composition preserves identities and ordered minor places:
+`50元6角三分` is CNY 50.63, and `两美元又三美分` is USD 2.03. Explicit historical
+Japanese sen are accepted in `10日元5日本銭`; this does not infer hundredths for
+unqualified yen amounts. Fullwidth Chinese commas separate clauses, so
+`$20，300美圆` remains two prices. The person classifier `位` is not a bit unless
+its immediate explanatory context identifies storage/bits; `五角大楼` is not
+an amount of money. These are bounded grammar disambiguations, not general
+semantic analysis.
+
+All 91 unchanged Chinese NumberWithUnit cases at Recognizers-Text revision
+`da7edcff59f669b2a460ab9d400e36298f0d658e` pass: 10 ages, 35 currencies,
+36 dimensions and 10 temperatures. No unsupported case is omitted. The test
+checks original UTF-16 boundaries against source byte offsets, unit names,
+values, result types, and explicit ISO currency or subtype fields. Chinese
+fixtures omit dimension subtypes; absent optional fields are unspecified,
+not fabricated expectations. Numeric comparison uses the established relative
+1e-12 tolerance for upstream serialized floating-point values. A separate real
+Analyzer regression proves the 24-digit integer remains exact in the Money
+layer rather than adopting the upstream rounded scientific notation.
+
+Native tests also cover Unicode source-offset round trips, fullwidth source
+preservation, currency/place refusals, person classifiers and Latin identifiers.
+The CJK boundary hook leaves the existing word-boundary policy unchanged for
+other grammars. Existing core and shared-layer invariants still validate output.
+
+This is one language slice of #929; its other language reviews remain separate.

@@ -51,6 +51,16 @@ differences in `japanese_unit_specs.rs`, not counted as parity matches.
 | `Japanese/NumberWithUnit/DimensionModel.json` | `Specs/NumberWithUnit/Japanese/DimensionModel.json` | `c1122b55305825f172ba949a5b18026570fe2f14c23796a9a7f8e244d7719820` |
 | `Japanese/NumberWithUnit/TemperatureModel.json` | `Specs/NumberWithUnit/Japanese/TemperatureModel.json` | `8d88e5679f477f667f21ba16771518c3837ca76b14e1b966afd21cb9ea6f642a` |
 
+## Chinese NumberWithUnit
+
+The four `Chinese/NumberWithUnit/*Model.json` files are unchanged copies from
+revision `da7edcff59f669b2a460ab9d400e36298f0d658e` of
+[Microsoft Recognizers-Text](https://github.com/microsoft/Recognizers-Text/tree/da7edcff59f669b2a460ab9d400e36298f0d658e/Specs/NumberWithUnit/Chinese),
+under the existing vendored MIT license. `chinese_unit_specs.rs` checks all
+91 cases, including upstream unsupported cases, with original offsets and
+all supplied resolution fields. Optional absent subtype fields are unspecified.
+See `docs/grammar-units-chinese.md` for exact unit conventions and native tests.
+
 ## Portuguese NumberWithUnit
 
 The Portuguese NumberWithUnit files are unchanged copies at the same pinned
