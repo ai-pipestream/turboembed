@@ -1,4 +1,7 @@
-//! Frozen Hugging Face compatibility deltas generated from the upstream tables.
+//! Frozen Hugging Face compatibility deltas over turbo-unicode, generated
+//! from the Unicode 9.0 tables of unicode_categories 0.1.1 and
+//! unicode-normalization-alignments 0.1.12 by scripts/hf-unicode-tables.
+//! Do not edit by hand.
 
 pub(super) const CATEGORIES: [(u32, u32, u8); 162] = [
     (0x5c8, 0x5c9, 0),
@@ -225,22 +228,27 @@ pub(super) const NEW_NFD: [u32; 21] = [
     0x16123, 0x16124, 0x16125, 0x16126, 0x16127, 0x16128, 0x16d68, 0x16d69, 0x16d6a,
 ];
 
-pub(super) const COMPOSE_BLACKLIST: [(u32, u32); 17] = [
-    (0x105d2, 0x307),   // U+105C9, new Some('𐗉')
-    (0x105da, 0x307),   // U+105E4, new Some('𐗤')
-    (0x11382, 0x113c9), // U+11383, new Some('𑎃')
-    (0x11384, 0x113bb), // U+11385, new Some('𑎅')
-    (0x1138b, 0x113c2), // U+1138E, new Some('𑎎')
-    (0x11390, 0x113c9), // U+11391, new Some('𑎑')
-    (0x113c2, 0x113b8), // U+113C7, new Some('\u{113c7}')
-    (0x113c2, 0x113c2), // U+1138E, new Some('\u{113c5}')
-    (0x113c2, 0x113c9), // U+113C8, new Some('\u{113c8}')
-    (0x11935, 0x11930), // U+11938, new Some('𑤸')
-    (0x1611e, 0x1611e), // U+16121, new Some('\u{16121}')
-    (0x1611e, 0x1611f), // U+16123, new Some('\u{16123}')
-    (0x1611e, 0x16120), // U+16125, new Some('\u{16125}')
-    (0x1611e, 0x16129), // U+16122, new Some('\u{16122}')
-    (0x16129, 0x1611f), // U+16124, new Some('\u{16124}')
-    (0x16d63, 0x16d67), // U+16D69, new Some('𖵩')
-    (0x16d67, 0x16d67), // U+16D68, new Some('𖵨')
+/// Pairs turbo-unicode composes and upstream does not, with the composite.
+pub(super) const COMPOSE_BLACKLIST: [(u32, u32); 21] = [
+    (0x105d2, 0x307),   // U+105C9
+    (0x105da, 0x307),   // U+105E4
+    (0x11382, 0x113c9), // U+11383
+    (0x11384, 0x113bb), // U+11385
+    (0x1138b, 0x113c2), // U+1138E
+    (0x11390, 0x113c9), // U+11391
+    (0x113c2, 0x113b8), // U+113C7
+    (0x113c2, 0x113c2), // U+113C5
+    (0x113c2, 0x113c9), // U+113C8
+    (0x11935, 0x11930), // U+11938
+    (0x1611e, 0x1611e), // U+16121
+    (0x1611e, 0x1611f), // U+16123
+    (0x1611e, 0x16120), // U+16125
+    (0x1611e, 0x16129), // U+16122
+    (0x16121, 0x1611f), // U+16126
+    (0x16121, 0x16120), // U+16128
+    (0x16122, 0x1611f), // U+16127
+    (0x16129, 0x1611f), // U+16124
+    (0x16d63, 0x16d67), // U+16D69
+    (0x16d67, 0x16d67), // U+16D68
+    (0x16d69, 0x16d67), // U+16D6A
 ];

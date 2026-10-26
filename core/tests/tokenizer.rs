@@ -4,6 +4,8 @@
 #[path = "tokenizer/bpe.rs"]
 mod bpe;
 mod common;
+#[path = "tokenizer/hf_tables.rs"]
+mod hf_tables;
 #[path = "tokenizer/hf_unicode.rs"]
 mod hf_unicode;
 #[path = "tokenizer/spans.rs"]

@@ -1,7 +1,8 @@
 //! The frozen Unicode behavior of Hugging Face `tokenizers` 0.23.
 //!
-//! Its category and aligned-normalization crates predate this workspace's
-//! Unicode data. Small deltas retain their behavior without restoring those
+//! Its category and aligned-normalization crates (`unicode_categories`
+//! 0.1.1 and `unicode-normalization-alignments` 0.1.12) carry Unicode 9.0
+//! tables, which predate this workspace's Unicode data. Small deltas retain their behavior without restoring those
 //! external dependencies. Unassigned code points are not in `is_other`,
 //! matching `unicode_categories` 0.1.1.
 
