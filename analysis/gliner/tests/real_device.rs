@@ -3,8 +3,8 @@
 //! (gliner-convert) and GLINER_ENCODER_BUNDLE the core bundle sealed from
 //! the same checkpoint's encoder (bundle/recipes/gliner-small-v2.1-encoder.json,
 //! docs/gliner.md). The device is TURBO_TEST_DEVICE's (`cuda`, `levelzero`,
-//! `cpu`) at TURBO_TEST_PRECISION (model or exact). With
-//! TURBO_TEST_REQUIRE_CUDA or TURBO_TEST_REQUIRE_LEVELZERO set, a test fails
+//! `metal`, `cpu`) at TURBO_TEST_PRECISION (model or exact). With
+//! TURBO_TEST_REQUIRE_CUDA, TURBO_TEST_REQUIRE_LEVELZERO or TURBO_TEST_REQUIRE_METAL set, a test fails
 //! unless it runs on that backend. Ignored: they need the checkpoint.
 
 use std::path::PathBuf;
@@ -22,10 +22,14 @@ const ROW_BOUND: f32 = 1e-4;
 /// The backend a TURBO_TEST_REQUIRE_* variable requires, if any.
 fn required() -> Option<&'static str> {
     let set = |v: &str| std::env::var(v).is_ok_and(|v| !v.is_empty() && v != "0");
-    [("TURBO_TEST_REQUIRE_CUDA", "cuda"), ("TURBO_TEST_REQUIRE_LEVELZERO", "levelzero")]
-        .into_iter()
-        .find(|(v, _)| set(v))
-        .map(|(_, b)| b)
+    [
+        ("TURBO_TEST_REQUIRE_CUDA", "cuda"),
+        ("TURBO_TEST_REQUIRE_LEVELZERO", "levelzero"),
+        ("TURBO_TEST_REQUIRE_METAL", "metal"),
+    ]
+    .into_iter()
+    .find(|(v, _)| set(v))
+    .map(|(_, b)| b)
 }
 
 fn cosine(a: &[f32], b: &[f32]) -> f64 {
