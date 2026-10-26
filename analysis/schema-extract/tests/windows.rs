@@ -6,6 +6,9 @@
 mod common;
 
 use std::collections::BTreeMap;
+use std::ops::Range;
+
+use turbo_relation::gliner2::words::split;
 
 use turbo_analysis::{Analyzer, Document, Key, Layer, Provenance, Span, Spans, View, ViewId};
 use turbo_analysis_layers::{Categories, Entities, Sentences, Tokens};
@@ -293,27 +296,44 @@ fn text_with_space_around_it_that_fits_is_the_whole_text() {
     assert_eq!(w[0], 0..text.len());
 }
 
+/// The window of `whole` at `at` against the input built over that text alone.
+fn same_as_alone(m: &turbo_schema_extract::Gliner2Extractor, s: &ExtractionSchema, text: &str, at: Range<usize>) {
+    use turbo_relation::gliner2::words::split;
+    let whole = m.build_words(text, s, split(text)).unwrap();
+    assert!(std::ptr::eq(whole.text, text), "the prompt borrows the text, it does not copy it");
+    let cut = whole.window(at.clone());
+    let alone = m.build_words(&text[at.clone()], s, split(&text[at.clone()])).unwrap();
+    assert!(std::ptr::eq(cut.text, &text[at.clone()]));
+    assert_eq!(cut.ids, alone.ids, "{text:?} {at:?} ids");
+    assert_eq!(cut.words, alone.words, "{text:?} {at:?} words");
+    assert_eq!(cut.token_first, alone.token_first, "{text:?} {at:?} token_first");
+    assert_eq!((&cut.prefix, &cut.choice_at, &cut.tasks), (&alone.prefix, &alone.choice_at, &alone.tasks));
+    assert_eq!(cut.period, alone.period);
+    let (c, a) = (cut.measure(at.len()), alone.measure(at.len()));
+    assert_eq!((c.overhead, c.words, c.endings), (a.overhead, a.words, a.endings), "{text:?} {at:?} measure");
+    // A window cut again is the same as one cut once.
+    let inner = cut.window(0..at.len());
+    assert_eq!((inner.ids, inner.words), (cut.ids, cut.words));
+}
+
 #[test]
 fn a_window_cut_from_the_document_input_is_the_window_built_alone() {
-    use turbo_relation::gliner2::words::split;
-    let m = common::offline(limits());
-    let s = schema();
-    let doc = document(TEXT, true);
-    let whole = m.build_words(TEXT, &s, split(TEXT)).unwrap();
-    assert!(std::ptr::eq(whole.text, TEXT), "the prompt borrows the text, it does not copy it");
-    let w = windows(&doc);
-    // Windows that end on `.` and one that does not, so the added `.` is cut too.
-    let mut cuts = w.clone();
+    let (m, s) = (common::offline(limits()), schema());
+    let mut cuts = windows(&document(TEXT, true));
+    // A window that does not end on `.`, so the added `.` is cut too.
     cuts.push(0..TEXT.find(" twelve").unwrap());
     for at in cuts {
-        let cut = whole.window(at.clone());
-        let alone = m.build_words(&TEXT[at.clone()], &s, split(&TEXT[at.clone()])).unwrap();
-        assert!(std::ptr::eq(cut.text, &TEXT[at.clone()]));
-        assert_eq!(cut.ids, alone.ids, "{at:?} ids");
-        assert_eq!(cut.words, alone.words, "{at:?} words");
-        assert_eq!(cut.token_first, alone.token_first, "{at:?} token_first");
-        assert_eq!((&cut.prefix, &cut.choice_at, &cut.tasks), (&alone.prefix, &alone.choice_at, &alone.tasks));
-        assert_eq!(cut.period, alone.period);
-        assert_eq!(m.check(&cut), Ok(()), "{at:?} fits once cut");
+        same_as_alone(&m, &s, TEXT, at.clone());
+        assert_eq!(m.check(&m.build_words(TEXT, &s, split(TEXT)).unwrap().window(at)), Ok(()), "fits once cut");
+    }
+    // URLs take the added `.` into themselves; every run of words is cut.
+    for text in ["see https://a.b now", "WWW.Ex.com x https://a.b", "https://a.b. x www.c.d", "", "Ana  "] {
+        let words = split(text);
+        same_as_alone(&m, &s, text, 0..text.len());
+        for a in 0..words.len() {
+            for b in a..words.len() {
+                same_as_alone(&m, &s, text, words[a].start..words[b].end.min(text.len()));
+            }
+        }
     }
 }
