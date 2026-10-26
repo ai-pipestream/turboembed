@@ -130,7 +130,7 @@ impl Charsmap {
                 end += 1;
             }
             let run = &text[i..end];
-            for (g0, grapheme) in run.grapheme_indices(true) {
+            for (g0, grapheme) in super::graphemes(run) {
                 let g0 = i + g0;
                 if grapheme.len() < 6
                     && let Some(n) = self.transform(grapheme.as_bytes())
@@ -155,7 +155,7 @@ impl Charsmap {
     /// `text`'s grapheme clusters through the map.
     pub(super) fn clusters(&self, text: &str, out: &mut String) {
         let push = |out: &mut String, bytes: &[u8]| out.push_str(&String::from_utf8_lossy(bytes));
-        for grapheme in text.graphemes(true) {
+        for (_, grapheme) in super::graphemes(text) {
             if grapheme.len() < 6
                 && let Some(n) = self.transform(grapheme.as_bytes())
             {
