@@ -247,8 +247,8 @@ pub trait Grammar: Send + Sync + 'static {
     /// Whether a language's source-preserving splitter permits a mention
     /// boundary between adjacent alphanumeric lexemes without whitespace.
     /// The default retains written-token boundaries for existing grammars.
-    fn word_boundary(&self, _left: &str, _right: &str) -> bool {
-        false
+    fn word_boundary(&self) -> Option<fn(&str, &str) -> bool> {
+        None
     }
 
     /// Which output a node of `dim` goes to, if any.
