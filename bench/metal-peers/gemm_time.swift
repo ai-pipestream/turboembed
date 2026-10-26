@@ -16,8 +16,11 @@
 //   splits it, the feed-forward input with bias and GELU, its output.
 // Each figure comes two ways: "single", one dispatch per command buffer,
 // committed and waited for, from the host and from the buffer's GPU start
-// and end; and "batched", REPS dispatches in one command buffer, which
-// run one after another, divided by REPS. Each is TIMES timed after one
+// and end, which mlx_gemm.py's single (one product per mx.eval) matches;
+// and "batched", REPS dispatches of the same x and w in one command buffer
+// on a concurrent encoder, so the GPU may overlap them as MLX may overlap
+// the REPS independent products of its batched graph, divided by REPS.
+// The batched dispatches all write the same output, which nothing reads. Each is TIMES timed after one
 // untimed, and the line gives least, mean, median and p99 (the largest of
 // TIMES) in ms. The first line names the SHA-256 of the kernels file.
 
@@ -116,10 +119,15 @@ for mode in ["bare", "encoder"] {
                     let count = (n + t.bn - 1) / t.bn * ((m + t.bm - 1) / t.bm)
                     // In encoder mode, k is split as the encoder splits a
                     // single layer with no epilogue whose tiles leave most
-                    // of the GPU idle; its output is then F32.
+                    // of the GPU idle, bounded as it bounds it by the
+                    // session's capacity over the run's tokens; its output
+                    // is then F32. The session here holds exactly the run,
+                    // cap the run's tokens rounded up to 32, so where the
+                    // run fills it (every M here) that bound is 1.
                     var splits = 1
+                    let cap = (m + 31) / 32 * 32
                     if mode == "encoder" && tile.name == "auto" && z == 1 && epilogue == 0 && count < spread {
-                        splits = max(1, min((spread + count - 1) / count, k / 64, 8))
+                        splits = max(1, min((spread + count - 1) / count, k / 64, cap / m, 8))
                     }
                     let kchunk = ((k + splits - 1) / splits + 31) / 32 * 32
                     splits = (k + kchunk - 1) / kchunk
@@ -131,7 +139,7 @@ for mode in ["bare", "encoder"] {
                                        splits: UInt32(splits), kchunk: UInt32(kchunk))
                     func run(_ count: Int) -> (Double, Double) {
                         let cb = queue.makeCommandBuffer()!
-                        let enc = cb.makeComputeCommandEncoder()!
+                        let enc = cb.makeComputeCommandEncoder(dispatchType: count > 1 ? .concurrent : .serial)!
                         enc.setComputePipelineState(pso)
                         enc.setBuffer(x, offset: 0, index: 0)
                         for j in 0..<3 {
