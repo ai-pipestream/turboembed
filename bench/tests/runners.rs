@@ -445,13 +445,7 @@ fn tei_on_another_models_files_is_recorded_as_not_run_before_docker() {
     assert!(r.measured.is_none());
     assert!(r.not_run.unwrap().contains("is not the bundle's tokenizer"));
     assert!(r.commands.is_empty(), "nothing ran");
-    let t = Tei {
-        image: "text-embeddings-inference:latest".into(),
-        model_dir: ".".into(),
-        cpus: None,
-        binary: None,
-        nsys: None,
-    };
+    let t = Tei { image: "text-embeddings-inference:latest".into(), model_dir: ".".into(), ..Tei::default() };
     assert!(tei::run(&t, m, None, Some(1), 1, 1).unwrap_err().contains("is not pinned"));
 }
 

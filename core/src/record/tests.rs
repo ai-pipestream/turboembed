@@ -254,7 +254,7 @@ fn a_batch_1_cycle_covers_the_set_only_when_every_frame_was_compared() {
 #[test]
 fn a_kernel_time_goes_with_a_measurement_and_has_ordered_figures() {
     let mut r = embedded()
-        .into_iter()
+        .iter()
         .filter_map(|(_, r)| r.as_ref().ok().cloned())
         .find(|r| r.references.iter().any(|x| x.name == "text-embeddings-inference" && x.measured.is_some()))
         .expect("a committed record with TEI measured");

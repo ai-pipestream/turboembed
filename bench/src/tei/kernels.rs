@@ -154,7 +154,7 @@ pub fn measure(log: &mut Log, p: &Profile, requests: u32, mut send: impl FnMut()
         all.extend(collect(log, p, n, &mut send)?);
         left -= n;
     }
-    Ok(kernel_time(&profiler, &all))
+    kernel_time(&profiler, &all).map_err(|why| format!("TEI's kernel time: {why}"))
 }
 
 /// One chunk of `n` requests, collected until its trace reads.
@@ -173,7 +173,7 @@ fn collect(log: &mut Log, p: &Profile, n: u32, send: &mut impl FnMut() -> Result
         log.run(&stop(&p.container))?;
         sent?;
         match read_trace(log, p.nsys, &p.out) {
-            Ok(csv) => match requests(parse_trace(&csv)?, n as u64) {
+            Ok(csv) => match parse_trace(&csv).and_then(|a| requests(a, n as u64)) {
                 Ok(r) => return Ok(r),
                 Err(why) => failed.push(why),
             },
@@ -264,8 +264,12 @@ pub fn requests(a: Vec<Activity>, requests: u64) -> std::result::Result<Vec<Requ
     Ok(out)
 }
 
-/// The kernel time of the profiled requests, of every collection.
-pub fn kernel_time(profiler: &str, r: &[Request]) -> KernelTime {
+/// The kernel time of the profiled requests, of every collection; none
+/// of no requests.
+pub fn kernel_time(profiler: &str, r: &[Request]) -> std::result::Result<KernelTime, String> {
+    if r.is_empty() {
+        return Err("no request was profiled".into());
+    }
     let ms = |f: fn(&Request) -> u64| {
         let mut v: Vec<f64> = r.iter().map(|x| f(x) as f64 / 1e6).collect();
         v.sort_by(f64::total_cmp);
@@ -274,14 +278,14 @@ pub fn kernel_time(profiler: &str, r: &[Request]) -> KernelTime {
     let (kernels, copies) = (ms(|x| x.kernel_ns), ms(|x| x.copy_ns));
     let mut launches: Vec<u64> = r.iter().map(|x| x.kernels).collect();
     launches.sort_unstable();
-    KernelTime {
+    Ok(KernelTime {
         profiler: profiler.trim().to_owned(),
         requests: r.len() as u64,
         p50_ms: percentile(&kernels, 50.0),
         p99_ms: percentile(&kernels, 99.0),
         copy_p50_ms: percentile(&copies, 50.0),
         kernels_p50: launches[(launches.len() - 1) / 2],
-    }
+    })
 }
 
 /// The trace the collection left in `out` as CSV, through the host's
@@ -341,7 +345,8 @@ mod tests {
         let r = requests(a.clone(), 2).unwrap();
         assert_eq!(r[0], Request { kernel_ns: 30, copy_ns: 5, kernels: 2 });
         assert_eq!(r[1], Request { kernel_ns: 30, copy_ns: 3, kernels: 1 });
-        let k = kernel_time("nsys 2023.4\n", &r);
+        let k = kernel_time("nsys 2023.4\n", &r).unwrap();
+        assert!(kernel_time("nsys", &[]).is_err(), "no requests is no kernel time");
         assert_eq!((k.profiler.as_str(), k.requests, k.kernels_p50), ("nsys 2023.4", 2, 1));
         assert_eq!((k.p50_ms, k.p99_ms), (30.0 / 1e6, 30.0 / 1e6));
         assert_eq!(k.copy_p50_ms, 3.0 / 1e6);
@@ -352,7 +357,12 @@ mod tests {
     #[test]
     fn a_gap_is_measured_from_the_last_end() {
         // A long activity covers the next start: one run.
-        let a = [(0, 2 * SPLIT_NS), (SPLIT_NS + 10, 10)].map(|(s, d)| Activity { start: s, duration: d, copy: false });
+        let act = |(s, d)| Activity { start: s, duration: d, copy: false };
+        let a = [(0, 2 * SPLIT_NS), (SPLIT_NS + 10, 10)].map(act);
+        assert_eq!(split(a.to_vec(), SPLIT_NS).len(), 1);
+        // A short one in between: the gap is from the long one's end, not
+        // from the short one's, so the third is still in the run.
+        let a = [(0, 2 * SPLIT_NS), (10, 10), (SPLIT_NS + 100, 10)].map(act);
         assert_eq!(split(a.to_vec(), SPLIT_NS).len(), 1);
     }
 

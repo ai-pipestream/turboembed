@@ -55,7 +55,7 @@ pub const NAME: &str = "text-embeddings-inference";
 /// TEI's default --max-batch-tokens, kept when the rows need fewer.
 const DEFAULT_BATCH_TOKENS: u64 = 16384;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Tei {
     /// `name@sha256:<64 hex>`.
     pub image: String,
