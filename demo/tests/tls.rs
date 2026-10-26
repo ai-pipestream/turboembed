@@ -1,6 +1,6 @@
 //! The demo over TLS: a call made through a TLS client the test CA
 //! trusts, a plain-HTTP client that gets no answer, and a key that does
-//! not load. The certificates in tests/tls are for these tests only.
+//! not load, and an upload PUT over TLS. The certificates in tests/tls are for these tests only.
 
 mod common;
 
@@ -16,7 +16,7 @@ use tokio_rustls::rustls::pki_types::pem::PemObject;
 use tokio_rustls::rustls::pki_types::{CertificateDer, ServerName};
 use tokio_rustls::rustls::{ClientConfig, RootCertStore};
 use turbo_kserve::Serve;
-use turbo_kserve_demo::{Demo, Options, Tls};
+use turbo_kserve_demo::{Allow, Demo, Options, Tls};
 
 fn file(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/tls").join(name)
@@ -94,4 +94,32 @@ async fn tls_scheme_is_part_of_origin_and_idle_handshake_expires() {
     let mut one = [0];
     let read = tokio::time::timeout(Duration::from_secs(12), idle.read(&mut one)).await.expect("handshake deadline");
     assert!(matches!(read, Ok(0) | Err(_)), "idle TLS handshake stayed open");
+}
+
+/// A PUT upload over TLS: refused by default, forwarded under --allow (to
+/// an index the server does not have, so the answer is the server's).
+#[tokio::test]
+async fn an_upload_over_tls_is_gated_and_forwarded() {
+    let s = server(&["tiny-bert-bundle"], Serve { admin: true, ..Serve::default() }).await;
+    let path = "/upload/turbo.search.v1.TurboSearchService/IndexDocuments";
+    let item = [0x0a, 4, b'n', b'o', b'n', b'e'];
+    let mut body = vec![0, 0, 0, 0, item.len() as u8];
+    body.extend_from_slice(&item);
+    let allowed = Allow::with(&["/turbo.search.v1.TurboSearchService/IndexDocuments".to_string()]).unwrap();
+    for (allow, status) in [(Allow::default(), "403"), (allowed, "404")] {
+        let d = demo_with(s.local_addr(), Options { allow, ..tls() }).await;
+        let tcp = TcpStream::connect(d.local_addr()).await.unwrap();
+        let mut conn = client().connect(ServerName::try_from("localhost").unwrap(), tcp).await.unwrap();
+        let req = format!(
+            "PUT {path} HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
+        );
+        conn.write_all(req.as_bytes()).await.unwrap();
+        conn.write_all(&body).await.unwrap();
+        let mut reply = Vec::new();
+        let _ = conn.read_to_end(&mut reply).await;
+        let reply = String::from_utf8_lossy(&reply);
+        assert!(reply.starts_with(&format!("HTTP/1.1 {status}")), "{reply}");
+        assert!(reply.contains("grpc-status: "), "{reply}");
+    }
 }

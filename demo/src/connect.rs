@@ -56,6 +56,10 @@ async fn forward(app: &App, req: Request) -> Response {
         return refuse(protocol, Refusal(code, msg));
     }
     let path = parts.uri.path();
+    if crate::allow::is_upload(path) {
+        let msg = format!("{path} is an upload: an HTTP PUT to /upload{path}");
+        return refuse(protocol, Refusal(Code::Unimplemented, msg));
+    }
     let method = match app.allow.get(path) {
         Ok(m) => m,
         Err(true) => {
@@ -258,7 +262,7 @@ fn end(status: Option<(Code, &str)>, meta: &MetadataMap) -> Bytes {
 }
 
 /// The server's `turbo-*` metadata (`turbo-code`, `turbo-field`), in order.
-fn turbo(meta: &MetadataMap) -> Vec<(String, String)> {
+pub(crate) fn turbo(meta: &MetadataMap) -> Vec<(String, String)> {
     let mut out = Vec::new();
     for kv in meta.iter() {
         if let KeyAndValueRef::Ascii(k, v) = kv
@@ -318,7 +322,7 @@ pub fn name(code: Code) -> &'static str {
 }
 
 /// The HTTP status of a unary error, by the Connect protocol's table.
-fn http_status(code: Code) -> StatusCode {
+pub(crate) fn http_status(code: Code) -> StatusCode {
     let n = match code {
         Code::Cancelled => 499,
         Code::InvalidArgument | Code::FailedPrecondition | Code::OutOfRange => 400,

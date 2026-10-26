@@ -29,7 +29,7 @@ for unary calls and `application/connect+proto` for streams, each a
 `POST /<package>.<Service>/<Method>` that the demo forwards to the
 server when the method is on its allowlist. Raw file uploads are an
 `HTTP PUT` of binary frames to the demo's upload endpoints, which feed
-the client-streaming RPCs (#1377), up to the 2 GiB request cap.
+the client-streaming RPCs, up to the 2 GiB request cap (see Uploads).
 
 JSON is allowed only at the edges where it fits, such as processing a
 form. There it stays small and local, and it never carries or mirrors a
@@ -110,10 +110,59 @@ server still refuses it unless started with `--admin`. A name given to
 `--allow` that is not in the table stops the demo at startup. Anything
 not in the table is refused `unimplemented` and a write not named is
 refused `permission_denied`, both before any bytes go to the server.
-`TurboSinkService`, the gRPC health and reflection services and every
-client-streaming and bidi method are not in the table: a browser cannot
-make a client-streaming call, and file uploads will be `HTTP PUT` to the
-demo's own upload endpoints instead (#1377).
+The four client-streaming methods are in the table as uploads, all
+writes: they are reached only by `HTTP PUT` (see Uploads), and a Connect
+`POST` to one is refused `unimplemented`. The gRPC health and reflection
+services, the rest of `TurboSinkService` and every bidi method are not
+in the table.
+
+### Uploads
+
+A file goes to the server as an `HTTP PUT` to `/upload` followed by the
+client-streaming method's own path (`demo/src/upload.rs`,
+`demo/src/frames.rs`). Uploads pass the same gate, TLS and allowlist as
+any call; all four are writes, so none is forwarded unless named with
+`--allow` (by its method path), and the server still applies its own
+checks.
+
+| Endpoint | Body after the content type |
+|---|---|
+| `PUT /upload/turbo.vocabulary.v1.TurboVocabularyService/ImportDictionary` | one `ImportDictionaryHeader` frame, then the dictionary's raw bytes |
+| `PUT /upload/turbo.vocabulary.v1.TurboVocabularyService/LearnVocabulary` | one `LearnVocabularyHeader` frame, then one `LearnVocabularyDocument` frame per document |
+| `PUT /upload/turbo.search.v1.TurboSearchService/IndexDocuments` | one `IndexDocumentRequest` frame per document |
+| `PUT /upload/turbo.sink.v1.TurboSinkService/StreamDocuments` | one `DocumentSinkItem` frame per item |
+
+The content type must be `application/octet-stream`; any other, JSON and
+multipart included, is HTTP 415 with `accept: application/octet-stream`.
+A frame is the Connect envelope: a flags byte that must be 0, the length
+as four bytes big-endian, then the binary protobuf message. The demo
+cuts the body into frames as it arrives and sends each to the server as
+one message of the stream, wrapping a header or document frame in the
+request's `oneof` without decoding it; a dictionary's raw bytes go in 4
+MiB chunks. Nothing is buffered beyond one frame or chunk, so the server
+starts on the upload before the body has ended.
+
+The answer is HTTP 200, `application/proto`, with the reply message as
+bytes. An error has an empty body and its status in headers:
+`grpc-status`, `grpc-message` (percent-encoded) and the server's
+`turbo-code` and `turbo-field`, with the HTTP status of the code from the
+table above. Refused by the demo:
+
+| Request | Answer |
+|---|---|
+| Not on the allowlist, or a write not named with `--allow` | 403, `permission_denied`, before the server is reached |
+| A path that is no upload | 501, `unimplemented` |
+| A frame with flags other than 0, or a body that ends inside a frame | 400, `invalid_argument` |
+| A frame over 64 MiB less 16 bytes (room for the wrapping), the server's message limit | 429, `resource_exhausted`, as soon as its length is read |
+| A `Content-Length` over 2 GiB, or a body whose frames reach the server's 2 GiB stream ceiling (#1414) | 413, `resource_exhausted`, at once or as soon as the frame crossing it is read |
+| GET or POST on an upload path | 405, `allow: PUT` |
+
+The 2 GiB cap counts what is forwarded (each message and its five-byte
+gRPC prefix), the way the server counts it, so the demo refuses first; a
+body near the cap whose frames are wrapped can be refused a few bytes
+before 2 GiB of body. The server keeps its own per-call caps where it
+holds the input in memory: an imported dictionary of at most 256 MiB and
+a learning corpus of at most 1 GiB. A PUT has no deadline.
 
 ### The gate
 
@@ -126,8 +175,9 @@ Before the allowlist, each call passes two checks
   `permission_denied`, and no CORS header is sent. Origins named with
   `--cors-origin` are let in: their calls get
   `access-control-allow-origin` with that origin and may read
-  `turbo-code` and `turbo-field`, and their preflight (`OPTIONS` asking
-  for `POST`) is answered 204. Any other preflight is 403 with no CORS
+  `turbo-code`, `turbo-field`, `grpc-status` and `grpc-message`, and
+  their preflight (`OPTIONS` asking for `POST` or `PUT`) is answered 204
+  with `access-control-allow-methods: POST, PUT`. Any other preflight is 403 with no CORS
   headers. Default ports (HTTP 80 and HTTPS 443) are normalized, including
   configured origins; malformed ports and non-HTTP schemes are rejected.
   Forwarded scheme headers do not change this check. There is no wildcard;
@@ -244,5 +294,17 @@ the server's prost types. Nothing is mocked.
   token; a write off loopback without a token refused at startup; the
   origin check, CORS grants and preflights.
 - `demo/tests/tls.rs`: a call over TLS with a test CA
-  (`demo/tests/tls`, for these tests only), plain HTTP not answered, and
-  a certificate or key that does not load.
+  (`demo/tests/tls`, for these tests only), plain HTTP not answered, a
+  certificate or key that does not load, and an upload over TLS refused
+  by default and forwarded when allowed.
+- `demo/tests/upload.rs`: a 7 MB dictionary whose first 4 MiB chunk
+  reaches the server before the body is sent, a learning corpus, and a
+  batch of 30 documents over 2 MB answered with the binary
+  `IndexDocumentsResponse`.
+- `demo/tests/upload_refusals.rs`: the allowlist, default-deny writes,
+  the token, origins and the PUT preflight, 415 for JSON and multipart,
+  compressed and cut-short frames, a frame over the message limit, a
+  body over 2 GiB by its `Content-Length`, and the server's refusal with
+  its `turbo-code` and `turbo-field` headers. With `TURBO_TEST_2GIB=1` it
+  also streams 2 GiB of `StreamDocuments` frames, all accepted, and one
+  frame more, refused 413.

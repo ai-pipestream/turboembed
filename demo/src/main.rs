@@ -168,7 +168,7 @@ mod tests {
         assert_eq!(run(&["--server", ""]), Err("--server needs a value".into()));
         assert_eq!(run(&["--allow="]), Err("--allow needs a value".into()));
         assert_eq!(run(&["--allow", "  "]), Err("--allow needs a value".into()));
-        assert!(run(&["--allow", "/turbo.search.v1.TurboSearchService/IndexDocuments"]).is_err());
+        assert!(run(&["--allow", "/turbo.result.v1.AnalysisService/AnalyzeStream"]).is_err());
         let parsed = run(&[
             "--listen=127.0.0.1:9000",
             "--server",

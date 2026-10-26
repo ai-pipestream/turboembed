@@ -34,7 +34,14 @@ async fn by_default_no_write_and_no_unknown_method_reaches_the_server() {
     let d = demo_with(nowhere().await, Options::default()).await;
     assert!(!Allow::default().writes());
     for m in METHODS {
-        let want = if m.is_write() { "permission_denied" } else { "unavailable" };
+        // An upload is a PUT; as a Connect POST it is unimplemented.
+        let want = if m.upload {
+            "unimplemented"
+        } else if m.is_write() {
+            "permission_denied"
+        } else {
+            "unavailable"
+        };
         assert_eq!(code(&d, m.path, m.streaming, &[]).await, want, "{}", m.path);
     }
     for path in [
@@ -102,14 +109,14 @@ async fn another_origin_gets_no_cors_grant_unless_listed() {
     let r = http(&d, "OPTIONS", LIVE, &[app, ("Access-Control-Request-Method", "POST")], b"").await;
     assert_eq!(r.status, 204);
     assert_eq!(r.header("access-control-allow-origin"), Some("https://app.example"));
-    assert_eq!(r.header("access-control-allow-methods"), Some("POST"));
+    assert_eq!(r.header("access-control-allow-methods"), Some("POST, PUT"));
     let r = http(&d, "OPTIONS", LIVE, &[app, ("Access-Control-Request-Method", "GET")], b"").await;
     assert_eq!(r.status, 403);
     assert_eq!(r.header("access-control-allow-origin"), None);
     let r = http(&d, "POST", LIVE, &[("Content-Type", UNARY), app], b"").await;
     assert_eq!(r.status, 200);
     assert_eq!(r.header("access-control-allow-origin"), Some("https://app.example"));
-    assert_eq!(r.header("access-control-expose-headers"), Some("turbo-code, turbo-field"));
+    assert_eq!(r.header("access-control-expose-headers"), Some("turbo-code, turbo-field, grpc-status, grpc-message"));
     let r = http(&d, "POST", LIVE, &[("Content-Type", UNARY), evil[0]], b"").await;
     assert_eq!(r.status, 403);
     assert_eq!(r.header("access-control-allow-origin"), None);

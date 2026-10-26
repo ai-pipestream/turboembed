@@ -36,3 +36,5 @@ turbo = { path = "../core" }
 turbo-zoo = { path = "../analysis/zoo", default-features = false }
 # Checks the method table against the protos.
 protox = "0.9"
+# The digest a dictionary upload's header carries; in-house.
+turbo-sha256 = { path = "../analysis/sha256" }

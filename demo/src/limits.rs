@@ -1,9 +1,9 @@
 //! The demo's message limits, each matched to the server's default
 //! (docs/grpc.md). A Connect request carries one message, so its body is
 //! held whole up to the request limit and refused at once, before it is
-//! read, when it says it is larger. The streamed upload ceiling (2 GiB,
-//! the server's `--max-stream-bytes`) is for uploads in frames, which the
-//! demo does not forward yet.
+//! read, when it says it is larger. An upload (upload.rs) is read a frame
+//! at a time, each frame under the request limit, up to the streamed
+//! ceiling in all.
 
 /// The largest request message forwarded: the server's default
 /// `--max-message-bytes`, 64 MiB.
@@ -12,6 +12,18 @@ pub const MAX_REQUEST_BYTES: usize = 64 << 20;
 /// The largest reply message forwarded: the server's default reply limit,
 /// 256 MiB.
 pub const MAX_REPLY_BYTES: usize = 256 << 20;
+
+/// The most one upload forwards to the server in all, gRPC's five-byte
+/// prefixes included: the server's default `--max-stream-bytes`, 2 GiB.
+pub const MAX_STREAM_BYTES: u64 = 2 << 30;
+
+/// The size of the chunks a dictionary's raw bytes are cut into: the
+/// server's recommended frame, 4 MiB.
+pub const FRAME_BYTES: usize = 4 << 20;
+
+/// The largest frame payload an upload may carry: the request limit less
+/// room for the field an upload wraps a header or document in.
+pub const MAX_FRAME_BYTES: usize = MAX_REQUEST_BYTES - 16;
 
 /// What the body of a request may be: the message, and for the streaming
 /// protocol its five-byte envelope.
