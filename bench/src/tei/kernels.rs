@@ -32,10 +32,13 @@ pub const NSYS_LIBS: &str = "<tei-nsys-libs>";
 pub const IMPORTER: &str = "<nsys-importer>";
 
 /// The GPU's idle time after each profiled request.
-pub const IDLE: Duration = Duration::from_millis(100);
-/// The least gap between two requests' activity, and more than any gap
-/// inside one request's.
-pub const SPLIT_NS: u64 = 50_000_000;
+pub const IDLE: Duration = Duration::from_millis(250);
+/// The least gap between two requests' activity: a request's work is done
+/// when its answer arrives, and the next one is sent IDLE after that, so
+/// every gap between requests is at least IDLE. A gap that long inside one
+/// request (TEI's host work between its batches, on a loaded machine)
+/// makes a trace of too many runs, which is collected again.
+pub const SPLIT_NS: u64 = IDLE.as_nanos() as u64;
 
 const SESSION: &str = "turbo-bench";
 
@@ -134,8 +137,9 @@ pub fn procedure(requests: u32) -> String {
 pub const CHUNK: u32 = 25;
 
 /// Collections of one chunk tried before the tool gives up: the importer
-/// still refuses a short trace now and then, and a new collection of the
-/// same requests imports.
+/// still refuses a short trace now and then, and a trace can hold a gap
+/// as long as IDLE inside a request; a new collection of the same
+/// requests is taken.
 pub const ATTEMPTS: u32 = 3;
 
 /// Collect around `requests` calls of `send`, each followed by IDLE, in
@@ -169,13 +173,14 @@ fn collect(log: &mut Log, p: &Profile, n: u32, send: &mut impl FnMut() -> Result
         log.run(&stop(&p.container))?;
         sent?;
         match read_trace(log, p.nsys, &p.out) {
-            Ok(csv) => {
-                return requests(parse_trace(&csv)?, n as u64).map_err(|why| format!("TEI's kernel time: {why}"));
-            }
+            Ok(csv) => match requests(parse_trace(&csv)?, n as u64) {
+                Ok(r) => return Ok(r),
+                Err(why) => failed.push(why),
+            },
             Err(e) => failed.push(e.lines().find(|l| l.contains("failed")).unwrap_or(&e).to_owned()),
         }
     }
-    Err(format!("TEI's trace could not be read in {ATTEMPTS} collections: {}", failed.join("; ")))
+    Err(format!("TEI's kernel time: no collection of {ATTEMPTS} could be read as {n} requests: {}", failed.join("; ")))
 }
 
 /// One traced GPU activity: its start and duration in ns, and whether it
@@ -314,8 +319,8 @@ mod tests {
 100,10,1,1,\"void gemm<float, (int)128>(params)\"
 120,5,2,,[CUDA memcpy Host-to-Device]
 140,20,3,4,ucopy_f32
-60000200,30,4,1,\"void gemm<float, (int)128>(params)\"
-60000300,3,5,,[CUDA memset]
+300000200,30,4,1,\"void gemm<float, (int)128>(params)\"
+300000300,3,5,,[CUDA memset]
 ";
 
     #[test]
@@ -347,7 +352,7 @@ mod tests {
     #[test]
     fn a_gap_is_measured_from_the_last_end() {
         // A long activity covers the next start: one run.
-        let a = [(0, 70_000_000), (60_000_000, 10)].map(|(s, d)| Activity { start: s, duration: d, copy: false });
+        let a = [(0, 2 * SPLIT_NS), (SPLIT_NS + 10, 10)].map(|(s, d)| Activity { start: s, duration: d, copy: false });
         assert_eq!(split(a.to_vec(), SPLIT_NS).len(), 1);
     }
 

@@ -507,15 +507,17 @@ and starts TEI's router under `nsys launch --trace=cuda`. The router
 keeps the image's own library path. After the end-to-end timing, the
 tool runs `nsys start` in the container and sends as many more /embed
 requests of the same rows, one at a time, leaving the GPU idle for
-100 ms after each. Then it runs `nsys stop` and reads the trace on the
+250 ms after each. Then it runs `nsys stop` and reads the trace on the
 host (`nsys stats --report cuda_gpu_trace --format csv`). A request's
-activity is what lies between two idle gaps of at least 50 ms. The
-trace must fall into exactly as many such runs as requests were sent,
-or the run is an error. Nsight Systems 2023.4's importer refuses long
+activity is what lies between two idle gaps of at least 250 ms. Every
+gap between requests is at least that long, because the next request
+goes out 250 ms after the last answer arrives. The trace must fall into
+exactly as many such runs as requests were sent; when a gap that long
+falls inside a request, the collection is taken again. Nsight Systems 2023.4's importer refuses long
 traces of TEI as events out of order, and sometimes short ones too. So the
 requests are collected 25 at a time, and a collection whose trace the
-host's tools refuse is taken again, up to three times. The record's
-commands show each collection. `kernel_time` gives:
+host's tools refuse, or that does not split into its requests, is taken
+again, up to three times. The record's commands show each collection. `kernel_time` gives:
 
 - `profiler`, as `nsys --version` names itself;
 - `requests`, the number profiled;
