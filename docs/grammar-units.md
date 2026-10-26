@@ -152,6 +152,70 @@ for that name.
 
 Every eligible case of the four files passes.
 
+## Spanish
+
+`SPANISH_UNITS` composes the Spanish number grammar with quantities,
+ages, temperatures and currencies. `GrammarAnnotator::spanish()` runs this
+unit grammar and writes the same Money and Quantities instances as English.
+Its provenance name is `es-units`, distinct from the number-only `es` grammar.
+The existing lexer keeps the original byte spans, including accent folding,
+decimal commas, grouped thousands and decomposed accents.
+
+Rules include `veintidós kilómetros`, `metros cuadrados`, `pies cúbicos`,
+`188 millas por hora`, `10 Mb/s`, `6 pies y 3 pulgadas`, `5 libras y 8 onzas`,
+`37ºC`, `trece euros y cuarenta y cinco céntimos`, `15 USD 50`,
+`2,38 mil millones de dólares`, `C$ 16,4 millones` and `20 dólares por hora`.
+`Mb` and `MB` remain distinct. `º` requires a temperature scale or temperature
+context, so ordinary ordinal indicators such as `3º` are not quantities.
+Currency country qualifiers follow the name, as in `dólares canadienses` or
+`francos suizos`. Generic dollars retain the existing USD convention; the
+rules do not infer a national currency from the language alone. Bare minor
+unit names with no conventional currency remain parser readings and are
+not forced into the Money layer. Money rate spans retain the denominator;
+the Money schema still stores the amount and currency, not a period column.
+
+All 240 unchanged Spanish Recognizers-Text NumberWithUnit cases at the pinned
+revision pass: 19 ages, 122 currencies, 54 dimensions and 45 temperatures.
+`spanish_unit_specs.rs` uses the shared exact-span comparator, translating
+only localized expected unit names and decimal commas. It compares every
+expected result, value, type, subtype and explicit ISO code, with no pass-list
+exclusions. Additional tests run the real Analyzer pipeline, source-offset
+round trips, Unicode whitespace, compound bounds and ambiguous ordinal marks.
+
+## Portuguese
+
+`PORTUGUESE_UNITS` and `GrammarAnnotator::portuguese()` add Portuguese
+quantities, ages, temperatures and currencies. The provenance name is
+`pt-units`. Portuguese cardinal forms supply the unit amounts, including
+`vinte e dois quilômetros`, gendered hundreds, `mil`, `milhões`, Brazilian
+`bilhões` (10^9), Portuguese `biliões` (10^12), digit fractions and halves.
+This unit-oriented number grammar does not claim full Portuguese ordinal,
+percentage or spelled-decimal coverage.
+
+Rules include `6 pés e 3 polegadas`, `5 libras e 8 onças`,
+`3 metros quadrados`, `2,5 quilômetros por hora`, `10 Mb/s`, `37ºC`,
+`R$25,50`, `três reais e cinquenta centavos` and `20 reais por hora`.
+The original source spans survive accented and decomposed text and Unicode
+whitespace; `Mb` and `MB` remain distinct. `um` is also a number/article, so
+its micrometer abbreviation is accepted only after a digit amount; the
+unambiguous `micrômetros` name accepts spelled amounts as well. Currency
+nouns do not consume following articles. Explicit `real`, `reais` and `R$`
+mean BRL, while generic dollars and unqualified minor units retain the
+shared currency conventions described above. Money rate spans retain the
+denominator; the existing Money layer stores no separate period column.
+
+All **253 unchanged Portuguese NumberWithUnit cases** at the same pinned
+Recognizers-Text revision pass: **18 Age, 123 Currency, 65 Dimension and
+47 Temperature**. No cases are excluded. The comparator translates only
+localized resolution labels and decimal commas, then checks exact spans,
+values, types, subtypes and explicit currency codes. It retains the shared
+comparison conventions for `Ton` and the upstream gallon subtype. Several
+upstream Portuguese fixtures contain Spanish prose or unaccented aliases
+(`yenes`, `oncas`); those original fixtures are retained, and separate native
+Portuguese regressions cover `ienes`, `onças` and BRL compounds. The suite
+also runs the real Analyzer, layer checks, UTF-16/codepoint offset round
+trips, negative boundaries and the distinct `cem`/`cento` forms.
+
 ## Speed
 
 `cargo run --release -p turbo-grammar --example grammar_bench` prints
@@ -168,5 +232,5 @@ with the number rules and about 7.5 to 8.5 ms with the unit rules, and
   and `version 2 g` as a weight.
 - Glued rate words (`200 Mbps`) and rates over units other than time
   (`$5 per person`).
-- Spanish and Dutch unit rules (#929): the unit rules are English only,
-  over the Spanish and Dutch number grammars.
+- Dutch is tracked in its separate #929 PR; Italian, Chinese and Japanese
+  remain separate language slices.

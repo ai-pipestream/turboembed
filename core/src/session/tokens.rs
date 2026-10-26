@@ -186,7 +186,8 @@ pub(super) unsafe fn check_tokens(s: &SessionInner, b: &turbo_token_batch, max_t
     if b.ids.is_null() || b.mask.is_null() {
         return Err(Error::new(INVALID_ARGUMENT, "ids and mask may not be NULL"));
     }
-    let (vocab, types) = (s.model.weights.vocab_size(), s.model.weights.token_types());
+    // A family without token types (DeBERTa-v2) takes type 0 only.
+    let (vocab, types) = (s.model.weights.vocab_size(), s.model.weights.token_types().max(1));
     let (n, seq) = (b.batch as usize, b.seq as usize);
     let span = array_len::<i32>((b.batch as u64 - 1) * stride as u64 + b.seq as u64, "token batch")?;
     let (ids, mask) = unsafe { (std::slice::from_raw_parts(b.ids, span), std::slice::from_raw_parts(b.mask, span)) };

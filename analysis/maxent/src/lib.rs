@@ -36,7 +36,9 @@ pub mod java_string;
 pub mod model;
 mod model_reader;
 pub mod properties;
-pub mod sha256;
+pub mod sha256 {
+    pub use turbo_sha256::{Digest, sha256};
+}
 pub mod xml;
 pub mod zip;
 
@@ -47,5 +49,5 @@ pub use error::{Error, Result};
 pub use java_string::JavaString;
 pub use model::{MaxentModel, ModelKind, best_outcome};
 pub use properties::Properties;
-pub use sha256::{Digest, sha256};
+pub use turbo_sha256::{Digest, sha256};
 pub use zip::{Method, Zip};

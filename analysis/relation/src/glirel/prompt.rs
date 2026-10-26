@@ -18,9 +18,9 @@ pub struct Specials {
 
 /// One relation request as the encoder sees it.
 #[derive(Debug)]
-pub struct Prompt {
+pub struct Prompt<'a> {
     pub ids: Vec<u32>,
-    pub words: Vec<Word>,
+    pub words: Vec<Word<'a>>,
     /// Each word's first subword position in `ids`; `None` for a word
     /// the tokenizer gives no subwords (one normalization removes), which
     /// the reference reads as a zero vector.
@@ -31,7 +31,16 @@ pub struct Prompt {
 
 /// The input for `labels` over `text`. A label with no subwords (an empty
 /// or all-whitespace one) has nothing to read and is `None`.
-pub fn build(sp: &SentencePiece, specials: &Specials, text: &str, labels: &[&str]) -> Option<Prompt> {
+pub fn build<'a>(sp: &SentencePiece, specials: &Specials, text: &'a str, labels: &[&str]) -> Option<Prompt<'a>> {
+    build_words(sp, specials, labels, split(text))
+}
+
+pub fn build_words<'a>(
+    sp: &SentencePiece,
+    specials: &Specials,
+    labels: &[&str],
+    mut words: Vec<Word<'a>>,
+) -> Option<Prompt<'a>> {
     let mut scratch = Scratch::default();
     let mut ids = vec![specials.cls];
     let mut marks = Vec::with_capacity(labels.len());
@@ -46,11 +55,11 @@ pub fn build(sp: &SentencePiece, specials: &Specials, text: &str, labels: &[&str
         marks.push([rel, first]);
     }
     ids.push(specials.sep);
-    let words = split(text);
     let mut word_first = Vec::with_capacity(words.len());
-    for w in &words {
+    for w in &mut words {
         let at = ids.len();
-        sp.encode_ids(&text[w.start..w.end], &mut scratch, &mut ids);
+        sp.encode_ids(w.text, &mut scratch, &mut ids);
+        w.subword_len = ids.len() - at;
         word_first.push((ids.len() > at).then_some(at));
     }
     ids.push(specials.sep);
