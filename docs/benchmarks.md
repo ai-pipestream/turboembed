@@ -547,8 +547,11 @@ Measure end-to-end without a profiler. The first version of this
 `nsys launch` tracing CUDA slowed every request. On an RTX 4080 SUPER
 host, bge-small at [32, 512], the same commit, TEI's end-to-end p50 was
 169.3 ms under the profiler and 35.2 ms without it. Its kernel p50 of
-77.1 ms was longer than the unprofiled request. That run also left the
-GPU idle 250 ms between requests, long enough for its clocks to drop.
+77.1 ms was longer than the unprofiled request. The measured cause is the
+tracing: the same server ran about five times slower under it. That run
+also left the GPU idle 250 ms between requests, which may have let its
+clocks drop; no clock was read then, and the SM clock samples now show
+it.
 At 25 ms the gaps no longer told requests apart on that loaded host:
 collections of 25 requests fell into 35 to 38 runs of activity.
 

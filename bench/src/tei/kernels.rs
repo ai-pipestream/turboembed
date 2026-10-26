@@ -35,10 +35,9 @@ pub const NSYS_LIBS: &str = "<tei-nsys-libs>";
 /// The host's QdstrmImporter.
 pub const IMPORTER: &str = "<nsys-importer>";
 
-/// The GPU's idle time after each profiled request: short enough that the
-/// GPU keeps its clocks between them (at 250 ms an RTX 4080 SUPER's
-/// dropped, and the kernels ran slower than TEI's whole unprofiled
-/// request).
+/// The GPU's idle time after each profiled request, kept short so that
+/// the GPU's clocks are less likely to drop between requests; whether
+/// they did is what the SM clock read after each collection shows.
 pub const IDLE: Duration = Duration::from_millis(50);
 /// The least gap between two requests' activity: a request's work is done
 /// when its answer arrives, and the next one is sent IDLE after that, so
