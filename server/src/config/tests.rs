@@ -244,3 +244,58 @@ fn admin_allows_empty_models_and_bundle_dir_discovers_manifests() {
     assert_eq!(a.models[1].sessions, 1);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn tls_and_metrics_come_from_flags_or_environment() {
+    let base = "--listen 127.0.0.1:0 --model bundle=/b/a,device=0,sessions=1";
+    let a = args(base).unwrap();
+    assert_eq!(a.tls, None);
+    assert_eq!(a.metrics_listen, None);
+
+    let a = args(&format!(
+        "{base} --tls-cert /c/srv.crt --tls-key /c/srv.key --tls-client-ca=/c/ca.crt --metrics-listen 127.0.0.1:9090"
+    ))
+    .unwrap();
+    assert_eq!(
+        a.tls,
+        Some(TlsConfig {
+            cert: PathBuf::from("/c/srv.crt"),
+            key: PathBuf::from("/c/srv.key"),
+            client_ca: Some(PathBuf::from("/c/ca.crt")),
+        })
+    );
+    assert_eq!(a.metrics_listen, Some("127.0.0.1:9090".parse().unwrap()));
+
+    let env = |k: &str| match k {
+        ENV_TLS_CERT => Some("/e/srv.crt".to_string()),
+        ENV_TLS_KEY => Some("/e/srv.key".to_string()),
+        ENV_TLS_CLIENT_CA => Some("/e/ca.crt".to_string()),
+        ENV_METRICS_LISTEN => Some("127.0.0.1:9100".to_string()),
+        _ => None,
+    };
+    let parsed = Args::parse_with(base.split_whitespace().map(String::from), env).unwrap();
+    assert_eq!(
+        parsed.tls,
+        Some(TlsConfig {
+            cert: PathBuf::from("/e/srv.crt"),
+            key: PathBuf::from("/e/srv.key"),
+            client_ca: Some(PathBuf::from("/e/ca.crt")),
+        })
+    );
+    assert_eq!(parsed.metrics_listen, Some("127.0.0.1:9100".parse().unwrap()));
+
+    assert_eq!(
+        args(&format!("{base} --tls-cert /c/srv.crt")).unwrap_err(),
+        "--tls-cert and --tls-key must be given together"
+    );
+    assert_eq!(
+        args(&format!("{base} --tls-key /c/srv.key")).unwrap_err(),
+        "--tls-cert and --tls-key must be given together"
+    );
+    assert_eq!(
+        args(&format!("{base} --tls-client-ca /c/ca.crt")).unwrap_err(),
+        "--tls-client-ca needs --tls-cert and --tls-key"
+    );
+    assert!(args(&format!("{base} --metrics-listen nowhere")).is_err());
+    assert!(args(&format!("{base} --metrics-listen 127.0.0.1:1 --metrics-listen 127.0.0.1:2")).is_err());
+}
