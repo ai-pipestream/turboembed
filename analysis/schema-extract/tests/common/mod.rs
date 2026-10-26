@@ -152,3 +152,51 @@ pub fn on(encoder: impl Into<turbo_relation::encoder::DebertaEncoder>, limits: L
     let model = ModelRef { id: "reduced".into(), revision: "sliced".into(), sha256: "none".into() };
     Gliner2Extractor::new(encoder, heads, classifier, tokenizer, specials, model, limits).unwrap()
 }
+
+/// Each pass's decisions: every span query's best span and every
+/// classification's best label, one row each.
+#[allow(dead_code)]
+pub fn rows(p: &turbo_schema_extract::model::Pass) -> Vec<Vec<f32>> {
+    let size = p.prompt().token_first.len() * p.width();
+    p.scores()
+        .iter()
+        .flat_map(|s| match s {
+            turbo_schema_extract::model::Scores::Labels(v) => vec![v.clone()],
+            turbo_schema_extract::model::Scores::Spans { logits, .. } => {
+                logits.chunks(size.max(1)).map(<[f32]>::to_vec).collect()
+            }
+        })
+        .collect()
+}
+
+/// An extraction's decisions, without its scores: each entity type's spans,
+/// each classification's labels and each record's field values.
+#[allow(dead_code)]
+pub fn picked(e: &turbo_schema_extract::Extraction) -> String {
+    use turbo_schema_extract::decode::FieldValue;
+    let spans: Vec<Vec<(usize, usize)>> =
+        e.entities.iter().map(|v| v.iter().map(|s| (s.start, s.end)).collect()).collect();
+    let labels: Vec<(usize, Vec<usize>)> =
+        e.classifications.iter().map(|c| (c.task, c.labels.iter().map(|l| l.0).collect())).collect();
+    type Fields = Vec<Vec<(usize, usize)>>;
+    let records: Vec<(usize, usize, Fields)> = e
+        .records
+        .iter()
+        .map(|r| {
+            let f = r
+                .fields
+                .iter()
+                .map(|vs| {
+                    vs.iter()
+                        .map(|v| match v {
+                            FieldValue::Span(s) => (s.start, s.end),
+                            FieldValue::Choice { choice, .. } => (usize::MAX, *choice),
+                        })
+                        .collect()
+                })
+                .collect();
+            (r.structure, r.instance, f)
+        })
+        .collect();
+    format!("{spans:?} {labels:?} {records:?}")
+}
