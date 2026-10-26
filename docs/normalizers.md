@@ -2383,3 +2383,28 @@ flattened equations are outside this taxonomy. Further licensed damaged
 extracts and independent annotation review are still required. The test
 pins observed errors as well as successes; it does not certify unsupported
 kinds by treating N/A as perfect precision or recall.
+
+### Zero-width context and extractor layout
+
+The zero-width rule is contextual, not a count of invisible characters.
+A synthetic PDF test word containing U+200B between each letter of
+`approved` retains 7 such characters in both Poppler 26.07.0 and MuPDF
+1.27.0 output. MuPDF keeps the word together, so the detector reports 0.
+Poppler layout mode inserts line breaks after 4 of the characters, which
+no longer have letters on both sides, so it reports those 4 exact spans.
+Neither result means the extractor dropped a character. Selecting all
+artifact kinds does not disable this context rule.
+
+This follows the documented OpenNLP-compatible behavior above: a singleton
+between letters is left unreported, including Latin letters. As a result,
+this detector alone cannot identify all intentional or accidental
+zero-width insertions in a word. Removing extractor whitespace before
+running detection can change findings and requires its own aligned view;
+it must not silently replace the original text or its offsets.
+
+`analysis/normalize/tests/zero_width_context.rs` reproduces both layouts
+with synthetic strings and checks UTF-8 byte spans, whitespace variants,
+combining marks, legitimate joiners and adjacent zero-width runs. These
+strings are regression tests, not additions to the authentic evaluation
+set or evidence for its missing positive classes. The per-kind table
+above remains unchanged. A gRParse extraction comparison is still pending.
