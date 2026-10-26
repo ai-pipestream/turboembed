@@ -411,6 +411,65 @@ status is 1 when a gate fails and 2 on an error.
   their site, which could not be reached from the machine the recipes
   were written and run on.
 
+### Namefinder cross-validation clearing policy
+
+`TokenNameFinderCrossValidator::with_sentence_clearing()` clears adaptive
+features before every training and evaluation sentence while keeping the
+original document partitions. Without this option the existing JVM policy
+is unchanged. Do not rewrite input sample clear flags before partitioning:
+those flags identify document boundaries, so rewriting them would allow
+sentences from one document onto both sides of a cross-validation split.
+The option does not copy or rewrite source tokens, annotations or offsets.
+
+The test `namefind_clearing` trains real models on the authored name fixture,
+checks unchanged document membership under both policies, compares training
+event checksums and predicted spans against an independently constructed
+sentence-cleared run, and checks repeatability. Existing default BIO/BILOU
+cross-validation tests still compare all recorded JVM results.
+
+The `masc-namefind-select` command runs #427's registered `-2` attempt:
+
+```sh
+cargo run --release -p turbo-train-recipes -- masc-namefind-select \
+  --corpus MASC-3.0.0 --references references --out models-v2
+```
+
+`--recipe turbo-en-masc-3.0.0-ner-person-2` restricts the run to one type;
+without it person, location, organization and date run in that order. It
+accepts only the pinned corpus and reference files. There are no flags for
+changing the grid, split, iterations, clearing policy or acceptance values.
+The grid order is 300 iterations/cutoff 0/document clearing, 300/0/sentence,
+100/5/document, then 100/5/sentence. Each uses 10 whole-document partitions
+over the 351 training documents. Highest merged F-measure wins per type;
+exact ties use the first entry in that order. Selection receives only the
+training corpus, never the 39 held-out documents.
+
+The attempt directory is created before selection and an existing one is
+refused. `selection.json` records the input sample digest, every candidate,
+all document indices, sample counts, training-event checksums and merged
+counts/scores. It is saved before the selected configuration trains on all
+training documents and before the original held-out gate runs once. Both
+candidate and pinned reference use the chosen clearing policy on identical
+held-out samples. The gate retains 10,000 resamples, seed 154 and the
+0.5-point margin. Its normal `card.json`, model package and `gate.json` are
+written alongside the selection; partial attempts are preserved on error
+and are never automatically retried. The card records the selected training
+parameters. No reference weights are trained on or shipped.
+
+This change has only authored-fixture validation, no full MASC result or
+new release. A complete execution requires 160 CV model fits and four final
+fits. Existing `-1` ids, parameters and failed records remain unchanged.
+The `-2` ids are intentionally not in the publishable release inventory:
+full execution evidence, passing accuracy gates and independent review are
+required before adding a release. #427 remains open.
+
+On 2026-10-26 the [publisher's MASC page](https://anc.org/data/masc/)
+confirmed CC BY 3.0 US, and its
+[download page](https://anc.org/data/masc/downloads/data-download/) linked
+directly to the recorded `datasets-2026-09-25/MASC-3.0.0.zip` release asset.
+This source check does not add permission for excluded Twitter text or
+complete a per-source rights audit. The existing exclusion is unchanged.
+
 ## The release record
 
 MASC is fetched through the zoo by digest and read from its extracted
