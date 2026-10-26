@@ -10,16 +10,21 @@ for with `mx.eval`; the vectors of the last run are written back for the
 tool to hold against the bundle's reference.
 
 Arguments: --model <dir with config.json and model.safetensors> --dtype
-float16|float32 --rows <rows.json> --warmup N --iterations N --out
-<receipt.json>. Writes one JSON object: the MLX version, the SHA-256 of
-the MLX core library that ran, the dtype, batch and seq, each timed run in
-ms and the vectors.
+float16|float32 --rows <rows.json> --warmup N --iterations N --version V
+--out <receipt.json>. Refuses an MLX whose version is not V. Writes one
+JSON object: the MLX version, the SHA-256 of the library that runs the
+kernels (lib/libmlx.dylib), of the kernels themselves (lib/mlx.metallib)
+and of the Python module (mlx.core), the host's load averages before the
+runs, the dtype, batch and seq, each timed run in ms (host wall time of
+the encoder and pooling, with the rows already on the device and the
+vectors not read back) and the vectors.
 """
 
 import argparse
 import hashlib
 import json
 import math
+import os
 import time
 
 import mlx.core as mx
@@ -84,8 +89,12 @@ def main():
     a.add_argument("--rows", required=True)
     a.add_argument("--warmup", type=int, required=True)
     a.add_argument("--iterations", type=int, required=True)
+    a.add_argument("--version", required=True)
     a.add_argument("--out", required=True)
     o = a.parse_args()
+    if mx.__version__ != o.version:
+        raise SystemExit(f"MLX {mx.__version__} is not the version asked for, {o.version}")
+    load = list(os.getloadavg())
     with open(o.rows, encoding="utf-8") as f:
         rows = json.load(f)
     b, s = rows["batch"], rows["seq"]
@@ -102,12 +111,19 @@ def main():
         out = run(ids, mask, types)
         mx.eval(out)
         times.append((time.perf_counter() - t0) * 1e3)
-    # mlx.core is a compiled module: its file is the library that ran.
-    with open(mx.__file__, "rb") as f:
-        library = hashlib.sha256(f.read()).hexdigest()
+    def sha256(path):
+        with open(path, "rb") as f:
+            return hashlib.sha256(f.read()).hexdigest()
+
+    # mlx.core is the Python module; the kernels run from the library and
+    # the metallib the wheel ships beside it, in mlx/lib.
+    lib = os.path.join(os.path.dirname(mx.__file__), "lib")
     receipt = {
         "version": mx.__version__,
-        "library_sha256": library,
+        "libmlx_sha256": sha256(os.path.join(lib, "libmlx.dylib")),
+        "metallib_sha256": sha256(os.path.join(lib, "mlx.metallib")),
+        "core_sha256": sha256(mx.__file__),
+        "loadavg": load,
         "dtype": o.dtype,
         "batch": b,
         "seq": s,

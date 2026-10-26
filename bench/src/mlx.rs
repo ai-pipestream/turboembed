@@ -23,6 +23,8 @@ const SCRIPT: &str = include_str!("../reference/mlx_reference.py");
 pub const MLX_MODEL: &str = "<mlx-model>";
 /// The runner script, as a recorded command names it.
 pub const MLX_SCRIPT: &str = "<mlx-reference>";
+/// The MLX version the reference runs; the runner refuses another.
+pub const MLX_VERSION: &str = "0.29.3";
 
 pub struct Mlx {
     /// The upstream model directory: config.json and the loaded
@@ -36,7 +38,11 @@ pub struct Mlx {
 #[serde(deny_unknown_fields)]
 struct Receipt {
     version: String,
-    library_sha256: String,
+    libmlx_sha256: String,
+    metallib_sha256: String,
+    core_sha256: String,
+    /// The host's 1, 5 and 15-minute load averages before the runs.
+    loadavg: [f64; 3],
     dtype: String,
     batch: u32,
     seq: u32,
@@ -66,6 +72,8 @@ fn argv(script: &str, model: &str, work: &str, precision: u32, warmup: u32, iter
         &warmup.to_string(),
         "--iterations",
         &iterations.to_string(),
+        "--version",
+        MLX_VERSION,
         "--out",
         &format!("{work}/receipt.json"),
     ]
@@ -130,8 +138,17 @@ pub fn from_receipt(bytes: &[u8], m: &Measurement, iterations: u32, command: Vec
     if e.batch != rows.batch || e.seq != rows.seq || e.vectors.len() != rows.row_count() || rows.row_count() == 0 {
         return Err("MLX receipt differs from the measured rows".into());
     }
-    if e.dtype != dtype(m.precision) || e.version.is_empty() {
-        return Err(format!("MLX receipt: dtype {:?} where the precision asks for {}", e.dtype, dtype(m.precision)));
+    if e.dtype != dtype(m.precision) || e.version != MLX_VERSION {
+        return Err(format!(
+            "MLX receipt: MLX {} in {:?} where MLX {MLX_VERSION} in {} was asked for",
+            e.version,
+            e.dtype,
+            dtype(m.precision)
+        ));
+    }
+    let hex = |h: &str| h.len() == 64 && h.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b));
+    if !hex(&e.metallib_sha256) || !hex(&e.core_sha256) || e.loadavg.iter().any(|l| !l.is_finite() || *l < 0.0) {
+        return Err("MLX receipt: a file hash that is not 64 hex, or a load average that is not a number".into());
     }
     if e.times_ms.len() != iterations as usize
         || iterations == 0
@@ -139,20 +156,29 @@ pub fn from_receipt(bytes: &[u8], m: &Measurement, iterations: u32, command: Vec
     {
         return Err(format!("MLX receipt: {} timed runs where {iterations} were asked for", e.times_ms.len()));
     }
-    let pin = format!("mlx@sha256:{}", e.library_sha256);
+    let pin = format!("mlx@sha256:{}", e.libmlx_sha256);
     docker::check_pinned("MLX's library", &pin)?;
     let mut ms = e.times_ms;
     ms.sort_by(f64::total_cmp);
     let p50 = percentile(&ms, 50.0);
+    let mean = ms.iter().sum::<f64>() / ms.len() as f64;
     let min_cosine = e.vectors.iter().zip(&m.expected).map(|(v, want)| cosine(v, want)).fold(1.0, f64::min);
+    let [l1, l5, l15] = e.loadavg;
     let procedure = format!(
         "MLX {} on the machine's Python, the BERT encoder of bench/reference/mlx_reference.py with every weight \
          cast to {}, mx.compile, mean pooling and L2 in F32, on the same token rows as a padded batch; untimed \
-         runs, then {} timed from the host, each waited for with mx.eval. min_cosine is against each row's \
-         expected vector. Runner SHA-256 {}",
+         runs, then {} timed as host wall time, each waited for with mx.eval, the rows already on the device \
+         and the vectors not read back: min {:.4} ms, mean {:.4} ms. min_cosine is against each row's expected \
+         vector. Host load averages before the runs {l1:.2} {l5:.2} {l15:.2}. SHA-256 of lib/libmlx.dylib (the \
+         pin) {}, lib/mlx.metallib {}, mlx.core {}; runner {}",
         e.version,
         dtype(m.precision),
         ms.len(),
+        ms[0],
+        mean,
+        e.libmlx_sha256,
+        e.metallib_sha256,
+        e.core_sha256,
         sha256_hex(SCRIPT.as_bytes())
     );
     Ok(ReferenceRun {
