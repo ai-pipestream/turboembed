@@ -53,8 +53,8 @@ impl Grammar for JapaneseUnits {
     fn words(&self) -> &dyn WordForms {
         self
     }
-    fn word_boundary(&self, left: &str, right: &str) -> bool {
-        cjk::word_boundary(left, right)
+    fn word_boundary(&self) -> Option<fn(&str, &str) -> bool> {
+        Some(cjk::word_boundary)
     }
     fn output(&self, dim: Dim) -> Option<Output> {
         matches!(dim, UNIT | QTY).then_some(Output::Quantity)
