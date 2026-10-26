@@ -1,7 +1,7 @@
 # The analysis result layer over gRPC
 
 Beside the Open Inference Protocol (docs/kserve.md), `turbo-kserve` serves
-`turbo.result.AnalysisService` on the same port: the Stage 5 analysis
+`turbo.result.v1.AnalysisService` on the same port: the Stage 5 analysis
 result kinds on the wire (epic #151), and a capability call that says what
 every loaded bundle is, so a client rejects an incompatible request
 before sending it. `server/proto/turbo_analysis.proto` is the crate's
@@ -168,17 +168,17 @@ started as in docs/grpc.md:
 
 ```
 grpcurl -plaintext -import-path server/proto -proto turbo_analysis.proto \
-    localhost:8081 turbo.result.AnalysisService/Capabilities
+    localhost:8081 turbo.result.v1.AnalysisService/Capabilities
 
 grpcurl -plaintext -import-path server/proto -proto turbo_analysis.proto \
     -d '{"name": "more", "bundle": "testdata/tiny-bert-bundle",
          "device": 0, "sessions": 1}' \
-    localhost:8081 turbo.result.AnalysisService/LoadBundle
+    localhost:8081 turbo.result.v1.AnalysisService/LoadBundle
 
 grpcurl -plaintext -import-path server/proto -proto turbo_analysis.proto \
     -d '{"model": {"id": "org/m", "revision": "r1", "sha256": "abc"},
          "row": [0, 2], "term": [3, 9], "weight": [0.5, 1.25]}' \
-    localhost:8081 turbo.result.AnalysisService/RoundTripSparseTerms
+    localhost:8081 turbo.result.v1.AnalysisService/RoundTripSparseTerms
 ```
 
 From Rust, the crate's generated client does the same, and

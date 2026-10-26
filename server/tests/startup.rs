@@ -24,7 +24,8 @@ async fn grpc_health_check_and_watch_through_startup_ready_and_drain() {
 
     // Startup: ServerReady is false, Check and Watch report NOT_SERVING.
     assert!(!c.server_ready(ServerReadyRequest {}).await.unwrap().into_inner().ready);
-    for svc in ["", "inference.GRPCInferenceService", "turbo.result.AnalysisService", "grpc.health.v1.Health", NAME] {
+    for svc in ["", "inference.GRPCInferenceService", "turbo.result.v1.AnalysisService", "grpc.health.v1.Health", NAME]
+    {
         let resp = h.check(HealthCheckRequest { service: svc.into() }).await.unwrap().into_inner();
         assert_eq!(resp.status(), ServingStatus::NotServing, "{svc}");
     }
@@ -37,7 +38,8 @@ async fn grpc_health_check_and_watch_through_startup_ready_and_drain() {
     // Ready: load completes, ServerReady turns true, Check and Watch report SERVING.
     s.load().await.unwrap();
     assert!(c.server_ready(ServerReadyRequest {}).await.unwrap().into_inner().ready);
-    for svc in ["", "inference.GRPCInferenceService", "turbo.result.AnalysisService", "grpc.health.v1.Health", NAME] {
+    for svc in ["", "inference.GRPCInferenceService", "turbo.result.v1.AnalysisService", "grpc.health.v1.Health", NAME]
+    {
         let resp = h.check(HealthCheckRequest { service: svc.into() }).await.unwrap().into_inner();
         assert_eq!(resp.status(), ServingStatus::Serving, "{svc}");
     }
@@ -59,7 +61,8 @@ async fn grpc_health_check_and_watch_through_startup_ready_and_drain() {
             .into_inner()
             .ready
     );
-    for svc in ["", "inference.GRPCInferenceService", "turbo.result.AnalysisService", "grpc.health.v1.Health", NAME] {
+    for svc in ["", "inference.GRPCInferenceService", "turbo.result.v1.AnalysisService", "grpc.health.v1.Health", NAME]
+    {
         let resp = h.check(HealthCheckRequest { service: svc.into() }).await.unwrap().into_inner();
         assert_eq!(resp.status(), ServingStatus::NotServing, "{svc}");
     }

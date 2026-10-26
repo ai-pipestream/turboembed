@@ -29,11 +29,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // document graph each cross in one piece, and a stream's documents
         // are slices of their batch's one copy.
         .bytes(".inference.ModelInferResponse.raw_output_contents")
-        .bytes(".turbo.result.TokenVectorsResult.data")
-        .bytes(".turbo.result.AnalyzeVectors.data")
-        .bytes(".turbo.result.ChunkLevelsResult.data")
-        .bytes(".turbo.result.DocumentGraphRequest.graph")
-        .bytes(".turbo.result.DocumentGraphResponse.graph")
+        .bytes(".turbo.result.v1.TokenVectorsResult.data")
+        .bytes(".turbo.result.v1.AnalyzeVectors.data")
+        .bytes(".turbo.result.v1.ChunkLevelsResult.data")
+        .bytes(".turbo.result.v1.DocumentGraphRequest.graph")
+        .bytes(".turbo.result.v1.DocumentGraphResponse.graph")
         .compile_fds(fds)?;
     Ok(())
 }
