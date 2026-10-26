@@ -2174,10 +2174,14 @@ name = "turbo-example-docling"
 version = "0.1.0"
 dependencies = [
  "serde_json",
+ "tokio",
+ "tonic",
+ "turbo",
  "turbo-analysis",
  "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-chunker",
+ "turbo-kserve",
  "turbo-maxent",
  "turbo-namefind",
  "turbo-normalize",

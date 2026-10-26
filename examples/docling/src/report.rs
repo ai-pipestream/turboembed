@@ -16,6 +16,10 @@ use crate::docling::Docling;
 /// How many leading values of each vector the report shows.
 pub const VECTOR_HEAD: usize = 4;
 
+/// How far a vector value or score may move across machines, whose
+/// kernels may round differently.
+pub const TOLERANCE: f64 = 1e-3;
+
 fn clean(doc: &Document) -> Result<&View, String> {
     doc.get_key(&Key::<View>::named(CLEAN)).ok_or_else(|| "no clean view".to_owned())
 }
@@ -122,4 +126,24 @@ pub fn check_offsets(d: &Docling, doc: &Document) -> Result<usize, String> {
         }
     }
     Ok(spans.len())
+}
+
+/// Equal, except numbers that are not integers, which may differ by
+/// [`TOLERANCE`].
+pub fn close(path: &str, got: &Value, want: &Value) -> Result<(), String> {
+    match (got, want) {
+        (Value::Number(a), Value::Number(b)) if a.is_f64() || b.is_f64() => {
+            let (a, b) = (a.as_f64().unwrap(), b.as_f64().unwrap());
+            if (a - b).abs() <= TOLERANCE { Ok(()) } else { Err(format!("{path}: {a} vs {b}")) }
+        }
+        (Value::Array(a), Value::Array(b)) if a.len() == b.len() => {
+            a.iter().zip(b).enumerate().try_for_each(|(i, (x, y))| close(&format!("{path}[{i}]"), x, y))
+        }
+        (Value::Object(a), Value::Object(b)) if a.len() == b.len() => a.iter().try_for_each(|(k, x)| {
+            let y = b.get(k).ok_or_else(|| format!("{path}.{k}: not expected"))?;
+            close(&format!("{path}.{k}"), x, y)
+        }),
+        _ if got == want => Ok(()),
+        _ => Err(format!("{path}: {got} vs {want}")),
+    }
 }

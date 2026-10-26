@@ -4,7 +4,8 @@ This page is the path from a document a pipeline already has to chunks,
 vectors and entities whose every offset leads back to it. It covers the
 two ways in, the server and the library, and walks through one runnable
 example: a document in docling's JSON form, analyzed end to end on the
-CPU with the small test model, in CI on every change.
+CPU with the small test model, in process and against a running server,
+in CI on every change.
 
 ## Two ways in
 
@@ -12,14 +13,15 @@ CPU with the small test model, in CI on every change.
 |---|---|---|
 | What it is | gRPC: the Open Inference Protocol for vectors, `turbo.result.AnalysisService` for analysis | The analysis crates under `analysis/`, run by an `Analyzer` |
 | Language | Any with gRPC: clients are generated from `server/proto` | Rust (the C interface embeds; see docs/grpc.md for the server's view of it) |
-| Structure from a converter (docling) | Not taken: the server analyzes text | Imported as a `Structure` layer, as below |
+| Structure from a converter (docling) | Imported by the client into a seed graph, sent as `initial_graph` to `AnalyzeDocumentProgressive` | Imported as a `Structure` layer, as below |
 | Offsets | `OFFSET_MODE_UTF8`, `OFFSET_MODE_UTF16`, `OFFSET_MODE_CODE_POINT` per request | Every view's `OffsetTable`: bytes, UTF-16 units, code points |
 | Runs on | The backends linked into the binary | The same |
 
 A pipeline that only needs vectors for text it has already chunked
-calls the server. A pipeline that has structure (headings, lists,
-footnotes) and wants the chunker to cut along it runs the library, as
-the example does.
+calls `AnalyzeStream`. A pipeline that has structure (headings, lists,
+footnotes) and wants the chunker to cut along it either sends that
+structure to the server's pipeline call or runs the library; the example
+does both.
 
 ## Running the server
 
@@ -58,6 +60,7 @@ grpcurl -plaintext localhost:8081 grpc.health.v1.Health/Check
 | What is loaded, and every limit | `AnalysisService/Capabilities` | [grpc-analysis.md](grpc-analysis.md) |
 | Vectors for one batch | `GRPCInferenceService/ModelInfer` | [kserve.md](kserve.md) |
 | Vectors, sparse terms or token vectors for many documents | `AnalysisService/AnalyzeStream` | [grpc-analysis.md](grpc-analysis.md) |
+| One document through a named pipeline, seeded with a converter's structure | `AnalyzeDocumentProgressive` | [The docling example on the server](#on-the-server) |
 | Inspecting one document: segments, heatmaps, chunk projections | `InspectDocumentWindow`, `ProjectChunks` | [grpc-inspect.md](grpc-inspect.md) |
 | Exporting an analyzed document | `ListOutputFormats`, `FormatDocument` | [grpc-inspect.md](grpc-inspect.md) |
 | Loading or unloading a bundle at run time (`--admin`) | `LoadBundle`, `UnloadBundle` | [grpc-analysis.md](grpc-analysis.md) |
@@ -89,15 +92,20 @@ in the message) as the request's fault.
 
 Java, Python, Go and other clients are generated from the protos in
 `server/proto` with each language's gRPC tooling, for example
-`grpcio-tools` for Python or `protoc-gen-grpc-java` for Java. Published
-client packages are tracked in issue #1297; until then, pin the proto
-files of the release the server runs.
+`grpcio-tools` for Python or `protoc-gen-grpc-java` for Java. The
+release workflow packages them as a Maven artifact (`clients/java`) and
+a wheel (`clients/python`), built by `scripts/package-proto-stubs.sh`;
+publishing them is tracked in issue #1297. Until then, build them with
+that script or pin the proto files of the release the server runs. The
+docling example has a Java and a Python client written against those
+stubs, below.
 
 ## The docling example
 
-`examples/docling` is a crate whose test,
-`examples/docling/tests/end_to_end.rs`, runs in CI with every workspace
-crate. Its input, `examples/docling/data/report.docling.json`, is a
+`examples/docling` is a crate whose tests,
+`examples/docling/tests/end_to_end.rs` (in process) and
+`examples/docling/tests/server.rs` (against the server), run in CI with
+every workspace crate. Its input, `examples/docling/data/report.docling.json`, is a
 short report as docling exports it: a title, numbered section headers at
 two levels, paragraphs with doubled spaces and line breaks, a list of
 three items, a footnote, and a page header.
@@ -184,10 +192,93 @@ An entity in the report reads, for example: the `Zürich` at clean bytes
 normalizer removed a doubled space before it, and bytes 70 to 77 of
 `#/texts/3`.
 
+### On the server
+
+The same document goes through a running `turbo-kserve` on the CPU.
+Only the step a converter's output needs stays on the client: reading
+docling's JSON into the source text and a `Structure` layer, the
+default instance, over it. That one-layer document is exported as
+DocumentGraph bytes (`turbo_example_docling::server::seed`, checked in as
+`examples/docling/data/report.seed.graph`) and sent as `initial_graph`
+to `AnalyzeDocumentProgressive` with these steps and `model`
+`tiny-bert-bundle`:
+
+```
+turbo:normalize:whitespace     turbo:structure-boundaries
+turbo-sentdetect:rules         turbo:chunker
+turbo-tokenize:uax29-untyped   turbo:levels
+turbo:subwords                 turbo:chunk-vectors
+turbo-geo:names
+```
+
+The server keeps the structure as given, runs sentences, tokens,
+subwords and names on the normalized view and projects them back, so
+every span in its answer is in the source text docling's items were laid
+down in. The stream's last event carries the analyzed graph. The client
+sends it back twice:
+
+- `InspectDocumentWindow` with `heatmap_buckets` 16: the heat, a token
+  density and an entity density lane, 16 buckets each, plus the window's
+  text and every segment's layers (chunks, entities, structure).
+- `ProjectChunks`: a point per chunk with its level and span, and
+  whether it has a vector.
+
+Three clients do this and print the same summary, held to
+`examples/docling/data/report.server.expected.txt`:
+
+| Client | Where | Offsets asked for | Runs in CI |
+|---|---|---|---|
+| Rust | `examples/docling/src/bin/docling-client.rs` | `OFFSET_MODE_UTF8` | `examples/docling/tests/server.rs`, a server started in process on a free port, every call over gRPC |
+| Java | `examples/docling/clients/java/DoclingClient.java` | `OFFSET_MODE_UTF16` | the release workflow's `proto-and-stubs` job, against the release binary |
+| Python | `examples/docling/clients/python/docling_client.py` | `OFFSET_MODE_CODE_POINT` | the same job, on the oldest Python the wheel declares |
+
+Each slices the window's text by the offsets it asked for, in its own
+string type, so the three agree only if every offset mode is right. The
+Rust client also decodes the answered graph into a fuller report, held
+to `examples/docling/data/report.server.expected.json` (vector values
+and heat scores within 0.001): per chunk its level, cut, size and the
+head of its vector, and per chunk and entity its spans in bytes, UTF-16
+units and code points and the docling items it covers.
+
+Against a server of your own:
+
+```
+turbo-kserve --listen 127.0.0.1:8081 \
+    --model bundle=testdata/tiny-bert-bundle,device=0,sessions=2
+cargo run -p turbo-example-docling --bin docling-client -- \
+    run http://127.0.0.1:8081 examples/docling/data/report.docling.json
+python3 examples/docling/clients/python/docling_client.py 127.0.0.1:8081 \
+    examples/docling/data/report.seed.graph \
+    examples/docling/data/report.server.expected.txt
+```
+
+`--report` prints the Rust client's full report instead of the summary;
+`docling-client seed DOCLING_JSON OUT` writes the seed for another
+document. The Java client compiles against the stub jar and runs the same
+way (`java ai.pipestream.turboembed.examples.DoclingClient ADDR SEED
+[EXPECTED]`). The summary starts:
+
+```
+steps 9
+chunk 0 level 1 vector yes "Grid Storage Review 2026\n\n1. Summary ..."
+chunk 1 level 0 vector yes "Grid Storage Review 2026\n\n1. Summary\n\n..."
+...
+entity 0 location "Zürich"
+...
+heat tokens TokenDensity 6 5 7 7 6 6 5 6 5 6 7 7 6 8 6 6
+heat entities EntityDensity 0 0 0 1 0 1 1 1 0 0 0 2 0 0 0 0
+```
+
+`device=0` is the CPU: the server's default device choice never picks
+it. `BLESS=1 cargo test -p turbo-example-docling` rewrites the seed and
+both expected files, to be reviewed.
+
 ### What it does not show
 
-- It runs in process on the CPU backend; the server has no call that
-  takes a converter's structure, so a server pipeline sends text and
-  chunks it the server's way.
-- The server's heatmaps (`InspectDocumentWindow`) are not part of it.
+- The server pipeline is the server's steps, not the in-process one:
+  no drift boundaries, the bundled gazetteer for place names instead of
+  the example's dictionary, and a chunk budget from the model's width
+  (64 subwords) instead of 48.
+- The Java and Python clients run where the stub packages are built,
+  the release workflow, not in the per-change `cargo test` run.
 - Tables and pictures from docling are refused rather than converted.
