@@ -8,7 +8,8 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use axum::Router;
-use axum::http::{StatusCode, header};
+use axum::extract::State;
+use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use tokio::net::TcpListener;
@@ -20,8 +21,11 @@ pub mod allow;
 mod budget;
 mod codec;
 pub mod connect;
+pub mod gate;
+mod tls;
 
 pub use allow::Allow;
+pub use tls::Tls;
 
 /// The largest message forwarded either way: the server's own default
 /// limit.
@@ -35,6 +39,21 @@ const STYLE: &str = include_str!("../static/style.css");
 struct App {
     channel: Channel,
     allow: Arc<Allow>,
+    gate: Arc<gate::Gate>,
+}
+
+/// How the demo is reached and what it forwards.
+#[derive(Debug, Clone, Default)]
+pub struct Options {
+    /// The methods forwarded.
+    pub allow: Allow,
+    /// A bearer token every call must carry. Required when the demo
+    /// listens on an address other than loopback with a write allowed.
+    pub token: Option<String>,
+    /// Other origins whose pages may call, each `http(s)://HOST[:PORT]`.
+    pub origins: Vec<String>,
+    /// TLS for the listener; plain HTTP without.
+    pub tls: Option<Tls>,
 }
 
 /// The demo, answering HTTP until stopped or dropped.
@@ -49,27 +68,42 @@ impl Demo {
     /// server at `server` (`http://HOST:PORT`). The server need not be up:
     /// each call connects as needed.
     pub async fn start(listen: SocketAddr, server: &str, allow: Allow) -> Result<Demo, String> {
+        Demo::start_with(listen, server, Options { allow, ..Options::default() }).await
+    }
+
+    /// As `start`, with a token, other origins or TLS.
+    pub async fn start_with(listen: SocketAddr, server: &str, options: Options) -> Result<Demo, String> {
+        if !listen.ip().is_loopback() && options.allow.writes() && options.token.is_none() {
+            return Err(format!(
+                "listen on {listen}: a method that changes the server is allowed, so a token is required off loopback"
+            ));
+        }
+        let gate = gate::Gate::new(options.token, &options.origins)?;
+        let tls = options.tls.as_ref().map(tls::config).transpose()?;
         let endpoint = Endpoint::from_shared(server.to_string()).map_err(|e| format!("server {server}: {e}"))?;
         if !matches!(endpoint.uri().scheme_str(), Some("http" | "https")) || endpoint.uri().authority().is_none() {
             return Err(format!("server {server}: must be an http:// or https:// URL"));
         }
-        let app = App { channel: endpoint.connect_lazy(), allow: Arc::new(allow) };
+        let app = App { channel: endpoint.connect_lazy(), allow: Arc::new(options.allow), gate: Arc::new(gate) };
         let router = Router::new()
             .route("/", get(|| async { asset("text/html; charset=utf-8", INDEX) }))
             .route("/app.js", get(|| async { asset("text/javascript; charset=utf-8", SCRIPT) }))
             .route("/style.css", get(|| async { asset("text/css; charset=utf-8", STYLE) }))
-            .route("/{service}/{method}", post(connect::call).fallback(only_post))
+            .route("/{service}/{method}", post(connect::call).options(preflight).fallback(only_post))
             .with_state(app);
         let listener = TcpListener::bind(listen).await.map_err(|e| format!("listen on {listen}: {e}"))?;
         let addr = listener.local_addr().map_err(|e| format!("listen on {listen}: {e}"))?;
         let (stop, stopped) = oneshot::channel::<()>();
-        let task = tokio::spawn(async move {
-            axum::serve(listener, router)
-                .with_graceful_shutdown(async {
-                    let _ = stopped.await;
-                })
-                .await
-        });
+        let stopped = async {
+            let _ = stopped.await;
+        };
+        let task = match tls {
+            None => tokio::spawn(async move { axum::serve(listener, router).with_graceful_shutdown(stopped).await }),
+            Some(config) => {
+                let listener = tls::Listener::new(listener, config).map_err(|e| format!("listen on {listen}: {e}"))?;
+                tokio::spawn(async move { axum::serve(listener, router).with_graceful_shutdown(stopped).await })
+            }
+        };
         Ok(Demo { addr, stop: Some(stop), task })
     }
 
@@ -96,6 +130,11 @@ impl Drop for Demo {
 
 fn asset(kind: &'static str, body: &'static str) -> Response {
     ([(header::CONTENT_TYPE, kind), (header::CACHE_CONTROL, "no-cache")], body).into_response()
+}
+
+/// A CORS preflight, granted only to a listed origin.
+async fn preflight(State(app): State<App>, headers: HeaderMap) -> Response {
+    app.gate.preflight(&headers)
 }
 
 /// A call is a POST; GET serves only the page's files.
