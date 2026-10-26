@@ -118,8 +118,6 @@ fn overlay(base: &[u8], over: &[u8]) -> Vec<u8> {
 /// outputs mean nothing; it runs every path the checkpoint runs.
 #[allow(dead_code)]
 pub fn offline(limits: Limits) -> Gliner2Extractor {
-    let extra = std::fs::read(format!("{FIXTURES}/extra.safetensors")).unwrap();
-    let bytes = overlay(&std::fs::read(RELATION).unwrap(), &extra);
     let config = Config {
         hidden: 32,
         intermediate: 48,
@@ -131,8 +129,21 @@ pub fn offline(limits: Limits) -> Gliner2Extractor {
         max_relative_positions: 32,
         layer_norm_eps: 1e-7,
     };
-    let canonical = turbo_bundle::deberta::convert(&config, &bytes, "encoder.").unwrap();
-    let encoder = Encoder::from_safetensors(config, &canonical).unwrap();
+    let canonical = turbo_bundle::deberta::convert(&config, &reduced(), "encoder.").unwrap();
+    on(Encoder::from_safetensors(config, &canonical).unwrap(), limits)
+}
+
+/// The reduced checkpoint with the classifier laid over it.
+fn reduced() -> Vec<u8> {
+    let extra = std::fs::read(format!("{FIXTURES}/extra.safetensors")).unwrap();
+    overlay(&std::fs::read(RELATION).unwrap(), &extra)
+}
+
+/// The reduced model's heads, classifier and tokenizer over another
+/// encoder of width 32 (tests/device.rs), its special tokens 790 to 796.
+#[allow(dead_code)]
+pub fn on(encoder: impl Into<turbo_relation::encoder::DebertaEncoder>, limits: Limits) -> Gliner2Extractor {
+    let bytes = reduced();
     let file = File::parse("reduced", &bytes).unwrap();
     let heads = Heads::load(&file, 32, 8).unwrap();
     let classifier = Classifier::load(&file, 32).unwrap();

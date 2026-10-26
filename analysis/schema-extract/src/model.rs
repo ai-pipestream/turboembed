@@ -12,12 +12,12 @@ use std::fs;
 use std::path::Path;
 
 use serde_json::Value;
-use turbo::deberta::Encoder;
 use turbo::deberta::package::{PackageManifest, digest};
 use turbo::head::Linear;
 use turbo::safetensors::{Dtype, File};
 use turbo::sentencepiece::SentencePiece;
 use turbo_analysis::ModelRef;
+use turbo_relation::encoder::{DebertaEncoder, EncoderStates};
 use turbo_relation::gliner2::heads::Heads;
 
 use crate::prompt::{Kind, Prompt, Specials, build};
@@ -137,7 +137,7 @@ impl std::error::Error for ExtractError {}
 
 /// A GLiNER2 checkpoint's schema-driven extraction on the native encoder.
 pub struct Gliner2Extractor {
-    encoder: Encoder,
+    encoder: DebertaEncoder,
     heads: Heads,
     classifier: Classifier,
     tokenizer: SentencePiece,
@@ -155,13 +155,19 @@ impl Gliner2Extractor {
     /// The model from a converted encoder package and the checkpoint's
     /// directory, as `Gliner2Relations::load` reads them.
     pub fn load(encoder_package: &Path, checkpoint: &Path, id: &str, revision: &str) -> Result<Self, String> {
+        let (_, encoder) = PackageManifest::load(encoder_package).map_err(|e| e.message)?;
+        Self::load_with(encoder.into(), checkpoint, id, revision)
+    }
+
+    /// As [`load`](Self::load), on an encoder already opened: the CPU
+    /// encoder, or a core bundle on a device ([`DebertaEncoder::open`]).
+    pub fn load_with(encoder: DebertaEncoder, checkpoint: &Path, id: &str, revision: &str) -> Result<Self, String> {
         let config = read_json(&checkpoint.join("config.json"))?;
         let field = |k: &str| config.get(k).and_then(Value::as_str);
         if field("counting_layer") != Some("count_lstm_v2") || field("token_pooling").is_some_and(|p| p != "first") {
             return Err("GLiNER2: only count_lstm_v2 counting and first-subword pooling are read".into());
         }
         let max_width = config.get("max_width").and_then(Value::as_u64).unwrap_or(8) as usize;
-        let (_, encoder) = PackageManifest::load(encoder_package).map_err(|e| e.message)?;
         let bytes = fs::read(checkpoint.join("model.safetensors")).map_err(|e| e.to_string())?;
         let file = File::parse("GLiNER2 checkpoint", &bytes).map_err(|e| e.message)?;
         let hidden = encoder.config().hidden;
@@ -189,7 +195,7 @@ impl Gliner2Extractor {
     /// The model from its parts; the special tokens must be inside the
     /// encoder's vocabulary.
     pub fn new(
-        encoder: Encoder,
+        encoder: impl Into<DebertaEncoder>,
         heads: Heads,
         classifier: Classifier,
         tokenizer: SentencePiece,
@@ -197,6 +203,7 @@ impl Gliner2Extractor {
         model: ModelRef,
         limits: Limits,
     ) -> Result<Self, String> {
+        let encoder = encoder.into();
         let v = encoder.config().vocabulary as u32;
         let s = &specials;
         if [s.sep_struct, s.sep_text, s.p, s.c, s.e, s.l, s.description].iter().any(|&t| t >= v) {
@@ -210,6 +217,11 @@ impl Gliner2Extractor {
 
     pub fn model(&self) -> &ModelRef {
         &self.model
+    }
+
+    /// Where the encoder runs: None for the CPU encoder itself.
+    pub fn execution(&self) -> Option<&turbo_analysis::Execution> {
+        self.encoder.execution()
     }
 
     pub fn limits(&self) -> &Limits {
@@ -260,26 +272,42 @@ impl Gliner2Extractor {
 
 /// The encoder and every head over a built input. The parity tests give
 /// inputs whose token ids are not a tokenizer's.
-pub fn run(encoder: &Encoder, heads: &Heads, classifier: &Classifier, prompt: Prompt) -> Result<Pass, ExtractError> {
+pub fn run(
+    encoder: &impl EncoderStates,
+    heads: &Heads,
+    classifier: &Classifier,
+    prompt: Prompt,
+) -> Result<Pass, ExtractError> {
     let t = prompt.ids.len();
     let positions =
         prompt.token_first.iter().chain(prompt.tasks.iter().flat_map(|k| std::iter::once(&k.p).chain(&k.markers)));
     if positions.into_iter().any(|&p| p >= t) {
         return Err(ExtractError::Model("a text token or marker past the end of the input".into()));
     }
-    let hidden = encoder.encode(&prompt.ids, &vec![true; t]).map_err(|e| ExtractError::Model(e.message))?;
-    let (data, d) = (hidden.data(), hidden.width());
-    let row = |p: usize| &data[p * d..(p + 1) * d];
+    // The rows the heads read: each text token's first subword, then each
+    // task's [P] and its field markers, in order.
+    let at: Vec<usize> = prompt
+        .token_first
+        .iter()
+        .chain(prompt.tasks.iter().flat_map(|k| std::iter::once(&k.p).chain(&k.markers)))
+        .copied()
+        .collect();
+    let mut data = Vec::new();
+    encoder.states(&prompt.ids, &at, &mut data).map_err(ExtractError::Model)?;
+    let d = encoder.config().hidden;
+    let row = |i: usize| &data[i * d..(i + 1) * d];
     let n = prompt.token_first.len();
-    let rows: Vec<f32> = prompt.token_first.iter().flat_map(|&p| row(p).iter().copied()).collect();
-    let spans = heads.spans(&rows, n);
+    let spans = heads.spans(&data[..n * d], n);
     let mut scores = Vec::with_capacity(prompt.tasks.len());
+    let mut next = n;
     for task in &prompt.tasks {
-        let fields: Vec<&[f32]> = task.markers.iter().map(|&m| row(m)).collect();
+        let p = next;
+        let fields: Vec<&[f32]> = (p + 1..p + 1 + task.markers.len()).map(row).collect();
+        next = p + 1 + task.markers.len();
         scores.push(match task.kind {
             Kind::Classification(_) => Scores::Labels(fields.iter().map(|f| classifier.logit(f)).collect()),
             Kind::Record(_) | Kind::Entities => {
-                let count = heads.count(row(task.p));
+                let count = heads.count(row(p));
                 // Entities decode instance 0 only, whose query does not
                 // depend on the count.
                 let instances = if task.kind == Kind::Entities { count.min(1) } else { count };

@@ -31,12 +31,12 @@ use std::fs;
 use std::path::Path;
 
 use serde_json::Value;
-use turbo::deberta::Encoder;
 use turbo::deberta::package::{PackageManifest, digest};
 use turbo::safetensors::File;
 use turbo::sentencepiece::SentencePiece;
 use turbo_analysis::{ModelRef, Span};
 
+use crate::encoder::{DebertaEncoder, EncoderStates};
 use crate::zeroshot::{Mention, RelationError, RelationScorer};
 use heads::{Heads, sigmoid};
 use prompt::{Prompt, Specials};
@@ -77,7 +77,7 @@ pub struct Pass {
 
 /// A GLiNER2 checkpoint's relation extraction on the native encoder.
 pub struct Gliner2Relations {
-    encoder: Encoder,
+    encoder: DebertaEncoder,
     heads: Heads,
     tokenizer: SentencePiece,
     specials: Specials,
@@ -95,6 +95,13 @@ impl Gliner2Relations {
     /// `spm.model`). `id` and `revision` name the checkpoint; its SHA-256
     /// is computed here.
     pub fn load(encoder_package: &Path, checkpoint: &Path, id: &str, revision: &str) -> Result<Self, String> {
+        let (_, encoder) = PackageManifest::load(encoder_package).map_err(|e| e.message)?;
+        Self::load_with(encoder.into(), checkpoint, id, revision)
+    }
+
+    /// As [`load`](Self::load), on an encoder already opened: the CPU
+    /// encoder, or a core bundle on a device ([`DebertaEncoder::open`]).
+    pub fn load_with(encoder: DebertaEncoder, checkpoint: &Path, id: &str, revision: &str) -> Result<Self, String> {
         let config = read_json(&checkpoint.join("config.json"))?;
         let field = |k: &str| config.get(k).and_then(Value::as_str);
         if field("counting_layer") != Some("count_lstm_v2") {
@@ -104,7 +111,6 @@ impl Gliner2Relations {
             return Err(format!("GLiNER2 token_pooling {:?}: only first is read", field("token_pooling")));
         }
         let max_width = config.get("max_width").and_then(Value::as_u64).unwrap_or(8) as usize;
-        let (_, encoder) = PackageManifest::load(encoder_package).map_err(|e| e.message)?;
         let bytes = fs::read(checkpoint.join("model.safetensors")).map_err(|e| e.to_string())?;
         let file = File::parse("GLiNER2 checkpoint", &bytes).map_err(|e| e.message)?;
         let heads = Heads::load(&file, encoder.config().hidden, max_width)?;
@@ -127,12 +133,13 @@ impl Gliner2Relations {
     /// The model from its parts; the special tokens must be inside the
     /// encoder's vocabulary.
     pub fn new(
-        encoder: Encoder,
+        encoder: impl Into<DebertaEncoder>,
         heads: Heads,
         tokenizer: SentencePiece,
         specials: Specials,
         model: ModelRef,
     ) -> Result<Self, String> {
+        let encoder = encoder.into();
         let v = encoder.config().vocabulary as u32;
         if [specials.sep_struct, specials.sep_text, specials.p, specials.r].iter().any(|&t| t >= v) {
             return Err("a GLiNER2 special token outside the encoder vocabulary".into());
@@ -145,6 +152,11 @@ impl Gliner2Relations {
 
     pub fn model(&self) -> &ModelRef {
         &self.model
+    }
+
+    /// Where the encoder runs: None for the CPU encoder itself.
+    pub fn execution(&self) -> Option<&turbo_analysis::Execution> {
+        self.encoder.execution()
     }
 
     /// The input for `labels` over `text`, without running the model.
@@ -173,27 +185,27 @@ impl Gliner2Relations {
 
 /// The encoder and the heads over a built input. The parity tests give
 /// inputs whose token ids are not a tokenizer's.
-pub fn run(encoder: &Encoder, heads: &Heads, prompt: Prompt) -> Result<Pass, RelationError> {
+pub fn run(encoder: &impl EncoderStates, heads: &Heads, prompt: Prompt) -> Result<Pass, RelationError> {
     let c = encoder.config();
     if prompt.ids.len() > c.max_sequence {
         let (max, got) = (c.max_sequence, prompt.ids.len());
         return Err(RelationError::OverLimit { limit: "encoder max_sequence", max, got });
     }
     check_prompt(&prompt)?;
-    let t = prompt.ids.len();
-    let mask = vec![true; t];
-    let hidden = encoder.encode(&prompt.ids, &mask).map_err(|e| RelationError::Scorer(e.message))?;
-    let (data, d) = (hidden.data(), hidden.width());
-    let row = |p: usize| &data[p * d..(p + 1) * d];
-    let words: Vec<f32> = prompt.word_first.iter().flat_map(|&p| row(p).iter().copied()).collect();
+    // The rows the heads read: each word's first subword, then each
+    // label's [P] and two [R] markers.
+    let at: Vec<usize> = prompt.word_first.iter().copied().chain(prompt.markers.iter().flatten().copied()).collect();
+    let mut data = Vec::new();
+    encoder.states(&prompt.ids, &at, &mut data).map_err(RelationError::Scorer)?;
+    let (d, n) = (c.hidden, prompt.word_first.len());
+    let row = |i: usize| &data[i * d..(i + 1) * d];
     let mut scratch = crate::Scratch::default();
     let mut spans = heads::Spans::default();
-    heads.spans_into(&words, prompt.word_first.len(), &mut scratch, &mut spans);
+    heads.spans_into(&data[..n * d], n, &mut scratch, &mut spans);
     let mut queries = Vec::new();
-    let labels = prompt
-        .markers
-        .iter()
-        .map(|&[p, h, tl]| {
+    let labels = (0..prompt.markers.len())
+        .map(|l| {
+            let (p, h, tl) = (n + 3 * l, n + 3 * l + 1, n + 3 * l + 2);
             let count = heads.count(row(p));
             heads.queries_of_into(&[row(h), row(tl)], count, &mut scratch, &mut queries);
             let mut logits = Vec::new();
