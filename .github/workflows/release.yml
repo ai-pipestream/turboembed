@@ -76,6 +76,8 @@ jobs:
           mkdir -p "$name/bin"
           cp target/release/turbo-kserve "$name/bin/"
           cp LICENSE "$name/licenses/LICENSE"
+          cp NOTICE "$name/licenses/NOTICE"
+          cmp NOTICE "$name/licenses/NOTICE"
           cp core/cuda/cutlass/LICENSE.txt "$name/licenses/CUTLASS-LICENSE.txt"
           cp docs/release.md "$name/README.md"
           {
@@ -148,6 +150,8 @@ jobs:
           cp target/release/libturbo.dylib "$name/lib/"
           cp include/turbo/turbo.h include/turbo/turbo_backend.h "$name/include/turbo/"
           cp LICENSE "$name/licenses/LICENSE"
+          cp NOTICE "$name/licenses/NOTICE"
+          cmp NOTICE "$name/licenses/NOTICE"
           cp docs/release.md "$name/README.md"
           {
             echo "turboembed ${tag}, commit ${GITHUB_SHA}"
@@ -205,6 +209,8 @@ jobs:
           cp target/release/turbo-kserve "$name/bin/"
           cp include/turbo/turbo.h include/turbo/turbo_backend.h "$name/include/turbo/"
           cp LICENSE "$name/licenses/LICENSE"
+          cp NOTICE "$name/licenses/NOTICE"
+          cmp NOTICE "$name/licenses/NOTICE"
           cp docs/release.md "$name/README.md"
           {
             echo "turboembed ${tag}, commit ${GITHUB_SHA}"
@@ -260,6 +266,8 @@ jobs:
           cp target/release/turbo.dll.lib "$name/lib/turbo.lib"
           cp include/turbo/turbo.h include/turbo/turbo_backend.h "$name/include/turbo/"
           cp LICENSE "$name/licenses/LICENSE"
+          cp NOTICE "$name/licenses/NOTICE"
+          cmp NOTICE "$name/licenses/NOTICE"
           cp docs/release.md "$name/README.md"
           {
             echo "turboembed ${tag}, commit ${GITHUB_SHA}"

@@ -27,6 +27,7 @@ bin/turbo-kserve           the gRPC server (docs/grpc.md), the same backends lin
 include/turbo/turbo.h      the C interface; the design
 include/turbo/turbo_backend.h
 licenses/LICENSE           Apache-2.0
+licenses/NOTICE            notices for included third-party material
 licenses/CUTLASS-LICENSE.txt   the CUTLASS headers the CUDA backend carries, BSD-3-Clause
 BUILD                      the commit, the compilers, the architectures
 README.md                  this file
@@ -55,6 +56,7 @@ lib/libturbo.dylib         the library: the metal and cpu backends, arm64
 include/turbo/turbo.h      the C interface; the design
 include/turbo/turbo_backend.h
 licenses/LICENSE           Apache-2.0
+licenses/NOTICE            notices for included third-party material
 BUILD                      the commit, the compiler, the macOS SDK
 README.md                  this file
 ```
@@ -77,6 +79,7 @@ bin/turbo-kserve           the gRPC server (docs/grpc.md), the same backend link
 include/turbo/turbo.h      the C interface; the design
 include/turbo/turbo_backend.h
 licenses/LICENSE           Apache-2.0
+licenses/NOTICE            notices for included third-party material
 BUILD                      the commit, the compilers, the glibc it was built against
 README.md                  this file
 ```
@@ -95,6 +98,7 @@ lib/turbo.lib              turbo.dll's import library, for the MSVC linker
 include/turbo/turbo.h      the C interface; the design
 include/turbo/turbo_backend.h
 licenses/LICENSE           Apache-2.0
+licenses/NOTICE            notices for included third-party material
 BUILD                      the commit and the compiler
 README.md                  this file
 ```
