@@ -612,7 +612,9 @@ characters:
 - `Misspelled` (0.9), only with a `Dictionary`: a core with no other
   finding that one OCR confusion (rn/m, vv/w, cl/d, 1/l, 0/o, 5/s) turns
   into a dictionary word. A dictionary word is never reported. No
-  dictionary ships here.
+  dictionary ships in the crate; a `SymSpell` engine built from the
+  zoo's English frequency lexicon is one (see "Frequency lexicons from
+  the zoo" under spelling correction).
 
 Findings separated only by whitespace that no exclusion covers are joined,
 keeping the worse severity and its score (the larger score when both have
@@ -1238,7 +1240,7 @@ skipped; a malformed line gives a `MalformedLine` with OpenNLP's message
 and line number). `SymSpellModel` reads and writes the binary models of
 OpenNLP's `SymSpellModelSerializer` (magic `SYMS`, format version 1,
 modified UTF-8 strings, variable-length counts) and builds an engine. No
-dictionary or model ships with the crate.
+dictionary or model ships with the crate; the zoo serves them (below).
 
 Memory layout: the words are one `Vec<String>` in the order they were
 first added, with their counts (`u64`) and code point lengths (`u32`) in
@@ -1358,6 +1360,86 @@ against OpenNLP's output, checks the alignment of both modes with
 tests check the bounded distances against the full table over 20000
 random pairs, the uppercase table against `SpecialCasing.txt`, and the
 number and URL guards against matchers written from OpenNLP's patterns.
+
+#### Frequency lexicons from the zoo
+
+The zoo's index lists SymSpell's English frequency lists as permissive
+`KIND_LEXICON` entries (docs/licences.md, "Frequency lexicons"):
+`symspell-frequency-dictionary-en-82-765` (`EN_UNIGRAMS`, 82,834 words)
+and `symspell-frequency-bigramdictionary-en-243-342` (`EN_BIGRAMS`,
+242,342 pairs). `Lexicon::fetch` (`analysis/normalize/src/spellcheck/lexicon.rs`)
+takes a `turbo_zoo::Zoo` and an id, refuses an entry that is not one
+`FORMAT_TEXT` file of kind `KIND_LEXICON`, and reads the file the zoo
+verified by size, SHA-256 and SHA-512. From the lexicons:
+
+- `SymSpell::from_lexicons(config, &unigrams, Some(&bigrams))` is the
+  engine, through the same `FrequencyDictionary` loader. `SpellCorrect`
+  takes it, `lookup_compound` scores splits with its bigrams, and the
+  noise scorer takes it as its `Dictionary` for `Misspelled`.
+- `language_model(&unigrams, &bigrams)` is the bigram
+  `NGramLanguageModel` `ContextSpellCorrector` scores with. The lists
+  count on one scale, as SymSpell's compound lookup reads them, but in
+  the tens of billions, and the model keeps `i32` counts and their `i32`
+  sum. Every count is divided by one divisor, the smallest that keeps
+  the sum in range (about 6,000 for these lists), rounded and kept at 1
+  or more. The decoder scores a pair by its count over its first word's
+  and a word by its count over the sum, so one divisor keeps both ratios
+  up to the rounding; rare words lose resolution (a count of 12,714
+  becomes 2).
+
+`turbo-normalize` depends on `turbo-zoo` without its HTTP transport; the
+caller hands the zoo its own (`turbo_zoo::Http`, or `Offline` for a
+filled cache).
+
+Tests on the real lists, in `analysis/normalize/tests/zoo_lexicons.rs`,
+ignored by default because they fetch:
+`cargo test --release -p turbo-normalize --test zoo_lexicons -- --ignored --nocapture`.
+They check the counts loaded, `SpellCorrect` on a sentence ("I beleive
+the goverment will recieve teh report tomorow." becomes "I believe the
+government will receive teh report tomorrow."; "teh" is under the
+four-character minimum) with its alignment both ways and its
+corrections layer, SymSpell's README phrase through `lookup_compound`
+(this port gives "six grade" where the README shows "sixth grade":
+"six grade" is one edit from "sixtgrade", "sixth grade" two), the
+context corrector on three sentences ("to by" to "to buy", "teh" to
+"the", "too the" to "to the"), and `Misspelled` on OCR damage.
+
+**Accuracy and speed.** The set is SymSpell's own benchmark queries
+(`symspell-noisy-query-en-1000` in the zoo index, MIT, at the same
+revision as the lists): 1,000 English words with random edits, each
+with the word meant and the distance between them (296 at distance 0,
+292 at 1, 268 at 2, 114 at 3, 30 at 4). The edits are generated, not
+human misspellings. 977 of the words meant are in the unigram list. A
+query counts as right when the answer is the word meant. Release build,
+one thread, on a 4-vCPU Intel Xeon at 2.10 GHz shared cloud container,
+2026-10-26; the timings are the range over three runs, the counts are
+exact and pinned by `accuracy_and_speed_on_the_symspell_noisy_queries`
+(`analysis/normalize/tests/zoo_lexicons/accuracy.rs`).
+
+| Corrector | Right | d0 | d1 | d2 | d3 | Per query |
+|---|---|---|---|---|---|---|
+| `lookup`, `Top`, distance 2 | 570 | 283 | 183 | 104 | 0 | 17 to 18 us |
+| `lookup`, `Top`, distance 3 | 596 | 282 | 183 | 104 | 27 | 55 to 93 us |
+| `SpellCorrect` per token, distance 2 | 565 | 290 | 171 | 104 | 0 | 36 to 39 us |
+| `ContextSpellCorrector`, one word, distance 2 | 510 | 280 | 121 | 109 | 0 | 370 to 500 us |
+| word meant among `All`, distance 2 | 835 | 282 | 287 | 266 | 0 | 91 to 100 us |
+| word meant among `All`, distance 3 | 948 | 282 | 287 | 266 | 113 | 930 to 1,180 us |
+
+Nothing reaches distance 4. Indexing the unigram list takes 0.8 to 0.9 s
+at distance 2 (676,090 delete keys) and 2.0 to 2.3 s at distance 3
+(768,921). The gap between `Top` and `All` is the frequency choice: the
+word meant is a candidate for 287 of the 292 single-edit queries, but
+the most frequent word at the smallest distance is it for 183. A
+random edit often makes a string nearer to a more common word, which no
+frequency ranking recovers without context. `SpellCorrect` keeps
+tokens under four characters (more right at distance 0, fewer at 1).
+The context corrector here sees one word per sentence, so its language
+model gives only unigram probabilities, and its edit weight lets a
+frequent word at distance 2 beat a rare one at distance 1; the set has
+no sentences to measure it in context. A set of human misspellings with
+a permissive licence was not found: Birkbeck and Norvig's sets are not
+reachable from the build container, codespell's Wikipedia-derived list
+is CC BY-SA 3.0, and the GitHub Typo Corpus follows GitHub's terms.
 
 ### Emoji (`analysis/normalize/src/emoji/mod.rs`)
 

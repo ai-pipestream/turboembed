@@ -1,4 +1,5 @@
-//! The frequency lexicons in the built-in index (#935).
+//! The frequency lexicons in the built-in index, and the misspelling set
+//! spell correction is measured on (#935).
 
 use turbo_zoo::{Format, Index, Kind, Licence, LicenceClass, Policy};
 
@@ -36,4 +37,26 @@ fn the_symspell_frequency_lists_are_pinned_and_permissive() {
         assert_eq!(notice.contains("unconfirmed"), id.contains("bigram"), "{id}");
         assert!(a.licences_to_accept(Policy::default()).is_empty(), "{id}");
     }
+}
+
+#[test]
+fn the_symspell_noisy_queries_are_pinned_and_permissive() {
+    let index = Index::builtin();
+    let a = index.get("symspell-noisy-query-en-1000").unwrap();
+    assert_eq!(
+        (a.kind, a.format, a.license, a.class),
+        (Kind::Dataset, Format::Text, Licence::Mit, LicenceClass::Permissive)
+    );
+    let revision = "c239062ae02961df18ab7da1671d01b4388204e0";
+    assert_eq!(a.version, revision);
+    assert!(a.trained_on.is_empty());
+    assert_eq!(a.files.len(), 1);
+    assert_eq!(
+        a.files[0].url.as_str(),
+        format!(
+            "https://raw.githubusercontent.com/wolfgarbe/SymSpell/{revision}/SymSpell.Benchmark/test_data/noisy_query_en_1000.txt"
+        )
+    );
+    assert!(a.attribution.as_deref().unwrap().contains(revision));
+    assert!(a.licences_to_accept(Policy::default()).is_empty());
 }
