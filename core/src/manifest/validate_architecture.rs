@@ -13,11 +13,11 @@ impl Manifest {
                 ("heads", a.heads),
                 ("intermediate", a.intermediate),
                 ("max_positions", a.max_positions),
-                ("token_types", a.token_types),
                 ("vocab_size", a.vocab_size),
             ] {
                 positive(&format!("architecture.{field}"), v)?;
             }
+            self.validate_positions(a)?;
             if a.hidden % a.heads != 0 {
                 return Err(invalid(format!(
                     "manifest.json: architecture.heads: {} does not divide hidden {}",

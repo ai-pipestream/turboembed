@@ -171,5 +171,6 @@ pub fn from_receipt(bytes: &[u8], m: &Measurement, iterations: u32, command: Vec
             computed_tokens: Some(rows.padded_tokens()),
         }),
         not_run: None,
+        kernel_time: None,
     })
 }

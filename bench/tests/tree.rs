@@ -2,12 +2,15 @@
 //! under benchmarks/records, benchmarks/records/postag,
 //! benchmarks/records/tag, benchmarks/records/throughput and
 //! benchmarks/ranges are what their names say, the README and the
-//! docs point at files that exist, and no committed text names a home
-//! directory on one of our machines.
+//! docs point at files that exist, no committed text names a home
+//! directory on one of our machines, and the demo has no JSON front end
+//! (tree/front_end.rs).
 
 mod common;
 #[path = "tree/dependencies.rs"]
 mod dependencies;
+#[path = "tree/front_end.rs"]
+mod front_end;
 
 use std::path::{Path, PathBuf};
 
@@ -237,7 +240,7 @@ fn the_committed_text_carries_no_host_path() {
     files.extend(committed_postag_records().iter().map(|(n, _)| root.join(postag::POSTAG_DIR).join(n)));
     files.extend(committed_tag_records().iter().map(|(n, _)| root.join(tag::TAG_DIR).join(n)));
     files.extend(committed_throughput_records().iter().map(|(n, _)| root.join(throughput::THROUGHPUT_DIR).join(n)));
-    for dir in ["bundle/recipes", "include/turbo", ".github/workflows"] {
+    for dir in ["bundle/recipes", "include/turbo", ".github/workflows", "demo/web", "demo/web/src/gen"] {
         if let Ok(rd) = std::fs::read_dir(root.join(dir)) {
             files.extend(rd.map(|e| e.unwrap().path()).filter(|p| p.is_file()));
         }
@@ -278,13 +281,13 @@ fn obsolete_source_tree_is_absent() {
 }
 
 #[test]
-fn committed_rust_and_markdown_have_no_literal_em_dash() {
+fn committed_rust_markdown_and_typescript_have_no_literal_em_dash() {
     let root = workspace();
     let out = std::process::Command::new("git")
         .current_dir(&root)
-        .args(["ls-files", "-z", "--", ":(glob)**/*.rs", ":(glob)**/*.md"])
+        .args(["ls-files", "-z", "--", ":(glob)**/*.rs", ":(glob)**/*.md", ":(glob)**/*.ts"])
         .output()
-        .expect("git lists Rust and Markdown sources");
+        .expect("git lists Rust, Markdown and TypeScript sources");
     assert!(out.status.success());
     let paths = String::from_utf8(out.stdout).unwrap();
     let mut found = Vec::new();
@@ -297,4 +300,62 @@ fn committed_rust_and_markdown_have_no_literal_em_dash() {
     }
     assert!(seen > 100, "only {seen} source files scanned");
     assert!(found.is_empty(), "literal em dashes in {}", found.join(", "));
+}
+
+#[test]
+fn core_and_analysis_external_dependencies_are_allowlisted() {
+    const ALLOWED: &[&str] = &[
+        "flate2",
+        "libc",
+        "libloading",
+        "memmap2",
+        "serde",
+        "serde_json",
+        "serde_path_to_error",
+        "sha2",
+        "tempfile",
+        "tokenizers",
+        "turbovec",
+        "ureq",
+    ];
+    let root = workspace();
+    let mut paths = vec!["core/Cargo.toml".to_owned()];
+    let out = std::process::Command::new("git")
+        .current_dir(&root)
+        .args(["ls-files", "-z", "--", ":(glob)analysis/*/Cargo.toml"])
+        .output()
+        .expect("git lists analysis manifests");
+    assert!(out.status.success());
+    paths.extend(String::from_utf8(out.stdout).unwrap().split('\0').filter(|p| !p.is_empty()).map(str::to_owned));
+    let mut found = Vec::new();
+    for path in &paths {
+        let text = std::fs::read_to_string(root.join(path)).unwrap();
+        let mut dependencies = false;
+        for line in text.lines() {
+            let line = line.split('#').next().unwrap().trim();
+            if line.starts_with('[') {
+                dependencies = matches!(line, "[dependencies]" | "[dev-dependencies]" | "[build-dependencies]")
+                    || line.ends_with(".dependencies]");
+                continue;
+            }
+            if !dependencies {
+                continue;
+            }
+            let Some((name, value)) = line.split_once('=') else { continue };
+            let name = name.trim();
+            if !value.contains("path =") && !ALLOWED.contains(&name) {
+                found.push(format!("{path}: {name}"));
+            }
+            if matches!(path.as_str(), "core/Cargo.toml" | "analysis/calibration/Cargo.toml")
+                && matches!(
+                    name,
+                    "sha2" | "unicode-normalization-alignments" | "unicode_categories" | "unicode-segmentation"
+                )
+            {
+                found.push(format!("{path}: removed dependency {name} returned"));
+            }
+        }
+    }
+    assert!(paths.len() > 50, "only {} manifests scanned", paths.len());
+    assert!(found.is_empty(), "unauthorized external dependencies:\n  {}", found.join("\n  "));
 }

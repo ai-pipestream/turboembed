@@ -438,9 +438,8 @@ jobs:
           distribution: temurin
           java-version: "17"
           cache: maven
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      # uv provides the build Python and the oldest one the wheel declares.
+      - uses: astral-sh/setup-uv@v7
       - name: build the server, package protos and client stubs, and smoke-test Java and Python clients
         run: |
           cargo build --locked --release -p turbo-kserve

@@ -17,6 +17,7 @@ fn disabled(name: &str, role: &str, flag: &str) -> ReferenceRun {
         procedure: String::new(),
         measured: None,
         not_run: Some(format!("disabled on the command line ({flag})")),
+        kernel_time: None,
     }
 }
 

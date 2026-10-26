@@ -12,9 +12,9 @@ use turbo::tokenizer::{Encode, Tokenizer};
 use turbo::turbo_token_range;
 use turbo_analysis::annotate::Step;
 use turbo_analysis::registry::{Provider, Spec};
-use turbo_analysis::{Annotator, Bound, Error, Execution, ModelRef, Refs, Span, Spans, View};
+use turbo_analysis::{Annotator, Bound, Error, Execution, ModelRef, Refs, Span, Spans, View, ViewId};
 use turbo_analysis_embed::{Device, Encoder, EncoderOptions, Precision, Rows};
-use turbo_analysis_layers::Sentences;
+use turbo_analysis_layers::{Sentences, Subwords};
 
 use crate::cuts::{self, Window};
 use crate::head::{BOUNDARY_LABEL, Head};
@@ -224,7 +224,17 @@ impl SatAnnotator {
     /// of only whitespace has no tokens read, as wtpsplit reads none. One
     /// result per text.
     pub fn scores(&self, texts: &[&str]) -> Vec<Result<Scored, Error>> {
-        let mut docs: Vec<Result<Doc, Error>> = texts.iter().map(|t| self.tokens(t)).collect();
+        self.scores_with(&texts.iter().map(|t| (*t, ViewId::SOURCE, None)).collect::<Vec<_>>())
+    }
+
+    fn scores_with(&self, inputs: &[(&str, ViewId, Option<&Subwords>)]) -> Vec<Result<Scored, Error>> {
+        let mut docs: Vec<Result<Doc, Error>> = inputs
+            .iter()
+            .map(|(text, view, subwords)| match subwords {
+                Some(subwords) => self.subword_doc(text, *view, subwords),
+                None => self.tokens(text),
+            })
+            .collect();
         if let Err(e) = self.encode(&mut docs) {
             let e = Error::Annotator { annotator: Self::ID, detail: e.to_string() };
             for d in docs.iter_mut().filter(|d| d.is_ok()) {
@@ -275,6 +285,28 @@ impl SatAnnotator {
         self.tokenizer
             .encode_spans(text, opts, &mut d.ids, &mut d.spans)
             .map_err(|e| Error::Annotator { annotator: Self::ID, detail: e.to_string() })?;
+        if let Some(w) = self.word_start {
+            cuts::place_prefix(text, w, &d.ids, &mut d.spans);
+        }
+        d.sums = vec![0.0; d.ids.len()];
+        d.counts = vec![0; d.ids.len()];
+        Ok(d)
+    }
+
+    fn subword_doc(&self, text: &str, view: ViewId, subwords: &Subwords) -> Result<Doc, Error> {
+        let fail = |detail: String| Error::Annotator { annotator: Self::ID, detail };
+        turbo_analysis::Layer::check(subwords).map_err(fail)?;
+        if subwords.spans.view() != view {
+            return Err(fail("the subwords are in another view".into()));
+        }
+        if subwords.model != self.model {
+            return Err(fail("the subwords are from another model".into()));
+        }
+        let mut d = Doc { ids: subwords.ids.clone(), ..Doc::default() };
+        d.spans = subwords.spans.iter().map(|(_, span)| [span.start, span.end]).collect();
+        if d.spans.iter().any(|s| s[1] as usize > text.len()) {
+            return Err(fail("a subword is outside the view text".into()));
+        }
         if let Some(w) = self.word_start {
             cuts::place_prefix(text, w, &d.ids, &mut d.spans);
         }
@@ -336,7 +368,7 @@ impl SatAnnotator {
 
 impl Annotator for SatAnnotator {
     const ID: &'static str = "turbo:sat";
-    type Reads = (View,);
+    type Reads = (View, Option<Subwords>);
     type Writes = (Sentences,);
 
     fn annotate(&self, input: Refs<'_, Self>) -> Result<(Sentences,), Error> {
@@ -344,14 +376,15 @@ impl Annotator for SatAnnotator {
     }
 
     fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<(Sentences,), Error>> {
-        let texts: Vec<&str> = inputs.iter().map(|(v,)| v.text()).collect();
-        let scored = self.scores(&texts);
+        let layers: Vec<(&str, ViewId, Option<&Subwords>)> =
+            inputs.iter().map(|(v, s)| (v.text(), v.id(), *s)).collect();
+        let scored = self.scores_with(&layers);
         let mut out = Vec::with_capacity(inputs.len());
         let mut found = Vec::new();
-        for (((view,), text), s) in inputs.iter().zip(&texts).zip(scored) {
+        for ((view, _), s) in inputs.iter().zip(scored) {
             out.push(s.map(|(spans, scores)| {
                 found.clear();
-                self.sentences(text, &spans, &scores, &mut found);
+                self.sentences(view.text(), &spans, &scores, &mut found);
                 let mut col = Spans::with_capacity(view.id(), found.len());
                 for &f in &found {
                     col.push(f);
@@ -388,73 +421,8 @@ fn config_hash(o: &SatOptions, threshold: f64, block: u32, stride: u32) -> u64 {
         .finish()
 }
 
-/// Offers `SatAnnotator` to pipelines built from configuration, as "sat".
-/// The spec's location is the bundle directory; its options:
-///
-/// - `threshold`: a probability; by default 0.025 for a model of limited
-///   lookahead and 0.25 for the others, as wtpsplit picks;
-/// - `stride` (0, which is 64 or the block size when that is smaller)
-///   and `block_size` (0, all a row has room for), in tokens;
-/// - `newlines`: `split` (the default) to end a sentence at every line
-///   feed, or `model` to leave them to the model;
-/// - `device`: `cpu` (the default), `select`, a device index, or a backend
-///   name such as `cuda`;
-/// - `precision`: `model` (the default), `fastest` or `exact`.
-pub struct SatProvider;
-
-fn parse_options(spec: &Spec) -> Result<SatOptions, String> {
-    fn number<T: std::str::FromStr>(spec: &Spec, key: &str, default: &str) -> Result<T, String> {
-        let v = spec.option(key, default);
-        v.parse().map_err(|_| format!("{key} {v:?} is not a number"))
-    }
-    let device = match spec.option("device", "cpu") {
-        "cpu" => Device::Cpu,
-        "select" => Device::Select,
-        d => match d.parse() {
-            Ok(i) => Device::Index(i),
-            Err(_) => Device::Backend(d.to_owned()),
-        },
-    };
-    let precision = match spec.option("precision", "model") {
-        "model" => Precision::Model,
-        "fastest" => Precision::Fastest,
-        "exact" => Precision::Exact,
-        p => return Err(format!("precision {p:?}: model, fastest or exact")),
-    };
-    let split_on_newlines = match spec.option("newlines", "split") {
-        "split" => true,
-        "model" => false,
-        n => return Err(format!("newlines {n:?}: split or model")),
-    };
-    Ok(SatOptions {
-        encoder: EncoderOptions { device, precision, ..EncoderOptions::default() },
-        threshold: match spec.option("threshold", "") {
-            "" => None,
-            _ => Some(number(spec, "threshold", "")?),
-        },
-        stride: number(spec, "stride", "0")?,
-        block_size: number(spec, "block_size", "0")?,
-        split_on_newlines,
-        label: BOUNDARY_LABEL,
-    })
-}
-
-impl Provider<dyn Step> for SatProvider {
-    fn name(&self) -> &'static str {
-        "sat"
-    }
-
-    fn supports(&self, spec: &Spec) -> bool {
-        spec.location.is_some()
-    }
-
-    fn create(&self, spec: &Spec) -> Result<Box<dyn Step>, Error> {
-        let dir = spec.location.as_deref().ok_or_else(|| Error::Pipeline("sat: no bundle location".into()))?;
-        let o = parse_options(spec).map_err(|e| Error::Pipeline(format!("sat: {e}")))?;
-        let a = SatAnnotator::open(dir, &o).map_err(|e| Error::Pipeline(format!("sat: {}: {e}", dir.display())))?;
-        Ok(Box::new(Bound::new(a)))
-    }
-}
+mod provider;
+pub use provider::SatProvider;
 
 #[cfg(test)]
 mod tests {

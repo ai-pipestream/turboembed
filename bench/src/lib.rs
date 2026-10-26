@@ -241,9 +241,15 @@ pub fn report(r: &Record) -> String {
                     }
                     None => String::new(),
                 };
+                let kernels = x.kernel_time.as_ref().map_or(String::new(), |k| {
+                    format!(
+                        "; its GPU kernels, profiled over {} requests: p50 {:.4} ms, p99 {:.4} ms, copies p50 {:.4} ms",
+                        k.requests, k.p50_ms, k.p99_ms, k.copy_p50_ms
+                    )
+                });
                 format!(
                     "{} ({}): p50 {:.4} ms, p99 {:.4} ms{server} on {rows}: {computed} token positions computed of \
-                     {live} live\n",
+                     {live} live{kernels}\n",
                     x.name, x.role, m.p50_ms, m.p99_ms
                 )
             }
