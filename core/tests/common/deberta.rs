@@ -41,6 +41,44 @@ pub const SMALL: Shape = Shape {
     scale: Some(0.04),
 };
 
+/// Head width 32: hidden 128, four heads, two layers, 32 buckets.
+pub const HEADS_32: Shape = Shape {
+    hidden: 128,
+    heads: 4,
+    intermediate: 256,
+    layers: 2,
+    buckets: 32,
+    max_relative_positions: 128,
+    scale: Some(0.1),
+};
+
+/// Head width 128: hidden 256, two heads, two layers, 64 buckets.
+pub const HEADS_128: Shape = Shape {
+    hidden: 256,
+    heads: 2,
+    intermediate: 512,
+    layers: 2,
+    buckets: 64,
+    max_relative_positions: 256,
+    scale: Some(0.08),
+};
+
+/// Head width 64 over 256 buckets reaching only 300 positions: past the
+/// midpoint a distance may skip a relative row, so a tile reaches more
+/// rows than it spans distances.
+pub const STEEP_300: Shape = Shape {
+    hidden: 128,
+    heads: 2,
+    intermediate: 256,
+    layers: 2,
+    buckets: 256,
+    max_relative_positions: 300,
+    scale: Some(0.1),
+};
+
+/// The same, reaching 200 positions: steeper still.
+pub const STEEP_200: Shape = Shape { max_relative_positions: 200, ..STEEP_300 };
+
 /// Every tensor of `s` in safetensors order.
 pub fn weights(s: &Shape) -> Vec<Tensor> {
     let (h, i) = (s.hidden, s.intermediate);
