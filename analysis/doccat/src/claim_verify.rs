@@ -86,23 +86,25 @@ const STOP: [&str; 24] = [
     "with", "that", "this", "at", "as", "will",
 ];
 
+/// The unit's content words. Token forms (folded when `Terms` are
+/// present) split on non-alphanumerics like the plain text does, so
+/// punctuation tokens add nothing to the bag.
 fn words(text: &str, unit: Span, tokens: Option<&Tokens>, terms: Option<&Terms>) -> HashSet<String> {
-    if let Some(tokens) = tokens {
-        return tokens
+    let content = |form: &str| -> Vec<String> {
+        form.split(|c: char| !c.is_alphanumeric())
+            .map(str::to_lowercase)
+            .filter(|w| !w.is_empty() && !STOP.contains(&w.as_str()))
+            .collect()
+    };
+    match tokens {
+        Some(tokens) => tokens
             .spans
             .iter()
             .filter(|(_, span)| unit.start <= span.start && span.end <= unit.end)
-            .map(|(i, span)| {
-                if let Some(terms) = terms { terms.get(i).folded.to_owned() } else { text[span.range()].to_lowercase() }
-            })
-            .filter(|w| !w.is_empty() && !STOP.contains(&w.as_str()))
-            .collect();
+            .flat_map(|(i, span)| content(terms.map_or(&text[span.range()], |terms| terms.get(i).folded)))
+            .collect(),
+        None => content(&text[unit.range()]).into_iter().collect(),
     }
-    text[unit.range()]
-        .split(|c: char| !c.is_alphanumeric())
-        .map(str::to_lowercase)
-        .filter(|w| !w.is_empty() && !STOP.contains(&w.as_str()))
-        .collect()
 }
 
 fn cosine(a: &[f32], b: &[f32]) -> Option<f32> {
@@ -111,9 +113,17 @@ fn cosine(a: &[f32], b: &[f32]) -> Option<f32> {
     (na > 0.0 && nb > 0.0).then(|| (turbo_analysis::math::dot_f64(a, b) / (na * nb)) as f32)
 }
 
+/// A non-finite row falls back to the plain formula, so NaN or `+inf`
+/// gives NaN probabilities and no edge, and `-inf` gives probability 0,
+/// as before `turbo::head::softmax` was used here.
 fn softmax(logits: &[f32]) -> Vec<f64> {
     let mut out = vec![0.0; logits.len()];
-    turbo::head::softmax(logits, &mut out).expect("a finite logit row");
+    if turbo::head::softmax(logits, &mut out).is_err() {
+        let max = logits.iter().map(|&l| f64::from(l)).fold(f64::NEG_INFINITY, f64::max);
+        let exp: Vec<f64> = logits.iter().map(|&l| (f64::from(l) - max).exp()).collect();
+        let sum: f64 = exp.iter().sum();
+        out = exp.iter().map(|e| e / sum).collect();
+    }
     out
 }
 
@@ -204,6 +214,20 @@ impl<S: NliScorer + Send + Sync + 'static, L: SpanCategorizable> Annotator for C
         let spans: Vec<Span> = (0..units.len()).map(|i| units.span_at(i)).collect();
         if spans.iter().any(|s| s.end as usize > text.len()) {
             return Err(Self::fail("a unit outside the view text".into()));
+        }
+        if let Some(tokens) = tokens {
+            if tokens.spans.view() != view.id()
+                || tokens.spans.iter().any(|(_, s)| {
+                    s.end as usize > text.len()
+                        || !text.is_char_boundary(s.start as usize)
+                        || !text.is_char_boundary(s.end as usize)
+                })
+            {
+                return Err(Self::fail("the tokens are not in the units' view text".into()));
+            }
+            if terms.is_some_and(|t| t.folded.len() != tokens.spans.len()) {
+                return Err(Self::fail("the terms do not have one entry per token".into()));
+            }
         }
         let texts: Vec<&str> = spans.iter().map(|s| &text[s.start as usize..s.end as usize]).collect();
         let budget = self.scorer.max_pair_tokens() as usize;
