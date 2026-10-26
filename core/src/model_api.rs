@@ -12,7 +12,7 @@ pub(super) fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
     if bundle.manifest.rerank.is_some() && !b.runs_rerank() {
         return Err(Error::new(
             status::UNSUPPORTED_TASK,
-            format!("rerank has run on the CPU and CUDA only, not the {} backend", b.name()),
+            format!("rerank has run on the CPU, CUDA and Level Zero only, not the {} backend", b.name()),
         ));
     }
     if bundle.manifest.qa.is_some() && backend::offered!(b, embed_write_ranges).is_err() {
@@ -27,6 +27,7 @@ pub(super) fn load_model(ctx: &turbo_context, path: &str) -> Result<Model> {
     let index = model::choose(m, b.name(), b.formats(), &arch)?; // rule 6
     let weights = model::Weights::load(&bundle, index)?; // rules 7 and 8
     model::runs_band(b.name(), weights.lookahead)?;
+    model::runs_family(b.name(), weights.family())?;
     let art = &m.artifacts[index];
 
     let e = m.encoder();

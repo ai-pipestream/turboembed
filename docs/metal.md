@@ -447,11 +447,36 @@ alternating order (the machine's 5-minute load average 3 to 5):
 | hidden 384, layer 0 past F16 | 1 x 128 | refused | 3.49 / 3.19 | 4.80 / 4.37 |
 
 FASTEST before ran these heads in the F32 narrow kernel; the F16 one is
-2.6x to 4.4x faster on them (by p50 or by least). A model with one layer past F16's range,
-refused at FASTEST before, now runs it about 1.4x faster than EXACT.
+2.6x to 4.4x faster on them (by p50 or by least). A model with one
+layer past F16's range, refused at FASTEST before, now runs it about
+1.4x faster than EXACT.
 The kernels for heads a multiple of 8 up to 64 are unchanged:
 all-minilm-l6-v2 and bge-base-en-v1.5 give main's vectors bit for bit at
 MODEL and FASTEST.
+
+### LayerNorm in registers, not kept
+
+`embed_layer_norm` and `add_layer_norm` read each row from device memory
+three times (the mean, the variance, the output). A version that held
+rows of up to 1024 values in registers, 32 to a lane, read each once
+and gave main's vectors bit for bit (all-minilm-l6-v2, bge-base-en-v1.5
+and the tiny bundle, MODEL and FASTEST, 1 x 128 to 32 x 256). It was
+slower. all-minilm-l6-v2 at FASTEST, dense rows, p50 in ms, two
+`turbo-bench record` rounds in alternating order:
+
+| Rows | main | registers |
+|---|---|---|
+| 32 x 256 | 104.6, 100.8 | 109.4, 105.0 |
+| 8 x 128 | 12.28, 12.17 | 13.04, 12.93 |
+| 2 x 128 | 3.67, 3.56 | 3.99, 4.10 |
+| 1 x 128 | 2.28, 2.29 | 2.42, 2.41 |
+
+Sized to the width (12 values to a lane for hidden 384) it was level
+with main, within the rounds' spread, and at bge-base-en-v1.5's 768 the
+32-value version was level as well. LayerNorm is a small part of a
+layer, so the reads saved do not show, and the larger register file a
+lane needs costs more than they save. `core/tests/metal_ranges.rs`
+keeps a test at widths around 1024 for any later try.
 
 ## Testing
 
