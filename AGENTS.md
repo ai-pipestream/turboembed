@@ -10,6 +10,7 @@ These rules apply to the whole repository. Follow the pull request template and 
 - Where a stage must match an upstream tokenizer, its character classes follow that upstream's Unicode version, not `turbo-unicode`'s newer data. The core's BPE split classes are checked against upstream's own engine for every scalar; do not narrow that check to samples.
 - Keep the flow minimal: text or model input, normalization, tokenization, subwords, then embeddings. Reuse existing `View`, `Tokens`, `Subwords`, and span data. Do not re-tokenize compatible inputs or allocate synthetic joined strings merely to feed another stage.
 - Prefer borrowed slices and zero-copy data flow where the existing interfaces permit them.
+- There is no JSON front end. Protobuf is the only contract between a browser and the server. Browser clients are generated Connect-ES clients (`@bufbuild/protoc-gen-es`, `@connectrpc/connect-web`) using the binary codec (`application/proto`, `application/connect+proto`) through the demo's allowlisted Connect proxy, as `POST /<package>.<Service>/<Method>`. The one exception is raw file uploads, which are `HTTP PUT` of binary frames to the proxy's upload endpoints (#1377), up to the 2 GiB request cap. No `/api/*` JSON, NDJSON or SSE routes, no serde derives on generated proto types, and no hand-written JSON or base64 mapping of proto messages. A JSON layer in the request path becomes the contract people work to, and protobuf erodes behind it. `bench/tests/tree.rs` checks the parts of this that can be checked exactly (docs/demo.md).
 
 ## Hygiene
 
