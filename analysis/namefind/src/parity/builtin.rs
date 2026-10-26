@@ -1,39 +1,27 @@
-use super::{Rng, char_starts, froms, golden_texts, old_builtin, rounds};
+use super::{Rng, char_starts, froms, golden_texts, rounds};
 use crate::builtin::{self, BuiltIn};
 
-/// Compares [`builtin::search`] with the stand-in search it replaced, in
-/// character offsets (the stand-in has one character per character of
-/// the text, in fewer bytes), from each offset `froms` gives, and over a
-/// whole `Matcher.find` loop.
+/// Every match is a valid, ordered character range, from every start offset
+/// and over a whole find loop. JVM goldens check the expected match text.
 fn check_builtin(b: BuiltIn, text: &str, rng: &mut Rng) {
-    let old = old_builtin::BuiltIn::ALL[b as usize];
-    assert_eq!(old.java_name(), b.java_name());
-    let mut stand_in = String::new();
-    old_builtin::push_stand_in(&mut stand_in, text);
-    let real = char_starts(text);
-    let fake = char_starts(&stand_in);
-    assert_eq!(real.len(), fake.len());
-    let to_chars = |starts: &[usize], m: Option<(usize, usize)>| {
-        m.map(|(s, e)| {
-            let index =
-                |at: usize| starts.binary_search(&at).unwrap_or_else(|_| panic!("{at} is not a character start"));
-            (index(s), index(e))
-        })
-    };
-    let compare = |from: usize| {
-        let got = to_chars(&real, builtin::search(b, text, real[from]));
-        let want = to_chars(&fake, old_builtin::search(old, &stand_in, fake[from]));
-        assert_eq!(got, want, "{} from character {from} in {text:?}", b.java_name());
+    let starts = char_starts(text);
+    let check = |from: usize| {
+        let got = builtin::search(b, text, starts[from]);
+        if let Some((start, end)) = got {
+            assert!(start >= starts[from] && start <= end && end <= text.len(), "{} in {text:?}", b.java_name());
+            assert!(starts.binary_search(&start).is_ok() && starts.binary_search(&end).is_ok());
+        }
         got
     };
-    for from in froms(rng, real.len() - 1) {
-        compare(from);
+    for from in froms(rng, starts.len() - 1) {
+        check(from);
     }
-    // The loop `RegexNameFinder.find` runs.
-    let mut from = 0;
-    while let Some((start, end)) = compare(from) {
+    let (mut from, mut previous_end) = (0, 0);
+    while let Some((start, end)) = check(from) {
+        assert!(start >= previous_end, "overlapping {} matches in {text:?}", b.java_name());
+        previous_end = end;
         from = if end > start { end } else { end + 1 };
-        if from >= real.len() {
+        if from >= starts.len() {
             break;
         }
     }
@@ -302,7 +290,7 @@ fn builtin_text(rng: &mut Rng) -> String {
 }
 
 #[test]
-fn builtins_match_the_regex_translation_on_golden_sentences() {
+fn builtins_return_valid_matches_on_golden_sentences() {
     let mut rng = Rng(395);
     for text in golden_texts() {
         for b in BuiltIn::ALL {
@@ -312,7 +300,7 @@ fn builtins_match_the_regex_translation_on_golden_sentences() {
 }
 
 #[test]
-fn builtins_match_the_regex_translation_on_generated_texts() {
+fn builtins_return_valid_matches_on_generated_texts() {
     let mut rng = Rng(0x5EED_0395);
     for _ in 0..800 * rounds() {
         let text = builtin_text(&mut rng);

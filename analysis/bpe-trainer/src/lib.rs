@@ -105,9 +105,31 @@ impl fmt::Display for TrainError {
 
 impl std::error::Error for TrainError {}
 
-/// `s` as a JSON string, escaped as serde_json escapes it.
+/// `s` as an RFC 8259 JSON string.
 pub(crate) fn json_string(s: &str) -> String {
-    serde_json::to_string(s).expect("a string serializes")
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut out = String::with_capacity(s.len() + 2);
+    out.push('"');
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\u{8}' => out.push_str("\\b"),
+            '\u{c}' => out.push_str("\\f"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            '\u{0}'..='\u{1f}' => {
+                let n = c as usize;
+                out.push_str("\\u00");
+                out.push(HEX[n >> 4] as char);
+                out.push(HEX[n & 15] as char);
+            }
+            _ => out.push(c),
+        }
+    }
+    out.push('"');
+    out
 }
 
 #[cfg(test)]
@@ -117,5 +139,13 @@ mod tests {
     #[test]
     fn train_error_coverage_nan_is_reflexive() {
         assert_eq!(TrainError::Coverage(f32::NAN), TrainError::Coverage(f32::NAN));
+    }
+
+    #[test]
+    fn json_strings_escape_controls_and_preserve_unicode() {
+        assert_eq!(json_string("a\"b\\c"), r#""a\"b\\c""#);
+        assert_eq!(json_string("\u{8}\u{c}\n\r\t"), r#""\b\f\n\r\t""#);
+        assert_eq!(json_string("\0\u{1}\u{b}\u{1f}"), "\"\\u0000\\u0001\\u000b\\u001f\"");
+        assert_eq!(json_string("é 日本 😀"), "\"é 日本 😀\"");
     }
 }

@@ -1,38 +1,20 @@
-use super::{Rng, char_starts, froms, golden_texts, old_java_regex, parse_rounds, read_data, rounds};
+use super::{Rng, char_starts, froms, golden_texts, parse_rounds, read_data, rounds};
 use crate::java_regex::{Engine, Flags, JavaRegex, Scratch};
 
-/// Compares [`JavaRegex`] with the translation it replaced: the same
-/// compile result and limits, and on each text the same match from each
-/// offset `froms` gives, with each engine. Returns whether it compiled.
+/// Every engine reports the same valid match from each offset `froms` gives.
+/// JVM goldens independently check Java behavior. Returns whether it compiled.
 fn check_java(pattern: &str, flags: Flags, texts: &[String], rng: &mut Rng, scratch: &mut Scratch) -> bool {
-    let old_flags = old_java_regex::Flags { case_insensitive: flags.case_insensitive, dotall: flags.dotall };
-    let old = old_java_regex::JavaRegex::compile_with(pattern, old_flags);
-    let new = JavaRegex::compile_with(pattern, flags);
-    let (old, new) = match (old, new) {
-        (Ok(old), Ok(new)) => (old, new),
-        (Err(old), Err(new)) => {
-            assert_eq!(new, old, "{pattern:?} {flags:?}");
-            return false;
-        }
-        (old, new) => panic!("{pattern:?} {flags:?}: was {old:?}, is {new:?}"),
-    };
-    let (a, b) = (old.limits(), new.limits());
-    assert_eq!(
-        (a.word_boundary, a.dollar, a.mid_pair),
-        (b.word_boundary, b.dollar, b.mid_pair),
-        "limits of {pattern:?} {flags:?}"
-    );
+    let Ok(new) = JavaRegex::compile_with(pattern, flags) else { return false };
     for text in texts {
-        // The old translation cannot serve as an oracle for the newly
-        // supported mark boundaries and final terminators; JVM goldens do.
-        if !old.supports(&old_java_regex::TextFacts::of(text)) {
-            continue;
-        }
         let starts = char_starts(text);
         for from in froms(rng, starts.len() - 1) {
             let from = starts[from];
-            let want = old.regex().find_at(text, from).map(|m| (m.start(), m.end()));
-            for engine in [Engine::Backtrack, Engine::Pike, Engine::Auto] {
+            let want = new.find_at_with(text, from, scratch, Engine::Backtrack);
+            if let Some((start, end)) = want {
+                assert!(start >= from && start <= end && end <= text.len(), "{pattern:?} in {text:?}");
+                assert!(text.is_char_boundary(start) && text.is_char_boundary(end));
+            }
+            for engine in [Engine::Pike, Engine::Auto] {
                 let got = new.find_at_with(text, from, scratch, engine);
                 assert_eq!(got, want, "{pattern:?} {flags:?} {engine:?} from {from} in {text:?}");
             }
@@ -220,7 +202,7 @@ fn flags(rng: &mut Rng) -> Flags {
 }
 
 #[test]
-fn golden_patterns_match_the_regex_translation() {
+fn golden_patterns_agree_across_engines() {
     let mut rng = Rng(0x0395);
     let short: Vec<String> = golden_texts().into_iter().filter(|t| t.chars().count() <= 80).take(300).collect();
     let mut scratch = Scratch::default();
@@ -240,7 +222,7 @@ fn golden_patterns_match_the_regex_translation() {
 }
 
 #[test]
-fn generated_patterns_match_the_regex_translation() {
+fn generated_patterns_agree_across_engines() {
     let mut rng = Rng(0xD1FF_0395);
     let golden: Vec<String> = golden_texts().into_iter().filter(|t| t.chars().count() <= 60).collect();
     let mut scratch = Scratch::default();

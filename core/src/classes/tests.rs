@@ -15,12 +15,10 @@ fn ranges_are_ordered_disjoint_unicode_scalars() {
 }
 
 pub(crate) fn write_classes() {
-    let ranges = |pattern: &str| {
-        let re = regex::Regex::new(pattern).unwrap();
+    let ranges = |wanted: fn(char) -> bool| {
         let mut out: Vec<(u32, u32)> = Vec::new();
         for c in (0..=0x10ffff).filter_map(char::from_u32) {
-            let mut buf = [0u8; 4];
-            if re.is_match(c.encode_utf8(&mut buf)) {
+            if wanted(c) {
                 match out.last_mut() {
                     Some(r) if r.1 + 1 == c as u32 => r.1 = c as u32,
                     _ => out.push((c as u32, c as u32)),
@@ -29,8 +27,8 @@ pub(crate) fn write_classes() {
         }
         out
     };
-    let letters = ranges(r"^\p{L}$");
-    let numbers = ranges(r"^\p{N}$");
+    let letters = ranges(|c| turbo_unicode::category::general_category(c).is_letter());
+    let numbers = ranges(|c| turbo_unicode::category::general_category(c).is_number());
     let middle = letters.len().div_ceil(2);
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/classes");
     for (file, table) in

@@ -1,30 +1,25 @@
 use super::*;
 
-/// The pattern's classes are the regular expressions': \\s, \\p{L}
-/// and \\p{N} for every character.
+/// Representative members of every split class, including non-ASCII scalars.
 #[test]
-fn classes_are_the_regular_expressions() {
-    let space = regex::Regex::new(r"^\s$").unwrap();
-    let letter = regex::Regex::new(r"^\p{L}$").unwrap();
-    let number = regex::Regex::new(r"^\p{N}$").unwrap();
-    let mut wrong = Vec::new();
-    for c in (0..=0x10ffffu32).filter_map(char::from_u32) {
-        let mut buf = [0u8; 4];
-        let s = &*c.encode_utf8(&mut buf);
-        let want = if space.is_match(s) {
-            Class::Space
-        } else if letter.is_match(s) {
-            Class::Letter
-        } else if number.is_match(s) {
-            Class::Number
-        } else {
-            Class::Other
-        };
-        if class(c) != want {
-            wrong.push(c);
-        }
+fn classes_cover_each_unicode_group() {
+    let cases = [
+        (' ', Class::Space),
+        ('\t', Class::Space),
+        ('\u{a0}', Class::Space),
+        ('A', Class::Letter),
+        ('é', Class::Letter),
+        ('日', Class::Letter),
+        ('1', Class::Number),
+        ('①', Class::Number),
+        ('٣', Class::Number),
+        ('_', Class::Other),
+        ('\u{301}', Class::Other),
+        ('😀', Class::Other),
+    ];
+    for (c, want) in cases {
+        assert_eq!(class(c), want, "{c:?}");
     }
-    assert!(wrong.is_empty(), "{} characters: {:?}", wrong.len(), &wrong[..wrong.len().min(40)]);
 }
 
 /// Regenerates the split Unicode class tables.

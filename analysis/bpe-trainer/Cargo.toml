@@ -22,8 +22,6 @@ turbo-tokenize = { path = "../tokenize" }
 turbo-jvm = { path = "../jvm" }
 # Unicode scripts, which a SentencePiece piece may not mix.
 turbo-unicode = { path = "../unicode" }
-# Strings escaped as JSON in tokenizer.json.
-serde_json = "1"
 
 [dev-dependencies]
 # Upstream's trainer, which the byte-level models are compared with.
