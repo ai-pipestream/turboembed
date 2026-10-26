@@ -13,8 +13,8 @@
 use turbo_analysis::Ix;
 pub use turbo_analysis::{
     Alternative, Alternatives, ConditionalAnnotator, ConditionalStep, Edge, Edges, FilterAnnotator, FilterRule,
-    FilterableLayer, FragmentError, Fragments, Groups, LayerStatus, ModeSet, NBest, Overlap, SpanFilter, SplitMode,
-    Tag, TagSet, TextSpans, filter_spans, retain_aligned_anchor,
+    FilterableLayer, FragmentError, Fragments, Groups, LayerStatus, ModeSet, NBest, Overlap, ProjectView,
+    ProjectableLayer, SpanFilter, SplitMode, Tag, TagSet, TextSpans, filter_spans, retain_aligned_anchor,
 };
 
 pub use abbreviations::{AbbreviationForm, Abbreviations, DEFINITION, MENTION, abbreviation_links};
@@ -151,6 +151,7 @@ mod numbers;
 mod ordinals;
 mod pii;
 mod predicate;
+mod project;
 mod quality;
 mod quantities;
 mod regions;

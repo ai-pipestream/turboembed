@@ -924,6 +924,34 @@ less. A range over a whole row gave the row's vector to the bit, and
 the lowest cosine of a chunk's range vector to its chunk row's was
 0.69.
 
+On the Arc Pro B70 (Level Zero, own kernels) with the same bundle and
+shape, at commit `68eda0ef`, the times are bimodal, so the records'
+p50s do not read as the cost of the work:
+
+| Precision | Mode | Min | p50 | Mean | p99 |
+| --- | --- | --- | --- | --- | --- |
+| FASTEST (F16) | Rows | 3.046 ms | 3.298 ms | 10.738 ms | 48.004 ms |
+| FASTEST (F16) | Ranges | 3.068 ms | 3.277 ms | 10.761 ms | 47.245 ms |
+| FASTEST (F16) | One row per chunk | 3.463 ms | 3.693 ms | 9.846 ms | 49.323 ms |
+| MODEL (F32) | Rows | 12.870 ms | 50.438 ms | 44.766 ms | 61.938 ms |
+| MODEL (F32) | Ranges | 12.435 ms | 49.534 ms | 43.427 ms | 60.564 ms |
+| MODEL (F32) | One row per chunk | 14.194 ms | 51.858 ms | 48.096 ms | 83.111 ms |
+
+At FASTEST most iterations take about 3.3 ms and some take about 45 ms
+more; at MODEL most take the longer path, so its p50 of about 50 ms is
+the stall and not the F32 cost, which the minimum (about 12.5 ms)
+bounds better. A desktop client held the render engine about 65
+percent busy throughout and is the likely cause; no other client used
+the compute engine. The clock (xe, sampled every 100 ms) had a median
+of 2800 MHz, its maximum, in both runs and never throttled; the
+package peaked at 72 C (MODEL) and 70 C (FASTEST). At FASTEST, where
+the p50 is on the fast path, the ranges' p50 is 1 percent under the
+rows' and one row per chunk takes 13 percent longer than the ranges.
+No ratio is read from the MODEL run. In both, a range over a whole row
+gave the row's vector to the bit, and the lowest cosine of a chunk's
+range vector to its chunk row's was 0.69. These figures want a re-run
+with the render engine idle.
+
 ## Part-of-speech records
 
 `turbo-bench postag --model <file> --treebank <file.conllu> [--cpus <list>]
