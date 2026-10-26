@@ -3,7 +3,9 @@
 
 use std::collections::HashSet;
 
-use turbo_analysis::{Annotator, Error, Ix, Layer, Overlap, Refs, Span, Spans, View, ViewId};
+use turbo_analysis::{
+    Annotator, Document, Error, Ix, Layer, Overlap, ProjectableLayer, Refs, Span, Spans, View, ViewId,
+};
 use turbo_analysis_layers::Entities;
 use turbo_unicode::java::to_lowercase;
 
@@ -86,6 +88,16 @@ impl Layer for Locations {
             }
         }
         Ok(())
+    }
+}
+
+impl ProjectableLayer for Locations {
+    fn project_view(&self, doc: &Document, to: ViewId) -> Result<Self, Error> {
+        Ok(Locations {
+            spans: doc.project_spans_monotonic(&self.spans, to)?,
+            entry: self.entry.clone(),
+            confidence: self.confidence.clone(),
+        })
     }
 }
 
@@ -214,5 +226,46 @@ impl<G: Geocoder + Send + Sync + 'static> Annotator for GeocodeAnnotator<G> {
         };
         let seed = turbo_analysis::Fnv1a::new().fold_u64(policy).fold_u64(self.geocoder.fingerprint()).finish();
         hash_location_types(seed, &self.location_types)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::entry::{EntryParts, GeoPoint};
+    use turbo_analysis::{Ix, Key, Provenance, ViewBuilder};
+
+    #[test]
+    fn projects_locations_across_views() {
+        let mut doc = Document::new(">>> Paris");
+        let v0 = doc.get::<View>().unwrap().clone();
+        let mut b = ViewBuilder::new(v0.text());
+        b.replace(4, "");
+        let (t1, a1) = b.finish();
+        doc.add(&Key::<View>::named("clean"), View::derived(&v0, t1, a1), Provenance::by("test")).unwrap();
+        let v1_id = doc.get_key(&Key::<View>::named("clean")).unwrap().id();
+
+        let entry = GazetteerEntry::new(EntryParts {
+            source: "geonames".into(),
+            record_id: "2988507".into(),
+            name: "Paris".into(),
+            alternate_names: Vec::new(),
+            location: GeoPoint::new(48.85341, 2.3488).unwrap(),
+            bounding_box: None,
+            country_code: Some("FR".into()),
+            containment: Vec::new(),
+            population: 2_138_551,
+            feature_class: Some("CITY".into()),
+            attributes: Vec::new(),
+        })
+        .unwrap();
+        let res = GeoResolution::new(Span::new(0, 5), entry, 0.95).unwrap();
+        let mut locs = Locations::new(v1_id);
+        locs.push(res);
+
+        let projected = doc.project_layer(&locs, ViewId::SOURCE).unwrap();
+        assert_eq!(projected.spans.view(), ViewId::SOURCE);
+        assert_eq!(projected.spans.get(Ix::new(0)), Span::new(4, 9));
+        assert_eq!(projected.get(Ix::new(0)).mention(), Span::new(4, 9));
     }
 }
