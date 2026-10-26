@@ -114,7 +114,9 @@ pub fn validate_disjoint_inputs(rows: &[Response]) -> Result<(), String> {
     }
     let encoder_overlap = encoder_texts.values().filter(|p| p.len() > 1).count();
     if encoder_overlap > 0 {
-        return Err(format!("CSC split leaks {encoder_overlap} encoder-identical response texts across train/dev/test"));
+        return Err(format!(
+            "CSC split leaks {encoder_overlap} encoder-identical response texts across train/dev/test"
+        ));
     }
     Ok(())
 }
