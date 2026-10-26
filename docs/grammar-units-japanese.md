@@ -68,5 +68,6 @@ foreign currency subunits, ambiguous minor-unit words and code escapes.
 
 The pinned Japanese Number (764), Ordinal (101) and Percent (204) files were
 also inspected when choosing the numeric helper. This unit change does not
-claim conformance to those three output families. No model, training run or
-new timing measurement is part of this change.
+claim conformance to those three output families. No model or training run is part of this change. A bounded existing-English
+comparison and its shared-host limits are recorded in
+[the receipt](receipts/grammar-929-japanese/README.md).
