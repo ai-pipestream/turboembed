@@ -1566,3 +1566,89 @@ __kernel void narrow_f16_transposed(__global const float *w, int n_out, int n_in
 __kernel void widen_bf16(__global const ushort *src, ulong n, __global float *dst) {
     for (size_t i = get_global_id(0); i < n; i += get_global_size(0)) dst[i] = as_float((uint)src[i] << 16);
 }
+
+/* ---- The batched LSTM of turbo::device::lstm (#860) ----------------------
+ *
+ * The rows and order of the CPU form (core/src/cpu/lstm.rs): sequence s
+ * holds rows start[s]..start[s] + len[s], the longest first, gates (i, f,
+ * g, o) each `hidden` wide, a reverse direction reading each sequence
+ * from its last row. lstm_project makes every row's input projections;
+ * lstm_step is one step of every direction over the first `active`
+ * sequences, a 16 x 16 group per (units, sequences) tile and direction,
+ * each work-item one unit's four gates from the projection and the
+ * recurrent product over the previous step's state (double buffered). At
+ * t == 0 the state and cell are zero and neither is read. A non-finite
+ * gate or state records the least row it was found at in *bad.
+ */
+
+#define LSTM_TILE 16
+
+/* out[m][n] = bias[n] + sum over k of a[m][k] w[n][k]. Groups 16 x 16. */
+__kernel void lstm_project(__global const float *a, __global const float *w, __global const float *bias,
+                           __global float *out, long m, int n, int k) {
+    __local float as[LSTM_TILE][LSTM_TILE + 1];
+    __local float ws[LSTM_TILE][LSTM_TILE + 1];
+    const int tx = get_local_id(0), ty = get_local_id(1);
+    const long row = (long)get_group_id(1) * LSTM_TILE + ty;
+    const int col = get_group_id(0) * LSTM_TILE + tx;
+    const int wrow = get_group_id(0) * LSTM_TILE + ty;
+    float acc = 0.0f;
+    for (int k0 = 0; k0 < k; k0 += LSTM_TILE) {
+        as[ty][tx] = row < m && k0 + tx < k ? a[row * k + k0 + tx] : 0.0f;
+        ws[ty][tx] = wrow < n && k0 + tx < k ? w[(long)wrow * k + k0 + tx] : 0.0f;
+        barrier(CLK_LOCAL_MEM_FENCE);
+        for (int i = 0; i < LSTM_TILE; i++) acc = fma(as[ty][i], ws[tx][i], acc);
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+    if (row < m && col < n) out[row * n + col] = bias[col] + acc;
+}
+
+/* The CPU form's sigmoid, either side of 0, so neither branch overflows. */
+float lstm_sigmoid(float x) {
+    if (x >= 0.0f) return 1.0f / (1.0f + exp(-x));
+    const float e = exp(x);
+    return e / (1.0f + e);
+}
+
+/* index is row r's table row, or null for row r itself. */
+__kernel void lstm_step(__global const float *proj, __global const long *index, __global const float *u,
+                        __global const long *len, __global const long *start, __global const float *state_in,
+                        __global float *state_out, __global float *cell, __global float *out, __global int *bad,
+                        __global const int *reverse, long batch, int active, int hidden, int pw, int width, int t) {
+    __local float ss[LSTM_TILE][LSTM_TILE + 1];
+    __local float us[4][LSTM_TILE][LSTM_TILE + 1];
+    const int tx = get_local_id(0), ty = get_local_id(1), k = get_group_id(2), h = hidden;
+    const int j = get_group_id(0) * LSTM_TILE + tx;
+    const int s = get_group_id(1) * LSTM_TILE + ty;
+    const int ju = get_group_id(0) * LSTM_TILE + ty;
+    __global const float *state = state_in + (long)k * batch * h;
+    __global const float *uk = u + (long)k * 4 * h * h;
+    float acc[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    if (t > 0) {
+        for (int i0 = 0; i0 < h; i0 += LSTM_TILE) {
+            const bool in = i0 + tx < h;
+            ss[ty][tx] = s < active && in ? state[(long)s * h + i0 + tx] : 0.0f;
+            for (int q = 0; q < 4; q++) us[q][ty][tx] = ju < h && in ? uk[(long)(q * h + ju) * h + i0 + tx] : 0.0f;
+            barrier(CLK_LOCAL_MEM_FENCE);
+            for (int i = 0; i < LSTM_TILE; i++) {
+                const float v = ss[ty][i];
+                for (int q = 0; q < 4; q++) acc[q] = fma(v, us[q][tx][i], acc[q]);
+            }
+            barrier(CLK_LOCAL_MEM_FENCE);
+        }
+    }
+    if (s >= active || j >= h) return;
+    const long n = len[s];
+    const long row = start[s] + (reverse[k] ? n - 1 - t : t);
+    const long src = index ? index[row] : row;
+    __global const float *g = proj + src * pw + (long)k * 4 * h;
+    const float gi = g[j] + acc[0], gf = g[h + j] + acc[1], gg = g[2 * h + j] + acc[2], go = g[3 * h + j] + acc[3];
+    const long at = ((long)k * batch + s) * h + j;
+    const float old = t > 0 ? cell[at] : 0.0f;
+    const float c = lstm_sigmoid(gf) * old + lstm_sigmoid(gi) * tanh(gg);
+    const float st = lstm_sigmoid(go) * tanh(c);
+    if (!(isfinite(gi) && isfinite(gf) && isfinite(gg) && isfinite(go) && isfinite(st))) atomic_min(bad, (int)row);
+    cell[at] = c;
+    state_out[at] = st;
+    out[row * width + (long)k * h + j] = st;
+}
