@@ -5350,7 +5350,13 @@ with its character and sentence BiLSTMs on an NVIDIA or Intel GPU through
 the f64 CRF stay on the host, and an LSTM that cannot be made on the
 device is an error, never a CPU run. It has its own `config_hash`, and
 `analysis/postag/tests/bilstm_device.rs` holds it to the CPU path and
-times the two. There is no Metal or NPU path yet.
+times the two. `BilstmPosTagger::on_device_at` takes a precision:
+FASTEST holds the BiLSTMs' weights as F16 on the GPU (sums and states
+F32), hashes as its own tier, and is held to accuracy, not bits: on UD
+English EWT within 0.1 points of MODEL and MODEL's tag on at least 99.9%
+of the words (`analysis/postag/tests/bilstm_ewt.rs`), and the JVM's tag
+on at least 99.9% of the goldens' words. FASTEST runs on CUDA alone; Level Zero refuses it. There is no Metal
+or NPU path yet.
 
 `Packed` runs each BiLSTM, character and sentence, as one
 `turbo::cpu::lstm::Lstm` over both directions (#859): every sequence of

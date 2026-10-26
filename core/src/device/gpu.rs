@@ -4,8 +4,8 @@
 
 #![allow(unused_variables)]
 
-use super::Device;
 use super::lstm::Weights;
+use super::{Device, Precision};
 use crate::status::{Error, Result, UNSUPPORTED};
 
 /// An LSTM's weights on a GPU.
@@ -40,7 +40,13 @@ fn not_finite(row: i64) -> Error {
 
 impl Gpu {
     /// Weights the CPU form has checked, on `device`.
-    pub(super) fn new(device: Device, input: usize, hidden: usize, dirs: &[Weights<'_>]) -> Result<Gpu> {
+    pub(super) fn new(
+        device: Device,
+        precision: Precision,
+        input: usize,
+        hidden: usize,
+        dirs: &[Weights<'_>],
+    ) -> Result<Gpu> {
         let (mut w, mut u, mut b) = (Vec::new(), Vec::new(), Vec::new());
         for d in dirs {
             w.extend_from_slice(d.w);
@@ -50,7 +56,14 @@ impl Gpu {
         let reverse: Vec<i32> = dirs.iter().map(|d| i32::from(d.reverse)).collect();
         match device {
             #[cfg(feature = "cuda")]
-            Device::Cuda(n) => Ok(Gpu::Cuda(super::cuda_lstm::Lstm::new(n, input, hidden, &w, &u, &b, &reverse)?)),
+            Device::Cuda(n) => {
+                let f16 = precision == Precision::Fastest;
+                Ok(Gpu::Cuda(super::cuda_lstm::Lstm::new(n, input, hidden, &w, &u, &b, &reverse, f16)?))
+            }
+            #[cfg(feature = "levelzero")]
+            Device::LevelZero(_) if precision == Precision::Fastest => {
+                Err(Error::new(UNSUPPORTED, "lstm: levelzero has no FASTEST (F16 weights) yet"))
+            }
             #[cfg(feature = "levelzero")]
             Device::LevelZero(n) => {
                 Ok(Gpu::LevelZero(crate::levelzero::lstm::Lstm::new(n, input, hidden, &w, &u, &b, &reverse)?))
