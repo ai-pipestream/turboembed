@@ -243,6 +243,42 @@ fn the_largest_shape_of_a_real_bundle_matches_the_cpu() {
     largest_shape_matches_the_cpu(&dir);
 }
 
+/// LayerNorm keeps a row of up to 1024 values in registers and reads a
+/// wider row from device memory: one-layer models at widths on either side
+/// of that edge, a lane's last value unused (1000) and every value used
+/// (1024), match the CPU at the model's precision and at FASTEST.
+#[test]
+fn layer_norm_widths_on_either_side_of_the_register_edge_match_the_cpu() {
+    let _t = turn();
+    let Some(_) = metal_device("layer_norm_widths_on_either_side_of_the_register_edge_match_the_cpu") else { return };
+    for (hidden, heads) in [(1000u64, 8), (1024, 16), (1056, 16)] {
+        let mut m = model_manifest();
+        m["architecture"]["layers"] = json!(1);
+        m["architecture"]["hidden"] = json!(hidden);
+        m["architecture"]["heads"] = json!(heads);
+        m["architecture"]["intermediate"] = json!(2 * hidden);
+        m["embed"]["dim"] = json!(hidden);
+        let mut f = Fixture::new(&format!("metal-ln-{hidden}"), m);
+        f.weights("weights/model.safetensors", &bert_weights(1, hidden, 2 * hidden, 3, 0.05));
+        f.write();
+        let (g, c) = (on_metal(&f.dir), Loaded::load(&f.dir).unwrap());
+        let rows: Vec<Vec<i32>> =
+            (0..3).map(|r| (0..40 - 9 * r).map(|p| 1000 + (r * 131 + p * 17) as i32).collect()).collect();
+        let t = Tokens::new(&rows, 0);
+        let cs = Session::create(c.m, None).unwrap();
+        cs.write_tokens(&t.batch(), None).unwrap();
+        let want = cs.run().unwrap().rows();
+        for (precision, floor) in [(TURBO_PRECISION_MODEL, 0.99999), (TURBO_PRECISION_FASTEST, 0.999)] {
+            let gs = Session::create(g.m, Some(&session_desc(0, 0, precision))).unwrap();
+            gs.write_tokens(&t.batch(), None).unwrap();
+            for (r, (a, b)) in gs.run().unwrap().rows().iter().zip(&want).enumerate() {
+                let cos = cosine(a, b);
+                assert!(cos >= floor, "hidden {hidden} precision {precision} row {r}: cosine {cos} with the cpu");
+            }
+        }
+    }
+}
+
 /// The bundle's reference cases on the Metal device at each precision,
 /// against the upstream vectors, within the tolerance of the compute
 /// dtype the session reports (tests/common/conformance.rs).
