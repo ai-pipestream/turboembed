@@ -6,7 +6,7 @@ mod qa_cmd;
 mod references;
 mod rerank_cmd;
 mod static_cmd;
-use references::Given;
+use references::{Given, Native};
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -80,6 +80,8 @@ fn record_cmd(args: &[String]) -> Result<()> {
     let no_hailort = o.flag("--no-hailort");
     let hailort =
         o.take("--hailort-bin").map(|binary| turbo_bench::hailo::HailoRt { binary: binary.into(), work: work.clone() });
+    let no_mlx = o.flag("--no-mlx");
+    let mlx = o.take("--mlx-model").map(|model| turbo_bench::mlx::Mlx { model: model.into(), work: work.clone() });
     let no_tei = o.flag("--no-tei");
     let tei = match (o.take("--tei-image"), o.take("--tei-bin"), o.take("--tei-model")) {
         (Some(image), None, Some(model)) => {
@@ -168,6 +170,7 @@ fn record_cmd(args: &[String]) -> Result<()> {
         return Err(format!("{unknown}: not an option here\n{USAGE}"));
     }
     if (no_hailort && hailort.is_some())
+        || (no_mlx && mlx.is_some())
         || (no_tei && tei.is_some())
         || (no_trt && trt.is_some())
         || (no_ov && ov.is_some())
@@ -223,6 +226,7 @@ fn record_cmd(args: &[String]) -> Result<()> {
         trt: (trt.is_some(), no_trt),
         ov: (ov.is_some(), no_ov),
         hailo: (hailort.is_some(), no_hailort),
+        mlx: (mlx.is_some(), no_mlx),
     };
     given.check(&backend)?;
     // The native router is the reference where no container reaches the
@@ -262,7 +266,7 @@ fn record_cmd(args: &[String]) -> Result<()> {
         m.conformance.min_cosine,
         m.conformance.max_abs_diff
     );
-    let references = references::run(&m, &plan, tei, trt, ov, &given, hailort)?;
+    let references = references::run(&m, &plan, tei, trt, ov, &given, Native { hailort, mlx })?;
     let after = git::provenance(&repo)?;
     if after != before {
         return Err(format!("the working tree moved from {} to {} during the run", before.commit, after.commit));

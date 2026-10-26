@@ -1,5 +1,6 @@
 use turbo::record::ReferenceRun;
 use turbo_bench::measure::{Measurement, Plan};
+use turbo_bench::mlx::{self, Mlx};
 use turbo_bench::openvino::{self, OpenVino};
 use turbo_bench::tei::{self, Tei};
 use turbo_bench::tensorrt::{self, TensorRt};
@@ -26,6 +27,14 @@ pub(crate) struct Given {
     pub(crate) trt: (bool, bool),
     pub(crate) ov: (bool, bool),
     pub(crate) hailo: (bool, bool),
+    pub(crate) mlx: (bool, bool),
+}
+
+/// The reference programs that run on the machine itself, not from an
+/// image.
+pub(crate) struct Native {
+    pub(crate) hailort: Option<hailo::HailoRt>,
+    pub(crate) mlx: Option<Mlx>,
 }
 
 impl Given {
@@ -35,6 +44,7 @@ impl Given {
             tensorrt::NAME => self.trt,
             openvino::NAME => self.ov,
             hailo::NAME => self.hailo,
+            mlx::NAME => self.mlx,
             _ => (false, false),
         }
     }
@@ -67,7 +77,7 @@ pub(crate) fn run(
     trt: Option<TensorRt>,
     ov: Option<OpenVino>,
     given: &Given,
-    hailort: Option<hailo::HailoRt>,
+    native: Native,
 ) -> Result<Vec<ReferenceRun>> {
     let backend = m.backend();
     given.check(&backend)?;
@@ -127,9 +137,13 @@ pub(crate) fn run(
                 }
                 None => disabled(openvino::NAME, "kernel", "--no-openvino"),
             },
-            hailo::NAME => match &hailort {
+            hailo::NAME => match &native.hailort {
                 Some(h) => hailo::run(h, m)?,
                 None => disabled(hailo::NAME, "kernel", "--no-hailort"),
+            },
+            mlx::NAME => match &native.mlx {
+                Some(x) => mlx::run(x, m, plan.warmup, plan.iterations)?,
+                None => disabled(mlx::NAME, "kernel", "--no-mlx"),
             },
             other => return Err(format!("{other}: no runner")),
         });
