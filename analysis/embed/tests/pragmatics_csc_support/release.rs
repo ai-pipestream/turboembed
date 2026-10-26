@@ -16,7 +16,7 @@ pub fn expected() -> Value {
 
 pub fn validate_config(config: &Value) -> Result<(), String> {
     if config != &expected()["config"] {
-        return Err("CSC release configuration differs from models-sentiment-925-2".into());
+        return Err("CSC release configuration differs from the recorded release".into());
     }
     Ok(())
 }
@@ -117,7 +117,13 @@ pub fn validate_metrics(actual: Counts, expected: &Value) -> Result<(), String> 
             return Err(format!("CSC release {name}: computed {count}, expected {}", expected[name]));
         }
     }
-    for (name, metric) in [("precision", actual.precision()), ("recall", actual.recall()), ("f1", actual.f1())] {
+    let metrics = [
+        ("precision", actual.precision()),
+        ("recall", actual.recall()),
+        ("f1", actual.f1()),
+        ("accuracy", actual.accuracy()),
+    ];
+    for (name, metric) in metrics {
         let wanted = expected[name].as_f64().ok_or_else(|| format!("missing release {name}"))?;
         if !metric.is_finite() || !wanted.is_finite() || (metric - wanted).abs() > 1e-12 {
             return Err(format!("CSC release {name}: computed {metric}, expected {wanted}"));
@@ -170,7 +176,7 @@ mod tests {
     #[test]
     fn published_counts_pass_and_changes_fail() {
         let e = expected();
-        for name in ["rules", "head", "combined"] {
+        for name in ["rules", "head", "combined", "all_sarcastic", "all_literal"] {
             let metric = &e["config"]["evaluation"][name];
             let mut actual = Counts {
                 tp: metric["tp"].as_u64().unwrap() as usize,

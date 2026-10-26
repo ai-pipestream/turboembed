@@ -65,15 +65,20 @@ pub fn run() {
     let rule_counts = score(&rule_scores(&test), &labels, 0.5);
     let head_counts = score(&head_scores(&test, &head), &labels, head_threshold);
     let combined_counts = score(&combined_scores(&test, &head), &labels, combined_threshold);
+    let all_sarcastic = score(&vec![1.0; labels.len()], &labels, 0.5);
+    let all_literal = score(&vec![0.0; labels.len()], &labels, 0.5);
+    let counts = [rule_counts, head_counts, combined_counts, all_sarcastic, all_literal];
     if release_dir.is_some() {
         let expected = release::expected();
-        for (name, counts) in [("rules", rule_counts), ("head", head_counts), ("combined", combined_counts)] {
+        for (name, counts) in EVALUATIONS.into_iter().zip(counts) {
             release::validate_metrics(counts, &expected["config"]["evaluation"][name]).unwrap();
         }
     }
     report("rules", 0.5, rule_counts);
     report("head", head_threshold, head_counts);
     report("combined", combined_threshold, combined_counts);
+    report("all_sarcastic baseline", 0.5, all_sarcastic);
+    report("all_literal baseline", 0.5, all_literal);
     println!(
         "RESULT rules_precision={:.6} rules_recall={:.6} rules_f1={:.6} head_precision={:.6} head_recall={:.6} head_f1={:.6} combined_precision={:.6} combined_recall={:.6} combined_f1={:.6}",
         rule_counts.precision(),
@@ -87,7 +92,7 @@ pub fn run() {
         combined_counts.f1()
     );
     if let Some(dir) = output_dir {
-        save(Path::new(&dir), &head, head_threshold, combined_threshold, [rule_counts, head_counts, combined_counts]);
+        save(Path::new(&dir), &head, head_threshold, combined_threshold, counts);
     }
 }
 
@@ -157,25 +162,25 @@ fn combined_scores(docs: &[&Prepared], head: &ClassifierHead) -> Vec<f64> {
         .collect()
 }
 
-fn save(dir: &Path, head: &ClassifierHead, head_threshold: f64, combined_threshold: f64, counts: [Counts; 3]) {
+/// Held-out evaluations in the frozen configuration, the last two being
+/// the constant all-sarcastic and all-literal (majority) baselines.
+const EVALUATIONS: [&str; 5] = ["rules", "head", "combined", "all_sarcastic", "all_literal"];
+
+fn save(dir: &Path, head: &ClassifierHead, head_threshold: f64, combined_threshold: f64, counts: [Counts; 5]) {
     std::fs::create_dir_all(dir).unwrap();
     head.save(&dir.join("pragmatics-1.thead")).unwrap();
-    let [rules, head_score, combined] = counts;
     let config = serde_json::json!({
         "format": "turbo-pragmatics-1",
         "encoder": "sentence-transformers/all-MiniLM-L6-v2@1110a243fdf4706b3f48f1d95db1a4f5529b4d41",
         "head": "pragmatics-1.thead",
         "dataset": "CoPsyN/CSC@f11c92b8d54686f64cf1d92766cef07201efb986",
+        "dataset_notice": "Trained on the Conversational Sarcasm Corpus by Hyewon Jang, Bettina Braun, and Diego Frassinelli. MIT License, Copyright (c) 2024 CoPsyN.",
         "head_threshold": head_threshold,
         "combined_threshold": combined_threshold,
         "rule_threshold": 0.5,
         "training": { "l2_reg": 0.001, "epochs": 200, "learning_rate": 0.1, "split": "scenario groups (context word Jaccard >= 0.4), smallest context id modulo 5, repeated responses in one partition" },
-        "evaluation": {
-            "rules": metric_json(rules),
-            "head": metric_json(head_score),
-            "combined": metric_json(combined),
-            "default_combination": "PragmaticsAnnotator rule signals plus this embedding head"
-        }
+        "combined_path": "PragmaticsAnnotator rule signals plus this embedding head",
+        "evaluation": EVALUATIONS.into_iter().zip(counts).map(|(name, c)| (name.to_owned(), metric_json(c))).collect::<serde_json::Map<_, _>>()
     });
     std::fs::write(dir.join("pragmatics-1.json"), serde_json::to_string_pretty(&config).unwrap()).unwrap();
 }
@@ -183,6 +188,6 @@ fn save(dir: &Path, head: &ClassifierHead, head_threshold: f64, combined_thresho
 fn metric_json(c: Counts) -> serde_json::Value {
     serde_json::json!({
         "tp": c.tp, "fp": c.fp, "tn": c.tn, "fn": c.r#fn,
-        "precision": c.precision(), "recall": c.recall(), "f1": c.f1()
+        "precision": c.precision(), "recall": c.recall(), "f1": c.f1(), "accuracy": c.accuracy()
     })
 }

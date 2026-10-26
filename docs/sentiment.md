@@ -328,56 +328,58 @@ beside it, and compares CPU with a device when `TURBO_TEST_DEVICE` is set.
 ### Trained CSC sarcasm head and external evaluation (`#925`)
 
 The zoo lists `csc-conversational-sarcasm-2024` at CoPsyN/CSC commit
-`f11c92b8d54686f64cf1d92766cef07201efb986` and the trained
-`turbo-en-csc-pragmatics-1` head at release `models-sentiment-925-1`. CSC is
-MIT licensed; its notice and the authors, Hyewon Jang, Bettina Braun, and
-Diego Frassinelli, must be retained. The dataset and corpus text are not
-committed.
+`f11c92b8d54686f64cf1d92766cef07201efb986`. CSC is MIT licensed; its notice
+and the authors, Hyewon Jang, Bettina Braun, and Diego Frassinelli, must be
+retained. The dataset and corpus text are not committed. No CSC sarcasm
+head is registered in the zoo: the trained head does not beat the majority
+baseline (below), so #925 stays open.
 
 The receipt in `analysis/embed/tests/pragmatics_csc.rs` aggregates the median
-external-evaluator rating for each of 7,036 unique responses and labels
-ratings of at least 4 as sarcastic. It does not read demographic columns.
-Responses are embedded with `sentence-transformers/all-MiniLM-L6-v2` and
-split by conversational context: 4,146 train, 1,507 development, and 1,383
-held-out responses (497 positive). No response context crosses a split. A
-two-label linear `ClassifierHead` trains for 200 epochs with L2 0.001 and
+external-evaluator rating for each unique response and labels ratings of at
+least 4 as sarcastic. It does not read demographic columns. Responses are
+embedded with `sentence-transformers/all-MiniLM-L6-v2` and split by
+scenario. CSC reuses one scenario under several context ids (part 1 and
+part 2, friend and colleague variants), sometimes reworded, so contexts whose
+word sets have a Jaccard overlap of at least 0.4 form one scenario group, and
+the smallest context id in a group picks its partition modulo 5. A response
+text that still spans partitions is kept only in the first of train,
+development and test, which drops 99 of 7,036 responses. That leaves 4,210
+train, 1,298 development, and 1,429 held-out responses (654 positive). No
+scenario text, reworded scenario, or response text crosses a split, and the
+data-only `actual_release_split_has_no_repeated_inputs_or_scenarios` test
+checks this on the pinned CSV and confirms that the earlier context-id split
+fails it.
+
+A two-label linear `ClassifierHead` trains for 200 epochs with L2 0.001 and
 learning rate 0.1. The head and combined thresholds are selected on the
-development set and frozen in `pragmatics-1.json`.
+development set and frozen in `pragmatics-1.json`. `ClassifierHead`
+implements `PragmaticsVectorScorer`, so the head runs through the production
+`PragmaticsAnnotator` without a test adapter. Held-out metrics, with the two
+constant baselines, are:
 
-`ClassifierHead` now implements `PragmaticsVectorScorer` directly, so the
-published head runs through the production `PragmaticsAnnotator` without a
-test adapter. The chosen default is the existing combination of rule signals
-and this embedding head. Held-out metrics are:
+| Path | Threshold | Precision | Recall | F1 | Accuracy |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Rule signals alone | 0.50 | 0.500000 | 0.030581 | 0.057637 | 0.542337 |
+| Embedding head alone | 0.35 | 0.489954 | 0.969419 | 0.650924 | 0.524143 |
+| Rules plus embedding head | 0.35 | 0.489969 | 0.970948 | 0.651282 | 0.524143 |
+| Baseline: every response sarcastic | | 0.457663 | 1.000000 | 0.627940 | 0.457663 |
+| Baseline: every response literal (majority) | | 0.000000 | 0.000000 | 0.000000 | 0.542337 |
 
-| Path | Threshold | Precision | Recall | F1 |
-| --- | ---: | ---: | ---: | ---: |
-| Rule signals alone | 0.50 | 0.485714 | 0.034205 | 0.063910 |
-| Embedding head alone | 0.35 | 0.409244 | 0.979879 | 0.577356 |
-| Rules plus embedding head | 0.35 | 0.409396 | 0.981891 | 0.577857 |
-
-These are historical context-split results, not input-disjoint results. The
-pinned source contains 47 distinct response texts spanning partitions; 68 test
-examples repeat text used for training. The model reads response text without
-context. The release check now refuses this split before encoding. A corrected
-split must keep both contexts and repeated response inputs together, followed
-by retraining, development threshold selection, a replacement archive and a
-new test evaluation. Issue #925 remains incomplete until that work is reviewed.
+The head is close to the all-sarcastic baseline: it rejects 115 of 775
+literal responses and its F1 is 0.023 higher. Its accuracy is below the
+majority baseline. The response text alone, without its scenario, carries
+little sarcasm signal for this encoder and head. The earlier
+`models-sentiment-925-1` archive was trained on a context-id split in which
+824 of 1,383 test responses answered a training scenario; its figures are
+withdrawn.
 
 The release path validates the source, encoder and weight digests, frozen
-configuration, population counts and all three metric sets. Counts must match;
+configuration, population counts and all five metric sets. Counts must match;
 computed metrics permit an absolute difference of at most 1e-12. Expectations
-for this version remain in
-`analysis/embed/tests/pragmatics_csc_support/release.json`; they must be updated
-from the replacement archive after the split repair, not adjusted to hide a
-failed check. Verification (`TURBO_PRAGMATICS_HEAD`) and training output
-(`TURBO_PRAGMATICS_OUT`) are mutually exclusive. The data-only
-`actual_release_split_has_no_repeated_inputs` test needs `TURBO_CSC_CSV` but
-requires neither the encoder nor training.
-
-The combined path catches 488 of 497 positive responses, but also emits 704
-false positives. Its precision remains modest, so the recall figure must not
-be read as general precision or calibration evidence. The complete counts
-and frozen configuration travel in the published zip.
+are in `analysis/embed/tests/pragmatics_csc_support/release.json`. Training
+is deterministic: a fresh `TURBO_PRAGMATICS_OUT` run reproduces the head
+digest in that file. Verification (`TURBO_PRAGMATICS_HEAD`) and training
+output (`TURBO_PRAGMATICS_OUT`) are mutually exclusive.
 
 ## Aspect and opinion extraction (`RuleAspectSentiment` and `LearnedAspectSentiment`, `#322`)
 

@@ -15,6 +15,10 @@ impl Counts {
         ratio(self.tp, self.tp + self.r#fn)
     }
 
+    pub fn accuracy(self) -> f64 {
+        ratio(self.tp + self.tn, self.tp + self.fp + self.tn + self.r#fn)
+    }
+
     pub fn f1(self) -> f64 {
         ratio(2 * self.tp, 2 * self.tp + self.fp + self.r#fn)
     }
