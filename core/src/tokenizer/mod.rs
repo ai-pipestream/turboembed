@@ -11,8 +11,7 @@ use std::hash::{BuildHasherDefault, Hasher};
 use std::ops::Range;
 
 use serde_json::Value;
-use turbo_unicode::hf::aligned_chars;
-use turbo_unicode::normalize::Form;
+use turbo_unicode::normalize::{Form, aligned_chars};
 
 use crate::bpe::Bpe;
 use crate::bundle::Bundle;
