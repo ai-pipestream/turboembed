@@ -413,39 +413,66 @@ remaining 17 kinds are evaluated on project-authored operational memos
 
 ### External prose partition (whole third-party documents)
 
-A separately scored partition of five whole third-party documents
-(`213,306` bytes, `69` gold mentions,
+A separately scored partition of ten whole third-party documents
+(`324,937` bytes, `88` gold mentions,
 `precision_and_recall_on_external_prose`, gold in
 `analysis/pii/tests/data/human-eval/labels-external.tsv`, provenance in
 that directory's `README.md`): RFC 7519, RFC 5737, RFC 3849 and RFC 7042
-as retrieved from the RFC Editor (IETF Trust, BCP 78), and the Wikipedia
-article "International Bank Account Number" as wikitext at a pinned
-revision (CC BY-SA 4.0). These rows never pool with the mixed set above.
+as retrieved from the RFC Editor (IETF Trust, BCP 78), and five Wikipedia
+articles as wikitext at pinned revisions (CC BY-SA 4.0): "International
+Bank Account Number", "Social Security number", "Social insurance
+number", "NHS number", "International Mobile Equipment Identity" and
+"Routing transit number".
+These rows never pool with the mixed set above.
 
 | Kind | Source partition | true | false | missed | precision | recall |
 |---|---|---:|---:|---:|---:|---:|
+| `aba-routing` | external (Wikipedia routing wikitext) | 4 | 0 | 4 | 1.000 | 0.500 |
+| `ca-sin` | external (Wikipedia SIN wikitext) | 0 | 0 | 2 | 1.000 | 0.000 |
 | `email` | external (RFC 7519, RFC 5737, RFC 3849, RFC 7042) | 18 | 0 | 0 | 1.000 | 1.000 |
 | `iban` | external (Wikipedia IBAN wikitext) | 4 | 0 | 0 | 1.000 | 1.000 |
+| `imei` | external (Wikipedia IMEI wikitext) | 0 | 0 | 2 | 1.000 | 0.000 |
 | `ipv4` | external (RFC 5737) | 8 | 3 | 0 | 0.727 | 1.000 |
 | `ipv6` | external (RFC 3849) | 3 | 0 | 0 | 1.000 | 1.000 |
 | `jwt` | external (RFC 7519) | 0 | 0 | 2 | 1.000 | 0.000 |
 | `mac` | external (RFC 7042) | 29 | 0 | 0 | 1.000 | 1.000 |
-| `phone` | external (RFC 5737, RFC 7042) | 5 | 7 | 0 | 0.417 | 1.000 |
-| **all kinds** | **external (`69` gold; false mentions of kinds without gold included)** | **67** | **12** | **2** | **0.848** | **0.971** |
+| `phone` | external (RFC 5737, RFC 7042) | 5 | 14 | 0 | 0.263 | 1.000 |
+| `uk-nhs` | external (Wikipedia NHS wikitext) | 1 | 1 | 3 | 0.500 | 0.250 |
+| `us-ssn` | external (Wikipedia SSN wikitext) | 3 | 0 | 0 | 1.000 | 1.000 |
+| **all kinds** | **external (`88` gold; false mentions of kinds without gold included)** | **75** | **26** | **13** | **0.743** | **0.852** |
 
 What the external false positives and misses are:
 
-- **`phone` false positives (7)**: six five-group prefixes of EUI-64
-  identifiers and SNAP header patterns in RFC 7042 (such as
-  `02-00-00-00-00` inside `02-00-00-00-00-00-00-01`), where the 48-bit
-  `mac` scanner rightly stays silent and the phone rule reads ten
-  grouped digits; and `5698 7654 32` inside the markup-split British
-  IBAN example in the Wikipedia wikitext.
+- **`phone` false positives (14)**: six five-group prefixes of EUI-64
+  identifiers and SNAP header patterns in RFC 7042; the four NHS-shaped
+  values in the NHS article the `uk-nhs` scanner rejects (below) plus
+  the checksum example `943 476 5919` on the same span as its `uk-nhs`
+  mention, and the Scottish CHI range endpoints `010 100 0000` and
+  `311 299 9999`; the multiplier row `0 8 6 8 5 8 2 16 6` of the SIN
+  checksum walkthrough; and `5698 7654 32` inside the markup-split
+  British IBAN example.
+- **`card` false positives (8)**: the two 15-digit grouped IMEI
+  examples and their 14-digit walkthrough prefixes in the IMEI article
+  (Luhn-valid by construction, the same span the `imei` gold carries),
+  and 14-digit archive timestamps in Wikipedia citation templates.
 - **`ipv4` false positives (3)**: the Simple Web Token version `0.9.5.1`
   in RFC 7519's references and the section number `2.3.2.1` twice in
   RFC 7042.
-- **`card` false positives (2)**: 14-digit archive timestamps
-  (`20101217080334`, `20130729183211`) in Wikipedia citation templates.
+- **`uk-nhs` false positive (1)**: `0110201035` in the SSN article's
+  citations, a 10-digit string that passes the NHS checksum.
+- **`aba-routing` misses (4)**: the dashed forms `0260-0959-3` and
+  `2260-7352-3`, which the scanner does not take, and the historical
+  check-image MICR example `129131673` (twice), whose check digit does
+  not satisfy the modern ABA checksum.
+- **`ca-sin` misses (2)** and **`imei` misses (2)**: the labelled
+  scanners need their keyword in the accepted forms; the SIN examples
+  carry no adjacent `SIN` label and both IMEI examples use the
+  2-6-6-1 grouped presentation after the words "IMEI code", which the
+  scanner does not take (it reads them as `card` instead).
+- **`uk-nhs` misses (3)**: the article's given example `987 654 4321`
+  fails the modulus-11 check digit, as does the reserved test-range
+  start `999 000 0000`; `999 999 9999` passes the checksum but is
+  refused by the scanner's repeated-digit defences.
 - **`jwt` misses (2)**: both complete example JWTs in RFC 7519 are
   line-wrapped for display, with the separating periods on lines of
   their own; the scanner matches only contiguous tokens, so external
@@ -454,14 +481,15 @@ What the external false positives and misses are:
 #### Outstanding work for #968
 
 #968 remains open with its original acceptance requirements. Independent
-human-written prose coverage has not been established for `card`, `imei`,
-`us-ssn`, `us-itin`, `uk-nhs`, `ca-sin`, `de-steuer-id`, `aba-routing`,
-`aws-access-key`, `github-token`, and `url-credential`. The `btc-address`
-and `eth-address` rows also remain results from adapted specifications,
+human-written prose coverage has not been established for `card`,
+`us-itin`, `de-steuer-id`, `aws-access-key`, `github-token`, and
+`url-credential`. The `btc-address` and
+`eth-address` rows also remain results from adapted specifications,
 without established coverage on externally authored prose. The external
-partition above establishes coverage for `email`, `iban`, `ipv4`, `ipv6`,
-`jwt` (recall `0.000` on the only published forms, which are
-display-wrapped), `mac`, and further third-party `phone`.
+partition above establishes coverage for `aba-routing`, `ca-sin`,
+`email`, `iban`, `imei`, `ipv4`, `ipv6`, `jwt` (recall `0.000` on the
+only published forms, which are display-wrapped), `mac`, `uk-nhs`,
+`us-ssn`, and further third-party `phone`.
 
 Further corpus additions need attributable, licensed source passages with
 appropriate context and per-occurrence gold labels, including scanner misses

@@ -68,3 +68,22 @@ wikipedia-iban	7594	7621	iban	IE64 IRCE 9205 0112 3456 78
 wikipedia-iban	7657	7679	iban	IE64IRCE92050112345678
 wikipedia-iban	7762	7793	iban	BI13 20001 10001 00001234567 89
 wikipedia-iban	7829	7856	iban	BI1320001100010000123456789
+wikipedia-imei	26144	26162	imei	35-209900-176148-1
+wikipedia-imei	26809	26827	imei	49-015420-323751-8
+wikipedia-nhs-number	2106	2118	uk-nhs	987 654 4321
+wikipedia-nhs-number	3723	3735	uk-nhs	999 000 0000
+wikipedia-nhs-number	3752	3764	uk-nhs	999 999 9999
+wikipedia-nhs-number	4200	4212	uk-nhs	943 476 5919
+wikipedia-routing-transit-number	7460	7469	aba-routing	129131673
+wikipedia-routing-transit-number	9701	9710	aba-routing	129131673
+wikipedia-routing-transit-number	10699	10708	aba-routing	021200025
+wikipedia-routing-transit-number	12244	12255	aba-routing	0260-0959-3
+wikipedia-routing-transit-number	12880	12891	aba-routing	2260-7352-3
+wikipedia-routing-transit-number	16236	16245	aba-routing	111000025
+wikipedia-routing-transit-number	18147	18156	aba-routing	021200025
+wikipedia-routing-transit-number	18458	18467	aba-routing	021200025
+wikipedia-social-insurance-number	1034	1045	ca-sin	123-456-789
+wikipedia-social-insurance-number	4950	4961	ca-sin	046 454 286
+wikipedia-social-security-number	3085	3096	us-ssn	001-01-0001
+wikipedia-social-security-number	34702	34713	us-ssn	078-05-1120
+wikipedia-social-security-number	41121	41132	us-ssn	078-05-1120
