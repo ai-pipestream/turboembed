@@ -1,0 +1,42 @@
+  Executable tests/device_real.rs (target/release/deps/device_real-3744b136ce7e2b2c)
+commit 4e0c27840fb3e8ffeb7417de999bbd799cf35fc2; host: AMD Ryzen 9 9950X 16-Core Processor, 32 threads; release build
+== run 1, commit 4e0c27840fb3e8ffeb7417de999bbd799cf35fc2, at 15:16:58: load 5.15 14.18 21.55 2/4567 972040; b70 runner containers busy: none
+gliner2 relations: largest logit difference from the cpu encoder 1.6137407e-6 of the pass's largest
+gliner2 relations, one text a pass: cpu encoder min 16.072 p50 19.646 mean 20.089 p99 25.212
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 7.369 p50 37.776 mean 35.691 p99 41.683
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 0.52x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 21.93s
+schema extraction: largest logit difference from the cpu encoder 1.4774365e-6 of the pass's largest
+schema extraction, one text a pass: cpu encoder min 17.070 p50 33.467 mean 31.978 p99 43.709
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 12.452 p50 29.139 mean 28.648 p99 38.343
+schema extraction: the cpu encoder's p50 over the device's: 1.15x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 25.67s
+after: load 6.24 12.85 20.67 4/4793 987792; b70 runner containers busy: none
+== run 2, commit 4e0c27840fb3e8ffeb7417de999bbd799cf35fc2, at 15:17:53: load 6.24 12.85 20.67 3/4793 988104; b70 runner containers busy: none
+gliner2 relations: largest logit difference from the cpu encoder 1.6137407e-6 of the pass's largest
+gliner2 relations, one text a pass: cpu encoder min 17.567 p50 21.214 mean 21.502 p99 29.438
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 26.942 p50 39.422 mean 38.116 p99 45.666
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 0.54x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 22.73s
+schema extraction: largest logit difference from the cpu encoder 1.4774365e-6 of the pass's largest
+schema extraction, one text a pass: cpu encoder min 23.203 p50 45.841 mean 46.391 p99 85.605
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 8.877 p50 26.682 mean 27.156 p99 59.842
+schema extraction: the cpu encoder's p50 over the device's: 1.72x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 29.18s
+after: load 15.86 13.76 20.41 32/4850 1013245; b70 runner containers busy: none
+== run 3, commit 4e0c27840fb3e8ffeb7417de999bbd799cf35fc2, at 15:21:59: load 4.87 10.71 18.17 2/4585 1052060; b70 runner containers busy: none
+gliner2 relations: largest logit difference from the cpu encoder 1.6137407e-6 of the pass's largest
+gliner2 relations, one text a pass: cpu encoder min 15.733 p50 18.473 mean 18.957 p99 23.175
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 7.222 p50 31.998 mean 32.366 p99 39.255
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 0.58x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 20.90s
+schema extraction: largest logit difference from the cpu encoder 1.4774365e-6 of the pass's largest
+schema extraction, one text a pass: cpu encoder min 17.537 p50 33.113 mean 31.358 p99 42.481
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 12.659 p50 25.948 mean 25.378 p99 36.663
+schema extraction: the cpu encoder's p50 over the device's: 1.28x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 24.55s
+after: load 6.95 10.28 17.59 2/4602 1067231; b70 runner containers busy: none
+== snap-store render-engine (rcs) share of the B70 during each run, from xe fdinfo before and after:
+run 1: snap-store rcs 64.6%, ccs 0.0%
+run 2: snap-store rcs 63.7%, ccs 0.0%
+run 3: snap-store rcs 66.3%, ccs 0.0%
