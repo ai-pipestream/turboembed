@@ -57,7 +57,7 @@ path that cannot be read, invalid JSON, a different corpus digest or a
 different spaCy version always fails. The test pins 31 sentences, 485
 tokens and all 2,580 expected matches.
 
-The current existing-path samples, compiler, source and corpus hashes,
+The earlier token-reader existing-path samples, compiler, source and corpus hashes,
 commits, run order and ambient load are in
 `../../reference/existing-path-timing.json`. They compare main
 `bf52319dfc49486e5109f2c76faccb8fcd6edc02` with candidate
@@ -130,7 +130,8 @@ the published drug rules above provide positive published-rule coverage.
 
 The dependency run uses reference image
 `sha256:3fe2d4ad441927475b97a400364ebcb7fca3f324dae1a0463720eff7fc0a53f4`,
-with `spacy==3.8.7` installed into a separate mounted package directory.
+with packages pinned by `../../reference/dependency-oracle-requirements.txt`
+installed into a separate mounted package directory.
 It adds no runtime dependency to the Rust workspace. Keep corpus and
 oracle outputs local, as with the token-pattern oracle.
 
@@ -149,3 +150,20 @@ flag is set; an unreadable file, wrong version/digest or changed output
 fails. Every matched node is checked through a space-expanded view in
 both directions and through UTF-16/code-point round trips. Expected node
 order remains unchanged, including nonmonotonic and repeated indices.
+
+The dependency comparison covers 220 documents, 4,033 tokens, 136,932
+results and 276,116 node projections (262,323 shifted). All 20 operators
+produce matches. The published drug rules retain their 2,580 expected
+results. Input/output digests and environment versions are recorded in
+[`dependency-oracle-receipt.json`](../../reference/dependency-oracle-receipt.json).
+
+[Token-path timing](../../reference/dependency-existing-path-timing.json)
+compares candidate `93afa287d99274093636b2ef63939304b2305f29` with main
+`6a2ba1d67ef7d92256d569dcd5125add676cc96e`. Reuse the build/run recipe above
+with these revisions. All 12 alternating pairs and 15 calls per process
+are retained. Output dumps match exactly: 204,577 tokens, 51,765 hits.
+Main/candidate process medians are 21.832/20.873 ms (ratio 0.9561), and
+the median paired ratio is 0.9329. Individual ratios span 0.4637..1.2473
+on a heavily loaded shared host. These samples show no aggregate
+regression; they do not establish an isolated-host speedup. The follow-up
+adds only docs and receipts, leaving matcher source and example unchanged.
