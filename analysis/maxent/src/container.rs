@@ -10,9 +10,9 @@
 //! component a model is for, and what its other properties mean, is for
 //! the component reading it to check.
 
-use crate::sha256::{Digest, sha256};
 use std::borrow::Cow;
 use std::path::Path;
+use turbo_sha256::{Digest, sha256};
 
 use crate::dictionary::{Dictionary, Entries};
 use crate::error::{Error, Result};
