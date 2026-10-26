@@ -308,12 +308,12 @@ impl turbo_backend {
         }
     }
 
-    /// Whether this backend runs a rerank bundle: the CPU, and CUDA, the one
-    /// device backend whose rerank scores and timing are recorded
-    /// (docs/reranking.md). Metal, Level Zero and the rest take the same code
-    /// path but stay refused until they have been run.
+    /// Whether this backend runs a rerank bundle: the CPU, and the device
+    /// backends whose rerank scores are recorded (docs/reranking.md), CUDA
+    /// and Level Zero. Metal and the rest take the same code path but stay
+    /// refused until they have been run.
     pub fn runs_rerank(&self) -> bool {
-        matches!(self.name(), "cpu" | "cuda")
+        matches!(self.name(), "cpu" | "cuda" | "levelzero")
     }
 
     /// Whether model_load takes a token head and embed_write_ranges
