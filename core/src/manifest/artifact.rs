@@ -143,6 +143,11 @@ pub enum TensorRole {
     FfnOutBias,
     FfnLnWeight,
     FfnLnBias,
+    /// FAMILY_DEBERTA_V2's relative table, `[2 * position_buckets, hidden]`,
+    /// and its LayerNorm, `[hidden]`.
+    RelativeEmbeddings,
+    RelativeLnWeight,
+    RelativeLnBias,
     /// A static model's table, `[rows, dim]`.
     StaticEmbeddings,
     /// A static model's weight per token, `[vocab_size]`; optional.
@@ -191,6 +196,9 @@ impl TensorRole {
                 | TensorRole::TokenTypeEmbeddings
                 | TensorRole::EmbeddingsLnWeight
                 | TensorRole::EmbeddingsLnBias
+                | TensorRole::RelativeEmbeddings
+                | TensorRole::RelativeLnWeight
+                | TensorRole::RelativeLnBias
                 | TensorRole::StaticEmbeddings
                 | TensorRole::StaticWeights
                 | TensorRole::StaticMapping

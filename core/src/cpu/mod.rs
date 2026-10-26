@@ -5,6 +5,7 @@
 //! encoder in encoder/, or for a static model the table in table/.
 
 mod buffers;
+mod deberta;
 mod encoder;
 mod host;
 mod kernels;
@@ -17,6 +18,8 @@ mod table;
 
 #[cfg(test)]
 mod boundary_tests;
+#[cfg(test)]
+mod deberta_tests;
 
 use std::ffi::c_char;
 
