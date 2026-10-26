@@ -156,7 +156,13 @@ fn the_cpu_runs_embed_in_f32_measured_only_by_a_record() {
             assert!(cap.cosine_floor > 0.0, "the record's conformance floor");
         } else {
             assert_eq!(cap.status, backend::TURBO_CAP_EXPERIMENTAL, "it runs; no record measures it");
-            assert_eq!(s(&cap.reason), "no benchmark record for this cell");
+            // On a machine with records that back nothing (the M2's and the
+            // Arm hosts', made without TEI), the reason names the record.
+            let reason = s(&cap.reason);
+            assert!(
+                reason == "no benchmark record for this cell" || reason.contains(".json: "),
+                "{reason}: the no-record reason, or a record and why it backs nothing"
+            );
             assert_eq!(s(&cap.benchmark), "", "no record backs it");
             assert_eq!((cap.cosine_floor, cap.speed_ratio), (0.0, 0.0), "no numbers without a record");
         }
