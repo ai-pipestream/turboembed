@@ -2231,6 +2231,7 @@ dependencies = [
  "serde_json",
  "turbo",
  "turbo-analysis",
+ "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-bundle",
  "turbo-zoo",
