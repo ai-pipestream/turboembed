@@ -102,6 +102,8 @@ mod tune;
 mod write;
 
 #[cfg(feature = "internals")]
+pub(crate) use deberta::use_general_attention;
+#[cfg(feature = "internals")]
 pub(crate) use model::widened;
 pub(crate) use model::{model_load, model_release};
 #[cfg(feature = "internals")]

@@ -1338,6 +1338,97 @@ __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void deberta_attenti
     }
 }
 
+/* The same attention tiled, for head widths 32, 64 and 128: a work-item
+ * per query, QD queries of a row and head a group, the query (scaled) and
+ * its running context in registers, an online softmax as the BERT tiled
+ * kernels keep. The row's keys and values stream through local memory KD
+ * at a time, and with them the relative rows the block's distances reach:
+ * the group's queries less the block's keys span QD + KD - 1 distances,
+ * whose buckets are a run of at most as many rows, staged once for every
+ * query (the query rows scaled, so all three terms are), each read at
+ * its bucket less the block's first. Rows padded by a float4 keep the
+ * work-items' reads of different rows off one bank. */
+#define DEBERTA_FLASH(NAME, HD, QD, KD)                                                                            \
+    __kernel __attribute__((reqd_work_group_size(QD, 1, 1))) void NAME(                                           \
+        __global const float *qkv, __global const int *mask, __global const int *rows, int hidden, float scale,    \
+        __global float *ctx, __global const float *pos, __global const int *buckets, int span) {                   \
+        __local float4 ks[KD][HD / 4];                                                                             \
+        __local float4 vs[KD][HD / 4];                                                                             \
+        __local float4 pk[QD + KD - 1][HD / 4 + 1];                                                                \
+        __local float4 pq[QD + KD - 1][HD / 4 + 1];                                                                \
+        __local int live[KD];                                                                                      \
+        const int head = get_group_id(1), r = get_num_groups(2) - 1 - get_group_id(2);                             \
+        const int start = rows[2 * r], len = rows[2 * r + 1];                                                      \
+        const int i0 = get_group_id(0) * QD;                                                                       \
+        if (i0 >= len) return;                                                                                     \
+        const int lid = get_local_id(0), i = i0 + lid;                                                             \
+        const int stride = 3 * hidden, col = head * HD;                                                            \
+        const bool mine = i < len;                                                                                 \
+        const bool alive = mine && mask[start + i] != 0;                                                           \
+        float4 q[HD / 4], acc[HD / 4];                                                                             \
+        __global const float *qrow = qkv + (size_t)(start + (mine ? i : 0)) * stride + col;                        \
+        __attribute__((opencl_unroll_hint)) for (int d = 0; d < HD / 4; d++) {                                     \
+            q[d] = vload4(d, qrow) * scale;                                                                        \
+            acc[d] = (float4)(0.0f);                                                                               \
+        }                                                                                                          \
+        float m = -INFINITY, l = 0.0f;                                                                             \
+        for (int j0 = 0; j0 < len; j0 += KD) {                                                                     \
+            const int n = min(KD, len - j0);                                                                       \
+            const int dlo = i0 - (j0 + KD - 1);                                                                    \
+            const int blo = buckets[clamp(dlo, -span, span) + span];                                               \
+            const int nb = buckets[clamp(dlo + QD + KD - 2, -span, span) + span] - blo + 1;                        \
+            for (int e = lid; e < n * (HD / 4); e += QD) {                                                         \
+                const int j = e / (HD / 4), d = e % (HD / 4);                                                      \
+                __global const float *kv = qkv + (size_t)(start + j0 + j) * stride + col;                          \
+                ks[j][d] = vload4(d, kv + hidden);                                                                 \
+                vs[j][d] = vload4(d, kv + 2 * hidden);                                                             \
+            }                                                                                                      \
+            for (int e = lid; e < nb * (HD / 4); e += QD) {                                                        \
+                const int b = e / (HD / 4), d = e % (HD / 4);                                                      \
+                __global const float *pr = pos + (size_t)(blo + b) * stride + col;                                 \
+                pk[b][d] = vload4(d, pr + hidden);                                                                 \
+                pq[b][d] = vload4(d, pr) * scale;                                                                  \
+            }                                                                                                      \
+            for (int j = lid; j < n; j += QD) live[j] = mask[start + j0 + j];                                      \
+            barrier(CLK_LOCAL_MEM_FENCE);                                                                          \
+            if (mine) {                                                                                            \
+                for (int j = 0; j < n; j++) {                                                                      \
+                    float s = 0.0f;                                                                                \
+                    if (alive) {                                                                                   \
+                        if (live[j] == 0) continue;                                                                \
+                        const int b = buckets[i - (j0 + j) + span] - blo;                                          \
+                        float4 c2c = q[0] * ks[j][0], c2p = q[0] * pk[b][0], p2c = ks[j][0] * pq[b][0];            \
+                        __attribute__((opencl_unroll_hint)) for (int d = 1; d < HD / 4; d++) {                     \
+                            c2c = fma(q[d], ks[j][d], c2c);                                                        \
+                            c2p = fma(q[d], pk[b][d], c2p);                                                        \
+                            p2c = fma(ks[j][d], pq[b][d], p2c);                                                    \
+                        }                                                                                          \
+                        s = ((c2c.x + c2c.y) + (c2c.z + c2c.w)) + ((c2p.x + c2p.y) + (c2p.z + c2p.w)) +            \
+                            ((p2c.x + p2c.y) + (p2c.z + p2c.w));                                                   \
+                    }                                                                                              \
+                    if (s > m) {                                                                                   \
+                        const float c = exp(m - s);                                                                \
+                        l *= c;                                                                                    \
+                        __attribute__((opencl_unroll_hint)) for (int d = 0; d < HD / 4; d++) acc[d] *= c;          \
+                        m = s;                                                                                     \
+                    }                                                                                              \
+                    const float p = exp(s - m);                                                                    \
+                    l += p;                                                                                        \
+                    __attribute__((opencl_unroll_hint)) for (int d = 0; d < HD / 4; d++) acc[d] = fma(p, vs[j][d], acc[d]); \
+                }                                                                                                  \
+            }                                                                                                      \
+            barrier(CLK_LOCAL_MEM_FENCE);                                                                          \
+        }                                                                                                          \
+        if (!mine) return;                                                                                         \
+        const float inv = 1.0f / l;                                                                                \
+        __global float *out = ctx + (size_t)(start + i) * hidden + col;                                            \
+        __attribute__((opencl_unroll_hint)) for (int d = 0; d < HD / 4; d++) vstore4(acc[d] * inv, d, out);        \
+    }
+
+DEBERTA_FLASH(deberta_attention_32, 32, 128, 32)
+DEBERTA_FLASH(deberta_attention_64, 64, 64, 32)
+DEBERTA_FLASH(deberta_attention_128, 128, 32, 16)
+
 /* ---- Pooling ----------------------------------------------------------------
  *
  * Each row's vector, cut to output_dim: the mean over the tokens whose mask

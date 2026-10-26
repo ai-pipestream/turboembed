@@ -48,7 +48,16 @@ pub(super) struct Kernels {
     pub(super) pool_ranges: Kernel,
     pub(super) normalize: Kernel,
     /// For a DeBERTa-v2 model, its lookup and its attention (deberta.rs).
-    pub(super) deberta: Option<[Kernel; 2]>,
+    pub(super) deberta: Option<Deberta>,
+}
+
+/// A DeBERTa-v2 model's lookup, its general attention, and the tiled
+/// attention for its head width where one is built and fits, with its
+/// queries a group.
+pub(super) struct Deberta {
+    pub(super) embed: Kernel,
+    pub(super) general: Kernel,
+    pub(super) tiled: Option<(Kernel, u32)>,
 }
 
 /// Attention for the model's head width: a tiled kernel where one is
@@ -139,7 +148,11 @@ impl Kernels {
             pool_ranges: c.kernel("pool_ranges", [16 * POOL_SLICES, 1, 1])?,
             normalize: c.kernel("normalize", row)?,
             deberta: if deberta {
-                Some([c.kernel("deberta_embed", row)?, c.kernel("deberta_attention", row)?])
+                Some(Deberta {
+                    embed: c.kernel("deberta_embed", row)?,
+                    general: c.kernel("deberta_attention", row)?,
+                    tiled: super::deberta::tiled(c, head_dim)?,
+                })
             } else {
                 None
             },

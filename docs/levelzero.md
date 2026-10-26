@@ -365,37 +365,45 @@ LayerNormed and each layer's query, key and value projection of it
 (shared keys), once for the model. A session holds the bucket of every
 distance a row of its `max_seq` tokens spans, made when it is made. The
 lookup is the word row LayerNormed, zero at a masked position, with no
-position or type rows. Attention is `deberta_attention`, a group per
-query, head and row: a visible query's score of a visible key is
+position or type rows. A visible query's score of a visible key is
 `(q_i . k_j + q_i . pos_key[b] + k_j . pos_query[b]) / sqrt(3 head_dim)`,
 `b` the bucket of `i - j`, over visible keys alone; a masked query attends
-evenly to its row's every position, as upstream's mask leaves it. The
-linear layers, LayerNorms and pooling are the BERT encoder's in F32, with
+evenly to its row's every position, as upstream's mask leaves it. For
+head widths 32, 64 and 128 attention is tiled
+(`deberta_attention_32`, `_64`, `_128`): a work-item per query, 128, 64
+or 32 queries of a row and head a group, an online softmax in registers,
+and the row's keys and values streamed through local memory 32 at a time
+(16 at width 128) with the relative rows the block's distances reach,
+which are at most the group's queries plus the block's keys less one. For
+any other width it is `deberta_attention`, a group per query, head and
+row, reading every key and relative row from global memory. The linear
+layers, LayerNorms and pooling are the BERT encoder's in F32, with
 oneDNN's linear layers where they run.
 
 `core/tests/levelzero_deberta.rs` holds the device to the CPU on the same
-bundle at MODEL, within 1e-4 of every value: the tiny model of
-`core/tests/deberta_load.rs` and a generated one at GLiNER-small's size
-(hidden 768, 12 heads, 6 layers, 256 buckets), over mixed lengths with
-padding on either side and masked holes, a row of one token and one of
-512, mean, CLS and last-token pooling, and token ranges.
+bundle at MODEL, within 1e-4 of every value, on the kernel a session
+picks and on the general kernel forced (`use_general_attention`, with
+`internals`): the tiny model of `core/tests/deberta_load.rs`, generated
+ones of head width 32 and 128, and one at GLiNER-small's size (hidden
+768, 12 heads, 6 layers, 256 buckets), over mixed lengths with padding on
+either side and masked holes, a row of one token and one of 512, mean,
+CLS and last-token pooling, and token ranges.
 
 On the B70 (2026-10-26, `TURBO_SPEED_RUNS=7`, the GLiNER-small-sized
 model at MODEL, the CPU, an AMD Ryzen 9 9950X on all its threads,
-interleaved with the device; milliseconds a pass, min / median / max):
+interleaved with the device on the tiled and the general attention;
+milliseconds a pass, min / median / max):
 
-| Batch x tokens | CPU | levelzero |
-| --- | ---: | ---: |
-| 32 x 128 | 984.0 / 1005.6 / 1168.3 | 112.5 / 163.1 / 185.6 |
-| 8 x 512 | 665.9 / 687.5 / 1057.2 | 443.4 / 469.3 / 505.4 |
+| Batch x tokens | CPU | levelzero, tiled | levelzero, general |
+| --- | ---: | ---: | ---: |
+| 32 x 128 | 1176.3 / 1308.3 / 1326.0 | 92.6 / 96.3 / 133.2 | 116.1 / 167.5 / 174.7 |
+| 8 x 512 | 864.0 / 968.3 / 1326.7 | 183.4 / 225.0 / 245.3 | 302.8 / 400.6 / 499.0 |
 
-The GPU clock's median was 2800 MHz (2300 at the lowest), the package at
+The GPU clock's median was 2800 MHz (2200 at the lowest), the package at
 most 67 C and memory 66 C, with no throttling; another client held the
-render engine about half busy, and none other the compute engines. At
-512 tokens a row the same 4096 tokens take 2.9 times as long as at 128:
-the general attention kernel, which reads every key and relative row
-from global memory for each query, is what grows, so a tiled kernel is
-the next step before an F16 tier.
+render engine about half busy, and none other the compute engines. With
+the tiled attention a pass is 1.7 times as fast as with the general at 32
+x 128, and 1.8 times at 8 x 512.
 
 ## Testing on a machine with an Intel GPU
 

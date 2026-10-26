@@ -25,7 +25,7 @@ use crate::backend::{
     TURBO_FAMILY_DEBERTA_V2, turbo_backend_model,
 };
 use crate::deberta::{Config, bucket};
-use crate::levelzero::gpu::{Arg, Res, fail, fail_field};
+use crate::levelzero::gpu::{Arg, Context, Kernel, Res, fail, fail_field};
 use crate::status::{INVALID_ARGUMENT, INVALID_STRUCT_SIZE, UNSUPPORTED_OPTION};
 
 /// The tensors before the first layer's, by family.
@@ -86,6 +86,41 @@ pub(super) fn check_precision(precision: u32) -> Res<()> {
         ));
     }
     Ok(())
+}
+
+/// Queries a tiled attention group takes for a head width, as
+/// encoder.cl's instances of DEBERTA_FLASH; None for the widths the
+/// general kernel takes.
+fn tiled_queries(head_dim: u32) -> Option<u32> {
+    match head_dim {
+        32 => Some(128),
+        64 => Some(64),
+        128 => Some(32),
+        _ => None,
+    }
+}
+
+/// The tiled attention for `head_dim` and its queries a group, where one
+/// is built, its local memory fits the device, and a test has not forced
+/// the general kernel.
+pub(super) fn tiled(c: &Context, head_dim: u32) -> Res<Option<(Kernel, u32)>> {
+    #[cfg(feature = "internals")]
+    if GENERAL.load(std::sync::atomic::Ordering::Relaxed) {
+        return Ok(None);
+    }
+    let Some(queries) = tiled_queries(head_dim) else { return Ok(None) };
+    let k = c.kernel(&format!("deberta_attention_{head_dim}"), [queries, 1, 1])?;
+    Ok((k.local_bytes()? <= c.max_local).then_some((k, queries)))
+}
+
+/// A test's choice of the general attention for the sessions made after
+/// it, in place of the tiled one (use_general_attention).
+#[cfg(feature = "internals")]
+static GENERAL: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+#[cfg(feature = "internals")]
+pub(crate) fn use_general_attention(on: bool) {
+    GENERAL.store(on, std::sync::atomic::Ordering::Relaxed);
 }
 
 /// The bucket of each distance i - j between positions of a row of

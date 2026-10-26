@@ -19,7 +19,7 @@ use std::sync::{Mutex, MutexGuard};
 use std::time::Instant;
 
 use common::*;
-use deberta_common::{SMALL, Shape, TINY, fixture};
+use deberta_common::{HEADS_32, HEADS_128, SMALL, Shape, TINY, fixture};
 use turbo::*;
 
 /// The largest difference allowed from the CPU: the F32 device bound.
@@ -101,60 +101,77 @@ fn options(pooling: u32, normalize: u32) -> turbo_embed_options {
 }
 
 /// The largest difference between two runs' vectors, which must agree in
-/// count and width.
+/// count and width; infinite where either is NaN.
 fn worst(a: &[Vec<f32>], b: &[Vec<f32>]) -> f32 {
     assert_eq!(a.len(), b.len());
     a.iter()
         .zip(b)
         .flat_map(|(x, y)| {
             assert_eq!(x.len(), y.len());
-            x.iter().zip(y).map(|(p, q)| (p - q).abs())
+            // A NaN on either side is no match at all.
+            x.iter().zip(y).map(|(p, q)| if p.is_nan() || q.is_nan() { f32::INFINITY } else { (p - q).abs() })
         })
         .fold(0f32, f32::max)
 }
 
 /// Each case of `s`'s bundle on the device and the CPU at MODEL, every
-/// value within BOUND; the largest difference of each case printed.
+/// value within BOUND, on the attention kernel the session picks (the
+/// tiled one for head widths 32, 64 and 128) and on the general one
+/// forced; the largest difference of each case printed.
 fn matches_the_cpu(test: &str, name: &str, s: &Shape) {
     let _t = turn();
     let Some(_) = device(test) else { return };
     let f = fixture(name, s);
     let (g, c) = (on_gpu(&f), f.load().unwrap());
     let desc = session_desc(8, 512, TURBO_PRECISION_MODEL);
-    let (gs, cs) = (Session::create(g.m, Some(&desc)).unwrap(), Session::create(c.m, Some(&desc)).unwrap());
-    assert_eq!(gs.info().compute_dtype, TURBO_DTYPE_F32);
-    let mixed = rows(&[17, 5, 40, 9, 1], &[3], &[(2, 11), (0, 3)]);
-    let cases: [(&str, Tokens, turbo_embed_options); 6] = [
-        ("mixed lengths, padded, mean and L2", rows(&[17, 5, 40, 9, 1], &[], &[]), embed_options()),
-        ("left padding and masked holes, mean and L2", rows(&[17, 5, 40, 9, 1], &[3], &[(2, 11), (0, 3)]), {
-            options(TURBO_POOLING_MEAN, TURBO_NORMALIZE_L2)
-        }),
-        ("left padding and masked holes, CLS", mixed, options(TURBO_POOLING_CLS, TURBO_NORMALIZE_NONE)),
-        ("one token, CLS and L2", rows(&[1], &[], &[]), options(TURBO_POOLING_CLS, TURBO_NORMALIZE_L2)),
-        ("a row of 512 tokens", rows(&[512, 3], &[], &[]), embed_options()),
-        ("the last token", rows(&[33, 2, 12], &[], &[(0, 31)]), options(TURBO_POOLING_LAST, TURBO_NORMALIZE_NONE)),
-    ];
-    for (what, t, o) in &cases {
-        gs.write_tokens(&t.batch(), Some(o)).unwrap();
+    let cs = Session::create(c.m, Some(&desc)).unwrap();
+    for (kernel, general) in [("picked", false), ("general", true)] {
+        turbo::levelzero::use_general_attention(general);
+        let gs = Session::create(g.m, Some(&desc));
+        turbo::levelzero::use_general_attention(false);
+        let gs = gs.unwrap();
+        assert_eq!(gs.info().compute_dtype, TURBO_DTYPE_F32);
+        let mixed = rows(&[17, 5, 40, 9, 1], &[3], &[(2, 11), (0, 3)]);
+        let cases: [(&str, Tokens, turbo_embed_options); 6] = [
+            ("mixed lengths, padded, mean and L2", rows(&[17, 5, 40, 9, 1], &[], &[]), embed_options()),
+            ("left padding and masked holes, mean and L2", rows(&[17, 5, 40, 9, 1], &[3], &[(2, 11), (0, 3)]), {
+                options(TURBO_POOLING_MEAN, TURBO_NORMALIZE_L2)
+            }),
+            ("left padding and masked holes, CLS", mixed, options(TURBO_POOLING_CLS, TURBO_NORMALIZE_NONE)),
+            ("one token, CLS and L2", rows(&[1], &[], &[]), options(TURBO_POOLING_CLS, TURBO_NORMALIZE_L2)),
+            ("a row of 512 tokens", rows(&[512, 3], &[], &[]), embed_options()),
+            ("the last token", rows(&[33, 2, 12], &[], &[(0, 31)]), {
+                options(TURBO_POOLING_LAST, TURBO_NORMALIZE_NONE)
+            }),
+        ];
+        for (what, t, o) in &cases {
+            gs.write_tokens(&t.batch(), Some(o)).unwrap();
+            let got = gs.run().unwrap().rows();
+            cs.write_tokens(&t.batch(), Some(o)).unwrap();
+            let want = cs.run().unwrap().rows();
+            let d = worst(&got, &want);
+            println!("{test}: {kernel}: {what}: largest difference {d:e}");
+            assert!(d < BOUND, "{kernel}: {what}: {d:e}");
+        }
+        // Token ranges: whole rows, pieces, a masked hole inside one, and
+        // the end of the 512-token row, pooled by the mean.
+        let t = rows(&[40, 12, 512], &[], &[(0, 20)]);
+        let ranges = [
+            range(0, 0, 40),
+            range(0, 1, 21),
+            range(1, 3, 9),
+            range(1, 11, 12),
+            range(2, 100, 512),
+            range(2, 500, 512),
+        ];
+        let o = options(0, TURBO_NORMALIZE_L2);
+        gs.write_ranges(&t.batch(), &ranges, Some(&o)).unwrap();
         let got = gs.run().unwrap().rows();
-        cs.write_tokens(&t.batch(), Some(o)).unwrap();
-        let want = cs.run().unwrap().rows();
-        let d = worst(&got, &want);
-        println!("{test}: {what}: largest difference {d:e}");
-        assert!(d < BOUND, "{what}: {d:e}");
+        cs.write_ranges(&t.batch(), &ranges, Some(&o)).unwrap();
+        let d = worst(&got, &cs.run().unwrap().rows());
+        println!("{test}: {kernel}: token ranges: largest difference {d:e}");
+        assert!(d < BOUND, "{kernel}: token ranges: {d:e}");
     }
-    // Token ranges: whole rows, pieces, a masked hole inside one, and one
-    // past a row's end, pooled by the mean.
-    let t = rows(&[40, 12, 512], &[], &[(0, 20)]);
-    let ranges =
-        [range(0, 0, 40), range(0, 1, 21), range(1, 3, 9), range(1, 11, 12), range(2, 100, 512), range(2, 500, 512)];
-    let o = options(0, TURBO_NORMALIZE_L2);
-    gs.write_ranges(&t.batch(), &ranges, Some(&o)).unwrap();
-    let got = gs.run().unwrap().rows();
-    cs.write_ranges(&t.batch(), &ranges, Some(&o)).unwrap();
-    let d = worst(&got, &cs.run().unwrap().rows());
-    println!("{test}: token ranges: largest difference {d:e}");
-    assert!(d < BOUND, "token ranges: {d:e}");
 }
 
 #[test]
@@ -165,6 +182,16 @@ fn the_tiny_deberta_matches_the_cpu() {
 #[test]
 fn a_gliner_small_sized_deberta_matches_the_cpu() {
     matches_the_cpu("a_gliner_small_sized_deberta_matches_the_cpu", "lz-deberta-small", &SMALL);
+}
+
+#[test]
+fn a_deberta_of_head_width_32_matches_the_cpu() {
+    matches_the_cpu("a_deberta_of_head_width_32_matches_the_cpu", "lz-deberta-32", &HEADS_32);
+}
+
+#[test]
+fn a_deberta_of_head_width_128_matches_the_cpu() {
+    matches_the_cpu("a_deberta_of_head_width_128_matches_the_cpu", "lz-deberta-128", &HEADS_128);
 }
 
 /// FASTEST is refused, naming the precision and the family; it never runs
@@ -182,7 +209,8 @@ fn fastest_is_refused_on_a_deberta_model() {
 }
 
 /// Milliseconds a pass at the GLiNER-small size, the CPU at MODEL and
-/// levelzero at MODEL interleaved, TURBO_SPEED_RUNS runs a side (default
+/// levelzero at MODEL with the tiled and the general attention
+/// interleaved, TURBO_SPEED_RUNS runs a side (default
 /// 5) after one untimed, at batch 32 of 128 tokens and batch 8 of 512.
 /// Ignored, since it measures rather than checks.
 #[test]
@@ -195,12 +223,16 @@ fn deberta_speed() {
     let (g, c) = (on_gpu(&f), f.load().unwrap());
     for (batch, seq) in [(32usize, 128usize), (8, 512)] {
         let desc = session_desc(batch as u32, seq as u32, TURBO_PRECISION_MODEL);
+        turbo::levelzero::use_general_attention(true);
+        let general = Session::create(g.m, Some(&desc));
+        turbo::levelzero::use_general_attention(false);
         let sides = [
             ("cpu", Session::create(c.m, Some(&desc)).unwrap()),
-            ("levelzero", { Session::create(g.m, Some(&desc)).unwrap() }),
+            ("levelzero tiled", Session::create(g.m, Some(&desc)).unwrap()),
+            ("levelzero general", general.unwrap()),
         ];
         let t = rows(&vec![seq; batch], &[], &[]);
-        let mut times = [Vec::new(), Vec::new()];
+        let mut times = [Vec::new(), Vec::new(), Vec::new()];
         for run in 0..=runs {
             for (i, (_, s)) in sides.iter().enumerate() {
                 let start = Instant::now();

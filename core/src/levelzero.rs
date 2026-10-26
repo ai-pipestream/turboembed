@@ -177,6 +177,14 @@ pub fn use_choices(choices: Option<&str>) {
     encoder::use_choices(choices);
 }
 
+/// A DeBERTa-v2 session made from now on runs the general attention kernel
+/// when `on`, the tiled one for its head width otherwise. Built only with
+/// `internals`.
+#[cfg(feature = "internals")]
+pub fn use_general_attention(on: bool) {
+    encoder::use_general_attention(on);
+}
+
 /// Recovery from a failed append on the first listed device's queue, as
 /// gpu/mod.rs describes it. Built only with `internals`.
 #[cfg(feature = "internals")]

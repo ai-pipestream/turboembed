@@ -20,7 +20,7 @@ impl Session {
         let eps = d.layer_norm_eps as f32;
         let n = self.max_batch as u64 * self.max_seq as u64 * 4;
         let staging = self.staging as u64;
-        if let Some([embed, _]) = &k.deberta {
+        if let Some(dk) = &k.deberta {
             let args = [
                 Ptr(staging),
                 Ptr(staging + 3 * n),
@@ -35,7 +35,7 @@ impl Session {
                 Ptr(self.packed_mask),
                 Ptr(self.rows),
             ];
-            return embed.launch(c, q, "the embedding lookup", &args, [tokens, 1, 1]);
+            return dk.embed.launch(c, q, "the embedding lookup", &args, [tokens, 1, 1]);
         }
         let args = [
             Ptr(staging),
@@ -74,21 +74,37 @@ impl Session {
         let (batch, h) = (self.batch, d.hidden);
         let head_dim = h / d.heads;
         let xmx = k.linear_dpas.is_some();
-        if let Some([_, a]) = &k.deberta {
+        if let Some(dk) = &k.deberta {
+            let scale = (1.0 / (3.0 * head_dim as f64).sqrt()) as f32;
+            let (pos, span) = (self.weights.relative[l as usize], self.max_seq as i32 - 1);
+            if let Some((a, queries)) = &dk.tiled {
+                let args = [
+                    Ptr(self.qkv),
+                    Ptr(self.packed_mask),
+                    Ptr(self.rows),
+                    I32(h as i32),
+                    F32(scale),
+                    Ptr(self.att),
+                    Ptr(pos),
+                    Ptr(self.buckets),
+                    I32(span),
+                ];
+                return a.launch(c, q, "attention", &args, [self.longest.div_ceil(*queries), d.heads, batch]);
+            }
             let args = [
                 Ptr(self.qkv),
                 Ptr(self.packed_mask),
                 Ptr(self.rows),
                 I32(h as i32),
                 I32(head_dim as i32),
-                F32((1.0 / (3.0 * head_dim as f64).sqrt()) as f32),
+                F32(scale),
                 Ptr(self.att),
-                Ptr(self.weights.relative[l as usize]),
+                Ptr(pos),
                 Ptr(self.buckets),
-                I32(self.max_seq as i32 - 1),
+                I32(span),
                 Local(attention_local_bytes(self.longest, head_dim) as usize),
             ];
-            return a.launch(c, q, "attention", &args, [self.longest, d.heads, batch]);
+            return dk.general.launch(c, q, "attention", &args, [self.longest, d.heads, batch]);
         }
         let scale = 1.0 / (head_dim as f32).sqrt();
         match &k.attention {
