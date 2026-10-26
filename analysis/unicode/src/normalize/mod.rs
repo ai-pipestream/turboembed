@@ -14,6 +14,7 @@
 //! and are already in canonical order is in the form and is copied without
 //! further work; only the other runs are decomposed and recomposed.
 
+mod alignment;
 mod hangul;
 mod run;
 mod segment;
@@ -21,6 +22,7 @@ mod segment;
 use crate::tables::normalize::*;
 use crate::trie::{find, lookup};
 
+pub use alignment::{Aligned, aligned, aligned_chars};
 pub use segment::{for_each_run, is_normalized, normalize};
 
 /// A normalization form.
