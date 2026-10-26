@@ -47,35 +47,62 @@ fn schema() -> ExtractionSchema {
     }
 }
 
+fn reps() -> usize {
+    std::env::var("DEVICE_REPS").ok().and_then(|v| v.parse().ok()).unwrap_or(20)
+}
+
 #[test]
 fn schema_extraction_scores_as_on_the_cpu_encoder() {
     let limits = Limits { max_words: 64, ..Limits::default() };
     let (cpu, on) = (common::on(cpu(), limits), common::on(device(), limits));
     let schema = schema();
-    let mut largest = 0f32;
-    for text in TEXTS {
-        let (want, got) = (cpu.pass(text, &schema).unwrap(), on.pass(text, &schema).unwrap());
-        assert_eq!(want.prompt().ids, got.prompt().ids, "{text}: ids");
-        assert_eq!(want.scores().len(), got.scores().len());
-        for (t, (a, b)) in want.scores().iter().zip(got.scores()).enumerate() {
-            let d = match (a, b) {
-                (Scores::Labels(a), Scores::Labels(b)) => worst(a, b, text),
-                (
-                    Scores::Spans { count: c, instances: i, logits: a },
-                    Scores::Spans { count: d, instances: j, logits: b },
-                ) => {
-                    assert_eq!((c, i), (d, j), "{text}: task {t}: counts");
-                    worst(a, b, text)
-                }
-                _ => panic!("{text}: task {t}: scores of different kinds"),
-            };
-            assert!(d <= BOUND, "{text}: task {t}: logits {d}");
-            largest = largest.max(d);
+    let (mut largest, mut held, mut decoded) = (0f32, Vec::new(), 0usize);
+    for _ in 0..reps() {
+        for text in TEXTS {
+            let (want, got) = (cpu.pass(text, &schema).unwrap(), on.pass(text, &schema).unwrap());
+            assert_eq!(want.prompt().ids, got.prompt().ids, "{text}: ids");
+            assert_eq!(want.scores().len(), got.scores().len());
+            for (t, (a, b)) in want.scores().iter().zip(got.scores()).enumerate() {
+                let d = match (a, b) {
+                    (Scores::Labels(a), Scores::Labels(b)) => worst(a, b, text),
+                    (
+                        Scores::Spans { count: c, instances: i, logits: a },
+                        Scores::Spans { count: d, instances: j, logits: b },
+                    ) => {
+                        assert_eq!((c, i), (d, j), "{text}: task {t}: counts");
+                        worst(a, b, text)
+                    }
+                    _ => panic!("{text}: task {t}: scores of different kinds"),
+                };
+                assert!(d <= BOUND, "{text}: task {t}: logits {d}");
+                largest = largest.max(d);
+            }
+            let (x, y) = (common::rows(&want), common::rows(&got));
+            let (x, y): (Vec<&[f32]>, Vec<&[f32]>) =
+                (x.iter().map(Vec::as_slice).collect(), y.iter().map(Vec::as_slice).collect());
+            held.extend(same_decisions(&x, &y, BOUND, text));
+            // Decoded at a threshold half the span scores pass, none at it.
+            let sig = |v: f32| 1.0 / (1.0 + (-v).exp());
+            let span_scores = want.scores().iter().filter_map(|s| match s {
+                Scores::Spans { logits, .. } => Some(logits.iter().map(|&v| sig(v)).collect::<Vec<_>>()),
+                Scores::Labels(_) => None,
+            });
+            let t = midpoint(span_scores.flatten().collect());
+            let d = |p| turbo_schema_extract::decode(p, &schema, t, &turbo_schema_extract::decode::Nothing).unwrap();
+            let (ea, eb) = (d(&want), d(&got));
+            assert_eq!(common::picked(&ea), common::picked(&eb), "{text}: decoded at {t}");
+            decoded += ea.entities.iter().map(Vec::len).sum::<usize>() + ea.records.len();
         }
     }
+    varied(&held, "schema decisions");
+    assert!(decoded > 0, "nothing decoded on either side");
     let x = on.execution().unwrap();
     println!(
-        "gliner2 schema extraction on {} {}: largest logit difference from the cpu encoder {largest:e}",
-        x.backend, x.device
+        "gliner2 schema extraction on {} {}: {} runs, largest logit difference from the cpu encoder {largest:e}, {} \
+         decisions held, {decoded} spans and records decoded alike",
+        x.backend,
+        x.device,
+        reps(),
+        held.len()
     );
 }

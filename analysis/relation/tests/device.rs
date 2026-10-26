@@ -33,52 +33,103 @@ fn glirel_on(encoder: DebertaEncoder) -> glirel::GlirelRelations {
     glirel::GlirelRelations::new(encoder, heads, tokenizer, specials, model(), 512).unwrap()
 }
 
+/// Times each tiny-bundle test runs its passes, so a receipt counts runs:
+/// DEVICE_REPS, default 20.
+fn reps() -> usize {
+    std::env::var("DEVICE_REPS").ok().and_then(|v| v.parse().ok()).unwrap_or(20)
+}
+
 #[test]
 fn gliner2_relations_score_as_on_the_cpu_encoder() {
     let (cpu, on) = (gliner2_on(cpu()), gliner2_on(device()));
     let labels = ["founded", "located in", "works for"];
-    let mut largest = 0f32;
-    for text in TEXTS {
-        let (want, got) = (cpu.pass(text, &labels).unwrap(), on.pass(text, &labels).unwrap());
-        assert_eq!(want.prompt.ids, got.prompt.ids, "{text}: ids");
-        for (l, (a, b)) in want.labels.iter().zip(&got.labels).enumerate() {
-            assert_eq!(a.count, b.count, "{text}: label {l}: instance count");
-            let d = worst(&a.logits, &b.logits, text);
-            assert!(d <= BOUND, "{text}: label {l}: span logits {d}");
-            largest = largest.max(d);
+    let (mut largest, mut held, mut found) = (0f32, Vec::new(), 0);
+    for _ in 0..reps() {
+        for text in TEXTS {
+            let (want, got) = (cpu.pass(text, &labels).unwrap(), on.pass(text, &labels).unwrap());
+            assert_eq!(want.prompt.ids, got.prompt.ids, "{text}: ids");
+            let size = want.prompt.words.len() * want.width;
+            for (l, (a, b)) in want.labels.iter().zip(&got.labels).enumerate() {
+                assert_eq!(a.count, b.count, "{text}: label {l}: instance count");
+                let d = worst(&a.logits, &b.logits, text);
+                assert!(d <= BOUND, "{text}: label {l}: span logits {d}");
+                largest = largest.max(d);
+            }
+            // Each query's best span: the decisions the heads make.
+            let rows = |p: &gliner2::Pass| -> Vec<Vec<f32>> {
+                p.labels.iter().flat_map(|l| l.logits.chunks(size).map(<[f32]>::to_vec)).collect()
+            };
+            let (a, b) = (rows(&want), rows(&got));
+            let (a, b): (Vec<&[f32]>, Vec<&[f32]>) =
+                (a.iter().map(Vec::as_slice).collect(), b.iter().map(Vec::as_slice).collect());
+            if a.len() > 1 {
+                held.extend(same_decisions(&a, &b, BOUND, text));
+            }
+            // Extraction at a threshold half of the spans pass, none at it.
+            let sig = |x: f32| 1.0 / (1.0 + (-x).exp());
+            let t = midpoint(a.iter().flat_map(|r| r.iter().map(|&x| sig(x))).collect());
+            let (x, y) = (cpu.extract(text, &labels, t).unwrap(), on.extract(text, &labels, t).unwrap());
+            let ends = |v: &[gliner2::Extracted]| {
+                v.iter().map(|x| (x.label, x.head.start, x.head.end, x.tail.start, x.tail.end)).collect::<Vec<_>>()
+            };
+            assert_eq!(ends(&x), ends(&y), "{text}: extracted relations at {t}");
+            found += x.len();
         }
-        let (a, b) = (cpu.extract(text, &labels, 0.5).unwrap(), on.extract(text, &labels, 0.5).unwrap());
-        let ends = |v: &[gliner2::Extracted]| {
-            v.iter().map(|x| (x.label, x.head.start, x.head.end, x.tail.start, x.tail.end)).collect::<Vec<_>>()
-        };
-        assert_eq!(ends(&a), ends(&b), "{text}: extracted relations");
     }
+    assert!(found > 0, "no relation extracted on either side");
+    varied(&held, "gliner2 best spans");
+    let held = held.len();
     let x = on.execution().unwrap();
     println!(
-        "gliner2 relations on {} {}: largest logit difference from the cpu encoder {largest:e}",
-        x.backend, x.device
+        "gliner2 relations on {} {}: {} runs, largest logit difference from the cpu encoder {largest:e}, {held} best \
+         spans held, {found} relations extracted alike",
+        x.backend,
+        x.device,
+        reps()
     );
 }
 
 #[test]
 fn glirel_scores_as_on_the_cpu_encoder() {
     let (cpu, on) = (glirel_on(cpu()), glirel_on(device()));
-    let labels = ["founded", "located in", "works for"];
-    let mut largest = 0f32;
-    for text in TEXTS {
-        let (want, got) = (cpu.pass(text, &labels).unwrap(), on.pass(text, &labels).unwrap());
-        let n = want.prompt().words.len();
-        // Every single word an entity, every ordered pair of distinct ones.
-        let entities: Vec<(usize, usize)> = (0..n).map(|i| (i, i)).collect();
-        let pairs: Vec<(usize, usize)> =
-            (0..n).flat_map(|a| (0..n).filter(move |&b| b != a).map(move |b| (a, b))).collect();
-        let (a, b) = (cpu.logits(&want, &entities, &pairs).unwrap(), on.logits(&got, &entities, &pairs).unwrap());
-        let d = worst(&a, &b, text);
-        assert!(d <= BOUND, "{text}: relation logits {d}");
-        largest = largest.max(d);
+    let labels = ["founded", "located in", "works for", "born in", "married to"];
+    let (mut largest, mut held) = (0f32, Vec::new());
+    for _ in 0..reps() {
+        for text in TEXTS {
+            let (want, got) = (cpu.pass(text, &labels).unwrap(), on.pass(text, &labels).unwrap());
+            let n = want.prompt().words.len();
+            if n < 2 {
+                continue;
+            }
+            // Every single word an entity, every ordered pair of distinct ones.
+            let entities: Vec<(usize, usize)> = (0..n).map(|i| (i, i)).collect();
+            let pairs: Vec<(usize, usize)> =
+                (0..n).flat_map(|a| (0..n).filter(move |&b| b != a).map(move |b| (a, b))).collect();
+            let (a, b) = (cpu.logits(&want, &entities, &pairs).unwrap(), on.logits(&got, &entities, &pairs).unwrap());
+            let d = worst(&a, &b, text);
+            assert!(d <= BOUND, "{text}: relation logits {d}");
+            largest = largest.max(d);
+            // Each label's best pair: which relation the scorer ranks first
+            // for it. (Each pair's best label is the same label everywhere
+            // over the tiny fixture, so that decision would vary nothing.)
+            let m = labels.len();
+            let column = |v: &[f32], l: usize| -> Vec<f32> { v.chunks(m).map(|r| r[l]).collect() };
+            let (x, y): (Vec<Vec<f32>>, Vec<Vec<f32>>) =
+                ((0..m).map(|l| column(&a, l)).collect(), (0..m).map(|l| column(&b, l)).collect());
+            let (x, y): (Vec<&[f32]>, Vec<&[f32]>) =
+                (x.iter().map(Vec::as_slice).collect(), y.iter().map(Vec::as_slice).collect());
+            held.extend(same_decisions(&x, &y, BOUND, text));
+        }
     }
+    varied(&held, "glirel best pairs");
+    let held = held.len();
     let x = on.execution().unwrap();
-    println!("glirel on {} {}: largest logit difference from the cpu encoder {largest:e}", x.backend, x.device);
+    println!(
+        "glirel on {} {}: {} runs, largest logit difference from the cpu encoder {largest:e}, {held} best pairs held",
+        x.backend,
+        x.device,
+        reps()
+    );
 }
 
 /// A bundle of another family is refused by name.

@@ -83,14 +83,38 @@ fn record_cmd(args: &[String]) -> Result<()> {
     let no_tei = o.flag("--no-tei");
     let tei = match (o.take("--tei-image"), o.take("--tei-bin"), o.take("--tei-model")) {
         (Some(image), None, Some(model)) => {
-            Some(Tei { image, model_dir: model.into(), cpus: cpus.clone(), binary: None })
+            Some(Tei { image, model_dir: model.into(), cpus: cpus.clone(), binary: None, nsys: None })
         }
-        (None, Some(bin), Some(model)) => {
-            Some(Tei { image: String::new(), model_dir: model.into(), cpus: cpus.clone(), binary: Some(bin.into()) })
-        }
+        (None, Some(bin), Some(model)) => Some(Tei {
+            image: String::new(),
+            model_dir: model.into(),
+            cpus: cpus.clone(),
+            binary: Some(bin.into()),
+            nsys: None,
+        }),
         (None, None, None) => None,
         (Some(_), Some(_), _) => return Err("--tei-image and --tei-bin are two ways to run TEI; give one".into()),
         _ => return Err("--tei-model goes with --tei-image or --tei-bin".into()),
+    };
+    let (nsys, nsys_libs, importer) = (o.take("--tei-nsys"), o.take("--tei-nsys-libs"), o.take("--nsys-importer"));
+    let tei = match (tei, nsys) {
+        (Some(t), Some(_)) if t.binary.is_some() => {
+            return Err("--tei-nsys profiles TEI's container; the native router (--tei-bin) is not one".into());
+        }
+        (Some(t), Some(target)) => Some(Tei {
+            nsys: Some(tei::kernels::Nsys {
+                target: target.into(),
+                libs: nsys_libs.map(Into::into),
+                importer: importer.map(Into::into),
+            }),
+            ..t
+        }),
+        (None, Some(_)) => return Err("--tei-nsys goes with --tei-image".into()),
+        (t, None) if nsys_libs.is_some() || importer.is_some() => {
+            let _ = t;
+            return Err("--tei-nsys-libs and --nsys-importer go with --tei-nsys".into());
+        }
+        (t, None) => t,
     };
     let no_trt = o.flag("--no-tensorrt");
     let inputs = onnx_inputs(o.take("--tensorrt-inputs"), "--tensorrt-inputs")?;

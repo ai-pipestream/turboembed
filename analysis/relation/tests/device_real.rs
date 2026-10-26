@@ -1,9 +1,11 @@
 //! GLiNER2 relations and GLiREL on the real checkpoints with the encoder on
 //! a device, against the CPU encoder of the same core bundle (#920): the
-//! texts and labels of tests/fixtures/*/real.json, every instance count and
-//! extracted relation equal and every logit within REAL_BOUND of the
-//! largest logit of its pass, then a release timing interleaved against
-//! the CPU path. The device is the one device_support names.
+//! texts and labels of tests/fixtures/*/real.json, DEVICE_REPS times over:
+//! every instance count and extracted relation equal, every logit within
+//! REAL_BOUND of the CPU's, and every decision the CPU's margin holds (each
+//! query's best span, each label's best pair) the same, those picking at
+//! least two choices; then a release timing interleaved against the CPU
+//! path. The device is the one device_support names.
 //!
 //! The CPU side is the encoder as production loads it, the DeBERTa package
 //! `turbo-bundle deberta-convert` writes; the device side is the encoder's
@@ -25,10 +27,9 @@ use serde_json::Value;
 use turbo_relation::encoder::DebertaEncoder;
 use turbo_relation::{gliner2, glirel};
 
-/// The largest logit difference from the CPU encoder, as a fraction of the
-/// largest logit of the pass: the encoder's states are within 1e-4, and the
-/// heads carry that through their own products.
-const REAL_BOUND: f32 = 1e-3;
+/// The largest logit difference from the CPU encoder: the F32 device bound
+/// the encoder itself is held to (#883).
+const REAL_BOUND: f32 = 1e-4;
 
 fn env(name: &str) -> PathBuf {
     std::env::var_os(name).map(PathBuf::from).unwrap_or_else(|| panic!("set {name}"))
@@ -82,26 +83,45 @@ fn gliner2_relations_on_the_real_checkpoint() {
     let load = |e: DebertaEncoder| gliner2::Gliner2Relations::load_with(e, &checkpoint, "real", "1").unwrap();
     let (cpu, on) = (load(package_cpu(&package)), load(bound(&package, &bundle)));
     let cases = cases("gliner2");
-    let mut worst = 0f32;
-    for (k, c) in cases.iter().enumerate() {
-        let (text, labels) = (c["text"].as_str().unwrap(), strs(&c["labels"]));
-        let (a, b) = (cpu.pass(text, &labels).unwrap(), on.pass(text, &labels).unwrap());
-        let scale = a.labels.iter().flat_map(|l| &l.logits).filter(|x| x.is_finite()).fold(1f32, |m, x| m.max(x.abs()));
-        for (l, (x, y)) in a.labels.iter().zip(&b.labels).enumerate() {
-            assert_eq!(x.count, y.count, "case {k} label {l}: instance count");
-            let d = device_support::worst(&x.logits, &y.logits, text) / scale;
-            assert!(d <= REAL_BOUND, "case {k} label {l}: span logits {d} of the largest");
-            worst = worst.max(d);
+    let (mut worst_seen, mut held, mut found) = (0f32, Vec::new(), 0);
+    for _ in 0..reps() {
+        for (k, c) in cases.iter().enumerate() {
+            let (text, labels) = (c["text"].as_str().unwrap(), strs(&c["labels"]));
+            let (a, b) = (cpu.pass(text, &labels).unwrap(), on.pass(text, &labels).unwrap());
+            let size = a.prompt.words.len() * a.width;
+            for (l, (x, y)) in a.labels.iter().zip(&b.labels).enumerate() {
+                assert_eq!(x.count, y.count, "case {k} label {l}: instance count");
+                let d = device_support::worst(&x.logits, &y.logits, text);
+                assert!(d <= REAL_BOUND, "case {k} label {l}: span logits {d}");
+                worst_seen = worst_seen.max(d);
+            }
+            let rows = |p: &gliner2::Pass| -> Vec<Vec<f32>> {
+                p.labels.iter().flat_map(|l| l.logits.chunks(size).map(<[f32]>::to_vec)).collect()
+            };
+            let (x, y) = (rows(&a), rows(&b));
+            let (x, y): (Vec<&[f32]>, Vec<&[f32]>) =
+                (x.iter().map(Vec::as_slice).collect(), y.iter().map(Vec::as_slice).collect());
+            held.extend(same_decisions(&x, &y, REAL_BOUND, text));
+            let ends = |v: Vec<gliner2::Extracted>| {
+                v.into_iter().map(|x| (x.label, x.head.start, x.head.end, x.tail.start, x.tail.end)).collect::<Vec<_>>()
+            };
+            let (x, y) = (cpu.extract(text, &labels, 0.5).unwrap(), on.extract(text, &labels, 0.5).unwrap());
+            found += x.len();
+            assert_eq!(ends(x), ends(y), "case {k}: extracted relations");
         }
-        let ends = |v: Vec<gliner2::Extracted>| {
-            v.into_iter().map(|x| (x.label, x.head.start, x.head.end, x.tail.start, x.tail.end)).collect::<Vec<_>>()
-        };
-        let (x, y) = (cpu.extract(text, &labels, 0.5).unwrap(), on.extract(text, &labels, 0.5).unwrap());
-        assert_eq!(ends(x), ends(y), "case {k}: extracted relations");
     }
+    varied(&held, "gliner2 best spans");
+    assert!(found > 0, "no relation extracted on either side");
+    let worst = worst_seen;
+    println!(
+        "gliner2 relations: {} runs of {} cases, {} best spans held, {found} relations extracted alike",
+        reps(),
+        cases.len(),
+        held.len()
+    );
     let x = on.execution().unwrap().clone();
     let on_name = format!("{} {} ({})", x.backend, x.device, x.precision);
-    println!("gliner2 relations: largest logit difference from the cpu encoder {worst:e} of the pass's largest");
+    println!("gliner2 relations: largest logit difference from the cpu encoder {worst:e}");
     let pass = |m: &gliner2::Gliner2Relations, c: usize| {
         std::hint::black_box(m.pass(cases[c]["text"].as_str().unwrap(), &strs(&cases[c]["labels"])).unwrap());
     };
@@ -119,33 +139,37 @@ fn glirel_on_the_real_checkpoint() {
     let load = |e: DebertaEncoder| glirel::GlirelRelations::load_with(e, &package, &spm).unwrap();
     let (cpu, on) = (load(package_cpu(&package)), load(bound(&package, &bundle)));
     let cases = cases("glirel");
-    let mut worst = 0f32;
     let entities = |c: &Value| -> Vec<(usize, usize)> {
-        c["ner"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|e| (e[0].as_u64().unwrap() as usize, e[1].as_u64().unwrap() as usize))
-            .collect()
+        let e = c["ner"].as_array().unwrap();
+        e.iter().map(|e| (e[0].as_u64().unwrap() as usize, e[1].as_u64().unwrap() as usize)).collect()
     };
-    for (k, c) in cases.iter().enumerate() {
-        let (text, labels) = (c["text"].as_str().unwrap(), strs(&c["labels"]));
-        let (a, b) = (cpu.pass(text, &labels).unwrap(), on.pass(text, &labels).unwrap());
-        let ents = entities(c);
-        let pairs: Vec<(usize, usize)> =
-            (0..ents.len()).flat_map(|h| (0..ents.len()).filter(move |&t| t != h).map(move |t| (h, t))).collect();
-        let (x, y) = (cpu.logits(&a, &ents, &pairs).unwrap(), on.logits(&b, &ents, &pairs).unwrap());
-        let scale = x.iter().fold(1f32, |m, v| m.max(v.abs()));
-        let d = device_support::worst(&x, &y, text) / scale;
-        assert!(d <= REAL_BOUND, "case {k}: relation logits {d} of the largest");
-        worst = worst.max(d);
-        let (x, y) = (cpu.extract(text, &ents, &labels, 0.5).unwrap(), on.extract(text, &ents, &labels, 0.5).unwrap());
-        let keys = |v: Vec<glirel::Extracted>| v.into_iter().map(|r| (r.head, r.tail, r.label)).collect::<Vec<_>>();
-        assert_eq!(keys(x), keys(y), "case {k}: extracted relations");
+    let (mut worst_seen, mut held) = (0f32, Vec::new());
+    for _ in 0..reps() {
+        for (k, c) in cases.iter().enumerate() {
+            let (text, labels) = (c["text"].as_str().unwrap(), strs(&c["labels"]));
+            let (a, b) = (cpu.pass(text, &labels).unwrap(), on.pass(text, &labels).unwrap());
+            let ents = entities(c);
+            let pairs: Vec<(usize, usize)> =
+                (0..ents.len()).flat_map(|h| (0..ents.len()).filter(move |&t| t != h).map(move |t| (h, t))).collect();
+            let (x, y) = (cpu.logits(&a, &ents, &pairs).unwrap(), on.logits(&b, &ents, &pairs).unwrap());
+            let d = device_support::worst(&x, &y, text);
+            assert!(d <= REAL_BOUND, "case {k}: relation logits {d}");
+            worst_seen = worst_seen.max(d);
+            // Each pair's best label.
+            let m = labels.len();
+            let (p, q): (Vec<&[f32]>, Vec<&[f32]>) = (x.chunks(m).collect(), y.chunks(m).collect());
+            held.extend(same_decisions(&p, &q, REAL_BOUND, text));
+            let (x, y) =
+                (cpu.extract(text, &ents, &labels, 0.5).unwrap(), on.extract(text, &ents, &labels, 0.5).unwrap());
+            let keys = |v: Vec<glirel::Extracted>| v.into_iter().map(|r| (r.head, r.tail, r.label)).collect::<Vec<_>>();
+            assert_eq!(keys(x), keys(y), "case {k}: extracted relations");
+        }
     }
+    varied(&held, "glirel pair labels");
+    let worst = worst_seen;
     let x = on.execution().unwrap().clone();
     let on_name = format!("{} {} ({})", x.backend, x.device, x.precision);
-    println!("glirel: largest logit difference from the cpu encoder {worst:e} of the pass's largest");
+    println!("glirel: largest logit difference from the cpu encoder {worst:e}, {} pair labels held", held.len());
     let pass = |m: &glirel::GlirelRelations, c: usize| {
         std::hint::black_box(m.pass(cases[c]["text"].as_str().unwrap(), &strs(&cases[c]["labels"])).unwrap());
     };

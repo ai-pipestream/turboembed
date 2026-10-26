@@ -125,3 +125,65 @@ pub const TEXTS: [&str; 4] = [
     "Apple and Microsoft announced a joint venture in Seattle on Tuesday",
     "the quick brown fox jumps over the lazy dog while seven wizards judge a match",
 ];
+
+/// The choice of each of `rows` (logits over the choices; non-finite ones
+/// are no choice) whose CPU margin, the best less the next, is over twice
+/// `bound`: the decisions a device within `bound` must make the same.
+/// `None` for a row whose margin is not.
+pub fn decisions(rows: &[&[f32]], bound: f32) -> Vec<Option<usize>> {
+    rows.iter()
+        .map(|r| {
+            let mut best: Option<(usize, f32)> = None;
+            let mut next = f32::NEG_INFINITY;
+            for (i, &v) in r.iter().enumerate().filter(|(_, v)| v.is_finite()) {
+                match best {
+                    Some((_, b)) if v <= b => next = next.max(v),
+                    _ => {
+                        if let Some((_, b)) = best {
+                            next = next.max(b);
+                        }
+                        best = Some((i, v));
+                    }
+                }
+            }
+            best.filter(|&(_, b)| b - next > 2.0 * bound).map(|(i, _)| i)
+        })
+        .collect()
+}
+
+/// The device's choices against the CPU's: every decision the CPU's margin
+/// holds is the device's too. Returns the choices held, one per decision;
+/// a test asks for enough of them, and at least two different choices,
+/// over all its inputs ([`varied`]).
+pub fn same_decisions(cpu: &[&[f32]], device: &[&[f32]], bound: f32, what: &str) -> Vec<usize> {
+    assert_eq!(cpu.len(), device.len(), "{what}: decisions");
+    let held = decisions(cpu, bound);
+    let theirs = decisions(device, 0.0);
+    let mut picked = Vec::new();
+    for (i, (h, t)) in held.iter().zip(&theirs).enumerate() {
+        if let Some(h) = h {
+            assert_eq!(Some(*h), *t, "{what}: decision {i}");
+            picked.push(*h);
+        }
+    }
+    picked
+}
+
+/// The decisions a test held over all its inputs: some, and at least two
+/// different choices among them.
+pub fn varied(picked: &[usize], what: &str) {
+    let distinct: std::collections::BTreeSet<_> = picked.iter().collect();
+    assert!(!picked.is_empty(), "{what}: no decision has a margin over twice the bound");
+    assert!(distinct.len() >= 2, "{what}: the {} decisions held all pick {distinct:?}", picked.len());
+}
+
+/// A threshold halfway between the two scores either side of the median
+/// of `scores`, so about half of them pass it, none within a hair of it.
+pub fn midpoint(mut scores: Vec<f32>) -> f32 {
+    scores.retain(|s| s.is_finite());
+    scores.sort_by(f32::total_cmp);
+    scores.dedup();
+    let m = scores.len() / 2;
+    assert!(m > 0, "too few distinct scores for a threshold");
+    (scores[m - 1] + scores[m]) / 2.0
+}
