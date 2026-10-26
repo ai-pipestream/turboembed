@@ -57,6 +57,50 @@ package on the CPU (packed ids identical, every logit within 1e-3, decoded
 entities alike but for candidates within that of the threshold) and times
 `score_packed` on both, interleaved.
 
+On 2026-10-26, release builds, the converted package against the same
+package over the sealed encoder bundle, at MODEL: the marker and
+first-subword rows within 3.4e-5 on the Arc Pro B70 and 4.8e-5 on the
+RTX 4080 SUPER (lowest cosine 1.0), the logits within 5.1e-5 and 5.7e-5,
+the packed ids and the decoded entities the same.
+
+`score_packed` in milliseconds, 50 timed runs a side after one untimed,
+the CPU path and the device interleaved; min / p50 / mean / p99. A call
+includes the heads (projection, BiLSTM, span scoring), which run on the
+host in both columns, so the device gains only on the encoder's share.
+
+Arc Pro B70 (levelzero), host AMD Ryzen 9 9950X (16 cores, 32 threads).
+No build or test process in the CI runner containers that mount the
+device, before or after; another client held the render engine about 64%
+busy, and none other the compute engines; GPU clock median 2800 MHz,
+at most 66 C. The host's load average was 17 to 27, so the CPU column
+and the ratios ran under load.
+
+| Words, labels (tokens) | CPU | levelzero |
+| --- | ---: | ---: |
+| 64, 4 (75) | 29.7 / 35.5 / 34.5 / 40.6 | 20.9 / 22.9 / 27.9 / 56.1 |
+| 64, 32 (131) | 37.1 / 42.0 / 41.4 / 47.7 | 24.2 / 33.9 / 38.7 / 58.3 |
+| 128, 4 (139) | 58.6 / 69.6 / 70.4 / 93.2 | 45.8 / 57.4 / 57.4 / 80.0 |
+| 128, 32 (195) | 66.1 / 73.8 / 73.7 / 81.4 | 46.7 / 53.5 / 55.0 / 87.6 |
+| 384, 4 (395) | 187.9 / 223.9 / 229.4 / 325.1 | 152.1 / 179.4 / 185.9 / 275.8 |
+| 384, 32 (451) | 190.8 / 227.2 / 248.1 / 402.0 | 169.5 / 227.3 / 229.9 / 332.3 |
+
+RTX 4080 SUPER (cuda), host AMD Ryzen 9 9950X3D (16 cores, 32 threads).
+The GPU was shared: a resident server process of another workload held
+5.5 GB and kept it 22 to 28% busy, and another thread's device test ran
+during the pass; no CI build or test process ran. SM clock median 2610
+MHz, at most 50 C. The host's load average was 40 to 60, so both columns
+ran under load; read these as an upper bound, to be taken again on a
+quiet machine.
+
+| Words, labels (tokens) | CPU | cuda |
+| --- | ---: | ---: |
+| 64, 4 (75) | 40.2 / 68.9 / 78.3 / 202.6 | 23.0 / 30.6 / 44.7 / 123.0 |
+| 64, 32 (131) | 83.8 / 115.6 / 121.5 / 172.3 | 35.7 / 52.8 / 58.3 / 95.9 |
+| 128, 4 (139) | 114.1 / 187.7 / 191.7 / 292.7 | 72.2 / 133.4 / 133.7 / 206.0 |
+| 128, 32 (195) | 66.1 / 100.2 / 129.5 / 301.3 | 43.5 / 59.4 / 79.1 / 196.3 |
+| 384, 4 (395) | 171.9 / 192.1 / 192.1 / 214.1 | 126.2 / 136.5 / 137.3 / 159.6 |
+| 384, 32 (451) | 181.2 / 206.5 / 207.9 / 244.7 | 128.9 / 145.8 / 145.0 / 169.0 |
+
 This is a Rust API. SaT ships as `turbo-sat`, and GLiNER2 document
 classification, structured records and deterministic constraint layers
 ship in `turbo-schema-extract` (`analysis/schema-extract`); this page
