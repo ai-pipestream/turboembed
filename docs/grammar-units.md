@@ -182,6 +182,39 @@ expected result, value, type, subtype and explicit ISO code, with no pass-list
 exclusions. Additional tests run the real Analyzer pipeline, source-offset
 round trips, Unicode whitespace, compound bounds and ambiguous ordinal marks.
 
+## Italian
+
+`ITALIAN_UNITS` and `GrammarAnnotator::italian()` add Italian quantities,
+ages, temperatures and currencies with provenance name `it-units`.
+A cardinal vocabulary and bounded compound splitter recognize forms such
+as `ventidue`, `centoventitré`, `centottanta` and `duemilacento` without
+rewriting source text or allocating temporary joined words. The splitter
+uses stack scratch space and accepts only complete number compounds.
+`miliardi`, `bilioni` and `trilioni` use the Italian long scale (10^9,
+10^12 and 10^18). Full Italian ordinal/percentage and spelled-decimal
+support is outside this unit-oriented grammar.
+
+Rules include `3 metri quadrati`, `6 piedi e 3 pollici`, `5 libbre e 8 once`,
+`188 miglia all'ora`, `10 Mb/s`, `tredici euro e quarantacinque centesimi`,
+`20 euro per ora`, country-qualified currencies and the age suffix `di età`.
+The preposition `in` is not an inch alias in Italian, and weight `libbre`
+stays distinct from currency `sterline`. Currency nouns do not consume
+following articles. Generic currencies and minor units retain the shared
+conventions, and the Money schema retains a rate's full span without a
+separate period column.
+
+All **210 unchanged Italian NumberWithUnit cases** pass: **15 Age,
+106 Currency, 55 Dimension and 34 Temperature**. This includes Age cases
+3 and 7 that upstream marks `NotSupported: dotnet`; neither is excluded.
+The shared exact-span/value/type/subtype/ISO comparator checks **207 cases**.
+Temperature cases **25, 26 and 27 omit Start/End coordinates upstream**:
+those three check the complete expected text/value/unit multiset instead,
+without supplying missing oracle offsets. Localized unit labels and
+comma decimals are translated; the shared Ton/gallon conventions remain.
+The original files are unchanged. Native regressions additionally check
+real Analyzer output, fused/decomposed source spans, Unicode whitespace,
+UTF-16/codepoint round trips, malformed compounds and boundary ambiguity.
+
 ## Speed
 
 `cargo run --release -p turbo-grammar --example grammar_bench` prints
@@ -198,4 +231,5 @@ with the number rules and about 7.5 to 8.5 ms with the unit rules, and
   and `version 2 g` as a weight.
 - Glued rate words (`200 Mbps`) and rates over units other than time
   (`$5 per person`).
-- Dutch unit and currency rules remain the next separate slice of #929.
+- Dutch and Portuguese are tracked in separate #929 PRs; Chinese and
+  Japanese remain separate language slices.

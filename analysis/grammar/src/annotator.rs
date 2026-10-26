@@ -74,6 +74,10 @@ impl GrammarAnnotator {
         GrammarAnnotator::new(&crate::SPANISH_UNITS)
     }
 
+    pub fn italian() -> GrammarAnnotator {
+        GrammarAnnotator::new(&crate::ITALIAN_UNITS)
+    }
+
     /// The step for a pipeline: writes numbers under [`GRAMMAR_NUMBERS`],
     /// percentages and quantities under [`GRAMMAR_PERCENTS`], money under
     /// [`GRAMMAR_MONEY`] and ordinals to the default instance.
