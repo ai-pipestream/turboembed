@@ -86,22 +86,25 @@ const STOP: [&str; 24] = [
     "with", "that", "this", "at", "as", "will",
 ];
 
-/// The unit's content words. Token forms (folded when `Terms` are
-/// present) split on non-alphanumerics like the plain text does, so
-/// punctuation tokens add nothing to the bag.
-fn words(text: &str, unit: Span, tokens: Option<&Tokens>, terms: Option<&Terms>) -> HashSet<String> {
+/// The unit's content words: the text split on non-alphanumerics. With
+/// `Terms`, each token's folded form is split the same way, so
+/// punctuation tokens add nothing. Folding, and tokens that split inside
+/// an alphanumeric run (Penn's `do|n't`), can then give a different bag
+/// than the text; `Tokens` without `Terms` add nothing over the text, so
+/// the bag is the text's.
+fn words(text: &str, unit: Span, terms: Option<(&Tokens, &Terms)>) -> HashSet<String> {
     let content = |form: &str| -> Vec<String> {
         form.split(|c: char| !c.is_alphanumeric())
             .map(str::to_lowercase)
             .filter(|w| !w.is_empty() && !STOP.contains(&w.as_str()))
             .collect()
     };
-    match tokens {
-        Some(tokens) => tokens
+    match terms {
+        Some((tokens, terms)) => tokens
             .spans
             .iter()
             .filter(|(_, span)| unit.start <= span.start && span.end <= unit.end)
-            .flat_map(|(i, span)| content(terms.map_or(&text[span.range()], |terms| terms.get(i).folded)))
+            .flat_map(|(i, _)| content(terms.get(i).folded))
             .collect(),
         None => content(&text[unit.range()]).into_iter().collect(),
     }
@@ -155,8 +158,7 @@ impl<S: NliScorer, L: SpanCategorizable> ClaimVerificationAnnotator<S, L> {
         entities: Option<&Entities>,
         vectors: Option<&Vectors<L>>,
         text: &str,
-        tokens: Option<&Tokens>,
-        terms: Option<&Terms>,
+        terms: Option<(&Tokens, &Terms)>,
     ) -> Vec<Candidate> {
         let n = spans.len();
         let names: Vec<HashSet<String>> = spans
@@ -171,7 +173,7 @@ impl<S: NliScorer, L: SpanCategorizable> ClaimVerificationAnnotator<S, L> {
                 None => HashSet::new(),
             })
             .collect();
-        let bags: Vec<HashSet<String>> = spans.iter().map(|&unit| words(text, unit, tokens, terms)).collect();
+        let bags: Vec<HashSet<String>> = spans.iter().map(|&unit| words(text, unit, terms)).collect();
         let c = &self.config;
         let mut out = Vec::new();
         for a in 0..n {
@@ -215,7 +217,7 @@ impl<S: NliScorer + Send + Sync + 'static, L: SpanCategorizable> Annotator for C
         if spans.iter().any(|s| s.end as usize > text.len()) {
             return Err(Self::fail("a unit outside the view text".into()));
         }
-        if let Some(tokens) = tokens {
+        if let (Some(tokens), Some(terms)) = (tokens, terms) {
             if tokens.spans.view() != view.id()
                 || tokens.spans.iter().any(|(_, s)| {
                     s.end as usize > text.len()
@@ -225,7 +227,7 @@ impl<S: NliScorer + Send + Sync + 'static, L: SpanCategorizable> Annotator for C
             {
                 return Err(Self::fail("the tokens are not in the units' view text".into()));
             }
-            if terms.is_some_and(|t| t.folded.len() != tokens.spans.len()) {
+            if terms.folded.len() != tokens.spans.len() {
                 return Err(Self::fail("the terms do not have one entry per token".into()));
             }
         }
@@ -234,7 +236,7 @@ impl<S: NliScorer + Send + Sync + 'static, L: SpanCategorizable> Annotator for C
         let specials = self.scorer.pair_special_tokens();
         let counts: Vec<usize> = texts.iter().map(|t| self.scorer.count_tokens(t)).collect();
         let pairs: Vec<Candidate> = self
-            .candidates(&spans, entities, vectors, text, tokens, terms)
+            .candidates(&spans, entities, vectors, text, tokens.zip(terms))
             .into_iter()
             .filter(|p| counts[p.a] + counts[p.b] + specials <= budget)
             .take(self.config.max_pairs)
@@ -307,6 +309,44 @@ fn configuration_hash(c: &ClaimVerifyConfig, version: &str) -> u64 {
     }
     h.bytes(&c.contradict_threshold.to_bits().to_le_bytes()).bytes(&(c.max_pairs as u64).to_le_bytes());
     h.finish()
+}
+
+#[cfg(test)]
+mod bag_tests {
+    use super::*;
+    use turbo_analysis::{Spans, ViewId};
+    use turbo_analysis_layers::Strs;
+
+    fn bag(words: HashSet<String>) -> Vec<String> {
+        let mut out: Vec<String> = words.into_iter().collect();
+        out.sort();
+        out
+    }
+
+    /// Penn-style tokens split inside alphanumeric runs; without `Terms`
+    /// the bag is still the text's, as before #1322.
+    #[test]
+    fn tokens_without_terms_keep_the_text_bag() {
+        let text = "I don't know, I cannot go, we're gonna win.";
+        let unit = Span::new(0, text.len() as u32);
+        let want = ["cannot", "don", "go", "gonna", "i", "know", "re", "t", "we", "win"];
+        assert_eq!(bag(words(text, unit, None)), want);
+        let mut spans = Spans::new(ViewId(0));
+        let mut forms = Strs::default();
+        let pieces =
+            ["I", "do", "n't", "know", ",", "I", "can", "not", "go", ",", "we", "'re", "gon", "na", "win", "."];
+        let mut at = 0;
+        for piece in pieces {
+            at += text[at..].find(piece).unwrap();
+            spans.push(Span::new(at as u32, (at + piece.len()) as u32));
+            forms.push(&piece.to_lowercase());
+            at += piece.len();
+        }
+        let tokens = Tokens { spans, sentence: None };
+        let terms = Terms { surface: forms.clone(), folded: forms, stem: None, lemma: None };
+        let folded = ["can", "do", "go", "gon", "i", "know", "n", "na", "not", "re", "t", "we", "win"];
+        assert_eq!(bag(words(text, unit, Some((&tokens, &terms)))), folded, "Terms forms are the tokens' own");
+    }
 }
 
 #[cfg(test)]

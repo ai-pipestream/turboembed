@@ -3,9 +3,20 @@ use super::*;
 #[test]
 fn reused_subwords_preserve_word_slice_control_whitespace() {
     let f = nonzero_finder();
-    for text in
-        ["Ann met Lee", "Ann\u{85}Lee", "John\u{c}Smith", "John\u{b}Smith", "John\tSmith", "John\nSmith", "Zoë\u{c}李"]
-    {
+    for text in [
+        "Ann met Lee",
+        "Ann\u{85}Lee",
+        "John\u{c}Smith",
+        "John\u{b}Smith",
+        "John\tSmith",
+        "John\nSmith",
+        "Zoë\u{c}李",
+        "John\rSmith",
+        "John\r\nSmith",
+        "Zoë\r李",
+        "John\u{2028}Smith",
+        "John\u{2029}Smith",
+    ] {
         let doc = Document::new(text);
         let view = doc.require(&Key::<View>::DEFAULT).unwrap();
         let tokens = tokens(text);

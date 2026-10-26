@@ -97,18 +97,20 @@ fn folded_punctuation_terms_do_not_make_candidates() {
 fn mismatched_tokens_and_terms_are_refused() {
     let verifier = ClaimVerificationAnnotator::new(RuleNli::three());
     let d = doc(&["Acme grew.", "Zoë grew."], true);
-    for (view, span) in [(ViewId(1), Span::new(0, 4)), (ViewId(0), Span::new(0, 40)), (ViewId(0), Span::new(14, 15))] {
-        let mut spans = Spans::new(view);
-        spans.push(span);
-        let err = run_with(&verifier, &d, Some(&Tokens { spans, sentence: None }), None).unwrap_err();
-        assert!(format!("{err:?}").contains("not in the units' view"), "{span:?} {err:?}");
-    }
     let mut forms = Strs::default();
     forms.push("acme");
     let terms = Terms { surface: forms.clone(), folded: forms, stem: None, lemma: None };
+    for (view, span) in [(ViewId(1), Span::new(0, 4)), (ViewId(0), Span::new(0, 40)), (ViewId(0), Span::new(14, 15))] {
+        let mut spans = Spans::new(view);
+        spans.push(span);
+        let tokens = Tokens { spans, sentence: None };
+        let err = run_with(&verifier, &d, Some(&tokens), Some(&terms)).unwrap_err();
+        assert!(format!("{err:?}").contains("not in the units' view"), "{span:?} {err:?}");
+        let unread = run_with(&verifier, &d, Some(&tokens), None);
+        assert!(unread.is_ok(), "Tokens without Terms are not read: {unread:?}");
+    }
     let err = run_with(&verifier, &d, d.get::<Tokens>(), Some(&terms)).unwrap_err();
     assert!(format!("{err:?}").contains("one entry per token"), "{err:?}");
-    assert_eq!(verifier.scorer().seen(), 0);
 }
 
 /// Returns `row` for every pair, over `contradiction, entailment, neutral`.
