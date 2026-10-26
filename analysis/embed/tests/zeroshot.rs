@@ -426,6 +426,8 @@ fn claim_verifier_runs_on_the_bundle_scorer_in_one_batch() {
             d.require(&Key::<Sentences>::DEFAULT).unwrap(),
             None,
             None,
+            None,
+            None,
         ))
         .unwrap();
     edges.check().unwrap();
