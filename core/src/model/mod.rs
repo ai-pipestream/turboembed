@@ -5,22 +5,26 @@
 
 mod heads;
 mod place;
+mod roles;
 
 pub use heads::{classifier_tensors, mlm_tensors, projection_tensors};
+pub use roles::{
+    BERT_EMBEDDING_ROLES, BERT_LAYER_ROLES, DEBERTA_EMBEDDING_ROLES, Expected, bert_tensors, embedding_tensors,
+};
 
 use std::ffi::c_void;
 
 use serde::Serialize;
 
 use crate::backend::{
-    TURBO_BERT_EMBEDDING_TENSORS, TURBO_BERT_LAYER_TENSORS, TURBO_FAMILY_BERT, TURBO_FAMILY_ROBERTA,
-    TURBO_FAMILY_STATIC, TURBO_STATIC_TENSORS, format_bit, turbo_backend_model, turbo_backend_tensor,
+    TURBO_FAMILY_BERT, TURBO_FAMILY_DEBERTA_V2, TURBO_FAMILY_ROBERTA, TURBO_FAMILY_STATIC, TURBO_STATIC_TENSORS,
+    format_bit, turbo_backend_model, turbo_backend_tensor,
 };
 use crate::bundle::{AlignedBytes, Bundle, sha256_hex};
 use crate::manifest::{
-    Activation, Architecture, Artifact, Family, Format, GraphInput, Manifest, PositionEmbedding, TensorRole, role_name,
+    Activation, Architecture, Artifact, Family, Format, GraphInput, Manifest, PositionEmbedding, TensorRole,
 };
-use crate::status::{BUNDLE_NO_ARTIFACT, Error, INTERNAL, INVALID_ARGUMENT, Result, UNSUPPORTED, invalid};
+use crate::status::{BUNDLE_NO_ARTIFACT, Error, INTERNAL, INVALID_ARGUMENT, Result, UNSUPPORTED};
 
 use place::place_static;
 pub(crate) use place::{Placed, place};
@@ -67,110 +71,6 @@ pub fn artifact_sha256(m: &Manifest, a: &Artifact) -> String {
     }
 }
 
-/// The shape the architecture implies for a BERT tensor: `[out, in]` for a
-/// linear layer's weight, `[out]` for its bias and for LayerNorm.
-fn bert_shape(role: TensorRole, a: &Architecture) -> Vec<u64> {
-    let (h, i) = (a.hidden as u64, a.intermediate as u64);
-    use TensorRole::*;
-    match role {
-        WordEmbeddings => vec![a.vocab_size as u64, h],
-        PositionEmbeddings => vec![a.max_positions as u64, h],
-        TokenTypeEmbeddings => vec![a.token_types as u64, h],
-        QWeight | KWeight | VWeight | AttnOutWeight => vec![h, h],
-        FfnInWeight => vec![i, h],
-        FfnInBias => vec![i],
-        FfnOutWeight => vec![h, i],
-        EmbeddingsLnWeight | EmbeddingsLnBias | QBias | KBias | VBias | AttnOutBias | AttnLnWeight | AttnLnBias
-        | FfnOutBias | FfnLnWeight | FfnLnBias => vec![h],
-        StaticEmbeddings | StaticWeights | StaticMapping => {
-            unreachable!("an encoder's tensor_names has no static role (validate)")
-        }
-        PoolerWeight | PoolerBias | ClassifierWeight | ClassifierBias => {
-            unreachable!("classifier roles are shaped by classifier_tensors")
-        }
-        MlmTransformWeight | MlmTransformBias | MlmTransformLnWeight | MlmTransformLnBias | MlmDecoderWeight
-        | MlmDecoderBias => unreachable!("MLM roles are shaped by mlm_tensors"),
-        ProjectionWeight | ProjectionBias => {
-            unreachable!("projection roles are shaped by projection_tensors")
-        }
-    }
-}
-
-/// The embedding tensors, at TURBO_BERT_* in turbo_backend.h.
-pub const BERT_EMBEDDING_ROLES: [TensorRole; TURBO_BERT_EMBEDDING_TENSORS as usize] = {
-    use TensorRole::*;
-    [WordEmbeddings, PositionEmbeddings, TokenTypeEmbeddings, EmbeddingsLnWeight, EmbeddingsLnBias]
-};
-
-/// Each layer's tensors, at TURBO_BERT_* in turbo_backend.h.
-pub const BERT_LAYER_ROLES: [TensorRole; TURBO_BERT_LAYER_TENSORS as usize] = {
-    use TensorRole::*;
-    [
-        QWeight,
-        QBias,
-        KWeight,
-        KBias,
-        VWeight,
-        VBias,
-        AttnOutWeight,
-        AttnOutBias,
-        AttnLnWeight,
-        AttnLnBias,
-        FfnInWeight,
-        FfnInBias,
-        FfnOutWeight,
-        FfnOutBias,
-        FfnLnWeight,
-        FfnLnBias,
-    ]
-};
-
-/// One tensor a BERT encoder needs: its name in the weights file and the
-/// shape the architecture implies.
-pub struct Expected {
-    pub name: String,
-    pub shape: Vec<u64>,
-    /// The role and layer, for messages.
-    pub what: String,
-}
-
-/// Every tensor a BERT encoder needs, in the order turbo_backend.h's
-/// TURBO_BERT_* constants give. Every role must be in tensor_names.
-pub fn bert_tensors(index: usize, art: &Artifact, a: &Architecture) -> Result<Vec<Expected>> {
-    tensors_of(index, art, a, a.layers)
-}
-
-/// The embedding tensors alone, for a host lookup: only their roles need
-/// be in tensor_names.
-pub fn embedding_tensors(index: usize, art: &Artifact, a: &Architecture) -> Result<Vec<Expected>> {
-    tensors_of(index, art, a, 0)
-}
-
-fn tensors_of(index: usize, art: &Artifact, a: &Architecture, layers: u32) -> Result<Vec<Expected>> {
-    let name = |role: TensorRole| {
-        art.tensor_names.get(&role).ok_or_else(|| {
-            invalid(format!(
-                "manifest.json: artifacts[{index}].tensor_names: no {}, which a BERT encoder needs",
-                role_name(role)
-            ))
-        })
-    };
-    let mut out = Vec::with_capacity((TURBO_BERT_EMBEDDING_TENSORS + layers * TURBO_BERT_LAYER_TENSORS) as usize);
-    for role in BERT_EMBEDDING_ROLES {
-        out.push(Expected { name: name(role)?.clone(), shape: bert_shape(role, a), what: role_name(role) });
-    }
-    for layer in 0..layers {
-        for role in BERT_LAYER_ROLES {
-            out.push(Expected {
-                name: name(role)?.replace("{layer}", &layer.to_string()),
-                shape: bert_shape(role, a),
-                what: format!("{} of layer {layer}", role_name(role)),
-            });
-        }
-    }
-    Ok(out)
-}
-
 /// A static model's tensors, in TURBO_STATIC_* order: its table, its
 /// weight per token and its token mapping, the last two optional.
 pub const STATIC_ROLES: [TensorRole; TURBO_STATIC_TENSORS as usize] =
@@ -191,6 +91,21 @@ pub fn runs_band(backend: &str, lookahead: u32) -> Result<()> {
     ))
 }
 
+/// Whether the backend named `backend` holds a model of TURBO_FAMILY_*
+/// `family`: only the CPU has a DeBERTa-v2 encoder so far, and any other
+/// would refuse the family at model_load.
+pub fn runs_family(backend: &str, family: u32) -> Result<()> {
+    if family != TURBO_FAMILY_DEBERTA_V2 || backend == "cpu" {
+        return Ok(());
+    }
+    Err(Error::new(
+        UNSUPPORTED,
+        format!(
+            "FAMILY_DEBERTA_V2: the {backend} backend has no DeBERTa-v2 encoder yet; load the model on the cpu backend"
+        ),
+    ))
+}
+
 /// The family model_load is told. Every combination the manifest can name
 /// is listed, so a new family, activation or position embedding does not
 /// compile until it has a place here.
@@ -198,6 +113,11 @@ fn family(a: &Architecture) -> u32 {
     match (a.family, a.activation, a.position_embedding) {
         (Family::Bert, Activation::GeluErf, PositionEmbedding::Absolute) => TURBO_FAMILY_BERT,
         (Family::Roberta, Activation::GeluErf, PositionEmbedding::Absolute) => TURBO_FAMILY_ROBERTA,
+        (Family::DebertaV2, Activation::GeluErf, PositionEmbedding::Relative) => TURBO_FAMILY_DEBERTA_V2,
+        (Family::Bert | Family::Roberta, _, PositionEmbedding::Relative)
+        | (Family::DebertaV2, _, PositionEmbedding::Absolute) => {
+            unreachable!("validate_positions pairs each family with its position embedding")
+        }
     }
 }
 
@@ -220,6 +140,9 @@ pub struct Weights {
     position_offset: u32,
     /// architecture.lookahead, 0 for none.
     pub lookahead: u32,
+    /// architecture.relative's position_buckets and max_relative_positions,
+    /// 0 for a family without them.
+    relative: [u32; 2],
     layer_norm_eps: f64,
     /// A compiled artifact's first file, as hashed: the whole HEF, or an
     /// OpenVINO IR's xml.
@@ -258,6 +181,7 @@ impl Weights {
                 arch: [0, dim, 0, 0, st.vocab_size, 0, 1],
                 position_offset: 0,
                 lookahead: 0,
+                relative: [0, 0],
                 layer_norm_eps: 0.0,
                 artifact: None,
                 artifact2: None,
@@ -325,6 +249,7 @@ impl Weights {
             arch: [a.layers, a.hidden, a.heads, a.intermediate, a.vocab_size, a.max_positions, a.token_types],
             position_offset: a.position_offset,
             lookahead: a.lookahead.unwrap_or(0),
+            relative: a.relative.map_or([0, 0], |r| [r.position_buckets, r.max_relative_positions]),
             layer_norm_eps: a.layer_norm_eps,
             artifact,
             artifact2,
@@ -409,6 +334,8 @@ impl Weights {
             head: std::ptr::null(),
             head_out: 0,
             lookahead: self.lookahead,
+            position_buckets: self.relative[0],
+            max_relative_positions: self.relative[1],
         }
     }
 
@@ -419,6 +346,11 @@ impl Weights {
             0 => self.dtype,
             d => d,
         }
+    }
+
+    /// The TURBO_FAMILY_* model_load is told.
+    pub fn family(&self) -> u32 {
+        self.family
     }
 
     /// Whether the model is a static one (TURBO_FAMILY_STATIC).

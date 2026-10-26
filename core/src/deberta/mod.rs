@@ -69,6 +69,21 @@ impl Encoder {
         Ok(Self { config, weights, pool: Mutex::new(Pool::new(threads)) })
     }
 
+    /// The encoder from a backend table's F32 tensors, in TURBO_DEBERTA_*
+    /// then TURBO_BERT_* layer order (turbo_backend.h). It computes on the
+    /// pool its caller hands `encode_on`.
+    pub(crate) fn from_table(config: Config, tensors: &[&[f32]]) -> Result<Self> {
+        config.check()?;
+        let weights = Weights::from_table(&config, tensors)?;
+        Ok(Self { config, weights, pool: Mutex::new(Pool::new(1)) })
+    }
+
+    /// One sequence's last hidden states, [ids.len(), hidden], on `pool`'s
+    /// threads: `encode`'s bits whatever the thread count.
+    pub(crate) fn encode_on(&self, pool: &mut Pool, ids: &[u32], mask: &[bool]) -> Result<Vec<f32>> {
+        self.run(ids, mask, false, Some(pool)).map(|(_, last)| last)
+    }
+
     /// The same encoder on `threads` threads, the caller's among them:
     /// 1 to 1024. Without it, TURBO_CPU_THREADS when set, else one per
     /// processor this process may run on, as for a CPU session

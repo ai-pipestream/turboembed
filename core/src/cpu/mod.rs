@@ -5,6 +5,7 @@
 //! encoder in encoder/, or for a static model the table in table/.
 
 mod buffers;
+mod deberta;
 mod encoder;
 mod host;
 mod kernels;
