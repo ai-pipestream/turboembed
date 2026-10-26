@@ -68,6 +68,7 @@ async fn main() -> ExitCode {
         admin: args.admin,
         vocabulary: args.vocabulary_dir.map(PathBuf::from),
         catalog,
+        training: args.training_dir.map(PathBuf::from),
         sink: args.sink,
         ..Serve::default()
     };
