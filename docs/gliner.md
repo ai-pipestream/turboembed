@@ -12,7 +12,7 @@ No encoder attention or matrix-multiplication loop is changed here.
 
 `Model::new` takes the CPU encoder. `Model::open_on` takes the encoder as
 a core bundle of `FAMILY_DEBERTA_V2` instead, through the backend table, on
-the device `EncoderOptions` names: cpu, cuda or levelzero (#883). One run
+the device `EncoderOptions` names: cpu, cuda, levelzero or metal (#883). One run
 a window, and only the rows the heads read come back: a one-token range at
 each `<<ENT>>` marker and each word's first subword, through the range
 write, unnormalized, as SaT reads its tokens. The heads, packing and
@@ -20,8 +20,9 @@ decoding are the same; the longest sequence is the session's, and
 `Model::execution` names where it ran. `analysis/gliner/tests/device.rs` holds a device to
 the CPU encoder on `testdata/tiny-deberta-bundle` (every logit within
 1e-4, and 1e-3 of its input's largest, the packed ids and decoded entities
-the same): on the Arc Pro B70 and the RTX 4080 SUPER the largest difference
-is under 1e-10, at MODEL and EXACT.
+the same): on the Arc Pro B70, the RTX 4080 SUPER and the Apple M2 the
+largest difference is under 1e-10, at MODEL and EXACT (on the M2 8.7e-11,
+the encoder rows within 7.2e-7).
 
 ### The real checkpoint on a device
 

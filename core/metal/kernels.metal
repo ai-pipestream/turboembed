@@ -1065,6 +1065,135 @@ kernel void pool_ranges(device const float *x [[buffer(0)]], device const int *m
     for (uint d = lane; d < p.output_dim; d += 32) dst[d] *= inv;
 }
 
+// ---- DeBERTa-v2 ---------------------------------------------------------------
+//
+// The parts of a DeBERTa-v2 encoder (TURBO_FAMILY_DEBERTA_V2) that differ
+// from BERT's, held to the CPU encoder (core/src/deberta), the reference;
+// the linear layers, the LayerNorms after them and the pooling are BERT's,
+// in F32. The relative table is LayerNormed once a model, then put through
+// each layer's query and key projections (shared keys): rows of
+// [2 * hidden], the query part, then the key part. A session holds the
+// bucket of every distance its rows can span, buckets[i - j + span].
+
+// x[t] = LayerNorm(word[ids[t]]) where the token is live, else 0: no
+// position or type rows.
+kernel void deberta_embed(device const int *ids [[buffer(0)]], device const int *mask [[buffer(1)]],
+                          device const float *word [[buffer(2)]], device const float *ln_w [[buffer(3)]],
+                          device const float *ln_b [[buffer(4)]], device float *x [[buffer(5)]],
+                          constant RowParams &p [[buffer(6)]], device half *xh [[buffer(7)]],
+                          uint tg [[threadgroup_position_in_grid]], ushort sg [[simdgroup_index_in_threadgroup]],
+                          ushort lane [[thread_index_in_simdgroup]]) {
+    const uint t = tg * 4 + sg, h = p.hidden;
+    device float *row = x + ulong(t) * h;
+    if (mask[t] == 0) {
+        for (uint d = lane; d < h; d += 32) row[d] = 0.0f;
+        return;
+    }
+    device const float *w = word + ulong(ids[t]) * h;
+    for (uint d = lane; d < h; d += 32) row[d] = w[d];
+    layer_norm_row(row, h, ln_w, ln_b, p.eps, lane, xh + ulong(t) * h, 0);
+}
+
+// Each of the grid's rows of x, hidden wide, LayerNormed in place, one
+// SIMD group a row.
+kernel void deberta_layer_norm_rows(device float *x [[buffer(0)]], device const float *ln_w [[buffer(1)]],
+                                    device const float *ln_b [[buffer(2)]], constant RowParams &p [[buffer(3)]],
+                                    device half *unused [[buffer(4)]], uint tg [[threadgroup_position_in_grid]],
+                                    ushort lane [[thread_index_in_simdgroup]]) {
+    layer_norm_row(x + ulong(tg) * p.hidden, p.hidden, ln_w, ln_b, p.eps, lane, unused, 0);
+}
+
+struct RelativeParams {
+    uint rows, hidden;
+};
+
+// out[r, part * hidden + o] = bias[o] + sum_i x[r, i] w[o, i], for part 0
+// (the query projection, w0 and b0) and 1 (the key projection, w1 and
+// b1): a thread an output, the sum in the CPU's order.
+kernel void deberta_relative(device const float *x [[buffer(0)]], device const float *w0 [[buffer(1)]],
+                             device const float *b0 [[buffer(2)]], device const float *w1 [[buffer(3)]],
+                             device const float *b1 [[buffer(4)]], device float *out [[buffer(5)]],
+                             constant RelativeParams &p [[buffer(6)]], uint e [[thread_position_in_grid]]) {
+    const uint h = p.hidden;
+    if (e >= p.rows * 2 * h) return;
+    const uint r = e / (2 * h), c = e % (2 * h), part = c / h, o = c % h;
+    device const float *w = (part == 0 ? w0 : w1) + ulong(o) * h;
+    device const float *xr = x + ulong(r) * h;
+    float s = 0.0f;
+    for (uint i = 0; i < h; i++) s = fma(xr[i], w[i], s);
+    out[e] = s + (part == 0 ? b0 : b1)[o];
+}
+
+struct DebertaParams {
+    uint hidden, head_dim;
+    float scale;       // 1 / sqrt(3 head_dim)
+    uint span;         // max_seq - 1: buckets[i - j + span]
+    uint stride;       // floats of scores a SIMD group holds: the longest row, rounded up to 8
+};
+
+// Disentangled attention, a threadgroup per block of 32 queries of a row
+// and head, each SIMD group taking every groups-th query with its own
+// scores, a key a lane. A live query's score of a live key is
+// (q_i . k_j + q_i . pos_key[b] + k_j . pos_query[b]) / sqrt(3 d), b the
+// bucket of i - j, over live keys alone; a masked query attends evenly to
+// every position of its row, as upstream's mask leaves it.
+kernel void deberta_attention(device const float *q [[buffer(0)]], device const float *k [[buffer(1)]],
+                              device const float *v [[buffer(2)]], device const int *mask [[buffer(3)]],
+                              device const uint2 *rows [[buffer(4)]], device const uint2 *blocks [[buffer(5)]],
+                              device float *ctx [[buffer(6)]], constant DebertaParams &p [[buffer(7)]],
+                              device const float *pos [[buffer(8)]], device const int *buckets [[buffer(9)]],
+                              threadgroup float *scores [[threadgroup(0)]], uint2 tg [[threadgroup_position_in_grid]],
+                              ushort sg [[simdgroup_index_in_threadgroup]],
+                              ushort groups [[simdgroups_per_threadgroup]], ushort lane [[thread_index_in_simdgroup]]) {
+    threadgroup float *sc = scores + sg * p.stride;
+    const uint2 blk = blocks[tg.x];
+    const uint2 row = rows[blk.x];
+    const uint p0 = row.x, len = row.y;
+    const uint h = p.hidden, hd = p.head_dim, col = tg.y * hd;
+    device const int *m = mask + p0;
+    device const float *pq = pos + col, *pk = pos + h + col;
+    for (uint i = blk.y * 32 + sg; i < min(len, blk.y * 32 + 32); i += groups) {
+        device const float *qi = q + ulong(p0 + i) * h + col;
+        const bool live = m[i] != 0;
+        float mx = -INFINITY;
+        for (uint j = lane; j < len; j += 32) {
+            if (!live) {
+                sc[j] = 0.0f;
+                mx = 0.0f;
+                continue;
+            }
+            if (m[j] == 0) continue;
+            device const float *kj = k + ulong(p0 + j) * h + col;
+            const ulong r = ulong(buckets[i - j + p.span]) * 2 * h;
+            float c2c = 0.0f, c2p = 0.0f, p2c = 0.0f;
+            for (uint d = 0; d < hd; d++) {
+                c2c = fma(qi[d], kj[d], c2c);
+                c2p = fma(qi[d], pk[r + d], c2p);
+                p2c = fma(kj[d], pq[r + d], p2c);
+            }
+            sc[j] = (c2c + c2p + p2c) * p.scale;
+            mx = max(mx, sc[j]);
+        }
+        mx = simd_max(mx);
+        float sum = 0.0f;
+        for (uint j = lane; j < len; j += 32) {
+            const float e = !live || m[j] != 0 ? exp(sc[j] - mx) : 0.0f;
+            sc[j] = e;
+            sum += e;
+        }
+        const float inv = 1.0f / simd_sum(sum);
+        simdgroup_barrier(mem_flags::mem_threadgroup);
+        device float *out = ctx + ulong(p0 + i) * h + col;
+        for (uint d = lane; d < hd; d += 32) {
+            float c = 0.0f;
+            for (uint j = 0; j < len; j++)
+                if (!live || m[j] != 0) c = fma(sc[j] * inv, v[ulong(p0 + j) * h + col + d], c);
+            out[d] = c;
+        }
+        simdgroup_barrier(mem_flags::mem_threadgroup);
+    }
+}
+
 // ---- Weights stored in F16 or BF16 -------------------------------------------
 
 kernel void widen_f16(device const half *src [[buffer(0)]], device float *dst [[buffer(1)]],

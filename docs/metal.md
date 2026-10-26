@@ -245,6 +245,38 @@ frameworks and libc++, which every macOS has.
   Metal's own objects, made by Metal for every submission, and are not
   counted.
 
+## DeBERTa-v2
+
+A model of `FAMILY_DEBERTA_V2` (docs/bundle.md; GLiNER's encoder, #883)
+loads and runs at MODEL and EXACT, in F32; FASTEST is refused with
+`TURBO_E_UNSUPPORTED_OPTION` naming field 3, and never runs in F32 in its
+place. The linear layers, the LayerNorms after them and the pooling are
+the BERT encoder's; three kernels differ (kernels.metal, DeBERTa-v2),
+each held to the CPU encoder (core/src/deberta), the reference:
+
+- `deberta_embed`: the word row alone, LayerNormed, or 0 for a masked
+  position; no position or type rows.
+- The relative rows, made once a model by its first session: the
+  relative table LayerNormed (`deberta_layer_norm_rows`), then put
+  through each layer's query and key projections with their biases
+  (`deberta_relative`, a thread an output, the sum in the CPU's order),
+  `[2 * position_buckets, 2 * hidden]` a layer. A session holds the
+  bucket of every distance its rows can span (HF's log buckets, in F32
+  logarithms, as the CPU takes them).
+- `deberta_attention`: a threadgroup per block of 32 queries of a row and
+  head, as many SIMD groups as the threadgroup memory holds rows of the
+  longest row's scores, each taking every groups-th query, a key a lane.
+  A live query's score of a live key is (q . k + q . pos_key[b] +
+  k . pos_query[b]) / sqrt(3 head_dim), b the bucket of i - j, over live
+  keys; a masked query attends evenly to every position of its row.
+
+`core/tests/metal_deberta.rs` holds the device to the CPU at MODEL on the
+shapes of `core/tests/common/deberta.rs` (the tiny model, one at
+GLiNER-small's size, heads of 32 and 128, and steep buckets), at seven
+row patterns and token ranges: on the M2 every value is within 8.3e-6 of
+the CPU's, against a bound of 1e-4. Dropping the content-to-position term
+fails it (3.3e-4 on the tiny model).
+
 ## Kernel choices
 
 At FASTEST a session chooses two items, which tile its linear layers
