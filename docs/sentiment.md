@@ -772,7 +772,7 @@ an encoder, its id, revision and SHA-256 as `u32`-length-prefixed UTF-8.
 `from_bytes` checks each part and the exact length, and a head read back
 keeps its encoder. `EmotionVectorHead::fit` fits the 28-label linear head
 deterministically by full-batch L2-regularized logistic regression from zero
-(`EmotionFitOptions`, default 300 epochs, learning rate `0.5`, L2 `1e-4`), and
+(`EmotionFitOptions`, default 500 epochs, learning rate `0.5`, L2 `1e-4`), and
 `EmotionVectorHead::from_zoo` loads a `KIND_HEAD` / `FORMAT_HEAD` (`TEVH`)
 artifact from `turbo-zoo` (`GOEMOTIONS_MINILM_HEAD = "turbo-en-goemotions-minilm-l6-v2-head-1"`
 and `GOEMOTIONS_BGE_SMALL_HEAD = "turbo-en-goemotions-bge-small-en-v1.5-head-1"`).
@@ -815,7 +815,7 @@ prediction carries a non-empty token evidence span (`active == active_with_evide
 #### Macro and micro precision, recall, and F1 on the GoEmotions test split (5,427 comments)
 
 Uniform and per-label thresholds are selected on the 5,426 dev comments (from
-`0.05` to `0.95` in steps of `0.05` to maximize dev F1 per label or macro F1
+`0.05` to `0.95` in steps of `0.05` to maximize dev F1 per label or micro F1
 uniformly) and evaluated once on the 5,427 test comments:
 
 | Stage | Encoder | Threshold regime | Macro P / R / F1 | Micro P / R / F1 | Active emotions (with evidence) |
@@ -823,16 +823,16 @@ uniformly) and evaluated once on the 5,427 test comments:
 | `lexicon` | none | default (`0.50`) | `0.652 / 0.267 / 0.301` | `0.497 / 0.448 / 0.471` | `1,678 (1,678)` |
 | `lexicon` | none | per-label dev tuned | `0.661 / 0.262 / 0.304` | `0.501 / 0.447 / 0.472` | `1,615 (1,615)` |
 | `learned` | `all-MiniLM-L6-v2` | default (`0.50`) | `0.836 / 0.103 / 0.127` | `0.498 / 0.343 / 0.406` | `682 (682)` |
-| `learned` | `all-MiniLM-L6-v2` | uniform dev tuned (`0.15`) | `0.468 / 0.313 / 0.291` | `0.387 / 0.576 / 0.463` | `5,834 (5,834)` |
+| `learned` | `all-MiniLM-L6-v2` | uniform dev tuned (`0.15`) | `0.468 / 0.313 / 0.291` | `0.387 / 0.576 / 0.463` | `4,629 (4,629)` |
 | `learned` | `all-MiniLM-L6-v2` | per-label dev tuned | `0.403 / 0.395 / 0.314` | `0.332 / 0.576 / 0.421` | `7,949 (7,949)` |
 | `hybrid` | `all-MiniLM-L6-v2` | default (`0.50`) | `0.640 / 0.284 / 0.322` | `0.557 / 0.446 / 0.495` | `1,980 (1,980)` |
-| `hybrid` | `all-MiniLM-L6-v2` | uniform dev tuned (`0.30`) | `0.591 / 0.324 / 0.350` | `0.512 / 0.513 / 0.512` | `3,000 (3,000)` |
+| `hybrid` | `all-MiniLM-L6-v2` | uniform dev tuned (`0.30`) | `0.591 / 0.324 / 0.350` | `0.512 / 0.513 / 0.512` | `2,693 (2,693)` |
 | `hybrid` | `all-MiniLM-L6-v2` | per-label dev tuned | `0.504 / 0.407 / 0.396` | `0.446 / 0.555 / 0.494` | `5,351 (5,351)` |
 | `learned` | `bge-small-en-v1.5` | default (`0.50`) | `0.786 / 0.089 / 0.111` | `0.534 / 0.321 / 0.401` | `624 (624)` |
-| `learned` | `bge-small-en-v1.5` | uniform dev tuned (`0.20`) | `0.557 / 0.260 / 0.273` | `0.434 / 0.529 / 0.477` | `4,295 (4,295)` |
+| `learned` | `bge-small-en-v1.5` | uniform dev tuned (`0.20`) | `0.557 / 0.260 / 0.273` | `0.434 / 0.529 / 0.477` | `3,336 (3,336)` |
 | `learned` | `bge-small-en-v1.5` | per-label dev tuned | `0.477 / 0.370 / 0.331` | `0.413 / 0.564 / 0.476` | `5,680 (5,680)` |
 | `hybrid` | `bge-small-en-v1.5` | default (`0.50`) | `0.643 / 0.282 / 0.326` | `0.584 / 0.435 / 0.498` | `1,992 (1,992)` |
-| `hybrid` | `bge-small-en-v1.5` | uniform dev tuned (`0.30`) | `0.601 / 0.338 / 0.370` | `0.526 / 0.526 / 0.526` | `2,994 (2,994)` |
+| `hybrid` | `bge-small-en-v1.5` | uniform dev tuned (`0.30`) | `0.601 / 0.338 / 0.370` | `0.526 / 0.526 / 0.526` | `2,899 (2,899)` |
 | `hybrid` | `bge-small-en-v1.5` | per-label dev tuned | `0.486 / 0.440 / 0.410` | `0.446 / 0.597 / 0.511` | `5,539 (5,539)` |
 
 The `hybrid` stage consistently improves over both `lexicon` and `learned`
@@ -859,11 +859,11 @@ Each cell is `precision / recall / F1` on the 5,427 test comments (`lexicon` at
 | `confusion` | 153 | 0.765 / 0.085 / 0.153 | 0.112 / 0.686 / 0.193 | 0.531 / 0.170 / 0.257 | 0.259 / 0.510 / 0.344 | 0.261 / 0.523 / 0.349 |
 | `curiosity` | 284 | 0.556 / 0.035 / 0.066 | 0.333 / 0.356 / 0.344 | 0.331 / 0.363 / 0.346 | 0.382 / 0.500 / 0.433 | 0.382 / 0.511 / 0.437 |
 | `desire` | 83 | 0.238 / 0.410 / 0.301 | 0.382 / 0.157 / 0.222 | 0.525 / 0.253 / 0.341 | 0.432 / 0.193 / 0.267 | 0.511 / 0.277 / 0.359 |
-| `disappointment` | 151 | 0.778 / 0.046 / 0.088 | 0.091 / 0.464 / 0.152 | 0.180 / 0.192 / 0.186 | 0.168 / 0.265 / 0.206 | 0.172 / 0.272 / 0.210 |
+| `disappointment` | 151 | 0.778 / 0.046 / 0.087 | 0.091 / 0.464 / 0.152 | 0.180 / 0.192 / 0.186 | 0.168 / 0.265 / 0.206 | 0.172 / 0.272 / 0.210 |
 | `disapproval` | 267 | 0.455 / 0.019 / 0.036 | 0.192 / 0.438 / 0.267 | 0.195 / 0.464 / 0.275 | 0.222 / 0.614 / 0.326 | 0.221 / 0.640 / 0.329 |
 | `disgust` | 123 | 0.815 / 0.179 / 0.293 | 0.459 / 0.366 / 0.407 | 0.462 / 0.390 / 0.423 | 0.353 / 0.398 / 0.374 | 0.359 / 0.423 / 0.388 |
 | `embarrassment` | 37 | 0.500 / 0.108 / 0.178 | 0.286 / 0.054 / 0.091 | 0.500 / 0.108 / 0.178 | 0.500 / 0.027 / 0.051 | 0.444 / 0.108 / 0.174 |
-| `excitement` | 103 | 0.870 / 0.194 / 0.317 | 0.278 / 0.340 / 0.306 | 0.295 / 0.379 / 0.332 | 0.286 / 0.291 / 0.288 | 0.313 / 0.340 / 0.326 |
+| `excitement` | 103 | 0.870 / 0.194 / 0.317 | 0.278 / 0.340 / 0.306 | 0.295 / 0.379 / 0.332 | 0.286 / 0.291 / 0.288 | 0.312 / 0.340 / 0.326 |
 | `fear` | 78 | 0.679 / 0.244 / 0.358 | 0.481 / 0.487 / 0.484 | 0.500 / 0.564 / 0.530 | 0.565 / 0.500 / 0.531 | 0.537 / 0.564 / 0.550 |
 | `gratitude` | 352 | 0.971 / 0.847 / 0.904 | 0.662 / 0.807 / 0.727 | 0.956 / 0.861 / 0.906 | 0.747 / 0.781 / 0.764 | 0.965 / 0.861 / 0.910 |
 | `grief` | 6 | 1.000 / 0.000 / 0.000 | 1.000 / 0.000 / 0.000 | 1.000 / 0.000 / 0.000 | 1.000 / 0.000 / 0.000 | 1.000 / 0.000 / 0.000 |
