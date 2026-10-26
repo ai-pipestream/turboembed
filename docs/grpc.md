@@ -160,6 +160,12 @@ Every other method of the Open Inference Protocol is `UNIMPLEMENTED`.
 The server also serves `grpc.health.v1.Health` (`Check` and `Watch`),
 reporting `SERVING` when `ServerReady` is true and `NOT_SERVING` before
 load and during drain.
+`turbo-kserve health [--addr ADDR:PORT] [--service NAME] [--timeout-ms N]`
+makes one `Check` against a running server (the address
+`TURBO_KSERVE_LISTEN`, on loopback when it is `0.0.0.0` or `::`, when
+`--addr` is absent) and exits 0 on `SERVING`, 1 otherwise: the release
+image's health check. The image, its `/bundles` volume, its variables
+and the Kubernetes probes for it are in docs/release.md, Images.
 
 A `ModelInfer` carries either `texts` (BYTES, `[batch]`) or token rows
 `ids` and `mask` (INT32, `[batch, seq]`), with `types` optional, and
