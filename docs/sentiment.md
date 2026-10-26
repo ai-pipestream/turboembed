@@ -796,7 +796,9 @@ F1 `0.1259 -> 0.1319`) and from `0.4093` to `0.4174` on BGE-small (`insult` F1
 
 `incivility_eval` sweeps `with_fusion_gate(g)` across
 `g in {0.05, 0.10, 0.15, 0.20, 0.25, 0.35, 1.0}` and
-`with_severe_toxicity_rule(true | false)` on Civil Comments val and test.
+`with_severe_toxicity_rule(true | false)` on the Civil Comments validation split
+(and records held-out test metrics for diagnostic reporting only, without using
+the test split for parameter or default selection).
 Because every built-in lexicon entry has weight `>= 0.72` (`0.0` when absent),
 `1 - (1 - l)(1 - h) >= l >= 0.72 > t` whenever `l > 0` and `0.0 + h = h`
 whenever `l == 0`; threshold decisions across `0.05..=0.50` are therefore
@@ -811,10 +813,21 @@ custom low-weight lexicon entries.
 | `bge-small-en-v1.5` | `0.25` (or `0.05..=1.0`) | `true` (default) | 0.4333 | 0.2251 / 0.4196 | 0.2197 | 0.4093 | 1 / 261 / 0 (0.0038 / 1.0000 / 0.0076) |
 | `bge-small-en-v1.5` | `0.25` (or `0.05..=1.0`) | `false` | 0.4337 | 0.2251 / 0.4233 | 0.2185 | 0.4124 | 0 / 22 / 1 (0.0000 / 0.0000 / 0.0000) |
 
-Enabling `with_severe_toxicity_rule(true)` captures the held-out `SevereToxicity`
-positive (`R = 1.0000`, macro F1 `0.2128` vs `0.2096` on MiniLM and `0.2197` vs
-`0.2185` on BGE-small), while `with_severe_toxicity_rule(false)` is available
-when callers prefer raw head + lexicon `SevereToxicity` precision (`FP = 22`).
+On the 5,000-row validation split (which contains zero gold
+`severe_toxicity >= 0.50` positives), validation micro F1 favors
+`with_severe_toxicity_rule(false)` (`0.4182` vs `0.4171` per-label and `0.4203`
+vs `0.4200` uniform on MiniLM; `0.4233` vs `0.4196` per-label and `0.4337` vs
+`0.4333` uniform on BGE-small, with identical validation macro F1 `0.2120` and
+`0.2251`). The runtime default `with_severe_toxicity_rule(true)` is chosen by a
+non-metric structural rule rather than test-split performance: when `Threat`
+co-occurs with `Insult`, `Profanity`, `IdentityAttack`, or `Intolerance` at or
+above threshold, `SevereToxicity` is elevated with inherited token evidence
+spans even when direct `severe_toxicity` head scores remain below threshold.
+Callers optimizing validation micro F1 or minimizing `SevereToxicity` false
+positives should set `with_severe_toxicity_rule(false)`. Held-out test metrics
+in the table above are reported for post-selection observation only (`1` gold
+`severe_toxicity` positive in the 5,000-row test slice) and are not used to
+justify the default.
 In a warmed 7-round interleaved release comparison between `origin/main`
 (`e2c425ba111826b2de87b3c9af0028710a6d7216`) and this PR over 10,000 sentence
 units (`5,000` 2-sentence documents) using the 384-dimensional published
