@@ -16,6 +16,7 @@
 //! logit. As a scorer, a mention whose span does not start and end on word
 //! boundaries scores 0.
 
+mod annotate;
 pub mod heads;
 pub mod prompt;
 pub mod words;
@@ -36,14 +37,14 @@ use prompt::{Prompt, Specials};
 use words::Word;
 
 /// One encoder pass and the heads that do not depend on the entities.
-pub struct Pass {
-    prompt: Prompt,
+pub struct Pass<'a> {
+    prompt: Prompt<'a>,
     lstm: Vec<f32>,
     types: Vec<f32>,
 }
 
-impl Pass {
-    pub fn prompt(&self) -> &Prompt {
+impl<'a> Pass<'a> {
+    pub fn prompt(&self) -> &Prompt<'a> {
         &self.prompt
     }
 
@@ -76,6 +77,7 @@ pub struct GlirelRelations {
     specials: Specials,
     model: ModelRef,
     max_words: usize,
+    pub(super) config: crate::neural::Config,
 }
 
 fn bad(what: impl std::fmt::Display) -> RelationError {
@@ -129,7 +131,15 @@ impl GlirelRelations {
         if heads.encoder_width != encoder.config().hidden {
             return Err("GLiREL heads and encoder widths differ".into());
         }
-        Ok(GlirelRelations { encoder, heads, tokenizer, specials, model, max_words })
+        Ok(GlirelRelations {
+            encoder,
+            heads,
+            tokenizer,
+            specials,
+            model,
+            max_words,
+            config: crate::neural::Config::default(),
+        })
     }
 
     pub fn model(&self) -> &ModelRef {
@@ -137,7 +147,7 @@ impl GlirelRelations {
     }
 
     /// The input for `labels` over `text`, without running the model.
-    pub fn prompt(&self, text: &str, labels: &[&str]) -> Result<Prompt, RelationError> {
+    pub fn prompt<'a>(&self, text: &'a str, labels: &[&str]) -> Result<Prompt<'a>, RelationError> {
         let p = prompt::build(&self.tokenizer, &self.specials, text, labels)
             .ok_or_else(|| bad("a label with no subwords"))?;
         if p.words.len() > self.max_words {
@@ -147,7 +157,7 @@ impl GlirelRelations {
     }
 
     /// One encoder pass and the entity-free heads over `text` and `labels`.
-    pub fn pass(&self, text: &str, labels: &[&str]) -> Result<Pass, RelationError> {
+    pub fn pass<'a>(&self, text: &'a str, labels: &[&str]) -> Result<Pass<'a>, RelationError> {
         if labels.is_empty() {
             return Err(RelationError::NoLabels);
         }
@@ -155,6 +165,25 @@ impl GlirelRelations {
             return Err(RelationError::OverLimit { limit: "max_labels", max: MAX_LABELS, got: labels.len() });
         }
         run(&self.encoder, &self.heads, self.prompt(text, labels)?)
+    }
+
+    pub fn pass_words<'a>(&self, words: Vec<Word<'a>>, labels: &[&str]) -> Result<Pass<'a>, RelationError> {
+        if labels.is_empty() {
+            return Err(RelationError::NoLabels);
+        }
+        if labels.len() > MAX_LABELS {
+            return Err(RelationError::OverLimit { limit: "max_labels", max: MAX_LABELS, got: labels.len() });
+        }
+        let prompt = prompt::build_words(&self.tokenizer, &self.specials, labels, words)
+            .ok_or_else(|| bad("a label with no subwords"))?;
+        if prompt.words.len() > self.max_words {
+            return Err(RelationError::OverLimit {
+                limit: "GLiREL max_len",
+                max: self.max_words,
+                got: prompt.words.len(),
+            });
+        }
+        run(&self.encoder, &self.heads, prompt)
     }
 
     /// Each pair's logit for each label, `[pairs][labels]`, for entities
@@ -233,7 +262,7 @@ use turbo::head::sigmoid;
 
 /// The encoder and the entity-free heads over a built input. The parity
 /// tests give inputs whose token ids are not a tokenizer's.
-pub fn run(encoder: &Encoder, heads: &Heads, prompt: Prompt) -> Result<Pass, RelationError> {
+pub fn run<'a>(encoder: &Encoder, heads: &Heads, prompt: Prompt<'a>) -> Result<Pass<'a>, RelationError> {
     let c = encoder.config();
     let t = prompt.ids.len();
     if t > c.max_sequence {

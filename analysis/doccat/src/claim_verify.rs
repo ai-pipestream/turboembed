@@ -8,9 +8,10 @@
 //! mention), when their `Vectors` cosine lies in `[min_similarity,
 //! max_similarity]`, or when their content words overlap by at least
 //! `min_word_overlap` (Jaccard). Candidates are ranked by shared
-//! entities, then similarity, then overlap, and the first `max_pairs`
-//! are scored in both directions in one `score_pairs` batch; a pair
-//! whose longer direction exceeds the scorer's pair budget is skipped.
+//! entities, then similarity, then overlap. A pair whose two units
+//! exceed the scorer's pair budget is dropped first, so it never takes
+//! a slot; the first `max_pairs` of the rest are scored in both
+//! directions in one `score_pairs` batch.
 //!
 //! Each direction's logits are softmaxed. Both directions entailing at
 //! `entail_threshold` is `Redundant`, one direction is `Entails` from
@@ -187,7 +188,6 @@ impl<S: NliScorer, L: SpanCategorizable> ClaimVerificationAnnotator<S, L> {
         out.sort_by(|p, q| {
             q.rank.0.cmp(&p.rank.0).then(q.rank.1.total_cmp(&p.rank.1)).then(q.rank.2.total_cmp(&p.rank.2))
         });
-        out.truncate(c.max_pairs);
         out
     }
 }
@@ -213,6 +213,7 @@ impl<S: NliScorer + Send + Sync + 'static, L: SpanCategorizable> Annotator for C
             .candidates(&spans, entities, vectors, text, tokens, terms)
             .into_iter()
             .filter(|p| counts[p.a] + counts[p.b] + specials <= budget)
+            .take(self.config.max_pairs)
             .collect();
         let mut batch: Vec<(&str, &str)> = Vec::with_capacity(pairs.len() * 2);
         for p in &pairs {
@@ -270,7 +271,9 @@ impl<S: NliScorer + Send + Sync + 'static, L: SpanCategorizable> Annotator for C
     }
 }
 
-const CLAIM_VERSION: &str = "1";
+/// "2": the `max_pairs` cap counts only pairs within the scorer's token
+/// budget (#1285), so the same inputs can score pairs "1" did not.
+const CLAIM_VERSION: &str = "2";
 
 fn configuration_hash(c: &ClaimVerifyConfig, version: &str) -> u64 {
     let mut h = Fnv1a::new();
@@ -286,17 +289,21 @@ fn configuration_hash(c: &ClaimVerifyConfig, version: &str) -> u64 {
 mod hash_compat {
     use super::*;
 
-    #[test]
-    fn merged_claim_hash_values_are_preserved() {
-        let cases = [
+    fn cases() -> [ClaimVerifyConfig; 6] {
+        [
             ClaimVerifyConfig::default(),
             ClaimVerifyConfig { min_word_overlap: None, ..ClaimVerifyConfig::default() },
             ClaimVerifyConfig { min_similarity: -0.0, ..ClaimVerifyConfig::default() },
             ClaimVerifyConfig { min_similarity: 0.0, ..ClaimVerifyConfig::default() },
             ClaimVerifyConfig { max_pairs: u32::MAX as usize, ..ClaimVerifyConfig::default() },
             ClaimVerifyConfig { max_pairs: usize::MAX, ..ClaimVerifyConfig::default() },
-        ];
-        let values = cases.map(|c| configuration_hash(&c, CLAIM_VERSION));
+        ]
+    }
+
+    /// The hashes version "1" recorded stay what they were.
+    #[test]
+    fn merged_claim_hash_values_are_preserved() {
+        let values = cases().map(|c| configuration_hash(&c, "1"));
         let widest = if usize::BITS == 64 { 17671229628621543886 } else { 3314949245565464178 };
         assert_eq!(
             values,
@@ -309,5 +316,15 @@ mod hash_compat {
                 widest,
             ]
         );
+    }
+
+    /// Version "2" scores pairs "1" did not, so no configuration keeps
+    /// its old identity.
+    #[test]
+    fn the_budget_fix_changes_every_configuration_identity() {
+        assert_eq!(CLAIM_VERSION, "2");
+        for c in cases() {
+            assert_ne!(configuration_hash(&c, CLAIM_VERSION), configuration_hash(&c, "1"), "{c:?}");
+        }
     }
 }

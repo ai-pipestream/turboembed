@@ -1,6 +1,6 @@
 # The model catalog over gRPC
 
-`turbo-kserve` serves `turbo.training.TurboCatalogService` on its port
+`turbo-kserve` serves `turbo.training.v1.TurboCatalogService` on its port
 when started with `--catalog-dir`: the turbo-zoo index (docs/zoo.md) as
 a catalog, the artifacts its cache holds, the licence acceptances a user
 records, and installs that stream their progress.
