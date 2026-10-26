@@ -13,6 +13,7 @@
 mod data;
 #[path = "../incivility_bias/embed.rs"]
 mod embed;
+mod source;
 mod spans_eval;
 
 use std::collections::HashMap;
@@ -101,32 +102,8 @@ fn peak_rss_kb() -> Option<u64> {
     None
 }
 
-fn tune_thresholds(
-    annotator: &IncivilityAnnotator,
-    p: &Prepared<'_>,
-    vectors: &[f32],
-    parent_lookup: Option<&HashMap<String, &[f32]>>,
-    dim: usize,
-) -> Result<(f64, f64, [f64; INCIVILITY_DIMENSIONS], f64, f64), String> {
-    let base_layer = score_split(annotator, p, vectors, parent_lookup, dim)?;
-    let mut best_uniform = (0.5, f64::NEG_INFINITY);
-    let mut best_per_label = [0.5f64; INCIVILITY_DIMENSIONS];
-    let mut best_label_f1 = [f64::NEG_INFINITY; INCIVILITY_DIMENSIONS];
-    for t in THRESHOLDS {
-        let m = evaluate_incivility_corpus(&p.units, &base_layer, t);
-        if m.micro_f1 > best_uniform.1 {
-            best_uniform = (t, m.micro_f1);
-        }
-        for (idx, &(_, lm)) in m.per_label.iter().enumerate() {
-            if lm.f1 > best_label_f1[idx] {
-                best_label_f1[idx] = lm.f1;
-                best_per_label[idx] = t;
-            }
-        }
-    }
-    let tuned_m = evaluate_incivility_corpus_with_thresholds(&p.units, &base_layer, &best_per_label);
-    Ok((best_uniform.0, best_uniform.1, best_per_label, tuned_m.macro_f1, tuned_m.micro_f1))
-}
+mod tuning;
+use tuning::tune_thresholds;
 
 fn corpus_json(m: &IncivilityMetrics) -> Value {
     let labels: Vec<Value> = m
@@ -197,6 +174,7 @@ fn head_meta_json(bytes: &[u8], fit_seconds: f64) -> Value {
 
 fn run() -> Result<(), String> {
     let a = args()?;
+    let source = source::verify(&a.civil)?;
     let data::Civil { train, val, test } = data::civil(&a.civil)?;
     let toxic_ds = spans_eval::load_toxic_spans(&a.toxic_spans)?;
     eprintln!(
@@ -379,6 +357,8 @@ fn run() -> Result<(), String> {
     };
 
     let record = json!({
+        "source": source,
+        "evaluation_protocol": "unicode-production-keys; rescore-candidate-thresholds; severe-last-v2",
         "encoder": { "id": embedder.model.id, "revision": embedder.model.revision, "manifest_sha256": embedder.model.sha256, "dim": dim },
         "civil_comments": {
             "train_comments": train.len(), "val_comments": val.len(), "test_comments": test.len(),

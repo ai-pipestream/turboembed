@@ -57,11 +57,7 @@ pub(super) fn prepare(units: &[Unit]) -> Result<Prepared<'_>, String> {
         turbo_tokenize::simple_spans(&u.text, turbo_tokenize::TokenizerOptions::default(), &mut raw_spans);
         let keys: Vec<String> = raw_spans
             .iter()
-            .map(|s| {
-                u.text[s.start as usize..s.end as usize]
-                    .trim_matches(|c: char| !c.is_alphanumeric() && c != '\'')
-                    .to_ascii_lowercase()
-            })
+            .map(|s| turbo_doccat::incivility_token_key(&u.text[s.start as usize..s.end as usize]))
             .collect();
         for span in raw_spans {
             tok_spans.push(Span::new(byte_cursor + span.start, byte_cursor + span.end));

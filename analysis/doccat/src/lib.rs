@@ -102,7 +102,7 @@ pub use sentiment::{
     SentimentFactory, SentimentMe, SentimentModel, SubgroupBias, ToxicSpanMetrics, VaderLexicon, VaderScore,
     char_span_to_token_range, char_span_to_utf8_span, evaluate_absa_corpus, evaluate_emotion_corpus,
     evaluate_emotion_corpus_with_thresholds, evaluate_incivility_bias, evaluate_incivility_corpus,
-    evaluate_incivility_corpus_with_thresholds, evaluate_toxic_spans, extract_triplets, roc_auc,
+    evaluate_incivility_corpus_with_thresholds, evaluate_toxic_spans, extract_triplets, incivility_token_key, roc_auc,
 };
 pub use svm::{ModelError, Scratch, SvmCategorizer, SvmDoccatModel};
 pub use train::{DoccatEventStream, DoccatFactory, doccat_events, doccat_index};

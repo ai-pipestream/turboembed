@@ -70,7 +70,7 @@ fn empty_comments_add_no_synthetic_tokens_and_preserve_following_offsets() {
 
 #[test]
 fn corpus_evidence_matches_production_annotator_on_original_comments() {
-    let units = sample_units(&COMMENTS);
+    let units = sample_units(&[COMMENTS[0], COMMENTS[1], "You are ſtupid.", "You are STUPID."]);
     let p = prepare(&units).unwrap();
     let a = IncivilityAnnotator::new();
     let corpus = score_split(&a, &p, &[], None, 0).unwrap();
@@ -163,4 +163,52 @@ fn score_unit_interleaved_timing_receipt() {
         "baseline_us (gate=0.0): min={} med={} max={} | tuned_us (gate=0.25): min={} med={} max={}",
         base_us[0], base_us[3], base_us[6], tuned_us[0], tuned_us[3], tuned_us[6]
     );
+}
+
+#[test]
+#[ignore = "requires the actual published Civil Comments MiniLM head"]
+fn tuned_dev_metrics_match_the_selected_configuration_on_published_head() {
+    let path = std::env::var("TURBO_INCIVILITY_HEAD").expect("download the published MiniLM TIVH head");
+    let bytes = std::fs::read(path).unwrap();
+    assert_eq!(Sha256::of(&bytes).to_string(), "26c1147d5431901e41ca6847ee482d0534c63b0ddcf63e9e99f2b22e472997ba");
+    let head = IncivilityVectorHead::from_bytes(&bytes).unwrap();
+    let annotator = IncivilityAnnotator::new().with_vector_scorer(Arc::new(head));
+    let mut units = sample_units(&["You are an idiot."]);
+    units[0].targets.severe_toxicity = 1.0;
+    let prepared = prepare(&units).unwrap();
+    // Finite adversarial input to the published head, not a corpus accuracy claim.
+    let vectors = vec![5.0_f32; 384];
+    // Evidence evaluation must score with its supplied thresholds as well.
+    let evidence_units = sample_units(&["Uncharacteristically, you are an idiot."]);
+    let evidence = prepare(&evidence_units).unwrap();
+    let doc = Document::new(evidence_units[0].text.as_str());
+    let views = [doc.get::<turbo_analysis::View>().unwrap().clone()];
+    let tokens = std::slice::from_ref(&evidence.token_layer);
+    let gold = [turbo_doccat::GoldToxicSpanUnit { utf8_spans: vec![], token_ranges: vec![] }];
+    let evaluate = |ann: &IncivilityAnnotator| {
+        spans_eval::eval_subset(ann, &views, tokens, &evidence.tokens, &gold, &vectors, 384, &[0.05; 6]).unwrap()
+    };
+    assert_eq!(evaluate(&annotator), evaluate(&annotator.clone().with_threshold(0.05)));
+
+    let frozen = score_split(&annotator, &prepared, &vectors, None, 384).unwrap();
+    let candidate = score_split(&annotator.clone().with_threshold(0.05), &prepared, &vectors, None, 384).unwrap();
+    assert!(frozen.scores(Ix::new(0)).severe_toxicity < 0.05);
+    assert!(candidate.scores(Ix::new(0)).severe_toxicity > 0.4);
+    let (uniform, uniform_micro, per_label, macro_f1, micro_f1) =
+        tune_thresholds(&annotator, &prepared, &vectors, None, 384).unwrap();
+    let selected = score_split(&annotator.clone().with_threshold(uniform), &prepared, &vectors, None, 384).unwrap();
+    assert_eq!(uniform_micro, evaluate_incivility_corpus(&prepared.units, &selected, uniform).micro_f1);
+    let selected = score_split(&annotator.with_thresholds(per_label), &prepared, &vectors, None, 384).unwrap();
+    let metrics = evaluate_incivility_corpus_with_thresholds(&prepared.units, &selected, &per_label);
+    assert_eq!((macro_f1, micro_f1), (metrics.macro_f1, metrics.micro_f1));
+}
+
+#[test]
+#[ignore = "requires the actual pinned WILDS CSV"]
+fn training_source_matches_the_verified_wilds_file() {
+    let dir = std::env::var("TURBO_CIVIL_COMMENTS").expect("TURBO_CIVIL_COMMENTS names the CSV directory");
+    let record = source::verify(std::path::Path::new(&dir)).unwrap();
+    assert_eq!(record["zoo_id"], "civil-comments-wilds");
+    assert_eq!(record["size_bytes"], 272_542_670_u64);
+    assert_eq!(record["revision"], "3fbfeca80bad0f3aec37e72fa07eff222b6e752f");
 }

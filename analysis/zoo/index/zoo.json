@@ -4552,6 +4552,34 @@
       ]
     },
     {
+      "id": "civil-comments-wilds",
+      "kind": "KIND_DATASET",
+      "language": "en",
+      "format": "FORMAT_CSV",
+      "version": "3fbfeca80bad0f3aec37e72fa07eff222b6e752f",
+      "license": "CC0-1.0",
+      "license_terms": "https://huggingface.co/datasets/shlomihod/civil-comments-wilds/blob/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/README.md",
+      "trained_on": [],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Civil Comments WILDS subset with identity annotations and parent IDs, mirrored by shlomihod at 3fbfeca80bad0f3aec37e72fa07eff222b6e752f. Civil Comments by Conversation AI / Jigsaw (Borkan et al., 2019), CC0-1.0. WILDS train/val/test partitions.",
+      "files": [
+        {
+          "path": "README.md",
+          "url": "https://huggingface.co/datasets/shlomihod/civil-comments-wilds/resolve/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/README.md",
+          "size": 5714,
+          "sha256": "3a1b73672f5deea25042316accb879c1c0a5232c5201f112c92d9b99abbbf9fb",
+          "sha512": "eb44c7a79585833285547f4e9c20b8e22e635f6ce6c153c4831c48411e475527a257bb00003828c6a5aa22bba6ff7c4c68dd6121f8a188508d14154fbc25f6a7"
+        },
+        {
+          "path": "all_data_with_identities.csv",
+          "url": "https://huggingface.co/datasets/shlomihod/civil-comments-wilds/resolve/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/all_data_with_identities.csv",
+          "size": 272542670,
+          "sha256": "403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f",
+          "sha512": "d64ff03e215c5b0aa29f5b790e2cca511561f244c617e26e9541e9ffea6fe51104e3708f7320de9372381998e443566251ef4ad354f9061f2c245718931f43e2"
+        }
+      ]
+    },
+    {
       "id": "goemotions",
       "kind": "KIND_DATASET",
       "language": "en",
@@ -4772,13 +4800,13 @@
       "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
       "trained_on": [
         {
-          "name": "Civil Comments f2970eb3a5577745",
+          "name": "Civil Comments WILDS 3fbfeca80bad0f3aec37e72fa07eff222b6e752f",
           "license": "CC0-1.0",
-          "license_terms": "https://huggingface.co/datasets/google/civil_comments/blob/f2970eb3a55777454c94069077cc8d9b5866312d/README.md"
+          "license_terms": "https://huggingface.co/datasets/shlomihod/civil-comments-wilds/blob/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/README.md"
         }
       ],
       "class": "CLASS_PERMISSIVE",
-      "attribution": "Trained on Civil Comments (google/civil_comments at f2970eb3a55777454c94069077cc8d9b5866312d, https://huggingface.co/datasets/google/civil_comments), by Conversation AI / Jigsaw (Borkan et al., 2019), released into the public domain under CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/).",
+      "attribution": "Trained on the Civil Comments WILDS subset (shlomihod/civil-comments-wilds at 3fbfeca80bad0f3aec37e72fa07eff222b6e752f), all_data_with_identities.csv, SHA-256 403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f. Original Civil Comments by Conversation AI / Jigsaw (Borkan et al., 2019), CC0-1.0.",
       "files": [
         {
           "path": "turbo-en-civil-comments-minilm-l6-v2-head-1.tivh",
@@ -4800,13 +4828,13 @@
       "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
       "trained_on": [
         {
-          "name": "Civil Comments f2970eb3a5577745",
+          "name": "Civil Comments WILDS 3fbfeca80bad0f3aec37e72fa07eff222b6e752f",
           "license": "CC0-1.0",
-          "license_terms": "https://huggingface.co/datasets/google/civil_comments/blob/f2970eb3a55777454c94069077cc8d9b5866312d/README.md"
+          "license_terms": "https://huggingface.co/datasets/shlomihod/civil-comments-wilds/blob/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/README.md"
         }
       ],
       "class": "CLASS_PERMISSIVE",
-      "attribution": "Trained on Civil Comments (google/civil_comments at f2970eb3a55777454c94069077cc8d9b5866312d, https://huggingface.co/datasets/google/civil_comments), by Conversation AI / Jigsaw (Borkan et al., 2019), released into the public domain under CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/).",
+      "attribution": "Trained on the Civil Comments WILDS subset (shlomihod/civil-comments-wilds at 3fbfeca80bad0f3aec37e72fa07eff222b6e752f), all_data_with_identities.csv, SHA-256 403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f. Original Civil Comments by Conversation AI / Jigsaw (Borkan et al., 2019), CC0-1.0.",
       "files": [
         {
           "path": "turbo-en-civil-comments-minilm-l6-v2-context-head-1.tivh",
@@ -4828,13 +4856,13 @@
       "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
       "trained_on": [
         {
-          "name": "Civil Comments f2970eb3a5577745",
+          "name": "Civil Comments WILDS 3fbfeca80bad0f3aec37e72fa07eff222b6e752f",
           "license": "CC0-1.0",
-          "license_terms": "https://huggingface.co/datasets/google/civil_comments/blob/f2970eb3a55777454c94069077cc8d9b5866312d/README.md"
+          "license_terms": "https://huggingface.co/datasets/shlomihod/civil-comments-wilds/blob/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/README.md"
         }
       ],
       "class": "CLASS_PERMISSIVE",
-      "attribution": "Trained on Civil Comments (google/civil_comments at f2970eb3a55777454c94069077cc8d9b5866312d, https://huggingface.co/datasets/google/civil_comments), by Conversation AI / Jigsaw (Borkan et al., 2019), released into the public domain under CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/).",
+      "attribution": "Trained on the Civil Comments WILDS subset (shlomihod/civil-comments-wilds at 3fbfeca80bad0f3aec37e72fa07eff222b6e752f), all_data_with_identities.csv, SHA-256 403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f. Original Civil Comments by Conversation AI / Jigsaw (Borkan et al., 2019), CC0-1.0.",
       "files": [
         {
           "path": "turbo-en-civil-comments-bge-small-en-v1.5-head-1.tivh",
@@ -4856,13 +4884,13 @@
       "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
       "trained_on": [
         {
-          "name": "Civil Comments f2970eb3a5577745",
+          "name": "Civil Comments WILDS 3fbfeca80bad0f3aec37e72fa07eff222b6e752f",
           "license": "CC0-1.0",
-          "license_terms": "https://huggingface.co/datasets/google/civil_comments/blob/f2970eb3a55777454c94069077cc8d9b5866312d/README.md"
+          "license_terms": "https://huggingface.co/datasets/shlomihod/civil-comments-wilds/blob/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/README.md"
         }
       ],
       "class": "CLASS_PERMISSIVE",
-      "attribution": "Trained on Civil Comments (google/civil_comments at f2970eb3a55777454c94069077cc8d9b5866312d, https://huggingface.co/datasets/google/civil_comments), by Conversation AI / Jigsaw (Borkan et al., 2019), released into the public domain under CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/).",
+      "attribution": "Trained on the Civil Comments WILDS subset (shlomihod/civil-comments-wilds at 3fbfeca80bad0f3aec37e72fa07eff222b6e752f), all_data_with_identities.csv, SHA-256 403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f. Original Civil Comments by Conversation AI / Jigsaw (Borkan et al., 2019), CC0-1.0.",
       "files": [
         {
           "path": "turbo-en-civil-comments-bge-small-en-v1.5-context-head-1.tivh",

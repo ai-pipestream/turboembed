@@ -323,3 +323,10 @@ impl IncivilityAnnotator {
         self.with_vector_context(IncivilityVectorContext::Parent(parent.into()))
     }
 }
+
+/// The production incivility lexicon key: Unicode case folding, typographic
+/// apostrophe normalization, and trimming of non-alphanumeric token edges.
+/// Corpus evaluation must use this same function before `score_unit`.
+pub fn incivility_token_key(token: &str) -> String {
+    crate::sentiment::token_key::token_key_word(token, false)
+}

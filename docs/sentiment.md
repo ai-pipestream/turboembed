@@ -681,9 +681,34 @@ barely depend on the identity term and every term has the same AUC.
 
 ### Civil Comments soft-target and parent-context heads, fusion tuning, and Toxic Spans evidence evaluation (`#888`, `#963`, `#890`)
 
+**Evaluation correction pending:** the tables and JSON receipts below are
+historical outputs from the original evaluation code, not verification of the
+current code. That code used ASCII-only keys instead of production Unicode
+keys and reused threshold-dependent scores while selecting thresholds. The
+current harness shares the production key, rescoring each candidate and tuning
+SevereToxicity after the other labels. The training owner must rerun Civil
+Comments and Toxic Spans evaluation before these numbers support #888, #963 or
+#890 completion. Published head bytes and historical receipts are unchanged.
+No new quality result is claimed here.
+
+Threshold selection first scores each uniform candidate on development. The
+five non-severe labels then select their own F1 thresholds; SevereToxicity is
+selected last with those five thresholds fixed, and the final configuration
+is scored again for the reported dev macro/micro F1. Test uses that same
+configuration without selection on test.
+
+The regression `tuned_dev_metrics_match_the_selected_configuration_on_published_head`
+requires `TURBO_INCIVILITY_HEAD` to name the published MiniLM `.tivh` file and
+checks its SHA-256. `training_source_matches_the_verified_wilds_file` requires
+`TURBO_CIVIL_COMMENTS` to name the directory from `civil-comments-wilds`.
+Run those tests explicitly with `cargo test --locked -p turbo-analysis-embed
+--example incivility_eval -- --include-ignored --skip score_unit_interleaved_timing_receipt`.
+The head test uses a finite adversarial vector to verify threshold-dependent
+scoring, not a new held-out accuracy estimate.
+
 `analysis/embed/examples/incivility_eval` trains and evaluates four
 redistributable `IncivilityVectorHead` artifacts on the zoo-pinned Civil
-Comments dataset (`civil-comments`, `all_data_with_identities.csv`, 269,038
+Comments WILDS dataset (`civil-comments-wilds`, `all_data_with_identities.csv`, 269,038
 train / 45,180 val / 133,782 test comments, CC0-1.0) and evaluates evidence
 spans on `ipavlopoulos/toxic_spans` (`toxic-spans`, revision
 `beaf170538df8275c3447b2e26070f2f82e55272`, CC0-1.0). All four heads are
@@ -767,7 +792,10 @@ Enabling `with_severe_toxicity_rule(true)` captures the held-out `SevereToxicity
 positive (`R = 1.0000`, macro F1 `0.2128` vs `0.2096` on MiniLM and `0.2197` vs
 `0.2185` on BGE-small), while `with_severe_toxicity_rule(false)` is available
 when callers prefer raw head + lexicon `SevereToxicity` precision (`FP = 22`).
-In a warmed 7-round interleaved release timing test over 10,000 units
+The historical configuration-only timing test uses the same changed binary
+for both gates and a four-dimensional test head. It is not a comparison
+against main; that required receipt is pending. In its warmed 7-round
+interleaved release run over 10,000 units
 (`analysis/embed/examples/incivility_eval/tests.rs::score_unit_interleaved_timing_receipt`),
 `IncivilityAnnotator::score_unit` runs in `min = 19.91 ms`, `median = 29.14 ms`
 (`2.91 us / unit`), `max = 39.26 ms` at `fusion_gate = 0.25` against
@@ -817,7 +845,12 @@ raw majority-vote comments.
 The [#326 audit](licences.md#complex-sentiment-licence-audit-326) approves
 the published Civil Comments / Jigsaw Unintended Bias release under CC0,
 including its comment text. It is eligible for redistributable training
-and bundles; the four Civil Comments `IncivilityVectorHead` entries
+and bundles. The actual WILDS CSV is pinned as `civil-comments-wilds`
+at mirror revision `3fbfeca80bad0f3aec37e72fa07eff222b6e752f`,
+SHA-256 `403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f`.
+It is distinct from the Google Parquet `civil-comments` entry; the harness
+verifies the CSV size and both digests before training and writes that source
+identity into new receipts. The four Civil Comments `IncivilityVectorHead` entries
 (`models-civil-comments-1`) and the `toxic-spans` dataset (`CC0-1.0`) are
 pinned in `analysis/zoo/index/zoo.json`. Other Jigsaw releases and Social
 Bias Frames require separate source-permission checks. Project-authored

@@ -31,14 +31,7 @@ pub struct ToxicSpansDataset {
 }
 
 fn token_lower_of(text: &str, spans: &[Span]) -> Vec<String> {
-    spans
-        .iter()
-        .map(|s| {
-            text[s.start as usize..s.end as usize]
-                .trim_matches(|c: char| !c.is_alphanumeric() && c != '\'')
-                .to_ascii_lowercase()
-        })
-        .collect()
+    spans.iter().map(|s| turbo_doccat::incivility_token_key(&text[s.range()])).collect()
 }
 
 fn build_unit(
@@ -223,6 +216,7 @@ pub fn eval_subset(
     dim: usize,
     thresholds: &[f64; INCIVILITY_DIMENSIONS],
 ) -> Result<Value, String> {
+    let annotator = annotator.clone().with_thresholds(*thresholds);
     let mut layer = Incivility::new();
     for (i, tl) in token_lower.iter().enumerate() {
         let v = &vectors[i * dim..(i + 1) * dim];

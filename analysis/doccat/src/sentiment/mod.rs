@@ -49,7 +49,7 @@ pub use incivility::{
     IncivilityStage, IncivilityUnit, IncivilityVectorContext, IncivilityVectorHead, IncivilityVectorScorer,
     IncivilityZooError, LabelBias, LabelMetrics, SubgroupBias, ToxicSpanMetrics, char_span_to_token_range,
     char_span_to_utf8_span, evaluate_incivility_bias, evaluate_incivility_corpus,
-    evaluate_incivility_corpus_with_thresholds, evaluate_toxic_spans, roc_auc,
+    evaluate_incivility_corpus_with_thresholds, evaluate_toxic_spans, incivility_token_key, roc_auc,
 };
 pub use lexicon::{
     B_DECR, B_INCR, C_INCR, COMPOUND_THRESHOLD, DEFAULT_ALPHA, LexiconSentiment, N_SCALAR, NegationMode,

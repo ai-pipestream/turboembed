@@ -191,7 +191,7 @@ const RETRIEVAL_CHECKPOINTS: [&str; 2] = ["opensearch-neural-sparse-encoding-v1"
 /// The permissive training and evaluation datasets in the built-in index (#945, #890):
 /// MASC, the four settled CC BY 4.0 UD 2.16 treebanks, the Tatoeba export,
 /// Civil Comments, GoEmotions (filtered split and raw annotations), and Toxic Spans.
-const DATASETS: [&str; 10] = [
+const DATASETS: [&str; 11] = [
     "masc-3.0.0",
     "ud-spanish-ancora-r2.16",
     "ud-catalan-ancora-r2.16",
@@ -199,6 +199,7 @@ const DATASETS: [&str; 10] = [
     "ud-italian-markit-r2.16",
     "tatoeba-2026-10-10",
     "civil-comments",
+    "civil-comments-wilds",
     "goemotions",
     "goemotions-raw",
     "toxic-spans",
