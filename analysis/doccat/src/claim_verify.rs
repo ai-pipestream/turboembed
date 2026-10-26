@@ -8,9 +8,10 @@
 //! mention), when their `Vectors` cosine lies in `[min_similarity,
 //! max_similarity]`, or when their content words overlap by at least
 //! `min_word_overlap` (Jaccard). Candidates are ranked by shared
-//! entities, then similarity, then overlap, and the first `max_pairs`
-//! are scored in both directions in one `score_pairs` batch; a pair
-//! whose longer direction exceeds the scorer's pair budget is skipped.
+//! entities, then similarity, then overlap. A pair whose two units
+//! exceed the scorer's pair budget is dropped first, so it never takes
+//! a slot; the first `max_pairs` of the rest are scored in both
+//! directions in one `score_pairs` batch.
 //!
 //! Each direction's logits are softmaxed. Both directions entailing at
 //! `entail_threshold` is `Redundant`, one direction is `Entails` from
@@ -176,7 +177,6 @@ impl<S: NliScorer, L: SpanCategorizable> ClaimVerificationAnnotator<S, L> {
         out.sort_by(|p, q| {
             q.rank.0.cmp(&p.rank.0).then(q.rank.1.total_cmp(&p.rank.1)).then(q.rank.2.total_cmp(&p.rank.2))
         });
-        out.truncate(c.max_pairs);
         out
     }
 }
@@ -202,6 +202,7 @@ impl<S: NliScorer + Send + Sync + 'static, L: SpanCategorizable> Annotator for C
             .candidates(&spans, &texts, entities, vectors, text)
             .into_iter()
             .filter(|p| counts[p.a] + counts[p.b] + specials <= budget)
+            .take(self.config.max_pairs)
             .collect();
         let mut batch: Vec<(&str, &str)> = Vec::with_capacity(pairs.len() * 2);
         for p in &pairs {
