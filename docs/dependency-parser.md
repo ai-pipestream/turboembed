@@ -2,7 +2,9 @@
 
 `turbo-depparse` implements OpenNLP 3.x arc-standard parsing, training,
 UAS/LAS evaluation and document annotation (inventory 68, 69, 72).
-No pretrained language model is bundled.
+Eight permissive UD 2.16 dependency parser models (four languages x MaxEnt and
+Feedforward) are listed in the built-in model zoo under release
+`models-ud-depparse-2.16-1`.
 
 ## Graph and alignment
 
@@ -38,10 +40,8 @@ Conversion without alignment metadata fails.
 ## Model and pipeline
 
 The public transition/state/oracle/context APIs reproduce 37 ordered Java
-features on projective models. Projective parsing uses 2n transitions. The
-native SWAP extension supports crossing trees without changing source indexes;
-its worst-case action bound is n(n+1). Training includes all valid trees, and
-projective oracle sequences remain unchanged. The greedy decoder picks
+features. Parsing uses 2n transitions. Training skips non-projective samples
+before emitting events and reports the skip count. The greedy decoder picks
 the first highest-scoring legal outcome and rejects malformed inventories
 or non-finite scores.
 
@@ -51,14 +51,15 @@ trainer and returns a reloadable archive accessible through `bytes`.
 Loaded model provenance includes SHA-256. `from_maxent` requires caller identity.
 
 The native `turbo-depparse` executable supports `inspect`, `convert`, `parse`
-`evaluate`, and explicit-parameter `train` for both linear and feedforward models.
+and explicit-parameter `train` for both linear and feedforward models.
 It needs no Python installation and does not overwrite source or existing
 output files. See the [CLI commands and training limits](feedforward-dependency-parser.md#native-command-line).
 Existing raw and packaged model APIs remain directly loadable; conversion is
-optional. Training retains non-projective trees by default. An optional
-`--projective-only` flag reports all excluded sentence and word counts.
-SWAP models use native transition semantics; Java neural export refuses them.
-See the [pinned Finnish-FTB recipe](../analysis/train-recipes/dependency/fi-ftb-r2.14/README.md).
+optional. CLI projective-only training requires explicit acceptance and
+reports input, retained and excluded sentence and word counts. Its
+`train_projective` Rust APIs reject crossing trees and retain literal relation
+labels with `Plain` encoding. Default `train` APIs retain non-projective trees
+through pseudo-projectivization and use `EscapedV1` labels.
 
 Evaluation reports token-weighted UAS/LAS, with optional punctuation exclusion
 (default POS `PUNCT`). LAS requires a matching head and label. Cross-validation
@@ -80,8 +81,103 @@ and `docs/receipts/depparse-688/README.md` for API, parity data and receipts.
 The neural parser, trainer, both feature layouts, model formats and annotation
 integration are documented in [feedforward dependency parsing](feedforward-dependency-parser.md).
 
-`HeldOutEvaluation` and the CLI retain failed/invalid predictions as zero-credit
-words, split projective and non-projective totals, and refuse empty populations
-or any parse failure. The caller supplies finite UAS/LAS floors before evaluation;
-the report is written even if that gate fails. This is distinct from the legacy
-`DependencyEvaluator`, which returns errors without adding the failed sample.
+## Pseudo-projective handling and UD 2.16 models
+
+Non-projective trees are handled via Nivre and Nilsson (2005) pseudo-projective
+lifting (`DependencyGraph::projectivize`) and step-by-step decoding
+(`DependencyGraph::deprojectivize`). During recipe training (`turbo-train-recipes -- depparse`),
+every non-projective sentence in `train` is projectivized with directional
+`base^<step1^>step2...` path labels instead of being discarded, and both
+`DependencyParserME` and `FeedforwardDependencyParser` decode directional
+`^<` / `^>` suffixes back into non-projective dependencies after transition
+decoding (while preserving ordinary custom labels such as `root^literal`
+unchanged). Note that Nivre and Nilsson's directional label-path scheme is an
+approximate encoding when multiple siblings under the same lifted ancestor share
+the same relation label and direction (for example, gold encode/decode over all
+1,867 `UD_Finnish-FTB` test sentences alters 8 heads across 8 sentences out of
+16,286 words due to same-label governor ambiguity).
+
+Each recipe gates its full-budget pseudo-projective candidate (`100` GIS
+iterations for MaxEnt, `5` AdaGrad epochs for Feedforward across all training
+sentences) against a single-step projective-only internal baseline
+(`<model_id>-projective-baseline`: `1` GIS iteration for MaxEnt, `1` AdaGrad
+epoch for Feedforward trained on projective sentences only). Because Apache
+OpenNLP publishes no pre-trained UD dependency parser models in the zoo, the
+paired bootstrap gate (`gate.json` on LAS, `gate-uas.json` on UAS) verifies
+end-to-end learning and non-projective retention over that single-step internal
+baseline rather than comparing against an equal-budget external parser (such as
+MaltParser or Stanza).
+
+Ten dependency parser models are trained across the five CC BY 4.0 UD 2.16
+treebanks (`UD_Spanish-AnCora`, `UD_Catalan-AnCora`, `UD_Portuguese-Porttinari`,
+`UD_Finnish-FTB`, and `UD_Italian-MarkIT`), with eight shippable models published
+in release `models-ud-depparse-2.16-1` and registered in `analysis/zoo/index/zoo.json`
+(Portuguese Porttinari remains recipe-only because newspaper text rights are not settled):
+
+| Treebank (`r2.16`) | Train Sentences (Non-Proj) | Test Sentences (Tokens) | Model ID | Parser | Size (bytes) | SHA-256 (prefix) | UAS (all / no-punct) | LAS (all / no-punct) | LAS Gate (`diff`, 95% CI) | UAS Gate (`diff`, 95% CI) |
+|---|---:|---:|---|---|---:|---|---:|---:|---|---|
+| `UD_Spanish-AnCora` | 14,287 (840) | 1,721 (53,622) | `turbo-es-ud-ancora-2.16-depparse-maxent-1` | MaxEnt | 17,406,430 | `6d399e33ee858d0a` | 83.45 / 85.76 | 78.81 / 80.51 | PASS (+52.91, [+52.33, +53.50]) | PASS (+43.31, [+42.69, +43.93]) |
+| `UD_Spanish-AnCora` | 14,287 (840) | 1,721 (53,622) | `turbo-es-ud-ancora-2.16-depparse-feedforward-1` | Feedforward | 900,875 | `68aea2dfec51c015` | 83.99 / 85.72 | 79.35 / 80.45 | PASS (+3.74, [+3.38, +4.10]) | PASS (+3.02, [+2.68, +3.38]) |
+| `UD_Catalan-AnCora` | 13,123 (749) | 1,846 (59,610) | `turbo-ca-ud-ancora-2.16-depparse-maxent-1` | MaxEnt | 15,339,008 | `33e2ec6844fabfa1` | 85.58 / 87.29 | 81.62 / 82.86 | PASS (+53.61, [+53.05, +54.17]) | PASS (+40.98, [+40.38, +41.59]) |
+| `UD_Catalan-AnCora` | 13,123 (749) | 1,846 (59,610) | `turbo-ca-ud-ancora-2.16-depparse-feedforward-1` | Feedforward | 816,124 | `8af62c85bd4f3ab4` | 85.69 / 86.97 | 81.59 / 82.38 | PASS (+3.45, [+3.11, +3.79]) | PASS (+2.75, [+2.44, +3.07]) |
+| `UD_Portuguese-Porttinari` | 5,893 (0) | 1,683 (33,580) | `turbo-pt-ud-porttinari-2.16-depparse-maxent-1` | MaxEnt (local) | 5,405,678 | `422d8ff7c4d0a351` | 85.91 / 87.75 | 82.74 / 84.12 | PASS (+50.98, [+50.22, +51.73]) | PASS (+40.04, [+39.27, +40.80]) |
+| `UD_Portuguese-Porttinari` | 5,893 (0) | 1,683 (33,580) | `turbo-pt-ud-porttinari-2.16-depparse-feedforward-1` | Feedforward (local) | 423,296 | `a18b65db4ba0332a` | 87.63 / 88.58 | 84.71 / 85.22 | PASS (+6.18, [+5.71, +6.66]) | PASS (+4.96, [+4.49, +5.43]) |
+| `UD_Finnish-FTB` | 14,981 (1,602) | 1,867 (16,286) | `turbo-fi-ud-ftb-2.16-depparse-maxent-1` | MaxEnt | 5,757,374 | `755ef066e10c65ad` | 81.70 / 79.18 | 74.10 / 70.33 | PASS (+53.26, [+52.31, +54.24]) | PASS (+53.75, [+52.75, +54.77]) |
+| `UD_Finnish-FTB` | 14,981 (1,602) | 1,867 (16,286) | `turbo-fi-ud-ftb-2.16-depparse-feedforward-1` | Feedforward | 564,886 | `3df4a7db92fb8975` | 79.59 / 76.73 | 69.39 / 64.84 | PASS (+6.96, [+6.30, +7.63]) | PASS (+5.45, [+4.82, +6.07]) |
+| `UD_Italian-MarkIT` | 611 (0) | 340 (10,196) | `turbo-it-ud-markit-2.16-depparse-maxent-1` | MaxEnt | 1,364,091 | `2f8539971c1d4434` | 78.56 / 82.09 | 71.58 / 74.43 | PASS (+47.32, [+45.79, +48.90]) | PASS (+41.86, [+40.16, +43.64]) |
+| `UD_Italian-MarkIT` | 611 (0) | 340 (10,196) | `turbo-it-ud-markit-2.16-depparse-feedforward-1` | Feedforward | 258,169 | `397fc29dd5ee2ac5` | 77.29 / 80.78 | 69.16 / 71.84 | PASS (+31.61, [+30.15, +33.10]) | PASS (+23.63, [+22.16, +25.18]) |
+
+
+### Dependency label encoding compatibility
+
+Relation text does not select a decoder. Models loaded from old raw, Java or
+unmarked native containers use `LabelEncoding::Plain`, preserving custom
+carets, angle brackets and backslashes. New training escapes every relation
+consistently, including projective sentences. MaxEnt stores
+`Turbo-Dependency-Label-Encoding` in its manifest; native neural ZIP version 3
+stores `label_encoding` in its configuration. Unknown modes are refused, and
+legacy Java export refuses encoded models because that format has no mode field.
+Native versions 1 and 2 remain readable; conversion is optional.
+
+The eight original `models-ud-depparse-2.16-1` artifacts predate these fields.
+Their complete SHA-256 values, from their published cards, are listed in
+`analysis/depparse/src/encoding.rs`. Only those exact files automatically use
+`LegacyPseudo` decoding. A repackaged or modified unmarked file defaults to
+plain labels; it is not identified by its transitions, filename or language.
+The published bytes and their evaluated predictions are unchanged. New model
+serialization records the selected mode explicitly, including when converting
+one of these historical neural models to native version 3.
+
+`projectivize` marks its returned graph as encoded. `deprojectivize` decodes
+that graph and otherwise preserves plain graphs. Transition reconstruction or
+layer import discards graph metadata; callers must then use
+`deprojectivize_with` with the encoding from the model. Re-projectivizing an
+already encoded graph is refused to prevent double escaping.
+
+
+## Explicit native SWAP training and held-out gates
+
+`DependencyModel::train_swap`, `FeedforwardDependencyTrainer::train_swap`, and
+`DependencyEventStream::generate_swap` retain crossing trees with native SWAP
+transitions and ordinary `Plain` labels. `train` remains pseudo-projective;
+`train_projective` remains the strict projective-only API. SWAP moves parser
+buffer indexes, not source tokens or spans. The monotonic pair rule and an
+`n(n+1)` action bound ensure termination. Existing models without SWAP retain
+their transition choices. Neural SWAP models cannot export to the legacy Java
+format; native conversion preserves the transitions and label mode.
+
+The CLI defaults to pseudo-projective training without a mode flag. It accepts
+one of `--swap`, `--pseudo-projective`, or `--projective-only`; conflicting flags
+are errors. Only the last filters trees. Input, retained, excluded,
+and included non-projective counts are printed for each mode. The
+[Finnish-FTB r2.14 preparation](../analysis/train-recipes/dependency/fi-ftb-r2.14/README.md)
+uses `--swap`; it does not reproduce the separate r2.16 pseudo-projective release.
+No full SWAP training or accuracy release is claimed by this integration.
+
+`turbo-depparse evaluate KIND MODEL GOLD.conllu REPORT.tsv MIN_UAS MIN_LAS`
+records model/corpus hashes and caller-selected finite floors in [0,1]. It
+reports UAS/LAS for all, projective, and non-projective trees, both including
+and excluding UPOS=PUNCT. Invalid or failed parses retain all gold words in
+the denominator and fail the gate. Gold heads/labels do not enter inference.
+A failed floor still writes the report. This internal evaluation does not
+replace external MaltParser/Stanza comparisons required by the broader issue.

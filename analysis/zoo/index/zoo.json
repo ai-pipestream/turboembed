@@ -4279,6 +4279,38 @@
       ]
     },
     {
+      "id": "turbo-en-masc-3.0.0-aspect-sentiment-1",
+      "kind": "KIND_MODEL",
+      "language": "en",
+      "format": "FORMAT_ZIP",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "MASC 3.0.0 MPQA aspect, attitude, and opinion annotations",
+          "license": "CC-BY-3.0-US",
+          "license_terms": "https://anc.org/data/masc/"
+        },
+        {
+          "name": "sentence-transformers/all-MiniLM-L6-v2",
+          "license": "Apache-2.0",
+          "license_terms": "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/LICENSE"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Experimental BIO and polarity heads trained on 56 MASC 3.0.0 documents with MPQA annotations and sentence-transformers/all-MiniLM-L6-v2. MASC is by the American National Corpus project under CC BY 3.0 US. Held-out aspect F1 is 0.013491, so this head is not the default extractor. Configuration and evaluation are included in the zip.",
+      "files": [
+        {
+          "path": "aspect-sentiment-1.zip",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-sentiment-924-1/aspect-sentiment-1.zip",
+          "size": 25106,
+          "sha256": "109c0eea8f2f0d5aa979b9f819820504456d236b372222a9ad9e34362d241be3",
+          "sha512": "0507c12e88de97842bf94de856f1faf391b4e78f5159938324c5e2bdde2e4c215ca8173c37a907b16a2e40c9980618174daef72e3522bca5a58d4fdeac9d55fc"
+        }
+      ]
+    },
+    {
       "id": "ud-spanish-ancora-r2.16",
       "kind": "KIND_DATASET",
       "language": "es",
@@ -4646,6 +4678,286 @@
           "size": 14395164,
           "sha256": "467f1e7191af00f2e76cc7f425885c2dc304bea8aff284b10e8c460d22f2e1af",
           "sha512": "2c3743a0dc1ef5c4389b3c63dbf23c7c41b97ba6c1c091ee8f325e26dd0207072660f5fd037e370e5460024ec45f56f1a237ed7111d680088d494e8677b0dbd1"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-goemotions-minilm-l6-v2-head-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
+      "language": "en",
+      "format": "FORMAT_HEAD",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "GoEmotions 7de3624754e2b0f2",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/google-research/google-research/blob/7de3624754e2b0f2f505ae496db3ba194bb40be9/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on GoEmotions filtered train/dev/test split (google-research/google-research/goemotions at 7de3624754e2b0f2f505ae496db3ba194bb40be9, https://github.com/google-research/google-research/tree/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions), by Dorottya Demszky, Dana Movshovitz-Attias, Jeongwoo Ko, Alan Cowen, Gaurav Nemade and Sujith Ravi (Google Research, 2020), under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).",
+      "files": [
+        {
+          "path": "turbo-en-goemotions-minilm-l6-v2-head-1.tevh",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-goemotions-1/turbo-en-goemotions-minilm-l6-v2-head-1.tevh",
+          "size": 43251,
+          "sha256": "9b280043bff1293280808a38d35d0cf0489cde4c6f92c08423d5c88fc5021723",
+          "sha512": "697c7cf434beb3203874b30e16d2f46f36b7a4fb15a9ffa0ca606b8173f4ce55721fbb740781586c289d5fb94343073f100576815b3d132faf6df8852ceaf6ee"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-goemotions-bge-small-en-v1.5-head-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
+      "language": "en",
+      "format": "FORMAT_HEAD",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "GoEmotions 7de3624754e2b0f2",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/google-research/google-research/blob/7de3624754e2b0f2f505ae496db3ba194bb40be9/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on GoEmotions filtered train/dev/test split (google-research/google-research/goemotions at 7de3624754e2b0f2f505ae496db3ba194bb40be9, https://github.com/google-research/google-research/tree/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions), by Dorottya Demszky, Dana Movshovitz-Attias, Jeongwoo Ko, Alan Cowen, Gaurav Nemade and Sujith Ravi (Google Research, 2020), under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).",
+      "files": [
+        {
+          "path": "turbo-en-goemotions-bge-small-en-v1.5-head-1.tevh",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-goemotions-1/turbo-en-goemotions-bge-small-en-v1.5-head-1.tevh",
+          "size": 43235,
+          "sha256": "f82b1beb02642576d12e8932b6f3cf0b8487d3f150c0066b576c50011665123a",
+          "sha512": "de5260320ecf59e5c017b33be26cab002e020599de7e09ef8832e8b4a8d82d9316e373636a57b4ec23ed2af2a780b4a5436ebb036fd186c3ab37f4b6e413218b"
+        }
+      ]
+    },
+    {
+      "id": "turbo-es-ud-ancora-2.16-depparse-maxent-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_DEPENDENCY_PARSER",
+      "language": "es",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Spanish-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Spanish-AnCora r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Spanish-AnCora/tree/r2.16), by Héctor Martínez Alonso and Daniel Zeman, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). The model is derived from the treebank; the treebank itself is not included.",
+      "files": [
+        {
+          "path": "turbo-es-ud-ancora-2.16-depparse-maxent-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-depparse-2.16-1/turbo-es-ud-ancora-2.16-depparse-maxent-1.bin",
+          "size": 17406430,
+          "sha256": "6d399e33ee858d0ab87ebc6fa9438a445f614b6729f8a609ab5ffeabfa538f63",
+          "sha512": "f99f1dc6c0a6a2174efff800757c37001163d212a0234600f3cb32dd233cef74a6f2573572be791b53e169511f8e03e9b0bb437efa8623adb3f6be087bb235f8"
+        }
+      ]
+    },
+    {
+      "id": "turbo-es-ud-ancora-2.16-depparse-feedforward-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_DEPENDENCY_PARSER",
+      "language": "es",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Spanish-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Spanish-AnCora r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Spanish-AnCora/tree/r2.16), by Héctor Martínez Alonso and Daniel Zeman, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). The model is derived from the treebank; the treebank itself is not included.",
+      "files": [
+        {
+          "path": "turbo-es-ud-ancora-2.16-depparse-feedforward-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-depparse-2.16-1/turbo-es-ud-ancora-2.16-depparse-feedforward-1.bin",
+          "size": 900875,
+          "sha256": "68aea2dfec51c015ce8ac99ff4c15875d84a364ef9bfe9fe3b5a4976c0b0f8a7",
+          "sha512": "35c3f948dc7dc5576b26bbf97d78f1752781ca74215e512a6557a69295e23cab8adcce06f3d44e748a4c3b705157bf41a06461f63aa62afc204e092a5f5e28f2"
+        }
+      ]
+    },
+    {
+      "id": "turbo-ca-ud-ancora-2.16-depparse-maxent-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_DEPENDENCY_PARSER",
+      "language": "ca",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Catalan-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Catalan-AnCora r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Catalan-AnCora/tree/r2.16), by Héctor Martínez Alonso, Elena Pascual and Daniel Zeman, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). The model is derived from the treebank; the treebank itself is not included.",
+      "files": [
+        {
+          "path": "turbo-ca-ud-ancora-2.16-depparse-maxent-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-depparse-2.16-1/turbo-ca-ud-ancora-2.16-depparse-maxent-1.bin",
+          "size": 15339008,
+          "sha256": "33e2ec6844fabfa173bf0e0eafca62eaf259f95622e1c149a2f15197782c27f6",
+          "sha512": "f106888c6e795dc4f35942142fb3e962dd85422a06158959600dcaa85cd7b36ef70bb4e1191206749d23e9a41f733ac231d8490f3a30a847b97c53ffa4f8c541"
+        }
+      ]
+    },
+    {
+      "id": "turbo-ca-ud-ancora-2.16-depparse-feedforward-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_DEPENDENCY_PARSER",
+      "language": "ca",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Catalan-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Catalan-AnCora r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Catalan-AnCora/tree/r2.16), by Héctor Martínez Alonso, Elena Pascual and Daniel Zeman, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). The model is derived from the treebank; the treebank itself is not included.",
+      "files": [
+        {
+          "path": "turbo-ca-ud-ancora-2.16-depparse-feedforward-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-depparse-2.16-1/turbo-ca-ud-ancora-2.16-depparse-feedforward-1.bin",
+          "size": 816124,
+          "sha256": "8af62c85bd4f3ab42498ee8b217911ff55101df2caab554391120ab2dbb45455",
+          "sha512": "86ef82fc9915771677e57ba1df228f28e531a8c487e6e4e89214c344de36e6739ed07f1415cee4c7d98a84b0fc66e8a7dd7e13add372cd61271963b3f35dc85d"
+        }
+      ]
+    },
+    {
+      "id": "turbo-fi-ud-ftb-2.16-depparse-maxent-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_DEPENDENCY_PARSER",
+      "language": "fi",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Finnish-FTB r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Finnish-FTB r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Finnish-FTB/tree/r2.16), by Jussi Piitulainen, Hanna Nurmi and Jack Rueter, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). FTB1U is Copyright 2014 FIN-CLARIN. The model is derived from the treebank; the treebank itself is not included.",
+      "files": [
+        {
+          "path": "turbo-fi-ud-ftb-2.16-depparse-maxent-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-depparse-2.16-1/turbo-fi-ud-ftb-2.16-depparse-maxent-1.bin",
+          "size": 5757374,
+          "sha256": "755ef066e10c65adc3d17f93bb15b35ebee78fbd189fd56297f12409bf5f782d",
+          "sha512": "511a7371a1ef287f6c23595135fc21b6d0791b2e820ac36beb551d9bb6ff6c90dfd761202564628076ddbebc906b753fd70617351fc26c63c1c096234528db13"
+        }
+      ]
+    },
+    {
+      "id": "turbo-fi-ud-ftb-2.16-depparse-feedforward-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_DEPENDENCY_PARSER",
+      "language": "fi",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Finnish-FTB r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Finnish-FTB r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Finnish-FTB/tree/r2.16), by Jussi Piitulainen, Hanna Nurmi and Jack Rueter, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). FTB1U is Copyright 2014 FIN-CLARIN. The model is derived from the treebank; the treebank itself is not included.",
+      "files": [
+        {
+          "path": "turbo-fi-ud-ftb-2.16-depparse-feedforward-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-depparse-2.16-1/turbo-fi-ud-ftb-2.16-depparse-feedforward-1.bin",
+          "size": 564886,
+          "sha256": "3df4a7db92fb89759aa964153cc7a55154779cf25a56250cc8b2b2924ce9870d",
+          "sha512": "14dad5a49d219b0adf6b519c2f93d7c4cdcbe5a392ec82d4dbb0281afe9062b9550c54dbad5be677f74dc430622079da1e6899b317e2b7e1b22c5d297b45a2f0"
+        }
+      ]
+    },
+    {
+      "id": "turbo-it-ud-markit-2.16-depparse-maxent-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_DEPENDENCY_PARSER",
+      "language": "it",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Italian-MarkIT r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Italian-MarkIT/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Italian-MarkIT r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Italian-MarkIT/tree/r2.16), by Teresa Paccosi, Alessio Palmero Aprosio and Sara Tonelli, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). The model is derived from the treebank; the treebank itself is not included.",
+      "files": [
+        {
+          "path": "turbo-it-ud-markit-2.16-depparse-maxent-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-depparse-2.16-1/turbo-it-ud-markit-2.16-depparse-maxent-1.bin",
+          "size": 1364091,
+          "sha256": "2f8539971c1d4434bde2b5e16aff8348c8ef7841d2a5576b180ed23e8f70da93",
+          "sha512": "93cd88f18735ced04ed6108b0ef351abf36a278ba15356332418c78eb3c9cb2f143baedabde598fbf444a09cfcd8aebb790fc3f254f8c9905454d7a1bca83c13"
+        }
+      ]
+    },
+    {
+      "id": "turbo-it-ud-markit-2.16-depparse-feedforward-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_DEPENDENCY_PARSER",
+      "language": "it",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Italian-MarkIT r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Italian-MarkIT/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Italian-MarkIT r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Italian-MarkIT/tree/r2.16), by Teresa Paccosi, Alessio Palmero Aprosio and Sara Tonelli, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). The model is derived from the treebank; the treebank itself is not included.",
+      "files": [
+        {
+          "path": "turbo-it-ud-markit-2.16-depparse-feedforward-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-depparse-2.16-1/turbo-it-ud-markit-2.16-depparse-feedforward-1.bin",
+          "size": 258169,
+          "sha256": "397fc29dd5ee2ac576400f38742a38023d4b23abe09df351dd18c449094f2b3e",
+          "sha512": "0afdcd2784998aa830a36b6dac11891059772b589a1593eec56d2dc3d879b45372c466bb54a64482fa6584e9131068958aef273dea964027a137f7468f0d4c63"
         }
       ]
     }

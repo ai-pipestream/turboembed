@@ -99,8 +99,10 @@ pub(super) fn run(args: &[String]) -> Result<()> {
     };
     let input = fs::read_to_string(&args[3])?;
     let mut samples = Vec::new();
-    let projective_only = args.len() == 7;
-    let (mut words, mut skipped, mut skipped_words, mut seen, mut crossing) = (0, 0, 0, 0, 0);
+    let mode = args.get(6).map(String::as_str).unwrap_or("--pseudo-projective");
+    let projective_only = mode == "--projective-only";
+    let mut crossing = 0;
+    let (mut words, mut skipped, mut skipped_words) = (0, 0, 0);
     for (index, sentence) in ConlluWordReader::new(&input)?.enumerate() {
         let sentence = sentence?;
         if sentence.words.iter().any(|word| word.upos.as_str() == "_") {
@@ -115,7 +117,6 @@ pub(super) fn run(args: &[String]) -> Result<()> {
         )
         .map_err(|error| format!("sentence {}: {error}", index + 1))?;
         let sample = DependencySample::<Words>::from_conllu(sample)?;
-        seen += 1;
         words += sample.tokens().len();
         if !sample.graph().is_projective() {
             crossing += 1;
@@ -128,17 +129,27 @@ pub(super) fn run(args: &[String]) -> Result<()> {
         samples.push(sample);
     }
     eprintln!(
-        "sentences={seen} words={words} excluded_nonprojective_sentences={skipped} excluded_nonprojective_words={skipped_words} included_nonprojective_sentences={} transition_system=arc-standard-swap",
-        crossing - skipped
+        "sentences={} words={words} excluded_nonprojective_sentences={skipped} excluded_nonprojective_words={skipped_words}",
+        samples.len() + skipped
     );
+    eprintln!("trained_sentences={} trained_words={}", samples.len(), words - skipped_words);
+    eprintln!("included_nonprojective_sentences={} training_mode={}", crossing - skipped, &mode[2..]);
     if samples.is_empty() {
-        return Err("no retained training sentences".into());
+        return Err("no projective training sentences".into());
     }
     eprintln!("language={} kind={} neural_settings={neural:?}", args[2], args[1]);
     let start = Instant::now();
     let model = match neural {
-        Some(settings) => Model::Feedforward(FeedforwardDependencyTrainer::train(&samples, &settings)?),
-        None => Model::Linear(DependencyModel::train(&args[2], &samples, &params)?),
+        Some(settings) => Model::Feedforward(match mode {
+            "--projective-only" => FeedforwardDependencyTrainer::train_projective(&samples, &settings)?,
+            "--swap" => FeedforwardDependencyTrainer::train_swap(&samples, &settings)?,
+            _ => FeedforwardDependencyTrainer::train(&samples, &settings)?,
+        }),
+        None => Model::Linear(match mode {
+            "--projective-only" => DependencyModel::train_projective(&args[2], &samples, &params)?,
+            "--swap" => DependencyModel::train_swap(&args[2], &samples, &params)?,
+            _ => DependencyModel::train(&args[2], &samples, &params)?,
+        }),
     };
     let bytes = model.bytes()?;
     write_new(&args[5], &bytes)?;

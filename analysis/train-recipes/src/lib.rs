@@ -61,6 +61,7 @@
 
 pub mod card;
 pub mod chunk;
+pub mod depparse;
 pub mod error;
 pub mod fineweb;
 pub mod langdetect;

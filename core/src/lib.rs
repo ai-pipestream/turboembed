@@ -22,6 +22,8 @@ pub mod cpu;
 pub mod cuda;
 #[cfg(feature = "cpu")]
 pub mod deberta;
+#[cfg(feature = "cpu")]
+pub mod device;
 #[cfg(feature = "hailo")]
 pub mod hailo;
 pub mod head;

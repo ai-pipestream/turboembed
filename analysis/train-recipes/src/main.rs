@@ -104,6 +104,7 @@
 
 mod cli;
 mod commands;
+mod namefind_command;
 
 use std::path::Path;
 use std::process::ExitCode;
@@ -116,7 +117,9 @@ use turbo_train_recipes::{Error, RECIPES, Recipe, Reference, run};
 use turbo_zoo::Index;
 
 use cli::{Args, USAGE, chosen, need, only, parse};
-use commands::{fetch_ud_command, fineweb_ranges_command, tatoeba_command, tatoeba_fineweb_command, ud_command};
+use commands::{
+    depparse_command, fetch_ud_command, fineweb_ranges_command, tatoeba_command, tatoeba_fineweb_command, ud_command,
+};
 
 fn masc_command(a: Args) -> Result<bool, String> {
     only(&a, "masc", &["--corpus", "--references", "--out", "--unrecorded-corpus", "--recipe"])?;
@@ -238,8 +241,10 @@ fn zoo_index_command(a: Args) -> Result<bool, String> {
 fn main() -> ExitCode {
     let result = parse().and_then(|a| match a.command.as_str() {
         "masc" => masc_command(a),
+        "masc-namefind-select" => namefind_command::run(a),
         "fetch-masc" => fetch_command(a),
         "ud" => ud_command(a),
+        "depparse" => depparse_command(a),
         "fetch-ud" => fetch_ud_command(a),
         "zoo-index" => zoo_index_command(a),
         "tatoeba" => tatoeba_command(a),

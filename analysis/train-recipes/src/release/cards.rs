@@ -5,6 +5,7 @@ use turbo_zoo::{Artifact, verify};
 
 use super::ModelsRelease;
 use crate::card::{CARD_FILE, GATE_FILE, GateCard, ModelCard, ModelFileCard};
+use crate::depparse::{DepparseModelCard, UAS_GATE_FILE};
 use crate::error::{Error, Result, io};
 use crate::langdetect::LanguageCard;
 use crate::langdetect_web::{COMPARE_TATOEBA_FILE, COMPARE_WEB_FILE, ComparisonCard, WEB_GATE_FILE, WebLanguageCard};
@@ -60,6 +61,34 @@ impl Card for UdModelCard {
     }
     fn artifact(&self, release: &ModelsRelease) -> Result<Artifact> {
         UdModelCard::artifact(self, &release.url(&self.file.name))
+    }
+}
+
+impl Card for DepparseModelCard {
+    fn read(path: &Path) -> Result<Self> {
+        DepparseModelCard::read(path)
+    }
+    fn id(&self) -> &str {
+        &self.id
+    }
+    fn file(&self) -> &ModelFileCard {
+        &self.file
+    }
+    fn gate(&self) -> &GateCard {
+        &self.gate
+    }
+    fn check_records(&self, dir: &Path) -> Result<()> {
+        check_gate(&self.id, &self.file, GATE_FILE, &self.gate, &ModelGateRecord::read(&dir.join(GATE_FILE))?)?;
+        check_gate(
+            &self.id,
+            &self.file,
+            UAS_GATE_FILE,
+            &self.uas_gate,
+            &ModelGateRecord::read(&dir.join(UAS_GATE_FILE))?,
+        )
+    }
+    fn artifact(&self, release: &ModelsRelease) -> Result<Artifact> {
+        DepparseModelCard::artifact(self, &release.url(&self.file.name))
     }
 }
 

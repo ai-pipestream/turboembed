@@ -38,12 +38,13 @@ impl PinnedBundle {
         Self::from_model(&b.manifest.model, &b.manifest_sha256)
     }
 
-    /// Refuses a model whose source commit is not a 40-digit hex commit:
-    /// a receipt that cannot name its checkpoint is not written.
+    /// Refuses a model whose source commit is not a 40-digit lowercase hex
+    /// commit: a receipt that cannot name its checkpoint is not written,
+    /// and git's own spelling keeps receipts byte-comparable.
     pub fn from_model(model: &Model, manifest_sha256: &str) -> Result<Self> {
         let commit = &model.source.commit;
-        if commit.len() != 40 || !commit.bytes().all(|b| b.is_ascii_hexdigit()) {
-            return Err(format!("{}: source commit {commit:?} is not a 40-digit hex commit", model.id));
+        if commit.len() != 40 || !commit.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
+            return Err(format!("{}: source commit {commit:?} is not a 40-digit lowercase hex commit", model.id));
         }
         Ok(Self { id: model.id.clone(), commit: commit.clone(), manifest_sha256: manifest_sha256.to_owned() })
     }

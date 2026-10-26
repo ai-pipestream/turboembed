@@ -17,6 +17,11 @@ pub fn backend() -> &'static turbo_backend {
 }
 
 #[cfg(feature = "internals")]
+mod deberta;
+#[cfg(feature = "internals")]
+pub use deberta::{last_attention, tiled_rows, use_general_attention};
+
+#[cfg(feature = "internals")]
 unsafe extern "C" {
     fn turbo_cuda_allocations(host: *mut u64, device: *mut u64);
     fn turbo_cuda_arch_label(name: *const std::ffi::c_char, out: *mut std::ffi::c_char, len: usize);

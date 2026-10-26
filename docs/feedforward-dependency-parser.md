@@ -35,7 +35,7 @@ reference's simple lowercase mapping plus contextual final sigma. Reserved
 ## Model files
 
 `from_bytes` accepts legacy Java raw streams, current Apache models and Turbo
-ZIP versions 1 and 2. Readers reject invalid counts, dimensions, duplicate
+ZIP versions 1, 2 and 3. Readers reject invalid counts, dimensions, duplicate
 symbols/IDs, non-finite parameters, invalid transitions and trailing network
 bytes. Float arrays are allocated after their bytes and aggregate count have
 been checked. Limits remain 2 million vocabulary rows, 100,000 outcomes,
@@ -51,7 +51,7 @@ embedding width 4,096, hidden width 65,536 and 100 million float values.
   `BeamSize`; a bare network has no beam metadata and defaults to 1.
   Unsupported versions, mixed schemas, malformed UTF-8 and invalid beam
   settings fail explicitly. Native allocation limits still apply.
-- Native: `to_bytes` writes Turbo ZIP version 2. It records layout,
+- Native: `to_bytes` writes Turbo ZIP version 3. It records layout,
   activation and default beam, and uses length-prefixed UTF-8 vocabulary
   strings, including keys beyond legacy `writeUTF`'s 65,535-byte limit.
   The version 1 reader remains supported with its original default beam 1.
@@ -85,19 +85,19 @@ recorded default beam. Existing output files are never overwritten.
 No Python installation is required. Native training is also available:
 
 ```sh
-cargo run --release -p turbo-depparse --bin turbo-depparse -- train feedforward en train.conllu neural.properties model.turbo
-cargo run --release -p turbo-depparse --bin turbo-depparse -- train linear en train.conllu linear.properties linear.bin
+cargo run --release -p turbo-depparse --bin turbo-depparse -- train feedforward en train.conllu neural.properties model.turbo --projective-only
+cargo run --release -p turbo-depparse --bin turbo-depparse -- train linear en train.conllu linear.properties linear.bin --projective-only
 ```
 
-These commands require an explicit parameter file. All valid trees participate
-by default; `--projective-only` explicitly restores the previous filtering.
-They report input sentences/words and excluded non-projective sentences/words
-before training, then elapsed training seconds and corpus/parameter/model
-SHA256 values. Retain this receipt with the source corpus and parameter file;
+The commands above require an explicit parameter file and `--projective-only`.
+They filter non-projective trees before training and report input, retained
+and excluded sentence/word counts. Models use `Plain` relation encoding, so
+carets and backslashes in relation labels remain literal. They then report
+elapsed training seconds and corpus/parameter/model SHA256 values. Retain this receipt with the source corpus and parameter file;
 the neural container does not store training language or corpus provenance.
 Training consumes the supplied file only; keep train, development and test
-roles separate. An empty retained population is an error. SWAP handles crossing
-trees, but training alone does not constitute a measured accuracy release.
+roles separate. An empty projective population is an error. This command does
+not solve non-projective training or constitute a measured accuracy release.
 
 The linear CLI currently supports `Algorithm=MAXENT` and requires explicit
 positive `Iterations` and `Threads`, plus nonnegative `Cutoff`. Other algorithms
@@ -130,11 +130,11 @@ precomputed after the last weight update, using a one-million-value budget
 
 ## Training and annotation
 
-AdaGrad training uses SWAP oracle events for crossing trees and unchanged
-legacy oracle events for projective trees, Java-compatible
+AdaGrad training uses oracle events from projective trees, Java-compatible
 vocabulary iteration and seeded random initialization/shuffling, minibatches,
 inverted hidden dropout, and L2 on dense matrices. Biases and embeddings have
-no L2 penalty. Non-projective samples are included; an empty corpus is an error. Numerical divergence returns an error. Settings
+no L2 penalty. Non-projective samples are skipped; an entirely skipped or
+empty corpus is an error. Numerical divergence returns an error. Settings
 are validated before parameter allocation. Expanded ReLU and cube models
 are covered by training/decoding tests; Java training parity covers the
 reference's 14/14/8 cube layout, with and without dropout/L2.
@@ -155,8 +155,13 @@ See `analysis/depparse/src/feedforward/mod.rs`,
 `analysis/train-components/src/depparse.rs`, and
 `analysis/depparse/tests/feedforward/data/README.md`.
 
-Native SWAP models remain loadable through the existing native reader. Their
-Java legacy export is rejected because that transition inventory is unsupported.
-Old Java/native model files remain directly loadable with unchanged predictions.
-See [the Finnish-FTB recipe and fixed-input scoring protocol](../analysis/train-recipes/dependency/fi-ftb-r2.14/README.md)
-for `evaluate`, source licenses, hashes and the remaining accuracy work.
+
+With no mode flag, native CLI training is pseudo-projective. It also accepts
+explicit `--swap` or `--pseudo-projective`
+in place of `--projective-only`. Both retain non-projective training samples.
+SWAP uses ordinary labels and native transitions; pseudo-projective training
+uses escaped lifting metadata and deprojects predicted trees. The default
+Rust `train` API remains pseudo-projective, while `train_swap` and
+`train_projective` select their modes explicitly. Existing released models
+retain their recorded decoding mode. See the
+[SWAP and evaluation contract](dependency-parser.md#explicit-native-swap-training-and-held-out-gates).

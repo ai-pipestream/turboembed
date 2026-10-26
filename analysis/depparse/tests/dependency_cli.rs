@@ -168,38 +168,57 @@ fn cli_errors_do_not_overwrite_or_leave_output_for_invalid_inputs() {
     assert!(!std::path::Path::new(&absent).exists());
 }
 
-#[test]
-fn cli_trains_real_trees_with_explicit_exclusions_and_reloads_both_models() {
+fn train_projective_cli(kind: &str, settings: &str) {
     let dir = Scratch::new();
     let input = dir
         .put("training.conllu", format!("{}{}", corpus(), include_str!("data/ud-en-nonprojective.conllu")).as_bytes());
+    let projective = dir.put("projective.conllu", corpus().as_bytes());
     let inference = dir.put("input.conllu", unparsed(&corpus()).as_bytes());
-    for (kind, settings) in [
-        ("linear", "Algorithm=MAXENT\nIterations=2\nCutoff=1\nThreads=1\n"),
-        ("feedforward", "Epochs=1\nEmbeddingSize=3\nHiddenSize=5\nBatchSize=4\nDropout=0\nWordCutoff=1\n"),
-    ] {
-        let params = dir.put(&format!("{kind}.params"), settings.as_bytes());
-        let model = dir.path(&format!("{kind}.bin"));
-        let args = ["train", kind, "und", &input, &params, &model, "--projective-only"];
-        let result = run(&args);
-        assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
-        let counts = String::from_utf8(result.stderr).unwrap();
-        assert!(
-            counts.contains("sentences=5 words=81 excluded_nonprojective_sentences=1 excluded_nonprojective_words=16")
-        );
-        assert!(String::from_utf8(result.stdout).unwrap().contains("params_sha256="));
-        let original = fs::read(&model).unwrap();
-        assert!(!run(&args).status.success());
-        assert_eq!(fs::read(&model).unwrap(), original);
-        let output = dir.path(&format!("{kind}.conllu"));
-        success(&["inspect", kind, &model]);
-        success(&["parse", kind, &model, &inference, &output]);
-        assert_eq!(table(&fs::read_to_string(output).unwrap()).lines().count(), 65);
-    }
+    let params = dir.put(&format!("{kind}.params"), settings.as_bytes());
+    let model = dir.path(&format!("{kind}.bin"));
+    let args = ["train", kind, "und", &input, &params, &model, "--projective-only"];
+    let result = run(&args);
+    assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+    let counts = String::from_utf8(result.stderr).unwrap();
+    assert!(counts.contains("sentences=5 words=81 excluded_nonprojective_sentences=1 excluded_nonprojective_words=16"));
+    assert!(counts.contains("trained_sentences=4 trained_words=65"));
+    assert!(String::from_utf8(result.stdout).unwrap().contains("params_sha256="));
+    let original = fs::read(&model).unwrap();
+    let filtered = dir.path(&format!("{kind}-filtered.bin"));
+    success(&["train", kind, "und", &projective, &params, &filtered, "--projective-only"]);
+    assert_eq!(
+        turbo_maxent::sha256(&original),
+        turbo_maxent::sha256(&fs::read(filtered).unwrap()),
+        "{kind}: excluded trees changed model bytes"
+    );
+    let encoding = if kind == "linear" {
+        turbo_depparse::DependencyModel::open(original.clone()).unwrap().label_encoding()
+    } else {
+        turbo_depparse::FeedforwardDependencyModel::from_bytes(&original).unwrap().label_encoding()
+    };
+    assert_eq!(encoding, turbo_depparse::LabelEncoding::Plain);
+    assert!(!run(&args).status.success());
+    assert_eq!(fs::read(&model).unwrap(), original);
+    let output = dir.path(&format!("{kind}.conllu"));
+    success(&["inspect", kind, &model]);
+    success(&["parse", kind, &model, &inference, &output]);
+    assert_eq!(table(&fs::read_to_string(output).unwrap()).lines().count(), 65);
 }
 
 #[test]
-fn training_rejects_unknown_settings_and_empty_projective_population() {
+fn cli_projective_linear_excludes_crossing_trees() {
+    train_projective_cli("linear", "Algorithm=MAXENT\nIterations=2\nCutoff=1\nThreads=1\n");
+}
+#[test]
+fn cli_projective_neural_excludes_crossing_trees() {
+    train_projective_cli(
+        "feedforward",
+        "Epochs=1\nEmbeddingSize=3\nHiddenSize=5\nBatchSize=4\nDropout=0\nWordCutoff=1\n",
+    );
+}
+
+#[test]
+fn training_rejects_implicit_filtering_unknown_settings_and_empty_projective_population() {
     let dir = Scratch::new();
     let corpus = dir.put("input", include_bytes!("data/ud-en-nonprojective.conllu"));
     let output = dir.path("model");
@@ -216,7 +235,52 @@ fn training_rejects_unknown_settings_and_empty_projective_population() {
 }
 
 #[test]
-fn default_training_retains_crossing_trees_and_native_reload_predictions() {
+fn projective_cli_preserves_literal_relation_labels_and_rejects_empty_population() {
+    let dir = Scratch::new();
+    let label = r"relation\^>根";
+    // Re-label real projective trees to exercise literal syntax through the CLI.
+    let custom = corpus()
+        .lines()
+        .map(|line| {
+            let mut fields: Vec<_> = line.split('\t').collect();
+            if fields.len() == 10 {
+                fields[7] = label;
+            }
+            fields.join("\t") + "\n"
+        })
+        .collect::<String>();
+    let input = dir.put("custom.conllu", custom.as_bytes());
+    let inference = dir.put("inference.conllu", unparsed(&custom).as_bytes());
+    let crossing = dir.put("crossing.conllu", include_bytes!("data/ud-en-nonprojective.conllu"));
+    for (kind, settings) in [
+        ("linear", "Algorithm=MAXENT\nIterations=2\nCutoff=1\nThreads=1\n"),
+        ("feedforward", "Epochs=1\nEmbeddingSize=3\nHiddenSize=5\nBatchSize=4\nDropout=0\nWordCutoff=1\n"),
+    ] {
+        let params = dir.put("params", settings.as_bytes());
+        let model = dir.path(&format!("{kind}.bin"));
+        let failed = run(&["train", kind, "und", &crossing, &params, &model, "--projective-only"]);
+        assert!(!failed.status.success());
+        let message = String::from_utf8(failed.stderr).unwrap();
+        assert!(message.contains("trained_sentences=0 trained_words=0"));
+        assert!(message.contains("no projective training sentences"));
+        assert!(!PathBuf::from(&model).exists());
+        for mode in ["--projective-only", "--pseudo-projective", "--swap"] {
+            let model = dir.path(&format!("{kind}{mode}.bin"));
+            success(&["train", kind, "und", &input, &params, &model, mode]);
+            let output = dir.path(&format!("{kind}{mode}.conllu"));
+            success(&["parse", kind, &model, &inference, &output]);
+            let predictions = fs::read_to_string(output).unwrap();
+            for sentence in ConlluWordReader::new(&predictions).unwrap() {
+                for word in sentence.unwrap().words {
+                    assert_eq!(word.deprel.as_str(), label);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn explicit_swap_training_retains_crossing_trees_and_native_reload_predictions() {
     let dir = Scratch::new();
     let corpus = include_str!("data/ud-fi-ftb-crossing.conllu");
     let input = dir.put("training.conllu", corpus.as_bytes());
@@ -227,7 +291,7 @@ fn default_training_retains_crossing_trees_and_native_reload_predictions() {
     ] {
         let params = dir.put(&format!("{kind}.params"), settings.as_bytes());
         let model = dir.path(&format!("{kind}.bin"));
-        let result = run(&["train", kind, "fi", &input, &params, &model]);
+        let result = run(&["train", kind, "fi", &input, &params, &model, "--swap"]);
         assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
         let counts = String::from_utf8(result.stderr).unwrap();
         assert!(counts.contains("sentences=1 words=11 excluded_nonprojective_sentences=0"));
@@ -273,4 +337,40 @@ fn evaluation_writes_all_subsets_and_failed_floors_keep_the_report() {
     let absent = dir.path("absent.tsv");
     assert!(!run(&["evaluate", "feedforward", &model, &input, &absent, "NaN", "0"]).status.success());
     assert!(!PathBuf::from(absent).exists());
+}
+
+#[test]
+fn explicit_pseudo_training_keeps_crossing_trees_without_swap() {
+    let dir = Scratch::new();
+    let input = dir.put("input", include_bytes!("data/ud-fi-ftb-crossing.conllu"));
+    for (kind, settings) in [
+        ("linear", "Algorithm=MAXENT\nIterations=2\nCutoff=0\nThreads=1\n"),
+        ("feedforward", "Epochs=1\nEmbeddingSize=3\nHiddenSize=5\nBatchSize=4\nDropout=0\nWordCutoff=1\n"),
+    ] {
+        let params = dir.put("params", settings.as_bytes());
+        let model = dir.path(&format!("{kind}.bin"));
+        let out = run(&["train", kind, "fi", &input, &params, &model, "--pseudo-projective"]);
+        assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+        let counts = String::from_utf8(out.stderr).unwrap();
+        assert!(counts.contains("included_nonprojective_sentences=1 training_mode=pseudo-projective"));
+        assert!(counts.contains("trained_sentences=1 trained_words=11"));
+        let bytes = fs::read(&model).unwrap();
+        let default = dir.path(&format!("{kind}-default.bin"));
+        success(&["train", kind, "fi", &input, &params, &default]);
+        assert_eq!(turbo_maxent::sha256(&bytes), turbo_maxent::sha256(&fs::read(default).unwrap()));
+        let bad = dir.path(&format!("{kind}-bad.bin"));
+        for flags in [["--swap", "--projective-only"], ["--pseudo-projective", "--swap"]] {
+            assert!(!run(&["train", kind, "fi", &input, &params, &bad, flags[0], flags[1]]).status.success());
+            assert!(!PathBuf::from(&bad).exists());
+        }
+        if kind == "linear" {
+            let m = turbo_depparse::DependencyModel::open(bytes).unwrap();
+            assert_eq!(m.label_encoding(), turbo_depparse::LabelEncoding::EscapedV1);
+            assert!(m.model_ref().id.starts_with("opennlp:"));
+        } else {
+            let m = turbo_depparse::FeedforwardDependencyModel::from_bytes(&bytes).unwrap();
+            assert_eq!(m.label_encoding(), turbo_depparse::LabelEncoding::EscapedV1);
+            assert!(!m.transitions().contains(&turbo_depparse::Transition::Swap));
+        }
+    }
 }

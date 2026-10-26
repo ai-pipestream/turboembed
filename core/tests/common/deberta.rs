@@ -7,7 +7,12 @@
 
 use serde_json::json;
 
-use crate::common::{Fixture, Tensor, long_text, model_manifest};
+use std::ffi::c_void;
+use std::ptr;
+use std::sync::Mutex;
+
+use crate::common::{Fixture, Loaded, Tensor, failure, long_text, model_manifest, new_error, text};
+use turbo::*;
 
 /// A DeBERTa-v2's shape, and how its weights are made: `scale` None gives
 /// every value from the element's place in [-1, 1]; Some(s) gives the
@@ -40,6 +45,44 @@ pub const SMALL: Shape = Shape {
     max_relative_positions: 512,
     scale: Some(0.04),
 };
+
+/// Head width 32: hidden 128, four heads, two layers, 32 buckets.
+pub const HEADS_32: Shape = Shape {
+    hidden: 128,
+    heads: 4,
+    intermediate: 256,
+    layers: 2,
+    buckets: 32,
+    max_relative_positions: 128,
+    scale: Some(0.1),
+};
+
+/// Head width 128: hidden 256, two heads, two layers, 64 buckets.
+pub const HEADS_128: Shape = Shape {
+    hidden: 256,
+    heads: 2,
+    intermediate: 512,
+    layers: 2,
+    buckets: 64,
+    max_relative_positions: 256,
+    scale: Some(0.08),
+};
+
+/// Head width 64 over 256 buckets reaching only 300 positions: past the
+/// midpoint a distance may skip a relative row, so a tile reaches more
+/// rows than it spans distances.
+pub const STEEP_300: Shape = Shape {
+    hidden: 128,
+    heads: 2,
+    intermediate: 256,
+    layers: 2,
+    buckets: 256,
+    max_relative_positions: 300,
+    scale: Some(0.1),
+};
+
+/// The same, reaching 200 positions: steeper still.
+pub const STEEP_200: Shape = Shape { max_relative_positions: 200, ..STEEP_300 };
 
 /// Every tensor of `s` in safetensors order.
 pub fn weights(s: &Shape) -> Vec<Tensor> {
@@ -155,4 +198,35 @@ pub fn fixture(name: &str, s: &Shape) -> Fixture {
     let mut f = Fixture::new(name, m);
     f.weights("weights/model.safetensors", &weights(s));
     f
+}
+
+/// What a logging runtime's backends said, as the log callback hands it.
+pub static LOGGED: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+unsafe extern "C" fn keep(_: *mut c_void, _: u32, m: turbo_text) {
+    let s = unsafe { std::slice::from_raw_parts(m.ptr as *const u8, m.len as usize) };
+    LOGGED.lock().unwrap_or_else(|p| p.into_inner()).push(String::from_utf8_lossy(s).into_owned());
+}
+
+/// `f`'s bundle on the device `device` picks, through a runtime whose log
+/// goes to LOGGED (cleared first).
+pub fn load_logged(f: &Fixture, device: impl Fn(*mut turbo_runtime) -> u32) -> Loaded {
+    f.write();
+    LOGGED.lock().unwrap_or_else(|p| p.into_inner()).clear();
+    let desc = turbo_runtime_desc {
+        struct_size: size_of::<turbo_runtime_desc>() as u32,
+        reserved: 0,
+        log: Some(keep),
+        log_user_data: ptr::null_mut(),
+    };
+    let mut err = new_error();
+    let mut rt = ptr::null_mut();
+    assert_eq!(unsafe { turbo_runtime_create(&desc, &mut rt, &mut err) }, 0);
+    let mut ctx = ptr::null_mut();
+    let rc = unsafe { turbo_context_create(rt, device(rt), &mut ctx, &mut err) };
+    assert_eq!(rc, 0, "{:?}", failure(rc, &err));
+    let mut m = ptr::null_mut();
+    let rc = unsafe { turbo_model_load(ctx, text(f.dir.to_str().unwrap()), &mut m, &mut err) };
+    assert_eq!(rc, 0, "{:?}", failure(rc, &err));
+    Loaded { rt, ctx, m }
 }

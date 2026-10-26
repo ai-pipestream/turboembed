@@ -90,8 +90,6 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "serde_core",
- "serde_json",
- "serde_path_to_error",
  "sync_wrapper",
  "tokio",
  "tower",
@@ -1765,6 +1763,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-rustls"
+version = "0.26.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c9cc2678c2cdd569ef8215e2afd7954ada2ae20b4fdd2c5fe6139a3b02d105db"
+dependencies = [
+ "rustls",
+ "tokio",
+]
+
+[[package]]
 name = "tokio-stream"
 version = "0.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1811,6 +1819,7 @@ dependencies = [
  "socket2",
  "sync_wrapper",
  "tokio",
+ "tokio-rustls",
  "tokio-stream",
  "tower",
  "tower-layer",
@@ -1975,6 +1984,7 @@ dependencies = [
  "turbo-tokenize",
  "turbo-unicode",
  "turbo-vector-index",
+ "turbo-zoo",
 ]
 
 [[package]]
@@ -2087,6 +2097,7 @@ dependencies = [
 name = "turbo-doccat"
 version = "0.1.0"
 dependencies = [
+ "turbo",
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-calibration",
@@ -2099,6 +2110,7 @@ dependencies = [
  "turbo-sequence",
  "turbo-train",
  "turbo-unicode",
+ "turbo-zoo",
 ]
 
 [[package]]
@@ -2247,6 +2259,7 @@ dependencies = [
  "serde_json",
  "turbo",
  "turbo-analysis",
+ "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-bundle",
  "turbo-zoo",
@@ -2349,6 +2362,8 @@ name = "turbo-kserve"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "h2",
+ "http-body",
  "libc",
  "prost",
  "protox",
@@ -2401,17 +2416,16 @@ name = "turbo-kserve-demo"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "bytes",
+ "futures-util",
  "prost",
  "protox",
- "serde",
- "serde_json",
  "tokio",
- "tokio-stream",
+ "tokio-rustls",
  "tonic",
- "tonic-prost",
- "tonic-prost-build",
  "turbo",
  "turbo-kserve",
+ "turbo-zoo",
 ]
 
 [[package]]
@@ -2652,6 +2666,7 @@ dependencies = [
  "serde_json",
  "turbo",
  "turbo-analysis",
+ "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-bundle",
  "turbo-depparse",
@@ -2838,6 +2853,7 @@ dependencies = [
  "serde_json",
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-depparse",
  "turbo-eval",
  "turbo-formats",
  "turbo-jvm",
@@ -2852,6 +2868,7 @@ dependencies = [
  "turbo-tokenize",
  "turbo-train",
  "turbo-train-components",
+ "turbo-unicode",
  "turbo-zoo",
 ]
 

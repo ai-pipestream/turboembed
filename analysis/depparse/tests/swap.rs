@@ -11,6 +11,9 @@ fn swap_oracle_preserves_a_real_crossing_tree_and_source_fields() {
         ConlluDependencySample::read_sentence(text, Tagset::U, WhitespaceMode::Unicode, ViewId::SOURCE).unwrap();
     let sample = DependencySample::<Words>::from_conllu(sample).unwrap();
     assert!(!sample.graph().is_projective());
+    let stream = turbo_depparse::DependencyEventStream::generate_swap(std::slice::from_ref(&sample)).unwrap();
+    assert_eq!(stream.included_nonprojective, 1);
+    assert_eq!(stream.skipped_nonprojective, 0);
     let steps = SwapOracle::transitions(sample.graph()).unwrap();
     assert!(steps.contains(&Transition::Swap));
     let mut state = ArcStandardState::<Words>::new(sample.tokens().len()).unwrap();

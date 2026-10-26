@@ -12,10 +12,14 @@
 //! ```
 mod annotator;
 mod context;
+mod encoding;
 mod evaluation;
+pub use encoding::LabelEncoding;
 mod graph;
 mod model;
+mod projective;
 mod sample;
+mod training;
 mod transition;
 
 pub use annotator::{DependencyAnnotator, DependencyBackend};

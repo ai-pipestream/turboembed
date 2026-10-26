@@ -43,10 +43,10 @@ cargo build --release -p turbo-depparse --bin turbo-depparse
 # These next commands start full training; preparation never runs them.
 target/release/turbo-depparse train linear fi \
   target/fi-ftb-r2.14/fi_ftb-ud-train.conllu \
-  analysis/train-recipes/dependency/fi-ftb-r2.14/linear.properties target/ftb-linear.bin
+  analysis/train-recipes/dependency/fi-ftb-r2.14/linear.properties target/ftb-linear.bin --swap
 target/release/turbo-depparse train feedforward fi \
   target/fi-ftb-r2.14/fi_ftb-ud-train.conllu \
-  analysis/train-recipes/dependency/fi-ftb-r2.14/neural.properties target/ftb-neural.turbo
+  analysis/train-recipes/dependency/fi-ftb-r2.14/neural.properties target/ftb-neural.turbo --swap
 # Set both floors from the approved comparison protocol before seeing test scores.
 : "${MIN_UAS:?Set approved UAS floor}" "${MIN_LAS:?Set approved LAS floor}"
 target/release/turbo-depparse evaluate feedforward target/ftb-neural.turbo \

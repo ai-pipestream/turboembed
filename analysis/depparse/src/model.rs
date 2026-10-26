@@ -17,6 +17,7 @@ pub struct DependencyModel {
     pub(crate) transitions: Vec<Transition>,
     pub(crate) identity: ModelRef,
     bytes: Option<Vec<u8>>,
+    label_encoding: crate::LabelEncoding,
 }
 impl DependencyModel {
     /// The caller supplies the identity of an externally constructed classifier.
@@ -36,10 +37,10 @@ impl DependencyModel {
         {
             return Err(error("model requires SHIFT and RIGHT_ARC outcomes"));
         }
-        Ok(Self { classifier, transitions, identity, bytes: None })
+        Ok(Self { classifier, transitions, identity, bytes: None, label_encoding: crate::LabelEncoding::Plain })
     }
     pub fn from_raw(bytes: &[u8]) -> Result<Self> {
-        let mut out = Self::from_maxent(
+        let mut model = Self::from_maxent(
             MaxentModel::read(bytes).map_err(error)?,
             ModelRef {
                 id: "opennlp:DependencyParserME:raw".into(),
@@ -47,10 +48,10 @@ impl DependencyModel {
                 sha256: turbo_maxent::sha256(bytes).to_hex(),
             },
         )?;
-        if out.transitions.contains(&Transition::Swap) {
-            out.identity.id = "turbo:SwapDependencyParser:raw".into();
+        if model.transitions.contains(&Transition::Swap) {
+            model.identity.id = "turbo:SwapDependencyParser:raw".into();
         }
-        Ok(out)
+        Ok(model)
     }
     pub fn open(bytes: Vec<u8>) -> Result<Self> {
         let file = ModelFile::open(bytes.clone()).map_err(error)?;
@@ -60,15 +61,28 @@ impl DependencyModel {
         let mut out = Self::from_raw(&file.entry(MODEL_ENTRY).map_err(error)?)?;
         out.identity = ModelRef {
             id: format!(
-                "{}:DependencyParserME:{}",
-                if out.transitions.contains(&Transition::Swap) { "turbo" } else { "opennlp" },
+                "{}:{}",
+                if out.transitions.contains(&Transition::Swap) {
+                    "turbo:SwapDependencyParser"
+                } else {
+                    "opennlp:DependencyParserME"
+                },
                 file.language()
             ),
             revision: file.opennlp_version().into(),
             sha256: file.sha256().to_hex(),
         };
+        out.label_encoding = file
+            .manifest()
+            .get("Turbo-Dependency-Label-Encoding")
+            .map(crate::LabelEncoding::read)
+            .transpose()?
+            .unwrap_or_else(|| crate::LabelEncoding::historical(&bytes));
         out.bytes = Some(bytes);
         Ok(out)
+    }
+    pub fn label_encoding(&self) -> crate::LabelEncoding {
+        self.label_encoding
     }
     pub fn bytes(&self) -> Option<&[u8]> {
         self.bytes.as_deref()
@@ -81,13 +95,39 @@ impl DependencyModel {
         samples: &[DependencySample<A>],
         params: &TrainingParameters,
     ) -> Result<Self> {
-        let stream = DependencyEventStream::generate(samples)?;
+        Self::train_with_mode(language, samples, params, crate::training::TrainingMode::PseudoProjective)
+    }
+    /// Train plain arc-standard labels. Every sample must already be projective;
+    /// crossing trees produce an error rather than implicit sample filtering.
+    pub fn train_projective<A: WordOrTokenAnchor>(
+        language: &str,
+        samples: &[DependencySample<A>],
+        params: &TrainingParameters,
+    ) -> Result<Self> {
+        Self::train_with_mode(language, samples, params, crate::training::TrainingMode::Projective)
+    }
+    /// Train native SWAP transitions without label lifting or sample filtering.
+    pub fn train_swap<A: WordOrTokenAnchor>(
+        language: &str,
+        samples: &[DependencySample<A>],
+        params: &TrainingParameters,
+    ) -> Result<Self> {
+        Self::train_with_mode(language, samples, params, crate::training::TrainingMode::Swap)
+    }
+    fn train_with_mode<A: WordOrTokenAnchor>(
+        language: &str,
+        samples: &[DependencySample<A>],
+        params: &TrainingParameters,
+        mode: crate::training::TrainingMode,
+    ) -> Result<Self> {
+        let stream = DependencyEventStream::generate_with_mode(samples, mode)?;
         let (model, report) =
             turbo_train::trainer::train_events(&stream.events, params, &mut TrainingConfiguration::default())
                 .map_err(error)?;
         let mut manifest = Manifest::new(COMPONENT_NAME, language, 0);
         manifest.set_training(&report);
-        if stream.included_nonprojective > 0 {
+        manifest.set("Turbo-Dependency-Label-Encoding", mode.encoding().name());
+        if mode == crate::training::TrainingMode::Swap {
             manifest.set("TransitionSystem", "ArcStandardSwap");
         }
         let mut package = ModelPackage::new(manifest);
@@ -127,7 +167,7 @@ impl DependencyParserME {
             }
             state.apply(best.ok_or_else(|| error("no applicable model outcome"))?)?;
         }
-        state.to_graph()
+        state.to_graph()?.deprojectivize_with(self.model.label_encoding)
     }
 }
 impl<A: WordOrTokenAnchor> DependencyParser<A> for DependencyParserME {

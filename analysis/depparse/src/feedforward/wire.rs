@@ -190,9 +190,12 @@ impl FeedforwardDependencyModel {
         if self.transitions.contains(&Transition::Swap) {
             return Err(error("SWAP models have no supported legacy Java export; use the native format"));
         }
-        if self.layout != FeatureLayout::OpenNlp14 || self.activation != Activation::Cube || self.default_beam_size != 1
+        if self.label_encoding != crate::LabelEncoding::Plain
+            || self.layout != FeatureLayout::OpenNlp14
+            || self.activation != Activation::Cube
+            || self.default_beam_size != 1
         {
-            return Err(error("legacy Java raw format requires OpenNlp14 cube model with default beam 1"));
+            return Err(error("legacy Java raw format requires plain labels, OpenNlp14 cube model and default beam 1"));
         }
         let mut out = Vec::new();
         string(&mut out, MAGIC)?;
