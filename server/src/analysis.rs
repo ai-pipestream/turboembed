@@ -169,14 +169,15 @@ impl AnalysisService for Analysis {
         &self,
         req: Request<tonic::Streaming<AnalyzeStreamRequest>>,
     ) -> Reply<Self::AnalyzeStreamStream> {
-        crate::stream::handler::start(self.state.clone(), req.into_inner(), self.sink.clone()).await
+        let deadline = crate::deadline::Deadline::from_request(&req)?;
+        crate::stream::handler::start(self.state.clone(), req.into_inner(), self.sink.clone(), deadline).await
     }
 
     async fn analyze_document_progressive(
         &self,
         req: Request<AnalyzePipelineRequest>,
     ) -> Reply<Self::AnalyzeDocumentProgressiveStream> {
-        progressive::start_progressive(req).await
+        progressive::start_progressive_with_state(&self.state, req).await
     }
 
     async fn inspect_document_window(&self, req: Request<DocumentWindowRequest>) -> Reply<DocumentWindowResponse> {
