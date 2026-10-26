@@ -44,6 +44,8 @@ fn mirrored_constants_match_the_header() {
         ("TURBO_FAMILY_BERT", turbo::backend::TURBO_FAMILY_BERT.into()),
         ("TURBO_FAMILY_ROBERTA", turbo::backend::TURBO_FAMILY_ROBERTA.into()),
         ("TURBO_FAMILY_STATIC", turbo::backend::TURBO_FAMILY_STATIC.into()),
+        ("TURBO_FAMILY_DEBERTA_V2", turbo::backend::TURBO_FAMILY_DEBERTA_V2.into()),
+        ("TURBO_DEBERTA_EMBEDDING_TENSORS", turbo::backend::TURBO_DEBERTA_EMBEDDING_TENSORS.into()),
         ("TURBO_STATIC_EMBEDDINGS", turbo::backend::TURBO_STATIC_EMBEDDINGS.into()),
         ("TURBO_STATIC_WEIGHTS", turbo::backend::TURBO_STATIC_WEIGHTS.into()),
         ("TURBO_STATIC_MAPPING", turbo::backend::TURBO_STATIC_MAPPING.into()),
@@ -130,9 +132,16 @@ fn mirrored_constants_match_the_header() {
     // Where the core puts each BERT tensor is where the header says.
     let roles =
         turbo::model::BERT_EMBEDDING_ROLES.iter().enumerate().chain(turbo::model::BERT_LAYER_ROLES.iter().enumerate());
-    let roles: Vec<(String, i64)> = roles
+    let mut roles: Vec<(String, i64)> = roles
         .map(|(i, &r)| (format!("TURBO_BERT_{}", turbo::manifest::role_name(r).to_uppercase()), i as i64))
         .collect();
+    // And each DeBERTa-v2 embedding tensor.
+    roles.extend(
+        turbo::model::DEBERTA_EMBEDDING_ROLES
+            .iter()
+            .enumerate()
+            .map(|(i, &r)| (format!("TURBO_DEBERTA_{}", turbo::manifest::role_name(r).to_uppercase()), i as i64)),
+    );
     let constants: Vec<(&str, i64)> =
         constants.iter().copied().chain(roles.iter().map(|(n, i)| (n.as_str(), *i))).collect();
     let mut src = String::from(
