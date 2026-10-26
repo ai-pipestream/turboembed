@@ -447,7 +447,7 @@ alternating order (the machine's 5-minute load average 3 to 5):
 | hidden 384, layer 0 past F16 | 1 x 128 | refused | 3.49 / 3.19 | 4.80 / 4.37 |
 
 FASTEST before ran these heads in the F32 narrow kernel; the F16 one is
-3.4x to 4.4x faster on them. A model with one layer past F16's range,
+2.6x to 4.4x faster on them (by p50 or by least). A model with one layer past F16's range,
 refused at FASTEST before, now runs it about 1.4x faster than EXACT.
 The kernels for heads a multiple of 8 up to 64 are unchanged:
 all-minilm-l6-v2 and bge-base-en-v1.5 give main's vectors bit for bit at
