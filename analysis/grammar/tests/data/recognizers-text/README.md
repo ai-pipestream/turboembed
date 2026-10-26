@@ -36,3 +36,15 @@ pinned revision and MIT license. `tests/spanish_unit_specs.rs` checks every case
 | `Spanish/NumberWithUnit/CurrencyModel.json` | `Specs/NumberWithUnit/Spanish/CurrencyModel.json` |
 | `Spanish/NumberWithUnit/DimensionModel.json` | `Specs/NumberWithUnit/Spanish/DimensionModel.json` |
 | `Spanish/NumberWithUnit/TemperatureModel.json` | `Specs/NumberWithUnit/Spanish/TemperatureModel.json` |
+
+The Japanese NumberWithUnit files are unchanged copies at the same revision
+and MIT license. All 188 cases are run, including upstream unsupported entries.
+The two incorrect upstream unit labels are explicitly tested as native policy
+differences in `japanese_unit_specs.rs`, not counted as parity matches.
+
+| File here | Upstream path | SHA256 |
+|---|---|---|
+| `Japanese/NumberWithUnit/AgeModel.json` | `Specs/NumberWithUnit/Japanese/AgeModel.json` | `130278bcce4feca64b3a66e62cd1eb8d6581661584f3347234684a67dff55a00` |
+| `Japanese/NumberWithUnit/CurrencyModel.json` | `Specs/NumberWithUnit/Japanese/CurrencyModel.json` | `bb47bab4033b335dffc8f5f17ddc9c74b8eb1bf5718625a0a568c0350c18d679` |
+| `Japanese/NumberWithUnit/DimensionModel.json` | `Specs/NumberWithUnit/Japanese/DimensionModel.json` | `c1122b55305825f172ba949a5b18026570fe2f14c23796a9a7f8e244d7719820` |
+| `Japanese/NumberWithUnit/TemperatureModel.json` | `Specs/NumberWithUnit/Japanese/TemperatureModel.json` | `8d88e5679f477f667f21ba16771518c3837ca76b14e1b966afd21cb9ea6f642a` |

@@ -37,6 +37,7 @@ pub use lang::en::unit::{ENGLISH_UNITS, EnglishUnits};
 pub use lang::en::{ENGLISH, ENGLISH_TIMES, English, EnglishTimes};
 pub use lang::es::unit::{SPANISH_UNITS, SpanishUnits};
 pub use lang::es::{SPANISH, SPANISH_TIMES, Spanish, SpanishTimes};
+pub use lang::ja::{JAPANESE_UNITS, JapaneseUnits};
 pub use lang::nl::{DUTCH, DUTCH_TIMES, Dutch, DutchTimes};
 pub use times::TimeAnnotator;
 pub use unit::{CurrencyUnit, Measure, Unit};
