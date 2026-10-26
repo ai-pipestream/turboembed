@@ -68,12 +68,12 @@ fn accuracy_and_speed_on_the_codespell_misspellings() {
         "{} typos, {one_fix} with one fix, {known} with a fix in the unigram list, {typo_known} typos in it",
         set.len()
     );
-    assert_eq!((set.len(), one_fix, known, typo_known), (0, 0, 0, 0));
+    assert_eq!((set.len(), one_fix, known, typo_known), (64_040, 57_992, 58_938, 140));
 
     let top =
         |q: &str| e.lookup(q, Verbosity::Top, 2).unwrap().first().map_or_else(|| q.to_owned(), |s| s.term.to_owned());
     let (answers, us) = timed(&set, top);
-    assert_eq!(row("lookup Top, distance 2", &set, &answers, us), (0, 0));
+    assert_eq!(row("lookup Top, distance 2", &set, &answers, us), (46_933, 51_960));
 
     let t = Instant::now();
     let found = set
@@ -85,13 +85,13 @@ fn accuracy_and_speed_on_the_codespell_misspellings() {
         .count();
     let us = t.elapsed().as_secs_f64() * 1e6 / set.len() as f64;
     println!("lookup All, distance 2, a fix among them: {found}/{}, {us:.1} us per query", set.len());
-    assert_eq!(found, 0);
+    assert_eq!(found, 56_861);
 
     let n = SpellCorrect::new(e.clone());
     let (answers, us) = timed(&set, |q| normalize(&n, q).0);
-    assert_eq!(row("SpellCorrect per token, distance 2", &set, &answers, us), (0, 0));
+    assert_eq!(row("SpellCorrect per token, distance 2", &set, &answers, us), (46_872, 51_866));
 
     let c = ContextSpellCorrector::new(e.clone(), lm());
     let (answers, us) = timed(&set, |q| normalize(&c, q).0);
-    assert_eq!(row("ContextSpellCorrector, one word, distance 2", &set, &answers, us), (0, 0));
+    assert_eq!(row("ContextSpellCorrector, one word, distance 2", &set, &answers, us), (36_288, 39_565));
 }
