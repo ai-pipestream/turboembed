@@ -14,6 +14,7 @@ use turbo::bundle::Bundle;
 use turbo::manifest::Model;
 use turbo::sparse::SparseOptions;
 
+use super::colbert::{DOC_MAXLEN, QUERY_MAXLEN};
 use super::trained::{TrainedConfig, TrainedProvenance};
 use crate::Result;
 
@@ -149,6 +150,14 @@ pub fn record(run: &ReceiptRun<'_>, sets: Vec<Value>) -> Value {
             "ridge_lambda": e.ridge_lambda,
             "doc_cut": cut(run.doc_cut),
             "query_cut": cut(run.query_cut),
+            "colbert_protocol": {
+                "query_maxlen": QUERY_MAXLEN,
+                "doc_maxlen": DOC_MAXLEN,
+                "query_marker": "[unused0]",
+                "doc_marker": "[unused1]",
+                "mask_augmentation": true,
+                "doc_punctuation_filtered": true,
+            },
         },
         "sets": sets,
     })

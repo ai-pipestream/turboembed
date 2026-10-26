@@ -13,6 +13,7 @@
 
 pub mod adapter_fit;
 pub mod arms;
+pub mod colbert;
 pub mod corpus;
 pub mod posting;
 pub mod receipt;

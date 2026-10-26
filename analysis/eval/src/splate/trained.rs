@@ -5,7 +5,10 @@
 //! static dense vectors from a potion bundle, learned-sparse terms from
 //! the OpenSearch neural-sparse bundle's MLM head (SPLADE max-log
 //! pooling), and late-interaction token vectors from the ColBERTv2
-//! bundle's projection head, each token L2-normalized as ColBERT does.
+//! bundle run under the upstream ColBERT token protocol
+//! (`super::colbert`): marked query and document sequences, MASK
+//! query augmentation, the 32/180 caps, document punctuation rows
+//! dropped, each kept token projected and L2-normalized.
 //!
 //! Arm 4's adapter is trained here by per-token ridge distillation:
 //! for a deterministic prefix of the corpus documents, every ColBERT
@@ -27,6 +30,7 @@ use turbo_analysis::{Document, ModelRef, View};
 use turbo_analysis_embed::vectors::ContextualTokens;
 use turbo_analysis_embed::{Device, EncoderOptions, Precision, SubwordAnnotator, VectorAnnotator, VectorOptions};
 
+use super::colbert::ColbertProtocol;
 use super::corpus::{EncodedCorpus, EncodedDoc, EncodedQuery, extract_query_terms, tokenize_bm25};
 use crate::Result;
 use crate::embedder::{Embedder, Role, TurboEmbedder};
@@ -93,17 +97,6 @@ fn full_text(title: &Option<String>, text: &str) -> String {
     }
 }
 
-fn unit_rows(data: &mut [f32], dim: usize) {
-    for row in data.chunks_exact_mut(dim) {
-        let n = row.iter().map(|&x| f64::from(x) * f64::from(x)).sum::<f64>().sqrt();
-        if n > 0.0 {
-            for x in row.iter_mut() {
-                *x = (*x as f64 / n) as f32;
-            }
-        }
-    }
-}
-
 fn model_ref(dir: &Path) -> Result<ModelRef> {
     let b = Bundle::open(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     Ok(ModelRef {
@@ -151,6 +144,21 @@ fn token_batch(
     Ok(out)
 }
 
+/// Piece ids and their source texts per text, from a subword
+/// annotator: the input the ColBERT protocol builds sequences from.
+fn pieces_batch(subs: &SubwordAnnotator, texts: &[String]) -> Result<Vec<(Vec<i32>, Vec<String>)>> {
+    let mut out = Vec::with_capacity(texts.len());
+    for text in texts {
+        let doc = Document::new(text.clone());
+        let view = doc.get::<View>().ok_or_else(|| "missing source view".to_owned())?;
+        let pieces = subs.pieces(view).map_err(|e| e.to_string())?;
+        let (starts, ends) = pieces.spans.columns();
+        let texts = starts.iter().zip(ends).map(|(&s, &e)| text[s as usize..e as usize].to_owned()).collect();
+        out.push((pieces.ids, texts));
+    }
+    Ok(out)
+}
+
 use super::adapter_fit::{FitToken, fit_adapter};
 
 /// One document's SPLADE outcome: its terms, its adapter-fit tokens
@@ -167,14 +175,17 @@ pub fn encode_trained(
     query_cut: &SparseCut,
 ) -> Result<(EncodedCorpus, TrainedProvenance)> {
     set.check()?;
-    let colbert = annotator(&bundles.colbert, &device)?;
+    let mut colbert = ColbertProtocol::open(
+        &bundles.colbert,
+        &EncoderOptions { device: device.clone(), ..EncoderOptions::default() },
+    )?;
     let sparse_ann = annotator(&bundles.sparse, &device)?;
     let colbert_subs = SubwordAnnotator::open(&bundles.colbert).map_err(|e| e.to_string())?;
     let sparse_subs = SubwordAnnotator::open(&bundles.sparse).map_err(|e| e.to_string())?;
     let sparse_bundle = Bundle::open(&bundles.sparse).map_err(|e| e.to_string())?;
     let mlm = MlmHead::load(&sparse_bundle).map_err(|e| e.to_string())?;
     let vocab_size = mlm.vocab;
-    let token_dim = colbert.token_dim() as usize;
+    let token_dim = colbert.dim;
     let mut statik = TurboEmbedder::open(&bundles.static_bundle, device.clone(), Precision::Model)?;
     let static_dim = statik.dim();
 
@@ -188,7 +199,8 @@ pub fn encode_trained(
         doc_static.extend(out.chunks_exact(static_dim).map(<[f32]>::to_vec));
     }
 
-    let colbert_toks = token_batch(&colbert, &colbert_subs, &texts, "colbert")?;
+    let colbert_pieces = pieces_batch(&colbert_subs, &texts)?;
+    let colbert_toks = colbert.encode(&colbert_pieces, false)?;
     let sparse_toks = token_batch(&sparse_ann, &sparse_subs, &texts, "sparse")?;
 
     // SPLADE terms (and adapter-fit targets) per document, in parallel
@@ -201,12 +213,20 @@ pub fn encode_trained(
         for (ci, chunk) in texts.chunks(per_thread).enumerate() {
             let (mlm, cfg, doc_cut) = (&mlm, cfg, doc_cut);
             let base = ci * per_thread;
-            let (cts, sts) = (&colbert_toks[base..base + chunk.len()], &sparse_toks[base..base + chunk.len()]);
+            let (cts, cps, sts) = (
+                &colbert_toks[base..base + chunk.len()],
+                &colbert_pieces[base..base + chunk.len()],
+                &sparse_toks[base..base + chunk.len()],
+            );
             handles.push(scope.spawn(move || {
                 let mut out = Vec::with_capacity(chunk.len());
-                for (li, (ct, st)) in cts.iter().zip(sts).enumerate() {
+                for (li, ((ct, cp), st)) in cts.iter().zip(cps).zip(sts).enumerate() {
                     let di = base + li;
-                    let n = ct.ids.len().min(cfg.max_doc_tokens);
+                    // The fit aligns content pieces: the protocol's
+                    // marker rows are not pieces, and `piece_vecs`
+                    // holds exactly the piece rows in order.
+                    let piece_rows = ct.piece_vecs.len() / token_dim;
+                    let n = cp.0.len().min(piece_rows).min(cfg.max_doc_tokens);
                     let m = n.min(st.ids.len());
                     let states = &st.data[..m * (st.dim as usize)];
                     let one = (|| -> Result<(Vec<SparseTerm>, Vec<FitToken>, bool)> {
@@ -216,12 +236,17 @@ pub fn encode_trained(
                             pool.observe(row).map_err(|e| e.to_string())?;
                         }
                         let terms = pool.terms(doc_cut).map_err(|e| e.to_string())?;
-                        let aligned = ct.ids[..n] == st.ids[..m] && st.ids.len() >= n;
+                        let aligned = cp.0[..n] == st.ids[..m] && st.ids.len() >= n;
                         let mut fit_toks = Vec::new();
                         if di < cfg.fit_docs && aligned {
-                            let mut token_vecs = ct.data[..n * token_dim].to_vec();
-                            unit_rows(&mut token_vecs, token_dim);
-                            fit_from_logits(&logits, mlm.vocab, &token_vecs, token_dim, cfg, &mut fit_toks);
+                            fit_from_logits(
+                                &logits,
+                                mlm.vocab,
+                                &ct.piece_vecs[..n * token_dim],
+                                token_dim,
+                                cfg,
+                                &mut fit_toks,
+                            );
                         }
                         Ok((terms, fit_toks, aligned))
                     })();
@@ -247,9 +272,7 @@ pub fn encode_trained(
         let text = &texts[di];
         let (vocab, _indexed, stats) = tokenize_bm25(text)?;
         let ct = &colbert_toks[di];
-        let n = ct.ids.len().min(cfg.max_doc_tokens);
-        let mut token_vecs = ct.data[..n * token_dim].to_vec();
-        unit_rows(&mut token_vecs, token_dim);
+        let token_vecs = ct.token_vecs.clone();
         let (splade, fit_toks, aligned) = match &splade_all[di] {
             Ok(v) => v,
             Err(e) => return Err(e.clone()),
@@ -266,7 +289,7 @@ pub fn encode_trained(
             text: text.clone(),
             bm25_stats: stats,
             bm25_vocab: vocab,
-            token_ids: ct.ids[..n].iter().map(|&i| i as u32).collect(),
+            token_ids: ct.ids.iter().map(|&i| i as u32).collect(),
             static_vec: std::mem::take(&mut doc_static[di]),
             token_vecs,
             splade_terms: splade.clone(),
@@ -289,11 +312,10 @@ pub fn encode_trained(
         statik.embed(&[q.text.as_str()], Role::Query, &mut sv)?;
         let ns_static = t1.elapsed().as_nanos() as u64;
         let t2 = Instant::now();
-        let ct = colbert.embed_text_tokens(&q.text).map_err(|e| e.to_string())?;
+        let qpieces = pieces_batch(&colbert_subs, std::slice::from_ref(&q.text))?;
+        let ct = colbert.encode(&qpieces, true)?.into_iter().next().ok_or("no ColBERT query encoding")?;
         let ns_colbert = t2.elapsed().as_nanos() as u64;
-        let n = ct.ids.len().min(cfg.max_query_tokens);
-        let mut token_vecs = ct.data[..n * token_dim].to_vec();
-        unit_rows(&mut token_vecs, token_dim);
+        let token_vecs = ct.token_vecs.clone();
         let t3 = Instant::now();
         let st = sparse_ann.embed_text_tokens(&q.text).map_err(|e| e.to_string())?;
         let m = st.ids.len().min(cfg.max_query_tokens);
@@ -303,7 +325,7 @@ pub fn encode_trained(
             id: q.id.clone(),
             text: q.text.clone(),
             bm25_terms,
-            token_ids: ct.ids[..n].iter().map(|&i| i as u32).collect(),
+            token_ids: ct.ids.iter().map(|&i| i as u32).collect(),
             static_vec: sv,
             token_vecs,
             splade_terms: splade,
