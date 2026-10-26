@@ -13,6 +13,13 @@ pub struct Method {
     write: bool,
 }
 
+impl Method {
+    /// Whether the method changes the server.
+    pub fn is_write(&self) -> bool {
+        self.write
+    }
+}
+
 const fn read(path: &'static str) -> Method {
     Method { path, streaming: false, write: false }
 }
@@ -111,6 +118,11 @@ impl Allow {
             }
         }
         Ok(allow)
+    }
+
+    /// Whether a method that changes the server is forwarded.
+    pub fn writes(&self) -> bool {
+        self.allowed.iter().any(|m| m.write)
     }
 
     /// The method at `path` when it is forwarded; else whether the demo
