@@ -1,7 +1,9 @@
 //! Explicit offsets and a bounded inventory of zone names. Regional
 //! abbreviations require caller context; city names use dated EU rules.
+mod context;
 mod resolution;
 use crate::engine::{Lexed, NumeralStyle};
+pub(crate) use context::for_clock;
 pub use resolution::{Offsets, offset_for, write_timex};
 use turbo_unicode::whitespace::WhitespaceMode;
 
@@ -65,6 +67,7 @@ pub fn at(text: &str, start: usize, region: Region) -> Option<ZoneMatch> {
     }
     let region_offset = match (first, region) {
         ("cst", Region::NorthAmerica) => Some(-360),
+        ("pt", Region::NorthAmerica) => Some(-480),
         ("cst", Region::China) => Some(480),
         ("ist", Region::India) => Some(330),
         ("ist", Region::Ireland) => Some(60),
@@ -73,7 +76,7 @@ pub fn at(text: &str, start: usize, region: Region) -> Option<ZoneMatch> {
     if let Some(minutes) = region_offset {
         return Some(ZoneMatch { start, end: start + lex.lexemes[0].end as usize, zone: Zone::Fixed(minutes) });
     }
-    if matches!(first, "cst" | "ist") {
+    if matches!(first, "cst" | "ist" | "pt") {
         return Some(ZoneMatch { start, end: start + lex.lexemes[0].end as usize, zone: Zone::Unresolved });
     }
     for &(phrase, zone) in NAMES {
@@ -148,7 +151,12 @@ const NAMES: &[(&str, Zone)] = &[
     ("pacific timezone", Zone::Fixed(-480)),
     ("zona horaria del pacífico", Zone::Fixed(-480)),
     ("pacifische tijdzone", Zone::Fixed(-480)),
+    ("mountain standard time", Zone::Fixed(-420)),
+    ("mountain daylight time", Zone::Fixed(-360)),
     ("mountain timezone", Zone::Fixed(-420)),
+    ("mountain time", Zone::Fixed(-420)),
+    ("pacific time", Zone::Fixed(-480)),
+    ("eastern time", Zone::Fixed(-300)),
     ("mountain tijdzone", Zone::Fixed(-420)),
     ("est", Zone::Fixed(-300)),
     ("edt", Zone::Fixed(-240)),

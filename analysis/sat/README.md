@@ -98,12 +98,29 @@ cargo test --release -p turbo-sat --test speed -- --ignored --nocapture
   (refused under the current training-source policy, docs/licences.md).
   Its upstream directory holds the
   checkpoint's `model.safetensors` and, as `tokenizer.json`,
-  BAAI/bge-m3's at revision `5617a9f61b028005a4858fdac845db406aefb181`
-  (the checkpoint has no tokenizer of its own). Its reference vectors
-  and fixtures are made as above, with a directory holding the
+  FacebookAI/xlm-roberta-base's at revision
+  `e73636d4f797dec63c3081bb6ed5c7b0bb3f2089`, the base model its config
+  names (the checkpoint has no tokenizer of its own). Its reference
+  vectors and fixtures are made as above, with a directory holding the
   checkpoint's `config.json` and `model.safetensors` as the model in
-  place of the tiny model's `out/model`, and the bge-m3 file as the
-  tokenizer; `config.json` is read by the reference only, not sealed.
+  place of the tiny model's `out/model`, and the xlm-roberta-base file
+  as the tokenizer; `config.json` is read by the reference only, not
+  sealed. That file's normalizer is the precompiled map alone and its
+  pre-tokenizer WhitespaceSplit then Metaspace, so the recipe sets
+  `whitespace_split` and not `collapse_spaces`, and its `<mask>` takes
+  no `lstrip`. The classifier's one label is the config's `LABEL_0`.
+  The recipe's `produced_by` image is the `Dockerfile.classifier` one
+  (below), not `reference/Dockerfile`'s. With `M` the directory holding
+  `config.json` and `model.safetensors`, the fixtures are
+
+  ```
+  run segment /w/M /w/tokenizer.json /w/texts.jsonl /w/t0.25-s64-b510.jsonl 0.25 64 510
+  run segment /w/M /w/tokenizer.json /w/texts.jsonl /w/t0.25-s16-b62.jsonl 0.25 16 62
+  run segment /w/M /w/tokenizer.json /w/texts.jsonl /w/t0.5-s7-b30.jsonl 0.5 7 30
+  ```
+
+  with `/w/tokenizer.json` the xlm-roberta-base file; their SHA-256s are
+  in docs/neural-annotators.md.
   `bundle/recipes/sat-3l.json` is the recipe for `sat-3l` (MIT, limited
   lookahead). Its checkpoint ships `pytorch_model.bin` and no
   safetensors: the upstream directory holds it, `config.json` and the

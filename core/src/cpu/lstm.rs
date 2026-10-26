@@ -8,7 +8,9 @@
 //! runs one recurrent product over the sequences still running at that
 //! step, which are a prefix of the batch since it is sorted longest first,
 //! and one pass of the gates. Gates are (i, f, g, o), each `hidden` wide.
-//! A reverse direction reads each sequence from its last row.
+//! A reverse direction reads each sequence from its last row. A caller
+//! that already holds the input projections (a table of distinct rows,
+//! by id) runs the recurrences alone with `Lstm::run_gathered`.
 //!
 //! Each output is one chain of products and gates over its own sequence's
 //! rows, so a sequence's states do not depend on the others in the batch.
@@ -64,6 +66,12 @@ pub struct Work {
 /// A run refused for what the caller passed; the weights are not at fault.
 fn argument(message: impl Into<String>) -> Error {
     Error::new(INVALID_ARGUMENT, message)
+}
+
+/// Whether every value is finite: a branch-free fold in blocks, so the
+/// check vectorizes instead of stopping at each value.
+fn finite(v: &[f32]) -> bool {
+    v.chunks(64).all(|c| c.iter().fold(true, |a, x| a & x.is_finite()))
 }
 
 fn grow(v: &mut Vec<f32>, n: usize) -> Result<&mut [f32]> {
@@ -141,36 +149,93 @@ impl Lstm {
     /// size, with INVALID_SHAPE; a workspace that cannot grow, with
     /// OUT_OF_MEMORY.
     pub fn run(&self, x: &[f32], lengths: &[usize], out: &mut [f32], w: &mut Work) -> Result<()> {
-        let (h, g) = (self.hidden, 4 * self.hidden);
-        let rows = lengths.iter().try_fold(0usize, |a, &n| a.checked_add(n));
-        let rows = rows.ok_or_else(|| argument("lstm: lengths overflow"))?;
-        if lengths.contains(&0) || lengths.windows(2).any(|p| p[0] < p[1]) {
-            return Err(argument("lstm: lengths must be at least 1 and the longest first"));
+        let rows = self.rows(lengths, out)?;
+        if Some(x.len()) != rows.checked_mul(self.input) {
+            let message = format!("lstm: {} input values for {rows} rows of {}", x.len(), self.input);
+            return Err(Error::new(INVALID_SHAPE, message));
         }
-        if Some(x.len()) != rows.checked_mul(self.input) || Some(out.len()) != rows.checked_mul(self.width()) {
-            return Err(Error::new(
-                INVALID_SHAPE,
-                format!(
-                    "lstm: {} input and {} output values for {rows} rows of {} and {}",
-                    x.len(),
-                    out.len(),
-                    self.input,
-                    self.width()
-                ),
-            ));
-        }
-        if !x.iter().all(|v| v.is_finite()) {
+        if !finite(x) {
             return Err(argument("lstm: an input is not finite"));
         }
         if rows == 0 {
             return Ok(());
         }
-        let (batch, dg) = (lengths.len(), self.directions.len() * g);
+        let dg = self.projected_width();
+        let mut projected = std::mem::take(&mut w.projected);
+        let result = grow(&mut projected, rows * dg).and_then(|p| {
+            self.projection.apply(x, self.input, rows, Some(&self.bias), p, dg, Mode::Plain);
+            let p = &*p;
+            self.recur(|r| &p[r * dg..][..dg], lengths, out, w)
+        });
+        w.projected = projected;
+        result
+    }
+
+    /// The width of a row of input projections: every direction's four
+    /// gates, in the order the directions were given.
+    pub fn projected_width(&self) -> usize {
+        self.directions.len() * 4 * self.hidden
+    }
+
+    /// [`run`](Self::run) from input projections the caller made once
+    /// per distinct row: row r of the sequences reads row `index[r]` of
+    /// `table` [distinct, projected_width], each row's `W x + b` of every
+    /// direction, the directions in the order given (a character table
+    /// read by character id, say). Nothing is copied out of the table.
+    /// Refused as `run` refuses, and a non-finite table value with
+    /// INVALID_ARGUMENT; a table of the wrong width, or an index of the
+    /// wrong length or past the table, with INVALID_SHAPE.
+    pub fn run_gathered(
+        &self,
+        table: &[f32],
+        index: &[usize],
+        lengths: &[usize],
+        out: &mut [f32],
+        w: &mut Work,
+    ) -> Result<()> {
+        let (rows, pw) = (self.rows(lengths, out)?, self.projected_width());
+        let distinct = table.len() / pw;
+        if !table.len().is_multiple_of(pw) || index.len() != rows || index.iter().any(|&i| i >= distinct) {
+            let message =
+                format!("lstm: a table of {} values and {} indices for {rows} rows of {pw}", table.len(), index.len());
+            return Err(Error::new(INVALID_SHAPE, message));
+        }
+        if !finite(table) {
+            return Err(argument("lstm: a projection is not finite"));
+        }
+        if rows == 0 {
+            return Ok(());
+        }
+        self.recur(|r| &table[index[r] * pw..][..pw], lengths, out, w)
+    }
+
+    /// The rows of `lengths`, checked, and `out` checked against them.
+    fn rows(&self, lengths: &[usize], out: &[f32]) -> Result<usize> {
+        let rows = lengths.iter().try_fold(0usize, |a, &n| a.checked_add(n));
+        let rows = rows.ok_or_else(|| argument("lstm: lengths overflow"))?;
+        if lengths.contains(&0) || lengths.windows(2).any(|p| p[0] < p[1]) {
+            return Err(argument("lstm: lengths must be at least 1 and the longest first"));
+        }
+        if Some(out.len()) != rows.checked_mul(self.width()) {
+            let message = format!("lstm: {} output values for {rows} rows of {}", out.len(), self.width());
+            return Err(Error::new(INVALID_SHAPE, message));
+        }
+        Ok(rows)
+    }
+
+    /// The recurrences over checked, nonempty `lengths`; `projected(r)` is
+    /// row r's projections of every direction.
+    fn recur<'a>(
+        &self,
+        projected: impl Fn(usize) -> &'a [f32],
+        lengths: &[usize],
+        out: &mut [f32],
+        w: &mut Work,
+    ) -> Result<()> {
+        let (h, g) = (self.hidden, 4 * self.hidden);
+        let batch = lengths.len();
         w.starts.clear();
         w.starts.extend(lengths.iter().scan(0, |a, &n| Some(std::mem::replace(a, *a + n))));
-        let projected = grow(&mut w.projected, rows * dg)?;
-        self.projection.apply(x, self.input, rows, Some(&self.bias), projected, dg, Mode::Plain);
-        let projected = &w.projected[..rows * dg];
         grow(&mut w.step, batch * g)?;
         grow(&mut w.state, batch * h)?;
         grow(&mut w.cell, batch * h)?;
@@ -183,24 +248,34 @@ impl Lstm {
                 while lengths[active - 1] <= t {
                     active -= 1;
                 }
-                if t > 0 {
-                    d.recurrent.apply(&w.state, h, active, None, &mut w.step, g, Mode::Plain);
+                let at = |s: usize| {
+                    let (start, n) = (w.starts[s], lengths[s]);
+                    start + if d.reverse { n - 1 - t } else { t }
+                };
+                // Each step's gates: the input projection, plus the
+                // recurrent product added onto it after the first step.
+                for s in 0..active {
+                    w.step[s * g..][..g].copy_from_slice(&projected(at(s))[k * g..][..g]);
                 }
-                for (s, (&start, &n)) in w.starts.iter().zip(lengths).take(active).enumerate() {
-                    let at = start + if d.reverse { n - 1 - t } else { t };
-                    let a = &projected[at * dg + k * g..][..g];
-                    let rec = &w.step[s * g..][..g];
-                    let (state, cell) = (&mut w.state[s * h..][..h], &mut w.cell[s * h..][..h]);
-                    let row = &mut out[at * width + k * h..][..h];
-                    for j in 0..h {
-                        let gate = |q: usize| a[q * h + j] + if t > 0 { rec[q * h + j] } else { 0.0 };
-                        let c = sigmoid(gate(1)) * cell[j] + sigmoid(gate(0)) * gate(2).tanh();
-                        let v = sigmoid(gate(3)) * c.tanh();
-                        if !v.is_finite() {
-                            return Err(argument(format!("lstm: a state is not finite at row {at}")));
-                        }
-                        (cell[j], state[j], row[j]) = (c, v, v);
+                if t > 0 {
+                    d.recurrent.apply(&w.state, h, active, None, &mut w.step, g, Mode::Residual);
+                }
+                for s in 0..active {
+                    let gs = &w.step[s * g..][..g];
+                    // A gate past f32's range would saturate to a finite
+                    // state; refuse it as a non-finite state is refused.
+                    if !finite(gs) {
+                        return Err(argument(format!("lstm: a gate is not finite at row {}", at(s))));
                     }
+                    let (state, cell) = (&mut w.state[s * h..][..h], &mut w.cell[s * h..][..h]);
+                    for j in 0..h {
+                        let c = sigmoid(gs[h + j]) * cell[j] + sigmoid(gs[j]) * gs[2 * h + j].tanh();
+                        (cell[j], state[j]) = (c, sigmoid(gs[3 * h + j]) * c.tanh());
+                    }
+                    if !finite(state) {
+                        return Err(argument(format!("lstm: a state is not finite at row {}", at(s))));
+                    }
+                    out[at(s) * width + k * h..][..h].copy_from_slice(state);
                 }
             }
         }
