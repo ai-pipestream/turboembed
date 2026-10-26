@@ -23,6 +23,40 @@ the CPU encoder on `testdata/tiny-deberta-bundle` (every logit within
 the same): on the Arc Pro B70 and the RTX 4080 SUPER the largest difference
 is under 1e-10, at MODEL and EXACT.
 
+### The real checkpoint on a device
+
+`bundle/recipes/gliner-small-v2.1-encoder.json` seals `urchade/gliner_small-v2.1`'s
+encoder as that core bundle. `bundle/reference/gliner_encoder.py`, in the
+pinned reference container, writes it from the zoo's checkpoint and
+`microsoft-deberta-v3-small-tokenizer` files: the checkpoint's
+`token_rep_layer.bert_layer.model` tensors as a `DebertaV2Model` of 128004
+rows, and `spm.model` converted to `tokenizer.json` (with `[MASK]` and
+GLiNER's `[FLERT]`, `<<ENT>>` and `<<SEP>>` as pieces at the checkpoint's
+ids, its normalizer in SentencePiece's own order: the map, the collapse of
+spaces, the strip). The conversion runs only in the container; no Python
+ships. `turbo-bundle reference` then writes the reference (mean pooled, not
+normalized, at 512 tokens) and seals, checking the config against the
+recipe. With `Z` the zoo home's `artifacts` directory and `W` an empty one:
+
+```
+docker run --rm --network none --user $(id -u):$(id -g) -e HOME=/tmp \
+    -v $PWD/bundle/reference:/scripts:ro -v $Z/microsoft-deberta-v3-small-tokenizer:/tok:ro \
+    -v $Z/urchade-gliner-small-v2.1:/ckpt:ro -v $W:/w --entrypoint python \
+    turbo-reference@sha256:3fe2d4ad441927475b97a400364ebcb7fca3f324dae1a0463720eff7fc0a53f4 \
+    /scripts/gliner_encoder.py /tok/config.json /tok/spm.model /ckpt/pytorch_model.bin /w/out
+cargo run --release -p turbo-bundle -- reference bundle/recipes/gliner-small-v2.1-encoder.json $W/out $W/bundle
+```
+
+`package::Manifest::open_on` takes the converted package with that bundle:
+the package is checked as `load` checks it, and the bundle's weights must
+be the package encoder's, tensor for tensor. Core conformance holds the
+bundle to its reference (10 cases, within 1e-4) on the CPU and the devices.
+`analysis/gliner/tests/real_device.rs` (ignored; `GLINER_PACKAGE`,
+`GLINER_ENCODER_BUNDLE`, `TURBO_TEST_DEVICE`) holds the device to the
+package on the CPU (packed ids identical, every logit within 1e-3, decoded
+entities alike but for candidates within that of the threshold) and times
+`score_packed` on both, interleaved.
+
 This is a Rust API. SaT ships as `turbo-sat`, and GLiNER2 document
 classification, structured records and deterministic constraint layers
 ship in `turbo-schema-extract` (`analysis/schema-extract`); this page

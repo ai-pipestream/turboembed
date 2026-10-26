@@ -117,6 +117,22 @@ impl Model {
     }
     /// All valid span/label pairs in start, width, label order. Positions are
     /// first-subword positions; prompts use the ENT marker hidden state.
+    /// The encoder's states the heads read for `p`: each prompt's marker
+    /// row, then each word's first-subword row, [prompts + words, hidden].
+    pub fn states(&self, p: &PackedInput, schema: &ExtractionSchema) -> Result<Vec<f32>, String> {
+        p.check(&self.config, self.encoder.config(), schema.labels().len())?;
+        let mut out = Vec::new();
+        match &self.encoder {
+            Backend::Cpu(e) => {
+                let h = e.encode(&p.ids, &vec![true; p.ids.len()]).map_err(|e| e.message)?;
+                for &at in p.prompts.iter().chain(&p.words) {
+                    out.extend_from_slice(&h.data()[at * h.width()..(at + 1) * h.width()]);
+                }
+            }
+            Backend::Table(t, _) => t.states(p, &mut out)?,
+        }
+        Ok(out)
+    }
     pub fn score_packed(&self, p: &PackedInput, schema: &ExtractionSchema) -> Result<Vec<Candidate>, String> {
         self.score_packed_with_work(p, schema, &mut heads::Work::default())
     }
