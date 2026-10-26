@@ -27,7 +27,7 @@ use std::collections::{BTreeMap, HashSet};
 use std::marker::PhantomData;
 
 use turbo_analysis::{Annotator, Edge, Edges, Error, Execution, Fnv1a, Ix, ModelRef, Refs, Span, View};
-use turbo_analysis_layers::{ClaimRelationKind, Entities, Vectors};
+use turbo_analysis_layers::{ClaimRelationKind, Entities, Terms, Tokens, Vectors};
 
 use crate::layer::SpanCategorizable;
 use crate::zeroshot::NliScorer;
@@ -86,25 +86,35 @@ const STOP: [&str; 24] = [
     "with", "that", "this", "at", "as", "will",
 ];
 
-fn words(text: &str) -> HashSet<String> {
-    text.split(|c: char| !c.is_alphanumeric())
+fn words(text: &str, unit: Span, tokens: Option<&Tokens>, terms: Option<&Terms>) -> HashSet<String> {
+    if let Some(tokens) = tokens {
+        return tokens
+            .spans
+            .iter()
+            .filter(|(_, span)| unit.start <= span.start && span.end <= unit.end)
+            .map(|(i, span)| {
+                if let Some(terms) = terms { terms.get(i).folded.to_owned() } else { text[span.range()].to_lowercase() }
+            })
+            .filter(|w| !w.is_empty() && !STOP.contains(&w.as_str()))
+            .collect();
+    }
+    text[unit.range()]
+        .split(|c: char| !c.is_alphanumeric())
         .map(str::to_lowercase)
         .filter(|w| !w.is_empty() && !STOP.contains(&w.as_str()))
         .collect()
 }
 
 fn cosine(a: &[f32], b: &[f32]) -> Option<f32> {
-    let dot: f32 = a.iter().zip(b).map(|(x, y)| x * y).sum();
-    let na = a.iter().map(|x| x * x).sum::<f32>().sqrt();
-    let nb = b.iter().map(|x| x * x).sum::<f32>().sqrt();
-    (na > 0.0 && nb > 0.0).then(|| dot / (na * nb))
+    let na = turbo_analysis::math::sum_sq_f64(a).sqrt();
+    let nb = turbo_analysis::math::sum_sq_f64(b).sqrt();
+    (na > 0.0 && nb > 0.0).then(|| (turbo_analysis::math::dot_f64(a, b) / (na * nb)) as f32)
 }
 
-fn softmax(logits: &[f32]) -> Vec<f32> {
-    let max = logits.iter().copied().fold(f32::NEG_INFINITY, f32::max);
-    let exp: Vec<f32> = logits.iter().map(|l| (l - max).exp()).collect();
-    let sum: f32 = exp.iter().sum();
-    exp.iter().map(|e| e / sum).collect()
+fn softmax(logits: &[f32]) -> Vec<f64> {
+    let mut out = vec![0.0; logits.len()];
+    turbo::head::softmax(logits, &mut out).expect("a finite logit row");
+    out
 }
 
 /// A scored candidate pair `a < b`, ranked by `(shared, similarity,
@@ -132,10 +142,11 @@ impl<S: NliScorer, L: SpanCategorizable> ClaimVerificationAnnotator<S, L> {
     fn candidates(
         &self,
         spans: &[Span],
-        texts: &[&str],
         entities: Option<&Entities>,
         vectors: Option<&Vectors<L>>,
         text: &str,
+        tokens: Option<&Tokens>,
+        terms: Option<&Terms>,
     ) -> Vec<Candidate> {
         let n = spans.len();
         let names: Vec<HashSet<String>> = spans
@@ -150,7 +161,7 @@ impl<S: NliScorer, L: SpanCategorizable> ClaimVerificationAnnotator<S, L> {
                 None => HashSet::new(),
             })
             .collect();
-        let bags: Vec<HashSet<String>> = texts.iter().map(|t| words(t)).collect();
+        let bags: Vec<HashSet<String>> = spans.iter().map(|&unit| words(text, unit, tokens, terms)).collect();
         let c = &self.config;
         let mut out = Vec::new();
         for a in 0..n {
@@ -184,10 +195,10 @@ impl<S: NliScorer, L: SpanCategorizable> ClaimVerificationAnnotator<S, L> {
 impl<S: NliScorer + Send + Sync + 'static, L: SpanCategorizable> Annotator for ClaimVerificationAnnotator<S, L> {
     const ID: &'static str = "turbo:claim-verifier";
     const VERSION: &'static str = CLAIM_VERSION;
-    type Reads = (View, L, Option<Entities>, Option<Vectors<L>>);
+    type Reads = (View, L, Option<Entities>, Option<Vectors<L>>, Option<Tokens>, Option<Terms>);
     type Writes = (Edges<L, L>,);
 
-    fn annotate(&self, (view, units, entities, vectors): Refs<'_, Self>) -> Result<Self::Writes, Error> {
+    fn annotate(&self, (view, units, entities, vectors, tokens, terms): Refs<'_, Self>) -> Result<Self::Writes, Error> {
         let (entail, contradict) = self.outcomes()?;
         let text = view.text();
         let spans: Vec<Span> = (0..units.len()).map(|i| units.span_at(i)).collect();
@@ -199,7 +210,7 @@ impl<S: NliScorer + Send + Sync + 'static, L: SpanCategorizable> Annotator for C
         let specials = self.scorer.pair_special_tokens();
         let counts: Vec<usize> = texts.iter().map(|t| self.scorer.count_tokens(t)).collect();
         let pairs: Vec<Candidate> = self
-            .candidates(&spans, &texts, entities, vectors, text)
+            .candidates(&spans, entities, vectors, text, tokens, terms)
             .into_iter()
             .filter(|p| counts[p.a] + counts[p.b] + specials <= budget)
             .take(self.config.max_pairs)
@@ -222,7 +233,7 @@ impl<S: NliScorer + Send + Sync + 'static, L: SpanCategorizable> Annotator for C
         for (k, p) in pairs.iter().enumerate() {
             let fwd = softmax(&logits[2 * k]);
             let back = softmax(&logits[2 * k + 1]);
-            let (ef, eb) = (fwd[entail], back[entail]);
+            let (ef, eb) = (fwd[entail] as f32, back[entail] as f32);
             if ef >= c.entail_threshold && eb >= c.entail_threshold {
                 rows.insert((p.a, p.b, ClaimRelationKind::Redundant), f64::from(ef.min(eb)));
             } else {
@@ -234,7 +245,7 @@ impl<S: NliScorer + Send + Sync + 'static, L: SpanCategorizable> Annotator for C
                 }
             }
             if let Some(ci) = contradict {
-                let cmax = fwd[ci].max(back[ci]);
+                let cmax = fwd[ci].max(back[ci]) as f32;
                 if cmax >= c.contradict_threshold {
                     rows.insert((p.a, p.b, ClaimRelationKind::Contradicts), f64::from(cmax));
                 }
