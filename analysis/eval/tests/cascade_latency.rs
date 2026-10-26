@@ -31,7 +31,7 @@ fn sentence_model() -> PathBuf {
 
 /// Trained cascade latency receipt (#879); run explicitly:
 ///
-/// `TURBO_EVAL_CACHE=/work/eval-cache TURBO_CASCADE879_BUNDLES=<dir> TURBO_CASCADE879_OUT=<dir> taskset -c 14 cargo test --locked --release -p turbo-eval --test cascade_latency -- --ignored --nocapture`
+/// `TURBO_EVAL_CACHE=<cache-dir> TURBO_CASCADE879_BUNDLES=<dir> TURBO_CASCADE879_OUT=<dir> taskset -c 14 cargo test --locked --release -p turbo-eval --test cascade_latency -- --ignored --nocapture`
 #[test]
 #[ignore = "cascade latency receipt for docs/analysis.md (#879); needs bundles, the sentence model and the set cache"]
 fn cascade_latency_receipt() {
