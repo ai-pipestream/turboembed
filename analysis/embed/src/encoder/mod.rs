@@ -207,7 +207,7 @@ impl Encoder {
         let max_batch = if o.max_batch == 0 { m.max_batch } else { o.max_batch };
         let max_seq = if o.max_seq == 0 { m.max_seq } else { o.max_seq };
         let max_ranges = match o.max_ranges {
-            0 => max_batch.saturating_mul(16).min(max_batch.saturating_mul(max_seq)),
+            0 => default_ranges(max_batch, max_seq),
             n => n,
         };
         let desc = turbo_session_desc {
@@ -313,6 +313,12 @@ impl Encoder {
             }
         }
     }
+}
+
+/// The ranges a session holds when `EncoderOptions::max_ranges` is 0: 16
+/// a row, at most one a token.
+pub fn default_ranges(max_batch: u32, max_seq: u32) -> u32 {
+    max_batch.saturating_mul(16).min(max_batch.saturating_mul(max_seq))
 }
 
 /// A result of `batch` vectors of `dim` values, as the run was written,

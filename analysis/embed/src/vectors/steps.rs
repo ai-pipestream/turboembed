@@ -1,20 +1,70 @@
 use super::*;
+use turbo_analysis::Placed;
 
-/// Embeds `inputs`, refusing any whose chunks were budgeted
-/// against a different prompt overhead than this annotator's:
-/// their `model_tokens` assumed another prompt, so embedding
-/// them could silently overflow `max_seq`. An overhead of zero
-/// records nothing and is not refused.
-fn embed_checked(
-    ann: &VectorAnnotator,
+/// What the sentence and chunk vector steps embed with: one instance on
+/// one backend (`VectorAnnotator`), or one that picks the device or the
+/// CPU per call (`crate::calibrate::Dispatch`).
+pub trait Embedder: Send + Sync + 'static {
+    /// The vectors of a batch of documents, a result for each, and where
+    /// the call ran when that can differ from call to call.
+    fn embed_placed(
+        &self,
+        annotator: &'static str,
+        inputs: &[Input<'_>],
+    ) -> (Vec<Result<Output, Error>>, Option<Execution>);
+    fn model(&self) -> &ModelRef;
+    /// Where the model runs when a call does not say.
+    fn execution(&self) -> &Execution;
+    /// The special tokens and prompt prefix included in each row.
+    fn overhead(&self) -> u32;
+    /// The configuration hash of the vectors when `layout` lays out the
+    /// windows (`VectorAnnotator::config`).
+    fn config(&self, layout: Which) -> u64;
+}
+
+impl Embedder for VectorAnnotator {
+    fn embed_placed(
+        &self,
+        annotator: &'static str,
+        inputs: &[Input<'_>],
+    ) -> (Vec<Result<Output, Error>>, Option<Execution>) {
+        (self.embed(annotator, inputs), None)
+    }
+
+    fn model(&self) -> &ModelRef {
+        &self.model
+    }
+
+    fn execution(&self) -> &Execution {
+        &self.execution
+    }
+
+    fn overhead(&self) -> u32 {
+        VectorAnnotator::overhead(self)
+    }
+
+    fn config(&self, layout: Which) -> u64 {
+        VectorAnnotator::config(self, layout)
+    }
+}
+
+/// A step's outputs from a call's outputs, each with where the call ran.
+fn placed<W>((out, at): (Vec<Result<Output, Error>>, Option<Execution>), take: impl Fn(Output) -> W) -> Vec<Placed<W>> {
+    out.into_iter().map(|r| r.map(|o| (take(o), at.clone()))).collect()
+}
+
+/// Apply the recorded chunk budget check before choosing a backend,
+/// retaining each result's original slot and the valid call's execution.
+fn embed_checked<E: Embedder>(
+    ann: &E,
     id: &'static str,
     inputs: Vec<Input<'_>>,
     overheads: &[u32],
-) -> Vec<Result<Output, Error>> {
+) -> (Vec<Result<Output, Error>>, Option<Execution>) {
     let want = ann.overhead();
-    let mut slots: Vec<Option<Result<Output, Error>>> = Vec::with_capacity(inputs.len());
-    let mut ok: Vec<Input<'_>> = Vec::new();
-    let mut ok_at: Vec<usize> = Vec::new();
+    let mut slots = Vec::with_capacity(inputs.len());
+    let mut ok = Vec::new();
+    let mut ok_at = Vec::new();
     for (i, input) in inputs.into_iter().enumerate() {
         let recorded = overheads[i];
         if recorded != 0 && recorded != want {
@@ -30,23 +80,50 @@ fn embed_checked(
             ok.push(input);
         }
     }
-    for (at, r) in ok_at.into_iter().zip(ann.embed(id, &ok)) {
-        slots[at] = Some(r);
+    let (out, execution) = ann.embed_placed(id, &ok);
+    for (at, result) in ok_at.into_iter().zip(out) {
+        slots[at] = Some(result);
     }
-    slots.into_iter().map(|s| s.expect("every slot filled")).collect()
+    (slots.into_iter().map(|s| s.expect("every slot filled")).collect(), execution)
 }
 
 /// The provenance every vector step gives: the model, where it ran and
-/// the settings, with the layer that lays out the step's windows.
-macro_rules! provenance {
-    ($layout:expr) => {
+/// the settings, with the layer that lays out the step's windows; and the
+/// batch run, which records where each call ran.
+macro_rules! vector_inputs {
+    ($step:expr, $inputs:expr) => {{
+        let inputs: Vec<Input<'_>> = $inputs.into_iter().map(Self::input).collect();
+        $step.0.embed_placed(Self::ID, &inputs)
+    }};
+    ($step:expr, $inputs:expr, $overhead:expr) => {{
+        let overheads: Vec<u32> = $inputs.iter().map($overhead).collect();
+        let inputs: Vec<Input<'_>> = $inputs.into_iter().map(Self::input).collect();
+        embed_checked(&*$step.0, Self::ID, inputs, &overheads)
+    }};
+}
+
+macro_rules! vector_step {
+    ($layout:expr, $take:expr $(, $overhead:expr)?) => {
         const VERSION: &'static str = "1";
+
+        fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error> {
+            self.annotate_batch(vec![input]).remove(0)
+        }
+
+        fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
+            self.annotate_batch_placed(inputs).into_iter().map(|r| r.map(|(w, _)| w)).collect()
+        }
+
+        fn annotate_batch_placed<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Placed<Self::Writes>> {
+            placed(vector_inputs!(self, inputs $(, $overhead)?), $take)
+        }
+
         fn model(&self) -> Option<ModelRef> {
-            Some(self.0.model.clone())
+            Some(self.0.model().clone())
         }
 
         fn execution(&self) -> Option<Execution> {
-            Some(self.0.execution.clone())
+            Some(self.0.execution().clone())
         }
 
         fn config_hash(&self) -> u64 {
@@ -56,85 +133,78 @@ macro_rules! provenance {
 }
 
 /// Writes `opennlp:embeddings<opennlp:sentences>`: a vector per sentence.
-#[derive(Clone)]
-pub struct SentenceVectors(pub Arc<VectorAnnotator>);
+pub struct SentenceVectors<E: Embedder = VectorAnnotator>(pub Arc<E>);
 
-impl Annotator for SentenceVectors {
+impl<E: Embedder> Clone for SentenceVectors<E> {
+    fn clone(&self) -> Self {
+        SentenceVectors(self.0.clone())
+    }
+}
+
+impl<E: Embedder> SentenceVectors<E> {
+    fn input<'d>((sub, s): Refs<'d, Self>) -> Input<'d> {
+        Input { subwords: sub, sentences: Some(&s.spans), chunks: None, levels: None }
+    }
+}
+
+impl<E: Embedder> Annotator for SentenceVectors<E> {
     const ID: &'static str = "turbo:sentence-vectors";
     type Reads = (Subwords, Sentences);
     type Writes = (Vectors<Sentences>,);
 
-    fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        self.annotate_batch(vec![input]).remove(0)
-    }
-
-    fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
-        let inputs: Vec<Input<'_>> = inputs
-            .into_iter()
-            .map(|(sub, s)| Input { subwords: sub, sentences: Some(&s.spans), chunks: None, levels: None })
-            .collect();
-        self.0.embed(Self::ID, &inputs).into_iter().map(|r| r.map(|o| (o.sentences.expect("asked for"),))).collect()
-    }
-
-    provenance!(Which::Sentences);
+    vector_step!(Which::Sentences, |o: Output| (o.sentences.expect("asked for"),));
 }
 
 /// Writes `opennlp:embeddings<turbo:chunks>`: a vector per chunk, at
 /// every level of the chunk hierarchy.
-#[derive(Clone)]
-pub struct ChunkVectors(pub Arc<VectorAnnotator>);
+pub struct ChunkVectors<E: Embedder = VectorAnnotator>(pub Arc<E>);
 
-impl Annotator for ChunkVectors {
+impl<E: Embedder> Clone for ChunkVectors<E> {
+    fn clone(&self) -> Self {
+        ChunkVectors(self.0.clone())
+    }
+}
+
+impl<E: Embedder> ChunkVectors<E> {
+    fn input<'d>((sub, c): Refs<'d, Self>) -> Input<'d> {
+        Input { subwords: sub, sentences: None, chunks: Some(&c.spans), levels: None }
+    }
+}
+
+impl<E: Embedder> Annotator for ChunkVectors<E> {
     const ID: &'static str = "turbo:chunk-vectors";
     type Reads = (Subwords, Chunks);
     type Writes = (Vectors<Chunks>,);
 
-    fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        self.annotate_batch(vec![input]).remove(0)
-    }
-
-    fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
-        let overheads: Vec<u32> = inputs.iter().map(|(_, c)| c.prompt_overhead).collect();
-        let inputs: Vec<Input<'_>> = inputs
-            .into_iter()
-            .map(|(sub, c)| Input { subwords: sub, sentences: None, chunks: Some(&c.spans), levels: None })
-            .collect();
-        embed_checked(&self.0, Self::ID, inputs, &overheads)
-            .into_iter()
-            .map(|r| r.map(|o| (o.chunks.expect("asked for"),)))
-            .collect()
-    }
-
-    provenance!(Which::Chunks);
+    vector_step!(Which::Chunks, |o: Output| (o.chunks.expect("asked for"),), |(_, c)| c.prompt_overhead);
 }
 
 /// Writes both, from the same windows: a sentence and the chunk it is in
 /// are pooled from one encoder pass when one window holds them.
-#[derive(Clone)]
-pub struct SentenceChunkVectors(pub Arc<VectorAnnotator>);
+pub struct SentenceChunkVectors<E: Embedder = VectorAnnotator>(pub Arc<E>);
 
-impl Annotator for SentenceChunkVectors {
+impl<E: Embedder> Clone for SentenceChunkVectors<E> {
+    fn clone(&self) -> Self {
+        SentenceChunkVectors(self.0.clone())
+    }
+}
+
+impl<E: Embedder> SentenceChunkVectors<E> {
+    fn input<'d>((sub, s, c): Refs<'d, Self>) -> Input<'d> {
+        Input { subwords: sub, sentences: Some(&s.spans), chunks: Some(&c.spans), levels: None }
+    }
+}
+
+impl<E: Embedder> Annotator for SentenceChunkVectors<E> {
     const ID: &'static str = "turbo:sentence-chunk-vectors";
     type Reads = (Subwords, Sentences, Chunks);
     type Writes = (Vectors<Sentences>, Vectors<Chunks>);
 
-    fn annotate(&self, input: Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        self.annotate_batch(vec![input]).remove(0)
-    }
-
-    fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
-        let overheads: Vec<u32> = inputs.iter().map(|(_, _, c)| c.prompt_overhead).collect();
-        let inputs: Vec<Input<'_>> = inputs
-            .into_iter()
-            .map(|(sub, s, c)| Input { subwords: sub, sentences: Some(&s.spans), chunks: Some(&c.spans), levels: None })
-            .collect();
-        embed_checked(&self.0, Self::ID, inputs, &overheads)
-            .into_iter()
-            .map(|r| r.map(|o| (o.sentences.expect("asked for"), o.chunks.expect("asked for"))))
-            .collect()
-    }
-
-    provenance!(Which::Sentences);
+    vector_step!(
+        Which::Sentences,
+        |o: Output| (o.sentences.expect("asked for"), o.chunks.expect("asked for")),
+        |(_, _, c)| c.prompt_overhead
+    );
 }
 
 /// Writes `opennlp:embeddings<opennlp:subwords>`: a contextual vector per
