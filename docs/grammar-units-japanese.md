@@ -71,3 +71,10 @@ also inspected when choosing the numeric helper. This unit change does not
 claim conformance to those three output families. No model or training run is part of this change. A bounded existing-English
 comparison and its shared-host limits are recorded in
 [the receipt](receipts/grammar-929-japanese/README.md).
+
+Bare day/week ages require a birth cue in the same sentence or clause. A cue
+before a sentence mark, comma, semicolon or line separator does not turn a
+later duration into an age. Leading periods on bare days/weeks are ambiguous
+with sentence punctuation and do not inherit the birth cue; explicit age-unit
+spellings remain available. Unicode minus signs retain negative money values
+and are refused for ages, including positive suffix candidates.

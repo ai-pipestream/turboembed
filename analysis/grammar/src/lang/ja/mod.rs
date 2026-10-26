@@ -74,14 +74,28 @@ impl Grammar for JapaneseUnits {
         if matches!(unit, Unit::Age(_))
             && ctx.before().is_some_and(|p| {
                 matches!(ctx.word(p), "マイナス" | "负" | "負")
-                    || matches!(ctx.word(p), "-" | "－") && (p == 0 || cjk::parse_number(ctx.raw(p - 1)).is_none())
+                    || matches!(ctx.word(p), "-" | "－" | "−" | "‐")
+                        && (p == 0 || cjk::parse_number(ctx.raw(p - 1)).is_none())
             })
         {
             return false;
         }
         if matches!(unit, Unit::Age(Age::Day | Age::Week)) && matches!(ctx.word(ctx.end - 1), "日" | "週") {
-            let before = &ctx.text[..ctx.lexeme(ctx.start).start as usize];
-            return before.contains("生まれ") && ctx.after().is_none_or(|i| ctx.word(i) != "か");
+            let start = ctx.lexeme(ctx.start).start as usize;
+            // A leading period may be a sentence delimiter absorbed by the
+            // number reader. It cannot carry birth context into bare days/weeks.
+            if ctx.text[start..].starts_with(['.', '．']) {
+                return false;
+            }
+            let before = &ctx.text[..start];
+            // A birth cue applies only within the current sentence or clause.
+            let clause = before
+                .rsplit([
+                    '。', '！', '？', '!', '?', ';', '；', '、', ',', '.', '．', '\n', '\r', '\u{2028}', '\u{2029}',
+                ])
+                .next()
+                .unwrap_or_default();
+            return clause.contains("生まれ") && ctx.after().is_none_or(|i| ctx.word(i) != "か");
         }
         true
     }

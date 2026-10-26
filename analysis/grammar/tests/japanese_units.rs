@@ -46,8 +46,18 @@ fn actual_pipeline_keeps_exact_large_fullwidth_and_mixed_amounts() {
 
 #[test]
 fn contextual_ages_ranges_and_currency_minor_units() {
-    for input in ["-5歳", "マイナス5歳", "負五歳", "三角形", "七分後", "printf(\"1\\n2\\n\");", "x29cmextra"]
-    {
+    for input in [
+        "-5歳",
+        "−5歳",
+        "‐5歳",
+        "－5歳",
+        "マイナス5歳",
+        "負五歳",
+        "三角形",
+        "七分後",
+        "printf(\"1\\n2\\n\");",
+        "x29cmextra",
+    ] {
         assert!(readings(input).is_empty(), "{input}: {:?}", readings(input));
     }
     assert_eq!(readings("70-90日齢"), [("90日齢".into(), "90".into(), "days old".into())]);
@@ -144,4 +154,47 @@ fn fullwidth_normalization_maps_the_whole_amount_in_both_directions() {
     assert_eq!(&child.text()[t.range()], "123.5円");
     assert_eq!(doc.map_span(ViewId::SOURCE, child.id(), s).unwrap(), t);
     assert_eq!(doc.map_span(child.id(), ViewId::SOURCE, t).unwrap(), s);
+}
+
+#[test]
+fn birth_context_cannot_cross_sentence_or_clause_boundaries() {
+    for boundary in ["。", "！", "？", "!", "?", ";", "；", "、", ",", ".", "．", "\n", "\r\n", "\u{2028}", "\u{2029}"]
+    {
+        for amount in ["30日", "12週"] {
+            let text = format!("東京で生まれた{boundary}{amount}後に帰った。");
+            assert!(readings(&text).is_empty(), "{text}: {:?}", readings(&text));
+            assert_eq!(verify_projections(&text), 0);
+        }
+    }
+    for (text, expected) in [
+        ("😀生まれて30日たった。", "30日"),
+        ("彼はもう生まれてから12週たったよ。", "12週"),
+        ("前の文。生まれて30日たった。", "30日"),
+    ] {
+        let found = readings(text);
+        assert_eq!(found.len(), 1, "{text}");
+        assert_eq!(found[0].0, expected);
+        assert_eq!(verify_projections(text), 1);
+    }
+}
+
+#[test]
+fn leading_decimals_and_unicode_minus_preserve_japanese_amounts() {
+    let annotator = GrammarAnnotator::new(&JAPANESE_UNITS);
+    for (text, expected) in [
+        ("．５円", "0.5"),
+        ("．5ドル", "0.5"),
+        ("０．５円", "0.5"),
+        ("−5円", "-5"),
+        ("‐5円", "-5"),
+        ("－5円", "-5"),
+        ("−．５円", "-0.5"),
+    ] {
+        let output = annotator.find(text, ViewId::SOURCE);
+        output.money.check().unwrap();
+        assert_eq!(output.money.len(), 1, "{text}");
+        assert_eq!(output.money.amount(Ix::new(0)).to_plain_string(), expected, "{text}");
+        assert_eq!(&text[output.money.get(Ix::new(0)).span.range()], text);
+        assert_eq!(verify_projections(text), 1);
+    }
 }
