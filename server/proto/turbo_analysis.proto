@@ -10,6 +10,8 @@
 syntax = "proto3";
 package turbo.result;
 
+import public "turbo_typed_annotations.proto";
+
 // Analysis results and the server's bundle capabilities.
 //
 // Every result message is the data columns of one in-process result
@@ -51,6 +53,15 @@ service AnalysisService
   // A binary DocumentGraph in, the same document re-exported out,
   // with every view and layer's identity, provenance and status.
   rpc RoundTripDocumentGraph(DocumentGraphRequest) returns (DocumentGraphResponse) {}
+
+  // Projects a binary DocumentGraph into a strongly-typed TypedDocumentResult
+  // in the requested view and OffsetMode (#1219).
+  rpc InspectDocumentGraph(InspectDocumentGraphRequest) returns (TypedDocumentResult) {}
+
+  // Validates a TypedDocumentResult (span bounds, UTF-16 surrogate
+  // boundaries, probability ranges, and indexes_layer target bounds)
+  // and returns it unchanged (#1219).
+  rpc RoundTripTypedDocument(TypedDocumentResult) returns (TypedDocumentResult) {}
 
   // Bulk document analysis over one bidirectional stream (issue #722):
   // the client opens with one AnalyzeStreamHeader naming the ordering and
@@ -242,16 +253,6 @@ message UnloadBundleRequest
 }
 
 message UnloadBundleResponse {}
-
-// Which model produced a result, by the bundle's own identity: the
-// manifest's model id and revision, and the manifest's sha256, the
-// contract the load was made against.
-message ModelRef
-{
-  string id = 1;
-  string revision = 2;
-  string sha256 = 3;
-}
 
 // The learned sparse terms of one document or of each unit of a level
 // (#708): the turbo-analysis-layers SparseTerms layer's columns. One
@@ -673,27 +674,6 @@ message StreamLimits
   uint64 max_batch_linger_ms = 7;
 }
 
-// The unit every span offset in a message is counted in. UTF-8 bytes
-// are the internal offsets; UTF-16 code units are Java's string
-// indices; code points count Unicode scalar values. Conversion uses
-// the view text's checkpoint table and refuses offsets that are out
-// of bounds, inverted, or inside a code point or UTF-16 surrogate
-// pair, with TURBO_E_INVALID_ARGUMENT: nothing is snapped or cut.
-enum OffsetMode
-{
-  OFFSET_MODE_UTF8 = 0;
-  OFFSET_MODE_UTF16 = 1;
-  OFFSET_MODE_CODE_POINT = 2;
-}
-
-// What became of one layer or view on its document.
-enum LayerWireStatus
-{
-  LAYER_WIRE_STATUS_OK = 0;
-  LAYER_WIRE_STATUS_SKIPPED = 1;
-  LAYER_WIRE_STATUS_FAILED = 2;
-}
-
 // One layer instance of a document graph: its standard layer id
 // (opennlp:* or turbo:*), instance, status and provenance.
 message LayerInfo
@@ -708,17 +688,6 @@ message LayerInfo
   ModelRef model = 7;
   uint64 config_hash = 8;
   uint32 items = 9;
-}
-
-// One text view of a document graph.
-message ViewInfo
-{
-  string instance = 1;
-  LayerWireStatus status = 2;
-  string status_detail = 3;
-  string annotator = 4;
-  // The parent view's instance; empty for the source view.
-  string parent = 5;
 }
 
 // A whole document as binary DocumentGraph bytes (turbo-analysis

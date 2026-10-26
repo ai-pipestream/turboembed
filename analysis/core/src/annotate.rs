@@ -137,6 +137,10 @@ tuples!(A 0, B 1, C 2, D 3, E 4, F 5, G 6, H 7, I 8, J 9, K 10, L 11);
 
 pub type Refs<'d, A> = <<A as Annotator>::Reads as Reads>::Refs<'d>;
 
+/// A document's outputs and, when the step says, where its model ran for
+/// them (`Annotator::annotate_batch_placed`).
+pub type Placed<W> = Result<(W, Option<Execution>), Error>;
+
 /// One analysis step. Its inputs and outputs are types, so a tagger that
 /// says it reads `(Sentences, Tokens)` and writes `(PosTags,)` is handed
 /// `(&Sentences, &Tokens)` and must return a `PosTags`; the compiler holds
@@ -159,6 +163,16 @@ pub trait Annotator: Send + Sync + 'static {
     /// speed comes from.
     fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
         inputs.into_iter().map(|i| self.annotate(i)).collect()
+    }
+
+    /// `annotate_batch`, with where each document's model ran when that
+    /// can differ from call to call: a step that sends a call to one
+    /// device or another returns the execution it used, and that
+    /// document's layers record it in place of `execution`. One
+    /// document's layers come from one execution. The default runs
+    /// `annotate_batch` and returns None, which records `execution`.
+    fn annotate_batch_placed<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Placed<Self::Writes>> {
+        self.annotate_batch(inputs).into_iter().map(|r| r.map(|w| (w, None))).collect()
     }
 
     /// The model it runs, recorded on every layer it writes.
@@ -282,8 +296,8 @@ impl<A: Annotator> Bound<A> {
     /// panics is run again one document at a time to find them. The
     /// annotator is assumed to hold nothing a panic could leave half
     /// changed.
-    fn run<'d>(&self, docs: &'d [Document], at: &[usize], inputs: Vec<Refs<'d, A>>) -> Vec<Result<A::Writes, Error>> {
-        match catch_unwind(AssertUnwindSafe(|| self.annotator.annotate_batch(inputs))) {
+    fn run<'d>(&self, docs: &'d [Document], at: &[usize], inputs: Vec<Refs<'d, A>>) -> Vec<Placed<A::Writes>> {
+        match catch_unwind(AssertUnwindSafe(|| self.annotator.annotate_batch_placed(inputs))) {
             Ok(out) if out.len() == at.len() => out,
             Ok(out) => {
                 let detail = format!("{} results for {} documents", out.len(), at.len());
@@ -371,7 +385,7 @@ impl<A: Annotator> Step for Bound<A> {
     }
 
     fn compute(&self, docs: &[Document]) -> Box<dyn Any + Send> {
-        let mut out: Vec<Option<Result<A::Writes, Error>>> = (0..docs.len()).map(|_| None).collect();
+        let mut out: Vec<Option<Placed<A::Writes>>> = (0..docs.len()).map(|_| None).collect();
         let mut inputs = Vec::new();
         let mut at = Vec::new();
         for (i, d) in docs.iter().enumerate() {
@@ -398,13 +412,18 @@ impl<A: Annotator> Step for Bound<A> {
     }
 
     fn store(&self, out: Box<dyn Any + Send>, docs: &mut [Document], status: &mut [Result<(), Error>]) {
-        let out = *out.downcast::<Vec<Option<Result<A::Writes, Error>>>>().expect("this step's own output");
+        let out = *out.downcast::<Vec<Option<Placed<A::Writes>>>>().expect("this step's own output");
         let writes = A::Writes::ids(&self.writes);
         for (i, r) in out.into_iter().enumerate() {
             let Some(r) = r else { continue };
-            let p = self.provenance(&docs[i]);
+            let mut p = self.provenance(&docs[i]);
             let failure = match r {
-                Ok(w) => w.store(&mut docs[i], &self.writes, &p).err(),
+                Ok((w, placed)) => {
+                    if placed.is_some() {
+                        p.execution = placed;
+                    }
+                    w.store(&mut docs[i], &self.writes, &p).err()
+                }
                 Err(Error::Skipped(why)) => {
                     writes.iter().try_for_each(|&k| docs[i].skip(k, why.clone(), p.clone())).err()
                 }

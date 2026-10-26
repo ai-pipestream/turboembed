@@ -1,0 +1,78 @@
+{
+  "kind": "projected-empty-nested-span-verification",
+  "pr": 1253,
+  "issue": 1219,
+  "baseline_head": "15fcddb6b1f85d93acc65b5a954fe6315ecc531c",
+  "main": "df3f37e0f8adf58319723116857ddbddc6145b2b",
+  "tested_clean_source": "f75bfe979e238ebcaae96c6ff1f5b90e39554f64",
+  "test_only_red_commit": "e456e86180a159672f3a2b77748f42e9aed32c45",
+  "claims": [
+    6399009050,
+    6399026487
+  ],
+  "problem": "InspectDocumentGraph emits legitimate empty event-argument and embedded-asset payload spans after text deletion, but RoundTripTypedDocument rejects its own projected output.",
+  "red": {
+    "published_source": "15fcddb6b1f85d93acc65b5a954fe6315ecc531c",
+    "event_matrix": "6/12 pass, 6/12 fail: partial and whole-text deletion in all three modes; source and replacement controls pass; default and named instances included",
+    "asset_matrix": "6/12 pass, 6/12 fail under the same view/mode matrix with actual data:application/octet-stream;base64,TQ== payload and Unicode surroundings",
+    "permanent_event_target": "2 pass / 1 fail",
+    "permanent_asset_target": "1 pass / 2 fail; 12 malformed missing payload/outer spans accepted on source view",
+    "counting": "runtime failure evidence only; initial permanent-test fixture compile correction is not counted as red"
+  },
+  "repair": {
+    "event": "retain required span presence, shared offset validation and unchanged sentence/argument anchor checks; permit an in-bounds empty projected span",
+    "asset": "require payload and outer span presence; retain shared offset validation and outer containment, permitting an empty projected payload including at an outer boundary",
+    "native_semantics": "Events and Assets source validation remains byte-unchanged and rejects invalid empty native spans",
+    "retained": "all event arguments and asset annotations/metadata; no filtering, deletion or altered projectors/schema"
+  },
+  "permanent_proof": {
+    "new_test_targets": [
+      "typed_event_projection",
+      "typed_asset_projection"
+    ],
+    "new_tests_passed": 6,
+    "event_matrix": "12/12 view/mode messages, each containing default and named instances and all three source arguments with exact projected coordinates/roles/anchors",
+    "asset_matrix": "12/12 view/mode messages, each containing default and named actual data-URI assets with exact payload/outer coordinates, presence, format, media type, declared type, encoding, decoded bytes, dimensions and provenance presence",
+    "malformed_event_mutations_refused": 162,
+    "malformed_asset_mutations_refused": 108,
+    "invalid_cases": "missing spans, inverted offsets, out-of-bounds offsets, UTF-8 scalar interiors, UTF-16 surrogate interiors, missing/inconsistent/unknown/unresolved anchors, missing asset outer span and in-bounds empty payload outside outer span",
+    "refusal": "InvalidArgument, turbo-code=256, turbo-field=0",
+    "native_tests": "event rejects empty native source argument; asset rejects empty or uncontained native payload",
+    "earlier_targets": "typed_event_regressions, typed_index_edges and typed_reference_edges pass unchanged",
+    "earlier_server_test_files_byte_unchanged": 48
+  },
+  "validation": {
+    "command": "cargo test --locked -p turbo-analysis -p turbo-analysis-layers -p turbo-kserve -p turbo-kserve-demo -- --skip term_stacks_scale_with_the_document_not_its_square",
+    "passed": 685,
+    "failed": 0,
+    "existing_ignored": 2,
+    "explicit_timing_filter": 1,
+    "packages": {
+      "analysis_core": 229,
+      "analysis_layers": 208,
+      "server": 234,
+      "demo": 14
+    },
+    "counting": "only final full-suite totals; no targeted/intermediate run added",
+    "workspace_all_target_clippy": "pass, locked, warnings denied",
+    "workspace_fmt": "pass",
+    "diff_check": "pass",
+    "tree": "8/8 pass",
+    "build_jobs": 2,
+    "changed_rust_sizes": {
+      "validate_annotation": 266,
+      "validate_shared": 160,
+      "event_tests": 194,
+      "asset_tests": 186
+    }
+  },
+  "limits": [
+    "Implementation proof, no independent Codex PASS or hosted merge.",
+    "Two fresh independent external current-head reviews and green hosted CI remain required.",
+    "Issue 1219 remains open with original acceptance unchanged.",
+    "Separate native quotation equality PR 1308 and native Modality/Events fragment repair PR 1309 are not adopted.",
+    "Broader shared-layer acceptance awaits those native dependencies landing and integration verification; these narrow tests do not establish losslessness for every codec.",
+    "No new dependency, mock, hardware or timing campaign, schema or history rewrite."
+  ],
+  "delivery": "A receipt-only descendant may name this tested source; source gates apply to this clean production commit."
+}

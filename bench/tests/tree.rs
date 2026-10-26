@@ -6,6 +6,8 @@
 //! directory on one of our machines.
 
 mod common;
+#[path = "tree/dependencies.rs"]
+mod dependencies;
 
 use std::path::{Path, PathBuf};
 
@@ -181,10 +183,10 @@ fn named_paths(text: &str) -> Vec<String> {
     out
 }
 
-/// README.md and docs/*.md, plus each crate's README where there is one.
+/// AGENTS.md, README.md and docs/*.md, plus each crate's README where there is one.
 fn documents() -> Vec<PathBuf> {
     let root = workspace();
-    let mut docs = vec![root.join("README.md")];
+    let mut docs = vec![root.join("AGENTS.md"), root.join("README.md")];
     for crate_dir in ["bench", "bundle", "core", "server"] {
         let p = root.join(crate_dir).join("README.md");
         if p.is_file() {
@@ -260,4 +262,39 @@ fn the_committed_text_carries_no_host_path() {
     }
     assert!(files.len() > 40, "only {} files scanned", files.len());
     assert!(hits.is_empty(), "host paths in committed text:\n  {}", hits.join("\n  "));
+}
+
+#[test]
+fn workspace_manifests_do_not_depend_on_regex() {
+    let root = workspace();
+    let (seen, found) = dependencies::regex_dependencies(&root);
+    assert!(seen > 50, "only {seen} packages scanned");
+    assert!(found.is_empty(), "regex dependencies in {}", found.join(", "));
+}
+
+#[test]
+fn obsolete_source_tree_is_absent() {
+    assert!(!workspace().join("ai-slop-generated-shit").exists());
+}
+
+#[test]
+fn committed_rust_and_markdown_have_no_literal_em_dash() {
+    let root = workspace();
+    let out = std::process::Command::new("git")
+        .current_dir(&root)
+        .args(["ls-files", "-z", "--", ":(glob)**/*.rs", ":(glob)**/*.md"])
+        .output()
+        .expect("git lists Rust and Markdown sources");
+    assert!(out.status.success());
+    let paths = String::from_utf8(out.stdout).unwrap();
+    let mut found = Vec::new();
+    let mut seen = 0;
+    for path in paths.split('\0').filter(|p| !p.is_empty()) {
+        seen += 1;
+        if std::fs::read_to_string(root.join(path)).unwrap().contains('\u{2014}') {
+            found.push(path);
+        }
+    }
+    assert!(seen > 100, "only {seen} source files scanned");
+    assert!(found.is_empty(), "literal em dashes in {}", found.join(", "));
 }

@@ -1,0 +1,35 @@
+{
+  "kind": "historical-integration-verification",
+  "pr": 1253,
+  "issue": 1219,
+  "owner_head": "512760d9949b72f58c49aaaecc207ae6724bd1f8",
+  "tested_clean_merge": "7f3b65c3bd23855d5eef245ca8507505e0bf39ac",
+  "main": "df3f37e0f8adf58319723116857ddbddc6145b2b",
+  "resolution": {
+    "files": ["server/build.rs", "server/src/analysis.rs"],
+    "proto_inputs": 8,
+    "service_methods": 17,
+    "typed_files_byte_unchanged": 30,
+    "description": "retain both parents' proto inputs/imports; correct input array length; no typed validator or regression simplification"
+  },
+  "validation": {
+    "command": "cargo test --locked -p turbo-analysis -p turbo-analysis-layers -p turbo-kserve -p turbo-kserve-demo -- --skip term_stacks_scale_with_the_document_not_its_square",
+    "passed": 675,
+    "failed": 0,
+    "existing_ignored": 2,
+    "explicit_timing_filter": 1,
+    "packages": {"analysis_core": 229, "analysis_layers": 208, "server": 224, "demo": 14},
+    "typed_index_and_reference_targets": "4/4 pass; all 75 repaired malformed cases, existing negative controls and valid round trips retained",
+    "workspace_all_target_clippy": "pass",
+    "workspace_fmt": "pass",
+    "tree": "8/8 pass",
+    "diff_check": "pass"
+  },
+  "remaining_at_this_historical_commit": "newly registered Quotations lacks typed dispatch; a separate claim covers its real graph/RPC projection and validation repair",
+  "quotations_claim": "https://github.com/ai-pipestream/turboembed/pull/1253#issuecomment-6398546284",
+  "cursor_clarification": "6397834223 remains pending; no older receipt adopted as current proof",
+  "independent_approval": false,
+  "cargo_jobs": 2,
+  "timing_campaign": false,
+  "hardware_campaign": false
+}

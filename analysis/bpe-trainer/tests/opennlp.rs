@@ -183,7 +183,7 @@ fn the_trainer_makes_the_jvms_merges_on_random_corpora() {
     let (mut runs, mut merges) = (0, 0);
     let mut inexact = Vec::new();
     for (i, line) in file.lines().enumerate() {
-        let v: serde_json::Value = serde_json::from_str(line).unwrap();
+        let v: Json = parse(line).unwrap();
         let text = v["text"].as_str().unwrap();
         let limit = v["num_merges"].as_u64().unwrap() as usize;
         let jvm: Vec<(String, String)> = v["merges"]
