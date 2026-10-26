@@ -54,6 +54,46 @@ is computed from `model.safetensors` and recorded as the relations'
 provenance. Only `counting_layer: count_lstm_v2` and `token_pooling:
 first` are read; any other configuration is refused by name.
 
+## On a device
+
+The encoder can also be a `FAMILY_DEBERTA_V2` core bundle on the device
+`EncoderOptions` names (cpu, cuda, levelzero), through the backend table
+(#920): open it with `turbo_relation::encoder::DebertaEncoder::open` and
+pass it to `Gliner2Relations::load_with`. Only the rows the heads read come back from the
+device, as one-token ranges of the range write: each word's first
+subword and the label markers. The heads stay on the host. `execution()`
+names where the encoder ran. `analysis/relation/tests/device.rs` holds a device to the CPU encoder
+over `testdata/tiny-deberta-bundle`, with every count equal and every
+logit within 1e-4.
+
+The real checkpoint's encoder is sealed as that core bundle by
+`bundle/recipes/gliner2-base-v1-encoder.json`. The shared
+`bundle/reference/gliner_encoder.py`, in the pinned reference container,
+writes its upstream directory from the zoo's `fastino-gliner2-base-v1`
+files: the `encoder.` tensors as a `DebertaV2Model` of the checkpoint's
+encoder config, with 128011 rows, and `spm.model` converted
+to `tokenizer.json`, with the eleven tokens of `added_tokens.json` as
+pieces at their ids. With `Z` the zoo home's `artifacts` directory and
+`W` an empty one:
+
+```
+docker run --rm --network none --user $(id -u):$(id -g) -e HOME=/tmp \
+    -v $PWD/bundle/reference:/scripts:ro -v $Z/fastino-gliner2-base-v1:/ckpt:ro -v $W:/w --entrypoint python \
+    turbo-reference@sha256:3fe2d4ad441927475b97a400364ebcb7fca3f324dae1a0463720eff7fc0a53f4 \
+    /scripts/gliner_encoder.py /ckpt/encoder_config/config.json /ckpt/spm.model /ckpt/model.safetensors /w/out \
+    encoder. /ckpt/added_tokens.json
+cargo run --release -p turbo-bundle -- reference bundle/recipes/gliner2-base-v1-encoder.json $W/out $W/bundle
+```
+
+`DebertaEncoder::open_bound` takes the bundle with the DeBERTa package
+that `turbo-bundle deberta-convert` writes from the same checkpoint. The
+bundle's weights must be the package's, tensor for tensor.
+`analysis/relation/tests/device_real.rs` and
+`analysis/schema-extract/tests/device_real.rs` (ignored; `GLINER2_BUNDLE`,
+`GLINER2_PACKAGE`, `GLINER2_CHECKPOINT`, `TURBO_TEST_DEVICE`) hold the
+device to the package's CPU encoder on the texts of each `real.json`
+fixture and time the passes on both, interleaved.
+
 ## Parity
 
 `analysis/relation/reference/gliner2/build_fixture.py` (pinned in its

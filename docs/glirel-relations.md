@@ -78,6 +78,29 @@ starts and end where a word ends. The text is limited to GLiREL's
 `max_len` (512 words) and to the encoder's `max_sequence` (512 subwords),
 and fails with the limit named.
 
+## On a device
+
+The encoder can also be a `FAMILY_DEBERTA_V2` core bundle on the device
+`EncoderOptions` names (cpu, cuda, levelzero), through the backend table
+(#920): open it with `turbo_relation::encoder::DebertaEncoder::open` and
+pass it to `GlirelRelations::load_with`. Only the rows the heads read come back from the
+device, as one-token ranges of the range write: each word's first
+subword and the label markers. The heads stay on the host. `execution()`
+names where the encoder ran. `analysis/relation/tests/device.rs` holds a device to the CPU encoder
+over `testdata/tiny-deberta-bundle`, with every count equal and every
+logit within 1e-4.
+
+The real checkpoint is CC BY-NC-SA 4.0, and the zoo fetches it only after
+that licence is accepted. Its encoder is sealed as a core bundle the same
+way GLiNER2's is (docs/gliner2-relations.md), by
+`bundle/reference/gliner_encoder.py` with the default prefix and an
+`added_tokens.json` of GLiREL's five added pieces (`[MASK]`, `[FLERT]`,
+`[REL]`, `[E]` and `[/E]` at 128000 to 128004). The bundle is made
+locally and is not shipped. `analysis/relation/tests/device_real.rs`
+(ignored; `GLIREL_BUNDLE`, `GLIREL_PACKAGE`, `GLIREL_SPM`,
+`TURBO_TEST_DEVICE`) holds the device to the CPU encoder of the package's
+`encoder/` DeBERTa package, to which the bundle is bound, and times both.
+
 ## Parity
 
 `analysis/relation/reference/glirel/build_fixture.py`, pinned in its

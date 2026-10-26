@@ -23,6 +23,7 @@ pub mod annotator;
 pub mod defaults;
 pub mod discover;
 mod dot;
+pub mod encoder;
 pub mod events;
 mod evidence;
 pub mod explore;
