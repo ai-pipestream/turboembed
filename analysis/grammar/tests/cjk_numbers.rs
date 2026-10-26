@@ -49,6 +49,8 @@ fn malformed_values_do_not_turn_into_numbers() {
         "1/2/3",
         "1 2",
         "1.2.3",
+        "に3",
+        "3に",
         "999999999999999999999999999999999999999999999",
     ] {
         assert_eq!(cjk::parse_number(text), None, "{text}");
@@ -83,6 +85,9 @@ impl Grammar for Numbers {
     }
     fn words(&self) -> &dyn WordForms {
         self
+    }
+    fn word_boundary(&self, left: &str, right: &str) -> bool {
+        cjk::word_boundary(left, right)
     }
     fn output(&self, dim: Dim) -> Option<Output> {
         (dim == cjk::NUM).then_some(Output::Number)
@@ -122,4 +127,20 @@ fn longest_units_do_not_split_into_numeric_scales() {
             assert!(text.is_char_boundary(cut as usize));
         }
     }
+}
+
+#[test]
+fn cjk_script_boundaries_preserve_latin_identifiers() {
+    assert!(cjk::word_boundary("私", "29"));
+    assert!(cjk::word_boundary("歳", "で"));
+    assert!(!cjk::word_boundary("x", "29"));
+    assert!(!cjk::word_boundary("mm", "suffix"));
+    let mut parser = Parser::new(&NUMBERS);
+    let text = "田三百長";
+    parser.parse(text);
+    let mut found = Vec::new();
+    parser.select(text, Output::Number, &mut found);
+    assert_eq!(found.len(), 1);
+    assert_eq!((found[0].start, found[0].end), (3, 9));
+    assert_eq!(found[0].value.num().unwrap().value, Dec::from_i64(300));
 }

@@ -59,3 +59,14 @@ pub const RULES: &[Rule] = &[
     Rule { name: "cjk_atoms", dim: ATOM, items: &[node(ATOM), node(ATOM)], weight: 0, build: atoms },
     Rule { name: "cjk_number", dim: NUM, items: &[node(ATOM)], weight: 1, build: number },
 ];
+
+/// Script boundaries used by CJK grammars after lexicon segmentation. Latin
+/// identifiers remain whole; Han and kana do not require spaces around units.
+pub fn word_boundary(left: &str, right: &str) -> bool {
+    use turbo_unicode::script::{Script, script};
+    left.chars()
+        .next_back()
+        .into_iter()
+        .chain(right.chars().next())
+        .any(|c| matches!(script(c), Script::Han | Script::Hiragana | Script::Katakana))
+}

@@ -244,6 +244,13 @@ pub trait Grammar: Send + Sync + 'static {
         turbo_analysis_layers::NumberNotation::LatinUs
     }
 
+    /// Whether a language's source-preserving splitter permits a mention
+    /// boundary between adjacent alphanumeric lexemes without whitespace.
+    /// The default retains written-token boundaries for existing grammars.
+    fn word_boundary(&self, _left: &str, _right: &str) -> bool {
+        false
+    }
+
     /// Which output a node of `dim` goes to, if any.
     fn output(&self, dim: Dim) -> Option<Output>;
 

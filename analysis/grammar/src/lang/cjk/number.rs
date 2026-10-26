@@ -111,6 +111,7 @@ fn unsigned(mut text: &str) -> Option<Dec> {
     let mut section = Dec::ZERO;
     let mut coefficient = 0i128;
     let mut digits = 0u32;
+    let mut kana_digits = false;
     let mut fraction = None;
     let mut group = None;
     let mut last_small = 10000;
@@ -127,9 +128,15 @@ fn unsigned(mut text: &str) -> Option<Dec> {
             break;
         }
         let (width, value) = token(text)?;
+        let kana =
+            matches!(turbo_unicode::script::script(text.chars().next()?), turbo_unicode::script::Script::Hiragana);
         text = &text[width..];
         match value {
             0..=9 => {
+                if digits > 0 && kana != kana_digits {
+                    return None;
+                }
+                kana_digits = kana;
                 coefficient = coefficient.checked_mul(10)?.checked_add(i128::from(value))?;
                 digits += 1;
                 if let Some(ref mut places) = fraction {
