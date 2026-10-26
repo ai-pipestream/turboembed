@@ -43,7 +43,29 @@ impl Document {
     /// [`Alignment`](crate::Alignment) path, preserving 1-to-1 item indices
     /// [`Ix<L>`](crate::Ix) and discontinuous fragments.
     pub fn project_layer<L: ProjectableLayer>(&self, layer: &L, to: ViewId) -> Result<L, Error> {
-        layer.project_view(self, to)
+        let out = layer.project_view(self, to)?;
+        self.check_projected_layer(&out, to)?;
+        Ok(out)
+    }
+
+    fn check_projected_layer<L: Layer>(&self, layer: &L, to: ViewId) -> Result<(), Error> {
+        let id = Key::<L>::DEFAULT.id();
+        layer.check().map_err(|detail| Error::Invalid { layer: id, detail })?;
+        for (of, bound) in layer.indexes() {
+            if bound == 0 {
+                continue;
+            }
+            if let Some(entry) = self.entries().iter().find(|e| e.key == of && e.value.is_some())
+                && bound > entry.len
+            {
+                return Err(Error::Bounds {
+                    layer: id,
+                    view: to,
+                    detail: format!("projected index {bound} exceeds {of} length {}", entry.len),
+                });
+            }
+        }
+        Ok(())
     }
 }
 
@@ -224,7 +246,7 @@ impl<L: ProjectableLayer> Step for ProjectView<L> {
                 self.check_inputs(d, &reads)?;
                 let src = d.require(&self.source)?;
                 let view = d.require(&self.to_view)?;
-                match catch_unwind(AssertUnwindSafe(|| src.project_view(d, view.id()))) {
+                match catch_unwind(AssertUnwindSafe(|| d.project_layer(src, view.id()))) {
                     Ok(res) => res,
                     Err(panic) => Err(panicked(Self::ID, panic)),
                 }

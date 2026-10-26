@@ -34,14 +34,12 @@ fn build_three_view_doc() -> (Document, ViewId, ViewId) {
     let (t1, a1) = b1.finish();
     doc.add(&Key::<View>::named("child"), View::derived(&v0, t1, a1), Provenance::by("test")).unwrap();
     let v1 = doc.get_key(&Key::<View>::named("child")).unwrap().clone();
-
     let mut b2 = ViewBuilder::new(v1.text());
     b2.keep(6);
     b2.replace(9, "fi");
     let (t2, a2) = b2.finish();
     doc.add(&Key::<View>::named("grandchild"), View::derived(&v1, t2, a2), Provenance::by("test")).unwrap();
     let v2 = doc.get_key(&Key::<View>::named("grandchild")).unwrap().clone();
-
     (doc, v1.id(), v2.id())
 }
 
@@ -57,7 +55,6 @@ fn spans_from<L>(view: ViewId, ranges: &[(u32, u32)]) -> Spans<L> {
 fn segmentation_syntax_and_companion_layers_project_bidirectionally() {
     let (mut doc, child_id, grand_id) = build_three_view_doc();
     let tok_ranges = [(0, 5), (6, 10), (11, 14), (15, 18), (19, 22), (23, 33)];
-
     let structure = Structure {
         spans: spans_from(grand_id, &[(0, 33), (0, 33)]),
         kind: vec![Block::Section, Block::Paragraph],
@@ -89,7 +86,6 @@ fn segmentation_syntax_and_companion_layers_project_bidirectionally() {
         unit: vec![Unit::Document, Unit::Section(Ix::new(0)), Unit::Chunk(Ix::new(0))],
         parent: vec![None, Some(Ix::new(0)), Some(Ix::new(1))],
     };
-
     let mut ent_spans = Spans::new(grand_id);
     ent_spans.push(Span::new(0, 5));
     ent_spans.try_push_fragments(&[Span::new(6, 10), Span::new(15, 18)]).unwrap();
@@ -100,7 +96,6 @@ fn segmentation_syntax_and_companion_layers_project_bidirectionally() {
         kinds: TagSet::new("ner", &["LOC", "MISC"]),
         score: vec![0.95, 0.85],
     };
-
     let phrase_kinds = TagSet::new("phrases", &["NP"]);
     let phrase_chunks = PhraseChunks {
         spans: spans_from(grand_id, &[(0, 10)]),
@@ -116,42 +111,34 @@ fn segmentation_syntax_and_companion_layers_project_bidirectionally() {
         head: vec![Ix::new(1)],
         parent: vec![None],
     };
-
     let struct_src = doc.project_layer(&doc.project_layer(&structure, child_id).unwrap(), ViewId::SOURCE).unwrap();
     assert_eq!(struct_src.spans.get(Ix::new(0)), Span::new(3, 37));
     assert_eq!(doc.project_layer(&struct_src, grand_id).unwrap().spans.get(Ix::new(0)), Span::new(0, 33));
-
     let sents_src = doc.project_layer(&doc.project_layer(&sentences, child_id).unwrap(), ViewId::SOURCE).unwrap();
     assert_eq!(sents_src.spans.get(Ix::new(0)), Span::new(3, 37));
-
     let toks_src = doc.project_layer(&doc.project_layer(&tokens, child_id).unwrap(), ViewId::SOURCE).unwrap();
     assert_eq!(toks_src.len(), 6);
     assert_eq!(toks_src.spans.get(Ix::new(0)), Span::new(3, 8));
     assert_eq!(toks_src.spans.get(Ix::new(1)), Span::new(9, 14));
     assert_eq!(toks_src.spans.get(Ix::new(2)), Span::new(15, 18));
     assert_eq!(toks_src.spans.get(Ix::new(5)), Span::new(27, 37));
-
     let fire_u16 = doc.view_span_to_utf16(ViewId::SOURCE, toks_src.spans.get(Ix::new(1))).unwrap();
     let fire_cp = doc.view_span_to_code_point(ViewId::SOURCE, toks_src.spans.get(Ix::new(1))).unwrap();
     assert_eq!(fire_u16, Utf16Span::new(Utf16Offset(8), Utf16Offset(11)));
     assert_eq!(fire_cp, CodePointSpan::new(CodePointOffset(8), CodePointOffset(11)));
-
     let subs_src = doc.project_layer(&subwords, ViewId::SOURCE).unwrap();
     assert_eq!(subs_src.spans.get(Ix::new(1)), Span::new(9, 14));
     let chunks_src = doc.project_layer(&chunks, ViewId::SOURCE).unwrap();
     assert_eq!(chunks_src.spans.get(Ix::new(0)), Span::new(3, 37));
     let levels_src = doc.project_layer(&levels, ViewId::SOURCE).unwrap();
     assert_eq!(levels_src.spans.get(Ix::new(2)), Span::new(3, 37));
-
     let ents_src = doc.project_layer(&entities, ViewId::SOURCE).unwrap();
     let ent1_frags: Vec<Span> = ents_src.spans.fragments(Ix::new(1)).collect();
     assert_eq!(ent1_frags, vec![Span::new(9, 14), Span::new(19, 22)]);
-
     let pc_src = doc.project_layer(&phrase_chunks, ViewId::SOURCE).unwrap();
     assert_eq!(pc_src.spans.get(Ix::new(0)), Span::new(3, 14));
     let p_src = doc.project_layer(&phrases, ViewId::SOURCE).unwrap();
     assert_eq!(p_src.spans.get(Ix::new(0)), Span::new(3, 14));
-
     let prov = || Provenance::by("test");
     doc.add(&Key::DEFAULT, struct_src, prov()).unwrap();
     doc.add(&Key::DEFAULT, sents_src, prov()).unwrap();
@@ -222,7 +209,6 @@ fn numeric_temporal_pii_sentiment_discourse_and_table_layers_project() {
         (Span::new(19, 20), Span::new(19, 20))
     );
     doc.add(&Key::DEFAULT, numbers_src, prov()).unwrap();
-
     let mut money = Money::new(grand_id);
     money.push(MoneyMention {
         span: Span::new(11, 14),
@@ -234,7 +220,6 @@ fn numeric_temporal_pii_sentiment_discourse_and_table_layers_project() {
     let money_src = doc.project_layer(&money, ViewId::SOURCE).unwrap();
     assert_eq!(money_src.spans.get(Ix::new(0)), Span::new(15, 18));
     doc.add(&Key::DEFAULT, money_src, prov()).unwrap();
-
     let mut quantities = Quantities::new(grand_id);
     quantities.push(QuantityMention {
         span: Span::new(15, 18),
@@ -246,13 +231,11 @@ fn numeric_temporal_pii_sentiment_discourse_and_table_layers_project() {
     let quantities_src = doc.project_layer(&quantities, ViewId::SOURCE).unwrap();
     assert_eq!(quantities_src.spans.get(Ix::new(0)), Span::new(19, 22));
     doc.add(&Key::DEFAULT, quantities_src, prov()).unwrap();
-
     let mut ordinals = Ordinals::new(grand_id);
     ordinals.push(OrdinalMention { span: Span::new(19, 22), base: OrdinalBase::Start, offset: 1 });
     let ordinals_src = doc.project_layer(&ordinals, ViewId::SOURCE).unwrap();
     assert_eq!(ordinals_src.spans.get(Ix::new(0)), Span::new(23, 26));
     doc.add(&Key::DEFAULT, ordinals_src, prov()).unwrap();
-
     let mut times = Times::new(grand_id);
     times.push(TimeMention {
         span: Span::new(23, 33),
@@ -268,7 +251,6 @@ fn numeric_temporal_pii_sentiment_discourse_and_table_layers_project() {
     let times_src = doc.project_layer(&times, ViewId::SOURCE).unwrap();
     assert_eq!(times_src.spans.get(Ix::new(0)), Span::new(27, 37));
     doc.add(&Key::DEFAULT, times_src, prov()).unwrap();
-
     let mut temporals = Temporals::new(grand_id);
     temporals.push(TemporalMention {
         span: Span::new(23, 33),
@@ -278,7 +260,6 @@ fn numeric_temporal_pii_sentiment_discourse_and_table_layers_project() {
     let temporals_src = doc.project_layer(&temporals, ViewId::SOURCE).unwrap();
     assert_eq!(temporals_src.spans.get(Ix::new(0)), Span::new(27, 37));
     doc.add(&Key::DEFAULT, temporals_src, prov()).unwrap();
-
     let mut pii = Pii::new(grand_id);
     pii.push(PiiMention {
         span: Span::new(23, 33),
@@ -289,7 +270,6 @@ fn numeric_temporal_pii_sentiment_discourse_and_table_layers_project() {
     let pii_src = doc.project_layer(&pii, ViewId::SOURCE).unwrap();
     assert_eq!(pii_src.spans.get(Ix::new(0)), Span::new(27, 37));
     doc.add(&Key::DEFAULT, pii_src, prov()).unwrap();
-
     let mut quotes = Quotations::new(grand_id);
     quotes.push(Quotation {
         content: Span::new(11, 22),
@@ -495,4 +475,19 @@ fn numeric_temporal_pii_sentiment_discourse_and_table_layers_project() {
     let w_bad = Words { tokens: vec![IxRange::new(2, 3)], form: None, subspan: None, tokens_key: norm_toks_key };
     assert!(unrelated.project_layer(&w_bad, ViewId::SOURCE).is_err());
     assert!(unrelated.project_layer(&opinions, ViewId::SOURCE).is_err());
+    let e_bad = Entities {
+        spans: spans_from(c_id, &[(6, 8)]),
+        tokens: vec![IxRange::new(2, 3)],
+        kind: vec![Tag(0)],
+        kinds: TagSet::new("ner", &["X"]),
+        score: vec![1.0],
+    };
+    assert!(unrelated.project_layer(&e_bad, ViewId::SOURCE).is_err());
+    let pc_bad = PhraseChunks {
+        spans: spans_from(c_id, &[(6, 8)]),
+        tokens: vec![IxRange::new(2, 3)],
+        kind: vec![Tag(0)],
+        kinds: TagSet::new("np", &["NP"]),
+    };
+    assert!(unrelated.project_layer(&pc_bad, ViewId::SOURCE).is_err());
 }

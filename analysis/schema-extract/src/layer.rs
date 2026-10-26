@@ -167,7 +167,7 @@ impl Layer for Records {
 
 impl ProjectableLayer for Records {
     fn project_view(&self, doc: &Document, to: ViewId) -> Result<Self, Error> {
-        Ok(Records {
+        let out = Records {
             spans: doc.project_spans_monotonic(&self.spans, to)?,
             record: self.record.clone(),
             path: self.path.clone(),
@@ -186,7 +186,24 @@ impl ProjectableLayer for Records {
             types: Arc::clone(&self.types),
             paths: Arc::clone(&self.paths),
             choices: Arc::clone(&self.choices),
-        })
+        };
+        let id = Key::<Records>::DEFAULT.id();
+        out.check().map_err(|detail| Error::Invalid { layer: id, detail })?;
+        for (&src_code, &row) in out.support_source.iter().zip(&out.support_row) {
+            if let Some(src) = source_of(src_code) {
+                let key = source_key(src);
+                if let Some(len) = doc.layer_len_by_name(key.layer.id, key.name)
+                    && (row as usize) >= len
+                {
+                    return Err(Error::Bounds {
+                        layer: id,
+                        view: to,
+                        detail: format!("support row {row} exceeds {key} length {len}"),
+                    });
+                }
+            }
+        }
+        Ok(out)
     }
 }
 
