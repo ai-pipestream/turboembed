@@ -179,14 +179,13 @@ On a released checkpoint, `sat-1l-sm` at revision
 `00a783439c201b20ee91ee1624dc817f1bf0e578` (one layer, width 768, the
 whole XLM-R vocabulary), the same checks pass. The bundle is sealed from
 `bundle/recipes/sat-1l-sm.json`, and the reference's `segment` makes
-the fixtures from the same weights. The tokenizer is BAAI/bge-m3's
-`tokenizer.json` at revision `5617a9f61b028005a4858fdac845db406aefb181`
-(MIT): it has XLM-R's vocabulary and character map, in the Unigram form
-the core reads. `FacebookAI/xlm-roberta-base`'s own `tokenizer.json`
-names no model type, which the core refused until #1020, so both sides
-read the bge-m3 file, as the tiny model's fixtures do. The two files are not the
-same tokenizer pipeline, so this is wtpsplit with the bge-m3 file, not
-wtpsplit as it ships (below, "The released checkpoint's tokenizer").
+the fixtures from the same weights. The tokenizer is
+`FacebookAI/xlm-roberta-base`'s own `tokenizer.json` at revision
+`e73636d4f797dec63c3081bb6ed5c7b0bb3f2089` (MIT), the file wtpsplit
+loads for this checkpoint, which the core reads since #1020
+(`tokenizer.unigram.whitespace_split`). Both sides read that file, so
+this is wtpsplit as it ships, read through `PreTrainedTokenizerFast`
+(below, "Tokenizer pipeline").
 `a_released_checkpoint_matches_wtpsplit` in
 `analysis/sat/tests/parity.rs` runs the comparison when
 `TURBO_TEST_SAT_BUNDLE` names the bundle and `TURBO_TEST_SAT_FIXTURES`
@@ -196,7 +195,7 @@ the fixtures. On the 90 texts:
 |---|---|---|---|
 | 0.25, 64, 510 (wtpsplit's `split` defaults for a model of 512) | 1.6e-4 | 1.6e-4 | 0 |
 | 0.25, 16, 62 | 4.2e-4 | 4.2e-4 | 0 |
-| 0.5, 7, 30 | 2.8e-4 | 2.8e-4 | 0 |
+| 0.5, 7, 30 | 3.7e-4 | 3.7e-4 | 0 |
 
 The ids and offsets are wtpsplit's on every text but for the six
 cluster spans the tiny model shows too (below), and the pieces are
@@ -262,8 +261,8 @@ What the step does differently, and why:
   end, so this does not move a probability. The core now reads
   `xlm-roberta-base`'s file too (`tokenizer.unigram.whitespace_split`,
   #1020), matching upstream `tokenizers`' ids on that form in
-  `core/tests/tokenizer_xlmr.rs`. The table above has not yet been
-  measured again with a bundle sealed with that file.
+  `core/tests/tokenizer_xlmr.rs`, and the `sat-1l-sm` bundle is now
+  sealed with it; the table above was measured with that bundle.
 - **The prefix piece.** Before a text's first word, when no piece
   starts with that word's first characters, the tokenizer emits the
   bare word start `▁`. The core gives it an empty span, as it stands for
