@@ -18,7 +18,9 @@ mod status;
 mod transport;
 
 pub use status::CacheStatus;
-pub use transport::{Http, Mirror, Offline, Transport};
+#[cfg(feature = "http")]
+pub use transport::Http;
+pub use transport::{Mirror, Offline, Transport};
 
 use status::{Local, local_file};
 
