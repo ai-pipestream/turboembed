@@ -90,11 +90,12 @@ const BASE: &str = "https://archive.apache.org/dist/opennlp/models/ud-models-1.3
 
 /// The models the MASC recipes train (analysis/train-recipes), listed at
 /// their addresses in a release of this repository.
-const MASC_MODELS: [&str; 4] = [
+const MASC_MODELS: [&str; 5] = [
     "turbo-en-masc-3.0.0-sentence-1",
     "turbo-en-masc-3.0.0-tokens-1",
     "turbo-en-masc-3.0.0-pos-1",
     "turbo-en-masc-3.0.0-chunks-1",
+    "turbo-en-masc-3.0.0-aspect-sentiment-1",
 ];
 
 /// The models the UD recipes train (analysis/train-recipes) that passed
@@ -122,9 +123,18 @@ const TATOEBA_MODEL: &str = "turbo-mul-tatoeba-langdetect-1";
 /// sentences and documents at their addresses in a fourth release.
 const WEB_MODEL: &str = "turbo-mul-tatoeba-fineweb-langdetect-1";
 
+/// The 28-label linear heads trained on GoEmotions (#926), listed at their
+/// addresses in a fifth release of this repository.
+const GOEMOTIONS_HEADS: [&str; 2] =
+    ["turbo-en-goemotions-minilm-l6-v2-head-1", "turbo-en-goemotions-bge-small-en-v1.5-head-1"];
+
 /// A model this repository's recipes train.
 fn trained_here(id: &str) -> bool {
-    MASC_MODELS.contains(&id) || UD_RECIPE_MODELS.contains(&id) || id == TATOEBA_MODEL || id == WEB_MODEL
+    MASC_MODELS.contains(&id)
+        || UD_RECIPE_MODELS.contains(&id)
+        || id == TATOEBA_MODEL
+        || id == WEB_MODEL
+        || GOEMOTIONS_HEADS.contains(&id)
 }
 
 /// The published neural checkpoints the index lists (docs/licences.md,
@@ -219,6 +229,7 @@ fn the_ud_models_carry_their_treebank_licences() {
     expected.extend(UD_RECIPE_MODELS.map(str::to_owned));
     expected.insert(TATOEBA_MODEL.to_owned());
     expected.insert(WEB_MODEL.to_owned());
+    expected.extend(GOEMOTIONS_HEADS.map(str::to_owned));
     expected.extend(CHECKPOINTS.map(str::to_owned));
     expected.extend(SHARE_ALIKE_CHECKPOINTS.map(str::to_owned));
     expected.extend(LOCAL_CHECKPOINTS.map(str::to_owned));

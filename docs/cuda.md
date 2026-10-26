@@ -722,6 +722,67 @@ older than the runtime, it lists none and the runtime's log says why.
   (CUDA loads modules lazily); `core/tests/cuda_runs.rs` holds warm runs to an
   unchanged free-memory figure too.
 
+### DeBERTa-v2
+
+A `FAMILY_DEBERTA_V2` model (docs/bundle.md) runs in F32 FMAs at MODEL and
+EXACT, as the levelzero backend runs it (docs/levelzero.md, DeBERTa-v2),
+with the CPU encoder (`core/src/deberta`) as the reference. A session at
+FASTEST is refused (`TURBO_E_UNSUPPORTED_OPTION`, field 3, naming the
+precision and the family), and so is one that `TURBO_CUDA_TF32=1` would
+put on the tensor cores in TF32; neither runs in F32 in its place. Head
+widths go up to 128. The model loads as a BERT does, its layers after the
+six `TURBO_DEBERTA_*` tensors. The first session makes the relative
+table LayerNormed and each layer's fused Q, K and V projection of it, once
+for the model. A session holds the bucket of every distance a row of its
+`max_seq` tokens spans. `cuda/deberta.cu` has the lookup (the word row
+LayerNormed, zero at a masked position) and attention: a visible query's
+score of a visible key is
+`(q_i . k_j + q_i . pos_key[b] + k_j . pos_query[b]) / sqrt(3 head_dim)`,
+`b` the bucket of `i - j`, over visible keys alone, and a masked query
+attends evenly to its row's every position. For head widths 32, 64 and
+128 the attention is tiled, a thread per query, with keys, values and
+the relative rows a block of them reaches in shared memory, but only where
+every query tile and key block of the session's rows reaches no more
+relative rows than the kernel stages (past the log buckets' midpoint a
+distance may skip a row); otherwise it is the general kernel, a block per
+query and head. The GEMMs, LayerNorms and pooling are the BERT encoder's,
+in the session's graph.
+
+`core/tests/cuda_deberta.rs` holds the device to the CPU on the same
+bundle at MODEL, within 1e-4 of every value, on the kernel a session
+picks and on the general kernel forced (`use_general_attention`, with
+`internals`), over the shapes and cases of `core/tests/levelzero_deberta.rs`.
+
+On the RTX 4080 SUPER (2026-10-26, `TURBO_SPEED_RUNS=7`, the
+GLiNER-small-sized model at MODEL, the CPU, an AMD Ryzen 9 9950X3D on all
+its threads under other load, interleaved with the device on the tiled
+and the general attention; milliseconds a pass, min / median / max):
+
+| Batch x tokens | CPU | cuda, tiled | cuda, general |
+| --- | ---: | ---: | ---: |
+| 32 x 128 | 674.9 / 712.9 / 755.5 | 17.4 / 17.5 / 18.2 | 29.9 / 31.0 / 31.7 |
+| 8 x 512 | 537.2 / 566.1 / 667.4 | 27.5 / 28.2 / 28.5 | 79.3 / 81.3 / 83.3 |
+
+The SM clock's median was 2610 MHz, the GPU at most 54 C, while another
+process held the device too. With the tiled attention a pass is 1.8 times
+as fast as with the general at 32 x 128, and 2.9 times at 8 x 512.
+
+## The LSTM for the taggers
+
+`turbo::device::lstm::Lstm` (core/src/device/) is the batched LSTM of
+`turbo::cpu::lstm` on a GPU, for the analysis crates' sequence taggers
+(#860). It is a Rust surface, not a part of the backend table: the taggers
+never load a model through `turbo_model_load`. core/cuda/lstm.cu holds its
+kernels. The weights and a gathered run's table are copied to the device
+once; a run copies its rows (or its table row ids) in, makes every row's
+input projections in one product, then runs one kernel per step over the
+sequences still running and every direction at once, and copies the
+states out. A non-finite gate or state is refused at the end of the run,
+as INVALID_ARGUMENT, as the CPU form refuses it. `core/tests/device_lstm.rs`
+holds it to the CPU form at 1e-5; with `TURBO_TEST_REQUIRE_CUDA=1` (or
+`TURBO_TEST_DEVICE=cuda`) it runs on the GPU and fails when the LSTM
+cannot be made there.
+
 ## Testing on a GPU machine
 
 With `TURBO_CUDA_ROOT` set as above, from the workspace root.

@@ -98,6 +98,7 @@ pub struct TokenNameFinderCrossValidator<'f> {
     factory: &'f TokenNameFinderFactory,
     kind: Option<String>,
     params: TrainingParameters,
+    clear_each_sentence: bool,
 }
 
 impl<'f> TokenNameFinderCrossValidator<'f> {
@@ -106,7 +107,18 @@ impl<'f> TokenNameFinderCrossValidator<'f> {
         kind: Option<&str>,
         params: TrainingParameters,
     ) -> TokenNameFinderCrossValidator<'f> {
-        TokenNameFinderCrossValidator { factory, kind: kind.map(str::to_owned), params }
+        TokenNameFinderCrossValidator { factory, kind: kind.map(str::to_owned), params, clear_each_sentence: false }
+    }
+
+    /// Clears adaptive features before every training and test sentence.
+    ///
+    /// Original sample flags still define whole-document partitions. Do not
+    /// replace those flags before evaluation: that would partition sentences
+    /// instead of documents and could put one document on both sides. The
+    /// default remains the JVM policy: clear only where the sample requests it.
+    pub fn with_sentence_clearing(mut self) -> Self {
+        self.clear_each_sentence = true;
+        self
     }
 
     /// `evaluate(samples, nFolds)`. Training runs under `config`; each
@@ -134,6 +146,9 @@ impl<'f> TokenNameFinderCrossValidator<'f> {
             let mut stream = NameEventStream::new(self.factory, self.kind.as_deref())?;
             let mut events = Vec::new();
             for &i in &training {
+                if self.clear_each_sentence {
+                    stream.clear_adaptive_data();
+                }
                 stream.events(&samples[i], &mut events)?;
             }
             let trained = train_name_model_from_events(&events, self.factory, &self.params, config, stamp)?;
@@ -145,7 +160,7 @@ impl<'f> TokenNameFinderCrossValidator<'f> {
             let mut correct_samples = 0;
             for &i in &test {
                 let reference = &samples[i];
-                if reference.clear_adaptive_data() {
+                if self.clear_each_sentence || reference.clear_adaptive_data() {
                     finder.clear_adaptive_data();
                 }
                 let tokens: Vec<&str> = reference.tokens().iter().map(|t| t.as_str()).collect();

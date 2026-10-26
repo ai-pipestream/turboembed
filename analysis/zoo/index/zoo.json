@@ -4307,6 +4307,38 @@
       ]
     },
     {
+      "id": "turbo-en-masc-3.0.0-aspect-sentiment-1",
+      "kind": "KIND_MODEL",
+      "language": "en",
+      "format": "FORMAT_ZIP",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "MASC 3.0.0 MPQA aspect, attitude, and opinion annotations",
+          "license": "CC-BY-3.0-US",
+          "license_terms": "https://anc.org/data/masc/"
+        },
+        {
+          "name": "sentence-transformers/all-MiniLM-L6-v2",
+          "license": "Apache-2.0",
+          "license_terms": "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/LICENSE"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Experimental BIO and polarity heads trained on 56 MASC 3.0.0 documents with MPQA annotations and sentence-transformers/all-MiniLM-L6-v2. MASC is by the American National Corpus project under CC BY 3.0 US. Held-out aspect F1 is 0.013491, so this head is not the default extractor. Configuration and evaluation are included in the zip.",
+      "files": [
+        {
+          "path": "aspect-sentiment-1.zip",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-sentiment-924-1/aspect-sentiment-1.zip",
+          "size": 25106,
+          "sha256": "109c0eea8f2f0d5aa979b9f819820504456d236b372222a9ad9e34362d241be3",
+          "sha512": "0507c12e88de97842bf94de856f1faf391b4e78f5159938324c5e2bdde2e4c215ca8173c37a907b16a2e40c9980618174daef72e3522bca5a58d4fdeac9d55fc"
+        }
+      ]
+    },
+    {
       "id": "ud-spanish-ancora-r2.16",
       "kind": "KIND_DATASET",
       "language": "es",
@@ -4674,6 +4706,62 @@
           "size": 14395164,
           "sha256": "467f1e7191af00f2e76cc7f425885c2dc304bea8aff284b10e8c460d22f2e1af",
           "sha512": "2c3743a0dc1ef5c4389b3c63dbf23c7c41b97ba6c1c091ee8f325e26dd0207072660f5fd037e370e5460024ec45f56f1a237ed7111d680088d494e8677b0dbd1"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-goemotions-minilm-l6-v2-head-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
+      "language": "en",
+      "format": "FORMAT_HEAD",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "GoEmotions 7de3624754e2b0f2",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/google-research/google-research/blob/7de3624754e2b0f2f505ae496db3ba194bb40be9/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on GoEmotions filtered train/dev/test split (google-research/google-research/goemotions at 7de3624754e2b0f2f505ae496db3ba194bb40be9, https://github.com/google-research/google-research/tree/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions), by Dorottya Demszky, Dana Movshovitz-Attias, Jeongwoo Ko, Alan Cowen, Gaurav Nemade and Sujith Ravi (Google Research, 2020), under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).",
+      "files": [
+        {
+          "path": "turbo-en-goemotions-minilm-l6-v2-head-1.tevh",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-goemotions-1/turbo-en-goemotions-minilm-l6-v2-head-1.tevh",
+          "size": 43251,
+          "sha256": "9b280043bff1293280808a38d35d0cf0489cde4c6f92c08423d5c88fc5021723",
+          "sha512": "697c7cf434beb3203874b30e16d2f46f36b7a4fb15a9ffa0ca606b8173f4ce55721fbb740781586c289d5fb94343073f100576815b3d132faf6df8852ceaf6ee"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-goemotions-bge-small-en-v1.5-head-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
+      "language": "en",
+      "format": "FORMAT_HEAD",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "GoEmotions 7de3624754e2b0f2",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/google-research/google-research/blob/7de3624754e2b0f2f505ae496db3ba194bb40be9/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on GoEmotions filtered train/dev/test split (google-research/google-research/goemotions at 7de3624754e2b0f2f505ae496db3ba194bb40be9, https://github.com/google-research/google-research/tree/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions), by Dorottya Demszky, Dana Movshovitz-Attias, Jeongwoo Ko, Alan Cowen, Gaurav Nemade and Sujith Ravi (Google Research, 2020), under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).",
+      "files": [
+        {
+          "path": "turbo-en-goemotions-bge-small-en-v1.5-head-1.tevh",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-goemotions-1/turbo-en-goemotions-bge-small-en-v1.5-head-1.tevh",
+          "size": 43235,
+          "sha256": "f82b1beb02642576d12e8932b6f3cf0b8487d3f150c0066b576c50011665123a",
+          "sha512": "de5260320ecf59e5c017b33be26cab002e020599de7e09ef8832e8b4a8d82d9316e373636a57b4ec23ed2af2a780b4a5436ebb036fd186c3ab37f4b6e413218b"
         }
       ]
     }
