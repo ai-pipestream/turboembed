@@ -54,6 +54,8 @@ turbo-tokenize = { path = "../analysis/tokenize" }
 turbo-wordnet = { path = "../analysis/wordnet" }
 # The model catalog: the zoo index, licence acceptances, verified fetches.
 turbo-zoo = { path = "../analysis/zoo", default-features = false }
+# Static model distillation and sealing for TurboTrainingService.
+turbo-bundle = { path = "../bundle" }
 # The response's vectors are handed to the encoder in place (Bytes::from_owner).
 bytes = "1.9"
 prost = "0.14"

@@ -2348,6 +2348,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-embed",
  "turbo-analysis-layers",
+ "turbo-bundle",
  "turbo-chunker",
  "turbo-coref",
  "turbo-encoding-layers",
