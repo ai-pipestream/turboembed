@@ -138,11 +138,7 @@ fn gliner2_relations_on_the_real_checkpoint() {
 #[ignore = "needs the real encoders as core bundles; run with --release -- --ignored"]
 fn glirel_on_the_real_checkpoint() {
     let (bundle, package, spm) = (env("GLIREL_BUNDLE"), env("GLIREL_PACKAGE"), env("GLIREL_SPM"));
-    let load = |e: DebertaEncoder| glirel::GlirelRelations::load_with(e, &package, &spm).unwrap();
-    // The CPU encoder and the binding read the DeBERTa package under the
-    // GLiREL package's encoder/, not the GLiREL package itself.
-    let encoder = package.join("encoder");
-    let (cpu, on) = (load(package_cpu(&encoder)), load(bound(&encoder, &bundle)));
+    let [cpu, on] = glirel_pair(&package, &bundle, &spm);
     let cases = cases("glirel");
     let entities = |c: &Value| -> Vec<(usize, usize)> {
         let e = c["ner"].as_array().unwrap();

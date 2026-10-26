@@ -60,6 +60,20 @@ pub fn bound(package: &Path, dir: &Path) -> DebertaEncoder {
     e
 }
 
+/// A GLiREL package's two encoders as the real device test opens them: the
+/// CPU encoder of its `encoder/` DeBERTa package, and the bundle bound to
+/// that package on the device the test names, each under the package's
+/// heads and `spm`. The tiny test opens a tiny package the same way, so the
+/// paths are traced without the licensed checkpoint.
+pub fn glirel_pair(package: &Path, bundle: &Path, spm: &Path) -> [turbo_relation::GlirelRelations; 2] {
+    let load = |e: DebertaEncoder| {
+        turbo_relation::GlirelRelations::load_with(e, package, spm)
+            .unwrap_or_else(|e| panic!("{}: {e}", package.display()))
+    };
+    let encoder = package.join("encoder");
+    [load(package_cpu(&encoder)), load(bound(&encoder, bundle))]
+}
+
 /// The tiny bundle through the backend table, on the device the test names,
 /// checked to run on the backend required.
 pub fn device() -> DebertaEncoder {
