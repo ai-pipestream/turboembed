@@ -107,7 +107,7 @@ A gRPC error is HTTP 502 with `{"error": {"grpc", "message",
 
 ## The AnalysisService calls
 
-These routes are each one `turbo.result.AnalysisService` call
+These routes are each one `turbo.result.v1.AnalysisService` call
 (server/proto/turbo_analysis.proto), for a workbench page or a script.
 The page itself does not use them yet. Their JSON is the proto message
 itself: the field names of the .proto, a missing field its default, a

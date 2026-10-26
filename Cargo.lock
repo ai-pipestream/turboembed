@@ -1934,12 +1934,11 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_path_to_error",
- "sha2",
  "tokenizers",
  "turbo",
- "unicode-normalization-alignments",
- "unicode-segmentation",
- "unicode_categories",
+ "turbo-goldens",
+ "turbo-sha256",
+ "turbo-unicode",
 ]
 
 [[package]]
@@ -2035,8 +2034,8 @@ dependencies = [
 name = "turbo-calibration"
 version = "0.1.0"
 dependencies = [
- "sha2",
  "turbo-analysis",
+ "turbo-sha256",
 ]
 
 [[package]]
@@ -2167,6 +2166,23 @@ dependencies = [
  "turbo-vector-index",
  "turbo-zstd",
  "ureq",
+]
+
+[[package]]
+name = "turbo-example-docling"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "turbo-analysis",
+ "turbo-analysis-embed",
+ "turbo-analysis-layers",
+ "turbo-chunker",
+ "turbo-maxent",
+ "turbo-namefind",
+ "turbo-normalize",
+ "turbo-sentdetect",
+ "turbo-structure",
+ "turbo-tokenize",
 ]
 
 [[package]]
@@ -2455,6 +2471,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-goldens",
  "turbo-jvm",
+ "turbo-sha256",
  "turbo-unicode",
 ]
 
@@ -2696,6 +2713,10 @@ dependencies = [
  "turbo-train",
  "turbo-unicode",
 ]
+
+[[package]]
+name = "turbo-sha256"
+version = "0.1.0"
 
 [[package]]
 name = "turbo-stem"

@@ -1,6 +1,7 @@
 # Releases
 
-A tag `v<version>` on `main` makes four archives through
+A tag `v<version>` on `main` makes four binary archives, a proto archive,
+and generated Java and Python client stub artifacts through
 `.github/workflows/release.yml` and publishes them as one GitHub release,
 each with its SHA-256:
 
@@ -10,15 +11,37 @@ each with its SHA-256:
 - `turboembed-v<version>-linux-aarch64.tar.gz`: the cpu backend.
 - `turboembed-v<version>-windows-x86_64.zip`: the cpu backend, built with
   MSVC.
+- `turboembed-proto-v<version>.tar.gz`: the versioned `server/proto/*.proto`
+  definitions and `buf.yaml`.
+- `turboembed-grpc-<version>.jar`, `turboembed-grpc-<version>-sources.jar`,
+  and `turboembed-grpc-<version>.pom`: the generated Java Maven stub artifact
+  (`ai.pipestream:turboembed-grpc:<version>`, built with pinned `protoc 4.36.2`
+  and `protoc-gen-grpc-java 1.85.1`, depending on `protobuf-java 4.36.2` and
+  `grpc-protobuf` and `grpc-stub` 1.85.1, Java 17 or newer).
+- `turboembed_proto-<version>-py3-none-any.whl`: the generated Python wheel
+  stub package (`turboembed-proto`, built with pinned `grpcio-tools 1.85.0`
+  and `protobuf 7.36.2` on uv-managed Python). It requires Python 3.10 or
+  newer, `grpcio>=1.85.0` and `protobuf>=7.35.1,<8`. `build_wheel.py` reads
+  those floors from the generated code (`GRPC_GENERATED_VERSION` and the
+  protobuf gencode version that grpcio-tools 1.85.0 bundles), and the
+  smoke test installs the wheel on Python 3.10 with its dependencies
+  resolved to exactly those floors before calling the server.
+
+The generator pins live in `clients/java/pom.xml` (`protobuf.version`,
+`grpc.version`) and `scripts/package-proto-stubs.sh` (the Python pins). The
+Rust server builds its own stubs with tonic 0.14.6 and prost 0.14.4
+(`Cargo.lock`).
 
 Running the workflow by hand (`workflow_dispatch`) is the dry run: it
-builds and checks the four and keeps them, with their sums, as the run's
-artifacts, and publishes nothing. What changed in each release is in
-`CHANGELOG.md`; what a release may change is under Versions and
-compatibility, below.
+builds and checks the release archives and client stubs and keeps them,
+with their sums, as the run's artifacts, and publishes nothing. What
+changed in each release is in `CHANGELOG.md`; what a release may change
+is under Versions and compatibility, below.
 
 The same tag pushes two images of the gRPC server to GHCR (Images,
-below). Nothing else is published: no crate.
+below), alongside the proto archive and generated Java and Python client
+stub artifacts in the GitHub release (docs/grpc.md). The Rust crates are
+not published.
 
 ## What the Linux archive holds
 

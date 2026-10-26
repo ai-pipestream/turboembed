@@ -13,6 +13,7 @@ mod lexicon;
 mod rules;
 mod split;
 pub(crate) mod time;
+pub(crate) mod unit;
 
 pub use time::{SPANISH_TIMES, SpanishTimes};
 

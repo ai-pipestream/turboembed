@@ -1436,10 +1436,35 @@ tokens under four characters (more right at distance 0, fewer at 1).
 The context corrector here sees one word per sentence, so its language
 model gives only unigram probabilities, and its edit weight lets a
 frequent word at distance 2 beat a rare one at distance 1; the set has
-no sentences to measure it in context. A set of human misspellings with
-a permissive licence was not found: Birkbeck and Norvig's sets are not
-reachable from the build container, codespell's Wikipedia-derived list
-is CC BY-SA 3.0, and the GitHub Typo Corpus follows GitHub's terms.
+no sentences to measure it in context.
+
+**Human misspellings.** The second set is codespell's `dictionary.txt`
+(`codespell-dictionary-en` in the zoo index, pinned at codespell
+`f185580744421e1d44e30ce795bc27f9f0ad5584`), a derivative of English
+Wikipedia's lists of common misspellings under CC BY-SA 3.0. It is
+share-alike, so it never ships: the zoo fetches it from codespell's
+repository only for a user who has accepted CC BY-SA 3.0 (`turbo-zoo
+accept CC-BY-SA-3.0`), as OpenNLP's `DownloadUtil` fetches a model the
+user asked for. Each line is `typo->fix`, or `typo->fix1, fix2,` when
+the typo has several readings. The queries are the 64,040 typos made of
+lowercase letters and apostrophes (57,992 with one fix); an answer is
+right when it is one of the fixes. 58,938 typos have a fix in the
+unigram list, and 140 typos are themselves in it. Same machine and
+method as above, 2026-10-26, pinned by
+`accuracy_and_speed_on_the_codespell_misspellings`
+(`analysis/normalize/tests/zoo_lexicons/codespell.rs`):
+
+| Corrector | Right of 64,040 | Right of the 57,992 one-fix lines | Per query |
+|---|---|---|---|
+| `lookup`, `Top`, distance 2 | 51,960 (81.1%) | 46,933 (80.9%) | 15 to 16 us |
+| `SpellCorrect` per token, distance 2 | 51,866 (81.0%) | 46,872 (80.8%) | 14 to 17 us |
+| `ContextSpellCorrector`, one word, distance 2 | 39,565 (61.8%) | 36,288 (62.6%) | 571 to 579 us |
+| a fix among `All`, distance 2 | 56,861 (88.8%) | | 44 to 48 us |
+
+Human typos sit closer to the word meant than the generated ones: the
+most frequent word at the smallest distance is a fix for 81% of them,
+against 57% of the SymSpell queries. One word at a time, the context
+corrector again does worse than `Top`; this set has no sentences either.
 
 ### Emoji (`analysis/normalize/src/emoji/mod.rs`)
 
