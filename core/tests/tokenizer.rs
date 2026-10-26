@@ -4,6 +4,8 @@
 #[path = "tokenizer/bpe.rs"]
 mod bpe;
 mod common;
+#[path = "tokenizer/hf_unicode.rs"]
+mod hf_unicode;
 #[path = "tokenizer/spans.rs"]
 mod spans;
 #[path = "tokenizer/unigram.rs"]
@@ -52,7 +54,16 @@ fn ids_match_upstream() {
     let f = Fixture::standard("ids-match-upstream");
     let tok = f.open().expect("tokenizer loads");
     let up = upstream();
-    for text in texts() {
+    let regressions = [
+        "x \u{378} y",
+        "a\u{378}b",
+        "plane \u{e01f0} gap",
+        "q\u{5c8}q",
+        "word\u{7fd} more",
+        "hebrew \u{5c8}",
+        "nko \u{7fd}",
+    ];
+    for text in texts().into_iter().chain(regressions.map(str::to_owned)) {
         let ours = tok.row(&text, None).unwrap();
         assert_eq!(ours, upstream_ids(&up, &text), "text {text:?}");
     }
