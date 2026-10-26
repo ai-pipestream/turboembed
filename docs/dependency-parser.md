@@ -83,10 +83,27 @@ integration are documented in [feedforward dependency parsing](feedforward-depen
 Non-projective trees are handled via Nivre and Nilsson (2005) pseudo-projective
 lifting (`DependencyGraph::projectivize`) and step-by-step decoding
 (`DependencyGraph::deprojectivize`). During recipe training (`turbo-train-recipes -- depparse`),
-every non-projective sentence in `train` is projectivized with `+` composite
-governor labels (up to `MAX_PROJECTIVE_LIFTS` steps) instead of being discarded,
-and both `DependencyParser` and `FeedforwardDependencyParser` decode composite
-labels back into non-projective dependencies after transition decoding.
+every non-projective sentence in `train` is projectivized with directional
+`base^<step1^>step2...` path labels instead of being discarded, and both
+`DependencyParserME` and `FeedforwardDependencyParser` decode directional
+`^<` / `^>` suffixes back into non-projective dependencies after transition
+decoding (while preserving ordinary custom labels such as `root^literal`
+unchanged). Note that Nivre and Nilsson's directional label-path scheme is an
+approximate encoding when multiple siblings under the same lifted ancestor share
+the same relation label and direction (for example, gold encode/decode over all
+1,867 `UD_Finnish-FTB` test sentences alters 8 heads across 8 sentences out of
+16,286 words due to same-label governor ambiguity).
+
+Each recipe gates its full-budget pseudo-projective candidate (`100` GIS
+iterations for MaxEnt, `5` AdaGrad epochs for Feedforward across all training
+sentences) against a single-step projective-only internal baseline
+(`<model_id>-projective-baseline`: `1` GIS iteration for MaxEnt, `1` AdaGrad
+epoch for Feedforward trained on projective sentences only). Because Apache
+OpenNLP publishes no pre-trained UD dependency parser models in the zoo, the
+paired bootstrap gate (`gate.json` on LAS, `gate-uas.json` on UAS) verifies
+end-to-end learning and non-projective retention over that single-step internal
+baseline rather than comparing against an equal-budget external parser (such as
+MaltParser or Stanza).
 
 Ten dependency parser models are trained across the five CC BY 4.0 UD 2.16
 treebanks (`UD_Spanish-AnCora`, `UD_Catalan-AnCora`, `UD_Portuguese-Porttinari`,

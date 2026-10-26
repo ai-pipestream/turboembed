@@ -130,3 +130,29 @@ fn graph_import_rejects_a_structurally_valid_cycle() {
     assert!(layer.check_forest().is_err());
     assert!(DependencyGraph::from_layer(layer).is_err());
 }
+
+#[test]
+fn custom_labels_with_carets_survive_projectivize_and_deprojectivize() {
+    let projective = DependencyGraph::<Tokens>::new(
+        vec![None, Some(Ix::new(0))],
+        vec!["root^literal".into(), "dep^custom\\x".into()],
+    )
+    .unwrap();
+    let proj = projective.projectivize().unwrap();
+    let deproj = proj.deprojectivize().unwrap();
+    assert_eq!(deproj.arc(Ix::new(0)).unwrap().relation, "root^literal");
+    assert_eq!(deproj.arc(Ix::new(1)).unwrap().relation, "dep^custom\\x");
+
+    let nonprojective = DependencyGraph::<Tokens>::new(
+        vec![Some(Ix::new(2)), None, Some(Ix::new(1))],
+        vec!["det^custom".into(), "root^literal".into(), "obj^<escaped".into()],
+    )
+    .unwrap();
+    let lifted = nonprojective.projectivize().unwrap();
+    assert!(lifted.is_projective());
+    let restored = lifted.deprojectivize().unwrap();
+    assert_eq!(restored.to_layer().head, nonprojective.to_layer().head);
+    assert_eq!(restored.arc(Ix::new(0)).unwrap().relation, "det^custom");
+    assert_eq!(restored.arc(Ix::new(1)).unwrap().relation, "root^literal");
+    assert_eq!(restored.arc(Ix::new(2)).unwrap().relation, "obj^<escaped");
+}

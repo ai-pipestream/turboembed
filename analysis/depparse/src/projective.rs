@@ -2,12 +2,120 @@
 //!
 //! Non-projective arcs are lifted to their lowest projective ancestor and
 //! annotated with the directional relation path `base^<step1^>step2...` from
-//! the lifted head down to the original head. Projective trees without `^` in
-//! relation labels are returned unchanged.
+//! the lifted head down to the original head. Literal `^`, `<`, `>`, and `\`
+//! characters inside custom relation labels are escaped (`\^`, `\<`, `\>`,
+//! `\\`) when non-projective lifting occurs, and only well-formed directional
+//! lift suffixes (`^<rel` or `^>rel`) are decoded by [`DependencyGraph::deprojectivize`].
+//! Ordinary custom labels such as `root^literal` on projective trees are
+//! preserved unchanged.
 
 use crate::{DependencyGraph, Result};
 use turbo_analysis::Ix;
 use turbo_analysis_layers::WordOrTokenAnchor;
+
+fn escape_rel(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for ch in s.chars() {
+        if matches!(ch, '\\' | '^' | '<' | '>') {
+            out.push('\\');
+        }
+        out.push(ch);
+    }
+    out
+}
+
+fn unescape_rel(s: &str) -> String {
+    if !s.contains('\\') {
+        return s.to_owned();
+    }
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars();
+    while let Some(ch) = chars.next() {
+        if ch == '\\' {
+            if let Some(next) = chars.next() {
+                out.push(next);
+            } else {
+                out.push('\\');
+            }
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+fn has_unescaped_caret(s: &str) -> bool {
+    let mut escaped = false;
+    for ch in s.chars() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if ch == '\\' {
+            escaped = true;
+        } else if ch == '^' {
+            return true;
+        }
+    }
+    false
+}
+
+fn split_unescaped_carets(s: &str) -> Vec<&str> {
+    let mut parts = Vec::new();
+    let mut start = 0;
+    let mut escaped = false;
+    for (idx, ch) in s.char_indices() {
+        if escaped {
+            escaped = false;
+            continue;
+        }
+        if ch == '\\' {
+            escaped = true;
+        } else if ch == '^' {
+            parts.push(&s[start..idx]);
+            start = idx + 1;
+        }
+    }
+    parts.push(&s[start..]);
+    parts
+}
+
+fn parse_pseudo_projective_label(relation: &str) -> Option<(String, Vec<(bool, String)>)> {
+    if !relation.contains('^') {
+        return None;
+    }
+    let parts = split_unescaped_carets(relation);
+    if parts.len() == 1 {
+        if relation.contains("\\^") {
+            let base_unescaped = unescape_rel(parts[0]);
+            let base = if base_unescaped.chars().all(turbo_unicode::props::white_space) {
+                "dep".to_owned()
+            } else {
+                base_unescaped
+            };
+            return Some((base, Vec::new()));
+        }
+        return None;
+    }
+    let base_raw = parts[0];
+    if base_raw.is_empty() {
+        return None;
+    }
+    let mut steps = Vec::with_capacity(parts.len() - 1);
+    for &step in &parts[1..] {
+        let (want_left, rel_raw) =
+            if let Some(rest) = step.strip_prefix('<') { (true, rest) } else { (false, step.strip_prefix('>')?) };
+        let rel = unescape_rel(rel_raw);
+        if rel.is_empty() || rel.chars().all(turbo_unicode::props::white_space) {
+            return None;
+        }
+        steps.push((want_left, rel));
+    }
+    let base_unescaped = unescape_rel(base_raw);
+    let base =
+        if base_unescaped.chars().all(turbo_unicode::props::white_space) { "dep".to_owned() } else { base_unescaped };
+    Some((base, steps))
+}
 
 fn is_descendant<A: WordOrTokenAnchor>(heads: &[Option<Ix<A>>], ancestor: usize, mut node: usize) -> bool {
     loop {
@@ -72,7 +180,7 @@ impl<A: WordOrTokenAnchor> DependencyGraph<A> {
             let h = heads[d].expect("nonprojective arc has head").get();
             let p = heads[h].expect("root arc cannot be nonprojective in a single-root tree");
             let dir = if h < p.get() { '<' } else { '>' };
-            steps[d].push(format!("{dir}{}", base_rels[h]));
+            steps[d].push(format!("{dir}{}", escape_rel(&base_rels[h])));
             heads[d] = Some(p);
         }
         let relations = base_rels
@@ -80,10 +188,10 @@ impl<A: WordOrTokenAnchor> DependencyGraph<A> {
             .zip(steps)
             .map(|(base, mut st)| {
                 if st.is_empty() {
-                    base
+                    if has_unescaped_caret(&base) { escape_rel(&base) } else { base }
                 } else {
                     st.reverse();
-                    format!("{base}^{}", st.join("^"))
+                    format!("{}^{}", escape_rel(&base), st.join("^"))
                 }
             })
             .collect();
@@ -92,22 +200,22 @@ impl<A: WordOrTokenAnchor> DependencyGraph<A> {
 
     /// Decodes pseudo-projective relation labels (`base^<step1^>step2...`) back
     /// into lower (potentially non-projective) arcs while preserving tree
-    /// invariants.
+    /// invariants. Ordinary relation labels without directional `^<` / `^>`
+    /// lift steps (such as `root^literal`) are preserved unchanged.
     pub fn deprojectivize(&self) -> Result<Self> {
         self.check_tree()?;
         let n = self.len();
         let mut heads = Vec::with_capacity(n);
         let mut base_rels = Vec::with_capacity(n);
-        let mut steps: Vec<Vec<String>> = Vec::with_capacity(n);
+        let mut steps: Vec<Vec<(bool, String)>> = Vec::with_capacity(n);
         let mut any_lifted = false;
         for i in 0..n {
             let arc = self.arc(Ix::new(i as u32))?;
             heads.push(arc.head);
-            if let Some((base, rest)) = arc.relation.split_once('^') {
+            if let Some((base, parsed_steps)) = parse_pseudo_projective_label(arc.relation) {
                 any_lifted = true;
-                let base = if base.chars().all(turbo_unicode::props::white_space) { "dep" } else { base };
-                base_rels.push(base.to_owned());
-                steps.push(rest.split('^').filter(|s| !s.is_empty()).map(str::to_owned).collect());
+                base_rels.push(base);
+                steps.push(parsed_steps);
             } else {
                 base_rels.push(arc.relation.to_owned());
                 steps.push(Vec::new());
@@ -136,27 +244,18 @@ impl<A: WordOrTokenAnchor> DependencyGraph<A> {
                     let Some(cur) = heads[d].map(|h| h.get()) else {
                         break;
                     };
-                    let step = &steps[d][step_idx[d]];
-                    let (want_left, target_rel) = if let Some(rest) = step.strip_prefix('<') {
-                        (Some(true), rest)
-                    } else if let Some(rest) = step.strip_prefix('>') {
-                        (Some(false), rest)
-                    } else {
-                        (None, step.as_str())
-                    };
+                    let (want_left, ref target_rel) = steps[d][step_idx[d]];
                     let mut cands: Vec<usize> = (0..n)
                         .filter(|&i| {
                             i != d
                                 && heads[i].map(|h| h.get()) == Some(cur)
                                 && !is_descendant(&heads, d, i)
-                                && base_rels[i] == target_rel
+                                && base_rels[i] == target_rel.as_str()
                         })
                         .collect();
-                    if let Some(left) = want_left {
-                        let dir_cands: Vec<usize> = cands.iter().copied().filter(|&i| (i < cur) == left).collect();
-                        if !dir_cands.is_empty() {
-                            cands = dir_cands;
-                        }
+                    let dir_cands: Vec<usize> = cands.iter().copied().filter(|&i| (i < cur) == want_left).collect();
+                    if !dir_cands.is_empty() {
+                        cands = dir_cands;
                     }
                     let next = if let Some(best) = cands.into_iter().min_by_key(|&i| (i.abs_diff(d), i)) {
                         Some(best)
@@ -171,7 +270,7 @@ impl<A: WordOrTokenAnchor> DependencyGraph<A> {
                         while b_idx < bfs.len() {
                             let u = bfs[b_idx];
                             b_idx += 1;
-                            if base_rels[u] == target_rel {
+                            if base_rels[u] == target_rel.as_str() {
                                 found = Some(u);
                                 break;
                             }

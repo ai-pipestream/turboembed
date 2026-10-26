@@ -29,7 +29,7 @@ preserving their released model hashes and gate values.
 | `treebank` | The CC BY 4.0 UD treebanks at release 2.16: each repository's `LICENSE.txt`, `README.md` and `train`, `dev` and `test` files with their sizes and digests, the licence check, the zoo dataset entry and fetch |
 | `ud` | The UD recipes: the samples, training on `train`, the checks run before training, and the gate on `test` against the OpenNLP UD 1.3 model (the zoo's, or the Italian ones recorded by digest), by the `segmentation` and `postag` gates and, for the lemmatizer, `LemmatizerEvaluator` |
 | `ud_card` | The UD model card, with the treebank's licence, attribution and citation and the MASC card's held-out and gate parts, the model's directory and its zoo entry |
-| `depparse` | The UD 2.16 dependency parser recipes (MaxEnt and Feedforward across all five treebanks): pseudo-projective lifting of non-projective sentences, UAS and LAS evaluation and paired bootstrap gates (`gate.json` on LAS, `gate-uas.json` on UAS), `UdDepparseCard` and the model's directory |
+| `depparse` | The UD 2.16 dependency parser recipes (MaxEnt and Feedforward across all five treebanks): pseudo-projective lifting of non-projective sentences, UAS and LAS evaluation and paired bootstrap gates (`gate.json` on LAS, `gate-uas.json` on UAS), `DepparseModelCard` and the model's directory |
 | `release` | The releases of this repository that publish the recipes' models (`models-masc-3.0.0-1`, the four MASC models; `models-ud-2.16-1`, ten UD models; and `models-ud-depparse-2.16-1`, eight UD dependency parser models), each naming the models it publishes, their entries in the zoo's built-in index at their addresses there, and the references its workflow fetches (`masc-references.txt`, `ud-references.txt`) |
 | `tatoeba` | Tatoeba's sentence exports: the strict reader of `sentences_detailed.csv` and `sentences_CC0.csv`, each sentence's licence from the two files, and the export's digest |
 | `langdetect` | The language detector recipe: the licence check, the table of Tatoeba's and `langdetect-183.bin`'s language codes, the split, training, the gate against `langdetect-183.bin`, its card and the model's directory |
@@ -1102,7 +1102,7 @@ models scored on every token):
 
 ### The UD dependency parser recipes (`depparse`)
 
-`depparse` trains and gates both the linear (`DependencyParser`) and neural
+`depparse` trains and gates both the linear (`DependencyParserME`) and neural
 (`FeedforwardDependencyParser`) arc-standard dependency parsers across all five
 UD 2.16 treebanks:
 
@@ -1113,25 +1113,35 @@ cargo run --release -p turbo-train-recipes -- depparse --treebanks <zoo-home>/ar
 
 - Pseudo-projective handling: non-projective sentences in `train` (840 in
   `UD_Spanish-AnCora`, 749 in `UD_Catalan-AnCora`, 1,602 in `UD_Finnish-FTB`)
-  are lifted into projective trees with `+` composite governor labels via
-  `DependencyGraph::projectivize` instead of being discarded, and decoded back
-  into non-projective trees via `DependencyGraph::deprojectivize`. Zero training
-  or held-out sentences are skipped across all five treebanks.
-- Parameters: MaxEnt models train with GIS (`MAXENT`), 300 iterations, cutoff 5,
+  are lifted into projective trees with directional `base^<step1^>step2...`
+  path labels via `DependencyGraph::projectivize` instead of being discarded,
+  and decoded back into non-projective trees via `DependencyGraph::deprojectivize`
+  (preserving ordinary custom labels such as `root^literal` unchanged). Because
+  Nivre and Nilsson's directional label-path scheme is approximate when siblings
+  under the same lifted ancestor share a relation label and direction, gold
+  encode/decode over all 1,867 `UD_Finnish-FTB` test sentences alters 8 heads
+  across 8 sentences (out of 16,286 words). Zero training or held-out sentences
+  are skipped across all five treebanks.
+- Parameters: MaxEnt models train with GIS (`MAXENT`), 100 iterations, cutoff 5,
   4 partitions, and fixed manifest timestamp `2026-10-14T00:00:00Z`. Feedforward
-  models train with Adam, 10 epochs, batch size 256, hidden size 200, dropout 0.5,
-  learning rate 0.001, weight decay 1e-8, and seed 42 (or 15 epochs, batch size
-  32, dropout 0.2 on `UD_Italian-MarkIT`, which has 611 training sentences).
-- Gates: every model writes both `gate.json` (LAS paired bootstrap, 10,000 draws,
-  seed 154) and `gate-uas.json` (UAS paired bootstrap, 10,000 draws, seed 154)
-  against its deterministic treebank reference (adjacent-chain right-branching
-  with majority relation for MaxEnt; 1-epoch cutoff-50 GIS baseline for
-  Feedforward) and records all-token and punctuation-excluded (`PUNCT`) UAS and
-  LAS in `card.json` (`UdDepparseCard`, version 1).
+  models train with deterministic AdaGrad (`FeedforwardDependencyTrainer`), 5
+  epochs, batch size 512, embedding size 16, hidden size 64, `ChenManning18`
+  layout, `cube` activation, dropout 0.5, learning rate 0.02, L2 1e-8, word
+  cutoff 5, and seed 17.
+- Gates and baseline scope: every model writes both `gate.json` (LAS paired
+  bootstrap, 10,000 draws, seed 154) and `gate-uas.json` (UAS paired bootstrap,
+  10,000 draws, seed 154) against its single-step projective-only internal
+  baseline (`<model_id>-projective-baseline`: 1 GIS iteration for MaxEnt, 1
+  AdaGrad epoch for Feedforward trained on projective sentences only) and
+  records all-token and punctuation-excluded (`PUNCT`) UAS and LAS in
+  `card.json` (`DepparseModelCard`, version 1). Because Apache OpenNLP publishes
+  no pre-trained UD dependency parser models in the zoo, the gate verifies
+  improvement over that undertrained internal baseline rather than an
+  equal-budget external parser.
 - Shippable entries: the eight models for Spanish, Catalan, Finnish and Italian
   are published in release `models-ud-depparse-2.16-1` and listed in
   `analysis/zoo/index/zoo.json`; the two Portuguese Porttinari models remain
-  recipe-only (`UdDepparseCard::artifact` refuses them because newspaper text
+  recipe-only (`DepparseModelCard::artifact` refuses them because newspaper text
   rights are not settled).
 
 | Treebank (`r2.16`) | Train Sentences (Non-Proj) | Test Sentences (Tokens) | Model ID | Parser | Size (bytes) | SHA-256 | UAS (all / no-punct) | LAS (all / no-punct) | LAS Gate (`diff`, 95% CI) | UAS Gate (`diff`, 95% CI) |
