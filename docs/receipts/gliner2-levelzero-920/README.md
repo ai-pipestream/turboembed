@@ -71,13 +71,19 @@ GLINER2_PACKAGE=... GLINER2_BUNDLE=... GLINER2_CHECKPOINT=... DEVICE_REPS=50 \
 
 each started once no B70 CI runner container had a cargo, test or
 nextest process and the host's one-minute load was under 8 (1.8, 4.4
-and 6.5 at the starts). Each pass is timed in milliseconds, the CPU
-encoder and the device interleaved, 50 times over each of the fixture's
-three texts, so each distribution mixes three text lengths: its spread
-is the texts as much as the device. Every pass is also held to the CPU's
-logits and decisions. Host: AMD Ryzen 9 9950X, 32 threads.
+and 6.5 at the starts). Each test first runs its 50 parity passes over
+the fixture (each held to the CPU's logits and decisions), then times a
+further 50 passes over the same texts without comparing them: the timed
+passes are not themselves checked. A pass is timed in milliseconds, the
+CPU encoder and the device interleaved. The relations fixture has three
+texts (150 timed passes a side) and the schema fixture four (200), so
+each distribution mixes the texts' lengths: its spread is the texts as
+much as the device. Only the encoder moves: the heads run on the host in
+both columns, so the B70 column is the encoder on the B70 plus the heads
+on the CPU, and the CPU column is both on the CPU. Host: AMD Ryzen 9
+9950X, 32 threads.
 
-| Pass | CPU encoder p50 (min, mean, p99) | B70 p50 (min, mean, p99) | CPU p50 over B70 p50 |
+| Pass | CPU encoder and heads p50 (min, mean, p99) | B70 encoder, CPU heads p50 (min, mean, p99) | CPU p50 over B70 p50 |
 |---|---|---|---|
 | GLiNER2 relations, run 1 | 20.1 (16.5, 21.0, 32.1) | 36.9 (28.9, 37.1, 45.9) | 0.54x |
 | GLiNER2 relations, run 2 | 18.3 (16.1, 18.4, 23.1) | 38.6 (6.8, 36.4, 40.7) | 0.47x |
@@ -91,9 +97,10 @@ during run 1, which shows in that run's CPU schema numbers (p50 56.9
 against 32.9 and 33.0 in the others); runs 2 and 3 ended at 15.6 and
 8.9. `snap-store` held the B70's render engine 61 to 65 percent busy
 through every run (xe fdinfo, read before and after each). So these are
-timings under that load, not on an idle device: the relations pass on
-the B70 at about half the CPU encoder's speed, and schema extraction
-about 1.3 times its speed in the two runs the host left alone.
+timings under that load, not on an idle device: with the encoder on the
+B70, the relations pass runs at about half the all-CPU pass's speed, and
+schema extraction at about 1.3 times its speed in the two runs the host
+left alone.
 
 ## Not done
 
