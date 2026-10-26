@@ -9,8 +9,7 @@
 
 use std::path::{Path, PathBuf};
 
-use turbo::deberta::{Config, Encoder};
-use turbo_relation::encoder::{DebertaEncoder, Device, EncoderOptions};
+use turbo_relation::encoder::{DebertaEncoder, Device, EncoderOptions, EncoderStates};
 
 /// The largest head output difference from the CPU encoder: the F32 device
 /// bound the encoder itself is held to (#883).
@@ -38,25 +37,21 @@ pub fn required() -> Option<&'static str> {
 }
 
 /// The tiny bundle's encoder on the CPU, from its own weights.
-pub fn cpu() -> Encoder {
-    let c = Config {
-        hidden: 32,
-        intermediate: 64,
-        heads: 4,
-        layers: 2,
-        vocabulary: 30522,
-        max_sequence: 128,
-        position_buckets: 8,
-        max_relative_positions: 512,
-        layer_norm_eps: 1e-7,
-    };
-    let bytes = std::fs::read(bundle().join("weights/model.safetensors")).unwrap();
-    Encoder::from_safetensors(c, &bytes).unwrap().with_threads(1).unwrap()
+pub fn cpu() -> DebertaEncoder {
+    let e = DebertaEncoder::open_cpu(&bundle()).unwrap();
+    assert!(e.execution().is_none(), "the CPU encoder itself");
+    assert_eq!(e.config().max_sequence, 128, "the bundle's max_seq");
+    e
 }
 
 /// The tiny bundle through the backend table, on the device the test names,
 /// checked to run on the backend required.
 pub fn device() -> DebertaEncoder {
+    device_on(&bundle())
+}
+
+/// The bundle at `dir` through the backend table, as [`device`] opens it.
+pub fn device_on(dir: &Path) -> DebertaEncoder {
     let device = match std::env::var("TURBO_TEST_DEVICE").as_deref() {
         Err(_) | Ok("cpu") => Device::Cpu,
         Ok(d) => Device::Backend(d.to_owned()),
@@ -64,13 +59,21 @@ pub fn device() -> DebertaEncoder {
     if let Some(b) = required() {
         assert!(!matches!(device, Device::Cpu), "{b} is required but TURBO_TEST_DEVICE names no device");
     }
-    let e = DebertaEncoder::open(&bundle(), &EncoderOptions { device, ..EncoderOptions::default() })
-        .unwrap_or_else(|e| panic!("the tiny DeBERTa bundle: {e}"));
+    let e = DebertaEncoder::open(dir, &EncoderOptions { device, ..EncoderOptions::default() })
+        .unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
     let x = e.execution().expect("the backend table");
     if let Some(b) = required() {
         assert_eq!(x.backend, b, "the session runs on the backend required");
     }
     e
+}
+
+/// min, p50, mean and p99 of `v`, in ms.
+pub fn summary(v: &mut [f64]) -> String {
+    v.sort_by(f64::total_cmp);
+    let mean = v.iter().sum::<f64>() / v.len() as f64;
+    let p = |q: f64| v[((v.len() - 1) as f64 * q).round() as usize];
+    format!("min {:.3} p50 {:.3} mean {:.3} p99 {:.3}", v[0], p(0.5), mean, p(0.99))
 }
 
 /// The largest difference of two outputs of one length; equal infinities

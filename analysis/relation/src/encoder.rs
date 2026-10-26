@@ -77,10 +77,7 @@ impl DebertaEncoder {
     /// sequence.
     pub fn open(dir: &Path, o: &EncoderOptions) -> Result<DebertaEncoder, String> {
         let bundle = Bundle::open(dir).map_err(|e| e.message)?;
-        let a = bundle.manifest.architecture.as_ref().ok_or("DeBERTa encoder bundle: no architecture")?;
-        let Some(r) = a.relative.as_ref().filter(|_| a.family == Family::DebertaV2) else {
-            return Err("DeBERTa encoder bundle: the family is not FAMILY_DEBERTA_V2".into());
-        };
+        shape(&bundle, None)?;
         let seq = match (o.max_seq, &bundle.manifest.embed) {
             (0, Some(e)) => e.max_seq,
             (s, _) => s,
@@ -90,23 +87,25 @@ impl DebertaEncoder {
         eo.max_ranges = seq.max(1);
         let encoder = turbo_analysis_embed::Encoder::open(dir, &eo).map_err(|e| e.message)?;
         let info = encoder.info().clone();
-        let config = Config {
-            hidden: a.hidden as usize,
-            intermediate: a.intermediate as usize,
-            heads: a.heads as usize,
-            layers: a.layers as usize,
-            vocabulary: a.vocab_size as usize,
-            max_sequence: info.max_seq.min(a.max_positions) as usize,
-            position_buckets: r.position_buckets as usize,
-            max_relative_positions: r.max_relative_positions as usize,
-            layer_norm_eps: a.layer_norm_eps,
-        };
+        let config = shape(&bundle, Some(info.max_seq))?;
         if info.dim as usize != config.hidden {
             return Err(format!("DeBERTa encoder bundle: vectors of {}, hidden {}", info.dim, config.hidden));
         }
         let run = Run { encoder, rows: Rows::new(info.max_seq, 0), ranges: Vec::new() };
         let execution = info.execution;
         Ok(DebertaEncoder::Table(Box::new(Table { run: Mutex::new(run), config, execution })))
+    }
+
+    /// The CPU encoder itself on the same bundle's safetensors weights, its
+    /// longest sequence the bundle's max_seq: the path the device is held
+    /// to, from the one bundle.
+    pub fn open_cpu(dir: &Path) -> Result<DebertaEncoder, String> {
+        let bundle = Bundle::open(dir).map_err(|e| e.message)?;
+        let config = shape(&bundle, None)?;
+        let a = bundle.manifest.artifacts.iter().find(|a| a.format == turbo::manifest::Format::Safetensors);
+        let file = a.and_then(|a| a.files.first()).ok_or("DeBERTa encoder bundle: no safetensors artifact")?;
+        let bytes = bundle.read_verified(file).map_err(|e| e.message)?;
+        Encoder::from_safetensors(config, &bytes).map(DebertaEncoder::from).map_err(|e| e.message)
     }
 
     /// Where the encoder runs: None for the CPU encoder itself, else the
@@ -117,6 +116,27 @@ impl DebertaEncoder {
             DebertaEncoder::Table(t) => Some(&t.execution),
         }
     }
+}
+
+/// A FAMILY_DEBERTA_V2 bundle's shape as the CPU encoder takes it, its
+/// longest sequence `max_seq` (else the bundle's) within its positions.
+fn shape(bundle: &Bundle, max_seq: Option<u32>) -> Result<Config, String> {
+    let a = bundle.manifest.architecture.as_ref().ok_or("DeBERTa encoder bundle: no architecture")?;
+    let Some(r) = a.relative.as_ref().filter(|_| a.family == Family::DebertaV2) else {
+        return Err("DeBERTa encoder bundle: the family is not FAMILY_DEBERTA_V2".into());
+    };
+    let seq = max_seq.or(bundle.manifest.embed.as_ref().map(|e| e.max_seq)).unwrap_or(a.max_positions);
+    Ok(Config {
+        hidden: a.hidden as usize,
+        intermediate: a.intermediate as usize,
+        heads: a.heads as usize,
+        layers: a.layers as usize,
+        vocabulary: a.vocab_size as usize,
+        max_sequence: seq.min(a.max_positions) as usize,
+        position_buckets: r.position_buckets as usize,
+        max_relative_positions: r.max_relative_positions as usize,
+        layer_norm_eps: a.layer_norm_eps,
+    })
 }
 
 impl EncoderStates for DebertaEncoder {

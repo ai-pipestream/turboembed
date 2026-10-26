@@ -35,7 +35,7 @@ fn glirel_on(encoder: DebertaEncoder) -> glirel::GlirelRelations {
 
 #[test]
 fn gliner2_relations_score_as_on_the_cpu_encoder() {
-    let (cpu, on) = (gliner2_on(cpu().into()), gliner2_on(device()));
+    let (cpu, on) = (gliner2_on(cpu()), gliner2_on(device()));
     let labels = ["founded", "located in", "works for"];
     let mut largest = 0f32;
     for text in TEXTS {
@@ -62,7 +62,7 @@ fn gliner2_relations_score_as_on_the_cpu_encoder() {
 
 #[test]
 fn glirel_scores_as_on_the_cpu_encoder() {
-    let (cpu, on) = (glirel_on(cpu().into()), glirel_on(device()));
+    let (cpu, on) = (glirel_on(cpu()), glirel_on(device()));
     let labels = ["founded", "located in", "works for"];
     let mut largest = 0f32;
     for text in TEXTS {
