@@ -90,13 +90,14 @@ pub use multilabel::{
 };
 pub use sentiment::{
     AbsaMetrics, AbsaTriplet, AspectCategoryScorer, DEFAULT_ASPECT_CATEGORIES, DEFAULT_EMOTION_THRESHOLD,
-    DEFAULT_INCIVILITY_THRESHOLD, EmotionAnnotator, EmotionHeadError, EmotionMetrics, EmotionStage, EmotionUnit,
-    EmotionVectorHead, EmotionVectorScorer, GoldBiasUnit, GoldEmotionUnit, GoldIncivilityUnit, IdentityTerms,
-    IncivilityAnnotator, IncivilityBiasMetrics, IncivilityFitOptions, IncivilityHeadError, IncivilityLexicon,
-    IncivilityMetrics, IncivilityStage, IncivilityUnit, IncivilityVectorContext, IncivilityVectorHead,
-    IncivilityVectorScorer, LabelBias, LabelMetrics, LexiconSentiment, NegationMode, PragmaticsAnnotator,
-    PragmaticsVectorScorer, RuleAspectSentiment, SENTENCE_SENTIMENT, SentenceSentiment, SentimentFactory, SentimentMe,
-    SentimentModel, SubgroupBias, VaderLexicon, VaderScore, evaluate_absa_corpus, evaluate_emotion_corpus,
+    DEFAULT_INCIVILITY_THRESHOLD, EmotionAnnotator, EmotionFitOptions, EmotionHeadError, EmotionMetrics, EmotionStage,
+    EmotionUnit, EmotionVectorHead, EmotionVectorScorer, EmotionZooError, GOEMOTIONS_BGE_SMALL_HEAD,
+    GOEMOTIONS_MINILM_HEAD, GoldBiasUnit, GoldEmotionUnit, GoldIncivilityUnit, IdentityTerms, IncivilityAnnotator,
+    IncivilityBiasMetrics, IncivilityFitOptions, IncivilityHeadError, IncivilityLexicon, IncivilityMetrics,
+    IncivilityStage, IncivilityUnit, IncivilityVectorContext, IncivilityVectorHead, IncivilityVectorScorer, LabelBias,
+    LabelMetrics, LexiconSentiment, NegationMode, PragmaticsAnnotator, PragmaticsVectorScorer, RuleAspectSentiment,
+    SENTENCE_SENTIMENT, SentenceSentiment, SentimentFactory, SentimentMe, SentimentModel, SubgroupBias, VaderLexicon,
+    VaderScore, evaluate_absa_corpus, evaluate_emotion_corpus, evaluate_emotion_corpus_with_thresholds,
     evaluate_incivility_bias, evaluate_incivility_corpus, extract_triplets, roc_auc,
 };
 pub use svm::{ModelError, Scratch, SvmCategorizer, SvmDoccatModel};

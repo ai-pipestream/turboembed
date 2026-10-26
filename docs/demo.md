@@ -14,6 +14,32 @@ backend. The page is plain HTML, CSS and JavaScript compiled into the
 binary: it loads nothing from any other host, so it works on a machine
 with no network beyond the one to the server.
 
+## No JSON front end
+
+Protobuf is the only contract between the page and the server. The
+page's clients are generated from the protos by `@bufbuild/protoc-gen-es`
+and call the demo with `@connectrpc/connect-web` using the binary codec
+only: `application/proto` for unary calls and `application/connect+proto`
+for streams, each a `POST /<package>.<Service>/<Method>` that the demo
+forwards to the server when the method is on its allowlist. Raw file
+uploads are the one exception: an `HTTP PUT` of binary frames to the
+demo's upload endpoints, which feed the client-streaming RPCs (#1377),
+up to the 2 GiB request cap. There are no `/api/*` JSON, NDJSON or SSE
+routes, no serde derives on generated proto types and no hand-written
+JSON or base64 mapping of messages; GET answers only the static page.
+
+The reason: once a JSON layer sits in the request path it becomes the
+contract that later changes are made against, and protobuf is worked
+around or dropped behind it. That happened once already (#1271, #1370).
+
+`bench/tests/tree.rs` (tree/front_end.rs) checks what can be checked
+exactly: `demo/Cargo.toml` has no `serde` or `serde_json`, the server
+has neither outside its tests, no `build.rs` that compiles the protos
+adds a serde attribute, and no `"/api/` route string is in `demo/src`.
+The JSON routes this page still describes below predate the rule; #1360
+replaces them with the Connect proxy and removes their entries from the
+check's pending list, which can only shrink.
+
 ## Starting it
 
 Build both binaries:

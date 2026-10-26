@@ -134,6 +134,10 @@ const UD_DEPPARSE_MODELS: [&str; 8] = [
     "turbo-it-ud-markit-2.16-depparse-maxent-1",
     "turbo-it-ud-markit-2.16-depparse-feedforward-1",
 ];
+/// The 28-label linear heads trained on GoEmotions (#926), listed at their
+/// addresses in a fifth release of this repository.
+const GOEMOTIONS_HEADS: [&str; 2] =
+    ["turbo-en-goemotions-minilm-l6-v2-head-1", "turbo-en-goemotions-bge-small-en-v1.5-head-1"];
 
 /// A model this repository's recipes train.
 fn trained_here(id: &str) -> bool {
@@ -142,6 +146,7 @@ fn trained_here(id: &str) -> bool {
         || UD_DEPPARSE_MODELS.contains(&id)
         || id == TATOEBA_MODEL
         || id == WEB_MODEL
+        || GOEMOTIONS_HEADS.contains(&id)
 }
 
 /// The published neural checkpoints the index lists (docs/licences.md,
@@ -236,6 +241,7 @@ fn the_ud_models_carry_their_treebank_licences() {
     expected.extend(UD_DEPPARSE_MODELS.map(str::to_owned));
     expected.insert(TATOEBA_MODEL.to_owned());
     expected.insert(WEB_MODEL.to_owned());
+    expected.extend(GOEMOTIONS_HEADS.map(str::to_owned));
     expected.extend(CHECKPOINTS.map(str::to_owned));
     expected.extend(SHARE_ALIKE_CHECKPOINTS.map(str::to_owned));
     expected.extend(LOCAL_CHECKPOINTS.map(str::to_owned));
