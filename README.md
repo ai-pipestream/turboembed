@@ -15,8 +15,9 @@ of 71 crates that builds four things:
   GLiREL), entity and relation graphs, and a chunker that picks chunk
   boundaries by an exact optimization.
 - `turbo-kserve`, a gRPC server that serves bundles over the KServe v2
-  Open Inference Protocol and adds analysis, search, sink, model
-  catalog, vocabulary and health services.
+  Open Inference Protocol and adds analysis, search, model catalog,
+  vocabulary and health services, and can forward analyzed documents to
+  a downstream sink.
 - Tools that build and verify model bundles, enforce model and dataset
   licences, measure every backend against vendor reference programs,
   and train and evaluate the classic models.
@@ -220,13 +221,22 @@ these services on one port ([grpc.md](docs/grpc.md)):
 | `inference.GRPCInferenceService` | `server/proto/open_inference_grpc.proto` | KServe v2 Open Inference Protocol: embed, rerank and extractive QA through `ModelInfer` ([kserve.md](docs/kserve.md)) |
 | `turbo.result.AnalysisService` | `server/proto/turbo_analysis.proto` | capabilities, bundle load and unload, `AnalyzeStream` (bidirectional bulk analysis with per-document answers, micro-batching and backpressure), `AnalyzeDocumentProgressive`, document graph and window inspection, chunk projection, and output formats (CoNLL-U, brat, TSV, CSV, Markdown, JSON-LD, WARC) ([grpc-analysis.md](docs/grpc-analysis.md), [grpc-inspect.md](docs/grpc-inspect.md)) |
 | `turbo.search.TurboSearchService` | `server/proto/turbo_search.proto` | in-memory indexes fed by a stream, hybrid search over BM25, dense, TurboQuant, SPLADE sparse and token MaxSim providers with score or reciprocal rank fusion, parent expansion and cross-encoder reranking, persist and seal, reindex, aliases and collections |
-| `turbo.sink.TurboSinkService` | `server/proto/turbo_sink.proto` | receives analyzed documents; with `--sink-endpoint` the server streams its results to a sink through a bounded queue ([grpc-sink.md](docs/grpc-sink.md)) |
 | `turbo.training.TurboCatalogService` | `server/proto/turbo_training.proto` | the model zoo catalog, installed models, licence acceptance and streamed installs ([grpc-catalog.md](docs/grpc-catalog.md)) |
 | `turbo.vocabulary.TurboVocabularyService` | `server/proto/turbo_vocabulary.proto` | dictionary import, corpus vocabulary learning and download ([grpc-vocabulary.md](docs/grpc-vocabulary.md)) |
 | `grpc.health.v1.Health` | `server/proto/health.proto` | standard gRPC health checks |
 
-Writes that change server state (bundle loading, index persistence,
-vocabulary writes) need `--admin`. The server speaks plaintext gRPC with
+With `--sink-endpoint`, the server is a client of
+`turbo.sink.TurboSinkService` (`server/proto/turbo_sink.proto`): it
+streams every document an analysis stream completes to the sink at that
+address through a bounded queue (`--sink-queue-items`,
+`--sink-queue-bytes`). The receiving side of that service is in the
+`turbo-kserve` library for programs that embed the server and want to
+accept documents themselves; the `turbo-kserve` binary does not serve it
+([grpc-sink.md](docs/grpc-sink.md)).
+
+Calls that change server state (bundle loading and unloading, index
+persistence, vocabulary writes, catalog licence acceptance and model
+installs) need `--admin`. The server speaks plaintext gRPC with
 no authentication, so it belongs behind a trusted network boundary.
 
 `turbo-kserve-demo` (`demo/`) is a small web page that proxies JSON to a
@@ -289,12 +299,21 @@ CARGO_TARGET_DIR=target/core cargo test -p turbo
 
 ## Releases
 
-A `v<version>` tag builds two archives with SHA-256 sums on a GitHub
-release: `linux-x86_64` (CPU and CUDA backends) and `macos-arm64` (Metal
-and CPU). The Linux archive carries `libturbo.so`, the `turbo-kserve`
-server and the C headers; the macOS archive carries `libturbo.dylib`
-and the headers. Other platforms build from source ([release.md](docs/release.md),
-[setup/release-archive.md](docs/setup/release-archive.md)).
+A `v<version>` tag on main builds four archives and publishes them as
+one GitHub release, each with its SHA-256 sum
+([release.md](docs/release.md),
+[setup/release-archive.md](docs/setup/release-archive.md)):
+
+| Archive | Backends | Contents |
+|---|---|---|
+| `linux-x86_64.tar.gz` | CPU and CUDA | `lib/libturbo.so`, `bin/turbo-kserve`, the C headers |
+| `macos-arm64.tar.gz` | Metal and CPU | `lib/libturbo.dylib`, the C headers |
+| `linux-aarch64.tar.gz` | CPU | `lib/libturbo.so`, `bin/turbo-kserve`, the C headers |
+| `windows-x86_64.zip` | CPU, built with MSVC | `bin/turbo.dll`, `lib/turbo.lib`, `bin/turbo-kserve.exe`, the C headers |
+
+What changed in each release is in [CHANGELOG.md](CHANGELOG.md), and
+what a release may change is under Versions and compatibility in
+release.md.
 
 ## Module layout
 

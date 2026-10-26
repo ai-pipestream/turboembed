@@ -97,7 +97,7 @@ flowchart LR
     subgraph clients[Callers]
         c["C / C++"]
         j["Other languages through a C FFI<br/>(no bindings in this repository)"]
-        g["gRPC clients<br/>(Open Inference Protocol, AnalysisService,<br/>search, sink, catalog, vocabulary, health)"]
+        g["gRPC clients<br/>(Open Inference Protocol, AnalysisService,<br/>search, catalog, vocabulary, health)"]
     end
     g --> srv["turbo-kserve<br/>server/"]
     c --> h
