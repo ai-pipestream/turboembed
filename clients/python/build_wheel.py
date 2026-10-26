@@ -21,9 +21,10 @@ DIST_NAME = "turboembed_proto"
 
 def normalize_pep440_version(raw: str) -> str:
     cleaned = raw.lstrip("v")
-    if not cleaned or not cleaned[0].isdigit():
-        return "0.1.0"
-    return cleaned.replace("-", ".")
+    parts = cleaned.split(".")
+    if len(parts) == 3 and all(p.isdigit() for p in parts):
+        return cleaned
+    return "0.1.0"
 
 
 def rewrite_relative_imports(pkg_dir: pathlib.Path, modules: set[str]) -> None:

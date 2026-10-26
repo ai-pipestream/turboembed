@@ -12,7 +12,7 @@ SMOKE_ADDR="${3:-}"
 
 CLEAN_TAG="${TAG//\//-}"
 VERSION="${CLEAN_TAG#v}"
-if [[ ! "$VERSION" =~ ^[0-9] ]]; then
+if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   VERSION="0.1.0"
 fi
 
