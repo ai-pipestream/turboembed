@@ -71,7 +71,7 @@ The real checkpoint's encoder is sealed as that core bundle by
 `bundle/reference/gliner_encoder.py`, in the pinned reference container,
 writes its upstream directory from the zoo's `fastino-gliner2-base-v1`
 files: the `encoder.` tensors as a `DebertaV2Model` of the checkpoint's
-`encoder_config/config.json`, with 128011 rows, and `spm.model` converted
+encoder config, with 128011 rows, and `spm.model` converted
 to `tokenizer.json`, with the eleven tokens of `added_tokens.json` as
 pieces at their ids. With `Z` the zoo home's `artifacts` directory and
 `W` an empty one:
