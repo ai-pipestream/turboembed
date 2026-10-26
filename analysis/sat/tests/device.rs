@@ -6,7 +6,9 @@
 //! threshold where the CPU's is, except tokens whose CPU probability is
 //! within that bound of the threshold, which are counted and listed. The
 //! sentences of a text with no such token must be the CPU's. With no
-//! device named both sides run on the CPU.
+//! device named both sides run on the CPU, unless
+//! TURBO_TEST_REQUIRE_CUDA or TURBO_TEST_REQUIRE_LEVELZERO is set, which
+//! fails then and holds the device session to that backend.
 //!
 //! TURBO_TEST_SAT_BUNDLE adds a second bundle, as for tests/parity.rs
 //! (the released `sat-1l-sm`, one layer of width 768).
@@ -53,6 +55,15 @@ fn cpu() -> EncoderOptions {
 fn open(bundle: &Path, encoder: EncoderOptions, (threshold, stride, block): (f64, u32, u32)) -> SatAnnotator {
     let o = SatOptions { encoder, threshold: Some(threshold), stride, block_size: block, ..SatOptions::default() };
     SatAnnotator::open(bundle, &o).unwrap_or_else(|e| panic!("{}: {e}", bundle.display()))
+}
+
+/// The device session, on the backend a device is required on.
+fn device(bundle: &Path, encoder: EncoderOptions, s: (f64, u32, u32)) -> SatAnnotator {
+    let d = open(bundle, encoder, s);
+    if let Some(b) = common::required() {
+        assert_eq!(d.execution().unwrap().backend, b, "{}: {b} is required", bundle.display());
+    }
+    d
 }
 
 /// The bound for the dtype the device computes in.
@@ -106,7 +117,7 @@ fn a_device_scores_as_the_cpu_does() {
     let refs: Vec<&str> = texts.iter().map(String::as_str).collect();
     for bundle in bundles() {
         for s in SETTINGS {
-            let (c, d) = (open(&bundle, cpu(), s), open(&bundle, common::encoder(), s));
+            let (c, d) = (open(&bundle, cpu(), s), device(&bundle, common::encoder(), s));
             let what = format!("{} at {s:?} on {:?}", bundle.display(), d.execution());
             let seen = compare(&what, &texts, (&c, &scored(&c, &refs)), (&d, &scored(&d, &refs)));
             eprintln!("{what}: largest difference {:.1e}, near the threshold {:?}", seen.largest, seen.near);
@@ -134,7 +145,7 @@ fn windows_packed_to_capacity_read_as_alone() {
         }
         let most = Bundle::open(&bundle).unwrap().manifest.embed.unwrap().max_batch;
         for max_batch in [0, 3] {
-            let d = open(&bundle, EncoderOptions { max_batch, ..common::encoder() }, s);
+            let d = device(&bundle, EncoderOptions { max_batch, ..common::encoder() }, s);
             let what = format!("{} max_batch {max_batch} on {:?}", bundle.display(), d.execution());
             let full = windows.len() / if max_batch == 0 { most } else { max_batch } as usize;
             assert!(full >= 2, "{what}: {} windows fill no runs", windows.len());
@@ -150,14 +161,11 @@ fn windows_packed_to_capacity_read_as_alone() {
 }
 
 /// A Hailo session pools no ranges, so SaT is refused there with the
-/// range-pooling error and never runs on the CPU instead. Runs when
-/// TURBO_TEST_DEVICE names the hailo backend.
+/// range-pooling error and never runs on the CPU instead. Run it with
+/// `--ignored` and TURBO_TEST_DEVICE=hailo on a Hailo host.
 #[test]
+#[ignore = "needs TURBO_TEST_DEVICE=hailo on a Hailo host"]
 fn a_hailo_session_refuses_sat() {
-    if std::env::var("TURBO_TEST_DEVICE").as_deref() != Ok("hailo") {
-        eprintln!("TURBO_TEST_DEVICE is not hailo: nothing to check");
-        return;
-    }
     let o = SatOptions { encoder: common::encoder(), ..SatOptions::default() };
     let Err(e) = SatAnnotator::open(&bundles()[0], &o) else { panic!("a hailo session opened for SaT") };
     assert!(e.to_string().contains("the hailo backend pools no ranges"), "{e}");

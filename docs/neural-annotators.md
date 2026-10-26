@@ -179,8 +179,10 @@ as it is; the parity holds at `model` and `exact` on every backend.
 `analysis/sat/tests/device.rs` holds the device to the CPU with the
 same bundle rather than to wtpsplit: every token's probability within
 1e-4 of the CPU's at f32 and 1e-2 at f16, runs packed to capacity
-read as each document alone, and a Hailo session refused with the
-range-pooling error. It passes at every tier on CUDA (with `sat-1l-sm`
+read as each document alone, and (ignored except with `--ignored` on
+a Hailo host) a Hailo session refused with the range-pooling error.
+`TURBO_TEST_REQUIRE_CUDA=1` or `TURBO_TEST_REQUIRE_LEVELZERO=1` makes it
+fail when no device is named. It passes at every tier on CUDA (with `sat-1l-sm`
 too) and on Level Zero; docs/receipts/sat-884.md has the figures and
 the speed against the CPU. A model of limited lookahead is refused on
 every device, which the lookahead parity test checks there.
