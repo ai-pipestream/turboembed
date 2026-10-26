@@ -33,6 +33,7 @@ unsafe extern "C" {
         u: *const f32,
         b: *const f32,
         reverse: *const c_int,
+        f16: c_int,
         out: *mut *mut RawLstm,
         msg: *mut c_char,
         len: usize,
@@ -116,7 +117,9 @@ fn int(v: usize, what: &str) -> Result<c_int> {
 
 impl Lstm {
     /// Checked weights, as the CPU form packs them: every direction's W
-    /// stacked, each U, the biases one after another.
+    /// stacked, each U, the biases one after another; W and U held as F16
+    /// with `f16`.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         ordinal: u32,
         input: usize,
@@ -125,6 +128,7 @@ impl Lstm {
         u: &[f32],
         b: &[f32],
         reverse: &[c_int],
+        f16: bool,
     ) -> Result<Lstm> {
         let ordinal =
             c_int::try_from(ordinal).map_err(|_| Error::new(DEVICE_NOT_FOUND, "lstm: no such CUDA ordinal"))?;
@@ -141,6 +145,7 @@ impl Lstm {
                 u.as_ptr(),
                 b.as_ptr(),
                 reverse.as_ptr(),
+                c_int::from(f16),
                 &mut raw,
                 msg.as_mut_ptr().cast(),
                 msg.len(),

@@ -7,7 +7,7 @@
 //! The CPU form is the reference: a device's states are held to it within
 //! a bound its tests name, not to its bits.
 
-use super::Device;
+use super::{Device, Precision};
 use crate::cpu::lstm as cpu;
 use crate::status::{Error, INVALID_ARGUMENT, INVALID_SHAPE, Result};
 
@@ -16,6 +16,7 @@ pub use crate::cpu::lstm::Weights;
 /// Checked weights of one or more directions over one input, on a device.
 pub struct Lstm {
     device: Device,
+    precision: Precision,
     /// The CPU form, which checked the weights and runs on the CPU.
     cpu: cpu::Lstm,
     #[cfg(feature = "cuda")]
@@ -68,10 +69,28 @@ impl Lstm {
     /// device the library was built without is refused with UNSUPPORTED,
     /// and one that is not there with DEVICE_NOT_FOUND.
     pub fn new(device: Device, input: usize, hidden: usize, dirs: &[Weights<'_>]) -> Result<Lstm> {
+        Self::new_at(device, Precision::Model, input, hidden, dirs)
+    }
+
+    /// [`new`](Self::new) at `precision`. FASTEST holds the input and
+    /// recurrent weights as F16 on the device, every sum, gate, cell and
+    /// state F32; the CPU form has no F16 weights, so FASTEST on the CPU is
+    /// refused with UNSUPPORTED rather than run at MODEL.
+    pub fn new_at(
+        device: Device,
+        precision: Precision,
+        input: usize,
+        hidden: usize,
+        dirs: &[Weights<'_>],
+    ) -> Result<Lstm> {
         let cpu = cpu::Lstm::new(input, hidden, dirs)?;
         match device {
+            Device::Cpu if precision == Precision::Fastest => {
+                Err(Error::new(crate::status::UNSUPPORTED, "lstm: the CPU form has no FASTEST (F16 weights)"))
+            }
             Device::Cpu => Ok(Lstm {
                 device,
+                precision,
                 cpu,
                 #[cfg(feature = "cuda")]
                 cuda: None,
@@ -85,8 +104,9 @@ impl Lstm {
                     b.extend_from_slice(d.b);
                 }
                 let reverse: Vec<i32> = dirs.iter().map(|d| i32::from(d.reverse)).collect();
-                let cuda = super::cuda_lstm::Lstm::new(ordinal, input, hidden, &w, &u, &b, &reverse)?;
-                Ok(Lstm { device, cpu, cuda: Some(cuda) })
+                let f16 = precision == Precision::Fastest;
+                let cuda = super::cuda_lstm::Lstm::new(ordinal, input, hidden, &w, &u, &b, &reverse, f16)?;
+                Ok(Lstm { device, precision, cpu, cuda: Some(cuda) })
             }
             #[cfg(not(feature = "cuda"))]
             Device::Cuda(_) => Err(unsupported(device)),
@@ -95,6 +115,10 @@ impl Lstm {
 
     pub fn device(&self) -> Device {
         self.device
+    }
+
+    pub fn precision(&self) -> Precision {
+        self.precision
     }
 
     pub fn input(&self) -> usize {

@@ -251,3 +251,36 @@ fn a_new_table_is_whole_for_the_first_run() {
         assert!(d <= BOUND, "{:?} table {seed}: {d}", device());
     }
 }
+
+/// The bound FASTEST's states are held to, against the CPU form's: its
+/// weights are rounded to F16 (a relative 2^-11), every sum and state F32.
+const FASTEST_BOUND: f32 = 2e-2;
+
+/// FASTEST on a device runs the same sequences within FASTEST_BOUND of the
+/// CPU form at MODEL; on the CPU it is refused, not run at MODEL.
+#[test]
+fn fastest_holds_f16_weights_and_stays_near_the_cpu() {
+    use turbo::device::Precision;
+    let m = Model::new(100, 128, 41);
+    if device() == Device::Cpu {
+        let e = Lstm::new_at(Device::Cpu, Precision::Fastest, 100, 128, &m.dirs()).err().expect("FASTEST on the CPU");
+        assert_eq!(e.code, turbo::status::UNSUPPORTED);
+        return;
+    }
+    let lstm = Lstm::new_at(device(), Precision::Fastest, 100, 128, &m.dirs())
+        .unwrap_or_else(|e| panic!("FASTEST on {:?}: {}", device(), e.message));
+    assert_eq!(lstm.precision(), Precision::Fastest);
+    let mut worst = 0f32;
+    for (j, lengths) in BATCHES.iter().enumerate() {
+        let rows: usize = lengths.iter().sum();
+        let x = Rng(300 + j as u64).values(rows * 100, 1.0);
+        let mut want = vec![0.0; rows * 256];
+        m.cpu().run(&x, lengths, &mut want, &mut cpu::Work::default()).unwrap();
+        let mut got = vec![0.0; want.len()];
+        lstm.run(&x, lengths, &mut got, &mut Work::default()).unwrap();
+        let d = max_diff(&got, &want);
+        assert!(d <= FASTEST_BOUND, "lengths {lengths:?}: {d}");
+        worst = worst.max(d);
+    }
+    println!("{:?} at FASTEST: the worst difference from the CPU at MODEL is {worst:e}", device());
+}
