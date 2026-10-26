@@ -69,7 +69,20 @@ fn slice_f32(vals: &[f32]) -> Vec<u8> {
     vals.iter().flat_map(|v| v.to_le_bytes()).collect()
 }
 
+#[allow(dead_code)]
 pub fn make_nli_bundle(name: &str, labels: &[&str], edit: impl FnOnce(&mut Value)) -> TempDir {
+    make_nli_bundle_with(name, labels, None, edit)
+}
+
+/// As `make_nli_bundle`, with the classifier's weight `[labels, 32]` and
+/// bias `[labels]` given in place of the fixed ones.
+#[allow(dead_code)]
+pub fn make_nli_bundle_with(
+    name: &str,
+    labels: &[&str],
+    head: Option<(Vec<f32>, Vec<f32>)>,
+    edit: impl FnOnce(&mut Value),
+) -> TempDir {
     static NEXT: AtomicUsize = AtomicUsize::new(0);
     let id = NEXT.fetch_add(1, Ordering::Relaxed);
     let dir = std::env::temp_dir().join(format!("turbo-nli-{}-{name}-{id}", std::process::id()));
@@ -97,9 +110,15 @@ pub fn make_nli_bundle(name: &str, labels: &[&str], edit: impl FnOnce(&mut Value
         name: "classifier.weight".into(),
         dtype: "F32",
         shape: vec![num_labels as u64, 32],
-        data: linspace_f32(0.35, -0.25, num_labels * 32),
+        data: match &head {
+            Some((w, _)) => slice_f32(w),
+            None => linspace_f32(0.35, -0.25, num_labels * 32),
+        },
     });
-    let biases: Vec<f32> = (0..num_labels).map(|i| (i as f32 - 1.0) * 0.07).collect();
+    let biases: Vec<f32> = match head {
+        Some((_, b)) => b,
+        None => (0..num_labels).map(|i| (i as f32 - 1.0) * 0.07).collect(),
+    };
     tensors.push(Tensor {
         name: "classifier.bias".into(),
         dtype: "F32",
