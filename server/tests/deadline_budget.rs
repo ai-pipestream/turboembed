@@ -76,3 +76,22 @@ async fn waiting_for_stream_header_expires_with_deadline_status() {
     connection.abort();
     s.stop().await;
 }
+
+#[tokio::test]
+async fn completed_ready_calls_do_not_accumulate_hour_long_timers() {
+    let (s, _) = common::serve().await;
+    let mut client = common::kserve(&s).await;
+    client.server_ready(ServerReadyRequest {}).await.unwrap();
+    tokio::task::yield_now().await;
+    let metrics = tokio::runtime::Handle::current().metrics();
+    let before = metrics.num_alive_tasks();
+    for _ in 0..32 {
+        let mut req = Request::new(ServerReadyRequest {});
+        req.metadata_mut().insert("grpc-timeout", MetadataValue::from_static("1H"));
+        assert!(client.server_ready(req).await.unwrap().into_inner().ready);
+    }
+    tokio::task::yield_now().await;
+    let after = metrics.num_alive_tasks();
+    s.stop().await;
+    assert!(after <= before + 2, "completed calls retained tasks: {before} -> {after}");
+}
