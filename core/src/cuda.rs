@@ -19,7 +19,7 @@ pub fn backend() -> &'static turbo_backend {
 #[cfg(feature = "internals")]
 mod deberta;
 #[cfg(feature = "internals")]
-pub use deberta::{last_attention, tiled_rows, use_general_attention};
+pub use deberta::{last_attention, tiled_rows, tiled_shared_memory, use_general_attention};
 
 #[cfg(feature = "internals")]
 unsafe extern "C" {

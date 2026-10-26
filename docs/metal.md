@@ -174,8 +174,11 @@ frameworks and libc++, which every macOS has.
   to a multiple of 8 by zeros in threadgroup memory and, when its width
   is not a multiple of 4, read from device memory a value at a time. At
   EXACT and MODEL, in a FASTEST layer computed in F32, and past 128 at
-  any precision, such a head runs a narrower kernel, one query at a
-  time, in F32. The run waits for the pass to
+  any precision, such a head runs a narrower kernel in F32: each query's
+  scores one key per lane of a SIMD group, the block's 32 queries shared
+  out over as many SIMD groups as the threadgroup memory holds rows of
+  the longest row's scores (up to 32; one at a time ran long enough at
+  large shapes for macOS to stop the command buffer, #1406). The run waits for the pass to
   complete before it returns, and leaves the vectors in the session's
   `SHARED` buffer, which `turbo_result_buffer` hands out and
   `turbo_result_read` copies from.
@@ -244,6 +247,38 @@ frameworks and libc++, which every macOS has.
   cold or warm. The command buffer and encoder each run submits are
   Metal's own objects, made by Metal for every submission, and are not
   counted.
+
+## DeBERTa-v2
+
+A model of `FAMILY_DEBERTA_V2` (docs/bundle.md; GLiNER's encoder, #883)
+loads and runs at MODEL and EXACT, in F32; FASTEST is refused with
+`TURBO_E_UNSUPPORTED_OPTION` naming field 3, and never runs in F32 in its
+place. The linear layers, the LayerNorms after them and the pooling are
+the BERT encoder's; three kernels differ (kernels.metal, DeBERTa-v2),
+each held to the CPU encoder (core/src/deberta), the reference:
+
+- `deberta_embed`: the word row alone, LayerNormed, or 0 for a masked
+  position; no position or type rows.
+- The relative rows, made once a model by its first session: the
+  relative table LayerNormed (`deberta_layer_norm_rows`), then put
+  through each layer's query and key projections with their biases
+  (`deberta_relative`, a thread an output, the sum in the CPU's order),
+  `[2 * position_buckets, 2 * hidden]` a layer. A session holds the
+  bucket of every distance its rows can span (HF's log buckets, in F32
+  logarithms, as the CPU takes them).
+- `deberta_attention`: a threadgroup per block of 32 queries of a row and
+  head, as many SIMD groups as the threadgroup memory holds rows of the
+  longest row's scores, each taking every groups-th query, a key a lane.
+  A live query's score of a live key is (q . k + q . pos_key[b] +
+  k . pos_query[b]) / sqrt(3 head_dim), b the bucket of i - j, over live
+  keys; a masked query attends evenly to every position of its row.
+
+`core/tests/metal_deberta.rs` holds the device to the CPU at MODEL on the
+shapes of `core/tests/common/deberta.rs` (the tiny model, one at
+GLiNER-small's size, heads of 32 and 128, and steep buckets), at seven
+row patterns and token ranges: on the M2 every value is within 8.3e-6 of
+the CPU's, against a bound of 1e-4. Dropping the content-to-position term
+fails it (3.3e-4 on the tiny model).
 
 ## Kernel choices
 
@@ -477,6 +512,42 @@ weights staged from a `[k, n]` layout so both fragments load as pairs,
 the rounds' spread. A tile with no bounds checks could not be read: the
 GPU went to 98% from other apps and the spread between runs grew larger
 than the effect.
+### MLX as a recorded reference
+
+`turbo-bench record` on metal runs MLX beside TEI (docs/benchmarks.md,
+Reference programs), so a record holds the MLX comparison. The two dense
+records in `benchmarks/records/` (`m2.metal.embed.*-dense.*.3484a9d48f34`)
+were made from a release build of that commit:
+
+```
+cargo build --release -p turbo-bench --features metal
+target/release/turbo-bench record --bundle <all-minilm-l6-v2> --device metal \
+    --precision <fastest|model> --rows dense --batch 32 --seq 256 --warmup 5 --iterations 50 \
+    --tei-bin <text-embeddings-router> --tei-model <upstream model> --mlx-model <upstream model>
+```
+
+The M2 is a desktop and was in use. Each record started once the
+5-minute load average was under 3.5 and the GPU's utilization had read
+under 35% six times over 30 s (16 to 19% just before), with the
+desktop's apps running; MLX's `procedure` gives the load averages just
+before it ran (2.95 3.35 4.87 and 2.20 3.02 4.60). The library, TEI and
+MLX run one after another within each record, about a minute apart, so
+the load can differ between them. min / mean / p50 / p99 in ms; MLX's
+min and mean are in its `procedure`, and its time is host wall time
+over the encoder and pooling, with the rows already on the device and
+the vectors not read back, where the library's includes writing the
+rows and reading the vectors:
+
+| Precision | turbo | MLX (wall time) | TEI end to end p50 / p99 | MLX's lowest cosine |
+|---|---|---|---|---|
+| FASTEST (F16; MLX float16) | 97.59 / 98.96 / 98.74 / 101.57 | 102.95 / 104.90 / 104.84 / 107.65 | 1109.9 / 1202.7 | 0.9999991 |
+| MODEL (F32; MLX float32) | 142.29 / 145.51 / 145.27 / 149.38 | 150.22 / 152.90 / 152.27 / 159.40 | 1151.0 / 1233.8 | 1 - 2.7e-13 |
+
+Each record's `speed_ratio`, against MLX, its fastest reference, is
+0.94 at FASTEST and 0.95 at MODEL. MLX is pinned by the SHA-256 of
+`mlx/lib/libmlx.dylib` (`mlx@sha256:2ea12324...`), with `mlx.metallib`'s
+and `mlx.core`'s in its `procedure`, and the runner refuses an MLX other
+than 0.29.3.
 
 ### Wide heads and weights past F16's range
 
