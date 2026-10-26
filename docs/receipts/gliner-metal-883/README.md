@@ -13,8 +13,11 @@ and Level Zero receipts used (`gliner.json` SHA-256 `fe0d948c...`, encoder `mani
   the marker and first-subword rows within 3.4e-5 (lowest cosine 1.000000000), every logit
   within 6.1e-5, the packed ids and decoded entities the CPU's.
 - `metal_deberta.log`: `TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal
-  --test metal_deberta -- --nocapture`, twenty consecutive runs, each line naming the commit,
-  the time and the load. Twenty of twenty passed, 8 tests each, with the same figures every run.
+  --test metal_deberta -- --nocapture`, twenty consecutive runs at `9a4a1c0bc`, the merge of main
+  (with #1406's narrow attention) into this branch, each line naming the commit, the time and the
+  load. Twenty of twenty passed, 8 tests each, with the same figures every run.
+- `full-suite.log`: one release run of `TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo
+  --features metal --no-fail-fast` at that merge: 478 passed, 0 failed, 22 ignored.
 - `timing.log`: its first line names the commit and the command; `real_checkpoint_timing`, `GLINER_REPS=50`, at MODEL, with the load and GPU
   utilization before and the load after. docs/gliner.md gives its table.
 
