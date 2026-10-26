@@ -121,26 +121,45 @@ pub fn procedure(requests: u32) -> String {
         "then, with Nsight Systems tracing CUDA in the container (nsys launch --trace=cuda, collected only around \
          these), {requests} more /embed requests of the same rows one at a time, the GPU left idle {} ms after \
          each, each request's kernel time the summed durations of the trace's kernels between idle gaps of at least \
-         {} ms",
+         {} ms; a collection whose trace the host's tools refuse is taken again, up to {ATTEMPTS} in all, as the \
+         commands show",
         IDLE.as_millis(),
         SPLIT_NS / 1_000_000
     )
 }
 
+/// Collections tried before the tool gives up: the importer of Nsight
+/// Systems 2023.4 refuses some traces of TEI as events out of order, at
+/// random, and a new collection of the same requests imports.
+pub const ATTEMPTS: u32 = 3;
+
 /// Collect around `requests` calls of `send`, each followed by IDLE, and
-/// read their kernel time.
+/// read their kernel time; a trace the host's tools cannot read is
+/// collected again, up to ATTEMPTS times in all.
 pub fn measure(log: &mut Log, p: &Profile, requests: u32, mut send: impl FnMut() -> Result<()>) -> Result<KernelTime> {
     let profiler = log.run(&exec(&p.container, &["--version"]))?;
-    log.run(&start(&p.container))?;
-    let sent = (0..requests).try_for_each(|_| {
-        send()?;
-        std::thread::sleep(IDLE);
-        Ok::<(), String>(())
-    });
-    log.run(&stop(&p.container))?;
-    sent?;
-    let csv = read_trace(log, p.nsys, &p.out)?;
-    kernel_time(&profiler, parse_trace(&csv)?, requests as u64).map_err(|why| format!("TEI's kernel time: {why}"))
+    let mut failed = Vec::new();
+    for _ in 0..ATTEMPTS {
+        for f in ["tei.qdstrm", "tei.nsys-rep", "tei.sqlite", "tei_cuda_gpu_trace.csv"] {
+            let _ = std::fs::remove_file(p.out.join(f));
+        }
+        log.run(&start(&p.container))?;
+        let sent = (0..requests).try_for_each(|_| {
+            send()?;
+            std::thread::sleep(IDLE);
+            Ok::<(), String>(())
+        });
+        log.run(&stop(&p.container))?;
+        sent?;
+        match read_trace(log, p.nsys, &p.out) {
+            Ok(csv) => {
+                let k = kernel_time(&profiler, parse_trace(&csv)?, requests as u64);
+                return k.map_err(|why| format!("TEI's kernel time: {why}"));
+            }
+            Err(e) => failed.push(e.lines().find(|l| l.contains("failed")).unwrap_or(&e).to_owned()),
+        }
+    }
+    Err(format!("TEI's trace could not be read in {ATTEMPTS} collections: {}", failed.join("; ")))
 }
 
 /// One traced GPU activity: its start and duration in ns, and whether it
