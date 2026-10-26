@@ -24,9 +24,14 @@ queue. The test then saw `zeCommandListHostSynchronize failed with 0x70000001`.
 No page fault or other error is in the log.
 
 All nine fell inside the four days snap-store ran: `snap-store-stop.log`
-shows its scope ending at 18:32:21 local (22:32:21 UTC), after 3 d 23 h. At
-22:25 UTC the drm fdinfo counters showed it keeping the render engine 61% busy.
-Render and compute share the card's execution units.
+shows its scope ending at 18:32:21 local (22:32:21 UTC), after 3 d 23 h. The
+one load sample taken while it ran, about 22:25:50 UTC, had it at 61% of the
+render engine (`card-load-before.log`, copied from the terminal). Render and
+compute share the card's execution units.
+
+So the resets coincided with that client; it is the likely cause, not a
+reproduced one. No load was recorded at the reset times (05:13 to 05:16 and
+10:13 to 10:22 local), and no run was made with it up as a control.
 
 ## The runs
 
@@ -34,13 +39,13 @@ Render and compute share the card's execution units.
 | --- | --- | --- | ---: | ---: |
 | `main-400.log` | main `29214c70` | 22:32:42 | 400 | 0 |
 | `main-500.log` | the same | 22:36:00 | 500 | 0 |
-| `head-500.log` | this branch | 22:38:13 | 500 | 0 |
+| `head-500.log` | this branch's Rust sources at 1d1e242f, built before that commit | 22:38:13 | 500 | 0 |
 
-Each run takes about 0.25 s. At about 1 failure in 81, 1,400 clean runs would
+Each log starts with its source and exact command. Each run takes about 0.25 s. At about 1 failure in 81, 1,400 clean runs would
 happen by chance with probability below 0.01%. After the runs, the kernel log
 had no engine reset or queue reset since 22:32 UTC.
 
-`card-load.log` samples, every 10 s, the busy share of each engine by client
+`card-load.log` samples, every 10 s from 22:32:42 UTC (after snap-store stopped), the busy share of each engine by client
 from drm fdinfo, and the number of active CI jobs (`workers=`). CI runners on
 the machine were not paused: three to five jobs were active throughout, CPU
 tests at the time sampled. One other client used the compute engine (2.4%, a

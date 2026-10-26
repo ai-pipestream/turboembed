@@ -1,3 +1,8 @@
+# levelzero_loads stress run, 22:38:13 UTC on 2026-10-26, Machine B (Arc Pro B70).
+# Source: this branch's Rust sources as committed in 1d1e242f (the error message and its test), built from the working tree before that commit existed; later commits changed only comments, docs and these logs.
+# Built: cargo test --release --locked -p turbo --features levelzero --test levelzero_loads --no-run
+# Each run, from core/: TURBO_TEST_REQUIRE_LEVELZERO=1 <that test binary> --test-threads=1
+# A run is ok when it exits 0 and prints 'test result: ok. 1 passed'.
 run 1 ok .239264180s
 run 2 ok .228099296s
 run 3 ok .246298994s

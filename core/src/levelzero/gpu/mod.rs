@@ -59,9 +59,10 @@ pub(crate) fn ze(what: &str, rc: ze::Status) -> Res<()> {
 
 /// What a lost device means (#1433). On the Arc Pro B70 under xe, each one
 /// seen was the kernel resetting a compute queue whose job had not finished
-/// within its job timeout, while another client kept the render engine
-/// busy: render and compute share the card's execution units. The context
-/// is unusable afterwards; a new one works.
+/// within its job timeout. They coincided with another client's render
+/// work on the card, which shares the execution units; that is the likely
+/// cause, not reproduced. The context is unusable afterwards; a new one
+/// works.
 fn device_lost(what: &str) -> String {
     format!(
         "levelzero: {what} failed with 0x70000001 (device lost): the driver reset this context's queue, \

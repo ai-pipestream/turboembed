@@ -482,8 +482,11 @@ then `Engine reset: engine_class=ccs`. The context cannot be used after
 that; release it and make a new one.
 
 On that machine all nine such resets on 2026-10-26, six of them in
-`levelzero_loads`, came while a desktop client (snap-store) kept the render
-engine about 60% busy for four days; render and compute share the card's
-execution units. With it gone, 1,400 runs of the loads at once passed
-(`docs/receipts/levelzero-1433/`). Check the kernel log and the other
-clients on the card before reading a lost device as a defect here.
+`levelzero_loads`, fell within the four days a desktop client (snap-store)
+was running; one sample, minutes before it stopped, had it at 61% of the
+render engine, and render and compute share the card's execution units.
+After it stopped, 1,400 runs of the loads at once passed
+(`docs/receipts/levelzero-1433/`). That client is the likely cause, not a
+reproduced one: no load was recorded at the reset times and no run was made
+with it up. Check the kernel log and the other clients on the card before
+reading a lost device as a defect here.

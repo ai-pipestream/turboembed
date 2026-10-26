@@ -1,3 +1,8 @@
+# levelzero_loads stress run, 22:32:42 UTC on 2026-10-26, Machine B (Arc Pro B70).
+# Source: main 29214c70a (this branch's base), built before the change.
+# Built: cargo test --release --locked -p turbo --features levelzero --test levelzero_loads --no-run
+# Each run, from core/: TURBO_TEST_REQUIRE_LEVELZERO=1 <that test binary> --test-threads=1
+# A run is ok when it exits 0 and prints 'test result: ok. 1 passed'.
 run 1 ok .234284409s
 run 2 ok .243598278s
 run 3 ok .213013085s
