@@ -117,72 +117,85 @@ fn worst(a: &[Vec<f32>], b: &[Vec<f32>]) -> f32 {
 /// Each case of `s`'s bundle on the device and the CPU at MODEL, every
 /// value within BOUND, on the attention kernel the session picks (the
 /// tiled one for head widths 32, 64 and 128) and on the general one
-/// forced; the largest difference of each case printed.
+/// forced; the largest difference of each case printed. Sessions of 512
+/// tokens and of 500, not a multiple of a key block, whose last tile and
+/// block reach the table's +-span clamp; masked queries at 70, 150 and
+/// 200 sit in groups past the first at widths 32, 64 and 128. A masked
+/// query's own state reaches no output (a range or a pool reads live
+/// tokens only), so that case holds the live queries of its group, which
+/// a slip on its path would spoil.
 fn matches_the_cpu(test: &str, name: &str, s: &Shape) {
     let _t = turn();
     let Some(_) = device(test) else { return };
     let f = fixture(name, s);
     let (g, c) = (on_gpu(&f), f.load().unwrap());
-    let desc = session_desc(8, 512, TURBO_PRECISION_MODEL);
-    let cs = Session::create(c.m, Some(&desc)).unwrap();
-    let hd = (s.hidden / s.heads) as u32;
-    let rows_reached = turbo::levelzero::tiled_rows(s.buckets as u32, s.max_relative_positions as u32, 512, hd);
-    let tiled = rows_reached.is_some_and(|(reach, room)| reach <= room);
-    let picked = match rows_reached {
-        Some((reach, room)) if reach <= room => format!("tiled, {reach} of {room} rows"),
-        Some((reach, room)) => format!("general, the tiled kernel reaching {reach} rows of {room}"),
-        None => "general, no tiled kernel at its width".into(),
-    };
-    println!("{test}: picked: {picked}");
-    for (kernel, general) in [("picked", false), ("general", true)] {
-        turbo::levelzero::use_general_attention(general);
-        let gs = Session::create(g.m, Some(&desc));
-        turbo::levelzero::use_general_attention(false);
-        let gs = gs.unwrap();
-        assert_eq!(gs.info().compute_dtype, TURBO_DTYPE_F32);
-        let want = if tiled && !general { "tiled" } else { "general" };
-        assert_eq!(turbo::levelzero::last_attention(), Some(want), "{kernel}: the kernel the session picked");
-        let mixed = rows(&[17, 5, 40, 9, 1], &[3], &[(2, 11), (0, 3)]);
-        let cases: [(&str, Tokens, turbo_embed_options); 7] = [
-            ("mixed lengths, padded, mean and L2", rows(&[17, 5, 40, 9, 1], &[], &[]), embed_options()),
-            ("left padding and masked holes, mean and L2", rows(&[17, 5, 40, 9, 1], &[3], &[(2, 11), (0, 3)]), {
-                options(TURBO_POOLING_MEAN, TURBO_NORMALIZE_L2)
-            }),
-            ("left padding and masked holes, CLS", mixed, options(TURBO_POOLING_CLS, TURBO_NORMALIZE_NONE)),
-            ("one token, CLS and L2", rows(&[1], &[], &[]), options(TURBO_POOLING_CLS, TURBO_NORMALIZE_L2)),
-            ("a row of 512 tokens", rows(&[512, 3], &[], &[]), embed_options()),
-            ("a row of 129 tokens", rows(&[129, 7], &[], &[]), embed_options()),
-            ("the last token", rows(&[33, 2, 12], &[], &[(0, 31)]), {
-                options(TURBO_POOLING_LAST, TURBO_NORMALIZE_NONE)
-            }),
-        ];
-        for (what, t, o) in &cases {
-            gs.write_tokens(&t.batch(), Some(o)).unwrap();
+    for seq in [512usize, 500] {
+        let desc = session_desc(8, seq as u32, TURBO_PRECISION_MODEL);
+        let cs = Session::create(c.m, Some(&desc)).unwrap();
+        let hd = (s.hidden / s.heads) as u32;
+        let rows_reached =
+            turbo::levelzero::tiled_rows(s.buckets as u32, s.max_relative_positions as u32, seq as u32, hd);
+        let tiled = rows_reached.is_some_and(|(reach, room)| reach <= room);
+        let picked = match rows_reached {
+            Some((reach, room)) if reach <= room => format!("tiled, {reach} of {room} rows"),
+            Some((reach, room)) => format!("general, the tiled kernel reaching {reach} rows of {room}"),
+            None => "general, no tiled kernel at its width".into(),
+        };
+        println!("{test}: {seq} tokens: picked: {picked}");
+        for (kernel, general) in [("picked", false), ("general", true)] {
+            turbo::levelzero::use_general_attention(general);
+            let gs = Session::create(g.m, Some(&desc));
+            turbo::levelzero::use_general_attention(false);
+            let gs = gs.unwrap();
+            assert_eq!(gs.info().compute_dtype, TURBO_DTYPE_F32);
+            let want = if tiled && !general { "tiled" } else { "general" };
+            assert_eq!(turbo::levelzero::last_attention(), Some(want), "{kernel}: the kernel the session picked");
+            let mixed = rows(&[17, 5, 40, 9, 1], &[3], &[(2, 11), (0, 3)]);
+            let cases: [(&str, Tokens, turbo_embed_options); 9] = [
+                ("mixed lengths, padded, mean and L2", rows(&[17, 5, 40, 9, 1], &[], &[]), embed_options()),
+                ("left padding and masked holes, mean and L2", rows(&[17, 5, 40, 9, 1], &[3], &[(2, 11), (0, 3)]), {
+                    options(TURBO_POOLING_MEAN, TURBO_NORMALIZE_L2)
+                }),
+                ("left padding and masked holes, CLS", mixed, options(TURBO_POOLING_CLS, TURBO_NORMALIZE_NONE)),
+                ("one token, CLS and L2", rows(&[1], &[], &[]), options(TURBO_POOLING_CLS, TURBO_NORMALIZE_L2)),
+                ("a row of max_seq tokens", rows(&[seq, 3], &[], &[]), embed_options()),
+                ("a row of max_seq - 1 tokens", rows(&[seq - 1, 2], &[], &[]), embed_options()),
+                ("masked queries past the first group", rows(&[300, 9], &[], &[(0, 70), (0, 150), (0, 200)]), {
+                    options(TURBO_POOLING_MEAN, TURBO_NORMALIZE_NONE)
+                }),
+                ("a row of 129 tokens", rows(&[129, 7], &[], &[]), embed_options()),
+                ("the last token", rows(&[33, 2, 12], &[], &[(0, 31)]), {
+                    options(TURBO_POOLING_LAST, TURBO_NORMALIZE_NONE)
+                }),
+            ];
+            for (what, t, o) in &cases {
+                gs.write_tokens(&t.batch(), Some(o)).unwrap();
+                let got = gs.run().unwrap().rows();
+                cs.write_tokens(&t.batch(), Some(o)).unwrap();
+                let want = cs.run().unwrap().rows();
+                let d = worst(&got, &want);
+                println!("{test}: {seq} tokens: {kernel}: {what}: largest difference {d:e}");
+                assert!(d < BOUND, "{seq} tokens: {kernel}: {what}: {d:e}");
+            }
+            // Token ranges: whole rows, pieces, a masked hole inside one, and
+            // the end of the 512-token row, pooled by the mean.
+            let t = rows(&[40, 12, seq], &[], &[(0, 20)]);
+            let ranges = [
+                range(0, 0, 40),
+                range(0, 1, 21),
+                range(1, 3, 9),
+                range(1, 11, 12),
+                range(2, 100, seq as u32),
+                range(2, seq as u32 - 12, seq as u32),
+            ];
+            let o = options(0, TURBO_NORMALIZE_L2);
+            gs.write_ranges(&t.batch(), &ranges, Some(&o)).unwrap();
             let got = gs.run().unwrap().rows();
-            cs.write_tokens(&t.batch(), Some(o)).unwrap();
-            let want = cs.run().unwrap().rows();
-            let d = worst(&got, &want);
-            println!("{test}: {kernel}: {what}: largest difference {d:e}");
-            assert!(d < BOUND, "{kernel}: {what}: {d:e}");
+            cs.write_ranges(&t.batch(), &ranges, Some(&o)).unwrap();
+            let d = worst(&got, &cs.run().unwrap().rows());
+            println!("{test}: {seq} tokens: {kernel}: token ranges: largest difference {d:e}");
+            assert!(d < BOUND, "{seq} tokens: {kernel}: token ranges: {d:e}");
         }
-        // Token ranges: whole rows, pieces, a masked hole inside one, and
-        // the end of the 512-token row, pooled by the mean.
-        let t = rows(&[40, 12, 512], &[], &[(0, 20)]);
-        let ranges = [
-            range(0, 0, 40),
-            range(0, 1, 21),
-            range(1, 3, 9),
-            range(1, 11, 12),
-            range(2, 100, 512),
-            range(2, 500, 512),
-        ];
-        let o = options(0, TURBO_NORMALIZE_L2);
-        gs.write_ranges(&t.batch(), &ranges, Some(&o)).unwrap();
-        let got = gs.run().unwrap().rows();
-        cs.write_ranges(&t.batch(), &ranges, Some(&o)).unwrap();
-        let d = worst(&got, &cs.run().unwrap().rows());
-        println!("{test}: {kernel}: token ranges: largest difference {d:e}");
-        assert!(d < BOUND, "{kernel}: token ranges: {d:e}");
     }
 }
 
@@ -234,6 +247,19 @@ fn the_tiled_kernel_s_rows_are_bounded_per_shape() {
     assert_eq!(rows(&HEADS_32), Some((56, 159)));
     assert_eq!(rows(&HEADS_128), Some((47, 47)));
     assert_eq!(rows(&TINY), None, "no tiled kernel at width 4");
+}
+
+/// tiled_rows at the review's shapes, no device needed: 256 buckets over
+/// 300 at width 64 reach two rows past the 95 held, so take the general
+/// kernel; 256 over 512 fit at every tiled width; 256 over 200 reach 148.
+#[test]
+fn tiled_rows_at_the_review_s_shapes() {
+    assert_eq!(turbo::levelzero::tiled_rows(256, 300, 512, 64), Some((97, 95)));
+    for hd in [32, 64, 128] {
+        let (reach, room) = turbo::levelzero::tiled_rows(256, 512, 512, hd).unwrap();
+        assert!(reach <= room, "width {hd}: {reach} rows of {room}");
+    }
+    assert_eq!(turbo::levelzero::tiled_rows(256, 200, 512, 64), Some((148, 95)));
 }
 
 /// A session whose geometry the tiled kernel cannot hold takes the general
