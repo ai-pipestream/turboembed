@@ -175,8 +175,11 @@ impl GlirelRelations {
         {
             return Err(bad("an entity outside the words or a pair outside the entities"));
         }
-        let reps = self.heads.entities(&pass.lstm, entities);
-        Ok(self.heads.logits(&reps, pairs, &pass.types))
+        let mut scratch = crate::Scratch::default();
+        let (mut reps, mut logits) = (Vec::new(), Vec::new());
+        self.heads.entities_into(&pass.lstm, entities, &mut scratch, &mut reps);
+        self.heads.logits_into(&reps, pairs, &pass.types, &mut scratch, &mut logits);
+        Ok(logits)
     }
 
     /// Relations as the reference predicts them: every ordered pair of
@@ -254,13 +257,15 @@ pub fn run(encoder: &Encoder, heads: &Heads, prompt: Prompt) -> Result<Pass, Rel
         .flat_map(|r| r.iter().copied())
         .collect();
     let (n, m, h) = (prompt.words.len(), prompt.labels.len(), heads.width);
-    let projected = heads.project(&rows, n + 2 * m);
-    let lstm = heads.lstm(&projected[..n * h], n);
+    let mut scratch = crate::Scratch::default();
+    let (mut projected, mut lstm, mut types) = (Vec::new(), Vec::new(), Vec::new());
+    heads.project_into(&rows, n + 2 * m, &mut projected);
+    heads.lstm_into(&projected[..n * h], n, &mut scratch, &mut lstm);
     let means: Vec<f32> = projected[n * h..]
         .chunks_exact(2 * h)
         .flat_map(|pair| pair[..h].iter().zip(&pair[h..]).map(|(a, b)| (a + b) / 2.0))
         .collect();
-    let types = heads.types(&means, m);
+    heads.types_into(&means, m, &mut scratch, &mut types);
     Ok(Pass { prompt, lstm, types })
 }
 

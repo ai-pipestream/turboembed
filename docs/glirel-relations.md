@@ -113,3 +113,19 @@ timed with hooks around the module.
 |---|---|---|---|
 | end to end | 624.5 to 628.7 ms | 106.5 to 106.9 ms | 0.17x |
 | of which the reference's encoder | 607.6 to 611.7 ms | | |
+
+## Reusing head buffers
+
+`heads::Heads` keeps its projections packed with `turbo::cpu::Matrix`.
+Callers retaining head intermediates can keep a `turbo_relation::Scratch`
+and output vectors, then use `project_into`, `lstm_into`, `entities_into`,
+`types_into` and `logits_into`. These methods resize existing storage and
+reuse its capacity. Scratch belongs to the caller, so concurrent requests
+use separate scratch while sharing immutable heads. The allocating methods
+remain available for callers that want an owned result immediately.
+
+The ordinary relation pass reuses scratch across its head stages. The
+`reused_head_buffers` test checks warmed LSTM, entity and pair-logit calls
+with changing row counts, including empty inputs. This is an allocation
+check on the stored reduced reference fixture, not a throughput claim for
+a released checkpoint or an allocation-free encoder request.

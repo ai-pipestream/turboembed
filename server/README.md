@@ -17,6 +17,8 @@ the dictionary and corpus vocabulary store.
   documents to a downstream sink, and serving one.
 - [docs/grpc-catalog.md](../docs/grpc-catalog.md): the model catalog,
   licence acceptances and verified installs from the zoo.
+- [docs/grpc-training.md](../docs/grpc-training.md): static models
+  distilled from a served encoder, sealed, and served at once.
 
 ```
 cargo run --release -p turbo-kserve -- \

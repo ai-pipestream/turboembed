@@ -24,8 +24,8 @@ use crate::proto::vocabulary::turbo_vocabulary_service_server::TurboVocabularySe
 use crate::proto::vocabulary::*;
 use crate::status::to_status;
 use learn::{Learner, Options};
-pub(crate) use store::Store;
-use store::{Dictionary, Stored};
+use store::Dictionary;
+pub(crate) use store::{Store, Stored};
 
 /// The largest dictionary upload: 256 MiB.
 pub const MAX_DICTIONARY_UPLOAD_BYTES: u64 = 256 << 20;

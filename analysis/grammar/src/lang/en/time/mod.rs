@@ -162,6 +162,10 @@ impl Grammar for EnglishTimes {
         }
     }
 
+    fn time_zone_context(&self, dim: Dim) -> bool {
+        dim == LRANGE
+    }
+
     fn keep(&self, output: Output, node: &Node, ctx: &Ctx<'_>) -> bool {
         output == Output::Time && keep(self.rules(), node, ctx)
     }

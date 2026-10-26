@@ -1,0 +1,10 @@
+# The context of server/Dockerfile is the repository root; it needs the
+# workspace's crates, the headers and benchmarks/records (embedded by
+# core/build.rs), and none of the test data, the history or a build.
+.git
+.github
+**/target
+target
+testdata
+analysis/goldens/data
+ai-slop-generated-shit
