@@ -330,6 +330,11 @@ in the key; never a mutable `latest`).
 
 Two knobs in `turbo_zoo` cover the cases plain HTTPS does not:
 
+- A mirror served with a publicly trusted certificate (a wildcard
+  certificate for the organization's domain, for example) needs no zoo
+  knob at all: the default transport's public roots already trust it.
+  Certificates and private keys live on the host only and are never
+  committed; the tree test refuses a committed private key block.
 - `Http::with_root_ca_bundle_pem` builds an HTTPS transport trusting
   only the PEM-encoded CA bundle it is given, for a mirror served with a
   private CA. Every `-----BEGIN CERTIFICATE-----` block in the bundle
