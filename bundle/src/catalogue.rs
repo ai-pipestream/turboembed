@@ -35,6 +35,10 @@ pub const BY_PATH: &[(&str, &str)] = &[
     ("sat-1l-sm.json", "trained on UD treebanks of several licences, some share-alike"),
     ("sat-3l.json", "a sentence segmenter, not an embedding; the zoo fetches it as segment-any-text-sat-3l"),
     ("nli-minilm2-l6-h768.json", "trained on SNLI and MultiNLI (CC BY-SA); the zoo fetches it after acceptance"),
+    (
+        "gliner-small-v2.1-encoder.json",
+        "GLiNER's encoder, whose upstream directory reference/gliner_encoder.py writes from the zoo's files",
+    ),
 ];
 
 /// The recipe of the model `id`, if the catalogue has it.
