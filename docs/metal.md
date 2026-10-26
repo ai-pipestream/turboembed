@@ -426,6 +426,26 @@ tokens up the kernels are the same as before, so those rows differ by
 noise alone, and MLX's larger products still run at about 3 TFLOPS
 against our 2.5.
 
+### MLX as a recorded reference
+
+`turbo-bench record` on metal runs MLX beside TEI (docs/benchmarks.md,
+Reference programs), so a record holds the MLX comparison. The two dense
+records in `benchmarks/records/` (`m2.metal.embed.*-dense.*.fbf3ff781423`)
+were made on an M2 that was in use: before they started, the 5-minute
+load average was under 3.5 and the GPU's own utilization 23 to 35% from
+the desktop's apps, and it reached 94 to 99% while they ran, so every
+figure is slower than on an idle M2 (FASTEST measured about 100 ms
+there). all-minilm-l6-v2, 32 x 256 dense rows, 5 untimed then 50 timed
+runs, p50 / p99 in ms:
+
+| Precision | turbo | MLX | TEI (end to end) | MLX's lowest cosine |
+|---|---|---|---|---|
+| FASTEST (F16; MLX float16) | 154.6 / 161.6 | 138.1 / 154.5 | 1517.5 / 1926.0 | 0.9999991 |
+| MODEL (F32; MLX float32) | 233.6 / 243.3 | 221.4 / 231.5 | 1661.0 / 1870.0 | 1 - 2.7e-13 |
+
+Under that load MLX was 1.12x faster at FASTEST and 1.05x at MODEL,
+each record's `speed_ratio` against it.
+
 ### Wide heads and weights past F16's range
 
 Six-layer BERTs written by the tests' `bert_weights` (weights scaled by
