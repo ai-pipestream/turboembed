@@ -156,6 +156,7 @@ pub fn record(run: &ReceiptRun<'_>, sets: Vec<Value>) -> Value {
                 "query_marker": "[unused0]",
                 "doc_marker": "[unused1]",
                 "mask_augmentation": true,
+                "attend_to_mask_tokens": false,
                 "doc_punctuation_filtered": true,
             },
         },

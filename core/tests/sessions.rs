@@ -733,15 +733,19 @@ fn write_ranges_refuses_what_it_cannot_take() {
         (range(0, 1, 1), "ranges[1]: start 1 is not under end 1"),
         (range(0, 2, 1), "ranges[1]: start 2 is not under end 1"),
         (range(0, 2, 4), "ranges[1]: end 4 is over seq 3"),
-        (range(1, 2, 3), "ranges[1]: columns 2 to 3 of row 1 hold no token whose mask is 1"),
     ] {
         let e = fails(&[range(0, 0, 3), r], None);
         assert!(e.is(INVALID_ARGUMENT, what), "{what}: {e:?}");
     }
+    // A range holding no live token pools its mask-0 columns' own
+    // states on this cpu BERT session (turbo.h): the write is taken.
+    s.write_ranges(&t.batch(), &[range(1, 2, 3)], None).unwrap();
 }
 
-/// A range's live tokens are read through the row stride: a gap column of
-/// the row before, with mask 1, does not count for the next row.
+/// A range's mask is read through the row stride: row 1's column 0 is
+/// mask 0 through the stride (the gap columns of the row before, with
+/// mask 1, are not its), so its range pools that column's own state
+/// and differs from the range over the live columns beside it.
 #[test]
 fn a_ranges_mask_is_read_through_the_row_stride() {
     let l = tiny();
@@ -751,8 +755,11 @@ fn a_ranges_mask_is_read_through_the_row_stride() {
     t.ids = vec![101, 7592, 102, 0, 0, 0, 101, 102, 0, 0];
     t.mask = vec![1, 1, 1, 1, 1, 0, 1, 1, 0, 0];
     s.write_ranges(&t.batch(), &[range(1, 1, 3)], None).unwrap();
-    let e = s.write_ranges(&t.batch(), &[range(1, 0, 1)], None).err().unwrap();
-    assert!(e.is(INVALID_ARGUMENT, "ranges[0]: columns 0 to 1 of row 1 hold no token whose mask is 1"), "{e:?}");
+    let live = s.run().unwrap().rows();
+    s.write_ranges(&t.batch(), &[range(1, 0, 1)], None).unwrap();
+    let masked = s.run().unwrap().rows();
+    assert!(masked[0].iter().all(|v| v.is_finite()), "{masked:?}");
+    assert_ne!(masked, live, "the mask-0 column pools its own state, not a live neighbour's");
 }
 
 #[test]

@@ -63,6 +63,28 @@ impl Rows {
         self.batch - 1
     }
 
+    /// Adds a row of `ids` whose first `live` columns carry mask 1 and
+    /// the rest mask 0, and returns its index. The batch's seq covers
+    /// every id given, so ranges may pool the mask-0 columns' own
+    /// states (ColBERT's query augmentation). Panics when `live` or
+    /// `ids.len()` exceeds `stride`, or when `live` exceeds `ids.len()`.
+    pub fn push_masked(&mut self, ids: &[i32], live: usize) -> u32 {
+        let stride = self.stride as usize;
+        assert!(ids.len() <= stride, "a row of {} tokens is over the stride {stride}", ids.len());
+        assert!(live <= ids.len(), "{live} live columns over {} ids", ids.len());
+        let at = self.ids.len();
+        self.ids.resize(at + stride, self.fill);
+        self.mask.resize(at + stride, 0);
+        if !self.types.is_empty() {
+            self.types.resize(at + stride, 0);
+        }
+        self.ids[at..at + ids.len()].copy_from_slice(ids);
+        self.mask[at..at + live].fill(1);
+        self.seq = self.seq.max(ids.len() as u32);
+        self.batch = self.batch.checked_add(1).expect("row count overflow");
+        self.batch - 1
+    }
+
     /// Adds a pre-encoded row of `ids` and matching segment `types`, and
     /// returns its index. Panics when `ids.len() != types.len()` or when
     /// `ids.len()` exceeds `stride`.

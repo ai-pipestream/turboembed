@@ -1,8 +1,11 @@
 //! The upstream ColBERT token protocol for the trained study (#913).
 //!
 //! Upstream ColBERT does not encode bare text. A query is
-//! `[CLS] [Q] pieces [SEP]` padded with live `[MASK]` tokens to
-//! `QUERY_MAXLEN` rows; a document is `[CLS] [D] pieces [SEP]`
+//! `[CLS] [Q] pieces [SEP]` padded with `[MASK]` tokens to
+//! `QUERY_MAXLEN` rows; the checkpoint's `attend_to_mask_tokens` is
+//! false, so the `[MASK]` rows sit under attention mask 0 (their
+//! output vectors still enter MaxSim, but no token attends to them).
+//! A document is `[CLS] [D] pieces [SEP]`
 //! truncated to `DOC_MAXLEN` rows, and punctuation piece rows are
 //! dropped from the document's vectors before MaxSim. `[Q]` and
 //! `[D]` are the BERT vocabulary's `[unused0]` (id 1) and
@@ -45,6 +48,13 @@ pub fn query_ids(pieces: &[i32]) -> Vec<i32> {
     ids.push(SEP);
     ids.resize(QUERY_MAXLEN, MASK);
     ids
+}
+
+/// How many of a query sequence's leading columns are live (mask 1):
+/// everything through `[SEP]`. The `[MASK]` tail past it is mask 0,
+/// the checkpoint's `attend_to_mask_tokens: false`.
+pub fn query_live(pieces: &[i32]) -> usize {
+    pieces.len().min(QUERY_MAXLEN - 3) + 3
 }
 
 /// The protocol rows for a document over its piece ids: at most
@@ -110,7 +120,7 @@ impl ColbertProtocol {
             let mut seqs: Vec<Vec<i32>> = Vec::with_capacity(chunk.len());
             for (ids, _) in chunk {
                 let seq = if query { query_ids(ids) } else { doc_ids(ids) };
-                let row = rows.push(&[seq.as_slice()]);
+                let row = if query { rows.push_masked(&seq, query_live(ids)) } else { rows.push(&[seq.as_slice()]) };
                 for pos in 0..seq.len() as u32 {
                     ranges.push(turbo_token_range { row, start: pos, end: pos + 1 });
                 }
@@ -164,6 +174,69 @@ mod tests {
         assert_eq!(ids[31], SEP);
         assert!(!ids.contains(&MASK));
         assert_eq!(query_ids(&[])[..3], [101, 1, 102]);
+    }
+
+    #[test]
+    fn query_rows_mask_the_mask_tail_out_of_attention() {
+        let pieces = [11, 12, 13];
+        let mut rows = Rows::new(QUERY_MAXLEN as u32, 0);
+        let row = rows.push_masked(&query_ids(&pieces), query_live(&pieces));
+        let (ids, mask) = rows.row(row);
+        assert_eq!(&ids[..6], &[101, 1, 11, 12, 13, 102]);
+        assert!(ids[6..].iter().all(|&i| i == MASK), "the tail stays in the sequence for MaxSim");
+        assert_eq!(&mask[..6], &[1; 6], "live through SEP");
+        assert!(mask[6..].iter().all(|&m| m == 0), "attend_to_mask_tokens is false");
+        assert_eq!(rows.seq(), QUERY_MAXLEN as u32, "ranges may pool every column");
+        assert_eq!(query_live(&[]), 3);
+        assert_eq!(query_live(&(0..40).collect::<Vec<i32>>()), QUERY_MAXLEN);
+    }
+
+    /// Checkpoint comparison (env-gated): on the real ColBERT bundle,
+    /// the protocol query's live rows are the rows of the same query
+    /// encoded with no `[MASK]` tail at all, and the tail's own rows
+    /// are unit vectors distinct from each other. That is
+    /// `attend_to_mask_tokens: false` measured, not asserted.
+    #[test]
+    #[ignore = "needs TURBO_SPLATE913_BUNDLES with the colbertv2 bundle"]
+    fn checkpoint_query_rows_do_not_attend_to_the_mask_tail() {
+        let dir =
+            std::path::PathBuf::from(std::env::var("TURBO_SPLATE913_BUNDLES").expect("bundles")).join("colbertv2");
+        let options = EncoderOptions::default();
+        let mut protocol = ColbertProtocol::open(&dir, &options).expect("open bundle");
+        let pieces: Vec<i32> = vec![1996, 2293, 3388]; // arbitrary in-vocab pieces
+        let texts: Vec<String> = pieces.iter().map(|_| "x".to_string()).collect();
+        let encoded = protocol.encode(&[(pieces.clone(), texts)], true).expect("protocol encode");
+        let dim = protocol.dim;
+        let got = &encoded[0].token_vecs;
+        assert_eq!(got.len(), QUERY_MAXLEN * dim);
+
+        let mut encoder = Encoder::open(&dir, &options).expect("open encoder");
+        let live = query_live(&pieces);
+        let seq = &query_ids(&pieces)[..live];
+        let mut rows = Rows::new(QUERY_MAXLEN as u32, 0);
+        let row = rows.push(&[seq]);
+        let ranges: Vec<turbo_token_range> =
+            (0..live as u32).map(|pos| turbo_token_range { row, start: pos, end: pos + 1 }).collect();
+        let mut states = Vec::new();
+        encoder.run_ranges(&rows, &ranges, &mut states).expect("tail-free encode");
+        let bundle = Bundle::open(&dir).expect("bundle");
+        let projection = ProjectionHead::load(&bundle).expect("projection");
+        let want = projection.project(&states, true).expect("project");
+        for pos in 0..live {
+            let drift = got[pos * dim..][..dim]
+                .iter()
+                .zip(&want[pos * dim..][..dim])
+                .map(|(a, b)| (a - b).abs())
+                .fold(0.0f32, f32::max);
+            assert!(drift < 1e-6, "live row {pos} moved by {drift} with the MASK tail present");
+        }
+        for pos in live..QUERY_MAXLEN {
+            let v = &got[pos * dim..][..dim];
+            let norm: f32 = v.iter().map(|x| x * x).sum::<f32>().sqrt();
+            assert!((norm - 1.0).abs() < 1e-5, "MASK row {pos} norm {norm}");
+            assert!(v.iter().all(|x| x.is_finite()), "MASK row {pos} not finite");
+        }
+        assert_ne!(&got[live * dim..][..dim], &got[(live + 1) * dim..][..dim], "MASK rows repeat");
     }
 
     #[test]

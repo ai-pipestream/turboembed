@@ -69,7 +69,14 @@ pub unsafe extern "C" fn turbo_embed_write_ranges(
             }
             let len = array_len::<turbo_token_range>(count as u64, "ranges")?;
             let ranges = std::slice::from_raw_parts(ranges, len);
-            check_ranges(&tb, ranges)?;
+            // turbo.h: only the cpu backend's BERT and RoBERTa encoders
+            // compute mask-0 columns for a range holding no live token.
+            let masked_columns = s.backend.name() == "cpu"
+                && matches!(
+                    s.model.weights.family(),
+                    crate::backend::TURBO_FAMILY_BERT | crate::backend::TURBO_FAMILY_ROBERTA
+                );
+            check_ranges(&tb, ranges, masked_columns, s.backend.name())?;
             // turbo.h: a range is pooled by the mean whatever the bundle says.
             let mut rows = turbo_backend_embed_rows { pooling: TURBO_POOLING_MEAN, ..caller_rows(&o, &tb) };
             if let Some(h) = &s.model.span_head {
@@ -133,11 +140,19 @@ pub(super) fn caller_rows(o: &EmbedOptions, tb: &turbo_token_batch) -> turbo_bac
     r
 }
 
-/// Every range names a row of the batch, a column span within seq that is
-/// not empty, and at least one token of that row whose mask is 1. The
-/// mask is read in place through the row stride; check_tokens has already
-/// checked the batch's shape and that mask is not NULL.
-pub(super) unsafe fn check_ranges(tb: &turbo_token_batch, ranges: &[turbo_token_range]) -> Result<()> {
+/// Every range names a row of the batch and a column span within seq
+/// that is not empty. A range holding no token whose mask is 1 is
+/// pooled over all its columns where `masked_columns` says the backend
+/// computes mask-0 columns, and refused as unsupported naming the
+/// backend where it does not. The mask is read in place through the
+/// row stride; check_tokens has already checked the batch's shape and
+/// that mask is not NULL.
+pub(super) unsafe fn check_ranges(
+    tb: &turbo_token_batch,
+    ranges: &[turbo_token_range],
+    masked_columns: bool,
+    backend: &str,
+) -> Result<()> {
     let stride = if tb.row_stride == 0 { tb.seq } else { tb.row_stride } as usize;
     for (i, g) in ranges.iter().enumerate() {
         let bad = |rule: String| Err(Error::new(INVALID_ARGUMENT, format!("ranges[{i}]: {rule}")));
@@ -152,10 +167,14 @@ pub(super) unsafe fn check_ranges(tb: &turbo_token_batch, ranges: &[turbo_token_
         }
         let at = g.row as usize * stride + g.start as usize;
         let mask = unsafe { std::slice::from_raw_parts(tb.mask.add(at), (g.end - g.start) as usize) };
-        if !mask.contains(&1) {
-            return bad(format!(
-                "columns {} to {} of row {} hold no token whose mask is 1: a range needs a token",
-                g.start, g.end, g.row
+        if !mask.contains(&1) && !masked_columns {
+            return Err(Error::new(
+                UNSUPPORTED_OPTION,
+                format!(
+                    "ranges[{i}]: columns {} to {} of row {} hold no token whose mask is 1, and the {backend} \
+                     backend does not compute mask-0 columns for this family",
+                    g.start, g.end, g.row
+                ),
             ));
         }
     }

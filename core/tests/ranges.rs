@@ -247,9 +247,13 @@ fn a_range_reads_its_row_through_the_row_stride() {
     for (i, (a, b)) in packed.iter().zip(&got).enumerate() {
         assert_eq!(bits(a), bits(b), "range {i}: the gap past seq is not read");
     }
-    // A range that would hold a live token only in the gap is still empty.
-    let e = s.write_ranges(&wide.batch(), &[range(2, l2, t.seq)], None).expect_err("no live token in the row");
-    assert_eq!(e.code, INVALID_ARGUMENT, "{e:?}");
+    // A range holding no live token pools those mask-0 columns through
+    // the stride exactly as packed: the same bits either way.
+    let masked = [range(2, l2, t.seq)];
+    let packed = run_ranges(&s, &t, &masked, &o);
+    let got = run_ranges(&s, &wide, &masked, &o);
+    assert_eq!(bits(&packed[0]), bits(&got[0]), "a mask-0 range reads its row through the stride");
+    assert!(packed[0].iter().all(|v| v.is_finite()));
 }
 
 // ---- Refusals -----------------------------------------------------------------------
@@ -294,12 +298,15 @@ fn a_range_write_refuses_what_it_cannot_take() {
         ("start 2 is not under end 2", range(0, 2, 2)),
         ("start 3 is not under end 2", range(0, 3, 2)),
         ("end past seq", range(0, 0, seq + 1)),
-        ("no live token", range(1, l1, seq)),
     ] {
         let e = refused(&with_third(bad), None);
         assert_eq!(e.code, INVALID_ARGUMENT, "{what}: {e:?}");
         assert!(e.message.contains("ranges[2]"), "{what}: {e:?}");
     }
+    // No live token is not a refusal on cpu BERT: the mask-0 columns
+    // pool their own states (turbo.h).
+    s.write_ranges(&t.batch(), &with_third(range(1, l1, seq)), None).unwrap();
+    assert_eq!(s.run().unwrap().info().batch, 4);
 
     let mut err = new_error();
     s.write_ranges(&t.batch(), &good, None).unwrap();
