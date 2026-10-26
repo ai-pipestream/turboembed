@@ -7,7 +7,7 @@
 
 use std::collections::BTreeSet;
 
-use turbo_zoo::{Component, Format, Index, Kind, Licence, LicenceClass, Policy, verify};
+use turbo_zoo::{Component, Format, Http, Index, Kind, Licence, LicenceClass, Policy, verify};
 
 #[path = "builtin/checkpoints.rs"]
 mod checkpoints;
@@ -331,7 +331,8 @@ fn every_builtin_artifact_fetches_and_verifies() {
     acc.accept(&user, Licence::CcBySa30, 0).unwrap();
     let index = Index::builtin();
     let ids: Vec<String> = index.list().iter().map(|a| a.id.to_string()).collect();
-    let zoo = turbo_zoo::Zoo::new(index, cache.clone(), Policy::default(), &turbo_zoo::Http);
+    let transport = Http::new();
+    let zoo = turbo_zoo::Zoo::new(index, cache.clone(), Policy::default(), &transport);
     for id in &ids {
         let f = zoo.fetch(id, &user, &acc).unwrap();
         assert_eq!(f.files.len(), f.artifact.files.len(), "{id}");

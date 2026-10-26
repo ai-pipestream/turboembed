@@ -416,7 +416,8 @@ pub fn datasets() -> Index {
 /// its licence there first (`turbo-zoo accept CC-BY-SA-4.0 --yes` for the
 /// five in [`TREEBANKS`]); a permissive one needs none.
 pub fn fetch_treebank(treebank: &Treebank, home: &Home, user: &UserId) -> Result<PathBuf> {
-    let zoo = Zoo::new(datasets(), home.artifacts(), Policy::default(), &Http);
+    let transport = Http::new();
+    let zoo = Zoo::new(datasets(), home.artifacts(), Policy::default(), &transport);
     let acceptances = home.acceptances();
     let fetched = zoo.fetch_with(&treebank.dataset_id(), user, || Acceptances::load(&acceptances))?;
     Ok(fetched.single().expect("one file per treebank").to_path_buf())
@@ -431,7 +432,8 @@ pub fn fetch_treebank(treebank: &Treebank, home: &Home, user: &UserId) -> Result
 /// CC-BY-SA-4.0 under `home` (`turbo-zoo accept CC-BY-SA-4.0 --yes`);
 /// only the Catalan AnCora models (CC BY 4.0) are permissive.
 pub fn fetch_published_model(recipe: &Recipe, home: &Home, user: &UserId) -> Result<PathBuf> {
-    let zoo = Zoo::new(Index::builtin(), home.artifacts(), Policy::default(), &Http);
+    let transport = Http::new();
+    let zoo = Zoo::new(Index::builtin(), home.artifacts(), Policy::default(), &transport);
     let acceptances = home.acceptances();
     let fetched = zoo.fetch_with(&recipe.model_id(), user, || Acceptances::load(&acceptances))?;
     Ok(fetched.single().expect("one file per model").to_path_buf())
