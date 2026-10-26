@@ -1986,6 +1986,7 @@ dependencies = [
  "turbo-tokenize",
  "turbo-unicode",
  "turbo-vector-index",
+ "turbo-zoo",
 ]
 
 [[package]]
@@ -2110,6 +2111,7 @@ dependencies = [
  "turbo-sequence",
  "turbo-train",
  "turbo-unicode",
+ "turbo-zoo",
 ]
 
 [[package]]
@@ -2258,6 +2260,7 @@ dependencies = [
  "serde_json",
  "turbo",
  "turbo-analysis",
+ "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-bundle",
  "turbo-zoo",

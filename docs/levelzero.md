@@ -354,6 +354,63 @@ a layer: own <ms> ms, onednn <ms> ms)`.
   time a context runs a bin of tokens (oneDNN for the linear layers,
   above).
 
+### DeBERTa-v2
+
+A `FAMILY_DEBERTA_V2` model (docs/bundle.md) runs in F32 at MODEL and
+EXACT; a session at FASTEST is refused (`TURBO_E_UNSUPPORTED_OPTION`,
+field 3, naming the precision and the family), never run in F32 in its
+place. The CPU encoder (`core/src/deberta`) is the reference. The first
+session makes, beside the fused projections, the relative table
+LayerNormed and each layer's query, key and value projection of it
+(shared keys), once for the model. A session holds the bucket of every
+distance a row of its `max_seq` tokens spans, made when it is made. The
+lookup is the word row LayerNormed, zero at a masked position, with no
+position or type rows. A visible query's score of a visible key is
+`(q_i . k_j + q_i . pos_key[b] + k_j . pos_query[b]) / sqrt(3 head_dim)`,
+`b` the bucket of `i - j`, over visible keys alone; a masked query attends
+evenly to its row's every position, as upstream's mask leaves it. For
+head widths 32, 64 and 128 attention is tiled
+(`deberta_attention_32`, `_64`, `_128`): a work-item per query, 128, 64
+or 32 queries of a row and head a group, an online softmax in registers,
+and the row's keys and values streamed through local memory 32 at a time
+(16 at width 128) with the relative rows the block's distances reach,
+whose count the kernel holds as the group's queries plus the block's
+keys less one. Past the log buckets' midpoint a distance may skip a row,
+so a model whose buckets climb steeply reaches more rows than that: the
+session, from its bucket table, finds the most rows any query tile and
+key block of its `max_seq` reach, and takes the tiled kernel only where
+they fit (GLiNER-small's 256 buckets over 512 positions reach 95 of the
+95 at width 64), the general one otherwise. For any other width it is
+`deberta_attention`, a group per query, head and
+row, reading every key and relative row from global memory. The linear
+layers, LayerNorms and pooling are the BERT encoder's in F32, with
+oneDNN's linear layers where they run.
+
+`core/tests/levelzero_deberta.rs` holds the device to the CPU on the same
+bundle at MODEL, within 1e-4 of every value, on the kernel a session
+picks and on the general kernel forced (`use_general_attention`, with
+`internals`): the tiny model of `core/tests/deberta_load.rs`, generated
+ones of head width 32 and 128, and one at GLiNER-small's size (hidden
+768, 12 heads, 6 layers, 256 buckets), over mixed lengths with padding on
+either side and masked holes, a row of one token and one of 512, mean,
+CLS and last-token pooling, and token ranges.
+
+On the B70 (2026-10-26, `TURBO_SPEED_RUNS=7`, the GLiNER-small-sized
+model at MODEL, the CPU, an AMD Ryzen 9 9950X on all its threads,
+interleaved with the device on the tiled and the general attention;
+milliseconds a pass, min / median / max):
+
+| Batch x tokens | CPU | levelzero, tiled | levelzero, general |
+| --- | ---: | ---: | ---: |
+| 32 x 128 | 1176.3 / 1308.3 / 1326.0 | 92.6 / 96.3 / 133.2 | 116.1 / 167.5 / 174.7 |
+| 8 x 512 | 864.0 / 968.3 / 1326.7 | 183.4 / 225.0 / 245.3 | 302.8 / 400.6 / 499.0 |
+
+The GPU clock's median was 2800 MHz (2200 at the lowest), the package at
+most 67 C and memory 66 C, with no throttling; another client held the
+render engine about half busy, and none other the compute engines. With
+the tiled attention a pass is 1.7 times as fast as with the general at 32
+x 128, and 1.8 times at 8 x 512.
+
 ## Testing on a machine with an Intel GPU
 
 From the workspace root. `TURBO_TEST_REQUIRE_LEVELZERO=1` makes every test
@@ -381,6 +438,11 @@ TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=levelzero \
     cargo test --release -p turbo --features levelzero --test conformance -- --include-ignored --nocapture
 TURBO_TEST_BUNDLE=<bundle-dir> \
     cargo test --release -p turbo --features levelzero --test levelzero -- --include-ignored --nocapture
+
+# DeBERTa-v2 against the CPU, and its speed (DeBERTa-v2, above):
+TURBO_TEST_DEVICE=levelzero cargo test --release -p turbo --features levelzero --test levelzero_deberta -- --nocapture
+TURBO_TEST_DEVICE=levelzero TURBO_SPEED_RUNS=7 \
+    cargo test --release -p turbo --features levelzero --test levelzero_deberta deberta_speed -- --ignored --nocapture
 ```
 
 `TURBO_TEST_DEVICE=levelzero` picks the first device the levelzero

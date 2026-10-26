@@ -10,7 +10,20 @@ Apache-2.0 `urchade/gliner_multi-v2.1` checkpoint at
 `microsoft-mdeberta-v3-base-tokenizer` in the zoo). See `docs/licences.md`.
 No encoder attention or matrix-multiplication loop is changed here.
 
-This is a Rust CPU API. SaT ships as `turbo-sat`, and GLiNER2 document
+`Model::new` takes the CPU encoder. `Model::open_on` takes the encoder as
+a core bundle of `FAMILY_DEBERTA_V2` instead, through the backend table, on
+the device `EncoderOptions` names: cpu, cuda or levelzero (#883). One run
+a window, and only the rows the heads read come back: a one-token range at
+each `<<ENT>>` marker and each word's first subword, through the range
+write, unnormalized, as SaT reads its tokens. The heads, packing and
+decoding are the same; the longest sequence is the session's, and
+`Model::execution` names where it ran. `analysis/gliner/tests/device.rs` holds a device to
+the CPU encoder on `testdata/tiny-deberta-bundle` (every logit within
+1e-4, and 1e-3 of its input's largest, the packed ids and decoded entities
+the same): on the Arc Pro B70 and the RTX 4080 SUPER the largest difference
+is under 1e-10, at MODEL and EXACT.
+
+This is a Rust API. SaT ships as `turbo-sat`, and GLiNER2 document
 classification, structured records and deterministic constraint layers
 ship in `turbo-schema-extract` (`analysis/schema-extract`); this page
 covers the entity-extraction API only. The entity schema is not a

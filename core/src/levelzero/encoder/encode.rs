@@ -4,7 +4,7 @@ use super::kernels::*;
 use super::session::*;
 use super::*;
 use crate::TURBO_NORMALIZE_L2;
-use crate::backend::{TURBO_BERT_EMBEDDING_TENSORS, TURBO_BERT_LAYER_TENSORS};
+use crate::backend::TURBO_BERT_LAYER_TENSORS;
 use crate::levelzero::gpu::{Arg, Queue, Res};
 
 impl Session {
@@ -19,9 +19,8 @@ impl Session {
         let (batch, tokens) = (self.batch, self.tokens);
         let (h, inter) = (d.hidden, d.intermediate);
         let eps = d.layer_norm_eps as f32;
-        let head_dim = h / d.heads;
-        let scale = 1.0 / (head_dim as f32).sqrt();
-        let layer = |l: u32, r: u32| w[(TURBO_BERT_EMBEDDING_TENSORS + l * TURBO_BERT_LAYER_TENSORS + r) as usize];
+        let base = super::deberta::layer_base(d);
+        let layer = |l: u32, r: u32| w[(base + l * TURBO_BERT_LAYER_TENSORS + r) as usize];
         use Arg::*;
         // Attention on the matrix engines reads F16 projections and writes
         // an F16 context.
@@ -306,34 +305,7 @@ impl Session {
             let (kln, rows) = if tokens < tm * blocks { (&kln[0], tm) } else { (&kln[1], tm * blocks) };
             kln.launch(c, q, what, &args, [tokens.div_ceil(rows), 1, 1]).map(|()| true)
         };
-        let n = self.max_batch as u64 * self.max_seq as u64 * 4;
-        let staging = self.staging as u64;
-        let args = [
-            Ptr(staging),
-            Ptr(staging + n),
-            Ptr(staging + 2 * n),
-            I32(self.has_types as i32),
-            Ptr(staging + 3 * n),
-            Ptr(staging + 4 * n),
-            I32(batch as i32),
-            Ptr(w[WORD]),
-            Ptr(w[POSITION]),
-            Ptr(w[TOKEN_TYPE]),
-            Ptr(w[EMB_LN_W]),
-            Ptr(w[EMB_LN_B]),
-            F32(eps),
-            I32(h as i32),
-            Ptr(self.x),
-            Ptr(self.packed_mask),
-            Ptr(self.rows),
-            I32(tokens as i32),
-            Ptr(self.xh),
-        ];
-        if few_tokens {
-            k.embed_layer_norm_group.launch(c, q, "the embedding lookup", &args, [tokens, 1, 1])?;
-        } else {
-            k.embed_layer_norm.launch(c, q, "the embedding lookup", &args, [tokens.div_ceil(ROWS), 1, 1])?;
-        }
+        self.lookup(q)?;
         for l in 0..layers.min(d.layers) {
             // The linear layers that read the hidden states read them in F16 at
             // FASTEST, as the LayerNorms leave them.
@@ -351,50 +323,7 @@ impl Session {
                 (1, half_attention),
                 "the query, key and value projection",
             )?;
-            match &k.attention {
-                Attention::Xmx(a, staged) => {
-                    let args = [
-                        Ptr(self.qkv),
-                        Ptr(self.packed_mask),
-                        Ptr(self.rows),
-                        I32(h as i32),
-                        F32(scale),
-                        Ptr(self.att),
-                    ];
-                    // The staged kernel where the longest row fills its group.
-                    let (a, sgs) = match staged {
-                        Some(s) if self.longest >= 16 * ATT2_SUBGROUPS => (s, ATT2_SUBGROUPS),
-                        _ => (a, ATT_SUBGROUPS),
-                    };
-                    let groups = [self.longest.div_ceil(16 * sgs), d.heads, batch];
-                    a.launch(c, q, "attention", &args, groups)?;
-                }
-                Attention::Tiled(a) => {
-                    let args = [
-                        Ptr(self.qkv),
-                        Ptr(self.packed_mask),
-                        Ptr(self.rows),
-                        I32(h as i32),
-                        F32(scale),
-                        Ptr(self.att),
-                    ];
-                    a.launch(c, q, "attention", &args, [self.longest.div_ceil(QUERIES), d.heads, batch])?;
-                }
-                Attention::General(a) => {
-                    let args = [
-                        Ptr(self.qkv),
-                        Ptr(self.packed_mask),
-                        Ptr(self.rows),
-                        I32(h as i32),
-                        I32(head_dim as i32),
-                        F32(scale),
-                        Ptr(if xmx { 0 } else { self.att }),
-                        Ptr(if xmx { self.att } else { 0 }),
-                        Local(attention_local_bytes(self.longest, head_dim) as usize),
-                    ];
-                    a.launch(c, q, "attention", &args, [self.longest, d.heads, batch])?;
-                }
-            }
+            self.attend(q, l)?;
             let wo = (l, 1, layer(l, ATTN_OUT_WEIGHT));
             let ln = (layer(l, ATTN_OUT_BIAS), layer(l, ATTN_LN_WEIGHT), layer(l, ATTN_LN_BIAS));
             if !fused(q, self.att, h, (l, 1), ln, "the attention output and LayerNorm")? {
