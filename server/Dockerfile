@@ -29,6 +29,8 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Empty for the cpu backend alone, `cuda` to link the CUDA backend in too.
 ARG FEATURES=""
+# Bound build parallelism; callers may raise it on dedicated builders.
+ARG CARGO_BUILD_JOBS=2
 # The toolkit and architectures the release archive is built with
 # (.github/workflows/release.yml).
 ARG CUDA_VERSION=12.8
@@ -64,6 +66,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     mkdir -p /out/bin /out/licenses; \
     cp "$bin" /out/bin/; \
     cp LICENSE /out/licenses/LICENSE; \
+    cp NOTICE /out/licenses/NOTICE; \
     if [ "${FEATURES}" = cuda ]; then cp core/cuda/cutlass/LICENSE.txt /out/licenses/CUTLASS-LICENSE.txt; fi
 
 FROM ${RUNTIME_BASE}
@@ -96,8 +99,9 @@ USER 10001:10001
 VOLUME ["/bundles"]
 EXPOSE 8081
 STOPSIGNAL SIGTERM
-# grpc.health.v1.Health/Check on the listen address: SERVING once every
+# grpc.health.v1.Health/Check on TURBO_KSERVE_LISTEN: SERVING once every
 # bundle is loaded, NOT_SERVING while loading and draining. The start
-# period covers a large bundle's load.
+# period covers a large bundle's load. A server --listen override needs a
+# matching --health-cmd override (docs/release.md, Images).
 HEALTHCHECK --interval=10s --timeout=5s --start-period=120s --retries=3 CMD ["turbo-kserve", "health"]
 ENTRYPOINT ["turbo-kserve"]

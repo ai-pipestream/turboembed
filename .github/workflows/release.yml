@@ -20,6 +20,7 @@ on:
       - "server/Dockerfile"
       - "server/Dockerfile.dockerignore"
       - "server/tests/image_smoke.rs"
+      - "server/tests/image_ports.sh"
 
 permissions:
   contents: write
@@ -222,6 +223,8 @@ jobs:
           echo "health $health"
           [ "$health" = healthy ]
           docker exec smoke turbo-kserve health --service tiny-bert-bundle
+      - name: non-default container ports keep health checks aligned
+        run: bash server/tests/image_ports.sh turbo-kserve:ci
       - uses: dtolnay/rust-toolchain@1.98
         if: matrix.variant == 'cpu' && matrix.arch == 'amd64'
       - name: the image embeds the reference texts over gRPC

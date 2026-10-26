@@ -72,7 +72,7 @@ ghcr.io/ai-pipestream/turbo-kserve:<version>-cuda   the cpu and cuda backends; l
 image's digest, and a deployment that wants the exact build names it by
 digest. Each image holds `turbo-kserve` alone, built from
 `server/Dockerfile` on a Debian bookworm base pinned by digest, and its
-licences under `/opt/turbo/licenses/`. The cuda image is built with the
+`LICENSE` and `NOTICE` under `/opt/turbo/licenses/`. The cuda image is built with the
 toolkit and architectures of the Linux archive and, like it, links the
 CUDA runtime statically: the host needs the NVIDIA driver and the NVIDIA
 container toolkit, nothing in the image; without a GPU it runs the cpu
@@ -94,11 +94,32 @@ docker run --rm --gpus all -p 8081:8081 -v /srv/bundles:/bundles:ro \
     ghcr.io/ai-pipestream/turbo-kserve:<version>-cuda
 ```
 
+For a different container port, set `TURBO_KSERVE_LISTEN` so both the
+server and its separate health-check process use the same address:
+
+```
+docker run --rm -p 9090:9090 -v /srv/bundles:/bundles:ro \
+    -e TURBO_KSERVE_LISTEN=0.0.0.0:9090 \
+    ghcr.io/ai-pipestream/turbo-kserve:<version>
+```
+
+A server `--listen` flag does not change the health process's environment.
+When using that flag, also replace Docker's health command:
+
+```
+docker run --rm -p 9090:9090 -v /srv/bundles:/bundles:ro \
+    --health-cmd='turbo-kserve health --addr 127.0.0.1:9090' \
+    ghcr.io/ai-pipestream/turbo-kserve:<version> --listen 0.0.0.0:9090
+```
+
+Changing only the host side of a port mapping, such as `-p 9090:8081`,
+does not change the container listener or require a health override.
+
 The image's health check runs `turbo-kserve health`, one
-`grpc.health.v1.Health/Check` against the listen address: healthy once
+`grpc.health.v1.Health/Check` against `TURBO_KSERVE_LISTEN`: healthy once
 every bundle is loaded, unhealthy while loading (after a 120 second
 start period) and while draining. Kubernetes asks the same service
-itself:
+itself (adjust these ports when changing the listener):
 
 ```yaml
 startupProbe:
@@ -122,7 +143,8 @@ the endpoint leaves the service before the requests in flight finish;
 
 Each build in `release.yml` runs its image with
 `testdata/tiny-bert-bundle` mounted and waits for it to turn healthy;
-the amd64 cpu image also embeds the bundle's reference texts over gRPC
+both environment and command-line port overrides are checked too.
+The amd64 cpu image also embeds the bundle's reference texts over gRPC
 and checks them against its reference vectors
 (`server/tests/image_smoke.rs`). The cuda image is checked on its cpu
 backend only: the runners have no GPU.
