@@ -55,12 +55,19 @@ pub struct Task {
 
 /// The encoder input for one text and schema.
 #[derive(Debug)]
-pub struct Prompt {
+pub struct Measurement {
+    pub overhead: usize,
+    pub period: usize,
+    pub words: Vec<(std::ops::Range<usize>, usize)>,
+}
+
+#[derive(Debug)]
+pub struct Prompt<'a> {
     pub ids: Vec<u32>,
     /// The text as GLiNER2 reads it: with a final `.` when it lacks
     /// sentence punctuation. Word offsets index it.
     pub text: String,
-    pub words: Vec<Word>,
+    pub words: Vec<Word<'a>>,
     /// The choice prefix's tokens, before the words.
     pub prefix: Vec<String>,
     /// Per record type and field, the index in `prefix` of a closed-choice
@@ -70,12 +77,23 @@ pub struct Prompt {
     /// with no subwords takes the position the next element starts at.
     pub token_first: Vec<usize>,
     pub tasks: Vec<Task>,
+    pub period: usize,
 }
 
-impl Prompt {
+impl Prompt<'_> {
     /// How many text tokens precede the words.
     pub fn prefix_len(&self) -> usize {
         self.prefix.len()
+    }
+
+    pub fn measure(&self, text_len: usize) -> Measurement {
+        let lengths = self.words.iter().map(|w| (w.start..w.end, w.subword_len));
+        let subwords: usize = lengths.clone().map(|(_, n)| n).sum();
+        Measurement {
+            overhead: self.ids.len() - subwords,
+            period: self.period,
+            words: lengths.filter(|(r, _)| r.start < text_len).collect(),
+        }
     }
 }
 
@@ -137,7 +155,17 @@ fn prefix(schema: &ExtractionSchema) -> (Vec<String>, Vec<Vec<Option<usize>>>) {
 }
 
 /// The input for `schema` over `text`. The schema is assumed validated.
-pub fn build(sp: &SentencePiece, specials: &Specials, text: &str, schema: &ExtractionSchema) -> Prompt {
+pub fn build<'a>(sp: &SentencePiece, specials: &Specials, text: &'a str, schema: &ExtractionSchema) -> Prompt<'a> {
+    build_words(sp, specials, text, schema, split(text))
+}
+
+pub fn build_words<'a>(
+    sp: &SentencePiece,
+    specials: &Specials,
+    text: &'a str,
+    schema: &ExtractionSchema,
+    mut words: Vec<Word<'a>>,
+) -> Prompt<'a> {
     let mut tasks: Vec<(Kind, String, u32, Vec<&str>)> = Vec::new();
     for (i, s) in schema.structures.iter().enumerate() {
         let p = prompt_text(&s.name, s.fields.iter().map(|f| (f.name.as_str(), f.description.as_ref())));
@@ -174,13 +202,23 @@ pub fn build(sp: &SentencePiece, specials: &Specials, text: &str, schema: &Extra
         out_tasks.push(Task { kind, p, markers });
     }
     ids.push(specials.sep_text);
-    let text = normalize(text);
-    let words = split(&text);
+    let normalized = normalize(text);
+    if normalized.len() != text.len() {
+        words.push(Word { text: ".".into(), start: text.len(), end: text.len() + 1, subword_len: 0 });
+    }
     let (prefix, choice_at) = prefix(schema);
     let mut token_first = Vec::with_capacity(prefix.len() + words.len());
-    for t in prefix.iter().map(String::as_str).chain(words.iter().map(|w| w.text.as_str())) {
+    for t in &prefix {
         token_first.push(ids.len());
         encode(sp, specials, t, &mut scratch, &mut ids);
     }
-    Prompt { ids, text, words, prefix, choice_at, token_first, tasks: out_tasks }
+    for w in &mut words {
+        token_first.push(ids.len());
+        let at = ids.len();
+        encode(sp, specials, &w.text, &mut scratch, &mut ids);
+        w.subword_len = ids.len() - at;
+    }
+    let mut period = Vec::new();
+    encode(sp, specials, ".", &mut scratch, &mut period);
+    Prompt { ids, text: normalized, words, prefix, choice_at, token_first, tasks: out_tasks, period: period.len() }
 }

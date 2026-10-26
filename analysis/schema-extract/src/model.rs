@@ -19,8 +19,9 @@ use turbo::safetensors::{Dtype, File};
 use turbo::sentencepiece::SentencePiece;
 use turbo_analysis::ModelRef;
 use turbo_relation::gliner2::heads::Heads;
+use turbo_relation::gliner2::words::Word;
 
-use crate::prompt::{Kind, Prompt, Specials, build};
+use crate::prompt::{Kind, Prompt, Specials, build_words};
 use crate::schema::{ExtractionSchema, Limits, SchemaError};
 
 /// GLiNER2's classification head.
@@ -74,21 +75,21 @@ pub enum Scores {
 }
 
 /// One pass over a text and its schema.
-pub struct Pass {
-    prompt: Prompt,
+pub struct Pass<'a> {
+    prompt: Prompt<'a>,
     width: usize,
     scores: Vec<Scores>,
 }
 
-impl Pass {
+impl<'a> Pass<'a> {
     /// A pass from its parts, for a runner other than [`run`]. Nothing is
     /// checked here: [`crate::decode`] checks a pass against its schema
     /// before it reads one score.
-    pub fn new(prompt: Prompt, width: usize, scores: Vec<Scores>) -> Pass {
+    pub fn new(prompt: Prompt<'a>, width: usize, scores: Vec<Scores>) -> Pass<'a> {
         Pass { prompt, width, scores }
     }
 
-    pub fn prompt(&self) -> &Prompt {
+    pub fn prompt(&self) -> &Prompt<'a> {
         &self.prompt
     }
 
@@ -104,7 +105,7 @@ impl Pass {
 
     /// The prompt, width and scores, for a caller that builds a pass of its
     /// own from them.
-    pub fn into_parts(self) -> (Prompt, usize, Vec<Scores>) {
+    pub fn into_parts(self) -> (Prompt<'a>, usize, Vec<Scores>) {
         (self.prompt, self.width, self.scores)
     }
 }
@@ -223,9 +224,18 @@ impl Gliner2Extractor {
 
     /// The input for `schema` over `text`, checked against every limit,
     /// without running the model.
-    pub fn prompt(&self, text: &str, schema: &ExtractionSchema) -> Result<Prompt, ExtractError> {
+    pub fn prompt<'a>(&self, text: &'a str, schema: &ExtractionSchema) -> Result<Prompt<'a>, ExtractError> {
+        self.prompt_words(text, schema, turbo_relation::gliner2::words::split(text))
+    }
+
+    pub fn prompt_words<'a>(
+        &self,
+        text: &'a str,
+        schema: &ExtractionSchema,
+        words: Vec<Word<'a>>,
+    ) -> Result<Prompt<'a>, ExtractError> {
         schema.validate(&self.limits).map_err(ExtractError::Schema)?;
-        let p = build(&self.tokenizer, &self.specials, text, schema);
+        let p = build_words(&self.tokenizer, &self.specials, text, schema, words);
         let l = &self.limits;
         // The caller's words: not the `.` the model's reading may add.
         let words = p.words.iter().filter(|w| w.start < text.len()).count();
@@ -247,20 +257,52 @@ impl Gliner2Extractor {
         Ok(p)
     }
 
+    pub fn measure(
+        &self,
+        text: &str,
+        schema: &ExtractionSchema,
+    ) -> Result<(crate::prompt::Measurement, usize), ExtractError> {
+        self.measure_words(text, schema, turbo_relation::gliner2::words::split(text))
+    }
+
+    pub fn measure_words(
+        &self,
+        text: &str,
+        schema: &ExtractionSchema,
+        words: Vec<Word<'_>>,
+    ) -> Result<(crate::prompt::Measurement, usize), ExtractError> {
+        schema.validate(&self.limits).map_err(ExtractError::Schema)?;
+        let p = build_words(&self.tokenizer, &self.specials, text, schema, words);
+        let schema_len = p.token_first.first().copied().unwrap_or(p.ids.len());
+        if schema_len > self.limits.max_prompt_subwords {
+            return Err(ExtractError::OverLimit {
+                limit: "max_prompt_subwords",
+                max: self.limits.max_prompt_subwords,
+                got: schema_len,
+            });
+        }
+        Ok((p.measure(text.len()), self.encoder.config().max_sequence))
+    }
+
     /// One encoder pass and every head over `text` and `schema`.
-    pub fn pass(&self, text: &str, schema: &ExtractionSchema) -> Result<Pass, ExtractError> {
+    pub fn pass<'a>(&self, text: &'a str, schema: &ExtractionSchema) -> Result<Pass<'a>, ExtractError> {
         run(&self.encoder, &self.heads, &self.classifier, self.prompt(text, schema)?)
     }
 
     /// One encoder pass and every head over an input [`Self::prompt`] built.
-    pub fn pass_prompt(&self, prompt: Prompt) -> Result<Pass, ExtractError> {
+    pub fn pass_prompt<'a>(&self, prompt: Prompt<'a>) -> Result<Pass<'a>, ExtractError> {
         run(&self.encoder, &self.heads, &self.classifier, prompt)
     }
 }
 
 /// The encoder and every head over a built input. The parity tests give
 /// inputs whose token ids are not a tokenizer's.
-pub fn run(encoder: &Encoder, heads: &Heads, classifier: &Classifier, prompt: Prompt) -> Result<Pass, ExtractError> {
+pub fn run<'a>(
+    encoder: &Encoder,
+    heads: &Heads,
+    classifier: &Classifier,
+    prompt: Prompt<'a>,
+) -> Result<Pass<'a>, ExtractError> {
     let t = prompt.ids.len();
     let positions =
         prompt.token_first.iter().chain(prompt.tasks.iter().flat_map(|k| std::iter::once(&k.p).chain(&k.markers)));

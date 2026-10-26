@@ -61,15 +61,16 @@ impl SchemaAnnotator {
         tokens: &Tokens,
         sentences: Option<&Sentences>,
     ) -> Result<Vec<std::ops::Range<usize>>, String> {
-        let fits = |t: &str| match self.extractor.prompt(t, &self.schema) {
-            Ok(_) => Ok(true),
-            Err(e) if window::too_long(&e) => Ok(false),
-            Err(e) => Err(e.to_string()),
-        };
-        if fits(view.text())? {
-            return Ok(std::iter::once(0..view.text().len()).collect());
-        }
-        window::plan(view.text(), &window::units(view, tokens, sentences)?, fits)
+        let words = prompt_words(view.text(), tokens, 0)?;
+        let (measure, max_sequence) =
+            self.extractor.measure_words(view.text(), &self.schema, words).map_err(|e| e.to_string())?;
+        window::plan_measured(
+            view.text(),
+            &window::units(view, tokens, sentences)?,
+            &measure,
+            self.extractor.limits().max_words,
+            max_sequence,
+        )
     }
 
     /// Text too long for one pass: each window read on its own, merged.
@@ -82,7 +83,10 @@ impl SchemaAnnotator {
     ) -> Result<Extraction, String> {
         let mut out = Extraction { entities: vec![Vec::new(); self.schema.entities.len()], ..Extraction::default() };
         for at in self.windows(view, tokens, sentences)? {
-            let pass = self.extractor.pass(&view.text()[at.clone()], &self.schema).map_err(|e| e.to_string())?;
+            let text = &view.text()[at.clone()];
+            let words = prompt_words(text, tokens, at.start)?;
+            let prompt = self.extractor.prompt_words(text, &self.schema, words).map_err(|e| e.to_string())?;
+            let pass = self.extractor.pass_prompt(prompt).map_err(|e| e.to_string())?;
             let shifted = window::Shifted { layers, by: at.start };
             window::merge(&mut out, decode(&pass, &self.schema, self.threshold, &shifted)?, at);
         }
@@ -110,6 +114,36 @@ impl Corroborate for DocumentLayers<'_> {
             Source::Locations => self.locations.map(|l| l.spans.overlapping(span).iter().map(|i| i.get()).collect()),
         })
     }
+}
+
+fn prompt_words<'a>(
+    text: &'a str,
+    tokens: &Tokens,
+    base: usize,
+) -> Result<Vec<turbo_relation::gliner2::words::Word<'a>>, String> {
+    if tokens.spans.has_discontinuous() {
+        return Ok(turbo_relation::gliner2::words::split(text));
+    }
+    let mut words = Vec::new();
+    for (_, span) in tokens.spans.iter() {
+        let (start, end) = (span.start as usize, span.end as usize);
+        if start < base || end > base + text.len() {
+            continue;
+        }
+        let raw = text.get(start - base..end - base).ok_or_else(|| "a token outside the view".to_owned())?;
+        let folded = if raw.chars().any(char::is_uppercase) {
+            std::borrow::Cow::Owned(raw.to_lowercase())
+        } else {
+            std::borrow::Cow::Borrowed(raw)
+        };
+        words.push(turbo_relation::gliner2::words::Word {
+            text: folded,
+            start: start - base,
+            end: end - base,
+            subword_len: 0,
+        });
+    }
+    Ok(words)
 }
 
 /// A value's bytes in the view's text: the model reads the text with a
@@ -270,7 +304,8 @@ impl Annotator for SchemaAnnotator {
             return Err(fail("a layer read is not in the view read".into()));
         }
         let layers = DocumentLayers { glossary, pii, numbers, locations };
-        let out = match self.extractor.prompt(view.text(), &self.schema) {
+        let words = prompt_words(view.text(), tokens, 0).map_err(fail)?;
+        let out = match self.extractor.prompt_words(view.text(), &self.schema, words) {
             Ok(prompt) => {
                 let pass = self.extractor.pass_prompt(prompt).map_err(|e| fail(e.to_string()))?;
                 decode(&pass, &self.schema, self.threshold, &layers).map_err(fail)?
