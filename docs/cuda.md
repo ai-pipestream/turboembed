@@ -722,6 +722,22 @@ older than the runtime, it lists none and the runtime's log says why.
   (CUDA loads modules lazily); `core/tests/cuda_runs.rs` holds warm runs to an
   unchanged free-memory figure too.
 
+## The LSTM for the taggers
+
+`turbo::device::lstm::Lstm` (core/src/device/) is the batched LSTM of
+`turbo::cpu::lstm` on a GPU, for the analysis crates' sequence taggers
+(#860). It is a Rust surface, not a part of the backend table: the taggers
+never load a model through `turbo_model_load`. core/cuda/lstm.cu holds its
+kernels. The weights and a gathered run's table are copied to the device
+once; a run copies its rows (or its table row ids) in, makes every row's
+input projections in one product, then runs one kernel per step over the
+sequences still running and every direction at once, and copies the
+states out. A non-finite gate or state is refused at the end of the run,
+as INVALID_ARGUMENT, as the CPU form refuses it. `core/tests/device_lstm.rs`
+holds it to the CPU form at 1e-5; with `TURBO_TEST_REQUIRE_CUDA=1` (or
+`TURBO_TEST_DEVICE=cuda`) it runs on the GPU and fails when the LSTM
+cannot be made there.
+
 ## Testing on a GPU machine
 
 With `TURBO_CUDA_ROOT` set as above, from the workspace root.

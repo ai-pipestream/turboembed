@@ -7,6 +7,8 @@
 //! refusals; a device the library was built without, or one that is not
 //! there, is refused when the op is made, never answered on the CPU.
 
+#[cfg(feature = "cuda")]
+mod cuda_lstm;
 pub mod lstm;
 
 use crate::status::{Error, INVALID_ARGUMENT, Result};

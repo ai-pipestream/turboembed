@@ -118,16 +118,19 @@ const BATCHES: [&[usize]; 7] =
 
 #[test]
 fn runs_match_the_cpu() {
+    let mut worst = 0f32;
     for (i, &(input, hidden)) in SHAPES.iter().enumerate() {
         let m = Model::new(input, hidden, 11 + i as u64);
         for (j, lengths) in BATCHES.iter().enumerate() {
             let d = check_run(&m, lengths, 100 + j as u64);
+            worst = worst.max(d);
             assert!(d <= BOUND, "{:?} input {input} hidden {hidden} lengths {lengths:?}: {d}", device());
             if device() == Device::Cpu {
                 assert_eq!(d, 0.0, "the CPU through the device surface changed a bit");
             }
         }
     }
+    println!("{:?}: the worst difference from the CPU is {worst:e}", device());
 }
 
 #[test]
@@ -165,6 +168,15 @@ fn refusals_match_the_cpu() {
         let want = reference.run(x, lengths, &mut b, &mut cpu::Work::default()).map_err(|e| e.code);
         assert_eq!(got, want, "{what}");
     }
+    // Finite weights and inputs whose projections pass f32's range: the
+    // gates are refused, on a device as on the CPU.
+    let mut wide = Model::new(3, 2, 6);
+    wide.w[1].fill(3e38);
+    let ones = vec![1.0f32; 5 * 3];
+    let (mut a, mut b) = (vec![0.0; 5 * 4], vec![0.0; 5 * 4]);
+    let got = wide.on(device()).run(&ones, &[5], &mut a, &mut Work::default()).map_err(|e| e.code);
+    let want = wide.cpu().run(&ones, &[5], &mut b, &mut cpu::Work::default()).map_err(|e| e.code);
+    assert_eq!((got, want), (Err(INVALID_ARGUMENT), Err(INVALID_ARGUMENT)), "an overflowing gate");
     assert_eq!(lstm.table(&[0.0; 15]).map(|_| ()).map_err(|e| e.code), Err(INVALID_SHAPE));
     let table = lstm.table(&Rng(3).values(2 * 16, 1.0)).unwrap();
     let mut out = vec![0.0; 3 * 4];
