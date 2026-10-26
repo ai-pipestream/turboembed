@@ -187,7 +187,14 @@ async fn a_static_model_is_distilled_sealed_served_listed_and_deleted() {
 #[tokio::test]
 async fn writes_need_admin_and_listing_needs_a_training_directory() {
     let d = scratch("admin");
+    // A staging file a stopped server left goes at start, and a link to a
+    // bundle elsewhere is not listed as a model.
+    fs::create_dir_all(d.join("training")).unwrap();
+    fs::write(d.join("training/.staging-left-0"), b"partial").unwrap();
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(common::tiny(), d.join("training/linked")).unwrap();
     let (s, mut c) = server(&d, false, true).await;
+    assert!(!d.join("training/.staging-left-0").exists());
     assert_eq!(c.list_teachers(ListTeachersRequest {}).await.unwrap().into_inner().teachers.len(), 1);
     let e = c.train_static_model(request("x")).await.unwrap_err();
     assert_eq!(refusal(&e), (Code::Unimplemented, TURBO_E_UNSUPPORTED));
@@ -195,6 +202,15 @@ async fn writes_need_admin_and_listing_needs_a_training_directory() {
     assert_eq!(refusal(&e), (Code::Unimplemented, TURBO_E_UNSUPPORTED));
     assert!(c.list_static_models(ListStaticModelsRequest {}).await.unwrap().into_inner().models.is_empty());
     s.stop().await;
+
+    #[cfg(unix)]
+    {
+        let (s, mut c) = server(&d, true, true).await;
+        let e = c.delete_static_model(DeleteStaticModelRequest { name: "linked".into() }).await.unwrap_err();
+        assert_eq!(refusal(&e), (Code::NotFound, TURBO_E_BUNDLE_NOT_FOUND));
+        assert!(common::tiny().join("manifest.json").is_file());
+        s.stop().await;
+    }
 
     let (s, mut c) = server(&d, true, false).await;
     let e = c.list_static_models(ListStaticModelsRequest {}).await.unwrap_err();
@@ -224,6 +240,7 @@ async fn bad_requests_are_refused_before_any_work() {
         (TrainStaticModelRequest { pca_dims: 33, ..request("x") }, invalid, "3"),
         (TrainStaticModelRequest { sif_coefficient: 1.0, ..request("x") }, invalid, "4"),
         (TrainStaticModelRequest { dtype: 9, ..request("x") }, invalid, "5"),
+        (TrainStaticModelRequest { max_length: 8193, ..request("x") }, invalid, "6"),
         (
             TrainStaticModelRequest { vocabulary_artifact_id: "vocab-none".into(), ..request("x") },
             (Code::NotFound, TURBO_E_BUNDLE_NOT_FOUND),

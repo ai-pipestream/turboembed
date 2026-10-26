@@ -42,10 +42,10 @@ name, and the distillation's settings:
 
 | Field | Meaning | 0 or empty |
 |---|---|---|
-| `pca_dims` | The static vectors' width, at most the teacher's `hidden`. | 256, or `hidden` when that is less. |
+| `pca_dims` | The static vectors' width, at most the teacher's `hidden` and under its vocabulary size. | 256, or `hidden` when that is less. |
 | `sif_coefficient` | Model2Vec's SIF coefficient, in (0, 1). | 1e-4. |
 | `dtype` | `STATIC_DTYPE_F32` or `STATIC_DTYPE_F16`, how the table is stored. | F32. |
-| `max_length` | The tokens a text is cut to. | 512. |
+| `max_length` | The tokens a text is cut to, at most 8192. | 512. |
 | `vocabulary_artifact_id` | A learned vocabulary in the vocabulary store (docs/grpc-vocabulary.md): its single terms, in its order, are learned terms. | None. |
 | `terms` | More learned terms, after the vocabulary's. | None. |
 | `revision` | The model's revision. | `1`. |
@@ -55,7 +55,7 @@ The name is ASCII letters, digits, `.`, `_` and `-`, not starting with
 `.`, at most 128 bytes, and no served model or static model may have
 it. Every check is made before anything is written, and a refusal is
 the call's own status, with `turbo-field` naming the request field. One
-training runs at a time; another is refused with `UNAVAILABLE`
+training runs at a time; another that passes its checks is refused with `UNAVAILABLE`
 (`TURBO_E_BUSY`), which a client may retry. A training adds at most
 262,144 learned terms; more is `TURBO_E_CAPACITY`.
 
@@ -91,8 +91,13 @@ A training that fails after admission ends the stream with
 `TURBO_E_RUNTIME` and leaves no file and no served model. A client that
 cancels is seen between steps: the distillation runs to its end, and the
 training stops before sealing or before the move, removing its staging.
-Once the bundle is moved and registered the model stays; delete it to
-remove it. The slot is given back only after the staging is removed.
+Publishing is one step under a lock that `DeleteStaticModel` also
+takes: the bundle is moved, registered, loaded and checked again, and if
+any of it fails the registration and the directory are removed. Once it
+is published the model stays; delete it to remove it. A panic in the
+training ends the stream with `TURBO_E_INTERNAL`, its staging removed.
+The slot is given back after the staging is removed, before the last
+message.
 
 ## Listing and deleting
 
@@ -105,7 +110,8 @@ size and SHA-256, and whether the server serves this directory under
 the name. Every listed file is read again and checked against its size
 and SHA-256; `verified` is false when one does not match, and `problem`
 names it. A child that is not a static model bundle is listed
-unverified, with why.
+unverified, with why. A symbolic link in the directory is not a model:
+it is not listed, and `DeleteStaticModel` does not follow it.
 
 `DeleteStaticModel` removes the registration serving the directory, if
 any (requests in flight finish), then the directory. `unloaded` says

@@ -56,7 +56,10 @@ pub(crate) fn open(dir: &Path) -> Result<PathBuf, String> {
     for entry in fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))? {
         let path = entry.map_err(|e| format!("{}: {e}", dir.display()))?.path();
         if path.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with(STAGING)) {
-            fs::remove_dir_all(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+            // A link or file of that name goes itself, never what it names.
+            let dir = fs::symlink_metadata(&path).is_ok_and(|m| m.is_dir());
+            let removed = if dir { fs::remove_dir_all(&path) } else { fs::remove_file(&path) };
+            removed.map_err(|e| format!("{}: {e}", path.display()))?;
         }
     }
     Ok(dir.to_path_buf())
@@ -201,7 +204,9 @@ impl TurboTrainingService for TrainingService {
         let unloaded = blocking(move || {
             let path = dir.join(&name);
             let _one = publishing.lock().unwrap_or_else(|e| e.into_inner());
-            if !path.join("manifest.json").is_file() {
+            // A child directory only: a link is never a model of this one.
+            let child = fs::symlink_metadata(&path).is_ok_and(|m| m.is_dir());
+            if !child || !path.join("manifest.json").is_file() {
                 return Err(plain(Failure::new(
                     TURBO_E_BUNDLE_NOT_FOUND,
                     1,

@@ -60,7 +60,9 @@ pub(crate) fn list(state: &State, dir: &Path) -> Result<Vec<StaticModelDescripto
     for entry in fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))? {
         let entry = entry.map_err(|e| format!("{}: {e}", dir.display()))?;
         let Ok(name) = entry.file_name().into_string() else { continue };
-        if entry.path().is_dir() && !name.starts_with(STAGING) && !name.starts_with('.') {
+        // Children only: a link is not followed out of the directory.
+        let dir = entry.file_type().is_ok_and(|t| t.is_dir());
+        if dir && !name.starts_with(STAGING) && !name.starts_with('.') {
             names.push(name);
         }
     }

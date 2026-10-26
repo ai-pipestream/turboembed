@@ -19,7 +19,9 @@ use turbo_bundle::distill::from_base::{self, Options};
 use turbo_bundle::distill::{self, Progress};
 
 use super::{STAGING, blocking, check_name, describe::describe, invalid, plain, runtime, serving, teacher};
-use crate::api::{Failure, Runtime, TURBO_E_BUNDLE_NOT_FOUND, TURBO_E_BUSY, TURBO_E_CAPACITY, TURBO_E_INVALID_STATE};
+use crate::api::{
+    Failure, Runtime, TURBO_E_BUNDLE_NOT_FOUND, TURBO_E_BUSY, TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_INVALID_STATE,
+};
 use crate::config::{Device, ModelConfig};
 use crate::proto::training::train_static_model_update::Update;
 use crate::proto::training::{
@@ -39,6 +41,8 @@ pub(crate) const MAX_TERMS: usize = 1 << 18;
 const DEFAULT_PCA_DIMS: u32 = 256;
 const DEFAULT_SIF: f64 = 1e-4;
 const DEFAULT_MAX_LENGTH: u32 = 512;
+/// The made recipe's embed.max_seq (bundle/src/distill/from_base.rs).
+const MAX_LENGTH: u32 = 8192;
 
 /// Names each staging directory apart within one server.
 static SEQ: AtomicU64 = AtomicU64::new(0);
@@ -137,8 +141,15 @@ fn plan(job: &Job, r: TrainStaticModelRequest) -> Result<Plan, Status> {
         invalid(2, format!("model {} is not a loaded encoder a static model is distilled from", r.teacher))
     })?;
     let pca_dims = if r.pca_dims == 0 { DEFAULT_PCA_DIMS.min(t.hidden) } else { r.pca_dims };
-    if pca_dims > t.hidden {
-        return Err(invalid(3, format!("pca_dims {pca_dims} is over the teacher's width {}", t.hidden)));
+    if pca_dims > t.hidden || pca_dims >= t.vocab_size {
+        return Err(invalid(
+            3,
+            format!("pca_dims {pca_dims}: at most the teacher's width {} and under its vocabulary", t.hidden),
+        ));
+    }
+    let max_length = if r.max_length == 0 { DEFAULT_MAX_LENGTH } else { r.max_length };
+    if max_length > MAX_LENGTH {
+        return Err(invalid(6, format!("max_length {max_length} is over {MAX_LENGTH}, a static model's max_seq")));
     }
     let sif_coefficient = if r.sif_coefficient == 0.0 { DEFAULT_SIF } else { r.sif_coefficient };
     if !(sif_coefficient > 0.0 && sif_coefficient < 1.0) {
@@ -183,7 +194,7 @@ fn plan(job: &Job, r: TrainStaticModelRequest) -> Result<Plan, Status> {
         pca_dims,
         sif_coefficient,
         dtype: dtype.into(),
-        max_length: if r.max_length == 0 { DEFAULT_MAX_LENGTH } else { r.max_length },
+        max_length,
     };
     Ok(Plan { name: r.name, base, options, terms, vocabulary, sessions })
 }
@@ -195,29 +206,33 @@ pub(super) async fn start(
     req: TrainStaticModelRequest,
     training: Arc<AtomicBool>,
 ) -> Result<UpdateStream, Status> {
+    // The checks first, so a bad request is refused for what it is even
+    // while another training runs; the name is checked again when the
+    // model is published.
+    let job = Arc::new(job);
+    let j = job.clone();
+    let plan = blocking(move || plan(&j, req)).await?;
     if training.swap(true, Ordering::AcqRel) {
         return Err(plain(Failure::new(TURBO_E_BUSY, 0, "another training is running; try again when it ends")));
     }
     let slot = Slot(training);
-    let job = Arc::new(job);
-    let j = job.clone();
-    let plan = blocking(move || plan(&j, req)).await?;
     let (tx, rx) = mpsc::channel(16);
     let _ = tx.send(Ok(update(progress(TrainStage::Admitted)))).await;
-    tokio::task::spawn_blocking(move || {
-        let staging = job.dir.join(format!("{STAGING}{}-{}", plan.name, SEQ.fetch_add(1, Ordering::Relaxed)));
-        let out = run(&job, &plan, &staging, &tx);
-        let _ = fs::remove_dir_all(&staging);
-        // The slot is free only once the staging is gone.
+    let staging = job.dir.join(format!("{STAGING}{}-{}", plan.name, SEQ.fetch_add(1, Ordering::Relaxed)));
+    tokio::spawn(async move {
+        let (t, s) = (tx.clone(), staging.clone());
+        // A panic in the distillation is the stream's INTERNAL status, not
+        // a stream that just ends.
+        let out = match tokio::task::spawn_blocking(move || run(&job, &plan, &s, &t)).await {
+            Ok(out) => out,
+            Err(e) => Err(plain(Failure::new(TURBO_E_INTERNAL, 0, format!("the training's task failed: {e}")))),
+        };
+        let _ = tokio::task::spawn_blocking(move || fs::remove_dir_all(staging)).await;
+        // The slot is free once the staging is gone, before the last
+        // message, so a client that has it can start the next training.
         drop(slot);
-        match out {
-            Ok(trained) => {
-                let _ = tx.blocking_send(Ok(TrainStaticModelUpdate { update: Some(Update::Trained(trained)) }));
-            }
-            Err(e) => {
-                let _ = tx.blocking_send(Err(e));
-            }
-        }
+        let last = out.map(|trained| TrainStaticModelUpdate { update: Some(Update::Trained(trained)) });
+        let _ = tx.send(last).await;
     });
     Ok(Box::pin(ReceiverStream::new(rx)))
 }
@@ -263,7 +278,10 @@ fn run(job: &Job, plan: &Plan, staging: &Path, tx: &Tx) -> Result<TrainedStaticM
         sessions: plan.sessions,
     };
     let dest = PathBuf::from(&config.bundle);
-    let registered = {
+    // Published whole under the lock: moved, registered, loaded and
+    // described, or none of it. A delete waits for the lock, so it never
+    // removes a bundle that is loading.
+    let model = {
         let _one = job.publishing.lock().unwrap_or_else(|e| e.into_inner());
         gone()?;
         if dest.exists() {
@@ -274,21 +292,21 @@ fn run(job: &Job, plan: &Plan, staging: &Path, tx: &Tx) -> Result<TrainedStaticM
             )));
         }
         let registered = job.state.add(plan.name.clone(), config).map_err(|f| plain(Failure { field: 1, ..f }))?;
-        if let Err(e) = fs::rename(&bundle, &dest) {
+        let published = fs::rename(&bundle, &dest)
+            .map_err(|e| runtime(format!("{}: {e}", dest.display())))
+            .and_then(|()| job.state.load_one(&registered).map_err(|e| e.to_status()))
+            .and_then(|()| {
+                let served = serving(&job.state, &plan.name, &dest).is_some();
+                describe(&dest, &plan.name, served).map_err(runtime)
+            })
+            .and_then(|m| if m.verified { Ok(m) } else { Err(runtime(format!("{}: {}", dest.display(), m.problem))) });
+        if published.is_err() {
             let _ = job.state.remove_if(&registered);
-            return Err(runtime(format!("{}: {e}", dest.display())));
+            let _ = fs::remove_dir_all(&dest);
         }
-        registered
+        published?
     };
-    if let Err(e) = job.state.load_one(&registered) {
-        let _one = job.publishing.lock().unwrap_or_else(|e| e.into_inner());
-        let _ = job.state.remove_if(&registered);
-        let _ = fs::remove_dir_all(&dest);
-        return Err(e.to_status());
-    }
     let _ = tx.blocking_send(Ok(update(progress(TrainStage::Loaded))));
-    let served = serving(&job.state, &plan.name, &dest).is_some();
-    let model = describe(&dest, &plan.name, served).map_err(runtime)?;
     Ok(TrainedStaticModel {
         model: Some(model),
         added_terms: staged.added,
