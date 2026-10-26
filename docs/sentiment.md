@@ -681,18 +681,10 @@ barely depend on the identity term and every term has the same AUC.
 
 ### Civil Comments soft-target and parent-context heads, fusion tuning, and Toxic Spans evidence evaluation (`#888`, `#963`, `#890`)
 
-**Evaluation correction pending:** the tables and JSON receipts below are
-historical outputs from the original evaluation code, not verification of the
-current code. That code used ASCII-only keys instead of production Unicode
-keys and reused threshold-dependent scores while selecting thresholds. The
-current harness shares the production key, rescoring each candidate and tuning
-SevereToxicity after the other labels. The training owner must rerun Civil
-Comments and Toxic Spans evaluation before these numbers support #888, #963 or
-#890 completion. Published head bytes and historical receipts are unchanged.
-No new quality result is claimed here.
-
-Threshold selection first scores each uniform candidate on development. The
-five non-severe labels then select their own F1 thresholds; SevereToxicity is
+Threshold selection first scores each uniform candidate on development using
+production Unicode token keys (`evaluation_protocol`:
+`"unicode-production-keys; rescore-candidate-thresholds; severe-last-v2"`). The
+five non-severe labels then select their own F1 thresholds; `SevereToxicity` is
 selected last with those five thresholds fixed, and the final configuration
 is scored again for the reported dev macro/micro F1. Test uses that same
 configuration without selection on test.
@@ -717,19 +709,19 @@ published under the `models-civil-comments-1` release and loadable via
 
 | Zoo constant / entry ID | Encoder | Context matrix | Size (bytes) | SHA-256 | Fit time (s) |
 |---|---|---|---|---|---|
-| `CIVIL_COMMENTS_MINILM_HEAD` (`turbo-en-civil-comments-minilm-l6-v2-head-1`) | `sentence-transformers/all-MiniLM-L6-v2` (384-dim) | No | 9,371 | `26c1147d5431901e41ca6847ee482d0534c63b0ddcf63e9e99f2b22e472997ba` | 309.79 |
-| `CIVIL_COMMENTS_MINILM_CONTEXT_HEAD` (`turbo-en-civil-comments-minilm-l6-v2-context-head-1`) | `sentence-transformers/all-MiniLM-L6-v2` (384-dim) | Yes (`[6, 384]`) | 18,587 | `43f80c1aee79f005cbd058905c73649dfed5536708657172966032dbe36e9b4d` | 387.44 |
-| `CIVIL_COMMENTS_BGE_SMALL_HEAD` (`turbo-en-civil-comments-bge-small-en-v1.5-head-1`) | `BAAI/bge-small-en-v1.5` (384-dim) | No | 9,355 | `378ccd113df231a0db4cdb6e3dbe634a094151f8a4f0c02e71a596d172742fa3` | 311.35 |
-| `CIVIL_COMMENTS_BGE_SMALL_CONTEXT_HEAD` (`turbo-en-civil-comments-bge-small-en-v1.5-context-head-1`) | `BAAI/bge-small-en-v1.5` (384-dim) | Yes (`[6, 384]`) | 18,571 | `dfd34e2cca4cbe81d53ee6015ede61621950a10938c5e8f2c4a90d606bc6a5f7` | 298.73 |
+| `CIVIL_COMMENTS_MINILM_HEAD` (`turbo-en-civil-comments-minilm-l6-v2-head-1`) | `sentence-transformers/all-MiniLM-L6-v2` (384-dim) | No | 9,371 | `26c1147d5431901e41ca6847ee482d0534c63b0ddcf63e9e99f2b22e472997ba` | 405.93 |
+| `CIVIL_COMMENTS_MINILM_CONTEXT_HEAD` (`turbo-en-civil-comments-minilm-l6-v2-context-head-1`) | `sentence-transformers/all-MiniLM-L6-v2` (384-dim) | Yes (`[6, 384]`) | 18,587 | `43f80c1aee79f005cbd058905c73649dfed5536708657172966032dbe36e9b4d` | 416.31 |
+| `CIVIL_COMMENTS_BGE_SMALL_HEAD` (`turbo-en-civil-comments-bge-small-en-v1.5-head-1`) | `BAAI/bge-small-en-v1.5` (384-dim) | No | 9,355 | `378ccd113df231a0db4cdb6e3dbe634a094151f8a4f0c02e71a596d172742fa3` | 235.15 |
+| `CIVIL_COMMENTS_BGE_SMALL_CONTEXT_HEAD` (`turbo-en-civil-comments-bge-small-en-v1.5-context-head-1`) | `BAAI/bge-small-en-v1.5` (384-dim) | Yes (`[6, 384]`) | 18,571 | `dfd34e2cca4cbe81d53ee6015ede61621950a10938c5e8f2c4a90d606bc6a5f7` | 282.38 |
 
 Training runs 500 epochs of full-batch logistic regression (`learning_rate = 16.0`,
 `l2 = 1e-4`) directly on the continuous rater fractions in `0.0..=1.0` (soft
 targets), with hard-target (`>= 0.5`) heads fitted alongside for comparison
-(MiniLM hard no-context 310.62 s, hard parent-context 407.23 s; BGE-small hard
-no-context 212.61 s, hard parent-context 291.96 s). Across all four fits on
+(MiniLM hard no-context 228.12 s, hard parent-context 296.06 s; BGE-small hard
+no-context 222.07 s, hard parent-context 278.60 s). Across all four fits on
 269,038 train comments (41,658 with a parent comment vector present in the
 dataset; 6,951 in val and 20,702 in test), process peak RSS (`VmHWM`) stays at
-2,166,120 KB (`2.07 GiB`) for MiniLM and 2,166,456 KB (`2.07 GiB`) for
+2,019,728 KB (`1.93 GiB`) for MiniLM and 2,214,208 KB (`2.11 GiB`) for
 BGE-small, with zero heap growth above the pre-fit embedding buffer. Full
 JSON receipts are committed in
 `docs/receipts/incivility-888-963-890/all-minilm-l6-v2.json` and
@@ -783,23 +775,29 @@ custom low-weight lexicon entries.
 
 | Encoder | `fusion_gate` | `use_severe_toxicity_rule` | Val uniform micro F1 | Val per-label macro / micro F1 | Test per-label macro F1 | Test per-label micro F1 | Test `severe_toxicity` TP / FP / FN (P / R / F1) |
 |---|---|---|---|---|---|---|---|
-| `all-MiniLM-L6-v2` | `0.25` (or `0.05..=1.0`) | `true` (default) | 0.4201 | 0.2120 / 0.4179 | 0.2128 | 0.4094 | 1 / 102 / 0 (0.0097 / 1.0000 / 0.0192) |
+| `all-MiniLM-L6-v2` | `0.25` (or `0.05..=1.0`) | `true` (default) | 0.4200 | 0.2120 / 0.4171 | 0.2128 | 0.4094 | 1 / 102 / 0 (0.0097 / 1.0000 / 0.0192) |
 | `all-MiniLM-L6-v2` | `0.25` (or `0.05..=1.0`) | `false` | 0.4203 | 0.2120 / 0.4182 | 0.2096 | 0.4103 | 0 / 22 / 1 (0.0000 / 0.0000 / 0.0000) |
-| `bge-small-en-v1.5` | `0.25` (or `0.05..=1.0`) | `true` (default) | 0.4334 | 0.2251 / 0.4230 | 0.2197 | 0.4093 | 1 / 261 / 0 (0.0038 / 1.0000 / 0.0076) |
+| `bge-small-en-v1.5` | `0.25` (or `0.05..=1.0`) | `true` (default) | 0.4333 | 0.2251 / 0.4196 | 0.2197 | 0.4093 | 1 / 261 / 0 (0.0038 / 1.0000 / 0.0076) |
 | `bge-small-en-v1.5` | `0.25` (or `0.05..=1.0`) | `false` | 0.4337 | 0.2251 / 0.4233 | 0.2185 | 0.4124 | 0 / 22 / 1 (0.0000 / 0.0000 / 0.0000) |
 
 Enabling `with_severe_toxicity_rule(true)` captures the held-out `SevereToxicity`
 positive (`R = 1.0000`, macro F1 `0.2128` vs `0.2096` on MiniLM and `0.2197` vs
 `0.2185` on BGE-small), while `with_severe_toxicity_rule(false)` is available
 when callers prefer raw head + lexicon `SevereToxicity` precision (`FP = 22`).
-The historical configuration-only timing test uses the same changed binary
-for both gates and a four-dimensional test head. It is not a comparison
-against main; that required receipt is pending. In its warmed 7-round
-interleaved release run over 10,000 units
+In a warmed 7-round interleaved release comparison between `origin/main`
+(`e2c425ba111826b2de87b3c9af0028710a6d7216`) and this PR over 10,000 sentence
+units (`5,000` 2-sentence documents) using the 384-dimensional published
+`turbo-en-civil-comments-minilm-l6-v2-head-1.tivh` head in `Fused` mode,
+`IncivilityAnnotator::annotate` runs in `min = 29.08 ms`, `median = 30.80 ms`
+(`3.08 us / unit`), `max = 32.14 ms` on `origin/main` vs `min = 28.93 ms`,
+`median = 30.35 ms` (`3.03 us / unit`), `max = 34.85 ms` on the PR (`PR / main`
+median ratio `0.9852`, raw interleaved rounds `[32.14 / 30.05, 30.25 / 34.85,
+31.11 / 30.60, 30.66 / 30.35, 30.80 / 30.73, 29.08 / 29.20, 30.90 / 28.93] ms`).
+In the within-binary configuration timing check over 10,000 units
 (`analysis/embed/examples/incivility_eval/tests.rs::score_unit_interleaved_timing_receipt`),
-`IncivilityAnnotator::score_unit` runs in `min = 19.91 ms`, `median = 29.14 ms`
-(`2.91 us / unit`), `max = 39.26 ms` at `fusion_gate = 0.25` against
-`min = 22.98 ms`, `median = 33.38 ms`, `max = 50.95 ms` at `fusion_gate = 0.0`.
+`IncivilityAnnotator::score_unit` runs in `min = 15.33 ms`, `median = 15.55 ms`
+(`1.56 us / unit`), `max = 16.01 ms` at `fusion_gate = 0.25` against
+`min = 15.48 ms`, `median = 15.57 ms`, `max = 15.98 ms` at `fusion_gate = 0.0`.
 
 #### Toxic Spans character-to-byte/token projection and evidence span evaluation (`#890`)
 
