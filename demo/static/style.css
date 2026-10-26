@@ -139,3 +139,25 @@ table.cmp td, table.cmp th { border-top: 1px solid var(--line); }
 details { margin-top: 8px; }
 summary { cursor: pointer; color: var(--muted); }
 footer.muted { margin: 0 auto; padding-top: 16px; padding-bottom: 24px; font-size: 13px; }
+input.wide { width: 100%; }
+details.card > summary { font-weight: 600; color: var(--text); }
+.chip.bad { border-color: var(--error); color: var(--error); }
+.chip.bad.on { color: var(--accent-text); }
+.quote { white-space: normal; text-align: left; display: inline-block; max-width: 28em; }
+table.drawer td { vertical-align: top; text-align: left; }
+table.drawer .vec { white-space: normal; }
+.doc.xray ins { background: rgba(46, 160, 67, 0.25); text-decoration: none; }
+.doc.xray del { background: rgba(218, 54, 51, 0.2); }
+canvas.plot { width: 100%; max-width: 640px; border: 1px solid var(--line); border-radius: 6px; display: block; }
+.stack { display: flex; height: 22px; font-size: 11px; border-radius: 4px; overflow: hidden; }
+.stack span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding: 2px 4px; background: rgba(var(--heat), 0.25); border-right: 1px solid var(--panel); }
+.stack span:nth-child(even) { background: rgba(var(--heat), 0.45); }
+.stack span.other { background: var(--bg); color: var(--muted); }
+.kids { padding-left: 1.2em; font-size: 13px; }
+.kids.top { padding-left: 0; }
+.wire { display: inline-flex; gap: 8px; align-items: center; }
+.wire .size { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.share { display: inline-block; width: 80px; height: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+.share span { display: block; height: 100%; background: rgb(var(--heat)); }
+.leaf { padding: 1px 0; }
+progress { width: 100%; }

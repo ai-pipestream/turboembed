@@ -118,8 +118,8 @@ function int64ToString(lo, hi) {
   if (negative) {
     bits = negate(bits.lo, bits.hi);
   }
-  const result = uInt64ToString(bits.lo, bits.hi);
-  return negative ? "-" + result : result;
+  const result2 = uInt64ToString(bits.lo, bits.hi);
+  return negative ? "-" + result2 : result2;
 }
 function uInt64ToString(lo, hi) {
   ({ lo, hi } = toUnsigned(lo, hi));
@@ -187,33 +187,33 @@ function varint32read() {
     this.assertBounds();
     return b;
   }
-  let result = b & 127;
+  let result2 = b & 127;
   b = this.buf[this.pos++];
-  result |= (b & 127) << 7;
+  result2 |= (b & 127) << 7;
   if ((b & 128) === 0) {
     this.assertBounds();
-    return result;
+    return result2;
   }
   b = this.buf[this.pos++];
-  result |= (b & 127) << 14;
+  result2 |= (b & 127) << 14;
   if ((b & 128) === 0) {
     this.assertBounds();
-    return result;
+    return result2;
   }
   b = this.buf[this.pos++];
-  result |= (b & 127) << 21;
+  result2 |= (b & 127) << 21;
   if ((b & 128) === 0) {
     this.assertBounds();
-    return result;
+    return result2;
   }
   b = this.buf[this.pos++];
-  result |= (b & 15) << 28;
+  result2 |= (b & 15) << 28;
   for (let readBytes = 5; (b & 128) !== 0 && readBytes < 10; readBytes++)
     b = this.buf[this.pos++];
   if ((b & 128) !== 0)
     throw new Error("invalid varint");
   this.assertBounds();
-  return result >>> 0;
+  return result2 >>> 0;
 }
 
 // demo/web/node_modules/@bufbuild/protobuf/dist/esm/proto-int64.js
@@ -387,51 +387,51 @@ function unsafeOneofCase(target, oneof) {
   }
   return oneof.fields.find((f) => f.localName === c);
 }
-function unsafeIsSet(target, field) {
-  const name = field.localName;
-  if (field.oneof) {
-    return target[field.oneof.localName].case === name;
+function unsafeIsSet(target, field2) {
+  const name = field2.localName;
+  if (field2.oneof) {
+    return target[field2.oneof.localName].case === name;
   }
-  if (field.presence != IMPLICIT) {
+  if (field2.presence != IMPLICIT) {
     return target[name] !== void 0 && Object.prototype.hasOwnProperty.call(target, name);
   }
-  switch (field.fieldKind) {
+  switch (field2.fieldKind) {
     case "list":
       return target[name].length > 0;
     case "map":
       return Object.keys(target[name]).length > 0;
     case "scalar":
-      return !isScalarZeroValue(field.scalar, target[name]);
+      return !isScalarZeroValue(field2.scalar, target[name]);
     case "enum":
-      return target[name] !== field.enum.values[0].number;
+      return target[name] !== field2.enum.values[0].number;
   }
   throw new Error("message field with implicit presence");
 }
 function unsafeIsSetExplicit(target, localName) {
   return Object.prototype.hasOwnProperty.call(target, localName) && target[localName] !== void 0;
 }
-function unsafeGet(target, field) {
-  if (field.oneof) {
-    const oneof = target[field.oneof.localName];
-    if (oneof.case === field.localName) {
+function unsafeGet(target, field2) {
+  if (field2.oneof) {
+    const oneof = target[field2.oneof.localName];
+    if (oneof.case === field2.localName) {
       return oneof.value;
     }
     return void 0;
   }
-  return target[field.localName];
+  return target[field2.localName];
 }
-function unsafeSet(target, field, value) {
-  if (field.oneof) {
-    target[field.oneof.localName] = {
-      case: field.localName,
+function unsafeSet(target, field2, value) {
+  if (field2.oneof) {
+    target[field2.oneof.localName] = {
+      case: field2.localName,
       value
     };
   } else {
-    target[field.localName] = value;
+    target[field2.localName] = value;
   }
 }
-function setOwn(obj, key, value) {
-  if (key === "__proto__") {
+function setOwn(obj, key2, value) {
+  if (key2 === "__proto__") {
     Object.defineProperty(obj, "__proto__", {
       value,
       writable: true,
@@ -439,23 +439,23 @@ function setOwn(obj, key, value) {
       configurable: true
     });
   } else {
-    obj[key] = value;
+    obj[key2] = value;
   }
 }
-function getOwn(obj, key) {
-  return Object.prototype.hasOwnProperty.call(obj, key) ? obj[key] : void 0;
+function getOwn(obj, key2) {
+  return Object.prototype.hasOwnProperty.call(obj, key2) ? obj[key2] : void 0;
 }
-function unsafeClear(target, field) {
-  const name = field.localName;
-  if (field.oneof) {
-    const oneofLocalName = field.oneof.localName;
+function unsafeClear(target, field2) {
+  const name = field2.localName;
+  if (field2.oneof) {
+    const oneofLocalName = field2.oneof.localName;
     if (target[oneofLocalName].case === name) {
       target[oneofLocalName] = { case: void 0 };
     }
-  } else if (field.presence != IMPLICIT) {
+  } else if (field2.presence != IMPLICIT) {
     delete target[name];
   } else {
-    switch (field.fieldKind) {
+    switch (field2.fieldKind) {
       case "map":
         target[name] = {};
         break;
@@ -463,10 +463,10 @@ function unsafeClear(target, field) {
         target[name] = [];
         break;
       case "enum":
-        target[name] = field.enum.values[0].number;
+        target[name] = field2.enum.values[0].number;
         break;
       case "scalar":
-        target[name] = scalarZeroValue(field.scalar, field.longAsString);
+        target[name] = scalarZeroValue(field2.scalar, field2.longAsString);
         break;
     }
   }
@@ -530,10 +530,10 @@ function parseTextFormatScalarValue(type, value) {
       return parseInt(value, 10);
   }
 }
-function unescapeBytesDefaultValue(str) {
+function unescapeBytesDefaultValue(str2) {
   const b = [];
   const input2 = {
-    tail: str,
+    tail: str2,
     c: "",
     next() {
       if (this.tail.length == 0) {
@@ -784,10 +784,10 @@ var BinaryWriter = class {
    * Return all bytes written and reset this writer.
    */
   finish() {
-    const result = this.buffer.slice(0, this.pos);
+    const result2 = this.buffer.slice(0, this.pos);
     this.pos = 0;
     this.stackPos = [];
-    return result;
+    return result2;
   }
   /**
    * Start a new fork for length-delimited data like a message
@@ -1625,13 +1625,13 @@ function addFields(message, reg, mapEntries) {
   const oneofsSeen = /* @__PURE__ */ new Set();
   for (const proto of message.proto.field) {
     const oneof = findOneof(proto, allOneofs);
-    const field = newField(proto, message, reg, oneof, mapEntries);
-    message.fields.push(field);
-    message.field[field.localName] = field;
+    const field2 = newField(proto, message, reg, oneof, mapEntries);
+    message.fields.push(field2);
+    message.field[field2.localName] = field2;
     if (oneof === void 0) {
-      message.members.push(field);
+      message.members.push(field2);
     } else {
-      oneof.fields.push(field);
+      oneof.fields.push(field2);
       if (!oneofsSeen.has(oneof)) {
         oneofsSeen.add(oneof);
         message.members.push(oneof);
@@ -1757,9 +1757,9 @@ function newMethod(proto, parent, reg) {
     methodKind = "unary";
   }
   const input2 = reg.getMessage(trimLeadingDot(proto.inputType));
-  const output = reg.getMessage(trimLeadingDot(proto.outputType));
+  const output2 = reg.getMessage(trimLeadingDot(proto.outputType));
   assert(input2, `invalid MethodDescriptorProto: input_type ${proto.inputType} not found`);
-  assert(output, `invalid MethodDescriptorProto: output_type ${proto.inputType} not found`);
+  assert(output2, `invalid MethodDescriptorProto: output_type ${proto.inputType} not found`);
   const name = proto.name;
   return {
     kind: "rpc",
@@ -1770,7 +1770,7 @@ function newMethod(proto, parent, reg) {
     localName: safeObjectProperty(name.length ? safeObjectProperty(name[0].toLowerCase() + name.substring(1)) : name),
     methodKind,
     input: input2,
-    output,
+    output: output2,
     idempotency: (_d = (_c = proto.options) === null || _c === void 0 ? void 0 : _c.idempotencyLevel) !== null && _d !== void 0 ? _d : IDEMPOTENCY_UNKNOWN,
     toString() {
       return `rpc ${parent.typeName}.${name}`;
@@ -1794,7 +1794,7 @@ function newOneof(proto, parent) {
 function newField(proto, parentOrFile, reg, oneof, mapEntries) {
   var _a, _b, _c;
   const isExtension = mapEntries === void 0;
-  const field = {
+  const field2 = {
     kind: "field",
     proto,
     deprecated: (_b = (_a = proto.options) === null || _a === void 0 ? void 0 : _a.deprecated) !== null && _b !== void 0 ? _b : false,
@@ -1818,26 +1818,26 @@ function newField(proto, parentOrFile, reg, oneof, mapEntries) {
     const file = parentOrFile.kind == "file" ? parentOrFile : parentOrFile.file;
     const parent = parentOrFile.kind == "file" ? void 0 : parentOrFile;
     const typeName = makeTypeName(proto, parent, file);
-    field.kind = "extension";
-    field.file = file;
-    field.parent = parent;
-    field.oneof = void 0;
-    field.typeName = typeName;
-    field.jsonName = `[${typeName}]`;
+    field2.kind = "extension";
+    field2.file = file;
+    field2.parent = parent;
+    field2.oneof = void 0;
+    field2.typeName = typeName;
+    field2.jsonName = `[${typeName}]`;
     toStr = () => `extension ${typeName}`;
     const extendee = reg.getMessage(trimLeadingDot(proto.extendee));
     assert(extendee, `invalid FieldDescriptorProto: extendee ${proto.extendee} not found`);
-    field.extendee = extendee;
+    field2.extendee = extendee;
   } else {
     const parent = parentOrFile;
     assert(parent.kind == "message");
-    field.parent = parent;
-    field.oneof = oneof;
-    field.localName = oneof ? protoCamelCase(proto.name) : safeObjectProperty(protoCamelCase(proto.name));
-    field.jsonName = proto.jsonName;
+    field2.parent = parent;
+    field2.oneof = oneof;
+    field2.localName = oneof ? protoCamelCase(proto.name) : safeObjectProperty(protoCamelCase(proto.name));
+    field2.jsonName = proto.jsonName;
     toStr = () => `field ${parent.typeName}.${proto.name}`;
   }
-  Object.defineProperty(field, "toString", {
+  Object.defineProperty(field2, "toString", {
     value: toStr,
     writable: true,
     enumerable: true,
@@ -1849,69 +1849,69 @@ function newField(proto, parentOrFile, reg, oneof, mapEntries) {
   if (label === LABEL_REPEATED) {
     const mapEntry = type == TYPE_MESSAGE ? mapEntries === null || mapEntries === void 0 ? void 0 : mapEntries.get(trimLeadingDot(proto.typeName)) : void 0;
     if (mapEntry) {
-      field.fieldKind = "map";
-      const { key, value } = findMapEntryFields(mapEntry);
-      field.mapKey = key.scalar;
-      field.mapKind = value.fieldKind;
-      field.message = value.message;
-      field.delimitedEncoding = false;
-      field.enum = value.enum;
-      field.scalar = value.scalar;
-      return field;
+      field2.fieldKind = "map";
+      const { key: key2, value } = findMapEntryFields(mapEntry);
+      field2.mapKey = key2.scalar;
+      field2.mapKind = value.fieldKind;
+      field2.message = value.message;
+      field2.delimitedEncoding = false;
+      field2.enum = value.enum;
+      field2.scalar = value.scalar;
+      return field2;
     }
-    field.fieldKind = "list";
+    field2.fieldKind = "list";
     switch (type) {
       case TYPE_MESSAGE:
       case TYPE_GROUP:
-        field.listKind = "message";
-        field.message = reg.getMessage(trimLeadingDot(proto.typeName));
-        assert(field.message);
-        field.delimitedEncoding = isDelimitedEncoding(proto, parentOrFile);
+        field2.listKind = "message";
+        field2.message = reg.getMessage(trimLeadingDot(proto.typeName));
+        assert(field2.message);
+        field2.delimitedEncoding = isDelimitedEncoding(proto, parentOrFile);
         break;
       case TYPE_ENUM:
-        field.listKind = "enum";
-        field.enum = reg.getEnum(trimLeadingDot(proto.typeName));
-        assert(field.enum);
+        field2.listKind = "enum";
+        field2.enum = reg.getEnum(trimLeadingDot(proto.typeName));
+        assert(field2.enum);
         break;
       default:
-        field.listKind = "scalar";
-        field.scalar = type;
-        field.longAsString = jstype == JS_STRING;
+        field2.listKind = "scalar";
+        field2.scalar = type;
+        field2.longAsString = jstype == JS_STRING;
         break;
     }
-    field.packed = isPackedField(proto, parentOrFile);
-    return field;
+    field2.packed = isPackedField(proto, parentOrFile);
+    return field2;
   }
   switch (type) {
     case TYPE_MESSAGE:
     case TYPE_GROUP:
-      field.fieldKind = "message";
-      field.message = reg.getMessage(trimLeadingDot(proto.typeName));
-      assert(field.message, `invalid FieldDescriptorProto: type_name ${proto.typeName} not found`);
-      field.delimitedEncoding = isDelimitedEncoding(proto, parentOrFile);
-      field.getDefaultValue = () => void 0;
+      field2.fieldKind = "message";
+      field2.message = reg.getMessage(trimLeadingDot(proto.typeName));
+      assert(field2.message, `invalid FieldDescriptorProto: type_name ${proto.typeName} not found`);
+      field2.delimitedEncoding = isDelimitedEncoding(proto, parentOrFile);
+      field2.getDefaultValue = () => void 0;
       break;
     case TYPE_ENUM: {
       const enumeration = reg.getEnum(trimLeadingDot(proto.typeName));
       assert(enumeration !== void 0, `invalid FieldDescriptorProto: type_name ${proto.typeName} not found`);
-      field.fieldKind = "enum";
-      field.enum = reg.getEnum(trimLeadingDot(proto.typeName));
-      field.getDefaultValue = () => {
+      field2.fieldKind = "enum";
+      field2.enum = reg.getEnum(trimLeadingDot(proto.typeName));
+      field2.getDefaultValue = () => {
         return unsafeIsSetExplicit(proto, "defaultValue") ? parseTextFormatEnumValue(enumeration, proto.defaultValue) : void 0;
       };
       break;
     }
     default: {
-      field.fieldKind = "scalar";
-      field.scalar = type;
-      field.longAsString = jstype == JS_STRING;
-      field.getDefaultValue = () => {
+      field2.fieldKind = "scalar";
+      field2.scalar = type;
+      field2.longAsString = jstype == JS_STRING;
+      field2.getDefaultValue = () => {
         return unsafeIsSetExplicit(proto, "defaultValue") ? parseTextFormatScalarValue(type, proto.defaultValue) : void 0;
       };
       break;
     }
   }
-  return field;
+  return field2;
 }
 function getFileEdition(proto) {
   switch (proto.syntax) {
@@ -1941,8 +1941,8 @@ function findFileDependencies(proto, reg) {
     return dep;
   });
 }
-function findEnumSharedPrefix(enumName, values) {
-  const prefix2 = camelToSnakeCase(enumName) + "_";
+function findEnumSharedPrefix(enumName2, values) {
+  const prefix2 = camelToSnakeCase(enumName2) + "_";
   for (const value of values) {
     if (!value.name.toLowerCase().startsWith(prefix2)) {
       return void 0;
@@ -2046,10 +2046,10 @@ function isPackedField(proto, parent) {
   });
 }
 function findMapEntryFields(mapEntry) {
-  const key = mapEntry.fields.find((f) => f.number === 1);
+  const key2 = mapEntry.fields.find((f) => f.number === 1);
   const value = mapEntry.fields.find((f) => f.number === 2);
-  assert(key && key.fieldKind == "scalar" && key.scalar != ScalarType.BYTES && key.scalar != ScalarType.FLOAT && key.scalar != ScalarType.DOUBLE && value && value.fieldKind != "list" && value.fieldKind != "map");
-  return { key, value };
+  assert(key2 && key2.fieldKind == "scalar" && key2.scalar != ScalarType.BYTES && key2.scalar != ScalarType.FLOAT && key2.scalar != ScalarType.DOUBLE && value && value.fieldKind != "list" && value.fieldKind != "map");
+  return { key: key2, value };
 }
 function isEnumOpen(desc) {
   var _a;
@@ -2107,32 +2107,32 @@ function boot(boot2) {
   const reg = createFileRegistry(root, () => void 0);
   return reg.getFile(root.name);
 }
-function bootFileDescriptorProto(init6) {
+function bootFileDescriptorProto(init13) {
   const proto = /* @__PURE__ */ Object.create({
     syntax: "",
     edition: 0
   });
-  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FileDescriptorProto", dependency: [], publicDependency: [], weakDependency: [], optionDependency: [], service: [], extension: [] }, init6), { messageType: init6.messageType.map(bootDescriptorProto), enumType: init6.enumType.map(bootEnumDescriptorProto) }));
+  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FileDescriptorProto", dependency: [], publicDependency: [], weakDependency: [], optionDependency: [], service: [], extension: [] }, init13), { messageType: init13.messageType.map(bootDescriptorProto), enumType: init13.enumType.map(bootEnumDescriptorProto) }));
 }
-function bootDescriptorProto(init6) {
+function bootDescriptorProto(init13) {
   var _a, _b, _c, _d, _e, _f, _g, _h;
   const proto = /* @__PURE__ */ Object.create({
     visibility: 0
   });
   return Object.assign(proto, {
     $typeName: "google.protobuf.DescriptorProto",
-    name: init6.name,
-    field: (_b = (_a = init6.field) === null || _a === void 0 ? void 0 : _a.map(bootFieldDescriptorProto)) !== null && _b !== void 0 ? _b : [],
+    name: init13.name,
+    field: (_b = (_a = init13.field) === null || _a === void 0 ? void 0 : _a.map(bootFieldDescriptorProto)) !== null && _b !== void 0 ? _b : [],
     extension: [],
-    nestedType: (_d = (_c = init6.nestedType) === null || _c === void 0 ? void 0 : _c.map(bootDescriptorProto)) !== null && _d !== void 0 ? _d : [],
-    enumType: (_f = (_e = init6.enumType) === null || _e === void 0 ? void 0 : _e.map(bootEnumDescriptorProto)) !== null && _f !== void 0 ? _f : [],
-    extensionRange: (_h = (_g = init6.extensionRange) === null || _g === void 0 ? void 0 : _g.map((e) => Object.assign({ $typeName: "google.protobuf.DescriptorProto.ExtensionRange" }, e))) !== null && _h !== void 0 ? _h : [],
+    nestedType: (_d = (_c = init13.nestedType) === null || _c === void 0 ? void 0 : _c.map(bootDescriptorProto)) !== null && _d !== void 0 ? _d : [],
+    enumType: (_f = (_e = init13.enumType) === null || _e === void 0 ? void 0 : _e.map(bootEnumDescriptorProto)) !== null && _f !== void 0 ? _f : [],
+    extensionRange: (_h = (_g = init13.extensionRange) === null || _g === void 0 ? void 0 : _g.map((e) => Object.assign({ $typeName: "google.protobuf.DescriptorProto.ExtensionRange" }, e))) !== null && _h !== void 0 ? _h : [],
     oneofDecl: [],
     reservedRange: [],
     reservedName: []
   });
 }
-function bootFieldDescriptorProto(init6) {
+function bootFieldDescriptorProto(init13) {
   const proto = /* @__PURE__ */ Object.create({
     label: 1,
     typeName: "",
@@ -2142,9 +2142,9 @@ function bootFieldDescriptorProto(init6) {
     jsonName: "",
     proto3Optional: false
   });
-  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FieldDescriptorProto" }, init6), { options: init6.options ? bootFieldOptions(init6.options) : void 0 }));
+  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FieldDescriptorProto" }, init13), { options: init13.options ? bootFieldOptions(init13.options) : void 0 }));
 }
-function bootFieldOptions(init6) {
+function bootFieldOptions(init13) {
   var _a, _b, _c;
   const proto = /* @__PURE__ */ Object.create({
     ctype: 0,
@@ -2157,18 +2157,18 @@ function bootFieldOptions(init6) {
     debugRedact: false,
     retention: 0
   });
-  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FieldOptions" }, init6), { targets: (_a = init6.targets) !== null && _a !== void 0 ? _a : [], editionDefaults: (_c = (_b = init6.editionDefaults) === null || _b === void 0 ? void 0 : _b.map((e) => Object.assign({ $typeName: "google.protobuf.FieldOptions.EditionDefault" }, e))) !== null && _c !== void 0 ? _c : [], uninterpretedOption: [] }));
+  return Object.assign(proto, Object.assign(Object.assign({ $typeName: "google.protobuf.FieldOptions" }, init13), { targets: (_a = init13.targets) !== null && _a !== void 0 ? _a : [], editionDefaults: (_c = (_b = init13.editionDefaults) === null || _b === void 0 ? void 0 : _b.map((e) => Object.assign({ $typeName: "google.protobuf.FieldOptions.EditionDefault" }, e))) !== null && _c !== void 0 ? _c : [], uninterpretedOption: [] }));
 }
-function bootEnumDescriptorProto(init6) {
+function bootEnumDescriptorProto(init13) {
   const proto = /* @__PURE__ */ Object.create({
     visibility: 0
   });
   return Object.assign(proto, {
     $typeName: "google.protobuf.EnumDescriptorProto",
-    name: init6.name,
+    name: init13.name,
     reservedName: [],
     reservedRange: [],
-    value: init6.value.map((e) => Object.assign({ $typeName: "google.protobuf.EnumValueDescriptorProto" }, e))
+    value: init13.value.map((e) => Object.assign({ $typeName: "google.protobuf.EnumValueDescriptorProto" }, e))
   });
 }
 
@@ -2184,9 +2184,9 @@ function base64Decode(base64Str) {
   let written = -1;
   if (nativeSetFromBase64) {
     try {
-      const result = nativeSetFromBase64.call(bytes2, base64Str);
-      if (result.read == len) {
-        written = result.written;
+      const result2 = nativeSetFromBase64.call(bytes2, base64Str);
+      if (result2.read == len) {
+        written = result2.written;
       }
     } catch (_a) {
     }
@@ -2343,11 +2343,11 @@ function isMessage(arg, schema) {
 function isObject(arg) {
   return arg !== null && typeof arg == "object" && !Array.isArray(arg);
 }
-function isReflectList(arg, field) {
+function isReflectList(arg, field2) {
   var _a, _b, _c, _d;
   if (isObject(arg) && unsafeLocal in arg && "add" in arg && "field" in arg && typeof arg.field == "function") {
-    if (field !== void 0) {
-      const a = field;
+    if (field2 !== void 0) {
+      const a = field2;
       const b = arg.field();
       return a.listKind == b.listKind && a.scalar === b.scalar && ((_a = a.message) === null || _a === void 0 ? void 0 : _a.typeName) === ((_b = b.message) === null || _b === void 0 ? void 0 : _b.typeName) && ((_c = a.enum) === null || _c === void 0 ? void 0 : _c.typeName) === ((_d = b.enum) === null || _d === void 0 ? void 0 : _d.typeName);
     }
@@ -2355,11 +2355,11 @@ function isReflectList(arg, field) {
   }
   return false;
 }
-function isReflectMap(arg, field) {
+function isReflectMap(arg, field2) {
   var _a, _b, _c, _d;
   if (isObject(arg) && unsafeLocal in arg && "has" in arg && "field" in arg && typeof arg.field == "function") {
-    if (field !== void 0) {
-      const a = field, b = arg.field();
+    if (field2 !== void 0) {
+      const a = field2, b = arg.field();
       return a.mapKey === b.mapKey && a.mapKind == b.mapKind && a.scalar === b.scalar && ((_a = a.message) === null || _a === void 0 ? void 0 : _a.typeName) === ((_b = b.message) === null || _b === void 0 ? void 0 : _b.typeName) && ((_c = a.enum) === null || _c === void 0 ? void 0 : _c.typeName) === ((_d = b.enum) === null || _d === void 0 ? void 0 : _d.typeName);
     }
     return true;
@@ -2411,11 +2411,11 @@ function isWrapperTypeName(name) {
 var EDITION_PROTO32 = 999;
 var EDITION_PROTO22 = 998;
 var IMPLICIT3 = 2;
-function create(schema, init6) {
-  if (isMessage(init6, schema)) {
-    return init6;
+function create(schema, init13) {
+  if (isMessage(init13, schema)) {
+    return init13;
   }
-  return compiledCreate(schema)(init6);
+  return compiledCreate(schema)(init13);
 }
 var compiledCreates = /* @__PURE__ */ new WeakMap();
 function compiledCreate(desc) {
@@ -2433,7 +2433,7 @@ var INIT_ONEOF = 3;
 function compileCreate(desc) {
   const typeName = desc.typeName;
   const { properties, prototype } = compileInitMessage(desc);
-  return (init6) => {
+  return (init13) => {
     let message;
     if (prototype !== void 0) {
       message = Object.create(prototype);
@@ -2444,7 +2444,7 @@ function compileCreate(desc) {
     for (let i = 0; i < properties.length; i++) {
       const property = properties[i];
       const name = property.name;
-      const initValue = init6 === null || init6 === void 0 ? void 0 : init6[name];
+      const initValue = init13 === null || init13 === void 0 ? void 0 : init13[name];
       switch (property.kind) {
         case INIT_SINGULAR:
           if (initValue != null) {
@@ -2554,25 +2554,25 @@ function compileInitMessage(desc) {
 }
 function compileConvertOneof(oneof) {
   const converters = /* @__PURE__ */ new Map();
-  for (const field of oneof.fields) {
+  for (const field2 of oneof.fields) {
     let convert;
-    if (field.fieldKind == "message") {
-      convert = compileConvertMessage(field);
-    } else if (field.fieldKind == "scalar" && field.scalar == ScalarType.BYTES) {
+    if (field2.fieldKind == "message") {
+      convert = compileConvertMessage(field2);
+    } else if (field2.fieldKind == "scalar" && field2.scalar == ScalarType.BYTES) {
       convert = toU8Arr;
     }
-    converters.set(field.localName, convert !== null && convert !== void 0 ? convert : ((value) => value));
+    converters.set(field2.localName, convert !== null && convert !== void 0 ? convert : ((value) => value));
   }
   return converters;
 }
-function compileConvertMessage(field) {
-  if (field.fieldKind == "message" && !field.oneof && isWrapperDesc(field.message)) {
-    return field.message.fields[0].scalar == ScalarType.BYTES ? toU8Arr : void 0;
+function compileConvertMessage(field2) {
+  if (field2.fieldKind == "message" && !field2.oneof && isWrapperDesc(field2.message)) {
+    return field2.message.fields[0].scalar == ScalarType.BYTES ? toU8Arr : void 0;
   }
-  if (field.message.typeName == "google.protobuf.Struct" && field.parent.typeName !== "google.protobuf.Value") {
+  if (field2.message.typeName == "google.protobuf.Struct" && field2.parent.typeName !== "google.protobuf.Value") {
     return void 0;
   }
-  const messageDesc2 = field.message;
+  const messageDesc2 = field2.message;
   let compiled;
   return (value) => {
     if (!isObject(value) || isMessage(value, messageDesc2)) {
@@ -2595,25 +2595,25 @@ function needsPrototypeChain(desc) {
       return desc.fields.some((f) => f.presence != IMPLICIT3 && f.fieldKind != "message" && !f.oneof);
   }
 }
-function createZeroValue(field) {
-  const defaultValue = field.getDefaultValue();
+function createZeroValue(field2) {
+  const defaultValue = field2.getDefaultValue();
   if (defaultValue !== void 0) {
-    return field.fieldKind == "scalar" && field.longAsString ? defaultValue.toString() : defaultValue;
+    return field2.fieldKind == "scalar" && field2.longAsString ? defaultValue.toString() : defaultValue;
   }
-  return field.fieldKind == "scalar" ? scalarZeroValue(field.scalar, field.longAsString) : field.enum.values[0].number;
+  return field2.fieldKind == "scalar" ? scalarZeroValue(field2.scalar, field2.longAsString) : field2.enum.values[0].number;
 }
 
 // demo/web/node_modules/@bufbuild/protobuf/dist/esm/reflect/message.js
 var NULL_VALUE = 0;
-function localMessageMapper(field) {
-  if (usesJsonRepresentation(field)) {
+function localMessageMapper(field2) {
+  if (usesJsonRepresentation(field2)) {
     return {
       toMessage: (local) => wktStructToReflect(local),
       toLocal: (message) => wktStructToLocal(message)
     };
   }
-  if (field.fieldKind == "message" && !field.oneof && isWrapperDesc(field.message)) {
-    const wrapperDesc = field.message;
+  if (field2.fieldKind == "message" && !field2.oneof && isWrapperDesc(field2.message)) {
+    const wrapperDesc = field2.message;
     const valueLocalName = wrapperDesc.fields[0].localName;
     return {
       toMessage: (local) => {
@@ -2626,14 +2626,14 @@ function localMessageMapper(field) {
       toLocal: (message) => message[valueLocalName]
     };
   }
-  const childDesc = field.message;
+  const childDesc = field2.message;
   return {
     toMessage: (local) => local === void 0 ? create(childDesc) : local,
     toLocal: (message) => message
   };
 }
-function usesJsonRepresentation(field) {
-  return field.message.typeName == "google.protobuf.Struct" && field.parent.typeName != "google.protobuf.Value";
+function usesJsonRepresentation(field2) {
+  return field2.message.typeName == "google.protobuf.Struct" && field2.parent.typeName != "google.protobuf.Value";
 }
 function wktStructToReflect(json) {
   const struct = {
@@ -2753,28 +2753,28 @@ function compileMessage(desc) {
     }
   };
   compiledWriters.set(desc, compiled);
-  for (const field of sortedFields) {
-    fieldWriters.push(compileField(field));
+  for (const field2 of sortedFields) {
+    fieldWriters.push(compileField(field2));
   }
   return compiled;
 }
-function compileField(field) {
-  switch (field.fieldKind) {
+function compileField(field2) {
+  switch (field2.fieldKind) {
     case "message":
     case "scalar":
     case "enum":
-      return compileSingularField(field);
+      return compileSingularField(field2);
     case "list":
-      return compileListField(field);
+      return compileListField(field2);
     case "map":
-      return compileMapField(field);
+      return compileMapField(field2);
   }
 }
-function compileSingularField(field) {
-  const writeValue = compileSingularValue(field);
-  const localName = field.localName;
-  if (field.oneof) {
-    const oneofLocalName = field.oneof.localName;
+function compileSingularField(field2) {
+  const writeValue = compileSingularValue(field2);
+  const localName = field2.localName;
+  if (field2.oneof) {
+    const oneofLocalName = field2.oneof.localName;
     return (writer, opts, message) => {
       const oneof = message[oneofLocalName];
       if (oneof.case === localName) {
@@ -2782,8 +2782,8 @@ function compileSingularField(field) {
       }
     };
   }
-  if (field.presence != IMPLICIT4) {
-    const requiredError = field.presence == LEGACY_REQUIRED2 ? `cannot encode ${field} to binary: required field not set` : void 0;
+  if (field2.presence != IMPLICIT4) {
+    const requiredError = field2.presence == LEGACY_REQUIRED2 ? `cannot encode ${field2} to binary: required field not set` : void 0;
     return (writer, opts, message) => {
       const value = message[localName];
       if (value !== void 0 && Object.prototype.hasOwnProperty.call(message, localName)) {
@@ -2793,8 +2793,8 @@ function compileSingularField(field) {
       }
     };
   }
-  if (field.fieldKind == "enum") {
-    const zero = field.enum.values[0].number;
+  if (field2.fieldKind == "enum") {
+    const zero = field2.enum.values[0].number;
     return (writer, opts, message) => {
       const value = message[localName];
       if (value !== zero) {
@@ -2802,7 +2802,7 @@ function compileSingularField(field) {
       }
     };
   }
-  switch (field.scalar) {
+  switch (field2.scalar) {
     case ScalarType.BOOL:
       return (writer, opts, message) => {
         const value = message[localName];
@@ -2841,21 +2841,21 @@ function compileSingularField(field) {
       };
   }
 }
-function compileSingularValue(field) {
-  switch (field.fieldKind) {
+function compileSingularValue(field2) {
+  switch (field2.fieldKind) {
     case "message": {
-      const { toMessage } = localMessageMapper(field);
-      const writeChild = compileChildWriter(field);
+      const { toMessage } = localMessageMapper(field2);
+      const writeChild = compileChildWriter(field2);
       return (writer, opts, value) => {
         writeChild(writer, opts, toMessage(value));
       };
     }
     case "scalar":
     case "enum": {
-      const scalarType = field.fieldKind == "enum" ? ScalarType.INT32 : field.scalar;
-      const fieldNo = field.number;
+      const scalarType = field2.fieldKind == "enum" ? ScalarType.INT32 : field2.scalar;
+      const fieldNo = field2.number;
       const wireType = writeTypeOfScalar(scalarType);
-      const writeScalar = compileScalarValue(scalarType, field.parent.typeName, field.name);
+      const writeScalar = compileScalarValue(scalarType, field2.parent.typeName, field2.name);
       return (writer, opts, value) => {
         writer.tag(fieldNo, wireType);
         writeScalar(writer, value);
@@ -2863,13 +2863,13 @@ function compileSingularValue(field) {
     }
   }
 }
-function compileListField(field) {
-  const localName = field.localName;
-  const fieldNo = field.number;
-  switch (field.listKind) {
+function compileListField(field2) {
+  const localName = field2.localName;
+  const fieldNo = field2.number;
+  switch (field2.listKind) {
     case "message": {
-      const { toMessage } = localMessageMapper(field);
-      const writeChild = compileChildWriter(field);
+      const { toMessage } = localMessageMapper(field2);
+      const writeChild = compileChildWriter(field2);
       return (writer, opts, message) => {
         const items = message[localName];
         for (let i = 0; i < items.length; i++) {
@@ -2879,9 +2879,9 @@ function compileListField(field) {
     }
     case "scalar":
     case "enum": {
-      const scalarType = field.listKind == "enum" ? ScalarType.INT32 : field.scalar;
-      const writeScalar = compileScalarValue(scalarType, field.parent.typeName, field.name);
-      if (field.packed) {
+      const scalarType = field2.listKind == "enum" ? ScalarType.INT32 : field2.scalar;
+      const writeScalar = compileScalarValue(scalarType, field2.parent.typeName, field2.name);
+      if (field2.packed) {
         return (writer, opts, message) => {
           const items = message[localName];
           if (items.length == 0) {
@@ -2905,81 +2905,81 @@ function compileListField(field) {
     }
   }
 }
-function compileMapField(field) {
-  const localName = field.localName;
-  const fieldNo = field.number;
-  const writeKey = compileMapKey(field);
-  if (field.mapKind == "message") {
-    const { toMessage } = localMessageMapper(field);
-    const writeMessage = compiledWriter(field.message);
+function compileMapField(field2) {
+  const localName = field2.localName;
+  const fieldNo = field2.number;
+  const writeKey = compileMapKey(field2);
+  if (field2.mapKind == "message") {
+    const { toMessage } = localMessageMapper(field2);
+    const writeMessage = compiledWriter(field2.message);
     return (writer, opts, message) => {
       const record = message[localName];
       const keys = Object.keys(record);
       for (let i = 0; i < keys.length; i++) {
-        const key = keys[i];
+        const key2 = keys[i];
         writer.tag(fieldNo, WireType.LengthDelimited).fork();
-        writeKey(writer, key);
+        writeKey(writer, key2);
         writer.tag(2, WireType.LengthDelimited).fork();
-        writeMessage(writer, opts, toMessage(record[key]));
+        writeMessage(writer, opts, toMessage(record[key2]));
         writer.join();
         writer.join();
       }
     };
   }
-  const scalarType = field.mapKind == "enum" ? ScalarType.INT32 : field.scalar;
+  const scalarType = field2.mapKind == "enum" ? ScalarType.INT32 : field2.scalar;
   const valueWireType = writeTypeOfScalar(scalarType);
-  const writeScalar = compileScalarValue(scalarType, field.parent.typeName, field.name);
+  const writeScalar = compileScalarValue(scalarType, field2.parent.typeName, field2.name);
   return (writer, opts, message) => {
     const record = message[localName];
     const keys = Object.keys(record);
     for (let i = 0; i < keys.length; i++) {
-      const key = keys[i];
+      const key2 = keys[i];
       writer.tag(fieldNo, WireType.LengthDelimited).fork();
-      writeKey(writer, key);
+      writeKey(writer, key2);
       writer.tag(2, valueWireType);
-      writeScalar(writer, record[key]);
+      writeScalar(writer, record[key2]);
       writer.join();
     }
   };
 }
-function compileMapKey(field) {
-  const wireType = writeTypeOfScalar(field.mapKey);
-  const writeScalar = compileScalarValue(field.mapKey, field.parent.typeName, field.name);
-  const convertKey = compileMapKeyConverter(field.mapKey);
-  return (writer, key) => {
+function compileMapKey(field2) {
+  const wireType = writeTypeOfScalar(field2.mapKey);
+  const writeScalar = compileScalarValue(field2.mapKey, field2.parent.typeName, field2.name);
+  const convertKey = compileMapKeyConverter(field2.mapKey);
+  return (writer, key2) => {
     writer.tag(1, wireType);
-    writeScalar(writer, convertKey(key));
+    writeScalar(writer, convertKey(key2));
   };
 }
 function compileMapKeyConverter(type) {
   switch (type) {
     case ScalarType.STRING:
-      return (key) => key;
+      return (key2) => key2;
     case ScalarType.BOOL:
-      return (key) => key === "true" ? true : key === "false" ? false : key;
+      return (key2) => key2 === "true" ? true : key2 === "false" ? false : key2;
     case ScalarType.UINT64:
     case ScalarType.FIXED64:
-      return (key) => {
+      return (key2) => {
         try {
-          return protoInt64.uParse(key);
+          return protoInt64.uParse(key2);
         } catch (_a) {
-          return key;
+          return key2;
         }
       };
     case ScalarType.INT64:
     case ScalarType.SFIXED64:
     case ScalarType.SINT64:
-      return (key) => {
+      return (key2) => {
         try {
-          return protoInt64.parse(key);
+          return protoInt64.parse(key2);
         } catch (_a) {
-          return key;
+          return key2;
         }
       };
     default:
-      return (key) => {
-        const n = Number.parseInt(key);
-        return Number.isFinite(n) ? n : key;
+      return (key2) => {
+        const n = Number.parseInt(key2);
+        return Number.isFinite(n) ? n : key2;
       };
   }
 }
@@ -3030,13 +3030,13 @@ function compileScalarWrite(type) {
       return (writer, value) => writer.sint32(value);
   }
 }
-function writeField(writer, opts, msg, field) {
-  compileField(field)(writer, opts, msg[unsafeLocal]);
+function writeField(writer, opts, msg, field2) {
+  compileField(field2)(writer, opts, msg[unsafeLocal]);
 }
-function compileChildWriter(field) {
-  const fieldNo = field.number;
-  const writeMessage = compiledWriter(field.message);
-  if (field.delimitedEncoding) {
+function compileChildWriter(field2) {
+  const fieldNo = field2.number;
+  const writeMessage = compiledWriter(field2.message);
+  if (field2.delimitedEncoding) {
     return (writer, opts, child) => {
       writer.tag(fieldNo, WireType.StartGroup);
       writeMessage(writer, opts, child);
@@ -3068,57 +3068,57 @@ function writeTypeOfScalar(type) {
 }
 
 // demo/web/node_modules/@bufbuild/protobuf/dist/esm/reflect/reflect-check.js
-function checkField(field, value) {
-  const check = field.fieldKind == "list" ? isReflectList(value, field) : field.fieldKind == "map" ? isReflectMap(value, field) : checkSingular(field, value);
+function checkField(field2, value) {
+  const check = field2.fieldKind == "list" ? isReflectList(value, field2) : field2.fieldKind == "map" ? isReflectMap(value, field2) : checkSingular(field2, value);
   if (check === true) {
     return void 0;
   }
   let reason;
-  switch (field.fieldKind) {
+  switch (field2.fieldKind) {
     case "list":
-      reason = `expected ${formatReflectList(field)}, got ${formatVal(value)}`;
+      reason = `expected ${formatReflectList(field2)}, got ${formatVal(value)}`;
       break;
     case "map":
-      reason = `expected ${formatReflectMap(field)}, got ${formatVal(value)}`;
+      reason = `expected ${formatReflectMap(field2)}, got ${formatVal(value)}`;
       break;
     default: {
-      reason = reasonSingular(field, value, check);
+      reason = reasonSingular(field2, value, check);
     }
   }
-  return new FieldError(field, reason);
+  return new FieldError(field2, reason);
 }
-function checkListItem(field, index, value) {
-  const check = checkSingular(field, value);
+function checkListItem(field2, index, value) {
+  const check = checkSingular(field2, value);
   if (check !== true) {
-    return new FieldError(field, `list item #${index + 1}: ${reasonSingular(field, value, check)}`);
+    return new FieldError(field2, `list item #${index + 1}: ${reasonSingular(field2, value, check)}`);
   }
   return void 0;
 }
-function checkMapEntry(field, key, value) {
-  const checkKey = checkScalarValue(field.mapKey)(key);
+function checkMapEntry(field2, key2, value) {
+  const checkKey = checkScalarValue(field2.mapKey)(key2);
   if (checkKey !== true) {
-    return new FieldError(field, `invalid map key: ${reasonSingular({ scalar: field.mapKey }, key, checkKey)}`);
+    return new FieldError(field2, `invalid map key: ${reasonSingular({ scalar: field2.mapKey }, key2, checkKey)}`);
   }
-  const checkVal = checkSingular(field, value);
+  const checkVal = checkSingular(field2, value);
   if (checkVal !== true) {
-    return new FieldError(field, `map entry ${formatVal(key)}: ${reasonSingular(field, value, checkVal)}`);
+    return new FieldError(field2, `map entry ${formatVal(key2)}: ${reasonSingular(field2, value, checkVal)}`);
   }
   return void 0;
 }
-function checkSingular(field, value) {
-  if (field.scalar !== void 0) {
-    return checkScalarValue(field.scalar)(value);
+function checkSingular(field2, value) {
+  if (field2.scalar !== void 0) {
+    return checkScalarValue(field2.scalar)(value);
   }
-  if (field.enum !== void 0) {
-    if (field.enum.open) {
+  if (field2.enum !== void 0) {
+    if (field2.enum.open) {
       return checkScalarValue(ScalarType.INT32)(value);
     }
-    return field.enum.values.some((v) => v.number === value);
+    return field2.enum.values.some((v) => v.number === value);
   }
-  return isReflectMessage(value, field.message);
+  return isReflectMessage(value, field2.message);
 }
-function checkScalarValue(scalar) {
-  switch (scalar) {
+function checkScalarValue(scalar2) {
+  switch (scalar2) {
     case ScalarType.DOUBLE:
       return (value) => typeof value == "number";
     case ScalarType.FLOAT:
@@ -3194,15 +3194,15 @@ function checkScalarValue(scalar) {
       };
   }
 }
-function reasonSingular(field, val, details) {
+function reasonSingular(field2, val, details) {
   details = typeof details == "string" ? `: ${details}` : `, got ${formatVal(val)}`;
-  if (field.scalar !== void 0) {
-    return `expected ${scalarTypeDescription(field.scalar)}` + details;
+  if (field2.scalar !== void 0) {
+    return `expected ${scalarTypeDescription(field2.scalar)}` + details;
   }
-  if (field.enum !== void 0) {
-    return `expected ${field.enum.toString()}` + details;
+  if (field2.enum !== void 0) {
+    return `expected ${field2.enum.toString()}` + details;
   }
-  return `expected ${formatReflectMessage(field.message)}` + details;
+  return `expected ${formatReflectMessage(field2.message)}` + details;
 }
 function formatVal(val) {
   switch (typeof val) {
@@ -3244,28 +3244,28 @@ function formatVal(val) {
 function formatReflectMessage(desc) {
   return `ReflectMessage (${desc.typeName})`;
 }
-function formatReflectList(field) {
-  switch (field.listKind) {
+function formatReflectList(field2) {
+  switch (field2.listKind) {
     case "message":
-      return `ReflectList (${field.message.toString()})`;
+      return `ReflectList (${field2.message.toString()})`;
     case "enum":
-      return `ReflectList (${field.enum.toString()})`;
+      return `ReflectList (${field2.enum.toString()})`;
     case "scalar":
-      return `ReflectList (${ScalarType[field.scalar]})`;
+      return `ReflectList (${ScalarType[field2.scalar]})`;
   }
 }
-function formatReflectMap(field) {
-  switch (field.mapKind) {
+function formatReflectMap(field2) {
+  switch (field2.mapKind) {
     case "message":
-      return `ReflectMap (${ScalarType[field.mapKey]}, ${field.message.toString()})`;
+      return `ReflectMap (${ScalarType[field2.mapKey]}, ${field2.message.toString()})`;
     case "enum":
-      return `ReflectMap (${ScalarType[field.mapKey]}, ${field.enum.toString()})`;
+      return `ReflectMap (${ScalarType[field2.mapKey]}, ${field2.enum.toString()})`;
     case "scalar":
-      return `ReflectMap (${ScalarType[field.mapKey]}, ${ScalarType[field.scalar]})`;
+      return `ReflectMap (${ScalarType[field2.mapKey]}, ${ScalarType[field2.scalar]})`;
   }
 }
-function scalarTypeDescription(scalar) {
-  switch (scalar) {
+function scalarTypeDescription(scalar2) {
+  switch (scalar2) {
     case ScalarType.STRING:
       return "string";
     case ScalarType.BOOL:
@@ -3328,63 +3328,63 @@ var ReflectMessageImpl = class {
     assertOwn(this.message, oneof);
     return unsafeOneofCase(this.message, oneof);
   }
-  isSet(field) {
-    assertOwn(this.message, field);
-    return unsafeIsSet(this.message, field);
+  isSet(field2) {
+    assertOwn(this.message, field2);
+    return unsafeIsSet(this.message, field2);
   }
-  clear(field) {
-    assertOwn(this.message, field);
-    unsafeClear(this.message, field);
+  clear(field2) {
+    assertOwn(this.message, field2);
+    unsafeClear(this.message, field2);
   }
-  get(field) {
-    assertOwn(this.message, field);
-    const value = unsafeGet(this.message, field);
-    switch (field.fieldKind) {
+  get(field2) {
+    assertOwn(this.message, field2);
+    const value = unsafeGet(this.message, field2);
+    switch (field2.fieldKind) {
       case "list":
-        let list3 = this.lists.get(field);
-        if (!list3 || list3[unsafeLocal] !== value) {
+        let list5 = this.lists.get(field2);
+        if (!list5 || list5[unsafeLocal] !== value) {
           this.lists.set(
-            field,
+            field2,
             // biome-ignore lint/suspicious/noAssignInExpressions: no
-            list3 = new ReflectListImpl(field, value, this.check)
+            list5 = new ReflectListImpl(field2, value, this.check)
           );
         }
-        return list3;
+        return list5;
       case "map":
-        let map = this.maps.get(field);
+        let map = this.maps.get(field2);
         if (!map || map[unsafeLocal] !== value) {
           this.maps.set(
-            field,
+            field2,
             // biome-ignore lint/suspicious/noAssignInExpressions: no
-            map = new ReflectMapImpl(field, value, this.check)
+            map = new ReflectMapImpl(field2, value, this.check)
           );
         }
         return map;
       case "message":
-        return messageToReflect(field, value, this.check);
+        return messageToReflect(field2, value, this.check);
       case "scalar":
-        return value === void 0 ? scalarZeroValue(field.scalar, false) : longToReflect(field, value);
+        return value === void 0 ? scalarZeroValue(field2.scalar, false) : longToReflect(field2, value);
       case "enum":
-        return value !== null && value !== void 0 ? value : field.enum.values[0].number;
+        return value !== null && value !== void 0 ? value : field2.enum.values[0].number;
     }
   }
-  set(field, value) {
-    assertOwn(this.message, field);
+  set(field2, value) {
+    assertOwn(this.message, field2);
     if (this.check) {
-      const err = checkField(field, value);
+      const err = checkField(field2, value);
       if (err) {
         throw err;
       }
     }
     let local;
-    if (field.fieldKind == "message") {
-      local = messageToLocal(field, value);
+    if (field2.fieldKind == "message") {
+      local = messageToLocal(field2, value);
     } else if (isReflectMap(value) || isReflectList(value)) {
       local = value[unsafeLocal];
     } else {
-      local = longToLocal(field, value);
+      local = longToLocal(field2, value);
     }
-    unsafeSet(this.message, field, local);
+    unsafeSet(this.message, field2, local);
   }
   getUnknown() {
     return this.message.$unknown;
@@ -3405,8 +3405,8 @@ var ReflectListImpl = class {
   get size() {
     return this._arr.length;
   }
-  constructor(field, unsafeInput, check) {
-    this._field = field;
+  constructor(field2, unsafeInput, check) {
+    this._field = field2;
     this._arr = this[unsafeLocal] = unsafeInput;
     this.check = check;
   }
@@ -3457,26 +3457,26 @@ var ReflectListImpl = class {
   }
 };
 var ReflectMapImpl = class {
-  constructor(field, unsafeInput, check = true) {
+  constructor(field2, unsafeInput, check = true) {
     this.obj = this[unsafeLocal] = unsafeInput !== null && unsafeInput !== void 0 ? unsafeInput : {};
     this.check = check;
-    this._field = field;
+    this._field = field2;
   }
   field() {
     return this._field;
   }
-  set(key, value) {
+  set(key2, value) {
     if (this.check) {
-      const err = checkMapEntry(this._field, key, value);
+      const err = checkMapEntry(this._field, key2, value);
       if (err) {
         throw err;
       }
     }
-    setOwn(this.obj, mapKeyToLocal(key), mapValueToLocal(this._field, value));
+    setOwn(this.obj, mapKeyToLocal(key2), mapValueToLocal(this._field, value));
     return this;
   }
-  delete(key) {
-    const k = mapKeyToLocal(key);
+  delete(key2) {
+    const k = mapKeyToLocal(key2);
     const has = Object.prototype.hasOwnProperty.call(this.obj, k);
     if (has) {
       delete this.obj[k];
@@ -3484,19 +3484,19 @@ var ReflectMapImpl = class {
     return has;
   }
   clear() {
-    for (const key of Object.keys(this.obj)) {
-      delete this.obj[key];
+    for (const key2 of Object.keys(this.obj)) {
+      delete this.obj[key2];
     }
   }
-  get(key) {
-    let val = getOwn(this.obj, mapKeyToLocal(key));
+  get(key2) {
+    let val = getOwn(this.obj, mapKeyToLocal(key2));
     if (val !== void 0) {
       val = mapValueToReflect(this._field, val, this.check);
     }
     return val;
   }
-  has(key) {
-    return Object.prototype.hasOwnProperty.call(this.obj, mapKeyToLocal(key));
+  has(key2) {
+    return Object.prototype.hasOwnProperty.call(this.obj, mapKeyToLocal(key2));
   }
   *keys() {
     for (const objKey of Object.keys(this.obj)) {
@@ -3528,75 +3528,75 @@ var ReflectMapImpl = class {
     }
   }
 };
-function messageToLocal(field, value) {
+function messageToLocal(field2, value) {
   if (!isReflectMessage(value)) {
     return value;
   }
-  if (isWrapper(value.message) && !field.oneof && field.fieldKind == "message") {
+  if (isWrapper(value.message) && !field2.oneof && field2.fieldKind == "message") {
     return value.message.value;
   }
-  if (value.desc.typeName == "google.protobuf.Struct" && field.parent.typeName != "google.protobuf.Value") {
+  if (value.desc.typeName == "google.protobuf.Struct" && field2.parent.typeName != "google.protobuf.Value") {
     return wktStructToLocal(value.message);
   }
   return value.message;
 }
-function messageToReflect(field, value, check) {
+function messageToReflect(field2, value, check) {
   if (value !== void 0) {
-    if (isWrapperDesc(field.message) && !field.oneof && field.fieldKind == "message") {
+    if (isWrapperDesc(field2.message) && !field2.oneof && field2.fieldKind == "message") {
       value = {
-        $typeName: field.message.typeName,
-        value: longToReflect(field.message.fields[0], value)
+        $typeName: field2.message.typeName,
+        value: longToReflect(field2.message.fields[0], value)
       };
-    } else if (field.message.typeName == "google.protobuf.Struct" && field.parent.typeName != "google.protobuf.Value" && isObject(value)) {
+    } else if (field2.message.typeName == "google.protobuf.Struct" && field2.parent.typeName != "google.protobuf.Value" && isObject(value)) {
       value = wktStructToReflect(value);
     }
   }
-  return new ReflectMessageImpl(field.message, value, check);
+  return new ReflectMessageImpl(field2.message, value, check);
 }
-function listItemToLocal(field, value) {
-  if (field.listKind == "message") {
-    return messageToLocal(field, value);
+function listItemToLocal(field2, value) {
+  if (field2.listKind == "message") {
+    return messageToLocal(field2, value);
   }
-  return longToLocal(field, value);
+  return longToLocal(field2, value);
 }
-function listItemToReflect(field, value, check) {
-  if (field.listKind == "message") {
-    return messageToReflect(field, value, check);
+function listItemToReflect(field2, value, check) {
+  if (field2.listKind == "message") {
+    return messageToReflect(field2, value, check);
   }
-  return longToReflect(field, value);
+  return longToReflect(field2, value);
 }
-function mapValueToLocal(field, value) {
-  if (field.mapKind == "message") {
-    return messageToLocal(field, value);
+function mapValueToLocal(field2, value) {
+  if (field2.mapKind == "message") {
+    return messageToLocal(field2, value);
   }
-  return longToLocal(field, value);
+  return longToLocal(field2, value);
 }
-function mapValueToReflect(field, value, check) {
-  if (field.mapKind == "message") {
-    return messageToReflect(field, value, check);
+function mapValueToReflect(field2, value, check) {
+  if (field2.mapKind == "message") {
+    return messageToReflect(field2, value, check);
   }
   return value;
 }
-function mapKeyToLocal(key) {
-  return typeof key == "string" || typeof key == "number" ? key : String(key);
+function mapKeyToLocal(key2) {
+  return typeof key2 == "string" || typeof key2 == "number" ? key2 : String(key2);
 }
-function mapKeyToReflect(key, type) {
+function mapKeyToReflect(key2, type) {
   switch (type) {
     case ScalarType.STRING:
-      return key;
+      return key2;
     case ScalarType.INT32:
     case ScalarType.FIXED32:
     case ScalarType.UINT32:
     case ScalarType.SFIXED32:
     case ScalarType.SINT32: {
-      const n = Number.parseInt(key);
+      const n = Number.parseInt(key2);
       if (Number.isFinite(n)) {
         return n;
       }
       break;
     }
     case ScalarType.BOOL:
-      switch (key) {
+      switch (key2) {
         case "true":
           return true;
         case "false":
@@ -3606,43 +3606,43 @@ function mapKeyToReflect(key, type) {
     case ScalarType.UINT64:
     case ScalarType.FIXED64:
       try {
-        return protoInt64.uParse(key);
+        return protoInt64.uParse(key2);
       } catch (_a) {
       }
       break;
     default:
       try {
-        return protoInt64.parse(key);
+        return protoInt64.parse(key2);
       } catch (_b) {
       }
       break;
   }
-  return key;
+  return key2;
 }
-function longToReflect(field, value) {
-  switch (field.scalar) {
+function longToReflect(field2, value) {
+  switch (field2.scalar) {
     case ScalarType.INT64:
     case ScalarType.SFIXED64:
     case ScalarType.SINT64:
-      if ("longAsString" in field && field.longAsString && typeof value == "string") {
+      if ("longAsString" in field2 && field2.longAsString && typeof value == "string") {
         value = protoInt64.parse(value);
       }
       break;
     case ScalarType.FIXED64:
     case ScalarType.UINT64:
-      if ("longAsString" in field && field.longAsString && typeof value == "string") {
+      if ("longAsString" in field2 && field2.longAsString && typeof value == "string") {
         value = protoInt64.uParse(value);
       }
       break;
   }
   return value;
 }
-function longToLocal(field, value) {
-  switch (field.scalar) {
+function longToLocal(field2, value) {
+  switch (field2.scalar) {
     case ScalarType.INT64:
     case ScalarType.SFIXED64:
     case ScalarType.SINT64:
-      if ("longAsString" in field && field.longAsString) {
+      if ("longAsString" in field2 && field2.longAsString) {
         value = String(value);
       } else if (typeof value == "string" || typeof value == "number") {
         value = protoInt64.parse(value);
@@ -3650,7 +3650,7 @@ function longToLocal(field, value) {
       break;
     case ScalarType.FIXED64:
     case ScalarType.UINT64:
-      if ("longAsString" in field && field.longAsString) {
+      if ("longAsString" in field2 && field2.longAsString) {
         value = String(value);
       } else if (typeof value == "string" || typeof value == "number") {
         value = protoInt64.uParse(value);
@@ -3856,8 +3856,8 @@ function compileMessage2(desc) {
     readGroup: compileGroupReader(descString, fieldReaders)
   };
   compiledReaders.set(desc, compiled);
-  for (const field of desc.fields) {
-    fieldReaders.set(field.number, compileFieldReader(field));
+  for (const field2 of desc.fields) {
+    fieldReaders.set(field2.number, compileFieldReader(field2));
   }
   return compiled;
 }
@@ -3920,28 +3920,28 @@ function compileGroupReader(descString, fieldReaders) {
     ctx.depth--;
   };
 }
-function readField(message, reader, field, wireType, ctx) {
-  compileFieldReader(field)(message[unsafeLocal], reader, ctx, wireType);
+function readField(message, reader, field2, wireType, ctx) {
+  compileFieldReader(field2)(message[unsafeLocal], reader, ctx, wireType);
 }
-function compileFieldReader(field) {
-  switch (field.fieldKind) {
+function compileFieldReader(field2) {
+  switch (field2.fieldKind) {
     case "scalar":
-      return compileScalarFieldReader(field);
+      return compileScalarFieldReader(field2);
     case "enum":
-      return compileEnumFieldReader(field);
+      return compileEnumFieldReader(field2);
     case "message":
-      return compileMessageFieldReader(field);
+      return compileMessageFieldReader(field2);
     case "list":
-      return compileListFieldReader(field);
+      return compileListFieldReader(field2);
     case "map":
-      return compileMapFieldReader(field);
+      return compileMapFieldReader(field2);
   }
 }
-function compileScalarFieldReader(field) {
-  const readScalar = compileScalarReader(field.scalar, field.utf8Validation, field.longAsString);
-  const localName = field.localName;
-  if (field.oneof) {
-    const oneofLocalName = field.oneof.localName;
+function compileScalarFieldReader(field2) {
+  const readScalar = compileScalarReader(field2.scalar, field2.utf8Validation, field2.longAsString);
+  const localName = field2.localName;
+  if (field2.oneof) {
+    const oneofLocalName = field2.oneof.localName;
     return (message, reader) => {
       message[oneofLocalName] = {
         case: localName,
@@ -3953,11 +3953,11 @@ function compileScalarFieldReader(field) {
     message[localName] = readScalar(reader);
   };
 }
-function compileEnumFieldReader(field) {
+function compileEnumFieldReader(field2) {
   var _a;
-  const localName = field.localName;
-  const oneofLocalName = (_a = field.oneof) === null || _a === void 0 ? void 0 : _a.localName;
-  if (field.enum.open) {
+  const localName = field2.localName;
+  const oneofLocalName = (_a = field2.oneof) === null || _a === void 0 ? void 0 : _a.localName;
+  if (field2.enum.open) {
     if (oneofLocalName !== void 0) {
       return (message, reader) => {
         message[oneofLocalName] = { case: localName, value: reader.int32() };
@@ -3967,8 +3967,8 @@ function compileEnumFieldReader(field) {
       message[localName] = reader.int32();
     };
   }
-  const values = field.enum.values;
-  const fieldNo = field.number;
+  const values = field2.enum.values;
+  const fieldNo = field2.number;
   return (message, reader, ctx, wireType) => {
     var _a2;
     const val = reader.int32();
@@ -3991,12 +3991,12 @@ function compileEnumFieldReader(field) {
     }
   };
 }
-function compileMessageFieldReader(field) {
-  const localName = field.localName;
-  const { toMessage, toLocal } = localMessageMapper(field);
-  const readChild = compileChildReader(field);
-  if (field.oneof) {
-    const oneofLocalName = field.oneof.localName;
+function compileMessageFieldReader(field2) {
+  const localName = field2.localName;
+  const { toMessage, toLocal } = localMessageMapper(field2);
+  const readChild = compileChildReader(field2);
+  if (field2.oneof) {
+    const oneofLocalName = field2.oneof.localName;
     return (message, reader, ctx) => {
       const oneof = message[oneofLocalName];
       const child = toMessage(oneof.case === localName ? oneof.value : void 0);
@@ -4010,28 +4010,28 @@ function compileMessageFieldReader(field) {
     message[localName] = toLocal(child);
   };
 }
-function compileChildReader(field) {
-  const compiledChild = compiledReader(field.message);
-  if (field.delimitedEncoding) {
-    const fieldNo = field.number;
+function compileChildReader(field2) {
+  const compiledChild = compiledReader(field2.message);
+  if (field2.delimitedEncoding) {
+    const fieldNo = field2.number;
     return (child, reader, ctx) => compiledChild.readGroup(child, reader, ctx, fieldNo);
   }
   return (child, reader, ctx) => compiledChild.read(child, reader, ctx, reader.uint32());
 }
-function compileListFieldReader(field) {
-  const localName = field.localName;
-  if (field.listKind == "message") {
-    const { toMessage, toLocal } = localMessageMapper(field);
-    const readChild = compileChildReader(field);
+function compileListFieldReader(field2) {
+  const localName = field2.localName;
+  if (field2.listKind == "message") {
+    const { toMessage, toLocal } = localMessageMapper(field2);
+    const readChild = compileChildReader(field2);
     return (message, reader, ctx) => {
       const child = toMessage(void 0);
       readChild(child, reader, ctx);
       message[localName].push(toLocal(child));
     };
   }
-  const scalarType = field.listKind == "enum" ? ScalarType.INT32 : field.scalar;
-  const longAsString = field.listKind == "scalar" ? field.longAsString : false;
-  const readScalar = compileScalarReader(scalarType, field.utf8Validation, longAsString);
+  const scalarType = field2.listKind == "enum" ? ScalarType.INT32 : field2.scalar;
+  const longAsString = field2.listKind == "scalar" ? field2.longAsString : false;
+  const readScalar = compileScalarReader(scalarType, field2.utf8Validation, longAsString);
   const packedPossible = scalarType != ScalarType.STRING && scalarType != ScalarType.BYTES;
   return (message, reader, ctx, wireType) => {
     const items = message[localName];
@@ -4045,34 +4045,34 @@ function compileListFieldReader(field) {
     }
   };
 }
-function compileMapFieldReader(field) {
-  const localName = field.localName;
-  const readKey = compileScalarReader(field.mapKey, field.utf8Validation, false);
-  const keyZero = scalarZeroValue(field.mapKey, false);
+function compileMapFieldReader(field2) {
+  const localName = field2.localName;
+  const readKey = compileScalarReader(field2.mapKey, field2.utf8Validation, false);
+  const keyZero = scalarZeroValue(field2.mapKey, false);
   let readValue;
   let valueDefault;
-  switch (field.mapKind) {
+  switch (field2.mapKind) {
     case "scalar": {
-      const scalar = field.scalar;
-      const readScalar = compileScalarReader(scalar, field.utf8Validation, false);
+      const scalar2 = field2.scalar;
+      const readScalar = compileScalarReader(scalar2, field2.utf8Validation, false);
       readValue = (reader) => readScalar(reader);
-      if (scalar == ScalarType.BYTES) {
+      if (scalar2 == ScalarType.BYTES) {
         valueDefault = () => new Uint8Array(0);
       } else {
-        const zero = scalarZeroValue(scalar, false);
+        const zero = scalarZeroValue(scalar2, false);
         valueDefault = () => zero;
       }
       break;
     }
     case "enum": {
-      const zero = field.enum.values[0].number;
+      const zero = field2.enum.values[0].number;
       readValue = (reader) => reader.int32();
       valueDefault = () => zero;
       break;
     }
     case "message": {
-      const { toMessage, toLocal } = localMessageMapper(field);
-      const readChild = compiledReader(field.message).read;
+      const { toMessage, toLocal } = localMessageMapper(field2);
+      const readChild = compiledReader(field2.message).read;
       readValue = (reader, ctx, existing) => {
         const child = toMessage(existing);
         readChild(child, reader, ctx, reader.uint32());
@@ -4084,7 +4084,7 @@ function compileMapFieldReader(field) {
   }
   return (message, reader, ctx) => {
     const record = message[localName];
-    let key;
+    let key2;
     let val;
     const len = reader.uint32();
     const end = reader.pos + len;
@@ -4092,20 +4092,20 @@ function compileMapFieldReader(field) {
       const [fieldNo] = reader.tag();
       switch (fieldNo) {
         case 1:
-          key = readKey(reader);
+          key2 = readKey(reader);
           break;
         case 2:
           val = readValue(reader, ctx, val);
           break;
       }
     }
-    if (key === void 0) {
-      key = keyZero;
+    if (key2 === void 0) {
+      key2 = keyZero;
     }
     if (val === void 0) {
       val = valueDefault();
     }
-    setOwn(record, key, val);
+    setOwn(record, key2, val);
   };
 }
 function compileScalarReader(type, utf8Validation, longAsString) {
@@ -4178,6 +4178,7 @@ function serviceDesc(file, path, ...paths) {
 
 // demo/web/src/gen/turbo_typed_annotations_pb.ts
 var file_turbo_typed_annotations = /* @__PURE__ */ fileDesc("Ch10dXJib190eXBlZF9hbm5vdGF0aW9ucy5wcm90bxIPdHVyYm8ucmVzdWx0LnYxIjgKCE1vZGVsUmVmEgoKAmlkGAEgASgJEhAKCHJldmlzaW9uGAIgASgJEg4KBnNoYTI1NhgDIAEoCSKIAQoIVmlld0luZm8SEAoIaW5zdGFuY2UYASABKAkSMAoGc3RhdHVzGAIgASgOMiAudHVyYm8ucmVzdWx0LnYxLkxheWVyV2lyZVN0YXR1cxIVCg1zdGF0dXNfZGV0YWlsGAMgASgJEhEKCWFubm90YXRvchgEIAEoCRIOCgZwYXJlbnQYBSABKAkieAobSW5zcGVjdERvY3VtZW50R3JhcGhSZXF1ZXN0Eg4KBmRvY19pZBgBIAEoCRINCgVncmFwaBgCIAEoDBIMCgR2aWV3GAMgASgNEiwKB29mZnNldHMYBCABKA4yGy50dXJiby5yZXN1bHQudjEuT2Zmc2V0TW9kZSJDCg1FeGVjdXRpb25JbmZvEg8KB2JhY2tlbmQYASABKAkSDgoGZGV2aWNlGAIgASgJEhEKCXByZWNpc2lvbhgDIAEoCSLeAQoPTW9kZWxQcm92ZW5hbmNlEhEKCW1vZGVsX3JlZhgBIAEoCRIRCglhbm5vdGF0b3IYAiABKAkSDwoHdmVyc2lvbhgDIAEoCRITCgtjb25maWdfaGFzaBgEIAEoBBIuCgZidW5kbGUYBSABKAsyGS50dXJiby5yZXN1bHQudjEuTW9kZWxSZWZIAIgBARI2CglleGVjdXRpb24YBiABKAsyHi50dXJiby5yZXN1bHQudjEuRXhlY3V0aW9uSW5mb0gBiAEBQgkKB19idW5kbGVCDAoKX2V4ZWN1dGlvbiIqCgxTcGFuRnJhZ21lbnQSDQoFc3RhcnQYASABKA0SCwoDZW5kGAIgASgNIkEKD0xheWVySW5kZXhCb3VuZBINCgVsYXllchgBIAEoCRIQCghpbnN0YW5jZRgCIAEoCRINCgVib3VuZBgDIAEoDSL8AQoTVHlwZWREb2N1bWVudFJlc3VsdBIOCgZkb2NfaWQYASABKAkSEAoIcmF3X3RleHQYAiABKAkSDAoEdmlldxgDIAEoDRIsCgdvZmZzZXRzGAQgASgOMhsudHVyYm8ucmVzdWx0LnYxLk9mZnNldE1vZGUSMAoGbW9kZWxzGAUgAygLMiAudHVyYm8ucmVzdWx0LnYxLk1vZGVsUHJvdmVuYW5jZRIoCgV2aWV3cxgGIAMoCzIZLnR1cmJvLnJlc3VsdC52MS5WaWV3SW5mbxIrCgZsYXllcnMYByADKAsyGy50dXJiby5yZXN1bHQudjEuVHlwZWRMYXllciLPAgoKVHlwZWRMYXllchIKCgJpZBgBIAEoCRIQCghpbnN0YW5jZRgCIAEoCRIwCgZzdGF0dXMYAyABKA4yIC50dXJiby5yZXN1bHQudjEuTGF5ZXJXaXJlU3RhdHVzEhUKDXN0YXR1c19kZXRhaWwYBCABKAkSKgoFc2NvcGUYBSABKA4yGy50dXJiby5yZXN1bHQudjEuQW5jaG9yS2luZBISCgptb2RlbF9yZWZzGAYgAygJEhkKDGFuY2hvcl9sYXllchgHIAEoCUgAiAEBEjUKC2Fubm90YXRpb25zGAggAygLMiAudHVyYm8ucmVzdWx0LnYxLlR5cGVkQW5ub3RhdGlvbhI3Cg1pbmRleGVzX2xheWVyGAkgAygLMiAudHVyYm8ucmVzdWx0LnYxLkxheWVySW5kZXhCb3VuZEIPCg1fYW5jaG9yX2xheWVyIoUCCgpFbnRpdHlWb3RlEhEKCWFubm90YXRvchgBIAEoCRIWCgltb2RlbF9yZWYYAiABKAlIAIgBARIsCgVzcGFucxgDIAMoCzIdLnR1cmJvLnJlc3VsdC52MS5TcGFuRnJhZ21lbnQSGAoLcHJvYmFiaWxpdHkYBCABKAFIAYgBARIjChZjYWxpYnJhdGVkX3Byb2JhYmlsaXR5GAUgASgBSAKIAQESFwoKYWJzdGVudGlvbhgGIAEoCUgDiAEBQgwKCl9tb2RlbF9yZWZCDgoMX3Byb2JhYmlsaXR5QhkKF19jYWxpYnJhdGVkX3Byb2JhYmlsaXR5Qg0KC19hYnN0ZW50aW9uIjEKElNlbnRlbmNlQW5ub3RhdGlvbhINCgVpbmRleBgBIAEoDRIMCgR0ZXh0GAIgASgJIlIKD1Rva2VuQW5ub3RhdGlvbhIbCg5zZW50ZW5jZV9pbmRleBgBIAEoDUgAiAEBEg8KB3N1cmZhY2UYAiABKAlCEQoPX3NlbnRlbmNlX2luZGV4IocBCg5Xb3JkQW5ub3RhdGlvbhITCgt0b2tlbl9zdGFydBgBIAEoDRIRCgl0b2tlbl9lbmQYAiABKA0SMwoHc3Vic3BhbhgDIAEoCzIdLnR1cmJvLnJlc3VsdC52MS5TcGFuRnJhZ21lbnRIAIgBARIMCgRmb3JtGAQgASgJQgoKCF9zdWJzcGFuImAKEVN1YndvcmRBbm5vdGF0aW9uEhAKCHZvY2FiX2lkGAEgASgFEhgKC3Rva2VuX2luZGV4GAIgASgNSACIAQESDwoHc3VyZmFjZRgDIAEoCUIOCgxfdG9rZW5faW5kZXgiRQoQUG9zVGFnQW5ub3RhdGlvbhIOCgZ0YWdzZXQYASABKAkSCwoDdGFnGAIgASgJEhQKDHRhcmdldF9pbmRleBgDIAEoDSJBChdNb3JwaEZlYXR1cmVzQW5ub3RhdGlvbhIUCgx0YXJnZXRfaW5kZXgYASABKA0SEAoIZmVhdHVyZXMYAiABKAkiNgoPTGVtbWFBbm5vdGF0aW9uEhQKDHRhcmdldF9pbmRleBgBIAEoDRINCgVsZW1tYRgCIAEoCSIzCg5TdGVtQW5ub3RhdGlvbhITCgt0b2tlbl9pbmRleBgBIAEoDRIMCgRzdGVtGAIgASgJIoABCg5UZXJtQW5ub3RhdGlvbhITCgt0b2tlbl9pbmRleBgBIAEoDRIPCgdzdXJmYWNlGAIgASgJEg4KBmZvbGRlZBgDIAEoCRIRCgRzdGVtGAQgASgJSACIAQESEgoFbGVtbWEYBSABKAlIAYgBAUIHCgVfc3RlbUIICgZfbGVtbWEiRgoSQ2h1bmtUYWdBbm5vdGF0aW9uEg4KBnRhZ3NldBgBIAEoCRILCgN0YWcYAiABKAkSEwoLdG9rZW5faW5kZXgYAyABKA0iXQoVUGhyYXNlQ2h1bmtBbm5vdGF0aW9uEg4KBnRhZ3NldBgBIAEoCRIMCgRraW5kGAIgASgJEhMKC3Rva2VuX3N0YXJ0GAMgASgNEhEKCXRva2VuX2VuZBgEIAEoDSKYAQoQUGhyYXNlQW5ub3RhdGlvbhIOCgZ0YWdzZXQYASABKAkSDAoEa2luZBgCIAEoCRITCgt0b2tlbl9zdGFydBgDIAEoDRIRCgl0b2tlbl9lbmQYBCABKA0SEgoKaGVhZF90b2tlbhgFIAEoDRIZCgxwYXJlbnRfaW5kZXgYBiABKA1IAIgBAUIPCg1fcGFyZW50X2luZGV4InYKFERlcGVuZGVuY3lBbm5vdGF0aW9uEg4KBnRhZ3NldBgBIAEoCRIUCgx0YXJnZXRfaW5kZXgYAiABKA0SFwoKaGVhZF9pbmRleBgDIAEoDUgAiAEBEhAKCHJlbGF0aW9uGAQgASgJQg0KC19oZWFkX2luZGV4IrUBChBFbnRpdHlBbm5vdGF0aW9uEg4KBnRhZ3NldBgBIAEoCRIMCgRraW5kGAIgASgJEhMKC3Rva2VuX3N0YXJ0GAMgASgNEhEKCXRva2VuX2VuZBgEIAEoDRIRCgljYW5vbmljYWwYBSABKAkSEgoFa2JfaWQYBiABKAlIAIgBARIqCgV2b3RlcxgHIAMoCzIbLnR1cmJvLnJlc3VsdC52MS5FbnRpdHlWb3RlQggKBl9rYl9pZCJhChJSZWxhdGlvbkFubm90YXRpb24SDgoGdGFnc2V0GAEgASgJEgwKBGtpbmQYAiABKAkSFgoOc3ViamVjdF9lbnRpdHkYAyABKA0SFQoNb2JqZWN0X2VudGl0eRgEIAEoDSL3AQoWQ29yZWZNZW50aW9uQW5ub3RhdGlvbhIWCg5zZW50ZW5jZV9pbmRleBgBIAEoDRITCgt0b2tlbl9zdGFydBgCIAEoDRIRCgl0b2tlbl9lbmQYAyABKA0SEgoKaGVhZF90b2tlbhgEIAEoDRIZCgxlbnRpdHlfaW5kZXgYBSABKA1IAIgBARIMCgRraW5kGAYgASgJEg4KBm9yaWdpbhgHIAEoCRIOCgZudW1iZXIYCCABKAkSDgoGZ2VuZGVyGAkgASgJEg8KB2FuaW1hY3kYCiABKAkSDgoGcGVyc29uGAsgASgJQg8KDV9lbnRpdHlfaW5kZXgiRwoUQ29yZWZDaGFpbkFubm90YXRpb24SFgoOcmVwcmVzZW50YXRpdmUYASABKAkSFwoPbWVudGlvbl9pbmRpY2VzGAIgAygNIiQKEVNwZWFrZXJBbm5vdGF0aW9uEg8KB3NwZWFrZXIYASABKAki9wEKFldvcmROZXRTZW5zZUFubm90YXRpb24SEwoLdG9rZW5faW5kZXgYASABKA0SFQoNc3luc2V0X29mZnNldBgCIAEoDRILCgNwb3MYAyABKAkSDwoHbGV4bmFtZRgEIAEoCRINCgVnbG9zcxgFIAEoCRIOCgZsZW1tYXMYBiADKAkSGAoQaHlwZXJueW1fb2Zmc2V0cxgHIAMoDRIRCglzeW5zZXRfaWQYCCABKAkSEAoIc2Vuc2VfaWQYCSABKAkSDQoFbGVtbWEYCiABKAkSEgoKc2Vuc2VfcmFuaxgLIAEoDRISCgpsZXhpY29uX2lkGAwgASgJIvoBChpMZXhpY2FsRXhwYW5zaW9uQW5ub3RhdGlvbhITCgt0b2tlbl9pbmRleBgBIAEoDRIQCghzeW5vbnltcxgCIAMoCRIRCgloeXBlcm55bXMYAyADKAkSEwoLZGVyaXZhdGlvbnMYBCADKAkSEwoLbW9ycGhfcm9vdHMYBSADKAkSDAoEdGVybRgGIAEoCRIQCghyZWxhdGlvbhgHIAEoDRINCgVkZXB0aBgIIAEoDRISCgpzZW5zZV9yYW5rGAkgASgNEg4KBndlaWdodBgKIAEoARIRCglzeW5zZXRfaWQYCyABKAkSEgoKbGV4aWNvbl9pZBgMIAEoCSKEAQoWR2xvc3NhcnlUZXJtQW5ub3RhdGlvbhIUCgxjYW5vbmljYWxfaWQYASABKAkSFwoPcHJlZmVycmVkX2xhYmVsGAIgASgJEhMKC2VudHJ5X2luZGV4GAMgASgNEhMKC3Rva2VuX3N0YXJ0GAQgASgNEhEKCXRva2VuX2VuZBgFIAEoDSLIAQoQTnVtYmVyQW5ub3RhdGlvbhIzCgxudW1lcmFsX3NwYW4YASABKAsyHS50dXJiby5yZXN1bHQudjEuU3BhbkZyYWdtZW50EhAKCG5lZ2F0aXZlGAIgASgIEhMKC2NvZWZmaWNpZW50GAMgASgJEg0KBXNjYWxlGAQgASgNEhIKCm11bHRpcGxpZXIYBSABKAkSDgoGbWFya2VyGAYgASgJEhAKCG5vdGF0aW9uGAcgASgJEhMKC3BsYWluX3ZhbHVlGAggASgJIjEKEU9yZGluYWxBbm5vdGF0aW9uEgwKBGJhc2UYASABKAkSDgoGb2Zmc2V0GAIgASgDIm8KD01vbmV5QW5ub3RhdGlvbhIQCghjdXJyZW5jeRgBIAEoCRIQCghuZWdhdGl2ZRgCIAEoCBITCgtjb2VmZmljaWVudBgDIAEoCRINCgVzY2FsZRgEIAEoBRIUCgxwbGFpbl9hbW91bnQYBSABKAkigQEKElF1YW50aXR5QW5ub3RhdGlvbhIMCgR1bml0GAEgASgJEhAKCG5lZ2F0aXZlGAIgASgIEhMKC2NvZWZmaWNpZW50GAMgASgJEg0KBXNjYWxlGAQgASgFEhMKC3BsYWluX3ZhbHVlGAUgASgJEhIKCmlzX3BlcmNlbnQYBiABKAgicQoSVGVtcG9yYWxBbm5vdGF0aW9uEhMKC2dyYW51bGFyaXR5GAEgASgJEg4KBm9yaWdpbhgCIAEoCRILCgNpc28YAyABKAkSDAoEeWVhchgEIAEoBRIOCgZwZXJpb2QYBSABKA0SCwoDZGF5GAYgASgNIsMBCg5UaW1lQW5ub3RhdGlvbhIMCgRraW5kGAEgASgJEg0KBWdyYWluGAIgASgJEhAKCG1vZGlmaWVyGAMgASgJEhIKBXN0YXJ0GAQgASgDSACIAQESEAoDZW5kGAUgASgDSAGIAQESGAoLZHVyYXRpb25fbXMYBiABKANIAogBARIRCglhbWJpZ3VvdXMYByABKAgSDQoFdGltZXgYCCABKAlCCAoGX3N0YXJ0QgYKBF9lbmRCDgoMX2R1cmF0aW9uX21zIk8KFkRvY3VtZW50RGF0ZUFubm90YXRpb24SDAoEeWVhchgBIAEoBRINCgVtb250aBgCIAEoDRILCgNkYXkYAyABKA0SCwoDaXNvGAQgASgJIu4BCg9QbGFjZVJlc29sdXRpb24SDgoGc291cmNlGAEgASgJEhEKCXJlY29yZF9pZBgCIAEoCRIWCg5jYW5vbmljYWxfbmFtZRgDIAEoCRIVCg1mZWF0dXJlX2NsYXNzGAQgASgJEhQKDGNvdW50cnlfY29kZRgFIAEoCRITCgthZG1pbjFfY29kZRgGIAEoCRITCgthZG1pbjJfY29kZRgHIAEoCRIQCghsYXRpdHVkZRgIIAEoARIRCglsb25naXR1ZGUYCSABKAESEgoKcG9wdWxhdGlvbhgKIAEoBBIQCgh0aW1lem9uZRgLIAEoCSI8ChJQbGFjZUFuY2VzdG9yUHJvdG8SCgoCaWQYASABKAkSDAoEbmFtZRgCIAEoCRIMCgRraW5kGAMgASgJIkoKEENvbnRhaW5tZW50Q2hhaW4SNgoJYW5jZXN0b3JzGAEgAygLMiMudHVyYm8ucmVzdWx0LnYxLlBsYWNlQW5jZXN0b3JQcm90byIxCgpSZWdpb25Wb3RlEhQKDGNvdW50cnlfY29kZRgBIAEoCRINCgVzaGFyZRgCIAEoASIxChJMYW5ndWFnZUFubm90YXRpb24SDAoEY29kZRgBIAEoCRINCgVzY29yZRgCIAEoASJKChZMYW5ndWFnZVNwYW5Bbm5vdGF0aW9uEgwKBGNvZGUYASABKAkSDgoGc2NyaXB0GAIgASgJEhIKCmNvbmZpZGVuY2UYAyABKAEiMgoSQ2F0ZWdvcnlTY29yZVByb3RvEg0KBWxhYmVsGAEgASgJEg0KBXNjb3JlGAIgASgBIpIBChJDYXRlZ29yeUFubm90YXRpb24SDgoGdGFnc2V0GAEgASgJEhIKCmJlc3RfbGFiZWwYAiABKAkSEQoJYWJzdGFpbmVkGAMgASgIEhAKCHNlbGVjdGVkGAQgAygJEjMKBnNjb3JlcxgFIAMoCzIjLnR1cmJvLnJlc3VsdC52MS5DYXRlZ29yeVNjb3JlUHJvdG8iXAoTU2VudGltZW50QW5ub3RhdGlvbhIQCghwb2xhcml0eRgBIAEoCRIQCghwb3NpdGl2ZRgCIAEoARIQCghuZWdhdGl2ZRgDIAEoARIPCgduZXV0cmFsGAQgASgBIkwKE0xhYmVsVG9rZW5TcGFuUHJvdG8SDQoFbGFiZWwYASABKAkSEwoLdG9rZW5fc3RhcnQYAiABKA0SEQoJdG9rZW5fZW5kGAMgASgNIoYBChFFbW90aW9uQW5ub3RhdGlvbhITCgt0YXJnZXRfa2luZBgBIAEoCRIUCgx0YXJnZXRfaW5kZXgYAiABKA0SDgoGc2NvcmVzGAMgAygBEjYKCGV2aWRlbmNlGAQgAygLMiQudHVyYm8ucmVzdWx0LnYxLkxhYmVsVG9rZW5TcGFuUHJvdG8ilgIKEEFzcGVjdEFubm90YXRpb24SGAoLdG9rZW5fc3RhcnQYASABKA1IAIgBARIWCgl0b2tlbl9lbmQYAiABKA1IAYgBARIbCg5zZW50ZW5jZV9pbmRleBgDIAEoDUgCiAEBEhUKCGNhdGVnb3J5GAQgASgJSAOIAQESEAoIcG9sYXJpdHkYBSABKAkSEAoIcG9zaXRpdmUYBiABKAESEAoIbmVnYXRpdmUYByABKAESDwoHbmV1dHJhbBgIIAEoARIXCg9vcGluaW9uX2luZGljZXMYCSADKA1CDgoMX3Rva2VuX3N0YXJ0QgwKCl90b2tlbl9lbmRCEQoPX3NlbnRlbmNlX2luZGV4QgsKCV9jYXRlZ29yeSJxChFPcGluaW9uQW5ub3RhdGlvbhITCgt0b2tlbl9zdGFydBgBIAEoDRIRCgl0b2tlbl9lbmQYAiABKA0SEAoIcG9sYXJpdHkYAyABKAESEQoJaW50ZW5zaXR5GAQgASgBEg8KB25lZ2F0ZWQYBSABKAgi8wEKFEluY2l2aWxpdHlBbm5vdGF0aW9uEhMKC3RhcmdldF9raW5kGAEgASgJEhQKDHRhcmdldF9pbmRleBgCIAEoDRIOCgZpbnN1bHQYAyABKAESEQoJcHJvZmFuaXR5GAQgASgBEg4KBnRocmVhdBgFIAEoARIXCg9pZGVudGl0eV9hdHRhY2sYBiABKAESEwoLaW50b2xlcmFuY2UYByABKAESFwoPc2V2ZXJlX3RveGljaXR5GAggASgBEjYKCGV2aWRlbmNlGAkgAygLMiQudHVyYm8ucmVzdWx0LnYxLkxhYmVsVG9rZW5TcGFuUHJvdG8ipQIKFFByYWdtYXRpY3NBbm5vdGF0aW9uEhYKDnNlbnRlbmNlX2luZGV4GAEgASgNEg0KBXNjb3JlGAIgASgBEiEKFHBvc2l0aXZlX3Rva2VuX3N0YXJ0GAMgASgNSACIAQESHwoScG9zaXRpdmVfdG9rZW5fZW5kGAQgASgNSAGIAQESIQoUbmVnYXRpdmVfdG9rZW5fc3RhcnQYBSABKA1IAogBARIfChJuZWdhdGl2ZV90b2tlbl9lbmQYBiABKA1IA4gBAUIXChVfcG9zaXRpdmVfdG9rZW5fc3RhcnRCFQoTX3Bvc2l0aXZlX3Rva2VuX2VuZEIXChVfbmVnYXRpdmVfdG9rZW5fc3RhcnRCFQoTX25lZ2F0aXZlX3Rva2VuX2VuZCJHCgpQaWlNZW50aW9uEgwKBGtpbmQYASABKAkSFwoPY29uZmlkZW5jZV90aWVyGAIgASgJEhIKCm5vcm1hbGl6ZWQYAyABKAkiLAoJTm9pc2VTcGFuEhAKCHNldmVyaXR5GAEgASgJEg0KBXNjb3JlGAIgASgBIhwKDFRleHRBcnRpZmFjdBIMCgRraW5kGAEgASgJIuYBCg1FbWJlZGRlZEFzc2V0Eg4KBmZvcm1hdBgBIAEoCRISCgptZWRpYV90eXBlGAIgASgJEhUKDWRlY2xhcmVkX3R5cGUYAyABKAkSEAoIZW5jb2RpbmcYBCABKAkSMwoMcGF5bG9hZF9zcGFuGAUgASgLMh0udHVyYm8ucmVzdWx0LnYxLlNwYW5GcmFnbWVudBIVCg1kZWNvZGVkX2J5dGVzGAYgASgEEhIKBXdpZHRoGAcgASgNSACIAQESEwoGaGVpZ2h0GAggASgNSAGIAQFCCAoGX3dpZHRoQgkKB19oZWlnaHQiPwoSU3BlbGxpbmdDb3JyZWN0aW9uEhIKCnN1Z2dlc3Rpb24YASABKAkSFQoNZWRpdF9kaXN0YW5jZRgCIAEoDSIlChVQbGFjZWhvbGRlckFubm90YXRpb24SDAoEa2luZBgBIAEoCSI9Cg9FbW9qaUFubm90YXRpb24SDAoEa2luZBgBIAEoCRIMCgRuYW1lGAIgASgJEg4KBnJlZ2lvbhgDIAEoCSIoChdQcm90ZWN0ZWRTcGFuQW5ub3RhdGlvbhINCgVpbmRleBgBIAEoDSImChZBYmJyZXZpYXRpb25Bbm5vdGF0aW9uEgwKBGZvcm0YASABKAkiWQoPTWF0Y2hBbm5vdGF0aW9uEhMKC3Rva2VuX3N0YXJ0GAEgASgNEhEKCXRva2VuX2VuZBgCIAEoDRINCgVsYWJlbBgDIAEoCRIPCgdydWxlX2lkGAQgASgNIlgKFUJvaWxlcnBsYXRlQW5ub3RhdGlvbhIUCgx0YXJnZXRfaW5kZXgYASABKA0SEQoEa2luZBgCIAEoCUgAiAEBEg0KBXNjb3JlGAMgASgCQgcKBV9raW5kIkAKFENvbmZpZGVuY2VBbm5vdGF0aW9uEhQKDHRhcmdldF9pbmRleBgBIAEoDRISCgpjb25maWRlbmNlGAIgASgBIlQKFlN0b3B3b3JkRmxhZ0Fubm90YXRpb24SEwoLdG9rZW5faW5kZXgYASABKA0SEAoIbGFuZ3VhZ2UYAiABKAkSEwoLaXNfc3RvcHdvcmQYAyABKAgiNwoSV29yZFR5cGVBbm5vdGF0aW9uEhMKC3Rva2VuX2luZGV4GAEgASgNEgwKBGtpbmQYAiABKAkilgEKEVJlYWRpbmdBbm5vdGF0aW9uEhMKC3Rva2VuX2luZGV4GAEgASgNEhQKB3JlYWRpbmcYAiABKAlIAIgBARIaCg1wcm9udW5jaWF0aW9uGAMgASgJSAGIAQESEgoFbGVtbWEYBCABKAlIAogBAUIKCghfcmVhZGluZ0IQCg5fcHJvbnVuY2lhdGlvbkIICgZfbGVtbWEiVAoRS2V5d29yZEFubm90YXRpb24SDgoGcGhyYXNlGAEgASgJEg0KBXNjb3JlGAIgASgBEhEKCWFsZ29yaXRobRgDIAEoCRINCgV0ZXJtcxgEIAEoDSJSChhTb3VyY2VFbmNvZGluZ0Fubm90YXRpb24SEAoIZW5jb2RpbmcYASABKAkSEgoKY29uZmlkZW5jZRgCIAEoAhIQCghldmlkZW5jZRgDIAEoCSJUChBWZWN0b3JBbm5vdGF0aW9uEhQKDHRhcmdldF9pbmRleBgBIAEoDRILCgNkaW0YAiABKA0SDQoFZW1wdHkYAyABKAgSDgoGdmFsdWVzGAQgAygCIscBCg9DaHVua0Fubm90YXRpb24SDQoFbGV2ZWwYASABKA0SGQoMcGFyZW50X2luZGV4GAIgASgNSACIAQESFgoOc2VudGVuY2Vfc3RhcnQYAyABKA0SFAoMc2VudGVuY2VfZW5kGAQgASgNEhIKCmN1dF9yZWFzb24YBSABKAkSDAoEY29zdBgGIAEoAxIUCgxtb2RlbF90b2tlbnMYByABKA0SEwoLb3Zlcl9idWRnZXQYCCABKAhCDwoNX3BhcmVudF9pbmRleCJfCg9MZXZlbEFubm90YXRpb24SDAoEa2luZBgBIAEoCRISCgp1bml0X2luZGV4GAIgASgNEhkKDHBhcmVudF9pbmRleBgDIAEoDUgAiAEBQg8KDV9wYXJlbnRfaW5kZXgiSgoSQm91bmRhcnlBbm5vdGF0aW9uEhYKDnNlbnRlbmNlX2luZGV4GAEgASgNEgwKBGNvc3QYAiABKAUSDgoGcmVhc29uGAMgASgJIl4KE1N0cnVjdHVyZUFubm90YXRpb24SDAoEa2luZBgBIAEoCRIZCgxwYXJlbnRfaW5kZXgYAiABKA1IAIgBARINCgVkZXB0aBgDIAEoDUIPCg1fcGFyZW50X2luZGV4InIKEEFuc3dlckFubm90YXRpb24SDQoFc2NvcmUYASABKAESEwoLcHJvYmFiaWxpdHkYAiABKAESEgoKbnVsbF9zY29yZRgDIAEoARIYChBudWxsX3Byb2JhYmlsaXR5GAQgASgBEgwKBHRleHQYBSABKAkiUwoORWRnZUFubm90YXRpb24SEgoKZnJvbV9pbmRleBgBIAEoDRIQCgh0b19pbmRleBgCIAEoDRIMCgRraW5kGAMgASgJEg0KBXNjb3JlGAQgASgBIiIKD0dyb3VwQW5ub3RhdGlvbhIPCgdtZW1iZXJzGAEgAygNIvEBChZMaW5rZWRFbnRpdHlBbm5vdGF0aW9uEhQKDGVudGl0eV9pbmRleBgBIAEoDRISCgVrYl9pZBgCIAEoCUgAiAEBEhMKC3Byb3ZpZGVyX2lkGAMgASgJEhYKDmNhbm9uaWNhbF9uYW1lGAQgASgJEhUKDW1hdGNoZWRfYWxpYXMYBSABKAkSDQoFc2NvcmUYBiABKAESFwoKbmlsX3JlYXNvbhgHIAEoCUgBiAEBEhgKC25pbF9jbHVzdGVyGAggASgNSAKIAQFCCAoGX2tiX2lkQg0KC19uaWxfcmVhc29uQg4KDF9uaWxfY2x1c3RlciKNAQoUQ2FsaWJyYXRlZEFubm90YXRpb24SFAoMdGFyZ2V0X2luZGV4GAEgASgNEgsKA3JhdxgCIAMoARISCgpjYWxpYnJhdGVkGAMgAygBEhYKDnByZWRpY3Rpb25fc2V0GAQgAygNEhcKCmFic3RlbnRpb24YBSABKAlIAIgBAUINCgtfYWJzdGVudGlvbiIzChtUb2tlblZlY3RvcldpbmRvd0Fubm90YXRpb24SFAoMd2luZG93X2luZGV4GAEgASgNIlgKE1V0ZjE2U3BhbkFubm90YXRpb24SFAoMdGFyZ2V0X2luZGV4GAEgASgNEg8KB3N0YXJ0MTYYAiABKA0SDQoFZW5kMTYYAyABKA0SCwoDY3V0GAQgASgIIpcBChJNb2RhbGl0eUFubm90YXRpb24SEAoIcG9sYXJpdHkYASABKAkSEQoJZXBpc3RlbWljGAIgASgJEg8KB2Rlb250aWMYAyABKAkSLwoDY3VlGAQgASgLMh0udHVyYm8ucmVzdWx0LnYxLlNwYW5GcmFnbWVudEgAiAEBEhIKCmNvbmZpZGVuY2UYBSABKAJCBgoEX2N1ZSKqAQoYQ29uc29saWRhdGVkTWVudGlvblByb3RvEisKBHNwYW4YASABKAsyHS50dXJiby5yZXN1bHQudjEuU3BhbkZyYWdtZW50EhkKDGVudGl0eV9pbmRleBgCIAEoDUgAiAEBEhkKEWlzX3JlcHJlc2VudGF0aXZlGAMgASgIEhEKBHJvbGUYBCABKAlIAYgBAUIPCg1fZW50aXR5X2luZGV4QgcKBV9yb2xlImQKE0VudGl0eVJlbGF0aW9uUHJvdG8SDwoHc3ViamVjdBgBIAEoDRIOCgZvYmplY3QYAiABKA0SDAoEa2luZBgDIAEoCRINCgVzY29yZRgEIAEoAhIPCgdzdXBwb3J0GAUgASgNIuwDChhEb2N1bWVudEVudGl0eUFubm90YXRpb24SFgoOY2Fub25pY2FsX25hbWUYASABKAkSDAoEa2luZBgCIAEoCRISCgVrYl9pZBgDIAEoCUgAiAEBEhUKCGxhdGl0dWRlGAQgASgCSAGIAQESFgoJbG9uZ2l0dWRlGAUgASgCSAKIAQESGQoMY291bnRyeV9jb2RlGAYgASgJSAOIAQESOwoIbWVudGlvbnMYByADKAsyKS50dXJiby5yZXN1bHQudjEuQ29uc29saWRhdGVkTWVudGlvblByb3RvEhUKDXN1YmplY3RfY291bnQYCCABKA0SFAoMb2JqZWN0X2NvdW50GAkgASgNEhYKDm1vZGlmaWVyX2NvdW50GAogASgNEhMKC290aGVyX2NvdW50GAsgASgNEhYKDm1lYW5fc2VudGltZW50GAwgASgCEhoKEnNlbnRpbWVudF9tZW50aW9ucxgNIAEoDRISCgpjb25maWRlbmNlGA4gASgCEjcKCXJlbGF0aW9ucxgPIAMoCzIkLnR1cmJvLnJlc3VsdC52MS5FbnRpdHlSZWxhdGlvblByb3RvQggKBl9rYl9pZEILCglfbGF0aXR1ZGVCDAoKX2xvbmdpdHVkZUIPCg1fY291bnRyeV9jb2RlIpcBChJFdmVudEFyZ3VtZW50UHJvdG8SKwoEc3BhbhgBIAEoCzIdLnR1cmJvLnJlc3VsdC52MS5TcGFuRnJhZ21lbnQSDAoEcm9sZRgCIAEoCRIWCg5hbmNob3JlZF9sYXllchgDIAEoCRIbCg5hbmNob3JlZF9pbmRleBgEIAEoDUgAiAEBQhEKD19hbmNob3JlZF9pbmRleCKjAQoPRXZlbnRBbm5vdGF0aW9uEhoKDXRyaWdnZXJfbGVtbWEYASABKAlIAIgBARIWCg5zZW50ZW5jZV9pbmRleBgCIAEoDRISCgpjb25maWRlbmNlGAMgASgCEjYKCWFyZ3VtZW50cxgEIAMoCzIjLnR1cmJvLnJlc3VsdC52MS5FdmVudEFyZ3VtZW50UHJvdG9CEAoOX3RyaWdnZXJfbGVtbWEiRAoNRWR1QW5ub3RhdGlvbhINCgVpbmRleBgBIAEoDRIWCg5zZW50ZW5jZV9pbmRleBgCIAEoDRIMCgR0ZXh0GAMgASgJIqYBChRTcGFyc2VUZXJtRW50cnlQcm90bxIPCgd0ZXJtX2lkGAEgASgNEg4KBndlaWdodBgCIAEoAhIwCgRzcGFuGAMgASgLMh0udHVyYm8ucmVzdWx0LnYxLlNwYW5GcmFnbWVudEgAiAEBEjIKC29jY3VycmVuY2VzGAQgAygLMh0udHVyYm8ucmVzdWx0LnYxLlNwYW5GcmFnbWVudEIHCgVfc3BhbiJlChVTcGFyc2VUZXJtc0Fubm90YXRpb24SFAoMdGFyZ2V0X2luZGV4GAEgASgNEjYKB2VudHJpZXMYAiADKAsyJS50dXJiby5yZXN1bHQudjEuU3BhcnNlVGVybUVudHJ5UHJvdG8ijwEKFUFsdGVybmF0aXZlQW5ub3RhdGlvbhIQCghwb3NpdGlvbhgBIAEoDRIXCg9wb3NpdGlvbl9sZW5ndGgYAiABKA0SEQoJbW9kZV9iaXRzGAMgASgNEhIKBXNjb3JlGAQgASgBSACIAQESEQoEZm9ybRgFIAEoCUgBiAEBQggKBl9zY29yZUIHCgVfZm9ybSJyChNOQmVzdENhbmRpZGF0ZVByb3RvEgwKBHJhbmsYASABKA0SFgoOc2VxdWVuY2Vfc2NvcmUYAiABKAESCwoDdGFnGAMgASgJEhgKC3Byb2JhYmlsaXR5GAQgASgBSACIAQFCDgoMX3Byb2JhYmlsaXR5InEKD05CZXN0QW5ub3RhdGlvbhIUCgx0YXJnZXRfaW5kZXgYASABKA0SDgoGdGFnc2V0GAIgASgJEjgKCmNhbmRpZGF0ZXMYAyADKAsyJC50dXJiby5yZXN1bHQudjEuTkJlc3RDYW5kaWRhdGVQcm90byKTAQoTVGFibGVDZWxsQW5ub3RhdGlvbhIQCgh0YWJsZV9pZBgBIAEoDRIRCglyb3dfaW5kZXgYAiABKA0SEQoJY29sX2luZGV4GAMgASgNEhAKCHJvd19zcGFuGAQgASgNEhAKCGNvbF9zcGFuGAUgASgNEhEKCWlzX2hlYWRlchgGIAEoCBINCgVhbGlnbhgHIAEoCSLZAQoWS2V5VmFsdWVQYWlyQW5ub3RhdGlvbhIvCghrZXlfc3BhbhgBIAEoCzIdLnR1cmJvLnJlc3VsdC52MS5TcGFuRnJhZ21lbnQSNQoOc2VwYXJhdG9yX3NwYW4YAiABKAsyHS50dXJiby5yZXN1bHQudjEuU3BhbkZyYWdtZW50EjEKCnZhbHVlX3NwYW4YAyABKAsyHS50dXJiby5yZXN1bHQudjEuU3BhbkZyYWdtZW50EhAKCGtleV90ZXh0GAQgASgJEhIKCnZhbHVlX3RleHQYBSABKAkisQEKGEVudGl0eVNhbGllbmNlQW5ub3RhdGlvbhIUCgxlbnRpdHlfaW5kZXgYASABKA0SEAoIc2FsaWVuY2UYAiABKAISDAoEcmFuaxgDIAEoDRIWCg5wb3NpdGlvbl9zY29yZRgEIAEoAhIUCgxzeW50YXhfc2NvcmUYBSABKAISFwoPZnJlcXVlbmN5X3Njb3JlGAYgASgCEhgKEGNlbnRyYWxpdHlfc2NvcmUYByABKAIiqAEKGkNodW5rVGFibGVIZWFkZXJBbm5vdGF0aW9uEhMKC2NodW5rX2luZGV4GAEgASgNEhAKCHRhYmxlX2lkGAIgASgNEhcKD2lzX2NvbnRpbnVhdGlvbhgDIAEoCBIzCgxoZWFkZXJfY2VsbHMYBCADKAsyHS50dXJiby5yZXN1bHQudjEuU3BhbkZyYWdtZW50EhUKDWhlYWRlcl9wcmVmaXgYBSABKAkigAEKFVJlY29yZFZhbHVlQW5ub3RhdGlvbhIUCgxyZWNvcmRfaW5kZXgYASABKA0SEwoLcmVjb3JkX3R5cGUYAiABKAkSEAoIaW5zdGFuY2UYAyABKA0SDAoEcGF0aBgEIAEoCRINCgVzY29yZRgFIAEoARINCgVsb2dpdBgGIAEoASL9BAoYUXVhbGl0eU1ldHJpY3NBbm5vdGF0aW9uEhwKD2NvbXBvc2l0ZV9zY29yZRgBIAEoAkgAiAEBEiMKFm10bGRfbGV4aWNhbF9kaXZlcnNpdHkYAiABKAJIAYgBARIhChRmbGVzY2hfa2luY2FpZF9ncmFkZRgDIAEoAkgCiAEBEigKG2F1dG9tYXRlZF9yZWFkYWJpbGl0eV9pbmRleBgEIAEoAkgDiAEBEh8KEmNvbGVtYW5fbGlhdV9pbmRleBgFIAEoAkgEiAEBEiAKE2luZm9ybWF0aW9uX2RlbnNpdHkYBiABKAJIBYgBARIYCgthbHBoYV9yYXRpbxgHIAEoAkgGiAEBEhgKC2RpZ2l0X3JhdGlvGAggASgCSAeIAQESGQoMc3ltYm9sX3JhdGlvGAkgASgCSAiIAQESHQoQd2hpdGVzcGFjZV9yYXRpbxgKIAEoAkgJiAEBEh4KEXJlcGxhY2VtZW50X3JhdGlvGAsgASgCSAqIAQESDQoFZmxhZ3MYDCABKA1CEgoQX2NvbXBvc2l0ZV9zY29yZUIZChdfbXRsZF9sZXhpY2FsX2RpdmVyc2l0eUIXChVfZmxlc2NoX2tpbmNhaWRfZ3JhZGVCHgocX2F1dG9tYXRlZF9yZWFkYWJpbGl0eV9pbmRleEIVChNfY29sZW1hbl9saWF1X2luZGV4QhYKFF9pbmZvcm1hdGlvbl9kZW5zaXR5Qg4KDF9hbHBoYV9yYXRpb0IOCgxfZGlnaXRfcmF0aW9CDwoNX3N5bWJvbF9yYXRpb0ITChFfd2hpdGVzcGFjZV9yYXRpb0IUChJfcmVwbGFjZW1lbnRfcmF0aW8iTgoPRXZpZGVuY2VTdXBwb3J0Eg0KBWxheWVyGAEgASgJEhAKCGluc3RhbmNlGAIgASgJEg0KBXN0YXJ0GAMgASgNEgsKA2VuZBgEIAEoDSLrAQoSRXZpZGVuY2VBbm5vdGF0aW9uEhQKDHRhcmdldF9pbmRleBgBIAEoDRIWCglyYXdfc2NvcmUYAiABKAFIAIgBARIjChZjYWxpYnJhdGVkX3Byb2JhYmlsaXR5GAMgASgBSAGIAQESFwoKYWJzdGVudGlvbhgEIAEoCUgCiAEBEjEKB3N1cHBvcnQYBSADKAsyIC50dXJiby5yZXN1bHQudjEuRXZpZGVuY2VTdXBwb3J0QgwKCl9yYXdfc2NvcmVCGQoXX2NhbGlicmF0ZWRfcHJvYmFiaWxpdHlCDQoLX2Fic3RlbnRpb24iwAIKE1F1b3RhdGlvbkFubm90YXRpb24SPAoEa2luZBgBIAEoDjIpLnR1cmJvLnJlc3VsdC52MS5RdW90YXRpb25Bbm5vdGF0aW9uLktpbmRIAIgBARIXCgpjb25maWRlbmNlGAIgASgCSAGIAQESLgoHc3BlYWtlchgDIAEoCzIdLnR1cmJvLnJlc3VsdC52MS5TcGFuRnJhZ21lbnQSLwoIY3VlX3ZlcmIYBCABKAsyHS50dXJiby5yZXN1bHQudjEuU3BhbkZyYWdtZW50EhoKDXNwZWFrZXJfY2hhaW4YBSABKA1IAogBASIrCgRLaW5kEgoKBkRJUkVDVBAAEgwKCElORElSRUNUEAESCQoFTUlYRUQQAkIHCgVfa2luZEINCgtfY29uZmlkZW5jZUIQCg5fc3BlYWtlcl9jaGFpbiLwJwoPVHlwZWRBbm5vdGF0aW9uEiwKBXNwYW5zGAEgAygLMh0udHVyYm8ucmVzdWx0LnYxLlNwYW5GcmFnbWVudBIYCgtwcm9iYWJpbGl0eRgCIAEoAUgBiAEBEhYKCW1vZGVsX3JlZhgDIAEoCUgCiAEBEjcKCHNlbnRlbmNlGAogASgLMiMudHVyYm8ucmVzdWx0LnYxLlNlbnRlbmNlQW5ub3RhdGlvbkgAEjEKBXRva2VuGAsgASgLMiAudHVyYm8ucmVzdWx0LnYxLlRva2VuQW5ub3RhdGlvbkgAEi8KBHdvcmQYDCABKAsyHy50dXJiby5yZXN1bHQudjEuV29yZEFubm90YXRpb25IABI1CgdzdWJ3b3JkGA0gASgLMiIudHVyYm8ucmVzdWx0LnYxLlN1YndvcmRBbm5vdGF0aW9uSAASNAoHcG9zX3RhZxgOIAEoCzIhLnR1cmJvLnJlc3VsdC52MS5Qb3NUYWdBbm5vdGF0aW9uSAASQgoObW9ycGhfZmVhdHVyZXMYDyABKAsyKC50dXJiby5yZXN1bHQudjEuTW9ycGhGZWF0dXJlc0Fubm90YXRpb25IABIxCgVsZW1tYRgQIAEoCzIgLnR1cmJvLnJlc3VsdC52MS5MZW1tYUFubm90YXRpb25IABIvCgRzdGVtGBEgASgLMh8udHVyYm8ucmVzdWx0LnYxLlN0ZW1Bbm5vdGF0aW9uSAASLwoEdGVybRgSIAEoCzIfLnR1cmJvLnJlc3VsdC52MS5UZXJtQW5ub3RhdGlvbkgAEjgKCWNodW5rX3RhZxgTIAEoCzIjLnR1cmJvLnJlc3VsdC52MS5DaHVua1RhZ0Fubm90YXRpb25IABI+CgxwaHJhc2VfY2h1bmsYFCABKAsyJi50dXJiby5yZXN1bHQudjEuUGhyYXNlQ2h1bmtBbm5vdGF0aW9uSAASMwoGcGhyYXNlGBUgASgLMiEudHVyYm8ucmVzdWx0LnYxLlBocmFzZUFubm90YXRpb25IABI7CgpkZXBlbmRlbmN5GBYgASgLMiUudHVyYm8ucmVzdWx0LnYxLkRlcGVuZGVuY3lBbm5vdGF0aW9uSAASMwoGZW50aXR5GBcgASgLMiEudHVyYm8ucmVzdWx0LnYxLkVudGl0eUFubm90YXRpb25IABI3CghyZWxhdGlvbhgYIAEoCzIjLnR1cmJvLnJlc3VsdC52MS5SZWxhdGlvbkFubm90YXRpb25IABJACg1jb3JlZl9tZW50aW9uGBkgASgLMicudHVyYm8ucmVzdWx0LnYxLkNvcmVmTWVudGlvbkFubm90YXRpb25IABI8Cgtjb3JlZl9jaGFpbhgaIAEoCzIlLnR1cmJvLnJlc3VsdC52MS5Db3JlZkNoYWluQW5ub3RhdGlvbkgAEjUKB3NwZWFrZXIYGyABKAsyIi50dXJiby5yZXN1bHQudjEuU3BlYWtlckFubm90YXRpb25IABJACg13b3JkbmV0X3NlbnNlGBwgASgLMicudHVyYm8ucmVzdWx0LnYxLldvcmROZXRTZW5zZUFubm90YXRpb25IABJIChFsZXhpY2FsX2V4cGFuc2lvbhgdIAEoCzIrLnR1cmJvLnJlc3VsdC52MS5MZXhpY2FsRXhwYW5zaW9uQW5ub3RhdGlvbkgAEkAKDWdsb3NzYXJ5X3Rlcm0YHiABKAsyJy50dXJiby5yZXN1bHQudjEuR2xvc3NhcnlUZXJtQW5ub3RhdGlvbkgAEjMKBm51bWJlchgfIAEoCzIhLnR1cmJvLnJlc3VsdC52MS5OdW1iZXJBbm5vdGF0aW9uSAASNQoHb3JkaW5hbBggIAEoCzIiLnR1cmJvLnJlc3VsdC52MS5PcmRpbmFsQW5ub3RhdGlvbkgAEjEKBW1vbmV5GCEgASgLMiAudHVyYm8ucmVzdWx0LnYxLk1vbmV5QW5ub3RhdGlvbkgAEjcKCHF1YW50aXR5GCIgASgLMiMudHVyYm8ucmVzdWx0LnYxLlF1YW50aXR5QW5ub3RhdGlvbkgAEjcKCHRlbXBvcmFsGCMgASgLMiMudHVyYm8ucmVzdWx0LnYxLlRlbXBvcmFsQW5ub3RhdGlvbkgAEi8KBHRpbWUYJCABKAsyHy50dXJiby5yZXN1bHQudjEuVGltZUFubm90YXRpb25IABJACg1kb2N1bWVudF9kYXRlGCUgASgLMicudHVyYm8ucmVzdWx0LnYxLkRvY3VtZW50RGF0ZUFubm90YXRpb25IABIxCgVwbGFjZRgmIAEoCzIgLnR1cmJvLnJlc3VsdC52MS5QbGFjZVJlc29sdXRpb25IABI4Cgtjb250YWlubWVudBgnIAEoCzIhLnR1cmJvLnJlc3VsdC52MS5Db250YWlubWVudENoYWluSAASMgoLcmVnaW9uX3ZvdGUYKCABKAsyGy50dXJiby5yZXN1bHQudjEuUmVnaW9uVm90ZUgAEjcKCGxhbmd1YWdlGCkgASgLMiMudHVyYm8ucmVzdWx0LnYxLkxhbmd1YWdlQW5ub3RhdGlvbkgAEkAKDWxhbmd1YWdlX3NwYW4YKiABKAsyJy50dXJiby5yZXN1bHQudjEuTGFuZ3VhZ2VTcGFuQW5ub3RhdGlvbkgAEjcKCGNhdGVnb3J5GCsgASgLMiMudHVyYm8ucmVzdWx0LnYxLkNhdGVnb3J5QW5ub3RhdGlvbkgAEjkKCXNlbnRpbWVudBgsIAEoCzIkLnR1cmJvLnJlc3VsdC52MS5TZW50aW1lbnRBbm5vdGF0aW9uSAASNQoHZW1vdGlvbhgtIAEoCzIiLnR1cmJvLnJlc3VsdC52MS5FbW90aW9uQW5ub3RhdGlvbkgAEjMKBmFzcGVjdBguIAEoCzIhLnR1cmJvLnJlc3VsdC52MS5Bc3BlY3RBbm5vdGF0aW9uSAASNQoHb3BpbmlvbhgvIAEoCzIiLnR1cmJvLnJlc3VsdC52MS5PcGluaW9uQW5ub3RhdGlvbkgAEjsKCmluY2l2aWxpdHkYMCABKAsyJS50dXJiby5yZXN1bHQudjEuSW5jaXZpbGl0eUFubm90YXRpb25IABI7CgpwcmFnbWF0aWNzGDEgASgLMiUudHVyYm8ucmVzdWx0LnYxLlByYWdtYXRpY3NBbm5vdGF0aW9uSAASKgoDcGlpGDIgASgLMhsudHVyYm8ucmVzdWx0LnYxLlBpaU1lbnRpb25IABIrCgVub2lzZRgzIAEoCzIaLnR1cmJvLnJlc3VsdC52MS5Ob2lzZVNwYW5IABIxCghhcnRpZmFjdBg0IAEoCzIdLnR1cmJvLnJlc3VsdC52MS5UZXh0QXJ0aWZhY3RIABIvCgVhc3NldBg1IAEoCzIeLnR1cmJvLnJlc3VsdC52MS5FbWJlZGRlZEFzc2V0SAASOQoKY29ycmVjdGlvbhg2IAEoCzIjLnR1cmJvLnJlc3VsdC52MS5TcGVsbGluZ0NvcnJlY3Rpb25IABI9CgtwbGFjZWhvbGRlchg3IAEoCzImLnR1cmJvLnJlc3VsdC52MS5QbGFjZWhvbGRlckFubm90YXRpb25IABIxCgVlbW9qaRg4IAEoCzIgLnR1cmJvLnJlc3VsdC52MS5FbW9qaUFubm90YXRpb25IABJCCg5wcm90ZWN0ZWRfc3Bhbhg5IAEoCzIoLnR1cmJvLnJlc3VsdC52MS5Qcm90ZWN0ZWRTcGFuQW5ub3RhdGlvbkgAEj8KDGFiYnJldmlhdGlvbhg6IAEoCzInLnR1cmJvLnJlc3VsdC52MS5BYmJyZXZpYXRpb25Bbm5vdGF0aW9uSAASNgoKcnVsZV9tYXRjaBg7IAEoCzIgLnR1cmJvLnJlc3VsdC52MS5NYXRjaEFubm90YXRpb25IABI9Cgtib2lsZXJwbGF0ZRg8IAEoCzImLnR1cmJvLnJlc3VsdC52MS5Cb2lsZXJwbGF0ZUFubm90YXRpb25IABI7Cgpjb25maWRlbmNlGD0gASgLMiUudHVyYm8ucmVzdWx0LnYxLkNvbmZpZGVuY2VBbm5vdGF0aW9uSAASQAoNc3RvcHdvcmRfZmxhZxg+IAEoCzInLnR1cmJvLnJlc3VsdC52MS5TdG9wd29yZEZsYWdBbm5vdGF0aW9uSAASOAoJd29yZF90eXBlGD8gASgLMiMudHVyYm8ucmVzdWx0LnYxLldvcmRUeXBlQW5ub3RhdGlvbkgAEjUKB3JlYWRpbmcYQCABKAsyIi50dXJiby5yZXN1bHQudjEuUmVhZGluZ0Fubm90YXRpb25IABI1CgdrZXl3b3JkGEEgASgLMiIudHVyYm8ucmVzdWx0LnYxLktleXdvcmRBbm5vdGF0aW9uSAASRAoPc291cmNlX2VuY29kaW5nGEIgASgLMikudHVyYm8ucmVzdWx0LnYxLlNvdXJjZUVuY29kaW5nQW5ub3RhdGlvbkgAEjMKBnZlY3RvchhDIAEoCzIhLnR1cmJvLnJlc3VsdC52MS5WZWN0b3JBbm5vdGF0aW9uSAASMQoFY2h1bmsYRCABKAsyIC50dXJiby5yZXN1bHQudjEuQ2h1bmtBbm5vdGF0aW9uSAASNgoKbGV2ZWxfdW5pdBhFIAEoCzIgLnR1cmJvLnJlc3VsdC52MS5MZXZlbEFubm90YXRpb25IABI3Cghib3VuZGFyeRhGIAEoCzIjLnR1cmJvLnJlc3VsdC52MS5Cb3VuZGFyeUFubm90YXRpb25IABI5CglzdHJ1Y3R1cmUYRyABKAsyJC50dXJiby5yZXN1bHQudjEuU3RydWN0dXJlQW5ub3RhdGlvbkgAEjMKBmFuc3dlchhIIAEoCzIhLnR1cmJvLnJlc3VsdC52MS5BbnN3ZXJBbm5vdGF0aW9uSAASLwoEZWRnZRhJIAEoCzIfLnR1cmJvLnJlc3VsdC52MS5FZGdlQW5ub3RhdGlvbkgAEjEKBWdyb3VwGEogASgLMiAudHVyYm8ucmVzdWx0LnYxLkdyb3VwQW5ub3RhdGlvbkgAEkAKDWxpbmtlZF9lbnRpdHkYSyABKAsyJy50dXJiby5yZXN1bHQudjEuTGlua2VkRW50aXR5QW5ub3RhdGlvbkgAEjsKCmNhbGlicmF0ZWQYTCABKAsyJS50dXJiby5yZXN1bHQudjEuQ2FsaWJyYXRlZEFubm90YXRpb25IABJLChN0b2tlbl92ZWN0b3Jfd2luZG93GE0gASgLMiwudHVyYm8ucmVzdWx0LnYxLlRva2VuVmVjdG9yV2luZG93QW5ub3RhdGlvbkgAEjoKCnV0ZjE2X3NwYW4YTiABKAsyJC50dXJiby5yZXN1bHQudjEuVXRmMTZTcGFuQW5ub3RhdGlvbkgAEjcKCG1vZGFsaXR5GE8gASgLMiMudHVyYm8ucmVzdWx0LnYxLk1vZGFsaXR5QW5ub3RhdGlvbkgAEkQKD2RvY3VtZW50X2VudGl0eRhQIAEoCzIpLnR1cmJvLnJlc3VsdC52MS5Eb2N1bWVudEVudGl0eUFubm90YXRpb25IABIxCgVldmVudBhRIAEoCzIgLnR1cmJvLnJlc3VsdC52MS5FdmVudEFubm90YXRpb25IABItCgNlZHUYUiABKAsyHi50dXJiby5yZXN1bHQudjEuRWR1QW5ub3RhdGlvbkgAEj4KDHNwYXJzZV90ZXJtcxhTIAEoCzImLnR1cmJvLnJlc3VsdC52MS5TcGFyc2VUZXJtc0Fubm90YXRpb25IABI9CgthbHRlcm5hdGl2ZRhUIAEoCzImLnR1cmJvLnJlc3VsdC52MS5BbHRlcm5hdGl2ZUFubm90YXRpb25IABIxCgVuYmVzdBhVIAEoCzIgLnR1cmJvLnJlc3VsdC52MS5OQmVzdEFubm90YXRpb25IABI6Cgp0YWJsZV9jZWxsGFYgASgLMiQudHVyYm8ucmVzdWx0LnYxLlRhYmxlQ2VsbEFubm90YXRpb25IABJBCg5rZXlfdmFsdWVfcGFpchhXIAEoCzInLnR1cmJvLnJlc3VsdC52MS5LZXlWYWx1ZVBhaXJBbm5vdGF0aW9uSAASPgoMcmVjb3JkX3ZhbHVlGFggASgLMiYudHVyYm8ucmVzdWx0LnYxLlJlY29yZFZhbHVlQW5ub3RhdGlvbkgAEkQKD2VudGl0eV9zYWxpZW5jZRhZIAEoCzIpLnR1cmJvLnJlc3VsdC52MS5FbnRpdHlTYWxpZW5jZUFubm90YXRpb25IABJJChJjaHVua190YWJsZV9oZWFkZXIYWiABKAsyKy50dXJiby5yZXN1bHQudjEuQ2h1bmtUYWJsZUhlYWRlckFubm90YXRpb25IABJBCgx0ZXh0X3F1YWxpdHkYWyABKAsyKS50dXJiby5yZXN1bHQudjEuUXVhbGl0eU1ldHJpY3NBbm5vdGF0aW9uSAASQQoMc3Bhbl9xdWFsaXR5GFwgASgLMikudHVyYm8ucmVzdWx0LnYxLlF1YWxpdHlNZXRyaWNzQW5ub3RhdGlvbkgAEjcKCGV2aWRlbmNlGF0gASgLMiMudHVyYm8ucmVzdWx0LnYxLkV2aWRlbmNlQW5ub3RhdGlvbkgAEjkKCXF1b3RhdGlvbhheIAEoCzIkLnR1cmJvLnJlc3VsdC52MS5RdW90YXRpb25Bbm5vdGF0aW9uSABCBwoFdmFsdWVCDgoMX3Byb2JhYmlsaXR5QgwKCl9tb2RlbF9yZWYqVQoKT2Zmc2V0TW9kZRIUChBPRkZTRVRfTU9ERV9VVEY4EAASFQoRT0ZGU0VUX01PREVfVVRGMTYQARIaChZPRkZTRVRfTU9ERV9DT0RFX1BPSU5UEAIqaAoPTGF5ZXJXaXJlU3RhdHVzEhgKFExBWUVSX1dJUkVfU1RBVFVTX09LEAASHQoZTEFZRVJfV0lSRV9TVEFUVVNfU0tJUFBFRBABEhwKGExBWUVSX1dJUkVfU1RBVFVTX0ZBSUxFRBACKlUKCkFuY2hvcktpbmQSFAoQQU5DSE9SX0tJTkRfVEVYVBAAEhcKE0FOQ0hPUl9LSU5EX0FMSUdORUQQARIYChRBTkNIT1JfS0lORF9ET0NVTUVOVBACYgZwcm90bzM");
+var TypedAnnotationSchema = /* @__PURE__ */ messageDesc(file_turbo_typed_annotations, 103);
 var LayerWireStatus = /* @__PURE__ */ ((LayerWireStatus2) => {
   LayerWireStatus2[LayerWireStatus2["OK"] = 0] = "OK";
   LayerWireStatus2[LayerWireStatus2["SKIPPED"] = 1] = "SKIPPED";
@@ -4213,26 +4214,26 @@ function append(e, children) {
     else e.append(c);
   }
 }
-function stat(value, key) {
-  return el("div", { class: "stat" }, el("div", { class: "v", text: value }), el("div", { class: "k", text: key }));
+function stat(value, key2) {
+  return el("div", { class: "stat" }, el("div", { class: "v", text: value }), el("div", { class: "k", text: key2 }));
 }
-function table(head, rows, cls = "") {
+function table(head, rows2, cls = "") {
   return el(
     "table",
     { class: cls || void 0 },
     el("tr", {}, head.map((h) => el("th", { text: h }))),
-    rows.map((r) => el("tr", {}, r.map((c) => el("td", {}, c))))
+    rows2.map((r) => el("tr", {}, r.map((c) => el("td", {}, c))))
   );
 }
-function options(select4, values, labels) {
-  const keep = select4.value;
-  select4.replaceChildren(...values.map((v, i) => el("option", { value: v, text: labels ? labels[i] : v })));
-  if (values.includes(keep)) select4.value = keep;
+function options(select5, values, labels) {
+  const keep = select5.value;
+  select5.replaceChildren(...values.map((v, i) => el("option", { value: v, text: labels ? labels[i] : v })));
+  if (values.includes(keep)) select5.value = keep;
 }
-function say(box, text, kind = "") {
-  box.textContent = text;
-  box.className = kind ? `note ${kind}` : "note";
-  box.hidden = text === "";
+function say(box5, text, kind = "") {
+  box5.textContent = text;
+  box5.className = kind ? `note ${kind}` : "note";
+  box5.hidden = text === "";
 }
 function size(n) {
   const v = Number(n);
@@ -4251,6 +4252,36 @@ function download(name, data, type) {
 }
 function after(s, prefix2) {
   return s.startsWith(prefix2) ? s.slice(prefix2.length) : s;
+}
+function lazy(details, render6) {
+  let stale = true;
+  details.addEventListener("toggle", () => {
+    if (details.open && stale) {
+      stale = false;
+      render6();
+    }
+  });
+  return () => {
+    stale = true;
+    if (details.open) {
+      stale = false;
+      render6();
+    }
+  };
+}
+
+// demo/web/src/doc.ts
+var current = null;
+var listeners = [];
+function doc() {
+  return current;
+}
+function setDoc(d) {
+  current = d;
+  for (const l of listeners) l(d);
+}
+function onDoc(l) {
+  listeners.push(l);
 }
 
 // demo/web/node_modules/@connectrpc/connect/dist/esm/code.js
@@ -4333,10 +4364,10 @@ var NullValue;
 function getExtension(message, extension, options2) {
   assertExtendee(extension, message);
   const ufs = filterUnknownFields(message.$unknown, extension);
-  const [container, field, get] = createExtensionContainer(extension);
+  const [container, field2, get] = createExtensionContainer(extension);
   const ctx = makeReadContext(options2);
   for (const uf of ufs) {
-    readField(container, new BinaryReader(uf.data), field, uf.wireType, ctx);
+    readField(container, new BinaryReader(uf.data), field2, uf.wireType, ctx);
   }
   return get();
 }
@@ -4344,9 +4375,9 @@ function setExtension(message, extension, value) {
   var _a;
   assertExtendee(extension, message);
   const ufs = ((_a = message.$unknown) !== null && _a !== void 0 ? _a : []).filter((uf) => uf.no !== extension.number);
-  const [container, field] = createExtensionContainer(extension, value);
+  const [container, field2] = createExtensionContainer(extension, value);
   const writer = new BinaryWriter();
-  writeField(writer, { writeUnknownFields: true }, container, field);
+  writeField(writer, { writeUnknownFields: true }, container, field2);
   const reader = new BinaryReader(writer.finish());
   while (reader.pos < reader.len) {
     const [no, wireType] = reader.tag();
@@ -4370,12 +4401,12 @@ function filterUnknownFields(unknownFields, extension) {
 }
 function createExtensionContainer(extension, value) {
   const localName = extension.typeName;
-  const field = Object.assign(Object.assign({}, extension), { kind: "field", parent: extension.extendee, localName });
-  const desc = Object.assign(Object.assign({}, extension.extendee), { fields: [field], members: [field], oneofs: [] });
+  const field2 = Object.assign(Object.assign({}, extension), { kind: "field", parent: extension.extendee, localName });
+  const desc = Object.assign(Object.assign({}, extension.extendee), { fields: [field2], members: [field2], oneofs: [] });
   const container = create(desc, value !== void 0 ? { [localName]: value } : void 0);
   return [
     reflect(desc, container),
-    field,
+    field2,
     () => {
       const value2 = container[localName];
       if (value2 === void 0) {
@@ -4459,9 +4490,9 @@ function compileMessage3(desc) {
     return json;
   };
   compiledWriters2.set(desc, compiledWriter3);
-  for (const field of sortedFields) {
-    const writeField2 = compileField2(field);
-    fieldWriters.push(field.jsonName === "__proto__" || field.name === "__proto__" ? writeOwnKeys(writeField2) : writeField2);
+  for (const field2 of sortedFields) {
+    const writeField2 = compileField2(field2);
+    fieldWriters.push(field2.jsonName === "__proto__" || field2.name === "__proto__" ? writeOwnKeys(writeField2) : writeField2);
   }
   return compiledWriter3;
 }
@@ -4469,8 +4500,8 @@ function writeOwnKeys(writeField2) {
   return (opts, message, json) => {
     const tmp = /* @__PURE__ */ Object.create(null);
     writeField2(opts, message, tmp);
-    for (const key of Object.keys(tmp)) {
-      setOwn(json, key, tmp[key]);
+    for (const key2 of Object.keys(tmp)) {
+      setOwn(json, key2, tmp[key2]);
     }
   };
 }
@@ -4507,18 +4538,18 @@ function compileWkt(desc) {
       return void 0;
   }
 }
-function compileField2(field) {
-  switch (field.fieldKind) {
+function compileField2(field2) {
+  switch (field2.fieldKind) {
     case "scalar":
     case "enum":
     case "message":
-      return compileSingularField2(field);
+      return compileSingularField2(field2);
     case "list":
     case "map": {
-      const writeValue = field.fieldKind == "list" ? compileListValue(field) : compileMapValue(field);
-      const protoName = field.name;
-      const jsonKey = field.jsonName;
-      const localName = field.localName;
+      const writeValue = field2.fieldKind == "list" ? compileListValue(field2) : compileMapValue(field2);
+      const protoName = field2.name;
+      const jsonKey = field2.jsonName;
+      const localName = field2.localName;
       return (opts, message, json) => {
         const value = writeValue(opts, message[localName]);
         if (value !== void 0) {
@@ -4528,13 +4559,13 @@ function compileField2(field) {
     }
   }
 }
-function compileSingularField2(field) {
-  const writeValue = compileSingularValue2(field);
-  const protoName = field.name;
-  const jsonKey = field.jsonName;
-  const localName = field.localName;
-  if (field.oneof) {
-    const oneofLocalName = field.oneof.localName;
+function compileSingularField2(field2) {
+  const writeValue = compileSingularValue2(field2);
+  const protoName = field2.name;
+  const jsonKey = field2.jsonName;
+  const localName = field2.localName;
+  if (field2.oneof) {
+    const oneofLocalName = field2.oneof.localName;
     return (opts, message, json) => {
       const oneof = message[oneofLocalName];
       if (oneof.case === localName) {
@@ -4542,8 +4573,8 @@ function compileSingularField2(field) {
       }
     };
   }
-  if (field.presence != IMPLICIT5) {
-    const requiredError = field.presence == LEGACY_REQUIRED3 ? `cannot encode ${field} to JSON: required field not set` : void 0;
+  if (field2.presence != IMPLICIT5) {
+    const requiredError = field2.presence == LEGACY_REQUIRED3 ? `cannot encode ${field2} to JSON: required field not set` : void 0;
     return (opts, message, json) => {
       const value = message[localName];
       if (value !== void 0 && Object.prototype.hasOwnProperty.call(message, localName)) {
@@ -4553,8 +4584,8 @@ function compileSingularField2(field) {
       }
     };
   }
-  if (field.fieldKind == "enum") {
-    const zero = field.enum.values[0].number;
+  if (field2.fieldKind == "enum") {
+    const zero = field2.enum.values[0].number;
     return (opts, message, json) => {
       const value = message[localName];
       if (value !== zero || opts.alwaysEmitImplicit) {
@@ -4562,7 +4593,7 @@ function compileSingularField2(field) {
       }
     };
   }
-  switch (field.scalar) {
+  switch (field2.scalar) {
     case ScalarType.BOOL:
       return (opts, message, json) => {
         const value = message[localName];
@@ -4601,35 +4632,35 @@ function compileSingularField2(field) {
       };
   }
 }
-function compileFieldValue(field) {
-  switch (field.fieldKind) {
+function compileFieldValue(field2) {
+  switch (field2.fieldKind) {
     case "scalar":
     case "enum":
     case "message":
-      return compileSingularValue2(field);
+      return compileSingularValue2(field2);
     case "list":
-      return compileListValue(field);
+      return compileListValue(field2);
     case "map":
-      return compileMapValue(field);
+      return compileMapValue(field2);
   }
 }
-function compileSingularValue2(field) {
-  switch (field.fieldKind) {
+function compileSingularValue2(field2) {
+  switch (field2.fieldKind) {
     case "scalar":
-      return compileScalarValue2(field);
+      return compileScalarValue2(field2);
     case "enum":
-      return compileEnumValue(field);
+      return compileEnumValue(field2);
     case "message":
-      return compileMessageValue(field);
+      return compileMessageValue(field2);
   }
 }
-function compileMessageValue(field) {
-  const { toMessage } = localMessageMapper(field);
-  const writeMessage = compiledWriter2(field.message);
+function compileMessageValue(field2) {
+  const { toMessage } = localMessageMapper(field2);
+  const writeMessage = compiledWriter2(field2.message);
   return (opts, value) => writeMessage(opts, toMessage(value));
 }
-function compileListValue(field) {
-  const writeItem = compileListItemValue(field);
+function compileListValue(field2) {
+  const writeItem = compileListItemValue(field2);
   return (opts, value) => {
     const items = value;
     if (items.length == 0 && !opts.alwaysEmitImplicit) {
@@ -4642,18 +4673,18 @@ function compileListValue(field) {
     return jsonArray;
   };
 }
-function compileListItemValue(field) {
-  switch (field.listKind) {
+function compileListItemValue(field2) {
+  switch (field2.listKind) {
     case "scalar":
-      return compileScalarValue2(field);
+      return compileScalarValue2(field2);
     case "enum":
-      return compileEnumValue(field);
+      return compileEnumValue(field2);
     case "message":
-      return compileMessageValue(field);
+      return compileMessageValue(field2);
   }
 }
-function compileMapValue(field) {
-  const writeMapValue = compileMapEntryValue(field);
+function compileMapValue(field2) {
+  const writeMapValue = compileMapEntryValue(field2);
   return (opts, value) => {
     const record = value;
     const keys = Object.keys(record);
@@ -4662,24 +4693,24 @@ function compileMapValue(field) {
     }
     const jsonObject = {};
     for (let i = 0; i < keys.length; i++) {
-      const key = keys[i];
-      setOwn(jsonObject, key, writeMapValue(opts, record[key]));
+      const key2 = keys[i];
+      setOwn(jsonObject, key2, writeMapValue(opts, record[key2]));
     }
     return jsonObject;
   };
 }
-function compileMapEntryValue(field) {
-  switch (field.mapKind) {
+function compileMapEntryValue(field2) {
+  switch (field2.mapKind) {
     case "scalar":
-      return compileScalarValue2(field);
+      return compileScalarValue2(field2);
     case "enum":
-      return compileEnumValue(field);
+      return compileEnumValue(field2);
     case "message":
-      return compileMessageValue(field);
+      return compileMessageValue(field2);
   }
 }
-function compileEnumValue(field) {
-  const desc = field.enum;
+function compileEnumValue(field2) {
+  const desc = field2.enum;
   if (desc.typeName == "google.protobuf.NullValue") {
     return (opts, value) => {
       if (typeof value != "number") {
@@ -4702,8 +4733,8 @@ function compileEnumValue(field) {
 function errorEnumValue(desc, value) {
   return new Error(`cannot encode ${desc} to JSON: expected number, got ${formatVal(value)}`);
 }
-function compileScalarValue2(field) {
-  switch (field.scalar) {
+function compileScalarValue2(field2) {
+  switch (field2.scalar) {
     // int32, fixed32, uint32: JSON value will be a decimal number. Either numbers or strings are accepted.
     case ScalarType.INT32:
     case ScalarType.SFIXED32:
@@ -4712,7 +4743,7 @@ function compileScalarValue2(field) {
     case ScalarType.UINT32:
       return (opts, value) => {
         if (typeof value != "number") {
-          throw errorScalarValue(field, value);
+          throw errorScalarValue(field2, value);
         }
         return value;
       };
@@ -4722,7 +4753,7 @@ function compileScalarValue2(field) {
     case ScalarType.DOUBLE:
       return (opts, value) => {
         if (typeof value != "number") {
-          throw errorScalarValue(field, value);
+          throw errorScalarValue(field2, value);
         }
         if (Number.isNaN(value))
           return "NaN";
@@ -4736,7 +4767,7 @@ function compileScalarValue2(field) {
     case ScalarType.STRING:
       return (opts, value) => {
         if (typeof value != "string") {
-          throw errorScalarValue(field, value);
+          throw errorScalarValue(field2, value);
         }
         return value;
       };
@@ -4744,7 +4775,7 @@ function compileScalarValue2(field) {
     case ScalarType.BOOL:
       return (opts, value) => {
         if (typeof value != "boolean") {
-          throw errorScalarValue(field, value);
+          throw errorScalarValue(field2, value);
         }
         return value;
       };
@@ -4758,7 +4789,7 @@ function compileScalarValue2(field) {
         if (typeof value == "bigint" || typeof value == "string" || typeof value == "number" && Number.isInteger(value)) {
           return value.toString();
         }
-        throw errorScalarValue(field, value);
+        throw errorScalarValue(field2, value);
       };
     // bytes: JSON value will be the data encoded as a string using standard base64 encoding with paddings.
     // Either standard or URL-safe base64 encoding with/without paddings are accepted.
@@ -4767,13 +4798,13 @@ function compileScalarValue2(field) {
         if (value instanceof Uint8Array) {
           return base64Encode(value);
         }
-        throw errorScalarValue(field, value);
+        throw errorScalarValue(field2, value);
       };
   }
 }
-function errorScalarValue(field, value) {
+function errorScalarValue(field2, value) {
   var _a;
-  return new Error(`cannot encode ${field} to JSON: ${(_a = checkField(field, value)) === null || _a === void 0 ? void 0 : _a.message}`);
+  return new Error(`cannot encode ${field2} to JSON: ${(_a = checkField(field2, value)) === null || _a === void 0 ? void 0 : _a.message}`);
 }
 function writeExtensions(json, opts, registry, message, desc) {
   const unknown = message.$unknown;
@@ -4790,9 +4821,9 @@ function writeExtensions(json, opts, registry, message, desc) {
         continue;
       }
       const value = getExtension(message, extension);
-      const [container, field] = createExtensionContainer(extension, value);
+      const [container, field2] = createExtensionContainer(extension, value);
       const local = container[unsafeLocal];
-      const jsonValue = compileFieldValue(field)(opts, local[field.localName]);
+      const jsonValue = compileFieldValue(field2)(opts, local[field2.localName]);
       if (jsonValue !== void 0) {
         json[extension.jsonName] = jsonValue;
       }
@@ -4858,8 +4889,8 @@ function structToJson(val) {
   const json = {};
   const keys = Object.keys(val.fields);
   for (let i = 0; i < keys.length; i++) {
-    const key = keys[i];
-    setOwn(json, key, valueToJson(val.fields[key]));
+    const key2 = keys[i];
+    setOwn(json, key2, valueToJson(val.fields[key2]));
   }
   return json;
 }
@@ -4977,27 +5008,27 @@ function compileMessage4(desc) {
       const jsonValue = json[jsonKey];
       const entry = fieldsByJsonKey.get(jsonKey);
       if (entry !== void 0) {
-        const field = entry.field;
-        if (fieldSeen.has(field)) {
-          throw new FieldError(field, "set multiple times");
+        const field2 = entry.field;
+        if (fieldSeen.has(field2)) {
+          throw new FieldError(field2, "set multiple times");
         }
-        fieldSeen.add(field);
+        fieldSeen.add(field2);
         if (entry.oneofScalarNullSkip && jsonValue === null) {
           continue;
         }
         if (entry.oneof) {
           const seen = oneofSeen.get(entry.oneof);
           if (seen !== void 0) {
-            throw new FieldError(entry.oneof, `oneof set multiple times by ${seen.name} and ${field.name}`);
+            throw new FieldError(entry.oneof, `oneof set multiple times by ${seen.name} and ${field2.name}`);
           }
-          oneofSeen.set(entry.oneof, field);
+          oneofSeen.set(entry.oneof, field2);
         }
         entry.read(message, jsonValue, ctx);
       } else {
         const extension = jsonKey.startsWith("[") && jsonKey.endsWith("]") ? (_a = ctx.registry) === null || _a === void 0 ? void 0 : _a.getExtension(jsonKey.substring(1, jsonKey.length - 1)) : void 0;
         if ((extension === null || extension === void 0 ? void 0 : extension.extendee.typeName) == typeName) {
-          const [container, field, get] = createExtensionContainer(extension);
-          compileFieldReader2(field)(container[unsafeLocal], jsonValue, ctx);
+          const [container, field2, get] = createExtensionContainer(extension);
+          compileFieldReader2(field2)(container[unsafeLocal], jsonValue, ctx);
           setExtension(message, extension, get());
         }
         if (extension === void 0 && !ctx.ignoreUnknownFields) {
@@ -5008,14 +5039,14 @@ function compileMessage4(desc) {
     ctx.depth--;
   };
   compiledReaders2.set(desc, compiled);
-  for (const field of desc.fields) {
+  for (const field2 of desc.fields) {
     const entry = {
-      read: compileFieldReader2(field),
-      field,
-      oneof: field.oneof,
-      oneofScalarNullSkip: field.oneof !== void 0 && field.fieldKind == "scalar"
+      read: compileFieldReader2(field2),
+      field: field2,
+      oneof: field2.oneof,
+      oneofScalarNullSkip: field2.oneof !== void 0 && field2.fieldKind == "scalar"
     };
-    fieldsByJsonKey.set(field.name, entry).set(field.jsonName, entry);
+    fieldsByJsonKey.set(field2.name, entry).set(field2.jsonName, entry);
   }
   return compiled;
 }
@@ -5042,12 +5073,12 @@ function compileWkt2(desc) {
       if (isWrapperDesc(desc)) {
         const valueField = desc.fields[0];
         const localName = valueField.localName;
-        const scalar = valueField.scalar;
+        const scalar2 = valueField.scalar;
         const longAsString = valueField.longAsString;
         const readScalar = compileScalarConverter(valueField);
         return (message, json) => {
           if (json === null) {
-            message[localName] = scalarZeroValue(scalar, longAsString);
+            message[localName] = scalarZeroValue(scalar2, longAsString);
           } else {
             message[localName] = readScalar(json);
           }
@@ -5056,25 +5087,25 @@ function compileWkt2(desc) {
       return void 0;
   }
 }
-function compileFieldReader2(field) {
-  switch (field.fieldKind) {
+function compileFieldReader2(field2) {
+  switch (field2.fieldKind) {
     case "scalar":
-      return compileScalarFieldReader2(field);
+      return compileScalarFieldReader2(field2);
     case "enum":
-      return compileEnumFieldReader2(field);
+      return compileEnumFieldReader2(field2);
     case "message":
-      return compileMessageFieldReader2(field);
+      return compileMessageFieldReader2(field2);
     case "list":
-      return compileListFieldReader2(field);
+      return compileListFieldReader2(field2);
     case "map":
-      return compileMapFieldReader2(field);
+      return compileMapFieldReader2(field2);
   }
 }
-function compileScalarFieldReader2(field) {
-  const readScalar = compileScalarConverter(field);
-  const localName = field.localName;
-  if (field.oneof) {
-    const oneofLocalName = field.oneof.localName;
+function compileScalarFieldReader2(field2) {
+  const readScalar = compileScalarConverter(field2);
+  const localName = field2.localName;
+  if (field2.oneof) {
+    const oneofLocalName = field2.oneof.localName;
     return (message, json) => {
       message[oneofLocalName] = {
         case: localName,
@@ -5082,7 +5113,7 @@ function compileScalarFieldReader2(field) {
       };
     };
   }
-  const clear = compileClear(field);
+  const clear = compileClear(field2);
   return (message, json) => {
     if (json === null) {
       clear(message);
@@ -5091,32 +5122,32 @@ function compileScalarFieldReader2(field) {
     }
   };
 }
-function compileClear(field) {
-  const localName = field.localName;
-  if (field.presence != IMPLICIT6) {
+function compileClear(field2) {
+  const localName = field2.localName;
+  if (field2.presence != IMPLICIT6) {
     return (message) => {
       delete message[localName];
     };
   }
-  if (field.fieldKind == "enum") {
-    const zero = field.enum.values[0].number;
+  if (field2.fieldKind == "enum") {
+    const zero = field2.enum.values[0].number;
     return (message) => {
       message[localName] = zero;
     };
   }
-  const scalar = field.scalar;
-  const longAsString = field.longAsString;
+  const scalar2 = field2.scalar;
+  const longAsString = field2.longAsString;
   return (message) => {
-    message[localName] = scalarZeroValue(scalar, longAsString);
+    message[localName] = scalarZeroValue(scalar2, longAsString);
   };
 }
-function compileEnumFieldReader2(field) {
-  const readEnumValue = compileEnumConverter(field.enum);
-  const checkEnum = compileEnumCheck(field.enum);
-  const localName = field.localName;
-  const nullResets = field.enum.typeName != "google.protobuf.NullValue";
-  if (field.oneof) {
-    const oneofLocalName = field.oneof.localName;
+function compileEnumFieldReader2(field2) {
+  const readEnumValue = compileEnumConverter(field2.enum);
+  const checkEnum = compileEnumCheck(field2.enum);
+  const localName = field2.localName;
+  const nullResets = field2.enum.typeName != "google.protobuf.NullValue";
+  if (field2.oneof) {
+    const oneofLocalName = field2.oneof.localName;
     return (message, json, ctx) => {
       if (json === null && nullResets) {
         const oneof = message[oneofLocalName];
@@ -5131,12 +5162,12 @@ function compileEnumFieldReader2(field) {
       }
       const check = checkEnum(value);
       if (check !== true) {
-        throw new FieldError(field, reasonSingular(field, value, check));
+        throw new FieldError(field2, reasonSingular(field2, value, check));
       }
       message[oneofLocalName] = { case: localName, value };
     };
   }
-  const clear = compileClear(field);
+  const clear = compileClear(field2);
   return (message, json, ctx) => {
     if (json === null && nullResets) {
       clear(message);
@@ -5148,18 +5179,18 @@ function compileEnumFieldReader2(field) {
     }
     const check = checkEnum(value);
     if (check !== true) {
-      throw new FieldError(field, reasonSingular(field, value, check));
+      throw new FieldError(field2, reasonSingular(field2, value, check));
     }
     message[localName] = value;
   };
 }
-function compileMessageFieldReader2(field) {
-  const localName = field.localName;
-  const { toMessage, toLocal } = localMessageMapper(field);
-  const readChild = compiledReader2(field.message);
-  const nullResets = field.message.typeName != "google.protobuf.Value";
-  if (field.oneof) {
-    const oneofLocalName = field.oneof.localName;
+function compileMessageFieldReader2(field2) {
+  const localName = field2.localName;
+  const { toMessage, toLocal } = localMessageMapper(field2);
+  const readChild = compiledReader2(field2.message);
+  const nullResets = field2.message.typeName != "google.protobuf.Value";
+  if (field2.oneof) {
+    const oneofLocalName = field2.oneof.localName;
     return (message, json, ctx) => {
       const oneof = message[oneofLocalName];
       if (json === null && nullResets) {
@@ -5183,15 +5214,15 @@ function compileMessageFieldReader2(field) {
     message[localName] = toLocal(child);
   };
 }
-function compileListFieldReader2(field) {
-  const localName = field.localName;
-  const readItem = compileListItemReader(field);
+function compileListFieldReader2(field2) {
+  const localName = field2.localName;
+  const readItem = compileListItemReader(field2);
   return (message, json, ctx) => {
     if (json === null) {
       return;
     }
     if (!Array.isArray(json)) {
-      throw new FieldError(field, "expected Array, got " + formatVal(json));
+      throw new FieldError(field2, "expected Array, got " + formatVal(json));
     }
     const items = message[localName];
     for (let i = 0; i < json.length; i++) {
@@ -5202,31 +5233,31 @@ function compileListFieldReader2(field) {
     }
   };
 }
-function compileListItemReader(field) {
-  switch (field.listKind) {
+function compileListItemReader(field2) {
+  switch (field2.listKind) {
     case "scalar": {
-      const parseScalar = compileScalarParse(field);
-      const checkValue = checkScalarValue(field.scalar);
-      const toLocal = compileScalarToLocal(field);
+      const parseScalar = compileScalarParse(field2);
+      const checkValue = checkScalarValue(field2.scalar);
+      const toLocal = compileScalarToLocal(field2);
       return (json, ctx, index) => {
         if (json === null) {
-          throw new FieldError(field, "list item must not be null");
+          throw new FieldError(field2, "list item must not be null");
         }
         const value = parseScalar(json);
         const check = checkValue(value);
         if (check !== true) {
-          throw new FieldError(field, `list item #${index + 1}: ${reasonSingular(field, value, check)}`);
+          throw new FieldError(field2, `list item #${index + 1}: ${reasonSingular(field2, value, check)}`);
         }
         return toLocal(value);
       };
     }
     case "enum": {
-      const readEnumValue = compileEnumConverter(field.enum);
-      const checkEnum = compileEnumCheck(field.enum);
-      const nullResets = field.enum.typeName != "google.protobuf.NullValue";
+      const readEnumValue = compileEnumConverter(field2.enum);
+      const checkEnum = compileEnumCheck(field2.enum);
+      const nullResets = field2.enum.typeName != "google.protobuf.NullValue";
       return (json, ctx, index) => {
         if (json === null && nullResets) {
-          throw new FieldError(field, "list item must not be null");
+          throw new FieldError(field2, "list item must not be null");
         }
         const value = readEnumValue(json, ctx.ignoreUnknownFields);
         if (value === tokenIgnoredUnknownEnum) {
@@ -5234,18 +5265,18 @@ function compileListItemReader(field) {
         }
         const check = checkEnum(value);
         if (check !== true) {
-          throw new FieldError(field, `list item #${index + 1}: ${reasonSingular(field, value, check)}`);
+          throw new FieldError(field2, `list item #${index + 1}: ${reasonSingular(field2, value, check)}`);
         }
         return value;
       };
     }
     case "message": {
-      const { toMessage, toLocal } = localMessageMapper(field);
-      const readChild = compiledReader2(field.message);
-      const nullResets = field.message.typeName != "google.protobuf.Value";
+      const { toMessage, toLocal } = localMessageMapper(field2);
+      const readChild = compiledReader2(field2.message);
+      const nullResets = field2.message.typeName != "google.protobuf.Value";
       return (json, ctx) => {
         if (json === null && nullResets) {
-          throw new FieldError(field, "list item must not be null");
+          throw new FieldError(field2, "list item must not be null");
         }
         const child = toMessage(void 0);
         readChild(child, json, ctx);
@@ -5254,33 +5285,33 @@ function compileListItemReader(field) {
     }
   }
 }
-function compileMapFieldReader2(field) {
-  const localName = field.localName;
-  const mapKey = field.mapKey;
+function compileMapFieldReader2(field2) {
+  const localName = field2.localName;
+  const mapKey = field2.mapKey;
   const parseMapKey = compileMapKeyParse(mapKey);
   const checkMapKey = checkScalarValue(mapKey);
   let parseValue;
   let checkValue;
   let toLocalValue = (value) => value;
   let nullResets = true;
-  switch (field.mapKind) {
+  switch (field2.mapKind) {
     case "scalar": {
-      parseValue = compileScalarParse(field);
-      checkValue = checkScalarValue(field.scalar);
-      toLocalValue = compileScalarToLocal(field);
+      parseValue = compileScalarParse(field2);
+      checkValue = checkScalarValue(field2.scalar);
+      toLocalValue = compileScalarToLocal(field2);
       break;
     }
     case "enum": {
-      const readEnumValue = compileEnumConverter(field.enum);
+      const readEnumValue = compileEnumConverter(field2.enum);
       parseValue = (json, ctx) => readEnumValue(json, ctx.ignoreUnknownFields);
-      checkValue = compileEnumCheck(field.enum);
-      nullResets = field.enum.typeName != "google.protobuf.NullValue";
+      checkValue = compileEnumCheck(field2.enum);
+      nullResets = field2.enum.typeName != "google.protobuf.NullValue";
       break;
     }
     case "message": {
-      const { toMessage, toLocal } = localMessageMapper(field);
-      const readChild = compiledReader2(field.message);
-      nullResets = field.message.typeName != "google.protobuf.Value";
+      const { toMessage, toLocal } = localMessageMapper(field2);
+      const readChild = compiledReader2(field2.message);
+      nullResets = field2.message.typeName != "google.protobuf.Value";
       parseValue = (json, ctx) => {
         const child = toMessage(void 0);
         readChild(child, json, ctx);
@@ -5294,7 +5325,7 @@ function compileMapFieldReader2(field) {
       return;
     }
     if (typeof json != "object" || Array.isArray(json)) {
-      throw new FieldError(field, "expected object, got " + formatVal(json));
+      throw new FieldError(field2, "expected object, got " + formatVal(json));
     }
     const record = message[localName];
     const seen = /* @__PURE__ */ new Set();
@@ -5302,29 +5333,29 @@ function compileMapFieldReader2(field) {
     for (let i = 0; i < jsonMapKeys.length; i++) {
       const jsonMapKey = jsonMapKeys[i];
       const jsonMapValue = json[jsonMapKey];
-      const key = parseMapKey(jsonMapKey);
-      if (seen.has(key)) {
-        throw new FieldError(field, `duplicate map key "${jsonMapKey}"`);
+      const key2 = parseMapKey(jsonMapKey);
+      if (seen.has(key2)) {
+        throw new FieldError(field2, `duplicate map key "${jsonMapKey}"`);
       }
-      seen.add(key);
+      seen.add(key2);
       if (jsonMapValue === null && nullResets) {
-        throw new FieldError(field, "map value must not be null");
+        throw new FieldError(field2, "map value must not be null");
       }
       const value = parseValue(jsonMapValue, ctx);
       if (value === tokenIgnoredUnknownEnum) {
         continue;
       }
-      const checkKey = checkMapKey(key);
+      const checkKey = checkMapKey(key2);
       if (checkKey !== true) {
-        throw new FieldError(field, `invalid map key: ${reasonSingular({ scalar: mapKey }, key, checkKey)}`);
+        throw new FieldError(field2, `invalid map key: ${reasonSingular({ scalar: mapKey }, key2, checkKey)}`);
       }
       if (checkValue !== void 0) {
         const check = checkValue(value);
         if (check !== true) {
-          throw new FieldError(field, `map entry ${formatVal(key)}: ${reasonSingular(field, value, check)}`);
+          throw new FieldError(field2, `map entry ${formatVal(key2)}: ${reasonSingular(field2, value, check)}`);
         }
       }
-      setOwn(record, key, toLocalValue(value));
+      setOwn(record, key2, toLocalValue(value));
     }
   };
 }
@@ -5369,21 +5400,21 @@ function compileEnumCheck(desc) {
   const values = desc.values;
   return (value) => values.some((v) => v.number === value);
 }
-function compileScalarConverter(field) {
-  const parseScalar = compileScalarParse(field);
-  const checkValue = checkScalarValue(field.scalar);
-  const toLocal = compileScalarToLocal(field);
+function compileScalarConverter(field2) {
+  const parseScalar = compileScalarParse(field2);
+  const checkValue = checkScalarValue(field2.scalar);
+  const toLocal = compileScalarToLocal(field2);
   return (json) => {
     const value = parseScalar(json);
     const check = checkValue(value);
     if (check !== true) {
-      throw new FieldError(field, reasonSingular(field, value, check));
+      throw new FieldError(field2, reasonSingular(field2, value, check));
     }
     return toLocal(value);
   };
 }
-function compileScalarParse(field) {
-  switch (field.scalar) {
+function compileScalarParse(field2) {
+  switch (field2.scalar) {
     // float, double: JSON value will be a number or one of the special string values "NaN", "Infinity", and "-Infinity".
     // Either numbers or strings are accepted. Exponent notation is also accepted.
     case ScalarType.DOUBLE:
@@ -5397,10 +5428,10 @@ function compileScalarParse(field) {
           return Number.NEGATIVE_INFINITY;
         if (typeof json == "number") {
           if (Number.isNaN(json)) {
-            throw new FieldError(field, "unexpected NaN number");
+            throw new FieldError(field2, "unexpected NaN number");
           }
           if (!Number.isFinite(json)) {
-            throw new FieldError(field, "unexpected infinite number");
+            throw new FieldError(field2, "unexpected infinite number");
           }
           return json;
         }
@@ -5438,7 +5469,7 @@ function compileScalarParse(field) {
             return base64Decode(json);
           } catch (e) {
             const message = e instanceof Error ? e.message : String(e);
-            throw new FieldError(field, message);
+            throw new FieldError(field2, message);
           }
         }
         return json;
@@ -5449,9 +5480,9 @@ function compileScalarParse(field) {
       return (json) => json;
   }
 }
-function compileScalarToLocal(field) {
-  const longAsString = field.fieldKind !== "map" && field.longAsString;
-  switch (field.scalar) {
+function compileScalarToLocal(field2) {
+  const longAsString = field2.fieldKind !== "map" && field2.longAsString;
+  switch (field2.scalar) {
     case ScalarType.INT64:
     case ScalarType.SFIXED64:
     case ScalarType.SINT64:
@@ -5529,29 +5560,29 @@ function parseJsonString(jsonString, typeName) {
   return json;
 }
 function checkDuplicateKeys(jsonString, typeName) {
-  const stack = [];
+  const stack2 = [];
   let expectKey = false;
   let i = 0;
   while (i < jsonString.length) {
     switch (jsonString[i]) {
       case "{":
-        stack.push(/* @__PURE__ */ new Set());
+        stack2.push(/* @__PURE__ */ new Set());
         expectKey = true;
         i++;
         break;
       case "[":
-        stack.push(null);
+        stack2.push(null);
         expectKey = false;
         i++;
         break;
       case "}":
       case "]":
-        stack.pop();
+        stack2.pop();
         expectKey = false;
         i++;
         break;
       case ",":
-        expectKey = stack[stack.length - 1] != null;
+        expectKey = stack2[stack2.length - 1] != null;
         i++;
         break;
       case ":":
@@ -5559,7 +5590,7 @@ function checkDuplicateKeys(jsonString, typeName) {
         i++;
         break;
       case '"': {
-        const open = i++;
+        const open2 = i++;
         let escaped = false;
         while (i < jsonString.length) {
           if (jsonString[i] == "\\") {
@@ -5573,9 +5604,9 @@ function checkDuplicateKeys(jsonString, typeName) {
           i++;
         }
         const close = i++;
-        const seen = stack[stack.length - 1];
+        const seen = stack2[stack2.length - 1];
         if (expectKey && seen) {
-          const name = escaped ? JSON.parse(jsonString.substring(open, close + 1)) : jsonString.substring(open + 1, close);
+          const name = escaped ? JSON.parse(jsonString.substring(open2, close + 1)) : jsonString.substring(open2 + 1, close);
           if (seen.has(name)) {
             throw new Error(`cannot decode message ${typeName} from JSON: duplicate object key "${name}"`);
           }
@@ -5615,9 +5646,9 @@ function anyFromJson(any, json, ctx) {
     compiledReader2(desc)(message, json.value, ctx);
   } else {
     const copy = {};
-    for (const key of Object.keys(json)) {
-      if (key !== "@type") {
-        setOwn(copy, key, json[key]);
+    for (const key2 of Object.keys(json)) {
+      if (key2 !== "@type") {
+        setOwn(copy, key2, json[key2]);
       }
     }
     compiledReader2(desc)(message, copy, ctx);
@@ -5690,10 +5721,10 @@ function structFromJson(struct, json, ctx) {
   }
   const keys = Object.keys(json);
   for (let i = 0; i < keys.length; i++) {
-    const key = keys[i];
+    const key2 = keys[i];
     const parsedValue = create(ValueSchema);
-    valueFromJson(parsedValue, json[key], ctx);
-    setOwn(struct.fields, key, parsedValue);
+    valueFromJson(parsedValue, json[key2], ctx);
+    setOwn(struct.fields, key2, parsedValue);
   }
 }
 function valueFromJson(value, json, ctx) {
@@ -5846,8 +5877,8 @@ function createMessage(message, code) {
 function appendHeaders(...headers) {
   const h = new Headers();
   for (const e of headers) {
-    e.forEach((value, key) => {
-      h.append(key, value);
+    e.forEach((value, key2) => {
+      h.append(key2, value);
     });
   }
   return h;
@@ -5964,14 +5995,14 @@ function createEnvelopeReadableStream(stream) {
     async pull(controller) {
       let enqueuedOnce = false;
       while (!enqueuedOnce) {
-        const result = await reader.read();
-        if (result.done) {
+        const result2 = await reader.read();
+        if (result2.done) {
           if (buffer.byteLength > 0) {
             controller.error(new ConnectError("protocol error: incomplete envelope", Code.InvalidArgument));
           }
           controller.close();
         } else {
-          for (const env of buffer.decode(result.value)) {
+          for (const env of buffer.decode(result2.value)) {
             controller.enqueue(env);
             enqueuedOnce = true;
           }
@@ -6285,15 +6316,15 @@ function getAbortSignalReason(signal) {
 // demo/web/node_modules/@connectrpc/connect/dist/esm/context-values.js
 function createContextValues() {
   return {
-    get(key) {
-      return key.id in this ? this[key.id] : key.defaultValue;
+    get(key2) {
+      return key2.id in this ? this[key2.id] : key2.defaultValue;
     },
-    set(key, value) {
-      this[key.id] = value;
+    set(key2, value) {
+      this[key2.id] = value;
       return this;
     },
-    delete(key) {
-      delete this[key.id];
+    delete(key2) {
+      delete this[key2.id];
       return this;
     }
   };
@@ -6318,13 +6349,13 @@ function normalize(desc, message) {
   return create(desc, message);
 }
 function normalizeIterable(desc, input2) {
-  function transform(result) {
-    if (result.done === true) {
-      return result;
+  function transform(result2) {
+    if (result2.done === true) {
+      return result2;
     }
     return {
-      done: result.done,
-      value: normalize(desc, result.value)
+      done: result2.done,
+      value: normalize(desc, result2.value)
     };
   }
   return {
@@ -6364,8 +6395,8 @@ function getJsonOptions(options2) {
 }
 function createClientMethodSerializers(method, useBinaryFormat, jsonOptions, binaryOptions) {
   const input2 = useBinaryFormat ? createBinarySerialization(method.input, binaryOptions) : createJsonSerialization(method.input, jsonOptions);
-  const output = useBinaryFormat ? createBinarySerialization(method.output, binaryOptions) : createJsonSerialization(method.output, jsonOptions);
-  return { parse: output.parse, serialize: input2.serialize };
+  const output2 = useBinaryFormat ? createBinarySerialization(method.output, binaryOptions) : createJsonSerialization(method.output, jsonOptions);
+  return { parse: output2.parse, serialize: input2.serialize };
 }
 function createBinarySerialization(desc, options2) {
   return {
@@ -6432,7 +6463,7 @@ function parseContentType(contentType) {
 function errorFromJson(jsonValue, metadata, fallback) {
   var _a;
   if (metadata) {
-    new Headers(metadata).forEach((value, key) => fallback.metadata.append(key, value));
+    new Headers(metadata).forEach((value, key2) => fallback.metadata.append(key2, value));
   }
   if (typeof jsonValue !== "object" || jsonValue == null || Array.isArray(jsonValue)) {
     throw fallback;
@@ -6445,15 +6476,15 @@ function errorFromJson(jsonValue, metadata, fallback) {
   if (message != null && typeof message !== "string") {
     throw fallback;
   }
-  const error = new ConnectError(message !== null && message !== void 0 ? message : "", code, metadata);
-  error.isWireError = true;
+  const error2 = new ConnectError(message !== null && message !== void 0 ? message : "", code, metadata);
+  error2.isWireError = true;
   if ("details" in jsonValue && Array.isArray(jsonValue.details)) {
     for (const detail of jsonValue.details) {
       if (detail === null || typeof detail != "object" || Array.isArray(detail) || typeof detail.type != "string" || typeof detail.value != "string") {
         throw fallback;
       }
       try {
-        error.details.push({
+        error2.details.push({
           type: detail.type,
           value: base64Decode(detail.value),
           debug: detail.debug
@@ -6463,7 +6494,7 @@ function errorFromJson(jsonValue, metadata, fallback) {
       }
     }
   }
-  return error;
+  return error2;
 }
 
 // demo/web/node_modules/@connectrpc/connect/dist/esm/protocol-connect/end-stream.js
@@ -6484,17 +6515,17 @@ function endStreamFromJson(data) {
     if (typeof jsonValue.metadata != "object" || jsonValue.metadata == null || Array.isArray(jsonValue.metadata)) {
       throw parseErr;
     }
-    for (const [key, values] of Object.entries(jsonValue.metadata)) {
+    for (const [key2, values] of Object.entries(jsonValue.metadata)) {
       if (!Array.isArray(values) || values.some((value) => typeof value != "string")) {
         throw parseErr;
       }
       for (const value of values) {
-        metadata.append(key, value);
+        metadata.append(key2, value);
       }
     }
   }
-  const error = "error" in jsonValue && jsonValue.error != null ? errorFromJson(jsonValue.error, metadata, parseErr) : void 0;
-  return { metadata, error };
+  const error2 = "error" in jsonValue && jsonValue.error != null ? errorFromJson(jsonValue.error, metadata, parseErr) : void 0;
+  return { metadata, error: error2 };
 }
 
 // demo/web/node_modules/@connectrpc/connect/dist/esm/protocol-connect/http-status.js
@@ -6524,11 +6555,11 @@ function codeFromHttpStatus(httpStatus) {
 // demo/web/node_modules/@connectrpc/connect/dist/esm/protocol-connect/trailer-mux.js
 function trailerDemux(header) {
   const h = new Headers(), t = new Headers();
-  header.forEach((value, key) => {
-    if (key.toLowerCase().startsWith("trailer-")) {
-      t.append(key.substring(8), value);
+  header.forEach((value, key2) => {
+    if (key2.toLowerCase().startsWith("trailer-")) {
+      t.append(key2.substring(8), value);
     } else {
-      h.append(key, value);
+      h.append(key2, value);
     }
   });
   return [h, t];
@@ -6539,24 +6570,24 @@ var protocolVersion = "1";
 
 // demo/web/node_modules/@connectrpc/connect/dist/esm/protocol-connect/request-header.js
 function requestHeader(methodKind, useBinaryFormat, timeoutMs, userProvidedHeaders, setUserAgent) {
-  const result = new Headers(userProvidedHeaders !== null && userProvidedHeaders !== void 0 ? userProvidedHeaders : {});
+  const result2 = new Headers(userProvidedHeaders !== null && userProvidedHeaders !== void 0 ? userProvidedHeaders : {});
   if (timeoutMs !== void 0) {
-    result.set(headerTimeout, `${timeoutMs}`);
+    result2.set(headerTimeout, `${timeoutMs}`);
   }
-  result.set(headerContentType, methodKind == "unary" ? useBinaryFormat ? contentTypeUnaryProto : contentTypeUnaryJson : useBinaryFormat ? contentTypeStreamProto : contentTypeStreamJson);
-  result.set(headerProtocolVersion, protocolVersion);
-  if (!result.has(headerUserAgent) && setUserAgent) {
-    result.set(headerUserAgent, "connect-es/2.2.0");
+  result2.set(headerContentType, methodKind == "unary" ? useBinaryFormat ? contentTypeUnaryProto : contentTypeUnaryJson : useBinaryFormat ? contentTypeStreamProto : contentTypeStreamJson);
+  result2.set(headerProtocolVersion, protocolVersion);
+  if (!result2.has(headerUserAgent) && setUserAgent) {
+    result2.set(headerUserAgent, "connect-es/2.2.0");
   }
-  return result;
+  return result2;
 }
 
 // demo/web/node_modules/@connectrpc/connect/dist/esm/protocol-connect/validate-response.js
-function validateResponse(methodKind, useBinaryFormat, status2, headers) {
+function validateResponse(methodKind, useBinaryFormat, status3, headers) {
   const mimeType = headers.get(headerContentType);
   const parsedType = parseContentType(mimeType);
-  if (status2 !== 200) {
-    const errorFromStatus = new ConnectError(`HTTP ${status2}`, codeFromHttpStatus(status2), headers);
+  if (status3 !== 200) {
+    const errorFromStatus = new ConnectError(`HTTP ${status3}`, codeFromHttpStatus(status3), headers);
     if (methodKind == "unary" && parsedType && !parsedType.binary) {
       return { isUnaryError: true, unaryError: errorFromStatus };
     }
@@ -6794,11 +6825,11 @@ function createConnectTransport(options2) {
           const reader = createEnvelopeReadableStream(body2).getReader();
           let endStreamReceived = false;
           for (; ; ) {
-            const result = yield __await3(reader.read());
-            if (result.done) {
+            const result2 = yield __await3(reader.read());
+            if (result2.done) {
               break;
             }
-            const { flags, data } = result.value;
+            const { flags, data } = result2.value;
             if ((flags & compressedFlag) === compressedFlag) {
               throw new ConnectError(`protocol error: received unsupported compressed output`, Code.Internal);
             }
@@ -6806,13 +6837,13 @@ function createConnectTransport(options2) {
               endStreamReceived = true;
               const endStream = endStreamFromJson(data);
               if (endStream.error) {
-                const error = endStream.error;
-                header2.forEach((value, key) => {
-                  error.metadata.append(key, value);
+                const error2 = endStream.error;
+                header2.forEach((value, key2) => {
+                  error2.metadata.append(key2, value);
                 });
-                throw error;
+                throw error2;
               }
-              endStream.metadata.forEach((value, key) => trailerTarget.set(key, value));
+              endStream.metadata.forEach((value, key2) => trailerTarget.set(key2, value));
               continue;
             }
             yield yield __await3(parse(data));
@@ -6893,6 +6924,25 @@ var TurboSearchService = /* @__PURE__ */ serviceDesc(file_turbo_search, 0);
 
 // demo/web/src/gen/turbo_training_pb.ts
 var file_turbo_training = /* @__PURE__ */ fileDesc("ChR0dXJib190cmFpbmluZy5wcm90bxIRdHVyYm8udHJhaW5pbmcudjEiLQoMTGljZW5jZVRlcm1zEg8KB2xpY2VuY2UYASABKAkSDAoEdGV4dBgCIAEoCSJGCg5UcmFpbmluZ1NvdXJjZRIMCgRuYW1lGAEgASgJEg8KB2xpY2VuY2UYAiABKAkSFQoNbGljZW5jZV90ZXJtcxgDIAEoCSKcAQoLQ2F0YWxvZ0ZpbGUSDAoEcGF0aBgBIAEoCRILCgN1cmwYAiABKAkSDAoEc2l6ZRgDIAEoBBIOCgZzaGEyNTYYBCABKAkSDgoGc2hhNTEyGAUgASgJEhMKC2NvbXByZXNzaW9uGAYgASgJEhYKDmRvd25sb2FkX2J5dGVzGAcgASgEEhcKD2Rvd25sb2FkX3NoYTI1NhgIIAEoCSK4AwoMQ2F0YWxvZ0VudHJ5EgoKAmlkGAEgASgJEgwKBGtpbmQYAiABKAkSEQoJY29tcG9uZW50GAMgASgJEhAKCGxhbmd1YWdlGAQgASgJEg4KBmZvcm1hdBgFIAEoCRIPCgd2ZXJzaW9uGAYgASgJEg8KB2xpY2VuY2UYByABKAkSFQoNbGljZW5jZV90ZXJtcxgIIAEoCRIVCg1saWNlbmNlX2NsYXNzGAkgASgJEhMKC2F0dHJpYnV0aW9uGAogASgJEjUKCnRyYWluZWRfb24YCyADKAsyIS50dXJiby50cmFpbmluZy52MS5UcmFpbmluZ1NvdXJjZRItCgVmaWxlcxgMIAMoCzIeLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dGaWxlEhMKC3RvdGFsX2J5dGVzGA0gASgEEi4KBXRlcm1zGA4gAygLMh8udHVyYm8udHJhaW5pbmcudjEuTGljZW5jZVRlcm1zEjYKDW1pc3NpbmdfdGVybXMYDyADKAsyHy50dXJiby50cmFpbmluZy52MS5MaWNlbmNlVGVybXMSEQoJaW5zdGFsbGVkGBAgASgIIkcKF0xpc3RNb2RlbENhdGFsb2dSZXF1ZXN0EgwKBHVzZXIYASABKAkSDAoEa2luZBgCIAEoCRIQCghsYW5ndWFnZRgDIAEoCSJMChhMaXN0TW9kZWxDYXRhbG9nUmVzcG9uc2USMAoHZW50cmllcxgBIAMoCzIfLnR1cmJvLnRyYWluaW5nLnYxLkNhdGFsb2dFbnRyeSJeCg5JbnN0YWxsZWRNb2RlbBIKCgJpZBgBIAEoCRIPCgd2ZXJzaW9uGAIgASgJEgsKA2RpchgDIAEoCRINCgVmaWxlcxgEIAMoCRITCgt0b3RhbF9ieXRlcxgFIAEoBCIcChpMaXN0SW5zdGFsbGVkTW9kZWxzUmVxdWVzdCJQChtMaXN0SW5zdGFsbGVkTW9kZWxzUmVzcG9uc2USMQoGbW9kZWxzGAEgAygLMiEudHVyYm8udHJhaW5pbmcudjEuSW5zdGFsbGVkTW9kZWwiTgoeUmVjb3JkTGljZW5jZUFjY2VwdGFuY2VSZXF1ZXN0EgwKBHVzZXIYASABKAkSDwoHbGljZW5jZRgCIAEoCRINCgV0ZXJtcxgDIAEoCSJ3Ch9SZWNvcmRMaWNlbmNlQWNjZXB0YW5jZVJlc3BvbnNlEgwKBHVzZXIYASABKAkSMQoIYWNjZXB0ZWQYAiABKAsyHy50dXJiby50cmFpbmluZy52MS5MaWNlbmNlVGVybXMSEwoLYWNjZXB0ZWRfYXQYAyABKAQiOAoTSW5zdGFsbE1vZGVsUmVxdWVzdBIMCgR1c2VyGAEgASgJEhMKC2FydGlmYWN0X2lkGAIgASgJIoYBCg9JbnN0YWxsUHJvZ3Jlc3MSLgoFc3RhZ2UYASABKA4yHy50dXJiby50cmFpbmluZy52MS5JbnN0YWxsU3RhZ2USEgoKZmlsZV9pbmRleBgCIAEoDRISCgpmaWxlX2NvdW50GAMgASgNEgwKBHBhdGgYBCABKAkSDQoFYnl0ZXMYBSABKAQijgEKEkluc3RhbGxNb2RlbFVwZGF0ZRI2Cghwcm9ncmVzcxgBIAEoCzIiLnR1cmJvLnRyYWluaW5nLnYxLkluc3RhbGxQcm9ncmVzc0gAEjYKCWluc3RhbGxlZBgCIAEoCzIhLnR1cmJvLnRyYWluaW5nLnYxLkluc3RhbGxlZE1vZGVsSABCCAoGdXBkYXRlIngKB1RlYWNoZXISDAoEbmFtZRgBIAEoCRIQCghtb2RlbF9pZBgCIAEoCRIQCghyZXZpc2lvbhgDIAEoCRIXCg9tYW5pZmVzdF9zaGEyNTYYBCABKAkSDgoGaGlkZGVuGAUgASgNEhIKCnZvY2FiX3NpemUYBiABKA0iFQoTTGlzdFRlYWNoZXJzUmVxdWVzdCJEChRMaXN0VGVhY2hlcnNSZXNwb25zZRIsCgh0ZWFjaGVycxgBIAMoCzIaLnR1cmJvLnRyYWluaW5nLnYxLlRlYWNoZXIi+QEKF1RyYWluU3RhdGljTW9kZWxSZXF1ZXN0EgwKBG5hbWUYASABKAkSDwoHdGVhY2hlchgCIAEoCRIQCghwY2FfZGltcxgDIAEoDRIXCg9zaWZfY29lZmZpY2llbnQYBCABKAESLQoFZHR5cGUYBSABKA4yHi50dXJiby50cmFpbmluZy52MS5TdGF0aWNEdHlwZRISCgptYXhfbGVuZ3RoGAYgASgNEh4KFnZvY2FidWxhcnlfYXJ0aWZhY3RfaWQYByABKAkSDQoFdGVybXMYCCADKAkSEAoIcmV2aXNpb24YCSABKAkSEAoIc2Vzc2lvbnMYCiABKA0i9gEKGFRyYWluU3RhdGljTW9kZWxQcm9ncmVzcxIsCgVzdGFnZRgBIAEoDjIdLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluU3RhZ2USFwoPY29tcGxldGVkX2l0ZW1zGAIgASgEEhMKC3RvdGFsX2l0ZW1zGAMgASgEEhMKC2FkZGVkX3Rlcm1zGAQgASgEEhUKDXJlZnVzZWRfdGVybXMYBSABKAQSGgoSZXhwbGFpbmVkX3ZhcmlhbmNlGAYgASgBEjYKB3F1YWxpdHkYByABKAsyJS50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbFF1YWxpdHkiUAoRVGVhY2hlclByb3ZlbmFuY2USEAoIbW9kZWxfaWQYASABKAkSEAoIcmV2aXNpb24YAiABKAkSFwoPbWFuaWZlc3Rfc2hhMjU2GAMgASgJIlkKElN0YXRpY01vZGVsUXVhbGl0eRIRCgliYXNlX3RvcDEYASABKAESEwoLc3RhdGljX3RvcDEYAiABKAESGwoTc2ltaWxhcml0eV9zcGVhcm1hbhgDIAEoASI6CgxBcnRpZmFjdEZpbGUSDAoEcGF0aBgBIAEoCRIMCgRzaXplGAIgASgEEg4KBnNoYTI1NhgDIAEoCSL8AgoVU3RhdGljTW9kZWxEZXNjcmlwdG9yEgwKBG5hbWUYASABKAkSEAoIbW9kZWxfaWQYAiABKAkSEAoIcmV2aXNpb24YAyABKAkSFwoPbWFuaWZlc3Rfc2hhMjU2GAQgASgJEgwKBGRpbXMYBSABKA0SEgoKdm9jYWJfc2l6ZRgGIAEoDRIVCg1sZWFybmVkX3Rlcm1zGAcgASgNEg0KBWR0eXBlGAggASgJEjUKB3RlYWNoZXIYCSABKAsyJC50dXJiby50cmFpbmluZy52MS5UZWFjaGVyUHJvdmVuYW5jZRI2CgdxdWFsaXR5GAogASgLMiUudHVyYm8udHJhaW5pbmcudjEuU3RhdGljTW9kZWxRdWFsaXR5Ei4KBWZpbGVzGAsgAygLMh8udHVyYm8udHJhaW5pbmcudjEuQXJ0aWZhY3RGaWxlEhAKCHZlcmlmaWVkGAwgASgIEg8KB3Byb2JsZW0YDSABKAkSDgoGc2VydmVkGA4gASgIIisKC1JlZnVzZWRUZXJtEgwKBHRlcm0YASABKAkSDgoGcmVhc29uGAIgASgJItQBChJUcmFpbmVkU3RhdGljTW9kZWwSNwoFbW9kZWwYASABKAsyKC50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbERlc2NyaXB0b3ISEwoLYWRkZWRfdGVybXMYAiADKAkSNQoNcmVmdXNlZF90ZXJtcxgDIAMoCzIeLnR1cmJvLnRyYWluaW5nLnYxLlJlZnVzZWRUZXJtEh4KFnZvY2FidWxhcnlfYXJ0aWZhY3RfaWQYBCABKAkSGQoRdm9jYWJ1bGFyeV9zaGEyNTYYBSABKAkinQEKFlRyYWluU3RhdGljTW9kZWxVcGRhdGUSPwoIcHJvZ3Jlc3MYASABKAsyKy50dXJiby50cmFpbmluZy52MS5UcmFpblN0YXRpY01vZGVsUHJvZ3Jlc3NIABI4Cgd0cmFpbmVkGAIgASgLMiUudHVyYm8udHJhaW5pbmcudjEuVHJhaW5lZFN0YXRpY01vZGVsSABCCAoGdXBkYXRlIhkKF0xpc3RTdGF0aWNNb2RlbHNSZXF1ZXN0IlQKGExpc3RTdGF0aWNNb2RlbHNSZXNwb25zZRI4CgZtb2RlbHMYASADKAsyKC50dXJiby50cmFpbmluZy52MS5TdGF0aWNNb2RlbERlc2NyaXB0b3IiKAoYRGVsZXRlU3RhdGljTW9kZWxSZXF1ZXN0EgwKBG5hbWUYASABKAkiLQoZRGVsZXRlU3RhdGljTW9kZWxSZXNwb25zZRIQCgh1bmxvYWRlZBgBIAEoCCqiAQoMSW5zdGFsbFN0YWdlEh0KGUlOU1RBTExfU1RBR0VfVU5TUEVDSUZJRUQQABIaChZJTlNUQUxMX1NUQUdFX0FETUlUVEVEEAESHQoZSU5TVEFMTF9TVEFHRV9ET1dOTE9BRElORxACEhwKGElOU1RBTExfU1RBR0VfRE9XTkxPQURFRBADEhoKFklOU1RBTExfU1RBR0VfVkVSSUZJRUQQBCpXCgtTdGF0aWNEdHlwZRIcChhTVEFUSUNfRFRZUEVfVU5TUEVDSUZJRUQQABIUChBTVEFUSUNfRFRZUEVfRjMyEAESFAoQU1RBVElDX0RUWVBFX0YxNhACKtcBCgpUcmFpblN0YWdlEhsKF1RSQUlOX1NUQUdFX1VOU1BFQ0lGSUVEEAASGAoUVFJBSU5fU1RBR0VfQURNSVRURUQQARIUChBUUkFJTl9TVEFHRV9LRVBUEAISGQoVVFJBSU5fU1RBR0VfRU1CRURESU5HEAMSFwoTVFJBSU5fU1RBR0VfUkVEVUNFRBAEEhgKFFRSQUlOX1NUQUdFX01FQVNVUkVEEAUSFgoSVFJBSU5fU1RBR0VfU0VBTEVEEAYSFgoSVFJBSU5fU1RBR0VfTE9BREVEEAcy3AMKE1R1cmJvQ2F0YWxvZ1NlcnZpY2USawoQTGlzdE1vZGVsQ2F0YWxvZxIqLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RNb2RlbENhdGFsb2dSZXF1ZXN0GisudHVyYm8udHJhaW5pbmcudjEuTGlzdE1vZGVsQ2F0YWxvZ1Jlc3BvbnNlEnQKE0xpc3RJbnN0YWxsZWRNb2RlbHMSLS50dXJiby50cmFpbmluZy52MS5MaXN0SW5zdGFsbGVkTW9kZWxzUmVxdWVzdBouLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RJbnN0YWxsZWRNb2RlbHNSZXNwb25zZRKAAQoXUmVjb3JkTGljZW5jZUFjY2VwdGFuY2USMS50dXJiby50cmFpbmluZy52MS5SZWNvcmRMaWNlbmNlQWNjZXB0YW5jZVJlcXVlc3QaMi50dXJiby50cmFpbmluZy52MS5SZWNvcmRMaWNlbmNlQWNjZXB0YW5jZVJlc3BvbnNlEl8KDEluc3RhbGxNb2RlbBImLnR1cmJvLnRyYWluaW5nLnYxLkluc3RhbGxNb2RlbFJlcXVlc3QaJS50dXJiby50cmFpbmluZy52MS5JbnN0YWxsTW9kZWxVcGRhdGUwATLBAwoUVHVyYm9UcmFpbmluZ1NlcnZpY2USXwoMTGlzdFRlYWNoZXJzEiYudHVyYm8udHJhaW5pbmcudjEuTGlzdFRlYWNoZXJzUmVxdWVzdBonLnR1cmJvLnRyYWluaW5nLnYxLkxpc3RUZWFjaGVyc1Jlc3BvbnNlEmsKEFRyYWluU3RhdGljTW9kZWwSKi50dXJiby50cmFpbmluZy52MS5UcmFpblN0YXRpY01vZGVsUmVxdWVzdBopLnR1cmJvLnRyYWluaW5nLnYxLlRyYWluU3RhdGljTW9kZWxVcGRhdGUwARJrChBMaXN0U3RhdGljTW9kZWxzEioudHVyYm8udHJhaW5pbmcudjEuTGlzdFN0YXRpY01vZGVsc1JlcXVlc3QaKy50dXJiby50cmFpbmluZy52MS5MaXN0U3RhdGljTW9kZWxzUmVzcG9uc2USbgoRRGVsZXRlU3RhdGljTW9kZWwSKy50dXJiby50cmFpbmluZy52MS5EZWxldGVTdGF0aWNNb2RlbFJlcXVlc3QaLC50dXJiby50cmFpbmluZy52MS5EZWxldGVTdGF0aWNNb2RlbFJlc3BvbnNlYgZwcm90bzM");
+var InstallStage = /* @__PURE__ */ ((InstallStage2) => {
+  InstallStage2[InstallStage2["UNSPECIFIED"] = 0] = "UNSPECIFIED";
+  InstallStage2[InstallStage2["ADMITTED"] = 1] = "ADMITTED";
+  InstallStage2[InstallStage2["DOWNLOADING"] = 2] = "DOWNLOADING";
+  InstallStage2[InstallStage2["DOWNLOADED"] = 3] = "DOWNLOADED";
+  InstallStage2[InstallStage2["VERIFIED"] = 4] = "VERIFIED";
+  return InstallStage2;
+})(InstallStage || {});
+var TrainStage = /* @__PURE__ */ ((TrainStage2) => {
+  TrainStage2[TrainStage2["UNSPECIFIED"] = 0] = "UNSPECIFIED";
+  TrainStage2[TrainStage2["ADMITTED"] = 1] = "ADMITTED";
+  TrainStage2[TrainStage2["KEPT"] = 2] = "KEPT";
+  TrainStage2[TrainStage2["EMBEDDING"] = 3] = "EMBEDDING";
+  TrainStage2[TrainStage2["REDUCED"] = 4] = "REDUCED";
+  TrainStage2[TrainStage2["MEASURED"] = 5] = "MEASURED";
+  TrainStage2[TrainStage2["SEALED"] = 6] = "SEALED";
+  TrainStage2[TrainStage2["LOADED"] = 7] = "LOADED";
+  return TrainStage2;
+})(TrainStage || {});
 var TurboCatalogService = /* @__PURE__ */ serviceDesc(file_turbo_training, 0);
 var TurboTrainingService = /* @__PURE__ */ serviceDesc(file_turbo_training, 1);
 
@@ -6965,21 +7015,21 @@ function refusedWhy(code) {
 }
 
 // demo/web/src/state.ts
-var current = null;
-var listeners = [];
+var current2 = null;
+var listeners2 = [];
 function capabilities() {
-  if (!current) {
-    current = analysis.capabilities({});
-    current.then((c) => listeners.forEach((l) => l(c))).catch(() => void 0);
+  if (!current2) {
+    current2 = analysis.capabilities({});
+    current2.then((c) => listeners2.forEach((l) => l(c))).catch(() => void 0);
   }
-  return current;
+  return current2;
 }
 function refresh() {
-  current = null;
+  current2 = null;
   return capabilities();
 }
 function onCapabilities(l) {
-  listeners.push(l);
+  listeners2.push(l);
 }
 function bundles(c, task) {
   return c.bundles.filter((b) => b.task === task).map((b) => b.name);
@@ -6987,7 +7037,6 @@ function bundles(c, task) {
 
 // demo/web/src/tabs/analyze.ts
 var running = null;
-var graph = null;
 var page = 0;
 var filter = /* @__PURE__ */ new Set();
 var select = (id) => $(id);
@@ -7014,17 +7063,20 @@ async function run() {
   stop();
   const ac = new AbortController();
   running = ac;
-  const note = $("analyze-note");
+  const note4 = $("analyze-note");
   const steps = $("analyze-steps");
   const layersBox = $("analyze-layers");
   steps.replaceChildren();
   layersBox.replaceChildren();
   $("analyze-window").replaceChildren();
   $("analyze-export-out").replaceChildren();
-  graph = null;
+  setDoc(null);
+  let graph = null;
+  let views = [];
+  let source = "";
   const layers = /* @__PURE__ */ new Map();
   const t0 = performance.now();
-  say(note, "Analyzing\u2026", "busy");
+  say(note4, "Analyzing\u2026", "busy");
   try {
     const req = {
       docId: "page",
@@ -7058,17 +7110,17 @@ async function run() {
         );
       } else if (e.case === "complete") {
         graph = e.value.graph;
+        views = e.value.views;
+        source = e.value.sourceText;
         for (const l of e.value.layers) layers.set(`${l.layer}#${l.instance}`, l);
         layersBox.replaceChildren(layerRows(layers));
         steps.append(el("li", { class: "muted", text: `complete at ${ms} ms, ${graph.length} graph bytes` }));
       }
     }
-    say(note, "");
-    page = 0;
-    filter = /* @__PURE__ */ new Set();
-    if (graph) await showWindow();
+    say(note4, "");
+    if (graph) setDoc({ graph, views, source });
   } catch (e) {
-    say(note, describe(e), "error");
+    say(note4, describe(e), "error");
   } finally {
     if (running === ac) running = null;
   }
@@ -7087,10 +7139,10 @@ function segmentsView(w) {
   return text;
 }
 function lanesView(w) {
-  const box = el("div", { class: "lanes" });
+  const box5 = el("div", { class: "lanes" });
   for (const lane of w.heatmapLanes) {
     const top = Math.max(1, ...lane.buckets.map((b) => Math.abs(b.score) || b.count));
-    box.append(
+    box5.append(
       el(
         "div",
         { class: "lane" },
@@ -7106,11 +7158,12 @@ function lanesView(w) {
       )
     );
   }
-  return box;
+  return box5;
 }
 async function showWindow() {
-  if (!graph) return;
-  const box = $("analyze-window");
+  const graph = doc()?.graph;
+  const box5 = $("analyze-window");
+  if (!graph) return void box5.replaceChildren();
   try {
     const base2 = { graph, view: 0, offsets: 1 /* UTF16 */, pageSize: 16e3, filterLayers: [...filter] };
     const [w, heat2] = await Promise.all([
@@ -7137,7 +7190,7 @@ async function showWindow() {
     next.addEventListener("click", () => (page += 1, void showWindow()));
     nav.append(prev, el("span", { class: "muted", text: win ? ` page ${win.page + 1} of ${win.pageCount}, units ${win.start}..${win.end} ` : "" }), next);
     const s = w.summary;
-    box.replaceChildren(
+    box5.replaceChildren(
       el("h3", { text: "Document" }),
       s ? el("p", { class: "muted", text: `${s.totalBytes} bytes, ${s.totalUnits} UTF-16 units, ${s.viewCount} views, ${s.layerCount} layers. Pick layers to show only them.` }) : "",
       el("div", { class: "chips" }, chips),
@@ -7147,11 +7200,12 @@ async function showWindow() {
       lanesView(heat2)
     );
   } catch (e) {
-    box.replaceChildren(el("p", { class: "error", text: describe(e) }));
+    box5.replaceChildren(el("p", { class: "error", text: describe(e) }));
   }
 }
 async function exportDoc() {
   const out = $("analyze-export-out");
+  const graph = doc()?.graph;
   if (!graph) {
     out.replaceChildren(el("p", { class: "error", text: "Analyze a document first." }));
     return;
@@ -7179,12 +7233,324 @@ function init() {
   $("analyze-run").addEventListener("click", run);
   $("analyze-stop").addEventListener("click", stop);
   $("analyze-export").addEventListener("click", exportDoc);
+  onDoc(() => {
+    page = 0;
+    filter = /* @__PURE__ */ new Set();
+    void showWindow();
+  });
   onCapabilities((c) => {
     options(select("analyze-profile"), ["", ...c.profiles.map((p) => p.name)], ["default", ...c.profiles.map((p) => `${p.name} v${p.version}`)]);
     options(select("analyze-model"), ["", ...bundles(c, "TASK_EMBED")], ["none", ...bundles(c, "TASK_EMBED")]);
   });
   capabilities().catch(() => void 0);
   void loadFormats();
+}
+
+// demo/web/src/tabs/collections.ts
+var watching = null;
+var note = () => $("coll-note");
+async function list() {
+  const box5 = $("coll-list");
+  try {
+    const r = await search.listCollections({});
+    box5.replaceChildren(
+      r.collections.length ? table(
+        ["collection", "units", "mean length", "vocabulary", "alert at", "top terms", ""],
+        r.collections.map((c) => [
+          c.collectionName,
+          String(c.totalUnits),
+          c.meanLength.toFixed(1),
+          String(c.vocabularySize),
+          c.oovAlertThreshold.toFixed(2),
+          c.topTerms.slice(0, 6).map((t) => `${t.term} ${t.documentFrequency}`).join(", "),
+          remove(c.collectionName)
+        ])
+      ) : el("p", { class: "muted", text: "No collection yet: set one, or create an index with a collection name." })
+    );
+  } catch (e) {
+    box5.replaceChildren(el("p", { class: "error", text: describe(e) }));
+  }
+}
+function remove(name) {
+  const b = el("button", { type: "button", text: "Delete" });
+  b.addEventListener("click", async () => {
+    try {
+      await search.deleteCollection({ collectionName: name });
+      await list();
+    } catch (e) {
+      say(note(), describe(e), "error");
+    }
+  });
+  return b;
+}
+async function set(ev) {
+  ev.preventDefault();
+  const name = input("coll-name").value.trim();
+  if (!name) return say(note(), "Name the collection.", "error");
+  try {
+    const r = await search.setCollection({
+      collectionName: name,
+      baselineTerms: input("coll-baseline").value.split(" ").map((t) => t.trim()).filter((t) => t.length),
+      oovAlertThreshold: Math.min(1, Math.max(0, parseFloat(input("coll-threshold").value) || 0))
+    });
+    say(note(), `Set ${r.collection?.collectionName ?? name}.`);
+    await list();
+  } catch (e) {
+    say(note(), describe(e), "error");
+  }
+}
+function event(ev) {
+  const r = ev.report;
+  const at = (/* @__PURE__ */ new Date()).toLocaleTimeString();
+  if (!r) return el("li", { text: `${at} ${ev.collectionName} from ${ev.sourceIndex}: no report` });
+  return el(
+    "li",
+    {},
+    el("span", { class: "badge", text: `OOV ${(r.oovRatio * 100).toFixed(1)}%` }),
+    ` ${at} ${ev.collectionName} from ${ev.sourceIndex}: coverage ${(r.vocabularyCoverage * 100).toFixed(1)}%, ${r.totalUnits} units`,
+    r.newTerms.length ? el("div", { class: "muted", text: `new: ${r.newTerms.slice(0, 24).join(" ")}${r.newTerms.length > 24 ? ` \u2026 ${r.newTerms.length} in all` : ""}` }) : ""
+  );
+}
+async function watch() {
+  stop2();
+  const name = input("coll-name").value.trim();
+  if (!name) return say(note(), "Name the collection to watch.", "error");
+  const ac = new AbortController();
+  watching = ac;
+  const log = $("coll-events");
+  say(note(), `Watching ${name}: index documents into an index of this collection to see its drift.`, "busy");
+  try {
+    for await (const ev of search.watchCollection({ collectionName: name, minOovRatio: Math.max(0, parseFloat(input("coll-min").value) || 0) }, { signal: ac.signal })) {
+      log.prepend(event(ev));
+      void list();
+    }
+    say(note(), "The server ended the watch.");
+  } catch (e) {
+    const why = describe(e);
+    say(note(), why === "cancelled" ? "Stopped watching." : why, why === "cancelled" ? "" : "error");
+  } finally {
+    if (watching === ac) watching = null;
+  }
+}
+function stop2() {
+  watching?.abort();
+  watching = null;
+}
+function init2() {
+  $("coll-set").addEventListener("submit", set);
+  $("coll-refresh").addEventListener("click", () => void list());
+  $("coll-watch").addEventListener("click", () => void watch());
+  $("coll-stop").addEventListener("click", stop2);
+  void list();
+}
+
+// demo/web/src/brief.ts
+var LISTED = 6;
+var TEXT = 48;
+function scalar(v) {
+  if (typeof v === "number") return Number.isInteger(v) ? String(v) : String(Number(v.toPrecision(4)));
+  if (typeof v === "bigint") return v.toString();
+  if (typeof v === "boolean") return v ? "true" : "";
+  if (typeof v === "string") return v.length > TEXT ? `"${v.slice(0, TEXT - 1)}\u2026"` : `"${v}"`;
+  if (v instanceof Uint8Array) return `${v.length} bytes`;
+  return "";
+}
+function unset(v) {
+  return v === void 0 || v === 0 || v === "" || v === false || v === 0n || v instanceof Uint8Array && v.length === 0;
+}
+function enumName(e, n) {
+  const v = e.value[n];
+  if (!v) return String(n);
+  const pre = e.sharedPrefix ?? "";
+  return v.name.toLowerCase().startsWith(pre) ? v.name.slice(pre.length) : v.name;
+}
+function list2(f, v, depth) {
+  if (f.listKind === "message") {
+    const shown2 = v.slice(0, depth >= 2 ? 0 : 3).map((m) => `{${brief(f.message, m, depth + 1)}}`);
+    return `[${v.length}]${shown2.length ? ` ${shown2.join(" ")}${v.length > shown2.length ? " \u2026" : ""}` : ""}`;
+  }
+  const one = (x) => f.listKind === "enum" ? enumName(f.enum, x) : scalar(x);
+  return `[${v.slice(0, LISTED).map(one).join(", ")}${v.length > LISTED ? `, \u2026 ${v.length} in all` : ""}]`;
+}
+function field(f, v, depth) {
+  switch (f.fieldKind) {
+    case "scalar":
+      return unset(v) && !f.proto.proto3Optional ? "" : scalar(v);
+    case "enum":
+      return v === void 0 ? "" : enumName(f.enum, v);
+    case "message":
+      if (v === void 0) return "";
+      return depth >= 2 ? "{\u2026}" : `{${brief(f.message, v, depth + 1)}}`;
+    case "list":
+      return v.length ? list2(f, v, depth) : "";
+    case "map": {
+      const n = Object.keys(v).length;
+      return n ? `{${n} entries}` : "";
+    }
+  }
+}
+function brief(desc, m, depth = 0, skip = []) {
+  const out = [];
+  for (const member of desc.members) {
+    if (skip.includes(member.localName)) continue;
+    if (member.kind === "oneof") {
+      const o = m[member.localName];
+      const f = o?.case ? member.fields.find((x) => x.localName === o.case) : void 0;
+      if (f) out.push(`${f.localName} ${field(f, o?.value, depth) || "{}"}`);
+      continue;
+    }
+    const s = field(member, m[member.localName], depth);
+    if (s) out.push(`${member.localName} ${s}`);
+  }
+  return out.join(", ");
+}
+
+// demo/web/src/tabs/xray.ts
+var box = () => $("xray-out");
+var from = () => $("xray-from");
+var to = () => $("xray-to");
+function viewName(instance, i) {
+  return `${i}: ${instance || "source"}`;
+}
+function runs(x) {
+  const text = el("div", { class: "doc xray" });
+  for (const r of x.runs) {
+    const where = `${r.parentStart}..${r.parentEnd} \u2192 ${r.childStart}..${r.childEnd}`;
+    if (r.kind === 0 /* EQUAL */) text.append(r.childText);
+    else if (r.kind === 2 /* INSERTED */) text.append(el("ins", { title: `inserted ${where}`, text: r.childText }));
+    else if (r.kind === 3 /* DELETED */) text.append(el("del", { title: `deleted ${where}`, text: r.parentText }));
+    else text.append(el("del", { title: `replaced ${where}`, text: r.parentText }), el("ins", { title: `replaced ${where}`, text: r.childText }));
+  }
+  return text;
+}
+async function render() {
+  const d = doc();
+  if (!d) return void box().replaceChildren(el("p", { class: "muted", text: "Analyze a document first." }));
+  if (d.views.length < 2) {
+    return void box().replaceChildren(el("p", { class: "muted", text: "This document has one view: the profile ran no normalization step." }));
+  }
+  const a = parseInt(from().value, 10) || 0;
+  const b = parseInt(to().value, 10) || 0;
+  try {
+    const r = await analysis.inspectDocumentWindow({ graph: d.graph, view: a, offsets: 1 /* UTF16 */, pageSize: 1, page: 0, xrayTargetView: b });
+    const x = r.xray;
+    if (!x) return void box().replaceChildren(el("p", { class: "muted", text: "The server gave no X-Ray for these views." }));
+    const edits2 = x.runs.filter((r2) => r2.kind !== 0 /* EQUAL */).length;
+    box().replaceChildren(
+      el("p", { class: "muted", text: `${edits2} edits from view ${x.fromView} to view ${x.toView}, offsets in UTF-16 units. Hover an edit for its spans.` }),
+      runs(x),
+      el("h3", { text: "Steps" }),
+      table(
+        ["view", "parent", "instance", "annotator", "edits", "bytes in", "bytes out"],
+        x.steps.map((s) => [String(s.view), s.parentView === void 0 ? "" : String(s.parentView), s.instance, `${s.annotator} ${s.version}`, String(s.editCount), String(s.parentBytes), String(s.childBytes)])
+      )
+    );
+  } catch (e) {
+    box().replaceChildren(el("p", { class: "error", text: describe(e) }));
+  }
+}
+function init3() {
+  const again = lazy($("analyze-xray"), () => void render());
+  onDoc((d) => {
+    const views = d?.views ?? [];
+    const values = views.map((_, i) => String(i));
+    const labels = views.map((v, i) => viewName(v.instance, i));
+    options(from(), values, labels);
+    options(to(), values, labels);
+    from().value = "0";
+    to().value = String(Math.max(0, views.length - 1));
+    again();
+  });
+  from().addEventListener("change", () => void render());
+  to().addEventListener("change", () => void render());
+}
+
+// demo/web/src/tabs/drawer.ts
+var PAGE = 200;
+var result = null;
+var picked = "";
+var shown = PAGE;
+var box2 = () => $("drawer-out");
+var viewSelect = () => $("drawer-view");
+function key(l) {
+  return `${l.id}#${l.instance}`;
+}
+function kindOf(name) {
+  return TypedAnnotationSchema.fields.find((f) => f.localName === name)?.message;
+}
+function rows(r, l) {
+  const list5 = l.annotations.slice(0, shown).map((a, i) => {
+    const spans = a.spans.map((s) => `${s.start}..${s.end}`).join(" ");
+    const text = a.spans.map((s) => r.rawText.slice(s.start, s.end)).join(" \u2026 ");
+    const kind = kindOf(a.value.case);
+    const detail = kind && a.value.value ? brief(kind, a.value.value) : "";
+    return [String(i), spans, el("span", { class: "quote", text }), a.value.case ?? "", a.probability === void 0 ? "" : a.probability.toFixed(3), el("span", { class: "vec", text: detail })];
+  });
+  const more = el("button", { type: "button", text: `Show ${Math.min(PAGE, l.annotations.length - shown)} more` });
+  more.addEventListener("click", () => (shown += PAGE, draw()));
+  return el(
+    "div",
+    {},
+    el("p", { class: "muted", text: `${l.annotations.length} annotations on ${l.scope === 0 ? "text" : l.scope === 1 ? "an aligned layer" : "the document"}${l.anchorLayer ? `, anchored to ${l.anchorLayer}` : ""}${l.modelRefs.length ? `, models ${l.modelRefs.join(", ")}` : ""}.` }),
+    table(["#", "span", "text", "kind", "p", "fields"], list5, "drawer"),
+    l.annotations.length > shown ? more : ""
+  );
+}
+function draw() {
+  const r = result;
+  if (!r) return;
+  const chips = r.layers.map((l) => {
+    const bad = l.status !== 0 /* OK */;
+    const b = el("button", {
+      type: "button",
+      class: `chip${key(l) === picked ? " on" : ""}${bad ? " bad" : ""}`,
+      title: bad ? `${LayerWireStatus[l.status]}: ${l.statusDetail}` : "",
+      text: `${l.id}${l.instance ? `#${l.instance}` : ""} ${l.annotations.length}`
+    });
+    b.addEventListener("click", () => {
+      picked = key(l);
+      shown = PAGE;
+      draw();
+    });
+    return b;
+  });
+  const layer = r.layers.find((l) => key(l) === picked);
+  box2().replaceChildren(
+    el("p", { class: "muted", text: `${r.layers.length} layers on view ${r.view}. Pick one to open its annotations.` }),
+    el("div", { class: "chips" }, chips),
+    layer ? rows(r, layer) : "",
+    r.models.length ? el("h3", { text: "Models" }) : "",
+    r.models.length ? table(
+      ["ref", "annotator", "version", "bundle", "ran on"],
+      r.models.map((m) => [m.modelRef, m.annotator, m.version, m.bundle ? `${m.bundle.id}@${m.bundle.revision}` : "", m.execution ? `${m.execution.backend} ${m.execution.device}`.trim() : ""])
+    ) : ""
+  );
+}
+async function render2() {
+  const d = doc();
+  if (!d) return void box2().replaceChildren(el("p", { class: "muted", text: "Analyze a document first." }));
+  try {
+    result = await analysis.inspectDocumentGraph({ docId: "page", graph: d.graph, view: parseInt(viewSelect().value, 10) || 0, offsets: 1 /* UTF16 */ });
+    if (!result.layers.some((l) => key(l) === picked)) {
+      const first = result.layers.find((l) => l.annotations.length);
+      picked = first ? key(first) : "";
+    }
+    shown = PAGE;
+    draw();
+  } catch (e) {
+    result = null;
+    box2().replaceChildren(el("p", { class: "error", text: describe(e) }));
+  }
+}
+function init4() {
+  const again = lazy($("analyze-drawer"), () => void render2());
+  onDoc((d) => {
+    const views = d?.views ?? [];
+    options(viewSelect(), views.map((_, i) => String(i)), views.map((v, i) => viewName(v.instance, i)));
+    viewSelect().value = "0";
+    again();
+  });
+  viewSelect().addEventListener("change", () => void render2());
 }
 
 // demo/web/src/tabs/embed.ts
@@ -7215,15 +7581,15 @@ async function loadMeta(name) {
   }
 }
 function renderModels() {
-  const box = $("embed-models");
-  box.replaceChildren();
-  if (models.size === 0) box.append(el("p", { class: "muted", text: "No embedding model is served: add a name below." }));
+  const box5 = $("embed-models");
+  box5.replaceChildren();
+  if (models.size === 0) box5.append(el("p", { class: "muted", text: "No embedding model is served: add a name below." }));
   for (const [name, m] of models) {
     const cb = el("input", { type: "checkbox" });
     cb.checked = m.checked;
     cb.disabled = !m.meta;
     cb.addEventListener("change", () => m.checked = cb.checked);
-    box.append(
+    box5.append(
       el(
         "label",
         { class: "model" },
@@ -7269,13 +7635,13 @@ function vectorsOf(reply) {
   const out = reply.outputs[0];
   const raw = reply.rawOutputContents[0];
   if (!out || !raw) throw new Error("the reply has no vectors");
-  const [rows, dim] = out.shape.map(Number);
+  const [rows2, dim] = out.shape.map(Number);
   const dv = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
   const width = out.datatype === "FP32" ? 4 : out.datatype === "FP16" || out.datatype === "BF16" ? 2 : 0;
   if (!width) throw new Error(`vectors in ${out.datatype} are not shown`);
-  if (raw.byteLength !== rows * dim * width) throw new Error(`${raw.byteLength} bytes for a ${rows}x${dim} ${out.datatype} tensor`);
+  if (raw.byteLength !== rows2 * dim * width) throw new Error(`${raw.byteLength} bytes for a ${rows2}x${dim} ${out.datatype} tensor`);
   const v = [];
-  for (let r = 0; r < rows; r++) {
+  for (let r = 0; r < rows2; r++) {
     const row = [];
     for (let c = 0; c < dim; c++) {
       const at = (r * dim + c) * width;
@@ -7296,8 +7662,8 @@ function param(p) {
 }
 function parameters() {
   const p = {};
-  const role = document.getElementById("embed-role").value;
-  if (role) p.prompt_role = param({ case: "stringParam", value: role });
+  const role2 = document.getElementById("embed-role").value;
+  if (role2) p.prompt_role = param({ case: "stringParam", value: role2 });
   const max = parseInt(input("embed-max").value, 10);
   if (max > 0) {
     p.max_tokens = param({ case: "int64Param", value: BigInt(max) });
@@ -7306,12 +7672,12 @@ function parameters() {
   return p;
 }
 async function run2() {
-  const texts = document.getElementById("embed-texts").value.split("\n").map((t) => t.trim()).filter((t) => t.length);
+  const texts2 = document.getElementById("embed-texts").value.split("\n").map((t) => t.trim()).filter((t) => t.length);
   const chosen = [...models].filter(([, m]) => m.checked && m.meta).map(([n]) => n);
   const err = $("embed-error");
   say(err, "");
-  if (!texts.length || !chosen.length) {
-    say(err, !texts.length ? "Enter at least one text." : "Pick at least one model.", "error");
+  if (!texts2.length || !chosen.length) {
+    say(err, !texts2.length ? "Enter at least one text." : "Pick at least one model.", "error");
     return;
   }
   const btn = $("embed-run");
@@ -7326,7 +7692,7 @@ async function run2() {
       const reply = await inference.modelInfer({
         modelName: name,
         parameters: parameters(),
-        inputs: [{ name: "texts", datatype: "BYTES", shape: [BigInt(texts.length)], contents: { bytesContents: texts.map((t) => encoder.encode(t)) } }]
+        inputs: [{ name: "texts", datatype: "BYTES", shape: [BigInt(texts2.length)], contents: { bytesContents: texts2.map((t) => encoder.encode(t)) } }]
       });
       results.push({ name, meta, ms: performance.now() - t0, reply, vectors: vectorsOf(reply) });
     } catch (e) {
@@ -7335,7 +7701,7 @@ async function run2() {
   }
   btn.disabled = false;
   btn.textContent = "Embed";
-  render(texts, results);
+  render3(texts2, results);
 }
 function heat(v) {
   const a = Math.max(0, Math.min(1, v));
@@ -7345,20 +7711,20 @@ function short(t, n = 28) {
   const chars = typeof Intl !== "undefined" && Intl.Segmenter ? Array.from(new Intl.Segmenter(void 0, { granularity: "grapheme" }).segment(t), (g) => g.segment) : Array.from(t);
   return chars.length > n ? chars.slice(0, n - 1).join("") + "\u2026" : t;
 }
-function card(texts, r) {
+function card(texts2, r) {
   const head = el("div", { class: "head" }, el("h3", {}, r.name, el("span", { class: "tag", text: tier(r.meta) })));
   if (!r.vectors || !r.reply) {
     return el("div", { class: "card" }, head, el("p", { class: "error", text: r.error ?? "" }), stat(`${r.ms.toFixed(1)} ms`, "browser round trip"));
   }
   const v = r.vectors;
   const p = r.reply.parameters;
-  const str = (k) => p[k]?.parameterChoice.case === "stringParam" ? String(p[k].parameterChoice.value) : "";
+  const str2 = (k) => p[k]?.parameterChoice.case === "stringParam" ? String(p[k].parameterChoice.value) : "";
   const sim = matrix(v);
   const simTable = el(
     "table",
     { class: "sim" },
-    el("tr", {}, el("th", {}), texts.map((_, j) => el("th", { text: `#${j + 1}` }))),
-    texts.map(
+    el("tr", {}, el("th", {}), texts2.map((_, j) => el("th", { text: `#${j + 1}` }))),
+    texts2.map(
       (t, i) => el(
         "tr",
         {},
@@ -7375,7 +7741,7 @@ function card(texts, r) {
       (row, i) => el(
         "tr",
         {},
-        el("td", { class: "text", title: texts[i], text: `#${i + 1} ${short(texts[i], 18)}` }),
+        el("td", { class: "text", title: texts2[i], text: `#${i + 1} ${short(texts2[i], 18)}` }),
         el("td", { text: norm(row).toFixed(4) }),
         el("td", {
           class: "vec",
@@ -7384,7 +7750,7 @@ function card(texts, r) {
       )
     )
   );
-  const device = [str("backend"), str("arch")].filter(Boolean).join(" ");
+  const device = [str2("backend"), str2("arch")].filter(Boolean).join(" ");
   return el(
     "div",
     { class: "card" },
@@ -7396,28 +7762,28 @@ function card(texts, r) {
       stat(String(v.length), "texts"),
       stat(`${r.ms.toFixed(1)} ms`, "browser round trip"),
       device ? stat(device, "ran on") : null,
-      str("compute_dtype") ? stat(after(str("compute_dtype"), "DTYPE_"), "computed in") : null
+      str2("compute_dtype") ? stat(after(str2("compute_dtype"), "DTYPE_"), "computed in") : null
     ),
     el("h2", { text: "Cosine similarity" }),
     simTable,
     el("details", {}, el("summary", { text: "Vectors" }), previews)
   );
 }
-function comparison(texts, ok) {
+function comparison(texts2, ok) {
   const sims = ok.map((r) => matrix(r.vectors));
-  const rows = [];
+  const rows2 = [];
   let widest = 0;
-  for (let i = 0; i < texts.length; i++) {
-    for (let j = i + 1; j < texts.length; j++) {
+  for (let i = 0; i < texts2.length; i++) {
+    for (let j = i + 1; j < texts2.length; j++) {
       const vals = sims.map((m) => m[i][j]);
       const spread = Math.max(...vals) - Math.min(...vals);
       widest = Math.max(widest, spread);
-      rows.push(
+      rows2.push(
         el(
           "tr",
           {},
-          el("td", { class: "text", title: `${texts[i]}
-${texts[j]}`, text: `#${i + 1} \xB7 #${j + 1}` }),
+          el("td", { class: "text", title: `${texts2[i]}
+${texts2[j]}`, text: `#${i + 1} \xB7 #${j + 1}` }),
           vals.map((x) => el("td", { class: "cell", style: heat(x), text: x.toFixed(4) })),
           el("td", { text: spread === 0 ? "0" : spread.toExponential(1) })
         )
@@ -7434,7 +7800,7 @@ ${texts[j]}`, text: `#${i + 1} \xB7 #${j + 1}` }),
     "table",
     { class: "sim cmp" },
     el("tr", {}, el("th", { class: "text", text: "pair" }), ok.map((r) => el("th", { text: `${r.name} (${tier(r.meta)})` })), el("th", { text: "spread" })),
-    rows,
+    rows2,
     el("tr", {}, el("th", { class: "text", text: `lowest cosine to ${ok[0].name}, same text` }), agree.map((a) => el("td", { text: a })), el("td", {}))
   );
   return el(
@@ -7449,14 +7815,14 @@ ${texts[j]}`, text: `#${i + 1} \xB7 #${j + 1}` }),
     widest === 0 ? el("p", { class: "note", text: "Every model gave the same numbers: on this device these tiers compute alike. A device that runs FASTEST in a narrower type shows the difference here." }) : null
   );
 }
-function render(texts, results) {
+function render3(texts2, results) {
   const out = $("embed-results");
   out.replaceChildren();
   const ok = results.filter((r) => r.vectors);
-  if (ok.length > 1 && texts.length > 1) out.append(comparison(texts, ok));
-  out.append(el("div", { class: "cards" }, results.map((r) => card(texts, r))));
+  if (ok.length > 1 && texts2.length > 1) out.append(comparison(texts2, ok));
+  out.append(el("div", { class: "cards" }, results.map((r) => card(texts2, r))));
 }
-function init2() {
+function init5() {
   $("embed-add").addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const name = input("embed-add-name").value.trim();
@@ -7467,6 +7833,362 @@ function init2() {
   $("embed-run").addEventListener("click", run2);
   onCapabilities((c) => void addModels(bundles(c, "TASK_EMBED")));
   capabilities().catch((e) => say($("embed-error"), describe(e), "error"));
+}
+
+// demo/web/src/tabs/models.ts
+var installing = null;
+var trainingRun = null;
+var user = () => input("models-user").value.trim();
+var note2 = () => $("models-note");
+function bar(done, total) {
+  const p = el("progress", { max: String(Math.max(1, total)) });
+  p.value = Math.min(done, Math.max(1, total));
+  return p;
+}
+function acceptButton(t) {
+  const b = el("button", { type: "button", text: `Accept ${t.licence}` });
+  b.addEventListener("click", async () => {
+    try {
+      const r = await catalog.recordLicenceAcceptance({ user: user(), licence: t.licence, terms: t.licence.startsWith("LicenseRef-") ? t.text : "" });
+      await loadCatalog();
+      say(note2(), `${r.user} accepted ${r.accepted?.licence ?? t.licence} at ${new Date(Number(r.acceptedAt) * 1e3).toLocaleString()}.`);
+    } catch (e) {
+      say(note2(), describe(e), "error");
+    }
+  });
+  return b;
+}
+function entryRow(e) {
+  const terms = e.missingTerms.map((t) => el("details", {}, el("summary", { text: `${t.licence} terms` }), el("pre", { class: "export", text: t.text }), acceptButton(t)));
+  const install = el("button", { type: "button", text: e.installed ? "Reinstall" : "Install" });
+  install.disabled = e.missingTerms.length > 0;
+  install.title = install.disabled ? "Accept the licence terms first" : "";
+  install.addEventListener("click", () => void installModel(e));
+  return [el("span", { text: e.id }), el("span", { text: `${e.kind} ${e.language}` }), el("span", { text: e.licence }), el("span", { text: size(e.totalBytes) }), el("span", { text: e.installed ? "yes" : "" }), el("div", {}, terms, install)];
+}
+async function loadCatalog() {
+  const box5 = $("models-catalog");
+  say(note2(), "Reading the catalog\u2026", "busy");
+  try {
+    const [cat, installed] = await Promise.all([catalog.listModelCatalog({ user: user() }), catalog.listInstalledModels({})]);
+    box5.replaceChildren(
+      el("h3", { text: "Catalog" }),
+      el("p", { class: "muted", text: `Licence terms still to accept are those for the user ${user() || "(none)"}; read them before accepting.` }),
+      table(["id", "kind", "licence", "size", "installed", ""], cat.entries.map(entryRow)),
+      el("h3", { text: "Installed" }),
+      table(["id", "version", "files", "size", "directory"], installed.models.map((m) => [m.id, m.version, String(m.files.length), size(m.totalBytes), m.dir]))
+    );
+    say(note2(), "");
+  } catch (e) {
+    say(note2(), describe(e), "error");
+  }
+}
+async function installModel(e) {
+  installing?.abort();
+  const ac = new AbortController();
+  installing = ac;
+  const log = $("models-install");
+  const status3 = el("p", { class: "muted", text: `Installing ${e.id}\u2026` });
+  const progress = bar(0, 1);
+  log.replaceChildren(el("h3", { text: `Install ${e.id}` }), progress, status3);
+  try {
+    for await (const u of catalog.installModel({ user: user(), artifactId: e.id }, { signal: ac.signal })) {
+      if (u.update.case === "progress") {
+        const p = u.update.value;
+        progress.max = Math.max(1, p.fileCount);
+        progress.value = p.stage === 4 /* VERIFIED */ ? p.fileIndex + 1 : p.fileIndex;
+        status3.textContent = `${InstallStage[p.stage]}: file ${p.fileIndex + 1} of ${p.fileCount} ${p.path} (${size(p.bytes)})`;
+      } else if (u.update.case === "installed") {
+        const m = u.update.value;
+        progress.value = progress.max;
+        status3.textContent = `Installed ${m.id} ${m.version}: ${m.files.length} files, ${size(m.totalBytes)} in ${m.dir}.`;
+      }
+    }
+    await loadCatalog();
+  } catch (err) {
+    status3.className = "error";
+    status3.textContent = describe(err);
+  } finally {
+    if (installing === ac) installing = null;
+  }
+}
+async function loadTraining() {
+  const box5 = $("models-static");
+  try {
+    const t = await training.listTeachers({});
+    options($("train-teacher"), t.teachers.map((x) => x.name), t.teachers.map((x) => `${x.name} (hidden ${x.hidden}, ${x.vocabSize} words)`));
+    let made;
+    try {
+      const s = await training.listStaticModels({});
+      made = table(
+        ["name", "dims", "words", "learned", "dtype", "teacher", "quality", "served", ""],
+        s.models.map((m) => [
+          m.name,
+          String(m.dims),
+          String(m.vocabSize),
+          String(m.learnedTerms),
+          m.dtype,
+          m.teacher?.modelId ?? "",
+          m.quality ? `top-1 ${m.quality.staticTop1.toFixed(3)} of ${m.quality.baseTop1.toFixed(3)}, rho ${m.quality.similaritySpearman.toFixed(3)}` : "",
+          m.served ? "yes" : m.problem,
+          deleteButton(m.name)
+        ])
+      );
+    } catch (e) {
+      made = el("p", { class: "error", text: describe(e) });
+    }
+    box5.replaceChildren(el("h3", { text: "Teachers" }), table(["name", "model", "hidden", "words"], t.teachers.map((x) => [x.name, `${x.modelId}@${x.revision}`, String(x.hidden), String(x.vocabSize)])), el("h3", { text: "Static models" }), made);
+  } catch (e) {
+    box5.replaceChildren(el("p", { class: "error", text: describe(e) }));
+  }
+}
+function deleteButton(name) {
+  const b = el("button", { type: "button", text: "Delete" });
+  b.addEventListener("click", async () => {
+    try {
+      await training.deleteStaticModel({ name });
+      await Promise.all([loadTraining(), refresh()]);
+    } catch (e) {
+      say($("train-note"), describe(e), "error");
+    }
+  });
+  return b;
+}
+async function train(ev) {
+  ev.preventDefault();
+  stopTraining();
+  const ac = new AbortController();
+  trainingRun = ac;
+  const steps = $("train-steps");
+  const progress = bar(0, 1);
+  steps.replaceChildren();
+  $("train-progress").replaceChildren(progress);
+  say($("train-note"), "Training\u2026", "busy");
+  const t0 = performance.now();
+  let last = -1;
+  try {
+    const req = {
+      name: input("train-name").value.trim(),
+      teacher: $("train-teacher").value,
+      pcaDims: parseInt(input("train-dims").value, 10) || 0,
+      dtype: $("train-dtype").value === "F16" ? 2 /* F16 */ : 1 /* F32 */,
+      vocabularyArtifactId: input("train-vocabulary").value.trim(),
+      terms: $("train-terms").value.split("\n").map((t) => t.trim()).filter((t) => t.length)
+    };
+    for await (const u of training.trainStaticModel(req, { signal: ac.signal })) {
+      const ms = `${((performance.now() - t0) / 1e3).toFixed(1)} s`;
+      if (u.update.case === "progress") {
+        const p = u.update.value;
+        progress.max = Math.max(1, Number(p.totalItems));
+        progress.value = Number(p.completedItems);
+        const facts2 = [
+          p.totalItems ? `${p.completedItems} of ${p.totalItems}` : "",
+          p.addedTerms || p.refusedTerms ? `${p.addedTerms} terms added, ${p.refusedTerms} refused` : "",
+          p.explainedVariance ? `explained variance ${(p.explainedVariance * 100).toFixed(1)}%` : "",
+          p.quality ? `top-1 ${p.quality.staticTop1.toFixed(3)} (teacher ${p.quality.baseTop1.toFixed(3)}), rho ${p.quality.similaritySpearman.toFixed(3)}` : ""
+        ].filter(Boolean);
+        const line = el("li", {}, el("span", { class: "badge", text: ms }), ` ${TrainStage[p.stage]}${facts2.length ? `: ${facts2.join(", ")}` : ""}`);
+        if (p.stage === last && steps.lastElementChild) steps.lastElementChild.replaceWith(line);
+        else steps.append(line);
+        last = p.stage;
+      } else if (u.update.case === "trained") {
+        const t = u.update.value;
+        progress.value = progress.max;
+        const refused = t.refusedTerms.map((r) => `${r.term} (${r.reason})`).join(", ");
+        steps.append(el("li", {}, el("span", { class: "badge", text: ms }), ` trained ${t.model?.name ?? ""}: ${t.model?.dims ?? 0} dims, ${t.model?.vocabSize ?? 0} words${t.addedTerms.length ? `, added ${t.addedTerms.join(" ")}` : ""}${refused ? `; refused ${refused}` : ""}`));
+      }
+    }
+    await Promise.all([loadTraining(), refresh()]);
+    say($("train-note"), "");
+  } catch (e) {
+    say($("train-note"), describe(e), "error");
+  } finally {
+    if (trainingRun === ac) trainingRun = null;
+  }
+}
+function stopTraining() {
+  trainingRun?.abort();
+  trainingRun = null;
+}
+function stop3() {
+  installing?.abort();
+  installing = null;
+  stopTraining();
+}
+function init6() {
+  $("models-catalog-load").addEventListener("click", () => void loadCatalog());
+  $("train-form").addEventListener("submit", train);
+  $("train-stop").addEventListener("click", stopTraining);
+  $("train-refresh").addEventListener("click", () => void loadTraining());
+  void loadTraining();
+}
+
+// demo/web/src/tabs/projection.ts
+var W = 640;
+var H = 360;
+var PAD = 24;
+var box3 = () => $("projection-out");
+function budgets(s) {
+  const out = [];
+  for (const item of s.split(",")) {
+    const [name, max, target] = item.split(":").map((x) => x.trim());
+    const m = parseInt(max ?? "", 10);
+    const t = parseInt(target ?? "", 10);
+    if (name && m > 0) out.push({ name, maxTokens: m, targetTokens: t > 0 ? Math.min(t, m) : m });
+  }
+  return out;
+}
+function hue(level) {
+  return `hsl(${(level * 67 + 210) % 360}, 65%, 50%)`;
+}
+function canvas() {
+  const c = el("canvas", { width: String(W), height: String(H), class: "plot" });
+  return [c, c.getContext("2d")];
+}
+function scatter(p, text) {
+  const [c, g] = canvas();
+  const pts = p.points.filter((q) => !q.empty);
+  const xs = pts.map((q) => q.x);
+  const ys = pts.map((q) => q.y);
+  const zs = pts.map((q) => q.z);
+  const span = (v) => [Math.min(...v), Math.max(...v) - Math.min(...v) || 1];
+  const [x0, xw] = span(xs);
+  const [y0, yw] = span(ys);
+  const [z0, zw] = span(zs);
+  const at = pts.map((q) => [PAD + (q.x - x0) / xw * (W - 2 * PAD), H - PAD - (q.y - y0) / yw * (H - 2 * PAD)]);
+  g.lineWidth = 1;
+  for (let i = 1; i < pts.length; i++) {
+    if (pts[i].level !== pts[i - 1].level) continue;
+    g.strokeStyle = hue(pts[i].level);
+    g.globalAlpha = 0.35;
+    g.beginPath();
+    g.moveTo(at[i - 1][0], at[i - 1][1]);
+    g.lineTo(at[i][0], at[i][1]);
+    g.stroke();
+  }
+  pts.forEach((q, i) => {
+    g.globalAlpha = p.pcaDims === 3 ? 0.35 + 0.65 * ((q.z - z0) / zw) : 0.9;
+    g.fillStyle = hue(q.level);
+    g.beginPath();
+    g.arc(at[i][0], at[i][1], 5, 0, 2 * Math.PI);
+    g.fill();
+  });
+  const tip = el("p", { class: "muted", text: "Hover a point." });
+  c.addEventListener("mousemove", (ev2) => {
+    const r = c.getBoundingClientRect();
+    const mx = (ev2.clientX - r.left) * W / r.width;
+    const my = (ev2.clientY - r.top) * H / r.height;
+    let best = -1;
+    let dist = 100;
+    at.forEach(([x, y], i) => {
+      const d = (x - mx) ** 2 + (y - my) ** 2;
+      if (d < dist) [best, dist] = [i, d];
+    });
+    if (best < 0) return;
+    const q = pts[best];
+    const cos = q.adjacentCosine === void 0 ? "" : `, cosine to the next ${q.adjacentCosine.toFixed(3)}`;
+    tip.textContent = `item ${q.item}, level ${q.level}, ${q.start}..${q.end}${cos}: ${short(text.slice(q.start, q.end), 120)}`;
+  });
+  const levels = [...new Set(pts.map((q) => q.level))].sort((a, b) => a - b);
+  const legend = el("div", { class: "chips" }, levels.map((l) => el("span", { class: "chip", style: `border-color: ${hue(l)}; color: ${hue(l)}`, text: `level ${l}` })));
+  const ev = p.explainedVariance.map((v) => `${(v * 100).toFixed(1)}%`).join(", ");
+  return el(
+    "div",
+    {},
+    el("p", { class: "muted", text: `${pts.length} vectors from ${p.model ? `${p.model.id}@${p.model.revision}` : "the graph"}; explained variance ${ev}${p.pcaDims === 3 ? "; the third component is the opacity" : ""}.` }),
+    legend,
+    c,
+    tip
+  );
+}
+function drift(d) {
+  const [c, g] = canvas();
+  const n = d.gaps.length;
+  const x = (i) => PAD + (n > 1 ? i / (n - 1) * (W - 2 * PAD) : (W - 2 * PAD) / 2);
+  const y = (v) => H - PAD - Math.max(0, Math.min(1, v)) * (H - 2 * PAD);
+  const micro = (v) => v === void 0 ? NaN : Number(v) / 1e6;
+  g.fillStyle = "rgba(127, 127, 127, 0.25)";
+  d.gaps.forEach((p, i) => {
+    const h = Math.max(0, Math.min(1, micro(p.depthScoreMicro)));
+    g.fillRect(x(i) - 3, y(h), 6, H - PAD - y(h));
+  });
+  for (const [field2, color] of [["rawCosineMicro", "hsl(210, 20%, 60%)"], ["smoothedCosineMicro", "hsl(210, 70%, 50%)"]]) {
+    g.strokeStyle = color;
+    g.beginPath();
+    let on = false;
+    d.gaps.forEach((p, i) => {
+      const v = micro(p[field2]);
+      if (Number.isNaN(v)) return void (on = false);
+      if (on) g.lineTo(x(i), y(v));
+      else g.moveTo(x(i), y(v));
+      on = true;
+    });
+    g.stroke();
+  }
+  g.strokeStyle = "hsl(10, 75%, 50%)";
+  d.gaps.forEach((p, i) => {
+    if (!p.isChunkCut) return;
+    g.beginPath();
+    g.moveTo(x(i), PAD);
+    g.lineTo(x(i), H - PAD);
+    g.stroke();
+  });
+  const cuts = d.gaps.filter((p) => p.isChunkCut).length;
+  return el(
+    "div",
+    {},
+    el("p", { class: "muted", text: `${n} sentence gaps (window ${d.window}, smoothing ${d.smoothing}), ${cuts} chunk cuts in red. Lines: cosine across each gap, raw and smoothed; bars: depth score.` }),
+    c
+  );
+}
+function stack(s, label) {
+  const bar3 = el(
+    "div",
+    { class: "stack" },
+    s.segments.map((t) => el("span", { title: `${t.term}: ${t.frequency}x, weight ${t.weight.toFixed(3)}${t.isExpanded ? ", expanded" : ""}`, style: `flex: ${Math.max(t.share, 1e-3)}`, text: t.term })),
+    s.otherTermCount ? el("span", { class: "other", title: `${s.otherTermCount} more terms`, style: `flex: ${Math.max(1 - s.segments.reduce((a, t) => a + t.share, 0), 1e-3)}`, text: "\u2026" }) : null
+  );
+  return el("div", { class: "lane" }, el("span", { class: "lane-name", text: label }), bar3);
+}
+function show(r, text) {
+  const m = r.strategyMatrix;
+  box3().replaceChildren(
+    el("h3", { text: "Projection" }),
+    r.projection?.points.length ? scatter(r.projection, text) : el("p", { class: "muted", text: "No vectors in this graph: analyze with a profile that embeds, such as default-v1, and an embedding model." }),
+    r.driftCurve ? el("h3", { text: "Boundary drift" }) : "",
+    r.driftCurve ? drift(r.driftCurve) : "",
+    el("h3", { text: "Term vector stacks" }),
+    r.documentTermStack ? stack(r.documentTermStack, "document") : "",
+    ...r.chunkTermStacks.map((s) => stack(s, `chunk ${s.unit}`)),
+    m?.strategies.length ? el("h3", { text: "Strategies" }) : "",
+    m?.strategies.length ? table(
+      ["strategy", "max", "target", "chunks", "over budget", "cost", "cuts shared", "disagreements"],
+      m.strategies.map((s) => [s.name, String(s.budget?.maxTokens ?? ""), String(s.budget?.targetTokens ?? ""), String(s.chunkCount), String(s.overBudgetCount), String(s.totalCost), String(s.matchedCutsWithBaseline), String(s.disagreementsWithBaseline)])
+    ) : ""
+  );
+}
+async function render4() {
+  const d = doc();
+  if (!d) return void box3().replaceChildren(el("p", { class: "muted", text: "Analyze a document first." }));
+  try {
+    const r = await analysis.projectChunks({
+      graph: d.graph,
+      offsets: 1 /* UTF16 */,
+      pcaDims: $("projection-dims").value === "3" ? 3 : 2,
+      maxStackSegments: 8,
+      includeDriftCurve: input("projection-drift").checked,
+      includeStrategyMatrix: true,
+      strategyBudgets: budgets(input("projection-budgets").value)
+    });
+    show(r, d.source);
+  } catch (e) {
+    box3().replaceChildren(el("p", { class: "error", text: describe(e) }));
+  }
+}
+function init7() {
+  const again = lazy($("analyze-projection"), () => void render4());
+  onDoc(() => again());
+  $("projection-run").addEventListener("click", () => void render4());
 }
 
 // demo/web/src/frames.ts
@@ -7497,16 +8219,16 @@ function varint(n) {
   out.push(v);
   return Uint8Array.from(out);
 }
-function fieldHead(field, n) {
-  const tag = varint(field * 8 + 2);
+function fieldHead(field2, n) {
+  const tag = varint(field2 * 8 + 2);
   const len = varint(n);
   const out = new Uint8Array(tag.length + len.length);
   out.set(tag);
   out.set(len, tag.length);
   return out;
 }
-function textFrame(head, field, text) {
-  const fh = fieldHead(field, text.size);
+function textFrame(head, field2, text) {
+  const fh = fieldHead(field2, text.size);
   return [prefix(head.length + fh.length + text.size), head, fh, text];
 }
 function body(parts) {
@@ -7553,8 +8275,8 @@ async function put(method, bodyBlob, signal) {
   throw refusal(r);
 }
 function refusal(r) {
-  const status2 = Number(r.headers.get("grpc-status") ?? "");
-  const code = status2 > 0 && status2 <= 16 ? status2 : Code.Unknown;
+  const status3 = Number(r.headers.get("grpc-status") ?? "");
+  const code = status3 > 0 && status3 <= 16 ? status3 : Code.Unknown;
   let message = r.headers.get("grpc-message") ?? `HTTP ${r.status}`;
   try {
     message = decodeURIComponent(message);
@@ -7574,12 +8296,12 @@ function refusal(r) {
 var caps = null;
 var indexing = null;
 var select2 = (id) => $(id);
-async function list() {
-  const box = $("search-indexes");
+async function list3() {
+  const box5 = $("search-indexes");
   try {
     const r = await search.listIndexes({});
     options(select2("search-index"), r.indexes.map((i) => i.indexName));
-    box.replaceChildren(
+    box5.replaceChildren(
       r.indexes.length ? table(
         ["index", "model", "dim", "metric", "storage", "documents", "chunks", ""],
         r.indexes.map((i) => [
@@ -7590,20 +8312,20 @@ async function list() {
           VectorStorageKind[i.storage] ?? "",
           String(i.documentCount),
           String(i.chunkCount),
-          deleteButton(i.indexName)
+          deleteButton2(i.indexName)
         ])
       ) : el("p", { class: "muted", text: "No index yet: create one from an embedding bundle." })
     );
   } catch (e) {
-    box.replaceChildren(el("p", { class: "error", text: describe(e) }));
+    box5.replaceChildren(el("p", { class: "error", text: describe(e) }));
   }
 }
-function deleteButton(name) {
+function deleteButton2(name) {
   const b = el("button", { type: "button", text: "Delete" });
   b.addEventListener("click", async () => {
     try {
       await search.deleteIndex({ indexName: name });
-      await list();
+      await list3();
     } catch (e) {
       say($("search-create-note"), describe(e), "error");
     }
@@ -7612,11 +8334,11 @@ function deleteButton(name) {
 }
 async function createIndex(ev) {
   ev.preventDefault();
-  const note = $("search-create-note");
+  const note4 = $("search-create-note");
   const name = input("search-create-name").value.trim();
   const bundle = caps?.bundles.find((b) => b.name === select2("search-create-bundle").value);
   if (!name || !bundle?.model) {
-    say(note, "Name the index and pick an embedding bundle.", "error");
+    say(note4, "Name the index and pick an embedding bundle.", "error");
     return;
   }
   try {
@@ -7627,18 +8349,19 @@ async function createIndex(ev) {
         metric: 0 /* COSINE */,
         storage: 0 /* FLAT_F32 */,
         embedBundle: bundle.name,
+        collectionName: input("search-create-collection").value.trim(),
         chunkBudgetTokens: 0
       }
     });
-    say(note, `Created ${name}.`);
-    await list();
+    say(note4, `Created ${name}.`);
+    await list3();
     select2("search-index").value = name;
   } catch (e) {
-    say(note, describe(e), "error");
+    say(note4, describe(e), "error");
   }
 }
 async function addDocuments() {
-  const note = $("search-add-note");
+  const note4 = $("search-add-note");
   const index = select2("search-index").value;
   const typed = document.getElementById("search-docs").value.split("\n\n").map((t) => t.trim()).filter((t) => t.length);
   const files = [...input("search-files").files ?? []];
@@ -7647,7 +8370,7 @@ async function addDocuments() {
     ...files.map((f) => ({ id: f.name, text: f }))
   ];
   if (!index || !docs.length) {
-    say(note, !index ? "Create or pick an index first." : "Type paragraphs (a blank line between) or pick files.", "error");
+    say(note4, !index ? "Create or pick an index first." : "Type paragraphs (a blank line between) or pick files.", "error");
     return;
   }
   indexing?.abort();
@@ -7655,12 +8378,12 @@ async function addDocuments() {
   indexing = ac;
   try {
     const body2 = indexBody(index, docs);
-    say(note, `Uploading ${docs.length} documents, ${size(body2.size)}\u2026`, "busy");
+    say(note4, `Uploading ${docs.length} documents, ${size(body2.size)}\u2026`, "busy");
     const r = await put(TurboSearchService.method.indexDocuments, body2, ac.signal);
-    say(note, `Indexed ${r.indexedDocuments} documents as ${r.indexedChunks} chunks.`);
-    await list();
+    say(note4, `Indexed ${r.indexedDocuments} documents as ${r.indexedChunks} chunks.`);
+    await list3();
   } catch (e) {
-    say(note, describe(e), "error");
+    say(note4, describe(e), "error");
   } finally {
     if (indexing === ac) indexing = null;
   }
@@ -7722,24 +8445,142 @@ async function runSearch(ev) {
     out.replaceChildren(el("p", { class: "error", text: describe(e) }));
   }
 }
-function stop2() {
+function stop4() {
   indexing?.abort();
   indexing = null;
 }
-function init3() {
+function init8() {
   $("search-create").addEventListener("submit", createIndex);
   $("search-add").addEventListener("click", addDocuments);
   $("search-form").addEventListener("submit", runSearch);
-  $("search-refresh").addEventListener("click", list);
+  $("search-refresh").addEventListener("click", list3);
   onCapabilities((c) => {
     caps = c;
-    const embed = c.bundles.filter((b) => b.task === "TASK_EMBED");
-    options(select2("search-create-bundle"), embed.map((b) => b.name), embed.map((b) => `${b.name} (dim ${b.widths[0] ?? "?"})`));
-    const rerank = c.bundles.filter((b) => b.task === "TASK_RERANK").map((b) => b.name);
-    options(select2("search-rerank"), ["", ...rerank], ["no rerank", ...rerank]);
+    const embed2 = c.bundles.filter((b) => b.task === "TASK_EMBED");
+    options(select2("search-create-bundle"), embed2.map((b) => b.name), embed2.map((b) => `${b.name} (dim ${b.widths[0] ?? "?"})`));
+    const rerank2 = c.bundles.filter((b) => b.task === "TASK_RERANK").map((b) => b.name);
+    options(select2("search-rerank"), ["", ...rerank2], ["no rerank", ...rerank2]);
   });
   capabilities().catch(() => void 0);
-  void list();
+  void list3();
+}
+
+// demo/web/src/tabs/semantic.ts
+var utf8 = new TextEncoder();
+var select3 = (id) => $(id);
+var caps2 = null;
+function param2(p) {
+  return create(InferParameterSchema, { parameterChoice: p });
+}
+function texts(name, values) {
+  return { name, datatype: "BYTES", shape: [BigInt(values.length)], contents: { bytesContents: values.map((t) => utf8.encode(t)) } };
+}
+function output(reply, name) {
+  const i = reply.outputs.findIndex((o) => o.name === name);
+  const raw = reply.rawOutputContents[i];
+  if (i < 0 || !raw) throw new Error(`the reply has no ${name}`);
+  return { dv: new DataView(raw.buffer, raw.byteOffset, raw.byteLength), shape: reply.outputs[i].shape.map(Number), datatype: reply.outputs[i].datatype };
+}
+function role(bundle, r) {
+  const b = caps2?.bundles.find((x) => x.name === bundle);
+  return b?.roles.includes(r) ? { prompt_role: param2({ case: "stringParam", value: r }) } : {};
+}
+async function embed(model, query, passages) {
+  const out = $("sem-sim");
+  const q = await inference.modelInfer({ modelName: model, parameters: role(model, "PROMPT_QUERY"), inputs: [texts("texts", [query])] });
+  const p = await inference.modelInfer({ modelName: model, parameters: role(model, "PROMPT_DOCUMENT"), inputs: [texts("texts", passages)] });
+  const qv = vectorsOf(q)[0];
+  const pv = vectorsOf(p);
+  const sim = matrix(pv);
+  const k = Math.max(1, parseInt(input("sem-k").value, 10) || 3);
+  const near = pv.map((v, i) => ({ i, s: cosine(qv, v) })).sort((a, b) => b.s - a.s);
+  out.replaceChildren(
+    el("h3", { text: `Nearest neighbours (${model})` }),
+    table(["rank", "passage", "cosine"], near.slice(0, k).map((n, r) => [String(r + 1), el("span", { class: "quote", title: passages[n.i], text: `#${n.i + 1} ${short(passages[n.i], 60)}` }), n.s.toFixed(4)])),
+    el("h3", { text: "Passage similarity" }),
+    el(
+      "table",
+      { class: "sim" },
+      el("tr", {}, el("th", {}), passages.map((_, j) => el("th", { text: `#${j + 1}` }))),
+      sim.map((row, i) => el("tr", {}, el("td", { class: "text", title: passages[i], text: `#${i + 1} ${short(passages[i], 22)}` }), row.map((x) => el("td", { class: "cell", style: heat(x), text: x.toFixed(3) }))))
+    )
+  );
+}
+async function rerank(model, query, passages) {
+  const meta = await inference.modelMetadata({ name: model });
+  const limits = ["model_info.max_batch", "session_info.max_batch"].map((k) => parseInt(meta.properties[k] ?? "", 10)).filter((n) => n > 0);
+  const batch = limits.length ? Math.min(...limits) : passages.length;
+  const logits = [];
+  for (let at = 0; at < passages.length; at += batch) {
+    const part2 = passages.slice(at, at + batch);
+    const r = await inference.modelInfer({ modelName: model, inputs: [texts("query", [query]), texts("passages", part2)] });
+    const { dv } = output(r, "scores");
+    part2.forEach((_, i) => logits.push(dv.getFloat32(i * 4, true)));
+  }
+  const scored = logits.map((s, i) => ({ i, s })).sort((a, b) => b.s - a.s);
+  $("sem-rerank-out").replaceChildren(
+    el("h3", { text: `Reranked (${model})` }),
+    el("p", { class: "muted", text: "Relevance logits from the cross-encoder, one per (query, passage) pair; higher is more relevant." }),
+    table(["rank", "passage", "logit", "sigmoid"], scored.map((x, r) => [String(r + 1), el("span", { class: "quote", title: passages[x.i], text: `#${x.i + 1} ${short(passages[x.i], 60)}` }), x.s.toFixed(4), (1 / (1 + Math.exp(-x.s))).toFixed(4)]))
+  );
+}
+async function answer(model, question, context) {
+  const topK = Math.max(1, parseInt(input("sem-topk").value, 10) || 3);
+  const r = await inference.modelInfer({
+    modelName: model,
+    parameters: { top_k: param2({ case: "int64Param", value: BigInt(topK) }) },
+    inputs: [texts("question", [question]), texts("context", [context])]
+  });
+  const spans = output(r, "spans");
+  const scores = output(r, "scores");
+  const probs = output(r, "probabilities");
+  const bytes2 = utf8.encode(context);
+  const dec = new TextDecoder();
+  const rows2 = [];
+  for (let i = 0; i < spans.shape[0]; i++) {
+    const [s, e] = [spans.dv.getInt32(i * 8, true), spans.dv.getInt32(i * 8 + 4, true)];
+    rows2.push([String(i + 1), el("span", { class: "quote", text: dec.decode(bytes2.subarray(s, e)) }), `${s}..${e}`, scores.dv.getFloat64(i * 8, true).toFixed(3), probs.dv.getFloat64(i * 8, true).toFixed(4)]);
+  }
+  const p = r.parameters;
+  const abstained = p.abstained?.parameterChoice.case === "boolParam" && p.abstained.parameterChoice.value;
+  const nullP = p.null_probability?.parameterChoice.case === "doubleParam" ? p.null_probability.parameterChoice.value : NaN;
+  $("sem-qa-out").replaceChildren(
+    el("h3", { text: `Answers (${model})` }),
+    el("p", { class: abstained ? "error" : "muted", text: `${abstained ? "The model abstains: no answer clears the null score." : "Spans in the passages, as UTF-8 byte offsets."}${Number.isNaN(nullP) ? "" : ` No-answer probability ${nullP.toFixed(4)}.`}` }),
+    rows2.length ? table(["#", "answer", "bytes", "score", "probability"], rows2) : el("p", { class: "muted", text: "No span." })
+  );
+}
+async function run3() {
+  const note4 = $("sem-note");
+  const query = input("sem-query").value.trim();
+  const passages = $("sem-passages").value.split("\n").map((t) => t.trim()).filter((t) => t.length);
+  const [e, rr, qa] = [select3("sem-embed").value, select3("sem-rerank").value, select3("sem-qa").value];
+  for (const id of ["sem-sim", "sem-rerank-out", "sem-qa-out"]) $(id).replaceChildren();
+  if (!query || !passages.length) return say(note4, "Enter a query and at least one passage.", "error");
+  if (!e && !rr && !qa) return say(note4, "Pick at least one model.", "error");
+  say(note4, "Running\u2026", "busy");
+  const jobs = [
+    [e, "sem-sim", () => embed(e, query, passages)],
+    [rr, "sem-rerank-out", () => rerank(rr, query, passages)],
+    [qa, "sem-qa-out", () => answer(qa, query, passages.join("\n"))]
+  ];
+  await Promise.all(
+    jobs.filter(([m]) => m).map(([, box5, job]) => job().catch((err) => $(box5).replaceChildren(el("p", { class: "error", text: describe(err) }))))
+  );
+  say(note4, "");
+}
+function init9() {
+  $("sem-run").addEventListener("click", () => void run3());
+  onCapabilities((c) => {
+    caps2 = c;
+    for (const [id, task] of [["sem-embed", "TASK_EMBED"], ["sem-rerank", "TASK_RERANK"], ["sem-qa", "TASK_EXTRACTIVE_QA"]]) {
+      const names = c.bundles.filter((b) => b.task === task).map((b) => b.name);
+      const first = select3(id).options.length === 0;
+      options(select3(id), ["", ...names], ["none", ...names]);
+      if (first && names.length) select3(id).value = names[0];
+    }
+  });
+  capabilities().catch((err) => say($("sem-note"), describe(err), "error"));
 }
 
 // demo/web/src/tabs/server.ts
@@ -7756,7 +8597,7 @@ async function status() {
   }
 }
 function renderCapabilities(c) {
-  const box = $("server-caps");
+  const box5 = $("server-caps");
   const bundles2 = table(
     ["name", "task", "model", "widths", "context", "batch", "roles", ""],
     c.bundles.map((b) => [
@@ -7776,18 +8617,18 @@ function renderCapabilities(c) {
   );
   const l = c.server;
   const limits = l ? el("p", { class: "muted", text: `At most ${l.maxLoadedModels} served models and ${l.maxSessionsPerModel} sessions per model.` }) : "";
-  box.replaceChildren(el("h3", { text: "Bundles" }), bundles2, limits, el("h3", { text: "Analysis profiles" }), profiles);
+  box5.replaceChildren(el("h3", { text: "Bundles" }), bundles2, limits, el("h3", { text: "Analysis profiles" }), profiles);
 }
 function unloadButton(name) {
   const b = el("button", { type: "button", text: "Unload" });
   b.addEventListener("click", async () => {
-    const note = $("server-load-note");
+    const note4 = $("server-load-note");
     try {
       await analysis.unloadBundle({ name });
-      say(note, `Unloaded ${name}.`);
+      say(note4, `Unloaded ${name}.`);
       await reload();
     } catch (e) {
-      say(note, describe(e), "error");
+      say(note4, describe(e), "error");
     }
   });
   return b;
@@ -7801,8 +8642,8 @@ async function reload() {
 }
 async function load(ev) {
   ev.preventDefault();
-  const note = $("server-load-note");
-  say(note, "Loading\u2026", "busy");
+  const note4 = $("server-load-note");
+  say(note4, "Loading\u2026", "busy");
   try {
     const r = await analysis.loadBundle({
       name: input("server-load-name").value.trim(),
@@ -7810,32 +8651,13 @@ async function load(ev) {
       sessions: Math.max(1, parseInt(input("server-load-sessions").value, 10) || 1),
       selectDevice: input("server-load-select").checked
     });
-    say(note, `Loaded ${r.capabilities?.name ?? ""} (${r.capabilities?.task ?? ""}).`);
+    say(note4, `Loaded ${r.capabilities?.name ?? ""} (${r.capabilities?.task ?? ""}).`);
     await reload();
   } catch (e) {
-    say(note, describe(e), "error");
+    say(note4, describe(e), "error");
   }
 }
-async function loadCatalog() {
-  const box = $("server-catalog");
-  say($("server-catalog-note"), "Reading the catalog\u2026", "busy");
-  try {
-    const [cat, installed] = await Promise.all([catalog.listModelCatalog({}), catalog.listInstalledModels({})]);
-    box.replaceChildren(
-      el("h3", { text: "Catalog" }),
-      table(
-        ["id", "kind", "language", "version", "licence", "size", "installed"],
-        cat.entries.map((e) => [e.id, e.kind, e.language, e.version, e.licence, size(e.totalBytes), e.installed ? "yes" : ""])
-      ),
-      el("h3", { text: "Installed" }),
-      table(["id", "version", "files", "size"], installed.models.map((m) => [m.id, m.version, String(m.files.length), size(m.totalBytes)]))
-    );
-    say($("server-catalog-note"), "");
-  } catch (e) {
-    say($("server-catalog-note"), describe(e), "error");
-  }
-}
-function init4() {
+function init10() {
   const t = input("token");
   t.value = token();
   t.addEventListener("change", () => {
@@ -7844,7 +8666,6 @@ function init4() {
     void reload();
   });
   $("server-load").addEventListener("submit", load);
-  $("server-catalog-load").addEventListener("click", loadCatalog);
   void status();
   void reload();
 }
@@ -8020,13 +8841,13 @@ async function sha256Blob(b, progress) {
 
 // demo/web/src/tabs/vocabulary.ts
 var busy = null;
-var select3 = (id) => $(id);
+var select4 = (id) => $(id);
 function start() {
   busy?.abort();
   busy = new AbortController();
   return busy;
 }
-function stop3() {
+function stop5() {
   busy?.abort();
   busy = null;
 }
@@ -8037,22 +8858,22 @@ function actions(id) {
   del.addEventListener("click", async () => {
     try {
       await vocabulary.deleteVocabularyArtifact({ artifactId: id });
-      await list2();
+      await list4();
     } catch (e) {
       say($("vocab-note"), describe(e), "error");
     }
   });
   return el("span", {}, get, " ", del);
 }
-async function list2() {
-  const box = $("vocab-lists");
+async function list4() {
+  const box5 = $("vocab-lists");
   try {
     const [f, d, v] = await Promise.all([vocabulary.listDictionaryFormats({}), vocabulary.listDictionaries({}), vocabulary.listVocabularies({})]);
     const importable = f.formats.filter((x) => x.importable);
-    options(select3("vocab-format"), importable.map((x) => x.formatId), importable.map((x) => `${x.formatId}: ${x.description}`));
-    options(select3("vocab-seed"), ["", ...d.dictionaries.map((x) => x.artifactId)], ["no seed dictionary", ...d.dictionaries.map((x) => x.name || x.artifactId)]);
+    options(select4("vocab-format"), importable.map((x) => x.formatId), importable.map((x) => `${x.formatId}: ${x.description}`));
+    options(select4("vocab-seed"), ["", ...d.dictionaries.map((x) => x.artifactId)], ["no seed dictionary", ...d.dictionaries.map((x) => x.name || x.artifactId)]);
     const l = f.limits;
-    box.replaceChildren(
+    box5.replaceChildren(
       l ? el("p", {
         class: "muted",
         text: l.store ? `Store on${l.admin ? ", writable" : ", read only"}. Dictionaries up to ${size(l.maxDictionaryUploadBytes)}, learning up to ${size(l.maxLearnBytes)}, n-grams up to ${l.maxNgramSize}.` : "The server keeps no vocabulary store."
@@ -8069,26 +8890,26 @@ async function list2() {
       )
     );
   } catch (e) {
-    box.replaceChildren(el("p", { class: "error", text: describe(e) }));
+    box5.replaceChildren(el("p", { class: "error", text: describe(e) }));
   }
 }
 async function importDictionary(ev) {
   ev.preventDefault();
-  const note = $("vocab-note");
+  const note4 = $("vocab-note");
   const file = input("vocab-file").files?.[0];
   if (!file) {
-    say(note, "Pick a dictionary file.", "error");
+    say(note4, "Pick a dictionary file.", "error");
     return;
   }
   const ac = start();
   try {
-    const sha = await sha256Blob(file, (done) => say(note, `Hashing ${size(done)} of ${size(file.size)}\u2026`, "busy"));
-    say(note, `Uploading ${size(file.size)}\u2026`, "busy");
+    const sha = await sha256Blob(file, (done) => say(note4, `Hashing ${size(done)} of ${size(file.size)}\u2026`, "busy"));
+    say(note4, `Uploading ${size(file.size)}\u2026`, "busy");
     const d = await put(
       TurboVocabularyService.method.importDictionary,
       importBody(
         {
-          formatId: select3("vocab-format").value,
+          formatId: select4("vocab-format").value,
           language: input("vocab-language").value.trim(),
           name: input("vocab-name").value.trim() || file.name,
           byteSize: BigInt(file.size),
@@ -8099,19 +8920,19 @@ async function importDictionary(ev) {
       ),
       ac.signal
     );
-    say(note, `Imported ${d.name || d.artifactId}: ${d.entryCount} entries.`);
-    await list2();
+    say(note4, `Imported ${d.name || d.artifactId}: ${d.entryCount} entries.`);
+    await list4();
   } catch (e) {
-    say(note, describe(e), "error");
+    say(note4, describe(e), "error");
   }
 }
 async function learn(ev) {
   ev.preventDefault();
-  const note = $("vocab-note");
+  const note4 = $("vocab-note");
   const typed = document.getElementById("vocab-docs").value.split("\n\n").map((t) => t.trim()).filter((t) => t.length);
   const docs = [...typed, ...[...input("vocab-learn-files").files ?? []]];
   if (!docs.length) {
-    say(note, "Type documents (a blank line between) or pick files.", "error");
+    say(note4, "Type documents (a blank line between) or pick files.", "error");
     return;
   }
   const ac = start();
@@ -8125,20 +8946,20 @@ async function learn(ev) {
         includeNgrams: input("vocab-ngrams").checked,
         minNgramSize: 2,
         maxNgramSize: 3,
-        dictionaryArtifactId: select3("vocab-seed").value
+        dictionaryArtifactId: select4("vocab-seed").value
       },
       docs
     );
-    say(note, `Uploading ${docs.length} documents, ${size(body2.size)}\u2026`, "busy");
+    say(note4, `Uploading ${docs.length} documents, ${size(body2.size)}\u2026`, "busy");
     const v = await put(TurboVocabularyService.method.learnVocabulary, body2, ac.signal);
-    say(note, `Learned ${v.artifactId}: ${v.termCount} terms and ${v.ngramCount} n-grams from ${v.documents} documents.`);
-    await list2();
+    say(note4, `Learned ${v.artifactId}: ${v.termCount} terms and ${v.ngramCount} n-grams from ${v.documents} documents.`);
+    await list4();
   } catch (e) {
-    say(note, describe(e), "error");
+    say(note4, describe(e), "error");
   }
 }
 async function fetchArtifact(id) {
-  const note = $("vocab-note");
+  const note4 = $("vocab-note");
   const ac = start();
   const parts = [];
   let name = id;
@@ -8151,39 +8972,384 @@ async function fetchArtifact(id) {
       else if (f.case === "data") {
         parts.push(f.value);
         got += f.value.length;
-        say(note, `Downloading ${name}: ${size(got)}\u2026`, "busy");
+        say(note4, `Downloading ${name}: ${size(got)}\u2026`, "busy");
       }
     }
     download(name, parts, "application/octet-stream");
-    say(note, `Downloaded ${name}, ${size(got)}.`);
+    say(note4, `Downloaded ${name}, ${size(got)}.`);
   } catch (e) {
-    say(note, describe(e), "error");
+    say(note4, describe(e), "error");
   }
 }
-function init5() {
+function init11() {
   $("vocab-import").addEventListener("submit", importDictionary);
   $("vocab-learn").addEventListener("submit", learn);
-  $("vocab-refresh").addEventListener("click", list2);
-  $("vocab-stop").addEventListener("click", stop3);
-  void list2();
+  $("vocab-refresh").addEventListener("click", list4);
+  $("vocab-stop").addEventListener("click", stop5);
+  void list4();
+}
+
+// demo/web/src/graphwire.ts
+var MAGIC = "TGRF";
+var FORMAT_VERSION = 1;
+var LISTED2 = 64;
+var WireError = class extends Error {
+  constructor(message, at) {
+    super(`${message} at byte ${at}`);
+    this.at = at;
+  }
+  at;
+};
+var Cursor = class {
+  constructor(buf) {
+    this.buf = buf;
+    this.dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
+  }
+  buf;
+  at = 0;
+  dv;
+  utf8 = new TextDecoder("utf-8", { fatal: true });
+  take(n) {
+    if (this.at + n > this.buf.length) throw new WireError("truncated", this.at);
+    const out = this.buf.subarray(this.at, this.at + n);
+    this.at += n;
+    return out;
+  }
+  u8() {
+    return this.take(1)[0];
+  }
+  u16() {
+    const v = this.dv.getUint16(this.at, true);
+    this.take(2);
+    return v;
+  }
+  u32() {
+    if (this.at + 4 > this.buf.length) throw new WireError("truncated", this.at);
+    const v = this.dv.getUint32(this.at, true);
+    this.at += 4;
+    return v;
+  }
+  u64() {
+    if (this.at + 8 > this.buf.length) throw new WireError("truncated", this.at);
+    const v = this.dv.getBigUint64(this.at, true);
+    this.at += 8;
+    return v;
+  }
+  str() {
+    const start3 = this.at;
+    const b = this.take(this.u32());
+    try {
+      return this.utf8.decode(b);
+    } catch {
+      throw new WireError("a string that is not UTF-8", start3);
+    }
+  }
+};
+function part(c, name, read) {
+  const at = c.at;
+  const r = read(c);
+  return { name, at, len: c.at - at, ...r };
+}
+function str(c, name) {
+  return part(c, name, (c2) => ({ value: c2.str() }));
+}
+function tagError(c, what, tag) {
+  return new WireError(`${what} tag of ${tag}`, c.at - 1);
+}
+function layerRef(c, name) {
+  return part(c, name, (c2) => ({ value: `${c2.str()}#${c2.str()}` }));
+}
+function edits(c, name) {
+  return part(c, name, (c2) => {
+    const n = c2.u32();
+    const parts = [];
+    for (let i = 0; i < n; i++) {
+      const at = c2.at;
+      const [ps, pe, cs, ce] = [c2.u32(), c2.u32(), c2.u32(), c2.u32()];
+      if (i < LISTED2) parts.push({ name: `edit ${i}`, at, len: 16, value: `${ps}..${pe} \u2192 ${cs}..${ce}` });
+    }
+    return { value: `${n} edits${n > LISTED2 ? `, first ${LISTED2} listed` : ""}`, parts };
+  });
+}
+function error(c) {
+  return part(c, "error", (c2) => {
+    const tag = c2.u8();
+    const one = (kind, parts) => ({ value: kind, parts });
+    switch (tag) {
+      case 0:
+        return one("missing", [layerRef(c2, "layer")]);
+      case 1:
+        return one("duplicate", [layerRef(c2, "layer")]);
+      case 2:
+        return one("clash", [layerRef(c2, "layer")]);
+      case 3:
+        return one("bounds", [layerRef(c2, "layer"), str(c2, "view"), str(c2, "detail")]);
+      case 4:
+        return one("misaligned", [layerRef(c2, "layer"), layerRef(c2, "anchor"), u32(c2, "len"), u32(c2, "anchor len")]);
+      case 5:
+        return one("unaligned", [layerRef(c2, "layer"), layerRef(c2, "on"), str(c2, "read")]);
+      case 6:
+        return one("invalid", [layerRef(c2, "layer"), str(c2, "detail")]);
+      case 7:
+        return one("pipeline", [str(c2, "detail")]);
+      case 8:
+        return one("annotator", [str(c2, "annotator"), str(c2, "detail")]);
+      case 9:
+        return one("skipped", [str(c2, "reason")]);
+      case 10:
+        return one("offset", [
+          part(c2, "unit", (c3) => {
+            const u = c3.u8();
+            if (u > 1) throw tagError(c3, "an offset unit", u);
+            return { value: u === 0 ? "utf16" : "code point" };
+          }),
+          u32(c2, "at"),
+          part(c2, "reason", (c3) => {
+            const r = c3.u8();
+            if (r === 0) return { value: `past end, len ${c3.u32()}` };
+            if (r === 1) return { value: "inside a character" };
+            throw tagError(c3, "an offset reason", r);
+          })
+        ]);
+      case 11:
+        return one("source", [
+          part(c2, "reason", (c3) => {
+            const r = c3.u8();
+            if (r === 0) return { value: `too long, ${c3.u64()} bytes` };
+            if (r === 1) return { value: `misaligned: ${c3.str()}` };
+            throw tagError(c3, "a source error", r);
+          })
+        ]);
+      default:
+        throw tagError(c2, "an error", tag);
+    }
+  });
+}
+function u32(c, name) {
+  return part(c, name, (c2) => ({ value: String(c2.u32()) }));
+}
+function status2(c) {
+  return part(c, "status", (c2) => {
+    const tag = c2.u8();
+    if (tag === 0) return { value: "complete" };
+    if (tag === 1) return { value: `skipped: ${c2.str()}` };
+    if (tag === 2) return { value: "failed", parts: [error(c2)] };
+    throw tagError(c2, "a status", tag);
+  });
+}
+function option(c, name, what, read) {
+  return part(c, name, (c2) => {
+    const tag = c2.u8();
+    if (tag === 0) return { value: "none" };
+    if (tag === 1) return read(c2);
+    throw tagError(c2, what, tag);
+  });
+}
+function refs(c, name) {
+  return part(c, name, (c2) => {
+    const n = c2.u32();
+    const parts = [];
+    for (let i = 0; i < n; i++) parts.push(layerRef(c2, `${name} ${i}`));
+    return { value: parts.map((p) => p.value).join(", ") || "none", parts };
+  });
+}
+function provenance(c) {
+  return part(c, "provenance", (c2) => {
+    const parts = [
+      str(c2, "annotator"),
+      str(c2, "version"),
+      part(c2, "config", (c3) => ({ value: c3.u64().toString(16).padStart(16, "0") })),
+      option(c2, "model", "a model", (c3) => ({ parts: [str(c3, "id"), str(c3, "revision"), str(c3, "sha256")] })),
+      option(c2, "execution", "an execution", (c3) => ({ parts: [str(c3, "backend"), str(c3, "device"), str(c3, "precision")] })),
+      refs(c2, "reads"),
+      refs(c2, "on")
+    ];
+    return { value: `${parts[0].value} ${parts[1].value}`, parts };
+  });
+}
+function sized(c, name) {
+  return part(c, name, (c2) => {
+    const n = c2.u32();
+    c2.take(n);
+    return { value: `${n} bytes` };
+  });
+}
+function walkGraph(bytes2) {
+  const c = new Cursor(bytes2);
+  const parts = [];
+  parts.push(
+    part(c, "magic", (c2) => {
+      const m = String.fromCharCode(...c2.take(4));
+      if (m !== MAGIC) throw new WireError("not a document graph (bad magic)", 0);
+      return { value: m };
+    })
+  );
+  parts.push(
+    part(c, "format version", (c2) => {
+      const v = c2.u16();
+      if (v !== FORMAT_VERSION) throw new WireError(`format version ${v}, not ${FORMAT_VERSION}`, 4);
+      return { value: String(v) };
+    })
+  );
+  parts.push(sized(c, "source bytes"));
+  parts.push(part(c, "source text", (c2) => ({ value: `${c2.str().length} UTF-16 units` })));
+  parts.push(option(c, "source alignment", "an alignment", (c2) => ({ parts: [edits(c2, "edits")] })));
+  parts.push(
+    part(c, "views", (c2) => {
+      const n = c2.u32();
+      const views = [];
+      for (let i = 0; i < n; i++) {
+        views.push(
+          part(c2, `view ${i}`, (c3) => {
+            const p = [
+              str(c3, "instance"),
+              status2(c3),
+              provenance(c3),
+              option(c3, "parent", "a parent", (c4) => ({ value: c4.str() })),
+              option(c3, "text", "a text", (c4) => ({ value: `${c4.str().length} UTF-16 units` })),
+              edits(c3, "edits")
+            ];
+            return { value: p[0].value, parts: p };
+          })
+        );
+      }
+      return { value: `${n} views`, parts: views };
+    })
+  );
+  parts.push(
+    part(c, "layers", (c2) => {
+      const n = c2.u32();
+      const layers = [];
+      for (let i = 0; i < n; i++) {
+        layers.push(
+          part(c2, `layer ${i}`, (c3) => {
+            const p = [
+              str(c3, "layer"),
+              str(c3, "instance"),
+              part(c3, "schema", (c4) => ({ value: String(c4.u16()) })),
+              u32(c3, "items"),
+              status2(c3),
+              provenance(c3),
+              option(c3, "body", "a body", (c4) => {
+                const n2 = c4.u32();
+                c4.take(n2);
+                return { value: `${n2} bytes` };
+              })
+            ];
+            return { value: `${p[0].value}#${p[1].value}`, parts: p };
+          })
+        );
+      }
+      return { value: `${n} layers`, parts: layers };
+    })
+  );
+  if (c.at !== bytes2.length) throw new WireError(`${bytes2.length - c.at} trailing bytes`, c.at);
+  return { name: "document graph", at: 0, len: bytes2.length, value: `format ${FORMAT_VERSION}`, parts };
+}
+function hex(bytes2, p, n = 32) {
+  const b = bytes2.subarray(p.at, p.at + Math.min(p.len, n));
+  let s = "";
+  for (const x of b) s += (s ? " " : "") + x.toString(16).padStart(2, "0");
+  return p.len > n ? `${s} \u2026` : s;
+}
+
+// demo/web/src/tabs/wire.ts
+var box4 = () => $("wire-out");
+var note3 = () => $("wire-note");
+function bar2(p, total) {
+  const pct = total ? 100 * p.len / total : 0;
+  return el("span", { class: "share", title: `${pct.toFixed(1)}%` }, el("span", { style: `width: ${pct.toFixed(2)}%` }));
+}
+function tree(bytes2, p, total) {
+  const line = el(
+    "span",
+    { class: "wire", title: `bytes ${p.at}..${p.at + p.len}: ${hex(bytes2, p)}` },
+    el("b", { text: p.name }),
+    p.value ? el("span", { class: "muted", text: ` ${p.value}` }) : "",
+    el("span", { class: "size", text: size(p.len) }),
+    bar2(p, total)
+  );
+  if (!p.parts?.length) return el("div", { class: "leaf" }, line);
+  return el("details", {}, el("summary", {}, line), el("div", { class: "kids" }, p.parts.map((c) => tree(bytes2, c, total))));
+}
+function render5() {
+  const d = doc();
+  if (!d) return void box4().replaceChildren(el("p", { class: "muted", text: "Analyze a document or open a graph file." }));
+  try {
+    const g = walkGraph(d.graph);
+    const layers = g.parts?.find((p) => p.name === "layers")?.parts ?? [];
+    const bodies = layers.reduce((n, l) => n + (l.parts?.find((p) => p.name === "body")?.len ?? 0), 0);
+    box4().replaceChildren(
+      el("p", { class: "muted", text: `${size(d.graph.length)} in all, ${size(bodies)} of it layer bodies. Open a part for its fields; hover for its offsets and first bytes.` }),
+      el("div", { class: "kids top" }, (g.parts ?? []).map((p) => tree(d.graph, p, g.len)))
+    );
+  } catch (e) {
+    const where = e instanceof WireError ? ` (byte ${e.at})` : "";
+    box4().replaceChildren(el("p", { class: "error", text: `${e instanceof Error ? e.message : String(e)}${where}` }));
+  }
+}
+async function roundTrip() {
+  const d = doc();
+  if (!d) return say(note3(), "Analyze a document or open a graph file.", "error");
+  try {
+    const r = await analysis.roundTripDocumentGraph({ graph: d.graph });
+    const same = r.graph.length === d.graph.length && r.graph.every((b, i) => b === d.graph[i]);
+    say(note3(), `The server re-exported ${size(r.graph.length)}, ${r.layers.length} layers and ${r.views.length} views: ${same ? "byte for byte the same" : "different bytes"}.`, same ? "" : "error");
+  } catch (e) {
+    say(note3(), describe(e), "error");
+  }
+}
+async function open() {
+  const f = input("wire-file").files?.[0];
+  if (!f) return;
+  try {
+    const graph = new Uint8Array(await f.arrayBuffer());
+    const r = await analysis.roundTripDocumentGraph({ graph });
+    setDoc({ graph, views: r.views, source: r.sourceText });
+    say(note3(), `Opened ${f.name}: ${r.layers.length} layers, ${r.views.length} views.`);
+  } catch (e) {
+    say(note3(), describe(e), "error");
+  }
+}
+function init12() {
+  const again = lazy($("analyze-wire"), render5);
+  onDoc(() => again());
+  $("wire-roundtrip").addEventListener("click", () => void roundTrip());
+  $("wire-file").addEventListener("change", () => void open());
+  $("wire-save").addEventListener("click", () => {
+    const d = doc();
+    if (d) download("document.graph", [d.graph], "application/octet-stream");
+  });
 }
 
 // demo/web/src/main.ts
-var stops = { analyze: stop, search: stop2, vocabulary: stop3 };
-function show(name) {
-  for (const [tab, stop4] of Object.entries(stops)) if (tab !== name) stop4();
+var stops = {
+  analyze: stop,
+  search: () => (stop4(), stop2()),
+  vocabulary: stop5,
+  models: stop3
+};
+function show2(name) {
+  for (const [tab, stop6] of Object.entries(stops)) if (tab !== name) stop6();
   for (const b of document.querySelectorAll("nav.tabs button")) b.setAttribute("aria-selected", String(b.dataset.tab === name));
   for (const p of document.querySelectorAll("section.panel")) p.hidden = p.id !== `tab-${name}`;
   if (location.hash !== `#${name}`) history.replaceState(null, "", `#${name}`);
 }
 function start2() {
-  for (const b of document.querySelectorAll("nav.tabs button")) b.addEventListener("click", () => show(b.dataset.tab ?? "embed"));
-  init4();
-  init2();
+  for (const b of document.querySelectorAll("nav.tabs button")) b.addEventListener("click", () => show2(b.dataset.tab ?? "embed"));
+  init10();
+  init5();
+  init9();
   init();
   init3();
-  init5();
+  init4();
+  init7();
+  init12();
+  init8();
+  init2();
+  init11();
+  init6();
   const want = location.hash.slice(1);
-  show(document.getElementById(`tab-${want}`) ? want : "embed");
+  show2(document.getElementById(`tab-${want}`) ? want : "embed");
 }
 start2();

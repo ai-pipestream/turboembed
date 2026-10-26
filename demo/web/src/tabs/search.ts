@@ -72,6 +72,7 @@ async function createIndex(ev: Event): Promise<void> {
         metric: DistanceMetric.COSINE,
         storage: VectorStorageKind.FLAT_F32,
         embedBundle: bundle.name,
+        collectionName: input("search-create-collection").value.trim(),
         chunkBudgetTokens: 0,
       },
     });

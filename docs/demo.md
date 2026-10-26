@@ -297,25 +297,66 @@ for any refused call.
   (docs/cpu.md), so there the columns are the same. Optional parameters
   are a prompt role (`prompt_role`) and a token budget per text
   (`max_tokens` with `truncate` `TRUNCATE_RIGHT`).
+- Semantic: one query against passages, one per line. With an
+  embedding bundle, the query embedded with prompt role
+  `PROMPT_QUERY` and the passages with `PROMPT_DOCUMENT` (when the
+  bundle lists the role), the nearest passages by cosine, and the
+  passages' similarity matrix. With a reranker, `ModelInfer` with
+  `query` and `passages` (docs/kserve.md, Tasks), in calls of at most
+  the model's `max_batch` passages, ranked by logit. With an extractive
+  QA model, `ModelInfer` with `question` and the passages as one
+  `context`, the `top_k` answer spans decoded from their UTF-8 byte
+  offsets, with score, probability and the no-answer probability.
 - Analyze: `AnalyzeDocumentProgressive` as it streams, each step with
   its time and layers and any failed step with what it skipped; then
   the finished graph through `InspectDocumentWindow`, the text with its
   annotations marked, a chip per layer to show only some, paging, and
   heatmap lanes; and `FormatDocument` in any format `ListOutputFormats`
-  names, shown when it is text and offered as a download.
+  names, shown when it is text and offered as a download. Four panels
+  below it each call when opened, and again when the graph changes:
+  - Normalization X-Ray: `InspectDocumentWindow` with
+    `xray_target_view` between any two views, the text with each edit
+    run inserted or deleted inline, and a row per normalization step.
+  - Annotation drawer: `InspectDocumentGraph`'s typed layers for a
+    view, a chip per layer, and the picked layer's annotations, 200 to
+    a page, each with its span, text, kind, probability and fields
+    named from the protobuf descriptors; then the models that made them.
+  - Chunk projection: `ProjectChunks` in 2 or 3 dimensions, the chunk
+    vectors drawn on a canvas by level, the boundary drift curve with
+    its cuts, the term vector stacks, and the strategy matrix for the
+    budgets typed as `name:max:target`. A graph has vectors only when
+    its profile embeds (`default-v1` with an embedding bundle).
+  - Graph wire inspector: the graph's binary format (`TGRF`, as
+    `analysis/core/src/export/graph.rs` writes it) read in the page into
+    a tree of its parts with each one's offset,
+    size and share; `RoundTripDocumentGraph` and a byte comparison; the
+    graph saved as a file, or a graph file opened, checked by
+    `RoundTripDocumentGraph` and handed to every panel.
 - Search: `ListIndexes`; `CreateIndex` (write) from an embedding bundle,
   its model, first width, cosine and flat F32 storage; typed paragraphs
   and picked files added with the `IndexDocuments` upload (write); and
   `Search` with each hit's score, signal scores and matched spans, and
-  the document heat. `DeleteIndex` is a write.
+  the document heat. `DeleteIndex` is a write. Collections:
+  `ListCollections`, `SetCollection` and `DeleteCollection` (writes), an
+  index created with a collection name feeding it, and
+  `WatchCollection` streaming each vocabulary drift report (OOV ratio,
+  coverage, new terms) as documents are indexed, until stopped.
 - Vocabulary: the store's limits and formats, the stored dictionaries
   and vocabularies, `ImportDictionary` and `LearnVocabulary` as uploads
   (writes), `DownloadVocabulary` streamed into a file, and
   `DeleteVocabularyArtifact` (write).
 - Server: the server's name, version and readiness (`ServerLive`,
   `ServerReady`, `ServerMetadata`); `Capabilities`' bundles, analysis
-  profiles and limits; `LoadBundle` and `UnloadBundle` (writes); and the
-  model catalog and installed models when the server keeps a catalog.
+  profiles and limits; and `LoadBundle` and `UnloadBundle` (writes).
+- Models: for a user name, `ListModelCatalog` with each artifact's
+  licence terms the user has still to accept, each shown before its
+  `RecordLicenceAcceptance` (write), and `InstallModel` (write) with its
+  stages and files streamed into a progress bar; `ListInstalledModels`.
+  `ListTeachers`, `TrainStaticModel` (write) streaming each stage with
+  its counts, explained variance and quality, and `ListStaticModels`
+  with `DeleteStaticModel` (write). Without `--catalog-dir` or
+  `--training-dir` on the server, the calls that need one say
+  `unimplemented`.
 
 The time shown is the round trip the browser saw for one request,
 through the demo and the server, with the models called one after

@@ -15,9 +15,11 @@
   </label>
   <nav class="tabs">
     <button type="button" data-tab="embed">Embed</button>
+    <button type="button" data-tab="semantic">Semantic</button>
     <button type="button" data-tab="analyze">Analyze</button>
     <button type="button" data-tab="search">Search</button>
     <button type="button" data-tab="vocabulary">Vocabulary</button>
+    <button type="button" data-tab="models">Models</button>
     <button type="button" data-tab="server">Server</button>
   </nav>
 </header>
@@ -58,6 +60,34 @@ How do I reset my router?</textarea>
   <div id="embed-results" class="results"></div>
 </section>
 
+<section class="panel split" id="tab-semantic" hidden>
+  <div class="box">
+    <h2>Query</h2>
+    <input id="sem-query" class="wide" value="Who wrote the first published program?">
+    <h2>Passages</h2>
+    <p class="muted">One passage per line.</p>
+    <textarea id="sem-passages" rows="7" wrap="off" spellcheck="false">Ada Lovelace wrote the first published program in 1843.
+Charles Babbage designed the Analytical Engine in London.
+The central bank raised interest rates again.
+Grace Hopper wrote one of the first compilers.
+A kitten naps in the warm sun by the window.</textarea>
+    <div class="options">
+      <label>Embedding model <select id="sem-embed"></select></label>
+      <label>Neighbours <input id="sem-k" type="number" min="1" value="3" class="narrow"></label>
+      <label>Reranker <select id="sem-rerank"></select></label>
+      <label>QA model <select id="sem-qa"></select></label>
+      <label>Answers <input id="sem-topk" type="number" min="1" value="3" class="narrow"></label>
+    </div>
+    <button id="sem-run" class="primary">Run</button>
+    <p id="sem-note" class="note" hidden></p>
+  </div>
+  <div class="results">
+    <div class="card" id="sem-sim"></div>
+    <div class="card" id="sem-rerank-out"></div>
+    <div class="card" id="sem-qa-out"></div>
+  </div>
+</section>
+
 <section class="panel split" id="tab-analyze" hidden>
   <div class="box">
     <h2>Document</h2>
@@ -85,6 +115,36 @@ The engine was never built, but her notes describe how it could compute Bernoull
   <div class="results">
     <div class="card"><h3>Layers</h3><div id="analyze-layers"></div></div>
     <div class="card" id="analyze-window"></div>
+    <details class="card" id="analyze-xray">
+      <summary>Normalization X-Ray</summary>
+      <div class="row">From <select id="xray-from"></select> to <select id="xray-to"></select></div>
+      <div id="xray-out"></div>
+    </details>
+    <details class="card" id="analyze-drawer">
+      <summary>Annotation drawer</summary>
+      <div class="row">View <select id="drawer-view"></select></div>
+      <div id="drawer-out"></div>
+    </details>
+    <details class="card" id="analyze-projection">
+      <summary>Chunk projection</summary>
+      <div class="row">
+        <select id="projection-dims"><option value="2">2D</option><option value="3">3D</option></select>
+        <label><input id="projection-drift" type="checkbox" checked> drift curve</label>
+        <input id="projection-budgets" value="small:32:24, large:128:96" title="chunking budgets as name:max:target">
+        <button id="projection-run" type="button">Project</button>
+      </div>
+      <div id="projection-out"></div>
+    </details>
+    <details class="card" id="analyze-wire">
+      <summary>Graph wire inspector</summary>
+      <div class="row">
+        <button id="wire-roundtrip" type="button">Round trip on the server</button>
+        <button id="wire-save" type="button">Save the graph</button>
+        <label>Open a graph file <input id="wire-file" type="file"></label>
+      </div>
+      <p id="wire-note" class="note" hidden></p>
+      <div id="wire-out"></div>
+    </details>
   </div>
 </section>
 
@@ -94,6 +154,7 @@ The engine was never built, but her notes describe how it could compute Bernoull
     <form id="search-create" class="options">
       <label>Name <input id="search-create-name" autocomplete="off" value="demo"></label>
       <label>Embedding bundle <select id="search-create-bundle"></select></label>
+      <label>Collection <input id="search-create-collection" autocomplete="off" value="demo-docs"></label>
       <button type="submit">Create</button>
     </form>
     <p id="search-create-note" class="note" hidden></p>
@@ -122,6 +183,23 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
         <button type="submit" class="go">Search</button>
       </form>
       <div id="search-results"></div>
+    </div>
+    <div class="card">
+      <div class="head"><h3>Collections</h3><button id="coll-refresh" type="button">Refresh</button></div>
+      <form id="coll-set" class="row">
+        <input id="coll-name" autocomplete="off" value="demo-docs" placeholder="collection">
+        <input id="coll-baseline" autocomplete="off" placeholder="baseline terms, space separated">
+        <input id="coll-threshold" type="number" min="0" max="1" step="0.05" value="0" class="narrow" title="OOV alert threshold">
+        <button type="submit">Set</button>
+      </form>
+      <div id="coll-list"></div>
+      <div class="row">
+        <button id="coll-watch" type="button" class="go">Watch</button>
+        <button id="coll-stop" type="button">Stop</button>
+        <label>min OOV <input id="coll-min" type="number" min="0" max="1" step="0.05" value="0" class="narrow"></label>
+      </div>
+      <p id="coll-note" class="note" hidden></p>
+      <ol id="coll-events" class="steps"></ol>
     </div>
   </div>
 </section>
@@ -173,13 +251,44 @@ The Analytical Engine was a proposed mechanical general purpose computer.</texta
       <button type="submit">Load</button>
     </form>
     <p id="server-load-note" class="note" hidden></p>
-    <h2>Models on disk</h2>
-    <button id="server-catalog-load" type="button">Read the catalog</button>
-    <p id="server-catalog-note" class="note" hidden></p>
   </div>
   <div class="results">
     <div class="card" id="server-caps"></div>
-    <div class="card" id="server-catalog"></div>
+  </div>
+</section>
+
+<section class="panel split" id="tab-models" hidden>
+  <div class="box">
+    <h2>Catalog</h2>
+    <div class="options">
+      <label>User <input id="models-user" autocomplete="off" value="demo"></label>
+    </div>
+    <button id="models-catalog-load" type="button">Read the catalog</button>
+    <p id="models-note" class="note" hidden></p>
+    <h2>Distill a static model</h2>
+    <form id="train-form" class="options">
+      <label>Name <input id="train-name" autocomplete="off" value="static-demo"></label>
+      <label>Teacher <select id="train-teacher"></select></label>
+      <label>Width <input id="train-dims" type="number" min="0" value="0" class="narrow"> 0 is the default</label>
+      <label>Type <select id="train-dtype"><option>F32</option><option>F16</option></select></label>
+      <label>Learned vocabulary <input id="train-vocabulary" autocomplete="off" placeholder="artifact id, optional"></label>
+      <textarea id="train-terms" rows="3" spellcheck="false" placeholder="more terms, one per line"></textarea>
+      <div class="row"><button type="submit" class="go">Train</button><button id="train-stop" type="button">Stop</button></div>
+    </form>
+    <p id="train-note" class="note" hidden></p>
+  </div>
+  <div class="results">
+    <div class="card" id="models-catalog"><p class="muted">Read the catalog to list the models it offers.</p></div>
+    <div class="card" id="models-install"></div>
+    <div class="card">
+      <h3>Training</h3>
+      <div id="train-progress"></div>
+      <ol id="train-steps" class="steps"></ol>
+    </div>
+    <div class="card">
+      <div class="head"><h3>Teachers and static models</h3><button id="train-refresh" type="button">Refresh</button></div>
+      <div id="models-static"></div>
+    </div>
   </div>
 </section>
 </main>
