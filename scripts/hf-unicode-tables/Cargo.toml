@@ -1,0 +1,17 @@
+# Generates analysis/unicode/src/normalize/hf/tables.rs from the Unicode
+# tables Hugging Face tokenizers 0.23.2 normalizes with. These two crates
+# left the workspace in #1344; they are read here, outside it, only to
+# write the frozen deltas.
+[package]
+name = "hf-unicode-tables"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+turbo-unicode = { path = "../../analysis/unicode" }
+unicode_categories = "=0.1.1"
+unicode-normalization-alignments = "=0.1.12"
+
+# Not a member of the turbo workspace.
+[workspace]

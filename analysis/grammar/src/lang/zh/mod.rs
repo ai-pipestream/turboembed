@@ -21,6 +21,7 @@ impl WordForms for ChineseUnits {
     }
 }
 impl Grammar for ChineseUnits {
+    // Chinese permits Han boundaries only; the shared predicate also permits kana.
     fn word_boundary(&self) -> Option<fn(&str, &str) -> bool> {
         Some(|left, right| {
             left.chars()

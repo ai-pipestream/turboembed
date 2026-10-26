@@ -1,7 +1,6 @@
 use super::{Config, Encoder};
 use crate::status::{Result, invalid};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::{fs, io::Read, path::Path};
 
 /// A separate, versioned encoder package for the Rust extraction API.
@@ -46,7 +45,7 @@ impl PackageManifest {
 
 pub const MAX_WEIGHT_BYTES: u64 = 2_147_483_648;
 pub fn digest(bytes: &[u8]) -> String {
-    Sha256::digest(bytes).iter().map(|b| format!("{b:02x}")).collect()
+    turbo_sha256::sha256(bytes).to_hex()
 }
 fn hex(s: &str, n: usize) -> bool {
     s.len() == n && s.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
