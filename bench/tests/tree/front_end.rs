@@ -6,17 +6,6 @@
 
 use std::path::Path;
 
-/// What the JSON gateway from #1271 left on main, which #1360 removes.
-/// The list only shrinks: an entry that no longer holds fails the test
-/// below, so whoever removes a violation also removes its entry here and
-/// it cannot come back unnoticed.
-const PENDING_1360: [&str; 4] = [
-    "demo/build.rs: serde attributes on the generated proto types",
-    "demo/src/lib.rs: an \"/api/\" route",
-    "turbo-kserve-demo depends on serde",
-    "turbo-kserve-demo depends on serde_json",
-];
-
 /// The packages whose JSON dependencies are checked, and whether their
 /// dev-dependencies count: the server's tests read JSON manifests.
 const PACKAGES: [(&str, bool); 2] = [("turbo-kserve-demo", true), ("turbo-kserve", false)];
@@ -105,13 +94,15 @@ pub fn violations(root: &Path) -> Vec<String> {
 fn the_front_end_speaks_only_protobuf() {
     let root = crate::common::workspace();
     let found = violations(&root);
-    let new: Vec<_> = found.iter().filter(|v| !PENDING_1360.contains(&v.as_str())).collect();
-    assert!(new.is_empty(), "the no-JSON-front-end rule (AGENTS.md) is broken by:\n  {}", fmt(&new));
-    let gone: Vec<_> = PENDING_1360.iter().filter(|p| !found.iter().any(|v| v == *p)).collect();
-    assert!(gone.is_empty(), "fixed, so remove from PENDING_1360 in bench/tests/tree/front_end.rs:\n  {}", fmt(&gone));
+    assert!(found.is_empty(), "the no-JSON-front-end rule (AGENTS.md) is broken by:\n  {}", fmt(&found));
+    // The server compiles the protos; the demo no longer does, as it
+    // decodes no message.
     let mut scripts = Vec::new();
     proto_build_scripts(&root, &root, &mut scripts);
-    assert!(scripts.len() >= 2, "only {scripts:?} found compiling protos; the scan is too narrow");
+    assert!(
+        scripts.iter().any(|s| s == "server/build.rs"),
+        "only {scripts:?} found compiling protos; the scan is too narrow"
+    );
 }
 
 fn fmt<T: std::fmt::Display>(v: &[T]) -> String {

@@ -7,12 +7,17 @@ cosine similarity between the texts, with several models side by side.
 
 It is a client of the server and nothing more. Browsers cannot make
 plain gRPC calls, so the demo is a separate binary that serves the page
-and answers the page's JSON calls with gRPC calls to the server, the
-same calls any client makes. It links no backend and loads no model;
-the server is unchanged by it, and it works against a server on any
-backend. The page is plain HTML, CSS and JavaScript compiled into the
-binary: it loads nothing from any other host, so it works on a machine
-with no network beyond the one to the server.
+and bridges the Connect protocol to the server's gRPC: each call the
+page makes is the same call, with the same protobuf bytes, any gRPC
+client makes. It links no backend, loads no model and decodes no
+message; the server is unchanged by it, and it works against a server
+on any backend. The page is plain HTML, CSS and JavaScript compiled into
+the binary: it loads nothing from any other host, so it works on a
+machine with no network beyond the one to the server.
+
+The page itself still calls the JSON routes this demo had before #1360
+and does not work until #1361 ports it to the generated Connect clients
+(`demo/web/src/gen`).
 
 ## No JSON front end
 
@@ -36,9 +41,66 @@ around or dropped behind it. That happened once already (#1271, #1370).
 exactly: `demo/Cargo.toml` has no `serde` or `serde_json`, the server
 has neither outside its tests, no `build.rs` that compiles the protos
 adds a serde attribute, and no `"/api/` route string is in `demo/src`.
-The JSON routes this page still describes below predate the rule; #1360
-replaces them with the Connect proxy and removes their entries from the
-check's pending list, which can only shrink.
+The check has no pending list: it holds for the whole tree.
+
+## The Connect bridge
+
+Each call is a `POST /<package>.<Service>/<Method>`, the gRPC method's
+own path, in one of two forms of the Connect protocol, the binary codec
+only:
+
+| Content type | Methods | Request | Answer |
+|---|---|---|---|
+| `application/proto` | unary | the request message | HTTP 200 and the reply message, `application/proto`; or the error below |
+| `application/connect+proto` | unary and server-streaming | the request message in one envelope | HTTP 200, `application/connect+proto`: each reply message in an envelope, then the end-of-stream envelope |
+
+An envelope is one flags byte, the length as four bytes big-endian, and
+the message. The end-of-stream envelope has flags `0x02` and holds JSON,
+by the protocol's definition: `{}` when the call succeeded, else
+`{"error": {"code": "not_found", "message": "..."}, "metadata":
+{"turbo-code": ["1280"], "turbo-field": ["0"]}}`. A unary error is the
+HTTP status of its code (`not_found` 404, `invalid_argument` 400,
+`unavailable` 503, and the rest of the protocol's table), the body
+`{"code": ..., "message": ...}` as `application/json`, and the server's
+`turbo-code` and `turbo-field` as response headers, where Connect
+clients read a unary error's metadata. Only the server's `turbo-*`
+metadata is passed on. These JSON bodies carry a status, never a
+message.
+
+The demo passes the bytes through: a gRPC codec on its side leaves each
+message as the bytes it is (`demo/src/codec.rs`), so the request goes to
+the server and the reply comes back unchanged, over one HTTP/2 channel
+to the server shared by every call. When the page goes away mid-stream,
+the demo drops its call and the server sees it cancelled.
+`connect-timeout-ms` becomes the gRPC call's deadline.
+
+Refused before any call to the server:
+
+| Request | Answer |
+|---|---|
+| Any other content type, JSON included, or none | HTTP 415, `accept-post: application/proto, application/connect+proto` |
+| A server-streaming method as `application/proto` | HTTP 415 |
+| A method the demo knows but does not forward | `permission_denied` |
+| A path that is no unary or server-streaming method | `unimplemented` |
+| A compressed request or message | `unimplemented` |
+| A streaming request that is not exactly one uncompressed envelope | `invalid_argument` |
+| A message over 64 MiB, the server's default limit | `resource_exhausted` |
+| GET on a method's path | HTTP 405, `allow: POST` |
+
+GET answers `/`, `/app.js` and `/style.css` only.
+
+### The allowlist
+
+The demo knows every unary and server-streaming method of the server's
+services (`demo/src/allow.rs`, checked against `server/proto` by
+`demo/tests/methods.rs`). The ones that only read are forwarded by
+default; one that changes the server (loading a bundle, an index or
+collection write, a licence acceptance, `InstallModel`,
+`TrainStaticModel`, a delete) only when named with `--allow`, and the
+server still refuses it unless started with `--admin`. Client-streaming
+and bidi methods are not known: a browser cannot make them (#1377). The
+gRPC health service is not forwarded. This list is a fixed default for
+now; configuring it, authentication, TLS and CORS are #1373.
 
 ## Starting it
 
@@ -64,30 +126,23 @@ Then the demo:
 target/release/turbo-kserve-demo --server http://127.0.0.1:8081
 ```
 
-and open `http://127.0.0.1:8080`. The Open Inference Protocol has no
-call that lists a server's models, so the demo asks the server's
-`AnalysisService/Capabilities` (docs/grpc-analysis.md) and offers every
-bundle it lists, in the order served. Naming models overrides the
-listing, and the page offers only those:
+and open `http://127.0.0.1:8080`. To let the page train a static model
+on a server started with `--admin`:
 
 ```
 target/release/turbo-kserve-demo --server http://127.0.0.1:8081 \
-    --model bge-small-fastest --model bge-small-exact
+    --allow /turbo.training.v1.TurboTrainingService/TrainStaticModel
 ```
-
-A server without the analysis service offers no names unless given
-some. Either way, a field on the page adds any other name the server
-serves.
 
 | Flag | Meaning | Absent |
 |---|---|---|
 | `--listen ADDR:PORT` | Where the page is served. | `TURBO_DEMO_LISTEN`, else `127.0.0.1:8080`. |
 | `--server URL` | The server to call, `http://HOST:PORT`. | `TURBO_DEMO_SERVER`, else `http://127.0.0.1:8081`. |
-| `--model NAME` | A model name the page offers; repeat for more. | `TURBO_DEMO_MODELS`, comma-separated, else the bundles `Capabilities` lists. |
+| `--allow METHOD` | Also forward this method that changes the server, `/<package>.<Service>/<Method>`; repeat for more. A name that is not a known method stops the demo at startup. | `TURBO_DEMO_ALLOW`, comma-separated, else the reads only. |
 
 The demo has no authentication and serves on the loopback address
 unless told otherwise. It need not start after the server: it connects
-on each call, and the page says when the server is not reachable.
+on each call, and a call while the server is down is `unavailable`.
 
 ## What the page shows
 
@@ -114,69 +169,28 @@ message.
 
 The time shown is the round trip the browser saw for one request,
 through the demo and the server, with the models called one after
-another. It includes the browser, the HTTP and JSON hop through the demo
-and the vectors' conversion to JSON, so it is a look at the call, not a
-measure of the library; docs/benchmarks.md says how speed is measured.
-
-## The JSON calls
-
-The page uses three calls, which a script can use as well:
-
-| Call | Answer |
-|---|---|
-| `GET /api/status` | The server address, whether it is reachable, live and ready, its name, version and extensions, each offered model's readiness, and `models_from`: `flags`, `capabilities` or `none`. |
-| `GET /api/models/NAME` | `ModelMetadata`: `name`, `versions`, `inputs`, `outputs`, `properties`. |
-| `POST /api/infer` | Body `{"model": NAME, "texts": [...], "parameters": {...}}`, a parameter's value a string or an integer. Answers `model`, `version`, `shape`, `vectors` (one array of numbers per text, each the server's float exactly) and `summary`, the response parameters. |
-
-A gRPC error is HTTP 502 with `{"error": {"grpc", "message",
-"turbo_code", "turbo_field"}}`; a body the demo cannot read is HTTP 400.
-
-## The AnalysisService calls
-
-These routes are each one `turbo.result.v1.AnalysisService` call
-(server/proto/turbo_analysis.proto), for a workbench page or a script.
-The page itself does not use them yet. Their JSON is the proto message
-itself: the field names of the .proto, a missing field its default, a
-oneof as an object keyed by the field set (`{"vectors": {...}}`), and an
-enum as its number. A document's `text` is a string, and vector `data`
-(`AnalyzeVectors`, `TokenVectorsResult`, `ChunkLevelsResult`) is an
-array of numbers, the server's little-endian floats in order. Other
-`bytes` fields are arrays of byte values.
-
-| Call | gRPC call and answer |
-|---|---|
-| `GET /api/capabilities` | `Capabilities`: `CapabilitiesResponse`. |
-| `POST /api/bundles/load` | Body a `LoadBundleRequest`; answers `LoadBundleResponse`. An admin call: a server started without `--admin` refuses it. |
-| `POST /api/bundles/unload` | Body an `UnloadBundleRequest`; answers `{}`. An admin call too. |
-| `POST /api/analyze/stream` | Body `{"header": AnalyzeStreamHeader, "documents": [AnalyzeDocument, ...]}`, the header optional. Opens one `AnalyzeStream` with the header and the documents, and passes each `AnalyzeStreamResponse` on as it arrives: one JSON line each (`application/x-ndjson`), or one `data:` event each when the request accepts `text/event-stream`. |
-
-A refusal before the stream starts, such as a header over the server's
-caps, is the HTTP 502 above. A status that ends a stream after it
-started is its last line, `{"error": {...}}` in the same shape, or an
-`error` event. A failed document is not an error: it is its own answer,
-with a `failure` outcome, and the stream goes on. When the page goes
-away, the demo drops the call.
-
-Stream format selection honors case-insensitive `Accept` media ranges,
-quality weights and explicit `q=0` exclusions. More specific ranges take
-precedence over wildcards. An absent header or wildcard tie selects NDJSON;
-an equally preferred explicit SSE range selects SSE. The two formats use
-UTF-8. Quoted charset values decode escaped characters; opaque bytes in an
-unsupported quoted parameter do not hide later supported media ranges.
-If neither format is acceptable, the demo returns HTTP 406 before
-opening a gRPC call. Invalid weights and unsupported media parameters do
-not match a representation.
+another. It includes the browser and the HTTP hop through the demo, so it is
+a look at the call, not a measure of the library; docs/benchmarks.md says how speed is measured.
 
 ## Tests
 
 `cargo test -p turbo-kserve-demo` starts the server in-process on the
-CPU with `testdata/tiny-bert-bundle` at all three tiers, starts the demo
-in front of it, and makes every call over HTTP: the page and its files,
-status and metadata, texts at each tier giving exactly the floats the
-server answers over gRPC and the bundle's reference vectors, parameters
-and the server's refusals, and a server that is not there. Nothing is
-mocked. `demo/tests/gateway.rs` does the same for the AnalysisService
-routes: the capability listing, a stream as lines and as events with a
-failed document among them, its vector equal to `/api/infer`'s, the
-`turbo-code` and `turbo-field` of a refused header and of an admin call
-on a server without them, and an unload and a load.
+CPU with `testdata/tiny-bert-bundle`, starts the demo in front of it,
+and makes every call over HTTP with Connect frames built by hand from
+the server's prost types. Nothing is mocked.
+
+- `demo/tests/unary.rs`: the page's files, and GET refused on a method;
+  `ModelInfer` answering exactly the bytes the server answers over gRPC;
+  `ModelMetadata`, `Capabilities` and `ServerLive`; the server's
+  `not_found` and `out_of_range` with their `turbo-code` and
+  `turbo-field` headers; a server that is not there.
+- `demo/tests/stream.rs`: `AnalyzeDocumentProgressive` giving the
+  server's events; `WatchCollection` giving an event when a document is
+  indexed; the server's refusals in the end-of-stream envelope.
+- `demo/tests/admin.rs`: `TrainStaticModel` and `InstallModel` (from a
+  catalog served from memory) when allowed; a refused field's
+  `turbo-code` and `turbo-field`; a page that goes away mid-training,
+  after which the server has stopped the training and written nothing.
+- `demo/tests/refusals.rs`: 415 for JSON and other content types, the
+  allowlist, compression and malformed envelopes.
+- `demo/tests/methods.rs`: the method table against the protos.
