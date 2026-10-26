@@ -178,12 +178,14 @@ fn real_trained_maxent_and_feedforward_models_parse_through_annotator() {
     let maxent_model = DependencyModel::train("es", &samples, &params).unwrap();
     let reloaded_maxent = DependencyModel::open(maxent_model.bytes().unwrap().to_vec()).unwrap();
 
-    let mut ff_settings = FeedforwardSettings::default();
-    ff_settings.epochs = 15;
-    ff_settings.batch_size = 4;
-    ff_settings.hidden_size = 32;
-    ff_settings.dropout = 0.0;
-    ff_settings.seed = 42;
+    let ff_settings = FeedforwardSettings {
+        epochs: 15,
+        batch_size: 4,
+        hidden_size: 32,
+        dropout: 0.0,
+        seed: 42,
+        ..Default::default()
+    };
     let ff_model = FeedforwardDependencyTrainer::train(&samples, &ff_settings).unwrap();
     let reloaded_ff = FeedforwardDependencyModel::from_bytes(&ff_model.to_bytes().unwrap()).unwrap();
 
