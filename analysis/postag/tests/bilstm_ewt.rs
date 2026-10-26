@@ -149,3 +149,46 @@ fn bilstm_crf_on_ud_english_ewt() {
         );
     }
 }
+
+/// The device tiers on the test split (#860): MODEL on TURBO_TEST_DEVICE
+/// (cuda or levelzero) tags as the CPU packed path does, word for word;
+/// FASTEST (F16 weights) is within 0.1 accuracy points of MODEL and gives
+/// MODEL's tag on at least 99.9% of the words.
+#[test]
+#[ignore = "needs UD English EWT and TURBO_TEST_DEVICE; see the README"]
+fn device_tiers_on_ud_english_ewt() {
+    use turbo::device::{Device, Precision};
+    let device = Device::parse(&env("TURBO_TEST_DEVICE")).unwrap();
+    let model = model();
+    let test = conllu(&env("TURBO_UD_EWT_TEST"));
+    let cpu = BilstmPosTagger::new(model.clone());
+    let on = |p| BilstmPosTagger::on_device_at(model.clone(), device, p).unwrap();
+    let (gpu, fast) = (on(Precision::Model), on(Precision::Fastest));
+    let batch = number("TURBO_BILSTM_BATCH", 32);
+    let tag = |t: &BilstmPosTagger| -> Vec<String> {
+        test.chunks(batch)
+            .flat_map(|c| {
+                let words: Vec<&[String]> = c.iter().map(|s| s.sentence.as_slice()).collect();
+                t.best_sequences(&words).unwrap().into_iter().flat_map(|s| s.outcomes().to_vec())
+            })
+            .collect()
+    };
+    let gold: Vec<&String> = test.iter().flat_map(|s| &s.tags).collect();
+    let (c, g, f) = (tag(&cpu), tag(&gpu), tag(&fast));
+    let right = |v: &[String]| v.iter().zip(&gold).filter(|(a, b)| a == *b).count();
+    let pct = |n: usize| 100.0 * n as f64 / gold.len() as f64;
+    let (rc, rg, rf) = (right(&c), right(&g), right(&f));
+    let same = g.iter().zip(&f).filter(|(a, b)| a == b).count();
+    eprintln!(
+        "{} tokens; cpu packed {:.4}%, {device:?} MODEL {:.4}%, FASTEST {:.4}%",
+        gold.len(),
+        pct(rc),
+        pct(rg),
+        pct(rf)
+    );
+    eprintln!("FASTEST gives MODEL's tag on {same} of {} words ({:.4}%)", gold.len(), pct(same));
+    let differ = c.iter().zip(&g).filter(|(a, b)| a != b).count();
+    assert_eq!(differ, 0, "MODEL on {device:?} differs from the CPU packed path on {differ} words");
+    assert!((pct(rg) - pct(rf)).abs() <= 0.1, "FASTEST {:.4}% against MODEL {:.4}%", pct(rf), pct(rg));
+    assert!(pct(same) >= 99.9, "FASTEST gives MODEL's tag on {:.4}% of the words", pct(same));
+}

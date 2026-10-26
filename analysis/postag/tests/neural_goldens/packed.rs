@@ -43,7 +43,24 @@ pub(crate) fn check_packed(what: &str, g: &Golden, model: &BilstmPosModel, total
         let what = format!("{what} on {device:?}");
         let (t, e, p) = (&mut totals.device_tags, &mut totals.device_emissions, &mut totals.device_probabilities);
         compare(&what, g, model, &on, t, e, p);
+        fastest(&what, g, model, device, totals);
     }
+}
+
+/// The tagger at FASTEST (F16 weights) on `device`: no bits are claimed,
+/// so its tags are counted against the JVM's, and the test asks for at
+/// least 99.9% of them over every golden (main.rs).
+fn fastest(what: &str, g: &Golden, model: &BilstmPosModel, device: Device, totals: &mut Totals) {
+    let fast = BilstmPosTagger::on_device_at(model.clone(), device, turbo::device::Precision::Fastest)
+        .unwrap_or_else(|e| panic!("{what}: the tagger at FASTEST: {e}"));
+    let sentences = sentences(g);
+    let tagged = layer(g, "turbo:neural-tagged");
+    let jvm_tags = strs(tagged, "tag");
+    let batch = fast.best_sequences(&sentences).unwrap_or_else(|e| panic!("{what}: FASTEST batch: {e}"));
+    let flat: Vec<&String> = batch.iter().flat_map(|s| s.outcomes()).collect();
+    assert_eq!(flat.len(), jvm_tags.len(), "{what}: FASTEST tags");
+    totals.fastest_tags += flat.len();
+    totals.fastest_equal += flat.iter().zip(&jvm_tags).filter(|(a, b)| **a == *b).count();
 }
 
 fn compare(

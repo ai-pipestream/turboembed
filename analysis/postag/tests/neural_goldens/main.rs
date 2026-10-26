@@ -144,6 +144,9 @@ fn every_neural_postag_golden_matches_the_jvm() {
         eprintln!("packed on {device:?}: {} tags equal", totals.device_tags);
         eprintln!("packed emissions on {device:?}: {}", totals.device_emissions);
         eprintln!("packed tag probabilities on {device:?}: {}", totals.device_probabilities);
+        let (n, same) = (totals.fastest_tags, totals.fastest_equal);
+        eprintln!("FASTEST on {device:?}: {same} of {n} tags equal the JVM's");
+        assert!(n > 0 && same as f64 >= 0.999 * n as f64, "FASTEST on {device:?}: {same} of {n} tags equal");
     }
 }
 

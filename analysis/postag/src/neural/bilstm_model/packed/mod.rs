@@ -26,8 +26,8 @@ use std::fmt;
 use std::sync::{Mutex, RwLock};
 
 use turbo::cpu::{Matrix, Mode};
-use turbo::device::Device;
 use turbo::device::lstm::{self as device_lstm, Lstm, Table};
+use turbo::device::{Device, Precision};
 
 use self::lstm::{allocation, bidirectional, pack, run_error, to_f32};
 use super::BilstmPosModel;
@@ -102,8 +102,8 @@ fn finite(v: &[f32], what: &str) -> Result<(), NeuralError> {
 }
 
 impl Packed {
-    /// `m`'s weights with its BiLSTMs on `device`.
-    pub(crate) fn new(m: &BilstmPosModel, device: Device) -> Result<Self, NeuralError> {
+    /// `m`'s weights with its BiLSTMs on `device` at `precision`.
+    pub(crate) fn new(m: &BilstmPosModel, device: Device, precision: Precision) -> Result<Self, NeuralError> {
         let (cf, cb) = (&m.char_forward, &m.char_backward);
         let hc = cf.hidden_size();
         let char_dim = cf.input_size();
@@ -114,7 +114,7 @@ impl Packed {
         let mut char_table = vec![0.0f32; rows * 8 * hc];
         char_input.apply(&embeddings, char_dim, rows, Some(&char_bias), &mut char_table, 8 * hc, Mode::Plain);
         finite(&char_table, "character projection")?;
-        let chars = bidirectional(device, cf, cb)?;
+        let chars = bidirectional(device, precision, cf, cb)?;
         let char_table = chars.table(&char_table).map_err(|e| NeuralError::InvalidArgument(e.message))?;
 
         let pretrained_dim = m.pretrained_vectors.as_ref().and_then(|v| v.first()).map_or(0, Vec::len);
@@ -129,9 +129,9 @@ impl Packed {
             _ => None,
         };
 
-        let mut layers = vec![bidirectional(device, &m.word_forward, &m.word_backward)?];
+        let mut layers = vec![bidirectional(device, precision, &m.word_forward, &m.word_backward)?];
         if let (Some(f), Some(b)) = (&m.word_forward2, &m.word_backward2) {
-            layers.push(bidirectional(device, f, b)?);
+            layers.push(bidirectional(device, precision, f, b)?);
         }
         let last = layers.last().map_or(0, Lstm::width);
         Ok(Self {
@@ -152,6 +152,11 @@ impl Packed {
     /// Where the BiLSTMs run.
     pub(crate) fn device(&self) -> Device {
         self.chars.device()
+    }
+
+    /// What the BiLSTMs compute in.
+    pub(crate) fn precision(&self) -> Precision {
+        self.chars.precision()
     }
 
     fn rep_dim(&self) -> usize {
