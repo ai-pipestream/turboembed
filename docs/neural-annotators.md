@@ -176,6 +176,17 @@ operands, the result depends on the backend:
 A failure at `fastest` is over the 1e-3 the test allows, which is left
 as it is; the parity holds at `model` and `exact` on every backend.
 
+`analysis/sat/tests/device.rs` holds the device to the CPU with the
+same bundle rather than to wtpsplit: every token's probability within
+1e-4 of the CPU's at f32 and 1e-2 at f16, runs packed to capacity
+read as each document alone, and (ignored except with `--ignored` on
+a Hailo host) a Hailo session refused with the range-pooling error.
+`TURBO_TEST_REQUIRE_CUDA=1` or `TURBO_TEST_REQUIRE_LEVELZERO=1` makes it
+fail when no device is named. It passes at every tier on CUDA (with `sat-1l-sm`
+too) and on Level Zero (with `sat-1l-sm` too); docs/receipts/sat-884.md has the figures and
+the speed against the CPU. A model of limited lookahead is refused on
+every device, which the lookahead parity test checks there.
+
 On a released checkpoint, `sat-1l-sm` at revision
 `00a783439c201b20ee91ee1624dc817f1bf0e578` (one layer, width 768, the
 whole XLM-R vocabulary), the same checks pass. The bundle is sealed from
@@ -192,11 +203,11 @@ this is wtpsplit as it ships, read through `PreTrainedTokenizerFast`
 `TURBO_TEST_SAT_BUNDLE` names the bundle and `TURBO_TEST_SAT_FIXTURES`
 the fixtures. On the 90 texts:
 
-| Threshold, stride, block | Largest probability difference, CPU | On CUDA (`model`) | Characters near the threshold |
-|---|---|---|---|
-| 0.25, 64, 510 (wtpsplit's `split` defaults for a model of 512) | 1.6e-4 | 1.6e-4 | 0 |
-| 0.25, 16, 62 | 4.2e-4 | 4.2e-4 | 0 |
-| 0.5, 7, 30 | 3.7e-4 | 3.7e-4 | 0 |
+| Threshold, stride, block | Largest probability difference, CPU | On CUDA (`model`) | On Level Zero (`model`) | Characters near the threshold |
+|---|---|---|---|---|
+| 0.25, 64, 510 (wtpsplit's `split` defaults for a model of 512) | 1.6e-4 | 1.6e-4 | 1.6e-4 | 0 |
+| 0.25, 16, 62 | 4.2e-4 | 4.2e-4 | 4.2e-4 | 0 |
+| 0.5, 7, 30 | 3.7e-4 | 3.7e-4 | 3.7e-4 | 0 |
 
 The fixtures' SHA-256s (kept outside the repository with the bundle):
 `t0.25-s64-b510.jsonl` `00e3acafbda76810e2cf496457082202f2ceddf095d963c0daa5bef338246f99`,

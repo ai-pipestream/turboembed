@@ -219,14 +219,14 @@ these services on one port ([grpc.md](docs/grpc.md)):
 | Service | Proto | What it does |
 |---|---|---|
 | `inference.GRPCInferenceService` | `server/proto/open_inference_grpc.proto` | KServe v2 Open Inference Protocol: embed, rerank and extractive QA through `ModelInfer` ([kserve.md](docs/kserve.md)) |
-| `turbo.result.AnalysisService` | `server/proto/turbo_analysis.proto` | capabilities, bundle load and unload, `AnalyzeStream` (bidirectional bulk analysis with per-document answers, micro-batching and backpressure), `AnalyzeDocumentProgressive`, document graph and window inspection, chunk projection, and output formats (CoNLL-U, brat, TSV, CSV, Markdown, JSON-LD, WARC) ([grpc-analysis.md](docs/grpc-analysis.md), [grpc-inspect.md](docs/grpc-inspect.md)) |
-| `turbo.search.TurboSearchService` | `server/proto/turbo_search.proto` | in-memory indexes fed by a stream, hybrid search over BM25, dense, TurboQuant, SPLADE sparse and token MaxSim providers with score or reciprocal rank fusion, parent expansion and cross-encoder reranking, persist and seal, reindex, aliases and collections |
-| `turbo.training.TurboCatalogService` | `server/proto/turbo_training.proto` | the model zoo catalog, installed models, licence acceptance and streamed installs ([grpc-catalog.md](docs/grpc-catalog.md)) |
-| `turbo.vocabulary.TurboVocabularyService` | `server/proto/turbo_vocabulary.proto` | dictionary import, corpus vocabulary learning and download ([grpc-vocabulary.md](docs/grpc-vocabulary.md)) |
+| `turbo.result.v1.AnalysisService` | `server/proto/turbo_analysis.proto` | capabilities, bundle load and unload, `AnalyzeStream` (bidirectional bulk analysis with per-document answers, micro-batching and backpressure), `AnalyzeDocumentProgressive`, document graph and window inspection, chunk projection, and output formats (CoNLL-U, brat, TSV, CSV, Markdown, JSON-LD, WARC) ([grpc-analysis.md](docs/grpc-analysis.md), [grpc-inspect.md](docs/grpc-inspect.md)) |
+| `turbo.search.v1.TurboSearchService` | `server/proto/turbo_search.proto` | in-memory indexes fed by a stream, hybrid search over BM25, dense, TurboQuant, SPLADE sparse and token MaxSim providers with score or reciprocal rank fusion, parent expansion and cross-encoder reranking, persist and seal, reindex, aliases and collections |
+| `turbo.training.v1.TurboCatalogService` | `server/proto/turbo_training.proto` | the model zoo catalog, installed models, licence acceptance and streamed installs ([grpc-catalog.md](docs/grpc-catalog.md)) |
+| `turbo.vocabulary.v1.TurboVocabularyService` | `server/proto/turbo_vocabulary.proto` | dictionary import, corpus vocabulary learning and download ([grpc-vocabulary.md](docs/grpc-vocabulary.md)) |
 | `grpc.health.v1.Health` | `server/proto/health.proto` | standard gRPC health checks |
 
 With `--sink-endpoint`, the server is a client of
-`turbo.sink.TurboSinkService` (`server/proto/turbo_sink.proto`): it
+`turbo.sink.v1.TurboSinkService` (`server/proto/turbo_sink.proto`): it
 streams every document an analysis stream completes to the sink at that
 address through a bounded queue (`--sink-queue-items`,
 `--sink-queue-bytes`). The receiving side of that service is in the
@@ -368,7 +368,7 @@ OpenNLP on the JVM and against Model2Vec, and Windows lint and tests.
 | Classification and calibration | [dense-classifier.md](docs/dense-classifier.md), [model-routing.md](docs/model-routing.md), [calibration.md](docs/calibration.md) |
 | Chunking and retrieval | [chunker-cut-identity.md](docs/chunker-cut-identity.md), [chunker-text-signals.md](docs/chunker-text-signals.md), [keywords.md](docs/keywords.md), [turboquant.md](docs/turboquant.md), [splate.md](docs/splate.md), [quality-consumers.md](docs/quality-consumers.md) |
 | Training and evaluation | [bpe-trainer.md](docs/bpe-trainer.md), [namefinder-evaluation.md](docs/namefinder-evaluation.md), [namefinder-crf-evaluation.md](docs/namefinder-crf-evaluation.md), [lemma-case-evaluation.md](docs/lemma-case-evaluation.md) |
-| Server and demo | [grpc.md](docs/grpc.md), [kserve.md](docs/kserve.md), [grpc-analysis.md](docs/grpc-analysis.md), [grpc-inspect.md](docs/grpc-inspect.md), [grpc-sink.md](docs/grpc-sink.md), [grpc-catalog.md](docs/grpc-catalog.md), [grpc-vocabulary.md](docs/grpc-vocabulary.md), [demo.md](docs/demo.md) |
+| Server and demo | [integration.md](docs/integration.md), [grpc.md](docs/grpc.md), [kserve.md](docs/kserve.md), [grpc-analysis.md](docs/grpc-analysis.md), [grpc-inspect.md](docs/grpc-inspect.md), [grpc-sink.md](docs/grpc-sink.md), [grpc-catalog.md](docs/grpc-catalog.md), [grpc-vocabulary.md](docs/grpc-vocabulary.md), [demo.md](docs/demo.md) |
 | Releases | [release.md](docs/release.md) |
 
 ## License

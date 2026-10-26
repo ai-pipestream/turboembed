@@ -26,3 +26,13 @@ Corporation.
 | `Spanish/DateTime/DateTimeModel.json` | `Specs/DateTime/Spanish/DateTimeModel.json` |
 
 `tests/spec.rs` reads them; docs/grammar.md says how a case is judged.
+
+The Spanish NumberWithUnit files below are also unchanged copies at the same
+pinned revision and MIT license. `tests/spanish_unit_specs.rs` checks every case.
+
+| File here | Upstream path |
+|---|---|
+| `Spanish/NumberWithUnit/AgeModel.json` | `Specs/NumberWithUnit/Spanish/AgeModel.json` |
+| `Spanish/NumberWithUnit/CurrencyModel.json` | `Specs/NumberWithUnit/Spanish/CurrencyModel.json` |
+| `Spanish/NumberWithUnit/DimensionModel.json` | `Specs/NumberWithUnit/Spanish/DimensionModel.json` |
+| `Spanish/NumberWithUnit/TemperatureModel.json` | `Specs/NumberWithUnit/Spanish/TemperatureModel.json` |

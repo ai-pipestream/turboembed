@@ -19,10 +19,12 @@ use super::config::SymSpellConfig;
 use super::dictionary::{FrequencyDictionary, MalformedLine};
 use super::symspell::SymSpell;
 
-/// SymSpell's English unigram list (82,765 words).
+/// SymSpell's English unigram list: 82,834 words load from it (the 82,765 in
+/// the id is upstream's file name).
 pub const EN_UNIGRAMS: &str = "symspell-frequency-dictionary-en-82-765";
 
-/// SymSpell's English bigram list (242,342 pairs).
+/// SymSpell's English bigram list: 242,342 pairs (the 243,342 in the id
+/// is upstream's file name).
 pub const EN_BIGRAMS: &str = "symspell-frequency-bigramdictionary-en-243-342";
 
 /// Why a lexicon could not be fetched, read or loaded.

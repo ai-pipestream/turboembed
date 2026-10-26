@@ -4,7 +4,7 @@ syntax = "proto3";
 // turbo-kserve forwards what its analysis calls complete to another
 // service over this contract, so servers chain into a pipeline or end in
 // an ingestion sink. turbo-kserve serves the receiving side too.
-package turbo.sink;
+package turbo.sink.v1;
 
 import "turbo_analysis.proto";
 
@@ -28,15 +28,15 @@ message DocumentSinkItem {
   bytes graph = 3;
 
   // The graph's layers and views as RoundTripDocumentGraph lists them.
-  repeated turbo.result.LayerInfo layers = 4;
-  repeated turbo.result.ViewInfo views = 5;
+  repeated turbo.result.v1.LayerInfo layers = 4;
+  repeated turbo.result.v1.ViewInfo views = 5;
 
   // Reserved for the typed document projection (#1219) and the document's
   // analysis time.
   reserved 6, 7;
 
   // The AnalyzeStream answer, when the item is one.
-  turbo.result.AnalyzeStreamResponse analyzed = 8;
+  turbo.result.v1.AnalyzeStreamResponse analyzed = 8;
 }
 
 message DocumentSinkSummary {
