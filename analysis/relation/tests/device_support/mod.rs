@@ -9,7 +9,7 @@
 
 use std::path::{Path, PathBuf};
 
-use turbo_relation::encoder::{DebertaEncoder, Device, EncoderOptions, EncoderStates};
+use turbo_relation::encoder::{DebertaEncoder, Device, EncoderOptions, EncoderStates, Precision};
 
 /// The largest head output difference from the CPU encoder: the F32 device
 /// bound the encoder itself is held to (#883).
@@ -88,7 +88,8 @@ pub fn device_on(dir: &Path) -> DebertaEncoder {
 }
 
 /// The options of the device the test names: TURBO_TEST_DEVICE, else the
-/// CPU through the backend table.
+/// CPU through the backend table, at the precision TURBO_TEST_PRECISION
+/// names (model, the default, or exact).
 fn options() -> EncoderOptions {
     let device = match std::env::var("TURBO_TEST_DEVICE").as_deref() {
         Err(_) | Ok("cpu") => Device::Cpu,
@@ -97,7 +98,12 @@ fn options() -> EncoderOptions {
     if let Some(b) = required() {
         assert!(!matches!(device, Device::Cpu), "{b} is required but TURBO_TEST_DEVICE names no device");
     }
-    EncoderOptions { device, ..EncoderOptions::default() }
+    let precision = match std::env::var("TURBO_TEST_PRECISION").as_deref() {
+        Err(_) | Ok("model") => Precision::Model,
+        Ok("exact") => Precision::Exact,
+        Ok(p) => panic!("TURBO_TEST_PRECISION={p}: model or exact"),
+    };
+    EncoderOptions { device, precision, ..EncoderOptions::default() }
 }
 
 /// An encoder on the backend table, on the backend required.
