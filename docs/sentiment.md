@@ -355,6 +355,25 @@ and this embedding head. Held-out metrics are:
 | Embedding head alone | 0.35 | 0.409244 | 0.979879 | 0.577356 |
 | Rules plus embedding head | 0.35 | 0.409396 | 0.981891 | 0.577857 |
 
+These are historical context-split results, not input-disjoint results. The
+pinned source contains 47 distinct response texts spanning partitions; 68 test
+examples repeat text used for training. The model reads response text without
+context. The release check now refuses this split before encoding. A corrected
+split must keep both contexts and repeated response inputs together, followed
+by retraining, development threshold selection, a replacement archive and a
+new test evaluation. Issue #925 remains incomplete until that work is reviewed.
+
+The release path validates the source, encoder and weight digests, frozen
+configuration, population counts and all three metric sets. Counts must match;
+computed metrics permit an absolute difference of at most 1e-12. Expectations
+for this version remain in
+`analysis/embed/tests/pragmatics_csc_support/release.json`; they must be updated
+from the replacement archive after the split repair, not adjusted to hide a
+failed check. Verification (`TURBO_PRAGMATICS_HEAD`) and training output
+(`TURBO_PRAGMATICS_OUT`) are mutually exclusive. The data-only
+`actual_release_split_has_no_repeated_inputs` test needs `TURBO_CSC_CSV` but
+requires neither the encoder nor training.
+
 The combined path catches 488 of 497 positive responses, but also emits 704
 false positives. Its precision remains modest, so the recall figure must not
 be read as general precision or calibration evidence. The complete counts

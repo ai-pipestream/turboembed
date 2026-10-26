@@ -10,6 +10,7 @@ use turbo_tokenize::uax29::UntypedWordTokenizer;
 
 use super::corpus::{Response, load};
 use super::metrics::{Counts, best_threshold, report, score};
+use super::release;
 
 struct Prepared {
     response: Response,
@@ -23,7 +24,17 @@ struct Prepared {
 pub fn run() {
     let csv = PathBuf::from(std::env::var_os("TURBO_CSC_CSV").expect("TURBO_CSC_CSV names CSC data_full.csv"));
     let bundle = PathBuf::from(std::env::var_os("TURBO_MINILM_BUNDLE").expect("TURBO_MINILM_BUNDLE names MiniLM"));
+    let release_dir = std::env::var_os("TURBO_PRAGMATICS_HEAD");
+    let output_dir = std::env::var_os("TURBO_PRAGMATICS_OUT");
+    assert!(release_dir.is_some() != output_dir.is_some(), "choose release verification OR explicit training output");
+    if release_dir.is_some() {
+        release::validate_source(&csv).unwrap();
+    }
     let responses = load(&csv);
+    if release_dir.is_some() {
+        release::validate_population(&responses).unwrap();
+    }
+    release::validate_disjoint_inputs(&responses).unwrap();
     assert!(responses.len() >= 1_000, "expected aggregated CSC responses, got {}", responses.len());
     let subwords = SubwordAnnotator::open(&bundle).unwrap();
     let vectors = Arc::new(VectorAnnotator::open(&bundle, &VectorOptions::default()).unwrap());
@@ -34,22 +45,13 @@ pub fn run() {
     let test: Vec<&Prepared> = prepared.iter().filter(|p| p.response.context % 5 == 0).collect();
     let fit_rows: Vec<&Prepared> = train.iter().filter(|p| p.response.context % 5 > 1).collect();
     assert!(!fit_rows.is_empty() && !dev.is_empty() && !test.is_empty());
-    let head = if let Some(dir) = std::env::var_os("TURBO_PRAGMATICS_HEAD") {
-        ClassifierHead::load(&Path::new(&dir).join("pragmatics-1.thead")).unwrap()
+    let (head, head_threshold, combined_threshold) = if let Some(dir) = &release_dir {
+        release::load(Path::new(dir), vectors.model()).unwrap()
     } else {
-        fit(&fit_rows, &vectors)
-    };
-    let (head_threshold, combined_threshold) = if let Some(dir) = std::env::var_os("TURBO_PRAGMATICS_HEAD") {
-        let config: serde_json::Value =
-            serde_json::from_str(&std::fs::read_to_string(Path::new(&dir).join("pragmatics-1.json")).unwrap()).unwrap();
-        (config["head_threshold"].as_f64().unwrap(), config["combined_threshold"].as_f64().unwrap())
-    } else {
-        (best_threshold(&head_scores(&dev, &head), &labels(&dev)), 0.5)
-    };
-    let combined_threshold = if std::env::var_os("TURBO_PRAGMATICS_HEAD").is_some() {
-        combined_threshold
-    } else {
-        best_threshold(&combined_scores(&dev, &head), &labels(&dev))
+        let head = fit(&fit_rows, &vectors);
+        let head_threshold = best_threshold(&head_scores(&dev, &head), &labels(&dev));
+        let combined_threshold = best_threshold(&combined_scores(&dev, &head), &labels(&dev));
+        (head, head_threshold, combined_threshold)
     };
     println!(
         "CSC: {} responses, {} train, {} development, {} test; positive test={}/{}",
@@ -64,6 +66,12 @@ pub fn run() {
     let rule_counts = score(&rule_scores(&test), &labels, 0.5);
     let head_counts = score(&head_scores(&test, &head), &labels, head_threshold);
     let combined_counts = score(&combined_scores(&test, &head), &labels, combined_threshold);
+    if release_dir.is_some() {
+        let expected = release::expected();
+        for (name, counts) in [("rules", rule_counts), ("head", head_counts), ("combined", combined_counts)] {
+            release::validate_metrics(counts, &expected["config"]["evaluation"][name]).unwrap();
+        }
+    }
     report("rules", 0.5, rule_counts);
     report("head", head_threshold, head_counts);
     report("combined", combined_threshold, combined_counts);
@@ -79,7 +87,7 @@ pub fn run() {
         combined_counts.recall(),
         combined_counts.f1()
     );
-    if let Some(dir) = std::env::var_os("TURBO_PRAGMATICS_OUT") {
+    if let Some(dir) = output_dir {
         save(Path::new(&dir), &head, head_threshold, combined_threshold, [rule_counts, head_counts, combined_counts]);
     }
 }
