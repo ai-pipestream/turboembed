@@ -70,6 +70,8 @@ pub(super) const WORDS: &[(&str, i64)] = &[
     ("マイナス", -3),
     ("-", -3),
     ("－", -3),
+    ("−", -3),
+    ("‐", -3),
     ("/", -4),
     ("／", -4),
 ];
@@ -147,7 +149,7 @@ fn unsigned(mut text: &str) -> Option<Dec> {
                 }
                 last_digit = true;
             }
-            -1 if digits > 0 && fraction.is_none() && group.is_none_or(|n| n == 3) => {
+            -1 if (digits > 0 || !seen) && fraction.is_none() && group.is_none_or(|n| n == 3) => {
                 fraction = Some(0);
                 group = None;
                 last_digit = false;

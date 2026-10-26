@@ -36,6 +36,9 @@ ages, physical measures, temperatures and currencies. The shared CJK reader
 works directly on borrowed source text, including fullwidth decimal digits,
 Arabic/ideographic mixtures, traditional variants, negatives and large integer
 amounts. Chinese uses only its numeral vocabulary, not Japanese kana spellings.
+Leading decimal points retain their fractional value (`．５美元` is USD 0.5).
+ASCII/fullwidth hyphen-minus, Unicode minus U+2212 and hyphen U+2010 retain
+the negative sign and the full source span (`−5美元` is USD -5).
 Longest complete unit spellings take precedence over numeric prefixes:
 `12千米` means twelve kilometres, while `三百米` means three hundred metres.
 
