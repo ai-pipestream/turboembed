@@ -2,7 +2,8 @@ name: release
 
 # A tag v<version> builds libturbo for Linux x86_64 with the CUDA backend
 # and for macOS arm64 with the Metal backend, and publishes both with the
-# header (docs/release.md). The runners run nothing on a GPU: this builds
+# header (docs/release.md), and pushes the turbo-kserve images to GHCR
+# (docs/release.md, Images). The runners run nothing on a GPU: this builds
 # and packages; what runs and how fast is what the records in
 # benchmarks/records say, on the machines they name.
 
@@ -13,7 +14,12 @@ on:
   # A change to this file or the build script runs the builds on the pull
   # request, keeping the archives as artifacts; nothing is published.
   pull_request:
-    paths: [".github/workflows/release.yml", "core/build.rs"]
+    paths:
+      - ".github/workflows/release.yml"
+      - "core/build.rs"
+      - "server/Dockerfile"
+      - "server/Dockerfile.dockerignore"
+      - "server/tests/image_smoke.rs"
 
 permissions:
   contents: write
@@ -166,9 +172,133 @@ jobs:
             ${{ steps.package.outputs.name }}.BUILD
           if-no-files-found: error
 
+  # The turbo-kserve images (docs/release.md, Images): cpu for amd64 and
+  # arm64, each built on a runner of its own architecture, and cuda for
+  # amd64. Every build is run and has to turn healthy with the tiny bundle
+  # mounted (the cuda one runs its cpu backend: the runners have no GPU);
+  # the amd64 cpu one also embeds the bundle's reference texts over gRPC
+  # to its reference vectors. A tag pushes each by digest, and
+  # image-manifest names them by the version.
+  image:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { variant: cpu, arch: amd64, runner: ubuntu-24.04, features: "", gpus: void }
+          - { variant: cpu, arch: arm64, runner: ubuntu-24.04-arm, features: "", gpus: void }
+          - { variant: cuda, arch: amd64, runner: ubuntu-24.04, features: cuda, gpus: all }
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/turbo-kserve
+      BUILD_FLAGS: >-
+        --platform linux/${{ matrix.arch }} -f server/Dockerfile
+        --build-arg FEATURES=${{ matrix.features }}
+        --build-arg NVIDIA_VISIBLE_DEVICES=${{ matrix.gpus }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: build
+        run: |
+          docker buildx create --use --name turbo
+          # shellcheck disable=SC2086
+          docker buildx build $BUILD_FLAGS --build-arg CUDA_VERSION="$CUDA_VERSION" \
+            --build-arg CUDA_PACKAGE="$CUDA_PACKAGE" --build-arg TURBO_CUDA_ARCH="$TURBO_CUDA_ARCH" \
+            --load -t turbo-kserve:ci .
+      - name: the image runs as a user, and turns healthy with the tiny bundle
+        run: |
+          user="$(docker image inspect -f '{{.Config.User}}' turbo-kserve:ci)"
+          echo "user $user"
+          if [ "$user" != "10001:10001" ]; then echo "the image runs as $user, not 10001:10001"; exit 1; fi
+          docker run -d --name smoke -p 127.0.0.1:8081:8081 \
+            -v "$PWD/testdata/tiny-bert-bundle:/bundles/tiny-bert-bundle:ro" turbo-kserve:ci
+          for _ in $(seq 90); do
+            health="$(docker inspect -f '{{.State.Health.Status}}' smoke)"
+            [ "$health" = healthy ] && break
+            if [ "$(docker inspect -f '{{.State.Running}}' smoke)" != true ]; then echo "the server exited"; exit 1; fi
+            sleep 2
+          done
+          echo "health $health"
+          [ "$health" = healthy ]
+          docker exec smoke turbo-kserve health --service tiny-bert-bundle
+      - uses: dtolnay/rust-toolchain@1.98
+        if: matrix.variant == 'cpu' && matrix.arch == 'amd64'
+      - name: the image embeds the reference texts over gRPC
+        if: matrix.variant == 'cpu' && matrix.arch == 'amd64'
+        env:
+          TURBO_KSERVE_SMOKE_ADDR: 127.0.0.1:8081
+        run: cargo test --locked -p turbo-kserve --test image_smoke -- --nocapture
+      - name: the server's log
+        if: always()
+        run: docker logs smoke || true
+      - name: push by digest
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          # The same build as above, from the builder's cache.
+          # shellcheck disable=SC2086
+          docker buildx build $BUILD_FLAGS --build-arg CUDA_VERSION="$CUDA_VERSION" \
+            --build-arg CUDA_PACKAGE="$CUDA_PACKAGE" --build-arg TURBO_CUDA_ARCH="$TURBO_CUDA_ARCH" \
+            --metadata-file "$RUNNER_TEMP/meta.json" \
+            --output "type=image,name=$IMAGE,push-by-digest=true,name-canonical=true,push=true" .
+          mkdir -p digests
+          jq -r '."containerimage.digest"' "$RUNNER_TEMP/meta.json" > "digests/${{ matrix.variant }}-${{ matrix.arch }}"
+          cat "digests/${{ matrix.variant }}-${{ matrix.arch }}"
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push'
+        with:
+          name: image-digest-${{ matrix.variant }}-${{ matrix.arch }}
+          path: digests/${{ matrix.variant }}-${{ matrix.arch }}
+          if-no-files-found: error
+
+  # Names the pushed images by the tag's version: ghcr.io/<owner>/turbo-kserve
+  # :<version> (cpu, amd64 and arm64) and :<version>-cuda (amd64), and
+  # writes their digests into the release notes.
+  image-manifest:
+    if: github.event_name == 'push'
+    needs: image
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/turbo-kserve
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: image-digest-*
+          path: digests
+          merge-multiple: true
+      - name: tag the images and record their digests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          version="${GITHUB_REF_NAME#v}"
+          docker buildx imagetools create -t "$IMAGE:$version" \
+            "$IMAGE@$(cat digests/cpu-amd64)" "$IMAGE@$(cat digests/cpu-arm64)"
+          docker buildx imagetools create -t "$IMAGE:$version-cuda" "$IMAGE@$(cat digests/cuda-amd64)"
+          {
+            echo "turbo-kserve images, commit ${GITHUB_SHA}"
+            for t in "$version" "$version-cuda"; do
+              digest="$(docker buildx imagetools inspect "$IMAGE:$t" --format '{{json .Manifest}}' | jq -r .digest)"
+              echo "$IMAGE:$t@$digest"
+            done
+            echo "cpu: linux/amd64 and linux/arm64; cuda: linux/amd64, the cpu and cuda backends, CUDA ${CUDA_VERSION}"
+          } > images.BUILD
+          cat images.BUILD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: images
+          path: images.BUILD
+          if-no-files-found: error
+
   publish:
     if: github.event_name == 'push'
-    needs: [linux-x86_64, macos-arm64]
+    needs: [linux-x86_64, macos-arm64, image-manifest]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4
