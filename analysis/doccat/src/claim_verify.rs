@@ -260,7 +260,9 @@ impl<S: NliScorer + Send + Sync + 'static, L: SpanCategorizable> Annotator for C
     }
 }
 
-const CLAIM_VERSION: &str = "1";
+/// "2": the `max_pairs` cap counts only pairs within the scorer's token
+/// budget (#1285), so the same inputs can score pairs "1" did not.
+const CLAIM_VERSION: &str = "2";
 
 fn configuration_hash(c: &ClaimVerifyConfig, version: &str) -> u64 {
     let mut h = Fnv1a::new();
@@ -276,17 +278,21 @@ fn configuration_hash(c: &ClaimVerifyConfig, version: &str) -> u64 {
 mod hash_compat {
     use super::*;
 
-    #[test]
-    fn merged_claim_hash_values_are_preserved() {
-        let cases = [
+    fn cases() -> [ClaimVerifyConfig; 6] {
+        [
             ClaimVerifyConfig::default(),
             ClaimVerifyConfig { min_word_overlap: None, ..ClaimVerifyConfig::default() },
             ClaimVerifyConfig { min_similarity: -0.0, ..ClaimVerifyConfig::default() },
             ClaimVerifyConfig { min_similarity: 0.0, ..ClaimVerifyConfig::default() },
             ClaimVerifyConfig { max_pairs: u32::MAX as usize, ..ClaimVerifyConfig::default() },
             ClaimVerifyConfig { max_pairs: usize::MAX, ..ClaimVerifyConfig::default() },
-        ];
-        let values = cases.map(|c| configuration_hash(&c, CLAIM_VERSION));
+        ]
+    }
+
+    /// The hashes version "1" recorded stay what they were.
+    #[test]
+    fn merged_claim_hash_values_are_preserved() {
+        let values = cases().map(|c| configuration_hash(&c, "1"));
         let widest = if usize::BITS == 64 { 17671229628621543886 } else { 3314949245565464178 };
         assert_eq!(
             values,
@@ -299,5 +305,15 @@ mod hash_compat {
                 widest,
             ]
         );
+    }
+
+    /// Version "2" scores pairs "1" did not, so no configuration keeps
+    /// its old identity.
+    #[test]
+    fn the_budget_fix_changes_every_configuration_identity() {
+        assert_eq!(CLAIM_VERSION, "2");
+        for c in cases() {
+            assert_ne!(configuration_hash(&c, CLAIM_VERSION), configuration_hash(&c, "1"), "{c:?}");
+        }
     }
 }
