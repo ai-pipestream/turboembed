@@ -104,6 +104,7 @@
 
 mod cli;
 mod commands;
+mod namefind_command;
 
 use std::path::Path;
 use std::process::ExitCode;
@@ -240,6 +241,7 @@ fn zoo_index_command(a: Args) -> Result<bool, String> {
 fn main() -> ExitCode {
     let result = parse().and_then(|a| match a.command.as_str() {
         "masc" => masc_command(a),
+        "masc-namefind-select" => namefind_command::run(a),
         "fetch-masc" => fetch_command(a),
         "ud" => ud_command(a),
         "depparse" => depparse_command(a),

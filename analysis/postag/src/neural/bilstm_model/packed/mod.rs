@@ -7,10 +7,11 @@
 //! input projections are one product over every token of every sentence
 //! of the call (both directions), the pretrained adapter is one product
 //! over the words that have a vector, and the output layer is one product
-//! over every token. Each BiLSTM is one `turbo::cpu::lstm::Lstm` over both
-//! directions, which runs every sequence of the call (sorted longest
-//! first) in one recurrent product per step; the character one reads its
-//! input projections gathered from the table. Word representations are
+//! over every token. Each BiLSTM is one `turbo::device::lstm::Lstm` over
+//! both directions, on the CPU or a GPU, which runs every sequence of the
+//! call (sorted longest first) in one recurrent product per step; the
+//! character one reads its input projections gathered from the table,
+//! which lives where the LSTM runs. Word representations are
 //! cached per token string, as the reference path caches its own.
 //!
 //! The JVM order of operations is not kept (that is the reference path,
@@ -22,10 +23,11 @@ mod lstm;
 
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::RwLock;
+use std::sync::{Mutex, RwLock};
 
-use turbo::cpu::lstm::{self as cpu_lstm, Lstm};
 use turbo::cpu::{Matrix, Mode};
+use turbo::device::Device;
+use turbo::device::lstm::{self as device_lstm, Lstm, Table};
 
 use self::lstm::{allocation, bidirectional, pack, run_error, to_f32};
 use super::BilstmPosModel;
@@ -37,7 +39,7 @@ const CACHE_LIMIT: usize = 100_000;
 pub(crate) struct Packed {
     /// `[chars, 8 hc]`: `E W^T + b` of the forward then the backward
     /// character LSTM for every character row.
-    char_table: Vec<f32>,
+    char_table: Table,
     /// The character BiLSTM, run on projections gathered from the table.
     chars: Lstm,
     word_dim: usize,
@@ -49,6 +51,9 @@ pub(crate) struct Packed {
     out_bias: Vec<f32>,
     tags: usize,
     cache: RwLock<HashMap<String, Box<[f32]>>>,
+    /// The LSTM workspaces of finished calls, kept so that a call on a GPU
+    /// does not make its stream and buffers again.
+    spare: Mutex<Vec<device_lstm::Work>>,
 }
 
 impl fmt::Debug for Packed {
@@ -71,7 +76,7 @@ struct Work {
 struct Steps {
     index: Vec<usize>,
     out: Vec<f32>,
-    lstm: cpu_lstm::Work,
+    lstm: device_lstm::Work,
 }
 
 /// Indices of `lens` sorted longest first, and the sorted lengths.
@@ -97,7 +102,8 @@ fn finite(v: &[f32], what: &str) -> Result<(), NeuralError> {
 }
 
 impl Packed {
-    pub(crate) fn new(m: &BilstmPosModel) -> Result<Self, NeuralError> {
+    /// `m`'s weights with its BiLSTMs on `device`.
+    pub(crate) fn new(m: &BilstmPosModel, device: Device) -> Result<Self, NeuralError> {
         let (cf, cb) = (&m.char_forward, &m.char_backward);
         let hc = cf.hidden_size();
         let char_dim = cf.input_size();
@@ -108,6 +114,8 @@ impl Packed {
         let mut char_table = vec![0.0f32; rows * 8 * hc];
         char_input.apply(&embeddings, char_dim, rows, Some(&char_bias), &mut char_table, 8 * hc, Mode::Plain);
         finite(&char_table, "character projection")?;
+        let chars = bidirectional(device, cf, cb)?;
+        let char_table = chars.table(&char_table).map_err(|e| NeuralError::InvalidArgument(e.message))?;
 
         let pretrained_dim = m.pretrained_vectors.as_ref().and_then(|v| v.first()).map_or(0, Vec::len);
         let adapter = match (&m.adapter_weights, &m.adapter_bias) {
@@ -121,14 +129,14 @@ impl Packed {
             _ => None,
         };
 
-        let mut layers = vec![bidirectional(&m.word_forward, &m.word_backward)?];
+        let mut layers = vec![bidirectional(device, &m.word_forward, &m.word_backward)?];
         if let (Some(f), Some(b)) = (&m.word_forward2, &m.word_backward2) {
-            layers.push(bidirectional(f, b)?);
+            layers.push(bidirectional(device, f, b)?);
         }
         let last = layers.last().map_or(0, Lstm::width);
         Ok(Self {
             char_table,
-            chars: bidirectional(cf, cb)?,
+            chars,
             word_dim: m.word_embeddings[0].len(),
             pretrained_dim,
             adapter,
@@ -137,7 +145,13 @@ impl Packed {
             out_bias: to_f32(&m.output_bias),
             tags: m.tags.len(),
             cache: RwLock::new(HashMap::new()),
+            spare: Mutex::new(Vec::new()),
         })
+    }
+
+    /// Where the BiLSTMs run.
+    pub(crate) fn device(&self) -> Device {
+        self.chars.device()
     }
 
     fn rep_dim(&self) -> usize {
@@ -254,8 +268,21 @@ impl Packed {
     /// tokens are `tokens`, one after another. Every length is positive.
     pub(crate) fn score(&self, m: &BilstmPosModel, tokens: &[&str], lens: &[usize]) -> Result<Vec<f32>, NeuralError> {
         debug_assert_eq!(lens.iter().sum::<usize>(), tokens.len());
-        let n = tokens.len();
         let mut w = Work::default();
+        w.steps.lstm = self.spare.lock().unwrap_or_else(|e| e.into_inner()).pop().unwrap_or_default();
+        let scores = self.score_in(m, tokens, lens, &mut w);
+        self.spare.lock().unwrap_or_else(|e| e.into_inner()).push(std::mem::take(&mut w.steps.lstm));
+        scores
+    }
+
+    fn score_in(
+        &self,
+        m: &BilstmPosModel,
+        tokens: &[&str],
+        lens: &[usize],
+        w: &mut Work,
+    ) -> Result<Vec<f32>, NeuralError> {
+        let n = tokens.len();
         let mut offsets = Vec::with_capacity(lens.len());
         let mut at = 0;
         for &len in lens {
