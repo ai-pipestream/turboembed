@@ -11,7 +11,7 @@ syntax = "proto3";
 // (docs/grpc-training.md): each is sealed into the training directory,
 // every file listed in its manifest by size and SHA-256, and served under
 // its name as soon as it is sealed.
-package turbo.training;
+package turbo.training.v1;
 
 service TurboCatalogService {
   // Every artifact the index lists. Refused artifacts are never listed.

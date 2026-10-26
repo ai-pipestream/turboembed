@@ -1,0 +1,21 @@
+version: v2
+lint:
+  use:
+    - BASIC
+    - PACKAGE_VERSION_SUFFIX
+  ignore:
+    - open_inference_grpc.proto
+    - health.proto
+  except:
+    - DIRECTORY_SAME_PACKAGE
+    - PACKAGE_DIRECTORY_MATCH
+    - IMPORT_NO_PUBLIC
+    - ENUM_VALUE_PREFIX
+    - ENUM_ZERO_VALUE_SUFFIX
+breaking:
+  use:
+    - FILE
+    - WIRE_JSON
+  ignore:
+    - open_inference_grpc.proto
+    - health.proto
