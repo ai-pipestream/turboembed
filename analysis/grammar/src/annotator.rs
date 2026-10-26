@@ -71,7 +71,11 @@ impl GrammarAnnotator {
     }
 
     pub fn spanish() -> GrammarAnnotator {
-        GrammarAnnotator::new(&crate::lang::es::SPANISH)
+        GrammarAnnotator::new(&crate::SPANISH_UNITS)
+    }
+
+    pub fn portuguese() -> GrammarAnnotator {
+        GrammarAnnotator::new(&crate::PORTUGUESE_UNITS)
     }
 
     /// The step for a pipeline: writes numbers under [`GRAMMAR_NUMBERS`],

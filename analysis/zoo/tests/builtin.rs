@@ -122,9 +122,18 @@ const TATOEBA_MODEL: &str = "turbo-mul-tatoeba-langdetect-1";
 /// sentences and documents at their addresses in a fourth release.
 const WEB_MODEL: &str = "turbo-mul-tatoeba-fineweb-langdetect-1";
 
+/// The 28-label linear heads trained on GoEmotions (#926), listed at their
+/// addresses in a fifth release of this repository.
+const GOEMOTIONS_HEADS: [&str; 2] =
+    ["turbo-en-goemotions-minilm-l6-v2-head-1", "turbo-en-goemotions-bge-small-en-v1.5-head-1"];
+
 /// A model this repository's recipes train.
 fn trained_here(id: &str) -> bool {
-    MASC_MODELS.contains(&id) || UD_RECIPE_MODELS.contains(&id) || id == TATOEBA_MODEL || id == WEB_MODEL
+    MASC_MODELS.contains(&id)
+        || UD_RECIPE_MODELS.contains(&id)
+        || id == TATOEBA_MODEL
+        || id == WEB_MODEL
+        || GOEMOTIONS_HEADS.contains(&id)
 }
 
 /// The published neural checkpoints the index lists (docs/licences.md,
@@ -157,6 +166,11 @@ const LEXICONS: [&str; 2] =
 /// The spelling evaluation set the spell checker is measured on (#935):
 /// SymSpell's MIT benchmark queries, so permissive and nothing to accept.
 const EVAL_SETS: [&str; 1] = ["symspell-noisy-query-en-1000"];
+
+/// The human misspelling set spell correction is also measured on (#935):
+/// codespell's list, derived from English Wikipedia under CC BY-SA 3.0, so
+/// fetched only after the user accepts that licence.
+const SHARE_ALIKE_EVAL_SETS: [&str; 1] = ["codespell-dictionary-en"];
 
 /// The retrieval checkpoints the SPLATE study lists (#913): permissive
 /// model licences over MS MARCO, so local-only through their training
@@ -213,11 +227,13 @@ fn the_ud_models_carry_their_treebank_licences() {
     expected.extend(UD_RECIPE_MODELS.map(str::to_owned));
     expected.insert(TATOEBA_MODEL.to_owned());
     expected.insert(WEB_MODEL.to_owned());
+    expected.extend(GOEMOTIONS_HEADS.map(str::to_owned));
     expected.extend(CHECKPOINTS.map(str::to_owned));
     expected.extend(SHARE_ALIKE_CHECKPOINTS.map(str::to_owned));
     expected.extend(LOCAL_CHECKPOINTS.map(str::to_owned));
     expected.extend(LEXICONS.map(str::to_owned));
     expected.extend(EVAL_SETS.map(str::to_owned));
+    expected.extend(SHARE_ALIKE_EVAL_SETS.map(str::to_owned));
     expected.extend(RETRIEVAL_CHECKPOINTS.map(str::to_owned));
     expected.extend(DATASETS.map(str::to_owned));
     let listed: BTreeSet<String> = index.list().iter().map(|a| a.id.to_string()).collect();
@@ -262,7 +278,7 @@ fn only_catalan_and_the_models_trained_here_need_no_acceptance() {
             );
         } else if LOCAL_CHECKPOINTS.contains(&a.id.as_str()) {
             assert_eq!(needs, [turbo_zoo::Requirement::of(Licence::CcByNcSa40).unwrap()], "{}", a.id);
-        } else if a.id.as_str().starts_with("opennlp-ga-") {
+        } else if a.id.as_str().starts_with("opennlp-ga-") || SHARE_ALIKE_EVAL_SETS.contains(&a.id.as_str()) {
             assert_eq!(needs, [turbo_zoo::Requirement::of(Licence::CcBySa30).unwrap()], "{}", a.id);
         } else {
             assert_eq!(needs, [turbo_zoo::Requirement::of(Licence::CcBySa40).unwrap()], "{}", a.id);

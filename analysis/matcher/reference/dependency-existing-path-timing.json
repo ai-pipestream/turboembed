@@ -1,0 +1,289 @@
+{
+  "baseline": "726da63a9e65584ba4754f18f1620bcd387b699a",
+  "candidate": "6cc73a0afe302d4c53b3f3f70b1b648a59da71e7",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1",
+  "profile": "release",
+  "rustflags": "-C target-cpu=native",
+  "cpu": 7,
+  "cpu_model": "AMD Ryzen 9 9950X3D 16-Core Processor",
+  "binary_sha256": {
+    "main": "59cacc3807204fd4eb53aaedc2802284049476e091d7b218bd5dc5d6699130b9",
+    "candidate": "15c6664413d227c7a66a924d518d3bae1764776525fa384cf9a105e1d83ca543"
+  },
+  "corpus_sha256": "3fb78e2b55482c8ee00caa653af436c88c9e5bc9a73ce26e4ae3ddc79d2b7e7b",
+  "load_start": [
+    52.57470703125,
+    86.541015625,
+    98.77294921875
+  ],
+  "pairs": [
+    {
+      "order": [
+        "main",
+        "candidate"
+      ],
+      "load": [
+        51.5673828125,
+        85.76806640625,
+        98.45703125
+      ],
+      "main": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 17963893
+      },
+      "candidate": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 18114930
+      }
+    },
+    {
+      "order": [
+        "candidate",
+        "main"
+      ],
+      "load": [
+        51.5673828125,
+        85.76806640625,
+        98.45703125
+      ],
+      "candidate": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 16444391
+      },
+      "main": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 15152238
+      }
+    },
+    {
+      "order": [
+        "main",
+        "candidate"
+      ],
+      "load": [
+        51.5673828125,
+        85.76806640625,
+        98.45703125
+      ],
+      "main": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 17177237
+      },
+      "candidate": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 17944277
+      }
+    },
+    {
+      "order": [
+        "candidate",
+        "main"
+      ],
+      "load": [
+        51.5673828125,
+        85.76806640625,
+        98.45703125
+      ],
+      "candidate": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 18347269
+      },
+      "main": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 17869295
+      }
+    },
+    {
+      "order": [
+        "main",
+        "candidate"
+      ],
+      "load": [
+        51.5673828125,
+        85.76806640625,
+        98.45703125
+      ],
+      "main": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 14952731
+      },
+      "candidate": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 17250194
+      }
+    },
+    {
+      "order": [
+        "candidate",
+        "main"
+      ],
+      "load": [
+        51.5673828125,
+        85.76806640625,
+        98.45703125
+      ],
+      "candidate": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 16077327
+      },
+      "main": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 17755951
+      }
+    },
+    {
+      "order": [
+        "main",
+        "candidate"
+      ],
+      "load": [
+        51.5673828125,
+        85.76806640625,
+        98.45703125
+      ],
+      "main": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 18230909
+      },
+      "candidate": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 15110980
+      }
+    },
+    {
+      "order": [
+        "candidate",
+        "main"
+      ],
+      "load": [
+        51.5673828125,
+        85.76806640625,
+        98.45703125
+      ],
+      "candidate": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 18102236
+      },
+      "main": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 17025880
+      }
+    },
+    {
+      "order": [
+        "main",
+        "candidate"
+      ],
+      "load": [
+        51.5673828125,
+        85.76806640625,
+        98.45703125
+      ],
+      "main": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 16204538
+      },
+      "candidate": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 16578956
+      }
+    },
+    {
+      "order": [
+        "candidate",
+        "main"
+      ],
+      "load": [
+        49.51953125,
+        84.775390625,
+        98.0673828125
+      ],
+      "candidate": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 17903880
+      },
+      "main": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 18000633
+      }
+    },
+    {
+      "order": [
+        "main",
+        "candidate"
+      ],
+      "load": [
+        49.51953125,
+        84.775390625,
+        98.0673828125
+      ],
+      "main": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 14903267
+      },
+      "candidate": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 13100840
+      }
+    },
+    {
+      "order": [
+        "candidate",
+        "main"
+      ],
+      "load": [
+        49.51953125,
+        84.775390625,
+        98.0673828125
+      ],
+      "candidate": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 12935537
+      },
+      "main": {
+        "tokens": 204577,
+        "hits": 51765,
+        "median_ns": 15609122
+      }
+    }
+  ],
+  "match_dump_sha256": "af63717117339df6cfedc46020317acd2b4b6b17ce0f052f37d4583174335ffd",
+  "match_dump_bytes": 4167221,
+  "load_end": [
+    49.51953125,
+    84.775390625,
+    98.0673828125
+  ],
+  "summary": {
+    "main_median_ns": 17101558.5,
+    "candidate_median_ns": 16914575.0,
+    "ratio_of_medians": 0.9890662888999269,
+    "median_paired_ratio": 1.0157567799020102,
+    "min_paired_ratio": 0.8287165030806986,
+    "max_paired_ratio": 1.1536483870404677
+  },
+  "limitations": "Shared host with external workload; no isolated-host or statistical significance claim. One warmup per process; fifteen timed calls, process median; twelve pairs, alternating order; every pair retained."
+}

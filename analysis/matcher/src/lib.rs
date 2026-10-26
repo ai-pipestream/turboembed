@@ -64,3 +64,6 @@ pub use predicates::{SetRelation, ValueTest};
 pub use ruler::{Policy, SpanRuler};
 pub use turbo_analysis_layers::Matches;
 pub use vocab::Label;
+
+mod dependency;
+pub use dependency::{DependencyError, DependencyMatch, DependencyMatcher, DependencyNode, DependencyOp, MatchLimits};

@@ -19,6 +19,15 @@ pub const TURBO_BERT_LAYER_TENSORS: u32 = 16;
 pub const TURBO_FAMILY_BERT: u32 = 1;
 pub const TURBO_FAMILY_ROBERTA: u32 = 2;
 pub const TURBO_FAMILY_STATIC: u32 = 3;
+pub const TURBO_FAMILY_DEBERTA_V2: u32 = 4;
+
+pub const TURBO_DEBERTA_WORD_EMBEDDINGS: u32 = 0;
+pub const TURBO_DEBERTA_EMBEDDINGS_LN_WEIGHT: u32 = 1;
+pub const TURBO_DEBERTA_EMBEDDINGS_LN_BIAS: u32 = 2;
+pub const TURBO_DEBERTA_RELATIVE_EMBEDDINGS: u32 = 3;
+pub const TURBO_DEBERTA_RELATIVE_LN_WEIGHT: u32 = 4;
+pub const TURBO_DEBERTA_RELATIVE_LN_BIAS: u32 = 5;
+pub const TURBO_DEBERTA_EMBEDDING_TENSORS: u32 = 6;
 
 pub const TURBO_STATIC_EMBEDDINGS: u32 = 0;
 pub const TURBO_STATIC_WEIGHTS: u32 = 1;
@@ -107,6 +116,10 @@ pub struct turbo_backend_model {
     /// whole row (architecture.lookahead). Only the CPU backend runs a
     /// band; the core refuses a banded model on any other.
     pub lookahead: u32,
+    /// TURBO_FAMILY_DEBERTA_V2: half the relative table's rows, and the
+    /// distance its log buckets reach; 0 for every other family.
+    pub position_buckets: u32,
+    pub max_relative_positions: u32,
 }
 
 /// A session as session_open receives it: turbo_session_desc's fields with
@@ -295,12 +308,12 @@ impl turbo_backend {
         }
     }
 
-    /// Whether this backend runs a rerank bundle: the CPU, and CUDA, the one
-    /// device backend whose rerank scores and timing are recorded
-    /// (docs/reranking.md). Metal, Level Zero and the rest take the same code
-    /// path but stay refused until they have been run.
+    /// Whether this backend runs a rerank bundle: the CPU, and the device
+    /// backends whose rerank scores are recorded (docs/reranking.md), CUDA
+    /// and Level Zero. Metal and the rest take the same code path but stay
+    /// refused until they have been run.
     pub fn runs_rerank(&self) -> bool {
-        matches!(self.name(), "cpu" | "cuda")
+        matches!(self.name(), "cpu" | "cuda" | "levelzero")
     }
 
     /// Whether model_load takes a token head and embed_write_ranges

@@ -4237,6 +4237,27 @@
       ]
     },
     {
+      "id": "codespell-dictionary-en",
+      "kind": "KIND_DATASET",
+      "language": "en",
+      "format": "FORMAT_TEXT",
+      "version": "f185580744421e1d44e30ce795bc27f9f0ad5584",
+      "license": "CC-BY-SA-3.0",
+      "license_terms": "https://github.com/codespell-project/codespell/blob/f185580744421e1d44e30ce795bc27f9f0ad5584/README.rst",
+      "trained_on": [],
+      "class": "CLASS_SHARE_ALIKE",
+      "attribution": "codespell's dictionary.txt at f185580744421e1d44e30ce795bc27f9f0ad5584 (https://github.com/codespell-project/codespell), a derivative work of English Wikipedia released under CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0/): misspellings with their corrections, one per line as misspelling->correction.",
+      "files": [
+        {
+          "path": "dictionary.txt",
+          "url": "https://raw.githubusercontent.com/codespell-project/codespell/f185580744421e1d44e30ce795bc27f9f0ad5584/codespell_lib/data/dictionary.txt",
+          "size": 1499549,
+          "sha256": "4a37bed1c51be41af3f52042a6b8e6cfcbe462c9d81242ee46cb55b26a68a8f5",
+          "sha512": "83a9b44e61f8f48fd62cf95696a0338e9eae53d52873dba9ceff287e624f4b28387e2bb27169029eac32a280fca6fcd8309b42a9ea8684d24400d79dc5252d8b"
+        }
+      ]
+    },
+    {
       "id": "masc-3.0.0",
       "kind": "KIND_DATASET",
       "language": "en",
@@ -4625,6 +4646,62 @@
           "size": 14395164,
           "sha256": "467f1e7191af00f2e76cc7f425885c2dc304bea8aff284b10e8c460d22f2e1af",
           "sha512": "2c3743a0dc1ef5c4389b3c63dbf23c7c41b97ba6c1c091ee8f325e26dd0207072660f5fd037e370e5460024ec45f56f1a237ed7111d680088d494e8677b0dbd1"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-goemotions-minilm-l6-v2-head-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
+      "language": "en",
+      "format": "FORMAT_HEAD",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "GoEmotions 7de3624754e2b0f2",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/google-research/google-research/blob/7de3624754e2b0f2f505ae496db3ba194bb40be9/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on GoEmotions filtered train/dev/test split (google-research/google-research/goemotions at 7de3624754e2b0f2f505ae496db3ba194bb40be9, https://github.com/google-research/google-research/tree/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions), by Dorottya Demszky, Dana Movshovitz-Attias, Jeongwoo Ko, Alan Cowen, Gaurav Nemade and Sujith Ravi (Google Research, 2020), under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).",
+      "files": [
+        {
+          "path": "turbo-en-goemotions-minilm-l6-v2-head-1.tevh",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-goemotions-1/turbo-en-goemotions-minilm-l6-v2-head-1.tevh",
+          "size": 43251,
+          "sha256": "9b280043bff1293280808a38d35d0cf0489cde4c6f92c08423d5c88fc5021723",
+          "sha512": "697c7cf434beb3203874b30e16d2f46f36b7a4fb15a9ffa0ca606b8173f4ce55721fbb740781586c289d5fb94343073f100576815b3d132faf6df8852ceaf6ee"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-goemotions-bge-small-en-v1.5-head-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
+      "language": "en",
+      "format": "FORMAT_HEAD",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "GoEmotions 7de3624754e2b0f2",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/google-research/google-research/blob/7de3624754e2b0f2f505ae496db3ba194bb40be9/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on GoEmotions filtered train/dev/test split (google-research/google-research/goemotions at 7de3624754e2b0f2f505ae496db3ba194bb40be9, https://github.com/google-research/google-research/tree/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions), by Dorottya Demszky, Dana Movshovitz-Attias, Jeongwoo Ko, Alan Cowen, Gaurav Nemade and Sujith Ravi (Google Research, 2020), under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).",
+      "files": [
+        {
+          "path": "turbo-en-goemotions-bge-small-en-v1.5-head-1.tevh",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-goemotions-1/turbo-en-goemotions-bge-small-en-v1.5-head-1.tevh",
+          "size": 43235,
+          "sha256": "f82b1beb02642576d12e8932b6f3cf0b8487d3f150c0066b576c50011665123a",
+          "sha512": "de5260320ecf59e5c017b33be26cab002e020599de7e09ef8832e8b4a8d82d9316e373636a57b4ec23ed2af2a780b4a5436ebb036fd186c3ab37f4b6e413218b"
         }
       ]
     }

@@ -50,6 +50,8 @@ impl Model {
             head: std::ptr::null(),
             head_out: 0,
             lookahead: 0,
+            position_buckets: 0,
+            max_relative_positions: 0,
         };
         Model { desc, tensors }
     }
