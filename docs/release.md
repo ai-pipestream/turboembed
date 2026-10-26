@@ -1,12 +1,21 @@
 # Releases
 
-A tag `v<version>` on `main` makes two archives through
+A tag `v<version>` on `main` makes four archives through
 `.github/workflows/release.yml` and publishes them as one GitHub release,
 each with its SHA-256:
 
 - `turboembed-v<version>-linux-x86_64.tar.gz`: the cpu and cuda backends.
 - `turboembed-v<version>-macos-arm64.tar.gz`: the metal and cpu backends,
   for Apple silicon.
+- `turboembed-v<version>-linux-aarch64.tar.gz`: the cpu backend.
+- `turboembed-v<version>-windows-x86_64.zip`: the cpu backend, built with
+  MSVC.
+
+Running the workflow by hand (`workflow_dispatch`) is the dry run: it
+builds and checks the four and keeps them, with their sums, as the run's
+artifacts, and publishes nothing. What changed in each release is in
+`CHANGELOG.md`; what a release may change is under Versions and
+compatibility, below.
 
 Nothing else is published: no crate, no image.
 
@@ -60,6 +69,41 @@ devices are listed with their capability cell UNSUPPORTED and the
 reason, and the cpu backend runs as usual. An Intel Mac builds from the
 tree (below).
 
+## What the Linux aarch64 archive holds
+
+```
+lib/libturbo.so            the library: the cpu backend
+bin/turbo-kserve           the gRPC server (docs/grpc.md), the same backend linked in
+include/turbo/turbo.h      the C interface; the design
+include/turbo/turbo_backend.h
+licenses/LICENSE           Apache-2.0
+BUILD                      the commit, the compilers, the glibc it was built against
+README.md                  this file
+```
+
+It is built on an aarch64 runner (Ubuntu 24.04) and needs a glibc at
+least as new as the one `BUILD` names. A Jetson or another aarch64
+machine with an accelerator builds the backend it has from the tree
+(Other platforms, below).
+
+## What the Windows archive holds
+
+```
+bin/turbo.dll              the library: the cpu backend
+bin/turbo-kserve.exe       the gRPC server (docs/grpc.md), the same backend linked in
+lib/turbo.lib              turbo.dll's import library, for the MSVC linker
+include/turbo/turbo.h      the C interface; the design
+include/turbo/turbo_backend.h
+licenses/LICENSE           Apache-2.0
+BUILD                      the commit and the compiler
+README.md                  this file
+```
+
+`turbo.dll` links the C runtime dynamically: a machine needs the Visual
+C++ redistributable (2015 or later), which most already have. The
+workflow checks that the DLL loads and lists the cpu backend in
+`turbo_version()`, and that the server starts and parses its arguments.
+
 ## What a release claims
 
 A release is built and packaged on runners that run nothing on a GPU.
@@ -88,8 +132,10 @@ their cells say EXPERIMENTAL until a record names them.
 
 ## Other platforms
 
-The archives are Linux x86_64 and macOS arm64. A Jetson (aarch64 with JetPack's CUDA) or
-any other machine builds from the tree with the toolkit it has:
+The archives are Linux x86_64 and aarch64, macOS arm64 and Windows
+x86_64; only the first and third carry an accelerator backend. A Jetson
+(aarch64 with JetPack's CUDA) or any other machine builds from the tree
+with the toolkit it has:
 
 ```
 export TURBO_CUDA_ROOT=/usr/local/cuda
@@ -111,3 +157,78 @@ git push origin v0.1.0
 The version is the `turbo` crate's (`core/Cargo.toml`). A tag on a
 commit whose records are not on `main` publishes a library that carries
 fewer records than it could; tag after the records land.
+
+Tag only after `CHANGELOG.md`'s top heading is the version being tagged
+and holds every change since the last tag.
+
+## Versions and compatibility
+
+One version names everything a release ships: the tag, the `turbo`
+crate's version, what `turbo_version()` begins with, the archives and
+the server. It follows semantic versioning over three surfaces, the C
+ABI, the gRPC services (with the server's flags and variables) and the
+bundle format; nothing else is promised. The Rust crates are not
+published and their APIs may change in any release.
+
+While the version is `0.y.z`, a minor release (`0.y` to `0.y+1`) may
+break any of the three, and says so under **Breaking** in
+`CHANGELOG.md` with what to do about it; a patch release (`0.y.z` to
+`0.y.z+1`) breaks none of them. From `1.0.0`, only a major release
+breaks one.
+
+### The C ABI (`include/turbo/`)
+
+A program built against one release's headers runs, unchanged and
+without a rebuild, against the library of any later release that does
+not break the ABI. A release that does not break it may:
+
+- add functions, constants, tasks (by the Tasks rule in `turbo.h`),
+  status codes and enumeration values;
+- add fields at the end of a struct: the `struct_size` a program passes
+  tells the library which fields it knows, and a size an earlier release
+  accepted stays accepted;
+- fix behaviour that contradicts what the header says.
+
+Breaking, so only in a release allowed to break: removing or renaming a
+function, constant or field; changing a type, a field's offset or a
+signature; reusing a task, status or enumeration number; changing what
+an existing value or call means. A program must treat a status code it
+does not know as a failure (`turbo_status_name` names it
+`TURBO_E_UNKNOWN`) and must not assume a list of devices or backends.
+
+### The gRPC services and the server's configuration
+
+The packages are the vendored Open Inference Protocol (`inference`) and
+`grpc.health.v1`, which follow their own specifications, and the
+server's own `turbo.*` packages (docs/grpc.md). A release that does not
+break them may add services, RPCs, messages, fields under new numbers,
+enumeration values and server flags or `TURBO_KSERVE_*` variables; a
+client must ignore fields it does not know and treat an enumeration
+value it does not know as unspecified. Breaking: removing or renaming
+an RPC, message, field, flag or variable; reusing or retyping a field
+number; changing what a field, a status or a default means. A removed
+field's number and name are reserved, never reused.
+
+Once the `turbo.*` packages carry a version (`turbo.<name>.v1`, #1296),
+a breaking change is a new package version, served beside the old one
+for at least one minor release before the old one goes.
+
+### The bundle format (docs/bundle.md)
+
+A bundle names its schema in `manifest.json`'s `bundle_version`. A
+release reads every `bundle_version` the releases before it read, and
+refuses one it does not know, and reads a bundle an earlier release
+made unchanged. A release that does not break the format may add
+optional manifest fields and enumeration values; the manifest is parsed
+strictly (docs/bundle.md), so an older library refuses a bundle that
+uses one, by name, rather than misreading it. A required field, or a
+change to what a field means, is a new `bundle_version`. Dropping a
+`bundle_version` is breaking.
+
+### What is not covered
+
+Benchmark records and the speeds they report, the conformance floors'
+numbers within the bounds docs/conformance.md states, log lines, error
+message text (the status code and the field it names are covered; the
+words are not), and anything under `analysis/` reached other than
+through the C ABI or the gRPC services.

@@ -1,8 +1,10 @@
 name: release
 
-# A tag v<version> builds libturbo for Linux x86_64 with the CUDA backend
-# and for macOS arm64 with the Metal backend, and publishes both with the
-# header (docs/release.md). The runners run nothing on a GPU: this builds
+# A tag v<version> builds libturbo for Linux x86_64 with the CUDA backend,
+# for macOS arm64 with the Metal backend, and for Linux aarch64 and
+# Windows x86_64 with the cpu backend alone, and publishes the four with
+# the header (docs/release.md). workflow_dispatch is the dry run: the four
+# archives and their SHA-256 sums as artifacts, nothing published. The runners run nothing on a GPU: this builds
 # and packages; what runs and how fast is what the records in
 # benchmarks/records say, on the machines they name.
 
@@ -166,9 +168,120 @@ jobs:
             ${{ steps.package.outputs.name }}.BUILD
           if-no-files-found: error
 
+  # The cpu backend alone, on a runner of the archive's own architecture.
+  linux-aarch64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98
+      - name: build
+        run: cargo build --locked --release -p turbo -p turbo-kserve
+      - name: the header compiles as C11 and C++17
+        run: |
+          printf '#include <turbo/turbo.h>\n#include <turbo/turbo_backend.h>\n' > "$RUNNER_TEMP/h.c"
+          cc  -std=c11   -Wall -Wextra -Werror -pedantic -fsyntax-only -Iinclude "$RUNNER_TEMP/h.c"
+          c++ -std=c++17 -Wall -Wextra -Werror -pedantic -fsyntax-only -x c++ -Iinclude "$RUNNER_TEMP/h.c"
+      - name: a C program links the library and it lists the cpu backend; the server starts
+        run: |
+          printf '#include <stdio.h>\n#include <turbo/turbo.h>\nint main(void) { puts(turbo_version()); return 0; }\n' > "$RUNNER_TEMP/v.c"
+          cc -std=c11 -Wall -Wextra -Werror -Iinclude "$RUNNER_TEMP/v.c" -Ltarget/release -lturbo \
+            -Wl,-rpath,"$PWD/target/release" -o "$RUNNER_TEMP/v"
+          v="$("$RUNNER_TEMP/v")"
+          echo "$v"
+          case "$v" in *" cpu") ;; *) echo "turbo_version() does not end with cpu"; exit 1 ;; esac
+          ldd target/release/libturbo.so target/release/turbo-kserve
+          # No model and no --admin is a usage error, exit 2: the binary loads and parses.
+          set +e; target/release/turbo-kserve --listen 127.0.0.1:0 2> "$RUNNER_TEMP/usage"; rc=$?; set -e
+          head -1 "$RUNNER_TEMP/usage"
+          [ "$rc" = 2 ]
+      - name: package
+        id: package
+        run: |
+          # A pull request's ref is <number>/merge; an artifact's name has no /.
+          tag="${GITHUB_REF_NAME//\//-}"
+          name="turboembed-${tag}-linux-aarch64"
+          mkdir -p "$name/lib" "$name/bin" "$name/include/turbo" "$name/licenses"
+          cp target/release/libturbo.so "$name/lib/"
+          cp target/release/turbo-kserve "$name/bin/"
+          cp include/turbo/turbo.h include/turbo/turbo_backend.h "$name/include/turbo/"
+          cp LICENSE "$name/licenses/LICENSE"
+          cp docs/release.md "$name/README.md"
+          {
+            echo "turboembed ${tag}, commit ${GITHUB_SHA}"
+            echo "linux aarch64, cpu backend; bin/turbo-kserve, the gRPC server, with the same"
+            echo "built with rustc $(rustc --version | cut -d' ' -f2) and $(cc --version | head -1), glibc $(ldd --version | head -1 | grep -oE '[0-9.]+$')"
+          } > "$name/BUILD"
+          tar czf "$name.tar.gz" "$name"
+          sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+          cp "$name/BUILD" "$name.BUILD"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: |
+            ${{ steps.package.outputs.name }}.tar.gz
+            ${{ steps.package.outputs.name }}.tar.gz.sha256
+            ${{ steps.package.outputs.name }}.BUILD
+          if-no-files-found: error
+
+  # The cpu backend alone, with the MSVC toolchain: turbo.dll, its import
+  # library, and the server, in a zip.
+  windows-x86_64:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # The records core/build.rs embeds are read byte for byte; a checkout
+      # with core.autocrlf would rewrite their line endings.
+      - name: keep line endings as committed
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98
+      - name: build
+        run: cargo build --locked --release -p turbo -p turbo-kserve
+      - name: the library loads and lists the cpu backend; the server starts
+        run: |
+          v="$(python -c "import ctypes, os; l = ctypes.CDLL(os.path.abspath('target/release/turbo.dll')); l.turbo_version.restype = ctypes.c_char_p; print(l.turbo_version().decode())")"
+          echo "$v"
+          case "$v" in *" cpu") ;; *) echo "turbo_version() does not end with cpu"; exit 1 ;; esac
+          # No model and no --admin is a usage error, exit 2: the binary loads and parses.
+          set +e; target/release/turbo-kserve.exe --listen 127.0.0.1:0 2> "$RUNNER_TEMP/usage"; rc=$?; set -e
+          head -1 "$RUNNER_TEMP/usage"
+          [ "$rc" = 2 ]
+      - name: package
+        id: package
+        run: |
+          # A pull request's ref is <number>/merge; an artifact's name has no /.
+          tag="${GITHUB_REF_NAME//\//-}"
+          name="turboembed-${tag}-windows-x86_64"
+          mkdir -p "$name/bin" "$name/lib" "$name/include/turbo" "$name/licenses"
+          cp target/release/turbo.dll target/release/turbo-kserve.exe "$name/bin/"
+          cp target/release/turbo.dll.lib "$name/lib/turbo.lib"
+          cp include/turbo/turbo.h include/turbo/turbo_backend.h "$name/include/turbo/"
+          cp LICENSE "$name/licenses/LICENSE"
+          cp docs/release.md "$name/README.md"
+          {
+            echo "turboembed ${tag}, commit ${GITHUB_SHA}"
+            echo "windows x86_64 (MSVC), cpu backend; bin/turbo-kserve.exe, the gRPC server, with the same"
+            echo "built with rustc $(rustc --version | cut -d' ' -f2) for $(rustc -vV | sed -n 's/^host: //p')"
+          } > "$name/BUILD"
+          7z a -tzip "$name.zip" "$name" > /dev/null
+          sha256sum "$name.zip" > "$name.zip.sha256"
+          cp "$name/BUILD" "$name.BUILD"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: |
+            ${{ steps.package.outputs.name }}.zip
+            ${{ steps.package.outputs.name }}.zip.sha256
+            ${{ steps.package.outputs.name }}.BUILD
+          if-no-files-found: error
+
   publish:
     if: github.event_name == 'push'
-    needs: [linux-x86_64, macos-arm64]
+    needs: [linux-x86_64, macos-arm64, linux-aarch64, windows-x86_64]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4
@@ -184,4 +297,4 @@ jobs:
           ls -l
           for b in *.BUILD; do cat "$b"; echo; done > notes
           gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file notes \
-            *.tar.gz *.tar.gz.sha256
+            *.tar.gz *.tar.gz.sha256 *.zip *.zip.sha256
