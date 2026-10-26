@@ -109,6 +109,13 @@ record options:
   --tei-bin <path>             TEI's router built natively, run in place of
                                an image (metal, which no container reaches)
   --tei-model <dir>            the model in the upstream layout
+  --tei-nsys <dir>             Nsight Systems' target-linux-x64 directory,
+                               mounted into TEI's container to trace its
+                               requests' GPU kernels (cuda)
+  --tei-nsys-libs <dir>        libraries that nsys needs and the image lacks,
+                               built for the image's glibc
+  --nsys-importer <path>       the host's QdstrmImporter, where the nsys in
+                               the container leaves only its raw stream
   --hailort-bin <path>        native hailortcli (Hailo-8: 4.x; Hailo-10H: 5.x),
                                batch 32 and the HEF fixed sequence length
   --no-hailort                record that HailoRT was not run
