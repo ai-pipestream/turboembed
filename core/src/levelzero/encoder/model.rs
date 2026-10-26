@@ -404,10 +404,9 @@ pub(crate) unsafe extern "C" fn model_load(
             });
             {
                 // The weights go through staging the context allocated, not
-                // straight from the caller's pages (a mapped bundle): the
-                // driver would pin every page of them until the queue
-                // synchronized, and a second load at once ran it out of
-                // memory (#1355).
+                // straight from the caller's pages (a mapped bundle), which
+                // the driver read until the queue synchronized: two large
+                // loads at once failed that way (#1355, staging.rs).
                 let stage = Staging::new(c)?;
                 let mut q = c.lock_queue()?;
                 // The queue is left idle whether or not every copy was

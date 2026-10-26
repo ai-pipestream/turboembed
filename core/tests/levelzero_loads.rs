@@ -1,9 +1,10 @@
 //! Models loaded at once on Level Zero (#1355): several threads, each with
 //! its own runtime and context, load one bundle at the same moment, and
 //! every load succeeds. The bundle is TURBO_TEST_BUNDLE, else
-//! testdata/tiny-bert-bundle. On main a bundle of about a gigabyte failed
-//! the second load on an Arc Pro B70 with an out of memory error, though
-//! the card had room for both.
+//! testdata/tiny-bert-bundle. Before the loads were staged, two loads of a
+//! 770 MB bundle at once on an Arc Pro B70 both failed with a lost device
+//! (0x70000001) at the synchronization, though the card had room for both;
+//! the issue saw TURBO_E_OUT_OF_MEMORY from the copy.
 //!
 //! Built with the `levelzero` feature only. Without a listed device the
 //! test says it was skipped; with TURBO_TEST_REQUIRE_LEVELZERO=1 it fails
