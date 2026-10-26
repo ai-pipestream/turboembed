@@ -205,7 +205,8 @@ separate period column.
 
 All **210 unchanged Italian NumberWithUnit cases** pass: **15 Age,
 106 Currency, 55 Dimension and 34 Temperature**. This includes Age cases
-3 and 7 that upstream marks `NotSupported: dotnet`; neither is excluded.
+3 and 7 and Currency cases 64 and 67 that upstream marks
+`NotSupported: dotnet`; none is excluded.
 The shared exact-span/value/type/subtype/ISO comparator checks **207 cases**.
 Temperature cases **25, 26 and 27 omit Start/End coordinates upstream**:
 those three check the complete expected text/value/unit multiset instead,
@@ -214,6 +215,40 @@ comma decimals are translated; the shared Ton/gallon conventions remain.
 The original files are unchanged. Native regressions additionally check
 real Analyzer output, fused/decomposed source spans, Unicode whitespace,
 UTF-16/codepoint round trips, malformed compounds and boundary ambiguity.
+
+## Portuguese
+
+`PORTUGUESE_UNITS` and `GrammarAnnotator::portuguese()` add Portuguese
+quantities, ages, temperatures and currencies. The provenance name is
+`pt-units`. Portuguese cardinal forms supply the unit amounts, including
+`vinte e dois quilômetros`, gendered hundreds, `mil`, `milhões`, Brazilian
+`bilhões` (10^9), Portuguese `biliões` (10^12), digit fractions and halves.
+This unit-oriented number grammar does not claim full Portuguese ordinal,
+percentage or spelled-decimal coverage.
+
+Rules include `6 pés e 3 polegadas`, `5 libras e 8 onças`,
+`3 metros quadrados`, `2,5 quilômetros por hora`, `10 Mb/s`, `37ºC`,
+`R$25,50`, `três reais e cinquenta centavos` and `20 reais por hora`.
+The original source spans survive accented and decomposed text and Unicode
+whitespace; `Mb` and `MB` remain distinct. `um` is also a number/article, so
+its micrometer abbreviation is accepted only after a digit amount; the
+unambiguous `micrômetros` name accepts spelled amounts as well. Currency
+nouns do not consume following articles. Explicit `real`, `reais` and `R$`
+mean BRL, while generic dollars and unqualified minor units retain the
+shared currency conventions described above. Money rate spans retain the
+denominator; the existing Money layer stores no separate period column.
+
+All **253 unchanged Portuguese NumberWithUnit cases** at the same pinned
+Recognizers-Text revision pass: **18 Age, 123 Currency, 65 Dimension and
+47 Temperature**. No cases are excluded. The comparator translates only
+localized resolution labels and decimal commas, then checks exact spans,
+values, types, subtypes and explicit currency codes. It retains the shared
+comparison conventions for `Ton` and the upstream gallon subtype. Several
+upstream Portuguese fixtures contain Spanish prose or unaccented aliases
+(`yenes`, `oncas`); those original fixtures are retained, and separate native
+Portuguese regressions cover `ienes`, `onças` and BRL compounds. The suite
+also runs the real Analyzer, layer checks, UTF-16/codepoint offset round
+trips, negative boundaries and the distinct `cem`/`cento` forms.
 
 ## Speed
 
@@ -231,5 +266,4 @@ with the number rules and about 7.5 to 8.5 ms with the unit rules, and
   and `version 2 g` as a weight.
 - Glued rate words (`200 Mbps`) and rates over units other than time
   (`$5 per person`).
-- Dutch and Portuguese are tracked in separate #929 PRs; Chinese and
-  Japanese remain separate language slices.
+- Dutch, Chinese and Japanese remain separate #929 language slices.

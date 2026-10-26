@@ -57,7 +57,31 @@ impl Weights {
                 return Err(invalid(format!("deberta {name}: non-finite weight")));
             }
         }
-        let get = |name: &str| file.tensor(name).unwrap().f32s();
+        Self::build(config, &|name: &str| file.tensor(name).unwrap().f32s())
+    }
+
+    /// The weights from the backend table's tensors, F32, in
+    /// TURBO_DEBERTA_* then TURBO_BERT_* layer order: each the length its
+    /// canonical shape gives, and finite.
+    pub fn from_table(config: &Config, tensors: &[&[f32]]) -> Result<Self> {
+        let shapes = config.tensor_shapes()?;
+        if tensors.len() != shapes.len() {
+            return Err(invalid(format!("deberta table: {} tensors, not {}", tensors.len(), shapes.len())));
+        }
+        let at = |name: &str| table_index(name).map(|i| tensors[i]);
+        for (name, shape) in &shapes {
+            let t = at(name).ok_or_else(|| invalid(format!("deberta {name}: no place in the table")))?;
+            if t.len() as u64 != shape.iter().product::<u64>() {
+                return Err(invalid(format!("deberta {name}: shape mismatch")));
+            }
+            if t.iter().any(|x| !x.is_finite()) {
+                return Err(invalid(format!("deberta {name}: non-finite weight")));
+            }
+        }
+        Self::build(config, &|name: &str| at(name).unwrap().to_vec())
+    }
+
+    fn build(config: &Config, get: &dyn Fn(&str) -> Vec<f32>) -> Result<Self> {
         let norm = |stem: &str| Norm { weight: get(&format!("{stem}.weight")), bias: get(&format!("{stem}.bias")) };
         let oom = |_| invalid("deberta weight packing allocation failed");
         let h = config.hidden;
@@ -111,4 +135,41 @@ impl Weights {
             layers,
         })
     }
+}
+
+/// Where the canonical tensor `name` sits in the backend table
+/// (turbo_backend.h, TURBO_DEBERTA_* and TURBO_BERT_*).
+fn table_index(name: &str) -> Option<usize> {
+    const EMBEDDINGS: [&str; 6] = [
+        "embeddings.word_embeddings.weight",
+        "embeddings.LayerNorm.weight",
+        "embeddings.LayerNorm.bias",
+        "encoder.rel_embeddings.weight",
+        "encoder.LayerNorm.weight",
+        "encoder.LayerNorm.bias",
+    ];
+    const LAYER: [&str; 16] = [
+        "attention.self.query_proj.weight",
+        "attention.self.query_proj.bias",
+        "attention.self.key_proj.weight",
+        "attention.self.key_proj.bias",
+        "attention.self.value_proj.weight",
+        "attention.self.value_proj.bias",
+        "attention.output.dense.weight",
+        "attention.output.dense.bias",
+        "attention.output.LayerNorm.weight",
+        "attention.output.LayerNorm.bias",
+        "intermediate.dense.weight",
+        "intermediate.dense.bias",
+        "output.dense.weight",
+        "output.dense.bias",
+        "output.LayerNorm.weight",
+        "output.LayerNorm.bias",
+    ];
+    if let Some(i) = EMBEDDINGS.iter().position(|&e| e == name) {
+        return Some(i);
+    }
+    let (layer, rest) = name.strip_prefix("encoder.layer.")?.split_once('.')?;
+    let r = LAYER.iter().position(|&l| l == rest)?;
+    Some(EMBEDDINGS.len() + layer.parse::<usize>().ok()? * LAYER.len() + r)
 }

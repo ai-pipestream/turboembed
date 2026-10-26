@@ -4,6 +4,9 @@
 use std::collections::HashMap;
 use std::hash::Hasher;
 
+use turbo_analysis::ViewId;
+use turbo_analysis_layers::{Sentences, Subwords, Tokens};
+
 use crate::hash::Fnv;
 
 /// A vector per word for the features that compare mention heads by
@@ -32,6 +35,18 @@ pub trait TokenVectors: Send + Sync {
     /// One vector of [`dimension`](Self::dimension) finite values per
     /// token of one sentence.
     fn vectors(&self, sentence: &[&str]) -> Vec<Vec<f32>>;
+
+    /// A direct layer-aware path when the provider supports it. Returning
+    /// `None` keeps the sentence-slice fallback used by other encoders.
+    fn vectors_spans(
+        &self,
+        _view: ViewId,
+        _tokens: &Tokens,
+        _subwords: Option<&Subwords>,
+        _sentences: &Sentences,
+    ) -> Option<Result<Vec<Vec<f32>>, String>> {
+        None
+    }
 
     /// A hash, stable across runs, of everything that decides the
     /// vectors (the encoder's model and settings), recorded in the
@@ -134,4 +149,22 @@ pub(crate) fn encode(
         start = end;
     }
     Ok(all)
+}
+
+pub(crate) fn check_vectors(vectors: &[Vec<f32>], expected: usize, dimension: usize) -> Result<(), String> {
+    if vectors.len() != expected {
+        return Err(format!("token encoder returned {} vectors for {expected} tokens", vectors.len()));
+    }
+    for (t, v) in vectors.iter().enumerate() {
+        if v.is_empty() {
+            return Err(format!("token encoder returned an empty vector for token {t}"));
+        }
+        if v.len() != dimension {
+            return Err(format!("token encoder returned dimension {} for token {t}, expected {dimension}", v.len()));
+        }
+        if let Some(d) = v.iter().position(|x| !x.is_finite()) {
+            return Err(format!("token encoder returned a non-finite value for token {t} at dimension {d}"));
+        }
+    }
+    Ok(())
 }

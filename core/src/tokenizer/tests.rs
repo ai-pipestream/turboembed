@@ -4,7 +4,7 @@ use super::*;
 fn steps(n: &Normalizer, text: &str) -> String {
     let mut s: String = if n.clean_text {
         text.chars()
-            .filter(|&c| !(c == '\0' || c == '\u{fffd}' || (!matches!(c, '\t' | '\n' | '\r') && c.is_other())))
+            .filter(|&c| !(c == '\0' || c == '\u{fffd}' || (!matches!(c, '\t' | '\n' | '\r') && category(c, OTHER))))
             .map(|c| if is_whitespace(c) { ' ' } else { c })
             .collect()
     } else {
@@ -24,7 +24,7 @@ fn steps(n: &Normalizer, text: &str) -> String {
         s = t;
     }
     if n.strip_accents {
-        s = s.nfd().map(|(c, _)| c).filter(|c| !c.is_mark_nonspacing()).collect();
+        s = aligned_chars(Form::Nfd, s.chars()).map(|(c, _)| c).filter(|&c| !category(c, MARK_NONSPACING)).collect();
     }
     if n.lowercase {
         s = s.chars().flat_map(char::to_lowercase).collect();
@@ -128,14 +128,13 @@ fn appended_rows_are_the_rows_alone() {
     }
 }
 
-/// The table gives each character's categories as unicode_categories
-/// does.
+/// The cached table gives each character's frozen upstream categories.
 #[test]
-fn the_category_table_is_the_unicode_categories() {
-    for c in (0..=0x10ffffu32).filter(|&u| u < 0x10000 || u % 7 == 0).filter_map(char::from_u32) {
-        assert_eq!(category(c, OTHER), c.is_other(), "{c:?}");
-        assert_eq!(category(c, MARK_NONSPACING), c.is_mark_nonspacing(), "{c:?}");
-        assert_eq!(category(c, PUNCTUATION), c.is_punctuation(), "{c:?}");
+fn the_category_table_is_hf_compatible() {
+    for c in (0..=0x10ffffu32).filter_map(char::from_u32) {
+        assert_eq!(category(c, OTHER), turbo_unicode::hf::is_other(c), "{c:?}");
+        assert_eq!(category(c, MARK_NONSPACING), turbo_unicode::hf::is_mark_nonspacing(c), "{c:?}");
+        assert_eq!(category(c, PUNCTUATION), turbo_unicode::hf::is_punctuation(c), "{c:?}");
     }
 }
 
@@ -269,4 +268,12 @@ fn pre_words_part_punctuation_and_ideographs() {
     let t = "(Paris) Merkel's\u{3000}\u{6771}\u{4eac}x \u{ff0c}y";
     let got: Vec<&str> = pre_words(t).into_iter().map(|(a, b)| &t[a..b]).collect();
     assert_eq!(got, ["(", "Paris", ")", "Merkel", "'", "s", "\u{6771}", "\u{4eac}", "x", "\u{ff0c}", "y"]);
+}
+
+#[test]
+fn added_token_word_classes_match_upstream_on_every_scalar() {
+    let upstream = crate::classes::tests::upstream(r"^\w$");
+    for c in (0..=0x10ffff).filter_map(char::from_u32) {
+        assert_eq!(normalize::is_word(c), upstream(c), "U+{:04X}", c as u32);
+    }
 }

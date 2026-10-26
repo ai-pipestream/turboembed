@@ -71,6 +71,7 @@ pub struct FeedforwardDependencyModel {
     pub(super) layout: FeatureLayout,
     pub(super) activation: Activation,
     pub(super) weights: NeuralWeights,
+    pub(super) default_beam_size: usize,
     /// Frequent word rows in word slots, from [`Self::precompute_words`].
     pub(super) cache: HashMap<(usize, usize), Vec<f64>>,
     /// Every POS, label and word-special row in its slots, built with the model.
@@ -90,6 +91,7 @@ impl FeedforwardDependencyModel {
             layout,
             activation,
             weights,
+            default_beam_size: 1,
             cache: HashMap::new(),
             fixed: SlotTable::default(),
         };
@@ -111,6 +113,10 @@ impl FeedforwardDependencyModel {
     }
     pub fn weights(&self) -> &NeuralWeights {
         &self.weights
+    }
+    /// Suggested decoding width recorded by the trainer or imported model.
+    pub fn default_beam_size(&self) -> usize {
+        self.default_beam_size
     }
     pub(super) fn check(&self) -> Result<()> {
         self.vocabulary.check()?;

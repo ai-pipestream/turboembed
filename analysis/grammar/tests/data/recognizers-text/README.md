@@ -39,7 +39,8 @@ pinned revision and MIT license. `tests/spanish_unit_specs.rs` checks every case
 
 The Italian NumberWithUnit files below are unchanged copies at the same
 pinned revision and MIT license. `tests/italian_unit_specs.rs` checks all
-210 cases, including upstream-unsupported Age cases 3 and 7. Temperature
+210 cases, including upstream-unsupported Age cases 3 and 7 and Currency
+cases 64 and 67. Temperature
 cases 25, 26 and 27 omit coordinates and use text/value/unit comparison;
 the other 207 cases use exact-span comparison.
 
@@ -49,3 +50,14 @@ the other 207 cases use exact-span comparison.
 | `Italian/NumberWithUnit/CurrencyModel.json` | `Specs/NumberWithUnit/Italian/CurrencyModel.json` |
 | `Italian/NumberWithUnit/DimensionModel.json` | `Specs/NumberWithUnit/Italian/DimensionModel.json` |
 | `Italian/NumberWithUnit/TemperatureModel.json` | `Specs/NumberWithUnit/Italian/TemperatureModel.json` |
+
+The Portuguese NumberWithUnit files are unchanged copies at the same pinned
+revision and MIT license. `tests/portuguese_unit_specs.rs` checks all 253 cases
+without exclusions; some upstream inputs retain Spanish surrounding prose.
+
+| File here | Upstream path |
+|---|---|
+| `Portuguese/NumberWithUnit/AgeModel.json` | `Specs/NumberWithUnit/Portuguese/AgeModel.json` |
+| `Portuguese/NumberWithUnit/CurrencyModel.json` | `Specs/NumberWithUnit/Portuguese/CurrencyModel.json` |
+| `Portuguese/NumberWithUnit/DimensionModel.json` | `Specs/NumberWithUnit/Portuguese/DimensionModel.json` |
+| `Portuguese/NumberWithUnit/TemperatureModel.json` | `Specs/NumberWithUnit/Portuguese/TemperatureModel.json` |

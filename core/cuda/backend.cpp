@@ -52,6 +52,7 @@ constexpr cublasStatus_t CUBLAS_STATUS_SUCCESS = 0;
 #include <vector>
 
 #include "autotune.h"
+#include "deberta.h"
 #include "kernels.h"
 
 /* TURBO_CUDA_ARCHS: the architectures build.rs compiled for, as
@@ -801,7 +802,21 @@ struct Model {
      * the device; NULL with head_out 0 for a model without one. */
     float *head = nullptr;
     uint32_t head_out = 0;
+    /* A DeBERTa-v2 model's relative table LayerNormed, then each layer's
+     * relative rows through its fused projection, [2 * position_buckets,
+     * 3 * hidden] (deberta.h), made by the first session; empty for any
+     * other family. */
+    std::mutex relative_lock;
+    void *relative = nullptr;
+    std::vector<const float *> relative_rows;
 };
+
+bool is_deberta(const turbo_backend_model &d) { return d.family == TURBO_FAMILY_DEBERTA_V2; }
+
+/* The tensors before the first layer's, by family. */
+size_t layer_base(const turbo_backend_model &d) {
+    return is_deberta(d) ? TURBO_DEBERTA_EMBEDDING_TENSORS : TURBO_BERT_EMBEDDING_TENSORS;
+}
 
 void release_model(Model *m) {
     DeviceScope scope(m->ctx->ordinal);
@@ -809,6 +824,7 @@ void release_model(Model *m) {
     if (m->widened) cudaFree(m->widened);
     if (m->narrowed) cudaFree(m->narrowed);
     if (m->head) cudaFree(m->head);
+    if (m->relative) cudaFree(m->relative);
     delete m;
 }
 
@@ -837,7 +853,8 @@ bool every_tensor(size_t) { return true; }
  * their biases, so one GEMM of [3 * hidden, hidden] makes the three
  * projections and their biases are one [3 * hidden] vector. Every copy
  * of the weights is laid out so. */
-size_t lay_out(const std::vector<uint64_t> &counts, size_t elem, bool (*keep)(size_t), std::vector<size_t> &at) {
+size_t lay_out(const std::vector<uint64_t> &counts, size_t elem, bool (*keep)(size_t), std::vector<size_t> &at,
+               size_t base = TURBO_BERT_EMBEDDING_TENSORS) {
     static const int order[TURBO_BERT_LAYER_TENSORS] = {
         TURBO_BERT_Q_WEIGHT,        TURBO_BERT_K_WEIGHT,       TURBO_BERT_V_WEIGHT,       TURBO_BERT_Q_BIAS,
         TURBO_BERT_K_BIAS,          TURBO_BERT_V_BIAS,         TURBO_BERT_ATTN_OUT_WEIGHT, TURBO_BERT_ATTN_OUT_BIAS,
@@ -852,8 +869,8 @@ size_t lay_out(const std::vector<uint64_t> &counts, size_t elem, bool (*keep)(si
         total += counts[i] * elem;
         if (!next_follows) total = round_up(total, DEVICE_ALIGN);
     };
-    for (size_t i = 0; i < counts.size() && i < TURBO_BERT_EMBEDDING_TENSORS; i++) place(i, false);
-    for (size_t l0 = TURBO_BERT_EMBEDDING_TENSORS; l0 < counts.size(); l0 += TURBO_BERT_LAYER_TENSORS)
+    for (size_t i = 0; i < counts.size() && i < base; i++) place(i, false);
+    for (size_t l0 = base; l0 < counts.size(); l0 += TURBO_BERT_LAYER_TENSORS)
         for (int k = 0; k < TURBO_BERT_LAYER_TENSORS; k++) {
             const int r = order[k];
             place(l0 + r, r == TURBO_BERT_Q_WEIGHT || r == TURBO_BERT_K_WEIGHT || r == TURBO_BERT_Q_BIAS ||
@@ -862,15 +879,56 @@ size_t lay_out(const std::vector<uint64_t> &counts, size_t elem, bool (*keep)(si
     return total;
 }
 
+/* What model_load checks of a DeBERTa-v2 description, as the CPU's does:
+ * the struct reaches max_relative_positions, the table holds the
+ * embeddings and each layer's tensors, and the shape is one the CPU
+ * encoder takes (core/src/deberta/config.rs). */
+int32_t check_deberta(const turbo_backend_model *d, turbo_error *err) {
+    const size_t need = offsetof(turbo_backend_model, max_relative_positions) + sizeof(uint32_t);
+    if (d->struct_size < need)
+        return refuse(err, TURBO_E_INVALID_STRUCT_SIZE, "turbo_backend_model of %u bytes: a DeBERTa-v2 model needs %zu",
+                      d->struct_size, need);
+    const uint64_t expected = TURBO_DEBERTA_EMBEDDING_TENSORS + (uint64_t)d->layers * TURBO_BERT_LAYER_TENSORS;
+    if (d->tensor_count != expected || !d->tensors)
+        return refuse(err, TURBO_E_INVALID_ARGUMENT, "tensor_count %u: a DeBERTa-v2 of %u layers has %llu",
+                      d->tensor_count, d->layers, (unsigned long long)expected);
+    const struct {
+        const char *name;
+        uint32_t value, limit;
+    } limits[] = {{"hidden", d->hidden, 4096},          {"intermediate", d->intermediate, 16384},
+                  {"heads", d->heads, 128},             {"layers", d->layers, 128},
+                  {"vocabulary", d->vocab_size, 1000000}, {"max_sequence", d->max_positions, 4096},
+                  {"position_buckets", d->position_buckets, 4096},
+                  {"max_relative_positions", d->max_relative_positions, 65536}};
+    for (const auto &l : limits)
+        if (l.value == 0 || l.value > l.limit)
+            return refuse(err, TURBO_E_INVALID_ARGUMENT, "deberta %s limit: 1..=%u", l.name, l.limit);
+    if (d->hidden % d->heads != 0) return refuse(err, TURBO_E_INVALID_ARGUMENT, "deberta hidden must divide by heads");
+    if (d->position_buckets < 4 || d->position_buckets % 2 != 0 ||
+        d->max_relative_positions <= d->position_buckets / 2 + 1)
+        return refuse(err, TURBO_E_INVALID_ARGUMENT, "deberta invalid relative position bucket geometry");
+    if (!std::isfinite(d->layer_norm_eps) || d->layer_norm_eps <= 0.0 || d->layer_norm_eps > 1.0)
+        return refuse(err, TURBO_E_INVALID_ARGUMENT, "deberta layer_norm_eps must be finite in (0,1]");
+    return TURBO_OK;
+}
+
 int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo_error *err) {
     return guarded(err, [&]() -> int32_t {
         Context *c = static_cast<Context *>(ctx);
-        if (desc->family != TURBO_FAMILY_BERT && desc->family != TURBO_FAMILY_ROBERTA)
-            return refuse(err, TURBO_E_UNSUPPORTED, "family %u: the cuda backend holds BERT encoders", desc->family);
+        const bool deberta = is_deberta(*desc);
+        if (deberta) TRY(check_deberta(desc, err));
+        else if (desc->family != TURBO_FAMILY_BERT && desc->family != TURBO_FAMILY_ROBERTA)
+            return refuse(err, TURBO_E_UNSUPPORTED, "family %u: the cuda backend holds BERT and DeBERTa-v2 encoders",
+                          desc->family);
         if (desc->heads == 0 || desc->hidden % desc->heads != 0)
             return refuse(err, TURBO_E_UNSUPPORTED, "hidden %u is not a multiple of heads %u", desc->hidden,
                           desc->heads);
-        if (desc->hidden / desc->heads > (uint32_t)ATTENTION_MAX_HEAD_DIM)
+        // DeBERTa-v2's attention is its own kernels' (deberta.h), which take
+        // any head width up to 128.
+        if (deberta && desc->hidden / desc->heads > 128)
+            return refuse(err, TURBO_E_UNSUPPORTED, "heads %u wide: the cuda backend's DeBERTa-v2 attention takes up "
+                          "to 128", desc->hidden / desc->heads);
+        if (!deberta && desc->hidden / desc->heads > (uint32_t)ATTENTION_MAX_HEAD_DIM)
             return refuse(err, TURBO_E_UNSUPPORTED, "heads %u wide: the cuda backend's attention takes up to %d",
                           desc->hidden / desc->heads, ATTENTION_MAX_HEAD_DIM);
         if (desc->hidden > (uint32_t)MAX_HIDDEN || desc->hidden % 8 != 0 || desc->intermediate % 8 != 0)
@@ -892,7 +950,7 @@ int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo
         m->desc.tensors = nullptr;
         m->desc.head = nullptr;
         for (uint32_t i = 0; i < desc->tensor_count; i++) m->counts.push_back(desc->tensors[i].bytes / elem);
-        const size_t total = lay_out(m->counts, elem, every_tensor, m->offsets);
+        const size_t total = lay_out(m->counts, elem, every_tensor, m->offsets, layer_base(*desc));
         const int32_t rc = [&]() -> int32_t {
             ON_DEVICE(c->ordinal);
             TRY_CUDA(device_malloc(&m->stored, total), "device memory for the weights");
@@ -923,8 +981,8 @@ int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo
             release_model(m);
             return rc;
         }
-        c->say(LOG_DEBUG, "cuda device %d: a BERT of %u layers, %zu bytes of %s weights", c->ordinal, desc->layers,
-               total, dtype_name(desc->dtype));
+        c->say(LOG_DEBUG, "cuda device %d: a %s of %u layers, %zu bytes of %s weights", c->ordinal,
+               deberta ? "DeBERTa-v2" : "BERT", desc->layers, total, dtype_name(desc->dtype));
         *out = m;
         return TURBO_OK;
     });
@@ -943,7 +1001,7 @@ int32_t f32_weights(Model *m, turbo_error *err) {
     if (!m->f32.empty()) return TURBO_OK;
     Context *c = m->ctx;
     std::vector<size_t> at;
-    const size_t total = lay_out(m->counts, 4, every_tensor, at);
+    const size_t total = lay_out(m->counts, 4, every_tensor, at, layer_base(m->desc));
     ON_DEVICE(c->ordinal);
     void *wide = nullptr;
     TRY_CUDA(device_malloc(&wide, total), "device memory for the weights in F32");
@@ -1028,6 +1086,49 @@ int32_t f16_weights(Model *m, turbo_error *err) {
     m->f16.assign(n, nullptr);
     for (size_t i = 0; i < n; i++)
         if (gemm_weight(i)) m->f16[i] = reinterpret_cast<const uint16_t *>(dst + at[i]);
+    return TURBO_OK;
+}
+
+/* A DeBERTa-v2 model's relative rows, made on first need from its F32
+ * weights (deberta.h): the table LayerNormed, then each layer's fused
+ * Q|K|V projection of it. */
+int32_t relative_rows(Model *m, turbo_error *err) {
+    std::lock_guard<std::mutex> g(m->relative_lock);
+    if (!m->relative_rows.empty()) return TURBO_OK;
+    Context *c = m->ctx;
+    const turbo_backend_model &d = m->desc;
+    const size_t h = d.hidden, rows = 2 * (size_t)d.position_buckets;
+    const size_t table = round_up(rows * h * 4, DEVICE_ALIGN), per = round_up(rows * 3 * h * 4, DEVICE_ALIGN);
+    ON_DEVICE(c->ordinal);
+    void *rel = nullptr;
+    TRY_CUDA(device_malloc(&rel, table + d.layers * per), "device memory for the relative rows");
+    float *norm = static_cast<float *>(rel);
+    const int32_t rc = [&]() -> int32_t {
+        std::lock_guard<std::mutex> cg(c->lock);
+        TRY_CUDA(cudaMemcpyAsync(norm, m->f32[TURBO_DEBERTA_RELATIVE_EMBEDDINGS], rows * h * 4,
+                                 cudaMemcpyDeviceToDevice, c->stream),
+                 "the relative table");
+        TRY_CUDA(deberta_layer_norm_rows(c->stream, norm, m->f32[TURBO_DEBERTA_RELATIVE_LN_WEIGHT],
+                                         m->f32[TURBO_DEBERTA_RELATIVE_LN_BIAS], (float)d.layer_norm_eps, (int)rows,
+                                         (int)h),
+                 "the relative table's LayerNorm");
+        for (uint32_t l = 0; l < d.layers; l++) {
+            const size_t q = TURBO_DEBERTA_EMBEDDING_TENSORS + (size_t)l * TURBO_BERT_LAYER_TENSORS;
+            float *out = reinterpret_cast<float *>(static_cast<char *>(rel) + table + l * per);
+            TRY_CUDA(deberta_relative(c->stream, norm, m->f32[q + TURBO_BERT_Q_WEIGHT], m->f32[q + TURBO_BERT_Q_BIAS],
+                                      (int)rows, (int)(3 * h), (int)h, out),
+                     "the relative projections");
+        }
+        TRY_CUDA(cudaStreamSynchronize(c->stream), "the relative projections");
+        return TURBO_OK;
+    }();
+    if (rc != TURBO_OK) {
+        cudaFree(rel);
+        return rc;
+    }
+    m->relative = rel;
+    for (uint32_t l = 0; l < d.layers; l++)
+        m->relative_rows.push_back(reinterpret_cast<const float *>(static_cast<char *>(rel) + table + l * per));
     return TURBO_OK;
 }
 
@@ -1137,6 +1238,12 @@ enum : unsigned { CUBLAS_QKV = 1, CUBLAS_OUT = 2, CUBLAS_FFN1 = 4, CUBLAS_FFN2 =
 std::atomic<int> cublas_override{-1};
 std::atomic<int> tile_override{-1};
 std::atomic<int> split_attention_override{-1};
+/* A test's choice of DeBERTa-v2's general attention kernel in place of the
+ * tiled one (turbo_cuda_use_general_attention): 1 general, 0 the default. */
+std::atomic<int> deberta_general_override{0};
+/* The attention kernel the last DeBERTa-v2 session picked, for the tests:
+ * 2 tiled, 1 general, 0 before any. */
+std::atomic<int> deberta_last_pick{0};
 std::atomic<int> wide_attention_override{-1};
 std::atomic<int> exact_attention_override{-1};
 std::atomic<int> fa32_attention_override{-1};
@@ -1653,6 +1760,11 @@ struct Session {
      * cuBLAS or a second graph needs them, else 0. */
     uint32_t tokens = 0;
     uint64_t h2d = 0;
+    /* A DeBERTa-v2 model's: the bucket of each distance a row of max_seq
+     * tokens spans, [2 * max_seq - 1], and attention's launch (deberta.h);
+     * NULL for any other family. */
+    int32_t *buckets = nullptr;
+    DebertaPlan deberta{};
 };
 
 void release_session(Session *s) {
@@ -1706,7 +1818,8 @@ int32_t encode(Session &s, int bin, turbo_error *err) {
     const bool half = s.half;
     cudaStream_t st = s.ctx->stream;
     cublasHandle_t blas = s.ctx->blas;
-    auto at = [](uint32_t l, int r) { return (size_t)TURBO_BERT_EMBEDDING_TENSORS + l * TURBO_BERT_LAYER_TENSORS + r; };
+    const size_t base = layer_base(d);
+    auto at = [base](uint32_t l, int r) { return base + l * TURBO_BERT_LAYER_TENSORS + r; };
     auto layer = [&](uint32_t l, int r) { return w[at(l, r)]; };
     // A GEMM's weight in the session's dtype.
     auto weight = [&](uint32_t l, int r) -> const void * {
@@ -1728,9 +1841,14 @@ int32_t encode(Session &s, int bin, turbo_error *err) {
     // and the pooling reads the F16 copy. The fused epilogues read and
     // keep the F32 stream.
     const bool stream16 = sh.residual16 && !plan.fused_ln;
-    TRY_CUDA(embed_layer_norm(st, s.rows, w[WORD], w[POSITION], w[TOKEN_TYPE], w[EMB_LN_W], w[EMB_LN_B], eps, s.pk,
-                              h, (int)d.position_offset, stream16 ? nullptr : s.x, s.x16, plan),
-             "the embedding lookup");
+    if (s.buckets)
+        TRY_CUDA(deberta_embed(st, s.rows, w[TURBO_DEBERTA_WORD_EMBEDDINGS], w[TURBO_DEBERTA_EMBEDDINGS_LN_WEIGHT],
+                               w[TURBO_DEBERTA_EMBEDDINGS_LN_BIAS], eps, s.pk, h, s.x, plan.rows_grid),
+                 "the embedding lookup");
+    else
+        TRY_CUDA(embed_layer_norm(st, s.rows, w[WORD], w[POSITION], w[TOKEN_TYPE], w[EMB_LN_W], w[EMB_LN_B], eps, s.pk,
+                                  h, (int)d.position_offset, stream16 ? nullptr : s.x, s.x16, plan),
+                 "the embedding lookup");
     GemmArgs g{};
     g.info = info;
     g.heads = heads;
@@ -1776,7 +1894,14 @@ int32_t encode(Session &s, int bin, turbo_error *err) {
         } else {
             TRY_CUDA(gemm_as(GEMM_QKV, EPI_QKV, g), "the query, key and value projections");
         }
-        TRY_CUDA(attention(st, aa, sh, plan), "attention");
+        if (s.buckets) {
+            const DebertaArgs da{static_cast<const float *>(s.qkv), static_cast<float *>(s.att), s.pk, heads, hd, h,
+                                 tcap, (int)s.max_batch, (int)s.max_seq, mo.relative_rows[l], s.buckets,
+                                 (int)s.max_seq - 1, (float)(1.0 / std::sqrt(3.0 * hd))};
+            TRY_CUDA(deberta_attention(st, da, s.deberta), "attention");
+        } else {
+            TRY_CUDA(attention(st, aa, sh, plan), "attention");
+        }
 
         g.a = s.att;
         g.w = weight(l, TURBO_BERT_ATTN_OUT_WEIGHT);
@@ -2074,7 +2199,8 @@ void stage_rows(Session &s, int m) {
 GemmArgs layer_gemm(const Session &s, int bin, Gemm which, Epilogue ep) {
     const Model &mo = *s.model;
     const turbo_backend_model &d = mo.desc;
-    auto at = [](int r) { return (size_t)TURBO_BERT_EMBEDDING_TENSORS + r; };
+    const size_t base = layer_base(d);
+    auto at = [base](int r) { return base + r; };
     auto weight = [&](int r) -> const void * {
         return s.half ? static_cast<const void *>(mo.f16[at(r)]) : static_cast<const void *>(mo.f32[at(r)]);
     };
@@ -2390,7 +2516,13 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
         if (tokens > (size_t)INT32_MAX / (d.intermediate > 3 * d.hidden ? d.intermediate : 3 * d.hidden))
             return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 1, "%u rows of %u tokens is more than one GEMM takes",
                                 max_batch, max_seq);
+        const bool deberta = is_deberta(d);
+        if (deberta && precision == TURBO_PRECISION_FASTEST)
+            return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
+                                "precision: FASTEST on FAMILY_DEBERTA_V2: the cuda backend runs a DeBERTa-v2 encoder "
+                                "in F32 alone; ask for MODEL or EXACT");
         TRY(f32_weights(m, err));
+        if (deberta) TRY(relative_rows(m, err));
         bool half = false;
         if (precision == TURBO_PRECISION_FASTEST) {
             TRY(f16_weights(m, err));
@@ -2399,7 +2531,7 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
         // The QKV GEMM reads Q, K and V's weights and biases as one: every
         // copy of the weights is laid out so (lay_out).
         for (uint32_t l = 0; l < d.layers; l++) {
-            const size_t q = TURBO_BERT_EMBEDDING_TENSORS + (size_t)l * TURBO_BERT_LAYER_TENSORS;
+            const size_t q = layer_base(d) + (size_t)l * TURBO_BERT_LAYER_TENSORS;
             const size_t hh = (size_t)d.hidden * d.hidden;
             const bool bias = m->f32[q + TURBO_BERT_K_BIAS] == m->f32[q + TURBO_BERT_Q_BIAS] + d.hidden &&
                               m->f32[q + TURBO_BERT_V_BIAS] == m->f32[q + TURBO_BERT_Q_BIAS] + 2 * d.hidden;
@@ -2441,6 +2573,11 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
         Choices ch = defaults(base);
         bool tf32 = false, f16_accumulate = false;
         forced_from_environment(base, precision, tuned, &ch, &tf32, &f16_accumulate);
+        if (deberta && tf32)
+            return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
+                                "precision %s: TF32 on FAMILY_DEBERTA_V2: the cuda backend runs a DeBERTa-v2 encoder "
+                                "in F32 FMAs alone",
+                                precision_name(precision));
         char why[TURBO_ERROR_MESSAGE_LEN];
         uint32_t absent = 0;
         if (!choices_named(&ch, &absent, why, sizeof why)) return refuse(err, TURBO_E_INVALID_ARGUMENT, "%s", why);
@@ -2592,9 +2729,10 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
         const size_t head_output = round_up((size_t)max_ranges * m->head_out * 4, DEVICE_ALIGN);
         Tuned found;
         uint32_t tune_ms = 0;
+        const size_t spans = deberta ? round_up((2 * (size_t)max_seq - 1) * 4, DEVICE_ALIGN) : 0;
         const size_t total =
             5 * ints + ranges + 5 * rows + info + x + x16 + qkv + att + ffn + part + ws + flags + raw + output +
-            head_output;
+            head_output + spans;
         // The staging: the three planes, the ranges, then the fault word.
         const size_t staged_ints = 3 * tokens + range_ints;
         const int32_t rc = [&]() -> int32_t {
@@ -2637,6 +2775,7 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
             s->head_output.placement = TURBO_PLACE_DEVICE;
             s->head_output.bytes = (uint64_t)max_ranges * m->head_out * 4;
             s->head_output.owned = false;
+            if (deberta) s->buckets = reinterpret_cast<int32_t *>(take(spans));
             s->pack.rows = s->rows;
             s->pack.heads = (int32_t)d.heads;
             s->pack.queries = s->plan[0].attn_queries;
@@ -2654,6 +2793,31 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
             // once, they hold finite values whatever reads them.
             TRY_CUDA(cudaMemsetAsync(s->scratch, 0, total, c->stream), "clearing the session's memory");
             TRY_CUDA(cudaStreamSynchronize(c->stream), "clearing the session's memory");
+            // A DeBERTa-v2 session's attention launch, and its buckets, sent
+            // again after each clearing of the scratch.
+            std::vector<int32_t> table(deberta ? 2 * (size_t)max_seq - 1 : 0);
+            for (size_t k = 0; k < table.size(); k++)
+                table[k] = (int32_t)deberta_bucket((long long)k - ((long long)max_seq - 1), d.position_buckets,
+                                                   d.max_relative_positions);
+            auto send_buckets = [&]() -> int32_t {
+                if (!deberta) return TURBO_OK;
+                TRY_CUDA(cudaMemcpyAsync(s->buckets, table.data(), table.size() * 4, cudaMemcpyHostToDevice, c->stream),
+                         "the relative buckets");
+                TRY_CUDA(cudaStreamSynchronize(c->stream), "the relative buckets");
+                return TURBO_OK;
+            };
+            if (deberta)
+                TRY_CUDA(deberta_plan((int)(d.hidden / d.heads), (int)max_batch, (int)max_seq, (int)d.heads, sms,
+                                      (size_t)optin, overridden(deberta_general_override) == 1, table.data(),
+                                      &s->deberta),
+                         "planning DeBERTa-v2 attention");
+            if (deberta) {
+                deberta_last_pick.store(s->deberta.tiled ? 2 : 1, std::memory_order_relaxed);
+                if (!s->deberta.tiled && !s->deberta.why.empty())
+                    c->say(LOG_DEBUG, "cuda device %d: DeBERTa-v2 attention is the general kernel: %s", c->ordinal,
+                           s->deberta.why.c_str());
+            }
+            TRY(send_buckets());
             if (measure) {
                 const Clock::time_point tune_start = Clock::now();
                 TRY(tune(*s, tn, tuning->budget_ms, &found, err));
@@ -2663,6 +2827,7 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
                 *s->fault = 0;
                 TRY_CUDA(cudaMemsetAsync(s->scratch, 0, total, c->stream), "clearing the session's memory");
                 TRY_CUDA(cudaStreamSynchronize(c->stream), "clearing the session's memory");
+                TRY(send_buckets());
                 s->fetch.n = 0;
                 s->tokens = 0;
                 s->run = RunArgs{};
@@ -3292,6 +3457,27 @@ void turbo_cuda_fail_variant(const char *name) {
 }
 
 void turbo_cuda_use_sk_steps(int32_t steps) { sk_override.store(steps, std::memory_order_relaxed); }
+
+/* DeBERTa-v2 sessions made from now on run the general attention kernel
+ * when general is 1, the tiled one for their head width at 0. */
+void turbo_cuda_use_general_attention(int32_t general) {
+    deberta_general_override.store(general, std::memory_order_relaxed);
+}
+
+/* deberta_tiled_rows for a model of buckets and maximum at head_dim, in
+ * sessions of seq_cap tokens: 1 with *reach and *room set, 0 for a width
+ * with no tiled kernel. */
+int32_t turbo_cuda_deberta_tiled_rows(uint32_t buckets, uint32_t maximum, int32_t seq_cap, int32_t head_dim,
+                                      int32_t *reach, int32_t *room) {
+    std::vector<int32_t> table(2 * (size_t)seq_cap - 1);
+    for (size_t k = 0; k < table.size(); k++)
+        table[k] = (int32_t)deberta_bucket((long long)k - (seq_cap - 1), buckets, maximum);
+    return deberta_tiled_rows(head_dim, seq_cap, table.data(), reach, room) ? 1 : 0;
+}
+
+/* The attention kernel the last DeBERTa-v2 session made picked: 2 tiled,
+ * 1 general, 0 before any. */
+int32_t turbo_cuda_last_deberta_attention(void) { return deberta_last_pick.load(std::memory_order_relaxed); }
 
 /* The FMA attention of sessions made from now on: 1 the key-split kernel
  * (TURBO_CUDA_ATTENTION=split), 0 the default, -1 to read the variable
