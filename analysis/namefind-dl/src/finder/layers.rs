@@ -38,6 +38,12 @@ impl NameFinderDl {
             let (text, regions) = (input.text, &input.regions);
             for &(lo, hi) in regions {
                 let region = text.get(lo..hi).ok_or_else(|| format!("sentence {lo}..{hi} is not in the text"))?;
+                // WordSlice input separates these controls, while whole-text
+                // WordPiece can delete them and join the neighboring words.
+                // Such a layer is not compatible even with the same model.
+                let subwords = input.subwords.filter(|_| {
+                    !region.chars().any(|c| c.is_control() && c.is_whitespace() && !matches!(c, '\t' | '\n' | '\r'))
+                });
                 let fallback = decode::words(region);
                 let reused = input.tokens.map(|tokens| {
                     (0..tokens.spans.len())
@@ -48,7 +54,7 @@ impl NameFinderDl {
                 });
                 let words = reused.filter(|words| *words == fallback).unwrap_or(fallback);
                 let (mut region_ids, mut region_spans) = (Vec::new(), Vec::new());
-                if input.subwords.is_none() {
+                if subwords.is_none() {
                     for &(start, end) in &words {
                         let at = region_ids.len();
                         self.tokenizer
@@ -66,7 +72,7 @@ impl NameFinderDl {
                     spans.clear();
                     if !words.is_empty() {
                         let (ws, we) = (lo + words[a].0, lo + words[b - 1].1);
-                        if let Some(subwords) = input.subwords {
+                        if let Some(subwords) = subwords {
                             for (i, (_, span)) in subwords.spans.iter().enumerate() {
                                 if span.start < we as u32 && (ws as u32) < span.end {
                                     ids.push(subwords.ids[i]);

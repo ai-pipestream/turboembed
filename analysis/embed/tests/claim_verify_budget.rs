@@ -122,3 +122,6 @@ fn nothing_is_scored_when_every_pair_is_over_budget() {
     assert!(scored.is_empty(), "{scored:?}");
     assert_eq!(runs, 0, "no encoder run without a pair");
 }
+
+#[path = "claim_verify/inputs.rs"]
+mod inputs;

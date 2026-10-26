@@ -450,3 +450,6 @@ fn the_step_rejects_subwords_from_another_model() {
     let result = analyzer.run(&mut docs).remove(0);
     assert!(result.as_ref().is_err_and(|e| e.to_string().contains("another model")), "{result:?}");
 }
+
+#[path = "offline/word_slice_reuse.rs"]
+mod word_slice_reuse;
