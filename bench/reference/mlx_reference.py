@@ -94,7 +94,7 @@ def main():
     o = a.parse_args()
     if mx.__version__ != o.version:
         raise SystemExit(f"MLX {mx.__version__} is not the version asked for, {o.version}")
-    load = list(os.getloadavg())
+    loadavg = list(os.getloadavg())
     with open(o.rows, encoding="utf-8") as f:
         rows = json.load(f)
     b, s = rows["batch"], rows["seq"]
@@ -123,7 +123,7 @@ def main():
         "libmlx_sha256": sha256(os.path.join(lib, "libmlx.dylib")),
         "metallib_sha256": sha256(os.path.join(lib, "mlx.metallib")),
         "core_sha256": sha256(mx.__file__),
-        "loadavg": load,
+        "loadavg": loadavg,
         "dtype": o.dtype,
         "batch": b,
         "seq": s,
