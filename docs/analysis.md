@@ -5332,6 +5332,16 @@ recorded), so those did not run.
 
 ### Trained encoders (#879)
 
+**Historical timing receipt pending rerun.** The latency tables and JSON below
+were collected before the dense baseline correction in PR #1412. That baseline
+limited chunk hits before reducing them to documents, and used compact row IDs
+after omitting zero/nonfinite vectors. The corrected harness uses the same dense
+document ranking as `turbo-eval run`, including its zero-row scores, source row
+mapping, document tie order and self exclusion. Existing records are preserved;
+they do not measure the corrected baseline. The owner must regenerate the trained
+latency receipt and recheck its default-C and speed conclusions. The separate
+quality records are unchanged. No replacement timing claim is made here.
+
 The same record with trained encoders: static `minishlab/potion-base-8M`
 and contextual `sentence-transformers/all-MiniLM-L6-v2`, corpus-scale
 cascade (`analysis/eval/src/cascade.rs`), turbo-chunker at max 254,

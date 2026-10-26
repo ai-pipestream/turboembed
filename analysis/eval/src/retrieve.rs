@@ -62,11 +62,9 @@ impl Index<'_> {
         move |&a, &b| scores[b].total_cmp(&scores[a]).then_with(|| self.docs[b].cmp(&self.docs[a]))
     }
 
-    /// The document and chunk rankings of one query vector.
-    fn rank(&self, query: &str, q: &[f32]) -> (Ranking, ChunkRanking) {
-        let scores: Vec<f64> = self.vectors.chunks_exact(self.dim).map(|v| f64::from(dot(q, v))).collect();
+    fn document_ranking_from_scores(&self, query: &str, scores: impl Iterator<Item = f64>) -> Ranking {
         let mut best = vec![f64::NEG_INFINITY; self.docs.len()];
-        for (c, &s) in scores.iter().enumerate() {
+        for (c, s) in scores.enumerate() {
             let d = self.doc[c] as usize;
             best[d] = best[d].max(s);
         }
@@ -74,6 +72,22 @@ impl Index<'_> {
             (0..self.docs.len()).filter(|&d| best[d].is_finite() && self.docs[d] != query).collect();
         top(&mut docs, self.doc_order(&best));
         let hits = docs.iter().map(|&d| Hit { doc: self.docs[d].clone(), score: best[d] }).collect();
+        Ranking { query: query.into(), hits }
+    }
+
+    /// The same dense document ranking as `search`, without a worker thread
+    /// or chunk ranking. Used by the single-query latency measurement.
+    pub(crate) fn document_ranking(&self, query: &str, q: &[f32]) -> Result<Ranking> {
+        if q.len() != self.dim {
+            return Err(format!("{} values for a query of {} dimensions", q.len(), self.dim));
+        }
+        Ok(self.document_ranking_from_scores(query, self.vectors.chunks_exact(self.dim).map(|v| f64::from(dot(q, v)))))
+    }
+
+    /// The document and chunk rankings of one query vector.
+    fn rank(&self, query: &str, q: &[f32]) -> (Ranking, ChunkRanking) {
+        let scores: Vec<f64> = self.vectors.chunks_exact(self.dim).map(|v| f64::from(dot(q, v))).collect();
+        let documents = self.document_ranking_from_scores(query, scores.iter().copied());
 
         // Score descending, document id descending, span ascending, as
         // `spans` ranks chunks.
@@ -89,7 +103,7 @@ impl Index<'_> {
             .iter()
             .map(|&c| ChunkHit { doc: self.docs[self.doc[c] as usize].clone(), span: self.span[c], score: scores[c] })
             .collect();
-        (Ranking { query: query.into(), hits }, ChunkRanking { query: query.into(), hits: chunk_hits })
+        (documents, ChunkRanking { query: query.into(), hits: chunk_hits })
     }
 
     /// Ranks every query (`queries[i]` with vector row i of `vectors`),
@@ -204,5 +218,79 @@ mod tests {
         assert_eq!((hits[0].doc.as_str(), hits[99].doc.as_str()), ("d149", "d050"));
         assert_eq!(chunks.hits("q").len(), DEPTH);
         assert_eq!(chunks.hits("q")[0].doc, "d149");
+    }
+}
+
+#[cfg(test)]
+mod latency_regressions {
+    use super::*;
+
+    fn check(index: &Index<'_>, query: &str, vector: &[f32], expected: &[&str]) {
+        let direct = index.document_ranking(query, vector).unwrap();
+        let production = index.search(&[query], vector).unwrap().0;
+        let direct_pairs: Vec<_> = direct.hits.iter().map(|h| (h.doc.as_str(), h.score)).collect();
+        let production_pairs: Vec<_> = production.hits(query).iter().map(|h| (h.doc.as_str(), h.score)).collect();
+        assert_eq!(direct_pairs, production_pairs);
+        assert_eq!(direct.hits.iter().map(|h| h.doc.as_str()).collect::<Vec<_>>(), expected);
+    }
+
+    #[test]
+    fn latency_documents_reduce_before_cut_and_self_exclusion() {
+        let ids = vec!["a".into(), "b".into()];
+        let index = Index {
+            dim: 2,
+            vectors: vec![1.0, 0.0, 1.0, 0.0, 0.8, 0.6],
+            doc: vec![0, 0, 1],
+            span: vec![Span::new(0, 1).unwrap(), Span::new(1, 2).unwrap(), Span::new(0, 1).unwrap()],
+            docs: &ids,
+        };
+        check(&index, "q", &[1.0, 0.0], &["a", "b"]);
+        check(&index, "a", &[1.0, 0.0], &["b"]);
+    }
+
+    #[test]
+    fn latency_documents_keep_original_rows_and_zero_scores() {
+        let ids = vec!["zero".into(), "valid".into()];
+        let index = Index {
+            dim: 2,
+            vectors: vec![0.0, 0.0, 1.0, 0.0],
+            doc: vec![0, 1],
+            span: vec![Span::new(0, 1).unwrap(); 2],
+            docs: &ids,
+        };
+        check(&index, "q", &[1.0, 0.0], &["valid", "zero"]);
+        let ranking = index.document_ranking("q", &[1.0, 0.0]).unwrap();
+        assert_eq!(ranking.hits[0].score, 1.0);
+        assert_eq!(ranking.hits[1].score, 0.0);
+        assert!(index.document_ranking("q", &[1.0]).is_err());
+    }
+
+    #[test]
+    fn latency_documents_do_not_cap_chunks_and_match_document_ties() {
+        let ids: Vec<_> = (0..151).map(|i| format!("d{i:03}")).collect();
+        let mut owners = vec![0; 500];
+        owners.extend(1..151);
+        let spans = (0..owners.len()).map(|i| Span::new(i, i + 1).unwrap()).collect();
+        let index = Index { dim: 1, vectors: vec![1.0; owners.len()], doc: owners, span: spans, docs: &ids };
+        let expected: Vec<_> = ids[51..].iter().rev().map(String::as_str).collect();
+        check(&index, "d000", &[1.0], &expected);
+    }
+
+    #[test]
+    fn latency_documents_do_not_move_nonfinite_scores_to_other_documents() {
+        let ids = vec!["invalid".into(), "valid".into()];
+        for invalid in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            let index = Index {
+                dim: 1,
+                vectors: vec![invalid, 1.0],
+                doc: vec![0, 1],
+                span: vec![Span::new(0, 1).unwrap(); 2],
+                docs: &ids,
+            };
+            let got = index.document_ranking("q", &[1.0]).unwrap();
+            assert_eq!(got.hits.len(), 1);
+            assert_eq!(got.hits[0].doc, "valid");
+            assert_eq!(got.hits[0].score, 1.0);
+        }
     }
 }
