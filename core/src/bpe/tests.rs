@@ -22,6 +22,39 @@ fn classes_cover_each_unicode_group() {
     }
 }
 
+/// The pattern's classes are upstream's: \\s, \\p{L} and \\p{N} as the
+/// regex engine its tokenizers split with reads them, for every scalar.
+#[test]
+fn classes_are_upstreams() {
+    use crate::classes::tests::upstream;
+    let (space, letter, number) = (upstream(r"^\s$"), upstream(r"^\p{L}$"), upstream(r"^\p{N}$"));
+    let mut wrong = Vec::new();
+    for c in (0..=0x10ffffu32).filter_map(char::from_u32) {
+        let want = if space(c) {
+            Class::Space
+        } else if letter(c) {
+            Class::Letter
+        } else if number(c) {
+            Class::Number
+        } else {
+            Class::Other
+        };
+        if class(c) != want {
+            wrong.push(c);
+        }
+    }
+    assert!(wrong.is_empty(), "{} characters: {:?}", wrong.len(), &wrong[..wrong.len().min(40)]);
+}
+
+/// Regenerates the split Unicode class tables from upstream's regex engine,
+/// never from the workspace's own Unicode data: upstream's tokenizers read
+/// an older Unicode than `turbo-unicode`, and the core must split as they do.
+#[test]
+#[ignore = "writes the tables; run by hand when upstream's tokenizers move Unicode"]
+fn write_classes() {
+    crate::classes::tests::write_classes();
+}
+
 /// Each byte has a character and each character its byte back.
 #[test]
 fn byte_chars_go_both_ways() {

@@ -1,0 +1,52 @@
+use super::*;
+
+#[test]
+fn ranges_are_ordered_disjoint_unicode_scalars() {
+    for table in [LETTERS, NUMBERS] {
+        for &(a, b) in table {
+            assert!(a <= b && char::from_u32(a).is_some() && char::from_u32(b).is_some());
+            assert!(b < 0xd800 || a > 0xdfff);
+        }
+        assert!(table.windows(2).all(|w| w[0].1 < w[1].0));
+    }
+    for &(a, b) in LETTERS {
+        assert!(NUMBERS.iter().all(|&(c, d)| b < c || d < a));
+    }
+}
+
+/// Whether `pattern`, such as `^\p{L}$`, matches `c` alone in the regex
+/// engine upstream's tokenizers split with: the classes the core's must be.
+pub(crate) fn upstream(pattern: &str) -> impl Fn(char) -> bool {
+    let re = tokenizers::utils::SysRegex::new(pattern).unwrap();
+    move |c| re.find_iter(c.encode_utf8(&mut [0u8; 4])).next().is_some()
+}
+
+pub(crate) fn write_classes() {
+    let ranges = |wanted: &dyn Fn(char) -> bool| {
+        let mut out: Vec<(u32, u32)> = Vec::new();
+        for c in (0..=0x10ffff).filter_map(char::from_u32) {
+            if wanted(c) {
+                match out.last_mut() {
+                    Some(r) if r.1 + 1 == c as u32 => r.1 = c as u32,
+                    _ => out.push((c as u32, c as u32)),
+                }
+            }
+        }
+        out
+    };
+    let letters = ranges(&upstream(r"^\p{L}$"));
+    let numbers = ranges(&upstream(r"^\p{N}$"));
+    let middle = letters.len().div_ceil(2);
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/classes");
+    for (file, table) in
+        [("letters_a.rs", &letters[..middle]), ("letters_b.rs", &letters[middle..]), ("numbers.rs", &numbers[..])]
+    {
+        assert!(table.len() < 490, "split the class table further before regenerating");
+        let mut out = format!("pub(super) const RANGES: [(u32, u32); {}] = [\n", table.len());
+        for (a, b) in table {
+            out.push_str(&format!("    (0x{a:x}, 0x{b:x}),\n"));
+        }
+        out.push_str("];\n");
+        std::fs::write(root.join(file), out).unwrap();
+    }
+}

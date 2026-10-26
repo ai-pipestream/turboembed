@@ -265,8 +265,6 @@ pub(super) fn is_control(c: char) -> bool {
 pub(super) const OTHER: u8 = 1;
 pub(super) const MARK_NONSPACING: u8 = 2;
 pub(super) const PUNCTUATION: u8 = 4;
-pub(crate) const LETTER: u8 = 8;
-pub(crate) const NUMBER: u8 = 16;
 
 /// Whether `c` is in the categories `bits` names (Unicode's C, Mn, P, L
 /// and N): from a table of the Basic Multilingual Plane, made once,
