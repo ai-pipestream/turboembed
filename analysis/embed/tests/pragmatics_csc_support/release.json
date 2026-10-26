@@ -1,5 +1,4 @@
 {
-  "source_sha256": "fd8ca7531887823a315e91f5d0edbcc9ec685a557c333c37f485a15a9e55ad7a",
   "config": {
     "combined_threshold": 0.35000000000000003,
     "dataset": "CoPsyN/CSC@f11c92b8d54686f64cf1d92766cef07201efb986",
@@ -52,10 +51,11 @@
     "sha256": "aa4fe6835aad81378f69103998c05aab05b3170c72b2536c230d016979ff9c27"
   },
   "population": {
-    "total": 7036,
-    "train": 4146,
-    "dev": 1507,
-    "test": 1383,
-    "test_positive": 497
-  }
+    "dev": 1298,
+    "test": 1429,
+    "test_positive": 654,
+    "total": 6937,
+    "train": 4210
+  },
+  "source_sha256": "fd8ca7531887823a315e91f5d0edbcc9ec685a557c333c37f485a15a9e55ad7a"
 }

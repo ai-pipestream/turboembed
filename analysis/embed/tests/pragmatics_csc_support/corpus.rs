@@ -1,15 +1,20 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
+use super::split::{self, Partition};
+
 pub struct Response {
     pub context: u32,
+    pub context_text: String,
     pub text: String,
     pub sarcastic: bool,
+    pub partition: Partition,
 }
 
+/// Aggregates evaluator ratings per response and assigns scenario-grouped partitions.
 pub fn load(path: &Path) -> Vec<Response> {
     let csv = std::fs::read_to_string(path).unwrap();
-    let mut grouped: BTreeMap<(u32, u32, String), Vec<u8>> = BTreeMap::new();
+    let mut grouped: BTreeMap<(u32, u32, String), (String, Vec<u8>)> = BTreeMap::new();
     for row in records(&csv).into_iter().skip(1) {
         if row.len() != 9 {
             continue;
@@ -22,15 +27,21 @@ pub fn load(path: &Path) -> Vec<Response> {
         if row[3].trim().is_empty() {
             continue;
         }
-        grouped.entry((context, speaker, row[3].clone())).or_default().push(rating);
+        grouped
+            .entry((context, speaker, row[3].clone()))
+            .or_insert_with(|| (row[2].clone(), Vec::new()))
+            .1
+            .push(rating);
     }
-    grouped
+    let rows = grouped
         .into_iter()
-        .map(|((context, _, text), mut ratings)| {
+        .map(|((context, _, text), (context_text, mut ratings))| {
             ratings.sort_unstable();
-            Response { context, text, sarcastic: ratings[ratings.len() / 2] >= 4 }
+            let sarcastic = ratings[ratings.len() / 2] >= 4;
+            Response { context, context_text, text, sarcastic, partition: Partition::Train }
         })
-        .collect()
+        .collect();
+    split::assign(rows)
 }
 
 fn records(csv: &str) -> Vec<Vec<String>> {

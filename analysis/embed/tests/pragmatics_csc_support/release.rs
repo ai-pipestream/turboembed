@@ -1,12 +1,14 @@
 //! Frozen release verification, separate from training and threshold selection.
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use serde_json::Value;
 use turbo_analysis::ModelRef;
 use turbo_analysis_embed::ClassifierHead;
 
-use super::{corpus::Response, metrics::Counts};
+use super::corpus::Response;
+use super::metrics::Counts;
+use super::split::{Partition, SAME_SCENARIO, jaccard, words};
 
 pub fn expected() -> Value {
     serde_json::from_str(include_str!("release.json")).unwrap()
@@ -14,7 +16,7 @@ pub fn expected() -> Value {
 
 pub fn validate_config(config: &Value) -> Result<(), String> {
     if config != &expected()["config"] {
-        return Err("CSC release configuration differs from models-sentiment-925-1".into());
+        return Err("CSC release configuration differs from models-sentiment-925-2".into());
     }
     Ok(())
 }
@@ -66,10 +68,10 @@ pub fn validate_population(rows: &[Response]) -> Result<(), String> {
     let p = &e["population"];
     let counts = [
         ("total", rows.len()),
-        ("train", rows.iter().filter(|r| r.context % 5 > 1).count()),
-        ("dev", rows.iter().filter(|r| r.context % 5 == 1).count()),
-        ("test", rows.iter().filter(|r| r.context % 5 == 0).count()),
-        ("test_positive", rows.iter().filter(|r| r.context % 5 == 0 && r.sarcastic).count()),
+        ("train", rows.iter().filter(|r| r.partition == Partition::Train).count()),
+        ("dev", rows.iter().filter(|r| r.partition == Partition::Dev).count()),
+        ("test", rows.iter().filter(|r| r.partition == Partition::Test).count()),
+        ("test_positive", rows.iter().filter(|r| r.partition == Partition::Test && r.sarcastic).count()),
     ];
     for (name, count) in counts {
         if p[name].as_u64() != Some(count as u64) {
@@ -79,18 +81,30 @@ pub fn validate_population(rows: &[Response]) -> Result<(), String> {
     Ok(())
 }
 
-/// The model sees response text, so context isolation also needs input isolation.
+/// The model sees response text, and responses to one scenario share topic
+/// words, so neither a response text nor a scenario may span partitions.
 pub fn validate_disjoint_inputs(rows: &[Response]) -> Result<(), String> {
-    let mut partitions: BTreeMap<&str, u8> = BTreeMap::new();
+    let mut texts: BTreeMap<&str, BTreeSet<Partition>> = BTreeMap::new();
+    let mut contexts: BTreeMap<String, BTreeSet<Partition>> = BTreeMap::new();
     for row in rows {
-        let partition = match row.context % 5 {
-            0 => 1,
-            1 => 2,
-            _ => 4,
-        };
-        *partitions.entry(&row.text).or_default() |= partition;
+        texts.entry(&row.text).or_default().insert(row.partition);
+        let normalized = row.context_text.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase();
+        contexts.entry(normalized).or_default().insert(row.partition);
     }
-    let overlap = partitions.values().filter(|bits| bits.count_ones() > 1).count();
+    let overlap = contexts.values().filter(|p| p.len() > 1).count();
+    if overlap > 0 {
+        return Err(format!("CSC split leaks {overlap} scenario texts across train/dev/test"));
+    }
+    let scenarios: Vec<(BTreeSet<String>, &BTreeSet<Partition>)> =
+        contexts.iter().map(|(text, p)| (words(text), p)).collect();
+    for (i, (a, pa)) in scenarios.iter().enumerate() {
+        for (b, pb) in &scenarios[i + 1..] {
+            if pa != pb && jaccard(a, b) >= SAME_SCENARIO {
+                return Err("CSC split puts reworded variants of one scenario in different partitions".into());
+            }
+        }
+    }
+    let overlap = texts.values().filter(|p| p.len() > 1).count();
     if overlap > 0 {
         return Err(format!("CSC split leaks {overlap} response texts across train/dev/test"));
     }
@@ -115,6 +129,26 @@ pub fn validate_metrics(actual: Counts, expected: &Value) -> Result<(), String> 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn row(context: u32, context_text: &str, text: &str, partition: Partition) -> Response {
+        Response { context, context_text: context_text.into(), text: text.into(), sarcastic: false, partition }
+    }
+
+    #[test]
+    fn scenario_and_text_leaks_fail() {
+        let shoes = "Steve bought a pair of shoes after work today.";
+        let printer = "You walk into the office and the printer is jammed again.";
+        let clean = [row(1, shoes, "Nice.", Partition::Train), row(2, printer, "Great.", Partition::Test)];
+        validate_disjoint_inputs(&clean).unwrap();
+        let same_text = [row(1, shoes, "Nice.", Partition::Train), row(2, printer, "Nice.", Partition::Test)];
+        assert!(validate_disjoint_inputs(&same_text).unwrap_err().contains("response texts"));
+        let same_scenario =
+            [row(1, shoes, "Nice.", Partition::Train), row(9, &shoes.to_uppercase(), "Great.", Partition::Test)];
+        assert!(validate_disjoint_inputs(&same_scenario).unwrap_err().contains("scenario texts"));
+        let reworded = "Steve bought an expensive pair of shoes after work.";
+        let variant = [row(1, shoes, "Nice.", Partition::Train), row(9, reworded, "Great.", Partition::Test)];
+        assert!(validate_disjoint_inputs(&variant).unwrap_err().contains("reworded"));
+    }
 
     #[test]
     #[ignore = "requires the downloaded published CSC head files"]
@@ -173,13 +207,21 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires the real pinned CSC CSV; current released split is blocked"]
-    fn actual_release_split_has_no_repeated_inputs() {
+    #[ignore = "requires the real pinned CSC CSV"]
+    fn actual_release_split_has_no_repeated_inputs_or_scenarios() {
         let csv = std::env::var("TURBO_CSC_CSV").expect("TURBO_CSC_CSV is required");
         let path = Path::new(&csv);
         validate_source(path).unwrap();
-        let rows = super::super::corpus::load(path);
+        let mut rows = super::super::corpus::load(path);
         validate_population(&rows).unwrap();
         validate_disjoint_inputs(&rows).unwrap();
+        // The models-sentiment-925-1 split grouped by context id alone.
+        for row in &mut rows {
+            row.partition = [Partition::Test, Partition::Dev][..]
+                .get(row.context as usize % 5)
+                .copied()
+                .unwrap_or(Partition::Train);
+        }
+        assert!(validate_disjoint_inputs(&rows).unwrap_err().contains("scenario texts"));
     }
 }

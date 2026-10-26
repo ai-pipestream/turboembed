@@ -11,6 +11,7 @@ use turbo_tokenize::uax29::UntypedWordTokenizer;
 use super::corpus::{Response, load};
 use super::metrics::{Counts, best_threshold, report, score};
 use super::release;
+use super::split::Partition;
 
 struct Prepared {
     response: Response,
@@ -40,10 +41,8 @@ pub fn run() {
     let vectors = Arc::new(VectorAnnotator::open(&bundle, &VectorOptions::default()).unwrap());
     let mut prepared: Vec<Prepared> = responses.into_iter().map(|r| prepare(r, &subwords)).collect();
     embed(&mut prepared, &vectors);
-    let train = &prepared[..];
-    let dev: Vec<&Prepared> = prepared.iter().filter(|p| p.response.context % 5 == 1).collect();
-    let test: Vec<&Prepared> = prepared.iter().filter(|p| p.response.context % 5 == 0).collect();
-    let fit_rows: Vec<&Prepared> = train.iter().filter(|p| p.response.context % 5 > 1).collect();
+    let part = |want| prepared.iter().filter(|p| p.response.partition == want).collect::<Vec<&Prepared>>();
+    let (fit_rows, dev, test) = (part(Partition::Train), part(Partition::Dev), part(Partition::Test));
     assert!(!fit_rows.is_empty() && !dev.is_empty() && !test.is_empty());
     let (head, head_threshold, combined_threshold) = if let Some(dir) = &release_dir {
         release::load(Path::new(dir), vectors.model()).unwrap()
@@ -170,7 +169,7 @@ fn save(dir: &Path, head: &ClassifierHead, head_threshold: f64, combined_thresho
         "head_threshold": head_threshold,
         "combined_threshold": combined_threshold,
         "rule_threshold": 0.5,
-        "training": { "l2_reg": 0.001, "epochs": 200, "learning_rate": 0.1, "split": "context modulo 5" },
+        "training": { "l2_reg": 0.001, "epochs": 200, "learning_rate": 0.1, "split": "scenario groups (context word Jaccard >= 0.4), smallest context id modulo 5, repeated responses in one partition" },
         "evaluation": {
             "rules": metric_json(rules),
             "head": metric_json(head_score),
