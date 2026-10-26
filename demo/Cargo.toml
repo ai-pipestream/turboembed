@@ -20,7 +20,7 @@ axum = { version = "0.8", default-features = false, features = ["http1", "tokio"
 bytes = "1"
 # Reads request bodies and streams replies; already under axum and tonic.
 futures-util = { version = "0.3", default-features = false }
-tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal", "sync"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time"] }
 # A gRPC client of turbo-kserve only: the demo does not link the library.
 tonic = { version = "0.14", default-features = false, features = ["transport", "codegen", "channel"] }
 

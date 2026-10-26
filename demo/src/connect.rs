@@ -8,7 +8,6 @@
 //! server's `turbo-*` metadata, never a message.
 
 use std::convert::Infallible;
-use std::time::Duration;
 
 use axum::body::Body;
 use axum::extract::{Request, State};
@@ -22,6 +21,7 @@ use tonic::codec::Streaming;
 use tonic::codegen::http::uri::PathAndQuery;
 use tonic::metadata::{KeyAndValueRef, MetadataMap};
 
+use crate::budget::Budget;
 use crate::codec::Raw;
 use crate::{App, MAX_MESSAGE_BYTES};
 
@@ -39,6 +39,7 @@ struct Refusal(Code, String);
 
 /// One Connect call, forwarded to the server when its method is allowed.
 pub(crate) async fn call(State(app): State<App>, req: Request) -> Response {
+    let started = tokio::time::Instant::now();
     let (parts, body) = req.into_parts();
     let Some(protocol) = protocol(&parts.headers) else { return unsupported() };
     let path = parts.uri.path();
@@ -58,26 +59,41 @@ pub(crate) async fn call(State(app): State<App>, req: Request) -> Response {
     if protocol == Protocol::Unary && method.streaming {
         return unsupported();
     }
-    let request = match request(&parts.headers, protocol, body).await {
-        Ok(r) => r,
-        Err(r) => return refuse(protocol, r),
+    let budget = match Budget::new(&parts.headers, started) {
+        Ok(b) => b,
+        Err(s) => return refuse(protocol, Refusal(s.code(), s.message().into())),
     };
-    let mut grpc = Grpc::new(app.channel.clone())
-        .max_decoding_message_size(MAX_MESSAGE_BYTES)
-        .max_encoding_message_size(MAX_MESSAGE_BYTES);
-    if let Err(e) = grpc.ready().await {
-        return refuse(protocol, Refusal(Code::Unavailable, format!("the server: {e}")));
-    }
-    let path = PathAndQuery::from_static(method.path);
-    match protocol {
-        Protocol::Unary => match grpc.unary(request, path, Raw).await {
-            Ok(r) => ([(header::CONTENT_TYPE, UNARY)], r.into_inner()).into_response(),
-            Err(s) => unary_error(s.code(), s.message(), s.metadata()),
-        },
-        Protocol::Stream => match grpc.server_streaming(request, path, Raw).await {
-            Ok(r) => stream(r.into_inner()),
-            Err(s) => stream_reply(Body::from(end(Some((s.code(), s.message())), s.metadata()))),
-        },
+    let response = async {
+        let mut request = match request(&parts.headers, protocol, body).await {
+            Ok(r) => r,
+            Err(r) => return refuse(protocol, r),
+        };
+        let mut grpc = Grpc::new(app.channel.clone())
+            .max_decoding_message_size(MAX_MESSAGE_BYTES)
+            .max_encoding_message_size(MAX_MESSAGE_BYTES);
+        if let Err(e) = grpc.ready().await {
+            return refuse(protocol, Refusal(Code::Unavailable, format!("the server: {e}")));
+        }
+        match budget.remaining() {
+            Ok(Some(time)) => request.set_timeout(time),
+            Ok(None) => {}
+            Err(s) => return refuse(protocol, Refusal(s.code(), s.message().into())),
+        }
+        let path = PathAndQuery::from_static(method.path);
+        match protocol {
+            Protocol::Unary => match grpc.unary(request, path, Raw).await {
+                Ok(r) => ([(header::CONTENT_TYPE, UNARY)], r.into_inner()).into_response(),
+                Err(s) => unary_error(s.code(), s.message(), s.metadata()),
+            },
+            Protocol::Stream => match grpc.server_streaming(request, path, Raw).await {
+                Ok(r) => stream(r.into_inner(), budget),
+                Err(s) => stream_reply(Body::from(end(Some((s.code(), s.message())), s.metadata()))),
+            },
+        }
+    };
+    match budget.wait(response).await {
+        Ok(r) => r,
+        Err(s) => refuse(protocol, Refusal(s.code(), s.message().into())),
     }
 }
 
@@ -107,22 +123,10 @@ async fn request(headers: &HeaderMap, protocol: Protocol, body: Body) -> Result<
     if headers.get(encoding).is_some_and(|v| v.as_bytes() != b"identity") {
         return Err(Refusal(Code::Unimplemented, "the demo accepts no compressed requests".into()));
     }
-    let timeout = match headers.get("connect-timeout-ms") {
-        None => None,
-        Some(v) => {
-            let ms = v.to_str().ok().filter(|s| s.len() <= 10).and_then(|s| s.parse::<u64>().ok());
-            let ms = ms.ok_or_else(|| Refusal(Code::InvalidArgument, "connect-timeout-ms is not a number".into()))?;
-            Some(Duration::from_millis(ms))
-        }
-    };
     let framing = if protocol == Protocol::Stream { 5 } else { 0 };
     let body = read(body, MAX_MESSAGE_BYTES + framing).await?;
     let message = if protocol == Protocol::Stream { unenvelope(body)? } else { body };
-    let mut request = tonic::Request::new(message);
-    if let Some(t) = timeout {
-        request.set_timeout(t);
-    }
-    Ok(request)
+    Ok(tonic::Request::new(message))
 }
 
 async fn read(body: Body, limit: usize) -> Result<Bytes, Refusal> {
@@ -184,12 +188,12 @@ fn stream_reply(body: Body) -> Response {
 /// The server's messages as they come, each in an envelope, then the
 /// end-of-stream envelope with the call's status and trailers. When the
 /// page goes away the body is dropped, and with it the call to the server.
-fn stream(messages: Streaming<Bytes>) -> Response {
-    let frames = futures_util::stream::unfold(Some(messages), |state| async move {
+fn stream(messages: Streaming<Bytes>, budget: Budget) -> Response {
+    let frames = futures_util::stream::unfold(Some(messages), move |state| async move {
         let mut messages = state?;
-        let frame = match messages.message().await {
+        let frame = match budget.wait(messages.message()).await.and_then(|r| r) {
             Ok(Some(m)) => return Some((Ok::<Bytes, Infallible>(envelope(0, &m)), Some(messages))),
-            Ok(None) => match messages.trailers().await {
+            Ok(None) => match budget.wait(messages.trailers()).await.and_then(|r| r) {
                 Ok(t) => end(None, &t.unwrap_or_default()),
                 Err(s) => end(Some((s.code(), s.message())), s.metadata()),
             },

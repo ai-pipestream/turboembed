@@ -17,6 +17,7 @@ use tokio::task::JoinHandle;
 use tonic::transport::{Channel, Endpoint};
 
 pub mod allow;
+mod budget;
 mod codec;
 pub mod connect;
 
