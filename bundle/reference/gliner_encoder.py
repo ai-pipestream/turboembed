@@ -1,9 +1,10 @@
 """Write GLiNER's DeBERTa-v3 encoder as an upstream model directory.
 
-From the zoo's urchade-gliner-small-v2.1 checkpoint and the
-microsoft-deberta-v3-small-tokenizer files: the checkpoint's
-token_rep_layer.bert_layer.model tensors as a DebertaV2Model of the
-tokenizer's config.json, its vocabulary the checkpoint's (128004 rows,
+From the zoo's urchade-gliner-small-v2.1 checkpoint (4e091416) and the
+microsoft-deberta-v3-small-tokenizer files (microsoft/deberta-v3-small at
+a36c7390): the checkpoint's token_rep_layer.bert_layer.model tensors as a
+DebertaV2Model of the tokenizer's config.json, loaded with strict=False and
+then refused on any missing key but position_ids or any unexpected one, its vocabulary the checkpoint's (128004 rows,
 with GLiNER's added tokens); spm.model converted to tokenizer.json, with
 [MASK] and GLiNER's [FLERT], <<ENT>> and <<SEP>> pieces at the ids the
 checkpoint uses, its normalizer in SentencePiece's own order; saved by sentence-transformers with mean pooling and no
@@ -71,6 +72,9 @@ def main(config_json, spm_model, checkpoint, out):
     if cfg.vocab_size != tok.get_vocab_size():
         sys.exit(f"the checkpoint has {cfg.vocab_size} rows, the tokenizer {tok.get_vocab_size()} pieces")
     model = DebertaV2Model(cfg)
+    # strict=False, then every key checked here: position_ids is a buffer
+    # the checkpoint need not carry; anything else missing or unexpected
+    # stops the run.
     missing, unexpected = model.load_state_dict(encoder, strict=False)
     missing = [k for k in missing if not k.endswith("position_ids")]
     if missing or unexpected:

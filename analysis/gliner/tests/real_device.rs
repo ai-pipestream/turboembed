@@ -3,8 +3,9 @@
 //! (gliner-convert) and GLINER_ENCODER_BUNDLE the core bundle sealed from
 //! the same checkpoint's encoder (bundle/recipes/gliner-small-v2.1-encoder.json,
 //! docs/gliner.md). The device is TURBO_TEST_DEVICE's (`cuda`, `levelzero`,
-//! `cpu`) at TURBO_TEST_PRECISION (model or exact). Ignored: they need the
-//! checkpoint.
+//! `cpu`) at TURBO_TEST_PRECISION (model or exact). With
+//! TURBO_TEST_REQUIRE_CUDA or TURBO_TEST_REQUIRE_LEVELZERO set, a test fails
+//! unless it runs on that backend. Ignored: they need the checkpoint.
 
 use std::path::PathBuf;
 use std::time::Instant;
@@ -12,10 +13,20 @@ use std::time::Instant;
 use turbo_analysis_embed::{Device, EncoderOptions, Precision};
 use turbo_gliner::{Candidate, Decode, ExtractionSchema, Model, decode, package::Manifest};
 
-/// The largest logit difference from the CPU path the F32 tier allows,
-/// and of an encoder row the heads read (the F32 device bound).
-const BOUND: f32 = 1e-3;
+/// The largest difference from the CPU path of a logit and of an encoder
+/// row the heads read: the F32 device bound, as tests/device.rs and the
+/// core's device tests hold it.
+const BOUND: f32 = 1e-4;
 const ROW_BOUND: f32 = 1e-4;
+
+/// The backend a TURBO_TEST_REQUIRE_* variable requires, if any.
+fn required() -> Option<&'static str> {
+    let set = |v: &str| std::env::var(v).is_ok_and(|v| !v.is_empty() && v != "0");
+    [("TURBO_TEST_REQUIRE_CUDA", "cuda"), ("TURBO_TEST_REQUIRE_LEVELZERO", "levelzero")]
+        .into_iter()
+        .find(|(v, _)| set(v))
+        .map(|(_, b)| b)
+}
 
 fn cosine(a: &[f32], b: &[f32]) -> f64 {
     let dot: f64 = a.iter().zip(b).map(|(x, y)| *x as f64 * *y as f64).sum();
@@ -82,8 +93,15 @@ fn options() -> EncoderOptions {
 /// device.
 fn models() -> (Model, Model) {
     let (package, bundle) = (env_path("GLINER_PACKAGE"), env_path("GLINER_ENCODER_BUNDLE"));
+    let o = options();
+    if let Some(b) = required() {
+        assert!(!matches!(o.device, Device::Cpu), "{b} is required but TURBO_TEST_DEVICE names no device");
+    }
     let cpu = Manifest::load(&package).unwrap();
-    let device = Manifest::open_on(&package, &bundle, &options()).unwrap();
+    let device = Manifest::open_on(&package, &bundle, &o).unwrap();
+    if let Some(b) = required() {
+        assert_eq!(device.execution().unwrap().backend, b, "the session runs on the backend required");
+    }
     (cpu, device)
 }
 
@@ -108,7 +126,9 @@ fn the_real_checkpoint_on_the_backend_table_scores_as_its_package() {
         assert_eq!(device.pack(&text, &s).unwrap().ids, p.ids, "packed ids");
         // The rows the heads read, compared directly.
         let (a, b) = (cpu.states(&p, &s).unwrap(), device.states(&p, &s).unwrap());
+        assert_eq!(a.len(), b.len(), "states");
         let width = a.len() / (p.prompts.len() + p.words.len());
+        assert_eq!(width * (p.prompts.len() + p.words.len()), a.len(), "a state a prompt or word");
         for (x, y) in a.chunks(width).zip(b.chunks(width)) {
             let d = x.iter().zip(y).map(|(u, v)| (u - v).abs()).fold(0f32, f32::max);
             row_worst = row_worst.max(d);
@@ -145,8 +165,9 @@ fn stats(mut ms: Vec<f64>) -> String {
     format!("min {:.2} p50 {:.2} mean {:.2} p99 {:.2}", ms[0], at(0.5), ms.iter().sum::<f64>() / n as f64, at(0.99))
 }
 
-/// score_packed on the package's CPU encoder and on the device,
-/// interleaved, GLINER_REPS runs a side (default 50) after one untimed.
+/// score_packed, and the encoder alone (states), on the package's CPU
+/// encoder and on the device, interleaved, GLINER_REPS runs each (default
+/// 50) after one untimed.
 #[test]
 #[ignore = "needs GLINER_PACKAGE and GLINER_ENCODER_BUNDLE; see docs/gliner.md"]
 fn real_checkpoint_timing() {
@@ -158,26 +179,30 @@ fn real_checkpoint_timing() {
             let s = schema(labels);
             let text = words(n);
             let p = cpu.pack(&text, &s).unwrap();
-            let mut times = [Vec::new(), Vec::new()];
+            // The full call, and the encoder alone (the rows the heads read),
+            // on each side: the difference is the heads' share.
+            let mut times = [Vec::new(), Vec::new(), Vec::new(), Vec::new()];
             for run in 0..=reps {
                 for (i, m) in [&cpu, &device].into_iter().enumerate() {
                     let t = Instant::now();
-                    let out = m.score_packed(&p, &s).unwrap();
-                    std::hint::black_box(out);
+                    std::hint::black_box(m.score_packed(&p, &s).unwrap());
+                    let full = t.elapsed().as_secs_f64() * 1e3;
+                    let t = Instant::now();
+                    std::hint::black_box(m.states(&p, &s).unwrap());
+                    let encoder = t.elapsed().as_secs_f64() * 1e3;
                     if run > 0 {
-                        times[i].push(t.elapsed().as_secs_f64() * 1e3);
+                        times[i].push(full);
+                        times[2 + i].push(encoder);
                     }
                 }
             }
-            let [c, d] = times;
-            println!("timing words={n} labels={labels} ids={} cpu: {}", p.ids.len(), stats(c));
-            println!(
-                "timing words={n} labels={labels} ids={} {} ({}): {}",
-                p.ids.len(),
-                execution.backend,
-                execution.precision,
-                stats(d)
-            );
+            let [c, d, ce, de] = times;
+            let ids = p.ids.len();
+            let (backend, precision) = (&execution.backend, &execution.precision);
+            println!("timing words={n} labels={labels} ids={ids} cpu score_packed: {}", stats(c));
+            println!("timing words={n} labels={labels} ids={ids} cpu encoder: {}", stats(ce));
+            println!("timing words={n} labels={labels} ids={ids} {backend} ({precision}) score_packed: {}", stats(d));
+            println!("timing words={n} labels={labels} ids={ids} {backend} ({precision}) encoder: {}", stats(de));
         }
     }
 }

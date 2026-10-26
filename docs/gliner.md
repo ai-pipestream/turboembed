@@ -28,9 +28,11 @@ is under 1e-10, at MODEL and EXACT.
 `bundle/recipes/gliner-small-v2.1-encoder.json` seals `urchade/gliner_small-v2.1`'s
 encoder as that core bundle. `bundle/reference/gliner_encoder.py`, in the
 pinned reference container, writes it from the zoo's checkpoint and
-`microsoft-deberta-v3-small-tokenizer` files: the checkpoint's
+`microsoft-deberta-v3-small-tokenizer` files (microsoft/deberta-v3-small at
+`a36c739020e01763fe789b4b85e2df55d6180012`): the checkpoint's
 `token_rep_layer.bert_layer.model` tensors as a `DebertaV2Model` of 128004
-rows, and `spm.model` converted to `tokenizer.json` (with `[MASK]` and
+rows (loaded with `strict=False`, then refused on any missing key but
+`position_ids` and on any unexpected one), and `spm.model` converted to `tokenizer.json` (with `[MASK]` and
 GLiNER's `[FLERT]`, `<<ENT>>` and `<<SEP>>` as pieces at the checkpoint's
 ids, its normalizer in SentencePiece's own order: the map, the collapse of
 spaces, the strip). The conversion runs only in the container; no Python
@@ -53,7 +55,7 @@ be the package encoder's, tensor for tensor. Core conformance holds the
 bundle to its reference (10 cases, within 1e-4) on the CPU and the devices.
 `analysis/gliner/tests/real_device.rs` (ignored; `GLINER_PACKAGE`,
 `GLINER_ENCODER_BUNDLE`, `TURBO_TEST_DEVICE`) holds the device to the
-package on the CPU (packed ids identical, every logit within 1e-3, decoded
+package on the CPU (packed ids identical, every logit and row within 1e-4, decoded
 entities alike but for candidates within that of the threshold) and times
 `score_packed` on both, interleaved.
 

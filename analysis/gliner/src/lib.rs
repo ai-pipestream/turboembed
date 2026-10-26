@@ -115,8 +115,6 @@ impl Model {
         let p = self.pack(words, schema)?;
         Ok(decode(self.score_packed(&p, schema)?, schema))
     }
-    /// All valid span/label pairs in start, width, label order. Positions are
-    /// first-subword positions; prompts use the ENT marker hidden state.
     /// The encoder's states the heads read for `p`: each prompt's marker
     /// row, then each word's first-subword row, [prompts + words, hidden].
     pub fn states(&self, p: &PackedInput, schema: &ExtractionSchema) -> Result<Vec<f32>, String> {
@@ -133,6 +131,8 @@ impl Model {
         }
         Ok(out)
     }
+    /// All valid span/label pairs in start, width, label order. Positions are
+    /// first-subword positions; prompts use the ENT marker hidden state.
     pub fn score_packed(&self, p: &PackedInput, schema: &ExtractionSchema) -> Result<Vec<Candidate>, String> {
         self.score_packed_with_work(p, schema, &mut heads::Work::default())
     }
