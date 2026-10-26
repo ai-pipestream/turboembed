@@ -7,9 +7,11 @@
 //! input projections are one product over every token of every sentence
 //! of the call (both directions), the pretrained adapter is one product
 //! over the words that have a vector, and the output layer is one product
-//! over every token. The recurrences run step by step over every sequence
-//! still running ([`lstm::Recurrent`]). Word representations are cached
-//! per token string, as the reference path caches its own.
+//! over every token. Each BiLSTM is one `turbo::cpu::lstm::Lstm` over both
+//! directions, which runs every sequence of the call (sorted longest
+//! first) in one recurrent product per step; the character one reads its
+//! input projections gathered from the table. Word representations are
+//! cached per token string, as the reference path caches its own.
 //!
 //! The JVM order of operations is not kept (that is the reference path,
 //! [`BilstmPosModel::score`]); a row's result does not depend on the
@@ -22,35 +24,27 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::RwLock;
 
+use turbo::cpu::lstm::{self as cpu_lstm, Lstm};
 use turbo::cpu::{Matrix, Mode};
 
-use self::lstm::{Recurrent, Steps, allocation, pack, to_f32};
+use self::lstm::{allocation, bidirectional, pack, run_error, to_f32};
 use super::BilstmPosModel;
 use crate::neural::NeuralError;
 
 const CACHE_LIMIT: usize = 100_000;
-
-/// One sentence BiLSTM layer: the input weights of both directions
-/// stacked `[fwd; bwd]` with their biases, and the two recurrences.
-struct Layer {
-    input: Matrix,
-    bias: Vec<f32>,
-    width: usize,
-    fwd: Recurrent,
-    bwd: Recurrent,
-}
 
 /// A [`BilstmPosModel`]'s weights packed for the CPU backend.
 pub(crate) struct Packed {
     /// `[chars, 8 hc]`: `E W^T + b` of the forward then the backward
     /// character LSTM for every character row.
     char_table: Vec<f32>,
-    char_fwd: Recurrent,
-    char_bwd: Recurrent,
+    /// The character BiLSTM, run on projections gathered from the table.
+    chars: Lstm,
     word_dim: usize,
     pretrained_dim: usize,
     adapter: Option<(Matrix, Vec<f32>)>,
-    layers: Vec<Layer>,
+    /// The sentence BiLSTMs, input projections included.
+    layers: Vec<Lstm>,
     out: Matrix,
     out_bias: Vec<f32>,
     tags: usize,
@@ -67,9 +61,17 @@ impl fmt::Debug for Packed {
 #[derive(Default)]
 struct Work {
     x: Vec<f32>,
-    proj: Vec<f32>,
     states: Vec<f32>,
     steps: Steps,
+}
+
+/// The buffers of the recurrences: the character ids in the order the
+/// LSTM reads them, the character states, and the LSTM's own.
+#[derive(Default)]
+struct Steps {
+    index: Vec<usize>,
+    out: Vec<f32>,
+    lstm: cpu_lstm::Work,
 }
 
 /// Indices of `lens` sorted longest first, and the sorted lengths.
@@ -119,31 +121,19 @@ impl Packed {
             _ => None,
         };
 
-        let mut layers = Vec::with_capacity(2);
-        let mut pairs = vec![(&m.word_forward, &m.word_backward)];
+        let mut layers = vec![bidirectional(&m.word_forward, &m.word_backward)?];
         if let (Some(f), Some(b)) = (&m.word_forward2, &m.word_backward2) {
-            pairs.push((f, b));
+            layers.push(bidirectional(f, b)?);
         }
-        for (f, b) in pairs {
-            let width = f.input_size();
-            layers.push(Layer {
-                input: pack(&[f.w(), b.w()], width)?,
-                bias: f.b().iter().chain(b.b()).map(|&v| v as f32).collect(),
-                width,
-                fwd: Recurrent::new(f)?,
-                bwd: Recurrent::new(b)?,
-            });
-        }
-        let last = layers.last().map_or(0, |l| l.fwd.hidden());
+        let last = layers.last().map_or(0, Lstm::width);
         Ok(Self {
             char_table,
-            char_fwd: Recurrent::new(cf)?,
-            char_bwd: Recurrent::new(cb)?,
+            chars: bidirectional(cf, cb)?,
             word_dim: m.word_embeddings[0].len(),
             pretrained_dim,
             adapter,
             layers,
-            out: pack(&[&m.output_weights], 2 * last)?,
+            out: pack(&[&m.output_weights], last)?,
             out_bias: to_f32(&m.output_bias),
             tags: m.tags.len(),
             cache: RwLock::new(HashMap::new()),
@@ -151,49 +141,44 @@ impl Packed {
     }
 
     fn rep_dim(&self) -> usize {
-        self.word_dim + 2 * self.char_fwd.hidden() + self.pretrained_dim
+        self.word_dim + self.chars.width() + self.pretrained_dim
     }
 
     /// The word representations of `tokens` into `out` `[tokens, rep_dim]`.
-    fn represent(&self, m: &BilstmPosModel, tokens: &[&str], out: &mut [f32], steps: &mut Steps) {
-        let (rd, wd, hc) = (self.rep_dim(), self.word_dim, self.char_fwd.hidden());
+    fn represent(
+        &self,
+        m: &BilstmPosModel,
+        tokens: &[&str],
+        out: &mut [f32],
+        steps: &mut Steps,
+    ) -> Result<(), NeuralError> {
+        let (rd, wd, hc) = (self.rep_dim(), self.word_dim, self.chars.hidden());
         for (row, tok) in out.chunks_exact_mut(rd).zip(tokens) {
             row.fill(0.0);
             for (o, &v) in row[..wd].iter_mut().zip(&m.word_embeddings[m.word_id(tok)]) {
                 *o = v as f32;
             }
         }
-        // As in Java, a token without characters keeps zero character states.
+        // As in Java, a token without characters keeps zero character
+        // states; sorted longest first, those come last and are left out.
         let ids: Vec<Vec<usize>> = tokens.iter().map(|t| m.char_ids(t)).collect();
-        let (order, lens) = longest_first(ids.iter().map(Vec::len));
-        let table = &self.char_table;
-        let fwd = |s: usize, t: usize| &table[ids[order[s]][t] * 8 * hc..][..4 * hc];
-        self.char_fwd.run(
-            &lens,
-            fwd,
-            |s, t, h| {
-                if t + 1 == lens[s] {
-                    out[order[s] * rd + wd..][..hc].copy_from_slice(h);
-                }
-            },
-            steps,
-        );
-        let bwd = |s: usize, t: usize| {
-            let id = &ids[order[s]];
-            &table[id[id.len() - 1 - t] * 8 * hc + 4 * hc..][..4 * hc]
-        };
-        self.char_bwd.run(
-            &lens,
-            bwd,
-            |s, t, h| {
-                if t + 1 == lens[s] {
-                    out[order[s] * rd + wd + hc..][..hc].copy_from_slice(h);
-                }
-            },
-            steps,
-        );
+        let (order, mut lens) = longest_first(ids.iter().map(Vec::len));
+        lens.truncate(lens.partition_point(|&l| l > 0));
+        steps.index.clear();
+        steps.index.extend(order.iter().flat_map(|&i| &ids[i]));
+        let states = size(&mut steps.out, steps.index.len() * 2 * hc);
+        self.chars.run_gathered(&self.char_table, &steps.index, &lens, states, &mut steps.lstm).map_err(run_error)?;
+        let mut at = 0;
+        for (&i, &len) in order.iter().zip(&lens) {
+            // The forward state after the last character; the backward one
+            // after reading back to the first.
+            let row = &mut out[i * rd + wd..][..2 * hc];
+            row[..hc].copy_from_slice(&states[(at + len - 1) * 2 * hc..][..hc]);
+            row[hc..].copy_from_slice(&states[at * 2 * hc + hc..][..hc]);
+            at += len;
+        }
         if self.pretrained_dim == 0 {
-            return;
+            return Ok(());
         }
         let (pd, offset) = (self.pretrained_dim, wd + 2 * hc);
         let vecs = m.pretrained_vectors.as_deref().unwrap_or_default();
@@ -217,6 +202,7 @@ impl Packed {
                 }
             }
         }
+        Ok(())
     }
 
     /// The representations of `tokens` into `x` `[tokens, rep_dim]`, from
@@ -247,7 +233,7 @@ impl Packed {
             return Ok(());
         }
         let mut reps = vec![0.0f32; missing.len() * rd];
-        self.represent(m, &missing, &mut reps, steps);
+        self.represent(m, &missing, &mut reps, steps)?;
         finite(&reps, "word representation")?;
         for (row, tok) in x.chunks_exact_mut(rd).zip(tokens) {
             if let Some(&i) = slot.get(tok) {
@@ -270,42 +256,32 @@ impl Packed {
         debug_assert_eq!(lens.iter().sum::<usize>(), tokens.len());
         let n = tokens.len();
         let mut w = Work::default();
-        self.representations(m, tokens, &mut w.x, &mut w.steps)?;
         let mut offsets = Vec::with_capacity(lens.len());
         let mut at = 0;
         for &len in lens {
             offsets.push(at);
             at += len;
         }
+        // Every row in sentence order longest first, as the LSTM reads them.
         let (order, sorted) = longest_first(lens.iter().copied());
+        let in_order: Vec<&str> =
+            order.iter().flat_map(|&i| &tokens[offsets[i]..offsets[i] + lens[i]]).copied().collect();
+        self.representations(m, &in_order, &mut w.x, &mut w.steps)?;
         for layer in &self.layers {
-            let h = layer.fwd.hidden();
-            let (g, ld) = (4 * h, 8 * h);
-            let proj = size(&mut w.proj, n * ld);
-            layer.input.apply(&w.x, layer.width, n, Some(&layer.bias), proj, ld, Mode::Plain);
-            let states = size(&mut w.states, n * 2 * h);
-            let first = |s: usize| offsets[order[s]];
-            let proj = &*proj;
-            layer.fwd.run(
-                &sorted,
-                |s, t| &proj[(first(s) + t) * ld..][..g],
-                |s, t, st| states[(first(s) + t) * 2 * h..][..h].copy_from_slice(st),
-                &mut w.steps,
-            );
-            let last = |s: usize, t: usize| first(s) + sorted[s] - 1 - t;
-            layer.bwd.run(
-                &sorted,
-                |s, t| &proj[last(s, t) * ld + g..][..g],
-                |s, t, st| states[last(s, t) * 2 * h + h..][..h].copy_from_slice(st),
-                &mut w.steps,
-            );
-            finite(states, "sentence encoder state")?;
+            let states = size(&mut w.states, n * layer.width());
+            layer.run(&w.x, &sorted, states, &mut w.steps.lstm).map_err(run_error)?;
             std::mem::swap(&mut w.x, &mut w.states);
         }
-        let k = 2 * self.layers.last().map_or(0, |l| l.fwd.hidden());
-        let mut scores = vec![0.0f32; n * self.tags];
-        self.out.apply(&w.x, k, n, Some(&self.out_bias), &mut scores, self.tags, Mode::Plain);
-        finite(&scores, "tag score")?;
+        let (k, tags) = (self.layers.last().map_or(0, Lstm::width), self.tags);
+        let in_order = size(&mut w.states, n * tags);
+        self.out.apply(&w.x, k, n, Some(&self.out_bias), in_order, tags, Mode::Plain);
+        finite(in_order, "tag score")?;
+        let mut scores = vec![0.0f32; n * tags];
+        let mut at = 0;
+        for (&i, &len) in order.iter().zip(&sorted) {
+            scores[offsets[i] * tags..][..len * tags].copy_from_slice(&in_order[at * tags..][..len * tags]);
+            at += len;
+        }
         Ok(scores)
     }
 }

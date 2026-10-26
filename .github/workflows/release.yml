@@ -1,10 +1,11 @@
 name: release
 
-# A tag v<version> builds libturbo for Linux x86_64 with the CUDA backend
-# and for macOS arm64 with the Metal backend, and publishes both with the
-# header (docs/release.md). The runners run nothing on a GPU: this builds
-# and packages; what runs and how fast is what the records in
-# benchmarks/records say, on the machines they name.
+# A tag v<version> publishes Linux x86_64 CUDA, macOS arm64 Metal,
+# Linux aarch64 CPU and Windows x86_64 CPU archives with headers, plus
+# turbo-kserve images on GHCR (docs/release.md). workflow_dispatch builds
+# and checks archives and images without publishing. The runners execute
+# CPU smoke checks only; GPU execution and timing belong to the records
+# in benchmarks/records.
 
 on:
   push:
@@ -13,7 +14,13 @@ on:
   # A change to this file or the build script runs the builds on the pull
   # request, keeping the archives as artifacts; nothing is published.
   pull_request:
-    paths: [".github/workflows/release.yml", "core/build.rs"]
+    paths:
+      - ".github/workflows/release.yml"
+      - "core/build.rs"
+      - "server/Dockerfile"
+      - "server/Dockerfile.dockerignore"
+      - "server/tests/image_smoke.rs"
+      - "server/tests/image_ports.sh"
 
 permissions:
   contents: write
@@ -74,6 +81,8 @@ jobs:
           mkdir -p "$name/bin"
           cp target/release/turbo-kserve "$name/bin/"
           cp LICENSE "$name/licenses/LICENSE"
+          cp NOTICE "$name/licenses/NOTICE"
+          cmp NOTICE "$name/licenses/NOTICE"
           cp core/cuda/cutlass/LICENSE.txt "$name/licenses/CUTLASS-LICENSE.txt"
           cp docs/release.md "$name/README.md"
           {
@@ -146,6 +155,8 @@ jobs:
           cp target/release/libturbo.dylib "$name/lib/"
           cp include/turbo/turbo.h include/turbo/turbo_backend.h "$name/include/turbo/"
           cp LICENSE "$name/licenses/LICENSE"
+          cp NOTICE "$name/licenses/NOTICE"
+          cmp NOTICE "$name/licenses/NOTICE"
           cp docs/release.md "$name/README.md"
           {
             echo "turboembed ${tag}, commit ${GITHUB_SHA}"
@@ -166,9 +177,250 @@ jobs:
             ${{ steps.package.outputs.name }}.BUILD
           if-no-files-found: error
 
+  # The cpu backend alone, on a runner of the archive's own architecture.
+  linux-aarch64:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98
+      - name: build
+        run: cargo build --locked --release -p turbo -p turbo-kserve
+      - name: the header compiles as C11 and C++17
+        run: |
+          printf '#include <turbo/turbo.h>\n#include <turbo/turbo_backend.h>\n' > "$RUNNER_TEMP/h.c"
+          cc  -std=c11   -Wall -Wextra -Werror -pedantic -fsyntax-only -Iinclude "$RUNNER_TEMP/h.c"
+          c++ -std=c++17 -Wall -Wextra -Werror -pedantic -fsyntax-only -x c++ -Iinclude "$RUNNER_TEMP/h.c"
+      - name: a C program links the library and it lists the cpu backend; the server starts
+        run: |
+          printf '#include <stdio.h>\n#include <turbo/turbo.h>\nint main(void) { puts(turbo_version()); return 0; }\n' > "$RUNNER_TEMP/v.c"
+          cc -std=c11 -Wall -Wextra -Werror -Iinclude "$RUNNER_TEMP/v.c" -Ltarget/release -lturbo \
+            -Wl,-rpath,"$PWD/target/release" -o "$RUNNER_TEMP/v"
+          v="$("$RUNNER_TEMP/v")"
+          echo "$v"
+          case "$v" in *" cpu") ;; *) echo "turbo_version() does not end with cpu"; exit 1 ;; esac
+          ldd target/release/libturbo.so target/release/turbo-kserve
+          # No model and no --admin is a usage error, exit 2: the binary loads and parses.
+          set +e; target/release/turbo-kserve --listen 127.0.0.1:0 2> "$RUNNER_TEMP/usage"; rc=$?; set -e
+          head -1 "$RUNNER_TEMP/usage"
+          [ "$rc" = 2 ]
+      - name: package
+        id: package
+        run: |
+          # A pull request's ref is <number>/merge; an artifact's name has no /.
+          tag="${GITHUB_REF_NAME//\//-}"
+          name="turboembed-${tag}-linux-aarch64"
+          mkdir -p "$name/lib" "$name/bin" "$name/include/turbo" "$name/licenses"
+          cp target/release/libturbo.so "$name/lib/"
+          cp target/release/turbo-kserve "$name/bin/"
+          cp include/turbo/turbo.h include/turbo/turbo_backend.h "$name/include/turbo/"
+          cp LICENSE "$name/licenses/LICENSE"
+          cp NOTICE "$name/licenses/NOTICE"
+          cmp NOTICE "$name/licenses/NOTICE"
+          cp docs/release.md "$name/README.md"
+          {
+            echo "turboembed ${tag}, commit ${GITHUB_SHA}"
+            echo "linux aarch64, cpu backend; bin/turbo-kserve, the gRPC server, with the same"
+            echo "built with rustc $(rustc --version | cut -d' ' -f2) and $(cc --version | head -1), glibc $(ldd --version | head -1 | grep -oE '[0-9.]+$')"
+          } > "$name/BUILD"
+          tar czf "$name.tar.gz" "$name"
+          sha256sum "$name.tar.gz" > "$name.tar.gz.sha256"
+          cp "$name/BUILD" "$name.BUILD"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: |
+            ${{ steps.package.outputs.name }}.tar.gz
+            ${{ steps.package.outputs.name }}.tar.gz.sha256
+            ${{ steps.package.outputs.name }}.BUILD
+          if-no-files-found: error
+
+  # The cpu backend alone, with the MSVC toolchain: turbo.dll, its import
+  # library, and the server, in a zip.
+  windows-x86_64:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      # The records core/build.rs embeds are read byte for byte; a checkout
+      # with core.autocrlf would rewrite their line endings.
+      - name: keep line endings as committed
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98
+      - name: build
+        run: cargo build --locked --release -p turbo -p turbo-kserve
+      - name: the library loads and lists the cpu backend; the server starts
+        run: |
+          v="$(python -c "import ctypes, os; l = ctypes.CDLL(os.path.abspath('target/release/turbo.dll')); l.turbo_version.restype = ctypes.c_char_p; print(l.turbo_version().decode())")"
+          echo "$v"
+          case "$v" in *" cpu") ;; *) echo "turbo_version() does not end with cpu"; exit 1 ;; esac
+          # No model and no --admin is a usage error, exit 2: the binary loads and parses.
+          set +e; target/release/turbo-kserve.exe --listen 127.0.0.1:0 2> "$RUNNER_TEMP/usage"; rc=$?; set -e
+          head -1 "$RUNNER_TEMP/usage"
+          [ "$rc" = 2 ]
+      - name: package
+        id: package
+        run: |
+          # A pull request's ref is <number>/merge; an artifact's name has no /.
+          tag="${GITHUB_REF_NAME//\//-}"
+          name="turboembed-${tag}-windows-x86_64"
+          mkdir -p "$name/bin" "$name/lib" "$name/include/turbo" "$name/licenses"
+          cp target/release/turbo.dll target/release/turbo-kserve.exe "$name/bin/"
+          cp target/release/turbo.dll.lib "$name/lib/turbo.lib"
+          cp include/turbo/turbo.h include/turbo/turbo_backend.h "$name/include/turbo/"
+          cp LICENSE "$name/licenses/LICENSE"
+          cp NOTICE "$name/licenses/NOTICE"
+          cmp NOTICE "$name/licenses/NOTICE"
+          cp docs/release.md "$name/README.md"
+          {
+            echo "turboembed ${tag}, commit ${GITHUB_SHA}"
+            echo "windows x86_64 (MSVC), cpu backend; bin/turbo-kserve.exe, the gRPC server, with the same"
+            echo "built with rustc $(rustc --version | cut -d' ' -f2) for $(rustc -vV | sed -n 's/^host: //p')"
+          } > "$name/BUILD"
+          7z a -tzip "$name.zip" "$name" > /dev/null
+          sha256sum "$name.zip" > "$name.zip.sha256"
+          cp "$name/BUILD" "$name.BUILD"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.name }}
+          path: |
+            ${{ steps.package.outputs.name }}.zip
+            ${{ steps.package.outputs.name }}.zip.sha256
+            ${{ steps.package.outputs.name }}.BUILD
+          if-no-files-found: error
+
+  # The turbo-kserve images (docs/release.md, Images): cpu for amd64 and
+  # arm64, each built on a runner of its own architecture, and cuda for
+  # amd64. Every build is run and has to turn healthy with the tiny bundle
+  # mounted (the cuda one runs its cpu backend: the runners have no GPU);
+  # the amd64 cpu one also embeds the bundle's reference texts over gRPC
+  # to its reference vectors. A tag pushes each by digest, and
+  # image-manifest names them by the version.
+  image:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { variant: cpu, arch: amd64, runner: ubuntu-24.04, features: "", gpus: void }
+          - { variant: cpu, arch: arm64, runner: ubuntu-24.04-arm, features: "", gpus: void }
+          - { variant: cuda, arch: amd64, runner: ubuntu-24.04, features: cuda, gpus: all }
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/turbo-kserve
+      BUILD_FLAGS: >-
+        --platform linux/${{ matrix.arch }} -f server/Dockerfile
+        --build-arg FEATURES=${{ matrix.features }}
+        --build-arg NVIDIA_VISIBLE_DEVICES=${{ matrix.gpus }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: build
+        run: |
+          docker buildx create --use --name turbo
+          # shellcheck disable=SC2086
+          docker buildx build $BUILD_FLAGS --build-arg CUDA_VERSION="$CUDA_VERSION" \
+            --build-arg CUDA_PACKAGE="$CUDA_PACKAGE" --build-arg TURBO_CUDA_ARCH="$TURBO_CUDA_ARCH" \
+            --load -t turbo-kserve:ci .
+      - name: the image runs as a user, and turns healthy with the tiny bundle
+        run: |
+          user="$(docker image inspect -f '{{.Config.User}}' turbo-kserve:ci)"
+          echo "user $user"
+          if [ "$user" != "10001:10001" ]; then echo "the image runs as $user, not 10001:10001"; exit 1; fi
+          docker run -d --name smoke -p 127.0.0.1:8081:8081 \
+            -v "$PWD/testdata/tiny-bert-bundle:/bundles/tiny-bert-bundle:ro" turbo-kserve:ci
+          for _ in $(seq 90); do
+            health="$(docker inspect -f '{{.State.Health.Status}}' smoke)"
+            [ "$health" = healthy ] && break
+            if [ "$(docker inspect -f '{{.State.Running}}' smoke)" != true ]; then echo "the server exited"; exit 1; fi
+            sleep 2
+          done
+          echo "health $health"
+          [ "$health" = healthy ]
+          docker exec smoke turbo-kserve health --service tiny-bert-bundle
+      - name: non-default container ports keep health checks aligned
+        run: bash server/tests/image_ports.sh turbo-kserve:ci
+      - uses: dtolnay/rust-toolchain@1.98
+        if: matrix.variant == 'cpu' && matrix.arch == 'amd64'
+      - name: the image embeds the reference texts over gRPC
+        if: matrix.variant == 'cpu' && matrix.arch == 'amd64'
+        env:
+          TURBO_KSERVE_SMOKE_ADDR: 127.0.0.1:8081
+        run: cargo test --locked -p turbo-kserve --test image_smoke -- --nocapture
+      - name: the server's log
+        if: always()
+        run: docker logs smoke || true
+      - name: push by digest
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          # The same build as above, from the builder's cache.
+          # shellcheck disable=SC2086
+          docker buildx build $BUILD_FLAGS --build-arg CUDA_VERSION="$CUDA_VERSION" \
+            --build-arg CUDA_PACKAGE="$CUDA_PACKAGE" --build-arg TURBO_CUDA_ARCH="$TURBO_CUDA_ARCH" \
+            --metadata-file "$RUNNER_TEMP/meta.json" \
+            --output "type=image,name=$IMAGE,push-by-digest=true,name-canonical=true,push=true" .
+          mkdir -p digests
+          jq -r '."containerimage.digest"' "$RUNNER_TEMP/meta.json" > "digests/${{ matrix.variant }}-${{ matrix.arch }}"
+          cat "digests/${{ matrix.variant }}-${{ matrix.arch }}"
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push'
+        with:
+          name: image-digest-${{ matrix.variant }}-${{ matrix.arch }}
+          path: digests/${{ matrix.variant }}-${{ matrix.arch }}
+          if-no-files-found: error
+
+  # Names the pushed images by the tag's version: ghcr.io/<owner>/turbo-kserve
+  # :<version> (cpu, amd64 and arm64) and :<version>-cuda (amd64), and
+  # writes their digests into the release notes.
+  image-manifest:
+    if: github.event_name == 'push'
+    needs: image
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    env:
+      IMAGE: ghcr.io/${{ github.repository_owner }}/turbo-kserve
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: image-digest-*
+          path: digests
+          merge-multiple: true
+      - name: tag the images and record their digests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          version="${GITHUB_REF_NAME#v}"
+          docker buildx imagetools create -t "$IMAGE:$version" \
+            "$IMAGE@$(cat digests/cpu-amd64)" "$IMAGE@$(cat digests/cpu-arm64)"
+          docker buildx imagetools create -t "$IMAGE:$version-cuda" "$IMAGE@$(cat digests/cuda-amd64)"
+          {
+            echo "turbo-kserve images, commit ${GITHUB_SHA}"
+            for t in "$version" "$version-cuda"; do
+              digest="$(docker buildx imagetools inspect "$IMAGE:$t" --format '{{json .Manifest}}' | jq -r .digest)"
+              echo "$IMAGE:$t@$digest"
+            done
+            echo "cpu: linux/amd64 and linux/arm64; cuda: linux/amd64, the cpu and cuda backends, CUDA ${CUDA_VERSION}"
+          } > images.BUILD
+          cat images.BUILD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: images
+          path: images.BUILD
+          if-no-files-found: error
+
   publish:
     if: github.event_name == 'push'
-    needs: [linux-x86_64, macos-arm64]
+    needs: [linux-x86_64, macos-arm64, linux-aarch64, windows-x86_64, image-manifest]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4
@@ -184,4 +436,4 @@ jobs:
           ls -l
           for b in *.BUILD; do cat "$b"; echo; done > notes
           gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file notes \
-            *.tar.gz *.tar.gz.sha256
+            *.tar.gz *.tar.gz.sha256 *.zip *.zip.sha256

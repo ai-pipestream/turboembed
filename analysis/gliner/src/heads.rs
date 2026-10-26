@@ -1,12 +1,16 @@
 //! The markerV0 heads on the encoder's hidden states, batched over rows:
 //! every linear layer is one packed product (turbo::cpu::Matrix) over all
-//! the rows it applies to. The BiLSTM input projections of every word are
-//! one product; only the recurrent step runs word by word. Spans go through
+//! the rows it applies to. The BiLSTM is turbo::cpu::lstm (#859): the input
+//! projections of every word are one product, then one recurrent product
+//! per step. Spans go through
 //! out_project and label scoring in blocks of SPANS rows, all buffers come
 //! from one workspace retained across windows and documents.
 use crate::{Candidate, Config};
 use turbo::{
-    cpu::{Matrix, Mode},
+    cpu::{
+        Matrix, Mode,
+        lstm::{self, Lstm, Weights},
+    },
     safetensors::{Dtype, File},
 };
 
@@ -65,10 +69,7 @@ pub(crate) struct Work {
     projected: Vec<f32>,
     prompts: Vec<f32>,
     mid: Vec<f32>,
-    gates: Vec<f32>,
-    step: Vec<f32>,
-    state: Vec<f32>,
-    cell: Vec<f32>,
+    lstm: lstm::Work,
     words: Vec<f32>,
     starts: Vec<f32>,
     ends: Vec<f32>,
@@ -81,10 +82,9 @@ pub(crate) struct Heads {
     start: Mlp,
     end: Mlp,
     span: Mlp,
-    /// weight_ih of the forward then the reverse direction, [2 * 4h, hidden].
-    input: Dense,
-    /// weight_hh [4h, h] and bias_hh of each direction, h = hidden / 2.
-    recurrent: [(Matrix, Vec<f32>); 2],
+    /// The forward and reverse directions over projected words, h =
+    /// hidden / 2 each, bias_ih and bias_hh summed.
+    lstm: Lstm,
     hidden: usize,
 }
 impl Heads {
@@ -109,25 +109,25 @@ impl Heads {
             Ok(Mlp { first: linear(&format!("{s}.0"))?, last: linear(&format!("{s}.3"))? })
         };
         let lstm = |name: &str, suffix: &str| tensor(&format!("rnn.lstm.{name}_l0{suffix}"));
-        let ((wf, shape), (wr, _)) = (lstm("weight_ih", "")?, lstm("weight_ih", "_reverse")?);
-        let ((bf, _), (br, _)) = (lstm("bias_ih", "")?, lstm("bias_ih", "_reverse")?);
-        let (n, k) = (shape[0], shape[1]);
-        if wf.len() != n * k || wr.len() != n * k {
-            return Err("gliner recurrent shape mismatch".into());
-        }
-        let input = Dense { w: Matrix::from_rows(&[&wf, &wr], k).map_err(memory)?, b: [bf, br].concat(), n: 2 * n, k };
-        let recurrent = |suffix: &str| -> Result<(Matrix, Vec<f32>), String> {
-            let ((w, shape), (b, _)) = (lstm("weight_hh", suffix)?, lstm("bias_hh", suffix)?);
-            Ok((Matrix::from_rows(&[&w], shape[1]).map_err(memory)?, b))
+        let direction = |suffix: &str| -> Result<_, String> {
+            let ((w, shape), (u, _)) = (lstm("weight_ih", suffix)?, lstm("weight_hh", suffix)?);
+            let ((bi, _), (bh, _)) = (lstm("bias_ih", suffix)?, lstm("bias_hh", suffix)?);
+            if bi.len() != bh.len() {
+                return Err("gliner recurrent shape mismatch".into());
+            }
+            Ok((w, u, bi.iter().zip(&bh).map(|(a, b)| a + b).collect::<Vec<f32>>(), shape[1]))
         };
+        let ((wf, uf, bf, k), (wr, ur, br, _)) = (direction("")?, direction("_reverse")?);
+        let dirs =
+            [Weights { w: &wf, u: &uf, b: &bf, reverse: false }, Weights { w: &wr, u: &ur, b: &br, reverse: true }];
+        let lstm = Lstm::new(k, c.hidden / 2, &dirs).map_err(|e| format!("gliner recurrent: {}", e.message))?;
         Ok(Self {
             projection: linear("token_rep_layer.projection")?,
             prompt: mlp("prompt_rep_layer")?,
             start: mlp("span_rep_layer.span_rep_layer.project_start")?,
             end: mlp("span_rep_layer.span_rep_layer.project_end")?,
             span: mlp("span_rep_layer.span_rep_layer.out_project")?,
-            input,
-            recurrent: [recurrent("")?, recurrent("_reverse")?],
+            lstm,
             hidden: c.hidden,
         })
     }
@@ -196,52 +196,28 @@ impl Heads {
         Ok(out)
     }
     /// The BiLSTM over `n` projected words into w.words [n, hidden]: forward
-    /// states in the first half of each row, reverse in the second. Gates are
-    /// i, f, g, o, each h = hidden / 2 wide.
+    /// states in the first half of each row, reverse in the second.
     fn words(&self, x: &[f32], n: usize, w: &mut Work) -> Result<(), String> {
-        let h = self.hidden / 2;
-        self.input.run(x, n, &mut w.gates)?;
         size(&mut w.words, n, self.hidden);
-        for (back, (hh, bias)) in self.recurrent.iter().enumerate() {
-            size(&mut w.state, 1, h);
-            size(&mut w.cell, 1, h);
-            size(&mut w.step, 1, 4 * h);
-            for t in 0..n {
-                let i = if back == 1 { n - t - 1 } else { t };
-                hh.apply(&w.state, h, 1, Some(bias), &mut w.step, 4 * h, Mode::Plain);
-                let a = &w.gates[(i * 2 + back) * 4 * h..][..4 * h];
-                let row = &mut w.words[i * self.hidden + back * h..][..h];
-                for j in 0..h {
-                    let gate = |k: usize| a[k * h + j] + w.step[k * h + j];
-                    let (ig, fg, gg, og) = (gate(0), gate(1), gate(2), gate(3));
-                    if !(ig.is_finite() && fg.is_finite() && gg.is_finite() && og.is_finite()) {
-                        return Err("gliner non-finite recurrent activation".into());
-                    }
-                    w.cell[j] = sigmoid(fg) * w.cell[j] + sigmoid(ig) * gg.tanh();
-                    w.state[j] = sigmoid(og) * w.cell[j].tanh();
-                    if !w.state[j].is_finite() {
-                        return Err("gliner non-finite recurrent state".into());
-                    }
-                    row[j] = w.state[j];
-                }
-            }
+        if n == 0 {
+            return Ok(());
         }
-        Ok(())
+        self.lstm.run(x, &[n], &mut w.words, &mut w.lstm).map_err(|e| format!("gliner recurrent: {}", e.message))
     }
 }
 
 #[cfg(test)]
+#[path = "heads_tests.rs"]
+mod lstm_tests;
+
+#[cfg(test)]
 impl Work {
-    pub(crate) fn allocations(&self) -> [(usize, usize); 13] {
+    pub(crate) fn allocations(&self) -> [(usize, usize); 9] {
         [
             &self.x,
             &self.projected,
             &self.prompts,
             &self.mid,
-            &self.gates,
-            &self.step,
-            &self.state,
-            &self.cell,
             &self.words,
             &self.starts,
             &self.ends,
