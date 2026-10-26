@@ -4,7 +4,7 @@
 mod config;
 mod files;
 use crate::Result;
-pub use config::from_huggingface;
+pub use config::{agrees, check_profile, from_huggingface};
 pub use files::convert_files;
 use serde_json::{Value, json};
 use std::{collections::BTreeMap, fs, path::Path};

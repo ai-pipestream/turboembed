@@ -45,6 +45,8 @@ fn run(config: ClaimVerifyConfig, entities: bool) -> (BTreeSet<Row>, usize) {
             d.require(&Key::<Sentences>::DEFAULT).unwrap(),
             d.get::<Entities>(),
             d.get::<Vectors<Sentences>>(),
+            None,
+            None,
         ))
         .unwrap();
     (rows(&edges).into_iter().collect(), v.scorer().seen())

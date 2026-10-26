@@ -46,3 +46,14 @@ pinned revision and MIT license. `tests/spanish_unit_specs.rs` checks every case
 | `Spanish/NumberWithUnit/CurrencyModel.json` | `Specs/NumberWithUnit/Spanish/CurrencyModel.json` |
 | `Spanish/NumberWithUnit/DimensionModel.json` | `Specs/NumberWithUnit/Spanish/DimensionModel.json` |
 | `Spanish/NumberWithUnit/TemperatureModel.json` | `Specs/NumberWithUnit/Spanish/TemperatureModel.json` |
+
+The Portuguese NumberWithUnit files are unchanged copies at the same pinned
+revision and MIT license. `tests/portuguese_unit_specs.rs` checks all 253 cases
+without exclusions; some upstream inputs retain Spanish surrounding prose.
+
+| File here | Upstream path |
+|---|---|
+| `Portuguese/NumberWithUnit/AgeModel.json` | `Specs/NumberWithUnit/Portuguese/AgeModel.json` |
+| `Portuguese/NumberWithUnit/CurrencyModel.json` | `Specs/NumberWithUnit/Portuguese/CurrencyModel.json` |
+| `Portuguese/NumberWithUnit/DimensionModel.json` | `Specs/NumberWithUnit/Portuguese/DimensionModel.json` |
+| `Portuguese/NumberWithUnit/TemperatureModel.json` | `Specs/NumberWithUnit/Portuguese/TemperatureModel.json` |

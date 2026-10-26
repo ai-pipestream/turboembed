@@ -28,7 +28,7 @@ pub mod lexicon;
 mod model;
 pub mod pragmatics;
 mod token_key;
-pub use token_key::embed_token_key;
+pub use token_key::{embed_token_key, token_key};
 mod validation;
 
 pub use aspect::{
@@ -37,8 +37,9 @@ pub use aspect::{
 };
 pub use detector::{SENTIMENT, Scratch, SentimentMe};
 pub use emotion::{
-    DEFAULT_EMOTION_THRESHOLD, EmotionAnnotator, EmotionHeadError, EmotionMetrics, EmotionStage, EmotionUnit,
-    EmotionVectorHead, EmotionVectorScorer, GoldEmotionUnit, evaluate_emotion_corpus,
+    DEFAULT_EMOTION_THRESHOLD, EmotionAnnotator, EmotionFitOptions, EmotionHeadError, EmotionMetrics, EmotionStage,
+    EmotionUnit, EmotionVectorHead, EmotionVectorScorer, EmotionZooError, GOEMOTIONS_BGE_SMALL_HEAD,
+    GOEMOTIONS_MINILM_HEAD, GoldEmotionUnit, evaluate_emotion_corpus, evaluate_emotion_corpus_with_thresholds,
 };
 pub use incivility::{
     DEFAULT_INCIVILITY_THRESHOLD, GoldBiasUnit, GoldIncivilityUnit, IdentityTerms, IncivilityAnnotator,

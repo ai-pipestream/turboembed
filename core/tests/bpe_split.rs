@@ -9,7 +9,8 @@ use std::path::{Path, PathBuf};
 use common::*;
 use serde_json::{Value, json};
 use turbo::tokenizer::{Encode, NOWHERE, Tokenizer};
-use unicode_normalization_alignments::UnicodeNormalization;
+use turbo_unicode::hf::aligned;
+use turbo_unicode::normalize::Form;
 
 fn tokenizer_json() -> PathBuf {
     testdata().join("tiny-bpe-split/tokenizer.json")
@@ -166,7 +167,7 @@ fn check(tok: &Tokenizer, up: &tokenizers::Tokenizer, text: &str, nfc: bool) {
     let e = up.encode(text, true).unwrap();
     let theirs: Vec<i32> = e.get_ids().iter().map(|&i| i as i32).collect();
     assert_eq!(ids, theirs, "{text:?}");
-    let changed = nfc && text.nfc().map(|(c, _)| c).ne(text.chars());
+    let changed = nfc && aligned(Form::Nfc, text).map(|(c, _)| c).ne(text.chars());
     let mut last = [0, 0];
     for (i, (&a, &(x, y))) in spans.iter().zip(e.get_offsets()).enumerate() {
         let b = trimmed(text, [x as u32, y as u32]);
@@ -179,7 +180,7 @@ fn check(tok: &Tokenizer, up: &tokenizers::Tokenizer, text: &str, nfc: bool) {
         let blank = text[a[0] as usize..a[1] as usize].trim().is_empty();
         let piece = token_bytes(&e.get_tokens()[i]);
         let piece = piece.trim_ascii();
-        let from: String = text[a[0] as usize..a[1] as usize].nfc().map(|(c, _)| c).collect();
+        let from: String = aligned(Form::Nfc, &text[a[0] as usize..a[1] as usize]).map(|(c, _)| c).collect();
         let holds = !piece.is_empty() && from.as_bytes().windows(piece.len()).any(|w| w == piece);
         assert!(
             a == b || (blank && b[0] == b[1] && b[1] == a[1]) || (changed && holds),
@@ -235,6 +236,33 @@ fn qwen2_with_nfc_matches_upstream() {
     tok.encode_spans(text, whole_text(), &mut ids, &mut spans).unwrap();
     assert_eq!(spans.iter().find(|s| **s != NOWHERE), Some(&[0, 5]), "{spans:?}");
     check(&tok, &up, text, true);
+    // Characters newer than upstream's Unicode 9.0 tables neither reorder
+    // nor compose as they would now (#1387).
+    for text in
+        ["E\u{5c8}\u{301}z", "\u{105d2}\u{307}", "\u{1611e}\u{1611e}", "\u{16121}\u{1611f}", "\u{16d69}\u{16d67}"]
+    {
+        check(&tok, &up, text, true);
+    }
+}
+
+/// Every scalar before a mark, before itself, and between a starter and
+/// an acute, against upstream's ids: 256 scalars to a text, apart by
+/// spaces, which NFC does not reorder or compose across.
+#[test]
+fn qwen2_with_nfc_matches_upstream_on_every_scalar() {
+    let mut json = base();
+    as_qwen2(&mut json);
+    let (_f, tok, up) = tokenizer("qwen2-every-scalar", manifest_split("BPE_PATTERN_QWEN2", true), &json);
+    let scalars: Vec<char> = (0..=0x10ffffu32).filter_map(char::from_u32).collect();
+    let mut ids = Vec::new();
+    for chunk in scalars.chunks(256) {
+        let text: Vec<String> = chunk.iter().map(|c| format!("E{c}\u{301}z {c}\u{307} {c}{c}")).collect();
+        let text = text.join(" ");
+        ids.clear();
+        tok.encode_into(&text, whole_text(), &mut ids).unwrap();
+        let theirs: Vec<i32> = up.encode(text.as_str(), true).unwrap().get_ids().iter().map(|&i| i as i32).collect();
+        assert_eq!(ids, theirs, "{text:?}");
+    }
 }
 
 /// Llama-3's file with Qwen2's pattern, with merges ignored for a word
@@ -349,7 +377,7 @@ fn speed_beside_gpt2() {
             decomposed.push('\u{301}');
         }
     }
-    let composed: String = text.as_str().nfc().map(|(c, _)| c).collect();
+    let composed: String = aligned(Form::Nfc, &text).map(|(c, _)| c).collect();
     for (name, m, json, text) in [
         ("gpt2", gpt2, gpt2_json, &text),
         ("qwen2-nfc-composed", manifest_split("BPE_PATTERN_QWEN2", true), qwen2.clone(), &composed),
