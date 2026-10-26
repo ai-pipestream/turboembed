@@ -46,6 +46,7 @@ fn not_run(image: &str, log: Log, procedure: &str, why: String) -> ReferenceRun 
         procedure: procedure.into(),
         measured: None,
         not_run: Some(crate::openvino::redact_user_paths(&why)),
+        kernel_time: None,
     }
 }
 
@@ -119,8 +120,18 @@ pub fn run(
     let (what, threads) = (procedure, cpus::procedure(tei.cpus.as_ref(), library, &env));
 
     let container = format!("turbo-bench-tei-{}", std::process::id());
-    let start_argv = |dir: &Path| {
-        run_argv(
+    let profile = match (&tei.nsys, gpu) {
+        (Some(n), Some(_)) => {
+            let out = std::env::temp_dir().join(format!("turbo-bench-tei-nsys-{}", std::process::id()));
+            fs::create_dir_all(&out).map_err(|e| format!("{}: {e}", out.display()))?;
+            Some(kernels::Profile { container: container.clone(), nsys: n, out })
+        }
+        (Some(_), None) => return Err("--tei-nsys profiles TEI's kernels on a GPU; this device is not one".into()),
+        (None, _) => None,
+    };
+    let _trace = profile.as_ref().map(|p| Scratch(p.out.clone()));
+    let start_argv = |dir: &Path, shown: bool| {
+        let a = run_argv(
             image,
             dir,
             &container,
@@ -130,9 +141,13 @@ pub fn run(
             pooling(m.pooling()),
             m.rows.row_count() as u32,
             m.rows.seq,
-        )
+        );
+        match &profile {
+            Some(p) => kernels::profiled(a, image, p.nsys, &p.out, shown),
+            None => a,
+        }
     };
-    log.run_as(&start_argv(&dir), start_argv(Path::new(docker::TEI_MODEL)))?;
+    log.run_as(&start_argv(&dir, false), start_argv(Path::new(docker::TEI_MODEL), true))?;
     let _running = Running { name: container.clone() };
     let port = docker::parse_port(&log.run(&argv(&["docker", "port", &container, "80/tcp"]))?)?;
     let base = format!("http://127.0.0.1:{port}");
@@ -146,7 +161,16 @@ pub fn run(
         }
         std::thread::sleep(Duration::from_secs(1));
     }
-    against(&base, image, log, what, threads, m, warmup, iterations)
+    against(&base, image, log, what, threads, m, warmup, iterations, profile.as_ref())
+}
+
+/// A directory the tool made, removed when this goes.
+struct Scratch(PathBuf);
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
 }
 
 /// TEI's router run natively on the model directory, as run() runs the
@@ -199,7 +223,7 @@ fn run_native(
         }
         std::thread::sleep(Duration::from_secs(1));
     }
-    against(&base, pinned, log, what, threads, m, warmup, iterations)
+    against(&base, pinned, log, what, threads, m, warmup, iterations, None)
 }
 
 /// Check, warm up and time the server at `base`, as the procedure says.
@@ -213,8 +237,10 @@ fn against(
     m: &Measurement,
     warmup: u32,
     iterations: u32,
+    profile: Option<&kernels::Profile>,
 ) -> Result<ReferenceRun> {
     let procedure = format!("{what}; {threads}");
+    let mut log = log;
     let info = parse_info(&get(&format!("{base}/info"))?)?;
 
     // The rows as TEI will see them.
@@ -266,12 +292,19 @@ fn against(
         own.push(timing);
     }
     let total = started.elapsed().as_secs_f64();
+    let kernel_time = match profile {
+        Some(p) => Some(kernels::measure(&mut log, p, iterations, || post(&url, &body).map(|_| ()))?),
+        None => None,
+    };
     let min_row_tokens = (0..m.rows.row_count()).map(|r| m.rows.live(r).len()).min().unwrap_or(0);
     let batches = batches_text(before.as_ref(), metrics().as_ref(), iterations, warmup, min_row_tokens);
     let vectors = parse_embed(&last, m.rows.row_count(), m.model.dim as usize)?;
     let min_cosine = vectors.iter().zip(&m.expected).map(|(v, want)| cosine(v, want)).fold(1.0, f64::min);
     ms.sort_by(f64::total_cmp);
-    let procedure = format!("{what}; {}; {batches}; {threads}", timing_text(&ms, &own));
+    let mut procedure = format!("{what}; {}; {batches}; {threads}", timing_text(&ms, &own));
+    if profile.is_some() {
+        procedure = format!("{procedure}; {}", kernels::procedure(iterations));
+    }
     Ok(ReferenceRun {
         name: NAME.into(),
         role: "end_to_end".into(),
@@ -288,5 +321,6 @@ fn against(
             computed_tokens: computed_tokens(&m.rows),
         }),
         not_run: None,
+        kernel_time,
     })
 }

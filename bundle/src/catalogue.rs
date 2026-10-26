@@ -40,6 +40,10 @@ pub const BY_PATH: &[(&str, &str)] = &[
         "trained on MS MARCO (non-commercial research terms); local-only in the zoo",
     ),
     ("colbertv2.json", "trained on MS MARCO (non-commercial research terms); local-only in the zoo"),
+    (
+        "gliner-small-v2.1-encoder.json",
+        "GLiNER's encoder, whose upstream directory reference/gliner_encoder.py writes from the zoo's files",
+    ),
 ];
 
 /// The recipe of the model `id`, if the catalogue has it.

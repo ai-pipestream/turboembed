@@ -25,7 +25,7 @@ use crate::backend::{
     TURBO_FAMILY_DEBERTA_V2, turbo_backend_model,
 };
 use crate::deberta::{Config, bucket};
-use crate::levelzero::gpu::{Arg, Context, Kernel, Res, fail, fail_field};
+use crate::levelzero::gpu::{Arg, Context, Kernel, LOG_DEBUG, Res, fail, fail_field};
 use crate::status::{INVALID_ARGUMENT, INVALID_STRUCT_SIZE, UNSUPPORTED_OPTION};
 
 /// The tensors before the first layer's, by family.
@@ -149,11 +149,43 @@ pub(super) fn tiled(c: &Context, d: &turbo_backend_model, max_seq: u32, head_dim
         return Ok(None);
     }
     let Some((queries, keys)) = tiled_shape(head_dim) else { return Ok(None) };
-    if tiled_reach(&buckets(d, max_seq.max(1)), max_seq.max(1), queries, keys) > queries + keys - 1 {
-        return Ok(None);
+    let (reach, room) = (tiled_reach(&buckets(d, max_seq.max(1)), max_seq.max(1), queries, keys), queries + keys - 1);
+    let general = |why: String| {
+        c.say(LOG_DEBUG, &format!("levelzero device {}: DeBERTa-v2 attention is the general kernel: {why}", c.ordinal));
+        Ok(None)
+    };
+    if reach > room {
+        return general(format!(
+            "rows of {max_seq} tokens reach {reach} relative rows, the tiled kernel stages {room}"
+        ));
     }
     let k = c.kernel(&format!("deberta_attention_{head_dim}"), [queries, 1, 1])?;
-    Ok((k.local_bytes()? <= c.max_local).then_some((k, queries)))
+    let local = k.local_bytes()?;
+    if local > c.max_local {
+        return general(format!(
+            "the tiled kernel takes {local} bytes of local memory, the device gives {}",
+            c.max_local
+        ));
+    }
+    Ok(Some((k, queries)))
+}
+
+/// The attention kernel the last DeBERTa-v2 session made picked, "tiled" or
+/// "general"; None before any. Built only with `internals`.
+#[cfg(feature = "internals")]
+pub fn last_attention() -> Option<&'static str> {
+    *LAST.lock().unwrap_or_else(|p| p.into_inner())
+}
+
+#[cfg(feature = "internals")]
+static LAST: std::sync::Mutex<Option<&'static str>> = std::sync::Mutex::new(None);
+
+/// Record a DeBERTa-v2 session's pick, for last_attention.
+pub(super) fn picked(_tiled: bool) {
+    #[cfg(feature = "internals")]
+    {
+        *LAST.lock().unwrap_or_else(|p| p.into_inner()) = Some(if _tiled { "tiled" } else { "general" });
+    }
 }
 
 /// A test's choice of the general attention for the sessions made after
