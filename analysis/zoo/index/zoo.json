@@ -4279,6 +4279,38 @@
       ]
     },
     {
+      "id": "turbo-en-masc-3.0.0-aspect-sentiment-1",
+      "kind": "KIND_MODEL",
+      "language": "en",
+      "format": "FORMAT_ZIP",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "MASC 3.0.0 MPQA aspect, attitude, and opinion annotations",
+          "license": "CC-BY-3.0-US",
+          "license_terms": "https://anc.org/data/masc/"
+        },
+        {
+          "name": "sentence-transformers/all-MiniLM-L6-v2",
+          "license": "Apache-2.0",
+          "license_terms": "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/LICENSE"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Experimental BIO and polarity heads trained on 56 MASC 3.0.0 documents with MPQA annotations and sentence-transformers/all-MiniLM-L6-v2. MASC is by the American National Corpus project under CC BY 3.0 US. Held-out aspect F1 is 0.013491, so this head is not the default extractor. Configuration and evaluation are included in the zip.",
+      "files": [
+        {
+          "path": "aspect-sentiment-1.zip",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-sentiment-924-1/aspect-sentiment-1.zip",
+          "size": 25106,
+          "sha256": "109c0eea8f2f0d5aa979b9f819820504456d236b372222a9ad9e34362d241be3",
+          "sha512": "0507c12e88de97842bf94de856f1faf391b4e78f5159938324c5e2bdde2e4c215ca8173c37a907b16a2e40c9980618174daef72e3522bca5a58d4fdeac9d55fc"
+        }
+      ]
+    },
+    {
       "id": "ud-spanish-ancora-r2.16",
       "kind": "KIND_DATASET",
       "language": "es",

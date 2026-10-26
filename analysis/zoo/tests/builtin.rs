@@ -90,11 +90,12 @@ const BASE: &str = "https://archive.apache.org/dist/opennlp/models/ud-models-1.3
 
 /// The models the MASC recipes train (analysis/train-recipes), listed at
 /// their addresses in a release of this repository.
-const MASC_MODELS: [&str; 4] = [
+const MASC_MODELS: [&str; 5] = [
     "turbo-en-masc-3.0.0-sentence-1",
     "turbo-en-masc-3.0.0-tokens-1",
     "turbo-en-masc-3.0.0-pos-1",
     "turbo-en-masc-3.0.0-chunks-1",
+    "turbo-en-masc-3.0.0-aspect-sentiment-1",
 ];
 
 /// The models the UD recipes train (analysis/train-recipes) that passed

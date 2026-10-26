@@ -14,6 +14,7 @@ turbo-calibration = { path = "../calibration" }
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
 turbo-formats = { path = "../formats" }
+turbo = { path = "../../core" }
 # Java's Double.toString, parseDouble and parseInt, Math.log, and StrictMath.tanh.
 turbo-jvm = { path = "../jvm" }
 # MaxEnt evaluation and SHA-256 of the model files, for the layers' model
