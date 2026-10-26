@@ -59,13 +59,45 @@ print are not a timing receipt.
 
 ## Timings
 
-`timings.log` holds three gated runs taken at `4e0c2784`, before the
-merge of #1407's head, which changes the Level Zero encoder
-(`core/src/levelzero/encoder/`). They do not measure this head and are
-being retaken at it under the same gate.
+`timings.log` is the run: three release runs at `fbba0d32` (this
+receipt's parent) of
+
+```
+GLINER2_PACKAGE=... GLINER2_BUNDLE=... GLINER2_CHECKPOINT=... DEVICE_REPS=50 \
+  TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model \
+  cargo test --release --locked --features turbo/levelzero -p turbo-relation -p turbo-schema-extract \
+  --test device_real -- --ignored --nocapture gliner2 schema
+```
+
+each started once no B70 CI runner container had a cargo, test or
+nextest process and the host's one-minute load was under 8 (1.8, 4.4
+and 6.5 at the starts). Each pass is timed in milliseconds, the CPU
+encoder and the device interleaved, 50 times over each of the fixture's
+three texts, so each distribution mixes three text lengths: its spread
+is the texts as much as the device. Every pass is also held to the CPU's
+logits and decisions. Host: AMD Ryzen 9 9950X, 32 threads.
+
+| Pass | CPU encoder p50 (min, mean, p99) | B70 p50 (min, mean, p99) | CPU p50 over B70 p50 |
+|---|---|---|---|
+| GLiNER2 relations, run 1 | 20.1 (16.5, 21.0, 32.1) | 36.9 (28.9, 37.1, 45.9) | 0.54x |
+| GLiNER2 relations, run 2 | 18.3 (16.1, 18.4, 23.1) | 38.6 (6.8, 36.4, 40.7) | 0.47x |
+| GLiNER2 relations, run 3 | 18.5 (15.6, 18.8, 22.4) | 33.6 (6.6, 33.6, 40.2) | 0.55x |
+| Schema extraction, run 1 | 56.9 (20.9, 58.1, 103.4) | 22.9 (7.7, 27.1, 67.8) | 2.49x |
+| Schema extraction, run 2 | 32.9 (17.3, 31.7, 42.9) | 25.9 (13.6, 26.1, 37.3) | 1.27x |
+| Schema extraction, run 3 | 33.0 (17.8, 31.7, 43.6) | 26.0 (12.6, 25.8, 37.4) | 1.27x |
+
+Neither the host nor the B70 stayed quiet. The host's load rose to 22.3
+during run 1, which shows in that run's CPU schema numbers (p50 56.9
+against 32.9 and 33.0 in the others); runs 2 and 3 ended at 15.6 and
+8.9. `snap-store` held the B70's render engine 61 to 65 percent busy
+through every run (xe fdinfo, read before and after each). So these are
+timings under that load, not on an idle device: the relations pass on
+the B70 at about half the CPU encoder's speed, and schema extraction
+about 1.3 times its speed in the two runs the host left alone.
 
 ## Not done
 
 - GLiREL on the real checkpoint: there is no core bundle recipe for its
   DeBERTa-v3-large encoder, so GLiREL stands at tiny-bundle parity.
-- Timings at this head: being retaken.
+- Timings on an idle B70: `snap-store` held the render engine busy
+  through every run above.
