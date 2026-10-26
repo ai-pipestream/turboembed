@@ -16,15 +16,24 @@ fn check_builtin(b: BuiltIn, text: &str, rng: &mut Rng) {
     for from in froms(rng, starts.len() - 1) {
         check(from);
     }
+    walk_matches(b, text, |_, _| {});
+}
+
+fn walk_matches(b: BuiltIn, text: &str, mut visit: impl FnMut(usize, usize)) {
     let (mut from, mut previous_end) = (0, 0);
-    while let Some((start, end)) = check(from) {
+    while let Some((start, end)) = builtin::search(b, text, from) {
+        assert!(start >= from && start <= end && end <= text.len(), "{} in {text:?}", b.java_name());
+        assert!(text.is_char_boundary(start) && text.is_char_boundary(end));
         assert!(start >= previous_end, "overlapping {} matches in {text:?}", b.java_name());
         previous_end = end;
-        from = if end > start { end } else { end + 1 };
-        if from >= starts.len() {
-            break;
-        }
+        visit(start, end);
+        let Some(next) = next_match_start(text, start, end) else { break };
+        from = next;
     }
+}
+
+fn next_match_start(text: &str, start: usize, end: usize) -> Option<usize> {
+    if end > start { Some(end) } else { text[end..].chars().next().map(|c| end + c.len_utf8()) }
 }
 
 fn label(rng: &mut Rng, len: usize, alphabet: &[u8]) -> String {
@@ -308,4 +317,26 @@ fn builtins_return_valid_matches_on_generated_texts() {
             check_builtin(b, &text, &mut rng);
         }
     }
+}
+
+#[test]
+fn match_iteration_keeps_every_match_after_multibyte_text() {
+    for (text, expected) in [
+        ("😀😀😀😀 123-4567 234-5678", vec![(17, 25), (26, 34)]),
+        ("é 123-4567 234-5678", vec![(3, 11), (12, 20)]),
+        ("123-4567", vec![(0, 8)]),
+    ] {
+        let mut got = Vec::new();
+        walk_matches(BuiltIn::UsaPhoneNum, text, |a, b| got.push((a, b)));
+        assert_eq!(got, expected, "{text:?}");
+    }
+}
+
+#[test]
+fn empty_match_advances_by_a_unicode_scalar_or_stops_at_eof() {
+    let text = "é😀";
+    assert_eq!(next_match_start(text, 0, 0), Some(2));
+    assert_eq!(next_match_start(text, 2, 2), Some(6));
+    assert_eq!(next_match_start(text, 6, 6), None);
+    assert_eq!(next_match_start(text, 0, 2), Some(2));
 }
