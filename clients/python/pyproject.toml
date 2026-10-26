@@ -1,0 +1,15 @@
+[build-system]
+requires = ["grpcio-tools==1.70.0", "protobuf==5.29.3"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "turboembed-proto"
+version = "0.1.0"
+description = "Generated Protobuf and gRPC Python client stubs for turboembed (turbo-kserve)."
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.9"
+dependencies = [
+    "grpcio>=1.68.0",
+    "protobuf>=5.28.0",
+]

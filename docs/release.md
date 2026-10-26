@@ -10,6 +10,15 @@ each with its SHA-256:
 - `turboembed-v<version>-linux-aarch64.tar.gz`: the cpu backend.
 - `turboembed-v<version>-windows-x86_64.zip`: the cpu backend, built with
   MSVC.
+- `turboembed-proto-v<version>.tar.gz`: the versioned `server/proto/*.proto`
+  definitions and `buf.yaml`.
+- `turboembed-grpc-<version>.jar`, `turboembed-grpc-<version>-sources.jar`,
+  and `turboembed-grpc-<version>.pom`: the generated Java Maven stub artifact
+  (`ai.pipestream:turboembed-grpc:<version>`, built with pinned `protoc 3.25.5`
+  and `protoc-gen-grpc-java 1.68.2`).
+- `turboembed_proto-<version>-py3-none-any.whl`: the generated Python wheel
+  stub package (`turboembed-proto`, built with pinned `grpcio-tools 1.70.0`
+  and `protobuf 5.29.3`).
 
 Running the workflow by hand (`workflow_dispatch`) is the dry run: it
 builds and checks the four and keeps them, with their sums, as the run's
@@ -18,7 +27,9 @@ artifacts, and publishes nothing. What changed in each release is in
 compatibility, below.
 
 The same tag pushes two images of the gRPC server to GHCR (Images,
-below). Nothing else is published: no crate.
+below), alongside the proto archive and generated Java and Python client
+stub artifacts in the GitHub release (docs/grpc.md). The Rust crates are
+not published.
 
 ## What the Linux archive holds
 
