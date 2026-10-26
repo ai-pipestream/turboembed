@@ -2,12 +2,15 @@
 //! under benchmarks/records, benchmarks/records/postag,
 //! benchmarks/records/tag, benchmarks/records/throughput and
 //! benchmarks/ranges are what their names say, the README and the
-//! docs point at files that exist, and no committed text names a home
-//! directory on one of our machines.
+//! docs point at files that exist, no committed text names a home
+//! directory on one of our machines, and the demo has no JSON front end
+//! (tree/front_end.rs).
 
 mod common;
 #[path = "tree/dependencies.rs"]
 mod dependencies;
+#[path = "tree/front_end.rs"]
+mod front_end;
 
 use std::path::{Path, PathBuf};
 
