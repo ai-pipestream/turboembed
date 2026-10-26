@@ -50,7 +50,13 @@ fn a_long_gap_inside_a_request_is_cut_at_the_longest_gaps() {
     // inside the first, and the counts differ.
     let a = [act(0), act(at(3)), act(at(4) + 10), act(at(4) + 100)];
     let e = requests(a.to_vec(), 2).unwrap_err();
-    assert!(e.contains("[1, 3]"), "{e}");
+    assert!(e.contains("[1, 3]") && e.contains("median of 1"), "{e}");
+    // Counts that vary a little are requests; a merged pair is not.
+    let run = |at: u64, k: u64| (0..k).map(move |i| act(at + i * 100));
+    let a: Vec<Activity> = run(0, 20).chain(run(at(2), 22)).chain(run(at(4), 19)).collect();
+    assert_eq!(requests(a, 3).unwrap().iter().map(|r| r.kernels).collect::<Vec<_>>(), [20, 22, 19]);
+    let a: Vec<Activity> = run(0, 20).chain(run(at(2), 40)).chain(run(at(4), 20)).collect();
+    assert!(requests(a, 3).unwrap_err().contains("median of 20"));
     // Gaps all shorter than SPLIT are no requests.
     let a = [act(0), act(SPLIT_NS / 2), act(SPLIT_NS)];
     assert!(split(a.to_vec(), 2, SPLIT_NS).is_none());

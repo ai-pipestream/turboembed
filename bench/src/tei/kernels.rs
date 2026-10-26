@@ -45,8 +45,12 @@ pub const IDLE: Duration = Duration::from_millis(50);
 /// every gap between requests is at least IDLE. A gap as long can fall
 /// inside a request too (TEI's host work between its batches, on a loaded
 /// machine), so a trace of n requests is cut at its n - 1 longest gaps,
-/// each at least this, and every request must launch as many kernels.
+/// each at least this, and every request's kernel count must be within
+/// SPREAD percent of their median.
 pub const SPLIT_NS: u64 = IDLE.as_nanos() as u64;
+
+/// How far, in percent, a request's kernel count may be from the median.
+pub const SPREAD: u64 = 25;
 
 const SESSION: &str = "turbo-bench";
 
@@ -144,7 +148,7 @@ pub fn procedure(requests: u32, warmup: u32, clocks: &[u32]) -> String {
          (nsys launch --trace=cuda, collected only around the profiled requests), {warmup} untimed /embed requests, \
          then {requests} more of the same rows one at a time, the GPU left idle {} ms after each, each request's \
          kernel time the summed durations of its kernels, a trace of n requests cut at its n - 1 longest gaps, each \
-         at least {} ms, and every request launching as many kernels; collected \
+         at least {} ms, and every request's kernel count within {SPREAD}% of their median; collected \
          {CHUNK} requests at a time, and a collection whose trace the host's tools refuse is taken again, up to \
          {ATTEMPTS} times, as the commands show; {clock}; a kernel p50 longer than the end-to-end p50 is refused",
         IDLE.as_millis(),
@@ -335,12 +339,19 @@ pub fn requests(a: Vec<Activity>, requests: u64) -> std::result::Result<Vec<Requ
     if out.iter().any(|r| r.kernels == 0) {
         return Err("a profiled request ran no kernel".into());
     }
-    // Every request is of the same rows, so a cut inside one shows as
-    // requests of other kernel counts.
-    if out.iter().any(|r| r.kernels != out[0].kernels) {
-        let mut counts: Vec<u64> = out.iter().map(|r| r.kernels).collect();
+    // Every request is of the same rows, though TEI's kernel count still
+    // varies a little between them (557 to 593 at [32, 512]). A cut in the
+    // wrong place leaves one cut out too, which merges two requests into
+    // one of about twice the kernels.
+    let mut counts: Vec<u64> = out.iter().map(|r| r.kernels).collect();
+    counts.sort_unstable();
+    let median = counts[(counts.len() - 1) / 2];
+    if counts.iter().any(|&k| k.abs_diff(median) * 100 > median * SPREAD) {
         counts.dedup();
-        return Err(format!("cut at its longest gaps, the trace's requests launch {counts:?} kernels, not one count"));
+        return Err(format!(
+            "cut at its longest gaps, the trace's requests launch {counts:?} kernels, some more than {SPREAD}% from \
+             their median of {median}"
+        ));
     }
     Ok(out)
 }
