@@ -109,6 +109,18 @@ cargo test --release -p turbo-sat --test speed -- --ignored --nocapture
   pre-tokenizer WhitespaceSplit then Metaspace, so the recipe sets
   `whitespace_split` and not `collapse_spaces`, and its `<mask>` takes
   no `lstrip`. The classifier's one label is the config's `LABEL_0`.
+  The recipe's `produced_by` image is the `Dockerfile.classifier` one
+  (below), not `reference/Dockerfile`'s. With `M` the directory holding
+  `config.json` and `model.safetensors`, the fixtures are
+
+  ```
+  run segment /w/M /w/tokenizer.json /w/texts.jsonl /w/t0.25-s64-b510.jsonl 0.25 64 510
+  run segment /w/M /w/tokenizer.json /w/texts.jsonl /w/t0.25-s16-b62.jsonl 0.25 16 62
+  run segment /w/M /w/tokenizer.json /w/texts.jsonl /w/t0.5-s7-b30.jsonl 0.5 7 30
+  ```
+
+  with `/w/tokenizer.json` the xlm-roberta-base file; their SHA-256s are
+  in docs/neural-annotators.md.
   `bundle/recipes/sat-3l.json` is the recipe for `sat-3l` (MIT, limited
   lookahead). Its checkpoint ships `pytorch_model.bin` and no
   safetensors: the upstream directory holds it, `config.json` and the

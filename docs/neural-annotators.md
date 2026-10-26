@@ -198,6 +198,11 @@ the fixtures. On the 90 texts:
 | 0.25, 16, 62 | 4.2e-4 | 4.2e-4 | 0 |
 | 0.5, 7, 30 | 3.7e-4 | 3.7e-4 | 0 |
 
+The fixtures' SHA-256s (kept outside the repository with the bundle):
+`t0.25-s64-b510.jsonl` `00e3acafbda76810e2cf496457082202f2ceddf095d963c0daa5bef338246f99`,
+`t0.25-s16-b62.jsonl` `74c86ec1886468734f5f41ea877fd5fa02af30327fc4186cc4dbc5ee334bc5e9`,
+`t0.5-s7-b30.jsonl` `89c1fd02cb6a02401806b6fa4ffed7fce1702917e30e2e6fbabd578e29da6176`.
+
 The ids and offsets are wtpsplit's on every text but for the six
 cluster spans the tiny model shows too (below), and the pieces are
 `split`'s on every text but the one with a pad token in it. The bundle's
@@ -211,9 +216,10 @@ layers, `lookahead` 48 in its config, so 16 keys ahead a layer) passes
 the same test. Its recipe, `bundle/recipes/sat-3l.json`, writes the
 weights from the checkpoint's `pytorch_model.bin` (it ships no
 safetensors) with the same PyTorch step `bge-m3-8192` uses, with the
-bge-m3 tokenizer as above. The boundary score is label 0 of the 111,
-wtpsplit's `Constants.NEWLINE_INDEX`, the index `SaT._predict_proba`
-takes the sigmoid of. On the 90 texts, at wtpsplit's default threshold
+bge-m3 tokenizer (BAAI/bge-m3's `tokenizer.json` at revision
+`5617a9f61b028005a4858fdac845db406aefb181`). The boundary score is
+label 0 of the 111, wtpsplit's `Constants.NEWLINE_INDEX`, the index
+`SaT._predict_proba` takes the sigmoid of. On the 90 texts, at wtpsplit's default threshold
 for a limited-lookahead model:
 
 | Threshold, stride, block | Largest probability difference, CPU | Characters near the threshold |
@@ -247,7 +253,7 @@ What the step does differently, and why:
   whitespace character before the word start piece (`WhitespaceSplit`,
   then `Metaspace`), where bge-m3's collapses runs of spaces
   (`Precompiled`, then a `Replace` of space runs) and splits only at
-  spaces (`Metaspace`). The core reads the second. With the first, the
+  spaces (`Metaspace`). The core reads both. With the first, the
   reference's `segment` on `sat-1l-sm` at threshold 0.25, stride 64 and
   block 510 gives other ids on 9 of the 90 texts: text that is only
   whitespace (3), whitespace at either end (2), U+2028, U+2029 and
@@ -302,9 +308,12 @@ the stride is the main setting for throughput.
 
 With the released `sat-1l-sm` weights and the whole XLM-R vocabulary
 the same 36 documents are 11612 tokens; with the defaults (block 510,
-stride 64) a pass takes 445 ms at `model`, 26,000 tokens a second,
-measured on the host of the RTX 4080 SUPER run (median of 7, passes
-interleaved with the device's).
+stride 64) a pass takes 445 ms at `model`, 26,000 tokens a second.
+That is the median of 7 passes of the interleaved speed test #884 adds
+(`TURBO_SAT_BUNDLE=<bundle> TURBO_TEST_DEVICE=cuda TURBO_SPEED_RUNS=7
+cargo test --release -p turbo-sat --features turbo/cuda --test speed --
+--ignored --nocapture`), on the host of the RTX 4080 SUPER run, a
+different machine from the 4-core rows above.
 
 ### Not done
 
