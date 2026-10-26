@@ -14,8 +14,15 @@ fn ranges_are_ordered_disjoint_unicode_scalars() {
     }
 }
 
+/// Whether `pattern`, such as `^\p{L}$`, matches `c` alone in the regex
+/// engine upstream's tokenizers split with: the classes the core's must be.
+pub(crate) fn upstream(pattern: &str) -> impl Fn(char) -> bool {
+    let re = tokenizers::utils::SysRegex::new(pattern).unwrap();
+    move |c| re.find_iter(c.encode_utf8(&mut [0u8; 4])).next().is_some()
+}
+
 pub(crate) fn write_classes() {
-    let ranges = |wanted: fn(char) -> bool| {
+    let ranges = |wanted: &dyn Fn(char) -> bool| {
         let mut out: Vec<(u32, u32)> = Vec::new();
         for c in (0..=0x10ffff).filter_map(char::from_u32) {
             if wanted(c) {
@@ -27,8 +34,8 @@ pub(crate) fn write_classes() {
         }
         out
     };
-    let letters = ranges(|c| turbo_unicode::category::general_category(c).is_letter());
-    let numbers = ranges(|c| turbo_unicode::category::general_category(c).is_number());
+    let letters = ranges(&upstream(r"^\p{L}$"));
+    let numbers = ranges(&upstream(r"^\p{N}$"));
     let middle = letters.len().div_ceil(2);
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/classes");
     for (file, table) in

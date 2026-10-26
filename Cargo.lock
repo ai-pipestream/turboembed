@@ -1937,7 +1937,6 @@ dependencies = [
  "sha2",
  "tokenizers",
  "turbo",
- "turbo-unicode",
  "unicode-normalization-alignments",
  "unicode-segmentation",
  "unicode_categories",
