@@ -62,7 +62,7 @@ fn subset_with_distractors(set: &mut LoadedSet, max_docs: usize, max_queries: us
 
 /// Trained four-arm receipt (#913); run explicitly:
 ///
-/// `TURBO_EVAL_CACHE=/work/eval-cache TURBO_SPLATE913_BUNDLES=<dir> TURBO_SPLATE913_OUT=<dir> taskset -c 14 cargo test --locked --release -p turbo-eval --test splate_trained -- --ignored --nocapture`
+/// `TURBO_EVAL_CACHE=<cache> TURBO_SPLATE913_BUNDLES=<dir> TURBO_SPLATE913_OUT=<dir> cargo test --locked --release -p turbo-eval --test splate_trained -- --ignored --nocapture`
 #[test]
 #[ignore = "trained SPLATE receipt for docs/splate.md (#913); needs bundles and the BEIR cache"]
 fn splate_trained_receipt() {
