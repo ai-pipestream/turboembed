@@ -85,38 +85,6 @@ void layer_norm_row(device float *row, uint n, device const float *w, device con
     }
 }
 
-// The same, from the row's values held in v, LN_REG to a lane (v[i] is
-// column lane + 32 i): rows of up to 32 * LN_REG values are read from
-// device memory once and written once, where layer_norm_row reads them
-// three times. The sums run in the same order, so the result is the same
-// to the bit.
-constant uint LN_REG = 32;
-
-void layer_norm_regs(thread float *v, device float *row, uint n, device const float *w, device const float *b,
-                     float eps, ushort lane, device half *hrow, uint half_copy) {
-    float s = 0.0f;
-    _Pragma("clang loop unroll(full)")
-    for (uint i = 0; i < LN_REG; i++)
-        if (lane + 32 * i < n) s += v[i];
-    const float mean = simd_sum(s) / float(n);
-    float var = 0.0f;
-    _Pragma("clang loop unroll(full)")
-    for (uint i = 0; i < LN_REG; i++) {
-        if (lane + 32 * i >= n) continue;
-        const float c = v[i] - mean;
-        var += c * c;
-    }
-    const float inv = 1.0f / sqrt(simd_sum(var) / float(n) + eps);
-    _Pragma("clang loop unroll(full)")
-    for (uint i = 0; i < LN_REG; i++) {
-        const uint d = lane + 32 * i;
-        if (d >= n) continue;
-        const float y = (v[i] - mean) * inv * w[d] + b[d];
-        row[d] = y;
-        if (half_copy) hrow[d] = half(y);
-    }
-}
-
 struct RowParams {
     uint hidden;
     float eps;
@@ -137,16 +105,6 @@ kernel void embed_layer_norm(device const int *ids [[buffer(0)]], device const i
     device const float *ps = position + ulong(pos[t]) * h;
     device const float *tt = type + ulong(types[t]) * h;
     device float *row = x + ulong(t) * h;
-    if (h <= 32 * LN_REG) {
-        float v[LN_REG];
-        _Pragma("clang loop unroll(full)")
-        for (uint i = 0; i < LN_REG; i++) {
-            const uint d = lane + 32 * i;
-            v[i] = d < h ? w[d] + ps[d] + tt[d] : 0.0f;
-        }
-        layer_norm_regs(v, row, h, ln_w, ln_b, p.eps, lane, xh + ulong(t) * h, p.half_copy);
-        return;
-    }
     for (uint d = lane; d < h; d += 32) row[d] = w[d] + ps[d] + tt[d];
     layer_norm_row(row, h, ln_w, ln_b, p.eps, lane, xh + ulong(t) * h, p.half_copy);
 }
@@ -164,22 +122,6 @@ kernel void add_layer_norm(device float *x [[buffer(0)]], device const float *y 
     device float *row = x + ulong(t) * h;
     device const float *yr = y + ulong(t) * h;
     const ulong part = ulong(tokens) * h;
-    if (h <= 32 * LN_REG) {
-        float v[LN_REG];
-        _Pragma("clang loop unroll(full)")
-        for (uint i = 0; i < LN_REG; i++) {
-            const uint d = lane + 32 * i;
-            if (d >= h) {
-                v[i] = 0.0f;
-                continue;
-            }
-            float sum = yr[d];
-            for (uint sp = 1; sp < splits; sp++) sum += yr[sp * part + d];
-            v[i] = row[d] + (sum + bias[d]);
-        }
-        layer_norm_regs(v, row, h, ln_w, ln_b, p.eps, lane, xh + ulong(t) * h, p.half_copy);
-        return;
-    }
     for (uint d = lane; d < h; d += 32) {
         float sum = yr[d];
         for (uint sp = 1; sp < splits; sp++) sum += yr[sp * part + d];
