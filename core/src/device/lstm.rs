@@ -26,6 +26,9 @@ pub struct Lstm {
 /// where the device reads them, for [`Lstm::run_gathered`].
 pub struct Table {
     device: Device,
+    /// The values held, and the rows of the LSTM that made the table: a
+    /// run reads it by its own projected width, so it checks the values.
+    values: usize,
     rows: usize,
     /// Whether every value is finite, which a run reading it needs.
     finite: bool,
@@ -131,7 +134,7 @@ impl Lstm {
             #[cfg(not(feature = "cuda"))]
             Device::Cuda(_) => unreachable!("an LSTM on a device not built in"),
         };
-        Ok(Table { device: self.device, rows: values.len() / pw, finite: finite(values), inner })
+        Ok(Table { device: self.device, values: values.len(), rows: values.len() / pw, finite: finite(values), inner })
     }
 
     #[cfg(feature = "cuda")]
@@ -177,8 +180,10 @@ impl Lstm {
             return self.cpu.run_gathered(t, index, lengths, out, &mut w.cpu);
         }
         let rows = self.rows(lengths, out)?;
-        if index.len() != rows || index.iter().any(|&i| i >= table.rows) {
-            let (pw, n) = (self.projected_width(), table.rows * self.projected_width());
+        // As the CPU form reads a table: whole rows of this LSTM's width,
+        // whatever LSTM made it, so no index reads past its values.
+        let (pw, n) = (self.projected_width(), table.values);
+        if !n.is_multiple_of(pw) || index.len() != rows || index.iter().any(|&i| i >= n / pw) {
             let message = format!("lstm: a table of {n} values and {} indices for {rows} rows of {pw}", index.len());
             return Err(Error::new(INVALID_SHAPE, message));
         }

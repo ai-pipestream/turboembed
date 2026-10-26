@@ -197,3 +197,32 @@ fn a_device_not_built_in_is_refused() {
     let e = Lstm::new(Device::Cuda(0), 3, 2, &m.dirs()).err().expect("an LSTM on a CUDA device in a build without it");
     assert_eq!(e.code, turbo::status::UNSUPPORTED);
 }
+
+/// A table made by an LSTM of another width is read as the CPU form reads
+/// the same values: refused where they are not whole rows of the running
+/// LSTM's width or an index passes them, and never read past its values.
+#[test]
+fn a_table_of_another_width_is_refused_as_the_cpu_refuses_it() {
+    let (narrow, wide) = (Model::new(3, 2, 7), Model::new(3, 4, 8));
+    let (maker, reader, reference) = (narrow.on(device()), wide.on(device()), wide.cpu());
+    // 4 rows of 16 for hidden 2: 2 rows of 32 for hidden 4.
+    let values = Rng(4).values(4 * 16, 1.0);
+    let table = maker.table(&values).unwrap();
+    for index in [[0, 1, 1], [0, 1, 3]] {
+        let (mut a, mut b) = (vec![0.0; 3 * 8], vec![0.0; 3 * 8]);
+        let got = reader.run_gathered(&table, &index, &[3], &mut a, &mut Work::default()).map_err(|e| e.code);
+        let want = reference.run_gathered(&values, &index, &[3], &mut b, &mut cpu::Work::default()).map_err(|e| e.code);
+        assert_eq!(got, want, "index {index:?}");
+        if got.is_ok() {
+            assert!(max_diff(&a, &b) <= BOUND, "index {index:?}");
+        }
+    }
+    assert_eq!(
+        reader.run_gathered(&table, &[0, 1, 3], &[3], &mut [0.0; 24], &mut Work::default()).map_err(|e| e.code),
+        Err(INVALID_SHAPE)
+    );
+    // 3 rows of 16 are not whole rows of 32.
+    let odd = maker.table(&values[..48]).unwrap();
+    let got = reader.run_gathered(&odd, &[0, 0, 0], &[3], &mut [0.0; 24], &mut Work::default());
+    assert_eq!(got.map_err(|e| e.code), Err(INVALID_SHAPE));
+}
