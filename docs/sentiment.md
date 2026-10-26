@@ -307,8 +307,9 @@ and combines three signals:
 
 Per `#326`, external sarcasm datasets with Twitter/Reddit platform terms or
 unspecified licenses (`iSarcasm`, `SARC`, `SemEval-2018 Task 3`) are not
-redistributed in the repository, so there is no measured accuracy for this
-annotator yet. What exists is a 32-sentence project-written regression
+redistributed in the repository. The MIT-licensed Conversational Sarcasm
+Corpus provides an external alternative, evaluated below. There is also a
+32-sentence project-written regression
 fixture (`pragmatics_benchmark_f1_and_evidence_invariants` in
 `analysis/doccat/src/sentiment/pragmatics/tests/benchmark.rs`): 18 sarcastic and 14 literal
 sentences written beside the cue and situation tables, with the
@@ -323,6 +324,41 @@ not calibrated probabilities. `analysis/embed/tests/heads.rs`
 the three signals end to end over `tiny-bert-bundle` with a fitted
 `ClassifierHead` as the sentence scorer and a `LabelCentroids` head written
 beside it, and compares CPU with a device when `TURBO_TEST_DEVICE` is set.
+
+### Trained CSC sarcasm head and external evaluation (`#925`)
+
+The zoo lists `csc-conversational-sarcasm-2024` at CoPsyN/CSC commit
+`f11c92b8d54686f64cf1d92766cef07201efb986` and the trained
+`turbo-en-csc-pragmatics-1` head at release `models-sentiment-925-1`. CSC is
+MIT licensed; its notice and the authors, Hyewon Jang, Bettina Braun, and
+Diego Frassinelli, must be retained. The dataset and corpus text are not
+committed.
+
+The receipt in `analysis/embed/tests/pragmatics_csc.rs` aggregates the median
+external-evaluator rating for each of 7,036 unique responses and labels
+ratings of at least 4 as sarcastic. It does not read demographic columns.
+Responses are embedded with `sentence-transformers/all-MiniLM-L6-v2` and
+split by conversational context: 4,146 train, 1,507 development, and 1,383
+held-out responses (497 positive). No response context crosses a split. A
+two-label linear `ClassifierHead` trains for 200 epochs with L2 0.001 and
+learning rate 0.1. The head and combined thresholds are selected on the
+development set and frozen in `pragmatics-1.json`.
+
+`ClassifierHead` now implements `PragmaticsVectorScorer` directly, so the
+published head runs through the production `PragmaticsAnnotator` without a
+test adapter. The chosen default is the existing combination of rule signals
+and this embedding head. Held-out metrics are:
+
+| Path | Threshold | Precision | Recall | F1 |
+| --- | ---: | ---: | ---: | ---: |
+| Rule signals alone | 0.50 | 0.485714 | 0.034205 | 0.063910 |
+| Embedding head alone | 0.35 | 0.409244 | 0.979879 | 0.577356 |
+| Rules plus embedding head | 0.35 | 0.409396 | 0.981891 | 0.577857 |
+
+The combined path catches 488 of 497 positive responses, but also emits 704
+false positives. Its precision remains modest, so the recall figure must not
+be read as general precision or calibration evidence. The complete counts
+and frozen configuration travel in the published zip.
 
 ## Aspect and opinion extraction (`RuleAspectSentiment` and `LearnedAspectSentiment`, `#322`)
 

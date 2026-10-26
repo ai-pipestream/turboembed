@@ -129,7 +129,7 @@ fn trained_here(id: &str) -> bool {
 
 /// The published neural checkpoints the index lists (docs/licences.md,
 /// "Neural annotator checkpoints"): permissive, so nothing to accept.
-pub(crate) const CHECKPOINTS: [&str; 7] = [
+pub(crate) const CHECKPOINTS: [&str; 8] = [
     "fastino-gliner2-base-v1",
     "microsoft-deberta-v3-large-tokenizer",
     "urchade-gliner-small-v2.1",
@@ -137,6 +137,7 @@ pub(crate) const CHECKPOINTS: [&str; 7] = [
     "urchade-gliner-multi-v2.1",
     "microsoft-mdeberta-v3-base-tokenizer",
     "segment-any-text-sat-3l",
+    "turbo-en-csc-pragmatics-1",
 ];
 
 /// The share-alike neural checkpoints the index lists: fetched after the user
@@ -171,7 +172,8 @@ const RETRIEVAL_CHECKPOINTS: [&str; 2] = ["opensearch-neural-sparse-encoding-v1"
 /// The permissive training datasets in the built-in index (#945): MASC,
 /// the four settled CC BY 4.0 UD 2.16 treebanks, the Tatoeba export,
 /// Civil Comments, and GoEmotions (filtered split and raw annotations).
-const DATASETS: [&str; 9] = [
+const DATASETS: [&str; 10] = [
+    "csc-conversational-sarcasm-2024",
     "masc-3.0.0",
     "ud-spanish-ancora-r2.16",
     "ud-catalan-ancora-r2.16",
