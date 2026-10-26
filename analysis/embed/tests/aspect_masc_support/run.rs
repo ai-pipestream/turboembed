@@ -11,6 +11,7 @@ use turbo_doccat::sentiment::aspect::RuleAspectSentiment;
 
 use super::corpus::{CorpusDoc, load};
 use super::metrics::{self, Metrics};
+use super::release;
 
 struct Prepared {
     corpus: CorpusDoc,
@@ -23,6 +24,14 @@ pub fn run() {
         PathBuf::from(std::env::var_os("TURBO_MINILM_BUNDLE").expect("TURBO_MINILM_BUNDLE names the MiniLM bundle"));
     let corpus = load(&root);
     assert!(corpus.len() >= 20, "expected at least 20 usable MASC documents, got {}", corpus.len());
+    let release_dir = std::env::var_os("TURBO_ASPECT_HEAD");
+    assert!(
+        release_dir.is_some() != std::env::var_os("TURBO_ASPECT_OUT").is_some(),
+        "choose release verification OR explicit training output"
+    );
+    if release_dir.is_some() {
+        release::validate_population(&corpus, corpus.len() * 4 / 5).unwrap();
+    }
     let subwords = SubwordAnnotator::open(&bundle).unwrap();
     let options = VectorOptions { encoder: EncoderOptions::default(), ..VectorOptions::default() };
     let vectors = Arc::new(VectorAnnotator::open(&bundle, &options).unwrap());
@@ -33,7 +42,7 @@ pub fn run() {
         .collect();
     let split = prepared.len() * 4 / 5;
     assert!(split > 0 && split < prepared.len());
-    let learned = if let Some(dir) = std::env::var_os("TURBO_ASPECT_HEAD") {
+    let learned = if let Some(dir) = &release_dir {
         load_heads(Path::new(&dir), vectors)
     } else {
         train(&prepared[..split], vectors)
@@ -58,6 +67,11 @@ pub fn run() {
     let learned_metrics = evaluate(&prepared[split..], &learned);
     let rule = RuleAspectSentiment::new();
     let rule_metrics = evaluate(&prepared[split..], &rule);
+    if release_dir.is_some() {
+        let expected = release::expected();
+        release::validate_metrics(&learned_metrics, &expected["config"]["evaluation"]).unwrap();
+        release::validate_metrics(&rule_metrics, &expected["rules"]).unwrap();
+    }
     report("LearnedAspectSentiment", &learned_metrics);
     report("RuleAspectSentiment", &rule_metrics);
     println!(
@@ -91,9 +105,8 @@ fn classifier(head: ScoringHead) -> Arc<ClassifierHead> {
 }
 
 fn load_heads(dir: &Path, vectors: Arc<VectorAnnotator>) -> LearnedAspectSentiment {
-    let bio = Arc::new(ClassifierHead::load(&dir.join("aspect-bio-1.thead")).unwrap());
-    let polarity = Arc::new(ClassifierHead::load(&dir.join("aspect-polarity-1.thead")).unwrap());
-    LearnedAspectSentiment::new(vectors, bio, polarity, None).with_bio_threshold(0.4)
+    let (bio, polarity, threshold) = release::load(dir, vectors.model()).unwrap();
+    LearnedAspectSentiment::new(vectors, Arc::new(bio), Arc::new(polarity), None).with_bio_threshold(threshold)
 }
 
 fn save_heads(dir: &Path, learned: &LearnedAspectSentiment) {

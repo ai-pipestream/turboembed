@@ -962,3 +962,17 @@ execution order when comparing. Raw six-run samples (milliseconds):
 | GLiREL | 93.634, 83.627, 80.103, 78.713, 80.324, 79.540 | 78.568, 78.589, 80.977, 72.234, 75.498, 74.043 |
 | GLiNER2 | 364.053, 310.985, 319.985, 312.569, 302.608, 303.863 | 303.214, 351.832, 301.616, 300.673, 302.207, 298.797 |
 | SaT | 77.445, 81.898, 81.034, 74.445, 76.735, 77.753 | 62.754, 62.958, 58.943, 64.465, 58.403, 59.835 |
+
+### MASC release verification (`#924`)
+
+The release path (`TURBO_ASPECT_HEAD`) checks the archived configuration,
+BIO and polarity file digests, encoder identity, source text and annotation
+digest, document ordering, split counts, and both learned and rule metrics.
+Integer counts must match; metrics rounded to six decimal places permit an
+absolute difference of at most 0.0000005. The frozen expectations are in
+`analysis/embed/tests/aspect_masc_support/release.json`; these pin
+`models-sentiment-924-1` and do not set a new model-quality requirement.
+Training instead requires `TURBO_ASPECT_OUT`; verification cannot overwrite
+training output. Weight-file checks can run without the full encoder through
+the ignored `actual_release_files_accept_and_corrupt_bytes_fail` test. Full
+prediction reproduction still requires the pinned MASC data and MiniLM bundle.
