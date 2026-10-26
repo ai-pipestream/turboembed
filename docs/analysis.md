@@ -1729,9 +1729,7 @@ here with the words joined by a space. Not ported:
 - Custom list-valued extension attributes are not imported.
 - `REGEX` returns a typed import error naming the operator. There is no
   regular expression engine; `Tok::text_where` takes a caller's predicate.
-- `LIKE_URL`, `LIKE_EMAIL`, `DEP` and dependency patterns: the first two
-  are spaCy's heuristics, not ported; dependency-tree patterns are a
-  separate effort.
+- `LIKE_URL` and `LIKE_EMAIL` are spaCy's heuristics, not ported.
 - Pattern validation, unknown `greedy` values and passing a pattern for a
   list of patterns (`test_issue3549`, `test_invalid_greediness`,
   `test_matcher_basic_check`, `test_phrase_matcher_validation`): the types
@@ -1764,12 +1762,15 @@ as written; membership sets canonicalize their strings, matching spaCy.
 `TAG` reads `Input::with_tags`, independently of the `POS` column. The
 pipeline ruler does not infer fine-grained tags from its POS layer.
 
-Unknown attributes and operators (including `REGEX`, dependency patterns,
+Unknown attributes and operators (including `REGEX`
 and custom extensions) return `ImportError::Unsupported` naming the key.
 Wrong types, invalid repeats and excessively large automata refuse.
 The JSON reader limits files to 16 MiB, nesting to 32, and object members
 to 64. Duplicate keys and unpaired surrogate escapes refuse. It adds no
-crate dependencies. Dependency-tree rules remain outside this reader.
+crate dependencies. `spacy::read_dependency_pattern` is the separate
+dependency-tree reader, using the same attribute predicates. Its
+[DependencyMatcher](dependency-matcher.md) borrows a validated Dependencies
+layer and supports all twenty spaCy relations with bounded search.
 
 The optional local [oracle fixture](../analysis/matcher/tests/data/README.md) compares
 2,580 exact labelled token spans over 31 original EWT sentences (485
@@ -4533,6 +4534,15 @@ and against `fixed-tokens-200` it is significantly better on
 real but under the gate's 2-point gain threshold), significantly
 worse on `arguana`, and tied on `scifact` and `qasper`. It beats
 the sandbox semantic chunker everywhere but `qasper`.
+
+The same three records run on the Level Zero backend (Arc Pro B70,
+`analysis/eval/records/*-hybrid-levelzero`, same flags, same
+bundle) match the CPU records query for query: the candidate and
+both baselines give the same nDCG@10 on every query of all four
+sets, with the same chunks and tokens. Both gates FAIL with the
+numbers in the table above. So the CUDA record's `arguana` gap
+(`51.65` against `51.47`; 53 of 1406 queries differ, with the same
+cuts) is CUDA's numerics, not the chunker.
 
 ### Structure in the chunker
 

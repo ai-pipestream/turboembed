@@ -92,13 +92,19 @@ fn elementwise_groups(n: u64) -> u32 {
     n.div_ceil(WIDE as u64).clamp(1, 65535) as u32
 }
 
+mod deberta;
 mod encode;
 mod kernels;
 mod model;
 mod session;
+mod stages;
 mod tune;
 mod write;
 
+#[cfg(feature = "internals")]
+pub use deberta::tiled_rows;
+#[cfg(feature = "internals")]
+pub(crate) use deberta::use_general_attention;
 #[cfg(feature = "internals")]
 pub(crate) use model::widened;
 pub(crate) use model::{model_load, model_release};

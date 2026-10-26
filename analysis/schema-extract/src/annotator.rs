@@ -18,11 +18,13 @@ use turbo_analysis::{Annotator, Error, ModelRef, Refs, Span, Spans, Tag, TagSet,
 use turbo_analysis_layers::{Categories, Entities, Numbers, Pii, Sentences, Tokens};
 use turbo_geo::Locations;
 use turbo_glossary_layers::GlossaryTerms;
+use turbo_relation::gliner2::words::{self, Word};
 
 use crate::config_hash::config_hash;
 use crate::decode::{Corroborate, Extraction, FieldValue, decode};
 use crate::layer::{Records, source_code};
 use crate::model::Gliner2Extractor;
+use crate::prompt::Prompt;
 use crate::schema::{ExtractionSchema, Source};
 use crate::window;
 
@@ -61,28 +63,48 @@ impl SchemaAnnotator {
         tokens: &Tokens,
         sentences: Option<&Sentences>,
     ) -> Result<Vec<std::ops::Range<usize>>, String> {
-        let fits = |t: &str| match self.extractor.prompt(t, &self.schema) {
-            Ok(_) => Ok(true),
-            Err(e) if window::too_long(&e) => Ok(false),
-            Err(e) => Err(e.to_string()),
-        };
-        if fits(view.text())? {
-            return Ok(std::iter::once(0..view.text().len()).collect());
-        }
-        window::plan(view.text(), &window::units(view, tokens, sentences)?, fits)
+        let words = prompt_words(view.text(), tokens)?;
+        let prompt = self.extractor.build_words(view.text(), &self.schema, words).map_err(|e| e.to_string())?;
+        self.plan(view, tokens, sentences, &prompt)
     }
 
-    /// Text too long for one pass: each window read on its own, merged.
+    /// The windows of the document's one tokenized input, measured from it.
+    fn plan(
+        &self,
+        view: &View,
+        tokens: &Tokens,
+        sentences: Option<&Sentences>,
+        prompt: &Prompt<'_>,
+    ) -> Result<Vec<std::ops::Range<usize>>, String> {
+        match self.extractor.check(prompt) {
+            Ok(()) => return Ok(std::iter::once(0..view.text().len()).collect()),
+            Err(e) if window::too_long(&e) => {}
+            Err(e) => return Err(e.to_string()),
+        }
+        window::plan_measured(
+            view.text(),
+            &window::units(view, tokens, sentences)?,
+            &prompt.measure(view.text().len()),
+            self.extractor.limits().max_words,
+            self.extractor.max_sequence(),
+        )
+    }
+
+    /// Text too long for one pass: each window cut from the document's
+    /// input and read on its own, merged. Nothing is tokenized again.
     fn windowed(
         &self,
         view: &View,
         tokens: &Tokens,
         sentences: Option<&Sentences>,
+        prompt: &Prompt<'_>,
         layers: &dyn Corroborate,
     ) -> Result<Extraction, String> {
         let mut out = Extraction { entities: vec![Vec::new(); self.schema.entities.len()], ..Extraction::default() };
-        for at in self.windows(view, tokens, sentences)? {
-            let pass = self.extractor.pass(&view.text()[at.clone()], &self.schema).map_err(|e| e.to_string())?;
+        for at in self.plan(view, tokens, sentences, prompt)? {
+            let part = prompt.window(at.clone());
+            self.extractor.check(&part).map_err(|e| e.to_string())?;
+            let pass = self.extractor.pass_prompt(part).map_err(|e| e.to_string())?;
             let shifted = window::Shifted { layers, by: at.start };
             window::merge(&mut out, decode(&pass, &self.schema, self.threshold, &shifted)?, at);
         }
@@ -110,6 +132,25 @@ impl Corroborate for DocumentLayers<'_> {
             Source::Locations => self.locations.map(|l| l.spans.overlapping(span).iter().map(|i| i.get()).collect()),
         })
     }
+}
+
+/// The prompt's words: the document's tokens, lower-cased only when
+/// lower-casing changes them, or GLiNER2's splitter over a document whose
+/// tokens have fragments.
+fn prompt_words<'a>(text: &'a str, tokens: &Tokens) -> Result<Vec<Word<'a>>, String> {
+    if tokens.spans.has_discontinuous() {
+        return Ok(words::split(text));
+    }
+    let mut out = Vec::with_capacity(tokens.spans.len());
+    for (_, span) in tokens.spans.iter() {
+        let (start, end) = (span.start as usize, span.end as usize);
+        if end > text.len() {
+            continue;
+        }
+        let raw = text.get(start..end).ok_or_else(|| "a token outside the view".to_owned())?;
+        out.push(Word { text: words::lowercase(raw), start, end, subword_len: 0 });
+    }
+    Ok(out)
 }
 
 /// A value's bytes in the view's text: the model reads the text with a
@@ -270,12 +311,14 @@ impl Annotator for SchemaAnnotator {
             return Err(fail("a layer read is not in the view read".into()));
         }
         let layers = DocumentLayers { glossary, pii, numbers, locations };
-        let out = match self.extractor.prompt(view.text(), &self.schema) {
-            Ok(prompt) => {
+        let words = prompt_words(view.text(), tokens).map_err(fail)?;
+        let prompt = self.extractor.build_words(view.text(), &self.schema, words).map_err(|e| fail(e.to_string()))?;
+        let out = match self.extractor.check(&prompt) {
+            Ok(()) => {
                 let pass = self.extractor.pass_prompt(prompt).map_err(|e| fail(e.to_string()))?;
                 decode(&pass, &self.schema, self.threshold, &layers).map_err(fail)?
             }
-            Err(e) if window::too_long(&e) => self.windowed(view, tokens, sentences, &layers).map_err(fail)?,
+            Err(e) if window::too_long(&e) => self.windowed(view, tokens, sentences, &prompt, &layers).map_err(fail)?,
             Err(e) => return Err(fail(e.to_string())),
         };
         let written = (
@@ -295,5 +338,32 @@ impl Annotator for SchemaAnnotator {
 
     fn model(&self) -> Option<ModelRef> {
         Some(self.extractor.model().clone())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::borrow::Cow;
+    use turbo_analysis::ViewId;
+
+    fn tokens(text: &str) -> Tokens {
+        let mut spans = Spans::new(ViewId::SOURCE);
+        let mut at = 0;
+        for w in text.split(' ') {
+            spans.push(Span::new(at as u32, (at + w.len()) as u32));
+            at += w.len() + 1;
+        }
+        Tokens { spans, sentence: None }
+    }
+
+    #[test]
+    fn a_titlecase_token_is_lower_cased_and_a_lower_case_one_borrowed() {
+        let text = "\u{01C5}uro paid ANA";
+        let words = prompt_words(text, &tokens(text)).unwrap();
+        let folded: Vec<&str> = words.iter().map(|w| w.text.as_ref()).collect();
+        assert_eq!(folded, ["\u{01C6}uro", "paid", "ana"]);
+        assert!(matches!(words[1].text, Cow::Borrowed(_)), "an unchanged token is not copied");
+        assert_eq!((words[0].start, words[0].end), (0, "\u{01C5}uro".len()));
     }
 }

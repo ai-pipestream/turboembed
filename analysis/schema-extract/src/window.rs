@@ -95,6 +95,62 @@ pub fn plan(
     Ok(windows)
 }
 
+/// Plans from one prompt measurement. Word lengths and prefix sums are
+/// built once; extending or advancing a window does no tokenization.
+pub fn plan_measured(
+    text: &str,
+    units: &[Range<usize>],
+    measure: &crate::prompt::Measurement,
+    max_words: usize,
+    max_sequence: usize,
+) -> Result<Vec<Range<usize>>, String> {
+    let mut first = Vec::with_capacity(units.len());
+    let mut last = Vec::with_capacity(units.len());
+    let mut at = 0;
+    for unit in units {
+        while at < measure.words.len() && measure.words[at].0.start < unit.start {
+            at += 1;
+        }
+        first.push(at);
+        while at < measure.words.len() && measure.words[at].0.end <= unit.end {
+            at += 1;
+        }
+        last.push(at);
+    }
+    let mut prefix = vec![0];
+    for (_, n) in &measure.words {
+        prefix.push(prefix.last().unwrap() + n);
+    }
+    let fits = |i: usize, j: usize| {
+        let (a, b) = (first[i], last[j]);
+        let sample = &text[units[i].start..units[j].end];
+        let needs_period = sample.is_empty() || !sample.ends_with(['.', '!', '?']);
+        let cost = if needs_period && b > a && measure.words[b - 1].0.end == units[j].end {
+            prefix[b - 1] - prefix[a] + measure.endings[b - 1]
+        } else {
+            prefix[b] - prefix[a] + usize::from(needs_period) * measure.period
+        };
+        b - a <= max_words && measure.overhead + cost <= max_sequence
+    };
+    let mut windows = Vec::new();
+    let mut i = 0;
+    while i < units.len() {
+        if !fits(i, i) {
+            return Err(format!("window unit {i} ({} bytes) alone is over the model's limits", units[i].len()));
+        }
+        let mut j = i;
+        while j + 1 < units.len() && fits(i, j + 1) {
+            j += 1;
+        }
+        windows.push(units[i].start..units[j].end);
+        if j + 1 == units.len() {
+            break;
+        }
+        i = if j >= i + OVERLAP { j + 1 - OVERLAP } else { j + 1 };
+    }
+    Ok(windows)
+}
+
 /// The document's layers, read at a window's offset in the text.
 pub struct Shifted<'a> {
     pub layers: &'a dyn Corroborate,
