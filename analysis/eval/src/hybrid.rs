@@ -138,14 +138,15 @@ impl Hybrid {
         Lexical { model: self.model, terms: self.terms, dump: None }.index(texts, doc)
     }
 
-    /// Chooses a BM25 weight on one half of the scored queries and scores
-    /// only that choice on the held-out half.
+    /// Chooses a BM25 weight on one half of the scored queries, then scores
+    /// that choice and the pure dense/BM25 baselines on the held-out half.
     ///
     /// Scored queries are taken in [`Qrels::scored_queries`] byte order.
     /// Queries at even positions select the weight by mean nDCG@10 and
     /// queries at odd positions are held out. Candidate searches run only
-    /// for the selection queries; the held-out queries are searched once,
-    /// after the choice. An exact selection tie keeps the lowest candidate.
+    /// for the selection queries. After selection, the chosen weight and
+    /// both endpoints are evaluated on the same held-out queries without
+    /// affecting the choice. An exact selection tie keeps the lowest candidate.
     pub fn choose_bm25_weight_held_out(
         &self,
         search: &HybridSearch<'_>,

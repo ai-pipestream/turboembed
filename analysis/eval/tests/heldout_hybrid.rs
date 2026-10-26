@@ -1,6 +1,6 @@
 //! Held-out hybrid weight receipt (#955): choose the weighted-fusion
 //! BM25 weight on the even-position scored queries of each cached set
-//! and score only the chosen weight on the odd-position queries.
+//! and score that choice plus pure dense/BM25 on the odd-position queries.
 //!
 //! Env-gated like the other trained receipts: `TURBO_EVAL_CACHE` names
 //! the set cache, `TURBO_HELDOUT955_BUNDLE` the dense bundle directory,
