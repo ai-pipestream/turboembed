@@ -144,3 +144,17 @@ fn cjk_script_boundaries_preserve_latin_identifiers() {
     assert_eq!((found[0].start, found[0].end), (3, 9));
     assert_eq!(found[0].value.num().unwrap().value, Dec::from_i64(300));
 }
+
+#[test]
+fn unicode_minus_and_leading_decimal_values() {
+    for sign in ["−", "‐", "－", "-"] {
+        assert_eq!(cjk::parse_number(&format!("{sign}5")), Some(Dec::from_i64(-5)));
+        assert_eq!(cjk::parse_number(&format!("{sign}．５")), Dec::new(-5, 1));
+    }
+    for text in ["．5", "．５", "０．５", ".5"] {
+        assert_eq!(cjk::parse_number(text), Dec::new(5, 1), "{text}");
+    }
+    for text in ["．", "−", "‐", "−‐5", "．５．６", "一万．五"] {
+        assert_eq!(cjk::parse_number(text), None, "{text}");
+    }
+}

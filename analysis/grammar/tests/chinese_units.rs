@@ -98,3 +98,36 @@ fn chinese_clause_commas_do_not_join_distinct_prices() {
         [("$20".into(), "20".into(), "dollar".into()), ("300美圆".into(), "300".into(), "USD".into())]
     );
 }
+
+#[test]
+fn chinese_leading_decimals_and_unicode_signs_keep_values_and_source() {
+    use turbo_analysis::{Analyzer, Document, Ix, Layer, OffsetTable};
+    use turbo_grammar::annotator::{GRAMMAR_MONEY, GrammarAnnotator};
+    let analyzer = Analyzer::builder().step(GrammarAnnotator::new(&CHINESE_UNITS).bound()).build().unwrap();
+    for (source, expected) in [
+        ("．5美元", "0.5"),
+        ("．５美元", "0.5"),
+        ("０．５美元", "0.5"),
+        ("−5美元", "-5"),
+        ("‐5美元", "-5"),
+        ("－5美元", "-5"),
+        ("-5美元", "-5"),
+        ("−．５美元", "-0.5"),
+        ("‐０．５美元", "-0.5"),
+    ] {
+        let text = format!("🛒 {source}。结束");
+        let mut docs = [Document::new(text.as_str())];
+        assert!(analyzer.run(&mut docs).iter().all(Result::is_ok), "{source}");
+        let money = docs[0].get_key(&GRAMMAR_MONEY).unwrap();
+        money.check().unwrap();
+        assert_eq!(money.len(), 1, "{source}");
+        assert_eq!(money.amount(Ix::new(0)).to_plain_string(), expected, "{source}");
+        let span = money.get(Ix::new(0)).span;
+        assert_eq!(&text[span.range()], source);
+        let offsets = OffsetTable::build(&text);
+        for byte in [span.start, span.end] {
+            assert_eq!(offsets.from_utf16(&text, offsets.to_utf16(&text, byte)).unwrap(), byte);
+            assert_eq!(offsets.from_code_point(&text, offsets.to_code_point(&text, byte)).unwrap(), byte);
+        }
+    }
+}

@@ -45,7 +45,8 @@ fn number(_: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
     let start = ctx.lexeme(ctx.start).start as usize;
     let end = ctx.lexeme(ctx.end - 1).end as usize;
     let source = &ctx.text[start..end];
-    if source.starts_with(['-', '－']) && ctx.before().is_some_and(|p| parse_number(ctx.raw(p)).is_some()) {
+    if source.starts_with(['-', '－', '−', '‐']) && ctx.before().is_some_and(|p| parse_number(ctx.raw(p)).is_some())
+    {
         return None;
     }
     let value = parse_number(source)?;
