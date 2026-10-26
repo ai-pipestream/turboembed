@@ -93,6 +93,13 @@ pub struct HeldOutWeightChoice {
     pub held_out_queries: usize,
     pub selection_ndcg_at_10: f64,
     pub held_out_ndcg_at_10: f64,
+    /// Mean nDCG@10 of pure dense retrieval (`bm25_weight` 0.0) on the
+    /// same held-out half, so the chosen weight is compared against
+    /// the single-arm baselines on identical queries.
+    pub held_out_dense_ndcg_at_10: f64,
+    /// Mean nDCG@10 of pure BM25 retrieval (`bm25_weight` 1.0) on the
+    /// same held-out half.
+    pub held_out_bm25_ndcg_at_10: f64,
     pub candidates: Vec<HeldOutCandidate>,
 }
 
@@ -207,14 +214,18 @@ impl Hybrid {
         let best = best.ok_or("held-out weight choice needs at least one candidate weight")?;
 
         let (held_queries, held_vectors) = query_subset(queries, query_vectors, search.dim, &held_out);
-        let (run, _) = self.with_bm25_weight(best.bm25_weight).search(search, &held_queries, &held_vectors)?;
-        let scores = evaluate(&run, qrels)?;
+        let held_at = |weight: f64| -> Result<f64> {
+            let (run, _) = self.with_bm25_weight(weight).search(search, &held_queries, &held_vectors)?;
+            mean_ndcg(&evaluate(&run, qrels)?, &held_out)
+        };
         Ok(HeldOutWeightChoice {
             bm25_weight: best.bm25_weight,
             selection_queries: selection.len(),
             held_out_queries: held_out.len(),
             selection_ndcg_at_10: best.selection_ndcg_at_10,
-            held_out_ndcg_at_10: mean_ndcg(&scores, &held_out)?,
+            held_out_ndcg_at_10: held_at(best.bm25_weight)?,
+            held_out_dense_ndcg_at_10: held_at(0.0)?,
+            held_out_bm25_ndcg_at_10: held_at(1.0)?,
             candidates: scored_candidates,
         })
     }

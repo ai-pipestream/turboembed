@@ -160,6 +160,11 @@ fn held_out_weight_choice_uses_only_the_selection_queries() {
     assert_eq!(choice.candidates[1].selection_ndcg_at_10, 1.0);
     assert_eq!(choice.selection_ndcg_at_10, 1.0);
     assert!((choice.held_out_ndcg_at_10 - 0.6309297535714575).abs() < 1e-12);
+    // Baselines on the same held-out half: pure dense (w=0) finds the
+    // relevant doc first there, pure BM25 (w=1) matches the choice.
+    assert_eq!(choice.held_out_dense_ndcg_at_10, 1.0);
+    assert!((choice.held_out_bm25_ndcg_at_10 - 0.6309297535714575).abs() < 1e-12);
+    assert_eq!(choice.held_out_bm25_ndcg_at_10, choice.held_out_ndcg_at_10);
 
     let one = Qrels::new([qrel("q1", "d1")]).unwrap();
     assert!(hybrid.choose_bm25_weight_held_out(&search, &queries, &query_vectors, &one, &[0.5]).is_err());

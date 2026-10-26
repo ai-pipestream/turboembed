@@ -4547,22 +4547,26 @@ Per set, the scored queries in byte order alternate between a
 selection half and a held-out half. Candidates `0.0` to `1.0` in
 steps of `0.1` (weighted fusion, turbo-chunker at 254/200,
 all-MiniLM-L6-v2) are searched and scored only on the selection
-half; the single chosen weight is then searched on the held-out
-half. An exact tie keeps the lowest candidate.
+half; the chosen weight and both single-arm baselines (pure dense
+at `0.0`, pure BM25 at `1.0`) are then searched on the held-out
+half, so every comparison in this table is on identical queries.
+An exact tie keeps the lowest candidate.
 
-| Set | Chosen `bm25_weight` | Selection queries | Selection nDCG@10 | Held-out queries | Held-out nDCG@10 |
-| :--- | ---: | ---: | ---: | ---: | ---: |
-| `scifact` | 0.20 | 150 | 0.6860 | 150 | 0.7269 |
-| `nfcorpus` | 0.30 | 162 | 0.3438 | 161 | 0.3472 |
-| `arguana` | 0.30 | 703 | 0.5162 | 703 | 0.5179 |
-| `qasper` | 0.60 | 726 | 0.4050 | 725 | 0.3854 |
+| Set | Chosen `bm25_weight` | Selection queries | Selection nDCG@10 | Held-out queries | Held-out nDCG@10 | Held-out dense (`0.0`) | Held-out BM25 (`1.0`) |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `scifact` | 0.20 | 150 | 0.6860 | 150 | 0.7269 | 0.6667 | 0.6506 |
+| `nfcorpus` | 0.30 | 162 | 0.3438 | 161 | 0.3472 | 0.3188 | 0.2868 |
+| `arguana` | 0.30 | 703 | 0.5162 | 703 | 0.5179 | 0.4938 | 0.4474 |
+| `qasper` | 0.60 | 726 | 0.4050 | 725 | 0.3854 | 0.2706 | 0.3678 |
 
 The chosen weight is per set, so this record does not by itself
 move the CLI default of `0.35`. It shows the default sits between
-the BEIR choices (0.20 to 0.30) and qasper's 0.60, and that the
+the BEIR choices (0.20 to 0.30) and qasper's 0.60, that the
 held-out halves score close to their selection halves at the
 chosen weights, so the sweep's ordering was not an artifact of
-scoring on the swept queries.
+scoring on the swept queries, and that on the same held-out
+queries the chosen blend beats both single-arm baselines on
+every set (by 0.0176 to 0.0602 nDCG@10 over the better arm).
 
 The same three records run on the Level Zero backend (Arc Pro B70,
 `analysis/eval/records/*-hybrid-levelzero`, same flags, same

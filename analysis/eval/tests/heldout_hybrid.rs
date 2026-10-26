@@ -117,9 +117,9 @@ fn heldout_hybrid_receipt() {
     let mut record_sets = Vec::new();
 
     println!(
-        "| Set | Chosen bm25_weight | Selection queries | Selection nDCG@10 | Held-out queries | Held-out nDCG@10 |"
+        "| Set | Chosen bm25_weight | Selection queries | Selection nDCG@10 | Held-out queries | Held-out nDCG@10 | Held-out dense (w=0) | Held-out BM25 (w=1) |"
     );
-    println!("|---|---:|---:|---:|---:|---:|");
+    println!("|---|---:|---:|---:|---:|---:|---:|---:|");
     for name in SETS {
         let set = match sets::find(name).and_then(|s| s.load(&cache)) {
             Ok(set) => set,
@@ -131,13 +131,15 @@ fn heldout_hybrid_receipt() {
         let (choice, chunks) =
             choose(&set, &analysis, &chunker, &mut embedder, &weights).expect("choose held-out weight");
         println!(
-            "| {} | {:.2} | {} | {:.4} | {} | {:.4} |",
+            "| {} | {:.2} | {} | {:.4} | {} | {:.4} | {:.4} | {:.4} |",
             set.name,
             choice.bm25_weight,
             choice.selection_queries,
             choice.selection_ndcg_at_10,
             choice.held_out_queries,
-            choice.held_out_ndcg_at_10
+            choice.held_out_ndcg_at_10,
+            choice.held_out_dense_ndcg_at_10,
+            choice.held_out_bm25_ndcg_at_10
         );
         record_sets.push(serde_json::json!({
             "set": set.name,
@@ -150,6 +152,8 @@ fn heldout_hybrid_receipt() {
             "selection_ndcg_at_10": choice.selection_ndcg_at_10,
             "held_out_queries": choice.held_out_queries,
             "held_out_ndcg_at_10": choice.held_out_ndcg_at_10,
+            "held_out_dense_ndcg_at_10": choice.held_out_dense_ndcg_at_10,
+            "held_out_bm25_ndcg_at_10": choice.held_out_bm25_ndcg_at_10,
             "candidates": choice.candidates.iter().map(|c| serde_json::json!({
                 "bm25_weight": c.bm25_weight,
                 "selection_ndcg_at_10": c.selection_ndcg_at_10,
