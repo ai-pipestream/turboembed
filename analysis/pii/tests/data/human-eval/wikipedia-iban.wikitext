@@ -1,0 +1,1271 @@
+{{short description|Alphanumeric code that uniquely identifies a bank account in any participating country}}
+{{Redirect|IBAN|other uses|Iban (disambiguation){{!}}Iban}}
+[[File:WessexBankStatement.png|thumb|alt=The IBAN on this bank statement is grouped with the account number, sort code and BIC.|A typical British [[bank statement]] header (from a fictitious bank<!--Based on the layout used by Lloyds Bank-->), showing the location of the account's IBAN]]
+
+The '''International Bank Account Number''' ('''IBAN''') is an internationally agreed upon system of identifying [[bank account]]s across national borders to facilitate the communication and processing of cross border transactions with a reduced risk of [[transcription error]]s. An IBAN uniquely identifies the account of a customer at a financial institution.<ref>{{Cite web |title=What is IBAN, BBAN, SWIFT, BIC, ACH, SEPA, SCT and SDD? |url=https://www.iban.com/glossary |access-date=2023-02-01 |website=www.iban.com}}</ref> It was originally adopted by the [[European Committee for Banking Standards]] (ECBS) and since 1997 as the [[international standard]] '''ISO 13616''' under the [[International Organization for Standardization]] (ISO). The current version is ISO 13616:2020, which indicates the [[Society for Worldwide Interbank Financial Telecommunication]] (SWIFT) as the formal registrar. Initially developed to facilitate payments within the [[European Union]], it has been implemented by most European countries and numerous countries in other parts of the world, mainly in the [[Middle East]] and the [[Caribbean]]. By December 2024, 89 countries were using the IBAN numbering system.<ref name=IBANRegistry/>
+
+The IBAN consists of up to 34 alphanumeric characters comprising a country code; two [[check digit]]s; and a number that includes the domestic bank account number, branch identifier, and potential routing information. The check digits enable a check of the bank account number to confirm its integrity before submitting a transaction.
+
+==Background==
+Before IBAN, differing national standards for bank account identification (i.e. bank, branch, routing codes, and account number) were confusing for some users. This often led to necessary routing information being missing from payments. Routing information as specified by [[ISO 9362]] (also known as Business Identifier Codes (BIC), SWIFT ID or SWIFT code, and SWIFT-BIC) does not require a specific format for the transaction so the identification of accounts and transaction types is left to agreements of the transaction partners. It also does not contain check digits, so errors of transcription were not detectable and it was not possible for a sending bank to validate the routing information prior to submitting the payment. Routing errors caused delayed payments and incurred extra costs to the sending and receiving banks and often to intermediate routing banks.<ref name=Overview_CY>{{cite book
+|url = http://www.centralbank.gov.cy/media/pdf/IBANMANUAL_EN.pdf
+|title = Handbook for the Standardisation and Application of Basic Bank Account Number (BBAN) and International Bank Account Number (IBAN) in Cyprus
+|date = September 2003
+|at = Introduction
+|publisher = Central Bank of Cyprus
+|access-date = 7 August 2012}}</ref>
+
+In 1997, to overcome these difficulties, the [[International Organization for Standardization]] (ISO) published ISO 13616:1997.<ref name=ISO136161997>{{cite web
+|url = http://www.iso.org/iso/home/store/catalogue_ics/catalogue_detail_ics.htm?csnumber=21228
+|title = Banking and related financial services -- International Bank Account Number (IBAN)
+|publisher = International Organization for Standardization
+|date = 24 July 2003
+|access-date = 11 August 2012}}</ref> This proposal had a degree of flexibility that the [[European Committee for Banking Standards]] (ECBS) believed would make it unworkable, and they produced a "slimmed down" version of the standard which, amongst other things, permitted only upper-case letters and required that the IBAN for each country have a fixed length.<ref name=SIG203/> ISO 13616:1997 was subsequently withdrawn and replaced by ISO 13616:2003.<ref name=ISO136161997/> The standard was revised again in 2007 when it was split into two parts. ISO 13616-1:2007 "specifies the elements of an international bank account number (IBAN) used to facilitate the processing of data internationally in data interchange, in financial environments as well as within and between other industries" but "does not specify internal procedures, file organization techniques, storage media, languages, etc. to be used in its implementation".<ref>{{cite web |title=ISO 13616-1:2020 Financial services — International bank account number (IBAN) — Part 1: Structure of the IBAN |url=https://www.iso.org/standard/81090.html |access-date=24 June 2025 |publisher=International Organization for Standardization}}</ref> ISO 13616-2:2007 describes "the Registration Authority (RA) responsible for the registry of IBAN formats that are compliant with ISO 13616-1 [and] the procedures for registering ISO 13616-compliant IBAN formats".<ref>{{cite web |title=ISO 13616-2:2020 Financial services – International bank account number (IBAN) -- Part 2: Role and responsibilities of the Registration Authority |url=https://www.iso.org/standard/81091.html |access-date=24 June 2025 |publisher=International Organization for Standardization}}</ref> The official IBAN registrar under ISO 13616-2:2007 is [[Society for Worldwide Interbank Financial Telecommunication|SWIFT]].<ref>{{cite web
+|url = http://www.swift.com/solutions/messaging/information_products/directory_products/iban_format_registry/index.page?lang=en |title = ISO13616 IBAN Registry |publisher = Swift |access-date =18 January 2010 }}</ref>
+
+IBAN imposes a flexible but regular format sufficient for account identification and contains validation information to avoid errors in transcription. It carries all the routing information needed to get a payment from one bank to another wherever it may be; it contains key bank account details such as country code, branch codes (known as [[sort code]]s in the UK and Ireland) and account numbers, and it contains check digits which can be validated at the source according to a single standard procedure.<ref name=ECBS>{{cite web |title = IBAN: International Bank Account Number |work = EBS204 V3.2 |publisher = European Committee for Banking Standards |date = August 2003 |url = https://www.ecbs.org/Download/EBS204_V3.2.pdf |access-date = 3 August 2021}}</ref>
+
+==Structure<!--'Basic Bank Account Number' redirects here-->==
+
+The IBAN consists of up to 34 alphanumeric characters, as follows:
+* country code using [[ISO 3166-1 alpha-2]] – two letters,
+* [[check digit]]s – two digits, and
+* '''Basic Bank Account Number''' ('''BBAN''') – up to 30 alphanumeric characters that are country-specific.<ref name=IBANRegistry/>
+
+The check digits represent the [[checksum]] of the bank account number which is used by banking systems to confirm that the number contains no simple errors.
+
+In order to facilitate reading by humans, IBANs are traditionally expressed in groups of four characters separated by spaces, the last group being of variable length as shown in the example below; when transmitted electronically however spaces are omitted.<ref name=IBANRegistry/> Current exceptions to this formatting are Burundi (4, 5, 5, 11, 2), Egypt (no spaces), Libya (4, 3, 3, 15), and El Salvador (2, 2, 4, 20).<ref name=IBANRegistry/>
+
+{| class = "wikitable"
+|+ '''Irish IBAN'''
+|-
+|Human readable
+|<code>IE64 IRCE 9205 0112 3456 78</code>
+|-
+|Machine readable
+|<code>IE64IRCE92050112345678</code>
+|}
+
+{| class = "wikitable"
+|+ '''Burundi IBAN'''
+|-
+|Human readable
+|<code>BI13 20001 10001 00001234567 89</code>
+|-
+|Machine readable
+|<code>BI1320001100010000123456789</code>
+|}
+
+Permitted IBAN characters are the digits ''0'' to ''9'' and the 26 [[ISO basic Latin alphabet|Latin alphabetic characters]] ''A'' to ''Z''.<ref name=ValidationFeatures/> This applies even in countries where these characters are not used in the national language (e.g. Greece).
+
+===Basic Bank Account Number===
+The Basic Bank Account Number (BBAN) format is decided by the national central bank or designated payment authority of each country. There is no consistency between the formats adopted. The national authority may register its BBAN format with SWIFT but is not obliged to do so. It may adopt IBAN without registration. SWIFT also acts as the registration authority for the SWIFT system, which is used by most countries that have not adopted IBAN. A major difference between the two systems is that under SWIFT there is no requirement that BBANs used within a country be of a pre-defined length.
+
+The BBAN must be of a fixed length for the country and comprise [[case sensitivity|case-insensitive]] alphanumeric characters. It includes the domestic bank account number, branch identifier, and potential routing information. Each country can have a different national routing/account numbering system, up to a maximum of 30 alphanumeric characters.
+
+===Check digits===
+The check digits enable the sending bank (or its customer) to perform a [[Sanity testing|sanity check]] of the routing destination and account number from a single string of data at the time of data entry.<ref name=SIG203>{{cite book
+|url = http://www.pruefziffernberechnung.de/Originaldokumente/IBAN/SIG203A3FV_181200.pdf
+|title = IBAN Standard Implementation Guidelines – SIG203 V4
+|date = December 2000
+|at = 9.3 Ordering customer
+|quote = IBANs make validation possible for telebanking, FEDI
+|access-date = 8 August 2012
+|publisher = European Committee for Banking Standards}}</ref> This check is guaranteed to detect any instances where a single character has been omitted, duplicated, mistyped or where two characters have been transposed.<ref name=ValidationFeatures/>
+
+==Processing==
+One of the design aims of the IBAN was to enable as much validation as possible to be done at the point of data entry.<ref>{{cite book
+|title = Handbook for the Standardisation and Application of Basic Bank Account Number (BBAN) and International Bank Account Number (IBAN) in Cyprus
+|url = http://www.centralbank.gov.cy/media/pdf/IBANMANUAL_EN.pdf
+|date = September 2003
+|at = Section 4 – Advantages
+|quote = "Reduction of human errors"
+|publisher = Central Bank of Cyprus
+|access-date = 7 August 2012}}</ref> In particular, the computer program that accepts an IBAN will be able to validate:
+* Country code
+* Number of characters in the IBAN correspond to the number specified for the country code
+* BBAN format specified for the country code
+* Account number, bank code and country code combination is compatible with the check digits
+
+The check digits are calculated using MOD-97-10 as per [[ISO 7064|ISO/IEC 7064:2003]]<ref name=ValidationFeatures>{{cite web | url = http://www.iso.org/iso/catalogue_detail.htm?csnumber=31531 | title = ISO/IEC 7064:2003 – Information technology – Security techniques – Check character systems | publisher = International Organization for Standardization | access-date = 31 January 2010 }}</ref> (abbreviated to ''mod-97'' in this article), which specifies a set of check character systems capable of protecting strings against errors which occur when people copy or key data. In particular, the standard states that the following can be detected:
+* All single substitution errors (the substitution of a single character for another, for example <code>4234</code> for <code>1234</code>)
+* All or nearly all single (local) transposition errors (the transposition of two single characters, either adjacent or with one character between them, for example <code>12354</code> or <code>12543</code> for <code>12345</code>)
+* All or nearly all shift errors (shifts of the whole string to the left or right)
+* High proportion of double substitution errors (two separate single substitution errors in the same string, for example <code>7234587</code> for <code>1234567</code>)
+* High proportion of all other errors
+
+The underlying rules for IBANs is that the account-servicing financial institution should issue an IBAN, as there are a number of areas where different IBANs could be generated from the same account and branch numbers that would satisfy the generic IBAN validation rules. In particular cases where <code>00</code> is a valid check digit, <code>97</code> will not be a valid check digit, likewise, if <code>01</code> is a valid check digit, <code>98</code> will not be a valid check digit, similarly with <code>02</code> and <code>99</code>.
+
+The [[UN CEFACT TBG5]] has published a free IBAN validation service in 32 languages for all 57 countries{{update inline|date=October 2016}} that have adopted the IBAN standard.<ref name = IBANValidation>{{cite web
+|title = International Bank Account Number (IBAN) – IBAN online check
+|publisher = UN/CEFACT United Nations Centre for Trade Facilitation and Electronic Business
+|date = 23 April 2012
+|access-date = 2 April 2019
+|url = http://www.tbg5-finance.org/?ibancheck.shtml}}</ref> They have also published the JavaScript [[source code]] of the verification algorithm.<ref name = IBANJava>{{cite web
+|title = International Bank Account Number (IBAN) – Basic information
+|publisher = UN/CEFACT United Nations Centre for Trade Facilitation and Electronic Business
+|date = 23 April 2012
+|access-date = 2 April 2019
+|url = https://www.tbg5-finance.org/?ibandocs.shtml}}</ref>
+
+An English language IBAN checker for [[European Committee for Banking Standards|ECBS]] member country bank accounts is available on its website.<ref>{{cite web|url=http://www.ecbs.org/iban-checker.htm |title=Iban Checker |publisher=ecbs.org|work=European Banking Resources |date=22 September 2008 |access-date=30 September 2012}}</ref>
+
+===Algorithms===
+{{anchor|algorithms}}
+
+====Validating the IBAN====
+An IBAN is validated by converting it into an [[integer]] and performing a basic ''mod-97'' operation (as described in [[ISO 7064]]) on it. If the IBAN is valid, the remainder equals 1.<ref group='Note'>In equations, the remainder of ''A'' divided by ''B'' is denoted {{nowrap|''A'' mod ''B'' or}} {{nowrap|''A'' (mod ''B'')}}, {{nowrap|e.g., 2 {{=}} 14 mod 12 .}} See [[Modular arithmetic#Remainders|Remainders]].</ref> The algorithm of IBAN validation is as follows:<ref name=ECBS/>
+
+# Check that the total IBAN length is correct as per the country. If not, the IBAN is invalid
+# Move the four initial characters to the end of the string
+# Replace each letter in the string with two digits, thereby expanding the string, where A = 10, B = 11, ..., Z = 35
+# Interpret the string as a decimal integer and compute the remainder of that number on division by 97
+
+If the remainder is 1, the check digit test is passed and the IBAN might be valid.
+
+Example (fictitious United Kingdom bank, sort code 12-34-56, account number 98765432):
+
+:{|
+|• IBAN: ||||align="right"|{{color|red|GB}}{{color|blue|82}} {{color|green|WEST}} 1234 5698 7654 32||
+|-
+|• Rearrange: ||||align="right"|{{color|green| W E S T}}12345698765432{{color|red| G B}}{{color|blue|82}}||
+|-
+|• Convert to integer: ||||align="right"|{{color|green|32142829}}12345698765432{{color|red|1611}}{{color|blue|82}}||
+|-
+|• Compute remainder: ||||align="right"|{{color|green|32142829}}12345698765432{{color|red|1611}}{{color|blue|82}}|| mod 97 = 1
+|}
+
+====Generating IBAN check digits====
+According to the [[European Committee for Banking Standards|ECBS]] "generation of the IBAN shall be the exclusive responsibility of the bank/branch servicing the account".<ref name=ECBS/> The ECBS document replicates part of the ISO/IEC 7064:2003 standard as a method for generating check digits in the range 02 to 98. Check digits in the ranges 00 to 96, 01 to 97, and 03 to 99 will also provide validation of an IBAN, but the standard is silent as to whether or not these ranges may be used.
+
+The preferred algorithm is:<ref name=ECBS/>
+
+# Check that the total IBAN length is correct as per the country. If not, the IBAN is invalid.
+# Replace the two check digits by 00 (e.g., GB00 for the UK).
+# Move the four initial characters to the end of the string.
+# Replace the letters in the string with digits, expanding the string as necessary, such that 'A' or 'a' = 10, 'B' or 'b' = 11, and 'Z' or 'z' = 35. (All letters treat as uppercase.) Each alphabetic character is therefore replaced by 2 digits. Technically, this is ASCII value of the corresponding uppercase letter decreased by 55 (decimal). The code of 'A' = 41(hex) = 65(decimal) in ASCII, up to 'Z' = 5A(hex) = 90(decimal), this gives you rule of ASCII value of the letter −55.<!-- The range is 1 to 97, not 0 to 96, which is what generates the remainder of 1 above. -->
+# Convert the string to an integer (i.e. ignore leading zeroes).
+# Calculate ''mod-97'' of the new number, which results in the remainder.
+# Subtract the remainder from 98 and use the result for the two check digits. If the result is a single-digit number, pad it with a leading 0 to make a two-digit number.
+
+====Modulo operation on IBAN====
+Any computer [[programming language]] or [[application software|software package]] that is used to compute ''D'' mod ''97'' directly must have the ability to handle [[integer]]s of more than 60 digits. In practice, this can only be done by software that either supports [[arbitrary-precision arithmetic]] or that can handle 219-bit (unsigned) integers,<ref group=Note>The IBAN value, ZZ59ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ, is converted to the largest possible integer, approximately 3.5 × 10<sup>65</sup> per ISO 7064 MOD-97-10 (before taking the modulus). 2<sup>219</sup> - 1 is approximately equal to 8.4 × 10<sup>65</sup>, thus 219-bit unsigned integers can accommodate all valid IBAN values.</ref> features that are often not standard. If the application software in use does not provide the ability to handle integers of this size, the [[modulo operation]] can be performed in a piece-wise manner (as is the case with the [[UN CEFACT TBG5]] JavaScript program).
+
+Piece-wise calculation {{nowrap|''D'' mod ''97''}} can be done in many ways. One such way is as follows:<ref name='UKPayAdmin2007'>{{cite web
+ |url = http://www.ukpayments.org.uk/files/standards/standard_48_iban_june_2007.pdf
+ |title = Standard 48 – Format of the IBAN issued in the UK (International Bank Account Number)
+ |publisher = UK Payments Administration
+ |date = June 2016
+ |access-date = 20 August 2012
+ |archive-url = https://web.archive.org/web/20120425065751/http://www.ukpayments.org.uk/files/standards/standard_48_iban_june_2007.pdf
+ |archive-date = 25 April 2012
+ |url-status = dead
+ }}</ref>
+
+# Starting from the leftmost digit of ''D'', construct a number using the first 9 digits and call it ''N''.<ref group=Note>2<sup>31</sup> is approximately equal to {{nowrap|2.1 × 10<sup>9</sup>}}, making it possible for any 9-digit integer to be handled using 32 bit integer arithmetic</ref>
+# Calculate ''N'' mod ''97''.
+# Construct a new 9-digit ''N'' by concatenating the above result (step 2) with the next 7 or 8 digits of ''D''. If there are fewer than 7 digits remaining in ''D'' but at least one, then construct a new ''N'', which will have less than 9 digits, from the above result (step 2) followed by the remaining digits of ''D''
+# Repeat steps 2–3 until all the digits of ''D'' have been processed
+
+The result of the final calculation in step 2 will be ''D'' mod 97 = ''N'' mod ''97''.
+
+=====Example=====
+In this example, the above algorithm for ''D'' mod 97 will be applied to ''D'' = {{color|green|321428291}}{{color|brown|2345698}}{{color|blue|7654321}}{{color|red|61182}}. (The digits are colour-coded to aid the description below.) If the result is one, the IBAN corresponding to ''D'' passes the [[#Validating the IBAN|check digit test]].
+
+# Construct ''N'' from the first 9 digits of D
+#: ''N'' = {{color|green|321428291}}
+# Calculate ''N'' mod 97 = 70
+# Construct a new 9-digit ''N'' from the above result (step 2) followed by the next 7 digits of ''D''.
+#: ''N'' = 70{{color|brown|2345698}}
+# Calculate ''N'' mod 97 = 29
+# Construct a new 9-digit ''N'' from the above result (step 4) followed by the next 7 digits of ''D''.
+#: ''N'' = 29{{color|blue|7654321}}
+# Calculate ''N'' mod 97 = 24
+# Construct a new ''N'' from the above result (step 6) followed by the remaining 5 digits of ''D''.
+#: ''N'' = 24{{color|red|61182}}
+# Calculate ''N'' mod 97 = 1
+
+From step 8, the final result is ''D'' mod 97 = 1 and the IBAN has passed this check digit test.
+
+===National check digits===
+
+In addition to the IBAN check digits, many countries have their own national check digits used within the BBAN, as part of their national account number formats. Each country determines its own algorithm used for assigning and validating the national check digits - some relying on international standards, some inventing their own national standard, and some allowing each bank to decide if or how to implement them. Some algorithms apply to the entire BBAN, and others to one or more of the fields within it. The check digits may be considered an integral part of the account number, or an external field separate from the account number, depending on the country's rules.
+
+Most of the variations used are based on two categories of algorithms:
+
+- ''ISO 7064 MOD-97-10'': Treat the account number as a large integer, divide it by 97 and use the remainder or its complement as the check digit(s).
+
+- ''Weighted sum'': Treat the account number as a series of individual numbers, multiply each number by a weight value according to its position in the string, sum the products, divide the sum by a modulus (10, 11 or 26) and use the remainder or its complement as the check digit or letter.
+
+In both cases, there may first be a translation from alphanumeric characters to numbers using conversion tables. The complement, if used, means the remainder {{var|r}} is subtracted from a fixed value, usually the modulus or the modulus plus one (with the common exception that a remainder of 0 results in 0, denoted as 0 → 0, as opposed to e.g. 0 → 97 meaning that if the remainder is zero the checksum is 97). Some national specifications define the weights order from right to left, but since the BBAN length in the IBAN is fixed, they can be used from left to right as well.
+
+{| class="wikitable sortable"
+|+National check digits in the International Bank Account Number system
+|-
+!scope="col"| Country
+!scope="col"| Algorithm
+!scope="col"| Weights
+!scope="col"| Modulo
+!scope="col"| Complement
+!scope="col"| Comments
+|-
+|scope="row"| [[Albania]]<ref>{{ cite web
+| title = On the Structure and the Use of the International Bank Account Number (IBAN)
+| url = https://www.bankofalbania.org/rc/doc/Regulation_no_42_On_the_Structure_and_the_Use_of_the_International_Bank_Account_Number_IBAN_3422_2_6127.pdf
+| page = 13}}</ref>
+| Weighted
+| 9, 7, 3, 1, 9, 7, 3, 1
+| 10
+| 10 − r, 0 → 0
+| Applies only to the bank code + branch code fields.
+|-
+|scope="row"| [[Belgium]]<ref name="tr201">{{ cite web | title = Register of European Account Numbers (TR201 V3.9) | date = February 2005 | url = https://www.ecbs.org/Download/Tr201v3.9.pdf }}</ref>
+| ISO 7064 MOD-97-10 (variant)
+|
+| 97
+| r, 0 → 97
+| Applied to bank code + account number.
+|-
+|scope="row"| [[Bosnia and Herzegovina]]<ref>{{ cite web
+| title = The Instruction on the structure and use of International Number of the Bank Account (IBAN) - Published in the Official Gazette of Republika Srpska
+| url = https://www.cbbh.ba/Content/Read/610?title=The-Instruction-on-the-structure-and-use-of-International-Number-of-the-Bank-Account-(IBAN)---Published-in-the-Official-Gazette-of-Republika-Srpska }}</ref>
+| ISO 7064 MOD-97-10 
+|
+| 97
+| 98 − r
+|
+|-
+|scope="row"| [[Croatia]]<ref name="tr201" />
+| ISO 7064 MOD-11-10 
+|
+| 11, 10
+| 11 − r
+| Calculated separately for the bank code (seven digits) and account number (ten digits). The last digit of each value is its check digit.
+|-
+|scope="row"| [[Czech Republic]]<ref name="tr201" />
+| Weighted
+| 6, 3, 7, 9, 10, 5, 8, 4, 2, 1
+| 11
+| 11 − r, 0 → 0
+| Calculated separately for the account number (ten digits) and branch number (six digits, using the last six weights). The last digit of each value is its check digit.
+|-
+|scope="row"| [[East Timor]]
+| ISO 7064 MOD-97-10 
+|
+| 97
+| 98 − r
+| Applied to the whole bban (bank code concatenated with account number).
+|-
+|scope="row"| [[Estonia]]<ref name="tr201" /><ref>{{ cite web
+| title = Estonia sample php code for parsing IBANs
+| url = https://media.voog.com/0000/0042/1620/files/BBAN-IBAN_php.pdf
+| page = 5 }}</ref><ref>{{ cite web
+| title = Check Digit Calculator of Domestic Account Number and reference number of invoice (Javascript source code)
+| url = https://www.pangaliit.ee/settlements-and-standards/reference-number-of-the-invoice/check-digit-calculator-of-domestic-account-number }}</ref>
+| Weighted
+| 7, 1, 3, 7, 1, 3, 7, 1, 3, 7, 1, 3, 7
+| 10
+| 10 − r, 0 → 0
+| Applies only to the branch code + account number fields (ignoring the bank code).
+|-
+|scope="row"| [[Finland]]<ref name="tr201" />
+| Luhn
+| 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2
+| 10
+| 10 − r, 0 → 0
+| Uses the [[Luhn Algorithm]], where the sum is taken of the individual digits of the multiplication products rather than the products themselves.
+|-
+|scope="row"| [[France]]<ref name="tr201" />{{citation needed|date=June 2026}}
+| ISO 7064 MOD-97-10 (variant)
+|
+| 97
+| 97 − r
+|The mapping form characters to coefficients is non-standard: the digits ''0–9'' are converted to their respective values, letters 'A–I' converted to ''1–9'', letters ''J–R'' converted to ''1–9'' and letters ''S–Z'' converted to ''2–9'', respectively.
+|-
+|scope="row"| [[Hungary]]<ref name="tr201" />
+| Weighted
+| 9, 7, 3, 1, 9, 7, 3, 1, 9, 7, 3, 1, 9, 7, 3, 1
+| 10
+| 10 − r, 0 → 0
+| There are two separate check digits—one for the bank code + branch code, and one for the account number, each calculated separately.
+|-
+|scope="row"| [[Iceland]]<ref name="tr201" />
+| Weighted
+| 3, 2, 7, 6, 5, 4, 3, 2
+| 11
+| 11 − r, 0 → 0
+| Applies only to the first eight digits of the national identification number (kennitala), with the check digit stored at the 9th.
+|-
+|scope="row"| [[Italy]]<ref name="tr201" />
+| Conversion + Sum
+|
+| 26
+| r
+| Characters are converted to digits using two different conversion tables, one for odd positions and one for even positions (the first character is considered odd).
+Odd-positioned digits ''0–9'' are converted to their respective values in the sequence ''1, 0, 5, 7, 9, 13, 15, 17, 19, 21'', and characters in the range ''A–Z'' are converted to ''1, 0, 5, 7, 9, 13, 15, 17, 19, 21, 2, 4, 18, 20, 11, 3, 6, 8, 12, 14, 16, 10, 22, 25, 24, 23'' respectively. 
+Even-positioned characters are converted using the natural zero-based value, i.e. digits ''0–9'' converted to the respective numbers ''0–9'', and letters ''A–Z'' to the range ''0–25''. 
+After conversion the numbers are summed (without weights), and the result taken modulo 26. 
+This is then converted back into a single letter in the range ''A–Z'' (in natural order) which is used as the check digit (or rather, check character).
+|-
+|scope="row"| [[Mauritania]]
+| ISO 7064 MOD-97-10 (variant)
+|
+| 97
+| 97 − r
+|
+|-
+|scope="row"| [[Monaco]]<ref name="tr201" />
+| ISO 7064 MOD-97-10 (variant)
+|
+| 97
+| 97 − r
+| Uses the same algorithm as France.
+|-
+|scope="row"| [[Montenegro]]<ref name="tr201" />
+| ISO 7064 MOD-97-10
+|
+| 97
+| 98 − r
+|
+|-
+|scope="row"| [[North Macedonia]]<ref name="tr201" />
+| ISO 7064 MOD-97-10 
+|
+| 97
+| 98 − r
+|
+|-
+|scope="row"| [[Norway]]<ref name="tr201" />
+| Weighted
+| 5, 4, 3, 2, 7, 6, 5, 4, 3, 2
+| 11
+| 11 − r, 0 → 0, 1 → invalid
+| If the first two digits of the account number (not the bank code) are both zeros, then the calculation applies only to the remaining four digits of the account number, otherwise it applies to the entire BBAN (bank code + account number).
+|-
+|scope="row"| [[Poland]]<ref name="tr201" /><ref>{{ cite web
+| title = Suma lub cyfra kontrolna
+| url = https://romek.info/ut/banki.html }}</ref>
+| Weighted
+| 3, 9, 7, 1, 3, 9, 7
+| 10
+| 10 − r, 0 → 0
+| Applies only to the bank code + branch code (without the account number).
+|-
+|scope="row"| [[Portugal]]<ref name="tr201" />
+| ISO 7064 MOD-97-10
+|
+| 97
+| 98 − r
+|
+|-
+|scope="row"| [[San Marino]]<ref name="tr201" />
+| Conversion + Sum
+|
+| 26
+| r
+| Uses the same algorithm as Italy.
+|-
+|scope="row"| [[Serbia]]<ref name="tr201" />
+| ISO 7064 MOD-97-10
+|
+| 97
+| 98 − r
+|
+|-
+|scope="row"| [[Slovakia]]<ref name="tr201" />
+| Weighted
+| 6, 3, 7, 9, 10, 5, 8, 4, 2, 1
+| 11
+| 11 − r, 0 → 0
+| Calculated separately for the account number (ten digits) and branch number (six digits, using the last six weights). Same as Czech Republic.
+|-
+|scope="row"| [[Slovenia]]<ref name="tr201" />
+| ISO 7064 MOD-97-10
+|
+| 97
+| 98 − r
+|
+|-
+|scope="row"| [[Spain]]<ref name="tr201" />
+| Weighted
+| 1, 2, 4, 8, 5, 10, 9, 7, 3, 6
+| 11
+| 11 − r, 0 → 0, 1 → 1
+| There are two separate check digits—one for the bank code + branch code, and one for the account number, each calculated separately. The account number is ten characters long and uses all of the weights, whereas the bank code + branch code are eight characters long and thus use only the last eight weights in the calculation (or equivalently, pad with two zeros on the left and use the ten weights).
+|-
+|scope="row"| [[Sweden]]<ref name="tr201" />
+| 
+| 
+| 
+| 
+| The algorithm and the digits to which it applies vary from bank to bank.
+|-
+|scope="row"| [[Tunisia]]<ref name="tr201" />
+| ISO 7064 MOD-97-10 (variant)
+|
+| 97
+| 97 − r
+|
+|}
+
+== Adoption ==
+[[File:IBANMap-World6.svg|right|thumb|400px|Adoption of the IBAN
+{{legend|orange|IBAN structure is defined}}
+{{legend|red|IBAN structure is registered with [[SWIFT]]}}
+{{legend|#6495ed|Country participates in [[Single Euro Payments Area|SEPA]]}}
+{{legend|#483d8b|[[Euro]] is country's currency}}
+]]
+
+International bank transactions use either an IBAN or the [[ISO 9362]] Business Identifier Code system ([[ISO 9362|BIC]] or [[SWIFT]] code) in conjunction with the BBAN (Basic Bank Account Number).<ref>{{cite web |title=International Wire Transfer: The Info You Need to Know |url=https://www.americanexpress.com/us/foreign-exchange/articles/information-needed-for-international-wire-transfer/ |website=American Express |access-date=9 March 2020 |archive-date=20 June 2020 |archive-url=https://web.archive.org/web/20200620061613/https://www.americanexpress.com/us/foreign-exchange/articles/information-needed-for-international-wire-transfer/ |url-status=dead }}</ref>
+
+=== EEA and territories ===
+The banks of most countries in [[Europe]] publish account numbers using both the IBAN format and the nationally recognised identifiers, this being mandatory within the [[European Economic Area]].<ref name="924-2009">{{cite web | url = http://eur-lex.europa.eu/legal-content/EN/ALL/?uri=CELEX:32009R0924 | title = REGULATION (EC) No 924/2009 OF THE EUROPEAN PARLIAMENT AND OF THE COUNCIL of 16 September 2009 on cross-border payments in the Community and repealing Regulation (EC) No 2560/2001 | publisher = [[EUR-Lex]] | access-date = 2 September 2016}}</ref>
+
+Day-to-day administration of banking in [[British Overseas Territories]] varies from territory to territory; some, such as [[South Georgia and the South Sandwich Islands]], have too small a population to warrant a banking system while others, such as [[Bermuda]], have a [[Bermuda Monetary Authority|thriving financial sector]].<ref>{{cite web
+|url = http://www.bma.bm/SitePages/Home.aspx
+|title = Bermuda Monetary Authority: Home Page
+|year = 2013
+|access-date = 2 April 2013
+|archive-url = https://web.archive.org/web/20121010065926/http://www.bma.bm/SitePages/Home.aspx
+|archive-date = 10 October 2012
+|url-status = dead
+}}</ref> The use of the IBAN is up to the local government—[[Gibraltar]], formerly part of the [[European Union]] is required to use the IBAN,<ref name="924-2009"/> as are the [[Crown Dependencies]], which use the [[BACS|British clearing system]],<ref>{{cite web
+|url = http://www.pacnetservices.com/wpg/country.php?alpha2=JE
+|title = World Payments Guide
+|publisher = PacNet Services Ltd
+|year = 2011
+|access-date = 2 April 2013
+|archive-date = 3 June 2015
+|archive-url = https://web.archive.org/web/20150603062123/http://www.pacnetservices.com/wpg/country.php?alpha2=JE
+|url-status = dead
+}}</ref> and the [[British Virgin Islands]] have chosen to do so. {{As of|2013|4}}, no other British Overseas Territories have chosen to use the IBAN.<ref name=IBANRegistry/> Banks in the [[Caribbean Netherlands]] also do not use the IBAN.
+
+[[File:Euro banknotes 2002.png|thumb|As of February 2014, the IBAN is mandatory for all banking transactions in countries that use the [[euro]].]]
+
+====Single Euro Payments Area====
+{{Main|Single Euro Payments Area}}
+
+The IBAN designation scheme was chosen as the foundation for electronic [[straight-through processing]] in the [[European Economic Area]]. The European Parliament mandated that a [[bank charge]] needs to be the same amount for domestic credit transfers as for cross-border credit transfers regulated in decision 2560/2001 (updated in 924/2009).<ref name="924-2009" /> This regulation took effect in 2003. Only payments in euro up to €12,500 to a bank account designated by its IBAN were covered by the regulation, not payments in other currencies.
+
+The Euro Payments regulation was the foundation for the decision to create a [[Single Euro Payments Area]] (SEPA). The [[European Central Bank]] has created the [[TARGET Services]] network that unifies the technical infrastructure of the 26 central banks of the European Union (although Sweden has opted out). SEPA is a self-regulatory initiative by the banking sector of Europe as represented in the [[European Payments Council]] (EPC). The European Union made the scheme mandatory through the [[Payment Services Directive]] published in 2007. Since January 2008, all countries were required to support SEPA credit transfer, and SEPA direct debit was required to be supported since November 2009. The regulation on SEPA payments increased the charge cap (same price for domestic payments as for cross-border payments) to €50,000.
+
+With a further decision of the European Parliament, the IBAN scheme for bank accounts fully replaced the domestic numbering schemes from 31 December 2012.<ref name="dowjones2010">{{cite web | url = http://www.dowjones.de/site/2010/12/frist-f%C3%BCr-umstieg-auf-sepa-produkte-deutscher-widerstand-programmiert.html | title = Frist für Umstieg auf SEPA-Produkte: Dt Widerstand programmiert | language = de | trans-title = Deadline for migration to SEPA products: Dt programmed resistance | publisher = Dow Jones Deutschland | date = 14 December 2010 | access-date = 18 December 2010 | url-status = dead | archive-url = https://web.archive.org/web/20101217080334/http://www.dowjones.de/site/2010/12/frist-f%C3%BCr-umstieg-auf-sepa-produkte-deutscher-widerstand-programmiert.html | archive-date = 17 December 2010 }}</ref> On 16 December 2010, the European Commission published regulations that made IBAN support mandatory for domestic credit transfer by 2013 and for domestic direct debit by 2014 (with a 12 and 24 months transition period respectively).<ref>{{cite web | url = http://eur-lex.europa.eu/LexUriServ/LexUriServ.do?uri=CELEX:52010PC0775:EN:NOT | title = Proposal for a Regulation of the European Parliament and of the Council establishing technical requirements for credit transfers and direct debits in euros and amending Regulation (EC) No 924/2009 | date = 16 December 2010 | publisher = the European Parliament and of the Council of the European Union | access-date = 17 January 2011 }}</ref> Some countries had already replaced their traditional bank account scheme by IBAN. This included Switzerland where IBAN was introduced for national credit transfer on 1 January 2006 and the support for the old bank account numbers was not required from 1 January 2010.<ref>{{cite web | url = http://www.ktipp.ch/themen/beitrag/1041577/IBAN-Nummer_Noch_kein_Obligatorium | title = IBAN-Nummer: Noch kein Obligatorium |trans-title=IBAN Number: Not mandatory | date = 29 November 2009 | language = de | access-date = 18 December 2010 }}</ref>
+
+Based on a 20 December 2011 memorandum,<ref>{{cite press release|url=http://europa.eu/rapid/pressReleasesAction.do?reference=MEMO/11/935&format=HTML&aged=0&language=EN&guiLanguage=en|title=Commissioner Michel Barnier welcomes agreement by Council and Parliament establishing SEPA migration end-dates|id=MEMO/11/935|date=20 December 2010|publisher=European Commission}}</ref> the EU parliament resolved the mandatory dates for the adoption of the IBAN on 14 February 2012.<ref name="iban-required">{{cite web|url=http://www.europarl.europa.eu/sides/getDoc.do?pubRef=-//EP//TEXT+TA+P7-TA-2012-0037+0+DOC+XML+V0//EN&language=EN#BKMD-9|title=European Parliament legislative resolution of 14 February 2012 on the proposal for a regulation of the European Parliament and of the Council establishing technical requirements for credit transfers and direct debits in euros and amending Regulation (EC) No 924/2009|id=P7_TA-PROV(2012)0037|date=14 February 2012|publisher=European Parliament}}</ref> On 1 February 2014, all national systems for credit transfer and direct debit were abolished and replaced by an IBAN-based system.<ref name="iban-required" /> This was then extended to all cross-border SEPA transactions on 1 February 2016 (Article 5 Section 7).<ref name="iban-required" /> After these dates the IBAN is sufficient to identify an account for home and foreign financial transactions in SEPA countries and banks are no longer permitted to require that the customer supply the BIC for the beneficiary's bank.
+
+In the run-up to the 1 February 2014 deadline, it became apparent that many old bank account numbers had not been allocated IBANs—an issue that was addressed on a country-by-country basis. In Germany, for example, [[Deutsche Bundesbank]] and the [[German Banking Industry Committee]] required that all holders of German bank codes ("Bankleitzahl") published the specifics of their IBAN generation format taking into account not only the generation of check digits but also the handling of legacy bank codes, thereby enabling third parties to generate IBANs independently of the bank.<ref>{{cite web
+|url=http://www.bundesbank.de/Redaktion/DE/Downloads/Bundesbank/Aufgaben_und_Organisation/Rundschreiben/2012/2012_12_18_rs_73.pdf?__blob=publicationFile
+|title=Rundschreiben Nr. 73/2012 Abkommen über IBAN-Regeln
+|language=de
+|trans-title=Circular no 70/2012 Agreement regarding IBAN rules
+|date=18 December 2012
+|publisher=Deutsche Bundesbank
+|access-date=11 June 2013
+|archive-date=14 May 2013
+|archive-url=https://web.archive.org/web/20130514041728/http://www.bundesbank.de/Redaktion/DE/Downloads/Bundesbank/Aufgaben_und_Organisation/Rundschreiben/2012/2012_12_18_rs_73.pdf?__blob=publicationFile
+|url-status=dead
+}}</ref> The first such catalogue was published in June 2013 as a variant of the old bank code catalog ("Bankleitzahlendatei").<ref>{{cite web
+|url=http://www.bundesbank.de/Navigation/DE/Kerngeschaeftsfelder/Unbarer_Zahlungsverkehr/IBAN_Regeln/iban_regeln.html#doc127366bodyText4
+|title=IBAN-Regeln – Bankleitzahlendatei
+|language=de
+|trans-title=IBAN Rules – Bank [sort] codes
+|date=3 June 2013
+|publisher=Deutsche Bundesbank
+|access-date=11 June 2013
+|archive-url=https://web.archive.org/web/20130607184550/http://www.bundesbank.de/Navigation/DE/Kerngeschaeftsfelder/Unbarer_Zahlungsverkehr/IBAN_Regeln/iban_regeln.html#doc127366bodyText4
+|archive-date=7 June 2013
+|url-status=dead
+}}</ref>
+
+===Non-EEA===
+Banks in numerous non-European countries including most states of the [[Middle East]], [[North Africa]] and the [[Caribbean]] have implemented the IBAN format for account identification.<ref name=IBANRegistry/> In some countries the IBAN is used on an ''ad hoc'' basis, an example was [[Ukraine]] where account numbers used for international transfers by some domestic banks had additional aliases that followed the IBAN format as a precursor to formal SWIFT registration.<ref>{{cite web
+|url = http://www.nabu.com.ua/ukr/komiteti/komitet-z-pitan-bankivskoyi-infrastrukturi-ta-platizhnikh-sistem/dijalnist-komitetu/608/
+|script-title=uk:Засідання Комітету з питань банківської інфраструктури та платіжних систем
+|title=Zasidannya Komitetu z pytanʹ bankivsʹkoyi infrastruktury ta platizhnykh system
+|language = uk
+|trans-title=News: Committee Meeting banking infrastructure and payment systems
+|date = 28 March 2013
+|access-date = 2 April 2013
+|archive-url = https://web.archive.org/web/20130729183211/http://www.nabu.com.ua/ukr/komiteti/komitet-z-pitan-bankivskoyi-infrastrukturi-ta-platizhnikh-sistem/dijalnist-komitetu/608/
+|archive-date = 29 July 2013}}</ref> This practice in Ukraine ended on 1 November 2019 when all [[Banking in Ukraine|Ukrainian banks]] had fully switched to the IBAN standard.<ref>{{cite web
+|url = https://www.epravda.com.ua/news/2019/11/1/653239/
+|script-title=uk:Усі українські банки перейшли на використання IBAN - Нацбанк
+|title=Usi ukrayinsʹki banky pereyshly na vykorystannya IBAN - Natsbank
+|language = uk
+|trans-title=All Ukrainian banks have switched to IBAN - National Bank
+|date = 1 November 2019
+|access-date = 1 November 2019
+}}</ref>
+
+The degree to which a bank verifies the validity of a recipient's bank account number depends on the configuration of the transmitting bank's software—many major software packages supply bank account validation as a standard function.<ref>{{cite web
+|title = Bank Account Validation
+|url = http://help.sap.com/saphelp_sbo882/helpdata/en/26/2ebb79552c42e48624177ac4d848cb/content.htm
+|publisher = SAP
+|work = SAP work portal
+|access-date = 23 May 2013}}</ref> Some banks outside Europe may not recognize IBAN, though this is expected to diminish with time. Non-European banks usually accept IBANs for accounts in Europe, although they might not treat IBANs differently from other foreign bank account numbers. In particular, they might not check the IBAN's validity prior to sending the transfer.<ref name=BankersAccuity>{{cite web
+|url = http://www.bankersaccuity.com/payments/whitepapers/avoiding-the-pitfalls-of-IBAN-payments
+|pages = 1–4
+|title = Avoiding the Pitfalls of IBAN Payments
+|publisher = Reed Business Information Limited
+|access-date = 23 May 2013
+|year = 2013
+|archive-date = 21 July 2013
+|archive-url = https://web.archive.org/web/20130721094525/http://www.bankersaccuity.com/payments/whitepapers/avoiding-the-pitfalls-of-iban-payments/
+|url-status = dead
+}}</ref>
+
+Banks in the [[United States]] do not use IBAN as account numbers for U.S. accounts and use [[ABA routing transit number]]s.<ref>{{cite web
+|title = Understanding SWIFT and IBAN: Essential Details When Making A Money Transfer
+|url = http://www.currencysolutions.co.uk/money-transfer/understanding-swift-and-iban-almost-every-money-transfer-depends-on-these-codes
+|publisher = Currency Solutions
+|year = 2013
+|access-date = 22 May 2013
+|archive-date = 23 May 2013
+|archive-url = https://web.archive.org/web/20130523003118/http://www.currencysolutions.co.uk/money-transfer/understanding-swift-and-iban-almost-every-money-transfer-depends-on-these-codes
+|url-status = dead
+}}</ref> Any adoption of the IBAN standard by U.S. banks would likely be initiated by [[ANSI ASC X9]], the U.S. financial services standards development organization: a working group (X9B20) was established as an X9 subcommittee to generate an IBAN construction for U.S. bank accounts.<ref>{{cite web|url=https://x9.org/about/x9-boardsubcommittees/|title=X9 Board, Subcommittees and Working Groups: X9B20 – (IBAN) International Bank Account Number|publisher=Accredited Standards Committee X9|access-date=26 April 2019}}</ref>
+
+Canadian financial institutions have not adopted IBAN and use [[routing number (Canada)|routing numbers]] issued by [[Payments Canada]] for domestic transfers, and SWIFT for international transfers. There is no formal governmental or private sector regulatory requirement in Canada for the major banks to use IBAN.
+
+[[Australia]] and [[New Zealand]] do not use IBAN. They use [[Bank State Branch]] codes for domestic transfers and SWIFT for international transfers.<ref>{{cite web
+|url = http://switzerlandbuyingguide.com/switzerland-finance-guide-how-to/iban-swift-codes/
+|title = IBAN SWIFT Codes
+|publisher = Switzerland Buying Guide
+|year = 2013
+|access-date = 4 July 2013
+|archive-url = https://web.archive.org/web/20140707144654/http://switzerlandbuyingguide.com/switzerland-finance-guide-how-to/iban-swift-codes/
+|archive-date = 7 July 2014}}</ref>
+
+=== IBAN formats by country ===
+This table summarises the IBAN formats by country:<ref name="IBANRegistry">{{cite web |date=December 2024 |title=IBAN REGISTRY – This registry provides detailed information about all ISO 13616-compliant national IBAN formats. – Release 99 – December 2024 |url=https://www.swift.com/resource/iban-registry-pdf |access-date=31 December 2024 |publisher=SWIFT}}</ref>
+* The ''kk'' after the two-character ISO country code represents the check digits calculated from the rest of the IBAN characters. If it is a constant for the country concerned, this will be stated in the Comments column. This happens where the BBAN has its own check digits that use the same algorithm as the IBAN check digits
+* The BBAN format column shows the format of the BBAN part of an IBAN in terms of upper case alpha characters (A–Z) denoted by "a", numeric characters (0–9) denoted by "n" and mixed case alphanumeric characters (a–z, A–Z, 0–9) denoted by "c". For example, the Bulgarian BBAN (4a,6n,8c) consists of 4 alpha characters, followed by 6 numeric characters, then by 8 mixed-case alpha-numeric characters
+* Descriptions in the ''Comments'' field have been standardised with country-specific names in brackets. The format of the various fields can be deduced from the BBAN field
+
+{| class="wikitable sortable"
+|+International Bank Account Number formats by country
+|-
+!scope="col"| Country
+!scope="col"| Chars
+!scope="col"| BBAN format
+!scope="col"| IBAN Fields
+!scope="col"| Comment
+|-
+|scope="row"| [[Albania]]
+| 28
+| 8n,16c
+| <code>'''{{color|teal|AL}}'''{{color|olive|kk}} {{color|red|bbb}}{{color|orange|s}} {{color|orange|sss}}{{color|fuchsia|x}} {{color|brown|cccc cccc cccc}} {{color|brown|cccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|orange|s}} = Branch code<br /> {{color|fuchsia|x}} = National check digits<br />{{color|brown|c}} = Account number
+|-
+|scope="row"| [[Andorra]]
+| 24
+| 8n,12c
+| <code>'''{{color|teal|AD}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|orange|ssss}} {{color|brown|cccc cccc cccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|orange|s}} = Branch code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Austria]]
+| 20
+| 16n
+| <code>'''{{color|teal|AT}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|red|b}}{{color|brown|ccc cccc cccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Azerbaijan]]
+| 28
+| 4a,20c
+| <code>'''{{color|teal|AZ}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|brown|cccc cccc cccc}} {{color|brown|cccc cccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Bahrain]]
+| 22
+| 4a,14c
+| <code>'''{{color|teal|BH}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|brown|cccc cccc cccc cc}}</code>
+| {{color|red|b}} = National bank code<br />{{color|brown|c}} = Account number
+|-
+|scope="row"| [[Belarus]]
+| 28
+| 4c, 4n, 16c
+| <code>'''{{color|teal|BY}}'''{{color|olive|kk}} {{color|red|bbbb}} aaaa {{color|brown|cccc cccc cccc}} {{color|brown|cccc}}</code>
+| {{color|red|b}} = National bank or branch code<br /> a = Balance account number<br />{{color|brown|c}} = Account number
+|-
+|scope="row"| [[Belgium]]
+| 16
+| 12n
+| <code>'''{{color|teal|BE}}'''{{color|olive|kk}} {{color|red|bbb}}{{color|brown|c}} {{color|brown|cccc}} {{color|brown|cc}}{{color|fuchsia|xx}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number<br /> {{color|fuchsia|x}} = National check digits
+|-
+|scope="row"| [[Bosnia and Herzegovina]]
+| 20
+| 16n
+| <code>'''{{color|teal|BA}}'''{{color|olive|kk}} {{color|red|bbb}}{{color|orange|s}} {{color|orange|ss}}{{color|brown|cc}} {{color|brown|cccc}} {{color|brown|cc}}{{color|fuchsia|xx}}</code>
+| {{color|olive|k}} = IBAN check digits (always "39")<br /> {{color|red|b}} = National bank code<br /> {{color|orange|s}} = Branch code<br /> {{color|brown|c}} = Account number<br /> {{color|fuchsia|x}} = National check digits
+|-
+|scope="row"| [[Brazil]]
+| 29
+| 23n,1a,1c
+| <code>'''{{color|teal|BR}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|red|bbbb}} {{color|orange|ssss s}}{{color|brown|ccc cccc ccc}}{{color|tan|t}} n</code>
+| {{color|red|b}} = National bank code<br /> {{color|orange|s}} = Branch code<br /> {{color|brown|c}} = Account number<br />{{color|tan|t}} = Account type (cheque account, savings account etc.)<br />n = Owner account number ("1", "2" etc.)<ref>{{cite book
+|url = http://www.bcb.gov.br/Pom/Spb/Ing/IBAN-Guidelines_English.pdf
+|title = IBAN Implementation Guidelines for Brazil - Circular 3.625
+|date = 14 February 2013
+|publisher = Banco Central do Brasil
+|access-date = 1 August 2013}}</ref>
+|-
+|scope="row"| [[Bulgaria]]
+| 22
+| 4a,6n,8c
+| <code>'''{{color|teal|BG}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|orange|ssss}} {{color|tan|tt}}{{color|brown|cc cccc cc}}</code>
+| {{color|red|b}} = [[ISO 9362|BIC]] bank code<br /> {{color|orange|s}} = Branch (BAE) number<br /> {{color|tan|t}} = Account type<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Burundi]]
+| 27
+| 5n, 5n, 11n, 2n
+| <code>'''{{color|teal|BI}}'''{{color|olive|kk}} {{color|red|bbbb b}}{{color|orange|sss}} {{color|orange|ss}}{{color|brown|cc}} {{color|brown|cccc}} {{color|brown|cccc ccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|orange|s}} = Branch identifier<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Costa Rica]]
+| 22
+| 18n
+| <code>'''{{color|teal|CR}}'''{{color|olive|kk}} 0{{color|red|bbb}} {{color|brown|cccc cccc cccc cc}}</code>
+| 0 = always zero<br />{{color|red|b}} = bank code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Croatia]]
+| 21
+| 17n
+| <code>'''{{color|teal|HR}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|red|bbb}}{{color|brown|c}} {{color|brown|cccc cccc c}}</code>
+| {{color|red|b}} = Bank code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Cyprus]]
+| 28
+| 8n,16c
+| <code>'''{{color|teal|CY}}'''{{color|olive|kk}} {{color|red|bbb}}{{color|orange|s}} {{color|orange|ssss}} {{color|brown|cccc cccc cccc}} {{color|brown|cccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|orange|s}} = Branch code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Czech Republic]]
+| 24
+| 20n
+| <code>'''{{color|teal|CZ}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|orange|pppp}} {{color|orange|pp}}{{color|brown|cc}} {{color|brown|cccc cccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|orange|p}} = Account number prefix<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Denmark]]
+| 18
+| 14n
+| <code>'''{{color|teal|DK}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|brown|cccc cccc c}}{{color|fuchsia|x}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number <br /> {{color|fuchsia|x}} = National check digit
+|-
+|scope="row"| [[Djibouti]]
+| 27
+| 5n, 5n, 11n, 2n
+| <code>'''{{color|teal|DJ}}'''{{color|olive|kk}} {{color|red|bbbb b}}{{color|orange|sss}} {{color|orange|ss}}{{color|brown|cc}} {{color|brown|cccc}} {{color|brown|cccc ccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|orange|s}} = Branch identifier<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Dominican Republic]]
+| 28
+| 4c,20n
+| <code>'''{{color|teal|DO}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|brown|cccc cccc cccc}} {{color|brown|cccc cccc}}</code>
+| {{color|red|b}} = Bank identifier<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[East Timor]]
+| 23
+| 19n
+| <code>'''{{color|teal|TL}}'''{{color|olive|kk}} {{color|red|bbb}}{{color|brown|c}} {{color|brown|cccc cccc}} {{color|brown|cccc c}}{{color|fuchsia|xx}}</code>
+| {{color|olive|k}} = IBAN check digits (always = "38")<br /> {{color|red|b}} = Bank identifier<br /> {{color|brown|c}} = Account number<br /> {{color|fuchsia|x}} = National check digits
+|-
+|scope="row"| [[Egypt]]
+| 29
+| 25n
+| <code>'''{{color|teal|EG}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|orange|ssss}} {{color|brown|cccc cccc cccc cccc c}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|orange|s}} = Branch code<br /> {{color|brown|c}} = Account number<br />
+|-
+|scope="row"| [[El Salvador]]
+| 28
+| 4a, 20n
+| <code>'''{{color|teal|SV}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|brown|cccc cccc cccc cccc cccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number<br />
+|-
+|scope="row"| [[Estonia]]
+| 20
+| 16n
+| <code>'''{{color|teal|EE}}'''{{color|olive|kk}} {{color|red|bb}}{{color|orange|ss}} {{color|brown|cccc cccc}} {{color|brown|ccc}}{{color|fuchsia|x}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|orange|s}} = Branch code<br /> {{color|brown|c}} = Account number<br /> {{color|fuchsia|x}} = National check digit
+|-
+| scope="row" | [[Falkland Islands]]
+| 18
+| 2a,12n
+| <code>'''{{color|teal|FK}}'''{{color|olive|kk}} {{color|red|bb}}{{color|brown|cc cccc cccc cc}}</code>
+| {{color|red|b}} = National bank code<br />{{color|brown|c}} = Account number
+|-
+|scope="row"| [[Faroe Islands]]<ref group="Note" name="DK">Registered at SWIFT as part of Denmark, but with its own country code.</ref>
+| 18
+| 14n
+| <code>'''{{color|teal|FO}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|brown|cccc cccc c}}{{color|fuchsia|x}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number <br /> {{color|fuchsia|x}} = National check digit
+|-
+|scope="row"| [[Finland]]
+| 18
+| 14n
+| <code>'''{{color|teal|FI}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|red|bb}}{{color|brown|cc cccc c}}{{color|fuchsia|x}}</code>
+| {{color|red|b}} = Bank and branch code<br /> {{color|brown|c}} = Account number<br /> {{color|fuchsia|x}} = National check digit
+|-
+|scope="row"| [[France]]<ref group="Note">[[French Guiana]], [[French Polynesia]], [[French Southern and Antarctic Lands|French Southern Territories]], [[Guadeloupe]], [[Martinique]], [[Mayotte]], [[New Caledonia]], [[Réunion]], [[Saint Barthélemy]], [[Collectivity of Saint Martin|Saint Martin (French part)]], [[Saint Pierre and Miquelon]], and [[Wallis and Futuna|Wallis and Futuna Islands]] have their own ISO country code but use "FR" as their IBAN country code.</ref>
+| 27
+| 10n,11c,2n
+| <code>'''{{color|teal|FR}}'''{{color|olive|kk}} {{color|red|bbbb b}}{{color|orange|sss}} {{color|orange|ss}}{{color|brown|cc}} {{color|brown|cccc}} {{color|brown|cccc c}}{{color|fuchsia|xx}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|orange|s}} = Branch code (''{{ill|code guichet|fr|Relevé d'identité bancaire}}'')<br /> {{color|brown|c}} = Account number<br /> {{color|fuchsia|x}} = National check digits (''{{ill|clé RIB|fr}}'')
+|-
+|scope="row"| [[Georgia (country)|Georgia]]
+| 22
+| 2a,16n
+| <code>'''{{color|teal|GE}}'''{{color|olive|kk}} {{color|red|bb}}{{color|brown|cc cccc cccc cccc cc}}</code>
+| {{color|red|b}} = National bank code <br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Germany]]
+| 22
+| 18n
+| <code>'''{{color|teal|DE}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|red|bbbb}} {{color|brown|cccc cccc}} {{color|brown|cc}}</code>
+| {{color|red|b}} = Bank and branch identifier ([[Bankleitzahl]] or BLZ)<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Gibraltar]]
+| 23
+| 4a,15c
+| <code>'''{{color|teal|GI}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|brown|cccc cccc cccc ccc}}</code>
+| {{color|red|b}} = [[ISO 9362|BIC]] bank code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Greece]]
+| 27
+| 7n,16c
+| <code>'''{{color|teal|GR}}'''{{color|olive|kk}} {{color|red|bbb}}{{color|orange|s}} {{color|orange|sss}}{{color|brown|c}} {{color|brown|cccc cccc cccc ccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|orange|s}} = Branch code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Greenland]]<ref name="DK" group="Note"/>
+| 18
+| 14n
+| <code>'''{{color|teal|GL}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|brown|cccc cccc c}}{{color|fuchsia|x}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number <br /> {{color|fuchsia|x}} = National check digit
+|-
+|scope="row"| [[Guatemala]]
+| 28
+| 4c,20c
+| <code>'''{{color|teal|GT}}'''{{color|olive|kk}} {{color|red|bbbb}} mm{{color|tan|tt}} {{color|brown|cccc cccc cccc}} {{color|brown|cccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number<br /> m = Currency code<br /> {{color|tan|t}} = Account type
+|-
+|scope="row"| [[Honduras]]
+| 28
+| 4a,20n
+| <code>'''{{color|teal|HN}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|brown|cccc cccc cccc cccc cccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Hungary]]
+| 28
+| 24n
+| <code>'''{{color|teal|HU}}'''{{color|olive|kk}} {{color|red|bbb}}{{color|orange|s}} {{color|orange|sss}}{{color|fuchsia|x}} {{color|brown|cccc cccc cccc ccc}}{{color|fuchsia|x}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|orange|s}} = Branch code<br /> {{color|brown|c}} = Account number <br /> {{color|fuchsia|x}} = National check digit
+|-
+|scope="row"| [[Iceland]]
+| 26
+| 22n
+| <code>'''{{color|teal|IS}}'''{{color|olive|kk}} {{color|red|bb}}{{color|orange|ss}} {{color|tan|tt}}{{color|brown|cc cccc}} {{color|gray|iiii iiii ii}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|orange|s}} = Branch code<br /> {{color|tan|t}} = Account type<br /> {{color|brown|c}} = Account number<br /> {{color|gray|i}} = Account holder's ''[[kennitala]]'' (national identification number)
+|-
+|scope="row"| [[Iraq]]
+| 23
+| 4a,15n
+| <code>'''{{color|teal|IQ}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|orange|sss}}{{color|brown|c cccc cccc ccc}}</code>
+| {{color|red|b}} = National bank code<br />{{color|orange|s}} = Branch code<br />{{color|brown|c}} = Account number
+|-
+|scope="row"| [[Republic of Ireland|Ireland]]
+| 22
+| 4a,6n,8n
+| <code>'''{{color|teal|IE}}'''{{color|olive|kk}} qqqq {{color|red|bbbb bb}}{{color|brown|cc cccc cc}}</code>
+| q = [[ISO 9362|BIC]] bank code<br /> {{color|red|b}} = Bank/branch code ([[sort code]])<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Israel]]
+| 23
+| 19n
+| <code>'''{{color|teal|IL}}'''{{color|olive|kk}} {{color|red|bbb}}{{color|orange|s ss}}{{color|brown|cc cccc cccc}} {{color|brown|ccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|orange|s}} = Branch code<br /> {{color|brown|c}} = Account number 13 digits (padded with zeros)
+|-
+|scope="row"| [[Italy]]
+| 27
+| 1a,10n,12c
+| <code>'''{{color|teal|IT}}'''{{color|olive|kk}} {{color|fuchsia|x}}{{color|red|bbb bb}}{{color|orange|ss}} {{color|orange|sss}}{{color|brown|c}} {{color|brown|cccc cccc}} {{color|brown|ccc}}</code>
+| {{color|fuchsia|x}} = Check character (''{{ill|codice CIN|it|Coordinate bancarie#Codice CIN}}'')<br /> {{color|red|b}} = National bank code (''{{ill|codice ABI|it|Coordinate bancarie#Codice ABI}}'')<br /> {{color|orange|s}} = Branch code (''{{ill|codice CAB|it|Coordinate bancarie#Codice CAB}}'')<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Jordan]]
+| 30
+| 4a,4n,18c
+| <code>'''{{color|teal|JO}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|orange|ssss}} {{color|brown|cccc}} {{color|brown|cccc cccc cccc cc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|orange|s}} = Branch code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Kazakhstan]]
+| 20
+| 3n,13c
+| <code>'''{{color|teal|KZ}}'''{{color|olive|kk}} {{color|red|bbb}}{{color|brown|c}} {{color|brown|cccc cccc cccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Kosovo]]
+| 20
+| 4n,10n,2n
+| <code>'''{{color|teal|XK}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|brown|cccc cccc cccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Kuwait]]
+| 30
+| 4a,22c
+| <code>'''{{color|teal|KW}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|brown|cccc cccc}} {{color|brown|cccc cccc cccc cc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number.
+|-
+|scope="row"| [[Latvia]]
+| 21
+| 4a,13c
+| <code>'''{{color|teal|LV}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|brown|cccc cccc cccc c}}</code>
+| {{color|red|b}} = [[ISO 9362|BIC]] bank code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Lebanon]]
+| 28
+| 4n,20c
+| <code>'''{{color|teal|LB}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|brown|cccc cccc cccc}} {{color|brown|cccc cccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Libya]]
+| 25
+| 21n
+| <code>'''{{color|teal|LY}}'''{{color|olive|kk}} {{color|red|bbb}}{{color|orange|s ss}}{{color|brown|cc cccc cccc cccc c}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|orange|s}} = Branch code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Liechtenstein]]
+| 21
+| 5n,12c
+| <code>'''{{color|teal|LI}}'''{{color|olive|kk}} {{color|red|bbbb b}}{{color|brown|ccc}} {{color|brown|cccc cccc c}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Lithuania]]
+| 20
+| 16n
+| <code>'''{{color|teal|LT}}'''{{color|olive|kk}} {{color|red|bbbb b}}{{color|brown|ccc}} {{color|brown|cccc cccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Luxembourg]]
+| 20
+| 3n,13c
+| <code>'''{{color|teal|LU}}'''{{color|olive|kk}} {{color|red|bbb}}{{color|brown|c}} {{color|brown|cccc cccc cccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Malta]]
+| 31
+| 4a,5n,18c
+| <code>'''{{color|teal|MT}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|orange|ssss s}}{{color|brown|ccc}} {{color|brown|cccc cccc cccc ccc}}</code>
+| {{color|red|b}} = [[ISO 9362|BIC]] bank code<br /> {{color|orange|s}} = Branch code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Mauritania]]
+| 27
+| 23n
+| <code>'''{{color|teal|MR}}'''{{color|olive|kk}} {{color|red|bbbb b}}{{color|orange|sss}} {{color|orange|ss}}{{color|brown|cc}} {{color|brown|cccc}} {{color|brown|cccc c}}{{color|fuchsia|xx}}</code>
+| {{color|olive|k}} = IBAN check digits (always "13")<br />{{color|red|b}} = National bank code<br /> {{color|orange|s}} = Branch code (''{{ill|code guichet|fr|Relevé d'identité bancaire}}'')<br /> {{color|brown|c}} = Account number<br /> {{color|fuchsia|x}} = National check digits (''{{ill|clé RIB|fr}}'')
+|-
+|scope="row"| [[Mauritius]]
+| 30
+| 4a,19n,3a
+| <code>'''{{color|teal|MU}}'''{{color|olive|kk}} {{color|red|bbbb bb}}{{color|orange|ss}} {{color|brown|cccc cccc cccc}} 000m mm</code>
+| {{color|red|b}} = National bank code<br /> {{color|orange|s}} = Branch identifier<br /> {{color|brown|c}} = Account number<br /> 0 = Zeroes <br /> m = Currency code
+|-
+|scope="row"| [[Monaco]]
+| 27
+| 10n,11c,2n
+| <code>'''{{color|teal|MC}}'''{{color|olive|kk}} {{color|red|bbbb b}}{{color|orange|sss}} {{color|orange|ss}}{{color|brown|cc}} {{color|brown|cccc}} {{color|brown|cccc c}}{{color|fuchsia|xx}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|orange|s}} = Branch code (''{{ill|code guichet|fr|Relevé d'identité bancaire}}'')<br /> {{color|brown|c}} = Account number<br /> {{color|fuchsia|x}} = National check digits (''{{ill|clé RIB|fr}}'').
+|-
+|scope="row"| [[Moldova]]
+| 24
+| 2c,18c
+| <code>'''{{color|teal|MD}}'''{{color|olive|kk}} {{color|red|bb}}{{color|brown|cc cccc cccc cccc}} {{color|brown|cccc}}</code>
+| {{color|red|b}} = National bank code<br />{{color|brown|c}} = Account number
+|-
+| scope="row" | [[Mongolia]]
+| 20
+| 4n,12n
+| <code>'''{{color|teal|MN}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|brown|cccc cccc cccc}}</code>
+| {{color|red|b}} = National bank code<br />{{color|brown|c}} = Account number
+|-
+|scope="row"| [[Montenegro]]
+| 22
+| 18n
+| <code>'''{{color|teal|ME}}'''{{color|olive|kk}} {{color|red|bbb}}{{color|brown|c}} {{color|brown|cccc cccc cccc}} {{color|fuchsia|xx}}</code>
+| {{color|olive|k}} = IBAN check digits (always = "25")<br /> {{color|red|b}} = Bank code<br /> {{color|brown|c}} = Account number<br /> {{color|fuchsia|x}} = National check digits
+|-
+|scope="row"| [[Netherlands]]<ref group="Note">Not applicable to [[Aruba]], [[Curaçao]], [[Sint Maarten]], and the [[Caribbean Netherlands]].</ref>
+| 18
+| 4a,10n
+| <code>'''{{color|teal|NL}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|brown|cccc cccc}} {{color|brown|c}}{{color|fuchsia|x}}</code>
+| {{color|red|b}} = [[ISO 9362|BIC]] Bank code<br /> {{color|brown|c}} = Account number<br /> {{color|fuchsia|x}} = Modulo-11 national check digit
+|-
+|scope="row"| [[Nicaragua]]
+| 28
+| 4a, 20n
+| <code>'''{{color|teal|NI}}'''{{color|olive|kk}} {{color|red|aaaa}} {{color|brown|cccc cccc cccc cccc cccc}}</code>
+| {{color|red|a}} = National bank code<br /> {{color|brown|c}} = Account number<br />
+|-
+|scope="row"| [[North Macedonia]]
+| 19
+| 3n,10c,2n
+| <code>'''{{color|teal|MK}}'''{{color|olive|kk}} {{color|red|bbb}}{{color|brown|c}} {{color|brown|cccc}} {{color|brown|cccc c}}{{color|fuchsia|xx}}</code>
+| {{color|olive|k}} = IBAN check digits (always = "07")<br />{{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number<br /> {{color|fuchsia|x}} = National check digits
+|-
+|scope="row"| [[Norway]]
+| 15
+| 11n
+| <code>'''{{color|teal|NO}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|brown|cccc}} {{color|brown|cc}}{{color|fuchsia|x}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number<br /> {{color|fuchsia|x}} = Modulo-11 national check digit
+|-
+|scope="row"| [[Oman]]
+| 23
+| 3n,16c
+| <code>'''{{color|teal|OM}}'''{{color|olive|kk}} {{color|red|bbb}}{{color|brown|c cccc cccc cccc ccc}}</code>
+| {{color|red|b}} = National bank code<br />{{color|brown|c}} = Account number
+|-
+|scope="row"| [[Pakistan]]
+| 24
+| 4a,16c
+| <code>'''{{color|teal|PK}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|brown|cccc cccc cccc}} {{color|brown|cccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Palestinian territories]]
+| 29
+| 4a,21c
+| <code>'''{{color|teal|PS}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|brown|cccc cccc cccc}} {{color|brown|cccc cccc c}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Poland]]
+| 28
+| 24n
+| <code>'''{{color|teal|PL}}'''{{color|olive|kk}} {{color|red|bbbb bbbb}} {{color|brown|cccc cccc cccc cccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number<ref>{{cite book |title=IBAN Registry |date=December 2024 |publisher=SWIFT |page=72 |url=https://www.swift.com/sites/default/files/files/iban-registry_3.pdf |access-date=16 September 2025 |chapter=2.65 PL - Poland}}</ref><ref>{{cite web |title=IBAN - BIC |url=https://nbp.pl/en/statistic-and-financial-reporting/financial-markets/iban-bic/ |website=Narodowy Bank Polski |publisher=Narodowy Bank Polski |access-date=16 September 2025}}</ref>
+|-
+|scope="row"| [[Portugal]]
+| 25
+| 21n
+| <code>'''{{color|teal|PT}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|orange|ssss}} {{color|brown|cccc cccc ccc}}{{color|fuchsia|x x}}</code>
+| {{color|olive|k}} = IBAN check digits (always = "50")<br /> {{color|red|b}} = National bank code (numeric only)<br /> {{color|orange|s}} = Branch code (numeric only)<br /> {{color|brown|c}} = Account number (numeric only)<br /> {{color|fuchsia|x}} = National check digits (numeric only)
+|-
+|scope="row"| [[Qatar]]
+| 29
+| 4a,21c
+| <code>'''{{color|teal|QA}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|brown|cccc cccc cccc}} {{color|brown|cccc cccc c}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number<ref>{{cite book
+ |url=http://www.swift.com/dsp/resources/documents/IBAN_Registry.pdf
+ |title=IBAN Registry |chapter=Qatar |page= 63
+ |date=November 2013
+ |publisher=SWIFT
+ |access-date=21 November 2013
+ |url-status=dead
+ |archive-url=https://web.archive.org/web/20131101223646/http://www.swift.com/dsp/resources/documents/IBAN_Registry.pdf
+ |archive-date=1 November 2013
+}}</ref>
+|-
+|scope="row"| [[Romania]]
+| 24
+| 4a,16c
+| <code>'''{{color|teal|RO}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|brown|cccc cccc cccc}} {{color|brown|cccc}}</code>
+| {{color|red|b}} = [[ISO 9362|BIC]] Bank code (first four alpha characters)<br /> {{color|brown|c}} = Branch code and account number (bank-specific format)
+|-
+|scope="row"| ''[[Russia]]<br />(effective April 2023)''<ref name=IBANRegistry/>
+| 33
+| 14n,15c
+| <code>'''{{color|teal|RU}}'''{{color|olive|kk}} {{color|red|bbbb bbbb b}}{{color|orange|sss ss}}{{color|brown|cc cccc cccc cccc c}}</code>
+| {{color|red|b}} = Bank code<br />{{color|orange|s}} = Branch code<br />{{color|brown|c}} = Account number
+|-
+|scope="row"| [[Saint Lucia]]
+| 32
+| 4a,24c
+| <code>'''{{color|teal|LC}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|brown|cccc cccc cccc cccc cccc cccc}}</code>
+| {{color|red|b}} = Bank code<br />{{color|brown|c}} = Account number
+|-
+|scope="row"| [[San Marino]]
+| 27
+| 1a,10n,12c
+| <code>'''{{color|teal|SM}}'''{{color|olive|kk}} {{color|fuchsia|x}}{{color|red|bbb}} {{color|red|bb}}{{color|orange|ss}} {{color|orange|sss}}{{color|brown|c}} {{color|brown|cccc cccc}} {{color|brown|ccc}}</code>
+| {{color|fuchsia|x}} = Check character (''{{ill|codice CIN|it|Coordinate bancarie#Codice CIN}}'')<br /> {{color|red|b}} = National bank code (''{{ill|codice ABI|it|Coordinate bancarie#Codice ABI}}'')<br /> {{color|orange|s}} = Branch code (''{{ill|codice CAB|it|Coordinate bancarie#Codice CAB}}'')<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[São Tomé and Príncipe]]
+| 25
+| 21n
+| <code>'''{{color|teal|ST}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|orange|ssss}} {{color|brown|cccc cccc cccc c}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|orange|s}} = Branch number<br> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Saudi Arabia]]
+| 24
+| 2n,18c
+| <code>'''{{color|teal|SA}}'''{{color|olive|kk}} {{color|red|bb}}{{color|brown|cc cccc cccc cccc}} {{color|brown|cccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number preceded by zeros, if required
+|-
+|scope="row"| [[Serbia]]
+| 22
+| 18n
+| <code>'''{{color|teal|RS}}'''{{color|olive|kk}} {{color|red|bbb}}{{color|brown|c}} {{color|brown|cccc cccc cccc}} {{color|fuchsia|xx}}</code>
+| {{color|olive|k}} = IBAN check digits (always = "35")
+{{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number<br /> {{color|fuchsia|x}} = Account check digits
+|-
+|scope="row"| [[Seychelles]]
+| 31
+| 4a,20n,3a
+| <code>'''{{color|teal|SC}}'''{{color|olive|kk}} {{color|red|bbbb bb}} {{color|orange|ss}} {{color|brown|cccc cccc cccc cccc}} mmm</code>
+| {{color|red|b}} = Bank code<br />{{color|orange|s}} = Branch code<br />{{color|brown|c}} = Account number<br />m = Currency code
+|-
+|scope="row"| [[Slovakia]]
+| 24
+| 20n
+| <code>'''{{color|teal|SK}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|orange|pppp}} {{color|orange|pp}}{{color|brown|cc}} {{color|brown|cccc cccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|orange|p}} = Account number prefix<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Slovenia]]
+| 19
+| 15n
+| <code>'''{{color|teal|SI}}'''{{color|olive|kk}} {{color|red|bb}}{{color|orange|ss s}}{{color|brown|ccc}} {{color|brown|cccc c}}{{color|fuchsia|xx}}</code>
+| {{color|olive|k}} = IBAN check digits (always = "56")<br /> {{color|red|b}} = National bank code <br /> {{color|orange|s}} = Branch code<br /> {{color|brown|c}} = Account number<br /> {{color|fuchsia|x}} = National check digits
+|-
+|scope="row"| [[Somalia]]
+| 23
+| 4n,3n, 12n
+| <code>'''{{color|teal|SO}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|orange|sss}}{{color|brown|c cccc cccc ccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|orange|s}} = Branch code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Spain]]
+| 24
+| 20n
+| <code>'''{{color|teal|ES}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|orange|ssss}} {{color|fuchsia|xx}}{{color|brown|cc cccc cccc}}</code>
+| {{color|red|b}} = National bank <br /> {{color|orange|s}} = Branch code<br /> {{color|fuchsia|x}} = Check digits<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Sudan]]
+| 18
+| 14n
+| <code>'''{{color|teal|SD}}'''{{color|olive|kk}} {{color|red|bb}}{{color|brown|cc}} {{color|brown|cccc cccc cc}}</code>
+| {{color|red|b}} = National bank code <br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Sweden]]
+| 24
+| 20n
+| <code>'''{{color|teal|SE}}'''{{color|olive|kk}} {{color|red|bbb}}{{color|brown|c}} {{color|brown|cccc cccc cccc}} {{color|brown|ccc}}{{color|fuchsia|x}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number<br /> {{color|fuchsia|x}} = Check digits
+|-
+|scope="row"| [[Switzerland]]
+| 21
+| 5n,12c
+| <code>'''{{color|teal|CH}}'''{{color|olive|kk}} {{color|red|bbbb b}}{{color|brown|ccc}} {{color|brown|cccc cccc c}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Code identifying a bank account
+|-
+|scope="row"| [[Tunisia]]
+| 24
+| 20n
+| <code>'''{{color|teal|TN}}'''{{color|olive|kk}} {{color|red|bb}}{{color|orange|ss s}}{{color|brown|ccc}} {{color|brown|cccc cccc cc}}{{color|fuchsia|xx}}</code>
+| {{color|olive|k}} = IBAN check digits (always "59")<br />{{color|red|b}} = National bank code<br /> {{color|orange|s}} = Branch code<br /> {{color|brown|c}} = Account number<br /> {{color|fuchsia|x}} = National check digits
+|-
+|scope="row"| [[Turkey]]
+| 26
+| 5n,1n,16c
+| <code>'''{{color|teal|TR}}'''{{color|olive|kk}} {{color|red|bbbb b}}0{{color|brown|cc cccc cccc cccc cc}}</code>
+| {{color|red|b}} = National bank code<br /> 0 = Zero (reserved)<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Ukraine]]
+| 29
+| 6n, 19c
+| <code>'''{{color|teal|UA}}'''{{color|olive|kk}} {{color|red|bbbb bb}}{{color|brown|cc cccc cccc cccc cccc c}}</code>
+| {{color|red|b}} = Bank code<br />{{color|brown|c}} = Account number preceded by zeros, if required
+|-
+|scope="row"| [[United Arab Emirates]]
+| 23
+| 3n,16n
+| <code>'''{{color|teal|AE}}'''{{color|olive|kk}} {{color|red|bbb}}{{color|brown|c}} {{color|brown|cccc cccc cccc ccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[United Kingdom]]<ref group="Note">The United Kingdom of [[Great Britain]] and Northern Ireland, the Isle of Man and the [[Bailiwick]]s of [[Guernsey]] and [[Jersey]] use this format. British Overseas Territories have their own formats — only Gibraltar and the British Virgin Islands use IBANs.</ref>
+| 22
+| 4a,14n
+| <code>'''{{color|teal|GB}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|orange|ssss}} {{color|orange|ss}}{{color|brown|cc}} {{color|brown|cccc}} {{color|brown|cc}}</code>
+| {{color|red|b}} = [[ISO 9362|BIC]] bank code<br /> {{color|orange|s}} = Bank and branch code ([[sort code]])<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Vatican City]]
+| 22
+| 3n,15n
+| <code>'''{{color|teal|VA}}'''{{color|olive|kk}} {{color|red|bbb}}{{color|brown|c}} {{color|brown|cccc cccc cccc cc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[British Virgin Islands|Virgin Islands, British]]
+| 24
+| 4a,16n
+| <code>'''{{color|teal|VG}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|brown|cccc cccc cccc}} {{color|brown|cccc}}</code>
+| {{color|red|b}} = National bank code<br /> {{color|brown|c}} = Account number
+|-
+|scope="row"| [[Yemen]]
+| 30
+| 4a,4n,18c
+| <code>'''{{color|teal|YE}}'''{{color|olive|kk}} {{color|red|bbbb}} {{color|orange|ssss}} {{color|brown|cccc cccc cccc cccc cc}}</code>
+| {{color|red|b}} = Bank code<br />{{color|orange|s}} = Branch code<br />{{color|brown|c}} = Account number
+|}
+
+In addition to the above, the IBAN is under development in countries below but has not yet been catalogued for general international use.<ref>{{cite web
+|url = http://www.nordea.com/en/our-services/cashmanagement/iban-validator-and-information/iban-countries/index.html
+|title = IBAN countries
+|year = 2020
+|access-date = 13 August 2020
+|publisher = [[Nordea]]
+|url-status=dead |archive-url=https://archive.today/20160402113645/http://www.nordea.com/en/our-services/cashmanagement/iban-validator-and-information/iban-countries/ |archive-date= 2 Apr 2016
+}}</ref><ref>{{cite web
+|url = https://www.iban.com/structure.html
+|title = IBAN Examples, Structure and Length
+|date = 28 July 2020
+|access-date = 13 August 2020
+|publisher = IBAN 
+}}</ref>
+
+In this list
+* <code>"kk"</code> represent the IBAN checksum digits
+* <code>"a"</code> represents an uppercase alpha character (A–Z)
+* <code>"c"</code> represents an alphanumeric character (a–z, A–Z, 0–9)
+* <code>"n"</code> represents a numeric character (0–9)
+
+{| class="wikitable sortable"
+|+Aspirational country codes for International Bank Account Number
+|-
+!scope="col"| Country
+!scope="col"| Chars
+!scope="col"| BBAN format
+!scope="col"| Example
+|-
+|scope="row"|[[Algeria]]
+|26
+|22n
+|<code>DZkk nnnn nnnn nnnn nnnn nnnn nn</code>
+|-
+|scope="row"|[[Angola]]
+|25
+|21n
+|<code>AOkk nnnn nnnn nnnn nnnn nnnn n</code>
+|-
+|scope="row"|[[Benin]]
+|28
+|2c, 22n
+|<code>BJkk ccnn nnnn nnnn nnnn nnnn nnnn</code>
+|-
+|scope="row"|[[Burkina Faso]]
+|28
+|2c, 22n
+|<code>BFkk ccnn nnnn nnnn nnnn nnnn nnnn</code>
+|-
+|scope="row"|[[Cabo Verde]]
+|25
+|21n
+|<code>CVkk nnnn nnnn nnnn nnnn nnnn n</code>
+|-
+|scope="row"|[[Cameroon]]
+|27
+|23n
+|<code>CMkk nnnn nnnn nnnn nnnn nnnn nnn</code>
+|-
+|scope="row"|[[Central African Republic]]
+|27
+|23n
+|<code>CFkk nnnn nnnn nnnn nnnn nnnn nnn</code>
+|-
+|scope="row"|[[Chad]]
+|27
+|23n
+|<code>TDkk nnnn nnnn nnnn nnnn nnnn nnn</code>
+|-
+|scope="row"|[[Comoros]]
+|27
+|23n
+|<code>KMkk nnnn nnnn nnnn nnnn nnnn nnn</code>
+|-
+|scope="row"|[[Republic of the Congo|Congo, Republic of the]]
+|27
+|23n
+|<code>CGkk nnnn nnnn nnnn nnnn nnnn nnn</code>
+|-
+|scope="row"|[[Côte d'Ivoire]]
+|28
+|2a, 22n
+|<code>CIkk aann nnnn nnnn nnnn nnnn nnnn</code>
+|-
+|scope="row"|[[Equatorial Guinea]]
+|27
+|23n
+|<code>GQkk nnnn nnnn nnnn nnnn nnnn nnn</code>
+|-
+|scope="row"|[[Gabon]]
+|27
+|23n
+|<code>GAkk nnnn nnnn nnnn nnnn nnnn nnn</code>
+|-
+|scope="row"|[[Guinea-Bissau]]
+|25
+|2c, 19n
+|<code>GWkk ccnn nnnn nnnn nnnn nnnn n</code>
+|-
+|scope="row"|[[Iran]]<ref>{{Cite web |date=2021-05-18 |title=مشخصات ملی شناسه حساب بانکی ایران (شبا) |url=https://bmi.ir/fa/pages/192/%D9%85%D8%B4%D8%AE%D8%B5%D8%A7%D8%AA%20%D9%85%D9%84%DB%8C%20%D8%B4%D9%86%D8%A7%D8%B3%D9%87%20%D8%AD%D8%B3%D8%A7%D8%A8%20%D8%A8%D8%A7%D9%86%DA%A9%DB%8C%20%D8%A7%DB%8C%D8%B1%D8%A7%D9%86%20(%D8%B4%D8%A8%D8%A7) |access-date=2024-07-18 |archive-date=2021-05-18 |archive-url=https://web.archive.org/web/20210518172456/https://bmi.ir/fa/pages/192/%D9%85%D8%B4%D8%AE%D8%B5%D8%A7%D8%AA%20%D9%85%D9%84%DB%8C%20%D8%B4%D9%86%D8%A7%D8%B3%D9%87%20%D8%AD%D8%B3%D8%A7%D8%A8%20%D8%A8%D8%A7%D9%86%DA%A9%DB%8C%20%D8%A7%DB%8C%D8%B1%D8%A7%D9%86%20(%D8%B4%D8%A8%D8%A7) |url-status=bot: unknown }}</ref>
+|26
+|22n
+|<code>IRkk nnnn nnnn nnnn nnnn nnnn nn</code>
+|-
+|scope="row"|[[Madagascar]]
+|27
+|23n
+|<code>MGkk nnnn nnnn nnnn nnnn nnnn nnn</code>
+|-
+|scope="row"|[[Mali]]
+|28
+|2c, 22n
+|<code>MLkk ccnn nnnn nnnn nnnn nnnn nnnn</code>
+|-
+|scope="row"|[[Morocco]]
+|28
+|24n
+|<code>MAkk nnnn nnnn nnnn nnnn nnnn nnnn</code>
+|-
+|scope="row"|[[Mozambique]]
+|25
+|21n
+|<code>MZkk nnnn nnnn nnnn nnnn nnnn n</code>
+|-
+|scope="row"|[[Niger]]
+|28
+|2a, 22n
+|<code>NEkk aann nnnn nnnn nnnn nnnn nnnn</code>
+|-
+|scope="row"|[[Senegal]]
+|28
+|2a, 22n
+|<code>SNkk aann nnnn nnnn nnnn nnnn nnnn</code>
+|-
+|scope="row"|[[Togo]]
+|28
+|2a, 22n
+|<code>TGkk aann nnnn nnnn nnnn nnnn nnnn</code>
+|}
+
+== See also ==
+{{portal|border=no|Banks|Business|World}}
+* [[Bank card number]]
+* [[Bank regulation]]
+* [[ABA routing transit number]]
+* [[Routing number (Canada)]]
+* [[EPC QR code]]
+
+== Notes ==
+{{reflist|group="Note"}}
+
+== References ==
+{{reflist|30em}}
+
+== External links ==
+{{commons category|IBAN}}
+* {{cite web |url = https://www.swift.com/sites/default/files/documents/iban_registry_0.pdf |title = Official ISO 13616 Registry |publisher = Society for Worldwide Interbank Financial Telecommunication (SWIFT) }}
+* {{cite web |url = https://www.iso.org/standard/41031.html |title = ISO 13616-1:2007 |date = 28 February 2020 |publisher = International Organization for Standardization (ISO) }}
+
+{{Audiovisual works|state=uncollapsed}}
+{{ISO standards}}
+{{Bank codes and identification}}
+
+[[Category:Banking terms]]
+[[Category:Financial regulation]]
+[[Category:ISO standards]]
+[[Category:Bank codes]]
+[[Category:Checksum algorithms]]

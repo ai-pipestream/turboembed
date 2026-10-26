@@ -1,0 +1,70 @@
+# document	start	end	kind	covered_text (newlines escaped as \n)
+rfc3849	1275	1285	ipv6	2001:DB8::
+rfc3849	3812	3822	ipv6	2001:DB8::
+rfc3849	4315	4325	ipv6	2001:DB8::
+rfc3849	5425	5438	email	gih@apnic.net
+rfc3849	5508	5522	email	anne@apnic.net
+rfc3849	5569	5582	email	pfs@cisco.com
+rfc3849	7667	7679	email	ipr@ietf.org
+rfc5737	2598	2607	ipv4	192.0.2.0
+rfc5737	3284	3293	ipv4	192.0.2.0
+rfc5737	3311	3323	ipv4	198.51.100.0
+rfc5737	3348	3359	ipv4	203.0.113.0
+rfc5737	4134	4144	ipv4	128.66.0.0
+rfc5737	4162	4172	ipv4	128.66.0.0
+rfc5737	6034	6046	ipv4	198.51.100.0
+rfc5737	6054	6065	ipv4	203.0.113.0
+rfc5737	6428	6448	email	jari.arkko@piuha.net
+rfc5737	6622	6637	phone	+1-310-823-9358
+rfc5737	6648	6673	email	michelle.cotton@icann.org
+rfc5737	6873	6888	phone	+1-310-823-9358
+rfc5737	6899	6919	email	leo.vegoda@icann.org
+rfc7042	12231	12248	mac	01-00-5E-00-00-00
+rfc7042	12252	12269	mac	01-00-5E-FF-FF-FF
+rfc7042	12315	12332	mac	00-00-5E-00-00-00
+rfc7042	12336	12353	mac	00-00-5E-FF-FF-FF
+rfc7042	12703	12720	mac	00-00-5E-00-00-00
+rfc7042	12729	12746	mac	00-00-5E-00-00-FF
+rfc7042	12837	12854	mac	00-00-5E-00-01-00
+rfc7042	12863	12880	mac	00-00-5E-00-01-FF
+rfc7042	12968	12985	mac	00-00-5E-00-02-00
+rfc7042	12994	13011	mac	00-00-5E-00-02-FF
+rfc7042	13109	13126	mac	00-00-5E-00-52-00
+rfc7042	13135	13152	mac	00-00-5E-00-52-FF
+rfc7042	13270	13287	mac	00-00-5E-00-53-00
+rfc7042	13296	13313	mac	00-00-5E-00-53-FF
+rfc7042	13381	13398	mac	01-00-5E-00-00-00
+rfc7042	13407	13424	mac	01-00-5E-7F-FF-FF
+rfc7042	13497	13514	mac	01-00-5E-80-00-00
+rfc7042	13523	13540	mac	01-00-5E-8F-FF-FF
+rfc7042	13613	13630	mac	01-00-5E-90-00-00
+rfc7042	13639	13656	mac	01-00-5E-90-00-FF
+rfc7042	13795	13812	mac	01-00-5E-90-10-00
+rfc7042	13821	13838	mac	01-00-5E-90-10-FF
+rfc7042	14117	14134	mac	00-00-5E-00-53-00
+rfc7042	14143	14160	mac	00-00-5E-00-53-FF
+rfc7042	14184	14201	mac	01-00-5E-90-10-00
+rfc7042	14210	14227	mac	01-00-5E-90-10-FF
+rfc7042	24780	24797	mac	33-33-00-00-00-00
+rfc7042	24804	24821	mac	33-33-FF-FF-FF-FF
+rfc7042	26527	26544	mac	CF-00-00-00-00-00
+rfc7042	37836	37849	email	iana@iana.org
+rfc7042	52769	52785	email	d3e3e3@gmail.com
+rfc7042	52811	52825	phone	1-508-333-2270
+rfc7042	53206	53221	phone	+1-508-634-2066
+rfc7042	53232	53248	email	d3e3e3@gmail.com
+rfc7042	53341	53356	phone	+1 519 670 9327
+rfc7042	53367	53381	email	jabley@dyn.com
+rfc7519	15896	16105	jwt	eyJ0eXAiOiJKV1QiLA0KICJhbGciOiJIUzI1NiJ9\n     .\n     eyJpc3MiOiJqb2UiLA0KICJleHAiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFt\n     cGxlLmNvbS9pc19yb290Ijp0cnVlfQ\n     .\n     dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk
+rfc7519	27800	27939	jwt	eyJhbGciOiJub25lIn0\n     .\n     eyJpc3MiOiJqb2UiLA0KICJleHAiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFt\n     cGxlLmNvbS9pc19yb290Ijp0cnVlfQ\n     .
+rfc7519	36954	36977	email	jwt-reg-review@ietf.org
+rfc7519	37806	37819	email	iesg@ietf.org
+rfc7519	43141	43158	email	mbj@microsoft.com
+rfc7519	43254	43271	email	mbj@microsoft.com
+rfc7519	62665	62682	email	mbj@microsoft.com
+rfc7519	62764	62781	email	ve7jtb@ve7jtb.com
+rfc7519	62878	62898	email	n-sakimura@nri.co.jp
+wikipedia-iban	7594	7621	iban	IE64 IRCE 9205 0112 3456 78
+wikipedia-iban	7657	7679	iban	IE64IRCE92050112345678
+wikipedia-iban	7762	7793	iban	BI13 20001 10001 00001234567 89
+wikipedia-iban	7829	7856	iban	BI1320001100010000123456789

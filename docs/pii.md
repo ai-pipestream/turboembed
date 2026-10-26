@@ -411,15 +411,57 @@ remaining 17 kinds are evaluated on project-authored operational memos
 | `phone` (all) | third-party MASC (`12`) + project-authored (`3`) | 13 | 5 | 2 | 0.722 | 0.867 |
 | **all kinds** | **mixed (`12` MASC + `18` adapted spec + `57` project-authored)** | **82** | **9** | **5** | **0.901** | **0.943** |
 
+### External prose partition (whole third-party documents)
+
+A separately scored partition of five whole third-party documents
+(`213,306` bytes, `69` gold mentions,
+`precision_and_recall_on_external_prose`, gold in
+`analysis/pii/tests/data/human-eval/labels-external.tsv`, provenance in
+that directory's `README.md`): RFC 7519, RFC 5737, RFC 3849 and RFC 7042
+as retrieved from the RFC Editor (IETF Trust, BCP 78), and the Wikipedia
+article "International Bank Account Number" as wikitext at a pinned
+revision (CC BY-SA 4.0). These rows never pool with the mixed set above.
+
+| Kind | Source partition | true | false | missed | precision | recall |
+|---|---|---:|---:|---:|---:|---:|
+| `email` | external (RFC 7519, RFC 5737, RFC 3849, RFC 7042) | 18 | 0 | 0 | 1.000 | 1.000 |
+| `iban` | external (Wikipedia IBAN wikitext) | 4 | 0 | 0 | 1.000 | 1.000 |
+| `ipv4` | external (RFC 5737) | 8 | 3 | 0 | 0.727 | 1.000 |
+| `ipv6` | external (RFC 3849) | 3 | 0 | 0 | 1.000 | 1.000 |
+| `jwt` | external (RFC 7519) | 0 | 0 | 2 | 1.000 | 0.000 |
+| `mac` | external (RFC 7042) | 29 | 0 | 0 | 1.000 | 1.000 |
+| `phone` | external (RFC 5737, RFC 7042) | 5 | 7 | 0 | 0.417 | 1.000 |
+| **all kinds** | **external (`69` gold; false mentions of kinds without gold included)** | **67** | **12** | **2** | **0.848** | **0.971** |
+
+What the external false positives and misses are:
+
+- **`phone` false positives (7)**: six five-group prefixes of EUI-64
+  identifiers and SNAP header patterns in RFC 7042 (such as
+  `02-00-00-00-00` inside `02-00-00-00-00-00-00-01`), where the 48-bit
+  `mac` scanner rightly stays silent and the phone rule reads ten
+  grouped digits; and `5698 7654 32` inside the markup-split British
+  IBAN example in the Wikipedia wikitext.
+- **`ipv4` false positives (3)**: the Simple Web Token version `0.9.5.1`
+  in RFC 7519's references and the section number `2.3.2.1` twice in
+  RFC 7042.
+- **`card` false positives (2)**: 14-digit archive timestamps
+  (`20101217080334`, `20130729183211`) in Wikipedia citation templates.
+- **`jwt` misses (2)**: both complete example JWTs in RFC 7519 are
+  line-wrapped for display, with the separating periods on lines of
+  their own; the scanner matches only contiguous tokens, so external
+  `jwt` recall is `0.000` until wrapped forms are in scope.
+
 #### Outstanding work for #968
 
 #968 remains open with its original acceptance requirements. Independent
-human-written prose coverage has not been established for the 17 memo-only
-kinds: `card`, `email`, `iban`, `imei`, `ipv4`, `ipv6`, `jwt`, `mac`, `us-ssn`,
-`us-itin`, `uk-nhs`, `ca-sin`, `de-steuer-id`, `aba-routing`, `aws-access-key`,
-`github-token`, and `url-credential`. The `btc-address` and `eth-address` rows
-also remain results from adapted specifications, without established coverage
-on externally authored prose.
+human-written prose coverage has not been established for `card`, `imei`,
+`us-ssn`, `us-itin`, `uk-nhs`, `ca-sin`, `de-steuer-id`, `aba-routing`,
+`aws-access-key`, `github-token`, and `url-credential`. The `btc-address`
+and `eth-address` rows also remain results from adapted specifications,
+without established coverage on externally authored prose. The external
+partition above establishes coverage for `email`, `iban`, `ipv4`, `ipv6`,
+`jwt` (recall `0.000` on the only published forms, which are
+display-wrapped), `mac`, and further third-party `phone`.
 
 Further corpus additions need attributable, licensed source passages with
 appropriate context and per-occurrence gold labels, including scanner misses

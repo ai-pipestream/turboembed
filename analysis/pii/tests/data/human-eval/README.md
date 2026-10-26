@@ -20,11 +20,13 @@ The evaluation set is a mixed corpus:
   mention of the remaining 17 built-in kinds).
 
 This corpus does not complete #968's requirement for licensed human-written
-text with labelled spans per kind. Only `phone` currently has unedited
-third-party prose coverage. The adapted crypto summaries and authored memos
-remain useful, separately labelled test partitions; they do not establish
-external human-written prose coverage for their kinds. The test function's
-historical name does not change that scope.
+text with labelled spans per kind. Within the mixed set only `phone` has
+unedited third-party prose coverage; the separate external partition below
+adds unedited third-party coverage for `email`, `iban`, `ipv4`, `ipv6`,
+`jwt`, `mac` and further `phone`. The adapted crypto summaries and authored
+memos remain useful, separately labelled test partitions; they do not
+establish external human-written prose coverage for their kinds. The test
+function's historical name does not change that scope.
 
 Outstanding coverage on external text is listed in `docs/pii.md` under
 "Outstanding work for #968". New sources must preserve the policy for safe specimen
@@ -68,3 +70,30 @@ produced only as side effects of another kind (such as an `email` span inside
 `https://user:pass@host/path`, a `card` match on a 15-digit IMEI, or a `phone`
 match on a German Steuer-ID) are not in `labels.tsv` and are counted as false
 positives.
+
+## External prose partition (#968)
+
+Five further whole third-party documents (`213,306` UTF-8 bytes, `69` gold
+mentions in `labels-external.tsv`, same five columns except that newlines
+inside covered text are escaped as `\n`), scored separately by
+`precision_and_recall_on_external_prose` so this partition never pools with
+the mixed set above. The documents are committed byte for byte as retrieved
+(no escaping, no edits); the SHA-256 of each file is pinned in the test.
+
+| ID | File | Bytes | UTF-8 SHA-256 | Source and licence |
+|---|---|---:|---|---|
+| `rfc7519` | `rfc7519.txt` | 63,039 | `fecd930e9ccf2276b95c0017c6c4ff5d09352e4bc3c7629946447894e0f97248` | [RFC 7519](https://www.rfc-editor.org/rfc/rfc7519.txt), JSON Web Token (JWT), IETF Trust, May 2015 (BCP 78; RFC text may be copied and furnished). Gold: `7` `email`, `2` `jwt` (both complete example JWTs, line-wrapped for display in the RFC, labelled over their whole wrapped spans). Encoded JOSE header and payload parts printed on their own are not JWTs and are not labelled; the Appendix A encrypted and nested examples are JWE compact serializations and are not labelled `jwt`. |
+| `rfc5737` | `rfc5737.txt` | 7,036 | `9d16217614a74a9b064eff900e5cd07a525793cf8227dca1267100e880f0c410` | [RFC 5737](https://www.rfc-editor.org/rfc/rfc5737.txt), IPv4 Address Blocks Reserved for Documentation, IETF Trust, January 2010. Gold: `8` `ipv4` (the address part of each documentation prefix; the `/24` or `/16` length suffix is outside the span), `3` `email`, `2` `phone` (authors' address blocks). |
+| `rfc3849` | `rfc3849.txt` | 7,872 | `b0741fc609be565b356c62d2f9b9ef30469f3fe7bde386c2690e173751bb1941` | [RFC 3849](https://www.rfc-editor.org/rfc/rfc3849.txt), IPv6 Address Prefix Reserved for Documentation, IETF Trust, July 2004. Gold: `3` `ipv6` (each `2001:DB8::` address part of the documentation prefix), `4` `email`. |
+| `rfc7042` | `rfc7042.txt` | 53,488 | `8ad7b042253d1204cef2a5eddd6682072a5d4f9edc3b749df15df7bccdeca1df` | [RFC 7042](https://www.rfc-editor.org/rfc/rfc7042.txt), IANA Considerations and IETF Protocol and Documentation Usage for IEEE 802 Parameters, IETF Trust, October 2013. Gold: `29` `mac` (whole EUI-48 dash forms only, including range endpoints; OUIs, EUI-64 identifiers, and wildcard patterns such as `02-00-5E-FE-xx-xx-xx-xx` are not 48-bit MAC occurrences and are not labelled), `4` `email`, `3` `phone` (authors' addresses and the example application's telephone field). |
+| `wikipedia-iban` | `wikipedia-iban.wikitext` | 81,871 | `bdb116257bb8d25897a11b61de009167c673856ce0458183d83d336d73d8e7b1` | Wikipedia article "International Bank Account Number", wikitext at revision `1376647818` (2026-09-25), CC BY-SA 4.0, retrieved through the MediaWiki action API with the revision pinned. Gold: `4` `iban` (the complete Irish and Burundi specimen IBANs in human-readable and machine-readable form). The worked British example is split across colour templates in the wikitext and is not one contiguous occurrence; format patterns in the country table are not IBAN occurrences. |
+
+Annotation method: every occurrence of every built-in kind in these five
+documents was enumerated by independent shape searches over the pinned text
+and read in context before labelling; spans the search shapes could not
+produce (the display-wrapped JWTs, address parts of CIDR prefixes) were
+located from the documents' own example sections. Values are as their
+sources publish them: documentation address blocks, specimen IBANs, the
+RFC example JWT, and the RFC authors' public contact addresses. Nothing was
+rewritten, so no replacement transformation needs recording. Detector output
+played no part in choosing gold spans.

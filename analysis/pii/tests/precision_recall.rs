@@ -334,29 +334,52 @@ const HUMAN_DOCS: [(&str, bool, &str, &str); 8] = [
     ),
 ];
 
-fn human_written_set() -> Vec<Labelled> {
+/// Third-party prose documents for #968's external partition: whole
+/// IETF RFC texts and one Wikipedia article's wikitext, each pinned
+/// by SHA-256 (`README.md` in the data directory records source,
+/// licence and revision). Kept apart from the mixed set above so the
+/// two partitions never pool.
+const EXTERNAL_DOCS: [(&str, bool, &str, &str); 5] = [
+    ("rfc7519", false, "rfc7519.txt", "fecd930e9ccf2276b95c0017c6c4ff5d09352e4bc3c7629946447894e0f97248"),
+    ("rfc5737", false, "rfc5737.txt", "9d16217614a74a9b064eff900e5cd07a525793cf8227dca1267100e880f0c410"),
+    ("rfc3849", false, "rfc3849.txt", "b0741fc609be565b356c62d2f9b9ef30469f3fe7bde386c2690e173751bb1941"),
+    ("rfc7042", false, "rfc7042.txt", "8ad7b042253d1204cef2a5eddd6682072a5d4f9edc3b749df15df7bccdeca1df"),
+    (
+        "wikipedia-iban",
+        false,
+        "wikipedia-iban.wikitext",
+        "bdb116257bb8d25897a11b61de009167c673856ce0458183d83d336d73d8e7b1",
+    ),
+];
+
+fn load_labelled(table: &[(&str, bool, &str, &str)], labels_file: &str, escaped_newlines: bool) -> Vec<Labelled> {
     let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data/human-eval");
-    let mut docs: Vec<(&'static str, Labelled)> = Vec::with_capacity(HUMAN_DOCS.len());
-    for &(id, escaped, file, expected_sha) in &HUMAN_DOCS {
+    let mut docs: Vec<(&str, Labelled)> = Vec::with_capacity(table.len());
+    for &(id, escaped, file, expected_sha) in table {
         let raw = std::fs::read_to_string(dir.join(file)).expect("human-eval document on disk");
         let text = if escaped { unescape(raw.trim_end_matches('\n')).expect("valid escaped text") } else { raw };
         assert_eq!(to_hex(&sha256(text.as_bytes())), expected_sha, "{id} SHA-256");
         docs.push((id, Labelled { text, labels: Vec::new() }));
     }
-    let labels_raw = std::fs::read_to_string(dir.join("labels.tsv")).expect("human-eval labels.tsv");
+    let labels_raw = std::fs::read_to_string(dir.join(labels_file)).expect("human-eval labels");
     for line in labels_raw.lines().filter(|l| !l.trim().is_empty() && !l.starts_with('#')) {
         let f: Vec<&str> = line.splitn(5, '\t').collect();
-        assert_eq!(f.len(), 5, "five columns in labels.tsv: {line:?}");
+        assert_eq!(f.len(), 5, "five columns in {labels_file}: {line:?}");
         let start: u32 = f[1].parse().expect("start offset");
         let end: u32 = f[2].parse().expect("end offset");
         let kind = PiiKind::parse(f[3]).expect("a built-in kind").name();
         let (_, doc) = docs.iter_mut().find(|(id, _)| *id == f[0]).expect("known document id");
-        assert_eq!(&doc.text[start as usize..end as usize], f[4], "{} {start}..{end}", f[0]);
+        let covered = if escaped_newlines { f[4].replace("\\n", "\n") } else { f[4].to_owned() };
+        assert_eq!(&doc.text[start as usize..end as usize], covered, "{} {start}..{end}", f[0]);
         let label = (start, end, kind);
         assert!(!doc.labels.contains(&label), "duplicate label {label:?} in {}", f[0]);
         doc.labels.push(label);
     }
     docs.into_iter().map(|(_, d)| d).collect()
+}
+
+fn human_written_set() -> Vec<Labelled> {
+    load_labelled(&HUMAN_DOCS, "labels.tsv", false)
 }
 
 #[test]
@@ -426,4 +449,49 @@ fn precision_and_recall_on_human_written_text() {
         assert_eq!((c.tp, c.fp, c.fn_), (tp, fp, fn_), "{kind}");
     }
     assert_eq!((total.tp, total.fp, total.fn_), (82, 9, 5));
+}
+
+/// #968 external partition: per-kind precision and recall on whole
+/// third-party documents (RFC texts and Wikipedia wikitext), gold in
+/// `labels-external.tsv` (newlines in covered text escaped as `\n`,
+/// for the display-wrapped RFC 7519 JWTs). Only kinds with gold in
+/// these documents are pinned here; mentions of any other kind count
+/// into the total false positives.
+#[test]
+fn precision_and_recall_on_external_prose() {
+    let set = load_labelled(&EXTERNAL_DOCS, "labels-external.tsv", true);
+    let by_kind = measure(&set);
+    eprintln!("\nexternal prose evaluation set (#968):");
+    let want_by_kind: [(&str, usize, usize, usize); 7] = [
+        ("email", 18, 0, 0),
+        ("iban", 4, 0, 0),
+        ("ipv4", 8, 3, 0),
+        ("ipv6", 3, 0, 0),
+        ("jwt", 0, 0, 2),
+        ("mac", 29, 0, 0),
+        ("phone", 5, 7, 0),
+    ];
+    let mut total = Counts::default();
+    for (kind, c) in &by_kind {
+        let (p, r) = (ratio(c.tp, c.tp + c.fp), ratio(c.tp, c.tp + c.fn_));
+        eprintln!("{kind:<16} {:>5} {:>5} {:>5} {p:>9.3} {r:>7.3}", c.tp, c.fp, c.fn_);
+        total.tp += c.tp;
+        total.fp += c.fp;
+        total.fn_ += c.fn_;
+    }
+    eprintln!(
+        "{} documents, {} bytes; all: tp {} fp {} fn {}, precision {:.4}, recall {:.4}",
+        set.len(),
+        set.iter().map(|l| l.text.len()).sum::<usize>(),
+        total.tp,
+        total.fp,
+        total.fn_,
+        ratio(total.tp, total.tp + total.fp),
+        ratio(total.tp, total.tp + total.fn_)
+    );
+    for (kind, tp, fp, fn_) in want_by_kind {
+        let c = by_kind.get(kind).unwrap();
+        assert_eq!((c.tp, c.fp, c.fn_), (tp, fp, fn_), "{kind}");
+    }
+    assert_eq!((total.tp, total.fp, total.fn_), (67, 12, 2));
 }
