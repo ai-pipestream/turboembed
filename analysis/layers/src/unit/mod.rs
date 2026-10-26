@@ -150,6 +150,7 @@ impl Unit {
                 "²"
             }
             Unit::Area(Area::Acre) => "ac",
+            Unit::Area(Area::Mu) => "mu",
             Unit::Volume(Volume::Cubic(l)) => {
                 out.push_str(l.symbol());
                 "³"
@@ -229,6 +230,7 @@ impl fmt::Display for Unit {
                 lower_first(f, l.name())
             }
             Unit::Area(Area::Acre) => f.write_str("Acre"),
+            Unit::Area(Area::Mu) => f.write_str("Mu"),
             Unit::Volume(Volume::Cubic(l)) => {
                 f.write_str("Cubic ")?;
                 lower_first(f, l.name())
@@ -294,6 +296,7 @@ impl Unit {
         }
         Some(match symbol {
             "ac" => Unit::Area(Area::Acre),
+            "mu" => Unit::Area(Area::Mu),
             "hl" => Unit::Volume(Volume::Hectoliter),
             "dal" => Unit::Volume(Volume::Decaliter),
             "l" | "L" => Unit::Volume(Volume::Liter),
@@ -333,6 +336,8 @@ impl Unit {
             "sh tn" => Unit::Weight(Weight::ShortTon),
             "st" => Unit::Weight(Weight::Stone),
             "dr" => Unit::Weight(Weight::Dram),
+            "jin" => Unit::Weight(Weight::Jin),
+            "liang" => Unit::Weight(Weight::Liang),
             "mph" => Unit::Speed(Speed::Per(Length::Mile, Per::Hour)),
             "kph" | "kmph" => Unit::Speed(Speed::Per(Length::Kilometer, Per::Hour)),
             "kn" => Unit::Speed(Speed::Knot),
@@ -370,6 +375,7 @@ impl Unit {
             "kJ" => Unit::Energy(Energy::Kilojoule),
             "Wh" => Unit::Energy(Energy::WattHour),
             "kWh" => Unit::Energy(Energy::KilowattHour),
+            "kcal" => Unit::Energy(Energy::Kilocalorie),
             "°C" | "C" => Unit::Temperature(Temperature::Celsius),
             "°F" | "F" => Unit::Temperature(Temperature::Fahrenheit),
             "K" => Unit::Temperature(Temperature::Kelvin),
