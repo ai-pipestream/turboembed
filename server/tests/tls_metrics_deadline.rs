@@ -262,7 +262,7 @@ async fn prometheus_metrics_endpoint_exposes_all_server_metric_families() {
 
     for expected in [
         "turbo_kserve_rpc_requests_total{service=\"inference.GRPCInferenceService\",method=\"ModelInfer\",code=\"OK\"} 1",
-        "turbo_kserve_rpc_requests_total{service=\"turbo.result.AnalysisService\",method=\"AnalyzeStream\",code=\"OK\"} 1",
+        "turbo_kserve_rpc_requests_total{service=\"turbo.result.v1.AnalysisService\",method=\"AnalyzeStream\",code=\"OK\"} 1",
         "turbo_kserve_rpc_duration_seconds_bucket{service=\"inference.GRPCInferenceService\",method=\"ModelInfer\",le=\"+Inf\"} 1",
         "turbo_kserve_inflight_streams 0",
         "turbo_kserve_inflight_documents 0",
@@ -340,15 +340,17 @@ async fn grpc_timeout_expires_on_unary_and_mid_stream_without_leaking_sessions()
     tx.send(stream_doc("doc-1", NAME, "stream deadline batch 1 b", None)).await.unwrap();
 
     let mut stream_req = Request::new(ReceiverStream::new(rx));
-    stream_req.metadata_mut().insert("grpc-timeout", MetadataValue::from_static("45m"));
+    stream_req.metadata_mut().insert("grpc-timeout", MetadataValue::from_static("400m"));
     let mut responses = c.analyze_stream(stream_req).await.unwrap().into_inner();
     let mut answered = 0usize;
     let mut terminal_err = None;
+    let mut held_after_batch = None;
     while let Some(item) = responses.message().await.transpose() {
         match item {
             Ok(_) => {
                 answered += 1;
                 if answered == 2 {
+                    held_after_batch = Some(s.hold(NAME).expect("session idle after first batch"));
                     tx.send(stream_doc("doc-2", NAME, "stream deadline queued doc", None)).await.unwrap();
                 }
             }
@@ -359,6 +361,7 @@ async fn grpc_timeout_expires_on_unary_and_mid_stream_without_leaking_sessions()
         }
     }
     drop(tx);
+    drop(held_after_batch);
     assert_eq!(answered, 2, "first full batch of 2 documents completed before deadline");
     let status = terminal_err.expect("AnalyzeStream must terminate with DEADLINE_EXCEEDED");
     assert_eq!(status.code(), Code::DeadlineExceeded, "stream status: {status:?}");
@@ -379,8 +382,8 @@ async fn grpc_timeout_expires_on_unary_and_mid_stream_without_leaking_sessions()
     for expected in [
         "turbo_kserve_rpc_requests_total{service=\"inference.GRPCInferenceService\",method=\"ServerReady\",code=\"OK\"} 1",
         "turbo_kserve_rpc_requests_total{service=\"inference.GRPCInferenceService\",method=\"ModelInfer\",code=\"DEADLINE_EXCEEDED\"} 1",
-        "turbo_kserve_rpc_requests_total{service=\"turbo.result.AnalysisService\",method=\"AnalyzeDocumentProgressive\",code=\"DEADLINE_EXCEEDED\"} 1",
-        "turbo_kserve_rpc_requests_total{service=\"turbo.result.AnalysisService\",method=\"AnalyzeStream\",code=\"DEADLINE_EXCEEDED\"} 1",
+        "turbo_kserve_rpc_requests_total{service=\"turbo.result.v1.AnalysisService\",method=\"AnalyzeDocumentProgressive\",code=\"DEADLINE_EXCEEDED\"} 1",
+        "turbo_kserve_rpc_requests_total{service=\"turbo.result.v1.AnalysisService\",method=\"AnalyzeStream\",code=\"DEADLINE_EXCEEDED\"} 1",
     ] {
         assert!(rendered.contains(expected), "missing {expected:?} in:\n{rendered}");
     }
@@ -406,7 +409,7 @@ async fn grpc_timeout_expires_on_unary_and_mid_stream_without_leaking_sessions()
 
     tokio::time::timeout(Duration::from_secs(2), async {
         while !s.metrics().contains(
-            "turbo_kserve_rpc_requests_total{service=\"turbo.result.AnalysisService\",method=\"AnalyzeStream\",code=\"CANCELLED\"} 1",
+            "turbo_kserve_rpc_requests_total{service=\"turbo.result.v1.AnalysisService\",method=\"AnalyzeStream\",code=\"CANCELLED\"} 1",
         ) || !s.metrics().contains("turbo_kserve_inflight_streams 0")
         {
             tokio::time::sleep(Duration::from_millis(5)).await;
