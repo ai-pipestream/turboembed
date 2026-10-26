@@ -122,9 +122,26 @@ const TATOEBA_MODEL: &str = "turbo-mul-tatoeba-langdetect-1";
 /// sentences and documents at their addresses in a fourth release.
 const WEB_MODEL: &str = "turbo-mul-tatoeba-fineweb-langdetect-1";
 
+/// The dependency parser models (MaxEnt and Feedforward) the UD recipes
+/// train on the four settled CC BY 4.0 UD 2.16 treebanks (#922).
+const UD_DEPPARSE_MODELS: [&str; 8] = [
+    "turbo-es-ud-ancora-2.16-depparse-maxent-1",
+    "turbo-es-ud-ancora-2.16-depparse-feedforward-1",
+    "turbo-ca-ud-ancora-2.16-depparse-maxent-1",
+    "turbo-ca-ud-ancora-2.16-depparse-feedforward-1",
+    "turbo-fi-ud-ftb-2.16-depparse-maxent-1",
+    "turbo-fi-ud-ftb-2.16-depparse-feedforward-1",
+    "turbo-it-ud-markit-2.16-depparse-maxent-1",
+    "turbo-it-ud-markit-2.16-depparse-feedforward-1",
+];
+
 /// A model this repository's recipes train.
 fn trained_here(id: &str) -> bool {
-    MASC_MODELS.contains(&id) || UD_RECIPE_MODELS.contains(&id) || id == TATOEBA_MODEL || id == WEB_MODEL
+    MASC_MODELS.contains(&id)
+        || UD_RECIPE_MODELS.contains(&id)
+        || UD_DEPPARSE_MODELS.contains(&id)
+        || id == TATOEBA_MODEL
+        || id == WEB_MODEL
 }
 
 /// The published neural checkpoints the index lists (docs/licences.md,
@@ -216,6 +233,7 @@ fn the_ud_models_carry_their_treebank_licences() {
     }
     expected.extend(MASC_MODELS.map(str::to_owned));
     expected.extend(UD_RECIPE_MODELS.map(str::to_owned));
+    expected.extend(UD_DEPPARSE_MODELS.map(str::to_owned));
     expected.insert(TATOEBA_MODEL.to_owned());
     expected.insert(WEB_MODEL.to_owned());
     expected.extend(CHECKPOINTS.map(str::to_owned));

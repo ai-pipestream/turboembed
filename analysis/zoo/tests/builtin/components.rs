@@ -12,6 +12,22 @@ fn the_neural_checkpoints_are_found_by_language_and_component() {
     assert_eq!(ids("en", Component::EntityExtractor), ["urchade-gliner-small-v2.1"]);
     assert_eq!(ids("mul", Component::EntityExtractor), ["urchade-gliner-multi-v2.1"]);
     assert_eq!(ids("en", Component::ZeroShotCategorizer), ["cross-encoder-nli-minilm2-l6-h768"]);
+    assert_eq!(
+        ids("es", Component::DependencyParser),
+        ["turbo-es-ud-ancora-2.16-depparse-maxent-1", "turbo-es-ud-ancora-2.16-depparse-feedforward-1"]
+    );
+    assert_eq!(
+        ids("ca", Component::DependencyParser),
+        ["turbo-ca-ud-ancora-2.16-depparse-maxent-1", "turbo-ca-ud-ancora-2.16-depparse-feedforward-1"]
+    );
+    assert_eq!(
+        ids("fi", Component::DependencyParser),
+        ["turbo-fi-ud-ftb-2.16-depparse-maxent-1", "turbo-fi-ud-ftb-2.16-depparse-feedforward-1"]
+    );
+    assert_eq!(
+        ids("it", Component::DependencyParser),
+        ["turbo-it-ud-markit-2.16-depparse-maxent-1", "turbo-it-ud-markit-2.16-depparse-feedforward-1"]
+    );
     // The tokenizers are fetched by id beside their models: no component,
     // so OpenNLP's lookup never takes one for a tokenizer model.
     assert!(index.list().iter().filter(|a| a.id.as_str().ends_with("-tokenizer")).all(|a| a.component.is_none()));

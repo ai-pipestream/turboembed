@@ -48,6 +48,24 @@ impl<A: WordOrTokenAnchor> DependencySample<A> {
     pub fn graph(&self) -> &DependencyGraph<A> {
         &self.graph
     }
+    pub fn from_format(sample: &FormatSample<'_>) -> Result<Self> {
+        let heads = sample
+            .tree()
+            .heads()
+            .iter()
+            .map(|h| match h {
+                Head::Root => None,
+                Head::Word(i) => Some(Ix::new(*i)),
+            })
+            .collect();
+        let relations = sample.tree().relations().iter().map(|r| r.as_str().to_owned()).collect();
+        let graph = DependencyGraph::new(heads, relations)?;
+        Self::new(
+            sample.tokens().iter().map(|f| f.as_str().to_owned()).collect(),
+            sample.tags().iter().map(|f| f.as_str().to_owned()).collect(),
+            graph,
+        )
+    }
     pub fn from_conllu(sample: ConlluDependencySample) -> Result<Self> {
         sample.check().map_err(error)?;
         let heads = sample
@@ -101,7 +119,7 @@ impl<A: WordOrTokenAnchor> DependencySample<A> {
     }
 }
 /// Oracle events in sentence/transition order. Non-projective samples are
-/// skipped before any events are emitted, matching the Java event stream.
+/// pseudo-projectivized before extracting arc-standard oracle transitions.
 #[derive(Default)]
 pub struct DependencyEventStream {
     pub events: Vec<Event>,
@@ -111,11 +129,8 @@ impl DependencyEventStream {
     pub fn generate<A: WordOrTokenAnchor>(samples: &[DependencySample<A>]) -> Result<Self> {
         let mut out = Self::default();
         for sample in samples {
-            if !sample.graph.is_projective() {
-                out.skipped_nonprojective += 1;
-                continue;
-            }
-            let steps = ArcStandardOracle::transitions(&sample.graph)?;
+            let graph = sample.graph.projectivize()?;
+            let steps = ArcStandardOracle::transitions(&graph)?;
             let mut state = ArcStandardState::<A>::new(sample.tokens.len())?;
             let tokens: Vec<_> = sample.tokens.iter().map(String::as_str).collect();
             let tags: Vec<_> = sample.tags.iter().map(String::as_str).collect();

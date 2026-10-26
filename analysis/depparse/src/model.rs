@@ -116,7 +116,7 @@ impl DependencyParserME {
             }
             state.apply(best.ok_or_else(|| error("no applicable model outcome"))?)?;
         }
-        state.to_graph()
+        state.to_graph()?.deprojectivize()
     }
 }
 impl<A: WordOrTokenAnchor> DependencyParser<A> for DependencyParserME {

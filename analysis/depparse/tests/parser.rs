@@ -72,16 +72,62 @@ fn events_training_serialization_and_evaluation() {
     assert!(cv.evaluate(&samples, 1, |_| Ok(parser.clone())).is_err());
 }
 #[test]
-fn nonprojective_training_samples_are_skipped_atomically() {
+fn nonprojective_training_samples_are_projectivized_trained_and_decoded() {
     let nonprojective = DependencySample::<Tokens>::new(
-        vec!["a".into(), "b".into(), "c".into()],
-        vec!["X".into(); 3],
-        DependencyGraph::new(vec![Some(Ix::new(2)), None, Some(Ix::new(1))], vec!["dep".into(); 3]).unwrap(),
+        vec!["What".into(), "did".into(), "you".into(), "read".into()],
+        vec!["PRON".into(), "AUX".into(), "PRON".into(), "VERB".into()],
+        DependencyGraph::new(
+            vec![Some(Ix::new(3)), None, Some(Ix::new(1)), Some(Ix::new(1))],
+            vec!["obj".into(), "root".into(), "nsubj".into(), "xcomp".into()],
+        )
+        .unwrap(),
     )
     .unwrap();
-    let stream = DependencyEventStream::generate(&[nonprojective, sample()]).unwrap();
-    assert_eq!(stream.skipped_nonprojective, 1);
-    assert_eq!(stream.events.len(), 6);
+    assert!(!nonprojective.graph().is_projective());
+    let samples = vec![nonprojective.clone(), sample()];
+    let stream = DependencyEventStream::generate(&samples).unwrap();
+    assert_eq!(stream.skipped_nonprojective, 0);
+    assert_eq!(stream.events.len(), 14);
+    let mut params = TrainingParameters::new();
+    params.put_str("Algorithm", "MAXENT");
+    params.put_int("Cutoff", 0);
+    params.put_int("Iterations", 80);
+    let model = DependencyModel::train("en", &samples, &params).unwrap();
+    let parser = DependencyParserME::new(model);
+    let pred: DependencyGraph<Tokens> =
+        parser.parse(&["What", "did", "you", "read"], &["PRON", "AUX", "PRON", "VERB"]).unwrap();
+    assert!(!pred.is_projective());
+    assert_eq!(pred.to_layer().head, nonprojective.graph().to_layer().head);
+    for i in 0..4 {
+        assert_eq!(pred.arc(Ix::new(i)).unwrap().relation, nonprojective.graph().arc(Ix::new(i)).unwrap().relation);
+    }
+    let ff_settings = FeedforwardSettings {
+        embedding_size: 16,
+        hidden_size: 32,
+        epochs: 60,
+        batch_size: 8,
+        learning_rate: 0.05,
+        l2: 0.0,
+        dropout: 0.0,
+        word_cutoff: 1,
+        seed: 17,
+        layout: FeatureLayout::ChenManning18,
+        activation: Activation::Cube,
+    };
+    let ff_model = FeedforwardDependencyTrainer::train(&samples, &ff_settings).unwrap();
+    for beam in [1, 4] {
+        let ff_parser = FeedforwardDependencyParser::new(ff_model.clone(), beam).unwrap();
+        let ff_pred: DependencyGraph<Tokens> =
+            ff_parser.parse(&["What", "did", "you", "read"], &["PRON", "AUX", "PRON", "VERB"]).unwrap();
+        assert!(!ff_pred.is_projective());
+        assert_eq!(ff_pred.to_layer().head, nonprojective.graph().to_layer().head);
+        for i in 0..4 {
+            assert_eq!(
+                ff_pred.arc(Ix::new(i)).unwrap().relation,
+                nonprojective.graph().arc(Ix::new(i)).unwrap().relation
+            );
+        }
+    }
 }
 #[test]
 fn scoring_excludes_punctuation_and_does_not_credit_labels_with_wrong_heads() {

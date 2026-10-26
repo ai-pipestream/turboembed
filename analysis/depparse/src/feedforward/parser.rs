@@ -51,7 +51,7 @@ impl FeedforwardDependencyParser {
                 let best = best.ok_or_else(|| error("no applicable neural transition"))?;
                 state.apply(&self.model.transitions[best])?;
             }
-            return state.to_graph();
+            return state.to_graph()?.deprojectivize();
         }
         let mut beam = vec![(ArcStandardState::<A>::new(words.len())?, 0.0)];
         while !beam.iter().all(|(s, _)| s.is_terminal()) {
@@ -87,7 +87,7 @@ impl FeedforwardDependencyParser {
             }
             beam = next;
         }
-        beam[0].0.to_graph()
+        beam[0].0.to_graph()?.deprojectivize()
     }
 }
 impl<A: WordOrTokenAnchor> DependencyParser<A> for FeedforwardDependencyParser {

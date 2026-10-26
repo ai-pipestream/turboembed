@@ -15,6 +15,7 @@ mod context;
 mod evaluation;
 mod graph;
 mod model;
+mod projective;
 mod sample;
 mod transition;
 

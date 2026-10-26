@@ -50,6 +50,15 @@ fn tree_boundaries_and_root_crossing_projectivity() {
     let nonprojective = tree(&[Some(2), None, Some(1)]);
     assert!(!nonprojective.is_projective());
     assert!(ArcStandardOracle::transitions(&nonprojective).is_err());
+    let projectivized = nonprojective.projectivize().unwrap();
+    assert!(projectivized.is_projective());
+    assert!(ArcStandardOracle::transitions(&projectivized).is_ok());
+    let restored = projectivized.deprojectivize().unwrap();
+    assert!(!restored.is_projective());
+    assert_eq!(restored.to_layer().head, nonprojective.to_layer().head);
+    for i in 0..3 {
+        assert_eq!(restored.arc(Ix::new(i)).unwrap().relation, "dep");
+    }
 }
 #[test]
 fn oracle_rebuilds_all_small_projective_trees() {
@@ -75,6 +84,22 @@ fn oracle_rebuilds_all_small_projective_trees() {
                 let out = state.to_graph().unwrap().to_layer();
                 assert_eq!(out.head, heads);
                 out.check().unwrap();
+            }
+            let rels: Vec<String> = (0..n).map(|i| format!("r{i}")).collect();
+            let g_labeled = DependencyGraph::<Tokens>::new(heads.clone(), rels.clone()).unwrap();
+            let proj = g_labeled.projectivize().unwrap();
+            assert!(proj.is_projective());
+            let proj_steps = ArcStandardOracle::transitions(&proj).unwrap();
+            assert_eq!(proj_steps.len(), 2 * n);
+            let mut state = ArcStandardState::<Tokens>::new(n).unwrap();
+            for t in proj_steps {
+                assert!(state.can_apply(&t));
+                state.apply(&t).unwrap();
+            }
+            let decoded = state.to_graph().unwrap().deprojectivize().unwrap();
+            assert_eq!(decoded.to_layer().head, heads);
+            for (i, expected_rel) in rels.iter().enumerate() {
+                assert_eq!(decoded.arc(Ix::new(i as u32)).unwrap().relation, expected_rel);
             }
         }
     }

@@ -60,8 +60,8 @@ pub use crate::significance::{RESAMPLES, SEED};
 pub use error::ModelGateError;
 pub use record::ModelGateRecord;
 pub use scoring::{
-    HeldOutSet, LabelMapping, LabelScoring, ModelId, Scoring, ScoringKind, TagMapping, TagScoring, Task, TypeMapping,
-    TypedSpanScoring,
+    DependencyAttachment, DependencyScoring, HeldOutSet, LabelMapping, LabelScoring, ModelId, Scoring, ScoringKind,
+    TagMapping, TagScoring, Task, TypeMapping, TypedSpanScoring,
 };
 
 use error::Result;

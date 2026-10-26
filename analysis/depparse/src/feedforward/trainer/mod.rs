@@ -74,13 +74,11 @@ impl FeedforwardDependencyTrainer {
         let mut model = initialize::initialize(samples, settings)?;
         let mut examples = Vec::new();
         for sample in samples {
-            if !sample.graph().is_projective() {
-                continue;
-            }
+            let graph = sample.graph().projectivize()?;
             let mut state = ArcStandardState::<A>::new(sample.tokens().len())?;
             let words: Vec<_> = sample.tokens().iter().map(String::as_str).collect();
             let tags: Vec<_> = sample.tags().iter().map(String::as_str).collect();
-            for transition in ArcStandardOracle::transitions(sample.graph())? {
+            for transition in ArcStandardOracle::transitions(&graph)? {
                 let context = FeedforwardContext::extract(&state, &words, &tags, settings.layout)?;
                 let outcome = model
                     .transitions
@@ -96,7 +94,7 @@ impl FeedforwardDependencyTrainer {
         }
         optimize::optimize(&mut model, &examples, settings)?;
         let mut counts = std::collections::BTreeMap::<String, usize>::new();
-        for sample in samples.iter().filter(|s| s.graph().is_projective()) {
+        for sample in samples {
             for word in sample.tokens() {
                 *counts.entry(super::normalize::normalize(word)).or_default() += 1;
             }

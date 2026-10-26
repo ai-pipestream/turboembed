@@ -35,6 +35,8 @@ constant_enum! {
         /// Labels a caller names, scored against a text by an NLI
         /// cross-encoder (zero-shot categorization, docs/doccat.md).
         ZeroShotCategorizer => "COMPONENT_ZERO_SHOT_CATEGORIZER",
+        /// Arc-standard transition-based dependency parser (`turbo-depparse`).
+        DependencyParser => "COMPONENT_DEPENDENCY_PARSER",
     }
 }
 

@@ -20,6 +20,11 @@ pub enum Task {
     /// One label per text, as `LanguageDetectorEvaluator` scores
     /// `predictLanguage`.
     LanguageDetector,
+    /// Dependency arcs and relations, scored by `DependencyEvaluator` as
+    /// unlabeled (`DependencyAttachment::Unlabeled`, UAS) or labeled
+    /// (`DependencyAttachment::Labeled`, LAS) attachment accuracy
+    /// ([`DependencyScoring`]).
+    DependencyParser,
 }
 
 /// What a task's units are scored on, and so which [`Scoring`] its
@@ -35,6 +40,8 @@ pub enum ScoringKind {
     Tags,
     /// One label per sample: [`Scoring::Labels`].
     Labels,
+    /// Dependency arcs of words or tokens: [`Scoring::Dependencies`].
+    Dependencies,
 }
 
 impl Task {
@@ -42,7 +49,9 @@ impl Task {
     pub fn measure(self) -> Measure {
         match self {
             Task::SentenceDetector | Task::Tokenizer | Task::NameFinder | Task::Chunker => Measure::FMeasure,
-            Task::PartOfSpeechTagger | Task::Lemmatizer | Task::LanguageDetector => Measure::Accuracy,
+            Task::PartOfSpeechTagger | Task::Lemmatizer | Task::LanguageDetector | Task::DependencyParser => {
+                Measure::Accuracy
+            }
         }
     }
 
@@ -53,6 +62,7 @@ impl Task {
             Task::NameFinder | Task::Chunker => ScoringKind::TypedSpans,
             Task::PartOfSpeechTagger | Task::Lemmatizer => ScoringKind::Tags,
             Task::LanguageDetector => ScoringKind::Labels,
+            Task::DependencyParser => ScoringKind::Dependencies,
         }
     }
 }
@@ -100,6 +110,9 @@ pub enum Scoring {
     Tags(TagScoring),
     /// One label per sample, a unit each: an accuracy.
     Labels(LabelScoring),
+    /// Dependency arcs of words or tokens, scored as UAS or LAS accuracy:
+    /// [`DependencyScoring`].
+    Dependencies(DependencyScoring),
 }
 
 impl Scoring {
@@ -110,6 +123,7 @@ impl Scoring {
             Scoring::TypedSpans(_) => ScoringKind::TypedSpans,
             Scoring::Tags(_) => ScoringKind::Tags,
             Scoring::Labels(_) => ScoringKind::Labels,
+            Scoring::Dependencies(_) => ScoringKind::Dependencies,
         }
     }
 }
@@ -206,6 +220,34 @@ pub struct LabelScoring {
 pub struct LabelMapping {
     pub held_out: String,
     pub reference: String,
+}
+
+/// Whether a dependency parser gate scores unlabeled attachment (UAS:
+/// head index alone) or labeled attachment (LAS: head index and relation
+/// label).
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DependencyAttachment {
+    Unlabeled,
+    Labeled,
+}
+
+/// How a dependency parser's held-out words were scored: one unit per
+/// sentence with at least one scored word, counting the words whose
+/// predicted head (`Unlabeled`, UAS) or head and relation (`Labeled`,
+/// LAS) match the held-out tree. Punctuation words (`PUNCT`) are left
+/// out of the scored counts when `without_punctuation` is `true`, and
+/// counted in `left_out`.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DependencyScoring {
+    pub attachment: DependencyAttachment,
+    pub without_punctuation: bool,
+    /// Total words across the held-out samples.
+    pub tokens: u64,
+    /// Words left out of both models' scores (such as `PUNCT` tokens when
+    /// `without_punctuation` is `true`).
+    pub left_out: u64,
 }
 
 impl HeldOutSet {
@@ -314,6 +356,18 @@ impl HeldOutSet {
                         units: units.len(),
                         unit: Some(unit),
                     });
+                }
+            }
+            Scoring::Dependencies(d) => {
+                for side in sides {
+                    let scored: u128 = units.iter().map(|u| u128::from(side(u))).sum();
+                    if d.left_out > d.tokens || scored != u128::from(d.tokens - d.left_out) {
+                        return Err(ModelGateError::ScoredTokens {
+                            tokens: d.tokens,
+                            left_out: d.left_out,
+                            scored: u64::try_from(scored).unwrap_or(u64::MAX),
+                        });
+                    }
                 }
             }
         }

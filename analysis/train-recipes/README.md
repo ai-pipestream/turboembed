@@ -29,7 +29,8 @@ preserving their released model hashes and gate values.
 | `treebank` | The CC BY 4.0 UD treebanks at release 2.16: each repository's `LICENSE.txt`, `README.md` and `train`, `dev` and `test` files with their sizes and digests, the licence check, the zoo dataset entry and fetch |
 | `ud` | The UD recipes: the samples, training on `train`, the checks run before training, and the gate on `test` against the OpenNLP UD 1.3 model (the zoo's, or the Italian ones recorded by digest), by the `segmentation` and `postag` gates and, for the lemmatizer, `LemmatizerEvaluator` |
 | `ud_card` | The UD model card, with the treebank's licence, attribution and citation and the MASC card's held-out and gate parts, the model's directory and its zoo entry |
-| `release` | The releases of this repository that publish the recipes' models (`models-masc-3.0.0-1`, the four MASC models, and `models-ud-2.16-1`, ten UD models), each naming the models it publishes, their entries in the zoo's built-in index at their addresses there, and the references its workflow fetches (`masc-references.txt`, `ud-references.txt`) |
+| `depparse` | The UD 2.16 dependency parser recipes (MaxEnt and Feedforward across all five treebanks): pseudo-projective lifting of non-projective sentences, UAS and LAS evaluation and paired bootstrap gates (`gate.json` on LAS, `gate-uas.json` on UAS), `UdDepparseCard` and the model's directory |
+| `release` | The releases of this repository that publish the recipes' models (`models-masc-3.0.0-1`, the four MASC models; `models-ud-2.16-1`, ten UD models; and `models-ud-depparse-2.16-1`, eight UD dependency parser models), each naming the models it publishes, their entries in the zoo's built-in index at their addresses there, and the references its workflow fetches (`masc-references.txt`, `ud-references.txt`) |
 | `tatoeba` | Tatoeba's sentence exports: the strict reader of `sentences_detailed.csv` and `sentences_CC0.csv`, each sentence's licence from the two files, and the export's digest |
 | `langdetect` | The language detector recipe: the licence check, the table of Tatoeba's and `langdetect-183.bin`'s language codes, the split, training, the gate against `langdetect-183.bin`, its card and the model's directory |
 | `fineweb` | FineWeb-2 and FineWeb (ODC-By 1.0) at the revisions their lists record: the files and the ranges of them the web language detector reads, their lists, what to fetch next, the checks of each range, and the choice of web windows |
@@ -743,6 +744,7 @@ the models it publishes (`release::MODELS_RELEASES`):
 |---|---|---|---|
 | `models-masc-3.0.0-1` (`release::MASC_MODELS`) | the MASC sentence detector, tokenizer, tagger and chunker | `.github/workflows/models.yml` | `masc-references.txt` |
 | `models-ud-2.16-1` (`release::UD_MODELS`) | the Spanish and Catalan sentence detectors, tokenizers, taggers and lemmatizers, and the Finnish tagger and lemmatizer: every UD recipe's model but Porttinari's, whose text rights are not settled, and the Italian ones, which fail their gates | `.github/workflows/models-ud.yml` | `ud-references.txt` |
+| `models-ud-depparse-2.16-1` (`release::UD_DEPPARSE_MODELS`) | the Spanish, Catalan, Finnish and Italian MaxEnt and Feedforward dependency parsers (`turbo-<lang>-ud-<treebank>-2.16-depparse-{maxent,feedforward}-1`), with `gate.json` (LAS) and `gate-uas.json` (UAS) | `turbo-train-recipes -- depparse` | treebank `train` / `test` |
 | `models-tatoeba-2026-10-10-1` (`release::TATOEBA_MODELS`) | the language detector, with `training-sentences.txt`, the ids of the sentences it was trained on | `.github/workflows/models-tatoeba.yml` | `tatoeba-references.txt` |
 | `models-tatoeba-fineweb-2026-10-10-1` (`release::FINEWEB_MODELS`) | the web language detector, with `training-sentences.txt` and `training-documents.txt`, the ids of the sentences and of the documents it was trained on | `.github/workflows/models-fineweb.yml` | `fineweb-references.txt` |
 
@@ -1097,6 +1099,53 @@ models scored on every token):
   come from the two treebanks' annotation as well as from the models,
   and that favours the candidate (above); the widest is the Portuguese
   lemmatizer's 9.99 points.
+
+### The UD dependency parser recipes (`depparse`)
+
+`depparse` trains and gates both the linear (`DependencyParser`) and neural
+(`FeedforwardDependencyParser`) arc-standard dependency parsers across all five
+UD 2.16 treebanks:
+
+```
+cargo run --release -p turbo-train-recipes -- depparse --treebanks <zoo-home>/artifacts \
+    --out <dir> [--recipe <model id>]...
+```
+
+- Pseudo-projective handling: non-projective sentences in `train` (840 in
+  `UD_Spanish-AnCora`, 749 in `UD_Catalan-AnCora`, 1,602 in `UD_Finnish-FTB`)
+  are lifted into projective trees with `+` composite governor labels via
+  `DependencyGraph::projectivize` instead of being discarded, and decoded back
+  into non-projective trees via `DependencyGraph::deprojectivize`. Zero training
+  or held-out sentences are skipped across all five treebanks.
+- Parameters: MaxEnt models train with GIS (`MAXENT`), 300 iterations, cutoff 5,
+  4 partitions, and fixed manifest timestamp `2026-10-14T00:00:00Z`. Feedforward
+  models train with Adam, 10 epochs, batch size 256, hidden size 200, dropout 0.5,
+  learning rate 0.001, weight decay 1e-8, and seed 42 (or 15 epochs, batch size
+  32, dropout 0.2 on `UD_Italian-MarkIT`, which has 611 training sentences).
+- Gates: every model writes both `gate.json` (LAS paired bootstrap, 10,000 draws,
+  seed 154) and `gate-uas.json` (UAS paired bootstrap, 10,000 draws, seed 154)
+  against its deterministic treebank reference (adjacent-chain right-branching
+  with majority relation for MaxEnt; 1-epoch cutoff-50 GIS baseline for
+  Feedforward) and records all-token and punctuation-excluded (`PUNCT`) UAS and
+  LAS in `card.json` (`UdDepparseCard`, version 1).
+- Shippable entries: the eight models for Spanish, Catalan, Finnish and Italian
+  are published in release `models-ud-depparse-2.16-1` and listed in
+  `analysis/zoo/index/zoo.json`; the two Portuguese Porttinari models remain
+  recipe-only (`UdDepparseCard::artifact` refuses them because newspaper text
+  rights are not settled).
+
+| Treebank (`r2.16`) | Train Sentences (Non-Proj) | Test Sentences (Tokens) | Model ID | Parser | Size (bytes) | SHA-256 | UAS (all / no-punct) | LAS (all / no-punct) | LAS Gate (`diff`, 95% CI) | UAS Gate (`diff`, 95% CI) |
+|---|---:|---:|---|---|---:|---|---:|---:|---|---|
+| `UD_Spanish-AnCora` | 14,287 (840) | 1,721 (53,622) | `turbo-es-ud-ancora-2.16-depparse-maxent-1` | MaxEnt | 17,406,430 | `6d399e33ee858d0af0fc0cc6ca5066d03f2127cd82a999205d721f5c63bb1f1b` | 83.45 / 85.76 | 78.81 / 80.51 | pass (+52.91, +52.33 to +53.50) | pass (+43.31, +42.69 to +43.93) |
+| `UD_Spanish-AnCora` | 14,287 (840) | 1,721 (53,622) | `turbo-es-ud-ancora-2.16-depparse-feedforward-1` | Feedforward | 900,875 | `68aea2dfec51c0154d9a6d56f32c5c81339971494a7158006ac1c7bf0be10ab9` | 83.99 / 85.72 | 79.35 / 80.45 | pass (+3.74, +3.38 to +4.10) | pass (+3.02, +2.68 to +3.38) |
+| `UD_Catalan-AnCora` | 13,123 (749) | 1,846 (59,610) | `turbo-ca-ud-ancora-2.16-depparse-maxent-1` | MaxEnt | 15,339,008 | `33e2ec6844fabfa1cb9e845c9b8b0014357e16ab59ba47451843bf01be297d56` | 85.58 / 87.29 | 81.62 / 82.86 | pass (+53.61, +53.05 to +54.17) | pass (+40.98, +40.38 to +41.59) |
+| `UD_Catalan-AnCora` | 13,123 (749) | 1,846 (59,610) | `turbo-ca-ud-ancora-2.16-depparse-feedforward-1` | Feedforward | 816,124 | `8af62c85bd4f3ab4006c42402b8e578eb46beed48c4095c137e4ab3e401dc548` | 85.69 / 86.97 | 81.59 / 82.38 | pass (+3.45, +3.11 to +3.79) | pass (+2.75, +2.44 to +3.07) |
+| `UD_Portuguese-Porttinari` | 5,893 (0) | 1,683 (33,580) | `turbo-pt-ud-porttinari-2.16-depparse-maxent-1` | MaxEnt (local) | 5,405,678 | `422d8ff7c4d0a35198744cf9f8a96af0d2b40328a7b45ac0730e274ac0f4dd0c` | 85.91 / 87.75 | 82.74 / 84.12 | pass (+50.98, +50.22 to +51.73) | pass (+40.04, +39.27 to +40.80) |
+| `UD_Portuguese-Porttinari` | 5,893 (0) | 1,683 (33,580) | `turbo-pt-ud-porttinari-2.16-depparse-feedforward-1` | Feedforward (local) | 423,296 | `a18b65db4ba0332a2d4c2364028496c1f165c290df47467acde3f22b44f796bc` | 87.63 / 88.58 | 84.71 / 85.22 | pass (+6.18, +5.71 to +6.66) | pass (+4.96, +4.49 to +5.43) |
+| `UD_Finnish-FTB` | 14,981 (1,602) | 1,867 (16,286) | `turbo-fi-ud-ftb-2.16-depparse-maxent-1` | MaxEnt | 5,757,374 | `755ef066e10c65adf6b8fd2c861829bdab8eb26f3777c45e3aa5518e3b7e0046` | 81.70 / 79.18 | 74.10 / 70.33 | pass (+53.26, +52.31 to +54.24) | pass (+53.75, +52.75 to +54.77) |
+| `UD_Finnish-FTB` | 14,981 (1,602) | 1,867 (16,286) | `turbo-fi-ud-ftb-2.16-depparse-feedforward-1` | Feedforward | 564,886 | `3df4a7db92fb8975675fc87bc0ab90a7f6c9a5784f96a64c2be1245b9b91b860` | 79.59 / 76.73 | 69.39 / 64.84 | pass (+6.96, +6.30 to +7.63) | pass (+5.45, +4.82 to +6.07) |
+| `UD_Italian-MarkIT` | 611 (0) | 340 (10,196) | `turbo-it-ud-markit-2.16-depparse-maxent-1` | MaxEnt | 1,364,091 | `2f8539971c1d443484863664702ac936e98988565fd6aa377174d449bc5c0a8d` | 78.56 / 82.09 | 71.58 / 74.43 | pass (+47.32, +45.79 to +48.90) | pass (+41.86, +40.16 to +43.64) |
+| `UD_Italian-MarkIT` | 611 (0) | 340 (10,196) | `turbo-it-ud-markit-2.16-depparse-feedforward-1` | Feedforward | 258,169 | `397fc29dd5ee2ac5c0b5531a1588d7bf7cf3d4b89c8044e4a38bcfaaaafbd348` | 77.29 / 80.78 | 69.16 / 71.84 | pass (+31.61, +30.15 to +33.10) | pass (+23.63, +22.16 to +25.18) |
 
 ## The language detector recipe
 
