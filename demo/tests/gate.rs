@@ -118,3 +118,61 @@ async fn another_origin_gets_no_cors_grant_unless_listed() {
         assert!(Demo::start_with("127.0.0.1:0".parse().unwrap(), "http://127.0.0.1:1", o).await.is_err(), "{bad}");
     }
 }
+
+#[tokio::test]
+async fn origin_identity_includes_scheme_and_canonical_default_port() {
+    let s = server(&["tiny-bert-bundle"], Serve::default()).await;
+    let d = demo_with(s.local_addr(), Options::default()).await;
+    let mut got = Vec::new();
+    for origin in ["http://demo", "https://demo", "file://demo", "http://demo:80"] {
+        let r = http(&d, "POST", LIVE, &[("Content-Type", UNARY), ("Origin", origin)], b"").await;
+        got.push((origin, r.status));
+    }
+    assert_eq!(got, vec![("http://demo", 200), ("https://demo", 403), ("file://demo", 403), ("http://demo:80", 200)]);
+}
+
+#[tokio::test]
+async fn configured_origin_default_ports_are_canonical_and_invalid_authorities_fail_startup() {
+    let s = server(&["tiny-bert-bundle"], Serve::default()).await;
+    let options = Options { origins: vec!["https://app.example:443".into()], ..Options::default() };
+    let d = demo_with(s.local_addr(), options).await;
+    let r = http(&d, "POST", LIVE, &[("Content-Type", UNARY), ("Origin", "https://app.example")], b"").await;
+    assert_eq!(r.status, 200);
+    assert_eq!(r.header("access-control-allow-origin"), Some("https://app.example"));
+    for bad in ["https://app.example:abc", "https://app.example:65536", "http://[not-ip]", "http://:"] {
+        let options = Options { origins: vec![bad.into()], ..Options::default() };
+        assert!(
+            Demo::start_with("127.0.0.1:0".parse().unwrap(), "http://127.0.0.1:1", options).await.is_err(),
+            "{bad}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn enabled_write_requires_auth_before_mutating_real_server() {
+    use prost::Message;
+    use turbo_kserve::proto::ModelReadyRequest;
+    use turbo_kserve::proto::grpc_inference_service_client::GrpcInferenceServiceClient;
+    use turbo_kserve::proto::result::UnloadBundleRequest;
+    let s = server(&["tiny-bert-bundle"], Serve { admin: true, ..Serve::default() }).await;
+    let path = "/turbo.result.v1.AnalysisService/UnloadBundle";
+    let options =
+        Options { allow: Allow::with(&[path.into()]).unwrap(), token: Some("s3cret".into()), ..Options::default() };
+    let d = demo_with(s.local_addr(), options).await;
+    let body = UnloadBundleRequest { name: "tiny-bert-bundle".into() }.encode_to_vec();
+    let mut c = GrpcInferenceServiceClient::connect(format!("http://{}", s.local_addr())).await.unwrap();
+    for auth in [None, Some("Bearer wrong"), Some("Basic s3cret")] {
+        let mut headers = vec![("Content-Type", UNARY)];
+        if let Some(value) = auth {
+            headers.push(("Authorization", value));
+        }
+        assert_eq!(http(&d, "POST", path, &headers, &body).await.status, 401);
+        let r =
+            c.model_ready(ModelReadyRequest { name: "tiny-bert-bundle".into(), version: String::new() }).await.unwrap();
+        assert!(r.into_inner().ready);
+    }
+    let r = http(&d, "POST", path, &[("Content-Type", UNARY), ("Authorization", "Bearer s3cret")], &body).await;
+    assert_eq!(r.status, 200);
+    let r = c.model_ready(ModelReadyRequest { name: "tiny-bert-bundle".into(), version: String::new() }).await;
+    assert!(r.is_err() || !r.unwrap().into_inner().ready);
+}

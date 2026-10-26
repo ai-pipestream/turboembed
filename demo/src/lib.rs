@@ -78,7 +78,7 @@ impl Demo {
                 "listen on {listen}: a method that changes the server is allowed, so a token is required off loopback"
             ));
         }
-        let gate = gate::Gate::new(options.token, &options.origins)?;
+        let gate = gate::Gate::new(options.token, &options.origins, options.tls.is_some())?;
         let tls = options.tls.as_ref().map(tls::config).transpose()?;
         let endpoint = Endpoint::from_shared(server.to_string()).map_err(|e| format!("server {server}: {e}"))?;
         if !matches!(endpoint.uri().scheme_str(), Some("http" | "https")) || endpoint.uri().authority().is_none() {

@@ -73,3 +73,25 @@ async fn a_certificate_or_key_that_does_not_load_fails_start() {
     let o = Options { tls: Some(Tls { cert: file("ca.pem"), key: file("key.pem") }), ..Options::default() };
     assert!(Demo::start_with(listen, to, o).await.is_err());
 }
+
+#[tokio::test]
+async fn tls_scheme_is_part_of_origin_and_idle_handshake_expires() {
+    use std::time::Duration;
+    let s = server(&["tiny-bert-bundle"], Serve::default()).await;
+    let d = demo_with(s.local_addr(), tls()).await;
+    let mut idle = TcpStream::connect(d.local_addr()).await.unwrap();
+    for (origin, status) in [("https://localhost", 200), ("http://localhost", 403)] {
+        let tcp = TcpStream::connect(d.local_addr()).await.unwrap();
+        let mut conn = client().connect(ServerName::try_from("localhost").unwrap(), tcp).await.unwrap();
+        let req = format!(
+            "POST /inference.GRPCInferenceService/ServerLive HTTP/1.1\r\nHost: localhost\r\nOrigin: {origin}\r\nContent-Type: application/proto\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        );
+        conn.write_all(req.as_bytes()).await.unwrap();
+        let mut reply = Vec::new();
+        let _ = tokio::time::timeout(Duration::from_secs(2), conn.read_to_end(&mut reply)).await.unwrap();
+        assert!(reply.starts_with(format!("HTTP/1.1 {status}").as_bytes()), "{}", String::from_utf8_lossy(&reply));
+    }
+    let mut one = [0];
+    let read = tokio::time::timeout(Duration::from_secs(12), idle.read(&mut one)).await.expect("handshake deadline");
+    assert!(matches!(read, Ok(0) | Err(_)), "idle TLS handshake stayed open");
+}

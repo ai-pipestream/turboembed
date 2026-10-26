@@ -77,10 +77,16 @@ jobs:
         run: cargo clippy -p turbo --features npu --all-targets
       - name: clippy (turboquant)
         run: cargo clippy -p turbo-vector-index --features turboquant --all-targets
+      - name: ARM C compiler for TLS dependencies
+        run: |
+          if ! command -v aarch64-linux-gnu-gcc >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y gcc-aarch64-linux-gnu
+          fi
       # The arm64 machines (aarch64 Linux, Apple silicon) build without
-      # the x86_64 kernels. Checked only: the crates left out reach ring
-      # through ureq, whose build script needs an aarch64 C compiler. The
-      # server is checked without catalog-http, its one way to ureq.
+      # the x86_64 kernels. Network-enabled tools stay outside this small
+      # cross-check. The demo TLS provider uses the ARM compiler above;
+      # the server is checked without its catalog-http transport.
       - name: check (aarch64)
         run: |
           cargo check --workspace --target aarch64-unknown-linux-gnu \

@@ -117,13 +117,16 @@ Before the allowlist, each call passes two checks
 (`demo/src/gate.rs`):
 
 - Origin. The page is served from the demo's own origin, so a call with
-  an `Origin` header that is not the demo's (its `Host`) is refused
+  an `Origin` header that does not match the listener's HTTP/HTTPS scheme
+  and the request's `Host` with its effective port is refused
   `permission_denied`, and no CORS header is sent. Origins named with
   `--cors-origin` are let in: their calls get
   `access-control-allow-origin` with that origin and may read
   `turbo-code` and `turbo-field`, and their preflight (`OPTIONS` asking
   for `POST`) is answered 204. Any other preflight is 403 with no CORS
-  headers. There is no wildcard; `*` and an origin with a path stop the
+  headers. Default ports (HTTP 80 and HTTPS 443) are normalized, including
+  configured origins; malformed ports and non-HTTP schemes are rejected.
+  Forwarded scheme headers do not change this check. There is no wildcard; `*` and an origin with a path stop the
   demo at startup.
 - Token. With `--token-file` (or `TURBO_DEMO_TOKEN`) every call must
   carry `authorization: Bearer <token>`; without it, or with another,
