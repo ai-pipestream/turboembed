@@ -90,8 +90,6 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "serde_core",
- "serde_json",
- "serde_path_to_error",
  "sync_wrapper",
  "tokio",
  "tower",
@@ -2405,17 +2403,15 @@ name = "turbo-kserve-demo"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "bytes",
+ "futures-util",
  "prost",
  "protox",
- "serde",
- "serde_json",
  "tokio",
- "tokio-stream",
  "tonic",
- "tonic-prost",
- "tonic-prost-build",
  "turbo",
  "turbo-kserve",
+ "turbo-zoo",
 ]
 
 [[package]]

@@ -43,8 +43,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const SOURCES: [&str; 4] = ["cuda/kernels.cu", "cuda/deberta.cu", "cuda/backend.cpp", "cuda/autotune.cpp"];
-const DEPENDS: [&str; 4] =
-    ["cuda/kernels.h", "cuda/autotune.h", "../include/turbo/turbo.h", "../include/turbo/turbo_backend.h"];
+const DEPENDS: [&str; 3] = ["cuda/kernels.h", "cuda/deberta.h", "cuda/autotune.h"];
+const API: [&str; 2] = ["../include/turbo/turbo.h", "../include/turbo/turbo_backend.h"];
 
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
@@ -99,7 +99,7 @@ fn kernels_id() {
 }
 
 fn cuda() {
-    for f in SOURCES.iter().chain(&DEPENDS) {
+    for f in SOURCES.iter().chain(&DEPENDS).chain(&API) {
         println!("cargo:rerun-if-changed={f}");
     }
     for v in ["TURBO_CUDA_ROOT", "CUDA_PATH", "CUDA_HOME", "TURBO_CUDA_ARCH", "NVCC_CCBIN"] {
