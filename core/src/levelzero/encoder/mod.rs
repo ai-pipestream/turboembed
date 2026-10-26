@@ -98,6 +98,7 @@ mod kernels;
 mod model;
 mod session;
 mod stages;
+mod staging;
 mod tune;
 mod write;
 
