@@ -102,10 +102,43 @@ services (`demo/src/allow.rs`, checked against `server/proto` by
 default; one that changes the server (loading a bundle, an index or
 collection write, a licence acceptance, `InstallModel`,
 `TrainStaticModel`, a delete) only when named with `--allow`, and the
-server still refuses it unless started with `--admin`. Client-streaming
-and bidi methods are not known: a browser cannot make them (#1377). The
-gRPC health service is not forwarded. This list is a fixed default for
-now; configuring it, authentication, TLS and CORS are #1373.
+server still refuses it unless started with `--admin`. A name given to
+`--allow` that is not in the table stops the demo at startup. Anything
+not in the table is refused `unimplemented` and a write not named is
+refused `permission_denied`, both before any bytes go to the server.
+`TurboSinkService`, the gRPC health and reflection services and every
+client-streaming and bidi method are not in the table: a browser cannot
+make a client-streaming call, and file uploads will be `HTTP PUT` to the
+demo's own upload endpoints instead (#1377).
+
+### The gate
+
+Before the allowlist, each call passes two checks
+(`demo/src/gate.rs`):
+
+- Origin. The page is served from the demo's own origin, so a call with
+  an `Origin` header that does not match the listener's HTTP/HTTPS scheme
+  and the request's `Host` with its effective port is refused
+  `permission_denied`, and no CORS header is sent. Origins named with
+  `--cors-origin` are let in: their calls get
+  `access-control-allow-origin` with that origin and may read
+  `turbo-code` and `turbo-field`, and their preflight (`OPTIONS` asking
+  for `POST`) is answered 204. Any other preflight is 403 with no CORS
+  headers. Default ports (HTTP 80 and HTTPS 443) are normalized, including
+  configured origins; malformed ports and non-HTTP schemes are rejected.
+  Forwarded scheme headers do not change this check. There is no wildcard;
+  `*` and an origin with a path stop the demo at startup.
+- Token. With `--token-file` (or `TURBO_DEMO_TOKEN`) every call must
+  carry `authorization: Bearer <token>`; without it, or with another,
+  it is refused `unauthenticated` (401). The page's files need no token.
+  There is no token by default. The demo will not start on an address
+  other than loopback with a write allowed and no token.
+
+With `--tls-cert` and `--tls-key` the demo serves HTTPS (TLS 1.2 and
+1.3, HTTP/1.1, the same ring provider as the server) and plain HTTP is
+not answered. A certificate or key that does not load stops the demo at
+startup. A token sent off loopback without TLS crosses the network in
+the clear; the demo says so when it starts.
 
 ## Generated clients
 
@@ -157,9 +190,12 @@ target/release/turbo-kserve-demo --server http://127.0.0.1:8081 \
 | `--listen ADDR:PORT` | Where the page is served. | `TURBO_DEMO_LISTEN`, else `127.0.0.1:8080`. |
 | `--server URL` | The server to call, `http://HOST:PORT`. | `TURBO_DEMO_SERVER`, else `http://127.0.0.1:8081`. |
 | `--allow METHOD` | Also forward this method that changes the server, `/<package>.<Service>/<Method>`; repeat for more. A name that is not a known method stops the demo at startup. | `TURBO_DEMO_ALLOW`, comma-separated, else the reads only. |
+| `--token-file PATH` | A file holding the bearer token every call must carry. | `TURBO_DEMO_TOKEN_FILE`, else the token in `TURBO_DEMO_TOKEN`, else none. |
+| `--cors-origin ORIGIN` | Another origin whose pages may call, `http(s)://HOST[:PORT]`; repeat for more. | `TURBO_DEMO_CORS_ORIGINS`, comma-separated, else none. |
+| `--tls-cert PEM`, `--tls-key PEM` | Serve HTTPS with this certificate chain and private key; both or neither. | `TURBO_DEMO_TLS_CERT` and `TURBO_DEMO_TLS_KEY`, else plain HTTP. |
 
-The demo has no authentication and serves on the loopback address
-unless told otherwise. It need not start after the server: it connects
+The demo serves on the loopback address with no token unless told
+otherwise. It need not start after the server: it connects
 on each call, and a call while the server is down is `unavailable`.
 
 ## What the page shows
@@ -212,3 +248,10 @@ the server's prost types. Nothing is mocked.
 - `demo/tests/refusals.rs`: 415 for JSON and other content types, the
   allowlist, compression and malformed envelopes.
 - `demo/tests/methods.rs`: the method table against the protos.
+- `demo/tests/gate.rs`: with the server not there, every write and
+  every unknown method refused without it and every read tried; the
+  token; a write off loopback without a token refused at startup; the
+  origin check, CORS grants and preflights.
+- `demo/tests/tls.rs`: a call over TLS with a test CA
+  (`demo/tests/tls`, for these tests only), plain HTTP not answered, and
+  a certificate or key that does not load.

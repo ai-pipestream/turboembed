@@ -4,7 +4,8 @@
 //! sequence of a call in one recurrent product per step.
 
 use turbo::cpu::Matrix;
-use turbo::cpu::lstm::{Lstm, Weights};
+use turbo::device::Device;
+use turbo::device::lstm::{Lstm, Weights};
 use turbo::status::{Error, INVALID_ARGUMENT};
 
 use crate::neural::NeuralError;
@@ -32,15 +33,16 @@ pub(super) fn to_f32(v: &[f64]) -> Vec<f32> {
     v.iter().map(|&x| x as f32).collect()
 }
 
-/// A forward and a backward [`LstmLayer`] as one two-direction [`Lstm`]:
-/// an output row is the forward state, then the backward one. Gates are
-/// `(i, f, g, o)` in both. A weight past f32's range is refused.
-pub(super) fn bidirectional(fwd: &LstmLayer, bwd: &LstmLayer) -> Result<Lstm, NeuralError> {
+/// A forward and a backward [`LstmLayer`] as one two-direction [`Lstm`]
+/// on `device`: an output row is the forward state, then the backward one.
+/// Gates are `(i, f, g, o)` in both. A weight past f32's range is refused,
+/// and so is a device the LSTM cannot be made on.
+pub(super) fn bidirectional(device: Device, fwd: &LstmLayer, bwd: &LstmLayer) -> Result<Lstm, NeuralError> {
     let flat = |m: &[Vec<f64>]| -> Vec<f32> { m.iter().flatten().map(|&v| v as f32).collect() };
     let (wf, uf, bf) = (flat(fwd.w()), flat(fwd.u()), to_f32(fwd.b()));
     let (wb, ub, bb) = (flat(bwd.w()), flat(bwd.u()), to_f32(bwd.b()));
     let dirs = [Weights { w: &wf, u: &uf, b: &bf, reverse: false }, Weights { w: &wb, u: &ub, b: &bb, reverse: true }];
-    Lstm::new(fwd.input_size(), fwd.hidden_size(), &dirs).map_err(|e| NeuralError::InvalidArgument(e.message))
+    Lstm::new(device, fwd.input_size(), fwd.hidden_size(), &dirs).map_err(|e| NeuralError::InvalidArgument(e.message))
 }
 
 /// A refused run as the tagger reports it. The lengths passed are checked

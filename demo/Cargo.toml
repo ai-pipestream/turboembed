@@ -21,6 +21,8 @@ bytes = "1"
 # Reads request bodies and streams replies; already under axum and tonic.
 futures-util = { version = "0.3", default-features = false }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal", "sync", "time"] }
+# TLS for the listener (--tls-cert, --tls-key), on ring like the server's.
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 # A gRPC client of turbo-kserve only: the demo does not link the library.
 tonic = { version = "0.14", default-features = false, features = ["transport", "codegen", "channel"] }
 
