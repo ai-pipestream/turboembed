@@ -1,6 +1,7 @@
 # Releases
 
-A tag `v<version>` on `main` makes four archives through
+A tag `v<version>` on `main` makes four binary archives, a proto archive,
+and generated Java and Python client stub artifacts through
 `.github/workflows/release.yml` and publishes them as one GitHub release,
 each with its SHA-256:
 
@@ -21,10 +22,10 @@ each with its SHA-256:
   and `protobuf 5.29.3`).
 
 Running the workflow by hand (`workflow_dispatch`) is the dry run: it
-builds and checks the four and keeps them, with their sums, as the run's
-artifacts, and publishes nothing. What changed in each release is in
-`CHANGELOG.md`; what a release may change is under Versions and
-compatibility, below.
+builds and checks the release archives and client stubs and keeps them,
+with their sums, as the run's artifacts, and publishes nothing. What
+changed in each release is in `CHANGELOG.md`; what a release may change
+is under Versions and compatibility, below.
 
 The same tag pushes two images of the gRPC server to GHCR (Images,
 below), alongside the proto archive and generated Java and Python client

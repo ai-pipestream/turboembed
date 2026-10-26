@@ -428,6 +428,8 @@ jobs:
   # AnalyzeStream against a running turbo-kserve (issue #1297).
   proto-and-stubs:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.98
@@ -453,7 +455,13 @@ jobs:
             sleep 0.2
           done
           target/release/turbo-kserve health --addr 127.0.0.1:18089
-          bash scripts/package-proto-stubs.sh "${GITHUB_REF_NAME}" "$PWD/proto-stubs-dist" 127.0.0.1:18089
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            release_tag="${GITHUB_REF_NAME}"
+          else
+            crate_version="$(sed -n 's/^version = "\(.*\)"/\1/p' core/Cargo.toml | head -1)"
+            release_tag="v${crate_version}"
+          fi
+          bash scripts/package-proto-stubs.sh "$release_tag" "$PWD/proto-stubs-dist" 127.0.0.1:18089
           ls -la proto-stubs-dist
       - uses: actions/upload-artifact@v4
         with:

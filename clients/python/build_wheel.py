@@ -9,6 +9,7 @@ import csv
 import hashlib
 import io
 import pathlib
+import re
 import shutil
 import tempfile
 import zipfile
@@ -18,13 +19,32 @@ from grpc_tools import protoc
 PACKAGE_NAME = "turboembed_proto"
 DIST_NAME = "turboembed_proto"
 
+_SEMVER_RE = re.compile(
+    r"^v?(?P<core>[0-9]+\.[0-9]+\.[0-9]+)"
+    r"(?:-(?P<pre_tag>alpha|a|beta|b|rc|pre|dev)[.-]?(?P<pre_num>[0-9]+))?$"
+)
+_PRE_MAP = {
+    "alpha": "a",
+    "a": "a",
+    "beta": "b",
+    "b": "b",
+    "rc": "rc",
+    "pre": "rc",
+    "dev": ".dev",
+}
+
 
 def normalize_pep440_version(raw: str) -> str:
-    cleaned = raw.lstrip("v")
-    parts = cleaned.split(".")
-    if len(parts) == 3 and all(p.isdigit() for p in parts):
-        return cleaned
-    return "0.1.0"
+    m = _SEMVER_RE.match(raw.strip())
+    if not m:
+        raise ValueError(
+            f"unsupported version {raw!r}: expected X.Y.Z or X.Y.Z-(alpha|beta|rc|dev).N"
+        )
+    core = m.group("core")
+    pre_tag = m.group("pre_tag")
+    if not pre_tag:
+        return core
+    return f"{core}{_PRE_MAP[pre_tag]}{m.group('pre_num')}"
 
 
 def rewrite_relative_imports(pkg_dir: pathlib.Path, modules: set[str]) -> None:
@@ -86,15 +106,26 @@ def build_wheel(proto_dir: pathlib.Path, out_dir: pathlib.Path, version: str) ->
 
         dist_info = tmp_path / f"{DIST_NAME}-{pep_version}.dist-info"
         dist_info.mkdir(parents=True, exist_ok=True)
+        licenses_dir = dist_info / "licenses"
+        licenses_dir.mkdir(parents=True, exist_ok=True)
+        repo_root = pathlib.Path(__file__).resolve().parents[2]
+        for lic_name in ("LICENSE", "NOTICE"):
+            lic_src = repo_root / lic_name
+            if not lic_src.is_file():
+                raise RuntimeError(f"missing repository {lic_name} at {lic_src}")
+            shutil.copyfile(lic_src, licenses_dir / lic_name)
+
         (dist_info / "METADATA").write_text(
             f"Metadata-Version: 2.1\n"
             f"Name: turboembed-proto\n"
             f"Version: {pep_version}\n"
             f"Summary: Generated Protobuf and gRPC Python client stubs for turboembed.\n"
             f"License: Apache-2.0\n"
+            f"License-File: licenses/LICENSE\n"
+            f"License-File: licenses/NOTICE\n"
             f"Requires-Python: >=3.9\n"
-            f"Requires-Dist: grpcio>=1.68.0\n"
-            f"Requires-Dist: protobuf>=5.28.0\n",
+            f"Requires-Dist: grpcio>=1.70.0\n"
+            f"Requires-Dist: protobuf>=5.29.0\n",
             encoding="utf-8",
         )
         (dist_info / "WHEEL").write_text(

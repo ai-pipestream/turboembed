@@ -10,11 +10,13 @@ TAG="${1:-v0.1.0}"
 OUT_DIR="${2:-$ROOT/target/proto-stubs-dist}"
 SMOKE_ADDR="${3:-}"
 
-CLEAN_TAG="${TAG//\//-}"
-VERSION="${CLEAN_TAG#v}"
-if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  VERSION="0.1.0"
+CLEAN_TAG="$TAG"
+if [[ ! "$CLEAN_TAG" =~ ^v?[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+  echo "error: unsupported release tag '${TAG}'; expected vX.Y.Z or vX.Y.Z-<prerelease>" >&2
+  exit 1
 fi
+VERSION="${CLEAN_TAG#v}"
+CLEAN_TAG="v${VERSION}"
 
 GRPC_JAVA_VERSION="1.68.2"
 PROTOC_VERSION="3.25.5"
@@ -39,18 +41,20 @@ tar -C "$WORK_DIR" -czf "$OUT_DIR/${PROTO_ARCHIVE_DIR}.tar.gz" "$PROTO_ARCHIVE_D
 # 2. Java Maven stub artifact: turboembed-grpc-<version>.jar, -sources.jar, .pom + .sha256
 JAVA_BUILD_DIR="$WORK_DIR/java-build"
 mkdir -p "$JAVA_BUILD_DIR"
-cp "$ROOT/clients/java/pom.xml" "$JAVA_BUILD_DIR/pom.xml"
+sed "s|<version>0.1.0</version>|<version>${VERSION}</version>|" \
+  "$ROOT/clients/java/pom.xml" > "$JAVA_BUILD_DIR/pom.xml"
 mvn -B -q -f "$JAVA_BUILD_DIR/pom.xml" \
   -Dproto.source.dir="$ROOT/server/proto" \
+  -Dlicense.source.dir="$ROOT" \
   -DskipTests \
   package dependency:build-classpath -DincludeScope=test -Dmdep.outputFile="$WORK_DIR/java-runtime.cp"
 
 JAR_NAME="turboembed-grpc-${VERSION}.jar"
 SOURCES_JAR_NAME="turboembed-grpc-${VERSION}-sources.jar"
 POM_NAME="turboembed-grpc-${VERSION}.pom"
-cp "$JAVA_BUILD_DIR/target/turboembed-grpc-0.1.0.jar" "$OUT_DIR/$JAR_NAME"
-cp "$JAVA_BUILD_DIR/target/turboembed-grpc-0.1.0-sources.jar" "$OUT_DIR/$SOURCES_JAR_NAME"
-sed "s/<version>0.1.0<\/version>/<version>${VERSION}<\/version>/" "$ROOT/clients/java/pom.xml" > "$OUT_DIR/$POM_NAME"
+cp "$JAVA_BUILD_DIR/target/${JAR_NAME}" "$OUT_DIR/$JAR_NAME"
+cp "$JAVA_BUILD_DIR/target/${SOURCES_JAR_NAME}" "$OUT_DIR/$SOURCES_JAR_NAME"
+cp "$JAVA_BUILD_DIR/pom.xml" "$OUT_DIR/$POM_NAME"
 (
   cd "$OUT_DIR"
   sha256sum "$JAR_NAME" > "${JAR_NAME}.sha256"
