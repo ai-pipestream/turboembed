@@ -368,7 +368,7 @@ OpenNLP on the JVM and against Model2Vec, and Windows lint and tests.
 | Classification and calibration | [dense-classifier.md](docs/dense-classifier.md), [model-routing.md](docs/model-routing.md), [calibration.md](docs/calibration.md) |
 | Chunking and retrieval | [chunker-cut-identity.md](docs/chunker-cut-identity.md), [chunker-text-signals.md](docs/chunker-text-signals.md), [keywords.md](docs/keywords.md), [turboquant.md](docs/turboquant.md), [splate.md](docs/splate.md), [quality-consumers.md](docs/quality-consumers.md) |
 | Training and evaluation | [bpe-trainer.md](docs/bpe-trainer.md), [namefinder-evaluation.md](docs/namefinder-evaluation.md), [namefinder-crf-evaluation.md](docs/namefinder-crf-evaluation.md), [lemma-case-evaluation.md](docs/lemma-case-evaluation.md) |
-| Server and demo | [grpc.md](docs/grpc.md), [kserve.md](docs/kserve.md), [grpc-analysis.md](docs/grpc-analysis.md), [grpc-inspect.md](docs/grpc-inspect.md), [grpc-sink.md](docs/grpc-sink.md), [grpc-catalog.md](docs/grpc-catalog.md), [grpc-vocabulary.md](docs/grpc-vocabulary.md), [demo.md](docs/demo.md) |
+| Server and demo | [integration.md](docs/integration.md), [grpc.md](docs/grpc.md), [kserve.md](docs/kserve.md), [grpc-analysis.md](docs/grpc-analysis.md), [grpc-inspect.md](docs/grpc-inspect.md), [grpc-sink.md](docs/grpc-sink.md), [grpc-catalog.md](docs/grpc-catalog.md), [grpc-vocabulary.md](docs/grpc-vocabulary.md), [demo.md](docs/demo.md) |
 | Releases | [release.md](docs/release.md) |
 
 ## License
