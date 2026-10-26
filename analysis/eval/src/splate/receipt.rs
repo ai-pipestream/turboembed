@@ -19,8 +19,9 @@ use crate::Result;
 
 /// What the record says it is.
 pub const KIND: &str = "trained four-arm SPLATE study receipt";
-/// The command that writes the record (environment variables aside).
-pub const RUN: &str = "cargo test --locked --release -p turbo-eval --test splate_trained -- --ignored --nocapture";
+/// Generic test invocation; the build block records the actual Cargo settings.
+/// This command alone does not reproduce custom profile or environment overrides.
+pub const RUN: &str = "cargo test --locked -p turbo-eval --test splate_trained -- --ignored --nocapture";
 
 /// A bundle as the receipt names it: model id, the upstream commit the
 /// bundle was sealed from, and the SHA-256 of the manifest that loaded.
@@ -68,6 +69,7 @@ pub struct ReceiptBundles {
 pub struct ReceiptRun<'a> {
     pub device: &'a str,
     pub rounds: usize,
+    pub cross_encoder_threads: u32,
     pub encoder: &'a TrainedConfig,
     pub doc_cut: &'a SparseOptions,
     pub query_cut: &'a SparseOptions,
@@ -130,7 +132,14 @@ pub fn record(run: &ReceiptRun<'_>, sets: Vec<Value>) -> Value {
         "run": RUN,
         "device": run.device,
         "rounds": run.rounds,
+        "build": {
+            "profile": env!("TURBO_EVAL_PROFILE"),
+            "opt_level": env!("TURBO_EVAL_OPT_LEVEL"),
+            "debug_info": env!("TURBO_EVAL_DEBUG"),
+            "debug_assertions": cfg!(debug_assertions),
+        },
         "config": {
+            "cross_encoder_threads": run.cross_encoder_threads,
             "max_doc_tokens": e.max_doc_tokens,
             "max_query_tokens": e.max_query_tokens,
             "fit_docs": e.fit_docs,

@@ -90,7 +90,7 @@ const CROSS_ENCODER: &str = include_str!("../../../bundle/recipes/ms-marco-minil
 
 /// Fields the writer adds that the archived run did not capture.
 const NEW_SET_FIELDS: [&str; 1] = ["bundles"];
-const NEW_TOP_FIELDS: [&str; 1] = ["config"];
+const NEW_TOP_FIELDS: [&str; 2] = ["config", "build"];
 
 fn model(recipe: &str) -> Model {
     let v: Value = serde_json::from_str(recipe).unwrap();
@@ -148,7 +148,7 @@ fn tables(set: &Value) -> Vec<(usize, String)> {
 fn covers(archived: &Value, written: &Value, new: &[&str], at: &str) {
     let (a, w) = (archived.as_object().unwrap(), written.as_object().unwrap());
     for (k, v) in a {
-        if k == "sets" {
+        if k == "sets" || k == "run" {
             continue;
         }
         assert_eq!(w.get(k), Some(v), "{at}: {k}");
@@ -179,7 +179,14 @@ fn the_writer_reproduces_every_field_of_the_archived_record() {
     let encoder = TrainedConfig::default();
     let doc_cut = SparseOptions { top_k: 64, floor: 0.05 };
     let query_cut = SparseOptions { top_k: 24, floor: 0.05 };
-    let run = ReceiptRun { device: "cpu", rounds: 3, encoder: &encoder, doc_cut: &doc_cut, query_cut: &query_cut };
+    let run = ReceiptRun {
+        device: "cpu",
+        rounds: 3,
+        cross_encoder_threads: 4,
+        encoder: &encoder,
+        doc_cut: &doc_cut,
+        query_cut: &query_cut,
+    };
     let written = receipt::record(&run, sets);
     covers(&archived, &written, &NEW_TOP_FIELDS, "record");
     let config = &written["config"];
@@ -207,4 +214,35 @@ fn a_model_without_a_source_commit_is_refused() {
         let e = PinnedBundle::from_model(&m, "").unwrap_err();
         assert!(e.contains("40-digit hex commit"), "{bad}: {e}");
     }
+}
+
+#[test]
+fn debug_writer_does_not_claim_a_release_run() {
+    let encoder = TrainedConfig::default();
+    let cut = SparseOptions { top_k: 1, floor: 0.0 };
+    let run = ReceiptRun {
+        device: "cpu",
+        rounds: 1,
+        cross_encoder_threads: 7,
+        encoder: &encoder,
+        doc_cut: &cut,
+        query_cut: &cut,
+    };
+    let written = receipt::record(&run, Vec::new());
+    assert!(!written["run"].as_str().unwrap().contains("--release"));
+    assert_eq!(written["build"]["profile"], env!("TURBO_EVAL_PROFILE"));
+    assert_eq!(written["build"]["opt_level"], env!("TURBO_EVAL_OPT_LEVEL"));
+    assert_eq!(written["build"]["debug_info"], env!("TURBO_EVAL_DEBUG"));
+    assert_eq!(written["build"]["debug_assertions"], cfg!(debug_assertions));
+    assert_eq!(written["config"]["cross_encoder_threads"], 7);
+}
+
+#[test]
+fn opened_bundle_provenance_has_the_actual_manifest_digest() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle");
+    let bundle = turbo::bundle::Bundle::open(&dir).unwrap();
+    let pinned = PinnedBundle::open(&dir).unwrap();
+    assert_eq!(pinned.manifest_sha256, bundle.manifest_sha256);
+    assert_eq!(pinned.commit, bundle.manifest.model.source.commit);
+    assert_ne!(pinned.commit, bundle.manifest.model.revision);
 }

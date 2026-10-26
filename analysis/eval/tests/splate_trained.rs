@@ -153,7 +153,14 @@ fn splate_trained_receipt() {
     if let Ok(out) = std::env::var("TURBO_SPLATE913_OUT") {
         let dir = PathBuf::from(out);
         std::fs::create_dir_all(&dir).expect("create out dir");
-        let run = ReceiptRun { device: &device_name, rounds, encoder: &tcfg, doc_cut: &doc_cut, query_cut: &query_cut };
+        let run = ReceiptRun {
+            device: &device_name,
+            rounds,
+            cross_encoder_threads: ce_threads,
+            encoder: &tcfg,
+            doc_cut: &doc_cut,
+            query_cut: &query_cut,
+        };
         let record = receipt::record(&run, record_sets);
         std::fs::write(dir.join("splate-trained-913.json"), serde_json::to_string_pretty(&record).expect("json"))
             .expect("write record");
