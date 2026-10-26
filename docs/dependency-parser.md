@@ -48,6 +48,14 @@ or non-finite scores.
 trainer and returns a reloadable archive accessible through `bytes`.
 Loaded model provenance includes SHA-256. `from_maxent` requires caller identity.
 
+The native `turbo-depparse` executable supports `inspect`, `convert`, `parse`
+and explicit-parameter `train` for both linear and feedforward models.
+It needs no Python installation and does not overwrite source or existing
+output files. See the [CLI commands and training limits](feedforward-dependency-parser.md#native-command-line).
+Existing raw and packaged model APIs remain directly loadable; conversion is
+optional. Current training requires explicit projective-only acceptance and
+reports excluded sentence and word counts.
+
 Evaluation reports token-weighted UAS/LAS, with optional punctuation exclusion
 (default POS `PUNCT`). LAS requires a matching head and label. Cross-validation
 uses round-robin held-out partitions and a training callback; partition count

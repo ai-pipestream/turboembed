@@ -94,6 +94,8 @@ constant_enum! {
         /// A SentencePiece model (`spm.model`), with the model's JSON
         /// configuration beside it.
         Sentencepiece => "FORMAT_SENTENCEPIECE",
+        /// A binary classifier head (`TEVH`, `TIVH`, or `THEAD001`).
+        Head => "FORMAT_HEAD",
     }
 }
 

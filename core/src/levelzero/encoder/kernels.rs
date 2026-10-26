@@ -1,6 +1,7 @@
 //! The encoder's kernel objects, one set per session.
 
 use super::*;
+use crate::backend::turbo_backend_model;
 use crate::levelzero::gpu::{Context, Kernel, Res};
 
 // ---- Sessions ------------------------------------------------------------------
@@ -47,6 +48,17 @@ pub(super) struct Kernels {
     /// The mean over each range of embed_write_ranges, in place of pool.
     pub(super) pool_ranges: Kernel,
     pub(super) normalize: Kernel,
+    /// For a DeBERTa-v2 model, its lookup and its attention (deberta.rs).
+    pub(super) deberta: Option<Deberta>,
+}
+
+/// A DeBERTa-v2 model's lookup, its general attention, and the tiled
+/// attention for its head width where one is built and fits, with its
+/// queries a group.
+pub(super) struct Deberta {
+    pub(super) embed: Kernel,
+    pub(super) general: Kernel,
+    pub(super) tiled: Option<(Kernel, u32)>,
 }
 
 /// Attention for the model's head width: a tiled kernel where one is
@@ -63,7 +75,14 @@ pub(super) enum Attention {
 }
 
 impl Kernels {
-    pub(super) fn new(c: &Context, hidden: u32, intermediate: u32, head_dim: u32, xmx: bool) -> Res<Kernels> {
+    pub(super) fn new(
+        c: &Context,
+        hidden: u32,
+        intermediate: u32,
+        head_dim: u32,
+        xmx: bool,
+        deberta: Option<(&turbo_backend_model, u32)>,
+    ) -> Res<Kernels> {
         let row = [BLOCK, 1, 1];
         // At FASTEST the context is the next layer's F16 operand.
         let attention = match head_dim {
@@ -129,6 +148,14 @@ impl Kernels {
             pool: c.kernel("pool", [16 * POOL_SLICES, 1, 1])?,
             pool_ranges: c.kernel("pool_ranges", [16 * POOL_SLICES, 1, 1])?,
             normalize: c.kernel("normalize", row)?,
+            deberta: match deberta {
+                Some((d, max_seq)) => Some(Deberta {
+                    embed: c.kernel("deberta_embed", row)?,
+                    general: c.kernel("deberta_attention", row)?,
+                    tiled: super::deberta::tiled(c, d, max_seq, head_dim)?,
+                }),
+                None => None,
+            },
         })
     }
 }

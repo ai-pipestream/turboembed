@@ -182,6 +182,40 @@ expected result, value, type, subtype and explicit ISO code, with no pass-list
 exclusions. Additional tests run the real Analyzer pipeline, source-offset
 round trips, Unicode whitespace, compound bounds and ambiguous ordinal marks.
 
+## Portuguese
+
+`PORTUGUESE_UNITS` and `GrammarAnnotator::portuguese()` add Portuguese
+quantities, ages, temperatures and currencies. The provenance name is
+`pt-units`. Portuguese cardinal forms supply the unit amounts, including
+`vinte e dois quilômetros`, gendered hundreds, `mil`, `milhões`, Brazilian
+`bilhões` (10^9), Portuguese `biliões` (10^12), digit fractions and halves.
+This unit-oriented number grammar does not claim full Portuguese ordinal,
+percentage or spelled-decimal coverage.
+
+Rules include `6 pés e 3 polegadas`, `5 libras e 8 onças`,
+`3 metros quadrados`, `2,5 quilômetros por hora`, `10 Mb/s`, `37ºC`,
+`R$25,50`, `três reais e cinquenta centavos` and `20 reais por hora`.
+The original source spans survive accented and decomposed text and Unicode
+whitespace; `Mb` and `MB` remain distinct. `um` is also a number/article, so
+its micrometer abbreviation is accepted only after a digit amount; the
+unambiguous `micrômetros` name accepts spelled amounts as well. Currency
+nouns do not consume following articles. Explicit `real`, `reais` and `R$`
+mean BRL, while generic dollars and unqualified minor units retain the
+shared currency conventions described above. Money rate spans retain the
+denominator; the existing Money layer stores no separate period column.
+
+All **253 unchanged Portuguese NumberWithUnit cases** at the same pinned
+Recognizers-Text revision pass: **18 Age, 123 Currency, 65 Dimension and
+47 Temperature**. No cases are excluded. The comparator translates only
+localized resolution labels and decimal commas, then checks exact spans,
+values, types, subtypes and explicit currency codes. It retains the shared
+comparison conventions for `Ton` and the upstream gallon subtype. Several
+upstream Portuguese fixtures contain Spanish prose or unaccented aliases
+(`yenes`, `oncas`); those original fixtures are retained, and separate native
+Portuguese regressions cover `ienes`, `onças` and BRL compounds. The suite
+also runs the real Analyzer, layer checks, UTF-16/codepoint offset round
+trips, negative boundaries and the distinct `cem`/`cento` forms.
+
 ## Speed
 
 `cargo run --release -p turbo-grammar --example grammar_bench` prints
@@ -198,7 +232,7 @@ with the number rules and about 7.5 to 8.5 ms with the unit rules, and
   and `version 2 g` as a weight.
 - Glued rate words (`200 Mbps`) and rates over units other than time
   (`$5 per person`).
-- Dutch unit and currency rules remain the next separate slice of #929.
+- Dutch, Italian and Chinese remain separate language slices of #929.
 
 ## Japanese
 

@@ -37,6 +37,8 @@ pinned revision and MIT license. `tests/spanish_unit_specs.rs` checks every case
 | `Spanish/NumberWithUnit/DimensionModel.json` | `Specs/NumberWithUnit/Spanish/DimensionModel.json` |
 | `Spanish/NumberWithUnit/TemperatureModel.json` | `Specs/NumberWithUnit/Spanish/TemperatureModel.json` |
 
+## Japanese NumberWithUnit
+
 The Japanese NumberWithUnit files are unchanged copies at the same revision
 and MIT license. All 188 cases are run, including upstream unsupported entries.
 The two incorrect upstream unit labels are explicitly tested as native policy
@@ -48,3 +50,16 @@ differences in `japanese_unit_specs.rs`, not counted as parity matches.
 | `Japanese/NumberWithUnit/CurrencyModel.json` | `Specs/NumberWithUnit/Japanese/CurrencyModel.json` | `bb47bab4033b335dffc8f5f17ddc9c74b8eb1bf5718625a0a568c0350c18d679` |
 | `Japanese/NumberWithUnit/DimensionModel.json` | `Specs/NumberWithUnit/Japanese/DimensionModel.json` | `c1122b55305825f172ba949a5b18026570fe2f14c23796a9a7f8e244d7719820` |
 | `Japanese/NumberWithUnit/TemperatureModel.json` | `Specs/NumberWithUnit/Japanese/TemperatureModel.json` | `8d88e5679f477f667f21ba16771518c3837ca76b14e1b966afd21cb9ea6f642a` |
+
+## Portuguese NumberWithUnit
+
+The Portuguese NumberWithUnit files are unchanged copies at the same pinned
+revision and MIT license. `tests/portuguese_unit_specs.rs` checks all 253 cases
+without exclusions; some upstream inputs retain Spanish surrounding prose.
+
+| File here | Upstream path |
+|---|---|
+| `Portuguese/NumberWithUnit/AgeModel.json` | `Specs/NumberWithUnit/Portuguese/AgeModel.json` |
+| `Portuguese/NumberWithUnit/CurrencyModel.json` | `Specs/NumberWithUnit/Portuguese/CurrencyModel.json` |
+| `Portuguese/NumberWithUnit/DimensionModel.json` | `Specs/NumberWithUnit/Portuguese/DimensionModel.json` |
+| `Portuguese/NumberWithUnit/TemperatureModel.json` | `Specs/NumberWithUnit/Portuguese/TemperatureModel.json` |

@@ -15,6 +15,7 @@ pub mod adapter_fit;
 pub mod arms;
 pub mod corpus;
 pub mod posting;
+pub mod receipt;
 pub mod trained;
 
 use std::fmt::Write as _;
@@ -30,6 +31,7 @@ use crate::set::LoadedSet;
 pub use arms::{BundleCrossEncoder, CrossEncoderScorer, InteractionCrossEncoder};
 pub use corpus::{EncodedCorpus, EncodedDoc, EncodedQuery, encode_loaded_set, synthetic_benchmark_set};
 pub use posting::{SparsePostingIndex, SparsePostingIndexBuilder, SplateAdapter};
+pub use receipt::{PinnedBundle, ReceiptBundles, ReceiptRun};
 pub use trained::{TrainedBundles, TrainedConfig, TrainedProvenance, encode_trained};
 
 use arms::{build_arm1, build_arm2, build_arm3, build_arm4, evaluate_arm};

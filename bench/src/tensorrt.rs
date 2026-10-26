@@ -234,6 +234,7 @@ fn not_run(image: &str, log: Log, procedure: &str, why: String) -> ReferenceRun 
         procedure: procedure.into(),
         measured: None,
         not_run: Some(crate::openvino::redact_user_paths(&why)),
+        kernel_time: None,
     }
 }
 
@@ -330,5 +331,6 @@ pub fn run(t: &TensorRt, m: &Measurement, gpu: u32, iterations: u32) -> Result<R
             computed_tokens: Some(m.rows.padded_tokens()),
         }),
         not_run: None,
+        kernel_time: None,
     })
 }

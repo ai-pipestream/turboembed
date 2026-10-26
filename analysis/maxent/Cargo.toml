@@ -14,6 +14,8 @@ name = "turbo_maxent"
 turbo-unicode = { path = "../unicode" }
 # StrictMath.exp and StrictMath.log, which OpenNLP's models evaluate with.
 turbo-jvm = { path = "../jvm" }
+# The shared FIPS 180-4 implementation used for model identity.
+turbo-sha256 = { path = "../sha256" }
 
 [dev-dependencies]
 turbo-goldens = { path = "../goldens" }
