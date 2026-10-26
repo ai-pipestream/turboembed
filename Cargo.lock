@@ -2518,6 +2518,7 @@ dependencies = [
  "turbo-normalize-layers",
  "turbo-tokenize",
  "turbo-unicode",
+ "turbo-zoo",
 ]
 
 [[package]]

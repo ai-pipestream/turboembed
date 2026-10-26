@@ -4216,6 +4216,27 @@
       ]
     },
     {
+      "id": "symspell-noisy-query-en-1000",
+      "kind": "KIND_DATASET",
+      "language": "en",
+      "format": "FORMAT_TEXT",
+      "version": "c239062ae02961df18ab7da1671d01b4388204e0",
+      "license": "MIT",
+      "license_terms": "https://github.com/wolfgarbe/SymSpell/blob/c239062ae02961df18ab7da1671d01b4388204e0/LICENSE",
+      "trained_on": [],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "SymSpell benchmark queries by Wolf Garbe at c239062ae02961df18ab7da1671d01b4388204e0 (MIT, https://github.com/wolfgarbe/SymSpell/blob/c239062ae02961df18ab7da1671d01b4388204e0/LICENSE): 1,000 English words with random spelling errors, each line the query, the intended word and their edit distance.",
+      "files": [
+        {
+          "path": "noisy_query_en_1000.txt",
+          "url": "https://raw.githubusercontent.com/wolfgarbe/SymSpell/c239062ae02961df18ab7da1671d01b4388204e0/SymSpell.Benchmark/test_data/noisy_query_en_1000.txt",
+          "size": 15935,
+          "sha256": "d634d552d174ab34e32ecfb614a122873c75629083ab520b66f32d114ff2ecfe",
+          "sha512": "ee2f9e257bd4d0ba67345596eed0bd3fc09d459737988e683cd9e87b64f12b92c1308a0aaa68df32e69a9aba083aec955fc7a6646c0d0e4c3575f009650cbc65"
+        }
+      ]
+    },
+    {
       "id": "masc-3.0.0",
       "kind": "KIND_DATASET",
       "language": "en",

@@ -47,7 +47,7 @@ mod tests {
         let mut previous = "";
         for chunk in CHUNKS {
             for (k, _) in *chunk {
-                assert!(previous < k, "keys out of order at {k}");
+                assert!(previous < *k, "keys out of order at {k}");
                 assert!(k.len() <= MAX_KEY, "{k} is longer than MAX_KEY");
                 // The fast lookup path relies on this key shape.
                 let body = k.strip_suffix(';').unwrap_or(k);
