@@ -58,10 +58,13 @@ frameworks and libc++, which every macOS has.
   FASTEST, whose linear layers take F16 operands (Numerics). A model
   stored in F16 or BF16 computes from an F32 copy at EXACT and FASTEST;
   its session at MODEL is refused (`TURBO_E_UNSUPPORTED_OPTION`, field 3),
-  as on the CPU. A model with a linear layer's weight past F16's range
-  (65504) has no F16 kernels: its session at FASTEST, whose numerics
-  allow only F16 operands, is refused (`TURBO_E_UNSUPPORTED_OPTION`,
-  field 3), with a warning in the log, and EXACT runs it in F32. A cell is SUPPORTED where a benchmark record in
+  as on the CPU. An encoder layer with a linear layer's weight past
+  F16's range (65504) computes in F32 at FASTEST, as CUDA computes such
+  a model, with a warning in the log naming how many layers; the other
+  layers run in F16. When every layer has one, the session computes in
+  F32 and reports it in `compute_dtype`, and a `TURBO_METAL_CHOICES`
+  line that forces an F16 tiling is refused
+  (`TURBO_E_UNSUPPORTED_OPTION`, field 3). A cell is SUPPORTED where a benchmark record in
   `benchmarks/records/` backs it (docs/benchmarks.md): on the M2, the
   records against TEI's router built natively with Metal, FASTEST's
   against TEI 1.8.3 in float16. Elsewhere it is EXPERIMENTAL. At FASTEST,
@@ -115,8 +118,9 @@ frameworks and libc++, which every macOS has.
   The first FASTEST session makes the linear layers' weights in F16 the
   same way, narrowed on the device from the F32 ones, shared by every
   later FASTEST session and freed with the model; an F16 model's are
-  read where they are. The narrowing kernel flags a finite weight that
-  F16 cannot hold, and then the copy is dropped and the session refused.
+  read where they are. The narrowing kernel flags each encoder layer
+  with a finite weight that F16 cannot hold, and that layer's F16
+  weights go unused; when every layer is flagged, the copy is dropped.
 - **Sessions.** Every byte a run touches is allocated when the session is
   made, for its `max_batch` rows of `max_seq` tokens: private scratch,
   shared memory for the rows, the shared buffer the vectors are written
@@ -164,10 +168,14 @@ frameworks and libc++, which every macOS has.
   SIMD-group matrices load without a transpose) and each chunk's mask as
   an additive bias, keeps its queries in registers and runs the softmax
   in base 2, with each group's scores and probabilities in threadgroup
-  memory or in the SIMD-group matrices' registers (Kernel choices). A
-  head width that is not a
-  multiple of 8, or is over 64, runs a narrower kernel, one query at a
-  time, in F32 at every precision. The run waits for the pass to
+  memory or in the SIMD-group matrices' registers (Kernel choices). At
+  FASTEST a head width over 64 or not a multiple of 8, up to 128, runs
+  the same F16 kernel built for heads of up to 128, with the head padded
+  to a multiple of 8 by zeros in threadgroup memory and, when its width
+  is not a multiple of 4, read from device memory a value at a time. At
+  EXACT and MODEL, in a FASTEST layer computed in F32, and past 128 at
+  any precision, such a head runs a narrower kernel, one query at a
+  time, in F32. The run waits for the pass to
   complete before it returns, and leaves the vectors in the session's
   `SHARED` buffer, which `turbo_result_buffer` hands out and
   `turbo_result_read` copies from.
@@ -240,7 +248,7 @@ frameworks and libc++, which every macOS has.
 ## Kernel choices
 
 At FASTEST a session chooses two items, which tile its linear layers
-run in past 64 packed tokens and, for heads a multiple of 8 up to 64,
+run in past 64 packed tokens and, for heads up to 128,
 which kernel runs attention, and reports them in
 `turbo_session_get_info`'s `choices` (docs/autotune.md):
 
