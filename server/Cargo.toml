@@ -31,6 +31,7 @@ turbo-gliner = { path = "../analysis/gliner" }
 turbo-glossary-layers = { path = "../analysis/glossary-layers" }
 turbo-group = { path = "../analysis/group" }
 turbo-keywords = { path = "../analysis/keywords" }
+turbo-normalize = { path = "../analysis/normalize" }
 turbo-normalize-layers = { path = "../analysis/normalize-layers" }
 turbo-relation = { path = "../analysis/relation" }
 # The structured records of a schema extraction and the limits its
@@ -76,7 +77,6 @@ tonic-prost-build = { version = "0.14", default-features = false, features = ["t
 [dev-dependencies]
 # The tests read the bundle's manifest and reference.
 serde_json = "1"
-turbo-normalize = { path = "../analysis/normalize" }
 # The sink tests relay a call over TCP and cut it.
 tokio = { version = "1", features = ["io-util"] }
 
