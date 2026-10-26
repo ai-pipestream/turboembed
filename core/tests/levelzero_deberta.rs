@@ -251,7 +251,8 @@ fn the_tiled_kernel_s_rows_are_bounded_per_shape() {
 
 /// tiled_rows at the review's shapes, no device needed: 256 buckets over
 /// 300 at width 64 reach two rows past the 95 held, so take the general
-/// kernel; 256 over 512 fit at every tiled width; 256 over 200 reach 148.
+/// kernel; 256 over 512 fit at every tiled width, at 512 tokens and at
+/// 500; 256 over 200 reach 148.
 #[test]
 fn tiled_rows_at_the_review_s_shapes() {
     assert_eq!(turbo::levelzero::tiled_rows(256, 300, 512, 64), Some((97, 95)));
@@ -260,6 +261,11 @@ fn tiled_rows_at_the_review_s_shapes() {
         assert!(reach <= room, "width {hd}: {reach} rows of {room}");
     }
     assert_eq!(turbo::levelzero::tiled_rows(256, 200, 512, 64), Some((148, 95)));
+    // At 500 tokens, not a multiple of a key block, the last tile and block
+    // reach past the table's ends; clamped there, 256 over 512 still fit.
+    for (hd, rows) in [(32, (159, 159)), (64, (95, 95)), (128, (47, 47))] {
+        assert_eq!(turbo::levelzero::tiled_rows(256, 512, 500, hd), Some(rows), "width {hd} at 500 tokens");
+    }
 }
 
 /// A session whose geometry the tiled kernel cannot hold takes the general
