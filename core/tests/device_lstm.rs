@@ -11,7 +11,7 @@
 use turbo::cpu::lstm as cpu;
 use turbo::device::Device;
 use turbo::device::lstm::{Lstm, Weights, Work};
-use turbo::status::{INVALID_ARGUMENT, INVALID_SHAPE};
+use turbo::status::{INVALID_ARGUMENT, INVALID_SHAPE, UNSUPPORTED};
 
 /// The bound a device's states are held to, against the CPU's.
 const BOUND: f32 = 1e-5;
@@ -304,4 +304,26 @@ fn fastest_refuses_a_weight_past_f16() {
         assert!(Lstm::new_at(device(), Precision::Fastest, 3, 2, &m.dirs()).is_ok(), "F16's largest value is held");
     }
     assert!(Lstm::new_at(device(), Precision::Model, 3, 2, &m.dirs()).is_ok(), "MODEL holds any finite weight");
+}
+
+/// The F16 range check's edges, on the CPU alone so a build without a GPU
+/// runs them: at FASTEST a largest weight of 65504 (F16's largest value)
+/// passes the check and meets the CPU's own refusal, UNSUPPORTED, while
+/// one past it either way, or far past it below zero, is refused for its
+/// range, INVALID_ARGUMENT.
+#[test]
+fn the_f16_range_check_is_exact_at_its_edges() {
+    use turbo::device::Precision;
+    for (v, want) in [
+        (65504.0, UNSUPPORTED),
+        (-65504.0, UNSUPPORTED),
+        (65505.0, INVALID_ARGUMENT),
+        (-65505.0, INVALID_ARGUMENT),
+        (-70000.0, INVALID_ARGUMENT),
+    ] {
+        let mut m = Model::new(3, 2, 52);
+        m.w[0][4] = v;
+        let e = Lstm::new_at(Device::Cpu, Precision::Fastest, 3, 2, &m.dirs()).err().expect("FASTEST on the CPU");
+        assert_eq!(e.code, want, "a weight of {v}: {}", e.message);
+    }
 }
