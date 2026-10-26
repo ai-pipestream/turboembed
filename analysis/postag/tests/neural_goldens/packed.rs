@@ -16,12 +16,14 @@ use crate::golden::*;
 pub(crate) const PACKED_TOLERANCE: f64 = 1e-5;
 
 /// The GPU the packed numerics are checked on as well: TURBO_TEST_DEVICE
-/// (cuda or cuda:N), else cuda with TURBO_TEST_REQUIRE_CUDA=1. A device
+/// (cuda, levelzero, or either with :N), else cuda with
+/// TURBO_TEST_REQUIRE_CUDA=1 or levelzero with TURBO_TEST_REQUIRE_LEVELZERO=1. A device
 /// the tagger cannot be made on fails the test; it is never skipped.
 pub(crate) fn test_device() -> Option<Device> {
     let device = match std::env::var("TURBO_TEST_DEVICE") {
         Ok(name) => Device::parse(&name).unwrap_or_else(|e| panic!("TURBO_TEST_DEVICE={name}: {}", e.message)),
         Err(_) if std::env::var("TURBO_TEST_REQUIRE_CUDA").is_ok_and(|v| v == "1") => Device::Cuda(0),
+        Err(_) if std::env::var("TURBO_TEST_REQUIRE_LEVELZERO").is_ok_and(|v| v == "1") => Device::LevelZero(0),
         Err(_) => return None,
     };
     (device != Device::Cpu).then_some(device)

@@ -181,7 +181,8 @@ const RETRIEVAL_CHECKPOINTS: [&str; 2] = ["opensearch-neural-sparse-encoding-v1"
 /// The permissive training datasets in the built-in index (#945): MASC,
 /// the four settled CC BY 4.0 UD 2.16 treebanks, the Tatoeba export,
 /// Civil Comments, and GoEmotions (filtered split and raw annotations).
-const DATASETS: [&str; 9] = [
+const DATASETS: [&str; 10] = [
+    "csc-conversational-sarcasm-2024",
     "masc-3.0.0",
     "ud-spanish-ancora-r2.16",
     "ud-catalan-ancora-r2.16",

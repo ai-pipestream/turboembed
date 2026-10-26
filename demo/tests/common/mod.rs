@@ -13,7 +13,7 @@ use tokio::net::TcpStream;
 use turbo_kserve::api::Runtime;
 use turbo_kserve::config::{DEFAULT_MAX_MESSAGE_BYTES, Device, ModelConfig};
 use turbo_kserve::{Serve, Server};
-use turbo_kserve_demo::{Allow, Demo};
+use turbo_kserve_demo::{Allow, Demo, Options};
 
 pub const UNARY: &str = "application/proto";
 pub const STREAM: &str = "application/connect+proto";
@@ -65,6 +65,18 @@ pub async fn demo(s: &Server, allow: &[&str]) -> Demo {
 pub async fn demo_at(server: SocketAddr, allow: &[&str]) -> Demo {
     let allow = Allow::with(&allow.iter().map(|a| a.to_string()).collect::<Vec<_>>()).unwrap();
     Demo::start("127.0.0.1:0".parse().unwrap(), &format!("http://{server}"), allow).await.unwrap()
+}
+
+/// The demo in front of the server at `server`, started with `options`.
+pub async fn demo_with(server: SocketAddr, options: Options) -> Demo {
+    Demo::start_with("127.0.0.1:0".parse().unwrap(), &format!("http://{server}"), options).await.unwrap()
+}
+
+/// An address nothing listens on: a call the demo forwards there fails
+/// `unavailable`, so any other answer was given without the server.
+pub async fn nowhere() -> SocketAddr {
+    let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    l.local_addr().unwrap()
 }
 
 /// An HTTP/1.1 response being read: its status and headers, then its body
