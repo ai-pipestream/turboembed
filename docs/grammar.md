@@ -18,7 +18,8 @@ parts:
   `DUTCH`, [below](#dutch)). `ENGLISH_TIMES`, `SPANISH_TIMES` and
   `DUTCH_TIMES` hold the same number rules and add the time rules;
   `ENGLISH_UNITS` adds the rules for amounts in units and money
-  (`docs/grammar-units.md`).
+  (`docs/grammar-units.md`). `SPANISH_UNITS` adds Spanish quantities and
+  currencies over `SPANISH`, and is used by `GrammarAnnotator::spanish()`. 
 
 `GrammarAnnotator` runs a grammar over a text view and writes layers
 ([below](#layers)). It is separate from `turbo-numeric`, which ports
