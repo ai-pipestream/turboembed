@@ -1729,9 +1729,7 @@ here with the words joined by a space. Not ported:
 - Custom list-valued extension attributes are not imported.
 - `REGEX` returns a typed import error naming the operator. There is no
   regular expression engine; `Tok::text_where` takes a caller's predicate.
-- `LIKE_URL`, `LIKE_EMAIL`, `DEP` and dependency patterns: the first two
-  are spaCy's heuristics, not ported; dependency-tree patterns are a
-  separate effort.
+- `LIKE_URL` and `LIKE_EMAIL` are spaCy's heuristics, not ported.
 - Pattern validation, unknown `greedy` values and passing a pattern for a
   list of patterns (`test_issue3549`, `test_invalid_greediness`,
   `test_matcher_basic_check`, `test_phrase_matcher_validation`): the types
@@ -1764,12 +1762,15 @@ as written; membership sets canonicalize their strings, matching spaCy.
 `TAG` reads `Input::with_tags`, independently of the `POS` column. The
 pipeline ruler does not infer fine-grained tags from its POS layer.
 
-Unknown attributes and operators (including `REGEX`, dependency patterns,
+Unknown attributes and operators (including `REGEX`
 and custom extensions) return `ImportError::Unsupported` naming the key.
 Wrong types, invalid repeats and excessively large automata refuse.
 The JSON reader limits files to 16 MiB, nesting to 32, and object members
 to 64. Duplicate keys and unpaired surrogate escapes refuse. It adds no
-crate dependencies. Dependency-tree rules remain outside this reader.
+crate dependencies. `spacy::read_dependency_pattern` is the separate
+dependency-tree reader, using the same attribute predicates. Its
+[DependencyMatcher](dependency-matcher.md) borrows a validated Dependencies
+layer and supports all twenty spaCy relations with bounded search.
 
 The optional local [oracle fixture](../analysis/matcher/tests/data/README.md) compares
 2,580 exact labelled token spans over 31 original EWT sentences (485
