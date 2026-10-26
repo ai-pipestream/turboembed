@@ -243,6 +243,14 @@ uses stack scratch space and accepts only complete number compounds.
 10^12 and 10^18). Full Italian ordinal/percentage and spelled-decimal
 support is outside this unit-oriented grammar.
 
+A proper fraction after a million-or-larger scale uses that scale:
+`un milione e mezzo` is 1500000 and `3 milioni e mezzo` is 3500000.
+An explicit smaller scale attaches to the fraction first:
+`un miliardo e mezzo milione` is 1000500000. Ordinary mixed numbers
+such as `trecento e mezzo` remain 300.5. Native regressions include these
+[upstream NumberModel cases 147-149](https://github.com/microsoft/Recognizers-Text/blob/da7edcff59f669b2a460ab9d400e36298f0d658e/Specs/Number/Italian/NumberModel.json),
+plus real Analyzer values and source-offset round trips.
+
 Rules include `3 metri quadrati`, `6 piedi e 3 pollici`, `5 libbre e 8 once`,
 `188 miglia all'ora`, `10 Mb/s`, `tredici euro e quarantacinque centesimi`,
 `20 euro per ora`, country-qualified currencies and the age suffix `di età`.
@@ -266,6 +274,13 @@ real Analyzer output, fused/decomposed source spans, Unicode whitespace,
 UTF-16/codepoint round trips, malformed compounds and boundary ambiguity.
 
 ## Portuguese
+
+The scale-fraction rule also applies to `2 milhões e meio` (2500000) and
+`três milhões e meio` (3500000), while `um trilhão e meio milhão` is
+1000000500000. These match
+[upstream NumberModel cases 169-171](https://github.com/microsoft/Recognizers-Text/blob/da7edcff59f669b2a460ab9d400e36298f0d658e/Specs/Number/Portuguese/NumberModel.json).
+Ordinary mixed numbers retain simple addition. Native tests include
+negatives, decomposed accents, Money/Quantities output and source offsets.
 
 `PORTUGUESE_UNITS` and `GrammarAnnotator::portuguese()` add Portuguese
 quantities, ages, temperatures and currencies. The provenance name is
