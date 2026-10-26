@@ -8,7 +8,7 @@ mod device_support;
 use device_support::*;
 use turbo::safetensors::File;
 use turbo_analysis::ModelRef;
-use turbo_relation::encoder::DebertaEncoder;
+use turbo_relation::encoder::{DebertaEncoder, EncoderStates};
 use turbo_relation::{gliner2, glirel};
 
 fn model() -> ModelRef {
@@ -87,4 +87,33 @@ fn a_bert_bundle_is_not_a_deberta_encoder() {
     let o = turbo_relation::encoder::EncoderOptions::default();
     let e = DebertaEncoder::open(&root().join("testdata/tiny-bert-bundle"), &o).err().unwrap();
     assert!(e.contains("not FAMILY_DEBERTA_V2"), "{e}");
+}
+
+/// A package written from the bundle's own weights binds; one of other
+/// weights is refused before any session is opened.
+#[test]
+fn a_bundle_is_bound_to_the_package_its_heads_were_converted_with() {
+    let dir = std::env::temp_dir().join(format!("turbo-relation-bound-{}", std::process::id()));
+    let (same, other) = (dir.join("same"), dir.join("other"));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let weights = std::fs::read(bundle().join("weights/model.safetensors")).unwrap();
+    let source = ("turboembed/tiny-deberta", "f040d8d433e742f26023553192e8a29aa066358a", "Apache-2.0");
+    turbo_bundle::deberta::write_package(cpu().config().clone(), &weights, "", source, &same).unwrap();
+    let o = turbo_relation::encoder::EncoderOptions::default();
+    let bound = DebertaEncoder::open_bound(&same, &bundle(), &o);
+    assert!(bound.is_ok_and(|e| e.execution().is_some()), "the package of the bundle's own weights binds");
+    let reduced = fixture("gliner2");
+    let shape = turbo::deberta::Config {
+        vocabulary: 16,
+        intermediate: 48,
+        heads: 2,
+        max_sequence: 32,
+        ..cpu().config().clone()
+    };
+    let shape = turbo::deberta::Config { max_relative_positions: 32, ..shape };
+    turbo_bundle::deberta::write_package(shape, &reduced, "encoder.", source, &other).unwrap();
+    let e = DebertaEncoder::open_bound(&other, &bundle(), &o).err().expect("a package of other weights");
+    assert!(e.contains("encoder bundle") || e.contains("shape"), "{e}");
+    let _ = std::fs::remove_dir_all(&dir);
 }

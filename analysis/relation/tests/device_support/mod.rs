@@ -44,6 +44,22 @@ pub fn cpu() -> DebertaEncoder {
     e
 }
 
+/// The CPU encoder of the DeBERTa package at `dir`, as production loads it.
+pub fn package_cpu(dir: &Path) -> DebertaEncoder {
+    let (_, e) = turbo::deberta::package::PackageManifest::load(dir)
+        .unwrap_or_else(|e| panic!("{}: {}", dir.display(), e.message));
+    e.into()
+}
+
+/// The bundle at `dir` bound to the DeBERTa package at `package`, on the
+/// device the test names, as [`device_on`] opens it.
+pub fn bound(package: &Path, dir: &Path) -> DebertaEncoder {
+    let options = options();
+    let e = DebertaEncoder::open_bound(package, dir, &options).unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
+    check(&e);
+    e
+}
+
 /// The tiny bundle through the backend table, on the device the test names,
 /// checked to run on the backend required.
 pub fn device() -> DebertaEncoder {
@@ -52,6 +68,14 @@ pub fn device() -> DebertaEncoder {
 
 /// The bundle at `dir` through the backend table, as [`device`] opens it.
 pub fn device_on(dir: &Path) -> DebertaEncoder {
+    let e = DebertaEncoder::open(dir, &options()).unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
+    check(&e);
+    e
+}
+
+/// The options of the device the test names: TURBO_TEST_DEVICE, else the
+/// CPU through the backend table.
+fn options() -> EncoderOptions {
     let device = match std::env::var("TURBO_TEST_DEVICE").as_deref() {
         Err(_) | Ok("cpu") => Device::Cpu,
         Ok(d) => Device::Backend(d.to_owned()),
@@ -59,13 +83,15 @@ pub fn device_on(dir: &Path) -> DebertaEncoder {
     if let Some(b) = required() {
         assert!(!matches!(device, Device::Cpu), "{b} is required but TURBO_TEST_DEVICE names no device");
     }
-    let e = DebertaEncoder::open(dir, &EncoderOptions { device, ..EncoderOptions::default() })
-        .unwrap_or_else(|e| panic!("{}: {e}", dir.display()));
+    EncoderOptions { device, ..EncoderOptions::default() }
+}
+
+/// An encoder on the backend table, on the backend required.
+fn check(e: &DebertaEncoder) {
     let x = e.execution().expect("the backend table");
     if let Some(b) = required() {
         assert_eq!(x.backend, b, "the session runs on the backend required");
     }
-    e
 }
 
 /// min, p50, mean and p99 of `v`, in ms.

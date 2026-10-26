@@ -5,11 +5,13 @@
 //! largest logit of its pass, then a release timing interleaved against
 //! the CPU path. The device is the one device_support names.
 //!
-//! It needs the encoders as FAMILY_DEBERTA_V2 core bundles, which are named
-//! by the environment: GLINER2_BUNDLE with GLINER2_CHECKPOINT (the
+//! The CPU side is the encoder as production loads it, the DeBERTa package
+//! `turbo-bundle deberta-convert` writes; the device side is the encoder's
+//! FAMILY_DEBERTA_V2 core bundle bound to that package. The environment
+//! names them: GLINER2_PACKAGE, GLINER2_BUNDLE and GLINER2_CHECKPOINT (the
 //! checkpoint's directory, as `Gliner2Relations::load` reads it), and
-//! GLIREL_BUNDLE with GLIREL_PACKAGE and GLIREL_SPM (as
-//! `GlirelRelations::load` reads them). DEVICE_REPS passes of each text
+//! GLIREL_PACKAGE (the package `turbo-bundle glirel-convert` writes, whose
+//! encoder/ is the DeBERTa package), GLIREL_BUNDLE and GLIREL_SPM. DEVICE_REPS passes of each text
 //! are timed, default 20. Run with
 //! `cargo test --release -p turbo-relation --test device_real -- --ignored --nocapture`.
 
@@ -76,9 +78,9 @@ fn report(what: &str, on: &str, mut t: [Vec<f64>; 2]) {
 #[test]
 #[ignore = "needs the real encoders as core bundles; run with --release -- --ignored"]
 fn gliner2_relations_on_the_real_checkpoint() {
-    let (bundle, checkpoint) = (env("GLINER2_BUNDLE"), env("GLINER2_CHECKPOINT"));
+    let (bundle, package, checkpoint) = (env("GLINER2_BUNDLE"), env("GLINER2_PACKAGE"), env("GLINER2_CHECKPOINT"));
     let load = |e: DebertaEncoder| gliner2::Gliner2Relations::load_with(e, &checkpoint, "real", "1").unwrap();
-    let (cpu, on) = (load(DebertaEncoder::open_cpu(&bundle).unwrap()), load(device_on(&bundle)));
+    let (cpu, on) = (load(package_cpu(&package)), load(bound(&package, &bundle)));
     let cases = cases("gliner2");
     let mut worst = 0f32;
     for (k, c) in cases.iter().enumerate() {
@@ -115,7 +117,7 @@ fn gliner2_relations_on_the_real_checkpoint() {
 fn glirel_on_the_real_checkpoint() {
     let (bundle, package, spm) = (env("GLIREL_BUNDLE"), env("GLIREL_PACKAGE"), env("GLIREL_SPM"));
     let load = |e: DebertaEncoder| glirel::GlirelRelations::load_with(e, &package, &spm).unwrap();
-    let (cpu, on) = (load(DebertaEncoder::open_cpu(&bundle).unwrap()), load(device_on(&bundle)));
+    let (cpu, on) = (load(package_cpu(&package)), load(bound(&package, &bundle)));
     let cases = cases("glirel");
     let mut worst = 0f32;
     let entities = |c: &Value| -> Vec<(usize, usize)> {

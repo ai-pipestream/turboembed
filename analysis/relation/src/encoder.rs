@@ -14,8 +14,10 @@ use std::path::Path;
 use std::sync::{Mutex, PoisonError};
 
 use turbo::bundle::Bundle;
+use turbo::deberta::package::PackageManifest;
 use turbo::deberta::{Config, Encoder};
 use turbo::manifest::Family;
+use turbo::safetensors::{Dtype, File};
 use turbo::turbo_token_range;
 use turbo_analysis_embed::Rows;
 pub use turbo_analysis_embed::{Device, EncoderOptions, Precision};
@@ -94,6 +96,32 @@ impl DebertaEncoder {
         let run = Run { encoder, rows: Rows::new(info.max_seq, 0), ranges: Vec::new() };
         let execution = info.execution;
         Ok(DebertaEncoder::Table(Box::new(Table { run: Mutex::new(run), config, execution })))
+    }
+
+    /// [`open`](Self::open), bound to the DeBERTa package a checkpoint's
+    /// heads were converted with (`turbo-bundle deberta-convert`): the
+    /// package is checked as `PackageManifest::load` checks it, and the
+    /// bundle's weights must be the package's, tensor for tensor, so the
+    /// heads read the encoder they were trained over.
+    pub fn open_bound(package: &Path, dir: &Path, o: &EncoderOptions) -> Result<DebertaEncoder, String> {
+        let (meta, _) = PackageManifest::load(package).map_err(|e| e.message)?;
+        let ours = std::fs::read(package.join("weights.safetensors")).map_err(|e| e.to_string())?;
+        let bundle = Bundle::open(dir).map_err(|e| e.message)?;
+        let file =
+            bundle.manifest.artifacts.first().and_then(|a| a.files.first()).ok_or("encoder bundle: no weights")?;
+        let theirs = bundle.read_verified(file).map_err(|e| e.message)?;
+        let (ours, theirs) = (
+            File::parse("DeBERTa package", &ours).map_err(|e| e.message)?,
+            File::parse("encoder bundle", &theirs).map_err(|e| e.message)?,
+        );
+        for (name, shape) in meta.config.tensor_shapes().map_err(|e| e.message)? {
+            let a = ours.get(&name, Dtype::F32, shape.len()).map_err(|e| e.message)?;
+            let b = theirs.get(&name, Dtype::F32, shape.len()).map_err(|e| e.message)?;
+            if a.shape != b.shape || a.data != b.data {
+                return Err(format!("encoder bundle: {name} is not the DeBERTa package's"));
+            }
+        }
+        Self::open(dir, o)
     }
 
     /// The CPU encoder itself on the same bundle's safetensors weights, its

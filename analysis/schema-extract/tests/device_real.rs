@@ -5,8 +5,9 @@
 //! logit of its pass, then a release timing interleaved against the CPU
 //! path, on the device the relation crate's device_support names.
 //!
-//! GLINER2_BUNDLE names the encoder as a FAMILY_DEBERTA_V2 core bundle and
-//! GLINER2_CHECKPOINT the checkpoint's directory; DEVICE_REPS passes of
+//! GLINER2_PACKAGE names the encoder as production loads it (the DeBERTa
+//! package), GLINER2_BUNDLE its FAMILY_DEBERTA_V2 core bundle, bound to
+//! that package, and GLINER2_CHECKPOINT the checkpoint's directory; DEVICE_REPS passes of
 //! each text are timed, default 20. Run with
 //! `cargo test --release -p turbo-schema-extract --test device_real -- --ignored --nocapture`.
 
@@ -31,9 +32,9 @@ fn env(name: &str) -> PathBuf {
 #[test]
 #[ignore = "needs the real encoder as a core bundle; run with --release -- --ignored"]
 fn schema_extraction_on_the_real_checkpoint() {
-    let (bundle, checkpoint) = (env("GLINER2_BUNDLE"), env("GLINER2_CHECKPOINT"));
+    let (bundle, package, checkpoint) = (env("GLINER2_BUNDLE"), env("GLINER2_PACKAGE"), env("GLINER2_CHECKPOINT"));
     let load = |e: DebertaEncoder| Gliner2Extractor::load_with(e, &checkpoint, "real", "1").unwrap();
-    let (cpu, on) = (load(DebertaEncoder::open_cpu(&bundle).unwrap()), load(device_on(&bundle)));
+    let (cpu, on) = (load(package_cpu(&package)), load(bound(&package, &bundle)));
     let path = format!("{}/tests/fixtures/real.json", env!("CARGO_MANIFEST_DIR"));
     let reference: Value = serde_json::from_slice(&std::fs::read(path).unwrap()).unwrap();
     let cases: Vec<(String, _)> = reference["cases"]
