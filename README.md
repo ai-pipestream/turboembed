@@ -219,14 +219,14 @@ these services on one port ([grpc.md](docs/grpc.md)):
 | Service | Proto | What it does |
 |---|---|---|
 | `inference.GRPCInferenceService` | `server/proto/open_inference_grpc.proto` | KServe v2 Open Inference Protocol: embed, rerank and extractive QA through `ModelInfer` ([kserve.md](docs/kserve.md)) |
-| `turbo.result.AnalysisService` | `server/proto/turbo_analysis.proto` | capabilities, bundle load and unload, `AnalyzeStream` (bidirectional bulk analysis with per-document answers, micro-batching and backpressure), `AnalyzeDocumentProgressive`, document graph and window inspection, chunk projection, and output formats (CoNLL-U, brat, TSV, CSV, Markdown, JSON-LD, WARC) ([grpc-analysis.md](docs/grpc-analysis.md), [grpc-inspect.md](docs/grpc-inspect.md)) |
-| `turbo.search.TurboSearchService` | `server/proto/turbo_search.proto` | in-memory indexes fed by a stream, hybrid search over BM25, dense, TurboQuant, SPLADE sparse and token MaxSim providers with score or reciprocal rank fusion, parent expansion and cross-encoder reranking, persist and seal, reindex, aliases and collections |
-| `turbo.training.TurboCatalogService` | `server/proto/turbo_training.proto` | the model zoo catalog, installed models, licence acceptance and streamed installs ([grpc-catalog.md](docs/grpc-catalog.md)) |
-| `turbo.vocabulary.TurboVocabularyService` | `server/proto/turbo_vocabulary.proto` | dictionary import, corpus vocabulary learning and download ([grpc-vocabulary.md](docs/grpc-vocabulary.md)) |
+| `turbo.result.v1.AnalysisService` | `server/proto/turbo_analysis.proto` | capabilities, bundle load and unload, `AnalyzeStream` (bidirectional bulk analysis with per-document answers, micro-batching and backpressure), `AnalyzeDocumentProgressive`, document graph and window inspection, chunk projection, and output formats (CoNLL-U, brat, TSV, CSV, Markdown, JSON-LD, WARC) ([grpc-analysis.md](docs/grpc-analysis.md), [grpc-inspect.md](docs/grpc-inspect.md)) |
+| `turbo.search.v1.TurboSearchService` | `server/proto/turbo_search.proto` | in-memory indexes fed by a stream, hybrid search over BM25, dense, TurboQuant, SPLADE sparse and token MaxSim providers with score or reciprocal rank fusion, parent expansion and cross-encoder reranking, persist and seal, reindex, aliases and collections |
+| `turbo.training.v1.TurboCatalogService` | `server/proto/turbo_training.proto` | the model zoo catalog, installed models, licence acceptance and streamed installs ([grpc-catalog.md](docs/grpc-catalog.md)) |
+| `turbo.vocabulary.v1.TurboVocabularyService` | `server/proto/turbo_vocabulary.proto` | dictionary import, corpus vocabulary learning and download ([grpc-vocabulary.md](docs/grpc-vocabulary.md)) |
 | `grpc.health.v1.Health` | `server/proto/health.proto` | standard gRPC health checks |
 
 With `--sink-endpoint`, the server is a client of
-`turbo.sink.TurboSinkService` (`server/proto/turbo_sink.proto`): it
+`turbo.sink.v1.TurboSinkService` (`server/proto/turbo_sink.proto`): it
 streams every document an analysis stream completes to the sink at that
 address through a bounded queue (`--sink-queue-items`,
 `--sink-queue-bytes`). The receiving side of that service is in the
