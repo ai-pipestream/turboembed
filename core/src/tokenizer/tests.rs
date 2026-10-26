@@ -269,3 +269,11 @@ fn pre_words_part_punctuation_and_ideographs() {
     let got: Vec<&str> = pre_words(t).into_iter().map(|(a, b)| &t[a..b]).collect();
     assert_eq!(got, ["(", "Paris", ")", "Merkel", "'", "s", "\u{6771}", "\u{4eac}", "x", "\u{ff0c}", "y"]);
 }
+
+#[test]
+fn added_token_word_classes_match_upstream_on_every_scalar() {
+    let upstream = crate::classes::tests::upstream(r"^\w$");
+    for c in (0..=0x10ffff).filter_map(char::from_u32) {
+        assert_eq!(normalize::is_word(c), upstream(c), "U+{:04X}", c as u32);
+    }
+}

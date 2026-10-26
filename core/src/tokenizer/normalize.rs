@@ -247,11 +247,7 @@ pub fn pre_words(text: &str) -> Vec<(usize, usize)> {
 /// A character of regex's Unicode \\w, which upstream's single_word
 /// reads: alphabetic, a mark, a decimal digit, a connector, or a joiner.
 pub(super) fn is_word(c: char) -> bool {
-    c.is_alphabetic()
-        || turbo_unicode::hf::is_mark(c)
-        || turbo_unicode::hf::is_number_decimal_digit(c)
-        || turbo_unicode::hf::is_punctuation_connector(c)
-        || matches!(c, '\u{200c}' | '\u{200d}')
+    crate::classes::is_word(c)
 }
 
 pub(super) fn is_whitespace(c: char) -> bool {

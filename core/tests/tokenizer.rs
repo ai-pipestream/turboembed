@@ -265,3 +265,6 @@ fn bad_utf8_and_bad_handles_are_refused() {
     let rc = unsafe { turbo_tokenizer_count(tok.t, common::text("x"), TURBO_PROMPT_NONE, &mut n, &mut small) };
     assert_eq!(rc, turbo::status::INVALID_STRUCT_SIZE);
 }
+
+#[path = "tokenizer/word_boundaries.rs"]
+mod word_boundaries;
