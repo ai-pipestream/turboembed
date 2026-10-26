@@ -211,10 +211,11 @@ fn the_receipt_names_the_source_commit_not_the_recipe_revision() {
 #[test]
 fn a_model_without_a_source_commit_is_refused() {
     let mut m = model(COLBERT);
-    for bad in ["1", "", "c1e84128", &"g".repeat(40)] {
+    let upper = "c1e84128e85ef755c096a95bdb06b47793b13acf".to_ascii_uppercase();
+    for bad in ["1", "", "c1e84128", &"g".repeat(40), &upper] {
         m.source.commit = bad.to_owned();
         let e = PinnedBundle::from_model(&m, "").unwrap_err();
-        assert!(e.contains("40-digit hex commit"), "{bad}: {e}");
+        assert!(e.contains("40-digit lowercase hex commit"), "{bad}: {e}");
     }
 }
 
