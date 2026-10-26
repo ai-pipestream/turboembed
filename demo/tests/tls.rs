@@ -1,7 +1,10 @@
 //! The demo over TLS: a call made through a TLS client the test CA
 //! trusts, a plain-HTTP client that gets no answer, and a key that does
-//! not load. The certificates in tests/tls are for these tests only.
+//! not load. The test CA, certificate and key are made when the tests
+//! run (tests/tls/certs.rs); none is committed.
 
+#[path = "tls/certs.rs"]
+mod certs;
 mod common;
 
 use std::path::PathBuf;
@@ -19,7 +22,7 @@ use turbo_kserve::Serve;
 use turbo_kserve_demo::{Demo, Options, Tls};
 
 fn file(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/tls").join(name)
+    certs::dir().join(name)
 }
 
 fn tls() -> Options {

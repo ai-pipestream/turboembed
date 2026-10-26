@@ -2420,6 +2420,7 @@ dependencies = [
  "futures-util",
  "prost",
  "protox",
+ "ring",
  "tokio",
  "tokio-rustls",
  "tonic",

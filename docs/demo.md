@@ -252,6 +252,7 @@ the server's prost types. Nothing is mocked.
   every unknown method refused without it and every read tried; the
   token; a write off loopback without a token refused at startup; the
   origin check, CORS grants and preflights.
-- `demo/tests/tls.rs`: a call over TLS with a test CA
-  (`demo/tests/tls`, for these tests only), plain HTTP not answered, and
-  a certificate or key that does not load.
+- `demo/tests/tls.rs`: a call over TLS with a test CA, plain HTTP not
+  answered, and a certificate or key that does not load. The CA,
+  certificate and key are made when the tests run
+  (`demo/tests/tls/certs.rs`); no key is committed.
