@@ -128,8 +128,9 @@ fn device_tagger_timing() {
     }
 }
 
-/// FASTEST (F16 weights) tags as MODEL does on all but a few words of
-/// random-weight models, its emissions near MODEL's, and hashes apart from
+/// FASTEST (F16 weights) tags as MODEL does on at least 99.9% of the
+/// words of random-weight models, its emissions within the F16 tier's 1e-2
+/// of MODEL's, and hashes apart from
 /// every other tier.
 #[test]
 fn fastest_stays_near_model_and_hashes_apart() {
@@ -162,8 +163,8 @@ fn fastest_stays_near_model_and_hashes_apart() {
     }
     let share = same as f64 / words as f64;
     println!("{device:?} FASTEST against MODEL: {same} of {words} tags equal ({share:.4}), emissions within {worst:e}");
-    assert!(share >= 0.99, "FASTEST agrees with MODEL on {share} of the words");
-    assert!(worst <= 5e-2, "FASTEST emissions {worst} from MODEL's");
+    assert!(share >= 0.999, "FASTEST agrees with MODEL on {share} of the words");
+    assert!(worst <= 1e-2, "FASTEST emissions {worst} from MODEL's");
 }
 
 fn on_fastest(device: Device, m: &turbo_postag::neural::BilstmPosModel) -> BilstmPosTagger {

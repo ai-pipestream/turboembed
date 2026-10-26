@@ -59,6 +59,20 @@ fn unsupported(device: Device) -> Error {
     Error::new(crate::status::UNSUPPORTED, format!("lstm: device {device:?} is not built into this library"))
 }
 
+/// The largest F16 value: a weight of greater magnitude has no F16 form.
+const F16_MAX: f32 = 65504.0;
+
+/// FASTEST's weights each have an F16 form: W and U (the biases stay F32).
+fn f16_range(dirs: &[Weights<'_>]) -> Result<()> {
+    for (i, d) in dirs.iter().enumerate() {
+        if let Some(v) = d.w.iter().chain(d.u).find(|v| v.abs() > F16_MAX) {
+            let message = format!("lstm direction {i}: a weight of {v} is past F16's range, so FASTEST cannot hold it");
+            return Err(Error::new(INVALID_ARGUMENT, message));
+        }
+    }
+    Ok(())
+}
+
 fn finite(v: &[f32]) -> bool {
     v.chunks(64).all(|c| c.iter().fold(true, |a, x| a & x.is_finite()))
 }
@@ -74,8 +88,12 @@ impl Lstm {
 
     /// [`new`](Self::new) at `precision`. FASTEST holds the input and
     /// recurrent weights as F16 on the device, every sum, gate, cell and
-    /// state F32; the CPU form has no F16 weights, so FASTEST on the CPU is
-    /// refused with UNSUPPORTED rather than run at MODEL.
+    /// state F32; a weight past F16's range (65504 in magnitude) would round
+    /// to infinity, so such a model is refused at FASTEST with
+    /// INVALID_ARGUMENT, checked on the host when it is made, and runs at
+    /// MODEL only if asked for MODEL. The CPU form has no F16 weights, so
+    /// FASTEST on the CPU is refused with UNSUPPORTED rather than run at
+    /// MODEL.
     pub fn new_at(
         device: Device,
         precision: Precision,
@@ -84,6 +102,9 @@ impl Lstm {
         dirs: &[Weights<'_>],
     ) -> Result<Lstm> {
         let cpu = cpu::Lstm::new(input, hidden, dirs)?;
+        if precision == Precision::Fastest {
+            f16_range(dirs)?;
+        }
         match device {
             Device::Cpu if precision == Precision::Fastest => {
                 Err(Error::new(crate::status::UNSUPPORTED, "lstm: the CPU form has no FASTEST (F16 weights)"))

@@ -252,9 +252,10 @@ fn a_new_table_is_whole_for_the_first_run() {
     }
 }
 
-/// The bound FASTEST's states are held to, against the CPU form's: its
-/// weights are rounded to F16 (a relative 2^-11), every sum and state F32.
-const FASTEST_BOUND: f32 = 2e-2;
+/// The bound FASTEST's states are held to, against the CPU form's: the
+/// F16 tier's 1e-2 (its weights rounded to F16, a relative 2^-11; every
+/// sum and state F32).
+const FASTEST_BOUND: f32 = 1e-2;
 
 /// FASTEST on a device runs the same sequences within FASTEST_BOUND of the
 /// CPU form at MODEL; on the CPU it is refused, not run at MODEL.
@@ -283,4 +284,24 @@ fn fastest_holds_f16_weights_and_stays_near_the_cpu() {
         worst = worst.max(d);
     }
     println!("{:?} at FASTEST: the worst difference from the CPU at MODEL is {worst:e}", device());
+}
+
+/// A weight past F16's range is refused at FASTEST when the LSTM is made,
+/// on every device, naming the weight, rather than rounded to infinity and
+/// every run then refused for its gates; at MODEL the same weights build.
+#[test]
+fn fastest_refuses_a_weight_past_f16() {
+    use turbo::device::Precision;
+    let mut m = Model::new(3, 2, 51);
+    m.u[1][5] = 70000.0;
+    for device in [Device::Cpu, device()] {
+        let e = Lstm::new_at(device, Precision::Fastest, 3, 2, &m.dirs()).err().expect("a weight past F16 at FASTEST");
+        assert_eq!(e.code, INVALID_ARGUMENT, "{device:?}: {}", e.message);
+        assert!(e.message.contains("70000") && e.message.contains("F16"), "{}", e.message);
+    }
+    m.u[1][5] = 65504.0;
+    if device() != Device::Cpu {
+        assert!(Lstm::new_at(device(), Precision::Fastest, 3, 2, &m.dirs()).is_ok(), "F16's largest value is held");
+    }
+    assert!(Lstm::new_at(device(), Precision::Model, 3, 2, &m.dirs()).is_ok(), "MODEL holds any finite weight");
 }
