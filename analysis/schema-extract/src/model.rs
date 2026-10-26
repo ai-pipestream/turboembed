@@ -234,11 +234,29 @@ impl Gliner2Extractor {
         schema: &ExtractionSchema,
         words: Vec<Word<'a>>,
     ) -> Result<Prompt<'a>, ExtractError> {
+        let p = self.build_words(text, schema, words)?;
+        self.check(&p)?;
+        Ok(p)
+    }
+
+    /// The input for `schema` over `words`, tokenized once and not yet
+    /// held to the limits: [`Self::check`] does that, and
+    /// [`Prompt::window`] cuts windows from it when it is too long.
+    pub fn build_words<'a>(
+        &self,
+        text: &'a str,
+        schema: &ExtractionSchema,
+        words: Vec<Word<'a>>,
+    ) -> Result<Prompt<'a>, ExtractError> {
         schema.validate(&self.limits).map_err(ExtractError::Schema)?;
-        let p = build_words(&self.tokenizer, &self.specials, text, schema, words);
+        Ok(build_words(&self.tokenizer, &self.specials, text, schema, words))
+    }
+
+    /// Whether a built input is inside every limit.
+    pub fn check(&self, p: &Prompt<'_>) -> Result<(), ExtractError> {
         let l = &self.limits;
         // The caller's words: not the `.` the model's reading may add.
-        let words = p.words.iter().filter(|w| w.start < text.len()).count();
+        let words = p.words.iter().filter(|w| w.start < p.text.len()).count();
         if words > l.max_words {
             return Err(ExtractError::OverLimit { limit: "max_words", max: l.max_words, got: words });
         }
@@ -250,11 +268,16 @@ impl Gliner2Extractor {
                 got: schema_len,
             });
         }
-        let max = self.encoder.config().max_sequence;
+        let max = self.max_sequence();
         if p.ids.len() > max {
             return Err(ExtractError::OverLimit { limit: "encoder max_sequence", max, got: p.ids.len() });
         }
-        Ok(p)
+        Ok(())
+    }
+
+    /// The encoder's longest input, in subwords.
+    pub fn max_sequence(&self) -> usize {
+        self.encoder.config().max_sequence
     }
 
     pub fn measure(
@@ -271,17 +294,11 @@ impl Gliner2Extractor {
         schema: &ExtractionSchema,
         words: Vec<Word<'_>>,
     ) -> Result<(crate::prompt::Measurement, usize), ExtractError> {
-        schema.validate(&self.limits).map_err(ExtractError::Schema)?;
-        let p = build_words(&self.tokenizer, &self.specials, text, schema, words);
-        let schema_len = p.token_first.first().copied().unwrap_or(p.ids.len());
-        if schema_len > self.limits.max_prompt_subwords {
-            return Err(ExtractError::OverLimit {
-                limit: "max_prompt_subwords",
-                max: self.limits.max_prompt_subwords,
-                got: schema_len,
-            });
+        let p = self.build_words(text, schema, words)?;
+        match self.check(&p) {
+            Err(e @ ExtractError::OverLimit { limit: "max_prompt_subwords", .. }) => Err(e),
+            _ => Ok((p.measure(text.len()), self.max_sequence())),
         }
-        Ok((p.measure(text.len()), self.encoder.config().max_sequence))
     }
 
     /// One encoder pass and every head over `text` and `schema`.

@@ -284,3 +284,36 @@ fn text_that_fits_is_one_window() {
     assert_eq!(windows.len(), 1);
     assert_eq!(windows[0], 0..doc.get::<View>().unwrap().text().len());
 }
+
+#[test]
+fn text_with_space_around_it_that_fits_is_the_whole_text() {
+    let text = "  Ana paid. Bruno left.  ";
+    let w = windows(&document(text, true));
+    assert_eq!(w.len(), 1);
+    assert_eq!(w[0], 0..text.len());
+}
+
+#[test]
+fn a_window_cut_from_the_document_input_is_the_window_built_alone() {
+    use turbo_relation::gliner2::words::split;
+    let m = common::offline(limits());
+    let s = schema();
+    let doc = document(TEXT, true);
+    let whole = m.build_words(TEXT, &s, split(TEXT)).unwrap();
+    assert!(std::ptr::eq(whole.text, TEXT), "the prompt borrows the text, it does not copy it");
+    let w = windows(&doc);
+    // Windows that end on `.` and one that does not, so the added `.` is cut too.
+    let mut cuts = w.clone();
+    cuts.push(0..TEXT.find(" twelve").unwrap());
+    for at in cuts {
+        let cut = whole.window(at.clone());
+        let alone = m.build_words(&TEXT[at.clone()], &s, split(&TEXT[at.clone()])).unwrap();
+        assert!(std::ptr::eq(cut.text, &TEXT[at.clone()]));
+        assert_eq!(cut.ids, alone.ids, "{at:?} ids");
+        assert_eq!(cut.words, alone.words, "{at:?} words");
+        assert_eq!(cut.token_first, alone.token_first, "{at:?} token_first");
+        assert_eq!((&cut.prefix, &cut.choice_at, &cut.tasks), (&alone.prefix, &alone.choice_at, &alone.tasks));
+        assert_eq!(cut.period, alone.period);
+        assert_eq!(m.check(&cut), Ok(()), "{at:?} fits once cut");
+    }
+}

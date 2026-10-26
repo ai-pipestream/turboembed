@@ -15,6 +15,8 @@
 //! The span head reads every text token at its first subword, so a choice
 //! is scored where it stands in the prefix.
 
+use std::ops::Range;
+
 use turbo::sentencepiece::{Scratch, SentencePiece};
 use turbo_relation::gliner2::words::{Word, split};
 
@@ -78,11 +80,20 @@ pub struct Prompt<'a> {
     /// with no subwords takes the position the next element starts at.
     pub token_first: Vec<usize>,
     pub tasks: Vec<Task>,
-    pub period: usize,
+    /// The ids of the `.` added when the text lacks sentence punctuation.
+    pub period: Vec<u32>,
     window_words: Vec<(std::ops::Range<usize>, usize, usize)>,
+    /// Per URL word inside the text, by word index: its ids with the `.`
+    /// joined, for a window that ends on it.
+    url_ids: Vec<(usize, Vec<u32>)>,
 }
 
-impl Prompt<'_> {
+/// Whether GLiNER2 reads `text` with a `.` added after it.
+pub fn needs_period(text: &str) -> bool {
+    !text.ends_with(['.', '!', '?'])
+}
+
+impl<'a> Prompt<'a> {
     /// How many text tokens precede the words.
     pub fn prefix_len(&self) -> usize {
         self.prefix.len()
@@ -93,7 +104,7 @@ impl Prompt<'_> {
         let subwords: usize = lengths.clone().map(|(_, n)| n).sum();
         Measurement {
             overhead: self.ids.len() - subwords,
-            period: self.period,
+            period: self.period.len(),
             words: self
                 .window_words
                 .iter()
@@ -101,6 +112,67 @@ impl Prompt<'_> {
                 .map(|(r, n, _)| (r.clone(), *n))
                 .collect(),
             endings: self.window_words.iter().filter(|(r, _, _)| r.start < text_len).map(|(_, _, n)| *n).collect(),
+        }
+    }
+
+    /// The input for the window `at` of the text, cut from this one with no
+    /// tokenization: the schema and prefix ids as they are, then the words
+    /// inside `at` with their own ids and offsets moved to the window, then
+    /// the `.` when the window lacks sentence punctuation (joined to a URL
+    /// that ends the window, as the reference splits it). Every word is
+    /// tokenized on its own, so this is the input built over the window's
+    /// text from the same words.
+    ///
+    /// # Panics
+    /// When `at` is not a range of the text on character boundaries.
+    pub fn window(&self, at: Range<usize>) -> Prompt<'a> {
+        let (len, text) = (self.text.len(), &self.text[at.clone()]);
+        let period = needs_period(text);
+        let n = self.prefix.len();
+        let words_at = self.token_first.get(n).copied().unwrap_or(self.ids.len());
+        let mut ids = self.ids[..words_at].to_vec();
+        let mut token_first = self.token_first[..n].to_vec();
+        let (mut words, mut window_words, mut url_ids) = (Vec::new(), Vec::new(), Vec::new());
+        for (k, (w, &first)) in self.words.iter().zip(&self.token_first[n..]).enumerate() {
+            let end = w.end.min(len);
+            if w.start >= len || w.start < at.start || end > at.end {
+                continue;
+            }
+            let mut word = Word { start: w.start - at.start, end: w.end - at.start, ..w.clone() };
+            let mut own = &self.ids[first..first + w.subword_len];
+            if let Ok(u) = self.url_ids.binary_search_by_key(&k, |(i, _)| *i) {
+                if period && end == at.end {
+                    word.text.to_mut().push('.');
+                    word.end += 1;
+                    own = &self.url_ids[u].1;
+                } else {
+                    url_ids.push((words.len(), self.url_ids[u].1.clone()));
+                }
+            }
+            let (r, base, ending) = &self.window_words[k];
+            window_words.push((r.start - at.start..r.end - at.start, *base, *ending));
+            token_first.push(ids.len());
+            ids.extend_from_slice(own);
+            word.subword_len = own.len();
+            words.push(word);
+        }
+        if period && words.last().is_none_or(|w| w.end <= text.len()) {
+            token_first.push(ids.len());
+            ids.extend_from_slice(&self.period);
+            let (start, subword_len) = (text.len(), self.period.len());
+            words.push(Word { text: ".".into(), start, end: start + 1, subword_len });
+        }
+        Prompt {
+            ids,
+            text,
+            words,
+            prefix: self.prefix.clone(),
+            choice_at: self.choice_at.clone(),
+            token_first,
+            tasks: self.tasks.clone(),
+            period: self.period.clone(),
+            window_words,
+            url_ids,
         }
     }
 }
@@ -220,8 +292,9 @@ pub fn build_words<'a>(
     let mut period = Vec::new();
     encode(sp, specials, ".", &mut scratch, &mut period);
     let mut window_words = Vec::new();
+    let mut url_ids = Vec::new();
     let mut boundary_ids = Vec::new();
-    for w in &mut words {
+    for (k, w) in words.iter_mut().enumerate() {
         token_first.push(ids.len());
         let at = ids.len();
         encode(sp, specials, &w.text, &mut scratch, &mut ids);
@@ -238,6 +311,7 @@ pub fn build_words<'a>(
                 (boundary_ids.len(), w.subword_len)
             } else {
                 encode(sp, specials, &format!("{}.", w.text), &mut scratch, &mut boundary_ids);
+                url_ids.push((k, boundary_ids.clone()));
                 (w.subword_len, boundary_ids.len())
             }
         } else {
@@ -245,5 +319,5 @@ pub fn build_words<'a>(
         };
         window_words.push((w.start..w.end.min(text.len()), base, ending));
     }
-    Prompt { ids, text, words, prefix, choice_at, token_first, tasks: out_tasks, period: period.len(), window_words }
+    Prompt { ids, text, words, prefix, choice_at, token_first, tasks: out_tasks, period, window_words, url_ids }
 }
