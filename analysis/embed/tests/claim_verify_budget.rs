@@ -62,6 +62,8 @@ fn verify(dir: &TempDir, max_seq: u32, max_pairs: usize, sents: &[&str]) -> (BTr
             d.require(&Key::<Sentences>::DEFAULT).unwrap(),
             None,
             None,
+            None,
+            None,
         ))
         .unwrap();
     let scored = edges.iter().map(|(_, e)| (e.from.get() as u32, e.to.get() as u32)).collect();
@@ -120,3 +122,6 @@ fn nothing_is_scored_when_every_pair_is_over_budget() {
     assert!(scored.is_empty(), "{scored:?}");
     assert_eq!(runs, 0, "no encoder run without a pair");
 }
+
+#[path = "claim_verify/inputs.rs"]
+mod inputs;

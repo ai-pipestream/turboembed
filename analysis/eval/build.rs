@@ -15,6 +15,10 @@ fn git(dir: &Path, args: &[&str]) -> Option<String> {
 }
 
 fn main() {
+    for key in ["PROFILE", "OPT_LEVEL", "DEBUG"] {
+        let value = std::env::var(key).expect("Cargo build setting");
+        println!("cargo:rustc-env=TURBO_EVAL_{key}={value}");
+    }
     let manifest = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let dir = Path::new(&manifest);
     let mut refs = vec!["HEAD".to_owned(), "packed-refs".to_owned()];

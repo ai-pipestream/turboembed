@@ -2088,6 +2088,7 @@ dependencies = [
 name = "turbo-doccat"
 version = "0.1.0"
 dependencies = [
+ "turbo",
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-calibration",
@@ -2249,6 +2250,7 @@ dependencies = [
  "serde_json",
  "turbo",
  "turbo-analysis",
+ "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-bundle",
  "turbo-zoo",

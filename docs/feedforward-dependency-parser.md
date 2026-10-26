@@ -34,24 +34,89 @@ reference's simple lowercase mapping plus contextual final sigma. Reserved
 
 ## Model files
 
-`from_bytes` accepts either format below. Both readers reject invalid counts,
-dimensions, duplicate vocabulary symbols or IDs, non-finite parameters,
-invalid transition inventories, and trailing payload bytes. Float arrays are
-allocated only after their bytes and aggregate count have been checked.
-Limits: 2 million vocabulary rows, 100,000 outcomes, embedding width 4,096,
-hidden width 65,536, and 100 million total float values.
+`from_bytes` accepts legacy Java raw streams, current Apache models and Turbo
+ZIP versions 1 and 2. Readers reject invalid counts, dimensions, duplicate
+symbols/IDs, non-finite parameters, invalid transitions and trailing network
+bytes. Float arrays are allocated after their bytes and aggregate count have
+been checked. Limits remain 2 million vocabulary rows, 100,000 outcomes,
+embedding width 4,096, hidden width 65,536 and 100 million float values.
 
-- Java compatibility: `from_java_bytes` / `to_java_bytes` read and write the
-  reference's raw `ONLP-FFDP-1` stream. It has Java modified-UTF strings,
-  big-endian integers and floats, and 14/14/8 cube features. Expanded or ReLU
-  models cannot be serialized into this format.
-- Versioned ZIP: `to_bytes` writes `format_version`, `config.properties`,
-  `vocab.bin`, `weights.bin`, and a standard `manifest.properties` entry.
-  This is the Turbo container defined here, not a claim that the pinned Java
-  loader accepts ZIP. Version 1 stores the layout and activation explicitly;
-  vocabulary and weight entries reuse the bounded big-endian codecs. ZIP
-  entry names must be unique; unknown entries and duplicate settings fail.
-  Uncompressed entry sizes are capped before decompression.
+- Legacy fork: `from_java_bytes` / `to_java_bytes` read and write
+  `ONLP-FFDP-1`, with Java modified-UTF strings and 14/14/8 cube features.
+  Export refuses expanded/ReLU models and default beams other than 1.
+  This export does not write the current Apache format.
+- Current Apache: `from_apache_bytes` reads `FFDP` version 1, directly or
+  within the `FeedforwardDependencyParser` BaseModel ZIP artifact
+  `feedforward.network`. ZIP import preserves the manifest's default
+  `BeamSize`; a bare network has no beam metadata and defaults to 1.
+  Unsupported versions, mixed schemas, malformed UTF-8 and invalid beam
+  settings fail explicitly. Native allocation limits still apply.
+- Native: `to_bytes` writes Turbo ZIP version 2. It records layout,
+  activation and default beam, and uses length-prefixed UTF-8 vocabulary
+  strings, including keys beyond legacy `writeUTF`'s 65,535-byte limit.
+  The version 1 reader remains supported with its original default beam 1.
+  Both versions require unique, recognized entries and valid configuration;
+  uncompressed entry sizes are capped before decompression.
+
+These native-format changes preserve parameters and decoding metadata; they
+are not a measured load-speed or inference-speed improvement. Conversion
+prints input/output SHA256 values so callers can retain the import receipt.
+The model's canonical identity describes the converted native artifact.
+
+### Native command line
+
+Build with `cargo build -p turbo-depparse --bin turbo-depparse`, or use:
+
+```sh
+cargo run -p turbo-depparse --bin turbo-depparse -- inspect feedforward apache.bin
+cargo run -p turbo-depparse --bin turbo-depparse -- convert feedforward apache.bin model.turbo
+cargo run -p turbo-depparse --bin turbo-depparse -- parse feedforward model.turbo input.conllu output.conllu
+```
+
+Use `linear` instead of `feedforward` for OpenNLP linear ZIP or raw maxent
+models. Conversion packages raw classifiers and preserves existing linear
+packages. Parsing uses existing syntactic word forms and UPOS; it performs
+no tokenization, POS prediction or access to gold heads/labels. Output changes
+only basic HEAD/DEPREL, preserving comments, multiword ranges, empty nodes and
+other columns. Enhanced DEPS are retained unchanged, not recomputed. Word IDs
+must be contiguous from 1 and every word needs UPOS. Neural parsing uses the
+recorded default beam. Existing output files are never overwritten.
+
+No Python installation is required. Native training is also available:
+
+```sh
+cargo run --release -p turbo-depparse --bin turbo-depparse -- train feedforward en train.conllu neural.properties model.turbo --projective-only
+cargo run --release -p turbo-depparse --bin turbo-depparse -- train linear en train.conllu linear.properties linear.bin --projective-only
+```
+
+These commands require an explicit parameter file and `--projective-only`.
+They report input sentences/words and excluded non-projective sentences/words
+before training, then elapsed training seconds and corpus/parameter/model
+SHA256 values. Retain this receipt with the source corpus and parameter file;
+the neural container does not store training language or corpus provenance.
+Training consumes the supplied file only; keep train, development and test
+roles separate. An empty projective population is an error. This command does
+not solve non-projective training or constitute a measured accuracy release.
+
+The linear CLI currently supports `Algorithm=MAXENT` and requires explicit
+positive `Iterations` and `Threads`, plus nonnegative `Cutoff`. Other algorithms
+remain available through Rust APIs. Example small compatibility pilot:
+
+```properties
+Algorithm=MAXENT
+Iterations=5
+Cutoff=1
+Threads=1
+```
+
+Neural parameters require positive `Epochs`. Optional keys are `EmbeddingSize`,
+`HiddenSize`, `BatchSize`, `LearningRate`, `L2`, `Dropout`, `WordCutoff`, `Seed`,
+`Layout` (`ChenManning18` or `OpenNlp14`) and `Activation` (`cube` or `relu`).
+Omitted values use `FeedforwardSettings::default()`; the complete resolved
+settings are printed. Unknown keys fail. A one-epoch pilot with the default
+50-dimensional embeddings and 200 hidden units uses `Epochs=1`. Tiny fixtures
+can explicitly set `EmbeddingSize=3` and `HiddenSize=5`; results from that
+configuration do not predict full-width training cost or accuracy.
 
 The model exposes immutable weights and vocabulary. `precompute_words`
 accepts word frequencies, orders by frequency with a deterministic ID tie
