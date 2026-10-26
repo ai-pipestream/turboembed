@@ -611,6 +611,9 @@ struct AttentionParams {
     uint hidden;
     uint head_dim;
     float scale;
+    // attention_narrow's floats of scores per SIMD group: the run's
+    // longest row, rounded up to 8.
+    uint narrow_stride;
 };
 
 constant uint KC = 32;       // keys per chunk
@@ -747,8 +750,12 @@ kernel void attention(device const float *q [[buffer(0)]], device const float *k
 // each lane holding two columns of a row in each 8 x 8 block, so it needs
 // no such memory and no barrier between the scores and the product with
 // V. The two sum in different orders, so their bits differ (docs/metal.md,
-// Kernel choices).
-template <bool REG>
+// Kernel choices). HM is the widest head an instance takes: 64, or 128
+// for heads over 64 or of a width that is not a multiple of 8, whose
+// width is padded to the next multiple of 8 with zeros in threadgroup
+// memory, and which are read from device memory a value at a time when
+// the width is not a multiple of 4.
+template <bool REG, uint HM>
 kernel void attention_h(device const half *q [[buffer(0)]], device const half *k [[buffer(1)]],
                         device const half *v [[buffer(2)]], device const int *mask [[buffer(3)]],
                         device const uint2 *rows [[buffer(4)]], device const uint2 *blocks [[buffer(5)]],
@@ -762,9 +769,10 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
     // the same room); for attention_h, each group's 8 x 32 scores in F32
     // and probabilities in F16; and the chunk's keys' mask as an additive
     // 0 or -inf.
-    const uint LDH = p.head_dim + 8, LDK = KC + 8;
+    const uint hd = p.head_dim, hp = HM > HD_MAX ? (hd + 7) / 8 * 8 : hd;
+    const uint LDH = hp + 8, LDK = KC + 8;
     threadgroup half *ks = mem;
-    threadgroup half *vs = ks + p.head_dim * LDK;
+    threadgroup half *vs = ks + hp * LDK;
     threadgroup float *after = (threadgroup float *)(vs + KC * LDH);
     threadgroup float *s = after + sg * 8 * KC;
     threadgroup half *ph = (threadgroup half *)(after + 4 * 8 * KC) + sg * 8 * KC;
@@ -772,25 +780,34 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
     const uint2 blk = blocks[tg.x];
     const uint2 row = rows[blk.x];
     const uint p0 = row.x, len = row.y;
-    const uint h = p.hidden, hd = p.head_dim, col = tg.y * hd;
+    const uint h = p.hidden, col = tg.y * hd;
     const uint first = blk.y * 32;
     device const int *m = mask + p0;
-    const uint hd4 = hd / 4;
+    const uint hd4 = hp / 4;
+    // A width that is not a multiple of 4 is read a value at a time.
+    const bool scalar = HM > HD_MAX && hd % 4 != 0;
     const half qscale = half(p.scale * 1.4426950408889634f);
 
     // The group's queries, through vs, into registers.
     for (uint e = tid; e < 32 * hd4; e += 128) {
         const uint r = e / hd4, d = (e % hd4) * 4;
-        *(threadgroup half4 *)(vs + r * LDH + d) =
-            first + r < len ? *(device const half4 *)(q + ulong(p0 + first + r) * h + col + d) * qscale : half4(0.0h);
+        device const half *src = q + ulong(p0 + first + r) * h + col + d;
+        half4 qv = half4(0.0h);
+        if (first + r < len) {
+            if (scalar)
+                for (uint i = 0; i < 4; i++) qv[i] = d + i < hd ? src[i] : 0.0h;
+            else if (HM == HD_MAX || d < hd)
+                qv = *(device const half4 *)src;
+        }
+        *(threadgroup half4 *)(vs + r * LDH + d) = qv * qscale;
     }
     threadgroup_barrier(mem_flags::mem_threadgroup);
-    simdgroup_half8x8 qa[HD_MAX / 8];
-    for (uint f = 0; f < HD_MAX / 8; f++)
-        if (f * 8 < hd) simdgroup_load(qa[f], vs + (sg * 8) * LDH + f * 8, LDH);
+    simdgroup_half8x8 qa[HM / 8];
+    for (uint f = 0; f < HM / 8; f++)
+        if (f * 8 < hp) simdgroup_load(qa[f], vs + (sg * 8) * LDH + f * 8, LDH);
 
-    simdgroup_float8x8 o[HD_MAX / 8];
-    for (uint f = 0; f < HD_MAX / 8; f++) o[f] = make_filled_simdgroup_matrix<float, 8, 8>(0.0f);
+    simdgroup_float8x8 o[HM / 8];
+    for (uint f = 0; f < HM / 8; f++) o[f] = make_filled_simdgroup_matrix<float, 8, 8>(0.0f);
     const Coord cd = lane_coord(lane);
     const uint qr = lane / 4, part = lane % 4;
     float mx = -INFINITY, sum = 0.0f;
@@ -799,11 +816,21 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
         threadgroup_barrier(mem_flags::mem_threadgroup);
         for (uint e = tid; e < KC * hd4; e += 128) {
             const uint r = e / hd4, d = (e % hd4) * 4;
-            const bool in = c0 + r < len;
+            const bool in = c0 + r < len && (HM == HD_MAX || d < hd);
             const ulong at = ulong(p0 + c0 + r) * h + col + d;
-            const half4 kv = in ? *(device const half4 *)(k + at) : half4(0.0h);
+            half4 kv = half4(0.0h), vv = half4(0.0h);
+            if (in && scalar) {
+                for (uint i = 0; i < 4; i++)
+                    if (d + i < hd) {
+                        kv[i] = k[at + i];
+                        vv[i] = v[at + i];
+                    }
+            } else if (in) {
+                kv = *(device const half4 *)(k + at);
+                vv = *(device const half4 *)(v + at);
+            }
             for (uint i = 0; i < 4; i++) ks[(d + i) * LDK + r] = kv[i];
-            *(threadgroup half4 *)(vs + r * LDH + d) = in ? *(device const half4 *)(v + at) : half4(0.0h);
+            *(threadgroup half4 *)(vs + r * LDH + d) = vv;
         }
         if (tid < KC) kb[tid] = c0 + tid < len && m[c0 + tid] != 0 ? 0.0f : -INFINITY;
         threadgroup_barrier(mem_flags::mem_threadgroup);
@@ -816,8 +843,8 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
         float cm = -INFINITY;
         for (uint j = 0; j < KC / 8; j++) {
             simdgroup_float8x8 acc = make_filled_simdgroup_matrix<float, 8, 8>(0.0f);
-            for (uint f = 0; f < HD_MAX / 8; f++) {
-                if (f * 8 >= hd) break;
+            for (uint f = 0; f < HM / 8; f++) {
+                if (f * 8 >= hp) break;
                 simdgroup_half8x8 kt;
                 simdgroup_load(kt, ks + (f * 8) * LDK + j * 8, LDK);
                 simdgroup_multiply_accumulate(acc, qa[f], kt, acc);
@@ -878,8 +905,8 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
             row_alpha = simd_shuffle(alpha, ushort(cd.fm * 4));
             for (uint j = 0; j < KC / 8; j++) simdgroup_load(pa[j], ph + j * 8, KC);
         }
-        for (uint f = 0; f < HD_MAX / 8; f++) {
-            if (f * 8 >= hd) break;
+        for (uint f = 0; f < HM / 8; f++) {
+            if (f * 8 >= hp) break;
             thread auto &oe = o[f].thread_elements();
             oe[0] *= row_alpha;
             oe[1] *= row_alpha;
@@ -895,37 +922,44 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
     const uint qi = first + sg * 8 + cd.fm;
     if (qi >= len) return;
     device half *out = ctx + ulong(p0 + qi) * h + col;
-    for (uint f = 0; f < HD_MAX / 8; f++) {
-        if (f * 8 >= hd) break;
+    for (uint f = 0; f < HM / 8; f++) {
+        if (f * 8 >= hp) break;
         thread auto &oe = o[f].thread_elements();
-        out[f * 8 + cd.fn] = half(oe[0] * inv);
-        out[f * 8 + cd.fn + 1] = half(oe[1] * inv);
+        const uint d = f * 8 + cd.fn;
+        if (HM == HD_MAX || d < hd) out[d] = half(oe[0] * inv);
+        if (HM == HD_MAX || d + 1 < hd) out[d + 1] = half(oe[1] * inv);
     }
 }
 
 // The instances the host names.
-#define ATTENTION_H(reg, name)                                                                                  \
-    template [[host_name(name)]] kernel void attention_h<reg>(                                                  \
+#define ATTENTION_H(reg, hm, name)                                                                              \
+    template [[host_name(name)]] kernel void attention_h<reg, hm>(                                              \
         device const half *, device const half *, device const half *, device const int *, device const uint2 *, \
         device const uint2 *, device half *, constant AttentionParams &, threadgroup half *, uint2, ushort, ushort, \
         ushort);
-ATTENTION_H(false, "attention_h")
-ATTENTION_H(true, "attention_hr")
+ATTENTION_H(false, 64, "attention_h")
+ATTENTION_H(true, 64, "attention_hr")
+ATTENTION_H(false, 128, "attention_h128")
+ATTENTION_H(true, 128, "attention_hr128")
 
 // The same, for a head width that is not a multiple of 8 or over 64: each
-// query of the 32 in turn, in one SIMD group, its scores one key per lane.
+// of the threadgroup's SIMD groups takes every groups-th query of the 32,
+// its scores one key per lane in its own narrow_stride floats. A query's
+// arithmetic is the same whatever the group count, so its bits are too.
 kernel void attention_narrow(device const float *q [[buffer(0)]], device const float *k [[buffer(1)]],
                              device const float *v [[buffer(2)]], device const int *mask [[buffer(3)]],
                              device const uint2 *rows [[buffer(4)]], device const uint2 *blocks [[buffer(5)]],
                              device float *ctx [[buffer(6)]], constant AttentionParams &p [[buffer(7)]],
-                             threadgroup float *sc [[threadgroup(0)]], uint2 tg [[threadgroup_position_in_grid]],
-                             ushort lane [[thread_index_in_simdgroup]]) {
+                             threadgroup float *scores [[threadgroup(0)]], uint2 tg [[threadgroup_position_in_grid]],
+                             ushort sg [[simdgroup_index_in_threadgroup]],
+                             ushort groups [[simdgroups_per_threadgroup]], ushort lane [[thread_index_in_simdgroup]]) {
+    threadgroup float *sc = scores + sg * p.narrow_stride;
     const uint2 blk = blocks[tg.x];
     const uint2 row = rows[blk.x];
     const uint p0 = row.x, len = row.y;
     const uint h = p.hidden, hd = p.head_dim, col = tg.y * hd;
     device const int *m = mask + p0;
-    for (uint i = blk.y * 32; i < min(len, blk.y * 32 + 32); i++) {
+    for (uint i = blk.y * 32 + sg; i < min(len, blk.y * 32 + 32); i += groups) {
         device const float *qi = q + ulong(p0 + i) * h + col;
         float mx = -INFINITY;
         for (uint j = lane; j < len; j += 32) {
@@ -1036,6 +1070,135 @@ kernel void pool_ranges(device const float *x [[buffer(0)]], device const int *m
     if (p.l2 == 0) return;
     const float inv = 1.0f / max(sqrt(simd_sum(ss)), 1e-12f);
     for (uint d = lane; d < p.output_dim; d += 32) dst[d] *= inv;
+}
+
+// ---- DeBERTa-v2 ---------------------------------------------------------------
+//
+// The parts of a DeBERTa-v2 encoder (TURBO_FAMILY_DEBERTA_V2) that differ
+// from BERT's, held to the CPU encoder (core/src/deberta), the reference;
+// the linear layers, the LayerNorms after them and the pooling are BERT's,
+// in F32. The relative table is LayerNormed once a model, then put through
+// each layer's query and key projections (shared keys): rows of
+// [2 * hidden], the query part, then the key part. A session holds the
+// bucket of every distance its rows can span, buckets[i - j + span].
+
+// x[t] = LayerNorm(word[ids[t]]) where the token is live, else 0: no
+// position or type rows.
+kernel void deberta_embed(device const int *ids [[buffer(0)]], device const int *mask [[buffer(1)]],
+                          device const float *word [[buffer(2)]], device const float *ln_w [[buffer(3)]],
+                          device const float *ln_b [[buffer(4)]], device float *x [[buffer(5)]],
+                          constant RowParams &p [[buffer(6)]], device half *xh [[buffer(7)]],
+                          uint tg [[threadgroup_position_in_grid]], ushort sg [[simdgroup_index_in_threadgroup]],
+                          ushort lane [[thread_index_in_simdgroup]]) {
+    const uint t = tg * 4 + sg, h = p.hidden;
+    device float *row = x + ulong(t) * h;
+    if (mask[t] == 0) {
+        for (uint d = lane; d < h; d += 32) row[d] = 0.0f;
+        return;
+    }
+    device const float *w = word + ulong(ids[t]) * h;
+    for (uint d = lane; d < h; d += 32) row[d] = w[d];
+    layer_norm_row(row, h, ln_w, ln_b, p.eps, lane, xh + ulong(t) * h, 0);
+}
+
+// Each of the grid's rows of x, hidden wide, LayerNormed in place, one
+// SIMD group a row.
+kernel void deberta_layer_norm_rows(device float *x [[buffer(0)]], device const float *ln_w [[buffer(1)]],
+                                    device const float *ln_b [[buffer(2)]], constant RowParams &p [[buffer(3)]],
+                                    device half *unused [[buffer(4)]], uint tg [[threadgroup_position_in_grid]],
+                                    ushort lane [[thread_index_in_simdgroup]]) {
+    layer_norm_row(x + ulong(tg) * p.hidden, p.hidden, ln_w, ln_b, p.eps, lane, unused, 0);
+}
+
+struct RelativeParams {
+    uint rows, hidden;
+};
+
+// out[r, part * hidden + o] = bias[o] + sum_i x[r, i] w[o, i], for part 0
+// (the query projection, w0 and b0) and 1 (the key projection, w1 and
+// b1): a thread an output, the sum in the CPU's order.
+kernel void deberta_relative(device const float *x [[buffer(0)]], device const float *w0 [[buffer(1)]],
+                             device const float *b0 [[buffer(2)]], device const float *w1 [[buffer(3)]],
+                             device const float *b1 [[buffer(4)]], device float *out [[buffer(5)]],
+                             constant RelativeParams &p [[buffer(6)]], uint e [[thread_position_in_grid]]) {
+    const uint h = p.hidden;
+    if (e >= p.rows * 2 * h) return;
+    const uint r = e / (2 * h), c = e % (2 * h), part = c / h, o = c % h;
+    device const float *w = (part == 0 ? w0 : w1) + ulong(o) * h;
+    device const float *xr = x + ulong(r) * h;
+    float s = 0.0f;
+    for (uint i = 0; i < h; i++) s = fma(xr[i], w[i], s);
+    out[e] = s + (part == 0 ? b0 : b1)[o];
+}
+
+struct DebertaParams {
+    uint hidden, head_dim;
+    float scale;       // 1 / sqrt(3 head_dim)
+    uint span;         // max_seq - 1: buckets[i - j + span]
+    uint stride;       // floats of scores a SIMD group holds: the longest row, rounded up to 8
+};
+
+// Disentangled attention, a threadgroup per block of 32 queries of a row
+// and head, each SIMD group taking every groups-th query with its own
+// scores, a key a lane. A live query's score of a live key is
+// (q_i . k_j + q_i . pos_key[b] + k_j . pos_query[b]) / sqrt(3 d), b the
+// bucket of i - j, over live keys alone; a masked query attends evenly to
+// every position of its row, as upstream's mask leaves it.
+kernel void deberta_attention(device const float *q [[buffer(0)]], device const float *k [[buffer(1)]],
+                              device const float *v [[buffer(2)]], device const int *mask [[buffer(3)]],
+                              device const uint2 *rows [[buffer(4)]], device const uint2 *blocks [[buffer(5)]],
+                              device float *ctx [[buffer(6)]], constant DebertaParams &p [[buffer(7)]],
+                              device const float *pos [[buffer(8)]], device const int *buckets [[buffer(9)]],
+                              threadgroup float *scores [[threadgroup(0)]], uint2 tg [[threadgroup_position_in_grid]],
+                              ushort sg [[simdgroup_index_in_threadgroup]],
+                              ushort groups [[simdgroups_per_threadgroup]], ushort lane [[thread_index_in_simdgroup]]) {
+    threadgroup float *sc = scores + sg * p.stride;
+    const uint2 blk = blocks[tg.x];
+    const uint2 row = rows[blk.x];
+    const uint p0 = row.x, len = row.y;
+    const uint h = p.hidden, hd = p.head_dim, col = tg.y * hd;
+    device const int *m = mask + p0;
+    device const float *pq = pos + col, *pk = pos + h + col;
+    for (uint i = blk.y * 32 + sg; i < min(len, blk.y * 32 + 32); i += groups) {
+        device const float *qi = q + ulong(p0 + i) * h + col;
+        const bool live = m[i] != 0;
+        float mx = -INFINITY;
+        for (uint j = lane; j < len; j += 32) {
+            if (!live) {
+                sc[j] = 0.0f;
+                mx = 0.0f;
+                continue;
+            }
+            if (m[j] == 0) continue;
+            device const float *kj = k + ulong(p0 + j) * h + col;
+            const ulong r = ulong(buckets[i - j + p.span]) * 2 * h;
+            float c2c = 0.0f, c2p = 0.0f, p2c = 0.0f;
+            for (uint d = 0; d < hd; d++) {
+                c2c = fma(qi[d], kj[d], c2c);
+                c2p = fma(qi[d], pk[r + d], c2p);
+                p2c = fma(kj[d], pq[r + d], p2c);
+            }
+            sc[j] = (c2c + c2p + p2c) * p.scale;
+            mx = max(mx, sc[j]);
+        }
+        mx = simd_max(mx);
+        float sum = 0.0f;
+        for (uint j = lane; j < len; j += 32) {
+            const float e = !live || m[j] != 0 ? exp(sc[j] - mx) : 0.0f;
+            sc[j] = e;
+            sum += e;
+        }
+        const float inv = 1.0f / simd_sum(sum);
+        simdgroup_barrier(mem_flags::mem_threadgroup);
+        device float *out = ctx + ulong(p0 + i) * h + col;
+        for (uint d = lane; d < hd; d += 32) {
+            float c = 0.0f;
+            for (uint j = 0; j < len; j++)
+                if (!live || m[j] != 0) c = fma(sc[j] * inv, v[ulong(p0 + j) * h + col + d], c);
+            out[d] = c;
+        }
+        simdgroup_barrier(mem_flags::mem_threadgroup);
+    }
 }
 
 // ---- Weights stored in F16 or BF16 -------------------------------------------

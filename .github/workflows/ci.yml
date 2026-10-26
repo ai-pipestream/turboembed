@@ -79,13 +79,15 @@ jobs:
         run: cargo clippy -p turbo-vector-index --features turboquant --all-targets
       # The arm64 machines (aarch64 Linux, Apple silicon) build without
       # the x86_64 kernels. Checked only: the crates left out reach ring
-      # through ureq, whose build script needs an aarch64 C compiler. The
-      # server is checked without catalog-http, its one way to ureq.
+      # through ureq or rustls, whose build script needs an aarch64 C
+      # compiler the runner does not have. The server is checked without
+      # catalog-http, its one way to ureq.
       - name: check (aarch64)
         run: |
           cargo check --workspace --target aarch64-unknown-linux-gnu \
             --exclude turbo-bench --exclude turbo-bundle --exclude turbo-eval --exclude turbo-kserve \
-            --exclude turbo-zoo --exclude turbo-train-components --exclude turbo-train-recipes
+            --exclude turbo-zoo --exclude turbo-train-components --exclude turbo-train-recipes \
+            --exclude turbo-kserve-demo
           cargo check -p turbo-kserve --no-default-features --target aarch64-unknown-linux-gnu
 
   # Lints the versioned turbo.*.v1 proto contracts, checks pull requests
@@ -121,6 +123,13 @@ jobs:
               "$RUNNER_TEMP"/base/server/proto/turbo_*.proto
           fi
           buf breaking server/proto --against "$RUNNER_TEMP/base/server/proto"
+      # The demo page's Connect-ES code (docs/demo.md) is committed; it must
+      # be what the protos generate with the pins in demo/web/package-lock.json.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.16.0"
+      - name: generated TypeScript matches server/proto
+        run: bash scripts/generate-web-stubs.sh --check
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:

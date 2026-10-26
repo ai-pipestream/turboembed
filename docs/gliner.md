@@ -12,7 +12,7 @@ No encoder attention or matrix-multiplication loop is changed here.
 
 `Model::new` takes the CPU encoder. `Model::open_on` takes the encoder as
 a core bundle of `FAMILY_DEBERTA_V2` instead, through the backend table, on
-the device `EncoderOptions` names: cpu, cuda or levelzero (#883). One run
+the device `EncoderOptions` names: cpu, cuda, levelzero or metal (#883). One run
 a window, and only the rows the heads read come back: a one-token range at
 each `<<ENT>>` marker and each word's first subword, through the range
 write, unnormalized, as SaT reads its tokens. The heads, packing and
@@ -20,8 +20,145 @@ decoding are the same; the longest sequence is the session's, and
 `Model::execution` names where it ran. `analysis/gliner/tests/device.rs` holds a device to
 the CPU encoder on `testdata/tiny-deberta-bundle` (every logit within
 1e-4, and 1e-3 of its input's largest, the packed ids and decoded entities
-the same): on the Arc Pro B70 and the RTX 4080 SUPER the largest difference
-is under 1e-10, at MODEL and EXACT.
+the same): on the Arc Pro B70, the RTX 4080 SUPER and the Apple M2 the
+largest difference is under 1e-10, at MODEL and EXACT (on the M2 8.7e-11,
+the encoder rows within 7.2e-7).
+
+### The real checkpoint on a device
+
+`bundle/recipes/gliner-small-v2.1-encoder.json` seals `urchade/gliner_small-v2.1`'s
+encoder as that core bundle. `bundle/reference/gliner_encoder.py`, in the
+pinned reference container, writes it from the zoo's checkpoint and
+`microsoft-deberta-v3-small-tokenizer` files (microsoft/deberta-v3-small at
+`a36c739020e01763fe789b4b85e2df55d6180012`): the checkpoint's
+`token_rep_layer.bert_layer.model` tensors as a `DebertaV2Model` of 128004
+rows (loaded with `strict=False`, then refused on any missing key but
+`position_ids` and on any unexpected one), and `spm.model` converted to `tokenizer.json` (with `[MASK]` and
+GLiNER's `[FLERT]`, `<<ENT>>` and `<<SEP>>` as pieces at the checkpoint's
+ids, its normalizer in SentencePiece's own order: the map, the collapse of
+spaces, the strip). The conversion runs only in the container; no Python
+ships. `turbo-bundle reference` then writes the reference (mean pooled, not
+normalized, at 512 tokens) and seals, checking the config against the
+recipe. With `Z` the zoo home's `artifacts` directory and `W` an empty one:
+
+```
+docker run --rm --network none --user $(id -u):$(id -g) -e HOME=/tmp \
+    -v $PWD/bundle/reference:/scripts:ro -v $Z/microsoft-deberta-v3-small-tokenizer:/tok:ro \
+    -v $Z/urchade-gliner-small-v2.1:/ckpt:ro -v $W:/w --entrypoint python \
+    turbo-reference@sha256:3fe2d4ad441927475b97a400364ebcb7fca3f324dae1a0463720eff7fc0a53f4 \
+    /scripts/gliner_encoder.py /tok/config.json /tok/spm.model /ckpt/pytorch_model.bin /w/out
+cargo run --release -p turbo-bundle -- reference bundle/recipes/gliner-small-v2.1-encoder.json $W/out $W/bundle
+```
+
+`package::Manifest::open_on` takes the converted package with that bundle:
+the package is checked as `load` checks it, and the bundle's weights must
+be the package encoder's, tensor for tensor. Core conformance holds the
+bundle to its reference (10 cases, within 1e-4) on the CPU and the devices.
+`analysis/gliner/tests/real_device.rs` (ignored; `GLINER_PACKAGE`,
+`GLINER_ENCODER_BUNDLE`, `TURBO_TEST_DEVICE`) holds the device to the
+package on the CPU (packed ids identical, every logit and row within 1e-4, decoded
+entities alike but for candidates within that of the threshold) and times
+`score_packed` on both, interleaved.
+
+Receipts of 2026-10-26, at commit `beb41c4369022f7a05b59060095f904fde21210f`,
+release builds, the converted package against the same package over the
+sealed encoder bundle. Parity is five consecutive runs at each precision on
+each device:
+
+```
+GLINER_PACKAGE=<package> GLINER_ENCODER_BUNDLE=<bundle> TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 \
+    TURBO_TEST_PRECISION=model cargo test --release --locked -p turbo-gliner --features turbo/levelzero \
+    --test real_device the_real -- --ignored --nocapture
+```
+
+(`cuda`, `TURBO_TEST_REQUIRE_CUDA=1` and `--features turbo/cuda` on the
+RTX 4080 SUPER; `exact` likewise.) Every run passed, and the five gave the
+same figures, so the minimum and the maximum are equal:
+
+| Device | Precision | Runs | Marker and first-subword rows, largest difference | Lowest cosine | Logits, largest difference |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Arc Pro B70 | MODEL, EXACT | 5 each | 3.4e-5 | 1.000000000 | 5.1e-5 |
+| RTX 4080 SUPER | MODEL, EXACT | 5 each | 4.8e-5 | 1.000000000 | 5.7e-5 |
+| Apple M2 (metal) | MODEL, EXACT | 20 each | 3.4e-5 | 1.000000000 | 6.1e-5 |
+
+The packed ids and the decoded entities were the same in every run.
+
+Timing is `real_checkpoint_timing` (`GLINER_REPS=50`, the same features,
+`real_checkpoint_timing` in place of `the_real`): `score_packed`, and the
+encoder alone (`Model::states`, the rows the heads read), on the package's
+CPU encoder and on the device, interleaved, 50 timed runs each after one
+untimed; milliseconds, min / p50 / mean / p99. The difference between a
+column's call and its encoder is the heads (projection, BiLSTM, span
+scoring), which run on the host on both sides: on the device they are most
+of a call past 64 words.
+
+Arc Pro B70 (levelzero), host AMD Ryzen 9 9950X (16 cores, 32 threads). No
+build or test process in the CI runner containers that mount the device,
+before or after. Another client held the render engine about 55% busy and
+none other the compute engines; GPU clock median 2800 MHz, at most 66 C.
+The host's load average was 21 to 38, so the CPU columns, and every ratio
+to them, ran under load.
+
+| Words, labels (tokens) | CPU call | CPU encoder | levelzero call | levelzero encoder |
+| --- | ---: | ---: | ---: | ---: |
+| 64, 4 (75) | 31.7 / 37.7 / 38.1 / 47.4 | 15.1 / 17.8 / 18.1 / 25.8 | 30.3 / 35.7 / 35.7 / 44.2 | 30.1 / 35.6 / 35.3 / 45.0 |
+| 64, 32 (131) | 39.5 / 53.3 / 54.0 / 74.6 | 19.0 / 27.8 / 29.5 / 45.7 | 26.1 / 32.8 / 34.5 / 51.3 | 13.6 / 36.5 / 34.7 / 48.6 |
+| 128, 4 (139) | 66.2 / 89.3 / 89.7 / 146.9 | 18.0 / 27.9 / 28.0 / 51.5 | 47.6 / 83.9 / 81.4 / 133.5 | 3.2 / 6.0 / 8.0 / 20.8 |
+| 128, 32 (195) | 66.5 / 89.3 / 93.5 / 172.5 | 22.4 / 35.7 / 35.6 / 64.0 | 55.4 / 82.3 / 83.9 / 147.1 | 4.3 / 10.8 / 10.4 / 23.2 |
+| 384, 4 (395) | 243.2 / 329.0 / 328.8 / 412.2 | 72.5 / 113.7 / 119.0 / 192.4 | 188.5 / 220.6 / 232.1 / 350.8 | 9.1 / 27.3 / 30.0 / 70.4 |
+| 384, 32 (451) | 211.0 / 275.3 / 296.9 / 426.2 | 56.4 / 95.4 / 110.3 / 202.0 | 172.9 / 229.7 / 230.6 / 320.3 | 21.6 / 55.1 / 51.6 / 77.9 |
+
+At 64 words the device encoder is unexplained: its p50 is about the whole
+call's (35.6 of 35.7 ms) or above it (36.5 of 32.8 ms), and slower than at
+128 words. The first of these shapes was the first timed, under host load,
+but that does not account for the second. These two rows are left out of
+the conclusion below until they are retaken with a warm-up per shape.
+
+RTX 4080 SUPER (cuda), host AMD Ryzen 9 9950X3D (16 cores, 32 threads). A
+shared machine: a resident server process, kept running there on purpose
+because it is under test, held 5.5 GB and kept the GPU about 24% busy; no
+other test process and no CI build or test process ran. SM clock median
+2610 MHz, at most 47 C. The host's load average was 22 to 40, so every
+ratio from this table, the device over the CPU in particular, is from a
+shared, loaded machine, not a quiet one.
+
+| Words, labels (tokens) | CPU call | CPU encoder | cuda call | cuda encoder |
+| --- | ---: | ---: | ---: | ---: |
+| 64, 4 (75) | 33.0 / 35.2 / 37.1 / 54.7 | 13.1 / 14.7 / 15.2 / 19.9 | 21.5 / 22.4 / 23.3 / 31.7 | 1.6 / 1.7 / 1.7 / 1.9 |
+| 64, 32 (131) | 38.4 / 46.5 / 49.2 / 107.5 | 18.1 / 23.0 / 23.6 / 59.8 | 22.4 / 27.2 / 27.9 / 39.2 | 2.3 / 2.6 / 2.7 / 3.4 |
+| 128, 4 (139) | 59.8 / 65.2 / 66.7 / 80.8 | 17.5 / 22.4 / 22.5 / 35.0 | 42.7 / 46.1 / 46.7 / 53.5 | 2.4 / 2.7 / 2.7 / 3.4 |
+| 128, 32 (195) | 67.9 / 72.8 / 73.3 / 87.5 | 24.9 / 28.5 / 29.2 / 36.7 | 43.9 / 45.7 / 46.8 / 54.8 | 2.8 / 2.8 / 3.0 / 4.0 |
+| 384, 4 (395) | 171.4 / 245.8 / 287.8 / 793.3 | 49.0 / 86.1 / 108.0 / 356.6 | 127.2 / 176.9 / 200.2 / 819.2 | 4.6 / 5.0 / 5.2 / 6.7 |
+| 384, 32 (451) | 197.8 / 229.4 / 240.0 / 340.9 | 61.0 / 80.2 / 83.4 / 123.8 | 130.7 / 160.2 / 158.8 / 209.1 | 4.9 / 5.2 / 5.4 / 6.5 |
+
+From 128 words up, the encoder is a small part of a call on both devices
+(on the B70, 6.0 to 55.1 ms of 82 to 230 ms at p50), and on the 4080 at
+every shape (1.7 to 5.2 ms of 22 to 177 ms): there the heads on the host
+bound it.
+
+Apple M2 (metal), at the head of the Metal DeBERTa-v2 change, the same
+command with `TURBO_TEST_DEVICE=metal`, `TURBO_TEST_REQUIRE_METAL=1` and
+`--features turbo/metal`; the parity runs' log and this run's are in
+`docs/receipts/gliner-metal-883/`. The M2 is a desktop in use: the host's
+load average was 6.5 before and 9.3 after (1 minute; 15 to 12 over 15
+minutes), the GPU 33% busy from the desktop's apps, so the CPU columns,
+which share its cores, ran under that load as well.
+
+| Words, labels (tokens) | CPU call | CPU encoder | metal call | metal encoder |
+| --- | ---: | ---: | ---: | ---: |
+| 64, 4 (75) | 132.0 / 157.5 / 162.2 / 216.6 | 36.2 / 42.5 / 44.6 / 91.0 | 128.1 / 145.5 / 148.4 / 203.4 | 22.7 / 28.2 / 28.3 / 43.8 |
+| 64, 32 (131) | 193.9 / 231.7 / 234.5 / 307.2 | 77.9 / 87.6 / 93.4 / 168.7 | 160.1 / 192.2 / 193.8 / 261.2 | 33.9 / 43.0 / 44.1 / 62.9 |
+| 128, 4 (139) | 361.5 / 377.1 / 385.9 / 461.2 | 85.1 / 90.0 / 92.3 / 115.7 | 323.3 / 331.9 / 341.6 / 404.7 | 43.2 / 50.1 / 50.4 / 69.6 |
+| 128, 32 (195) | 424.3 / 452.2 / 462.4 / 568.2 | 131.0 / 140.9 / 145.8 / 225.1 | 368.8 / 387.0 / 396.8 / 460.4 | 70.6 / 80.1 / 80.5 / 88.5 |
+| 384, 4 (395) | 1107.4 / 1214.8 / 1231.4 / 1782.4 | 267.3 / 331.3 / 337.6 / 608.1 | 1063.9 / 1116.5 / 1124.3 / 1423.1 | 190.1 / 199.6 / 199.9 / 225.5 |
+| 384, 32 (451) | 1240.3 / 1346.6 / 1351.6 / 1525.1 | 389.8 / 437.1 / 442.2 / 578.6 | 1167.2 / 1224.8 / 1223.0 / 1333.3 | 282.0 / 287.7 / 289.4 / 305.0 |
+
+On the M2 the Metal encoder is 1.5x to 2x the CPU encoder at p50, and
+the heads on the host are most of every call on both sides, so a call
+gains 8% to 17%. Metal's DeBERTa-v2 attention is the one general kernel
+(docs/metal.md, DeBERTa-v2), a key a lane, with no tiled form as CUDA
+and Level Zero have; at 395 tokens and more the encoder is 200 to 290
+ms where CUDA's is about 5.
 
 This is a Rust API. SaT ships as `turbo-sat`, and GLiNER2 document
 classification, structured records and deterministic constraint layers

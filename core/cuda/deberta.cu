@@ -6,8 +6,10 @@
  */
 #include "deberta.h"
 
+#include <atomic>
 #include <cmath>
 #include <cstdlib>
+#include <mutex>
 
 namespace turbo_cuda {
 
@@ -324,6 +326,8 @@ cudaError_t deberta_relative(cudaStream_t s, const float *x, const float *w, con
     return cudaGetLastError();
 }
 
+size_t deberta_tiled_smem(int head_dim) { return tiled_for(head_dim).smem; }
+
 bool deberta_tiled_rows(int head_dim, int seq_cap, const int32_t *buckets, int *reach, int *room) {
     const Tiled t = tiled_for(head_dim);
     if (!t.fn) return false;
@@ -343,26 +347,45 @@ bool deberta_tiled_rows(int head_dim, int seq_cap, const int32_t *buckets, int *
 cudaError_t deberta_plan(int head_dim, int batch_cap, int seq_cap, int heads, int sms, size_t smem_optin,
                          bool general, const int32_t *buckets, DebertaPlan *out) {
     int reach = 0, room = 0;
-    const bool fits = deberta_tiled_rows(head_dim, seq_cap, buckets, &reach, &room) && reach <= room;
+    const bool has = deberta_tiled_rows(head_dim, seq_cap, buckets, &reach, &room), fits = has && reach <= room;
     const Tiled t = general || !fits ? Tiled{nullptr, 0, 0, 0} : tiled_for(head_dim);
+    std::string why;
+    if (has && !general && !fits)
+        why = "rows of " + std::to_string(seq_cap) + " tokens reach " + std::to_string(reach) +
+              " relative rows, the tiled kernel stages " + std::to_string(room);
+    else if (t.fn && t.smem > smem_optin)
+        why = "the tiled kernel takes " + std::to_string(t.smem) + " bytes of shared memory, the device gives " +
+              std::to_string(smem_optin);
     if (t.fn && t.smem <= smem_optin) {
         cudaError_t e = cudaFuncSetAttribute(t.fn, cudaFuncAttributeMaxDynamicSharedMemorySize, (int)t.smem);
         int per = 0;
         if (e == cudaSuccess) e = cudaOccupancyMaxActiveBlocksPerMultiprocessor(&per, t.fn, t.queries, t.smem);
         if (e != cudaSuccess) return e;
         const long long items = (long long)batch_cap * heads * ((seq_cap + t.queries - 1) / t.queries);
-        *out = DebertaPlan{true, t.queries, capped(items, (per > 0 ? per : 1) * sms), t.smem};
+        *out = DebertaPlan{true, t.queries, capped(items, (per > 0 ? per : 1) * sms), t.smem, {}};
         return cudaSuccess;
     }
     const size_t smem = sizeof(float) * ((size_t)head_dim + seq_cap + GENERAL_THREADS + 32);
     if (smem > smem_optin) return cudaErrorInvalidValue;
     const void *fn = reinterpret_cast<const void *>(attention_general_kernel);
-    cudaError_t e = cudaFuncSetAttribute(fn, cudaFuncAttributeMaxDynamicSharedMemorySize, (int)smem);
+    // The attribute is the kernel's, for every session: never below the
+    // most a session has asked for, so a smaller session made after a
+    // larger one leaves the larger one's launches valid. The raise and the
+    // set are one step under the lock, so two sessions made at once cannot
+    // leave the smaller value set last.
+    static std::mutex lock;
+    static size_t most = 0;
+    cudaError_t e;
+    {
+        std::lock_guard<std::mutex> held(lock);
+        most = smem > most ? smem : most;
+        e = cudaFuncSetAttribute(fn, cudaFuncAttributeMaxDynamicSharedMemorySize, (int)most);
+    }
     int per = 0;
     if (e == cudaSuccess) e = cudaOccupancyMaxActiveBlocksPerMultiprocessor(&per, fn, GENERAL_THREADS, smem);
     if (e != cudaSuccess) return e;
     *out = DebertaPlan{false, GENERAL_THREADS, capped((long long)batch_cap * seq_cap * heads, (per > 0 ? per : 1) * sms),
-                       smem};
+                       smem, why};
     return cudaSuccess;
 }
 

@@ -3,8 +3,10 @@
 //! `bundle=PATH,device=INDEX|select,sessions=N[,name=NAME][,precision=P][,max_batch=N][,max_seq=N]`.
 
 use std::net::SocketAddr;
+use std::path::PathBuf;
 
 use crate::api::names;
+pub use crate::tls::TlsConfig;
 
 /// Where the model runs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -174,6 +176,10 @@ pub struct Args {
     pub catalog_index: Option<String>,
     /// The directory static models are trained into, made when absent.
     pub training_dir: Option<String>,
+    /// Optional TLS and mutual-TLS (mTLS) certificates for the gRPC listener.
+    pub tls: Option<TlsConfig>,
+    /// Optional HTTP listener serving Prometheus `/metrics`.
+    pub metrics_listen: Option<SocketAddr>,
 }
 
 /// `--max-message-bytes` when absent: 64 MiB.
@@ -198,15 +204,21 @@ pub const ENV_TRAINING_DIR: &str = "TURBO_KSERVE_TRAINING_DIR";
 pub const ENV_SINK_ENDPOINT: &str = "TURBO_KSERVE_SINK_ENDPOINT";
 pub const ENV_SINK_QUEUE_ITEMS: &str = "TURBO_KSERVE_SINK_QUEUE_ITEMS";
 pub const ENV_SINK_QUEUE_BYTES: &str = "TURBO_KSERVE_SINK_QUEUE_BYTES";
+pub const ENV_TLS_CERT: &str = "TURBO_KSERVE_TLS_CERT";
+pub const ENV_TLS_KEY: &str = "TURBO_KSERVE_TLS_KEY";
+pub const ENV_TLS_CLIENT_CA: &str = "TURBO_KSERVE_TLS_CLIENT_CA";
+pub const ENV_METRICS_LISTEN: &str = "TURBO_KSERVE_METRICS_LISTEN";
 
 pub const USAGE: &str = "usage: turbo-kserve --listen ADDR:PORT [--model bundle=PATH,device=INDEX|select,sessions=N\
 [,name=NAME][,precision=PRECISION_MODEL|PRECISION_FASTEST|PRECISION_EXACT][,max_batch=N][,max_seq=N] ...] \
 [--bundle-dir DIR] [--max-message-bytes N] [--admin] [--vocabulary-dir PATH] [--catalog-dir PATH [--catalog-index FILE]] \
-[--training-dir PATH] [--sink-endpoint URI [--sink-queue-items N] [--sink-queue-bytes N]]\n\
+[--training-dir PATH] [--sink-endpoint URI [--sink-queue-items N] [--sink-queue-bytes N]] \
+[--tls-cert PATH --tls-key PATH [--tls-client-ca PATH]] [--metrics-listen ADDR:PORT]\n\
 environment: TURBO_KSERVE_LISTEN, TURBO_KSERVE_MODELS (--model values separated by `;`), \
 TURBO_KSERVE_BUNDLE_DIR, TURBO_KSERVE_MAX_MESSAGE_BYTES, TURBO_KSERVE_ADMIN, TURBO_KSERVE_VOCABULARY_DIR, \
 TURBO_KSERVE_CATALOG_DIR, TURBO_KSERVE_CATALOG_INDEX, TURBO_KSERVE_TRAINING_DIR, TURBO_KSERVE_SINK_ENDPOINT, TURBO_KSERVE_SINK_QUEUE_ITEMS, \
-TURBO_KSERVE_SINK_QUEUE_BYTES; a flag on the command line replaces its variable";
+TURBO_KSERVE_SINK_QUEUE_BYTES, TURBO_KSERVE_TLS_CERT, TURBO_KSERVE_TLS_KEY, TURBO_KSERVE_TLS_CLIENT_CA, \
+TURBO_KSERVE_METRICS_LISTEN; a flag on the command line replaces its variable";
 
 /// Sets a path flag's value, given once and not empty.
 fn path_once(flag: &str, v: String, slot: &mut Option<String>) -> Result<(), String> {
@@ -273,6 +285,8 @@ impl Args {
         let (mut catalog_dir, mut catalog_index) = (None, None);
         let mut training_dir = None;
         let mut bundle_dir = None;
+        let (mut tls_cert, mut tls_key, mut tls_client_ca) = (None, None, None);
+        let mut metrics_listen = None;
         let mut models = Vec::new();
         let mut it = args.into_iter();
         while let Some(a) = it.next() {
@@ -311,6 +325,16 @@ impl Args {
                 "--catalog-dir" => path_once(&flag, value()?, &mut catalog_dir)?,
                 "--catalog-index" => path_once(&flag, value()?, &mut catalog_index)?,
                 "--training-dir" => path_once(&flag, value()?, &mut training_dir)?,
+                "--tls-cert" => path_once(&flag, value()?, &mut tls_cert)?,
+                "--tls-key" => path_once(&flag, value()?, &mut tls_key)?,
+                "--tls-client-ca" => path_once(&flag, value()?, &mut tls_client_ca)?,
+                "--metrics-listen" => {
+                    let v = value()?;
+                    let addr = v.parse().map_err(|_| format!("--metrics-listen {v}: not ADDR:PORT"))?;
+                    if metrics_listen.replace(addr).is_some() {
+                        return Err("--metrics-listen given twice".into());
+                    }
+                }
                 "--max-message-bytes" => {
                     let v = value()?;
                     let n: usize = v.parse().map_err(|_| format!("--max-message-bytes {v}: not a byte count"))?;
@@ -365,6 +389,22 @@ impl Args {
             from_env(sink_items, ENV_SINK_QUEUE_ITEMS),
             from_env(sink_bytes, ENV_SINK_QUEUE_BYTES),
         )?;
+        tls_cert = from_env(tls_cert, ENV_TLS_CERT);
+        tls_key = from_env(tls_key, ENV_TLS_KEY);
+        tls_client_ca = from_env(tls_client_ca, ENV_TLS_CLIENT_CA);
+        let tls = match (tls_cert, tls_key, tls_client_ca) {
+            (None, None, None) => None,
+            (Some(cert), Some(key), ca) => {
+                Some(TlsConfig { cert: PathBuf::from(cert), key: PathBuf::from(key), client_ca: ca.map(PathBuf::from) })
+            }
+            (None, None, Some(_)) => return Err("--tls-client-ca needs --tls-cert and --tls-key".into()),
+            _ => return Err("--tls-cert and --tls-key must be given together".into()),
+        };
+        if metrics_listen.is_none()
+            && let Some(v) = env(ENV_METRICS_LISTEN).filter(|v| !v.is_empty())
+        {
+            metrics_listen = Some(v.parse().map_err(|_| format!("{ENV_METRICS_LISTEN}={v}: not ADDR:PORT"))?);
+        }
         if let Some(dir) = &bundle_dir {
             discover_bundles(dir, &mut models)?;
         }
@@ -381,6 +421,8 @@ impl Args {
             catalog_dir,
             catalog_index,
             training_dir,
+            tls,
+            metrics_listen,
         })
     }
 }

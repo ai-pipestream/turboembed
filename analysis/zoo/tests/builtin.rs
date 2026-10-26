@@ -90,11 +90,12 @@ const BASE: &str = "https://archive.apache.org/dist/opennlp/models/ud-models-1.3
 
 /// The models the MASC recipes train (analysis/train-recipes), listed at
 /// their addresses in a release of this repository.
-const MASC_MODELS: [&str; 4] = [
+const MASC_MODELS: [&str; 5] = [
     "turbo-en-masc-3.0.0-sentence-1",
     "turbo-en-masc-3.0.0-tokens-1",
     "turbo-en-masc-3.0.0-pos-1",
     "turbo-en-masc-3.0.0-chunks-1",
+    "turbo-en-masc-3.0.0-aspect-sentiment-1",
 ];
 
 /// The models the UD recipes train (analysis/train-recipes) that passed
@@ -180,7 +181,8 @@ const RETRIEVAL_CHECKPOINTS: [&str; 2] = ["opensearch-neural-sparse-encoding-v1"
 /// The permissive training datasets in the built-in index (#945): MASC,
 /// the four settled CC BY 4.0 UD 2.16 treebanks, the Tatoeba export,
 /// Civil Comments, and GoEmotions (filtered split and raw annotations).
-const DATASETS: [&str; 9] = [
+const DATASETS: [&str; 10] = [
+    "csc-conversational-sarcasm-2024",
     "masc-3.0.0",
     "ud-spanish-ancora-r2.16",
     "ud-catalan-ancora-r2.16",

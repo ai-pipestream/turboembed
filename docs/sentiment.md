@@ -307,8 +307,9 @@ and combines three signals:
 
 Per `#326`, external sarcasm datasets with Twitter/Reddit platform terms or
 unspecified licenses (`iSarcasm`, `SARC`, `SemEval-2018 Task 3`) are not
-redistributed in the repository, so there is no measured accuracy for this
-annotator yet. What exists is a 32-sentence project-written regression
+redistributed in the repository. The MIT-licensed Conversational Sarcasm
+Corpus provides an external alternative, evaluated below. There is also a
+32-sentence project-written regression
 fixture (`pragmatics_benchmark_f1_and_evidence_invariants` in
 `analysis/doccat/src/sentiment/pragmatics/tests/benchmark.rs`): 18 sarcastic and 14 literal
 sentences written beside the cue and situation tables, with the
@@ -323,6 +324,65 @@ not calibrated probabilities. `analysis/embed/tests/heads.rs`
 the three signals end to end over `tiny-bert-bundle` with a fitted
 `ClassifierHead` as the sentence scorer and a `LabelCentroids` head written
 beside it, and compares CPU with a device when `TURBO_TEST_DEVICE` is set.
+
+### Trained CSC sarcasm head and external evaluation (`#925`)
+
+The zoo lists `csc-conversational-sarcasm-2024` at CoPsyN/CSC commit
+`f11c92b8d54686f64cf1d92766cef07201efb986`. CSC is MIT licensed; its notice
+and the authors, Hyewon Jang, Bettina Braun, and Diego Frassinelli, must be
+retained. The dataset and corpus text are not committed. No CSC sarcasm
+head is registered in the zoo: the trained head does not beat the majority
+baseline (below), so #925 stays open.
+
+The receipt in `analysis/embed/tests/pragmatics_csc.rs` aggregates the median
+external-evaluator rating for each unique response and labels ratings of at
+least 4 as sarcastic. It does not read demographic columns. Responses are
+embedded with `sentence-transformers/all-MiniLM-L6-v2` and split by
+scenario. CSC reuses one scenario under several context ids (part 1 and
+part 2, friend and colleague variants), sometimes reworded, so contexts whose
+word sets have a Jaccard overlap of at least 0.4 form one scenario group, and
+the smallest context id in a group picks its partition modulo 5. A response
+text that still spans partitions is kept only in the first of train,
+development and test, and so is any variant of it the uncased encoder cannot
+tell apart (lowercased, accent-stripped, whitespace-collapsed): case variants
+such as `"HAHAHAHAH"` and `"hahahahah"` share an encoder key, so the later
+partition's copy is dropped too. The two drops remove 110 of 7,036 responses,
+leaving 4,210 train, 1,295 development, and 1,421 held-out responses (649
+positive). No scenario text, reworded scenario, or response text, exact or
+encoder-equal, crosses a split, and the data-only
+`actual_release_split_has_no_repeated_inputs_or_scenarios` test checks this
+on the pinned CSV and confirms that the earlier context-id split fails it.
+
+A two-label linear `ClassifierHead` trains for 200 epochs with L2 0.001 and
+learning rate 0.1. The head and combined thresholds are selected on the
+development set and frozen in `pragmatics-1.json`. `ClassifierHead`
+implements `PragmaticsVectorScorer`, so the head runs through the production
+`PragmaticsAnnotator` without a test adapter. Held-out metrics, with the two
+constant baselines, are:
+
+| Path | Threshold | Precision | Recall | F1 | Accuracy |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Rule signals alone | 0.50 | 0.500000 | 0.030817 | 0.058055 | 0.543279 |
+| Embedding head alone | 0.35 | 0.489114 | 0.969183 | 0.650129 | 0.523575 |
+| Rules plus embedding head | 0.35 | 0.489130 | 0.970724 | 0.650490 | 0.523575 |
+| Baseline: every response sarcastic | | 0.456721 | 1.000000 | 0.627053 | 0.456721 |
+| Baseline: every response literal (majority) | | 0.000000 | 0.000000 | 0.000000 | 0.543279 |
+
+The head is close to the all-sarcastic baseline: it rejects 115 of 772
+literal responses and its F1 is 0.023 higher. Its accuracy is below the
+majority baseline. The response text alone, without its scenario, carries
+little sarcasm signal for this encoder and head. The earlier
+`models-sentiment-925-1` archive was trained on a context-id split in which
+824 of 1,383 test responses answered a training scenario; its figures are
+withdrawn.
+
+The release path validates the source, encoder and weight digests, frozen
+configuration, population counts and all five metric sets. Counts must match;
+computed metrics permit an absolute difference of at most 1e-12. Expectations
+are in `analysis/embed/tests/pragmatics_csc_support/release.json`. Training
+is deterministic: a fresh `TURBO_PRAGMATICS_OUT` run reproduces the head
+digest in that file. Verification (`TURBO_PRAGMATICS_HEAD`) and training
+output (`TURBO_PRAGMATICS_OUT`) are mutually exclusive.
 
 ## Aspect and opinion extraction (`RuleAspectSentiment` and `LearnedAspectSentiment`, `#322`)
 
@@ -423,6 +483,37 @@ terms and are not committed to the repository.
   that both annotators write the same `(Opinions, Aspects)` layer types with
   distinct `Provenance.annotator` IDs and that CPU and device (`TURBO_TEST_DEVICE` /
   `TURBO_TEST_REQUIRE_CUDA=1`) outputs agree within `1e-5`.
+
+### Trained MASC aspect head and external evaluation (`#924`)
+
+The zoo publishes `turbo-en-masc-3.0.0-aspect-sentiment-1` as an experimental
+zip containing BIO and polarity `THEAD001` heads and their complete training
+configuration. It uses `sentence-transformers/all-MiniLM-L6-v2` at 384
+dimensions and MASC 3.0.0 MPQA target, attitude, and direct-subjective links
+(`CC BY 3.0 US`). The corpus is not committed. The release retains MASC
+attribution and records the source encoder commit.
+
+`analysis/embed/tests/aspect_masc.rs` is the real-data receipt. It reads the
+corpus through `TURBO_MASC_ROOT` and the encoder through
+`TURBO_MINILM_BUNDLE`. `TURBO_ASPECT_OUT` trains and writes the heads;
+`TURBO_ASPECT_HEAD` reloads them. `fit_balanced` opts into deterministic
+background down-sampling without changing the existing `fit` behavior. The
+published configuration selects `with_bio_threshold(0.4)`, which is included
+in the annotator's configuration hash.
+
+The split is by document: 56 training files and 15 held-out files. The
+held-out set has 127 annotations covering 125 unique token ranges. Exact
+aspect-range F1 and polarity accuracy on exact matches are:
+
+| Path | Aspect TP / FP / FN | Aspect F1 | Polarity accuracy |
+| --- | ---: | ---: | ---: |
+| Learned head | 4 / 464 / 121 | 0.013491 | 4 / 4 (1.000) |
+| Rule path | 0 / 41 / 125 | 0.000000 | no exact matches |
+
+This head is experimental and is not the default extractor. Its polarity
+figure covers only four exact aspect matches and is not evidence of general
+polarity quality. The low F1 and the false-positive count are published with
+the artifacts so later training work must improve on a visible baseline.
 
 ## Incivility and toxicity annotator (`IncivilityAnnotator`, `#323`)
 
@@ -1049,3 +1140,17 @@ execution order when comparing. Raw six-run samples (milliseconds):
 | GLiREL | 93.634, 83.627, 80.103, 78.713, 80.324, 79.540 | 78.568, 78.589, 80.977, 72.234, 75.498, 74.043 |
 | GLiNER2 | 364.053, 310.985, 319.985, 312.569, 302.608, 303.863 | 303.214, 351.832, 301.616, 300.673, 302.207, 298.797 |
 | SaT | 77.445, 81.898, 81.034, 74.445, 76.735, 77.753 | 62.754, 62.958, 58.943, 64.465, 58.403, 59.835 |
+
+### MASC release verification (`#924`)
+
+The release path (`TURBO_ASPECT_HEAD`) checks the archived configuration,
+BIO and polarity file digests, encoder identity, source text and annotation
+digest, document ordering, split counts, and both learned and rule metrics.
+Integer counts must match; metrics rounded to six decimal places permit an
+absolute difference of at most 0.0000005. The frozen expectations are in
+`analysis/embed/tests/aspect_masc_support/release.json`; these pin
+`models-sentiment-924-1` and do not set a new model-quality requirement.
+Training instead requires `TURBO_ASPECT_OUT`; verification cannot overwrite
+training output. Weight-file checks can run without the full encoder through
+the ignored `actual_release_files_accept_and_corrupt_bytes_fail` test. Full
+prediction reproduction still requires the pinned MASC data and MiniLM bundle.

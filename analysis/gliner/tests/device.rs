@@ -1,12 +1,12 @@
 //! GLiNER through the backend table against the CPU encoder (#883): the
 //! tiny DeBERTa-v2 bundle of testdata/tiny-deberta-bundle as the encoder,
 //! with the heads of tests/fixtures and a small SentencePiece model, on the
-//! device TURBO_TEST_DEVICE names (`cpu`, `levelzero`, `cuda`; the CPU when
+//! device TURBO_TEST_DEVICE names (`cpu`, `levelzero`, `cuda`, `metal`; the CPU when
 //! it is not set) at the precision TURBO_TEST_PRECISION names (model, or
 //! exact). Every logit within 1e-4 of the CPU encoder's and within 1e-3 of
 //! the largest logit of its input, the decoded
-//! entities the same. With TURBO_TEST_REQUIRE_CUDA or
-//! TURBO_TEST_REQUIRE_LEVELZERO set, the test fails unless it runs there.
+//! entities the same. With TURBO_TEST_REQUIRE_CUDA,
+//! TURBO_TEST_REQUIRE_LEVELZERO or TURBO_TEST_REQUIRE_METAL set, the test fails unless it runs there.
 
 use std::path::{Path, PathBuf};
 
@@ -31,10 +31,14 @@ fn bundle() -> PathBuf {
 /// The backend a TURBO_TEST_REQUIRE_* variable requires, if any.
 fn required() -> Option<&'static str> {
     let set = |v: &str| std::env::var(v).is_ok_and(|v| !v.is_empty() && v != "0");
-    [("TURBO_TEST_REQUIRE_CUDA", "cuda"), ("TURBO_TEST_REQUIRE_LEVELZERO", "levelzero")]
-        .into_iter()
-        .find(|(v, _)| set(v))
-        .map(|(_, b)| b)
+    [
+        ("TURBO_TEST_REQUIRE_CUDA", "cuda"),
+        ("TURBO_TEST_REQUIRE_LEVELZERO", "levelzero"),
+        ("TURBO_TEST_REQUIRE_METAL", "metal"),
+    ]
+    .into_iter()
+    .find(|(v, _)| set(v))
+    .map(|(_, b)| b)
 }
 
 fn options() -> EncoderOptions {
@@ -119,7 +123,7 @@ fn the_backend_table_scores_as_the_cpu_encoder() {
         ExtractionSchema::new(vec!["person".into(), "location".into(), "date".into()], 0.0, Decode::Flat).unwrap(),
         ExtractionSchema::new(vec!["organization".into(), "city".into()], 0.4, Decode::Nested).unwrap(),
     ];
-    let (mut worst, mut largest) = (0f32, 0f32);
+    let (mut worst, mut largest, mut row_worst) = (0f32, 0f32, 0f32);
     for words in texts() {
         for schema in &schemas {
             // A long text cut to the most words that fit the encoder's
@@ -128,6 +132,12 @@ fn the_backend_table_scores_as_the_cpu_encoder() {
             let words = &words[..n];
             let p = cpu.pack(words, schema).unwrap();
             assert_eq!(device.pack(words, schema).unwrap().ids, p.ids, "packed ids");
+            // The rows the heads read, compared directly.
+            let (x, y) = (cpu.states(&p, schema).unwrap(), device.states(&p, schema).unwrap());
+            assert_eq!(x.len(), y.len());
+            let d = x.iter().zip(&y).map(|(u, v)| (u - v).abs()).fold(0f32, f32::max);
+            assert!(d < BOUND, "{words:?}: encoder rows differ by {d:e}");
+            row_worst = row_worst.max(d);
             let (want, got) = (cpu.score_packed(&p, schema).unwrap(), device.score_packed(&p, schema).unwrap());
             assert_eq!(want.len(), got.len());
             // The heads fixture's logits are small, so each difference is
@@ -154,7 +164,8 @@ fn the_backend_table_scores_as_the_cpu_encoder() {
         }
     }
     println!(
-        "gliner on {} {} ({}): largest logit difference from the cpu encoder {worst:e}, of logits up to {largest:e}",
+        "gliner on {} {} ({}): encoder rows: largest difference {row_worst:e}; largest logit difference from the \
+         cpu encoder {worst:e}, of logits up to {largest:e}",
         execution.backend, execution.device, execution.precision
     );
 }
