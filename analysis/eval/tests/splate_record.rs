@@ -5,8 +5,10 @@
 //! named each checkpoint by the recipe revision ("1") and left out the
 //! run, cross-encoder and fit fields. The writer tests rebuild the
 //! archived sets from the recipes and the record's own numbers and
-//! require the writer to produce every field the archive holds, so a
-//! regenerated record loses nothing.
+//! require the writer to produce every field the archive holds except
+//! `run`, so a regenerated record loses nothing. The archived `run` names
+//! `--release`; the writer's generic command asserts no build, and the
+//! actual Cargo settings go in its `build` block.
 use serde_json::Value;
 use turbo::manifest::Model;
 use turbo::sparse::SparseOptions;
@@ -162,7 +164,7 @@ fn covers(archived: &Value, written: &Value, new: &[&str], at: &str) {
 }
 
 #[test]
-fn the_writer_reproduces_every_field_of_the_archived_record() {
+fn the_writer_reproduces_every_archived_field_but_run() {
     let archived: Value = serde_json::from_str(RECORD).unwrap();
     let pinned = bundles();
     let mut sets = Vec::new();
