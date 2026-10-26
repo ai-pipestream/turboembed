@@ -82,16 +82,35 @@ where
         let fut = self.inner.call(req);
 
         Box::pin(async move {
+            let mut cancel_guard = CallCancelGuard {
+                metrics: Arc::clone(&metrics),
+                service: service.clone(),
+                method: method.clone(),
+                start,
+                disarmed: false,
+            };
             let res = match hard_at {
                 Some(at) => tokio::select! {
                     biased;
-                    r = fut => r?,
+                    r = fut => r,
                     () = tokio::time::sleep_until(at) => {
                         deadline.trip();
+                        cancel_guard.disarmed = true;
                         return Ok(status_response(deadline_status(), metrics, service, method, start));
                     }
                 },
-                None => fut.await?,
+                None => fut.await,
+            };
+            let res = match res {
+                Ok(r) => {
+                    cancel_guard.disarmed = true;
+                    r
+                }
+                Err(e) => {
+                    cancel_guard.disarmed = true;
+                    metrics.record_rpc(&service, &method, Code::Unknown, start.elapsed());
+                    return Err(e);
+                }
             };
             let res = crate::too_large(res);
             let initial_code = parse_grpc_status(res.headers());
@@ -105,6 +124,22 @@ where
                 recorded: false,
             }))
         })
+    }
+}
+
+struct CallCancelGuard {
+    metrics: Arc<Metrics>,
+    service: String,
+    method: String,
+    start: Instant,
+    disarmed: bool,
+}
+
+impl Drop for CallCancelGuard {
+    fn drop(&mut self) {
+        if !self.disarmed {
+            self.metrics.record_rpc(&self.service, &self.method, Code::Cancelled, self.start.elapsed());
+        }
     }
 }
 
@@ -142,10 +177,10 @@ pub(crate) struct MetricsBody<B> {
 }
 
 impl<B> MetricsBody<B> {
-    fn finish(&mut self) {
+    fn finish(&mut self, default_code: Code) {
         if !self.recorded {
             self.recorded = true;
-            let code = self.code.unwrap_or(Code::Ok);
+            let code = self.code.unwrap_or(default_code);
             self.metrics.record_rpc(&self.service, &self.method, code, self.start.elapsed());
         }
     }
@@ -153,7 +188,7 @@ impl<B> MetricsBody<B> {
 
 impl<B> Drop for MetricsBody<B> {
     fn drop(&mut self) {
-        self.finish();
+        self.finish(Code::Cancelled);
     }
 }
 
@@ -175,14 +210,11 @@ impl<B: Body<Data = Bytes>> Body for MetricsBody<B> {
                 Poll::Ready(Some(Ok(frame)))
             }
             Poll::Ready(Some(Err(e))) => {
-                if self.code.is_none() {
-                    self.code = Some(Code::Unknown);
-                }
-                self.finish();
+                self.finish(Code::Unknown);
                 Poll::Ready(Some(Err(e)))
             }
             Poll::Ready(None) => {
-                self.finish();
+                self.finish(Code::Cancelled);
                 Poll::Ready(None)
             }
             Poll::Pending => Poll::Pending,

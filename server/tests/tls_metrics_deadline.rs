@@ -304,16 +304,17 @@ async fn grpc_timeout_expires_on_unary_and_mid_stream_without_leaking_sessions()
     .unwrap();
     s.load().await.unwrap();
 
-    // 1. Unary ModelInfer with a 3-millisecond grpc-timeout returns DEADLINE_EXCEEDED
+    // 1. Unary ModelInfer with a 12-millisecond grpc-timeout returns DEADLINE_EXCEEDED
     //    and leaves the single session idle.
     let mut k = kserve(&s).await;
+    assert!(k.server_ready(ServerReadyRequest {}).await.unwrap().into_inner().ready);
     let mut req = Request::new(texts_req(NAME, &[b"deadline test"]));
-    req.metadata_mut().insert("grpc-timeout", MetadataValue::from_static("3m"));
-    let err = k.model_infer(req).await.expect_err("3m timeout must expire");
+    req.metadata_mut().insert("grpc-timeout", MetadataValue::from_static("12m"));
+    let err = k.model_infer(req).await.expect_err("12m timeout must expire");
     assert_eq!(err.code(), Code::DeadlineExceeded, "unary ModelInfer status: {err:?}");
     drop(s.hold(NAME).expect("unary deadline expiry must not leak the model session"));
 
-    // 2. Streaming AnalyzeDocumentProgressive with a 3-millisecond grpc-timeout returns
+    // 2. Streaming AnalyzeDocumentProgressive with a 12-millisecond grpc-timeout returns
     //    DEADLINE_EXCEEDED and leaves the single session idle.
     let mut c = AnalysisServiceClient::connect(format!("http://{}", s.local_addr()))
         .await
@@ -324,8 +325,8 @@ async fn grpc_timeout_expires_on_unary_and_mid_stream_without_leaking_sessions()
         text: "hello world".into(),
         ..Default::default()
     });
-    prog_req.metadata_mut().insert("grpc-timeout", MetadataValue::from_static("3m"));
-    let prog_err = c.analyze_document_progressive(prog_req).await.expect_err("3m timeout must expire");
+    prog_req.metadata_mut().insert("grpc-timeout", MetadataValue::from_static("12m"));
+    let prog_err = c.analyze_document_progressive(prog_req).await.expect_err("12m timeout must expire");
     assert_eq!(prog_err.code(), Code::DeadlineExceeded, "progressive status: {prog_err:?}");
     drop(s.hold(NAME).expect("progressive deadline expiry must not leak the model session"));
 
@@ -375,7 +376,51 @@ async fn grpc_timeout_expires_on_unary_and_mid_stream_without_leaking_sessions()
     let rendered = s.metrics();
     assert!(rendered.contains("turbo_kserve_inflight_streams 0"), "{rendered}");
     assert!(rendered.contains("turbo_kserve_inflight_documents 0"), "{rendered}");
+    for expected in [
+        "turbo_kserve_rpc_requests_total{service=\"inference.GRPCInferenceService\",method=\"ServerReady\",code=\"OK\"} 1",
+        "turbo_kserve_rpc_requests_total{service=\"inference.GRPCInferenceService\",method=\"ModelInfer\",code=\"DEADLINE_EXCEEDED\"} 1",
+        "turbo_kserve_rpc_requests_total{service=\"turbo.result.AnalysisService\",method=\"AnalyzeDocumentProgressive\",code=\"DEADLINE_EXCEEDED\"} 1",
+        "turbo_kserve_rpc_requests_total{service=\"turbo.result.AnalysisService\",method=\"AnalyzeStream\",code=\"DEADLINE_EXCEEDED\"} 1",
+    ] {
+        assert!(rendered.contains(expected), "missing {expected:?} in:\n{rendered}");
+    }
+    assert!(
+        !rendered.contains("method=\"ModelInfer\",code=\"OK\"")
+            && !rendered.contains("method=\"AnalyzeDocumentProgressive\",code=\"OK\"")
+            && !rendered.contains("method=\"AnalyzeStream\",code=\"OK\""),
+        "expired RPCs must never record code=OK:\n{rendered}"
+    );
     drop(s.hold(NAME).expect("AnalyzeStream deadline expiry must release the session"));
+
+    // 4. Aborted AnalyzeStream (client drops the open stream after receiving one batch
+    //    without half-closing, so no grpc-status trailer is ever emitted) records
+    //    code="CANCELLED" rather than code="OK".
+    let (abort_tx, abort_rx) = tokio::sync::mpsc::channel(16);
+    abort_tx.send(stream_header(0, 1, 0)).await.unwrap();
+    abort_tx.send(stream_doc("abort-0", NAME, "aborted stream doc", None)).await.unwrap();
+    let mut abort_stream = c.analyze_stream(ReceiverStream::new(abort_rx)).await.unwrap().into_inner();
+    let first = abort_stream.message().await.unwrap().expect("first batch item arrives");
+    assert_eq!(first.id, "abort-0");
+    drop(abort_stream);
+    drop(abort_tx);
+
+    tokio::time::timeout(Duration::from_secs(2), async {
+        while !s.metrics().contains(
+            "turbo_kserve_rpc_requests_total{service=\"turbo.result.AnalysisService\",method=\"AnalyzeStream\",code=\"CANCELLED\"} 1",
+        ) || !s.metrics().contains("turbo_kserve_inflight_streams 0")
+        {
+            tokio::time::sleep(Duration::from_millis(5)).await;
+        }
+    })
+    .await
+    .expect("aborted AnalyzeStream must record CANCELLED and drain inflight_streams to 0");
+
+    let after_abort = s.metrics();
+    assert!(
+        !after_abort.contains("method=\"AnalyzeStream\",code=\"OK\""),
+        "aborted stream must not record code=OK:\n{after_abort}"
+    );
+    drop(s.hold(NAME).expect("aborted AnalyzeStream must release the session"));
 
     s.stop().await;
 }

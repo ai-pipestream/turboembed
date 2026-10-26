@@ -43,7 +43,7 @@ pub fn parse_grpc_timeout(raw: &[u8]) -> Option<Duration> {
 /// held sessions, and answer `DEADLINE_EXCEEDED` before tonic's transport
 /// timeout maps an elapsed timer to `CANCELLED`.
 fn budgets(requested: Duration) -> (Duration, Duration) {
-    if requested <= Duration::from_millis(5) {
+    if requested <= Duration::from_millis(15) {
         return (Duration::ZERO, Duration::ZERO);
     }
     let stop_margin = (requested / 4).clamp(Duration::from_millis(2), Duration::from_millis(20));
