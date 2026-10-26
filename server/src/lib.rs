@@ -21,6 +21,7 @@ pub mod state;
 pub mod status;
 pub mod stream;
 pub mod tasks;
+mod training;
 pub mod vocabulary;
 
 pub use crate::state::Held;
@@ -49,7 +50,8 @@ pub mod proto {
     pub mod vocabulary {
         tonic::include_proto!("turbo.vocabulary");
     }
-    /// The model catalog (docs/grpc-catalog.md).
+    /// The model catalog and static model training (docs/grpc-catalog.md,
+    /// docs/grpc-training.md).
     pub mod training {
         tonic::include_proto!("turbo.training");
     }
@@ -73,6 +75,7 @@ use crate::proto::result::analysis_service_server::AnalysisServiceServer;
 use crate::proto::search::turbo_search_service_server::TurboSearchServiceServer;
 use crate::proto::sink::turbo_sink_service_server::TurboSinkServiceServer;
 use crate::proto::training::turbo_catalog_service_server::TurboCatalogServiceServer;
+use crate::proto::training::turbo_training_service_server::TurboTrainingServiceServer;
 use crate::proto::vocabulary::turbo_vocabulary_service_server::TurboVocabularyServiceServer;
 use crate::sink::{SinkConfig, SinkForwarder, SinkReceiver, SinkStats};
 use crate::state::State;
@@ -109,7 +112,9 @@ pub struct Server {
 /// bundles or vocabulary artifacts, record a licence acceptance or install
 /// a model. `vocabulary` is the vocabulary store's directory; without one
 /// the store holds nothing and refuses writes. `catalog` is the model
-/// catalog, which refuses every call when absent. `sink` forwards every
+/// catalog, which refuses every call when absent. `training` is the
+/// directory static models are trained into; without one only
+/// ListTeachers is served. `sink` forwards every
 /// document an analysis stream completes to a downstream TurboSinkService;
 /// `sink_receiver` serves that service here, handing it each accepted item.
 #[derive(Debug, Clone, Default)]
@@ -117,6 +122,7 @@ pub struct Serve {
     pub admin: bool,
     pub vocabulary: Option<PathBuf>,
     pub catalog: Option<catalog::Catalog>,
+    pub training: Option<PathBuf>,
     pub sink: Option<SinkConfig>,
     pub sink_receiver: Option<SinkReceiver>,
 }
@@ -126,8 +132,9 @@ impl Server {
     /// path that names no bundle, or two models of one name, is refused. A
     /// request message over `max_message_bytes` is refused by gRPC with
     /// RESOURCE_EXHAUSTED before it is read. `serve.admin` opts in to the
-    /// admin calls LoadBundle, UnloadBundle, RecordLicenceAcceptance and
-    /// InstallModel; off, they refuse UNIMPLEMENTED.
+    /// admin calls LoadBundle, UnloadBundle, RecordLicenceAcceptance,
+    /// InstallModel, TrainStaticModel and DeleteStaticModel; off, they
+    /// refuse UNIMPLEMENTED.
     pub async fn start(
         listen: SocketAddr,
         models: Vec<ModelConfig>,
@@ -153,6 +160,10 @@ impl Server {
             Some(dir) => Some(Arc::new(vocabulary::Store::open(dir).map_err(|e| format!("vocabulary store: {e}"))?)),
             None => None,
         };
+        let training = match &serve.training {
+            Some(dir) => Some(training::open(dir).map_err(|e| format!("training directory: {e}"))?),
+            None => None,
+        };
         // The forwarder spawns its drain, so it starts after every step that
         // can refuse the start: a refused start leaves no task behind.
         let sink = serve.sink.as_ref().map(SinkForwarder::start).transpose()?;
@@ -164,6 +175,13 @@ impl Server {
         .max_decoding_message_size(max_message_bytes);
         let receiver =
             serve.sink_receiver.map(|r| TurboSinkServiceServer::new(r).max_decoding_message_size(max_message_bytes));
+        let training = TurboTrainingServiceServer::new(training::TrainingService::new(
+            state.clone(),
+            store.clone(),
+            training,
+            serve.admin,
+        ))
+        .max_decoding_message_size(max_message_bytes);
         let vocabulary = TurboVocabularyServiceServer::new(vocabulary::Vocabulary { store, admin: serve.admin })
             .max_decoding_message_size(max_message_bytes);
         let catalog = TurboCatalogServiceServer::new(catalog::CatalogService::new(serve.catalog, serve.admin));
@@ -182,6 +200,7 @@ impl Server {
                 .add_service(health)
                 .add_service(vocabulary)
                 .add_service(catalog)
+                .add_service(training)
                 .add_optional_service(receiver)
                 .serve_with_incoming_shutdown(incoming, async {
                     let _ = stopped.await;

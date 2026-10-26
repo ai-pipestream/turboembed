@@ -315,11 +315,16 @@ under the existing class rule; runtime use remains gated on limited lookahead
 in #887. The older `-sm` parity measurements below remain historical evidence,
 not approval to distribute the checkpoint or a bundle built from it.
 
-`bundle/recipes/sat-1l-sm.json` seals `sat-1l-sm` with BAAI/bge-m3's
-`tokenizer.json` at revision `5617a9f61b028005a4858fdac845db406aefb181`,
-whose model card declares MIT (checked on 2026-10-23 from the hub's
-model API). It is XLM-R's vocabulary in the form the core reads
-(docs/neural-annotators.md, "Against wtpsplit").
+`bundle/recipes/sat-1l-sm.json` seals `sat-1l-sm` with
+FacebookAI/xlm-roberta-base's `tokenizer.json` at revision
+`e73636d4f797dec63c3081bb6ed5c7b0bb3f2089` (SHA-256
+`a898ea75433890f6610f4e470b8ebeb0c21dce5c8dd61f892eb09eb5919d2e2c`), the
+file wtpsplit loads for the checkpoint. xlm-roberta-base is MIT, as the
+zoo index already records it for the `sat-3l` entry's `derived_from`;
+the file was fetched at that revision and its digest checked by two
+reviewers of #1334 on 2026-10-26. Until #1334 the recipe sealed BAAI/bge-m3's
+`tokenizer.json` at revision `5617a9f61b028005a4858fdac845db406aefb181`
+(MIT, checked on 2026-10-23), which `sat-3l.json` still uses.
 
 `dslim/bert-base-NER` is the checkpoint OpenNLP's `NameFinderDL` documents
 and the native token classifier in `turbo-namefind-dl` is compared with.

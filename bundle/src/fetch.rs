@@ -75,11 +75,18 @@ pub fn fetch(recipe: &Recipe, dir: &Path, accept_terms: bool) -> Result<()> {
 
 /// A GET through an agent that keeps every request and redirect on HTTPS
 /// and follows at most 10 redirects, as the zoo's does.
+#[cfg(feature = "http")]
 fn get(url: &str) -> Result<Vec<u8>> {
     static AGENT: std::sync::OnceLock<ureq::Agent> = std::sync::OnceLock::new();
     let agent = AGENT.get_or_init(|| ureq::Agent::config_builder().https_only(true).max_redirects(10).build().into());
     let mut resp = agent.get(url).call().map_err(|e| format!("GET {url}: {e}"))?;
     resp.body_mut().with_config().limit(u64::MAX).read_to_vec().map_err(|e| format!("GET {url}: {e}"))
+}
+
+/// Built without the http feature: nothing is fetched.
+#[cfg(not(feature = "http"))]
+fn get(url: &str) -> Result<Vec<u8>> {
+    Err(format!("GET {url}: turbo-bundle was built without the http feature"))
 }
 
 /// Write through a temporary name, so an interrupted fetch leaves no file

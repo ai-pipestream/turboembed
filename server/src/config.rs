@@ -172,6 +172,8 @@ pub struct Args {
     /// built-in one.
     pub catalog_dir: Option<String>,
     pub catalog_index: Option<String>,
+    /// The directory static models are trained into, made when absent.
+    pub training_dir: Option<String>,
 }
 
 /// `--max-message-bytes` when absent: 64 MiB.
@@ -192,6 +194,7 @@ pub const ENV_MAX_MESSAGE_BYTES: &str = "TURBO_KSERVE_MAX_MESSAGE_BYTES";
 pub const ENV_VOCABULARY_DIR: &str = "TURBO_KSERVE_VOCABULARY_DIR";
 pub const ENV_CATALOG_DIR: &str = "TURBO_KSERVE_CATALOG_DIR";
 pub const ENV_CATALOG_INDEX: &str = "TURBO_KSERVE_CATALOG_INDEX";
+pub const ENV_TRAINING_DIR: &str = "TURBO_KSERVE_TRAINING_DIR";
 pub const ENV_SINK_ENDPOINT: &str = "TURBO_KSERVE_SINK_ENDPOINT";
 pub const ENV_SINK_QUEUE_ITEMS: &str = "TURBO_KSERVE_SINK_QUEUE_ITEMS";
 pub const ENV_SINK_QUEUE_BYTES: &str = "TURBO_KSERVE_SINK_QUEUE_BYTES";
@@ -199,10 +202,10 @@ pub const ENV_SINK_QUEUE_BYTES: &str = "TURBO_KSERVE_SINK_QUEUE_BYTES";
 pub const USAGE: &str = "usage: turbo-kserve --listen ADDR:PORT [--model bundle=PATH,device=INDEX|select,sessions=N\
 [,name=NAME][,precision=PRECISION_MODEL|PRECISION_FASTEST|PRECISION_EXACT][,max_batch=N][,max_seq=N] ...] \
 [--bundle-dir DIR] [--max-message-bytes N] [--admin] [--vocabulary-dir PATH] [--catalog-dir PATH [--catalog-index FILE]] \
-[--sink-endpoint URI [--sink-queue-items N] [--sink-queue-bytes N]]\n\
+[--training-dir PATH] [--sink-endpoint URI [--sink-queue-items N] [--sink-queue-bytes N]]\n\
 environment: TURBO_KSERVE_LISTEN, TURBO_KSERVE_MODELS (--model values separated by `;`), \
 TURBO_KSERVE_BUNDLE_DIR, TURBO_KSERVE_MAX_MESSAGE_BYTES, TURBO_KSERVE_ADMIN, TURBO_KSERVE_VOCABULARY_DIR, \
-TURBO_KSERVE_CATALOG_DIR, TURBO_KSERVE_CATALOG_INDEX, TURBO_KSERVE_SINK_ENDPOINT, TURBO_KSERVE_SINK_QUEUE_ITEMS, \
+TURBO_KSERVE_CATALOG_DIR, TURBO_KSERVE_CATALOG_INDEX, TURBO_KSERVE_TRAINING_DIR, TURBO_KSERVE_SINK_ENDPOINT, TURBO_KSERVE_SINK_QUEUE_ITEMS, \
 TURBO_KSERVE_SINK_QUEUE_BYTES; a flag on the command line replaces its variable";
 
 /// Sets a path flag's value, given once and not empty.
@@ -268,6 +271,7 @@ impl Args {
         let mut vocabulary_dir = None;
         let (mut sink_endpoint, mut sink_items, mut sink_bytes) = (None, None, None);
         let (mut catalog_dir, mut catalog_index) = (None, None);
+        let mut training_dir = None;
         let mut bundle_dir = None;
         let mut models = Vec::new();
         let mut it = args.into_iter();
@@ -306,6 +310,7 @@ impl Args {
                 "--sink-queue-bytes" => once(&flag, value()?, &mut sink_bytes)?,
                 "--catalog-dir" => path_once(&flag, value()?, &mut catalog_dir)?,
                 "--catalog-index" => path_once(&flag, value()?, &mut catalog_index)?,
+                "--training-dir" => path_once(&flag, value()?, &mut training_dir)?,
                 "--max-message-bytes" => {
                     let v = value()?;
                     let n: usize = v.parse().map_err(|_| format!("--max-message-bytes {v}: not a byte count"))?;
@@ -350,6 +355,7 @@ impl Args {
         vocabulary_dir = vocabulary_dir.or_else(|| env(ENV_VOCABULARY_DIR).filter(|v| !v.is_empty()));
         catalog_dir = catalog_dir.or_else(|| env(ENV_CATALOG_DIR).filter(|v| !v.is_empty()));
         catalog_index = catalog_index.or_else(|| env(ENV_CATALOG_INDEX).filter(|v| !v.is_empty()));
+        training_dir = training_dir.or_else(|| env(ENV_TRAINING_DIR).filter(|v| !v.is_empty()));
         if catalog_index.is_some() && catalog_dir.is_none() {
             return Err("--catalog-index needs --catalog-dir".into());
         }
@@ -374,6 +380,7 @@ impl Args {
             sink,
             catalog_dir,
             catalog_index,
+            training_dir,
         })
     }
 }
