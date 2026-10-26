@@ -213,6 +213,9 @@ pub(super) unsafe fn create(
                 && d.hidden.is_multiple_of(DPAS_K.max(DPAS_TN))
                 && d.intermediate.is_multiple_of(DPAS_K.max(DPAS_TN));
             let kernels = Kernels::new(c, d.hidden, d.intermediate, head_dim, xmx, is_deberta.then_some((d, max_seq)))?;
+            if let Some(dk) = &kernels.deberta {
+                deberta::picked(dk.tiled.is_some());
+            }
             let general = match (&kernels.deberta, &kernels.attention) {
                 (Some(dk), _) => dk.tiled.is_none().then_some(&dk.general),
                 (None, Attention::General(k)) => Some(k),
