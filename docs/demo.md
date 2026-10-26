@@ -1,9 +1,9 @@
 # The demo page
 
-`turbo-kserve-demo` is a small web page for trying a running
-`turbo-kserve` (docs/grpc.md) from a browser: paste a few texts, pick
-the served models, send them, and see each model's vectors and the
-cosine similarity between the texts, with several models side by side.
+`turbo-kserve-demo` is a small web workbench for trying a running
+`turbo-kserve` (docs/grpc.md) from a browser: compare embedding models,
+watch a document's analysis arrive step by step, build and search an
+index, learn and import vocabularies, and see what the server serves.
 
 It is a client of the server and nothing more. Browsers cannot make
 plain gRPC calls, so the demo is a separate binary that serves the page
@@ -15,9 +15,9 @@ on any backend. The page is plain HTML, CSS and JavaScript compiled into
 the binary: it loads nothing from any other host, so it works on a
 machine with no network beyond the one to the server.
 
-The page itself still calls the JSON routes this demo had before #1360
-and does not work until #1361 ports it to the generated Connect clients
-(`demo/web/src/gen`).
+The page is written in TypeScript under `demo/web/src` over the
+generated Connect clients (`demo/web/src/gen`) and bundled into
+`demo/static/app.js` (Building the page, below).
 
 ## No JSON front end
 
@@ -207,6 +207,29 @@ installs the exact versions in `demo/web/package-lock.json`
 (docs/release.md); no `build.rs` runs it, and `cargo build` needs
 neither.
 
+## Building the page
+
+`scripts/build-web.sh` type checks `demo/web` with `tsc`, runs the unit
+tests in `demo/web/test` under Node (the page's SHA-256 against Node's,
+and the upload bodies decoded frame by frame), and bundles
+`demo/web/src/main.ts` with esbuild into `demo/static/app.js`, an
+unminified ES module. The bundle is committed, so `cargo build` needs no
+Node; the `proto` CI job rebuilds it with `--check` and fails on any
+difference. TypeScript 7.0.2 and esbuild 0.28.2 are pinned exactly in
+`demo/web/package.json`, beside the generator pins; the page has no UI
+framework.
+
+In `demo/web/src`, `rpc.ts` makes the one Connect transport (binary,
+POST only, the bearer token from the page's token field) and a client
+per service, and `upload.ts` makes the one `fetch`, the upload PUT;
+`frames.ts` builds the upload bodies as Blobs, so a picked file is sent
+from disk without being read into memory, and `sha256.ts` hashes a
+dictionary for its import header. The tree test
+(`bench/tests/tree/front_end.rs`) holds the page's own TypeScript to
+this: no `JSON.`, `toJson`, `fromJson`, `application/json` or
+`connect+json`, no JSON or GET transport, and no `fetch` outside
+`upload.ts`.
+
 ## Starting it
 
 Build both binaries:
@@ -254,26 +277,45 @@ on each call, and a call while the server is down is `unavailable`.
 
 ## What the page shows
 
-- The server's name, version, linked backends and readiness
-  (`ServerLive`, `ServerReady`, `ServerMetadata`).
-- Each offered model with its tier, model id, dimensions, compute type
-  and device, from `ModelMetadata`'s properties.
-- For each model picked, one `ModelInfer` with every text as one
-  batch: the vectors' dimensions, where it ran, the round trip, the
-  cosine similarity of every pair of texts, and the first values and
-  norm of each vector.
-- With more than one model picked, every pair's similarity side by
-  side with the spread between the models, and the lowest cosine between
-  each model's vector for a text and the first model's. This is where a
-  tier's trade-off shows: a device that runs FASTEST in a narrower type
-  gives slightly different numbers than at EXACT. The CPU computes every
-  tier in F32 (docs/cpu.md), so there the columns are the same.
+The page has a tab per area; leaving a tab cancels its streams and
+uploads. Writes (marked below) are refused with `permission_denied`
+unless the demo is started with `--allow` for them, and the tab says
+so with the call's code, `turbo-code`, field and message, as it does
+for any refused call.
 
-Optional request parameters are a prompt role (`prompt_role`) and a
-token budget per text (`max_tokens` with `truncate` `TRUNCATE_RIGHT`);
-everything else is what the bundle says (docs/kserve.md, Parameters). A
-refused request shows the server's status, `turbo-code`, field and
-message.
+- Embed: each served embedding bundle (from `Capabilities`) with its
+  tier, model id, dimensions, compute type and device from
+  `ModelMetadata`'s properties. For each model picked, one `ModelInfer`
+  with every text as one batch: the vectors' dimensions, where it ran,
+  the round trip, the cosine similarity of every pair of texts, and the
+  first values and norm of each vector. With more than one model picked,
+  every pair's similarity side by side with the spread between the
+  models, and the lowest cosine between each model's vector for a text
+  and the first model's. This is where a tier's trade-off shows: a
+  device that runs FASTEST in a narrower type gives slightly different
+  numbers than at EXACT. The CPU computes every tier in F32
+  (docs/cpu.md), so there the columns are the same. Optional parameters
+  are a prompt role (`prompt_role`) and a token budget per text
+  (`max_tokens` with `truncate` `TRUNCATE_RIGHT`).
+- Analyze: `AnalyzeDocumentProgressive` as it streams, each step with
+  its time and layers and any failed step with what it skipped; then
+  the finished graph through `InspectDocumentWindow`, the text with its
+  annotations marked, a chip per layer to show only some, paging, and
+  heatmap lanes; and `FormatDocument` in any format `ListOutputFormats`
+  names, shown when it is text and offered as a download.
+- Search: `ListIndexes`; `CreateIndex` (write) from an embedding bundle,
+  its model, first width, cosine and flat F32 storage; typed paragraphs
+  and picked files added with the `IndexDocuments` upload (write); and
+  `Search` with each hit's score, signal scores and matched spans, and
+  the document heat. `DeleteIndex` is a write.
+- Vocabulary: the store's limits and formats, the stored dictionaries
+  and vocabularies, `ImportDictionary` and `LearnVocabulary` as uploads
+  (writes), `DownloadVocabulary` streamed into a file, and
+  `DeleteVocabularyArtifact` (write).
+- Server: the server's name, version and readiness (`ServerLive`,
+  `ServerReady`, `ServerMetadata`); `Capabilities`' bundles, analysis
+  profiles and limits; `LoadBundle` and `UnloadBundle` (writes); and the
+  model catalog and installed models when the server keeps a catalog.
 
 The time shown is the round trip the browser saw for one request,
 through the demo and the server, with the models called one after

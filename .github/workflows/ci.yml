@@ -134,6 +134,10 @@ jobs:
           node-version: "24.16.0"
       - name: generated TypeScript matches server/proto
         run: bash scripts/generate-web-stubs.sh --check
+      # The page's bundle (demo/static/app.js) is committed too; it must be
+      # what demo/web/src builds, after the type check and unit tests.
+      - name: demo page builds and matches demo/static/app.js
+        run: bash scripts/build-web.sh --check
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:

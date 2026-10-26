@@ -240,7 +240,17 @@ fn the_committed_text_carries_no_host_path() {
     files.extend(committed_postag_records().iter().map(|(n, _)| root.join(postag::POSTAG_DIR).join(n)));
     files.extend(committed_tag_records().iter().map(|(n, _)| root.join(tag::TAG_DIR).join(n)));
     files.extend(committed_throughput_records().iter().map(|(n, _)| root.join(throughput::THROUGHPUT_DIR).join(n)));
-    for dir in ["bundle/recipes", "include/turbo", ".github/workflows", "demo/web", "demo/web/src/gen"] {
+    for dir in [
+        "bundle/recipes",
+        "include/turbo",
+        ".github/workflows",
+        "demo/web",
+        "demo/web/src",
+        "demo/web/src/tabs",
+        "demo/web/src/gen",
+        "demo/web/test",
+        "demo/static",
+    ] {
         if let Ok(rd) = std::fs::read_dir(root.join(dir)) {
             files.extend(rd.map(|e| e.unwrap().path()).filter(|p| p.is_file()));
         }

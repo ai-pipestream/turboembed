@@ -8,53 +8,186 @@
 </head>
 <body>
 <header>
-  <h1>turboembed <span class="sub">KServe v2 gRPC demo</span></h1>
-  <p id="server" class="muted">Checking the server…</p>
+  <h1>turboembed <span class="sub">gRPC workbench</span></h1>
+  <p id="server" class="muted">Checking the server&hellip;</p>
+  <label class="token">Bearer token
+    <input id="token" type="password" autocomplete="off" placeholder="only if the demo asks for one">
+  </label>
+  <nav class="tabs">
+    <button type="button" data-tab="embed">Embed</button>
+    <button type="button" data-tab="analyze">Analyze</button>
+    <button type="button" data-tab="search">Search</button>
+    <button type="button" data-tab="vocabulary">Vocabulary</button>
+    <button type="button" data-tab="server">Server</button>
+  </nav>
 </header>
 
 <main>
-  <section class="panel" id="input">
+<section class="panel split" id="tab-embed" hidden>
+  <div class="box">
     <h2>Texts</h2>
     <p class="muted">One text per line; all of them go in one request.</p>
-    <textarea id="texts" rows="7" wrap="off" spellcheck="false">A cat is sleeping on the windowsill.
+    <textarea id="embed-texts" rows="7" wrap="off" spellcheck="false">A cat is sleeping on the windowsill.
 A kitten naps in the warm sun by the window.
 The central bank raised interest rates again.
 Inflation pushed borrowing costs higher this quarter.
 How do I reset my router?</textarea>
-
     <div class="options">
       <label>Prompt role
-        <select id="prompt_role">
+        <select id="embed-role">
           <option value="">none</option>
           <option value="PROMPT_QUERY">query</option>
           <option value="PROMPT_DOCUMENT">document</option>
         </select>
       </label>
       <label>Cut each text to
-        <input id="max_tokens" type="number" min="0" step="1" placeholder="all"> tokens
+        <input id="embed-max" type="number" min="0" step="1" placeholder="all"> tokens
       </label>
     </div>
-
     <h2>Models</h2>
-    <p class="muted">Each name is one model the server serves, with its own tier and device.
+    <p class="muted">Each name is one embedding model the server serves, with its own tier and device.
       Pick several to send the same texts to each and compare.</p>
-    <div id="models"></div>
-    <form id="add" class="add">
-      <input id="add-name" placeholder="another served model name" autocomplete="off">
+    <div id="embed-models" class="models"></div>
+    <form id="embed-add" class="add">
+      <input id="embed-add-name" placeholder="another served model name" autocomplete="off">
       <button type="submit">Add</button>
     </form>
+    <button id="embed-run" class="primary">Embed</button>
+    <p id="embed-error" class="note" hidden></p>
+  </div>
+  <div id="embed-results" class="results"></div>
+</section>
 
-    <button id="run" class="primary">Embed</button>
-    <p id="error" class="error" hidden></p>
-  </section>
+<section class="panel split" id="tab-analyze" hidden>
+  <div class="box">
+    <h2>Document</h2>
+    <textarea id="analyze-text" rows="10" spellcheck="false">Ada Lovelace wrote the first published program in 1843. She worked with Charles Babbage in London on the Analytical Engine.
 
-  <section id="results"></section>
+The engine was never built, but her notes describe how it could compute Bernoulli numbers.</textarea>
+    <div class="options">
+      <label>Profile <select id="analyze-profile"></select></label>
+      <label>Embedding model <select id="analyze-model"></select></label>
+    </div>
+    <div class="row">
+      <button id="analyze-run" class="primary">Analyze</button>
+      <button id="analyze-stop" type="button">Stop</button>
+    </div>
+    <p id="analyze-note" class="note" hidden></p>
+    <h2>Steps</h2>
+    <ol id="analyze-steps" class="steps"></ol>
+    <h2>Export</h2>
+    <div class="row">
+      <select id="analyze-format"></select>
+      <button id="analyze-export" type="button">Format</button>
+    </div>
+    <div id="analyze-export-out"></div>
+  </div>
+  <div class="results">
+    <div class="card"><h3>Layers</h3><div id="analyze-layers"></div></div>
+    <div class="card" id="analyze-window"></div>
+  </div>
+</section>
+
+<section class="panel split" id="tab-search" hidden>
+  <div class="box">
+    <h2>New index</h2>
+    <form id="search-create" class="options">
+      <label>Name <input id="search-create-name" autocomplete="off" value="demo"></label>
+      <label>Embedding bundle <select id="search-create-bundle"></select></label>
+      <button type="submit">Create</button>
+    </form>
+    <p id="search-create-note" class="note" hidden></p>
+    <h2>Add documents</h2>
+    <p class="muted">Typed paragraphs (a blank line between) and picked files, one upload; the server cuts and embeds them.</p>
+    <textarea id="search-docs" rows="6" spellcheck="false">Rust is a systems programming language focused on safety and speed.
+
+Python is popular for data science and machine learning.
+
+The Analytical Engine was a proposed mechanical general purpose computer.</textarea>
+    <input id="search-files" type="file" multiple>
+    <button id="search-add" type="button">Upload to the index</button>
+    <p id="search-add-note" class="note" hidden></p>
+  </div>
+  <div class="results">
+    <div class="card">
+      <div class="head"><h3>Indexes</h3><button id="search-refresh" type="button">Refresh</button></div>
+      <div id="search-indexes"></div>
+    </div>
+    <div class="card">
+      <form id="search-form" class="row">
+        <select id="search-index"></select>
+        <input id="search-query" placeholder="search" value="memory safe language">
+        <input id="search-k" type="number" min="1" value="10" class="narrow">
+        <select id="search-rerank"></select>
+        <button type="submit" class="go">Search</button>
+      </form>
+      <div id="search-results"></div>
+    </div>
+  </div>
+</section>
+
+<section class="panel split" id="tab-vocabulary" hidden>
+  <div class="box">
+    <h2>Import a dictionary</h2>
+    <form id="vocab-import" class="options">
+      <label>Format <select id="vocab-format"></select></label>
+      <label>Language <input id="vocab-language" placeholder="en" class="narrow"></label>
+      <label>Name <input id="vocab-name" autocomplete="off"></label>
+      <label><input id="vocab-header" type="checkbox"> first row is a header</label>
+      <input id="vocab-file" type="file">
+      <button type="submit">Import</button>
+    </form>
+    <h2>Learn a vocabulary</h2>
+    <form id="vocab-learn" class="options">
+      <textarea id="vocab-docs" rows="5" spellcheck="false" placeholder="documents, a blank line between"></textarea>
+      <input id="vocab-learn-files" type="file" multiple>
+      <label>Min term frequency <input id="vocab-min-tf" type="number" min="1" value="1" class="narrow"></label>
+      <label>Max terms <input id="vocab-max-terms" type="number" min="0" value="0" class="narrow"></label>
+      <label><input id="vocab-lowercase" type="checkbox" checked> lowercase</label>
+      <label><input id="vocab-stopwords" type="checkbox"> drop stopwords</label>
+      <label><input id="vocab-ngrams" type="checkbox"> n-grams</label>
+      <label>Seed <select id="vocab-seed"></select></label>
+      <button type="submit">Learn</button>
+    </form>
+    <div class="row">
+      <button id="vocab-stop" type="button">Stop</button>
+    </div>
+    <p id="vocab-note" class="note" hidden></p>
+  </div>
+  <div class="results">
+    <div class="card">
+      <div class="head"><h3>Store</h3><button id="vocab-refresh" type="button">Refresh</button></div>
+      <div id="vocab-lists"></div>
+    </div>
+  </div>
+</section>
+
+<section class="panel split" id="tab-server" hidden>
+  <div class="box">
+    <h2>Load a bundle</h2>
+    <form id="server-load" class="options">
+      <label>Name <input id="server-load-name" autocomplete="off"></label>
+      <label>Bundle path on the server <input id="server-load-path" autocomplete="off"></label>
+      <label>Sessions <input id="server-load-sessions" type="number" min="1" value="1" class="narrow"></label>
+      <label><input id="server-load-select" type="checkbox"> pick the device</label>
+      <button type="submit">Load</button>
+    </form>
+    <p id="server-load-note" class="note" hidden></p>
+    <h2>Models on disk</h2>
+    <button id="server-catalog-load" type="button">Read the catalog</button>
+    <p id="server-catalog-note" class="note" hidden></p>
+  </div>
+  <div class="results">
+    <div class="card" id="server-caps"></div>
+    <div class="card" id="server-catalog"></div>
+  </div>
+</section>
 </main>
 
 <footer class="muted">
-  Times shown are the round trip the browser saw, through this demo and the server, one request at a time:
-  a look at the call, not a benchmark.
+  Every call is gRPC through this demo as binary protobuf; times shown are the round trip the browser saw,
+  one request at a time: a look at the call, not a benchmark. Writes need the demo started with --allow.
 </footer>
-<script src="app.js"></script>
+<script type="module" src="app.js"></script>
 </body>
 </html>
