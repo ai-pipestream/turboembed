@@ -54,6 +54,18 @@ is computed from `model.safetensors` and recorded as the relations'
 provenance. Only `counting_layer: count_lstm_v2` and `token_pooling:
 first` are read; any other configuration is refused by name.
 
+## On a device
+
+The encoder can also be a `FAMILY_DEBERTA_V2` core bundle on the device
+`EncoderOptions` names (cpu, cuda, levelzero), through the backend table
+(#920): open it with `turbo_relation::encoder::DebertaEncoder::open` and
+pass it to `Gliner2Relations::load_with`. Only the rows the heads read come back from the
+device, as one-token ranges of the range write: each word's first
+subword and the label markers. The heads stay on the host. `execution()`
+names where the encoder ran. `analysis/relation/tests/device.rs` holds a device to the CPU encoder
+over `testdata/tiny-deberta-bundle`, with every count equal and every
+logit within 1e-4.
+
 ## Parity
 
 `analysis/relation/reference/gliner2/build_fixture.py` (pinned in its
