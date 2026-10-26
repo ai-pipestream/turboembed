@@ -46,6 +46,9 @@ the same files copied elsewhere pass it.
 | `--tei-image <name@sha256:…>`, `--tei-model <dir>` | text-embeddings-inference: its image, and the model in the upstream layout (the directory `turbo-bundle fetch` fills). |
 | `--tei-bin <path>` | TEI's router built natively, run in place of an image: for metal, whose GPU no container reaches (Reference programs). Goes with `--tei-model`, not `--tei-image`. |
 | `--no-tei` | TEI is not run; the record says so. |
+| `--tei-nsys <dir>` | Nsight Systems' command-line target directory (`target-linux-x64`), mounted into TEI's container to trace its requests' GPU kernels (cuda; "TEI's kernel time", below). |
+| `--tei-nsys-libs <dir>` | Libraries the nsys command line needs that TEI's image lacks, built for the image's glibc (`libelf.so.1`, say), mounted beside it. |
+| `--nsys-importer <path>` | The host's `QdstrmImporter`, where the nsys in the container leaves only its raw stream (`.qdstrm`) and the host's nsys does not import it itself. |
 | `--tensorrt-image <name@sha256:…>` | NVIDIA's TensorRT container. |
 | `--tensorrt-inputs <ids,mask[,types]>` | The ONNX inputs, in that order, each of `[A-Za-z0-9_.]+` and neither `.` nor `..` (each names a file and a part of trtexec's lists); two for a graph that takes no token types (an XLM-RoBERTa export). Default `input_ids,attention_mask,token_type_ids`. |
 | `--tensorrt-input-dtype int64\|int32` | Their element type. Default `int64`. |
@@ -451,7 +454,7 @@ read with that in mind:
   requests ran as, per request, and their mean size, from TEI's
   `/metrics`. Tokenization overlaps inference, so no difference of the
   headers is the compute alone either; TEI's compute is compared through
-  a kernel-time profile.
+  a kernel-time profile (`kernel_time`, "TEI's kernel time", below).
 - **TensorRT and OpenVINO** (`measured`, kernel): the model's graph
   alone, on the rows padded to the batch's `seq`, as the vendor's tool
   times it (trtexec: the inputs' copy to the GPU, the compute and the
@@ -493,6 +496,52 @@ there is packed against padded work, not one kernel against another;
 dense rows are where the kernels compare like for like. The tool prints
 each side's p50 and p99 with its computed and live tokens when it writes
 the record.
+
+### TEI's kernel time
+
+With `--tei-nsys` on cuda, the record's TEI reference also carries
+`kernel_time`: the GPU time of its requests, as Nsight Systems traced
+them (bench/src/tei/kernels.rs). The image has no profiler, so the tool
+mounts the machine's nsys command line into the container, read-only,
+and starts TEI's router under `nsys launch --trace=cuda`. The router
+keeps the image's own library path. After the end-to-end timing, the
+tool runs `nsys start` in the container and sends as many more /embed
+requests of the same rows, one at a time, leaving the GPU idle for
+250 ms after each. Then it runs `nsys stop` and reads the trace on the
+host (`nsys stats --report cuda_gpu_trace --format csv`). A request's
+activity is what lies between two idle gaps of at least 250 ms. Every
+gap between requests is at least that long, because the next request
+goes out 250 ms after the last answer arrives. The trace must fall into
+exactly as many such runs as requests were sent; when a gap that long
+falls inside a request, the collection is taken again. Nsight Systems 2023.4's importer refuses long
+traces of TEI as events out of order, and sometimes short ones too. So the
+requests are collected 25 at a time, and a collection whose trace the
+host's tools refuse, or that does not split into its requests, is taken
+again, up to three times. The record's commands show each collection. `kernel_time` gives:
+
+- `profiler`, as `nsys --version` names itself;
+- `requests`, the number profiled;
+- `p50_ms` and `p99_ms`, the per-request sum of kernel durations;
+- `copy_p50_ms`, the per-request sum of memory copies and sets;
+- `kernels_p50`, the kernels a request launched.
+
+This is the time the GPU spent in TEI's kernels. It leaves out
+tokenization, queueing, launch gaps and the HTTP round trip. Read it
+beside the library's `timing`, which covers a whole run through the C
+interface, knowing that the library's figure includes host work this
+one leaves out. On an RTX 4080 SUPER host with Nsight Systems 2023.4 in
+`/usr/lib/x86_64-linux-gnu/nsight-systems` and TEI's Ubuntu 22.04 image,
+the nsys command line needs a `libelf.so.1` built for glibc 2.35, and its
+raw stream is imported with the host's `QdstrmImporter`:
+
+```
+... record --bundle bge-small-en-v1.5/ --device cuda --precision model \
+    --tei-image ghcr.io/huggingface/text-embeddings-inference@sha256:<digest of the 89-* image> \
+    --tei-model upstream/ --no-tensorrt \
+    --tei-nsys /usr/lib/x86_64-linux-gnu/nsight-systems/target-linux-x64 \
+    --tei-nsys-libs <dir with libelf.so.1> \
+    --nsys-importer /usr/lib/nsight-systems/host-linux-x64/QdstrmImporter
+```
 
 ### Name
 

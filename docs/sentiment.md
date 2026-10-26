@@ -424,6 +424,37 @@ terms and are not committed to the repository.
   distinct `Provenance.annotator` IDs and that CPU and device (`TURBO_TEST_DEVICE` /
   `TURBO_TEST_REQUIRE_CUDA=1`) outputs agree within `1e-5`.
 
+### Trained MASC aspect head and external evaluation (`#924`)
+
+The zoo publishes `turbo-en-masc-3.0.0-aspect-sentiment-1` as an experimental
+zip containing BIO and polarity `THEAD001` heads and their complete training
+configuration. It uses `sentence-transformers/all-MiniLM-L6-v2` at 384
+dimensions and MASC 3.0.0 MPQA target, attitude, and direct-subjective links
+(`CC BY 3.0 US`). The corpus is not committed. The release retains MASC
+attribution and records the source encoder commit.
+
+`analysis/embed/tests/aspect_masc.rs` is the real-data receipt. It reads the
+corpus through `TURBO_MASC_ROOT` and the encoder through
+`TURBO_MINILM_BUNDLE`. `TURBO_ASPECT_OUT` trains and writes the heads;
+`TURBO_ASPECT_HEAD` reloads them. `fit_balanced` opts into deterministic
+background down-sampling without changing the existing `fit` behavior. The
+published configuration selects `with_bio_threshold(0.4)`, which is included
+in the annotator's configuration hash.
+
+The split is by document: 56 training files and 15 held-out files. The
+held-out set has 127 annotations covering 125 unique token ranges. Exact
+aspect-range F1 and polarity accuracy on exact matches are:
+
+| Path | Aspect TP / FP / FN | Aspect F1 | Polarity accuracy |
+| --- | ---: | ---: | ---: |
+| Learned head | 4 / 464 / 121 | 0.013491 | 4 / 4 (1.000) |
+| Rule path | 0 / 41 / 125 | 0.000000 | no exact matches |
+
+This head is experimental and is not the default extractor. Its polarity
+figure covers only four exact aspect matches and is not evidence of general
+polarity quality. The low F1 and the false-positive count are published with
+the artifacts so later training work must improve on a visible baseline.
+
 ## Incivility and toxicity annotator (`IncivilityAnnotator`, `#323`)
 
 `turbo_doccat::sentiment::incivility` (`IncivilityAnnotator`,
@@ -1049,3 +1080,17 @@ execution order when comparing. Raw six-run samples (milliseconds):
 | GLiREL | 93.634, 83.627, 80.103, 78.713, 80.324, 79.540 | 78.568, 78.589, 80.977, 72.234, 75.498, 74.043 |
 | GLiNER2 | 364.053, 310.985, 319.985, 312.569, 302.608, 303.863 | 303.214, 351.832, 301.616, 300.673, 302.207, 298.797 |
 | SaT | 77.445, 81.898, 81.034, 74.445, 76.735, 77.753 | 62.754, 62.958, 58.943, 64.465, 58.403, 59.835 |
+
+### MASC release verification (`#924`)
+
+The release path (`TURBO_ASPECT_HEAD`) checks the archived configuration,
+BIO and polarity file digests, encoder identity, source text and annotation
+digest, document ordering, split counts, and both learned and rule metrics.
+Integer counts must match; metrics rounded to six decimal places permit an
+absolute difference of at most 0.0000005. The frozen expectations are in
+`analysis/embed/tests/aspect_masc_support/release.json`; these pin
+`models-sentiment-924-1` and do not set a new model-quality requirement.
+Training instead requires `TURBO_ASPECT_OUT`; verification cannot overwrite
+training output. Weight-file checks can run without the full encoder through
+the ignored `actual_release_files_accept_and_corrupt_bytes_fail` test. Full
+prediction reproduction still requires the pinned MASC data and MiniLM bundle.
