@@ -21,12 +21,14 @@ impl WordForms for ChineseUnits {
     }
 }
 impl Grammar for ChineseUnits {
-    fn word_boundary(&self, left: &str, right: &str) -> bool {
-        left.chars()
-            .next_back()
-            .into_iter()
-            .chain(right.chars().next())
-            .any(|c| turbo_unicode::script::script(c) == turbo_unicode::script::Script::Han)
+    fn word_boundary(&self) -> Option<fn(&str, &str) -> bool> {
+        Some(|left, right| {
+            left.chars()
+                .next_back()
+                .into_iter()
+                .chain(right.chars().next())
+                .any(|c| turbo_unicode::script::script(c) == turbo_unicode::script::Script::Han)
+        })
     }
     fn name(&self) -> &'static str {
         "zh-units"
