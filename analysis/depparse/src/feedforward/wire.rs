@@ -7,6 +7,7 @@ pub(super) const MAGIC: &str = "ONLP-FFDP-1";
 pub(super) struct Reader<'a> {
     pub data: &'a [u8],
     pub values: usize,
+    pub utf8: bool,
 }
 impl<'a> Reader<'a> {
     pub fn take(&mut self, n: usize) -> Result<&'a [u8]> {
@@ -19,6 +20,13 @@ impl<'a> Reader<'a> {
         usize::try_from(n).map_err(|_| error("negative wire count"))
     }
     pub fn string(&mut self) -> Result<String> {
+        if self.utf8 {
+            let n = self.int()?;
+            if n > 10_000_000 {
+                return Err(error("model string exceeds UTF-8 limit"));
+            }
+            return std::str::from_utf8(self.take(n)?).map(str::to_owned).map_err(error);
+        }
         let n = u16::from_be_bytes(self.take(2)?.try_into().unwrap()) as usize;
         JavaString::from_modified_utf8(self.take(n)?)
             .and_then(|s| s.to_str().map(|s| s.into_owned()))
@@ -114,18 +122,36 @@ pub(super) fn string(out: &mut Vec<u8>, s: &str) -> Result<()> {
     Ok(())
 }
 pub(super) fn vocabulary(out: &mut Vec<u8>, v: &Vocabulary, transitions: &[Transition]) -> Result<()> {
+    vocabulary_with(out, v, transitions, string)
+}
+pub(super) fn vocabulary_utf8(out: &mut Vec<u8>, v: &Vocabulary, transitions: &[Transition]) -> Result<()> {
+    vocabulary_with(out, v, transitions, |out, s| {
+        if s.len() > 10_000_000 {
+            return Err(error("model string exceeds UTF-8 limit"));
+        }
+        int(out, s.len())?;
+        out.extend_from_slice(s.as_bytes());
+        Ok(())
+    })
+}
+fn vocabulary_with(
+    out: &mut Vec<u8>,
+    v: &Vocabulary,
+    transitions: &[Transition],
+    write_string: impl Fn(&mut Vec<u8>, &str) -> Result<()>,
+) -> Result<()> {
     for map in [&v.words, &v.pos, &v.labels] {
         int(out, map.len())?;
         let mut entries: Vec<_> = map.iter().collect();
         entries.sort_by_key(|(_, id)| **id);
         for (s, &id) in entries {
-            string(out, s)?;
+            write_string(out, s)?;
             int(out, id)?;
         }
     }
     int(out, transitions.len())?;
     for t in transitions {
-        string(out, &t.encode())?;
+        write_string(out, &t.encode())?;
     }
     Ok(())
 }
@@ -150,7 +176,7 @@ pub(super) fn weights(out: &mut Vec<u8>, w: &NeuralWeights) -> Result<()> {
 }
 impl FeedforwardDependencyModel {
     pub fn from_java_bytes(bytes: &[u8]) -> Result<Self> {
-        let mut r = Reader { data: bytes, values: 0 };
+        let mut r = Reader { data: bytes, values: 0, utf8: false };
         if r.string()? != MAGIC {
             return Err(error("unknown Java neural format"));
         }
@@ -161,8 +187,9 @@ impl FeedforwardDependencyModel {
         Self::new(vocabulary, transitions, FeatureLayout::OpenNlp14, Activation::Cube, weights)
     }
     pub fn to_java_bytes(&self) -> Result<Vec<u8>> {
-        if self.layout != FeatureLayout::OpenNlp14 || self.activation != Activation::Cube {
-            return Err(error("Java raw format requires OpenNlp14 cube model"));
+        if self.layout != FeatureLayout::OpenNlp14 || self.activation != Activation::Cube || self.default_beam_size != 1
+        {
+            return Err(error("legacy Java raw format requires OpenNlp14 cube model with default beam 1"));
         }
         let mut out = Vec::new();
         string(&mut out, MAGIC)?;
