@@ -9,6 +9,7 @@ use turbo::{
 };
 
 use crate::api::{Failure, Result, TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT};
+use crate::deadline::Deadline;
 use crate::infer::{EMPTY, bad, bad_shape, has_contents, kind, only, shape, split_bytes, view};
 use crate::kserve::{Data, Vectors, datatype, result_parameters};
 use crate::proto::infer_parameter::ParameterChoice;
@@ -22,6 +23,7 @@ pub(crate) fn infer_rerank(
     served: &Arc<Served>,
     loaded: &Arc<Loaded>,
     req: ModelInferRequest,
+    deadline: &Deadline,
 ) -> Result<ModelInferResponse> {
     for o in &req.outputs {
         if o.name != "scores" {
@@ -46,10 +48,16 @@ pub(crate) fn infer_rerank(
         ));
     }
 
+    let _docs = loaded.metrics.track_docs(pairs.len().max(1), Some(loaded.device));
+    deadline.check_alive()?;
     let held = loaded.take()?;
+    deadline.check_alive()?;
     let slot = held.slot();
     slot.session.write_pairs(&pairs, &opts)?;
+    deadline.check_alive()?;
+    loaded.metrics.record_batch_size(pairs.len());
     let result = slot.session.run()?;
+    deadline.check_alive()?;
     let first = result.info()?;
     let data = match first.placement {
         TURBO_PLACE_HOST | TURBO_PLACE_PINNED | TURBO_PLACE_SHARED => {
