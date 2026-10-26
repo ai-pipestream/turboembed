@@ -59,6 +59,7 @@ impl Parser {
         let n = self.lexed.len();
         let lex = &self.lexed.lexemes;
         self.cands.clear();
+        let boundary = self.grammar.word_boundary();
         for (id, node) in self.chart.nodes.iter().enumerate() {
             let needs_zone = self.grammar.output(node.dim) != Some(output);
             if node.dim == Dim::DEAD
@@ -73,7 +74,7 @@ impl Parser {
                 && s > 0
                 && lex[s - 1].is_alnum()
                 && lex[s].is_alnum()
-                && !self.grammar.word_boundary(self.lexed.word(s - 1), self.lexed.word(s))
+                && boundary.is_none_or(|test| !test(self.lexed.word(s - 1), self.lexed.word(s)))
             {
                 continue;
             }
@@ -81,7 +82,7 @@ impl Parser {
                 && lex[e].glued
                 && lex[e].is_alnum()
                 && lex[e - 1].is_alnum()
-                && !self.grammar.word_boundary(self.lexed.word(e - 1), self.lexed.word(e))
+                && boundary.is_none_or(|test| !test(self.lexed.word(e - 1), self.lexed.word(e)))
             {
                 continue;
             }
