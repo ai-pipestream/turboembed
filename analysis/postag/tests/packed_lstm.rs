@@ -143,6 +143,54 @@ fn bad_shapes_lengths_and_values_are_refused() {
     }
 }
 
+#[test]
+fn projections_gathered_from_a_table_match_a_run() {
+    let m = Model::new(6, 5, 8);
+    let lengths = [7, 3, 3, 1];
+    let rows: usize = lengths.iter().sum();
+    let x = values(&mut JavaRng::new(9), rows * m.input, 1.0);
+    let lstm = m.lstm();
+    let pw = lstm.projected_width();
+    assert_eq!(pw, 2 * 4 * m.hidden);
+    // W x + b of each direction, the directions one after another.
+    let mut projected = Vec::with_capacity(rows * pw);
+    for row in x.chunks(m.input) {
+        for k in 0..2 {
+            for (w, b) in m.w[k].chunks(m.input).zip(&m.b[k]) {
+                projected.push(w.iter().zip(row).fold(*b, |a, (p, q)| a + p * q));
+            }
+        }
+    }
+    let mut want = vec![0.0; rows * lstm.width()];
+    lstm.run(&x, &lengths, &mut want, &mut Work::default()).unwrap();
+    // The table holds the rows in reverse; the index reads them back.
+    let table: Vec<f32> = projected.chunks(pw).rev().flatten().copied().collect();
+    let index: Vec<usize> = (0..rows).rev().collect();
+    let mut got = vec![0.0; rows * lstm.width()];
+    lstm.run_gathered(&table, &index, &lengths, &mut got, &mut Work::default()).unwrap();
+    // The products sum in another order, so the bits may differ.
+    let worst = max_diff(&got, &want);
+    assert!(worst < 1e-6, "max abs diff {worst:e}");
+    let mut work = Work::default();
+    let (argument, shape) = (turbo::status::INVALID_ARGUMENT, turbo::status::INVALID_SHAPE);
+    let mut gather = |table: &[f32], index: &[usize], lengths: &[usize]| {
+        lstm.run_gathered(table, index, lengths, &mut got, &mut work).unwrap_err()
+    };
+    for (table, index) in [(&table[1..], &index[..]), (&table[..], &index[1..])] {
+        let short = gather(table, index, &lengths);
+        assert_eq!(short.code, shape, "{}", short.message);
+    }
+    let mut past = index.clone();
+    past[2] = rows;
+    assert_eq!(gather(&table, &past, &lengths).code, shape);
+    let mut nan = table.clone();
+    nan[5] = f32::NAN;
+    let nan = gather(&nan, &index, &lengths);
+    assert!(nan.code == argument && nan.message.contains("not finite"), "{}", nan.message);
+    let order = gather(&table, &index, &[1, 7, 3, 3]);
+    assert!(order.message.contains("longest first"), "{}", order.message);
+}
+
 /// Release timing against the layer, the two interleaved over rounds, at
 /// the tagger's word sizes (input 100 plus char 100, hidden 128): 32
 /// sentences of 1 to 40 words.

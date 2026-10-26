@@ -153,5 +153,5 @@ fn head_workspace_retains_buffers_and_resets_recurrent_state() {
         heads.score(&states, width, &[0, 1], short, 3).unwrap()
     );
     assert_eq!(heads.score_with_work(&states, width, &[0, 1], &words, 3, &mut work).unwrap(), expected);
-    assert_eq!(work.allocations(), allocations, "all 13 head buffers retained after warm-up");
+    assert_eq!(work.allocations(), allocations, "all 9 head buffers retained after warm-up");
 }
