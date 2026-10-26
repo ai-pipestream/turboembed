@@ -35,16 +35,17 @@ pub const NSYS_LIBS: &str = "<tei-nsys-libs>";
 /// The host's QdstrmImporter.
 pub const IMPORTER: &str = "<nsys-importer>";
 
-/// The GPU's idle time after each profiled request: long enough to tell
-/// two requests apart, short enough that the GPU keeps its clocks between
-/// them (at 250 ms an RTX 4080 SUPER's dropped, and the kernels ran slower
-/// than TEI's whole unprofiled request).
-pub const IDLE: Duration = Duration::from_millis(25);
+/// The GPU's idle time after each profiled request: short enough that the
+/// GPU keeps its clocks between them (at 250 ms an RTX 4080 SUPER's
+/// dropped, and the kernels ran slower than TEI's whole unprofiled
+/// request).
+pub const IDLE: Duration = Duration::from_millis(50);
 /// The least gap between two requests' activity: a request's work is done
 /// when its answer arrives, and the next one is sent IDLE after that, so
-/// every gap between requests is at least IDLE. A gap that long inside one
-/// request (TEI's host work between its batches, on a loaded machine)
-/// makes a trace of too many runs, which is collected again.
+/// every gap between requests is at least IDLE. A gap as long can fall
+/// inside a request too (TEI's host work between its batches, on a loaded
+/// machine), so a trace of n requests is cut at its n - 1 longest gaps,
+/// each at least this, and every request must launch as many kernels.
 pub const SPLIT_NS: u64 = IDLE.as_nanos() as u64;
 
 const SESSION: &str = "turbo-bench";
@@ -142,7 +143,8 @@ pub fn procedure(requests: u32, warmup: u32, clocks: &[u32]) -> String {
         "then, with that server stopped, TEI started again in another container under Nsight Systems tracing CUDA \
          (nsys launch --trace=cuda, collected only around the profiled requests), {warmup} untimed /embed requests, \
          then {requests} more of the same rows one at a time, the GPU left idle {} ms after each, each request's \
-         kernel time the summed durations of the trace's kernels between idle gaps of at least {} ms; collected \
+         kernel time the summed durations of its kernels, a trace of n requests cut at its n - 1 longest gaps, each \
+         at least {} ms, and every request launching as many kernels; collected \
          {CHUNK} requests at a time, and a collection whose trace the host's tools refuse is taken again, up to \
          {ATTEMPTS} times, as the commands show; {clock}; a kernel p50 longer than the end-to-end p50 is refused",
         IDLE.as_millis(),
@@ -276,20 +278,35 @@ pub fn parse_trace(csv: &str) -> Result<Vec<Activity>> {
         .collect()
 }
 
-/// The activities as runs separated by gaps of at least `split` ns, from
-/// one run's last end to the next one's first start.
-pub fn split(mut a: Vec<Activity>, split: u64) -> Vec<Vec<Activity>> {
+/// The activities as `n` runs, cut at the n - 1 longest gaps from one
+/// run's last end to the next one's first start, each at least `least`
+/// ns; none when there are fewer such gaps, or fewer activities.
+pub fn split(mut a: Vec<Activity>, n: usize, least: u64) -> Option<Vec<Vec<Activity>>> {
     a.sort_by_key(|x| x.start);
-    let mut runs: Vec<Vec<Activity>> = Vec::new();
-    let mut end = 0u64;
-    for x in a {
-        match runs.last_mut() {
-            Some(run) if x.start < end.saturating_add(split) => run.push(x),
-            _ => runs.push(vec![x]),
-        }
+    if n == 0 || a.len() < n {
+        return None;
+    }
+    // The gap before each activity after the first, as (gap, index).
+    let mut end = a[0].start + a[0].duration;
+    let mut gaps = Vec::with_capacity(a.len());
+    for (i, x) in a.iter().enumerate().skip(1) {
+        gaps.push((x.start.saturating_sub(end), i));
         end = end.max(x.start + x.duration);
     }
-    runs
+    gaps.sort_unstable_by(|p, q| q.cmp(p));
+    let mut cuts: Vec<usize> = gaps[..n - 1].iter().map(|&(_, i)| i).collect();
+    if gaps[..n - 1].iter().any(|&(g, _)| g < least) {
+        return None;
+    }
+    cuts.sort_unstable();
+    let mut runs = Vec::with_capacity(n);
+    let mut rest = a;
+    for &c in cuts.iter().rev() {
+        runs.push(rest.split_off(c));
+    }
+    runs.push(rest);
+    runs.reverse();
+    Some(runs)
 }
 
 /// One profiled request: its kernels' and copies' summed ns, and the
@@ -304,20 +321,26 @@ pub struct Request {
 /// The `requests` requests of one collection's trace, or why it does not
 /// hold them.
 pub fn requests(a: Vec<Activity>, requests: u64) -> std::result::Result<Vec<Request>, String> {
-    let runs = split(a, SPLIT_NS);
-    if runs.len() as u64 != requests {
+    let ms = SPLIT_NS / 1_000_000;
+    let Some(runs) = split(a, requests as usize, SPLIT_NS) else {
         return Err(format!(
-            "the trace falls into {} runs of activity between idle gaps of {} ms, not the {requests} requests sent",
-            runs.len(),
-            SPLIT_NS / 1_000_000
+            "the trace has fewer than the {} idle gaps of {ms} ms {requests} requests leave",
+            requests - 1
         ));
-    }
+    };
     let sum = |r: &[Activity], copy: bool| r.iter().filter(|x| x.copy == copy).map(|x| x.duration).sum::<u64>();
     let kernels = |r: &[Activity]| r.iter().filter(|x| !x.copy).count() as u64;
     let out: Vec<Request> =
         runs.iter().map(|r| Request { kernel_ns: sum(r, false), copy_ns: sum(r, true), kernels: kernels(r) }).collect();
     if out.iter().any(|r| r.kernels == 0) {
         return Err("a profiled request ran no kernel".into());
+    }
+    // Every request is of the same rows, so a cut inside one shows as
+    // requests of other kernel counts.
+    if out.iter().any(|r| r.kernels != out[0].kernels) {
+        let mut counts: Vec<u64> = out.iter().map(|r| r.kernels).collect();
+        counts.dedup();
+        return Err(format!("cut at its longest gaps, the trace's requests launch {counts:?} kernels, not one count"));
     }
     Ok(out)
 }
@@ -374,94 +397,5 @@ pub fn read_trace(log: &mut Log, n: &Nsys, out: &Path) -> Result<String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    const TRACE: &str = "Start (ns),Duration (ns),CorrId,GrdX,Name
-100,10,1,1,\"void gemm<float, (int)128>(params)\"
-120,5,2,,[CUDA memcpy Host-to-Device]
-140,20,3,4,ucopy_f32
-300000200,30,4,1,\"void gemm<float, (int)128>(params)\"
-300000300,3,5,,[CUDA memset]
-";
-
-    #[test]
-    fn a_trace_reads_with_commas_in_its_names() {
-        let a = parse_trace(TRACE).unwrap();
-        assert_eq!(a.len(), 5);
-        assert_eq!(a[0], Activity { start: 100, duration: 10, copy: false });
-        assert!(a[1].copy && !a[2].copy && a[4].copy);
-        assert!(parse_trace("Name,Start (ns),Duration (ns)\n").is_err(), "Name must be last");
-        assert!(parse_trace("Start (ns),Duration (ns),Name\nx,1,k\n").is_err());
-    }
-
-    #[test]
-    fn requests_are_the_runs_between_idle_gaps() {
-        let a = parse_trace(TRACE).unwrap();
-        let runs = split(a.clone(), SPLIT_NS);
-        assert_eq!(runs.iter().map(Vec::len).collect::<Vec<_>>(), [3, 2]);
-        let r = requests(a.clone(), 2).unwrap();
-        assert_eq!(r[0], Request { kernel_ns: 30, copy_ns: 5, kernels: 2 });
-        assert_eq!(r[1], Request { kernel_ns: 30, copy_ns: 3, kernels: 1 });
-        let k = kernel_time("nsys 2023.4\n", &r).unwrap();
-        assert!(kernel_time("nsys", &[]).is_err(), "no requests is no kernel time");
-        assert_eq!((k.profiler.as_str(), k.requests, k.kernels_p50), ("nsys 2023.4", 2, 1));
-        assert_eq!((k.p50_ms, k.p99_ms), (30.0 / 1e6, 30.0 / 1e6));
-        assert_eq!(k.copy_p50_ms, 3.0 / 1e6);
-        let wrong = requests(a, 3).unwrap_err();
-        assert!(wrong.contains("2 runs") && wrong.contains("the 3 requests"), "{wrong}");
-    }
-
-    #[test]
-    fn a_kernel_time_longer_than_the_request_is_refused() {
-        let k = |p50_ms| KernelTime {
-            profiler: "nsys".into(),
-            requests: 25,
-            p50_ms,
-            p99_ms: p50_ms,
-            copy_p50_ms: 0.0,
-            kernels_p50: 1,
-        };
-        assert!(check(&k(5.0), 9.9).is_ok());
-        assert!(check(&k(9.9), 9.9).is_ok(), "equal is not longer");
-        // The #1399 run: kernels traced in the end-to-end server read
-        // 77 ms against an unprofiled TEI's 35 ms.
-        let e = check(&k(77.14), 35.2).unwrap_err();
-        assert!(e.contains("77.140 ms") && e.contains("35.200 ms") && e.contains("nothing is recorded"), "{e}");
-    }
-
-    #[test]
-    fn the_procedure_names_the_clocks() {
-        let p = procedure(200, 30, &[2610, 795, 2595]);
-        assert!(p.contains("min 795 MHz, median 2595 MHz") && p.contains("idle 25 ms"), "{p}");
-        assert!(p.contains("30 untimed") && p.contains("another container"), "{p}");
-        assert!(procedure(1, 0, &[]).contains("no SM clock read"));
-    }
-
-    #[test]
-    fn a_gap_is_measured_from_the_last_end() {
-        // A long activity covers the next start: one run.
-        let act = |(s, d)| Activity { start: s, duration: d, copy: false };
-        let a = [(0, 2 * SPLIT_NS), (SPLIT_NS + 10, 10)].map(act);
-        assert_eq!(split(a.to_vec(), SPLIT_NS).len(), 1);
-        // A short one in between: the gap is from the long one's end, not
-        // from the short one's, so the third is still in the run.
-        let a = [(0, 2 * SPLIT_NS), (10, 10), (SPLIT_NS + 100, 10)].map(act);
-        assert_eq!(split(a.to_vec(), SPLIT_NS).len(), 1);
-    }
-
-    #[test]
-    fn the_launch_script_keeps_the_images_library_path_for_the_router() {
-        let l = launch();
-        assert_eq!((l[0].as_str(), l[2].as_str()), ("-c", "sh"));
-        assert!(l[1].contains("--env-var=LD_LIBRARY_PATH=\"$own\"") && l[1].ends_with("text-embeddings-router \"$@\""));
-        let n = Nsys { target: "/x/t".into(), libs: Some("/x/l".into()), importer: None };
-        let shown = mounts(&n, Path::new("/w"), true).join(" ");
-        assert!(
-            shown.contains("src=<tei-nsys>,")
-                && shown.contains("src=<tei-nsys-libs>,")
-                && shown.contains("src=<work>,")
-        );
-        assert!(!shown.contains("/x/"));
-    }
-}
+#[path = "kernels_tests.rs"]
+mod tests;

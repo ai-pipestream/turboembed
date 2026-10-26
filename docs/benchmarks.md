@@ -511,13 +511,15 @@ container: the end-to-end timing runs first, in a container with no
 profiler, which is removed before the profiled one starts. After the
 same warm-up, the tool runs `nsys start` in the container and sends as
 many /embed requests of the same rows, one at a time, leaving the GPU
-idle for 25 ms after each. Then it runs `nsys stop` and reads the trace
-on the host (`nsys stats --report cuda_gpu_trace --format csv`). A
-request's activity is what lies between two idle gaps of at least
-25 ms. Every gap between requests is at least that long, because the
-next request goes out 25 ms after the last answer arrives. The trace
-must fall into exactly as many such runs as requests were sent; when a
-gap that long falls inside a request, the collection is taken again.
+idle for 50 ms after each. Then it runs `nsys stop` and reads the trace
+on the host (`nsys stats --report cuda_gpu_trace --format csv`). Every
+gap between two requests' activity is at least 50 ms, because the next
+request goes out 50 ms after the last answer arrives. TEI's own host
+work can pause the GPU that long inside a request on a loaded machine,
+so a trace of n requests is cut at its n - 1 longest gaps, each of
+which must be at least 50 ms, and every request must then launch as
+many kernels, since each is of the same rows. A trace that does not
+cut so is collected again.
 Nsight Systems 2023.4's importer refuses long traces of TEI as events
 out of order, and sometimes short ones too. So the requests are
 collected 25 at a time, and a collection whose trace the host's tools
@@ -544,6 +546,8 @@ host, bge-small at [32, 512], the same commit, TEI's end-to-end p50 was
 169.3 ms under the profiler and 35.2 ms without it. Its kernel p50 of
 77.1 ms was longer than the unprofiled request. That run also left the
 GPU idle 250 ms between requests, long enough for its clocks to drop.
+At 25 ms the gaps no longer told requests apart on that loaded host:
+collections of 25 requests fell into 35 to 38 runs of activity.
 
 This is the time the GPU spent in TEI's kernels. It leaves out
 tokenization, queueing, launch gaps and the HTTP round trip. Read it
