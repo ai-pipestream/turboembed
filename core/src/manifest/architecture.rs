@@ -24,6 +24,21 @@ pub struct Architecture {
     pub lookahead: Option<u32>,
     pub token_types: u32,
     pub vocab_size: u32,
+    /// FAMILY_DEBERTA_V2's log-bucketed relative positions, with
+    /// POSITION_RELATIVE; absent for every other family.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub relative: Option<Relative>,
+}
+
+/// DeBERTa-v2's relative positions: `position_buckets` buckets each way
+/// (the relative table has twice as many rows), log-spaced past half of
+/// them out to `max_relative_positions`, as Hugging Face's
+/// `make_log_bucket_position` gives.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Relative {
+    pub position_buckets: u32,
+    pub max_relative_positions: u32,
 }
 
 /// A static model: one vector per vocabulary entry and no encoder
@@ -110,6 +125,11 @@ pub enum Family {
     /// BERT's encoder with the positions counted from `position_offset`.
     #[serde(rename = "FAMILY_ROBERTA")]
     Roberta,
+    /// DeBERTa-v2 and v3: shared-key disentangled attention over relative
+    /// positions (`architecture.relative`), with no absolute positions or
+    /// token types.
+    #[serde(rename = "FAMILY_DEBERTA_V2")]
+    DebertaV2,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -122,4 +142,6 @@ pub enum Activation {
 pub enum PositionEmbedding {
     #[serde(rename = "POSITION_ABSOLUTE")]
     Absolute,
+    #[serde(rename = "POSITION_RELATIVE")]
+    Relative,
 }
