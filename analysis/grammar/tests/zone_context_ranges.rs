@@ -84,3 +84,38 @@ fn generic_names_use_standard_offsets_and_explicit_daylight_names_differ() {
     let utc = m.start.unwrap() - i64::from(-420) * 60;
     assert_eq!(utc, DateTime::parse("2018-11-28T20:00:00").unwrap().local_seconds());
 }
+
+#[test]
+fn zones_do_not_promote_font_points_pages_or_currency_ranges() {
+    for ctor in [TimeAnnotator::english, TimeAnnotator::spanish, TimeAnnotator::dutch] {
+        for text in [
+            "Use 10-12 pt font.",
+            "Set the heading to 14-16 pt.",
+            "Scored 3-4 pt in the game.",
+            "9-6 pt",
+            "Pages 9-6 EST.",
+            "USD 9-6 PST",
+            "EUR 9-6 PST",
+            "€ 9-6 PST",
+        ] {
+            let baseline = ctor().find(text, ViewId::SOURCE, None);
+            let zoned = ctor().with_time_zones(Region::NorthAmerica).find(text, ViewId::SOURCE, None);
+            assert_eq!(baseline.len(), zoned.len(), "{text}");
+            for (i, _) in baseline.spans.iter() {
+                assert_eq!(baseline.get(i), zoned.get(i), "{text}");
+            }
+        }
+    }
+}
+
+#[test]
+fn explicit_clock_notation_keeps_zone_attachment() {
+    for ctor in [TimeAnnotator::english, TimeAnnotator::spanish, TimeAnnotator::dutch] {
+        let text = "09:00-18:00 PST";
+        let t = ctor().with_time_zones(Region::NorthAmerica).find(text, ViewId::SOURCE, None);
+        assert_eq!(t.len(), 1);
+        let m = t.get(t.spans.iter().next().unwrap().0);
+        assert_eq!(&text[m.span.range()], text);
+        assert!(m.timex.contains("-08:00"), "{}", m.timex);
+    }
+}

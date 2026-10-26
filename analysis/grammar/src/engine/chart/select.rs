@@ -20,7 +20,7 @@ impl Parser {
         if output == Output::Number {
             let mut shadows = std::mem::take(&mut self.shadows);
             shadows.clear();
-            self.pick(text, Output::Ordinal, &mut shadows, &|_, _, end| end);
+            self.pick(text, Output::Ordinal, &mut shadows, &|_, _, _, end| end);
             self.shadowed.resize(self.lexed.len(), NONE);
             for (i, m) in shadows.iter().enumerate() {
                 let node = &self.chart.nodes[m.node as usize];
@@ -30,7 +30,7 @@ impl Parser {
             }
             self.shadows = shadows;
         }
-        self.pick(text, output, out, &|_, _, end| end);
+        self.pick(text, output, out, &|_, _, _, end| end);
     }
 
     /// Select time mentions while reserving a recognized suffix during
@@ -40,7 +40,7 @@ impl Parser {
         &mut self,
         text: &str,
         out: &mut Vec<Mention>,
-        suffix: impl Fn(&Interned, &Value, u32) -> u32,
+        suffix: impl Fn(&Interned, &Value, u32, u32) -> u32,
     ) {
         if text.len() != self.chart.text_len {
             return;
@@ -54,7 +54,7 @@ impl Parser {
         text: &str,
         output: Output,
         out: &mut Vec<Mention>,
-        suffix: &impl Fn(&Interned, &Value, u32) -> u32,
+        suffix: &impl Fn(&Interned, &Value, u32, u32) -> u32,
     ) {
         let n = self.lexed.len();
         let lex = &self.lexed.lexemes;
@@ -97,7 +97,7 @@ impl Parser {
             if !self.grammar.keep(output, node, &ctx) {
                 continue;
             }
-            let end = suffix(&self.times, &node.value, lex[e - 1].end);
+            let end = suffix(&self.times, &node.value, lex[s].start, lex[e - 1].end);
             if end < lex[e - 1].end
                 || needs_zone && end == lex[e - 1].end
                 || end as usize > text.len()

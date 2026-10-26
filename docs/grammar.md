@@ -594,9 +594,13 @@ not accepted; callers can use an explicit numeric offset.
 A recognized suffix supplies context for a bare clock range in each
 language: `between 9-6 PST`, `entre 9-6 PST`, `tussen 9-6 PT`. It enables
 only the grammar's latent clock-range category and reserves the suffix
-during overlap selection. With zones disabled or an invalid/unrecognized
-suffix, these latent ranges remain excluded. Currency-prefixed numeric
-ranges do not gain a clock interpretation through this path.
+during overlap selection. Undated ranges also require a range cue such as
+`between`/`entre`/`tussen` or explicit clock notation such as `:mm`, `am` or
+`pm`. A suffix alone does not promote `10-12 pt font`, score/page ranges
+or `USD 9-6 PST` into clocks. Currency symbols and common currency codes
+prevent zone attachment. Existing zone-free matches remain unchanged.
+With zones disabled or an invalid/unrecognized suffix, latent ranges
+remain excluded.
 
 `hora de Madrid`, Madrid time, Amsterdam time forms, and London/Londres
 forms use the modern EU rule for 1996 through 2099. A time-only city needs
@@ -664,5 +668,6 @@ New real-text tests cover English, Spanish and Dutch aligned zone suffixes,
 invalid offsets, regional CST/IST, Madrid summer/winter dates, transition
 boundaries, missing/repeated hours, missing reference dates and provenance.
 Issue #927 stays open for full server/layer representation of standalone
-zones and upstream span/alternative parity. Bare `9-6 pt` ranges are now
-covered; the generic-zone standard-time policy is intentional.
+zones and upstream span/alternative parity. Contextual `tussen 9-6 PT`
+ranges are covered; a bare `9-6 pt` has insufficient clock context. The
+generic-zone standard-time policy is intentional.

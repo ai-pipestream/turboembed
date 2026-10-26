@@ -1,7 +1,9 @@
 //! Explicit offsets and a bounded inventory of zone names. Regional
 //! abbreviations require caller context; city names use dated EU rules.
+mod context;
 mod resolution;
 use crate::engine::{Lexed, NumeralStyle};
+pub(crate) use context::for_clock;
 pub use resolution::{Offsets, offset_for, write_timex};
 use turbo_unicode::whitespace::WhitespaceMode;
 
