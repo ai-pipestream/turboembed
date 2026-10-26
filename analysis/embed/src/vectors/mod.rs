@@ -115,6 +115,8 @@ struct Run {
     targets: Vec<u32>,
     /// The run's vectors, `[ranges, dim]`.
     flat: Vec<f32>,
+    /// What the runs since the last call began sent to the encoder.
+    done: Shape,
 }
 
 impl Run {
@@ -123,6 +125,9 @@ impl Run {
     /// for a part. Leaves the run empty.
     fn flush(&mut self, dim: usize, placed: &[Placed], out: &mut [Result<Output, Error>]) -> Result<(), CoreError> {
         self.encoder.run_ranges(&self.rows, &self.ranges, &mut self.flat)?;
+        self.done.runs += 1;
+        self.done.rows += self.rows.len() as u64;
+        self.done.tokens += self.rows.len() as u64 * self.rows.seq() as u64;
         for (v, &t) in self.flat.chunks_exact(dim).zip(&self.targets) {
             let x = placed[t as usize];
             let Ok(o) = &mut out[x.target.doc as usize] else { continue };
@@ -188,6 +193,7 @@ impl VectorAnnotator {
                 ranges: Vec::new(),
                 targets: Vec::new(),
                 flat: Vec::new(),
+                done: Shape::default(),
                 encoder,
             },
         };
@@ -301,6 +307,12 @@ impl VectorAnnotator {
         self.lock().run.encoder.info().clone()
     }
 
+    /// What the last call sent to the encoder: its runs, rows, and each
+    /// run's rows times its longest. `shape` predicts it.
+    pub fn last_shape(&self) -> Shape {
+        self.lock().run.done
+    }
+
     /// The most pieces one window holds.
     pub fn width(&self) -> u32 {
         self.lock().plan.width()
@@ -359,7 +371,8 @@ fn config_hash(values: &[u32]) -> u64 {
 mod execute;
 mod steps;
 mod tokens;
-pub use steps::{ChunkVectors, SentenceChunkVectors, SentenceVectors, SubwordVectors, VectorsProvider};
+pub use execute::{Planned, Shape};
+pub use steps::{ChunkVectors, Embedder, SentenceChunkVectors, SentenceVectors, SubwordVectors, VectorsProvider};
 pub use tokens::ContextualTokens;
 mod cached;
 pub(crate) use cached::CachedWindows;

@@ -186,6 +186,49 @@ From Rust, the crate's generated client does the same, and
 layers: `Wire::to_msg` builds a message from a result, `Wire::from_msg`
 reads one back with the message's own validation.
 
+## Typed document inspection (issue #1219)
+
+`InspectDocumentGraph` projects a binary graph into `TypedDocumentResult`
+for a requested view and offset mode. `RoundTripTypedDocument` validates
+and echoes the typed message; it does not reconstruct a native `Document`.
+
+Evidence producers record only annotator and optional model identity.
+Their model-table entries use version `"0"`, config hash `0`, and absent
+execution metadata for the unrecorded fields. They do not borrow those
+fields from another layer with the same annotator/model. Complete layer
+provenance remains separately available through the layer and annotation
+model references. Identical producer identities share one entry; distinct
+model revisions or digests remain distinct.
+Optional model and execution record presence is part of that identity:
+an absent record is distinct from a present record with empty strings.
+
+`turbo:quotations` uses the additive `quotation` payload (oneof tag 94).
+Content is carried by the annotation's spans; optional speaker and cue
+spans use the same requested view and offset mode. Kind and native f32
+confidence have explicit presence, preserving direct-kind zero and every
+confidence bit, including negative zero. The confidence stays in its own
+field; no calibrated annotation probability is synthesized.
+
+Content can be discontinuous. Normalization can remove fragments, merge
+overlapping projections or collapse a whole item to one empty span.
+Present speaker/cue spans can also collapse without becoming absent.
+Native record order is retained, including when deletion of an early
+fragment moves its visible start beyond a later record. Projected content
+does not require exactly one fragment or a new cross-record sort.
+
+`speaker_chain` preserves the native raw contextual row, including zero
+and `u32::MAX`. It is not an `indexes_layer` reference, and the typed API
+does not invent chain resolution or require a chain layer. Confidence,
+kind, payload/scope and projected offsets are validated; invalid nested
+offsets are refused with `TURBO_E_INVALID_ARGUMENT`, never snapped.
+
+Projected event arguments and asset payloads also retain their span
+presence when text deletion collapses them to an empty span. Their native
+source layers still require nonempty spans. Typed validation requires
+event argument spans and checks their offsets and anchor references;
+asset payload spans and outer spans are required, and the payload must
+remain inside its projected outer span, including at an empty boundary.
+
 ## Streaming bulk document analysis (issue #722)
 
 `AnalyzeStream` is one bidirectional stream for many documents. The

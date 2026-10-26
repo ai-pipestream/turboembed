@@ -1,4 +1,19 @@
 use super::*;
+
+/// What a call makes the encoder do (`VectorAnnotator::shape`).
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct Shape {
+    pub runs: u64,
+    pub rows: u64,
+    /// Tokens computed: each run's rows times its longest row.
+    pub tokens: u64,
+}
+
+/// A call planned and not yet run (`VectorAnnotator::plan`).
+pub struct Planned {
+    plan: Plan,
+    out: Vec<Result<Output, Error>>,
+}
 impl VectorAnnotator {
     /// The vectors of a batch of documents, a result for each. A document
     /// whose layers do not fit together fails alone; a run that fails
@@ -7,45 +22,43 @@ impl VectorAnnotator {
     pub fn embed(&self, annotator: &'static str, inputs: &[Input<'_>]) -> Vec<Result<Output, Error>> {
         let mut out: Vec<Result<Output, Error>> = inputs.iter().map(|i| self.output_for(annotator, i)).collect();
         let mut guard = self.lock();
+        self.plan_batch(annotator, inputs, &mut guard.plan, &mut out);
+        self.finish(annotator, guard, inputs, out)
+    }
+
+    /// A call of `inputs` planned and not run, for `shape_of_plan` to count
+    /// and `embed_planned` to run without planning it again.
+    pub fn plan(&self, annotator: &'static str, inputs: &[Input<'_>]) -> Planned {
+        let mut out: Vec<Result<Output, Error>> = inputs.iter().map(|i| self.output_for(annotator, i)).collect();
+        let mut plan = Plan::new(self.width());
+        self.plan_batch(annotator, inputs, &mut plan, &mut out);
+        Planned { plan, out }
+    }
+
+    /// `embed` of the call `planned` was made for, the same `inputs`, on
+    /// this step, which must lay out windows as the one that planned it
+    /// did: the same bundle, window and prompt.
+    pub fn embed_planned(
+        &self,
+        annotator: &'static str,
+        inputs: &[Input<'_>],
+        planned: Planned,
+    ) -> Vec<Result<Output, Error>> {
+        let Planned { mut plan, out } = planned;
+        let mut guard = self.lock();
+        std::mem::swap(&mut guard.plan, &mut plan);
+        self.finish(annotator, guard, inputs, out)
+    }
+
+    /// Runs the plan in `guard` and pools, splits and normalizes into `out`.
+    fn finish(
+        &self,
+        annotator: &'static str,
+        mut guard: std::sync::MutexGuard<'_, State>,
+        inputs: &[Input<'_>],
+        mut out: Vec<Result<Output, Error>>,
+    ) -> Vec<Result<Output, Error>> {
         let st = &mut *guard;
-        st.plan.clear();
-        for (d, (input, slot)) in inputs.iter().zip(&mut out).enumerate() {
-            let Ok(o) = slot else { continue };
-            let (starts, ends) = input.subwords.spans.columns();
-            let d = d as u32;
-            // The levels are placed scope by scope, before anything else
-            // is queued for the document.
-            if let (Some(l), Some(v)) = (input.levels, o.levels.as_mut())
-                && let Err(e) = crate::levels::plan(&mut st.plan, d, l, starts, ends, v)
-            {
-                *slot = Err(Error::Annotator { annotator, detail: e.to_string() });
-                continue;
-            }
-            // The finest layer given lays out the windows.
-            if let (Some(s), Some(v)) = (input.sentences, o.sentences.as_mut()) {
-                for (i, span) in s.iter() {
-                    let r = pieces_of(starts, ends, span.start, span.end);
-                    if r.is_empty() {
-                        v.empty.push(i);
-                    }
-                    st.plan.layout(Target { doc: d, which: Which::Sentences, item: i.get() as u32 }, r);
-                }
-            }
-            if let (Some(c), Some(v)) = (input.chunks, o.chunks.as_mut()) {
-                let lays_out = input.sentences.is_none();
-                for (i, span) in c.iter() {
-                    let r = pieces_of(starts, ends, span.start, span.end);
-                    if r.is_empty() {
-                        v.empty.push(i);
-                    }
-                    let t = Target { doc: d, which: Which::Chunks, item: i.get() as u32 };
-                    if lays_out { st.plan.layout(t, r) } else { st.plan.item(t, r) }
-                }
-            }
-            if let Err(e) = st.plan.place(d, starts.len() as u32) {
-                *slot = Err(Error::Annotator { annotator, detail: e.to_string() });
-            }
-        }
         if let Err(e) = self.run(st, inputs, &mut out) {
             let e = Error::Annotator { annotator, detail: e.to_string() };
             for o in out.iter_mut().filter(|o| o.is_ok()) {
@@ -75,6 +88,111 @@ impl VectorAnnotator {
             }
         }
         out
+    }
+
+    /// The runs, rows and tokens a call of `inputs` makes in this step's
+    /// session: packed as `embed` packs them (`pack`), each run's rows as
+    /// long as its longest. The call is planned, not run.
+    pub fn shape(&self, annotator: &'static str, inputs: &[Input<'_>]) -> Shape {
+        self.shape_of_plan(&self.plan(annotator, inputs))
+    }
+
+    /// `shape` of a planned call.
+    pub fn shape_of_plan(&self, planned: &Planned) -> Shape {
+        self.count(&planned.plan, self.max_batch, self.max_ranges)
+    }
+
+    /// `shape` in a session of `max_batch` rows and `max_ranges` ranges a
+    /// run, each at least 1 (a session resolves 0 to its default before it
+    /// runs); an error for 0.
+    pub fn shape_at(
+        &self,
+        annotator: &'static str,
+        inputs: &[Input<'_>],
+        max_batch: u32,
+        max_ranges: u32,
+    ) -> Result<Shape, CoreError> {
+        if max_batch == 0 || max_ranges == 0 {
+            return Err(CoreError::new(
+                INVALID_ARGUMENT,
+                format!("shape of {max_batch} rows and {max_ranges} ranges a run: each must be at least 1"),
+            ));
+        }
+        Ok(self.count(&self.plan(annotator, inputs).plan, max_batch, max_ranges))
+    }
+
+    /// The shape `plan` packs into at these limits, each at least 1.
+    fn count(&self, plan: &Plan, max_batch: u32, max_ranges: u32) -> Shape {
+        let ends = (self.head.len() + self.tail.len()) as u64;
+        let mut shape = Shape { runs: 0, rows: 0, tokens: 0 };
+        let (mut rows, mut longest) = (0u64, 0u64);
+        let counted: Result<(), std::convert::Infallible> = pack(plan, max_batch, max_ranges, |step| {
+            match step {
+                Pack::Row { window, .. } => {
+                    let w = &plan.windows[window];
+                    rows += 1;
+                    longest = longest.max((w.end - w.start) as u64 + ends);
+                }
+                Pack::Flush => {
+                    shape.runs += 1;
+                    shape.rows += rows;
+                    shape.tokens += rows * longest;
+                    (rows, longest) = (0, 0);
+                }
+            }
+            Ok(())
+        });
+        let Ok(()) = counted;
+        shape
+    }
+
+    /// Lays out the windows of every document of `inputs` whose layers fit
+    /// together, failing a document alone when its items do not place.
+    fn plan_batch(
+        &self,
+        annotator: &'static str,
+        inputs: &[Input<'_>],
+        plan: &mut Plan,
+        out: &mut [Result<Output, Error>],
+    ) {
+        plan.clear();
+        for (d, (input, slot)) in inputs.iter().zip(out.iter_mut()).enumerate() {
+            let Ok(o) = slot else { continue };
+            let (starts, ends) = input.subwords.spans.columns();
+            let d = d as u32;
+            // The levels are placed scope by scope, before anything else
+            // is queued for the document.
+            if let (Some(l), Some(v)) = (input.levels, o.levels.as_mut())
+                && let Err(e) = crate::levels::plan(plan, d, l, starts, ends, v)
+            {
+                *slot = Err(Error::Annotator { annotator, detail: e.to_string() });
+                continue;
+            }
+            // The finest layer given lays out the windows.
+            if let (Some(s), Some(v)) = (input.sentences, o.sentences.as_mut()) {
+                for (i, span) in s.iter() {
+                    let r = pieces_of(starts, ends, span.start, span.end);
+                    if r.is_empty() {
+                        v.empty.push(i);
+                    }
+                    plan.layout(Target { doc: d, which: Which::Sentences, item: i.get() as u32 }, r);
+                }
+            }
+            if let (Some(c), Some(v)) = (input.chunks, o.chunks.as_mut()) {
+                let lays_out = input.sentences.is_none();
+                for (i, span) in c.iter() {
+                    let r = pieces_of(starts, ends, span.start, span.end);
+                    if r.is_empty() {
+                        v.empty.push(i);
+                    }
+                    let t = Target { doc: d, which: Which::Chunks, item: i.get() as u32 };
+                    if lays_out { plan.layout(t, r) } else { plan.item(t, r) }
+                }
+            }
+            if let Err(e) = plan.place(d, starts.len() as u32) {
+                *slot = Err(Error::Annotator { annotator, detail: e.to_string() });
+            }
+        }
     }
 
     /// Pools one vector per span in `spans` from `subwords` through the
@@ -196,28 +314,57 @@ impl VectorAnnotator {
         run.rows.clear();
         run.ranges.clear();
         run.targets.clear();
+        run.done = Shape::default();
         let dim = self.dim as usize;
         let head = self.head.len() as u32;
-        let mut p = 0usize;
-        for (w, win) in plan.windows.iter().enumerate() {
-            let end = p + plan.placed[p..].iter().take_while(|x| x.window as usize == w).count();
-            let ids = &inputs[win.doc as usize].subwords.ids[win.start as usize..win.end as usize];
-            while p < end {
-                if run.rows.len() == self.max_batch || run.ranges.len() as u32 == self.max_ranges {
-                    run.flush(dim, &plan.placed, out)?;
-                }
+        pack(plan, self.max_batch, self.max_ranges, |step| match step {
+            Pack::Flush => run.flush(dim, &plan.placed, out),
+            Pack::Row { window, placed } => {
+                let win = &plan.windows[window];
+                let ids = &inputs[win.doc as usize].subwords.ids[win.start as usize..win.end as usize];
                 let row = run.rows.push(&[&self.head, ids, &self.tail]);
-                let take = (end - p).min(self.max_ranges as usize - run.ranges.len());
-                for (k, x) in plan.placed[p..p + take].iter().enumerate() {
+                for (k, x) in plan.placed[placed.clone()].iter().enumerate() {
                     run.ranges.push(turbo_token_range { row, start: head + x.start, end: head + x.end });
-                    run.targets.push((p + k) as u32);
+                    run.targets.push((placed.start + k) as u32);
                 }
-                p += take;
+                Ok(())
             }
-        }
-        if !run.rows.is_empty() {
-            run.flush(dim, &plan.placed, out)?;
-        }
-        Ok(())
+        })
     }
+}
+
+/// One step of packing a plan into runs.
+enum Pack {
+    /// Run the rows built so far.
+    Flush,
+    /// A row of the window, holding these of the plan's placements.
+    Row { window: usize, placed: std::ops::Range<usize> },
+}
+
+/// The rows and runs a plan goes through the encoder in, in order: a row
+/// for each window with placements, again for those that do not fit in
+/// the run being built, and a flush when a run holds `max_batch` rows or
+/// `max_ranges` ranges, and after the last row. `embed` runs by it and
+/// `shape` counts by it, so the two never differ.
+fn pack<E>(plan: &Plan, max_batch: u32, max_ranges: u32, mut f: impl FnMut(Pack) -> Result<(), E>) -> Result<(), E> {
+    let (mut rows, mut ranges) = (0u32, 0u32);
+    let mut p = 0usize;
+    for w in 0..plan.windows.len() {
+        let end = p + plan.placed[p..].iter().take_while(|x| x.window as usize == w).count();
+        while p < end {
+            if rows == max_batch || ranges == max_ranges {
+                f(Pack::Flush)?;
+                (rows, ranges) = (0, 0);
+            }
+            let take = (end - p).min((max_ranges - ranges) as usize);
+            f(Pack::Row { window: w, placed: p..p + take })?;
+            rows += 1;
+            ranges += take as u32;
+            p += take;
+        }
+    }
+    if rows > 0 {
+        f(Pack::Flush)?;
+    }
+    Ok(())
 }

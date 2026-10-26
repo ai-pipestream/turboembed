@@ -35,7 +35,7 @@ pub mod vectors;
 pub mod window;
 
 pub use aspect::{BIO_ASPECT_OPINION_LABELS, LabeledAbsaDoc, LearnedAspectSentiment, bio_aspect_opinion_tagset};
-pub use calibrate::{Calibration, CalibrationOptions};
+pub use calibrate::{Calibration, CalibrationOptions, Dispatch, Side};
 pub use centroids::{CentroidNorm, LabelCentroids, add_categories, category_sentence_centroids, centroid};
 pub use encoder::{Device, Encoder, EncoderInfo, EncoderOptions, Precision, Rows, normalize};
 pub use heads::{
@@ -46,7 +46,7 @@ pub use levels::LevelVectors;
 pub use sparse::{SparseAnnotator, SparseOptions, SparseProvider};
 pub use subwords::{SubwordAnnotator, SubwordsProvider, align};
 pub use vectors::{
-    ChunkVectors, ContextualTokens, Input, Output, SentenceChunkVectors, SentenceVectors, SubwordVectors,
+    ChunkVectors, ContextualTokens, Embedder, Input, Output, SentenceChunkVectors, SentenceVectors, SubwordVectors,
     VectorAnnotator, VectorOptions, VectorsProvider,
 };
 
