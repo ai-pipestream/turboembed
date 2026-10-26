@@ -106,8 +106,11 @@ to them, ran under load.
 | 384, 4 (395) | 243.2 / 329.0 / 328.8 / 412.2 | 72.5 / 113.7 / 119.0 / 192.4 | 188.5 / 220.6 / 232.1 / 350.8 | 9.1 / 27.3 / 30.0 / 70.4 |
 | 384, 32 (451) | 211.0 / 275.3 / 296.9 / 426.2 | 56.4 / 95.4 / 110.3 / 202.0 | 172.9 / 229.7 / 230.6 / 320.3 | 21.6 / 55.1 / 51.6 / 77.9 |
 
-The first shape's device encoder is as slow as its whole call, and slower
-than at 128 words; it was the first shape timed, and the host was loaded.
+At 64 words the device encoder is unexplained: its p50 is about the whole
+call's (35.6 of 35.7 ms) or above it (36.5 of 32.8 ms), and slower than at
+128 words. The first of these shapes was the first timed, under host load,
+but that does not account for the second. These two rows are left out of
+the conclusion below until they are retaken with a warm-up per shape.
 
 RTX 4080 SUPER (cuda), host AMD Ryzen 9 9950X3D (16 cores, 32 threads). A
 shared machine: a resident server process, kept running there on purpose
@@ -126,8 +129,10 @@ shared, loaded machine, not a quiet one.
 | 384, 4 (395) | 171.4 / 245.8 / 287.8 / 793.3 | 49.0 / 86.1 / 108.0 / 356.6 | 127.2 / 176.9 / 200.2 / 819.2 | 4.6 / 5.0 / 5.2 / 6.7 |
 | 384, 32 (451) | 197.8 / 229.4 / 240.0 / 340.9 | 61.0 / 80.2 / 83.4 / 123.8 | 130.7 / 160.2 / 158.8 / 209.1 | 4.9 / 5.2 / 5.4 / 6.5 |
 
-On both devices the encoder is a small part of a call (on the 4080, 1.7 to
-5.2 ms of 22 to 177 ms at p50): the heads on the host bound it.
+From 128 words up, the encoder is a small part of a call on both devices
+(on the B70, 6.0 to 55.1 ms of 82 to 230 ms at p50), and on the 4080 at
+every shape (1.7 to 5.2 ms of 22 to 177 ms): there the heads on the host
+bound it.
 
 This is a Rust API. SaT ships as `turbo-sat`, and GLiNER2 document
 classification, structured records and deterministic constraint layers
