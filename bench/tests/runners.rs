@@ -486,6 +486,8 @@ fn a_native_router_that_exits_is_an_error_with_its_output_and_leaves_nothing() {
     assert!(!log.exists(), "the router's output file is removed");
 }
 
+#[path = "runners/mlx.rs"]
+mod mlx_tests;
 #[path = "runners/openvino.rs"]
 mod openvino_tests;
 #[path = "runners/routing.rs"]

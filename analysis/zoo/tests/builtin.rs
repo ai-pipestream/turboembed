@@ -189,10 +189,11 @@ const SHARE_ALIKE_EVAL_SETS: [&str; 1] = ["codespell-dictionary-en"];
 /// data and fetched only after accepting MS MARCO's terms.
 const RETRIEVAL_CHECKPOINTS: [&str; 2] = ["opensearch-neural-sparse-encoding-v1", "colbert-ir-colbertv2.0"];
 
-/// The permissive training and evaluation datasets in the built-in index (#945, #890):
-/// MASC, the four settled CC BY 4.0 UD 2.16 treebanks, the Tatoeba export,
+/// The permissive training and evaluation datasets in the built-in index (#945, #890, #925):
+/// CSC, MASC, the four settled CC BY 4.0 UD 2.16 treebanks, the Tatoeba export,
 /// Civil Comments, GoEmotions (filtered split and raw annotations), and Toxic Spans.
-const DATASETS: [&str; 11] = [
+const DATASETS: [&str; 12] = [
+    "csc-conversational-sarcasm-2024",
     "masc-3.0.0",
     "ud-spanish-ancora-r2.16",
     "ud-catalan-ancora-r2.16",

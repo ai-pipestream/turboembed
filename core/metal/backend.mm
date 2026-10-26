@@ -1012,6 +1012,7 @@ struct GemmParams {
 struct AttentionParams {
     uint32_t hidden, head_dim;
     float scale;
+    uint32_t narrow_stride;
 };
 struct PoolParams {
     uint32_t hidden, output_dim, pooling, l2;
@@ -1619,7 +1620,18 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
         [enc setBuffer:s.peaks offset:slot * sizeof(uint32_t) atIndex:2];
         [enc dispatchThreads:MTLSizeMake(n, 1, 1) threadsPerThreadgroup:MTLSizeMake(256, 1, 1)];
     };
-    const AttentionParams ap{h, hd, 1.0f / sqrtf((float)hd)};
+    // The narrow kernel runs as many SIMD groups, each on its own queries
+    // and its own scores, as the threadgroup memory holds rows of the
+    // longest row's scores, up to the 32 queries of a block (#1406): one
+    // group a query at a time ran long enough at large shapes for macOS
+    // to stop the command buffer.
+    const uint32_t stride = (uint32_t)round_up(s.longest, 8);
+    const size_t room = s.ctx->device.maxThreadgroupMemoryLength -
+                        kn.k[ATTENTION_NARROW].staticThreadgroupMemoryLength;
+    const uint32_t narrow_groups = (uint32_t)std::max<size_t>(
+        1, std::min<size_t>({32, room / (sizeof(float) * stride),
+                             kn.k[ATTENTION_NARROW].maxTotalThreadsPerThreadgroup / 32}));
+    const AttentionParams ap{h, hd, 1.0f / sqrtf((float)hd), stride};
     for (uint32_t l = 0; l < d.layers; l++) {
         // This layer's kernels: F16 at FASTEST unless a weight of the
         // layer is past F16's range.
@@ -1651,9 +1663,11 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
         [enc setBuffer:rows offset:s.blocks atIndex:5];
         [enc setBuffer:sc offset:s.att atIndex:6];
         [enc setBytes:&ap length:sizeof ap atIndex:7];
-        [enc setThreadgroupMemoryLength:f16_att ? attention_h_bytes(hd, registers) : attention_bytes(hd, s.longest)
+        [enc setThreadgroupMemoryLength:f16_att ? attention_h_bytes(hd, registers)
+                                        : wide  ? attention_bytes(hd, s.longest)
+                                                : round_up(sizeof(float) * stride * narrow_groups, 16)
                                 atIndex:0];
-        [enc dispatchThreadgroups:MTLSizeMake(s.nblocks, d.heads, 1) threadsPerThreadgroup:MTLSizeMake(wide ? 128 : 32, 1, 1)];
+        [enc dispatchThreadgroups:MTLSizeMake(s.nblocks, d.heads, 1) threadsPerThreadgroup:MTLSizeMake(wide ? 128 : 32 * narrow_groups, 1, 1)];
 
         if (f16_att) peak(s.att, h, 3);
         uint32_t splits =
