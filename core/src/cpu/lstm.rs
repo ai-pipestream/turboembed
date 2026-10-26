@@ -262,6 +262,11 @@ impl Lstm {
                 }
                 for s in 0..active {
                     let gs = &w.step[s * g..][..g];
+                    // A gate past f32's range would saturate to a finite
+                    // state; refuse it as a non-finite state is refused.
+                    if !finite(gs) {
+                        return Err(argument(format!("lstm: a gate is not finite at row {}", at(s))));
+                    }
                     let (state, cell) = (&mut w.state[s * h..][..h], &mut w.cell[s * h..][..h]);
                     for j in 0..h {
                         let c = sigmoid(gs[h + j]) * cell[j] + sigmoid(gs[j]) * gs[2 * h + j].tanh();

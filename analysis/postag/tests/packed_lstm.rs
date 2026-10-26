@@ -130,6 +130,12 @@ fn bad_shapes_lengths_and_values_are_refused() {
     lstm.run(&[], &[], &mut [], &mut work).unwrap();
     let short = Weights { w: &m.w[0][1..], u: &m.u[0], b: &m.b[0], reverse: false };
     assert!(Lstm::new(4, 2, &[short]).err().unwrap().message.contains("w has"));
+    // Finite weights whose products overflow f32: an infinite gate would
+    // saturate to a finite state, and is refused instead.
+    let huge = vec![1e30f32; m.w[0].len()];
+    let over = Weights { w: &huge, u: &m.u[0], b: &m.b[0], reverse: false };
+    let e = Lstm::new(4, 2, &[over]).unwrap().run(&[1e10; 8], &[2], &mut [0.0; 4], &mut work).unwrap_err();
+    assert!(e.code == argument && e.message.contains("gate is not finite"), "{}", e.message);
     let mut inf = m.b[0].clone();
     inf[0] = f32::INFINITY;
     let bad = Weights { w: &m.w[0], u: &m.u[0], b: &inf, reverse: false };
