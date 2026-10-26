@@ -22,13 +22,6 @@ fn classes_cover_each_unicode_group() {
     }
 }
 
-/// Regenerates the split Unicode class tables.
-#[test]
-#[ignore = "writes the tables; run by hand when Unicode moves"]
-fn write_classes() {
-    crate::classes::tests::write_classes();
-}
-
 /// Each byte has a character and each character its byte back.
 #[test]
 fn byte_chars_go_both_ways() {

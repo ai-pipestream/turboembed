@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use common::*;
 use serde_json::{Value, json};
 use turbo::tokenizer::{Encode, NOWHERE, Tokenizer};
-use unicode_normalization_alignments::UnicodeNormalization;
+use turbo_unicode::normalize::{Form, aligned};
 
 fn tokenizer_json() -> PathBuf {
     testdata().join("tiny-bpe-split/tokenizer.json")
@@ -166,7 +166,7 @@ fn check(tok: &Tokenizer, up: &tokenizers::Tokenizer, text: &str, nfc: bool) {
     let e = up.encode(text, true).unwrap();
     let theirs: Vec<i32> = e.get_ids().iter().map(|&i| i as i32).collect();
     assert_eq!(ids, theirs, "{text:?}");
-    let changed = nfc && text.nfc().map(|(c, _)| c).ne(text.chars());
+    let changed = nfc && aligned(Form::Nfc, text).map(|(c, _)| c).ne(text.chars());
     let mut last = [0, 0];
     for (i, (&a, &(x, y))) in spans.iter().zip(e.get_offsets()).enumerate() {
         let b = trimmed(text, [x as u32, y as u32]);
@@ -179,7 +179,7 @@ fn check(tok: &Tokenizer, up: &tokenizers::Tokenizer, text: &str, nfc: bool) {
         let blank = text[a[0] as usize..a[1] as usize].trim().is_empty();
         let piece = token_bytes(&e.get_tokens()[i]);
         let piece = piece.trim_ascii();
-        let from: String = text[a[0] as usize..a[1] as usize].nfc().map(|(c, _)| c).collect();
+        let from: String = aligned(Form::Nfc, &text[a[0] as usize..a[1] as usize]).map(|(c, _)| c).collect();
         let holds = !piece.is_empty() && from.as_bytes().windows(piece.len()).any(|w| w == piece);
         assert!(
             a == b || (blank && b[0] == b[1] && b[1] == a[1]) || (changed && holds),
@@ -349,7 +349,7 @@ fn speed_beside_gpt2() {
             decomposed.push('\u{301}');
         }
     }
-    let composed: String = text.as_str().nfc().map(|(c, _)| c).collect();
+    let composed: String = aligned(Form::Nfc, &text).map(|(c, _)| c).collect();
     for (name, m, json, text) in [
         ("gpt2", gpt2, gpt2_json, &text),
         ("qwen2-nfc-composed", manifest_split("BPE_PATTERN_QWEN2", true), qwen2.clone(), &composed),

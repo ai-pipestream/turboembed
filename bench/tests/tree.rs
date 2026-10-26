@@ -314,3 +314,61 @@ fn committed_rust_and_markdown_have_no_literal_em_dash() {
     assert!(seen > 100, "only {seen} source files scanned");
     assert!(found.is_empty(), "literal em dashes in {}", found.join(", "));
 }
+
+#[test]
+fn core_and_analysis_external_dependencies_are_allowlisted() {
+    const ALLOWED: &[&str] = &[
+        "flate2",
+        "libc",
+        "libloading",
+        "memmap2",
+        "serde",
+        "serde_json",
+        "serde_path_to_error",
+        "sha2",
+        "tempfile",
+        "tokenizers",
+        "turbovec",
+        "ureq",
+    ];
+    let root = workspace();
+    let mut paths = vec!["core/Cargo.toml".to_owned()];
+    let out = std::process::Command::new("git")
+        .current_dir(&root)
+        .args(["ls-files", "-z", "--", ":(glob)analysis/*/Cargo.toml"])
+        .output()
+        .expect("git lists analysis manifests");
+    assert!(out.status.success());
+    paths.extend(String::from_utf8(out.stdout).unwrap().split('\0').filter(|p| !p.is_empty()).map(str::to_owned));
+    let mut found = Vec::new();
+    for path in &paths {
+        let text = std::fs::read_to_string(root.join(path)).unwrap();
+        let mut dependencies = false;
+        for line in text.lines() {
+            let line = line.split('#').next().unwrap().trim();
+            if line.starts_with('[') {
+                dependencies = matches!(line, "[dependencies]" | "[dev-dependencies]" | "[build-dependencies]")
+                    || line.ends_with(".dependencies]");
+                continue;
+            }
+            if !dependencies {
+                continue;
+            }
+            let Some((name, value)) = line.split_once('=') else { continue };
+            let name = name.trim();
+            if !value.contains("path =") && !ALLOWED.contains(&name) {
+                found.push(format!("{path}: {name}"));
+            }
+            if matches!(path.as_str(), "core/Cargo.toml" | "analysis/calibration/Cargo.toml")
+                && matches!(
+                    name,
+                    "sha2" | "unicode-normalization-alignments" | "unicode_categories" | "unicode-segmentation"
+                )
+            {
+                found.push(format!("{path}: removed dependency {name} returned"));
+            }
+        }
+    }
+    assert!(paths.len() > 50, "only {} manifests scanned", paths.len());
+    assert!(found.is_empty(), "unauthorized external dependencies:\n  {}", found.join("\n  "));
+}

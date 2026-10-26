@@ -25,6 +25,7 @@ members = [
     "analysis/goldens",
     "analysis/goldens-tool",
     "analysis/jvm",
+    "analysis/sha256",
     "analysis/unicode",
     "analysis/unicode-gen",
     "analysis/maxent",

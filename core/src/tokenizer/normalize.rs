@@ -85,7 +85,7 @@ pub(super) fn normalize_run(n: &Normalizer, text: &str, out: &mut String) {
         [cjk.then_some(' '), Some(c), cjk.then_some(' ')].into_iter().flatten()
     });
     if n.strip_accents {
-        lowercased(n, split.nfd().map(|(c, _)| c).filter(|&c| !category(c, MARK_NONSPACING)), out);
+        lowercased(n, aligned_chars(Form::Nfd, split).map(|(c, _)| c).filter(|&c| !category(c, MARK_NONSPACING)), out);
     } else {
         lowercased(n, split, out);
     }
@@ -171,7 +171,7 @@ pub(super) fn normalize_run_aligned(n: &Normalizer, text: &str, base: usize, s: 
         let mut stripped = Vec::with_capacity(chars.len());
         let mut next = 0;
         let mut last = chars.first().map_or([base as u32; 2], |c| c.1);
-        for (c, change) in chars.iter().map(|&(c, _)| c).nfd() {
+        for (c, change) in aligned_chars(Form::Nfd, chars.iter().map(|&(c, _)| c)) {
             if change <= 0
                 && let Some(&(_, at)) = chars.get(next)
             {
@@ -247,15 +247,15 @@ pub fn pre_words(text: &str) -> Vec<(usize, usize)> {
 /// A character of regex's Unicode \\w, which upstream's single_word
 /// reads: alphabetic, a mark, a decimal digit, a connector, or a joiner.
 pub(super) fn is_word(c: char) -> bool {
-    c.is_alphabetic()
-        || c.is_mark()
-        || c.is_number_decimal_digit()
-        || c.is_punctuation_connector()
+    let category = turbo_unicode::category::general_category(c);
+    turbo_unicode::props::alphabetic(c)
+        || category.is_mark()
+        || matches!(category, turbo_unicode::GeneralCategory::Nd | turbo_unicode::GeneralCategory::Pc)
         || matches!(c, '\u{200c}' | '\u{200d}')
 }
 
 pub(super) fn is_whitespace(c: char) -> bool {
-    matches!(c, '\t' | '\n' | '\r') || c.is_whitespace()
+    turbo_unicode::props::white_space(c)
 }
 
 pub(super) fn is_control(c: char) -> bool {
@@ -287,28 +287,14 @@ pub(crate) fn category(c: char, bits: u8) -> bool {
     table[at as usize] & bits != 0
 }
 
-/// `c`'s bits: C, Mn and P from the tables upstream's BertNormalizer
-/// reads, L and N from those of the regular expressions its
-/// pre-tokenizers run (classes.rs).
+/// `c`'s bits: C, Mn, P, L and N from turbo-unicode.
 pub(super) fn categories(c: char) -> u8 {
-    let within = |runs: &[(u32, u32)]| {
-        let u = c as u32;
-        runs.binary_search_by(|&(a, b)| {
-            if b < u {
-                std::cmp::Ordering::Less
-            } else if a > u {
-                std::cmp::Ordering::Greater
-            } else {
-                std::cmp::Ordering::Equal
-            }
-        })
-        .is_ok()
-    };
-    (c.is_other() as u8)
-        | ((c.is_mark_nonspacing() as u8) << 1)
-        | ((c.is_punctuation() as u8) << 2)
-        | ((within(crate::classes::LETTERS) as u8) << 3)
-        | ((within(crate::classes::NUMBERS) as u8) << 4)
+    let category = turbo_unicode::category::general_category(c);
+    (category.is_other() as u8)
+        | ((matches!(category, turbo_unicode::GeneralCategory::Mn) as u8) << 1)
+        | ((category.is_punctuation() as u8) << 2)
+        | ((category.is_letter() as u8) << 3)
+        | ((category.is_number() as u8) << 4)
 }
 
 pub(super) fn is_cjk(c: char) -> bool {

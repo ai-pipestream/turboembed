@@ -4,8 +4,9 @@
 
 use std::cell::Cell;
 
-use unicode_normalization_alignments::char::{canonical_combining_class, compose as char_compose, decompose_canonical};
-use unicode_normalization_alignments::{IsNormalized, UnicodeNormalization, is_nfc_quick};
+use turbo_unicode::normalize::{
+    Form, aligned as unicode_aligned, canonical_combining_class, compose as char_compose, is_normalized,
+};
 
 use crate::tokenizer::Span;
 
@@ -27,11 +28,7 @@ fn runs(s: &str) -> impl Iterator<Item = (usize, usize)> + '_ {
 }
 
 fn run_is_nfc(s: &str) -> bool {
-    match is_nfc_quick(s.chars()) {
-        IsNormalized::Yes => true,
-        IsNormalized::No => false,
-        IsNormalized::Maybe => s.chars().eq(s.nfc().map(|(c, _)| c)),
-    }
+    is_normalized(Form::Nfc, s)
 }
 
 /// Whether `s` is in NFC already.
@@ -82,13 +79,14 @@ pub(super) fn aligned(piece: &str, base: usize, out: &mut String, mut sources: O
 /// normalizer's own change counts cannot say.
 fn compose(run: &str, base: usize, out: &mut String, sources: &mut Option<&mut Vec<Span>>) {
     let Some(sources) = sources else {
-        out.extend(run.nfc().map(|(c, _)| c));
+        out.extend(unicode_aligned(Form::Nfc, run).map(|(c, _)| c));
         return;
     };
     let mut parts: Vec<(char, Span)> = Vec::with_capacity(run.len());
     for (i, c) in run.char_indices() {
         let from = [(base + i) as u32, (base + i + c.len_utf8()) as u32];
-        decompose_canonical(c, |d| parts.push((d, from)));
+        let mut buf = [0u8; 4];
+        parts.extend(unicode_aligned(Form::Nfd, c.encode_utf8(&mut buf)).map(|(d, _)| (d, from)));
     }
     // Canonical order: a stable sort of each run of marks by class.
     let mut i = 0;
@@ -229,7 +227,7 @@ mod tests {
                 text.push(chars[k % chars.len()]);
                 k /= chars.len();
             }
-            let nfc: String = text.nfc().map(|(c, _)| c).collect();
+            let nfc: String = unicode_aligned(Form::Nfc, &text).map(|(c, _)| c).collect();
             aligned(&text, 0, &mut s, Some(&mut src));
             assert_eq!(s, nfc, "{text:?}");
             assert_eq!(src.len(), s.len());
