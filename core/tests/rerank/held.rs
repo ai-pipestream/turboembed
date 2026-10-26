@@ -21,6 +21,8 @@ fn write(s: &Session) -> i32 {
 /// exports its host pointer as TURBO_HANDLE_HOST_PTR and refuses
 /// `refused`; the scores read the same through the result, the pointer and
 /// after the result is released; the session is busy until the buffer is.
+// metal_rerank.rs, whose scores are not host memory, calls held_scores_in alone.
+#[allow(dead_code)]
 pub fn held_scores(loaded: &Loaded, encode: u32, refused: u32) {
     held_scores_in(loaded, encode, refused, TURBO_PLACE_HOST);
 }
