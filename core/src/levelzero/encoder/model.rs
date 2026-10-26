@@ -3,6 +3,7 @@
 use std::ffi::c_void;
 use std::sync::Mutex;
 
+use super::staging::Staging;
 use super::*;
 use crate::backend::{
     TURBO_BERT_LAYER_TENSORS, TURBO_FAMILY_BERT, TURBO_FAMILY_DEBERTA_V2, TURBO_FAMILY_ROBERTA, turbo_backend_model,
@@ -402,17 +403,27 @@ pub(crate) unsafe extern "C" fn model_load(
                 f32t: Mutex::new(None),
             });
             {
+                // The weights go through staging the context allocated, not
+                // straight from the caller's pages (a mapped bundle): the
+                // driver would pin every page of them until the queue
+                // synchronized, and a second load at once ran it out of
+                // memory (#1355).
+                let stage = Staging::new(c)?;
                 let mut q = c.lock_queue()?;
                 // The queue is left idle whether or not every copy was
                 // appended, before a failure frees what they write to.
                 let appended = (|| {
+                    let mut s = stage.fill();
                     for (i, t) in tensors.iter().enumerate() {
-                        let dst = (stored as *mut u8).add(m.offsets[i]) as *mut c_void;
-                        c.copy(&mut q, dst, t.data, t.bytes as usize)?;
+                        let dst = (stored as *mut u8).add(m.offsets[i]);
+                        let src = std::slice::from_raw_parts(t.data as *const u8, t.bytes as usize);
+                        s.copy(c, &mut q, dst, src)?;
                     }
                     Ok(())
                 })();
                 let synced = c.sync(&mut q);
+                drop(q);
+                drop(stage);
                 appended?;
                 synced?;
             }
