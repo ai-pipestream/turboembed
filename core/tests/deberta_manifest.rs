@@ -79,3 +79,20 @@ fn a_deberta_model_is_raw_weights_only() {
     let e = refusal(&m);
     assert!(e.contains("FAMILY_DEBERTA_V2 is loaded from FORMAT_SAFETENSORS only"), "{e}");
 }
+
+#[test]
+fn a_deberta_artifact_names_no_absolute_tables() {
+    for role in ["position_embeddings", "token_type_embeddings"] {
+        let mut m = deberta();
+        m["artifacts"][0]["tensor_names"][role] = "embeddings.unused.weight".into();
+        let e = refusal(&m);
+        assert!(e.contains(&format!("FAMILY_DEBERTA_V2 has no {role}")), "{e}");
+    }
+}
+
+#[test]
+fn a_deberta_architecture_is_at_most_the_encoders_longest_sequence() {
+    let mut m = deberta();
+    m["architecture"]["max_positions"] = 8192.into();
+    assert!(refusal(&m).contains("architecture.max_positions: 8192"));
+}

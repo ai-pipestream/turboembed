@@ -4,6 +4,8 @@ use super::*;
 /// turbo::deberta::Config::check bounds it.
 const MAX_POSITION_BUCKETS: u32 = 4096;
 const MAX_RELATIVE_POSITIONS: u32 = 65536;
+/// The longest sequence the DeBERTa-v2 encoders take.
+const MAX_SEQUENCE: u32 = 4096;
 
 impl Manifest {
     /// How the architecture places tokens: absolute positions and token
@@ -24,6 +26,25 @@ impl Manifest {
             return Err(invalid(format!(
                 "manifest.json: artifacts {:?}: FAMILY_DEBERTA_V2 is loaded from FORMAT_SAFETENSORS only",
                 art.name
+            )));
+        }
+        // A table the encoder never reads is a manifest that says
+        // something the model does not do: refused, not ignored.
+        for art in &self.artifacts {
+            for role in [TensorRole::PositionEmbeddings, TensorRole::TokenTypeEmbeddings] {
+                if art.tensor_names.contains_key(&role) {
+                    return Err(invalid(format!(
+                        "manifest.json: artifacts {:?}.tensor_names: FAMILY_DEBERTA_V2 has no {}",
+                        art.name,
+                        role_name(role)
+                    )));
+                }
+            }
+        }
+        if a.max_positions == 0 || a.max_positions > MAX_SEQUENCE {
+            return Err(invalid(format!(
+                "manifest.json: architecture.max_positions: {} is not a sequence of 1 to {MAX_SEQUENCE} tokens, the longest FAMILY_DEBERTA_V2 takes",
+                a.max_positions
             )));
         }
         let Some(r) = a.relative.filter(|_| a.position_embedding == PositionEmbedding::Relative) else {

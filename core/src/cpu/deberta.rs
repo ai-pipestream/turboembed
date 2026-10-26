@@ -4,13 +4,14 @@
 //! a BERT session pools. Each row's hidden states are computed from its
 //! tokens through its last live one, which gives the bits a longer pad
 //! would (deberta/attention.rs), so a row's vectors do not depend on what
-//! else is in the batch. Unlike the BERT path, a run allocates: each row's
-//! workspace is made for it.
+//! else is in the batch. As on the BERT path, a run allocates nothing: the
+//! session holds the workspace and the states for its largest batch and
+//! sequence (tests/allocations.rs).
 
 use std::sync::Arc;
 
 use crate::backend::{TURBO_DEBERTA_EMBEDDING_TENSORS, turbo_backend_embed_rows, turbo_backend_model};
-use crate::deberta::{Config, Encoder};
+use crate::deberta::{Config, Encoder, Workspace};
 use crate::session::turbo_token_range;
 use crate::{TURBO_NORMALIZE_L2, TURBO_POOLING_CLS, TURBO_POOLING_LAST};
 
@@ -49,25 +50,57 @@ pub(super) struct Rows {
     pooling: u32,
     normalize: u32,
     output_dim: usize,
-    /// Each row's last hidden states, [lens[r], hidden], from the last run.
-    states: Vec<Vec<f32>>,
+    /// Each row's last hidden states from the last run, row r's
+    /// [lens[r], hidden] at r * seq * hidden: room for the session's
+    /// largest batch and sequence.
+    states: Vec<f32>,
+    /// The encoder's workspace, for the session's largest sequence.
+    run: Workspace,
 }
 
 impl Rows {
-    pub(super) fn new(encoder: Arc<Encoder>, hidden: usize) -> Rows {
-        Rows {
+    /// The rows of a session of `max_batch` rows of `max_seq` tokens on
+    /// `pool`, everything a run computes in allocated here.
+    pub(super) fn new(
+        encoder: Arc<Encoder>,
+        hidden: usize,
+        max_batch: usize,
+        max_seq: usize,
+        max_ranges: usize,
+        pool: &Pool,
+    ) -> Result<Rows, String> {
+        let run = encoder.workspace(pool, max_seq).map_err(|e| e.message)?;
+        let tokens = max_batch * max_seq;
+        let mut states = Vec::new();
+        states
+            .try_reserve_exact(tokens * hidden)
+            .map_err(|_| format!("{} values for the session's states", tokens * hidden))?;
+        states.resize(tokens * hidden, 0.0);
+        let (mut ids, mut mask, mut lens, mut ranges) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        let short = |_| "the session's rows".to_string();
+        ids.try_reserve_exact(tokens).map_err(short)?;
+        mask.try_reserve_exact(tokens).map_err(short)?;
+        lens.try_reserve_exact(max_batch).map_err(short)?;
+        ranges.try_reserve_exact(max_ranges).map_err(short)?;
+        Ok(Rows {
             encoder,
             hidden,
-            ids: Vec::new(),
-            mask: Vec::new(),
-            lens: Vec::new(),
+            ids,
+            mask,
+            lens,
             seq: 0,
-            ranges: Vec::new(),
+            ranges,
             pooling: 0,
             normalize: 0,
             output_dim: 0,
-            states: Vec::new(),
-        }
+            states,
+            run,
+        })
+    }
+
+    /// Row r's last hidden states from the last run.
+    fn state(&self, r: usize) -> &[f32] {
+        &self.states[r * self.seq * self.hidden..]
     }
 
     pub(super) fn normalize(&self) -> u32 {
@@ -111,12 +144,13 @@ impl Rows {
     /// after `write_ranges`, output_dim values each. False when the
     /// encoder refused a row, which the core's checks leave no input for.
     pub(super) fn run(&mut self, pool: &mut Pool, out: &mut [f32]) -> bool {
-        self.states.clear();
+        let (seq, h) = (self.seq, self.hidden);
         for (r, &len) in self.lens.iter().enumerate() {
-            let at = r * self.seq;
-            match self.encoder.encode_on(pool, &self.ids[at..at + len], &self.mask[at..at + len]) {
-                Ok(x) => self.states.push(x),
-                Err(_) => return false,
+            let at = r * seq;
+            let out = &mut self.states[at * h..][..len * h];
+            let (ids, mask) = (&self.ids[at..at + len], &self.mask[at..at + len]);
+            if self.encoder.encode_into(pool, &mut self.run, ids, mask, out).is_err() {
+                return false;
             }
         }
         let od = self.output_dim;
@@ -125,8 +159,8 @@ impl Rows {
                 let dst = &mut out[r * od..][..od];
                 let len = self.lens[r];
                 match self.pooling {
-                    TURBO_POOLING_CLS => dst.copy_from_slice(&self.states[r][..od]),
-                    TURBO_POOLING_LAST => dst.copy_from_slice(&self.states[r][(len - 1) * self.hidden..][..od]),
+                    TURBO_POOLING_CLS => dst.copy_from_slice(&self.state(r)[..od]),
+                    TURBO_POOLING_LAST => dst.copy_from_slice(&self.state(r)[(len - 1) * self.hidden..][..od]),
                     _ => self.mean(r, 0..len, dst),
                 }
                 self.finish(dst);
@@ -150,7 +184,7 @@ impl Rows {
         dst.fill(0.0);
         let mut n = 0u32;
         for p in cols.filter(|&p| mask[p]) {
-            for (d, &x) in dst.iter_mut().zip(&self.states[r][p * self.hidden..]) {
+            for (d, &x) in dst.iter_mut().zip(&self.state(r)[p * self.hidden..]) {
                 *d += x;
             }
             n += 1;
