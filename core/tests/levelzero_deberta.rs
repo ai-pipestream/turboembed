@@ -126,7 +126,9 @@ fn matches_the_cpu(test: &str, name: &str, s: &Shape) {
     let desc = session_desc(8, 512, TURBO_PRECISION_MODEL);
     let cs = Session::create(c.m, Some(&desc)).unwrap();
     let hd = (s.hidden / s.heads) as u32;
-    let picked = match turbo::levelzero::tiled_rows(s.buckets as u32, s.max_relative_positions as u32, 512, hd) {
+    let rows_reached = turbo::levelzero::tiled_rows(s.buckets as u32, s.max_relative_positions as u32, 512, hd);
+    let tiled = rows_reached.is_some_and(|(reach, room)| reach <= room);
+    let picked = match rows_reached {
         Some((reach, room)) if reach <= room => format!("tiled, {reach} of {room} rows"),
         Some((reach, room)) => format!("general, the tiled kernel reaching {reach} rows of {room}"),
         None => "general, no tiled kernel at its width".into(),
@@ -138,6 +140,8 @@ fn matches_the_cpu(test: &str, name: &str, s: &Shape) {
         turbo::levelzero::use_general_attention(false);
         let gs = gs.unwrap();
         assert_eq!(gs.info().compute_dtype, TURBO_DTYPE_F32);
+        let want = if tiled && !general { "tiled" } else { "general" };
+        assert_eq!(turbo::levelzero::last_attention(), Some(want), "{kernel}: the kernel the session picked");
         let mixed = rows(&[17, 5, 40, 9, 1], &[3], &[(2, 11), (0, 3)]);
         let cases: [(&str, Tokens, turbo_embed_options); 7] = [
             ("mixed lengths, padded, mean and L2", rows(&[17, 5, 40, 9, 1], &[], &[]), embed_options()),
@@ -210,6 +214,42 @@ fn a_deberta_of_steep_buckets_200_matches_the_cpu() {
 #[test]
 fn a_deberta_of_head_width_128_matches_the_cpu() {
     matches_the_cpu("a_deberta_of_head_width_128_matches_the_cpu", "lz-deberta-128", &HEADS_128);
+}
+
+/// The relative rows each shape's tiled kernel reaches at most, and holds,
+/// in rows of 512 tokens: no device needed.
+#[test]
+fn the_tiled_kernel_s_rows_are_bounded_per_shape() {
+    let rows = |s: &Shape| {
+        turbo::levelzero::tiled_rows(
+            s.buckets as u32,
+            s.max_relative_positions as u32,
+            512,
+            (s.hidden / s.heads) as u32,
+        )
+    };
+    assert_eq!(rows(&STEEP_300), Some((97, 95)), "the review's 256 buckets over 300 at width 64");
+    assert_eq!(rows(&STEEP_200), Some((148, 95)));
+    assert_eq!(rows(&SMALL), Some((95, 95)));
+    assert_eq!(rows(&HEADS_32), Some((56, 159)));
+    assert_eq!(rows(&HEADS_128), Some((47, 47)));
+    assert_eq!(rows(&TINY), None, "no tiled kernel at width 4");
+}
+
+/// A session whose geometry the tiled kernel cannot hold takes the general
+/// one and says why in a debug line of its runtime's log.
+#[test]
+fn a_fallback_to_the_general_kernel_is_logged() {
+    let _t = turn();
+    let Some(_) = device("a_fallback_to_the_general_kernel_is_logged") else { return };
+    let f = fixture("lz-deberta-logged", &STEEP_300);
+    let g = deberta_common::load_logged(&f, |rt| first_of(rt, "levelzero").expect("a levelzero device"));
+    let _s = Session::create(g.m, Some(&session_desc(2, 512, TURBO_PRECISION_MODEL))).unwrap();
+    let logged = deberta_common::LOGGED.lock().unwrap_or_else(|p| p.into_inner()).clone();
+    let line = logged.iter().find(|l| l.contains("DeBERTa-v2 attention is the general kernel"));
+    let line = line.unwrap_or_else(|| panic!("no fallback line in {logged:?}"));
+    assert!(line.contains("reach 97 relative rows") && line.contains("stages 95"), "{line}");
+    println!("a_fallback_to_the_general_kernel_is_logged: {line}");
 }
 
 /// FASTEST is refused, naming the precision and the family; it never runs

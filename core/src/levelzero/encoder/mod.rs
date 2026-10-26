@@ -102,9 +102,9 @@ mod tune;
 mod write;
 
 #[cfg(feature = "internals")]
-pub use deberta::tiled_rows;
-#[cfg(feature = "internals")]
 pub(crate) use deberta::use_general_attention;
+#[cfg(feature = "internals")]
+pub use deberta::{last_attention, tiled_rows};
 #[cfg(feature = "internals")]
 pub(crate) use model::widened;
 pub(crate) use model::{model_load, model_release};
