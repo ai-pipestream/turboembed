@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "source_commit": "29214c70a2c4b1ca682fdf49939c4a88a78887fb",
+  "source_doi": "10.17632/9mrxwtfh6w.1",
+  "source_pdf_sha256": "5fa80011faf2661c650cc4d9b7c8cd0e799e5276b29074c81ae51417a721b4e8",
+  "extractor": "pdftotext 26.07.0 -layout -enc UTF-8",
+  "new_pages": [
+    {
+      "id": "leodar-111",
+      "text_sha256": "51cde9a82c4603dcb3696521ce6f41221cfc026a4bb2b41c4ce4e8e022c3079b",
+      "bytes": 2359,
+      "tokens": 320,
+      "gold": 28
+    },
+    {
+      "id": "leodar-116",
+      "text_sha256": "116f31dc10e2ddc8075b02f548f5d2c39e226b9e98a7ae3b35b6692239fc43b5",
+      "bytes": 1985,
+      "tokens": 262,
+      "gold": 11
+    }
+  ],
+  "labels_sha256": "c38a264ee6a98cd505c541a91205a42651d4875e8965fb7a51305313a3cd3153",
+  "results_sha256": "815c38ceddeb8d1a3cb325391dc4494f83b6cbed87b4902105597d4a4ff9b3d5",
+  "total_pages": 13,
+  "total_utf8_bytes": 55338,
+  "total_whitespace_tokens": 7137,
+  "total_gold_spans": 76,
+  "annotation_order": "Rendered source and fixed labels before detector execution; labels unchanged afterward",
+  "scope": "Convenience sample of real source damage retained by extraction, not proof of extractor-caused corruption",
+  "zero_width_support": 0,
+  "defaults_changed": false
+}

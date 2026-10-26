@@ -6,7 +6,7 @@ use turbo_goldens::{escape::unescape, hex::to_hex, sha256};
 use turbo_normalize::{Artifact, ArtifactDetector, NoiseScorer};
 use turbo_normalize_layers::ArtifactKind;
 
-const SAMPLES: [(&str, &str, &str); 4] = [
+const SAMPLES: [(&str, &str, &str); 6] = [
     (
         "P19-1423",
         include_str!("../data/extracted-pdf/P19-1423.escaped"),
@@ -26,6 +26,16 @@ const SAMPLES: [(&str, &str, &str); 4] = [
         "jmlr-25-0035",
         include_str!("../data/extracted-pdf/jmlr-25-0035.escaped"),
         "f902f5558cea9702dd1184e240f71109605b9fe9c1372be649e64c5d45becd83",
+    ),
+    (
+        "leodar-111",
+        include_str!("../data/extracted-pdf/leodar-111.escaped"),
+        "51cde9a82c4603dcb3696521ce6f41221cfc026a4bb2b41c4ce4e8e022c3079b",
+    ),
+    (
+        "leodar-116",
+        include_str!("../data/extracted-pdf/leodar-116.escaped"),
+        "116f31dc10e2ddc8075b02f548f5d2c39e226b9e98a7ae3b35b6692239fc43b5",
     ),
 ];
 
@@ -93,9 +103,11 @@ fn extracted_pdf_exact_span_report() {
         // Measured against the fixed hand labels, including known false positives.
         let mut expected = [[0usize; 3]; 11];
         expected[0] = [1, 0, 0];
-        expected[1] = [26, 0, 0];
+        expected[1] = [27, 0, 0];
         expected[4] = [4, 0, 0];
-        expected[10] = if mode == "default" { [0, 0, 6] } else { [6, 3, 0] };
+        expected[8] = [36, 0, 0];
+        expected[9] = if mode == "default" { [0, 0, 2] } else { [2, 0, 0] };
+        expected[10] = if mode == "default" { [0, 0, 6] } else { [6, 24, 0] };
         assert_eq!(counts, expected);
     }
 }
