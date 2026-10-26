@@ -426,6 +426,33 @@ tokens up the kernels are the same as before, so those rows differ by
 noise alone, and MLX's larger products still run at about 3 TFLOPS
 against our 2.5.
 
+### Wide heads and weights past F16's range
+
+Six-layer BERTs written by the tests' `bert_weights` (weights scaled by
+0.05, no real model of either kind is among the sealed bundles), dense
+rows, 8 untimed then 32 timed runs from the host on an M2, p50 / least
+in ms; main from before these changes and after, two rounds each in
+alternating order (the machine's 5-minute load average 3 to 5):
+
+| Model | Rows | FASTEST before | FASTEST | EXACT |
+|---|---|---|---|---|
+| hidden 768, heads of 128 | 32 x 256 | 1968 / 1352 | 518 / 507 | 2286 / 2048 |
+| hidden 768, heads of 128 | 8 x 128 | 161 / 154 | 59.2 / 58.3 | 165 / 163 |
+| hidden 768, heads of 128 | 1 x 128 | 35.7 / 32.7 | 8.05 / 7.67 | 36.5 / 36.2 |
+| hidden 640, heads of 80 | 32 x 256 | 1436 / 1367 | 341 / 312 | 1602 / 1553 |
+| hidden 640, heads of 80 | 8 x 128 | 125 / 121 | 42.0 / 40.8 | 137 / 136 |
+| hidden 640, heads of 80 | 1 x 128 | 27.6 / 25.5 | 6.29 / 5.88 | 28.0 / 26.9 |
+| hidden 384, layer 0 past F16 | 32 x 256 | refused | 156 / 130 | 218 / 212 |
+| hidden 384, layer 0 past F16 | 8 x 128 | refused | 19.5 / 18.8 | 25.6 / 24.4 |
+| hidden 384, layer 0 past F16 | 1 x 128 | refused | 3.49 / 3.19 | 4.80 / 4.37 |
+
+FASTEST before ran these heads in the F32 narrow kernel; the F16 one is
+3.4x to 4.4x faster on them. A model with one layer past F16's range,
+refused at FASTEST before, now runs it about 1.4x faster than EXACT.
+The kernels for heads a multiple of 8 up to 64 are unchanged:
+all-minilm-l6-v2 and bge-base-en-v1.5 give main's vectors bit for bit at
+MODEL and FASTEST.
+
 ## Testing
 
 From the workspace root. `TURBO_TEST_REQUIRE_METAL=1` makes every test in
