@@ -2407,4 +2407,30 @@ with synthetic strings and checks UTF-8 byte spans, whitespace variants,
 combining marks, legitimate joiners and adjacent zero-width runs. These
 strings are regression tests, not additions to the authentic evaluation
 set or evidence for its missing positive classes. The per-kind table
-above remains unchanged. A gRParse extraction comparison is still pending.
+above remains unchanged.
+
+The same PDF was submitted through gRParse's protobuf `ConvertSource` RPC
+with `do_ocr: false` and text export selected. The service reported
+`grparse-0.3.0-cpu`, build
+`5fc2c6379e691692c69689ce2a5e23ad6c08d8e60acb3b806f45ee00d130bc8c`,
+and the text collector reported `pdf-inspector 1.17.0`, version `0.2.0`.
+Conversion succeeded. Its export contains `a p p r o v e d` with ordinary
+spaces and no U+200B. The structured text item's `orig` and `text` fields
+contain the same spaced string. This change precedes artifact detection;
+the detector cannot report characters absent from its input. This run
+does not identify which parser stage changed them.
+
+| Extractor | Export bytes | U+200B characters | ZeroWidth findings |
+| --- | ---: | ---: | ---: |
+| Poppler 26.07.0, layout mode | 1711 | 7 | 4 |
+| MuPDF 1.27.0 | 1431 | 7 | 0 |
+| gRParse, OCR disabled | 1393 | 0 | 0 |
+
+The test PDF SHA-256 is
+`9038a728f4a9f9a602982d8d42b613ea16a17676c2b5860e8165cfda8a878e74`.
+The corresponding UTF-8 export SHA-256 values, in table order, are
+`989594b709897804217563b9902d9345660aae9d8ecce2907e607cf118906a1c`,
+`38fa67978c8dec78feceab212ffcac182959495d9cd2b6108a085aa3dfb47887`,
+and `7f6343a50018f54b0cc020a230882b789a6a72a9fe691c0852919f5ac49cef71`.
+These are observations on one synthetic diagnostic PDF, not measured
+precision or recall on authentic damaged documents.
