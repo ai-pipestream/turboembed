@@ -214,11 +214,12 @@ p50 / min / max ms a pass, and pairs per second at the p50:
 | MS MARCO MiniLM L6 v2 | 6307.6 / 5239.3 / 6929.7 | 162.3 | 33776.3 / 32864.0 / 35300.5 | 30.3 |
 | BGE reranker base | 54938.2 / 53094.1 / 61751.9 | 18.6 | 305979.2 / 258876.1 / 350386.6 | 3.3 |
 
-Metal runs 5.4x the CPU on MiniLM and 5.6x on BGE. The M2 is a desktop in
-use: the Metal records started once the five-minute load average was
-under 4 and the GPU under 40% busy from the desktop's apps (16% just
-before), and the CPU records ran with the one-minute load at about 20,
-the bench's own threads included. The records are the four `m2.metal.*`
+The M2 is a desktop in use: the Metal records started once the
+five-minute load average was under 4 and the GPU under 40% busy from the
+desktop's apps (16% just before), and the CPU records ran with the
+one-minute load at about 20, the bench's own threads included. The two
+sides ran under different loads, so no Metal-over-CPU ratio is drawn from
+them. The records are the four `m2.metal.*`
 and `aarch64.cpu.*` files in `benchmarks/rerank/`.
 
 The records are in `benchmarks/rerank/`. The score differences are TEI's:
