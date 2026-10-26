@@ -69,3 +69,41 @@ fn mlx_runs_float16_at_fastest_only() {
     assert_eq!(mlx::dtype(turbo::TURBO_PRECISION_MODEL), "float32");
     assert_eq!(mlx::dtype(turbo::TURBO_PRECISION_EXACT), "float32");
 }
+
+#[test]
+fn mlx_rejects_zero_and_wrong_width_vectors() {
+    let m = cpu_measurement();
+    for vectors in [
+        m.expected.iter().map(|v| vec![0.0; v.len()]).collect::<Vec<_>>(),
+        m.expected.iter().map(|_| Vec::<f32>::new()).collect::<Vec<_>>(),
+        m.expected.iter().map(|v| v[..v.len() - 1].to_vec()).collect::<Vec<_>>(),
+        m.expected
+            .iter()
+            .map(|v| {
+                let mut x = v.clone();
+                x.push(0.0);
+                x
+            })
+            .collect::<Vec<_>>(),
+    ] {
+        let mut bad = receipt(m);
+        bad["vectors"] = json!(vectors);
+        let got = from_receipt(bad.to_string().as_bytes(), m, 30, Vec::new());
+        assert!(got.is_err(), "malformed vectors accepted: {got:?}");
+    }
+}
+
+#[test]
+fn mlx_rejects_nonfinite_vectors_and_invalid_reference_rows() {
+    let mut m = dense_measurement(1, None);
+    let good = receipt(&m).to_string();
+    let mut overflow = receipt(&m);
+    overflow["vectors"][0][0] = json!(1e100);
+    assert!(from_receipt(overflow.to_string().as_bytes(), &m, 30, Vec::new()).is_err());
+    m.expected[0].fill(0.0);
+    assert!(from_receipt(good.as_bytes(), &m, 30, Vec::new()).is_err());
+    m.expected[0][0] = f32::NAN;
+    assert!(from_receipt(good.as_bytes(), &m, 30, Vec::new()).is_err());
+    m.expected.clear();
+    assert!(from_receipt(good.as_bytes(), &m, 30, Vec::new()).is_err());
+}

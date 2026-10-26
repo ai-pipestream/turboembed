@@ -162,7 +162,20 @@ pub fn from_receipt(bytes: &[u8], m: &Measurement, iterations: u32, command: Vec
     ms.sort_by(f64::total_cmp);
     let p50 = percentile(&ms, 50.0);
     let mean = ms.iter().sum::<f64>() / ms.len() as f64;
-    let min_cosine = e.vectors.iter().zip(&m.expected).map(|(v, want)| cosine(v, want)).fold(1.0, f64::min);
+    if m.expected.len() != rows.row_count() {
+        return Err("MLX reference vectors differ from the measured row count".into());
+    }
+    let mut min_cosine = 1.0_f64;
+    for (row, (v, want)) in e.vectors.iter().zip(&m.expected).enumerate() {
+        if v.is_empty() || v.len() != want.len() || v.iter().chain(want).any(|x| !x.is_finite()) {
+            return Err(format!("MLX vector {row}: expected {} finite values, got {}", want.len(), v.len()));
+        }
+        let c = cosine(v, want);
+        if !c.is_finite() {
+            return Err(format!("MLX vector {row}: cosine is undefined for a zero-norm vector"));
+        }
+        min_cosine = min_cosine.min(c);
+    }
     let [l1, l5, l15] = e.loadavg;
     let procedure = format!(
         "MLX {} on the machine's Python, the BERT encoder of bench/reference/mlx_reference.py with every weight \
