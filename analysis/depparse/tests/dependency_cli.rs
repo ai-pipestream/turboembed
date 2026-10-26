@@ -199,7 +199,7 @@ fn cli_trains_real_trees_with_explicit_exclusions_and_reloads_both_models() {
 }
 
 #[test]
-fn training_rejects_implicit_filtering_unknown_settings_and_empty_projective_population() {
+fn training_rejects_unknown_settings_and_empty_projective_population() {
     let dir = Scratch::new();
     let corpus = dir.put("input", include_bytes!("data/ud-en-nonprojective.conllu"));
     let output = dir.path("model");
@@ -209,6 +209,68 @@ fn training_rejects_implicit_filtering_unknown_settings_and_empty_projective_pop
         let result = run(&args);
         assert!(!result.status.success());
         assert!(!PathBuf::from(&output).exists());
-        assert!(!run(&args[..6]).status.success());
+        if settings != "Epochs=1\n" {
+            assert!(!run(&args[..6]).status.success());
+        }
     }
+}
+
+#[test]
+fn default_training_retains_crossing_trees_and_native_reload_predictions() {
+    let dir = Scratch::new();
+    let corpus = include_str!("data/ud-fi-ftb-crossing.conllu");
+    let input = dir.put("training.conllu", corpus.as_bytes());
+    let inference = dir.put("input.conllu", unparsed(corpus).as_bytes());
+    for (kind, settings) in [
+        ("linear", "Algorithm=MAXENT\nIterations=5\nCutoff=1\nThreads=1\n"),
+        ("feedforward", "Epochs=2\nEmbeddingSize=3\nHiddenSize=5\nBatchSize=4\nDropout=0\nWordCutoff=1\n"),
+    ] {
+        let params = dir.put(&format!("{kind}.params"), settings.as_bytes());
+        let model = dir.path(&format!("{kind}.bin"));
+        let result = run(&["train", kind, "fi", &input, &params, &model]);
+        assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+        let counts = String::from_utf8(result.stderr).unwrap();
+        assert!(counts.contains("sentences=1 words=11 excluded_nonprojective_sentences=0"));
+        assert!(counts.contains("included_nonprojective_sentences=1"));
+        let bytes = fs::read(&model).unwrap();
+        if kind == "feedforward" {
+            let m = turbo_depparse::FeedforwardDependencyModel::from_bytes(&bytes).unwrap();
+            assert!(m.transitions().contains(&turbo_depparse::Transition::Swap));
+            assert!(m.to_java_bytes().unwrap_err().to_string().contains("SWAP"));
+        } else {
+            let zip = turbo_maxent::zip::Zip::new(bytes.as_slice()).unwrap();
+            let manifest = zip.entry("manifest.properties").unwrap();
+            assert!(String::from_utf8_lossy(&manifest).contains("TransitionSystem=ArcStandardSwap"));
+        }
+        let converted = dir.path(&format!("{kind}-converted.bin"));
+        success(&["convert", kind, &model, &converted]);
+        let first = dir.path(&format!("{kind}-first.conllu"));
+        let second = dir.path(&format!("{kind}-second.conllu"));
+        success(&["parse", kind, &model, &inference, &first]);
+        success(&["parse", kind, &converted, &inference, &second]);
+        assert_eq!(fs::read(first).unwrap(), fs::read(second).unwrap());
+    }
+}
+
+#[test]
+fn evaluation_writes_all_subsets_and_failed_floors_keep_the_report() {
+    let dir = Scratch::new();
+    let model = dir.put("apache.bin", include_bytes!("apache/apache-refined.bin"));
+    let corpus = format!("{}\n{}", include_str!("data/ud-es.conllu"), include_str!("data/ud-fi-ftb-crossing.conllu"));
+    let input = dir.put("heldout.conllu", corpus.as_bytes());
+    let report = dir.path("report.tsv");
+    let result = run(&["evaluate", "feedforward", &model, &input, &report, "1", "1"]);
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("gate failed"));
+    let text = fs::read_to_string(&report).unwrap();
+    assert!(text.contains("passed=false"));
+    assert!(text.contains("nonprojective\tincluded\t1\t0\t11\t"));
+    assert!(text.contains("projective\tincluded\t1\t0\t"));
+    assert!(text.contains("corpus_sha256="));
+    assert!(text.contains("model_sha256="));
+    let valid = dir.path("finite.tsv");
+    success(&["evaluate", "feedforward", &model, &input, &valid, "0", "0"]);
+    let absent = dir.path("absent.tsv");
+    assert!(!run(&["evaluate", "feedforward", &model, &input, &absent, "NaN", "0"]).status.success());
+    assert!(!PathBuf::from(absent).exists());
 }

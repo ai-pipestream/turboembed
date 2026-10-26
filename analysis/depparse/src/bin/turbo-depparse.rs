@@ -1,4 +1,6 @@
 //! Native dependency model operations over pretagged CoNLL-U.
+#[path = "support/evaluate.rs"]
+mod evaluate;
 #[path = "support/train.rs"]
 mod train;
 use std::{error::Error, fs, path::Path};
@@ -10,7 +12,7 @@ use turbo_depparse::{
 use turbo_formats::{conllu::words::ConlluWordReader, source::Field};
 use turbo_train::{Manifest, ModelPackage};
 
-const USAGE: &str = "usage: turbo-depparse <inspect|convert|parse> <linear|feedforward> MODEL [OUTPUT | INPUT.conllu OUTPUT.conllu]\n       turbo-depparse train <linear|feedforward> LANGUAGE TRAIN.conllu PARAMS OUTPUT --projective-only";
+const USAGE: &str = "usage: turbo-depparse <inspect|convert|parse> <linear|feedforward> MODEL [OUTPUT | INPUT.conllu OUTPUT.conllu]\n       turbo-depparse train <linear|feedforward> LANGUAGE TRAIN.conllu PARAMS OUTPUT [--projective-only]\n       turbo-depparse evaluate <linear|feedforward> MODEL GOLD.conllu REPORT.tsv MIN_UAS MIN_LAS";
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
 enum Model {
@@ -82,7 +84,7 @@ fn write_new(path: &str, bytes: &[u8]) -> Result<()> {
 
 fn run(args: &[String]) -> Result<()> {
     if args.first().is_some_and(|arg| arg == "train") {
-        if args.len() != 7 || args[6] != "--projective-only" {
+        if args.len() != 6 && !(args.len() == 7 && args[6] == "--projective-only") {
             return Err(USAGE.into());
         }
         return train::run(args);
@@ -91,6 +93,7 @@ fn run(args: &[String]) -> Result<()> {
         Some("inspect") => args.len() == 3,
         Some("convert") => args.len() == 4,
         Some("parse") => args.len() == 5,
+        Some("evaluate") => args.len() == 7,
         _ => false,
     };
     if !valid {
@@ -99,6 +102,7 @@ fn run(args: &[String]) -> Result<()> {
     let bytes = fs::read(Path::new(&args[2]))?;
     let model = Model::open(&args[1], &bytes)?;
     match args[0].as_str() {
+        "evaluate" => evaluate::run(model, args, &turbo_maxent::sha256(&bytes).to_hex())?,
         "inspect" => {
             println!("kind={} source_sha256={}", args[1], turbo_maxent::sha256(&bytes).to_hex());
             if let Model::Feedforward(m) = model {

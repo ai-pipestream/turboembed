@@ -98,7 +98,12 @@ impl FeedforwardDependencyModel {
     }
     pub fn identity(&self) -> Result<ModelRef> {
         Ok(ModelRef {
-            id: "opennlp:FeedforwardDependencyParser".into(),
+            id: if self.transitions.contains(&crate::Transition::Swap) {
+                "turbo:SwapFeedforwardDependencyParser"
+            } else {
+                "opennlp:FeedforwardDependencyParser"
+            }
+            .into(),
             revision: "2".into(),
             sha256: turbo_maxent::sha256(&self.to_bytes()?).to_hex(),
         })

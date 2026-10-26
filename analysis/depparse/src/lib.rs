@@ -45,3 +45,9 @@ pub use feedforward::{
     Activation, FeatureLayout, FeedforwardContext, FeedforwardDependencyModel, FeedforwardDependencyParser,
     FeedforwardDependencyTrainer, FeedforwardFeatureIds, FeedforwardSettings, NeuralWeights, Vocabulary,
 };
+
+mod swap;
+pub use swap::SwapOracle;
+
+mod held_out;
+pub use held_out::{EvaluationSubset, HeldOutEvaluation};

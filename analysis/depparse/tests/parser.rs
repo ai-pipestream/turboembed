@@ -72,7 +72,7 @@ fn events_training_serialization_and_evaluation() {
     assert!(cv.evaluate(&samples, 1, |_| Ok(parser.clone())).is_err());
 }
 #[test]
-fn nonprojective_training_samples_are_skipped_atomically() {
+fn nonprojective_training_samples_emit_swap_events() {
     let nonprojective = DependencySample::<Tokens>::new(
         vec!["a".into(), "b".into(), "c".into()],
         vec!["X".into(); 3],
@@ -80,8 +80,9 @@ fn nonprojective_training_samples_are_skipped_atomically() {
     )
     .unwrap();
     let stream = DependencyEventStream::generate(&[nonprojective, sample()]).unwrap();
-    assert_eq!(stream.skipped_nonprojective, 1);
-    assert_eq!(stream.events.len(), 6);
+    assert_eq!(stream.skipped_nonprojective, 0);
+    assert_eq!(stream.included_nonprojective, 1);
+    assert!(stream.events.len() > 12);
 }
 #[test]
 fn scoring_excludes_punctuation_and_does_not_credit_labels_with_wrong_heads() {

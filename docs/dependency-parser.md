@@ -38,8 +38,10 @@ Conversion without alignment metadata fails.
 ## Model and pipeline
 
 The public transition/state/oracle/context APIs reproduce 37 ordered Java
-features. Parsing uses 2n transitions. Training skips non-projective samples
-before emitting events and reports the skip count. The greedy decoder picks
+features on projective models. Projective parsing uses 2n transitions. The
+native SWAP extension supports crossing trees without changing source indexes;
+its worst-case action bound is n(n+1). Training includes all valid trees, and
+projective oracle sequences remain unchanged. The greedy decoder picks
 the first highest-scoring legal outcome and rejects malformed inventories
 or non-finite scores.
 
@@ -49,12 +51,14 @@ trainer and returns a reloadable archive accessible through `bytes`.
 Loaded model provenance includes SHA-256. `from_maxent` requires caller identity.
 
 The native `turbo-depparse` executable supports `inspect`, `convert`, `parse`
-and explicit-parameter `train` for both linear and feedforward models.
+`evaluate`, and explicit-parameter `train` for both linear and feedforward models.
 It needs no Python installation and does not overwrite source or existing
 output files. See the [CLI commands and training limits](feedforward-dependency-parser.md#native-command-line).
 Existing raw and packaged model APIs remain directly loadable; conversion is
-optional. Current training requires explicit projective-only acceptance and
-reports excluded sentence and word counts.
+optional. Training retains non-projective trees by default. An optional
+`--projective-only` flag reports all excluded sentence and word counts.
+SWAP models use native transition semantics; Java neural export refuses them.
+See the [pinned Finnish-FTB recipe](../analysis/train-recipes/dependency/fi-ftb-r2.14/README.md).
 
 Evaluation reports token-weighted UAS/LAS, with optional punctuation exclusion
 (default POS `PUNCT`). LAS requires a matching head and label. Cross-validation
@@ -75,3 +79,9 @@ and `docs/receipts/depparse-688/README.md` for API, parity data and receipts.
 
 The neural parser, trainer, both feature layouts, model formats and annotation
 integration are documented in [feedforward dependency parsing](feedforward-dependency-parser.md).
+
+`HeldOutEvaluation` and the CLI retain failed/invalid predictions as zero-credit
+words, split projective and non-projective totals, and refuse empty populations
+or any parse failure. The caller supplies finite UAS/LAS floors before evaluation;
+the report is written even if that gate fails. This is distinct from the legacy
+`DependencyEvaluator`, which returns errors without adding the failed sample.

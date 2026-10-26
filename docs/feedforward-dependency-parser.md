@@ -85,18 +85,19 @@ recorded default beam. Existing output files are never overwritten.
 No Python installation is required. Native training is also available:
 
 ```sh
-cargo run --release -p turbo-depparse --bin turbo-depparse -- train feedforward en train.conllu neural.properties model.turbo --projective-only
-cargo run --release -p turbo-depparse --bin turbo-depparse -- train linear en train.conllu linear.properties linear.bin --projective-only
+cargo run --release -p turbo-depparse --bin turbo-depparse -- train feedforward en train.conllu neural.properties model.turbo
+cargo run --release -p turbo-depparse --bin turbo-depparse -- train linear en train.conllu linear.properties linear.bin
 ```
 
-These commands require an explicit parameter file and `--projective-only`.
+These commands require an explicit parameter file. All valid trees participate
+by default; `--projective-only` explicitly restores the previous filtering.
 They report input sentences/words and excluded non-projective sentences/words
 before training, then elapsed training seconds and corpus/parameter/model
 SHA256 values. Retain this receipt with the source corpus and parameter file;
 the neural container does not store training language or corpus provenance.
 Training consumes the supplied file only; keep train, development and test
-roles separate. An empty projective population is an error. This command does
-not solve non-projective training or constitute a measured accuracy release.
+roles separate. An empty retained population is an error. SWAP handles crossing
+trees, but training alone does not constitute a measured accuracy release.
 
 The linear CLI currently supports `Algorithm=MAXENT` and requires explicit
 positive `Iterations` and `Threads`, plus nonnegative `Cutoff`. Other algorithms
@@ -129,11 +130,11 @@ precomputed after the last weight update, using a one-million-value budget
 
 ## Training and annotation
 
-AdaGrad training uses oracle events from projective trees, Java-compatible
+AdaGrad training uses SWAP oracle events for crossing trees and unchanged
+legacy oracle events for projective trees, Java-compatible
 vocabulary iteration and seeded random initialization/shuffling, minibatches,
 inverted hidden dropout, and L2 on dense matrices. Biases and embeddings have
-no L2 penalty. Non-projective samples are skipped; an entirely skipped or
-empty corpus is an error. Numerical divergence returns an error. Settings
+no L2 penalty. Non-projective samples are included; an empty corpus is an error. Numerical divergence returns an error. Settings
 are validated before parameter allocation. Expanded ReLU and cube models
 are covered by training/decoding tests; Java training parity covers the
 reference's 14/14/8 cube layout, with and without dropout/L2.
@@ -153,3 +154,9 @@ separate types and POS dependencies.
 See `analysis/depparse/src/feedforward/mod.rs`,
 `analysis/train-components/src/depparse.rs`, and
 `analysis/depparse/tests/feedforward/data/README.md`.
+
+Native SWAP models remain loadable through the existing native reader. Their
+Java legacy export is rejected because that transition inventory is unsupported.
+Old Java/native model files remain directly loadable with unchanged predictions.
+See [the Finnish-FTB recipe and fixed-input scoring protocol](../analysis/train-recipes/dependency/fi-ftb-r2.14/README.md)
+for `evaluate`, source licenses, hashes and the remaining accuracy work.

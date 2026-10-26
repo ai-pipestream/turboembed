@@ -5,6 +5,7 @@ use turbo_analysis_layers::{Tokens, WordOrTokenAnchor};
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Transition {
     Shift,
+    Swap,
     LeftArc(String),
     RightArc(String),
 }
@@ -12,6 +13,9 @@ impl Transition {
     pub fn decode(s: &str) -> Result<Self> {
         if s == "SHIFT" {
             return Ok(Self::Shift);
+        }
+        if s == "SWAP" {
+            return Ok(Self::Swap);
         }
         let (kind, label) = s.split_once(':').ok_or_else(|| error("invalid transition"))?;
         if label.chars().all(turbo_unicode::props::white_space) {
@@ -26,13 +30,14 @@ impl Transition {
     pub fn encode(&self) -> String {
         match self {
             Self::Shift => "SHIFT".into(),
+            Self::Swap => "SWAP".into(),
             Self::LeftArc(l) => format!("LEFT_ARC:{l}"),
             Self::RightArc(l) => format!("RIGHT_ARC:{l}"),
         }
     }
     fn valid(&self) -> bool {
         match self {
-            Self::Shift => true,
+            Self::Shift | Self::Swap => true,
             Self::LeftArc(label) | Self::RightArc(label) => !label.chars().all(turbo_unicode::props::white_space),
         }
     }
@@ -64,6 +69,9 @@ impl<A> Clone for Position<A> {
 pub struct ArcStandardState<A: WordOrTokenAnchor = Tokens> {
     pub(crate) stack: Vec<Position<A>>,
     pub(crate) front: usize,
+    // Requeued tokens, front at the end; stays unallocated on legacy parses.
+    pub(crate) requeued: Vec<Ix<A>>,
+    actions: u64,
     pub(crate) heads: Vec<Option<Ix<A>>>,
     pub(crate) relations: Vec<Option<String>>,
     pub(crate) counts: Vec<usize>,
@@ -77,6 +85,8 @@ impl<A: WordOrTokenAnchor> Clone for ArcStandardState<A> {
         Self {
             stack: self.stack.clone(),
             front: self.front,
+            requeued: self.requeued.clone(),
+            actions: self.actions,
             heads: self.heads.clone(),
             relations: self.relations.clone(),
             counts: self.counts.clone(),
@@ -95,6 +105,8 @@ impl<A: WordOrTokenAnchor> ArcStandardState<A> {
         Ok(Self {
             stack: vec![Position::Root],
             front: 0,
+            requeued: Vec::new(),
+            actions: 0,
             heads: vec![None; n],
             relations: vec![None; n],
             counts: vec![0; n],
@@ -111,8 +123,11 @@ impl<A: WordOrTokenAnchor> ArcStandardState<A> {
         self.stack.len().checked_sub(offset).and_then(|n| n.checked_sub(1)).map_or(Position::Missing, |i| self.stack[i])
     }
     pub fn buffer(&self, offset: usize) -> Position<A> {
+        if offset < self.requeued.len() {
+            return Position::Node(self.requeued[self.requeued.len() - 1 - offset]);
+        }
         self.front
-            .checked_add(offset)
+            .checked_add(offset - self.requeued.len())
             .filter(|&i| i < self.token_count())
             .map_or(Position::Missing, |i| Position::Node(Ix::new(i as u32)))
     }
@@ -120,7 +135,7 @@ impl<A: WordOrTokenAnchor> ArcStandardState<A> {
         self.stack.len()
     }
     pub fn buffer_size(&self) -> usize {
-        self.token_count() - self.front
+        self.token_count() - self.front + self.requeued.len()
     }
     pub fn assigned_dependents(&self, node: Ix<A>) -> Result<usize> {
         self.counts.get(node.get()).copied().ok_or_else(|| error("node out of range"))
@@ -135,28 +150,48 @@ impl<A: WordOrTokenAnchor> ArcStandardState<A> {
         self.relations.get(node.get()).map(|r| r.as_deref()).ok_or_else(|| error("node out of range"))
     }
     pub fn is_terminal(&self) -> bool {
-        self.front == self.token_count() && self.stack.len() == 1
+        self.buffer_size() == 0 && self.stack.len() == 1
     }
     pub fn can_apply(&self, t: &Transition) -> bool {
         if !t.valid() {
             return false;
         }
         match t {
-            Transition::Shift => self.front < self.token_count(),
+            Transition::Shift => self.buffer_size() > 0,
+            Transition::Swap => matches!((self.stack(1), self.stack(0)),
+                (Position::Node(a), Position::Node(b)) if a.get() < b.get()),
             Transition::LeftArc(_) => self.stack.len() >= 3,
-            Transition::RightArc(_) => {
-                self.stack.len() >= 3 || (self.stack.len() == 2 && self.front == self.token_count())
-            }
+            Transition::RightArc(_) => self.stack.len() >= 3 || (self.stack.len() == 2 && self.buffer_size() == 0),
         }
+    }
+    /// At most n original shifts, n arcs, and two actions per swapped pair.
+    pub fn action_limit(&self) -> u64 {
+        let n = self.token_count() as u64;
+        n * (n + 1)
+    }
+    pub fn action_count(&self) -> u64 {
+        self.actions
     }
     pub fn apply(&mut self, t: &Transition) -> Result<()> {
         if !self.can_apply(t) {
             return Err(error("transition not applicable"));
         }
+        if self.actions >= self.action_limit() {
+            return Err(error("dependency transition limit exceeded"));
+        }
+        self.actions += 1;
         match t {
             Transition::Shift => {
-                self.stack.push(Position::Node(Ix::new(self.front as u32)));
-                self.front += 1;
+                let node = self.requeued.pop().unwrap_or_else(|| {
+                    let node = Ix::new(self.front as u32);
+                    self.front += 1;
+                    node
+                });
+                self.stack.push(Position::Node(node));
+            }
+            Transition::Swap => {
+                let Position::Node(node) = self.stack.remove(self.stack.len() - 2) else { unreachable!() };
+                self.requeued.push(node);
             }
             Transition::LeftArc(label) => {
                 let Position::Node(d) = self.stack(1) else { unreachable!() };

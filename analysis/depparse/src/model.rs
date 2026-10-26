@@ -39,14 +39,18 @@ impl DependencyModel {
         Ok(Self { classifier, transitions, identity, bytes: None })
     }
     pub fn from_raw(bytes: &[u8]) -> Result<Self> {
-        Self::from_maxent(
+        let mut out = Self::from_maxent(
             MaxentModel::read(bytes).map_err(error)?,
             ModelRef {
                 id: "opennlp:DependencyParserME:raw".into(),
                 revision: "1".into(),
                 sha256: turbo_maxent::sha256(bytes).to_hex(),
             },
-        )
+        )?;
+        if out.transitions.contains(&Transition::Swap) {
+            out.identity.id = "turbo:SwapDependencyParser:raw".into();
+        }
+        Ok(out)
     }
     pub fn open(bytes: Vec<u8>) -> Result<Self> {
         let file = ModelFile::open(bytes.clone()).map_err(error)?;
@@ -55,7 +59,11 @@ impl DependencyModel {
         }
         let mut out = Self::from_raw(&file.entry(MODEL_ENTRY).map_err(error)?)?;
         out.identity = ModelRef {
-            id: format!("opennlp:DependencyParserME:{}", file.language()),
+            id: format!(
+                "{}:DependencyParserME:{}",
+                if out.transitions.contains(&Transition::Swap) { "turbo" } else { "opennlp" },
+                file.language()
+            ),
             revision: file.opennlp_version().into(),
             sha256: file.sha256().to_hex(),
         };
@@ -79,6 +87,9 @@ impl DependencyModel {
                 .map_err(error)?;
         let mut manifest = Manifest::new(COMPONENT_NAME, language, 0);
         manifest.set_training(&report);
+        if stream.included_nonprojective > 0 {
+            manifest.set("TransitionSystem", "ArcStandardSwap");
+        }
         let mut package = ModelPackage::new(manifest);
         package.add_entry(MODEL_ENTRY, model.write().map_err(error)?);
         Self::open(package.to_bytes())

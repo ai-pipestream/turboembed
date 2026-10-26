@@ -187,6 +187,9 @@ impl FeedforwardDependencyModel {
         Self::new(vocabulary, transitions, FeatureLayout::OpenNlp14, Activation::Cube, weights)
     }
     pub fn to_java_bytes(&self) -> Result<Vec<u8>> {
+        if self.transitions.contains(&Transition::Swap) {
+            return Err(error("SWAP models have no supported legacy Java export; use the native format"));
+        }
         if self.layout != FeatureLayout::OpenNlp14 || self.activation != Activation::Cube || self.default_beam_size != 1
         {
             return Err(error("legacy Java raw format requires OpenNlp14 cube model with default beam 1"));

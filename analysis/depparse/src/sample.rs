@@ -1,6 +1,4 @@
-use crate::{
-    ArcStandardOracle, ArcStandardState, DependencyContextGenerator, DependencyGraph, ParserInput, Result, error,
-};
+use crate::{ArcStandardState, DependencyContextGenerator, DependencyGraph, ParserInput, Result, SwapOracle, error};
 use turbo_analysis::{Ix, Layer};
 use turbo_analysis_layers::{Dependencies, Tokens, WordOrTokenAnchor};
 use turbo_formats::conllu::ConlluDependencySample;
@@ -100,22 +98,23 @@ impl<A: WordOrTokenAnchor> DependencySample<A> {
         Ok(out)
     }
 }
-/// Oracle events in sentence/transition order. Non-projective samples are
-/// skipped before any events are emitted, matching the Java event stream.
+/// Oracle events in sentence/transition order, including crossing trees.
+/// Projective samples retain the Java event sequence; crossing samples use SWAP.
 #[derive(Default)]
 pub struct DependencyEventStream {
     pub events: Vec<Event>,
+    /// Retained for source compatibility; SWAP training does not skip trees.
     pub skipped_nonprojective: usize,
+    pub included_nonprojective: usize,
 }
 impl DependencyEventStream {
     pub fn generate<A: WordOrTokenAnchor>(samples: &[DependencySample<A>]) -> Result<Self> {
         let mut out = Self::default();
         for sample in samples {
             if !sample.graph.is_projective() {
-                out.skipped_nonprojective += 1;
-                continue;
+                out.included_nonprojective += 1;
             }
-            let steps = ArcStandardOracle::transitions(&sample.graph)?;
+            let steps = SwapOracle::transitions(&sample.graph)?;
             let mut state = ArcStandardState::<A>::new(sample.tokens.len())?;
             let tokens: Vec<_> = sample.tokens.iter().map(String::as_str).collect();
             let tags: Vec<_> = sample.tags.iter().map(String::as_str).collect();

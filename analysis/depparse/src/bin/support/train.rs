@@ -99,7 +99,8 @@ pub(super) fn run(args: &[String]) -> Result<()> {
     };
     let input = fs::read_to_string(&args[3])?;
     let mut samples = Vec::new();
-    let (mut words, mut skipped, mut skipped_words) = (0, 0, 0);
+    let projective_only = args.len() == 7;
+    let (mut words, mut skipped, mut skipped_words, mut seen, mut crossing) = (0, 0, 0, 0, 0);
     for (index, sentence) in ConlluWordReader::new(&input)?.enumerate() {
         let sentence = sentence?;
         if sentence.words.iter().any(|word| word.upos.as_str() == "_") {
@@ -114,19 +115,24 @@ pub(super) fn run(args: &[String]) -> Result<()> {
         )
         .map_err(|error| format!("sentence {}: {error}", index + 1))?;
         let sample = DependencySample::<Words>::from_conllu(sample)?;
+        seen += 1;
         words += sample.tokens().len();
         if !sample.graph().is_projective() {
-            skipped += 1;
-            skipped_words += sample.tokens().len();
+            crossing += 1;
+            if projective_only {
+                skipped += 1;
+                skipped_words += sample.tokens().len();
+                continue;
+            }
         }
         samples.push(sample);
     }
     eprintln!(
-        "sentences={} words={words} excluded_nonprojective_sentences={skipped} excluded_nonprojective_words={skipped_words}",
-        samples.len()
+        "sentences={seen} words={words} excluded_nonprojective_sentences={skipped} excluded_nonprojective_words={skipped_words} included_nonprojective_sentences={} transition_system=arc-standard-swap",
+        crossing - skipped
     );
-    if samples.len() == skipped {
-        return Err("no projective training sentences".into());
+    if samples.is_empty() {
+        return Err("no retained training sentences".into());
     }
     eprintln!("language={} kind={} neural_settings={neural:?}", args[2], args[1]);
     let start = Instant::now();

@@ -1,7 +1,7 @@
 mod initialize;
 mod optimize;
 use super::{Activation, FeatureLayout, FeedforwardContext, FeedforwardDependencyModel};
-use crate::{ArcStandardOracle, ArcStandardState, DependencySample, Result, error};
+use crate::{ArcStandardState, DependencySample, Result, SwapOracle, error};
 use turbo_analysis_layers::WordOrTokenAnchor;
 
 #[derive(Clone, Debug)]
@@ -74,13 +74,10 @@ impl FeedforwardDependencyTrainer {
         let mut model = initialize::initialize(samples, settings)?;
         let mut examples = Vec::new();
         for sample in samples {
-            if !sample.graph().is_projective() {
-                continue;
-            }
             let mut state = ArcStandardState::<A>::new(sample.tokens().len())?;
             let words: Vec<_> = sample.tokens().iter().map(String::as_str).collect();
             let tags: Vec<_> = sample.tags().iter().map(String::as_str).collect();
-            for transition in ArcStandardOracle::transitions(sample.graph())? {
+            for transition in SwapOracle::transitions(sample.graph())? {
                 let context = FeedforwardContext::extract(&state, &words, &tags, settings.layout)?;
                 let outcome = model
                     .transitions
@@ -92,11 +89,11 @@ impl FeedforwardDependencyTrainer {
             }
         }
         if examples.is_empty() {
-            return Err(error("no projective training examples"));
+            return Err(error("no training examples"));
         }
         optimize::optimize(&mut model, &examples, settings)?;
         let mut counts = std::collections::BTreeMap::<String, usize>::new();
-        for sample in samples.iter().filter(|s| s.graph().is_projective()) {
+        for sample in samples {
             for word in sample.tokens() {
                 *counts.entry(super::normalize::normalize(word)).or_default() += 1;
             }
