@@ -139,6 +139,12 @@ fn every_neural_postag_golden_matches_the_jvm() {
     eprintln!("packed (default numerics): {} tags equal", totals.packed_tags);
     eprintln!("packed emissions: {}", totals.packed_emissions);
     eprintln!("packed tag probabilities: {}", totals.packed_probabilities);
+    if let Some(device) = packed::test_device() {
+        assert!(totals.device_tags > 0, "no golden ran on {device:?}");
+        eprintln!("packed on {device:?}: {} tags equal", totals.device_tags);
+        eprintln!("packed emissions on {device:?}: {}", totals.device_emissions);
+        eprintln!("packed tag probabilities on {device:?}: {}", totals.device_probabilities);
+    }
 }
 
 #[test]

@@ -1763,6 +1763,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-rustls"
+version = "0.26.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c9cc2678c2cdd569ef8215e2afd7954ada2ae20b4fdd2c5fe6139a3b02d105db"
+dependencies = [
+ "rustls",
+ "tokio",
+]
+
+[[package]]
 name = "tokio-stream"
 version = "0.1.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1809,6 +1819,7 @@ dependencies = [
  "socket2",
  "sync_wrapper",
  "tokio",
+ "tokio-rustls",
  "tokio-stream",
  "tower",
  "tower-layer",
@@ -2351,6 +2362,8 @@ name = "turbo-kserve"
 version = "0.1.0"
 dependencies = [
  "bytes",
+ "h2",
+ "http-body",
  "libc",
  "prost",
  "protox",
@@ -2408,6 +2421,7 @@ dependencies = [
  "prost",
  "protox",
  "tokio",
+ "tokio-rustls",
  "tonic",
  "turbo",
  "turbo-kserve",
@@ -2652,6 +2666,7 @@ dependencies = [
  "serde_json",
  "turbo",
  "turbo-analysis",
+ "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-bundle",
  "turbo-depparse",

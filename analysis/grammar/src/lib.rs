@@ -44,3 +44,5 @@ pub use lang::pt::unit::{PORTUGUESE_UNITS, PortugueseUnits};
 pub use times::TimeAnnotator;
 pub use unit::{CurrencyUnit, Measure, Unit};
 pub use value::{Num, NumKind, Ordinal, Quantity, Relative, Value, flag};
+
+pub use lang::it::unit::{ITALIAN_UNITS, ItalianUnits};

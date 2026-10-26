@@ -47,6 +47,20 @@ under the existing vendored MIT license. `chinese_unit_specs.rs` checks all
 all supplied resolution fields. Optional absent subtype fields are unspecified.
 See `docs/grammar-units-chinese.md` for exact unit conventions and native tests.
 
+The Italian NumberWithUnit files below are unchanged copies at the same
+pinned revision and MIT license. `tests/italian_unit_specs.rs` checks all
+210 cases, including upstream-unsupported Age cases 3 and 7 and Currency
+cases 64 and 67. Temperature
+cases 25, 26 and 27 omit coordinates and use text/value/unit comparison;
+the other 207 cases use exact-span comparison.
+
+| File here | Upstream path |
+|---|---|
+| `Italian/NumberWithUnit/AgeModel.json` | `Specs/NumberWithUnit/Italian/AgeModel.json` |
+| `Italian/NumberWithUnit/CurrencyModel.json` | `Specs/NumberWithUnit/Italian/CurrencyModel.json` |
+| `Italian/NumberWithUnit/DimensionModel.json` | `Specs/NumberWithUnit/Italian/DimensionModel.json` |
+| `Italian/NumberWithUnit/TemperatureModel.json` | `Specs/NumberWithUnit/Italian/TemperatureModel.json` |
+
 ## Portuguese NumberWithUnit
 
 The Portuguese NumberWithUnit files are unchanged copies at the same pinned

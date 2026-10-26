@@ -6,4 +6,6 @@ pub mod es;
 pub mod nl;
 pub mod zh;
 
+pub mod it;
+
 pub mod pt;

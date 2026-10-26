@@ -1,0 +1,42 @@
+  Executable tests/device_real.rs (target/release/deps/device_real-15465f10503eeb48)
+commit fbba0d329d2fedf9e09213a373688b8b569022a7; host: AMD Ryzen 9 9950X 16-Core Processor, 32 threads; release build
+== run 1, commit fbba0d329d2fedf9e09213a373688b8b569022a7, at 16:12:43: load 1.77 2.75 5.35 3/4739 1415945; b70 runner containers busy: none
+gliner2 relations: largest logit difference from the cpu encoder 4.5895576e-6
+gliner2 relations, one text a pass: cpu encoder min 16.503 p50 20.106 mean 20.995 p99 32.066
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 28.919 p50 36.935 mean 37.137 p99 45.855
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 0.54x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 38.66s
+schema extraction: largest logit difference from the cpu encoder 7.4505806e-6
+schema extraction, one text a pass: cpu encoder min 20.940 p50 56.906 mean 58.091 p99 103.399
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 7.683 p50 22.860 mean 27.136 p99 67.808
+schema extraction: the cpu encoder's p50 over the device's: 2.49x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 49.36s
+after: load 22.33 8.48 7.07 20/4849 1463342; b70 runner containers busy: none
+== run 2, commit fbba0d329d2fedf9e09213a373688b8b569022a7, at 16:17:23: load 4.35 7.44 7.02 1/4599 1490729; b70 runner containers busy: none
+gliner2 relations: largest logit difference from the cpu encoder 4.5895576e-6
+gliner2 relations, one text a pass: cpu encoder min 16.103 p50 18.337 mean 18.399 p99 23.099
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 6.778 p50 38.625 mean 36.415 p99 40.741
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 0.47x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 37.00s
+schema extraction: largest logit difference from the cpu encoder 7.4505806e-6
+schema extraction, one text a pass: cpu encoder min 17.272 p50 32.910 mean 31.706 p99 42.881
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 13.564 p50 25.918 mean 26.104 p99 37.277
+schema extraction: the cpu encoder's p50 over the device's: 1.27x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 35.85s
+after: load 15.56 10.03 7.95 1/4580 1505884; b70 runner containers busy: none
+== run 3, commit fbba0d329d2fedf9e09213a373688b8b569022a7, at 16:19:43: load 6.52 8.43 7.53 2/4576 1506827; b70 runner containers busy: none
+gliner2 relations: largest logit difference from the cpu encoder 4.5895576e-6
+gliner2 relations, one text a pass: cpu encoder min 15.554 p50 18.511 mean 18.807 p99 22.440
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 6.591 p50 33.623 mean 33.590 p99 40.196
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 0.55x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 36.34s
+schema extraction: largest logit difference from the cpu encoder 7.4505806e-6
+schema extraction, one text a pass: cpu encoder min 17.759 p50 32.972 mean 31.660 p99 43.640
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 12.566 p50 26.042 mean 25.779 p99 37.430
+schema extraction: the cpu encoder's p50 over the device's: 1.27x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 35.72s
+after: load 8.94 8.44 7.58 2/4578 1522000; b70 runner containers busy: none
+== snap-store render-engine (rcs) share of the B70 during each run, from xe fdinfo before and after:
+run 1: snap-store rcs 60.7%, ccs 0.0%
+run 2: snap-store rcs 64.1%, ccs 0.0%
+run 3: snap-store rcs 64.5%, ccs 0.0%
