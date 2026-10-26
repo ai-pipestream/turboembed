@@ -16,12 +16,7 @@ use crate::{
     Structure, Subwords, Temporals, Times, Tokens,
 };
 
-fn map_opt_spans(
-    doc: &Document,
-    from: ViewId,
-    to: ViewId,
-    spans: &[Option<Span>],
-) -> Result<Vec<Option<Span>>, Error> {
+fn map_opt_spans(doc: &Document, from: ViewId, to: ViewId, spans: &[Option<Span>]) -> Result<Vec<Option<Span>>, Error> {
     spans.iter().map(|s| s.map(|span| doc.map_span(from, to, span)).transpose()).collect()
 }
 
