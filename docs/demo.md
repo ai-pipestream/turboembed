@@ -168,6 +168,8 @@ one `data:` event per message when the request accepts
 | `POST /api/search/delete` | `DeleteIndex`. |
 | `POST /api/search/collection` | `SetCollection`. |
 | `GET /api/search/collections` | `ListCollections`. |
+| `POST /api/search/collection/get` | `GetCollection`. |
+| `POST /api/search/collection/delete` | `DeleteCollection`. |
 | `POST /api/search/watch` | `WatchCollection`, streamed. The stream has no end; it closes when the caller goes away. |
 
 ### TurboVocabularyService
@@ -202,6 +204,13 @@ component, so there is no route for one.
 A gRPC error is the HTTP 502 above, with the `turbo-code` and
 `turbo-field` trailers as `turbo_code` and `turbo_field`; a body the
 demo cannot read, base64 included, is HTTP 400.
+
+A body is at most 2 MB, axum's default, except on the routes that send
+a client stream: `/api/search/index` and `/api/vocabulary/learn` take up
+to 256 MiB, the server's dictionary upload cap, and
+`/api/vocabulary/import` takes that cap as base64 plus room for the
+header. A larger body is HTTP 413 before any call is made. Each message
+of the stream is still under the server's own message limit.
 
 A refusal before the stream starts, such as a header over the server's
 caps, is the HTTP 502 above. A status that ends a stream after it
@@ -238,11 +247,14 @@ mocked. `demo/tests/gateway.rs` does the same for the gateway routes:
   through the window, typed, format and projection routes, and an
   unknown step refused;
 - an index created, aliased, filled, queried, persisted, sealed,
-  reindexed and deleted, and a collection watch seeing the documents
-  arrive;
+  reindexed and deleted, a collection set, read, watched while the
+  documents arrive, and deleted;
 - a dictionary of more than one frame imported and downloaded byte for
   byte, a vocabulary learned, listed, downloaded and deleted, a wrong
   digest refused, and writes refused without `--admin`;
 - a static model trained from the tiny bundle, streamed to its trained
   update, listed, refused again by name and deleted, and every catalog
-  route refused by a server with no catalog.
+  route refused by a server with no catalog;
+- a dictionary upload and a learning text over 2 MB accepted, an index
+  batch over 2 MB reaching the server, and a 413 for an analysis body
+  over the default.

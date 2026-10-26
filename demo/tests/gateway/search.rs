@@ -68,6 +68,8 @@ async fn an_index_is_filled_queried_and_managed_over_http() {
     assert_eq!(col["collection"]["collection_name"], "corpus", "{col}");
     let cols = ok(&d, "GET", "/api/search/collections", Value::Null).await;
     assert_eq!(cols["collections"][0]["collection_name"], "corpus", "{cols}");
+    let got = ok(&d, "POST", "/api/search/collection/get", json!({ "collection_name": "corpus" })).await;
+    assert_eq!(got["collection"], col["collection"]);
 
     // A watch opened before the documents arrive sees their drift report.
     let mut watch = TcpStream::connect(d.local_addr()).await.unwrap();
@@ -114,6 +116,10 @@ async fn an_index_is_filled_queried_and_managed_over_http() {
     let listed = ok(&d, "GET", "/api/search/indexes", Value::Null).await;
     assert_eq!(listed["indexes"].as_array().unwrap().len(), 1, "{listed}");
 
+    ok(&d, "POST", "/api/search/collection/delete", json!({ "collection_name": "corpus" })).await;
+    let cols = ok(&d, "GET", "/api/search/collections", Value::Null).await;
+    assert!(cols["collections"].as_array().is_none_or(|c| c.is_empty()), "{cols}");
+    refused(&d, "POST", "/api/search/collection/get", json!({ "collection_name": "corpus" }), "NotFound").await;
     let e = refused(&d, "POST", "/api/search/query", json!({ "index_name": "missing" }), "NotFound").await;
     assert!(e["error"]["message"].as_str().unwrap().contains("missing"), "{e}");
     d.stop().await;

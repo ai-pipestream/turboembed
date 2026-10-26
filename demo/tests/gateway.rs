@@ -7,6 +7,8 @@
 mod analysis;
 #[path = "gateway/catalog.rs"]
 mod catalog;
+#[path = "gateway/limits.rs"]
+mod limits;
 #[path = "gateway/search.rs"]
 mod search;
 #[path = "gateway/vocabulary.rs"]

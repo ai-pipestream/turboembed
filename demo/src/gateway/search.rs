@@ -8,19 +8,20 @@ use axum::response::Response;
 use axum::routing::{get, post};
 use serde::Deserialize;
 
-use super::{answer, body};
+use super::{CLIENT_STREAM_BODY_BYTES, answer, body, large};
 use crate::App;
 use crate::search::{
-    CreateIndexRequest, DeleteAliasRequest, DeleteIndexRequest, IndexDocumentRequest, ListAliasesRequest,
-    ListCollectionsRequest, ListIndexesRequest, ListSearchProvidersRequest, PersistIndexRequest, ReindexRequest,
-    SealIndexRequest, SearchRequest, SetAliasRequest, SetCollectionRequest, WatchCollectionRequest,
+    CreateIndexRequest, DeleteAliasRequest, DeleteCollectionRequest, DeleteIndexRequest, GetCollectionRequest,
+    IndexDocumentRequest, ListAliasesRequest, ListCollectionsRequest, ListIndexesRequest, ListSearchProvidersRequest,
+    PersistIndexRequest, ReindexRequest, SealIndexRequest, SearchRequest, SetAliasRequest, SetCollectionRequest,
+    WatchCollectionRequest,
 };
 
 pub(super) fn routes(r: Router<App>) -> Router<App> {
     r.route("/api/search/indexes", get(indexes))
         .route("/api/search/providers", get(providers))
         .route("/api/search/create", post(create))
-        .route("/api/search/index", post(index))
+        .route("/api/search/index", large(index, CLIENT_STREAM_BODY_BYTES))
         .route("/api/search/query", post(query))
         .route("/api/search/persist", post(persist))
         .route("/api/search/seal", post(seal))
@@ -30,6 +31,8 @@ pub(super) fn routes(r: Router<App>) -> Router<App> {
         .route("/api/search/delete", post(delete))
         .route("/api/search/collections", get(collections))
         .route("/api/search/collection", post(collection))
+        .route("/api/search/collection/get", post(get_collection))
+        .route("/api/search/collection/delete", post(delete_collection))
         .route("/api/search/watch", post(watch))
 }
 
@@ -85,6 +88,14 @@ unary!(
     /// `POST /api/search/collection`: SetCollection, a collection's
     /// baseline terms and drift threshold.
     collection: search.set_collection(SetCollectionRequest)
+);
+unary!(
+    /// `POST /api/search/collection/get`: GetCollection.
+    get_collection: search.get_collection(GetCollectionRequest)
+);
+unary!(
+    /// `POST /api/search/collection/delete`: DeleteCollection.
+    delete_collection: search.delete_collection(DeleteCollectionRequest)
 );
 streamed!(
     /// `POST /api/search/watch`: WatchCollection, each CollectionEvent as

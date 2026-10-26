@@ -8,7 +8,7 @@ use axum::response::Response;
 use axum::routing::{get, post};
 use serde::Deserialize;
 
-use super::{answer, body};
+use super::{CLIENT_STREAM_BODY_BYTES, answer, body, large};
 use crate::App;
 use crate::vocabulary::{
     DeleteVocabularyArtifactRequest, DownloadVocabularyRequest, ImportDictionaryHeader, ImportDictionaryRequest,
@@ -19,12 +19,16 @@ use crate::vocabulary::{
 /// The most bytes of an upload in one ImportDictionary frame.
 const CHUNK_BYTES: usize = 64 << 10;
 
+/// An import's body: the upload cap as base64, four characters per three
+/// bytes, and room for the header.
+const IMPORT_BODY_BYTES: usize = CLIENT_STREAM_BODY_BYTES / 3 * 4 + (64 << 10);
+
 pub(super) fn routes(r: Router<App>) -> Router<App> {
     r.route("/api/vocabulary/formats", get(formats))
         .route("/api/vocabulary/dictionaries", get(dictionaries))
         .route("/api/vocabulary/vocabularies", get(vocabularies))
-        .route("/api/vocabulary/import", post(import))
-        .route("/api/vocabulary/learn", post(learn))
+        .route("/api/vocabulary/import", large(import, IMPORT_BODY_BYTES))
+        .route("/api/vocabulary/learn", large(learn, CLIENT_STREAM_BODY_BYTES))
         .route("/api/vocabulary/download", post(download))
         .route("/api/vocabulary/delete", post(delete))
 }

@@ -84,6 +84,20 @@ mod vocabulary;
 /// Answers to one stream the demo holds before the page reads them.
 const STREAM_BUFFER: usize = 16;
 
+/// The largest body of a route that sends a client stream: the server's
+/// 256 MiB dictionary upload cap. Every other route keeps axum's 2 MB
+/// default.
+pub(super) const CLIENT_STREAM_BODY_BYTES: usize = 256 << 20;
+
+/// A client-stream route with the larger body limit.
+pub(super) fn large<H, T>(handler: H, limit: usize) -> axum::routing::MethodRouter<App>
+where
+    H: axum::handler::Handler<T, App>,
+    T: 'static,
+{
+    axum::routing::post(handler).layer(axum::extract::DefaultBodyLimit::max(limit))
+}
+
 /// Every gateway route.
 pub(crate) fn routes(r: Router<App>) -> Router<App> {
     vocabulary::routes(catalog::routes(search::routes(analysis::routes(r))))
@@ -96,10 +110,16 @@ pub(super) fn answer<T: Serialize>(r: Result<tonic::Response<T>, tonic::Status>)
     }
 }
 
-/// A body the demo could read, or its HTTP 400, boxed as a response is
-/// large beside a request.
+/// A body the demo could read, or its HTTP 400, or 413 when it is over
+/// the route's limit; boxed as a response is large beside a request.
 pub(super) fn body<T>(body: Result<Json<T>, JsonRejection>) -> Result<T, Box<Response>> {
-    body.map(|Json(b)| b).map_err(|e| Box::new(refused(e.body_text())))
+    body.map(|Json(b)| b).map_err(|e| {
+        let mut refusal = refused(e.body_text());
+        if e.status() == StatusCode::PAYLOAD_TOO_LARGE {
+            *refusal.status_mut() = StatusCode::PAYLOAD_TOO_LARGE;
+        }
+        Box::new(refusal)
+    })
 }
 
 /// Whether the answers go out as events, or the HTTP 406 when the page
