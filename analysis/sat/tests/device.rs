@@ -26,9 +26,10 @@ mod common;
 const F32_BOUND: f64 = 1e-4;
 
 /// The largest probability difference allowed at f16 and bf16, whose
-/// record bounds only the cosine. It is measured, not derived: on an
-/// RTX 4080 SUPER the largest was 2.4e-3 on the tiny bundle and 4.6e-3
-/// on `sat-1l-sm` (docs/receipts/sat-884), and this is about twice that.
+/// record bounds only the cosine. It is measured, not derived: the
+/// largest seen was 4.6e-3 on CUDA (`sat-1l-sm`) and 5.0e-3 on Level Zero
+/// with oneDNN (the tiny bundle; docs/receipts/sat-884), and this is about
+/// twice that.
 const F16_BOUND: f64 = 1e-2;
 
 /// Threshold, stride and block of the fixtures in tests/data.
