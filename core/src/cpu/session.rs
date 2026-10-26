@@ -172,8 +172,13 @@ pub(super) unsafe fn open(
             Ok(e) => e,
             Err(msg) => return unsafe { refuse(err, INVALID_ARGUMENT, &msg) },
         };
-        let work = Work::Deberta(Box::new(super::deberta::Rows::new(encoder, hidden)));
-        let s = Session { work, pool: pool::Pool::new(threads), output: Box::new(output), max_ranges, written: false };
+        let pool = pool::Pool::new(threads);
+        let rows = super::deberta::Rows::new(encoder, hidden, max_batch as usize, max_seq as usize, max_ranges, &pool);
+        let work = match rows {
+            Ok(r) => Work::Deberta(Box::new(r)),
+            Err(msg) => return unsafe { refuse(err, OUT_OF_MEMORY, &msg) },
+        };
+        let s = Session { work, pool, output: Box::new(output), max_ranges, written: false };
         unsafe {
             *compute_dtype = TURBO_DTYPE_F32;
             *out = Box::into_raw(Box::new(s)) as *mut c_void;

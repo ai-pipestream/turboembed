@@ -103,11 +103,10 @@ pub(super) unsafe extern "C" fn session_run(
     out.host = s.output.ptr as *mut c_void;
     out.h2d_bytes = 0;
     out.d2h_bytes = 0;
-    // Nothing on the BERT and static paths allocates, on this thread or
-    // the pool's: the encoder computes in the memory session_create gave
+    // Nothing allocates, on this thread or the pool's: every encoder,
+    // DeBERTa-v2's included, computes in the memory session_create gave
     // it, on the threads it started. tests/allocations.rs holds this to a
-    // counting allocator. A DeBERTa-v2 run allocates each row's workspace
-    // (deberta.rs), which these counts do not report.
+    // counting allocator.
     out.host_allocs = 0;
     out.device_allocs = 0;
     let st = &mut out.stage;
