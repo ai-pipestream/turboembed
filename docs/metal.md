@@ -426,6 +426,58 @@ tokens up the kernels are the same as before, so those rows differ by
 noise alone, and MLX's larger products still run at about 3 TFLOPS
 against our 2.5.
 
+### The linear layers alone against MLX
+
+`bench/metal-peers/gemm_time.swift` compiles `core/metal/kernels.metal`
+as the backend does and times each linear-layer shape of an encoder
+layer alone, with the operand types, epilogue and k split the encoder
+gives it: Q, K and V as one dispatch of three (n = h each), the attention
+output, the feed-forward input with GELU, and its output. Each time is a
+command buffer of 20 dispatches, from the host (commit to completion),
+divided by 20; 7 timed buffers after one untimed. `mlx_gemm.py` times MLX
+0.29.3's float16 `x @ w` at the same (M, n, k), Q, K and V as one product
+of n = 3h, 20 independent products in one `mx.eval` graph, from the host.
+Nine rounds on an M2, the order alternating by round, release builds:
+
+```
+swiftc -O bench/metal-peers/gemm_time.swift -o gemm_time
+./gemm_time core/metal/kernels.metal 384 768
+python3 bench/metal-peers/mlx_gemm.py 384 768
+```
+
+The machine was in use. Before the rounds the 5-minute load average was
+2.8 to 3.6 and the GPU's utilization 23 to 35% from the desktop's apps,
+and it read 99% between rounds, so these are least times over the nine
+rounds, ours (`linear=auto`'s tile) / MLX's in ms, and the ratio:
+
+| h | M | Q, K, V | attention output | feed-forward in | feed-forward out |
+|---|---|---|---|---|---|
+| 384 | 128 | 0.060 / 0.047 (1.27) | 0.030 / 0.025 (1.21) | 0.079 / 0.059 (1.33) | 0.072 / 0.062 (1.16) |
+| 384 | 512 | 0.186 / 0.151 (1.23) | 0.075 / 0.059 (1.28) | 0.256 / 0.196 (1.31) | 0.243 / 0.194 (1.25) |
+| 384 | 1024 | 0.355 / 0.286 (1.24) | 0.128 / 0.103 (1.24) | 0.495 / 0.376 (1.32) | 0.451 / 0.372 (1.21) |
+| 384 | 4096 | 1.433 / 1.106 (1.30) | 0.501 / 0.377 (1.33) | 2.034 / 1.488 (1.37) | 1.906 / 1.481 (1.29) |
+| 384 | 16384 | 5.729 / 4.480 (1.28) | 1.957 / 1.518 (1.29) | 8.062 / 6.047 (1.33) | 7.339 / 5.895 (1.24) |
+| 768 | 128 | 0.180 / 0.153 (1.18) | 0.074 / 0.061 (1.23) | 0.244 / 0.195 (1.25) | 0.240 / 0.203 (1.18) |
+| 768 | 512 | 0.667 / 0.554 (1.20) | 0.235 / 0.196 (1.20) | 0.923 / 0.771 (1.20) | 0.883 / 0.730 (1.21) |
+| 768 | 1024 | 1.335 / 1.099 (1.21) | 0.452 / 0.389 (1.16) | 1.818 / 1.499 (1.21) | 1.736 / 1.483 (1.17) |
+| 768 | 4096 | 5.571 / 4.484 (1.24) | 1.873 / 1.514 (1.24) | 7.641 / 5.927 (1.29) | 7.368 / 5.908 (1.25) |
+| 768 | 16384 | 22.209 / 17.873 (1.24) | 7.455 / 6.055 (1.23) | 30.509 / 25.099 (1.22) | 29.095 / 25.340 (1.15) |
+
+Every shape trails MLX's product, by 1.15x to 1.37x at the least time
+and 1.06x to 1.51x at the median of the nine rounds' least times: about
+2.4 to 2.8 TFLOPS against MLX's 3.2. So the gap is in the tile, not outside it.
+MLX's 20 products are independent and may overlap on the GPU, where our
+dispatches run one after another; that can account for part of the gap
+and is not separated here. Three of the issue's candidates, timed the
+same way in alternation with `h32n32` at M = 4096 and h = 384, gave no
+gain: a 64 x 32 tile with each group 32 x 16 (MLX's half "nt" tile on a
+small Apple GPU), 2.4 to 2.6 TFLOPS against `h32n32`'s 2.5 to 2.8; the
+weights staged from a `[k, n]` layout so both fragments load as pairs,
+2.3 to 2.5; and the library compiled with fast math, the same within
+the rounds' spread. A tile with no bounds checks could not be read: the
+GPU went to 98% from other apps and the spread between runs grew larger
+than the effect.
+
 ### Wide heads and weights past F16's range
 
 Six-layer BERTs written by the tests' `bert_weights` (weights scaled by
