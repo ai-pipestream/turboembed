@@ -89,8 +89,9 @@ lifting (`DependencyGraph::projectivize`) and step-by-step decoding
 every non-projective sentence in `train` is projectivized with directional
 `base^<step1^>step2...` path labels instead of being discarded, and both
 `DependencyParserME` and `FeedforwardDependencyParser` decode directional
-`^<` / `^>` suffixes back into non-projective dependencies after transition
-decoding (while preserving ordinary custom labels such as `root^literal`
+`^<` / `^>` suffixes back into non-projective dependencies according to the
+model's explicit `LabelEncoding` mode (while `LabelEncoding::Plain` and
+`LabelEncoding::EscapedV1` preserve ordinary custom labels such as `root^literal`
 unchanged). Note that Nivre and Nilsson's directional label-path scheme is an
 approximate encoding when multiple siblings under the same lifted ancestor share
 the same relation label and direction (for example, gold encode/decode over all
@@ -114,18 +115,18 @@ treebanks (`UD_Spanish-AnCora`, `UD_Catalan-AnCora`, `UD_Portuguese-Porttinari`,
 in release `models-ud-depparse-2.16-1` and registered in `analysis/zoo/index/zoo.json`
 (Portuguese Porttinari remains recipe-only because newspaper text rights are not settled):
 
-| Treebank (`r2.16`) | Train Sentences (Non-Proj) | Test Sentences (Tokens) | Model ID | Parser | Size (bytes) | SHA-256 (prefix) | UAS (all / no-punct) | LAS (all / no-punct) | LAS Gate (`diff`, 95% CI) | UAS Gate (`diff`, 95% CI) |
+| Treebank (`r2.16`) | Train Sentences (Non-Proj) | Test Sentences (Tokens) | Model ID | Parser | Size (bytes) | SHA-256 | UAS (all / no-punct) | LAS (all / no-punct) | LAS Gate (`diff`, 95% CI) | UAS Gate (`diff`, 95% CI) |
 |---|---:|---:|---|---|---:|---|---:|---:|---|---|
-| `UD_Spanish-AnCora` | 14,287 (840) | 1,721 (53,622) | `turbo-es-ud-ancora-2.16-depparse-maxent-1` | MaxEnt | 17,406,430 | `6d399e33ee858d0a` | 83.45 / 85.76 | 78.81 / 80.51 | PASS (+52.91, [+52.33, +53.50]) | PASS (+43.31, [+42.69, +43.93]) |
-| `UD_Spanish-AnCora` | 14,287 (840) | 1,721 (53,622) | `turbo-es-ud-ancora-2.16-depparse-feedforward-1` | Feedforward | 900,875 | `68aea2dfec51c015` | 83.99 / 85.72 | 79.35 / 80.45 | PASS (+3.74, [+3.38, +4.10]) | PASS (+3.02, [+2.68, +3.38]) |
-| `UD_Catalan-AnCora` | 13,123 (749) | 1,846 (59,610) | `turbo-ca-ud-ancora-2.16-depparse-maxent-1` | MaxEnt | 15,339,008 | `33e2ec6844fabfa1` | 85.58 / 87.29 | 81.62 / 82.86 | PASS (+53.61, [+53.05, +54.17]) | PASS (+40.98, [+40.38, +41.59]) |
-| `UD_Catalan-AnCora` | 13,123 (749) | 1,846 (59,610) | `turbo-ca-ud-ancora-2.16-depparse-feedforward-1` | Feedforward | 816,124 | `8af62c85bd4f3ab4` | 85.69 / 86.97 | 81.59 / 82.38 | PASS (+3.45, [+3.11, +3.79]) | PASS (+2.75, [+2.44, +3.07]) |
-| `UD_Portuguese-Porttinari` | 5,893 (0) | 1,683 (33,580) | `turbo-pt-ud-porttinari-2.16-depparse-maxent-1` | MaxEnt (local) | 5,405,678 | `422d8ff7c4d0a351` | 85.91 / 87.75 | 82.74 / 84.12 | PASS (+50.98, [+50.22, +51.73]) | PASS (+40.04, [+39.27, +40.80]) |
-| `UD_Portuguese-Porttinari` | 5,893 (0) | 1,683 (33,580) | `turbo-pt-ud-porttinari-2.16-depparse-feedforward-1` | Feedforward (local) | 423,296 | `a18b65db4ba0332a` | 87.63 / 88.58 | 84.71 / 85.22 | PASS (+6.18, [+5.71, +6.66]) | PASS (+4.96, [+4.49, +5.43]) |
-| `UD_Finnish-FTB` | 14,981 (1,602) | 1,867 (16,286) | `turbo-fi-ud-ftb-2.16-depparse-maxent-1` | MaxEnt | 5,757,374 | `755ef066e10c65ad` | 81.70 / 79.18 | 74.10 / 70.33 | PASS (+53.26, [+52.31, +54.24]) | PASS (+53.75, [+52.75, +54.77]) |
-| `UD_Finnish-FTB` | 14,981 (1,602) | 1,867 (16,286) | `turbo-fi-ud-ftb-2.16-depparse-feedforward-1` | Feedforward | 564,886 | `3df4a7db92fb8975` | 79.59 / 76.73 | 69.39 / 64.84 | PASS (+6.96, [+6.30, +7.63]) | PASS (+5.45, [+4.82, +6.07]) |
-| `UD_Italian-MarkIT` | 611 (0) | 340 (10,196) | `turbo-it-ud-markit-2.16-depparse-maxent-1` | MaxEnt | 1,364,091 | `2f8539971c1d4434` | 78.56 / 82.09 | 71.58 / 74.43 | PASS (+47.32, [+45.79, +48.90]) | PASS (+41.86, [+40.16, +43.64]) |
-| `UD_Italian-MarkIT` | 611 (0) | 340 (10,196) | `turbo-it-ud-markit-2.16-depparse-feedforward-1` | Feedforward | 258,169 | `397fc29dd5ee2ac5` | 77.29 / 80.78 | 69.16 / 71.84 | PASS (+31.61, [+30.15, +33.10]) | PASS (+23.63, [+22.16, +25.18]) |
+| `UD_Spanish-AnCora` | 14,287 (840) | 1,721 (53,622) | `turbo-es-ud-ancora-2.16-depparse-maxent-1` | MaxEnt | 17,406,430 | `6d399e33ee858d0ab87ebc6fa9438a445f614b6729f8a609ab5ffeabfa538f63` | 83.45 / 85.76 | 78.81 / 80.51 | PASS (+52.91, [+52.33, +53.50]) | PASS (+43.31, [+42.69, +43.93]) |
+| `UD_Spanish-AnCora` | 14,287 (840) | 1,721 (53,622) | `turbo-es-ud-ancora-2.16-depparse-feedforward-1` | Feedforward | 900,875 | `68aea2dfec51c015ce8ac99ff4c15875d84a364ef9bfe9fe3b5a4976c0b0f8a7` | 83.99 / 85.72 | 79.35 / 80.45 | PASS (+3.74, [+3.38, +4.10]) | PASS (+3.02, [+2.68, +3.38]) |
+| `UD_Catalan-AnCora` | 13,123 (749) | 1,846 (59,610) | `turbo-ca-ud-ancora-2.16-depparse-maxent-1` | MaxEnt | 15,339,008 | `33e2ec6844fabfa173bf0e0eafca62eaf259f95622e1c149a2f15197782c27f6` | 85.58 / 87.29 | 81.62 / 82.86 | PASS (+53.61, [+53.05, +54.17]) | PASS (+40.98, [+40.38, +41.59]) |
+| `UD_Catalan-AnCora` | 13,123 (749) | 1,846 (59,610) | `turbo-ca-ud-ancora-2.16-depparse-feedforward-1` | Feedforward | 816,124 | `8af62c85bd4f3ab42498ee8b217911ff55101df2caab554391120ab2dbb45455` | 85.69 / 86.97 | 81.59 / 82.38 | PASS (+3.45, [+3.11, +3.79]) | PASS (+2.75, [+2.44, +3.07]) |
+| `UD_Portuguese-Porttinari` | 5,893 (0) | 1,683 (33,580) | `turbo-pt-ud-porttinari-2.16-depparse-maxent-1` | MaxEnt (local) | 5,405,678 | `422d8ff7c4d0a3513ce1518a5e65b8fe49832acffcc665cf9b419e7d4f3557a9` | 85.91 / 87.75 | 82.74 / 84.12 | PASS (+50.98, [+50.22, +51.73]) | PASS (+40.04, [+39.27, +40.80]) |
+| `UD_Portuguese-Porttinari` | 5,893 (0) | 1,683 (33,580) | `turbo-pt-ud-porttinari-2.16-depparse-feedforward-1` | Feedforward (local) | 423,296 | `a18b65db4ba0332ab5c31686cd21f131ba014dea776143f8d2a104c58d023147` | 87.63 / 88.58 | 84.71 / 85.22 | PASS (+6.18, [+5.71, +6.66]) | PASS (+4.96, [+4.49, +5.43]) |
+| `UD_Finnish-FTB` | 14,981 (1,602) | 1,867 (16,286) | `turbo-fi-ud-ftb-2.16-depparse-maxent-1` | MaxEnt | 5,757,374 | `755ef066e10c65adc3d17f93bb15b35ebee78fbd189fd56297f12409bf5f782d` | 81.70 / 79.18 | 74.10 / 70.33 | PASS (+53.26, [+52.31, +54.24]) | PASS (+53.75, [+52.75, +54.77]) |
+| `UD_Finnish-FTB` | 14,981 (1,602) | 1,867 (16,286) | `turbo-fi-ud-ftb-2.16-depparse-feedforward-1` | Feedforward | 564,886 | `3df4a7db92fb89759aa964153cc7a55154779cf25a56250cc8b2b2924ce9870d` | 79.59 / 76.73 | 69.39 / 64.84 | PASS (+6.96, [+6.30, +7.63]) | PASS (+5.45, [+4.82, +6.07]) |
+| `UD_Italian-MarkIT` | 611 (0) | 340 (10,196) | `turbo-it-ud-markit-2.16-depparse-maxent-1` | MaxEnt | 1,364,091 | `2f8539971c1d4434bde2b5e16aff8348c8ef7841d2a5576b180ed23e8f70da93` | 78.56 / 82.09 | 71.58 / 74.43 | PASS (+47.32, [+45.79, +48.90]) | PASS (+41.86, [+40.16, +43.64]) |
+| `UD_Italian-MarkIT` | 611 (0) | 340 (10,196) | `turbo-it-ud-markit-2.16-depparse-feedforward-1` | Feedforward | 258,169 | `397fc29dd5ee2ac576400f38742a38023d4b23abe09df351dd18c449094f2b3e` | 77.29 / 80.78 | 69.16 / 71.84 | PASS (+31.61, [+30.15, +33.10]) | PASS (+23.63, [+22.16, +25.18]) |
 
 
 ### Dependency label encoding compatibility
