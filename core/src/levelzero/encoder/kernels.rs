@@ -1,6 +1,7 @@
 //! The encoder's kernel objects, one set per session.
 
 use super::*;
+use crate::backend::turbo_backend_model;
 use crate::levelzero::gpu::{Context, Kernel, Res};
 
 // ---- Sessions ------------------------------------------------------------------
@@ -80,7 +81,7 @@ impl Kernels {
         intermediate: u32,
         head_dim: u32,
         xmx: bool,
-        deberta: bool,
+        deberta: Option<(&turbo_backend_model, u32)>,
     ) -> Res<Kernels> {
         let row = [BLOCK, 1, 1];
         // At FASTEST the context is the next layer's F16 operand.
@@ -147,14 +148,13 @@ impl Kernels {
             pool: c.kernel("pool", [16 * POOL_SLICES, 1, 1])?,
             pool_ranges: c.kernel("pool_ranges", [16 * POOL_SLICES, 1, 1])?,
             normalize: c.kernel("normalize", row)?,
-            deberta: if deberta {
-                Some(Deberta {
+            deberta: match deberta {
+                Some((d, max_seq)) => Some(Deberta {
                     embed: c.kernel("deberta_embed", row)?,
                     general: c.kernel("deberta_attention", row)?,
-                    tiled: super::deberta::tiled(c, head_dim)?,
-                })
-            } else {
-                None
+                    tiled: super::deberta::tiled(c, d, max_seq, head_dim)?,
+                }),
+                None => None,
             },
         })
     }

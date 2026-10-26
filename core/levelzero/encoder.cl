@@ -1376,7 +1376,8 @@ __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void deberta_attenti
             const int n = min(KD, len - j0);                                                                       \
             const int dlo = i0 - (j0 + KD - 1);                                                                    \
             const int blo = buckets[clamp(dlo, -span, span) + span];                                               \
-            const int nb = buckets[clamp(dlo + QD + KD - 2, -span, span) + span] - blo + 1;                        \
+            /* The host takes this kernel only where nb fits its rows (tiled_reach); never past them. */          \
+            const int nb = min(QD + KD - 1, buckets[clamp(dlo + QD + KD - 2, -span, span) + span] - blo + 1);      \
             for (int e = lid; e < n * (HD / 4); e += QD) {                                                         \
                 const int j = e / (HD / 4), d = e % (HD / 4);                                                      \
                 __global const float *kv = qkv + (size_t)(start + j0 + j) * stride + col;                          \

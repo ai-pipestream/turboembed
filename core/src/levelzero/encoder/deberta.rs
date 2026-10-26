@@ -88,27 +88,70 @@ pub(super) fn check_precision(precision: u32) -> Res<()> {
     Ok(())
 }
 
-/// Queries a tiled attention group takes for a head width, as
-/// encoder.cl's instances of DEBERTA_FLASH; None for the widths the
-/// general kernel takes.
-fn tiled_queries(head_dim: u32) -> Option<u32> {
+/// Queries a tiled attention group takes for a head width, and keys a
+/// block, as encoder.cl's instances of DEBERTA_FLASH; None for the widths
+/// the general kernel takes.
+fn tiled_shape(head_dim: u32) -> Option<(u32, u32)> {
     match head_dim {
-        32 => Some(128),
-        64 => Some(64),
-        128 => Some(32),
+        32 => Some((128, 32)),
+        64 => Some((64, 32)),
+        128 => Some((32, 16)),
         _ => None,
     }
 }
 
+/// The most relative rows a tiled group of `queries` queries reaches over
+/// a block of `keys` keys, at any query tile and key block of rows of
+/// max_seq tokens, from `table` (buckets): the bucket of the pair's
+/// largest distance less that of its smallest, plus one, as the kernel
+/// stages them. Past the log buckets' midpoint a distance may skip a row,
+/// so this can pass queries + keys - 1.
+fn tiled_reach(table: &[i32], max_seq: u32, queries: u32, keys: u32) -> u32 {
+    let span = max_seq as i64 - 1;
+    let at = |d: i64| table[(d.clamp(-span, span) + span) as usize] as i64;
+    let mut most = 0;
+    for i0 in (0..max_seq as i64).step_by(queries as usize) {
+        for j0 in (0..max_seq as i64).step_by(keys as usize) {
+            let lo = i0 - (j0 + keys as i64 - 1);
+            most = most.max(at(lo + queries as i64 + keys as i64 - 2) - at(lo) + 1);
+        }
+    }
+    most as u32
+}
+
+/// For a DeBERTa-v2 model of `position_buckets` and
+/// `max_relative_positions` at head width `head_dim`, in sessions of
+/// max_seq tokens: the relative rows its tiled attention reaches at most,
+/// and the rows the kernel holds; None for a width with no tiled kernel.
+/// The session takes the tiled kernel only where the first fits the
+/// second. Built only with `internals`.
+#[cfg(feature = "internals")]
+pub fn tiled_rows(
+    position_buckets: u32,
+    max_relative_positions: u32,
+    max_seq: u32,
+    head_dim: u32,
+) -> Option<(u32, u32)> {
+    let span = max_seq as isize - 1;
+    let table: Vec<i32> =
+        (-span..=span).map(|k| bucket(k, position_buckets as usize, max_relative_positions as usize) as i32).collect();
+    let (queries, keys) = tiled_shape(head_dim)?;
+    Some((tiled_reach(&table, max_seq, queries, keys), queries + keys - 1))
+}
+
 /// The tiled attention for `head_dim` and its queries a group, where one
-/// is built, its local memory fits the device, and a test has not forced
-/// the general kernel.
-pub(super) fn tiled(c: &Context, head_dim: u32) -> Res<Option<(Kernel, u32)>> {
+/// is built, its local memory fits the device, every group's relative rows
+/// fit its local rows at sessions of max_seq tokens, and a test has not
+/// forced the general kernel.
+pub(super) fn tiled(c: &Context, d: &turbo_backend_model, max_seq: u32, head_dim: u32) -> Res<Option<(Kernel, u32)>> {
     #[cfg(feature = "internals")]
     if GENERAL.load(std::sync::atomic::Ordering::Relaxed) {
         return Ok(None);
     }
-    let Some(queries) = tiled_queries(head_dim) else { return Ok(None) };
+    let Some((queries, keys)) = tiled_shape(head_dim) else { return Ok(None) };
+    if tiled_reach(&buckets(d, max_seq.max(1)), max_seq.max(1), queries, keys) > queries + keys - 1 {
+        return Ok(None);
+    }
     let k = c.kernel(&format!("deberta_attention_{head_dim}"), [queries, 1, 1])?;
     Ok((k.local_bytes()? <= c.max_local).then_some((k, queries)))
 }

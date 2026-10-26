@@ -19,7 +19,7 @@ use std::sync::{Mutex, MutexGuard};
 use std::time::Instant;
 
 use common::*;
-use deberta_common::{HEADS_32, HEADS_128, SMALL, Shape, TINY, fixture};
+use deberta_common::{HEADS_32, HEADS_128, SMALL, STEEP_200, STEEP_300, Shape, TINY, fixture};
 use turbo::*;
 
 /// The largest difference allowed from the CPU: the F32 device bound.
@@ -125,6 +125,13 @@ fn matches_the_cpu(test: &str, name: &str, s: &Shape) {
     let (g, c) = (on_gpu(&f), f.load().unwrap());
     let desc = session_desc(8, 512, TURBO_PRECISION_MODEL);
     let cs = Session::create(c.m, Some(&desc)).unwrap();
+    let hd = (s.hidden / s.heads) as u32;
+    let picked = match turbo::levelzero::tiled_rows(s.buckets as u32, s.max_relative_positions as u32, 512, hd) {
+        Some((reach, room)) if reach <= room => format!("tiled, {reach} of {room} rows"),
+        Some((reach, room)) => format!("general, the tiled kernel reaching {reach} rows of {room}"),
+        None => "general, no tiled kernel at its width".into(),
+    };
+    println!("{test}: picked: {picked}");
     for (kernel, general) in [("picked", false), ("general", true)] {
         turbo::levelzero::use_general_attention(general);
         let gs = Session::create(g.m, Some(&desc));
@@ -132,7 +139,7 @@ fn matches_the_cpu(test: &str, name: &str, s: &Shape) {
         let gs = gs.unwrap();
         assert_eq!(gs.info().compute_dtype, TURBO_DTYPE_F32);
         let mixed = rows(&[17, 5, 40, 9, 1], &[3], &[(2, 11), (0, 3)]);
-        let cases: [(&str, Tokens, turbo_embed_options); 6] = [
+        let cases: [(&str, Tokens, turbo_embed_options); 7] = [
             ("mixed lengths, padded, mean and L2", rows(&[17, 5, 40, 9, 1], &[], &[]), embed_options()),
             ("left padding and masked holes, mean and L2", rows(&[17, 5, 40, 9, 1], &[3], &[(2, 11), (0, 3)]), {
                 options(TURBO_POOLING_MEAN, TURBO_NORMALIZE_L2)
@@ -140,6 +147,7 @@ fn matches_the_cpu(test: &str, name: &str, s: &Shape) {
             ("left padding and masked holes, CLS", mixed, options(TURBO_POOLING_CLS, TURBO_NORMALIZE_NONE)),
             ("one token, CLS and L2", rows(&[1], &[], &[]), options(TURBO_POOLING_CLS, TURBO_NORMALIZE_L2)),
             ("a row of 512 tokens", rows(&[512, 3], &[], &[]), embed_options()),
+            ("a row of 129 tokens", rows(&[129, 7], &[], &[]), embed_options()),
             ("the last token", rows(&[33, 2, 12], &[], &[(0, 31)]), {
                 options(TURBO_POOLING_LAST, TURBO_NORMALIZE_NONE)
             }),
@@ -187,6 +195,16 @@ fn a_gliner_small_sized_deberta_matches_the_cpu() {
 #[test]
 fn a_deberta_of_head_width_32_matches_the_cpu() {
     matches_the_cpu("a_deberta_of_head_width_32_matches_the_cpu", "lz-deberta-32", &HEADS_32);
+}
+
+#[test]
+fn a_deberta_of_steep_buckets_300_matches_the_cpu() {
+    matches_the_cpu("a_deberta_of_steep_buckets_300_matches_the_cpu", "lz-deberta-300", &STEEP_300);
+}
+
+#[test]
+fn a_deberta_of_steep_buckets_200_matches_the_cpu() {
+    matches_the_cpu("a_deberta_of_steep_buckets_200_matches_the_cpu", "lz-deberta-200", &STEEP_200);
 }
 
 #[test]

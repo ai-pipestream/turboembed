@@ -212,7 +212,7 @@ pub(super) unsafe fn create(
             let xmx = precision == TURBO_PRECISION_FASTEST
                 && d.hidden.is_multiple_of(DPAS_K.max(DPAS_TN))
                 && d.intermediate.is_multiple_of(DPAS_K.max(DPAS_TN));
-            let kernels = Kernels::new(c, d.hidden, d.intermediate, head_dim, xmx, is_deberta)?;
+            let kernels = Kernels::new(c, d.hidden, d.intermediate, head_dim, xmx, is_deberta.then_some((d, max_seq)))?;
             let general = match (&kernels.deberta, &kernels.attention) {
                 (Some(dk), _) => dk.tiled.is_none().then_some(&dk.general),
                 (None, Attention::General(k)) => Some(k),

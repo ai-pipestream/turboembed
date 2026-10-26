@@ -374,8 +374,14 @@ head widths 32, 64 and 128 attention is tiled
 or 32 queries of a row and head a group, an online softmax in registers,
 and the row's keys and values streamed through local memory 32 at a time
 (16 at width 128) with the relative rows the block's distances reach,
-which are at most the group's queries plus the block's keys less one. For
-any other width it is `deberta_attention`, a group per query, head and
+whose count the kernel holds as the group's queries plus the block's
+keys less one. Past the log buckets' midpoint a distance may skip a row,
+so a model whose buckets climb steeply reaches more rows than that: the
+session, from its bucket table, finds the most rows any query tile and
+key block of its `max_seq` reach, and takes the tiled kernel only where
+they fit (GLiNER-small's 256 buckets over 512 positions reach 95 of the
+95 at width 64), the general one otherwise. For any other width it is
+`deberta_attention`, a group per query, head and
 row, reading every key and relative row from global memory. The linear
 layers, LayerNorms and pooling are the BERT encoder's in F32, with
 oneDNN's linear layers where they run.
