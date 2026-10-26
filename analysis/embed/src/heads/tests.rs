@@ -161,3 +161,23 @@ fn incivility_and_pragmatics_scoring_reject_tokens_from_another_view() {
     let err = inciv_head.score_incivility_chunks("test", &bad_tokens, &chunks, &chunk_vecs).unwrap_err();
     assert!(err.to_string().contains("the tokens are in view 1, the chunks in view 0"), "got: {err}");
 }
+
+#[test]
+fn classifier_head_is_a_pragmatics_vector_scorer() {
+    let head = ClassifierHead::linear(
+        test_model(),
+        1,
+        TagSet::new("pragmatics", &["literal", "sarcastic"]),
+        HeadMode::SingleLabel,
+        vec![0.0, 2.0],
+        vec![0.0, 0.0],
+    )
+    .unwrap();
+    let expected = 1.0 / (1.0 + (-2.0f64).exp());
+    assert!((head.score_pragmatics_vector(&[1.0]).unwrap() - expected).abs() < 1e-12);
+    let scorer: &dyn turbo_doccat::sentiment::pragmatics::PragmaticsVectorScorer = &head;
+    assert!((scorer.score_sentence_vector(&[1.0]).unwrap() - expected).abs() < 1e-12);
+    assert_eq!(scorer.config_hash(), head.config_hash());
+    assert_eq!(scorer.model_ref(), Some(test_model()));
+    assert!(scorer.score_sentence_vector(&[1.0, 0.0]).is_err());
+}

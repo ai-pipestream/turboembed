@@ -9,6 +9,7 @@
 #include <atomic>
 #include <cmath>
 #include <cstdlib>
+#include <mutex>
 
 namespace turbo_cuda {
 
@@ -325,6 +326,8 @@ cudaError_t deberta_relative(cudaStream_t s, const float *x, const float *w, con
     return cudaGetLastError();
 }
 
+size_t deberta_tiled_smem(int head_dim) { return tiled_for(head_dim).smem; }
+
 bool deberta_tiled_rows(int head_dim, int seq_cap, const int32_t *buckets, int *reach, int *room) {
     const Tiled t = tiled_for(head_dim);
     if (!t.fn) return false;
@@ -367,12 +370,17 @@ cudaError_t deberta_plan(int head_dim, int batch_cap, int seq_cap, int heads, in
     const void *fn = reinterpret_cast<const void *>(attention_general_kernel);
     // The attribute is the kernel's, for every session: never below the
     // most a session has asked for, so a smaller session made after a
-    // larger one leaves the larger one's launches valid.
-    static std::atomic<size_t> most{0};
-    size_t was = most.load(std::memory_order_relaxed);
-    while (smem > was && !most.compare_exchange_weak(was, smem, std::memory_order_relaxed)) {
+    // larger one leaves the larger one's launches valid. The raise and the
+    // set are one step under the lock, so two sessions made at once cannot
+    // leave the smaller value set last.
+    static std::mutex lock;
+    static size_t most = 0;
+    cudaError_t e;
+    {
+        std::lock_guard<std::mutex> held(lock);
+        most = smem > most ? smem : most;
+        e = cudaFuncSetAttribute(fn, cudaFuncAttributeMaxDynamicSharedMemorySize, (int)most);
     }
-    cudaError_t e = cudaFuncSetAttribute(fn, cudaFuncAttributeMaxDynamicSharedMemorySize, (int)most.load());
     int per = 0;
     if (e == cudaSuccess) e = cudaOccupancyMaxActiveBlocksPerMultiprocessor(&per, fn, GENERAL_THREADS, smem);
     if (e != cudaSuccess) return e;
