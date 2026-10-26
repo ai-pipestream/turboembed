@@ -102,6 +102,8 @@ async fn main() -> ExitCode {
         catalog,
         training: args.training_dir.map(PathBuf::from),
         sink: args.sink,
+        tls: args.tls,
+        metrics_listen: args.metrics_listen,
         ..Serve::default()
     };
     let server = match Server::start(args.listen, args.models, args.max_message_bytes, serve).await {
@@ -112,6 +114,9 @@ async fn main() -> ExitCode {
         }
     };
     eprintln!("turbo-kserve: listening on {}", server.local_addr());
+    if let Some(m_addr) = server.metrics_addr() {
+        eprintln!("turbo-kserve: metrics on {m_addr}");
+    }
     // A stop signal during load stops the server once the load returns:
     // the library has no way to stop a load part way.
     let stop = tokio::spawn(stop_signal());
