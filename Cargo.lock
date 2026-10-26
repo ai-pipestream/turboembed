@@ -1931,7 +1931,6 @@ version = "0.1.0"
 dependencies = [
  "libc",
  "libloading",
- "regex",
  "serde",
  "serde_json",
  "serde_path_to_error",
@@ -2008,7 +2007,6 @@ dependencies = [
 name = "turbo-bpe-trainer"
 version = "0.1.0"
 dependencies = [
- "serde_json",
  "tokenizers",
  "turbo",
  "turbo-goldens",
@@ -2474,7 +2472,6 @@ dependencies = [
 name = "turbo-namefind"
 version = "0.1.0"
 dependencies = [
- "regex",
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-calibration",

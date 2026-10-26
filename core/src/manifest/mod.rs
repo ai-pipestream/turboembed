@@ -176,6 +176,11 @@ impl Manifest {
         Ok(m)
     }
 
+    /// The manifest in the JSON form bundle writers and tests persist.
+    pub fn to_json(&self) -> Vec<u8> {
+        serde_json::to_vec_pretty(self).expect("a validated manifest serializes")
+    }
+
     pub fn embed(&self) -> &Embed {
         self.embed.as_ref().expect("validate() requires embed for TASK_EMBED")
     }

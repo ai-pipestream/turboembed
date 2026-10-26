@@ -220,12 +220,6 @@ TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=<backend> TURBO_TEST_PRECISION=
 | Backends | [CPU](docs/cpu.md), [CUDA](docs/cuda.md), [Intel GPU](docs/levelzero.md), [Intel NPU](docs/npu.md), [Metal](docs/metal.md), [Hailo](docs/hailo.md) |
 | Releases | [docs/release.md](docs/release.md) |
 
-## History
-
-This codebase is a restart. An earlier attempt is kept, with its audits,
-in `ai-slop-generated-shit/` for reference only; its header files were
-the starting point for this tree.
-
 ## License
 
 Apache-2.0; see [LICENSE](LICENSE). The CUDA backend includes a subset of

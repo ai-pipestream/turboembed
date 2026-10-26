@@ -106,9 +106,9 @@ fn every_setting_writes_upstreams_file() {
                 let m = ByteLevelBpe::train(texts.iter().map(String::as_str), c.clone()).unwrap();
                 let ours = m.to_tokenizer_json();
                 if ours != up {
-                    let a: serde_json::Value = serde_json::from_str(&ours).unwrap();
-                    let b: serde_json::Value = serde_json::from_str(&up).unwrap();
-                    let merges = |v: &serde_json::Value| v["model"]["merges"].as_array().unwrap().clone();
+                    let a: Json = parse(&ours).unwrap();
+                    let b: Json = parse(&up).unwrap();
+                    let merges = |v: &Json| v["model"]["merges"].as_array().unwrap().to_vec();
                     let (ma, mb) = (merges(&a), merges(&b));
                     let at = ma.iter().zip(&mb).position(|(x, y)| x != y);
                     panic!(
@@ -195,7 +195,7 @@ fn bundle(name: &str, json: &str, add_prefix_space: bool) -> (TempDir, Tokenizer
         special(SpecialRole::Mask, "<mask>", 4, true),
     ];
     m.tokenizer.template = vec!["<s>".into(), "$TEXT".into(), "</s>".into()];
-    std::fs::write(dir.0.join("manifest.json"), serde_json::to_vec_pretty(&m).unwrap()).unwrap();
+    std::fs::write(dir.0.join("manifest.json"), m.to_json()).unwrap();
     let tok = Tokenizer::unchecked(&Bundle::open(&dir.0).unwrap()).unwrap();
     (dir, tok)
 }
