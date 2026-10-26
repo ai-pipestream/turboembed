@@ -92,17 +92,15 @@ pub fn runs_band(backend: &str, lookahead: u32) -> Result<()> {
 }
 
 /// Whether the backend named `backend` holds a model of TURBO_FAMILY_*
-/// `family`: only the CPU and Level Zero have a DeBERTa-v2 encoder so far,
-/// and any other would refuse the family at model_load.
+/// `family`: only the CPU, CUDA and Level Zero have a DeBERTa-v2 encoder so
+/// far, and any other would refuse the family at model_load.
 pub fn runs_family(backend: &str, family: u32) -> Result<()> {
-    if family != TURBO_FAMILY_DEBERTA_V2 || backend == "cpu" || backend == "levelzero" {
+    if family != TURBO_FAMILY_DEBERTA_V2 || matches!(backend, "cpu" | "cuda" | "levelzero") {
         return Ok(());
     }
     Err(Error::new(
         UNSUPPORTED,
-        format!(
-            "FAMILY_DEBERTA_V2: the {backend} backend has no DeBERTa-v2 encoder yet; load the model on cpu or levelzero"
-        ),
+        format!("FAMILY_DEBERTA_V2: the {backend} backend has no DeBERTa-v2 encoder yet; use cpu, cuda or levelzero"),
     ))
 }
 
@@ -413,10 +411,11 @@ mod tests {
     }
 
     #[test]
-    fn only_the_cpu_and_levelzero_run_a_deberta_model() {
-        assert!(runs_family("cpu", TURBO_FAMILY_DEBERTA_V2).is_ok());
-        assert!(runs_family("levelzero", TURBO_FAMILY_DEBERTA_V2).is_ok());
-        for b in ["cuda", "metal", "npu", "hailo"] {
+    fn only_the_cpu_cuda_and_levelzero_run_a_deberta_model() {
+        for b in ["cpu", "cuda", "levelzero"] {
+            assert!(runs_family(b, TURBO_FAMILY_DEBERTA_V2).is_ok());
+        }
+        for b in ["metal", "npu", "hailo"] {
             assert!(runs_family(b, crate::backend::TURBO_FAMILY_BERT).is_ok());
             let e = runs_family(b, TURBO_FAMILY_DEBERTA_V2).err().unwrap();
             assert_eq!(e.code, UNSUPPORTED);
