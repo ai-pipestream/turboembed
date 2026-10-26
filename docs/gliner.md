@@ -59,49 +59,75 @@ package on the CPU (packed ids identical, every logit and row within 1e-4, decod
 entities alike but for candidates within that of the threshold) and times
 `score_packed` on both, interleaved.
 
-On 2026-10-26, release builds, the converted package against the same
-package over the sealed encoder bundle, at MODEL: the marker and
-first-subword rows within 3.4e-5 on the Arc Pro B70 and 4.8e-5 on the
-RTX 4080 SUPER (lowest cosine 1.0), the logits within 5.1e-5 and 5.7e-5,
-the packed ids and the decoded entities the same.
+Receipts of 2026-10-26, at commit `beb41c4369022f7a05b59060095f904fde21210f`,
+release builds, the converted package against the same package over the
+sealed encoder bundle. Parity is five consecutive runs at each precision on
+each device:
 
-`score_packed` in milliseconds, 50 timed runs a side after one untimed,
-the CPU path and the device interleaved; min / p50 / mean / p99. A call
-includes the heads (projection, BiLSTM, span scoring), which run on the
-host in both columns, so the device gains only on the encoder's share.
+```
+GLINER_PACKAGE=<package> GLINER_ENCODER_BUNDLE=<bundle> TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 \
+    TURBO_TEST_PRECISION=model cargo test --release --locked -p turbo-gliner --features turbo/levelzero \
+    --test real_device the_real -- --ignored --nocapture
+```
 
-Arc Pro B70 (levelzero), host AMD Ryzen 9 9950X (16 cores, 32 threads).
-No build or test process in the CI runner containers that mount the
-device, before or after; another client held the render engine about 64%
-busy, and none other the compute engines; GPU clock median 2800 MHz,
-at most 66 C. The host's load average was 17 to 27, so the CPU column
-and the ratios ran under load.
+(`cuda`, `TURBO_TEST_REQUIRE_CUDA=1` and `--features turbo/cuda` on the
+RTX 4080 SUPER; `exact` likewise.) Every run passed, and the five gave the
+same figures, so the minimum and the maximum are equal:
 
-| Words, labels (tokens) | CPU | levelzero |
-| --- | ---: | ---: |
-| 64, 4 (75) | 29.7 / 35.5 / 34.5 / 40.6 | 20.9 / 22.9 / 27.9 / 56.1 |
-| 64, 32 (131) | 37.1 / 42.0 / 41.4 / 47.7 | 24.2 / 33.9 / 38.7 / 58.3 |
-| 128, 4 (139) | 58.6 / 69.6 / 70.4 / 93.2 | 45.8 / 57.4 / 57.4 / 80.0 |
-| 128, 32 (195) | 66.1 / 73.8 / 73.7 / 81.4 | 46.7 / 53.5 / 55.0 / 87.6 |
-| 384, 4 (395) | 187.9 / 223.9 / 229.4 / 325.1 | 152.1 / 179.4 / 185.9 / 275.8 |
-| 384, 32 (451) | 190.8 / 227.2 / 248.1 / 402.0 | 169.5 / 227.3 / 229.9 / 332.3 |
+| Device | Precision | Runs | Marker and first-subword rows, largest difference | Lowest cosine | Logits, largest difference |
+| --- | --- | ---: | ---: | ---: | ---: |
+| Arc Pro B70 | MODEL, EXACT | 5 each | 3.4e-5 | 1.000000000 | 5.1e-5 |
+| RTX 4080 SUPER | MODEL, EXACT | 5 each | 4.8e-5 | 1.000000000 | 5.7e-5 |
 
-RTX 4080 SUPER (cuda), host AMD Ryzen 9 9950X3D (16 cores, 32 threads).
-The GPU was shared: a resident server process of another workload held
-5.5 GB and kept it 22 to 28% busy, and another thread's device test ran
-during the pass; no CI build or test process ran. SM clock median 2610
-MHz, at most 50 C. The host's load average was 40 to 60, so both columns
-ran under load; read these as an upper bound, to be taken again on a
-quiet machine.
+The packed ids and the decoded entities were the same in every run.
 
-| Words, labels (tokens) | CPU | cuda |
-| --- | ---: | ---: |
-| 64, 4 (75) | 40.2 / 68.9 / 78.3 / 202.6 | 23.0 / 30.6 / 44.7 / 123.0 |
-| 64, 32 (131) | 83.8 / 115.6 / 121.5 / 172.3 | 35.7 / 52.8 / 58.3 / 95.9 |
-| 128, 4 (139) | 114.1 / 187.7 / 191.7 / 292.7 | 72.2 / 133.4 / 133.7 / 206.0 |
-| 128, 32 (195) | 66.1 / 100.2 / 129.5 / 301.3 | 43.5 / 59.4 / 79.1 / 196.3 |
-| 384, 4 (395) | 171.9 / 192.1 / 192.1 / 214.1 | 126.2 / 136.5 / 137.3 / 159.6 |
-| 384, 32 (451) | 181.2 / 206.5 / 207.9 / 244.7 | 128.9 / 145.8 / 145.0 / 169.0 |
+Timing is `real_checkpoint_timing` (`GLINER_REPS=50`, the same features,
+`real_checkpoint_timing` in place of `the_real`): `score_packed`, and the
+encoder alone (`Model::states`, the rows the heads read), on the package's
+CPU encoder and on the device, interleaved, 50 timed runs each after one
+untimed; milliseconds, min / p50 / mean / p99. The difference between a
+column's call and its encoder is the heads (projection, BiLSTM, span
+scoring), which run on the host on both sides: on the device they are most
+of a call past 64 words.
+
+Arc Pro B70 (levelzero), host AMD Ryzen 9 9950X (16 cores, 32 threads). No
+build or test process in the CI runner containers that mount the device,
+before or after. Another client held the render engine about 55% busy and
+none other the compute engines; GPU clock median 2800 MHz, at most 66 C.
+The host's load average was 21 to 38, so the CPU columns, and every ratio
+to them, ran under load.
+
+| Words, labels (tokens) | CPU call | CPU encoder | levelzero call | levelzero encoder |
+| --- | ---: | ---: | ---: | ---: |
+| 64, 4 (75) | 31.7 / 37.7 / 38.1 / 47.4 | 15.1 / 17.8 / 18.1 / 25.8 | 30.3 / 35.7 / 35.7 / 44.2 | 30.1 / 35.6 / 35.3 / 45.0 |
+| 64, 32 (131) | 39.5 / 53.3 / 54.0 / 74.6 | 19.0 / 27.8 / 29.5 / 45.7 | 26.1 / 32.8 / 34.5 / 51.3 | 13.6 / 36.5 / 34.7 / 48.6 |
+| 128, 4 (139) | 66.2 / 89.3 / 89.7 / 146.9 | 18.0 / 27.9 / 28.0 / 51.5 | 47.6 / 83.9 / 81.4 / 133.5 | 3.2 / 6.0 / 8.0 / 20.8 |
+| 128, 32 (195) | 66.5 / 89.3 / 93.5 / 172.5 | 22.4 / 35.7 / 35.6 / 64.0 | 55.4 / 82.3 / 83.9 / 147.1 | 4.3 / 10.8 / 10.4 / 23.2 |
+| 384, 4 (395) | 243.2 / 329.0 / 328.8 / 412.2 | 72.5 / 113.7 / 119.0 / 192.4 | 188.5 / 220.6 / 232.1 / 350.8 | 9.1 / 27.3 / 30.0 / 70.4 |
+| 384, 32 (451) | 211.0 / 275.3 / 296.9 / 426.2 | 56.4 / 95.4 / 110.3 / 202.0 | 172.9 / 229.7 / 230.6 / 320.3 | 21.6 / 55.1 / 51.6 / 77.9 |
+
+The first shape's device encoder is as slow as its whole call, and slower
+than at 128 words; it was the first shape timed, and the host was loaded.
+
+RTX 4080 SUPER (cuda), host AMD Ryzen 9 9950X3D (16 cores, 32 threads). A
+shared machine: a resident server process, kept running there on purpose
+because it is under test, held 5.5 GB and kept the GPU about 24% busy; no
+other test process and no CI build or test process ran. SM clock median
+2610 MHz, at most 47 C. The host's load average was 22 to 40, so every
+ratio from this table, the device over the CPU in particular, is from a
+shared, loaded machine, not a quiet one.
+
+| Words, labels (tokens) | CPU call | CPU encoder | cuda call | cuda encoder |
+| --- | ---: | ---: | ---: | ---: |
+| 64, 4 (75) | 33.0 / 35.2 / 37.1 / 54.7 | 13.1 / 14.7 / 15.2 / 19.9 | 21.5 / 22.4 / 23.3 / 31.7 | 1.6 / 1.7 / 1.7 / 1.9 |
+| 64, 32 (131) | 38.4 / 46.5 / 49.2 / 107.5 | 18.1 / 23.0 / 23.6 / 59.8 | 22.4 / 27.2 / 27.9 / 39.2 | 2.3 / 2.6 / 2.7 / 3.4 |
+| 128, 4 (139) | 59.8 / 65.2 / 66.7 / 80.8 | 17.5 / 22.4 / 22.5 / 35.0 | 42.7 / 46.1 / 46.7 / 53.5 | 2.4 / 2.7 / 2.7 / 3.4 |
+| 128, 32 (195) | 67.9 / 72.8 / 73.3 / 87.5 | 24.9 / 28.5 / 29.2 / 36.7 | 43.9 / 45.7 / 46.8 / 54.8 | 2.8 / 2.8 / 3.0 / 4.0 |
+| 384, 4 (395) | 171.4 / 245.8 / 287.8 / 793.3 | 49.0 / 86.1 / 108.0 / 356.6 | 127.2 / 176.9 / 200.2 / 819.2 | 4.6 / 5.0 / 5.2 / 6.7 |
+| 384, 32 (451) | 197.8 / 229.4 / 240.0 / 340.9 | 61.0 / 80.2 / 83.4 / 123.8 | 130.7 / 160.2 / 158.8 / 209.1 | 4.9 / 5.2 / 5.4 / 6.5 |
+
+On both devices the encoder is a small part of a call (on the 4080, 1.7 to
+5.2 ms of 22 to 177 ms at p50): the heads on the host bound it.
 
 This is a Rust API. SaT ships as `turbo-sat`, and GLiNER2 document
 classification, structured records and deterministic constraint layers
