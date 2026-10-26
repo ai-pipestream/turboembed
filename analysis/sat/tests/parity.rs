@@ -25,6 +25,7 @@ use std::path::{Path, PathBuf};
 use serde_json::Value;
 use turbo::bundle::Bundle;
 use turbo_analysis::{Analyzer, Document, Span};
+use turbo_analysis_embed::Device;
 use turbo_analysis_layers::Sentences;
 use turbo_sat::{SatAnnotator, SatOptions, cuts};
 
@@ -297,6 +298,15 @@ fn banded_bundle() -> PathBuf {
 #[test]
 fn limited_lookahead_matches_wtpsplit() {
     let dir = banded_bundle();
+    if encoder().device != Device::Cpu {
+        // Only the CPU's attention takes a band (`turbo::model::runs_band`):
+        // a device refuses the model rather than read whole rows.
+        let o = SatOptions { encoder: encoder(), ..SatOptions::default() };
+        let Err(e) = SatAnnotator::open(&dir, &o) else { panic!("a device opened a model of limited lookahead") };
+        assert!(e.to_string().contains("has no limited-lookahead attention"), "{e}");
+        std::fs::remove_dir_all(dir).unwrap();
+        return;
+    }
     for (name, near) in [("la8-t0.5-s16-b62.jsonl", 0), ("la8-t0.025-s7-b30.jsonl", 0)] {
         let s = compare_at(&Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/data").join(name), &dir);
         eprintln!("{name}: {s:?}");
