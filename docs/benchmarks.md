@@ -511,10 +511,11 @@ requests of the same rows, one at a time, leaving the GPU idle for
 host (`nsys stats --report cuda_gpu_trace --format csv`). A request's
 activity is what lies between two idle gaps of at least 50 ms. The
 trace must fall into exactly as many such runs as requests were sent,
-or the run is an error. Nsight Systems 2023.4's importer refuses some of
-these traces at random, reporting events out of order. A collection
-whose trace the host's tools refuse is taken again, up to three times in
-all, and the record's commands show each one. `kernel_time` gives:
+or the run is an error. Nsight Systems 2023.4's importer refuses long
+traces of TEI as events out of order, and sometimes short ones too. So the
+requests are collected 25 at a time, and a collection whose trace the
+host's tools refuse is taken again, up to three times. The record's
+commands show each collection. `kernel_time` gives:
 
 - `profiler`, as `nsys --version` names itself;
 - `requests`, the number profiled;

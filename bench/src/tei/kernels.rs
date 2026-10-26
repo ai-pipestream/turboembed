@@ -121,30 +121,47 @@ pub fn procedure(requests: u32) -> String {
         "then, with Nsight Systems tracing CUDA in the container (nsys launch --trace=cuda, collected only around \
          these), {requests} more /embed requests of the same rows one at a time, the GPU left idle {} ms after \
          each, each request's kernel time the summed durations of the trace's kernels between idle gaps of at least \
-         {} ms; a collection whose trace the host's tools refuse is taken again, up to {ATTEMPTS} in all, as the \
-         commands show",
+         {} ms; collected {CHUNK} requests at a time, and a collection whose trace the host's tools refuse is taken \
+         again, up to {ATTEMPTS} times, as the commands show",
         IDLE.as_millis(),
         SPLIT_NS / 1_000_000
     )
 }
 
-/// Collections tried before the tool gives up: the importer of Nsight
-/// Systems 2023.4 refuses some traces of TEI as events out of order, at
-/// random, and a new collection of the same requests imports.
+/// Requests in one collection: Nsight Systems 2023.4's importer refuses
+/// longer traces of TEI as events out of order (every one of three
+/// collections of 200 requests on an RTX 4080 SUPER host), and 30 import.
+pub const CHUNK: u32 = 25;
+
+/// Collections of one chunk tried before the tool gives up: the importer
+/// still refuses a short trace now and then, and a new collection of the
+/// same requests imports.
 pub const ATTEMPTS: u32 = 3;
 
-/// Collect around `requests` calls of `send`, each followed by IDLE, and
-/// read their kernel time; a trace the host's tools cannot read is
-/// collected again, up to ATTEMPTS times in all.
+/// Collect around `requests` calls of `send`, each followed by IDLE, in
+/// collections of at most CHUNK, and read their kernel time; a trace the
+/// host's tools cannot read is collected again, up to ATTEMPTS times.
 pub fn measure(log: &mut Log, p: &Profile, requests: u32, mut send: impl FnMut() -> Result<()>) -> Result<KernelTime> {
     let profiler = log.run(&exec(&p.container, &["--version"]))?;
+    let mut all = Vec::with_capacity(requests as usize);
+    let mut left = requests;
+    while left > 0 {
+        let n = left.min(CHUNK);
+        all.extend(collect(log, p, n, &mut send)?);
+        left -= n;
+    }
+    Ok(kernel_time(&profiler, &all))
+}
+
+/// One chunk of `n` requests, collected until its trace reads.
+fn collect(log: &mut Log, p: &Profile, n: u32, send: &mut impl FnMut() -> Result<()>) -> Result<Vec<Request>> {
     let mut failed = Vec::new();
     for _ in 0..ATTEMPTS {
         for f in ["tei.qdstrm", "tei.nsys-rep", "tei.sqlite", "tei_cuda_gpu_trace.csv"] {
             let _ = std::fs::remove_file(p.out.join(f));
         }
         log.run(&start(&p.container))?;
-        let sent = (0..requests).try_for_each(|_| {
+        let sent = (0..n).try_for_each(|_| {
             send()?;
             std::thread::sleep(IDLE);
             Ok::<(), String>(())
@@ -153,8 +170,7 @@ pub fn measure(log: &mut Log, p: &Profile, requests: u32, mut send: impl FnMut()
         sent?;
         match read_trace(log, p.nsys, &p.out) {
             Ok(csv) => {
-                let k = kernel_time(&profiler, parse_trace(&csv)?, requests as u64);
-                return k.map_err(|why| format!("TEI's kernel time: {why}"));
+                return requests(parse_trace(&csv)?, n as u64).map_err(|why| format!("TEI's kernel time: {why}"));
             }
             Err(e) => failed.push(e.lines().find(|l| l.contains("failed")).unwrap_or(&e).to_owned()),
         }
@@ -213,8 +229,18 @@ pub fn split(mut a: Vec<Activity>, split: u64) -> Vec<Vec<Activity>> {
     runs
 }
 
-/// The kernel time of `requests` runs, or why there is none.
-pub fn kernel_time(profiler: &str, a: Vec<Activity>, requests: u64) -> std::result::Result<KernelTime, String> {
+/// One profiled request: its kernels' and copies' summed ns, and the
+/// kernels it launched.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Request {
+    pub kernel_ns: u64,
+    pub copy_ns: u64,
+    pub kernels: u64,
+}
+
+/// The `requests` requests of one collection's trace, or why it does not
+/// hold them.
+pub fn requests(a: Vec<Activity>, requests: u64) -> std::result::Result<Vec<Request>, String> {
     let runs = split(a, SPLIT_NS);
     if runs.len() as u64 != requests {
         return Err(format!(
@@ -224,25 +250,33 @@ pub fn kernel_time(profiler: &str, a: Vec<Activity>, requests: u64) -> std::resu
         ));
     }
     let sum = |r: &[Activity], copy: bool| r.iter().filter(|x| x.copy == copy).map(|x| x.duration).sum::<u64>();
-    let ms = |mut v: Vec<f64>| {
+    let kernels = |r: &[Activity]| r.iter().filter(|x| !x.copy).count() as u64;
+    let out: Vec<Request> =
+        runs.iter().map(|r| Request { kernel_ns: sum(r, false), copy_ns: sum(r, true), kernels: kernels(r) }).collect();
+    if out.iter().any(|r| r.kernels == 0) {
+        return Err("a profiled request ran no kernel".into());
+    }
+    Ok(out)
+}
+
+/// The kernel time of the profiled requests, of every collection.
+pub fn kernel_time(profiler: &str, r: &[Request]) -> KernelTime {
+    let ms = |f: fn(&Request) -> u64| {
+        let mut v: Vec<f64> = r.iter().map(|x| f(x) as f64 / 1e6).collect();
         v.sort_by(f64::total_cmp);
         v
     };
-    let kernels = ms(runs.iter().map(|r| sum(r, false) as f64 / 1e6).collect());
-    let copies = ms(runs.iter().map(|r| sum(r, true) as f64 / 1e6).collect());
-    let mut launches: Vec<u64> = runs.iter().map(|r| r.iter().filter(|x| !x.copy).count() as u64).collect();
+    let (kernels, copies) = (ms(|x| x.kernel_ns), ms(|x| x.copy_ns));
+    let mut launches: Vec<u64> = r.iter().map(|x| x.kernels).collect();
     launches.sort_unstable();
-    if kernels[0] <= 0.0 {
-        return Err("a profiled request ran no kernel".into());
-    }
-    Ok(KernelTime {
+    KernelTime {
         profiler: profiler.trim().to_owned(),
-        requests,
+        requests: r.len() as u64,
         p50_ms: percentile(&kernels, 50.0),
         p99_ms: percentile(&kernels, 99.0),
         copy_p50_ms: percentile(&copies, 50.0),
         kernels_p50: launches[(launches.len() - 1) / 2],
-    })
+    }
 }
 
 /// The trace the collection left in `out` as CSV, through the host's
@@ -299,11 +333,14 @@ mod tests {
         let a = parse_trace(TRACE).unwrap();
         let runs = split(a.clone(), SPLIT_NS);
         assert_eq!(runs.iter().map(Vec::len).collect::<Vec<_>>(), [3, 2]);
-        let k = kernel_time("nsys 2023.4", a.clone(), 2).unwrap();
-        assert_eq!((k.requests, k.kernels_p50), (2, 1));
+        let r = requests(a.clone(), 2).unwrap();
+        assert_eq!(r[0], Request { kernel_ns: 30, copy_ns: 5, kernels: 2 });
+        assert_eq!(r[1], Request { kernel_ns: 30, copy_ns: 3, kernels: 1 });
+        let k = kernel_time("nsys 2023.4\n", &r);
+        assert_eq!((k.profiler.as_str(), k.requests, k.kernels_p50), ("nsys 2023.4", 2, 1));
         assert_eq!((k.p50_ms, k.p99_ms), (30.0 / 1e6, 30.0 / 1e6));
         assert_eq!(k.copy_p50_ms, 3.0 / 1e6);
-        let wrong = kernel_time("nsys", a, 3).unwrap_err();
+        let wrong = requests(a, 3).unwrap_err();
         assert!(wrong.contains("2 runs") && wrong.contains("the 3 requests"), "{wrong}");
     }
 
