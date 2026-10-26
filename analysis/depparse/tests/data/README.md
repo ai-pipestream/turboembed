@@ -33,5 +33,12 @@ Credit: UD Spanish GSD contributors, including Miguel Ballesteros, Dan Zeman
 and Héctor Martínez Alonso; converted from the legacy UD treebank. CC BY-SA 4.0.
 
 Excerpt text and annotations are unchanged. Upstream licenses are included.
+
+`ud-en-nonprojective.conllu`: the unchanged 16-word sentence
+`weblog-juancole.com_juancole_20051126063000_ENG_20051126_063000-0022` from
+[English EWT r2.14 train](https://github.com/UniversalDependencies/UD_English-EWT/blob/b70ecaec872a5807646e889334f9e224ec07c3b1/en_ewt-ud-train.conllu).
+It tests explicit non-projective training exclusions. The English EWT
+attribution, CC BY-SA 4.0 annotation/database license and underlying-text
+rights above apply to this excerpt too.
 UD-derived golden features/predictions retain CC BY-SA 4.0 and this attribution.
 OpenNLP is Apache-2.0. The harness is project code.
