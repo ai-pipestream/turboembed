@@ -23,6 +23,7 @@
 //! tail span's scores; a mention whose span is not a run of whole words
 //! no longer than `max_width` scores 0.
 
+mod annotate;
 pub mod heads;
 pub mod prompt;
 pub mod words;
@@ -68,8 +69,8 @@ pub struct LabelScores {
 }
 
 /// One pass over a text and its labels.
-pub struct Pass {
-    pub prompt: Prompt,
+pub struct Pass<'a> {
+    pub prompt: Prompt<'a>,
     /// The span width the logits were computed at.
     pub width: usize,
     pub labels: Vec<LabelScores>,
@@ -82,6 +83,7 @@ pub struct Gliner2Relations {
     tokenizer: SentencePiece,
     specials: Specials,
     model: ModelRef,
+    pub(super) config: crate::neural::Config,
 }
 
 fn read_json(path: &Path) -> Result<Value, String> {
@@ -140,7 +142,7 @@ impl Gliner2Relations {
         if heads.width != encoder.config().hidden {
             return Err("GLiNER2 heads and encoder widths differ".into());
         }
-        Ok(Gliner2Relations { encoder, heads, tokenizer, specials, model })
+        Ok(Gliner2Relations { encoder, heads, tokenizer, specials, model, config: crate::neural::Config::default() })
     }
 
     pub fn model(&self) -> &ModelRef {
@@ -148,18 +150,18 @@ impl Gliner2Relations {
     }
 
     /// The input for `labels` over `text`, without running the model.
-    pub fn prompt(&self, text: &str, labels: &[&str]) -> Prompt {
+    pub fn prompt<'a>(&self, text: &'a str, labels: &[&str]) -> Prompt<'a> {
         prompt::build(&self.tokenizer, &self.specials, text, labels)
     }
 
     /// One encoder pass and the heads over `text` and `labels`.
-    pub fn pass(&self, text: &str, labels: &[&str]) -> Result<Pass, RelationError> {
+    pub fn pass<'a>(&self, text: &'a str, labels: &[&str]) -> Result<Pass<'a>, RelationError> {
         let prompt = self.prompt(text, labels);
         self.pass_prompt(prompt)
     }
 
     /// The heads over a built input.
-    pub fn pass_prompt(&self, prompt: Prompt) -> Result<Pass, RelationError> {
+    pub fn pass_prompt<'a>(&self, prompt: Prompt<'a>) -> Result<Pass<'a>, RelationError> {
         run(&self.encoder, &self.heads, prompt)
     }
 
@@ -173,7 +175,7 @@ impl Gliner2Relations {
 
 /// The encoder and the heads over a built input. The parity tests give
 /// inputs whose token ids are not a tokenizer's.
-pub fn run(encoder: &Encoder, heads: &Heads, prompt: Prompt) -> Result<Pass, RelationError> {
+pub fn run<'a>(encoder: &Encoder, heads: &Heads, prompt: Prompt<'a>) -> Result<Pass<'a>, RelationError> {
     let c = encoder.config();
     if prompt.ids.len() > c.max_sequence {
         let (max, got) = (c.max_sequence, prompt.ids.len());

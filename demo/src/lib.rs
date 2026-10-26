@@ -28,7 +28,7 @@ pub mod proto {
 /// page's JSON (build.rs).
 pub mod analysis {
     #![allow(clippy::all)]
-    tonic::include_proto!("turbo.result");
+    tonic::include_proto!("turbo.result.v1");
 }
 
 mod accept;

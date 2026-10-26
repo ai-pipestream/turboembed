@@ -21,6 +21,9 @@ on:
       - "server/Dockerfile.dockerignore"
       - "server/tests/image_smoke.rs"
       - "server/tests/image_ports.sh"
+      - "server/proto/**"
+      - "clients/**"
+      - "scripts/package-proto-stubs.sh"
 
 permissions:
   contents: write
@@ -418,9 +421,57 @@ jobs:
           path: images.BUILD
           if-no-files-found: error
 
+  # Packages the versioned turbo.*.v1 proto archive, the generated Java
+  # Maven stub artifact, and the generated Python wheel stub artifact with
+  # their SHA-256 sums, and verifies that minimal Java and Python clients
+  # compiled only against the packaged stubs call Capabilities and
+  # AnalyzeStream against a running turbo-kserve (issue #1297).
+  proto-and-stubs:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.98
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: build the server, package protos and client stubs, and smoke-test Java and Python clients
+        run: |
+          cargo build --locked --release -p turbo-kserve
+          target/release/turbo-kserve --listen 127.0.0.1:18089 \
+            --model bundle=testdata/tiny-bert-bundle,device=0,sessions=2 &
+          SERVER_PID=$!
+          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          for _ in $(seq 60); do
+            if target/release/turbo-kserve health --addr 127.0.0.1:18089 >/dev/null 2>&1; then
+              break
+            fi
+            sleep 0.2
+          done
+          target/release/turbo-kserve health --addr 127.0.0.1:18089
+          if [ "${GITHUB_REF_TYPE:-}" = "tag" ]; then
+            release_tag="${GITHUB_REF_NAME}"
+          else
+            crate_version="$(sed -n 's/^version = "\(.*\)"/\1/p' core/Cargo.toml | head -1)"
+            release_tag="v${crate_version}"
+          fi
+          bash scripts/package-proto-stubs.sh "$release_tag" "$PWD/proto-stubs-dist" 127.0.0.1:18089
+          ls -la proto-stubs-dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: proto-and-stubs
+          path: proto-stubs-dist/*
+          if-no-files-found: error
+
   publish:
     if: github.event_name == 'push'
-    needs: [linux-x86_64, macos-arm64, linux-aarch64, windows-x86_64, image-manifest]
+    needs: [linux-x86_64, macos-arm64, linux-aarch64, windows-x86_64, proto-and-stubs, image-manifest]
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@v4
@@ -436,4 +487,4 @@ jobs:
           ls -l
           for b in *.BUILD; do cat "$b"; echo; done > notes
           gh release create "$GITHUB_REF_NAME" --verify-tag --title "$GITHUB_REF_NAME" --notes-file notes \
-            *.tar.gz *.tar.gz.sha256 *.zip *.zip.sha256
+            *.tar.gz *.tar.gz.sha256 *.zip *.zip.sha256 *.jar *.jar.sha256 *.pom *.pom.sha256 *.whl *.whl.sha256

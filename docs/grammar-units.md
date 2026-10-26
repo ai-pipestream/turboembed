@@ -152,24 +152,35 @@ for that name.
 
 Every eligible case of the four files passes.
 
-## Speed
+## Spanish
 
-`cargo run --release -p turbo-grammar --example grammar_bench` prints
-the parse time with and without the unit rules over the 100 KB sample
-text. On the machine the numbers were taken on, a parse took about 5 ms
-with the number rules and about 7.5 to 8.5 ms with the unit rules, and
-`GrammarAnnotator::find` with all its outputs about 9.5 to 10.5 ms
-(about 10 MB/s). The timings vary by several percent between runs.
+`SPANISH_UNITS` composes the Spanish number grammar with quantities,
+ages, temperatures and currencies. `GrammarAnnotator::spanish()` runs this
+unit grammar and writes the same Money and Quantities instances as English.
+Its provenance name is `es-units`, distinct from the number-only `es` grammar.
+The existing lexer keeps the original byte spans, including accent folding,
+decimal commas, grouped thousands and decomposed accents.
 
-## Not handled
+Rules include `veintidós kilómetros`, `metros cuadrados`, `pies cúbicos`,
+`188 millas por hora`, `10 Mb/s`, `6 pies y 3 pulgadas`, `5 libras y 8 onzas`,
+`37ºC`, `trece euros y cuarenta y cinco céntimos`, `15 USD 50`,
+`2,38 mil millones de dólares`, `C$ 16,4 millones` and `20 dólares por hora`.
+`Mb` and `MB` remain distinct. `º` requires a temperature scale or temperature
+context, so ordinary ordinal indicators such as `3º` are not quantities.
+Currency country qualifiers follow the name, as in `dólares canadienses` or
+`francos suizos`. Generic dollars retain the existing USD convention; the
+rules do not infer a national currency from the language alone. Bare minor
+unit names with no conventional currency remain parser readings and are
+not forced into the Money layer. Money rate spans retain the denominator;
+the Money schema still stores the amount and currency, not a period column.
 
-- Readings that need more than the next few words: `20 knots tied` reads
-  as a speed, `3 cups` (trophies) as a volume, `300 m people` as a length
-  and `version 2 g` as a weight.
-- Glued rate words (`200 Mbps`) and rates over units other than time
-  (`$5 per person`).
-- Spanish unit rules are tracked separately in #929. Dutch units are described below.
-
+All 240 unchanged Spanish Recognizers-Text NumberWithUnit cases at the pinned
+revision pass: 19 ages, 122 currencies, 54 dimensions and 45 temperatures.
+`spanish_unit_specs.rs` uses the shared exact-span comparator, translating
+only localized expected unit names and decimal commas. It compares every
+expected result, value, type, subtype and explicit ISO code, with no pass-list
+exclusions. Additional tests run the real Analyzer pipeline, source-offset
+round trips, Unicode whitespace, compound bounds and ambiguous ordinal marks.
 
 ## Dutch units and currencies
 
@@ -220,3 +231,20 @@ explains the modern 100-gram ons and 500-gram pond. These colloquial modern
 values are distinct from historical local pounds and English imperial units.
 The policy intentionally does not reproduce mistranslated physical values
 from the upstream corpus. Original cases remain available for comparison.
+
+## Speed
+
+`cargo run --release -p turbo-grammar --example grammar_bench` prints
+the parse time with and without the unit rules over the 100 KB sample
+text. On the machine the numbers were taken on, a parse took about 5 ms
+with the number rules and about 7.5 to 8.5 ms with the unit rules, and
+`GrammarAnnotator::find` with all its outputs about 9.5 to 10.5 ms
+(about 10 MB/s). The timings vary by several percent between runs.
+
+## Not handled
+
+- Readings that need more than the next few words: `20 knots tied` reads
+  as a speed, `3 cups` (trophies) as a volume, `300 m people` as a length
+  and `version 2 g` as a weight.
+- Glued rate words (`200 Mbps`) and rates over units other than time
+  (`$5 per person`).

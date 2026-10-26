@@ -71,7 +71,7 @@ impl GrammarAnnotator {
     }
 
     pub fn spanish() -> GrammarAnnotator {
-        GrammarAnnotator::new(&crate::lang::es::SPANISH)
+        GrammarAnnotator::new(&crate::SPANISH_UNITS)
     }
 
     pub fn dutch() -> GrammarAnnotator {

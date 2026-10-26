@@ -36,3 +36,13 @@ unchanged-oracle agreement and the explicit Dutch policy checks separately;
 see `docs/grammar-units.md` for every difference. Where upstream omits numeric
 coordinates, the harness derives them from the expected text, independently
 of parser results. One Currency case is marked unsupported by upstream.
+
+The Spanish NumberWithUnit files below are also unchanged copies at the same
+pinned revision and MIT license. `tests/spanish_unit_specs.rs` checks every case.
+
+| File here | Upstream path |
+|---|---|
+| `Spanish/NumberWithUnit/AgeModel.json` | `Specs/NumberWithUnit/Spanish/AgeModel.json` |
+| `Spanish/NumberWithUnit/CurrencyModel.json` | `Specs/NumberWithUnit/Spanish/CurrencyModel.json` |
+| `Spanish/NumberWithUnit/DimensionModel.json` | `Specs/NumberWithUnit/Spanish/DimensionModel.json` |
+| `Spanish/NumberWithUnit/TemperatureModel.json` | `Specs/NumberWithUnit/Spanish/TemperatureModel.json` |

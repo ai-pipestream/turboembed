@@ -23,7 +23,7 @@ pub(crate) struct HealthService {
 
 fn service_status(state: &State, service: &str) -> Option<ServingStatus> {
     match service {
-        "" | "inference.GRPCInferenceService" | "turbo.result.AnalysisService" | "grpc.health.v1.Health" => {
+        "" | "inference.GRPCInferenceService" | "turbo.result.v1.AnalysisService" | "grpc.health.v1.Health" => {
             if state.is_ready() { Some(ServingStatus::Serving) } else { Some(ServingStatus::NotServing) }
         }
         name => {
