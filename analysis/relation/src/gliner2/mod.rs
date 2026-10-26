@@ -186,14 +186,18 @@ pub fn run(encoder: &Encoder, heads: &Heads, prompt: Prompt) -> Result<Pass, Rel
     let (data, d) = (hidden.data(), hidden.width());
     let row = |p: usize| &data[p * d..(p + 1) * d];
     let words: Vec<f32> = prompt.word_first.iter().flat_map(|&p| row(p).iter().copied()).collect();
-    let spans = heads.spans(&words, prompt.word_first.len());
+    let mut scratch = crate::Scratch::default();
+    let mut spans = heads::Spans::default();
+    heads.spans_into(&words, prompt.word_first.len(), &mut scratch, &mut spans);
+    let mut queries = Vec::new();
     let labels = prompt
         .markers
         .iter()
         .map(|&[p, h, tl]| {
             let count = heads.count(row(p));
-            let queries = heads.queries([row(h), row(tl)], count);
-            let logits = heads.logits_all(&spans, &queries);
+            heads.queries_of_into(&[row(h), row(tl)], count, &mut scratch, &mut queries);
+            let mut logits = Vec::new();
+            heads.logits_all_into(&spans, &queries, &mut scratch, &mut logits);
             LabelScores { count, logits }
         })
         .collect();
