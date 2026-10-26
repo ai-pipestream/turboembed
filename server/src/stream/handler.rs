@@ -15,7 +15,9 @@ use tokio_stream::{Stream, StreamExt};
 use tonic::{Response, Status, Streaming};
 
 use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_ENUM, names};
+use crate::deadline::{Deadline, deadline_status};
 use crate::kserve::Reply;
+use crate::metrics::TrackedStream;
 use crate::offsets::OffsetMode;
 use crate::proto::result::analyze_stream_request::Kind;
 use crate::proto::result::{AnalyzeOptions, AnalyzeOrder, AnalyzeOutput, AnalyzeStreamRequest, AnalyzeStreamResponse};
@@ -105,7 +107,7 @@ pub(crate) fn options(o: Option<&AnalyzeOptions>) -> Result<turbo::turbo_embed_o
 
 /// The header's order and flow-control knobs, capped by what
 /// ServerLimits.stream advertises.
-fn config(header: crate::proto::result::AnalyzeStreamHeader) -> Result<Config, Status> {
+fn config(header: crate::proto::result::AnalyzeStreamHeader, deadline: Deadline) -> Result<Config, Status> {
     let order = AnalyzeOrder::try_from(header.order)
         .map_err(|_| invalid(format!("order {}: not ANALYZE_ORDER_INPUT or ANALYZE_ORDER_COMPLETION", header.order)))?;
     let asked_inflight =
@@ -116,6 +118,7 @@ fn config(header: crate::proto::result::AnalyzeStreamHeader) -> Result<Config, S
         order,
         window: if asked_inflight == 0 { MAX_INFLIGHT_ITEMS_PER_STREAM } else { asked_inflight as usize },
         linger: if asked_linger == 0 { DEFAULT_BATCH_LINGER } else { Duration::from_millis(asked_linger) },
+        deadline,
     })
 }
 
@@ -126,16 +129,27 @@ pub(crate) async fn start(
     state: Arc<State>,
     mut inbound: Streaming<AnalyzeStreamRequest>,
     sink: Option<Arc<SinkForwarder>>,
+    deadline: Deadline,
 ) -> Reply<AnswerStream> {
-    let header = match inbound.message().await {
+    deadline.check()?;
+    let first = match deadline.stop_at() {
+        Some(at) => tokio::select! {
+            biased;
+            m = inbound.message() => m,
+            () = tokio::time::sleep_until(at) => return Err(deadline_status()),
+        },
+        None => inbound.message().await,
+    };
+    let header = match first {
         Err(e) => return Err(e),
         Ok(None) => return Err(invalid("the stream's first message must be the header")),
         Ok(Some(crate::proto::result::AnalyzeStreamRequest { kind: Some(Kind::Header(h)) })) => h,
         Ok(Some(_)) => return Err(invalid("the stream's first message must be the header")),
     };
-    let config = config(header)?;
+    let config = config(header, deadline)?;
     let window = config.window;
     let shared: Arc<Shared> = state.stream.clone();
+    let stream_guard = state.metrics.track_stream();
     let stream_items = Arc::new(Semaphore::new(MAX_QUEUED_ITEMS_PER_STREAM));
     let stream_bytes = Arc::new(Semaphore::new(MAX_QUEUED_BYTES_PER_STREAM));
     let (work_tx, work_rx) = mpsc::channel(MAX_QUEUED_ITEMS_PER_STREAM);
@@ -154,13 +168,16 @@ pub(crate) async fn start(
     let answers = ReceiverStream::new(answers_rx);
     match sink {
         // Each answer is offered to the sink as the client is handed it.
-        Some(sink) => Ok(Response::new(Box::pin(answers.map(move |a| {
-            if let Ok(answer) = &a {
-                sink.offer(answer);
-            }
-            a
-        })))),
-        None => Ok(Response::new(Box::pin(answers))),
+        Some(sink) => Ok(Response::new(Box::pin(TrackedStream::new(
+            answers.map(move |a| {
+                if let Ok(answer) = &a {
+                    sink.offer(answer);
+                }
+                a
+            }),
+            stream_guard,
+        )))),
+        None => Ok(Response::new(Box::pin(TrackedStream::new(answers, stream_guard)))),
     }
 }
 
@@ -187,21 +204,33 @@ mod tests {
 
     #[test]
     fn the_header_knobs_fall_back_to_the_defaults() {
-        let c = config(crate::proto::result::AnalyzeStreamHeader { order: 0, max_inflight: 0, batch_linger_ms: 0 })
-            .unwrap();
+        let c = config(
+            crate::proto::result::AnalyzeStreamHeader { order: 0, max_inflight: 0, batch_linger_ms: 0 },
+            Deadline::none(),
+        )
+        .unwrap();
         assert_eq!(c.window, MAX_INFLIGHT_ITEMS_PER_STREAM);
         assert_eq!(c.linger, DEFAULT_BATCH_LINGER);
-        let c = config(crate::proto::result::AnalyzeStreamHeader { order: 1, max_inflight: 1, batch_linger_ms: 5 })
-            .unwrap();
+        let c = config(
+            crate::proto::result::AnalyzeStreamHeader { order: 1, max_inflight: 1, batch_linger_ms: 5 },
+            Deadline::none(),
+        )
+        .unwrap();
         assert_eq!((c.window, c.linger), (1, Duration::from_millis(5)));
-        let e = config(crate::proto::result::AnalyzeStreamHeader { order: 2, max_inflight: 0, batch_linger_ms: 0 })
-            .unwrap_err();
+        let e = config(
+            crate::proto::result::AnalyzeStreamHeader { order: 2, max_inflight: 0, batch_linger_ms: 0 },
+            Deadline::none(),
+        )
+        .unwrap_err();
         assert!(e.message().contains("order"), "{e:?}");
-        let e = config(crate::proto::result::AnalyzeStreamHeader {
-            order: 0,
-            max_inflight: (MAX_INFLIGHT_ITEMS_PER_STREAM + 1) as u32,
-            batch_linger_ms: 0,
-        })
+        let e = config(
+            crate::proto::result::AnalyzeStreamHeader {
+                order: 0,
+                max_inflight: (MAX_INFLIGHT_ITEMS_PER_STREAM + 1) as u32,
+                batch_linger_ms: 0,
+            },
+            Deadline::none(),
+        )
         .unwrap_err();
         assert!(e.message().contains("max_inflight"), "{e:?}");
     }

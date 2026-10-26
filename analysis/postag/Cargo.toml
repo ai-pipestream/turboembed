@@ -21,6 +21,10 @@ turbo-maxent = { path = "../maxent" }
 turbo-sequence = { path = "../sequence" }
 turbo-unicode = { path = "../unicode" }
 
+[features]
+# The BiLSTM tagger's recurrences on NVIDIA GPUs (BilstmPosTagger::on_device).
+cuda = ["turbo/cuda"]
+
 [dev-dependencies]
 turbo-goldens = { path = "../goldens" }
 # Writes a small model whose outcome holds half of a surrogate pair.
