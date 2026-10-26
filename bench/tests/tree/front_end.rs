@@ -1,8 +1,9 @@
-//! The no-JSON-front-end rule (AGENTS.md, docs/demo.md), checked where it
-//! can be exact: the demo does not depend on serde or serde_json, the
-//! server does not outside its tests, no build script that compiles the
-//! protos adds serde to the generated types, and the demo routes nothing
-//! under `/api/`.
+//! The RPC-path part of the no-JSON-front-end rule (AGENTS.md,
+//! docs/demo.md), checked where it can be exact. JSON elsewhere, such as
+//! a form at the edge, is not this test's concern. On the RPC path: the
+//! demo does not depend on serde or serde_json, the server does not
+//! outside its tests, no build script that compiles the protos adds serde
+//! to the generated types, and the demo routes nothing under `/api/`.
 
 use std::path::Path;
 
