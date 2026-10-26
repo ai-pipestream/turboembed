@@ -79,6 +79,7 @@ same figures, so the minimum and the maximum are equal:
 | --- | --- | ---: | ---: | ---: | ---: |
 | Arc Pro B70 | MODEL, EXACT | 5 each | 3.4e-5 | 1.000000000 | 5.1e-5 |
 | RTX 4080 SUPER | MODEL, EXACT | 5 each | 4.8e-5 | 1.000000000 | 5.7e-5 |
+| Apple M2 (metal) | MODEL, EXACT | 5 each | 3.4e-5 | 1.000000000 | 6.1e-5 |
 
 The packed ids and the decoded entities were the same in every run.
 
@@ -134,6 +135,30 @@ From 128 words up, the encoder is a small part of a call on both devices
 (on the B70, 6.0 to 55.1 ms of 82 to 230 ms at p50), and on the 4080 at
 every shape (1.7 to 5.2 ms of 22 to 177 ms): there the heads on the host
 bound it.
+
+Apple M2 (metal), at the head of the Metal DeBERTa-v2 change, the same
+command with `TURBO_TEST_DEVICE=metal`, `TURBO_TEST_REQUIRE_METAL=1` and
+`--features turbo/metal`; the parity runs' log and this run's are in
+`docs/receipts/gliner-metal-883/`. The M2 is a desktop in use: the host's
+load average was 6.5 before and 9.3 after (1 minute; 15 to 12 over 15
+minutes), the GPU 33% busy from the desktop's apps, so the CPU columns,
+which share its cores, ran under that load as well.
+
+| Words, labels (tokens) | CPU call | CPU encoder | metal call | metal encoder |
+| --- | ---: | ---: | ---: | ---: |
+| 64, 4 (75) | 132.0 / 157.5 / 162.2 / 216.6 | 36.2 / 42.5 / 44.6 / 91.0 | 128.1 / 145.5 / 148.4 / 203.4 | 22.7 / 28.2 / 28.3 / 43.8 |
+| 64, 32 (131) | 193.9 / 231.7 / 234.5 / 307.2 | 77.9 / 87.6 / 93.4 / 168.7 | 160.1 / 192.2 / 193.8 / 261.2 | 33.9 / 43.0 / 44.1 / 62.9 |
+| 128, 4 (139) | 361.5 / 377.1 / 385.9 / 461.2 | 85.1 / 90.0 / 92.3 / 115.7 | 323.3 / 331.9 / 341.6 / 404.7 | 43.2 / 50.1 / 50.4 / 69.6 |
+| 128, 32 (195) | 424.3 / 452.2 / 462.4 / 568.2 | 131.0 / 140.9 / 145.8 / 225.1 | 368.8 / 387.0 / 396.8 / 460.4 | 70.6 / 80.1 / 80.5 / 88.5 |
+| 384, 4 (395) | 1107.4 / 1214.8 / 1231.4 / 1782.4 | 267.3 / 331.3 / 337.6 / 608.1 | 1063.9 / 1116.5 / 1124.3 / 1423.1 | 190.1 / 199.6 / 199.9 / 225.5 |
+| 384, 32 (451) | 1240.3 / 1346.6 / 1351.6 / 1525.1 | 389.8 / 437.1 / 442.2 / 578.6 | 1167.2 / 1224.8 / 1223.0 / 1333.3 | 282.0 / 287.7 / 289.4 / 305.0 |
+
+On the M2 the Metal encoder is 1.5x to 2x the CPU encoder at p50, and
+the heads on the host are most of every call on both sides, so a call
+gains 8% to 17%. Metal's DeBERTa-v2 attention is the one general kernel
+(docs/metal.md, DeBERTa-v2), a key a lane, with no tiled form as CUDA
+and Level Zero have; at 395 tokens and more the encoder is 200 to 290
+ms where CUDA's is about 5.
 
 This is a Rust API. SaT ships as `turbo-sat`, and GLiNER2 document
 classification, structured records and deterministic constraint layers

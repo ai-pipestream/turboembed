@@ -1,0 +1,50 @@
+### commit 3ad6699a9f870aabdec2aa4147806fa01bbf9823; precision model; run 1; 2026-10-26T20:23:50Z; load { 10.35 18.11 16.82 }
+running 1 test
+gliner_small-v2.1 on metal Apple M2 (f32 (model)): marker and first-subword rows: largest difference 3.4332275e-5, lowest cosine 1.000000000; largest logit difference 6.1035156e-5
+test the_real_checkpoint_on_the_backend_table_scores_as_its_package ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 15.88s
+### commit 3ad6699a9f870aabdec2aa4147806fa01bbf9823; precision model; run 2; 2026-10-26T20:25:00Z; load { 16.78 18.88 17.24 }
+running 1 test
+gliner_small-v2.1 on metal Apple M2 (f32 (model)): marker and first-subword rows: largest difference 3.4332275e-5, lowest cosine 1.000000000; largest logit difference 6.1035156e-5
+test the_real_checkpoint_on_the_backend_table_scores_as_its_package ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 16.90s
+### commit 3ad6699a9f870aabdec2aa4147806fa01bbf9823; precision model; run 3; 2026-10-26T20:25:17Z; load { 13.96 18.15 17.01 }
+running 1 test
+gliner_small-v2.1 on metal Apple M2 (f32 (model)): marker and first-subword rows: largest difference 3.4332275e-5, lowest cosine 1.000000000; largest logit difference 6.1035156e-5
+test the_real_checkpoint_on_the_backend_table_scores_as_its_package ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 17.62s
+### commit 3ad6699a9f870aabdec2aa4147806fa01bbf9823; precision model; run 4; 2026-10-26T20:25:35Z; load { 10.83 17.17 16.68 }
+running 1 test
+gliner_small-v2.1 on metal Apple M2 (f32 (model)): marker and first-subword rows: largest difference 3.4332275e-5, lowest cosine 1.000000000; largest logit difference 6.1035156e-5
+test the_real_checkpoint_on_the_backend_table_scores_as_its_package ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 16.17s
+### commit 3ad6699a9f870aabdec2aa4147806fa01bbf9823; precision model; run 5; 2026-10-26T20:25:51Z; load { 10.48 16.77 16.54 }
+running 1 test
+gliner_small-v2.1 on metal Apple M2 (f32 (model)): marker and first-subword rows: largest difference 3.4332275e-5, lowest cosine 1.000000000; largest logit difference 6.1035156e-5
+test the_real_checkpoint_on_the_backend_table_scores_as_its_package ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 16.10s
+### commit 3ad6699a9f870aabdec2aa4147806fa01bbf9823; precision exact; run 1; 2026-10-26T20:26:08Z; load { 8.78 15.98 16.26 }
+running 1 test
+gliner_small-v2.1 on metal Apple M2 (f32 (exact)): marker and first-subword rows: largest difference 3.4332275e-5, lowest cosine 1.000000000; largest logit difference 6.1035156e-5
+test the_real_checkpoint_on_the_backend_table_scores_as_its_package ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 15.92s
+### commit 3ad6699a9f870aabdec2aa4147806fa01bbf9823; precision exact; run 2; 2026-10-26T20:26:24Z; load { 7.73 15.39 16.05 }
+running 1 test
+gliner_small-v2.1 on metal Apple M2 (f32 (exact)): marker and first-subword rows: largest difference 3.4332275e-5, lowest cosine 1.000000000; largest logit difference 6.1035156e-5
+test the_real_checkpoint_on_the_backend_table_scores_as_its_package ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 16.23s
+### commit 3ad6699a9f870aabdec2aa4147806fa01bbf9823; precision exact; run 3; 2026-10-26T20:26:41Z; load { 7.08 14.86 15.85 }
+running 1 test
+gliner_small-v2.1 on metal Apple M2 (f32 (exact)): marker and first-subword rows: largest difference 3.4332275e-5, lowest cosine 1.000000000; largest logit difference 6.1035156e-5
+test the_real_checkpoint_on_the_backend_table_scores_as_its_package ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 16.30s
+### commit 3ad6699a9f870aabdec2aa4147806fa01bbf9823; precision exact; run 4; 2026-10-26T20:26:57Z; load { 6.32 14.32 15.64 }
+running 1 test
+gliner_small-v2.1 on metal Apple M2 (f32 (exact)): marker and first-subword rows: largest difference 3.4332275e-5, lowest cosine 1.000000000; largest logit difference 6.1035156e-5
+test the_real_checkpoint_on_the_backend_table_scores_as_its_package ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 16.36s
+### commit 3ad6699a9f870aabdec2aa4147806fa01bbf9823; precision exact; run 5; 2026-10-26T20:27:14Z; load { 6.13 13.76 15.40 }
+running 1 test
+gliner_small-v2.1 on metal Apple M2 (f32 (exact)): marker and first-subword rows: largest difference 3.4332275e-5, lowest cosine 1.000000000; largest logit difference 6.1035156e-5
+test the_real_checkpoint_on_the_backend_table_scores_as_its_package ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 16.10s
