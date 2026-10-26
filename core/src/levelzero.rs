@@ -160,12 +160,8 @@ pub fn live_allocations() -> i64 {
     gpu::device_allocs_live()
 }
 
-/// Fails the LSTM's `n`th append from now (lstm.rs), once, as a refused
-/// append would; None clears it. Built only with `internals`.
 #[cfg(feature = "internals")]
-pub fn fail_lstm_append(n: Option<u32>) {
-    lstm::fail_append(n);
-}
+pub use lstm::fail_append as fail_lstm_append;
 
 /// The device address of the F32 copy of an F16 or BF16 model's weights,
 /// once a session made it.

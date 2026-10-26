@@ -80,8 +80,10 @@ fn context(ordinal: u32) -> Result<Arc<Ctx>> {
 #[cfg(feature = "internals")]
 static FAIL_IN: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
 
+/// Fails the LSTM's `n`th append from now, once, as a refused append
+/// would; None clears it. Built only with `internals`.
 #[cfg(feature = "internals")]
-pub(crate) fn fail_append(n: Option<u32>) {
+pub fn fail_append(n: Option<u32>) {
     FAIL_IN.store(n.unwrap_or(0), Ordering::Relaxed);
 }
 
