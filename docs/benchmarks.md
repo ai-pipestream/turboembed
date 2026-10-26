@@ -621,18 +621,24 @@ Mac's GPU we know of, so it is the metal backend's kernel reference.
 The tool writes its runner, `bench/reference/mlx_reference.py`, and the
 measured rows (ids, mask and types) to a fresh directory under `--work`,
 and runs `python3 -E <mlx-reference> --model <mlx-model> --dtype <float16
-or float32> --rows <work>/rows.json --warmup <n> --iterations <n> --out
-<work>/receipt.json`. The runner is `bench/metal-peers/mlx_bench.py`'s
+or float32> --rows <work>/rows.json --warmup <n> --iterations <n>
+--version 0.29.3 --out <work>/receipt.json`; the runner refuses an MLX
+of another version (`MLX_VERSION` in `bench/src/mlx.rs`). The runner is `bench/metal-peers/mlx_bench.py`'s
 encoder: every weight cast to the dtype it runs in (float16 at FASTEST,
 float32 otherwise), `mx.fast` LayerNorm and attention, `mx.compile`d,
 mean pooling over the mask and L2 normalization in F32. It runs the rows
-as a padded batch, so `computed_tokens` is the padded pass; its time is
-from the host, each run waited for with `mx.eval`, the encoder and
-pooling with no tokenization. Its vectors of the last run are held
-against each row's expected vector for `min_cosine`. The record pins
-the MLX core library that ran, `mlx@sha256:<its SHA-256>`, gives
-`mx.__version__` as the version, and the runner's SHA-256 in
-`procedure`. `--mlx-model` must hold `config.json` and, as
+as a padded batch, so `computed_tokens` is the padded pass. Its time is
+host wall time, each run waited for with `mx.eval`: the encoder and
+pooling, with the rows already on the device and the vectors not read
+back, and no tokenization (the library's includes writing the rows and
+reading the vectors). Its vectors of the last run are held against each
+row's expected vector for `min_cosine`. The record pins the library the
+kernels run from, `mlx@sha256:<SHA-256 of mlx/lib/libmlx.dylib>`, and
+gives `mx.__version__` as the version. `procedure` gives MLX's min and
+mean beside the p50 and p99 the record holds, the host's load averages
+just before it ran, the SHA-256 of `mlx/lib/mlx.metallib` and of the
+`mlx.core` module, and the runner's. The Python is the machine's
+`python3`, with its user site packages, where pip puts MLX. `--mlx-model` must hold `config.json` and, as
 `model.safetensors`, the artifact the device loaded, checked by its
 hash; a bundle whose contract is not mean pooling with L2 is refused.
 MLX float16 is F16 throughout, LayerNorm included, a looser contract
