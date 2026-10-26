@@ -4704,6 +4704,174 @@
           "sha512": "de5260320ecf59e5c017b33be26cab002e020599de7e09ef8832e8b4a8d82d9316e373636a57b4ec23ed2af2a780b4a5436ebb036fd186c3ab37f4b6e413218b"
         }
       ]
+    },
+    {
+      "id": "toxic-spans",
+      "kind": "KIND_DATASET",
+      "language": "en",
+      "format": "FORMAT_CSV",
+      "version": "beaf170538df8275c3447b2e26070f2f82e55272",
+      "license": "CC0-1.0",
+      "license_terms": "https://github.com/ipavlopoulos/toxic_spans/blob/beaf170538df8275c3447b2e26070f2f82e55272/LICENSE",
+      "trained_on": [],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Toxic Spans (ipavlopoulos/toxic_spans at beaf170538df8275c3447b2e26070f2f82e55272, https://github.com/ipavlopoulos/toxic_spans), by John Pavlopoulos, Jeffrey Sorensen, Léo Laugier and Ion Androutsopoulos (SemEval-2021 Task 5 / ACL 2022), released into the public domain under CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/).",
+      "files": [
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/ipavlopoulos/toxic_spans/beaf170538df8275c3447b2e26070f2f82e55272/LICENSE",
+          "size": 7048,
+          "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
+          "sha512": "1eb4436f8d58766cbe99db97e5e8c0db8a706376afd291c337de1ba7a6b066d3791dc85ad034bdd54ea336bed6e6e8e7a037d8b04b2773c9c7517b9d9921d1fa"
+        },
+        {
+          "path": "README.md",
+          "url": "https://raw.githubusercontent.com/ipavlopoulos/toxic_spans/beaf170538df8275c3447b2e26070f2f82e55272/README.md",
+          "size": 1636,
+          "sha256": "8b3c53da72ea10393bffeecf328d40745f0bdabf0f156c05746a20f6787eb418",
+          "sha512": "89ce13095057bf4ebf3bdd88c0be8aff1ff86dcc02fe1ed97b490892912d4e33f80638ee5c3438378c7929c54df9367a9544a9eb129e41341566d85b81577a6d"
+        },
+        {
+          "path": "ACL2022/data/toxic_spans.csv",
+          "url": "https://raw.githubusercontent.com/ipavlopoulos/toxic_spans/beaf170538df8275c3447b2e26070f2f82e55272/ACL2022/data/toxic_spans.csv",
+          "size": 10646703,
+          "sha256": "384bf8ab53117459ce4fe8de462d382493450b9e3b91d9a9c2d9cf56385c8545",
+          "sha512": "313fbbaffb90798f06bc67b1da86a913fa0134eb229fb0014ec6cf1965d5d871748688456257aafefbfc1a6f00ea60d8014919ba22cbeb41314049a68b44515c"
+        },
+        {
+          "path": "data/comments.csv",
+          "url": "https://raw.githubusercontent.com/ipavlopoulos/toxic_spans/beaf170538df8275c3447b2e26070f2f82e55272/data/comments.csv",
+          "size": 3530155,
+          "sha256": "76cd6ebd10a890d269c0a7e5e451f3da12375219906f314fd9cfb1e18b1a905f",
+          "sha512": "28a554088742f5051571e58c1313847314145cd4b19ca58adc951acc670f2df62ecb6b85d0a1b02109a7994dd7f2633869ab64e722b75e6fff47fa4d6cd38a6a"
+        },
+        {
+          "path": "data/spans.csv",
+          "url": "https://raw.githubusercontent.com/ipavlopoulos/toxic_spans/beaf170538df8275c3447b2e26070f2f82e55272/data/spans.csv",
+          "size": 1016622,
+          "sha256": "389c6964db5d96d79ecfe038aa4ffe04abafd64b6d6427fbad4ec7fb2c7672aa",
+          "sha512": "c0aba952741ef9bf58376cb43ce133f219b6034bea49dff1073761bc1887b2d4c1088379f8d58074a6674ebc0475bcb7da5935de8ec32c339396512a2c44bc50"
+        },
+        {
+          "path": "data/annotations.csv",
+          "url": "https://raw.githubusercontent.com/ipavlopoulos/toxic_spans/beaf170538df8275c3447b2e26070f2f82e55272/data/annotations.csv",
+          "size": 1978724,
+          "sha256": "f67725aa9de73cd4ef9050222f6ae985ef0e33e8da89cb8137ffeb9a1d0fc32b",
+          "sha512": "a21ca90dd6d5551d90bc8bb15512cfb5004b9916ca18aee48859864f14e79688b8ed18a48a46e61994d513d60ccd0e7be8e85e5e3b5e5f21c19d6ee70d7237f7"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-civil-comments-minilm-l6-v2-head-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
+      "language": "en",
+      "format": "FORMAT_HEAD",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "Civil Comments f2970eb3a5577745",
+          "license": "CC0-1.0",
+          "license_terms": "https://huggingface.co/datasets/google/civil_comments/blob/f2970eb3a55777454c94069077cc8d9b5866312d/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on Civil Comments (google/civil_comments at f2970eb3a55777454c94069077cc8d9b5866312d, https://huggingface.co/datasets/google/civil_comments), by Conversation AI / Jigsaw (Borkan et al., 2019), released into the public domain under CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/).",
+      "files": [
+        {
+          "path": "turbo-en-civil-comments-minilm-l6-v2-head-1.tivh",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-civil-comments-1/turbo-en-civil-comments-minilm-l6-v2-head-1.tivh",
+          "size": 9371,
+          "sha256": "26c1147d5431901e41ca6847ee482d0534c63b0ddcf63e9e99f2b22e472997ba",
+          "sha512": "35ce10567ed7c8e79bc2fc7f495ee2e6fde9e26068ea4741632d3d26b0f794530b1775568f097dcf0eb82ae1deeddf5219a990c2b851c284ca96411f3bff4b2c"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-civil-comments-minilm-l6-v2-context-head-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
+      "language": "en",
+      "format": "FORMAT_HEAD",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "Civil Comments f2970eb3a5577745",
+          "license": "CC0-1.0",
+          "license_terms": "https://huggingface.co/datasets/google/civil_comments/blob/f2970eb3a55777454c94069077cc8d9b5866312d/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on Civil Comments (google/civil_comments at f2970eb3a55777454c94069077cc8d9b5866312d, https://huggingface.co/datasets/google/civil_comments), by Conversation AI / Jigsaw (Borkan et al., 2019), released into the public domain under CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/).",
+      "files": [
+        {
+          "path": "turbo-en-civil-comments-minilm-l6-v2-context-head-1.tivh",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-civil-comments-1/turbo-en-civil-comments-minilm-l6-v2-context-head-1.tivh",
+          "size": 18587,
+          "sha256": "43f80c1aee79f005cbd058905c73649dfed5536708657172966032dbe36e9b4d",
+          "sha512": "daf5f84d445101cb33d5bf08e88e0f651572da7b07a72ee8263c899ba324604ef82dbf0fa69832da95426a97f545c3a3af564b8a217b1ea2521215d7090fb918"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-civil-comments-bge-small-en-v1.5-head-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
+      "language": "en",
+      "format": "FORMAT_HEAD",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "Civil Comments f2970eb3a5577745",
+          "license": "CC0-1.0",
+          "license_terms": "https://huggingface.co/datasets/google/civil_comments/blob/f2970eb3a55777454c94069077cc8d9b5866312d/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on Civil Comments (google/civil_comments at f2970eb3a55777454c94069077cc8d9b5866312d, https://huggingface.co/datasets/google/civil_comments), by Conversation AI / Jigsaw (Borkan et al., 2019), released into the public domain under CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/).",
+      "files": [
+        {
+          "path": "turbo-en-civil-comments-bge-small-en-v1.5-head-1.tivh",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-civil-comments-1/turbo-en-civil-comments-bge-small-en-v1.5-head-1.tivh",
+          "size": 9355,
+          "sha256": "378ccd113df231a0db4cdb6e3dbe634a094151f8a4f0c02e71a596d172742fa3",
+          "sha512": "46dadfcc9f67ccc05e0a732490b167b523e7e93e2980a0be4788fc9f41f277ae9a686bc426501e06673b21fb3377451837886403894dc6b73c66c6d51ea39c74"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-civil-comments-bge-small-en-v1.5-context-head-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
+      "language": "en",
+      "format": "FORMAT_HEAD",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "Civil Comments f2970eb3a5577745",
+          "license": "CC0-1.0",
+          "license_terms": "https://huggingface.co/datasets/google/civil_comments/blob/f2970eb3a55777454c94069077cc8d9b5866312d/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on Civil Comments (google/civil_comments at f2970eb3a55777454c94069077cc8d9b5866312d, https://huggingface.co/datasets/google/civil_comments), by Conversation AI / Jigsaw (Borkan et al., 2019), released into the public domain under CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/).",
+      "files": [
+        {
+          "path": "turbo-en-civil-comments-bge-small-en-v1.5-context-head-1.tivh",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-civil-comments-1/turbo-en-civil-comments-bge-small-en-v1.5-context-head-1.tivh",
+          "size": 18571,
+          "sha256": "dfd34e2cca4cbe81d53ee6015ede61621950a10938c5e8f2c4a90d606bc6a5f7",
+          "sha512": "62d38ca000d161ee8eb6bf06d7f307886a123207c3911ac95e9442c138bfa61146f8ad6b8944f013dff6fb256fff66b1d6ca66b3a7f87cfcc87b83e693dfac11"
+        }
+      ]
     }
   ]
 }

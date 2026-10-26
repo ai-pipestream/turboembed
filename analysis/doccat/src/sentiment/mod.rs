@@ -42,10 +42,14 @@ pub use emotion::{
     GOEMOTIONS_MINILM_HEAD, GoldEmotionUnit, evaluate_emotion_corpus, evaluate_emotion_corpus_with_thresholds,
 };
 pub use incivility::{
-    DEFAULT_INCIVILITY_THRESHOLD, GoldBiasUnit, GoldIncivilityUnit, IdentityTerms, IncivilityAnnotator,
+    CIVIL_COMMENTS_BGE_SMALL_CONTEXT_HEAD, CIVIL_COMMENTS_BGE_SMALL_HEAD, CIVIL_COMMENTS_MINILM_CONTEXT_HEAD,
+    CIVIL_COMMENTS_MINILM_HEAD, DEFAULT_INCIVILITY_FUSION_GATE, DEFAULT_INCIVILITY_THRESHOLD, GoldBiasUnit,
+    GoldIncivilityUnit, GoldToxicSpanUnit, INCIVILITY_DIMENSIONS, IdentityTerms, IncivilityAnnotator,
     IncivilityBiasMetrics, IncivilityFitOptions, IncivilityHeadError, IncivilityLexicon, IncivilityMetrics,
-    IncivilityStage, IncivilityUnit, IncivilityVectorContext, IncivilityVectorHead, IncivilityVectorScorer, LabelBias,
-    LabelMetrics, SubgroupBias, evaluate_incivility_bias, evaluate_incivility_corpus, roc_auc,
+    IncivilityStage, IncivilityUnit, IncivilityVectorContext, IncivilityVectorHead, IncivilityVectorScorer,
+    IncivilityZooError, LabelBias, LabelMetrics, SubgroupBias, ToxicSpanMetrics, char_span_to_token_range,
+    char_span_to_utf8_span, evaluate_incivility_bias, evaluate_incivility_corpus,
+    evaluate_incivility_corpus_with_thresholds, evaluate_toxic_spans, roc_auc,
 };
 pub use lexicon::{
     B_DECR, B_INCR, C_INCR, COMPOUND_THRESHOLD, DEFAULT_ALPHA, LexiconSentiment, N_SCALAR, NegationMode,

@@ -46,6 +46,14 @@ use turbo_maxent::sha256;
 /// evidence span.
 pub const DEFAULT_INCIVILITY_THRESHOLD: f64 = 0.5;
 
+/// Default minimum score (`0.25`) on both the lexicon and the learned head
+/// at or above which [`IncivilityStage::Fused`] combines the two signals via
+/// noisy-or (`1 - (1 - l) * (1 - h)`) rather than `l.max(h)` (`#963`).
+pub const DEFAULT_INCIVILITY_FUSION_GATE: f64 = 0.25;
+
+/// Number of [`IncivilityLabel`] dimensions (`6`).
+pub const INCIVILITY_DIMENSIONS: usize = IncivilityLabel::ALL.len();
+
 /// One `(label, token_range)` evidence span attributing an [`IncivilityLabel`]
 /// to a contiguous token slice.
 pub type IncivilityEvidenceSpan = (IncivilityLabel, IxRange<Tokens>);
@@ -148,17 +156,29 @@ mod head;
 mod metrics;
 mod rules;
 mod scoring;
+mod spans;
 mod tables;
 #[cfg(test)]
 mod tests;
 mod vocabulary;
+mod zoo;
 pub use bias::{
     GoldBiasUnit, IdentityTerms, IncivilityBiasMetrics, LabelBias, SubgroupBias, evaluate_incivility_bias, roc_auc,
 };
 pub use head::{IncivilityFitOptions, IncivilityHeadError, IncivilityVectorHead};
-pub use metrics::{GoldIncivilityUnit, IncivilityMetrics, LabelMetrics, evaluate_incivility_corpus};
+pub use metrics::{
+    GoldIncivilityUnit, IncivilityMetrics, LabelMetrics, evaluate_incivility_corpus,
+    evaluate_incivility_corpus_with_thresholds,
+};
 use rules::*;
+pub use spans::{
+    GoldToxicSpanUnit, ToxicSpanMetrics, char_span_to_token_range, char_span_to_utf8_span, evaluate_toxic_spans,
+};
 use tables::*;
+pub use zoo::{
+    CIVIL_COMMENTS_BGE_SMALL_CONTEXT_HEAD, CIVIL_COMMENTS_BGE_SMALL_HEAD, CIVIL_COMMENTS_MINILM_CONTEXT_HEAD,
+    CIVIL_COMMENTS_MINILM_HEAD, IncivilityZooError,
+};
 
 /// Multi-label incivility and toxicity annotator (`turbo-doccat:incivility`).
 ///
@@ -177,6 +197,16 @@ pub struct IncivilityAnnotator {
     /// Score threshold (`0.5` by default) at or above which a label is
     /// considered positive and guaranteed to carry at least one evidence span.
     pub threshold: f64,
+    /// Optional per-label thresholds in [`IncivilityLabel::ALL`] order;
+    /// when `Some`, overrides `threshold` for each label (`#888`, `#963`).
+    pub thresholds: Option<[f64; INCIVILITY_DIMENSIONS]>,
+    /// Minimum score (`0.25` by default) on both lexicon and learned head at or
+    /// above which [`IncivilityStage::Fused`] combines the two via noisy-or
+    /// (`1 - (1 - l) * (1 - h)`) rather than `l.max(h)` (`#963`).
+    pub fusion_gate: f64,
+    /// Whether to apply the co-occurrence rule elevating [`IncivilityLabel::SevereToxicity`]
+    /// when [`IncivilityLabel::Threat`] co-occurs with another positive label (`true` by default, `#963`).
+    pub use_severe_toxicity_rule: bool,
     /// Whether to score reply-context conflicts against parent or preceding
     /// quote blocks when `turbo:structure` is present on the document.
     pub use_reply_context: bool,
@@ -201,6 +231,9 @@ impl IncivilityAnnotator {
             unit: IncivilityUnit::Sentences,
             vector_scorer: None,
             threshold: DEFAULT_INCIVILITY_THRESHOLD,
+            thresholds: None,
+            fusion_gate: DEFAULT_INCIVILITY_FUSION_GATE,
+            use_severe_toxicity_rule: true,
             use_reply_context: false,
             stage: IncivilityStage::Fused,
             vector_context: IncivilityVectorContext::None,
@@ -227,9 +260,41 @@ impl IncivilityAnnotator {
     }
 
     /// Sets the positive label threshold (finite values clamped to `0.05..=0.99`).
-    /// Non-finite thresholds cause scoring to return an error.
+    /// Non-finite thresholds cause scoring to return an error. Clears any
+    /// per-label thresholds set by [`IncivilityAnnotator::with_thresholds`].
     pub fn with_threshold(mut self, threshold: f64) -> Self {
         self.threshold = if threshold.is_finite() { threshold.clamp(0.05, 0.99) } else { threshold };
+        self.thresholds = None;
+        self
+    }
+
+    /// Sets per-label thresholds in [`IncivilityLabel::ALL`] order; finite
+    /// values are clamped to `0.05..=0.99`, and non-finite thresholds cause
+    /// scoring to return an error (`#888`, `#963`).
+    pub fn with_thresholds(mut self, thresholds: [f64; INCIVILITY_DIMENSIONS]) -> Self {
+        self.thresholds = Some(thresholds.map(|t| if t.is_finite() { t.clamp(0.05, 0.99) } else { t }));
+        self
+    }
+
+    /// Returns the active threshold for `label`.
+    pub fn threshold_for(&self, label: IncivilityLabel) -> f64 {
+        self.thresholds.as_ref().map_or(self.threshold, |ts| ts[label as usize])
+    }
+
+    /// Sets the noisy-or fusion gate in `0.0..=1.0` (`0.25` by default, `#963`).
+    /// At `1.0` (above the maximum lexicon weight `0.98`), fusion uses pure
+    /// `l_val.max(h_val)`. Non-finite values or values outside `0.0..=1.0`
+    /// cause scoring to return an error.
+    pub fn with_fusion_gate(mut self, gate: f64) -> Self {
+        self.fusion_gate = gate;
+        self
+    }
+
+    /// Enables or disables the co-occurrence rule elevating
+    /// [`IncivilityLabel::SevereToxicity`] when [`IncivilityLabel::Threat`]
+    /// co-occurs with another positive label (`true` by default, `#963`).
+    pub fn with_severe_toxicity_rule(mut self, enabled: bool) -> Self {
+        self.use_severe_toxicity_rule = enabled;
         self
     }
 

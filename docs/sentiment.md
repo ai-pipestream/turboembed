@@ -428,10 +428,12 @@ terms and are not committed to the repository.
 
 `turbo_doccat::sentiment::incivility` (`IncivilityAnnotator`,
 `IncivilityLexicon`, `IncivilityVectorScorer`, `IncivilityUnit`,
-`DEFAULT_INCIVILITY_THRESHOLD`, `evaluate_incivility_corpus`) scores
-sentences, retrieval chunks, or structure blocks across the six multi-label
-dimensions of `Incivility` (`turbo:incivility` from `#319`), following the
-Oasis (ICDMW 2019) and HKBU (ICA 2026) label set:
+`DEFAULT_INCIVILITY_THRESHOLD`, `DEFAULT_INCIVILITY_FUSION_GATE`,
+`evaluate_incivility_corpus`, `evaluate_incivility_corpus_with_thresholds`,
+`char_span_to_utf8_span`, `char_span_to_token_range`,
+`evaluate_toxic_spans`) scores sentences, retrieval chunks, or structure blocks
+across the six multi-label dimensions of `Incivility` (`turbo:incivility` from
+`#319`), following the Oasis (ICDMW 2019) and HKBU (ICA 2026) label set:
 
 - `IncivilityLabel::Insult` (`"insult"`)
 - `IncivilityLabel::Profanity` (`"profanity"`)
@@ -465,11 +467,17 @@ and writes `Incivility`:
    lexicon match in that unit, the annotator attributes evidence to the unit's
    highest-salience content token span so every positive label carries at
    least one non-empty `IxRange<Tokens>` evidence span.
-3. **Co-occurrence rule for `SevereToxicity`**: when `Threat` co-occurs with
-   `Insult`, `Profanity`, `IdentityAttack`, or `Intolerance` at or above
-   `threshold` (`0.5` by default), `SevereToxicity` is elevated and inherits
-   the supporting token evidence spans so multiple labels can fire on the same
-   unit with their own evidence spans.
+3. **Co-occurrence rule for `SevereToxicity` (`with_severe_toxicity_rule`)**:
+   when enabled (the default) and `Threat` co-occurs with `Insult`,
+   `Profanity`, `IdentityAttack`, or `Intolerance` at or above the label's
+   active threshold (`with_threshold` or `with_thresholds`, `0.5` by default),
+   `SevereToxicity` is elevated and inherits the supporting token evidence
+   spans so multiple labels can fire on the same unit with their own evidence
+   spans. When both the lexicon and the vector head score a label at or above
+   `with_fusion_gate` (`DEFAULT_INCIVILITY_FUSION_GATE = 0.25`), the fused
+   stage combines them probabilistically (`1 - (1 - l)(1 - h)`); otherwise it
+   takes `max(l, h)` so sub-gate background head probabilities do not inflate
+   lexicon scores (`#963`).
 4. **Optional reply-context conflict scoring (`with_reply_context`)**:
    following Opinion Conflicts (Zhang et al., 2018, arXiv:1809.00289), when
    `use_reply_context` is enabled and `turbo:structure` (`Structure`) is
@@ -671,12 +679,147 @@ Insult on the madlibs, with the lowest BPSN and BNSP over the 50 terms:
 The lexicon finds few of the templates' toxic adjectives, so its scores
 barely depend on the identity term and every term has the same AUC.
 
+### Civil Comments soft-target and parent-context heads, fusion tuning, and Toxic Spans evidence evaluation (`#888`, `#963`, `#890`)
+
+`analysis/embed/examples/incivility_eval` trains and evaluates four
+redistributable `IncivilityVectorHead` artifacts on the zoo-pinned Civil
+Comments dataset (`civil-comments`, `all_data_with_identities.csv`, 269,038
+train / 45,180 val / 133,782 test comments, CC0-1.0) and evaluates evidence
+spans on `ipavlopoulos/toxic_spans` (`toxic-spans`, revision
+`beaf170538df8275c3447b2e26070f2f82e55272`, CC0-1.0). All four heads are
+published under the `models-civil-comments-1` release and loadable via
+`IncivilityVectorHead::from_zoo`:
+
+| Zoo constant / entry ID | Encoder | Context matrix | Size (bytes) | SHA-256 | Fit time (s) |
+|---|---|---|---|---|---|
+| `CIVIL_COMMENTS_MINILM_HEAD` (`turbo-en-civil-comments-minilm-l6-v2-head-1`) | `sentence-transformers/all-MiniLM-L6-v2` (384-dim) | No | 9,371 | `26c1147d5431901e41ca6847ee482d0534c63b0ddcf63e9e99f2b22e472997ba` | 309.79 |
+| `CIVIL_COMMENTS_MINILM_CONTEXT_HEAD` (`turbo-en-civil-comments-minilm-l6-v2-context-head-1`) | `sentence-transformers/all-MiniLM-L6-v2` (384-dim) | Yes (`[6, 384]`) | 18,587 | `43f80c1aee79f005cbd058905c73649dfed5536708657172966032dbe36e9b4d` | 387.44 |
+| `CIVIL_COMMENTS_BGE_SMALL_HEAD` (`turbo-en-civil-comments-bge-small-en-v1.5-head-1`) | `BAAI/bge-small-en-v1.5` (384-dim) | No | 9,355 | `378ccd113df231a0db4cdb6e3dbe634a094151f8a4f0c02e71a596d172742fa3` | 311.35 |
+| `CIVIL_COMMENTS_BGE_SMALL_CONTEXT_HEAD` (`turbo-en-civil-comments-bge-small-en-v1.5-context-head-1`) | `BAAI/bge-small-en-v1.5` (384-dim) | Yes (`[6, 384]`) | 18,571 | `dfd34e2cca4cbe81d53ee6015ede61621950a10938c5e8f2c4a90d606bc6a5f7` | 298.73 |
+
+Training runs 500 epochs of full-batch logistic regression (`learning_rate = 16.0`,
+`l2 = 1e-4`) directly on the continuous rater fractions in `0.0..=1.0` (soft
+targets), with hard-target (`>= 0.5`) heads fitted alongside for comparison
+(MiniLM hard no-context 310.62 s, hard parent-context 407.23 s; BGE-small hard
+no-context 212.61 s, hard parent-context 291.96 s). Across all four fits on
+269,038 train comments (41,658 with a parent comment vector present in the
+dataset; 6,951 in val and 20,702 in test), process peak RSS (`VmHWM`) stays at
+2,166,120 KB (`2.07 GiB`) for MiniLM and 2,166,456 KB (`2.07 GiB`) for
+BGE-small, with zero heap growth above the pre-fit embedding buffer. Full
+JSON receipts are committed in
+`docs/receipts/incivility-888-963-890/all-minilm-l6-v2.json` and
+`docs/receipts/incivility-888-963-890/bge-small-en-v1.5.json`. As in
+`goemotions_eval`, `incivility_eval` retains original tokenizer UTF-8 byte
+spans per comment and verifies every evidence span against the borrowed source
+comment and production `Analyzer`.
+
+#### Civil Comments held-out test P / R / F1 with per-label dev thresholds (`#888`)
+
+Per-label and macro/micro precision, recall, and F1 on the 133,782 test
+comments using per-label thresholds tuned on the 45,180 val comments (`0.05`
+to `0.50` in steps of `0.05`), plus uniform-threshold micro F1:
+
+| Stage & Target | Encoder | Context | Uniform thresh (micro P / R / F1) | `insult` P / R / F1 | `profanity` P / R / F1 | `threat` P / R / F1 | `identity_attack` P / R / F1 | Per-label macro P / R / F1 | Per-label micro P / R / F1 |
+|---|---|---|---|---|---|---|---|---|---|
+| `Lexicon` | none | none | 0.05 (0.4985 / 0.2299 / 0.3146) | 0.6461 / 0.3056 / 0.4149 | 0.2228 / 0.5200 / 0.3120 | 0.1019 / 0.0341 / 0.0510 | 0.1134 / 0.0028 / 0.0055 | 0.1807 / 0.3104 / 0.1306 | 0.4985 / 0.2299 / 0.3146 |
+| `Learned` (soft) | `all-MiniLM-L6-v2` | none | 0.20 (0.2963 / 0.4844 / 0.3677) | 0.3274 / 0.5316 / 0.4052 | 0.0999 / 0.1710 / 0.1261 | 0.0556 / 0.3808 / 0.0970 | 0.2406 / 0.5177 / 0.3285 | 0.4539 / 0.4335 / 0.3261 | 0.2662 / 0.5031 / 0.3481 |
+| `Learned` (soft) | `all-MiniLM-L6-v2` | parent | 0.20 (0.2969 / 0.4836 / 0.3679) | 0.3269 / 0.5318 / 0.4049 | 0.0984 / 0.1722 / 0.1253 | 0.0546 / 0.3777 / 0.0954 | 0.2422 / 0.5144 / 0.3293 | 0.4537 / 0.4327 / 0.3258 | 0.2660 / 0.5023 / 0.3478 |
+| `Learned` (soft) | `bge-small-en-v1.5` | none | 0.20 (0.3647 / 0.3622 / 0.3634) | 0.3618 / 0.5264 / 0.4289 | 0.1010 / 0.1321 / 0.1145 | 0.1225 / 0.2477 / 0.1639 | 0.2613 / 0.4772 / 0.3377 | 0.4744 / 0.3972 / 0.3408 | 0.3099 / 0.4834 / 0.3777 |
+| `Learned` (soft) | `bge-small-en-v1.5` | parent | 0.15 (0.2961 / 0.4764 / 0.3652) | 0.4015 / 0.4601 / 0.4288 | 0.0998 / 0.1368 / 0.1154 | 0.1169 / 0.2508 / 0.1594 | 0.2632 / 0.4715 / 0.3378 | 0.4802 / 0.3865 / 0.3403 | 0.3238 / 0.4394 / 0.3728 |
+| `Fused` (soft) | `all-MiniLM-L6-v2` | none | 0.25 (0.3664 / 0.4850 / 0.4175) | 0.5102 / 0.4766 / 0.4928 | 0.2228 / 0.5200 / 0.3120 | 0.1446 / 0.1115 / 0.1259 | 0.2388 / 0.5187 / 0.3271 | 0.1877 / 0.6045 / 0.2128 | 0.3555 / 0.4824 / 0.4094 |
+| `Fused` (soft) | `all-MiniLM-L6-v2` | parent | 0.25 (0.3668 / 0.4856 / 0.4179) | 0.5106 / 0.4782 / 0.4939 | 0.2228 / 0.5200 / 0.3120 | 0.1502 / 0.1176 / 0.1319 | 0.2403 / 0.5151 / 0.3277 | 0.1889 / 0.6052 / 0.2140 | 0.3571 / 0.4826 / 0.4105 |
+| `Fused` (soft) | `bge-small-en-v1.5` | none | 0.20 (0.3726 / 0.5046 / 0.4287) | 0.5645 / 0.4447 / 0.4975 | 0.2228 / 0.5200 / 0.3120 | 0.1185 / 0.2755 / 0.1657 | 0.2587 / 0.4777 / 0.3356 | 0.1947 / 0.6197 / 0.2197 | 0.3725 / 0.4543 / 0.4093 |
+| `Fused` (soft) | `bge-small-en-v1.5` | parent | 0.20 (0.3827 / 0.4762 / 0.4244) | 0.5251 / 0.4893 / 0.5066 | 0.2228 / 0.5200 / 0.3120 | 0.1138 / 0.2786 / 0.1616 | 0.2605 / 0.4720 / 0.3357 | 0.1876 / 0.6267 / 0.2205 | 0.3682 / 0.4817 / 0.4174 |
+| `Learned` (hard) | `all-MiniLM-L6-v2` | none | 0.15 (0.3261 / 0.4606 / 0.3819) | 0.4153 / 0.4278 / 0.4215 | 1.0000 / 0.0000 / 0.0000 | 1.0000 / 0.0000 / 0.0000 | 0.2905 / 0.3971 / 0.3356 | 0.7843 / 0.3042 / 0.2928 | 0.3707 / 0.3845 / 0.3775 |
+| `Learned` (hard) | `bge-small-en-v1.5` | none | 0.15 (0.3409 / 0.4569 / 0.3905) | 0.4277 / 0.4435 / 0.4354 | 1.0000 / 0.0000 / 0.0000 | 1.0000 / 0.0000 / 0.0000 | 0.2555 / 0.5300 / 0.3448 | 0.7805 / 0.3289 / 0.2967 | 0.3491 / 0.4308 / 0.3856 |
+| `Fused` (hard) | `all-MiniLM-L6-v2` | none | 0.20 (0.3874 / 0.4702 / 0.4248) | 0.5494 / 0.4512 / 0.4955 | 0.2228 / 0.5200 / 0.3120 | 0.1019 / 0.0341 / 0.0510 | 0.2867 / 0.3984 / 0.3335 | 0.1969 / 0.5673 / 0.2053 | 0.4080 / 0.4316 / 0.4195 |
+| `Fused` (hard) | `bge-small-en-v1.5` | none | 0.20 (0.4035 / 0.4642 / 0.4317) | 0.5120 / 0.5099 / 0.5109 | 0.2228 / 0.5200 / 0.3120 | 0.1019 / 0.0341 / 0.0510 | 0.2532 / 0.5305 / 0.3428 | 0.1847 / 0.5991 / 0.2088 | 0.3709 / 0.5054 / 0.4278 |
+
+Fitting to soft rater fractions with per-label thresholds recovers `profanity`
+(F1 `0.1261` on MiniLM, `0.1145` on BGE-small) and `threat` (F1 `0.0970` on
+MiniLM, `0.1639` on BGE-small) in the `Learned` stage, whereas hard-target
+heads never exceed `0.05` on those rare labels (`0` positive predictions). Adding
+the parent comment context vector (`CIVIL_COMMENTS_*_CONTEXT_HEAD`) lifts
+per-label tuned `Fused` micro F1 from `0.4094` to `0.4105` on MiniLM (`threat`
+F1 `0.1259 -> 0.1319`) and from `0.4093` to `0.4174` on BGE-small (`insult` F1
+`0.4975 -> 0.5066`).
+
+#### Fusion gate and `SevereToxicity` co-occurrence rule tuning (`#963`)
+
+`incivility_eval` sweeps `with_fusion_gate(g)` across
+`g in {0.05, 0.10, 0.15, 0.20, 0.25, 0.35, 1.0}` and
+`with_severe_toxicity_rule(true | false)` on Civil Comments val and test.
+Because every built-in lexicon entry has weight `>= 0.72` (`0.0` when absent),
+`1 - (1 - l)(1 - h) >= l >= 0.72 > t` whenever `l > 0` and `0.0 + h = h`
+whenever `l == 0`; threshold decisions across `0.05..=0.50` are therefore
+invariant across `g`, while `DEFAULT_INCIVILITY_FUSION_GATE = 0.25` prevents
+sub-gate head noise (`h < 0.25`) from inflating raw probability calibration or
+custom low-weight lexicon entries.
+
+| Encoder | `fusion_gate` | `use_severe_toxicity_rule` | Val uniform micro F1 | Val per-label macro / micro F1 | Test per-label macro F1 | Test per-label micro F1 | Test `severe_toxicity` TP / FP / FN (P / R / F1) |
+|---|---|---|---|---|---|---|---|
+| `all-MiniLM-L6-v2` | `0.25` (or `0.05..=1.0`) | `true` (default) | 0.4201 | 0.2120 / 0.4179 | 0.2128 | 0.4094 | 1 / 102 / 0 (0.0097 / 1.0000 / 0.0192) |
+| `all-MiniLM-L6-v2` | `0.25` (or `0.05..=1.0`) | `false` | 0.4203 | 0.2120 / 0.4182 | 0.2096 | 0.4103 | 0 / 22 / 1 (0.0000 / 0.0000 / 0.0000) |
+| `bge-small-en-v1.5` | `0.25` (or `0.05..=1.0`) | `true` (default) | 0.4334 | 0.2251 / 0.4230 | 0.2197 | 0.4093 | 1 / 261 / 0 (0.0038 / 1.0000 / 0.0076) |
+| `bge-small-en-v1.5` | `0.25` (or `0.05..=1.0`) | `false` | 0.4337 | 0.2251 / 0.4233 | 0.2185 | 0.4124 | 0 / 22 / 1 (0.0000 / 0.0000 / 0.0000) |
+
+Enabling `with_severe_toxicity_rule(true)` captures the held-out `SevereToxicity`
+positive (`R = 1.0000`, macro F1 `0.2128` vs `0.2096` on MiniLM and `0.2197` vs
+`0.2185` on BGE-small), while `with_severe_toxicity_rule(false)` is available
+when callers prefer raw head + lexicon `SevereToxicity` precision (`FP = 22`).
+In a warmed 7-round interleaved release timing test over 10,000 units
+(`analysis/embed/examples/incivility_eval/tests.rs::score_unit_interleaved_timing_receipt`),
+`IncivilityAnnotator::score_unit` runs in `min = 19.91 ms`, `median = 29.14 ms`
+(`2.91 us / unit`), `max = 39.26 ms` at `fusion_gate = 0.25` against
+`min = 22.98 ms`, `median = 33.38 ms`, `max = 50.95 ms` at `fusion_gate = 0.0`.
+
+#### Toxic Spans character-to-byte/token projection and evidence span evaluation (`#890`)
+
+`char_span_to_utf8_span` projects a half-open Unicode codepoint interval
+`[char_start, char_end)` from `ipavlopoulos/toxic_spans` (`beaf170538df8275c3447b2e26070f2f82e55272`,
+zoo entry `"toxic-spans"`) to a UTF-8 byte `Span` on `ViewId::SOURCE` via
+`View::span_from_code_point`. `char_span_to_token_range` maps that byte span to
+the overlapping `IxRange<Tokens>` in `opennlp:tokens`. `evaluate_toxic_spans`
+computes per-unit macro token P / R / F1 (Following Pavlopoulos et al., SemEval
+2021 Task 5, where a unit with both gold and predicted empty sets scores `1.0`),
+gold-positive macro token and character-offset P / R / F1, corpus-wide micro
+token P / R / F1, and the fraction of predicted-positive units whose evidence
+overlaps at least one gold toxic token:
+
+| Split | Stage & Thresholds | Encoder | Predicted-positive units | Gold-pos char macro P / R / F1 | Gold-pos token macro P / R / F1 | All-units token macro P / R / F1 | Micro token P / R / F1 | Gold overlap rate |
+|---|---|---|---|---|---|---|---|---|
+| `ACL2022` (11,006 units, 5,642 gold-pos, 310 non-ASCII) | `Lexicon` (`0.50`) | none | 5,796 | 0.5491 / 0.5490 / 0.5348 | 0.5485 / 0.5512 / 0.5365 | 0.5654 / 0.5668 / 0.5593 | 0.4910 / 0.4768 / 0.4838 | 0.9320 |
+| `ACL2022` (11,006 units, 5,642 gold-pos, 310 non-ASCII) | `Learned` soft (`0.50`) | `all-MiniLM-L6-v2` | 1,234 | 0.0339 / 0.0285 / 0.0302 | 0.0339 / 0.0276 / 0.0294 | 0.4665 / 0.4632 / 0.4642 | 0.1548 / 0.0252 / 0.0433 | 0.2349 |
+| `ACL2022` (11,006 units, 5,642 gold-pos, 310 non-ASCII) | `Learned` soft (per-label) | `all-MiniLM-L6-v2` | 6,713 | 0.1214 / 0.1046 / 0.1099 | 0.1214 / 0.1018 / 0.1074 | 0.2758 / 0.2658 / 0.2687 | 0.1020 / 0.0903 / 0.0958 | 0.1851 |
+| `ACL2022` (11,006 units, 5,642 gold-pos, 310 non-ASCII) | `Learned` soft (per-label) | `bge-small-en-v1.5` | 6,721 | 0.1303 / 0.1117 / 0.1176 | 0.1303 / 0.1086 / 0.1147 | 0.2858 / 0.2747 / 0.2778 | 0.1094 / 0.0969 / 0.1027 | 0.1951 |
+| `ACL2022` (11,006 units, 5,642 gold-pos, 310 non-ASCII) | `Fused` soft (`0.50`) | `all-MiniLM-L6-v2` | 6,173 | 0.5654 / 0.5639 / 0.5501 | 0.5648 / 0.5658 / 0.5514 | 0.5591 / 0.5596 / 0.5523 | 0.4779 / 0.4893 / 0.4836 | 0.9036 |
+| `ACL2022` (11,006 units, 5,642 gold-pos, 310 non-ASCII) | `Fused` soft (`0.50`) | `bge-small-en-v1.5` | 5,991 | 0.5567 / 0.5568 / 0.5421 | 0.5563 / 0.5586 / 0.5437 | 0.5621 / 0.5633 / 0.5557 | 0.4838 / 0.4838 / 0.4838 | 0.9162 |
+| `ACL2022` (11,006 units, 5,642 gold-pos, 310 non-ASCII) | `Fused` soft (per-label) | `all-MiniLM-L6-v2` | 7,497 | 0.5813 / 0.5879 / 0.5676 | 0.5832 / 0.5891 / 0.5704 | 0.4955 / 0.4985 / 0.4889 | 0.4142 / 0.5103 / 0.4573 | 0.8296 |
+| `ACL2022` (11,006 units, 5,642 gold-pos, 310 non-ASCII) | `Fused` soft (per-label) | `bge-small-en-v1.5` | 7,478 | 0.5834 / 0.5925 / 0.5698 | 0.5862 / 0.5934 / 0.5732 | 0.5018 / 0.5055 / 0.4951 | 0.4158 / 0.5152 / 0.4602 | 0.8318 |
+| `ACL2022` (11,006 units, 5,642 gold-pos, 310 non-ASCII) | `Fused` hard (per-label) | `bge-small-en-v1.5` | 7,981 | 0.5904 / 0.6021 / 0.5773 | 0.5939 / 0.6027 / 0.5812 | 0.4816 / 0.4861 / 0.4751 | 0.3985 / 0.5231 / 0.4524 | 0.8010 |
+| `raw` (16,100 units, 9,658 gold-pos, 459 non-ASCII) | `Lexicon` (`0.05` / `0.50`) | none | 8,482 | 0.5070 / 0.4804 / 0.4756 | 0.5078 / 0.4826 / 0.4782 | 0.5307 / 0.5155 / 0.5129 | 0.5368 / 0.3615 / 0.4320 | 0.9204 |
+| `raw` (16,100 units, 9,658 gold-pos, 459 non-ASCII) | `Learned` soft (per-label) | `all-MiniLM-L6-v2` | 9,843 | 0.1313 / 0.1027 / 0.1109 | 0.1318 / 0.0981 / 0.1066 | 0.2592 / 0.2390 / 0.2441 | 0.1293 / 0.0794 / 0.0984 | 0.2020 |
+| `raw` (16,100 units, 9,658 gold-pos, 459 non-ASCII) | `Learned` soft (per-label) | `bge-small-en-v1.5` | 9,867 | 0.1398 / 0.1103 / 0.1188 | 0.1404 / 0.1054 / 0.1143 | 0.2694 / 0.2484 / 0.2537 | 0.1374 / 0.0846 / 0.1047 | 0.2117 |
+| `raw` (16,100 units, 9,658 gold-pos, 459 non-ASCII) | `Fused` soft (per-label) | `all-MiniLM-L6-v2` | 10,964 | 0.5429 / 0.5184 / 0.5097 | 0.5462 / 0.5189 / 0.5123 | 0.4902 / 0.4737 / 0.4698 | 0.4584 / 0.3916 / 0.4224 | 0.7973 |
+| `raw` (16,100 units, 9,658 gold-pos, 459 non-ASCII) | `Fused` soft (per-label) | `bge-small-en-v1.5` | 10,945 | 0.5438 / 0.5226 / 0.5113 | 0.5480 / 0.5227 / 0.5144 | 0.4929 / 0.4777 / 0.4727 | 0.4600 / 0.3953 / 0.4252 | 0.8037 |
+
+Because `Learned` alone has no lexicon spans, it falls back to the single
+longest content token in each predicted-positive unit (`select_salient_token_span`),
+yielding `0.1099` to `0.1188` gold-positive character F1. Combining the lexicon's
+exact phrase spans with the head and salient-token fallback in `Fused` raises
+gold-positive character macro F1 from `0.5348` (`Lexicon`) to `0.5676`
+(`MiniLM`) and `0.5698` (`BGE-small`) on `ACL2022/data/toxic_spans.csv` and
+from `0.4756` to `0.5097` (`MiniLM`) and `0.5113` (`BGE-small`) on the 16,100
+raw majority-vote comments.
+
 ### Tests and license posture
 
 The [#326 audit](licences.md#complex-sentiment-licence-audit-326) approves
 the published Civil Comments / Jigsaw Unintended Bias release under CC0,
 including its comment text. It is eligible for redistributable training
-and bundles but is not included here. Other Jigsaw releases and Social
+and bundles; the four Civil Comments `IncivilityVectorHead` entries
+(`models-civil-comments-1`) and the `toxic-spans` dataset (`CC0-1.0`) are
+pinned in `analysis/zoo/index/zoo.json`. Other Jigsaw releases and Social
 Bias Frames require separate source-permission checks. Project-authored
 incivility rules and fixtures use the repository licence.
 
@@ -711,6 +854,14 @@ incivility rules and fixtures use the repository licence.
   punctuation and a two-word term, and `evaluate_incivility_bias` on a
   nine-unit set whose overall, subgroup, BPSN and BNSP AUCs and neutral
   false positive rates are worked out by hand in the test.
+- `analysis/doccat/src/sentiment/incivility/tests/spans.rs` tests
+  `char_span_to_utf8_span`, `char_span_to_token_range`, and
+  `evaluate_toxic_spans` on ASCII and multi-byte non-ASCII text (Spanish/French
+  diacritics, CJK, and emoji), partial-token and multi-token spans, and
+  comparison across `Lexicon`, `Learned`, and `Fused` stages (`#890`), while
+  `analysis/embed/examples/incivility_eval/tests.rs` checks UTF-8, UTF-16, and
+  Unicode codepoint span projection and production `Analyzer` parity on
+  corpus comments.
 - `analysis/embed/tests/heads.rs`
   (`incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device`)
   fits a multi-label `ClassifierHead` (`HeadMode::MultiLabel`) and a 6-label

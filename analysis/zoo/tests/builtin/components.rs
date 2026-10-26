@@ -14,7 +14,14 @@ fn the_neural_checkpoints_are_found_by_language_and_component() {
     assert_eq!(ids("en", Component::ZeroShotCategorizer), ["cross-encoder-nli-minilm2-l6-h768"]);
     assert_eq!(
         ids("en", Component::DocumentCategorizer),
-        ["turbo-en-goemotions-minilm-l6-v2-head-1", "turbo-en-goemotions-bge-small-en-v1.5-head-1"]
+        [
+            "turbo-en-goemotions-minilm-l6-v2-head-1",
+            "turbo-en-goemotions-bge-small-en-v1.5-head-1",
+            "turbo-en-civil-comments-minilm-l6-v2-head-1",
+            "turbo-en-civil-comments-minilm-l6-v2-context-head-1",
+            "turbo-en-civil-comments-bge-small-en-v1.5-head-1",
+            "turbo-en-civil-comments-bge-small-en-v1.5-context-head-1",
+        ]
     );
     // The tokenizers are fetched by id beside their models: no component,
     // so OpenNLP's lookup never takes one for a tokenizer model.
