@@ -22,13 +22,15 @@
 pub mod annotator;
 pub mod defaults;
 pub mod discover;
+mod dot;
 pub mod events;
 mod evidence;
 pub mod explore;
 pub mod export;
 pub mod gliner2;
 pub mod glirel;
-mod kernel;
+mod projection;
+pub use projection::Scratch;
 pub mod layer;
 pub mod modality;
 pub mod paths;

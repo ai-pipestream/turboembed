@@ -315,11 +315,16 @@ under the existing class rule; runtime use remains gated on limited lookahead
 in #887. The older `-sm` parity measurements below remain historical evidence,
 not approval to distribute the checkpoint or a bundle built from it.
 
-`bundle/recipes/sat-1l-sm.json` seals `sat-1l-sm` with BAAI/bge-m3's
-`tokenizer.json` at revision `5617a9f61b028005a4858fdac845db406aefb181`,
-whose model card declares MIT (checked on 2026-10-23 from the hub's
-model API). It is XLM-R's vocabulary in the form the core reads
-(docs/neural-annotators.md, "Against wtpsplit").
+`bundle/recipes/sat-1l-sm.json` seals `sat-1l-sm` with
+FacebookAI/xlm-roberta-base's `tokenizer.json` at revision
+`e73636d4f797dec63c3081bb6ed5c7b0bb3f2089` (SHA-256
+`a898ea75433890f6610f4e470b8ebeb0c21dce5c8dd61f892eb09eb5919d2e2c`), the
+file wtpsplit loads for the checkpoint. xlm-roberta-base is MIT, as the
+zoo index already records it for the `sat-3l` entry's `derived_from`;
+the file was fetched at that revision and its digest checked by two
+reviewers of #1334 on 2026-10-26. Until #1334 the recipe sealed BAAI/bge-m3's
+`tokenizer.json` at revision `5617a9f61b028005a4858fdac845db406aefb181`
+(MIT, checked on 2026-10-23), which `sat-3l.json` still uses.
 
 `dslim/bert-base-NER` is the checkpoint OpenNLP's `NameFinderDL` documents
 and the native token classifier in `turbo-namefind-dl` is compared with.
@@ -407,6 +412,7 @@ later as further lexicon entries behind the same
 | [DBpedia-14](https://huggingface.co/datasets/fancyzhx/dbpedia_14) | document categorizer | CC BY-SA 3.0 and GFDL | share-alike | | plan |
 | [SNLI](https://huggingface.co/datasets/stanfordnlp/snli) | natural language inference | CC BY-SA 4.0 | share-alike | training data of `cross-encoder/nli-MiniLM2-L6-H768` | here |
 | [MultiNLI](https://huggingface.co/datasets/nyu-mll/multi_nli) | natural language inference | CC BY-SA 3.0 (majority of OANC genres; remaining genres OANC, public domain, or CC BY) | share-alike | training data of `cross-encoder/nli-MiniLM2-L6-H768` | here |
+| [SymSpell benchmark queries](https://github.com/wolfgarbe/SymSpell/blob/c239062ae02961df18ab7da1671d01b4388204e0/SymSpell.Benchmark/test_data/noisy_query_en_1000.txt) | spelling correction evaluation | MIT | permissive | `symspell-noisy-query-en-1000` in the zoo index: 1,000 generated misspellings with the word meant (15,935 bytes, SHA-256 `d634d552d174ab34e32ecfb614a122873c75629083ab520b66f32d114ff2ecfe`), fetched at test time for the accuracy record in docs/normalizers.md; it is not in the repository | here, 2026-10-26 |
 | [Google Books Ngram data](https://storage.googleapis.com/books/ngrams/books/datasetsv2.html) | word frequencies | CC BY 3.0 | permissive | one of the two sources the SymSpell unigram list above was compiled from (intersected with SCOWL), and the inferred, unconfirmed source of its bigram list; the data itself is not fetched or used here, only named as what the lists derive from | here, 2026-10-24 |
 | [SQuAD 2.0](https://rajpurkar.github.io/SQuAD-explorer/) | extractive QA | CC BY-SA 4.0 | share-alike | the dev set `dev-v2.0.json` (4,370,528 bytes, SHA-256 `80a5225e94905956a6446d296ca1093975c4d3b3260f1d6c8f68bc2ab77182d8`) is used for evaluation only (docs/extractive-qa.md); it is not in the repository | here, 2026-10-23 |
 | [MS MARCO](https://microsoft.github.io/msmarco/) | passage retrieval training | Microsoft's terms: non-commercial research only, free of charge without extending any license or other intellectual property rights (named `LicenseRef-RestrictedPublic` in the zoo) | local-only | training data of `opensearch-project/opensearch-neural-sparse-encoding-v1` and `colbert-ir/colbertv2.0` above; the dataset itself is not fetched or used here, only named as what puts those checkpoints in their class | here, 2026-10-24 |

@@ -6,6 +6,11 @@ syntax = "proto3";
 // progress. Every artifact is checked by size, SHA-256 and SHA-512, and a
 // file served compressed by its download size and SHA-256 as well, before
 // the cache holds it (docs/zoo.md).
+//
+// Static models distilled from the encoders the server serves
+// (docs/grpc-training.md): each is sealed into the training directory,
+// every file listed in its manifest by size and SHA-256, and served under
+// its name as soon as it is sealed.
 package turbo.training;
 
 service TurboCatalogService {
@@ -151,4 +156,189 @@ message InstallModelUpdate {
     InstallProgress progress = 1;
     InstalledModel installed = 2;
   }
+}
+
+service TurboTrainingService {
+  // The served, loaded encoders a static model can be distilled from.
+  rpc ListTeachers(ListTeachersRequest) returns (ListTeachersResponse);
+  // Admin. Distils a static model from a teacher, with learned terms
+  // added to its vocabulary, seals it into the training directory and
+  // serves it under its name, one training at a time. Progress, then one
+  // trained last.
+  rpc TrainStaticModel(TrainStaticModelRequest) returns (stream TrainStaticModelUpdate);
+  // The static models in the training directory, each file checked
+  // against the size and SHA-256 its manifest records.
+  rpc ListStaticModels(ListStaticModelsRequest) returns (ListStaticModelsResponse);
+  // Admin. Stops serving a static model and removes its directory.
+  rpc DeleteStaticModel(DeleteStaticModelRequest) returns (DeleteStaticModelResponse);
+}
+
+message Teacher {
+  // The served name a TrainStaticModelRequest names.
+  string name = 1;
+  string model_id = 2;
+  string revision = 3;
+  // The SHA-256 of the teacher bundle's manifest.json.
+  string manifest_sha256 = 4;
+  // The encoder's width, the most pca_dims can be, and its vocabulary.
+  uint32 hidden = 5;
+  uint32 vocab_size = 6;
+}
+
+message ListTeachersRequest {}
+
+message ListTeachersResponse {
+  repeated Teacher teachers = 1;
+}
+
+enum StaticDtype {
+  // F32.
+  STATIC_DTYPE_UNSPECIFIED = 0;
+  STATIC_DTYPE_F32 = 1;
+  STATIC_DTYPE_F16 = 2;
+}
+
+message TrainStaticModelRequest {
+  // The new model's served name and directory: ASCII letters, digits,
+  // '.', '_' and '-', not starting with '.', at most 128 bytes. No
+  // served model or static model may have it.
+  string name = 1;
+  // The served name of the teacher, one ListTeachers lists.
+  string teacher = 2;
+  // The static vectors' width: at most the teacher's hidden; 0 is 256,
+  // or the teacher's hidden when that is less.
+  uint32 pca_dims = 3;
+  // Model2Vec's SIF coefficient, in (0, 1); 0 is 1e-4.
+  double sif_coefficient = 4;
+  StaticDtype dtype = 5;
+  // The tokens a text is cut to; 0 is 512.
+  uint32 max_length = 6;
+  // A learned vocabulary in the vocabulary store
+  // (docs/grpc-vocabulary.md) whose single terms, in its order, are
+  // added to the vocabulary; empty for none.
+  string vocabulary_artifact_id = 7;
+  // More terms, added after the vocabulary's.
+  repeated string terms = 8;
+  // The model's revision; empty is "1".
+  string revision = 9;
+  // Sessions the served model pools; 0 is 1.
+  uint32 sessions = 10;
+}
+
+enum TrainStage {
+  TRAIN_STAGE_UNSPECIFIED = 0;
+  // The request passed its checks and holds the training slot.
+  TRAIN_STAGE_ADMITTED = 1;
+  // The entries kept: completed_items of the teacher's total_items, and
+  // the learned terms added and refused.
+  TRAIN_STAGE_KEPT = 2;
+  // Rows through the teacher so far, of total_items.
+  TRAIN_STAGE_EMBEDDING = 3;
+  // The rows reduced to pca_dims, keeping explained_variance.
+  TRAIN_STAGE_REDUCED = 4;
+  // The quality texts measured with the teacher and the static model.
+  TRAIN_STAGE_MEASURED = 5;
+  // The bundle is sealed and verified in the training directory.
+  TRAIN_STAGE_SEALED = 6;
+  // The bundle is served under its name.
+  TRAIN_STAGE_LOADED = 7;
+}
+
+message TrainStaticModelProgress {
+  TrainStage stage = 1;
+  uint64 completed_items = 2;
+  uint64 total_items = 3;
+  uint64 added_terms = 4;
+  uint64 refused_terms = 5;
+  double explained_variance = 6;
+  StaticModelQuality quality = 7;
+}
+
+// The bundle a static model was distilled from, as its manifest names it.
+message TeacherProvenance {
+  string model_id = 1;
+  string revision = 2;
+  string manifest_sha256 = 3;
+}
+
+// Each quality text's nearest other text shares its group in this share
+// of the texts, with the teacher and with the static model, and the rank
+// correlation of the two models' similarities (docs/static.md).
+message StaticModelQuality {
+  double base_top1 = 1;
+  double static_top1 = 2;
+  double similarity_spearman = 3;
+}
+
+// A file of a bundle as its manifest lists it.
+message ArtifactFile {
+  string path = 1;
+  uint64 size = 2;
+  // Lowercase hex.
+  string sha256 = 3;
+}
+
+message StaticModelDescriptor {
+  // Its directory's name in the training directory, and its served name.
+  string name = 1;
+  string model_id = 2;
+  string revision = 3;
+  // The SHA-256 of its manifest.json.
+  string manifest_sha256 = 4;
+  uint32 dims = 5;
+  // Rows of the table: the teacher's vocabulary and the learned terms.
+  uint32 vocab_size = 6;
+  uint32 learned_terms = 7;
+  // "F32" or "F16".
+  string dtype = 8;
+  TeacherProvenance teacher = 9;
+  StaticModelQuality quality = 10;
+  // Every file but manifest.json.
+  repeated ArtifactFile files = 11;
+  // Whether every file has the size and SHA-256 the manifest records;
+  // when not, problem says which does not.
+  bool verified = 12;
+  string problem = 13;
+  // Whether the server serves this directory under the name.
+  bool served = 14;
+}
+
+message RefusedTerm {
+  string term = 1;
+  // EMPTY, UNKNOWN, PRESENT, WORDS, LONG or DUPLICATE (docs/static.md).
+  string reason = 2;
+}
+
+message TrainedStaticModel {
+  StaticModelDescriptor model = 1;
+  // The learned terms that became entries, in id order from the
+  // teacher's vocab_size, and the ones left out.
+  repeated string added_terms = 2;
+  repeated RefusedTerm refused_terms = 3;
+  // The vocabulary the terms came from, and the SHA-256 of its bytes.
+  string vocabulary_artifact_id = 4;
+  string vocabulary_sha256 = 5;
+}
+
+message TrainStaticModelUpdate {
+  oneof update {
+    TrainStaticModelProgress progress = 1;
+    TrainedStaticModel trained = 2;
+  }
+}
+
+message ListStaticModelsRequest {}
+
+message ListStaticModelsResponse {
+  // In name order.
+  repeated StaticModelDescriptor models = 1;
+}
+
+message DeleteStaticModelRequest {
+  string name = 1;
+}
+
+message DeleteStaticModelResponse {
+  // Whether the model was served, and is no longer.
+  bool unloaded = 1;
 }

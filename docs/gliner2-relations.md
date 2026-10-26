@@ -97,12 +97,12 @@ cache, timing GLiNER2's head classes directly at the same shapes, the
 same heads run at 0.88 to 0.98x the reference with AVX-512 and 1.03 to
 1.1x with AVX2.
 
-How the heads get there (`analysis/relation/src/kernel.rs`, `analysis/relation/src/gliner2/heads.rs`): the layers run over
-all words or all queries at once, on weights transposed at load into
-panels of 32 outputs that a tile reads in order. A tile is 32 outputs by
-8 rows with AVX-512, 16 by 6 with AVX2 and FMA, plain loops otherwise.
-Rows are padded with zeros to whole tiles. The last span layer folds
-into every query of a relation in one pass over its weights.
+The timings above and below are historical measurements of the earlier
+head implementation. They have not been rerun for the buffer-reuse change.
+Current projections (`analysis/relation/src/projection.rs`) use shared
+`turbo::cpu::Matrix` panels and handle partial rows without padded input
+copies. The last span layer folds into every query of a relation in one
+pass over its weights.
 
 End to end, on the same machine and core, with the same method:
 `extract_relations` against `Gliner2Relations::extract` on the three
@@ -117,3 +117,19 @@ and ours on its own:
 
 The native encoder, which computes only the visible positions since #391
 (docs/deberta.md), is about nine tenths of the native time.
+
+## Reusing head buffers
+
+`heads::Heads` exposes `spans_into`, `queries_of_into` and
+`logits_all_into` with caller-owned `turbo_relation::Scratch` and output
+storage. Retain them between calls to reuse projection capacity. A span
+output can start as `heads::Spans::default()`; fill it with `spans_into`
+before scoring it. The allocating methods remain available.
+
+The ordinary relation pass reuses scratch and query storage across labels.
+Its projections use `turbo::cpu::Matrix`, including partial tiles, without
+padded input copies. The `reused_head_buffers` test checks warmed span and
+logit execution, including empty and shorter inputs. Recurrent and attention
+temporaries in query construction remain local allocations, and returned
+per-label scores still own their storage. This change does not claim an
+allocation-free end-to-end encoder request.

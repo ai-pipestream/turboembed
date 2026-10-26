@@ -14,7 +14,8 @@ The answer this page records:
   is XLM-RoBERTa, which the core runs as `FAMILY_ROBERTA`; the head is
   one linear layer. The `turbo-sat` crate (`analysis/sat/`) is that
   annotator, on the CPU, compared with wtpsplit itself on a small model
-  with random weights (below); no real checkpoint has been run yet.
+  with random weights and on the released `sat-1l-sm` and `sat-3l`
+  (below).
 - GLiNER did not at the time this page was first written. It has
   since been built on exactly the pieces listed below as missing:
   the native DeBERTa-v3 encoder (`turbo::deberta`) and the GLiNER
@@ -188,14 +189,13 @@ On a released checkpoint, `sat-1l-sm` at revision
 `00a783439c201b20ee91ee1624dc817f1bf0e578` (one layer, width 768, the
 whole XLM-R vocabulary), the same checks pass. The bundle is sealed from
 `bundle/recipes/sat-1l-sm.json`, and the reference's `segment` makes
-the fixtures from the same weights. The tokenizer is BAAI/bge-m3's
-`tokenizer.json` at revision `5617a9f61b028005a4858fdac845db406aefb181`
-(MIT): it has XLM-R's vocabulary and character map, in the Unigram form
-the core reads. `FacebookAI/xlm-roberta-base`'s own `tokenizer.json`
-names no model type, which the core refused until #1020, so both sides
-read the bge-m3 file, as the tiny model's fixtures do. The two files are not the
-same tokenizer pipeline, so this is wtpsplit with the bge-m3 file, not
-wtpsplit as it ships (below, "The released checkpoint's tokenizer").
+the fixtures from the same weights. The tokenizer is
+`FacebookAI/xlm-roberta-base`'s own `tokenizer.json` at revision
+`e73636d4f797dec63c3081bb6ed5c7b0bb3f2089` (MIT), the file wtpsplit
+loads for this checkpoint, which the core reads since #1020
+(`tokenizer.unigram.whitespace_split`). Both sides read that file, so
+this is wtpsplit as it ships, read through `PreTrainedTokenizerFast`
+(below, "Tokenizer pipeline").
 `a_released_checkpoint_matches_wtpsplit` in
 `analysis/sat/tests/parity.rs` runs the comparison when
 `TURBO_TEST_SAT_BUNDLE` names the bundle and `TURBO_TEST_SAT_FIXTURES`
@@ -205,7 +205,12 @@ the fixtures. On the 90 texts:
 |---|---|---|---|
 | 0.25, 64, 510 (wtpsplit's `split` defaults for a model of 512) | 1.6e-4 | 1.6e-4 | 0 |
 | 0.25, 16, 62 | 4.2e-4 | 4.2e-4 | 0 |
-| 0.5, 7, 30 | 2.8e-4 | 2.8e-4 | 0 |
+| 0.5, 7, 30 | 3.7e-4 | 3.7e-4 | 0 |
+
+The fixtures' SHA-256s (kept outside the repository with the bundle):
+`t0.25-s64-b510.jsonl` `00e3acafbda76810e2cf496457082202f2ceddf095d963c0daa5bef338246f99`,
+`t0.25-s16-b62.jsonl` `74c86ec1886468734f5f41ea877fd5fa02af30327fc4186cc4dbc5ee334bc5e9`,
+`t0.5-s7-b30.jsonl` `89c1fd02cb6a02401806b6fa4ffed7fce1702917e30e2e6fbabd578e29da6176`.
 
 The ids and offsets are wtpsplit's on every text but for the six
 cluster spans the tiny model shows too (below), and the pieces are
@@ -220,9 +225,10 @@ layers, `lookahead` 48 in its config, so 16 keys ahead a layer) passes
 the same test. Its recipe, `bundle/recipes/sat-3l.json`, writes the
 weights from the checkpoint's `pytorch_model.bin` (it ships no
 safetensors) with the same PyTorch step `bge-m3-8192` uses, with the
-bge-m3 tokenizer as above. The boundary score is label 0 of the 111,
-wtpsplit's `Constants.NEWLINE_INDEX`, the index `SaT._predict_proba`
-takes the sigmoid of. On the 90 texts, at wtpsplit's default threshold
+bge-m3 tokenizer (BAAI/bge-m3's `tokenizer.json` at revision
+`5617a9f61b028005a4858fdac845db406aefb181`). The boundary score is
+label 0 of the 111, wtpsplit's `Constants.NEWLINE_INDEX`, the index
+`SaT._predict_proba` takes the sigmoid of. On the 90 texts, at wtpsplit's default threshold
 for a limited-lookahead model:
 
 | Threshold, stride, block | Largest probability difference, CPU | Characters near the threshold |
@@ -256,7 +262,7 @@ What the step does differently, and why:
   whitespace character before the word start piece (`WhitespaceSplit`,
   then `Metaspace`), where bge-m3's collapses runs of spaces
   (`Precompiled`, then a `Replace` of space runs) and splits only at
-  spaces (`Metaspace`). The core reads the second. With the first, the
+  spaces (`Metaspace`). The core reads both. With the first, the
   reference's `segment` on `sat-1l-sm` at threshold 0.25, stride 64 and
   block 510 gives other ids on 9 of the 90 texts: text that is only
   whitespace (3), whitespace at either end (2), U+2028, U+2029 and
@@ -271,8 +277,8 @@ What the step does differently, and why:
   end, so this does not move a probability. The core now reads
   `xlm-roberta-base`'s file too (`tokenizer.unigram.whitespace_split`,
   #1020), matching upstream `tokenizers`' ids on that form in
-  `core/tests/tokenizer_xlmr.rs`. The table above has not yet been
-  measured again with a bundle sealed with that file.
+  `core/tests/tokenizer_xlmr.rs`, and the `sat-1l-sm` bundle is now
+  sealed with it; the table above was measured with that bundle.
 - **The prefix piece.** Before a text's first word, when no piece
   starts with that word's first characters, the tokenizer emits the
   bare word start `▁`. The core gives it an empty span, as it stands for
@@ -309,6 +315,15 @@ not the work per token. A document longer than one window is read
 `block_size / stride` times over, about 8 times with the defaults, so
 the stride is the main setting for throughput.
 
+With the released `sat-1l-sm` weights and the whole XLM-R vocabulary
+the same 36 documents are 11612 tokens; with the defaults (block 510,
+stride 64) a pass takes 445 ms at `model`, 26,000 tokens a second.
+That is the median of 7 passes of the interleaved speed test #884 adds
+(`TURBO_SAT_BUNDLE=<bundle> TURBO_TEST_DEVICE=cuda TURBO_SPEED_RUNS=7
+cargo test --release -p turbo-sat --features turbo/cuda --test speed --
+--ignored --nocapture`), on the host of the RTX 4080 SUPER run, a
+different machine from the 4-core rows above.
+
 ### Not done
 
 - Zoo downloads of `sat-1l-sm` and `sat-12l-sm` are refused following
@@ -316,7 +331,9 @@ the stride is the main setting for throughput.
   must be established before this decision can change; local licence
   acceptance is insufficient. No entry or download receipt is created.
   `sat-12l-sm` and the other sizes have not been run here.
-- Limited lookahead, for the models without `-sm`.
+- Limited lookahead on a device: every backend but the CPU refuses a
+  bundle with `architecture.lookahead` (`turbo::model::runs_band`), so
+  `sat-3l` runs on the CPU only.
 - A bundle task for token classification. The bundle carries a SaT
   model as `TASK_EMBED` with the classifier in its raw weights, read by
   name; the manifest has no place to say what the head is.
