@@ -6,14 +6,18 @@
 //! the container read-only, with a directory of libraries it needs that
 //! the image lacks where there are any (`libelf.so.1` built for the
 //! image's glibc, say), and TEI's router is started under `nsys launch`
-//! with CUDA tracing. After the end-to-end timing, the tool starts the
-//! collection (`nsys start` in the container), sends `requests` /embed
+//! with CUDA tracing, in a container of its own: tracing slows every
+//! request, so the end-to-end timing is of TEI without it, in the first
+//! container, which is gone before this one starts. After its warm-up the
+//! tool starts the collection (`nsys start` in the container), sends `requests` /embed
 //! requests one at a time with the GPU left idle for IDLE after each,
 //! stops it, and reads the trace on the host (`nsys stats`, the
 //! cuda_gpu_trace report as CSV, after the host's QdstrmImporter where
 //! the in-container nsys leaves only the raw stream). A request's kernels
 //! are the activity between two gaps of at least SPLIT; the trace must
-//! fall into exactly `requests` such runs, or nothing is recorded.
+//! fall into exactly `requests` such runs, or nothing is recorded. The
+//! GPU's SM clock is read after each chunk's requests, and a kernel time
+//! longer than the end-to-end time it is part of is refused (check).
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -31,8 +35,11 @@ pub const NSYS_LIBS: &str = "<tei-nsys-libs>";
 /// The host's QdstrmImporter.
 pub const IMPORTER: &str = "<nsys-importer>";
 
-/// The GPU's idle time after each profiled request.
-pub const IDLE: Duration = Duration::from_millis(250);
+/// The GPU's idle time after each profiled request: long enough to tell
+/// two requests apart, short enough that the GPU keeps its clocks between
+/// them (at 250 ms an RTX 4080 SUPER's dropped, and the kernels ran slower
+/// than TEI's whole unprofiled request).
+pub const IDLE: Duration = Duration::from_millis(25);
 /// The least gap between two requests' activity: a request's work is done
 /// when its answer arrives, and the next one is sent IDLE after that, so
 /// every gap between requests is at least IDLE. A gap that long inside one
@@ -116,19 +123,45 @@ pub struct Profile<'a> {
     pub container: String,
     pub nsys: &'a Nsys,
     pub out: PathBuf,
+    /// The GPU's ordinal, whose SM clock is read.
+    pub gpu: u32,
 }
 
-/// What the procedure says of the profiled requests.
-pub fn procedure(requests: u32) -> String {
+/// What the procedure says of the profiled requests, with the SM clocks
+/// (MHz) read after each chunk.
+pub fn procedure(requests: u32, warmup: u32, clocks: &[u32]) -> String {
+    let mut sorted = clocks.to_vec();
+    sorted.sort_unstable();
+    let clock = match (sorted.first(), sorted.get(sorted.len().saturating_sub(1) / 2)) {
+        (Some(min), Some(median)) => {
+            format!("the SM clock after each chunk's requests min {min} MHz, median {median} MHz")
+        }
+        _ => "no SM clock read".to_owned(),
+    };
     format!(
-        "then, with Nsight Systems tracing CUDA in the container (nsys launch --trace=cuda, collected only around \
-         these), {requests} more /embed requests of the same rows one at a time, the GPU left idle {} ms after \
-         each, each request's kernel time the summed durations of the trace's kernels between idle gaps of at least \
-         {} ms; collected {CHUNK} requests at a time, and a collection whose trace the host's tools refuse is taken \
-         again, up to {ATTEMPTS} times, as the commands show",
+        "then, with that server stopped, TEI started again in another container under Nsight Systems tracing CUDA \
+         (nsys launch --trace=cuda, collected only around the profiled requests), {warmup} untimed /embed requests, \
+         then {requests} more of the same rows one at a time, the GPU left idle {} ms after each, each request's \
+         kernel time the summed durations of the trace's kernels between idle gaps of at least {} ms; collected \
+         {CHUNK} requests at a time, and a collection whose trace the host's tools refuse is taken again, up to \
+         {ATTEMPTS} times, as the commands show; {clock}; a kernel p50 longer than the end-to-end p50 is refused",
         IDLE.as_millis(),
         SPLIT_NS / 1_000_000
     )
+}
+
+/// Refuse a kernel time that cannot be: the kernels are part of the
+/// request the end-to-end time covers, so a p50 longer than that one's
+/// says the profiler, or the GPU under it, slowed them.
+pub fn check(k: &KernelTime, e2e_p50_ms: f64) -> Result<()> {
+    if k.p50_ms > e2e_p50_ms {
+        return Err(format!(
+            "TEI's kernel time: a kernel p50 of {:.3} ms is longer than the end-to-end p50 of {e2e_p50_ms:.3} ms \
+             it is part of; the profiled requests did not run as the timed ones did, and nothing is recorded",
+            k.p50_ms
+        ));
+    }
+    Ok(())
 }
 
 /// Requests in one collection: Nsight Systems 2023.4's importer refuses
@@ -145,20 +178,40 @@ pub const ATTEMPTS: u32 = 3;
 /// Collect around `requests` calls of `send`, each followed by IDLE, in
 /// collections of at most CHUNK, and read their kernel time; a trace the
 /// host's tools cannot read is collected again, up to ATTEMPTS times.
-pub fn measure(log: &mut Log, p: &Profile, requests: u32, mut send: impl FnMut() -> Result<()>) -> Result<KernelTime> {
+/// With it, the SM clock (MHz) read after each collection's requests.
+pub fn measure(
+    log: &mut Log,
+    p: &Profile,
+    requests: u32,
+    mut send: impl FnMut() -> Result<()>,
+) -> Result<(KernelTime, Vec<u32>)> {
     let profiler = log.run(&exec(&p.container, &["--version"]))?;
     let mut all = Vec::with_capacity(requests as usize);
+    let mut clocks = Vec::new();
     let mut left = requests;
     while left > 0 {
         let n = left.min(CHUNK);
-        all.extend(collect(log, p, n, &mut send)?);
+        all.extend(collect(log, p, n, &mut send, &mut clocks)?);
         left -= n;
     }
-    kernel_time(&profiler, &all).map_err(|why| format!("TEI's kernel time: {why}"))
+    let k = kernel_time(&profiler, &all).map_err(|why| format!("TEI's kernel time: {why}"))?;
+    Ok((k, clocks))
+}
+
+/// The GPU's SM clock as `nvidia-smi` reads it.
+pub fn sm_clock(gpu: u32) -> Vec<String> {
+    let gpu = gpu.to_string();
+    argv(&["nvidia-smi", "--query-gpu=clocks.sm", "--format=csv,noheader,nounits", "-i", &gpu])
 }
 
 /// One chunk of `n` requests, collected until its trace reads.
-fn collect(log: &mut Log, p: &Profile, n: u32, send: &mut impl FnMut() -> Result<()>) -> Result<Vec<Request>> {
+fn collect(
+    log: &mut Log,
+    p: &Profile,
+    n: u32,
+    send: &mut impl FnMut() -> Result<()>,
+    clocks: &mut Vec<u32>,
+) -> Result<Vec<Request>> {
     let mut failed = Vec::new();
     for _ in 0..ATTEMPTS {
         for f in ["tei.qdstrm", "tei.nsys-rep", "tei.sqlite", "tei_cuda_gpu_trace.csv"] {
@@ -170,8 +223,13 @@ fn collect(log: &mut Log, p: &Profile, n: u32, send: &mut impl FnMut() -> Result
             std::thread::sleep(IDLE);
             Ok::<(), String>(())
         });
+        let clock = sent.as_ref().ok().map(|_| log.run(&sm_clock(p.gpu)));
         log.run(&stop(&p.container))?;
         sent?;
+        if let Some(c) = clock {
+            let c = c?;
+            clocks.push(c.trim().parse().map_err(|_| format!("nvidia-smi read the SM clock as {:?}", c.trim()))?);
+        }
         match read_trace(log, p.nsys, &p.out) {
             Ok(csv) => match parse_trace(&csv).and_then(|a| requests(a, n as u64)) {
                 Ok(r) => return Ok(r),
@@ -352,6 +410,32 @@ mod tests {
         assert_eq!(k.copy_p50_ms, 3.0 / 1e6);
         let wrong = requests(a, 3).unwrap_err();
         assert!(wrong.contains("2 runs") && wrong.contains("the 3 requests"), "{wrong}");
+    }
+
+    #[test]
+    fn a_kernel_time_longer_than_the_request_is_refused() {
+        let k = |p50_ms| KernelTime {
+            profiler: "nsys".into(),
+            requests: 25,
+            p50_ms,
+            p99_ms: p50_ms,
+            copy_p50_ms: 0.0,
+            kernels_p50: 1,
+        };
+        assert!(check(&k(5.0), 9.9).is_ok());
+        assert!(check(&k(9.9), 9.9).is_ok(), "equal is not longer");
+        // The #1399 run: kernels traced in the end-to-end server read
+        // 77 ms against an unprofiled TEI's 35 ms.
+        let e = check(&k(77.14), 35.2).unwrap_err();
+        assert!(e.contains("77.140 ms") && e.contains("35.200 ms") && e.contains("nothing is recorded"), "{e}");
+    }
+
+    #[test]
+    fn the_procedure_names_the_clocks() {
+        let p = procedure(200, 30, &[2610, 795, 2595]);
+        assert!(p.contains("min 795 MHz, median 2595 MHz") && p.contains("idle 25 ms"), "{p}");
+        assert!(p.contains("30 untimed") && p.contains("another container"), "{p}");
+        assert!(procedure(1, 0, &[]).contains("no SM clock read"));
     }
 
     #[test]
