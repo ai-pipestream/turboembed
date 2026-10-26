@@ -13,12 +13,10 @@ crate-type = ["cdylib", "rlib"]
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["float_roundtrip"] }
 serde_path_to_error = "0.1"
-sha2 = "0.11"
-# The Unicode tables upstream tokenizers uses, so the ids match it exactly.
-unicode-normalization-alignments = "0.1.12"
-unicode_categories = "0.1.1"
-# Grapheme clusters, which SentencePiece's character map is applied by.
-unicode-segmentation = "1"
+# In-house Unicode normalization, categories, and grapheme segmentation.
+turbo-unicode = { path = "../analysis/unicode" }
+# In-house FIPS 180-4 SHA-256 for bundle and package integrity.
+turbo-sha256 = { path = "../analysis/sha256" }
 # Opens the Level Zero loader at run time, so a machine without it lists
 # no Intel GPU (levelzero) or NPU (npu) instead of failing to load
 # libturbo.
@@ -40,8 +38,8 @@ libloading = "0.9"
 # compare the core's ids with it on the upstream tokenizer.json, and the
 # split classes with the regex engine it splits with.
 tokenizers = { version = "0.23", default-features = false, features = ["fancy-regex"] }
-# Grapheme clusters, for where the tests expect a span to end.
-unicode-segmentation = "1"
+# In-house incremental SHA-256 and SHA-512 for SentencePiece fixtures.
+turbo-goldens = { path = "../analysis/goldens" }
 # The tests read where a model's weights are through `internals`.
 turbo = { path = ".", features = ["internals"] }
 

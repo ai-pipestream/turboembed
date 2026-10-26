@@ -4,7 +4,7 @@ use super::*;
 fn steps(n: &Normalizer, text: &str) -> String {
     let mut s: String = if n.clean_text {
         text.chars()
-            .filter(|&c| !(c == '\0' || c == '\u{fffd}' || (!matches!(c, '\t' | '\n' | '\r') && c.is_other())))
+            .filter(|&c| !(c == '\0' || c == '\u{fffd}' || (!matches!(c, '\t' | '\n' | '\r') && category(c, OTHER))))
             .map(|c| if is_whitespace(c) { ' ' } else { c })
             .collect()
     } else {
@@ -24,7 +24,7 @@ fn steps(n: &Normalizer, text: &str) -> String {
         s = t;
     }
     if n.strip_accents {
-        s = s.nfd().map(|(c, _)| c).filter(|c| !c.is_mark_nonspacing()).collect();
+        s = aligned_chars(Form::Nfd, s.chars()).map(|(c, _)| c).filter(|&c| !category(c, MARK_NONSPACING)).collect();
     }
     if n.lowercase {
         s = s.chars().flat_map(char::to_lowercase).collect();
@@ -128,14 +128,14 @@ fn appended_rows_are_the_rows_alone() {
     }
 }
 
-/// The table gives each character's categories as unicode_categories
-/// does.
+/// The cached table gives each character's turbo-unicode categories.
 #[test]
-fn the_category_table_is_the_unicode_categories() {
+fn the_category_table_is_turbo_unicode() {
     for c in (0..=0x10ffffu32).filter(|&u| u < 0x10000 || u % 7 == 0).filter_map(char::from_u32) {
-        assert_eq!(category(c, OTHER), c.is_other(), "{c:?}");
-        assert_eq!(category(c, MARK_NONSPACING), c.is_mark_nonspacing(), "{c:?}");
-        assert_eq!(category(c, PUNCTUATION), c.is_punctuation(), "{c:?}");
+        let category_of = turbo_unicode::category::general_category(c);
+        assert_eq!(category(c, OTHER), category_of.is_other(), "{c:?}");
+        assert_eq!(category(c, MARK_NONSPACING), matches!(category_of, turbo_unicode::GeneralCategory::Mn), "{c:?}");
+        assert_eq!(category(c, PUNCTUATION), category_of.is_punctuation(), "{c:?}");
     }
 }
 

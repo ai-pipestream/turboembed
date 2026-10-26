@@ -218,6 +218,10 @@ Errors).
 
 ## The proto
 
+Browsers reach these services only through generated Connect-ES clients
+with the binary codec, by way of the demo's allowlisted Connect proxy;
+there is no JSON front end (docs/demo.md, AGENTS.md).
+
 `server/proto/open_inference_grpc.proto` is the Open Inference
 Protocol's own file (`inference`), vendored (Apache-2.0); its first lines
 say where from, and `server/proto/health.proto` is the standard gRPC health
