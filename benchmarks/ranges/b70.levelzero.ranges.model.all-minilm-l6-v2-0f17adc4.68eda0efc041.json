@@ -1,0 +1,117 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-26T09:05:50Z",
+  "machine": {
+    "arch": "b70",
+    "host_cpu": "AMD Ryzen 9 9950X 16-Core Processor",
+    "os": "linux"
+  },
+  "device": {
+    "backend": "levelzero",
+    "kind": "DEVICE_GPU",
+    "name": "Intel(R) Arc(TM) Pro B70 Graphics",
+    "vendor": "Intel",
+    "driver_version": "1.3.39122",
+    "runtime_version": "1.32.0",
+    "memory_total": 32530182144
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 levelzero cpu",
+    "commit": "68eda0efc041757f059872efa37614236bf9f45d",
+    "pushed_to": [
+      "origin/claude/916-levelzero-rerank",
+      "origin/main"
+    ],
+    "settings": []
+  },
+  "precision": "PRECISION_MODEL",
+  "compute_dtype": "DTYPE_F32",
+  "bundle": {
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "revision": "1",
+    "manifest_sha256": "0f17adc4b795ed27bbe59ec88d35d37bf10f25af15f07b09f3249e5c1001b6d3",
+    "artifact_sha256": "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db",
+    "tokenizer_sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
+  },
+  "shape": {
+    "batch": 32,
+    "seq": 256,
+    "chunk": 64,
+    "chunks_per_row": 4,
+    "chunk_batch": 64,
+    "chunk_frames": 2,
+    "cases": [
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8
+    ],
+    "sha256": "0c85ff407a58448a04661fa81fda7ae4e5ff72e378e19e3bbcafe070f9fdfcc3"
+  },
+  "rows": {
+    "vectors": 32,
+    "warmup": 20,
+    "iterations": 200,
+    "p50_ms": 50.438477,
+    "p99_ms": 61.93774,
+    "mean_ms": 44.76556231999998,
+    "min_ms": 12.870448,
+    "max_ms": 62.94069700000001,
+    "vectors_per_second": 714.8352068327155
+  },
+  "ranges": {
+    "vectors": 128,
+    "warmup": 20,
+    "iterations": 200,
+    "p50_ms": 49.534315,
+    "p99_ms": 60.563646999999996,
+    "mean_ms": 43.42739793999996,
+    "min_ms": 12.435164,
+    "max_ms": 68.106578,
+    "vectors_per_second": 2947.448064395822
+  },
+  "chunk_rows": {
+    "vectors": 128,
+    "warmup": 20,
+    "iterations": 200,
+    "p50_ms": 51.858226,
+    "p99_ms": 83.110968,
+    "mean_ms": 48.09632594999998,
+    "min_ms": 14.194014,
+    "max_ms": 101.168828,
+    "vectors_per_second": 2661.325942714758
+  },
+  "whole_row_max_abs_diff": 0.0,
+  "chunk_min_cosine": 0.6937697367090823,
+  "ranges_over_rows": 0.9820739630976566,
+  "chunk_rows_over_ranges": 1.0469151738547309
+}

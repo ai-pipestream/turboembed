@@ -4534,6 +4534,15 @@ real but under the gate's 2-point gain threshold), significantly
 worse on `arguana`, and tied on `scifact` and `qasper`. It beats
 the sandbox semantic chunker everywhere but `qasper`.
 
+The same three records run on the Level Zero backend (Arc Pro B70,
+`analysis/eval/records/*-hybrid-levelzero`, same flags, same
+bundle) match the CPU records query for query: the candidate and
+both baselines give the same nDCG@10 on every query of all four
+sets, with the same chunks and tokens. Both gates FAIL with the
+numbers in the table above. So the CUDA record's `arguana` gap
+(`51.65` against `51.47`; 53 of 1406 queries differ, with the same
+cuts) is CUDA's numerics, not the chunker.
+
 ### Structure in the chunker
 
 The records under `analysis/eval/records/turbo-chunker-254-200-structure-*`

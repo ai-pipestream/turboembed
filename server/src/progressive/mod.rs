@@ -4,6 +4,8 @@
 //! streams [`AnalyzeProgressiveEvent`] messages with strictly increasing 1-based
 //! sequence numbers as each branch completes.
 
+mod normalize;
+pub mod profiles;
 mod steps;
 
 use std::collections::HashSet;
@@ -36,8 +38,11 @@ use crate::results::document::{codecs, export_document_response, layer_info, vie
 use crate::state::State;
 use crate::status::to_status;
 
+pub use profiles::{
+    AnalysisProfile, DEFAULT_V1, MINIMAL_V1, PROFILES, RETRIEVAL_V1, find_profile, profile_capabilities,
+};
 pub use steps::compile_analyzer;
-use steps::{CHUNKING_STEPS, DEFAULT_STEPS, MINIMAL_STEPS};
+use steps::{CHUNKING_STEPS, DEFAULT_STEPS, MINIMAL_STEPS, compile_analyzer_with_state};
 
 /// Server-streaming response type for `AnalyzeDocumentProgressive`, carrying a
 /// drop guard that sets the cooperative cancellation flag as soon as the stream
@@ -91,34 +96,14 @@ fn step_error_code(err: &turbo_analysis::Error) -> i32 {
 
 /// Validates `req`, builds the [`Analyzer`] DAG, and starts the progressive
 /// execution task feeding the returned [`ProgressiveStream`].
-pub async fn start_progressive(req: Request<AnalyzePipelineRequest>) -> Reply<ProgressiveStream> {
-    start_progressive_inner(None, req).await
-}
-
-pub(crate) async fn start_progressive_with_state(
-    state: &State,
-    req: Request<AnalyzePipelineRequest>,
-) -> Reply<ProgressiveStream> {
-    start_progressive_inner(Some(state), req).await
-}
-
-async fn start_progressive_inner(
-    state: Option<&State>,
-    req: Request<AnalyzePipelineRequest>,
-) -> Reply<ProgressiveStream> {
+pub(crate) async fn start_progressive(state: &State, req: Request<AnalyzePipelineRequest>) -> Reply<ProgressiveStream> {
     let deadline = Deadline::from_request(&req)?;
     deadline.check()?;
     let req = req.into_inner();
     let offsets = OffsetMode::from_proto(req.offsets).map_err(plain)?;
-    if !req.model.trim().is_empty() {
-        return Err(plain(bad(format!(
-            "unknown model bundle {:?} for built-in progressive pipeline; leave model empty",
-            req.model
-        ))));
-    }
 
     let doc = build_initial_document(&req)?;
-    let analyzer = build_pipeline(&req, &doc)?;
+    let analyzer = build_pipeline(state, &req, &doc)?;
 
     let cancel = Arc::clone(deadline.cancel_flag());
     let task_cancel = Arc::clone(&cancel);
@@ -127,10 +112,7 @@ async fn start_progressive_inner(
 
     let doc_id = req.doc_id.clone();
     let proto_offsets = offsets.to_proto();
-    let (stream_guard, doc_guard) = match state {
-        Some(s) => (Some(s.metrics.track_stream()), Some(s.metrics.track_docs(1, None))),
-        None => (None, None),
-    };
+    let (stream_guard, doc_guard) = (Some(state.metrics.track_stream()), Some(state.metrics.track_docs(1, None)));
 
     tokio::task::spawn_blocking(move || {
         run_progressive_task(doc_id, proto_offsets, doc, analyzer, task_cancel, task_deadline, tx);
@@ -181,23 +163,26 @@ fn build_initial_document(req: &AnalyzePipelineRequest) -> Result<Document, Stat
     Ok(Document::new(req.text.as_str()))
 }
 
-fn build_pipeline(req: &AnalyzePipelineRequest, initial_doc: &Document) -> Result<Analyzer, Status> {
-    let step_names: Vec<&str> = if !req.steps.is_empty() {
-        req.steps.iter().map(String::as_str).collect()
+fn build_pipeline(state: &State, req: &AnalyzePipelineRequest, initial_doc: &Document) -> Result<Analyzer, Status> {
+    let (step_names, profile_name, required_bundles): (Vec<&str>, &str, &[&str]) = if !req.steps.is_empty() {
+        (req.steps.iter().map(String::as_str).collect(), req.profile.as_str(), &[])
+    } else if let Some(p) = find_profile(req.profile.as_str()) {
+        (p.steps.to_vec(), p.name, p.required_bundles)
     } else {
         match req.profile.as_str() {
-            "" | "default" | "standard" => DEFAULT_STEPS.to_vec(),
-            "minimal" => MINIMAL_STEPS.to_vec(),
-            "chunking" => CHUNKING_STEPS.to_vec(),
+            "" | "default" | "standard" => (DEFAULT_STEPS.to_vec(), req.profile.as_str(), &[]),
+            "minimal" => (MINIMAL_STEPS.to_vec(), req.profile.as_str(), &[]),
+            "chunking" => (CHUNKING_STEPS.to_vec(), req.profile.as_str(), &[]),
             other => {
                 return Err(plain(bad(format!(
-                    "unknown pipeline profile '{other}': expected 'default', 'minimal', or 'chunking'"
+                    "unknown pipeline profile '{other}': expected 'default-v1', 'retrieval-v1', 'minimal-v1', 'default', 'minimal', or 'chunking'"
                 ))));
             }
         }
     };
 
-    compile_analyzer(initial_doc, &step_names).map_err(plain)
+    compile_analyzer_with_state(initial_doc, &step_names, Some(state), &req.model, profile_name, required_bundles)
+        .map_err(plain)
 }
 
 fn run_progressive_task(

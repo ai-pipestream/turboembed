@@ -119,6 +119,33 @@ message CapabilitiesResponse
   // What LoadBundle may ask for; a larger request is refused with
   // TURBO_E_CAPACITY naming the limit, before anything is allocated.
   ServerLimits server = 3;
+
+  // Named, versioned analysis profiles served by AnalyzeDocumentProgressive
+  // (#1302): each profile's immutable step list, produced layers, and
+  // required bundle capabilities.
+  repeated ProfileCapabilities profiles = 4;
+}
+
+// One named, versioned analysis profile served by AnalyzeDocumentProgressive
+// (#1302). A profile's output set never changes within a version.
+message ProfileCapabilities
+{
+  // Profile identifier accepted in AnalyzePipelineRequest.profile
+  // ("default-v1", "retrieval-v1", "minimal-v1").
+  string name = 1;
+
+  // Immutable profile schema version ("1").
+  string version = 2;
+
+  // Ordered step IDs executed by this profile.
+  repeated string steps = 3;
+
+  // Standard layer IDs produced by this profile.
+  repeated string layers = 4;
+
+  // Required bundle capabilities ("TASK_EMBED", "embed.sparse") that must be
+  // loaded to execute this profile.
+  repeated string required_bundles = 5;
 }
 
 // What LoadBundle may ask for. The caps keep one request from taking
@@ -773,8 +800,8 @@ message AnalyzePipelineRequest
   // Wire offset unit for spans and metadata; 0 is OFFSET_MODE_UTF8.
   OffsetMode offsets = 4;
 
-  // Named pipeline profile ("default", "minimal", "chunking"); empty uses
-  // "default".
+  // Named pipeline profile ("default-v1", "retrieval-v1", "minimal-v1",
+  // "default", "minimal", "chunking"); empty uses "default".
   string profile = 5;
 
   // Explicit list of step IDs to run in the Analyzer DAG; when non-empty,
