@@ -23,12 +23,14 @@ async fn completed_deadline_releases_its_timer_state() {
 }
 
 #[tokio::test]
-async fn ready_rpc_can_use_a_positive_short_budget() {
+async fn ready_rpc_can_use_a_positive_budget() {
     let (s, _) = common::serve().await;
     let mut client = common::kserve(&s).await;
     assert!(client.server_ready(ServerReadyRequest {}).await.unwrap().into_inner().ready);
     let mut req = Request::new(ServerReadyRequest {});
-    req.metadata_mut().insert("grpc-timeout", MetadataValue::from_static("15m"));
+    // Allow scheduling time for tonic's client-local timer. The unit regression
+    // above separately proves a fresh 15 ms server budget is not pre-expired.
+    req.metadata_mut().insert("grpc-timeout", MetadataValue::from_static("1S"));
     let result = client.server_ready(req).await;
     s.stop().await;
     assert!(result.is_ok(), "ready RPC failed before processing: {result:?}");
