@@ -1,0 +1,22 @@
+[
+  {
+    "model": "glirel",
+    "variant": "main",
+    "output": "0.000005070 -5.946336895227\nallocations 33"
+  },
+  {
+    "model": "glirel",
+    "variant": "fixed",
+    "output": "0.000003566 -5.946336925030\nallocations 0"
+  },
+  {
+    "model": "gliner2",
+    "variant": "main",
+    "output": "0.000080282 -3.654892794788\nallocations 101"
+  },
+  {
+    "model": "gliner2",
+    "variant": "fixed",
+    "output": "0.000054633 -3.654892912135\nallocations 88"
+  }
+]
