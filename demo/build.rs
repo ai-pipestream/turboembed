@@ -12,10 +12,10 @@ const SERDE: &str = "#[derive(serde::Serialize, serde::Deserialize)]";
 
 /// The bytes fields that are not raw bytes to the page.
 const FIELDS: [(&str, &str); 4] = [
-    (".turbo.result.AnalyzeDocument.text", "utf8"),
-    (".turbo.result.AnalyzeVectors.data", "f32le"),
-    (".turbo.result.TokenVectorsResult.data", "f32le"),
-    (".turbo.result.ChunkLevelsResult.data", "f32le"),
+    (".turbo.result.v1.AnalyzeDocument.text", "utf8"),
+    (".turbo.result.v1.AnalyzeVectors.data", "f32le"),
+    (".turbo.result.v1.TokenVectorsResult.data", "f32le"),
+    (".turbo.result.v1.ChunkLevelsResult.data", "f32le"),
 ];
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -27,10 +27,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut build = tonic_prost_build::configure()
         .build_client(true)
         .build_server(false)
-        .message_attribute(".turbo.result", SERDE)
-        .message_attribute(".turbo.result", "#[serde(default)]")
-        .enum_attribute(".turbo.result", SERDE)
-        .enum_attribute(".turbo.result", "#[serde(rename_all = \"snake_case\")]");
+        .message_attribute(".turbo.result.v1", SERDE)
+        .message_attribute(".turbo.result.v1", "#[serde(default)]")
+        .enum_attribute(".turbo.result.v1", SERDE)
+        .enum_attribute(".turbo.result.v1", "#[serde(rename_all = \"snake_case\")]");
     for (field, with) in FIELDS {
         build = build.field_attribute(field, format!("#[serde(with = \"crate::wire::{with}\")]"));
     }
