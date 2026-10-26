@@ -14,13 +14,14 @@ use turbo::{
 };
 
 use crate::api::{self, *};
+use crate::deadline::{Deadline, deadline_status};
 use crate::infer::{self, Rows};
 use crate::proto::grpc_inference_service_server::GrpcInferenceService;
 use crate::proto::infer_parameter::ParameterChoice;
 use crate::proto::model_infer_response::InferOutputTensor;
 use crate::proto::model_metadata_response::TensorMetadata;
 use crate::proto::*;
-use crate::state::{Held, Loaded, Served, State, properties};
+use crate::state::{Held, Loaded, Served, State};
 use crate::status::{EMBED_OPTIONS, QA_OPTIONS, RERANK_OPTIONS, to_status};
 
 /// The vectors of one result, owned until the response that carries them is
@@ -160,24 +161,42 @@ fn fits(si: &turbo_session_info, batch: u32, seq: u32) -> Result<()> {
 fn infer(
     state: &State,
     req: ModelInferRequest,
+    deadline: &Deadline,
 ) -> std::result::Result<ModelInferResponse, (Failure, &'static [&'static str])> {
+    deadline.check_alive().map_err(|f| (f, &[][..]))?;
     let (served, loaded) = state.ready(&req.model_name, &req.model_version).map_err(|f| (f, &[][..]))?;
     match loaded.task {
-        TURBO_TASK_EMBED => infer_embed(&served, &loaded, req).map_err(|f| (f, &EMBED_OPTIONS[..])),
-        TURBO_TASK_RERANK => crate::tasks::infer_rerank(&served, &loaded, req).map_err(|f| (f, &RERANK_OPTIONS[..])),
-        TURBO_TASK_EXTRACTIVE_QA => crate::tasks::infer_qa(&served, &loaded, req).map_err(|f| (f, &QA_OPTIONS[..])),
+        TURBO_TASK_EMBED => infer_embed(&served, &loaded, req, deadline).map_err(|f| (f, &EMBED_OPTIONS[..])),
+        TURBO_TASK_RERANK => {
+            crate::tasks::infer_rerank(&served, &loaded, req, deadline).map_err(|f| (f, &RERANK_OPTIONS[..]))
+        }
+        TURBO_TASK_EXTRACTIVE_QA => {
+            crate::tasks::infer_qa(&served, &loaded, req, deadline).map_err(|f| (f, &QA_OPTIONS[..]))
+        }
         other => Err((Failure::new(TURBO_E_UNSUPPORTED_TASK, 0, format!("unsupported task {other}")), &[][..])),
     }
 }
 
-fn infer_embed(served: &Arc<Served>, loaded: &Arc<Loaded>, req: ModelInferRequest) -> Result<ModelInferResponse> {
+fn infer_embed(
+    served: &Arc<Served>,
+    loaded: &Arc<Loaded>,
+    req: ModelInferRequest,
+    deadline: &Deadline,
+) -> Result<ModelInferResponse> {
     let plan = infer::plan(&req)?;
     // Every session of a model is made alike, so the first one's limits are
     // the held one's: an oversized raw request is refused before BUSY.
     if let Rows::Raw { batch, seq, .. } = plan.rows {
         fits(&loaded.slots[0].info, batch, seq)?;
     }
+    let batch_len = match &plan.rows {
+        Rows::Texts(texts, _) => texts.len(),
+        Rows::Typed { batch, .. } | Rows::Raw { batch, .. } => *batch as usize,
+    };
+    let _docs = loaded.metrics.track_docs(batch_len.max(1), Some(loaded.device));
+    deadline.check_alive()?;
     let held = loaded.take()?;
+    deadline.check_alive()?;
     let slot = held.slot();
     let opts: &turbo_embed_options = &plan.opts;
     match &plan.rows {
@@ -202,7 +221,10 @@ fn infer_embed(served: &Arc<Served>, loaded: &Arc<Loaded>, req: ModelInferReques
             slot.session.write_tokens(&b, opts)?
         }
     }
+    deadline.check_alive()?;
+    loaded.metrics.record_batch_size(batch_len);
     let result = slot.session.run()?;
+    deadline.check_alive()?;
     let first = result.info()?;
     let data = match first.placement {
         TURBO_PLACE_HOST | TURBO_PLACE_PINNED | TURBO_PLACE_SHARED => {
@@ -318,13 +340,78 @@ impl GrpcInferenceService for Inference {
     }
 
     async fn model_infer(&self, req: Request<ModelInferRequest>) -> Reply<ModelInferResponse> {
+        let deadline = Deadline::from_request(&req)?;
+        deadline.check()?;
         let state = self.state.clone();
         let req = req.into_inner();
+        let worker_deadline = deadline.clone();
         // The run blocks; a request whose client goes away keeps its
         // session until the run ends and the result is released.
-        let out = tokio::task::spawn_blocking(move || infer(&state, req)).await.map_err(|e| {
+        let out = tokio::task::spawn_blocking(move || infer(&state, req, &worker_deadline)).await.map_err(|e| {
             to_status(&Failure::new(TURBO_E_INTERNAL, 0, format!("the request's task failed: {e}")), &[])
         })?;
+        if deadline.is_expired() {
+            return Err(deadline_status());
+        }
         out.map(Response::new).map_err(|(f, fields)| to_status(&f, fields))
     }
+}
+
+/// The model's properties, read from the library on each call.
+pub(crate) fn properties(state: &State, loaded: &Loaded) -> api::Result<HashMap<String, String>> {
+    let rt = state.runtime.get().ok_or_else(|| Failure::new(TURBO_E_INVALID_STATE, 0, "no runtime"))?;
+    let mi = loaded.model.info()?;
+    let si = loaded.slots[0].info;
+    let di = rt.device_info(loaded.device)?;
+    let cap = rt.capability(loaded.device, mi.task, si.precision)?;
+    let dims: Vec<String> = mi
+        .output_dims
+        .iter()
+        .take((mi.output_dims_count as usize).min(mi.output_dims.len()))
+        .map(u32::to_string)
+        .collect();
+    let mut p: Vec<(&str, String)> = vec![
+        ("model_info.task", names::task(mi.task)),
+        ("model_info.dim", mi.dim.to_string()),
+        ("model_info.pooling", names::pooling(mi.pooling)),
+        ("model_info.normalize", names::normalize(mi.normalize)),
+        ("model_info.max_seq", mi.max_seq.to_string()),
+        ("model_info.max_batch", mi.max_batch.to_string()),
+        ("model_info.dtype", names::dtype(mi.dtype)),
+        ("model_info.model_id", api::field(&mi.model_id)),
+        ("model_info.revision", api::field(&mi.revision)),
+        ("model_info.manifest_sha256", api::field(&mi.manifest_sha256)),
+        ("model_info.artifact_sha256", api::field(&mi.artifact_sha256)),
+        ("model_info.tokenizer_sha256", api::field(&mi.tokenizer_sha256)),
+        ("model_info.prefix_query", api::field(&mi.prefix_query)),
+        ("model_info.prefix_document", api::field(&mi.prefix_document)),
+        ("model_info.output_dims_count", mi.output_dims_count.to_string()),
+        ("model_info.output_dims", dims.join(",")),
+        ("session_info.max_batch", si.max_batch.to_string()),
+        ("session_info.max_seq", si.max_seq.to_string()),
+        ("session_info.precision", names::precision(si.precision)),
+        ("session_info.compute_dtype", names::dtype(si.compute_dtype)),
+        ("device_info.kind", names::device_kind(di.kind)),
+        ("device_info.ordinal", di.ordinal.to_string()),
+        ("device_info.unified_memory", di.unified_memory.to_string()),
+        ("device_info.memory_total", di.memory_total.to_string()),
+        ("device_info.arch", api::field(&di.arch)),
+        ("device_info.name", api::field(&di.name)),
+        ("device_info.vendor", api::field(&di.vendor)),
+        ("device_info.backend", api::field(&di.backend)),
+        ("device_info.runtime_version", api::field(&di.runtime_version)),
+        ("device_info.driver_version", api::field(&di.driver_version)),
+        ("capability.status", names::cap(cap.status)),
+        ("capability.dtype", names::dtype(cap.dtype)),
+        ("capability.options_honored", cap.options_honored.to_string()),
+        ("capability.cosine_floor", cap.cosine_floor.to_string()),
+        ("capability.speed_ratio", cap.speed_ratio.to_string()),
+        ("capability.benchmark", api::field(&cap.benchmark)),
+        ("capability.reason", api::field(&cap.reason)),
+    ];
+    if mi.task == TURBO_TASK_RERANK {
+        p.push(("model_info.rerank_query_tokens", mi.rerank_query_tokens.to_string()));
+        p.push(("model_info.rerank_pair_template", names::pair_template(mi.rerank_pair_template)));
+    }
+    Ok(p.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
 }
