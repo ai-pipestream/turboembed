@@ -343,8 +343,8 @@ Two knobs in `turbo_zoo` cover the cases plain HTTPS does not:
   public ones and the custom transport for the mirror.
 - `Mirror::new(base, inner)` rewrites every fetch to
   `<base>/<original host>/<original path>`, so one mirror of several
-  origins keeps them apart. Digest checks run unchanged on what the
-  mirror serves.
+  origins keeps them apart. The base cannot include a query or fragment.
+  Digest checks run unchanged on what the mirror serves.
 
 An OCI registry also works: blobs are served by digest over HTTPS
 (`/v2/<name>/blobs/sha256:<digest>`), so the address is self-pinning and

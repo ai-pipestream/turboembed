@@ -99,9 +99,12 @@ pub struct Mirror<T> {
 
 impl<T> Mirror<T> {
     /// A mirror of every URL at `base` (an `https://` address), fetched
-    /// through `inner`.
+    /// through `inner`. The base must not contain a query or fragment.
     pub fn new(base: &str, inner: T) -> Result<Mirror<T>, String> {
         let base = Url::from_str(base).map_err(|e| e.to_string())?;
+        if base.as_str().contains('?') || base.as_str().contains('#') {
+            return Err("a mirror base must not contain a query or fragment".into());
+        }
         Ok(Mirror { base: base.as_str().trim_end_matches('/').to_owned(), inner })
     }
 
@@ -278,5 +281,10 @@ czkEzHeFhYU=\n\
         let seen = mirror.inner.0.lock().unwrap();
         assert_eq!(seen.as_slice(), ["https://mirror.internal/zoo/huggingface.co/models/x/weights"]);
         assert!(Mirror::new("http://mirror.internal", Record(std::sync::Mutex::new(Vec::new()))).is_err());
+        assert!(Mirror::new("https://mirror.internal/zoo?tenant=x", super::Offline).is_err());
+        assert!(Mirror::new("https://mirror.internal/zoo?", super::Offline).is_err());
+        assert!(Mirror::new("https://mirror.internal/zoo#tenant=x", super::Offline).is_err());
+        assert!(Mirror::new("https://mirror.internal/zoo#", super::Offline).is_err());
+        assert!(Mirror::new("https://mirror.internal/zoo%3Ftenant=x%23part", super::Offline).is_ok());
     }
 }
