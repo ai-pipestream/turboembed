@@ -4383,8 +4383,12 @@ Each chunker records every setting it ran with, defaults included.
   cosines when given, else a fixed cosine, 0.5 by default); chunks under
   the minimum sentences are merged into a neighbour, then chunks over
   the maximum are split. The cosine and the nearest rank percentile are
-  computed as the Java computes them. Its parity with the JVM on golden
-  inputs is not checked yet.
+  computed as the Java computes them. The Java test suite's own cases
+  (topic split, trailing and leading merges, maximum split, identical
+  vector cosine) are pinned as goldens against this port in
+  `the_sandbox_java_test_cases_hold`, with the percentile ranks derived
+  from the Java formula in `the_sandbox_percentile_is_the_javas_rank`
+  (#955).
 - `turbo-chunker`: turbo-chunker's `Chunker` over `StructureBoundaries`,
   optionally with `DriftBoundaries` weighed in (`--drift`) and the
   cohesion term (`CohesiveChunker`, `--cohesion`); the level 0 chunks
@@ -4534,6 +4538,31 @@ and against `fixed-tokens-200` it is significantly better on
 real but under the gate's 2-point gain threshold), significantly
 worse on `arguana`, and tied on `scifact` and `qasper`. It beats
 the sandbox semantic chunker everywhere but `qasper`.
+
+The sweep above chose nothing on a held-out split, so #955 adds one
+(`Hybrid::choose_bm25_weight_held_out`, receipt in
+`analysis/eval/tests/heldout_hybrid.rs`, record in
+`analysis/eval/records/heldout-hybrid-955/heldout-hybrid-955.json`).
+Per set, the scored queries in byte order alternate between a
+selection half and a held-out half. Candidates `0.0` to `1.0` in
+steps of `0.1` (weighted fusion, turbo-chunker at 254/200,
+all-MiniLM-L6-v2) are searched and scored only on the selection
+half; the single chosen weight is then searched on the held-out
+half. An exact tie keeps the lowest candidate.
+
+| Set | Chosen `bm25_weight` | Selection queries | Selection nDCG@10 | Held-out queries | Held-out nDCG@10 |
+| :--- | ---: | ---: | ---: | ---: | ---: |
+| `scifact` | 0.20 | 150 | 0.6860 | 150 | 0.7269 |
+| `nfcorpus` | 0.30 | 162 | 0.3438 | 161 | 0.3472 |
+| `arguana` | 0.30 | 703 | 0.5162 | 703 | 0.5179 |
+| `qasper` | 0.60 | 726 | 0.4050 | 725 | 0.3854 |
+
+The chosen weight is per set, so this record does not by itself
+move the CLI default of `0.35`. It shows the default sits between
+the BEIR choices (0.20 to 0.30) and qasper's 0.60, and that the
+held-out halves score close to their selection halves at the
+chosen weights, so the sweep's ordering was not an artifact of
+scoring on the swept queries.
 
 The same three records run on the Level Zero backend (Arc Pro B70,
 `analysis/eval/records/*-hybrid-levelzero`, same flags, same
