@@ -126,8 +126,8 @@ Before the allowlist, each call passes two checks
   for `POST`) is answered 204. Any other preflight is 403 with no CORS
   headers. Default ports (HTTP 80 and HTTPS 443) are normalized, including
   configured origins; malformed ports and non-HTTP schemes are rejected.
-  Forwarded scheme headers do not change this check. There is no wildcard; `*` and an origin with a path stop the
-  demo at startup.
+  Forwarded scheme headers do not change this check. There is no wildcard;
+  `*` and an origin with a path stop the demo at startup.
 - Token. With `--token-file` (or `TURBO_DEMO_TOKEN`) every call must
   carry `authorization: Bearer <token>`; without it, or with another,
   it is refused `unauthenticated` (401). The page's files need no token.

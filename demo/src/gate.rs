@@ -68,9 +68,12 @@ impl Gate {
     /// origin, else 403 with no CORS headers.
     pub(crate) fn preflight(&self, headers: &HeaderMap) -> Response {
         let post = headers.get(header::ACCESS_CONTROL_REQUEST_METHOD).is_some_and(|m| m.as_bytes() == b"POST");
+        if !post {
+            return StatusCode::FORBIDDEN.into_response();
+        }
         let mut reply = HeaderMap::new();
         self.grant(headers.get(header::ORIGIN), &mut reply);
-        if !post || !reply.contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN) {
+        if !reply.contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN) {
             return (StatusCode::FORBIDDEN, reply).into_response();
         }
         reply.insert(header::ACCESS_CONTROL_ALLOW_METHODS, HeaderValue::from_static("POST"));

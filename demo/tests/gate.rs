@@ -105,6 +105,7 @@ async fn another_origin_gets_no_cors_grant_unless_listed() {
     assert_eq!(r.header("access-control-allow-methods"), Some("POST"));
     let r = http(&d, "OPTIONS", LIVE, &[app, ("Access-Control-Request-Method", "GET")], b"").await;
     assert_eq!(r.status, 403);
+    assert_eq!(r.header("access-control-allow-origin"), None);
     let r = http(&d, "POST", LIVE, &[("Content-Type", UNARY), app], b"").await;
     assert_eq!(r.status, 200);
     assert_eq!(r.header("access-control-allow-origin"), Some("https://app.example"));
