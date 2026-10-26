@@ -56,7 +56,7 @@ impl Catalog {
             }
             None => Index::builtin(),
         };
-        Ok(Catalog { home, index: Arc::new(index), transport: Arc::new(turbo_zoo::Http) })
+        Ok(Catalog { home, index: Arc::new(index), transport: Arc::new(turbo_zoo::Http::new()) })
     }
 
     fn cache(&self) -> PathBuf {
