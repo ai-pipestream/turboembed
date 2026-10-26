@@ -5,7 +5,9 @@
 //! TURBO_TEST_DEVICE names (`levelzero`, `cuda`, `metal`; the CPU when it
 //! is not set) at the precision TURBO_TEST_PRECISION names (model, or
 //! exact). Each vector, probability and logit within 1e-4 of the CPU's at
-//! f32 and 1e-2 at f16, the predicted tags the same. With
+//! f32 and 1e-2 at f16, the predicted tags the same, and the NLI label
+//! the same for each pair whose CPU margin is over twice the bound, those
+//! pairs picking at least two labels. With
 //! TURBO_TEST_REQUIRE_CUDA or TURBO_TEST_REQUIRE_LEVELZERO set, the test
 //! fails unless it runs there. `heads.rs` holds `ClassifierHead`, the
 //! centroids and `LearnedAspectSentiment` to the same device.
@@ -26,7 +28,7 @@ use turbo_doccat::NliScorer;
 
 mod nli_support;
 
-use nli_support::make_nli_bundle;
+use nli_support::make_nli_bundle_with;
 
 fn bundle() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle")
@@ -178,27 +180,61 @@ fn a_dense_classifier_reads_device_vectors_as_the_cpus() {
     );
 }
 
+/// The label a logit row picks, and its margin over the next.
+fn decision(row: &[f32]) -> (usize, f32) {
+    let mut order: Vec<usize> = (0..row.len()).collect();
+    order.sort_by(|&a, &b| row[b].total_cmp(&row[a]));
+    (order[0], row[order[0]] - row[order[1]])
+}
+
 #[test]
 fn the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu() {
     let (device, cpu) = options();
-    let dir = make_nli_bundle("device", &["contradiction", "entailment", "neutral"], |_| {});
-    let (want, got) = (BundleNliScorer::open(&dir.0, &cpu).unwrap(), BundleNliScorer::open(&dir.0, &device).unwrap());
-    let execution = got.info().execution.clone();
-    let bound = bound(&execution);
+    let labels = ["contradiction", "entailment", "neutral"];
     let pairs = [
         ("The quick brown fox jumps over the lazy dog.", "This example is about animals."),
         ("Café naïve résumé", "This example is about food."),
         ("GPU tensor cores accelerate matrix multiplication.", "This example is about hardware."),
         ("Invoice billing charges the monthly subscription.", "This example is not about money."),
+        ("Rain fell all night over the quiet harbour.", "The weather was dry."),
+        ("She signed the contract on Monday.", "A document was signed."),
     ];
+    // The tiny encoder's pooled state moves by about 1e-3 between inputs,
+    // so a fixed head picks one label for every pair. The head is centred
+    // on these pairs instead: a CPU pass reads three pooled dimensions,
+    // and each label's logit is its dimension less the pairs' mean, times
+    // SCALE, so the label follows the input. SCALE keeps an f32 device's
+    // 1e-7 inside the bound.
+    const SCALE: f32 = 200.0;
+    let dims = [21, 22, 23];
+    let rows = |scale: f32| (0..3 * 32).map(|k| if k % 32 == dims[k / 32] { scale } else { 0.0 }).collect();
+    let probe = make_nli_bundle_with("probe", &labels, Some((rows(1.0), vec![0.0; 3])), |_| {});
+    let pooled = BundleNliScorer::open(&probe.0, &cpu).unwrap().score_pairs(&pairs).unwrap();
+    let mean: Vec<f32> = (0..3).map(|d| pooled.iter().map(|r| r[d]).sum::<f32>() / pairs.len() as f32).collect();
+    let bias = mean.iter().map(|m| -SCALE * m).collect();
+    let dir = make_nli_bundle_with("device", &labels, Some((rows(SCALE), bias)), |_| {});
+    let (want, got) = (BundleNliScorer::open(&dir.0, &cpu).unwrap(), BundleNliScorer::open(&dir.0, &device).unwrap());
+    let execution = got.info().execution.clone();
+    let bound = bound(&execution);
     let (w, g) = (want.score_pairs(&pairs).unwrap(), got.score_pairs(&pairs).unwrap());
-    let mut worst = 0f64;
+    let (mut worst, mut picked) = (0f64, BTreeSet::new());
     for (i, (w, g)) in w.iter().zip(&g).enumerate() {
         let as64 = |v: &[f32]| v.iter().map(|&x| x as f64).collect::<Vec<_>>();
         close(&as64(w), &as64(g), bound, &format!("pair {i} logits"), &mut worst);
+        let ((label, margin), (theirs, _)) = (decision(w), decision(g));
+        println!("pair {i}: {} by {margin}", labels[label]);
+        // A margin inside twice the bound cannot hold a device to a label.
+        if margin as f64 > 2.0 * bound {
+            assert_eq!(labels[label], labels[theirs], "pair {i}: the label picked");
+            picked.insert(label);
+        }
     }
+    assert!(picked.len() >= 2, "the decided pairs pick one label only: {picked:?}");
     println!(
-        "bundle nli scorer on {} {} ({}): logits {worst:e}",
-        execution.backend, execution.device, execution.precision
+        "bundle nli scorer on {} {} ({}): logits {worst:e}, labels picked {:?}",
+        execution.backend,
+        execution.device,
+        execution.precision,
+        picked.iter().map(|&l| labels[l]).collect::<Vec<_>>()
     );
 }
