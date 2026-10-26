@@ -142,82 +142,12 @@ fn verify_emotions_txt(dir: &Path) -> Result<(), String> {
     Ok(())
 }
 
-struct Prepared {
-    keys: Vec<Vec<String>>,
-    gold: Vec<GoldEmotionUnit>,
-    tokens: Tokens,
-    sentences: Sentences,
-}
-
-fn prepare(rows: &[Row]) -> Prepared {
-    let mut all_keys = Vec::with_capacity(rows.len());
-    let mut gold = Vec::with_capacity(rows.len());
-    let mut tok_spans = Spans::new(ViewId::SOURCE);
-    let mut sent_spans = Spans::new(ViewId::SOURCE);
-    let mut tok_sent = Vec::new();
-    let mut byte_cursor = 0u32;
-    for (i, r) in rows.iter().enumerate() {
-        let mut raw_spans = Vec::new();
-        turbo_tokenize::simple_spans(&r.text, turbo_tokenize::TokenizerOptions::default(), &mut raw_spans);
-        let keys: Vec<String> =
-            raw_spans.iter().map(|s| token_key(&r.text[s.start as usize..s.end as usize])).collect();
-        let sent_start = byte_cursor;
-        if keys.is_empty() {
-            // Ensure at least one synthetic token span so evidence ranges `0..1` are valid.
-            tok_spans.push(Span::new(byte_cursor, byte_cursor + 1));
-            tok_sent.push(Ix::new(i as u32));
-            byte_cursor += 1;
-        } else {
-            for _ in 0..keys.len() {
-                tok_spans.push(Span::new(byte_cursor, byte_cursor + 1));
-                tok_sent.push(Ix::new(i as u32));
-                byte_cursor += 1;
-            }
-        }
-        sent_spans.push(Span::new(sent_start, byte_cursor));
-        all_keys.push(keys);
-        gold.push(GoldEmotionUnit { labels: r.labels.clone() });
-    }
-    Prepared {
-        keys: all_keys,
-        gold,
-        tokens: Tokens { spans: tok_spans, sentence: Some(tok_sent) },
-        sentences: Sentences { spans: sent_spans },
-    }
-}
-
-fn score_split(
-    annotator: &EmotionAnnotator,
-    p: &Prepared,
-    vectors: &[f32],
-    dim: usize,
-) -> Result<EmotionLayer, String> {
-    let mut layer = EmotionLayer::new();
-    let mut tok_offset = 0usize;
-    for (i, keys) in p.keys.iter().enumerate() {
-        let v = &vectors[i * dim..(i + 1) * dim];
-        let (scores, local_ev) = annotator.score_unit(keys, 0, keys.len(), Some(v))?;
-        let step = keys.len().max(1);
-        let shifted: Vec<_> = local_ev
-            .into_iter()
-            .map(|(d, r)| {
-                (d, IxRange::new(r.start.get() as u32 + tok_offset as u32, r.end.get() as u32 + tok_offset as u32))
-            })
-            .collect();
-        layer.try_push(
-            &p.tokens,
-            Some(&p.sentences),
-            None,
-            EmotionItem { target: EmotionTarget::Sentence(Ix::new(i as u32)), scores, evidence: &shifted },
-        )?;
-        tok_offset += step;
-    }
-    Ok(layer)
-}
+mod prepared;
+use prepared::{Prepared, prepare, score_split};
 
 fn tune_thresholds(
     annotator: &EmotionAnnotator,
-    p: &Prepared,
+    p: &Prepared<'_>,
     vectors: &[f32],
     dim: usize,
 ) -> Result<(f64, f64, [f64; EMOTION_DIMENSIONS], f64, f64), String> {
@@ -314,8 +244,8 @@ fn run() -> Result<(), String> {
     }
     let scorer: Arc<dyn EmotionVectorScorer> = Arc::new(head);
 
-    let dev_p = prepare(&dev);
-    let test_p = prepare(&test);
+    let dev_p = prepare(&dev)?;
+    let test_p = prepare(&test)?;
     let mut tuned_json = serde_json::Map::new();
     let mut test_json = serde_json::Map::new();
 
@@ -408,3 +338,6 @@ fn main() -> std::process::ExitCode {
         }
     }
 }
+
+#[cfg(test)]
+mod tests;
