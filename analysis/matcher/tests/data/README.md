@@ -57,7 +57,7 @@ path that cannot be read, invalid JSON, a different corpus digest or a
 different spaCy version always fails. The test pins 31 sentences, 485
 tokens and all 2,580 expected matches.
 
-The current existing-path samples, compiler, source and corpus hashes,
+The earlier token-reader existing-path samples, compiler, source and corpus hashes,
 commits, run order and ambient load are in
 `../../reference/existing-path-timing.json`. They compare main
 `bf52319dfc49486e5109f2c76faccb8fcd6edc02` with candidate
@@ -112,3 +112,61 @@ additional untimed call. Both complete match dumps are byte-identical
 (4,167,221 bytes), SHA-256
 `af63717117339df6cfedc46020317acd2b4b6b17ce0f052f37d4583174335ffd`.
 The receipt/doc follow-up does not change the measured matcher or example.
+
+## Dependency patterns
+
+`reference/dependency_patterns.py` runs spaCy 3.8.7's actual
+`DependencyMatcher` on the first 200 reconstructable EWT r2.16 sentences
+with 2 through 30 tokens. Selection does not depend on matcher output.
+Twenty pairs of those original sentences additionally exercise separate
+roots in one document. Original UD heads, relations, POS and morphology
+are used directly; this is a gold-annotation comparison, not parser model
+accuracy evidence. Corpus licensing and the pinned train digest above apply.
+The generator includes all 20 dependency operators, branching/node reuse,
+DEP sets, FUZZY and MORPH predicates. It also uses the unchanged published
+`pattern4` from [spaCy's MIT-licensed test fixture](https://github.com/explosion/spaCy/blob/4b65aa79eeee18003be04d59ed7004ac5770f02d/spacy/tests/matcher/test_dependency_matcher.py).
+That lexical pattern has no matching fox/jumped pair in this corpus slice;
+the published drug rules above provide positive published-rule coverage.
+
+The dependency run uses reference image
+`sha256:3fe2d4ad441927475b97a400364ebcb7fca3f324dae1a0463720eff7fc0a53f4`,
+with packages pinned by `../../reference/dependency-oracle-requirements.txt`
+installed into a separate mounted package directory.
+It adds no runtime dependency to the Rust workspace. Keep corpus and
+oracle outputs local, as with the token-pattern oracle.
+
+```sh
+python analysis/matcher/reference/dependency_patterns.py \
+  target/spacy/en_ewt-ud-train.conllu target/spacy/dependencies.json
+TURBO_SPACY_DEPENDENCY_ORACLE="$PWD/target/spacy/dependencies.json" \
+TURBO_SPACY_ORACLE="$PWD/target/spacy/oracle.json" \
+TURBO_TEST_REQUIRE_SPACY_ORACLE=1 \
+cargo test --locked -p turbo-matcher
+```
+
+The dependency generator command runs inside the pinned reference
+container. An absent oracle reports an explicit skip unless the required
+flag is set; an unreadable file, wrong version/digest or changed output
+fails. Every matched node is checked through a space-expanded view in
+both directions and through UTF-16/code-point round trips. Expected node
+order remains unchanged, including nonmonotonic and repeated indices.
+
+The dependency comparison covers 220 documents, 4,033 tokens, 136,932
+results and 276,116 node projections (262,323 shifted). All 20 operators
+produce matches. The published drug rules retain their 2,580 expected
+results. Input/output digests and environment versions are recorded in
+[`dependency-oracle-receipt.json`](../../reference/dependency-oracle-receipt.json).
+
+[Token-path timing](../../reference/dependency-existing-path-timing.json)
+compares candidate `6cc73a0afe302d4c53b3f3f70b1b648a59da71e7` with main
+`726da63a9e65584ba4754f18f1620bcd387b699a`, after a normal main merge.
+Reuse the build/run recipe above with these revisions. All 12 alternating
+pairs and 15 calls per process are retained. Output dumps match exactly:
+204,577 tokens, 51,765 hits. Main/candidate process medians are
+17.102/16.915 ms (ratio 0.9891); median paired ratio is 1.0158. Individual
+ratios span 0.8287..1.1536 on a heavily loaded shared host. These mixed
+samples are consistent with parity within their observed variation; no
+isolated-host speedup is claimed. The earlier comparison at `93afa287`
+versus `6a2ba1d6` is preserved in the
+[initial receipt](../../reference/dependency-initial-path-timing.json).
+The final receipt update leaves matcher source and example unchanged.

@@ -33,6 +33,7 @@ mod projection;
 pub use projection::Scratch;
 pub mod layer;
 pub mod modality;
+mod neural;
 pub mod paths;
 pub mod pattern;
 mod prepare;

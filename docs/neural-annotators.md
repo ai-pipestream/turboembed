@@ -183,7 +183,7 @@ read as each document alone, and (ignored except with `--ignored` on
 a Hailo host) a Hailo session refused with the range-pooling error.
 `TURBO_TEST_REQUIRE_CUDA=1` or `TURBO_TEST_REQUIRE_LEVELZERO=1` makes it
 fail when no device is named. It passes at every tier on CUDA (with `sat-1l-sm`
-too) and on Level Zero; docs/receipts/sat-884.md has the figures and
+too) and on Level Zero (with `sat-1l-sm` too); docs/receipts/sat-884.md has the figures and
 the speed against the CPU. A model of limited lookahead is refused on
 every device, which the lookahead parity test checks there.
 
@@ -203,11 +203,11 @@ this is wtpsplit as it ships, read through `PreTrainedTokenizerFast`
 `TURBO_TEST_SAT_BUNDLE` names the bundle and `TURBO_TEST_SAT_FIXTURES`
 the fixtures. On the 90 texts:
 
-| Threshold, stride, block | Largest probability difference, CPU | On CUDA (`model`) | Characters near the threshold |
-|---|---|---|---|
-| 0.25, 64, 510 (wtpsplit's `split` defaults for a model of 512) | 1.6e-4 | 1.6e-4 | 0 |
-| 0.25, 16, 62 | 4.2e-4 | 4.2e-4 | 0 |
-| 0.5, 7, 30 | 3.7e-4 | 3.7e-4 | 0 |
+| Threshold, stride, block | Largest probability difference, CPU | On CUDA (`model`) | On Level Zero (`model`) | Characters near the threshold |
+|---|---|---|---|---|
+| 0.25, 64, 510 (wtpsplit's `split` defaults for a model of 512) | 1.6e-4 | 1.6e-4 | 1.6e-4 | 0 |
+| 0.25, 16, 62 | 4.2e-4 | 4.2e-4 | 4.2e-4 | 0 |
+| 0.5, 7, 30 | 3.7e-4 | 3.7e-4 | 3.7e-4 | 0 |
 
 The fixtures' SHA-256s (kept outside the repository with the bundle):
 `t0.25-s64-b510.jsonl` `00e3acafbda76810e2cf496457082202f2ceddf095d963c0daa5bef338246f99`,

@@ -39,7 +39,7 @@ pub(crate) struct TokTests {
 impl TokTests {
     /// Whether token `abs` (at `rel` in the columns) passes.
     #[inline]
-    fn passes(&self, cols: &Columns, input: &Input<'_>, rel: usize, abs: usize) -> bool {
+    pub(crate) fn passes(&self, cols: &Columns, input: &Input<'_>, rel: usize, abs: usize) -> bool {
         let all = self.tests.iter().all(|t| match t {
             Compiled::Is(a, id) => cols.values[*a as usize][rel] == *id,
             Compiled::In(a, ids) => ids.binary_search(&cols.values[*a as usize][rel]).is_ok(),
@@ -64,7 +64,7 @@ fn ids(values: &[Box<str>], vocab: &mut Vocab) -> Box<[u32]> {
     v.into()
 }
 
-fn compile_tests(tok: &Tok, vocab: &mut Vocab, needs: &mut Needs) -> TokTests {
+pub(crate) fn compile_tests(tok: &Tok, vocab: &mut Vocab, needs: &mut Needs) -> TokTests {
     let tests = tok
         .tests
         .iter()

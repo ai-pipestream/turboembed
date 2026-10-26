@@ -86,7 +86,7 @@ fn the_heads_match_the_reference_layers() {
         // The same through the pass the scorer runs.
         let prompt = Prompt {
             ids,
-            words: words.iter().map(|&p| Word { start: p, end: p + 1 }).collect(),
+            words: words.iter().map(|&p| Word { text: "", start: p, end: p + 1, subword_len: 1 }).collect(),
             word_first: words.iter().map(|&p| Some(p)).collect(),
             labels,
         };

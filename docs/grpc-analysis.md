@@ -25,9 +25,47 @@ own file; generate a client from it in any language with gRPC.
 | `ProjectChunks` | Vector projection, term stacks and optional drift/strategy comparisons. |
 | `ListOutputFormats` | The standard document formatter descriptors. |
 | `FormatDocument` | A binary document graph exported in a requested format. |
+| `AnalyzeDocumentProgressive` | Progressive server-streaming document analysis by step list or named profile. |
+| `InspectDocumentGraph` | Projects a binary document graph into `TypedDocumentResult` for a requested view and offset mode. |
+| `RoundTripTypedDocument` | The typed document message, validated, unchanged. |
 
 See [inspection, projection and export RPCs](grpc-inspect.md) for their
 request fields, limits and output semantics.
+
+## Progressive document analysis and named profiles (issues #1218, #1302, #1325)
+
+`AnalyzeDocumentProgressive` executes a document analysis pipeline stage by
+stage and streams `ProgressiveAnalysisEvent` messages (`step_started`,
+`step_finished`, `step_skipped`, `step_failed`, and final `completed` carrying
+both `DocumentGraphResponse` and `ProgressiveSummary` timings).
+
+A request may specify either an explicit `steps` list or a named, versioned
+`profile` (`AnalyzeDocumentProgressiveRequest.profile`). `Capabilities` lists
+every served profile under `CapabilitiesResponse.profiles` (`ProfileCapabilities`:
+`name`, `version`, `steps`, `layers`, and `required_bundles`):
+
+| Profile | Version | Steps | Produced Layers | Required Bundles |
+|---|---|---|---|---|
+| `default-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped`, `turbo:structure-boundaries`, `turbo-geo:names`, `turbo:subwords`, `turbo:chunker`, `turbo:level-builder`, `turbo:chunk-vectors` | `turbo:structure`, `opennlp:sentences`, `opennlp:tokens`, `turbo:boundaries`, `opennlp:entities`, `opennlp:subwords`, `turbo:chunks`, `turbo:levels`, `opennlp:embeddings<turbo:chunks>` | `TASK_EMBED` |
+| `retrieval-v1` | `"1"` | `default-v1` steps + `turbo:sparse` | `default-v1` layers + `turbo:sparse-terms<turbo:view>` | `TASK_EMBED`, `embed.sparse` |
+| `minimal-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped` | `turbo:structure`, `opennlp:sentences`, `opennlp:tokens` | *(none)* |
+
+A profile's output set never changes within a version. When a profile or
+explicit step requires a bundle capability (`TASK_EMBED` or `embed.sparse`)
+that is not loaded on the server (or does not match `req.model` when named),
+the call refuses before streaming with `TURBO_E_BUNDLE_NOT_FOUND` (`NOT_FOUND`)
+naming the missing bundle requirement.
+
+When normalization view steps (`turbo:normalize`, `turbo:normalize:unicode-form`,
+`turbo:normalize:whitespace`, `turbo:normalize:clean-text`, and
+`turbo-structure:project`) precede tokenization, subword segmentation, chunking,
+and embedding steps (`turbo:subwords`, `turbo:chunker`, `turbo:level-builder`,
+`turbo:sentence-vectors`, `turbo:chunk-vectors`, `turbo:sparse`), downstream
+annotators run on the normalized child view while projecting all span-anchored
+layers bi-directionally back to `ViewId::SOURCE` at their default keys so
+1-to-1 `Ix<L>` alignment with `Vectors<Sentences>`, `Vectors<Chunks>`, and
+`SparseTerms<View>` is preserved across UTF-8, UTF-16, and Unicode code-point
+offset modes.
 
 Span offsets cross in the unit a message names (`OffsetMode` on
 `ChunkLevelsResult`, `SparseTermsResult`, `TokenVectorsResult`, and

@@ -48,11 +48,55 @@ original text. The graph codec also round-trips the new kinds.
 | Baseline `0edf2f35`, all examples | 500 | 652 |
 
 The 75 remaining differences are 74 examples containing link reference
-definitions, which stay paragraphs, and example 96, where the deliberate
-front-matter extension consumes the opening YAML-like block. They are
-listed in the test assertion. A new failure, or an unexpected change in
-that list, fails the test. Matching an inline-only example means only that
-its surrounding block tree matches.
+definitions, which stay paragraphs, and example 96, where the front-matter
+extension consumes the opening YAML-like block. They are actual block-tree
+differences. They are not counted as matches or excused as inline-only tests.
+Matching an inline-only example means only that its surrounding block tree
+matches.
+
+### Recorded block differences
+
+The [difference ledger](../analysis/structure/tests/data/commonmark-differences.tsv)
+records all 75 examples as tab-separated fields: example number, upstream
+section, reason, actual tree, and upstream tree. `<empty>` denotes an empty
+tree. Trees use `Kind:parent-index:heading-level`; parent `-1` is a root and levels are zero outside headings. The ledger uses the same
+CC-BY-SA-4.0 licence and upstream notice as the original fixture.
+
+`commonmark_block_trees` checks the exact ledger contents as well as the
+original 577 count and all 75 example numbers. An incorrect tree changing
+to a different incorrect tree now fails, even when the pass count and
+failing example numbers stay the same. The upstream trees remain the
+reference; this ledger does not replace them with the implementation's
+output.
+
+| Upstream section | Different examples | Cause |
+| --- | ---: | --- |
+| Backslash escapes | 1 | Link reference definition remains a block |
+| Entity and numeric character references | 1 | Link reference definition remains a block |
+| Setext headings | 1 | Front matter takes precedence, example 96 |
+| Link reference definitions | 17 | Definition blocks are not consumed |
+| Lists | 1 | Definition inside a list remains a paragraph, example 317 |
+| Links | 40 | Definition blocks are not consumed |
+| Images | 14 | Definition blocks are not consumed |
+
+Reference definitions are a known unsupported block rule, including their
+continuation lines, titles, escapes, and effect inside containers. For
+example, CommonMark example 207 (`[foo]: /url`) produces no visible block;
+the annotator preserves a paragraph. Example 317 retains a definition as a
+list paragraph. Supporting this rule later requires block parsing changes,
+not merely an inline renderer. The current parser preserves those source
+bytes and makes no link-resolution claim.
+
+Example 96 starts with `---`, then `Foo`, then `---`. The annotator treats
+that prefix as front matter. CommonMark instead reads thematic-break and
+setext-heading syntax. Front matter remains an intentional Markdown
+extension; the test retains the CommonMark expectation and records the
+difference.
+
+The documentation option for #948 is complete with these limitations
+stated. This is **577/652 block-tree agreement**, not complete CommonMark
+conformance. No example has been removed, reclassified as a passing test,
+or assigned an altered upstream expectation.
 
 Footnotes and plain-text column tables are extensions, outside CommonMark.
 Footnote bodies are opaque and indented 4 columns relative to their current
@@ -66,6 +110,28 @@ The structure suite includes 652 reference examples, CR/LF/CRLF and Unicode
 offset checks, graph round trips, normalization projection and mixed block
 combinations. Server codec tests preserve old tag numbers and round-trip
 new tags. Grouping continues to classify loose lists as navigation.
+
+`commonmark_blocks_project_through_crlf_and_back` expands line endings in
+all 652 upstream inputs through a derived `View`, then runs the actual
+`StructureProjector`. It checks unchanged kinds, parents and depths,
+forward projection, reverse projection to source bytes, and exact block
+text recovery. Both source and projected layers pass document span checks.
+This includes the 75 documented block differences: disagreement with
+CommonMark does not waive offset correctness. Existing tests separately
+cover whitespace collapse, Unicode, tables, HTML and footnotes.
+
+| #948 acceptance | Evidence and limit |
+| --- | --- |
+| Pinned spec test and documented count | 652 unchanged upstream examples, 577 matches, exact 75-case difference ledger |
+| Exact offsets and `StructureProjector` | Full-spec CRLF projection test plus existing normalization, Unicode and extension tests |
+| Real inputs, no mocks | Published CommonMark text, existing EWT timing input, actual annotator/projector calls |
+| fmt, clippy and source hygiene | Required follow-up PR checks; all touched Rust files remain below 500 lines |
+| No slowdown on existing path | Corrected release receipt below, with original binary/source hashes and shared-host limits preserved |
+
+The follow-up only changes tests and this documentation. Parser and
+projector code are unchanged, so no new timing result is asserted. The
+release measurements below remain historical evidence for the feature
+implementation, not measurements of later main revisions.
 
 To regenerate the oracle, pass the downloaded spec JSON, the pinned cmark
 executable and an output file to `analysis/structure/reference/commonmark.py`.

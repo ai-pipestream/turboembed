@@ -148,9 +148,9 @@ fn encoder() -> Encoder {
 }
 
 /// Reduced case 0: one relation, five words.
-fn prompt() -> Prompt {
+fn prompt() -> Prompt<'static> {
     let text = "a b c d e.".to_string();
-    let words = split(&text)[..5].to_vec();
+    let words = split("a b c d e.")[..5].to_vec();
     Prompt {
         ids: vec![5, 3, 9, 1, 4, 2, 4, 6, 7, 8, 11, 12, 13, 14, 10],
         text,
@@ -165,7 +165,7 @@ fn inconsistent_prompts_are_errors() {
     let (e, h) = (encoder(), heads());
     assert!(run(&e, &h, prompt()).is_ok());
     let mut extra = prompt();
-    extra.words.push(Word { text: ".".into(), start: 9, end: 10 });
+    extra.words.push(Word { text: ".".into(), start: 9, end: 10, subword_len: 0 });
     assert!(run(&e, &h, extra).is_err(), "a word without a first subword");
     let mut past = prompt();
     past.word_first[4] = 15;
@@ -199,7 +199,7 @@ fn logits_past_the_last_word_are_not_spans() {
     let prompt = Prompt {
         ids: vec![1],
         text: "a".into(),
-        words: vec![Word { text: "a".into(), start: 0, end: 1 }],
+        words: vec![Word { text: "a".into(), start: 0, end: 1, subword_len: 1 }],
         word_first: vec![0],
         markers: vec![[0, 0, 0]],
     };

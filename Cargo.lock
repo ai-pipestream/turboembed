@@ -2170,6 +2170,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-example-docling"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "turbo-analysis",
+ "turbo-analysis-embed",
+ "turbo-analysis-layers",
+ "turbo-chunker",
+ "turbo-maxent",
+ "turbo-namefind",
+ "turbo-normalize",
+ "turbo-sentdetect",
+ "turbo-structure",
+ "turbo-tokenize",
+]
+
+[[package]]
 name = "turbo-formats"
 version = "0.1.0"
 dependencies = [

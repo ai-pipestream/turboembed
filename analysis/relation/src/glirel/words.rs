@@ -7,12 +7,16 @@
 use turbo_unicode::category::general_category;
 use turbo_unicode::whitespace::is_python_space;
 
-/// One word: its byte range in the text.
+/// One borrowed word and its cached token length.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct Word {
+pub struct WordSpan<'a> {
+    pub text: &'a str,
     pub start: usize,
     pub end: usize,
+    pub subword_len: usize,
 }
+
+pub type Word<'a> = WordSpan<'a>;
 
 fn is_word(c: char) -> bool {
     let g = general_category(c);
@@ -25,7 +29,7 @@ fn run(s: &str) -> usize {
 }
 
 /// The words of `text`, in order.
-pub fn split(text: &str) -> Vec<Word> {
+pub fn split(text: &str) -> Vec<WordSpan<'_>> {
     let mut out = Vec::new();
     let mut at = 0;
     while let Some(c) = text[at..].chars().next() {
@@ -47,7 +51,7 @@ pub fn split(text: &str) -> Vec<Word> {
                 len += 1 + more;
             }
         }
-        out.push(Word { start: at, end: at + len });
+        out.push(WordSpan { text: &rest[..len], start: at, end: at + len, subword_len: 0 });
         at += len;
     }
     out

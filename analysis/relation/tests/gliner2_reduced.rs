@@ -91,7 +91,8 @@ fn the_heads_match_the_reference_layers() {
             instances += count;
         }
         // The same through the pass the scorer runs.
-        let text_words = words.iter().map(|&p| Word { text: String::new(), start: p, end: p + 1 }).collect();
+        let text_words =
+            words.iter().map(|&p| Word { text: "".into(), start: p, end: p + 1, subword_len: 1 }).collect();
         let text = "x".repeat(ids.len() + 1);
         let prompt = Prompt { ids, text, words: text_words, word_first: words.clone(), markers };
         let pass = run(&encoder, &heads, prompt).unwrap();

@@ -152,6 +152,36 @@ for that name.
 
 Every eligible case of the four files passes.
 
+## Spanish
+
+`SPANISH_UNITS` composes the Spanish number grammar with quantities,
+ages, temperatures and currencies. `GrammarAnnotator::spanish()` runs this
+unit grammar and writes the same Money and Quantities instances as English.
+Its provenance name is `es-units`, distinct from the number-only `es` grammar.
+The existing lexer keeps the original byte spans, including accent folding,
+decimal commas, grouped thousands and decomposed accents.
+
+Rules include `veintidós kilómetros`, `metros cuadrados`, `pies cúbicos`,
+`188 millas por hora`, `10 Mb/s`, `6 pies y 3 pulgadas`, `5 libras y 8 onzas`,
+`37ºC`, `trece euros y cuarenta y cinco céntimos`, `15 USD 50`,
+`2,38 mil millones de dólares`, `C$ 16,4 millones` and `20 dólares por hora`.
+`Mb` and `MB` remain distinct. `º` requires a temperature scale or temperature
+context, so ordinary ordinal indicators such as `3º` are not quantities.
+Currency country qualifiers follow the name, as in `dólares canadienses` or
+`francos suizos`. Generic dollars retain the existing USD convention; the
+rules do not infer a national currency from the language alone. Bare minor
+unit names with no conventional currency remain parser readings and are
+not forced into the Money layer. Money rate spans retain the denominator;
+the Money schema still stores the amount and currency, not a period column.
+
+All 240 unchanged Spanish Recognizers-Text NumberWithUnit cases at the pinned
+revision pass: 19 ages, 122 currencies, 54 dimensions and 45 temperatures.
+`spanish_unit_specs.rs` uses the shared exact-span comparator, translating
+only localized expected unit names and decimal commas. It compares every
+expected result, value, type, subtype and explicit ISO code, with no pass-list
+exclusions. Additional tests run the real Analyzer pipeline, source-offset
+round trips, Unicode whitespace, compound bounds and ambiguous ordinal marks.
+
 ## Speed
 
 `cargo run --release -p turbo-grammar --example grammar_bench` prints
@@ -168,5 +198,4 @@ with the number rules and about 7.5 to 8.5 ms with the unit rules, and
   and `version 2 g` as a weight.
 - Glued rate words (`200 Mbps`) and rates over units other than time
   (`$5 per person`).
-- Spanish and Dutch unit rules (#929): the unit rules are English only,
-  over the Spanish and Dutch number grammars.
+- Dutch unit and currency rules remain the next separate slice of #929.

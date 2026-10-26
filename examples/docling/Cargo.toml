@@ -1,0 +1,24 @@
+[package]
+name = "turbo-example-docling"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "End to end: a document in docling's JSON form to chunks with levels, vectors and entities, offsets back to the docling items (docs/integration.md)."
+
+[lib]
+name = "turbo_example_docling"
+
+[dependencies]
+turbo-analysis = { path = "../../analysis/core" }
+turbo-analysis-layers = { path = "../../analysis/layers" }
+turbo-structure = { path = "../../analysis/structure" }
+turbo-normalize = { path = "../../analysis/normalize" }
+turbo-sentdetect = { path = "../../analysis/sentdetect" }
+turbo-tokenize = { path = "../../analysis/tokenize" }
+turbo-namefind = { path = "../../analysis/namefind" }
+turbo-maxent = { path = "../../analysis/maxent" }
+turbo-chunker = { path = "../../analysis/chunker" }
+turbo-analysis-embed = { path = "../../analysis/embed" }
+# Reads docling's JSON and writes the report; already in the workspace.
+serde_json = "1"

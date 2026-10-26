@@ -17,16 +17,51 @@
 //! is Unicode White_Space plus the four separators U+001C to U+001F that
 //! Python also counts.
 
+use std::borrow::Cow;
+
 use turbo_unicode::category::general_category;
 use turbo_unicode::whitespace::is_python_space;
 
-/// One word: its lower-cased text and its byte range in the text.
+/// Lowercase without allocation when every scalar already has its lowercase mapping.
+pub fn lowercase(raw: &str) -> Cow<'_, str> {
+    if raw.chars().any(|c| c.to_lowercase().ne(std::iter::once(c))) {
+        Cow::Owned(raw.to_lowercase())
+    } else {
+        Cow::Borrowed(raw)
+    }
+}
+
+/// Whether an entire word uses the URL branch of the reference splitter.
+pub fn is_url(raw: &str) -> bool {
+    url(raw) == Some(raw.len())
+}
+
+/// Apply virtual final punctuation without changing the reference's URL boundary.
+pub fn append_period(text: &str, words: &mut Vec<WordSpan<'_>>) {
+    if !text.is_empty() && text.ends_with(['.', '!', '?']) {
+        return;
+    }
+    if let Some(last) = words.last_mut()
+        && last.end == text.len()
+        && is_url(&last.text)
+    {
+        last.text.to_mut().push('.');
+        last.end += 1;
+    } else {
+        words.push(WordSpan { text: Cow::Borrowed("."), start: text.len(), end: text.len() + 1, subword_len: 0 });
+    }
+}
+
+/// One word: lower-cased only when case folding changes it.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Word {
-    pub text: String,
+pub struct WordSpan<'a> {
+    pub text: Cow<'a, str>,
     pub start: usize,
     pub end: usize,
+    pub subword_len: usize,
 }
+
+pub type Word<'a> = WordSpan<'a>;
 
 fn is_word(c: char) -> bool {
     let g = general_category(c);
@@ -96,7 +131,7 @@ fn word(s: &str) -> Option<usize> {
 }
 
 /// The words of `text`, in order.
-pub fn split(text: &str) -> Vec<Word> {
+pub fn split(text: &str) -> Vec<WordSpan<'_>> {
     let mut out = Vec::new();
     let mut at = 0;
     // No e-mail address starts before this: a failed local-part run, so the
@@ -116,7 +151,9 @@ pub fn split(text: &str) -> Vec<Word> {
             email(rest).map_err(|local| no_mail = at + local).ok()
         };
         let len = url(rest).or_else(mail).or_else(|| handle(rest)).or_else(|| word(rest)).unwrap_or(c.len_utf8());
-        out.push(Word { text: rest[..len].to_lowercase(), start: at, end: at + len });
+        let raw = &rest[..len];
+        let text = lowercase(raw);
+        out.push(WordSpan { text, start: at, end: at + len, subword_len: 0 });
         at += len;
     }
     out
@@ -127,13 +164,13 @@ mod tests {
     use super::*;
 
     fn texts(s: &str) -> Vec<String> {
-        split(s).into_iter().map(|w| w.text).collect()
+        split(s).into_iter().map(|w| w.text.into_owned()).collect()
     }
 
     #[test]
     fn words_punctuation_and_offsets() {
         let w = split("Steve Jobs founded Apple, in 1976.");
-        let got: Vec<(&str, usize, usize)> = w.iter().map(|w| (w.text.as_str(), w.start, w.end)).collect();
+        let got: Vec<(&str, usize, usize)> = w.iter().map(|w| (w.text.as_ref(), w.start, w.end)).collect();
         assert_eq!(
             got,
             [

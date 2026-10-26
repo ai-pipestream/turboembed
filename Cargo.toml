@@ -5,6 +5,7 @@ members = [
     "bench",
     "server",
     "demo",
+    "examples/docling",
     "analysis/core",
     "analysis/calibration",
     "analysis/abbrev",

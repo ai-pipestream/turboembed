@@ -129,3 +129,6 @@ fn rule(value: &Value) -> Result<Rule, ImportError> {
     }
     Ok(Rule { label: label.ok_or_else(|| invalid("label"))?, id, pattern: body.ok_or_else(|| invalid("pattern"))? })
 }
+
+mod dependency;
+pub use dependency::read_dependency_pattern;

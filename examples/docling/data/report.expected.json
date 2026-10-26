@@ -1,0 +1,829 @@
+{
+  "chunks": [
+    {
+      "cut": "DocumentStart",
+      "level": 1,
+      "model_tokens": 122,
+      "over_budget": true,
+      "parent": null,
+      "span": {
+        "clean": {
+          "bytes": [
+            0,
+            525
+          ],
+          "chars": [
+            0,
+            523
+          ],
+          "utf16": [
+            0,
+            523
+          ]
+        },
+        "items": [
+          {
+            "bytes": [
+              0,
+              24
+            ],
+            "chars": [
+              0,
+              24
+            ],
+            "label": "title",
+            "ref": "#/texts/1",
+            "utf16": [
+              0,
+              24
+            ]
+          },
+          {
+            "bytes": [
+              0,
+              10
+            ],
+            "chars": [
+              0,
+              10
+            ],
+            "label": "section_header",
+            "ref": "#/texts/2",
+            "utf16": [
+              0,
+              10
+            ]
+          },
+          {
+            "bytes": [
+              0,
+              115
+            ],
+            "chars": [
+              0,
+              114
+            ],
+            "label": "text",
+            "ref": "#/texts/3",
+            "utf16": [
+              0,
+              114
+            ]
+          },
+          {
+            "bytes": [
+              0,
+              14
+            ],
+            "chars": [
+              0,
+              14
+            ],
+            "label": "text",
+            "ref": "#/texts/4",
+            "utf16": [
+              0,
+              14
+            ]
+          },
+          {
+            "bytes": [
+              0,
+              35
+            ],
+            "chars": [
+              0,
+              34
+            ],
+            "label": "list_item",
+            "ref": "#/texts/5",
+            "utf16": [
+              0,
+              34
+            ]
+          },
+          {
+            "bytes": [
+              0,
+              33
+            ],
+            "chars": [
+              0,
+              33
+            ],
+            "label": "list_item",
+            "ref": "#/texts/6",
+            "utf16": [
+              0,
+              33
+            ]
+          },
+          {
+            "bytes": [
+              0,
+              32
+            ],
+            "chars": [
+              0,
+              32
+            ],
+            "label": "list_item",
+            "ref": "#/texts/7",
+            "utf16": [
+              0,
+              32
+            ]
+          },
+          {
+            "bytes": [
+              0,
+              13
+            ],
+            "chars": [
+              0,
+              13
+            ],
+            "label": "section_header",
+            "ref": "#/texts/8",
+            "utf16": [
+              0,
+              13
+            ]
+          },
+          {
+            "bytes": [
+              0,
+              92
+            ],
+            "chars": [
+              0,
+              92
+            ],
+            "label": "text",
+            "ref": "#/texts/9",
+            "utf16": [
+              0,
+              92
+            ]
+          },
+          {
+            "bytes": [
+              0,
+              8
+            ],
+            "chars": [
+              0,
+              8
+            ],
+            "label": "section_header",
+            "ref": "#/texts/10",
+            "utf16": [
+              0,
+              8
+            ]
+          },
+          {
+            "bytes": [
+              0,
+              91
+            ],
+            "chars": [
+              0,
+              91
+            ],
+            "label": "text",
+            "ref": "#/texts/11",
+            "utf16": [
+              0,
+              91
+            ]
+          },
+          {
+            "bytes": [
+              0,
+              49
+            ],
+            "chars": [
+              0,
+              49
+            ],
+            "label": "footnote",
+            "ref": "#/texts/12",
+            "utf16": [
+              0,
+              49
+            ]
+          }
+        ],
+        "source": [
+          0,
+          536
+        ],
+        "text": "Grid Storage Review 2026\n1. Summary\nNorthwind Energy added battery storage at three sites this year. The Zürich site now holds forty megawatt hours.\nThe sites are:\nZürich, with forty megawatt hours. Lyon, with twelve megawatt hours. Oslo, with eight megawatt hours.\n2. Operations\nEvery site reports its charge cycles each night. Faults are rare and are fixed within a day.\n2.1 Lyon\nThe Lyon site replaced two inverters in March. Its output rose by a tenth after the repair.\nFigures are rounded to the nearest megawatt hour."
+      },
+      "vector": [
+        0.29937544465065,
+        -0.09239143878221512,
+        -0.11549676209688187,
+        0.10842310637235641
+      ]
+    },
+    {
+      "cut": "DocumentStart",
+      "level": 0,
+      "model_tokens": 33,
+      "over_budget": false,
+      "parent": 0,
+      "span": {
+        "clean": {
+          "bytes": [
+            0,
+            149
+          ],
+          "chars": [
+            0,
+            148
+          ],
+          "utf16": [
+            0,
+            148
+          ]
+        },
+        "items": [
+          {
+            "bytes": [
+              0,
+              24
+            ],
+            "chars": [
+              0,
+              24
+            ],
+            "label": "title",
+            "ref": "#/texts/1",
+            "utf16": [
+              0,
+              24
+            ]
+          },
+          {
+            "bytes": [
+              0,
+              10
+            ],
+            "chars": [
+              0,
+              10
+            ],
+            "label": "section_header",
+            "ref": "#/texts/2",
+            "utf16": [
+              0,
+              10
+            ]
+          },
+          {
+            "bytes": [
+              0,
+              115
+            ],
+            "chars": [
+              0,
+              114
+            ],
+            "label": "text",
+            "ref": "#/texts/3",
+            "utf16": [
+              0,
+              114
+            ]
+          }
+        ],
+        "source": [
+          0,
+          153
+        ],
+        "text": "Grid Storage Review 2026\n1. Summary\nNorthwind Energy added battery storage at three sites this year. The Zürich site now holds forty megawatt hours."
+      },
+      "vector": [
+        0.28120774030685425,
+        -0.11930457502603531,
+        -0.09675584733486176,
+        0.15603742003440857
+      ]
+    },
+    {
+      "cut": "Paragraph",
+      "level": 0,
+      "model_tokens": 33,
+      "over_budget": false,
+      "parent": 0,
+      "span": {
+        "clean": {
+          "bytes": [
+            150,
+            267
+          ],
+          "chars": [
+            149,
+            265
+          ],
+          "utf16": [
+            149,
+            265
+          ]
+        },
+        "items": [
+          {
+            "bytes": [
+              0,
+              14
+            ],
+            "chars": [
+              0,
+              14
+            ],
+            "label": "text",
+            "ref": "#/texts/4",
+            "utf16": [
+              0,
+              14
+            ]
+          },
+          {
+            "bytes": [
+              0,
+              35
+            ],
+            "chars": [
+              0,
+              34
+            ],
+            "label": "list_item",
+            "ref": "#/texts/5",
+            "utf16": [
+              0,
+              34
+            ]
+          },
+          {
+            "bytes": [
+              0,
+              33
+            ],
+            "chars": [
+              0,
+              33
+            ],
+            "label": "list_item",
+            "ref": "#/texts/6",
+            "utf16": [
+              0,
+              33
+            ]
+          },
+          {
+            "bytes": [
+              0,
+              32
+            ],
+            "chars": [
+              0,
+              32
+            ],
+            "label": "list_item",
+            "ref": "#/texts/7",
+            "utf16": [
+              0,
+              32
+            ]
+          }
+        ],
+        "source": [
+          155,
+          273
+        ],
+        "text": "The sites are:\nZürich, with forty megawatt hours. Lyon, with twelve megawatt hours. Oslo, with eight megawatt hours."
+      },
+      "vector": [
+        0.30153194069862366,
+        -0.056968677788972855,
+        -0.20398086309432983,
+        0.07673197984695435
+      ]
+    },
+    {
+      "cut": "Section",
+      "level": 0,
+      "model_tokens": 24,
+      "over_budget": false,
+      "parent": 0,
+      "span": {
+        "clean": {
+          "bytes": [
+            268,
+            374
+          ],
+          "chars": [
+            266,
+            372
+          ],
+          "utf16": [
+            266,
+            372
+          ]
+        },
+        "items": [
+          {
+            "bytes": [
+              0,
+              13
+            ],
+            "chars": [
+              0,
+              13
+            ],
+            "label": "section_header",
+            "ref": "#/texts/8",
+            "utf16": [
+              0,
+              13
+            ]
+          },
+          {
+            "bytes": [
+              0,
+              92
+            ],
+            "chars": [
+              0,
+              92
+            ],
+            "label": "text",
+            "ref": "#/texts/9",
+            "utf16": [
+              0,
+              92
+            ]
+          }
+        ],
+        "source": [
+          275,
+          382
+        ],
+        "text": "2. Operations\nEvery site reports its charge cycles each night. Faults are rare and are fixed within a day."
+      },
+      "vector": [
+        0.29764899611473083,
+        -0.14565899968147278,
+        -0.05528721958398819,
+        0.10973494499921799
+      ]
+    },
+    {
+      "cut": "Section",
+      "level": 0,
+      "model_tokens": 38,
+      "over_budget": false,
+      "parent": 0,
+      "span": {
+        "clean": {
+          "bytes": [
+            375,
+            525
+          ],
+          "chars": [
+            373,
+            523
+          ],
+          "utf16": [
+            373,
+            523
+          ]
+        },
+        "items": [
+          {
+            "bytes": [
+              0,
+              8
+            ],
+            "chars": [
+              0,
+              8
+            ],
+            "label": "section_header",
+            "ref": "#/texts/10",
+            "utf16": [
+              0,
+              8
+            ]
+          },
+          {
+            "bytes": [
+              0,
+              91
+            ],
+            "chars": [
+              0,
+              91
+            ],
+            "label": "text",
+            "ref": "#/texts/11",
+            "utf16": [
+              0,
+              91
+            ]
+          },
+          {
+            "bytes": [
+              0,
+              49
+            ],
+            "chars": [
+              0,
+              49
+            ],
+            "label": "footnote",
+            "ref": "#/texts/12",
+            "utf16": [
+              0,
+              49
+            ]
+          }
+        ],
+        "source": [
+          384,
+          536
+        ],
+        "text": "2.1 Lyon\nThe Lyon site replaced two inverters in March. Its output rose by a tenth after the repair.\nFigures are rounded to the nearest megawatt hour."
+      },
+      "vector": [
+        0.29246917366981506,
+        -0.06363831460475922,
+        -0.07761648297309875,
+        0.08670730888843536
+      ]
+    }
+  ],
+  "clean_bytes": 525,
+  "document": "grid-report",
+  "entities": [
+    {
+      "kind": "location",
+      "span": {
+        "clean": {
+          "bytes": [
+            105,
+            112
+          ],
+          "chars": [
+            105,
+            111
+          ],
+          "utf16": [
+            105,
+            111
+          ]
+        },
+        "items": [
+          {
+            "bytes": [
+              70,
+              77
+            ],
+            "chars": [
+              70,
+              76
+            ],
+            "label": "text",
+            "ref": "#/texts/3",
+            "utf16": [
+              70,
+              76
+            ]
+          }
+        ],
+        "source": [
+          108,
+          115
+        ],
+        "text": "Zürich"
+      }
+    },
+    {
+      "kind": "location",
+      "span": {
+        "clean": {
+          "bytes": [
+            165,
+            172
+          ],
+          "chars": [
+            164,
+            170
+          ],
+          "utf16": [
+            164,
+            170
+          ]
+        },
+        "items": [
+          {
+            "bytes": [
+              0,
+              7
+            ],
+            "chars": [
+              0,
+              6
+            ],
+            "label": "list_item",
+            "ref": "#/texts/5",
+            "utf16": [
+              0,
+              6
+            ]
+          }
+        ],
+        "source": [
+          171,
+          178
+        ],
+        "text": "Zürich"
+      }
+    },
+    {
+      "kind": "location",
+      "span": {
+        "clean": {
+          "bytes": [
+            201,
+            205
+          ],
+          "chars": [
+            199,
+            203
+          ],
+          "utf16": [
+            199,
+            203
+          ]
+        },
+        "items": [
+          {
+            "bytes": [
+              0,
+              4
+            ],
+            "chars": [
+              0,
+              4
+            ],
+            "label": "list_item",
+            "ref": "#/texts/6",
+            "utf16": [
+              0,
+              4
+            ]
+          }
+        ],
+        "source": [
+          207,
+          211
+        ],
+        "text": "Lyon"
+      }
+    },
+    {
+      "kind": "location",
+      "span": {
+        "clean": {
+          "bytes": [
+            235,
+            239
+          ],
+          "chars": [
+            233,
+            237
+          ],
+          "utf16": [
+            233,
+            237
+          ]
+        },
+        "items": [
+          {
+            "bytes": [
+              0,
+              4
+            ],
+            "chars": [
+              0,
+              4
+            ],
+            "label": "list_item",
+            "ref": "#/texts/7",
+            "utf16": [
+              0,
+              4
+            ]
+          }
+        ],
+        "source": [
+          241,
+          245
+        ],
+        "text": "Oslo"
+      }
+    },
+    {
+      "kind": "location",
+      "span": {
+        "clean": {
+          "bytes": [
+            379,
+            383
+          ],
+          "chars": [
+            377,
+            381
+          ],
+          "utf16": [
+            377,
+            381
+          ]
+        },
+        "items": [
+          {
+            "bytes": [
+              4,
+              8
+            ],
+            "chars": [
+              4,
+              8
+            ],
+            "label": "section_header",
+            "ref": "#/texts/10",
+            "utf16": [
+              4,
+              8
+            ]
+          }
+        ],
+        "source": [
+          388,
+          392
+        ],
+        "text": "Lyon"
+      }
+    },
+    {
+      "kind": "location",
+      "span": {
+        "clean": {
+          "bytes": [
+            388,
+            392
+          ],
+          "chars": [
+            386,
+            390
+          ],
+          "utf16": [
+            386,
+            390
+          ]
+        },
+        "items": [
+          {
+            "bytes": [
+              4,
+              8
+            ],
+            "chars": [
+              4,
+              8
+            ],
+            "label": "text",
+            "ref": "#/texts/11",
+            "utf16": [
+              4,
+              8
+            ]
+          }
+        ],
+        "source": [
+          398,
+          402
+        ],
+        "text": "Lyon"
+      }
+    }
+  ],
+  "model": {
+    "dim": 32,
+    "id": "sentence-transformers/all-MiniLM-L6-v2"
+  },
+  "source_bytes": 536
+}

@@ -81,6 +81,7 @@ impl AnalysisService for Analysis {
             bundles,
             limits: Some(result_limits()),
             server: Some(server_limits()),
+            profiles: progressive::profile_capabilities(),
         }))
     }
 
@@ -176,7 +177,7 @@ impl AnalysisService for Analysis {
         &self,
         req: Request<AnalyzePipelineRequest>,
     ) -> Reply<Self::AnalyzeDocumentProgressiveStream> {
-        progressive::start_progressive(req).await
+        progressive::start_progressive(&self.state, req).await
     }
 
     async fn inspect_document_window(&self, req: Request<DocumentWindowRequest>) -> Reply<DocumentWindowResponse> {
