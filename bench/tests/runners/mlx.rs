@@ -20,7 +20,7 @@ fn receipt(m: &turbo_bench::measure::Measurement) -> Value {
 #[test]
 fn an_mlx_receipt_for_the_measured_rows_is_a_kernel_reference() {
     let m = cpu_measurement();
-    let command = strings(&["python3", "-I", "<mlx-reference>"]);
+    let command = strings(&["python3", "-E", "<mlx-reference>"]);
     let r = from_receipt(receipt(m).to_string().as_bytes(), m, 30, command.clone()).unwrap();
     assert_eq!((r.name.as_str(), r.role.as_str()), ("mlx", "kernel"));
     assert_eq!(r.pinned, format!("mlx@sha256:{DIGEST}"));

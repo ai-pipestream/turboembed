@@ -54,7 +54,7 @@ pub fn dtype(precision: u32) -> &'static str {
 fn argv(script: &str, model: &str, work: &str, precision: u32, warmup: u32, iterations: u32) -> Vec<String> {
     [
         "python3",
-        "-I",
+        "-E",
         script,
         "--model",
         model,
