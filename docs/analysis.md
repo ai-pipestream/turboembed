@@ -5330,6 +5330,170 @@ as a tarball (not BEIR jsonl for this reader); the ConTEB sets and
 HiCBench are not loadable from this cache (HiCBench has no licence
 recorded), so those did not run.
 
+### Trained encoders (#879)
+
+The same record with trained encoders: static `minishlab/potion-base-8M`
+and contextual `sentence-transformers/all-MiniLM-L6-v2`, corpus-scale
+cascade (`analysis/eval/src/cascade.rs`), turbo-chunker at max 254,
+target 200, on the six cached sets. Quality records are the
+`turbo-chunker-254-200-cascade-*` directories beside this section's
+synthetic tables (`turbo-eval run`, CPU, one commit). Per-query
+latency comes from `analysis/eval/tests/cascade_latency.rs`
+(`cascade_latency_receipt`, ignored and release-only): chunks and
+indexes are built once, then every arm answers every query one at a
+time with query encoding inside the timed span, arms interleaved per
+query per round over 3 rounds, pinned to one core. Its JSON record is
+`analysis/eval/records/turbo-chunker-254-200-cascade-latency/cascade-latency-879.json`.
+The receipt ran on a machine busy with other work (load averages
+between about 29 and 97), so absolute values carry that noise; the
+arms share it round by round. The receipt's arms share one chunking
+cut with the contextual embedder's overhead, while each quality
+record was chunked with its own embedder's overhead, so its static
+arm's chunk counts can differ slightly from the static record's
+(gutenqa 69,226 against 68,622). Its Recall@10 and nDCG@10 columns
+otherwise reproduce the committed records.
+
+| Set | Arm | R@1 | R@5 | R@10 | R@100 | nDCG@10 | Span R@10 |
+|---|---|---:|---:|---:|---:|---:|---:|
+| scifact | static only | 0.3442 | 0.5594 | 0.6464 | 0.8479 | 0.4952 | - |
+| scifact | contextual only | 0.4858 | 0.7309 | 0.7943 | 0.9300 | 0.6506 | - |
+| scifact | cascade C=10 | 0.5225 | 0.7526 | 0.8046 | 0.8179 | 0.6738 | - |
+| scifact | cascade C=25 | 0.5165 | 0.7624 | 0.8277 | 0.8910 | 0.6815 | - |
+| scifact | cascade C=50 | 0.5058 | 0.7492 | 0.8127 | 0.9257 | 0.6704 | - |
+| scifact | cascade C=100 | 0.4992 | 0.7442 | 0.8070 | 0.9420 | 0.6634 | - |
+| scifact | cascade C=200 | 0.4892 | 0.7409 | 0.8143 | 0.9477 | 0.6603 | - |
+| scifact | cascade C=400 | 0.4858 | 0.7342 | 0.8043 | 0.9483 | 0.6560 | - |
+| nfcorpus | static only | 0.0366 | 0.0873 | 0.1075 | 0.2365 | 0.2350 | - |
+| nfcorpus | contextual only | 0.0463 | 0.1179 | 0.1607 | 0.3126 | 0.3176 | - |
+| nfcorpus | cascade C=10 | 0.0520 | 0.1270 | 0.1513 | 0.1631 | 0.3176 | - |
+| nfcorpus | cascade C=25 | 0.0552 | 0.1324 | 0.1642 | 0.2101 | 0.3296 | - |
+| nfcorpus | cascade C=50 | 0.0495 | 0.1314 | 0.1635 | 0.2436 | 0.3276 | - |
+| nfcorpus | cascade C=100 | 0.0489 | 0.1306 | 0.1628 | 0.2775 | 0.3237 | - |
+| nfcorpus | cascade C=200 | 0.0474 | 0.1312 | 0.1611 | 0.2898 | 0.3223 | - |
+| nfcorpus | cascade C=400 | 0.0474 | 0.1237 | 0.1640 | 0.2933 | 0.3233 | - |
+| arguana | static only | 0.1835 | 0.4772 | 0.5910 | 0.8748 | 0.3738 | - |
+| arguana | contextual only | 0.2468 | 0.6202 | 0.7760 | 0.9637 | 0.4944 | - |
+| arguana | cascade C=10 | 0.2397 | 0.6088 | 0.7390 | 0.7560 | 0.4780 | - |
+| arguana | cascade C=25 | 0.2425 | 0.6124 | 0.7660 | 0.8649 | 0.4893 | - |
+| arguana | cascade C=50 | 0.2447 | 0.6174 | 0.7639 | 0.9139 | 0.4893 | - |
+| arguana | cascade C=100 | 0.2461 | 0.6202 | 0.7724 | 0.9431 | 0.4935 | - |
+| arguana | cascade C=200 | 0.2454 | 0.6174 | 0.7717 | 0.9545 | 0.4922 | - |
+| arguana | cascade C=400 | 0.2454 | 0.6188 | 0.7738 | 0.9595 | 0.4928 | - |
+| qasper | static only | 0.1709 | 0.3012 | 0.3832 | 0.6775 | 0.2670 | 0.1333 |
+| qasper | contextual only | 0.1881 | 0.3315 | 0.3880 | 0.6857 | 0.2817 | 0.1589 |
+| qasper | cascade C=10 | 0.2254 | 0.4059 | 0.4748 | 0.5238 | 0.3426 | 0.2090 |
+| qasper | cascade C=25 | 0.2136 | 0.3804 | 0.4604 | 0.6079 | 0.3271 | 0.1950 |
+| qasper | cascade C=50 | 0.2095 | 0.3770 | 0.4507 | 0.6940 | 0.3213 | 0.1932 |
+| qasper | cascade C=100 | 0.2040 | 0.3666 | 0.4335 | 0.7498 | 0.3113 | 0.1868 |
+| qasper | cascade C=200 | 0.1964 | 0.3501 | 0.4232 | 0.7236 | 0.3019 | 0.1766 |
+| qasper | cascade C=400 | 0.1923 | 0.3418 | 0.4094 | 0.7154 | 0.2943 | 0.1697 |
+| gutenqa | static only | 0.5770 | 0.7850 | 0.8550 | 0.9997 | 0.7105 | 0.3896 |
+| gutenqa | contextual only | 0.7773 | 0.9130 | 0.9450 | 0.9997 | 0.8636 | 0.5322 |
+| gutenqa | cascade C=10 | 0.8250 | 0.9450 | 0.9657 | 0.9713 | 0.8977 | 0.6692 |
+| gutenqa | cascade C=25 | 0.8137 | 0.9403 | 0.9663 | 0.9830 | 0.8930 | 0.6313 |
+| gutenqa | cascade C=50 | 0.8070 | 0.9373 | 0.9623 | 0.9893 | 0.8872 | 0.5965 |
+| gutenqa | cascade C=100 | 0.7983 | 0.9347 | 0.9573 | 0.9937 | 0.8814 | 0.5868 |
+| gutenqa | cascade C=200 | 0.7930 | 0.9313 | 0.9557 | 0.9963 | 0.8772 | 0.5717 |
+| gutenqa | cascade C=400 | 0.7897 | 0.9247 | 0.9537 | 0.9987 | 0.8738 | 0.5621 |
+| conteb-squad | static only | 0.4790 | 0.7508 | 0.8394 | 0.9802 | 0.6512 | 0.8326 |
+| conteb-squad | contextual only | 0.6439 | 0.8795 | 0.9260 | 0.9952 | 0.7861 | 0.9216 |
+| conteb-squad | cascade C=10 | 0.6633 | 0.8974 | 0.9453 | 0.9657 | 0.8071 | 0.9443 |
+| conteb-squad | cascade C=25 | 0.6497 | 0.8887 | 0.9371 | 0.9894 | 0.7955 | 0.9332 |
+| conteb-squad | cascade C=50 | 0.6463 | 0.8805 | 0.9303 | 0.9937 | 0.7898 | 0.9274 |
+| conteb-squad | cascade C=100 | 0.6454 | 0.8800 | 0.9294 | 0.9966 | 0.7884 | 0.9255 |
+| conteb-squad | cascade C=200 | 0.6444 | 0.8795 | 0.9260 | 0.9952 | 0.7865 | 0.9216 |
+| conteb-squad | cascade C=400 | 0.6439 | 0.8795 | 0.9255 | 0.9961 | 0.7862 | 0.9216 |
+
+At most depths the cascade does not merely approach contextual-only
+Recall@10. BM25 admission brings lexical matches the dense ranking
+misses, so the cascade scores above contextual-only on five of the
+six sets. Arguana is the exception at every depth. Recall@100 shows
+the pool's cost instead: a document outside both shortlists cannot
+be ranked in the tail, so nfcorpus for example reaches only 0.1631
+at C=10 against 0.3126 contextual-only, and the tail only partly
+recovers as C grows. Span recall at 10 is highest at C=10 on all
+three span sets and declines toward contextual-only as C grows.
+
+The stated margin for the default is one Recall@10 point (0.01).
+The smallest depth within that margin on every set is C=25, and
+this record picks it as the default. The pick is fragile: arguana
+clears it by 0.000043 (-0.009957), C=50 falls outside again
+(arguana -0.012091), and only from C=100 does every recorded depth
+stay inside (worst set arguana at -0.003556, -0.004267 and
+-0.002134 for C=100, 200 and 400). A reader who wants the margin to
+hold at every larger recorded depth should run C=100 instead.
+
+Per-query latency from the receipt, encode plus search:
+
+| Set | Docs | Chunks | Queries | Arm | Encode p50/p95 (us) | Search p50/p95 (us) | Total p50/p95 (us) | R@10 | nDCG@10 |
+|---|---:|---:|---:|---|---:|---:|---:|---:|---:|
+| scifact | 5183 | 9126 | 300 | static only | 32.7 / 58.2 | 461.2 / 899.9 | 496.4 / 955.1 | 0.6497 | 0.4950 |
+| scifact | 5183 | 9126 | 300 | contextual only | 3897.1 / 10517.3 | 626.4 / 1385.7 | 4556.6 / 12285.9 | 0.7943 | 0.6506 |
+| scifact | 5183 | 9126 | 300 | cascade C=10 | 3918.0 / 10880.0 | 3031.5 / 7218.8 | 6906.1 / 17801.8 | 0.8046 | 0.6738 |
+| scifact | 5183 | 9126 | 300 | cascade C=25 | 3971.5 / 9917.3 | 3071.9 / 7644.8 | 7053.8 / 17554.2 | 0.8277 | 0.6815 |
+| scifact | 5183 | 9126 | 300 | cascade C=50 | 3990.1 / 11009.2 | 3151.5 / 9948.4 | 7190.7 / 21241.5 | 0.8127 | 0.6704 |
+| scifact | 5183 | 9126 | 300 | cascade C=100 | 3969.7 / 11415.1 | 3278.3 / 8626.6 | 7259.2 / 20494.7 | 0.8070 | 0.6634 |
+| scifact | 5183 | 9126 | 300 | cascade C=200 | 3941.0 / 9878.2 | 3544.7 / 8144.4 | 7558.7 / 19179.8 | 0.8143 | 0.6603 |
+| scifact | 5183 | 9126 | 300 | cascade C=400 | 3955.6 / 10118.6 | 3931.8 / 8401.1 | 7910.0 / 21370.7 | 0.8043 | 0.6560 |
+| nfcorpus | 3633 | 6819 | 323 | static only | 18.6 / 35.8 | 338.6 / 517.8 | 357.4 / 548.5 | 0.1074 | 0.2349 |
+| nfcorpus | 3633 | 6819 | 323 | contextual only | 1949.4 / 4620.0 | 441.5 / 664.0 | 2381.4 / 5311.2 | 0.1607 | 0.3176 |
+| nfcorpus | 3633 | 6819 | 323 | cascade C=10 | 1916.4 / 4541.2 | 691.2 / 2340.8 | 2810.1 / 6660.1 | 0.1513 | 0.3176 |
+| nfcorpus | 3633 | 6819 | 323 | cascade C=25 | 1927.2 / 4307.2 | 705.8 / 2412.5 | 2814.4 / 6550.3 | 0.1642 | 0.3296 |
+| nfcorpus | 3633 | 6819 | 323 | cascade C=50 | 1909.3 / 4500.1 | 754.9 / 2571.3 | 2882.4 / 6877.8 | 0.1635 | 0.3276 |
+| nfcorpus | 3633 | 6819 | 323 | cascade C=100 | 1909.1 / 4306.9 | 878.4 / 2625.8 | 2989.1 / 6783.9 | 0.1628 | 0.3237 |
+| nfcorpus | 3633 | 6819 | 323 | cascade C=200 | 1931.4 / 4555.1 | 1057.2 / 2980.8 | 3222.2 / 7361.4 | 0.1611 | 0.3223 |
+| nfcorpus | 3633 | 6819 | 323 | cascade C=400 | 1963.5 / 4594.6 | 1367.2 / 3528.3 | 3506.5 / 7944.9 | 0.1640 | 0.3233 |
+| arguana | 8674 | 11145 | 1406 | static only | 115.3 / 213.0 | 655.1 / 1432.1 | 775.9 / 1627.6 | 0.5903 | 0.3738 |
+| arguana | 8674 | 11145 | 1406 | contextual only | 33516.1 / 107474.8 | 939.0 / 3896.7 | 34635.9 / 111001.7 | 0.7760 | 0.4944 |
+| arguana | 8674 | 11145 | 1406 | cascade C=10 | 33386.1 / 102238.2 | 46120.5 / 152788.1 | 81046.4 / 250396.7 | 0.7390 | 0.4780 |
+| arguana | 8674 | 11145 | 1406 | cascade C=25 | 33394.7 / 112928.6 | 46132.5 / 155524.3 | 81298.6 / 265746.3 | 0.7660 | 0.4893 |
+| arguana | 8674 | 11145 | 1406 | cascade C=50 | 33313.3 / 107289.9 | 46066.0 / 152586.5 | 80524.1 / 256307.6 | 0.7639 | 0.4893 |
+| arguana | 8674 | 11145 | 1406 | cascade C=100 | 33383.3 / 110265.1 | 46515.9 / 149729.3 | 80773.7 / 258777.0 | 0.7724 | 0.4935 |
+| arguana | 8674 | 11145 | 1406 | cascade C=200 | 33711.1 / 109089.9 | 46521.6 / 152369.7 | 81501.8 / 254236.0 | 0.7717 | 0.4922 |
+| arguana | 8674 | 11145 | 1406 | cascade C=400 | 33692.1 / 105933.8 | 47374.5 / 160994.4 | 82224.7 / 266899.6 | 0.7738 | 0.4928 |
+| qasper | 416 | 10578 | 1451 | static only | 21.4 / 36.2 | 448.7 / 693.4 | 470.1 / 728.6 | 0.3825 | 0.2682 |
+| qasper | 416 | 10578 | 1451 | contextual only | 2314.6 / 4296.9 | 599.7 / 919.1 | 2922.9 / 5108.9 | 0.3880 | 0.2817 |
+| qasper | 416 | 10578 | 1451 | cascade C=10 | 2265.1 / 4250.3 | 2886.8 / 4553.8 | 5132.7 / 8660.6 | 0.4748 | 0.3426 |
+| qasper | 416 | 10578 | 1451 | cascade C=25 | 2307.8 / 4457.5 | 2890.7 / 4547.2 | 5186.6 / 8784.2 | 0.4604 | 0.3271 |
+| qasper | 416 | 10578 | 1451 | cascade C=50 | 2307.7 / 4319.4 | 2954.1 / 4636.4 | 5261.4 / 8741.6 | 0.4507 | 0.3213 |
+| qasper | 416 | 10578 | 1451 | cascade C=100 | 2289.2 / 4291.6 | 3058.5 / 4761.8 | 5349.6 / 8866.9 | 0.4335 | 0.3113 |
+| qasper | 416 | 10578 | 1451 | cascade C=200 | 2303.3 / 4272.4 | 3259.3 / 5098.8 | 5541.2 / 9183.0 | 0.4232 | 0.3019 |
+| qasper | 416 | 10578 | 1451 | cascade C=400 | 2309.8 / 4282.8 | 3627.2 / 5564.9 | 5952.1 / 9690.1 | 0.4094 | 0.2943 |
+| gutenqa | 100 | 69226 | 3000 | static only | 37.8 / 71.7 | 3184.0 / 8984.7 | 3237.9 / 9266.4 | 0.8633 | 0.7199 |
+| gutenqa | 100 | 69226 | 3000 | contextual only | 4702.6 / 13002.8 | 4665.8 / 14115.9 | 9519.7 / 26610.1 | 0.9450 | 0.8636 |
+| gutenqa | 100 | 69226 | 3000 | cascade C=10 | 4762.4 / 13048.2 | 37906.3 / 86137.7 | 42876.3 / 99665.5 | 0.9657 | 0.8977 |
+| gutenqa | 100 | 69226 | 3000 | cascade C=25 | 4732.7 / 11651.3 | 37414.6 / 90907.1 | 42399.3 / 101814.9 | 0.9663 | 0.8930 |
+| gutenqa | 100 | 69226 | 3000 | cascade C=50 | 4691.5 / 11659.5 | 37516.3 / 91938.3 | 42493.9 / 102763.0 | 0.9623 | 0.8872 |
+| gutenqa | 100 | 69226 | 3000 | cascade C=100 | 4684.3 / 11843.0 | 37933.7 / 92250.2 | 42962.5 / 102298.3 | 0.9573 | 0.8814 |
+| gutenqa | 100 | 69226 | 3000 | cascade C=200 | 4698.3 / 11721.6 | 38101.4 / 93781.3 | 43094.3 / 105346.8 | 0.9557 | 0.8772 |
+| gutenqa | 100 | 69226 | 3000 | cascade C=400 | 4668.8 / 11768.0 | 38951.6 / 94830.5 | 43846.3 / 106952.8 | 0.9537 | 0.8738 |
+| conteb-squad | 2067 | 2253 | 2067 | static only | 22.0 / 42.6 | 157.9 / 605.0 | 180.4 / 631.6 | 0.8394 | 0.6513 |
+| conteb-squad | 2067 | 2253 | 2067 | contextual only | 2745.9 / 7164.1 | 192.2 / 432.1 | 2953.5 / 7797.1 | 0.9260 | 0.7861 |
+| conteb-squad | 2067 | 2253 | 2067 | cascade C=10 | 2741.4 / 7700.4 | 880.6 / 2105.4 | 3642.5 / 10534.6 | 0.9453 | 0.8071 |
+| conteb-squad | 2067 | 2253 | 2067 | cascade C=25 | 2744.2 / 6691.8 | 889.6 / 1723.0 | 3666.5 / 9025.6 | 0.9371 | 0.7955 |
+| conteb-squad | 2067 | 2253 | 2067 | cascade C=50 | 2737.3 / 6576.8 | 943.4 / 1868.1 | 3709.0 / 8743.1 | 0.9303 | 0.7898 |
+| conteb-squad | 2067 | 2253 | 2067 | cascade C=100 | 2742.4 / 6384.8 | 1047.3 / 2591.8 | 3811.1 / 9167.0 | 0.9294 | 0.7884 |
+| conteb-squad | 2067 | 2253 | 2067 | cascade C=200 | 2737.4 / 6770.0 | 1218.5 / 3608.7 | 3983.0 / 10460.3 | 0.9260 | 0.7865 |
+| conteb-squad | 2067 | 2253 | 2067 | cascade C=400 | 2762.9 / 6824.9 | 1530.5 / 4269.8 | 4319.1 / 10870.1 | 0.9255 | 0.7862 |
+
+The speed bar of #712 is missed at the default C=25 on every set,
+at both percentiles. Total p50 at C=25 is 1.55x contextual-only on
+scifact (7053.8 against 4556.6 us), 1.18x on nfcorpus (2814.4
+against 2381.4), 2.35x on arguana (81298.6 against 34635.9), 1.77x
+on qasper (5186.6 against 2922.9), 4.45x on gutenqa (42399.3
+against 9519.7) and 1.24x on conteb-squad (3666.5 against 2953.5);
+p95 ratios run from 1.16x to 3.83x. No recorded depth meets the
+bar on any set. The cost is structural, not the pool scoring the
+synthetic record counted: a cascade query encodes in both spaces,
+then stage 1 pays an exact static top-k over every chunk plus a
+BM25 `top_k` over all rows (the fallback scores for unscored
+chunks read every lexical hit into a map), where contextual-only
+pays one exact dense scan. At these corpus sizes (2,253 to 69,226
+chunks) that scan is cheaper than the cascade's admission work, so
+the trained cascade as built buys its Recall@10 and span-recall
+gains with latency, not with savings. Static only is the fast arm
+everywhere and the weakest on quality.
+
 The [cut-identity checker](chunker-cut-identity.md) compares flat chunk
 partitions across backend runs with optional DP runner-up margins.
 
