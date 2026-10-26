@@ -162,7 +162,6 @@ fn segmentation_syntax_and_companion_layers_project_bidirectionally() {
     doc.add(&Key::DEFAULT, ents_src, prov()).unwrap();
     doc.add(&Key::DEFAULT, pc_src, prov()).unwrap();
     doc.add(&Key::DEFAULT, p_src, prov()).unwrap();
-
     doc.add(&Key::DEFAULT, Vectors::<Chunks>::new(2, vec![1.0, 0.0], Vec::new(), model.clone()), prov()).unwrap();
     doc.add(&Key::DEFAULT, Vectors::<Sentences>::new(2, vec![0.0, 1.0], Vec::new(), model), prov()).unwrap();
 
@@ -173,7 +172,6 @@ fn segmentation_syntax_and_companion_layers_project_bidirectionally() {
     chunk_cats.push(Tag(0), &[0.9]);
     doc.add(&Key::DEFAULT, sent_cats, prov()).unwrap();
     doc.add(&Key::DEFAULT, chunk_cats, prov()).unwrap();
-
     let edges = Edges::<Entities, Entities>::new(
         TagSet::new("rel", &["related"]),
         [Edge { from: Ix::new(0), to: Ix::new(1), kind: Tag(0), score: 1.0 }],
@@ -189,16 +187,11 @@ fn numeric_temporal_pii_sentiment_discourse_and_table_layers_project() {
     let prov = || Provenance::by("test");
     let norm_sents_key = Key::<Sentences>::named("norm");
     let norm_toks_key = Key::<Tokens>::named("norm");
-
     doc.add(&norm_sents_key, Sentences { spans: spans_from(grand_id, &[(0, 33)]) }, prov()).unwrap();
     let mut tok_prov = prov();
     tok_prov.reads.push(norm_sents_key.id());
-    doc.add(
-        &norm_toks_key,
-        Tokens { spans: spans_from(grand_id, &tok_ranges), sentence: Some(vec![Ix::new(0); 6]) },
-        tok_prov,
-    )
-    .unwrap();
+    let norm_toks = Tokens { spans: spans_from(grand_id, &tok_ranges), sentence: Some(vec![Ix::new(0); 6]) };
+    doc.add(&norm_toks_key, norm_toks, tok_prov).unwrap();
 
     let project_toks =
         ProjectView::new(norm_toks_key, Key::<Tokens>::DEFAULT).unwrap().require(Key::<Sentences>::DEFAULT);
@@ -353,50 +346,44 @@ fn numeric_temporal_pii_sentiment_discourse_and_table_layers_project() {
     let mut matches = Matches::new(grand_id, TagSet::new("rules", &["R1"]));
     matches.push(Span::new(0, 5), IxRange::new(0, 1), Tag(0), 0);
     assert_eq!(doc.project_layer(&matches, ViewId::SOURCE).unwrap().spans.get(Ix::new(0)), Span::new(3, 8));
-
     let mut lang_spans = LanguageSpans::new(grand_id, TagSet::new("langs", &["fra"]));
     lang_spans.push(Span::new(0, 5), Tag(0), Script::Latin, 0.9);
     assert_eq!(doc.project_layer(&lang_spans, ViewId::SOURCE).unwrap().spans.get(Ix::new(0)), Span::new(3, 8));
-
     let mut abbr = Abbreviations::new(grand_id);
     abbr.push(Span::new(0, 5), AbbreviationForm::Long);
     abbr.push(Span::new(6, 10), AbbreviationForm::Short);
     assert_eq!(doc.project_layer(&abbr, ViewId::SOURCE).unwrap().spans.get(Ix::new(1)), Span::new(9, 14));
 
     let mut senses = WordNetSenses::new(grand_id, Arc::from("oewn:2024"));
-    senses.push(
-        Span::new(6, 10),
-        SenseRow {
-            token: Ix::new(1),
-            synset_id: "0001-n",
-            sense_id: "fire%1",
-            pos: WORDNET_POS[0],
-            lemma: "fire",
-            synset_lemmas: &[String::from("fire")],
-            gloss: "flame",
-            sense_rank: 0,
-        },
-    );
+    let syn_lemmas = [String::from("fire")];
+    let sense = SenseRow {
+        token: Ix::new(1),
+        synset_id: "0001-n",
+        sense_id: "fire%1",
+        pos: WORDNET_POS[0],
+        lemma: "fire",
+        synset_lemmas: &syn_lemmas,
+        gloss: "flame",
+        sense_rank: 0,
+    };
+    senses.push(Span::new(6, 10), sense);
     assert_eq!(doc.project_layer(&senses, ViewId::SOURCE).unwrap().spans.get(Ix::new(0)), Span::new(9, 14));
-
     let mut exps = LexicalExpansions::new(grand_id, Arc::from("oewn:2024"));
-    exps.push(
-        Span::new(6, 10),
-        ExpansionRow {
-            token: Ix::new(1),
-            term: "blaze",
-            relation: 0,
-            depth: 0,
-            sense_rank: 0,
-            weight: 1.0,
-            synset_id: "0001-n",
-        },
-    );
+    let exp = ExpansionRow {
+        token: Ix::new(1),
+        term: "blaze",
+        relation: 0,
+        depth: 0,
+        sense_rank: 0,
+        weight: 1.0,
+        synset_id: "0001-n",
+    };
+    exps.push(Span::new(6, 10), exp);
     assert_eq!(doc.project_layer(&exps, ViewId::SOURCE).unwrap().spans.get(Ix::new(0)), Span::new(9, 14));
 
     let mut tables = Tables::new(grand_id);
     tables.spans.push(Span::new(0, 5));
-    tables.cells.push(TableCell {
+    let cell = TableCell {
         table_id: 0,
         row_ix: 0,
         col_ix: 0,
@@ -404,7 +391,8 @@ fn numeric_temporal_pii_sentiment_discourse_and_table_layers_project() {
         col_span: 1,
         is_header: true,
         align: ColumnAlign::Left,
-    });
+    };
+    tables.cells.push(cell);
     tables.table_bounds.push(Span::new(0, 10));
     tables.rows.push(Span::new(0, 10));
     tables.row_table.push(0);
@@ -414,13 +402,11 @@ fn numeric_temporal_pii_sentiment_discourse_and_table_layers_project() {
         (tables_src.spans.get(Ix::new(0)), tables_src.table_bounds.get(Ix::new(0))),
         (Span::new(3, 8), Span::new(3, 14))
     );
-
     let mut kv = KeyValuePairs::new(grand_id);
     kv.spans.push(Span::new(0, 10));
     kv.pairs.push(KeyValuePair { key: Span::new(0, 5), separator: Span::new(5, 6), value: Span::new(6, 10) });
     let kv_src = doc.project_layer(&kv, ViewId::SOURCE).unwrap();
     assert_eq!((kv_src.pairs[0].key, kv_src.pairs[0].value), (Span::new(3, 8), Span::new(9, 14)));
-
     let g_chunks = Chunks {
         spans: spans_from(grand_id, &[(0, 10)]),
         level: vec![0],
@@ -434,17 +420,14 @@ fn numeric_temporal_pii_sentiment_discourse_and_table_layers_project() {
     };
     let cth = ChunkTableHeaders::build(&g_chunks, &tables, doc.text(grand_id)).unwrap();
     assert_eq!(doc.project_layer(&cth, ViewId::SOURCE).unwrap().contexts[0].header_cells[0], Span::new(3, 8));
-
     let mut edus = Edus::new(grand_id);
     edus.push(Span::new(0, 10), Ix::new(0));
     assert_eq!(doc.project_layer(&edus, ViewId::SOURCE).unwrap().spans.get(Ix::new(0)), Span::new(3, 14));
-
     let metrics = QualityMetrics { composite_score: 0.9, flags: QualityFlags::CLEAN, ..QualityMetrics::default() };
     let tq = TextQuality::new(grand_id, doc.text(grand_id).len() as u32, metrics);
     let tq_src = doc.project_layer(&tq, ViewId::SOURCE).unwrap();
     assert_eq!(tq_src.spans.get(Ix::new(0)), Span::new(0, doc.text(ViewId::SOURCE).len() as u32));
     doc.add(&Key::DEFAULT, tq_src, Provenance::by("test")).unwrap();
-
     let mut sq = SpanQuality::new(grand_id);
     sq.push(Span::new(0, 10), metrics);
     assert_eq!(doc.project_layer(&sq, ViewId::SOURCE).unwrap().spans.get(Ix::new(0)), Span::new(3, 14));
@@ -491,7 +474,25 @@ fn numeric_temporal_pii_sentiment_discourse_and_table_layers_project() {
         tokens: vec![IxRange::new(1, 2)],
         form: None,
         subspan: Some(vec![Some(Span::new(6, 10))]),
-        tokens_key: Key::<Tokens>::named("norm"),
+        tokens_key: norm_toks_key,
     };
-    assert_eq!(doc.project_layer(&words, child_id).unwrap().subspan_of(Ix::new(0)), Some(Span::new(6, 11)));
+    assert_eq!(doc.project_layer(&words, ViewId::SOURCE).unwrap().subspan_of(Ix::new(0)), Some(Span::new(9, 14)));
+    assert!(doc.project_layer(&words, child_id).is_err());
+
+    let mut unrelated = Document::new("aa bb cc");
+    let v0 = unrelated.get::<View>().unwrap().clone();
+    let mut b = ViewBuilder::new(v0.text());
+    b.keep(8);
+    let (t1, a1) = b.finish();
+    unrelated.add(&Key::<View>::named("child"), View::derived(&v0, t1, a1), prov()).unwrap();
+    let c_id = unrelated.get_key(&Key::<View>::named("child")).unwrap().id();
+    unrelated
+        .add(&norm_toks_key, Tokens { spans: spans_from(c_id, &[(0, 2), (3, 5), (6, 8)]), sentence: None }, prov())
+        .unwrap();
+    unrelated
+        .add(&Key::<Tokens>::DEFAULT, Tokens { spans: spans_from(ViewId::SOURCE, &[(0, 8)]), sentence: None }, prov())
+        .unwrap();
+    let w_bad = Words { tokens: vec![IxRange::new(2, 3)], form: None, subspan: None, tokens_key: norm_toks_key };
+    assert!(unrelated.project_layer(&w_bad, ViewId::SOURCE).is_err());
+    assert!(unrelated.project_layer(&opinions, ViewId::SOURCE).is_err());
 }
