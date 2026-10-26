@@ -16,7 +16,6 @@
 //! is scored where it stands in the prefix.
 
 use turbo::sentencepiece::{Scratch, SentencePiece};
-use turbo_relation::gliner2::prompt::normalize;
 use turbo_relation::gliner2::words::{Word, split};
 
 use crate::schema::ExtractionSchema;
@@ -59,14 +58,16 @@ pub struct Measurement {
     pub overhead: usize,
     pub period: usize,
     pub words: Vec<(std::ops::Range<usize>, usize)>,
+    /// Cost of each word when it ends a window requiring final punctuation.
+    pub endings: Vec<usize>,
 }
 
 #[derive(Debug)]
 pub struct Prompt<'a> {
     pub ids: Vec<u32>,
-    /// The text as GLiNER2 reads it: with a final `.` when it lacks
-    /// sentence punctuation. Word offsets index it.
-    pub text: String,
+    /// The caller's unchanged text. Virtual prompt punctuation may extend a
+    /// word beyond its end; emitted source spans must be clipped to this text.
+    pub text: &'a str,
     pub words: Vec<Word<'a>>,
     /// The choice prefix's tokens, before the words.
     pub prefix: Vec<String>,
@@ -78,6 +79,7 @@ pub struct Prompt<'a> {
     pub token_first: Vec<usize>,
     pub tasks: Vec<Task>,
     pub period: usize,
+    window_words: Vec<(std::ops::Range<usize>, usize, usize)>,
 }
 
 impl Prompt<'_> {
@@ -92,7 +94,13 @@ impl Prompt<'_> {
         Measurement {
             overhead: self.ids.len() - subwords,
             period: self.period,
-            words: lengths.filter(|(r, _)| r.start < text_len).collect(),
+            words: self
+                .window_words
+                .iter()
+                .filter(|(r, _, _)| r.start < text_len)
+                .map(|(r, n, _)| (r.clone(), *n))
+                .collect(),
+            endings: self.window_words.iter().filter(|(r, _, _)| r.start < text_len).map(|(_, _, n)| *n).collect(),
         }
     }
 }
@@ -202,23 +210,40 @@ pub fn build_words<'a>(
         out_tasks.push(Task { kind, p, markers });
     }
     ids.push(specials.sep_text);
-    let normalized = normalize(text);
-    if normalized.len() != text.len() {
-        words.push(Word { text: ".".into(), start: text.len(), end: text.len() + 1, subword_len: 0 });
-    }
+    turbo_relation::gliner2::words::append_period(text, &mut words);
     let (prefix, choice_at) = prefix(schema);
     let mut token_first = Vec::with_capacity(prefix.len() + words.len());
     for t in &prefix {
         token_first.push(ids.len());
         encode(sp, specials, t, &mut scratch, &mut ids);
     }
+    let mut period = Vec::new();
+    encode(sp, specials, ".", &mut scratch, &mut period);
+    let mut window_words = Vec::new();
+    let mut boundary_ids = Vec::new();
     for w in &mut words {
         token_first.push(ids.len());
         let at = ids.len();
         encode(sp, specials, &w.text, &mut scratch, &mut ids);
         w.subword_len = ids.len() - at;
+        if w.start >= text.len() {
+            continue;
+        }
+        let (base, ending) = if turbo_relation::gliner2::words::is_url(&w.text) {
+            // A terminal URL absorbs the virtual period. Cache both variants
+            // once so every window still uses prefix sums without tokenization.
+            boundary_ids.clear();
+            if w.end > text.len() {
+                encode(sp, specials, &w.text[..w.text.len() - 1], &mut scratch, &mut boundary_ids);
+                (boundary_ids.len(), w.subword_len)
+            } else {
+                encode(sp, specials, &format!("{}.", w.text), &mut scratch, &mut boundary_ids);
+                (w.subword_len, boundary_ids.len())
+            }
+        } else {
+            (w.subword_len, w.subword_len + period.len())
+        };
+        window_words.push((w.start..w.end.min(text.len()), base, ending));
     }
-    let mut period = Vec::new();
-    encode(sp, specials, ".", &mut scratch, &mut period);
-    Prompt { ids, text: normalized, words, prefix, choice_at, token_first, tasks: out_tasks, period: period.len() }
+    Prompt { ids, text, words, prefix, choice_at, token_first, tasks: out_tasks, period: period.len(), window_words }
 }

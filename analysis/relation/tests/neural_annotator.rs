@@ -154,3 +154,57 @@ fn analyzer_records_model_provenance_without_existing_entities() {
     let evidence = docs[0].get::<Evidence<Relations>>().unwrap();
     assert_eq!(evidence.verify(&docs[0]), Ok(()));
 }
+
+#[test]
+fn existing_entity_fragments_are_preserved() {
+    let (doc, tokens, mut existing) = inputs("a b");
+    let mut spans = Spans::new(turbo_analysis::ViewId::SOURCE);
+    spans.try_push_fragments(&[Span::new(0, 1), Span::new(2, 3)]).unwrap();
+    spans.push(Span::new(0, 1));
+    existing.spans = spans;
+    existing.tokens = vec![IxRange::new(0, 2), IxRange::new(0, 1)];
+    existing.kind = vec![Tag(0), Tag(0)];
+    existing.score = vec![1.0, 1.0];
+    existing.check().unwrap();
+    let mut model = glirel();
+    model.configure(vec!["related".into()], 0.0).unwrap();
+    let (entities, relations, edges) = model.annotate((doc.get::<View>().unwrap(), &tokens, Some(&existing))).unwrap();
+    assert_eq!(
+        entities.spans.fragments(turbo_analysis::Ix::new(0)).collect::<Vec<_>>(),
+        existing.spans.fragments(turbo_analysis::Ix::new(0)).collect::<Vec<_>>()
+    );
+    assert!(relations.spans.is_empty(), "a fragmented entity is not a contiguous model input");
+    assert!(edges.from.is_empty());
+    let mut model = gliner2();
+    model.configure(vec!["related".into()], 0.0).unwrap();
+    let (entities, relations, _) = model.annotate((doc.get::<View>().unwrap(), &tokens, Some(&existing))).unwrap();
+    assert_eq!(
+        entities.spans.fragments(turbo_analysis::Ix::new(0)).collect::<Vec<_>>(),
+        existing.spans.fragments(turbo_analysis::Ix::new(0)).collect::<Vec<_>>()
+    );
+    assert!(
+        relations.subject.iter().chain(&relations.object).all(|i| i.get() != 0),
+        "contiguous extracted mentions must not alias a fragmented envelope"
+    );
+}
+
+#[test]
+fn gliner_titlecase_follows_lowercase() {
+    let text = "ǅuro";
+    let words = turbo_relation::gliner2::words::split(text);
+    assert_eq!(words[0].text, text.to_lowercase());
+}
+
+#[test]
+fn gliner_normalized_url_keeps_upstream_word_boundaries() {
+    let model = gliner2();
+    for text in ["https://a.b", "www.example.com", "x HTTPS://a.b", "a b", "https://a.b.", "", "https://a.b "] {
+        let prompt = model.prompt(text, &["a"]);
+        let normalized = turbo_relation::gliner2::prompt::normalize(text);
+        let expected = turbo_relation::gliner2::words::split(&normalized);
+        assert_eq!(
+            prompt.words.iter().map(|w| w.text.as_ref()).collect::<Vec<_>>(),
+            expected.iter().map(|w| w.text.as_ref()).collect::<Vec<_>>()
+        );
+    }
+}

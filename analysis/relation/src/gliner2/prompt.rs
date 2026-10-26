@@ -88,9 +88,7 @@ pub fn build_words<'a>(
     }
     ids.push(specials.sep_text);
     let normalized = normalize(text);
-    if normalized.len() != text.len() {
-        words.push(Word { text: ".".into(), start: text.len(), end: text.len() + 1, subword_len: 0 });
-    }
+    super::words::append_period(text, &mut words);
     let mut word_first = Vec::with_capacity(words.len());
     for w in &mut words {
         word_first.push(ids.len());

@@ -31,11 +31,7 @@ impl Annotator for Gliner2Relations {
                 let raw = text
                     .get(span.start as usize..span.end as usize)
                     .ok_or_else(|| fail("a token outside the view".into()))?;
-                let folded = if raw.chars().any(char::is_uppercase) {
-                    std::borrow::Cow::Owned(raw.to_lowercase())
-                } else {
-                    std::borrow::Cow::Borrowed(raw)
-                };
+                let folded = super::words::lowercase(raw);
                 words.push(super::words::Word {
                     text: folded,
                     start: span.start as usize,

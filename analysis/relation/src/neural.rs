@@ -71,11 +71,15 @@ pub fn entities(
         })
         .unwrap_or_default();
     let generic = Tag(names.iter().position(|n| n == "entity").unwrap() as u16);
-    let mut out =
-        Entities { spans: Spans::new(view.id()), tokens: Vec::new(), kind: Vec::new(), kinds, score: Vec::new() };
+    let mut out = Entities {
+        spans: existing.map(|e| e.spans.clone()).unwrap_or_else(|| Spans::new(view.id())),
+        tokens: Vec::new(),
+        kind: Vec::new(),
+        kinds,
+        score: Vec::new(),
+    };
     if let Some(e) = existing {
-        for (i, span) in e.spans.iter() {
-            out.spans.push(span);
+        for (i, _) in e.spans.iter() {
             out.tokens.push(e.tokens[i.get()]);
             out.kind.push(Tag(old[e.kind[i.get()].0 as usize] as u16));
             out.score.push(e.score[i.get()]);
@@ -83,7 +87,8 @@ pub fn entities(
     }
     let mut mapping = Vec::with_capacity(needed.len());
     for &span in needed {
-        let found = (0..out.spans.len()).find(|&i| out.spans.get(Ix::new(i as u32)) == span);
+        let found = (0..out.spans.len())
+            .find(|&i| !out.spans.is_discontinuous(Ix::new(i as u32)) && out.spans.get(Ix::new(i as u32)) == span);
         let i = match found {
             Some(i) => i,
             None => {

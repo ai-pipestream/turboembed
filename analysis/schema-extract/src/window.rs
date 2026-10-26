@@ -124,8 +124,13 @@ pub fn plan_measured(
     let fits = |i: usize, j: usize| {
         let (a, b) = (first[i], last[j]);
         let sample = &text[units[i].start..units[j].end];
-        let period = usize::from(sample.is_empty() || !sample.ends_with(['.', '!', '?'])) * measure.period;
-        b - a <= max_words && measure.overhead + prefix[b] - prefix[a] + period <= max_sequence
+        let needs_period = sample.is_empty() || !sample.ends_with(['.', '!', '?']);
+        let cost = if needs_period && b > a && measure.words[b - 1].0.end == units[j].end {
+            prefix[b - 1] - prefix[a] + measure.endings[b - 1]
+        } else {
+            prefix[b] - prefix[a] + usize::from(needs_period) * measure.period
+        };
+        b - a <= max_words && measure.overhead + cost <= max_sequence
     };
     let mut windows = Vec::new();
     let mut i = 0;

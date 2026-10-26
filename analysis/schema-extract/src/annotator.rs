@@ -131,11 +131,7 @@ fn prompt_words<'a>(
             continue;
         }
         let raw = text.get(start - base..end - base).ok_or_else(|| "a token outside the view".to_owned())?;
-        let folded = if raw.chars().any(char::is_uppercase) {
-            std::borrow::Cow::Owned(raw.to_lowercase())
-        } else {
-            std::borrow::Cow::Borrowed(raw)
-        };
+        let folded = turbo_relation::gliner2::words::lowercase(raw);
         words.push(turbo_relation::gliner2::words::Word {
             text: folded,
             start: start - base,

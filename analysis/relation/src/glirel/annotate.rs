@@ -46,6 +46,11 @@ impl Annotator for GlirelRelations {
             let mut original = Vec::new();
             let mut ranges = Vec::new();
             for i in 0..existing.spans.len() {
+                // The model accepts one contiguous word range per entity. Retain
+                // fragmented entities in the output, but never score their envelope.
+                if existing.spans.is_discontinuous(Ix::new(i as u32)) {
+                    continue;
+                }
                 let span = existing.spans.get(Ix::new(i as u32));
                 if let Some(range) = super::words_of(&pass.prompt().words, span) {
                     original.push(i as u32);
