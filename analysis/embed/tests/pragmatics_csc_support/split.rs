@@ -5,8 +5,13 @@
 //! sets overlap at `SAME_SCENARIO` or more form one scenario group, and the
 //! smallest context id in a group picks its partition. A response text that
 //! still lands in several partitions is kept only in the first of train,
-//! development and test it reaches, so no input crosses a split.
+//! development and test it reaches, and so is any variant of it that the
+//! uncased encoder cannot tell apart ([`encoder_key`]), so no input crosses
+//! a split.
 use std::collections::{BTreeMap, BTreeSet};
+
+use turbo_unicode::java::to_lowercase;
+use turbo_unicode::normalize::{Form, normalize};
 
 use super::corpus::Response;
 
@@ -31,7 +36,26 @@ pub fn jaccard(a: &BTreeSet<String>, b: &BTreeSet<String>) -> f64 {
     if union == 0 { 1.0 } else { a.intersection(b).count() as f64 / union as f64 }
 }
 
-/// Assigns every response a partition and drops cross-partition repeats.
+/// The key the uncased encoder sees for a response text: canonical
+/// decomposition with combining marks dropped (the encoder's accent strip),
+/// lowercased, and whitespace collapsed. Two texts with the same key produce
+/// the same MiniLM token sequence, so they must share a partition.
+pub fn encoder_key(text: &str) -> String {
+    let mut decomposed = String::new();
+    normalize(Form::Nfd, text, &mut decomposed);
+    let mut no_marks = String::with_capacity(decomposed.len());
+    for c in decomposed.chars() {
+        if !turbo_unicode::category::general_category(c).is_mark() {
+            no_marks.push(c);
+        }
+    }
+    let mut lowered = String::new();
+    to_lowercase(&no_marks, &mut lowered);
+    lowered.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Assigns every response a partition and drops cross-partition repeats,
+/// where repeats are counted by the encoder's key, not the exact string.
 pub fn assign(mut rows: Vec<Response>) -> Vec<Response> {
     let scenario = scenario_keys(&rows);
     for row in &mut rows {
@@ -41,12 +65,18 @@ pub fn assign(mut rows: Vec<Response>) -> Vec<Response> {
             _ => Partition::Train,
         };
     }
-    let mut first: BTreeMap<String, Partition> = BTreeMap::new();
-    for row in &rows {
-        let p = first.entry(row.text.clone()).or_insert(row.partition);
+    let keys: Vec<String> = rows.iter().map(|row| encoder_key(&row.text)).collect();
+    let mut first: BTreeMap<&str, Partition> = BTreeMap::new();
+    for (key, row) in keys.iter().zip(&rows) {
+        let p = first.entry(key.as_str()).or_insert(row.partition);
         *p = (*p).min(row.partition);
     }
-    rows.retain(|row| first[&row.text] == row.partition);
+    let mut i = 0;
+    rows.retain(|row| {
+        let keep = first[keys[i].as_str()] == row.partition;
+        i += 1;
+        keep
+    });
     rows
 }
 
@@ -117,5 +147,27 @@ mod tests {
         ]);
         assert_eq!(rows.len(), 1);
         assert_eq!(rows[0].partition, Partition::Dev);
+    }
+
+    #[test]
+    fn uncased_and_whitespace_variants_stay_in_one_partition() {
+        // The encoder lowercases its input, so codex's found variants produce
+        // identical token sequences: Context 103 train "HAHAHAHAH" vs Context
+        // 110 test "hahahahah", and Context 119 train "whatever" vs Context
+        // 120 test "Whatever". The scenario texts differ, so only the
+        // encoder-key dedup can keep them apart from a second partition.
+        let rows = assign(vec![
+            row(103, "You finally cleaned your room after three weeks.", "HAHAHAHAH"),
+            row(110, "Your friend keeps using your mug without asking.", "hahahahah"),
+            row(119, "The meeting ran two hours over on a Friday.", "whatever"),
+            row(120, "Your coworker reheats fish in the office microwave.", "Whatever"),
+        ]);
+        let kept: Vec<_> = rows.iter().map(|r| (r.text.as_str(), r.partition)).collect();
+        assert_eq!(kept, [("HAHAHAHAH", Partition::Train), ("whatever", Partition::Train)]);
+
+        // Whitespace and case-fold variants of one text dedupe the same way.
+        assert_eq!(encoder_key("  Whatever\t"), encoder_key("whatever"));
+        assert_eq!(encoder_key("HAHAHAHAH"), encoder_key("hahahahah"));
+        assert_eq!(encoder_key("Café"), encoder_key("cafe"));
     }
 }

@@ -82,12 +82,16 @@ pub fn validate_population(rows: &[Response]) -> Result<(), String> {
 }
 
 /// The model sees response text, and responses to one scenario share topic
-/// words, so neither a response text nor a scenario may span partitions.
+/// words, so neither a response text nor a scenario may span partitions. The
+/// encoder lowercases its input, so response texts are compared by their
+/// encoder key, not the exact string.
 pub fn validate_disjoint_inputs(rows: &[Response]) -> Result<(), String> {
     let mut texts: BTreeMap<&str, BTreeSet<Partition>> = BTreeMap::new();
+    let mut encoder_texts: BTreeMap<String, BTreeSet<Partition>> = BTreeMap::new();
     let mut contexts: BTreeMap<String, BTreeSet<Partition>> = BTreeMap::new();
     for row in rows {
         texts.entry(&row.text).or_default().insert(row.partition);
+        encoder_texts.entry(super::split::encoder_key(&row.text)).or_default().insert(row.partition);
         let normalized = row.context_text.split_whitespace().collect::<Vec<_>>().join(" ").to_lowercase();
         contexts.entry(normalized).or_default().insert(row.partition);
     }
@@ -107,6 +111,10 @@ pub fn validate_disjoint_inputs(rows: &[Response]) -> Result<(), String> {
     let overlap = texts.values().filter(|p| p.len() > 1).count();
     if overlap > 0 {
         return Err(format!("CSC split leaks {overlap} response texts across train/dev/test"));
+    }
+    let encoder_overlap = encoder_texts.values().filter(|p| p.len() > 1).count();
+    if encoder_overlap > 0 {
+        return Err(format!("CSC split leaks {encoder_overlap} encoder-identical response texts across train/dev/test"));
     }
     Ok(())
 }

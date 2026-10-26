@@ -178,7 +178,7 @@ fn save(dir: &Path, head: &ClassifierHead, head_threshold: f64, combined_thresho
         "head_threshold": head_threshold,
         "combined_threshold": combined_threshold,
         "rule_threshold": 0.5,
-        "training": { "l2_reg": 0.001, "epochs": 200, "learning_rate": 0.1, "split": "scenario groups (context word Jaccard >= 0.4), smallest context id modulo 5, repeated responses in one partition" },
+        "training": { "l2_reg": 0.001, "epochs": 200, "learning_rate": 0.1, "split": "scenario groups (context word Jaccard >= 0.4), smallest context id modulo 5, repeated and encoder-equal (uncased, accent-stripped) responses in one partition" },
         "combined_path": "PragmaticsAnnotator rule signals plus this embedding head",
         "evaluation": EVALUATIONS.into_iter().zip(counts).map(|(name, c)| (name.to_owned(), metric_json(c))).collect::<serde_json::Map<_, _>>()
     });

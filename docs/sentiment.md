@@ -343,12 +343,15 @@ part 2, friend and colleague variants), sometimes reworded, so contexts whose
 word sets have a Jaccard overlap of at least 0.4 form one scenario group, and
 the smallest context id in a group picks its partition modulo 5. A response
 text that still spans partitions is kept only in the first of train,
-development and test, which drops 99 of 7,036 responses. That leaves 4,210
-train, 1,298 development, and 1,429 held-out responses (654 positive). No
-scenario text, reworded scenario, or response text crosses a split, and the
-data-only `actual_release_split_has_no_repeated_inputs_or_scenarios` test
-checks this on the pinned CSV and confirms that the earlier context-id split
-fails it.
+development and test, and so is any variant of it the uncased encoder cannot
+tell apart (lowercased, accent-stripped, whitespace-collapsed): case variants
+such as `"HAHAHAHAH"` and `"hahahahah"` share an encoder key, so the later
+partition's copy is dropped too. The two drops remove 110 of 7,036 responses,
+leaving 4,210 train, 1,295 development, and 1,421 held-out responses (649
+positive). No scenario text, reworded scenario, or response text, exact or
+encoder-equal, crosses a split, and the data-only
+`actual_release_split_has_no_repeated_inputs_or_scenarios` test checks this
+on the pinned CSV and confirms that the earlier context-id split fails it.
 
 A two-label linear `ClassifierHead` trains for 200 epochs with L2 0.001 and
 learning rate 0.1. The head and combined thresholds are selected on the
@@ -359,13 +362,13 @@ constant baselines, are:
 
 | Path | Threshold | Precision | Recall | F1 | Accuracy |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Rule signals alone | 0.50 | 0.500000 | 0.030581 | 0.057637 | 0.542337 |
-| Embedding head alone | 0.35 | 0.489954 | 0.969419 | 0.650924 | 0.524143 |
-| Rules plus embedding head | 0.35 | 0.489969 | 0.970948 | 0.651282 | 0.524143 |
-| Baseline: every response sarcastic | | 0.457663 | 1.000000 | 0.627940 | 0.457663 |
-| Baseline: every response literal (majority) | | 0.000000 | 0.000000 | 0.000000 | 0.542337 |
+| Rule signals alone | 0.50 | 0.500000 | 0.030817 | 0.058055 | 0.543279 |
+| Embedding head alone | 0.35 | 0.489114 | 0.969183 | 0.650129 | 0.523575 |
+| Rules plus embedding head | 0.35 | 0.489130 | 0.970724 | 0.650490 | 0.523575 |
+| Baseline: every response sarcastic | | 0.456721 | 1.000000 | 0.627053 | 0.456721 |
+| Baseline: every response literal (majority) | | 0.000000 | 0.000000 | 0.000000 | 0.543279 |
 
-The head is close to the all-sarcastic baseline: it rejects 115 of 775
+The head is close to the all-sarcastic baseline: it rejects 115 of 772
 literal responses and its F1 is 0.023 higher. Its accuracy is below the
 majority baseline. The response text alone, without its scenario, carries
 little sarcasm signal for this encoder and head. The earlier
