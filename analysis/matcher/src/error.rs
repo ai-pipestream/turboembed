@@ -52,6 +52,8 @@ pub enum MatchError {
     Range { start: usize, end: usize, tokens: usize },
     /// A label the matcher does not have.
     NoLabel(String),
+    /// Invalid dependency columns, forest, or sentence alignment.
+    Dependencies(String),
 }
 
 impl fmt::Display for MatchError {
@@ -70,6 +72,7 @@ impl fmt::Display for MatchError {
             MatchError::Range { start, end, tokens } => {
                 write!(f, "tokens {start}..{end} are not inside the {tokens} tokens")
             }
+            MatchError::Dependencies(reason) => write!(f, "invalid dependency forest: {reason}"),
             MatchError::NoLabel(label) => write!(f, "no label {label:?}"),
         }
     }
