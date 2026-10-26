@@ -42,9 +42,15 @@ fn amount(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
 fn prefix_amount(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
     let w = ctx.word(ctx.start);
     let unit = v[0].unit()?;
-    let named = lexicon::WORDS.iter().any(|x| x.word == w && x.unit == unit && x.flags & PREFIX != 0);
-    let coded = matches!(unit, Unit::Currency(CurrencyUnit::Code(_)));
-    if !(named || coded) {
+    let symbol = matches!(w, "$" | "€" | "£" | "¥");
+    let coded = SPANISH_UNITS.lexicon().lookup(w).iter().any(|e| e.dim == CODE);
+    let composite = matches!(unit, Unit::Currency(CurrencyUnit::Code(_)))
+        && ctx.start + 1 < ctx.end
+        && ctx.word(ctx.start + 1) == "$";
+    let named = lexicon::WORDS.iter().any(|x| x.word == w && x.unit == unit && x.flags & PREFIX != 0)
+        && ctx.start + 1 < ctx.end
+        && !matches!(ctx.word(ctx.start + 1), "un" | "una");
+    if !(symbol || coded || composite || named) {
         return None;
     }
     quantity(v[1].num()?.value, unit)

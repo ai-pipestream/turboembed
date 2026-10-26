@@ -133,3 +133,10 @@ fn unrelated_counts_and_glued_signs_are_not_currency_hundredths() {
     assert_eq!(quantities("3 USD50"), [("USD50".into(), 50.0, "USD".into())]);
     assert_eq!(quantities("5 $10"), [("$10".into(), 10.0, "dollar".into())]);
 }
+
+#[test]
+fn currency_nouns_do_not_consume_following_articles() {
+    for text in ["euros un ejemplo", "florines una moneda", "dólares un recuerdo"] {
+        assert!(quantities(text).is_empty(), "{text}: {:?}", quantities(text));
+    }
+}
