@@ -41,6 +41,8 @@ pub enum Generic {
     Lira,
     Mark,
     Won,
+    /// A cent whose major currency is not stated.
+    Cent,
 }
 
 impl Generic {
@@ -62,6 +64,7 @@ impl Generic {
             Generic::Lira => "Lira",
             Generic::Mark => "Mark",
             Generic::Won => "Won",
+            Generic::Cent => "Cent",
         }
     }
 
@@ -157,6 +160,7 @@ impl CurrencyUnit {
     pub fn has_hundredths(self) -> bool {
         match self {
             CurrencyUnit::Code(c) => !NO_HUNDREDTHS.contains(&c.code()),
+            CurrencyUnit::Generic(Generic::Cent) => false,
             CurrencyUnit::Generic(_) => true,
             CurrencyUnit::Minor(_) => false,
         }
