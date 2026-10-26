@@ -17,7 +17,8 @@ artifacts, and publishes nothing. What changed in each release is in
 `CHANGELOG.md`; what a release may change is under Versions and
 compatibility, below.
 
-Nothing else is published: no crate, no image.
+The same tag pushes two images of the gRPC server to GHCR (Images,
+below). Nothing else is published: no crate.
 
 ## What the Linux archive holds
 
@@ -107,6 +108,94 @@ README.md                  this file
 C++ redistributable (2015 or later), which most already have. The
 workflow checks that the DLL loads and lists the cpu backend in
 `turbo_version()`, and that the server starts and parses its arguments.
+
+## Images
+
+```
+ghcr.io/ai-pipestream/turbo-kserve:<version>        the cpu backend; linux/amd64 and linux/arm64
+ghcr.io/ai-pipestream/turbo-kserve:<version>-cuda   the cpu and cuda backends; linux/amd64
+```
+
+`<version>` is the tag without its `v`; the release notes give each
+image's digest, and a deployment that wants the exact build names it by
+digest. Each image holds `turbo-kserve` alone, built from
+`server/Dockerfile` on a Debian bookworm base pinned by digest, and its
+`LICENSE` and `NOTICE` under `/opt/turbo/licenses/`. The cuda image is built with the
+toolkit and architectures of the Linux archive and, like it, links the
+CUDA runtime statically: the host needs the NVIDIA driver and the NVIDIA
+container toolkit, nothing in the image; without a GPU it runs the cpu
+backend.
+
+The image holds no model. It runs as user 10001, listens on
+`0.0.0.0:8081`, and serves every bundle directory under `/bundles`, a
+volume, on device 0 with one session. Everything else is the server's
+own configuration through its `TURBO_KSERVE_*` variables (docs/grpc.md,
+Flags); `TURBO_KSERVE_MODELS` names the bundles, devices and sessions
+when the defaults are not what is wanted. Arguments after the image name
+are the server's flags and replace their variables.
+
+```
+docker run --rm -p 8081:8081 -v /srv/bundles:/bundles:ro \
+    ghcr.io/ai-pipestream/turbo-kserve:<version>
+docker run --rm --gpus all -p 8081:8081 -v /srv/bundles:/bundles:ro \
+    -e TURBO_KSERVE_MODELS='bundle=/bundles/bge-small-en-v1.5,device=select,sessions=4' \
+    ghcr.io/ai-pipestream/turbo-kserve:<version>-cuda
+```
+
+For a different container port, set `TURBO_KSERVE_LISTEN` so both the
+server and its separate health-check process use the same address:
+
+```
+docker run --rm -p 9090:9090 -v /srv/bundles:/bundles:ro \
+    -e TURBO_KSERVE_LISTEN=0.0.0.0:9090 \
+    ghcr.io/ai-pipestream/turbo-kserve:<version>
+```
+
+A server `--listen` flag does not change the health process's environment.
+When using that flag, also replace Docker's health command:
+
+```
+docker run --rm -p 9090:9090 -v /srv/bundles:/bundles:ro \
+    --health-cmd='turbo-kserve health --addr 127.0.0.1:9090' \
+    ghcr.io/ai-pipestream/turbo-kserve:<version> --listen 0.0.0.0:9090
+```
+
+Changing only the host side of a port mapping, such as `-p 9090:8081`,
+does not change the container listener or require a health override.
+
+The image's health check runs `turbo-kserve health`, one
+`grpc.health.v1.Health/Check` against `TURBO_KSERVE_LISTEN`: healthy once
+every bundle is loaded, unhealthy while loading (after a 120 second
+start period) and while draining. Kubernetes asks the same service
+itself (adjust these ports when changing the listener):
+
+```yaml
+startupProbe:
+  grpc: { port: 8081 }
+  periodSeconds: 5
+  failureThreshold: 120   # ten minutes to load
+livenessProbe:
+  tcpSocket: { port: 8081 }
+  periodSeconds: 10
+readinessProbe:
+  grpc: { port: 8081 }
+  periodSeconds: 5
+```
+
+The health service answers readiness alone (every service name the
+server serves maps to `ServerReady`), so liveness asks only that the
+listener answers. The readiness probe turns false when the server
+drains on SIGTERM, so
+the endpoint leaves the service before the requests in flight finish;
+`terminationGracePeriodSeconds` should cover the longest request.
+
+Each build in `release.yml` runs its image with
+`testdata/tiny-bert-bundle` mounted and waits for it to turn healthy;
+both environment and command-line port overrides are checked too.
+The amd64 cpu image also embeds the bundle's reference texts over gRPC
+and checks them against its reference vectors
+(`server/tests/image_smoke.rs`). The cuda image is checked on its cpu
+backend only: the runners have no GPU.
 
 ## What a release claims
 

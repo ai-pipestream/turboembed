@@ -13,6 +13,7 @@ mod infer;
 pub mod inspect;
 mod kserve;
 pub mod offsets;
+pub mod probe;
 pub mod progressive;
 pub mod results;
 pub mod search;

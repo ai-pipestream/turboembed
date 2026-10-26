@@ -56,7 +56,7 @@ impl TimeAnnotator {
         self
     }
 
-    /// Enable explicit time zones. CST and IST require a matching region;
+    /// Enable explicit time zones. CST, IST and PT require a matching region;
     /// other abbreviations have documented fixed offsets. City names need
     /// a reference date, except when the expression supplies one itself.
     pub fn with_time_zones(mut self, region: crate::time::zone::Region) -> Self {
@@ -75,12 +75,11 @@ impl TimeAnnotator {
         parser.parse(text);
         let mut mentions = Vec::new();
         if let Some(region) = self.zones {
-            parser.select_time_suffix(text, &mut mentions, |values, value, end| {
-                let timed = values.get(value).is_some_and(crate::time::zone::has_clock);
-                if !timed {
-                    return end;
-                }
-                crate::time::zone::at(text, end as usize, region).map_or(end, |z| z.end as u32)
+            parser.select_time_suffix(text, &mut mentions, |values, value, start, end| {
+                values
+                    .get(value)
+                    .and_then(|v| crate::time::zone::for_clock(text, start, end, v, region))
+                    .map_or(end, |z| z.end as u32)
             });
         } else {
             parser.select(text, Output::Time, &mut mentions);
@@ -93,9 +92,7 @@ impl TimeAnnotator {
             let open = reference.is_none() && depends_on_reference(&value);
             let Some(r) = resolve(&value, now) else { continue };
             // Match selection: only an explicit clock can consume a zone.
-            let timed = crate::time::zone::has_clock(value);
-            let zone =
-                self.zones.filter(|_| timed).and_then(|region| crate::time::zone::at(text, m.end as usize, region));
+            let zone = self.zones.and_then(|region| crate::time::zone::for_clock(text, m.start, m.end, value, region));
             let offsets = zone.and_then(|z| crate::time::zone::Offsets::for_resolution(&r, z.zone, reference));
             // An explicit city zone without a resolvable date or during
             // a DST gap/fold stays unresolved, never a guessed offset.
@@ -156,7 +153,7 @@ fn push(
 }
 
 impl Annotator for TimeAnnotator {
-    const VERSION: &'static str = "4";
+    const VERSION: &'static str = "5";
     const ID: &'static str = "turbo-grammar:times";
     type Reads = (View, Option<DocumentDate>);
     type Writes = (Times,);

@@ -247,6 +247,12 @@ pub trait Grammar: Send + Sync + 'static {
     /// Which output a node of `dim` goes to, if any.
     fn output(&self, dim: Dim) -> Option<Output>;
 
+    /// A latent clock category that becomes output only with a recognized
+    /// zone suffix. Normal selection still excludes this category.
+    fn time_zone_context(&self, _dim: Dim) -> bool {
+        false
+    }
+
     /// Whether a candidate for `output` is kept. The default keeps all.
     fn keep(&self, _output: Output, _node: &super::chart::Node, _ctx: &Ctx<'_>) -> bool {
         true

@@ -6,6 +6,8 @@ use std::process::ExitCode;
 
 use turbo_kserve::catalog::Catalog;
 use turbo_kserve::config::{Args, USAGE};
+use turbo_kserve::probe::{self, HEALTH_USAGE, Probe};
+use turbo_kserve::proto::health::health_check_response::ServingStatus;
 use turbo_kserve::{Serve, Server};
 
 /// Resolves to the name of the first stop signal: SIGINT (Ctrl-C) or, on
@@ -45,9 +47,39 @@ fn catalog(_dir: &str, _index: Option<&str>) -> Result<Catalog, String> {
     Err("this turbo-kserve was built without the catalog-http feature, so it cannot fetch models".into())
 }
 
+/// `turbo-kserve health ...`: one health check against a running server.
+async fn health(args: impl Iterator<Item = String>) -> ExitCode {
+    let p = match Probe::parse(args) {
+        Ok(p) => p,
+        Err(e) => {
+            eprintln!("turbo-kserve health: {e}\n{HEALTH_USAGE}");
+            return ExitCode::from(2);
+        }
+    };
+    match probe::check(&p).await {
+        Ok(ServingStatus::Serving) => {
+            println!("SERVING");
+            ExitCode::SUCCESS
+        }
+        Ok(s) => {
+            println!("{}", s.as_str_name());
+            ExitCode::FAILURE
+        }
+        Err(e) => {
+            eprintln!("turbo-kserve health: {e}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> ExitCode {
-    let args = match Args::parse(std::env::args().skip(1)) {
+    let mut argv = std::env::args().skip(1).peekable();
+    if argv.peek().map(String::as_str) == Some("health") {
+        argv.next();
+        return health(argv).await;
+    }
+    let args = match Args::parse(argv) {
         Ok(a) => a,
         Err(e) => {
             eprintln!("turbo-kserve: {e}\n{USAGE}");

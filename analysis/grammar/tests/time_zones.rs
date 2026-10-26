@@ -134,8 +134,8 @@ fn upstream_zone_offsets_are_counted_separately_from_disabled_cases() {
     assert_eq!(agree, 6);
     // These fixtures assign summer offsets to generic mountain/PT in
     // November, unlike the documented standard-time policy here.
-    assert_eq!(disagree, [("English", 517), ("Dutch", 494)]);
-    assert_eq!(unsupported, [("Dutch", 293)]);
+    assert_eq!(disagree, [("English", 517), ("Dutch", 293), ("Dutch", 494)]);
+    assert!(unsupported.is_empty(), "{unsupported:?}");
 }
 
 #[test]
