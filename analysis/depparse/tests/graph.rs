@@ -96,7 +96,8 @@ fn oracle_rebuilds_all_small_projective_trees() {
                 assert!(state.can_apply(&t));
                 state.apply(&t).unwrap();
             }
-            let decoded = state.to_graph().unwrap().deprojectivize().unwrap();
+            let decoded =
+                state.to_graph().unwrap().deprojectivize_with(turbo_depparse::LabelEncoding::EscapedV1).unwrap();
             assert_eq!(decoded.to_layer().head, heads);
             for (i, expected_rel) in rels.iter().enumerate() {
                 assert_eq!(decoded.arc(Ix::new(i as u32)).unwrap().relation, expected_rel);

@@ -4,12 +4,11 @@
 //! annotated with the directional relation path `base^<step1^>step2...` from
 //! the lifted head down to the original head. Literal `^`, `<`, `>`, and `\`
 //! characters inside custom relation labels are escaped (`\^`, `\<`, `\>`,
-//! `\\`) when non-projective lifting occurs, and only well-formed directional
+//! `\\`) for all graphs passed to projectivize. Only well-formed directional
 //! lift suffixes (`^<rel` or `^>rel`) are decoded by [`DependencyGraph::deprojectivize`].
-//! Ordinary custom labels such as `root^literal` on projective trees are
-//! preserved unchanged.
+//! Graph/model metadata selects decoding; ordinary plain labels are unchanged.
 
-use crate::{DependencyGraph, Result};
+use crate::{DependencyGraph, LabelEncoding, Result, error};
 use turbo_analysis::Ix;
 use turbo_analysis_layers::WordOrTokenAnchor;
 
@@ -42,22 +41,6 @@ fn unescape_rel(s: &str) -> String {
         }
     }
     out
-}
-
-fn has_unescaped_caret(s: &str) -> bool {
-    let mut escaped = false;
-    for ch in s.chars() {
-        if escaped {
-            escaped = false;
-            continue;
-        }
-        if ch == '\\' {
-            escaped = true;
-        } else if ch == '^' {
-            return true;
-        }
-    }
-    false
 }
 
 fn split_unescaped_carets(s: &str) -> Vec<&str> {
@@ -153,8 +136,8 @@ impl<A: WordOrTokenAnchor> DependencyGraph<A> {
     /// can restore the original non-projective arcs.
     pub fn projectivize(&self) -> Result<Self> {
         self.check_tree()?;
-        if self.is_projective() {
-            return Ok(self.clone());
+        if self.label_encoding != crate::LabelEncoding::Plain {
+            return Err(error("graph already has encoded dependency labels"));
         }
         let n = self.len();
         let mut heads = Vec::with_capacity(n);
@@ -188,27 +171,38 @@ impl<A: WordOrTokenAnchor> DependencyGraph<A> {
             .zip(steps)
             .map(|(base, mut st)| {
                 if st.is_empty() {
-                    if has_unescaped_caret(&base) { escape_rel(&base) } else { base }
+                    escape_rel(&base)
                 } else {
                     st.reverse();
                     format!("{}^{}", escape_rel(&base), st.join("^"))
                 }
             })
             .collect();
-        Self::new(heads, relations)
+        let mut graph = Self::new(heads, relations)?;
+        graph.label_encoding = LabelEncoding::EscapedV1;
+        Ok(graph)
     }
 
     /// Decodes pseudo-projective relation labels (`base^<step1^>step2...`) back
     /// into lower (potentially non-projective) arcs while preserving tree
-    /// invariants. Ordinary relation labels without directional `^<` / `^>`
-    /// lift steps (such as `root^literal`) are preserved unchanged.
+    /// invariants. Only graphs marked by `projectivize` are decoded; plain
+    /// graph labels are preserved regardless of their text.
     pub fn deprojectivize(&self) -> Result<Self> {
+        self.deprojectivize_with(self.label_encoding)
+    }
+    /// Decodes a graph reconstructed from transitions using its model's mode.
+    /// Plain mode preserves all relation text. The caller must identify encoded
+    /// graphs explicitly; label spelling does not select a mode.
+    pub fn deprojectivize_with(&self, encoding: LabelEncoding) -> Result<Self> {
         self.check_tree()?;
+        if encoding == LabelEncoding::Plain {
+            return Ok(self.clone());
+        }
         let n = self.len();
         let mut heads = Vec::with_capacity(n);
         let mut base_rels = Vec::with_capacity(n);
         let mut steps: Vec<Vec<(bool, String)>> = Vec::with_capacity(n);
-        let mut any_lifted = false;
+        let mut any_lifted = encoding == LabelEncoding::EscapedV1;
         for i in 0..n {
             let arc = self.arc(Ix::new(i as u32))?;
             heads.push(arc.head);
@@ -217,7 +211,11 @@ impl<A: WordOrTokenAnchor> DependencyGraph<A> {
                 base_rels.push(base);
                 steps.push(parsed_steps);
             } else {
-                base_rels.push(arc.relation.to_owned());
+                base_rels.push(if encoding == LabelEncoding::EscapedV1 {
+                    unescape_rel(arc.relation)
+                } else {
+                    arc.relation.to_owned()
+                });
                 steps.push(Vec::new());
             }
         }

@@ -124,3 +124,29 @@ in release `models-ud-depparse-2.16-1` and registered in `analysis/zoo/index/zoo
 | `UD_Italian-MarkIT` | 611 (0) | 340 (10,196) | `turbo-it-ud-markit-2.16-depparse-maxent-1` | MaxEnt | 1,364,091 | `2f8539971c1d4434` | 78.56 / 82.09 | 71.58 / 74.43 | PASS (+47.32, [+45.79, +48.90]) | PASS (+41.86, [+40.16, +43.64]) |
 | `UD_Italian-MarkIT` | 611 (0) | 340 (10,196) | `turbo-it-ud-markit-2.16-depparse-feedforward-1` | Feedforward | 258,169 | `397fc29dd5ee2ac5` | 77.29 / 80.78 | 69.16 / 71.84 | PASS (+31.61, [+30.15, +33.10]) | PASS (+23.63, [+22.16, +25.18]) |
 
+
+### Dependency label encoding compatibility
+
+Relation text does not select a decoder. Models loaded from old raw, Java or
+unmarked native containers use `LabelEncoding::Plain`, preserving custom
+carets, angle brackets and backslashes. New training escapes every relation
+consistently, including projective sentences. MaxEnt stores
+`Turbo-Dependency-Label-Encoding` in its manifest; native neural ZIP version 3
+stores `label_encoding` in its configuration. Unknown modes are refused, and
+legacy Java export refuses encoded models because that format has no mode field.
+Native versions 1 and 2 remain readable; conversion is optional.
+
+The eight original `models-ud-depparse-2.16-1` artifacts predate these fields.
+Their complete SHA-256 values, from their published cards, are listed in
+`analysis/depparse/src/encoding.rs`. Only those exact files automatically use
+`LegacyPseudo` decoding. A repackaged or modified unmarked file defaults to
+plain labels; it is not identified by its transitions, filename or language.
+The published bytes and their evaluated predictions are unchanged. New model
+serialization records the selected mode explicitly, including when converting
+one of these historical neural models to native version 3.
+
+`projectivize` marks its returned graph as encoded. `deprojectivize` decodes
+that graph and otherwise preserves plain graphs. Transition reconstruction or
+layer import discards graph metadata; callers must then use
+`deprojectivize_with` with the encoding from the model. Re-projectivizing an
+already encoded graph is refused to prevent double escaping.

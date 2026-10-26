@@ -102,6 +102,7 @@ impl FeedforwardDependencyTrainer {
         // Cache only after the final update so no stale weights can be used.
         // One million doubles bounds the returned model's cache at 8 MB of values.
         model.precompute_words(&counts.into_iter().collect::<Vec<_>>(), 1_000_000);
+        model.label_encoding = crate::LabelEncoding::EscapedV1;
         Ok(model)
     }
 }

@@ -17,6 +17,7 @@ pub struct DependencyModel {
     pub(crate) transitions: Vec<Transition>,
     pub(crate) identity: ModelRef,
     bytes: Option<Vec<u8>>,
+    label_encoding: crate::LabelEncoding,
 }
 impl DependencyModel {
     /// The caller supplies the identity of an externally constructed classifier.
@@ -36,7 +37,7 @@ impl DependencyModel {
         {
             return Err(error("model requires SHIFT and RIGHT_ARC outcomes"));
         }
-        Ok(Self { classifier, transitions, identity, bytes: None })
+        Ok(Self { classifier, transitions, identity, bytes: None, label_encoding: crate::LabelEncoding::Plain })
     }
     pub fn from_raw(bytes: &[u8]) -> Result<Self> {
         Self::from_maxent(
@@ -59,8 +60,17 @@ impl DependencyModel {
             revision: file.opennlp_version().into(),
             sha256: file.sha256().to_hex(),
         };
+        out.label_encoding = file
+            .manifest()
+            .get("Turbo-Dependency-Label-Encoding")
+            .map(crate::LabelEncoding::read)
+            .transpose()?
+            .unwrap_or_else(|| crate::LabelEncoding::historical(&bytes));
         out.bytes = Some(bytes);
         Ok(out)
+    }
+    pub fn label_encoding(&self) -> crate::LabelEncoding {
+        self.label_encoding
     }
     pub fn bytes(&self) -> Option<&[u8]> {
         self.bytes.as_deref()
@@ -79,6 +89,7 @@ impl DependencyModel {
                 .map_err(error)?;
         let mut manifest = Manifest::new(COMPONENT_NAME, language, 0);
         manifest.set_training(&report);
+        manifest.set("Turbo-Dependency-Label-Encoding", crate::LabelEncoding::EscapedV1.name());
         let mut package = ModelPackage::new(manifest);
         package.add_entry(MODEL_ENTRY, model.write().map_err(error)?);
         Self::open(package.to_bytes())
@@ -116,7 +127,7 @@ impl DependencyParserME {
             }
             state.apply(best.ok_or_else(|| error("no applicable model outcome"))?)?;
         }
-        state.to_graph()?.deprojectivize()
+        state.to_graph()?.deprojectivize_with(self.model.label_encoding)
     }
 }
 impl<A: WordOrTokenAnchor> DependencyParser<A> for DependencyParserME {

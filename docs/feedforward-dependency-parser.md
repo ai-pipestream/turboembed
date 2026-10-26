@@ -35,7 +35,7 @@ reference's simple lowercase mapping plus contextual final sigma. Reserved
 ## Model files
 
 `from_bytes` accepts legacy Java raw streams, current Apache models and Turbo
-ZIP versions 1 and 2. Readers reject invalid counts, dimensions, duplicate
+ZIP versions 1, 2 and 3. Readers reject invalid counts, dimensions, duplicate
 symbols/IDs, non-finite parameters, invalid transitions and trailing network
 bytes. Float arrays are allocated after their bytes and aggregate count have
 been checked. Limits remain 2 million vocabulary rows, 100,000 outcomes,
@@ -51,7 +51,7 @@ embedding width 4,096, hidden width 65,536 and 100 million float values.
   `BeamSize`; a bare network has no beam metadata and defaults to 1.
   Unsupported versions, mixed schemas, malformed UTF-8 and invalid beam
   settings fail explicitly. Native allocation limits still apply.
-- Native: `to_bytes` writes Turbo ZIP version 2. It records layout,
+- Native: `to_bytes` writes Turbo ZIP version 3. It records layout,
   activation and default beam, and uses length-prefixed UTF-8 vocabulary
   strings, including keys beyond legacy `writeUTF`'s 65,535-byte limit.
   The version 1 reader remains supported with its original default beam 1.
