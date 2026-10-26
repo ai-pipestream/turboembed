@@ -1,0 +1,69 @@
+{
+  "kind": "typed-quotations-and-main-integration-verification",
+  "pr": 1253,
+  "issue": 1219,
+  "baseline_head": "512760d9949b72f58c49aaaecc207ae6724bd1f8",
+  "main": "df3f37e0f8adf58319723116857ddbddc6145b2b",
+  "tested_clean_source": "d8f049018515ed85e3691efe129ad9f2c76e0a54",
+  "integration_merge": "7f3b65c3bd23855d5eef245ca8507505e0bf39ac",
+  "contract": {
+    "new_payload_tag": 94,
+    "analysis_standard_codecs": 100,
+    "normalize_standard_codecs": 7,
+    "typed_dispatch_paths": 106,
+    "entity_evidence_folded_into_votes": 1,
+    "inventory_scope": "source dispatch accounting, not blanket runtime coverage of every codec field",
+    "quotation_fields": "content fragments, optional speaker/cue, explicit kind and f32 confidence, raw optional speaker_chain, instance and provenance",
+    "confidence": "preserved by f32 bits including negative zero; no calibrated annotation probability invented",
+    "speaker_chain": "raw contextual row, not resolved or bounds-checked as a node reference",
+    "fragment_semantics": "legal discontinuity, partial deletion, total deletion, overlapping replacement and visible row-start inversion retained; no one-span or row-sort restriction"
+  },
+  "red_green": {
+    "projection_red": "9a429005504929fbd09b3a0af572c42ace868dd7",
+    "projection_red_result": "0 passed / 1 failed; 18 instance/view/mode combinations lose all native quotation records; native graph transport retains records",
+    "validation_red": "bcea7dc70f5f11adce51c064fb62daa7b6815f0d",
+    "validation_red_result": "3 passing controls / 1 failing validation test; 63 of 72 malformed messages accepted, 9 refused by existing generic guards",
+    "green": "4 quotation tests pass; all 72 malformed messages refused with InvalidArgument, turbo-code=256, turbo-field=0",
+    "positive_presence_echoes": 90,
+    "original_controls": "75 malformed reference cases and six earlier chain-bound negatives; earlier 1,424 malformed quality/evidence cases, valid graph round trips, named targets and absent options retained",
+    "baseline_manifest": {
+      "files": 30,
+      "byte_unchanged": 26,
+      "additive_changes": [
+        "server/proto/turbo_typed_annotations.proto",
+        "server/src/results/typed/mod.rs",
+        "server/src/results/typed/validate.rs",
+        "server/src/results/typed/validate/annotation.rs"
+      ],
+      "earlier_regression_files": "byte unchanged"
+    }
+  },
+  "validation": {
+    "command": "cargo test --locked -p turbo-analysis -p turbo-analysis-layers -p turbo-kserve -p turbo-kserve-demo -- --skip term_stacks_scale_with_the_document_not_its_square",
+    "passed": 679,
+    "failed": 0,
+    "existing_ignored": 2,
+    "explicit_timing_filter": 1,
+    "packages": {
+      "analysis_core": 229,
+      "analysis_layers": 208,
+      "server": 228,
+      "demo": 14
+    },
+    "counting": "final suite only; targeted and intermediate runs not added",
+    "workspace_all_target_clippy": "pass, locked, warnings denied",
+    "workspace_fmt": "pass",
+    "diff_check": "pass",
+    "tree": "8/8 pass",
+    "build_jobs": 2
+  },
+  "scope_limits": [
+    "Implementer proof only; no independent PASS or hosted merge.",
+    "Two fresh external current-head reviews and green hosted CI remain required; older Cursor clarification remains pending.",
+    "Issue 1219 remains open with original acceptance intact.",
+    "Separate native quotation equality repair PR 1308 is not adopted here; explicit fragment and bit assertions avoid that equality gap.",
+    "Separately owned native Modality discontinuous import repair must land and its integration be verified before broader lossless shared-layer acceptance; quotation proof does not establish losslessness for every codec.",
+    "No typed-to-Document reconstruction API, new dependency, model, hardware/timing campaign or history rewrite."
+  ],
+  "delivery": "A subsequent receipt-only commit may name this tested source; source checks are not claimed at an untested code revision."
+}

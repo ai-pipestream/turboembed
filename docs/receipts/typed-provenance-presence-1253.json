@@ -1,0 +1,46 @@
+{
+  "kind": "typed-optional-provenance-presence-verification",
+  "pr": 1253,
+  "issue": 1219,
+  "claim": 6399369272,
+  "baseline_head": "f927da265be4b315cdea6882a34803f4ee64afbe",
+  "tested_source": "e0f9f4a24b5af40b03d3819d824a0a94e4ff2606",
+  "test_only_red_commit": "b2ac3ac496c26e402574535e17fb53cfe0ecc533",
+  "problem": "The provenance key flattened None and Some with empty model/execution strings into identical keys, losing or fabricating optional record presence according to insertion order.",
+  "red": {
+    "private_test": "One real graph/RPC test fails: three of four valid full-provenance combinations lose bundle, execution, or both. Native graph round-trip bytes remain equal.",
+    "permanent_tests": "0 passed, 2 failed: full model/execution presence and producer-only model presence."
+  },
+  "repair": "Include model presence and execution presence in ProvenanceKey. Producer-only entries always have absent execution and retain optional model presence. No schema, native validation or wire-format change.",
+  "permanent_proof": {
+    "target": "typed_provenance_presence",
+    "tests": 2,
+    "full_provenance": "All four presence combinations, both insertion orders and all three offset modes. Exact native graph byte equality, typed optional fields/strings and four distinct references; actual typed RPC echo.",
+    "producer_provenance": "Absent versus present-empty model identity, both insertion orders and all three offset modes. Two distinct producer references, existing unknown config/version/execution placeholders preserved.",
+    "prior_producer_tests": "Both configuration-collision tests remain unchanged and pass.",
+    "limitation": "Constructed valid native documents through actual graph/projection/echo RPCs, not model inference or hardware proof."
+  },
+  "validation": {
+    "command": "cargo test --locked -p turbo-analysis -p turbo-analysis-layers -p turbo-kserve -p turbo-kserve-demo -- --skip term_stacks_scale_with_the_document_not_its_square",
+    "passed": 689,
+    "failed": 0,
+    "ignored": 2,
+    "measured": 0,
+    "filtered": 1,
+    "counting": "Final suite only; new and earlier regressions are included. Targeted/private runs are not added. Existing timing assertion remains explicitly filtered.",
+    "workspace_clippy": "pass, locked, all targets, warnings denied",
+    "workspace_fmt": "pass",
+    "tree": "8 passed, zero failed",
+    "diff_check": "pass",
+    "jobs": 2,
+    "changed_rust_lines": {
+      "projection_module": 427,
+      "presence_tests": 147
+    }
+  },
+  "limits": [
+    "Fresh independent current-head review and hosted CI required; no independent self-approval.",
+    "Original issue scope remains open, including separate native Modality transport integration.",
+    "Previous producer-configuration, deletion, quotation and reference repairs remain unchanged."
+  ]
+}
