@@ -14,7 +14,8 @@ turbo = { path = "../core" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_path_to_error = "0.1"
-ureq = "3"
+# Upstream fetches over HTTPS (fetch.rs), behind the default http feature.
+ureq = { version = "3", optional = true }
 # F16 tables for a distilled static model (distill.rs).
 half = "2"
 
@@ -27,3 +28,9 @@ turbo-postag = { path = "../analysis/postag" }
 [dev-dependencies]
 # The postag-neural goldens tests/postag.rs converts.
 turbo-goldens = { path = "../analysis/goldens" }
+
+[features]
+default = ["http"]
+# The fetch command's HTTPS downloads. Without it the library builds with
+# no TLS stack (what the gRPC server links), and a fetch is refused.
+http = ["dep:ureq"]
