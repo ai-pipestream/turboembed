@@ -439,12 +439,19 @@ fn tei_on_another_models_files_is_recorded_as_not_run_before_docker() {
         model_dir: d.to_owned(),
         cpus: None,
         binary: None,
+        nsys: None,
     };
     let r = tei::run(&t, m, None, Some(1), 1, 1).unwrap();
     assert!(r.measured.is_none());
     assert!(r.not_run.unwrap().contains("is not the bundle's tokenizer"));
     assert!(r.commands.is_empty(), "nothing ran");
-    let t = Tei { image: "text-embeddings-inference:latest".into(), model_dir: ".".into(), cpus: None, binary: None };
+    let t = Tei {
+        image: "text-embeddings-inference:latest".into(),
+        model_dir: ".".into(),
+        cpus: None,
+        binary: None,
+        nsys: None,
+    };
     assert!(tei::run(&t, m, None, Some(1), 1, 1).unwrap_err().contains("is not pinned"));
 }
 
@@ -478,7 +485,7 @@ fn a_native_router_that_exits_is_an_error_with_its_output_and_leaves_nothing() {
     let bin = d.join("router");
     std::fs::write(&bin, "#!/bin/sh\necho no model here\nexit 3\n").unwrap();
     std::fs::set_permissions(&bin, std::fs::Permissions::from_mode(0o755)).unwrap();
-    let t = Tei { image: String::new(), model_dir: d.to_owned(), cpus: None, binary: Some(bin) };
+    let t = Tei { image: String::new(), model_dir: d.to_owned(), cpus: None, binary: Some(bin), nsys: None };
     let e = tei::run(&t, m, None, Some(1), 1, 1).unwrap_err();
     assert!(e.contains("TEI did not become healthy") && e.contains("no model here"), "{e}");
     let log = std::env::temp_dir().join(format!("turbo-bench-tei-{}.log", std::process::id()));

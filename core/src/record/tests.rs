@@ -250,3 +250,39 @@ fn a_batch_1_cycle_covers_the_set_only_when_every_frame_was_compared() {
     wide.rows.cases = vec![0; 32];
     assert_eq!(wide.falls_short(&cell).as_deref(), Some("rows cover 1 of 9 reference cases that fit seq"));
 }
+
+#[test]
+fn a_kernel_time_goes_with_a_measurement_and_has_ordered_figures() {
+    let mut r = embedded()
+        .into_iter()
+        .filter_map(|(_, r)| r.as_ref().ok().cloned())
+        .find(|r| r.references.iter().any(|x| x.name == "text-embeddings-inference" && x.measured.is_some()))
+        .expect("a committed record with TEI measured");
+    let at = r.references.iter().position(|x| x.name == "text-embeddings-inference").unwrap();
+    let good = KernelTime {
+        profiler: "nsys".into(),
+        requests: 3,
+        p50_ms: 1.5,
+        p99_ms: 2.0,
+        copy_p50_ms: 0.0,
+        kernels_p50: 40,
+    };
+    r.references[at].kernel_time = Some(good.clone());
+    assert_eq!(r.check(), Ok(()));
+    let bad = [
+        KernelTime { p99_ms: 1.0, ..good.clone() },
+        KernelTime { p50_ms: 0.0, ..good.clone() },
+        KernelTime { requests: 0, ..good.clone() },
+        KernelTime { kernels_p50: 0, ..good.clone() },
+        KernelTime { copy_p50_ms: -1.0, ..good.clone() },
+        KernelTime { profiler: String::new(), ..good.clone() },
+    ];
+    for k in bad {
+        r.references[at].kernel_time = Some(k.clone());
+        assert!(r.check().is_err(), "{k:?}");
+    }
+    r.references[at].kernel_time = Some(good);
+    r.references[at].measured = None;
+    r.references[at].not_run = Some("not run".into());
+    assert!(r.check().unwrap_err().contains("kernel_time goes with a measurement"));
+}
