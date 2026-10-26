@@ -14,6 +14,19 @@ backend. The page is plain HTML, CSS and JavaScript compiled into the
 binary: it loads nothing from any other host, so it works on a machine
 with no network beyond the one to the server.
 
+## Generated clients
+
+The page's protobuf and Connect-ES code is generated, never written by
+hand: `scripts/generate-web-stubs.sh` runs `buf generate` with
+`server/proto/buf.gen.yaml` and `protoc-gen-es` v2 (`target=ts`) into
+`demo/web/src/gen`, one `*_pb.ts` per proto file with its message
+schemas and service descriptors. The output is committed; the `proto` CI
+job regenerates it and fails on any difference, so a `.proto` change
+lands with its regenerated TypeScript. The script needs Node and npm and
+installs the exact versions in `demo/web/package-lock.json`
+(docs/release.md); no `build.rs` runs it, and `cargo build` needs
+neither.
+
 ## Starting it
 
 Build both binaries:
