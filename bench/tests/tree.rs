@@ -6,6 +6,8 @@
 //! directory on one of our machines.
 
 mod common;
+#[path = "tree/dependencies.rs"]
+mod dependencies;
 
 use std::path::{Path, PathBuf};
 
@@ -265,26 +267,8 @@ fn the_committed_text_carries_no_host_path() {
 #[test]
 fn workspace_manifests_do_not_depend_on_regex() {
     let root = workspace();
-    let out = std::process::Command::new("git")
-        .current_dir(&root)
-        .args(["ls-files", "-z", "--", ":(glob)**/Cargo.toml"])
-        .output()
-        .expect("git lists workspace manifests");
-    assert!(out.status.success());
-    let paths = String::from_utf8(out.stdout).unwrap();
-    let mut found = Vec::new();
-    let mut seen = 0;
-    for path in paths.split('\0').filter(|p| !p.is_empty()) {
-        seen += 1;
-        let text = std::fs::read_to_string(root.join(path)).unwrap();
-        if text.lines().any(|line| {
-            let line = line.split('#').next().unwrap().trim_start();
-            line.starts_with("regex =") || line.starts_with("regex.workspace")
-        }) {
-            found.push(path);
-        }
-    }
-    assert!(seen > 50, "only {seen} manifests scanned");
+    let (seen, found) = dependencies::regex_dependencies(&root);
+    assert!(seen > 50, "only {seen} packages scanned");
     assert!(found.is_empty(), "regex dependencies in {}", found.join(", "));
 }
 
