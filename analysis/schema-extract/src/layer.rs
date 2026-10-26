@@ -6,7 +6,9 @@
 
 use std::sync::Arc;
 
-use turbo_analysis::{Anchor, Key, KeyId, Layer, Overlap, Spans, Tag, TagSet, TextSpans};
+use turbo_analysis::{
+    Anchor, Document, Error, Key, KeyId, Layer, Overlap, ProjectableLayer, Spans, Tag, TagSet, TextSpans, ViewId,
+};
 use turbo_analysis_layers::{Numbers, Pii};
 use turbo_geo::Locations;
 use turbo_glossary_layers::GlossaryTerms;
@@ -160,5 +162,76 @@ impl Layer for Records {
             return Err("a support source outside the four deterministic layers".into());
         }
         Ok(())
+    }
+}
+
+impl ProjectableLayer for Records {
+    fn project_view(&self, doc: &Document, to: ViewId) -> Result<Self, Error> {
+        Ok(Records {
+            spans: doc.project_spans_monotonic(&self.spans, to)?,
+            record: self.record.clone(),
+            path: self.path.clone(),
+            score: self.score.clone(),
+            logit: self.logit.clone(),
+            support_end: self.support_end.clone(),
+            support_source: self.support_source.clone(),
+            support_row: self.support_row.clone(),
+            record_type: self.record_type.clone(),
+            instance: self.instance.clone(),
+            choice_record: self.choice_record.clone(),
+            choice_path: self.choice_path.clone(),
+            choice: self.choice.clone(),
+            choice_score: self.choice_score.clone(),
+            choice_logit: self.choice_logit.clone(),
+            types: Arc::clone(&self.types),
+            paths: Arc::clone(&self.paths),
+            choices: Arc::clone(&self.choices),
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use turbo_analysis::{Ix, Key, Provenance, Span, View, ViewBuilder};
+
+    #[test]
+    fn projects_records_across_views() {
+        let mut doc = Document::new(">>> Acme Corp");
+        let v0 = doc.get::<View>().unwrap().clone();
+        let mut b = ViewBuilder::new(v0.text());
+        b.replace(4, "");
+        let (t1, a1) = b.finish();
+        doc.add(&Key::<View>::named("clean"), View::derived(&v0, t1, a1), Provenance::by("test")).unwrap();
+        let v1_id = doc.get_key(&Key::<View>::named("clean")).unwrap().id();
+
+        let types = TagSet::new("types", &["Company"]);
+        let paths = TagSet::new("paths", &["Company.name"]);
+        let choices = TagSet::new("choices", &[]);
+        let mut spans = Spans::new(v1_id);
+        spans.push(Span::new(0, 9));
+        let rec = Records {
+            spans,
+            record: vec![0],
+            path: vec![Tag(0)],
+            score: vec![0.9],
+            logit: vec![2.0],
+            support_end: vec![0],
+            support_source: Vec::new(),
+            support_row: Vec::new(),
+            record_type: vec![Tag(0)],
+            instance: vec![0],
+            choice_record: Vec::new(),
+            choice_path: Vec::new(),
+            choice: Vec::new(),
+            choice_score: Vec::new(),
+            choice_logit: Vec::new(),
+            types,
+            paths,
+            choices,
+        };
+        let projected = doc.project_layer(&rec, ViewId::SOURCE).unwrap();
+        assert_eq!(projected.spans.view(), ViewId::SOURCE);
+        assert_eq!(projected.spans.get(Ix::new(0)), Span::new(4, 13));
     }
 }
