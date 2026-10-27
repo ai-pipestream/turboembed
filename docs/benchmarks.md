@@ -506,19 +506,27 @@ With `--tei-nsys` on cuda, the record's TEI reference also carries
 them (bench/src/tei/kernels.rs). The image has no profiler, so the tool
 mounts the machine's nsys command line into the container, read-only,
 and starts TEI's router under `nsys launch --trace=cuda`. The router
-keeps the image's own library path. After the end-to-end timing, the
-tool runs `nsys start` in the container and sends as many more /embed
-requests of the same rows, one at a time, leaving the GPU idle for
-250 ms after each. Then it runs `nsys stop` and reads the trace on the
-host (`nsys stats --report cuda_gpu_trace --format csv`). A request's
-activity is what lies between two idle gaps of at least 250 ms. Every
-gap between requests is at least that long, because the next request
-goes out 250 ms after the last answer arrives. The trace must fall into
-exactly as many such runs as requests were sent; when a gap that long
-falls inside a request, the collection is taken again. Nsight Systems 2023.4's importer refuses long
-traces of TEI as events out of order, and sometimes short ones too. So the
-requests are collected 25 at a time, and a collection whose trace the
-host's tools refuse, or that does not split into its requests, is taken
+keeps the image's own library path. The profiled server is a second
+container: the end-to-end timing runs first, in a container with no
+profiler, which is removed before the profiled one starts. After the
+same warm-up, the tool runs `nsys start` in the container and sends as
+many /embed requests of the same rows, one at a time, leaving the GPU
+idle for 50 ms after each. Then it runs `nsys stop` and reads the trace
+on the host (`nsys stats --report cuda_gpu_trace --format csv`). Every
+gap between two requests' activity is at least 50 ms, because the next
+request goes out 50 ms after the last answer arrives. TEI's own host
+work can pause the GPU that long inside a request on a loaded machine,
+so a trace of n requests is cut at its n - 1 longest gaps, each of
+which must be at least 50 ms. Every request is of the same rows, but
+TEI's kernel count still varies a little between them (557 to 593 at
+[32, 512] on bge-small), so each request's count must be within 25% of
+their median. A cut in the wrong place leaves out a right one too, and
+the two requests it merges launch about twice the kernels. A trace that
+does not cut so is collected again.
+Nsight Systems 2023.4's importer refuses long traces of TEI as events
+out of order, and sometimes short ones too. So the requests are
+collected 25 at a time, and a collection whose trace the host's tools
+refuse, or that does not split into its requests, is taken
 again, up to three times. The record's commands show each collection. `kernel_time` gives:
 
 - `profiler`, as `nsys --version` names itself;
@@ -526,6 +534,26 @@ again, up to three times. The record's commands show each collection. `kernel_ti
 - `p50_ms` and `p99_ms`, the per-request sum of kernel durations;
 - `copy_p50_ms`, the per-request sum of memory copies and sets;
 - `kernels_p50`, the kernels a request launched.
+
+After each collection's requests the tool reads the GPU's SM clock
+(`nvidia-smi --query-gpu=clocks.sm`), and the procedure gives the least
+and the median. A kernel p50 longer than the end-to-end p50 is refused,
+and the run records nothing: the kernels are part of the request, so a
+longer time says the profiled requests did not run as the timed ones
+did.
+
+Measure end-to-end without a profiler. The first version of this
+(#1399) timed end-to-end in the same server it profiled, and
+`nsys launch` tracing CUDA slowed every request. On an RTX 4080 SUPER
+host, bge-small at [32, 512], the same commit, TEI's end-to-end p50 was
+169.3 ms under the profiler and 35.2 ms without it. Its kernel p50 of
+77.1 ms was longer than the unprofiled request. The measured cause is the
+tracing: the same server ran about five times slower under it. That run
+also left the GPU idle 250 ms between requests, which may have let its
+clocks drop; no clock was read then, and the SM clock samples now show
+it.
+At 25 ms the gaps no longer told requests apart on that loaded host:
+collections of 25 requests fell into 35 to 38 runs of activity.
 
 This is the time the GPU spent in TEI's kernels. It leaves out
 tokenization, queueing, launch gaps and the HTTP round trip. Read it

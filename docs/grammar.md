@@ -672,3 +672,7 @@ Issue #927 stays open for full server/layer representation of standalone
 zones and upstream span/alternative parity. Contextual `tussen 9-6 PT`
 ranges are covered; a bare `9-6 pt` has insufficient clock context. The
 generic-zone standard-time policy is intentional.
+
+Dutch quantities and money use `DUTCH_UNITS` or `GrammarAnnotator::dutch()`.
+See [Dutch units and currencies](grammar-units.md#dutch-units-and-currencies)
+for the full upstream corpus counts and explicit policy differences.

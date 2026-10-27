@@ -470,3 +470,23 @@ tests in `core/tests/levelzero.rs` also check the listing against the
 Intel GPUs the kernel drives, from `/sys/class/drm`, and read device
 memory from the caller's side through the loader, so they need no other
 tool.
+
+### A lost device (0x70000001)
+
+A call that fails with `0x70000001 (device lost)` means the kernel driver
+reset the context's queue. On the Arc Pro B70 under `xe`, each one seen
+(#1433) was a compute job that had not finished within the engine's job
+timeout (`/sys/class/drm/card0/device/tile0/gt0/engines/ccs/job_timeout_ms`,
+5000 ms), and the kernel log says so: `Timedout job ... in <process>`,
+then `Engine reset: engine_class=ccs`. The context cannot be used after
+that; release it and make a new one.
+
+On that machine all nine such resets on 2026-10-26, six of them in
+`levelzero_loads`, fell within the four days a desktop client (snap-store)
+was running; one sample, minutes before it stopped, had it at 61% of the
+render engine, and render and compute share the card's execution units.
+After it stopped, 1,400 runs of the loads at once passed
+(`docs/receipts/levelzero-1433/`). That client is the likely cause, not a
+reproduced one: no load was recorded at the reset times and no run was made
+with it up. Check the kernel log and the other clients on the card before
+reading a lost device as a defect here.

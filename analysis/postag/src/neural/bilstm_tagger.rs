@@ -12,7 +12,7 @@
 
 use std::sync::Arc;
 
-use turbo::device::Device;
+use turbo::device::{Device, Precision};
 use turbo_analysis::{Annotator, Error, ModelRef, Refs, View};
 use turbo_analysis_layers::{PosTags, Tag, TagSet, Tokens};
 
@@ -53,7 +53,7 @@ impl BilstmPosTagger {
     /// (a weight past f32's range); [`numerics`](Self::numerics) says which.
     pub fn new(model: impl Into<Arc<BilstmPosModel>>) -> Self {
         let model = model.into();
-        let packed = Packed::new(&model, Device::Cpu).ok().map(Arc::new);
+        let packed = Packed::new(&model, Device::Cpu, Precision::Model).ok().map(Arc::new);
         Self::build(model, packed)
     }
 
@@ -68,7 +68,7 @@ impl BilstmPosTagger {
     pub fn with_numerics(model: impl Into<Arc<BilstmPosModel>>, numerics: Numerics) -> Result<Self, NeuralError> {
         let model = model.into();
         let packed = match numerics {
-            Numerics::Packed => Some(Arc::new(Packed::new(&model, Device::Cpu)?)),
+            Numerics::Packed => Some(Arc::new(Packed::new(&model, Device::Cpu, Precision::Model)?)),
             Numerics::JvmParity => None,
         };
         Ok(Self::build(model, packed))
@@ -79,9 +79,26 @@ impl BilstmPosTagger {
     /// error if the weights cannot be packed or the LSTMs cannot be made on
     /// that device. It never falls back to the CPU.
     pub fn on_device(model: impl Into<Arc<BilstmPosModel>>, device: Device) -> Result<Self, NeuralError> {
+        Self::on_device_at(model, device, Precision::Model)
+    }
+
+    /// [`on_device`](Self::on_device) at `precision`: FASTEST holds the
+    /// BiLSTMs' weights as F16 on the device, their sums and states F32,
+    /// and is held to an accuracy bound, not to MODEL's tags. FASTEST on
+    /// the CPU is an error.
+    pub fn on_device_at(
+        model: impl Into<Arc<BilstmPosModel>>,
+        device: Device,
+        precision: Precision,
+    ) -> Result<Self, NeuralError> {
         let model = model.into();
-        let packed = Packed::new(&model, device)?;
+        let packed = Packed::new(&model, device, precision)?;
         Ok(Self::build(model, Some(Arc::new(packed))))
+    }
+
+    /// What the BiLSTMs compute in: MODEL unless made at FASTEST.
+    pub fn precision(&self) -> Precision {
+        self.packed.as_ref().map_or(Precision::Model, |p| p.precision())
     }
 
     /// Where the BiLSTMs run: the CPU unless made [`on_device`](Self::on_device),
@@ -333,15 +350,18 @@ impl Annotator for BilstmPosTagger {
         Some(self.model.model_ref().clone())
     }
 
-    /// FNV-1a over the numerics, the device backend and the model's
-    /// SHA-256: taggers of one model with other numerics or on another
-    /// backend give different probabilities, so they hash apart.
+    /// FNV-1a over the numerics, the device backend, its precision and the
+    /// model's SHA-256: taggers of one model with other numerics, on another
+    /// backend or at another precision give different probabilities, so
+    /// they hash apart.
     fn config_hash(&self) -> u64 {
-        let numerics: &[u8] = match (self.numerics(), self.device()) {
-            (Numerics::Packed, Device::Cpu) => b"packed",
-            (Numerics::Packed, Device::Cuda(_)) => b"packed-cuda-f32",
-            (Numerics::Packed, Device::LevelZero(_)) => b"packed-levelzero-f32",
-            (Numerics::JvmParity, _) => b"jvm-parity",
+        let numerics: &[u8] = match (self.numerics(), self.device(), self.precision()) {
+            (Numerics::Packed, Device::Cpu, _) => b"packed",
+            (Numerics::Packed, Device::Cuda(_), Precision::Model) => b"packed-cuda-f32",
+            (Numerics::Packed, Device::Cuda(_), Precision::Fastest) => b"packed-cuda-f16-weights",
+            (Numerics::Packed, Device::LevelZero(_), Precision::Model) => b"packed-levelzero-f32",
+            (Numerics::Packed, Device::LevelZero(_), Precision::Fastest) => b"packed-levelzero-f16-weights",
+            (Numerics::JvmParity, _, _) => b"jvm-parity",
         };
         turbo_analysis::Fnv1a::new()
             .bytes(numerics)

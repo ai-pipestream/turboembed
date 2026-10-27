@@ -783,6 +783,16 @@ holds it to the CPU form at 1e-5; with `TURBO_TEST_REQUIRE_CUDA=1` (or
 `TURBO_TEST_DEVICE=cuda`) it runs on the GPU and fails when the LSTM
 cannot be made there.
 
+At FASTEST (`Lstm::new_at` with `Precision::Fastest`) the input and
+recurrent weights are rounded to F16 on the device once, when the LSTM is
+made, and the F32 copies freed; the products read them as F16 and sum in
+F32, and the gates, cells and states stay F32. No bits are claimed: the
+same test holds FASTEST within the F16 tier's 1e-2 of the CPU form at
+MODEL (9.2e-4 on an RTX 4080 SUPER). A weight past F16's range (65504 in
+magnitude) would round to infinity, so a model with one is refused at
+FASTEST with INVALID_ARGUMENT when the LSTM is made, checked on the host. The CPU form has no F16 weights, so FASTEST on the
+CPU is refused with UNSUPPORTED.
+
 ## Testing on a GPU machine
 
 With `TURBO_CUDA_ROOT` set as above, from the workspace root.

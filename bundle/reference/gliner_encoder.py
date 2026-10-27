@@ -18,11 +18,17 @@ its encoder. tensors and its own files: encoder_config/config.json,
 spm.model, model.safetensors (read as safetensors), and added_tokens.json
 for the added pieces (128011 rows).
 
+From the zoo's jackboyla-glirel-large-v0 checkpoint (#920, 40a523e1) the
+same, with GLiNER's encoder prefix, its pytorch_model.bin and the
+microsoft-deberta-v3-large-tokenizer files (microsoft/deberta-v3-large at
+64a8c8ea): GLiREL's tokenizer adds [FLERT], [REL], [E] and [/E] after
+[MASK] (128005 rows), which the added-tokens argument `glirel` names.
+
 Arguments: the DeBERTa config.json, spm.model, the checkpoint
 (pytorch_model.bin or model.safetensors), the directory to write, and,
 optionally, the checkpoint's encoder tensor prefix (default GLiNER's) and
 its added_tokens.json (default GLiNER's four pieces), whose tokens become
-pieces in id order.
+pieces in id order, or `glirel` for GLiREL's five.
 """
 
 import json
@@ -36,6 +42,7 @@ from transformers import DebertaV2Config, DebertaV2Model, PreTrainedTokenizerFas
 
 PREFIX = "token_rep_layer.bert_layer.model."
 ADDED = {"[MASK]": 128000, "[FLERT]": 128001, "<<ENT>>": 128002, "<<SEP>>": 128003}
+GLIREL = {"[MASK]": 128000, "[FLERT]": 128001, "[REL]": 128002, "[E]": 128003, "[/E]": 128004}
 
 
 def added(path):
@@ -71,7 +78,7 @@ class Spm:
 
 
 def main(config_json, spm_model, checkpoint, out, prefix=PREFIX, added_tokens=None):
-    pieces = added(added_tokens) if added_tokens else ADDED
+    pieces = GLIREL if added_tokens == "glirel" else added(added_tokens) if added_tokens else ADDED
     tok = convert.DebertaV2Converter(Spm(spm_model)).converted()
     # The converter strips first; SentencePiece itself normalizes with the
     # character map and then removes the extra whitespace, as the core
