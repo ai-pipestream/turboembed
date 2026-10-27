@@ -11,13 +11,17 @@
 //! Rows written with ranges (`write_ranges`) are pooled by range instead:
 //! each range's vector is the mean over its columns' live tokens of the
 //! final hidden states, read where the encoder left them, with the same
-//! sum, cut and normalization as a row's mean.
+//! sum, cut and normalization as a row's mean. A range holding no live
+//! token is the mean over all its columns: mask-0 columns a range names
+//! are computed as queries attending only to the row's live tokens, as
+//! ColBERT's query augmentation reads them.
 //!
 //! The rows of a batch are packed: row r's positions up to its last live
-//! token sit one after another with the other rows', so padding past that
-//! token is never computed. No output depends on it: attention skips
-//! masked keys, and no pooling reads past the last live token. Positions
-//! are the row's own column indices, as upstream numbers them.
+//! token (or through the furthest column a range of it names, when that
+//! is further) sit one after another with the other rows', so padding
+//! past that is never computed. No other output depends on it: attention
+//! skips masked keys, and no row pooling reads past the last live token.
+//! Positions are the row's own column indices, as upstream numbers them.
 //!
 //! A run is a sequence of steps, each split into tasks that the session's
 //! threads take (pool.rs): the embeddings and each LayerNorm by chunks of
@@ -323,10 +327,24 @@ impl Encoder {
     /// the rows, and the order attention takes the rows in. Returns the
     /// packed tokens.
     fn pack(&mut self) -> usize {
+        // A row is packed through the furthest column a range of it
+        // names when that passes its last live token, so mask-0 columns
+        // a range pools are computed; rows[r].1 holds that end first.
+        if !self.ranges.is_empty() {
+            for row in &mut self.rows[..self.batch] {
+                row.1 = 0;
+            }
+            for i in 0..self.ranges.len() {
+                let g = self.ranges[i];
+                let end = &mut self.rows[g.row as usize].1;
+                *end = (*end).max(g.end as usize);
+            }
+        }
         let (mut t, mut slot) = (0, 0);
         for r in 0..self.batch {
             let m = &self.mask[r * self.seq..(r + 1) * self.seq];
-            let len = m.iter().rposition(|&v| v != 0).map_or(0, |p| p + 1);
+            let live = m.iter().rposition(|&v| v != 0).map_or(0, |p| p + 1);
+            let len = if self.ranges.is_empty() { live } else { live.max(self.rows[r].1) };
             self.rows[r] = (t, len);
             self.padded[r] = slot;
             for p in 0..len {
@@ -376,21 +394,23 @@ impl Encoder {
     /// or before the row's packed length, from the hidden states `x`,
     /// into `dst`: output_dim values. As upstream's mean pooling divides
     /// the masked sum by the mask's sum: summed in F32 in column order,
-    /// then scaled by one over the count. At least one token is live.
+    /// then scaled by one over the count. Columns holding no live token
+    /// (a range over mask-0 columns alone) mean over every column.
     #[inline(always)]
     fn mean(&self, x: &[f32], r: usize, cols: std::ops::Range<usize>, dst: &mut [f32]) {
         let (h, od) = (self.hidden, dst.len());
         let start = self.rows[r].0;
         dst.fill(0.0);
         let mask = &self.mask[r * self.seq..][..cols.end];
+        let live_only = cols.clone().any(|p| mask[p] != 0);
         let mut n = 0u32;
-        for p in cols.filter(|&p| mask[p] != 0) {
+        for p in cols.filter(|&p| !live_only || mask[p] != 0) {
             for (d, &x) in dst.iter_mut().zip(&x[(start + p) * h..][..od]) {
                 *d += x;
             }
             n += 1;
         }
-        debug_assert!(n > 0, "row {r}: no live token to pool");
+        debug_assert!(n > 0, "row {r}: no column to pool");
         let inv = 1.0 / n as f32;
         for d in dst.iter_mut() {
             *d *= inv;
@@ -412,8 +432,9 @@ impl Encoder {
     }
 
     /// The final hidden states of the last run, [packed tokens, hidden],
-    /// and where each row's tokens start among them and how many there
-    /// are through its last live token.
+    /// and where each row's tokens start among them and how many were
+    /// packed (through its last live token, or a range's furthest
+    /// column past it).
     #[cfg(test)]
     fn hidden_states(&self) -> (&[f32], &[(usize, usize)]) {
         (&self.x, &self.rows[..self.batch])

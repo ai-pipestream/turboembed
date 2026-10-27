@@ -43,6 +43,7 @@ pub use turbo_calibration::metrics as calibration;
 
 pub mod analysis;
 pub mod cascade;
+pub mod cascade_latency;
 pub mod chunkers;
 pub mod cost;
 pub mod embedder;
