@@ -69,7 +69,7 @@
   SHA-256 `c258bffc3c37afc5a8b12324c0d29b81d31738fbf72183ade9c52c0d68e06180`)
   and the reference file above. The core's tests check numerics against
   it: `core/tests/conformance.rs` compares every reference case with the
-  upstream vectors (docs/conformance.md), and `core/tests/sessions.rs`
+  upstream vectors (docs/conformance.md), and `core/tests/sessions/plain.rs`
   compares the encoder's options with the same arithmetic written
   plainly in f64.
   Its `tokenizer.json` is not the upstream file above byte for byte: it

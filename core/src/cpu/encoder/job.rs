@@ -131,8 +131,8 @@ impl Job<'_> {
         let first = t * per_task;
         for (i, range) in e.ranges.iter().enumerate().skip(first).take(per_task) {
             let (row, len) = (range.row as usize, e.rows[range.row as usize].1);
-            // Columns past the row's last live token were not packed:
-            // they hold no live token to pool.
+            // The row was packed through this range's furthest column,
+            // so the min only guards the packing's own invariant.
             let cols = range.start as usize..(range.end as usize).min(len);
             // SAFETY: range i's vector is this task's alone, inside out.
             let dst = unsafe { std::slice::from_raw_parts_mut(out.add(i * od), od) };

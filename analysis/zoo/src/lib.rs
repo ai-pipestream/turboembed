@@ -34,9 +34,9 @@ pub mod transfer;
 pub use accept::{Acceptance, Acceptances, UserId};
 pub use digest::{Sha256, Sha512};
 pub use error::{Check, ZooError};
-#[cfg(feature = "http")]
-pub use fetch::Http;
 pub use fetch::{CacheStatus, Fetched, Offline, Transport, Zoo, unpack, verify};
+#[cfg(feature = "http")]
+pub use fetch::{Http, Mirror};
 pub use home::Home;
 pub use index::{Artifact, ArtifactId, Component, File, Format, Index, Kind, Language, TrainingData, Url};
 pub use licence::{

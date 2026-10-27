@@ -52,8 +52,6 @@ pub fn null_err() -> *mut turbo_error {
     ptr::null_mut()
 }
 
-pub const TEXTS: [&str; 3] = ["The quick brown fox jumps over the lazy dog.", "how do I reset a password", "a"];
-
 pub struct Rt(pub *mut turbo_runtime);
 
 impl Rt {
@@ -130,18 +128,12 @@ pub fn on_metal(dir: &std::path::Path) -> Loaded {
     Loaded::load_on(dir, metal).unwrap_or_else(|e| panic!("{e:?}"))
 }
 
-pub fn opts(edit: impl FnOnce(&mut turbo_embed_options)) -> turbo_embed_options {
-    let mut o = embed_options();
-    edit(&mut o);
-    o
-}
-
 pub fn table() -> &'static backend::turbo_backend {
     turbo::metal::backend()
 }
 
 /// Rows with padding on either side, a masked token inside a row and token
-/// types, as tests/sessions.rs writes them for the CPU.
+/// types, as tests/sessions/plain.rs writes them for the CPU.
 pub fn awkward_rows(dir: &std::path::Path) -> Tokens {
     let tok = Tok::create(dir).unwrap();
     let rows: Vec<Vec<i32>> = TEXTS.iter().map(|t| tok.row(t, None).unwrap()).collect();

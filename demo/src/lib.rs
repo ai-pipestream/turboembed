@@ -22,14 +22,11 @@ mod budget;
 mod codec;
 pub mod connect;
 pub mod gate;
+pub mod limits;
 mod tls;
 
 pub use allow::Allow;
 pub use tls::Tls;
-
-/// The largest message forwarded either way: the server's own default
-/// limit.
-pub const MAX_MESSAGE_BYTES: usize = 64 << 20;
 
 const INDEX: &str = include_str!("../static/index.html");
 const SCRIPT: &str = include_str!("../static/app.js");

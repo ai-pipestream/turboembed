@@ -6,6 +6,7 @@ pub mod analysis;
 pub mod api;
 pub mod capabilities;
 pub mod catalog;
+mod ceiling;
 pub mod config;
 pub mod deadline;
 pub mod format;
@@ -148,6 +149,9 @@ pub struct Serve {
     pub training: Option<PathBuf>,
     pub sink: Option<SinkConfig>,
     pub sink_receiver: Option<SinkReceiver>,
+    /// The most bytes one call's request may carry in all, frames
+    /// included; `config::DEFAULT_MAX_STREAM_BYTES` when `None`.
+    pub max_stream_bytes: Option<u64>,
     pub tls: Option<TlsConfig>,
     pub metrics_listen: Option<SocketAddr>,
 }
@@ -156,8 +160,10 @@ impl Server {
     /// Binds `listen` and answers gRPC, with nothing loaded yet. A bundle
     /// path that names no bundle, or two models of one name, is refused. A
     /// request message over `max_message_bytes` is refused by gRPC with
-    /// RESOURCE_EXHAUSTED before it is read. `serve.admin` opts in to the
-    /// admin calls LoadBundle, UnloadBundle, RecordLicenceAcceptance,
+    /// RESOURCE_EXHAUSTED before it is read; a request whose frames pass
+    /// `serve.max_stream_bytes` in all is refused the same way at the frame
+    /// that passes it. A reply message over `config::max_reply_bytes` is
+    /// not sent. `serve.admin` opts in to the admin calls LoadBundle, UnloadBundle, RecordLicenceAcceptance,
     /// InstallModel, TrainStaticModel and DeleteStaticModel; off, they
     /// refuse UNIMPLEMENTED.
     pub async fn start(
@@ -171,17 +177,22 @@ impl Server {
         let listener = TcpListener::bind(listen).await.map_err(|e| format!("listen on {listen}: {e}"))?;
         let addr = listener.local_addr().map_err(|e| format!("listen on {listen}: {e}"))?;
         let state = Arc::new(State::new(names, models));
+        let ceiling = serve.max_stream_bytes.unwrap_or(config::DEFAULT_MAX_STREAM_BYTES);
+        let max_reply_bytes = config::max_reply_bytes(max_message_bytes);
         let kserve = GrpcInferenceServiceServer::new(kserve::Inference { state: state.clone() })
-            .max_decoding_message_size(max_message_bytes);
+            .max_decoding_message_size(max_message_bytes)
+            .max_encoding_message_size(max_reply_bytes);
         let search_registry = Arc::new(search::SearchRegistry::new());
         let search = TurboSearchServiceServer::new(search::SearchService {
             state: state.clone(),
             registry: search_registry.clone(),
             admin: serve.admin,
         })
-        .max_decoding_message_size(max_message_bytes);
+        .max_decoding_message_size(max_message_bytes)
+        .max_encoding_message_size(max_reply_bytes);
         let health = HealthServer::new(health::HealthService { state: state.clone() })
-            .max_decoding_message_size(max_message_bytes);
+            .max_decoding_message_size(max_message_bytes)
+            .max_encoding_message_size(max_reply_bytes);
         let store = match &serve.vocabulary {
             Some(dir) => Some(Arc::new(vocabulary::Store::open(dir).map_err(|e| format!("vocabulary store: {e}"))?)),
             None => None,
@@ -205,19 +216,27 @@ impl Server {
             admin: serve.admin,
             sink: sink.clone(),
         })
-        .max_decoding_message_size(max_message_bytes);
-        let receiver =
-            serve.sink_receiver.map(|r| TurboSinkServiceServer::new(r).max_decoding_message_size(max_message_bytes));
+        .max_decoding_message_size(max_message_bytes)
+        .max_encoding_message_size(max_reply_bytes);
+        let receiver = serve.sink_receiver.map(|r| {
+            TurboSinkServiceServer::new(r)
+                .max_decoding_message_size(max_message_bytes)
+                .max_encoding_message_size(max_reply_bytes)
+        });
         let training = TurboTrainingServiceServer::new(training::TrainingService::new(
             state.clone(),
             store.clone(),
             training,
             serve.admin,
         ))
-        .max_decoding_message_size(max_message_bytes);
+        .max_decoding_message_size(max_message_bytes)
+        .max_encoding_message_size(max_reply_bytes);
         let vocabulary = TurboVocabularyServiceServer::new(vocabulary::Vocabulary { store, admin: serve.admin })
-            .max_decoding_message_size(max_message_bytes);
-        let catalog = TurboCatalogServiceServer::new(catalog::CatalogService::new(serve.catalog, serve.admin));
+            .max_decoding_message_size(max_message_bytes)
+            .max_encoding_message_size(max_reply_bytes);
+        let catalog = TurboCatalogServiceServer::new(catalog::CatalogService::new(serve.catalog, serve.admin))
+            .max_decoding_message_size(max_message_bytes)
+            .max_encoding_message_size(max_reply_bytes);
         let (stop, stopped) = oneshot::channel::<()>();
         // TCP_NODELAY on every accepted socket. The builder's tcp_nodelay
         // does not reach a listener served with serve_with_incoming, and
@@ -227,6 +246,7 @@ impl Server {
         let task = tokio::spawn(
             builder
                 .layer(metrics::MetricsLayer::new(state.metrics.clone()))
+                .layer(tower::util::MapRequestLayer::new(ceiling::cap(ceiling)))
                 .add_service(kserve)
                 .add_service(analysis)
                 .add_service(search)

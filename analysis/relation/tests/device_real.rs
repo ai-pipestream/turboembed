@@ -123,7 +123,7 @@ fn gliner2_relations_on_the_real_checkpoint() {
     );
     let x = on.execution().unwrap().clone();
     let on_name = format!("{} {} ({})", x.backend, x.device, x.precision);
-    println!("gliner2 relations: largest logit difference from the cpu encoder {worst:e}");
+    println!("gliner2 relations on {on_name}: largest logit difference from the cpu encoder {worst:e}");
     let pass = |m: &gliner2::Gliner2Relations, c: usize| {
         std::hint::black_box(m.pass(cases[c]["text"].as_str().unwrap(), &strs(&cases[c]["labels"])).unwrap());
     };
@@ -138,11 +138,7 @@ fn gliner2_relations_on_the_real_checkpoint() {
 #[ignore = "needs the real encoders as core bundles; run with --release -- --ignored"]
 fn glirel_on_the_real_checkpoint() {
     let (bundle, package, spm) = (env("GLIREL_BUNDLE"), env("GLIREL_PACKAGE"), env("GLIREL_SPM"));
-    let load = |e: DebertaEncoder| glirel::GlirelRelations::load_with(e, &package, &spm).unwrap();
-    // The CPU encoder and the binding read the DeBERTa package under the
-    // GLiREL package's encoder/, not the GLiREL package itself.
-    let encoder = package.join("encoder");
-    let (cpu, on) = (load(package_cpu(&encoder)), load(bound(&encoder, &bundle)));
+    let [cpu, on] = glirel_pair(&package, &bundle, &spm);
     let cases = cases("glirel");
     let entities = |c: &Value| -> Vec<(usize, usize)> {
         let e = c["ner"].as_array().unwrap();
@@ -174,7 +170,10 @@ fn glirel_on_the_real_checkpoint() {
     let worst = worst_seen;
     let x = on.execution().unwrap().clone();
     let on_name = format!("{} {} ({})", x.backend, x.device, x.precision);
-    println!("glirel: largest logit difference from the cpu encoder {worst:e}, {} pair labels held", held.len());
+    println!(
+        "glirel on {on_name}: largest logit difference from the cpu encoder {worst:e}, {} pair labels held",
+        held.len()
+    );
     let pass = |m: &glirel::GlirelRelations, c: usize| {
         std::hint::black_box(m.pass(cases[c]["text"].as_str().unwrap(), &strs(&cases[c]["labels"])).unwrap());
     };
