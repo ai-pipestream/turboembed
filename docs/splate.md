@@ -184,7 +184,7 @@ cargo test --locked -p turbo-eval --test splate
 
 ## 5. Checkpoint-Derived Run and Provisional Tradeoffs (#913)
 
-**ColBERT protocol:** Arms 3 and 4 now encode with the upstream ColBERT token protocol (`analysis/eval/src/splate/colbert.rs`). Queries are `[CLS] [unused0] pieces [SEP]` padded with live `[MASK]` tokens to 32 rows; documents are `[CLS] [unused1] pieces [SEP]` capped at 180 rows, with punctuation piece rows dropped before MaxSim and every kept row projected and L2-normalized. The earlier archived run used generic lexical token vectors without markers, MASK expansion or punctuation filtering and is superseded by the record below. Remaining limitations are stated at the end of this section: only two sets at the receipt's subsets, a ridge-distilled adapter rather than a jointly trained SPLATE model, and local-only checkpoints, so no shippable default follows yet.
+**ColBERT protocol:** Arms 3 and 4 now encode with the upstream ColBERT token protocol (`analysis/eval/src/splate/colbert.rs`). Queries are `[CLS] [unused0] pieces [SEP]` padded with `[MASK]` tokens to 32 rows under attention mask 0 (the checkpoint's `attend_to_mask_tokens: false`, recorded in the receipt's `colbert_protocol`; the core computes mask-0 columns a range names, attending only to live tokens, so the `[MASK]` rows' vectors enter MaxSim without being attended to); documents are `[CLS] [unused1] pieces [SEP]` capped at 180 rows, with punctuation piece rows dropped before MaxSim and every kept row projected and L2-normalized. The earlier archived run used generic lexical token vectors without markers, MASK expansion or punctuation filtering and is superseded by the record below. Remaining limitations are stated at the end of this section: only two sets at the receipt's subsets, a ridge-distilled adapter rather than a jointly trained SPLATE model, and local-only checkpoints, so no shippable default follows yet.
 
 The archived run uses the same `scifact` subset (1,500 docs, 100 queries) and full `nfcorpus` corpus (3,633 docs, 100 queries), shortlist depths $C \in \{10, 25, 50, 100\}$, 3 interleaved rounds, CPU device. Checkpoint pins (zoo index, `docs/licences.md`; both local-only by their MS MARCO training data, fetched after acceptance, never shipped):
 
@@ -199,30 +199,29 @@ Reproduction: build the four bundles with `turbo-bundle make` (the two new recip
 
 | Arm | C=10 | C=25 | C=50 | C=100 | Search p50 at C=100 |
 | :--- | ---: | ---: | ---: | ---: | ---: |
-| Arm 1: BM25 only | 0.5776 / 0.7830 | 0.5776 / 0.7830 | 0.5776 / 0.7830 | 0.5776 / 0.7830 | 0.11 ms |
-| Arm 2: Static dense + Cross-encoder | 0.7331 / 0.7857 | 0.7568 / 0.8430 | 0.7715 / 0.8780 | 0.7649 / 0.8980 | 1305.85 ms |
-| Arm 3: Learned sparse + ColBERT MaxSim | 0.7431 / 0.8580 | 0.7134 / 0.8780 | 0.7148 / 0.8980 | 0.7083 / 0.9080 | 1.02 ms |
-| Arm 4: SPLATE adapter + ColBERT MaxSim | 0.1635 / 0.1667 | 0.2498 / 0.2717 | 0.2891 / 0.3233 | 0.3812 / 0.4407 | 1.21 ms |
+| Arm 1: BM25 only | 0.5776 / 0.7830 | 0.5776 / 0.7830 | 0.5776 / 0.7830 | 0.5776 / 0.7830 | 0.12 ms |
+| Arm 2: Static dense + Cross-encoder | 0.7331 / 0.7857 | 0.7568 / 0.8430 | 0.7715 / 0.8780 | 0.7649 / 0.8980 | 1658.24 ms |
+| Arm 3: Learned sparse + ColBERT MaxSim | 0.7565 / 0.8580 | 0.7339 / 0.8780 | 0.7336 / 0.8980 | 0.7328 / 0.9080 | 1.30 ms |
+| Arm 4: SPLATE adapter + ColBERT MaxSim | 0.1632 / 0.1667 | 0.2619 / 0.2717 | 0.3144 / 0.3533 | 0.3895 / 0.4507 | 1.57 ms |
 
 ### 5.2 Trained run on `nfcorpus` (summary, nDCG@10 / Recall@100 / Search p50)
 
 | Arm | C=10 | C=25 | C=50 | C=100 | Search p50 at C=100 |
 | :--- | ---: | ---: | ---: | ---: | ---: |
-| Arm 1: BM25 only | 0.2880 / 0.1633 | 0.2880 / 0.1633 | 0.2880 / 0.1633 | 0.2880 / 0.1633 | 0.02 ms |
-| Arm 2: Static dense + Cross-encoder | 0.2954 / 0.1088 | 0.3176 / 0.1506 | 0.3323 / 0.1881 | 0.3379 / 0.2250 | 1141.96 ms |
-| Arm 3: Learned sparse + ColBERT MaxSim | 0.3376 / 0.1420 | 0.3332 / 0.1666 | 0.3246 / 0.1881 | 0.3169 / 0.2195 | 0.83 ms |
-| Arm 4: SPLATE adapter + ColBERT MaxSim | 0.0613 / 0.0164 | 0.0820 / 0.0234 | 0.1049 / 0.0352 | 0.1404 / 0.0702 | 1.91 ms |
+| Arm 1: BM25 only | 0.2880 / 0.1633 | 0.2880 / 0.1633 | 0.2880 / 0.1633 | 0.2880 / 0.1633 | 0.03 ms |
+| Arm 2: Static dense + Cross-encoder | 0.2954 / 0.1088 | 0.3176 / 0.1506 | 0.3323 / 0.1881 | 0.3379 / 0.2250 | 1787.57 ms |
+| Arm 3: Learned sparse + ColBERT MaxSim | 0.3446 / 0.1420 | 0.3461 / 0.1666 | 0.3464 / 0.1881 | 0.3412 / 0.2195 | 1.22 ms |
+| Arm 4: SPLATE adapter + ColBERT MaxSim | 0.0593 / 0.0108 | 0.0874 / 0.0273 | 0.1213 / 0.0532 | 0.1664 / 0.0875 | 2.79 ms |
 
-Full per-depth tables (Recall@1/5/10/100, stage timings, index bytes) are in the JSON record. Arm 3 query encoding costs 215.9 ms p50 on `scifact` and 52.6 ms on `nfcorpus`; Arm 4 costs 49.5-67.3 ms and 38.4-38.7 ms across depths. Arm 2 static encoding costs 38 us and 20 us, but cross-encoder reranking costs 0.10-1.31 s. Search p50 excludes query encoding, so a sub-millisecond search figure is not end-to-end latency: at C=100 total query latency is encode plus search, about 217 ms for Arm 3 on `scifact` (215.9 + 1.02) and 53 ms on `nfcorpus` (52.6 + 0.83), against about 1.31 s and 1.14 s for Arm 2, whose rerank dominates. Arm 4 retrieval on `scifact` ranges from 375.2 to 506.2 us, versus 156.3 to 167.5 us for Arm 3. On `nfcorpus` those ranges are 1065.5-1187.9 us versus 20.3-39.6 us. The record establishes slower retrieval and lower quality for this adapter, but does not establish a causal weight-distribution explanation. Its 4,096-term coverage is another potential confound.
+Full per-depth tables (Recall@1/5/10/100, stage timings, index bytes) are in the JSON record. Arm 3 query encoding costs 379.7 ms p50 on `scifact` and 55.6 ms on `nfcorpus`; Arm 4 costs 85.9-127.2 ms and 39.6-53.0 ms across depths. Arm 2 static encoding costs 54 us and 20 us, but cross-encoder reranking costs 0.19-1.79 s of its search time. Search p50 excludes query encoding, so a sub-millisecond search figure is not end-to-end latency: at C=100 total query latency is encode plus search, about 381 ms for Arm 3 on `scifact` (379.7 + 1.30) and 57 ms on `nfcorpus` (55.6 + 1.22), against about 1.66 s and 1.79 s for Arm 2, whose rerank dominates. Arm 4 retrieval on `scifact` ranges from 488.9 to 573.5 us, versus 171.1 to 210.3 us for Arm 3. On `nfcorpus` those ranges are 1063.0-1644.1 us versus 28.4-51.9 us. The record establishes slower retrieval and lower quality for this adapter, but does not establish a causal weight-distribution explanation. Its 4,096-term coverage is another potential confound.
 
 ### 5.3 Provisional tradeoffs and required follow-up
 
 **No final architecture adoption follows from this record.** Arm 3 trades quality against search latency, with these exceptions to an across-the-board quality win:
 
 - `scifact` nDCG@10: Arm 2 leads at C=25, C=50, C=100.
-- `nfcorpus` nDCG@10: Arm 2 leads at C=50, C=100.
 - `nfcorpus` Recall@100: Arm 2 leads at C=100.
 
-Arm 3 leads `scifact` nDCG@10 only at C=10 (0.7431 versus 0.7331); Arm 2 leads at the other depths (0.7568/0.7715/0.7649 versus 0.7134/0.7148/0.7083). On `nfcorpus` Arm 3 leads nDCG@10 at C=10 and C=25 and Arm 2 at C=50 and C=100, while Arm 2 wins Recall@100 at C=100 (0.2250 versus 0.2195). Arm 3's C=100 search p50 is 1.02/0.83 ms versus Arm 2's 1305.85/1141.96 ms, and total query latency including encoding is about 217/53 ms versus about 1.31/1.14 s. Its indexes occupy about 121/285 MiB, converted from 123560.8/291642.0 KiB. Query encoding must also be included when choosing a latency budget.
+Arm 3 leads `scifact` nDCG@10 only at C=10 (0.7565 versus 0.7331); Arm 2 leads at the other depths (0.7568/0.7715/0.7649 versus 0.7339/0.7336/0.7328). On `nfcorpus` Arm 3 leads nDCG@10 at every depth (0.3446/0.3461/0.3464/0.3412 versus 0.2954/0.3176/0.3323/0.3379), while Arm 2 wins Recall@100 at C=100 (0.2250 versus 0.2195). Arm 3's C=100 search p50 is 1.30/1.22 ms versus Arm 2's 1658.24/1787.57 ms, and total query latency including encoding is about 381/57 ms versus about 1.66/1.79 s. Its indexes occupy about 121/285 MiB, converted from 123560.8/291642.0 KiB. Query encoding must also be included when choosing a latency budget.
 
 The ridge-distilled Arm 4 trails BM25 on `nfcorpus` at every depth and trails Arm 3 on both sets. Those results do not reject the paper's jointly trained SPLATE architecture. The ColBERT protocol and direct checkpoint/bundle/run provenance are now in place. Before a default can be chosen, rerun the remaining recorded sets at full size and compare total query latency alongside quality there too. The local-only checkpoint restrictions also leave selection of a shippable default unresolved. #913 remains open.
