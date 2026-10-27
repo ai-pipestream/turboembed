@@ -52,8 +52,6 @@ pub fn null_err() -> *mut turbo_error {
     ptr::null_mut()
 }
 
-pub const TEXTS: [&str; 3] = ["The quick brown fox jumps over the lazy dog.", "how do I reset a password", "a"];
-
 pub struct Rt(pub *mut turbo_runtime);
 
 impl Rt {
@@ -128,12 +126,6 @@ pub fn metal(rt: *mut turbo_runtime) -> u32 {
 
 pub fn on_metal(dir: &std::path::Path) -> Loaded {
     Loaded::load_on(dir, metal).unwrap_or_else(|e| panic!("{e:?}"))
-}
-
-pub fn opts(edit: impl FnOnce(&mut turbo_embed_options)) -> turbo_embed_options {
-    let mut o = embed_options();
-    edit(&mut o);
-    o
 }
 
 pub fn table() -> &'static backend::turbo_backend {
