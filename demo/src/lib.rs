@@ -11,7 +11,7 @@ use axum::Router;
 use axum::extract::State;
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::routing::{get, post, put};
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 use tokio::task::JoinHandle;
@@ -21,9 +21,11 @@ pub mod allow;
 mod budget;
 mod codec;
 pub mod connect;
+mod frames;
 pub mod gate;
 pub mod limits;
 mod tls;
+pub mod upload;
 
 pub use allow::Allow;
 pub use tls::Tls;
@@ -87,6 +89,7 @@ impl Demo {
             .route("/app.js", get(|| async { asset("text/javascript; charset=utf-8", SCRIPT) }))
             .route("/style.css", get(|| async { asset("text/css; charset=utf-8", STYLE) }))
             .route("/{service}/{method}", post(connect::call).options(preflight).fallback(only_post))
+            .route("/upload/{service}/{method}", put(upload::call).options(preflight).fallback(only_put))
             .with_state(app);
         let listener = TcpListener::bind(listen).await.map_err(|e| format!("listen on {listen}: {e}"))?;
         let addr = listener.local_addr().map_err(|e| format!("listen on {listen}: {e}"))?;
@@ -137,6 +140,11 @@ async fn preflight(State(app): State<App>, headers: HeaderMap) -> Response {
 /// A call is a POST; GET serves only the page's files.
 async fn only_post() -> Response {
     (StatusCode::METHOD_NOT_ALLOWED, [(header::ALLOW, "POST")]).into_response()
+}
+
+/// An upload is a PUT.
+async fn only_put() -> Response {
+    (StatusCode::METHOD_NOT_ALLOWED, [(header::ALLOW, "PUT")]).into_response()
 }
 
 #[cfg(test)]

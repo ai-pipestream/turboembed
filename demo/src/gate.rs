@@ -12,8 +12,9 @@ use tonic::Code;
 
 /// The request headers a page may send on a call.
 const ALLOW_HEADERS: &str = "content-type, connect-protocol-version, connect-timeout-ms, authorization";
-/// The response headers a page may read: the server's error metadata.
-const EXPOSE_HEADERS: &str = "turbo-code, turbo-field";
+/// The response headers a page may read: the server's error metadata, and
+/// an upload's status (upload.rs).
+const EXPOSE_HEADERS: &str = "turbo-code, turbo-field, grpc-status, grpc-message";
 
 #[derive(Debug, Default)]
 pub(crate) struct Gate {
@@ -64,11 +65,11 @@ impl Gate {
         }
     }
 
-    /// The answer to a CORS preflight: a grant for a POST from a listed
-    /// origin, else 403 with no CORS headers.
+    /// The answer to a CORS preflight: a grant for a POST, or a PUT
+    /// upload, from a listed origin, else 403 with no CORS headers.
     pub(crate) fn preflight(&self, headers: &HeaderMap) -> Response {
-        let post = headers.get(header::ACCESS_CONTROL_REQUEST_METHOD).is_some_and(|m| m.as_bytes() == b"POST");
-        if !post {
+        let method = headers.get(header::ACCESS_CONTROL_REQUEST_METHOD).map(|m| m.as_bytes());
+        if !matches!(method, Some(b"POST" | b"PUT")) {
             return StatusCode::FORBIDDEN.into_response();
         }
         let mut reply = HeaderMap::new();
@@ -76,7 +77,7 @@ impl Gate {
         if !reply.contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN) {
             return (StatusCode::FORBIDDEN, reply).into_response();
         }
-        reply.insert(header::ACCESS_CONTROL_ALLOW_METHODS, HeaderValue::from_static("POST"));
+        reply.insert(header::ACCESS_CONTROL_ALLOW_METHODS, HeaderValue::from_static("POST, PUT"));
         reply.insert(header::ACCESS_CONTROL_ALLOW_HEADERS, HeaderValue::from_static(ALLOW_HEADERS));
         reply.insert(header::ACCESS_CONTROL_MAX_AGE, HeaderValue::from_static("600"));
         (StatusCode::NO_CONTENT, reply).into_response()
