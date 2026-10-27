@@ -15,6 +15,7 @@ mod qa_common;
 
 use std::path::Path;
 
+use common::opts;
 use cuda_support::*;
 use turbo::bundle::Bundle;
 use turbo::qa::{Answer, DecodeOptions, ExtractiveQa, QaOptions, WindowLogits};
