@@ -577,6 +577,23 @@ does not close the gap to MLX's rate measured above: whatever MLX's
 kernels do differently, it is not the tile's shape. The tuner times
 `h64n32` with the others and keeps it only where it wins.
 
+### The 32 x 32 tile without range checks
+
+Where the packed tokens (always a multiple of 32 on Metal), n and k are
+all multiples of 32, which covers every linear layer of the BERT models
+here, the 32 x 32 tile now runs a form of itself with its range checks
+compiled out: no row, column or k step can fall outside, so nothing is
+skipped and the sums are the same in the same order
+(`core/tests/metal_aligned.rs` holds the bits equal). `gemm_time.swift`
+timed the two beside each other and beside `auto`'s 64 x 64 tile, five
+rounds at `da1472b0`, the order rotated by shape and by round
+(docs/receipts/metal-aligned-812). Paired shape by shape, the form
+without checks took 0.935 to 0.943 of the checked tile's GPU time at
+the median of each round's 40 shapes, in rounds where the load ranged
+from under 4 to 55; the 16 pairs taken on a quiet host and GPU are all
+under 1, median 0.936. About 6% off the tile that `auto` runs up to
+1024 tokens.
+
 ### MLX as a recorded reference
 
 `turbo-bench record` on metal runs MLX beside TEI (docs/benchmarks.md,
