@@ -301,9 +301,10 @@ with `TURBO_TEST_REQUIRE_METAL=1` (or `TURBO_TEST_DEVICE=metal`).
 
 On the M2 (`docs/receipts/bilstm-metal-860/`) the states are within
 5.1e-7 of the CPU's, the BiLSTM-CRF tagger gives the goldens' 1980 tags,
-and on UD English EWT r2.15's test split, with the model the CUDA and
-Level Zero runs used (SHA-256 `fcf0b057...`), MODEL on Metal tags all
-25,094 tokens as the CPU packed path does (94.8553%). It is slower than
+and on UD English EWT r2.15's test split (SHA-256 `0612e459...`), with a
+model `bilstm_ewt`'s trainer made (SHA-256 `fcf0b057...`), MODEL on
+Metal tags all 25,094 tokens as the M2's CPU packed path does (94.8553%
+each). It is slower than
 the CPU's packed path: at 256 sentences a call 184.6 ms against 103.2 ms
 warm at p50 with one layer, 405.1 against 205.8 with two. The kernels
 are a thread per output with no tiling or threadgroup memory, so the
