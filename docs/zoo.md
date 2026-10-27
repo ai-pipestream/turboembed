@@ -40,6 +40,34 @@ Local-only sits above them because nothing in it ever leaves the user's
 machine, which also covers what the share-alike term of CC BY-NC-SA
 asks, and a refused licence anywhere still wins over everything.
 
+### A shipped default trained on share-alike data
+
+One decision narrows what `CLASS_SHARE_ALIKE` bars, Kristian's on
+#1451 (2026-10-27). The class is still computed as above:
+`ibm-granite/granite-embedding-30m-english` is `CLASS_SHARE_ALIKE`
+by its CC BY-SA fine-tuning inputs, exactly as
+`deepset/roberta-base-squad2` is by SQuAD 2.0, and zoo fetching and
+redistribution of share-alike artifacts are unchanged. What the
+class no longer bars is adopting a model as this project's shipped
+default, when the model's own licence is `CLASS_PERMISSIVE`, its
+publisher enumerates the training mixture, no enumerated input is
+under non-commercial or research-only terms, and every CC BY-SA
+input is credited in docs/licences.md. Granite is adopted under
+that bar.
+
+Two of Granite's enumerated inputs, its title-body pairs scraped
+from the web and its IBM-internal and synthetic pairs, carry no
+text grant this project can audit. For this one model at its
+pinned revision they are accepted on the strength of the
+publisher's enumerated list and its Apache-2.0 release, a named
+approval in the sense of the #326 GoEmotions approval in
+docs/licences.md. It approves no web collection, no other corpus
+and no other model, and an unconfirmed input anywhere else is
+still `CLASS_REFUSED`. No other model is adopted under this bar
+today: `deepset/roberta-base-squad2` keeps its share-alike class
+and its fetch-after-acceptance handling, and were it ever proposed
+as a shipped default, this same bar and a gate would decide it.
+
 ### Restricted but public data
 
 `CLASS_LOCAL_ONLY` holds two kinds of data: restricted but public data,

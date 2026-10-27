@@ -4793,8 +4793,10 @@ adopted as the shippable default is
 `ibm-granite/granite-embedding-30m-english` (Apache-2.0): IBM's card
 enumerates its training mixture, no entry is under non-commercial
 terms (MS MARCO was excluded for its license), and several entries are
-CC BY-SA, credited in docs/licences.md under the bar adopted for this
-model. It is a 6-layer, 384-wide RoBERTa with CLS pooling, made by
+CC BY-SA, credited in docs/licences.md. Its class by the zoo rule
+is share-alike; its adoption as the shipped default is the decision
+recorded in docs/zoo.md ("A shipped default trained on share-alike
+data"). It is a 6-layer, 384-wide RoBERTa with CLS pooling, made by
 name from `bundle/recipes/granite-embedding-30m-english.json`; its
 BF16 checkpoint is cast to F32 weights at bundle make, the exact
 widening the cpu backend computes in at MODEL precision.

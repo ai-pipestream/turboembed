@@ -120,7 +120,6 @@ use cli::{Args, USAGE, chosen, need, only, parse};
 use commands::{
     depparse_command, fetch_ud_command, fineweb_ranges_command, static_embed_command, tatoeba_command,
     tatoeba_fineweb_command, ud_command,
->>>>>>> origin/main
 };
 
 fn masc_command(a: Args) -> Result<bool, String> {
