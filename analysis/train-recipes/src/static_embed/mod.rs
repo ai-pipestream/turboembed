@@ -3,7 +3,7 @@
 //! their own licence as elsewhere in `docs/licences.md`), centered, reduced by
 //! PCA and SIF-scaled the way `turbo-bundle distill` initializes a table, and is
 //! then trained by InfoNCE on permissive sentence pairs: adjacent sentences of
-//! FineWeb documents (ODC-By) and dropout views of Tatoeba CC0 sentences. No
+//! FineWeb documents (ODC-By) and of multi-sentence Tatoeba CC0 rows. No
 //! teacher scores and no fine-tuned checkpoint are involved after
 //! initialization, so the trained table's lineage is the teacher weights plus
 //! the named corpora.
@@ -31,8 +31,6 @@ pub struct Config {
     pub steps: usize,
     pub lr: f32,
     pub temperature: f32,
-    /// Probability a token is dropped from the second dropout view.
-    pub dropout: f32,
     pub max_tokens: u32,
     pub seed: u64,
     pub sif_coefficient: f64,
@@ -44,9 +42,8 @@ impl Default for Config {
             dim: 256,
             batch: 256,
             steps: 4000,
-            lr: 5e-3,
+            lr: 1e-3,
             temperature: 0.05,
-            dropout: 0.1,
             max_tokens: 64,
             seed: 879,
             sif_coefficient: 1e-4,
@@ -54,7 +51,7 @@ impl Default for Config {
     }
 }
 
-/// SplitMix64: the run's only randomness (shuffles, dropout), seeded
+/// SplitMix64: the run's only randomness (batch shuffles), seeded
 /// from the config so a rerun at the same inputs trains identically.
 pub struct Rng(pub u64);
 
@@ -69,10 +66,6 @@ impl Rng {
 
     fn below(&mut self, n: usize) -> usize {
         (self.next_u64() % n as u64) as usize
-    }
-
-    fn unit(&mut self) -> f32 {
-        (self.next_u64() >> 40) as f32 / (1u64 << 24) as f32
     }
 }
 
@@ -318,23 +311,24 @@ fn encode_mean(table: &[f32], dim: usize, ids: &[i32], out: &mut [f32]) {
     }
 }
 
-/// One training example: a sentence's ids and a second view of it
-/// (dropout view, or the next sentence of its document).
+/// One training example: a sentence's ids and the next sentence
+/// of its document.
 struct Pair {
     a: Vec<i32>,
     b: Vec<i32>,
 }
 
-fn make_pairs(docs: &[Vec<Vec<i32>>], cfg: &Config, rng: &mut Rng) -> Vec<Pair> {
+/// Adjacent-sentence pairs only. A 200-step smoke whose pairs were
+/// token-dropout views of single sentences scored below the
+/// untrained initialized table on scifact (nDCG@10 0.284 against
+/// 0.335, document chunker), so subset views are not a pair source:
+/// they reward identity under deletion, not topical alignment.
+fn make_pairs(docs: &[Vec<Vec<i32>>]) -> Vec<Pair> {
     let mut pairs = Vec::new();
     for doc in docs {
         for (i, s) in doc.iter().enumerate() {
             if i + 1 < doc.len() {
                 pairs.push(Pair { a: s.clone(), b: doc[i + 1].clone() });
-            }
-            let kept: Vec<i32> = s.iter().copied().filter(|_| rng.unit() >= cfg.dropout).collect();
-            if kept.len() >= 3 {
-                pairs.push(Pair { a: s.clone(), b: kept });
             }
         }
     }
@@ -347,7 +341,10 @@ fn make_pairs(docs: &[Vec<Vec<i32>>], cfg: &Config, rng: &mut Rng) -> Vec<Pair> 
 pub fn train(table: &mut [f32], vocab: usize, docs: &[Vec<Vec<i32>>], cfg: &Config) -> (f64, f64) {
     let dim = cfg.dim;
     let mut rng = Rng(cfg.seed);
-    let pairs = make_pairs(docs, cfg, &mut rng);
+    let pairs = make_pairs(docs);
+    if pairs.is_empty() {
+        return (0.0, 0.0);
+    }
     let mut order: Vec<usize> = (0..pairs.len()).collect();
     let mut m = vec![0.0f32; vocab * dim];
     let mut v = vec![0.0f32; vocab * dim];

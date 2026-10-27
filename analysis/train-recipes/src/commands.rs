@@ -193,7 +193,7 @@ pub(crate) fn static_embed_command(a: Args) -> Result<bool, String> {
         "model_id": who.id,
         "kind": "static-embed",
         "teacher": {"file": teacher_path.file_name().map(|n| n.to_string_lossy().into_owned()), "sha256": teacher_sha, "tensor": "embeddings.word_embeddings.weight", "vocab": vocab, "in_dim": in_dim},
-        "config": {"dim": cfg.dim, "batch": cfg.batch, "steps": cfg.steps, "lr": cfg.lr, "temperature": cfg.temperature, "dropout": cfg.dropout, "max_tokens": cfg.max_tokens, "seed": cfg.seed, "sif_coefficient": cfg.sif_coefficient},
+        "config": {"dim": cfg.dim, "batch": cfg.batch, "steps": cfg.steps, "lr": cfg.lr, "temperature": cfg.temperature, "max_tokens": cfg.max_tokens, "seed": cfg.seed, "sif_coefficient": cfg.sif_coefficient},
         "data": {"documents": ids.len(), "sentences": kept, "sentences_files": a.sentences.iter().map(|p| p.file_name().map(|n| n.to_string_lossy().into_owned())).collect::<Vec<_>>(), "parquet": a.parquet.as_ref().and_then(|p| p.file_name()).map(|n| n.to_string_lossy().into_owned())},
         "loss_first_window": first,
         "loss_last_window": last,
