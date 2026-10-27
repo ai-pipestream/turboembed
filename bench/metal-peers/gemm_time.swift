@@ -100,7 +100,13 @@ let tiles = [
     Tile(name: "h64", bm: 64, bn: 64, threads: 128),
     Tile(name: "h128", bm: 128, bn: 64, threads: 256),
     Tile(name: "h32n32", bm: 32, bn: 32, threads: 128),
+    Tile(name: "h64n32", bm: 64, bn: 32, threads: 128),
 ]
+// GEMM_TILES=<tile>[,<tile>...] times only those tiles, in that order, so
+// a driver can rotate which goes first.
+let picked = ProcessInfo.processInfo.environment["GEMM_TILES"].map { $0.split(separator: ",").map(String.init) }
+let timed = picked.map { names in names.map { n in (tiles + [Tile(name: "auto", bm: 0, bn: 0, threads: 0)]).first { $0.name == n }! } }
+    ?? tiles + [Tile(name: "auto", bm: 0, bn: 0, threads: 0)]
 // docs/metal.md: auto is h32n32 up to 1024 packed tokens, h64 past it.
 let autoTokens = 1024
 let spread = 128
@@ -127,7 +133,7 @@ for mode in only.flatMap({ $0.count > 3 ? [$0[3]] : nil }) ?? ["bare", "encoder"
                 let x = buffer(m * k * 2, halves)
                 let w = (0..<3).map { _ in buffer(n * k * 2, halves) }
                 let bias = buffer(n * 4, floats)
-                for tile in tiles + [Tile(name: "auto", bm: 0, bn: 0, threads: 0)] {
+                for tile in timed {
                     let t = tile.name == "auto" ? (m <= autoTokens ? tiles[3] : tiles[1]) : tile
                     let count = (n + t.bn - 1) / t.bn * ((m + t.bm - 1) / t.bm)
                     // In encoder mode, k is split as the encoder splits a
