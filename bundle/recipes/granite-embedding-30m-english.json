@@ -74,7 +74,7 @@
     },
     "artifacts": [
       {
-        "name": "weights-bf16",
+        "name": "weights-f32",
         "format": "FORMAT_SAFETENSORS",
         "files": [
           "weights/model.safetensors"
@@ -111,7 +111,8 @@
           "ffn_ln_bias": "encoder.layer.{layer}.output.LayerNorm.bias"
         },
         "produced_by": {
-          "upstream": "model.safetensors"
+          "upstream": "model.safetensors",
+          "dtype": "DTYPE_F32"
         }
       }
     ],
@@ -160,7 +161,7 @@
         }
       ],
       "produced_by": {
-        "container": "turbo-reference@sha256:8eb1d96ab158ebd6d0026ae4e679359683b5024226038c0d9a1bb78dc9dbbcf0"
+        "container": "turbo-reference@sha256:0fad4a0f621a94bce4b8511253555c4ec29281b8ceba84046bb4c0338ae7e280"
       }
     }
   },
