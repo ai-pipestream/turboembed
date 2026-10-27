@@ -461,6 +461,94 @@ tokens up the kernels are the same as before, so those rows differ by
 noise alone, and MLX's larger products still run at about 3 TFLOPS
 against our 2.5.
 
+### The linear layers alone against MLX
+
+`bench/metal-peers/gemm_time.swift` compiles `core/metal/kernels.metal`
+as the backend does (safe math) and times one dispatch of a linear-layer
+kernel per command buffer; `bench/metal-peers/mlx_gemm.py` times one MLX
+0.29.3 `x @ w` per `mx.eval` (version refused if another; the SHA-256 of
+`mlx/lib/libmlx.dylib` and `mlx.metallib` recorded). Each is twenty timed
+runs after one untimed, every sample kept, with least, mean, median and
+nearest-rank p99. The comparison is `mode=bare` on both sides: F16
+inputs, F32 sums (our SIMD-group matrices are `simdgroup_float8x8`, as
+MLX's steel GEMM sums float16 products in float32) and F16 output, no
+bias or activation, no k split, and Q, K and V as one product of n = 3h.
+Our weights are `[n, k]`, MLX's `[k, n]`, so any difference includes the
+layout. Both figures are host wall time from submission to completion,
+so each includes its side's launch and synchronization; our GPU time is
+in the raw files and is not compared with MLX's host time.
+
+Receipt: `docs/receipts/metal-gemm-812/` (`turbo.jsonl`, `mlx.jsonl`,
+`schedule.jsonl`, `summary.json`, `kernels-check.log`), at source commit
+`618fbee963d4`. Five paired rounds on the M2, interleaved shape by shape
+(`GEMM_ONLY`), the side that goes first alternating by shape and round,
+so neither side's runs sit at another GPU temperature; `schedule.jsonl`
+gives each run's start and end, the 1, 5 and 15-minute load and the
+GPU's utilization before and after, the macOS build, the binary's and
+scripts' SHA-256 and the commands. The 1-minute load before a run was
+3.2 to 4.2 and the GPU 0 to 53% busy (desktop apps). `kernels-check.log`
+is `metal_f16` at the same commit, every F16 choice within FASTEST's
+floor of the CPU.
+
+Ours (`linear=auto`'s tile) and MLX, least / median of medians / mean of
+means / largest p99 over the five rounds, in ms, the ratio of the
+medians, and our fastest tile by median:
+
+| h | M | shape | ours | MLX | ours / MLX | our fastest tile |
+|---|---|---|---|---|---|---|
+| 384 | 128 | qkv | 0.191 / 0.224 / 0.261 / 1.084 | 0.191 / 0.224 / 0.279 / 1.210 | 1.00 | h64 0.217 |
+| 384 | 128 | attn_out | 0.168 / 0.205 / 0.211 / 0.348 | 0.237 / 0.263 / 0.306 / 1.602 | 0.78 | h32n32 0.219 |
+| 384 | 128 | ffn_in | 0.208 / 0.232 / 0.244 / 0.688 | 0.342 / 0.370 / 0.416 / 1.204 | 0.63 | h32n32 0.237 |
+| 384 | 128 | ffn_out | 0.207 / 0.232 / 0.278 / 0.564 | 0.280 / 0.534 / 0.578 / 1.692 | 0.43 | h32n32 0.231 |
+| 384 | 512 | qkv | 0.328 / 0.356 / 0.389 / 1.320 | 0.317 / 0.761 / 0.791 / 1.762 | 0.47 | h32n32 0.349 |
+| 384 | 512 | attn_out | 0.203 / 0.232 / 0.248 / 0.642 | 0.333 / 0.366 / 0.409 / 1.328 | 0.64 | h32n32 0.232 |
+| 384 | 512 | ffn_in | 0.388 / 0.407 / 0.438 / 1.067 | 0.369 / 0.902 / 0.924 / 1.846 | 0.45 | h32n32 0.402 |
+| 384 | 512 | ffn_out | 0.357 / 0.396 / 0.418 / 0.864 | 0.399 / 0.992 / 0.930 / 2.019 | 0.40 | h32n32 0.406 |
+| 384 | 1024 | qkv | 0.499 / 0.534 / 0.569 / 1.135 | 0.429 / 1.162 / 1.270 / 24.411 | 0.46 | h32n32 0.537 |
+| 384 | 1024 | attn_out | 0.268 / 0.287 / 0.300 / 0.852 | 0.483 / 0.524 / 0.574 / 1.806 | 0.55 | h32n32 0.286 |
+| 384 | 1024 | ffn_in | 0.626 / 0.687 / 0.854 / 1.848 | 0.544 / 1.422 / 1.242 / 2.373 | 0.48 | h32n32 0.699 |
+| 384 | 1024 | ffn_out | 0.597 / 0.663 / 0.723 / 1.272 | 0.586 / 1.178 / 1.162 / 3.243 | 0.56 | h32n32 0.678 |
+| 384 | 4096 | qkv | 1.607 / 1.647 / 1.676 / 2.106 | 1.288 / 1.365 / 1.995 / 5.455 | 1.21 | h32n32 1.585 |
+| 384 | 4096 | attn_out | 0.646 / 0.717 / 0.728 / 1.192 | 0.541 / 1.427 / 1.171 / 3.160 | 0.50 | h32n32 0.676 |
+| 384 | 4096 | ffn_in | 2.008 / 2.109 / 2.137 / 2.358 | 1.655 / 1.741 / 2.432 / 6.123 | 1.21 | h32n32 2.036 |
+| 384 | 4096 | ffn_out | 2.028 / 2.087 / 2.126 / 2.719 | 1.676 / 1.813 / 2.159 / 6.457 | 1.15 | h32n32 1.964 |
+| 384 | 16384 | qkv | 5.777 / 5.936 / 6.179 / 27.287 | 4.528 / 4.635 / 4.843 / 8.814 | 1.28 | h32n32 5.656 |
+| 384 | 16384 | attn_out | 2.079 / 2.151 / 2.501 / 28.449 | 1.636 / 1.751 / 2.126 / 6.462 | 1.23 | h32n32 2.050 |
+| 384 | 16384 | ffn_in | 7.657 / 7.759 / 7.875 / 8.748 | 6.001 / 6.122 / 6.328 / 9.329 | 1.27 | h32n32 7.457 |
+| 384 | 16384 | ffn_out | 7.306 / 7.392 / 7.511 / 8.327 | 5.942 / 6.053 / 6.220 / 7.663 | 1.22 | h32n32 7.031 |
+| 768 | 128 | qkv | 0.325 / 0.342 / 0.356 / 0.586 | 0.318 / 0.383 / 0.433 / 1.464 | 0.89 | h32n32 0.349 |
+| 768 | 128 | attn_out | 0.203 / 0.220 / 0.231 / 0.538 | 0.419 / 0.451 / 0.521 / 1.564 | 0.49 | h32n32 0.233 |
+| 768 | 128 | ffn_in | 0.384 / 0.410 / 0.446 / 0.971 | 0.362 / 0.915 / 0.878 / 2.677 | 0.45 | h32n32 0.430 |
+| 768 | 128 | ffn_out | 0.379 / 0.412 / 0.430 / 0.784 | 0.504 / 1.370 / 1.217 / 3.382 | 0.30 | h32n32 0.412 |
+| 768 | 512 | qkv | 0.830 / 0.893 / 0.927 / 1.685 | 0.754 / 1.516 / 1.444 / 3.852 | 0.59 | h32n32 0.892 |
+| 768 | 512 | attn_out | 0.368 / 0.396 / 0.413 / 1.229 | 0.378 / 0.910 / 0.922 / 1.746 | 0.44 | h32n32 0.395 |
+| 768 | 512 | ffn_in | 1.051 / 1.114 / 1.145 / 1.764 | 0.904 / 1.223 / 1.560 / 4.082 | 0.91 | h32n32 1.133 |
+| 768 | 512 | ffn_out | 1.050 / 1.104 / 1.131 / 1.815 | 0.998 / 1.134 / 1.654 / 3.808 | 0.97 | h32n32 1.110 |
+| 768 | 1024 | qkv | 1.509 / 1.564 / 1.703 / 3.252 | 1.272 / 1.405 / 1.772 / 4.262 | 1.11 | h32n32 1.571 |
+| 768 | 1024 | attn_out | 0.589 / 0.653 / 0.669 / 1.106 | 0.535 / 0.757 / 1.033 / 2.333 | 0.86 | h32n32 0.656 |
+| 768 | 1024 | ffn_in | 1.904 / 2.009 / 2.034 / 2.624 | 1.655 / 1.738 / 2.152 / 5.483 | 1.16 | h32n32 2.024 |
+| 768 | 1024 | ffn_out | 1.888 / 1.941 / 1.982 / 2.632 | 1.777 / 1.833 / 2.157 / 6.084 | 1.06 | h32n32 1.945 |
+| 768 | 4096 | qkv | 5.584 / 5.722 / 6.460 / 34.252 | 4.514 / 4.635 / 4.829 / 8.143 | 1.23 | h32n32 5.427 |
+| 768 | 4096 | attn_out | 2.036 / 2.078 / 2.112 / 2.818 | 1.666 / 1.736 / 2.236 / 5.412 | 1.20 | h32n32 1.984 |
+| 768 | 4096 | ffn_in | 7.376 / 7.484 / 7.714 / 12.796 | 5.935 / 6.059 / 6.329 / 9.745 | 1.24 | h32n32 7.239 |
+| 768 | 4096 | ffn_out | 7.302 / 7.379 / 7.431 / 7.946 | 5.996 / 6.119 / 6.271 / 8.132 | 1.21 | h32n32 7.005 |
+| 768 | 16384 | qkv | 21.707 / 21.864 / 21.998 / 23.481 | 17.392 / 17.667 / 17.896 / 21.879 | 1.24 | h32n32 20.960 |
+| 768 | 16384 | attn_out | 7.383 / 7.506 / 7.752 / 16.824 | 5.907 / 6.055 / 6.339 / 13.153 | 1.24 | h32n32 7.168 |
+| 768 | 16384 | ffn_in | 28.854 / 29.100 / 29.673 / 32.933 | 23.158 / 23.490 / 23.759 / 26.343 | 1.24 | h32n32 27.887 |
+| 768 | 16384 | ffn_out | 28.348 / 28.843 / 32.223 / 49.137 | 23.022 / 23.408 / 27.294 / 48.013 | 1.23 | h32n32 27.543 |
+
+Only at M = 16384 does the product outweigh each side's launch and
+synchronization: there ours is 1.22x to 1.28x MLX's median, 2.25 to 2.68
+TFLOPS against 2.76 to 3.30. Below that, from 128 to 4096 tokens, the
+ratios (0.30 to 1.24) mostly measure each side's per-call overhead, which
+for MLX includes Python and a graph per call, not the tiles. Earlier
+whole-sweep rounds, in which our sweep ran about twenty minutes and
+MLX's three, put the h = 768 rows at 1.9x to 2.1x; interleaved, the same
+shapes are 1.20x to 1.24x, so that gap was the GPU's state late in a
+long sweep, not the tile. At 4096 and 16384 tokens the 32 x 32 tile is
+the fastest by median in every row, 3% to 6% under `auto`'s 64 x 64,
+which `auto` picks past 1024 tokens (#849's per-bin tuning).
+
 ### MLX as a recorded reference
 
 `turbo-bench record` on metal runs MLX beside TEI (docs/benchmarks.md,
