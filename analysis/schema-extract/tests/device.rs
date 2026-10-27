@@ -98,10 +98,11 @@ fn schema_extraction_scores_as_on_the_cpu_encoder() {
     assert!(decoded > 0, "nothing decoded on either side");
     let x = on.execution().unwrap();
     println!(
-        "gliner2 schema extraction on {} {}: {} runs, largest logit difference from the cpu encoder {largest:e}, {} \
-         decisions held, {decoded} spans and records decoded alike",
+        "gliner2 schema extraction on {} {} ({}): {} runs, largest logit difference from the cpu encoder {largest:e}, \
+         {} decisions held, {decoded} spans and records decoded alike",
         x.backend,
         x.device,
+        x.precision,
         reps(),
         held.len()
     );

@@ -81,10 +81,11 @@ fn gliner2_relations_score_as_on_the_cpu_encoder() {
     let held = held.len();
     let x = on.execution().unwrap();
     println!(
-        "gliner2 relations on {} {}: {} runs, largest logit difference from the cpu encoder {largest:e}, {held} best \
-         spans held, {found} relations extracted alike",
+        "gliner2 relations on {} {} ({}): {} runs, largest logit difference from the cpu encoder {largest:e}, {held} \
+         best spans held, {found} relations extracted alike",
         x.backend,
         x.device,
+        x.precision,
         reps()
     );
 }
@@ -125,9 +126,11 @@ fn glirel_scores_as_on_the_cpu_encoder() {
     let held = held.len();
     let x = on.execution().unwrap();
     println!(
-        "glirel on {} {}: {} runs, largest logit difference from the cpu encoder {largest:e}, {held} best pairs held",
+        "glirel on {} {} ({}): {} runs, largest logit difference from the cpu encoder {largest:e}, {held} best pairs \
+         held",
         x.backend,
         x.device,
+        x.precision,
         reps()
     );
 }
@@ -166,5 +169,44 @@ fn a_bundle_is_bound_to_the_package_its_heads_were_converted_with() {
     turbo_bundle::deberta::write_package(shape, &reduced, "encoder.", source, &other).unwrap();
     let e = DebertaEncoder::open_bound(&other, &bundle(), &o).err().expect("a package of other weights");
     assert!(e.contains("encoder bundle") || e.contains("shape"), "{e}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// A GLiREL package laid out as `turbo-bundle glirel-convert` writes one,
+/// from the tiny fixtures: glirel.json, the reduced heads, and encoder/ the
+/// DeBERTa package of the tiny bundle's own weights. The real device test's
+/// paths (glirel_pair) open it on the CPU and the device, so a path the
+/// licensed checkpoint alone would reach is traced here.
+#[test]
+fn a_glirel_package_opens_by_the_real_tests_paths() {
+    let dir = std::env::temp_dir().join(format!("turbo-relation-glirel-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let (package, spm_path) = (dir.join("package"), dir.join("spm.model"));
+    std::fs::create_dir_all(&package).unwrap();
+    let weights = std::fs::read(bundle().join("weights/model.safetensors")).unwrap();
+    let source = ("turboembed/tiny-deberta", "f040d8d433e742f26023553192e8a29aa066358a", "Apache-2.0");
+    turbo_bundle::deberta::write_package(cpu().config().clone(), &weights, "", source, &package.join("encoder"))
+        .unwrap();
+    let heads = fixture("glirel");
+    std::fs::write(package.join("heads.safetensors"), &heads).unwrap();
+    std::fs::write(&spm_path, spm()).unwrap();
+    let digest = turbo::deberta::package::digest;
+    let meta = serde_json::json!({
+        "version": 1, "cls": 101, "sep": 102, "rel": 30000, "max_words": 512,
+        "repository": "turboembed/tiny-glirel", "revision": "1", "sha256": digest(&heads), "license": "Apache-2.0",
+        "heads_sha256": digest(&heads), "spm_sha256": digest(&spm()),
+    });
+    std::fs::write(package.join("glirel.json"), serde_json::to_vec(&meta).unwrap()).unwrap();
+    let [cpu, on] = glirel_pair(&package, &bundle(), &spm_path);
+    assert!(cpu.execution().is_none() && on.execution().is_some(), "the CPU encoder and the backend table");
+    let labels = ["founded", "works for"];
+    let text = TEXTS[0];
+    let (a, b) = (cpu.pass(text, &labels).unwrap(), on.pass(text, &labels).unwrap());
+    let n = a.prompt().words.len();
+    let pairs: Vec<(usize, usize)> = (1..n).map(|i| (0, i)).collect();
+    let entities: Vec<(usize, usize)> = (0..n).map(|i| (i, i)).collect();
+    let (x, y) = (cpu.logits(&a, &entities, &pairs).unwrap(), on.logits(&b, &entities, &pairs).unwrap());
+    assert!(worst(&x, &y, text) <= BOUND);
     let _ = std::fs::remove_dir_all(&dir);
 }

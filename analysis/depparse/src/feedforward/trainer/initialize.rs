@@ -6,25 +6,24 @@ use turbo_jvm::{hash_map::JavaHashMap, random::JavaRandom};
 pub(super) fn initialize<A: WordOrTokenAnchor>(
     samples: &[DependencySample<A>],
     settings: &FeedforwardSettings,
+    pseudo_projective: bool,
 ) -> Result<FeedforwardDependencyModel> {
     let mut counts = JavaHashMap::<String, usize>::new();
     let mut tags = JavaHashMap::new();
     let mut labels = JavaHashMap::new();
     let mut transitions = BTreeMap::new();
     for sample in samples {
-        if !sample.graph().is_projective() {
-            continue;
-        }
+        let graph = sample.training_graph(pseudo_projective)?;
         for word in sample.tokens() {
             counts.merge(normalize(word), 1, |n, v| *n += v);
         }
         for tag in sample.tags() {
             tags.put(tag.clone(), ());
         }
-        for i in 0..sample.graph().len() {
-            labels.put(sample.graph().arc(turbo_analysis::Ix::new(i as u32))?.relation.to_owned(), ());
+        for i in 0..graph.len() {
+            labels.put(graph.arc(turbo_analysis::Ix::new(i as u32))?.relation.to_owned(), ());
         }
-        for t in ArcStandardOracle::transitions(sample.graph())? {
+        for t in ArcStandardOracle::transitions(&graph)? {
             transitions.insert(t.encode(), t);
         }
     }

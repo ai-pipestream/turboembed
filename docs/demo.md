@@ -89,8 +89,12 @@ Refused before any call to the server:
 | A path that is no unary or server-streaming method | `unimplemented` |
 | A compressed request or message | `unimplemented` |
 | A streaming request that is not exactly one uncompressed envelope | `invalid_argument` |
-| A message over 64 MiB, the server's default limit | `resource_exhausted` |
+| A message over 64 MiB, the server's default limit, refused before it is read when Content-Length or the envelope says so | `resource_exhausted` |
 | GET on a method's path | HTTP 405, `allow: POST` |
+
+The demo forwards a request message of up to 64 MiB and a reply message
+of up to 256 MiB, the server's defaults (`demo/src/limits.rs`,
+docs/grpc.md).
 
 GET answers `/`, `/app.js` and `/style.css` only.
 
@@ -252,6 +256,7 @@ the server's prost types. Nothing is mocked.
   every unknown method refused without it and every read tried; the
   token; a write off loopback without a token refused at startup; the
   origin check, CORS grants and preflights.
-- `demo/tests/tls.rs`: a call over TLS with a test CA
-  (`demo/tests/tls`, for these tests only), plain HTTP not answered, and
-  a certificate or key that does not load.
+- `demo/tests/tls.rs`: a call over TLS with a test CA, plain HTTP not
+  answered, and a certificate or key that does not load. The CA,
+  certificate and key are made when the tests run
+  (`demo/tests/tls/certs.rs`); no key is committed.

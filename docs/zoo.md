@@ -318,6 +318,40 @@ For `fetch(id, user)`:
 Step 2 runs on every call, cached files or not, so a revoked acceptance
 takes effect at once. There is no hash cache, as in the bundle loader.
 
+## Self-hosted mirrors
+
+An artifact file's `url` is any `https://` address that serves the
+recorded bytes for as long as the entry exists; the fetch checks in step
+4 above make the transport untrusted. A self-hosted store needs no zoo
+changes when it serves plain HTTPS GETs: an S3 bucket with public-read
+objects (or presigned URLs) works as is, with object keys named so they
+never change bytes (`<artifact>@<commit>/<path>`, or the file's SHA-256
+in the key; never a mutable `latest`).
+
+Two knobs in `turbo_zoo` cover the cases plain HTTPS does not:
+
+- A mirror served with a publicly trusted certificate (a wildcard
+  certificate for the organization's domain, for example) needs no zoo
+  knob at all: the default transport's public roots already trust it.
+  Certificates and private keys live on the host only and are never
+  committed; the tree test refuses a committed private key block.
+- `Http::with_root_ca_bundle_pem` builds an HTTPS transport trusting
+  only the PEM-encoded CA bundle it is given, for a mirror served with a
+  private CA. Every `-----BEGIN CERTIFICATE-----` block in the bundle
+  must parse. The public roots are not in the set; a deployment that
+  fetches both mirrored and public artifacts keeps `Http::new()` for the
+  public ones and the custom transport for the mirror.
+- `Mirror::new(base, inner)` rewrites every fetch to
+  `<base>/<original host>/<original path>`, so one mirror of several
+  origins keeps them apart. The base cannot include a query or fragment.
+  Digest checks run unchanged on what the mirror serves.
+
+An OCI registry also works: blobs are served by digest over HTTPS
+(`/v2/<name>/blobs/sha256:<digest>`), so the address is self-pinning and
+cross-checks the index's `sha256`. Bundles go up as OCI artifacts (ORAS)
+when containers and models should share one pipeline; otherwise the S3
+bucket is the simpler host.
+
 `Zoo::cache_status(id)` reads and checks the cached files as step 4
 does, and reports `Cached`, `Missing` (the first absent file) or
 `Corrupt` (the first file that fails, and why), with no fetch, no write
@@ -390,4 +424,6 @@ The index is meant to replace that page for OpenNLP 3.1 too:
 - Encoder bundles. They have their own recipes and catalogue
   (docs/bundle.md); their `model.license` maps to a class by the same
   table when the bundle tool learns to check it.
-- Mirrors and fallbacks. One address per file.
+- Fallback mirrors. One address per file; a whole-index mirror rewrites
+  every address to one host with `Mirror` ("Self-hosted mirrors",
+  above).

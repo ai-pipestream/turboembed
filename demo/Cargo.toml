@@ -36,3 +36,5 @@ turbo = { path = "../core" }
 turbo-zoo = { path = "../analysis/zoo", default-features = false }
 # Checks the method table against the protos.
 protox = "0.9"
+# Makes the TLS test CA, certificate and key; already linked through rustls.
+ring = "0.17"

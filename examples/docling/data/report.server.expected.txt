@@ -1,0 +1,14 @@
+steps 9
+chunk 0 level 1 vector yes "Grid Storage Review 2026\n\n1. Summary\n\nNorthwind Energy  added battery storage at three sites this year.\nThe Zürich site now holds  forty megawatt hours.\n\nThe sites are:\n\nZürich, with forty megawatt hours.\nLyon, with twelve megawatt hours.\nOslo, with eight megawatt hours.\n\n2. Operations\n\nEvery site reports its charge cycles each night. Faults are rare and are fixed within a day.\n\n2.1 Lyon\n\nThe Lyon site replaced two inverters in March. Its output rose by a tenth after the repair.\n\nFigures are rounded to the nearest megawatt hour."
+chunk 1 level 0 vector yes "Grid Storage Review 2026\n\n1. Summary\n\nNorthwind Energy  added battery storage at three sites this year.\nThe Zürich site now holds  forty megawatt hours."
+chunk 2 level 0 vector yes "The sites are:\n\nZürich, with forty megawatt hours.\nLyon, with twelve megawatt hours.\nOslo, with eight megawatt hours."
+chunk 3 level 0 vector yes "2. Operations\n\nEvery site reports its charge cycles each night. Faults are rare and are fixed within a day."
+chunk 4 level 0 vector yes "2.1 Lyon\n\nThe Lyon site replaced two inverters in March. Its output rose by a tenth after the repair.\n\nFigures are rounded to the nearest megawatt hour."
+entity 0 location "Zürich"
+entity 1 location "Zürich"
+entity 2 location "Lyon"
+entity 3 location "Oslo"
+entity 4 location "Lyon"
+entity 5 location "Lyon"
+heat tokens TokenDensity 6 5 7 7 6 6 5 6 5 6 7 7 6 8 6 6
+heat entities EntityDensity 0 0 0 1 0 1 1 1 0 0 0 2 0 0 0 0

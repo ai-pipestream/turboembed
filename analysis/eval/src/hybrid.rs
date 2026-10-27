@@ -20,12 +20,13 @@
 //! tie rules of `retrieve` and `lexical`.
 
 use std::cmp::Ordering;
+use std::collections::{BTreeMap, BTreeSet};
 
 use turbo_chunker::terms::{Bm25, Bm25PostingIndex};
 
 use crate::Result;
 use crate::lexical::{Lexical, TermRule};
-use crate::metrics::{Hit, Ranking, Run};
+use crate::metrics::{DocScores, Hit, Qrels, Ranking, Run, evaluate};
 use crate::record::Setting;
 use crate::retrieve::{dot, top};
 use crate::spans::{ChunkHit, ChunkRanking, ChunkRun, Span};
@@ -77,6 +78,31 @@ pub struct Hybrid {
     pub fusion: Fusion,
 }
 
+/// One candidate's mean nDCG@10 on the selection half of a held-out split.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HeldOutCandidate {
+    pub bm25_weight: f64,
+    pub selection_ndcg_at_10: f64,
+}
+
+/// A BM25 weight chosen without scoring the held-out queries.
+#[derive(Clone, Debug, PartialEq)]
+pub struct HeldOutWeightChoice {
+    pub bm25_weight: f64,
+    pub selection_queries: usize,
+    pub held_out_queries: usize,
+    pub selection_ndcg_at_10: f64,
+    pub held_out_ndcg_at_10: f64,
+    /// Mean nDCG@10 of pure dense retrieval (`bm25_weight` 0.0) on the
+    /// same held-out half, so the chosen weight is compared against
+    /// the single-arm baselines on identical queries.
+    pub held_out_dense_ndcg_at_10: f64,
+    /// Mean nDCG@10 of pure BM25 retrieval (`bm25_weight` 1.0) on the
+    /// same held-out half.
+    pub held_out_bm25_ndcg_at_10: f64,
+    pub candidates: Vec<HeldOutCandidate>,
+}
+
 /// What a hybrid search reads: the BM25 posting index, the dense chunk
 /// vectors `[chunks, dim]`, and each chunk's document number and span.
 pub struct HybridSearch<'a> {
@@ -110,6 +136,107 @@ impl Hybrid {
     /// document `doc[c]`), using [`Lexical::index`].
     pub fn index(&self, texts: &[String], doc: &[u32]) -> Result<Bm25PostingIndex> {
         Lexical { model: self.model, terms: self.terms, dump: None }.index(texts, doc)
+    }
+
+    /// Chooses a BM25 weight on one half of the scored queries, then scores
+    /// that choice and the pure dense/BM25 baselines on the held-out half.
+    ///
+    /// Scored queries are taken in [`Qrels::scored_queries`] byte order.
+    /// Queries at even positions select the weight by mean nDCG@10 and
+    /// queries at odd positions are held out. Candidate searches run only
+    /// for the selection queries. After selection, the chosen weight and
+    /// both endpoints are evaluated on the same held-out queries without
+    /// affecting the choice. An exact selection tie keeps the lowest candidate.
+    pub fn choose_bm25_weight_held_out(
+        &self,
+        search: &HybridSearch<'_>,
+        queries: &[(&str, &str)],
+        query_vectors: &[f32],
+        qrels: &Qrels,
+        weights: &[f64],
+    ) -> Result<HeldOutWeightChoice> {
+        let mut candidates: Vec<f64> = Vec::with_capacity(weights.len());
+        for &weight in weights {
+            self.with_bm25_weight(weight).fusion.check()?;
+            candidates.push(weight);
+        }
+        if candidates.is_empty() {
+            return Err("held-out weight choice needs at least one candidate weight".into());
+        }
+        candidates.sort_by(f64::total_cmp);
+        candidates.dedup();
+
+        let scored: Vec<&str> = qrels.scored_queries().collect();
+        if scored.len() < 2 {
+            return Err("held-out weight choice needs at least two scored queries".into());
+        }
+        let mut positions = BTreeMap::new();
+        for (i, &(id, _)) in queries.iter().enumerate() {
+            if positions.insert(id, i).is_some() {
+                return Err(format!("query {id} is ranked twice"));
+            }
+        }
+        for id in &scored {
+            if !positions.contains_key(id) {
+                return Err(format!("scored query {id} has no query vector"));
+            }
+        }
+        if search.dim == 0 {
+            return Err("hybrid search dim must be at least 1".into());
+        }
+        let want_vectors = queries
+            .len()
+            .checked_mul(search.dim)
+            .ok_or_else(|| format!("query count {} * dim {} overflows usize", queries.len(), search.dim))?;
+        if query_vectors.len() != want_vectors {
+            return Err(format!(
+                "{} vector values for {} queries of {} dimensions",
+                query_vectors.len(),
+                queries.len(),
+                search.dim
+            ));
+        }
+
+        let selection: BTreeSet<&str> = scored.iter().step_by(2).copied().collect();
+        let held_out: BTreeSet<&str> = scored.iter().skip(1).step_by(2).copied().collect();
+        let (selection_queries, selection_vectors) = query_subset(queries, query_vectors, search.dim, &selection);
+        let mut scored_candidates = Vec::with_capacity(candidates.len());
+        let mut best: Option<HeldOutCandidate> = None;
+        for bm25_weight in candidates {
+            let hybrid = self.with_bm25_weight(bm25_weight);
+            let (run, _) = hybrid.search(search, &selection_queries, &selection_vectors)?;
+            let scores = evaluate(&run, qrels)?;
+            let candidate = HeldOutCandidate { bm25_weight, selection_ndcg_at_10: mean_ndcg(&scores, &selection)? };
+            if best.is_none_or(|b| candidate.selection_ndcg_at_10 > b.selection_ndcg_at_10) {
+                best = Some(candidate);
+            }
+            scored_candidates.push(candidate);
+        }
+        let best = best.ok_or("held-out weight choice needs at least one candidate weight")?;
+
+        let (held_queries, held_vectors) = query_subset(queries, query_vectors, search.dim, &held_out);
+        let held_at = |weight: f64| -> Result<f64> {
+            let (run, _) = self.with_bm25_weight(weight).search(search, &held_queries, &held_vectors)?;
+            mean_ndcg(&evaluate(&run, qrels)?, &held_out)
+        };
+        Ok(HeldOutWeightChoice {
+            bm25_weight: best.bm25_weight,
+            selection_queries: selection.len(),
+            held_out_queries: held_out.len(),
+            selection_ndcg_at_10: best.selection_ndcg_at_10,
+            held_out_ndcg_at_10: held_at(best.bm25_weight)?,
+            held_out_dense_ndcg_at_10: held_at(0.0)?,
+            held_out_bm25_ndcg_at_10: held_at(1.0)?,
+            candidates: scored_candidates,
+        })
+    }
+
+    fn with_bm25_weight(&self, bm25_weight: f64) -> Self {
+        let fusion = match self.fusion {
+            Fusion::Rrf { k, .. } => Fusion::Rrf { k, bm25_weight },
+            Fusion::Weighted { .. } => Fusion::Weighted { bm25_weight },
+        };
+        Self { model: self.model, terms: self.terms, fusion }
     }
 
     /// Ranks every query (`queries[i] = (id, text)` with dense query vector
@@ -268,6 +395,38 @@ impl Hybrid {
             chunks.iter().map(|&c| ChunkHit { doc: id(s.doc[c]).clone(), span: s.span[c], score: fused[c] }).collect();
         Ok((Ranking { query: query.into(), hits }, ChunkRanking { query: query.into(), hits: chunk_hits }))
     }
+}
+
+fn query_subset<'a>(
+    queries: &[(&'a str, &'a str)],
+    query_vectors: &[f32],
+    dim: usize,
+    wanted: &BTreeSet<&str>,
+) -> (Vec<(&'a str, &'a str)>, Vec<f32>) {
+    let mut subset = Vec::with_capacity(wanted.len());
+    let mut vectors = Vec::with_capacity(wanted.len() * dim);
+    for (i, &(id, text)) in queries.iter().enumerate() {
+        if wanted.contains(id) {
+            subset.push((id, text));
+            vectors.extend_from_slice(&query_vectors[i * dim..(i + 1) * dim]);
+        }
+    }
+    (subset, vectors)
+}
+
+fn mean_ndcg(scores: &DocScores, wanted: &BTreeSet<&str>) -> Result<f64> {
+    let mut sum = 0.0;
+    let mut count = 0usize;
+    for score in &scores.per_query {
+        if wanted.contains(score.query.as_str()) {
+            sum += score.ndcg_at_10;
+            count += 1;
+        }
+    }
+    if count != wanted.len() {
+        return Err(format!("scores cover {count} of {} split queries", wanted.len()));
+    }
+    Ok(sum / count as f64)
 }
 
 #[cfg(test)]
