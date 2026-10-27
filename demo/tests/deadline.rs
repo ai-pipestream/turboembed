@@ -27,10 +27,13 @@ async fn slow_request_body_consumes_connect_deadline() {
             body.len()
         );
         conn.write_all(head.as_bytes()).await.unwrap();
-        tokio::time::sleep(Duration::from_millis(150)).await;
-        let _ = conn.write_all(&body).await;
+        // The answer comes once the deadline passes, the body still
+        // unsent. It is read before the late body is written: the demo has
+        // closed the connection, and on Windows the reset that write draws
+        // aborts the read (os error 10053) and loses the answer.
         let mut response = Vec::new();
         tokio::time::timeout(Duration::from_secs(3), conn.read_to_end(&mut response)).await.unwrap().unwrap();
+        let _ = conn.write_all(&body).await;
         let response = String::from_utf8_lossy(&response);
         let status = if protocol == common::STREAM { "HTTP/1.1 200" } else { "HTTP/1.1 504" };
         assert!(response.starts_with(status), "expired {protocol} deadline: {response:?}");

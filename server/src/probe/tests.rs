@@ -38,6 +38,9 @@ async fn nothing_listening_is_an_error_not_a_hang() {
     let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = l.local_addr().unwrap();
     drop(l);
-    let p = Probe { addr, service: String::new(), timeout: Duration::from_secs(2) };
+    // Windows retries a refused loopback connect for about two seconds
+    // before it fails, so a two second timeout raced the refusal. The
+    // refusal still comes long before this one; only a hang reaches it.
+    let p = Probe { addr, service: String::new(), timeout: Duration::from_secs(30) };
     assert!(check(&p).await.unwrap_err().starts_with(&format!("connect {addr}")));
 }
