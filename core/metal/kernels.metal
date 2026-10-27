@@ -417,9 +417,12 @@ kernel void gemm_h(device const XT *x [[buffer(0)]], device const half *w0 [[buf
 // gemm_h's 32 x 64 tile from 2 to 8 rows of 128 tokens, and 13.8% faster
 // at 1 x 128 (docs/metal.md, Kernel choices). With TM 4 the tile is
 // 64 x 32, each group 4 x 2 fragments, the shape MLX runs a half "nt"
-// product in on a small Apple GPU (h64n32). Same bindings, splits and
-// epilogue as gemm_h.
-template <typename XT, typename YT, uint TM>
+// product in on a small Apple GPU (h64n32). With AL the host has
+// checked that m, n and k are whole multiples of 32, so no row, column or
+// k step is out of range and the checks go: the same sums in the same
+// order, 6 to 7% faster on the M2 (docs/metal.md). Same bindings, splits
+// and epilogue as gemm_h.
+template <typename XT, typename YT, uint TM, bool AL>
 kernel void gemm_hn(device const XT *x [[buffer(0)]], device const half *w0 [[buffer(1)]],
                     device const half *w1 [[buffer(2)]], device const half *w2 [[buffer(3)]],
                     device const float *b0 [[buffer(4)]], device const float *b1 [[buffer(5)]],
@@ -440,14 +443,14 @@ kernel void gemm_hn(device const XT *x [[buffer(0)]], device const half *w0 [[bu
     // step: 128 threads cover 32 rows a pass, 4 groups of 8 along k.
     constexpr uint XP = TM / 2;
     const uint r = tid / 4, c = (tid % 4) * 8;
-    const bool win = n0 + r < n;
+    const bool win = AL || n0 + r < n;
     bool xin[XP];
     device const XT *xp[XP];
     _Pragma("clang loop unroll(full)")
     for (uint i = 0; i < XP; i++) {
         const uint row = m0 + r + 32 * i;
-        xin[i] = row < m;
-        xp[i] = x + ulong(min(row, m - 1)) * k + kbegin + c;
+        xin[i] = AL || row < m;
+        xp[i] = x + ulong(AL ? row : min(row, m - 1)) * k + kbegin + c;
     }
     device const half *wp = w + ulong(min(n0 + r, n - 1)) * k + kbegin + c;
     const Coord cd = lane_coord(lane);
@@ -465,7 +468,7 @@ kernel void gemm_hn(device const XT *x [[buffer(0)]], device const half *w0 [[bu
         threadgroup_barrier(mem_flags::mem_threadgroup);
         // k is a multiple of 8, so eight values lie wholly inside k or
         // wholly past it.
-        const bool kin = k0 + c < kend;
+        const bool kin = AL || k0 + c < kend;
         _Pragma("clang loop unroll(full)")
         for (uint i = 0; i < XP; i++) {
             eight(xs + (r + 32 * i) * HLD + c, xp[i], kin && xin[i]);
@@ -499,12 +502,12 @@ kernel void gemm_hn(device const XT *x [[buffer(0)]], device const half *w0 [[bu
     _Pragma("clang loop unroll(full)")
     for (uint i = 0; i < TM; i++) {
         const uint row = m0 + tm + i * 16 + cd.fm;
-        if (row >= m) continue;
+        if (!AL && row >= m) continue;
         device YT *yr = y + ulong(row) * n;
         _Pragma("clang loop unroll(full)")
         for (uint j = 0; j < 2; j++) {
             const uint col = n0 + tn + j * 16 + cd.fn;
-            if (col >= n) continue;
+            if (!AL && col >= n) continue;
             thread auto &e = acc[i][j].thread_elements();
             float v0 = e[0], v1 = e[1];
             if (p.epilogue >= 1) {
@@ -589,19 +592,23 @@ GEMM_H(half, float, 4, 4, "gemm_h128_hf")
 GEMM_H(half, half, 4, 2, "gemm_h64_hh")
 GEMM_H(half, half, 4, 4, "gemm_h128_hh")
 
-#define GEMM_HN(XT, YT, TM, name)                                                                                    \
-    template [[host_name(name)]] kernel void gemm_hn<XT, YT, TM>(                                                     \
+#define GEMM_HN(XT, YT, TM, AL, name)                                                                                    \
+    template [[host_name(name)]] kernel void gemm_hn<XT, YT, TM, AL>(                                                     \
         device const XT *, device const half *, device const half *, device const half *, device const float *,       \
         device const float *, device const float *, device YT *, device YT *, device YT *, constant GemmParams &,      \
         uint3, ushort, ushort, ushort);
-GEMM_HN(float, float, 2, "gemm_h32n32_ff")
-GEMM_HN(float, half, 2, "gemm_h32n32_fh")
-GEMM_HN(half, float, 2, "gemm_h32n32_hf")
-GEMM_HN(half, half, 2, "gemm_h32n32_hh")
-GEMM_HN(float, float, 4, "gemm_h64n32_ff")
-GEMM_HN(float, half, 4, "gemm_h64n32_fh")
-GEMM_HN(half, float, 4, "gemm_h64n32_hf")
-GEMM_HN(half, half, 4, "gemm_h64n32_hh")
+GEMM_HN(float, float, 2, false, "gemm_h32n32_ff")
+GEMM_HN(float, float, 2, true, "gemm_h32n32a_ff")
+GEMM_HN(float, half, 2, false, "gemm_h32n32_fh")
+GEMM_HN(float, half, 2, true, "gemm_h32n32a_fh")
+GEMM_HN(half, float, 2, false, "gemm_h32n32_hf")
+GEMM_HN(half, float, 2, true, "gemm_h32n32a_hf")
+GEMM_HN(half, half, 2, false, "gemm_h32n32_hh")
+GEMM_HN(half, half, 2, true, "gemm_h32n32a_hh")
+GEMM_HN(float, float, 4, false, "gemm_h64n32_ff")
+GEMM_HN(float, half, 4, false, "gemm_h64n32_fh")
+GEMM_HN(half, float, 4, false, "gemm_h64n32_hf")
+GEMM_HN(half, half, 4, false, "gemm_h64n32_hh")
 
 #define GEMM_SMALL_H(XT, YT, name)                                                                                   \
     template [[host_name(name)]] kernel void gemm_small_h<XT, YT>(                                                   \

@@ -101,6 +101,9 @@ let tiles = [
     Tile(name: "h128", bm: 128, bn: 64, threads: 256),
     Tile(name: "h32n32", bm: 32, bn: 32, threads: 128),
     Tile(name: "h64n32", bm: 64, bn: 32, threads: 128),
+    // h32n32 without range checks, which the backend runs when m, n and k
+    // are multiples of 32 (every shape here).
+    Tile(name: "h32n32a", bm: 32, bn: 32, threads: 128),
 ]
 // GEMM_TILES=<tile>[,<tile>...] times only those tiles, in that order, so
 // a driver can rotate which goes first.
