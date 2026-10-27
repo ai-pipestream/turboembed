@@ -23,6 +23,7 @@ fn device() -> Device {
         Ok(name) => Device::parse(&name).unwrap_or_else(|e| panic!("TURBO_TEST_DEVICE={name}: {}", e.message)),
         Err(_) if required("TURBO_TEST_REQUIRE_CUDA") => Device::Cuda(0),
         Err(_) if required("TURBO_TEST_REQUIRE_LEVELZERO") => Device::LevelZero(0),
+        Err(_) if required("TURBO_TEST_REQUIRE_METAL") => Device::Metal(0),
         Err(_) => Device::Cpu,
     }
 }
@@ -195,7 +196,11 @@ fn refusals_match_the_cpu() {
 #[test]
 fn a_device_not_built_in_is_refused() {
     let m = Model::new(3, 2, 1);
-    let absent = [(Device::Cuda(0), cfg!(feature = "cuda")), (Device::LevelZero(0), cfg!(feature = "levelzero"))];
+    let absent = [
+        (Device::Cuda(0), cfg!(feature = "cuda")),
+        (Device::LevelZero(0), cfg!(feature = "levelzero")),
+        (Device::Metal(0), cfg!(feature = "metal")),
+    ];
     for (device, _) in absent.into_iter().filter(|&(_, built)| !built) {
         let e = Lstm::new(device, 3, 2, &m.dirs()).err().expect("an LSTM on a device not built in");
         assert_eq!(e.code, turbo::status::UNSUPPORTED, "{device:?}");

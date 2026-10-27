@@ -7,12 +7,15 @@
 //! refusals; a device the library was built without, or one that is not
 //! there, is refused when the op is made, never answered on the CPU.
 //! CUDA's LSTM is core/cuda/lstm.cu; Level Zero's is in
-//! core/src/levelzero/lstm.rs, on kernels in core/levelzero/encoder.cl.
+//! core/src/levelzero/lstm.rs, on kernels in core/levelzero/encoder.cl;
+//! Metal's is in core/metal/backend.mm, on kernels in kernels.metal.
 
 #[cfg(feature = "cuda")]
 mod cuda_lstm;
 mod gpu;
 pub mod lstm;
+#[cfg(feature = "metal")]
+mod metal_lstm;
 
 use crate::status::{Error, INVALID_ARGUMENT, Result};
 
@@ -25,22 +28,27 @@ pub enum Device {
     Cuda(u32),
     /// An Intel GPU, by the levelzero backend's ordinal.
     LevelZero(u32),
+    /// An Apple GPU, by the metal backend's ordinal.
+    Metal(u32),
 }
 
 impl Device {
-    /// `cpu`, `cuda` or `levelzero` (ordinal 0), or `cuda:N` or
-    /// `levelzero:N`, as TURBO_TEST_DEVICE names a device.
+    /// `cpu`, `cuda`, `levelzero` or `metal` (ordinal 0), or `cuda:N`,
+    /// `levelzero:N` or `metal:N`, as TURBO_TEST_DEVICE names a device.
     pub fn parse(name: &str) -> Result<Device> {
         let bad = || {
-            let message = format!("device {name:?}: expected cpu, cuda, cuda:N, levelzero or levelzero:N");
+            let message =
+                format!("device {name:?}: expected cpu, cuda, cuda:N, levelzero, levelzero:N, metal or metal:N");
             Error::new(INVALID_ARGUMENT, message)
         };
         match name.split_once(':') {
             None if name == "cpu" => Ok(Device::Cpu),
             None if name == "cuda" => Ok(Device::Cuda(0)),
             None if name == "levelzero" => Ok(Device::LevelZero(0)),
+            None if name == "metal" => Ok(Device::Metal(0)),
             Some(("cuda", n)) => n.parse().map(Device::Cuda).map_err(|_| bad()),
             Some(("levelzero", n)) => n.parse().map(Device::LevelZero).map_err(|_| bad()),
+            Some(("metal", n)) => n.parse().map(Device::Metal).map_err(|_| bad()),
             _ => Err(bad()),
         }
     }
@@ -51,6 +59,7 @@ impl Device {
             Device::Cpu => "cpu",
             Device::Cuda(_) => "cuda",
             Device::LevelZero(_) => "levelzero",
+            Device::Metal(_) => "metal",
         }
     }
 }
@@ -66,6 +75,8 @@ mod tests {
         assert_eq!(Device::parse("cuda:3").unwrap(), Device::Cuda(3));
         assert_eq!(Device::parse("levelzero").unwrap(), Device::LevelZero(0));
         assert_eq!(Device::parse("levelzero:1").unwrap(), Device::LevelZero(1));
+        assert_eq!(Device::parse("metal").unwrap(), Device::Metal(0));
+        assert_eq!(Device::parse("metal:1").unwrap(), Device::Metal(1));
         for bad in ["", "gpu", "cuda:", "cuda:x", "cpu:0", "cuda:-1"] {
             assert!(Device::parse(bad).is_err(), "{bad:?} parsed");
         }

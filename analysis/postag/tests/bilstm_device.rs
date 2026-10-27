@@ -22,6 +22,7 @@ fn device() -> Option<Device> {
         Ok(name) => Device::parse(&name).unwrap_or_else(|e| panic!("TURBO_TEST_DEVICE={name}: {}", e.message)),
         Err(_) if std::env::var("TURBO_TEST_REQUIRE_CUDA").is_ok_and(|v| v == "1") => Device::Cuda(0),
         Err(_) if std::env::var("TURBO_TEST_REQUIRE_LEVELZERO").is_ok_and(|v| v == "1") => Device::LevelZero(0),
+        Err(_) if std::env::var("TURBO_TEST_REQUIRE_METAL").is_ok_and(|v| v == "1") => Device::Metal(0),
         Err(_) => return None,
     };
     (device != Device::Cpu).then_some(device)

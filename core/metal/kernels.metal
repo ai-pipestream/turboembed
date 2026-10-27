@@ -1201,6 +1201,84 @@ kernel void deberta_attention(device const float *q [[buffer(0)]], device const 
     }
 }
 
+// ---- LSTM (turbo::device::lstm, #860) -------------------------------------------
+//
+// The batched LSTM of core/src/device/lstm.rs on an Apple GPU, the CPU
+// form's (core/src/cpu/lstm.rs) rows and order, as core/cuda/lstm.cu
+// computes it: sequence s holds rows start[s]..start[s] + len[s], the
+// longest first, gates (i, f, g, o) each `hidden` wide, a reverse
+// direction reading each sequence from its last row. One kernel makes
+// every direction's input projections for every row (or a run reads them
+// from a table by row id); then each step is one dispatch over the
+// sequences still running, a prefix of the batch, and every direction: a
+// thread owns one (direction, sequence, unit), makes its four gates from
+// the projection and the recurrent product over the previous state, and
+// writes its cell, its state and its output row. A non-finite gate or
+// state records the least row it was found at.
+
+struct LstmProject {
+    uint m, n, k;
+};
+
+// out[r][c] = bias[c] + sum over i of a[r][i] w[c][i], a thread an
+// output, the sum in order.
+kernel void lstm_project(device const float *a [[buffer(0)]], device const float *w [[buffer(1)]],
+                         device const float *bias [[buffer(2)]], device float *out [[buffer(3)]],
+                         constant LstmProject &p [[buffer(4)]], uint2 at [[thread_position_in_grid]]) {
+    const uint c = at.x, r = at.y;
+    if (r >= p.m || c >= p.n) return;
+    device const float *ar = a + ulong(r) * p.k;
+    device const float *wc = w + ulong(c) * p.k;
+    float acc = 0.0f;
+    for (uint i = 0; i < p.k; i++) acc = fma(ar[i], wc[i], acc);
+    out[ulong(r) * p.n + c] = bias[c] + acc;
+}
+
+struct LstmStep {
+    uint batch, active, hidden, pw, width, t, indexed;
+};
+
+// The CPU form's sigmoid, either side of 0, so neither branch overflows.
+float lstm_sigmoid(float x) {
+    if (x >= 0.0f) return 1.0f / (1.0f + exp(-x));
+    const float e = exp(x);
+    return e / (1.0f + e);
+}
+
+// One step of every direction over the first `active` sequences: thread
+// (unit, sequence, direction).
+kernel void lstm_step(device const float *proj [[buffer(0)]], device const long *index [[buffer(1)]],
+                      device const float *u [[buffer(2)]], device const long *len [[buffer(3)]],
+                      device const long *start [[buffer(4)]], device const float *state_in [[buffer(5)]],
+                      device float *state_out [[buffer(6)]], device float *cell [[buffer(7)]],
+                      device float *out [[buffer(8)]], device atomic_uint *bad [[buffer(9)]],
+                      device const int *reverse [[buffer(10)]], constant LstmStep &p [[buffer(11)]],
+                      uint3 at [[thread_position_in_grid]]) {
+    const uint j = at.x, s = at.y, k = at.z, h = p.hidden;
+    if (s >= p.active || j >= h) return;
+    device const float *state = state_in + (ulong(k) * p.batch + s) * h;
+    device const float *uk = u + ulong(k) * 4 * h * h;
+    float acc[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    if (p.t > 0)
+        for (uint i = 0; i < h; i++) {
+            const float v = state[i];
+            for (uint q = 0; q < 4; q++) acc[q] = fma(v, uk[ulong(q * h + j) * h + i], acc[q]);
+        }
+    const long n = len[s];
+    const long row = start[s] + (reverse[k] ? n - 1 - long(p.t) : long(p.t));
+    const long src = p.indexed ? index[row] : row;
+    device const float *g = proj + src * p.pw + ulong(k) * 4 * h;
+    const float gi = g[j] + acc[0], gf = g[h + j] + acc[1], gg = g[2 * h + j] + acc[2], go = g[3 * h + j] + acc[3];
+    const ulong where = (ulong(k) * p.batch + s) * h + j;
+    const float c = lstm_sigmoid(gf) * cell[where] + lstm_sigmoid(gi) * precise::tanh(gg);
+    const float st = lstm_sigmoid(go) * precise::tanh(c);
+    const bool finite = isfinite(gi) && isfinite(gf) && isfinite(gg) && isfinite(go) && isfinite(st);
+    if (!finite) atomic_fetch_min_explicit(bad, uint(row), memory_order_relaxed);
+    cell[where] = c;
+    state_out[where] = st;
+    out[row * p.width + ulong(k) * h + j] = st;
+}
+
 // ---- Weights stored in F16 or BF16 -------------------------------------------
 
 kernel void widen_f16(device const half *src [[buffer(0)]], device float *dst [[buffer(1)]],
