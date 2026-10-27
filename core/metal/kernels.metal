@@ -420,7 +420,7 @@ kernel void gemm_h(device const XT *x [[buffer(0)]], device const half *w0 [[buf
 // product in on a small Apple GPU (h64n32). With AL the host has
 // checked that m, n and k are whole multiples of 32, so no row, column or
 // k step is out of range and the checks go: the same sums in the same
-// order, 6 to 7% faster on the M2 (docs/metal.md). Same bindings, splits
+// order, about 6% faster on the M2 (docs/metal.md). Same bindings, splits
 // and epilogue as gemm_h.
 template <typename XT, typename YT, uint TM, bool AL>
 kernel void gemm_hn(device const XT *x [[buffer(0)]], device const half *w0 [[buffer(1)]],
