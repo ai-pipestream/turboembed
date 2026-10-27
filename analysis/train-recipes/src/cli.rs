@@ -14,7 +14,7 @@ pub(crate) const USAGE: &str = "usage:
   turbo-train-recipes tatoeba-fineweb --export <dir> --web <dir> --references <dir> --out <dir>
       [--unrecorded-export] [--files <path> --ranges <path> --unrecorded-web]
   turbo-train-recipes static-embed --teacher <safetensors> --tokenizer <tokenizer.json> --recipes <dir>
-      [--sentences <path>]... [--parquet <path>] --out <dir> --commit <40-hex> [--steps <n>] [--init-only]";
+      [--sentences <path>]... [--parquet <path>] --out <dir> --commit <40-hex> [--steps <n>] [--lr <f>] [--init-only]";
 
 #[derive(Debug)]
 pub(crate) struct Args {
@@ -44,6 +44,7 @@ pub(crate) struct Args {
     pub(crate) parquet: Option<PathBuf>,
     pub(crate) commit: Option<String>,
     pub(crate) steps: Option<String>,
+    pub(crate) lr: Option<String>,
     pub(crate) init_only: bool,
     /// The model ids `--recipe` names, resolved by the command.
     pub(crate) recipe_ids: Vec<String>,
@@ -107,6 +108,7 @@ pub(crate) fn parse_from(mut it: impl Iterator<Item = String>) -> Result<Args, S
         parquet: None,
         commit: None,
         steps: None,
+        lr: None,
         init_only: false,
         recipe_ids: Vec::new(),
         given: Vec::new(),
@@ -144,6 +146,7 @@ pub(crate) fn parse_from(mut it: impl Iterator<Item = String>) -> Result<Args, S
             "--parquet" => set_once(&mut a.parquet, &flag, value()?.into())?,
             "--commit" => set_once(&mut a.commit, &flag, value()?)?,
             "--steps" => set_once(&mut a.steps, &flag, value()?)?,
+            "--lr" => set_once(&mut a.lr, &flag, value()?)?,
             "--init-only" => a.init_only = true,
             _ => return Err(format!("unknown argument {flag}\n{USAGE}")),
         }

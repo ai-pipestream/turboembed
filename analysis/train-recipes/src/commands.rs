@@ -103,6 +103,7 @@ pub(crate) fn static_embed_command(a: Args) -> Result<bool, String> {
             "--out",
             "--commit",
             "--steps",
+            "--lr",
             "--init-only",
         ],
     )?;
@@ -120,6 +121,9 @@ pub(crate) fn static_embed_command(a: Args) -> Result<bool, String> {
     let mut cfg = static_embed::Config::default();
     if let Some(s) = &a.steps {
         cfg.steps = s.parse().map_err(|_| format!("--steps {s} is not a number"))?;
+    }
+    if let Some(s) = &a.lr {
+        cfg.lr = s.parse().map_err(|_| format!("--lr {s} is not a number"))?;
     }
     let err = |e: turbo_train_recipes::error::Error| e.to_string();
     let bytes = std::fs::read(&teacher_path).map_err(|e| format!("{}: {e}", teacher_path.display()))?;
