@@ -7,7 +7,8 @@
 //! The CPU form is the reference: a device's states are held to it within
 //! a bound its tests name, not to its bits.
 
-use super::Device;
+use super::gpu::{self, Gpu};
+use super::{Device, Precision};
 use crate::cpu::lstm as cpu;
 use crate::status::{Error, INVALID_ARGUMENT, INVALID_SHAPE, Result};
 
@@ -16,10 +17,10 @@ pub use crate::cpu::lstm::Weights;
 /// Checked weights of one or more directions over one input, on a device.
 pub struct Lstm {
     device: Device,
+    precision: Precision,
     /// The CPU form, which checked the weights and runs on the CPU.
     cpu: cpu::Lstm,
-    #[cfg(feature = "cuda")]
-    cuda: Option<super::cuda_lstm::Lstm>,
+    gpu: Option<Gpu>,
 }
 
 /// Input projections made once per distinct row (a character table, say),
@@ -37,8 +38,7 @@ pub struct Table {
 
 enum TableInner {
     Cpu(Vec<f32>),
-    #[cfg(feature = "cuda")]
-    Cuda(super::cuda_lstm::Table),
+    Gpu(gpu::Table),
 }
 
 /// What a run computes in, kept across runs so that a run of the same or
@@ -46,16 +46,23 @@ enum TableInner {
 #[derive(Default)]
 pub struct Work {
     cpu: cpu::Work,
-    #[cfg(feature = "cuda")]
-    cuda: super::cuda_lstm::Work,
+    gpu: gpu::Work,
     lengths: Vec<i64>,
     index: Vec<i64>,
 }
 
-/// A device this library cannot run the op on.
-#[cfg(not(feature = "cuda"))]
-fn unsupported(device: Device) -> Error {
-    Error::new(crate::status::UNSUPPORTED, format!("lstm: device {device:?} is not built into this library"))
+/// The largest F16 value: a weight of greater magnitude has no F16 form.
+const F16_MAX: f32 = 65504.0;
+
+/// FASTEST's weights each have an F16 form: W and U (the biases stay F32).
+fn f16_range(dirs: &[Weights<'_>]) -> Result<()> {
+    for (i, d) in dirs.iter().enumerate() {
+        if let Some(v) = d.w.iter().chain(d.u).find(|v| v.abs() > F16_MAX) {
+            let message = format!("lstm direction {i}: a weight of {v} is past F16's range, so FASTEST cannot hold it");
+            return Err(Error::new(INVALID_ARGUMENT, message));
+        }
+    }
+    Ok(())
 }
 
 fn finite(v: &[f32]) -> bool {
@@ -68,33 +75,45 @@ impl Lstm {
     /// device the library was built without is refused with UNSUPPORTED,
     /// and one that is not there with DEVICE_NOT_FOUND.
     pub fn new(device: Device, input: usize, hidden: usize, dirs: &[Weights<'_>]) -> Result<Lstm> {
+        Self::new_at(device, Precision::Model, input, hidden, dirs)
+    }
+
+    /// [`new`](Self::new) at `precision`. FASTEST holds the input and
+    /// recurrent weights as F16 on the device, every sum, gate, cell and
+    /// state F32; a weight past F16's range (65504 in magnitude) would round
+    /// to infinity, so such a model is refused at FASTEST with
+    /// INVALID_ARGUMENT, checked on the host when it is made, and runs at
+    /// MODEL only if asked for MODEL. The CPU form has no F16 weights, so
+    /// FASTEST on the CPU is refused with UNSUPPORTED rather than run at
+    /// MODEL.
+    pub fn new_at(
+        device: Device,
+        precision: Precision,
+        input: usize,
+        hidden: usize,
+        dirs: &[Weights<'_>],
+    ) -> Result<Lstm> {
         let cpu = cpu::Lstm::new(input, hidden, dirs)?;
-        match device {
-            Device::Cpu => Ok(Lstm {
-                device,
-                cpu,
-                #[cfg(feature = "cuda")]
-                cuda: None,
-            }),
-            #[cfg(feature = "cuda")]
-            Device::Cuda(ordinal) => {
-                let (mut w, mut u, mut b) = (Vec::new(), Vec::new(), Vec::new());
-                for d in dirs {
-                    w.extend_from_slice(d.w);
-                    u.extend_from_slice(d.u);
-                    b.extend_from_slice(d.b);
-                }
-                let reverse: Vec<i32> = dirs.iter().map(|d| i32::from(d.reverse)).collect();
-                let cuda = super::cuda_lstm::Lstm::new(ordinal, input, hidden, &w, &u, &b, &reverse)?;
-                Ok(Lstm { device, cpu, cuda: Some(cuda) })
-            }
-            #[cfg(not(feature = "cuda"))]
-            Device::Cuda(_) => Err(unsupported(device)),
+        if precision == Precision::Fastest {
+            f16_range(dirs)?;
         }
+        if device == Device::Cpu {
+            if precision == Precision::Fastest {
+                let message = "lstm: the CPU form has no FASTEST (F16 weights)";
+                return Err(Error::new(crate::status::UNSUPPORTED, message));
+            }
+            return Ok(Lstm { device, precision, cpu, gpu: None });
+        }
+        let gpu = Gpu::new(device, precision, input, hidden, dirs)?;
+        Ok(Lstm { device, precision, cpu, gpu: Some(gpu) })
     }
 
     pub fn device(&self) -> Device {
         self.device
+    }
+
+    pub fn precision(&self) -> Precision {
+        self.precision
     }
 
     pub fn input(&self) -> usize {
@@ -127,19 +146,11 @@ impl Lstm {
             let message = format!("lstm: a table of {} values is not whole rows of {pw}", values.len());
             return Err(Error::new(INVALID_SHAPE, message));
         }
-        let inner = match self.device {
-            Device::Cpu => TableInner::Cpu(values.to_vec()),
-            #[cfg(feature = "cuda")]
-            Device::Cuda(_) => TableInner::Cuda(self.on_cuda().table(values)?),
-            #[cfg(not(feature = "cuda"))]
-            Device::Cuda(_) => unreachable!("an LSTM on a device not built in"),
+        let inner = match &self.gpu {
+            None => TableInner::Cpu(values.to_vec()),
+            Some(g) => TableInner::Gpu(g.table(values)?),
         };
         Ok(Table { device: self.device, values: values.len(), rows: values.len() / pw, finite: finite(values), inner })
-    }
-
-    #[cfg(feature = "cuda")]
-    fn on_cuda(&self) -> &super::cuda_lstm::Lstm {
-        self.cuda.as_ref().expect("an LSTM on CUDA holds its device weights")
     }
 
     /// [`cpu::Lstm::run`](crate::cpu::lstm::Lstm::run) on the device: the
@@ -214,7 +225,6 @@ impl Lstm {
     }
 
     /// A checked run on a GPU.
-    #[allow(unused_variables)]
     fn on_device(
         &self,
         x: Option<&[f32]>,
@@ -229,16 +239,12 @@ impl Lstm {
         }
         w.lengths.clear();
         w.lengths.extend(lengths.iter().map(|&n| n as i64));
-        #[cfg(feature = "cuda")]
-        {
-            let table = table.map(|(t, i)| match &t.inner {
-                TableInner::Cuda(t) => (t, i),
-                TableInner::Cpu(_) => unreachable!("a CPU table on a GPU run"),
-            });
-            self.on_cuda().run(x, table, &w.lengths, rows, out, &mut w.cuda)
-        }
-        #[cfg(not(feature = "cuda"))]
-        unreachable!("an LSTM on a device not built in")
+        let table = table.map(|(t, i)| match &t.inner {
+            TableInner::Gpu(t) => (t, i),
+            TableInner::Cpu(_) => unreachable!("a CPU table on a GPU run"),
+        });
+        let gpu = self.gpu.as_ref().expect("an LSTM on a GPU holds its weights there");
+        gpu.run(x, table, &w.lengths, rows, out, &mut w.gpu)
     }
 }
 
@@ -246,8 +252,7 @@ impl Table {
     fn on_cpu(&self) -> Option<&[f32]> {
         match &self.inner {
             TableInner::Cpu(t) => Some(t),
-            #[cfg(feature = "cuda")]
-            TableInner::Cuda(_) => None,
+            TableInner::Gpu(_) => None,
         }
     }
 

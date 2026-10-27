@@ -77,6 +77,9 @@ cudaError_t deberta_plan(int head_dim, int batch_cap, int seq_cap, int heads, in
  * one: past the log buckets' midpoint a distance may skip a row), and the
  * rows it stages; false for a width with no tiled kernel. */
 bool deberta_tiled_rows(int head_dim, int seq_cap, const int32_t *buckets, int *reach, int *room);
+/* The shared memory the tiled kernel at head_dim takes, 0 for a width with
+ * none. */
+size_t deberta_tiled_smem(int head_dim);
 cudaError_t deberta_attention(cudaStream_t s, const DebertaArgs &a, const DebertaPlan &plan);
 
 /* HF make_log_bucket_position plus the table's offset, as

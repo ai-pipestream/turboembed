@@ -415,9 +415,14 @@ kernel void gemm_h(device const XT *x [[buffer(0)]], device const half *w0 [[buf
 // tile staged as it lies, [32][HBK], 16 bytes at a time, so no stage
 // transposes. On the M2 a whole run with it is 7 to 9% faster than with
 // gemm_h's 32 x 64 tile from 2 to 8 rows of 128 tokens, and 13.8% faster
-// at 1 x 128 (docs/metal.md, Kernel choices). Same bindings, splits and
-// epilogue as gemm_h.
-template <typename XT, typename YT>
+// at 1 x 128 (docs/metal.md, Kernel choices). With TM 4 the tile is
+// 64 x 32, each group 4 x 2 fragments, the shape MLX runs a half "nt"
+// product in on a small Apple GPU (h64n32). With AL the host has
+// checked that m, n and k are whole multiples of 32, so no row, column or
+// k step is out of range and the checks go: the same sums in the same
+// order, about 6% faster on the M2 (docs/metal.md). Same bindings, splits
+// and epilogue as gemm_h.
+template <typename XT, typename YT, uint TM, bool AL>
 kernel void gemm_hn(device const XT *x [[buffer(0)]], device const half *w0 [[buffer(1)]],
                     device const half *w1 [[buffer(2)]], device const half *w2 [[buffer(3)]],
                     device const float *b0 [[buffer(4)]], device const float *b1 [[buffer(5)]],
@@ -425,19 +430,28 @@ kernel void gemm_hn(device const XT *x [[buffer(0)]], device const half *w0 [[bu
                     device YT *y2 [[buffer(9)]], constant GemmParams &p [[buffer(10)]],
                     uint3 tg [[threadgroup_position_in_grid]], ushort tid [[thread_index_in_threadgroup]],
                     ushort sg [[simdgroup_index_in_threadgroup]], ushort lane [[thread_index_in_simdgroup]]) {
-    threadgroup half xs[32 * HLD];
+    constexpr uint BM = 16 * TM;
+    threadgroup half xs[BM * HLD];
     threadgroup half ws[32 * HLD];
     const uint layer = tg.z / p.splits, split = tg.z % p.splits;
     device const half *w = layer == 0 ? w0 : layer == 1 ? w1 : w2;
     device const float *bias = layer == 0 ? b0 : layer == 1 ? b1 : b2;
     device YT *y = (layer == 0 ? y0 : layer == 1 ? y1 : y2) + ulong(split) * p.m * p.n;
-    const uint m0 = tg.y * 32, n0 = tg.x * 32, k = p.k, n = p.n, m = p.m;
+    const uint m0 = tg.y * BM, n0 = tg.x * 32, k = p.k, n = p.n, m = p.m;
     const uint kbegin = split * p.kchunk, kend = min(k, kbegin + p.kchunk);
-    // Each thread stages eight values of one row of x and one of w per
-    // step: 128 threads cover the 32 rows of each, 4 groups of 8 along k.
+    // Each thread stages eight values of TM / 2 rows of x and one of w per
+    // step: 128 threads cover 32 rows a pass, 4 groups of 8 along k.
+    constexpr uint XP = TM / 2;
     const uint r = tid / 4, c = (tid % 4) * 8;
-    const bool xin = m0 + r < m, win = n0 + r < n;
-    device const XT *xp = x + ulong(min(m0 + r, m - 1)) * k + kbegin + c;
+    const bool win = AL || n0 + r < n;
+    bool xin[XP];
+    device const XT *xp[XP];
+    _Pragma("clang loop unroll(full)")
+    for (uint i = 0; i < XP; i++) {
+        const uint row = m0 + r + 32 * i;
+        xin[i] = AL || row < m;
+        xp[i] = x + ulong(AL ? row : min(row, m - 1)) * k + kbegin + c;
+    }
     device const half *wp = w + ulong(min(n0 + r, n - 1)) * k + kbegin + c;
     const Coord cd = lane_coord(lane);
     const uint tm = 8 * (sg / 2), tn = 8 * (sg % 2);
@@ -445,26 +459,29 @@ kernel void gemm_hn(device const XT *x [[buffer(0)]], device const half *w0 [[bu
     // fn and fn + 1; of w, k fm at columns tn + 16j + fn and fn + 1.
     threadgroup const half *ap = xs + (tm + cd.fm) * HLD + cd.fn;
     threadgroup const half *bp = ws + (tn + cd.fn) * HLD + cd.fm;
-    simdgroup_float8x8 acc[2][2];
+    simdgroup_float8x8 acc[TM][2];
     _Pragma("clang loop unroll(full)")
-    for (uint i = 0; i < 2; i++)
+    for (uint i = 0; i < TM; i++)
         _Pragma("clang loop unroll(full)")
         for (uint j = 0; j < 2; j++) acc[i][j] = make_filled_simdgroup_matrix<float, 8, 8>(0.0f);
     for (uint k0 = kbegin; k0 < kend; k0 += HBK) {
         threadgroup_barrier(mem_flags::mem_threadgroup);
         // k is a multiple of 8, so eight values lie wholly inside k or
         // wholly past it.
-        const bool kin = k0 + c < kend;
-        eight(xs + r * HLD + c, xp, kin && xin);
+        const bool kin = AL || k0 + c < kend;
+        _Pragma("clang loop unroll(full)")
+        for (uint i = 0; i < XP; i++) {
+            eight(xs + (r + 32 * i) * HLD + c, xp[i], kin && xin[i]);
+            xp[i] += HBK;
+        }
         *(threadgroup float4 *)(ws + r * HLD + c) = kin && win ? float4(*(device const packed_float4 *)wp) : float4(0.0f);
-        xp += HBK;
         wp += HBK;
         threadgroup_barrier(mem_flags::mem_threadgroup);
         _Pragma("clang loop unroll(full)")
         for (uint kk = 0; kk < HBK; kk += 8) {
-            simdgroup_float8x8 a[2], b[2];
+            simdgroup_float8x8 a[TM], b[2];
             _Pragma("clang loop unroll(full)")
-            for (uint i = 0; i < 2; i++) {
+            for (uint i = 0; i < TM; i++) {
                 thread auto &e = a[i].thread_elements();
                 e[0] = float(ap[i * 16 * HLD + kk]);
                 e[1] = float(ap[i * 16 * HLD + kk + 1]);
@@ -476,21 +493,21 @@ kernel void gemm_hn(device const XT *x [[buffer(0)]], device const half *w0 [[bu
                 e[1] = float(bp[j * 16 * HLD + HLD + kk]);
             }
             _Pragma("clang loop unroll(full)")
-            for (uint i = 0; i < 2; i++)
+            for (uint i = 0; i < TM; i++)
                 _Pragma("clang loop unroll(full)")
                 for (uint j = 0; j < 2; j++) simdgroup_multiply_accumulate(acc[i][j], a[i], b[j], acc[i][j]);
         }
     }
 
     _Pragma("clang loop unroll(full)")
-    for (uint i = 0; i < 2; i++) {
+    for (uint i = 0; i < TM; i++) {
         const uint row = m0 + tm + i * 16 + cd.fm;
-        if (row >= m) continue;
+        if (!AL && row >= m) continue;
         device YT *yr = y + ulong(row) * n;
         _Pragma("clang loop unroll(full)")
         for (uint j = 0; j < 2; j++) {
             const uint col = n0 + tn + j * 16 + cd.fn;
-            if (col >= n) continue;
+            if (!AL && col >= n) continue;
             thread auto &e = acc[i][j].thread_elements();
             float v0 = e[0], v1 = e[1];
             if (p.epilogue >= 1) {
@@ -575,15 +592,23 @@ GEMM_H(half, float, 4, 4, "gemm_h128_hf")
 GEMM_H(half, half, 4, 2, "gemm_h64_hh")
 GEMM_H(half, half, 4, 4, "gemm_h128_hh")
 
-#define GEMM_HN(XT, YT, name)                                                                                        \
-    template [[host_name(name)]] kernel void gemm_hn<XT, YT>(                                                         \
+#define GEMM_HN(XT, YT, TM, AL, name)                                                                                    \
+    template [[host_name(name)]] kernel void gemm_hn<XT, YT, TM, AL>(                                                     \
         device const XT *, device const half *, device const half *, device const half *, device const float *,       \
         device const float *, device const float *, device YT *, device YT *, device YT *, constant GemmParams &,      \
         uint3, ushort, ushort, ushort);
-GEMM_HN(float, float, "gemm_h32n32_ff")
-GEMM_HN(float, half, "gemm_h32n32_fh")
-GEMM_HN(half, float, "gemm_h32n32_hf")
-GEMM_HN(half, half, "gemm_h32n32_hh")
+GEMM_HN(float, float, 2, false, "gemm_h32n32_ff")
+GEMM_HN(float, float, 2, true, "gemm_h32n32a_ff")
+GEMM_HN(float, half, 2, false, "gemm_h32n32_fh")
+GEMM_HN(float, half, 2, true, "gemm_h32n32a_fh")
+GEMM_HN(half, float, 2, false, "gemm_h32n32_hf")
+GEMM_HN(half, float, 2, true, "gemm_h32n32a_hf")
+GEMM_HN(half, half, 2, false, "gemm_h32n32_hh")
+GEMM_HN(half, half, 2, true, "gemm_h32n32a_hh")
+GEMM_HN(float, float, 4, false, "gemm_h64n32_ff")
+GEMM_HN(float, half, 4, false, "gemm_h64n32_fh")
+GEMM_HN(half, float, 4, false, "gemm_h64n32_hf")
+GEMM_HN(half, half, 4, false, "gemm_h64n32_hh")
 
 #define GEMM_SMALL_H(XT, YT, name)                                                                                   \
     template [[host_name(name)]] kernel void gemm_small_h<XT, YT>(                                                   \
@@ -611,6 +636,9 @@ struct AttentionParams {
     uint hidden;
     uint head_dim;
     float scale;
+    // attention_narrow's floats of scores per SIMD group: the run's
+    // longest row, rounded up to 8.
+    uint narrow_stride;
 };
 
 constant uint KC = 32;       // keys per chunk
@@ -940,19 +968,23 @@ ATTENTION_H(false, 128, "attention_h128")
 ATTENTION_H(true, 128, "attention_hr128")
 
 // The same, for a head width that is not a multiple of 8 or over 64: each
-// query of the 32 in turn, in one SIMD group, its scores one key per lane.
+// of the threadgroup's SIMD groups takes every groups-th query of the 32,
+// its scores one key per lane in its own narrow_stride floats. A query's
+// arithmetic is the same whatever the group count, so its bits are too.
 kernel void attention_narrow(device const float *q [[buffer(0)]], device const float *k [[buffer(1)]],
                              device const float *v [[buffer(2)]], device const int *mask [[buffer(3)]],
                              device const uint2 *rows [[buffer(4)]], device const uint2 *blocks [[buffer(5)]],
                              device float *ctx [[buffer(6)]], constant AttentionParams &p [[buffer(7)]],
-                             threadgroup float *sc [[threadgroup(0)]], uint2 tg [[threadgroup_position_in_grid]],
-                             ushort lane [[thread_index_in_simdgroup]]) {
+                             threadgroup float *scores [[threadgroup(0)]], uint2 tg [[threadgroup_position_in_grid]],
+                             ushort sg [[simdgroup_index_in_threadgroup]],
+                             ushort groups [[simdgroups_per_threadgroup]], ushort lane [[thread_index_in_simdgroup]]) {
+    threadgroup float *sc = scores + sg * p.narrow_stride;
     const uint2 blk = blocks[tg.x];
     const uint2 row = rows[blk.x];
     const uint p0 = row.x, len = row.y;
     const uint h = p.hidden, hd = p.head_dim, col = tg.y * hd;
     device const int *m = mask + p0;
-    for (uint i = blk.y * 32; i < min(len, blk.y * 32 + 32); i++) {
+    for (uint i = blk.y * 32 + sg; i < min(len, blk.y * 32 + 32); i += groups) {
         device const float *qi = q + ulong(p0 + i) * h + col;
         float mx = -INFINITY;
         for (uint j = lane; j < len; j += 32) {
@@ -1063,6 +1095,213 @@ kernel void pool_ranges(device const float *x [[buffer(0)]], device const int *m
     if (p.l2 == 0) return;
     const float inv = 1.0f / max(sqrt(simd_sum(ss)), 1e-12f);
     for (uint d = lane; d < p.output_dim; d += 32) dst[d] *= inv;
+}
+
+// ---- DeBERTa-v2 ---------------------------------------------------------------
+//
+// The parts of a DeBERTa-v2 encoder (TURBO_FAMILY_DEBERTA_V2) that differ
+// from BERT's, held to the CPU encoder (core/src/deberta), the reference;
+// the linear layers, the LayerNorms after them and the pooling are BERT's,
+// in F32. The relative table is LayerNormed once a model, then put through
+// each layer's query and key projections (shared keys): rows of
+// [2 * hidden], the query part, then the key part. A session holds the
+// bucket of every distance its rows can span, buckets[i - j + span].
+
+// x[t] = LayerNorm(word[ids[t]]) where the token is live, else 0: no
+// position or type rows.
+kernel void deberta_embed(device const int *ids [[buffer(0)]], device const int *mask [[buffer(1)]],
+                          device const float *word [[buffer(2)]], device const float *ln_w [[buffer(3)]],
+                          device const float *ln_b [[buffer(4)]], device float *x [[buffer(5)]],
+                          constant RowParams &p [[buffer(6)]], device half *xh [[buffer(7)]],
+                          uint tg [[threadgroup_position_in_grid]], ushort sg [[simdgroup_index_in_threadgroup]],
+                          ushort lane [[thread_index_in_simdgroup]]) {
+    const uint t = tg * 4 + sg, h = p.hidden;
+    device float *row = x + ulong(t) * h;
+    if (mask[t] == 0) {
+        for (uint d = lane; d < h; d += 32) row[d] = 0.0f;
+        return;
+    }
+    device const float *w = word + ulong(ids[t]) * h;
+    for (uint d = lane; d < h; d += 32) row[d] = w[d];
+    layer_norm_row(row, h, ln_w, ln_b, p.eps, lane, xh + ulong(t) * h, 0);
+}
+
+// Each of the grid's rows of x, hidden wide, LayerNormed in place, one
+// SIMD group a row.
+kernel void deberta_layer_norm_rows(device float *x [[buffer(0)]], device const float *ln_w [[buffer(1)]],
+                                    device const float *ln_b [[buffer(2)]], constant RowParams &p [[buffer(3)]],
+                                    device half *unused [[buffer(4)]], uint tg [[threadgroup_position_in_grid]],
+                                    ushort lane [[thread_index_in_simdgroup]]) {
+    layer_norm_row(x + ulong(tg) * p.hidden, p.hidden, ln_w, ln_b, p.eps, lane, unused, 0);
+}
+
+struct RelativeParams {
+    uint rows, hidden;
+};
+
+// out[r, part * hidden + o] = bias[o] + sum_i x[r, i] w[o, i], for part 0
+// (the query projection, w0 and b0) and 1 (the key projection, w1 and
+// b1): a thread an output, the sum in the CPU's order.
+kernel void deberta_relative(device const float *x [[buffer(0)]], device const float *w0 [[buffer(1)]],
+                             device const float *b0 [[buffer(2)]], device const float *w1 [[buffer(3)]],
+                             device const float *b1 [[buffer(4)]], device float *out [[buffer(5)]],
+                             constant RelativeParams &p [[buffer(6)]], uint e [[thread_position_in_grid]]) {
+    const uint h = p.hidden;
+    if (e >= p.rows * 2 * h) return;
+    const uint r = e / (2 * h), c = e % (2 * h), part = c / h, o = c % h;
+    device const float *w = (part == 0 ? w0 : w1) + ulong(o) * h;
+    device const float *xr = x + ulong(r) * h;
+    float s = 0.0f;
+    for (uint i = 0; i < h; i++) s = fma(xr[i], w[i], s);
+    out[e] = s + (part == 0 ? b0 : b1)[o];
+}
+
+struct DebertaParams {
+    uint hidden, head_dim;
+    float scale;       // 1 / sqrt(3 head_dim)
+    uint span;         // max_seq - 1: buckets[i - j + span]
+    uint stride;       // floats of scores a SIMD group holds: the longest row, rounded up to 8
+};
+
+// Disentangled attention, a threadgroup per block of 32 queries of a row
+// and head, each SIMD group taking every groups-th query with its own
+// scores, a key a lane. A live query's score of a live key is
+// (q_i . k_j + q_i . pos_key[b] + k_j . pos_query[b]) / sqrt(3 d), b the
+// bucket of i - j, over live keys alone; a masked query attends evenly to
+// every position of its row, as upstream's mask leaves it.
+kernel void deberta_attention(device const float *q [[buffer(0)]], device const float *k [[buffer(1)]],
+                              device const float *v [[buffer(2)]], device const int *mask [[buffer(3)]],
+                              device const uint2 *rows [[buffer(4)]], device const uint2 *blocks [[buffer(5)]],
+                              device float *ctx [[buffer(6)]], constant DebertaParams &p [[buffer(7)]],
+                              device const float *pos [[buffer(8)]], device const int *buckets [[buffer(9)]],
+                              threadgroup float *scores [[threadgroup(0)]], uint2 tg [[threadgroup_position_in_grid]],
+                              ushort sg [[simdgroup_index_in_threadgroup]],
+                              ushort groups [[simdgroups_per_threadgroup]], ushort lane [[thread_index_in_simdgroup]]) {
+    threadgroup float *sc = scores + sg * p.stride;
+    const uint2 blk = blocks[tg.x];
+    const uint2 row = rows[blk.x];
+    const uint p0 = row.x, len = row.y;
+    const uint h = p.hidden, hd = p.head_dim, col = tg.y * hd;
+    device const int *m = mask + p0;
+    device const float *pq = pos + col, *pk = pos + h + col;
+    for (uint i = blk.y * 32 + sg; i < min(len, blk.y * 32 + 32); i += groups) {
+        device const float *qi = q + ulong(p0 + i) * h + col;
+        const bool live = m[i] != 0;
+        float mx = -INFINITY;
+        for (uint j = lane; j < len; j += 32) {
+            if (!live) {
+                sc[j] = 0.0f;
+                mx = 0.0f;
+                continue;
+            }
+            if (m[j] == 0) continue;
+            device const float *kj = k + ulong(p0 + j) * h + col;
+            const ulong r = ulong(buckets[i - j + p.span]) * 2 * h;
+            float c2c = 0.0f, c2p = 0.0f, p2c = 0.0f;
+            for (uint d = 0; d < hd; d++) {
+                c2c = fma(qi[d], kj[d], c2c);
+                c2p = fma(qi[d], pk[r + d], c2p);
+                p2c = fma(kj[d], pq[r + d], p2c);
+            }
+            sc[j] = (c2c + c2p + p2c) * p.scale;
+            mx = max(mx, sc[j]);
+        }
+        mx = simd_max(mx);
+        float sum = 0.0f;
+        for (uint j = lane; j < len; j += 32) {
+            const float e = !live || m[j] != 0 ? exp(sc[j] - mx) : 0.0f;
+            sc[j] = e;
+            sum += e;
+        }
+        const float inv = 1.0f / simd_sum(sum);
+        simdgroup_barrier(mem_flags::mem_threadgroup);
+        device float *out = ctx + ulong(p0 + i) * h + col;
+        for (uint d = lane; d < hd; d += 32) {
+            float c = 0.0f;
+            for (uint j = 0; j < len; j++)
+                if (!live || m[j] != 0) c = fma(sc[j] * inv, v[ulong(p0 + j) * h + col + d], c);
+            out[d] = c;
+        }
+        simdgroup_barrier(mem_flags::mem_threadgroup);
+    }
+}
+
+// ---- LSTM (turbo::device::lstm, #860) -------------------------------------------
+//
+// The batched LSTM of core/src/device/lstm.rs on an Apple GPU, the CPU
+// form's (core/src/cpu/lstm.rs) rows and order, as core/cuda/lstm.cu
+// computes it: sequence s holds rows start[s]..start[s] + len[s], the
+// longest first, gates (i, f, g, o) each `hidden` wide, a reverse
+// direction reading each sequence from its last row. One kernel makes
+// every direction's input projections for every row (or a run reads them
+// from a table by row id); then each step is one dispatch over the
+// sequences still running, a prefix of the batch, and every direction: a
+// thread owns one (direction, sequence, unit), makes its four gates from
+// the projection and the recurrent product over the previous state, and
+// writes its cell, its state and its output row. A non-finite gate or
+// state records the least row it was found at.
+
+struct LstmProject {
+    uint m, n, k;
+};
+
+// out[r][c] = bias[c] + sum over i of a[r][i] w[c][i], a thread an
+// output, the sum in order.
+kernel void lstm_project(device const float *a [[buffer(0)]], device const float *w [[buffer(1)]],
+                         device const float *bias [[buffer(2)]], device float *out [[buffer(3)]],
+                         constant LstmProject &p [[buffer(4)]], uint2 at [[thread_position_in_grid]]) {
+    const uint c = at.x, r = at.y;
+    if (r >= p.m || c >= p.n) return;
+    device const float *ar = a + ulong(r) * p.k;
+    device const float *wc = w + ulong(c) * p.k;
+    float acc = 0.0f;
+    for (uint i = 0; i < p.k; i++) acc = fma(ar[i], wc[i], acc);
+    out[ulong(r) * p.n + c] = bias[c] + acc;
+}
+
+struct LstmStep {
+    uint batch, active, hidden, pw, width, t, indexed;
+};
+
+// The CPU form's sigmoid, either side of 0, so neither branch overflows.
+float lstm_sigmoid(float x) {
+    if (x >= 0.0f) return 1.0f / (1.0f + exp(-x));
+    const float e = exp(x);
+    return e / (1.0f + e);
+}
+
+// One step of every direction over the first `active` sequences: thread
+// (unit, sequence, direction).
+kernel void lstm_step(device const float *proj [[buffer(0)]], device const long *index [[buffer(1)]],
+                      device const float *u [[buffer(2)]], device const long *len [[buffer(3)]],
+                      device const long *start [[buffer(4)]], device const float *state_in [[buffer(5)]],
+                      device float *state_out [[buffer(6)]], device float *cell [[buffer(7)]],
+                      device float *out [[buffer(8)]], device atomic_uint *bad [[buffer(9)]],
+                      device const int *reverse [[buffer(10)]], constant LstmStep &p [[buffer(11)]],
+                      uint3 at [[thread_position_in_grid]]) {
+    const uint j = at.x, s = at.y, k = at.z, h = p.hidden;
+    if (s >= p.active || j >= h) return;
+    device const float *state = state_in + (ulong(k) * p.batch + s) * h;
+    device const float *uk = u + ulong(k) * 4 * h * h;
+    float acc[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    if (p.t > 0)
+        for (uint i = 0; i < h; i++) {
+            const float v = state[i];
+            for (uint q = 0; q < 4; q++) acc[q] = fma(v, uk[ulong(q * h + j) * h + i], acc[q]);
+        }
+    const long n = len[s];
+    const long row = start[s] + (reverse[k] ? n - 1 - long(p.t) : long(p.t));
+    const long src = p.indexed ? index[row] : row;
+    device const float *g = proj + src * p.pw + ulong(k) * 4 * h;
+    const float gi = g[j] + acc[0], gf = g[h + j] + acc[1], gg = g[2 * h + j] + acc[2], go = g[3 * h + j] + acc[3];
+    const ulong where = (ulong(k) * p.batch + s) * h + j;
+    const float c = lstm_sigmoid(gf) * cell[where] + lstm_sigmoid(gi) * precise::tanh(gg);
+    const float st = lstm_sigmoid(go) * precise::tanh(c);
+    const bool finite = isfinite(gi) && isfinite(gf) && isfinite(gg) && isfinite(go) && isfinite(st);
+    if (!finite) atomic_fetch_min_explicit(bad, uint(row), memory_order_relaxed);
+    cell[where] = c;
+    state_out[where] = st;
+    out[row * p.width + ulong(k) * h + j] = st;
 }
 
 // ---- Weights stored in F16 or BF16 -------------------------------------------

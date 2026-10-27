@@ -7,7 +7,7 @@
 
 use std::collections::BTreeSet;
 
-use turbo_zoo::{Component, Format, Index, Kind, Licence, LicenceClass, Policy, verify};
+use turbo_zoo::{Component, Format, Http, Index, Kind, Licence, LicenceClass, Policy, verify};
 
 #[path = "builtin/checkpoints.rs"]
 mod checkpoints;
@@ -194,7 +194,8 @@ const RETRIEVAL_CHECKPOINTS: [&str; 2] = ["opensearch-neural-sparse-encoding-v1"
 /// The permissive training datasets in the built-in index (#945): MASC,
 /// the four settled CC BY 4.0 UD 2.16 treebanks, the Tatoeba export,
 /// Civil Comments, and GoEmotions (filtered split and raw annotations).
-const DATASETS: [&str; 9] = [
+const DATASETS: [&str; 10] = [
+    "csc-conversational-sarcasm-2024",
     "masc-3.0.0",
     "ud-spanish-ancora-r2.16",
     "ud-catalan-ancora-r2.16",
@@ -346,7 +347,8 @@ fn every_builtin_artifact_fetches_and_verifies() {
     acc.accept(&user, Licence::CcBySa30, 0).unwrap();
     let index = Index::builtin();
     let ids: Vec<String> = index.list().iter().map(|a| a.id.to_string()).collect();
-    let zoo = turbo_zoo::Zoo::new(index, cache.clone(), Policy::default(), &turbo_zoo::Http);
+    let transport = Http::new();
+    let zoo = turbo_zoo::Zoo::new(index, cache.clone(), Policy::default(), &transport);
     for id in &ids {
         let f = zoo.fetch(id, &user, &acc).unwrap();
         assert_eq!(f.files.len(), f.artifact.files.len(), "{id}");

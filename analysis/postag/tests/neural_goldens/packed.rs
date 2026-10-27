@@ -16,12 +16,16 @@ use crate::golden::*;
 pub(crate) const PACKED_TOLERANCE: f64 = 1e-5;
 
 /// The GPU the packed numerics are checked on as well: TURBO_TEST_DEVICE
-/// (cuda or cuda:N), else cuda with TURBO_TEST_REQUIRE_CUDA=1. A device
+/// (cuda, levelzero, metal, or any with :N), else cuda with
+/// TURBO_TEST_REQUIRE_CUDA=1, levelzero with TURBO_TEST_REQUIRE_LEVELZERO=1
+/// or metal with TURBO_TEST_REQUIRE_METAL=1. A device
 /// the tagger cannot be made on fails the test; it is never skipped.
 pub(crate) fn test_device() -> Option<Device> {
     let device = match std::env::var("TURBO_TEST_DEVICE") {
         Ok(name) => Device::parse(&name).unwrap_or_else(|e| panic!("TURBO_TEST_DEVICE={name}: {}", e.message)),
         Err(_) if std::env::var("TURBO_TEST_REQUIRE_CUDA").is_ok_and(|v| v == "1") => Device::Cuda(0),
+        Err(_) if std::env::var("TURBO_TEST_REQUIRE_LEVELZERO").is_ok_and(|v| v == "1") => Device::LevelZero(0),
+        Err(_) if std::env::var("TURBO_TEST_REQUIRE_METAL").is_ok_and(|v| v == "1") => Device::Metal(0),
         Err(_) => return None,
     };
     (device != Device::Cpu).then_some(device)
@@ -43,7 +47,27 @@ pub(crate) fn check_packed(what: &str, g: &Golden, model: &BilstmPosModel, total
         let what = format!("{what} on {device:?}");
         let (t, e, p) = (&mut totals.device_tags, &mut totals.device_emissions, &mut totals.device_probabilities);
         compare(&what, g, model, &on, t, e, p);
+        // FASTEST runs on CUDA alone; Level Zero refuses it.
+        if let Device::Cuda(_) = device {
+            fastest(&what, g, model, device, totals);
+        }
     }
+}
+
+/// The tagger at FASTEST (F16 weights) on `device`: no bits are claimed,
+/// so its tags are counted against the JVM's, and the test asks for at
+/// least 99.9% of them over every golden (main.rs).
+fn fastest(what: &str, g: &Golden, model: &BilstmPosModel, device: Device, totals: &mut Totals) {
+    let fast = BilstmPosTagger::on_device_at(model.clone(), device, turbo::device::Precision::Fastest)
+        .unwrap_or_else(|e| panic!("{what}: the tagger at FASTEST: {e}"));
+    let sentences = sentences(g);
+    let tagged = layer(g, "turbo:neural-tagged");
+    let jvm_tags = strs(tagged, "tag");
+    let batch = fast.best_sequences(&sentences).unwrap_or_else(|e| panic!("{what}: FASTEST batch: {e}"));
+    let flat: Vec<&String> = batch.iter().flat_map(|s| s.outcomes()).collect();
+    assert_eq!(flat.len(), jvm_tags.len(), "{what}: FASTEST tags");
+    totals.fastest_tags += flat.len();
+    totals.fastest_equal += flat.iter().zip(&jvm_tags).filter(|(a, b)| **a == *b).count();
 }
 
 fn compare(

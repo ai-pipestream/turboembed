@@ -1,7 +1,7 @@
 //! Domain-specific scoring methods on [`super::ClassifierHead`] for
 //! [`Incivility`] (`turbo:incivility`) and [`Pragmatics`] (`turbo:pragmatics`).
 
-use turbo_analysis::{Error, Ix, Layer, Tag};
+use turbo_analysis::{Error, Ix, Layer, ModelRef, Tag};
 use turbo_analysis_layers::{
     Chunks, Incivility, IncivilityItem, IncivilityLabel, IncivilityScores, IncivilityTarget, Pragmatics,
     PragmaticsItem, Sentences, Tokens, Vectors,
@@ -210,5 +210,36 @@ impl ClassifierHead {
             out.try_push(sentences, tokens, PragmaticsItem { score, evidence: None }).map_err(fail)?;
         }
         Ok(out)
+    }
+
+    /// Scores one sentence embedding as sarcasm or irony.
+    pub fn score_pragmatics_vector(&self, vector: &[f32]) -> Result<f64, String> {
+        if vector.len() != self.in_dim() as usize {
+            return Err(format!("vector has dim {}, head expects dim {}", vector.len(), self.in_dim()));
+        }
+        let pos_idx = self
+            .tags
+            .tag("sarcastic")
+            .or_else(|| self.tags.tag("ironic"))
+            .or_else(|| self.tags.tag("sarcasm"))
+            .ok_or_else(|| "pragmatics head has no sarcasm or irony label".to_owned())?
+            .0 as usize;
+        let mut buf = vec![0.0f64; self.tags.len()];
+        self.score(vector, &mut buf)?;
+        Ok(buf[pos_idx].clamp(0.0, 1.0))
+    }
+}
+
+impl turbo_doccat::sentiment::pragmatics::PragmaticsVectorScorer for ClassifierHead {
+    fn score_sentence_vector(&self, vec: &[f32]) -> Result<f64, String> {
+        self.score_pragmatics_vector(vec)
+    }
+
+    fn config_hash(&self) -> u64 {
+        ClassifierHead::config_hash(self)
+    }
+
+    fn model_ref(&self) -> Option<ModelRef> {
+        Some(self.model().clone())
     }
 }

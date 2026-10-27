@@ -120,6 +120,10 @@ record options:
                                batch 32 and the HEF fixed sequence length
   --no-hailort                record that HailoRT was not run
   --no-tei                     record that TEI was not run
+  --mlx-model <dir>            MLX on the machine's Python (metal): the model
+                               in the upstream layout, config.json and the
+                               loaded artifact as model.safetensors
+  --no-mlx                     record that MLX was not run
   --tensorrt-image <name@sha256:..>
                                NVIDIA's TensorRT container, pinned (cuda)
   --tensorrt-bin <path>        trtexec installed on the machine, run in place
@@ -152,7 +156,7 @@ record options:
 /// `--name value` pairs and bare `--flag`s.
 pub(crate) struct Opts(pub(crate) BTreeMap<String, Option<String>>);
 
-const FLAGS: [&str; 5] = ["--no-tei", "--no-tensorrt", "--no-openvino", "--no-hailort", "--no-peers"];
+const FLAGS: [&str; 6] = ["--no-tei", "--no-tensorrt", "--no-openvino", "--no-hailort", "--no-mlx", "--no-peers"];
 
 impl Opts {
     pub(crate) fn parse(args: &[String]) -> Result<Opts> {

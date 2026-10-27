@@ -16,6 +16,10 @@ Corporation.
 | `English/NumberWithUnit/CurrencyModel.json` | `Specs/NumberWithUnit/English/CurrencyModel.json` |
 | `English/NumberWithUnit/DimensionModel.json` | `Specs/NumberWithUnit/English/DimensionModel.json` |
 | `English/NumberWithUnit/TemperatureModel.json` | `Specs/NumberWithUnit/English/TemperatureModel.json` |
+| `Dutch/NumberWithUnit/AgeModel.json` | `Specs/NumberWithUnit/Dutch/AgeModel.json` |
+| `Dutch/NumberWithUnit/CurrencyModel.json` | `Specs/NumberWithUnit/Dutch/CurrencyModel.json` |
+| `Dutch/NumberWithUnit/DimensionModel.json` | `Specs/NumberWithUnit/Dutch/DimensionModel.json` |
+| `Dutch/NumberWithUnit/TemperatureModel.json` | `Specs/NumberWithUnit/Dutch/TemperatureModel.json` |
 | `Dutch/Number/NumberModel.json` | `Specs/Number/Dutch/NumberModel.json` |
 | `Dutch/Number/OrdinalModel.json` | `Specs/Number/Dutch/OrdinalModel.json` |
 | `Dutch/Number/PercentModel.json` | `Specs/Number/Dutch/PercentModel.json` |
@@ -27,6 +31,12 @@ Corporation.
 
 `tests/spec.rs` reads them; docs/grammar.md says how a case is judged.
 
+`tests/dutch_unit_specs.rs` checks the Dutch NumberWithUnit files. It reports
+unchanged-oracle agreement and the explicit Dutch policy checks separately;
+see `docs/grammar-units.md` for every difference. Where upstream omits numeric
+coordinates, the harness derives them from the expected text, independently
+of parser results. One Currency case is marked unsupported by upstream.
+
 The Spanish NumberWithUnit files below are also unchanged copies at the same
 pinned revision and MIT license. `tests/spanish_unit_specs.rs` checks every case.
 
@@ -36,6 +46,20 @@ pinned revision and MIT license. `tests/spanish_unit_specs.rs` checks every case
 | `Spanish/NumberWithUnit/CurrencyModel.json` | `Specs/NumberWithUnit/Spanish/CurrencyModel.json` |
 | `Spanish/NumberWithUnit/DimensionModel.json` | `Specs/NumberWithUnit/Spanish/DimensionModel.json` |
 | `Spanish/NumberWithUnit/TemperatureModel.json` | `Specs/NumberWithUnit/Spanish/TemperatureModel.json` |
+
+The Italian NumberWithUnit files below are unchanged copies at the same
+pinned revision and MIT license. `tests/italian_unit_specs.rs` checks all
+210 cases, including upstream-unsupported Age cases 3 and 7 and Currency
+cases 64 and 67. Temperature
+cases 25, 26 and 27 omit coordinates and use text/value/unit comparison;
+the other 207 cases use exact-span comparison.
+
+| File here | Upstream path |
+|---|---|
+| `Italian/NumberWithUnit/AgeModel.json` | `Specs/NumberWithUnit/Italian/AgeModel.json` |
+| `Italian/NumberWithUnit/CurrencyModel.json` | `Specs/NumberWithUnit/Italian/CurrencyModel.json` |
+| `Italian/NumberWithUnit/DimensionModel.json` | `Specs/NumberWithUnit/Italian/DimensionModel.json` |
+| `Italian/NumberWithUnit/TemperatureModel.json` | `Specs/NumberWithUnit/Italian/TemperatureModel.json` |
 
 The Portuguese NumberWithUnit files are unchanged copies at the same pinned
 revision and MIT license. `tests/portuguese_unit_specs.rs` checks all 253 cases

@@ -15,6 +15,7 @@ mod metal_support;
 
 use common::*;
 use metal_support::*;
+use serde_json::json;
 use turbo::status::{INVALID_ARGUMENT, UNSUPPORTED_OPTION};
 use turbo::*;
 
@@ -88,7 +89,7 @@ fn fastest_computes_in_f16_and_says_so() {
         assert_eq!(rt.capability(i, p).dtype, dtype, "precision {p}");
         let info = make(l.m, None, p, TURBO_AUTOTUNE_OFF).unwrap().info();
         assert_eq!(info.compute_dtype, dtype, "precision {p}");
-        // FASTEST has five tilings (four tiles and auto) and three
+        // FASTEST has six tilings (five tiles and auto) and three
         // attention kernels (staged, registers and auto); the others one path.
         let want = if p == TURBO_PRECISION_FASTEST { "linear=auto;attn=auto;forced=" } else { "" };
         assert_eq!((field(&info.choices), info.tuned), (want.to_owned(), TURBO_TUNED_DEFAULT), "precision {p}");
@@ -109,6 +110,7 @@ fn each_f16_choice_matches_the_cpu_within_fastest_s_floor() {
         ("linear=h64", TURBO_PRECISION_FASTEST, FASTEST_FLOOR, "linear=h64;attn=auto;forced=linear"),
         ("linear=h128", TURBO_PRECISION_FASTEST, FASTEST_FLOOR, "linear=h128;attn=auto;forced=linear"),
         ("linear=h32n32", TURBO_PRECISION_FASTEST, FASTEST_FLOOR, "linear=h32n32;attn=auto;forced=linear"),
+        ("linear=h64n32", TURBO_PRECISION_FASTEST, FASTEST_FLOOR, "linear=h64n32;attn=auto;forced=linear"),
         ("linear=auto", TURBO_PRECISION_FASTEST, FASTEST_FLOOR, "linear=auto;attn=auto;forced=linear"),
         ("attn=staged", TURBO_PRECISION_FASTEST, FASTEST_FLOOR, "linear=auto;attn=staged;forced=attn"),
         ("attn=registers", TURBO_PRECISION_FASTEST, FASTEST_FLOOR, "linear=auto;attn=registers;forced=attn"),
@@ -121,6 +123,35 @@ fn each_f16_choice_matches_the_cpu_within_fastest_s_floor() {
             let lowest = against_cpu(&s, &cpu, &t, floor, &format!("{line} {what}"));
             println!("{line}, {what}: 1 - lowest cosine with the cpu {:.3e}", 1.0 - lowest);
         }
+    }
+}
+
+/// Each F16 tile on a model whose widths (48, and 112 in the feed-forward)
+/// leave a partial tile of 32 and of 64 columns, at 161 packed tokens, a
+/// partial tile of 32, 64 and 128 rows: within FASTEST's floor of the CPU.
+#[test]
+fn each_f16_tile_matches_the_cpu_on_partial_tiles() {
+    let _t = turn();
+    let Some(_) = metal_device("each_f16_tile_matches_the_cpu_on_partial_tiles") else { return };
+    let mut m = model_manifest();
+    m["architecture"]["layers"] = json!(2);
+    m["architecture"]["hidden"] = json!(48);
+    m["architecture"]["heads"] = json!(2);
+    m["architecture"]["intermediate"] = json!(112);
+    m["embed"]["dim"] = json!(48);
+    let mut f = Fixture::new("metal-f16-partial", m);
+    f.weights("weights/model.safetensors", &bert_weights(2, 48, 112, 5, 0.05));
+    f.write();
+    let (g, c) = (on_metal(&f.dir), Loaded::load(&f.dir).unwrap());
+    let cpu = Session::create(c.m, None).unwrap();
+    let t = rows_of(&f.dir, &[70, 50, 41]);
+    for tile in ["h32", "h64", "h128", "h32n32", "h64n32"] {
+        let line = format!("linear={tile}");
+        let s = make(g.m, Some(&line), TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_OFF).unwrap();
+        let i = s.info();
+        assert_eq!((i.compute_dtype, field(&i.choices)), (TURBO_DTYPE_F16, format!("{line};attn=auto;forced=linear")));
+        let lowest = against_cpu(&s, &cpu, &t, FASTEST_FLOOR, &line);
+        println!("{line}, partial tiles: 1 - lowest cosine with the cpu {:.3e}", 1.0 - lowest);
     }
 }
 
@@ -174,7 +205,7 @@ fn a_tuned_session_runs_one_of_the_choices_and_forces_back() {
     let i = s.info();
     assert!([TURBO_TUNED_MEASURED, TURBO_TUNED_DEFAULT].contains(&i.tuned), "{}", i.tuned);
     let line = field(&i.choices);
-    let tiles = ["h32", "h64", "h128", "h32n32", "auto"];
+    let tiles = ["h32", "h64", "h128", "h32n32", "h64n32", "auto"];
     assert!(tiles.iter().any(|t| line == format!("linear={t};attn=auto;forced=")), "{line}");
     let forced = make(g.m, Some(&line), TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_OFF).unwrap();
     assert_eq!(field(&forced.info().choices), line.replace("forced=", "forced=linear,attn"));
@@ -230,7 +261,8 @@ fn a_weight_past_f16_s_range_computes_its_layer_in_f32() {
 /// Heads FASTEST's F16 attention takes past the 64-wide kernel: wider than
 /// 64, not a multiple of 8, not a multiple of 4, and 128, the widest; each
 /// attention kernel against the CPU within FASTEST's floor at every
-/// shape. A head of 136 runs in F32 and reports no attention choice.
+/// shape. A head of 136 runs in F32 and reports no attention choice. At
+/// EXACT every one of them runs the F32 narrow kernel, at every shape.
 #[test]
 fn heads_past_64_or_not_a_multiple_of_8_run_f16_attention() {
     let _t = turn();
@@ -262,24 +294,24 @@ fn heads_past_64_or_not_a_multiple_of_8_run_f16_attention() {
             let i = s.info();
             for (what, t) in shapes(&f.dir, i.max_batch as usize, i.max_seq as usize) {
                 let what = format!("heads of {hd}, {line}, {what}");
-                // Past 128 the F32 narrow kernel, one query at a time, can
-                // run long enough at the largest shape for macOS to stop it
-                // on a busy desktop (#1406). That error alone is printed and
-                // passed over, for that kernel alone; anything else fails.
+                // Past 128 the F32 narrow kernel runs the shape; one SIMD
+                // group a query at a time ran long enough here for macOS to
+                // stop the command buffer on a busy desktop (#1406).
                 s.write_tokens(&t.batch(), None).unwrap();
-                let got = match s.run() {
-                    Err(e) if hd > 128 && e.message.contains("ImpactingInteractivity") => {
-                        println!("{what}: stopped by macOS, #1406: {}", e.message);
-                        continue;
-                    }
-                    r => r.unwrap().rows(),
-                };
+                let got = s.run().unwrap_or_else(|e| panic!("{what}: {e:?}")).rows();
                 cpu.write_tokens(&t.batch(), None).unwrap();
                 let want = cpu.run().unwrap().rows();
                 let lowest = got.iter().zip(&want).map(|(a, b)| cosine(a, b)).fold(1f64, f64::min);
                 assert!(lowest >= FASTEST_FLOOR, "{what}: cosine {lowest} with the cpu");
                 println!("{what}: 1 - lowest cosine with the cpu {:.3e}", 1.0 - lowest);
             }
+        }
+        // EXACT runs every one of these heads in the F32 narrow kernel.
+        let s = make(g.m, None, TURBO_PRECISION_EXACT, TURBO_AUTOTUNE_OFF).unwrap();
+        let i = s.info();
+        for (what, t) in shapes(&f.dir, i.max_batch as usize, i.max_seq as usize) {
+            let lowest = against_cpu(&s, &cpu, &t, 0.9999, &format!("heads of {hd}, EXACT, {what}"));
+            println!("heads of {hd}, EXACT, {what}: 1 - lowest cosine with the cpu {:.3e}", 1.0 - lowest);
         }
     }
 }
@@ -292,7 +324,8 @@ const F16_MAX: f32 = 65504.0;
 /// tokens (text, rows that end early, and ids spread over the
 /// vocabulary), against the CPU at EXACT: every row's cosine reaches
 /// FASTEST's floor, and the largest magnitude of each tensor FASTEST stores
-/// in F16 stays inside F16's range. Prints both, for docs/metal.md.
+/// in F16 stays inside F16's range, and each F16 tile forced reaches
+/// the floor on the same rows. Prints each, for docs/metal.md.
 #[test]
 #[ignore = "needs a real bundle directory in TURBO_TEST_BUNDLE"]
 fn a_real_bundle_at_its_longest_rows_stays_inside_f16() {
@@ -345,6 +378,14 @@ fn a_real_bundle_at_its_longest_rows_stays_inside_f16() {
         println!("  {name}: largest magnitude {peak:.1}, {:.1}% of F16's range", 100.0 * peak / F16_MAX);
         assert!(peak > 0.0 && peak < F16_MAX, "{name}: largest magnitude {peak}");
     }
+    // Each F16 tile, forced, within the floor on the same rows.
+    for tile in ["h32", "h64", "h128", "h32n32", "h64n32"] {
+        turbo::metal::use_choices(Some(&format!("linear={tile}")));
+        let s = Session::create(g.m, Some(&desc(TURBO_PRECISION_FASTEST)));
+        turbo::metal::use_choices(None);
+        let lowest = against_cpu(&s.unwrap(), &cpu, &t, FASTEST_FLOOR, tile);
+        println!("  linear={tile}: 1 - lowest cosine with the cpu {:.3e}", 1.0 - lowest);
+    }
 }
 
 /// How close FASTEST comes to the CPU on the masked rows below. They agree
@@ -382,8 +423,16 @@ fn masked_keys_inside_a_row_are_left_out_at_fastest() {
         assert!(apart >= 100.0 * (1.0 - MASKED_FLOOR), "row {r}: masking moves the cpu's vector by only {apart:.3e}");
     }
     let awkward = awkward_rows(&dir);
-    let lines =
-        ["linear=h32", "linear=h64", "linear=h128", "linear=h32n32", "linear=auto", "attn=staged", "attn=registers"];
+    let lines = [
+        "linear=h32",
+        "linear=h64",
+        "linear=h128",
+        "linear=h32n32",
+        "linear=h64n32",
+        "linear=auto",
+        "attn=staged",
+        "attn=registers",
+    ];
     for line in lines {
         let s = make(g.m, Some(line), TURBO_PRECISION_FASTEST, TURBO_AUTOTUNE_OFF).unwrap();
         let lowest = against_cpu(&s, &cpu, &t, MASKED_FLOOR, &format!("{line}, masked keys"));

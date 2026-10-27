@@ -3475,6 +3475,18 @@ int32_t turbo_cuda_deberta_tiled_rows(uint32_t buckets, uint32_t maximum, int32_
     return deberta_tiled_rows(head_dim, seq_cap, table.data(), reach, room) ? 1 : 0;
 }
 
+/* The shared memory the tiled DeBERTa-v2 attention at head_dim takes, in
+ * *need (0 for a width with none), and what the device at ordinal gives a
+ * block, in *give: the tiled kernel runs only where the first fits the
+ * second. 0 on success. */
+int32_t turbo_cuda_deberta_tiled_smem(int32_t head_dim, int32_t ordinal, uint64_t *need, uint64_t *give) {
+    int optin = 0;
+    if (cudaDeviceGetAttribute(&optin, cudaDevAttrMaxSharedMemoryPerBlockOptin, ordinal) != cudaSuccess) return -1;
+    *need = deberta_tiled_smem(head_dim);
+    *give = (uint64_t)optin;
+    return 0;
+}
+
 /* The attention kernel the last DeBERTa-v2 session made picked: 2 tiled,
  * 1 general, 0 before any. */
 int32_t turbo_cuda_last_deberta_attention(void) { return deberta_last_pick.load(std::memory_order_relaxed); }

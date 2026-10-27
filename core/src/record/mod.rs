@@ -83,12 +83,14 @@ pub const NO_RECORD: &str = "no benchmark record for this cell";
 
 /// The reference programs a record may name, each with its role: the
 /// vendors' fastest kernel paths (TensorRT for NVIDIA GPUs, OpenVINO for
-/// Intel GPUs and for the NPU, HailoRT for Hailo) and the embedding server.
-pub const REFERENCES: [(&str, &str); 4] = [
+/// Intel GPUs and for the NPU, HailoRT for Hailo, MLX for Apple GPUs) and
+/// the embedding server.
+pub const REFERENCES: [(&str, &str); 5] = [
     ("text-embeddings-inference", "end_to_end"),
     ("tensorrt", "kernel"),
     ("openvino", "kernel"),
     ("hailort", "kernel"),
+    ("mlx", "kernel"),
 ];
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

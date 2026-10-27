@@ -26,6 +26,25 @@ use crate::trie::{find, lookup};
 pub use alignment::{Aligned, aligned, aligned_chars};
 pub use segment::{for_each_run, is_normalized, normalize};
 
+/// The canonical ordering algorithm: each run of characters with a
+/// nonzero combining class, sorted by class, the order of equal classes
+/// kept. A character of class 0 never moves and nothing moves across
+/// it. Each run is sorted stably, so a text that is one run of marks
+/// costs n log n; ordering it by insertion was quadratic, and a few
+/// hundred kilobytes of marks alone took seconds.
+fn canonical_order<T>(chars: &mut [T], class: impl Fn(&T) -> u8) {
+    let mut i = 0;
+    while i < chars.len() {
+        if class(&chars[i]) == 0 {
+            i += 1;
+            continue;
+        }
+        let end = chars[i..].iter().position(|c| class(c) == 0).map_or(chars.len(), |k| i + k);
+        chars[i..end].sort_by_key(|c| class(c));
+        i = end;
+    }
+}
+
 /// A normalization form.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Form {

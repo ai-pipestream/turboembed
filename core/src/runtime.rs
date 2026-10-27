@@ -85,7 +85,7 @@ impl Runtime {
                 write_str(
                     &mut cap.reason,
                     if task == TURBO_TASK_RERANK {
-                        "rerank has run on the CPU, CUDA and Level Zero only"
+                        "rerank has run on the CPU, CUDA, Level Zero and Metal only"
                     } else {
                         "extractive QA needs range writes, which this backend does not offer"
                     },

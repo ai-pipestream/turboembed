@@ -1,10 +1,12 @@
 //! Conformance with NormalizationTest.txt and checks of the run splitting.
 
 use std::collections::HashSet;
+use std::time::{Duration, Instant};
 
+use turbo_unicode::hf;
 use turbo_unicode::normalize::{
-    Form, QuickCheck, canonical_combining_class, canonical_decomposition, compatibility_decomposition, compose,
-    for_each_run, is_normalized, normalize, quick_check,
+    Form, QuickCheck, aligned, canonical_combining_class, canonical_decomposition, compatibility_decomposition,
+    compose, for_each_run, is_normalized, normalize, quick_check,
 };
 
 mod common;
@@ -252,4 +254,36 @@ fn quick_check_values() {
     assert!(!is_normalized(Form::Nfc, "e\u{301}x"));
     assert!(is_normalized(Form::Nfd, "a\u{316}\u{301}"));
     assert!(!is_normalized(Form::Nfd, "a\u{301}\u{316}"), "marks out of canonical order");
+}
+
+/// One run of combining marks whose classes alternate (U+0301 is class
+/// 230, U+0323 class 220): canonical ordering moves each lower mark
+/// before every higher mark ahead of it. Ordering by insertion was
+/// quadratic in the run, so a text of a few hundred kilobytes of marks
+/// alone held a thread for seconds. Each of the three normalizers
+/// orders a run in close to linear time and puts the lower class first,
+/// keeping the order within a class.
+#[test]
+fn a_long_run_of_combining_marks_orders_in_linear_time() {
+    const MARKS: usize = 400_000;
+    let text: String = (0..MARKS).map(|i| if i % 2 == 0 { '\u{301}' } else { '\u{323}' }).collect();
+    let budget = Duration::from_secs(3);
+    let check = |what: String, out: Vec<char>, took: Duration| {
+        assert!(took < budget, "{what} took {took:?} on {MARKS} marks");
+        assert_eq!(out.len(), MARKS, "{what}");
+        let above = out.iter().position(|&c| c == '\u{301}').expect("the higher class is kept");
+        assert_eq!(above, MARKS / 2, "{what}: every lower mark first");
+        assert!(out[above..].iter().all(|&c| c == '\u{301}'), "{what}: the higher marks after");
+    };
+    for form in [Form::Nfd, Form::Nfc] {
+        let start = Instant::now();
+        let out = norm(form, &text);
+        check(format!("normalize {form:?}"), out.chars().collect(), start.elapsed());
+        let start = Instant::now();
+        let out: Vec<char> = aligned(form, &text).map(|(c, _)| c).collect();
+        check(format!("aligned {form:?}"), out, start.elapsed());
+        let start = Instant::now();
+        let out: Vec<char> = hf::aligned(form, &text).map(|(c, _)| c).collect();
+        check(format!("hf::aligned {form:?}"), out, start.elapsed());
+    }
 }

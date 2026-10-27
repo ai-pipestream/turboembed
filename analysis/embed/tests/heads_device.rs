@@ -8,7 +8,8 @@
 //! f32 and 1e-2 at f16, the predicted tags the same, and the NLI label
 //! the same for each pair whose CPU margin is over twice the bound, those
 //! pairs picking at least two labels. With
-//! TURBO_TEST_REQUIRE_CUDA or TURBO_TEST_REQUIRE_LEVELZERO set, the test
+//! TURBO_TEST_REQUIRE_CUDA, TURBO_TEST_REQUIRE_LEVELZERO or
+//! TURBO_TEST_REQUIRE_METAL set, the test
 //! fails unless it runs there. `heads.rs` holds `ClassifierHead`, the
 //! centroids and `LearnedAspectSentiment` to the same device.
 
@@ -37,10 +38,14 @@ fn bundle() -> PathBuf {
 /// The backend a TURBO_TEST_REQUIRE_* variable requires, if any.
 fn required() -> Option<&'static str> {
     let set = |v: &str| std::env::var(v).is_ok_and(|v| !v.is_empty() && v != "0");
-    [("TURBO_TEST_REQUIRE_CUDA", "cuda"), ("TURBO_TEST_REQUIRE_LEVELZERO", "levelzero")]
-        .into_iter()
-        .find(|(v, _)| set(v))
-        .map(|(_, b)| b)
+    [
+        ("TURBO_TEST_REQUIRE_CUDA", "cuda"),
+        ("TURBO_TEST_REQUIRE_LEVELZERO", "levelzero"),
+        ("TURBO_TEST_REQUIRE_METAL", "metal"),
+    ]
+    .into_iter()
+    .find(|(v, _)| set(v))
+    .map(|(_, b)| b)
 }
 
 /// The device options the environment names, and the CPU's at the same

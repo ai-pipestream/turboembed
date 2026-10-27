@@ -411,6 +411,25 @@ render engine about half busy, and none other the compute engines. With
 the tiled attention a pass is 1.7 times as fast as with the general at 32
 x 128, and 1.8 times at 8 x 512.
 
+## The LSTM for the taggers
+
+`turbo::device::lstm::Lstm` on `Device::LevelZero(n)` is the batched
+LSTM of `turbo::cpu::lstm` on an Intel GPU, for the analysis crates'
+sequence taggers (#860). It is a Rust surface, not part of the backend
+table. core/src/levelzero/lstm.rs holds one context per listed device,
+shared by every LSTM on it, and runs the kernels `lstm_project` and `lstm_step` of
+core/levelzero/encoder.cl. The weights and a gathered run's table are
+copied to the device once, and the copy is waited for. A run stages its
+rows (or its table row ids), lengths and starts in pinned memory, then
+appends to the context's in-order queue, under its lock: the copies,
+one product for every row's input projections, one launch per step over
+the sequences still running (every direction at once), and the copy of
+the states back. It then waits once. A non-finite gate or state is
+refused at the end of the run with INVALID_ARGUMENT, as the CPU form
+refuses it. `core/tests/device_lstm.rs` holds it to the CPU form at 1e-5
+with `TURBO_TEST_REQUIRE_LEVELZERO=1` (or `TURBO_TEST_DEVICE=levelzero`),
+and fails when the LSTM cannot be made there.
+
 ## Testing on a machine with an Intel GPU
 
 From the workspace root. `TURBO_TEST_REQUIRE_LEVELZERO=1` makes every test
@@ -451,3 +470,30 @@ tests in `core/tests/levelzero.rs` also check the listing against the
 Intel GPUs the kernel drives, from `/sys/class/drm`, and read device
 memory from the caller's side through the loader, so they need no other
 tool.
+
+### A lost device (0x70000001)
+
+A call that fails with `0x70000001 (device lost)` can indicate a device hang,
+reset, removal, or driver update, as defined by the
+[Level Zero API](https://github.com/oneapi-src/level-zero/blob/master/include/ze_api.h).
+The status alone does not identify the cause. Stop using any affected
+context, release its resources and the context, and create a new one only
+once the device is available again. Device removal or an ongoing driver
+problem may prevent recreation; it is not a guaranteed recovery.
+
+On the Arc Pro B70 under `xe`, each one seen
+(#1433) was a compute job that had not finished within the engine's job
+timeout (`/sys/class/drm/card0/device/tile0/gt0/engines/ccs/job_timeout_ms`,
+5000 ms), and the kernel log says so: `Timedout job ... in <process>`,
+then `Engine reset: engine_class=ccs`. These logs identify a timeout/reset
+for those observations, not for every possible device-loss error.
+
+On that machine all nine such resets on 2026-10-26, six of them in
+`levelzero_loads`, fell within the four days a desktop client (snap-store)
+was running; one sample, minutes before it stopped, had it at 61% of the
+render engine, and render and compute share the card's execution units.
+After it stopped, 1,400 runs of the loads at once passed
+(`docs/receipts/levelzero-1433/`). That client is the likely cause, not a
+reproduced one: no load was recorded at the reset times and no run was made
+with it up. Check the kernel log and the other clients on the card before
+reading a lost device as a defect here.

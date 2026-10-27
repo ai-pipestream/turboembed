@@ -10,6 +10,7 @@ pub mod docker;
 pub mod git;
 pub mod hailo;
 pub mod measure;
+pub mod mlx;
 pub mod onnx;
 pub mod openvino;
 pub mod postag;
@@ -86,18 +87,19 @@ pub fn check_not_testdata(bundle: &Path, testdata: &[PathBuf]) -> Result<()> {
 
 /// Every reference program the tool knows: its record name, what the
 /// command line calls it, and how to name or disable it there.
-pub const PROGRAMS: [(&str, &str, &str); 4] = [
+pub const PROGRAMS: [(&str, &str, &str); 5] = [
     (tei::NAME, "TEI", "give --tei-image (or --tei-bin) and --tei-model, or --no-tei"),
     (tensorrt::NAME, "TensorRT", "give --tensorrt-image, or --no-tensorrt"),
     (openvino::NAME, "OpenVINO", "give --openvino-image or --openvino-bin, or --no-openvino"),
     (hailo::NAME, "HailoRT", "give --hailort-bin or --no-hailort"),
+    (mlx::NAME, "MLX", "give --mlx-model, or --no-mlx"),
 ];
 
 /// The reference programs for a backend, in the order a record lists
 /// them: TEI's GPU image and TensorRT for cuda; TEI's CPU image for the
 /// CPU; OpenVINO on the GPU and TEI's CPU image, the end-to-end baseline
 /// on that machine, for levelzero; the same pair for npu, with OpenVINO
-/// on the NPU; TEI's router built natively with Metal for metal; HailoRT
+/// on the NPU; TEI's router built natively with Metal and MLX for metal; HailoRT
 /// for hailo; none
 /// for another backend, whose records back nothing.
 pub fn applies(backend: &str) -> &'static [&'static str] {
@@ -106,7 +108,7 @@ pub fn applies(backend: &str) -> &'static [&'static str] {
         "cpu" => &[tei::NAME],
         "hailo" => &[hailo::NAME],
         "levelzero" | "npu" => &[tei::NAME, openvino::NAME],
-        "metal" => &[tei::NAME],
+        "metal" => &[tei::NAME, mlx::NAME],
         _ => &[],
     }
 }

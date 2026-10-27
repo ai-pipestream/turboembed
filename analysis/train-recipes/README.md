@@ -457,12 +457,42 @@ written alongside the selection; partial attempts are preserved on error
 and are never automatically retried. The card records the selected training
 parameters. No reference weights are trained on or shipped.
 
-This change has only authored-fixture validation, no full MASC result or
-new release. A complete execution requires 160 CV model fits and four final
-fits. Existing `-1` ids, parameters and failed records remain unchanged.
-The `-2` ids are intentionally not in the publishable release inventory:
-full execution evidence, passing accuracy gates and independent review are
-required before adding a release. #427 remains open.
+The registered full MASC `-2` run completed on 2026-10-26 at source
+`8812b1db16ff47890be43be96d6835eea12306af`: 160 CV fits and 4 final fits,
+with one unchanged held-out gate per type. The following CV F1 values are
+percentages over the training-only document folds. `D` means document
+clearing and `S` means sentence clearing; the configuration is iterations/cutoff.
+
+| Type | 300/0 D | 300/0 S | 100/5 D | 100/5 S | Selected |
+|---|---:|---:|---:|---:|---|
+| person | 35.3245 | 41.1656 | 46.2778 | 47.7315 | 100/5 sentence |
+| location | 61.1674 | 61.5235 | 58.7044 | 58.9595 | 300/0 sentence |
+| organization | 38.3171 | 39.2556 | 40.5431 | 40.8384 | 100/5 sentence |
+| date | 55.8046 | 55.6928 | 55.4180 | 56.2285 | 100/5 sentence |
+
+Final held-out F1 and paired 95% difference interval, in percentage points:
+
+| Type | Candidate F1 | Reference F1 | Difference interval | Original gate | Command wall seconds |
+|---|---:|---:|---|---|---:|
+| person | 58.4615 | 54.5903 | [+0.9225, +6.9747] | PASS | 2024.90 |
+| location | 58.2960 | 62.8571 | [-9.2434, +0.1347] | FAIL | 1252.55 |
+| organization | 42.5000 | 40.1929 | [-5.2783, +9.4270] | FAIL | 1179.02 |
+| date | 49.3458 | 42.9054 | [-0.7732, +13.7469] | FAIL | 2179.59 |
+
+The gate requires the lower difference bound to be at least -0.5 points.
+Location, organization and date fail this unchanged condition. The positive point
+differences for organization and date do not remove their failed uncertainty
+bounds. Runtime includes CV, final training, scoring and writing on a shared CPU host; it is not an
+isolated performance comparison. No configuration, split or threshold was
+changed after observing these results, and no attempt was retried.
+
+The [execution receipt](../../docs/receipts/masc-427-v2/README.md) gives the
+compiler and binary/input/output hashes, load disclosure, complete compressed
+selection/card/count records and a standalone verifier. It contains no corpus
+text or model binaries. Existing `-1` ids and records remain unchanged. The
+`-2` ids remain outside the publishable release inventory and zoo index because
+the required accuracy gates have not all passed. #427 remains open; this is
+an execution result, not a new model release.
 
 On 2026-10-26 the [publisher's MASC page](https://anc.org/data/masc/)
 confirmed CC BY 3.0 US, and its
@@ -1209,8 +1239,8 @@ cargo run --release -p turbo-train-recipes -- depparse --treebanks <zoo-home>/ar
 | `UD_Spanish-AnCora` | 14,287 (840) | 1,721 (53,622) | `turbo-es-ud-ancora-2.16-depparse-feedforward-1` | Feedforward | 900,875 | `68aea2dfec51c015ce8ac99ff4c15875d84a364ef9bfe9fe3b5a4976c0b0f8a7` | 83.99 / 85.72 | 79.35 / 80.45 | pass (+3.74, +3.38 to +4.10) | pass (+3.02, +2.68 to +3.38) |
 | `UD_Catalan-AnCora` | 13,123 (749) | 1,846 (59,610) | `turbo-ca-ud-ancora-2.16-depparse-maxent-1` | MaxEnt | 15,339,008 | `33e2ec6844fabfa173bf0e0eafca62eaf259f95622e1c149a2f15197782c27f6` | 85.58 / 87.29 | 81.62 / 82.86 | pass (+53.61, +53.05 to +54.17) | pass (+40.98, +40.38 to +41.59) |
 | `UD_Catalan-AnCora` | 13,123 (749) | 1,846 (59,610) | `turbo-ca-ud-ancora-2.16-depparse-feedforward-1` | Feedforward | 816,124 | `8af62c85bd4f3ab42498ee8b217911ff55101df2caab554391120ab2dbb45455` | 85.69 / 86.97 | 81.59 / 82.38 | pass (+3.45, +3.11 to +3.79) | pass (+2.75, +2.44 to +3.07) |
-| `UD_Portuguese-Porttinari` | 5,893 (0) | 1,683 (33,580) | `turbo-pt-ud-porttinari-2.16-depparse-maxent-1` | MaxEnt (local) | 5,405,678 | `422d8ff7c4d0a35198744cf9f8a96af0d2b40328a7b45ac0730e274ac0f4dd0c` | 85.91 / 87.75 | 82.74 / 84.12 | pass (+50.98, +50.22 to +51.73) | pass (+40.04, +39.27 to +40.80) |
-| `UD_Portuguese-Porttinari` | 5,893 (0) | 1,683 (33,580) | `turbo-pt-ud-porttinari-2.16-depparse-feedforward-1` | Feedforward (local) | 423,296 | `a18b65db4ba0332a2d4c2364028496c1f165c290df47467acde3f22b44f796bc` | 87.63 / 88.58 | 84.71 / 85.22 | pass (+6.18, +5.71 to +6.66) | pass (+4.96, +4.49 to +5.43) |
+| `UD_Portuguese-Porttinari` | 5,893 (0) | 1,683 (33,580) | `turbo-pt-ud-porttinari-2.16-depparse-maxent-1` | MaxEnt (local) | 5,405,678 | `422d8ff7c4d0a3513ce1518a5e65b8fe49832acffcc665cf9b419e7d4f3557a9` | 85.91 / 87.75 | 82.74 / 84.12 | pass (+50.98, +50.22 to +51.73) | pass (+40.04, +39.27 to +40.80) |
+| `UD_Portuguese-Porttinari` | 5,893 (0) | 1,683 (33,580) | `turbo-pt-ud-porttinari-2.16-depparse-feedforward-1` | Feedforward (local) | 423,296 | `a18b65db4ba0332ab5c31686cd21f131ba014dea776143f8d2a104c58d023147` | 87.63 / 88.58 | 84.71 / 85.22 | pass (+6.18, +5.71 to +6.66) | pass (+4.96, +4.49 to +5.43) |
 | `UD_Finnish-FTB` | 14,981 (1,602) | 1,867 (16,286) | `turbo-fi-ud-ftb-2.16-depparse-maxent-1` | MaxEnt | 5,757,374 | `755ef066e10c65adc3d17f93bb15b35ebee78fbd189fd56297f12409bf5f782d` | 81.70 / 79.18 | 74.10 / 70.33 | pass (+53.26, +52.31 to +54.24) | pass (+53.75, +52.75 to +54.77) |
 | `UD_Finnish-FTB` | 14,981 (1,602) | 1,867 (16,286) | `turbo-fi-ud-ftb-2.16-depparse-feedforward-1` | Feedforward | 564,886 | `3df4a7db92fb89759aa964153cc7a55154779cf25a56250cc8b2b2924ce9870d` | 79.59 / 76.73 | 69.39 / 64.84 | pass (+6.96, +6.30 to +7.63) | pass (+5.45, +4.82 to +6.07) |
 | `UD_Italian-MarkIT` | 611 (0) | 340 (10,196) | `turbo-it-ud-markit-2.16-depparse-maxent-1` | MaxEnt | 1,364,091 | `2f8539971c1d4434bde2b5e16aff8348c8ef7841d2a5576b180ed23e8f70da93` | 78.56 / 82.09 | 71.58 / 74.43 | pass (+47.32, +45.79 to +48.90) | pass (+41.86, +40.16 to +43.64) |

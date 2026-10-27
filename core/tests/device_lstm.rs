@@ -3,24 +3,27 @@
 //! batches, both directions, `run` and `run_gathered`, and the same
 //! refusals.
 //!
-//! The device is TURBO_TEST_DEVICE (cpu, cuda or cuda:N), else cuda when
-//! TURBO_TEST_REQUIRE_CUDA=1, else the CPU, where the harness checks
+//! The device is TURBO_TEST_DEVICE (cpu, cuda, levelzero, or either GPU
+//! with :N), else cuda with TURBO_TEST_REQUIRE_CUDA=1 or levelzero with
+//! TURBO_TEST_REQUIRE_LEVELZERO=1, else the CPU, where the harness checks
 //! itself bit for bit. A named device that cannot make the LSTM fails the
 //! test; it never falls back to the CPU.
 
 use turbo::cpu::lstm as cpu;
 use turbo::device::Device;
 use turbo::device::lstm::{Lstm, Weights, Work};
-use turbo::status::{INVALID_ARGUMENT, INVALID_SHAPE};
+use turbo::status::{INVALID_ARGUMENT, INVALID_SHAPE, UNSUPPORTED};
 
 /// The bound a device's states are held to, against the CPU's.
 const BOUND: f32 = 1e-5;
 
 fn device() -> Device {
-    let required = std::env::var("TURBO_TEST_REQUIRE_CUDA").is_ok_and(|v| v == "1");
+    let required = |v: &str| std::env::var(v).is_ok_and(|v| v == "1");
     match std::env::var("TURBO_TEST_DEVICE") {
         Ok(name) => Device::parse(&name).unwrap_or_else(|e| panic!("TURBO_TEST_DEVICE={name}: {}", e.message)),
-        Err(_) if required => Device::Cuda(0),
+        Err(_) if required("TURBO_TEST_REQUIRE_CUDA") => Device::Cuda(0),
+        Err(_) if required("TURBO_TEST_REQUIRE_LEVELZERO") => Device::LevelZero(0),
+        Err(_) if required("TURBO_TEST_REQUIRE_METAL") => Device::Metal(0),
         Err(_) => Device::Cpu,
     }
 }
@@ -190,12 +193,18 @@ fn refusals_match_the_cpu() {
 }
 
 /// A device the library has no LSTM for is refused when the LSTM is made.
-#[cfg(not(feature = "cuda"))]
 #[test]
 fn a_device_not_built_in_is_refused() {
     let m = Model::new(3, 2, 1);
-    let e = Lstm::new(Device::Cuda(0), 3, 2, &m.dirs()).err().expect("an LSTM on a CUDA device in a build without it");
-    assert_eq!(e.code, turbo::status::UNSUPPORTED);
+    let absent = [
+        (Device::Cuda(0), cfg!(feature = "cuda")),
+        (Device::LevelZero(0), cfg!(feature = "levelzero")),
+        (Device::Metal(0), cfg!(feature = "metal")),
+    ];
+    for (device, _) in absent.into_iter().filter(|&(_, built)| !built) {
+        let e = Lstm::new(device, 3, 2, &m.dirs()).err().expect("an LSTM on a device not built in");
+        assert_eq!(e.code, turbo::status::UNSUPPORTED, "{device:?}");
+    }
 }
 
 /// A table made by an LSTM of another width is read as the CPU form reads
@@ -249,5 +258,89 @@ fn a_new_table_is_whole_for_the_first_run() {
         lstm.run_gathered(&table, &index, &lengths, &mut got, &mut Work::default()).unwrap();
         let d = max_diff(&got, &want);
         assert!(d <= BOUND, "{:?} table {seed}: {d}", device());
+    }
+}
+
+/// The bound FASTEST's states are held to, against the CPU form's: the
+/// F16 tier's 1e-2 (its weights rounded to F16, a relative 2^-11; every
+/// sum and state F32).
+const FASTEST_BOUND: f32 = 1e-2;
+
+/// FASTEST on a device runs the same sequences within FASTEST_BOUND of the
+/// CPU form at MODEL; on the CPU, Level Zero and Metal it is refused, not
+/// run at MODEL.
+#[test]
+fn fastest_holds_f16_weights_and_stays_near_the_cpu() {
+    use turbo::device::Precision;
+    let m = Model::new(100, 128, 41);
+    if device() == Device::Cpu {
+        let e = Lstm::new_at(Device::Cpu, Precision::Fastest, 100, 128, &m.dirs()).err().expect("FASTEST on the CPU");
+        assert_eq!(e.code, turbo::status::UNSUPPORTED);
+        return;
+    }
+    if let Device::LevelZero(_) | Device::Metal(_) = device() {
+        // Level Zero and Metal have no F16 weights yet: refused, not run at
+        // MODEL.
+        let e = Lstm::new_at(device(), Precision::Fastest, 100, 128, &m.dirs()).err().expect("FASTEST refused");
+        assert_eq!(e.code, UNSUPPORTED, "{}", e.message);
+        return;
+    }
+    let lstm = Lstm::new_at(device(), Precision::Fastest, 100, 128, &m.dirs())
+        .unwrap_or_else(|e| panic!("FASTEST on {:?}: {}", device(), e.message));
+    assert_eq!(lstm.precision(), Precision::Fastest);
+    let mut worst = 0f32;
+    for (j, lengths) in BATCHES.iter().enumerate() {
+        let rows: usize = lengths.iter().sum();
+        let x = Rng(300 + j as u64).values(rows * 100, 1.0);
+        let mut want = vec![0.0; rows * 256];
+        m.cpu().run(&x, lengths, &mut want, &mut cpu::Work::default()).unwrap();
+        let mut got = vec![0.0; want.len()];
+        lstm.run(&x, lengths, &mut got, &mut Work::default()).unwrap();
+        let d = max_diff(&got, &want);
+        assert!(d <= FASTEST_BOUND, "lengths {lengths:?}: {d}");
+        worst = worst.max(d);
+    }
+    println!("{:?} at FASTEST: the worst difference from the CPU at MODEL is {worst:e}", device());
+}
+
+/// A weight past F16's range is refused at FASTEST when the LSTM is made,
+/// on every device, naming the weight, rather than rounded to infinity and
+/// every run then refused for its gates; at MODEL the same weights build.
+#[test]
+fn fastest_refuses_a_weight_past_f16() {
+    use turbo::device::Precision;
+    let mut m = Model::new(3, 2, 51);
+    m.u[1][5] = 70000.0;
+    for device in [Device::Cpu, device()] {
+        let e = Lstm::new_at(device, Precision::Fastest, 3, 2, &m.dirs()).err().expect("a weight past F16 at FASTEST");
+        assert_eq!(e.code, INVALID_ARGUMENT, "{device:?}: {}", e.message);
+        assert!(e.message.contains("70000") && e.message.contains("F16"), "{}", e.message);
+    }
+    m.u[1][5] = 65504.0;
+    if let Device::Cuda(_) = device() {
+        assert!(Lstm::new_at(device(), Precision::Fastest, 3, 2, &m.dirs()).is_ok(), "F16's largest value is held");
+    }
+    assert!(Lstm::new_at(device(), Precision::Model, 3, 2, &m.dirs()).is_ok(), "MODEL holds any finite weight");
+}
+
+/// The F16 range check's edges, on the CPU alone so a build without a GPU
+/// runs them: at FASTEST a largest weight of 65504 (F16's largest value)
+/// passes the check and meets the CPU's own refusal, UNSUPPORTED, while
+/// one past it either way, or far past it below zero, is refused for its
+/// range, INVALID_ARGUMENT.
+#[test]
+fn the_f16_range_check_is_exact_at_its_edges() {
+    use turbo::device::Precision;
+    for (v, want) in [
+        (65504.0, UNSUPPORTED),
+        (-65504.0, UNSUPPORTED),
+        (65505.0, INVALID_ARGUMENT),
+        (-65505.0, INVALID_ARGUMENT),
+        (-70000.0, INVALID_ARGUMENT),
+    ] {
+        let mut m = Model::new(3, 2, 52);
+        m.w[0][4] = v;
+        let e = Lstm::new_at(Device::Cpu, Precision::Fastest, 3, 2, &m.dirs()).err().expect("FASTEST on the CPU");
+        assert_eq!(e.code, want, "a weight of {v}: {}", e.message);
     }
 }

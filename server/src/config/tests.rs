@@ -34,6 +34,25 @@ fn a_model() {
 }
 
 #[test]
+fn the_stream_ceiling_comes_from_its_flag_or_its_variable() {
+    let a = args("--listen 127.0.0.1:0 --admin").unwrap();
+    assert_eq!(a.max_stream_bytes, 2 << 30);
+    let a = args("--listen 127.0.0.1:0 --admin --max-message-bytes 1024 --max-stream-bytes 4096").unwrap();
+    assert_eq!(a.max_stream_bytes, 4096);
+    let env = |k: &str| (k == ENV_MAX_STREAM_BYTES).then(|| "8589934592".to_string());
+    let a = Args::parse_with("--listen 127.0.0.1:0 --admin".split(' ').map(String::from), env).unwrap();
+    assert_eq!(a.max_stream_bytes, 8 << 30);
+    let e = args("--listen 127.0.0.1:0 --admin --max-stream-bytes 1024").unwrap_err();
+    assert!(e.contains("under max message bytes"), "{e}");
+    let e = args("--listen 127.0.0.1:0 --admin --max-stream-bytes 2GiB").unwrap_err();
+    assert!(e.contains("not a byte count"), "{e}");
+    let e = args("--listen 127.0.0.1:0 --admin --max-stream-bytes 4096 --max-stream-bytes 4096").unwrap_err();
+    assert!(e.contains("twice"), "{e}");
+    assert_eq!(max_reply_bytes(64 << 20), 256 << 20);
+    assert_eq!(max_reply_bytes(512 << 20), 512 << 20);
+}
+
+#[test]
 fn one_bundle_under_two_names() {
     let a = args(
         "--listen 127.0.0.1:0 --model bundle=/b/tiny,device=0,sessions=1 \

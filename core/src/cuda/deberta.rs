@@ -4,6 +4,7 @@
 unsafe extern "C" {
     fn turbo_cuda_use_general_attention(general: i32);
     fn turbo_cuda_last_deberta_attention() -> i32;
+    fn turbo_cuda_deberta_tiled_smem(head_dim: i32, ordinal: i32, need: *mut u64, give: *mut u64) -> i32;
     fn turbo_cuda_deberta_tiled_rows(
         buckets: u32,
         maximum: u32,
@@ -28,6 +29,16 @@ pub fn last_attention() -> Option<&'static str> {
         1 => Some("general"),
         _ => None,
     }
+}
+
+/// The shared memory the tiled attention at `head_dim` takes (0: no tiled
+/// kernel at the width) and what the device at `ordinal` gives a block;
+/// the tiled kernel runs only where the first fits the second. None when
+/// the device cannot be asked.
+pub fn tiled_shared_memory(head_dim: u32, ordinal: u32) -> Option<(u64, u64)> {
+    let (mut need, mut give) = (0, 0);
+    let ok = unsafe { turbo_cuda_deberta_tiled_smem(head_dim as i32, ordinal as i32, &mut need, &mut give) };
+    (ok == 0).then_some((need, give))
 }
 
 /// The relative rows a DeBERTa-v2 model's tiled attention reaches at most
