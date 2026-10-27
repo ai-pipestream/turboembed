@@ -277,3 +277,30 @@ fn added_token_word_classes_match_upstream_on_every_scalar() {
         assert_eq!(normalize::is_word(c), upstream(c), "U+{:04X}", c as u32);
     }
 }
+
+/// A text that is one run of combining marks of alternating classes,
+/// under a megabyte: the normalizer's NFD put them in canonical order
+/// by insertion, quadratic in the run, and a request of a few hundred
+/// kilobytes held a thread for seconds. Encoding stays close to linear,
+/// and strip_accents drops every mark: the row is the template alone.
+#[test]
+fn a_long_run_of_combining_marks_encodes_in_linear_time() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle");
+    let tok = Tokenizer::unchecked(&Bundle::open(&dir).unwrap()).unwrap();
+    const MARKS: usize = 400_000;
+    let text: String = (0..MARKS).map(|i| if i % 2 == 0 { '\u{301}' } else { '\u{323}' }).collect();
+    let opts =
+        Encode { add_special_tokens: true, truncation: Truncation::Right, max_tokens: 64, prompt: PromptRole::None };
+    let start = std::time::Instant::now();
+    let ids = tok.encode(&text, opts).unwrap();
+    let took = start.elapsed();
+    assert!(took < std::time::Duration::from_secs(3), "{MARKS} marks took {took:?}");
+    assert_eq!(ids.len(), tok.specials_per_sequence() as usize);
+    let (mut spanned, mut spans) = (Vec::new(), Vec::new());
+    let start = std::time::Instant::now();
+    tok.encode_spans(&text, opts, &mut spanned, &mut spans).unwrap();
+    let took = start.elapsed();
+    assert!(took < std::time::Duration::from_secs(3), "{MARKS} marks with spans took {took:?}");
+    assert_eq!(spanned, ids);
+    assert!(spans.iter().all(|&s| s == NOWHERE));
+}
