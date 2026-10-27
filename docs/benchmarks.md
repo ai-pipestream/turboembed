@@ -1077,12 +1077,13 @@ which the means and p99s show:
 | MODEL (F32) | One row per chunk | 126.085 ms | 232.940 ms | 277.596 ms | 737.865 ms |
 
 The modes run in turn within each round, so the shared GPU falls on all
-three and the ratios are what to read: the ranges' p50 is 0.6 percent
-(FASTEST) and 1.1 percent (MODEL) under the rows', and one row per chunk
-takes 6 and 10 percent less than the ranges, as on CUDA at MODEL. An
-earlier pair of runs at the same commit, under more load, gave the same
-ratios to within 1 point (0.992 and 1.003, 0.901 and 0.929); those
-records were not kept. A range over a whole row gave the row's vector
+three and the ratios are what to read. The ranges' p50 is 0.6 percent
+(FASTEST) and 1.1 percent (MODEL) under the rows', but an earlier pair
+of runs at the same commit, under more load, gave 1.003 (ranges slower)
+and 0.992: the ranges cost the same as the rows to within the M2's run
+to run noise. One row per chunk takes 6 and 10 percent less than the
+ranges here, 7 and 10 percent in the earlier runs (0.929 and 0.901), as
+on CUDA at MODEL. The earlier records were not kept. A range over a whole row gave the row's vector
 to the bit, and the lowest cosine of a chunk's range vector to its
 chunk row's was 0.69.
 
