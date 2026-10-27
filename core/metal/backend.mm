@@ -339,7 +339,8 @@ enum Kernel {
     EMBED_LN, ADD_LN, GEMM, GEMM_SMALL, ATTENTION, ATTENTION_NARROW, POOL, POOL_RANGES, WIDEN_F16, WIDEN_BF16,
     NARROW_F16, ATTENTION_H, ATTENTION_HR, GEMM_H32, GEMM_H64 = GEMM_H32 + 4, GEMM_H128 = GEMM_H64 + 4,
     GEMM_H32N32 = GEMM_H128 + 4, GEMM_SMALL_H = GEMM_H32N32 + 4, ABS_MAX_F16 = GEMM_SMALL_H + 4, ATTENTION_H128,
-    ATTENTION_HR128, DEBERTA_EMBED, DEBERTA_LN_ROWS, DEBERTA_RELATIVE, DEBERTA_ATTENTION, KERNELS
+    ATTENTION_HR128, DEBERTA_EMBED, DEBERTA_LN_ROWS, DEBERTA_RELATIVE, DEBERTA_ATTENTION, LSTM_PROJECT, LSTM_STEP,
+    KERNELS
 };
 const char *const KERNEL_NAMES[KERNELS] = {
     "embed_layer_norm", "add_layer_norm",  "gemm",            "gemm_small",      "attention",       "attention_narrow",
@@ -350,7 +351,7 @@ const char *const KERNEL_NAMES[KERNELS] = {
     "gemm_h32n32_ff",   "gemm_h32n32_fh",  "gemm_h32n32_hf",  "gemm_h32n32_hh",
     "gemm_small_h_ff",  "gemm_small_h_fh", "gemm_small_h_hf", "gemm_small_h_hh", "abs_max_f16",
     "attention_h128",   "attention_hr128", "deberta_embed",  "deberta_layer_norm_rows", "deberta_relative",
-    "deberta_attention"};
+    "deberta_attention", "lstm_project",   "lstm_step"};
 
 /* The kernels compiled for one device. */
 struct Kernels {
@@ -2269,6 +2270,222 @@ const void *turbo_metal_widened(void *model) {
         return (__bridge const void *)m->widened;
     } catch (...) {
         return nullptr;
+    }
+}
+
+} // extern "C"
+
+// ---- LSTM (turbo::device::lstm, #860) ---------------------------------------------
+//
+// core/src/device/metal_lstm.rs's calls: the batched LSTM of
+// kernels.metal (LSTM), as core/cuda/lstm.cu runs it. The weights and a
+// table live in Metal buffers on the device's unified memory; a work holds
+// its own command queue and buffers, which grow and never shrink, so runs
+// on different works may run at once on one LSTM.
+
+namespace {
+
+enum LstmStatus { LSTM_OK = 0, LSTM_NOT_FINITE = 1, LSTM_NO_DEVICE = 2, LSTM_NO_MEMORY = 3, LSTM_FAILED = 4 };
+
+struct LstmProjectParams {
+    uint32_t m, n, k;
+};
+struct LstmStepParams {
+    uint32_t batch, active, hidden, pw, width, t, indexed;
+};
+
+/* A shared buffer of at least `want` bytes, grown on need. */
+bool fit(id<MTLDevice> d, id<MTLBuffer> __strong &b, size_t want) {
+    if (b && b.length >= want) return true;
+    b = new_buffer(d, std::max<size_t>(want, 16), MTLResourceStorageModeShared);
+    return b != nil;
+}
+
+id<MTLBuffer> filled(id<MTLDevice> d, const void *src, size_t bytes) {
+    id<MTLBuffer> b = new_buffer(d, std::max<size_t>(bytes, 16), MTLResourceStorageModeShared);
+    if (b && bytes) memcpy(b.contents, src, bytes);
+    return b;
+}
+
+int lstm_failed(int code, const char *what, char *msg, size_t len) {
+    snprintf(msg, len, "%s", what);
+    return code;
+}
+
+} // namespace
+
+struct turbo_metal_lstm {
+    uint32_t ordinal;
+    int input, hidden, dirs;
+    id<MTLDevice> device;
+    const Kernels *kernels;
+    id<MTLBuffer> w, u, b, reverse;
+};
+
+struct turbo_metal_lstm_table {
+    uint32_t ordinal;
+    id<MTLBuffer> values;
+};
+
+struct turbo_metal_lstm_work {
+    uint32_t ordinal = UINT32_MAX;
+    id<MTLCommandQueue> queue;
+    id<MTLBuffer> x, index, proj, out, len, start, state, cell, bad;
+    std::vector<int64_t> starts;
+};
+
+extern "C" {
+
+int turbo_metal_lstm_new(uint32_t ordinal, int input, int hidden, int dirs, const float *w, const float *u,
+                         const float *b, const int *reverse, turbo_metal_lstm **out, char *msg, size_t len) {
+    @autoreleasepool {
+        try {
+            if (ordinal >= devices().count) return lstm_failed(LSTM_NO_DEVICE, "no such metal device", msg, len);
+            turbo_error err{};
+            const Kernels *k = nullptr;
+            if (kernels_for(ordinal, &k, &err) != TURBO_OK) return lstm_failed(LSTM_FAILED, err.message, msg, len);
+            id<MTLDevice> d = device(ordinal);
+            const size_t g = 4 * (size_t)hidden * dirs;
+            auto *l = new turbo_metal_lstm{ordinal, input, hidden, dirs, d, k, nil, nil, nil, nil};
+            l->w = filled(d, w, g * input * sizeof(float));
+            l->u = filled(d, u, g * hidden * sizeof(float));
+            l->b = filled(d, b, g * sizeof(float));
+            l->reverse = filled(d, reverse, dirs * sizeof(int));
+            if (!l->w || !l->u || !l->b || !l->reverse) {
+                delete l;
+                return lstm_failed(LSTM_NO_MEMORY, "buffers for the LSTM weights", msg, len);
+            }
+            *out = l;
+            return LSTM_OK;
+        } catch (...) {
+            return lstm_failed(LSTM_FAILED, "an exception making the LSTM", msg, len);
+        }
+    }
+}
+
+void turbo_metal_lstm_free(turbo_metal_lstm *l) {
+    @autoreleasepool {
+        delete l;
+    }
+}
+
+int turbo_metal_lstm_table_new(const turbo_metal_lstm *l, const float *values, size_t count,
+                               turbo_metal_lstm_table **out, char *msg, size_t len) {
+    @autoreleasepool {
+        auto *t = new turbo_metal_lstm_table{l->ordinal, filled(l->device, values, count * sizeof(float))};
+        if (!t->values) {
+            delete t;
+            return lstm_failed(LSTM_NO_MEMORY, "a buffer for the LSTM table", msg, len);
+        }
+        *out = t;
+        return LSTM_OK;
+    }
+}
+
+void turbo_metal_lstm_table_free(turbo_metal_lstm_table *t) {
+    @autoreleasepool {
+        delete t;
+    }
+}
+
+void turbo_metal_lstm_work_free(turbo_metal_lstm_work *w) {
+    @autoreleasepool {
+        delete w;
+    }
+}
+
+/* The sequences of `lengths` (batch of them, the longest first, rows in
+ * all) into out [rows, dirs * hidden]: from rows x [rows, input], or,
+ * where x is null, from table rows by index [rows]. *work is made on
+ * first use and kept. NOT_FINITE puts the least bad row in *bad_row. */
+int turbo_metal_lstm_run(const turbo_metal_lstm *l, turbo_metal_lstm_work **work, const float *x,
+                         const turbo_metal_lstm_table *table, const int64_t *index, const int64_t *lengths,
+                         int64_t batch, int64_t rows, float *out, int64_t *bad_row, char *msg, size_t len) {
+    @autoreleasepool {
+        try {
+            turbo_metal_lstm_work *w = *work;
+            if (w && w->ordinal != l->ordinal) {
+                delete w;
+                w = *work = nullptr;
+            }
+            if (!w) {
+                w = new turbo_metal_lstm_work();
+                w->ordinal = l->ordinal;
+                w->queue = [l->device newCommandQueue];
+                if (!w->queue) {
+                    delete w;
+                    return lstm_failed(LSTM_FAILED, "newCommandQueue gave none", msg, len);
+                }
+                *work = w;
+            }
+            id<MTLDevice> d = l->device;
+            const uint32_t h = (uint32_t)l->hidden, dirs = (uint32_t)l->dirs, pw = 4 * h * dirs, width = h * dirs;
+            w->starts.assign(batch, 0);
+            for (int64_t s = 1; s < batch; s++) w->starts[s] = w->starts[s - 1] + lengths[s - 1];
+            const size_t f = sizeof(float), state = (size_t)dirs * batch * h * f;
+            if (!fit(d, w->out, rows * width * f) || !fit(d, w->len, batch * 8) || !fit(d, w->start, batch * 8) ||
+                !fit(d, w->state, 2 * state) || !fit(d, w->cell, state) || !fit(d, w->bad, 4) ||
+                (x && (!fit(d, w->x, rows * l->input * f) || !fit(d, w->proj, rows * pw * f))) ||
+                (!x && !fit(d, w->index, rows * 8)))
+                return lstm_failed(LSTM_NO_MEMORY, "buffers for an LSTM run", msg, len);
+            memcpy(w->len.contents, lengths, batch * 8);
+            memcpy(w->start.contents, w->starts.data(), batch * 8);
+            memset(w->cell.contents, 0, state);
+            *static_cast<uint32_t *>(w->bad.contents) = UINT32_MAX;
+            if (x)
+                memcpy(w->x.contents, x, rows * l->input * f);
+            else
+                memcpy(w->index.contents, index, rows * 8);
+            id<MTLCommandBuffer> cb = [w->queue commandBuffer];
+            id<MTLComputeCommandEncoder> enc = [cb computeCommandEncoder];
+            id<MTLBuffer> proj = x ? w->proj : table->values;
+            if (x) {
+                const LstmProjectParams pp{(uint32_t)rows, pw, (uint32_t)l->input};
+                [enc setComputePipelineState:l->kernels->k[LSTM_PROJECT]];
+                [enc setBuffer:w->x offset:0 atIndex:0];
+                [enc setBuffer:l->w offset:0 atIndex:1];
+                [enc setBuffer:l->b offset:0 atIndex:2];
+                [enc setBuffer:w->proj offset:0 atIndex:3];
+                [enc setBytes:&pp length:sizeof pp atIndex:4];
+                [enc dispatchThreads:MTLSizeMake(pw, rows, 1) threadsPerThreadgroup:MTLSizeMake(32, 4, 1)];
+            }
+            [enc setComputePipelineState:l->kernels->k[LSTM_STEP]];
+            [enc setBuffer:proj offset:0 atIndex:0];
+            [enc setBuffer:x ? w->len : w->index offset:0 atIndex:1];
+            [enc setBuffer:l->u offset:0 atIndex:2];
+            [enc setBuffer:w->len offset:0 atIndex:3];
+            [enc setBuffer:w->start offset:0 atIndex:4];
+            [enc setBuffer:w->cell offset:0 atIndex:7];
+            [enc setBuffer:w->out offset:0 atIndex:8];
+            [enc setBuffer:w->bad offset:0 atIndex:9];
+            [enc setBuffer:l->reverse offset:0 atIndex:10];
+            int64_t active = batch;
+            for (int64_t t = 0; t < lengths[0]; t++) {
+                while (lengths[active - 1] <= t) active--;
+                const LstmStepParams sp{(uint32_t)batch, (uint32_t)active, h, pw, width, (uint32_t)t, x ? 0u : 1u};
+                [enc setBuffer:w->state offset:(t & 1) * state atIndex:5];
+                [enc setBuffer:w->state offset:((t + 1) & 1) * state atIndex:6];
+                [enc setBytes:&sp length:sizeof sp atIndex:11];
+                // The steps run one after another: a serial encoder orders
+                // them, each reading the state the last wrote.
+                [enc dispatchThreads:MTLSizeMake(h, active, dirs) threadsPerThreadgroup:MTLSizeMake(32, 4, 1)];
+            }
+            [enc endEncoding];
+            [cb commit];
+            [cb waitUntilCompleted];
+            if (cb.status != MTLCommandBufferStatusCompleted)
+                return lstm_failed(LSTM_FAILED, cb.error ? cb.error.localizedDescription.UTF8String : "the LSTM run failed",
+                                   msg, len);
+            memcpy(out, w->out.contents, rows * width * f);
+            const uint32_t bad = *static_cast<const uint32_t *>(w->bad.contents);
+            if (bad != UINT32_MAX) {
+                *bad_row = (int64_t)bad;
+                return LSTM_NOT_FINITE;
+            }
+            return LSTM_OK;
+        } catch (...) {
+            return lstm_failed(LSTM_FAILED, "an exception running the LSTM", msg, len);
+        }
     }
 }
 
