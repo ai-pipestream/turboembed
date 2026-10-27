@@ -629,9 +629,13 @@ was checked; this is not a licence decision for other GLiNER checkpoints.
 
 ### Extracted PDF artifact evaluation
 
-The three ACL paper excerpts and the JMLR excerpt under `analysis/normalize/data/extracted-pdf` are
-CC-BY-4.0 material, with authors, titles, page ranges, source URLs, licence
-links and transformation notices in that directory's README. The ACL
+The three ACL paper excerpts, the JMLR excerpt and the two Leodar dataset
+excerpts under `analysis/normalize/data/extracted-pdf` are CC-BY-4.0
+material, with authors, titles, page ranges, source URLs, licence links and
+transformation notices in that directory's README. The files are
+`P19-1423.escaped`, `2020.acl-main.1.escaped`,
+`2022.acl-long.14-mupdf.escaped` (ACL), `jmlr-25-0035.escaped` (JMLR),
+`leodar-111.escaped` and `leodar-116.escaped` (Leodar). The ACL
 [copyright policy](https://aclanthology.org/faq/copyright/) places ACL materials
 from 2016 onward under CC-BY-4.0. The paper text is evaluation data, not
 repository-licensed source code; retain attribution when redistributing it.
@@ -640,6 +644,15 @@ Andrew M. Stuart and T. J. Sullivan, 2025, *Autoencoders in Function Space*,
 JMLR 26(165):1-54, pages 2-7. Its PDF explicitly states CC-BY 4.0 and
 requires attribution linking to the
 [original publication](https://jmlr.org/papers/v26/25-0035.html).
+The Leodar excerpts are from Leonard Ng, 2024, *Dataset for "Harnessing
+GenAI for Higher Education": A Mixed-Methods Study of Prof. Leodar, a Custom
+RAG Chatbot*, version 1, Mendeley Data,
+doi:[10.17632/9mrxwtfh6w.1](https://data.mendeley.com/datasets/9mrxwtfh6w/1),
+file `SI_Annex_C-List_of_questions_asked_by_learners.pdf`, PDF pages 111 and
+116. The dataset record states
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); credit Leonard Ng
+and link the dataset when redistributing them. Changes are page selection,
+text extraction and reversible escaping only; no endorsement is implied.
 The Rust reproduction helper verifies original PDF and extracted-text hashes.
 
 ## Sentence abbreviation inventories
