@@ -2,6 +2,30 @@
 //! against PlainBert in f64, and the bundle's pooling and normalization
 //! as the default.
 
+#[path = "common/mod.rs"]
+mod common;
+#[path = "sessions/support.rs"]
+mod support;
+
+#[path = "sessions/capability.rs"]
+mod capability;
+#[path = "sessions/ranges.rs"]
+mod ranges;
+#[path = "sessions/results.rs"]
+mod results;
+#[path = "sessions/roberta.rs"]
+mod roberta;
+#[path = "sessions/session.rs"]
+mod session;
+#[path = "sessions/state.rs"]
+mod state;
+#[path = "sessions/weights.rs"]
+mod weights;
+#[path = "sessions/write_text.rs"]
+mod write_text;
+#[path = "sessions/write_tokens.rs"]
+mod write_tokens;
+
 use crate::common::*;
 use crate::support::*;
 use turbo::*;
