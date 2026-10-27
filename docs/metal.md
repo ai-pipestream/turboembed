@@ -280,6 +280,36 @@ row patterns and token ranges: on the M2 every value is within 8.3e-6 of
 the CPU's, against a bound of 1e-4. Dropping the content-to-position term
 fails it (3.3e-4 on the tiny model).
 
+## The LSTM for the taggers
+
+`turbo::device::lstm::Lstm` on `Device::Metal(n)` (`metal` or `metal:N`)
+is the batched LSTM of `turbo::cpu::lstm` on an Apple GPU, for the
+analysis crates' sequence taggers (#860), as core/cuda/lstm.cu runs it on
+CUDA. It is a Rust surface (core/src/device/metal_lstm.rs), not part of
+the backend table; its host side is in backend.mm and its kernels,
+`lstm_project` and `lstm_step`, in kernels.metal, compiled with the
+backend's. The weights and a table are shared Metal buffers on the
+device's unified memory. A run copies its rows (or table row ids),
+lengths and starts in, encodes one product for every row's input
+projections and one dispatch per step over the sequences still running
+(every direction at once, a thread a unit) on its workspace's own
+command queue, and waits once. A non-finite gate or state is refused at
+the end of the run with INVALID_ARGUMENT, as the CPU form refuses it.
+FASTEST (F16 weights) is refused with UNSUPPORTED, never run at MODEL in
+its place. `core/tests/device_lstm.rs` holds it to the CPU form at 1e-5
+with `TURBO_TEST_REQUIRE_METAL=1` (or `TURBO_TEST_DEVICE=metal`).
+
+On the M2 (`docs/receipts/bilstm-metal-860/`) the states are within
+5.1e-7 of the CPU's, the BiLSTM-CRF tagger gives the goldens' 1980 tags,
+and on UD English EWT r2.15's test split, with the model the CUDA and
+Level Zero runs used (SHA-256 `fcf0b057...`), MODEL on Metal tags all
+25,094 tokens as the CPU packed path does (94.8553%). It is slower than
+the CPU's packed path: at 256 sentences a call 184.6 ms against 103.2 ms
+warm at p50 with one layer, 405.1 against 205.8 with two. The kernels
+are a thread per output with no tiling or threadgroup memory, so the
+recurrent product reads each step's state from device memory once per
+unit; a tiled step, as CUDA's, is the next step.
+
 ## Kernel choices
 
 At FASTEST a session chooses two items, which tile its linear layers

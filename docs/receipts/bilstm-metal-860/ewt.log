@@ -1,0 +1,5 @@
+### commit cb8199f1 (the device code; the next commit changes only the timing test); 2026-10-27T04:49:20Z; load { 5.49 7.08 5.86 }
+running 1 test
+25094 tokens; cpu packed 94.8553%, Metal(0) MODEL 94.8553%
+test device_tiers_on_ud_english_ewt ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 1.79s

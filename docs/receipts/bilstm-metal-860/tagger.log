@@ -1,0 +1,31 @@
+### commit b4ed319e0d61a0802c55c8942b6ad33f35893339; TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo-postag --features turbo/metal --test neural_goldens --test bilstm_device -- --nocapture; 2026-10-27T04:49:57Z; load { 5.93 6.99 5.88 }
+running 5 tests
+test device_tagger_timing ... ignored, timing; run in release on an idle machine with a quiet GPU
+test fastest_stays_near_model_and_hashes_apart ... ok
+test each_backend_hashes_apart_and_the_same_every_time ... ok
+Metal(0) stacked false, crf true: max abs emission diff from the CPU 1.7881393432617188e-7
+test a_sentence_tags_the_same_alone_and_in_a_batch_on_the_device ... ok
+Metal(0) stacked true, crf true: max abs emission diff from the CPU 1.4901161193847656e-7
+Metal(0) stacked false, crf false: max abs emission diff from the CPU 1.7881393432617188e-7
+test device_emissions_match_the_cpu ... ok
+test result: ok. 4 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.63s
+running 2 tests
+2 feedforward models trained in Rust are the JVM's files byte for byte
+emissions of the BiLSTM models trained in Rust: 550 of 20328 bit for bit, largest difference 1.6653345369377348e-14
+test trainers_reproduce_the_jvm_models ... ok
+8 runs, 16 goldens, 280 sentences: 2640 tags and 7920 feedforward context slots equal
+feedforward emissions: 14520 of 14520 bit for bit, largest difference 0e0
+BiLSTM emissions: 42866 of 43560 bit for bit, largest difference 8.881784197001252e-16
+CRF marginals of the JVM's emissions: 26445 of 29040 bit for bit, largest difference 2.220446049250313e-16
+CRF marginals: 23753 of 29040 bit for bit, largest difference 2.220446049250313e-16
+tag probabilities: 2421 of 2640 bit for bit, largest difference 2.220446049250313e-16
+sequence scores: 266 of 280 bit for bit, largest difference 7.105427357601002e-15
+packed (default numerics): 1980 tags equal
+packed emissions: 0 of 43560 bit for bit, largest difference 8.578596988328968e-7
+packed tag probabilities: 0 of 1980 bit for bit, largest difference 1.679040383950614e-7
+packed on Metal(0): 1980 tags equal
+packed emissions on Metal(0): 0 of 43560 bit for bit, largest difference 8.578596988328968e-7
+packed tag probabilities on Metal(0): 0 of 1980 bit for bit, largest difference 1.5018038856950966e-7
+FASTEST on Metal(0): 0 of 0 tags equal the JVM's
+test every_neural_postag_golden_matches_the_jvm ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.11s

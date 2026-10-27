@@ -5377,9 +5377,9 @@ the output layer in f32 on the CPU backend's packed GEMM
 (`turbo::cpu::Matrix`, on the calling thread) and decodes the CRF in
 f64; `JvmParity` is the f64 forward pass and exact-sum CRF scorer that
 reproduce the JVM (`analysis/postag/README.md`).
-`BilstmPosTagger::on_device` (feature `cuda` or `levelzero`) is `Packed`
-with its character and sentence BiLSTMs on an NVIDIA or Intel GPU through
-`turbo::device::lstm::Lstm` (#860, docs/cuda.md, docs/levelzero.md); the output layer and
+`BilstmPosTagger::on_device` (feature `cuda`, `levelzero` or `metal`) is `Packed`
+with its character and sentence BiLSTMs on an NVIDIA, Intel or Apple GPU through
+`turbo::device::lstm::Lstm` (#860, docs/cuda.md, docs/levelzero.md, docs/metal.md); the output layer and
 the f64 CRF stay on the host, and an LSTM that cannot be made on the
 device is an error, never a CPU run. It has its own `config_hash`, and
 `analysis/postag/tests/bilstm_device.rs` holds it to the CPU path and
@@ -5388,8 +5388,8 @@ FASTEST holds the BiLSTMs' weights as F16 on the GPU (sums and states
 F32), hashes as its own tier, and is held to accuracy, not bits: on UD
 English EWT within 0.1 points of MODEL and MODEL's tag on at least 99.9%
 of the words (`analysis/postag/tests/bilstm_ewt.rs`), and the JVM's tag
-on at least 99.9% of the goldens' words. FASTEST runs on CUDA alone; Level Zero refuses it. There is no Metal
-or NPU path yet.
+on at least 99.9% of the goldens' words. FASTEST runs on CUDA alone; Level Zero and Metal refuse it. There is no
+NPU path yet.
 
 `Packed` runs each BiLSTM, character and sentence, as one
 `turbo::cpu::lstm::Lstm` over both directions (#859): every sequence of
