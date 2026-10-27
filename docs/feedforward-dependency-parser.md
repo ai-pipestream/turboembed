@@ -89,15 +89,17 @@ cargo run --release -p turbo-depparse --bin turbo-depparse -- train feedforward 
 cargo run --release -p turbo-depparse --bin turbo-depparse -- train linear en train.conllu linear.properties linear.bin --projective-only
 ```
 
-These commands require an explicit parameter file and `--projective-only`.
-They filter non-projective trees before training and report input, retained
+The commands above require an explicit parameter file. With
+`--projective-only` they filter non-projective trees before training and report input, retained
 and excluded sentence/word counts. Models use `Plain` relation encoding, so
 carets and backslashes in relation labels remain literal. They then report
 elapsed training seconds and corpus/parameter/model SHA256 values. Retain this receipt with the source corpus and parameter file;
 the neural container does not store training language or corpus provenance.
 Training consumes the supplied file only; keep train, development and test
-roles separate. An empty projective population is an error. This command does
-not solve non-projective training or constitute a measured accuracy release.
+roles separate. An empty projective population is an error. Non-projective
+trees are kept by the default pseudo-projective mode and by `--swap`,
+described below. None of these commands constitutes a measured accuracy
+release.
 
 The linear CLI currently supports `Algorithm=MAXENT` and requires explicit
 positive `Iterations` and `Threads`, plus nonnegative `Cutoff`. Other algorithms
@@ -154,3 +156,14 @@ separate types and POS dependencies.
 See `analysis/depparse/src/feedforward/mod.rs`,
 `analysis/train-components/src/depparse.rs`, and
 `analysis/depparse/tests/feedforward/data/README.md`.
+
+
+With no mode flag, native CLI training is pseudo-projective. It also accepts
+explicit `--swap` or `--pseudo-projective`
+in place of `--projective-only`. Both retain non-projective training samples.
+SWAP uses ordinary labels and native transitions; pseudo-projective training
+uses escaped lifting metadata and deprojects predicted trees. The default
+Rust `train` API remains pseudo-projective, while `train_swap` and
+`train_projective` select their modes explicitly. Existing released models
+retain their recorded decoding mode. See the
+[SWAP and evaluation contract](dependency-parser.md#explicit-native-swap-training-and-held-out-gates).

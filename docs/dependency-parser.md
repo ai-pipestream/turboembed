@@ -55,7 +55,7 @@ and explicit-parameter `train` for both linear and feedforward models.
 It needs no Python installation and does not overwrite source or existing
 output files. See the [CLI commands and training limits](feedforward-dependency-parser.md#native-command-line).
 Existing raw and packaged model APIs remain directly loadable; conversion is
-optional. CLI training requires explicit projective-only acceptance and
+optional. CLI projective-only training requires explicit acceptance and
 reports input, retained and excluded sentence and word counts. Its
 `train_projective` Rust APIs reject crossing trees and retain literal relation
 labels with `Plain` encoding. Default `train` APIs retain non-projective trees
@@ -154,3 +154,31 @@ that graph and otherwise preserves plain graphs. Transition reconstruction or
 layer import discards graph metadata; callers must then use
 `deprojectivize_with` with the encoding from the model. Re-projectivizing an
 already encoded graph is refused to prevent double escaping.
+
+
+## Explicit native SWAP training and held-out gates
+
+`DependencyModel::train_swap`, `FeedforwardDependencyTrainer::train_swap`, and
+`DependencyEventStream::generate_swap` retain crossing trees with native SWAP
+transitions and ordinary `Plain` labels. `train` remains pseudo-projective;
+`train_projective` remains the strict projective-only API. SWAP moves parser
+buffer indexes, not source tokens or spans. The monotonic pair rule and an
+`n(n+1)` action bound ensure termination. Existing models without SWAP retain
+their transition choices. Neural SWAP models cannot export to the legacy Java
+format; native conversion preserves the transitions and label mode.
+
+The CLI defaults to pseudo-projective training without a mode flag. It accepts
+one of `--swap`, `--pseudo-projective`, or `--projective-only`; conflicting flags
+are errors. Only the last filters trees. Input, retained, excluded,
+and included non-projective counts are printed for each mode. The
+[Finnish-FTB r2.14 preparation](../analysis/train-recipes/dependency/fi-ftb-r2.14/README.md)
+uses `--swap`; it does not reproduce the separate r2.16 pseudo-projective release.
+No full SWAP training or accuracy release is claimed by this integration.
+
+`turbo-depparse evaluate KIND MODEL GOLD.conllu REPORT.tsv MIN_UAS MIN_LAS`
+records model/corpus hashes and caller-selected finite floors in [0,1]. It
+reports UAS/LAS for all, projective, and non-projective trees, both including
+and excluding UPOS=PUNCT. Invalid or failed parses retain all gold words in
+the denominator and fail the gate. Gold heads/labels do not enter inference.
+A failed floor still writes the report. This internal evaluation does not
+replace external MaltParser/Stanza comparisons required by the broader issue.

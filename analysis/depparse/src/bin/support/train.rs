@@ -99,6 +99,9 @@ pub(super) fn run(args: &[String]) -> Result<()> {
     };
     let input = fs::read_to_string(&args[3])?;
     let mut samples = Vec::new();
+    let mode = args.get(6).map(String::as_str).unwrap_or("--pseudo-projective");
+    let projective_only = mode == "--projective-only";
+    let mut crossing = 0;
     let (mut words, mut skipped, mut skipped_words) = (0, 0, 0);
     for (index, sentence) in ConlluWordReader::new(&input)?.enumerate() {
         let sentence = sentence?;
@@ -116,9 +119,12 @@ pub(super) fn run(args: &[String]) -> Result<()> {
         let sample = DependencySample::<Words>::from_conllu(sample)?;
         words += sample.tokens().len();
         if !sample.graph().is_projective() {
-            skipped += 1;
-            skipped_words += sample.tokens().len();
-            continue;
+            crossing += 1;
+            if projective_only {
+                skipped += 1;
+                skipped_words += sample.tokens().len();
+                continue;
+            }
         }
         samples.push(sample);
     }
@@ -127,14 +133,23 @@ pub(super) fn run(args: &[String]) -> Result<()> {
         samples.len() + skipped
     );
     eprintln!("trained_sentences={} trained_words={}", samples.len(), words - skipped_words);
+    eprintln!("included_nonprojective_sentences={} training_mode={}", crossing - skipped, &mode[2..]);
     if samples.is_empty() {
         return Err("no projective training sentences".into());
     }
     eprintln!("language={} kind={} neural_settings={neural:?}", args[2], args[1]);
     let start = Instant::now();
     let model = match neural {
-        Some(settings) => Model::Feedforward(FeedforwardDependencyTrainer::train_projective(&samples, &settings)?),
-        None => Model::Linear(DependencyModel::train_projective(&args[2], &samples, &params)?),
+        Some(settings) => Model::Feedforward(match mode {
+            "--projective-only" => FeedforwardDependencyTrainer::train_projective(&samples, &settings)?,
+            "--swap" => FeedforwardDependencyTrainer::train_swap(&samples, &settings)?,
+            _ => FeedforwardDependencyTrainer::train(&samples, &settings)?,
+        }),
+        None => Model::Linear(match mode {
+            "--projective-only" => DependencyModel::train_projective(&args[2], &samples, &params)?,
+            "--swap" => DependencyModel::train_swap(&args[2], &samples, &params)?,
+            _ => DependencyModel::train(&args[2], &samples, &params)?,
+        }),
     };
     let bytes = model.bytes()?;
     write_new(&args[5], &bytes)?;

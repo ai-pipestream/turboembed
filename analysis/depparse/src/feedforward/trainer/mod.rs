@@ -1,7 +1,7 @@
 mod initialize;
 mod optimize;
 use super::{Activation, FeatureLayout, FeedforwardContext, FeedforwardDependencyModel};
-use crate::{ArcStandardOracle, ArcStandardState, DependencySample, Result, error};
+use crate::{ArcStandardState, DependencySample, Result, error};
 use turbo_analysis_layers::WordOrTokenAnchor;
 
 #[derive(Clone, Debug)]
@@ -70,7 +70,7 @@ impl FeedforwardDependencyTrainer {
         samples: &[DependencySample<A>],
         settings: &FeedforwardSettings,
     ) -> Result<FeedforwardDependencyModel> {
-        Self::train_with_projectivization(samples, settings, true)
+        Self::train_with_mode(samples, settings, crate::training::TrainingMode::PseudoProjective)
     }
     /// Train plain arc-standard labels from projective samples only.
     /// Non-projective or already encoded trees produce an error.
@@ -78,22 +78,29 @@ impl FeedforwardDependencyTrainer {
         samples: &[DependencySample<A>],
         settings: &FeedforwardSettings,
     ) -> Result<FeedforwardDependencyModel> {
-        Self::train_with_projectivization(samples, settings, false)
+        Self::train_with_mode(samples, settings, crate::training::TrainingMode::Projective)
     }
-    fn train_with_projectivization<A: WordOrTokenAnchor>(
+    /// Train native SWAP transitions with ordinary labels and no tree filtering.
+    pub fn train_swap<A: WordOrTokenAnchor>(
         samples: &[DependencySample<A>],
         settings: &FeedforwardSettings,
-        pseudo_projective: bool,
+    ) -> Result<FeedforwardDependencyModel> {
+        Self::train_with_mode(samples, settings, crate::training::TrainingMode::Swap)
+    }
+    fn train_with_mode<A: WordOrTokenAnchor>(
+        samples: &[DependencySample<A>],
+        settings: &FeedforwardSettings,
+        mode: crate::training::TrainingMode,
     ) -> Result<FeedforwardDependencyModel> {
         settings.check()?;
-        let mut model = initialize::initialize(samples, settings, pseudo_projective)?;
+        let mut model = initialize::initialize(samples, settings, mode)?;
         let mut examples = Vec::new();
         for sample in samples {
-            let graph = sample.training_graph(pseudo_projective)?;
+            let graph = mode.graph(sample.graph())?;
             let mut state = ArcStandardState::<A>::new(sample.tokens().len())?;
             let words: Vec<_> = sample.tokens().iter().map(String::as_str).collect();
             let tags: Vec<_> = sample.tags().iter().map(String::as_str).collect();
-            for transition in ArcStandardOracle::transitions(&graph)? {
+            for transition in mode.transitions(&graph)? {
                 let context = FeedforwardContext::extract(&state, &words, &tags, settings.layout)?;
                 let outcome = model
                     .transitions
@@ -117,8 +124,7 @@ impl FeedforwardDependencyTrainer {
         // Cache only after the final update so no stale weights can be used.
         // One million doubles bounds the returned model's cache at 8 MB of values.
         model.precompute_words(&counts.into_iter().collect::<Vec<_>>(), 1_000_000);
-        model.label_encoding =
-            if pseudo_projective { crate::LabelEncoding::EscapedV1 } else { crate::LabelEncoding::Plain };
+        model.label_encoding = mode.encoding();
         Ok(model)
     }
 }

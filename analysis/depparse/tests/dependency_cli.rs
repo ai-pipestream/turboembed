@@ -228,7 +228,9 @@ fn training_rejects_implicit_filtering_unknown_settings_and_empty_projective_pop
         let result = run(&args);
         assert!(!result.status.success());
         assert!(!PathBuf::from(&output).exists());
-        assert!(!run(&args[..6]).status.success());
+        if settings != "Epochs=1\n" {
+            assert!(!run(&args[..6]).status.success());
+        }
     }
 }
 
@@ -262,14 +264,113 @@ fn projective_cli_preserves_literal_relation_labels_and_rejects_empty_population
         assert!(message.contains("trained_sentences=0 trained_words=0"));
         assert!(message.contains("no projective training sentences"));
         assert!(!PathBuf::from(&model).exists());
-        success(&["train", kind, "und", &input, &params, &model, "--projective-only"]);
-        let output = dir.path(&format!("{kind}.conllu"));
-        success(&["parse", kind, &model, &inference, &output]);
-        let predictions = fs::read_to_string(output).unwrap();
-        for sentence in ConlluWordReader::new(&predictions).unwrap() {
-            for word in sentence.unwrap().words {
-                assert_eq!(word.deprel.as_str(), label);
+        for mode in ["--projective-only", "--pseudo-projective", "--swap"] {
+            let model = dir.path(&format!("{kind}{mode}.bin"));
+            success(&["train", kind, "und", &input, &params, &model, mode]);
+            let output = dir.path(&format!("{kind}{mode}.conllu"));
+            success(&["parse", kind, &model, &inference, &output]);
+            let predictions = fs::read_to_string(output).unwrap();
+            for sentence in ConlluWordReader::new(&predictions).unwrap() {
+                for word in sentence.unwrap().words {
+                    assert_eq!(word.deprel.as_str(), label);
+                }
             }
+        }
+    }
+}
+
+#[test]
+fn explicit_swap_training_retains_crossing_trees_and_native_reload_predictions() {
+    let dir = Scratch::new();
+    let corpus = include_str!("data/ud-fi-ftb-crossing.conllu");
+    let input = dir.put("training.conllu", corpus.as_bytes());
+    let inference = dir.put("input.conllu", unparsed(corpus).as_bytes());
+    for (kind, settings) in [
+        ("linear", "Algorithm=MAXENT\nIterations=5\nCutoff=1\nThreads=1\n"),
+        ("feedforward", "Epochs=2\nEmbeddingSize=3\nHiddenSize=5\nBatchSize=4\nDropout=0\nWordCutoff=1\n"),
+    ] {
+        let params = dir.put(&format!("{kind}.params"), settings.as_bytes());
+        let model = dir.path(&format!("{kind}.bin"));
+        let result = run(&["train", kind, "fi", &input, &params, &model, "--swap"]);
+        assert!(result.status.success(), "{}", String::from_utf8_lossy(&result.stderr));
+        let counts = String::from_utf8(result.stderr).unwrap();
+        assert!(counts.contains("sentences=1 words=11 excluded_nonprojective_sentences=0"));
+        assert!(counts.contains("included_nonprojective_sentences=1"));
+        let bytes = fs::read(&model).unwrap();
+        if kind == "feedforward" {
+            let m = turbo_depparse::FeedforwardDependencyModel::from_bytes(&bytes).unwrap();
+            assert!(m.transitions().contains(&turbo_depparse::Transition::Swap));
+            assert!(m.to_java_bytes().unwrap_err().to_string().contains("SWAP"));
+        } else {
+            let zip = turbo_maxent::zip::Zip::new(bytes.as_slice()).unwrap();
+            let manifest = zip.entry("manifest.properties").unwrap();
+            assert!(String::from_utf8_lossy(&manifest).contains("TransitionSystem=ArcStandardSwap"));
+        }
+        let converted = dir.path(&format!("{kind}-converted.bin"));
+        success(&["convert", kind, &model, &converted]);
+        let first = dir.path(&format!("{kind}-first.conllu"));
+        let second = dir.path(&format!("{kind}-second.conllu"));
+        success(&["parse", kind, &model, &inference, &first]);
+        success(&["parse", kind, &converted, &inference, &second]);
+        assert_eq!(fs::read(first).unwrap(), fs::read(second).unwrap());
+    }
+}
+
+#[test]
+fn evaluation_writes_all_subsets_and_failed_floors_keep_the_report() {
+    let dir = Scratch::new();
+    let model = dir.put("apache.bin", include_bytes!("apache/apache-refined.bin"));
+    let corpus = format!("{}\n{}", include_str!("data/ud-es.conllu"), include_str!("data/ud-fi-ftb-crossing.conllu"));
+    let input = dir.put("heldout.conllu", corpus.as_bytes());
+    let report = dir.path("report.tsv");
+    let result = run(&["evaluate", "feedforward", &model, &input, &report, "1", "1"]);
+    assert!(!result.status.success());
+    assert!(String::from_utf8_lossy(&result.stderr).contains("gate failed"));
+    let text = fs::read_to_string(&report).unwrap();
+    assert!(text.contains("passed=false"));
+    assert!(text.contains("nonprojective\tincluded\t1\t0\t11\t"));
+    assert!(text.contains("projective\tincluded\t1\t0\t"));
+    assert!(text.contains("corpus_sha256="));
+    assert!(text.contains("model_sha256="));
+    let valid = dir.path("finite.tsv");
+    success(&["evaluate", "feedforward", &model, &input, &valid, "0", "0"]);
+    let absent = dir.path("absent.tsv");
+    assert!(!run(&["evaluate", "feedforward", &model, &input, &absent, "NaN", "0"]).status.success());
+    assert!(!PathBuf::from(absent).exists());
+}
+
+#[test]
+fn explicit_pseudo_training_keeps_crossing_trees_without_swap() {
+    let dir = Scratch::new();
+    let input = dir.put("input", include_bytes!("data/ud-fi-ftb-crossing.conllu"));
+    for (kind, settings) in [
+        ("linear", "Algorithm=MAXENT\nIterations=2\nCutoff=0\nThreads=1\n"),
+        ("feedforward", "Epochs=1\nEmbeddingSize=3\nHiddenSize=5\nBatchSize=4\nDropout=0\nWordCutoff=1\n"),
+    ] {
+        let params = dir.put("params", settings.as_bytes());
+        let model = dir.path(&format!("{kind}.bin"));
+        let out = run(&["train", kind, "fi", &input, &params, &model, "--pseudo-projective"]);
+        assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+        let counts = String::from_utf8(out.stderr).unwrap();
+        assert!(counts.contains("included_nonprojective_sentences=1 training_mode=pseudo-projective"));
+        assert!(counts.contains("trained_sentences=1 trained_words=11"));
+        let bytes = fs::read(&model).unwrap();
+        let default = dir.path(&format!("{kind}-default.bin"));
+        success(&["train", kind, "fi", &input, &params, &default]);
+        assert_eq!(turbo_maxent::sha256(&bytes), turbo_maxent::sha256(&fs::read(default).unwrap()));
+        let bad = dir.path(&format!("{kind}-bad.bin"));
+        for flags in [["--swap", "--projective-only"], ["--pseudo-projective", "--swap"]] {
+            assert!(!run(&["train", kind, "fi", &input, &params, &bad, flags[0], flags[1]]).status.success());
+            assert!(!PathBuf::from(&bad).exists());
+        }
+        if kind == "linear" {
+            let m = turbo_depparse::DependencyModel::open(bytes).unwrap();
+            assert_eq!(m.label_encoding(), turbo_depparse::LabelEncoding::EscapedV1);
+            assert!(m.model_ref().id.starts_with("opennlp:"));
+        } else {
+            let m = turbo_depparse::FeedforwardDependencyModel::from_bytes(&bytes).unwrap();
+            assert_eq!(m.label_encoding(), turbo_depparse::LabelEncoding::EscapedV1);
+            assert!(!m.transitions().contains(&turbo_depparse::Transition::Swap));
         }
     }
 }
