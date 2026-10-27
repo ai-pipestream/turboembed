@@ -456,12 +456,42 @@ written alongside the selection; partial attempts are preserved on error
 and are never automatically retried. The card records the selected training
 parameters. No reference weights are trained on or shipped.
 
-This change has only authored-fixture validation, no full MASC result or
-new release. A complete execution requires 160 CV model fits and four final
-fits. Existing `-1` ids, parameters and failed records remain unchanged.
-The `-2` ids are intentionally not in the publishable release inventory:
-full execution evidence, passing accuracy gates and independent review are
-required before adding a release. #427 remains open.
+The registered full MASC `-2` run completed on 2026-10-26 at source
+`8812b1db16ff47890be43be96d6835eea12306af`: 160 CV fits and 4 final fits,
+with one unchanged held-out gate per type. The following CV F1 values are
+percentages over the training-only document folds. `D` means document
+clearing and `S` means sentence clearing; the configuration is iterations/cutoff.
+
+| Type | 300/0 D | 300/0 S | 100/5 D | 100/5 S | Selected |
+|---|---:|---:|---:|---:|---|
+| person | 35.3245 | 41.1656 | 46.2778 | 47.7315 | 100/5 sentence |
+| location | 61.1674 | 61.5235 | 58.7044 | 58.9595 | 300/0 sentence |
+| organization | 38.3171 | 39.2556 | 40.5431 | 40.8384 | 100/5 sentence |
+| date | 55.8046 | 55.6928 | 55.4180 | 56.2285 | 100/5 sentence |
+
+Final held-out F1 and paired 95% difference interval, in percentage points:
+
+| Type | Candidate F1 | Reference F1 | Difference interval | Original gate | Command wall seconds |
+|---|---:|---:|---|---|---:|
+| person | 58.4615 | 54.5903 | [+0.9225, +6.9747] | PASS | 2024.90 |
+| location | 58.2960 | 62.8571 | [-9.2434, +0.1347] | FAIL | 1252.55 |
+| organization | 42.5000 | 40.1929 | [-5.2783, +9.4270] | FAIL | 1179.02 |
+| date | 49.3458 | 42.9054 | [-0.7732, +13.7469] | FAIL | 2179.59 |
+
+The gate requires the lower difference bound to be at least -0.5 points.
+Location, organization and date fail this unchanged condition. The positive point
+differences for organization and date do not remove their failed uncertainty
+bounds. Runtime includes CV, final training, scoring and writing on a shared CPU host; it is not an
+isolated performance comparison. No configuration, split or threshold was
+changed after observing these results, and no attempt was retried.
+
+The [execution receipt](../../docs/receipts/masc-427-v2/README.md) gives the
+compiler and binary/input/output hashes, load disclosure, complete compressed
+selection/card/count records and a standalone verifier. It contains no corpus
+text or model binaries. Existing `-1` ids and records remain unchanged. The
+`-2` ids remain outside the publishable release inventory and zoo index because
+the required accuracy gates have not all passed. #427 remains open; this is
+an execution result, not a new model release.
 
 On 2026-10-26 the [publisher's MASC page](https://anc.org/data/masc/)
 confirmed CC BY 3.0 US, and its

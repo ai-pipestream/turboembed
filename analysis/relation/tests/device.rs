@@ -81,10 +81,11 @@ fn gliner2_relations_score_as_on_the_cpu_encoder() {
     let held = held.len();
     let x = on.execution().unwrap();
     println!(
-        "gliner2 relations on {} {}: {} runs, largest logit difference from the cpu encoder {largest:e}, {held} best \
-         spans held, {found} relations extracted alike",
+        "gliner2 relations on {} {} ({}): {} runs, largest logit difference from the cpu encoder {largest:e}, {held} \
+         best spans held, {found} relations extracted alike",
         x.backend,
         x.device,
+        x.precision,
         reps()
     );
 }
@@ -125,9 +126,11 @@ fn glirel_scores_as_on_the_cpu_encoder() {
     let held = held.len();
     let x = on.execution().unwrap();
     println!(
-        "glirel on {} {}: {} runs, largest logit difference from the cpu encoder {largest:e}, {held} best pairs held",
+        "glirel on {} {} ({}): {} runs, largest logit difference from the cpu encoder {largest:e}, {held} best pairs \
+         held",
         x.backend,
         x.device,
+        x.precision,
         reps()
     );
 }

@@ -378,7 +378,8 @@ impl Treebank {
             let artifact = self.dataset()?;
             Index::parse(Index::to_canonical_json(std::slice::from_ref(&artifact)).as_bytes())?
         };
-        let zoo = Zoo::new(index, home.join("artifacts"), Policy::default(), &Http);
+        let http = Http::new();
+        let zoo = Zoo::new(index, home.join("artifacts"), Policy::default(), &http);
         Ok(zoo.fetch_with(&id, user, || Ok(Acceptances::default()))?.dir)
     }
 }

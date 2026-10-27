@@ -1,0 +1,443 @@
+base: 1aebb0dae57b562f70f21488b7be3af448c111bc plus the commit that adds this log (TURBO_TEST_PRECISION read by device_support::options)
+2026-10-26T22:30:25Z
+B70 compute clients: none; B70 runner build/test processes: 0
+== tiny, run 1, load 25.05 24.99 16.58: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device -- --nocapture
+test a_bert_bundle_is_not_a_deberta_encoder ... ok
+test a_bundle_is_bound_to_the_package_its_heads_were_converted_with ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 1.1920929e-7, 3 best pairs held
+test glirel_scores_as_on_the_cpu_encoder ... ok
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 12 best spans held, 12 relations extracted alike
+test gliner2_relations_score_as_on_the_cpu_encoder ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+gliner2 schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 8 decisions held, 46 spans and records decoded alike
+test schema_extraction_scores_as_on_the_cpu_encoder ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+== real, run 1, load 25.05 24.99 16.58: GLINER2_* and GLIREL_* set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device_real -- --ignored --nocapture (parity only)
+gliner2 relations: 1 runs of 3 cases, 18 best spans held, 9 relations extracted alike
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 4.5895576e-6
+test gliner2_relations_on_the_real_checkpoint ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 25.97s
+schema extraction: 1 runs of 4 cases, 33 decisions held, 24 values decoded alike
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 7.4505806e-6
+test schema_extraction_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 20.33s
+== tiny, run 2, load 25.48 24.96 16.96: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device -- --nocapture
+test a_bert_bundle_is_not_a_deberta_encoder ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 1.1920929e-7, 3 best pairs held
+test glirel_scores_as_on_the_cpu_encoder ... ok
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 12 best spans held, 12 relations extracted alike
+test a_bundle_is_bound_to_the_package_its_heads_were_converted_with ... ok
+test gliner2_relations_score_as_on_the_cpu_encoder ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s
+gliner2 schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 8 decisions held, 46 spans and records decoded alike
+test schema_extraction_scores_as_on_the_cpu_encoder ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+== real, run 2, load 27.12 25.31 17.12: GLINER2_* and GLIREL_* set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device_real -- --ignored --nocapture (parity only)
+gliner2 relations: 1 runs of 3 cases, 18 best spans held, 9 relations extracted alike
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 4.5895576e-6
+test gliner2_relations_on_the_real_checkpoint ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 30.66s
+schema extraction: 1 runs of 4 cases, 33 decisions held, 24 values decoded alike
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 7.4505806e-6
+test schema_extraction_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.91s
+== tiny, run 3, load 24.72 25.18 17.48: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device -- --nocapture
+test a_bert_bundle_is_not_a_deberta_encoder ... ok
+test a_bundle_is_bound_to_the_package_its_heads_were_converted_with ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 1.1920929e-7, 3 best pairs held
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 12 best spans held, 12 relations extracted alike
+test glirel_scores_as_on_the_cpu_encoder ... ok
+test gliner2_relations_score_as_on_the_cpu_encoder ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+gliner2 schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 8 decisions held, 46 spans and records decoded alike
+test schema_extraction_scores_as_on_the_cpu_encoder ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+== real, run 3, load 24.72 25.18 17.48: GLINER2_* and GLIREL_* set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device_real -- --ignored --nocapture (parity only)
+gliner2 relations: 1 runs of 3 cases, 18 best spans held, 9 relations extracted alike
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 4.5895576e-6
+test gliner2_relations_on_the_real_checkpoint ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 26.09s
+schema extraction: 1 runs of 4 cases, 33 decisions held, 24 values decoded alike
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 7.4505806e-6
+test schema_extraction_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 17.08s
+== tiny, run 4, load 23.70 24.77 17.70: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device -- --nocapture
+test a_bert_bundle_is_not_a_deberta_encoder ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 1.1920929e-7, 3 best pairs held
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 12 best spans held, 12 relations extracted alike
+test glirel_scores_as_on_the_cpu_encoder ... ok
+test gliner2_relations_score_as_on_the_cpu_encoder ... ok
+test a_bundle_is_bound_to_the_package_its_heads_were_converted_with ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+gliner2 schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 8 decisions held, 46 spans and records decoded alike
+test schema_extraction_scores_as_on_the_cpu_encoder ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+== real, run 4, load 23.70 24.77 17.70: GLINER2_* and GLIREL_* set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device_real -- --ignored --nocapture (parity only)
+gliner2 relations: 1 runs of 3 cases, 18 best spans held, 9 relations extracted alike
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 4.5895576e-6
+test gliner2_relations_on_the_real_checkpoint ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 28.68s
+schema extraction: 1 runs of 4 cases, 33 decisions held, 24 values decoded alike
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 7.4505806e-6
+test schema_extraction_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 17.93s
+== tiny, run 5, load 31.10 26.53 18.66: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device -- --nocapture
+test a_bert_bundle_is_not_a_deberta_encoder ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 1.1920929e-7, 3 best pairs held
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 12 best spans held, 12 relations extracted alike
+test glirel_scores_as_on_the_cpu_encoder ... ok
+test gliner2_relations_score_as_on_the_cpu_encoder ... ok
+test a_bundle_is_bound_to_the_package_its_heads_were_converted_with ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+gliner2 schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 8 decisions held, 46 spans and records decoded alike
+test schema_extraction_scores_as_on_the_cpu_encoder ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+== real, run 5, load 31.10 26.53 18.66: GLINER2_* and GLIREL_* set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device_real -- --ignored --nocapture (parity only)
+gliner2 relations: 1 runs of 3 cases, 18 best spans held, 9 relations extracted alike
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 4.5895576e-6
+test gliner2_relations_on_the_real_checkpoint ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 28.66s
+schema extraction: 1 runs of 4 cases, 33 decisions held, 24 values decoded alike
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 7.4505806e-6
+test schema_extraction_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.44s
+== tiny, run 6, load 25.75 25.89 18.83: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device -- --nocapture
+test a_bert_bundle_is_not_a_deberta_encoder ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 1.1920929e-7, 3 best pairs held
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 12 best spans held, 12 relations extracted alike
+test glirel_scores_as_on_the_cpu_encoder ... ok
+test gliner2_relations_score_as_on_the_cpu_encoder ... ok
+test a_bundle_is_bound_to_the_package_its_heads_were_converted_with ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+gliner2 schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 8 decisions held, 46 spans and records decoded alike
+test schema_extraction_scores_as_on_the_cpu_encoder ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+== real, run 6, load 25.75 25.89 18.83: GLINER2_* and GLIREL_* set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device_real -- --ignored --nocapture (parity only)
+gliner2 relations: 1 runs of 3 cases, 18 best spans held, 9 relations extracted alike
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 4.5895576e-6
+test gliner2_relations_on_the_real_checkpoint ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 27.41s
+schema extraction: 1 runs of 4 cases, 33 decisions held, 24 values decoded alike
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 7.4505806e-6
+test schema_extraction_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.93s
+== tiny, run 7, load 23.41 25.26 18.95: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device -- --nocapture
+test a_bert_bundle_is_not_a_deberta_encoder ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 1.1920929e-7, 3 best pairs held
+test glirel_scores_as_on_the_cpu_encoder ... ok
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 12 best spans held, 12 relations extracted alike
+test gliner2_relations_score_as_on_the_cpu_encoder ... ok
+test a_bundle_is_bound_to_the_package_its_heads_were_converted_with ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+gliner2 schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 8 decisions held, 46 spans and records decoded alike
+test schema_extraction_scores_as_on_the_cpu_encoder ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+== real, run 7, load 23.41 25.26 18.95: GLINER2_* and GLIREL_* set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device_real -- --ignored --nocapture (parity only)
+gliner2 relations: 1 runs of 3 cases, 18 best spans held, 9 relations extracted alike
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 4.5895576e-6
+test gliner2_relations_on_the_real_checkpoint ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 27.87s
+schema extraction: 1 runs of 4 cases, 33 decisions held, 24 values decoded alike
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 7.4505806e-6
+test schema_extraction_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.22s
+== tiny, run 8, load 22.51 24.77 19.08: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device -- --nocapture
+test a_bert_bundle_is_not_a_deberta_encoder ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 1.1920929e-7, 3 best pairs held
+test glirel_scores_as_on_the_cpu_encoder ... ok
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 12 best spans held, 12 relations extracted alike
+test gliner2_relations_score_as_on_the_cpu_encoder ... ok
+test a_bundle_is_bound_to_the_package_its_heads_were_converted_with ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+gliner2 schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 8 decisions held, 46 spans and records decoded alike
+test schema_extraction_scores_as_on_the_cpu_encoder ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+== real, run 8, load 22.51 24.77 19.08: GLINER2_* and GLIREL_* set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device_real -- --ignored --nocapture (parity only)
+gliner2 relations: 1 runs of 3 cases, 18 best spans held, 9 relations extracted alike
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 4.5895576e-6
+test gliner2_relations_on_the_real_checkpoint ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 28.03s
+schema extraction: 1 runs of 4 cases, 33 decisions held, 24 values decoded alike
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 7.4505806e-6
+test schema_extraction_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 18.24s
+== tiny, run 9, load 20.97 24.09 19.12: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device -- --nocapture
+test a_bert_bundle_is_not_a_deberta_encoder ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 1.1920929e-7, 3 best pairs held
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 12 best spans held, 12 relations extracted alike
+test glirel_scores_as_on_the_cpu_encoder ... ok
+test gliner2_relations_score_as_on_the_cpu_encoder ... ok
+test a_bundle_is_bound_to_the_package_its_heads_were_converted_with ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+gliner2 schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 8 decisions held, 46 spans and records decoded alike
+test schema_extraction_scores_as_on_the_cpu_encoder ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+== real, run 9, load 20.97 24.09 19.12: GLINER2_* and GLIREL_* set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device_real -- --ignored --nocapture (parity only)
+gliner2 relations: 1 runs of 3 cases, 18 best spans held, 9 relations extracted alike
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 4.5895576e-6
+test gliner2_relations_on_the_real_checkpoint ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 32.36s
+schema extraction: 1 runs of 4 cases, 33 decisions held, 24 values decoded alike
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 7.4505806e-6
+test schema_extraction_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.07s
+== tiny, run 10, load 25.19 24.95 19.69: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device -- --nocapture
+test a_bert_bundle_is_not_a_deberta_encoder ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 1.1920929e-7, 3 best pairs held
+test glirel_scores_as_on_the_cpu_encoder ... ok
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 12 best spans held, 12 relations extracted alike
+test gliner2_relations_score_as_on_the_cpu_encoder ... ok
+test a_bundle_is_bound_to_the_package_its_heads_were_converted_with ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.24s
+gliner2 schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 8 decisions held, 46 spans and records decoded alike
+test schema_extraction_scores_as_on_the_cpu_encoder ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+== real, run 10, load 25.19 24.95 19.69: GLINER2_* and GLIREL_* set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device_real -- --ignored --nocapture (parity only)
+gliner2 relations: 1 runs of 3 cases, 18 best spans held, 9 relations extracted alike
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 4.5895576e-6
+test gliner2_relations_on_the_real_checkpoint ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 26.09s
+schema extraction: 1 runs of 4 cases, 33 decisions held, 24 values decoded alike
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 7.4505806e-6
+test schema_extraction_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.31s
+== tiny, run 11, load 24.74 24.64 19.82: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device -- --nocapture
+test a_bert_bundle_is_not_a_deberta_encoder ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 1.1920929e-7, 3 best pairs held
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 12 best spans held, 12 relations extracted alike
+test gliner2_relations_score_as_on_the_cpu_encoder ... ok
+test glirel_scores_as_on_the_cpu_encoder ... ok
+test a_bundle_is_bound_to_the_package_its_heads_were_converted_with ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+gliner2 schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 8 decisions held, 46 spans and records decoded alike
+test schema_extraction_scores_as_on_the_cpu_encoder ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+== real, run 11, load 24.74 24.64 19.82: GLINER2_* and GLIREL_* set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device_real -- --ignored --nocapture (parity only)
+gliner2 relations: 1 runs of 3 cases, 18 best spans held, 9 relations extracted alike
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 4.5895576e-6
+test gliner2_relations_on_the_real_checkpoint ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 34.54s
+schema extraction: 1 runs of 4 cases, 33 decisions held, 24 values decoded alike
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 7.4505806e-6
+test schema_extraction_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.73s
+== tiny, run 12, load 25.27 25.00 20.21: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device -- --nocapture
+test a_bert_bundle_is_not_a_deberta_encoder ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 1.1920929e-7, 3 best pairs held
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 12 best spans held, 12 relations extracted alike
+test glirel_scores_as_on_the_cpu_encoder ... ok
+test gliner2_relations_score_as_on_the_cpu_encoder ... ok
+test a_bundle_is_bound_to_the_package_its_heads_were_converted_with ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+gliner2 schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 8 decisions held, 46 spans and records decoded alike
+test schema_extraction_scores_as_on_the_cpu_encoder ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+== real, run 12, load 25.27 25.00 20.21: GLINER2_* and GLIREL_* set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device_real -- --ignored --nocapture (parity only)
+gliner2 relations: 1 runs of 3 cases, 18 best spans held, 9 relations extracted alike
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 4.5895576e-6
+test gliner2_relations_on_the_real_checkpoint ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 24.43s
+schema extraction: 1 runs of 4 cases, 33 decisions held, 24 values decoded alike
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 7.4505806e-6
+test schema_extraction_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 17.96s
+== tiny, run 13, load 24.40 24.55 20.27: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device -- --nocapture
+test a_bert_bundle_is_not_a_deberta_encoder ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 1.1920929e-7, 3 best pairs held
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 12 best spans held, 12 relations extracted alike
+test gliner2_relations_score_as_on_the_cpu_encoder ... ok
+test glirel_scores_as_on_the_cpu_encoder ... ok
+test a_bundle_is_bound_to_the_package_its_heads_were_converted_with ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+gliner2 schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 8 decisions held, 46 spans and records decoded alike
+test schema_extraction_scores_as_on_the_cpu_encoder ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+== real, run 13, load 24.40 24.55 20.27: GLINER2_* and GLIREL_* set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device_real -- --ignored --nocapture (parity only)
+gliner2 relations: 1 runs of 3 cases, 18 best spans held, 9 relations extracted alike
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 4.5895576e-6
+test gliner2_relations_on_the_real_checkpoint ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 28.09s
+schema extraction: 1 runs of 4 cases, 33 decisions held, 24 values decoded alike
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 7.4505806e-6
+test schema_extraction_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 17.56s
+== tiny, run 14, load 24.82 24.66 20.51: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device -- --nocapture
+test a_bert_bundle_is_not_a_deberta_encoder ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 1.1920929e-7, 3 best pairs held
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 12 best spans held, 12 relations extracted alike
+test glirel_scores_as_on_the_cpu_encoder ... ok
+test gliner2_relations_score_as_on_the_cpu_encoder ... ok
+test a_bundle_is_bound_to_the_package_its_heads_were_converted_with ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+gliner2 schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 8 decisions held, 46 spans and records decoded alike
+test schema_extraction_scores_as_on_the_cpu_encoder ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+== real, run 14, load 24.82 24.66 20.51: GLINER2_* and GLIREL_* set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device_real -- --ignored --nocapture (parity only)
+gliner2 relations: 1 runs of 3 cases, 18 best spans held, 9 relations extracted alike
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 4.5895576e-6
+test gliner2_relations_on_the_real_checkpoint ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 27.94s
+schema extraction: 1 runs of 4 cases, 33 decisions held, 24 values decoded alike
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 7.4505806e-6
+test schema_extraction_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 17.82s
+== tiny, run 15, load 26.82 25.18 20.88: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device -- --nocapture
+test a_bert_bundle_is_not_a_deberta_encoder ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 1.1920929e-7, 3 best pairs held
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 12 best spans held, 12 relations extracted alike
+test glirel_scores_as_on_the_cpu_encoder ... ok
+test gliner2_relations_score_as_on_the_cpu_encoder ... ok
+test a_bundle_is_bound_to_the_package_its_heads_were_converted_with ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+gliner2 schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 8 decisions held, 46 spans and records decoded alike
+test schema_extraction_scores_as_on_the_cpu_encoder ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+== real, run 15, load 26.82 25.18 20.88: GLINER2_* and GLIREL_* set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device_real -- --ignored --nocapture (parity only)
+gliner2 relations: 1 runs of 3 cases, 18 best spans held, 9 relations extracted alike
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 4.5895576e-6
+test gliner2_relations_on_the_real_checkpoint ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 30.63s
+schema extraction: 1 runs of 4 cases, 33 decisions held, 24 values decoded alike
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 7.4505806e-6
+test schema_extraction_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 17.20s
+== tiny, run 16, load 26.64 25.55 21.24: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device -- --nocapture
+test a_bert_bundle_is_not_a_deberta_encoder ... ok
+test a_bundle_is_bound_to_the_package_its_heads_were_converted_with ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 1.1920929e-7, 3 best pairs held
+test glirel_scores_as_on_the_cpu_encoder ... ok
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 12 best spans held, 12 relations extracted alike
+test gliner2_relations_score_as_on_the_cpu_encoder ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s
+gliner2 schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 8 decisions held, 46 spans and records decoded alike
+test schema_extraction_scores_as_on_the_cpu_encoder ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.19s
+== real, run 16, load 26.64 25.55 21.24: GLINER2_* and GLIREL_* set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device_real -- --ignored --nocapture (parity only)
+gliner2 relations: 1 runs of 3 cases, 18 best spans held, 9 relations extracted alike
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 4.5895576e-6
+test gliner2_relations_on_the_real_checkpoint ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 27.65s
+schema extraction: 1 runs of 4 cases, 33 decisions held, 24 values decoded alike
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 7.4505806e-6
+test schema_extraction_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.82s
+== tiny, run 17, load 20.45 24.22 21.00: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device -- --nocapture
+test a_bert_bundle_is_not_a_deberta_encoder ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 1.1920929e-7, 3 best pairs held
+test glirel_scores_as_on_the_cpu_encoder ... ok
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 12 best spans held, 12 relations extracted alike
+test gliner2_relations_score_as_on_the_cpu_encoder ... ok
+test a_bundle_is_bound_to_the_package_its_heads_were_converted_with ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+gliner2 schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 8 decisions held, 46 spans and records decoded alike
+test schema_extraction_scores_as_on_the_cpu_encoder ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+== real, run 17, load 20.45 24.22 21.00: GLINER2_* and GLIREL_* set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device_real -- --ignored --nocapture (parity only)
+gliner2 relations: 1 runs of 3 cases, 18 best spans held, 9 relations extracted alike
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 4.5895576e-6
+test gliner2_relations_on_the_real_checkpoint ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 27.74s
+schema extraction: 1 runs of 4 cases, 33 decisions held, 24 values decoded alike
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 7.4505806e-6
+test schema_extraction_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.91s
+== tiny, run 18, load 19.05 23.27 20.83: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device -- --nocapture
+test a_bert_bundle_is_not_a_deberta_encoder ... ok
+test a_bundle_is_bound_to_the_package_its_heads_were_converted_with ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 1.1920929e-7, 3 best pairs held
+test glirel_scores_as_on_the_cpu_encoder ... ok
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 12 best spans held, 12 relations extracted alike
+test gliner2_relations_score_as_on_the_cpu_encoder ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+gliner2 schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 8 decisions held, 46 spans and records decoded alike
+test schema_extraction_scores_as_on_the_cpu_encoder ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+== real, run 18, load 19.05 23.27 20.83: GLINER2_* and GLIREL_* set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device_real -- --ignored --nocapture (parity only)
+gliner2 relations: 1 runs of 3 cases, 18 best spans held, 9 relations extracted alike
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 4.5895576e-6
+test gliner2_relations_on_the_real_checkpoint ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 27.83s
+schema extraction: 1 runs of 4 cases, 33 decisions held, 24 values decoded alike
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 7.4505806e-6
+test schema_extraction_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 17.31s
+== tiny, run 19, load 21.09 23.12 20.89: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device -- --nocapture
+test a_bert_bundle_is_not_a_deberta_encoder ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 1.1920929e-7, 3 best pairs held
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 12 best spans held, 12 relations extracted alike
+test glirel_scores_as_on_the_cpu_encoder ... ok
+test gliner2_relations_score_as_on_the_cpu_encoder ... ok
+test a_bundle_is_bound_to_the_package_its_heads_were_converted_with ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+gliner2 schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 8 decisions held, 46 spans and records decoded alike
+test schema_extraction_scores_as_on_the_cpu_encoder ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+== real, run 19, load 21.09 23.12 20.89: GLINER2_* and GLIREL_* set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device_real -- --ignored --nocapture (parity only)
+gliner2 relations: 1 runs of 3 cases, 18 best spans held, 9 relations extracted alike
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 4.5895576e-6
+test gliner2_relations_on_the_real_checkpoint ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 28.59s
+schema extraction: 1 runs of 4 cases, 33 decisions held, 24 values decoded alike
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 7.4505806e-6
+test schema_extraction_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 17.57s
+== tiny, run 20, load 24.18 23.69 21.19: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device -- --nocapture
+test a_bert_bundle_is_not_a_deberta_encoder ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 1.1920929e-7, 3 best pairs held
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 12 best spans held, 12 relations extracted alike
+test glirel_scores_as_on_the_cpu_encoder ... ok
+test gliner2_relations_score_as_on_the_cpu_encoder ... ok
+test a_bundle_is_bound_to_the_package_its_heads_were_converted_with ... ok
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+gliner2 schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): 1 runs, largest logit difference from the cpu encoder 7.450581e-9, 8 decisions held, 46 spans and records decoded alike
+test schema_extraction_scores_as_on_the_cpu_encoder ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+== real, run 20, load 23.85 23.63 21.18: GLINER2_* and GLIREL_* set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device_real -- --ignored --nocapture (parity only)
+gliner2 relations: 1 runs of 3 cases, 18 best spans held, 9 relations extracted alike
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 4.5895576e-6
+test gliner2_relations_on_the_real_checkpoint ... ok
+glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 27.44s
+schema extraction: 1 runs of 4 cases, 33 decisions held, 24 values decoded alike
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): largest logit difference from the cpu encoder 7.4505806e-6
+test schema_extraction_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.92s

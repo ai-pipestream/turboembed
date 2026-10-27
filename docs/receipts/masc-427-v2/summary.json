@@ -1,0 +1,210 @@
+[
+  {
+    "id": "turbo-en-masc-3.0.0-ner-date-2",
+    "selected": {
+      "iterations": 100,
+      "cutoff": 5,
+      "clearing": "sentence"
+    },
+    "cv_f1": [
+      0.558045719408337,
+      0.5569279137660005,
+      0.5541802388707927,
+      0.5622852233676976
+    ],
+    "scores": {
+      "candidate": {
+        "counts": {
+          "true_positives": 132,
+          "selected": 177,
+          "target": 358
+        },
+        "f1_percent": 49.345794392523366
+      },
+      "reference": {
+        "counts": {
+          "true_positives": 127,
+          "selected": 234,
+          "target": 358
+        },
+        "f1_percent": 42.9054054054054
+      }
+    },
+    "gate": {
+      "candidate": {
+        "score": 49.345794392523366,
+        "low": 43.70045208527291,
+        "high": 54.82073149258639
+      },
+      "reference": {
+        "score": 42.9054054054054,
+        "low": 37.46017316017316,
+        "high": 48.192869840015796
+      },
+      "difference": {
+        "mean": 6.440388987117963,
+        "low": -0.7732409304687328,
+        "high": 13.746948057582419
+      },
+      "pass": false
+    },
+    "fold_membership_and_count_checks": true,
+    "held_out_units": 6384
+  },
+  {
+    "id": "turbo-en-masc-3.0.0-ner-location-2",
+    "selected": {
+      "iterations": 300,
+      "cutoff": 0,
+      "clearing": "sentence"
+    },
+    "cv_f1": [
+      0.6116739025566812,
+      0.6152353226589035,
+      0.5870438836199968,
+      0.5895953757225433
+    ],
+    "scores": {
+      "candidate": {
+        "counts": {
+          "true_positives": 195,
+          "selected": 233,
+          "target": 436
+        },
+        "f1_percent": 58.29596412556054
+      },
+      "reference": {
+        "counts": {
+          "true_positives": 242,
+          "selected": 334,
+          "target": 436
+        },
+        "f1_percent": 62.857142857142854
+      }
+    },
+    "gate": {
+      "candidate": {
+        "score": 58.29596412556053,
+        "low": 53.184526979528364,
+        "high": 63.318231917665074
+      },
+      "reference": {
+        "score": 62.85714285714287,
+        "low": 58.311103196658536,
+        "high": 67.19798183437601
+      },
+      "difference": {
+        "mean": -4.561178731582338,
+        "low": -9.243420091018942,
+        "high": 0.13467965824795936
+      },
+      "pass": false
+    },
+    "fold_membership_and_count_checks": true,
+    "held_out_units": 6384
+  },
+  {
+    "id": "turbo-en-masc-3.0.0-ner-organization-2",
+    "selected": {
+      "iterations": 100,
+      "cutoff": 5,
+      "clearing": "sentence"
+    },
+    "cv_f1": [
+      0.38317054845980464,
+      0.3925558312655087,
+      0.40543115769414007,
+      0.4083843617522374
+    ],
+    "scores": {
+      "candidate": {
+        "counts": {
+          "true_positives": 102,
+          "selected": 159,
+          "target": 321
+        },
+        "f1_percent": 42.5
+      },
+      "reference": {
+        "counts": {
+          "true_positives": 125,
+          "selected": 301,
+          "target": 321
+        },
+        "f1_percent": 40.19292604501608
+      }
+    },
+    "gate": {
+      "candidate": {
+        "score": 42.5,
+        "low": 36.09341825902335,
+        "high": 48.33952711565032
+      },
+      "reference": {
+        "score": 40.19292604501607,
+        "low": 34.850803957946816,
+        "high": 45.58587479935794
+      },
+      "difference": {
+        "mean": 2.3070739549839274,
+        "low": -5.27831959667876,
+        "high": 9.427027759882115
+      },
+      "pass": false
+    },
+    "fold_membership_and_count_checks": true,
+    "held_out_units": 6384
+  },
+  {
+    "id": "turbo-en-masc-3.0.0-ner-person-2",
+    "selected": {
+      "iterations": 100,
+      "cutoff": 5,
+      "clearing": "sentence"
+    },
+    "cv_f1": [
+      0.3532450758798838,
+      0.41165587419056426,
+      0.46277842907385697,
+      0.4773152815785683
+    ],
+    "scores": {
+      "candidate": {
+        "counts": {
+          "true_positives": 589,
+          "selected": 652,
+          "target": 1363
+        },
+        "f1_percent": 58.46153846153846
+      },
+      "reference": {
+        "counts": {
+          "true_positives": 553,
+          "selected": 663,
+          "target": 1363
+        },
+        "f1_percent": 54.590325765054295
+      }
+    },
+    "gate": {
+      "candidate": {
+        "score": 58.46153846153847,
+        "low": 55.560958714325295,
+        "high": 61.205436426780416
+      },
+      "reference": {
+        "score": 54.590325765054295,
+        "low": 51.79929042067917,
+        "high": 57.2895676802895
+      },
+      "difference": {
+        "mean": 3.8712126964841715,
+        "low": 0.922480001428654,
+        "high": 6.974661420540208
+      },
+      "pass": true
+    },
+    "fold_membership_and_count_checks": true,
+    "held_out_units": 6384
+  }
+]

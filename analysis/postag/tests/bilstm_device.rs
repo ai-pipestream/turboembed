@@ -90,8 +90,8 @@ fn summary(v: &mut [f64]) -> String {
     format!("min {:.3} p50 {:.3} mean {:.3} p99 {:.3}", v[0], p(0.5), mean, p(0.99))
 }
 
-/// `n` sentences per call on the CPU packed path and on the device,
-/// interleaved: `cold` the first call on a fresh tagger whose workspaces a
+/// `n` sentences per call on the CPU packed path and on the device at
+/// MODEL and at FASTEST, interleaved: `cold` the first call on a fresh tagger whose workspaces a
 /// call of other words of the same shape has made (every word through the
 /// char LSTM), `warm` the same call again with the representations cached
 /// (the sentence layers, the output layer and the CRF). BILSTM_REPS calls
@@ -108,9 +108,10 @@ fn device_tagger_timing() {
             // The same shape in words the batch does not hold.
             let other: Vec<Vec<String>> = batch.iter().map(|s| s.iter().map(|w| format!("{w}q")).collect()).collect();
             let words: usize = batch.iter().map(Vec::len).sum();
-            let mut times = [[Vec::new(), Vec::new()], [Vec::new(), Vec::new()]];
+            let mut times = [[Vec::new(), Vec::new()], [Vec::new(), Vec::new()], [Vec::new(), Vec::new()]];
             for _ in 0..reps {
-                for (k, tagger) in [BilstmPosTagger::new(m.clone()), on(device, &m)].into_iter().enumerate() {
+                let taggers = [BilstmPosTagger::new(m.clone()), on(device, &m), on_fastest(device, &m)];
+                for (k, tagger) in taggers.into_iter().enumerate() {
                     std::hint::black_box(tagger.best_sequences(&other).unwrap());
                     for call in &mut times[k] {
                         let t = Instant::now();
@@ -120,11 +121,59 @@ fn device_tagger_timing() {
                 }
             }
             let layers = 1 + stacked as usize;
-            for (k, name) in ["cpu", "device"].iter().enumerate() {
+            for (k, name) in ["cpu", "device", "device fastest"].iter().enumerate() {
                 let [cold, warm] = &mut times[k];
                 println!("layers {layers}, {n} sentences ({words} words), {name} cold: {}", summary(cold));
                 println!("layers {layers}, {n} sentences ({words} words), {name} warm: {}", summary(warm));
             }
         }
     }
+}
+
+/// FASTEST (F16 weights) tags as MODEL does on at least 99.9% of the
+/// words of random-weight models, its emissions within the F16 tier's 1e-2
+/// of MODEL's, and hashes apart from
+/// every other tier.
+#[test]
+fn fastest_stays_near_model_and_hashes_apart() {
+    use turbo::device::Precision;
+    let Some(device) = device() else {
+        println!("skipped: no TURBO_TEST_DEVICE or TURBO_TEST_REQUIRE_* is set");
+        return;
+    };
+    if let Device::LevelZero(_) = device {
+        let m = model(7, false, true);
+        assert!(BilstmPosTagger::on_device_at(m, device, Precision::Fastest).is_err(), "FASTEST on Level Zero");
+        return;
+    }
+    let (mut words, mut same, mut worst) = (0usize, 0usize, 0f64);
+    for (seed, stacked) in [(7, false), (8, true)] {
+        let m = model(seed, stacked, true);
+        let fast = BilstmPosTagger::on_device_at(m.clone(), device, Precision::Fastest)
+            .unwrap_or_else(|e| panic!("the tagger at FASTEST on {device:?}: {e}"));
+        let model_tier = on(device, &m);
+        assert_eq!(fast.precision(), Precision::Fastest);
+        assert_ne!(fast.config_hash(), model_tier.config_hash(), "FASTEST hashes apart from MODEL");
+        assert_ne!(fast.config_hash(), BilstmPosTagger::new(m.clone()).config_hash(), "and from the CPU");
+        assert_eq!(fast.config_hash(), on_fastest(device, &m).config_hash(), "and repeats");
+        let batch = sentences(seed, 64);
+        let (a, b) = (model_tier.best_sequences(&batch).unwrap(), fast.best_sequences(&batch).unwrap());
+        for (x, y) in a.iter().zip(&b) {
+            words += x.outcomes().len();
+            same += x.outcomes().iter().zip(y.outcomes()).filter(|(p, q)| p == q).count();
+        }
+        for s in &batch[..8] {
+            let (x, y) = (model_tier.emissions(s).unwrap(), fast.emissions(s).unwrap());
+            let d = x.iter().zip(&y).flat_map(|(p, q)| p.iter().zip(q).map(|(a, b)| (a - b).abs()));
+            worst = d.fold(worst, f64::max);
+        }
+    }
+    let share = same as f64 / words as f64;
+    println!("{device:?} FASTEST against MODEL: {same} of {words} tags equal ({share:.4}), emissions within {worst:e}");
+    assert!(share >= 0.999, "FASTEST agrees with MODEL on {share} of the words");
+    assert!(worst <= 1e-2, "FASTEST emissions {worst} from MODEL's");
+}
+
+fn on_fastest(device: Device, m: &turbo_postag::neural::BilstmPosModel) -> BilstmPosTagger {
+    BilstmPosTagger::on_device_at(m.clone(), device, turbo::device::Precision::Fastest).unwrap()
 }

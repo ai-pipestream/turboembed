@@ -168,7 +168,8 @@ fn run(mut args: Vec<String>) -> Result<(), String> {
         }
         ["fetch", id] => {
             let user = UserId::from_env()?;
-            let zoo = Zoo::new(index, home.artifacts(), Policy::default(), &Http);
+            let transport = Http::new();
+            let zoo = Zoo::new(index, home.artifacts(), Policy::default(), &transport);
             // The acceptance file is read only for an artifact that needs it.
             let fetched = zoo.fetch_with(id, &user, || Acceptances::load(&accept_path)).map_err(e)?;
             for f in &fetched.files {

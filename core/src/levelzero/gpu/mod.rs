@@ -52,8 +52,24 @@ pub(crate) fn ze(what: &str, rc: ze::Status) -> Res<()> {
         ze::RESULT_ERROR_OUT_OF_DEVICE_MEMORY | ze::RESULT_ERROR_OUT_OF_HOST_MEMORY => {
             Err(fail(OUT_OF_MEMORY, format!("levelzero: {what}: out of memory (0x{rc:08x})")))
         }
+        ze::RESULT_ERROR_DEVICE_LOST => Err(fail(RUNTIME, device_lost(what))),
         _ => Err(fail(RUNTIME, format!("levelzero: {what} failed with 0x{rc:08x}"))),
     }
+}
+
+/// What a lost device means (#1433). On the Arc Pro B70 under xe, each one
+/// seen was the kernel resetting a compute queue whose job had not finished
+/// within its job timeout. They coincided with another client's render
+/// work on the card, which shares the execution units; that is the likely
+/// cause, not reproduced. The context is unusable afterwards; a new one
+/// works.
+fn device_lost(what: &str) -> String {
+    format!(
+        "levelzero: {what} failed with 0x70000001 (device lost): the driver reset this context's queue, \
+         usually because a job did not finish within the kernel driver's job timeout; the kernel log names \
+         the job. Work from another client on the card can hold it back. This context cannot be used \
+         again; release it and make a new one"
+    )
 }
 
 /// Runs a table entry's body, turning a refusal into the caller's
@@ -341,4 +357,24 @@ fn queue_desc() -> ze::CommandQueueDesc {
 
 pub(crate) unsafe extern "C" fn context_release(ctx: *mut c_void) {
     quietly(|| drop(unsafe { Box::from_raw(ctx as *mut Context) }));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A lost device says what happened and what to do; other failures keep
+    /// their plain form (#1433).
+    #[test]
+    fn a_lost_device_says_the_context_is_gone() {
+        let lost = ze("zeCommandListHostSynchronize", ze::RESULT_ERROR_DEVICE_LOST).unwrap_err();
+        assert_eq!(lost.code, RUNTIME);
+        for part in ["zeCommandListHostSynchronize failed with 0x70000001 (device lost)", "job timeout", "new one"] {
+            assert!(lost.message.contains(part), "{part:?} not in {:?}", lost.message);
+        }
+        let other = ze("zeEventHostSynchronize", 0x7800_0004).unwrap_err();
+        assert_eq!(other.message, "levelzero: zeEventHostSynchronize failed with 0x78000004");
+        assert_eq!(ze("x", ze::RESULT_ERROR_OUT_OF_DEVICE_MEMORY).unwrap_err().code, OUT_OF_MEMORY);
+        assert!(ze("x", 0).is_ok());
+    }
 }
