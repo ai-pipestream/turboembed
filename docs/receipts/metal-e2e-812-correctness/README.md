@@ -8,8 +8,8 @@ sizes: 32 x 256, 8 x 128, 2 x 128, 1 x 128 and 1 x 32. One record each
 (`<b>x<s>.json`); `run.log` has the commit, time, host load and GPU
 utilization before each.
 
-This run is for correctness only. The host's 1-minute load was 25 to 36
-and desktop applications held the GPU 23 to 92% busy, so the times in
+This run is for correctness only. The host's 1-minute load was 26 to 36
+and desktop applications held the GPU 25 to 60% busy, so the times in
 the records are not a speed result; the timing against main and MLX on
 an idle M2 is a follow-up.
 
