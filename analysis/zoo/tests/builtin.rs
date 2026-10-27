@@ -140,6 +140,16 @@ const UD_DEPPARSE_MODELS: [&str; 8] = [
 const GOEMOTIONS_HEADS: [&str; 2] =
     ["turbo-en-goemotions-minilm-l6-v2-head-1", "turbo-en-goemotions-bge-small-en-v1.5-head-1"];
 
+/// The 6-label incivility linear heads trained on Civil Comments (#888),
+/// with and without parent-comment context, listed at their addresses in a
+/// sixth release of this repository.
+const CIVIL_COMMENTS_HEADS: [&str; 4] = [
+    "turbo-en-civil-comments-minilm-l6-v2-head-1",
+    "turbo-en-civil-comments-minilm-l6-v2-context-head-1",
+    "turbo-en-civil-comments-bge-small-en-v1.5-head-1",
+    "turbo-en-civil-comments-bge-small-en-v1.5-context-head-1",
+];
+
 /// A model this repository's recipes train.
 fn trained_here(id: &str) -> bool {
     MASC_MODELS.contains(&id)
@@ -148,6 +158,7 @@ fn trained_here(id: &str) -> bool {
         || id == TATOEBA_MODEL
         || id == WEB_MODEL
         || GOEMOTIONS_HEADS.contains(&id)
+        || CIVIL_COMMENTS_HEADS.contains(&id)
 }
 
 /// The published neural checkpoints the index lists (docs/licences.md,
@@ -191,10 +202,10 @@ const SHARE_ALIKE_EVAL_SETS: [&str; 1] = ["codespell-dictionary-en"];
 /// data and fetched only after accepting MS MARCO's terms.
 const RETRIEVAL_CHECKPOINTS: [&str; 2] = ["opensearch-neural-sparse-encoding-v1", "colbert-ir-colbertv2.0"];
 
-/// The permissive training datasets in the built-in index (#945): MASC,
-/// the four settled CC BY 4.0 UD 2.16 treebanks, the Tatoeba export,
-/// Civil Comments, and GoEmotions (filtered split and raw annotations).
-const DATASETS: [&str; 10] = [
+/// The permissive training and evaluation datasets in the built-in index (#945, #890, #925):
+/// CSC, MASC, the four settled CC BY 4.0 UD 2.16 treebanks, the Tatoeba export,
+/// Civil Comments, GoEmotions (filtered split and raw annotations), and Toxic Spans.
+const DATASETS: [&str; 12] = [
     "csc-conversational-sarcasm-2024",
     "masc-3.0.0",
     "ud-spanish-ancora-r2.16",
@@ -203,8 +214,10 @@ const DATASETS: [&str; 10] = [
     "ud-italian-markit-r2.16",
     "tatoeba-2026-10-10",
     "civil-comments",
+    "civil-comments-wilds",
     "goemotions",
     "goemotions-raw",
+    "toxic-spans",
 ];
 
 #[test]
@@ -244,6 +257,7 @@ fn the_ud_models_carry_their_treebank_licences() {
     expected.insert(TATOEBA_MODEL.to_owned());
     expected.insert(WEB_MODEL.to_owned());
     expected.extend(GOEMOTIONS_HEADS.map(str::to_owned));
+    expected.extend(CIVIL_COMMENTS_HEADS.map(str::to_owned));
     expected.extend(CHECKPOINTS.map(str::to_owned));
     expected.extend(SHARE_ALIKE_CHECKPOINTS.map(str::to_owned));
     expected.extend(LOCAL_CHECKPOINTS.map(str::to_owned));

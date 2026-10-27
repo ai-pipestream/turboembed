@@ -42,6 +42,30 @@ fn civil_comments_is_pinned_cc0_and_permissive() {
         );
     }
     assert!(a.licences_to_accept(Policy::default()).is_empty());
+
+    let ts_rev = "beaf170538df8275c3447b2e26070f2f82e55272";
+    let ts = index.get("toxic-spans").unwrap();
+    assert_eq!(
+        (ts.kind, ts.format, ts.license, ts.class),
+        (Kind::Dataset, Format::Csv, Licence::Cc0, LicenceClass::Permissive)
+    );
+    assert_eq!(ts.component, None);
+    assert_eq!(ts.language.as_ref().map(|l| l.as_str()), Some("en"));
+    assert_eq!(ts.version, ts_rev);
+    assert_eq!(ts.license_terms.as_str(), format!("https://github.com/ipavlopoulos/toxic_spans/blob/{ts_rev}/LICENSE"));
+    let ts_paths: Vec<&str> = ts.files.iter().map(|f| f.path.as_str()).collect();
+    assert_eq!(
+        ts_paths,
+        [
+            "LICENSE",
+            "README.md",
+            "ACL2022/data/toxic_spans.csv",
+            "data/comments.csv",
+            "data/spans.csv",
+            "data/annotations.csv",
+        ]
+    );
+    assert!(ts.licences_to_accept(Policy::default()).is_empty());
 }
 
 #[test]
@@ -186,4 +210,25 @@ fn recipe_datasets_are_pinned_and_permissive() {
         );
     }
     assert!(tatoeba.licences_to_accept(Policy::default()).is_empty());
+}
+
+#[test]
+fn civil_comments_training_heads_name_the_actual_wilds_source() {
+    let index = Index::builtin();
+    let data = index.get("civil-comments-wilds").unwrap();
+    assert_eq!((data.kind, data.format, data.license), (Kind::Dataset, Format::Csv, Licence::Cc0));
+    assert_eq!(data.version, "3fbfeca80bad0f3aec37e72fa07eff222b6e752f");
+    let csv = data.files.iter().find(|f| f.path.as_str() == "all_data_with_identities.csv").unwrap();
+    assert_eq!(csv.size, 272_542_670);
+    assert_eq!(csv.sha256.to_string(), "403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f");
+    for id in [
+        "turbo-en-civil-comments-minilm-l6-v2-head-1",
+        "turbo-en-civil-comments-minilm-l6-v2-context-head-1",
+        "turbo-en-civil-comments-bge-small-en-v1.5-head-1",
+        "turbo-en-civil-comments-bge-small-en-v1.5-context-head-1",
+    ] {
+        let head = index.get(id).unwrap();
+        assert_eq!(head.trained_on[0].license_terms, data.license_terms);
+        assert!(head.trained_on[0].name.contains(&data.version));
+    }
 }
