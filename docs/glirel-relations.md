@@ -93,10 +93,24 @@ logit within 1e-4.
 The real checkpoint is CC BY-NC-SA 4.0, and the zoo fetches it only after
 that licence is accepted. Its encoder is sealed as a core bundle the same
 way GLiNER2's is (docs/gliner2-relations.md), by
-`bundle/reference/gliner_encoder.py` with the default prefix and an
-`added_tokens.json` of GLiREL's five added pieces (`[MASK]`, `[FLERT]`,
-`[REL]`, `[E]` and `[/E]` at 128000 to 128004). The bundle is made
-locally and is not shipped. `analysis/relation/tests/device_real.rs`
+`bundle/recipes/glirel-large-v0-encoder.json` (pinned to revision
+`40a523e12a8432d6da364cf2a195a28755ff04d3`): `bundle/reference/gliner_encoder.py`
+with the default prefix and the added-tokens argument `glirel`, GLiREL's
+five added pieces (`[MASK]`, `[FLERT]`, `[REL]`, `[E]` and `[/E]` at
+128000 to 128004). With `Z` the zoo's artifacts directory and `W` an
+empty one:
+
+```
+docker run --rm --network none --user $(id -u):$(id -g) -e HOME=/tmp \
+    -v $PWD/bundle/reference:/scripts:ro -v $Z/jackboyla-glirel-large-v0:/ckpt:ro \
+    -v $Z/microsoft-deberta-v3-large-tokenizer:/base:ro -v $W:/w --entrypoint python \
+    turbo-reference@sha256:3fe2d4ad441927475b97a400364ebcb7fca3f324dae1a0463720eff7fc0a53f4 \
+    /scripts/gliner_encoder.py /base/config.json /base/spm.model /ckpt/pytorch_model.bin /w/out \
+    token_rep_layer.bert_layer.model. glirel
+cargo run --release --locked -p turbo-bundle -- reference bundle/recipes/glirel-large-v0-encoder.json $W/out $W/bundle
+```
+
+The bundle is made locally and is not shipped. `analysis/relation/tests/device_real.rs`
 (ignored; `GLIREL_BUNDLE`, `GLIREL_PACKAGE`, `GLIREL_SPM`,
 `TURBO_TEST_DEVICE`) holds the device to the CPU encoder of the package's
 `encoder/` DeBERTa package, to which the bundle is bound, and times both.

@@ -94,6 +94,7 @@ fn sum(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     let (a, b) = (*v[0].num()?, *v[1].num()?);
     if a.has(flag::GRAMMAR)
         || a.grain <= b.grain
+        || (a.grain >= 6 && en::proper_fraction(&v[1]))
         || a.value.is_negative()
         || b.value <= Dec::from_i64(0)
         || b.value >= Dec::from_i64(1).shift(a.grain as i32)?
@@ -114,6 +115,19 @@ fn scale(v: &[Value], _: &Ctx<'_>) -> Option<Value> {
     n.grain = exponent as i8;
     n.flags = (n.flags & !flag::GRAMMAR) | flag::SPELLED;
     Some(Value::Num(n))
+}
+// A proper fraction after a million-scale word belongs to that scale.
+// Keep its grain so an explicit smaller scale attaches to the fraction
+// first: "one billion and half a million" must not multiply the whole.
+fn and_fraction(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
+    let grain = v[0].num()?.grain;
+    if grain >= 6 && en::proper_fraction(&v[1]) {
+        let mut n = *en::b_scale_and_fraction(v, ctx)?.num()?;
+        n.grain = grain;
+        Some(Value::Num(n))
+    } else {
+        en::b_mixed(v, ctx)
+    }
 }
 fn large(v: &Value) -> bool {
     v.num().is_some_and(|n| n.grain >= 3)
@@ -146,7 +160,7 @@ pub(super) const RULES: &[Rule] = &[
     r(
         "pt_num_and_half",
         &[node_if(NUM, en::non_negative_integer), word("e"), node_if(NUM, en::positive_fraction)],
-        en::b_mixed,
+        and_fraction,
     ),
     r("pt_num_negative", &[word("menos"), node_if(NUM, en::non_negative)], |v, _| {
         let mut n = *v[0].num()?;

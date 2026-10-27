@@ -133,6 +133,45 @@ fn the_record_names_hybrid_retrieval_and_settings() {
 }
 
 #[test]
+fn held_out_weight_choice_uses_only_the_selection_queries() {
+    use crate::metrics::{Qrel, Qrels};
+
+    let hybrid =
+        Hybrid { model: Bm25::LUCENE, terms: TermRule::Folded, fusion: Fusion::Weighted { bm25_weight: 0.35 } };
+    let texts = vec!["alpha".to_string(), "beta".to_string()];
+    let bm25 = hybrid.index(&texts, &[0, 1]).unwrap();
+    let docs = ["d1".to_string(), "d2".to_string()];
+    let spans = [Span::new(0, 5).unwrap(), Span::new(0, 4).unwrap()];
+    let search =
+        HybridSearch { bm25: &bm25, dim: 2, vectors: &[1.0, 0.0, 0.0, 1.0], doc: &[0, 1], span: &spans, docs: &docs };
+    // Selection queries q1 and q3 are found by BM25 but not dense vectors.
+    // Held-out q2 and q4 have the opposite pattern, so a whole-set sweep
+    // would tie; selecting only on q1 and q3 must still choose weight 1.
+    let queries = [("q1", "alpha"), ("q2", "beta"), ("q3", "alpha"), ("q4", "beta")];
+    let query_vectors = [0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0];
+    let qrel = |query: &str, doc: &str| Qrel { query: query.into(), doc: doc.into(), grade: 1 };
+    let qrels = Qrels::new([qrel("q1", "d1"), qrel("q2", "d1"), qrel("q3", "d1"), qrel("q4", "d1")]).unwrap();
+
+    let choice = hybrid.choose_bm25_weight_held_out(&search, &queries, &query_vectors, &qrels, &[1.0, 0.0]).unwrap();
+    assert_eq!(choice.bm25_weight, 1.0);
+    assert_eq!((choice.selection_queries, choice.held_out_queries), (2, 2));
+    assert_eq!(choice.candidates.iter().map(|c| c.bm25_weight).collect::<Vec<_>>(), [0.0, 1.0]);
+    assert!((choice.candidates[0].selection_ndcg_at_10 - 0.6309297535714575).abs() < 1e-12);
+    assert_eq!(choice.candidates[1].selection_ndcg_at_10, 1.0);
+    assert_eq!(choice.selection_ndcg_at_10, 1.0);
+    assert!((choice.held_out_ndcg_at_10 - 0.6309297535714575).abs() < 1e-12);
+    // Baselines on the same held-out half: pure dense (w=0) finds the
+    // relevant doc first there, pure BM25 (w=1) matches the choice.
+    assert_eq!(choice.held_out_dense_ndcg_at_10, 1.0);
+    assert!((choice.held_out_bm25_ndcg_at_10 - 0.6309297535714575).abs() < 1e-12);
+    assert_eq!(choice.held_out_bm25_ndcg_at_10, choice.held_out_ndcg_at_10);
+
+    let one = Qrels::new([qrel("q1", "d1")]).unwrap();
+    assert!(hybrid.choose_bm25_weight_held_out(&search, &queries, &query_vectors, &one, &[0.5]).is_err());
+    assert!(hybrid.choose_bm25_weight_held_out(&search, &queries[..3], &query_vectors[..6], &qrels, &[0.5]).is_err());
+}
+
+#[test]
 fn invalid_fusion_and_mismatched_inputs_are_refused() {
     assert!(Fusion::Rrf { k: 0, bm25_weight: 0.5 }.check().is_err());
     assert!(Fusion::Rrf { k: 60, bm25_weight: -0.1 }.check().is_err());
