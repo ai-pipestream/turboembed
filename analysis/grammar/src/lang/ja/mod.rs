@@ -13,6 +13,21 @@ const UNIT: Dim = Dim(cjk::DIMS + 1);
 const QTY: Dim = Dim(cjk::DIMS + 2);
 const MARKER: Dim = Dim(cjk::DIMS + 3);
 
+/// Marks that end a sentence or clause. Periods and commas are left out
+/// because they also sit inside numbers such as 3.5 and 1,000.
+const CLAUSE_ENDS: [char; 12] = ['。', '！', '？', '!', '?', ';', '；', '、', '\n', '\r', '\u{2028}', '\u{2029}'];
+
+/// The sentence or clause holding the match, so a context cue cannot reach
+/// across into a neighbouring sentence.
+fn clause<'t>(ctx: &Ctx<'t>) -> &'t str {
+    let start = ctx.lexeme(ctx.start).start as usize;
+    let end = ctx.lexeme(ctx.end - 1).end as usize;
+    let from =
+        ctx.text[..start].rfind(CLAUSE_ENDS).map_or(0, |i| i + ctx.text[i..].chars().next().map_or(0, char::len_utf8));
+    let to = ctx.text[end..].find(CLAUSE_ENDS).map_or(ctx.text.len(), |i| end + i);
+    &ctx.text[from..to]
+}
+
 pub struct JapaneseUnits {
     lexicon: OnceLock<Lexicon>,
 }

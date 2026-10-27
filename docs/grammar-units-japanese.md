@@ -27,7 +27,8 @@ these also occur in ordinary geometric and temporal text. `日` and `週` age
 readings require birth context. An age range keeps its final positive endpoint.
 
 `キロ` defaults to kilometers; explicit weight/sales context (`体重`, `重量`,
-`出荷`, `完売`) selects kilograms. This lexical policy cannot resolve every
+`出荷`, `完売`) in the same sentence or clause selects kilograms; a cue in a
+neighbouring sentence, or across `、`, does not. This lexical policy cannot resolve every
 meaning in arbitrary prose. `ムー` denotes the modern Chinese land-area unit,
 2000/3 square meters, in the Chinese agricultural passage in the upstream
 Japanese corpus; it is not a Japanese traditional land-area unit. The shared

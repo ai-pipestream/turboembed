@@ -12,7 +12,8 @@ fn q(value: Dec, unit: Unit) -> Option<Value> {
 }
 fn raw(v: &[Value], ctx: &Ctx<'_>) -> Option<Value> {
     let w = lexicon::WORDS.get(v[0].term()?.0 as usize)?;
-    let unit = if w.text == "キロ" && ["完売", "出荷", "体重", "重量"].iter().any(|s| ctx.text.contains(s)) {
+    let unit = if w.text == "キロ" && ["完売", "出荷", "体重", "重量"].iter().any(|s| clause(ctx).contains(s))
+    {
         Unit::Weight(Weight::Kilogram)
     } else {
         w.unit
