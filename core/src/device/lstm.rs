@@ -7,8 +7,8 @@
 //! The CPU form is the reference: a device's states are held to it within
 //! a bound its tests name, not to its bits.
 
-use super::Device;
 use super::gpu::{self, Gpu};
+use super::{Device, Precision};
 use crate::cpu::lstm as cpu;
 use crate::status::{Error, INVALID_ARGUMENT, INVALID_SHAPE, Result};
 
@@ -17,6 +17,7 @@ pub use crate::cpu::lstm::Weights;
 /// Checked weights of one or more directions over one input, on a device.
 pub struct Lstm {
     device: Device,
+    precision: Precision,
     /// The CPU form, which checked the weights and runs on the CPU.
     cpu: cpu::Lstm,
     gpu: Option<Gpu>,
@@ -50,6 +51,20 @@ pub struct Work {
     index: Vec<i64>,
 }
 
+/// The largest F16 value: a weight of greater magnitude has no F16 form.
+const F16_MAX: f32 = 65504.0;
+
+/// FASTEST's weights each have an F16 form: W and U (the biases stay F32).
+fn f16_range(dirs: &[Weights<'_>]) -> Result<()> {
+    for (i, d) in dirs.iter().enumerate() {
+        if let Some(v) = d.w.iter().chain(d.u).find(|v| v.abs() > F16_MAX) {
+            let message = format!("lstm direction {i}: a weight of {v} is past F16's range, so FASTEST cannot hold it");
+            return Err(Error::new(INVALID_ARGUMENT, message));
+        }
+    }
+    Ok(())
+}
+
 fn finite(v: &[f32]) -> bool {
     v.chunks(64).all(|c| c.iter().fold(true, |a, x| a & x.is_finite()))
 }
@@ -60,16 +75,45 @@ impl Lstm {
     /// device the library was built without is refused with UNSUPPORTED,
     /// and one that is not there with DEVICE_NOT_FOUND.
     pub fn new(device: Device, input: usize, hidden: usize, dirs: &[Weights<'_>]) -> Result<Lstm> {
+        Self::new_at(device, Precision::Model, input, hidden, dirs)
+    }
+
+    /// [`new`](Self::new) at `precision`. FASTEST holds the input and
+    /// recurrent weights as F16 on the device, every sum, gate, cell and
+    /// state F32; a weight past F16's range (65504 in magnitude) would round
+    /// to infinity, so such a model is refused at FASTEST with
+    /// INVALID_ARGUMENT, checked on the host when it is made, and runs at
+    /// MODEL only if asked for MODEL. The CPU form has no F16 weights, so
+    /// FASTEST on the CPU is refused with UNSUPPORTED rather than run at
+    /// MODEL.
+    pub fn new_at(
+        device: Device,
+        precision: Precision,
+        input: usize,
+        hidden: usize,
+        dirs: &[Weights<'_>],
+    ) -> Result<Lstm> {
         let cpu = cpu::Lstm::new(input, hidden, dirs)?;
-        if device == Device::Cpu {
-            return Ok(Lstm { device, cpu, gpu: None });
+        if precision == Precision::Fastest {
+            f16_range(dirs)?;
         }
-        let gpu = Gpu::new(device, input, hidden, dirs)?;
-        Ok(Lstm { device, cpu, gpu: Some(gpu) })
+        if device == Device::Cpu {
+            if precision == Precision::Fastest {
+                let message = "lstm: the CPU form has no FASTEST (F16 weights)";
+                return Err(Error::new(crate::status::UNSUPPORTED, message));
+            }
+            return Ok(Lstm { device, precision, cpu, gpu: None });
+        }
+        let gpu = Gpu::new(device, precision, input, hidden, dirs)?;
+        Ok(Lstm { device, precision, cpu, gpu: Some(gpu) })
     }
 
     pub fn device(&self) -> Device {
         self.device
+    }
+
+    pub fn precision(&self) -> Precision {
+        self.precision
     }
 
     pub fn input(&self) -> usize {

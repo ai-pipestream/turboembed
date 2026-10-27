@@ -31,7 +31,8 @@ mod codespell;
 /// Runs `f` with the zoo in the home the environment names.
 fn with_zoo<T>(f: impl FnOnce(&Zoo<'_>, &UserId, &Home) -> T) -> T {
     let home = Home::from_env().expect("a zoo home");
-    let zoo = Zoo::new(Index::builtin(), home.artifacts(), Policy::default(), &Http);
+    let transport = Http::new();
+    let zoo = Zoo::new(Index::builtin(), home.artifacts(), Policy::default(), &transport);
     let user = UserId::from_env().unwrap_or_else(|_| "test".parse().unwrap());
     f(&zoo, &user, &home)
 }

@@ -1,0 +1,74 @@
+{
+  "person-selection.json.gz": {
+    "size": 12435,
+    "sha256": "f99b456c8ab18a525607956abc1a758864baf3527f3bc7864a8ca7f2904cf498",
+    "original_size": 257466,
+    "original_sha256": "0e1ef30a0876f410df7486586813e066444703f3ef5da737bc87f497550e5221"
+  },
+  "person-card.json.gz": {
+    "size": 1754,
+    "sha256": "ab59ebade9c98cdb84669f3a599fafe7d42cc15757b3e99587c503c60dc20c7a",
+    "original_size": 4879,
+    "original_sha256": "110c308f30d056984d773fe5b8a1ebfbac56ecbadab4a0f293641c5faf757c6f"
+  },
+  "person-gate.json.gz": {
+    "size": 9013,
+    "sha256": "66740ba3c090d11f90fe0cc5bd33f56c13613b6983d1ddc1ba3facc9c57a840d",
+    "original_size": 1380311,
+    "original_sha256": "f7aca1b9de4db4790ecbcd7ece9451208a8dd6698104a575ef51e4b81044bc70"
+  },
+  "location-selection.json.gz": {
+    "size": 12497,
+    "sha256": "13227cf045c76545f5db77a9a9f0c59fed3f57452f10b0684191d4e125ea5a98",
+    "original_size": 257456,
+    "original_sha256": "afd0a9a164c63e2bd56a176ee3950956d1a0feff4f8f57b14e95a5f74855da86"
+  },
+  "location-card.json.gz": {
+    "size": 1756,
+    "sha256": "23888786bc171120fd5665c4677d49d3004343a71eb4043f655e14d02cb8ff75",
+    "original_size": 4889,
+    "original_sha256": "918e810780e70a41aab91ec70a2f2ecb6cf299f599d6d30aa32d809ee9a6d084"
+  },
+  "location-gate.json.gz": {
+    "size": 7556,
+    "sha256": "91149d1fe88a2db455cf029deb69e33bb85024e7a92d6f93dc2c08441cd88e25",
+    "original_size": 1380315,
+    "original_sha256": "d8dbe9a0a9c352658af3da69f0dffaa94739a32e274161028cbbddf2c696d349"
+  },
+  "organization-selection.json.gz": {
+    "size": 12310,
+    "sha256": "42cf85a65bcfec28bb1e8e7fbebed4e2712ae4aa6a58010e10b89fdb5d376132",
+    "original_size": 257302,
+    "original_sha256": "4fa984901debd068ffe5c700488483f2838afab95106500d1329829ebdb8b2b5"
+  },
+  "organization-card.json.gz": {
+    "size": 1755,
+    "sha256": "8d382dee317efeec528e87aa26dad9bf7be3928f2a0eed719a4fd108879bd903",
+    "original_size": 4884,
+    "original_sha256": "6683f25459a1ab1457258b81ef038101ea831248d4a521a64b9b616bbc7afd34"
+  },
+  "organization-gate.json.gz": {
+    "size": 7416,
+    "sha256": "59ad3e4ba7935fceacff80c5c0d42f220b6756bd2588463b03239c199afbcf2f",
+    "original_size": 1380411,
+    "original_sha256": "f4bd13b383b89434dad3ef0829a76396221123e4e4e813ac9946bef6776eb4ca"
+  },
+  "date-selection.json.gz": {
+    "size": 12408,
+    "sha256": "5f1724ce52b05f9ece6b532143a00247c38e0084961e769dd50809ecd65a87ab",
+    "original_size": 257402,
+    "original_sha256": "902bfd9de28b1b5b9cbb2f338dfe34d57cdc4d752850d4f204ae9b4d6b8418d9"
+  },
+  "date-card.json.gz": {
+    "size": 1755,
+    "sha256": "1d8c0b54c429fed4f623ff6c19b7f97a2137ece009a5f723f11b78e6adf757d7",
+    "original_size": 4875,
+    "original_sha256": "0cbda4fb7e0e4f750ce1ec3fb45b3fef0367aa01b38d28b2627fcd858ed66395"
+  },
+  "date-gate.json.gz": {
+    "size": 7415,
+    "sha256": "1ebac2b9be286ef8f15ac0f917acb068d1f17e96ac2aaa7316de867ff5fb17f1",
+    "original_size": 1380300,
+    "original_sha256": "e6695a2995d7ef6fcc7314d460316afcce1bc81f6626b76ac1066a3d2839d56b"
+  }
+}

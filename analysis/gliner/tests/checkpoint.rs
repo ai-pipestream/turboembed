@@ -17,7 +17,8 @@ fn load_or_fetch(env_var: &str, id: &str, tokenizer_id: &str, repo: &str, weight
     let _held = ONCE.lock().unwrap_or_else(|e| e.into_inner());
     let home = Home::from_env().expect("a zoo home");
     let index = Index::builtin();
-    let zoo = Zoo::new(Index::builtin(), home.artifacts(), Policy::default(), &Http);
+    let transport = Http::new();
+    let zoo = Zoo::new(Index::builtin(), home.artifacts(), Policy::default(), &transport);
     let user = UserId::from_env().unwrap_or_else(|_| "test".parse().unwrap());
     let accepted = || Acceptances::load(&home.acceptances());
     let tok_dir = zoo.fetch_with(tokenizer_id, &user, accepted).unwrap().dir.clone();
