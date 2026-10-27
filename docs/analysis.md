@@ -4775,6 +4775,54 @@ tokens left out are those whose gold lemma class (the edit script from
 the token to its lemma) gives the lemma while no class of the reference
 does, and `check` refuses a lemmatizer's record with tag mappings.
 
+### A permissively trained default encoder
+
+The lineup the records above were made with has no encoder the
+licence audit proves permissive (docs/licences.md): all-MiniLM-L6-v2
+trains on MS MARCO and SNLI/MultiNLI, the BGE family does not pin a
+per-model mixture, and the potion statics inherit BGE. The encoder
+adopted as the shippable default is
+`ibm-granite/granite-embedding-30m-english` (Apache-2.0): IBM's card
+enumerates its training mixture, no entry is under non-commercial
+terms (MS MARCO was excluded for its license), and several entries are
+CC BY-SA, credited in docs/licences.md under the bar adopted for this
+model. It is a 6-layer, 384-wide RoBERTa with CLS pooling, made by
+name from `bundle/recipes/granite-embedding-30m-english.json`; its
+BF16 checkpoint is cast to F32 weights at bundle make, the exact
+widening the cpu backend computes in at MODEL precision.
+
+The gate is the document chunker with dense retrieval on CPU at
+MODEL precision, the three records side by side
+(`analysis/eval/records/granite-embedding-30m-document`,
+`all-minilm-l6-v2-document` and `potion-base-8m-document`, one commit
+for all three). nDCG@10:
+
+| set | granite-embedding-30m-english | all-MiniLM-L6-v2 | potion-base-8M |
+| --- | ---: | ---: | ---: |
+| scifact | 0.7172 | 0.6402 | 0.4914 |
+| nfcorpus | 0.3282 | 0.3094 | 0.2305 |
+| arguana | 0.5562 | 0.5015 | 0.3625 |
+| qasper | 0.2767 | 0.2519 | 0.1970 |
+| mean | 0.4696 | 0.4258 | 0.3204 |
+
+Granite leads the incumbent on every set, by 0.019 to 0.077, at the
+same size and depth (its BPE tokenizer embeds about 28 percent more
+tokens on scifact; the records carry the embedding walls, measured
+on a shared machine). It is the default encoder new work should
+name. The historic records keep all-MiniLM-L6-v2 as their reference
+embedder, and the static tier is unchanged: potion stays local-only.
+
+An in-house alternative was measured first and is not shipped:
+`turbo-train-recipes static-embed` initializes a static table from
+BERT-base-uncased's token embeddings (centered, PCA-reduced,
+SIF-scaled) and contrastive-trains it. The untrained table scores
+0.3354 on scifact under this gate; training on token-dropout views
+scored 0.2842, and on adjacent FineWeb sentences 0.2718 at 400 steps
+and 0.2381 at 2,000 gentler steps. Adjacent-sentence alignment
+pressure on a mean-pooled table degrades the geometry the
+initialization carries, so the trainer ships as tooling with a
+measured negative result, and no model is taken from it.
+
 ### The sets
 
 The sets (decision 10) are described one file each under
