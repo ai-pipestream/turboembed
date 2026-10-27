@@ -1,14 +1,15 @@
-//! Check documentation against the original, unmodified trained receipt,
-//! and the receipt writer against that record.
+//! Check documentation against the committed trained receipt, and the
+//! receipt writer against that record.
 //!
-//! The archived record was supplemented by hand: the writer it came from
-//! named each checkpoint by the recipe revision ("1") and left out the
-//! run, cross-encoder and fit fields. The writer tests rebuild the
-//! archived sets from the recipes and the record's own numbers and
-//! require the writer to produce every field the archive holds except
-//! `run`, so a regenerated record loses nothing. The archived `run` names
-//! `--release`; the writer's generic command asserts no build, and the
-//! actual Cargo settings go in its `build` block.
+//! The committed record is emitted directly by the writer: checkpoints
+//! are named by source commit, bundles by manifest SHA-256, and the
+//! run, cross-encoder, fit, ColBERT protocol and build settings are
+//! recorded with the tables. The writer tests rebuild the archived
+//! sets from the recipes and the record's own numbers and require the
+//! writer to produce every field the archive holds except `run`,
+//! `build` and the bundle digests, which name the writer run's own
+//! invocation, compile settings and opened bundles; those are
+//! checked for presence and form instead of value.
 use serde_json::Value;
 use turbo::manifest::Model;
 use turbo::sparse::SparseOptions;
@@ -150,7 +151,11 @@ fn tables(set: &Value) -> Vec<(usize, String)> {
 fn covers(archived: &Value, written: &Value, new: &[&str], at: &str) {
     let (a, w) = (archived.as_object().unwrap(), written.as_object().unwrap());
     for (k, v) in a {
-        if k == "sets" || k == "run" {
+        // `run` and `build` name the writer run's own invocation and
+        // compile settings, and the bundle digests name the bundles
+        // that run opened (the test's are synthetic): presence is
+        // required below, values are checked for form by the caller.
+        if k == "sets" || k == "run" || k == "build" || k == "bundles" {
             continue;
         }
         assert_eq!(w.get(k), Some(v), "{at}: {k}");
@@ -164,7 +169,7 @@ fn covers(archived: &Value, written: &Value, new: &[&str], at: &str) {
 }
 
 #[test]
-fn the_writer_reproduces_every_archived_field_but_run() {
+fn the_writer_reproduces_every_archived_field_but_run_build_and_digests() {
     let archived: Value = serde_json::from_str(RECORD).unwrap();
     let pinned = bundles();
     let mut sets = Vec::new();
@@ -176,6 +181,13 @@ fn the_writer_reproduces_every_archived_field_but_run() {
         covers(set, &written, &NEW_SET_FIELDS, name);
         assert_eq!(written["tables"], set["tables"], "{name}: tables");
         assert_eq!(written["bundles"]["colbert"], "b".repeat(64), "{name}: manifest digest");
+        for (slot, digest) in set["bundles"].as_object().unwrap() {
+            let digest = digest.as_str().unwrap();
+            assert!(
+                digest.len() == 64 && digest.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b)),
+                "{name}: archived {slot} digest is not 64-digit lowercase hex: {digest}"
+            );
+        }
         sets.push(written);
     }
     let encoder = TrainedConfig::default();

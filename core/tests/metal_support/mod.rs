@@ -141,7 +141,7 @@ pub fn table() -> &'static backend::turbo_backend {
 }
 
 /// Rows with padding on either side, a masked token inside a row and token
-/// types, as tests/sessions.rs writes them for the CPU.
+/// types, as tests/sessions/plain.rs writes them for the CPU.
 pub fn awkward_rows(dir: &std::path::Path) -> Tokens {
     let tok = Tok::create(dir).unwrap();
     let rows: Vec<Vec<i32>> = TEXTS.iter().map(|t| tok.row(t, None).unwrap()).collect();

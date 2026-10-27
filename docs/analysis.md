@@ -4577,6 +4577,13 @@ numbers in the table above. So the CUDA record's `arguana` gap
 (`51.65` against `51.47`; 53 of 1406 queries differ, with the same
 cuts) is CUDA's numerics, not the chunker.
 
+On Metal (Apple M2, `analysis/eval/records/*-hybrid-metal`, same flags,
+same bundle `0f17adc4`, at main `1b452912`) the three records also
+match the CPU and Level Zero records query for query on all four sets,
+with the same chunk counts and the same `tokens_embedded`,
+`chunk_bytes` and `chunk_tokens`, and both gates FAIL with the same
+numbers. Every cut is the same on the CPU, CUDA, Level Zero and Metal.
+
 ### Structure in the chunker
 
 The records under `analysis/eval/records/turbo-chunker-254-200-structure-*`
@@ -5363,6 +5370,193 @@ as a tarball (not BEIR jsonl for this reader); the ConTEB sets and
 HiCBench are not loadable from this cache (HiCBench has no licence
 recorded), so those did not run.
 
+### Trained encoders (#879)
+
+The latency receipt below was regenerated after the dense baseline
+correction in PR #1412: the harness now ranks documents through the
+same `retrieve::Index::document_ranking` as `turbo-eval run`,
+including zero-row scores, source row mapping, document tie order
+and self exclusion. Against the earlier receipt only five
+Recall@100 values moved (the chunk cap before document dedup had
+clipped the dense tail, most visibly `gutenqa` static and
+contextual, 0.9513 and 0.9847 to 0.9997, now matching the quality
+records); every Recall@10 and nDCG@10 in the latency table is
+unchanged. The default-C pick below is a quality-record result and
+is unaffected; the speed conclusions are rechecked against the new
+timings and stand.
+
+The same record with trained encoders: static `minishlab/potion-base-8M`
+and contextual `sentence-transformers/all-MiniLM-L6-v2`, corpus-scale
+cascade (`analysis/eval/src/cascade.rs`), turbo-chunker at max 254,
+target 200, on the six cached sets. Quality records are the
+`turbo-chunker-254-200-cascade-*` directories beside this section's
+synthetic tables (`turbo-eval run`, CPU, one commit). Per-query
+latency comes from `analysis/eval/tests/cascade_latency.rs`
+(`cascade_latency_receipt`, ignored and release-only): chunks and
+indexes are built once, then every arm answers every query one at a
+time with query encoding inside the timed span, arms interleaved per
+query per round over 3 rounds, pinned to one core. Its JSON record is
+`analysis/eval/records/turbo-chunker-254-200-cascade-latency/cascade-latency-879.json`.
+The receipt ran on a machine busy with other work (load averages
+between about 31 and 97), so absolute values carry that noise; the
+arms share it round by round. The receipt's arms share one chunking
+cut with the contextual embedder's overhead, while each quality
+record was chunked with its own embedder's overhead, so its static
+arm's chunk counts can differ slightly from the static record's
+(gutenqa 69,226 against 68,622). Its Recall@10 and nDCG@10 columns
+otherwise reproduce the committed records.
+
+| Set | Arm | R@1 | R@5 | R@10 | R@100 | nDCG@10 | Span R@10 |
+|---|---|---:|---:|---:|---:|---:|---:|
+| scifact | static only | 0.3442 | 0.5594 | 0.6464 | 0.8479 | 0.4952 | - |
+| scifact | contextual only | 0.4858 | 0.7309 | 0.7943 | 0.9300 | 0.6506 | - |
+| scifact | cascade C=10 | 0.5225 | 0.7526 | 0.8046 | 0.8179 | 0.6738 | - |
+| scifact | cascade C=25 | 0.5165 | 0.7624 | 0.8277 | 0.8910 | 0.6815 | - |
+| scifact | cascade C=50 | 0.5058 | 0.7492 | 0.8127 | 0.9257 | 0.6704 | - |
+| scifact | cascade C=100 | 0.4992 | 0.7442 | 0.8070 | 0.9420 | 0.6634 | - |
+| scifact | cascade C=200 | 0.4892 | 0.7409 | 0.8143 | 0.9477 | 0.6603 | - |
+| scifact | cascade C=400 | 0.4858 | 0.7342 | 0.8043 | 0.9483 | 0.6560 | - |
+| nfcorpus | static only | 0.0366 | 0.0873 | 0.1075 | 0.2365 | 0.2350 | - |
+| nfcorpus | contextual only | 0.0463 | 0.1179 | 0.1607 | 0.3126 | 0.3176 | - |
+| nfcorpus | cascade C=10 | 0.0520 | 0.1270 | 0.1513 | 0.1631 | 0.3176 | - |
+| nfcorpus | cascade C=25 | 0.0552 | 0.1324 | 0.1642 | 0.2101 | 0.3296 | - |
+| nfcorpus | cascade C=50 | 0.0495 | 0.1314 | 0.1635 | 0.2436 | 0.3276 | - |
+| nfcorpus | cascade C=100 | 0.0489 | 0.1306 | 0.1628 | 0.2775 | 0.3237 | - |
+| nfcorpus | cascade C=200 | 0.0474 | 0.1312 | 0.1611 | 0.2898 | 0.3223 | - |
+| nfcorpus | cascade C=400 | 0.0474 | 0.1237 | 0.1640 | 0.2933 | 0.3233 | - |
+| arguana | static only | 0.1835 | 0.4772 | 0.5910 | 0.8748 | 0.3738 | - |
+| arguana | contextual only | 0.2468 | 0.6202 | 0.7760 | 0.9637 | 0.4944 | - |
+| arguana | cascade C=10 | 0.2397 | 0.6088 | 0.7390 | 0.7560 | 0.4780 | - |
+| arguana | cascade C=25 | 0.2425 | 0.6124 | 0.7660 | 0.8649 | 0.4893 | - |
+| arguana | cascade C=50 | 0.2447 | 0.6174 | 0.7639 | 0.9139 | 0.4893 | - |
+| arguana | cascade C=100 | 0.2461 | 0.6202 | 0.7724 | 0.9431 | 0.4935 | - |
+| arguana | cascade C=200 | 0.2454 | 0.6174 | 0.7717 | 0.9545 | 0.4922 | - |
+| arguana | cascade C=400 | 0.2454 | 0.6188 | 0.7738 | 0.9595 | 0.4928 | - |
+| qasper | static only | 0.1709 | 0.3012 | 0.3832 | 0.6775 | 0.2670 | 0.1333 |
+| qasper | contextual only | 0.1881 | 0.3315 | 0.3880 | 0.6857 | 0.2817 | 0.1589 |
+| qasper | cascade C=10 | 0.2254 | 0.4059 | 0.4748 | 0.5238 | 0.3426 | 0.2090 |
+| qasper | cascade C=25 | 0.2136 | 0.3804 | 0.4604 | 0.6079 | 0.3271 | 0.1950 |
+| qasper | cascade C=50 | 0.2095 | 0.3770 | 0.4507 | 0.6940 | 0.3213 | 0.1932 |
+| qasper | cascade C=100 | 0.2040 | 0.3666 | 0.4335 | 0.7498 | 0.3113 | 0.1868 |
+| qasper | cascade C=200 | 0.1964 | 0.3501 | 0.4232 | 0.7236 | 0.3019 | 0.1766 |
+| qasper | cascade C=400 | 0.1923 | 0.3418 | 0.4094 | 0.7154 | 0.2943 | 0.1697 |
+| gutenqa | static only | 0.5770 | 0.7850 | 0.8550 | 0.9997 | 0.7105 | 0.3896 |
+| gutenqa | contextual only | 0.7773 | 0.9130 | 0.9450 | 0.9997 | 0.8636 | 0.5322 |
+| gutenqa | cascade C=10 | 0.8250 | 0.9450 | 0.9657 | 0.9713 | 0.8977 | 0.6692 |
+| gutenqa | cascade C=25 | 0.8137 | 0.9403 | 0.9663 | 0.9830 | 0.8930 | 0.6313 |
+| gutenqa | cascade C=50 | 0.8070 | 0.9373 | 0.9623 | 0.9893 | 0.8872 | 0.5965 |
+| gutenqa | cascade C=100 | 0.7983 | 0.9347 | 0.9573 | 0.9937 | 0.8814 | 0.5868 |
+| gutenqa | cascade C=200 | 0.7930 | 0.9313 | 0.9557 | 0.9963 | 0.8772 | 0.5717 |
+| gutenqa | cascade C=400 | 0.7897 | 0.9247 | 0.9537 | 0.9987 | 0.8738 | 0.5621 |
+| conteb-squad | static only | 0.4790 | 0.7508 | 0.8394 | 0.9802 | 0.6512 | 0.8326 |
+| conteb-squad | contextual only | 0.6439 | 0.8795 | 0.9260 | 0.9952 | 0.7861 | 0.9216 |
+| conteb-squad | cascade C=10 | 0.6633 | 0.8974 | 0.9453 | 0.9657 | 0.8071 | 0.9443 |
+| conteb-squad | cascade C=25 | 0.6497 | 0.8887 | 0.9371 | 0.9894 | 0.7955 | 0.9332 |
+| conteb-squad | cascade C=50 | 0.6463 | 0.8805 | 0.9303 | 0.9937 | 0.7898 | 0.9274 |
+| conteb-squad | cascade C=100 | 0.6454 | 0.8800 | 0.9294 | 0.9966 | 0.7884 | 0.9255 |
+| conteb-squad | cascade C=200 | 0.6444 | 0.8795 | 0.9260 | 0.9952 | 0.7865 | 0.9216 |
+| conteb-squad | cascade C=400 | 0.6439 | 0.8795 | 0.9255 | 0.9961 | 0.7862 | 0.9216 |
+
+At most depths the cascade does not merely approach contextual-only
+Recall@10. BM25 admission brings lexical matches the dense ranking
+misses, so the cascade scores above contextual-only on five of the
+six sets. Arguana is the exception at every depth. Recall@100 shows
+the pool's cost instead: a document outside both shortlists cannot
+be ranked in the tail, so nfcorpus for example reaches only 0.1631
+at C=10 against 0.3126 contextual-only, and the tail only partly
+recovers as C grows. Span recall at 10 is highest at C=10 on all
+three span sets and declines toward contextual-only as C grows.
+
+**Decision (corpus-scale retrieval cascade).** Dense contextual-only
+stays the default retrieval (`turbo-eval run --retrieval` defaults to
+dense, and nothing here argues to change that): at every recorded
+corpus size the cascade as built buys quality with latency, never
+savings, so it is an opt-in quality mode for its Recall@10 and
+span-recall gains, not a latency feature. Where the cascade is run,
+the default shortlist is C=100. The stated margin for the default is
+one Recall@10 point (0.01) against contextual-only on every set.
+C=25 is the smallest depth inside it, but the pick is fragile:
+arguana clears it by 0.000043 (-0.009957) and C=50 falls outside
+again (arguana -0.012091). From C=100 every recorded depth stays
+inside (worst set arguana at -0.003556, -0.004267 and -0.002134 for
+C=100, 200 and 400), and C=100 costs only about 1% to 7% more total
+p50 than C=25 per set in the receipt below, so stability is nearly
+free. `turbo-eval run --candidates` defaults to 100 accordingly.
+This is the corpus-retrieval shortlist; the per-document unit
+cascade in `turbo-chunker` keeps its own documented default of 64,
+where the synthetic record above shows the unit savings are real.
+
+Per-query latency from the receipt, encode plus search:
+
+| Set | Docs | Chunks | Queries | Arm | Encode p50/p95 (us) | Search p50/p95 (us) | Total p50/p95 (us) | R@10 | nDCG@10 |
+|---|---:|---:|---:|---|---:|---:|---:|---:|---:|
+| scifact | 5183 | 9126 | 300 | static only | 37.9 / 58.6 | 554.4 / 979.3 | 595.4 / 1027.1 | 0.6497 | 0.4950 |
+| scifact | 5183 | 9126 | 300 | contextual only | 5002.3 / 9978.4 | 833.4 / 1499.1 | 5905.8 / 11456.1 | 0.7943 | 0.6506 |
+| scifact | 5183 | 9126 | 300 | cascade C=10 | 5026.5 / 10187.0 | 3809.6 / 7203.2 | 8777.9 / 16915.2 | 0.8046 | 0.6738 |
+| scifact | 5183 | 9126 | 300 | cascade C=25 | 5044.4 / 10133.3 | 3930.3 / 6763.3 | 8912.5 / 16513.4 | 0.8277 | 0.6815 |
+| scifact | 5183 | 9126 | 300 | cascade C=50 | 5042.8 / 9531.1 | 3994.6 / 7462.2 | 8977.7 / 16255.0 | 0.8127 | 0.6704 |
+| scifact | 5183 | 9126 | 300 | cascade C=100 | 5135.5 / 9621.1 | 4216.4 / 7530.9 | 9263.5 / 16408.6 | 0.8070 | 0.6634 |
+| scifact | 5183 | 9126 | 300 | cascade C=200 | 5067.9 / 10006.3 | 4500.6 / 7835.2 | 9486.8 / 17121.5 | 0.8143 | 0.6603 |
+| scifact | 5183 | 9126 | 300 | cascade C=400 | 5062.9 / 9254.4 | 5027.7 / 9005.8 | 10108.3 / 17729.3 | 0.8043 | 0.6560 |
+| nfcorpus | 3633 | 6819 | 323 | static only | 35.3 / 56.6 | 614.7 / 1452.4 | 654.0 / 1499.4 | 0.1074 | 0.2349 |
+| nfcorpus | 3633 | 6819 | 323 | contextual only | 4705.1 / 12619.4 | 892.3 / 3738.7 | 5844.8 / 15227.5 | 0.1607 | 0.3176 |
+| nfcorpus | 3633 | 6819 | 323 | cascade C=10 | 4793.6 / 14728.0 | 1638.1 / 7114.5 | 6560.7 / 20126.7 | 0.1513 | 0.3176 |
+| nfcorpus | 3633 | 6819 | 323 | cascade C=25 | 4507.6 / 12580.8 | 1655.4 / 7845.6 | 6464.7 / 17662.1 | 0.1642 | 0.3296 |
+| nfcorpus | 3633 | 6819 | 323 | cascade C=50 | 4504.7 / 12221.0 | 1674.4 / 6674.2 | 6535.4 / 17845.8 | 0.1635 | 0.3276 |
+| nfcorpus | 3633 | 6819 | 323 | cascade C=100 | 4481.0 / 10791.8 | 1923.1 / 7399.0 | 6888.3 / 16364.7 | 0.1628 | 0.3237 |
+| nfcorpus | 3633 | 6819 | 323 | cascade C=200 | 4707.7 / 12655.5 | 2226.3 / 8612.6 | 7243.2 / 19282.6 | 0.1611 | 0.3223 |
+| nfcorpus | 3633 | 6819 | 323 | cascade C=400 | 4541.8 / 11170.7 | 2728.5 / 9815.6 | 7570.3 / 18919.6 | 0.1640 | 0.3233 |
+| arguana | 8674 | 11145 | 1406 | static only | 135.1 / 743.3 | 907.3 / 1961.6 | 1076.1 / 3620.5 | 0.5903 | 0.3738 |
+| arguana | 8674 | 11145 | 1406 | contextual only | 44079.6 / 119875.6 | 1451.7 / 5336.6 | 46015.1 / 123612.6 | 0.7760 | 0.4944 |
+| arguana | 8674 | 11145 | 1406 | cascade C=10 | 41002.2 / 92335.2 | 55955.1 / 136563.8 | 100510.9 / 224531.4 | 0.7390 | 0.4780 |
+| arguana | 8674 | 11145 | 1406 | cascade C=25 | 41363.1 / 105587.0 | 56718.8 / 139153.4 | 101121.8 / 238284.1 | 0.7660 | 0.4893 |
+| arguana | 8674 | 11145 | 1406 | cascade C=50 | 41287.4 / 109080.8 | 57371.4 / 136868.4 | 101052.0 / 233721.4 | 0.7639 | 0.4893 |
+| arguana | 8674 | 11145 | 1406 | cascade C=100 | 41277.7 / 104591.3 | 57074.2 / 137680.1 | 101883.6 / 235137.7 | 0.7724 | 0.4935 |
+| arguana | 8674 | 11145 | 1406 | cascade C=200 | 41087.8 / 107349.5 | 57622.1 / 141105.1 | 102078.3 / 235909.4 | 0.7717 | 0.4922 |
+| arguana | 8674 | 11145 | 1406 | cascade C=400 | 41148.8 / 106709.9 | 58146.2 / 136731.4 | 102643.5 / 232299.1 | 0.7738 | 0.4928 |
+| qasper | 416 | 10578 | 1451 | static only | 30.2 / 60.9 | 609.1 / 1415.1 | 642.5 / 1459.2 | 0.3825 | 0.2682 |
+| qasper | 416 | 10578 | 1451 | contextual only | 4220.7 / 6971.4 | 936.3 / 1938.6 | 5247.6 / 8565.6 | 0.3880 | 0.2817 |
+| qasper | 416 | 10578 | 1451 | cascade C=10 | 4227.7 / 7039.8 | 4302.6 / 6542.9 | 8485.8 / 12963.6 | 0.4748 | 0.3426 |
+| qasper | 416 | 10578 | 1451 | cascade C=25 | 4278.8 / 7093.6 | 4305.4 / 6634.4 | 8535.9 / 13177.6 | 0.4604 | 0.3271 |
+| qasper | 416 | 10578 | 1451 | cascade C=50 | 4246.7 / 6986.9 | 4420.6 / 6681.5 | 8666.0 / 13126.2 | 0.4507 | 0.3213 |
+| qasper | 416 | 10578 | 1451 | cascade C=100 | 4267.5 / 7091.7 | 4638.9 / 6979.2 | 8905.5 / 13541.8 | 0.4335 | 0.3113 |
+| qasper | 416 | 10578 | 1451 | cascade C=200 | 4274.7 / 7043.4 | 4960.0 / 7352.4 | 9179.2 / 13956.1 | 0.4232 | 0.3019 |
+| qasper | 416 | 10578 | 1451 | cascade C=400 | 4279.0 / 7092.4 | 5541.9 / 7983.7 | 9777.5 / 14657.4 | 0.4094 | 0.2943 |
+| gutenqa | 100 | 69226 | 3000 | static only | 25.0 / 51.5 | 2330.8 / 6558.9 | 2355.0 / 6604.5 | 0.8633 | 0.7199 |
+| gutenqa | 100 | 69226 | 3000 | contextual only | 2994.4 / 7786.3 | 3845.6 / 10583.4 | 6834.5 / 18102.5 | 0.9450 | 0.8636 |
+| gutenqa | 100 | 69226 | 3000 | cascade C=10 | 3023.5 / 7905.8 | 26021.0 / 53142.8 | 29023.8 / 60599.6 | 0.9657 | 0.8977 |
+| gutenqa | 100 | 69226 | 3000 | cascade C=25 | 3058.0 / 7389.2 | 26025.2 / 52481.8 | 29095.4 / 59748.4 | 0.9663 | 0.8930 |
+| gutenqa | 100 | 69226 | 3000 | cascade C=50 | 3059.3 / 7406.9 | 26143.7 / 52971.9 | 29141.4 / 60024.0 | 0.9623 | 0.8872 |
+| gutenqa | 100 | 69226 | 3000 | cascade C=100 | 3064.3 / 7343.8 | 26269.2 / 53559.7 | 29273.3 / 60477.2 | 0.9573 | 0.8814 |
+| gutenqa | 100 | 69226 | 3000 | cascade C=200 | 3052.6 / 7436.6 | 26520.0 / 54423.3 | 29566.4 / 61782.3 | 0.9557 | 0.8772 |
+| gutenqa | 100 | 69226 | 3000 | cascade C=400 | 3059.0 / 7411.6 | 27092.0 / 55574.9 | 30122.7 / 62745.4 | 0.9537 | 0.8738 |
+| conteb-squad | 2067 | 2253 | 2067 | static only | 21.8 / 46.3 | 126.8 / 275.6 | 148.6 / 319.4 | 0.8394 | 0.6513 |
+| conteb-squad | 2067 | 2253 | 2067 | contextual only | 3016.2 / 6741.1 | 189.4 / 393.9 | 3212.0 / 7215.6 | 0.9260 | 0.7861 |
+| conteb-squad | 2067 | 2253 | 2067 | cascade C=10 | 2977.8 / 6874.3 | 922.0 / 1597.0 | 3903.2 / 8721.6 | 0.9453 | 0.8071 |
+| conteb-squad | 2067 | 2253 | 2067 | cascade C=25 | 3009.7 / 6805.9 | 934.1 / 1618.7 | 3945.9 / 8534.1 | 0.9371 | 0.7955 |
+| conteb-squad | 2067 | 2253 | 2067 | cascade C=50 | 3006.9 / 6655.6 | 992.6 / 1759.5 | 4000.5 / 8615.7 | 0.9303 | 0.7898 |
+| conteb-squad | 2067 | 2253 | 2067 | cascade C=100 | 3001.1 / 6735.1 | 1099.5 / 1933.3 | 4103.4 / 8963.7 | 0.9294 | 0.7884 |
+| conteb-squad | 2067 | 2253 | 2067 | cascade C=200 | 3012.3 / 6661.0 | 1296.6 / 2253.4 | 4319.1 / 9079.8 | 0.9260 | 0.7865 |
+| conteb-squad | 2067 | 2253 | 2067 | cascade C=400 | 3033.4 / 6739.6 | 1648.0 / 2751.2 | 4686.9 / 9816.5 | 0.9255 | 0.7862 |
+
+The speed bar of #712 is missed at the default C=25 on every set,
+at both percentiles. Total p50 at C=25 is 1.51x contextual-only on
+scifact (8912.5 against 5905.8 us), 1.11x on nfcorpus (6464.7
+against 5844.8), 2.20x on arguana (101121.8 against 46015.1), 1.63x
+on qasper (8535.9 against 5247.6), 4.26x on gutenqa (29095.4
+against 6834.5) and 1.23x on conteb-squad (3945.9 against 3212.0);
+p95 ratios run from 1.07x to 3.47x. No recorded depth meets the
+bar on any set. The cost is structural, not the pool scoring the
+synthetic record counted: a cascade query encodes in both spaces,
+then stage 1 pays an exact static top-k over every chunk plus a
+BM25 `top_k` over all rows (the fallback scores for unscored
+chunks read every lexical hit into a map), where contextual-only
+pays one exact dense scan. At these corpus sizes (2,253 to 69,226
+chunks) that scan is cheaper than the cascade's admission work, so
+the trained cascade as built buys its Recall@10 and span-recall
+gains with latency, not with savings. Static only is the fast arm
+everywhere and the weakest on quality.
+
 The [cut-identity checker](chunker-cut-identity.md) compares flat chunk
 partitions across backend runs with optional DP runner-up margins.
 
@@ -5377,9 +5571,9 @@ the output layer in f32 on the CPU backend's packed GEMM
 (`turbo::cpu::Matrix`, on the calling thread) and decodes the CRF in
 f64; `JvmParity` is the f64 forward pass and exact-sum CRF scorer that
 reproduce the JVM (`analysis/postag/README.md`).
-`BilstmPosTagger::on_device` (feature `cuda` or `levelzero`) is `Packed`
-with its character and sentence BiLSTMs on an NVIDIA or Intel GPU through
-`turbo::device::lstm::Lstm` (#860, docs/cuda.md, docs/levelzero.md); the output layer and
+`BilstmPosTagger::on_device` (feature `cuda`, `levelzero` or `metal`) is `Packed`
+with its character and sentence BiLSTMs on an NVIDIA, Intel or Apple GPU through
+`turbo::device::lstm::Lstm` (#860, docs/cuda.md, docs/levelzero.md, docs/metal.md); the output layer and
 the f64 CRF stay on the host, and an LSTM that cannot be made on the
 device is an error, never a CPU run. It has its own `config_hash`, and
 `analysis/postag/tests/bilstm_device.rs` holds it to the CPU path and
@@ -5388,8 +5582,8 @@ FASTEST holds the BiLSTMs' weights as F16 on the GPU (sums and states
 F32), hashes as its own tier, and is held to accuracy, not bits: on UD
 English EWT within 0.1 points of MODEL and MODEL's tag on at least 99.9%
 of the words (`analysis/postag/tests/bilstm_ewt.rs`), and the JVM's tag
-on at least 99.9% of the goldens' words. FASTEST runs on CUDA alone; Level Zero refuses it. There is no Metal
-or NPU path yet.
+on at least 99.9% of the goldens' words. FASTEST runs on CUDA alone; Level Zero and Metal refuse it. There is no
+NPU path yet.
 
 `Packed` runs each BiLSTM, character and sentence, as one
 `turbo::cpu::lstm::Lstm` over both directions (#859): every sequence of
