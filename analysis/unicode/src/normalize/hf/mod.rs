@@ -6,7 +6,7 @@
 //! external dependencies. Unassigned code points are not in `is_other`,
 //! matching `unicode_categories` 0.1.1.
 
-use super::{Form, data, full_decomposition, hangul};
+use super::{Form, canonical_order, data, full_decomposition, hangul};
 use crate::GeneralCategory as G;
 use crate::category::general_category;
 
@@ -106,7 +106,7 @@ pub fn aligned_chars(form: Form, chars: impl Iterator<Item = char>) -> Aligned {
     for c in chars {
         decompose(form, c, &mut normalized);
     }
-    canonical_order(&mut normalized);
+    canonical_order(&mut normalized, |c| c.1);
     if form.composes() {
         compose_aligned(&mut normalized);
     }
@@ -129,21 +129,6 @@ fn decompose(form: Form, c: char, out: &mut Vec<(char, u8, isize)>) {
             out.extend(mapping.iter().enumerate().map(|(i, &c)| (c, canonical_combining_class(c), isize::from(i != 0))))
         }
         None => out.push((c, canonical_combining_class(c), 0)),
-    }
-}
-
-fn canonical_order(chars: &mut [(char, u8, isize)]) {
-    for i in 1..chars.len() {
-        let current = chars[i];
-        if current.1 == 0 {
-            continue;
-        }
-        let mut j = i;
-        while j > 0 && chars[j - 1].1 > current.1 {
-            chars[j] = chars[j - 1];
-            j -= 1;
-        }
-        chars[j] = current;
     }
 }
 

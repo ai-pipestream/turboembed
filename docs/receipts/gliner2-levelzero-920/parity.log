@@ -1,3 +1,4 @@
+note (#1435): the relation and schema-extract tests read no TURBO_TEST_PRECISION here, so every run below labelled exact ran at model; the GLiNER lines print their own precision. The exact leg is docs/receipts/gliner2-levelzero-920/parity-exact.log.
 base: 28ecaa09799daa1ab7e42a71255e16b9648e205a
 2026-10-26T15:52:45Z
 fastino/gliner2-base-v1 at f9634218e53580c56edf0de97ca1a7d3f1c2354e: model.safetensors, config.json, added_tokens.json, spm.model and encoder_config/config.json each match the zoo index's sha256 for that revision

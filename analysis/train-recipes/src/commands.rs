@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use turbo_train_recipes::depparse::{DEPPARSE_RECIPES, DepparseRecipe, run_depparse, write_depparse_model_dir};
 use turbo_train_recipes::fineweb::{self, Store, WEB, WebFile, WebRange};
 use turbo_train_recipes::langdetect::{self, LANGDETECT, write_language_dir};
 use turbo_train_recipes::langdetect_web::{self, LANGDETECT_WEB, WebInput, write_web_language_dir};
@@ -69,6 +70,50 @@ pub(crate) fn ud_command(a: Args) -> Result<bool, String> {
         println!("{}", outcome.gate);
         println!("{}: {:.0} s", recipe.model_id, started.elapsed().as_secs_f64());
         all_pass &= outcome.gate.result.pass;
+    }
+    Ok(all_pass)
+}
+
+pub(crate) fn depparse_command(a: Args) -> Result<bool, String> {
+    only(&a, "depparse", &["--treebanks", "--out", "--recipe"])?;
+    let recipes = chosen(&DEPPARSE_RECIPES, &a.recipe_ids, |r: &DepparseRecipe| r.model_id)?;
+    let treebanks = need(a.treebanks, "--treebanks")?;
+    let out = need(a.out, "--out")?;
+    let mut problems = Vec::new();
+    for recipe in &recipes {
+        let dir = out.join(recipe.model_id);
+        if dir.exists() {
+            problems.push(format!("{}: the model directory exists", dir.display()));
+        }
+    }
+    if !problems.is_empty() {
+        return Err(problems.join("\n"));
+    }
+    let mut texts = Vec::new();
+    for t in TREEBANKS.iter().filter(|t| recipes.iter().any(|r| r.treebank == **t)) {
+        let dir = treebanks.join(t.dataset_id());
+        let text = t.read(&dir).map_err(|e| e.to_string())?;
+        println!("{} {}: licence and digests checked", t.repository, t.dataset_id());
+        texts.push((*t, text));
+    }
+    let text_of = |t: &Treebank| &texts.iter().find(|(u, _)| u == t).expect("every treebank was read").1;
+    let data_problems: Vec<String> = recipes
+        .iter()
+        .filter_map(|r| r.check_data(text_of(&r.treebank)).err().map(|e| format!("{}: {e}", r.model_id)))
+        .collect();
+    if !data_problems.is_empty() {
+        return Err(data_problems.join("\n"));
+    }
+    let mut all_pass = true;
+    for recipe in &recipes {
+        let started = std::time::Instant::now();
+        let outcome = run_depparse(recipe, text_of(&recipe.treebank)).map_err(|e| e.to_string())?;
+        write_depparse_model_dir(&out, &outcome).map_err(|e| e.to_string())?;
+        println!("{}", outcome.card.summary());
+        println!("{}", outcome.gate);
+        println!("{}", outcome.uas_gate);
+        println!("{}: {:.1} s", recipe.model_id, started.elapsed().as_secs_f64());
+        all_pass &= outcome.gate.result.pass && outcome.uas_gate.result.pass;
     }
     Ok(all_pass)
 }

@@ -164,7 +164,9 @@ fn the_published_references_are_checked_and_scored_when_present() {
                 Recipe::Name(n) if n.kind() == "date" => "75.00",
                 _ => "0.00",
             },
-            task @ (Task::Lemmatizer | Task::LanguageDetector) => panic!("no recipe of the task {task:?}"),
+            task @ (Task::Lemmatizer | Task::LanguageDetector | Task::DependencyParser) => {
+                panic!("no recipe of the task {task:?}")
+            }
         };
         let scores = (outcome.gate.result.candidate.score, outcome.gate.result.reference.score);
         assert_eq!(format!("{:.2} {:.2}", scores.0, scores.1), format!("100.00 {expected}"), "{}", outcome.gate);

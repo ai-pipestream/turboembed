@@ -28,7 +28,8 @@ pub fn model() -> Gliner2Extractor {
     static ONCE: std::sync::Mutex<()> = std::sync::Mutex::new(());
     let _held = ONCE.lock().unwrap_or_else(|e| e.into_inner());
     let home = Home::from_env().expect("a zoo home");
-    let zoo = Zoo::new(Index::builtin(), home.artifacts(), Policy::default(), &Http);
+    let transport = Http::new();
+    let zoo = Zoo::new(Index::builtin(), home.artifacts(), Policy::default(), &transport);
     let user = UserId::from_env().unwrap_or_else(|_| "test".parse().unwrap());
     let dir = zoo.fetch_with(ID, &user, || Acceptances::load(&home.acceptances())).unwrap().dir.clone();
     let package = home.dir().join("packages").join(format!("{ID}-encoder"));

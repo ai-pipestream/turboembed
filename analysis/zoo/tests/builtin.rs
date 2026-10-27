@@ -7,7 +7,7 @@
 
 use std::collections::BTreeSet;
 
-use turbo_zoo::{Component, Format, Index, Kind, Licence, LicenceClass, Policy, verify};
+use turbo_zoo::{Component, Format, Http, Index, Kind, Licence, LicenceClass, Policy, verify};
 
 #[path = "builtin/checkpoints.rs"]
 mod checkpoints;
@@ -123,6 +123,18 @@ const TATOEBA_MODEL: &str = "turbo-mul-tatoeba-langdetect-1";
 /// sentences and documents at their addresses in a fourth release.
 const WEB_MODEL: &str = "turbo-mul-tatoeba-fineweb-langdetect-1";
 
+/// The dependency parser models (MaxEnt and Feedforward) the UD recipes
+/// train on the four settled CC BY 4.0 UD 2.16 treebanks (#922).
+const UD_DEPPARSE_MODELS: [&str; 8] = [
+    "turbo-es-ud-ancora-2.16-depparse-maxent-1",
+    "turbo-es-ud-ancora-2.16-depparse-feedforward-1",
+    "turbo-ca-ud-ancora-2.16-depparse-maxent-1",
+    "turbo-ca-ud-ancora-2.16-depparse-feedforward-1",
+    "turbo-fi-ud-ftb-2.16-depparse-maxent-1",
+    "turbo-fi-ud-ftb-2.16-depparse-feedforward-1",
+    "turbo-it-ud-markit-2.16-depparse-maxent-1",
+    "turbo-it-ud-markit-2.16-depparse-feedforward-1",
+];
 /// The 28-label linear heads trained on GoEmotions (#926), listed at their
 /// addresses in a fifth release of this repository.
 const GOEMOTIONS_HEADS: [&str; 2] =
@@ -142,6 +154,7 @@ const CIVIL_COMMENTS_HEADS: [&str; 4] = [
 fn trained_here(id: &str) -> bool {
     MASC_MODELS.contains(&id)
         || UD_RECIPE_MODELS.contains(&id)
+        || UD_DEPPARSE_MODELS.contains(&id)
         || id == TATOEBA_MODEL
         || id == WEB_MODEL
         || GOEMOTIONS_HEADS.contains(&id)
@@ -240,6 +253,7 @@ fn the_ud_models_carry_their_treebank_licences() {
     }
     expected.extend(MASC_MODELS.map(str::to_owned));
     expected.extend(UD_RECIPE_MODELS.map(str::to_owned));
+    expected.extend(UD_DEPPARSE_MODELS.map(str::to_owned));
     expected.insert(TATOEBA_MODEL.to_owned());
     expected.insert(WEB_MODEL.to_owned());
     expected.extend(GOEMOTIONS_HEADS.map(str::to_owned));
@@ -347,7 +361,8 @@ fn every_builtin_artifact_fetches_and_verifies() {
     acc.accept(&user, Licence::CcBySa30, 0).unwrap();
     let index = Index::builtin();
     let ids: Vec<String> = index.list().iter().map(|a| a.id.to_string()).collect();
-    let zoo = turbo_zoo::Zoo::new(index, cache.clone(), Policy::default(), &turbo_zoo::Http);
+    let transport = Http::new();
+    let zoo = turbo_zoo::Zoo::new(index, cache.clone(), Policy::default(), &transport);
     for id in &ids {
         let f = zoo.fetch(id, &user, &acc).unwrap();
         assert_eq!(f.files.len(), f.artifact.files.len(), "{id}");

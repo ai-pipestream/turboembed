@@ -354,3 +354,31 @@ fn a_label_scoring_skips_nothing_and_maps_each_label_once_to_another() {
     assert_eq!(with(vec![mapping("lvs", "lav"), mapping("est", "est")]), refused("est", "est"));
     assert_eq!(with(vec![mapping("est", "ekk"), mapping("lvs", "lav"), mapping("est", "ekk")]), refused("est", "ekk"));
 }
+
+#[test]
+fn a_dependency_parser_record_scores_uas_and_las_over_scored_tokens() {
+    assert_eq!(Task::DependencyParser.measure(), Measure::Accuracy);
+    assert_eq!(Task::DependencyParser.scoring(), ScoringKind::Dependencies);
+    let units = tagging(40, |i| 8 + i % 3);
+    let model = |id: &str| ModelId { id: id.into(), sha256: "c".repeat(64) };
+    for attachment in [DependencyAttachment::Unlabeled, DependencyAttachment::Labeled] {
+        let scoring = Scoring::Dependencies(DependencyScoring {
+            attachment,
+            without_punctuation: true,
+            tokens: 450,
+            left_out: 50,
+        });
+        let r = ModelGateRecord::new(Task::DependencyParser, set("ud", scoring), model("t"), model("r"), units.clone())
+            .unwrap();
+        r.check().unwrap();
+        let json = r.to_json();
+        assert!(json.contains("\"task\": \"dependency_parser\""), "{json}");
+        let back: ModelGateRecord = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, r);
+
+        let mut bad = r.clone();
+        let Scoring::Dependencies(d) = &mut bad.set.scoring else { unreachable!() };
+        d.tokens += 1;
+        assert_eq!(bad.check(), Err(ModelGateError::ScoredTokens { tokens: 451, left_out: 50, scored: 400 }));
+    }
+}

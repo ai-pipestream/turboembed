@@ -257,6 +257,10 @@ pub(crate) struct Totals {
     pub(crate) device_tags: usize,
     pub(crate) device_emissions: Count,
     pub(crate) device_probabilities: Count,
+    /// The tagger at FASTEST on the device: tags, and those equal to the
+    /// JVM's.
+    pub(crate) fastest_tags: usize,
+    pub(crate) fastest_equal: usize,
 }
 
 impl std::ops::AddAssign for Totals {
@@ -278,5 +282,7 @@ impl std::ops::AddAssign for Totals {
         self.device_tags += other.device_tags;
         self.device_emissions += other.device_emissions;
         self.device_probabilities += other.device_probabilities;
+        self.fastest_tags += other.fastest_tags;
+        self.fastest_equal += other.fastest_equal;
     }
 }
