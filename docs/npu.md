@@ -193,6 +193,14 @@ extension exports the compiled blob, a load initializes that blob as a
   `NGRAPH_LITE` graph is initialized instead: a load the compiled IR
   would have handled does not fail on the native path. A compile
   failure still fails the load.
+  The order of those fallbacks is a plain table (`first` and `next` in
+  `core/src/npu/graph/blob.rs`), tested over every outcome of every
+  step. The refusals themselves are not run anywhere: the ignored
+  device test (`core/tests/npu_native.rs`) takes only the paths a
+  working driver takes (compile, export, a `NATIVE` create and
+  initialize, and a later load from the kept blob). A missing or failing
+  export, a refused fresh or kept blob, a `NATIVE` graph that fails to
+  initialize, and the cleanup and cache updates on each are untested.
   The blob is kept in memory for the life of the process
   (`core/src/npu/graph/blob.rs`), so a later load of the same IR
   creates the `NATIVE` graph straight from it: no container is built

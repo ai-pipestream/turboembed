@@ -130,8 +130,7 @@ impl Source {
     }
 }
 
-/// The steps of a load, so the choice between them is tested without a
-/// device.
+/// The steps of a load on the device, driven by `select`.
 pub(crate) trait Loader {
     type Graph;
     type Out;
@@ -147,47 +146,116 @@ pub(crate) trait Loader {
     fn note(&mut self, message: &str);
 }
 
-/// The load: NATIVE when `native` names a key, from `cache` first, else
-/// from this compile's blob; NGRAPH_LITE when there is no key or any
-/// native step is refused. A kept blob that is refused is dropped. The
-/// NGRAPH_LITE graph is destroyed only once a native graph has been
-/// initialized in its place.
+/// One step of a load.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Step {
+    /// A NATIVE graph created and initialized from the kept blob.
+    Kept,
+    /// The IR compiled as NGRAPH_LITE.
+    Compile,
+    /// The compiled graph's native blob exported.
+    Export,
+    /// A NATIVE graph created and initialized from the exported blob.
+    Fresh,
+    /// The NGRAPH_LITE graph initialized.
+    Lite,
+}
+
+/// What follows a step.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Next {
+    Step(Step),
+    /// The load is done: the graph that runs came from here.
+    Done(Source),
+    /// The load fails with the step's error.
+    Fail,
+}
+
+/// The first step: the kept blob when the load wants NATIVE and one is
+/// kept for its key, else the compile.
+pub(crate) fn first(native: bool, kept: bool) -> Step {
+    if native && kept { Step::Kept } else { Step::Compile }
+}
+
+/// The step after `step`, by whether it succeeded. A refused kept blob
+/// compiles the IR; any refusal after the compile initializes the
+/// NGRAPH_LITE graph; only the compile and the NGRAPH_LITE initialize
+/// fail the load.
+pub(crate) fn next(step: Step, native: bool, ok: bool) -> Next {
+    match (step, ok) {
+        (Step::Kept, true) => Next::Done(Source::Cache),
+        (Step::Kept, false) => Next::Step(Step::Compile),
+        (Step::Compile, true) => Next::Step(if native { Step::Export } else { Step::Lite }),
+        (Step::Export, true) => Next::Step(Step::Fresh),
+        (Step::Fresh, true) => Next::Done(Source::Compiled),
+        (Step::Export | Step::Fresh, false) => Next::Step(Step::Lite),
+        (Step::Lite, true) => Next::Done(Source::Lite),
+        (Step::Compile | Step::Lite, false) => Next::Fail,
+    }
+}
+
+/// The load, step by step as `first` and `next` say. A kept blob that is
+/// refused is dropped. The NGRAPH_LITE graph is destroyed only once a
+/// native graph has been initialized in its place, and that graph's blob
+/// is kept.
 pub(crate) fn select<L: Loader>(l: &mut L, native: Option<&Key>, cache: &Mutex<Cache>) -> Res<(L::Out, Source)> {
-    if let Some(key) = native {
-        let kept = timed("lookup", || lock(cache).get(key));
-        if let Some(blob) = kept {
-            match l.create_native(&blob).and_then(|g| l.finish(g, Source::Cache)) {
-                Ok(out) => return Ok((out, Source::Cache)),
-                Err(e) => {
-                    lock(cache).forget(key);
+    let kept = native.and_then(|key| timed("lookup", || lock(cache).get(key)));
+    let mut step = first(native.is_some(), kept.is_some());
+    let (mut lite, mut blob, mut out) = (None, None, None);
+    loop {
+        let done = match step {
+            Step::Kept => match &kept {
+                Some(b) => l.create_native(b).and_then(|g| l.finish(g, Source::Cache)).map(|o| out = Some(o)),
+                None => Err(super::fail(crate::status::RUNTIME, "no kept blob")),
+            },
+            Step::Compile => l.compile().map(|g| lite = Some(g)),
+            Step::Export => match &lite {
+                Some(g) => l.export(g).map(|b| blob = Some(Arc::new(b))),
+                None => Err(super::fail(crate::status::RUNTIME, "nothing compiled to export")),
+            },
+            Step::Fresh => match &blob {
+                Some(b) => l.create_native(b).and_then(|g| l.finish(g, Source::Compiled)).map(|o| out = Some(o)),
+                None => Err(super::fail(crate::status::RUNTIME, "no exported blob")),
+            },
+            Step::Lite => match lite.take() {
+                Some(g) => l.finish(g, Source::Lite).map(|o| out = Some(o)),
+                None => Err(super::fail(crate::status::RUNTIME, "nothing compiled to initialize")),
+            },
+        };
+        if let Err(e) = &done {
+            match step {
+                Step::Kept => {
+                    if let Some(key) = native {
+                        lock(cache).forget(key);
+                    }
                     l.note(&format!(
                         "the kept native blob was refused and is dropped; compiling the IR: {}",
                         e.message
                     ));
                 }
+                Step::Export => l.note(&format!("no native blob; the NGRAPH_LITE graph runs: {}", e.message)),
+                Step::Fresh => {
+                    l.note(&format!("the native blob was refused; the NGRAPH_LITE graph runs: {}", e.message))
+                }
+                Step::Compile | Step::Lite => {}
             }
         }
-    }
-    let lite = l.compile()?;
-    if let Some(key) = native {
-        match l.export(&lite) {
-            Ok(blob) => {
-                let blob = Arc::new(blob);
-                match l.create_native(&blob).and_then(|g| l.finish(g, Source::Compiled)) {
-                    Ok(out) => {
-                        l.destroy(lite);
-                        lock(cache).keep(key.clone(), blob);
-                        return Ok((out, Source::Compiled));
+        match next(step, native.is_some(), done.is_ok()) {
+            Next::Step(s) => step = s,
+            Next::Fail => return Err(done.err().unwrap_or_else(|| super::fail(crate::status::RUNTIME, "load failed"))),
+            Next::Done(source) => {
+                if source == Source::Compiled {
+                    if let Some(g) = lite.take() {
+                        l.destroy(g);
                     }
-                    Err(e) => {
-                        l.note(&format!("the native blob was refused; the NGRAPH_LITE graph runs: {}", e.message))
+                    if let (Some(key), Some(b)) = (native, blob.take()) {
+                        lock(cache).keep(key.clone(), b);
                     }
                 }
+                return out.map(|o| (o, source)).ok_or_else(|| super::fail(crate::status::RUNTIME, "no graph"));
             }
-            Err(e) => l.note(&format!("no native blob; the NGRAPH_LITE graph runs: {}", e.message)),
         }
     }
-    l.finish(lite, Source::Lite).map(|out| (out, Source::Lite))
 }
 
 thread_local! {

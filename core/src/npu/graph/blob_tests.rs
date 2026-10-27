@@ -1,75 +1,18 @@
-//! The native path's choices and fallbacks, and the blob cache, with a
-//! loader that only records what it was asked to do.
+//! The native path's policy and the blob cache, as plain functions and
+//! data: no loader, driver or device is stood in for.
+//!
+//! What these do not cover: the driver refusing a step. The ignored device
+//! test (core/tests/npu_native.rs) runs only the paths a working driver
+//! takes: compile, export, a NATIVE create and initialize, and a later
+//! load from the kept blob. A missing or failing export, a driver refusal
+//! of a fresh or kept blob, a NATIVE graph that fails to initialize, and
+//! the graph cleanup and cache updates `select` does on each of those are
+//! not run anywhere: no safe way to make a working driver refuse them is
+//! known. The step order those refusals follow is `next`, tested here.
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use super::blob::*;
-use super::{Res, fail};
-use crate::status::RUNTIME;
-
-/// Graphs are numbers: 1 is the compiled IR, 10 plus n the nth native
-/// graph. `refuse` names the steps that fail.
-#[derive(Default)]
-struct Fake {
-    refuse: Vec<&'static str>,
-    blob: Vec<u8>,
-    steps: Vec<String>,
-    natives: u32,
-    alive: Vec<u32>,
-}
-
-impl Fake {
-    fn refusing(steps: &[&'static str]) -> Fake {
-        Fake { refuse: steps.to_vec(), blob: vec![7; 16], ..Fake::default() }
-    }
-
-    fn step(&mut self, s: &str) -> Res<()> {
-        self.steps.push(s.to_owned());
-        if self.refuse.contains(&s) { Err(fail(RUNTIME, format!("{s} refused"))) } else { Ok(()) }
-    }
-}
-
-impl Loader for Fake {
-    type Graph = u32;
-    type Out = u32;
-
-    fn compile(&mut self) -> Res<u32> {
-        self.step("compile")?;
-        self.alive.push(1);
-        Ok(1)
-    }
-
-    fn export(&mut self, _: &u32) -> Res<Vec<u8>> {
-        self.step("export")?;
-        Ok(self.blob.clone())
-    }
-
-    fn create_native(&mut self, blob: &[u8]) -> Res<u32> {
-        let what = if blob == self.blob.as_slice() { "create" } else { "create-stale" };
-        self.step(what)?;
-        self.natives += 1;
-        self.alive.push(10 + self.natives);
-        Ok(10 + self.natives)
-    }
-
-    fn finish(&mut self, g: u32, source: Source) -> Res<u32> {
-        let what = if g == 1 { "finish-lite" } else { "finish-native" };
-        if let Err(e) = self.step(what) {
-            self.destroy(g);
-            return Err(e);
-        }
-        let _ = source;
-        Ok(g)
-    }
-
-    fn destroy(&mut self, g: u32) {
-        self.alive.retain(|&a| a != g);
-    }
-
-    fn note(&mut self, m: &str) {
-        self.steps.push(format!("note: {m}"));
-    }
-}
 
 /// The manifest's digests stand in for the files: nothing is hashed.
 const XML: [u8; 32] = [1; 32];
@@ -79,88 +22,91 @@ fn key(flags: &str) -> Key {
     Key::new(XML, BIN, flags, (7, 28), "1.38.0", "arl-npu")
 }
 
-fn run(f: &mut Fake, native: bool, cache: &Mutex<Cache>) -> (Option<u32>, Option<Source>) {
-    let k = key("f");
-    match select(f, native.then_some(&k), cache) {
-        Ok((g, s)) => (Some(g), Some(s)),
-        Err(_) => (None, None),
-    }
-}
-
-fn steps(f: &Fake) -> Vec<&str> {
-    f.steps.iter().map(|s| if s.starts_with("note") { "note" } else { s.as_str() }).collect()
+#[test]
+fn a_load_starts_from_the_kept_blob_only_when_it_wants_native_and_has_one() {
+    assert_eq!(first(true, true), Step::Kept);
+    assert_eq!(first(true, false), Step::Compile);
+    assert_eq!(first(false, true), Step::Compile, "a kept blob is not read without a key");
+    assert_eq!(first(false, false), Step::Compile);
 }
 
 #[test]
-fn with_no_export_the_compiled_ir_runs_and_nothing_is_kept() {
-    let cache = Mutex::new(Cache::new(BUDGET));
-    let mut f = Fake::refusing(&[]);
-    assert_eq!(run(&mut f, false, &cache), (Some(1), Some(Source::Lite)));
-    assert_eq!(steps(&f), ["compile", "finish-lite"]);
-    assert_eq!(cache.lock().unwrap().bytes(), 0);
-}
-
-#[test]
-fn an_export_loads_the_native_blob_keeps_it_and_drops_the_compiled_ir() {
-    let cache = Mutex::new(Cache::new(BUDGET));
-    let mut f = Fake::refusing(&[]);
-    assert_eq!(run(&mut f, true, &cache), (Some(11), Some(Source::Compiled)));
-    assert_eq!(steps(&f), ["compile", "export", "create", "finish-native"]);
-    assert_eq!(f.alive, [11], "the NGRAPH_LITE graph is destroyed once the native one is initialized");
-    assert_eq!(cache.lock().unwrap().bytes(), 16);
-}
-
-#[test]
-fn a_second_load_takes_the_kept_blob_and_compiles_nothing() {
-    let cache = Mutex::new(Cache::new(BUDGET));
-    run(&mut Fake::refusing(&[]), true, &cache);
-    let mut f = Fake::refusing(&[]);
-    assert_eq!(run(&mut f, true, &cache), (Some(11), Some(Source::Cache)));
-    assert_eq!(steps(&f), ["create", "finish-native"]);
-}
-
-#[test]
-fn each_refusal_on_the_native_path_falls_back_to_the_compiled_ir() {
-    for refused in ["export", "create", "finish-native"] {
-        let cache = Mutex::new(Cache::new(BUDGET));
-        let mut f = Fake::refusing(&[refused]);
-        assert_eq!(run(&mut f, true, &cache), (Some(1), Some(Source::Lite)), "{refused}");
-        assert_eq!(steps(&f).last(), Some(&"finish-lite"), "{refused}");
-        assert!(steps(&f).contains(&"note"), "{refused}: the fallback is logged");
-        assert_eq!(f.alive, [1], "{refused}: only the NGRAPH_LITE graph is left");
-        assert_eq!(cache.lock().unwrap().bytes(), 0, "{refused}: a refused blob is not kept");
-    }
-}
-
-#[test]
-fn a_refused_kept_blob_is_dropped_and_the_ir_compiled_again() {
-    let cache = Mutex::new(Cache::new(BUDGET));
-    cache.lock().unwrap().keep(key("f"), Arc::new(vec![9; 8]));
-    let mut f = Fake::refusing(&["create-stale"]);
-    assert_eq!(run(&mut f, true, &cache), (Some(11), Some(Source::Compiled)));
-    assert_eq!(steps(&f), ["create-stale", "note", "compile", "export", "create", "finish-native"]);
-    let kept = cache.lock().unwrap().get(&key("f")).expect("the fresh blob is kept");
-    assert_eq!(*kept, vec![7; 16]);
-}
-
-#[test]
-fn a_kept_blob_that_fails_to_initialize_falls_back_too() {
-    let cache = Mutex::new(Cache::new(BUDGET));
-    cache.lock().unwrap().keep(key("f"), Arc::new(vec![7; 16]));
-    let mut f = Fake::refusing(&["finish-native"]);
-    assert_eq!(run(&mut f, true, &cache), (Some(1), Some(Source::Lite)));
-    assert_eq!(f.alive, [1]);
-    assert_eq!(cache.lock().unwrap().bytes(), 0);
-}
-
-#[test]
-fn a_compile_refusal_still_fails_the_load() {
-    let cache = Mutex::new(Cache::new(BUDGET));
+fn each_step_leads_where_the_policy_says() {
+    use Next::{Done, Fail};
+    let s = Next::Step;
     for native in [false, true] {
-        let mut f = Fake::refusing(&["compile"]);
-        assert_eq!(run(&mut f, native, &cache), (None, None));
-        assert!(f.alive.is_empty());
+        assert_eq!(next(Step::Kept, native, true), Done(Source::Cache));
+        assert_eq!(next(Step::Kept, native, false), s(Step::Compile), "a refused kept blob compiles the IR");
+        assert_eq!(next(Step::Compile, native, false), Fail, "a compile refusal fails the load");
+        assert_eq!(next(Step::Export, native, true), s(Step::Fresh));
+        assert_eq!(next(Step::Export, native, false), s(Step::Lite), "no blob: the compiled IR runs");
+        assert_eq!(next(Step::Fresh, native, true), Done(Source::Compiled));
+        assert_eq!(next(Step::Fresh, native, false), s(Step::Lite), "a refused blob: the compiled IR runs");
+        assert_eq!(next(Step::Lite, native, true), Done(Source::Lite));
+        assert_eq!(next(Step::Lite, native, false), Fail);
     }
+    assert_eq!(next(Step::Compile, true, true), s(Step::Export));
+    assert_eq!(next(Step::Compile, false, true), s(Step::Lite), "no key: nothing is exported");
+}
+
+/// Every load the policy allows: whether it wants NATIVE, whether a blob
+/// is kept, and every pattern of steps succeeding or failing. Each step
+/// has what it needs, the load ends within five steps, and it fails only
+/// when the compile or the NGRAPH_LITE initialize does.
+#[test]
+fn every_outcome_sequence_ends_with_what_its_steps_produced() {
+    for native in [false, true] {
+        for kept in [false, true] {
+            for outcomes in 0u32..1 << 5 {
+                let ok = |i: usize| outcomes >> i & 1 == 1;
+                let (mut step, mut taken) = (first(native, kept), Vec::new());
+                let end = loop {
+                    let i = taken.len();
+                    assert!(i < 5, "{native} {kept} {outcomes:05b}: {taken:?} does not end");
+                    match step {
+                        Step::Kept => assert!(native && kept && i == 0),
+                        Step::Compile => assert!(!taken.contains(&(Step::Compile, true))),
+                        Step::Export => assert!(native && taken.last() == Some(&(Step::Compile, true))),
+                        Step::Fresh => assert_eq!(taken.last(), Some(&(Step::Export, true))),
+                        Step::Lite => assert!(taken.contains(&(Step::Compile, true))),
+                    }
+                    taken.push((step, ok(i)));
+                    match next(step, native, ok(i)) {
+                        Next::Step(s) => step = s,
+                        end => break end,
+                    }
+                };
+                let what = format!("{native} {kept} {outcomes:05b}: {taken:?}");
+                match end {
+                    Next::Fail => assert!(
+                        taken.last() == Some(&(Step::Compile, false)) || taken.last() == Some(&(Step::Lite, false)),
+                        "{what}"
+                    ),
+                    Next::Done(Source::Cache) => assert_eq!(taken, [(Step::Kept, true)], "{what}"),
+                    Next::Done(Source::Compiled) => {
+                        assert!(native && taken.ends_with(&[(Step::Fresh, true)]), "{what}")
+                    }
+                    Next::Done(Source::Lite) => {
+                        let refused = taken.iter().any(|&(s, ok)| !ok && matches!(s, Step::Export | Step::Fresh));
+                        assert!(!native || refused, "{what}: NGRAPH_LITE runs only without a key or after a refusal");
+                    }
+                    Next::Step(_) => unreachable!(),
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn a_forgotten_blob_is_gone_and_its_bytes_freed() {
+    let mut c = Cache::new(BUDGET);
+    c.keep(key("f"), Arc::new(vec![9; 8]));
+    c.keep(key("g"), Arc::new(vec![9; 4]));
+    c.forget(&key("f"));
+    assert!(c.get(&key("f")).is_none());
+    assert_eq!(c.bytes(), 4);
+    c.forget(&key("f"));
+    assert_eq!(c.bytes(), 4, "forgetting a key not kept changes nothing");
 }
 
 #[test]
