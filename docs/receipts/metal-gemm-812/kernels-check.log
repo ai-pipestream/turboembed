@@ -1,0 +1,11 @@
+### commit 618fbee963d44249cb4dc06ae9890713ff09be69; TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo --features metal --test metal_f16; 2026-10-27T04:40:00Z
+test a_real_bundle_at_its_longest_rows_stays_inside_f16 ... ignored, needs a real bundle directory in TURBO_TEST_BUNDLE
+test masked_keys_inside_a_row_are_left_out_at_fastest ... ok
+test a_weight_past_f16_s_range_computes_its_layer_in_f32 ... ok
+test attn_auto_switches_past_512_packed_tokens ... ok
+test a_tuned_session_runs_one_of_the_choices_and_forces_back ... ok
+test heads_past_64_or_not_a_multiple_of_8_run_f16_attention ... ok
+test the_choices_line_forces_back_and_refuses_what_it_cannot_run ... ok
+test fastest_computes_in_f16_and_says_so ... ok
+test each_f16_choice_matches_the_cpu_within_fastest_s_floor ... ok
+test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 9.54s
