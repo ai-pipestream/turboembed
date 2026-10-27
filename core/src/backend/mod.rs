@@ -120,6 +120,10 @@ pub struct turbo_backend_model {
     /// distance its log buckets reach; 0 for every other family.
     pub position_buckets: u32,
     pub max_relative_positions: u32,
+    /// The manifest's SHA-256 of artifact's and artifact2's file, as the
+    /// core verified them; zero where there is no file.
+    pub artifact_sha256: [u8; 32],
+    pub artifact2_sha256: [u8; 32],
 }
 
 /// A session as session_open receives it: turbo_session_desc's fields with
