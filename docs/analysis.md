@@ -4383,8 +4383,12 @@ Each chunker records every setting it ran with, defaults included.
   cosines when given, else a fixed cosine, 0.5 by default); chunks under
   the minimum sentences are merged into a neighbour, then chunks over
   the maximum are split. The cosine and the nearest rank percentile are
-  computed as the Java computes them. Its parity with the JVM on golden
-  inputs is not checked yet.
+  computed as the Java computes them. The Java test suite's own cases
+  (topic split, trailing and leading merges, maximum split, identical
+  vector cosine) are pinned as goldens against this port in
+  `the_sandbox_java_test_cases_hold`, with the percentile ranks derived
+  from the Java formula in `the_sandbox_percentile_is_the_javas_rank`
+  (#955).
 - `turbo-chunker`: turbo-chunker's `Chunker` over `StructureBoundaries`,
   optionally with `DriftBoundaries` weighed in (`--drift`) and the
   cohesion term (`CohesiveChunker`, `--cohesion`); the level 0 chunks
@@ -4534,6 +4538,35 @@ and against `fixed-tokens-200` it is significantly better on
 real but under the gate's 2-point gain threshold), significantly
 worse on `arguana`, and tied on `scifact` and `qasper`. It beats
 the sandbox semantic chunker everywhere but `qasper`.
+
+The sweep above chose nothing on a held-out split, so #955 adds one
+(`Hybrid::choose_bm25_weight_held_out`, receipt in
+`analysis/eval/tests/heldout_hybrid.rs`, record in
+`analysis/eval/records/heldout-hybrid-955/heldout-hybrid-955.json`).
+Per set, the scored queries in byte order alternate between a
+selection half and a held-out half. Candidates `0.0` to `1.0` in
+steps of `0.1` (weighted fusion, turbo-chunker at 254/200,
+all-MiniLM-L6-v2) are searched and scored only on the selection
+half; the chosen weight and both single-arm baselines (pure dense
+at `0.0`, pure BM25 at `1.0`) are then searched on the held-out
+half, so every comparison in this table is on identical queries.
+An exact tie keeps the lowest candidate.
+
+| Set | Chosen `bm25_weight` | Selection queries | Selection nDCG@10 | Held-out queries | Held-out nDCG@10 | Held-out dense (`0.0`) | Held-out BM25 (`1.0`) |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `scifact` | 0.20 | 150 | 0.6860 | 150 | 0.7269 | 0.6667 | 0.6506 |
+| `nfcorpus` | 0.30 | 162 | 0.3438 | 161 | 0.3472 | 0.3188 | 0.2868 |
+| `arguana` | 0.30 | 703 | 0.5162 | 703 | 0.5179 | 0.4938 | 0.4474 |
+| `qasper` | 0.60 | 726 | 0.4050 | 725 | 0.3854 | 0.2706 | 0.3678 |
+
+The chosen weight is per set, so these results do not change the
+CLI default of `0.35`. On each held-out half, the chosen blend
+beats both single-arm baselines by 0.0176 to 0.0602 nDCG@10 over
+the better arm. The CLI default and other interior candidate
+weights were not scored on that half, so these results do not
+establish their relative ordering or a gain over the default.
+Selection and held-out scores also reflect differences between
+the query halves, not just the weight choice.
 
 The same three records run on the Level Zero backend (Arc Pro B70,
 `analysis/eval/records/*-hybrid-levelzero`, same flags, same
@@ -5350,7 +5383,13 @@ with its character and sentence BiLSTMs on an NVIDIA or Intel GPU through
 the f64 CRF stay on the host, and an LSTM that cannot be made on the
 device is an error, never a CPU run. It has its own `config_hash`, and
 `analysis/postag/tests/bilstm_device.rs` holds it to the CPU path and
-times the two. There is no Metal or NPU path yet.
+times the two. `BilstmPosTagger::on_device_at` takes a precision:
+FASTEST holds the BiLSTMs' weights as F16 on the GPU (sums and states
+F32), hashes as its own tier, and is held to accuracy, not bits: on UD
+English EWT within 0.1 points of MODEL and MODEL's tag on at least 99.9%
+of the words (`analysis/postag/tests/bilstm_ewt.rs`), and the JVM's tag
+on at least 99.9% of the goldens' words. FASTEST runs on CUDA alone; Level Zero refuses it. There is no Metal
+or NPU path yet.
 
 `Packed` runs each BiLSTM, character and sentence, as one
 `turbo::cpu::lstm::Lstm` over both directions (#859): every sequence of

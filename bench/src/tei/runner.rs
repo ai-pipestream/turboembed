@@ -121,47 +121,69 @@ pub fn run(
 
     let container = format!("turbo-bench-tei-{}", std::process::id());
     let profile = match (&tei.nsys, gpu) {
-        (Some(n), Some(_)) => {
+        (Some(n), Some(g)) => {
             let out = std::env::temp_dir().join(format!("turbo-bench-tei-nsys-{}", std::process::id()));
             fs::create_dir_all(&out).map_err(|e| format!("{}: {e}", out.display()))?;
-            Some(kernels::Profile { container: container.clone(), nsys: n, out })
+            Some(kernels::Profile { container: format!("{container}-nsys"), nsys: n, out, gpu: g })
         }
         (Some(_), None) => return Err("--tei-nsys profiles TEI's kernels on a GPU; this device is not one".into()),
         (None, _) => None,
     };
     let _trace = profile.as_ref().map(|p| Scratch(p.out.clone()));
-    let start_argv = |dir: &Path, shown: bool| {
-        let a = run_argv(
-            image,
-            dir,
-            &container,
-            gpu,
-            tei.cpus.as_ref(),
-            dtype,
-            pooling(m.pooling()),
-            m.rows.row_count() as u32,
-            m.rows.seq,
-        );
-        match &profile {
-            Some(p) => kernels::profiled(a, image, p.nsys, &p.out, shown),
-            None => a,
+    // TEI as the record names it, under the profiler or not: the
+    // profiler's tracing slows every request, so the end-to-end timing is
+    // of a server that runs without it.
+    let serve = |log: &mut Log, name: &str, profiled: Option<&kernels::Profile>| -> Result<(Running, String)> {
+        let start_argv = |dir: &Path, shown: bool| {
+            let a = run_argv(
+                image,
+                dir,
+                name,
+                gpu,
+                tei.cpus.as_ref(),
+                dtype,
+                pooling(m.pooling()),
+                m.rows.row_count() as u32,
+                m.rows.seq,
+            );
+            match profiled {
+                Some(p) => kernels::profiled(a, image, p.nsys, &p.out, shown),
+                None => a,
+            }
+        };
+        log.run_as(&start_argv(&dir, false), start_argv(Path::new(docker::TEI_MODEL), true))?;
+        let running = Running { name: name.to_owned() };
+        let port = docker::parse_port(&log.run(&argv(&["docker", "port", name, "80/tcp"]))?)?;
+        let base = format!("http://127.0.0.1:{port}");
+        let start = Instant::now();
+        while get(&format!("{base}/health")).is_err() {
+            let state = log.run(&argv(&["docker", "inspect", "--format", "{{.State.Running}}", name]));
+            if state.as_deref().map(str::trim) != Ok("true") || start.elapsed() > START_TIMEOUT {
+                let logs = log.run(&argv(&["docker", "logs", name])).unwrap_or_default();
+                return Err(format!("TEI did not become healthy within {START_TIMEOUT:?}:\n{logs}"));
+            }
+            std::thread::sleep(Duration::from_secs(1));
         }
+        Ok((running, base))
     };
-    log.run_as(&start_argv(&dir, false), start_argv(Path::new(docker::TEI_MODEL), true))?;
-    let _running = Running { name: container.clone() };
-    let port = docker::parse_port(&log.run(&argv(&["docker", "port", &container, "80/tcp"]))?)?;
-    let base = format!("http://127.0.0.1:{port}");
-
-    let start = Instant::now();
-    while get(&format!("{base}/health")).is_err() {
-        let state = log.run(&argv(&["docker", "inspect", "--format", "{{.State.Running}}", &container]));
-        if state.as_deref().map(str::trim) != Ok("true") || start.elapsed() > START_TIMEOUT {
-            let logs = log.run(&argv(&["docker", "logs", &container])).unwrap_or_default();
-            return Err(format!("TEI did not become healthy within {START_TIMEOUT:?}:\n{logs}"));
-        }
-        std::thread::sleep(Duration::from_secs(1));
+    let (running, base) = serve(&mut log, &container, None)?;
+    let mut run = against(&base, image, log, what, threads, m, warmup, iterations)?;
+    drop(running);
+    let (Some(p), Some(e2e)) = (&profile, run.measured.as_ref().map(|x| x.p50_ms)) else {
+        return Ok(run);
+    };
+    let mut log = Log { commands: std::mem::take(&mut run.commands) };
+    let (_running, base) = serve(&mut log, &p.container, Some(p))?;
+    let (url, body) = (format!("{base}/embed"), embed_body(&m.rows, m.normalize()));
+    for _ in 0..warmup {
+        post(&url, &body)?;
     }
-    against(&base, image, log, what, threads, m, warmup, iterations, profile.as_ref())
+    let (k, clocks) = kernels::measure(&mut log, p, iterations, || post(&url, &body).map(|_| ()))?;
+    kernels::check(&k, e2e)?;
+    run.commands = log.commands;
+    run.procedure = format!("{}; {}", run.procedure, kernels::procedure(iterations, warmup, &clocks));
+    run.kernel_time = Some(k);
+    Ok(run)
 }
 
 /// A directory the tool made, removed when this goes.
@@ -223,7 +245,7 @@ fn run_native(
         }
         std::thread::sleep(Duration::from_secs(1));
     }
-    against(&base, pinned, log, what, threads, m, warmup, iterations, None)
+    against(&base, pinned, log, what, threads, m, warmup, iterations)
 }
 
 /// Check, warm up and time the server at `base`, as the procedure says.
@@ -237,10 +259,8 @@ fn against(
     m: &Measurement,
     warmup: u32,
     iterations: u32,
-    profile: Option<&kernels::Profile>,
 ) -> Result<ReferenceRun> {
     let procedure = format!("{what}; {threads}");
-    let mut log = log;
     let info = parse_info(&get(&format!("{base}/info"))?)?;
 
     // The rows as TEI will see them.
@@ -292,19 +312,12 @@ fn against(
         own.push(timing);
     }
     let total = started.elapsed().as_secs_f64();
-    let kernel_time = match profile {
-        Some(p) => Some(kernels::measure(&mut log, p, iterations, || post(&url, &body).map(|_| ()))?),
-        None => None,
-    };
     let min_row_tokens = (0..m.rows.row_count()).map(|r| m.rows.live(r).len()).min().unwrap_or(0);
     let batches = batches_text(before.as_ref(), metrics().as_ref(), iterations, warmup, min_row_tokens);
     let vectors = parse_embed(&last, m.rows.row_count(), m.model.dim as usize)?;
     let min_cosine = vectors.iter().zip(&m.expected).map(|(v, want)| cosine(v, want)).fold(1.0, f64::min);
     ms.sort_by(f64::total_cmp);
-    let mut procedure = format!("{what}; {}; {batches}; {threads}", timing_text(&ms, &own));
-    if profile.is_some() {
-        procedure = format!("{procedure}; {}", kernels::procedure(iterations));
-    }
+    let procedure = format!("{what}; {}; {batches}; {threads}", timing_text(&ms, &own));
     Ok(ReferenceRun {
         name: NAME.into(),
         role: "end_to_end".into(),
@@ -321,6 +334,6 @@ fn against(
             computed_tokens: computed_tokens(&m.rows),
         }),
         not_run: None,
-        kernel_time,
+        kernel_time: None,
     })
 }

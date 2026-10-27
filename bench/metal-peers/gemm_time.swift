@@ -14,21 +14,18 @@
 // - "encoder": as the encoder runs the layer: Q, K and V as one dispatch
 //   of three with their biases, the attention output split as auto
 //   splits it, the feed-forward input with bias and GELU, its output.
-// Each figure comes two ways: "single", one dispatch per command buffer,
-// committed and waited for, from the host and from the buffer's GPU start
-// and end, which mlx_gemm.py's single (one product per mx.eval) matches;
-// and "batched", REPS dispatches of the same x and w in one command buffer
-// on a concurrent encoder, so the GPU may overlap them as MLX may overlap
-// the REPS independent products of its batched graph, divided by REPS.
-// The batched dispatches all write the same output, which nothing reads. Each is TIMES timed after one
-// untimed, and the line gives least, mean, median and p99 (the largest of
-// TIMES) in ms. The first line names the SHA-256 of the kernels file.
+// Each figure is one dispatch per command buffer, committed and waited
+// for, from the host and from the buffer's GPU start and end. Only bare
+// mode matches mlx_gemm.py's single product per mx.eval. Encoder mode
+// is a separate diagnostic with different epilogues and output types.
+// Each is TIMES timed after one untimed, with raw samples, least, mean,
+// median and nearest-rank p99 in ms. No overlapping writes or assumed
+// number of independent products enter this comparison.
 
 import CryptoKit
 import Foundation
 import Metal
 
-let reps = 20
 let times = 20
 
 struct GemmParams {
@@ -59,7 +56,17 @@ func pipeline(_ name: String) -> MTLComputePipelineState {
     return p
 }
 let queue = device.makeCommandQueue()!
-print("{\"side\":\"turbo\",\"kernels_sha256\":\"\(digest)\",\"device\":\"\(device.name)\",\"reps\":\(reps),\"times\":\(times)}")
+print("{\"side\":\"turbo\",\"kernels_sha256\":\"\(digest)\",\"device\":\"\(device.name)\","
+    + "\"schema\":2,\"schedule\":\"single\",\"input_dtype\":\"float16\",\"accumulator_dtype\":\"float32\","
+    + "\"weight_layout\":\"contiguous-n-k\",\"warmup\":1,\"times\":\(times)}")
+
+func requireCompleted(_ cb: MTLCommandBuffer) {
+    guard cb.status == .completed else {
+        let message = cb.error?.localizedDescription ?? "command buffer did not complete"
+        FileHandle.standardError.write("Metal failure: \(message)\n".data(using: .utf8)!)
+        exit(1)
+    }
+}
 
 // A private buffer filled from `fillHost` through a shared staging copy.
 func buffer(_ bytes: Int, _ fillHost: ((UnsafeMutableRawPointer, Int) -> Void)? = nil) -> MTLBuffer {
@@ -73,6 +80,7 @@ func buffer(_ bytes: Int, _ fillHost: ((UnsafeMutableRawPointer, Int) -> Void)? 
     blit.endEncoding()
     cb.commit()
     cb.waitUntilCompleted()
+    requireCompleted(cb)
     return b
 }
 // F16 values of 1/16 with a pseudo-random sign: no product overflows, no
@@ -100,8 +108,10 @@ let spread = 128
 func stats(_ v: [Double]) -> String {
     let s = v.sorted()
     let mean = s.reduce(0, +) / Double(s.count)
-    return String(format: "{\"least\":%.4f,\"mean\":%.4f,\"median\":%.4f,\"p99\":%.4f}", s[0], mean, s[s.count / 2],
-                  s[s.count - 1])
+    let mid = s.count / 2
+    let median = s.count % 2 == 0 ? (s[mid - 1] + s[mid]) / 2 : s[mid]
+    let p99 = s[Int(ceil(0.99 * Double(s.count))) - 1]
+    return "{\"least\":\(s[0]),\"mean\":\(mean),\"median\":\(median),\"p99\":\(p99),\"samples\":\(v)}"
 }
 
 for mode in only.flatMap({ $0.count > 3 ? [$0[3]] : nil }) ?? ["bare", "encoder"] {
@@ -140,9 +150,9 @@ for mode in only.flatMap({ $0.count > 3 ? [$0[3]] : nil }) ?? ["bare", "encoder"
                     if pso.maxTotalThreadsPerThreadgroup < t.threads { continue }
                     var p = GemmParams(m: UInt32(m), n: UInt32(n), k: UInt32(k), epilogue: epilogue,
                                        splits: UInt32(splits), kchunk: UInt32(kchunk))
-                    func run(_ count: Int) -> (Double, Double) {
+                    func run() -> (Double, Double) {
                         let cb = queue.makeCommandBuffer()!
-                        let enc = cb.makeComputeCommandEncoder(dispatchType: count > 1 ? .concurrent : .serial)!
+                        let enc = cb.makeComputeCommandEncoder(dispatchType: .serial)!
                         enc.setComputePipelineState(pso)
                         enc.setBuffer(x, offset: 0, index: 0)
                         for j in 0..<3 {
@@ -151,30 +161,31 @@ for mode in only.flatMap({ $0.count > 3 ? [$0[3]] : nil }) ?? ["bare", "encoder"
                             enc.setBuffer(y[j], offset: 0, index: 7 + j)
                         }
                         enc.setBytes(&p, length: MemoryLayout<GemmParams>.size, index: 10)
-                        for _ in 0..<count {
-                            enc.dispatchThreadgroups(
-                                MTLSize(width: (n + t.bn - 1) / t.bn, height: (m + t.bm - 1) / t.bm, depth: z * splits),
-                                threadsPerThreadgroup: MTLSize(width: t.threads, height: 1, depth: 1))
-                        }
+                        enc.dispatchThreadgroups(
+                            MTLSize(width: (n + t.bn - 1) / t.bn, height: (m + t.bm - 1) / t.bm, depth: z * splits),
+                            threadsPerThreadgroup: MTLSize(width: t.threads, height: 1, depth: 1))
                         enc.endEncoding()
                         let t0 = DispatchTime.now().uptimeNanoseconds
                         cb.commit()
                         cb.waitUntilCompleted()
                         let t1 = DispatchTime.now().uptimeNanoseconds
-                        return ((cb.gpuEndTime - cb.gpuStartTime) * 1000 / Double(count),
-                                Double(t1 - t0) / 1e6 / Double(count))
+                        requireCompleted(cb)
+                        let gpu = (cb.gpuEndTime - cb.gpuStartTime) * 1000
+                        let host = Double(t1 - t0) / 1e6
+                        guard gpu.isFinite && host.isFinite && gpu > 0 && host > 0 else {
+                            FileHandle.standardError.write("invalid timing sample\n".data(using: .utf8)!)
+                            exit(1)
+                        }
+                        return (gpu, host)
                     }
-                    var single: [(Double, Double)] = [], batched: [(Double, Double)] = []
-                    _ = run(1)
-                    for _ in 0..<times { single.append(run(1)) }
-                    _ = run(reps)
-                    for _ in 0..<times { batched.append(run(reps)) }
+                    var single: [(Double, Double)] = []
+                    _ = run()
+                    for _ in 0..<times { single.append(run()) }
                     let flops = 2.0 * Double(m) * Double(n) * Double(k) * Double(z)
                     print("{\"side\":\"turbo\",\"mode\":\"\(mode)\",\"hidden\":\(h),\"shape\":\"\(shape)\",\"m\":\(m),"
                         + "\"n\":\(n),\"k\":\(k),\"layers\":\(z),\"tile\":\"\(tile.name)\",\"splits\":\(splits),"
-                        + "\"flops\":\(Int(flops)),"
-                        + "\"single_gpu\":\(stats(single.map { $0.0 })),\"single_host\":\(stats(single.map { $0.1 })),"
-                        + "\"batched_gpu\":\(stats(batched.map { $0.0 })),\"batched_host\":\(stats(batched.map { $0.1 }))}")
+                        + "\"flops\":\(Int(flops)),\"epilogue\":\(epilogue),\"output_dtype\":\"\(yHalf ? "float16" : "float32")\","
+                        + "\"single_gpu\":\(stats(single.map { $0.0 })),\"single_host\":\(stats(single.map { $0.1 }))}")
                 }
             }
         }

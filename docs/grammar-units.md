@@ -182,6 +182,55 @@ expected result, value, type, subtype and explicit ISO code, with no pass-list
 exclusions. Additional tests run the real Analyzer pipeline, source-offset
 round trips, Unicode whitespace, compound bounds and ambiguous ordinal marks.
 
+## Dutch units and currencies
+
+`DUTCH_UNITS` composes the Dutch number grammar with lengths, areas, volumes,
+weights, information units, angles, temperatures, ages and currencies.
+`GrammarAnnotator::dutch()` writes the same source-aligned layers as the English
+entry point. Compound number words, decimal commas, Unicode whitespace and
+case-sensitive bit/byte abbreviations preserve the original byte spans.
+Examples include `tweeëntwintig kilometer`, `6-jarige leeftijd`, `3 euro en
+50 cent`, `een kuai en vijf mao vijf`, `500 Mb per seconde`, `20 euro per uur`
+and `1,5 kubieke meter`. Prefix currencies require a symbol or code; ordinary
+currency nouns do not consume a following article as an amount.
+
+A standalone Dutch `cent`, `kwartje`, `dubbeltje` or `stuiver` does not identify
+a major currency. These become `CurrencyUnit::Generic(Generic::Cent)` with
+values 1, 25, 10 and 5 cents respectively, and no inferred ISO code. Their
+quantity readings remain available through the parser; the Money layer omits
+unresolved currencies. An explicit major amount, such as `3 euro en 50 cent`,
+resolves the cents against that currency. `penni` is expressed in Finnish
+markka at 1/100. This avoids assuming that a historical Dutch coin name means
+EUR rather than NLG. The existing `$`/`dollar` USD convention is unchanged.
+
+The 157 unchanged pinned Recognizers-Text cases contain 156 eligible cases:
+17 age, 31 currency, 74 dimension and 34 temperature. Currency case 12,
+`Hij is me nog een tientje schuldig.`, has upstream `NotSupported: dotnet`;
+it is the only excluded oracle case. A separate negative regression verifies
+that `tientje` does not receive an assumed major currency. Strict agreement
+with the original expected values is **143/156** (17, 27, 65, 34 respectively).
+All **156/156** pass the separately asserted documented policy. The harness
+asserts both counts and preserves every original expected result on disk.
+
+Differences below use zero-based case indices in each upstream model file:
+
+| Model and cases | Upstream expectation | Dutch reading and reason |
+|---|---|---|
+| Dimension 7 | `ons` is an ounce | Modern Dutch `ons` is 100 grams. |
+| Dimension 13, 14, 44 | `pond` is an imperial pound | Modern Dutch `pond` is 500 grams; historical pound values are not inferred. |
+| Dimension 62 | `are` is an acre | An are is 100 square metres, represented as one square decametre. |
+| Dimension 8, 61 | `Hectare` label | The same area uses the shared `Square hectometer` label; amount and span are unchanged. |
+| Dimension 5 | Barrel has Weight subtype | A barrel has Volume subtype. |
+| Dimension 48 | `500 Mb`, omitting `per seconde` | The complete rate retains `500 Mb per seconde` and Megabit per second. |
+| Currency 13, 14, 15 | Count of named coins | Counts become 25, 10 or 5 unspecified cents per coin, with the original span. |
+| Currency 21 | Count of penni | Convert to Finnish markka at 1/100, retaining the original span. |
+
+The [Kadaster definition of are](https://catalogus.kadaster.nl/tr/nl/page/Are)
+records 100 square metres. [Schooltv's Dutch units lesson](https://schooltv.nl/video-item/snapje-kilo-pond-en-ons-1)
+explains the modern 100-gram ons and 500-gram pond. These colloquial modern
+values are distinct from historical local pounds and English imperial units.
+The policy intentionally does not reproduce mistranslated physical values
+from the upstream corpus. Original cases remain available for comparison.
 ## Italian
 
 `ITALIAN_UNITS` and `GrammarAnnotator::italian()` add Italian quantities,
@@ -193,6 +242,14 @@ uses stack scratch space and accepts only complete number compounds.
 `miliardi`, `bilioni` and `trilioni` use the Italian long scale (10^9,
 10^12 and 10^18). Full Italian ordinal/percentage and spelled-decimal
 support is outside this unit-oriented grammar.
+
+A proper fraction after a million-or-larger scale uses that scale:
+`un milione e mezzo` is 1500000 and `3 milioni e mezzo` is 3500000.
+An explicit smaller scale attaches to the fraction first:
+`un miliardo e mezzo milione` is 1000500000. Ordinary mixed numbers
+such as `trecento e mezzo` remain 300.5. Native regressions include these
+[upstream NumberModel cases 147-149](https://github.com/microsoft/Recognizers-Text/blob/da7edcff59f669b2a460ab9d400e36298f0d658e/Specs/Number/Italian/NumberModel.json),
+plus real Analyzer values and source-offset round trips.
 
 Rules include `3 metri quadrati`, `6 piedi e 3 pollici`, `5 libbre e 8 once`,
 `188 miglia all'ora`, `10 Mb/s`, `tredici euro e quarantacinque centesimi`,
@@ -217,6 +274,13 @@ real Analyzer output, fused/decomposed source spans, Unicode whitespace,
 UTF-16/codepoint round trips, malformed compounds and boundary ambiguity.
 
 ## Portuguese
+
+The scale-fraction rule also applies to `2 milhões e meio` (2500000) and
+`três milhões e meio` (3500000), while `um trilhão e meio milhão` is
+1000000500000. These match
+[upstream NumberModel cases 169-171](https://github.com/microsoft/Recognizers-Text/blob/da7edcff59f669b2a460ab9d400e36298f0d658e/Specs/Number/Portuguese/NumberModel.json).
+Ordinary mixed numbers retain simple addition. Native tests include
+negatives, decomposed accents, Money/Quantities output and source offsets.
 
 `PORTUGUESE_UNITS` and `GrammarAnnotator::portuguese()` add Portuguese
 quantities, ages, temperatures and currencies. The provenance name is
@@ -266,4 +330,4 @@ with the number rules and about 7.5 to 8.5 ms with the unit rules, and
   and `version 2 g` as a weight.
 - Glued rate words (`200 Mbps`) and rates over units other than time
   (`$5 per person`).
-- Dutch, Chinese and Japanese remain separate #929 language slices.
+- Chinese and Japanese remain separate #929 language slices.

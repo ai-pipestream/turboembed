@@ -16,6 +16,14 @@ pub mod lstm;
 
 use crate::status::{Error, INVALID_ARGUMENT, Result};
 
+/// What an op computes in: MODEL in F32 throughout; FASTEST with its
+/// weights in F16 and its sums and state in F32, held to no bits.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Precision {
+    Model,
+    Fastest,
+}
+
 /// Where an op runs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Device {

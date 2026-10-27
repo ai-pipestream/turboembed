@@ -48,6 +48,10 @@ pub const BY_PATH: &[(&str, &str)] = &[
         "gliner2-base-v1-encoder.json",
         "GLiNER2's encoder, whose upstream directory reference/gliner_encoder.py writes from the zoo's files",
     ),
+    (
+        "glirel-large-v0-encoder.json",
+        "GLiREL's encoder (CC BY-NC-SA 4.0), whose upstream directory reference/gliner_encoder.py writes from the zoo's files after acceptance",
+    ),
 ];
 
 /// The recipe of the model `id`, if the catalogue has it.

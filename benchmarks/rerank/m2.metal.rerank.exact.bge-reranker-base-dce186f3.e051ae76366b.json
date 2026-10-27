@@ -1,0 +1,43 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-26T21:54:04Z",
+  "machine": {
+    "arch": "m2",
+    "host_cpu": "",
+    "os": "macos"
+  },
+  "device": {
+    "backend": "metal",
+    "kind": "DEVICE_IGPU",
+    "name": "Apple M2",
+    "vendor": "Apple",
+    "driver_version": "macOS 27.0.1 (26A434)",
+    "runtime_version": "Metal, macOS SDK 27.0",
+    "memory_total": 19069665280
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 metal cpu",
+    "commit": "e051ae76366b9757b701c1c292c3733e45e61437",
+    "pushed_to": [
+      "origin/fable/916-metal-rerank"
+    ],
+    "settings": []
+  },
+  "precision": "PRECISION_EXACT",
+  "model_id": "BAAI/bge-reranker-base",
+  "revision": "1",
+  "manifest_sha256": "dce186f35bcbed9ddd41204960713357608ec4d22734488c6c2c09965af242ab",
+  "questions_sha256": "80a5225e94905956a6446d296ca1093975c4d3b3260f1d6c8f68bc2ab77182d8",
+  "requests": 64,
+  "passages": 16,
+  "turbo": {
+    "warmup": 2,
+    "iterations": 10,
+    "p50_ms": 54938.168416,
+    "min_ms": 53094.076667,
+    "max_ms": 61751.938541999996,
+    "pairs_per_second": 18.6391361329362
+  },
+  "tei": null
+}
