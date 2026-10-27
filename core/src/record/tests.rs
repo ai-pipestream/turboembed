@@ -126,6 +126,7 @@ fn mixed_arl_npu_minilm_records_support_model_and_fastest() {
     for (label, c) in [
         ("linux", cell(TURBO_PRECISION_MODEL, "linux", "arl-npu", Some("NGRAPH_LITE"))),
         ("native", cell(TURBO_PRECISION_MODEL, "windows", "arl-npu", Some("NATIVE"))),
+        ("native fastest", cell(TURBO_PRECISION_FASTEST, "windows", "arl-npu", Some("NATIVE"))),
         ("mtl", cell(TURBO_PRECISION_MODEL, "windows", "mtl-npu", Some("NGRAPH_LITE"))),
         ("exact", cell(TURBO_PRECISION_EXACT, "windows", "arl-npu", Some("NGRAPH_LITE"))),
     ] {

@@ -57,9 +57,9 @@ usual and the backend lists no device.
 cargo build -p turbo --release --features npu
 ```
 
-No build variables: there is nothing to point at. `--features
-npu-native` loads the driver's native blob instead of the compiled IR
-and keeps it for the process (Models, below). It is off by default.
+No build variables: there is nothing to point at. Where the graph
+extension exports the compiled blob, a load initializes that blob as a
+`NATIVE` graph and keeps it for the process (Models, below).
 
 ## What it does
 
@@ -121,10 +121,11 @@ and keeps it for the process (Models, below). It is off by default.
   arch is `arl-npu` and whose graph format is `NGRAPH_LITE`,
   `decide_embedded` sets `MODEL` and `FASTEST` to SUPPORTED. The
   cell's graph format is the one `model_load` would create on the
-  device: `NGRAPH_LITE` on a default build. A build with `npu-native`
-  predicts `NATIVE` where the graph extension exports the blob (Models,
-  below), and no `NATIVE` record is committed, so on that build the
-  `arl-npu` cells are EXPERIMENTAL.
+  device: `NATIVE` where the graph extension exports the blob (Models,
+  below), which AI Boost's does, else `NGRAPH_LITE`. No `NATIVE`
+  record is committed, so the `arl-npu` `MODEL` and `FASTEST` cells
+  are EXPERIMENTAL until `NATIVE` records are measured; the
+  `NGRAPH_LITE` records above back no cell on this build.
   The bundle is not part of the cell key: the cell is the device, so
   the MiniLM records and the BGE records below are all for it, and
   the newest one that does not fall short backs it. `benchmark` is
@@ -167,8 +168,8 @@ and keeps it for the process (Models, below). It is off by default.
   compile failure carries the compiler's own log in the
   `TURBO_E_RUNTIME` message, else `pfnCreate2`, and that
   `NGRAPH_LITE` graph is the one initialized.
-  A build with the `npu-native` feature loads the compiled blob
-  instead, when the graph extension exports it (`pfnGetNativeBinary2`,
+  The load then initializes the compiled blob instead, when the graph
+  extension exports it (`pfnGetNativeBinary2`,
   extension 1.7 or later, where the driver owns the view, or
   `pfnGetNativeBinary`, where the caller owns the buffer): the blob is
   copied, a new graph is created with `ZE_GRAPH_FORMAT_NATIVE` from
@@ -204,10 +205,12 @@ and keeps it for the process (Models, below). It is off by default.
   on-disk copy: the only cache directory here is
   `TURBO_AUTOTUNE_CACHE`, which is opt-in and holds small JSON
   entries, not weights.
-  It is opt-in because the first load of an IR in a process compiles,
-  exports and creates the graph a second time, which is slower than
-  `NGRAPH_LITE` alone, and the first run on Arrow Lake (MiniLM, a
-  debug build) had the cached load no faster either. The debug log
+  On Arrow Lake (MiniLM, a release build) a first load costs about
+  what an `NGRAPH_LITE` load does and a cached one about a sixth
+  (device run, below), so `NATIVE` is the default and there is no
+  switch for `NGRAPH_LITE`: the cell's graph format is predicted from
+  the device before any session exists (`load_format`), and a session
+  option could make the load differ from that prediction. The debug log
   names each load's steps and their times (`ir`, `key`, `lookup`,
   `container`, `compile`, `export`, `create`, `initialize`).
   Initialization (`pfnGraphInitialize`, or appended and
@@ -532,7 +535,7 @@ TURBO_TEST_BUNDLE=<bundle-dir> \
 TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=npu \
     cargo test -p turbo --features npu --test conformance -- --include-ignored
 # The NATIVE graph against the compiled IR, and the blob cache, with
-# each load's steps and times (the test turns NATIVE on for itself):
+# each load's steps and times (add --release for representative times):
 TURBO_TEST_BUNDLE=<bundle-dir> \
     cargo test -p turbo --features npu --test npu_native -- --include-ignored --nocapture
 ```
@@ -622,7 +625,7 @@ Bit `0x1`, `ZE_GRAPH_FORMAT_NATIVE`, was not set, and the load
 initialized the lite graph: the tree at that commit read the bit. The
 driver clears that bit whenever its compiler loads (Models, above),
 so it did not mean `NATIVE` was refused. `model_load` no longer reads
-it; `NATIVE` is the `npu-native` build's choice.
+it; `NATIVE` is chosen wherever the extension exports the blob.
 
 PR #1444 at `e72057c1` was run on the same machine with
 `core/tests/npu_native.rs`. The `NATIVE` graph's rows matched the
@@ -631,7 +634,20 @@ was `compiled` and the second `cache`. In that debug build the loads
 took 3945 ms (`NGRAPH_LITE`), 6107 ms (`NATIVE` compiled) and 5469 ms
 (`NATIVE` cached). That build hashed both IR files again for the key
 and built the container before looking the blob up; neither is done
-now.
+now. Debug times are not representative: the core's SHA-256 check of
+the files and the IR read run unoptimized.
+
+At `3deea5b4` the same test ran in a release build on the same machine,
+with these times in ms (max gap 0 for both `NATIVE` loads):
+
+| Load | Total | Steps |
+| --- | --- | --- |
+| `NGRAPH_LITE` | 1117.4 | compile 911.3 |
+| `NATIVE`, first (`compiled`) | 1074.8 | compile 880.6, export 11.5, create 0.1, initialize 21.4 |
+| `NATIVE`, second (`cache`) | 169.4 | backend 22.8: create 0.1, initialize 22.3 |
+
+The compile is the load; export and create are a few ms. A cached load
+skips it, and the rest of its 169.4 ms is the core's and the listing's.
 
 Two ROWS_DENSE npu speed records are committed at `00aa734`,
 measured at library commit `febfed530`. They are MiniLM
@@ -746,13 +762,14 @@ is 8 times 128, which is 1024. `--batch` stays 1.
 
 `library.settings` names `TURBO_NPU_GRAPH_FORMAT` and
 `TURBO_NPU_GRAPH_INPUT`. The format is the graph the load created.
-The records committed here are `NGRAPH_LITE`, the default build's
-format, and their file names carry `ngraph-lite` after `npu`. An
-`npu-native` load that creates the graph from the native blob writes
+The records committed here are `NGRAPH_LITE`, made before `NATIVE`
+was the default, and their file names carry `ngraph-lite` after
+`npu`. A load that creates the graph from the native blob writes
 `TURBO_NPU_GRAPH_FORMAT=NATIVE` and is filed as `native`. That record
 is a different cell. A load the driver refuses the blob for writes
-`NGRAPH_LITE`. The build chooses the format; an environment variable
-does not change it.
+`NGRAPH_LITE`. The device chooses the format; an environment variable
+does not change it. A ranges file (`benchmarks/ranges/`) names no
+graph format; its settings do.
 
 An embeddings-sealed copy (`openvino-embeddings-f16`,
 `INPUT_EMBEDDINGS`) is the host-gather path. `benchmark_app -d NPU`
@@ -818,9 +835,9 @@ and
 for `FASTEST`. `cosine_floor` is 0.9996791858674714, and
 `speed_ratio` is that record's. `reason` is empty. Another
 arch, a `NATIVE` graph, and a build whose OS is not windows stay
-EXPERIMENTAL with `no benchmark record for this cell`. A build with
-`npu-native` predicts `NATIVE` on AI Boost, so on that build the
-`arl-npu` cells are EXPERIMENTAL until `NATIVE` records are measured.
+EXPERIMENTAL with `no benchmark record for this cell`. A load on AI
+Boost is predicted `NATIVE` (Models, above), so these cells are
+EXPERIMENTAL until `NATIVE` records are measured.
 
 The dense files are the same settings and the same static IR, case
 8. They do not bind:

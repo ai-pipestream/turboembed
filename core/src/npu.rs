@@ -6,8 +6,8 @@
 //! graph extension and that answer its device probe; a device that does
 //! not is never listed and nothing stands in for it. Models are OpenVINO
 //! IR artifacts the driver's own compiler builds into a graph on the
-//! device (npu/ir.rs, npu/graph/). Built with `npu-native`, when the
-//! graph extension exports the compiled blob, the graph that is
+//! device (npu/ir.rs, npu/graph/). When the graph extension exports
+//! the compiled blob, the graph that is
 //! initialized is that blob, loaded as ZE_GRAPH_FORMAT_NATIVE and kept
 //! for the next load of the same IR (npu/native.rs, npu/graph/blob.rs). The library carries no OpenVINO
 //! and no ONNX Runtime.
@@ -434,8 +434,8 @@ pub fn format_name(native: bool) -> &'static str {
 }
 
 /// The graph format `model_load` initializes on the listed device:
-/// NATIVE when the library is built with `npu-native` and the device's
-/// graph extension exports the compiled blob, else NGRAPH_LITE. A load
+/// NATIVE when the device's graph extension exports the compiled blob,
+/// else NGRAPH_LITE. A load
 /// the driver refuses the blob for falls back to NGRAPH_LITE, and its
 /// session's choices say so. None when that ordinal is not listed.
 pub fn load_format(ordinal: u32) -> Option<&'static str> {

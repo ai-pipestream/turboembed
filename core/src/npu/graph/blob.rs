@@ -1,15 +1,14 @@
 //! Which graph a load initializes, the process's native blobs, and how
 //! long each step of the last load took.
 //!
-//! A load initializes the NGRAPH_LITE graph the driver compiled, unless
-//! the library is built with `npu-native`. Then a graph extension that
-//! exports a compiled graph (`pfnGetNativeBinary2` or
-//! `pfnGetNativeBinary`) loads the IR as `ZE_GRAPH_FORMAT_NATIVE`: from
-//! the blob this process kept for the same key, else from the blob the
-//! NGRAPH_LITE compile just produced. It is opt-in because the blobs are
-//! kept per process: a process's first load of an IR compiles, exports
-//! and creates the graph again, which is slower than NGRAPH_LITE alone,
-//! and only a later load of the same IR in that process can gain. The device's
+//! When the graph extension exports a compiled graph
+//! (`pfnGetNativeBinary2` or `pfnGetNativeBinary`), a load initializes
+//! the IR as `ZE_GRAPH_FORMAT_NATIVE`: from the blob this process kept
+//! for the same key, else from the blob the NGRAPH_LITE compile just
+//! produced. Otherwise it initializes the NGRAPH_LITE graph. A first
+//! load costs about what an NGRAPH_LITE load does (export and create are
+//! a few ms next to the compile), and a later load of the same IR in the
+//! process skips the compile (docs/npu.md has the device times). The device's
 //! `graphFormatsSupported` is not read for this. Intel's driver sets it
 //! to NATIVE and then overwrites it with NGRAPH_LITE whenever its
 //! compiler loads (intel/linux-npu-driver,
@@ -197,10 +196,10 @@ thread_local! {
     static PHASES: RefCell<Vec<(&'static str, Duration)>> = const { RefCell::new(Vec::new()) };
 }
 
-/// Whether this thread's loads take the native path: the build's choice
-/// (`npu-native`), unless the tests' switch says otherwise.
+/// Whether this thread's loads take the native path: yes, unless the
+/// tests' switch says otherwise.
 pub(crate) fn native_wanted() -> bool {
-    NATIVE.with(Cell::get).unwrap_or(cfg!(feature = "npu-native"))
+    NATIVE.with(Cell::get).unwrap_or(true)
 }
 
 pub(crate) fn record(source: Source) {
@@ -228,7 +227,7 @@ pub(crate) fn phases() -> String {
 }
 
 /// This thread's loads take the native path when `Some(true)`, never
-/// when `Some(false)`, and as built when `None`. Built only with
+/// when `Some(false)`, and by default (native) when `None`. Built only with
 /// `internals`.
 #[cfg(feature = "internals")]
 pub fn set_native(on: Option<bool>) {

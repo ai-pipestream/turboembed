@@ -1,8 +1,8 @@
 //! The npu backend's NATIVE path on a device: a graph loaded from the
 //! compiled blob embeds as the compiled IR does, and a second load of the
 //! same IR takes the blob from the process's cache instead of compiling.
-//! The path is opt-in (`npu-native`); this test turns it on for its own
-//! thread, so it runs on a default `npu` build.
+//! NATIVE is the default; this test switches its own thread to
+//! NGRAPH_LITE for the comparison and back.
 //!
 //! Built with the `npu` feature only, and ignored unless asked for: it
 //! reads a bundle with an OpenVINO IR for the npu backend from

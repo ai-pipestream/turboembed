@@ -211,6 +211,11 @@ fn a_hit_shares_the_kept_bytes() {
 }
 
 #[test]
+fn a_load_wants_the_native_blob_by_default() {
+    assert!(std::thread::spawn(native_wanted).join().unwrap());
+}
+
+#[test]
 fn the_source_names_the_format() {
     assert_eq!(Source::Cache.format(), "NATIVE");
     assert_eq!(Source::Compiled.format(), "NATIVE");

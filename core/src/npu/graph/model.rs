@@ -160,7 +160,7 @@ pub(super) fn load(ctx: &Context, desc: &turbo_backend_model) -> Res<Model> {
     let flags = ir::build_flags(&io).map_err(|e| fail(RUNTIME, e))?;
     let cflags = CString::new(flags.clone()).map_err(|_| fail(RUNTIME, "npu: a NUL in the build flags"))?;
 
-    // NATIVE, when the build asks for it and the extension exports the
+    // NATIVE, when the extension exports the
     // compiled blob, whatever graphFormatsSupported says: the driver
     // clears bit 0x1 whenever its compiler loads and takes a NATIVE
     // create either way (blob.rs). The key is the manifest's digests; a
