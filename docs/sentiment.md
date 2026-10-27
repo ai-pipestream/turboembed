@@ -873,8 +873,7 @@ custom low-weight lexicon entries.
 | `bge-small-en-v1.5` | `0.25` (or `0.05..=1.0`) | `true` (default) | 0.4333 | 0.2251 / 0.4196 | 0.2197 | 0.4093 | 1 / 261 / 0 (0.0038 / 1.0000 / 0.0076) |
 | `bge-small-en-v1.5` | `0.25` (or `0.05..=1.0`) | `false` | 0.4337 | 0.2251 / 0.4233 | 0.2185 | 0.4124 | 0 / 22 / 1 (0.0000 / 0.0000 / 0.0000) |
 
-On the 5,000-row validation split (which contains zero gold
-`severe_toxicity >= 0.50` positives), validation micro F1 favors
+On the 45,180-comment validation split, validation micro F1 favors
 `with_severe_toxicity_rule(false)` (`0.4182` vs `0.4171` per-label and `0.4203`
 vs `0.4200` uniform on MiniLM; `0.4233` vs `0.4196` per-label and `0.4337` vs
 `0.4333` uniform on BGE-small, with identical validation macro F1 `0.2120` and
@@ -886,8 +885,8 @@ spans even when direct `severe_toxicity` head scores remain below threshold.
 Callers optimizing validation micro F1 or minimizing `SevereToxicity` false
 positives should set `with_severe_toxicity_rule(false)`. Held-out test metrics
 in the table above are reported for post-selection observation only (`1` gold
-`severe_toxicity` positive in the 5,000-row test slice) and are not used to
-justify the default.
+`severe_toxicity >= 0.50` positive in the 133,782-comment test split) and are
+not used to justify the default.
 In a warmed 7-round interleaved release comparison between `origin/main`
 (`e2c425ba111826b2de87b3c9af0028710a6d7216`) and this PR over 10,000 sentence
 units (`5,000` 2-sentence documents) using the 384-dimensional published
