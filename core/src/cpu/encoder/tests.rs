@@ -344,6 +344,47 @@ fn a_write_of_rows_after_ranges_pools_rows() {
     assert!(bits(&out) == bits(&want));
 }
 
+/// A range over mask-0 columns past the last live token (ColBERT's
+/// query augmentation) pools those columns' own states: they are
+/// packed and computed, the live tokens' vectors are the ones the
+/// row without the masked tail gives, and making the tail live
+/// instead changes every vector, so the mask really excludes it.
+#[test]
+fn a_range_over_masked_columns_pools_their_own_states() {
+    let m = Model::new();
+    let h = m.desc.hidden as usize;
+    let ids: Vec<i32> = (0..6).map(|p| 40 + p * 37).collect();
+    let mask: Vec<i32> = vec![1, 1, 1, 0, 0, 0];
+    let ranges: Vec<_> = (0..6).map(|p| range(0, p, p + 1)).collect();
+    let got = ranged(&m, 2, (&ids, &mask, 1, 6), &ranges, TURBO_NORMALIZE_NONE, h);
+    assert_eq!(got.rows[0], (0, 6), "the masked tail a range names is packed");
+    for p in 0..6 {
+        assert!(bits(&got.out[p * h..][..h]) == bits(&got.x[p * h..][..h]), "column {p} pools its own state");
+        assert!(got.out[p * h..][..h].iter().all(|v| v.is_finite() && *v != 0.0), "column {p} is computed");
+    }
+    for p in 3..5 {
+        assert!(
+            bits(&got.out[p * h..][..h]) != bits(&got.out[(p + 1) * h..][..h]),
+            "masked columns {p} and {} differ",
+            p + 1
+        );
+    }
+    let short = ranged(&m, 2, (&ids[..3], &mask[..3], 1, 3), &ranges[..3], TURBO_NORMALIZE_NONE, h);
+    for p in 0..3 {
+        let drift = got.out[p * h..][..h]
+            .iter()
+            .zip(&short.out[p * h..][..h])
+            .map(|(a, b)| (a - b).abs())
+            .fold(0.0f32, f32::max);
+        assert!(drift < 1e-6, "live column {p} moved by {drift} when the masked tail was packed");
+    }
+    let live: Vec<i32> = vec![1; 6];
+    let attended = ranged(&m, 2, (&ids, &live, 1, 6), &ranges, TURBO_NORMALIZE_NONE, h);
+    for p in 0..6 {
+        assert!(bits(&got.out[p * h..][..h]) != bits(&attended.out[p * h..][..h]), "column {p} ignores its mask");
+    }
+}
+
 /// How the run's time goes with threads and kernels, on a batch of
 /// 32 rows of up to 256 tokens, 1353 live, at all-MiniLM-L6-v2's shape
 /// and the small bundle's.

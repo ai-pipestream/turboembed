@@ -1,0 +1,443 @@
+base: 29214c70a2c4b1ca682fdf49939c4a88a78887fb plus the commit that adds this log and tests/sequence_device.rs
+2026-10-26T22:28:21Z
+B70 compute clients: none; B70 runner build/test processes: 0
+== run 1, load 19.59 22.71 14.65: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s
+== run 2, load 19.59 22.71 14.65: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+== run 3, load 19.94 22.73 14.70: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+== run 4, load 19.94 22.73 14.70: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+== run 5, load 19.94 22.73 14.70: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+== run 6, load 19.94 22.73 14.70: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+== run 7, load 19.94 22.73 14.70: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+== run 8, load 19.94 22.73 14.70: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s
+== run 9, load 19.94 22.73 14.70: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.56s
+== run 10, load 19.94 22.73 14.70: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.55s
+== run 11, load 20.35 22.77 14.75: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+== run 12, load 20.35 22.77 14.75: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+== run 13, load 20.35 22.77 14.75: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+== run 14, load 20.35 22.77 14.75: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s
+== run 15, load 20.35 22.77 14.75: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s
+== run 16, load 20.35 22.77 14.75: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.47s
+== run 17, load 20.35 22.77 14.75: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+== run 18, load 20.35 22.77 14.75: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+== run 19, load 20.24 22.71 14.78: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+== run 20, load 20.24 22.71 14.78: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s
+== run 1, load 20.24 22.71 14.78: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.54s
+== run 2, load 20.24 22.71 14.78: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s
+== run 3, load 20.24 22.71 14.78: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.59s
+== run 4, load 20.24 22.71 14.78: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s
+== run 5, load 20.24 22.71 14.78: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.63s
+== run 6, load 20.86 22.79 14.85: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+== run 7, load 20.86 22.79 14.85: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s
+== run 8, load 20.86 22.79 14.85: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.54s
+== run 9, load 20.86 22.79 14.85: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+== run 10, load 20.86 22.79 14.85: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s
+== run 11, load 20.86 22.79 14.85: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+== run 12, load 20.86 22.79 14.85: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+== run 13, load 20.86 22.79 14.85: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.55s
+== run 14, load 21.83 22.96 14.94: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.60s
+== run 15, load 21.83 22.96 14.94: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.66s
+== run 16, load 21.83 22.96 14.94: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.62s
+== run 17, load 21.83 22.96 14.94: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.45s
+== run 18, load 21.83 22.96 14.94: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+== run 19, load 21.83 22.96 14.94: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.45s
+== run 20, load 21.83 22.96 14.94: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test sequence_device -- --nocapture
+text 0: search by 0.050889134
+text 1: search by 0.040044785
+text 2: hardware by 0.002304554
+text 3: billing by 0.04512751
+text 4: search by 0.052687645
+text 5: hardware by 0.030841112
+text 6: hardware by 0.0239892
+bundle sequence scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 5.364418029785156e-6, labels picked ["billing", "hardware", "search"]
+test the_bundle_sequence_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s

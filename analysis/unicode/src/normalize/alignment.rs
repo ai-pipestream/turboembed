@@ -5,7 +5,7 @@
 //! markers with their characters. Composition adds `change - 1` to the
 //! starter's marker whenever another character joins it.
 
-use super::{Form, canonical_combining_class, data, full_decomposition, hangul};
+use super::{Form, canonical_combining_class, canonical_order, data, full_decomposition, hangul};
 
 /// An iterator of normalized characters and their source-change markers.
 pub struct Aligned {
@@ -31,7 +31,7 @@ pub fn aligned_chars(form: Form, chars: impl Iterator<Item = char>) -> Aligned {
     for c in chars {
         decompose(form, c, &mut normalized);
     }
-    canonical_order(&mut normalized);
+    canonical_order(&mut normalized, |c| c.1);
     if form.composes() {
         compose(&mut normalized);
     }
@@ -48,21 +48,6 @@ fn decompose(form: Form, c: char, out: &mut Vec<(char, u8, isize)>) {
             out.extend(mapping.iter().enumerate().map(|(i, &c)| (c, canonical_combining_class(c), isize::from(i != 0))))
         }
         None => out.push((c, canonical_combining_class(c), 0)),
-    }
-}
-
-fn canonical_order(chars: &mut [(char, u8, isize)]) {
-    for i in 1..chars.len() {
-        let current = chars[i];
-        if current.1 == 0 {
-            continue;
-        }
-        let mut j = i;
-        while j > 0 && chars[j - 1].1 > current.1 {
-            chars[j] = chars[j - 1];
-            j -= 1;
-        }
-        chars[j] = current;
     }
 }
 

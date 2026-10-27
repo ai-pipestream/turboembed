@@ -4,8 +4,8 @@
 
 #![allow(unused_variables)]
 
-use super::Device;
 use super::lstm::Weights;
+use super::{Device, Precision};
 use crate::status::{Error, Result, UNSUPPORTED};
 
 /// An LSTM's weights on a GPU.
@@ -14,6 +14,8 @@ pub(super) enum Gpu {
     Cuda(super::cuda_lstm::Lstm),
     #[cfg(feature = "levelzero")]
     LevelZero(crate::levelzero::lstm::Lstm),
+    #[cfg(feature = "metal")]
+    Metal(super::metal_lstm::Lstm),
 }
 
 /// A table on a GPU.
@@ -22,6 +24,8 @@ pub(super) enum Table {
     Cuda(super::cuda_lstm::Table),
     #[cfg(feature = "levelzero")]
     LevelZero(crate::levelzero::lstm::Table),
+    #[cfg(feature = "metal")]
+    Metal(super::metal_lstm::Table),
 }
 
 /// A run's buffers on each backend, made on first use.
@@ -31,6 +35,8 @@ pub(super) struct Work {
     cuda: super::cuda_lstm::Work,
     #[cfg(feature = "levelzero")]
     levelzero: crate::levelzero::lstm::Work,
+    #[cfg(feature = "metal")]
+    metal: super::metal_lstm::Work,
 }
 
 #[cfg(feature = "levelzero")]
@@ -40,7 +46,13 @@ fn not_finite(row: i64) -> Error {
 
 impl Gpu {
     /// Weights the CPU form has checked, on `device`.
-    pub(super) fn new(device: Device, input: usize, hidden: usize, dirs: &[Weights<'_>]) -> Result<Gpu> {
+    pub(super) fn new(
+        device: Device,
+        precision: Precision,
+        input: usize,
+        hidden: usize,
+        dirs: &[Weights<'_>],
+    ) -> Result<Gpu> {
         let (mut w, mut u, mut b) = (Vec::new(), Vec::new(), Vec::new());
         for d in dirs {
             w.extend_from_slice(d.w);
@@ -50,11 +62,24 @@ impl Gpu {
         let reverse: Vec<i32> = dirs.iter().map(|d| i32::from(d.reverse)).collect();
         match device {
             #[cfg(feature = "cuda")]
-            Device::Cuda(n) => Ok(Gpu::Cuda(super::cuda_lstm::Lstm::new(n, input, hidden, &w, &u, &b, &reverse)?)),
+            Device::Cuda(n) => {
+                let f16 = precision == Precision::Fastest;
+                Ok(Gpu::Cuda(super::cuda_lstm::Lstm::new(n, input, hidden, &w, &u, &b, &reverse, f16)?))
+            }
+            #[cfg(feature = "levelzero")]
+            Device::LevelZero(_) if precision == Precision::Fastest => {
+                Err(Error::new(UNSUPPORTED, "lstm: levelzero has no FASTEST (F16 weights) yet"))
+            }
             #[cfg(feature = "levelzero")]
             Device::LevelZero(n) => {
                 Ok(Gpu::LevelZero(crate::levelzero::lstm::Lstm::new(n, input, hidden, &w, &u, &b, &reverse)?))
             }
+            #[cfg(feature = "metal")]
+            Device::Metal(_) if precision == Precision::Fastest => {
+                Err(Error::new(UNSUPPORTED, "lstm: metal has no FASTEST (F16 weights) yet"))
+            }
+            #[cfg(feature = "metal")]
+            Device::Metal(n) => Ok(Gpu::Metal(super::metal_lstm::Lstm::new(n, input, hidden, &w, &u, &b, &reverse)?)),
             _ => Err(Error::new(UNSUPPORTED, format!("lstm: device {device:?} is not built into this library"))),
         }
     }
@@ -65,6 +90,8 @@ impl Gpu {
             Gpu::Cuda(ref g) => Ok(Table::Cuda(g.table(values)?)),
             #[cfg(feature = "levelzero")]
             Gpu::LevelZero(ref g) => Ok(Table::LevelZero(g.table(values)?)),
+            #[cfg(feature = "metal")]
+            Gpu::Metal(ref g) => Ok(Table::Metal(g.table(values)?)),
         }
     }
 
@@ -86,6 +113,8 @@ impl Gpu {
                     Table::Cuda(ref t) => (t, i),
                     #[cfg(feature = "levelzero")]
                     Table::LevelZero(_) => unreachable!("a levelzero table on a CUDA run"),
+                    #[cfg(feature = "metal")]
+                    Table::Metal(_) => unreachable!("a metal table on a CUDA run"),
                 });
                 g.run(x, table, lengths, rows, out, &mut w.cuda)
             }
@@ -95,8 +124,21 @@ impl Gpu {
                     Table::LevelZero(ref t) => (t, i),
                     #[cfg(feature = "cuda")]
                     Table::Cuda(_) => unreachable!("a CUDA table on a levelzero run"),
+                    #[cfg(feature = "metal")]
+                    Table::Metal(_) => unreachable!("a metal table on a levelzero run"),
                 });
                 g.run(x, table, lengths, rows, out, &mut w.levelzero)?.map_or(Ok(()), |row| Err(not_finite(row)))
+            }
+            #[cfg(feature = "metal")]
+            Gpu::Metal(ref g) => {
+                let table = table.map(|(t, i)| match *t {
+                    Table::Metal(ref t) => (t, i),
+                    #[cfg(feature = "cuda")]
+                    Table::Cuda(_) => unreachable!("a CUDA table on a metal run"),
+                    #[cfg(feature = "levelzero")]
+                    Table::LevelZero(_) => unreachable!("a levelzero table on a metal run"),
+                });
+                g.run(x, table, lengths, rows, out, &mut w.metal)
             }
         }
     }

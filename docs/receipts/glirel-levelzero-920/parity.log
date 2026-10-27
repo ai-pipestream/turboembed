@@ -1,0 +1,165 @@
+note (#1435): the relation and schema-extract tests read no TURBO_TEST_PRECISION here, so every run below labelled exact ran at model; the GLiNER lines print their own precision. The exact leg is docs/receipts/gliner2-levelzero-920/parity-exact.log.
+base: 6618aa7acfe36ce9f7b7a801b5f3bb459f20e65b (fable/920-levelzero-glirel: 89ee8cf4 with origin/main 29214c70 merged, #1430's fixed glirel_on_the_real_checkpoint), plus the recipe this log's commit adds
+2026-10-26T22:06:25Z
+jackboyla/glirel-large-v0 at 40a523e12a8432d6da364cf2a195a28755ff04d3: pytorch_model.bin 840aa21bb68a676ebe17451aa2ce8a7e5b987af8db1c0e28850bf0e395b713de and glirel_config.json 207bc889320c2369061b51ab2ff399967ce0629e62d6e1dc2d3b761ccbb86e7b, each the zoo index's sha256; microsoft/deberta-v3-large at 64a8c8eab3e352a784c658aef62be1662607476f: config.json ddec8b81d079d218ce9e54fc0af5d1d5937d6d53b5d42e70c1f251a1cebc830d and spm.model c679fbf93643d19aab7ee10c0b99e460bdbc02fedf34b92b05af343b4af586fd, each the zoo index's sha256
+B70 CI runner containers: 0 cargo, test or nextest processes
+== run 1, load 5.79 3.18 3.15: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 22.10s
+== run 2, load 5.37 3.25 3.17: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 24.60s
+== run 3, load 7.36 3.89 3.39: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 24.38s
+== run 4, load 7.75 4.22 3.51: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 23.78s
+== run 5, load 8.93 4.82 3.73: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 24.79s
+== run 6, load 12.93 5.94 4.12: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 35.35s
+== run 7, load 24.92 9.67 5.44: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 35.47s
+== run 8, load 31.04 13.10 6.75: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 30.57s
+== run 9, load 28.80 14.23 7.33: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 29.05s
+== run 10, load 29.68 15.80 8.07: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 28.29s
+== run 11, load 23.11 15.49 8.21: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 28.01s
+== run 12, load 23.49 16.19 8.67: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 26.16s
+== run 13, load 20.81 16.20 8.88: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 23.52s
+== run 14, load 15.79 15.39 8.80: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 25.32s
+== run 15, load 18.84 16.11 9.21: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 24.11s
+== run 16, load 15.95 15.62 9.20: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 24.76s
+== run 17, load 12.62 14.87 9.12: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 23.96s
+== run 18, load 9.74 14.01 8.99: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 23.36s
+== run 19, load 7.57 13.16 8.84: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 22.21s
+== run 20, load 6.06 12.45 8.70: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 22.97s
+== run 1, load 4.90 11.66 8.54: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 22.68s
+== run 2, load 4.19 10.95 8.38: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 22.88s
+== run 3, load 3.72 10.40 8.26: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 22.12s
+== run 4, load 3.36 9.77 8.10: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 22.55s
+== run 5, load 2.97 9.27 7.97: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 21.98s
+== run 6, load 2.78 8.72 7.82: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 22.02s
+== run 7, load 2.63 8.30 7.70: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 22.70s
+== run 8, load 2.64 7.84 7.57: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 22.17s
+== run 9, load 2.46 7.46 7.45: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 22.65s
+== run 10, load 2.38 7.04 7.31: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 21.95s
+== run 11, load 2.34 6.73 7.20: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 21.87s
+== run 12, load 2.34 6.38 7.07: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 22.05s
+== run 13, load 2.24 6.09 6.96: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 22.15s
+== run 14, load 2.46 5.89 6.87: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 22.27s
+== run 15, load 2.78 5.69 6.78: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 22.26s
+== run 16, load 3.05 5.56 6.72: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 22.42s
+== run 17, load 3.09 5.37 6.62: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 22.20s
+== run 18, load 3.13 5.23 6.55: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 22.53s
+== run 19, load 3.29 5.10 6.47: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 22.59s
+== run 20, load 3.59 5.05 6.42: GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=1 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-relation --test device_real -- --ignored --nocapture glirel (parity only)
+glirel: largest logit difference from the cpu encoder 5.722046e-6, 52 pair labels held
+test glirel_on_the_real_checkpoint ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 1 filtered out; finished in 23.44s

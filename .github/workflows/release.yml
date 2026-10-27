@@ -23,6 +23,7 @@ on:
       - "server/tests/image_ports.sh"
       - "server/proto/**"
       - "clients/**"
+      - "examples/docling/**"
       - "scripts/package-proto-stubs.sh"
 
 permissions:
@@ -425,7 +426,9 @@ jobs:
   # Maven stub artifact, and the generated Python wheel stub artifact with
   # their SHA-256 sums, and verifies that minimal Java and Python clients
   # compiled only against the packaged stubs call Capabilities and
-  # AnalyzeStream against a running turbo-kserve (issue #1297).
+  # AnalyzeStream against a running turbo-kserve (issue #1297), and that
+  # the docling example's Java and Python clients print the summary in
+  # examples/docling/data/report.server.expected.txt (issue #1301).
   proto-and-stubs:
     runs-on: ubuntu-24.04
     permissions:

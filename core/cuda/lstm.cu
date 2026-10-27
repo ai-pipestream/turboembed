@@ -26,6 +26,7 @@
 #include <cstring>
 #include <vector>
 
+#include <cuda_fp16.h>
 #include <cuda_runtime.h>
 
 namespace {
@@ -41,9 +42,21 @@ __device__ float sigmoid(float x) {
     return e / (1.0f + e);
 }
 
+/* A weight as F32, from F32 or (FASTEST) F16 storage. */
+__device__ inline float ld(const float *p, int64_t i) { return p[i]; }
+__device__ inline float ld(const __half *p, int64_t i) { return __half2float(p[i]); }
+
+/* F32 weights rounded to F16, for FASTEST. */
+__global__ void narrow(const float *src, __half *dst, int64_t n) {
+    const int64_t i = (int64_t)blockIdx.x * blockDim.x + threadIdx.x;
+    if (i < n) dst[i] = __float2half_rn(src[i]);
+}
+
 /* out[m][n] = bias[n] + sum over k of a[m][k] w[n][k]: every row's input
- * projections, w the stacked input weights of every direction. */
-__global__ void project(const float *a, const float *w, const float *bias, float *out, int64_t m, int n, int k) {
+ * projections, w the stacked input weights of every direction, F32 or F16,
+ * the sums F32. */
+template <typename W>
+__global__ void project(const float *a, const W *w, const float *bias, float *out, int64_t m, int n, int k) {
     __shared__ float as[TILE][TILE + 1];
     __shared__ float ws[TILE][TILE + 1];
     const int tx = threadIdx.x, ty = threadIdx.y;
@@ -53,7 +66,7 @@ __global__ void project(const float *a, const float *w, const float *bias, float
     float acc = 0.0f;
     for (int k0 = 0; k0 < k; k0 += TILE) {
         as[ty][tx] = row < m && k0 + tx < k ? a[row * k + k0 + tx] : 0.0f;
-        ws[ty][tx] = wrow < n && k0 + tx < k ? w[(int64_t)wrow * k + k0 + tx] : 0.0f;
+        ws[ty][tx] = wrow < n && k0 + tx < k ? ld(w, (int64_t)wrow * k + k0 + tx) : 0.0f;
         __syncthreads();
         for (int i = 0; i < TILE; i++) acc = fmaf(as[ty][i], ws[tx][i], acc);
         __syncthreads();
@@ -64,7 +77,7 @@ __global__ void project(const float *a, const float *w, const float *bias, float
 struct Step {
     const float *proj;    /* [rows or table rows, pw] */
     const int64_t *index; /* row r's table row, or null for row r itself */
-    const float *u;       /* [dirs][4h][h] */
+    const void *u;        /* [dirs][4h][h], F32 or F16 */
     const int64_t *len, *start;
     const float *state_in; /* [dirs][batch][h] */
     float *state_out, *cell;
@@ -76,8 +89,9 @@ struct Step {
 };
 
 /* One step of every direction over the first `active` sequences. Block
- * (x, y, z): units x * 16.., sequences y * 16.., direction z. */
-__global__ void step(Step p) {
+ * (x, y, z): units x * 16.., sequences y * 16.., direction z. U is W: F32,
+ * or F16 at FASTEST; the state, the cell and every sum stay F32. */
+template <typename W> __global__ void step(Step p) {
     __shared__ float ss[TILE][TILE + 1];
     __shared__ float us[4][TILE][TILE + 1];
     const int tx = threadIdx.x, ty = threadIdx.y, k = blockIdx.z, h = p.hidden;
@@ -85,14 +99,14 @@ __global__ void step(Step p) {
     const int s = blockIdx.y * TILE + ty;
     const int ju = blockIdx.x * TILE + ty; /* the U row this thread loads */
     const float *state = p.state_in + (int64_t)k * p.batch * h;
-    const float *u = p.u + (int64_t)k * 4 * h * h;
+    const W *u = static_cast<const W *>(p.u) + (int64_t)k * 4 * h * h;
     float acc[4] = {0.0f, 0.0f, 0.0f, 0.0f};
     if (p.t > 0) {
         for (int i0 = 0; i0 < h; i0 += TILE) {
             const bool in = i0 + tx < h;
             ss[ty][tx] = s < p.active && in ? state[(int64_t)s * h + i0 + tx] : 0.0f;
             for (int q = 0; q < 4; q++)
-                us[q][ty][tx] = ju < h && in ? u[(int64_t)(q * h + ju) * h + i0 + tx] : 0.0f;
+                us[q][ty][tx] = ju < h && in ? ld(u, (int64_t)(q * h + ju) * h + i0 + tx) : 0.0f;
             __syncthreads();
             for (int i = 0; i < TILE; i++) {
                 const float v = ss[ty][i];
@@ -168,9 +182,12 @@ struct Buffer {
         if (e == cudaSuccess) bytes = want;
         return e;
     }
-    ~Buffer() {
+    void release() {
         if (p) cudaFree(p);
+        p = nullptr;
+        bytes = 0;
     }
+    ~Buffer() { release(); }
     template <typename T> T *as() const { return static_cast<T *>(p); }
 };
 
@@ -178,7 +195,9 @@ struct Buffer {
 
 struct turbo_cuda_lstm {
     int ordinal, input, hidden, dirs;
-    Buffer w, u, b, reverse;
+    /* FASTEST: W and U held as F16 (w16, u16) and the F32 copies freed. */
+    bool f16;
+    Buffer w, u, b, reverse, w16, u16;
 };
 
 struct turbo_cuda_lstm_table {
@@ -196,10 +215,10 @@ struct turbo_cuda_lstm_work {
 extern "C" {
 
 int turbo_cuda_lstm_new(int ordinal, int input, int hidden, int dirs, const float *w, const float *u, const float *b,
-                        const int *reverse, turbo_cuda_lstm **out, char *msg, size_t len) {
+                        const int *reverse, int f16, turbo_cuda_lstm **out, char *msg, size_t len) {
     Scope scope(ordinal);
     TRY(scope.status(), "cudaSetDevice");
-    auto *l = new turbo_cuda_lstm{ordinal, input, hidden, dirs, {}, {}, {}, {}};
+    auto *l = new turbo_cuda_lstm{ordinal, input, hidden, dirs, f16 != 0, {}, {}, {}, {}, {}, {}};
     const size_t g = 4 * (size_t)hidden * dirs;
     const struct {
         Buffer *dst;
@@ -218,6 +237,25 @@ int turbo_cuda_lstm_new(int ordinal, int input, int hidden, int dirs, const floa
         if (e != cudaSuccess) {
             delete l;
             return failed(e, "copying the LSTM weights to the device", msg, len);
+        }
+    }
+    if (l->f16) {
+        const struct {
+            Buffer *src, *dst;
+            size_t n;
+        } halves[] = {{&l->w, &l->w16, g * input}, {&l->u, &l->u16, g * hidden}};
+        for (const auto &h : halves) {
+            cudaError_t e = h.dst->fit(h.n * sizeof(__half));
+            if (e == cudaSuccess) {
+                narrow<<<(unsigned)((h.n + 255) / 256), 256>>>(h.src->as<float>(), h.dst->as<__half>(), h.n);
+                e = cudaGetLastError();
+            }
+            if (e == cudaSuccess) e = cudaDeviceSynchronize();
+            if (e != cudaSuccess) {
+                delete l;
+                return failed(e, "narrowing the LSTM weights to F16", msg, len);
+            }
+            h.src->release();
         }
     }
     *out = l;
@@ -302,8 +340,12 @@ int turbo_cuda_lstm_run(const turbo_cuda_lstm *l, turbo_cuda_lstm_work **work, c
         TRY(w->proj.fit(rows * pw * f), "allocating the LSTM projections");
         TRY(cudaMemcpyAsync(w->x.p, x, rows * l->input * f, cudaMemcpyHostToDevice, st), "copying the LSTM input");
         const dim3 grid((pw + TILE - 1) / TILE, (unsigned)((rows + TILE - 1) / TILE));
-        project<<<grid, dim3(TILE, TILE), 0, st>>>(w->x.as<float>(), l->w.as<float>(), l->b.as<float>(),
-                                                   w->proj.as<float>(), rows, pw, l->input);
+        if (l->f16)
+            project<<<grid, dim3(TILE, TILE), 0, st>>>(w->x.as<float>(), l->w16.as<__half>(), l->b.as<float>(),
+                                                       w->proj.as<float>(), rows, pw, l->input);
+        else
+            project<<<grid, dim3(TILE, TILE), 0, st>>>(w->x.as<float>(), l->w.as<float>(), l->b.as<float>(),
+                                                       w->proj.as<float>(), rows, pw, l->input);
         TRY(cudaGetLastError(), "launching the LSTM projection");
         proj = w->proj.as<float>();
     } else {
@@ -321,7 +363,7 @@ int turbo_cuda_lstm_run(const turbo_cuda_lstm *l, turbo_cuda_lstm_work **work, c
     Step p{};
     p.proj = proj;
     p.index = x ? nullptr : w->index.as<int64_t>();
-    p.u = l->u.as<float>();
+    p.u = l->f16 ? l->u16.p : l->u.p;
     p.len = w->len.as<int64_t>();
     p.start = w->start.as<int64_t>();
     p.cell = w->cell.as<float>();
@@ -341,7 +383,10 @@ int turbo_cuda_lstm_run(const turbo_cuda_lstm *l, turbo_cuda_lstm_work **work, c
         p.state_in = states[t & 1];
         p.state_out = states[(t + 1) & 1];
         const dim3 grid((h + TILE - 1) / TILE, (unsigned)((active + TILE - 1) / TILE), dirs);
-        step<<<grid, dim3(TILE, TILE), 0, st>>>(p);
+        if (l->f16)
+            step<__half><<<grid, dim3(TILE, TILE), 0, st>>>(p);
+        else
+            step<float><<<grid, dim3(TILE, TILE), 0, st>>>(p);
         TRY(cudaGetLastError(), "launching an LSTM step");
     }
     unsigned long long bad = 0;
