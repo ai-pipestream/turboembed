@@ -1081,7 +1081,7 @@ three and the ratios are what to read: the ranges' p50 is 0.6 percent
 (FASTEST) and 1.1 percent (MODEL) under the rows', and one row per chunk
 takes 6 and 10 percent less than the ranges, as on CUDA at MODEL. An
 earlier pair of runs at the same commit, under more load, gave the same
-ratios to within 1.4 points (0.992 and 1.003, 0.901 and 0.929); those
+ratios to within 1 point (0.992 and 1.003, 0.901 and 0.929); those
 records were not kept. A range over a whole row gave the row's vector
 to the bit, and the lowest cosine of a chunk's range vector to its
 chunk row's was 0.69.
