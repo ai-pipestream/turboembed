@@ -2856,8 +2856,10 @@ version = "0.1.0"
 dependencies = [
  "serde",
  "serde_json",
+ "turbo",
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-bundle",
  "turbo-eval",
  "turbo-formats",
  "turbo-jvm",
@@ -2869,6 +2871,7 @@ dependencies = [
  "turbo-postag",
  "turbo-sentdetect",
  "turbo-sequence",
+ "turbo-sha256",
  "turbo-tokenize",
  "turbo-train",
  "turbo-train-components",

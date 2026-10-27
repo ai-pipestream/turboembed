@@ -12,7 +12,9 @@ pub(crate) const USAGE: &str = "usage:
   turbo-train-recipes tatoeba --export <dir> --references <dir> --out <dir> [--unrecorded-export]
   turbo-train-recipes fineweb-ranges (--paths | --web <dir> [--files <path>] (--need | --record))
   turbo-train-recipes tatoeba-fineweb --export <dir> --web <dir> --references <dir> --out <dir>
-      [--unrecorded-export] [--files <path> --ranges <path> --unrecorded-web]";
+      [--unrecorded-export] [--files <path> --ranges <path> --unrecorded-web]
+  turbo-train-recipes static-embed --teacher <safetensors> --tokenizer <tokenizer.json> --recipes <dir>
+      [--sentences <path>]... [--parquet <path>] --out <dir> --commit <40-hex> [--steps <n>] [--init-only]";
 
 #[derive(Debug)]
 pub(crate) struct Args {
@@ -35,6 +37,14 @@ pub(crate) struct Args {
     pub(crate) paths: bool,
     pub(crate) need: bool,
     pub(crate) record: bool,
+    pub(crate) teacher: Option<PathBuf>,
+    pub(crate) tokenizer: Option<PathBuf>,
+    pub(crate) recipes: Option<PathBuf>,
+    pub(crate) sentences: Vec<PathBuf>,
+    pub(crate) parquet: Option<PathBuf>,
+    pub(crate) commit: Option<String>,
+    pub(crate) steps: Option<String>,
+    pub(crate) init_only: bool,
     /// The model ids `--recipe` names, resolved by the command.
     pub(crate) recipe_ids: Vec<String>,
     /// Every flag given, for the commands that refuse flags they do not
@@ -90,6 +100,14 @@ pub(crate) fn parse_from(mut it: impl Iterator<Item = String>) -> Result<Args, S
         paths: false,
         need: false,
         record: false,
+        teacher: None,
+        tokenizer: None,
+        recipes: None,
+        sentences: Vec::new(),
+        parquet: None,
+        commit: None,
+        steps: None,
+        init_only: false,
         recipe_ids: Vec::new(),
         given: Vec::new(),
     };
@@ -119,6 +137,14 @@ pub(crate) fn parse_from(mut it: impl Iterator<Item = String>) -> Result<Args, S
             "--paths" => a.paths = true,
             "--need" => a.need = true,
             "--record" => a.record = true,
+            "--teacher" => set_once(&mut a.teacher, &flag, value()?.into())?,
+            "--tokenizer" => set_once(&mut a.tokenizer, &flag, value()?.into())?,
+            "--recipes" => set_once(&mut a.recipes, &flag, value()?.into())?,
+            "--sentences" => a.sentences.push(value()?.into()),
+            "--parquet" => set_once(&mut a.parquet, &flag, value()?.into())?,
+            "--commit" => set_once(&mut a.commit, &flag, value()?)?,
+            "--steps" => set_once(&mut a.steps, &flag, value()?)?,
+            "--init-only" => a.init_only = true,
             _ => return Err(format!("unknown argument {flag}\n{USAGE}")),
         }
     }

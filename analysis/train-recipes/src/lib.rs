@@ -73,6 +73,7 @@ mod reference;
 pub mod release;
 pub mod segmentation;
 pub mod spans;
+pub mod static_embed;
 pub mod tatoeba;
 pub mod treebank;
 pub mod ud;

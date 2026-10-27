@@ -117,7 +117,10 @@ use turbo_train_recipes::{Error, RECIPES, Recipe, Reference, run};
 use turbo_zoo::Index;
 
 use cli::{Args, USAGE, chosen, need, only, parse};
-use commands::{fetch_ud_command, fineweb_ranges_command, tatoeba_command, tatoeba_fineweb_command, ud_command};
+use commands::{
+    fetch_ud_command, fineweb_ranges_command, static_embed_command, tatoeba_command, tatoeba_fineweb_command,
+    ud_command,
+};
 
 fn masc_command(a: Args) -> Result<bool, String> {
     only(&a, "masc", &["--corpus", "--references", "--out", "--unrecorded-corpus", "--recipe"])?;
@@ -247,6 +250,7 @@ fn main() -> ExitCode {
         "tatoeba" => tatoeba_command(a),
         "fineweb-ranges" => fineweb_ranges_command(a),
         "tatoeba-fineweb" => tatoeba_fineweb_command(a),
+        "static-embed" => static_embed_command(a),
         _ => Err(USAGE.to_owned()),
     });
     match result {
