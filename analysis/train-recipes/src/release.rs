@@ -25,6 +25,7 @@ use std::path::Path;
 use turbo_zoo::{Artifact, Index};
 
 use crate::card::ModelCard;
+use crate::depparse::{DEPPARSE_RECIPES, DepparseModelCard, DepparseRecipe};
 use crate::error::{Error, Result};
 use crate::langdetect::{LANGDETECT, LanguageCard, LanguageRecipe};
 use crate::langdetect_web::{LANGDETECT_WEB, WebLanguageCard, WebLanguageRecipe};
@@ -99,8 +100,28 @@ pub const TATOEBA_MODELS: ModelsRelease =
 pub const FINEWEB_MODELS: ModelsRelease =
     ModelsRelease { tag: "models-tatoeba-fineweb-2026-10-10-1", models: &[crate::langdetect_web::MODEL_ID] };
 
+/// The release that publishes the UD 2.16 dependency parser models
+/// (both MaxEnt and Feedforward) for the four treebanks with settled text
+/// rights that pass their LAS and UAS gates: Spanish AnCora, Catalan AnCora,
+/// Finnish FTB, and Italian MarkIT. Portuguese Porttinari's are excluded
+/// because the rights to its text are not settled.
+pub const UD_DEPPARSE_MODELS: ModelsRelease = ModelsRelease {
+    tag: "models-ud-depparse-2.16-1",
+    models: &[
+        "turbo-es-ud-ancora-2.16-depparse-maxent-1",
+        "turbo-es-ud-ancora-2.16-depparse-feedforward-1",
+        "turbo-ca-ud-ancora-2.16-depparse-maxent-1",
+        "turbo-ca-ud-ancora-2.16-depparse-feedforward-1",
+        "turbo-fi-ud-ftb-2.16-depparse-maxent-1",
+        "turbo-fi-ud-ftb-2.16-depparse-feedforward-1",
+        "turbo-it-ud-markit-2.16-depparse-maxent-1",
+        "turbo-it-ud-markit-2.16-depparse-feedforward-1",
+    ],
+};
+
 /// Every release of the recipes' models.
-pub const MODELS_RELEASES: [ModelsRelease; 4] = [MASC_MODELS, UD_MODELS, TATOEBA_MODELS, FINEWEB_MODELS];
+pub const MODELS_RELEASES: [ModelsRelease; 5] =
+    [MASC_MODELS, UD_MODELS, TATOEBA_MODELS, FINEWEB_MODELS, UD_DEPPARSE_MODELS];
 
 /// The release of this repository that keeps the Tatoeba export the
 /// language detector is trained on (`langdetect::EXPORT`): its two
@@ -150,6 +171,12 @@ impl ModelsRelease {
         [LANGDETECT_WEB].into_iter().filter(|r| self.models.contains(&r.model_id)).collect()
     }
 
+    /// The UD dependency parser recipes that train models it publishes, in
+    /// the order of [`DEPPARSE_RECIPES`].
+    pub fn depparse_recipes(&self) -> Vec<DepparseRecipe> {
+        DEPPARSE_RECIPES.into_iter().filter(|r| self.models.contains(&r.model_id)).collect()
+    }
+
     /// The references of the recipes that train its models, in the order
     /// of its models: for the web language detector, its gates' reference
     /// and then the model it is compared with.
@@ -187,6 +214,7 @@ pub fn entries(models: &Path, release: &ModelsRelease) -> Result<Vec<Artifact>> 
             Some(_) => entry::<ModelCard>(models, id, release),
             None if *id == LANGDETECT.model_id => entry::<LanguageCard>(models, id, release),
             None if *id == LANGDETECT_WEB.model_id => entry::<WebLanguageCard>(models, id, release),
+            None if DepparseRecipe::trains(id).is_some() => entry::<DepparseModelCard>(models, id, release),
             None => entry::<UdModelCard>(models, id, release),
         })
         .collect()

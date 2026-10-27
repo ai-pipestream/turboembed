@@ -70,17 +70,30 @@ impl FeedforwardDependencyTrainer {
         samples: &[DependencySample<A>],
         settings: &FeedforwardSettings,
     ) -> Result<FeedforwardDependencyModel> {
+        Self::train_with_projectivization(samples, settings, true)
+    }
+    /// Train plain arc-standard labels from projective samples only.
+    /// Non-projective or already encoded trees produce an error.
+    pub fn train_projective<A: WordOrTokenAnchor>(
+        samples: &[DependencySample<A>],
+        settings: &FeedforwardSettings,
+    ) -> Result<FeedforwardDependencyModel> {
+        Self::train_with_projectivization(samples, settings, false)
+    }
+    fn train_with_projectivization<A: WordOrTokenAnchor>(
+        samples: &[DependencySample<A>],
+        settings: &FeedforwardSettings,
+        pseudo_projective: bool,
+    ) -> Result<FeedforwardDependencyModel> {
         settings.check()?;
-        let mut model = initialize::initialize(samples, settings)?;
+        let mut model = initialize::initialize(samples, settings, pseudo_projective)?;
         let mut examples = Vec::new();
         for sample in samples {
-            if !sample.graph().is_projective() {
-                continue;
-            }
+            let graph = sample.training_graph(pseudo_projective)?;
             let mut state = ArcStandardState::<A>::new(sample.tokens().len())?;
             let words: Vec<_> = sample.tokens().iter().map(String::as_str).collect();
             let tags: Vec<_> = sample.tags().iter().map(String::as_str).collect();
-            for transition in ArcStandardOracle::transitions(sample.graph())? {
+            for transition in ArcStandardOracle::transitions(&graph)? {
                 let context = FeedforwardContext::extract(&state, &words, &tags, settings.layout)?;
                 let outcome = model
                     .transitions
@@ -96,7 +109,7 @@ impl FeedforwardDependencyTrainer {
         }
         optimize::optimize(&mut model, &examples, settings)?;
         let mut counts = std::collections::BTreeMap::<String, usize>::new();
-        for sample in samples.iter().filter(|s| s.graph().is_projective()) {
+        for sample in samples {
             for word in sample.tokens() {
                 *counts.entry(super::normalize::normalize(word)).or_default() += 1;
             }
@@ -104,6 +117,8 @@ impl FeedforwardDependencyTrainer {
         // Cache only after the final update so no stale weights can be used.
         // One million doubles bounds the returned model's cache at 8 MB of values.
         model.precompute_words(&counts.into_iter().collect::<Vec<_>>(), 1_000_000);
+        model.label_encoding =
+            if pseudo_projective { crate::LabelEncoding::EscapedV1 } else { crate::LabelEncoding::Plain };
         Ok(model)
     }
 }

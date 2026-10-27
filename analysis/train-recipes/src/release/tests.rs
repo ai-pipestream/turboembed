@@ -23,7 +23,8 @@ fn every_release_is_tagged_once_and_names_recipes_in_their_order() {
         let ud = release.ud_recipes().into_iter().map(|r| r.model_id);
         let language = release.language_recipes().into_iter().map(|r| r.model_id);
         let web = release.web_language_recipes().into_iter().map(|r| r.model_id);
-        let ids: Vec<&str> = masc.chain(ud).chain(language).chain(web).collect();
+        let depparse = release.depparse_recipes().into_iter().map(|r| r.model_id);
+        let ids: Vec<&str> = masc.chain(ud).chain(language).chain(web).chain(depparse).collect();
         assert_eq!(ids, release.models, "{tag}: a model no recipe trains, or out of order");
         assert_eq!(ModelsRelease::tagged(tag).unwrap(), release);
     }
@@ -36,7 +37,10 @@ fn every_release_is_tagged_once_and_names_recipes_in_their_order() {
         match ModelsRelease::tagged(unknown) {
             Err(Error::UnknownRelease { tag, known }) => {
                 assert_eq!(tag, unknown);
-                assert_eq!(known, [MASC_MODELS.tag, UD_MODELS.tag, TATOEBA_MODELS.tag, FINEWEB_MODELS.tag]);
+                assert_eq!(
+                    known,
+                    [MASC_MODELS.tag, UD_MODELS.tag, TATOEBA_MODELS.tag, FINEWEB_MODELS.tag, UD_DEPPARSE_MODELS.tag]
+                );
             }
             other => panic!("{unknown:?}: {other:?}"),
         }
@@ -103,6 +107,10 @@ fn the_builtin_index_lists_every_model_at_its_release_address() {
     for recipe in UD_MODELS.ud_recipes() {
         let (language, trained_on) = (recipe.treebank.language, recipe.treebank.training_data());
         listed(&index, &UD_MODELS, recipe.model_id, recipe.zoo_component(), language, &[trained_on], &[]);
+    }
+    for recipe in UD_DEPPARSE_MODELS.depparse_recipes() {
+        let (language, trained_on) = (recipe.treebank.language, recipe.treebank.training_data());
+        listed(&index, &UD_DEPPARSE_MODELS, recipe.model_id, Component::DependencyParser, language, &[trained_on], &[]);
     }
     let export = langdetect::EXPORT.digest().unwrap();
     let tatoeba = TrainingData {
