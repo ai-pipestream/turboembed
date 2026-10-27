@@ -123,7 +123,7 @@ fn gliner2_relations_on_the_real_checkpoint() {
     );
     let x = on.execution().unwrap().clone();
     let on_name = format!("{} {} ({})", x.backend, x.device, x.precision);
-    println!("gliner2 relations: largest logit difference from the cpu encoder {worst:e}");
+    println!("gliner2 relations on {on_name}: largest logit difference from the cpu encoder {worst:e}");
     let pass = |m: &gliner2::Gliner2Relations, c: usize| {
         std::hint::black_box(m.pass(cases[c]["text"].as_str().unwrap(), &strs(&cases[c]["labels"])).unwrap());
     };
@@ -170,7 +170,10 @@ fn glirel_on_the_real_checkpoint() {
     let worst = worst_seen;
     let x = on.execution().unwrap().clone();
     let on_name = format!("{} {} ({})", x.backend, x.device, x.precision);
-    println!("glirel: largest logit difference from the cpu encoder {worst:e}, {} pair labels held", held.len());
+    println!(
+        "glirel on {on_name}: largest logit difference from the cpu encoder {worst:e}, {} pair labels held",
+        held.len()
+    );
     let pass = |m: &glirel::GlirelRelations, c: usize| {
         std::hint::black_box(m.pass(cases[c]["text"].as_str().unwrap(), &strs(&cases[c]["labels"])).unwrap());
     };
