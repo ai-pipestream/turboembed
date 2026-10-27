@@ -267,8 +267,8 @@ fn a_new_table_is_whole_for_the_first_run() {
 const FASTEST_BOUND: f32 = 1e-2;
 
 /// FASTEST on a device runs the same sequences within FASTEST_BOUND of the
-/// CPU form at MODEL; on the CPU and on Level Zero it is refused, not run
-/// at MODEL.
+/// CPU form at MODEL; on the CPU, Level Zero and Metal it is refused, not
+/// run at MODEL.
 #[test]
 fn fastest_holds_f16_weights_and_stays_near_the_cpu() {
     use turbo::device::Precision;
@@ -278,9 +278,10 @@ fn fastest_holds_f16_weights_and_stays_near_the_cpu() {
         assert_eq!(e.code, turbo::status::UNSUPPORTED);
         return;
     }
-    if let Device::LevelZero(_) = device() {
-        // Level Zero has no F16 weights yet: refused, not run at MODEL.
-        let e = Lstm::new_at(device(), Precision::Fastest, 100, 128, &m.dirs()).err().expect("FASTEST on Level Zero");
+    if let Device::LevelZero(_) | Device::Metal(_) = device() {
+        // Level Zero and Metal have no F16 weights yet: refused, not run at
+        // MODEL.
+        let e = Lstm::new_at(device(), Precision::Fastest, 100, 128, &m.dirs()).err().expect("FASTEST refused");
         assert_eq!(e.code, UNSUPPORTED, "{}", e.message);
         return;
     }
