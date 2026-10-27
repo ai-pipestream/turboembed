@@ -184,8 +184,8 @@ a Hailo host) a Hailo session refused with the range-pooling error.
 `TURBO_TEST_REQUIRE_CUDA=1`, `TURBO_TEST_REQUIRE_LEVELZERO=1` or
 `TURBO_TEST_REQUIRE_METAL=1` makes it fail when no device is named. It
 passes at every tier on CUDA, Level Zero and Metal, each with `sat-1l-sm`
-too; docs/receipts/sat-884.md has the figures and the speed against the
-CPU. A model of limited lookahead is refused on
+too; docs/receipts/sat-884.md has the figures and, for each of the
+three, the speed against the CPU. A model of limited lookahead is refused on
 every device, which the lookahead parity test checks there.
 
 On a released checkpoint, `sat-1l-sm` at revision
