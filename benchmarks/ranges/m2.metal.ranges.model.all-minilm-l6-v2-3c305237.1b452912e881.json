@@ -1,0 +1,119 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-27T06:44:44Z",
+  "machine": {
+    "arch": "m2",
+    "host_cpu": "Apple M2",
+    "os": "macos"
+  },
+  "device": {
+    "backend": "metal",
+    "kind": "DEVICE_IGPU",
+    "name": "Apple M2",
+    "vendor": "Apple",
+    "driver_version": "macOS 27.0.1 (26A434)",
+    "runtime_version": "Metal, macOS SDK 27.0",
+    "memory_total": 19069665280
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 metal cpu",
+    "commit": "1b452912e8817da57ac3f2c14379623e2ee43262",
+    "pushed_to": [
+      "origin/fable/812-aligned",
+      "origin/fable/812-h64n32",
+      "origin/gh-readonly-queue/main/pr-1422-8875dee3485ba43044d291d6da5d94d4416dda35",
+      "origin/main"
+    ],
+    "settings": []
+  },
+  "precision": "PRECISION_MODEL",
+  "compute_dtype": "DTYPE_F32",
+  "bundle": {
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "revision": "1",
+    "manifest_sha256": "3c305237a79d0b4bcae9513683b2373c84190d8a2d96941aacb25e035c30b9ea",
+    "artifact_sha256": "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db",
+    "tokenizer_sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
+  },
+  "shape": {
+    "batch": 32,
+    "seq": 256,
+    "chunk": 64,
+    "chunks_per_row": 4,
+    "chunk_batch": 64,
+    "chunk_frames": 2,
+    "cases": [
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8
+    ],
+    "sha256": "0c85ff407a58448a04661fa81fda7ae4e5ff72e378e19e3bbcafe070f9fdfcc3"
+  },
+  "rows": {
+    "vectors": 32,
+    "warmup": 20,
+    "iterations": 200,
+    "p50_ms": 260.662083,
+    "p99_ms": 858.922959,
+    "mean_ms": 310.76959065,
+    "min_ms": 139.98975,
+    "max_ms": 932.551292,
+    "vectors_per_second": 102.9701777869237
+  },
+  "ranges": {
+    "vectors": 128,
+    "warmup": 20,
+    "iterations": 200,
+    "p50_ms": 257.73479199999997,
+    "p99_ms": 786.836833,
+    "mean_ms": 306.99213017999995,
+    "min_ms": 139.200667,
+    "max_ms": 849.694833,
+    "vectors_per_second": 416.94879906188226
+  },
+  "chunk_rows": {
+    "vectors": 128,
+    "warmup": 20,
+    "iterations": 200,
+    "p50_ms": 232.940125,
+    "p99_ms": 737.86475,
+    "mean_ms": 277.595904595,
+    "min_ms": 126.084541,
+    "max_ms": 819.526209,
+    "vectors_per_second": 461.1019034547584
+  },
+  "whole_row_max_abs_diff": 0.0,
+  "chunk_min_cosine": 0.693769737976694,
+  "ranges_over_rows": 0.9887697858993937,
+  "chunk_rows_over_ranges": 0.9037977495874908
+}
