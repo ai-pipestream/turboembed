@@ -230,15 +230,23 @@ pub fn encode_trained(
                     let m = n.min(st.ids.len());
                     let states = &st.data[..m * (st.dim as usize)];
                     let one = (|| -> Result<(Vec<SparseTerm>, Vec<FitToken>, bool)> {
-                        let logits = mlm.logits(states).map_err(|e| e.to_string())?;
+                        let aligned = cp.0[..n] == st.ids[..m] && st.ids.len() >= n;
+                        // The full logits exist only for fit targets;
+                        // the terms always come from the fused peak path.
+                        let collecting = di < cfg.fit_docs && aligned;
+                        let logits =
+                            if collecting { mlm.logits(states).map_err(|e| e.to_string())? } else { Vec::new() };
                         let mut pool = MaxLogPool::new(mlm.vocab);
-                        for row in logits.chunks_exact(mlm.vocab) {
-                            pool.observe(row).map_err(|e| e.to_string())?;
+                        if collecting {
+                            for row in logits.chunks_exact(mlm.vocab) {
+                                pool.observe(row).map_err(|e| e.to_string())?;
+                            }
+                        } else {
+                            mlm.relu_peak_into(states, &mut pool).map_err(|e| e.to_string())?;
                         }
                         let terms = pool.terms(doc_cut).map_err(|e| e.to_string())?;
-                        let aligned = cp.0[..n] == st.ids[..m] && st.ids.len() >= n;
                         let mut fit_toks = Vec::new();
-                        if di < cfg.fit_docs && aligned {
+                        if collecting {
                             fit_from_logits(
                                 &logits,
                                 mlm.vocab,
@@ -361,14 +369,12 @@ pub fn encode_trained(
 }
 
 /// SPLADE terms of token hidden states: MLM logits pooled by max of
-/// `log(1 + relu(logit))`, cut as `cut` says; also returns the logits
-/// to a caller that collects fit targets, through `collect_fit`.
+/// `log(1 + relu(logit))`, cut as `cut` says, through the head's fused
+/// peak path (the same pooling `sparse_terms` and the production
+/// sparse annotator run, without materializing the logits).
 fn pooled_terms(mlm: &MlmHead, states: &[f32], cut: &SparseCut) -> Result<Vec<SparseTerm>> {
-    let logits = mlm.logits(states).map_err(|e| e.to_string())?;
     let mut pool = MaxLogPool::new(mlm.vocab);
-    for row in logits.chunks_exact(mlm.vocab) {
-        pool.observe(row).map_err(|e| e.to_string())?;
-    }
+    mlm.relu_peak_into(states, &mut pool).map_err(|e| e.to_string())?;
     pool.terms(cut).map_err(|e| e.to_string())
 }
 

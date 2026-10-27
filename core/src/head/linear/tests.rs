@@ -37,6 +37,21 @@ fn products_never_hold_the_initialization_lock() {
     }
 }
 
+/// Mutating through the accessors re-arms the finiteness scan, so a
+/// layer made non-finite after a passing validate is refused again.
+#[test]
+fn mutation_rearms_the_finiteness_scan() {
+    let mut l = layer();
+    assert_eq!(l.validate("test"), Ok(()));
+    assert_eq!(l.validate("test"), Ok(()));
+    l.weight_mut()[0] = f32::NAN;
+    assert_eq!(l.validate("test").unwrap_err().code, crate::status::INVALID_ARGUMENT);
+    l.weight_mut()[0] = 1.0;
+    assert_eq!(l.validate("test"), Ok(()));
+    l.bias_mut()[0] = f32::INFINITY;
+    assert_eq!(l.validate("test").unwrap_err().code, crate::status::INVALID_ARGUMENT);
+}
+
 #[test]
 fn shared_first_use_and_warm_products_agree() {
     let l = layer();
