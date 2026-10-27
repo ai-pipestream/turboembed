@@ -40,7 +40,10 @@ guard args.count >= 2 else {
     FileHandle.standardError.write("usage: gemm_time <kernels.metal> [hidden...]\n".data(using: .utf8)!)
     exit(2)
 }
-let hiddens = args.count > 2 ? args[2...].map { Int($0)! } : [384, 768]
+// GEMM_ONLY=<hidden>,<m>,<shape>[,<mode>] times that one shape alone, so
+// a driver can interleave it with mlx_gemm.py's run of the same shape.
+let only = ProcessInfo.processInfo.environment["GEMM_ONLY"].map { $0.split(separator: ",").map(String.init) }
+let hiddens = only.map { [Int($0[0])!] } ?? (args.count > 2 ? args[2...].map { Int($0)! } : [384, 768])
 let sourceData = try Data(contentsOf: URL(fileURLWithPath: args[1]))
 let source = String(decoding: sourceData, as: UTF8.self)
 let digest = SHA256.hash(data: sourceData).map { String(format: "%02x", $0) }.joined()
@@ -101,7 +104,7 @@ func stats(_ v: [Double]) -> String {
                   s[s.count - 1])
 }
 
-for mode in ["bare", "encoder"] {
+for mode in only.flatMap({ $0.count > 3 ? [$0[3]] : nil }) ?? ["bare", "encoder"] {
     for h in hiddens {
         // (name, n, k, layers in one dispatch, y half, epilogue)
         let shapes: [(String, Int, Int, Int, Bool, UInt32)] = mode == "bare"
@@ -109,8 +112,8 @@ for mode in ["bare", "encoder"] {
                ("ffn_out", h, 4 * h, 1, true, 0)]
             : [("qkv", h, h, 3, true, 1), ("attn_out", h, h, 1, false, 0), ("ffn_in", 4 * h, h, 1, true, 2),
                ("ffn_out", h, 4 * h, 1, false, 0)]
-        for m in [128, 512, 1024, 4096, 16384] {
-            for (shape, n, k, z, yh, epilogue) in shapes {
+        for m in only.map({ [Int($0[1])!] }) ?? [128, 512, 1024, 4096, 16384] {
+            for (shape, n, k, z, yh, epilogue) in shapes where only == nil || only![2] == shape {
                 let x = buffer(m * k * 2, halves)
                 let w = (0..<3).map { _ in buffer(n * k * 2, halves) }
                 let bias = buffer(n * 4, floats)

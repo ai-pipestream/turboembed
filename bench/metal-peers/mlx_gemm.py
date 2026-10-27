@@ -61,11 +61,16 @@ def main():
         ),
         flush=True,
     )
-    hiddens = [int(a) for a in sys.argv[1:]] or [384, 768]
+    # GEMM_ONLY=<hidden>,<m>,<shape> times that one shape alone, as
+    # gemm_time.swift reads it, so a driver can interleave the two.
+    only = os.environ.get("GEMM_ONLY", "").split(",") if os.environ.get("GEMM_ONLY") else None
+    hiddens = [int(only[0])] if only else [int(a) for a in sys.argv[1:]] or [384, 768]
     for h in hiddens:
         shapes = [("qkv", 3 * h, h), ("attn_out", h, h), ("ffn_in", 4 * h, h), ("ffn_out", h, 4 * h)]
-        for m in [128, 512, 1024, 4096, 16384]:
+        for m in [int(only[1])] if only else [128, 512, 1024, 4096, 16384]:
             for shape, n, k in shapes:
+                if only and shape != only[2]:
+                    continue
                 x = (mx.random.normal((m, k)) / 16).astype(mx.float16)
                 w = (mx.random.normal((k, n)) / 16).astype(mx.float16)
                 mx.eval(x, w)
