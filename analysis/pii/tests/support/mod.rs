@@ -60,7 +60,12 @@ pub struct Counts {
 }
 
 pub fn ratio(a: usize, b: usize) -> f64 {
-    if b == 0 { 1.0 } else { a as f64 / b as f64 }
+    if b == 0 { f64::NAN } else { a as f64 / b as f64 }
+}
+
+/// Display unsupported metrics without suggesting perfect precision or recall.
+pub fn ratio_text(a: usize, b: usize) -> String {
+    if b == 0 { "N/A".to_owned() } else { format!("{:.3}", ratio(a, b)) }
 }
 
 /// Per-kind true/false/missed counts of the widest pack over `set`.

@@ -16,7 +16,7 @@
 
 mod support;
 
-use support::{Counts, Labelled, layer, load_labelled, measure, ratio, wide};
+use support::{Counts, Labelled, layer, load_labelled, measure, ratio, ratio_text, wide};
 use turbo_analysis::Layer as _;
 use turbo_pii::PiiKind;
 use turbo_pii::checksum::{base58, keccak, luhn, mod97};
@@ -231,12 +231,12 @@ fn precision_and_recall_on_the_synthetic_set() {
     eprintln!("{:<16} {:>5} {:>5} {:>5} {:>9} {:>7}", "kind", "tp", "fp", "fn", "precision", "recall");
     for (kind, c) in &by_kind {
         eprintln!(
-            "{kind:<16} {:>5} {:>5} {:>5} {:>9.3} {:>7.3}",
+            "{kind:<16} {:>5} {:>5} {:>5} {:>9} {:>7}",
             c.tp,
             c.fp,
             c.fn_,
-            ratio(c.tp, c.tp + c.fp),
-            ratio(c.tp, c.tp + c.fn_)
+            ratio_text(c.tp, c.tp + c.fp),
+            ratio_text(c.tp, c.tp + c.fn_)
         );
         total.tp += c.tp;
         total.fp += c.fp;
@@ -311,12 +311,12 @@ fn precision_and_recall_on_human_written_text() {
         let c = by_kind.get(name).expect("every built-in kind is represented in the human-written set");
         assert!(c.tp > 0, "{name} has no true positive in the human-written set");
         eprintln!(
-            "{name:<16} {:>5} {:>5} {:>5} {:>9.3} {:>7.3}",
+            "{name:<16} {:>5} {:>5} {:>5} {:>9} {:>7}",
             c.tp,
             c.fp,
             c.fn_,
-            ratio(c.tp, c.tp + c.fp),
-            ratio(c.tp, c.tp + c.fn_)
+            ratio_text(c.tp, c.tp + c.fp),
+            ratio_text(c.tp, c.tp + c.fn_)
         );
         total.tp += c.tp;
         total.fp += c.fp;

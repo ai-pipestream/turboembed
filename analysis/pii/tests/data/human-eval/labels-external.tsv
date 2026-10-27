@@ -5,7 +5,7 @@ rfc3849	4315	4325	ipv6	2001:DB8::
 rfc3849	5425	5438	email	gih@apnic.net
 rfc3849	5508	5522	email	anne@apnic.net
 rfc3849	5569	5582	email	pfs@cisco.com
-rfc3849	7667	7679	email	ipr@ietf.org
+rfc3849	7658	7679	email	ietf-\n   ipr@ietf.org
 rfc5737	2598	2607	ipv4	192.0.2.0
 rfc5737	3284	3293	ipv4	192.0.2.0
 rfc5737	3311	3323	ipv4	198.51.100.0

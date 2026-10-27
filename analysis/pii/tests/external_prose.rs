@@ -8,7 +8,7 @@
 
 mod support;
 
-use support::{Counts, load_labelled, measure, ratio};
+use support::{Counts, load_labelled, measure, ratio, ratio_text};
 
 /// (id, goldens-escaped, file, pinned SHA-256 of the document text).
 const EXTERNAL_DOCS: [(&str, bool, &str, &str); 10] = [
@@ -64,7 +64,7 @@ fn precision_and_recall_on_external_prose() {
     let want_by_kind: [(&str, usize, usize, usize); 12] = [
         ("aba-routing", 4, 0, 4),
         ("ca-sin", 0, 0, 2),
-        ("email", 18, 0, 0),
+        ("email", 17, 1, 1),
         ("iban", 4, 0, 0),
         ("imei", 0, 0, 2),
         ("ipv4", 8, 3, 0),
@@ -77,8 +77,8 @@ fn precision_and_recall_on_external_prose() {
     ];
     let mut total = Counts::default();
     for (kind, c) in &by_kind {
-        let (p, r) = (ratio(c.tp, c.tp + c.fp), ratio(c.tp, c.tp + c.fn_));
-        eprintln!("{kind:<16} {:>5} {:>5} {:>5} {p:>9.3} {r:>7.3}", c.tp, c.fp, c.fn_);
+        let (p, r) = (ratio_text(c.tp, c.tp + c.fp), ratio_text(c.tp, c.tp + c.fn_));
+        eprintln!("{kind:<16} {:>5} {:>5} {:>5} {p:>9} {r:>7}", c.tp, c.fp, c.fn_);
         total.tp += c.tp;
         total.fp += c.fp;
         total.fn_ += c.fn_;
@@ -97,5 +97,28 @@ fn precision_and_recall_on_external_prose() {
         let c = by_kind.get(kind).unwrap();
         assert_eq!((c.tp, c.fp, c.fn_), (tp, fp, fn_), "{kind}");
     }
-    assert_eq!((total.tp, total.fp, total.fn_), (75, 26, 13));
+    assert_eq!((total.tp, total.fp, total.fn_), (74, 27, 14));
+}
+
+#[test]
+fn wrapped_rfc_address_keeps_the_complete_source_span() {
+    let mut set = load_labelled(&EXTERNAL_DOCS, "labels-external.tsv", true);
+    let index = EXTERNAL_DOCS.iter().position(|&(id, ..)| id == "rfc3849").unwrap();
+    let doc = set.remove(index);
+    assert_eq!(&doc.text[7658..7679], "ietf-\n   ipr@ietf.org");
+    assert!(doc.labels.contains(&(7658, 7679, "email")));
+    assert!(!doc.labels.contains(&(7667, 7679, "email")));
+    let counts = measure(&[doc]);
+    let email = &counts["email"];
+    assert_eq!((email.tp, email.fp, email.fn_), (3, 1, 1));
+}
+
+#[test]
+fn zero_support_is_undefined() {
+    assert!(ratio(0, 0).is_nan());
+    assert_eq!(ratio_text(0, 0), "N/A");
+    assert_eq!(ratio_text(0, 2), "0.000");
+    assert_eq!(ratio_text(2, 2), "1.000");
+    assert_eq!(ratio(0, 2), 0.0);
+    assert_eq!(ratio(2, 2), 1.0);
 }
