@@ -57,18 +57,15 @@ pub(crate) fn ze(what: &str, rc: ze::Status) -> Res<()> {
     }
 }
 
-/// What a lost device means (#1433). On the Arc Pro B70 under xe, each one
-/// seen was the kernel resetting a compute queue whose job had not finished
-/// within its job timeout. They coincided with another client's render
-/// work on the card, which shares the execution units; that is the likely
-/// cause, not reproduced. The context is unusable afterwards; a new one
-/// works.
+/// DEVICE_LOST covers hangs, resets, removal and driver updates. The
+/// timeout/reset observations in #1433 do not identify every loss's cause,
+/// and a new context cannot recover a device that is still unavailable.
 fn device_lost(what: &str) -> String {
     format!(
-        "levelzero: {what} failed with 0x70000001 (device lost): the driver reset this context's queue, \
-         usually because a job did not finish within the kernel driver's job timeout; the kernel log names \
-         the job. Work from another client on the card can hold it back. This context cannot be used \
-         again; release it and make a new one"
+        "levelzero: {what} failed with 0x70000001 (device lost): possible device hang, reset, removal \
+         or driver update; this status alone does not identify the cause. Check driver/kernel logs \
+         (a job timeout is one possibility). Stop using any affected context, release its resources \
+         and the context, and create a new one once the device is available"
     )
 }
 
@@ -363,7 +360,32 @@ pub(crate) unsafe extern "C" fn context_release(ctx: *mut c_void) {
 mod tests {
     use super::*;
 
-    /// A lost device says what happened and what to do; other failures keep
+    #[test]
+    fn device_loss_does_not_identify_a_queue_timeout() {
+        // The same status can arise before a context or queue exists.
+        for call in ["zeContextCreate", "zeCommandListHostSynchronize"] {
+            let lost = ze(call, ze::RESULT_ERROR_DEVICE_LOST).unwrap_err();
+            assert_eq!(lost.code, RUNTIME);
+            for cause in ["hang", "reset", "removal", "driver update"] {
+                assert!(lost.message.contains(cause), "missing {cause}: {}", lost.message);
+            }
+            assert!(!lost.message.contains("the driver reset this context's queue"));
+            assert!(lost.message.contains("once the device is available"));
+        }
+    }
+
+    #[test]
+    fn device_loss_recovery_survives_the_error_abi() {
+        let mut error = crate::new_error();
+        let code = unsafe { guarded(&mut error, || ze("zeCommandListHostSynchronize", ze::RESULT_ERROR_DEVICE_LOST)) };
+        assert_eq!(code, RUNTIME);
+        assert_eq!(error.code, RUNTIME);
+        let message = crate::backend::cstr(&error.message);
+        assert_eq!(message, device_lost("zeCommandListHostSynchronize"));
+        assert!(message.contains("once the device is available"));
+    }
+
+    /// A lost device gives possible causes and recovery; other failures keep
     /// their plain form (#1433).
     #[test]
     fn a_lost_device_says_the_context_is_gone() {
