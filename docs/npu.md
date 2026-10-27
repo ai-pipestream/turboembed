@@ -122,10 +122,14 @@ extension exports the compiled blob, a load initializes that blob as a
   `decide_embedded` sets `MODEL` and `FASTEST` to SUPPORTED. The
   cell's graph format is the one `model_load` would create on the
   device: `NATIVE` where the graph extension exports the blob (Models,
-  below), which AI Boost's does, else `NGRAPH_LITE`. No `NATIVE`
-  record is committed, so the `arl-npu` `MODEL` and `FASTEST` cells
-  are EXPERIMENTAL until `NATIVE` records are measured; the
-  `NGRAPH_LITE` records above back no cell on this build.
+  below), which AI Boost's does, else `NGRAPH_LITE`. Two ROWS_MIXED
+  `NATIVE` MiniLM records, measured at library commit `db05141`, match
+  the same cell with `TURBO_NPU_GRAPH_FORMAT=NATIVE` and do not fall
+  short (Speed, below), so on that device `decide_embedded` sets
+  `MODEL` and `FASTEST` to SUPPORTED, backed by
+  `arl-npu.npu.native.embed.model.all-minilm-l6-v2-da08a0f9.db0514120b6a.json` and
+  `arl-npu.npu.native.embed.fastest.all-minilm-l6-v2-da08a0f9.db0514120b6a.json`. The `NGRAPH_LITE` records above back the cell of a device
+  whose extension does not export the blob.
   The bundle is not part of the cell key: the cell is the device, so
   the MiniLM records and the BGE records below are all for it, and
   the newest one that does not fall short backs it. `benchmark` is
@@ -137,7 +141,7 @@ extension exports the compiled blob, a load initializes that blob as a
   they do not bind. A cell with no mixed record for it stays
   EXPERIMENTAL and `reason` is `no benchmark record for this cell`:
   another arch (`mtl-npu`, `lnl-npu`, `ptl-npu`, `intel-npu-<id>`),
-  a `NATIVE` graph, or a build whose OS is not windows. A dtype of 0
+  or a build whose OS is not windows. A dtype of 0
   is not used to keep a record from matching.
   `EXACT` is UNSUPPORTED: a compiled graph computes in the dtype its
   IR fixed, never F32 throughout.
@@ -679,8 +683,8 @@ They are for the `MODEL` and `FASTEST` cells of a Windows build of
 library `0.1.0` whose device arch is `arl-npu` and whose graph format
 is `NGRAPH_LITE`. The newest record for a cell backs it, which with
 the BGE records below is bge-large's. The numbers are in Speed,
-below. `EXACT` stays UNSUPPORTED. Another arch and a `NATIVE` load
-stay EXPERIMENTAL. The product path is the Level Zero graph
+below. `EXACT` stays UNSUPPORTED. Another arch stays EXPERIMENTAL.
+The product path is the Level Zero graph
 extension and `FORMAT_OPENVINO_IR`. `benchmark_app` is the reference
 control on the static IR (`openvino/model.xml`).
 
@@ -698,7 +702,7 @@ backs them. The six ROWS_DENSE
 files are case 8 reference evidence. `Record::is_for` requires
 `ROWS_MIXED`, so the dense files do not bind a cell. The npu backend
 has no EXACT tier, so no EXACT records exist. The numbers are in Speed,
-below. Another arch and a `NATIVE` load stay EXPERIMENTAL.
+below. Another arch stays EXPERIMENTAL.
 
 Earlier intel-npu timings were one two-token text at shape
 `[1, 128]` each, TEI was `not_run`, and `benchmark_app` either
@@ -709,8 +713,9 @@ manifest `compute_dtype` that names the other is refused.
 
 ## Speed
 
-Sixteen npu speed records are committed for MiniLM and the three BGE
-models. The harness is `turbo-bench`
+Eighteen npu speed records are committed: sixteen `NGRAPH_LITE`
+records for MiniLM and the three BGE models, and two `NATIVE` MiniLM
+records. The harness is `turbo-bench`
 with `--features npu` (docs/benchmarks.md). It measures the library
 on `--device npu`. OpenVINO `benchmark_app` is the kernel reference.
 TEI's CPU image is the end-to-end baseline. Both are references only.
@@ -762,14 +767,21 @@ is 8 times 128, which is 1024. `--batch` stays 1.
 
 `library.settings` names `TURBO_NPU_GRAPH_FORMAT` and
 `TURBO_NPU_GRAPH_INPUT`. The format is the graph the load created.
-The records committed here are `NGRAPH_LITE`, made before `NATIVE`
-was the default, and their file names carry `ngraph-lite` after
-`npu`. A load that creates the graph from the native blob writes
-`TURBO_NPU_GRAPH_FORMAT=NATIVE` and is filed as `native`. That record
+The `NGRAPH_LITE` records, made before `NATIVE` was the default, carry
+`ngraph-lite` after `npu` in their file names. A load that creates the
+graph from the native blob writes `TURBO_NPU_GRAPH_FORMAT=NATIVE` and
+is filed as `native`, as the two `db05141` records are. That record
 is a different cell. A load the driver refuses the blob for writes
 `NGRAPH_LITE`. The device chooses the format; an environment variable
 does not change it. A ranges file (`benchmarks/ranges/`) names no
-graph format; its settings do.
+graph format; its settings do. The two at `db05141`,
+`arl-npu.npu.ranges.model.all-minilm-l6-v2-da08a0f9.db0514120b6a.json`
+and
+`arl-npu.npu.ranges.fastest.all-minilm-l6-v2-da08a0f9.db0514120b6a.json`,
+are `NATIVE`: batch 1, seq 128, chunks of 64, case 8. Rows p50 3.8908
+ms and 3.9274 ms, ranges over rows 1.0001 and 0.9977, one row per
+chunk over ranges 1.986 and 1.984, and a range over a whole row is
+the row's vector exactly (max abs diff 0).
 
 An embeddings-sealed copy (`openvino-embeddings-f16`,
 `INPUT_EMBEDDINGS`) is the host-gather path. `benchmark_app -d NPU`
@@ -834,10 +846,26 @@ and
 `arl-npu.npu.ngraph-lite.embed.fastest.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json`
 for `FASTEST`. `cosine_floor` is 0.9996791858674714, and
 `speed_ratio` is that record's. `reason` is empty. Another
-arch, a `NATIVE` graph, and a build whose OS is not windows stay
-EXPERIMENTAL with `no benchmark record for this cell`. A load on AI
-Boost is predicted `NATIVE` (Models, above), so these cells are
-EXPERIMENTAL until `NATIVE` records are measured.
+arch and a build whose OS is not windows stay EXPERIMENTAL with
+`no benchmark record for this cell`.
+
+A load on AI Boost is predicted `NATIVE` (Models, above), and its
+cells are backed by the two `NATIVE` ROWS_MIXED MiniLM records,
+measured at library commit `db05141` on the same machine (driver
+`0.15.21738`, OpenVINO `2026.5.0-23311-786052d995f` on the same eight
+frames, `--no-tei`). Batch 1, seq 128, cases 0 through 7,
+`live_tokens` 181, `conformance.rows` 16, `conformance.min_cosine`
+0.999996097954919, `falls_short` none. On a Windows build of library
+`0.1.0` whose device arch is `arl-npu` and whose graph format is
+`NATIVE`, `MODEL` and `FASTEST` are SUPPORTED, and these are the only
+`NATIVE` records, so they back the cells:
+
+- `benchmarks/records/arl-npu.npu.native.embed.model.all-minilm-l6-v2-da08a0f9.db0514120b6a.json`:
+  library p50 30.0209 ms, 263.0843436238007 rows/s; OpenVINO IR p50
+  30.08 ms; `speed_ratio` 0.9980352393617021.
+- `benchmarks/records/arl-npu.npu.native.embed.fastest.all-minilm-l6-v2-da08a0f9.db0514120b6a.json`:
+  library p50 29.9576 ms, 267.0839229767358 rows/s; OpenVINO IR p50
+  30.1 ms; `speed_ratio` 0.9952691029900333.
 
 The dense files are the same settings and the same static IR, case
 8. They do not bind:

@@ -151,8 +151,22 @@ so eight reference cases fit seq and the rows list all eight.
 to SUPPORTED on a Windows build of library `0.1.0` whose device
 arch is `arl-npu` and whose graph format is `NGRAPH_LITE`. The
 library p50 is the sum of the eight frames, about 30 ms. Another
-arch, a `NATIVE` graph, and a build whose OS is not windows stay
-EXPERIMENTAL with no record for the cell.
+arch and a build whose OS is not windows stay EXPERIMENTAL with no
+record for the cell.
+
+The `NATIVE` cells of the same device, which a load on AI Boost
+creates (docs/npu.md), are backed by two ROWS_MIXED MiniLM records of
+the same IR measured at library commit `db05141`, cases 0 through 7,
+`TURBO_NPU_GRAPH_FORMAT=NATIVE`, `conformance.min_cosine`
+0.999996097954919, OpenVINO measured on the same frames:
+`benchmarks/records/arl-npu.npu.native.embed.model.all-minilm-l6-v2-da08a0f9.db0514120b6a.json`
+(library p50 30.0209 ms; OpenVINO IR p50 30.08 ms; `speed_ratio`
+0.9980352393617021) and
+`benchmarks/records/arl-npu.npu.native.embed.fastest.all-minilm-l6-v2-da08a0f9.db0514120b6a.json`
+(library p50 29.9576 ms; OpenVINO IR p50 30.1 ms; `speed_ratio`
+0.9952691029900333). `decide_embedded` sets `MODEL` and `FASTEST` to
+SUPPORTED on a Windows build of library `0.1.0` whose device arch is
+`arl-npu` and whose graph format is `NATIVE`.
 
 Two ROWS_DENSE records of the same IR are committed at `00aa734`,
 measured at library commit `febfed530`, case 8, and are reference

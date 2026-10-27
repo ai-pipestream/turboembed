@@ -125,14 +125,64 @@ fn mixed_arl_npu_minilm_records_support_model_and_fastest() {
     }
     for (label, c) in [
         ("linux", cell(TURBO_PRECISION_MODEL, "linux", "arl-npu", Some("NGRAPH_LITE"))),
-        ("native", cell(TURBO_PRECISION_MODEL, "windows", "arl-npu", Some("NATIVE"))),
-        ("native fastest", cell(TURBO_PRECISION_FASTEST, "windows", "arl-npu", Some("NATIVE"))),
+        ("native linux", cell(TURBO_PRECISION_MODEL, "linux", "arl-npu", Some("NATIVE"))),
+        ("native mtl", cell(TURBO_PRECISION_FASTEST, "windows", "mtl-npu", Some("NATIVE"))),
+        ("native exact", cell(TURBO_PRECISION_EXACT, "windows", "arl-npu", Some("NATIVE"))),
         ("mtl", cell(TURBO_PRECISION_MODEL, "windows", "mtl-npu", Some("NGRAPH_LITE"))),
         ("exact", cell(TURBO_PRECISION_EXACT, "windows", "arl-npu", Some("NGRAPH_LITE"))),
     ] {
         match decide_embedded(&c) {
             Verdict::Not(why) => assert_eq!(why, NO_RECORD, "{label}"),
             Verdict::Supported { benchmark, .. } => panic!("{label} supported by {benchmark}"),
+        }
+    }
+}
+
+#[test]
+fn mixed_arl_npu_native_minilm_records_support_model_and_fastest() {
+    // The NATIVE graph from the driver's exported blob, measured at
+    // db0514120b6a: cases 0 through 7, each its own [1, 128] frame,
+    // OpenVINO benchmark_app on the same frames. They are the only
+    // NATIVE records, so they back the windows arl-npu NATIVE cells.
+    let cell = |precision| Cell {
+        arch: "arl-npu",
+        name: "Intel(R) AI Boost",
+        cpu: false,
+        backend: "npu",
+        task: TURBO_TASK_EMBED,
+        precision,
+        dtype: TURBO_DTYPE_F16,
+        version: library_version(),
+        os: "windows",
+        graph_format: Some("NATIVE"),
+    };
+    let minilm = "sentence-transformers/all-MiniLM-L6-v2";
+    for (label, precision, p50, ratio) in [
+        ("model", TURBO_PRECISION_MODEL, 30.0209, 0.9980352393617021),
+        ("fastest", TURBO_PRECISION_FASTEST, 29.9576, 0.9952691029900333),
+    ] {
+        let name = format!("arl-npu.npu.native.embed.{label}.all-minilm-l6-v2-da08a0f9.db0514120b6a.json");
+        let rec = embedded().iter().find(|(n, _)| *n == name).unwrap().1.as_ref().unwrap();
+        let c = cell(precision);
+        assert!(rec.is_for(&c), "{label}");
+        assert!(!rec.is_for(&Cell { graph_format: Some("NGRAPH_LITE"), ..cell(precision) }), "{label}");
+        assert_eq!(rec.falls_short(&c), None, "{label}");
+        assert_eq!(rec.rows.cases, [0, 1, 2, 3, 4, 5, 6, 7], "{label}");
+        assert_eq!((rec.rows.batch, rec.rows.seq, rec.rows.live_tokens), (1, 128, 181), "{label}");
+        assert_eq!(rec.conformance.min_cosine, 0.999996097954919, "{label}");
+        assert_eq!(rec.device.driver_version, "0.15.21738", "{label}");
+        assert_eq!(rec.timing.p50_ms, p50, "{label}");
+        assert_eq!(rec.speed_ratio, Some(ratio), "{label}");
+        assert!(rec.references.iter().any(|r| r.name == "openvino" && r.measured.is_some()), "{label}");
+        for verdict in [decide_embedded(&c), decide_embedded_for(&c, Some(minilm))] {
+            match verdict {
+                Verdict::Supported { benchmark, cosine_floor, speed_ratio } => {
+                    assert_eq!(benchmark, name, "{label}");
+                    assert_eq!(cosine_floor, rec.conformance.min_cosine, "{label}");
+                    assert_eq!(speed_ratio, ratio, "{label}");
+                }
+                Verdict::Not(why) => panic!("{label} not supported: {why}"),
+            }
         }
     }
 }
