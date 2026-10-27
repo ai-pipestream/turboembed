@@ -463,27 +463,26 @@ against our 2.5.
 
 ### The linear layers alone against MLX
 
-`bench/metal-peers/gemm_time.swift` compiles `core/metal/kernels.metal`
-as the backend does and times each linear-layer shape of an encoder
-layer alone, with the operand types, epilogue and k split the encoder
-gives it: Q, K and V as one dispatch of three (n = h each), the attention
-output, the feed-forward input with GELU, and its output. Each time is a
-command buffer of 20 dispatches, from the host (commit to completion),
-divided by 20; 7 timed buffers after one untimed. `mlx_gemm.py` times MLX
-0.29.3's float16 `x @ w` at the same (M, n, k), Q, K and V as one product
-of n = 3h, 20 independent products in one `mx.eval` graph, from the host.
-Nine rounds on an M2, the order alternating by round, release builds:
+**Receipt pending (#812, #1427).** The historical table below compares
+unequal work and scheduling. It does not establish a tile-performance
+gap, choose a winning implementation, or satisfy #812's hardware gate.
+The old median-range and candidate-throughput claims are withdrawn:
+their raw per-round samples and measured source revision were not
+retained with this table.
 
-```
-swiftc -O bench/metal-peers/gemm_time.swift -o gemm_time
-./gemm_time core/metal/kernels.metal 384 768
-python3 bench/metal-peers/mlx_gemm.py 384 768
-```
+#### Historical observations, not a matched comparison
 
-The machine was in use. Before the rounds the 5-minute load average was
-2.8 to 3.6 and the GPU's utilization 23 to 35% from the desktop's apps,
-and it read 99% between rounds, so these are least times over the nine
-rounds, ours (`linear=auto`'s tile) / MLX's in ms, and the ratio:
+The original tools timed seven command buffers of twenty dispatches on
+Turbo, including encoder epilogues, against twenty independent bare
+products in one MLX graph. Turbo reused weights and outputs; MLX used
+distinct weights and could overlap products. Bias values were not
+initialized. The later harness repairs do not validate those old times.
+
+Reported load was a whole-session range (5-minute CPU load 2.8 to 3.6,
+GPU utilization 23 to 35% before the rounds and 99% between rounds),
+without per-round readings. The following preserves the reported least
+**host wall time** over nine rounds: Turbo / MLX in ms, then their ratio.
+These rounded observations have no raw receipt for independent checking.
 
 | h | M | Q, K, V | attention output | feed-forward in | feed-forward out |
 |---|---|---|---|---|---|
@@ -498,20 +497,55 @@ rounds, ours (`linear=auto`'s tile) / MLX's in ms, and the ratio:
 | 768 | 4096 | 5.571 / 4.484 (1.24) | 1.873 / 1.514 (1.24) | 7.641 / 5.927 (1.29) | 7.368 / 5.908 (1.25) |
 | 768 | 16384 | 22.209 / 17.873 (1.24) | 7.455 / 6.055 (1.23) | 30.509 / 25.099 (1.22) | 29.095 / 25.340 (1.15) |
 
-Every shape trails MLX's product, by 1.15x to 1.37x at the least time
-and 1.06x to 1.51x at the median of the nine rounds' least times: about
-2.4 to 2.8 TFLOPS against MLX's 3.2. So the gap is in the tile, not outside it.
-MLX's 20 products are independent and may overlap on the GPU, where our
-dispatches run one after another; that can account for part of the gap
-and is not separated here. Three of the issue's candidates, timed the
-same way in alternation with `h32n32` at M = 4096 and h = 384, gave no
-gain: a 64 x 32 tile with each group 32 x 16 (MLX's half "nt" tile on a
-small Apple GPU), 2.4 to 2.6 TFLOPS against `h32n32`'s 2.5 to 2.8; the
-weights staged from a `[k, n]` layout so both fragments load as pairs,
-2.3 to 2.5; and the library compiled with fast math, the same within
-the rounds' spread. A tile with no bounds checks could not be read: the
-GPU went to 98% from other apps and the spread between runs grew larger
-than the effect.
+
+The earlier 2.4-to-2.8 versus 3.2 TFLOPS summary does not describe all
+sizes: for h=384/M=128 attention output, these cells imply about 1.26
+and 1.51 TFLOPS respectively. None of these historical ratios isolates
+the tile from the other differences.
+
+#### Corrected harness and required replacement receipt
+
+Build the opt-in Swift harness with `swiftc -O`; it compiles
+`core/metal/kernels.metal` with safe math. Both tools now time exactly
+one operation per submission, twenty times after one warmup, and retain
+all samples with least, mean, median and nearest-rank p99. The median
+averages the middle pair for twenty samples; p99 is the largest of these
+twenty observations, not a high-confidence tail estimate. Swift refuses
+failed command buffers and invalid GPU times. There are no concurrent
+writes to shared outputs and no batched graph divided by an assumed
+number of products.
+
+Compare only Turbo `mode=bare` / `single_host` with MLX
+`mode=bare` / `single_host` at identical dimensions. Both use F16 inputs,
+F32 accumulation and F16 output with no bias or activation, and Q/K/V
+is one product with n=3h. Turbo's separate `mode=encoder` includes its
+bias/GELU, output type and capacity-bounded split choices; it has no
+matching MLX epilogue experiment here. GPU durations from Swift are
+reported separately and must not be compared to MLX host wall times.
+Weight layouts are recorded explicitly: Turbo stores contiguous [n,k],
+MLX contiguous [k,n]. Any resulting difference includes layout effects.
+
+```sh
+swiftc -O bench/metal-peers/gemm_time.swift -o gemm_time
+./gemm_time core/metal/kernels.metal 384 768 > turbo.jsonl
+python3 bench/metal-peers/mlx_gemm.py 384 768 > mlx.jsonl
+python3 -m unittest discover -s bench/metal-peers -p test_gemm_stats.py
+```
+
+The first line records kernel or pinned MLX 0.29.3 library/metallib
+hashes; result lines preserve full-precision samples. On an idle M2,
+collect at least five paired rounds, alternating Turbo-first and
+MLX-first. Save each side's JSON lines separately. Record the exact
+source commit, harness source and release binary hashes, macOS/device
+versions, commands and CPU/GPU load before and after each side of each
+round. Verify numerical outputs and command completion on that device
+before accepting the timings. Derive the new per-shape tables from those
+raw samples, with host and GPU statistics kept separate. Publish the
+records and update this section before treating the comparison as proof.
+The arithmetic tests run without MLX; they do not validate Metal kernels,
+MLX execution, numerical agreement or performance. The corrected hardware
+run remains outstanding, and #812 stays open.
+
 ### MLX as a recorded reference
 
 `turbo-bench record` on metal runs MLX beside TEI (docs/benchmarks.md,
