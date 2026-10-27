@@ -473,13 +473,20 @@ tool.
 
 ### A lost device (0x70000001)
 
-A call that fails with `0x70000001 (device lost)` means the kernel driver
-reset the context's queue. On the Arc Pro B70 under `xe`, each one seen
+A call that fails with `0x70000001 (device lost)` can indicate a device hang,
+reset, removal, or driver update, as defined by the
+[Level Zero API](https://github.com/oneapi-src/level-zero/blob/master/include/ze_api.h).
+The status alone does not identify the cause. Stop using any affected
+context, release its resources and the context, and create a new one only
+once the device is available again. Device removal or an ongoing driver
+problem may prevent recreation; it is not a guaranteed recovery.
+
+On the Arc Pro B70 under `xe`, each one seen
 (#1433) was a compute job that had not finished within the engine's job
 timeout (`/sys/class/drm/card0/device/tile0/gt0/engines/ccs/job_timeout_ms`,
 5000 ms), and the kernel log says so: `Timedout job ... in <process>`,
-then `Engine reset: engine_class=ccs`. The context cannot be used after
-that; release it and make a new one.
+then `Engine reset: engine_class=ccs`. These logs identify a timeout/reset
+for those observations, not for every possible device-loss error.
 
 On that machine all nine such resets on 2026-10-26, six of them in
 `levelzero_loads`, fell within the four days a desktop client (snap-store)
