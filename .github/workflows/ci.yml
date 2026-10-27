@@ -81,13 +81,14 @@ jobs:
       # the x86_64 kernels. Checked only: the crates left out reach ring
       # through ureq or rustls, whose build script needs an aarch64 C
       # compiler the runner does not have. The server is checked without
-      # catalog-http, its one way to ureq.
+      # catalog-http, its one way to ureq; the docling example's server
+      # client depends on it with default features.
       - name: check (aarch64)
         run: |
           cargo check --workspace --target aarch64-unknown-linux-gnu \
             --exclude turbo-bench --exclude turbo-bundle --exclude turbo-eval --exclude turbo-kserve \
             --exclude turbo-zoo --exclude turbo-train-components --exclude turbo-train-recipes \
-            --exclude turbo-kserve-demo
+            --exclude turbo-kserve-demo --exclude turbo-example-docling
           cargo check -p turbo-kserve --no-default-features --target aarch64-unknown-linux-gnu
 
   # Lints the versioned turbo.*.v1 proto contracts, checks pull requests
@@ -104,6 +105,8 @@ jobs:
       - uses: bufbuild/buf-setup-action@v1
         with:
           version: 1.70.0
+          # Authenticated, so the version lookup is not rate limited.
+          github_token: ${{ secrets.GITHUB_TOKEN }}
       - name: buf lint
         run: buf lint server/proto
       - name: buf breaking against main

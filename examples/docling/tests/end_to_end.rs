@@ -1,7 +1,7 @@
 //! `data/report.docling.json`, a small report in docling's JSON form, run
 //! through the whole pipeline with the tiny test model, against
 //! `data/report.expected.json`. Spans, levels and entities must match
-//! exactly; vector values within `TOLERANCE`, since kernels may round
+//! exactly; vector values within `report::TOLERANCE`, since kernels may round
 //! differently across machines. `BLESS=1` rewrites the expected file.
 
 use std::path::PathBuf;
@@ -10,9 +10,9 @@ use serde_json::Value;
 use turbo_analysis::{Ix, Key, Layer};
 use turbo_analysis_layers::{Block, Chunks, Structure};
 use turbo_example_docling::docling::parse;
+use turbo_example_docling::report::close;
 use turbo_example_docling::{CLEAN, analyze, pipeline, report};
 
-const TOLERANCE: f64 = 1e-3;
 const PLACES: [&str; 3] = ["Zürich", "Lyon", "Oslo"];
 
 fn here() -> PathBuf {
@@ -25,26 +25,6 @@ fn input() -> String {
 
 fn bundle() -> PathBuf {
     here().join("../../testdata/tiny-bert-bundle")
-}
-
-/// Equal, except numbers that are not integers, which may differ by
-/// `TOLERANCE`.
-fn close(path: &str, got: &Value, want: &Value) -> Result<(), String> {
-    match (got, want) {
-        (Value::Number(a), Value::Number(b)) if a.is_f64() || b.is_f64() => {
-            let (a, b) = (a.as_f64().unwrap(), b.as_f64().unwrap());
-            if (a - b).abs() <= TOLERANCE { Ok(()) } else { Err(format!("{path}: {a} vs {b}")) }
-        }
-        (Value::Array(a), Value::Array(b)) if a.len() == b.len() => {
-            a.iter().zip(b).enumerate().try_for_each(|(i, (x, y))| close(&format!("{path}[{i}]"), x, y))
-        }
-        (Value::Object(a), Value::Object(b)) if a.len() == b.len() => a.iter().try_for_each(|(k, x)| {
-            let y = b.get(k).ok_or_else(|| format!("{path}.{k}: not expected"))?;
-            close(&format!("{path}.{k}"), x, y)
-        }),
-        _ if got == want => Ok(()),
-        _ => Err(format!("{path}: {got} vs {want}")),
-    }
 }
 
 #[test]
