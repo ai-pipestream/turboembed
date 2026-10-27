@@ -151,10 +151,10 @@ fn bilstm_crf_on_ud_english_ewt() {
 }
 
 /// The device tiers on the test split (#860): MODEL on TURBO_TEST_DEVICE
-/// (cuda or levelzero) tags as the CPU packed path does, word for word. On
-/// CUDA, FASTEST (F16 weights) is within 0.1 accuracy points of MODEL and
-/// gives MODEL's tag on at least 99.9% of the words; on Level Zero, which
-/// has no FASTEST, it must be refused.
+/// (cuda, levelzero or metal) tags as the CPU packed path does, word for
+/// word. On CUDA, FASTEST (F16 weights) is within 0.1 accuracy points of
+/// MODEL and gives MODEL's tag on at least 99.9% of the words; on Level
+/// Zero and Metal, which have no FASTEST, it must be refused.
 #[test]
 #[ignore = "needs UD English EWT and TURBO_TEST_DEVICE; see the README"]
 fn device_tiers_on_ud_english_ewt() {
@@ -165,8 +165,8 @@ fn device_tiers_on_ud_english_ewt() {
     let cpu = BilstmPosTagger::new(model.clone());
     let on = |p| BilstmPosTagger::on_device_at(model.clone(), device, p);
     let gpu = on(Precision::Model).unwrap();
-    // FASTEST runs on CUDA alone; Level Zero refuses it, never running it
-    // at MODEL in its place.
+    // FASTEST runs on CUDA alone; Level Zero and Metal refuse it, never
+    // running it at MODEL in its place.
     let fast = match device {
         Device::Cuda(_) => Some(on(Precision::Fastest).unwrap()),
         _ => {

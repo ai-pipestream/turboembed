@@ -1,0 +1,24 @@
+### turbo-chunker-254-200-hybrid-metal 1b452912e8817da57ac3f2c14379623e2ee43262 2026-10-27T06:53:26Z load { 3.42 3.22 5.17 }
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set qasper: 21 judgements could not be placed in their document and are left out
+<scratch>/e881/turbo-chunker-254-200-hybrid-metal/scifact.json
+<scratch>/e881/turbo-chunker-254-200-hybrid-metal/nfcorpus.json
+<scratch>/e881/turbo-chunker-254-200-hybrid-metal/arguana.json
+<scratch>/e881/turbo-chunker-254-200-hybrid-metal/qasper.json
+### end turbo-chunker-254-200-hybrid-metal 2026-10-27T06:57:38Z status 0 load { 2.23 2.71 4.42 }
+### fixed-tokens-200-hybrid-metal 1b452912e8817da57ac3f2c14379623e2ee43262 2026-10-27T06:57:38Z load { 2.23 2.71 4.42 }
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set qasper: 21 judgements could not be placed in their document and are left out
+<scratch>/e881/fixed-tokens-200-hybrid-metal/scifact.json
+<scratch>/e881/fixed-tokens-200-hybrid-metal/nfcorpus.json
+<scratch>/e881/fixed-tokens-200-hybrid-metal/arguana.json
+<scratch>/e881/fixed-tokens-200-hybrid-metal/qasper.json
+### end fixed-tokens-200-hybrid-metal 2026-10-27T07:01:48Z status 0 load { 2.14 2.36 3.80 }
+### sentence-windows-5-hybrid-metal 1b452912e8817da57ac3f2c14379623e2ee43262 2026-10-27T07:01:48Z load { 2.14 2.36 3.80 }
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set qasper: 21 judgements could not be placed in their document and are left out
+<scratch>/e881/sentence-windows-5-hybrid-metal/scifact.json
+<scratch>/e881/sentence-windows-5-hybrid-metal/nfcorpus.json
+<scratch>/e881/sentence-windows-5-hybrid-metal/arguana.json
+<scratch>/e881/sentence-windows-5-hybrid-metal/qasper.json
+### end sentence-windows-5-hybrid-metal 2026-10-27T07:05:56Z status 0 load { 2.59 2.39 3.42 }
