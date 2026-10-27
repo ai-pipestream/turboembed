@@ -338,9 +338,9 @@ constexpr uint32_t LOG_DEBUG = 3;
 enum Kernel {
     EMBED_LN, ADD_LN, GEMM, GEMM_SMALL, ATTENTION, ATTENTION_NARROW, POOL, POOL_RANGES, WIDEN_F16, WIDEN_BF16,
     NARROW_F16, ATTENTION_H, ATTENTION_HR, GEMM_H32, GEMM_H64 = GEMM_H32 + 4, GEMM_H128 = GEMM_H64 + 4,
-    GEMM_H32N32 = GEMM_H128 + 4, GEMM_H64N32 = GEMM_H32N32 + 4, GEMM_SMALL_H = GEMM_H64N32 + 4, ABS_MAX_F16 = GEMM_SMALL_H + 4,
-    ATTENTION_H128, ATTENTION_HR128, DEBERTA_EMBED, DEBERTA_LN_ROWS, DEBERTA_RELATIVE, DEBERTA_ATTENTION, LSTM_PROJECT,
-    LSTM_STEP, KERNELS
+    GEMM_H32N32 = GEMM_H128 + 4, GEMM_H64N32 = GEMM_H32N32 + 4, GEMM_H32N32A = GEMM_H64N32 + 4,
+    GEMM_SMALL_H = GEMM_H32N32A + 4, ABS_MAX_F16 = GEMM_SMALL_H + 4, ATTENTION_H128, ATTENTION_HR128, DEBERTA_EMBED,
+    DEBERTA_LN_ROWS, DEBERTA_RELATIVE, DEBERTA_ATTENTION, LSTM_PROJECT, LSTM_STEP, KERNELS
 };
 const char *const KERNEL_NAMES[KERNELS] = {
     "embed_layer_norm", "add_layer_norm",  "gemm",            "gemm_small",      "attention",       "attention_narrow",
@@ -350,6 +350,7 @@ const char *const KERNEL_NAMES[KERNELS] = {
     "gemm_h64_hf",      "gemm_h64_hh",     "gemm_h128_ff",    "gemm_h128_fh",    "gemm_h128_hf",    "gemm_h128_hh",
     "gemm_h32n32_ff",   "gemm_h32n32_fh",  "gemm_h32n32_hf",  "gemm_h32n32_hh",
     "gemm_h64n32_ff",   "gemm_h64n32_fh",  "gemm_h64n32_hf",  "gemm_h64n32_hh",
+    "gemm_h32n32a_ff",  "gemm_h32n32a_fh", "gemm_h32n32a_hf", "gemm_h32n32a_hh",
     "gemm_small_h_ff",  "gemm_small_h_fh", "gemm_small_h_hf", "gemm_small_h_hh", "abs_max_f16",
     "attention_h128",   "attention_hr128", "deberta_embed",  "deberta_layer_norm_rows", "deberta_relative",
     "deberta_attention", "lstm_project",   "lstm_step"};
@@ -1708,13 +1709,16 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
         }
         const uint32_t kchunk = (uint32_t)round_up((n_in + splits - 1) / splits, bk);
         splits = (n_in + kchunk - 1) / kchunk;
+        // Whole 32 x 32 tiles and whole k steps in every split: the
+        // 32 x 32 tile's form without range checks, the same bits.
+        const bool aligned = tokens % 32 == 0 && n_out % 32 == 0 && n_in % 32 == 0 && kchunk % 32 == 0;
         const GemmParams p{tokens, n_out, n_in, epilogue, splits, kchunk};
         int kernel = small ? GEMM_SMALL : GEMM;
         if (f16) {
             const int types = (x_half ? 2 : 0) + (y_half ? 1 : 0);
             kernel = (small                     ? GEMM_SMALL_H
                       : tile == LINEAR_H128 ? GEMM_H128
-                      : tile == LINEAR_H32N32 ? GEMM_H32N32
+                      : tile == LINEAR_H32N32 ? (aligned ? GEMM_H32N32A : GEMM_H32N32)
                       : tile == LINEAR_H64N32 ? GEMM_H64N32
                       : tile == LINEAR_H64  ? GEMM_H64
                                             : GEMM_H32) +
