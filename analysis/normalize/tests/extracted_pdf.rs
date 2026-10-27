@@ -145,3 +145,19 @@ fn corpus_gold_support_includes_replacement_and_recurring_headers() {
     assert_eq!(gold.iter().filter(|a| a.kind == ArtifactKind::RepeatedLine).count(), 6);
     assert!(!gold.iter().any(|a| matches!(a.kind, ArtifactKind::Mojibake | ArtifactKind::ZeroWidth)));
 }
+
+#[test]
+fn every_excerpt_has_a_licence_inventory_entry() {
+    let licences = include_str!("../../../docs/licences.md");
+    let start = licences.find("### Extracted PDF artifact evaluation").unwrap();
+    let section = &licences[start..];
+    let section = &section[..section[4..].find("\n#").map_or(section.len(), |i| i + 4)];
+    for (id, ..) in SAMPLES {
+        assert!(section.contains(&format!("`{id}.escaped`")), "{id} missing from docs/licences.md");
+    }
+    for needle in
+        ["Leonard Ng", "10.17632/9mrxwtfh6w.1", "SI_Annex_C-List_of_questions_asked_by_learners.pdf", "CC BY 4.0"]
+    {
+        assert!(section.contains(needle), "{needle:?} missing from the Leodar licence entry");
+    }
+}
