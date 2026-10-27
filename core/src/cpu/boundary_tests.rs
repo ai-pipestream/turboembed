@@ -79,6 +79,8 @@ fn session(table: &[f32], precision: u32) -> Result<Vec<f32>, (i32, u32, String)
         lookahead: 0,
         position_buckets: 0,
         max_relative_positions: 0,
+        artifact_sha256: [0; 32],
+        artifact2_sha256: [0; 32],
     };
     let mut err = error();
     let mut model = std::ptr::null_mut();

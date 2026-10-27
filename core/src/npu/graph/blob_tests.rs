@@ -71,8 +71,12 @@ impl Loader for Fake {
     }
 }
 
+/// The manifest's digests stand in for the files: nothing is hashed.
+const XML: [u8; 32] = [1; 32];
+const BIN: [u8; 32] = [2; 32];
+
 fn key(flags: &str) -> Key {
-    Key::new(b"<net/>", b"weights", flags, (7, 28), "1.38.0", "arl-npu")
+    Key::new(XML, BIN, flags, (7, 28), "1.38.0", "arl-npu")
 }
 
 fn run(f: &mut Fake, native: bool, cache: &Mutex<Cache>) -> (Option<u32>, Option<Source>) {
@@ -164,21 +168,18 @@ fn every_part_of_the_key_tells_blobs_apart() {
     let base = key("f");
     assert_eq!(base, key("f"));
     let other = [
-        Key::new(b"<net />", b"weights", "f", (7, 28), "1.38.0", "arl-npu"),
-        Key::new(b"<net/>", b"weightz", "f", (7, 28), "1.38.0", "arl-npu"),
-        Key::new(b"<net/>", b"weights", "g", (7, 28), "1.38.0", "arl-npu"),
-        Key::new(b"<net/>", b"weights", "f", (7, 29), "1.38.0", "arl-npu"),
-        Key::new(b"<net/>", b"weights", "f", (7, 28), "1.38.1", "arl-npu"),
-        Key::new(b"<net/>", b"weights", "f", (7, 28), "1.38.0", "lnl-npu"),
+        Key::new([3; 32], BIN, "f", (7, 28), "1.38.0", "arl-npu"),
+        Key::new(XML, [3; 32], "f", (7, 28), "1.38.0", "arl-npu"),
+        Key::new(XML, BIN, "g", (7, 28), "1.38.0", "arl-npu"),
+        Key::new(XML, BIN, "f", (7, 29), "1.38.0", "arl-npu"),
+        Key::new(XML, BIN, "f", (7, 28), "1.38.1", "arl-npu"),
+        Key::new(XML, BIN, "f", (7, 28), "1.38.0", "lnl-npu"),
+        Key::new(BIN, XML, "f", (7, 28), "1.38.0", "arl-npu"),
     ];
     for k in other {
         assert_ne!(k, base);
     }
-    // The files are keyed by their SHA-256, as sha256sum prints it.
-    assert_eq!(
-        turbo_sha256::Digest(base.bin).to_hex(),
-        "9a129038d9a00aed0cf6a7ea059ca50a813449061ab87848cf1a13eafdf33b2c"
-    );
+    assert_eq!((base.xml, base.bin), (XML, BIN), "the digests are kept as given");
 }
 
 #[test]
@@ -214,4 +215,22 @@ fn the_source_names_the_format() {
     assert_eq!(Source::Cache.format(), "NATIVE");
     assert_eq!(Source::Compiled.format(), "NATIVE");
     assert_eq!(Source::Lite.format(), "NGRAPH_LITE");
+}
+
+/// The key comes from the description the core filled; a shorter one,
+/// or one with a zero digest, keys nothing and the load stays lite.
+#[test]
+fn the_key_takes_the_manifest_digests_when_the_description_has_them() {
+    use super::model::digests;
+    let full = size_of::<crate::backend::turbo_backend_model>() as u32;
+    let mut d = super::tests::manifest(0, 0, 0, 0, 0);
+    d.artifact_sha256 = XML;
+    d.artifact2_sha256 = BIN;
+    d.struct_size = full;
+    assert_eq!(digests(&d), Some((XML, BIN)));
+    d.struct_size = std::mem::offset_of!(crate::backend::turbo_backend_model, artifact_sha256) as u32;
+    assert_eq!(digests(&d), None, "a description from before the digests");
+    d.struct_size = full;
+    d.artifact2_sha256 = [0; 32];
+    assert_eq!(digests(&d), None, "no digest for the weights");
 }

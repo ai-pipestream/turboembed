@@ -1,9 +1,15 @@
-//! Which graph a load initializes, and the process's native blobs.
+//! Which graph a load initializes, the process's native blobs, and how
+//! long each step of the last load took.
 //!
-//! A graph extension that exports a compiled graph (`pfnGetNativeBinary2`
-//! or `pfnGetNativeBinary`) loads the IR as `ZE_GRAPH_FORMAT_NATIVE`:
-//! from the blob this process kept for the same key, else from the blob
-//! the NGRAPH_LITE compile just produced. The device's
+//! A load initializes the NGRAPH_LITE graph the driver compiled, unless
+//! the library is built with `npu-native`. Then a graph extension that
+//! exports a compiled graph (`pfnGetNativeBinary2` or
+//! `pfnGetNativeBinary`) loads the IR as `ZE_GRAPH_FORMAT_NATIVE`: from
+//! the blob this process kept for the same key, else from the blob the
+//! NGRAPH_LITE compile just produced. It is opt-in because the blobs are
+//! kept per process: a process's first load of an IR compiles, exports
+//! and creates the graph again, which is slower than NGRAPH_LITE alone,
+//! and only a later load of the same IR in that process can gain. The device's
 //! `graphFormatsSupported` is not read for this. Intel's driver sets it
 //! to NATIVE and then overwrites it with NGRAPH_LITE whenever its
 //! compiler loads (intel/linux-npu-driver,
@@ -15,15 +21,19 @@
 //! The blobs are kept in memory only. A blob carries the weights, which
 //! is hundreds of megabytes for a large model, and the one cache
 //! directory the library knows, TURBO_AUTOTUNE_CACHE, holds small JSON
-//! entries.
+//! entries. The key names the IR's files by the SHA-256 the manifest
+//! records, which the core verified before model_load: nothing is hashed
+//! here.
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::{Duration, Instant};
 
 use super::Res;
 
-/// What a native blob is valid for: both files of the IR by SHA-256, the
-/// build flags, the compiler, the driver and the device's arch.
+/// What a native blob is valid for: both files of the IR by the SHA-256
+/// the manifest records, the build flags, the compiler, the driver and
+/// the device's arch.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Key {
     pub xml: [u8; 32],
@@ -35,16 +45,8 @@ pub(crate) struct Key {
 }
 
 impl Key {
-    /// The files are hashed where they lie; nothing is copied.
-    pub fn new(xml: &[u8], bin: &[u8], flags: &str, compiler: (u16, u16), driver: &str, arch: &str) -> Key {
-        Key {
-            xml: turbo_sha256::sha256(xml).0,
-            bin: turbo_sha256::sha256(bin).0,
-            flags: flags.to_owned(),
-            compiler,
-            driver: driver.to_owned(),
-            arch: arch.to_owned(),
-        }
+    pub fn new(xml: [u8; 32], bin: [u8; 32], flags: &str, compiler: (u16, u16), driver: &str, arch: &str) -> Key {
+        Key { xml, bin, flags: flags.to_owned(), compiler, driver: driver.to_owned(), arch: arch.to_owned() }
     }
 }
 
@@ -153,7 +155,7 @@ pub(crate) trait Loader {
 /// initialized in its place.
 pub(crate) fn select<L: Loader>(l: &mut L, native: Option<&Key>, cache: &Mutex<Cache>) -> Res<(L::Out, Source)> {
     if let Some(key) = native {
-        let kept = lock(cache).get(key);
+        let kept = timed("lookup", || lock(cache).get(key));
         if let Some(blob) = kept {
             match l.create_native(&blob).and_then(|g| l.finish(g, Source::Cache)) {
                 Ok(out) => return Ok((out, Source::Cache)),
@@ -190,24 +192,47 @@ pub(crate) fn select<L: Loader>(l: &mut L, native: Option<&Key>, cache: &Mutex<C
 }
 
 thread_local! {
-    static PREFER_LITE: Cell<bool> = const { Cell::new(false) };
+    static NATIVE: Cell<Option<bool>> = const { Cell::new(None) };
     static LAST: Cell<Option<Source>> = const { Cell::new(None) };
+    static PHASES: RefCell<Vec<(&'static str, Duration)>> = const { RefCell::new(Vec::new()) };
 }
 
-/// Whether this thread's loads skip the native path (the tests' switch).
-pub(crate) fn lite_preferred() -> bool {
-    PREFER_LITE.with(Cell::get)
+/// Whether this thread's loads take the native path: the build's choice
+/// (`npu-native`), unless the tests' switch says otherwise.
+pub(crate) fn native_wanted() -> bool {
+    NATIVE.with(Cell::get).unwrap_or(cfg!(feature = "npu-native"))
 }
 
 pub(crate) fn record(source: Source) {
     LAST.with(|c| c.set(Some(source)));
 }
 
-/// This thread's loads compile and initialize NGRAPH_LITE alone while
-/// `on`. Built only with `internals`.
+/// A new load: its steps' times start empty.
+pub(crate) fn begin() {
+    PHASES.with(|p| p.borrow_mut().clear());
+}
+
+/// `f`, its time kept under `name` for this thread's load.
+pub(crate) fn timed<T>(name: &'static str, f: impl FnOnce() -> T) -> T {
+    let t = Instant::now();
+    let out = f();
+    PHASES.with(|p| p.borrow_mut().push((name, t.elapsed())));
+    out
+}
+
+/// This thread's last load's steps, as the debug log says them.
+pub(crate) fn phases() -> String {
+    PHASES.with(|p| {
+        p.borrow().iter().map(|(n, d)| format!("{n} {:.1} ms", d.as_secs_f64() * 1e3)).collect::<Vec<_>>().join(", ")
+    })
+}
+
+/// This thread's loads take the native path when `Some(true)`, never
+/// when `Some(false)`, and as built when `None`. Built only with
+/// `internals`.
 #[cfg(feature = "internals")]
-pub fn prefer_lite(on: bool) {
-    PREFER_LITE.with(|c| c.set(on));
+pub fn set_native(on: Option<bool>) {
+    NATIVE.with(|c| c.set(on));
 }
 
 /// Where this thread's last npu load came from: `cache`, `compiled` or
@@ -215,4 +240,13 @@ pub fn prefer_lite(on: bool) {
 #[cfg(feature = "internals")]
 pub fn last_load() -> Option<&'static str> {
     LAST.with(|c| c.get().map(Source::name))
+}
+
+/// The steps of this thread's last npu load and how long each took, in
+/// order: `ir`, `key`, `lookup`, `container`, `compile`, `export`,
+/// `create`, `initialize`, as the load took them. Built only with
+/// `internals`.
+#[cfg(feature = "internals")]
+pub fn last_phases() -> Vec<(&'static str, Duration)> {
+    PHASES.with(|p| p.borrow().clone())
 }

@@ -71,3 +71,7 @@ levelzero-onednn = ["levelzero"]
 # loader is opened at run time, so nothing is needed to build
 # (docs/npu.md). Distinct from `levelzero`, the Intel GPU backend.
 npu = ["dep:libloading"]
+# Load the npu graph from the driver's exported native blob, kept per
+# process, instead of the compiled IR alone (docs/npu.md). Opt-in: a
+# process's first load of an IR is slower this way.
+npu-native = ["npu"]

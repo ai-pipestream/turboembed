@@ -145,6 +145,8 @@ pub(super) fn manifest(graph_input: u32, hidden: u32, heads: u32, seq: u32, batc
         lookahead: 0,
         position_buckets: 0,
         max_relative_positions: 0,
+        artifact_sha256: [0; 32],
+        artifact2_sha256: [0; 32],
     }
 }
 
