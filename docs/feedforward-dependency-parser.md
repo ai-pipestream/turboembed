@@ -89,15 +89,17 @@ cargo run --release -p turbo-depparse --bin turbo-depparse -- train feedforward 
 cargo run --release -p turbo-depparse --bin turbo-depparse -- train linear en train.conllu linear.properties linear.bin --projective-only
 ```
 
-The commands above require an explicit parameter file and `--projective-only`.
-They filter non-projective trees before training and report input, retained
+The commands above require an explicit parameter file. With
+`--projective-only` they filter non-projective trees before training and report input, retained
 and excluded sentence/word counts. Models use `Plain` relation encoding, so
 carets and backslashes in relation labels remain literal. They then report
 elapsed training seconds and corpus/parameter/model SHA256 values. Retain this receipt with the source corpus and parameter file;
 the neural container does not store training language or corpus provenance.
 Training consumes the supplied file only; keep train, development and test
-roles separate. An empty projective population is an error. This command does
-not solve non-projective training or constitute a measured accuracy release.
+roles separate. An empty projective population is an error. Non-projective
+trees are kept by the default pseudo-projective mode and by `--swap`,
+described below. None of these commands constitutes a measured accuracy
+release.
 
 The linear CLI currently supports `Algorithm=MAXENT` and requires explicit
 positive `Iterations` and `Threads`, plus nonnegative `Cutoff`. Other algorithms
