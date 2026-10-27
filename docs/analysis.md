@@ -4779,7 +4779,8 @@ does, and `check` refuses a lemmatizer's record with tag mappings.
 
 The lineup the records above were made with has no encoder the
 licence audit proves permissive (docs/licences.md): all-MiniLM-L6-v2
-trains on MS MARCO and SNLI/MultiNLI, the BGE family does not pin a
+trains on MS MARCO, SNLI/MultiNLI and Reddit pairs with no confirmed
+text grant, the BGE family does not pin a
 per-model mixture, and the potion statics inherit BGE. The encoder
 adopted as the shippable default is
 `ibm-granite/granite-embedding-30m-english` (Apache-2.0): IBM's card
