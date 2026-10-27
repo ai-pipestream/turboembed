@@ -348,10 +348,11 @@ the server's prost types. Nothing is mocked.
   every unknown method refused without it and every read tried; the
   token; a write off loopback without a token refused at startup; the
   origin check, CORS grants and preflights.
-- `demo/tests/tls.rs`: a call over TLS with a test CA
-  (`demo/tests/tls`, for these tests only), plain HTTP not answered, a
-  certificate or key that does not load, and an upload over TLS refused
-  by default and forwarded when allowed.
+- `demo/tests/tls.rs`: a call over TLS with a test CA, plain HTTP not
+  answered, a certificate or key that does not load, and an upload over
+  TLS refused by default and forwarded when allowed. The CA, certificate
+  and key are made when the tests run (`demo/tests/tls/certs.rs`); no key
+  is committed.
 - `demo/tests/upload.rs`: a 7 MB dictionary whose first 4 MiB chunk
   reaches the server before the body is sent, a learning corpus, and a
   batch of 30 documents over 2 MB answered with the binary

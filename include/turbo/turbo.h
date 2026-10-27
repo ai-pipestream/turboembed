@@ -553,9 +553,15 @@ typedef struct turbo_token_batch {
 /* A range of one row's tokens, for turbo_embed_write_ranges: the columns
  * [start, end) of row row of the batch written with it, with row under
  * batch and start < end <= seq. The range's vector is pooled over the
- * tokens in it whose mask is 1, so it may cover padding; it must hold at
- * least one live token. Ranges may overlap, come in any order, and leave
- * rows out, and the same range may appear twice. */
+ * tokens in it whose mask is 1, so it may cover padding. A range holding
+ * no live token is pooled over all its columns instead: those columns'
+ * states are computed, attending only to the row's live tokens, which is
+ * what a caller that reads mask-0 positions' vectors (ColBERT's query
+ * augmentation) needs. Only the cpu backend's BERT and RoBERTa encoders
+ * compute mask-0 columns; on another backend or family such a range is
+ * TURBO_E_UNSUPPORTED_OPTION naming the range by its index. Ranges may
+ * overlap, come in any order, and leave rows out, and the same range may
+ * appear twice. */
 typedef struct turbo_token_range {
     uint32_t row;
     uint32_t start;
@@ -606,9 +612,10 @@ int32_t turbo_embed_write_tokens(turbo_session *s, const turbo_token_batch *batc
  * special token is pooled when a range covers it, so a caller that wants
  * the text alone leaves it out. count of 0 is TURBO_E_INVALID_ARGUMENT;
  * count over the session's max_ranges is TURBO_E_CAPACITY; a range whose
- * row is not under batch, whose start is not under its end, whose end is
- * over seq, or that holds no token with mask 1 is TURBO_E_INVALID_ARGUMENT
- * naming the range by its index. opts may be NULL.
+ * row is not under batch, whose start is not under its end, or whose end
+ * is over seq is TURBO_E_INVALID_ARGUMENT naming the range by its index,
+ * and a range holding no token with mask 1 is as turbo_token_range says.
+ * opts may be NULL.
  *
  * On an extractive QA model (TURBO_TASK_EXTRACTIVE_QA) whose device applies
  * the span head (the cuda backend), each range's vector goes through the

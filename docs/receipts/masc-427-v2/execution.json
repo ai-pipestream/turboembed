@@ -1,0 +1,192 @@
+{
+  "source_sha": "8812b1db16ff47890be43be96d6835eea12306af",
+  "binary_sha256": "be818fba6d2cc25b4f045b0ad7f55950c146a544d3fe5efdf2d0c6ba4976c664",
+  "compiler": "rustc 1.99.0 (b940084d7 2026-09-28)\nbinary: rustc\ncommit-hash: b940084d7eb6a299eb4bfeb8e34901bc051e7ac4\ncommit-date: 2026-09-28\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.0\nLLVM version: 23.1.1\n",
+  "profile": "release",
+  "cpu_affinity": [
+    30,
+    31
+  ],
+  "nice": 10,
+  "grid": "300/0/document;300/0/sentence;100/5/document;100/5/sentence",
+  "folds": 10,
+  "types": [
+    "person",
+    "location",
+    "organization",
+    "date"
+  ],
+  "results": [
+    {
+      "model_id": "turbo-en-masc-3.0.0-ner-person-2",
+      "start_utc": "2026-10-26T18:09:38.833988+00:00",
+      "load_before": [
+        73.85400390625,
+        58.09033203125,
+        32.32421875
+      ],
+      "exit_status": 0,
+      "elapsed_seconds": 2024.9007874600356,
+      "end_utc": "2026-10-26T18:43:23.735470+00:00",
+      "load_after": [
+        32.02490234375,
+        34.70068359375,
+        43.3876953125
+      ],
+      "files": {
+        "selection.json": {
+          "size": 257466,
+          "sha256": "0e1ef30a0876f410df7486586813e066444703f3ef5da737bc87f497550e5221"
+        },
+        "turbo-en-masc-3.0.0-ner-person-2.bin": {
+          "size": 2415956,
+          "sha256": "9542e7eb3fad35ea3d31f4b34d2c718e3a30c07b982984339a3e9dedf6fedc4e"
+        },
+        "card.json": {
+          "size": 4879,
+          "sha256": "110c308f30d056984d773fe5b8a1ebfbac56ecbadab4a0f293641c5faf757c6f"
+        },
+        "gate.json": {
+          "size": 1380311,
+          "sha256": "f7aca1b9de4db4790ecbcd7ece9451208a8dd6698104a575ef51e4b81044bc70"
+        }
+      },
+      "resource_usage": {
+        "User time (seconds)": "1373.66",
+        "System time (seconds)": "3.43",
+        "Maximum resident set size (kbytes)": "1023848",
+        "Exit status": "0"
+      },
+      "command": "turbo-train-recipes masc-namefind-select --corpus MASC-3.0.0 --references references --out models-v2 --recipe turbo-en-masc-3.0.0-ner-person-2"
+    },
+    {
+      "model_id": "turbo-en-masc-3.0.0-ner-location-2",
+      "start_utc": "2026-10-26T18:43:23.742093+00:00",
+      "load_before": [
+        32.02490234375,
+        34.70068359375,
+        43.3876953125
+      ],
+      "exit_status": 1,
+      "elapsed_seconds": 1252.5541112279752,
+      "end_utc": "2026-10-26T19:04:16.296353+00:00",
+      "load_after": [
+        30.958984375,
+        23.10205078125,
+        28.45166015625
+      ],
+      "files": {
+        "selection.json": {
+          "size": 257456,
+          "sha256": "afd0a9a164c63e2bd56a176ee3950956d1a0feff4f8f57b14e95a5f74855da86"
+        },
+        "turbo-en-masc-3.0.0-ner-location-2.bin": {
+          "size": 17610521,
+          "sha256": "775d261e3e0fe0ee1f724ebd1e93d9a0da06ef2c0db71ca99a63a453a1f2fc7e"
+        },
+        "card.json": {
+          "size": 4889,
+          "sha256": "918e810780e70a41aab91ec70a2f2ecb6cf299f599d6d30aa32d809ee9a6d084"
+        },
+        "gate.json": {
+          "size": 1380315,
+          "sha256": "d8dbe9a0a9c352658af3da69f0dffaa94739a32e274161028cbbddf2c696d349"
+        }
+      },
+      "resource_usage": {
+        "User time (seconds)": "1207.62",
+        "System time (seconds)": "2.08",
+        "Maximum resident set size (kbytes)": "1037936",
+        "Exit status": "1"
+      },
+      "command": "turbo-train-recipes masc-namefind-select --corpus MASC-3.0.0 --references references --out models-v2 --recipe turbo-en-masc-3.0.0-ner-location-2"
+    },
+    {
+      "model_id": "turbo-en-masc-3.0.0-ner-organization-2",
+      "start_utc": "2026-10-26T19:04:16.313673+00:00",
+      "load_before": [
+        30.958984375,
+        23.10205078125,
+        28.45166015625
+      ],
+      "exit_status": 1,
+      "elapsed_seconds": 1179.0235954259988,
+      "end_utc": "2026-10-26T19:23:55.340791+00:00",
+      "load_after": [
+        25.99267578125,
+        24.98486328125,
+        25.59130859375
+      ],
+      "files": {
+        "selection.json": {
+          "size": 257302,
+          "sha256": "4fa984901debd068ffe5c700488483f2838afab95106500d1329829ebdb8b2b5"
+        },
+        "turbo-en-masc-3.0.0-ner-organization-2.bin": {
+          "size": 2430522,
+          "sha256": "b6010e059853605dda592b94965578888c527817a9c4059dedcea5ef9030b7dc"
+        },
+        "card.json": {
+          "size": 4884,
+          "sha256": "6683f25459a1ab1457258b81ef038101ea831248d4a521a64b9b616bbc7afd34"
+        },
+        "gate.json": {
+          "size": 1380411,
+          "sha256": "f4bd13b383b89434dad3ef0829a76396221123e4e4e813ac9946bef6776eb4ca"
+        }
+      },
+      "resource_usage": {
+        "User time (seconds)": "1144.03",
+        "System time (seconds)": "1.67",
+        "Maximum resident set size (kbytes)": "1020388",
+        "Exit status": "1"
+      },
+      "command": "turbo-train-recipes masc-namefind-select --corpus MASC-3.0.0 --references references --out models-v2 --recipe turbo-en-masc-3.0.0-ner-organization-2"
+    },
+    {
+      "model_id": "turbo-en-masc-3.0.0-ner-date-2",
+      "start_utc": "2026-10-26T19:23:55.343481+00:00",
+      "load_before": [
+        25.99267578125,
+        24.98486328125,
+        25.59130859375
+      ],
+      "exit_status": 1,
+      "elapsed_seconds": 2179.5898092470597,
+      "end_utc": "2026-10-26T20:00:14.977076+00:00",
+      "load_after": [
+        95.9619140625,
+        58.07470703125,
+        50.1533203125
+      ],
+      "files": {
+        "selection.json": {
+          "size": 257402,
+          "sha256": "902bfd9de28b1b5b9cbb2f338dfe34d57cdc4d752850d4f204ae9b4d6b8418d9"
+        },
+        "turbo-en-masc-3.0.0-ner-date-2.bin": {
+          "size": 2418352,
+          "sha256": "76b34b2345d6586a3f005ccb0984cc492814729767a5cb62c40f8a8d9a4fa64b"
+        },
+        "card.json": {
+          "size": 4875,
+          "sha256": "0cbda4fb7e0e4f750ce1ec3fb45b3fef0367aa01b38d28b2627fcd858ed66395"
+        },
+        "gate.json": {
+          "size": 1380300,
+          "sha256": "e6695a2995d7ef6fcc7314d460316afcce1bc81f6626b76ac1066a3d2839d56b"
+        }
+      },
+      "resource_usage": {
+        "User time (seconds)": "1589.83",
+        "System time (seconds)": "4.64",
+        "Maximum resident set size (kbytes)": "1019360",
+        "Exit status": "1"
+      },
+      "command": "turbo-train-recipes masc-namefind-select --corpus MASC-3.0.0 --references references --out models-v2 --recipe turbo-en-masc-3.0.0-ner-date-2"
+    }
+  ],
+  "cpu_model": "AMD Ryzen 9 9950X3D 16-Core Processor",
+  "build_jobs": 2,
+  "build_command": "CARGO_BUILD_JOBS=2 cargo build --release -p turbo-train-recipes"
+}

@@ -415,9 +415,14 @@ kernel void gemm_h(device const XT *x [[buffer(0)]], device const half *w0 [[buf
 // tile staged as it lies, [32][HBK], 16 bytes at a time, so no stage
 // transposes. On the M2 a whole run with it is 7 to 9% faster than with
 // gemm_h's 32 x 64 tile from 2 to 8 rows of 128 tokens, and 13.8% faster
-// at 1 x 128 (docs/metal.md, Kernel choices). Same bindings, splits and
-// epilogue as gemm_h.
-template <typename XT, typename YT>
+// at 1 x 128 (docs/metal.md, Kernel choices). With TM 4 the tile is
+// 64 x 32, each group 4 x 2 fragments, the shape MLX runs a half "nt"
+// product in on a small Apple GPU (h64n32). With AL the host has
+// checked that m, n and k are whole multiples of 32, so no row, column or
+// k step is out of range and the checks go: the same sums in the same
+// order, about 6% faster on the M2 (docs/metal.md). Same bindings, splits
+// and epilogue as gemm_h.
+template <typename XT, typename YT, uint TM, bool AL>
 kernel void gemm_hn(device const XT *x [[buffer(0)]], device const half *w0 [[buffer(1)]],
                     device const half *w1 [[buffer(2)]], device const half *w2 [[buffer(3)]],
                     device const float *b0 [[buffer(4)]], device const float *b1 [[buffer(5)]],
@@ -425,19 +430,28 @@ kernel void gemm_hn(device const XT *x [[buffer(0)]], device const half *w0 [[bu
                     device YT *y2 [[buffer(9)]], constant GemmParams &p [[buffer(10)]],
                     uint3 tg [[threadgroup_position_in_grid]], ushort tid [[thread_index_in_threadgroup]],
                     ushort sg [[simdgroup_index_in_threadgroup]], ushort lane [[thread_index_in_simdgroup]]) {
-    threadgroup half xs[32 * HLD];
+    constexpr uint BM = 16 * TM;
+    threadgroup half xs[BM * HLD];
     threadgroup half ws[32 * HLD];
     const uint layer = tg.z / p.splits, split = tg.z % p.splits;
     device const half *w = layer == 0 ? w0 : layer == 1 ? w1 : w2;
     device const float *bias = layer == 0 ? b0 : layer == 1 ? b1 : b2;
     device YT *y = (layer == 0 ? y0 : layer == 1 ? y1 : y2) + ulong(split) * p.m * p.n;
-    const uint m0 = tg.y * 32, n0 = tg.x * 32, k = p.k, n = p.n, m = p.m;
+    const uint m0 = tg.y * BM, n0 = tg.x * 32, k = p.k, n = p.n, m = p.m;
     const uint kbegin = split * p.kchunk, kend = min(k, kbegin + p.kchunk);
-    // Each thread stages eight values of one row of x and one of w per
-    // step: 128 threads cover the 32 rows of each, 4 groups of 8 along k.
+    // Each thread stages eight values of TM / 2 rows of x and one of w per
+    // step: 128 threads cover 32 rows a pass, 4 groups of 8 along k.
+    constexpr uint XP = TM / 2;
     const uint r = tid / 4, c = (tid % 4) * 8;
-    const bool xin = m0 + r < m, win = n0 + r < n;
-    device const XT *xp = x + ulong(min(m0 + r, m - 1)) * k + kbegin + c;
+    const bool win = AL || n0 + r < n;
+    bool xin[XP];
+    device const XT *xp[XP];
+    _Pragma("clang loop unroll(full)")
+    for (uint i = 0; i < XP; i++) {
+        const uint row = m0 + r + 32 * i;
+        xin[i] = AL || row < m;
+        xp[i] = x + ulong(AL ? row : min(row, m - 1)) * k + kbegin + c;
+    }
     device const half *wp = w + ulong(min(n0 + r, n - 1)) * k + kbegin + c;
     const Coord cd = lane_coord(lane);
     const uint tm = 8 * (sg / 2), tn = 8 * (sg % 2);
@@ -445,26 +459,29 @@ kernel void gemm_hn(device const XT *x [[buffer(0)]], device const half *w0 [[bu
     // fn and fn + 1; of w, k fm at columns tn + 16j + fn and fn + 1.
     threadgroup const half *ap = xs + (tm + cd.fm) * HLD + cd.fn;
     threadgroup const half *bp = ws + (tn + cd.fn) * HLD + cd.fm;
-    simdgroup_float8x8 acc[2][2];
+    simdgroup_float8x8 acc[TM][2];
     _Pragma("clang loop unroll(full)")
-    for (uint i = 0; i < 2; i++)
+    for (uint i = 0; i < TM; i++)
         _Pragma("clang loop unroll(full)")
         for (uint j = 0; j < 2; j++) acc[i][j] = make_filled_simdgroup_matrix<float, 8, 8>(0.0f);
     for (uint k0 = kbegin; k0 < kend; k0 += HBK) {
         threadgroup_barrier(mem_flags::mem_threadgroup);
         // k is a multiple of 8, so eight values lie wholly inside k or
         // wholly past it.
-        const bool kin = k0 + c < kend;
-        eight(xs + r * HLD + c, xp, kin && xin);
+        const bool kin = AL || k0 + c < kend;
+        _Pragma("clang loop unroll(full)")
+        for (uint i = 0; i < XP; i++) {
+            eight(xs + (r + 32 * i) * HLD + c, xp[i], kin && xin[i]);
+            xp[i] += HBK;
+        }
         *(threadgroup float4 *)(ws + r * HLD + c) = kin && win ? float4(*(device const packed_float4 *)wp) : float4(0.0f);
-        xp += HBK;
         wp += HBK;
         threadgroup_barrier(mem_flags::mem_threadgroup);
         _Pragma("clang loop unroll(full)")
         for (uint kk = 0; kk < HBK; kk += 8) {
-            simdgroup_float8x8 a[2], b[2];
+            simdgroup_float8x8 a[TM], b[2];
             _Pragma("clang loop unroll(full)")
-            for (uint i = 0; i < 2; i++) {
+            for (uint i = 0; i < TM; i++) {
                 thread auto &e = a[i].thread_elements();
                 e[0] = float(ap[i * 16 * HLD + kk]);
                 e[1] = float(ap[i * 16 * HLD + kk + 1]);
@@ -476,21 +493,21 @@ kernel void gemm_hn(device const XT *x [[buffer(0)]], device const half *w0 [[bu
                 e[1] = float(bp[j * 16 * HLD + HLD + kk]);
             }
             _Pragma("clang loop unroll(full)")
-            for (uint i = 0; i < 2; i++)
+            for (uint i = 0; i < TM; i++)
                 _Pragma("clang loop unroll(full)")
                 for (uint j = 0; j < 2; j++) simdgroup_multiply_accumulate(acc[i][j], a[i], b[j], acc[i][j]);
         }
     }
 
     _Pragma("clang loop unroll(full)")
-    for (uint i = 0; i < 2; i++) {
+    for (uint i = 0; i < TM; i++) {
         const uint row = m0 + tm + i * 16 + cd.fm;
-        if (row >= m) continue;
+        if (!AL && row >= m) continue;
         device YT *yr = y + ulong(row) * n;
         _Pragma("clang loop unroll(full)")
         for (uint j = 0; j < 2; j++) {
             const uint col = n0 + tn + j * 16 + cd.fn;
-            if (col >= n) continue;
+            if (!AL && col >= n) continue;
             thread auto &e = acc[i][j].thread_elements();
             float v0 = e[0], v1 = e[1];
             if (p.epilogue >= 1) {
@@ -575,15 +592,23 @@ GEMM_H(half, float, 4, 4, "gemm_h128_hf")
 GEMM_H(half, half, 4, 2, "gemm_h64_hh")
 GEMM_H(half, half, 4, 4, "gemm_h128_hh")
 
-#define GEMM_HN(XT, YT, name)                                                                                        \
-    template [[host_name(name)]] kernel void gemm_hn<XT, YT>(                                                         \
+#define GEMM_HN(XT, YT, TM, AL, name)                                                                                    \
+    template [[host_name(name)]] kernel void gemm_hn<XT, YT, TM, AL>(                                                     \
         device const XT *, device const half *, device const half *, device const half *, device const float *,       \
         device const float *, device const float *, device YT *, device YT *, device YT *, constant GemmParams &,      \
         uint3, ushort, ushort, ushort);
-GEMM_HN(float, float, "gemm_h32n32_ff")
-GEMM_HN(float, half, "gemm_h32n32_fh")
-GEMM_HN(half, float, "gemm_h32n32_hf")
-GEMM_HN(half, half, "gemm_h32n32_hh")
+GEMM_HN(float, float, 2, false, "gemm_h32n32_ff")
+GEMM_HN(float, float, 2, true, "gemm_h32n32a_ff")
+GEMM_HN(float, half, 2, false, "gemm_h32n32_fh")
+GEMM_HN(float, half, 2, true, "gemm_h32n32a_fh")
+GEMM_HN(half, float, 2, false, "gemm_h32n32_hf")
+GEMM_HN(half, float, 2, true, "gemm_h32n32a_hf")
+GEMM_HN(half, half, 2, false, "gemm_h32n32_hh")
+GEMM_HN(half, half, 2, true, "gemm_h32n32a_hh")
+GEMM_HN(float, float, 4, false, "gemm_h64n32_ff")
+GEMM_HN(float, half, 4, false, "gemm_h64n32_fh")
+GEMM_HN(half, float, 4, false, "gemm_h64n32_hf")
+GEMM_HN(half, half, 4, false, "gemm_h64n32_hh")
 
 #define GEMM_SMALL_H(XT, YT, name)                                                                                   \
     template [[host_name(name)]] kernel void gemm_small_h<XT, YT>(                                                   \
@@ -1199,6 +1224,84 @@ kernel void deberta_attention(device const float *q [[buffer(0)]], device const 
         }
         simdgroup_barrier(mem_flags::mem_threadgroup);
     }
+}
+
+// ---- LSTM (turbo::device::lstm, #860) -------------------------------------------
+//
+// The batched LSTM of core/src/device/lstm.rs on an Apple GPU, the CPU
+// form's (core/src/cpu/lstm.rs) rows and order, as core/cuda/lstm.cu
+// computes it: sequence s holds rows start[s]..start[s] + len[s], the
+// longest first, gates (i, f, g, o) each `hidden` wide, a reverse
+// direction reading each sequence from its last row. One kernel makes
+// every direction's input projections for every row (or a run reads them
+// from a table by row id); then each step is one dispatch over the
+// sequences still running, a prefix of the batch, and every direction: a
+// thread owns one (direction, sequence, unit), makes its four gates from
+// the projection and the recurrent product over the previous state, and
+// writes its cell, its state and its output row. A non-finite gate or
+// state records the least row it was found at.
+
+struct LstmProject {
+    uint m, n, k;
+};
+
+// out[r][c] = bias[c] + sum over i of a[r][i] w[c][i], a thread an
+// output, the sum in order.
+kernel void lstm_project(device const float *a [[buffer(0)]], device const float *w [[buffer(1)]],
+                         device const float *bias [[buffer(2)]], device float *out [[buffer(3)]],
+                         constant LstmProject &p [[buffer(4)]], uint2 at [[thread_position_in_grid]]) {
+    const uint c = at.x, r = at.y;
+    if (r >= p.m || c >= p.n) return;
+    device const float *ar = a + ulong(r) * p.k;
+    device const float *wc = w + ulong(c) * p.k;
+    float acc = 0.0f;
+    for (uint i = 0; i < p.k; i++) acc = fma(ar[i], wc[i], acc);
+    out[ulong(r) * p.n + c] = bias[c] + acc;
+}
+
+struct LstmStep {
+    uint batch, active, hidden, pw, width, t, indexed;
+};
+
+// The CPU form's sigmoid, either side of 0, so neither branch overflows.
+float lstm_sigmoid(float x) {
+    if (x >= 0.0f) return 1.0f / (1.0f + exp(-x));
+    const float e = exp(x);
+    return e / (1.0f + e);
+}
+
+// One step of every direction over the first `active` sequences: thread
+// (unit, sequence, direction).
+kernel void lstm_step(device const float *proj [[buffer(0)]], device const long *index [[buffer(1)]],
+                      device const float *u [[buffer(2)]], device const long *len [[buffer(3)]],
+                      device const long *start [[buffer(4)]], device const float *state_in [[buffer(5)]],
+                      device float *state_out [[buffer(6)]], device float *cell [[buffer(7)]],
+                      device float *out [[buffer(8)]], device atomic_uint *bad [[buffer(9)]],
+                      device const int *reverse [[buffer(10)]], constant LstmStep &p [[buffer(11)]],
+                      uint3 at [[thread_position_in_grid]]) {
+    const uint j = at.x, s = at.y, k = at.z, h = p.hidden;
+    if (s >= p.active || j >= h) return;
+    device const float *state = state_in + (ulong(k) * p.batch + s) * h;
+    device const float *uk = u + ulong(k) * 4 * h * h;
+    float acc[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    if (p.t > 0)
+        for (uint i = 0; i < h; i++) {
+            const float v = state[i];
+            for (uint q = 0; q < 4; q++) acc[q] = fma(v, uk[ulong(q * h + j) * h + i], acc[q]);
+        }
+    const long n = len[s];
+    const long row = start[s] + (reverse[k] ? n - 1 - long(p.t) : long(p.t));
+    const long src = p.indexed ? index[row] : row;
+    device const float *g = proj + src * p.pw + ulong(k) * 4 * h;
+    const float gi = g[j] + acc[0], gf = g[h + j] + acc[1], gg = g[2 * h + j] + acc[2], go = g[3 * h + j] + acc[3];
+    const ulong where = (ulong(k) * p.batch + s) * h + j;
+    const float c = lstm_sigmoid(gf) * cell[where] + lstm_sigmoid(gi) * precise::tanh(gg);
+    const float st = lstm_sigmoid(go) * precise::tanh(c);
+    const bool finite = isfinite(gi) && isfinite(gf) && isfinite(gg) && isfinite(go) && isfinite(st);
+    if (!finite) atomic_fetch_min_explicit(bad, uint(row), memory_order_relaxed);
+    cell[where] = c;
+    state_out[where] = st;
+    out[row * p.width + ulong(k) * h + j] = st;
 }
 
 // ---- Weights stored in F16 or BF16 -------------------------------------------

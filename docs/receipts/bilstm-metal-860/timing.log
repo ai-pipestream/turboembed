@@ -1,0 +1,30 @@
+### commit cb8199f1abf053cb19a9c68d88ec32f36fd2609d plus the timing test's FASTEST skip; 2026-10-27T04:47:20Z; load { 5.62 8.19 6.04 }; gpu "Device Utilization %"=33
+running 1 test
+layers 1, 1 sentences (8 words), cpu cold: min 0.299 p50 0.359 mean 0.360 p99 0.413
+layers 1, 1 sentences (8 words), cpu warm: min 0.185 p50 0.222 mean 0.221 p99 0.261
+layers 1, 1 sentences (8 words), device cold: min 0.798 p50 1.827 mean 1.674 p99 3.423
+layers 1, 1 sentences (8 words), device warm: min 0.462 p50 1.079 mean 0.932 p99 1.687
+layers 1, 32 sentences (641 words), cpu cold: min 14.990 p50 15.986 mean 26.964 p99 312.462
+layers 1, 32 sentences (641 words), cpu warm: min 11.562 p50 12.177 mean 12.670 p99 18.092
+layers 1, 32 sentences (641 words), device cold: min 23.172 p50 24.769 mean 25.409 p99 44.148
+layers 1, 32 sentences (641 words), device warm: min 20.357 p50 22.088 mean 22.142 p99 24.166
+layers 1, 256 sentences (5519 words), cpu cold: min 105.679 p50 108.669 mean 111.877 p99 165.811
+layers 1, 256 sentences (5519 words), cpu warm: min 100.708 p50 103.170 mean 116.764 p99 310.174
+layers 1, 256 sentences (5519 words), device cold: min 185.817 p50 188.319 mean 188.430 p99 191.730
+layers 1, 256 sentences (5519 words), device warm: min 182.407 p50 184.590 mean 184.705 p99 187.646
+layers 2, 1 sentences (8 words), cpu cold: min 0.468 p50 0.482 mean 0.496 p99 0.614
+layers 2, 1 sentences (8 words), cpu warm: min 0.348 p50 0.351 mean 0.361 p99 0.412
+layers 2, 1 sentences (8 words), device cold: min 1.231 p50 1.346 mean 1.443 p99 3.404
+layers 2, 1 sentences (8 words), device warm: min 0.873 p50 0.955 mean 1.078 p99 2.314
+layers 2, 32 sentences (641 words), cpu cold: min 24.531 p50 25.220 mean 25.730 p99 29.911
+layers 2, 32 sentences (641 words), cpu warm: min 21.036 p50 21.731 mean 22.522 p99 29.091
+layers 2, 32 sentences (641 words), device cold: min 45.659 p50 47.697 mean 49.372 p99 96.553
+layers 2, 32 sentences (641 words), device warm: min 42.929 p50 44.887 mean 44.974 p99 48.211
+test device_tagger_timing has been running for over 60 seconds
+layers 2, 256 sentences (5519 words), cpu cold: min 191.667 p50 204.460 mean 269.323 p99 1308.142
+layers 2, 256 sentences (5519 words), cpu warm: min 185.897 p50 205.770 mean 265.577 p99 1215.036
+layers 2, 256 sentences (5519 words), device cold: min 374.480 p50 396.561 mean 478.828 p99 716.441
+layers 2, 256 sentences (5519 words), device warm: min 361.154 p50 405.138 mean 493.108 p99 799.834
+test device_tagger_timing ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 108.16s
+### after: load { 5.67 7.18 5.88 }

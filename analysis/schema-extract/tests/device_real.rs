@@ -88,7 +88,7 @@ fn schema_extraction_on_the_real_checkpoint() {
     );
     let x = on.execution().unwrap().clone();
     let on_name = format!("{} {} ({})", x.backend, x.device, x.precision);
-    println!("schema extraction: largest logit difference from the cpu encoder {worst_seen:e}");
+    println!("schema extraction on {on_name}: largest logit difference from the cpu encoder {worst_seen:e}");
     let mut t = [Vec::new(), Vec::new()];
     for _ in 0..reps {
         for (text, schema) in &cases {

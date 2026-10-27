@@ -3,7 +3,8 @@
 //! benchmarks/records/tag, benchmarks/records/throughput and
 //! benchmarks/ranges are what their names say, the README and the
 //! docs point at files that exist, no committed text names a home
-//! directory on one of our machines, and the demo has no JSON front end
+//! directory on one of our machines, no committed file holds a private
+//! key block (tree/secrets.rs), and the demo has no JSON front end
 //! (tree/front_end.rs).
 
 mod common;
@@ -11,6 +12,8 @@ mod common;
 mod dependencies;
 #[path = "tree/front_end.rs"]
 mod front_end;
+#[path = "tree/secrets.rs"]
+mod secrets;
 
 use std::path::{Path, PathBuf};
 
