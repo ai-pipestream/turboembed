@@ -298,7 +298,11 @@ device that runs threadgroups of 256; and `linear=h32n32` the 32 x 32
 tile, after the fragment handling of MLX's steel GEMM: each of four
 groups holds four 8 x 8 fragments spread across the tile, 16 rows and 16
 columns apart, loaded lane by lane from threadgroup memory as F32, with
-the weights staged as they lie, so nothing is transposed on the way.
+the weights staged as they lie, so nothing is transposed on the way;
+`linear=h64n32` the 64 x 32 tile in the same way, each group four
+fragments down and two across, the shape MLX runs a half "nt" product in
+on a small Apple GPU (The 64 x 32 tile, below; the tuner times it, and
+`auto` does not run it).
 `linear=auto` picks per run: the 32 x 32 tile up to 1024 packed tokens,
 where its extra threadgroups fill the GPU, and the 64 x 64 tile above.
 On the M2 (all-minilm-l6-v2, six alternating rounds, FASTEST against
@@ -328,7 +332,7 @@ session nothing forces or tunes runs `auto` for both.
 
 `TURBO_METAL_CHOICES`, read when a session is made, forces the items it
 names (`linear=h32`, `linear=h64`, `linear=h128`, `linear=h32n32`,
-`linear=auto`, or
+`linear=h64n32`, `linear=auto`, or
 `linear=f32` at EXACT and MODEL; `attn=staged`, `attn=registers` or
 `attn=auto`), and a session with any item forced is not tuned; a line a
 session reported, `forced=` and all, forces the same kernels back. A
@@ -548,6 +552,30 @@ shapes are 1.20x to 1.24x, so that gap was the GPU's state late in a
 long sweep, not the tile. At 4096 and 16384 tokens the 32 x 32 tile is
 the fastest by median in every row, 3% to 6% under `auto`'s 64 x 64,
 which `auto` picks past 1024 tokens (#849's per-bin tuning).
+
+### The 64 x 32 tile
+
+`linear=h64n32` is MLX's tile for a half "nt" product on a small Apple
+GPU such as the base M2 (64 x 32, BK 32, 2 x 2 SIMD groups), built on
+the 32 x 32 tile's fragment handling. It computes the same sums in the
+same order as the other F16 tiles: on all-minilm-l6-v2 and
+bge-base-en-v1.5 at their longest rows every tile, forced, is the same
+distance from the CPU (1 - cosine 1.965e-6 and 4.635e-6).
+
+`gemm_time.swift` (bare mode, as above) timed it beside the 32 x 32 and
+64 x 64 tiles at each shape, five rounds at `60128d6e`, the three tiles in
+one process per shape, the order rotated by shape and by round, with
+the 1-minute load 2.3 to 2.8 and desktop applications holding the GPU
+0 to 92% busy (docs/receipts/metal-tiles-812). The 32 x 32 tile had the
+least median (of the five rounds' medians) at 36 of the 40 shapes. At
+M = 16384, at both widths, the 64 x 32 tile took 3% to 8% longer than
+the 32 x 32 in every round, and at M = 4096 it took 2% to 7% longer in
+every round for h = 768; at the other shapes the paired rounds swing
+both ways (0.33x to 3.4x) with the desktop's use of the GPU, so they
+settle nothing. So the tile MLX picks
+does not close the gap to MLX's rate measured above: whatever MLX's
+kernels do differently, it is not the tile's shape. The tuner times
+`h64n32` with the others and keeps it only where it wins.
 
 ### MLX as a recorded reference
 
