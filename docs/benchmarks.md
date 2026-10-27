@@ -1060,6 +1060,32 @@ gave the row's vector to the bit, and the lowest cosine of a chunk's
 range vector to its chunk row's was 0.69. These figures want a re-run
 with the render engine idle.
 
+On the Apple M2 (Metal) with all-MiniLM-L6-v2 (the bundle sealed on the
+M2, manifest `3c305237`, the same weights) and the same shape, at commit
+`1b452912`, each run started once the 1-minute load was under 3 and the
+GPU under 25 percent busy (2.2 and 2.8, both 0 percent); desktop
+applications took the GPU back to 92 to 96 percent by the end of each,
+which the means and p99s show:
+
+| Precision | Mode | Min | p50 | Mean | p99 |
+| --- | --- | --- | --- | --- | --- |
+| FASTEST (F16) | Rows | 95.750 ms | 113.780 ms | 169.774 ms | 400.438 ms |
+| FASTEST (F16) | Ranges | 95.082 ms | 113.108 ms | 168.972 ms | 403.228 ms |
+| FASTEST (F16) | One row per chunk | 88.405 ms | 106.250 ms | 157.516 ms | 382.519 ms |
+| MODEL (F32) | Rows | 139.990 ms | 260.662 ms | 310.770 ms | 858.923 ms |
+| MODEL (F32) | Ranges | 139.201 ms | 257.735 ms | 306.992 ms | 786.837 ms |
+| MODEL (F32) | One row per chunk | 126.085 ms | 232.940 ms | 277.596 ms | 737.865 ms |
+
+The modes run in turn within each round, so the shared GPU falls on all
+three and the ratios are what to read: the ranges' p50 is 0.6 percent
+(FASTEST) and 1.1 percent (MODEL) under the rows', and one row per chunk
+takes 6 and 10 percent less than the ranges, as on CUDA at MODEL. An
+earlier pair of runs at the same commit, under more load, gave the same
+ratios to within 1.4 points (0.992 and 1.003, 0.901 and 0.929); those
+records were not kept. A range over a whole row gave the row's vector
+to the bit, and the lowest cosine of a chunk's range vector to its
+chunk row's was 0.69.
+
 ## Part-of-speech records
 
 `turbo-bench postag --model <file> --treebank <file.conllu> [--cpus <list>]
