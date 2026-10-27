@@ -5460,14 +5460,24 @@ at C=10 against 0.3126 contextual-only, and the tail only partly
 recovers as C grows. Span recall at 10 is highest at C=10 on all
 three span sets and declines toward contextual-only as C grows.
 
-The stated margin for the default is one Recall@10 point (0.01).
-The smallest depth within that margin on every set is C=25, and
-this record picks it as the default. The pick is fragile: arguana
-clears it by 0.000043 (-0.009957), C=50 falls outside again
-(arguana -0.012091), and only from C=100 does every recorded depth
-stay inside (worst set arguana at -0.003556, -0.004267 and
--0.002134 for C=100, 200 and 400). A reader who wants the margin to
-hold at every larger recorded depth should run C=100 instead.
+**Decision (corpus-scale retrieval cascade).** Dense contextual-only
+stays the default retrieval (`turbo-eval run --retrieval` defaults to
+dense, and nothing here argues to change that): at every recorded
+corpus size the cascade as built buys quality with latency, never
+savings, so it is an opt-in quality mode for its Recall@10 and
+span-recall gains, not a latency feature. Where the cascade is run,
+the default shortlist is C=100. The stated margin for the default is
+one Recall@10 point (0.01) against contextual-only on every set.
+C=25 is the smallest depth inside it, but the pick is fragile:
+arguana clears it by 0.000043 (-0.009957) and C=50 falls outside
+again (arguana -0.012091). From C=100 every recorded depth stays
+inside (worst set arguana at -0.003556, -0.004267 and -0.002134 for
+C=100, 200 and 400), and C=100 costs only about 1% to 7% more total
+p50 than C=25 per set in the receipt below, so stability is nearly
+free. `turbo-eval run --candidates` defaults to 100 accordingly.
+This is the corpus-retrieval shortlist; the per-document unit
+cascade in `turbo-chunker` keeps its own documented default of 64,
+where the synthetic record above shows the unit savings are real.
 
 Per-query latency from the receipt, encode plus search:
 

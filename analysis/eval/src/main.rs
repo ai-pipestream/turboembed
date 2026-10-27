@@ -69,7 +69,8 @@ run options:
                           --static-bundle) (default dense)
   --static-bundle <dir>   with cascade: the static embedder's bundle
   --candidates <n>        with cascade: per-signal stage-1 shortlist
-                          size (default 64)
+                          size (default 100, the margin-stable depth
+                          of the trained cascade record, #879)
   --k1 <f>, --b <f>       BM25's parameters (default 1.2 and 0.75, Lucene's)
   --terms <t>             BM25's terms: folded (lowercased word tokens) or
                           english (also Lucene's English stop words,
@@ -358,7 +359,7 @@ fn run_cmd(args: &[String]) -> Result<()> {
         "dense" => (None, None),
         "cascade" => {
             let (model, terms) = bm25_opts(&mut o)?;
-            let candidates: usize = o.parsed("--candidates")?.unwrap_or(64);
+            let candidates: usize = o.parsed("--candidates")?.unwrap_or(100);
             static_bundle = Some(PathBuf::from(o.need("--static-bundle")?));
             cascade = Some(turbo_eval::cascade::Cascade { candidates, model, terms });
             (None, None)
