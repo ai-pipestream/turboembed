@@ -4577,6 +4577,13 @@ numbers in the table above. So the CUDA record's `arguana` gap
 (`51.65` against `51.47`; 53 of 1406 queries differ, with the same
 cuts) is CUDA's numerics, not the chunker.
 
+On Metal (Apple M2, `analysis/eval/records/*-hybrid-metal`, same flags,
+same bundle `0f17adc4`, at main `1b452912`) the three records also
+match the CPU and Level Zero records query for query on all four sets,
+with the same chunk counts and the same `tokens_embedded`,
+`chunk_bytes` and `chunk_tokens`, and both gates FAIL with the same
+numbers. Every cut is the same on the CPU, CUDA, Level Zero and Metal.
+
 ### Structure in the chunker
 
 The records under `analysis/eval/records/turbo-chunker-254-200-structure-*`
