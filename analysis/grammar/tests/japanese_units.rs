@@ -200,10 +200,10 @@ fn leading_decimals_and_unicode_minus_preserve_japanese_amounts() {
 }
 
 #[test]
-fn kilo_weight_cue_stays_inside_its_own_sentence_or_clause() {
+fn kilo_weight_cue_stays_inside_its_own_sentence() {
     let units = |text: &str| readings(text).into_iter().map(|(_, _, u)| u).collect::<Vec<_>>();
     assert_eq!(units("駅まで3キロ歩いた。"), ["km"]);
-    for boundary in ["。", "！", "？", "!", "?", ";", "；", "、", "\n", "\r\n", "\u{2028}", "\u{2029}"] {
+    for boundary in ["。", "！", "？", "!", "?", ";", "；", "\n", "\r\n", "\u{2028}", "\u{2029}"] {
         let text = format!("体重は60キロです{boundary}駅まで3キロ歩いた。");
         assert_eq!(units(&text), ["kg", "km"], "{text}");
         let text = format!("出荷は明日{boundary}家から駅まで3キロある。");
@@ -216,6 +216,9 @@ fn kilo_weight_cue_stays_inside_its_own_sentence_or_clause() {
         ("出荷は1,000キロだった。", "1,000キロ"),
         ("毎日平均で二十万キロも珠江デルタで完売", "二十万キロ"),
         ("前の文。重量3キロの箱。", "3キロ"),
+        ("体重は、60キロです。", "60キロ"),
+        ("重量は、3キロの箱。", "3キロ"),
+        ("出荷量、1,000キロ。", "1,000キロ"),
     ] {
         let found = readings(text);
         assert_eq!(found.len(), 1, "{text}");
