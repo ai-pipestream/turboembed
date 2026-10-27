@@ -2860,6 +2860,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-bundle",
+ "turbo-depparse",
  "turbo-eval",
  "turbo-formats",
  "turbo-jvm",
@@ -2875,6 +2876,7 @@ dependencies = [
  "turbo-tokenize",
  "turbo-train",
  "turbo-train-components",
+ "turbo-unicode",
  "turbo-zoo",
 ]
 

@@ -1,9 +1,10 @@
 //! What the device tests of GLiNER2 and GLiREL share (#920): the tiny
 //! DeBERTa-v2 bundle of testdata/tiny-deberta-bundle as the encoder, on
 //! the CPU encoder from its own weights and through the backend table on
-//! the device TURBO_TEST_DEVICE names (cpu, cuda, levelzero; the CPU when
-//! it is not set). With TURBO_TEST_REQUIRE_CUDA or
-//! TURBO_TEST_REQUIRE_LEVELZERO set, a test fails unless it runs there.
+//! the device TURBO_TEST_DEVICE names (cpu, cuda, levelzero, metal; the CPU
+//! when it is not set). With TURBO_TEST_REQUIRE_CUDA,
+//! TURBO_TEST_REQUIRE_LEVELZERO or TURBO_TEST_REQUIRE_METAL set, a test
+//! fails unless it runs there.
 
 #![allow(dead_code)]
 
@@ -30,10 +31,14 @@ pub fn spm() -> Vec<u8> {
 /// The backend a TURBO_TEST_REQUIRE_* variable requires, if any.
 pub fn required() -> Option<&'static str> {
     let set = |v: &str| std::env::var(v).is_ok_and(|v| !v.is_empty() && v != "0");
-    [("TURBO_TEST_REQUIRE_CUDA", "cuda"), ("TURBO_TEST_REQUIRE_LEVELZERO", "levelzero")]
-        .into_iter()
-        .find(|(v, _)| set(v))
-        .map(|(_, b)| b)
+    [
+        ("TURBO_TEST_REQUIRE_CUDA", "cuda"),
+        ("TURBO_TEST_REQUIRE_LEVELZERO", "levelzero"),
+        ("TURBO_TEST_REQUIRE_METAL", "metal"),
+    ]
+    .into_iter()
+    .find(|(v, _)| set(v))
+    .map(|(_, b)| b)
 }
 
 /// The tiny bundle's encoder on the CPU, from its own weights.

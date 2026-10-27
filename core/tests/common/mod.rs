@@ -479,3 +479,4 @@ impl Encoded {
 include!("model.rs");
 include!("session.rs");
 include!("plain_bert.rs");
+include!("embed.rs");

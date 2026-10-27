@@ -3,7 +3,8 @@
 //! renormalization of the full vector, the narrowed result moves no more
 //! bytes than the width needs, a truncated zero vector renormalizes to
 //! zero and never NaN, and an undeclared width is refused by name.
-//! tests/sessions.rs holds the single-width case and the option checks;
+//! tests/sessions/weights.rs holds the single-width case and
+//! tests/sessions/write_text.rs the option checks;
 //! tests/conformance.rs holds the vectors to the upstream reference.
 
 mod common;
