@@ -1,0 +1,43 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-26T22:05:30Z",
+  "machine": {
+    "arch": "aarch64",
+    "host_cpu": "",
+    "os": "macos"
+  },
+  "device": {
+    "backend": "cpu",
+    "kind": "DEVICE_CPU",
+    "name": "Apple M2",
+    "vendor": "Apple",
+    "driver_version": "",
+    "runtime_version": "",
+    "memory_total": 25769803776
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 metal cpu",
+    "commit": "e051ae76366b9757b701c1c292c3733e45e61437",
+    "pushed_to": [
+      "origin/fable/916-metal-rerank"
+    ],
+    "settings": []
+  },
+  "precision": "PRECISION_EXACT",
+  "model_id": "cross-encoder/ms-marco-MiniLM-L6-v2",
+  "revision": "1",
+  "manifest_sha256": "bb57a12c1646762a831dac4e7d7f52ab8ab4ab2edfd0dfa826d7f8d486a650ea",
+  "questions_sha256": "80a5225e94905956a6446d296ca1093975c4d3b3260f1d6c8f68bc2ab77182d8",
+  "requests": 64,
+  "passages": 16,
+  "turbo": {
+    "warmup": 2,
+    "iterations": 10,
+    "p50_ms": 33776.336917,
+    "min_ms": 32863.97345799999,
+    "max_ms": 35300.542708,
+    "pairs_per_second": 30.317082711376244
+  },
+  "tei": null
+}

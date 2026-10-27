@@ -11,9 +11,15 @@
 //! item and the offset in its `text` ([`docling::Docling::locate`]).
 //! docs/integration.md walks through it; `tests/end_to_end.rs` holds it
 //! to `data/report.expected.json`.
+//!
+//! [`server`] runs the same document on a `turbo-kserve` instead, sending
+//! only the docling structure, and [`remote`] writes what it answered;
+//! `tests/server.rs` holds that to `data/report.server.expected.*`.
 
 pub mod docling;
+pub mod remote;
 pub mod report;
+pub mod server;
 
 use std::num::NonZeroU32;
 use std::path::Path;

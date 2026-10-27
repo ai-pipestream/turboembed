@@ -1,15 +1,16 @@
 //! What the device tests of GLiNER2 and GLiREL share (#920): the tiny
 //! DeBERTa-v2 bundle of testdata/tiny-deberta-bundle as the encoder, on
 //! the CPU encoder from its own weights and through the backend table on
-//! the device TURBO_TEST_DEVICE names (cpu, cuda, levelzero; the CPU when
-//! it is not set). With TURBO_TEST_REQUIRE_CUDA or
-//! TURBO_TEST_REQUIRE_LEVELZERO set, a test fails unless it runs there.
+//! the device TURBO_TEST_DEVICE names (cpu, cuda, levelzero, metal; the CPU
+//! when it is not set). With TURBO_TEST_REQUIRE_CUDA,
+//! TURBO_TEST_REQUIRE_LEVELZERO or TURBO_TEST_REQUIRE_METAL set, a test
+//! fails unless it runs there.
 
 #![allow(dead_code)]
 
 use std::path::{Path, PathBuf};
 
-use turbo_relation::encoder::{DebertaEncoder, Device, EncoderOptions, EncoderStates};
+use turbo_relation::encoder::{DebertaEncoder, Device, EncoderOptions, EncoderStates, Precision};
 
 /// The largest head output difference from the CPU encoder: the F32 device
 /// bound the encoder itself is held to (#883).
@@ -30,10 +31,14 @@ pub fn spm() -> Vec<u8> {
 /// The backend a TURBO_TEST_REQUIRE_* variable requires, if any.
 pub fn required() -> Option<&'static str> {
     let set = |v: &str| std::env::var(v).is_ok_and(|v| !v.is_empty() && v != "0");
-    [("TURBO_TEST_REQUIRE_CUDA", "cuda"), ("TURBO_TEST_REQUIRE_LEVELZERO", "levelzero")]
-        .into_iter()
-        .find(|(v, _)| set(v))
-        .map(|(_, b)| b)
+    [
+        ("TURBO_TEST_REQUIRE_CUDA", "cuda"),
+        ("TURBO_TEST_REQUIRE_LEVELZERO", "levelzero"),
+        ("TURBO_TEST_REQUIRE_METAL", "metal"),
+    ]
+    .into_iter()
+    .find(|(v, _)| set(v))
+    .map(|(_, b)| b)
 }
 
 /// The tiny bundle's encoder on the CPU, from its own weights.
@@ -60,6 +65,20 @@ pub fn bound(package: &Path, dir: &Path) -> DebertaEncoder {
     e
 }
 
+/// A GLiREL package's two encoders as the real device test opens them: the
+/// CPU encoder of its `encoder/` DeBERTa package, and the bundle bound to
+/// that package on the device the test names, each under the package's
+/// heads and `spm`. The tiny test opens a tiny package the same way, so the
+/// paths are traced without the licensed checkpoint.
+pub fn glirel_pair(package: &Path, bundle: &Path, spm: &Path) -> [turbo_relation::GlirelRelations; 2] {
+    let load = |e: DebertaEncoder| {
+        turbo_relation::GlirelRelations::load_with(e, package, spm)
+            .unwrap_or_else(|e| panic!("{}: {e}", package.display()))
+    };
+    let encoder = package.join("encoder");
+    [load(package_cpu(&encoder)), load(bound(&encoder, bundle))]
+}
+
 /// The tiny bundle through the backend table, on the device the test names,
 /// checked to run on the backend required.
 pub fn device() -> DebertaEncoder {
@@ -74,7 +93,8 @@ pub fn device_on(dir: &Path) -> DebertaEncoder {
 }
 
 /// The options of the device the test names: TURBO_TEST_DEVICE, else the
-/// CPU through the backend table.
+/// CPU through the backend table, at the precision TURBO_TEST_PRECISION
+/// names (model, the default, or exact).
 fn options() -> EncoderOptions {
     let device = match std::env::var("TURBO_TEST_DEVICE").as_deref() {
         Err(_) | Ok("cpu") => Device::Cpu,
@@ -83,7 +103,12 @@ fn options() -> EncoderOptions {
     if let Some(b) = required() {
         assert!(!matches!(device, Device::Cpu), "{b} is required but TURBO_TEST_DEVICE names no device");
     }
-    EncoderOptions { device, ..EncoderOptions::default() }
+    let precision = match std::env::var("TURBO_TEST_PRECISION").as_deref() {
+        Err(_) | Ok("model") => Precision::Model,
+        Ok("exact") => Precision::Exact,
+        Ok(p) => panic!("TURBO_TEST_PRECISION={p}: model or exact"),
+    };
+    EncoderOptions { device, precision, ..EncoderOptions::default() }
 }
 
 /// An encoder on the backend table, on the backend required.

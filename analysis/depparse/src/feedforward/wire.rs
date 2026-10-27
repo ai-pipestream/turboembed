@@ -187,9 +187,12 @@ impl FeedforwardDependencyModel {
         Self::new(vocabulary, transitions, FeatureLayout::OpenNlp14, Activation::Cube, weights)
     }
     pub fn to_java_bytes(&self) -> Result<Vec<u8>> {
-        if self.layout != FeatureLayout::OpenNlp14 || self.activation != Activation::Cube || self.default_beam_size != 1
+        if self.label_encoding != crate::LabelEncoding::Plain
+            || self.layout != FeatureLayout::OpenNlp14
+            || self.activation != Activation::Cube
+            || self.default_beam_size != 1
         {
-            return Err(error("legacy Java raw format requires OpenNlp14 cube model with default beam 1"));
+            return Err(error("legacy Java raw format requires plain labels, OpenNlp14 cube model and default beam 1"));
         }
         let mut out = Vec::new();
         string(&mut out, MAGIC)?;

@@ -74,6 +74,6 @@ fn date_ranges_and_annotator_versions() {
             }
         }
     }
-    assert_eq!(GrammarAnnotator::VERSION, "2");
+    assert_eq!(GrammarAnnotator::VERSION, "3");
     assert_eq!(TimeAnnotator::VERSION, "5");
 }

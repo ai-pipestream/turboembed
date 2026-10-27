@@ -32,6 +32,32 @@ twice the bound. The host's one-minute load was between 2.1 and 27.5
 over the run (the log records it before each test); these are
 correctness runs, not timings.
 
+### The exact legs
+
+The runs above labelled `exact` were not: nothing in the relation and
+schema-extract tests read `TURBO_TEST_PRECISION` then
+(`device_support::options` took `EncoderOptions::default()`, which is
+`model`), so for GLiNER2 relations, GLiREL and schema extraction every
+run above is a `model` run, twice over. The GLiNER rows read it and are
+as labelled. With the variable read and the precision printed,
+`parity-exact.log` is the exact leg at `1aebb0da` plus that change:
+twenty release runs, each the tiny-bundle tests and the real
+checkpoints' (GLiREL's as well, docs/receipts/glirel-levelzero-920),
+80 test binaries, all passing, every one printing `f32 (exact)` and the
+same numbers each time. With `DEVICE_REPS=1` each tiny-bundle binary
+ran its pass once, not twenty times.
+
+| Head | Encoder | Largest difference at exact | Decisions the same as the CPU's, a run |
+|---|---|---|---|
+| GLiNER2 relations | `testdata/tiny-deberta-bundle` | 7.5e-9 | 12 best spans, 12 relations |
+| GLiREL | `testdata/tiny-deberta-bundle` | 1.2e-7 | 3 best pairs |
+| GLiNER2 schema extraction | `testdata/tiny-deberta-bundle` | 7.5e-9 | 8 decisions, 46 spans and records |
+| GLiNER2 relations | `fastino/gliner2-base-v1` | 4.6e-6 | 18 best spans, 9 relations |
+| GLiNER2 schema extraction | `fastino/gliner2-base-v1` | 7.5e-6 | 33 decisions, 24 values |
+
+The figures are the `model` runs' to the digit. Host load was between
+19.1 and 31.1; these are correctness runs.
+
 ## The real checkpoint
 
 `fastino/gliner2-base-v1` at revision
