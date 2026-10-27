@@ -102,6 +102,7 @@ async fn main() -> ExitCode {
         catalog,
         training: args.training_dir.map(PathBuf::from),
         sink: args.sink,
+        max_stream_bytes: Some(args.max_stream_bytes),
         tls: args.tls,
         metrics_listen: args.metrics_listen,
         ..Serve::default()

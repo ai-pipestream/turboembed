@@ -80,6 +80,7 @@ no way to stop a load part way.
 | `--model SETTINGS` | One served model; repeat for more. | At least one model (from `--model` or `--bundle-dir`) is required unless `--admin` is set. |
 | `--bundle-dir DIR` | Discover immediate child directories containing `manifest.json` and serve each on device 0 with 1 session unless overridden by an explicit `--model` of the same name. | Off. |
 | `--max-message-bytes N` | The largest request message read; a larger one is refused with `RESOURCE_EXHAUSTED` before it is read. | 64 MiB. |
+| `--max-stream-bytes N` | The most bytes one call's request carries in all, every frame and its five-byte prefix counted; the frame that passes it ends the call with `RESOURCE_EXHAUSTED`. At least `--max-message-bytes`. | 2 GiB. |
 | `--admin` | Answer the admin calls: the analysis service's `LoadBundle` and `UnloadBundle` (docs/grpc-analysis.md), the vocabulary store's writes (docs/grpc-vocabulary.md) and the catalog's `RecordLicenceAcceptance` and `InstallModel` (docs/grpc-catalog.md), the training service's `TrainStaticModel` and `DeleteStaticModel` (docs/grpc-training.md), and allow starting with zero models. Without it they refuse with `UNIMPLEMENTED`. | Off. |
 | `--vocabulary-dir PATH` | The vocabulary store's directory, made when it does not exist (docs/grpc-vocabulary.md). | No store: it lists nothing and refuses writes with `FAILED_PRECONDITION`. |
 | `--catalog-dir PATH` | Serve the model catalog with this zoo home: the cache under `artifacts/`, the acceptance file `acceptances.json`, as the `turbo-zoo` command keeps them (docs/zoo.md). | No catalog; its calls refuse with `UNIMPLEMENTED`. |
@@ -102,7 +103,8 @@ no way to stop a load part way.
 | `max_seq` | The sessions' sequence limit. | 0, the model's. |
 
 A bundle path may not contain a comma. Two models may not share a name.
-`--listen` and `--max-message-bytes` are refused when given twice;
+`--listen`, `--max-message-bytes` and `--max-stream-bytes` are refused
+when given twice;
 `--model` repeats, once per model.
 The tier and the device are the model's, not a request's: a request
 that names `precision` or `device` is refused. To offer one bundle at
@@ -118,6 +120,23 @@ Device indices are the runtime's: every device of each linked backend,
 in the order `turbo_version()` lists the backends, the cpu last. With
 the cpu backend alone, the CPU is device 0; `turbo_runtime_device_info`
 reports each index's kind and name.
+
+### Message and stream limits
+
+| Limit | Default | Where |
+|---|---|---|
+| One request message | 64 MiB, `--max-message-bytes` | every service |
+| One reply message | 256 MiB, or `--max-message-bytes` when larger | every service |
+| One call's request in all | 2 GiB, `--max-stream-bytes` | every call |
+| One frame of a client stream | 4 MiB recommended (`config::FRAME_BYTES`) | the client |
+
+Each refusal is `RESOURCE_EXHAUSTED` with no `turbo-code`; a reply over
+its limit is not sent. Past one message, a request goes as a client
+stream: `IndexDocuments`, `ImportDictionary`, `LearnVocabulary`,
+`AnalyzeStream` and `StreamDocuments`, in frames of about 4 MiB. The
+server reads a stream a frame at a time; a call that keeps what it
+reads (`ImportDictionary`, `LearnVocabulary`) also stops at its own cap
+(docs/grpc-vocabulary.md).
 
 ### Environment
 
@@ -135,6 +154,7 @@ twice; `TURBO_KSERVE_MODELS` lists every model in one.
 | `TURBO_KSERVE_MODELS` | `--model`, one or more values separated by `;` |
 | `TURBO_KSERVE_BUNDLE_DIR` | `--bundle-dir` |
 | `TURBO_KSERVE_MAX_MESSAGE_BYTES` | `--max-message-bytes` |
+| `TURBO_KSERVE_MAX_STREAM_BYTES` | `--max-stream-bytes` |
 | `TURBO_KSERVE_ADMIN` | `--admin` (`1`, `true`, `yes`, `0`, `false`, `no`) |
 | `TURBO_KSERVE_VOCABULARY_DIR` | `--vocabulary-dir` |
 | `TURBO_KSERVE_SINK_ENDPOINT` | `--sink-endpoint` |

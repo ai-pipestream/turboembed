@@ -89,8 +89,12 @@ Refused before any call to the server:
 | A path that is no unary or server-streaming method | `unimplemented` |
 | A compressed request or message | `unimplemented` |
 | A streaming request that is not exactly one uncompressed envelope | `invalid_argument` |
-| A message over 64 MiB, the server's default limit | `resource_exhausted` |
+| A message over 64 MiB, the server's default limit, refused before it is read when Content-Length or the envelope says so | `resource_exhausted` |
 | GET on a method's path | HTTP 405, `allow: POST` |
+
+The demo forwards a request message of up to 64 MiB and a reply message
+of up to 256 MiB, the server's defaults (`demo/src/limits.rs`,
+docs/grpc.md).
 
 GET answers `/`, `/app.js` and `/style.css` only.
 

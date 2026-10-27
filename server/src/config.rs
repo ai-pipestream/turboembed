@@ -163,6 +163,8 @@ pub struct Args {
     pub models: Vec<ModelConfig>,
     /// The largest request message gRPC reads.
     pub max_message_bytes: usize,
+    /// The most bytes one call's request carries in all.
+    pub max_stream_bytes: u64,
     /// Whether the admin calls, LoadBundle and UnloadBundle, are served.
     pub admin: bool,
     /// The vocabulary store's directory, made when absent.
@@ -185,6 +187,25 @@ pub struct Args {
 /// `--max-message-bytes` when absent: 64 MiB.
 pub const DEFAULT_MAX_MESSAGE_BYTES: usize = 64 << 20;
 
+/// `--max-stream-bytes` when absent: 2 GiB, the most one call's request
+/// carries in all, frames and their prefixes included. Past one message's
+/// limit, a request arrives as a client stream of frames.
+pub const DEFAULT_MAX_STREAM_BYTES: u64 = 2 << 30;
+
+/// The payload one frame of a large client-streaming upload should carry
+/// (`IndexDocuments`, `ImportDictionary`, `LearnVocabulary`,
+/// `AnalyzeStream`, `StreamDocuments`): well under the message limit, and
+/// what the server holds of a stream at a time.
+pub const FRAME_BYTES: usize = 4 << 20;
+
+/// The largest reply message sent: 256 MiB, or the request limit when
+/// that is larger. One reply can outgrow its request (a typed document or
+/// formatted document for a long text, a large inference batch); every
+/// limit stays under protobuf's 2 GiB.
+pub fn max_reply_bytes(max_message_bytes: usize) -> usize {
+    max_message_bytes.max(256 << 20)
+}
+
 /// The variable `--admin` reads when absent.
 pub const ENV_ADMIN: &str = "TURBO_KSERVE_ADMIN";
 
@@ -197,6 +218,7 @@ pub const ENV_BUNDLE_DIR: &str = "TURBO_KSERVE_BUNDLE_DIR";
 pub const ENV_LISTEN: &str = "TURBO_KSERVE_LISTEN";
 pub const ENV_MODELS: &str = "TURBO_KSERVE_MODELS";
 pub const ENV_MAX_MESSAGE_BYTES: &str = "TURBO_KSERVE_MAX_MESSAGE_BYTES";
+pub const ENV_MAX_STREAM_BYTES: &str = "TURBO_KSERVE_MAX_STREAM_BYTES";
 pub const ENV_VOCABULARY_DIR: &str = "TURBO_KSERVE_VOCABULARY_DIR";
 pub const ENV_CATALOG_DIR: &str = "TURBO_KSERVE_CATALOG_DIR";
 pub const ENV_CATALOG_INDEX: &str = "TURBO_KSERVE_CATALOG_INDEX";
@@ -211,11 +233,11 @@ pub const ENV_METRICS_LISTEN: &str = "TURBO_KSERVE_METRICS_LISTEN";
 
 pub const USAGE: &str = "usage: turbo-kserve --listen ADDR:PORT [--model bundle=PATH,device=INDEX|select,sessions=N\
 [,name=NAME][,precision=PRECISION_MODEL|PRECISION_FASTEST|PRECISION_EXACT][,max_batch=N][,max_seq=N] ...] \
-[--bundle-dir DIR] [--max-message-bytes N] [--admin] [--vocabulary-dir PATH] [--catalog-dir PATH [--catalog-index FILE]] \
+[--bundle-dir DIR] [--max-message-bytes N] [--max-stream-bytes N] [--admin] [--vocabulary-dir PATH] [--catalog-dir PATH [--catalog-index FILE]] \
 [--training-dir PATH] [--sink-endpoint URI [--sink-queue-items N] [--sink-queue-bytes N]] \
 [--tls-cert PATH --tls-key PATH [--tls-client-ca PATH]] [--metrics-listen ADDR:PORT]\n\
 environment: TURBO_KSERVE_LISTEN, TURBO_KSERVE_MODELS (--model values separated by `;`), \
-TURBO_KSERVE_BUNDLE_DIR, TURBO_KSERVE_MAX_MESSAGE_BYTES, TURBO_KSERVE_ADMIN, TURBO_KSERVE_VOCABULARY_DIR, \
+TURBO_KSERVE_BUNDLE_DIR, TURBO_KSERVE_MAX_MESSAGE_BYTES, TURBO_KSERVE_MAX_STREAM_BYTES, TURBO_KSERVE_ADMIN, TURBO_KSERVE_VOCABULARY_DIR, \
 TURBO_KSERVE_CATALOG_DIR, TURBO_KSERVE_CATALOG_INDEX, TURBO_KSERVE_TRAINING_DIR, TURBO_KSERVE_SINK_ENDPOINT, TURBO_KSERVE_SINK_QUEUE_ITEMS, \
 TURBO_KSERVE_SINK_QUEUE_BYTES, TURBO_KSERVE_TLS_CERT, TURBO_KSERVE_TLS_KEY, TURBO_KSERVE_TLS_CLIENT_CA, \
 TURBO_KSERVE_METRICS_LISTEN; a flag on the command line replaces its variable";
@@ -279,6 +301,7 @@ impl Args {
     ) -> Result<Args, String> {
         let mut listen = None;
         let mut max_message_bytes = None;
+        let mut max_stream_bytes = None;
         let mut admin = None;
         let mut vocabulary_dir = None;
         let (mut sink_endpoint, mut sink_items, mut sink_bytes) = (None, None, None);
@@ -342,6 +365,13 @@ impl Args {
                         return Err("--max-message-bytes given twice".into());
                     }
                 }
+                "--max-stream-bytes" => {
+                    let v = value()?;
+                    let n: u64 = v.parse().map_err(|_| format!("--max-stream-bytes {v}: not a byte count"))?;
+                    if max_stream_bytes.replace(n).is_some() {
+                        return Err("--max-stream-bytes given twice".into());
+                    }
+                }
                 _ => return Err(format!("unknown argument {a}")),
             }
         }
@@ -366,6 +396,16 @@ impl Args {
             && let Some(v) = env(ENV_MAX_MESSAGE_BYTES).filter(|v| !v.is_empty())
         {
             max_message_bytes = Some(v.parse().map_err(|_| format!("{ENV_MAX_MESSAGE_BYTES}={v}: not a byte count"))?);
+        }
+        let max_message_bytes = max_message_bytes.unwrap_or(DEFAULT_MAX_MESSAGE_BYTES);
+        if max_stream_bytes.is_none()
+            && let Some(v) = env(ENV_MAX_STREAM_BYTES).filter(|v| !v.is_empty())
+        {
+            max_stream_bytes = Some(v.parse().map_err(|_| format!("{ENV_MAX_STREAM_BYTES}={v}: not a byte count"))?);
+        }
+        let max_stream_bytes = max_stream_bytes.unwrap_or(DEFAULT_MAX_STREAM_BYTES);
+        if max_stream_bytes < max_message_bytes as u64 {
+            return Err(format!("max stream bytes {max_stream_bytes} is under max message bytes {max_message_bytes}"));
         }
         if admin.is_none()
             && let Some(v) = env(ENV_ADMIN).filter(|v| !v.is_empty())
@@ -414,7 +454,8 @@ impl Args {
         Ok(Args {
             listen,
             models,
-            max_message_bytes: max_message_bytes.unwrap_or(DEFAULT_MAX_MESSAGE_BYTES),
+            max_message_bytes,
+            max_stream_bytes,
             admin,
             vocabulary_dir,
             sink,
