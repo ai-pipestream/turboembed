@@ -6,9 +6,11 @@
 //! graph extension and that answer its device probe; a device that does
 //! not is never listed and nothing stands in for it. Models are OpenVINO
 //! IR artifacts the driver's own compiler builds into a graph on the
-//! device (npu/ir.rs, npu/graph/). When the device lists
-//! ZE_GRAPH_FORMAT_NATIVE, the graph that is initialized is that blob
-//! (npu/native.rs). The library carries no OpenVINO and no ONNX Runtime.
+//! device (npu/ir.rs, npu/graph/). When the graph extension exports the
+//! compiled blob, the graph that is initialized is that blob, loaded as
+//! ZE_GRAPH_FORMAT_NATIVE and kept for the next load of the same IR
+//! (npu/native.rs, npu/graph/blob.rs). The library carries no OpenVINO
+//! and no ONNX Runtime.
 //! docs/npu.md says how to build and test it.
 
 mod graph;
@@ -230,8 +232,8 @@ pub(crate) struct Device {
     compiler: ze::CompilerVersion,
     /// ze_graph_format_t bits the device's compiler takes, from the same
     /// probe: model_load refuses an IR when NGRAPH_LITE is not among
-    /// them, before any compile is tried. NATIVE, when listed, is how
-    /// the compiled blob is loaded back.
+    /// them, before any compile is tried. Bit 0x1 is not read: Intel's
+    /// driver clears it whenever its compiler loads.
     formats_supported: u32,
     /// The highest OpenVINO opset the device's compiler supports; 0 when
     /// the driver does not say.
@@ -425,19 +427,24 @@ impl Driver {
     }
 }
 
-/// `NATIVE` when bit 0x1 (`ZE_GRAPH_FORMAT_NATIVE`) is among the device's
-/// graph formats, otherwise `NGRAPH_LITE`. A driver that later sets the
-/// bit is a different cell from one that reports only 0x2.
-pub fn format_name(formats_supported: u32) -> &'static str {
-    if formats_supported & ze::GRAPH_FORMAT_NATIVE != 0 { "NATIVE" } else { "NGRAPH_LITE" }
+/// `NATIVE` for a graph created from a native blob, else `NGRAPH_LITE`:
+/// TURBO_NPU_GRAPH_FORMAT, and the session's choices.
+pub fn format_name(native: bool) -> &'static str {
+    if native { "NATIVE" } else { "NGRAPH_LITE" }
 }
 
-/// The graph format `model_load` initializes on the listed device.
-/// None when that ordinal is not listed.
+/// The graph format `model_load` initializes on the listed device:
+/// NATIVE when its graph extension exports the compiled blob. A load the
+/// driver refuses the blob for falls back to NGRAPH_LITE, and its
+/// session's choices say so. None when that ordinal is not listed.
 pub fn load_format(ordinal: u32) -> Option<&'static str> {
     let d = driver().ok().flatten()?;
-    d.devices.get(ordinal as usize).map(|dev| format_name(dev.formats_supported))
+    d.devices.get(ordinal as usize).map(|dev| format_name(native::exportable(&dev.ext)))
 }
+
+/// The tests' switch and readout for the native path, per thread.
+#[cfg(feature = "internals")]
+pub use graph::blob::{last_load, prefer_lite};
 
 /// ZE_extension_graph's version among the driver's extensions, None when
 /// the driver does not list it.
@@ -473,10 +480,8 @@ mod tests {
     }
 
     #[test]
-    fn the_graph_format_is_native_only_when_bit_0x1_is_set() {
-        assert_eq!(format_name(0x2), "NGRAPH_LITE");
-        assert_eq!(format_name(0), "NGRAPH_LITE");
-        assert_eq!(format_name(0x1), "NATIVE");
-        assert_eq!(format_name(0x3), "NATIVE");
+    fn the_graph_format_names_the_graph_created() {
+        assert_eq!(format_name(false), "NGRAPH_LITE");
+        assert_eq!(format_name(true), "NATIVE");
     }
 }

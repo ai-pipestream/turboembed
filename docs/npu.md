@@ -117,7 +117,12 @@ No build variables: there is nothing to point at.
   eight distinct cases. OpenVINO was measured on the same rows.
   `falls_short` is none. On a Windows build of `0.1.0` whose device
   arch is `arl-npu` and whose graph format is `NGRAPH_LITE`,
-  `decide_embedded` sets `MODEL` and `FASTEST` to SUPPORTED.
+  `decide_embedded` sets `MODEL` and `FASTEST` to SUPPORTED. The
+  cell's graph format is the one `model_load` would create on the
+  device: `NATIVE` when the graph extension exports the blob (Models,
+  below). AI Boost's does, so until `NATIVE` records are measured
+  these `NGRAPH_LITE` records do not bind and the `arl-npu` cells are
+  EXPERIMENTAL.
   The bundle is not part of the cell key: the cell is the device, so
   the MiniLM records and the BGE records below are all for it, and
   the newest one that does not fall short backs it. `benchmark` is
@@ -158,21 +163,40 @@ No build variables: there is nothing to point at.
   type and rank, each Result's port precision and rank. The graph is
   created with `pfnCreate3` where the extension has it (1.12+), so a
   compile failure carries the compiler's own log in the
-  `TURBO_E_RUNTIME` message, else `pfnCreate2`. When the device lists
-  `ZE_GRAPH_FORMAT_NATIVE`, that compiled graph is not the one
-  initialized. Its blob is copied from `pfnGetNativeBinary2` (extension
-  1.7 or later; the driver owns the view) or from `pfnGetNativeBinary`
-  (the caller owns the buffer). The `NGRAPH_LITE` graph is destroyed.
-  A new graph is created with `ZE_GRAPH_FORMAT_NATIVE` from those
-  bytes and an empty build-flag string, and that graph is initialized.
-  An empty blob, a missing export, or a driver refusal of the blob is
-  `TURBO_E_RUNTIME` or `TURBO_E_UNSUPPORTED`, and the `NGRAPH_LITE`
-  graph is not kept. A device that does not list `NATIVE` initializes
-  the `NGRAPH_LITE` graph and says so in the debug log, with the
-  formats bitfield. That is the path the `383a7d1` receipt ran: on
-  intel-npu, driver `0.15.21738`, `graphFormatsSupported` was `0x2`,
-  so bit `0x1` was clear and the load stayed on `NGRAPH_LITE`. A load
-  whose graph was created as `NATIVE` has not been run on intel-npu.
+  `TURBO_E_RUNTIME` message, else `pfnCreate2`. When the graph
+  extension exports the compiled blob (`pfnGetNativeBinary2`,
+  extension 1.7 or later, where the driver owns the view, or
+  `pfnGetNativeBinary`, where the caller owns the buffer), that
+  compiled graph is not the one initialized. Its blob is copied, a new
+  graph is created with `ZE_GRAPH_FORMAT_NATIVE` from those bytes and
+  an empty build-flag string, that graph is initialized, and the
+  `NGRAPH_LITE` graph is destroyed. The device's
+  `graphFormatsSupported` is not read for this. Intel's driver sets it
+  to `NATIVE` and then overwrites it with `NGRAPH_LITE` whenever its
+  compiler loads (intel/linux-npu-driver,
+  `umd/level_zero_driver/source/ext/graph.cpp`,
+  `getDeviceGraphProperties`, the same in every tag from v1.5.0 to
+  v1.38.0), and its graph create takes `NATIVE` either way. OpenVINO's
+  NPU plugin imports a blob as `NATIVE` without checking the bit. So
+  on a driver with a compiler bit `0x1` is always clear, and it says
+  nothing about whether a `NATIVE` graph loads.
+  A missing export, an empty blob, a driver refusal of the blob, or a
+  `NATIVE` graph that fails to initialize is logged at debug and the
+  `NGRAPH_LITE` graph is initialized instead: a load the compiled IR
+  would have handled does not fail on the native path. A compile
+  failure still fails the load.
+  The blob is kept in memory for the life of the process
+  (`core/src/npu/graph/blob.rs`), so a second load of the same IR
+  creates the `NATIVE` graph straight from it and compiles nothing. The
+  key is the SHA-256 of the xml and of the weights, the build flags,
+  the compiler version, the driver version, and the device arch. A
+  kept blob the driver refuses is dropped and the IR compiled again.
+  Blobs carry the weights (hundreds of MB for a large model) and are
+  held to 1 GiB in all, oldest out first. There is no on-disk copy:
+  the only cache directory here is `TURBO_AUTOTUNE_CACHE`, which is
+  opt-in and holds small JSON entries, not weights. Hashing the files
+  is software SHA-256, about a second or more for a large model's
+  weights, on each load that can go native.
   Initialization (`pfnGraphInitialize`, or appended and
   synchronized, as the graph's properties ask) is the weights' move to
   the device. The
@@ -246,7 +270,7 @@ No build variables: there is nothing to point at.
   initialized as (`NGRAPH_LITE` or `NATIVE`) in
   `turbo_session_info.choices`. It does not measure
   kernels, and it does not read a cached choice or an environment
-  variable: the driver's bit selects the format. The run
+  variable: the graph that was created is the format. The run
   appends `pfnAppendGraphExecute` on the
   context's immediate list, synchronizes, and pools each row's hidden
   states on the host (mean over the mask, the first token, or the last
@@ -493,6 +517,10 @@ TURBO_TEST_BUNDLE=<bundle-dir> \
     cargo test -p turbo --features npu --test npu -- --include-ignored
 TURBO_TEST_BUNDLE=<bundle-dir> TURBO_TEST_DEVICE=npu \
     cargo test -p turbo --features npu --test conformance -- --include-ignored
+# The NATIVE graph against the compiled IR, and the blob cache, with
+# each load's time:
+TURBO_TEST_BUNDLE=<bundle-dir> \
+    cargo test -p turbo --features npu --test npu_native -- --include-ignored --nocapture
 ```
 
 `a_run_reports_its_frames_and_where_each_stage_ran` reads the loaded
@@ -517,7 +545,8 @@ container, the build flags, the host gather, and the native descriptor)
 and the integration tests that return when the backend lists nothing.
 A missing device is a skip line, not a measured session.
 
-What it does not run: the four tests in `core/tests/npu.rs` marked
+What it does not run: the five tests in `core/tests/npu.rs` and the
+one in `core/tests/npu_native.rs` marked
 `needs an Intel NPU and TURBO_TEST_BUNDLE with an OpenVINO IR for it`.
 Those stay ignored. Conformance with `TURBO_TEST_DEVICE=npu` is the
 ignored test in `core/tests/conformance.rs`, and this job does not
@@ -564,8 +593,7 @@ with `TURBO_TEST_REQUIRE_NPU=1` passed 10, and none failed.
 on the host. Conformance with `TURBO_TEST_DEVICE=npu` passed 3. The
 tokenizer file hashed to
 `be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037`.
-That run is the `ZE_GRAPH_FORMAT_NGRAPH_LITE` graph. A native load
-has not been run on intel-npu.
+That run is the `ZE_GRAPH_FORMAT_NGRAPH_LITE` graph.
 
 Commit `6d904e7` records that `openvino-embeddings-f16` compiled on
 AI Boost (`cut_max_abs_diff` 0.00451, `turbo-bundle verify` exited 0).
@@ -576,11 +604,12 @@ device listed as `Intel(R) AI Boost`, driver `0.15.21738`.
 `cargo test -p turbo --features npu --test npu -- --include-ignored`
 passed 10, and none failed. The driver reported
 `graphFormatsSupported` `0x2`, which is `ZE_GRAPH_FORMAT_NGRAPH_LITE`.
-Bit `0x1`, `ZE_GRAPH_FORMAT_NATIVE`, was not set. The load initialized
-the lite graph. That is the fallback `model_load` takes when the device
-does not advertise `NATIVE`. The run did not create a graph with
-`ZE_GRAPH_FORMAT_NATIVE`. The code that would, when a driver advertises
-the bit, is in this tree and was not taken on that run.
+Bit `0x1`, `ZE_GRAPH_FORMAT_NATIVE`, was not set, and the load
+initialized the lite graph: the tree at that commit read the bit. The
+driver clears that bit whenever its compiler loads (Models, above),
+so it did not mean `NATIVE` was refused. `model_load` no longer reads
+it. A load whose graph was created as `NATIVE` has not been recorded
+on intel-npu yet; `core/tests/npu_native.rs` is that run.
 
 Two ROWS_DENSE npu speed records are committed at `00aa734`,
 measured at library commit `febfed530`. They are MiniLM
@@ -613,7 +642,10 @@ library `0.1.0` whose device arch is `arl-npu` and whose graph format
 is `NGRAPH_LITE`. The newest record for a cell backs it, which with
 the BGE records below is bge-large's. The numbers are in Speed,
 below. `EXACT` stays UNSUPPORTED. Another arch and a `NATIVE` load
-stay EXPERIMENTAL. The product path is the Level Zero graph
+stay EXPERIMENTAL. A device whose extension exports the blob now loads
+`NATIVE`, and the cell is keyed on that format, so these
+`NGRAPH_LITE` records do not bind an `arl-npu` cell until `NATIVE`
+records are measured. The product path is the Level Zero graph
 extension and `FORMAT_OPENVINO_IR`. `benchmark_app` is the reference
 control on the static IR (`openvino/model.xml`).
 
@@ -694,13 +726,14 @@ case that fits 128, each in its own `[1, 128]` frame, so the count
 is 8 times 128, which is 1024. `--batch` stays 1.
 
 `library.settings` names `TURBO_NPU_GRAPH_FORMAT` and
-`TURBO_NPU_GRAPH_INPUT`. On driver `0.15.21738` the format is
-`NGRAPH_LITE`, because `graphFormatsSupported` is `0x2` and bit `0x1`
-is clear. The file name carries `ngraph-lite` after `npu`. A driver
-that advertises bit `0x1` loads `NATIVE`, writes
-`TURBO_NPU_GRAPH_FORMAT=NATIVE`, and is filed as `native`. That
-record is a different cell. The format is what the device selected.
-Setting an environment variable does not change it.
+`TURBO_NPU_GRAPH_INPUT`. The format is the graph the load created.
+The records committed here were measured when the load read
+`graphFormatsSupported` (`0x2` on driver `0.15.21738`) and stayed on
+`NGRAPH_LITE`, and their file names carry `ngraph-lite` after `npu`.
+A load that creates the graph from the native blob writes
+`TURBO_NPU_GRAPH_FORMAT=NATIVE` and is filed as `native`. That record
+is a different cell. A load the driver refuses the blob for writes
+`NGRAPH_LITE`. Setting an environment variable does not change it.
 
 An embeddings-sealed copy (`openvino-embeddings-f16`,
 `INPUT_EMBEDDINGS`) is the host-gather path. `benchmark_app -d NPU`
@@ -766,7 +799,10 @@ and
 for `FASTEST`. `cosine_floor` is 0.9996791858674714, and
 `speed_ratio` is that record's. `reason` is empty. Another
 arch, a `NATIVE` graph, and a build whose OS is not windows stay
-EXPERIMENTAL with `no benchmark record for this cell`.
+EXPERIMENTAL with `no benchmark record for this cell`. The cell takes
+its format from the device: `NATIVE` when its graph extension exports
+the blob, as AI Boost's does. Until `NATIVE` records are measured,
+`arl-npu` `MODEL` and `FASTEST` are therefore EXPERIMENTAL.
 
 The dense files are the same settings and the same static IR, case
 8. They do not bind:
