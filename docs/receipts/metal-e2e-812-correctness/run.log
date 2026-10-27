@@ -1,0 +1,30 @@
+### e9b0491d4e8e29b5de9975d379f095adf2880c5d batch 32 seq 256 2026-10-27T13:48:26Z load { 26.16 21.88 24.70 } gpu 25
+metal Apple M2: p50 186.5052 ms, p99 292.9657 ms over 20 runs of [32, 256] ROWS_DENSE, 8192 live tokens, 8192 computed; min cosine 0.9999995917466737, max abs diff 1.329481601715088e-4
+library (metal Apple M2): p50 186.5052 ms, p99 292.9657 ms on [32, 256] ROWS_DENSE: 8192 token positions computed of 8192 live
+text-embeddings-inference (end_to_end): not run: disabled on the command line (--no-tei)
+mlx (kernel): p50 320.0950 ms, p99 346.8422 ms on [32, 256] ROWS_DENSE: 8192 token positions computed of 8192 live
+<scratch>/e2e812/m2.metal.embed.fastest-dense.all-minilm-l6-v2-3c305237.e9b0491d4e8e.json
+### e9b0491d4e8e29b5de9975d379f095adf2880c5d batch 8 seq 128 2026-10-27T13:49:13Z load { 35.74 24.73 25.59 } gpu 33
+metal Apple M2: p50 12.0350 ms, p99 13.6064 ms over 20 runs of [8, 128] ROWS_DENSE, 1024 live tokens, 1024 computed; min cosine 0.9999995917466737, max abs diff 1.329481601715088e-4
+library (metal Apple M2): p50 12.0350 ms, p99 13.6064 ms on [8, 128] ROWS_DENSE: 1024 token positions computed of 1024 live
+text-embeddings-inference (end_to_end): not run: disabled on the command line (--no-tei)
+mlx (kernel): p50 13.7717 ms, p99 15.9975 ms on [8, 128] ROWS_DENSE: 1024 token positions computed of 1024 live
+<scratch>/e2e812/8x128/m2.metal.embed.fastest-dense.all-minilm-l6-v2-3c305237.e9b0491d4e8e.json
+### e9b0491d4e8e29b5de9975d379f095adf2880c5d batch 2 seq 128 2026-10-27T13:49:19Z load { 35.44 24.86 25.63 } gpu 60
+metal Apple M2: p50 4.0076 ms, p99 6.5219 ms over 20 runs of [2, 128] ROWS_DENSE, 256 live tokens, 256 computed; min cosine 0.9999995917466737, max abs diff 1.329481601715088e-4
+library (metal Apple M2): p50 4.0076 ms, p99 6.5219 ms on [2, 128] ROWS_DENSE: 256 token positions computed of 256 live
+text-embeddings-inference (end_to_end): not run: disabled on the command line (--no-tei)
+mlx (kernel): p50 5.8733 ms, p99 7.0462 ms on [2, 128] ROWS_DENSE: 256 token positions computed of 256 live
+<scratch>/e2e812/2x128/m2.metal.embed.fastest-dense.all-minilm-l6-v2-3c305237.e9b0491d4e8e.json
+### e9b0491d4e8e29b5de9975d379f095adf2880c5d batch 1 seq 128 2026-10-27T13:49:24Z load { 36.04 25.16 25.73 } gpu 45
+metal Apple M2: p50 3.0260 ms, p99 3.9967 ms over 20 runs of [1, 128] ROWS_DENSE, 128 live tokens, 128 computed; min cosine 0.9999995917466737, max abs diff 1.329481601715088e-4
+library (metal Apple M2): p50 3.0260 ms, p99 3.9967 ms on [1, 128] ROWS_DENSE: 128 token positions computed of 128 live
+text-embeddings-inference (end_to_end): not run: disabled on the command line (--no-tei)
+mlx (kernel): p50 4.4471 ms, p99 9.4787 ms on [1, 128] ROWS_DENSE: 128 token positions computed of 128 live
+<scratch>/e2e812/1x128/m2.metal.embed.fastest-dense.all-minilm-l6-v2-3c305237.e9b0491d4e8e.json
+### e9b0491d4e8e29b5de9975d379f095adf2880c5d batch 1 seq 32 2026-10-27T13:49:29Z load { 34.86 25.26 25.76 } gpu 39
+metal Apple M2: p50 1.5118 ms, p99 2.9046 ms over 20 runs of [1, 32] ROWS_DENSE, 32 live tokens, 32 computed; min cosine 0.9999995917466737, max abs diff 1.329481601715088e-4
+library (metal Apple M2): p50 1.5118 ms, p99 2.9046 ms on [1, 32] ROWS_DENSE: 32 token positions computed of 32 live
+text-embeddings-inference (end_to_end): not run: disabled on the command line (--no-tei)
+mlx (kernel): p50 3.2911 ms, p99 4.0671 ms on [1, 32] ROWS_DENSE: 32 token positions computed of 32 live
+<scratch>/e2e812/1x32/m2.metal.embed.fastest-dense.all-minilm-l6-v2-3c305237.e9b0491d4e8e.json

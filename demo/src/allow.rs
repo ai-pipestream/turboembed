@@ -1,15 +1,19 @@
 //! The calls the demo forwards. Every unary and server-streaming method of
-//! the server's services is listed with whether it reads or writes; the
-//! reads are allowed unless the demo is told otherwise, and a write only
-//! when named with `--allow`. Client-streaming and bidi methods are not
-//! listed: a browser cannot make those calls (uploads are #1377).
+//! the server's services is listed with whether it reads or writes, and so
+//! is every client-streaming method, as an upload: a browser cannot make a
+//! client-streaming call, so each is an HTTP PUT to `/upload` and the
+//! method path (upload.rs). The reads are allowed unless the demo is told
+//! otherwise, and a write, every upload included, only when named with
+//! `--allow`. Bidi methods are not listed.
 
-/// One method: its path, `/<package>.<Service>/<Method>`, and whether the
-/// server answers it with a stream.
+/// One method: its path, `/<package>.<Service>/<Method>`, whether the
+/// server answers it with a stream, and whether it takes a client stream,
+/// as an upload.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Method {
     pub path: &'static str,
     pub streaming: bool,
+    pub upload: bool,
     write: bool,
 }
 
@@ -21,11 +25,16 @@ impl Method {
 }
 
 const fn read(path: &'static str) -> Method {
-    Method { path, streaming: false, write: false }
+    Method { path, streaming: false, upload: false, write: false }
 }
 
 const fn write(path: &'static str) -> Method {
-    Method { path, streaming: false, write: true }
+    Method { path, streaming: false, upload: false, write: true }
+}
+
+/// A client-streaming method, which writes.
+const fn upload(path: &'static str) -> Method {
+    Method { path, streaming: false, upload: true, write: true }
 }
 
 const fn stream(m: Method) -> Method {
@@ -33,7 +42,7 @@ const fn stream(m: Method) -> Method {
 }
 
 /// Every method the demo knows.
-pub const METHODS: [Method; 52] = [
+pub const METHODS: [Method; 56] = [
     read("/inference.GRPCInferenceService/ServerLive"),
     read("/inference.GRPCInferenceService/ServerReady"),
     read("/inference.GRPCInferenceService/ModelReady"),
@@ -86,7 +95,17 @@ pub const METHODS: [Method; 52] = [
     read("/turbo.vocabulary.v1.TurboVocabularyService/ListVocabularies"),
     write("/turbo.vocabulary.v1.TurboVocabularyService/DeleteVocabularyArtifact"),
     stream(read("/turbo.vocabulary.v1.TurboVocabularyService/DownloadVocabulary")),
+    upload("/turbo.vocabulary.v1.TurboVocabularyService/ImportDictionary"),
+    upload("/turbo.vocabulary.v1.TurboVocabularyService/LearnVocabulary"),
+    upload("/turbo.search.v1.TurboSearchService/IndexDocuments"),
+    upload("/turbo.sink.v1.TurboSinkService/StreamDocuments"),
 ];
+
+/// Whether `path` is an upload, a client-streaming method: a PUT to
+/// `/upload` and the path, never a Connect call.
+pub fn is_upload(path: &str) -> bool {
+    METHODS.iter().any(|m| m.upload && m.path == path)
+}
 
 /// The methods the demo forwards: the reads, and each write named.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -103,14 +122,14 @@ impl Default for Allow {
 impl Allow {
     /// The reads and the methods named, each `/<package>.<Service>/<Method>`
     /// with or without its leading slash. A name not in the table, such as
-    /// a client-streaming method, is refused.
+    /// a bidi method, is refused.
     pub fn with(names: &[String]) -> Result<Allow, String> {
         let mut allow = Allow::default();
         for name in names {
             let path = name.trim().trim_start_matches('/');
             let Some(m) = METHODS.iter().find(|m| &m.path[1..] == path) else {
                 return Err(format!(
-                    "--allow {name}: not a unary or server-streaming method of the server (/<package>.<Service>/<Method>)"
+                    "--allow {name}: not a unary, server-streaming or upload method of the server (/<package>.<Service>/<Method>)"
                 ));
             };
             if !allow.allowed.contains(m) {
@@ -144,10 +163,13 @@ mod tests {
         let a = Allow::default();
         assert!(a.get("/turbo.result.v1.AnalysisService/Capabilities").is_ok());
         assert_eq!(a.get("/turbo.training.v1.TurboTrainingService/TrainStaticModel"), Err(true));
-        assert_eq!(a.get("/turbo.search.v1.TurboSearchService/IndexDocuments"), Err(false));
+        assert_eq!(a.get("/turbo.search.v1.TurboSearchService/IndexDocuments"), Err(true));
+        assert_eq!(a.get("/turbo.sink.v1.TurboSinkService/StreamDocuments"), Err(true));
+        assert_eq!(a.get("/turbo.result.v1.AnalysisService/AnalyzeStream"), Err(false));
         let a = Allow::with(&["turbo.training.v1.TurboTrainingService/TrainStaticModel".into()]).unwrap();
         assert!(a.get("/turbo.training.v1.TurboTrainingService/TrainStaticModel").unwrap().streaming);
-        assert!(Allow::with(&["/turbo.search.v1.TurboSearchService/IndexDocuments".into()]).is_err());
-        assert!(Allow::with(&["/turbo.sink.v1.TurboSinkService/StreamDocuments".into()]).is_err());
+        let a = Allow::with(&["/turbo.search.v1.TurboSearchService/IndexDocuments".into()]).unwrap();
+        assert!(a.writes() && a.get("/turbo.search.v1.TurboSearchService/IndexDocuments").unwrap().upload);
+        assert!(Allow::with(&["/turbo.result.v1.AnalysisService/AnalyzeStream".into()]).is_err());
     }
 }

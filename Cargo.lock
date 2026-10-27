@@ -2430,6 +2430,7 @@ dependencies = [
  "tonic",
  "turbo",
  "turbo-kserve",
+ "turbo-sha256",
  "turbo-zoo",
 ]
 
