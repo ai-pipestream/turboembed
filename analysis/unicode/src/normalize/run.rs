@@ -1,6 +1,6 @@
 //! Normalizing one run: decomposition, canonical ordering and composition.
 
-use super::{Form, data, full_decomposition, hangul};
+use super::{Form, canonical_order, data, full_decomposition, hangul};
 use crate::tables::normalize::CCC_MASK;
 
 /// The buffers of run normalization, kept between runs so that a long
@@ -20,7 +20,7 @@ impl RunNormalizer {
         for c in run.chars() {
             self.decompose(form, c);
         }
-        canonical_order(&mut self.chars);
+        canonical_order(&mut self.chars, |c| c.1);
         if form.composes() {
             compose(&mut self.chars);
         }
@@ -38,24 +38,6 @@ impl RunNormalizer {
             Some(mapping) => self.chars.extend(mapping.iter().map(|&m| (m, (data(m) & CCC_MASK) as u8))),
             None => self.chars.push((c, (packed & CCC_MASK) as u8)),
         }
-    }
-}
-
-/// Sorts each run of characters with a nonzero combining class by class,
-/// keeping the order of equal classes (the canonical ordering algorithm).
-/// Characters of class 0 never move, and nothing moves across them.
-fn canonical_order(chars: &mut [(char, u8)]) {
-    for i in 1..chars.len() {
-        let current = chars[i];
-        if current.1 == 0 {
-            continue;
-        }
-        let mut j = i;
-        while j > 0 && chars[j - 1].1 > current.1 {
-            chars[j] = chars[j - 1];
-            j -= 1;
-        }
-        chars[j] = current;
     }
 }
 
