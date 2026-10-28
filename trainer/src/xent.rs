@@ -3,6 +3,7 @@
 
 use turbo::status::{Result, invalid};
 
+use crate::logspace::softmax;
 use crate::real::Real;
 
 /// The summed loss over the words of scores [n, labels], and its
@@ -22,19 +23,16 @@ pub fn loss<R: Real>(scores: &[R], gold: &[u32], labels: usize, dscores: &mut [R
         return Err(invalid(format!("xent: a gold label is past the {labels} labels")));
     }
     let mut total = 0.0;
-    let mut delta = vec![0.0f64; scores.len()];
+    let mut delta: Vec<f64> = scores.iter().map(|v| v.to_f64()).collect();
     for (t, &g) in gold.iter().enumerate() {
         let g = g as usize;
-        let row = &scores[t * labels..][..labels];
-        let m = row.iter().map(|v| v.to_f64()).fold(f64::NEG_INFINITY, f64::max);
-        let z: f64 = row.iter().map(|v| (v.to_f64() - m).exp()).sum();
-        // Centred on the row's largest score, so a large common offset
-        // does not swallow the normaliser.
-        total += z.ln() - (row[g].to_f64() - m);
-        for (j, d) in delta[t * labels..][..labels].iter_mut().enumerate() {
-            let p = (row[j].to_f64() - m).exp() / z;
-            *d = p - if j == g { 1.0 } else { 0.0 };
-        }
+        let row = &mut delta[t * labels..][..labels];
+        let gold_score = row[g];
+        // Centred on the row's largest score (see `logspace`), so a large
+        // common offset does not swallow the normaliser.
+        let (m, ln_z) = softmax(row);
+        total += ln_z - (gold_score - m);
+        row[g] -= 1.0;
     }
     if !total.is_finite() || !delta.iter().all(|d| d.is_finite()) {
         return Err(invalid("xent: the loss or a gradient is not finite"));

@@ -171,7 +171,9 @@ fn a_common_score_offset_changes_neither_loss_nor_gradient() {
 
 /// Codex's cases: large start and end scores that cancel along every
 /// legal path, and a large start score only a forbidden path could take.
-/// Neither may swallow the normaliser.
+/// Neither may swallow the normaliser. Past `SCORE_RANGE` from the gold
+/// path's, a score the gold path does not cancel is refused instead, the
+/// gradients left as they were; a forbidden one never counts.
 #[test]
 fn large_scores_that_cancel_or_are_forbidden_leave_the_loss_whole() {
     let names = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
@@ -181,8 +183,8 @@ fn large_scores_that_cancel_or_are_forbidden_leave_the_loss_whole() {
     // gradients wanted.
     type Case<'a> = (&'a turbo::head::crf::Allowed, Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>);
     let cases: [Case; 3] = [
-        (&tags, vec![1e20, 0.0], vec![0.0, 1e20], vec![0.0; 2], vec![-0.5, 0.5]),
-        (&tags, vec![0.0, 1e20], vec![1e20, 0.0], vec![0.0; 2], vec![-0.5, 0.5]),
+        (&tags, vec![1e5, 0.0], vec![0.0, 1e5], vec![0.0; 2], vec![-0.5, 0.5]),
+        (&tags, vec![0.0, 1e5], vec![1e5, 0.0], vec![0.0; 2], vec![-0.5, 0.5]),
         (&bio, vec![0.0, 0.0, 1e20], vec![0.0; 3], vec![0.0; 3], vec![-0.5, 0.5, 0.0]),
     ];
     for (k, (lattice, st, en, emit, want)) in cases.into_iter().enumerate() {
@@ -196,17 +198,29 @@ fn large_scores_that_cancel_or_are_forbidden_leave_the_loss_whole() {
         assert!((l - std::f64::consts::LN_2).abs() < 1e-12, "case {k}: loss {l}");
         assert_eq!((&de, &gs, &ge), (&want, &want, &want), "case {k}");
     }
+    let (st, en, tr) = (vec![1e20f32, 0.0], vec![0.0f32, 1e20], vec![0.0f32; 4]);
+    let p = crf::Params { transitions: &tr, start: &st, end: &en };
+    let (mut gt, mut gs, mut ge, mut de) = (vec![7.0f32; 4], vec![7.0; 2], vec![7.0; 2], vec![7.0; 2]);
+    let g = crf::Grad { transitions: &mut gt, start: &mut gs, end: &mut ge };
+    assert!(crf::nll(p, &tags, &[0.0, 0.0], &[0], 2, &mut de, g).is_err(), "past the range");
+    assert!([&gt, &gs, &ge, &de].iter().all(|v| v.iter().all(|&x| x == 7.0)));
 }
 
 /// Codex's case: the gold path far from dominant, two equal alternatives
-/// that are. The marginals at every place still sum to one.
+/// that are. The marginals at every place still sum to one; past
+/// `SCORE_RANGE` the case is refused.
 #[test]
 fn marginals_stay_normalized_when_other_paths_dominate() {
     let names = ["A", "B", "C"].map(String::from);
     let (_, tags) = allowed(Scheme::Tags, &names).unwrap();
     let (tr, st, en) = (vec![0.0f32; 9], vec![0.0f32; 3], vec![0.0f32; 3]);
     for n in [1usize, 2, 4] {
-        let emit: Vec<f32> = (0..n).flat_map(|_| [0.0, 1e20, 1e20]).collect();
+        let far: Vec<f32> = (0..n).flat_map(|_| [0.0, 1e20, 1e20]).collect();
+        let p = crf::Params { transitions: &tr, start: &st, end: &en };
+        let (mut gt, mut gs, mut ge, mut de) = (vec![0.0f32; 9], vec![0.0; 3], vec![0.0; 3], vec![0.0; 3 * n]);
+        let g = crf::Grad { transitions: &mut gt, start: &mut gs, end: &mut ge };
+        assert!(crf::nll(p, &tags, &far, &vec![0; n], 3, &mut de, g).is_err(), "{n} words past the range");
+        let emit: Vec<f32> = (0..n).flat_map(|_| [0.0, 1e5, 1e5]).collect();
         let p = crf::Params { transitions: &tr, start: &st, end: &en };
         let (mut gt, mut gs, mut ge, mut de) = (vec![0.0f32; 9], vec![0.0; 3], vec![0.0; 3], vec![0.0; 3 * n]);
         let g = crf::Grad { transitions: &mut gt, start: &mut gs, end: &mut ge };
