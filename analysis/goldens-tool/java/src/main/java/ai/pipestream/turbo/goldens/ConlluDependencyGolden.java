@@ -14,7 +14,6 @@ import java.util.Set;
 import opennlp.tools.formats.conllu.ConlluTagset;
 import opennlp.tools.util.InputStreamFactory;
 import opennlp.tools.util.ObjectStream;
-import opennlp.tools.util.WhitespaceMode;
 
 /**
  * The golden of {@code ConlluDependencySampleStream} over a CoNLL-U file: every dependency sample
@@ -27,8 +26,7 @@ import opennlp.tools.util.WhitespaceMode;
  * the branch's {@code ParamChecks}, into a jar of their own, which {@link BranchJar} loads before
  * the generator's OpenNLP jars.</p>
  *
- * <p>A run is one tag set, and for the universal tags also the legacy whitespace mode, in which the
- * stream tests separator lines and relations for whitespace. It reads the {@code conllu} set's
+ * <p>A run is one tag set. It reads the {@code conllu} set's
  * files whose id starts with {@code dependency-}, until {@code read} returns null; an exception is
  * recorded with the number of samples before it, and reading goes on. The layers, all anchored to
  * the document: {@code turbo:samples}, what each sample's {@code toString} returned; {@code
@@ -57,21 +55,18 @@ final class ConlluDependencyGolden implements AnnotatorGolden {
   private static final int MAX_READS = 100_000;
 
   private final ConlluTagset tagset;
-  private final WhitespaceMode whitespace;
   private final Branch branch;
 
-  private ConlluDependencyGolden(ConlluTagset tagset, WhitespaceMode whitespace, Branch branch) {
+  private ConlluDependencyGolden(ConlluTagset tagset, Branch branch) {
     this.tagset = tagset;
-    this.whitespace = whitespace;
     this.branch = branch;
   }
 
-  /** The runs: each tag set, and the universal tags in the legacy whitespace mode. */
+  /** The runs: one for each tag set. */
   static List<ConlluDependencyGolden> all() throws IOException {
     Branch branch = Branch.open();
-    return List.of(new ConlluDependencyGolden(ConlluTagset.U, WhitespaceMode.UNICODE, branch),
-        new ConlluDependencyGolden(ConlluTagset.X, WhitespaceMode.UNICODE, branch),
-        new ConlluDependencyGolden(ConlluTagset.U, WhitespaceMode.LEGACY, branch));
+    return List.of(new ConlluDependencyGolden(ConlluTagset.U, branch),
+        new ConlluDependencyGolden(ConlluTagset.X, branch));
   }
 
   /** The stream's constructor and the sample's and tree's accessors, from the branch's jar. */
@@ -131,7 +126,7 @@ final class ConlluDependencyGolden implements AnnotatorGolden {
 
   @Override
   public String modelDir() {
-    return "dependency-" + tagset.name().toLowerCase(Locale.ROOT) + Whitespace.dirSuffix(whitespace);
+    return "dependency-" + tagset.name().toLowerCase(Locale.ROOT);
   }
 
   @Override
@@ -146,7 +141,7 @@ final class ConlluDependencyGolden implements AnnotatorGolden {
 
   @Override
   public Map<String, String> config() {
-    Map<String, String> config = new HashMap<>(Whitespace.config(whitespace));
+    Map<String, String> config = new HashMap<>();
     config.put("tagset", tagset.name().toLowerCase(Locale.ROOT));
     config.put("branchCommit", BRANCH_COMMIT);
     return config;
@@ -164,7 +159,7 @@ final class ConlluDependencyGolden implements AnnotatorGolden {
 
   @Override
   public List<Layer> layers(Input input) throws AnnotatorException {
-    return Whitespace.in(whitespace, () -> read(input));
+    return read(input);
   }
 
   private List<Layer> read(Input input) {

@@ -135,10 +135,9 @@ pub fn train_sentiment_model_from_events(
 mod tests {
     use super::*;
     use turbo_formats::native::DocumentReader;
-    use turbo_unicode::WhitespaceMode;
 
     fn samples(text: &str) -> Vec<DocumentSample<'_>> {
-        DocumentReader::new(text, WhitespaceMode::Unicode).unwrap().map(|s| s.unwrap()).collect()
+        DocumentReader::new(text).unwrap().map(|s| s.unwrap()).collect()
     }
 
     fn strings(e: &Event) -> Vec<String> {

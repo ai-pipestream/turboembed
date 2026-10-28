@@ -15,7 +15,7 @@ fn normalized_unigram_added_tokens_match_upstream_ids_and_spans() {
     let mut upstream = tokenizers::Tokenizer::from_bytes(serde_json::to_vec(&json).unwrap()).unwrap();
     upstream.with_padding(None);
     upstream.with_truncation(None).unwrap();
-    let added = [Special { content: "<mask>".into(), id: 28232, lstrip: true, single_word: false }];
+    let added = [Special { content: "<mask>".into(), id: 28232, lstrip: true, rstrip: false, single_word: false }];
     for text in ["<mask>", "a <mask> b", "a<mask>b", "a  <ｍａｓｋ> 東京", "Ｃａｆé 東京", "<mask><mask>", ""]
     {
         let expected = upstream.encode(text, false).unwrap();

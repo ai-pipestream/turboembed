@@ -208,7 +208,7 @@ fn the_recipes_train_score_gate_and_write_their_cards() {
                 assert_eq!(card.gate.reference_tag_format, Some(TagFormat::Penn));
             }
             Recipe::Segmentation(_) => {
-                assert_eq!(card.training.whitespace.as_deref(), Some("legacy"));
+                assert_eq!(card.training.whitespace.as_deref(), Some("unicode"));
                 assert_eq!((card.gate.candidate_tag_format, card.gate.reference_tag_format), (None, None));
             }
             Recipe::Chunk(_) | Recipe::Name(_) => {

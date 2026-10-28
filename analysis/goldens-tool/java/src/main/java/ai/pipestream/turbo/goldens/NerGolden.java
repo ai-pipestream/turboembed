@@ -37,7 +37,6 @@ import opennlp.tools.util.ObjectStream;
 import opennlp.tools.util.PlainTextByLineStream;
 import opennlp.tools.util.StringList;
 import opennlp.tools.util.StringUtil;
-import opennlp.tools.util.WhitespaceMode;
 
 /**
  * The golden of one of OpenNLP's named entity corpus streams over a file of the {@code ner} input
@@ -54,8 +53,8 @@ import opennlp.tools.util.WhitespaceMode;
  * read as {@code Muc6NameSampleStreamFactory} reads one: a {@code DirectorySampleStream} of the
  * files whose lower-cased name ends with {@code .sgm}, not recursive, each read as UTF-8 by a
  * {@code FileToStringSampleStream}, then {@code MucNameSampleStream}. The factory splits the text
- * with a maxent tokenizer model; the runs use {@code WhitespaceTokenizer} (also in the legacy
- * whitespace mode) and {@code SimpleTokenizer} ({@code tokenizer} config record). The message of
+ * with a maxent tokenizer model; the runs use {@code WhitespaceTokenizer} and
+ * {@code SimpleTokenizer} ({@code tokenizer} config record). The message of
  * an unknown name type ends with the set of the expected types, which {@code Set.of} iterates in
  * an order that changes from one JVM run to the next; the golden writes that set in the order
  * {@code MucNameContentHandler} lists the types in its source, so it is the same in every run.</p>
@@ -64,7 +63,7 @@ import opennlp.tools.util.WhitespaceMode;
  * {@code BratNameSampleStreamFactory} reads a corpus directory: its {@code annotation.conf}, a
  * {@code BratDocumentStream} (recursive in one run), a {@code NewlineSentenceDetector} (the
  * factory's choice without a sentence model) and the whitespace tokenizer (its choice without a
- * tokenizer, also in the legacy whitespace mode) or the simple one, and in one run the name types
+ * tokenizer) or the simple one, and in one run the name types
  * {@code Person , Location} split and trimmed as the factory splits its {@code nameTypes}. The
  * simple tokenizer cuts a character outside the Basic Multilingual Plane into its two surrogates,
  * which a golden cannot hold, so its run does not read {@code brat-utf16}. The
@@ -138,21 +137,17 @@ final class NerGolden implements AnnotatorGolden {
   static final String MUC_TYPES = "[PERSON, ORGANIZATION, LOCATION, DATE, TIME, MONEY, PERCENT]";
 
   private final Kind kind;
-  private final WhitespaceMode whitespace;
 
-  private NerGolden(Kind kind, WhitespaceMode whitespace) {
+  private NerGolden(Kind kind) {
     this.kind = kind;
-    this.whitespace = whitespace;
   }
 
-  /** Every run: each stream, and the MUC and brat streams with the whitespace tokenizer in the legacy mode too. */
+  /** Every run: one for each stream. */
   static List<NerGolden> all() {
     List<NerGolden> runs = new ArrayList<>();
     for (Kind k : Kind.values()) {
-      runs.add(new NerGolden(k, WhitespaceMode.UNICODE));
+      runs.add(new NerGolden(k));
     }
-    runs.add(new NerGolden(Kind.MUC_WHITESPACE, WhitespaceMode.LEGACY));
-    runs.add(new NerGolden(Kind.BRAT_WHITESPACE, WhitespaceMode.LEGACY));
     return runs;
   }
 
@@ -197,7 +192,6 @@ final class NerGolden implements AnnotatorGolden {
       c.put("recursive", "true");
       c.put("nameTypes", BRAT_TYPES);
     }
-    c.putAll(Whitespace.config(whitespace));
     return c;
   }
 
@@ -217,7 +211,7 @@ final class NerGolden implements AnnotatorGolden {
 
   @Override
   public String modelDir() {
-    return kind.dir + Whitespace.dirSuffix(whitespace);
+    return kind.dir;
   }
 
   /** The GermEval types as {@code GermEval2014NameSampleStreamFactory} makes them. */
@@ -369,7 +363,7 @@ final class NerGolden implements AnnotatorGolden {
       root = Files.createTempDirectory("ner-golden");
       MascGolden.writeBundle(input, root);
       Path dir = root;
-      return Whitespace.in(whitespace, () -> kind == Kind.BRAT_CONFIG ? bratConfig(dir) : read(input, dir));
+      return kind == Kind.BRAT_CONFIG ? bratConfig(dir) : read(input, dir);
     } catch (IOException e) {
       throw new IllegalStateException(input.inputId() + ": the corpus could not be written", e);
     } finally {

@@ -9,7 +9,6 @@ use turbo_analysis::{
     ViewId,
 };
 use turbo_analysis_layers::{Entities, TagSet, Tokens};
-use turbo_unicode::WhitespaceMode;
 
 use super::{
     DocumentFormatter, ExportOffsetMode, FormatExportError, OutputFormatDescriptor, get_bound_layer,
@@ -168,7 +167,7 @@ pub fn parse_brat_with_offsets(
         )));
     }
     let source_text = doc.source();
-    let brat_doc = BratDocument::parse(doc_id, source_text.as_bytes(), ann_bytes, WhitespaceMode::Unicode)?;
+    let brat_doc = BratDocument::parse(doc_id, source_text.as_bytes(), ann_bytes)?;
     if offsets == ExportOffsetMode::Utf16 {
         let ents = brat_doc.to_entities(tokens).map_err(FormatExportError::InvalidData)?;
         return Ok((brat_doc, ents));

@@ -12,7 +12,7 @@
 use turbo_formats::SentenceSample;
 use turbo_maxent::Dictionary;
 use turbo_sentdetect::context::{Limits, Lookup, SdContext, Walks};
-use turbo_sentdetect::{EndOfSentence, Features, Position, WhitespaceMode};
+use turbo_sentdetect::{EndOfSentence, Features, Position};
 use turbo_train::{
     Event, GisModel, JavaString, ModelPackage, TrainingConfiguration, TrainingParameters, TrainingReport, gis,
     write_gis,
@@ -140,7 +140,6 @@ impl SentenceDetectorFactory {
 pub struct SdEventStream<'f> {
     eos: &'f EndOfSentence,
     dictionary: Option<&'f Dictionary>,
-    whitespace: WhitespaceMode,
     candidates: Vec<Position>,
     features: Features,
     lookup: Lookup,
@@ -148,13 +147,12 @@ pub struct SdEventStream<'f> {
 
 impl<'f> SdEventStream<'f> {
     /// The stream of `factory.getSDContextGenerator()` and
-    /// `factory.getEndOfSentenceScanner()`, with `whitespace` where the
-    /// Java calls `StringUtil.isWhitespace`.
-    pub fn new(factory: &'f SentenceDetectorFactory, whitespace: WhitespaceMode) -> SdEventStream<'f> {
+    /// `factory.getEndOfSentenceScanner()`, with Unicode `White_Space`
+    /// where the Java calls `StringUtil.isWhitespace`.
+    pub fn new(factory: &'f SentenceDetectorFactory) -> SdEventStream<'f> {
         SdEventStream {
             eos: factory.end_of_sentence(),
             dictionary: factory.abbreviations().map(AbbreviationDictionary::lookup),
-            whitespace,
             candidates: Vec::new(),
             features: Features::new(),
             lookup: Lookup::default(),
@@ -166,7 +164,7 @@ impl<'f> SdEventStream<'f> {
     pub fn events(&mut self, sample: &SentenceSample<'_>, out: &mut Vec<Event>) {
         let document = sample.document();
         let scanned = self.eos.positions(document, &mut self.candidates);
-        let context = SdContext::new(self.eos, self.dictionary, self.whitespace, Limits::NONE);
+        let context = SdContext::new(self.eos, self.dictionary, Limits::NONE);
         let mut walks = Walks::new();
         let mut last_unit = 0;
         for span in sample.sentences() {
@@ -202,12 +200,11 @@ fn java_strings(features: &Features) -> Vec<JavaString> {
 pub fn sd_events<'a, 's>(
     samples: impl IntoIterator<Item = &'s SentenceSample<'a>>,
     factory: &SentenceDetectorFactory,
-    whitespace: WhitespaceMode,
 ) -> Vec<Event>
 where
     'a: 's,
 {
-    let mut stream = SdEventStream::new(factory, whitespace);
+    let mut stream = SdEventStream::new(factory);
     let mut out = Vec::new();
     for sample in samples {
         stream.events(sample, &mut out);
@@ -259,13 +256,12 @@ pub fn train_sentence_model<'a, 's>(
     factory: &SentenceDetectorFactory,
     params: &TrainingParameters,
     config: &mut TrainingConfiguration,
-    whitespace: WhitespaceMode,
     stamp: Stamp<'_>,
 ) -> Result<TrainedSentenceModel>
 where
     'a: 's,
 {
-    let events = sd_events(samples, factory, whitespace);
+    let events = sd_events(samples, factory);
     train_sentence_model_from_events(&events, factory, params, config, stamp)
 }
 
@@ -301,7 +297,7 @@ mod tests {
     fn the_last_candidate_of_a_sentence_splits_and_the_others_do_not() {
         let f = SentenceDetectorFactory::new("en", true, None, None).unwrap();
         let s = samples("Dr. Who left.\nNo end here\nTwo? Yes!\n");
-        let events = sd_events(&s, &f, WhitespaceMode::Unicode);
+        let events = sd_events(&s, &f);
         let outcomes: Vec<String> = events.iter().map(|e| e.outcome().to_string()).collect();
         // "Dr." and "left." in the first sentence; none in the second;
         // "Two?" and "Yes!" in the third.
@@ -325,10 +321,10 @@ mod tests {
             let spans: Vec<Span> = spans.iter().map(|&(s, e)| Span::new(s, e)).collect();
             SentenceSample::new(std::borrow::Cow::Borrowed(text), spans.clone(), spans, Span::new(0, 30)).unwrap()
         };
-        let together = sd_events([&sample(&spans)], &f, WhitespaceMode::Unicode);
+        let together = sd_events([&sample(&spans)], &f);
         let mut apart = Vec::new();
         for span in spans {
-            apart.extend(sd_events([&sample(&[span])], &f, WhitespaceMode::Unicode));
+            apart.extend(sd_events([&sample(&[span])], &f));
         }
         assert_eq!(outcomes(&together), "nsnsnsns");
         assert_eq!(together, apart);
@@ -365,7 +361,7 @@ mod tests {
             ("serializer-class-abbreviations.dictionary".to_owned(), DICTIONARY_SERIALIZER.to_owned())
         );
         let s = samples("See Dr. Who.\n");
-        let events = sd_events(&s, &f, WhitespaceMode::Unicode);
+        let events = sd_events(&s, &f);
         assert!(events[0].context().iter().any(|c| c.as_bytes() == b"xabbrev"));
     }
 }

@@ -16,6 +16,10 @@ pub struct Tokenizer {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sentencepiece: Option<SentencePiece>,
     pub special_tokens: Vec<SpecialToken>,
+    /// The file's other added tokens, with no role: matched in the text
+    /// as upstream matches them and given their ids.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub added_tokens: Vec<AddedToken>,
     pub template: Vec<String>,
     pub truncation: Truncation,
 }
@@ -155,17 +159,39 @@ pub struct SpecialToken {
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub lstrip: bool,
     /// The token is matched in the normalized text, its content
-    /// normalized too, as upstream matches a `normalized` added token,
-    /// and only as a whole word when `single_word`; it takes the
-    /// whitespace after it when `rstrip`. WordPiece, or BPE, which has no
-    /// normalizer and matches it in the text as it is (no `single_word`
-    /// or `rstrip`).
+    /// normalized too, as upstream matches a `normalized` added token
+    /// (BPE without `nfc` has no normalizer and matches it in the text as
+    /// it is). It is matched only as a whole word when `single_word`, and
+    /// takes the whitespace after it when `rstrip` (not for a normalized
+    /// token of `unigram`).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub normalized: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub single_word: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub rstrip: bool,
+}
+
+/// One of the tokenizer file's `added_tokens` that is no special token
+/// of a role (ModernBERT's `[unused0]`, its runs of spaces): matched in
+/// the text before it is cut into words, as upstream matches it, its id
+/// the token. The flags read as `SpecialToken`'s; `special` leaves it
+/// out of a decode that skips special tokens.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct AddedToken {
+    pub content: String,
+    pub id: u32,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub special: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub normalized: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub lstrip: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub rstrip: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub single_word: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

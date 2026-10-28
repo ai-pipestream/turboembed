@@ -81,8 +81,7 @@ impl turbo_analysis::Annotator for QueryTermAnnotator {
 
     fn annotate(&self, (view,): turbo_analysis::Refs<'_, Self>) -> Result<Self::Writes, turbo_analysis::Error> {
         let text = view.text();
-        let edge_ws =
-            |c: Option<char>| c.is_some_and(|c| turbo_unicode::WhitespaceMode::Unicode.is_whitespace(c as u32));
+        let edge_ws = |c: Option<char>| c.is_some_and(|c| turbo_unicode::whitespace::is_whitespace(c as u32));
         let sentences = if !text.is_empty()
             && !edge_ws(text.chars().next())
             && !edge_ws(text.chars().next_back())

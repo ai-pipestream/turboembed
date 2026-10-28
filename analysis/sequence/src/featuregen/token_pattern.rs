@@ -1,7 +1,6 @@
 //! `TokenPatternFeatureGenerator`.
 
 use turbo_jvm::chars::Utf16Units;
-use turbo_unicode::WhitespaceMode;
 use turbo_unicode::java::code_point::{is_alphabetic, is_digit};
 
 use super::FeatureGenerator;
@@ -23,7 +22,7 @@ use crate::pattern::{PatternMode, token_feature_utf16};
 /// `SimpleTokenizer` classifies UTF-16 code units, so a character outside
 /// the Basic Multilingual Plane is two pieces of one lone surrogate each;
 /// they are kept as code units here so their features come out as Java's
-/// do. Whitespace is OpenNLP's default (`WhitespaceMode.UNICODE`).
+/// do. Whitespace is the Unicode `White_Space` property.
 pub struct TokenPattern {
     mode: PatternMode,
     units: Vec<u16>,
@@ -53,7 +52,7 @@ impl TokenPattern {
         let mut previous = 0u16;
         for (i, &c) in self.units.iter().enumerate() {
             let cp = u32::from(c);
-            class = if WhitespaceMode::Unicode.is_whitespace(cp) {
+            class = if turbo_unicode::whitespace::is_whitespace(cp) {
                 Class::Whitespace
             } else if is_alphabetic(cp) {
                 Class::Alphabetic

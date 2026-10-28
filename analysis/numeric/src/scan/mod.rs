@@ -23,7 +23,6 @@ mod prefix_tests;
 pub(crate) use extended::{EXTENDED_START_BYTES, is_nd_at, next_candidate_pos, utf8_char_width};
 use turbo_analysis_layers::{Multiplier, NumberNotation, ScaleMarker};
 use turbo_unicode::GeneralCategory::{Ll, Lm, Lo, Lt, Lu, Mc, Me, Mn, Nd, Nl, No, Pc, Sc};
-use turbo_unicode::WhitespaceMode;
 use turbo_unicode::category::general_category;
 use turbo_unicode::java;
 
@@ -390,7 +389,7 @@ pub fn boundary_after(text: &str, index: usize) -> bool {
 /// the Java's space sentinel is; the part of a mention expected after it
 /// then finds nothing.
 pub fn whitespace_at(text: &str, index: usize) -> bool {
-    WhitespaceMode::Unicode.is_whitespace(char_or_space(text, index) as u32)
+    turbo_unicode::whitespace::is_whitespace(char_or_space(text, index) as u32)
 }
 
 /// `NumberScan.baseCodePointBefore`: the character before byte `index`,

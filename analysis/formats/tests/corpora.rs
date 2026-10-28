@@ -23,8 +23,8 @@ use turbo_formats::corpora::{
 use turbo_formats::ner::RuleTokenizer;
 use turbo_formats::sample::{SentenceSample, TokenSample};
 use turbo_goldens::{ColumnData, ColumnSpec, ColumnType, Golden, GoldenAnchor, GoldenLayer, Shape};
+use turbo_tokenize::TokenizerOptions;
 use turbo_tokenize::detok::{Detokenizer, DetokenizerDictionary, DictionaryOperation};
-use turbo_tokenize::{TokenizerOptions, WhitespaceMode};
 
 mod bundle;
 use bundle::write_bundle;
@@ -186,7 +186,6 @@ fn rebuild(run: &str, golden: &Golden, input: &str, scratch: &Path) -> Rebuilt {
     out.layer("turbo:samples");
     out.layer("turbo:read-errors");
     let base = run.split('+').next().unwrap();
-    let mode = if run.ends_with("+legacy") { WhitespaceMode::Legacy } else { WhitespaceMode::Unicode };
     match base {
         "moses" => {
             let samples = drain(MosesReader::new(input).unwrap(), &mut out);
@@ -200,7 +199,7 @@ fn rebuild(run: &str, golden: &Golden, input: &str, scratch: &Path) -> Rebuilt {
                     Vec::new()
                 }
                 Ok(document) => {
-                    let detokenizer = dict.as_ref().map(|d| (Detokenizer::new(d), mode));
+                    let detokenizer = dict.as_ref().map(Detokenizer::new);
                     drain(LetsmtReader::new(document, detokenizer), &mut out)
                 }
             };
@@ -277,7 +276,7 @@ fn rebuild(run: &str, golden: &Golden, input: &str, scratch: &Path) -> Rebuilt {
         }
         "20newsgroup-whitespace" | "20newsgroup-simple" => {
             unbundle(input, scratch);
-            let options = TokenizerOptions { whitespace: mode, keep_newlines: false };
+            let options = TokenizerOptions { keep_newlines: false };
             let tokenizer = if base == "20newsgroup-simple" {
                 RuleTokenizer::Simple(options)
             } else {
@@ -370,7 +369,7 @@ fn every_corpora_golden_matches() {
     }
     let shapes = shapes();
     let all = goldens(&root);
-    assert!(all.len() >= 44, "only {} corpora goldens", all.len());
+    assert!(all.len() >= 43, "only {} corpora goldens", all.len());
     let scratch = Path::new(env!("CARGO_TARGET_TMPDIR")).join("corpora-goldens");
     for (run, path) in all {
         let golden = Golden::read_with(&path, &shapes).unwrap();

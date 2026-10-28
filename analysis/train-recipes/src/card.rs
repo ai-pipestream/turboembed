@@ -27,6 +27,8 @@ use crate::{Recipe, Trained, postag};
 /// what a name finder's reader counted of the named entities. Version 4
 /// had either the chunks or the names.
 pub const CARD_VERSION: u32 = 5;
+/// What [`TrainingCard::whitespace`] records for a segmentation model.
+pub const WHITESPACE: &str = "unicode";
 /// The card's file name in the model's directory.
 pub const CARD_FILE: &str = "card.json";
 /// The gate record's file name in the model's directory.
@@ -143,9 +145,10 @@ pub struct TrainingCard {
     /// Sentences per sentence detector sample; `null` for the other
     /// components.
     pub sentences_per_sample: Option<usize>,
-    /// `legacy` (OpenNLP 2.5.4's `Character.isWhitespace` or `Zs`) for the
-    /// sentence detector and the tokenizer; `null` for the tagger and the
-    /// chunker, which read tokens.
+    /// The whitespace definition training used for the sentence detector
+    /// and the tokenizer: `unicode` (the Unicode `White_Space` property).
+    /// A card written before there was one definition says `legacy`.
+    /// `null` for the tagger and the chunker, which read tokens.
     pub whitespace: Option<String>,
     /// The manifest's `Timestamp`.
     pub timestamp_ms: i64,
@@ -347,7 +350,7 @@ impl ModelCard {
         let (sentences_per_sample, whitespace, candidate_tag_format, reference_tag_format) = match recipe {
             Recipe::Segmentation(s) => (
                 (s.component == Component::Sentence).then_some(SENTENCES_PER_SAMPLE),
-                Some("legacy".to_owned()),
+                Some(WHITESPACE.to_owned()),
                 None,
                 None,
             ),

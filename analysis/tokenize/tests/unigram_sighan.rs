@@ -20,7 +20,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 
 use turbo_tokenize::unigram::Scratch;
-use turbo_tokenize::{UnigramLexicon, UnigramMode, UnigramSegmenter, WhitespaceMode};
+use turbo_tokenize::{UnigramLexicon, UnigramMode, UnigramSegmenter};
 
 /// Counts of one test set: gold words, words returned, correct words, and
 /// the out-of-vocabulary gold words and how many of them were found.
@@ -92,7 +92,7 @@ fn pku_and_msr() {
     let (Some(dict), Some(dir)) = (std::env::var_os("TURBO_JIEBA_DICT"), std::env::var_os("TURBO_SIGHAN_DIR")) else {
         panic!("set TURBO_JIEBA_DICT and TURBO_SIGHAN_DIR");
     };
-    let lexicon = UnigramLexicon::read(dict, WhitespaceMode::Unicode).unwrap();
+    let lexicon = UnigramLexicon::read(dict).unwrap();
     let dir = PathBuf::from(dir);
     // All modes use the same unmodified pinned dictionary and test text.
     let counts = [
@@ -101,7 +101,7 @@ fn pku_and_msr() {
         (UnigramMode::Chinese, [(96562, 82137, 3481), (106224, 86799, 1271)]),
     ];
     for (mode, expected) in counts {
-        let segmenter = UnigramSegmenter::new(lexicon.clone(), WhitespaceMode::Unicode).with_mode(mode);
+        let segmenter = UnigramSegmenter::new(lexicon.clone()).with_mode(mode);
         for ((corpus, gold, oov), (returned, correct, oov_correct)) in
             [("pku", 104372, 6006), ("msr", 106873, 2829)].into_iter().zip(expected)
         {

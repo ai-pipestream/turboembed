@@ -121,7 +121,7 @@ fn upstream_zone_offsets_are_counted_separately_from_disabled_cases() {
                         || input[..at]
                             .chars()
                             .last()
-                            .is_some_and(|c| turbo_unicode::whitespace::WhitespaceMode::Unicode.is_whitespace(c as u32))
+                            .is_some_and(|c| turbo_unicode::whitespace::is_whitespace(c as u32))
                 })
                 .find_map(|(at, _)| zone::at(input, at, Region::NorthAmerica));
             match zone.and_then(|z| zone::offset_for(z.zone, None)) {

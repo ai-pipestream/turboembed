@@ -15,7 +15,7 @@ use turbo_goldens::{Dump, Golden, Tolerance, Unit, assert_matches_golden, data_d
 
 pub use turbo_goldens::expect::JvmSpan;
 use turbo_tokenize::me::{Features, TokenizerModel, UnitFacts, token_context};
-use turbo_tokenize::{TokenizerOptions, WhitespaceMode, whitespace_spans};
+use turbo_tokenize::{TokenizerOptions, whitespace_spans};
 use turbo_unicode::Utf16Cursor;
 use turbo_unicode::utf16::{byte_to_utf16, utf16_to_byte};
 
@@ -47,14 +47,11 @@ impl Case {
         self.golden.header.config.iter().find(|c| c.key == key).map(|c| c.value.as_str())
     }
 
-    /// The whitespace mode the run used: `config whitespace legacy`, or
-    /// the default.
-    pub fn whitespace(&self) -> WhitespaceMode {
-        match self.config("whitespace") {
-            None => WhitespaceMode::Unicode,
-            Some("legacy") => WhitespaceMode::Legacy,
-            Some(other) => panic!("{}: whitespace mode {other}", self.path.display()),
-        }
+    /// Asserts the run used the JVM's default whitespace, Unicode
+    /// `White_Space`: the golden has no `whitespace` config record.
+    #[track_caller]
+    pub fn assert_unicode_whitespace(&self) {
+        assert_eq!(self.config("whitespace"), None, "{}", self.path.display());
     }
 
     /// Asserts the annotator that ran.
@@ -230,7 +227,7 @@ pub fn check_dump(case: &Case, model: &TokenizerModel) -> usize {
     let mut n = 0;
     let text = case.text.as_str();
     let mut units = Vec::new();
-    whitespace_spans(text, TokenizerOptions { whitespace: WhitespaceMode::Unicode, keep_newlines: false }, &mut units);
+    whitespace_spans(text, TokenizerOptions { keep_newlines: false }, &mut units);
     for unit in &units {
         let (a, b) = (unit.start as usize, unit.end as usize);
         let token = &text[a..b];
@@ -256,7 +253,7 @@ pub fn check_dump(case: &Case, model: &TokenizerModel) -> usize {
             for _ in 0..index {
                 at.step_forward();
             }
-            token_context(&at, facts, WhitespaceMode::Unicode, &mut features);
+            token_context(&at, facts, &mut features);
             assert_eq!(features.len(), p.contexts.len(), "{what}");
             for (i, want) in p.contexts.iter().enumerate() {
                 assert_eq!(features.get(i), modified_utf8(want), "{what}, feature {i}");

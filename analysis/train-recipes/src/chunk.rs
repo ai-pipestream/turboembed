@@ -110,7 +110,7 @@ pub use self::samples::{HeldOutChunks, Skipped, chunk_counts, read_samples, scor
 pub const EN_CHUNKER: RecordedReference = RecordedReference {
     id: "opennlp-en-chunker-1.5",
     file: "en-chunker.bin",
-    url: "https://opennlp.sourceforge.net/models-1.5/en-chunker.bin",
+    url: "https://downloads.sourceforge.net/project/opennlp/models-1.5/en-chunker.bin",
     size: 2_560_304,
     sha256: "7861a0c2f134d9c12a022a1ba501e88bc7039f6db72b4140e1bafd1fb5ef76cc",
 };

@@ -44,6 +44,7 @@ use super::kernels::{Attend, Epilogue, Gemm, LANES, Packed, zeroed};
 use super::pool::Pool;
 
 mod job;
+mod rotary;
 #[cfg(test)]
 mod tests;
 
@@ -153,6 +154,9 @@ pub(super) struct Encoder {
     /// Each thread's attention scratch, `per_thread` floats apiece.
     scratch: Vec<f32>,
     per_thread: usize,
+    /// A ModernBERT's or nomic-bert's own parts (rotary/); None for a
+    /// BERT.
+    rotary: Option<rotary::Rotary>,
 }
 
 impl Encoder {
@@ -167,7 +171,11 @@ impl Encoder {
         size: Size,
     ) -> Result<Encoder, usize> {
         let Size { threads, max_batch, max_seq, max_ranges } = size;
-        debug_assert_eq!(tensors.len(), (TURBO_BERT_EMBEDDING_TENSORS + d.layers * TURBO_BERT_LAYER_TENSORS) as usize);
+        let rotary = rotary::Rotary::new(d, max_batch.checked_mul(max_seq).ok_or(usize::MAX)?)?;
+        debug_assert!(
+            rotary.is_some()
+                || tensors.len() == (TURBO_BERT_EMBEDDING_TENSORS + d.layers * TURBO_BERT_LAYER_TENSORS) as usize
+        );
         debug_assert_eq!(packed.layers.len(), d.layers as usize);
         let (h, i) = (d.hidden as usize, d.intermediate as usize);
         let tokens = max_batch.checked_mul(max_seq).ok_or(usize::MAX)?;
@@ -210,6 +218,7 @@ impl Encoder {
             ffn: zeroed(wide(i)?)?,
             scratch: zeroed(threads.checked_mul(per_thread).ok_or(usize::MAX)?)?,
             per_thread,
+            rotary,
         })
     }
 
@@ -284,6 +293,7 @@ impl Encoder {
             ctx: self.ctx.as_mut_ptr(),
             ffn: self.ffn.as_mut_ptr(),
             scratch: self.scratch.as_mut_ptr(),
+            xn: self.rotary.as_mut().map_or(std::ptr::null_mut(), |r| r.xn.as_mut_ptr()),
         };
         let e = &*self;
         // SAFETY: the model's, which outlives the session.
@@ -300,13 +310,17 @@ impl Encoder {
         };
         let linear = |pool: &mut Pool, g: Gemm| go(pool, Step::Linear(g), g.tasks());
         let chunks = tokens.div_ceil(TOKENS);
-        go(pool, Step::Lookup, chunks);
-        for l in 0..e.layers {
+        if let Some(r) = &e.rotary {
+            r.layers(e, packed, bufs, tokens, pool, &go);
+        } else {
+            go(pool, Step::Lookup, chunks);
+        }
+        for l in (0..e.layers).filter(|_| e.rotary.is_none()) {
             let (pl, w) = (&packed.layers[l], |r| e.layer(l, r));
             let gemm = |x, ldx, w, bias, y, ldy, epilogue| Gemm { x, ldx, rows: tokens, w, bias, y, ldy, epilogue };
             let split = Epilogue::Split { lo: h, hi: 2 * h, t_out: bufs.kt, stride: e.stride, slot: e.slot.as_ptr() };
             linear(pool, gemm(bufs.x, h, &pl.qkv, &pl.qkv_bias, bufs.qv, 3 * h, split));
-            go(pool, Step::Attention, e.heads * e.blocks[e.batch]);
+            go(pool, Step::Attention { window: usize::MAX }, e.heads * e.blocks[e.batch]);
             linear(pool, gemm(bufs.ctx, h, &pl.out, w(O_B), bufs.x, h, Epilogue::Residual));
             go(pool, Step::Norm(w(ATTN_LN_W), w(ATTN_LN_B)), chunks);
             linear(pool, gemm(bufs.x, h, &pl.ffn_in, w(FFN_IN_B), bufs.ffn, n_i, Epilogue::Gelu));

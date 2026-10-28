@@ -25,7 +25,7 @@ use turbo_analysis::Span;
 use turbo_goldens::data_dir;
 use turbo_goldens::sentences::sentence_suite;
 use turbo_maxent::ModelFile;
-use turbo_sentdetect::{RuleSplitter, SentenceDetector, SentenceModel, WhitespaceMode};
+use turbo_sentdetect::{RuleSplitter, SentenceDetector, SentenceModel};
 
 #[derive(Debug, Default, PartialEq, Eq)]
 struct Agreement {
@@ -77,7 +77,7 @@ impl Agreement {
 fn maxent(file: &str) -> Option<SentenceDetector> {
     let path = common::published_model(file)?;
     let model = SentenceModel::open(ModelFile::read(&path).unwrap()).unwrap();
-    Some(SentenceDetector::new(model, WhitespaceMode::Unicode))
+    Some(SentenceDetector::new(model))
 }
 
 fn agreement(lang: &str, detector: &SentenceDetector, texts: impl IntoIterator<Item = String>) -> Agreement {

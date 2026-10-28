@@ -11,7 +11,6 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use turbo_analysis::Span;
-use turbo_unicode::WhitespaceMode;
 
 use super::{NerError, TokenSpans};
 use crate::error::FormatError;
@@ -110,10 +109,10 @@ impl LineStarts {
 
 /// The tag name `SgmlParser.extractTagName` takes from a tag: the text
 /// after `<` or `</` up to the first `>` or whitespace.
-fn tag_name(tag: &str, mode: WhitespaceMode) -> &str {
+fn tag_name(tag: &str) -> &str {
     let from = if tag.as_bytes().get(1) == Some(&b'/') { 2 } else { 1 };
     for (i, c) in tag.char_indices().skip(1) {
-        if c == '>' || mode.is_whitespace(c as u32) {
+        if c == '>' || turbo_unicode::whitespace::is_whitespace(c as u32) {
             return &tag[from..i];
         }
     }
@@ -126,13 +125,13 @@ fn tag_name(tag: &str, mode: WhitespaceMode) -> &str {
 /// a tag: whitespace starts a key, which runs to `=` or whitespace; a
 /// value is the text between two double quotes, and a later value of a
 /// key replaces an earlier one.
-fn type_attribute(tag: &str, mode: WhitespaceMode) -> Option<String> {
+fn type_attribute(tag: &str) -> Option<String> {
     let mut attributes = HashMap::new();
     let mut key = String::new();
     let mut value = String::new();
     let (mut in_key, mut in_value) = (false, false);
     for c in tag.chars() {
-        let space = mode.is_whitespace(c as u32);
+        let space = turbo_unicode::whitespace::is_whitespace(c as u32);
         if space && !in_value {
             in_key = true;
         } else if in_key && (c == '=' || space) {
@@ -172,7 +171,7 @@ impl<'a, T: TokenSpans + ?Sized> Handler<'_, 'a, T> {
         self.lines.line(self.doc.source(at))
     }
 
-    fn start_element(&mut self, name: &str, tag: &str, at: usize, mode: WhitespaceMode) -> Result<(), FormatError> {
+    fn start_element(&mut self, name: &str, tag: &str, at: usize) -> Result<(), FormatError> {
         if name == DOC_ELEMENT {
             self.clear_adaptive_data = true;
         }
@@ -184,7 +183,7 @@ impl<'a, T: TokenSpans + ?Sized> Handler<'_, 'a, T> {
         }
         if NAME_ELEMENTS.contains(&name) {
             let line = self.line(at);
-            let kind = type_attribute(tag, mode).ok_or(NerError::MucMissingType { line })?;
+            let kind = type_attribute(tag).ok_or(NerError::MucMissingType { line })?;
             let kind = name_type(&kind).ok_or(NerError::MucUnknownType { line, kind })?;
             self.open_names.push((self.text.len() as u32, kind));
         }
@@ -229,7 +228,7 @@ impl<'a, T: TokenSpans + ?Sized> Handler<'_, 'a, T> {
 }
 
 /// `SgmlParser.parse` of the collapsed text into `handler`.
-fn parse<T: TokenSpans + ?Sized>(handler: &mut Handler<'_, '_, T>, mode: WhitespaceMode) -> Result<(), FormatError> {
+fn parse<T: TokenSpans + ?Sized>(handler: &mut Handler<'_, '_, T>) -> Result<(), FormatError> {
     let doc = &handler.doc.text;
     let mut buffer = 0;
     let mut inside_tag = false;
@@ -258,9 +257,9 @@ fn parse<T: TokenSpans + ?Sized>(handler: &mut Handler<'_, '_, T>, mode: Whitesp
                 return Err(NerError::MucUnexpectedClose { line: handler.line(i) }.into());
             }
             let tag = &doc[buffer..=i];
-            let name = tag_name(tag, mode);
+            let name = tag_name(tag);
             if start_tag {
-                handler.start_element(name, tag, buffer, mode)?;
+                handler.start_element(name, tag, buffer)?;
             } else {
                 handler.end_element(name, buffer, i + 1)?;
             }
@@ -321,17 +320,13 @@ pub struct MucReader<'a> {
 
 impl<'a> MucReader<'a> {
     /// A reader of the document file `source`, split into tokens by
-    /// `tokenizer`; `whitespace` is what the SGML parser takes as
-    /// whitespace in tags (`StringUtil.isWhitespace`).
+    /// `tokenizer`; the SGML parser takes Unicode whitespace as whitespace
+    /// in tags.
     ///
     /// # Errors
     ///
     /// [`FormatError::TooLong`] for a source longer than spans can index.
-    pub fn new<T: TokenSpans + ?Sized>(
-        source: &'a str,
-        tokenizer: &T,
-        whitespace: WhitespaceMode,
-    ) -> Result<MucReader<'a>, FormatError> {
+    pub fn new<T: TokenSpans + ?Sized>(source: &'a str, tokenizer: &T) -> Result<MucReader<'a>, FormatError> {
         check_len(source)?;
         let doc = Collapsed::new(source);
         let lines = LineStarts::new(source);
@@ -349,7 +344,7 @@ impl<'a> MucReader<'a> {
             names: Vec::new(),
             samples: Vec::new(),
         };
-        let result = parse(&mut handler, whitespace);
+        let result = parse(&mut handler);
         let mut items: Vec<_> = result.err().map(Err).into_iter().collect();
         items.extend(handler.samples.into_iter().map(Ok));
         Ok(MucReader { items: items.into_iter() })
@@ -397,19 +392,14 @@ pub fn muc_files(dir: &Path) -> io::Result<Vec<PathBuf>> {
 pub struct MucSamples<'a, I, T: ?Sized> {
     documents: I,
     tokenizer: &'a T,
-    whitespace: WhitespaceMode,
     current: Option<MucReader<'a>>,
     done: bool,
 }
 
 impl<'a, I: Iterator<Item = &'a str>, T: TokenSpans + ?Sized> MucSamples<'a, I, T> {
     /// The samples of `documents`, split into tokens by `tokenizer`.
-    pub fn new(
-        documents: impl IntoIterator<IntoIter = I>,
-        tokenizer: &'a T,
-        whitespace: WhitespaceMode,
-    ) -> MucSamples<'a, I, T> {
-        MucSamples { documents: documents.into_iter(), tokenizer, whitespace, current: None, done: false }
+    pub fn new(documents: impl IntoIterator<IntoIter = I>, tokenizer: &'a T) -> MucSamples<'a, I, T> {
+        MucSamples { documents: documents.into_iter(), tokenizer, current: None, done: false }
     }
 }
 
@@ -427,7 +417,7 @@ impl<'a, I: Iterator<Item = &'a str>, T: TokenSpans + ?Sized> Iterator for MucSa
             self.done = true;
             return None;
         };
-        match MucReader::new(document, self.tokenizer, self.whitespace) {
+        match MucReader::new(document, self.tokenizer) {
             Err(e) => Some(Err(e)),
             Ok(mut reader) => {
                 let first = reader.next();

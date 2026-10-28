@@ -243,6 +243,8 @@ fn options(width: u32, prompt: u32) -> turbo_embed_options {
         normalize: 0,
         pooling: 0,
         output_dim: width,
+        quantization: 0,
+        int8_ranges: std::ptr::null(),
     }
 }
 

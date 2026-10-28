@@ -124,7 +124,7 @@ fn embed_is_offered_in_the_dtype_sessions_run_it() {
         }
         let want = if p == TURBO_PRECISION_FASTEST { TURBO_DTYPE_F16 } else { TURBO_DTYPE_F32 };
         assert_eq!(cap.dtype, want, "precision {p}");
-        assert_eq!(cap.options_honored, 0b111111, "every field of turbo_embed_options");
+        assert_eq!(cap.options_honored, 0b1111_1111, "every field of turbo_embed_options");
         let info = Session::create(l.m, Some(&session_desc(0, 0, p))).unwrap().info();
         assert_eq!(info.compute_dtype, cap.dtype, "precision {p}");
     }

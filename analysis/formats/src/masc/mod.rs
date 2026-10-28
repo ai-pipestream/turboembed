@@ -41,8 +41,9 @@
 //! # What OpenNLP does here
 //!
 //! These are reproduced; the tests compare every reader with the `masc`
-//! goldens the JVM wrote. They read MASC as OpenNLP 3 reads it, so
-//! several are OpenNLP bugs that shape the samples it trains on:
+//! goldens the JVM wrote, corrected where the port differs (below). They
+//! read MASC as OpenNLP 3 reads it, so several are OpenNLP bugs that
+//! shape the samples it trains on:
 //!
 //! - A name's end moves to one past a token only when that token is past
 //!   the end found so far, which is already one past a token, so what a
@@ -59,14 +60,10 @@
 //!   to first (6,818 of an even number of tokens, 1,952 of an odd one),
 //!   98 first to last (all of an even number) and 200 in another order,
 //!   so this costs few of its names.
-//! - The removal of overlapping names compares a name with itself once the
-//!   left index catches up with the right, finds that it contains itself,
-//!   and removes it; and once anything is removed, the last name goes too.
-//!   A name after the first survives only if the right index moves past
-//!   it while the left index is on a shorter name that overlaps it. So a
-//!   sentence of two or more names mostly keeps one or none (the first,
-//!   unless it overlaps a longer one), and overlapping names can survive,
-//!   such as two over the same tokens, and make `NameSample` throw. Names
+//! - The removal of overlapping names walks a left and a right name and
+//!   removes the shorter of two that overlap (the right on a tie), so
+//!   overlapping names can survive, such as two over the same tokens after
+//!   a shorter name that crosses both, and make `NameSample` throw. Names
 //!   that start at the same token are ordered by the iteration order of a
 //!   `HashMap` of entity ids.
 //! - The token stream's flag for a sentence found is set once per read:
@@ -106,6 +103,15 @@
 //!
 //! - The documents of a directory are read in the order of their names,
 //!   not the file system's.
+//! - The removal of overlapping names never compares a name with itself,
+//!   finds a shorter name inside a longer one that starts at the same
+//!   token, and keeps every name it does not remove (#1496). OpenNLP's
+//!   walk, once its left index catches up with the right, finds that a
+//!   name contains itself and removes it, misses a shorter name listed
+//!   before a longer one of the same start, and once it has removed
+//!   anything drops the last name too, so a sentence of two or more names
+//!   mostly kept one or none. The `masc` goldens' name layers are
+//!   corrected to match (analysis/goldens-tool/README.md).
 //! - Each sentence also keeps its named entities as the named entity file
 //!   gives them ([`MascSentence::entities`]): the tokens each links to and
 //!   the span from the first to one past the last, with no overlap

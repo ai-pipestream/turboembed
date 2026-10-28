@@ -1,8 +1,8 @@
-// Server and models: liveness and metadata, Capabilities (bundles,
-// profiles, limits), bundle load and unload, and the model catalog.
+// Server: liveness and metadata, Capabilities (bundles, profiles,
+// limits), and bundle load and unload. The catalog is the Models tab.
 
-import { $, el, input, say, size, table } from "../dom.js";
-import { catalog, describe, inference, setToken, token } from "../rpc.js";
+import { $, el, input, say, table } from "../dom.js";
+import { describe, inference, setToken, token } from "../rpc.js";
 import { analysis } from "../rpc.js";
 import { refresh } from "../state.js";
 import type { CapabilitiesResponse } from "../gen/turbo_analysis_pb.js";
@@ -87,26 +87,6 @@ async function load(ev: Event): Promise<void> {
   }
 }
 
-async function loadCatalog(): Promise<void> {
-  const box = $("server-catalog");
-  say($("server-catalog-note"), "Reading the catalog\u2026", "busy");
-  try {
-    const [cat, installed] = await Promise.all([catalog.listModelCatalog({}), catalog.listInstalledModels({})]);
-    box.replaceChildren(
-      el("h3", { text: "Catalog" }),
-      table(
-        ["id", "kind", "language", "version", "licence", "size", "installed"],
-        cat.entries.map((e) => [e.id, e.kind, e.language, e.version, e.licence, size(e.totalBytes), e.installed ? "yes" : ""]),
-      ),
-      el("h3", { text: "Installed" }),
-      table(["id", "version", "files", "size"], installed.models.map((m) => [m.id, m.version, String(m.files.length), size(m.totalBytes)])),
-    );
-    say($("server-catalog-note"), "");
-  } catch (e) {
-    say($("server-catalog-note"), describe(e), "error");
-  }
-}
-
 export function init(): void {
   const t = input("token");
   t.value = token();
@@ -116,7 +96,6 @@ export function init(): void {
     void reload();
   });
   $("server-load").addEventListener("submit", load);
-  $("server-catalog-load").addEventListener("click", loadCatalog);
   void status();
   void reload();
 }

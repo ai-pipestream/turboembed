@@ -6,7 +6,6 @@ use std::borrow::Cow;
 use turbo_analysis::Span;
 use turbo_maxent::xml::{self, Attribute, Handler, Names};
 use turbo_tokenize::detok::Detokenizer;
-use turbo_unicode::WhitespaceMode;
 
 use super::error::CorpusError;
 use super::moses::SENTENCES_PER_SAMPLE;
@@ -162,13 +161,13 @@ fn trimmed(s: &str) -> &str {
 #[derive(Clone, Debug)]
 pub struct LetsmtReader<'d> {
     sentences: std::vec::IntoIter<LetsmtSentence>,
-    detokenizer: Option<(Detokenizer<'d>, WhitespaceMode)>,
+    detokenizer: Option<Detokenizer<'d>>,
 }
 
 impl<'d> LetsmtReader<'d> {
     /// The samples of `document`, detokenized with `detokenizer` when
-    /// one is given, its tokens split by whitespace in `mode`.
-    pub fn new(document: LetsmtDocument, detokenizer: Option<(Detokenizer<'d>, WhitespaceMode)>) -> Self {
+    /// one is given, its tokens split at Unicode whitespace.
+    pub fn new(document: LetsmtDocument, detokenizer: Option<Detokenizer<'d>>) -> Self {
         LetsmtReader { sentences: document.sentences.into_iter(), detokenizer }
     }
 }
@@ -185,11 +184,11 @@ impl<'d> Iterator for LetsmtReader<'d> {
             let start = document.len() as u32;
             match &self.detokenizer {
                 None => s.push_text(&mut document),
-                Some((detokenizer, mode)) => {
+                Some(detokenizer) => {
                     sentence.clear();
                     s.push_text(&mut sentence);
                     let whole = Piece { text: &sentence, span: Span::new(0, sentence.len() as u32) };
-                    let tokens: Vec<&str> = whitespace_tokens(whole, *mode).map(|p| p.text).collect();
+                    let tokens: Vec<&str> = whitespace_tokens(whole).map(|p| p.text).collect();
                     detokenizer.detokenize(&tokens, None, &mut document);
                 }
             }

@@ -19,6 +19,7 @@
  */
 
 #include "kernels.h"
+#include "rotary.h"
 
 #include <turbo/turbo.h>
 
@@ -505,6 +506,8 @@ __global__ void __launch_bounds__(ROW_BLOCK)
         layer_norm_regs(v, hidden, ln_w, ln_b, eps, row, row16);
     }
 }
+
+#include "rotary.cuh"
 
 /* A thread per column of the pooled vector, a block per row. */
 constexpr int POOL_BLOCK = 384;
@@ -1139,25 +1142,50 @@ __global__ void __launch_bounds__((BM / TM) * (BN / 8), (simt_min_blocks<BM, BN>
 #pragma unroll
         for (int j = 0; j < 8; j++) {
             const int c = n0 + tx + TX * j;
-            col[j] = EPI == EPI_QKV && c < N ? qkv_column(g, c) : 0;
+            col[j] = qkv_epilogue_of(EPI) && c < N ? qkv_column(g, c) : 0;
         }
+        if constexpr (EPI == EPI_QKV_ROPE || gated_epilogue_of(EPI)) {
+            // A pair's columns are lanes tx and tx ^ 1 of one row (TX is
+            // even): each lane takes its partner's sum by a shuffle, which
+            // every lane runs before any is left out.
 #pragma unroll
-        for (int i = 0; i < TM; i++) {
-            const int t = m0 + ty + TY * i;
-            if (t >= M) continue;
+            for (int i = 0; i < TM; i++) {
+                const int t = m0 + ty + TY * i;
 #pragma unroll
-            for (int j = 0; j < 8; j++) {
-                const int c = n0 + tx + TX * j;
-                if (c >= N) continue;
-                if constexpr (EPI == EPI_QKV)
-                    put(static_cast<TOut *>(g.out) + col[j] + (size_t)t * g.head_dim, acc[i][j] + g.bias[c]);
-                else if constexpr (gelu_epilogue_of(EPI))
-                    put(out_at<TOut>(g, t, c), gelu_for<EPI, TOut>(acc[i][j] + g.bias[c]));
-                else if constexpr (EPI == EPI_ADD_LN) {
-                    float *o = out_at<float>(g, t, c);
-                    *o = *o + (acc[i][j] + g.bias[c]);
-                } else
-                    put(out_at<TOut>(g, t, c), acc[i][j]);
+                for (int j = 0; j < 8; j++) {
+                    const int c = n0 + tx + TX * j;
+                    const float v = acc[i][j] + (c < N ? g.bias[c] : 0.0f);
+                    const float other = __shfl_xor_sync(0xffffffffu, v, 1);
+                    if (t >= M || c >= N) continue;
+                    const bool even = (c & 1) == 0;
+                    if constexpr (EPI == EPI_QKV_ROPE) {
+                        float x1 = even ? v : other, x2 = even ? other : v;
+                        rope_pair(g, t, c & ~1, x1, x2);
+                        put(static_cast<TOut *>(g.out) + col[j] + (size_t)t * g.head_dim, even ? x1 : x2);
+                    } else if (even) {
+                        put(static_cast<TOut *>(g.out) + (size_t)t * (N / 2) + c / 2, gated_of<EPI, TOut>(v, other));
+                    }
+                }
+            }
+        } else {
+#pragma unroll
+            for (int i = 0; i < TM; i++) {
+                const int t = m0 + ty + TY * i;
+                if (t >= M) continue;
+#pragma unroll
+                for (int j = 0; j < 8; j++) {
+                    const int c = n0 + tx + TX * j;
+                    if (c >= N) continue;
+                    if constexpr (EPI == EPI_QKV)
+                        put(static_cast<TOut *>(g.out) + col[j] + (size_t)t * g.head_dim, acc[i][j] + g.bias[c]);
+                    else if constexpr (gelu_epilogue_of(EPI))
+                        put(out_at<TOut>(g, t, c), gelu_for<EPI, TOut>(acc[i][j] + g.bias[c]));
+                    else if constexpr (EPI == EPI_ADD_LN) {
+                        float *o = out_at<float>(g, t, c);
+                        *o = *o + (acc[i][j] + g.bias[c]);
+                    } else
+                        put(out_at<TOut>(g, t, c), acc[i][j]);
+                }
             }
         }
         if constexpr (EPI == EPI_ADD_LN) ln_rows_when_done<NT>(g, m0, min(BM, M - m0), g.rows_done + m0 / BM, nt);
@@ -1332,7 +1360,7 @@ __global__ void __launch_bounds__(KT_THREADS, KT_PER_SM) gemm_kt_kernel(GemmArgs
         // stored 16 bytes at a time where the run is whole and its four
         // outputs are contiguous (N, or for QKV the head width, a multiple
         // of four), else one at a time.
-        const bool wide = EPI == EPI_QKV ? g.head_dim % 4 == 0 : N % 4 == 0;
+        const bool wide = qkv_epilogue_of(EPI) ? g.head_dim % 4 == 0 : N % 4 == 0;
 #pragma unroll
         for (int h = 0; h < 2; h++) {
             const int c = n0 + bn + 32 * h;
@@ -1342,7 +1370,7 @@ __global__ void __launch_bounds__(KT_THREADS, KT_PER_SM) gemm_kt_kernel(GemmArgs
             if constexpr (EPI != EPI_PLAIN)
 #pragma unroll
                 for (int u = 0; u < 4; u++) bias[u] = c + u < N ? g.bias[c + u] : 0.0f;
-            const size_t qcol = EPI == EPI_QKV ? qkv_column(g, c) : 0;
+            const size_t qcol = qkv_epilogue_of(EPI) ? qkv_column(g, c) : 0;
 #pragma unroll
             for (int i = 0; i < 8; i++) {
                 const int t = m0 + am + (i & 3) + 16 * (i >> 2);
@@ -1356,9 +1384,20 @@ __global__ void __launch_bounds__(KT_THREADS, KT_PER_SM) gemm_kt_kernel(GemmArgs
                 if constexpr (EPI == EPI_PLAIN)
 #pragma unroll
                     for (int u = 0; u < 4; u++) v[u] = acc[i][4 * h + u];
+                // c is a multiple of four: two whole pairs (N is even).
+                if constexpr (EPI == EPI_QKV_ROPE) {
+                    rope_pair(g, t, c, v[0], v[1]);
+                    if (c + 2 < N) rope_pair(g, t, c + 2, v[2], v[3]);
+                }
+                if constexpr (gated_epilogue_of(EPI)) {
+                    TOut *o = static_cast<TOut *>(g.out) + (size_t)t * (N / 2) + c / 2;
+                    put(o, gated_of<EPI, TOut>(v[0], v[1]));
+                    if (c + 2 < N) put(o + 1, gated_of<EPI, TOut>(v[2], v[3]));
+                    continue;
+                }
                 if (whole) {
-                    float *o = EPI == EPI_QKV ? reinterpret_cast<float *>(g.out) + qcol + (size_t)t * g.head_dim
-                                              : reinterpret_cast<float *>(g.out) + (size_t)t * N + c;
+                    float *o = qkv_epilogue_of(EPI) ? reinterpret_cast<float *>(g.out) + qcol + (size_t)t * g.head_dim
+                                                    : reinterpret_cast<float *>(g.out) + (size_t)t * N + c;
                     float4 q = make_float4(v[0], v[1], v[2], v[3]);
                     if constexpr (EPI == EPI_ADD_LN) {
                         const float4 r = *reinterpret_cast<const float4 *>(o);
@@ -1370,7 +1409,7 @@ __global__ void __launch_bounds__(KT_THREADS, KT_PER_SM) gemm_kt_kernel(GemmArgs
 #pragma unroll
                 for (int u = 0; u < 4; u++) {
                     if (c + u >= N) break;
-                    if constexpr (EPI == EPI_QKV)
+                    if constexpr (qkv_epilogue_of(EPI))
                         put(static_cast<TOut *>(g.out) + qkv_column(g, c + u) + (size_t)t * g.head_dim, v[u]);
                     else if constexpr (EPI == EPI_ADD_LN) {
                         float *o = out_at<float>(g, t, c + u);
@@ -1620,29 +1659,47 @@ __global__ void __launch_bounds__(WM *WN * 32, (mma_min_blocks<BM, BN, STAGES, T
                         v0 = gelu_for<EPI, TOut>(v0);
                         v1 = gelu_for<EPI, TOut>(v1);
                     }
-                    put2(Cs + r * OLD + c, v0, v1);
+                    if constexpr (EPI == EPI_QKV_ROPE)
+                        if (m0 + r < M && n0 + c < N) rope_pair(g, m0 + r, n0 + c, v0, v1);
+                    // A gated product's pair is one output, in a tile
+                    // half as wide.
+                    if constexpr (gated_epilogue_of(EPI))
+                        put(Cs + r * OLD + c / 2, gated_of<EPI, TOut>(v0, v1));
+                    else
+                        put2(Cs + r * OLD + c, v0, v1);
                 }
         }
         __syncthreads();
-        // Out, 16 bytes at a time.
-        for (int i = threadIdx.x; i < BM * (BN / E); i += NT) {
-            const int r = i / (BN / E), cc = (i % (BN / E)) * E, t = m0 + r, c = n0 + cc;
-            if (t >= M || c >= N) continue;
-            const uint4 v = *reinterpret_cast<const uint4 *>(Cs + r * OLD + cc);
-            if constexpr (EPI == EPI_QKV) {
-                TOut *o = static_cast<TOut *>(g.out) + (size_t)t * g.head_dim;
-                if (g.head_dim % E == 0) {
-                    *reinterpret_cast<uint4 *>(o + qkv_column(g, c)) = v;
+        if constexpr (gated_epilogue_of(EPI)) {
+            constexpr int HB = BN / 2;
+            const int hn = N / 2;
+            for (int i = threadIdx.x; i < BM * (HB / E); i += NT) {
+                const int r = i / (HB / E), cc = (i % (HB / E)) * E, t = m0 + r, c = n0 / 2 + cc;
+                if (t >= M || c >= hn) continue;
+                *reinterpret_cast<uint4 *>(static_cast<TOut *>(g.out) + (size_t)t * hn + c) =
+                    *reinterpret_cast<const uint4 *>(Cs + r * OLD + cc);
+            }
+        } else {
+            // Out, 16 bytes at a time.
+            for (int i = threadIdx.x; i < BM * (BN / E); i += NT) {
+                const int r = i / (BN / E), cc = (i % (BN / E)) * E, t = m0 + r, c = n0 + cc;
+                if (t >= M || c >= N) continue;
+                const uint4 v = *reinterpret_cast<const uint4 *>(Cs + r * OLD + cc);
+                if constexpr (qkv_epilogue_of(EPI)) {
+                    TOut *o = static_cast<TOut *>(g.out) + (size_t)t * g.head_dim;
+                    if (g.head_dim % E == 0) {
+                        *reinterpret_cast<uint4 *>(o + qkv_column(g, c)) = v;
+                    } else {
+                        const TOut *e = reinterpret_cast<const TOut *>(&v);
+                        for (int u = 0; u < E; u++) o[qkv_column(g, c + u)] = e[u];
+                    }
+                } else if constexpr (EPI == EPI_ADD_LN) {
+                    float4 *o = reinterpret_cast<float4 *>(out_at<float>(g, t, c));
+                    const float4 p = *reinterpret_cast<const float4 *>(&v), r = *o;
+                    *o = make_float4(r.x + p.x, r.y + p.y, r.z + p.z, r.w + p.w);
                 } else {
-                    const TOut *e = reinterpret_cast<const TOut *>(&v);
-                    for (int u = 0; u < E; u++) o[qkv_column(g, c + u)] = e[u];
+                    *reinterpret_cast<uint4 *>(out_at<TOut>(g, t, c)) = v;
                 }
-            } else if constexpr (EPI == EPI_ADD_LN) {
-                float4 *o = reinterpret_cast<float4 *>(out_at<float>(g, t, c));
-                const float4 p = *reinterpret_cast<const float4 *>(&v), r = *o;
-                *o = make_float4(r.x + p.x, r.y + p.y, r.z + p.z, r.w + p.w);
-            } else {
-                *reinterpret_cast<uint4 *>(out_at<TOut>(g, t, c)) = v;
             }
         }
         __syncthreads();
@@ -2916,6 +2973,11 @@ template <typename TOut, int EPI, bool ACC16> GemmKernel swz_for(Tile t) {
 template <typename TIn, typename TOut, int EPI> GemmKernel simt_for(Tile t) {
     // F32 operands on CUTLASS's SIMT mainloop (sm_80's cp.async).
     if constexpr (std::is_same_v<TIn, float>) {
+        // The rotary families' epilogues are the FMA, transposed and
+        // tensor-core kernels' alone: CUTLASS's SIMT tile takes the
+        // transposed one.
+        if constexpr (rotary_epilogue(EPI))
+            if (t == TILE_CS) t = TILE_KT;
         if (t == TILE_CS) return cs_kernel<256, 64, 3, 1, EPI, TOut>();
         // F32 operands transposed in shared memory.
         if (t == TILE_KT) return kt_kernel<EPI, TOut>();
@@ -2939,13 +3001,20 @@ template <typename TIn, typename TOut, int EPI> GemmKernel simt_for(Tile t) {
  * four stages. An F32 output tile of 256 x 128 does not fit shared
  * memory, so such a GEMM takes 128 x 128 over four warps instead. */
 template <typename TOut, int EPI, typename TIn> GemmKernel mma_for(Tile t) {
-    constexpr bool f16 = sizeof(TIn) == 2, wide = EPI == EPI_QKV || gelu_epilogue_of(EPI);
+    constexpr bool f16 = sizeof(TIn) == 2, wide = qkv_epilogue_of(EPI) || gelu_epilogue_of(EPI) ||
+                                                gated_epilogue_of(EPI);
+    // The rotary families' epilogues are gemm_mma_kernel's alone: the
+    // swizzled and CUTLASS tiles take its default.
+    if constexpr (rotary_epilogue(EPI)) {
+        if (t == TILE_SWIZZLED_8W_F16_ACCUMULATE) t = TILE_EIGHT_WARPS_F16_ACCUMULATE;
+        if (t >= TILE_SWIZZLED && t <= TILE_CT_K && t != TILE_EIGHT_WARPS_F16_ACCUMULATE) t = TILE_DEFAULT;
+    }
     if constexpr (f16) {
         if (t == TILE_EIGHT_WARPS_F16_ACCUMULATE) {
             if (wide) return mma_kernel<128, 128, 4, 2, 2, EPI, TOut, TIn, true>();
             return mma_kernel<128, 64, 4, 2, 3, EPI, TOut, TIn, true>();
         }
-        switch (t) {
+        if constexpr (!rotary_epilogue(EPI)) switch (t) {
         case TILE_SWIZZLED:
         case TILE_SWIZZLED_8W:
         case TILE_SWIZZLED_256x128:
@@ -2979,6 +3048,10 @@ GemmKernel gemm_kernel(Epilogue e, bool half, bool tc, Tile tile) {
     if (tc && half) {
         switch (e) {
         case EPI_QKV: return mma_for<__half, EPI_QKV, __half>(t);
+        case EPI_QKV_ROPE: return mma_for<__half, EPI_QKV_ROPE, __half>(t);
+        case EPI_GATED_ERF: return mma_for<__half, EPI_GATED_ERF, __half>(t);
+        case EPI_GATED_TANH: return mma_for<__half, EPI_GATED_TANH, __half>(t);
+        case EPI_GATED_SILU: return mma_for<__half, EPI_GATED_SILU, __half>(t);
         case EPI_GELU: return mma_for<__half, EPI_GELU, __half>(t);
         case EPI_GELU_ERF: return mma_for<__half, EPI_GELU_ERF, __half>(t);
         case EPI_GELU_TANH: return mma_for<__half, EPI_GELU_TANH, __half>(t);
@@ -2992,6 +3065,10 @@ GemmKernel gemm_kernel(Epilogue e, bool half, bool tc, Tile tile) {
     if (tc) {
         switch (e) {
         case EPI_QKV: return mma_for<float, EPI_QKV, float>(t);
+        case EPI_QKV_ROPE: return mma_for<float, EPI_QKV_ROPE, float>(t);
+        case EPI_GATED_ERF:
+        case EPI_GATED_TANH: return mma_for<float, EPI_GATED_ERF, float>(t);
+        case EPI_GATED_SILU: return mma_for<float, EPI_GATED_SILU, float>(t);
         case EPI_GELU:
         case EPI_GELU_ERF:
         case EPI_GELU_TANH: return mma_for<float, EPI_GELU, float>(t);
@@ -3002,6 +3079,10 @@ GemmKernel gemm_kernel(Epilogue e, bool half, bool tc, Tile tile) {
     if (half) {
         switch (e) {
         case EPI_QKV: return simt_for<__half, __half, EPI_QKV>(t);
+        case EPI_QKV_ROPE: return simt_for<__half, __half, EPI_QKV_ROPE>(t);
+        case EPI_GATED_ERF: return simt_for<__half, __half, EPI_GATED_ERF>(t);
+        case EPI_GATED_TANH: return simt_for<__half, __half, EPI_GATED_TANH>(t);
+        case EPI_GATED_SILU: return simt_for<__half, __half, EPI_GATED_SILU>(t);
         case EPI_GELU: return simt_for<__half, __half, EPI_GELU>(t);
         case EPI_GELU_ERF: return simt_for<__half, __half, EPI_GELU_ERF>(t);
         case EPI_GELU_TANH: return simt_for<__half, __half, EPI_GELU_TANH>(t);
@@ -3011,6 +3092,10 @@ GemmKernel gemm_kernel(Epilogue e, bool half, bool tc, Tile tile) {
     }
     switch (e) {
     case EPI_QKV: return simt_for<float, float, EPI_QKV>(t);
+    case EPI_QKV_ROPE: return simt_for<float, float, EPI_QKV_ROPE>(t);
+    case EPI_GATED_ERF:
+    case EPI_GATED_TANH: return simt_for<float, float, EPI_GATED_ERF>(t);
+    case EPI_GATED_SILU: return simt_for<float, float, EPI_GATED_SILU>(t);
     case EPI_GELU:
     case EPI_GELU_ERF:
     case EPI_GELU_TANH: return simt_for<float, float, EPI_GELU>(t);
@@ -3044,6 +3129,13 @@ __global__ void __launch_bounds__(256) gelu_epilogue_kernel(const float *raw, Ge
 }
 
 // ---- Attention ---------------------------------------------------------------------
+//
+// A query whose keys are all masked (a pad at the start of a left-padded
+// row, on a sliding-window layer, sees no live key in its band) reads
+// nothing: its context is 0, as the CPU's (attend.rs), not the mean of
+// the masked values. Its largest score is then a masked key's, at or
+// below MASKED_SCORE; a live key's never is.
+constexpr float MASKED_SCORE = -1e29f;
 //
 // Work items are (row, head, query tile), rows longest first as the
 // packing ordered them; a block loops over items. Keys and values of the
@@ -3188,8 +3280,12 @@ __global__ void __launch_bounds__(SIMT_ATT_THREADS, HD <= 32 ? 2 : 1) attention_
 #pragma unroll
         for (int c = 0; c < HD; c++) o[c] = 0.0f;
         float m = -INFINITY, l = 0.0f;
-        for (int c0 = 0; c0 < it.n; c0 += chunk) {
-            const int cn = min(chunk, it.n - c0);
+        // A sliding window's keys: those some query of the block reads.
+        const int w = a.window;
+        const int k_lo = w < 0 ? 0 : max(0, it.q0 - w);
+        const int k_hi = w < 0 ? it.n : min(it.n, it.q0 + SIMT_ATT_QUERIES + w);
+        for (int c0 = k_lo; c0 < k_hi; c0 += chunk) {
+            const int cn = min(chunk, k_hi - c0);
             __syncthreads();
             load_rows<T, HD>(Ks, Kg + (size_t)c0 * d, cn, d);
             load_rows<T, HD>(Vs, Vg + (size_t)c0 * d, cn, d);
@@ -3204,7 +3300,8 @@ __global__ void __launch_bounds__(SIMT_ATT_THREADS, HD <= 32 ? 2 : 1) attention_
 #pragma unroll
                 for (int u = 0; u < G; u++) {
                     const int j = j0 + u;
-                    s[u] = j < khi ? dot_row<HD>(qr, Ks + (size_t)j * HD) * a.scale + (it.holes ? kbs[j] : 0.0f)
+                    s[u] = j < khi ? dot_row<HD>(qr, Ks + (size_t)j * HD) * a.scale + (it.holes ? kbs[j] : 0.0f) +
+                                         (w >= 0 && abs(q - (c0 + j)) > w ? -1e30f : 0.0f)
                                    : -INFINITY;
                 }
                 float mx = m;
@@ -3256,7 +3353,7 @@ __global__ void __launch_bounds__(SIMT_ATT_THREADS, HD <= 32 ? 2 : 1) attention_
 #pragma unroll
                 for (int c = 0; c < HD; c++) o[c] += r[(2 + c) * 32 + lane] * w;
             }
-            const float inv = 1.0f / L;
+            const float inv = mm <= MASKED_SCORE ? 0.0f : 1.0f / L;
             T *dst = static_cast<T *>(a.ctx) + (size_t)(it.base + q) * a.hidden + it.head * d;
 #pragma unroll
             for (int c = 0; c < HD; c++)
@@ -3350,8 +3447,11 @@ __global__ void __launch_bounds__(TILED_THREADS, HD == 64 ? 2 : 4) attention_til
 #pragma unroll
             for (int w = 0; w < W; w++) o[i][w] = 0.0f;
         }
-        for (int c0 = 0; c0 < it.n; c0 += TILED_CHUNK) {
-            const int cn = min(TILED_CHUNK, it.n - c0);
+        const int w = a.window;
+        const int k_lo = w < 0 ? 0 : max(0, it.q0 - w);
+        const int k_hi = w < 0 ? it.n : min(it.n, it.q0 + TILED_QUERIES + w);
+        for (int c0 = k_lo; c0 < k_hi; c0 += TILED_CHUNK) {
+            const int cn = min(TILED_CHUNK, k_hi - c0);
             __syncthreads();
             if (d == HD) {
                 // K^T four keys by four values a thread, transposed in its
@@ -3418,7 +3518,9 @@ __global__ void __launch_bounds__(TILED_THREADS, HD == 64 ? 2 : 4) attention_til
 #pragma unroll
                 for (int j = 0; j < 4; j++) {
                     const int k = 4 * tx + j;
-                    s[i][j] = k < cn ? s[i][j] * a.scale + (it.holes ? kbs[k] : 0.0f) : -INFINITY;
+                    s[i][j] = k < cn ? s[i][j] * a.scale + (it.holes ? kbs[k] : 0.0f) +
+                                           (w >= 0 && abs(it.q0 + 4 * ty + i - (c0 + k)) > w ? -1e30f : 0.0f)
+                                     : -INFINITY;
                     mx = fmaxf(mx, s[i][j]);
                 }
 #pragma unroll
@@ -3464,7 +3566,7 @@ __global__ void __launch_bounds__(TILED_THREADS, HD == 64 ? 2 : 4) attention_til
         for (int i = 0; i < 4; i++) {
             const int q = 4 * ty + i;
             if (q >= nq) continue;
-            const float inv = 1.0f / l[i];
+            const float inv = m[i] <= MASKED_SCORE ? 0.0f : 1.0f / l[i];
             T *dst = ctx + (size_t)(it.base + it.q0 + q) * a.hidden + it.head * d;
 #pragma unroll
             for (int w = 0; w < W; w++)
@@ -3523,9 +3625,12 @@ template <int D> __global__ void __launch_bounds__(MMA_ATT_THREADS) attention_mm
             for (int e = 0; e < 4; e++) o[j][e] = 0.0f;
         float m[2] = {-INFINITY, -INFINITY}, l[2] = {0.0f, 0.0f};
 
-        for (int c0 = 0; c0 < it.n; c0 += chunk) {
-            const int cn = min(chunk, it.n - c0), padded = (cn + 63) & ~63;
-            if (c0 > 0) __syncthreads();
+        const int w = a.window;
+        const int k_lo = w < 0 ? 0 : max(0, it.q0 - w);
+        const int k_hi = w < 0 ? it.n : min(it.n, it.q0 + MMA_QUERIES + w);
+        for (int c0 = k_lo; c0 < k_hi; c0 += chunk) {
+            const int cn = min(chunk, k_hi - c0), padded = (cn + 63) & ~63;
+            if (c0 > k_lo) __syncthreads();
 #pragma unroll 4
             for (int i = threadIdx.x; i < padded * (D / 8); i += MMA_ATT_THREADS) {
                 const int r = i / (D / 8), c = (i % (D / 8)) * 8;
@@ -3538,7 +3643,7 @@ template <int D> __global__ void __launch_bounds__(MMA_ATT_THREADS) attention_mm
             if (it.holes)
                 for (int j = threadIdx.x; j < cn; j += MMA_ATT_THREADS) kbs[j] = a.p.key_bias[it.base + c0 + j];
             __syncthreads();
-            if (c0 == 0)
+            if (c0 == k_lo)
 #pragma unroll
                 for (int k = 0; k < DK; k++)
                     ldsm_x4(qf[k], Qs + (warp * 16 + (lane & 15)) * LD + k * 16 + (lane >> 4) * 8);
@@ -3571,6 +3676,9 @@ template <int D> __global__ void __launch_bounds__(MMA_ATT_THREADS) attention_mm
                             v = -INFINITY;
                         else if (it.holes)
                             v += kbs[key];
+                        if (w >= 0 && key < cn &&
+                            abs(it.q0 + warp * 16 + (lane >> 2) + (e >> 1) * 8 - (c0 + key)) > w)
+                            v += -1e30f;
                         s[j][e] = v;
                         mx[e >> 1] = fmaxf(mx[e >> 1], v);
                     }
@@ -3623,7 +3731,7 @@ template <int D> __global__ void __launch_bounds__(MMA_ATT_THREADS) attention_mm
             l[h] += __shfl_xor_sync(FULL, l[h], 1);
             l[h] += __shfl_xor_sync(FULL, l[h], 2);
         }
-        const float inv[2] = {1.0f / l[0], 1.0f / l[1]};
+        const float inv[2] = {m[0] <= MASKED_SCORE ? 0.0f : 1.0f / l[0], m[1] <= MASKED_SCORE ? 0.0f : 1.0f / l[1]};
         __half *ctx = static_cast<__half *>(a.ctx);
 #pragma unroll
         for (int h = 0; h < 2; h++) {
@@ -3714,7 +3822,8 @@ __device__ inline float ex2_approx(float x) {
 template <int D, int MT, bool WHOLE, bool EXACT, bool ACC16, int KEYS, typename OT, int OW>
 __device__ __forceinline__ void fa_chunk(const uint32_t (&qf)[MT][D / 16][4], OT (&o)[MT][D / 8][OW],
                                          float (&m)[MT][2], float (&l)[MT][2], const __half *Ks, const __half *Vs,
-                                         const float *kb, int cn, int holes, float sl2, int lane) {
+                                         const float *kb, int cn, int holes, float sl2, int lane, int q0,
+                                         int k0, int w) {
     constexpr int LD = D + 8, DK = D / 16, DN = D / 8, NJ = KEYS / 8, NK = KEYS / 16;
     float s[MT][NJ][4];
     if constexpr (ACC16) {
@@ -3775,13 +3884,18 @@ __device__ __forceinline__ void fa_chunk(const uint32_t (&qf)[MT][D / 16][4], OT
             for (int e = 0; e < 4; e++) {
                 float v = EXACT ? s[t][j][e] * sl2 : s[t][j][e];
                 if constexpr (!WHOLE) {
+                    // A key outside a sliding window's band (w >= 0) is
+                    // masked as a masked key is.
                     const int key = j * 8 + (lane & 3) * 2 + (e & 1);
-                    if (key >= cn)
+                    const bool out = w >= 0 && abs(q0 + t * 16 + (lane >> 2) + (e >> 1) * 8 - (k0 + key)) > w;
+                    if (key >= cn) {
                         v = -INFINITY;
-                    else if (EXACT && holes)
-                        v += kb[key];
-                    else if (!EXACT && holes && kb[key] != 0.0f)
+                    } else if (EXACT) {
+                        if (holes) v += kb[key];
+                        if (out) v += -1e30f;
+                    } else if ((holes && kb[key] != 0.0f) || out) {
                         v = FA_MASKED;
+                    }
                 }
                 s[t][j][e] = v;
                 mx[e >> 1] = fmaxf(mx[e >> 1], v);
@@ -3910,18 +4024,26 @@ __global__ void __launch_bounds__(MT == 1 ? FA_THREADS : FA32_THREADS, (MT == 1 
     // queries and first chunk here, and its second; then one at the top
     // of each chunk, but two at the top of an item's last, the next
     // item's queries and first chunk, and its second.
+    // An item's keys: the row's, or a sliding window's (w >= 0) band
+    // about the block's queries, from a whole chunk; [first, end).
+    const int w = a.window;
+    auto first_key = [&](const Item &x) { return w < 0 ? 0 : max(0, x.q0 - w) / KEYS * KEYS; };
+    auto end_key = [&](const Item &x) { return w < 0 ? x.n : min(x.n, x.q0 + FA_QUERIES + w); };
+    auto chunks_of = [&](const Item &x) { return (end_key(x) - first_key(x) + KEYS - 1) / KEYS; };
     Item it = decode(a, item, batch);
     load_q(it);
-    load_chunk(it, 0, 0);
+    load_chunk(it, 0, first_key(it));
     cp_async_commit();
-    if (it.n > KEYS) load_chunk(it, 1, KEYS);
+    if (chunks_of(it) > 1) load_chunk(it, 1, first_key(it) + KEYS);
     cp_async_commit();
     for (int b = 0;;) {
         const int next = item + gridDim.x;
         const bool more = next < items;
         const Item nx = more ? decode(a, next, batch) : it;
         const bool live = it.q0 + warp * WQ < it.n;
-        const int chunks = (it.n + KEYS - 1) / KEYS;
+        const int chunks = chunks_of(it), k_lo = first_key(it), k_end = end_key(it);
+        // The warp's queries, for the band.
+        const int wq0 = it.q0 + warp * WQ, wq1 = wq0 + WQ - 1;
 
         uint32_t qf[MT][DK][4];
         OT o[MT][DN][OW];
@@ -3937,7 +4059,7 @@ __global__ void __launch_bounds__(MT == 1 ? FA_THREADS : FA32_THREADS, (MT == 1 
         }
 
         for (int c = 0; c < chunks; c++, b = b == 2 ? 0 : b + 1) {
-            const int c0 = c * KEYS, cn = min(KEYS, it.n - c0);
+            const int c0 = k_lo + c * KEYS, cn = min(KEYS, k_end - c0);
             cp_async_wait<1>();
             // Chunk c is in, and every warp is done with chunk c - 1, so
             // its buffer takes chunk c + 2.
@@ -3956,18 +4078,24 @@ __global__ void __launch_bounds__(MT == 1 ? FA_THREADS : FA32_THREADS, (MT == 1 
                 // barrier above past chunk 0, after one more at it.
                 if (chunks == 1) __syncthreads();
                 load_q(nx);
-                load_chunk(nx, b1, 0);
+                load_chunk(nx, b1, first_key(nx));
                 cp_async_commit();
-                if (nx.n > KEYS) load_chunk(nx, b2, KEYS);
+                if (chunks_of(nx) > 1) load_chunk(nx, b2, first_key(nx) + KEYS);
             }
             cp_async_commit();
-            if (live) {
+            // In a window, a chunk wholly outside the warp's band is not
+            // read, and one wholly inside it is as a chunk of no window.
+            const bool beyond = w >= 0 && (c0 > wq1 + w || c0 + cn - 1 < wq0 - w);
+            const bool inside = w < 0 || (c0 >= wq1 - w && c0 + cn - 1 <= wq0 + w);
+            if (live && !beyond) {
                 const __half *Ks = KV + (size_t)(2 * b) * KEYS * LD, *Vs = Ks + KEYS * LD;
                 const float *kb = kbs + b * KEYS;
-                if (cn == KEYS && !it.holes)
-                    fa_chunk<D, MT, true, EXACT, ACC16, KEYS>(qf, o, m, l, Ks, Vs, kb, cn, it.holes, sl2, lane);
+                if (cn == KEYS && !it.holes && inside)
+                    fa_chunk<D, MT, true, EXACT, ACC16, KEYS>(qf, o, m, l, Ks, Vs, kb, cn, it.holes, sl2, lane, wq0,
+                                                              c0, -1);
                 else
-                    fa_chunk<D, MT, false, EXACT, ACC16, KEYS>(qf, o, m, l, Ks, Vs, kb, cn, it.holes, sl2, lane);
+                    fa_chunk<D, MT, false, EXACT, ACC16, KEYS>(qf, o, m, l, Ks, Vs, kb, cn, it.holes, sl2, lane, wq0,
+                                                               c0, inside ? -1 : w);
             }
         }
         if (live) {
@@ -3979,7 +4107,9 @@ __global__ void __launch_bounds__(MT == 1 ? FA_THREADS : FA32_THREADS, (MT == 1 
                     l[t][h] += __shfl_xor_sync(FULL, l[t][h], 1);
                     l[t][h] += __shfl_xor_sync(FULL, l[t][h], 2);
                 }
-                const float inv[2] = {1.0f / l[t][0], 1.0f / l[t][1]};
+                // m is unscaled but for EXACT: FA_MASKED, or -1e30 scaled.
+                const float inv[2] = {m[t][0] <= MASKED_SCORE ? 0.0f : 1.0f / l[t][0],
+                                      m[t][1] <= MASKED_SCORE ? 0.0f : 1.0f / l[t][1]};
 #pragma unroll
                 for (int h = 0; h < 2; h++) {
                     const int q = it.q0 + warp * WQ + t * 16 + (lane >> 2) + h * 8;
@@ -4172,7 +4302,7 @@ cudaError_t gemm_grid(Epilogue e, bool half, bool tensor_cores, Tile tile, int m
 int gemm_n(const Shape &s, Gemm g) {
     switch (g) {
     case GEMM_QKV: return 3 * s.hidden;
-    case GEMM_FFN1: return s.inter;
+    case GEMM_FFN1: return s.gated != GATED_NONE ? 2 * s.inter : s.inter;
     default: return s.hidden;
     }
 }
@@ -4222,7 +4352,7 @@ cudaError_t make_plan(const Shape &s, Plan *p) {
     cudaError_t e = cudaSuccess;
     for (int i = 0; i < GEMM_COUNT && e == cudaSuccess; i++) {
         const Gemm g = (Gemm)i;
-        const Epilogue ep = gemm_epilogue(g, p->fused_ln, s.gelu, s.product16);
+        const Epilogue ep = layer_epilogue(g, p->fused_ln, s);
         const bool mma = gemm_mma(s, g);
         size_t ws = 0;
         e = gemm_prepare(ep, s.half, mma, s.gemm[g].tile);
@@ -4252,7 +4382,7 @@ cudaError_t make_plan(const Shape &s, Plan *p) {
     if (e != cudaSuccess) return e;
 
     // The row kernels too, for this width.
-    const void *rows[10] = {reinterpret_cast<const void *>(pack_rows_kernel),
+    const void *rows[13] = {reinterpret_cast<const void *>(pack_rows_kernel),
                             reinterpret_cast<const void *>(pool_kernel<float>),
                             nullptr,
                             nullptr,
@@ -4261,7 +4391,10 @@ cudaError_t make_plan(const Shape &s, Plan *p) {
                             nullptr,
                             nullptr,
                             reinterpret_cast<const void *>(pool_kernel<__half>),
-                            reinterpret_cast<const void *>(pool_split_kernel<__half>)};
+                            reinterpret_cast<const void *>(pool_split_kernel<__half>),
+                            nullptr,
+                            nullptr,
+                            nullptr};
     with_row_width(s.hidden, [&](auto v) {
         constexpr int V = decltype(v)::value;
         rows[2] = reinterpret_cast<const void *>(embed_layer_norm_kernel<V>);
@@ -4269,6 +4402,9 @@ cudaError_t make_plan(const Shape &s, Plan *p) {
         rows[5] = reinterpret_cast<const void *>(add_layer_norm_kernel<V, true, false>);
         rows[6] = reinterpret_cast<const void *>(add_layer_norm_kernel<V, false, true>);
         rows[7] = reinterpret_cast<const void *>(add_layer_norm_kernel<V, true, true>);
+        rows[10] = reinterpret_cast<const void *>(rotary_embed_kernel<V>);
+        rows[11] = reinterpret_cast<const void *>(add_norm_into_kernel<V, false>);
+        rows[12] = reinterpret_cast<const void *>(add_norm_into_kernel<V, true>);
         return cudaSuccess;
     });
     for (const void *fn : rows)
@@ -4338,6 +4474,32 @@ cudaError_t add_layer_norm(cudaStream_t s, float *x, const float *y, const uint1
         else
             add_layer_norm_kernel<V, false, false>
                 <<<plan.rows_grid, ROW_BLOCK, 0, s>>>(x, y, p16, bias, ln_w, ln_b, eps, info, hidden, as_half(x16));
+        return cudaGetLastError();
+    });
+}
+
+cudaError_t rotary_embed(cudaStream_t s, const int32_t *rows, const float *word, const float *type,
+                         const float *ln_w, const float *ln_b, float eps, const Packing &p, int hidden, float *x,
+                         uint16_t *x16, const Plan &plan) {
+    return with_row_width(hidden, [&](auto v) {
+        rotary_embed_kernel<decltype(v)::value>
+            <<<plan.rows_grid, ROW_BLOCK, 0, s>>>(rows, word, type, ln_w, ln_b, eps, p, hidden, x, as_half(x16));
+        return cudaGetLastError();
+    });
+}
+
+cudaError_t add_norm_into(cudaStream_t s, float *x, const float *y, const uint16_t *y16, const float *ln_w,
+                          const float *ln_b, float eps, const Info *info, int hidden, float *xn, uint16_t *xn16,
+                          const Plan &plan) {
+    return with_row_width(hidden, [&](auto v) {
+        constexpr int V = decltype(v)::value;
+        const __half *p16 = reinterpret_cast<const __half *>(y16);
+        if (y16)
+            add_norm_into_kernel<V, true>
+                <<<plan.rows_grid, ROW_BLOCK, 0, s>>>(x, y, p16, ln_w, ln_b, eps, info, hidden, xn, as_half(xn16));
+        else
+            add_norm_into_kernel<V, false>
+                <<<plan.rows_grid, ROW_BLOCK, 0, s>>>(x, y, p16, ln_w, ln_b, eps, info, hidden, xn, as_half(xn16));
         return cudaGetLastError();
     });
 }

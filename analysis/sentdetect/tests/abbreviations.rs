@@ -9,7 +9,7 @@ use turbo_analysis::{Annotator, Document, View};
 use turbo_maxent::ModelFile;
 use turbo_sentdetect::{
     AbbreviationClass, AbbreviationInventories, AbbreviationInventory, ContextRule, Decision, RuleSentenceDetector,
-    RuleSplitter, Rules, Scratch, SentenceDetector, SentenceModel, WhitespaceMode,
+    RuleSplitter, Rules, Scratch, SentenceDetector, SentenceModel,
 };
 
 const MODELS: [&str; 2] = ["en-plain.bin", "en-abbrev.bin"];
@@ -37,7 +37,7 @@ fn en_rules() -> RuleSplitter {
 
 /// The detector of a fixture model, by default and in JVM parity mode.
 fn detectors(name: &str) -> (SentenceDetector, SentenceDetector) {
-    let d = SentenceDetector::new(model(name), WhitespaceMode::Unicode);
+    let d = SentenceDetector::new(model(name));
     (d.clone(), d.with_jvm_parity())
 }
 
@@ -139,7 +139,7 @@ fn jvm_parity_is_the_detector_without_an_inventory() {
         assert_eq!(bits(&a), bits(&b), "{name}");
         assert_eq!(bits(&a), bits(&c), "{name}");
         // The parity hash is the hash before inventories, FNV-1a of the
-        // whitespace mode's number (2 for Unicode); the default differs.
+        // constant whitespace byte 2; the default differs.
         let old = (turbo_analysis::FNV1A_OFFSET_BASIS ^ 2).wrapping_mul(turbo_analysis::FNV1A_PRIME);
         assert_eq!(parity.config_hash(), old);
         assert_ne!(d.config_hash(), old);

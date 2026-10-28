@@ -10,7 +10,6 @@ use std::sync::Arc;
 
 use turbo_analysis_layers::{Tag, TagSet};
 use turbo_maxent::{Digest, sha256};
-use turbo_unicode::WhitespaceMode;
 
 use super::chardef::{AssignmentId, Category, CategoryId, CharDef, CharDefSource};
 use super::entries::{Columns, Dimensions, Entry, FeatureStore, Record, read_entries};
@@ -56,7 +55,6 @@ pub struct MecabDictionary {
     pub(super) features: FeatureStore,
     pub(super) pos: Arc<TagSet>,
     pub(super) tags: Table<u16>,
-    pub(super) whitespace: WhitespaceMode,
     pub(super) sha256: Digest,
 }
 
@@ -163,45 +161,35 @@ impl Lexicon {
 }
 
 impl MecabDictionary {
-    /// Loads a prebuilt image file or the dictionary directory `dir`, whose files are UTF-8, with
-    /// lines split at whitespace in `whitespace` mode, within the default
-    /// limits.
-    pub fn load(dir: impl AsRef<Path>, whitespace: WhitespaceMode) -> Result<MecabDictionary, DictionaryError> {
-        MecabDictionary::load_with_limits(dir, whitespace, DictionaryLimits::default())
+    /// Loads a prebuilt image file or the dictionary directory `dir`, whose
+    /// files are UTF-8, with lines split at Unicode whitespace, within the
+    /// default limits.
+    pub fn load(dir: impl AsRef<Path>) -> Result<MecabDictionary, DictionaryError> {
+        MecabDictionary::load_with_limits(dir, DictionaryLimits::default())
     }
 
     /// [`load`](Self::load) within `limits`.
     pub fn load_with_limits(
         dir: impl AsRef<Path>,
-        whitespace: WhitespaceMode,
         limits: DictionaryLimits,
     ) -> Result<MecabDictionary, DictionaryError> {
         if dir.as_ref().is_file() {
-            let dict = Self::load_prebuilt(&dir, limits).map_err(DictionaryError::Prebuilt)?;
-            if dict.whitespace != whitespace {
-                return Err(DictionaryError::Prebuilt(super::PrebuiltError::Invalid("whitespace mode mismatch")));
-            }
-            return Ok(dict);
+            return Self::load_prebuilt(&dir, limits).map_err(DictionaryError::Prebuilt);
         }
         let mut source = Directory { dir: dir.as_ref().to_path_buf(), lexicons: Vec::new() };
-        MecabDictionary::read(&mut source, whitespace, limits)
+        MecabDictionary::read(&mut source, limits)
     }
 
     /// Reads a dictionary from the bytes of its files.
     pub fn from_files(
         files: DictionaryFiles<'_>,
-        whitespace: WhitespaceMode,
         limits: DictionaryLimits,
     ) -> Result<MecabDictionary, DictionaryError> {
         let mut source = files;
-        MecabDictionary::read(&mut source, whitespace, limits)
+        MecabDictionary::read(&mut source, limits)
     }
 
-    fn read(
-        source: &mut dyn Source,
-        whitespace: WhitespaceMode,
-        limits: DictionaryLimits,
-    ) -> Result<MecabDictionary, DictionaryError> {
+    fn read(source: &mut dyn Source, limits: DictionaryLimits) -> Result<MecabDictionary, DictionaryError> {
         let mut manifest = String::new();
         let mut note = |name: &str, bytes: &[u8]| {
             manifest.push_str(name);
@@ -212,7 +200,7 @@ impl MecabDictionary {
 
         let bytes = source.matrix()?;
         note("matrix.def", &bytes);
-        let matrix = Matrix::parse(utf8(&bytes, DictionaryFile::Matrix)?, whitespace, limits)?;
+        let matrix = Matrix::parse(utf8(&bytes, DictionaryFile::Matrix)?, limits)?;
         drop(bytes);
         let dims = Dimensions { rows: matrix.rows(), cols: matrix.cols() };
 
@@ -244,7 +232,7 @@ impl MecabDictionary {
 
         let bytes = source.char_def()?;
         note("char.def", &bytes);
-        let chars = CharDefSource::parse(utf8(&bytes, DictionaryFile::CharDef)?, whitespace)?;
+        let chars = CharDefSource::parse(utf8(&bytes, DictionaryFile::CharDef)?)?;
         drop(bytes);
 
         let bytes = source.unk_def()?;
@@ -316,7 +304,6 @@ impl MecabDictionary {
             features,
             pos,
             tags: tags.into(),
-            whitespace,
             sha256: sha256(manifest.as_bytes()),
         })
     }
@@ -376,11 +363,6 @@ impl MecabDictionary {
     /// The number of distinct lexicon surfaces.
     pub fn surfaces(&self) -> usize {
         self.groups.len() - 1
-    }
-
-    /// The whitespace mode the files' lines were split in.
-    pub fn whitespace(&self) -> WhitespaceMode {
-        self.whitespace
     }
 
     /// The SHA-256 of the manifest of the files read: for each, in the

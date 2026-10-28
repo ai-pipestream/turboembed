@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use turbo_analysis::{IxRange, Key, KeyId, Layer, Overlap, Span, Spans, ViewId};
 use turbo_analysis_layers::{Strs, Tokens};
-pub use turbo_unicode::whitespace::{is_unicode_blank as is_blank, trim_unicode_whitespace as trim_blank};
+pub use turbo_unicode::whitespace::{is_blank, trim as trim_blank};
 
 /// The position of an entry in its [`Glossary`], in registration order.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]

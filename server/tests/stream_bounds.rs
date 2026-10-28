@@ -184,7 +184,7 @@ async fn unload_and_reload_under_one_name_never_share_a_batch() {
     // A document admitted against the first load waits a long linger;
     // swap the load under the same name before it runs.
     let mut stream = open_stream(&mut c, 0, 0, 1500).await;
-    stream.send("old", NAME, "hello there", Some(none)).await;
+    stream.send("old", NAME, "hello there", Some(none.clone())).await;
     c.unload_bundle(UnloadBundleRequest { name: NAME.into() }).await.unwrap();
     c.load_bundle(LoadBundleRequest {
         name: NAME.into(),

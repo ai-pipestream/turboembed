@@ -49,7 +49,7 @@ fn raw_weights_come_from_an_upstream_checkpoint_the_bundle_does_not_carry() {
         ("", "pytorch_model.bin", true, convert::BIN_TO_SAFETENSORS)
     );
     let e = write(&|r| r["manifest"]["artifacts"][0]["produced_by"]["from"] = json!("onnx-f32")).unwrap_err();
-    assert!(e.contains("names only upstream"), "{e}");
+    assert!(e.contains("names upstream, and optionally dtype"), "{e}");
     let e = write(&|r| r["manifest"]["artifacts"][0]["produced_by"]["upstream"] = json!("model.bin")).unwrap_err();
     assert!(e.contains("is not in the recipe's upstream files"), "{e}");
     let e = write(&|r| r["upstream"][2]["to"] = json!("weights/pytorch_model.bin")).unwrap_err();

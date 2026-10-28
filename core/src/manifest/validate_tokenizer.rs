@@ -46,39 +46,52 @@ impl Manifest {
             _ => return Err(invalid("manifest.json: tokenizer: one of wordpiece, unigram, bpe and sentencepiece")),
         }
         let mut roles = HashSet::new();
-        let mut contents = HashSet::new();
         for (i, s) in t.special_tokens.iter().enumerate() {
             if !roles.insert(s.role) {
                 return Err(invalid(format!("manifest.json: tokenizer.special_tokens[{i}].role: listed twice")));
             }
-            required(&format!("tokenizer.special_tokens[{i}].content"), &s.content)?;
-            if !contents.insert(s.content.as_str()) {
-                return Err(invalid(format!("manifest.json: tokenizer.special_tokens[{i}].content: listed twice")));
+        }
+        // Special tokens and added tokens are matched in the text alike.
+        let specials =
+            t.special_tokens.iter().enumerate().map(|(i, s)| {
+                (format!("special_tokens[{i}]"), &s.content, s.id, s.normalized, s.single_word || s.rstrip)
+            });
+        let added =
+            t.added_tokens.iter().enumerate().map(|(i, a)| {
+                (format!("added_tokens[{i}]"), &a.content, a.id, a.normalized, a.single_word || a.rstrip)
+            });
+        if t.sentencepiece.is_some() && !t.added_tokens.is_empty() {
+            return Err(invalid(
+                "manifest.json: tokenizer.added_tokens: a sentencepiece tokenizer matches no added token in the text",
+            ));
+        }
+        let mut contents = HashSet::new();
+        let mut ids = HashSet::new();
+        for (at, content, id, normalized, word_or_rstrip) in specials.chain(added) {
+            required(&format!("tokenizer.{at}.content"), content)?;
+            if !contents.insert(content.as_str()) {
+                return Err(invalid(format!("manifest.json: tokenizer.{at}.content: listed twice")));
             }
-            if (s.single_word || s.rstrip) && !s.normalized {
+            if !ids.insert(id) {
+                return Err(invalid(format!("manifest.json: tokenizer.{at}.id: {id} is another token's")));
+            }
+            if t.unigram.is_some() && normalized && word_or_rstrip {
                 return Err(invalid(format!(
-                    "manifest.json: tokenizer.special_tokens[{i}]: single_word and rstrip are read with normalized"
+                    "manifest.json: tokenizer.{at}: unigram single_word/rstrip are unsupported on a normalized token"
                 )));
             }
-            if t.unigram.is_some() && s.normalized && (s.single_word || s.rstrip) {
-                return Err(invalid(
-                    "manifest.json: tokenizer.special_tokens: unigram single_word/rstrip are unsupported",
-                ));
-            }
-            // A bpe tokenizer has no normalizer: a normalized token is
-            // matched in the text as it is, like the others.
-            if s.normalized && t.wordpiece.is_none() && t.bpe.is_none() && t.unigram.is_none() {
+            if normalized && t.sentencepiece.is_some() {
                 return Err(invalid(format!(
-                    "manifest.json: tokenizer.special_tokens[{i}].normalized: requires wordpiece, bpe, or unigram"
+                    "manifest.json: tokenizer.{at}.normalized: requires wordpiece, bpe, or unigram"
                 )));
             }
-            if (s.single_word || s.rstrip) && t.wordpiece.is_none() {
+            if word_or_rstrip && t.sentencepiece.is_some() {
                 return Err(invalid(format!(
-                    "manifest.json: tokenizer.special_tokens[{i}]: single_word and rstrip are for a wordpiece tokenizer only"
+                    "manifest.json: tokenizer.{at}: a sentencepiece tokenizer matches no token in the text"
                 )));
             }
-            if s.id > i32::MAX as u32 {
-                return Err(invalid(format!("manifest.json: tokenizer.special_tokens[{i}].id: over INT32_MAX")));
+            if id > i32::MAX as u32 {
+                return Err(invalid(format!("manifest.json: tokenizer.{at}.id: over INT32_MAX")));
             }
         }
         if !roles.contains(&SpecialRole::Unk) {
@@ -89,7 +102,7 @@ impl Manifest {
             return Err(invalid(format!("manifest.json: tokenizer.template: has {texts} \"$TEXT\" entries, not 1")));
         }
         for (i, s) in t.template.iter().enumerate() {
-            if s != "$TEXT" && !contents.contains(s.as_str()) {
+            if s != "$TEXT" && !t.special_tokens.iter().any(|x| x.content == *s) {
                 return Err(invalid(format!("manifest.json: tokenizer.template[{i}]: {s:?} is not a special token")));
             }
         }
