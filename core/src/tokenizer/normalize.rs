@@ -220,27 +220,30 @@ pub(super) fn pre_tokenize<'a>(s: &'a str, mut word: impl FnMut(&'a str)) {
 /// The words a BERT tokenizer cuts `text` into before WordPiece, as byte
 /// ranges: `BertPreTokenizer`'s, whitespace parting them and each
 /// punctuation character a word of its own, with each CJK ideograph one
-/// too, as `BertNormalizer`'s handle_chinese_chars spaces it. No piece of
-/// such a tokenizer crosses one.
+/// too, as `BertNormalizer`'s handle_chinese_chars spaces it. A character
+/// its clean_text deletes (NUL, U+FFFD, a control) parts nothing, so the
+/// words either side of it are one, as WordPiece reads them; a word ends
+/// after its last kept character. No piece of such a tokenizer crosses
+/// one.
 pub fn pre_words(text: &str) -> Vec<(usize, usize)> {
     let mut out = Vec::new();
-    let mut start = None;
+    let mut word: Option<(usize, usize)> = None;
     for (i, c) in text.char_indices() {
+        if c == '\0' || c == '\u{fffd}' || is_control(c) {
+            continue;
+        }
         let alone = c.is_ascii_punctuation() || (!c.is_ascii() && category(c, PUNCTUATION)) || is_cjk(c);
         if is_whitespace(c) || alone {
-            if let Some(s) = start.take() {
-                out.push((s, i));
-            }
+            out.extend(word.take());
             if alone {
                 out.push((i, i + c.len_utf8()));
             }
-        } else if start.is_none() {
-            start = Some(i);
+        } else {
+            let end = i + c.len_utf8();
+            word = Some(word.map_or((i, end), |(s, _)| (s, end)));
         }
     }
-    if let Some(s) = start {
-        out.push((s, text.len()));
-    }
+    out.extend(word);
     out
 }
 

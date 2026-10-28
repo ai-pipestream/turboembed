@@ -121,6 +121,29 @@ fn tokens_inside_a_word_are_tokenized_on_their_own() {
 }
 
 #[test]
+fn tokens_the_normalizer_joins_are_tokenized_on_their_own() {
+    // Codex's case: U+0085 parts `una` from `ffable` in the raw text, but
+    // clean_text deletes it, so WordPiece reads one word `unaffable` and
+    // gives `ffable` continuation pieces.
+    let dir = bundle("normalizer-joins", |_| {});
+    let text = "una\u{85}ffable";
+    let doc = Document::new(text);
+    let view = doc.require(&Key::<View>::DEFAULT).unwrap();
+    let mut spans = Spans::new(ViewId::SOURCE);
+    for (a, b) in [(0, 3), (5, 11)] {
+        spans.push(Span::new(a, b));
+    }
+    let toks = Tokens { spans, sentence: None };
+    let sub = subwords(&dir, view, &toks);
+    let mut enc = WordEncoder::open(&dir, &EncoderOptions::default()).unwrap();
+    assert!(!enc.reads(view, &sub, &toks).unwrap(), "the pieces are of one joined word");
+    let seqs = HeadRunner::sequences(view, &toks, None).unwrap();
+    let pooling = turbo::manifest::WordPooling::Mean;
+    let given = enc.token_features(view, &toks, &seqs, Some(&sub), pooling).unwrap();
+    assert_eq!(given[0], enc.features(&[vec!["una", "ffable"]], pooling).unwrap()[0]);
+}
+
+#[test]
 fn rows_with_room_for_one_piece_are_read_in_one_piece_windows() {
     let dir = bundle("one-piece", |_| {});
     // Two special tokens and one piece.
