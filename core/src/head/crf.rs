@@ -92,6 +92,11 @@ pub fn allowed(scheme: Scheme, labels: &[String]) -> Result<(Vec<String>, Allowe
 }
 
 impl Allowed {
+    /// The number of labels the masks are over.
+    pub fn labels(&self) -> usize {
+        self.labels
+    }
+
     pub fn may_start(&self, label: usize) -> bool {
         self.start[label]
     }
@@ -128,7 +133,7 @@ impl Crf {
 }
 
 fn check(scores: &[f32], words: usize, labels: usize) -> Result<()> {
-    if Some(scores.len()) != words.checked_mul(labels) {
+    if labels == 0 || Some(scores.len()) != words.checked_mul(labels) {
         return Err(Error::new(INVALID_SHAPE, format!("{} scores for {words} words of {labels} labels", scores.len())));
     }
     if !scores.iter().all(|v| v.is_finite()) {
@@ -159,6 +164,9 @@ pub fn argmax(scores: &[f32], words: usize, labels: usize, out: &mut Vec<u32>) -
 /// INVALID_ARGUMENT if the scheme admits no sequence of this length.
 pub fn viterbi(crf: &Crf, allowed: &Allowed, scores: &[f32], words: usize, out: &mut Vec<u32>) -> Result<()> {
     let n = crf.labels;
+    if allowed.labels != n {
+        return Err(Error::new(INVALID_SHAPE, format!("crf: {n} labels, the scheme's masks {}", allowed.labels)));
+    }
     check(scores, words, n)?;
     out.clear();
     if words == 0 {
