@@ -3,6 +3,7 @@
 use std::time::Duration;
 
 use tokio::runtime::{Builder, Runtime};
+use tokio::time::timeout;
 use tonic::transport::{Channel, Endpoint};
 use turbo_zoo::{Artifact, File, Transport, Url, UserId, most_bytes};
 
@@ -19,7 +20,11 @@ pub struct ZooServer {
     user: UserId,
     runtime: Runtime,
     channel: Channel,
+    stall: Duration,
 }
+
+/// How long a read waits for the server's next answer before it gives up.
+pub const STALL: Duration = Duration::from_secs(60);
 
 impl ZooServer {
     /// The server at `address`, `grpc://host:port` in plain text or
@@ -56,7 +61,14 @@ impl ZooServer {
             let _entered = runtime.enter();
             endpoint.connect_lazy()
         };
-        Ok(ZooServer { address: address.to_owned(), user, runtime, channel })
+        Ok(ZooServer { address: address.to_owned(), user, runtime, channel, stall: STALL })
+    }
+
+    /// Gives up on a read once the server sends nothing for `stall`, in
+    /// place of [`STALL`]; a large file still loads while it keeps coming.
+    pub fn stall_after(mut self, stall: Duration) -> ZooServer {
+        self.stall = stall;
+        self
     }
 
     pub fn address(&self) -> &str {
@@ -76,17 +88,22 @@ impl ZooServer {
             sha256: file.sha256.to_string(),
         };
         let what = |m: &dyn std::fmt::Display| format!("{}: {}/{}: {m}", self.address, artifact.id, file.path.as_str());
-        let mut stream = client.read_model_file(req).await.map_err(|s| what(&s.message()))?.into_inner();
-        let Some(Frame::File(head)) = stream.message().await.map_err(|s| what(&s.message()))?.and_then(|m| m.frame)
-        else {
+        let stalled = || what(&format!("the server sent nothing for {:?}", self.stall));
+        let call = timeout(self.stall, client.read_model_file(req)).await.map_err(|_| stalled())?;
+        let mut stream = call.map_err(|s| what(&s.message()))?.into_inner();
+        let mut next = async || match timeout(self.stall, stream.message()).await {
+            Err(_) => Err(stalled()),
+            Ok(m) => m.map(|m| m.and_then(|m| m.frame)).map_err(|s| what(&s.message())),
+        };
+        let Some(Frame::File(head)) = next().await? else {
             return Err(what(&"the server sent no file record first"));
         };
         if head.sha256 != file.sha256.to_string() || head.size != file.size {
             return Err(what(&format!("the server's record is {} bytes at {}", head.size, head.sha256)));
         }
         let mut out = Vec::with_capacity(usize::try_from(file.size).unwrap_or(0).min(1 << 30));
-        while let Some(m) = stream.message().await.map_err(|s| what(&s.message()))? {
-            let Some(Frame::Data(d)) = m.frame else { return Err(what(&"a second file record")) };
+        while let Some(frame) = next().await? {
+            let Frame::Data(d) = frame else { return Err(what(&"a second file record")) };
             out.extend_from_slice(&d);
             if out.len() as u64 > most {
                 break;

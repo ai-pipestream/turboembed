@@ -14,7 +14,7 @@ turbo-zoo = { path = "../analysis/zoo", default-features = false }
 # (outside analysis/, whose crates keep to the plain dependency allowlist);
 # grpcs:// is the tls feature's.
 prost = "0.14"
-tokio = { version = "1", features = ["rt"] }
+tokio = { version = "1", features = ["rt", "time"] }
 tonic = { version = "0.14", default-features = false, features = ["transport", "codegen", "channel"] }
 tonic-prost = "0.14"
 

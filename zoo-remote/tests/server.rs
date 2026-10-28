@@ -230,8 +230,15 @@ async fn a_source_list_falls_through_to_the_next_source() {
 
 #[test]
 fn a_source_list_names_only_what_it_can_read() {
-    let ok = sources("file:///zoo, grpcs://zoo.example:8081, origin", &alice(), Offline).unwrap();
+    let ok = sources("file:///zoo, grpc://zoo.example:8081, origin", &alice(), Offline).unwrap();
     assert_eq!(ok.len(), 3);
+    // A build without TLS refuses grpcs:// rather than reading in plain text.
+    let tls = sources("grpcs://zoo.example:8081", &alice(), Offline);
+    if cfg!(feature = "tls") {
+        assert_eq!(tls.unwrap().len(), 1);
+    } else {
+        assert!(tls.err().unwrap().contains("needs the tls feature"));
+    }
     for (bad, says) in [
         ("", "an empty entry"),
         ("file:///zoo,,origin", "an empty entry"),
@@ -246,4 +253,20 @@ fn a_source_list_names_only_what_it_can_read() {
         assert!(e.contains(says), "{bad:?}: {e}");
     }
     assert!(ZooServer::with_tls("grpc://zoo.example:8081", alice(), Some(b"pem")).is_err());
+}
+
+#[test]
+fn a_server_that_stops_answering_is_given_up_on() {
+    // Takes the connection and never answers.
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let held = std::thread::spawn(move || listener.accept().map(|(s, _)| s));
+    let server = ZooServer::new(&format!("grpc://127.0.0.1:{port}"), alice())
+        .unwrap()
+        .stall_after(std::time::Duration::from_millis(300));
+    let index = index();
+    let a = index.get("tiny").unwrap();
+    let e = server.get_file(a, &a.files[0]).unwrap_err();
+    assert!(e.contains("sent nothing for"), "{e}");
+    drop(held.join());
 }
