@@ -10,10 +10,11 @@ use std::marker::PhantomData;
 use turbo::{turbo_embed_options, turbo_text};
 
 use crate::api::{Failure, Result, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_ENUM, TURBO_E_INVALID_SHAPE, names};
+use crate::infer_ranges::{self, Int8Ranges};
 use crate::proto::infer_parameter::ParameterChoice;
 use crate::proto::model_infer_request::InferInputTensor;
 use crate::proto::{InferParameter, InferTensorContents, ModelInferRequest};
-use crate::status::EMBED_OPTIONS;
+use crate::status::EMBED_PARAMETERS;
 
 /// The rows of one write, pointing into the request.
 pub enum Rows<'a> {
@@ -29,7 +30,10 @@ pub enum Rows<'a> {
 
 pub struct Plan<'a> {
     pub rows: Rows<'a>,
+    /// int8_ranges is NULL here: the write points it at `int8_ranges`
+    /// once the width is checked.
     pub opts: turbo_embed_options,
+    pub int8_ranges: Option<Int8Ranges>,
 }
 
 pub(crate) fn bad(message: impl Into<String>) -> Failure {
@@ -81,18 +85,21 @@ pub fn plan(req: &ModelInferRequest) -> Result<Plan<'_>> {
         Ok(first)
     };
     for i in &req.inputs {
-        if !matches!(i.name.as_str(), "texts" | "ids" | "mask" | "types") {
+        if !matches!(i.name.as_str(), "texts" | "ids" | "mask" | "types" | infer_ranges::NAME) {
             return Err(bad(format!(
-                "input `{}`: the inputs are `texts`, or `ids` and `mask` with `types` optional",
+                "input `{}`: the inputs are `texts`, or `ids` and `mask` with `types` optional, and \
+                 `int8_ranges` optional",
                 i.name
             )));
         }
     }
     let (texts, ids, mask, types) = (find("texts")?, find("ids")?, find("mask")?, find("types")?);
+    let ranges = find(infer_ranges::NAME)?;
     let token_set = ids.is_some() && mask.is_some() && texts.is_none();
     let text_set = texts.is_some() && ids.is_none() && mask.is_none() && types.is_none();
     if !token_set && !text_set {
-        let given: Vec<&str> = req.inputs.iter().map(|i| i.name.as_str()).collect();
+        let given: Vec<&str> =
+            req.inputs.iter().map(|i| i.name.as_str()).filter(|n| *n != infer_ranges::NAME).collect();
         return Err(bad(format!(
             "inputs {given:?}: a request gives `texts` alone, or `ids` and `mask` with `types` optional"
         )));
@@ -100,7 +107,7 @@ pub fn plan(req: &ModelInferRequest) -> Result<Plan<'_>> {
 
     // Datatypes, then shapes.
     let want = if text_set { "BYTES" } else { "INT32" };
-    for i in &req.inputs {
+    for i in req.inputs.iter().filter(|i| i.name != infer_ranges::NAME) {
         if i.datatype != want {
             return Err(bad(format!(
                 "input `{}` is {}; it takes {want}, and nothing is converted",
@@ -111,7 +118,8 @@ pub fn plan(req: &ModelInferRequest) -> Result<Plan<'_>> {
     let rank = if text_set { 1 } else { 2 };
     let mut extents = Vec::with_capacity(req.inputs.len());
     for i in &req.inputs {
-        extents.push(shape(i, rank)?);
+        // The ranges' extents are infer_ranges' to check.
+        extents.push(if i.name == infer_ranges::NAME { Vec::new() } else { shape(i, rank)? });
     }
 
     // Raw or typed, not both.
@@ -127,6 +135,7 @@ pub fn plan(req: &ModelInferRequest) -> Result<Plan<'_>> {
         )));
     }
     let typed = |k: usize| req.inputs[k].contents.as_ref().unwrap_or(&EMPTY);
+    let int8_ranges = ranges.map(|k| infer_ranges::read(req, k)).transpose()?;
 
     if let Some(k) = texts {
         let batch = extents[k][0];
@@ -140,7 +149,7 @@ pub fn plan(req: &ModelInferRequest) -> Result<Plan<'_>> {
         if views.len() as u64 != batch as u64 {
             return Err(bad_shape(format!("input `texts` is shaped [{batch}] and has {} elements", views.len())));
         }
-        return Ok(Plan { rows: Rows::Texts(views, PhantomData), opts: options(&req.parameters)? });
+        return Ok(Plan { rows: Rows::Texts(views, PhantomData), opts: options(&req.parameters)?, int8_ranges });
     }
 
     let (ids, mask) = (ids.unwrap(), mask.unwrap());
@@ -185,7 +194,7 @@ pub fn plan(req: &ModelInferRequest) -> Result<Plan<'_>> {
         };
         Rows::Typed { batch, seq, ids: ints(ids)?, mask: ints(mask)?, types: types.map(ints).transpose()? }
     };
-    Ok(Plan { rows, opts: options(&req.parameters)? })
+    Ok(Plan { rows, opts: options(&req.parameters)?, int8_ranges })
 }
 
 /// The tensor's extents, each within a uint32_t.
@@ -264,6 +273,7 @@ fn constants(field: usize) -> Option<&'static [(u32, &'static str)]> {
         3 => Some(names::PROMPT),
         4 => Some(names::NORMALIZE),
         5 => Some(names::POOLING),
+        7 => Some(names::QUANTIZE),
         _ => None,
     }
 }
@@ -271,13 +281,13 @@ fn constants(field: usize) -> Option<&'static [(u32, &'static str)]> {
 /// The request's parameters as one turbo_embed_options: struct_size set,
 /// every field 0, and the fields the request names set.
 pub fn options(params: &HashMap<String, InferParameter>) -> Result<turbo_embed_options> {
-    let mut unknown: Vec<&String> = params.keys().filter(|k| !EMBED_OPTIONS.contains(&k.as_str())).collect();
+    let mut unknown: Vec<&String> = params.keys().filter(|k| !EMBED_PARAMETERS.contains(&k.as_str())).collect();
     unknown.sort();
     if let Some(name) = unknown.first() {
         return Err(bad(format!("parameter `{name}` is not a field of turbo_embed_options")));
     }
-    let mut v = [0u32; 6];
-    for (k, name) in EMBED_OPTIONS.iter().enumerate() {
+    let mut v = [0u32; EMBED_PARAMETERS.len()];
+    for (k, name) in EMBED_PARAMETERS.iter().enumerate() {
         let Some(p) = params.get(*name) else { continue };
         let field = k as u32 + 1;
         let choice = p.parameter_choice.as_ref();
@@ -323,7 +333,7 @@ pub fn options(params: &HashMap<String, InferParameter>) -> Result<turbo_embed_o
         normalize: v[3],
         pooling: v[4],
         output_dim: v[5],
-        quantization: 0,
+        quantization: v[6],
         int8_ranges: std::ptr::null(),
     })
 }

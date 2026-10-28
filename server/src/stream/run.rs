@@ -27,6 +27,9 @@ pub(crate) struct Doc {
     pub(crate) id: String,
     pub(crate) text: Vec<u8>,
     pub(crate) opts: turbo_embed_options,
+    /// The caller's int8 table, checked against the width; the run points
+    /// opts.int8_ranges at it.
+    pub(crate) int8_ranges: Option<Arc<[f32]>>,
     pub(crate) output: AnalyzeOutput,
     pub(crate) offsets: OffsetMode,
     pub(crate) sparse_top_k: u32,
@@ -70,6 +73,8 @@ pub(crate) struct Outcome {
     pub(crate) model: String,
     pub(crate) version: String,
     pub(crate) dim: u32,
+    /// TURBO_QUANTIZE_* of each row, as the documents asked.
+    pub(crate) quantization: u32,
     pub(crate) rows: std::result::Result<Vec<Row>, Whole>,
 }
 
@@ -83,19 +88,23 @@ pub(crate) fn key(d: &Doc) -> BatchKey {
         AnalyzeOutput::SparseTerms => (d.offsets.to_proto(), d.sparse_top_k, d.sparse_floor.to_bits(), 0),
         AnalyzeOutput::TokenVectors => (d.offsets.to_proto(), 0, 0, d.token_stride),
     };
+    let ranges = d.int8_ranges.as_ref().map(|r| r.iter().map(|v| v.to_bits()).collect()).unwrap_or_default();
     (
-        Arc::as_ptr(&d.loaded) as usize,
-        d.output as i32,
-        offsets,
-        o.truncate,
-        o.max_tokens,
-        o.prompt_role,
-        o.normalize,
-        o.pooling,
-        o.output_dim,
-        top_k,
-        floor,
-        stride,
+        (
+            Arc::as_ptr(&d.loaded) as usize,
+            d.output as i32,
+            offsets,
+            o.truncate,
+            o.max_tokens,
+            o.prompt_role,
+            o.normalize,
+            o.pooling,
+            o.output_dim,
+            top_k,
+            floor,
+            stride,
+        ),
+        (o.quantization, ranges),
     )
 }
 
@@ -115,10 +124,16 @@ pub(crate) fn run(
     if output != AnalyzeOutput::Vectors {
         return run_structured(shared, dead, held, docs, opts, permits, model, version);
     }
+    let quantization = opts.quantization;
+    // The batch shares one table (the key holds it); it lives in docs[0]
+    // through the write.
+    let ranges = docs[0].int8_ranges.clone();
+    let opts = &turbo_embed_options { int8_ranges: ranges.as_ref().map_or(std::ptr::null(), |r| r.as_ptr()), ..*opts };
     let fail = |failure, docs, permits| Outcome {
         model: model.clone(),
         version: version.clone(),
         dim: 0,
+        quantization,
         rows: Err(Whole { failure, docs, permits }),
     };
     if dead.load(Ordering::Acquire) {
@@ -147,9 +162,10 @@ pub(crate) fn run(
         Ok(v) => v,
         Err(f) => return fail(f, docs, permits),
     };
+    drop(ranges);
     // One copy out of the result, which frees the session for the next
     // batch; each document's vector is a slice of it.
-    let row = dim as usize * 4;
+    let row = data.len() / docs.len();
     if data.len() < docs.len() * row {
         let f = Failure::new(TURBO_E_INTERNAL, 0, format!("{} bytes for {} rows of {row}", data.len(), docs.len()));
         return fail(f, docs, permits);
@@ -167,7 +183,7 @@ pub(crate) fn run(
             window: permits.next().expect("one window permit per document"),
         })
         .collect();
-    Outcome { model, version, dim, rows: Ok(rows) }
+    Outcome { model, version, dim, quantization, rows: Ok(rows) }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -185,6 +201,7 @@ fn run_structured(
         model: model.clone(),
         version: version.clone(),
         dim: 0,
+        quantization: 0,
         rows: Err(Whole { failure, docs, permits }),
     };
     let loaded = docs[0].loaded.clone();
@@ -233,7 +250,7 @@ fn run_structured(
             window: permits.next().expect("one window permit per document"),
         })
         .collect();
-    Outcome { model, version, dim: 0, rows: Ok(rows) }
+    Outcome { model, version, dim: 0, quantization: 0, rows: Ok(rows) }
 }
 
 /// The result's whole bytes and dim, read the way the single-document
