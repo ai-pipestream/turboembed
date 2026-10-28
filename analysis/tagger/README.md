@@ -11,7 +11,9 @@ encoder runs on. Heads are trained by `turbo-trainer` (`trainer/`).
   says). Training and inference read words through this one path. A
   document's `Subwords` are read in place of tokenizing when they are
   this model's, made per word token by a WordPiece tokenizer, each piece
-  inside its token; other subwords of the model are passed over.
+  inside its token and each token on BERT pre-tokenizer word bounds (a
+  token inside a word would get continuation pieces it does not get on
+  its own); other subwords of the model are passed over.
 - `annotate`: a head and its encoder (`HeadRunner`): sentences from the
   token layer's sentence column, else the sentence layer, else the whole
   view, each token in exactly one sentence (a token across a sentence

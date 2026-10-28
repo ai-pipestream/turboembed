@@ -17,9 +17,14 @@
 //!
 //! A document's `Subwords` stand in for that tokenizing when they give the
 //! same pieces ([`WordEncoder::reads`]): made by this bundle's model, per
-//! word token, by a WordPiece tokenizer (whose pieces of a word do not
-//! depend on the words around it), each piece inside its token. Other
-//! subwords of this model are passed over and the words tokenized.
+//! word token, by a WordPiece tokenizer, each piece inside its token, and
+//! every token starting and ending where a BERT pre-tokenizer word does
+//! under this tokenizer's own normalizer settings
+//! (`Tokenizer::wordpiece_words`). WordPiece reads each such word on its
+//! own, so its pieces are the token's own; a token that starts inside a
+//! word gets continuation pieces (`##ffa` for `ffa` in `unaffable`) that
+//! the token alone would not. Other subwords of this model are passed
+//! over and the words tokenized.
 
 use std::path::Path;
 
@@ -101,10 +106,10 @@ impl WordEncoder {
         self.tokenized
     }
 
-    /// Whether `sub` gives each token of `tokens` the pieces this encoder
-    /// would make of it (see the module comment). Subwords of another
-    /// model, or in another view, are refused.
-    pub fn reads(&self, sub: &Subwords, tokens: &Tokens) -> std::result::Result<bool, String> {
+    /// Whether `sub` gives each token of `tokens` over `view` the pieces
+    /// this encoder would make of it (see the module comment). Subwords of
+    /// another model, or in another view, are refused.
+    pub fn reads(&self, view: &View, sub: &Subwords, tokens: &Tokens) -> std::result::Result<bool, String> {
         if sub.spans.view() != tokens.spans.view() {
             return Err("the subwords are in another view".into());
         }
@@ -117,11 +122,25 @@ impl WordEncoder {
             return Ok(false);
         }
         let n = tokens.spans.len();
-        Ok(sub.spans.iter().zip(col).all(|((_, p), t)| {
+        let inside = sub.spans.iter().zip(col).all(|((_, p), t)| {
             t.get() < n && {
                 let w = tokens.spans.get(Ix::new(t.get() as u32));
                 w.start <= p.start && p.end <= w.end
             }
+        });
+        if !inside {
+            return Ok(false);
+        }
+        // Every token on pre-tokenizer word bounds, so WordPiece read it
+        // as a word of its own.
+        // Under this tokenizer's own normalizer settings.
+        let Some(words) = self.tokenizer.wordpiece_words(view.text()) else { return Ok(false) };
+        let (mut starts, mut ends): (Vec<usize>, Vec<usize>) = words.into_iter().unzip();
+        starts.sort_unstable();
+        ends.sort_unstable();
+        Ok(tokens.spans.iter().all(|(_, w)| {
+            w.start == w.end
+                || (starts.binary_search(&(w.start as usize)).is_ok() && ends.binary_search(&(w.end as usize)).is_ok())
         }))
     }
 
@@ -137,7 +156,7 @@ impl WordEncoder {
         pooling: WordPooling,
     ) -> std::result::Result<Vec<Vec<f32>>, String> {
         let sub = match subwords {
-            Some(s) if self.reads(s, tokens)? => Some(s),
+            Some(s) if self.reads(view, s, tokens)? => Some(s),
             _ => None,
         };
         let mut pieces = Vec::with_capacity(sequences.len());

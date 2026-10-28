@@ -80,6 +80,11 @@ fn the_best_fitting_tree_wins_ties_go_low_and_a_form_with_no_tree_is_its_own_lem
     assert_eq!(out, [None]);
     assert_eq!(h.lemmas(&out, &["xyz"]).unwrap(), ["xyz"]);
     assert!(h.lemmas(&[Some(0)], &["xyz"]).is_err(), "a tree that does not fit");
+    // The walked tree would leave `ed` with no lemma, so it does not fit
+    // and, with nothing else fitting, the word is its own lemma.
+    h.decode(&[9.0, 0.0, 0.0], &["ed"], &mut out).unwrap();
+    assert_eq!(out, [None]);
+    assert_eq!(h.lemmas(&out, &["ed"]).unwrap(), ["ed"]);
     assert!(h.decode(&[0.0, f32::NAN, 0.0], &["a"], &mut out).is_err());
     assert!(h.decode(&[0.0, 0.0], &["a"], &mut out).is_err());
 }
