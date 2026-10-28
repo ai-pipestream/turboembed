@@ -25,52 +25,13 @@ use turbo_formats::native::{
     ChunkReader, DocumentReader, LanguageReader, LemmaReader, NameReader, SentenceReader, TokenReader, WordTagReader,
 };
 use turbo_formats::{Field, FormatError, SentenceSample, TokenSample};
-use turbo_goldens::{ColumnData, ColumnSpec, ColumnType, Golden, GoldenAnchor, GoldenLayer, Shape};
+use turbo_goldens::{ColumnData, Golden, GoldenLayer};
 use turbo_tokenize::detok::{Detokenizer, DetokenizerDictionary};
-use turbo_unicode::WhitespaceMode;
 
-const U32: ColumnType = ColumnType::U32;
-const STR: ColumnType = ColumnType::Str;
-const SAMPLE_TOKENS: &str = "turbo:sample-tokens";
+#[path = "opennlp/shapes.rs"]
+mod shapes;
 
-fn shapes() -> Vec<Shape> {
-    const WRITTEN: &[ColumnSpec] = &[ColumnSpec::new("written", STR)];
-    const ERRORS: &[ColumnSpec] =
-        &[ColumnSpec::new("after", U32), ColumnSpec::new("class", STR), ColumnSpec::new("message", STR)];
-    const TOKENS: &[ColumnSpec] = &[ColumnSpec::new("sample", U32), ColumnSpec::new("text", STR)];
-    const TAG: &[ColumnSpec] = &[ColumnSpec::new("tag", STR)];
-    const LEMMA: &[ColumnSpec] = &[ColumnSpec::new("lemma", STR)];
-    const CHUNK: &[ColumnSpec] = &[ColumnSpec::new("chunk", STR)];
-    const SPANS: &[ColumnSpec] = &[
-        ColumnSpec::new("sample", U32),
-        ColumnSpec::new("start", U32),
-        ColumnSpec::new("end", U32),
-        ColumnSpec::new("type", STR),
-    ];
-    const PHRASE_ERRORS: &[ColumnSpec] =
-        &[ColumnSpec::new("sample", U32), ColumnSpec::new("class", STR), ColumnSpec::new("message", STR)];
-    const TEXT: &[ColumnSpec] = &[ColumnSpec::new("text", STR)];
-    const BYTES: &[ColumnSpec] =
-        &[ColumnSpec::new("sample", U32), ColumnSpec::new("start", U32), ColumnSpec::new("end", U32)];
-    const LABEL: &[ColumnSpec] = &[ColumnSpec::new("label", STR)];
-    let doc = |id: &str, columns| Shape { id: id.into(), anchor: GoldenAnchor::Document, columns };
-    let aligned =
-        |id: &str, columns| Shape { id: id.into(), anchor: GoldenAnchor::Aligned(SAMPLE_TOKENS.into()), columns };
-    vec![
-        doc("turbo:samples", WRITTEN),
-        doc("turbo:read-errors", ERRORS),
-        doc(SAMPLE_TOKENS, TOKENS),
-        aligned("turbo:sample-tags", TAG),
-        aligned("turbo:sample-lemmas", LEMMA),
-        aligned("turbo:sample-chunks", CHUNK),
-        doc("turbo:names", SPANS),
-        doc("turbo:phrases", SPANS),
-        doc("turbo:phrase-errors", PHRASE_ERRORS),
-        doc("turbo:sample-texts", TEXT),
-        doc("turbo:sample-spans", BYTES),
-        doc("turbo:sample-labels", LABEL),
-    ]
-}
+use shapes::{SAMPLE_TOKENS, shapes};
 
 /// The layers rebuilt from the Rust samples, by id, each as rows of
 /// cells written as text.
@@ -224,14 +185,11 @@ fn sentence_texts(samples: &[SentenceSample<'_>], out: &mut Rebuilt) {
 }
 
 fn rebuild(run: &str, input: &str, dictionary: &DetokenizerDictionary) -> Rebuilt {
-    let (kind, mode) = match run.strip_suffix("+legacy") {
-        Some(k) => (k, WhitespaceMode::Legacy),
-        None => (run, WhitespaceMode::Unicode),
-    };
+    let kind = run;
     let mut out = Rebuilt::default();
     match kind {
         "name" => {
-            let samples = drain(NameReader::new(input, mode).unwrap(), &mut out);
+            let samples = drain(NameReader::new(input).unwrap(), &mut out);
             written(&samples, &mut out);
             tokens(samples.iter().map(|s| s.tokens()), &mut out);
             out.layer("turbo:names");
@@ -250,18 +208,18 @@ fn rebuild(run: &str, input: &str, dictionary: &DetokenizerDictionary) -> Rebuil
                 } else {
                     Back::Same
                 };
-                round_trip(s, back, |t| written_of(NameReader::new(t, mode).unwrap()));
+                round_trip(s, back, |t| written_of(NameReader::new(t).unwrap()));
             }
         }
         "wordtag" => {
-            let samples = drain(WordTagReader::new(input, mode).unwrap(), &mut out);
+            let samples = drain(WordTagReader::new(input).unwrap(), &mut out);
             written(&samples, &mut out);
             tokens(samples.iter().map(|s| s.tokens()), &mut out);
             column("turbo:sample-tags", samples.iter().map(|s| s.tags()), &mut out);
             for s in &samples {
                 check_fields(input, s.tokens());
                 check_fields(input, s.tags());
-                round_trip(s, Back::Same, |t| written_of(WordTagReader::new(t, mode).unwrap()));
+                round_trip(s, Back::Same, |t| written_of(WordTagReader::new(t).unwrap()));
             }
         }
         "lemma" => {
@@ -305,14 +263,14 @@ fn rebuild(run: &str, input: &str, dictionary: &DetokenizerDictionary) -> Rebuil
             }
         }
         "token" => {
-            let samples = drain(TokenReader::new(input, mode).unwrap(), &mut out);
+            let samples = drain(TokenReader::new(input).unwrap(), &mut out);
             written(&samples, &mut out);
             token_texts(&samples, &mut out);
             for s in &samples {
                 for (i, src) in s.sources().iter().enumerate() {
                     assert_eq!(&input[src.range()], s.token(i));
                 }
-                round_trip(s, Back::Same, |t| written_of(TokenReader::new(t, mode).unwrap()));
+                round_trip(s, Back::Same, |t| written_of(TokenReader::new(t).unwrap()));
             }
         }
         "sentence" => {
@@ -328,14 +286,14 @@ fn rebuild(run: &str, input: &str, dictionary: &DetokenizerDictionary) -> Rebuil
             }
         }
         "doccat" => {
-            let samples = drain(DocumentReader::new(input, mode).unwrap(), &mut out);
+            let samples = drain(DocumentReader::new(input).unwrap(), &mut out);
             written(&samples, &mut out);
             out.layer("turbo:sample-labels");
             for s in &samples {
                 out.row("turbo:sample-labels", vec![s.category.as_str().to_owned()]);
                 check_fields(input, [&s.category]);
                 check_fields(input, &s.tokens);
-                round_trip(s, Back::Same, |t| written_of(DocumentReader::new(t, mode).unwrap()));
+                round_trip(s, Back::Same, |t| written_of(DocumentReader::new(t).unwrap()));
             }
             tokens(samples.iter().map(|s| s.tokens.as_slice()), &mut out);
         }
@@ -354,8 +312,8 @@ fn rebuild(run: &str, input: &str, dictionary: &DetokenizerDictionary) -> Rebuil
         "name-to-token" | "pos-to-token" | "name-to-sentence" | "pos-to-sentence" => {
             let detokenizer = Detokenizer::new(dictionary);
             let chunk = ChunkSize::Samples(std::num::NonZeroUsize::new(2).unwrap());
-            let names = || NameReader::new(input, mode).unwrap();
-            let pos = || WordTagReader::new(input, mode).unwrap();
+            let names = || NameReader::new(input).unwrap();
+            let pos = || WordTagReader::new(input).unwrap();
             if kind.ends_with("token") {
                 let samples = if kind == "name-to-token" {
                     drain(ToTokenSamples::new(names(), detokenizer), &mut out)
@@ -478,7 +436,7 @@ fn rebuild(run: &str, input: &str, dictionary: &DetokenizerDictionary) -> Rebuil
             }
         }
         "conllu-token" => {
-            let samples = drain(ConlluTokenReader::new(input, mode).unwrap(), &mut out);
+            let samples = drain(ConlluTokenReader::new(input).unwrap(), &mut out);
             written(&samples, &mut out);
             token_texts(&samples, &mut out);
             for s in &samples {
@@ -518,7 +476,7 @@ fn every_format_golden_matches() {
     let dictionary = dictionary(&data);
     let shapes = shapes();
     let all = goldens();
-    assert!(all.len() >= 69, "only {} formats goldens", all.len());
+    assert!(all.len() >= 59, "only {} formats goldens", all.len());
     for (run, path) in all {
         let golden = Golden::read_with(&path, &shapes).unwrap();
         let input = golden.input_text(&data).unwrap();

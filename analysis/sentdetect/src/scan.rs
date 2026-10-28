@@ -6,12 +6,11 @@
 //! of a multi-byte character is below 0x80, so a scan over bytes finds
 //! exactly the characters a scan over code points would. Whitespace is
 //! decoded per character only where a byte is not ASCII; every character
-//! with the `White_Space` property or Java's whitespace classes is in the
-//! Basic Multilingual Plane, so testing whole code points gives the same
-//! answer as OpenNLP's test on each UTF-16 code unit (a surrogate half is
-//! never whitespace).
+//! with the `White_Space` property is in the Basic Multilingual Plane, so
+//! testing whole code points gives the same answer as a test on each
+//! UTF-16 code unit (a surrogate half is never whitespace).
 
-use turbo_unicode::WhitespaceMode;
+use turbo_unicode::whitespace::{is_ascii_whitespace, is_whitespace};
 
 const ONES: u64 = 0x0101_0101_0101_0101;
 const HIGHS: u64 = 0x8080_8080_8080_8080;
@@ -66,22 +65,22 @@ fn decode_multibyte(bytes: &[u8], i: usize) -> (u32, usize) {
 }
 
 /// The offset of the first character in `text[start..end]` that is not
-/// whitespace in `mode`, or `end` when every character is. `start` and
+/// Unicode whitespace, or `end` when every character is. `start` and
 /// `end` are character boundaries.
 #[inline]
-pub(crate) fn skip_whitespace(text: &str, start: usize, end: usize, mode: WhitespaceMode) -> usize {
+pub(crate) fn skip_whitespace(text: &str, start: usize, end: usize) -> usize {
     let bytes = text.as_bytes();
     let mut i = start;
     while i < end {
         let b = bytes[i];
         if b < 0x80 {
-            if !mode.is_ascii_whitespace(b) {
+            if !is_ascii_whitespace(b) {
                 return i;
             }
             i += 1;
         } else {
             let (cp, len) = decode_multibyte(bytes, i);
-            if !mode.is_whitespace(cp) {
+            if !is_whitespace(cp) {
                 return i;
             }
             i += len;
@@ -91,22 +90,22 @@ pub(crate) fn skip_whitespace(text: &str, start: usize, end: usize, mode: Whites
 }
 
 /// The offset of the first character in `text[start..end]` that is
-/// whitespace in `mode`, or `end` when none is. `start` and `end` are
+/// Unicode whitespace, or `end` when none is. `start` and `end` are
 /// character boundaries.
 #[inline]
-pub(crate) fn find_whitespace(text: &str, start: usize, end: usize, mode: WhitespaceMode) -> usize {
+pub(crate) fn find_whitespace(text: &str, start: usize, end: usize) -> usize {
     let bytes = text.as_bytes();
     let mut i = start;
     while i < end {
         let b = bytes[i];
         if b < 0x80 {
-            if mode.is_ascii_whitespace(b) {
+            if is_ascii_whitespace(b) {
                 return i;
             }
             i += 1;
         } else {
             let (cp, len) = decode_multibyte(bytes, i);
-            if mode.is_whitespace(cp) {
+            if is_whitespace(cp) {
                 return i;
             }
             i += len;
@@ -122,16 +121,16 @@ pub(crate) fn decode(bytes: &[u8], i: usize) -> (u32, usize) {
 }
 
 /// The offset just past the last character in `text[start..end]` that is
-/// not whitespace in `mode`, or `start` when every character is. `start`
+/// not Unicode whitespace, or `start` when every character is. `start`
 /// and `end` are character boundaries.
 #[inline]
-pub(crate) fn skip_whitespace_back(text: &str, start: usize, end: usize, mode: WhitespaceMode) -> usize {
+pub(crate) fn skip_whitespace_back(text: &str, start: usize, end: usize) -> usize {
     let bytes = text.as_bytes();
     let mut j = end;
     while j > start {
         let b = bytes[j - 1];
         if b < 0x80 {
-            if !mode.is_ascii_whitespace(b) {
+            if !is_ascii_whitespace(b) {
                 return j;
             }
             j -= 1;
@@ -141,7 +140,7 @@ pub(crate) fn skip_whitespace_back(text: &str, start: usize, end: usize, mode: W
                 lead -= 1;
             }
             let (cp, _) = decode_multibyte(bytes, lead);
-            if !mode.is_whitespace(cp) {
+            if !is_whitespace(cp) {
                 return j;
             }
             j = lead;
@@ -150,21 +149,20 @@ pub(crate) fn skip_whitespace_back(text: &str, start: usize, end: usize, mode: W
     start
 }
 
-/// `text[start..end]` with whitespace in `mode` removed from both ends, as
+/// `text[start..end]` with Unicode whitespace removed from both ends, as
 /// `Span.trim` does, or `None` when nothing remains.
 #[inline]
-pub(crate) fn trim(text: &str, start: usize, end: usize, mode: WhitespaceMode) -> Option<(usize, usize)> {
-    let first = skip_whitespace(text, start, end, mode);
+pub(crate) fn trim(text: &str, start: usize, end: usize) -> Option<(usize, usize)> {
+    let first = skip_whitespace(text, start, end);
     if first == end {
         return None;
     }
-    Some((first, skip_whitespace_back(text, first, end, mode)))
+    Some((first, skip_whitespace_back(text, first, end)))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use WhitespaceMode::{Legacy, Unicode};
 
     #[test]
     fn finds_every_break_at_every_alignment() {
@@ -203,29 +201,28 @@ mod tests {
     }
 
     #[test]
-    fn finds_whitespace_by_mode() {
+    fn finds_unicode_whitespace() {
         let text = "ab\u{85}c d\u{1F600}\u{3000}";
-        // U+0085 at byte 2 is White_Space but not legacy whitespace.
-        assert_eq!(find_whitespace(text, 0, text.len(), Unicode), 2);
-        assert_eq!(find_whitespace(text, 0, text.len(), Legacy), 5);
-        assert_eq!(find_whitespace(text, 6, text.len(), Unicode), 11);
-        assert_eq!(find_whitespace(text, 0, 2, Unicode), 2);
-        assert_eq!(find_whitespace("", 0, 0, Unicode), 0);
+        // U+0085 at byte 2 is White_Space.
+        assert_eq!(find_whitespace(text, 0, text.len()), 2);
+        // U+001C to U+001F are not.
+        assert_eq!(find_whitespace("a\u{1c}\u{1d}\u{1e}\u{1f} b", 0, 7), 5);
+        assert_eq!(find_whitespace(text, 6, text.len()), 11);
+        assert_eq!(find_whitespace(text, 0, 2), 2);
+        assert_eq!(find_whitespace("", 0, 0), 0);
         assert_eq!(decode(text.as_bytes(), 0), (u32::from(b'a'), 1));
         assert_eq!(decode(text.as_bytes(), 7), (0x1F600, 4));
     }
 
     #[test]
-    fn trims_by_mode() {
+    fn trims_unicode_whitespace() {
         let text = "\u{85}\u{A0} a b \u{2028}\u{1C}";
-        // Unicode: U+0085, U+00A0 and U+2028 are White_Space, U+001C is not.
-        assert_eq!(trim(text, 0, text.len(), Unicode), Some((5, text.len())));
-        // Legacy: U+0085 is not whitespace; U+001C is.
-        assert_eq!(trim(text, 0, text.len(), Legacy), Some((0, 8)));
-        assert_eq!(trim(" \t\u{3000}", 0, 5, Unicode), None);
-        assert_eq!(trim("", 0, 0, Legacy), None);
+        // U+0085, U+00A0 and U+2028 are White_Space, U+001C is not.
+        assert_eq!(trim(text, 0, text.len()), Some((5, text.len())));
+        assert_eq!(trim(" \t\u{3000}", 0, 5), None);
+        assert_eq!(trim("", 0, 0), None);
         // A four-byte character is never whitespace, at either end.
         let text = " \u{1D400} ";
-        assert_eq!(trim(text, 0, text.len(), Unicode), Some((1, 5)));
+        assert_eq!(trim(text, 0, text.len()), Some((1, 5)));
     }
 }

@@ -15,8 +15,8 @@
 //! The maxent and rule detectors can consult a classified
 //! [`AbbreviationInventory`] ([`inventory`]) on top of their own data.
 //!
-//! The newline, paragraph and rule detectors need no model. Each detector takes
-//! OpenNLP's whitespace mode as a parameter, never a global, and works on
+//! The newline, paragraph and rule detectors need no model. Every detector
+//! uses the Unicode `White_Space` property as its whitespace, and works on
 //! the bytes of the view it reads: every offset it writes is a UTF-8 byte
 //! offset into that view, on a character boundary. Each has a plain
 //! function underneath ([`newline_spans`], [`paragraph_spans`],
@@ -51,7 +51,6 @@ pub use rules::{
     LineBreaks, RuleScratch, RuleSentenceDetector, RuleSplitter, Rules, UNPUNCTUATED_SCRIPTS, UnpunctuatedSplitter,
     has_unpunctuated_script, is_unpunctuated_script, needs_unpunctuated_fallback,
 };
-pub use turbo_unicode::WhitespaceMode;
 
 use turbo_analysis::Error;
 
@@ -67,18 +66,11 @@ fn check_len(annotator: &'static str, text: &str) -> Result<(), Error> {
     }
 }
 
-/// The configuration hash of a detector whose one option is the
-/// whitespace mode: FNV-1a over a number per mode, fixed so that stored
-/// provenance stays comparable across builds.
-fn mode_hash(mode: WhitespaceMode) -> u64 {
-    let x: u64 = match mode {
-        WhitespaceMode::Legacy => 1,
-        WhitespaceMode::Unicode => 2,
-    };
-    // One FNV-1a step on the mode number: the parity splitter's
-    // pre-inventory hash, kept bit-identical on purpose.
-    (turbo_analysis::FNV1A_OFFSET_BASIS ^ x).wrapping_mul(turbo_analysis::FNV1A_PRIME)
-}
+/// The configuration hash of a detector with no option: one FNV-1a step on
+/// the number of its whitespace definition, 2 for Unicode `White_Space`.
+/// The number is fixed so that stored provenance stays comparable across
+/// builds; it changes only if the whitespace definition ever does.
+const WHITESPACE_HASH: u64 = (turbo_analysis::FNV1A_OFFSET_BASIS ^ 2).wrapping_mul(turbo_analysis::FNV1A_PRIME);
 
 /// `h` with the eight bytes of `x` folded in, FNV-1a: a configuration
 /// hash extended with an abbreviation inventory's hash.

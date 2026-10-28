@@ -23,7 +23,6 @@
 //! into `tres` and `millonesimo`). Spans stay those of the text as written.
 
 use crate::dec::Dec;
-use turbo_unicode::whitespace::WhitespaceMode;
 
 use super::numeral::{NumeralStyle, Reading, digits_end};
 
@@ -129,13 +128,13 @@ fn chunk_end(text: &str, mut i: usize) -> usize {
     let b = text.as_bytes();
     while i < b.len() {
         if b[i] < 0x80 {
-            if WhitespaceMode::Unicode.is_ascii_whitespace(b[i]) {
+            if turbo_unicode::whitespace::is_ascii_whitespace(b[i]) {
                 return i;
             }
             i += 1;
         } else {
             let c = char_at(text, i);
-            if WhitespaceMode::Unicode.is_whitespace(c as u32) {
+            if turbo_unicode::whitespace::is_whitespace(c as u32) {
                 return i;
             }
             i += c.len_utf8();
@@ -178,7 +177,7 @@ impl Lexed {
         let mut plain_until = 0;
         while i < b.len() {
             let c = char_at(text, i);
-            if WhitespaceMode::Unicode.is_whitespace(c as u32) {
+            if turbo_unicode::whitespace::is_whitespace(c as u32) {
                 i += c.len_utf8();
                 glued = false;
                 continue;

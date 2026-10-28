@@ -3,7 +3,6 @@
 use std::collections::{BTreeSet, HashMap};
 
 use turbo_analysis::Span;
-use turbo_unicode::WhitespaceMode;
 
 use super::annotation::{BratAnnotation, Fragment};
 use super::document::BratDocument;
@@ -52,20 +51,20 @@ impl Utf16 {
     /// Whether the UTF-16 unit at `unit` is whitespace, as
     /// `StringUtil.isWhitespace(text.charAt(unit))`: half of a surrogate
     /// pair never is.
-    fn is_whitespace(&self, text: &str, unit: i64, mode: WhitespaceMode) -> bool {
+    fn is_whitespace(&self, text: &str, unit: i64) -> bool {
         self.byte(unit)
             .and_then(|b| text[b as usize..].chars().next())
-            .is_some_and(|c| c.len_utf16() == 1 && mode.is_whitespace(c as u32))
+            .is_some_and(|c| c.len_utf16() == 1 && turbo_unicode::whitespace::is_whitespace(c as u32))
     }
 
     /// `Span.trim(text)` of units `start..end`.
-    fn trim(&self, text: &str, start: i64, end: i64, mode: WhitespaceMode) -> (i64, i64) {
+    fn trim(&self, text: &str, start: i64, end: i64) -> (i64, i64) {
         let mut new_start = start;
-        while new_start < end && self.is_whitespace(text, new_start, mode) {
+        while new_start < end && self.is_whitespace(text, new_start) {
             new_start += 1;
         }
         let mut new_end = end;
-        while new_end > start && self.is_whitespace(text, new_end - 1, mode) {
+        while new_end > start && self.is_whitespace(text, new_end - 1) {
             new_end -= 1;
         }
         if new_start > new_end { (start, start) } else { (new_start, new_end) }
@@ -100,7 +99,6 @@ pub struct BratParser<S, T> {
     sentences: S,
     tokenizer: T,
     name_types: Option<BTreeSet<String>>,
-    whitespace: WhitespaceMode,
 }
 
 impl<S: SentenceSpans, T: TokenSpans> BratParser<S, T> {
@@ -116,12 +114,11 @@ impl<S: SentenceSpans, T: TokenSpans> BratParser<S, T> {
         sentences: S,
         tokenizer: T,
         name_types: Option<BTreeSet<String>>,
-        whitespace: WhitespaceMode,
     ) -> Result<BratParser<S, T>, FormatError> {
         if name_types.as_ref().is_some_and(BTreeSet::is_empty) {
             return Err(NerError::BratNoNameTypes.into());
         }
-        Ok(BratParser { sentences, tokenizer, name_types, whitespace })
+        Ok(BratParser { sentences, tokenizer, name_types })
     }
 
     /// The name types `BratNameSampleStreamFactory` takes from its
@@ -197,7 +194,7 @@ impl<S: SentenceSpans, T: TokenSpans> BratParser<S, T> {
                     if !(start <= f_start && f_end <= end) {
                         continue;
                     }
-                    let (t_start, t_end) = units.trim(text, f_start, f_end, self.whitespace);
+                    let (t_start, t_end) = units.trim(text, f_start, f_end);
                     if let (Some(&b), Some(&e)) = (index.get(&-t_start), index.get(&t_end)) {
                         mapped.push(Some(Name::new(b, e, Some(a.kind.as_str()))?));
                     }

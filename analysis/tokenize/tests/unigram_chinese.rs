@@ -1,13 +1,12 @@
 //! Real jieba dictionary rows and its trained BMES model, without mocks.
 use turbo_analysis::{Annotator, Document, Span, Spans, View};
 use turbo_analysis_layers::Sentences;
-use turbo_tokenize::{UnigramLexicon, UnigramMode, UnigramSegmenter, WhitespaceMode, unigram::Scratch};
+use turbo_tokenize::{UnigramLexicon, UnigramMode, UnigramSegmenter, unigram::Scratch};
 use turbo_unicode::utf16::{byte_to_utf16, utf16_to_byte};
 
 fn segmenter(mode: UnigramMode) -> UnigramSegmenter {
-    let lexicon =
-        UnigramLexicon::parse(include_bytes!("../data/jieba-hmm/test-dict.txt"), WhitespaceMode::Unicode).unwrap();
-    UnigramSegmenter::new(lexicon, WhitespaceMode::Unicode).with_mode(mode)
+    let lexicon = UnigramLexicon::parse(include_bytes!("../data/jieba-hmm/test-dict.txt")).unwrap();
+    UnigramSegmenter::new(lexicon).with_mode(mode)
 }
 
 fn words<'a>(s: &UnigramSegmenter, text: &'a str) -> Vec<&'a str> {
@@ -49,7 +48,7 @@ fn scratch_appends_and_preserves_every_non_whitespace_byte() {
         let mut end = 0;
         for span in &out[1..] {
             assert!(span.start < span.end);
-            assert!(text[end..span.start as usize].chars().all(|c| WhitespaceMode::Unicode.is_whitespace(c as u32)));
+            assert!(text[end..span.start as usize].chars().all(|c| turbo_unicode::whitespace::is_whitespace(c as u32)));
             for offset in [span.start, span.end] {
                 let unit = byte_to_utf16(text, offset as usize).unwrap();
                 assert_eq!(utf16_to_byte(text, unit), Some(offset as usize));
@@ -57,7 +56,7 @@ fn scratch_appends_and_preserves_every_non_whitespace_byte() {
             end = span.end as usize;
         }
         let reconstructed: String = out[1..].iter().map(|s| &text[s.range()]).collect();
-        let expected: String = text.chars().filter(|&c| !WhitespaceMode::Unicode.is_whitespace(c as u32)).collect();
+        let expected: String = text.chars().filter(|&c| !turbo_unicode::whitespace::is_whitespace(c as u32)).collect();
         assert_eq!(reconstructed, expected);
     }
 }
@@ -88,5 +87,5 @@ fn sentence_ownership_and_model_policy_provenance() {
     hashes.dedup();
     assert_eq!(hashes.len(), 3);
     let lexicon = segmenter(UnigramMode::OpenNlp).lexicon().clone();
-    assert_eq!(UnigramSegmenter::new(lexicon, WhitespaceMode::Unicode).mode(), UnigramMode::Dictionary);
+    assert_eq!(UnigramSegmenter::new(lexicon).mode(), UnigramMode::Dictionary);
 }

@@ -1,5 +1,5 @@
 //! The sentence detector runs: the maxent detector with a published or
-//! fixture model in either whitespace mode, and the newline detector.
+//! fixture model, and the newline detector.
 
 use std::sync::Arc;
 
@@ -7,7 +7,7 @@ use turbo_analysis::{Analyzer, Document};
 use turbo_analysis_layers::{Confidence, Sentences};
 use turbo_goldens::{Golden, Tolerance, matches_golden};
 use turbo_maxent::ModelFile;
-use turbo_sentdetect::{NewlineDetector, SentenceDetector, SentenceModel, WhitespaceMode};
+use turbo_sentdetect::{NewlineDetector, SentenceDetector, SentenceModel};
 
 use super::{Outcome, Run, RustError, analyze, has_cut, outcome};
 use crate::resources::{Resources, Unavailable};
@@ -22,11 +22,10 @@ fn confidence_tolerance() -> Tolerance {
     Tolerance::exact()
 }
 
-/// Whitespace mode `legacy` when the run's options name it.
-pub(crate) fn whitespace_mode(options: &[&str]) -> Result<WhitespaceMode, Unavailable> {
+/// Refuses a run whose name carries options the run does not take.
+pub(crate) fn no_options(options: &[&str]) -> Result<(), Unavailable> {
     match options {
-        [] => Ok(WhitespaceMode::Unicode),
-        ["legacy"] => Ok(WhitespaceMode::Legacy),
+        [] => Ok(()),
         other => Err(Unavailable::NotCovered(format!("the options {other:?}"))),
     }
 }
@@ -37,7 +36,7 @@ pub(crate) struct MaxentSentences {
 
 impl MaxentSentences {
     pub(crate) fn open(model: &str, options: &[&str], res: &Resources) -> Result<Box<dyn Run>, Unavailable> {
-        let mode = whitespace_mode(options)?;
+        no_options(options)?;
         let path = if FIXTURE_MODELS.contains(&model) {
             res.fixture(&format!("{model}.bin"))?
         } else {
@@ -46,7 +45,7 @@ impl MaxentSentences {
         let file = ModelFile::read(&path).map_err(|e| Unavailable::Broken(format!("{}: {e}", path.display())))?;
         let model = SentenceModel::open(file).map_err(|e| Unavailable::Broken(format!("{}: {e}", path.display())))?;
         // The goldens are the JVM's: no abbreviation inventory.
-        let detector = SentenceDetector::new(Arc::new(model), mode).with_jvm_parity();
+        let detector = SentenceDetector::new(Arc::new(model)).with_jvm_parity();
         let analyzer = Analyzer::builder().add(detector).build().map_err(|e| Unavailable::Broken(e.to_string()))?;
         Ok(Box::new(MaxentSentences { analyzer }))
     }
@@ -68,11 +67,9 @@ pub(crate) struct NewlineSentences {
 
 impl NewlineSentences {
     pub(crate) fn open(options: &[&str]) -> Result<Box<dyn Run>, Unavailable> {
-        let mode = whitespace_mode(options)?;
-        let analyzer = Analyzer::builder()
-            .add(NewlineDetector::new(mode))
-            .build()
-            .map_err(|e| Unavailable::Broken(e.to_string()))?;
+        no_options(options)?;
+        let analyzer =
+            Analyzer::builder().add(NewlineDetector::new()).build().map_err(|e| Unavailable::Broken(e.to_string()))?;
         Ok(Box::new(NewlineSentences { analyzer }))
     }
 }

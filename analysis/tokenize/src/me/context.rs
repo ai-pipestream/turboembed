@@ -15,8 +15,7 @@
 //!   lists.
 //!
 //! A character's classes are `_alpha` (a letter), `_caps` (an upper case
-//! letter), `_num` (a decimal digit), `_ws` (whitespace in the configured
-//! mode), `_eos` (`.` `?` `!`), `_quote` (`` ` `` `"` `'`), `_lp` (`[` `{`
+//! letter), `_num` (a decimal digit), `_ws` (Unicode `White_Space`), `_eos` (`.` `?` `!`), `_quote` (`` ` `` `"` `'`), `_lp` (`[` `{`
 //! `(`) and `_rp` (`]` `}` `)`). "Character" means a Java `char`: a UTF-16
 //! code unit, so a character outside the Basic Multilingual Plane is two,
 //! each a surrogate in no class, and a prefix can end on a high
@@ -34,9 +33,10 @@
 //! bounded by the model rather than by the unit.
 
 use turbo_maxent::MaxentModel;
+use turbo_unicode::Utf16Cursor;
 use turbo_unicode::java::code_point as java;
 use turbo_unicode::modified_utf8::{push_modified_utf8, push_str_modified_utf8};
-use turbo_unicode::{Utf16Cursor, WhitespaceMode};
+use turbo_unicode::whitespace::is_whitespace;
 
 /// The features of one context, by column: their bytes back to back and
 /// the end of each. Cleared and refilled for every position, so a unit's
@@ -97,7 +97,7 @@ impl Features {
     }
 
     /// `key=c` and the classes of code unit `c`.
-    fn char_features(&mut self, key: &[u8], c: u16, mode: WhitespaceMode) {
+    fn char_features(&mut self, key: &[u8], c: u16) {
         self.bytes.extend_from_slice(key);
         self.bytes.push(b'=');
         push_modified_utf8(&mut self.bytes, u32::from(c));
@@ -111,7 +111,7 @@ impl Features {
             b"_caps"
         } else if java::is_digit(cp) {
             b"_num"
-        } else if mode.is_whitespace(cp) {
+        } else if is_whitespace(cp) {
             b"_ws"
         } else {
             match c {
@@ -213,7 +213,7 @@ impl UnitFacts {
 ///
 /// The `p=` and `s=` features are left out when they are longer than
 /// `facts.affixes` allows. The others are always listed.
-pub fn token_context(at: &Utf16Cursor<'_>, facts: UnitFacts, mode: WhitespaceMode, out: &mut Features) {
+pub fn token_context(at: &Utf16Cursor<'_>, facts: UnitFacts, out: &mut Features) {
     let unit = at.text();
     let f1 = at.unit().expect("a position before the end of the unit");
     let p1 = at.peek_prev_unit();
@@ -246,12 +246,12 @@ pub fn token_context(at: &Utf16Cursor<'_>, facts: UnitFacts, mode: WhitespaceMod
 
     match p1 {
         Some(p1) => {
-            out.char_features(b"p1", p1, mode);
+            out.char_features(b"p1", p1);
             let mut back = *at;
             back.step_back();
             match back.peek_prev_unit() {
                 Some(p2) => {
-                    out.char_features(b"p2", p2, mode);
+                    out.char_features(b"p2", p2);
                     out.pair(b"p21=", p2, p1);
                 }
                 None => out.fixed(b"p2=bok"),
@@ -261,11 +261,11 @@ pub fn token_context(at: &Utf16Cursor<'_>, facts: UnitFacts, mode: WhitespaceMod
         None => out.fixed(b"p1=bok"),
     }
 
-    out.char_features(b"f1", f1, mode);
+    out.char_features(b"f1", f1);
     let next = at.peek_next_unit();
     match next {
         Some(f2) => {
-            out.char_features(b"f2", f2, mode);
+            out.char_features(b"f2", f2);
             out.pair(b"f12=", f1, f2);
         }
         None => out.fixed(b"f2=bok"),
@@ -290,7 +290,7 @@ mod tests {
             at.step_forward();
         }
         let mut f = Features::new();
-        token_context(&at, UnitFacts::of(unit, abbreviation), WhitespaceMode::Unicode, &mut f);
+        token_context(&at, UnitFacts::of(unit, abbreviation), &mut f);
         f.iter().map(show).collect()
     }
 
@@ -437,7 +437,7 @@ mod tests {
         }
         let facts = UnitFacts::of(unit, false).with_affix_limits(AffixLimits { prefix, suffix });
         let mut f = Features::new();
-        token_context(&at, facts, WhitespaceMode::Unicode, &mut f);
+        token_context(&at, facts, &mut f);
         f.iter().map(show).collect()
     }
 
@@ -471,7 +471,7 @@ mod tests {
         let mut at = Utf16Cursor::new(unit);
         at.step_forward();
         let mut f = Features::new();
-        token_context(&at, UnitFacts::of(unit, false), WhitespaceMode::Unicode, &mut f);
+        token_context(&at, UnitFacts::of(unit, false), &mut f);
         assert_eq!(f.get(1), b"s=\xC0\x80b");
         assert_eq!(f.get(5), b"p1f1=a\xC0\x80");
         assert_eq!(f.get(6), b"f1=\xC0\x80");
@@ -483,7 +483,7 @@ mod tests {
         let mut at = Utf16Cursor::new(unit);
         at.step_forward();
         let mut f = Features::new();
-        token_context(&at, UnitFacts::of(unit, false), WhitespaceMode::Unicode, &mut f);
+        token_context(&at, UnitFacts::of(unit, false), &mut f);
         let n = f.len();
         assert!(!f.is_empty());
         let by_index: Vec<&[u8]> = (0..n).map(|i| f.get(i)).collect();

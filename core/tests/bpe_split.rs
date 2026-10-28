@@ -291,12 +291,7 @@ fn the_manifest_must_agree_with_the_file() {
         ("use_regex", |j, _| j["pre_tokenizer"]["pretokenizers"][1]["use_regex"] = json!(true)),
         ("normalizer", |j, _| j["normalizer"] = json!({ "type": "NFC" })),
         ("NFC", |_, m| m["tokenizer"]["bpe"]["nfc"] = json!(true)),
-        ("matches no token after NFC", |j, m| {
-            j["normalizer"] = json!({ "type": "NFC" });
-            j["added_tokens"][4]["normalized"] = json!(true);
-            m["tokenizer"]["bpe"]["nfc"] = json!(true);
-            m["tokenizer"]["special_tokens"][4]["normalized"] = json!(true);
-        }),
+        ("matched differently", |j, _| j["added_tokens"][4]["normalized"] = json!(true)),
     ];
     for (want, edit) in cases {
         let (mut json, mut m) = (base(), manifest_split("BPE_PATTERN_LLAMA3", false));

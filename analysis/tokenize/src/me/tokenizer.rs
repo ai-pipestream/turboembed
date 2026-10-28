@@ -84,7 +84,7 @@ impl TokenizerMe {
     pub fn tokenize_with(&self, text: &str, scratch: &mut Scratch, out: &mut Vec<(Span, f64)>) {
         let maxent = self.model.maxent();
         scratch.probs.resize(maxent.num_outcomes(), 0.0);
-        let units = WhitespaceUnits::new(text, self.options.whitespace, self.options.keep_newlines);
+        let units = WhitespaceUnits::new(text, self.options.keep_newlines);
         for (start, end) in units {
             let unit = &text[start..end];
             if fewer_than_two_units(unit) || self.model.alphanumeric().is_some_and(|a| a.test(unit)) {
@@ -110,7 +110,7 @@ impl TokenizerMe {
         let mut at = Utf16Cursor::new(unit);
         at.step_forward();
         while !at.at_end() {
-            token_context(&at, facts, self.options.whitespace, features);
+            token_context(&at, facts, features);
             maxent.eval_features(features.iter(), probs);
             let outcome = self.model.outcome(best_outcome(probs));
             prob *= probs[outcome.index];
@@ -170,7 +170,6 @@ fn span(start: usize, end: usize) -> Span {
 mod tests {
     use super::*;
     use crate::me::context::AffixLimits;
-    use turbo_unicode::WhitespaceMode;
 
     /// The tokenizer over the published English model, or `None` when it
     /// is not downloaded.
@@ -294,7 +293,7 @@ mod tests {
             at.step_forward();
             let (mut positions, mut bytes) = (0, 0);
             while !at.at_end() {
-                token_context(&at, facts, WhitespaceMode::Unicode, &mut features);
+                token_context(&at, facts, &mut features);
                 bytes += features.iter().map(<[u8]>::len).sum::<usize>();
                 positions += 1;
                 at.step_forward();
@@ -312,15 +311,11 @@ mod tests {
     fn options_change_the_units() {
         let Some(t) = english() else { return };
         let model = t.model;
-        let legacy = TokenizerMe::new(
-            model.clone(),
-            TokenizerOptions { whitespace: WhitespaceMode::Legacy, ..Default::default() },
-        );
         let unicode = TokenizerMe::new(model.clone(), TokenizerOptions::default());
-        // U+001F separates only in the legacy mode.
-        assert_eq!(tokens(&legacy, "a\u{1f}b").len(), 2);
+        // U+001F is not whitespace, so it does not separate units; U+0085 does.
         assert_eq!(tokens(&unicode, "a\u{1f}b").len(), 1);
-        let keep = TokenizerMe::new(model, TokenizerOptions { keep_newlines: true, ..Default::default() });
+        assert_eq!(tokens(&unicode, "a\u{85}b").len(), 2);
+        let keep = TokenizerMe::new(model, TokenizerOptions { keep_newlines: true });
         assert_eq!(tokens(&keep, "a\nb"), [("a".into(), 1.0), ("\n".into(), 1.0), ("b".into(), 1.0)]);
         assert_ne!(TokenizerOptions::default().config_hash(), keep.options().config_hash());
     }

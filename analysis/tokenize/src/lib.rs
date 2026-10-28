@@ -52,35 +52,35 @@ pub use detok::{Detokenizer, DetokenizerDictionary, DictionaryError, DictionaryO
 pub use lattice::{DictionaryFormat, LatticeAnalyzer, LatticeTokenizer, MecabDictionary};
 pub use simple::{SimpleTokenizer, simple_spans};
 pub use turbo_tokenize_layers::{Readings, WordType, WordTypes};
-pub use turbo_unicode::WhitespaceMode;
 pub use uax29::{UntypedWordTokenizer, WordTokenizer, word_boundaries, word_tokens};
 pub use unigram::{LexiconError, UnigramLexicon, UnigramMode, UnigramSegmenter};
 pub use unit::{UnitToken, tokenize_units, tokenize_units_with};
 pub use whitespace::{WhitespaceTokenizer, whitespace_spans};
 
-/// The options the simple, whitespace and maxent tokenizers share, as
-/// OpenNLP's `WhitespaceMode` and `AbstractTokenizer.setKeepNewLines` set
-/// them. For the maxent tokenizer they decide the whitespace units the
-/// model sees, and the mode also decides its `_ws` feature.
+/// The options the simple, whitespace and maxent tokenizers share. For
+/// the maxent tokenizer they decide the whitespace units the model sees.
+/// Whitespace is always the Unicode `White_Space` property
+/// ([`turbo_unicode::whitespace::is_whitespace`]).
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct TokenizerOptions {
-    /// Which characters are whitespace.
-    pub whitespace: WhitespaceMode,
     /// Emit every line feed and carriage return as a token of its own.
     pub keep_newlines: bool,
 }
 
 impl TokenizerOptions {
     /// The options as a configuration hash, for provenance: 64-bit FNV-1a
-    /// over one byte per option, the same on every platform.
+    /// over [`WHITESPACE_DEFINITION`] and one byte per option, the same on
+    /// every platform.
     pub fn config_hash(self) -> u64 {
-        let mode = match self.whitespace {
-            WhitespaceMode::Legacy => 0,
-            WhitespaceMode::Unicode => 1,
-        };
-        fnv1a(&[mode, u8::from(self.keep_newlines)])
+        fnv1a(&[WHITESPACE_DEFINITION, u8::from(self.keep_newlines)])
     }
 }
+
+/// The whitespace definition every tokenizer uses, as the byte a
+/// configuration hash folds in: 1 is the Unicode `White_Space` property.
+/// It changes only if that definition ever does, so a hash recorded for a
+/// tokenizer stays valid.
+pub(crate) const WHITESPACE_DEFINITION: u8 = 1;
 
 /// The 64-bit FNV-1a hash of `bytes`: small, fixed and the same on every
 /// platform, which is all a configuration hash needs.
@@ -95,23 +95,17 @@ mod tests {
     #[test]
     fn default_options() {
         let o = TokenizerOptions::default();
-        assert_eq!(o.whitespace, WhitespaceMode::Unicode);
         assert!(!o.keep_newlines);
     }
 
     #[test]
     fn config_hashes_differ_per_option() {
-        let all = [
-            TokenizerOptions { whitespace: WhitespaceMode::Unicode, keep_newlines: false },
-            TokenizerOptions { whitespace: WhitespaceMode::Unicode, keep_newlines: true },
-            TokenizerOptions { whitespace: WhitespaceMode::Legacy, keep_newlines: false },
-            TokenizerOptions { whitespace: WhitespaceMode::Legacy, keep_newlines: true },
-        ];
-        for (i, a) in all.iter().enumerate() {
-            for b in &all[i + 1..] {
-                assert_ne!(a.config_hash(), b.config_hash());
-            }
-        }
+        let plain = TokenizerOptions { keep_newlines: false };
+        let newlines = TokenizerOptions { keep_newlines: true };
+        assert_ne!(plain.config_hash(), newlines.config_hash());
+        // Pinned, so a recorded provenance hash stays valid.
+        assert_eq!(plain.config_hash(), fnv1a(&[1, 0]));
+        assert_eq!(newlines.config_hash(), fnv1a(&[1, 1]));
     }
 
     #[test]

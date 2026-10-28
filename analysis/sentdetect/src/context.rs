@@ -15,8 +15,8 @@
 //!
 //! Each is trimmed as `String.trim` trims (every code unit at or below
 //! U+0020 at either end), which is not the whitespace definition used to
-//! find them. Whitespace is the configured [`WhitespaceMode`], since the
-//! Java uses `StringUtil.isWhitespace`. The features are then `sp` and
+//! find them. Whitespace is Unicode `White_Space`
+//! ([`turbo_unicode::whitespace::is_whitespace`]). The features are then `sp` and
 //! `sn` (whitespace before and after the candidate), `eos=` and the
 //! character, `x=` the prefix with its length in code units, `xcap` when
 //! its first code unit is upper case and `xabbrev` when the prefix and the
@@ -30,7 +30,7 @@
 
 use turbo_maxent::Dictionary;
 use turbo_unicode::modified_utf8::{push_modified_utf8, push_str_modified_utf8};
-use turbo_unicode::{Utf16Cursor, WhitespaceMode, java::code_point as java};
+use turbo_unicode::{Utf16Cursor, java::code_point as java};
 
 use crate::eos::{EndOfSentence, Position, Scanned};
 use crate::features::Features;
@@ -45,12 +45,11 @@ pub struct Lookup {
     lower: String,
 }
 
-/// The context generator for one model and whitespace mode.
+/// The context generator for one model.
 #[derive(Copy, Clone, Debug)]
 pub struct SdContext<'m> {
     eos: &'m EndOfSentence,
     abbreviations: Option<&'m Dictionary>,
-    whitespace: WhitespaceMode,
     limits: Limits,
 }
 
@@ -192,21 +191,15 @@ impl<'t, C: Units<'t>> Word<C> {
 }
 
 impl<'m> SdContext<'m> {
-    /// `DefaultSDContextGenerator(abbreviations, eosCharacters)` with the
-    /// whitespace definition of `whitespace`. `Limits::NONE` builds every
-    /// feature the Java builds.
-    pub fn new(
-        eos: &'m EndOfSentence,
-        abbreviations: Option<&'m Dictionary>,
-        whitespace: WhitespaceMode,
-        limits: Limits,
-    ) -> SdContext<'m> {
-        SdContext { eos, abbreviations, whitespace, limits }
+    /// `DefaultSDContextGenerator(abbreviations, eosCharacters)`.
+    /// `Limits::NONE` builds every feature the Java builds.
+    pub fn new(eos: &'m EndOfSentence, abbreviations: Option<&'m Dictionary>, limits: Limits) -> SdContext<'m> {
+        SdContext { eos, abbreviations, limits }
     }
 
     #[inline]
     fn is_ws(&self, unit: Option<u16>) -> bool {
-        unit.is_some_and(|u| self.whitespace.is_whitespace(u32::from(u)))
+        unit.is_some_and(|u| turbo_unicode::whitespace::is_whitespace(u32::from(u)))
     }
 
     /// Replaces `out` with the features of the candidate at `at`, which

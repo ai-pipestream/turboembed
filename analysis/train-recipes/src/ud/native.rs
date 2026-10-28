@@ -1,6 +1,6 @@
 //! Local case-preserving UD lemma recipes. These ids are not registered in
 //! the published release index. Their four-partition protocol is fixed to
-//! reproduce the native-v1 measurements independently of UD 1.3 reproduction.
+//! reproduce the native-v1 measurements.
 
 use turbo_train::{Key, TrainingParameters};
 
@@ -15,7 +15,7 @@ use crate::{GateRun, Trained};
 pub const ITERATIONS: i32 = 300;
 /// Event cutoff used by the recorded native-v1 comparison.
 pub const CUTOFF: i32 = 5;
-/// Fixed GIS reduction partitions, independent of release reproduction settings.
+/// Fixed GIS reduction partitions.
 pub const THREADS: i32 = 4;
 
 pub(super) fn training_parameters() -> TrainingParameters {

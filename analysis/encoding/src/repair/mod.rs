@@ -56,12 +56,16 @@ pub(crate) struct Tracked {
 impl Tracked {
     /// `text`, whose characters start at byte `base` of the source.
     fn new(text: &str, base: usize) -> Tracked {
-        let mut t = Tracked::default();
+        let mut t = Tracked::with_capacity(text.chars().count());
         for (i, c) in text.char_indices() {
             let start = (base + i) as u32;
             t.push(c, Src { start, end: start + c.len_utf8() as u32 });
         }
         t
+    }
+
+    fn with_capacity(n: usize) -> Tracked {
+        Tracked { chars: Vec::with_capacity(n), src: Vec::with_capacity(n) }
     }
 
     fn push(&mut self, c: char, src: Src) {
@@ -72,6 +76,12 @@ impl Tracked {
     fn extend(&mut self, other: Tracked) {
         self.chars.extend(other.chars);
         self.src.extend(other.src);
+    }
+
+    /// Appends characters `start..end` of `other`.
+    fn extend_from(&mut self, other: &Tracked, start: usize, end: usize) {
+        self.chars.extend_from_slice(&other.chars[start..end]);
+        self.src.extend_from_slice(&other.src[start..end]);
     }
 
     fn slice(&self, start: usize, end: usize) -> Tracked {

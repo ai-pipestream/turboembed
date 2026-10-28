@@ -5,7 +5,6 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use turbo_jvm::hash_map::put_order;
-use turbo_unicode::WhitespaceMode;
 
 use super::annotation::{BratAnnotation, Parsed, parse_annotations};
 use crate::error::FormatError;
@@ -37,16 +36,11 @@ impl BratDocument {
     /// [`super::super::NerError::BratIndex`],
     /// [`super::super::NerError::BratSpan`]), and [`FormatError::TooLong`]
     /// for a text longer than spans can index.
-    pub fn parse(
-        id: impl Into<String>,
-        txt: &[u8],
-        ann: &[u8],
-        whitespace: WhitespaceMode,
-    ) -> Result<BratDocument, FormatError> {
+    pub fn parse(id: impl Into<String>, txt: &[u8], ann: &[u8]) -> Result<BratDocument, FormatError> {
         let id = id.into();
         let text = decode_utf8(txt);
         check_len(&text)?;
-        let parsed = parse_annotations(&decode_utf8(ann), &id, whitespace)?;
+        let parsed = parse_annotations(&decode_utf8(ann), &id)?;
         // `annotationMap`, a `HashMap` by id: the order it iterates in
         let mut by_id: HashMap<String, usize> = HashMap::new();
         let mut annotations: Vec<BratAnnotation> = Vec::new();
@@ -281,17 +275,13 @@ pub fn brat_documents(dir: &Path, recursive: bool) -> io::Result<Vec<PathBuf>> {
 /// # Errors
 ///
 /// What listing the directory or reading a file gives.
-pub fn read_brat_corpus(
-    dir: &Path,
-    recursive: bool,
-    whitespace: WhitespaceMode,
-) -> io::Result<Vec<Result<BratDocument, FormatError>>> {
+pub fn read_brat_corpus(dir: &Path, recursive: bool) -> io::Result<Vec<Result<BratDocument, FormatError>>> {
     let mut out = Vec::new();
     for id in brat_documents(dir, recursive)? {
         let name = id.to_string_lossy().into_owned();
         let txt = std::fs::read(format!("{name}.txt"))?;
         let ann = std::fs::read(format!("{name}.ann"))?;
-        out.push(BratDocument::parse(name, &txt, &ann, whitespace));
+        out.push(BratDocument::parse(name, &txt, &ann));
     }
     Ok(out)
 }

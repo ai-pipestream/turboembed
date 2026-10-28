@@ -206,12 +206,11 @@ fn flatten(docs: &[Range<usize>], documents: &[usize]) -> Vec<usize> {
 mod tests {
     use super::*;
     use turbo_formats::native::NameReader;
-    use turbo_unicode::WhitespaceMode;
 
     #[test]
     fn documents_start_at_the_first_sample_and_at_each_clear() {
         let text = "<START:person> A <END> b .\nc d .\n\n<START:person> E <END> f .\n\ng .\nh .\n";
-        let samples: Vec<_> = NameReader::new(text, WhitespaceMode::Unicode).unwrap().map(|s| s.unwrap()).collect();
+        let samples: Vec<_> = NameReader::new(text).unwrap().map(|s| s.unwrap()).collect();
         assert_eq!(documents(&samples), vec![0..2, 2..3, 3..5]);
         assert!(documents(&[]).is_empty());
     }

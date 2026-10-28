@@ -128,7 +128,7 @@ fn a_sentence_with_a_token_inside_another_is_skipped_by_the_token_recipe() {
     .unwrap();
     assert_eq!(skipped, 1);
     let factory = TokenizerFactory::new("en", None, false, None).unwrap();
-    let mut stream = TokSpanEventStream::new(&factory, turbo_train_recipes::segmentation::WHITESPACE);
+    let mut stream = TokSpanEventStream::new(&factory);
     for read in MascTokenReader::new(&split.held_out).unwrap() {
         let sample = read.unwrap().sample;
         if !in_text_order(sample.tokens()) {

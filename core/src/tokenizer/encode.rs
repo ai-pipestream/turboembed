@@ -8,8 +8,9 @@ impl Tokenizer {
         self.truncation
     }
 
+    /// The vocabulary's entries and the added tokens past them.
     pub fn vocab_size(&self) -> u32 {
-        self.kind.vocab_size()
+        self.vocab_size
     }
 
     /// `turbo_tokenizer_info.kind`.

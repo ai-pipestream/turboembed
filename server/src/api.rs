@@ -354,6 +354,12 @@ pub mod names {
         (TURBO_POOLING_CLS, "POOLING_CLS"),
         (TURBO_POOLING_LAST, "POOLING_LAST"),
     ];
+    pub const QUANTIZE: &[(u32, &str)] = &[
+        (TURBO_QUANTIZE_MODEL, "QUANTIZE_MODEL"),
+        (TURBO_QUANTIZE_NONE, "QUANTIZE_NONE"),
+        (TURBO_QUANTIZE_INT8, "QUANTIZE_INT8"),
+        (TURBO_QUANTIZE_UBINARY, "QUANTIZE_UBINARY"),
+    ];
     pub const PRECISION: &[(u32, &str)] = &[
         (TURBO_PRECISION_MODEL, "PRECISION_MODEL"),
         (TURBO_PRECISION_FASTEST, "PRECISION_FASTEST"),
@@ -367,6 +373,7 @@ pub mod names {
     const PAIR: &[(u32, &str)] = &[(TURBO_PAIR_BERT, "PAIR_BERT"), (TURBO_PAIR_ROBERTA, "PAIR_ROBERTA")];
     const DTYPE: &[(u32, &str)] = &[
         (TURBO_DTYPE_I8, "DTYPE_I8"),
+        (TURBO_DTYPE_U8, "DTYPE_U8"),
         (TURBO_DTYPE_I32, "DTYPE_I32"),
         (TURBO_DTYPE_F16, "DTYPE_F16"),
         (TURBO_DTYPE_BF16, "DTYPE_BF16"),

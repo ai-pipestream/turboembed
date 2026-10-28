@@ -1,0 +1,276 @@
+{
+  "main_sha": "75160eceda1101837cb0dbfe23b435b591b9ca8b",
+  "candidate_sha": "783b90d20f6ee32d9fb494538e595a385d2adb2e",
+  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "profile": "cargo build --release; default release optimization; jobs=2",
+  "rustflags_override": false,
+  "cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
+  "logical_cpus": 32,
+  "source_sha256": "0d2b44da5dba55033c4bdb24512348c7e657babdb2a25c8fc6e0b760b668acbf",
+  "sample_sha256": "06e37fc4e1e1bf64d769bd7cf271803013dc00117174b32dbf35611f081e38c1",
+  "binary_sha256": {
+    "main": "518394423e7274f8d169e277bcbab8e6cc9260e493992c36c0dace4ce3e84c2f",
+    "candidate": "044947f673a5d9d43abe8bf27308395bda8f6ad3c851209f66a44b8f1d8d611d"
+  },
+  "output_sha256": {
+    "main": "a069094d0d57e558b37c1f05c270edff8de034ac83a9523803cd06c44a5d7b80",
+    "candidate": "a069094d0d57e558b37c1f05c270edff8de034ac83a9523803cd06c44a5d7b80"
+  },
+  "protocol": "eight alternating-order pairs; three warm iterations then twenty parses and all four output selections per grammar; shared host, no isolation claim",
+  "summary_median_ns": {
+    "en": {
+      "main": 6446766.5,
+      "candidate": 5924340.5,
+      "candidate_main_ratio": 0.9189630956852556,
+      "median_paired_ratio": 0.9692960172954076
+    },
+    "en-units": {
+      "main": 9429205.0,
+      "candidate": 8874477.0,
+      "candidate_main_ratio": 0.9411691653750237,
+      "median_paired_ratio": 0.9203540483845123
+    }
+  },
+  "rows": [
+    {
+      "pair": 1,
+      "binary": "main",
+      "load_before": [
+        43.49,
+        50.31,
+        57.37
+      ],
+      "load_after": [
+        43.49,
+        50.31,
+        57.37
+      ],
+      "stdout": "en bytes=102456 mentions=3384 ns=6152054\nen-units bytes=102456 mentions=3521 ns=9302145\n"
+    },
+    {
+      "pair": 1,
+      "binary": "candidate",
+      "load_before": [
+        43.49,
+        50.31,
+        57.37
+      ],
+      "load_after": [
+        43.49,
+        50.31,
+        57.37
+      ],
+      "stdout": "en bytes=102456 mentions=3384 ns=5450464\nen-units bytes=102456 mentions=3521 ns=8667800\n"
+    },
+    {
+      "pair": 2,
+      "binary": "candidate",
+      "load_before": [
+        43.49,
+        50.31,
+        57.37
+      ],
+      "load_after": [
+        43.49,
+        50.31,
+        57.37
+      ],
+      "stdout": "en bytes=102456 mentions=3384 ns=5898775\nen-units bytes=102456 mentions=3521 ns=8858758\n"
+    },
+    {
+      "pair": 2,
+      "binary": "main",
+      "load_before": [
+        43.49,
+        50.31,
+        57.37
+      ],
+      "load_after": [
+        43.49,
+        50.31,
+        57.37
+      ],
+      "stdout": "en bytes=102456 mentions=3384 ns=5299918\nen-units bytes=102456 mentions=3521 ns=10544218\n"
+    },
+    {
+      "pair": 3,
+      "binary": "main",
+      "load_before": [
+        43.49,
+        50.31,
+        57.37
+      ],
+      "load_after": [
+        43.49,
+        50.31,
+        57.37
+      ],
+      "stdout": "en bytes=102456 mentions=3384 ns=7770611\nen-units bytes=102456 mentions=3521 ns=9948674\n"
+    },
+    {
+      "pair": 3,
+      "binary": "candidate",
+      "load_before": [
+        43.49,
+        50.31,
+        57.37
+      ],
+      "load_after": [
+        42.81,
+        50.05,
+        57.24
+      ],
+      "stdout": "en bytes=102456 mentions=3384 ns=4722616\nen-units bytes=102456 mentions=3521 ns=7860175\n"
+    },
+    {
+      "pair": 4,
+      "binary": "candidate",
+      "load_before": [
+        42.81,
+        50.05,
+        57.24
+      ],
+      "load_after": [
+        42.81,
+        50.05,
+        57.24
+      ],
+      "stdout": "en bytes=102456 mentions=3384 ns=5175577\nen-units bytes=102456 mentions=3521 ns=12111787\n"
+    },
+    {
+      "pair": 4,
+      "binary": "main",
+      "load_before": [
+        42.81,
+        50.05,
+        57.24
+      ],
+      "load_after": [
+        42.81,
+        50.05,
+        57.24
+      ],
+      "stdout": "en bytes=102456 mentions=3384 ns=5450299\nen-units bytes=102456 mentions=3521 ns=13325742\n"
+    },
+    {
+      "pair": 5,
+      "binary": "main",
+      "load_before": [
+        42.81,
+        50.05,
+        57.24
+      ],
+      "load_after": [
+        42.81,
+        50.05,
+        57.24
+      ],
+      "stdout": "en bytes=102456 mentions=3384 ns=9485998\nen-units bytes=102456 mentions=3521 ns=8962153\n"
+    },
+    {
+      "pair": 5,
+      "binary": "candidate",
+      "load_before": [
+        42.81,
+        50.05,
+        57.24
+      ],
+      "load_after": [
+        42.81,
+        50.05,
+        57.24
+      ],
+      "stdout": "en bytes=102456 mentions=3384 ns=11180055\nen-units bytes=102456 mentions=3521 ns=7774837\n"
+    },
+    {
+      "pair": 6,
+      "binary": "candidate",
+      "load_before": [
+        42.81,
+        50.05,
+        57.24
+      ],
+      "load_after": [
+        42.81,
+        50.05,
+        57.24
+      ],
+      "stdout": "en bytes=102456 mentions=3384 ns=10866945\nen-units bytes=102456 mentions=3521 ns=12801972\n"
+    },
+    {
+      "pair": 6,
+      "binary": "main",
+      "load_before": [
+        42.81,
+        50.05,
+        57.24
+      ],
+      "load_after": [
+        42.81,
+        50.05,
+        57.24
+      ],
+      "stdout": "en bytes=102456 mentions=3384 ns=6598900\nen-units bytes=102456 mentions=3521 ns=8256507\n"
+    },
+    {
+      "pair": 7,
+      "binary": "main",
+      "load_before": [
+        42.81,
+        50.05,
+        57.24
+      ],
+      "load_after": [
+        42.81,
+        50.05,
+        57.24
+      ],
+      "stdout": "en bytes=102456 mentions=3384 ns=6294633\nen-units bytes=102456 mentions=3521 ns=8388313\n"
+    },
+    {
+      "pair": 7,
+      "binary": "candidate",
+      "load_before": [
+        42.81,
+        50.05,
+        57.24
+      ],
+      "load_after": [
+        42.81,
+        50.05,
+        57.24
+      ],
+      "stdout": "en bytes=102456 mentions=3384 ns=6225373\nen-units bytes=102456 mentions=3521 ns=8890196\n"
+    },
+    {
+      "pair": 8,
+      "binary": "candidate",
+      "load_before": [
+        42.81,
+        50.05,
+        57.24
+      ],
+      "load_after": [
+        42.81,
+        50.05,
+        57.24
+      ],
+      "stdout": "en bytes=102456 mentions=3384 ns=5949906\nen-units bytes=102456 mentions=3521 ns=11323764\n"
+    },
+    {
+      "pair": 8,
+      "binary": "main",
+      "load_before": [
+        42.81,
+        50.05,
+        57.24
+      ],
+      "load_after": [
+        42.81,
+        50.05,
+        57.24
+      ],
+      "stdout": "en bytes=102456 mentions=3384 ns=9608256\nen-units bytes=102456 mentions=3521 ns=9556265\n"
+    }
+  ]
+}

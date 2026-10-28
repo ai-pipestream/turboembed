@@ -1,14 +1,14 @@
 use std::{collections::HashSet, env, fs, hint::black_box, io::Cursor, time::Instant};
-use turbo_tokenize::{UnigramLexicon, UnigramMode, UnigramSegmenter, WhitespaceMode, unigram::Scratch};
+use turbo_tokenize::{UnigramLexicon, UnigramMode, UnigramSegmenter, unigram::Scratch};
 fn main() {
     let args: Vec<_> = env::args().collect();
     let dict = fs::read(&args[1]).unwrap();
     let jieba = jieba_rs::Jieba::with_dict(&mut Cursor::new(&dict)).unwrap();
     // Keep one loaded model for all passes; a new dictionary is not needed per line.
-    let lex = UnigramLexicon::parse(&dict, WhitespaceMode::Unicode).unwrap();
+    let lex = UnigramLexicon::parse(&dict).unwrap();
     let modes = [UnigramMode::OpenNlp, UnigramMode::Dictionary, UnigramMode::Chinese];
     let models: Vec<_> =
-        modes.iter().map(|&m| UnigramSegmenter::new(lex.clone(), WhitespaceMode::Unicode).with_mode(m)).collect();
+        modes.iter().map(|&m| UnigramSegmenter::new(lex.clone()).with_mode(m)).collect();
     for sample in ["小明硕士毕业于中国科学院计算所", "他来到了网易杭研大厦", "abc123北京2026年", "𠀀杭研🙂"]
     {
         println!("sample {sample} jieba {:?}", jieba.cut(sample, true));
@@ -42,7 +42,7 @@ fn main() {
                             .cut(line, which == 4)
                             .into_iter()
                             .map(|t| t.word)
-                            .filter(|w| !w.chars().all(|c| WhitespaceMode::Unicode.is_whitespace(c as u32))),
+                            .filter(|w| !w.chars().all(|c| turbo_unicode::whitespace::is_whitespace(c as u32))),
                     );
                 }
             }

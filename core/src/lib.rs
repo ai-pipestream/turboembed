@@ -38,8 +38,10 @@ pub mod model;
 pub mod npu;
 pub mod projection;
 pub mod qa;
+pub mod quantize;
 pub mod record;
 pub mod rerank;
+pub mod rope;
 pub mod safetensors;
 pub mod sentencepiece;
 mod session;
@@ -75,6 +77,7 @@ pub const TURBO_DEVICE_IGPU: u32 = 3;
 pub const TURBO_DEVICE_NPU: u32 = 4;
 
 pub const TURBO_DTYPE_I8: u32 = 6;
+pub const TURBO_DTYPE_U8: u32 = 7;
 pub const TURBO_DTYPE_I32: u32 = 8;
 pub const TURBO_DTYPE_I64: u32 = 9;
 pub const TURBO_DTYPE_F16: u32 = 10;
@@ -127,6 +130,11 @@ pub const TURBO_POOLING_MODEL: u32 = 0;
 pub const TURBO_POOLING_MEAN: u32 = 1;
 pub const TURBO_POOLING_CLS: u32 = 2;
 pub const TURBO_POOLING_LAST: u32 = 3;
+
+pub const TURBO_QUANTIZE_MODEL: u32 = 0;
+pub const TURBO_QUANTIZE_NONE: u32 = 1;
+pub const TURBO_QUANTIZE_INT8: u32 = 2;
+pub const TURBO_QUANTIZE_UBINARY: u32 = 3;
 
 pub const TURBO_STAGE_MAX: usize = 16;
 

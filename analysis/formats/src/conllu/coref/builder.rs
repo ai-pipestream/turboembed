@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use turbo_analysis::Span;
 use turbo_jvm::hash_map::JavaHashMap;
-use turbo_unicode::WhitespaceMode;
 
 use super::super::Tagset;
 use super::entity::{Bracket, BracketKind, entity_brackets, misc_attribute};
@@ -336,7 +335,7 @@ fn split_columns(line: Piece<'_>) -> Option<[Piece<'_>; COLUMNS]> {
 /// `StringUtil.trimUnicodeWhitespace`: the piece without the Unicode
 /// whitespace at its ends.
 fn unicode_trim(piece: Piece<'_>) -> Piece<'_> {
-    let trimmed = WhitespaceMode::Unicode.trim(piece.text);
+    let trimmed = turbo_unicode::whitespace::trim(piece.text);
     let start = trimmed.as_ptr() as usize - piece.text.as_ptr() as usize;
     piece.slice(start, start + trimmed.len())
 }

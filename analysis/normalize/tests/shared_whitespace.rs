@@ -1,12 +1,12 @@
 use turbo_normalize::{Whitespace, apply, tables};
-use turbo_unicode::whitespace::{UNICODE_WHITESPACE, WhitespaceMode};
+use turbo_unicode::whitespace::UNICODE_WHITESPACE;
 
 #[test]
 fn normalization_membership_matches_shared_unicode_for_all_code_points() {
     assert_eq!(tables::WHITESPACE.iter().map(|&c| c as u32).collect::<Vec<_>>(), UNICODE_WHITESPACE);
     for cp in 0..=0x10ffff {
         if let Some(c) = char::from_u32(cp) {
-            assert_eq!(tables::is_whitespace(c), WhitespaceMode::Unicode.is_whitespace(cp), "U+{cp:04X}");
+            assert_eq!(tables::is_whitespace(c), turbo_unicode::whitespace::is_whitespace(cp), "U+{cp:04X}");
         }
     }
 }

@@ -1,8 +1,7 @@
-use super::{DIRECTORY, HEADER, MAGIC, PrebuiltError, SECTIONS, VERSION};
+use super::{DIRECTORY, HEADER, MAGIC, PrebuiltError, SECTIONS, VERSION, WHITESPACE_UNICODE};
 use crate::lattice::MecabDictionary;
 use turbo_analysis_layers::Tag;
 use turbo_maxent::sha256;
-use turbo_unicode::WhitespaceMode;
 
 fn u32s(values: impl Iterator<Item = u32>) -> Vec<u8> {
     values.flat_map(u32::to_le_bytes).collect()
@@ -49,14 +48,10 @@ impl MecabDictionary {
         // Section 14 is reserved and empty in version 1.
         let mut out = vec![0; HEADER];
         out[..8].copy_from_slice(MAGIC);
-        let mode = match self.whitespace {
-            WhitespaceMode::Legacy => 0,
-            WhitespaceMode::Unicode => 1,
-        };
         let header = [
             VERSION,
             0x01020304,
-            mode,
+            WHITESPACE_UNICODE,
             self.lexicon_len,
             self.matrix.rows(),
             self.matrix.cols(),

@@ -9,7 +9,7 @@ use std::path::Path;
 
 use turbo_analysis::Annotator;
 use turbo_maxent::{ModelFile, crc32};
-use turbo_sentdetect::{EndOfSentence, ModelError, SentenceDetector, SentenceModel, WhitespaceMode};
+use turbo_sentdetect::{EndOfSentence, ModelError, SentenceDetector, SentenceModel};
 
 /// A zip archive of stored entries.
 fn zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
@@ -103,13 +103,8 @@ fn published_models_settings() {
     assert_eq!(pt.eos(), &EndOfSentence::from_chars(".?!;:()\u{AB}\u{BB}'\"").unwrap());
     assert_eq!(pt.model_ref().sha256, "a711463f146555de26d69d806a9f1a88a66ed0c02f3fe2020b4a475ccea047ff");
     assert_eq!(pt.model_ref().revision, "2.5.4");
-    let detector = SentenceDetector::new(pt, WhitespaceMode::Unicode);
+    let detector = SentenceDetector::new(pt);
     assert_eq!(detector.model().unwrap().id, "opennlp:SentenceDetectorME:pt");
-    assert_ne!(
-        detector.config_hash(),
-        SentenceDetector::new(SentenceModel::open(fixture("en-plain.bin")).unwrap(), WhitespaceMode::Legacy)
-            .config_hash()
-    );
 }
 
 #[test]

@@ -8,9 +8,27 @@
 use super::classes::*;
 use turbo_unicode::whitespace::is_python_space;
 
+/// The classes of each ASCII character, so the commonest lookups skip
+/// the search.
+static ASCII_CLASSES: [u64; 128] = {
+    let mut table = [0; 128];
+    let mut i = 0;
+    while i < CLASSES.len() {
+        let (cp, classes) = CLASSES[i];
+        if cp < 128 {
+            table[cp as usize] = classes;
+        }
+        i += 1;
+    }
+    table
+};
+
 /// The classes a character is in.
 pub(crate) fn class(c: char) -> u64 {
     let cp = u32::from(c);
+    if cp < 128 {
+        return ASCII_CLASSES[cp as usize];
+    }
     match CLASSES.binary_search_by_key(&cp, |&(k, _)| k) {
         Ok(i) => CLASSES[i].1,
         Err(_) => 0,
@@ -23,42 +41,54 @@ fn is_word(c: char) -> bool {
     gc.is_letter() || gc.is_number() || c == '_'
 }
 
-/// A text as ftfy's patterns see it: characters with their classes.
-pub(crate) struct Scan<'a> {
-    chars: &'a [char],
-    classes: Vec<u64>,
+/// The most characters one alternative of `BADNESS_RE` looks at.
+const LOOK: usize = 7;
+
+/// The characters from one position on, as far as any alternative looks,
+/// with their classes, each looked up once as it enters the window. The
+/// scan moves this window along the text, so it holds no table of
+/// classes for the whole text.
+struct Window {
+    chars: [char; LOOK],
+    classes: [u64; LOOK],
+    len: usize,
 }
 
-impl<'a> Scan<'a> {
-    pub(crate) fn new(chars: &'a [char]) -> Scan<'a> {
-        Scan { chars, classes: chars.iter().map(|&c| class(c)).collect() }
+impl Window {
+    fn push(&mut self, c: char) {
+        self.chars[self.len] = c;
+        self.classes[self.len] = class(c);
+        self.len += 1;
     }
 
-    pub(crate) fn len(&self) -> usize {
-        self.chars.len()
+    fn advance(&mut self) {
+        self.chars.copy_within(1..self.len, 0);
+        self.classes.copy_within(1..self.len, 0);
+        self.len -= 1;
     }
 
-    /// Whether character `i` exists and is in one of `classes`.
-    pub(crate) fn has(&self, i: usize, classes: u64) -> bool {
-        self.classes.get(i).is_some_and(|&m| m & classes != 0)
+    /// Whether character `j` of the window exists and is in one of `classes`.
+    fn has(&self, j: usize, classes: u64) -> bool {
+        j < self.len && self.classes[j] & classes != 0
     }
 
-    /// Whether character `i` exists and passes `f`.
-    fn is(&self, i: usize, f: impl Fn(char) -> bool) -> bool {
-        self.chars.get(i).is_some_and(|&c| f(c))
+    /// Whether character `j` of the window exists and passes `f`.
+    fn is(&self, j: usize, f: impl Fn(char) -> bool) -> bool {
+        j < self.len && f(self.chars[j])
     }
 
-    /// Whether character `i` is `c`.
-    fn eq(&self, i: usize, c: char) -> bool {
-        self.chars.get(i) == Some(&c)
+    /// Whether character `j` of the window is `c`.
+    fn eq(&self, j: usize, c: char) -> bool {
+        j < self.len && self.chars[j] == c
     }
 
-    /// Whether some alternative of ftfy's `BADNESS_RE` matches at `i`.
-    fn bad_at(&self, i: usize) -> bool {
-        let at = |j: usize, classes: u64| self.has(i + j, classes);
-        let is = |j: usize, f: fn(char) -> bool| self.is(i + j, f);
-        let eq = |j: usize, c: char| self.eq(i + j, c);
-        let c = self.chars[i];
+    /// Whether some alternative of ftfy's `BADNESS_RE` matches at the
+    /// window's first character, `first` when that is the text's first.
+    fn bad_here(&self, first: bool) -> bool {
+        let at = |j: usize, classes: u64| self.has(j, classes);
+        let is = |j: usize, f: fn(char) -> bool| self.is(j, f);
+        let eq = |j: usize, c: char| self.eq(j, c);
+        let c = self.chars[0];
         at(0, C1)
             || (at(0, BEFORE_BAD) && at(1, BAD))
             || (c.is_ascii_alphabetic() && at(1, COMMON_CASED) && at(2, BAD))
@@ -115,7 +145,7 @@ impl<'a> Scan<'a> {
             || (c.is_ascii_lowercase()
                 && ((is(1, is_python_space) && is(2, is_cap_a_tilde_or_circumflex) && eq(3, ' '))
                     || (is(1, is_cap_a_tilde_or_circumflex) && eq(2, ' '))))
-            || (i == 0 && is_cap_a_tilde_or_circumflex(c) && eq(1, ' '))
+            || (first && is_cap_a_tilde_or_circumflex(c) && eq(1, ' '))
             // Â standing for nothing before a character encoded as itself.
             || (at(0, BEFORE_CAP_A_CIRCUMFLEX) && eq(1, 'Â') && at(2, AFTER_CAP_A_CIRCUMFLEX))
             // windows-1253 mojibake of the U+2000 block.
@@ -139,15 +169,35 @@ fn is_cap_a_tilde_or_circumflex(c: char) -> bool {
     matches!(c, 'Ã' | 'Â')
 }
 
+/// ftfy's `is_bad` over a stream of characters: whether any
+/// alternative of `BADNESS_RE` matches.
+fn any_bad(mut chars: impl Iterator<Item = char>) -> bool {
+    let mut w = Window { chars: ['\0'; LOOK], classes: [0; LOOK], len: 0 };
+    for c in chars.by_ref().take(LOOK) {
+        w.push(c);
+    }
+    let mut first = true;
+    while w.len > 0 {
+        if w.bad_here(first) {
+            return true;
+        }
+        first = false;
+        w.advance();
+        if let Some(c) = chars.next() {
+            w.push(c);
+        }
+    }
+    false
+}
+
 /// ftfy's `is_bad`: whether any alternative of `BADNESS_RE` matches.
 pub(crate) fn is_bad_chars(chars: &[char]) -> bool {
-    let scan = Scan::new(chars);
-    (0..scan.len()).any(|i| scan.bad_at(i))
+    any_bad(chars.iter().copied())
 }
 
 /// Whether `text` looks like it holds mojibake, by ftfy's heuristic.
 pub fn is_bad(text: &str) -> bool {
-    is_bad_chars(&text.chars().collect::<Vec<_>>())
+    any_bad(text.chars())
 }
 
 #[cfg(test)]

@@ -83,7 +83,6 @@ fn the_checked_in_goldens_show_no_divergence() {
         ("normalize/symbol-joiner", 2),
         ("subwords/all-minilm-l6-v2-vocab", 11),
         ("tokenize/simple+keep-new-lines", 2),
-        ("tokenize/simple+keep-new-lines+legacy", 2),
     ]
     .into_iter()
     .map(|(run, n)| (run.to_string(), n))

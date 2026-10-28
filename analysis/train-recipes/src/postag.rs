@@ -96,7 +96,7 @@ pub const CANDIDATE_FORMAT: PosTagFormat = PosTagFormat::Custom;
 pub const EN_POS_MAXENT: RecordedReference = RecordedReference {
     id: "opennlp-en-pos-maxent-1.5",
     file: "en-pos-maxent.bin",
-    url: "https://opennlp.sourceforge.net/models-1.5/en-pos-maxent.bin",
+    url: "https://downloads.sourceforge.net/project/opennlp/models-1.5/en-pos-maxent.bin",
     size: 5_696_197,
     sha256: "645a094f45a866687a617385233fd23ae8b0f5fa8b1b76996781a50c17bdcf3d",
 };

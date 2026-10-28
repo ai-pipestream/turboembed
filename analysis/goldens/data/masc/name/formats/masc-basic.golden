@@ -6,7 +6,7 @@ unicode	15.0
 input	formats/masc-basic	10008	10008	29a119fb5bebeea71d4fcd386b28061fb70674bb878053362460f5f2ef72483e
 annotator	opennlp.tools.formats.masc.MascNamedEntitySampleStream	read
 layer	turbo:samples	document	2	pass:u32	written:str
-0	\nRain fell on <START:location> Lyon <END> today .
+0	\nRain fell on <START:location> Lyon <END> <START:date> today <END> .
 0	\nThen it's sunny again .
 end	turbo:samples
 layer	turbo:read-errors	document	1	pass:u32	after:u32	class:str	message:str
@@ -27,6 +27,7 @@ layer	turbo:sample-tokens	document	11	sample:u32	text:str
 1	again
 1	.
 end	turbo:sample-tokens
-layer	turbo:names	document	1	sample:u32	start:u32	end:u32	type:str	nulls:u32
+layer	turbo:names	document	2	sample:u32	start:u32	end:u32	type:str	nulls:u32
 0	3	4	location	0
+0	4	5	date	0
 end	turbo:names

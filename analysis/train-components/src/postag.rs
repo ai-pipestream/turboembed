@@ -255,10 +255,9 @@ mod tests {
     use super::*;
     use turbo_formats::native::WordTagReader;
     use turbo_train::Key;
-    use turbo_unicode::WhitespaceMode;
 
     fn samples(text: &str) -> Vec<PosSample<'_>> {
-        WordTagReader::new(text, WhitespaceMode::Unicode).unwrap().map(|s| s.unwrap()).collect()
+        WordTagReader::new(text).unwrap().map(|s| s.unwrap()).collect()
     }
 
     fn strings(e: &Event) -> Vec<String> {

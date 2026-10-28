@@ -41,6 +41,11 @@ turbo-jvm = { path = "../jvm" }
 turbo-analysis = { path = "../core" }
 # The gate and its record.
 turbo-eval = { path = "../eval" }
+# The core tokenizer and bundle types the static-embed trainer reads
+# and writes, and the bundle tool that seals its table.
+turbo = { path = "../../core" }
+turbo-bundle = { path = "../../bundle" }
+turbo-sha256 = { path = "../sha256" }
 # Licences, digests, the reference models' index entries and the trained
 # models' entries.
 turbo-zoo = { path = "../zoo" }

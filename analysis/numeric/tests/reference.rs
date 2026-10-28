@@ -13,7 +13,7 @@ use turbo_analysis::{Layer, ViewId};
 use turbo_numeric::{Multiplier, NumberNotation, NumberScanner, Numbers, ScaleMarker};
 use turbo_unicode::GeneralCategory::*;
 use turbo_unicode::category::general_category;
-use turbo_unicode::{WhitespaceMode, java};
+use turbo_unicode::java;
 
 /// One mention: character offsets, the normalized value and the marker.
 #[derive(Debug, PartialEq)]
@@ -159,7 +159,7 @@ impl Reference {
             };
             return self.boundary_after(end).then_some((end, i, normalized, m, ScaleMarker::Suffix));
         }
-        if WhitespaceMode::Unicode.is_whitespace(next as u32)
+        if turbo_unicode::whitespace::is_whitespace(next as u32)
             && let Some(end) = self.word_end(i + 1, 8)
         {
             let word: String = (i + 1..end).map(|k| java::to_lower_char(self.at(k))).collect();

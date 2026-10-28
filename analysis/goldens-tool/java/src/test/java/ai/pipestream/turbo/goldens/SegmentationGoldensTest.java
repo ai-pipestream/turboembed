@@ -13,7 +13,6 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import opennlp.tools.util.WhitespaceMode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -35,40 +34,37 @@ class SegmentationGoldensTest {
 
   @Test
   void eachRunHasItsOwnDirectoryAndConfig() {
-    var plain = new PlainTokenGolden(PlainTokenGolden.Kind.SIMPLE, false, WhitespaceMode.UNICODE, Set.of("e"));
+    var plain = new PlainTokenGolden(PlainTokenGolden.Kind.SIMPLE, false, Set.of("e"));
     assertEquals("simple", plain.modelDir());
     assertEquals(Map.of(), plain.config());
-    var both = new PlainTokenGolden(PlainTokenGolden.Kind.WHITESPACE, true, WhitespaceMode.LEGACY, Set.of("e"));
-    assertEquals("whitespace+keep-new-lines+legacy", both.modelDir());
-    assertEquals(Map.of("keepNewLines", "true", "whitespace", "legacy"), both.config());
+    var both = new PlainTokenGolden(PlainTokenGolden.Kind.WHITESPACE, true, Set.of("e"));
+    assertEquals("whitespace+keep-new-lines", both.modelDir());
+    assertEquals(Map.of("keepNewLines", "true"), both.config());
     assertEquals("opennlp.tools.tokenize.WhitespaceTokenizer", both.annotatorClass());
-    assertEquals("newline+legacy", new NewlineSentenceGolden(WhitespaceMode.LEGACY, Set.of("e")).modelDir());
+    assertEquals("newline", new NewlineSentenceGolden(Set.of("e")).modelDir());
     assertEquals("uax29", new WordTokenGolden(Set.of("e")).modelDir());
   }
 
   @Test
   void theSimpleTokenizerCutsACharacterOutsideTheBmpAndKeepingNewLinesThrowsBeforeAnyToken()
       throws AnnotatorException {
-    var simple = new PlainTokenGolden(PlainTokenGolden.Kind.SIMPLE, false, WhitespaceMode.UNICODE, Set.of("e"));
+    var simple = new PlainTokenGolden(PlainTokenGolden.Kind.SIMPLE, false, Set.of("e"));
     List<Layer> layers = simple.layers(input("e", "x", "a😀"));
     assertEquals(List.of("opennlp:tokens", "turbo:utf16<opennlp:tokens>"), layers.stream().map(Layer::id).toList());
     assertArrayEquals(new long[] {0, 1, 1}, u32(layers.get(0), 0));
     assertArrayEquals(new long[] {1, 5, 5}, u32(layers.get(0), 1));
     assertArrayEquals(new long[] {0, 1, 1}, u32(layers.get(1), 2));
 
-    var keep = new PlainTokenGolden(PlainTokenGolden.Kind.SIMPLE, true, WhitespaceMode.UNICODE, Set.of("e"));
+    var keep = new PlainTokenGolden(PlainTokenGolden.Kind.SIMPLE, true, Set.of("e"));
     assertThrows(AnnotatorException.class, () -> keep.layers(input("e", "x", "\nIt rained.")));
   }
 
   @Test
-  void theLegacyModeIsActiveForTheCallOnly() throws AnnotatorException {
-    // U+001C is whitespace in the legacy mode only.
-    var legacy = new PlainTokenGolden(PlainTokenGolden.Kind.WHITESPACE, false, WhitespaceMode.LEGACY, Set.of("e"));
-    var unicode = new PlainTokenGolden(PlainTokenGolden.Kind.WHITESPACE, false, WhitespaceMode.UNICODE, Set.of("e"));
-    Input in = input("e", "x", "a\u001cb");
-    assertEquals(2, legacy.layers(in).get(0).rows());
-    assertEquals(1, unicode.layers(in).get(0).rows());
-    assertEquals(WhitespaceMode.UNICODE, WhitespaceMode.current());
+  void informationSeparatorsAreTextAndNextLineIsWhitespace() throws AnnotatorException {
+    // U+001C is not White_Space, so it stays inside the token; U+0085 is, so it splits.
+    var tokenizer = new PlainTokenGolden(PlainTokenGolden.Kind.WHITESPACE, false, Set.of("e"));
+    assertEquals(1, tokenizer.layers(input("e", "x", "a\u001cb")).get(0).rows());
+    assertEquals(2, tokenizer.layers(input("e", "x", "a\u0085b")).get(0).rows());
   }
 
   @Test

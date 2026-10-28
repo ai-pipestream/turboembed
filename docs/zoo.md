@@ -40,6 +40,27 @@ Local-only sits above them because nothing in it ever leaves the user's
 machine, which also covers what the share-alike term of CC BY-NC-SA
 asks, and a refused licence anywhere still wins over everything.
 
+### Granite requires an explicit download decision
+
+Kristian clarified #1451: users may download
+`ibm-granite/granite-embedding-30m-english` at
+`9b5b096411652ec1189c68fcfb90d0a82c5b45af` after accepting the notice.
+TurboEmbed must not include the weights or generated bundles in releases
+or download them automatically. The distribution rules above still apply.
+
+The project inventory assigns `CLASS_SHARE_ALIKE` due to CC BY-SA training
+inputs. IBM licenses the weights under Apache-2.0. The recipe notice
+also identifies web-scraped and IBM-internal text with no auditable grant.
+The exception permits this named local download after user acceptance;
+it grants no rights to training text and approves no other model.
+
+`turbo-bundle fetch` and `make` require `--accept-terms`, even for cached
+inputs. `turbo-fetch.json` saves the notice and acceptance. API clients
+must set `accept_terms=true` only after an explicit user decision through
+configuration or a prompt. The manifest identifies the weight licence;
+the notice adds the project download restriction. The existing handling
+of `deepset/roberta-base-squad2` is unchanged.
+
 ### Restricted but public data
 
 `CLASS_LOCAL_ONLY` holds two kinds of data: restricted but public data,

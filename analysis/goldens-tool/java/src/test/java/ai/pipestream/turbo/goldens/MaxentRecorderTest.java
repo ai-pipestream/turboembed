@@ -22,7 +22,6 @@ import opennlp.tools.sentdetect.SentenceModel;
 import opennlp.tools.tokenize.TokenizerFactory;
 import opennlp.tools.tokenize.TokenizerModel;
 import opennlp.tools.util.StringList;
-import opennlp.tools.util.WhitespaceMode;
 import opennlp.tools.util.model.BaseModel;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -131,7 +130,7 @@ class MaxentRecorderTest {
     char[] eos = {'.'};
     SentenceModel model = new SentenceModel("en", sentenceWeights(), Map.of(),
         new SentenceDetectorFactory("en", true, null, eos));
-    SentenceGolden golden = SentenceGolden.load(save(model, dir.resolve("s.bin")), WhitespaceMode.UNICODE, Set.of("t"));
+    SentenceGolden golden = SentenceGolden.load(save(model, dir.resolve("s.bin")), Set.of("t"));
     // The full stops are at UTF-16 indices 6 and 14 and at UTF-8 byte offsets 8 and 18.
     Input in = input("Ünï ok. 😀 Yes.");
     AnnotatorDump.Run run = SentenceDump.of(golden).run(in);
@@ -163,7 +162,7 @@ class MaxentRecorderTest {
     abbreviations.put(new StringList("ok."));
     SentenceModel model = new SentenceModel("en", sentenceWeights(), Map.of(),
         new SentenceDetectorFactory("en", true, abbreviations, eos));
-    SentenceGolden golden = SentenceGolden.load(save(model, dir.resolve("s.bin")), WhitespaceMode.UNICODE, Set.of("t"));
+    SentenceGolden golden = SentenceGolden.load(save(model, dir.resolve("s.bin")), Set.of("t"));
     AnnotatorDump.Run run = SentenceDump.of(golden).run(input("Ünï ok. 😀 Yes."));
     assertEquals(2, run.points().size());
     assertEquals(Boolean.FALSE, run.points().get(0).acceptable());

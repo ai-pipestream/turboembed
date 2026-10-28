@@ -20,7 +20,6 @@ use turbo_formats::ontonotes::{
 };
 use turbo_goldens::Golden;
 use turbo_parser::decode_token;
-use turbo_unicode::WhitespaceMode;
 
 mod bundle;
 mod treebank;
@@ -39,9 +38,8 @@ fn rebuild(run: &str, root: &Path) -> Rebuilt {
     let files = if run.starts_with("names") { format.name_files() } else { format.parse_files() }.unwrap();
     let texts: Vec<String> = files.iter().map(|f| std::fs::read_to_string(f).unwrap()).collect();
     match run {
-        "names" | "names+legacy" => {
-            let mode = if run == "names" { WhitespaceMode::Unicode } else { WhitespaceMode::Legacy };
-            let docs: Vec<NameDocument<'_>> = texts.iter().map(|t| NameDocument::read(t, mode)).collect();
+        "names" => {
+            let docs: Vec<NameDocument<'_>> = texts.iter().map(|t| NameDocument::read(t)).collect();
             for (doc, text) in docs.iter().zip(&texts) {
                 for sample in doc.samples() {
                     for t in sample.tokens() {
@@ -144,7 +142,7 @@ fn every_ontonotes_golden_matches() {
     let Some(all) = treebank::goldens("ontonotes") else { return };
     let data = turbo_goldens::data_dir();
     let shapes = treebank::shapes();
-    assert!(all.len() >= 25, "only {} ontonotes goldens", all.len());
+    assert!(all.len() >= 20, "only {} ontonotes goldens", all.len());
     for (run, path) in all {
         let golden = Golden::read_with(&path, &shapes).unwrap();
         let input = golden.input_text(&data).unwrap();
