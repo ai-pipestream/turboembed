@@ -73,6 +73,7 @@ mod formats;
 mod germeval;
 mod muc;
 mod tokens;
+mod wnut17;
 
 use std::fmt;
 
@@ -85,6 +86,7 @@ pub use formats::{BioNlpNames, EvalitaNames, GermEvalNames, Muc6Names};
 pub use germeval::{GermEvalLayer, GermEvalReader, GermEvalTypes};
 pub use muc::{MUC_TYPES, MUC6_FORMAT, MucReader, MucSamples, muc_files};
 pub use tokens::{NewlineSentences, RuleTokenizer, SentenceSpans, TokenSpans};
+pub use wnut17::{Wnut17Reader, Wnut17Types};
 
 use crate::error::FormatError;
 use crate::ner::brat::BratCause;
@@ -109,6 +111,8 @@ pub enum NerError {
     /// `StringUtil.split` drops the empty fields at its end). `count` is
     /// the number of fields and `text` the line.
     GermEvalFields { line: u32, count: usize, text: String },
+    /// A WNUT-17 line without exactly two tab-separated fields.
+    Wnut17Fields { line: u32, count: usize, text: String },
     /// A BioNLP line without exactly two tab-separated fields.
     BioNlpFields { line: u32, count: usize, text: String },
     /// An Evalita line without exactly four space-separated fields.
@@ -159,7 +163,9 @@ impl NerError {
     pub fn java_class(&self) -> &'static str {
         use NerError::*;
         match self {
-            GermEvalFields { .. } | BioNlpFields { .. } | EvalitaFields { .. } => "java.io.IOException",
+            GermEvalFields { .. } | BioNlpFields { .. } | EvalitaFields { .. } | Wnut17Fields { .. } => {
+                "java.io.IOException"
+            }
             EmptyCensusName { .. } => "java.lang.StringIndexOutOfBoundsException",
             MucUnexpectedOpen { .. } | MucUnexpectedClose { .. } | MucUnclosedTag { .. } | MucUnknownType { .. } => {
                 "opennlp.tools.util.InvalidFormatException"
@@ -181,6 +187,7 @@ impl NerError {
             GermEvalFields { line, .. }
             | BioNlpFields { line, .. }
             | EvalitaFields { line, .. }
+            | Wnut17Fields { line, .. }
             | EmptyCensusName { line }
             | MucUnexpectedOpen { line }
             | MucUnexpectedClose { line }
@@ -208,6 +215,9 @@ impl fmt::Display for NerError {
             ),
             BioNlpFields { count, text, .. } => {
                 write!(f, "Expected two fields per line in training data, got {count} for line '{text}'!")
+            }
+            Wnut17Fields { count, text, .. } => {
+                write!(f, "Expected two tab-separated fields per line in WNUT-17 data, got {count} for line '{text}'!")
             }
             EvalitaFields { text, .. } => write!(f, "Incorrect number of fields per line for language: '{text}'!"),
             EmptyCensusName { .. } => f.write_str("Range [0, 1) out of bounds for length 0"),
