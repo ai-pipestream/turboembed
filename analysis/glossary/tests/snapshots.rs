@@ -111,6 +111,42 @@ fn entry_lines(file: &GlossaryFile) -> String {
 fn escape(s: &str) -> String {
     s.replace('\\', "\\\\").replace('\t', "\\t").replace('\n', "\\n").replace('\r', "\\r")
 }
+fn unescape(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('\\') => out.push('\\'),
+            Some('t') => out.push('\t'),
+            Some('n') => out.push('\n'),
+            Some('r') => out.push('\r'),
+            Some(other) => {
+                out.push('\\');
+                out.push(other);
+            }
+            None => out.push('\\'),
+        }
+    }
+    out
+}
+
+#[test]
+fn tsv_unescape_fields_round_trip() {
+    for s in ["", "a", "a b", "hot\tdog", "a\\b", "line\nbreak", "café", "id\tterm"] {
+        assert_eq!(unescape(&escape(s)), s, "{s:?}");
+    }
+    let body = format!("{}\t{}\n", escape("a\tb"), escape("c\\d"));
+    for line in body.lines() {
+        for field in line.split('\t') {
+            assert_eq!(escape(&unescape(field)), *field);
+        }
+    }
+}
+
 
 fn write_snap(run: &str, id: &str, kind: &str, body: &str) {
     let path = snapshots().join(run).join(format!("{id}.{kind}"));
@@ -130,6 +166,21 @@ fn check_or_bless(bless: bool, run: &str, id: &str, kind: &str, got: &str) {
     }
     let want = read_snap(run, id, kind);
     assert_eq!(got, want, "{run}/{id}.{kind}");
+    // Field-level unescape round-trip: every TSV field in the snapshot must
+    // survive escape(unescape(field)) so render_tsv is not compared only to itself.
+    if kind.ends_with(".tsv") {
+        for (side, body) in [("got", got), ("want", want.as_str())] {
+            for (li, line) in body.lines().enumerate() {
+                for (fi, field) in line.split('\t').enumerate() {
+                    assert_eq!(
+                        escape(&unescape(field)),
+                        *field,
+                        "{run}/{id}.{kind} {side} line {li} field {fi}"
+                    );
+                }
+            }
+        }
+    }
 }
 
 fn reader_snap(bless: bool, run: &str, id: &str, got: Result<GlossaryFile, ReadError>) {
@@ -222,6 +273,22 @@ fn matchers_match_the_snapshots() {
         .unwrap();
         check_or_bless(bless, "composite", id, "matches.tsv", &match_lines(&found));
     }
+
+    // Sanity: the fixture texts produce a meaningful number of hits across
+    // the matcher matrix (not an empty oracle).
+    let mut total_hits = 0usize;
+    for run in ["exact", "ignore-case", "whitespace+ignore-case", "analyzed", "composite"] {
+        for id in texts {
+            let body = if bless {
+                // After bless, files were just written.
+                read_snap(run, id, "matches.tsv")
+            } else {
+                read_snap(run, id, "matches.tsv")
+            };
+            total_hits += body.lines().filter(|l| !l.is_empty()).count();
+        }
+    }
+    assert!(total_hits >= 40, "total_hits={total_hits}");
 }
 
 #[test]
