@@ -18,7 +18,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use turbo_analysis::export::{Codecs, DocumentGraph, export, import};
 use turbo_analysis::{Document, Execution, Layer};
-use turbo_analysis_layers::{Boundaries, Chunks, Sentences, TokenVectorWindows, Vectors};
+use turbo_analysis_layers::{Boundaries, Chunks, Sentences, Subwords, TokenVectorWindows, Vectors};
 use turbo_chunker::Budget;
 use turbo_chunker::compare::{Pricing, Report, Run, compare};
 
@@ -127,7 +127,7 @@ impl Writer {
 /// dropped with them.
 fn graph(doc: &Document, codecs: &Codecs) -> Result<DocumentGraph> {
     let mut g = export(doc, codecs).map_err(|e| format!("cut dump: {e}"))?;
-    let vectors = [<Vectors<Sentences> as Layer>::ID, <TokenVectorWindows as Layer>::ID];
+    let vectors = [<Vectors<Sentences> as Layer>::ID, <TokenVectorWindows as Layer>::ID, <Subwords as Layer>::ID];
     let dropped = |layer: &str| vectors.iter().any(|v| layer.starts_with(v));
     g.layers.retain(|l| !dropped(&l.layer));
     for l in &mut g.layers {
