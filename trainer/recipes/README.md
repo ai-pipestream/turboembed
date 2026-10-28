@@ -55,6 +55,10 @@ every layer, so `--max-batch` is raised to N when lower. A cache is
 and its 249,980-sentence test split many times that, so `--splits`
 names the splits to read (all three by default).
 
+A head with a BiLSTM adapter waits 15 epochs without progress before
+it stops (`--patience`, 6 for other heads): its dev score creeps up for
+many epochs, and each better epoch is saved as it comes.
+
 `train` reads per-word features from the encoder through
 `turbo_tagger::WordEncoder`, the path the annotators use, trains with
 `turbo_trainer::fit`, predicts the test split through the core's

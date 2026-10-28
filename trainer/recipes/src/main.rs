@@ -41,6 +41,13 @@ use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
 const RESAMPLES: usize = 1000;
 
+/// The default patience of a head with a BiLSTM adapter: its dev score
+/// keeps creeping up by less than the tolerance an epoch for many epochs
+/// (MASC POS, hashed words and a 256x1 BiLSTM: 0.9733 at epoch 32, 0.9755
+/// at 57), and each better epoch is saved as it comes, so waiting costs
+/// only time.
+const BILSTM_PATIENCE: u32 = 15;
+
 struct Args {
     rest: Vec<String>,
 }
@@ -245,7 +252,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         epochs: a.parsed("--epochs", d.epochs)?,
         batch: a.parsed("--batch", d.batch)?,
         lr: a.parsed("--lr", d.lr)?,
-        patience: a.parsed("--patience", d.patience)?,
+        patience: a.parsed("--patience", if bilstm.is_some() { BILSTM_PATIENCE } else { d.patience })?,
         tolerance: a.parsed("--tolerance", d.tolerance)?,
         threads: a.parsed("--threads", d.threads)?,
         verbose: true,
