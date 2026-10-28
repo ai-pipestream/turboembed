@@ -2,10 +2,10 @@
 
 Training OpenNLP's components in Rust: the event streams
 `SDEventStream`, `TokSpanEventStream`, `POSSampleEventStream`,
-`LemmaSampleEventStream`, `ChunkerEventStream`, `NameFinderEventStream`
+`LemmaSampleEventStream`, `NameFinderEventStream`
 and `LanguageDetectorEventStream`, the factories that set them up, the
 model files `SentenceDetectorME.train`, `TokenizerME.train`,
-`POSTaggerME.train`, `LemmatizerME.train`, `ChunkerME.train`,
+`POSTaggerME.train`, `LemmatizerME.train`,
 `NameFinderME.train` and `LanguageDetectorME.train` return, with every
 manifest entry and artifact the JVM writes.
 
@@ -29,7 +29,7 @@ explicitly. See docs/lemma-case-evaluation.md.
 
 The samples come from `turbo-formats` (native and CoNLL-U readers), the
 context generators from `turbo-sentdetect`, `turbo-tokenize`,
-`turbo-sequence` (the tagger's and the chunker's), `turbo-lemmatizer` and
+`turbo-sequence`, `turbo-lemmatizer` and
 `turbo-langdetect`, so that training
 and inference share one implementation of each, and the trainer, model
 writer and `.bin` packaging from `turbo-train`. This crate connects them,
@@ -158,12 +158,6 @@ All of these are kept and tested (`src/`, `tests/goldens.rs`,
   not ported (`Error::NameSequenceTraining`), and neither are factory
   resources (word clusters, brown clusters, dictionaries): a descriptor
   that names one is refused.
-- `ChunkerME.train` takes only event trainers: the sequence perceptron
-  (`PERCEPTRON_SEQUENCE`), which the tagger and the name finder train
-  with, is refused with `IllegalArgumentException("Trainer type is not
-  supported: EVENT_MODEL_SEQUENCE_TRAINER")` (`Error::UnsupportedTrainerType`).
-  The chunker model file has `chunker.model` before
-  `manifest.properties`, the order of the JVM's artifact map.
 
 ## JVM reference
 
@@ -180,21 +174,7 @@ and tag lines, word, tag and lemma lines and CoNLL-U in both tag sets,
 with their model files, the `tags.tagdict` entry and
 `POSDictionary.serialize` of dictionaries built in the generator
 (`TaggerEventGolden`; docs/analysis.md, "Training the components").
-`tests/goldens.rs` compares this crate with every one of them but the
-chunker's. The `chunker-*` runs there (`ChunkerTrainGolden`) are
-`ChunkerME.train` itself over the chunk inputs of the `formats` and
-`tagged` sets: with OpenNLP's default parameters (GIS, 100 iterations,
-cutoff 5), the perceptron with cutoff 1 and a beam size of 5, `MAXENT_QN`
-with cutoff 1, and the sequence perceptron, which it refuses. Each
-holds the events, what the sample stream threw, the event checksum, and
-what training threw or the model it trained: its outcomes and
-predicates in order, every parameter, the `chunker.model` entry's length
-and SHA-256, the manifest and the zip entries. `tests/chunker.rs` trains
-on the same samples with the same parameters and compares all of it:
-every parameter must be the JVM's double, bit for bit (1,347 for the
-defaults, 94,545 each for the perceptron and `MAXENT_QN`), and the
-`chunker.model` entry's SHA-256 the JVM's, so the entries are the JVM's
-bytes.
+`tests/goldens.rs` compares this crate with every one of them.
 Beside the dictionary and pattern name finder runs,
 `analysis/goldens/data/namefind/` holds the events of
 `NameFinderEventStream` with the BIO and BILOU codecs, with a type given
@@ -210,8 +190,8 @@ is equal, well within the 1e-9 the issue asks for; and that
 `turbo-sequence`'s `NameFinder` finds the JVM's names with the JVM's
 probabilities, bit for bit, over the Rust fixture.
 `tests/fixtures.rs` trains the fixture models `en-plain.bin`,
-`en-abbrev.bin`, `tokenizer-abbreviations.bin`, `pos-fixture.bin` and
-`chunker-fixture.bin` again from their training texts and checks the
+`en-abbrev.bin`, `tokenizer-abbreviations.bin` and `pos-fixture.bin`
+again from their training texts and checks the
 manifest, the dictionaries, the descriptor and the model entries byte
 for byte, trains `turbo-sequence`'s name finder fixtures
 `ner-bilou-fixture.bin` (GIS, with its descriptor and the BILOU codec)

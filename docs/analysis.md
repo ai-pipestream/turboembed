@@ -3066,7 +3066,6 @@ The generator writes these layers, in this order within a golden:
 | `postag` (`POSTaggerME.tag` on each sentence `SentenceDetectorME` and `TokenizerME` cut) | `opennlp:sentences` and `opennlp:tokens` as above, then `opennlp:pos` aligned to the tokens (`tag:str`, `prob:f64` from `probs()`) |
 | `lemmatize` (`LemmatizerME.lemmatize` on each sentence, tagged by `POSTaggerME`) | `opennlp:sentences`, `opennlp:tokens` and `opennlp:pos` as above, then `opennlp:lemmas` aligned to the tokens (`lemma:str`) and `turbo:confidence<opennlp:lemmas>` (`value:f64` from `probs()`) |
 | `lemmatize-dictionary` (`DictionaryLemmatizer.lemmatize`) | the same without the confidence; `O` where the dictionary has no entry |
-| `chunk` (`ChunkerME.chunk` on each sentence, tagged by `POSTaggerME` asked for Penn Treebank tags) | `opennlp:sentences`, `opennlp:tokens` and `opennlp:pos` as above, then `opennlp:chunk-tags` aligned to the tokens (`tag:str`, `prob:f64` from `probs()`) and `opennlp:chunks`, the phrases `ChunkSample.phrasesAsSpanList` reads off those tags (what `chunkAsSpans` returns): the span from the first token's start to the last token's end, `token_start:u32`, `token_end:u32` and `kind:str`, with `turbo:utf16<opennlp:chunks>` when a phrase's token cuts a character |
 | `sentdetect` (`NewlineSentenceDetector.sentPosDetect`) | `opennlp:sentences` |
 | `tokenize` (`SimpleTokenizer`, `WhitespaceTokenizer` `tokenizePos`) | `opennlp:tokens`, `turbo:utf16<opennlp:tokens>` when a token cuts a character |
 | `tokenize` (`WordTokenizer.tokenizeTyped`, UAX #29) | `opennlp:tokens`, `turbo:utf16<opennlp:tokens>` when a token cuts a character, `turbo:word-types` |
@@ -3095,11 +3094,6 @@ The generator writes these layers, in this order within a golden:
 | `ad` (`ADPOSSampleStream`) | `turbo:samples`, `turbo:read-errors`, `turbo:sample-tokens`, `turbo:sample-tags` |
 | `ad` (`ADChunkSampleStream`) | `turbo:samples`, `turbo:read-errors`, `turbo:sample-tokens`, `turbo:sample-tags`, `turbo:sample-chunks`, `turbo:phrases`, `turbo:phrase-errors` |
 | `ad` (`ADSentenceSampleStream`) | `turbo:samples`, `turbo:read-errors`, `turbo:sample-texts`, `turbo:sample-spans` |
-| `ontonotes` (`OntoNotesNameSampleStream`) | `turbo:samples`, `turbo:read-errors`, `turbo:sample-tokens`, `turbo:names`, `turbo:listing` |
-| `ontonotes` (`OntoNotesParseSampleStream`) | `turbo:samples`, `turbo:read-errors`, `turbo:parse-texts`, `turbo:parse-nodes`, `turbo:pos-samples`, `turbo:chunk-samples`, `turbo:listing` |
-| `ontonotes` (`ParseToPOSSampleStream`) | `turbo:samples`, `turbo:read-errors`, `turbo:sample-tokens`, `turbo:sample-tags`, `turbo:listing` |
-| `ontonotes` (`DocumentToLineStream`) | `turbo:samples`, `turbo:read-errors`, `turbo:lines`, `turbo:listing` |
-| `frenchtreebank` (`ConstitParseSampleStream`) | `turbo:samples`, `turbo:read-errors`, `turbo:parse-texts`, `turbo:parse-nodes`, `turbo:pos-samples`, `turbo:chunk-samples`, `turbo:listing` |
 
 `numbers/<notation>/num/<id>.golden` (`latin-us`, `latin-eu`) holds
 `turbo:numbers`, anchored on the text, with one row per number mention:
@@ -3201,7 +3195,7 @@ each outcome that `eval` returned. A Rust context generator and the
 Rust maxent and perceptron evaluation can be checked against it one
 decision at a time, before a whole annotator's golden lines up. The
 generator writes them for `SentenceDetectorME`, `TokenizerME`,
-`POSTaggerME`, `LemmatizerME`, `ChunkerME` and `LanguageDetectorME`. `turbo_goldens::Dump::read` parses one into its
+`POSTaggerME`, `LemmatizerME` and `LanguageDetectorME`. `turbo_goldens::Dump::read` parses one into its
 header (the golden's `Header` type) and a `Point` per decision, with the
 contexts as UTF-16 units, since a context can hold half of a surrogate
 pair, and the outcome labels as `JavaString`s, since a lemma class can.
