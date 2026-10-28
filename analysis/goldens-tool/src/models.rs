@@ -16,11 +16,23 @@ use std::process::Command;
 /// Which models [`fetch`] makes sure of.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Models {
-    /// [`MODELS`], the ones CI fetches.
+    /// [`MODELS`] (none, #1509), the Hunspell files and the corpora.
     Published,
     /// [`MODELS`] and [`POOLING_SOURCE`], from which the pooled copy the
     /// generator loads is derived.
     WithLocal,
+}
+
+/// The generator's runs open OpenNLP 2.5 models (the UD 1.3 `-2.5.4`
+/// models and `langdetect-183.bin`), which are no longer fetched (#1509).
+/// `generate`, `verify` and `fuzz` refuse with this until #1532 deletes
+/// those runs and their goldens, instead of failing inside the container.
+pub const GENERATOR_RETIRED: &str = "the generator's runs open OpenNLP 2.5 models, which are no longer fetched \
+     (#1509); generate, verify and fuzz are unavailable until #1532 deletes those runs and their goldens";
+
+/// Fails with [`GENERATOR_RETIRED`]: no command may run the generator.
+pub fn generator_runs() -> Result<(), String> {
+    Err(GENERATOR_RETIRED.to_string())
 }
 
 /// Makes sure every model of `which`, every MeCab dictionary, every
@@ -256,7 +268,7 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("model.bin");
         fs::write(&path, b"abc").unwrap();
-        let m = Model { file: "model.bin", url: "https://example.org/model.bin", sha512: MODELS[0].sha512 };
+        let m = Model { file: "model.bin", url: "https://example.org/model.bin", sha512: POOLING_SOURCE.sha512 };
         let err = check(&path, &m).unwrap_err();
         assert!(err.contains("ddaf35a193617aba"), "{err}");
         let ok = Model {
@@ -282,5 +294,11 @@ mod tests {
         let err = check_fixtures(&dir).unwrap_err();
         assert!(err.contains("mecab-x/extra.csv"), "{err}");
         fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn the_generator_refuses_to_run_until_its_2_5_runs_are_gone() {
+        let err = generator_runs().unwrap_err();
+        assert!(err.contains("#1532") && err.contains("OpenNLP 2.5"), "{err}");
     }
 }

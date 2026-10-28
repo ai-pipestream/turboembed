@@ -170,30 +170,30 @@ is in that form and a test keeps it there.
   "zoo_version": 1,
   "artifacts": [
     {
-      "id": "opennlp-en-ud-ewt-sentence-1.3-2.5.4",
-      "kind": "KIND_MODEL",
-      "component": "COMPONENT_SENTENCE_DETECTOR",
+      "id": "turbo-en-civil-comments-minilm-l6-v2-head-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
       "language": "en",
-      "format": "FORMAT_OPENNLP_MODEL",
-      "version": "1.3-2.5.4",
+      "format": "FORMAT_HEAD",
+      "version": "1",
       "license": "Apache-2.0",
-      "license_terms": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
       "trained_on": [
         {
-          "name": "UD_English-EWT r2.16",
-          "license": "CC-BY-SA-4.0",
-          "license_terms": "https://github.com/UniversalDependencies/UD_English-EWT/blob/r2.16/README.md"
+          "name": "Civil Comments WILDS 3fbfeca80bad0f3aec37e72fa07eff222b6e752f",
+          "license": "CC0-1.0",
+          "license_terms": "https://huggingface.co/datasets/shlomihod/civil-comments-wilds/blob/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/README.md"
         }
       ],
-      "class": "CLASS_SHARE_ALIKE",
-      "attribution": "Apache OpenNLP 1.3 UD model (Apache-2.0, The Apache Software Foundation), trained on UD_English-EWT r2.16 (CC-BY-SA-4.0, https://github.com/UniversalDependencies/UD_English-EWT/blob/r2.16/README.md).",
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on the Civil Comments WILDS subset (shlomihod/civil-comments-wilds at 3fbfeca80bad0f3aec37e72fa07eff222b6e752f), all_data_with_identities.csv, SHA-256 403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f. Original Civil Comments by Conversation AI / Jigsaw (Borkan et al., 2019), CC0-1.0.",
       "files": [
         {
-          "path": "opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
-          "url": "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
-          "size": 20061,
-          "sha256": "4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8",
-          "sha512": "fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191"
+          "path": "turbo-en-civil-comments-minilm-l6-v2-head-1.tivh",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-civil-comments-1/turbo-en-civil-comments-minilm-l6-v2-head-1.tivh",
+          "size": 9371,
+          "sha256": "26c1147d5431901e41ca6847ee482d0534c63b0ddcf63e9e99f2b22e472997ba",
+          "sha512": "35ce10567ed7c8e79bc2fc7f495ee2e6fde9e26068ea4741632d3d26b0f794530b1775568f097dcf0eb82ae1deeddf5219a990c2b851c284ca96411f3bff4b2c"
         }
       ]
     }

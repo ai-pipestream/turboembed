@@ -269,6 +269,8 @@ pub fn references(release: &ModelsRelease) -> Result<Vec<(String, String)>> {
         let url = match reference {
             Reference::Zoo(id) => Index::builtin().get(id)?.files[0].url.as_str().to_owned(),
             Reference::Recorded(r) => r.url.to_owned(),
+            // Not fetched or pinned (#1509): nothing to list.
+            Reference::Retired(_) => continue,
         };
         let pair = (reference.sha256()?, url);
         if !pairs.contains(&pair) {

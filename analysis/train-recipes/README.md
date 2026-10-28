@@ -70,12 +70,11 @@ cargo run --release -p turbo-train-recipes -- fetch-masc --home <zoo-home>
 cargo run --release -p turbo-train-recipes -- zoo-index --models <dir> --release <tag> [--check]
 ```
 
-`--references` is a directory holding the reference models under their
-published file names: `opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin` and
-`opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin`, as `cargo run -p
-turbo-goldens-tool -- fetch-models <dir>` writes them and checked against
-the zoo's SHA-256. The tagger, chunker and name finder recipes read no
-reference model (#1509).
+`--references` held the reference models. None is fetched or pinned now
+(#1509): the sentence detector and tokenizer were gated against OpenNLP
+UD 1.3 models built with OpenNLP 2.5.4, which the recipes name by id
+alone (`Reference::Retired`), and the tagger, chunker and name finder
+recipes read no reference model. #1532 removes the gates.
 
 `--recipe` runs only the recipes named by the trained model's id; without
 it every recipe runs. The recipes run in the order of the table below,
@@ -704,17 +703,11 @@ read on 2026-10-14 (#415):
   card's summary (`UdModelCard::summary`, the lines
   `ModelCard::summary` prints), its gate record and the seconds the
   recipe took.
-- The Italian references: OpenNLP's Italian UD models are trained on
-  UD_Italian-VIT (CC BY-NC-SA 3.0), so they are local-only
-  (`docs/licences.md`, "Non-commercial data") and the zoo's built-in
-  index does not list them. `ud::IT_UD_VIT_POS` and
-  `ud::IT_UD_VIT_LEMMAS` record each file's name, address, size and
-  SHA-256 (the files of Maven Central's
-  `org.apache.opennlp:opennlp-models-pos-it:1.3.0` and
-  `opennlp-models-lemmatizer-it:1.3.0`, whose SHA-512 is the one Apache
-  publishes beside them). A run reads them from `--references`, checks
-  them and only scores them; the trained models are trained on MarkIT
-  alone.
+- The references: OpenNLP's UD 1.3 models, built with OpenNLP 2.5.4, are
+  OpenNLP 2.5 artifacts, which are not fetched or pinned (#1509). Each
+  recipe names its reference by id alone (`Reference::Retired`), whose
+  file and digest are errors, so no UD gate runs and no UD card is
+  publishable until #1532 removes the gates.
 - Licence: the models are Apache-2.0 trained on CC BY 4.0 data, so their
   zoo class is permissive. The card carries the attribution (the
   treebank, its release, its contributors, its address, the licence and
@@ -735,11 +728,8 @@ cargo run --release -p turbo-train-recipes -- ud --treebanks <zoo-home>/artifact
     --references <dir> --out <dir> [--recipe <model id>]...
 ```
 
-`--references` holds the OpenNLP UD 1.3 models under their published
-file names (Maven Central `org.apache.opennlp:opennlp-models-<component>-<language>:1.3.0`,
-or `archive.apache.org/dist/opennlp/models/ud-models-1.3`), checked
-against the zoo's SHA-256, or for the Italian ones the recorded size and
-SHA-256.
+`--references` held the OpenNLP UD 1.3 models; they are no longer fetched
+or pinned (#1509), and the command is disabled (#1511).
 
 ### Results
 
@@ -911,13 +901,10 @@ cargo run --release -p turbo-train-recipes -- tatoeba --export <dir> \
 `--export` names a directory holding `sentences_detailed.csv` and
 `sentences_CC0.csv`, extracted from Tatoeba's weekly exports
 (`tatoeba::DETAILED_ARCHIVE_URL` and `tatoeba::CC0_ARCHIVE_URL`).
-`--references` names a directory holding `langdetect-183.bin` (`cargo run
--p turbo-goldens-tool -- fetch-models <dir>` writes it), checked against
-the size and SHA-256 the recipe records (`langdetect::LANGDETECT_183`:
-10,568,188 bytes,
-`2ddf585fac2e02a9dcfb9a4a9cc9417562eaac351be2efb506a2eaa87f19e9d4`). The
-model directory, the reference and the export are checked before
-anything is trained. The exit status is 1 when the gate fails
+`--references` named a directory holding `langdetect-183.bin`, an
+OpenNLP 2.5 artifact that is no longer fetched or pinned (#1509):
+`langdetect::LANGDETECT_183` names it by id alone
+(`Reference::Retired`), so the gate cannot run and #1532 removes it. The exit status is 1 when the gate fails
 and 2 on an error.
 
 - Data and licence check. Tatoeba's `sentences.license` column is

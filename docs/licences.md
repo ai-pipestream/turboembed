@@ -600,12 +600,12 @@ data):
 | UD 1.3 `uk-ud-iu-*` | [UD_Ukrainian-IU r2.16](https://github.com/UniversalDependencies/UD_Ukrainian-IU/blob/r2.16/README.md) | CC BY-NC-SA 4.0 | here |
 
 `opennlp-it-ud-vit-pos-1.3-2.5.4.bin` and
-`opennlp-it-ud-vit-lemmas-1.3-2.5.4.bin` are used only as the references
+`opennlp-it-ud-vit-lemmas-1.3-2.5.4.bin` were used only as the references
 of the Italian UD recipes' gates in `turbo-train-recipes` (#415). They
-are read from a directory the user names, checked against the size and
-SHA-256 the recipes record (`ud::IT_UD_VIT_POS`, `ud::IT_UD_VIT_LEMMAS`),
-and scored on UD_Italian-MarkIT's `test` file beside the model trained on
-MarkIT. Nothing ships, bundles, mirrors or trains on them, the zoo does
+were read from a directory the user named and scored on
+UD_Italian-MarkIT's `test` file beside the model trained on MarkIT. As
+OpenNLP 2.5 artifacts they are no longer fetched or pinned (#1509): the
+recipes name them by id alone, and #1532 removes the gates. Nothing ships, bundles, mirrors or trains on them, the zoo does
 not list them, and CI does not fetch them.
 
 ## GLiNER small-v2.1 numerical fixtures

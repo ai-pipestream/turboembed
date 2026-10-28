@@ -116,8 +116,9 @@ impl Options {
 
 /// Fetches the models, checks the fixtures and the inputs and runs the
 /// container into a fresh scratch directory, which the caller installs or
-/// compares.
+/// compares. Refused until #1532 (see [`models::GENERATOR_RETIRED`]).
 fn generate(models_dir: &Path) -> Result<output::RunDir, String> {
+    models::generator_runs()?;
     models::fetch(models_dir, models::Models::WithLocal)?;
     models::check_fixtures(&paths::fixtures_dir())?;
     check_input_sets(&paths::inputs_dir())?;

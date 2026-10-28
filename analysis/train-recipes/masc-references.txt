@@ -1,9 +1,6 @@
-# The OpenNLP UD models the MASC sentence detector and tokenizer recipes
-# (release::MASC_MODELS) recorded as their gates' references: one line per
-# model, its SHA-256 and its address, in the order of the recipes. No
-# workflow fetches them since #1511 disabled the classical gates. No
-# OpenNLP 1.5 model is listed: those models are not fetched or scored
-# (#1509), so the MASC tagger, chunker and name finder recipes have no
-# reference model, which a test in release/tests.rs checks.
-4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8 https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin
-95139111197ba9f1165fc12be8d4cbac05ea3912f995d167efa1a0e04e3e649a https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin
+# The OpenNLP models the MASC recipes' gates read as references: none.
+# The sentence detector and tokenizer were gated against the OpenNLP UD
+# 1.3 models built with OpenNLP 2.5.4, and the tagger, chunker and name
+# finders against OpenNLP 1.5 models; neither is fetched, pinned or
+# scored (#1509), and #1532 removes the gates. A test in
+# release/tests.rs checks that this file lists no reference.

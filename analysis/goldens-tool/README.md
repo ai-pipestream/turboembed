@@ -2,7 +2,15 @@
 
 The golden files in `analysis/goldens/data` record what OpenNLP 3.x
 computes on the JVM for fixed inputs and models. This directory holds
-everything that makes them:
+everything that makes them.
+
+The generator's runs open OpenNLP 2.5 models (the UD 1.3 models built
+with OpenNLP 2.5.4 and `langdetect-183.bin`), which are no longer fetched
+or pinned (#1509), so `generate`, `verify` and `fuzz` refuse to run
+(`models::GENERATOR_RETIRED`) and the nightly differential workflow is
+deleted. The checked in goldens stay until #1532 removes those runs and
+their goldens; the Rust tests still read them.
+
 
 - `java/`: the generator, a Maven project that depends only on the OpenNLP
   runtime, the OpenNLP formats module and the `numeric` module of the OpenNLP addons. It carries
@@ -23,8 +31,8 @@ everything that makes them:
   detector, the tokenizer, the part-of-speech tagger, the maxent
   lemmatizer, the chunker and the language detector): every context the annotator gave
   the model and every outcome probability `eval` returned. `PosAccuracy` is a second main class, run by
-  hand, that scores a part-of-speech model on a CoNLL-U file
-  (`analysis/postag/README.md`).
+  hand, that scored the UD English part-of-speech model on a CoNLL-U file;
+  that model is no longer fetched (#1509).
 - `container/Dockerfile`: the container the generator runs in. It starts
   from `eclipse-temurin:21-jdk` pinned by digest, clones the OpenNLP fork
   at a pinned commit, builds the runtime and the formats module with the
@@ -63,13 +71,12 @@ cargo run -p turbo-goldens-tool --features fuzz -- fuzz [--seed <n>] [--count <n
 
 - `image` builds the container image, tags it with the OpenNLP commit and
   prints its id.
-- `fetch-models <dir>` downloads the published models into `<dir>` with `curl`
-  and checks each one's SHA-512 against the value published beside it on
-  downloads.apache.org. A model already there with the right hash is kept.
+- `fetch-models <dir>` downloads no OpenNLP model: the UD 1.3 models built
+  with OpenNLP 2.5.4, `langdetect-183.bin` and the OpenNLP 1.5 models are
+  not fetched, pinned or run anywhere in this repository (#1509), so the
+  generator's runs that open them cannot run until #1532 removes them.
   With `--local` it also downloads the all-MiniLM-L6-v2 export
   (`POOLING_SOURCE`) the pooled sentence vector model is derived from.
-  It fetches no OpenNLP 1.5 model: those models are not run, scored or
-  fetched anywhere in this repository (#1509).
   It also fetches LibreOffice's `en_US`, `de_DE_frami` and `hu_HU` Hunspell
   dictionaries (`HUNSPELL_FILES`) into `<dir>/hunspell/`, each checked
   against the SHA-512 in the recipe.

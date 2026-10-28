@@ -228,7 +228,7 @@ impl Recipe {
     /// chunker and the name finders.
     pub fn reference(&self) -> Result<Reference> {
         let reference = match self {
-            Recipe::Segmentation(r) => Some(Reference::Zoo(r.reference_id)),
+            Recipe::Segmentation(r) => Some(Reference::Retired(r.reference_id)),
             Recipe::Pos(r) => r.reference,
             Recipe::Chunk(r) => r.reference,
             Recipe::Name(r) => r.reference,

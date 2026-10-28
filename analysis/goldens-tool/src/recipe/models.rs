@@ -8,89 +8,11 @@ pub struct Model {
     pub sha512: &'static str,
 }
 
-/// The published models, in the order the generator loads them. The file
-/// names are the ones the generator's `Runs` class opens in the models
-/// directory.
-pub const MODELS: [Model; 13] = [
-    Model {
-        file: "opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
-        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
-        sha512: "fed5d53ea87bf66afeb08c084f89ca9b95a96de0920dca40487b2ab9972ee6b7\
-                 ef211e477db480b7253431de079fd66dfd14329cd7d19ad1f565155eb0cf5191",
-    },
-    Model {
-        file: "opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin",
-        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin",
-        sha512: "c811604c24cdbe490ab42dcffdbae63f9a74b39622f21b7b31f63eea566ffe35\
-                 ef871f0da905e61180656b877cf0be4d626588c6312fcc18df5ab9a35b4183fa",
-    },
-    Model {
-        file: "opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin",
-        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin",
-        sha512: "0c0390b36530ce9807e9f3d69cfd09524d965506dbb6e2aab2f34556c8858903\
-                 d538433b828e1f6ed7eaca92f336a04be83461a45b28b177d01ba372fafa35f8",
-    },
-    Model {
-        file: "opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin",
-        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin",
-        sha512: "147d1cdcb89ca5d9bd0ead8fddf2cc14ae543a9151803fe56b3c1fa152b98660\
-                 5e34fb6dda4819c68aa22fc9bffa6bfab14f916b7d0bf4892d452686af34778a",
-    },
-    Model {
-        file: "opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin",
-        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin",
-        sha512: "343c9fe93ff301b736f30fa2e0d954b270994a1535ec2bd424553cbd82b13eb0\
-                 d86aa2042946db62322430a8b5a8f29a8a2d882f107cb26c6d4f6d494d97debf",
-    },
-    Model {
-        file: "opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin",
-        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin",
-        sha512: "ba5280ca74b190515f630ed2b2257a758e8baa876a8da3c02735f81a5543c37f\
-                 7bc57614fd1ecb2850b4a2df98b2d2e452718de43f676f9b63b064206f86c467",
-    },
-    Model {
-        file: "opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin",
-        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin",
-        sha512: "18e56e96eae9741935c5f54f16d3c6933e151ec550b882d2e5e1194ac02c6b1e\
-                 56063843ff3805a35cf44810091674ef6bf2f080d1bc761770d8b09ee9a01277",
-    },
-    Model {
-        file: "opennlp-pt-ud-gsd-tokens-1.3-2.5.4.bin",
-        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-pt-ud-gsd-tokens-1.3-2.5.4.bin",
-        sha512: "6ff66aec4835e9d5caeeb50a2e70bd673840ef6219fe1dc4018c8f9999b21b95\
-                 9c52fdac68844a0934bbcd77346743627f728fb9c99b7ca468e795fc5291c3bb",
-    },
-    Model {
-        file: "opennlp-en-ud-ewt-pos-1.3-2.5.4.bin",
-        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-pos-1.3-2.5.4.bin",
-        sha512: "fca85b38d996b7c422401054feedeb0f748cbc03856893cb27670da5d207315e\
-                 c9af0c0f818c3107a741a2effca2499b5097ac0b46edf4a5ac10bf77a351ac3e",
-    },
-    Model {
-        file: "opennlp-de-ud-gsd-pos-1.3-2.5.4.bin",
-        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-de-ud-gsd-pos-1.3-2.5.4.bin",
-        sha512: "9e44d582874464924a8baf8fbfed7500e15112c3dc446bfc5be281bff4dbbf19\
-                 5eda0a16ca7e78fde7a64a684c0f780b5987723db800ce88465b9894ef0ba17b",
-    },
-    Model {
-        file: "opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin",
-        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin",
-        sha512: "ee81553985908ac25c50fbd8f2ca4222cb42a18845f063c792a1b43639181b70\
-                 ce20d57b8736a1604367f5e8c59aef55f8463e04004840cbc88abb7123fd9e7f",
-    },
-    Model {
-        file: "opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin",
-        url: "https://downloads.apache.org/opennlp/models/ud-models-1.3/opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin",
-        sha512: "616c83327e1af12c8952f362fd99be6efcdc4e28526bee1debf27d3446110ded\
-                 9beef7e0e2acc9b3094039683c9b4b2b2b0ba32dbf194278d5017e2b21e66371",
-    },
-    Model {
-        file: "langdetect-183.bin",
-        url: "https://downloads.apache.org/opennlp/models/langdetect/1.8.3/langdetect-183.bin",
-        sha512: "9dc847055e622d9de503a5bf444ccf1428c3578c9698a73b736d8f8e337db018\
-                 8ade90ac8cc9196d1d472f58589d578785085b554b1bde856afc5762e9396285",
-    },
-];
+/// The published OpenNLP models the generator loaded: none. The UD 1.3
+/// models built with OpenNLP 2.5.4 and `langdetect-183.bin` are OpenNLP
+/// 2.5 artifacts, which are not fetched, pinned or run (#1509); the
+/// generator's runs that open them, and their goldens, go with #1532.
+pub const MODELS: [Model; 0] = [];
 
 /// The upstream all-MiniLM-L6-v2 ONNX export, at the revision the sentence
 /// vector bundles are made from, which `fetch` turns into the mean-pooled

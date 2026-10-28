@@ -53,17 +53,16 @@ fn the_ud_release_leaves_out_porttinari_and_markit() {
     }
 }
 
-/// Preserve the corrected reference metadata from #1567 without restoring
-/// retired training workflows or runtime model loading.
+/// The MASC gates read no reference: the UD 1.3 models built with
+/// OpenNLP 2.5.4 are not fetched or pinned (#1509), so the release lists
+/// none and masc-references.txt keeps only its header.
 #[test]
-fn masc_references_do_not_use_the_retired_download_host() {
+fn masc_references_list_no_model() {
+    assert_eq!(references(&MASC_MODELS).unwrap(), Vec::new());
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let listed = std::fs::read_to_string(root.join("masc-references.txt")).unwrap();
     let references: Vec<_> = listed.lines().filter(|line| !line.is_empty() && !line.starts_with('#')).collect();
-    assert!(!references.is_empty());
-    for line in references {
-        assert!(!line.contains("://opennlp.sourceforge.net/"), "{line}");
-    }
+    assert_eq!(references, Vec::<&str>::new());
 }
 
 /// No OpenNLP 1.5 model is fetched or scored (#1509): the MASC tagger,
