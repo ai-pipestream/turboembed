@@ -1,32 +1,20 @@
 package ai.pipestream.turboembed.opennlp;
 
+import ai.pipestream.turboembed.panama.TurboAnalysisResult;
 import ai.pipestream.turboembed.panama.TurboAnalyzer;
-import ai.pipestream.turboembed.panama.TurboSpan;
+import ai.pipestream.turboembed.panama.TurboLayerKind;
+import ai.pipestream.turboembed.panama.TurboSpanView;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 
 /**
- * Drop-in Apache OpenNLP {@code POSTaggerME} adapter backed in-process by {@code libturbo} via
- * Panama FFM.
+ * OpenNLP-style POS tagger backed only by a configured statistical model.
+ * There is deliberately no no-model constructor or lexical fallback.
  */
-public final class TurboPOSTaggerME implements POSTagger, AutoCloseable {
-    private final TurboAnalyzer analyzer;
-    private final boolean ownsAnalyzer;
-    private double[] lastProbs = new double[0];
+public final class TurboPOSTaggerME extends TurboAdapterSupport implements POSTagger, AutoCloseable {
 
-    /**
-     * Creates a POS tagger using the built-in {@code libturbo} POS model.
-     */
-    public TurboPOSTaggerME() {
-        this(TurboAnalyzer.create(), true);
-    }
-
-    /**
-     * Creates a POS tagger using an OpenNLP {@code POSModel} {@code .bin} file.
-     *
-     * @param modelPath path to the {@code .bin} POS model
-     */
+    /** Creates a POS tagger using an OpenNLP {@code POSModel} {@code .bin} file. */
     public TurboPOSTaggerME(Path modelPath) {
         this(
                 TurboAnalyzer.create(new TurboAnalyzer.Config(
@@ -34,50 +22,55 @@ public final class TurboPOSTaggerME implements POSTagger, AutoCloseable {
                 true);
     }
 
-    /**
-     * Creates a POS tagger sharing an existing {@link TurboAnalyzer} without taking ownership of
-     * its lifecycle.
-     *
-     * @param analyzer shared analyzer instance
-     */
+    /** Creates a POS tagger sharing an analyzer without owning its lifecycle. */
     public TurboPOSTaggerME(TurboAnalyzer analyzer) {
-        this(Objects.requireNonNull(analyzer, "analyzer"), false);
+        this(analyzer, false);
     }
 
     private TurboPOSTaggerME(TurboAnalyzer analyzer, boolean ownsAnalyzer) {
-        this.analyzer = analyzer;
-        this.ownsAnalyzer = ownsAnalyzer;
+        super(analyzer, ownsAnalyzer);
     }
 
     @Override
-    public String[] tag(String[] sentence) {
+    public synchronized String[] tag(String[] sentence) {
         Objects.requireNonNull(sentence, "sentence");
-        List<TurboSpan> spans = analyzer.posTag(sentence);
-        String[] tags = new String[spans.size()];
-        double[] probs = new double[spans.size()];
-        for (int i = 0; i < spans.size(); i++) {
-            TurboSpan sp = spans.get(i);
-            tags[i] = sp.label();
-            probs[i] = sp.prob();
+        try (TurboAnalysisResult result = analyzer().posTag(sentence)) {
+            List<TurboSpanView> rows = result.spans(TurboLayerKind.POS);
+            requireAlignedRows(rows, sentence.length, "POS");
+            String[] tags = new String[rows.size()];
+            double[] probs = new double[rows.size()];
+            for (int i = 0; i < rows.size(); i++) {
+                tags[i] = rows.get(i).label().orElse(null);
+                probs[i] = probabilityOrNaN(rows.get(i));
+            }
+            rememberProbs(probs);
+            return tags;
         }
-        this.lastProbs = probs;
-        return tags;
     }
 
-    /**
-     * Returns the probabilities of the tags assigned by the most recent {@link #tag(String[])}
-     * call.
-     *
-     * @return tag probability array
-     */
-    public double[] probs() {
-        return lastProbs.clone();
+    /** Returns probabilities from the most recent call on this adapter; absent values are NaN. */
+    public synchronized double[] probs() {
+        return copyProbs();
     }
 
     @Override
-    public void close() {
-        if (ownsAnalyzer) {
-            analyzer.close();
+    public synchronized void close() {
+        closeAdapter();
+    }
+
+    static void requireAlignedRows(List<TurboSpanView> rows, int expected, String task) {
+        requireSingleFragmentRows(rows, task);
+        if (rows.size() != expected) {
+            throw new IllegalStateException(task + " returned " + rows.size() + " rows for " + expected + " tokens");
+        }
+        for (int i = 0; i < rows.size(); i++) {
+            TurboSpanView row = rows.get(i);
+            if (row.itemIndex() != i
+                    || row.tokenRange().isEmpty()
+                    || row.tokenRange().get().start() != i
+                    || row.tokenRange().get().end() != i + 1L) {
+                throw new IllegalStateException(task + " row " + i + " is not aligned to token " + i);
+            }
         }
     }
 }

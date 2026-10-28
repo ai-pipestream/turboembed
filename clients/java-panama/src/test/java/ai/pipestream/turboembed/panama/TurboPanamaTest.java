@@ -7,47 +7,34 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import ai.pipestream.turboembed.opennlp.Span;
-import ai.pipestream.turboembed.opennlp.TurboLemmatizerME;
-import ai.pipestream.turboembed.opennlp.TurboNameFinderME;
-import ai.pipestream.turboembed.opennlp.TurboPOSTaggerME;
-import ai.pipestream.turboembed.opennlp.TurboSentenceDetectorME;
-import ai.pipestream.turboembed.opennlp.TurboTokenizerME;
+import java.lang.foreign.MemoryLayout;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
-/**
- * End-to-end JUnit 5 verification of the Java 22+ Panama FFM bindings over {@code libturbo} and
- * the Apache OpenNLP drop-in adapters.
- */
+/** Typed Panama result, coordinate, unsupported-task, PII, and graph tests. */
 final class TurboPanamaTest {
 
-    private static Path repoRoot() {
-        String prop = System.getProperty("turbo.repo.root");
-        if (prop != null && !prop.isBlank()) {
-            return Path.of(prop).toAbsolutePath().normalize();
-        }
-        return Path.of("../..").toAbsolutePath().normalize();
-    }
-
     @Test
-    void versionStatusAndLastErrorMessageWorkOverPanamaFfm() {
+    void versionStatusLayoutAndMissingModelErrorsAreExact() {
         String version = TurboLibrary.version();
         assertNotNull(version);
         assertTrue(version.startsWith("0.1.0"), "unexpected version: " + version);
-
         assertEquals("TURBO_OK", TurboLibrary.statusName(TurboLibrary.TURBO_OK));
         assertEquals(
-                "TURBO_E_INVALID_ARGUMENT",
-                TurboLibrary.statusName(TurboLibrary.TURBO_E_INVALID_ARGUMENT));
+                "TURBO_E_UNSUPPORTED_TASK",
+                TurboLibrary.statusName(TurboLibrary.TURBO_E_UNSUPPORTED_TASK));
+        assertEquals(120L, TurboLibrary.TURBO_SPAN_LAYOUT.byteSize());
+        assertEquals(8L, TurboLibrary.TURBO_SPAN_LAYOUT.byteAlignment());
         assertEquals(
-                "TURBO_E_BUNDLE_NOT_FOUND",
-                TurboLibrary.statusName(TurboLibrary.TURBO_E_BUNDLE_NOT_FOUND));
+                112L,
+                TurboLibrary.TURBO_SPAN_LAYOUT.byteOffset(MemoryLayout.PathElement.groupElement("prob")));
 
-        Path missingModel = repoRoot().resolve("testdata/does-not-exist.bin");
+        Path missingModel = TestPaths.repoRoot().resolve("testdata/does-not-exist.bin");
         TurboException ex = assertThrows(
                 TurboException.class,
                 () -> TurboAnalyzer.create(new TurboAnalyzer.Config("en", missingModel, null, null, null, null)));
@@ -57,200 +44,167 @@ final class TurboPanamaTest {
     }
 
     @Test
-    void openNlpSentenceDetectorAndCustomModelFixturesWork() {
-        String text = "Dr. John Smith works in New York. He flew to San Francisco yesterday!";
-        try (TurboSentenceDetectorME detector = new TurboSentenceDetectorME()) {
-            String[] sentences = detector.sentDetect(text);
-            assertEquals(2, sentences.length);
-            assertEquals("Dr. John Smith works in New York.", sentences[0]);
-            assertEquals("He flew to San Francisco yesterday!", sentences[1]);
-
-            Span[] spans = detector.sentPosDetect(text);
-            assertEquals(2, spans.length);
-            for (int i = 0; i < spans.length; i++) {
-                assertEquals(sentences[i], text.substring(spans[i].getStart(), spans[i].getEnd()));
-                assertEquals(sentences[i], spans[i].getCoveredText(text).toString());
-            }
-            assertEquals(2, detector.probs().length);
-        }
-
-        Path sentModel = repoRoot().resolve("analysis/goldens/data/fixtures/en-plain.bin");
-        try (TurboSentenceDetectorME meDetector = new TurboSentenceDetectorME(sentModel)) {
-            Span[] spans = meDetector.sentPosDetect("First sentence here. Second sentence follows.");
-            assertEquals(2, spans.length);
-            assertTrue(meDetector.probs()[0] > 0.0);
-        }
-    }
-
-    @Test
-    void openNlpTokenizerPosTaggerAndLemmatizerWork() {
-        try (TurboAnalyzer shared = TurboAnalyzer.create();
-                TurboTokenizerME tokenizer = new TurboTokenizerME(shared);
-                TurboPOSTaggerME posTagger = new TurboPOSTaggerME(shared);
-                TurboLemmatizerME lemmatizer = new TurboLemmatizerME(shared)) {
-
-            String text = "The rivers went fast.";
-            String[] tokens = tokenizer.tokenize(text);
-            assertArrayEquals(new String[] {"The", "rivers", "went", "fast", "."}, tokens);
-
-            Span[] tokSpans = tokenizer.tokenizePos(text);
-            assertEquals(tokens.length, tokSpans.length);
-            for (int i = 0; i < tokens.length; i++) {
-                assertEquals(tokens[i], text.substring(tokSpans[i].getStart(), tokSpans[i].getEnd()));
-            }
-
-            String[] tags = posTagger.tag(tokens);
-            assertEquals(tokens.length, tags.length);
-            assertEquals(tokens.length, posTagger.probs().length);
-            for (double p : posTagger.probs()) {
-                assertTrue(p > 0.0 && p <= 1.0);
-            }
-
-            String[] explicitTags = new String[] {"DET", "NOUN", "VERB", "ADV", "PUNCT"};
-            String[] lemmas = lemmatizer.lemmatize(tokens, explicitTags);
-            assertEquals(tokens.length, lemmas.length);
-            assertEquals("the", lemmas[0]);
-            assertEquals("river", lemmas[1]);
-            assertEquals("go", lemmas[2]);
-            assertEquals(tokens.length, lemmatizer.probs().length);
-        }
-
-        Path tokModel = repoRoot().resolve("analysis/goldens/data/fixtures/tokenizer-abbreviations.bin");
-        try (TurboTokenizerME meTok = new TurboTokenizerME(tokModel)) {
-            String[] toks = meTok.tokenize("Hello world!");
-            assertTrue(toks.length >= 2);
-            assertEquals(toks.length, meTok.probs().length);
-        }
-    }
-
-    @Test
-    void openNlpTokenNameFinderExtractsEntitiesAndPii() {
-        try (TurboNameFinderME finder = new TurboNameFinderME()) {
-            String[] tokens = new String[] {
-                "John", "Smith", "visited", "New", "York", "and", "San", "Francisco"
-            };
-            Span[] spans = finder.find(tokens);
-            assertTrue(Arrays.stream(spans).anyMatch(
-                    s -> s.getStart() == 0 && s.getEnd() == 2 && "person".equals(s.getType())));
-            assertTrue(Arrays.stream(spans).anyMatch(
-                    s -> s.getStart() == 3 && s.getEnd() == 5 && "location".equals(s.getType())));
-            assertTrue(Arrays.stream(spans).anyMatch(
-                    s -> s.getStart() == 6 && s.getEnd() == 8 && "location".equals(s.getType())));
-            assertEquals(spans.length, finder.probs().length);
-
-            finder.clearAdaptiveData();
-            assertEquals(0, finder.probs().length);
-
-            String rawText = "Contact John Smith in New York at alice@example.com or 192.168.1.42.";
-            Span[] textSpans = finder.findInText(rawText);
-            assertTrue(Arrays.stream(textSpans).anyMatch(
-                    s -> "person".equals(s.getType())
-                            && "John Smith".equals(rawText.substring(s.getStart(), s.getEnd()))));
-            assertTrue(Arrays.stream(textSpans).anyMatch(
-                    s -> "location".equals(s.getType())
-                            && "New York".equals(rawText.substring(s.getStart(), s.getEnd()))));
-            assertTrue(Arrays.stream(textSpans).anyMatch(
-                    s -> "email".equals(s.getType())
-                            && "alice@example.com".equals(rawText.substring(s.getStart(), s.getEnd()))));
-        }
-    }
-
-    @Test
-    void utf16OffsetParityAcrossAsciiMultibyteCjkAndAstralEmojis() {
-        // 🚀 (U+1F680), 🦀 (U+1F980), 🧪 (U+1F9EA), 😀 (U+1F600): each is 4 UTF-8 bytes, 2 UTF-16 code units, 1 codepoint.
-        String text = "🚀 Café 東京 🦀 Dr. John Smith 🧪 visited São Paulo 😀 face and emailed dev@example.com!";
-        byte[] utf8Bytes = text.getBytes(StandardCharsets.UTF_8);
+    void defaultSentenceAndTokenViewsUseSourceRangesWithoutLabelsOrProbabilities() {
+        String text = "Hello 🚀 Café 東京! Dr. John Smith works.";
+        byte[] utf8 = text.getBytes(StandardCharsets.UTF_8);
 
         try (TurboAnalyzer analyzer = TurboAnalyzer.create();
-                TurboTokenizerME tokenizer = new TurboTokenizerME(analyzer);
-                TurboNameFinderME nameFinder = new TurboNameFinderME(analyzer)) {
+                TurboAnalysisResult sentences = analyzer.detectSentences(text);
+                TurboAnalysisResult tokens = analyzer.tokenize(text)) {
 
-            Span[] tokSpans = tokenizer.tokenizePos(text);
-            String[] tokStrings = tokenizer.tokenize(text);
-            assertEquals(tokSpans.length, tokStrings.length);
-            assertTrue(tokSpans.length >= 12);
-
-            for (int i = 0; i < tokSpans.length; i++) {
-                Span s = tokSpans[i];
-                String viaUtf16 = text.substring(s.getStart(), s.getEnd());
-                String viaByteSlice = new String(
-                        Arrays.copyOfRange(utf8Bytes, s.getByteStart(), s.getByteEnd()),
-                        StandardCharsets.UTF_8);
-                int cpCount = text.codePointCount(s.getStart(), s.getEnd());
-                assertEquals(tokStrings[i], viaUtf16, "UTF-16 substring mismatch at token " + i);
-                assertEquals(tokStrings[i], viaByteSlice, "UTF-8 byte slice mismatch at token " + i);
-                assertEquals(cpCount, s.getCodepointEnd() - s.getCodepointStart());
+            assertEquals(2, sentences.spanCount());
+            for (TurboSpanView sentence : sentences.spans(TurboLayerKind.SENTENCES)) {
+                assertEquals(TurboLayerKind.SENTENCES, sentence.layerKind());
+                assertEquals("opennlp:sentences", sentence.layer());
+                assertEquals("", sentence.instance());
+                assertTrue(sentence.label().isEmpty(), "covered sentence text must not masquerade as a label");
+                assertTrue(sentence.value().isEmpty());
+                assertTrue(sentence.probability().isEmpty(), "rule sentences must not invent a probability");
+                assertTrue(sentence.tokenRange().isEmpty());
+                assertEquals(sentence.viewRange(), sentence.sourceRange());
+                assertFalse(sentence.coveredSourceText(text).isEmpty());
             }
+            assertEquals("Hello 🚀 Café 東京!", sentences.span(0).coveredSourceText(text));
 
-            Span[] entities = nameFinder.findInText(text);
-            assertTrue(entities.length > 0);
-            for (Span entity : entities) {
-                String coveredUtf16 = text.substring(entity.getStart(), entity.getEnd());
-                String coveredUtf8 = new String(
-                        Arrays.copyOfRange(utf8Bytes, entity.getByteStart(), entity.getByteEnd()),
+            List<TurboSpanView> tokenViews = tokens.spans(TurboLayerKind.TOKENS);
+            assertFalse(tokenViews.isEmpty());
+            for (int i = 0; i < tokenViews.size(); i++) {
+                TurboSpanView token = tokenViews.get(i);
+                assertEquals(i, token.itemIndex());
+                assertEquals(0, token.fragmentIndex());
+                assertEquals(0, token.viewId());
+                assertTrue(token.label().isEmpty(), "covered token text must not masquerade as a label");
+                assertTrue(token.probability().isEmpty(), "rule tokens must not invent a probability");
+                assertEquals(new TurboSpanData.TokenRange(i, i + 1L), token.tokenRange().orElseThrow());
+
+                TurboSpanData.CoordinateRange source = token.sourceRange().orElseThrow();
+                String byUtf16 = token.coveredSourceText(text);
+                String byBytes = new String(
+                        Arrays.copyOfRange(utf8, Math.toIntExact(source.byteStart()), Math.toIntExact(source.byteEnd())),
                         StandardCharsets.UTF_8);
-                assertEquals(coveredUtf8, coveredUtf16);
+                assertEquals(byUtf16, byBytes);
+                assertEquals(
+                        text.codePointCount(
+                                Math.toIntExact(source.utf16Start()), Math.toIntExact(source.utf16End())),
+                        source.codepointEnd() - source.codepointStart());
             }
-            assertTrue(Arrays.stream(entities).anyMatch(
-                    s -> "John Smith".equals(text.substring(s.getStart(), s.getEnd()))));
-            assertTrue(Arrays.stream(entities).anyMatch(
-                    s -> "São Paulo".equals(text.substring(s.getStart(), s.getEnd()))));
-            assertTrue(Arrays.stream(entities).anyMatch(
-                    s -> "😀 face".equals(text.substring(s.getStart(), s.getEnd()))));
-            assertTrue(Arrays.stream(entities).anyMatch(
-                    s -> "dev@example.com".equals(text.substring(s.getStart(), s.getEnd()))));
+            assertEquals(
+                    tokenViews.stream().map(token -> token.coveredSourceText(text)).toList(),
+                    analyzer.tokenizeToStrings(text));
         }
     }
 
     @Test
-    void documentGraphWireExportAndInspectionRoundTrip() {
-        String text = "John Smith flew from New York to São Paulo 🚀. Email: test@example.com.";
+    void unconfiguredStatisticalTasksAreUnsupportedInsteadOfFallingBack() {
         try (TurboAnalyzer analyzer = TurboAnalyzer.create()) {
-            DocumentGraphBuffer exported = analyzer.analyzeGraph(text);
-            assertTrue(exported.hasValidMagic());
-            assertTrue(exported.byteLength() > 32);
-            assertFalse(exported.spans().isEmpty());
+            TurboException pos = assertThrows(
+                    TurboException.class, () -> analyzer.posTag(new String[] {"The", "rivers", "went"}));
+            assertUnsupported(pos);
 
-            DocumentGraphBuffer inspected = analyzer.inspectGraph(text, exported.wireBytes());
-            assertTrue(inspected.hasValidMagic());
-            assertEquals(exported.spans(), inspected.spans());
-            assertTrue(inspected.spans().stream().anyMatch(s -> "sentence".equals(s.label())));
-            assertTrue(inspected.spans().stream().anyMatch(s -> "person".equals(s.label())));
-            assertTrue(inspected.spans().stream().anyMatch(s -> "location".equals(s.label())));
+            TurboException lemma = assertThrows(
+                    TurboException.class,
+                    () -> analyzer.lemmatize(new String[] {"went"}, new String[] {"VERB"}));
+            assertUnsupported(lemma);
 
-            for (TurboSpan span : inspected.spans()) {
-                String sub = span.coveredText(text);
-                assertFalse(sub.isEmpty());
+            TurboException nerTokens = assertThrows(
+                    TurboException.class,
+                    () -> analyzer.findTokens(new String[] {"John", "Smith", "visited", "New", "York"}));
+            assertUnsupported(nerTokens);
+
+            TurboException nerText = assertThrows(
+                    TurboException.class,
+                    () -> analyzer.findText("John Smith visited New York and emailed alice@example.com."));
+            assertUnsupported(nerText);
+        }
+    }
+
+    @Test
+    void emptyInputsAndJavaArgumentValidationDoNotCallFallbacks() {
+        try (TurboAnalyzer analyzer = TurboAnalyzer.create()) {
+            try (TurboAnalysisResult sentences = analyzer.detectSentences("");
+                    TurboAnalysisResult tokens = analyzer.tokenize("");
+                    TurboAnalysisResult pos = analyzer.posTag(new String[0]);
+                    TurboAnalysisResult lemmas = analyzer.lemmatize(new String[0], new String[0]);
+                    TurboAnalysisResult entities = analyzer.findTokens(new String[0]);
+                    TurboAnalysisResult pii = analyzer.detectPii("")) {
+                assertEquals(0, sentences.spanCount());
+                assertEquals(0, tokens.spanCount());
+                assertEquals(0, pos.spanCount());
+                assertEquals(0, lemmas.spanCount());
+                assertEquals(0, entities.spanCount());
+                assertEquals(0, pii.spanCount());
             }
 
-            // Corrupted wire bytes must raise TurboException with TURBO_E_INVALID_ARGUMENT
-            byte[] badBytes = new byte[] {1, 2, 3, 4, 5};
+            assertThrows(NullPointerException.class, () -> analyzer.detectSentences(null));
+            assertThrows(NullPointerException.class, () -> analyzer.posTag(new String[] {"ok", null}));
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> analyzer.lemmatize(new String[] {"went"}, new String[] {"VERB", "NOUN"}));
+            assertThrows(IndexOutOfBoundsException.class, () -> analyzer.inspectGraph(new byte[4], 3, 2));
+        }
+    }
+
+    @Test
+    void piiIsSeparateTypedLayerWithNormalizedValue() {
+        String text = "Email alice@example.com from 192.168.1.42.";
+        try (TurboAnalyzer analyzer = TurboAnalyzer.create();
+                TurboAnalysisResult result = analyzer.detectPii(text)) {
+            List<TurboSpanView> rows = result.spans();
+            assertFalse(rows.isEmpty());
+            assertTrue(rows.stream().allMatch(row -> row.layerKind() == TurboLayerKind.PII));
+            TurboSpanView email = rows.stream()
+                    .filter(row -> row.label().orElse("").equals("email"))
+                    .findFirst()
+                    .orElseThrow();
+            assertEquals("alice@example.com", email.coveredSourceText(text));
+            assertEquals("alice@example.com", email.value().orElseThrow());
+            assertEquals(TurboPiiConfidence.FORMAT, email.piiConfidence().orElseThrow());
+            assertTrue(email.probability().isEmpty(), "PII evidence classification is not a probability");
+        }
+    }
+
+    @Test
+    void graphRoundTripUsesStoredSourceAndOnlyConfiguredLayers() {
+        String text = "John Smith flew to São Paulo 🚀. Email: test@example.com.";
+        byte[] exportedBytes;
+        List<TurboSpanData> exportedSpans;
+
+        try (TurboAnalyzer analyzer = TurboAnalyzer.create();
+                TurboAnalysisResult exported = analyzer.analyzeGraph(text)) {
+            assertTrue(exported.hasGraph());
+            assertTrue(exported.hasGraphMagic());
+            assertTrue(exported.graphByteLength() > 32);
+            exportedBytes = exported.copyGraphBytes();
+            exportedSpans = exported.copySpans();
+            assertEquals("TGRF", new String(exportedBytes, 0, 4, StandardCharsets.US_ASCII));
+
+            Set<TurboLayerKind> kinds = EnumSet.noneOf(TurboLayerKind.class);
+            for (TurboSpanData span : exportedSpans) {
+                kinds.add(span.layerKind());
+                assertFalse(span.coveredSourceText(text).isEmpty());
+            }
+            assertEquals(
+                    EnumSet.of(TurboLayerKind.SENTENCES, TurboLayerKind.TOKENS, TurboLayerKind.PII),
+                    kinds,
+                    "unconfigured POS, lemma, and NER layers must be absent, not fabricated");
+        }
+
+        try (TurboAnalyzer otherAnalyzer = TurboAnalyzer.create();
+                TurboAnalysisResult inspected = otherAnalyzer.inspectGraph(exportedBytes)) {
+            assertTrue(inspected.hasGraphMagic());
+            assertArrayEquals(exportedBytes, inspected.copyGraphBytes());
+            assertEquals(exportedSpans, inspected.copySpans());
+        }
+
+        try (TurboAnalyzer analyzer = TurboAnalyzer.create()) {
             TurboException ex = assertThrows(
-                    TurboException.class, () -> analyzer.inspectGraph(text, badBytes));
+                    TurboException.class, () -> analyzer.inspectGraph(new byte[] {1, 2, 3, 4, 5}));
             assertEquals(TurboLibrary.TURBO_E_INVALID_ARGUMENT, ex.code());
         }
     }
 
-    @Test
-    void turboSessionEmbedsTinyBertBundleAndChecksLifecycle() {
-        Path bundle = repoRoot().resolve("testdata/tiny-bert-bundle");
-        try (TurboSession session = TurboSession.open(bundle)) {
-            float[][] vectors = session.embed(List.of("hello world", "panama foreign function memory"));
-            assertEquals(2, vectors.length);
-            assertTrue(vectors[0].length > 0);
-            assertEquals(vectors[0].length, vectors[1].length);
-
-            // Rerank on an embed-only model must surface TURBO_E_UNSUPPORTED_TASK cleanly
-            TurboException unsupported = assertThrows(
-                    TurboException.class,
-                    () -> session.rerank("query", List.of("passage one")));
-            assertEquals("TURBO_E_UNSUPPORTED_TASK", unsupported.statusName());
-        }
-
-        TurboAnalyzer analyzer = TurboAnalyzer.create();
-        analyzer.close();
-        // Idempotent second close() must be a safe no-op
-        analyzer.close();
-        assertThrows(IllegalStateException.class, () -> analyzer.tokenize("after close"));
+    private static void assertUnsupported(TurboException ex) {
+        assertEquals(TurboLibrary.TURBO_E_UNSUPPORTED_TASK, ex.code());
+        assertEquals("TURBO_E_UNSUPPORTED_TASK", ex.statusName());
     }
 }

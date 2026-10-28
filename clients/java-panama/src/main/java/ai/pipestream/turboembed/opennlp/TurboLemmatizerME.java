@@ -1,34 +1,20 @@
 package ai.pipestream.turboembed.opennlp;
 
+import ai.pipestream.turboembed.panama.TurboAnalysisResult;
 import ai.pipestream.turboembed.panama.TurboAnalyzer;
-import ai.pipestream.turboembed.panama.TurboSpan;
+import ai.pipestream.turboembed.panama.TurboLayerKind;
+import ai.pipestream.turboembed.panama.TurboSpanView;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 
 /**
- * Drop-in Apache OpenNLP {@code LemmatizerME} / {@code DictionaryLemmatizer} adapter backed
- * in-process by {@code libturbo} via Panama FFM.
+ * OpenNLP-style lemmatizer backed only by a configured dictionary or statistical model.
+ * A miss returns {@code null}; there is deliberately no no-model constructor or fallback form.
  */
-public final class TurboLemmatizerME implements Lemmatizer, AutoCloseable {
-    private final TurboAnalyzer analyzer;
-    private final boolean ownsAnalyzer;
-    private double[] lastProbs = new double[0];
+public final class TurboLemmatizerME extends TurboAdapterSupport implements Lemmatizer, AutoCloseable {
 
-    /**
-     * Creates a lemmatizer using the built-in {@code libturbo} dictionary and statistical
-     * lemmatizer.
-     */
-    public TurboLemmatizerME() {
-        this(TurboAnalyzer.create(), true);
-    }
-
-    /**
-     * Creates a lemmatizer using an OpenNLP {@code LemmatizerModel} {@code .bin} or dictionary
-     * file.
-     *
-     * @param modelPath path to the {@code .bin} model or dictionary file
-     */
+    /** Creates a lemmatizer using an OpenNLP lemmatizer {@code .bin} model or dictionary file. */
     public TurboLemmatizerME(Path modelPath) {
         this(
                 TurboAnalyzer.create(new TurboAnalyzer.Config(
@@ -36,51 +22,40 @@ public final class TurboLemmatizerME implements Lemmatizer, AutoCloseable {
                 true);
     }
 
-    /**
-     * Creates a lemmatizer sharing an existing {@link TurboAnalyzer} without taking ownership of
-     * its lifecycle.
-     *
-     * @param analyzer shared analyzer instance
-     */
+    /** Creates a lemmatizer sharing an analyzer without owning its lifecycle. */
     public TurboLemmatizerME(TurboAnalyzer analyzer) {
-        this(Objects.requireNonNull(analyzer, "analyzer"), false);
+        this(analyzer, false);
     }
 
     private TurboLemmatizerME(TurboAnalyzer analyzer, boolean ownsAnalyzer) {
-        this.analyzer = analyzer;
-        this.ownsAnalyzer = ownsAnalyzer;
+        super(analyzer, ownsAnalyzer);
     }
 
     @Override
-    public String[] lemmatize(String[] toks, String[] tags) {
+    public synchronized String[] lemmatize(String[] toks, String[] tags) {
         Objects.requireNonNull(toks, "toks");
         Objects.requireNonNull(tags, "tags");
-        List<TurboSpan> spans = analyzer.lemmatize(toks, tags);
-        String[] lemmas = new String[spans.size()];
-        double[] probs = new double[spans.size()];
-        for (int i = 0; i < spans.size(); i++) {
-            TurboSpan sp = spans.get(i);
-            lemmas[i] = sp.label();
-            probs[i] = sp.prob();
+        try (TurboAnalysisResult result = analyzer().lemmatize(toks, tags)) {
+            List<TurboSpanView> rows = result.spans(TurboLayerKind.LEMMAS);
+            TurboPOSTaggerME.requireAlignedRows(rows, toks.length, "lemmatizer");
+            String[] lemmas = new String[rows.size()];
+            double[] probs = new double[rows.size()];
+            for (int i = 0; i < rows.size(); i++) {
+                lemmas[i] = rows.get(i).label().orElse(null);
+                probs[i] = probabilityOrNaN(rows.get(i));
+            }
+            rememberProbs(probs);
+            return lemmas;
         }
-        this.lastProbs = probs;
-        return lemmas;
     }
 
-    /**
-     * Returns the probabilities associated with the most recent
-     * {@link #lemmatize(String[], String[])} call.
-     *
-     * @return lemma probability array
-     */
-    public double[] probs() {
-        return lastProbs.clone();
+    /** Returns probabilities from the most recent call on this adapter; absent values are NaN. */
+    public synchronized double[] probs() {
+        return copyProbs();
     }
 
     @Override
-    public void close() {
-        if (ownsAnalyzer) {
-            analyzer.close();
-        }
+    public synchronized void close() {
+        closeAdapter();
     }
 }

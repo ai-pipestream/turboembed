@@ -1951,7 +1951,6 @@ dependencies = [
  "turbo-goldens",
  "turbo-lemmatizer",
  "turbo-maxent",
- "turbo-namefind",
  "turbo-pii",
  "turbo-sentdetect",
  "turbo-sequence",

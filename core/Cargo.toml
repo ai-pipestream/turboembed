@@ -23,7 +23,6 @@ turbo-analysis-layers = { path = "../analysis/layers" }
 turbo-sentdetect = { path = "../analysis/sentdetect" }
 turbo-tokenize = { path = "../analysis/tokenize" }
 turbo-lemmatizer = { path = "../analysis/lemmatizer" }
-turbo-namefind = { path = "../analysis/namefind" }
 turbo-pii = { path = "../analysis/pii" }
 turbo-geo = { path = "../analysis/geo" }
 turbo-sequence = { path = "../analysis/sequence" }

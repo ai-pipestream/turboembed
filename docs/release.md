@@ -30,7 +30,7 @@ each with its SHA-256:
 The generator pins live in `clients/java/pom.xml` (`protobuf.version`,
 `grpc.version`) and `scripts/package-proto-stubs.sh` (the Python pins). The
 in-process Java 22+ Panama Foreign Function and Memory (FFM) bindings over
-`include/turbo/turbo.h` and its Apache OpenNLP drop-in adapters live in
+`include/turbo/turbo.h` and its OpenNLP-style adapters live in
 `clients/java-panama/pom.xml` (`ai.pipestream:turboembed-panama:<version>`,
 requiring Java 22 or newer with `--enable-native-access=ALL-UNNAMED` and the
 platform's `libturbo` shared library from the binary archive). The

@@ -1,7 +1,8 @@
 package ai.pipestream.turboembed.opennlp;
 
 /**
- * Drop-in Apache OpenNLP {@code opennlp.tools.tokenize.Tokenizer} interface.
+ * OpenNLP-style tokenizer interface in this project's namespace.
+ * This is not {@code opennlp.tools.tokenize.Tokenizer}.
  */
 public interface Tokenizer {
     /**
@@ -13,7 +14,8 @@ public interface Tokenizer {
     String[] tokenize(String s);
 
     /**
-     * Finds the boundaries of atomic tokens in a string as UTF-16 code-unit {@link Span}s.
+     * Finds atomic token boundaries as source UTF-16 {@link Span}s with corresponding token
+     * and source byte/codepoint ranges.
      *
      * @param s input string to tokenize
      * @return array of token spans

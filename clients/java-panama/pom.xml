@@ -9,7 +9,7 @@
   <version>0.1.0</version>
   <packaging>jar</packaging>
   <name>turboembed-panama</name>
-  <description>In-process Java 22+ Panama Foreign Function and Memory (FFM) binding over libturbo C ABI with OpenNLP drop-in adapters.</description>
+  <description>In-process Java 22+ Panama Foreign Function and Memory (FFM) binding over libturbo C ABI with OpenNLP-style adapters.</description>
 
   <licenses>
     <license>

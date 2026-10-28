@@ -62,10 +62,17 @@ fn analyzer_pipeline_and_utf16_emoji_offsets_round_trip() {
         assert_eq!(turbo_analyzer_detect_sentences(analyzer, t(text), &mut sent_res, &mut err), status::OK);
         let (sent_spans, sent_labels) = read_spans(sent_res);
         assert_eq!(sent_spans.len(), 2);
-        for (sp, label) in sent_spans.iter().zip(&sent_labels) {
-            assert_eq!(&text[sp.byte_start as usize..sp.byte_end as usize], label);
-            let from_utf16 = String::from_utf16(&utf16_units[sp.utf16_start as usize..sp.utf16_end as usize]).unwrap();
-            assert_eq!(&from_utf16, label);
+        assert!(sent_labels.iter().all(String::is_empty), "covered text is not copied as a label");
+        for sp in &sent_spans {
+            assert_eq!(sp.layer_kind, TURBO_ANALYSIS_LAYER_SENTENCES);
+            assert_eq!(sp.flags, TURBO_SPAN_VIEW_RANGE | TURBO_SPAN_SOURCE_RANGE);
+            assert!(sp.prob.is_nan());
+            let covered = &text[sp.source_byte_start as usize..sp.source_byte_end as usize];
+            let from_utf16 =
+                String::from_utf16(&utf16_units[sp.source_utf16_start as usize..sp.source_utf16_end as usize]).unwrap();
+            assert_eq!(covered, from_utf16);
+            assert_eq!(sp.view_byte_start, sp.source_byte_start);
+            assert_eq!(sp.view_byte_end, sp.source_byte_end);
         }
         turbo_analysis_result_release(sent_res);
 
@@ -73,29 +80,32 @@ fn analyzer_pipeline_and_utf16_emoji_offsets_round_trip() {
         let mut tok_res: *mut turbo_analysis_result = std::ptr::null_mut();
         assert_eq!(turbo_analyzer_tokenize(analyzer, t(text), &mut tok_res, &mut err), status::OK);
         let (tok_spans, tok_labels) = read_spans(tok_res);
-        assert!(tok_labels.iter().any(|l| l == "Café"));
-        assert!(tok_labels.iter().any(|l| l == "John"));
-        for (sp, label) in tok_spans.iter().zip(&tok_labels) {
-            assert_eq!(&text[sp.byte_start as usize..sp.byte_end as usize], label);
-            let from_utf16 = String::from_utf16(&utf16_units[sp.utf16_start as usize..sp.utf16_end as usize]).unwrap();
-            assert_eq!(&from_utf16, label);
+        assert!(tok_labels.iter().all(String::is_empty), "covered text is not copied as a label");
+        let covered: Vec<&str> =
+            tok_spans.iter().map(|sp| &text[sp.source_byte_start as usize..sp.source_byte_end as usize]).collect();
+        assert!(covered.iter().any(|l| l == &"Café"));
+        assert!(covered.iter().any(|l| l == &"John"));
+        for (idx, sp) in tok_spans.iter().enumerate() {
+            assert_eq!(sp.layer_kind, TURBO_ANALYSIS_LAYER_TOKENS);
+            assert_eq!(sp.item_index, idx as u32);
+            assert_eq!((sp.token_start, sp.token_end), (idx as u32, idx as u32 + 1));
+            let from_utf16 =
+                String::from_utf16(&utf16_units[sp.source_utf16_start as usize..sp.source_utf16_end as usize]).unwrap();
+            assert_eq!(covered[idx], from_utf16);
         }
         turbo_analysis_result_release(tok_res);
 
-        // 3. POS tagging & lemmatization
+        // 3. Unconfigured models are unsupported, and stale outputs are cleared.
         let words = [t("The"), t("rivers"), t("went"), t("fast")];
-        let mut pos_res: *mut turbo_analysis_result = std::ptr::null_mut();
+        let mut pos_res: *mut turbo_analysis_result = std::ptr::dangling_mut();
         assert_eq!(
             turbo_analyzer_pos_tag(analyzer, words.as_ptr(), words.len() as u32, &mut pos_res, &mut err),
-            status::OK
+            status::UNSUPPORTED_TASK
         );
-        let (pos_spans, pos_labels) = read_spans(pos_res);
-        assert_eq!(pos_spans.len(), 4);
-        assert!(pos_spans.iter().all(|s| s.prob > 0.0));
-        turbo_analysis_result_release(pos_res);
+        assert!(pos_res.is_null(), "stale result pointer survives an unsupported call");
 
         let tags = [t("DET"), t("NOUN"), t("VERB"), t("ADV")];
-        let mut lemma_res: *mut turbo_analysis_result = std::ptr::null_mut();
+        let mut lemma_res: *mut turbo_analysis_result = std::ptr::dangling_mut();
         assert_eq!(
             turbo_analyzer_lemmatize(
                 analyzer,
@@ -105,44 +115,32 @@ fn analyzer_pipeline_and_utf16_emoji_offsets_round_trip() {
                 &mut lemma_res,
                 &mut err,
             ),
-            status::OK
+            status::UNSUPPORTED_TASK
         );
-        let (_, lemma_labels) = read_spans(lemma_res);
-        assert_eq!(lemma_labels[0], "the");
-        assert_eq!(lemma_labels[1], "river");
-        assert_eq!(lemma_labels[2], "go");
-        let _ = pos_labels;
-        turbo_analysis_result_release(lemma_res);
+        assert!(lemma_res.is_null());
 
-        // 4. Token-level and text-level NER / PII finding
+        // 4. Unconfigured NER never degrades into dictionary or pattern output;
+        // PII remains available but only through its separate entry point and layer.
         let ner_tokens = [t("John"), t("Smith"), t("visited"), t("New"), t("York")];
-        let mut ner_res: *mut turbo_analysis_result = std::ptr::null_mut();
+        let mut ner_res: *mut turbo_analysis_result = std::ptr::dangling_mut();
         assert_eq!(
             turbo_analyzer_find_tokens(analyzer, ner_tokens.as_ptr(), ner_tokens.len() as u32, &mut ner_res, &mut err),
-            status::OK
+            status::UNSUPPORTED_TASK
         );
-        let (ner_spans, ner_labels) = read_spans(ner_res);
-        assert!(
-            ner_spans.iter().zip(&ner_labels).any(|(s, l)| s.token_start == 0 && s.token_end == 2 && l == "person")
-        );
-        assert!(
-            ner_spans.iter().zip(&ner_labels).any(|(s, l)| s.token_start == 3 && s.token_end == 5 && l == "location")
-        );
-        turbo_analysis_result_release(ner_res);
+        assert!(ner_res.is_null());
+        let mut text_ner_res: *mut turbo_analysis_result = std::ptr::dangling_mut();
+        assert_eq!(turbo_analyzer_find_text(analyzer, t(text), &mut text_ner_res, &mut err), status::UNSUPPORTED_TASK);
+        assert!(text_ner_res.is_null());
 
-        let mut text_ner_res: *mut turbo_analysis_result = std::ptr::null_mut();
-        assert_eq!(turbo_analyzer_find_text(analyzer, t(text), &mut text_ner_res, &mut err), status::OK);
-        let (text_ner_spans, text_ner_labels) = read_spans(text_ner_res);
-        assert!(text_ner_labels.iter().any(|l| l == "person"));
-        assert!(text_ner_labels.iter().any(|l| l == "location"));
-        assert!(text_ner_labels.iter().any(|l| l == "email"));
-        for sp in &text_ner_spans {
-            let covered_utf8 = &text[sp.byte_start as usize..sp.byte_end as usize];
-            let covered_utf16 =
-                String::from_utf16(&utf16_units[sp.utf16_start as usize..sp.utf16_end as usize]).unwrap();
-            assert_eq!(covered_utf8, covered_utf16);
-        }
-        turbo_analysis_result_release(text_ner_res);
+        let mut pii_res: *mut turbo_analysis_result = std::ptr::null_mut();
+        assert_eq!(turbo_analyzer_detect_pii(analyzer, t(text), &mut pii_res, &mut err), status::OK);
+        let (pii_spans, pii_labels) = read_spans(pii_res);
+        assert!(pii_spans.iter().all(|s| s.layer_kind == TURBO_ANALYSIS_LAYER_PII));
+        assert!(pii_labels.iter().any(|l| l == "email"));
+        assert!(pii_spans.iter().zip(&pii_labels).any(|(s, l)| {
+            l == "email" && &text[s.source_byte_start as usize..s.source_byte_end as usize] == "alice@example.com"
+        }));
+        turbo_analysis_result_release(pii_res);
 
         // 5. Full binary DocumentGraph ("TGRF") export and inspection
         let mut graph_res: *mut turbo_analysis_result = std::ptr::null_mut();
@@ -156,12 +154,14 @@ fn analyzer_pipeline_and_utf16_emoji_offsets_round_trip() {
 
         let mut inspect_res: *mut turbo_analysis_result = std::ptr::null_mut();
         assert_eq!(
-            turbo_analyzer_inspect_graph(analyzer, t(text), graph_ptr, graph_len, &mut inspect_res, &mut err),
+            turbo_analyzer_inspect_graph(analyzer, graph_ptr, graph_len, &mut inspect_res, &mut err),
             status::OK
         );
         let (inspect_spans, inspect_labels) = read_spans(inspect_res);
         assert!(!inspect_spans.is_empty());
-        assert!(inspect_labels.iter().any(|l| l == "sentence"));
+        assert!(inspect_spans.iter().any(|s| s.layer_kind == TURBO_ANALYSIS_LAYER_SENTENCES));
+        assert!(inspect_spans.iter().any(|s| s.layer_kind == TURBO_ANALYSIS_LAYER_TOKENS));
+        assert!(inspect_labels.iter().any(|l| l == "email"));
         turbo_analysis_result_release(inspect_res);
         turbo_analysis_result_release(graph_res);
 
@@ -189,4 +189,104 @@ fn last_error_message_tracks_thread_local_status() {
         assert_eq!(cleared, "");
         turbo_analyzer_release(out);
     }
+}
+
+#[test]
+fn retained_handles_remain_usable_and_null_accessors_clear_stale_outputs() {
+    unsafe {
+        let mut err = new_err();
+        let mut analyzer: *mut turbo_analyzer = std::ptr::null_mut();
+        assert_eq!(turbo_analyzer_create(std::ptr::null(), &mut analyzer, &mut err), status::OK);
+        assert!(analyzer == turbo_analyzer_retain(analyzer));
+        turbo_analyzer_release(analyzer);
+
+        let mut result: *mut turbo_analysis_result = std::ptr::null_mut();
+        assert_eq!(turbo_analyzer_tokenize(analyzer, t("Retain me."), &mut result, &mut err), status::OK);
+        assert!(result == turbo_analysis_result_retain(result));
+        turbo_analysis_result_release(result);
+        let (spans, _) = read_spans(result);
+        assert_eq!(spans.len(), 3);
+        turbo_analysis_result_release(result);
+        turbo_analyzer_release(analyzer);
+
+        assert!(turbo_analyzer_retain(std::ptr::null_mut()).is_null());
+        assert!(turbo_analysis_result_retain(std::ptr::null_mut()).is_null());
+        let mut spans_ptr: *const turbo_span = std::ptr::dangling();
+        let mut count = 77u32;
+        assert_eq!(
+            turbo_analysis_result_spans(std::ptr::null(), &mut spans_ptr, &mut count, &mut err),
+            status::INVALID_HANDLE
+        );
+        assert!(spans_ptr.is_null() && count == 0);
+
+        let mut pool_ptr: *const std::ffi::c_char = std::ptr::dangling();
+        let mut pool_len = 77u64;
+        assert_eq!(
+            turbo_analysis_result_strings(std::ptr::null(), &mut pool_ptr, &mut pool_len, &mut err),
+            status::INVALID_HANDLE
+        );
+        assert!(pool_ptr.is_null() && pool_len == 0);
+
+        let mut graph_ptr: *const u8 = std::ptr::dangling();
+        let mut graph_len = 77u64;
+        assert_eq!(
+            turbo_analysis_result_graph(std::ptr::null(), &mut graph_ptr, &mut graph_len, &mut err),
+            status::INVALID_HANDLE
+        );
+        assert!(graph_ptr.is_null() && graph_len == 0);
+    }
+}
+
+#[test]
+fn configured_dictionary_lemmas_are_exact_and_a_miss_has_no_value() {
+    let mut path = std::env::temp_dir();
+    path.push(format!("turbo-abi-lemma-{}.tsv", std::process::id()));
+    std::fs::write(
+        &path,
+        "went\tVERB\twalk\nwent\tVERB\tgo\textra\tfields\nthe\tDET\tcanonical-the\nThe\tDET\tunreachable\n",
+    )
+    .unwrap();
+    let path_text = path.to_str().unwrap().to_owned();
+
+    unsafe {
+        let mut desc: turbo_analyzer_desc = std::mem::zeroed();
+        desc.struct_size = size_of::<turbo_analyzer_desc>() as u32;
+        desc.lemma_model_path = t(&path_text);
+        let mut analyzer: *mut turbo_analyzer = std::ptr::null_mut();
+        let mut err = new_err();
+        assert_eq!(turbo_analyzer_create(&desc, &mut analyzer, &mut err), status::OK);
+
+        let words = [t("went"), t("The"), t("zorped")];
+        let tags = [t("VERB"), t("DET"), t("NOUN")];
+        let mut result: *mut turbo_analysis_result = std::ptr::null_mut();
+        assert_eq!(
+            turbo_analyzer_lemmatize(analyzer, words.as_ptr(), tags.as_ptr(), 3, &mut result, &mut err),
+            status::OK
+        );
+        let (spans, labels) = read_spans(result);
+        assert_eq!(labels, ["go", "canonical-the", ""]);
+        assert_ne!(spans[0].flags & TURBO_SPAN_LABEL, 0);
+        assert_eq!(spans[2].flags & TURBO_SPAN_LABEL, 0, "a dictionary miss gets no synthetic label");
+
+        let mut pool_ptr: *const std::ffi::c_char = std::ptr::null();
+        let mut pool_len: u64 = 0;
+        assert_eq!(turbo_analysis_result_strings(result, &mut pool_ptr, &mut pool_len, &mut err), status::OK);
+        let pool = std::slice::from_raw_parts(pool_ptr.cast::<u8>(), pool_len as usize);
+        let values: Vec<Option<&str>> = spans
+            .iter()
+            .map(|span| {
+                if span.flags & TURBO_SPAN_VALUE == 0 {
+                    None
+                } else {
+                    let start = span.value_offset as usize;
+                    Some(std::str::from_utf8(&pool[start..start + span.value_len as usize]).unwrap())
+                }
+            })
+            .collect();
+        assert_eq!(values, [None, None, None], "lemmas use label; value is reserved for normalized payloads");
+        assert!(spans.iter().all(|span| span.flags & TURBO_SPAN_TOKEN_RANGE != 0));
+        turbo_analysis_result_release(result);
+        turbo_analyzer_release(analyzer);
+    }
+    std::fs::remove_file(path).unwrap();
 }

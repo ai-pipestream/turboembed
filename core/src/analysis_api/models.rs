@@ -1,9 +1,12 @@
-//! Statistical POS and NER helpers and built-in lexical defaults for the
-//! in-process analysis engine.
+//! Statistical POS and NER helpers for the in-process analysis engine.
+//!
+//! This module has no lexical defaults. A prediction comes from the
+//! explicitly configured statistical model or is reported as unknown.
 
 use std::path::Path;
 use std::sync::Arc;
 
+use turbo_analysis::TagSet;
 use turbo_maxent::{MaxentModel, ModelFile};
 use turbo_sequence::namefind::{
     DEFAULT_BEAM_SIZE as NER_DEFAULT_BEAM, DefaultNameContext, MODEL_ENTRY_NAME as NER_MODEL_ENTRY, NameCodec,
@@ -11,119 +14,22 @@ use turbo_sequence::namefind::{
 };
 use turbo_sequence::postag::{
     DEFAULT_BEAM_SIZE as POS_DEFAULT_BEAM, DEFAULT_TAG_FORMAT, MODEL_ENTRY_NAME as POS_MODEL_ENTRY, PosContext,
-    PosValidator, TagDictionary, TagFormatMapper,
+    PosTagFormat, PosValidator, TagDictionary, TagFormatMapper,
 };
 use turbo_sequence::{BeamSearch, PatternMode, manifest_beam_size};
 
 use crate::status::{BUNDLE_INVALID, BUNDLE_NOT_FOUND, Error, Result};
 
-pub(super) const DEFAULT_LEMMA_DICT: &[u8] = b"\
-the\tDET\tthe
-a\tDET\ta
-an\tDET\tan
-is\tAUX\tbe
-is\tVERB\tbe
-was\tAUX\tbe
-are\tAUX\tbe
-were\tAUX\tbe
-have\tVERB\thave
-have\tAUX\thave
-has\tAUX\thave
-had\tAUX\thave
-went\tVERB\tgo
-wrote\tVERB\twrite
-read\tVERB\tread
-read\tNOUN\treading
-worked\tVERB\twork
-workers\tNOUN\tworker
-rivers\tNOUN\triver
-valleys\tNOUN\tvalley
-plains\tNOUN\tplain
-farms\tNOUN\tfarm
-dams\tNOUN\tdam
-ideas\tNOUN\tidea
-patients\tNOUN\tpatient
-years\tNOUN\tyear
-moved\tVERB\tmove
-opened\tVERB\topen
-closed\tVERB\tclose
-relied\tVERB\trely
-held\tVERB\thold
-brings\tVERB\tbring
-stops\tVERB\tstop
-sees\tVERB\tsee
-carve\tVERB\tcarve
-flew\tVERB\tfly
-visited\tVERB\tvisit
-emailed\tVERB\temail
-The\tDET\tthe
-U.S.\tPROPN\tU.S.
-u.s.\tPROPN\tUnited States
-mathematicians\tNOUN\tmathematician
-sets\tNOUN\tset
-";
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct PosOutcome {
+    pub(super) tag: Option<String>,
+    pub(super) prob: Option<f64>,
+}
 
-pub(super) const DEFAULT_PEOPLE_XML: &[u8] = br#"<?xml version="1.0" encoding="UTF-8"?>
-<dictionary case_sensitive="true">
-  <entry><token>John</token><token>Smith</token></entry>
-  <entry><token>john</token><token>smith</token></entry>
-  <entry><token>Smith</token></entry>
-  <entry><token>Dr.</token><token>Who</token></entry>
-  <entry><token>JOHN</token></entry>
-</dictionary>
-"#;
-
-pub(super) const DEFAULT_PLACES_XML: &[u8] = r#"<?xml version="1.0" encoding="UTF-8"?>
-<dictionary case_sensitive="false">
-  <entry><token>New</token><token>York</token></entry>
-  <entry><token>New</token><token>York</token><token>City</token></entry>
-  <entry><token>York</token><token>City</token><token>Hall</token></entry>
-  <entry><token>City</token></entry>
-  <entry><token>San</token><token>Francisco</token></entry>
-  <entry><token>São</token><token>Paulo</token></entry>
-  <entry><token>İstanbul</token></entry>
-  <entry><token>strasse</token></entry>
-  <entry><token>K</token></entry>
-  <entry><token>😀</token><token>face</token></entry>
-</dictionary>
-"#
-.as_bytes();
-
-pub(super) fn default_tag_tokens(tokens: &[&str]) -> Vec<(String, f64)> {
-    tokens
-        .iter()
-        .enumerate()
-        .map(|(idx, &tok)| {
-            let lower = tok.to_ascii_lowercase();
-            let tag = if tok.chars().all(|c| c.is_ascii_punctuation()) {
-                "PUNCT"
-            } else if matches!(lower.as_str(), "the" | "a" | "an" | "this" | "that" | "these" | "those") {
-                "DET"
-            } else if matches!(lower.as_str(), "is" | "are" | "was" | "were" | "be" | "been" | "have" | "has" | "had") {
-                "AUX"
-            } else if matches!(lower.as_str(), "in" | "on" | "at" | "to" | "from" | "with" | "by" | "for" | "of") {
-                "ADP"
-            } else if matches!(lower.as_str(), "and" | "or" | "but") {
-                "CCONJ"
-            } else if matches!(lower.as_str(), "he" | "she" | "it" | "they" | "we" | "i" | "you") {
-                "PRON"
-            } else if matches!(lower.as_str(), "went" | "visited" | "flew" | "works" | "emailed" | "ran" | "wrote")
-                || lower.ends_with("ed")
-                || lower.ends_with("ing")
-            {
-                "VERB"
-            } else if matches!(lower.as_str(), "fast" | "quickly" | "yesterday" | "always" | "never")
-                || lower.ends_with("ly")
-            {
-                "ADV"
-            } else if idx > 0 && tok.chars().next().is_some_and(char::is_uppercase) {
-                "PROPN"
-            } else {
-                "NOUN"
-            };
-            (tag.to_owned(), 1.0)
-        })
-        .collect()
+impl PosOutcome {
+    fn unknown() -> Self {
+        Self { tag: None, prob: None }
+    }
 }
 
 pub(super) fn read_model_file(path: &str, what: &str) -> Result<ModelFile> {
@@ -134,16 +40,40 @@ pub(super) fn read_model_file(path: &str, what: &str) -> Result<ModelFile> {
     ModelFile::read(p).map_err(|e| Error::new(BUNDLE_INVALID, format!("{what} ({path}): {e}")))
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(super) struct LemmaOutcome {
+    pub(super) lemma: Option<String>,
+    pub(super) prob: Option<f64>,
+}
+
+impl LemmaOutcome {
+    pub(super) fn unknown() -> Self {
+        Self { lemma: None, prob: None }
+    }
+}
+
 pub(super) struct PosEngine {
     file: ModelFile,
     maxent: MaxentModel,
     beam_size: usize,
     dictionary: Option<Arc<TagDictionary>>,
     mapper: Option<TagFormatMapper>,
+    tagset: Arc<TagSet>,
 }
 
 impl PosEngine {
     pub(super) fn open(file: ModelFile) -> Result<Self> {
+        if file.component_name() != "POSTaggerME" {
+            return Err(Error::new(
+                BUNDLE_INVALID,
+                format!("POS model component is {}, expected POSTaggerME", file.component_name()),
+            ));
+        }
+        if let Some(factory) = file.manifest().get("factory")
+            && factory != "opennlp.tools.postag.POSTaggerFactory"
+        {
+            return Err(Error::new(BUNDLE_INVALID, format!("POS model factory is {factory}")));
+        }
         let maxent =
             file.maxent(POS_MODEL_ENTRY).map_err(|e| Error::new(BUNDLE_INVALID, format!("POS model entry: {e}")))?;
         if maxent.num_outcomes() == 0 {
@@ -160,14 +90,35 @@ impl PosEngine {
         let dictionary = TagDictionary::for_model(&file)
             .map_err(|e| Error::new(BUNDLE_INVALID, format!("POS tag dictionary: {e}")))?
             .map(Arc::new);
+        let guessed = TagFormatMapper::guess(outcomes.iter().copied()).guessed_format();
         let mapper = TagFormatMapper::for_tagger(DEFAULT_TAG_FORMAT, outcomes.iter().copied());
+        let mut labels: Vec<&str> = Vec::with_capacity(outcomes.len());
+        for &outcome in &outcomes {
+            let label = mapper.map_or(outcome, |mapper| mapper.convert_tag(outcome));
+            if !labels.contains(&label) {
+                labels.push(label);
+            }
+        }
+        let tag_format = match mapper {
+            None => guessed,
+            Some(mapper) => match mapper.guessed_format() {
+                PosTagFormat::Ud => PosTagFormat::Penn,
+                PosTagFormat::Penn => PosTagFormat::Ud,
+                other => other,
+            },
+        };
+        let tagset = TagSet::new(tag_format.as_str().to_ascii_lowercase().as_str(), &labels);
         let mut ctx = PosContext::for_model(&file, beam_size, PatternMode::Utf16Units)
             .map_err(|e| Error::new(BUNDLE_INVALID, format!("POS context descriptor: {e}")))?;
         let _ = &mut ctx;
-        Ok(Self { file, maxent, beam_size, dictionary, mapper })
+        Ok(Self { file, maxent, beam_size, dictionary, mapper, tagset })
     }
 
-    pub(super) fn tag_tokens(&self, tokens: &[&str]) -> Result<Vec<(String, f64)>> {
+    pub(super) fn tagset(&self) -> Arc<TagSet> {
+        Arc::clone(&self.tagset)
+    }
+
+    pub(super) fn tag_tokens(&self, tokens: &[&str]) -> Result<Vec<PosOutcome>> {
         if tokens.is_empty() {
             return Ok(Vec::new());
         }
@@ -177,15 +128,18 @@ impl PosEngine {
             .map_err(|e| Error::new(BUNDLE_INVALID, format!("POS beam search: {e}")))?;
         let validator = PosValidator::new(self.dictionary.clone());
         let Some(best) = search.best_sequence(tokens, &mut ctx, &validator) else {
-            return Ok(tokens.iter().map(|_| ("X".to_owned(), 0.0)).collect());
+            return Ok(tokens.iter().map(|_| PosOutcome::unknown()).collect());
         };
+        if best.outcomes().len() != tokens.len() || best.probs().len() != tokens.len() {
+            return Err(Error::new(BUNDLE_INVALID, "POS beam search returned an outcome count mismatch"));
+        }
         let mut out = Vec::with_capacity(tokens.len());
         for (&outcome, &prob) in best.outcomes().iter().zip(best.probs()) {
             let tag = match &self.mapper {
                 Some(m) => m.convert_tag(outcome),
                 None => outcome,
             };
-            out.push((tag.to_owned(), prob));
+            out.push(PosOutcome { tag: Some(tag.to_owned()), prob: Some(prob) });
         }
         Ok(out)
     }
@@ -205,12 +159,18 @@ impl NerEngine {
             .map_err(|e| Error::new(BUNDLE_INVALID, format!("TokenNameFinder model entry: {e}")))?;
         let beam_size = manifest_beam_size(&file, NER_DEFAULT_BEAM)
             .map_err(|e| Error::new(BUNDLE_INVALID, format!("TokenNameFinder BeamSize: {e}")))?;
+        if beam_size == 0 {
+            return Err(Error::new(BUNDLE_INVALID, "TokenNameFinder BeamSize must be non-zero"));
+        }
         let codec = NameCodec::for_model(&file);
         let _ = DefaultNameContext::for_model(&file, PatternMode::Utf16Units)
             .map_err(|e| Error::new(BUNDLE_INVALID, format!("TokenNameFinder context: {e}")))?;
         Ok(Self { file, maxent, beam_size, codec })
     }
 
+    /// Stateless per call: a fresh production `NameFinder` and context are
+    /// constructed for this one token sequence, so no adaptive data from a
+    /// previous call can affect a later one.
     pub(super) fn find(&self, tokens: &[&str]) -> Result<Vec<(u32, u32, String, f64)>> {
         if tokens.is_empty() {
             return Ok(Vec::new());
@@ -220,9 +180,17 @@ impl NerEngine {
         let mut finder = NameFinder::with_context(&self.maxent, self.beam_size, self.codec, context)
             .map_err(|e| Error::new(BUNDLE_INVALID, format!("TokenNameFinder init: {e}")))?;
         let found = finder.find(tokens);
-        Ok(found
-            .into_iter()
-            .map(|n| (n.span.start as u32, n.span.end as u32, n.span.kind.unwrap_or_else(|| "default".into()), n.prob))
-            .collect())
+        let mut out = Vec::with_capacity(found.len());
+        for n in found {
+            let start = u32::try_from(n.span.start)
+                .map_err(|_| Error::new(BUNDLE_INVALID, "TokenNameFinder returned an out-of-range span"))?;
+            let end = u32::try_from(n.span.end)
+                .map_err(|_| Error::new(BUNDLE_INVALID, "TokenNameFinder returned an out-of-range span"))?;
+            if start > end || end as usize > tokens.len() {
+                return Err(Error::new(BUNDLE_INVALID, "TokenNameFinder returned an invalid span"));
+            }
+            out.push((start, end, n.span.kind.unwrap_or_else(|| "default".into()), n.prob));
+        }
+        Ok(out)
     }
 }

@@ -1,32 +1,22 @@
 package ai.pipestream.turboembed.opennlp;
 
+import ai.pipestream.turboembed.panama.TurboAnalysisResult;
 import ai.pipestream.turboembed.panama.TurboAnalyzer;
-import ai.pipestream.turboembed.panama.TurboSpan;
+import ai.pipestream.turboembed.panama.TurboLayerKind;
+import ai.pipestream.turboembed.panama.TurboSpanView;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 
-/**
- * Drop-in Apache OpenNLP {@code SentenceDetectorME} adapter backed in-process by {@code libturbo}
- * via Panama FFM.
- */
-public final class TurboSentenceDetectorME implements SentenceDetector, AutoCloseable {
-    private final TurboAnalyzer analyzer;
-    private final boolean ownsAnalyzer;
-    private double[] lastProbs = new double[0];
+/** OpenNLP-style sentence detector backed by {@code libturbo}. */
+public final class TurboSentenceDetectorME extends TurboAdapterSupport implements SentenceDetector, AutoCloseable {
 
-    /**
-     * Creates a sentence detector with the default English rules and abbreviation inventory.
-     */
+    /** Creates a sentence detector with the default English rule splitter. */
     public TurboSentenceDetectorME() {
         this(TurboAnalyzer.create(), true);
     }
 
-    /**
-     * Creates a sentence detector using an OpenNLP {@code SentenceModel} {@code .bin} file.
-     *
-     * @param modelPath path to the {@code .bin} sentence model
-     */
+    /** Creates a sentence detector using an OpenNLP {@code SentenceModel} {@code .bin} file. */
     public TurboSentenceDetectorME(Path modelPath) {
         this(
                 TurboAnalyzer.create(new TurboAnalyzer.Config(
@@ -34,73 +24,61 @@ public final class TurboSentenceDetectorME implements SentenceDetector, AutoClos
                 true);
     }
 
-    /**
-     * Creates a sentence detector sharing an existing {@link TurboAnalyzer} without taking
-     * ownership of its lifecycle.
-     *
-     * @param analyzer shared analyzer instance
-     */
+    /** Creates a detector sharing an analyzer without owning its lifecycle. */
     public TurboSentenceDetectorME(TurboAnalyzer analyzer) {
-        this(Objects.requireNonNull(analyzer, "analyzer"), false);
+        this(analyzer, false);
     }
 
     private TurboSentenceDetectorME(TurboAnalyzer analyzer, boolean ownsAnalyzer) {
-        this.analyzer = analyzer;
-        this.ownsAnalyzer = ownsAnalyzer;
+        super(analyzer, ownsAnalyzer);
     }
 
     @Override
-    public String[] sentDetect(CharSequence s) {
+    public synchronized String[] sentDetect(CharSequence s) {
+        String text = text(s);
+        try (TurboAnalysisResult result = analyzer().detectSentences(text)) {
+            List<TurboSpanView> rows = result.spans(TurboLayerKind.SENTENCES);
+            requireSingleFragmentRows(rows, "sentDetect");
+            String[] sentences = new String[rows.size()];
+            double[] probs = new double[rows.size()];
+            for (int i = 0; i < rows.size(); i++) {
+                sentences[i] = rows.get(i).coveredSourceText(text);
+                probs[i] = probabilityOrNaN(rows.get(i));
+            }
+            rememberProbs(probs);
+            return sentences;
+        }
+    }
+
+    @Override
+    public synchronized Span[] sentPosDetect(CharSequence s) {
+        String text = text(s);
+        try (TurboAnalysisResult result = analyzer().detectSentences(text)) {
+            List<TurboSpanView> rows = result.spans(TurboLayerKind.SENTENCES);
+            requireSingleFragmentRows(rows, "sentPosDetect");
+            Span[] spans = new Span[rows.size()];
+            double[] probs = new double[rows.size()];
+            for (int i = 0; i < rows.size(); i++) {
+                spans[i] = Span.fromSource(rows.get(i));
+                probs[i] = probabilityOrNaN(rows.get(i));
+            }
+            rememberProbs(probs);
+            return spans;
+        }
+    }
+
+    /** Returns probabilities from the most recent call on this adapter; absent values are NaN. */
+    public synchronized double[] probs() {
+        return copyProbs();
+    }
+
+    @Override
+    public synchronized void close() {
+        closeAdapter();
+    }
+
+    private static String text(CharSequence s) {
         Objects.requireNonNull(s, "s");
-        List<TurboSpan> spans = analyzer.detectSentences(s.toString());
-        String[] sentences = new String[spans.size()];
-        double[] probs = new double[spans.size()];
-        for (int i = 0; i < spans.size(); i++) {
-            TurboSpan sp = spans.get(i);
-            sentences[i] = sp.label();
-            probs[i] = sp.prob();
-        }
-        this.lastProbs = probs;
-        return sentences;
-    }
-
-    @Override
-    public Span[] sentPosDetect(CharSequence s) {
-        Objects.requireNonNull(s, "s");
-        List<TurboSpan> spans = analyzer.detectSentences(s.toString());
-        Span[] result = new Span[spans.size()];
-        double[] probs = new double[spans.size()];
-        for (int i = 0; i < spans.size(); i++) {
-            TurboSpan sp = spans.get(i);
-            result[i] = new Span(
-                    sp.utf16Start(),
-                    sp.utf16End(),
-                    "sentence",
-                    sp.prob(),
-                    sp.byteStart(),
-                    sp.byteEnd(),
-                    sp.codepointStart(),
-                    sp.codepointEnd());
-            probs[i] = sp.prob();
-        }
-        this.lastProbs = probs;
-        return result;
-    }
-
-    /**
-     * Returns the probabilities associated with the most recent {@link #sentDetect(CharSequence)}
-     * or {@link #sentPosDetect(CharSequence)} call.
-     *
-     * @return sentence probability array
-     */
-    public double[] probs() {
-        return lastProbs.clone();
-    }
-
-    @Override
-    public void close() {
-        if (ownsAnalyzer) {
-            analyzer.close();
-        }
+        return s instanceof String string ? string : s.toString();
     }
 }

@@ -7,6 +7,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * In-process model session over {@code libturbo} for dense embedding and cross-encoder reranking
@@ -14,10 +15,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
  */
 public final class TurboSession implements AutoCloseable {
     private final AtomicBoolean closed = new AtomicBoolean(false);
-    private MemorySegment runtime;
-    private MemorySegment context;
-    private MemorySegment model;
-    private MemorySegment session;
+    private final ReentrantLock invocationLock = new ReentrantLock(true);
+    private final MemorySegment runtime;
+    private final MemorySegment context;
+    private final MemorySegment model;
+    private final MemorySegment session;
 
     private TurboSession(
             MemorySegment runtime,
@@ -49,7 +51,7 @@ public final class TurboSession implements AutoCloseable {
                 throw new IllegalStateException("turbo_runtime_create failed", t);
             }
             TurboLibrary.checkStatus(code, err);
-            MemorySegment rt = outPtr.get(ValueLayout.ADDRESS, 0L);
+            MemorySegment rt = requireNativeHandle(outPtr.get(ValueLayout.ADDRESS, 0L), "turbo_runtime_create");
 
             MemorySegment ctx = MemorySegment.NULL;
             MemorySegment mdl = MemorySegment.NULL;
@@ -60,17 +62,16 @@ public final class TurboSession implements AutoCloseable {
                     throw new IllegalStateException("turbo_context_create failed", t);
                 }
                 TurboLibrary.checkStatus(code, err);
-                ctx = outPtr.get(ValueLayout.ADDRESS, 0L);
+                ctx = requireNativeHandle(outPtr.get(ValueLayout.ADDRESS, 0L), "turbo_context_create");
 
-                MemorySegment pathText = TurboLibrary.allocateText(
-                        arena, bundleDir.toAbsolutePath().normalize().toString());
+                MemorySegment pathText = TurboLibrary.allocateText(arena, bundleDir.toString());
                 try {
                     code = (int) TurboLibrary.TURBO_MODEL_LOAD.invokeExact(ctx, pathText, outPtr, err);
                 } catch (Throwable t) {
                     throw new IllegalStateException("turbo_model_load failed", t);
                 }
                 TurboLibrary.checkStatus(code, err);
-                mdl = outPtr.get(ValueLayout.ADDRESS, 0L);
+                mdl = requireNativeHandle(outPtr.get(ValueLayout.ADDRESS, 0L), "turbo_model_load");
 
                 try {
                     code = (int) TurboLibrary.TURBO_SESSION_CREATE.invokeExact(
@@ -79,22 +80,36 @@ public final class TurboSession implements AutoCloseable {
                     throw new IllegalStateException("turbo_session_create failed", t);
                 }
                 TurboLibrary.checkStatus(code, err);
-                MemorySegment sess = outPtr.get(ValueLayout.ADDRESS, 0L);
+                MemorySegment sess = requireNativeHandle(outPtr.get(ValueLayout.ADDRESS, 0L), "turbo_session_create");
                 return new TurboSession(rt, ctx, mdl, sess);
             } catch (RuntimeException e) {
-                safeRelease(TurboLibrary.TURBO_MODEL_RELEASE, mdl);
-                safeRelease(TurboLibrary.TURBO_CONTEXT_RELEASE, ctx);
-                safeRelease(TurboLibrary.TURBO_RUNTIME_RELEASE, rt);
+                releaseSuppressed(e, TurboLibrary.TURBO_MODEL_RELEASE, mdl);
+                releaseSuppressed(e, TurboLibrary.TURBO_CONTEXT_RELEASE, ctx);
+                releaseSuppressed(e, TurboLibrary.TURBO_RUNTIME_RELEASE, rt);
                 throw e;
             }
         }
     }
 
+    private static MemorySegment requireNativeHandle(MemorySegment handle, String operation) {
+        if (handle == null || MemorySegment.NULL.equals(handle)) {
+            throw new IllegalStateException(operation + " returned NULL");
+        }
+        return handle;
+    }
+
     private MemorySegment requireOpen() {
-        if (closed.get() || MemorySegment.NULL.equals(session)) {
+        if (closed.get()) {
             throw new IllegalStateException("TurboSession is already closed");
         }
         return session;
+    }
+
+    private static void validateStrings(List<String> values, String name) {
+        Objects.requireNonNull(values, name);
+        for (int i = 0; i < values.size(); i++) {
+            Objects.requireNonNull(values.get(i), name + "[" + i + "]");
+        }
     }
 
     /**
@@ -104,7 +119,9 @@ public final class TurboSession implements AutoCloseable {
      * @return {@code float[texts.size()][dim]} embedding matrix
      */
     public float[][] embed(List<String> texts) {
-        Objects.requireNonNull(texts, "texts");
+        validateStrings(texts, "texts");
+        invocationLock.lock();
+        try {
         MemorySegment s = requireOpen();
         String[] arr = texts.toArray(String[]::new);
         try (Arena arena = Arena.ofConfined()) {
@@ -120,6 +137,9 @@ public final class TurboSession implements AutoCloseable {
             TurboLibrary.checkStatus(code, err);
             return executeAndReadF32(arena, s, err);
         }
+        } finally {
+            invocationLock.unlock();
+        }
     }
 
     /**
@@ -131,7 +151,9 @@ public final class TurboSession implements AutoCloseable {
      */
     public float[] rerank(String query, List<String> passages) {
         Objects.requireNonNull(query, "query");
-        Objects.requireNonNull(passages, "passages");
+        validateStrings(passages, "passages");
+        invocationLock.lock();
+        try {
         MemorySegment s = requireOpen();
         try (Arena arena = Arena.ofConfined()) {
             long pairStride = TurboLibrary.TURBO_TEXT_PAIR_LAYOUT.byteSize();
@@ -153,11 +175,21 @@ public final class TurboSession implements AutoCloseable {
             }
             TurboLibrary.checkStatus(code, err);
             float[][] matrix = executeAndReadF32(arena, s, err);
+            if (matrix.length != passages.size()) {
+                throw new IllegalStateException(
+                        "native rerank returned " + matrix.length + " rows for " + passages.size() + " passages");
+            }
             float[] scores = new float[matrix.length];
             for (int i = 0; i < matrix.length; i++) {
+                if (matrix[i].length != 1) {
+                    throw new IllegalStateException("native rerank row " + i + " has dimension " + matrix[i].length);
+                }
                 scores[i] = matrix[i][0];
             }
             return scores;
+        }
+        } finally {
+            invocationLock.unlock();
         }
     }
 
@@ -171,6 +203,10 @@ public final class TurboSession implements AutoCloseable {
         }
         TurboLibrary.checkStatus(code, err);
         MemorySegment resPtr = resOut.get(ValueLayout.ADDRESS, 0L);
+        if (resPtr == null || MemorySegment.NULL.equals(resPtr)) {
+            throw new IllegalStateException("turbo_session_run returned NULL");
+        }
+        RuntimeException failure = null;
         try {
             MemorySegment info = arena.allocate(TurboLibrary.TURBO_RESULT_INFO_SIZE, 8L);
             info.set(ValueLayout.JAVA_INT, 0L, TurboLibrary.TURBO_RESULT_INFO_SIZE);
@@ -181,9 +217,20 @@ public final class TurboSession implements AutoCloseable {
             }
             TurboLibrary.checkStatus(code, err);
 
-            int batch = info.get(ValueLayout.JAVA_INT, 8L);
-            int dim = info.get(ValueLayout.JAVA_INT, 12L);
+            long batchLong = Integer.toUnsignedLong(info.get(ValueLayout.JAVA_INT, 8L));
+            long dimLong = Integer.toUnsignedLong(info.get(ValueLayout.JAVA_INT, 12L));
+            if (batchLong > Integer.MAX_VALUE || dimLong > Integer.MAX_VALUE) {
+                throw new IllegalStateException(
+                        "native result shape exceeds Java arrays: " + batchLong + " x " + dimLong);
+            }
+            int batch = (int) batchLong;
+            int dim = (int) dimLong;
             long bytes = info.get(ValueLayout.JAVA_LONG, 32L);
+            long expectedBytes = Math.multiplyExact(Math.multiplyExact(batchLong, dimLong), Float.BYTES);
+            if (bytes < 0 || bytes != expectedBytes) {
+                throw new IllegalStateException(
+                        "native result byte length " + bytes + " does not match shape bytes " + expectedBytes);
+            }
 
             MemorySegment dst = arena.allocate(Math.max(bytes, 4L), 4L);
             MemorySegment written = arena.allocate(ValueLayout.JAVA_LONG);
@@ -193,6 +240,11 @@ public final class TurboSession implements AutoCloseable {
                 throw new IllegalStateException("turbo_result_read failed", t);
             }
             TurboLibrary.checkStatus(code, err);
+            long writtenBytes = written.get(ValueLayout.JAVA_LONG, 0L);
+            if (writtenBytes != bytes) {
+                throw new IllegalStateException(
+                        "native result read wrote " + writtenBytes + " bytes, expected " + bytes);
+            }
 
             float[][] out = new float[batch][dim];
             for (int r = 0; r < batch; r++) {
@@ -201,8 +253,24 @@ public final class TurboSession implements AutoCloseable {
                 }
             }
             return out;
+        } catch (RuntimeException e) {
+            failure = e;
+            throw e;
         } finally {
-            safeRelease(TurboLibrary.TURBO_RESULT_RELEASE, resPtr);
+            if (failure == null) {
+                safeRelease(TurboLibrary.TURBO_RESULT_RELEASE, resPtr);
+            } else {
+                releaseSuppressed(failure, TurboLibrary.TURBO_RESULT_RELEASE, resPtr);
+            }
+        }
+    }
+
+    private static void releaseSuppressed(
+            RuntimeException failure, java.lang.invoke.MethodHandle releaseFn, MemorySegment ptr) {
+        try {
+            safeRelease(releaseFn, ptr);
+        } catch (RuntimeException releaseFailure) {
+            failure.addSuppressed(releaseFailure);
         }
     }
 
@@ -216,21 +284,56 @@ public final class TurboSession implements AutoCloseable {
         }
     }
 
+    /** Returns whether this session has released its native handles. */
+    public boolean isClosed() {
+        return closed.get();
+    }
+
     @Override
     public void close() {
-        if (closed.compareAndSet(false, true)) {
-            MemorySegment s = session;
-            MemorySegment m = model;
-            MemorySegment c = context;
-            MemorySegment r = runtime;
-            session = MemorySegment.NULL;
-            model = MemorySegment.NULL;
-            context = MemorySegment.NULL;
-            runtime = MemorySegment.NULL;
-            safeRelease(TurboLibrary.TURBO_SESSION_RELEASE, s);
-            safeRelease(TurboLibrary.TURBO_MODEL_RELEASE, m);
-            safeRelease(TurboLibrary.TURBO_CONTEXT_RELEASE, c);
-            safeRelease(TurboLibrary.TURBO_RUNTIME_RELEASE, r);
+        if (!closed.compareAndSet(false, true)) {
+            return;
+        }
+        invocationLock.lock();
+        try {
+            RuntimeException failure = null;
+            try {
+                safeRelease(TurboLibrary.TURBO_SESSION_RELEASE, session);
+            } catch (RuntimeException e) {
+                failure = e;
+            }
+            try {
+                safeRelease(TurboLibrary.TURBO_MODEL_RELEASE, model);
+            } catch (RuntimeException e) {
+                if (failure == null) {
+                    failure = e;
+                } else {
+                    failure.addSuppressed(e);
+                }
+            }
+            try {
+                safeRelease(TurboLibrary.TURBO_CONTEXT_RELEASE, context);
+            } catch (RuntimeException e) {
+                if (failure == null) {
+                    failure = e;
+                } else {
+                    failure.addSuppressed(e);
+                }
+            }
+            try {
+                safeRelease(TurboLibrary.TURBO_RUNTIME_RELEASE, runtime);
+            } catch (RuntimeException e) {
+                if (failure == null) {
+                    failure = e;
+                } else {
+                    failure.addSuppressed(e);
+                }
+            }
+            if (failure != null) {
+                throw failure;
+            }
+        } finally {
+            invocationLock.unlock();
         }
     }
 }

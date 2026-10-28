@@ -1,86 +1,75 @@
 package ai.pipestream.turboembed.opennlp;
 
+import ai.pipestream.turboembed.panama.TurboSpanData;
+import ai.pipestream.turboembed.panama.TurboSpanView;
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
- * Drop-in Apache OpenNLP {@code opennlp.tools.util.Span} equivalent backed by {@code libturbo}
- * offsets.
+ * An OpenNLP-style span in this project's namespace.
  *
- * <p>For character spans (such as {@link SentenceDetector#sentPosDetect(String)} and
- * {@link Tokenizer#tokenizePos(String)}), {@link #getStart()} and {@link #getEnd()} are UTF-16
- * code-unit offsets that match {@link String#substring(int, int)}, while {@link #getByteStart()},
- * {@link #getByteEnd()}, {@link #getCodepointStart()}, and {@link #getCodepointEnd()} provide the
- * exact UTF-8 byte and Unicode scalar offsets from {@code libturbo}.
- *
- * <p>For token-indexed spans (such as {@link TokenNameFinder#find(String[])}), {@link #getStart()}
- * and {@link #getEnd()} are token indices {@code [start, end)}.
+ * <p>This is not {@code opennlp.tools.util.Span}. Unlike an ambiguous pair of integers, every
+ * instance names its coordinate space. A {@link CoordinateSpace#UTF16} span's start/end are
+ * source UTF-16 code-unit offsets and carries the corresponding source byte and codepoint
+ * offsets. A {@link CoordinateSpace#TOKEN} span's start/end are token indices and has no
+ * character offsets; its byte and codepoint accessors fail instead of reinterpreting token
+ * indices as text offsets.
  */
 public final class Span implements Comparable<Span> {
+    /** Coordinate space governing {@link #getStart()} and {@link #getEnd()}. */
+    public enum CoordinateSpace {
+        /** Source UTF-16 code-unit offsets. */
+        UTF16,
+        /** Token indices. */
+        TOKEN
+    }
+
+    private final CoordinateSpace coordinateSpace;
     private final int start;
     private final int end;
     private final String type;
     private final double prob;
-    private final int byteStart;
-    private final int byteEnd;
-    private final int codepointStart;
-    private final int codepointEnd;
+    private final long byteStart;
+    private final long byteEnd;
+    private final long codepointStart;
+    private final long codepointEnd;
+    private final long tokenStart;
+    private final long tokenEnd;
+    private final String layer;
+    private final String instance;
 
-    /**
-     * Constructs a span with start and end offsets.
-     *
-     * @param start inclusive start offset
-     * @param end   exclusive end offset
-     */
-    public Span(int start, int end) {
-        this(start, end, null, 0.0, start, end, start, end);
-    }
-
-    /**
-     * Constructs a span with start, end, and type label.
-     *
-     * @param start inclusive start offset
-     * @param end   exclusive end offset
-     * @param type  span type (may be null)
-     */
-    public Span(int start, int end, String type) {
-        this(start, end, type, 0.0, start, end, start, end);
-    }
-
-    /**
-     * Constructs a span with start, end, type label, and probability.
-     *
-     * @param start inclusive start offset
-     * @param end   exclusive end offset
-     * @param type  span type (may be null)
-     * @param prob  probability or confidence score
-     */
-    public Span(int start, int end, String type, double prob) {
-        this(start, end, type, prob, start, end, start, end);
-    }
-
-    /**
-     * Constructs a bi-directional span with UTF-16, UTF-8 byte, and Unicode codepoint offsets.
-     *
-     * @param start          inclusive UTF-16 code-unit or token start offset
-     * @param end            exclusive UTF-16 code-unit or token end offset
-     * @param type           span type (may be null)
-     * @param prob           probability or confidence score
-     * @param byteStart      inclusive UTF-8 byte start offset
-     * @param byteEnd        exclusive UTF-8 byte end offset
-     * @param codepointStart inclusive Unicode scalar start offset
-     * @param codepointEnd   exclusive Unicode scalar end offset
-     */
-    public Span(
+    private Span(
+            CoordinateSpace coordinateSpace,
             int start,
             int end,
             String type,
             double prob,
-            int byteStart,
-            int byteEnd,
-            int codepointStart,
-            int codepointEnd) {
+            long byteStart,
+            long byteEnd,
+            long codepointStart,
+            long codepointEnd,
+            long tokenStart,
+            long tokenEnd,
+            String layer,
+            String instance) {
+        this.coordinateSpace = Objects.requireNonNull(coordinateSpace, "coordinateSpace");
         if (start < 0 || end < start) {
             throw new IllegalArgumentException("Invalid span bounds: [" + start + ", " + end + ")");
+        }
+        if (!Double.isNaN(prob) && (!Double.isFinite(prob) || prob < 0.0 || prob > 1.0)) {
+            throw new IllegalArgumentException("probability is outside 0..=1: " + prob);
+        }
+        if (coordinateSpace == CoordinateSpace.UTF16) {
+            requirePair(byteStart, byteEnd, "byte");
+            requirePair(codepointStart, codepointEnd, "codepoint");
+        } else if (byteStart != -1L || byteEnd != -1L || codepointStart != -1L || codepointEnd != -1L) {
+            throw new IllegalArgumentException("a token span cannot carry character offsets");
+        }
+        if (tokenStart != -1L || tokenEnd != -1L) {
+            requirePair(tokenStart, tokenEnd, "token");
+        }
+        if (coordinateSpace == CoordinateSpace.TOKEN && (tokenStart != start || tokenEnd != end)) {
+            throw new IllegalArgumentException("a token span's token range must equal its start/end");
         }
         this.start = start;
         this.end = end;
@@ -90,148 +79,286 @@ public final class Span implements Comparable<Span> {
         this.byteEnd = byteEnd;
         this.codepointStart = codepointStart;
         this.codepointEnd = codepointEnd;
+        this.tokenStart = tokenStart;
+        this.tokenEnd = tokenEnd;
+        this.layer = layer;
+        this.instance = instance;
     }
 
     /**
-     * Returns the inclusive start offset (UTF-16 code-unit index for character spans, or token
-     * index for token spans).
-     *
-     * @return start offset
+     * Creates a source UTF-16 span with its corresponding source byte and codepoint ranges.
+     * Use {@link Double#NaN} when no probability exists; probability is never defaulted to zero.
      */
+    public static Span utf16(
+            int start,
+            int end,
+            String type,
+            double prob,
+            long byteStart,
+            long byteEnd,
+            long codepointStart,
+            long codepointEnd) {
+        return new Span(
+                CoordinateSpace.UTF16,
+                start,
+                end,
+                type,
+                prob,
+                byteStart,
+                byteEnd,
+                codepointStart,
+                codepointEnd,
+                -1L,
+                -1L,
+                null,
+                null);
+    }
+
+    /** Creates a token-index span. It deliberately has no character offsets. */
+    public static Span token(int start, int end, String type, double prob) {
+        return new Span(CoordinateSpace.TOKEN, start, end, type, prob, -1L, -1L, -1L, -1L, start, end, null, null);
+    }
+
+    static Span fromSource(TurboSpanView row) {
+        TurboSpanData.CoordinateRange source = row.sourceRange()
+                .orElseThrow(() -> new IllegalStateException("native row has no source range for an OpenNLP-style span"));
+        long tokenStart = -1L;
+        long tokenEnd = -1L;
+        if (row.tokenRange().isPresent()) {
+            tokenStart = row.tokenRange().get().start();
+            tokenEnd = row.tokenRange().get().end();
+        }
+        return new Span(
+                CoordinateSpace.UTF16,
+                Math.toIntExact(source.utf16Start()),
+                Math.toIntExact(source.utf16End()),
+                row.label().orElse(null),
+                row.probability().orElse(Double.NaN),
+                source.byteStart(),
+                source.byteEnd(),
+                source.codepointStart(),
+                source.codepointEnd(),
+                tokenStart,
+                tokenEnd,
+                row.layer(),
+                row.instance());
+    }
+
+    static Span fromToken(TurboSpanView row) {
+        TurboSpanData.TokenRange tokens = row.tokenRange()
+                .orElseThrow(() -> new IllegalStateException("native row has no token range for an OpenNLP-style span"));
+        return new Span(
+                CoordinateSpace.TOKEN,
+                Math.toIntExact(tokens.start()),
+                Math.toIntExact(tokens.end()),
+                row.label().orElse(null),
+                row.probability().orElse(Double.NaN),
+                -1L,
+                -1L,
+                -1L,
+                -1L,
+                tokens.start(),
+                tokens.end(),
+                row.layer(),
+                row.instance());
+    }
+
+    /** Returns the coordinate space governing start and end. */
+    public CoordinateSpace getCoordinateSpace() {
+        return coordinateSpace;
+    }
+
+    /** Returns whether start/end are token indices. */
+    public boolean isTokenSpan() {
+        return coordinateSpace == CoordinateSpace.TOKEN;
+    }
+
+    /** Returns whether start/end are source UTF-16 code-unit offsets. */
+    public boolean isCharacterSpan() {
+        return coordinateSpace == CoordinateSpace.UTF16;
+    }
+
+    /** Returns the inclusive start in this span's named coordinate space. */
     public int getStart() {
         return start;
     }
 
-    /**
-     * Returns the exclusive end offset (UTF-16 code-unit index for character spans, or token index
-     * for token spans).
-     *
-     * @return end offset
-     */
+    /** Returns the exclusive end in this span's named coordinate space. */
     public int getEnd() {
         return end;
     }
 
-    /**
-     * Returns the span type label, or {@code null} if untyped.
-     *
-     * @return span type or {@code null}
-     */
+    /** Returns the span type label, or {@code null} if the native row had no label. */
     public String getType() {
         return type;
     }
 
-    /**
-     * Returns the probability or confidence score associated with this span.
-     *
-     * @return probability score
-     */
+    /** Returns the probability, or {@link Double#NaN} when no probability exists. */
     public double getProb() {
         return prob;
     }
 
-    /**
-     * Returns the length of this span ({@code getEnd() - getStart()}).
-     *
-     * @return span length
-     */
+    /** Returns end minus start in this span's named coordinate space. */
     public int length() {
         return end - start;
     }
 
-    /**
-     * Returns the inclusive UTF-8 byte start offset into the source text.
-     *
-     * @return UTF-8 byte start offset
-     */
-    public int getByteStart() {
+    /** Returns whether corresponding source byte/codepoint offsets are present. */
+    public boolean hasSourceCoordinates() {
+        return coordinateSpace == CoordinateSpace.UTF16;
+    }
+
+    /** Returns the source UTF-8 byte start. Token spans have no such offset. */
+    public long getByteStart() {
+        requireCharacterSpan("byte start");
         return byteStart;
     }
 
-    /**
-     * Returns the exclusive UTF-8 byte end offset into the source text.
-     *
-     * @return UTF-8 byte end offset
-     */
-    public int getByteEnd() {
+    /** Returns the source UTF-8 byte end. Token spans have no such offset. */
+    public long getByteEnd() {
+        requireCharacterSpan("byte end");
         return byteEnd;
     }
 
-    /**
-     * Returns the inclusive Unicode scalar (codepoint) start offset into the source text.
-     *
-     * @return Unicode codepoint start offset
-     */
-    public int getCodepointStart() {
+    /** Returns the source Unicode scalar start. Token spans have no such offset. */
+    public long getCodepointStart() {
+        requireCharacterSpan("codepoint start");
         return codepointStart;
     }
 
-    /**
-     * Returns the exclusive Unicode scalar (codepoint) end offset into the source text.
-     *
-     * @return Unicode codepoint end offset
-     */
-    public int getCodepointEnd() {
+    /** Returns the source Unicode scalar end. Token spans have no such offset. */
+    public long getCodepointEnd() {
+        requireCharacterSpan("codepoint end");
         return codepointEnd;
     }
 
+    /** Returns whether a corresponding token range is present. */
+    public boolean hasTokenRange() {
+        return tokenStart != -1L;
+    }
+
+    /** Returns the corresponding token start, when present. */
+    public long getTokenStart() {
+        if (!hasTokenRange()) {
+            throw new IllegalStateException("span has no token range");
+        }
+        return tokenStart;
+    }
+
+    /** Returns the corresponding token end, when present. */
+    public long getTokenEnd() {
+        if (!hasTokenRange()) {
+            throw new IllegalStateException("span has no token range");
+        }
+        return tokenEnd;
+    }
+
+    /** Returns the native layer id when this span came from a native row, otherwise {@code null}. */
+    public String getLayer() {
+        return layer;
+    }
+
+    /** Returns the native layer instance when this span came from a native row, otherwise {@code null}. */
+    public String getInstance() {
+        return instance;
+    }
+
     /**
-     * Returns the subsequence of {@code text} covered by {@code [getStart(), getEnd())}.
-     *
-     * @param text source character sequence
-     * @return covered subsequence
+     * Returns covered source text for a UTF-16 span. Token spans fail rather than slicing
+     * text by token indices.
      */
     public CharSequence getCoveredText(CharSequence text) {
         Objects.requireNonNull(text, "text");
+        requireCharacterSpan("covered text");
+        if (end > text.length()) {
+            throw new IllegalArgumentException(
+                    "UTF-16 span [" + start + ", " + end + ") exceeds text length " + text.length());
+        }
         return text.subSequence(start, end);
+    }
+
+    /** Returns covered tokens for a token span or a character span with a token range. */
+    public String[] getCoveredTokens(String[] tokens) {
+        Objects.requireNonNull(tokens, "tokens");
+        if (!hasTokenRange()) {
+            throw new IllegalStateException("span has no token range");
+        }
+        int from = Math.toIntExact(tokenStart);
+        int to = Math.toIntExact(tokenEnd);
+        Objects.checkFromToIndex(from, to, tokens.length);
+        return Arrays.copyOfRange(tokens, from, to);
+    }
+
+    private void requireCharacterSpan(String what) {
+        if (!isCharacterSpan()) {
+            throw new IllegalStateException("token span has no " + what);
+        }
+    }
+
+    private static void requirePair(long start, long end, String name) {
+        if (start < 0 || end < start) {
+            throw new IllegalArgumentException("Invalid " + name + " bounds: [" + start + ", " + end + ")");
+        }
     }
 
     @Override
     public int compareTo(Span other) {
-        int c = Integer.compare(this.start, other.start);
+        int c = coordinateSpace.compareTo(other.coordinateSpace);
         if (c != 0) {
             return c;
         }
-        c = Integer.compare(this.end, other.end);
+        c = Integer.compare(start, other.start);
         if (c != 0) {
             return c;
         }
-        if (this.type == null && other.type == null) {
-            return 0;
+        c = Integer.compare(end, other.end);
+        if (c != 0) {
+            return c;
         }
-        if (this.type == null) {
-            return -1;
-        }
-        if (other.type == null) {
-            return 1;
-        }
-        return this.type.compareTo(other.type);
+        return Objects.compare(type, other.type, java.util.Comparator.nullsFirst(java.util.Comparator.naturalOrder()));
     }
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) {
-            return true;
-        }
         if (!(o instanceof Span that)) {
             return false;
         }
-        return start == that.start
+        return coordinateSpace == that.coordinateSpace
+                && start == that.start
                 && end == that.end
                 && Double.compare(prob, that.prob) == 0
-                && Objects.equals(type, that.type);
+                && byteStart == that.byteStart
+                && byteEnd == that.byteEnd
+                && codepointStart == that.codepointStart
+                && codepointEnd == that.codepointEnd
+                && tokenStart == that.tokenStart
+                && tokenEnd == that.tokenEnd
+                && Objects.equals(type, that.type)
+                && Objects.equals(layer, that.layer)
+                && Objects.equals(instance, that.instance);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(start, end, type, prob);
+        return Objects.hash(
+                coordinateSpace,
+                start,
+                end,
+                type,
+                prob,
+                byteStart,
+                byteEnd,
+                codepointStart,
+                codepointEnd,
+                tokenStart,
+                tokenEnd,
+                layer,
+                instance);
     }
 
     @Override
     public String toString() {
-        if (type == null) {
-            return "[" + start + ".." + end + ")";
-        }
-        return "[" + start + ".." + end + ") " + type;
+        String prefix = coordinateSpace == CoordinateSpace.TOKEN ? "tokens[" : "utf16[";
+        return type == null ? prefix + start + ".." + end + ")" : prefix + start + ".." + end + ") " + type;
     }
 }

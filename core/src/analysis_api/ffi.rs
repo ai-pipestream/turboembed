@@ -20,7 +20,8 @@ unsafe fn text_slice<'a>(items: *const turbo_text, count: u32, what: &str) -> Re
     }
     let len = array_len::<turbo_text>(count as u64, what)?;
     let raw = unsafe { std::slice::from_raw_parts(items, len) };
-    let mut out = Vec::with_capacity(len);
+    // Do not reserve from count alone: growth follows elements actually read.
+    let mut out = Vec::new();
     for (idx, &t) in raw.iter().enumerate() {
         out.push(unsafe { text(t, &format!("{what}[{idx}]"))? });
     }
@@ -28,7 +29,13 @@ unsafe fn text_slice<'a>(items: *const turbo_text, count: u32, what: &str) -> Re
 }
 
 fn box_result(inner: AnalysisResultInner) -> *mut turbo_analysis_result {
-    Box::into_raw(Box::new(turbo_analysis_result { magic: ANALYSIS_RESULT_MAGIC, inner }))
+    Arc::into_raw(Arc::new(turbo_analysis_result { magic: ANALYSIS_RESULT_MAGIC, inner })).cast_mut()
+}
+
+unsafe fn result_out<'a>(out: *mut *mut turbo_analysis_result) -> Result<&'a mut *mut turbo_analysis_result> {
+    let out = unsafe { out_ptr(out, "out") }?;
+    *out = std::ptr::null_mut();
+    Ok(out)
 }
 
 /// # Safety
@@ -42,6 +49,7 @@ pub unsafe extern "C" fn turbo_analyzer_create(
     unsafe {
         call(err, || {
             let out = out_ptr(out, "out")?;
+            *out = std::ptr::null_mut();
             let desc_ref = if desc.is_null() {
                 None
             } else {
@@ -53,19 +61,32 @@ pub unsafe extern "C" fn turbo_analyzer_create(
                 Some(d)
             };
             let engine = AnalyzerEngine::from_desc(desc_ref)?;
-            *out = Box::into_raw(Box::new(turbo_analyzer { magic: ANALYZER_MAGIC, inner: Arc::new(engine) }));
+            *out =
+                Arc::into_raw(Arc::new(turbo_analyzer { magic: ANALYZER_MAGIC, inner: Arc::new(engine) })).cast_mut();
             Ok(())
         })
     }
 }
 
 /// # Safety
-/// `a` is NULL or a live handle returned by `turbo_analyzer_create`.
+/// `a` is NULL or a live reference returned by `turbo_analyzer_create` or
+/// this function.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_analyzer_retain(a: *mut turbo_analyzer) -> *mut turbo_analyzer {
+    if a.is_null() || unsafe { analyzer_handle(a) }.is_err() {
+        return std::ptr::null_mut();
+    }
+    unsafe { Arc::increment_strong_count(a.cast_const()) };
+    a
+}
+
+/// # Safety
+/// `a` is NULL or one live reference owned by the caller. The caller must
+/// release each reference exactly once.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn turbo_analyzer_release(a: *mut turbo_analyzer) {
-    if unsafe { analyzer_handle(a) }.is_ok() {
-        let mut b = unsafe { Box::from_raw(a) };
-        b.magic = 0;
+    if !a.is_null() && unsafe { analyzer_handle(a) }.is_ok() {
+        drop(unsafe { Arc::from_raw(a.cast_const()) });
     }
 }
 
@@ -80,8 +101,8 @@ pub unsafe extern "C" fn turbo_analyzer_detect_sentences(
 ) -> i32 {
     unsafe {
         call(err, || {
+            let out = result_out(out)?;
             let a = analyzer_handle(a)?;
-            let out = out_ptr(out, "out")?;
             let s = text(input, "text")?;
             *out = box_result(a.inner.detect_sentences(s)?);
             Ok(())
@@ -100,8 +121,8 @@ pub unsafe extern "C" fn turbo_analyzer_tokenize(
 ) -> i32 {
     unsafe {
         call(err, || {
+            let out = result_out(out)?;
             let a = analyzer_handle(a)?;
-            let out = out_ptr(out, "out")?;
             let s = text(input, "text")?;
             *out = box_result(a.inner.tokenize(s)?);
             Ok(())
@@ -121,8 +142,8 @@ pub unsafe extern "C" fn turbo_analyzer_pos_tag(
 ) -> i32 {
     unsafe {
         call(err, || {
+            let out = result_out(out)?;
             let a = analyzer_handle(a)?;
-            let out = out_ptr(out, "out")?;
             let toks = text_slice(tokens, count, "tokens")?;
             *out = box_result(a.inner.pos_tag(&toks)?);
             Ok(())
@@ -143,8 +164,8 @@ pub unsafe extern "C" fn turbo_analyzer_lemmatize(
 ) -> i32 {
     unsafe {
         call(err, || {
+            let out = result_out(out)?;
             let a = analyzer_handle(a)?;
-            let out = out_ptr(out, "out")?;
             let toks = text_slice(tokens, count, "tokens")?;
             let pos = text_slice(tags, count, "tags")?;
             *out = box_result(a.inner.lemmatize(&toks, &pos)?);
@@ -165,8 +186,8 @@ pub unsafe extern "C" fn turbo_analyzer_find_tokens(
 ) -> i32 {
     unsafe {
         call(err, || {
+            let out = result_out(out)?;
             let a = analyzer_handle(a)?;
-            let out = out_ptr(out, "out")?;
             let toks = text_slice(tokens, count, "tokens")?;
             *out = box_result(a.inner.find_tokens(&toks)?);
             Ok(())
@@ -185,10 +206,30 @@ pub unsafe extern "C" fn turbo_analyzer_find_text(
 ) -> i32 {
     unsafe {
         call(err, || {
+            let out = result_out(out)?;
             let a = analyzer_handle(a)?;
-            let out = out_ptr(out, "out")?;
             let s = text(input, "text")?;
             *out = box_result(a.inner.find_text(s)?);
+            Ok(())
+        })
+    }
+}
+
+/// # Safety
+/// Pointers are NULL or valid for the call, as `turbo.h` says.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_analyzer_detect_pii(
+    a: *mut turbo_analyzer,
+    input: turbo_text,
+    out: *mut *mut turbo_analysis_result,
+    err: *mut turbo_error,
+) -> i32 {
+    unsafe {
+        call(err, || {
+            let out = result_out(out)?;
+            let a = analyzer_handle(a)?;
+            let s = text(input, "text")?;
+            *out = box_result(a.inner.detect_pii(s)?);
             Ok(())
         })
     }
@@ -205,8 +246,8 @@ pub unsafe extern "C" fn turbo_analyzer_analyze_graph(
 ) -> i32 {
     unsafe {
         call(err, || {
+            let out = result_out(out)?;
             let a = analyzer_handle(a)?;
-            let out = out_ptr(out, "out")?;
             let s = text(input, "text")?;
             *out = box_result(a.inner.analyze_graph(s)?);
             Ok(())
@@ -219,7 +260,6 @@ pub unsafe extern "C" fn turbo_analyzer_analyze_graph(
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn turbo_analyzer_inspect_graph(
     a: *mut turbo_analyzer,
-    input: turbo_text,
     graph_bytes: *const u8,
     graph_len: u64,
     out: *mut *mut turbo_analysis_result,
@@ -227,15 +267,14 @@ pub unsafe extern "C" fn turbo_analyzer_inspect_graph(
 ) -> i32 {
     unsafe {
         call(err, || {
+            let out = result_out(out)?;
             let a = analyzer_handle(a)?;
-            let out = out_ptr(out, "out")?;
-            let s = text(input, "text")?;
             if graph_len == 0 || graph_bytes.is_null() {
                 return Err(Error::new(INVALID_ARGUMENT, "graph_bytes is NULL or empty"));
             }
             let n = array_len::<u8>(graph_len, "graph_bytes")?;
             let bytes = std::slice::from_raw_parts(graph_bytes, n);
-            *out = box_result(a.inner.inspect_graph(s, bytes)?);
+            *out = box_result(a.inner.inspect_graph(bytes)?);
             Ok(())
         })
     }
@@ -252,10 +291,13 @@ pub unsafe extern "C" fn turbo_analysis_result_spans(
 ) -> i32 {
     unsafe {
         call(err, || {
-            let r = analysis_result_handle(r)?;
             let spans = out_ptr(spans, "spans")?;
+            *spans = std::ptr::null();
             let count = out_ptr(count, "count")?;
-            *count = r.inner.spans.len() as u32;
+            *count = 0;
+            let r = analysis_result_handle(r)?;
+            *count = u32::try_from(r.inner.spans.len())
+                .map_err(|_| Error::new(crate::status::CAPACITY, "analysis span count exceeds u32"))?;
             *spans = if r.inner.spans.is_empty() { std::ptr::null() } else { r.inner.spans.as_ptr() };
             Ok(())
         })
@@ -273,9 +315,11 @@ pub unsafe extern "C" fn turbo_analysis_result_strings(
 ) -> i32 {
     unsafe {
         call(err, || {
-            let r = analysis_result_handle(r)?;
             let pool = out_ptr(pool, "pool")?;
+            *pool = std::ptr::null();
             let bytes = out_ptr(bytes, "bytes")?;
+            *bytes = 0;
+            let r = analysis_result_handle(r)?;
             *bytes = r.inner.pool.len() as u64;
             *pool = if r.inner.pool.is_empty() { std::ptr::null() } else { r.inner.pool.as_ptr().cast::<c_char>() };
             Ok(())
@@ -294,9 +338,11 @@ pub unsafe extern "C" fn turbo_analysis_result_graph(
 ) -> i32 {
     unsafe {
         call(err, || {
-            let r = analysis_result_handle(r)?;
             let data = out_ptr(data, "data")?;
+            *data = std::ptr::null();
             let bytes = out_ptr(bytes, "bytes")?;
+            *bytes = 0;
+            let r = analysis_result_handle(r)?;
             *bytes = r.inner.graph.len() as u64;
             *data = if r.inner.graph.is_empty() { std::ptr::null() } else { r.inner.graph.as_ptr() };
             Ok(())
@@ -305,11 +351,23 @@ pub unsafe extern "C" fn turbo_analysis_result_graph(
 }
 
 /// # Safety
-/// `r` is NULL or a live handle returned by a `turbo_analyzer_*` call.
+/// `r` is NULL or a live reference returned by a `turbo_analyzer_*` call or
+/// this function.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn turbo_analysis_result_retain(r: *mut turbo_analysis_result) -> *mut turbo_analysis_result {
+    if r.is_null() || unsafe { analysis_result_handle(r) }.is_err() {
+        return std::ptr::null_mut();
+    }
+    unsafe { Arc::increment_strong_count(r.cast_const()) };
+    r
+}
+
+/// # Safety
+/// `r` is NULL or one live reference owned by the caller. The caller must
+/// release each reference exactly once.
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn turbo_analysis_result_release(r: *mut turbo_analysis_result) {
-    if unsafe { analysis_result_handle(r) }.is_ok() {
-        let mut b = unsafe { Box::from_raw(r) };
-        b.magic = 0;
+    if !r.is_null() && unsafe { analysis_result_handle(r) }.is_ok() {
+        drop(unsafe { Arc::from_raw(r.cast_const()) });
     }
 }

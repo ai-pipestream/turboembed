@@ -1,11 +1,12 @@
 package ai.pipestream.turboembed.opennlp;
 
 /**
- * Drop-in Apache OpenNLP {@code opennlp.tools.namefind.TokenNameFinder} interface.
+ * OpenNLP-style token name finder interface in this project's namespace.
+ * This is not {@code opennlp.tools.namefind.TokenNameFinder}.
  */
 public interface TokenNameFinder {
     /**
-     * Generates name spans for the given sequence of tokens.
+     * Generates token-indexed name spans for one independent token sequence.
      *
      * @param tokens array of sentence tokens
      * @return array of token-indexed {@link Span}s
@@ -13,7 +14,8 @@ public interface TokenNameFinder {
     Span[] find(String[] tokens);
 
     /**
-     * Forgets all adaptive data collected during previous calls to {@link #find(String[])}.
+     * Clears adaptive data. The native binding constructs fresh model context for every
+     * {@code find} call and retains no adaptive data, so implementations may make this a no-op.
      */
     void clearAdaptiveData();
 }

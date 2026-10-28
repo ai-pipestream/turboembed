@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Low-level Java 22+ Panama Foreign Function and Memory (FFM) bindings over {@code libturbo}.
@@ -32,6 +33,49 @@ public final class TurboLibrary {
     public static final int TURBO_E_INVALID_UTF8 = 258;
     /** Status code for invalid handle. */
     public static final int TURBO_E_INVALID_HANDLE = 259;
+    /** Status code for a task whose required model is not configured. */
+    public static final int TURBO_E_UNSUPPORTED_TASK = 514;
+
+    /** Native {@code TURBO_ANALYSIS_LAYER_SENTENCES}. */
+    public static final int TURBO_ANALYSIS_LAYER_SENTENCES = 1;
+    /** Native {@code TURBO_ANALYSIS_LAYER_TOKENS}. */
+    public static final int TURBO_ANALYSIS_LAYER_TOKENS = 2;
+    /** Native {@code TURBO_ANALYSIS_LAYER_POS}. */
+    public static final int TURBO_ANALYSIS_LAYER_POS = 3;
+    /** Native {@code TURBO_ANALYSIS_LAYER_LEMMAS}. */
+    public static final int TURBO_ANALYSIS_LAYER_LEMMAS = 4;
+    /** Native {@code TURBO_ANALYSIS_LAYER_ENTITIES}. */
+    public static final int TURBO_ANALYSIS_LAYER_ENTITIES = 5;
+    /** Native {@code TURBO_ANALYSIS_LAYER_PII}. */
+    public static final int TURBO_ANALYSIS_LAYER_PII = 6;
+
+    /** Native span flag: a view range is present. */
+    public static final int TURBO_SPAN_VIEW_RANGE = 1;
+    /** Native span flag: a source range is present. */
+    public static final int TURBO_SPAN_SOURCE_RANGE = 1 << 1;
+    /** Native span flag: a token range is present. */
+    public static final int TURBO_SPAN_TOKEN_RANGE = 1 << 2;
+    /** Native span flag: a label is present. */
+    public static final int TURBO_SPAN_LABEL = 1 << 3;
+    /** Native span flag: a normalized value is present. */
+    public static final int TURBO_SPAN_VALUE = 1 << 4;
+    /** Native span flag: a probability is present. */
+    public static final int TURBO_SPAN_PROBABILITY = 1 << 5;
+    /** Mask containing every native span flag defined by this ABI. */
+    public static final int TURBO_SPAN_KNOWN_FLAGS =
+            TURBO_SPAN_VIEW_RANGE
+                    | TURBO_SPAN_SOURCE_RANGE
+                    | TURBO_SPAN_TOKEN_RANGE
+                    | TURBO_SPAN_LABEL
+                    | TURBO_SPAN_VALUE
+                    | TURBO_SPAN_PROBABILITY;
+
+    /** Native PII classification: format-only evidence. */
+    public static final int TURBO_PII_CONFIDENCE_FORMAT = 1;
+    /** Native PII classification: checksum evidence. */
+    public static final int TURBO_PII_CONFIDENCE_CHECKSUM = 2;
+    /** Native PII classification: labelled checksum evidence. */
+    public static final int TURBO_PII_CONFIDENCE_LABELLED = 3;
     /** Status code for bundle not found. */
     public static final int TURBO_E_BUNDLE_NOT_FOUND = 1280;
     /** Status code for invalid bundle. */
@@ -63,18 +107,36 @@ public final class TurboLibrary {
             TURBO_TEXT_LAYOUT.withName("lemma_model_path"),
             TURBO_TEXT_LAYOUT.withName("ner_model_path"));
 
-    /** Layout of {@code struct turbo_span} (48 bytes). */
+    /** Layout of {@code struct turbo_span} (120 bytes, alignment 8). */
     public static final StructLayout TURBO_SPAN_LAYOUT = MemoryLayout.structLayout(
-            ValueLayout.JAVA_INT.withName("byte_start"),
-            ValueLayout.JAVA_INT.withName("byte_end"),
-            ValueLayout.JAVA_INT.withName("utf16_start"),
-            ValueLayout.JAVA_INT.withName("utf16_end"),
-            ValueLayout.JAVA_INT.withName("codepoint_start"),
-            ValueLayout.JAVA_INT.withName("codepoint_end"),
+            ValueLayout.JAVA_INT.withName("layer_kind"),
+            ValueLayout.JAVA_INT.withName("flags"),
+            ValueLayout.JAVA_INT.withName("item_index"),
+            ValueLayout.JAVA_INT.withName("fragment_index"),
+            ValueLayout.JAVA_INT.withName("view_id"),
+            ValueLayout.JAVA_INT.withName("classification"),
+            ValueLayout.JAVA_INT.withName("view_byte_start"),
+            ValueLayout.JAVA_INT.withName("view_byte_end"),
+            ValueLayout.JAVA_INT.withName("view_utf16_start"),
+            ValueLayout.JAVA_INT.withName("view_utf16_end"),
+            ValueLayout.JAVA_INT.withName("view_codepoint_start"),
+            ValueLayout.JAVA_INT.withName("view_codepoint_end"),
+            ValueLayout.JAVA_INT.withName("source_byte_start"),
+            ValueLayout.JAVA_INT.withName("source_byte_end"),
+            ValueLayout.JAVA_INT.withName("source_utf16_start"),
+            ValueLayout.JAVA_INT.withName("source_utf16_end"),
+            ValueLayout.JAVA_INT.withName("source_codepoint_start"),
+            ValueLayout.JAVA_INT.withName("source_codepoint_end"),
             ValueLayout.JAVA_INT.withName("token_start"),
             ValueLayout.JAVA_INT.withName("token_end"),
+            ValueLayout.JAVA_INT.withName("layer_offset"),
+            ValueLayout.JAVA_INT.withName("layer_len"),
+            ValueLayout.JAVA_INT.withName("instance_offset"),
+            ValueLayout.JAVA_INT.withName("instance_len"),
             ValueLayout.JAVA_INT.withName("label_offset"),
             ValueLayout.JAVA_INT.withName("label_len"),
+            ValueLayout.JAVA_INT.withName("value_offset"),
+            ValueLayout.JAVA_INT.withName("value_len"),
             ValueLayout.JAVA_DOUBLE.withName("prob"));
 
     /** Layout of {@code struct turbo_text_pair} (32 bytes). */
@@ -151,6 +213,9 @@ public final class TurboLibrary {
     /** {@code int32_t turbo_analyzer_create(const turbo_analyzer_desc *, turbo_analyzer **, turbo_error *)} */
     public static final MethodHandle TURBO_ANALYZER_CREATE = downcall("turbo_analyzer_create",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+    /** {@code turbo_analyzer *turbo_analyzer_retain(turbo_analyzer *)} */
+    public static final MethodHandle TURBO_ANALYZER_RETAIN = downcall("turbo_analyzer_retain",
+            FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
     /** {@code void turbo_analyzer_release(turbo_analyzer *)} */
     public static final MethodHandle TURBO_ANALYZER_RELEASE = downcall("turbo_analyzer_release",
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
@@ -178,14 +243,18 @@ public final class TurboLibrary {
     public static final MethodHandle TURBO_ANALYZER_FIND_TEXT = downcall("turbo_analyzer_find_text",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, TURBO_TEXT_LAYOUT,
                     ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+    /** {@code int32_t turbo_analyzer_detect_pii(turbo_analyzer *, turbo_text, turbo_analysis_result **, turbo_error *)} */
+    public static final MethodHandle TURBO_ANALYZER_DETECT_PII = downcall("turbo_analyzer_detect_pii",
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, TURBO_TEXT_LAYOUT,
+                    ValueLayout.ADDRESS, ValueLayout.ADDRESS));
     /** {@code int32_t turbo_analyzer_analyze_graph(turbo_analyzer *, turbo_text, turbo_analysis_result **, turbo_error *)} */
     public static final MethodHandle TURBO_ANALYZER_ANALYZE_GRAPH = downcall("turbo_analyzer_analyze_graph",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, TURBO_TEXT_LAYOUT,
                     ValueLayout.ADDRESS, ValueLayout.ADDRESS));
-    /** {@code int32_t turbo_analyzer_inspect_graph(turbo_analyzer *, turbo_text, const uint8_t *, uint64_t, turbo_analysis_result **, turbo_error *)} */
+    /** {@code int32_t turbo_analyzer_inspect_graph(turbo_analyzer *, const uint8_t *, uint64_t, turbo_analysis_result **, turbo_error *)} */
     public static final MethodHandle TURBO_ANALYZER_INSPECT_GRAPH = downcall("turbo_analyzer_inspect_graph",
-            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, TURBO_TEXT_LAYOUT,
-                    ValueLayout.ADDRESS, ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+            FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                    ValueLayout.JAVA_LONG, ValueLayout.ADDRESS, ValueLayout.ADDRESS));
     /** {@code int32_t turbo_analysis_result_spans(const turbo_analysis_result *, const turbo_span **, uint32_t *, turbo_error *)} */
     public static final MethodHandle TURBO_ANALYSIS_RESULT_SPANS = downcall("turbo_analysis_result_spans",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
@@ -198,6 +267,9 @@ public final class TurboLibrary {
     public static final MethodHandle TURBO_ANALYSIS_RESULT_GRAPH = downcall("turbo_analysis_result_graph",
             FunctionDescriptor.of(ValueLayout.JAVA_INT, ValueLayout.ADDRESS, ValueLayout.ADDRESS,
                     ValueLayout.ADDRESS, ValueLayout.ADDRESS));
+    /** {@code turbo_analysis_result *turbo_analysis_result_retain(turbo_analysis_result *)} */
+    public static final MethodHandle TURBO_ANALYSIS_RESULT_RETAIN = downcall("turbo_analysis_result_retain",
+            FunctionDescriptor.of(ValueLayout.ADDRESS, ValueLayout.ADDRESS));
     /** {@code void turbo_analysis_result_release(turbo_analysis_result *)} */
     public static final MethodHandle TURBO_ANALYSIS_RESULT_RELEASE = downcall("turbo_analysis_result_release",
             FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
@@ -213,15 +285,23 @@ public final class TurboLibrary {
 
     private static SymbolLookup loadSymbolLookup() {
         String libFile = System.mapLibraryName("turbo");
-        List<Path> candidates = new ArrayList<>();
 
         String explicitPath = System.getProperty("turbo.library.path", System.getenv("TURBO_LIBRARY_PATH"));
         if (explicitPath != null && !explicitPath.isBlank()) {
-            candidates.add(Path.of(explicitPath));
+            Path candidate = Path.of(explicitPath);
+            if (Files.isDirectory(candidate)) {
+                candidate = candidate.resolve(libFile);
+            }
+            if (!Files.isRegularFile(candidate)) {
+                throw new UnsatisfiedLinkError("Configured libturbo path does not exist: " + candidate);
+            }
+            return SymbolLookup.libraryLookup(candidate.toAbsolutePath().normalize(), LIBRARY_ARENA);
         }
 
+        List<Path> candidates = new ArrayList<>();
         String searchDirs = System.getProperty("turbo.library.dir", System.getenv("TURBO_LIBRARY_DIR"));
-        if (searchDirs != null && !searchDirs.isBlank()) {
+        boolean searchDirsConfigured = searchDirs != null && !searchDirs.isBlank();
+        if (searchDirsConfigured) {
             for (String part : searchDirs.split(File.pathSeparator)) {
                 if (!part.isBlank()) {
                     candidates.add(Path.of(part, libFile));
@@ -229,16 +309,20 @@ public final class TurboLibrary {
             }
         }
 
-        Path cwd = Path.of("").toAbsolutePath();
-        candidates.add(cwd.resolve("target/debug").resolve(libFile));
-        candidates.add(cwd.resolve("target/release").resolve(libFile));
-        candidates.add(cwd.resolve("../../target/debug").normalize().resolve(libFile));
-        candidates.add(cwd.resolve("../../target/release").normalize().resolve(libFile));
+        if (!searchDirsConfigured) {
+            for (Path dir = Path.of("").toAbsolutePath().normalize(); dir != null; dir = dir.getParent()) {
+                candidates.add(dir.resolve("target/debug").resolve(libFile));
+                candidates.add(dir.resolve("target/release").resolve(libFile));
+            }
+        }
 
         for (Path candidate : candidates) {
             if (Files.isRegularFile(candidate)) {
                 return SymbolLookup.libraryLookup(candidate.toAbsolutePath().normalize(), LIBRARY_ARENA);
             }
+        }
+        if (searchDirsConfigured) {
+            throw new UnsatisfiedLinkError("libturbo was not found in configured directories: " + candidates);
         }
         return SymbolLookup.libraryLookup(libFile, LIBRARY_ARENA);
     }
@@ -340,6 +424,11 @@ public final class TurboLibrary {
      * @return pointer to the contiguous {@code turbo_text} array, or {@link MemorySegment#NULL} if empty
      */
     public static MemorySegment allocateTextArray(Arena arena, String[] items) {
+        Objects.requireNonNull(arena, "arena");
+        Objects.requireNonNull(items, "items");
+        for (int i = 0; i < items.length; i++) {
+            Objects.requireNonNull(items[i], "items[" + i + "]");
+        }
         if (items.length == 0) {
             return MemorySegment.NULL;
         }

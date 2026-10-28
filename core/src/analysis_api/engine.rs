@@ -3,27 +3,29 @@
 use std::path::Path;
 
 use turbo_analysis::{
-    Codecs, Document, DocumentGraph, Ix, IxRange, Key, OffsetTable, Provenance, Span, Spans, Tag, TagSet, ViewId,
+    Codecs, Document, DocumentGraph, IxRange, Key, Layer, OffsetTable, Provenance, Span, Spans, Tag, TagSet, ViewId,
     export, import,
 };
 use turbo_analysis_layers::export::register_codecs;
-use turbo_analysis_layers::{Entities, Lemmas, Pii, PosTags, Sentences, Strs, Tokens};
-use turbo_lemmatizer::{DictionaryLemmatizer, LemmatizerModel, MaxentLemmatizer, NOT_FOUND};
-use turbo_maxent::Dictionary;
-use turbo_namefind::{BuiltIn, DictionaryNameFinder, RegexNameFinder, TokenNameFinder};
+use turbo_analysis_layers::{Confidence, Entities, Lemmas, Pii, PiiConfidence, PosTags, Sentences, Strs, Tokens};
+use turbo_lemmatizer::{DictionaryLemmatizer, LemmatizerModel, MaxentLemmatizer};
 use turbo_pii::{Pack, PiiDetector};
 use turbo_sentdetect::{RuleSplitter, SentenceDetector, SentenceModel, WhitespaceMode};
 use turbo_sequence::TokenTag;
 use turbo_tokenize::me::{TokenizerMe, TokenizerModel};
 use turbo_tokenize::{TokenizerOptions, simple_spans};
 
-use super::models::{
-    DEFAULT_LEMMA_DICT, DEFAULT_PEOPLE_XML, DEFAULT_PLACES_XML, NerEngine, PosEngine, default_tag_tokens,
-    read_model_file,
+use super::graph::extract_graph;
+use super::models::{LemmaOutcome, NerEngine, PosEngine, PosOutcome, read_model_file};
+use super::{
+    AnalysisResultInner, SpanDraft, SpanPoolBuilder, TURBO_ANALYSIS_LAYER_ENTITIES, TURBO_ANALYSIS_LAYER_LEMMAS,
+    TURBO_ANALYSIS_LAYER_PII, TURBO_ANALYSIS_LAYER_POS, TURBO_PII_CONFIDENCE_CHECKSUM, TURBO_PII_CONFIDENCE_FORMAT,
+    TURBO_PII_CONFIDENCE_LABELLED, coordinate_range, turbo_analyzer_desc,
 };
-use super::{AnalysisResultInner, SpanPoolBuilder, turbo_analyzer_desc};
 use crate::ffi::text;
-use crate::status::{BUNDLE_INVALID, BUNDLE_NOT_FOUND, Error, INVALID_ARGUMENT, Result};
+use crate::status::{BUNDLE_INVALID, BUNDLE_NOT_FOUND, CAPACITY, Error, INVALID_ARGUMENT, Result, UNSUPPORTED_TASK};
+
+mod direct;
 
 pub struct AnalyzerEngine {
     sentence_model: Option<SentenceDetector>,
@@ -33,12 +35,19 @@ pub struct AnalyzerEngine {
     dict_lemmatizer: Option<DictionaryLemmatizer>,
     maxent_lemmatizer: Option<MaxentLemmatizer>,
     ner_engine: Option<NerEngine>,
-    person_dict: DictionaryNameFinder,
-    place_dict: DictionaryNameFinder,
-    regex_finder: RegexNameFinder,
     pii_detector: PiiDetector,
     codecs: Codecs,
 }
+
+fn unsupported(task: &str, field: &str) -> Error {
+    Error::new(UNSUPPORTED_TASK, format!("{task} requires {field}; no fallback task is substituted"))
+}
+
+fn index_u32(index: usize, what: &str) -> Result<u32> {
+    u32::try_from(index).map_err(|_| Error::new(CAPACITY, format!("{what} exceeds u32")))
+}
+
+const SOURCE_VIEW: u32 = ViewId::SOURCE.0 as u32;
 
 impl AnalyzerEngine {
     pub(crate) unsafe fn from_desc(desc: Option<&turbo_analyzer_desc>) -> Result<Self> {
@@ -81,17 +90,15 @@ impl AnalyzerEngine {
         };
 
         let (dict_lemmatizer, maxent_lemmatizer) = if lemma_path.is_empty() {
-            let dict = DictionaryLemmatizer::parse(DEFAULT_LEMMA_DICT, lang)
-                .map_err(|e| Error::new(BUNDLE_INVALID, format!("default lemma dictionary: {e}")))?;
-            (Some(dict), None)
+            (None, None)
         } else if lemma_path.ends_with(".txt") || lemma_path.ends_with(".tsv") || lemma_path.ends_with(".dict") {
             let p = Path::new(lemma_path);
             if !p.exists() {
                 return Err(Error::new(BUNDLE_NOT_FOUND, format!("lemma_model_path: file not found at {lemma_path}")));
             }
-            let dict = DictionaryLemmatizer::read(p, lang)
+            let dictionary = DictionaryLemmatizer::read(p, "dictionary")
                 .map_err(|e| Error::new(BUNDLE_INVALID, format!("lemma_model_path: {e}")))?;
-            (Some(dict), None)
+            (Some(dictionary), None)
         } else {
             let file = read_model_file(lemma_path, "lemma_model_path")?;
             let model = LemmatizerModel::open(file)
@@ -105,17 +112,6 @@ impl AnalyzerEngine {
             Some(NerEngine::open(read_model_file(ner_path, "ner_model_path")?)?)
         };
 
-        let person_dict = DictionaryNameFinder::new(
-            Dictionary::read(DEFAULT_PEOPLE_XML)
-                .map_err(|e| Error::new(BUNDLE_INVALID, format!("people dictionary: {e}")))?,
-            "person",
-        );
-        let place_dict = DictionaryNameFinder::new(
-            Dictionary::read(DEFAULT_PLACES_XML)
-                .map_err(|e| Error::new(BUNDLE_INVALID, format!("places dictionary: {e}")))?,
-            "location",
-        );
-        let regex_finder = RegexNameFinder::defaults(&BuiltIn::ALL);
         let pii_detector = PiiDetector::pack(Pack::AllStructured);
         let mut codecs = Codecs::new();
         register_codecs(&mut codecs);
@@ -128,235 +124,348 @@ impl AnalyzerEngine {
             dict_lemmatizer,
             maxent_lemmatizer,
             ner_engine,
-            person_dict,
-            place_dict,
-            regex_finder,
             pii_detector,
             codecs,
         })
     }
 
-    fn sentence_spans(&self, text: &str) -> Vec<(Span, f64)> {
+    fn sentence_spans(&self, text: &str) -> Vec<(Span, Option<f64>)> {
         let mut out = Vec::new();
         if let Some(me) = &self.sentence_model {
             me.detect(text, &mut out);
+            out.into_iter().map(|(span, prob)| (span, Some(prob))).collect()
         } else {
             let mut spans = Vec::new();
             self.rule_splitter.split(text, &mut spans);
-            out.extend(spans.into_iter().map(|s| (s, 1.0)));
+            spans.into_iter().map(|span| (span, None)).collect()
         }
-        out
     }
 
-    fn token_spans(&self, text: &str) -> Vec<(Span, f64)> {
+    fn token_spans(&self, text: &str) -> Vec<(Span, Option<f64>)> {
         let mut out = Vec::new();
         if let Some(me) = &self.tokenizer_model {
             me.tokenize(text, &mut out);
+            out.into_iter().map(|(span, prob)| (span, Some(prob))).collect()
         } else {
             let mut spans = Vec::new();
             simple_spans(text, TokenizerOptions::default(), &mut spans);
-            out.extend(spans.into_iter().map(|s| (s, 1.0)));
+            spans.into_iter().map(|span| (span, None)).collect()
         }
-        out
     }
 
-    pub fn detect_sentences(&self, text: &str) -> Result<AnalysisResultInner> {
-        let offsets = OffsetTable::build(text);
-        let sents = self.sentence_spans(text);
-        let mut b = SpanPoolBuilder::with_capacity(sents.len(), text.len());
-        for (idx, (span, prob)) in sents.into_iter().enumerate() {
-            let covered = &text[span.start as usize..span.end as usize];
-            b.push_text_span(text, &offsets, (span.start, span.end), (idx as u32, idx as u32 + 1), covered, prob);
+    fn pos_outcomes(&self, tokens: &[&str]) -> Result<Vec<PosOutcome>> {
+        if tokens.is_empty() {
+            return Ok(Vec::new());
         }
-        Ok(b.finish(Vec::new()))
-    }
-
-    pub fn tokenize(&self, text: &str) -> Result<AnalysisResultInner> {
-        let offsets = OffsetTable::build(text);
-        let toks = self.token_spans(text);
-        let mut b = SpanPoolBuilder::with_capacity(toks.len(), text.len());
-        for (idx, (span, prob)) in toks.into_iter().enumerate() {
-            let covered = &text[span.start as usize..span.end as usize];
-            b.push_text_span(text, &offsets, (span.start, span.end), (idx as u32, idx as u32 + 1), covered, prob);
-        }
-        Ok(b.finish(Vec::new()))
-    }
-
-    fn tag_token_slice(&self, tokens: &[&str]) -> Result<Vec<(String, f64)>> {
-        match &self.pos_engine {
-            Some(pos) => pos.tag_tokens(tokens),
-            None => Ok(default_tag_tokens(tokens)),
-        }
+        let Some(pos) = &self.pos_engine else {
+            return Err(unsupported("POS tagging", "pos_model_path"));
+        };
+        pos.tag_tokens(tokens)
     }
 
     pub fn pos_tag(&self, tokens: &[&str]) -> Result<AnalysisResultInner> {
-        let tagged = self.tag_token_slice(tokens)?;
-        let mut b = SpanPoolBuilder::with_capacity(tagged.len(), tagged.len() * 6);
-        for (idx, (tag, prob)) in tagged.into_iter().enumerate() {
-            b.push_token_span(idx as u32, idx as u32 + 1, &tag, prob);
+        let tagged = self.pos_outcomes(tokens)?;
+        let mut builder = SpanPoolBuilder::with_capacity(tagged.len(), tagged.len() * 6);
+        let layer = builder.layer_ref(TURBO_ANALYSIS_LAYER_POS, PosTags::ID, "", SOURCE_VIEW)?;
+        for (idx, outcome) in tagged.into_iter().enumerate() {
+            let item = index_u32(idx, "POS token count")?;
+            let label = match outcome.tag.as_deref() {
+                Some(tag) => Some(builder.string_ref(tag)?),
+                None => None,
+            };
+            builder.push(
+                layer,
+                SpanDraft {
+                    item_index: item,
+                    tokens: Some((item, item + 1)),
+                    label,
+                    prob: outcome.prob,
+                    ..SpanDraft::default()
+                },
+            )?;
         }
-        Ok(b.finish(Vec::new()))
+        Ok(builder.finish(Vec::new()))
     }
 
-    pub fn lemmatize(&self, tokens: &[&str], tags: &[&str]) -> Result<AnalysisResultInner> {
+    fn lemma_outcomes(&self, tokens: &[&str], tags: &[&str]) -> Result<Vec<LemmaOutcome>> {
         if tokens.len() != tags.len() {
             return Err(Error::new(INVALID_ARGUMENT, "tokens and tags must have the same count"));
         }
+        if tokens.is_empty() {
+            return Ok(Vec::new());
+        }
+        if let Some(dict) = &self.dict_lemmatizer {
+            return Ok(tokens
+                .iter()
+                .zip(tags.iter())
+                .map(|(&word, &tag)| LemmaOutcome {
+                    lemma: dict.lemmas(word, tag).and_then(|lemmas| lemmas.first().cloned()),
+                    prob: None,
+                })
+                .collect());
+        }
+        let Some(lemmatizer) = &self.maxent_lemmatizer else {
+            return Err(unsupported("lemmatization", "lemma_model_path"));
+        };
+        let pairs: Vec<TokenTag<'_>> =
+            tokens.iter().zip(tags.iter()).map(|(&token, &tag)| TokenTag { token, tag }).collect();
         let mut model_lemmas = Strs::default();
         let mut model_probs = Vec::with_capacity(tokens.len());
-        let has_model = match (&self.maxent_lemmatizer, tokens.is_empty()) {
-            (Some(lemmatizer), false) => {
-                let pairs: Vec<TokenTag<'_>> =
-                    tokens.iter().zip(tags.iter()).map(|(&token, &tag)| TokenTag { token, tag }).collect();
-                lemmatizer
-                    .lemmatize(&pairs, &mut model_lemmas, &mut model_probs)
-                    .map_err(|e| Error::new(BUNDLE_INVALID, format!("lemmatize: {e}")))?
-            }
-            _ => false,
-        };
-        let mut b = SpanPoolBuilder::with_capacity(tokens.len(), tokens.len() * 8);
-        for (idx, (&word, &tag)) in tokens.iter().zip(tags.iter()).enumerate() {
-            if let Some(dict) = &self.dict_lemmatizer {
-                let d_lemma = dict.lemma(word, tag);
-                if d_lemma != NOT_FOUND {
-                    b.push_token_span(idx as u32, idx as u32 + 1, d_lemma, 1.0);
-                    continue;
-                }
-            }
-            if has_model && idx < model_lemmas.len() {
-                b.push_token_span(idx as u32, idx as u32 + 1, model_lemmas.get(idx), model_probs[idx]);
-            } else {
-                b.push_token_span(idx as u32, idx as u32 + 1, &word.to_ascii_lowercase(), 1.0);
-            }
+        let has_model = lemmatizer
+            .lemmatize(&pairs, &mut model_lemmas, &mut model_probs)
+            .map_err(|e| Error::new(BUNDLE_INVALID, format!("lemmatize: {e}")))?;
+        if !has_model {
+            return Ok(tokens.iter().map(|_| LemmaOutcome::unknown()).collect());
         }
-        Ok(b.finish(Vec::new()))
+        if model_lemmas.len() != tokens.len() || model_probs.len() != tokens.len() {
+            return Err(Error::new(BUNDLE_INVALID, "lemmatizer returned an outcome count mismatch"));
+        }
+        Ok(model_lemmas
+            .iter()
+            .zip(model_probs)
+            .map(|(lemma, prob)| LemmaOutcome { lemma: Some(lemma.to_owned()), prob: Some(prob) })
+            .collect())
     }
 
-    fn collect_token_entities(&self, tokens: &[&str]) -> Result<Vec<(u32, u32, String, f64)>> {
-        let mut entities = Vec::new();
-        let mut names = Vec::new();
-        for finder in [&self.person_dict as &dyn TokenNameFinder, &self.place_dict, &self.regex_finder] {
-            names.clear();
-            finder.find(tokens, &mut names).map_err(|e| Error::new(BUNDLE_INVALID, format!("namefind: {e}")))?;
-            for n in &names {
-                let kind = finder.kinds().label(n.kind).to_owned();
-                if !entities.iter().any(|&(s, e, _, _)| s < n.end && n.start < e) {
-                    entities.push((n.start, n.end, kind, 1.0));
-                }
-            }
+    pub fn lemmatize(&self, tokens: &[&str], tags: &[&str]) -> Result<AnalysisResultInner> {
+        let outcomes = self.lemma_outcomes(tokens, tags)?;
+        let mut builder = SpanPoolBuilder::with_capacity(outcomes.len(), outcomes.len() * 8);
+        let layer = builder.layer_ref(TURBO_ANALYSIS_LAYER_LEMMAS, Lemmas::ID, "", SOURCE_VIEW)?;
+        for (idx, outcome) in outcomes.into_iter().enumerate() {
+            let item = index_u32(idx, "lemma token count")?;
+            let label = match outcome.lemma.as_deref() {
+                Some(lemma) => Some(builder.string_ref(lemma)?),
+                None => None,
+            };
+            builder.push(
+                layer,
+                SpanDraft {
+                    item_index: item,
+                    tokens: Some((item, item + 1)),
+                    label,
+                    prob: outcome.prob,
+                    ..SpanDraft::default()
+                },
+            )?;
         }
-        if let Some(ner) = &self.ner_engine {
-            for (start, end, kind, prob) in ner.find(tokens)? {
-                if !entities.iter().any(|&(s, e, _, _)| s < end && start < e) {
-                    entities.push((start, end, kind, prob));
-                }
-            }
+        Ok(builder.finish(Vec::new()))
+    }
+
+    fn model_entities(&self, tokens: &[&str]) -> Result<Vec<(u32, u32, String, f64)>> {
+        if tokens.is_empty() {
+            return Ok(Vec::new());
         }
-        entities.sort_by_key(|&(s, e, _, _)| (s, e));
-        Ok(entities)
+        let Some(ner) = &self.ner_engine else {
+            return Err(unsupported("named entity recognition", "ner_model_path"));
+        };
+        ner.find(tokens)
     }
 
     pub fn find_tokens(&self, tokens: &[&str]) -> Result<AnalysisResultInner> {
-        let entities = self.collect_token_entities(tokens)?;
-        let mut b = SpanPoolBuilder::with_capacity(entities.len(), entities.len() * 12);
-        for (start, end, kind, prob) in entities {
-            b.push_token_span(start, end, &kind, prob);
+        let entities = self.model_entities(tokens)?;
+        let mut builder = SpanPoolBuilder::with_capacity(entities.len(), entities.len() * 12);
+        let layer = builder.layer_ref(TURBO_ANALYSIS_LAYER_ENTITIES, Entities::ID, "", SOURCE_VIEW)?;
+        for (idx, (start, end, kind, prob)) in entities.into_iter().enumerate() {
+            let item = index_u32(idx, "entity count")?;
+            let label = builder.string_ref(&kind)?;
+            builder.push(
+                layer,
+                SpanDraft {
+                    item_index: item,
+                    tokens: Some((start, end)),
+                    label: Some(label),
+                    prob: Some(prob),
+                    ..SpanDraft::default()
+                },
+            )?;
         }
-        Ok(b.finish(Vec::new()))
+        Ok(builder.finish(Vec::new()))
     }
 
     pub fn find_text(&self, text: &str) -> Result<AnalysisResultInner> {
         let offsets = OffsetTable::build(text);
         let tok_spans = self.token_spans(text);
-        let tok_strs: Vec<&str> = tok_spans.iter().map(|&(s, _)| &text[s.start as usize..s.end as usize]).collect();
-        let mut found = Vec::new();
-        for (ts, te, kind, prob) in self.collect_token_entities(&tok_strs)? {
-            if (ts as usize) < tok_spans.len() && (te as usize) <= tok_spans.len() && ts < te {
-                let bs = tok_spans[ts as usize].0.start;
-                let be = tok_spans[te as usize - 1].0.end;
-                found.push((bs, be, ts, te, kind, prob));
+        let tok_strs: Vec<&str> = tok_spans
+            .iter()
+            .map(|&(s, _)| {
+                let (start, end) = (s.start as usize, s.end as usize);
+                if start > end || end > text.len() || !text.is_char_boundary(start) || !text.is_char_boundary(end) {
+                    return Err(Error::new(BUNDLE_INVALID, "tokenizer returned a span outside the text"));
+                }
+                Ok(&text[start..end])
+            })
+            .collect::<Result<Vec<_>>>()?;
+        let entities = self.model_entities(&tok_strs)?;
+        let mut builder = SpanPoolBuilder::with_capacity(entities.len(), entities.len() * 12);
+        let layer = builder.layer_ref(TURBO_ANALYSIS_LAYER_ENTITIES, Entities::ID, "", SOURCE_VIEW)?;
+        for (idx, (ts, te, kind, prob)) in entities.into_iter().enumerate() {
+            if ts >= te || te as usize > tok_spans.len() {
+                return Err(Error::new(BUNDLE_INVALID, "entity token range is outside the token sequence"));
             }
+            let first = tok_spans[ts as usize].0;
+            let last = tok_spans[te as usize - 1].0;
+            let coords = coordinate_range(text, &offsets, (first.start, last.end))?;
+            let label = builder.string_ref(&kind)?;
+            builder.push(
+                layer,
+                SpanDraft {
+                    item_index: index_u32(idx, "entity count")?,
+                    view: Some(coords),
+                    source: Some(coords),
+                    tokens: Some((ts, te)),
+                    label: Some(label),
+                    prob: Some(prob),
+                    ..SpanDraft::default()
+                },
+            )?;
         }
+        Ok(builder.finish(Vec::new()))
+    }
+
+    pub fn detect_pii(&self, text: &str) -> Result<AnalysisResultInner> {
+        let offsets = OffsetTable::build(text);
         let pii = self.pii_detector.layer(text, ViewId::SOURCE);
-        for m in pii.mentions() {
-            let bs = m.span.start;
-            let be = m.span.end;
-            if !found.iter().any(|&(s, e, _, _, _, _)| s < be && bs < e) {
-                let ts = tok_spans.partition_point(|&(s, _)| s.end <= bs) as u32;
-                let te = tok_spans.partition_point(|&(s, _)| s.start < be).max(ts as usize + 1) as u32;
-                found.push((bs, be, ts, te, m.kind.name().to_owned(), 1.0));
-            }
+        let mut builder = SpanPoolBuilder::with_capacity(pii.spans.len(), pii.spans.len().saturating_mul(16));
+        let layer = builder.layer_ref(TURBO_ANALYSIS_LAYER_PII, Pii::ID, "", SOURCE_VIEW)?;
+        for (idx, mention) in pii.mentions().enumerate() {
+            let coords = coordinate_range(text, &offsets, (mention.span.start, mention.span.end))?;
+            let label = builder.string_ref(mention.kind.name())?;
+            let value = builder.string_ref(mention.normalized)?;
+            let classification = match mention.confidence {
+                PiiConfidence::Format => TURBO_PII_CONFIDENCE_FORMAT,
+                PiiConfidence::Checksum => TURBO_PII_CONFIDENCE_CHECKSUM,
+                PiiConfidence::LabelledChecksum => TURBO_PII_CONFIDENCE_LABELLED,
+            };
+            builder.push(
+                layer,
+                SpanDraft {
+                    item_index: index_u32(idx, "PII mention count")?,
+                    classification,
+                    view: Some(coords),
+                    source: Some(coords),
+                    label: Some(label),
+                    value: Some(value),
+                    ..SpanDraft::default()
+                },
+            )?;
         }
-        found.sort_by_key(|&(bs, be, _, _, _, _)| (bs, be));
-        let mut b = SpanPoolBuilder::with_capacity(found.len(), found.len() * 12);
-        for (bs, be, ts, te, kind, prob) in found {
-            b.push_text_span(text, &offsets, (bs, be), (ts, te), &kind, prob);
-        }
-        Ok(b.finish(Vec::new()))
+        Ok(builder.finish(Vec::new()))
     }
 
     pub fn analyze_graph(&self, text: &str) -> Result<AnalysisResultInner> {
         let mut doc = Document::new(text);
         let mut sent_spans = Spans::new(ViewId::SOURCE);
-        for (s, _) in self.sentence_spans(text) {
-            sent_spans.push(s);
+        let mut sent_probs = Vec::new();
+        let mut sent_has_probs = true;
+        for (span, prob) in self.sentence_spans(text) {
+            sent_spans.push(span);
+            match prob {
+                Some(prob) => sent_probs.push(prob),
+                None => sent_has_probs = false,
+            }
         }
         doc.add(&Key::<Sentences>::DEFAULT, Sentences { spans: sent_spans }, Provenance::by("turbo:sentdetect"))
             .map_err(|e| Error::new(BUNDLE_INVALID, format!("add sentences: {e}")))?;
+        if sent_has_probs {
+            doc.add(
+                &Key::<Confidence<Sentences>>::DEFAULT,
+                Confidence::<Sentences>::new(sent_probs),
+                Provenance::by("turbo:sentdetect"),
+            )
+            .map_err(|e| Error::new(BUNDLE_INVALID, format!("add sentence confidence: {e}")))?;
+        }
 
         let tok_vec = self.token_spans(text);
         let mut tok_spans = Spans::new(ViewId::SOURCE);
         let mut tok_strs = Vec::with_capacity(tok_vec.len());
-        for (s, _) in &tok_vec {
-            tok_spans.push(*s);
-            tok_strs.push(&text[s.start as usize..s.end as usize]);
+        for (span, _) in &tok_vec {
+            let (start, end) = (span.start as usize, span.end as usize);
+            if start > end || end > text.len() || !text.is_char_boundary(start) || !text.is_char_boundary(end) {
+                return Err(Error::new(BUNDLE_INVALID, "tokenizer returned a span outside the text"));
+            }
+            tok_spans.push(*span);
+            tok_strs.push(&text[start..end]);
         }
         doc.add(&Key::<Tokens>::DEFAULT, Tokens { spans: tok_spans, sentence: None }, Provenance::by("turbo:tokenize"))
             .map_err(|e| Error::new(BUNDLE_INVALID, format!("add tokens: {e}")))?;
-
-        let tagged = self.tag_token_slice(&tok_strs)?;
-        let tag_labels: Vec<&str> = tagged.iter().map(|(t, _)| t.as_str()).collect();
-        let mut unique_tags: Vec<&str> = tag_labels.clone();
-        unique_tags.sort_unstable();
-        unique_tags.dedup();
-        let tagset = TagSet::new("ud", &unique_tags);
-        let tags: Vec<Tag> = tag_labels.iter().map(|&t| tagset.tag(t).unwrap_or(Tag(0))).collect();
-        let probs: Vec<f64> = tagged.iter().map(|&(_, p)| p).collect();
-        doc.add(&Key::<PosTags>::DEFAULT, PosTags { tagset, tags, prob: Some(probs) }, Provenance::by("turbo:postag"))
-            .map_err(|e| Error::new(BUNDLE_INVALID, format!("add pos: {e}")))?;
-
-        let lemma_res = self.lemmatize(&tok_strs, &tag_labels)?;
-        let mut lemma_strs = Strs::default();
-        for sp in &lemma_res.spans {
-            let s = &lemma_res.pool[sp.label_offset as usize..(sp.label_offset + sp.label_len) as usize];
-            lemma_strs.push(std::str::from_utf8(s).unwrap_or(""));
+        if tok_vec.iter().all(|(_, prob)| prob.is_some()) {
+            let token_probs = tok_vec.iter().map(|(_, prob)| prob.expect("checked present")).collect();
+            doc.add(
+                &Key::<Confidence<Tokens>>::DEFAULT,
+                Confidence::<Tokens>::new(token_probs),
+                Provenance::by("turbo:tokenize"),
+            )
+            .map_err(|e| Error::new(BUNDLE_INVALID, format!("add token confidence: {e}")))?;
         }
-        doc.add(&Key::<Lemmas>::DEFAULT, Lemmas { lemma: lemma_strs }, Provenance::by("turbo:lemmatizer"))
-            .map_err(|e| Error::new(BUNDLE_INVALID, format!("add lemmas: {e}")))?;
 
-        let ent_res = self.collect_token_entities(&tok_strs)?;
-        let mut ent_kinds: Vec<&str> = ent_res.iter().map(|(_, _, k, _)| k.as_str()).collect();
-        ent_kinds.sort_unstable();
-        ent_kinds.dedup();
-        let kinds = TagSet::new("entities", &ent_kinds);
-        let mut ent_spans = Spans::new(ViewId::SOURCE);
-        let mut ent_tokens = Vec::new();
-        let mut ent_kind = Vec::new();
-        let mut ent_score = Vec::new();
-        for (ts, te, k, p) in ent_res {
-            if (ts as usize) < tok_vec.len() && (te as usize) <= tok_vec.len() && ts < te {
-                ent_spans.push(Span::new(tok_vec[ts as usize].0.start, tok_vec[te as usize - 1].0.end));
-                ent_tokens.push(IxRange::new(ts, te));
-                ent_kind.push(kinds.tag(&k).unwrap_or(Tag(0)));
-                ent_score.push(p);
+        if let Some(pos_engine) = &self.pos_engine {
+            let tagged = self.pos_outcomes(&tok_strs)?;
+            if tagged.iter().all(|outcome| outcome.tag.is_some()) {
+                let tag_labels: Vec<String> =
+                    tagged.iter().map(|outcome| outcome.tag.clone().expect("checked known")).collect();
+                let tagset = pos_engine.tagset();
+                let tags: Vec<Tag> = tag_labels
+                    .iter()
+                    .map(|tag| {
+                        tagset.tag(tag).ok_or_else(|| {
+                            Error::new(BUNDLE_INVALID, format!("POS outcome {tag} is outside its tag set"))
+                        })
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                let probs: Vec<f64> = tagged.iter().map(|outcome| outcome.prob.unwrap_or(f64::NAN)).collect();
+                let prob = tagged.iter().all(|outcome| outcome.prob.is_some()).then_some(probs);
+                doc.add(&Key::<PosTags>::DEFAULT, PosTags { tagset, tags, prob }, Provenance::by("turbo:postag"))
+                    .map_err(|e| Error::new(BUNDLE_INVALID, format!("add pos: {e}")))?;
+
+                if self.dict_lemmatizer.is_some() || self.maxent_lemmatizer.is_some() {
+                    let tag_refs: Vec<&str> = tag_labels.iter().map(String::as_str).collect();
+                    let outcomes = self.lemma_outcomes(&tok_strs, &tag_refs)?;
+                    let mut lemma_strs = Strs::default();
+                    for outcome in &outcomes {
+                        lemma_strs.push(outcome.lemma.as_deref().unwrap_or("_"));
+                    }
+                    doc.add(&Key::<Lemmas>::DEFAULT, Lemmas { lemma: lemma_strs }, Provenance::by("turbo:lemmatizer"))
+                        .map_err(|e| Error::new(BUNDLE_INVALID, format!("add lemmas: {e}")))?;
+                    if outcomes.iter().all(|outcome| outcome.prob.is_some()) {
+                        let lemma_probs =
+                            outcomes.iter().map(|outcome| outcome.prob.expect("checked present")).collect();
+                        doc.add(
+                            &Key::<Confidence<Lemmas>>::DEFAULT,
+                            Confidence::<Lemmas>::new(lemma_probs),
+                            Provenance::by("turbo:lemmatizer"),
+                        )
+                        .map_err(|e| Error::new(BUNDLE_INVALID, format!("add lemma confidence: {e}")))?;
+                    }
+                }
             }
         }
-        doc.add(
-            &Key::<Entities>::DEFAULT,
-            Entities { spans: ent_spans, tokens: ent_tokens, kind: ent_kind, kinds, score: ent_score },
-            Provenance::by("turbo:namefind"),
-        )
-        .map_err(|e| Error::new(BUNDLE_INVALID, format!("add entities: {e}")))?;
+
+        if self.ner_engine.is_some() {
+            let ent_res = self.model_entities(&tok_strs)?;
+            let mut ent_kinds: Vec<&str> = ent_res.iter().map(|(_, _, kind, _)| kind.as_str()).collect();
+            ent_kinds.sort_unstable();
+            ent_kinds.dedup();
+            let kinds = TagSet::new("entities", &ent_kinds);
+            let mut ent_spans = Spans::new(ViewId::SOURCE);
+            let mut ent_tokens = Vec::new();
+            let mut ent_kind = Vec::new();
+            let mut ent_score = Vec::new();
+            for (ts, te, kind, prob) in ent_res {
+                if ts >= te || te as usize > tok_vec.len() {
+                    return Err(Error::new(BUNDLE_INVALID, "entity token range is outside the token sequence"));
+                }
+                ent_spans.push(Span::new(tok_vec[ts as usize].0.start, tok_vec[te as usize - 1].0.end));
+                ent_tokens.push(IxRange::new(ts, te));
+                ent_kind.push(kinds.tag(&kind).unwrap_or(Tag(0)));
+                ent_score.push(prob);
+            }
+            doc.add(
+                &Key::<Entities>::DEFAULT,
+                Entities { spans: ent_spans, tokens: ent_tokens, kind: ent_kind, kinds, score: ent_score },
+                Provenance::by("turbo:namefind"),
+            )
+            .map_err(|e| Error::new(BUNDLE_INVALID, format!("add entities: {e}")))?;
+        }
 
         let pii = self.pii_detector.layer(text, ViewId::SOURCE);
         doc.add(&Key::<Pii>::DEFAULT, pii, Provenance::by("turbo:pii"))
@@ -364,58 +473,14 @@ impl AnalyzerEngine {
 
         let graph = export(&doc, &self.codecs).map_err(|e| Error::new(BUNDLE_INVALID, format!("export graph: {e}")))?;
         let wire = graph.to_bytes().map_err(|e| Error::new(BUNDLE_INVALID, format!("encode graph: {e}")))?;
-        self.inspect_graph(text, &wire).map(|mut r| {
-            r.graph = wire;
-            r
-        })
+        extract_graph(&doc, wire)
     }
 
-    pub fn inspect_graph(&self, text: &str, graph_bytes: &[u8]) -> Result<AnalysisResultInner> {
+    pub fn inspect_graph(&self, graph_bytes: &[u8]) -> Result<AnalysisResultInner> {
         let graph = DocumentGraph::from_bytes(graph_bytes)
             .map_err(|e| Error::new(INVALID_ARGUMENT, format!("invalid DocumentGraph wire bytes: {e}")))?;
         let doc = import(&graph, &self.codecs)
             .map_err(|e| Error::new(INVALID_ARGUMENT, format!("DocumentGraph import failed: {e}")))?;
-        let offsets = OffsetTable::build(text);
-        let mut b = SpanPoolBuilder::default();
-        if let Some(sents) = doc.get::<Sentences>() {
-            for idx in 0..sents.spans.len() {
-                let s = sents.spans.get(Ix::new(idx as u32));
-                b.push_text_span(text, &offsets, (s.start, s.end), (idx as u32, idx as u32 + 1), "sentence", 1.0);
-            }
-        }
-        if let Some(toks) = doc.get::<Tokens>() {
-            let pos = doc.get::<PosTags>();
-            for idx in 0..toks.spans.len() {
-                let s = toks.spans.get(Ix::new(idx as u32));
-                let (label, prob) = match pos {
-                    Some(p) if idx < p.tags.len() => {
-                        (p.tagset.label(p.tags[idx]), p.prob.as_ref().map_or(1.0, |pr| pr[idx]))
-                    }
-                    _ => ("token", 1.0),
-                };
-                b.push_text_span(text, &offsets, (s.start, s.end), (idx as u32, idx as u32 + 1), label, prob);
-            }
-        }
-        if let Some(ents) = doc.get::<Entities>() {
-            for idx in 0..ents.spans.len() {
-                let s = ents.spans.get(Ix::new(idx as u32));
-                let tr = ents.tokens[idx];
-                let label = ents.kinds.label(ents.kind[idx]);
-                b.push_text_span(
-                    text,
-                    &offsets,
-                    (s.start, s.end),
-                    (tr.start.get() as u32, tr.end.get() as u32),
-                    label,
-                    ents.score[idx],
-                );
-            }
-        }
-        if let Some(pii) = doc.get::<Pii>() {
-            for m in pii.mentions() {
-                b.push_text_span(text, &offsets, (m.span.start, m.span.end), (0, 0), m.kind.name(), 1.0);
-            }
-        }
-        Ok(b.finish(graph_bytes.to_vec()))
+        extract_graph(&doc, graph_bytes.to_vec())
     }
 }

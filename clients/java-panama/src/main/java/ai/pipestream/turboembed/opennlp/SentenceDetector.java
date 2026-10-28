@@ -1,7 +1,8 @@
 package ai.pipestream.turboembed.opennlp;
 
 /**
- * Drop-in Apache OpenNLP {@code opennlp.tools.sentdetect.SentenceDetector} interface.
+ * OpenNLP-style sentence detector interface in this project's namespace.
+ * This is not {@code opennlp.tools.sentdetect.SentenceDetector}.
  */
 public interface SentenceDetector {
     /**
@@ -13,7 +14,7 @@ public interface SentenceDetector {
     String[] sentDetect(CharSequence s);
 
     /**
-     * Detects sentence spans (using UTF-16 code-unit offsets) in a character sequence.
+     * Detects source UTF-16 sentence spans in a character sequence.
      *
      * @param s character sequence to segment into sentences
      * @return array of detected sentence spans
