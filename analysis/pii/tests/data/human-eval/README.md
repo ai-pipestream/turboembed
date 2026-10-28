@@ -24,7 +24,10 @@ text with labelled spans per kind. Within the mixed set only `phone` has
 unedited third-party prose coverage; the separate external partition below
 adds unedited third-party coverage for `aba-routing`, `btc-address`,
 `ca-sin`, `email`, `eth-address`, `iban`, `imei`, `ipv4`, `ipv6`,
-`jwt`, `mac`, `uk-nhs`, `us-ssn` and further `phone`. The adapted
+`jwt`, `mac`, `uk-nhs`, `url-credential`, `us-ssn` and further
+`phone`, plus zero-gold precision documents for `card`, `us-itin`
+and `de-steuer-id`, for which no licensed source found so far
+prints a complete specimen. The adapted
 crypto summaries and authored memos remain useful, separately
 labelled test partitions; the adapted summaries no longer carry
 the crypto kinds on their own now that the whole BIP-173, BIP-350
@@ -76,7 +79,7 @@ positives.
 
 ## External prose partition (#968)
 
-Thirteen further whole third-party documents (`376,250` UTF-8 bytes, `118` gold
+Seventeen further whole third-party documents (`442,815` UTF-8 bytes, `119` gold
 mentions in `labels-external.tsv`, same five columns except that newlines
 inside covered text are escaped as `\n`), scored separately by
 `precision_and_recall_on_external_prose` (`analysis/pii/tests/external_prose.rs`)
@@ -103,8 +106,13 @@ of each file is pinned in the test.
 | `bip-0350` | `bip-0350.mediawiki` | 26,836 | `63634b06aa8bae88b31929674736e74964c4598684269ac2b0b140c43a7a0dec` | [BIP-350](https://github.com/bitcoin/bips/blob/master/bip-0350.mediawiki), Bech32m format for v1+ witness addresses, by Pieter Wuille, at bitcoin/bips commit `24e96e870fffaa257b465ce1f0370c14aac588e8` (BSD-2-Clause, stated in the document header). Gold: `5` `btc-address` (the mainnet entries of the valid list: version 0 uppercase, version 1 and 2 and 16 bech32m, and the version 1 taproot example), `1` `email` (the author's header address). Testnet addresses and the invalid list (including checksum-valid strings with invalid program lengths or padding) are not labelled. |
 | `erc-55` | `erc-55.md` | 3,674 | `54a9b25ffcd12966c60d6abd6584734d2793734f266fbe41118e6ee52b05dc9e` | [ERC-55](https://eips.ethereum.org/EIPS/eip-55), Mixed-case checksum address encoding, by Vitalik Buterin and Alex Van de Sande (2016-01-14), at ethereum/EIPs commit `8dd085d159cb123f545c272c0d871a5339550e79` (CC0-1.0). Gold: `14` `eth-address` (every `0x` address occurrence: the four checksummed specification vectors, the worked lower-case to checksummed example pair, and the all-caps, all-lower and normal test-case lists), `2` `email` (the authors' header addresses). |
 
+| `everything-curl-urls-auth` | `everything-curl-urls-auth.md` | 763 | `a41c44bf531e319c86a35370c28b2628d6dba9179b37c7ee7f265907ea84d373` | [Everything curl](https://everything.curl.dev/), the URL authentication chapter (the cmdline/urls/auth.md file) by Daniel Stenberg and contributors, at bagder/everything-curl commit `d857700386035dffc3d5a4259e310512b2cb0454` (CC BY 4.0). Gold: `1` `url-credential` (the userinfo `user:password` of the `ftp://user:password@example.com/` example at bytes 337..350). The `-u user:password` command-line forms elsewhere in the book are not credentials in a URL and are not in this chapter. |
+| `wikipedia-individual-taxpayer-identification-number` | `wikipedia-individual-taxpayer-identification-number.wikitext` | 8,308 | `da242546a591c44a593770fae0b710afc8fee59ffc5e36df90af170bc39a199e` | Wikipedia article "Individual Taxpayer Identification Number", wikitext at revision `1356638247` (2026-05-28), CC BY-SA 4.0. Gold: none. The article prints only format patterns (`9XX-XX-XXXX`, `9XX-78-XXXX`) and no complete ITIN, so it measures `us-itin` precision and negative behaviour only; neither does IRS Publication 1915 print a specimen. |
+| `wikipedia-steuerliche-identifikationsnummer` | `wikipedia-steuerliche-identifikationsnummer.wikitext` | 35,818 | `0a56d623f8bf1c840c5b36388db2e5db19c476eafa948e54e279126318849c85` | German Wikipedia article "Steuerliche Identifikationsnummer", wikitext at revision `270826794` (2026-09-27), CC BY-SA 4.0. Gold: none. The article gives the ISO 7064 MOD 11,10 check algorithm in prose and pseudocode without a complete 11-digit specimen, so it measures `de-steuer-id` precision and negative behaviour only. |
+| `wikipedia-payment-card-number` | `wikipedia-payment-card-number.wikitext` | 21,676 | `5e4014b449a3df6330c6d4e73d9502a7d6f299a707da11077ade9adba427b43a` | Wikipedia article "Payment card number", wikitext at revision `1380242769` (2026-10-14), CC BY-SA 4.0. Gold: none. The article prints issuer identification ranges and length rules but no complete card number, so it measures `card` precision and negative behaviour only; its 14-digit archive timestamps include Luhn-valid strings, the same false-positive class as in the IMEI article. |
+
 Annotation method: every occurrence of every built-in kind in these
-thirteen documents was enumerated by independent shape searches over the pinned text
+seventeen documents was enumerated by independent shape searches over the pinned text
 and read in context before labelling; spans the search shapes could not
 produce (the display-wrapped JWTs, address parts of CIDR prefixes) were
 located from the documents' own example sections. Values are as their

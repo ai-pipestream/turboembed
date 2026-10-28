@@ -12,7 +12,7 @@ mod support;
 use support::{Counts, load_labelled, measure, ratio, ratio_text};
 
 /// (id, goldens-escaped, file, pinned SHA-256 of the document text).
-const EXTERNAL_DOCS: [(&str, bool, &str, &str); 13] = [
+const EXTERNAL_DOCS: [(&str, bool, &str, &str); 17] = [
     ("rfc7519", false, "rfc7519.txt", "fecd930e9ccf2276b95c0017c6c4ff5d09352e4bc3c7629946447894e0f97248"),
     ("rfc5737", false, "rfc5737.txt", "9d16217614a74a9b064eff900e5cd07a525793cf8227dca1267100e880f0c410"),
     ("rfc3849", false, "rfc3849.txt", "b0741fc609be565b356c62d2f9b9ef30469f3fe7bde386c2690e173751bb1941"),
@@ -56,6 +56,30 @@ const EXTERNAL_DOCS: [(&str, bool, &str, &str); 13] = [
     ("bip-0173", false, "bip-0173.mediawiki", "b19eab06b264bbd15ad7f7d640fa34de8f4a8809fba8a6ecc3e165545b27a543"),
     ("bip-0350", false, "bip-0350.mediawiki", "63634b06aa8bae88b31929674736e74964c4598684269ac2b0b140c43a7a0dec"),
     ("erc-55", false, "erc-55.md", "54a9b25ffcd12966c60d6abd6584734d2793734f266fbe41118e6ee52b05dc9e"),
+    (
+        "everything-curl-urls-auth",
+        false,
+        "everything-curl-urls-auth.md",
+        "a41c44bf531e319c86a35370c28b2628d6dba9179b37c7ee7f265907ea84d373",
+    ),
+    (
+        "wikipedia-individual-taxpayer-identification-number",
+        false,
+        "wikipedia-individual-taxpayer-identification-number.wikitext",
+        "da242546a591c44a593770fae0b710afc8fee59ffc5e36df90af170bc39a199e",
+    ),
+    (
+        "wikipedia-steuerliche-identifikationsnummer",
+        false,
+        "wikipedia-steuerliche-identifikationsnummer.wikitext",
+        "0a56d623f8bf1c840c5b36388db2e5db19c476eafa948e54e279126318849c85",
+    ),
+    (
+        "wikipedia-payment-card-number",
+        false,
+        "wikipedia-payment-card-number.wikitext",
+        "5e4014b449a3df6330c6d4e73d9502a7d6f299a707da11077ade9adba427b43a",
+    ),
 ];
 
 /// Only kinds with gold in these documents are pinned here; mentions
@@ -65,11 +89,11 @@ fn precision_and_recall_on_external_prose() {
     let set = load_labelled(&EXTERNAL_DOCS, "labels-external.tsv", true);
     let by_kind = measure(&set);
     eprintln!("\nexternal prose evaluation set (#968):");
-    let want_by_kind: [(&str, usize, usize, usize); 14] = [
+    let want_by_kind: [(&str, usize, usize, usize); 15] = [
         ("aba-routing", 4, 0, 4),
         ("btc-address", 8, 0, 3),
         ("ca-sin", 0, 0, 2),
-        ("email", 22, 1, 1),
+        ("email", 22, 2, 1),
         ("eth-address", 14, 0, 0),
         ("iban", 4, 0, 0),
         ("imei", 0, 0, 2),
@@ -77,8 +101,9 @@ fn precision_and_recall_on_external_prose() {
         ("ipv6", 3, 0, 0),
         ("jwt", 0, 0, 2),
         ("mac", 29, 0, 0),
-        ("phone", 5, 14, 0),
+        ("phone", 5, 15, 0),
         ("uk-nhs", 1, 2, 3),
+        ("url-credential", 1, 0, 0),
         ("us-ssn", 3, 0, 0),
     ];
     let mut total = Counts::default();
@@ -103,7 +128,7 @@ fn precision_and_recall_on_external_prose() {
         let c = by_kind.get(kind).unwrap();
         assert_eq!((c.tp, c.fp, c.fn_), (tp, fp, fn_), "{kind}");
     }
-    assert_eq!((total.tp, total.fp, total.fn_), (101, 28, 17));
+    assert_eq!((total.tp, total.fp, total.fn_), (102, 33, 17));
 }
 
 #[test]

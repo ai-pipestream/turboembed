@@ -413,17 +413,23 @@ remaining 17 kinds are evaluated on project-authored operational memos
 
 ### External prose partition (whole third-party documents)
 
-A separately scored partition of thirteen whole third-party documents
-(`376,250` bytes, `118` gold mentions,
+A separately scored partition of seventeen whole third-party documents
+(`442,815` bytes, `119` gold mentions,
 `precision_and_recall_on_external_prose`, gold in
 `analysis/pii/tests/data/human-eval/labels-external.tsv`, provenance in
 that directory's `README.md`): RFC 7519, RFC 5737, RFC 3849 and RFC 7042
-as retrieved from the RFC Editor (publication-era BCP 78 notices), six Wikipedia
+as retrieved from the RFC Editor (publication-era BCP 78 notices), nine Wikipedia
 articles as wikitext at pinned revisions (CC BY-SA 4.0): "International
 Bank Account Number", "Social Security number", "Social insurance
-number", "NHS number", "International Mobile Equipment Identity" and
-"Routing transit number", and the BIP-173 and BIP-350 specification
-texts (BSD-2-Clause) with ERC-55 (CC0-1.0) at pinned source commits.
+number", "NHS number", "International Mobile Equipment Identity",
+"Routing transit number", "Individual Taxpayer Identification
+Number", "Steuerliche Identifikationsnummer" and "Payment card
+number" (the last three carry no gold: no licensed source found so
+far prints a complete specimen of their kind, so they measure
+precision on identifier-dense prose with recall N/A), the BIP-173
+and BIP-350 specification texts (BSD-2-Clause) with ERC-55
+(CC0-1.0) at pinned source commits, and the Everything curl URL
+authentication chapter (CC BY 4.0).
 These rows never pool with the mixed set above.
 
 | Kind | Source partition | true | false | missed | precision | recall |
@@ -431,7 +437,7 @@ These rows never pool with the mixed set above.
 | `aba-routing` | external (Wikipedia routing wikitext) | 4 | 0 | 4 | 1.000 | 0.500 |
 | `btc-address` | external (BIP-173, BIP-350 mediawiki) | 8 | 0 | 3 | 1.000 | 0.727 |
 | `ca-sin` | external (Wikipedia SIN wikitext) | 0 | 0 | 2 | N/A | 0.000 |
-| `email` | external (RFC 7519, RFC 5737, RFC 3849, RFC 7042, BIP-173, BIP-350, ERC-55) | 22 | 1 | 1 | 0.957 | 0.957 |
+| `email` | external (RFC 7519, RFC 5737, RFC 3849, RFC 7042, BIP-173, BIP-350, ERC-55) | 22 | 2 | 1 | 0.917 | 0.957 |
 | `eth-address` | external (ERC-55 markdown) | 14 | 0 | 0 | 1.000 | 1.000 |
 | `iban` | external (Wikipedia IBAN wikitext) | 4 | 0 | 0 | 1.000 | 1.000 |
 | `imei` | external (Wikipedia IMEI wikitext) | 0 | 0 | 2 | N/A | 0.000 |
@@ -439,10 +445,11 @@ These rows never pool with the mixed set above.
 | `ipv6` | external (RFC 3849) | 3 | 0 | 0 | 1.000 | 1.000 |
 | `jwt` | external (RFC 7519) | 0 | 0 | 2 | N/A | 0.000 |
 | `mac` | external (RFC 7042) | 29 | 0 | 0 | 1.000 | 1.000 |
-| `phone` | external (RFC 5737, RFC 7042) | 5 | 14 | 0 | 0.263 | 1.000 |
+| `phone` | external (RFC 5737, RFC 7042) | 5 | 15 | 0 | 0.250 | 1.000 |
+| `url-credential` | external (Everything curl URL authentication chapter) | 1 | 0 | 0 | 1.000 | 1.000 |
 | `uk-nhs` | external (Wikipedia NHS wikitext) | 1 | 2 | 3 | 0.333 | 0.250 |
 | `us-ssn` | external (Wikipedia SSN wikitext) | 3 | 0 | 0 | 1.000 | 1.000 |
-| **all kinds** | **external (`118` gold; false mentions of kinds without gold included)** | **101** | **28** | **17** | **0.783** | **0.856** |
+| **all kinds** | **external (`119` gold; false mentions of kinds without gold included)** | **102** | **33** | **17** | **0.756** | **0.857** |
 
 Zero prediction or gold support makes the corresponding precision or
 recall **N/A**, including the card recall when no card is gold-labelled.
@@ -451,23 +458,30 @@ identifier formats.
 
 What the external false positives and misses are:
 
-- **`email` false positive and miss (1 each)**: RFC 3849 prints
+- **`email` false positives (2) and miss (1)**: RFC 3849 prints
   `ietf-\n   ipr@ietf.org` over a display line break (bytes 7658..7679).
   The detector finds only the suffix `ipr@ietf.org` (7667..7679), so the
-  full address is missed and the suffix is a false positive.
+  full address is missed and the suffix is a false positive. The
+  second false positive is `password@example.com`, the tail of the
+  Everything curl credential URL whose userinfo carries the
+  `url-credential` gold; the tail is not an address occurrence and
+  is not labelled.
 
-- **`phone` false positives (14)**: six five-group prefixes of EUI-64
+- **`phone` false positives (15)**: six five-group prefixes of EUI-64
   identifiers and SNAP header patterns in RFC 7042; the three NHS-shaped
   values in the NHS article the `uk-nhs` scanner rejects (below) plus
   the checksum example `943 476 5919` on the same span as its `uk-nhs`
   mention, and the Scottish CHI range endpoints `010 100 0000` and
   `311 299 9999`; the multiplier row `0 8 6 8 5 8 2 16 6` of the SIN
-  checksum walkthrough; and `5698 7654 32` inside the markup-split
-  British IBAN example.
-- **`card` false positives (8)**: the 15-digit grouped IMEI
+  checksum walkthrough; `5698 7654 32` inside the markup-split
+  British IBAN example; and `2101-153765`, a news article identifier
+  at the end of a citation URL slug in the Steuer-ID article.
+- **`card` false positives (11)**: the 15-digit grouped IMEI
   examples and a contiguous 14-digit walkthrough prefix in the IMEI
   article (only complete IMEIs carry `imei` gold),
-  and 14-digit archive timestamps in Wikipedia citation templates.
+  and 14-digit archive timestamps in Wikipedia citation templates
+  (two in the Payment card number article and one in the Steuer-ID
+  article among them, Luhn-valid by coincidence).
 - **`ipv4` false positives (3)**: the Simple Web Token version `0.9.5.1`
   in RFC 7519's references and the section number `2.3.2.1` twice in
   RFC 7042.
@@ -507,13 +521,18 @@ What the external false positives and misses are:
 #### Outstanding work for #968
 
 #968 remains open with its original acceptance requirements. Independent
-human-written prose coverage has not been established for `card`,
-`us-itin`, `de-steuer-id`, `aws-access-key`, `github-token`, and
-`url-credential`. The external
-partition above establishes coverage for `aba-routing`, `btc-address`,
-`ca-sin`, `email`, `eth-address`, `iban`, `imei`, `ipv4`, `ipv6`, `jwt`
-(recall `0.000` on the signed/unsecured subset, which is
-display-wrapped), `mac`, `uk-nhs`, `us-ssn`, and further third-party
+human-written prose coverage with positive occurrences has not been
+established for `card`, `us-itin`, `de-steuer-id`, `aws-access-key`
+and `github-token`: the ITIN, Steuer-ID and Payment card number
+articles and IRS Publication 1915 print format patterns and
+algorithms but no complete specimen, so those documents establish
+precision evidence only, and no licensed source with a full
+`aws-access-key` or `github-token` specimen has been found yet.
+The external partition above establishes coverage for
+`aba-routing`, `btc-address`, `ca-sin`, `email`, `eth-address`,
+`iban`, `imei`, `ipv4`, `ipv6`, `jwt` (recall `0.000` on the
+signed/unsecured subset, which is display-wrapped), `mac`,
+`uk-nhs`, `url-credential`, `us-ssn`, and further third-party
 `phone`; the `btc-address` and `eth-address` coverage is the whole
 BIP-173, BIP-350 and ERC-55 specification texts, superseding the
 adapted summaries as the crypto evidence.
