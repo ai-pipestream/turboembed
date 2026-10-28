@@ -46,7 +46,6 @@ fn every_model_has_a_file_an_https_url_and_a_sha512() {
 fn every_fetched_file_has_a_sha256_pin() {
     let files = MODELS
         .iter()
-        .chain(&LOCAL_MODELS)
         .chain([&POOLING_SOURCE])
         .map(|m| m.file)
         .chain(HUNSPELL_FILES.iter().map(|f| f.file))

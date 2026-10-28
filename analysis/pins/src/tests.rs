@@ -20,8 +20,8 @@ fn every_line_of_models_txt_parses_and_no_digest_is_pinned_twice() {
 #[test]
 fn the_zoo_and_the_references_are_pinned_too() {
     assert!(pins().iter().filter(|p| p.source == "analysis/zoo/index/zoo.json").count() >= 90);
-    let maxent = "645a094f45a866687a617385233fd23ae8b0f5fa8b1b76996781a50c17bdcf3d";
-    assert!(pins().iter().any(|p| p.sha256 == maxent && p.source.contains("references")));
+    let sentence = "4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8";
+    assert!(pins().iter().any(|p| p.sha256 == sentence && p.source.contains("references")));
 }
 
 #[test]

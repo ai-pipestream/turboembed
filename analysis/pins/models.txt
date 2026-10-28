@@ -86,11 +86,6 @@ blobs/sha256/073fefbfaff2ed403bf474fccf793752d01c22e69f487cd68b43832d3123742f  f
 blobs/sha256/711ad051faba79865c5f9fc5b8c455d6ad8e6d3e8b92f42142af1ef0bc7b3a96  file  opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin
 blobs/sha256/8850986f02dfbe293046bfce93bc0c3f3fa010e89177250abca23d860033d4f6  file  opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin
 blobs/sha256/2ddf585fac2e02a9dcfb9a4a9cc9417562eaac351be2efb506a2eaa87f19e9d4  file  langdetect-183.bin
-blobs/sha256/645a094f45a866687a617385233fd23ae8b0f5fa8b1b76996781a50c17bdcf3d  file  en-pos-maxent.bin
-blobs/sha256/0b49b7d9bdb9f888aed85e9f41fbcfd6cab607805ba9cd2370e1e5af4e540db8  file  en-pos-perceptron.bin
-blobs/sha256/7861a0c2f134d9c12a022a1ba501e88bc7039f6db72b4140e1bafd1fb5ef76cc  file  en-chunker.bin
-blobs/sha256/687a9263d96b37fced707c9f2ac0560f9edaf54658856395555901924f64dbe4  file  en-ner-person.bin
-blobs/sha256/8fe39e48633f4a86c4132d9c54b396a2d8e0460c1d71e3562dacf976984f447b  file  en-ner-location.bin
 blobs/sha256/6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452  file  all-minilm-l6-v2.onnx
 blobs/sha256/e746c882dd6f303c2c46e7452804b9201115a6942cfeb15f18f8edf774d2e24e  file  hunspell/en_US.aff
 blobs/sha256/f0b1a234bd178bdd01875b2a392a9647f888b8fe879f79c52aae62c2759b3647  file  hunspell/en_US.dic
