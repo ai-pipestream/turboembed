@@ -18,5 +18,10 @@ encoder runs on. Heads are trained by `turbo-trainer` (`trainer/`).
 
 ```text
 cargo test -p turbo-tagger
-TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 cargo test -p turbo-tagger --test device
+TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 cargo test --release -p turbo-tagger --features turbo/levelzero --test device
+TURBO_TEST_DEVICE=cuda TURBO_TEST_REQUIRE_CUDA=1 cargo test --release -p turbo-tagger --features turbo/cuda --test device
+TURBO_TEST_DEVICE=metal TURBO_TEST_REQUIRE_METAL=1 cargo test --release -p turbo-tagger --features turbo/metal --test device
 ```
+
+Each backend is a feature of `turbo` (core/Cargo.toml) that this crate does
+not turn on, so a device run names it with `--features turbo/<backend>`.

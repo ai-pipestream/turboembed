@@ -6,6 +6,7 @@
 //! and the run asserts the backend it reports. With
 //! TURBO_TEST_REQUIRE_CUDA, TURBO_TEST_REQUIRE_LEVELZERO or
 //! TURBO_TEST_REQUIRE_METAL set, the test fails unless it runs there.
+//! The backend is a feature of `turbo`: run with `--features turbo/<backend>`.
 
 mod common;
 
