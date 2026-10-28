@@ -9,30 +9,28 @@ the matchers, where they differ from OpenNLP and the OpenNLP behaviour that is
 surprising. The glossary and the layer are in `turbo-glossary-layers`, so a
 consumer of the matches does not depend on this crate.
 
-It follows OpenNLP at commit `cdf33c653d5d61d5af7d37ffee189a83bd8392ea` of the
-OpenNLP fork, run on JDK 21.
+The matchers and readers follow the behaviour documented in `src/lib.rs`.
+JVM output is not an oracle.
 
-## Golden files
+## Snapshots and property tests
 
-`tests/jvm_goldens.rs` compares the crate with goldens a JVM running OpenNLP
-wrote: the `glossary` runs of `analysis/goldens-tool` (`GlossaryGolden.java`),
-made in its container by `turbo-goldens generate` and checked by
-`turbo-goldens verify`. Nothing calls the JVM at test time. A run's golden is
-`analysis/goldens/data/glossary/<run>/glossary/<input>.golden`; the inputs are
-the files of `analysis/goldens/data/inputs/glossary/`, all written for this
-project, and the matchers' glossary is the fixture
-`analysis/goldens/data/fixtures/glossary-terms.tsv` (40 entries, read with
-`CsvGlossaryReader('\t', true)`).
+`tests/snapshots.rs` checks reviewed TSV snapshots under `tests/snapshots/`
+for each matcher and reader run over the crate-local inputs in
+`tests/inputs/` and the fixture `tests/fixtures/glossary-terms.tsv`.
+Regenerate with `TURBO_BLESS=1 cargo test -p turbo-glossary --test snapshots`.
+Hand-verified cases and span/entry invariants in the same file catch a wrong
+bless that a pure freeze would miss. Matcher snapshots record start, end and
+entry index; reader snapshots record entries or a `ReadError` debug form.
 
 | Run | Inputs | Contents |
 |---|---|---|
-| `exact`, `ignore-case` | `text-*` | The matches of `AhoCorasickGlossaryMatcher` with `ignoreCase` false and true: byte span and entry (the fixture row of the match's id and term) |
-| `whitespace+ignore-case` | `text-*` | The same with `WhitespaceCharSequenceNormalizer` folding terms and text |
-| `analyzed` | `text-*` | The matches of `TermAnalyzingGlossaryMatcher` with a `TermAnalyzer` that lowercases and stems with `PorterStemmer`, over the entries whose terms give at least one token and no blank one; the analyzer's tokens of the text with their values (`turbo:analyzed-terms`) and of each entry (`turbo:analyzed-entries`) |
-| `composite` | `text-*` | `CompositeGlossaryMatcher` of the exact matcher over every entry, then the analyzed one, with the same analysis layers |
-| `csv` | `csv-*` | The entries `CsvGlossaryReader()` reads, or its exception |
-| `tsv-header` | `tsv-*` | The same for `CsvGlossaryReader('\t', true)` |
-| `tbx-en`, `tbx-de` | `tbx-*` | The same for `TbxGlossaryReader("en")` and `("de")` |
+| `exact`, `ignore-case` | `text-*` | Character matcher matches (byte span and entry) with case sensitive / insensitive |
+| `whitespace+ignore-case` | `text-*` | Same with whitespace collapse folded through the alignment |
+| `analyzed` | `text-*` | Token matcher matches, analyzed terms of the text, and analyzed entry tokens |
+| `composite` | `text-*` | Exact character matcher then token matcher, merged by priority |
+| `csv` | `csv-*` | Entries `DelimitedReader::csv` reads, or its error |
+| `tsv-header` | `tsv-*` | Same for TSV with a header row |
+| `tbx-en`, `tbx-de` | `tbx-*` | Same for `TbxReader` with language tags `en` and `de` |
 
 The texts hold terms with other case, other spacing, inflections, hyphens and
 punctuation around them, terms inside longer words, nested and overlapping
@@ -45,13 +43,6 @@ namespace, a root that is not TBX, entities and character references, an
 external entity, an undeclared entity, an unbound prefix, two roots, terms
 outside the body, entries without an id or with a namespaced one, blank
 terms, and malformed XML.
-
-The test checks each matcher's matches, and the analysis it matches by,
-against the goldens; for the readers, the entries, or that both sides refuse
-the input and, where the JVM's message names a line, that the line is the
-same. The whitespace run scans the folded text and maps each hit back through
-the view's alignment before checking the boundaries in the source, as
-OpenNLP does inside its matcher.
 
 `tests/round_trip.rs` writes every glossary the readers take from these
 inputs, and the fixture, as TBX in both dialects and reads it back to the same
@@ -89,7 +80,7 @@ place: from an `ImageBuf`, from any 4-byte aligned slice, or from a file mapped
 with `MappedFile` (feature `mmap`). The image is the in-heap automaton's states
 laid out by code, so `scan` and `find` give the same hits in the same order
 and the same matches; `tests/mapped.rs` checks that on random glossaries and
-on the goldens' glossary and inputs, in both cases and with a normalizer.
+on the fixture glossary and inputs, in both cases and with a normalizer.
 Loading checks the whole image (counts, checksum, every code and cell link,
 depths that make every walk end, the payload's UTF-8) and allocates nothing;
 `src/mapped/tests.rs` refuses every truncation and every flipped bit, and

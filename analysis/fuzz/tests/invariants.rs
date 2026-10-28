@@ -36,7 +36,6 @@ const FED: &[&str] = &[
     "en",
     "formats",
     "frenchtreebank",
-    "glossary",
     "head-rules",
     "ja",
     "ko",
