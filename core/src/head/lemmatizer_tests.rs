@@ -47,13 +47,22 @@ fn values(seed: u64, n: usize) -> Vec<f32> {
 }
 
 fn head(spec: &HeadSpec) -> EditTreeLemmatizer {
-    let w: Vec<(String, Vec<f32>)> = tensors(spec, HIDDEN)
+    build(spec, None).unwrap()
+}
+
+/// The head of seeded weights, `poison` the first value of its tag
+/// embedding when Some.
+fn build(spec: &HeadSpec, poison: Option<f32>) -> crate::status::Result<EditTreeLemmatizer> {
+    let mut w: Vec<(String, Vec<f32>)> = tensors(spec, HIDDEN)
         .into_iter()
         .enumerate()
         .map(|(i, (s, shape))| (s, values(i as u64 + 3, shape.iter().product::<u64>() as usize)))
         .collect();
+    if let (Some(v), Some((_, t))) = (poison, w.iter_mut().find(|(k, _)| k == "pos.embedding")) {
+        t[0] = v;
+    }
     let g = |s: &str| w.iter().find(|(k, _)| k == s).map(|(_, v)| v.clone());
-    EditTreeLemmatizer::from_tensors(spec, HIDDEN, &g).unwrap()
+    EditTreeLemmatizer::from_tensors(spec, HIDDEN, &g)
 }
 
 #[test]
@@ -129,4 +138,33 @@ fn the_spec_refuses_what_a_lemmatizer_cannot_be() {
     tagger.kind = HeadKind::TokenTagger;
     tagger.decode = Decode::Argmax;
     assert!(tagger.validate("head").is_err(), "a tagger with a pos_input");
+}
+
+#[test]
+fn a_tie_is_numeric_so_negative_and_positive_zero_go_to_the_lower_index() {
+    // The best tree does not fit `cats`, so the fallback order decides
+    // between tree 1 at -0 and tree 2 at 0: equal, so the lower index.
+    let mut s = spec(None);
+    s.labels = vec![
+        EditTree::mine("x", "y").label(),
+        EditTree::mine("cats", "cats").label(),
+        EditTree::mine("cats", "cat").label(),
+    ];
+    let h = head(&s);
+    let mut out = Vec::new();
+    h.decode(&[1.0, -0.0, 0.0], &["cats"], &mut out).unwrap();
+    assert_eq!(out, [Some(1)]);
+    assert_eq!(h.lemmas(&out, &["cats"]).unwrap(), ["cats"]);
+    h.decode(&[1.0, 0.0, -0.0], &["cats"], &mut out).unwrap();
+    assert_eq!(out, [Some(1)]);
+}
+
+#[test]
+fn a_tag_embedding_that_is_not_finite_is_refused() {
+    let s = spec(Some(PosInput { head: "pos".into(), labels: 3, dim: 2 }));
+    assert!(build(&s, Some(0.25)).is_ok());
+    for v in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+        let e = build(&s, Some(v)).unwrap_err();
+        assert!(e.message.contains("pos.embedding holds a value that is not finite"), "{v}: {e:?}");
+    }
 }
