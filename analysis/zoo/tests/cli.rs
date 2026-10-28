@@ -137,7 +137,7 @@ fn show_gives_a_non_commercial_artifacts_terms_and_policy() {
         r#"{{"zoo_version": 1, "artifacts": [{{
   "id": "m",
   "kind": "KIND_MODEL",
-  "format": "FORMAT_OPENNLP_MODEL",
+  "format": "FORMAT_SAFETENSORS",
   "version": "1",
   "license": "Apache-2.0",
   "license_terms": "https://example.org/m/LICENSE",
@@ -179,13 +179,7 @@ fn show_prints_attribution_for_builtin_entries() {
     let home = TempDir::new("show-builtin");
     for (id, expected) in [
         (
-            "opennlp-ca-ud-ancora-sentence-1.3-2.5.4",
-            "attribution: Apache OpenNLP UD models 1.3 (Apache-2.0, \
-             https://archive.apache.org/dist/opennlp/models/ud-models-1.3/README), trained on UD_Catalan-AnCora \
-             r2.16 (CC-BY-4.0, https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/README.md).",
-        ),
-        (
-            "turbo-en-masc-3.0.0-sentence-1",
+            "turbo-en-masc-3.0.0-aspect-sentiment-1",
             "attribution: Trained on MASC 3.0.0, the Manually Annotated Sub-Corpus of the American National Corpus",
         ),
         ("fastino-gliner2-base-v1", "attribution: fastino/gliner2-base-v1 at f9634218e53580c56edf0de97ca1a7d3f1c2354e"),
