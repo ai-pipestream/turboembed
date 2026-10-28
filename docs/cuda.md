@@ -124,6 +124,13 @@ maximum is of the unscaled scores, and each probability is
 `ex2.approx` of one fused multiply-add, the score times the scale
 times log2 e less the maximum's. `ex2.approx` is within 2 ulp of F32,
 below the F16 rounding the probabilities take for P V.
+The output's F16 sums carry their error across every key of a row, so
+a session whose max_seq is over 4096 takes F32 sums of the scores and
+the output by default (`mma128-acc32`): on nomic-embed-text-v1.5 at
+FASTEST, 8 rows of 8192 synthetic tokens against the CPU, the F16 sums
+gave 1 - lowest cosine 1.04e-3, over FASTEST's bound of 1e-3 (1.5e-4 at
+4096 tokens), and F32 sums 1.1e-6; on an RTX 4080 SUPER they took the
+run from 323 to 398 ms.
 `TURBO_CUDA_ATTENTION=acc32` keeps F32 sums of the scores and the
 output, the arithmetic before the F16 sums, and
 `TURBO_CUDA_ATTENTION=exact` keeps the earlier softmax as well, the

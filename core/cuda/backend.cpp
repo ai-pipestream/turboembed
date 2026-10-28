@@ -1562,9 +1562,18 @@ bool mma_attention(const Shape &base) {
     return base.half && base.tensor_cores && (d == 32 || d == 64);
 }
 
+/* The most keys a row of a session may have for the tensor cores'
+ * attention to sum its output in F16. The F16 sums' error grows with the
+ * keys: nomic-embed-text-v1.5 at FASTEST on an RTX 4080 SUPER, 4 rows of
+ * synthetic tokens against the CPU, 1 - lowest cosine 5.1e-6 at 512
+ * tokens, 1.5e-4 at 4096 and 9.8e-4 at 8192 (8 rows: 1.04e-3, over
+ * FASTEST's bound of 1e-3); with F32 sums 1.1e-6 to 2.7e-6 at each. */
+constexpr int ACC16_ATTENTION_MAX_KEYS = 4096;
+
 /* The backend's own choices for a session of the shape, in every bin: the
  * default tile and stream-K for each GEMM, the tensor cores' attention of
- * 128 queries where it applies and else the FMA kernel of register tiles,
+ * 128 queries where it applies (with F32 sums past
+ * ACC16_ATTENTION_MAX_KEYS) and else the FMA kernel of register tiles,
  * the LayerNorm as a kernel of its own, and pooling by groups. */
 Choices defaults(const Shape &base) {
     Choices c;
@@ -1572,7 +1581,9 @@ Choices defaults(const Shape &base) {
     for (int i = 0; i < BIN_COUNT; i++) {
         BinChoices &b = c.bin[i];
         b = BinChoices{};
-        b.attention = mma_attention(base) ? ATT_MMA_128 : ATT_FMA_TILED;
+        b.attention = !mma_attention(base)                      ? ATT_FMA_TILED
+                      : base.seq_cap > ACC16_ATTENTION_MAX_KEYS ? ATT_MMA_128_ACC32
+                                                                : ATT_MMA_128;
         // F16 on the tensor cores: whole tiles for QKV and the first
         // feed-forward GEMM from the le4k bin up. On the whole-k F16 sums
         // a split tile's partial products cost more than the idle SMs of
