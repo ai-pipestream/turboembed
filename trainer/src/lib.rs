@@ -18,6 +18,7 @@ pub mod crf;
 pub mod fit;
 pub mod fit_parse;
 pub mod linear;
+pub mod logspace;
 pub mod lstm;
 pub mod parser;
 pub mod real;
