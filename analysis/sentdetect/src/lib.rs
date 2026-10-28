@@ -15,8 +15,8 @@
 //! The maxent and rule detectors can consult a classified
 //! [`AbbreviationInventory`] ([`inventory`]) on top of their own data.
 //!
-//! The newline, paragraph and rule detectors need no model. Each detector takes
-//! OpenNLP's whitespace mode as a parameter, never a global, and works on
+//! The newline, paragraph and rule detectors need no model. Every detector
+//! uses the Unicode `White_Space` property as its whitespace, and works on
 //! the bytes of the view it reads: every offset it writes is a UTF-8 byte
 //! offset into that view, on a character boundary. Each has a plain
 //! function underneath ([`newline_spans`], [`paragraph_spans`],
