@@ -181,6 +181,21 @@
     docstring of `goldens.py` writes it. `core/tests/sentencepiece.rs`
     makes the same edits.
 
-Everything here is about 9.8 MB, 4 MB of it the tiny
-BERT bundle's weights, 2 MB the SentencePiece models and goldens,
-1.8 MB the static bundle and 1.1 MB the cut-down BGE-M3 tokenizer.
+- `tiny-modernbert-reference/` and `tiny-nomic-reference/`: a small
+  ModernBERT (three layers, hidden 32, one global and two local layers
+  with a window of 8) and a small nomic-bert (two layers, hidden 32,
+  RoPE theta 1000), random weights, seed 0, which
+  `bundle/reference/tiny_modernbert.py` and `tiny_nomic.py` write over
+  `tiny-bpe/tokenizer.json` and the MiniLM tokenizer in the pinned
+  reference container, with the reference ids and vectors `reference.py`
+  wrote for them (#1461). Not bundles: the model directory, the cases
+  and the reference file, from which the Rust side writes the manifest.
+  Each directory's README gives the geometry, the tensor names and
+  shapes, the hashes and the commands that make it again. Made for this
+  repository; the nomic one's tokenizer is under Apache-2.0, the licence
+  of the MiniLM tokenizer.
+
+Everything here is about 25 MB, 4 MB each of it the weights of the
+tiny BERT, DeBERTa, SaT and nomic models, 2 MB the SentencePiece models
+and goldens, 1.8 MB the static bundle and 1.1 MB each the cut-down
+BGE-M3 tokenizer and its copy in the SaT bundle.
