@@ -83,7 +83,7 @@ pub const SENTENCE: SegmentationRecipe = SegmentationRecipe {
 pub const TOKENS: SegmentationRecipe = SegmentationRecipe {
     component: Component::Tokens,
     model_id: "turbo-en-masc-3.0.0-tokens-1",
-    reference: crate::Reference::Zoo("opennlp-en-ud-ewt-tokens-1.3-2.5.4"),
+    reference: crate::Reference::Retired("opennlp-en-ud-ewt-tokens-1.3-2.5.4"),
 };
 
 /// The recipes, sentence detector first.
