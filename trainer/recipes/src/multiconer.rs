@@ -1,7 +1,11 @@
 //! MultiCoNER v2 (SemEval-2023 Task 2), English: fine-grained named
 //! entities in BIO over lowercased, short sentences, 33 types under six
-//! coarse groups. CC BY 4.0, published by Amazon on the AWS Open Data
-//! Registry; fetched by the command in its readme, not checked in.
+//! coarse groups, published by Amazon on the AWS Open Data Registry;
+//! fetched by the command in its readme, not checked in. The registry
+//! states CC BY 4.0, the dataset paper (arXiv 2310.13213, appendix B.5)
+//! CC BY-SA 4.0, and the sentences are Wikipedia text, so it is taken as
+//! CC BY-SA 4.0: a head trained on it is share-alike, offered for
+//! download once a user accepts, never in a default bundle.
 //!
 //! The files are pinned by size and SHA-256 as downloaded from
 //! `s3://multiconer/multiconer2023/` on 2026-10-28. The release gives its
@@ -14,12 +18,12 @@ use crate::{Error, Result};
 
 pub const ID: &str = "multiconer2-en";
 pub const NAME: &str = "MultiCoNER v2, English";
-pub const LICENCE: &str = "CC BY 4.0";
-pub const TERMS: &str = "https://registry.opendata.aws/multiconer/";
+pub const LICENCE: &str = "CC BY-SA 4.0";
+pub const TERMS: &str = "https://arxiv.org/abs/2310.13213";
 pub const ATTRIBUTION: &str = "Trained on MultiCoNER v2 (Fetahu et al., SemEval-2023 Task 2: Fine-grained \
-     Multilingual Named Entity Recognition), by Amazon, published at https://registry.opendata.aws/multiconer/ \
-     under the Creative Commons Attribution 4.0 International licence \
-     (https://creativecommons.org/licenses/by/4.0/).";
+     Multilingual Named Entity Recognition), by Amazon, published at https://registry.opendata.aws/multiconer/; \
+     its sentences are from Wikipedia. Used under the Creative Commons Attribution-ShareAlike 4.0 International \
+     licence (https://creativecommons.org/licenses/by-sa/4.0/), which the dataset paper states.";
 
 /// The English files, relative to the directory the release's readme
 /// has `aws s3 cp` write (`multiconer2023/`).

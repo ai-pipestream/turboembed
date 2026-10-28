@@ -6,7 +6,7 @@ reports, and the `turbo-train-head` command (#1518, stage R1b).
 | Corpus id | Data | Task | Pinned by | Splits |
 |---|---|---|---|---|
 | `masc-pos` | MASC 3.0.0, Penn tags (CC BY 3.0 US) | tags | corpus digest of the extracted release (`turbo_train_recipes::masc::RELEASE`) | test: the recipes' held-out documents (every tenth, Twitter genre left out), so numbers compare with the MASC tagger's gate; dev: every tenth training-side document |
-| `multiconer2-en` | MultiCoNER v2 English (CC BY 4.0) | BIO, 33 types in 6 groups | size and SHA-256 of each file | the release's own train, dev and test |
+| `multiconer2-en` | MultiCoNER v2 English (CC BY-SA 4.0: heads trained on it are share-alike, download only after the user accepts, never in a default bundle; docs/licences.md) | BIO, 33 types in 6 groups | size and SHA-256 of each file | the release's own train, dev and test |
 
 A directory that is not the recorded release is refused unless the run
 passes `--unrecorded-corpus`, and its receipt then says
