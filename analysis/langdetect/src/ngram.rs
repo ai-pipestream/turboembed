@@ -53,6 +53,18 @@ impl NgramModel {
         &self.model_ref
     }
 
+    /// Creates a model from the output of `turbo_trainer::langid::train`.
+    pub fn from_trained(
+        languages: Vec<String>,
+        weights: Vec<f32>,
+        bias: Vec<f32>,
+        ngram_range: (u8, u8),
+        buckets: u32,
+        model_ref: ModelRef,
+    ) -> Result<NgramModel, ModelError> {
+        Self::new(languages, weights, bias, ngram_range, buckets, model_ref)
+    }
+
     /// Hashes a byte string into a bucket.
     fn hash(bytes: &[u8], buckets: u32) -> u32 {
         let mut h: u32 = 2166136261;
