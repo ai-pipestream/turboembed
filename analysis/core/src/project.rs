@@ -238,6 +238,10 @@ impl<L: ProjectableLayer> Step for ProjectView<L> {
         ProjectView::config_hash(self)
     }
 
+    fn expected_provenance(&self, doc: &Document) -> Provenance {
+        self.provenance(doc)
+    }
+
     fn compute(&self, docs: &[Document]) -> Box<dyn Any + Send> {
         let reads = self.all_reads();
         let out: Vec<Result<L, Error>> = docs

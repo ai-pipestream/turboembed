@@ -125,6 +125,12 @@ pub trait Layer: Any + Send + Sync + Sized {
     fn check_document(&self, _doc: &crate::Document, _on: &[KeyId]) -> Result<(), String> {
         Ok(())
     }
+
+    /// Optional deterministic fingerprint for payload fields not covered by
+    /// `len()`, `text_spans()`, and `indexes()`.
+    fn content_hash(&self) -> u64 {
+        0
+    }
 }
 
 /// What a layer's items hang on.
@@ -161,7 +167,7 @@ impl<L: Layer> Key<L> {
         Key { name, _l: PhantomData }
     }
 
-    pub fn id(&self) -> KeyId {
+    pub const fn id(&self) -> KeyId {
         KeyId { ty: TypeId::of::<L>(), layer: L::NAME, name: self.name }
     }
 }
@@ -295,6 +301,12 @@ impl Provenance {
             reads: Vec::new(),
             on: Vec::new(),
         }
+    }
+
+    /// Computes the deterministic 64-bit chained provenance digest for this
+    /// provenance record against `doc`.
+    pub fn chained_digest(&self, doc: &crate::Document) -> u64 {
+        doc.compute_provenance_digest(self)
     }
 }
 

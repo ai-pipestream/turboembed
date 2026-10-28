@@ -293,6 +293,20 @@ impl Annotator for Chunker {
         )?,))
     }
 
+    fn requires(&self) -> &[turbo_analysis::KeyId] {
+        const REQUIRES: &[turbo_analysis::KeyId] = &[
+            turbo_analysis::Key::<Sentences>::DEFAULT.id(),
+            turbo_analysis::Key::<Subwords>::DEFAULT.id(),
+            turbo_analysis::Key::<Boundaries>::DEFAULT.id(),
+        ];
+        REQUIRES
+    }
+
+    fn produces(&self) -> &[turbo_analysis::KeyId] {
+        const PRODUCES: &[turbo_analysis::KeyId] = &[turbo_analysis::Key::<Chunks>::DEFAULT.id()];
+        PRODUCES
+    }
+
     fn config_hash(&self) -> u64 {
         let b = self.budget;
         [u64::from(b.max), u64::from(b.target), u64::from(b.size_weight), u64::from(b.overhead)]

@@ -335,6 +335,27 @@ impl Step for ConditionalAnnotator {
         ConditionalAnnotator::config_hash(self)
     }
 
+    fn expected_provenance(&self, doc: &Document) -> Provenance {
+        let branch = match catch_unwind(AssertUnwindSafe(|| (self.predicate)(doc))) {
+            Ok(true) => Some(self.when_true.as_ref()),
+            Ok(false) => self.when_false.as_deref(),
+            Err(_) => None,
+        };
+        match branch {
+            Some(step) => {
+                let mut p = step.expected_provenance(doc);
+                p.config = self.config_hash();
+                for r in self.present_reads(doc) {
+                    if !p.reads.contains(&r) {
+                        p.reads.push(r);
+                    }
+                }
+                p
+            }
+            None => self.base_provenance(doc),
+        }
+    }
+
     fn compute(&self, docs: &[Document]) -> Box<dyn Any + Send> {
         let mut true_indices = Vec::new();
         let mut true_docs = Vec::new();

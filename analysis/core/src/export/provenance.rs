@@ -134,3 +134,62 @@ pub(super) fn rebuild_provenance(
         on,
     })
 }
+
+impl DocumentGraph {
+    /// Computes the deterministic 64-bit chained provenance digest for the view
+    /// named `instance` on this wire [`DocumentGraph`], matching
+    /// [`Document::provenance_digest`].
+    pub fn view_provenance_digest(&self, instance: &str) -> Option<u64> {
+        let view = self.views.iter().find(|v| v.instance == instance)?;
+        Some(self.record_provenance_digest(&view.provenance))
+    }
+
+    /// Computes the deterministic 64-bit chained provenance digest for the layer
+    /// `(layer, instance)` on this wire [`DocumentGraph`], matching
+    /// [`Document::provenance_digest`].
+    pub fn layer_provenance_digest(&self, layer: &str, instance: &str) -> Option<u64> {
+        let rec = self.layers.iter().find(|l| l.layer == layer && l.instance == instance)?;
+        Some(self.record_provenance_digest(&rec.provenance))
+    }
+
+    fn record_provenance_digest(&self, p: &ProvenanceRecord) -> u64 {
+        let source_text_hash = crate::hash::fnv1a(self.source.text.as_bytes());
+        let source_bytes_hash = self.source.alignment.as_ref().map(|_| crate::hash::fnv1a(&self.source.bytes));
+        let mut view_reads: Vec<(String, u64)> = p
+            .reads
+            .iter()
+            .filter(|r| r.layer == View::ID)
+            .map(|r| {
+                let text = self
+                    .views
+                    .iter()
+                    .find(|v| v.instance == r.instance)
+                    .and_then(|v| v.text.as_deref())
+                    .unwrap_or(&self.source.text);
+                (r.instance.clone(), crate::hash::fnv1a(text.as_bytes()))
+            })
+            .collect();
+        let mut upstream_digests: Vec<(String, String, u64)> = p
+            .reads
+            .iter()
+            .map(|r| {
+                let d = if r.layer == View::ID {
+                    self.view_provenance_digest(&r.instance).unwrap_or(0)
+                } else {
+                    self.layer_provenance_digest(&r.layer, &r.instance).unwrap_or(0)
+                };
+                (r.layer.clone(), r.instance.clone(), d)
+            })
+            .collect();
+        crate::doc::digest::compute_provenance_digest_from_parts(crate::doc::digest::ProvenanceDigestParts {
+            annotator: &p.annotator,
+            version: &p.version,
+            config: p.config,
+            model: p.model.as_ref(),
+            source_text_hash,
+            source_bytes_hash,
+            view_reads: &mut view_reads,
+            upstream_digests: &mut upstream_digests,
+        })
+    }
+}

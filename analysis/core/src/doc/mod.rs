@@ -1,6 +1,8 @@
 //! The document: its text views and its layers.
 
+pub(crate) mod digest;
 mod project;
+mod source;
 mod view;
 
 pub use view::View;
@@ -11,10 +13,9 @@ use std::sync::{Arc, OnceLock};
 use crate::bytes::SourceBytes;
 use crate::error::Error;
 use crate::layer::{Anchor, Key, KeyId, Layer, Provenance, as_any_mut};
-use crate::offsets::OffsetTable;
-use crate::span::Span;
-use crate::text::{Alignment, Side, ViewId};
+use crate::text::{Alignment, ViewId};
 
+use digest::{ProvenanceDigestParts, compute_layer_content_digest, compute_provenance_digest_from_parts};
 use view::check_view_alignment;
 
 #[derive(Clone)]
@@ -27,6 +28,9 @@ pub(crate) struct Entry {
     /// first, then the layers it indexes.
     pub(crate) on: Vec<KeyId>,
     pub(crate) provenance: Arc<Provenance>,
+    pub(crate) provenance_digest: u64,
+    pub(crate) content_digest: u64,
+    pub(crate) upstream_content_hash: u64,
     pub(crate) status: Status,
 }
 
@@ -71,12 +75,28 @@ impl Document {
             alignment: Alignment::identity(),
             offsets: OnceLock::new(),
         });
+        let key = Key::<View>::DEFAULT.id();
+        let prov = Provenance::by("turbo:source");
+        let prov_digest = compute_provenance_digest_from_parts(ProvenanceDigestParts {
+            annotator: prov.annotator,
+            version: prov.version,
+            config: prov.config,
+            model: prov.model.as_ref(),
+            source_text_hash: crate::hash::fnv1a(source.text.as_bytes()),
+            source_bytes_hash: None,
+            view_reads: &mut [],
+            upstream_digests: &mut [],
+        });
+        let content_digest = compute_layer_content_digest(key, &*source, Some((&source.text, &[])));
         let entry = Entry {
-            key: Key::<View>::DEFAULT.id(),
+            key,
             len: 1,
             value: Some(source.clone()),
             on: Vec::new(),
-            provenance: Arc::new(Provenance::by("turbo:source")),
+            provenance: Arc::new(prov),
+            provenance_digest: prov_digest,
+            content_digest,
+            upstream_content_hash: 0,
             status: Status::Complete,
         };
         Document { views: vec![source], entries: vec![Arc::new(entry)], bytes: None }
@@ -96,128 +116,10 @@ impl Document {
         let source = SourceBytes::new(bytes.into(), &text, alignment).map_err(Error::Source)?;
         let mut doc = Document::new(text);
         doc.bytes = Some(Arc::new(source));
+        let prov = (*doc.entries[0].provenance).clone();
+        let prov_digest = doc.compute_provenance_digest(&prov);
+        Arc::make_mut(&mut doc.entries[0]).provenance_digest = prov_digest;
         Ok(doc)
-    }
-
-    pub fn source(&self) -> &str {
-        &self.views[0].text
-    }
-
-    /// The bytes the document was decoded from, with their alignment to
-    /// view 0; None for a document made from text.
-    pub fn source_bytes(&self) -> Option<&SourceBytes> {
-        self.bytes.as_deref()
-    }
-
-    /// The bytes of the original file: the decoded bytes, or for a
-    /// document made from text, that text's UTF-8.
-    pub fn bytes(&self) -> &[u8] {
-        match &self.bytes {
-            Some(b) => b.bytes(),
-            None => self.source().as_bytes(),
-        }
-    }
-
-    /// A span of any view in bytes of the original file: `to_source`, then
-    /// one step more through the decoder's alignment, widening where a
-    /// character's bytes are cut.
-    pub fn to_source_bytes(&self, v: ViewId, s: Span) -> Span {
-        let s = self.to_source(v, s);
-        match &self.bytes {
-            Some(b) => b.alignment().span_to_parent(s),
-            None => s,
-        }
-    }
-
-    /// A span of the original file's bytes in a view: through the
-    /// decoder's alignment to view 0, then down the chain.
-    pub fn from_source_bytes(&self, v: ViewId, s: Span) -> Span {
-        let s = match &self.bytes {
-            Some(b) => b.alignment().span_to_child(s),
-            None => s,
-        };
-        self.from_source(v, s)
-    }
-
-    /// An offset of a view in bytes of the original file, for one side of
-    /// a span.
-    pub fn offset_to_source_bytes(&self, v: ViewId, x: u32, side: Side) -> u32 {
-        let x = self.offset_to_source(v, x, side);
-        match &self.bytes {
-            Some(b) => b.alignment().to_parent(x, side),
-            None => x,
-        }
-    }
-
-    /// An offset of the original file's bytes in a view, for one side of a
-    /// span.
-    pub fn offset_from_source_bytes(&self, v: ViewId, x: u32, side: Side) -> u32 {
-        let x = match &self.bytes {
-            Some(b) => b.alignment().to_child(x, side),
-            None => x,
-        };
-        self.offset_from_source(v, x, side)
-    }
-
-    /// The text of a view.
-    pub fn text(&self, v: ViewId) -> &str {
-        &self.views[v.0 as usize].text
-    }
-
-    /// How many views the document has: valid `ViewId`s are `0..view_count()`.
-    pub fn view_count(&self) -> usize {
-        self.views.len()
-    }
-
-    /// The offset table of a view: see `View::offsets`.
-    pub fn offsets(&self, v: ViewId) -> &OffsetTable {
-        self.views[v.0 as usize].offsets()
-    }
-
-    /// A span of any view, in source bytes: up the chain of views, widening
-    /// where an edit is cut.
-    pub fn to_source(&self, v: ViewId, mut s: Span) -> Span {
-        let mut at = &self.views[v.0 as usize];
-        while let Some(p) = at.parent {
-            s = at.alignment.span_to_parent(s);
-            at = &self.views[p.0 as usize];
-        }
-        s
-    }
-
-    /// A source span in a view's bytes: down the chain.
-    pub fn from_source(&self, v: ViewId, s: Span) -> Span {
-        let mut chain = Vec::new();
-        let mut at = &self.views[v.0 as usize];
-        while let Some(p) = at.parent {
-            chain.push(at);
-            at = &self.views[p.0 as usize];
-        }
-        chain.iter().rev().fold(s, |s, view| view.alignment.span_to_child(s))
-    }
-
-    /// A source offset in a view, for one side of a span: down the chain of
-    /// views, one `Alignment::to_child` per view. At inserted bytes a start
-    /// goes after them and an end before them, as for a single view.
-    pub fn offset_from_source(&self, v: ViewId, x: u32, side: Side) -> u32 {
-        let mut chain = Vec::new();
-        let mut at = &self.views[v.0 as usize];
-        while let Some(p) = at.parent {
-            chain.push(at);
-            at = &self.views[p.0 as usize];
-        }
-        chain.iter().rev().fold(x, |x, view| view.alignment.to_child(x, side))
-    }
-
-    /// An offset of a view in source bytes, for one side of a span: up the
-    /// chain of views, one `Alignment::to_parent` per view.
-    pub fn offset_to_source(&self, v: ViewId, mut x: u32, side: Side) -> u32 {
-        let mut at = &self.views[v.0 as usize];
-        while let Some(p) = at.parent {
-            x = at.alignment.to_parent(x, side);
-            at = &self.views[p.0 as usize];
-        }
-        x
     }
 
     /// The default instance of a layer.
@@ -275,7 +177,19 @@ impl Document {
         if self.clashes(key) {
             return Err(Error::Clash(key));
         }
-        let entry = Entry { key, len: 0, value: None, on: Vec::new(), provenance: Arc::new(provenance), status };
+        let provenance_digest = self.compute_provenance_digest(&provenance);
+        let upstream_content_hash = self.compute_upstream_content_hash(&provenance.reads);
+        let entry = Entry {
+            key,
+            len: 0,
+            value: None,
+            on: Vec::new(),
+            provenance: Arc::new(provenance),
+            provenance_digest,
+            content_digest: 0,
+            upstream_content_hash,
+            status,
+        };
         self.entries.push(Arc::new(entry));
         Ok(())
     }
@@ -295,10 +209,17 @@ impl Document {
     }
 
     pub(crate) fn update_provenance(&mut self, key: KeyId, f: impl FnOnce(&mut Provenance)) {
-        if let Some(entry) = self.entries.iter_mut().find(|e| e.key == key) {
-            let e = Arc::make_mut(entry);
-            f(Arc::make_mut(&mut e.provenance));
-        }
+        let Some(pos) = self.entries.iter().position(|e| e.key == key) else {
+            return;
+        };
+        let mut updated = (*self.entries[pos].provenance).clone();
+        f(&mut updated);
+        let provenance_digest = self.compute_provenance_digest(&updated);
+        let upstream_content_hash = self.compute_upstream_content_hash(&updated.reads);
+        let e = Arc::make_mut(&mut self.entries[pos]);
+        e.provenance = Arc::new(updated);
+        e.provenance_digest = provenance_digest;
+        e.upstream_content_hash = upstream_content_hash;
     }
 
     pub fn layers(&self) -> impl Iterator<Item = KeyId> + '_ {
@@ -363,10 +284,6 @@ impl Document {
             Anchor::Document => {}
         }
         for (of, bound) in layer.indexes() {
-            // A layer that names the instance it indexes (`Edges::between`)
-            // must have been made from it: its step read it or wrote it, so
-            // the analyzer runs the step after that instance is made and
-            // the provenance lists every instance the layer points into.
             if !of.name.is_empty() && !provenance.on.contains(&of) && !provenance.reads.contains(&of) {
                 return Err(Error::Invalid {
                     layer: id,
@@ -381,15 +298,14 @@ impl Document {
                     detail: format!("an index past the end of {target}, which has {len}"),
                 });
             }
-            // An edge layer within one instance (`Edges<Tokens, Tokens>`)
-            // indexes it from both ends: record it once.
             if !on.contains(&target) {
                 on.push(target);
             }
         }
         layer.check_document(self, &on).map_err(|detail| Error::Invalid { layer: id, detail })?;
         let len = layer.len();
-        // A view gets the next id and joins the view table.
+        let provenance_digest = self.compute_provenance_digest(&provenance);
+        let upstream_content_hash = self.compute_upstream_content_hash(&provenance.reads);
         if TypeId::of::<L>() == TypeId::of::<View>() {
             let view = as_any_mut(&mut layer).downcast_mut::<View>().expect("a View");
             let parent =
@@ -403,6 +319,7 @@ impl Document {
                 detail,
             })?;
             view.id = ViewId(self.views.len() as u16);
+            let content_digest = compute_layer_content_digest(id, view, Some((view.text(), view.alignment().edits())));
             let shared = Arc::new(view.clone());
             self.views.push(shared.clone());
             let entry = Entry {
@@ -411,17 +328,24 @@ impl Document {
                 value: Some(shared),
                 on: Vec::new(),
                 provenance: Arc::new(provenance),
+                provenance_digest,
+                content_digest,
+                upstream_content_hash,
                 status: Status::Complete,
             };
             self.entries.push(Arc::new(entry));
             return Ok(());
         }
+        let content_digest = compute_layer_content_digest(id, &layer, None);
         let entry = Entry {
             key: id,
             len,
             value: Some(Arc::new(layer)),
             on,
             provenance: Arc::new(provenance),
+            provenance_digest,
+            content_digest,
+            upstream_content_hash,
             status: Status::Complete,
         };
         self.entries.push(Arc::new(entry));
@@ -463,13 +387,6 @@ impl Document {
     }
 }
 
-/// The instance of `of`'s layer type a layer was made on: when `of` names an
-/// instance (`Key::named`), that instance, which `Document::add` has
-/// checked the provenance lists; otherwise one its step wrote itself before
-/// this layer, else the one it read (the first, if it read several), else
-/// the default. A step's own output comes first: a
-/// retokenizer that reads gold tokens and writes its own tokens with a
-/// confidence for each scores the tokens it wrote.
 fn made_on(of: KeyId, p: &Provenance) -> KeyId {
     if !of.name.is_empty() {
         return of;
@@ -477,9 +394,6 @@ fn made_on(of: KeyId, p: &Provenance) -> KeyId {
     p.on.iter().chain(&p.reads).copied().find(|r| r.ty == of.ty).unwrap_or(of)
 }
 
-/// Every span inside the text, start before end, and both ends on a
-/// character boundary: a span that cuts a character cannot be read back as
-/// text, so it is refused here rather than found later by a panic.
 pub(super) fn check_spans(text: &str, starts: &[u32], ends: &[u32]) -> Result<(), String> {
     if starts.len() != ends.len() {
         return Err(format!("{} starts and {} ends", starts.len(), ends.len()));

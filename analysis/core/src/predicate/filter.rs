@@ -301,6 +301,10 @@ impl<L: FilterableLayer> Step for FilterAnnotator<L> {
         FilterAnnotator::config_hash(self)
     }
 
+    fn expected_provenance(&self, doc: &Document) -> Provenance {
+        self.provenance(doc)
+    }
+
     fn compute(&self, docs: &[Document]) -> Box<dyn Any + Send> {
         let reads = self.all_reads();
         let req = vec![true; reads.len()];

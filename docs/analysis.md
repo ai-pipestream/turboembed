@@ -5648,3 +5648,19 @@ the parity time is the exact-sum CRF scorer. Packed reaches about
 100,000 words per second from 32 sentences per call, and its rate barely
 moves with sentence length (97,000 to 107,000), while a call's latency
 grows with the words in it.
+
+## Content-addressed incremental DAG execution
+
+`Analyzer` (`analysis/core/src/analyzer.rs`, `analysis/core/src/analyzer/incremental.rs`, `analysis/core/src/doc/digest.rs`) supports Bazel-like content-addressed incremental execution and provenance-skip caching across both in-memory `Document` instances and exported/imported `DocumentGraph` payloads:
+
+1. **Stage dependency declarations and DAG validation**:
+   - `Annotator::requires(&self) -> &[KeyId]` and `Annotator::produces(&self) -> &[KeyId]` declare each annotator's required upstream keys and produced output keys (`Key::id` is `const fn`).
+   - `Analyzer::validate_dag(&self)` (and `Builder::validate_dag(&self)`) verifies at build time that every layer name maps to one Rust type, no two stages produce the same `KeyId`, every required upstream key has a producer, every aligned output's anchor is valid, and no cycle exists.
+2. **Chained 64-bit provenance digests (`Document::provenance_digest`, `DocumentGraph::layer_provenance_digest`)**:
+   - Every layer added to `Document` computes a deterministic 64-bit FNV-1a chained provenance digest over `(annotator_id, version, config_hash, model_ref, source_view_text_hash, sorted_view_read_hashes, sorted_upstream_input_layer_digests)` alongside a deterministic structural `content_digest` and `upstream_content_hash`.
+   - Exporting a `Document` via `export(&doc, &codecs)` to binary `DocumentGraph` wire bytes (`to_bytes`) and importing it back (`DocumentGraph::from_bytes` + `import`) preserves identical chained provenance digests on every view and layer.
+3. **$O(1)$ incremental stage skipping and parallel branch execution (`Analyzer::analyze_incremental`)**:
+   - `Analyzer::analyze_incremental(&self, doc: &mut Document) -> Result<IncrementalReport, Error>` walks topological stage levels: if all `produces()` keys of a stage are present on `doc` with matching chained provenance digests and upstream content hashes, the stage is skipped in $O(1)$ (`StageCacheStatus::Skipped`).
+   - When an upstream stage's `config_hash`, `model`, or output changes, `analyze_incremental` invalidates and recomputes that stage and all transitive downstream dependents while leaving unaffected upstream stages and sibling branches untouched.
+   - Independent stages at the same topological level execute concurrently on `std::thread::scope` and merge into canonical stage order, producing byte-identical `DocumentGraph` wire payloads to `Analyzer::run_sequential`.
+   - `analysis/core/tests/incremental_dag.rs` verifies $O(1)$ skipping across `DocumentGraph` wire round-trips, selective downstream invalidation on mid-pipeline `config_hash` / `model` / content mutations, and bit-identical wire output between parallel and sequential DAG execution.

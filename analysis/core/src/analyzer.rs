@@ -1,11 +1,13 @@
 //! The analyzer: a validated graph of steps, run over batches or streamed
 //! progressively as individual DAG branches complete.
 
+mod incremental;
 mod progressive;
 
 use std::any::TypeId;
 use std::collections::{HashMap, HashSet};
 
+pub use incremental::{IncrementalReport, StageCacheStatus, StageIncrementalReport};
 pub use progressive::{StepEvent, StepTiming};
 
 use crate::annotate::{AnchorUse, Annotator, Bound, Step};
@@ -22,6 +24,7 @@ pub use report::{ExecutionReport, LayerExecution, StepExecution};
 /// before the next starts, so every step sees all of the batch's documents
 /// at once.
 pub struct Analyzer {
+    given: Vec<KeyId>,
     steps: Vec<Box<dyn Step>>,
     stages: Vec<Vec<usize>>,
 }
@@ -95,95 +98,103 @@ impl Builder {
         self
     }
 
+    /// Validates the configured steps without consuming the builder.
+    pub fn validate_dag(&self) -> Result<(), Error> {
+        validate_and_schedule(&self.given, &self.steps).map(|_| ())
+    }
+
+    /// Builds an [`Analyzer`] without running [`Analyzer::validate_dag`],
+    /// placing each step in its insertion order so callers can invoke
+    /// `analyzer.validate_dag()` explicitly.
+    pub fn build_unvalidated(self) -> Analyzer {
+        let stages = (0..self.steps.len()).map(|i| vec![i]).collect();
+        Analyzer { given: self.given, steps: self.steps, stages }
+    }
+
     /// Checks the graph and orders it: one layer type per id, every read
     /// with exactly one producer (a step or a given layer), every aligned
     /// output's anchor one of its step's reads or an output the step writes
     /// before it, and no cycle.
     pub fn build(self) -> Result<Analyzer, Error> {
-        let mut types: HashMap<&LayerName, TypeId> = HashMap::new();
-        let keys = self.steps.iter().flat_map(|s| s.reads().into_iter().chain(s.writes()));
-        for k in self.given.iter().copied().chain(keys) {
-            if *types.entry(k.layer).or_insert(k.ty) != k.ty {
-                return Err(Error::Pipeline(format!("two layer types are both {}", k.layer)));
-            }
-        }
-        let mut producer: HashMap<KeyId, Option<usize>> = self.given.iter().map(|&k| (k, None)).collect();
-        for (i, s) in self.steps.iter().enumerate() {
-            for w in s.writes() {
-                if let Some(prev) = producer.insert(w, Some(i)) {
-                    let by = prev.map_or("the input".to_string(), |p| self.steps[p].id().to_string());
-                    return Err(Error::Pipeline(format!("{} and {} both write {w}", by, s.id())));
-                }
-            }
-        }
-        for s in &self.steps {
-            for (r, required) in s.reads().into_iter().zip(s.required()) {
-                if required && !producer.contains_key(&r) {
-                    return Err(Error::Pipeline(format!("{} reads {r}, which nothing writes", s.id())));
-                }
-            }
-            for (w, a) in s.writes().into_iter().zip(s.anchors()) {
-                match a {
-                    AnchorUse::Unread(base) => {
-                        return Err(Error::Pipeline(format!(
-                            "{} writes {w}, aligned to {base}, without reading {base}",
-                            s.id()
-                        )));
-                    }
-                    AnchorUse::Later(base) => {
-                        return Err(Error::Pipeline(format!(
-                            "{} writes {w}, aligned to {base}, before {base}: the base must come first in its writes",
-                            s.id()
-                        )));
-                    }
-                    AnchorUse::None | AnchorUse::To(_) => {}
-                }
-            }
-        }
-        // Levels: a step runs once everything it reads that anything
-        // writes exists; an optional input nothing writes is just absent.
-        // If two unscheduled steps form a cycle where one edge is optional
-        // (e.g. `TimeAnnotator` reading `Option<DocumentDate>` and
-        // `TimesDocumentDateSelector` reading `Times`), the cycle member
-        // whose required inputs are all ready runs first without its
-        // optional input, while steps outside the cycle wait for their
-        // optional producers.
-        let mut level = vec![usize::MAX; self.steps.len()];
-        let mut done: HashSet<KeyId> = self.given.iter().copied().collect();
-        let mut stages = Vec::new();
-        while level.contains(&usize::MAX) {
-            let mut ready: Vec<usize> = (0..self.steps.len())
-                .filter(|&i| {
-                    level[i] == usize::MAX
-                        && self.steps[i].reads().iter().all(|r| done.contains(r) || !producer.contains_key(r))
-                })
-                .collect();
-            if ready.is_empty()
-                && let Some(cycle_member) = (0..self.steps.len()).find(|&i| {
-                    level[i] == usize::MAX
-                        && self.steps[i]
-                            .reads()
-                            .into_iter()
-                            .zip(self.steps[i].required())
-                            .all(|(r, req)| !req || done.contains(&r) || !producer.contains_key(&r))
-                        && on_optional_cycle(i, &self.steps, &level, &done, &producer)
-                })
-            {
-                ready.push(cycle_member);
-            }
-            if ready.is_empty() {
-                let stuck: Vec<_> =
-                    (0..self.steps.len()).filter(|&i| level[i] == usize::MAX).map(|i| self.steps[i].id()).collect();
-                return Err(Error::Pipeline(format!("a cycle among {stuck:?}")));
-            }
-            for &i in &ready {
-                level[i] = stages.len();
-                done.extend(self.steps[i].writes());
-            }
-            stages.push(ready);
-        }
-        Ok(Analyzer { steps: self.steps, stages })
+        let stages = validate_and_schedule(&self.given, &self.steps)?;
+        Ok(Analyzer { given: self.given, steps: self.steps, stages })
     }
+}
+
+pub(super) fn validate_and_schedule(given: &[KeyId], steps: &[Box<dyn Step>]) -> Result<Vec<Vec<usize>>, Error> {
+    let mut types: HashMap<&LayerName, TypeId> = HashMap::new();
+    let keys = steps.iter().flat_map(|s| s.reads().into_iter().chain(s.writes()));
+    for k in given.iter().copied().chain(keys) {
+        if *types.entry(k.layer).or_insert(k.ty) != k.ty {
+            return Err(Error::Pipeline(format!("two layer types are both {}", k.layer)));
+        }
+    }
+    let mut producer: HashMap<KeyId, Option<usize>> = given.iter().map(|&k| (k, None)).collect();
+    for (i, s) in steps.iter().enumerate() {
+        for w in s.writes() {
+            if let Some(prev) = producer.insert(w, Some(i)) {
+                let by = prev.map_or("the input".to_string(), |p| steps[p].id().to_string());
+                return Err(Error::Pipeline(format!("{} and {} both write {w}", by, s.id())));
+            }
+        }
+    }
+    for s in steps {
+        for (r, required) in s.reads().into_iter().zip(s.required()) {
+            if required && !producer.contains_key(&r) {
+                return Err(Error::Pipeline(format!("{} reads {r}, which nothing writes", s.id())));
+            }
+        }
+        for (w, a) in s.writes().into_iter().zip(s.anchors()) {
+            match a {
+                AnchorUse::Unread(base) => {
+                    return Err(Error::Pipeline(format!(
+                        "{} writes {w}, aligned to {base}, without reading {base}",
+                        s.id()
+                    )));
+                }
+                AnchorUse::Later(base) => {
+                    return Err(Error::Pipeline(format!(
+                        "{} writes {w}, aligned to {base}, before {base}: the base must come first in its writes",
+                        s.id()
+                    )));
+                }
+                AnchorUse::None | AnchorUse::To(_) => {}
+            }
+        }
+    }
+    let mut level = vec![usize::MAX; steps.len()];
+    let mut done: HashSet<KeyId> = given.iter().copied().collect();
+    let mut stages = Vec::new();
+    while level.contains(&usize::MAX) {
+        let mut ready: Vec<usize> = (0..steps.len())
+            .filter(|&i| {
+                level[i] == usize::MAX && steps[i].reads().iter().all(|r| done.contains(r) || !producer.contains_key(r))
+            })
+            .collect();
+        if ready.is_empty()
+            && let Some(cycle_member) = (0..steps.len()).find(|&i| {
+                level[i] == usize::MAX
+                    && steps[i]
+                        .reads()
+                        .into_iter()
+                        .zip(steps[i].required())
+                        .all(|(r, req)| !req || done.contains(&r) || !producer.contains_key(&r))
+                    && on_optional_cycle(i, steps, &level, &done, &producer)
+            })
+        {
+            ready.push(cycle_member);
+        }
+        if ready.is_empty() {
+            let stuck: Vec<_> = (0..steps.len()).filter(|&i| level[i] == usize::MAX).map(|i| steps[i].id()).collect();
+            return Err(Error::Pipeline(format!("a cycle among {stuck:?}")));
+        }
+        for &i in &ready {
+            level[i] = stages.len();
+            done.extend(steps[i].writes());
+        }
+        stages.push(ready);
+    }
+    Ok(stages)
 }
 
 fn on_optional_cycle(
@@ -297,10 +308,6 @@ mod tests {
 
     #[test]
     fn optional_cycle_schedules_only_cycle_member_and_waits_for_bystanders() {
-        // BystanderC is added first and only optionally reads LayerA;
-        // ProduceBFromA requires LayerA and ProduceA optionally reads LayerB.
-        // Only ProduceA is on the cycle, so ProduceA must run first and
-        // BystanderC must still receive LayerA.
         let analyzer = Analyzer::builder().add(BystanderC).add(ProduceBFromA).add(ProduceA).build().unwrap();
         let mut docs = vec![Document::new("hello")];
         for r in analyzer.run(&mut docs) {

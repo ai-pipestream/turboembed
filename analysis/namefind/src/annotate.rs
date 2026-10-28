@@ -29,6 +29,17 @@ impl Annotator for DictionaryNameFinder {
         find_entities(Self::ID, self, view, tokens).map(|e| (e,))
     }
 
+    fn requires(&self) -> &[turbo_analysis::KeyId] {
+        const REQUIRES: &[turbo_analysis::KeyId] =
+            &[turbo_analysis::Key::<View>::DEFAULT.id(), turbo_analysis::Key::<Tokens>::DEFAULT.id()];
+        REQUIRES
+    }
+
+    fn produces(&self) -> &[turbo_analysis::KeyId] {
+        const PRODUCES: &[turbo_analysis::KeyId] = &[turbo_analysis::Key::<Entities>::DEFAULT.id()];
+        PRODUCES
+    }
+
     fn config_hash(&self) -> u64 {
         // The dictionary's entries in no particular order, so combined by
         // a sum, which does not depend on the order.
@@ -54,6 +65,17 @@ impl Annotator for RegexNameFinder {
 
     fn annotate(&self, (view, tokens): Refs<'_, Self>) -> Result<(Entities,), Error> {
         find_entities(Self::ID, self, view, tokens).map(|e| (e,))
+    }
+
+    fn requires(&self) -> &[turbo_analysis::KeyId] {
+        const REQUIRES: &[turbo_analysis::KeyId] =
+            &[turbo_analysis::Key::<View>::DEFAULT.id(), turbo_analysis::Key::<Tokens>::DEFAULT.id()];
+        REQUIRES
+    }
+
+    fn produces(&self) -> &[turbo_analysis::KeyId] {
+        const PRODUCES: &[turbo_analysis::KeyId] = &[turbo_analysis::Key::<Entities>::DEFAULT.id()];
+        PRODUCES
     }
 
     fn config_hash(&self) -> u64 {

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use turbo_analysis::{
-    Anchor, FilterRule, Ix, IxRange, Key, KeyId, Layer, LayerName, Overlap, Span, Spans, Tag, TagSet,
+    Anchor, FilterRule, Fnv1a, Ix, IxRange, Key, KeyId, Layer, LayerName, Overlap, Span, Spans, Tag, TagSet,
 };
 
 use crate::{Strs, Tokens, WordOrTokenAnchor, Words};
@@ -20,6 +20,22 @@ impl Layer for PosTags {
     }
     fn len(&self) -> usize {
         self.tags.len()
+    }
+    fn content_hash(&self) -> u64 {
+        let mut h = Fnv1a::new();
+        h.str(&self.tagset.name).usize(self.tags.len());
+        for &t in &self.tags {
+            h.u16(t.0);
+        }
+        if let Some(prob) = &self.prob {
+            h.u8(1);
+            for &p in prob {
+                h.f64(p);
+            }
+        } else {
+            h.u8(0);
+        }
+        h.finish()
     }
     fn check(&self) -> Result<(), String> {
         if self.tags.iter().any(|t| t.0 as usize >= self.tagset.len()) {
@@ -44,6 +60,14 @@ impl Layer for Lemmas {
     }
     fn len(&self) -> usize {
         self.lemma.len()
+    }
+    fn content_hash(&self) -> u64 {
+        let mut h = Fnv1a::new();
+        h.usize(self.lemma.len());
+        for i in 0..self.lemma.len() {
+            h.str(self.lemma.get(i));
+        }
+        h.finish()
     }
 }
 
