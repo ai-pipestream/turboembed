@@ -233,8 +233,8 @@ fn repeated_runs_give_the_same_bits() {
 }
 
 /// A left-padded row on a sliding-window layer: its pad queries' windows
-/// hold no live key. Every value is finite, and each row the CPU gives
-/// finite matches it.
+/// hold no live key, and each gets a context of 0, as on the CPU. Every
+/// value is finite and every row matches the CPU's.
 #[test]
 fn a_left_padded_row_stays_finite() {
     let _t = turn();
@@ -248,16 +248,9 @@ fn a_left_padded_row_stays_finite() {
     let got = gs.run().unwrap().rows();
     assert!(got.iter().flatten().all(|v| v.is_finite()), "a value is not finite: {got:?}");
     cs.write_tokens(&t.batch(), Some(&o)).unwrap();
-    let want = cs.run().unwrap().rows();
-    let (mut compared, mut d) = (0, 0f32);
-    for (a, b) in got.iter().zip(&want) {
-        if b.iter().all(|v| v.is_finite()) {
-            d = d.max(worst(std::slice::from_ref(a), std::slice::from_ref(b)));
-            compared += 1;
-        }
-    }
-    println!("a_left_padded_row_stays_finite: {compared} of 5 rows compared, largest difference {d:e}");
-    assert!(compared >= 4 && d < BOUND, "{compared} rows, {d:e}");
+    let d = worst(&got, &cs.run().unwrap().rows());
+    println!("a_left_padded_row_stays_finite: every row, largest difference {d:e}");
+    assert!(d < BOUND, "{d:e}");
 }
 
 /// FASTEST is refused, naming the precision and the family; it never runs
