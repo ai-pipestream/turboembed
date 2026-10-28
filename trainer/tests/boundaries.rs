@@ -104,3 +104,23 @@ fn one_step_and_short_schedules_move_every_trained_weight() {
         }
     }
 }
+
+#[test]
+fn an_overflowing_loss_leaves_the_gradients_as_they_were() {
+    // Finite scores whose loss overflows: [MAX, -MAX] against label 1.
+    let mut d = vec![7.0f64, 7.0];
+    assert!(xent::loss(&[f64::MAX, -f64::MAX], &[1], 2, &mut d).is_err());
+    assert_eq!(d, [7.0, 7.0]);
+    let mut d = vec![7.0f64, 7.0];
+    assert!(xent::loss(&[0.0, 0.0], &[2], 2, &mut d).is_err(), "a gold label out of range");
+    assert_eq!(d, [7.0, 7.0]);
+
+    let s = spec(&["A", "B"], Scheme::Tags, Decode::Crf);
+    let (_, lattice) = allowed(s.scheme, &s.labels).unwrap();
+    let (start, end, tr) = (vec![f64::MAX; 2], vec![0.0; 2], vec![0.0; 4]);
+    let p = crf::Params { transitions: &tr, start: &start, end: &end };
+    let (mut gt, mut gs, mut ge, mut de) = (vec![7.0; 4], vec![7.0; 2], vec![7.0; 2], vec![7.0; 2]);
+    let g = crf::Grad { transitions: &mut gt, start: &mut gs, end: &mut ge };
+    assert!(crf::nll(p, &lattice, &[f64::MAX, f64::MAX], &[0], 2, &mut de, g).is_err());
+    assert!([&gt, &gs, &ge, &de].iter().all(|v| v.iter().all(|&x| x == 7.0)), "{gt:?} {gs:?} {ge:?} {de:?}");
+}

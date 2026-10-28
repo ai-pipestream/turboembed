@@ -22,8 +22,8 @@ pub struct Settings {
 }
 
 impl Settings {
-    /// Refuses settings that would not train: a rate that is not positive
-    /// and finite, betas outside [0, 1), a negative or nonfinite eps,
+    /// Refuses settings that would not train: a rate or eps that is not
+    /// positive and finite, betas outside [0, 1), a negative or nonfinite
     /// decay or clip, or a warmup longer than the schedule.
     pub fn check(&self) -> Result<()> {
         let finite = |v: f64| v.is_finite();
@@ -33,8 +33,11 @@ impl Settings {
         if !(0.0..1.0).contains(&self.beta1) || !(0.0..1.0).contains(&self.beta2) {
             return Err(invalid("adamw: beta1 and beta2 lie in [0, 1)"));
         }
-        if [self.eps, self.weight_decay, self.clip].iter().any(|&v| !finite(v) || v < 0.0) {
-            return Err(invalid("adamw: eps, weight decay and clip are finite and not negative"));
+        if !(finite(self.eps) && self.eps > 0.0) {
+            return Err(invalid(format!("adamw: eps {} is not positive and finite", self.eps)));
+        }
+        if [self.weight_decay, self.clip].iter().any(|&v| !finite(v) || v < 0.0) {
+            return Err(invalid("adamw: weight decay and clip are finite and not negative"));
         }
         if self.total > 0 && self.warmup >= self.total {
             return Err(invalid("adamw: the warmup is shorter than the schedule"));
@@ -51,7 +54,8 @@ impl Default for Settings {
 
 #[derive(Debug, Clone)]
 pub struct AdamW<R> {
-    pub settings: Settings,
+    /// Checked by `new` and never changed after.
+    settings: Settings,
     step: u64,
     m: Vec<Vec<R>>,
     v: Vec<Vec<R>>,
@@ -64,6 +68,11 @@ impl<R: Real> AdamW<R> {
         Ok(AdamW { settings, step: 0, m: zeros(), v: zeros() })
     }
 
+    /// The settings, as checked when the optimizer was made.
+    pub fn settings(&self) -> &Settings {
+        &self.settings
+    }
+
     /// The learning rate at step `t` (counted from 1): `t / warmup` of
     /// the rate while warming up, then `(total + 1 - t) / (total - warmup)`
     /// of it, so the first step after warmup takes the full rate and step
@@ -74,8 +83,10 @@ impl<R: Real> AdamW<R> {
             return s.lr * t as f64 / s.warmup as f64;
         }
         if s.total > s.warmup && t > s.warmup {
-            let left = (s.total + 1).saturating_sub(t) as f64 / (s.total - s.warmup) as f64;
-            return s.lr * left.min(1.0);
+            // Steps left counting this one, without the overflow of
+            // total + 1 at u64::MAX.
+            let left = if t > s.total { 0.0 } else { (s.total - t) as f64 + 1.0 };
+            return s.lr * (left / (s.total - s.warmup) as f64).min(1.0);
         }
         s.lr
     }
