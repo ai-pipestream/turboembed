@@ -13,7 +13,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, OnceLock};
+use std::sync::OnceLock;
 
 /// The pin list beside this crate.
 pub const MODELS: &str = include_str!("../models.txt");
@@ -263,19 +263,14 @@ pub fn check(path: &Path) -> Result<(), String> {
     ))
 }
 
-/// `path` itself, once [`check`] passes; panics otherwise. A path checked
-/// once in this process is not hashed again.
+/// `path` itself, once [`check`] passes; panics otherwise. Every call
+/// hashes the model again, so a model changed after an earlier call is
+/// refused.
 pub fn require(path: impl AsRef<Path>) -> PathBuf {
-    static CHECKED: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
     let path = path.as_ref();
-    let key = fs::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-    if CHECKED.lock().unwrap_or_else(|e| e.into_inner()).contains(&key) {
-        return path.to_path_buf();
-    }
     if let Err(e) = check(path) {
         panic!("{e}");
     }
-    CHECKED.lock().unwrap_or_else(|e| e.into_inner()).push(key);
     path.to_path_buf()
 }
 

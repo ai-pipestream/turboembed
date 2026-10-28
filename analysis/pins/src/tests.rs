@@ -53,6 +53,19 @@ fn a_pinned_bundle_passes_and_a_changed_one_fails() {
 }
 
 #[test]
+fn a_bundle_changed_after_a_passing_require_is_refused() {
+    let tiny = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle");
+    let dir = scratch("changed");
+    let manifest = fs::read(tiny.join("manifest.json")).unwrap();
+    fs::write(dir.join("manifest.json"), &manifest).unwrap();
+    assert_eq!(require(&dir), dir);
+    let mut changed = manifest;
+    changed.push(b'\n');
+    fs::write(dir.join("manifest.json"), changed).unwrap();
+    assert!(std::panic::catch_unwind(|| require(&dir)).is_err());
+}
+
+#[test]
 fn a_file_and_a_tree_are_hashed_as_models_txt_says() {
     let dir = scratch("tree");
     fs::create_dir_all(dir.join("sub")).unwrap();
