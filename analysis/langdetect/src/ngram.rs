@@ -111,7 +111,7 @@ impl NgramModel {
         }
         if sum > 0.0 {
             for score in scores.iter_mut() {
-                *score = *score / sum;
+                *score /= sum;
             }
         }
         scores
