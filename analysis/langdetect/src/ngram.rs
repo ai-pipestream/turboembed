@@ -102,6 +102,7 @@ impl NgramModel {
                 *score += self.weights[i * self.buckets as usize + bucket as usize] * count;
             }
         }
+        self.apply_script_priors(text, &mut scores);
         let max = scores.iter().copied().fold(f32::NEG_INFINITY, f32::max);
         let mut sum = 0.0;
         for score in scores.iter_mut() {
@@ -116,6 +117,16 @@ impl NgramModel {
         scores
     }
 
+    /// Applies a small prior for languages whose script matches the text.
+    fn apply_script_priors(&self, text: &str, scores: &mut [f32]) {
+        let script = Script::of(text);
+        for (i, lang) in self.languages.iter().enumerate() {
+            if script.matches(lang) {
+                scores[i] += 0.1;
+            }
+        }
+    }
+
     /// Predicts the most likely language of `text`.
     pub fn predict(&self, text: &str) -> Option<&str> {
         let scores = self.scores(text);
@@ -124,6 +135,65 @@ impl NgramModel {
             .enumerate()
             .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(i, _)| self.languages[i].as_str())
+    }
+}
+
+/// A coarse script class for language priors.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum Script {
+    Latin,
+    Cyrillic,
+    Arabic,
+    Devanagari,
+    Han,
+    Hiragana,
+    Katakana,
+    Hangul,
+    Other,
+}
+
+impl Script {
+    fn of(text: &str) -> Script {
+        let mut counts = [0usize; 9];
+        for c in text.chars() {
+            let i = match c {
+                '\u{0040}'..='\u{024F}' => 0,
+                '\u{0400}'..='\u{04FF}' => 1,
+                '\u{0600}'..='\u{06FF}' => 2,
+                '\u{0900}'..='\u{097F}' => 3,
+                '\u{4E00}'..='\u{9FFF}' => 4,
+                '\u{3040}'..='\u{309F}' => 5,
+                '\u{30A0}'..='\u{30FF}' => 6,
+                '\u{AC00}'..='\u{D7AF}' => 7,
+                _ => 8,
+            };
+            counts[i] += 1;
+        }
+        let max = counts.iter().enumerate().max_by_key(|(_, c)| *c).map(|(i, _)| i).unwrap_or(8);
+        match max {
+            0 => Script::Latin,
+            1 => Script::Cyrillic,
+            2 => Script::Arabic,
+            3 => Script::Devanagari,
+            4 => Script::Han,
+            5 => Script::Hiragana,
+            6 => Script::Katakana,
+            7 => Script::Hangul,
+            _ => Script::Other,
+        }
+    }
+
+    fn matches(self, lang: &str) -> bool {
+        match self {
+            Script::Latin => matches!(lang, "en" | "de" | "fr" | "es" | "it" | "pt" | "nl" | "pl" | "tr" | "vi"),
+            Script::Cyrillic => matches!(lang, "ru" | "uk" | "bg" | "sr" | "mk"),
+            Script::Arabic => matches!(lang, "ar" | "fa" | "ur"),
+            Script::Devanagari => matches!(lang, "hi" | "mr" | "ne"),
+            Script::Han => matches!(lang, "zh" | "ja"),
+            Script::Hiragana | Script::Katakana => lang == "ja",
+            Script::Hangul => lang == "ko",
+            Script::Other => false,
+        }
     }
 }
 
