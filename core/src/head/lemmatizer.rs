@@ -72,7 +72,16 @@ impl EditTreeLemmatizer {
         let t = Take { name: &spec.name, sizes: words::sizes(spec, &tensors(spec, hidden))?, get };
         let reader = WordReader::new(spec, hidden, &t)?;
         let pos = match &spec.pos_input {
-            Some(p) => Some((t.take("pos.embedding")?, p.dim as usize)),
+            Some(p) => {
+                let table = t.take("pos.embedding")?;
+                if table.iter().any(|v| !v.is_finite()) {
+                    return Err(invalid(format!(
+                        "head {:?}: pos.embedding holds a value that is not finite",
+                        spec.name
+                    )));
+                }
+                Some((table, p.dim as usize))
+            }
             None => None,
         };
         let width = reader.width() + pos.as_ref().map_or(0, |(_, d)| *d);
@@ -165,8 +174,9 @@ impl EditTreeLemmatizer {
             }
             order.clear();
             order.extend(0..k as u32);
-            // Stable, so equal scores keep the lower index first.
-            order.sort_by(|&a, &b| row[b as usize].total_cmp(&row[a as usize]));
+            // Stable, so equal scores keep the lower index first; equal is
+            // numeric (the scores are finite), so -0 and 0 tie.
+            order.sort_by(|&a, &b| row[b as usize].partial_cmp(&row[a as usize]).unwrap_or(std::cmp::Ordering::Equal));
             out.push(order.iter().copied().find(|&t| self.trees[t as usize].apply(form).is_some()));
         }
         Ok(())
