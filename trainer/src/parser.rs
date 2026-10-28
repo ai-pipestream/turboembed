@@ -207,7 +207,9 @@ impl<R: Real> Parser<R> {
     }
 
     /// The loss of one sentence against its gold heads (0 the root) and
-    /// relations, and its gradients added to `grads`.
+    /// relations, and its gradients added to `grads` (shaped as
+    /// `zero_grads` gives); gradients of any other shape are refused
+    /// before anything runs.
     pub fn loss(
         &self,
         features: &[R],
@@ -216,6 +218,9 @@ impl<R: Real> Parser<R> {
         grads: &mut [Vec<R>],
         w: &mut Work<R>,
     ) -> Result<f64> {
+        if grads.len() != self.params.len() || grads.iter().zip(&self.params).any(|(g, p)| g.len() != p.len()) {
+            return Err(invalid(format!("trainer: gradients do not match the tensors of head {:?}", self.spec.name)));
+        }
         let n = self.forward(features, w)?;
         let labels = self.spec.labels.len();
         if heads.len() != n || rels.len() != n {
