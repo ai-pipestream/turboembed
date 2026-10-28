@@ -1,0 +1,59 @@
+head 8e980ac6365f755c7b80d75eefbe42198d82bb55
+start 2026-10-28T07:58:55Z load 54.61 44.64 38.69
+command: TURBO_TEST_BUNDLE=<bundles>/modernbert-base TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release -p turbo --features levelzero --test conformance -- --nocapture
+   Compiling turbo v0.1.0 (<repo>/core)
+    Finished `release` profile [optimized] target(s) in 2.67s
+     Running tests/conformance.rs (target/release/deps/conformance-f4f8f55e1c062bf2)
+
+running 8 tests
+test a_real_bundle_matches_its_reference ... ignored, needs a real bundle directory in TURBO_TEST_BUNDLE
+  rerank, 1 pairs a write: 4 scores, compute dtype 12, max diff 5.918e-7 of the scale, bound 1e-4
+    order: 6 pairs as the reference ranks them, 0 too close to say
+<repo>/core/../testdata/tiny-modernbert-bundle: 9 cases on device 0, precision 0, compute dtype 12, cosine floor 0.9999, max abs diff Some(0.0001)
+  write_text, batch 1: 9 rows, 1 - min cosine 3.386e-14, max abs diff 3.576e-7
+  write_text, full batch: 9 rows, 1 - min cosine 3.386e-14, max abs diff 3.576e-7
+  write_tokens, batch 1: 9 rows, 1 - min cosine 3.386e-14, max abs diff 3.576e-7
+  write_tokens, full batch: 9 rows, 1 - min cosine 3.386e-14, max abs diff 3.576e-7
+  0 cases longer than max_seq 64 refused with TURBO_E_CAPACITY
+  rerank, 4 pairs a write: 4 scores, compute dtype 12, max diff 5.918e-7 of the scale, bound 1e-4
+    order: 6 pairs as the reference ranks them, 0 too close to say
+test tasks::rerank_scores_match_upstream ... ok
+<tmp>/turbo-conformance-fixed: 9 cases on device 0, precision 0, compute dtype 12, cosine floor 0.9999, max abs diff Some(0.0001)
+  write_text, batch 1: 7 rows, 1 - min cosine 8.771e-15, max abs diff 8.941e-8
+  write_text, full batch: 7 rows, 1 - min cosine 8.771e-15, max abs diff 8.941e-8
+  write_tokens, batch 1: 7 rows, 1 - min cosine 8.771e-15, max abs diff 8.941e-8
+  write_tokens, full batch: 7 rows, 1 - min cosine 8.771e-15, max abs diff 8.941e-8
+  2 cases longer than max_seq 32 refused with TURBO_E_CAPACITY
+  token vectors, one row a write: 193 tokens, compute dtype 12, 1 - min cosine 1.354e-14, max abs diff 7.153e-7
+  token vectors pooled, one row a write: 9 rows, compute dtype 12, 1 - min cosine 9.215e-15, max abs diff 8.941e-8
+test a_fixed_shape_refuses_the_cases_it_cannot_hold ... ok
+  token vectors, full batches: 193 tokens, compute dtype 12, 1 - min cosine 1.377e-14, max abs diff 7.153e-7
+  token vectors pooled, full batches: 9 rows, compute dtype 12, 1 - min cosine 9.215e-15, max abs diff 8.941e-8
+test tasks::token_vectors_match_the_reference_encoder_and_pool_to_upstream ... ok
+<repo>/core/../testdata/tiny-nomic-bundle: 9 cases on device 0, precision 0, compute dtype 12, cosine floor 0.9999, max abs diff Some(0.0001)
+  write_text, batch 1: 9 rows, 1 - min cosine 7.472e-14, max abs diff 9.537e-7
+  write_text, full batch: 9 rows, 1 - min cosine 7.472e-14, max abs diff 9.537e-7
+  write_tokens, batch 1: 9 rows, 1 - min cosine 7.472e-14, max abs diff 9.537e-7
+  write_tokens, full batch: 9 rows, 1 - min cosine 7.472e-14, max abs diff 9.537e-7
+  0 cases longer than max_seq 64 refused with TURBO_E_CAPACITY
+  sparse weights, one row a write: 9 rows of 30522 terms, compute dtype 12, 1 - min cosine 1.450e-12, max abs diff 9.034e-7
+test the_rotary_bundles_match_upstream ... ok
+  extractive QA, max_batch 1: 210 scores, compute dtype 12, max diff 2.011e-7 of the scale, bound 1e-4
+    answers: 4 of 4 cases as the reference answers them, the rest too close to say
+  sparse weights, full batches: 9 rows of 30522 terms, compute dtype 12, 1 - min cosine 1.450e-12, max abs diff 9.034e-7
+test tasks::sparse_weights_match_the_reference_encoder ... ok
+  extractive QA, max_batch 0: 210 scores, compute dtype 12, max diff 2.011e-7 of the scale, bound 1e-4
+    answers: 4 of 4 cases as the reference answers them, the rest too close to say
+test tasks::extractive_qa_logits_match_upstream ... ok
+test every_reference_case_matches_upstream has been running for over 60 seconds
+<bundles>/modernbert-base: 12 cases on device 0, precision 0, compute dtype 12, cosine floor 0.9999, max abs diff Some(0.0001)
+  write_text, batch 1: 12 rows, 1 - min cosine 1.491e-11, max abs diff 3.815e-5
+  write_text, full batch: 12 rows, 1 - min cosine 1.491e-11, max abs diff 3.815e-5
+  write_tokens, batch 1: 12 rows, 1 - min cosine 1.491e-11, max abs diff 3.815e-5
+  write_tokens, full batch: 12 rows, 1 - min cosine 1.491e-11, max abs diff 3.815e-5
+  0 cases longer than max_seq 8192 refused with TURBO_E_CAPACITY
+test every_reference_case_matches_upstream ... ok
+
+test result: ok. 7 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 114.42s
+
+exit 0 end 2026-10-28T08:00:52Z load 55.87 47.95 40.56
