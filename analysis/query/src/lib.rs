@@ -66,7 +66,7 @@ impl QueryTermAnnotator {
 }
 
 impl turbo_analysis::Annotator for QueryTermAnnotator {
-    const ID: &'static str = turbo_langspan::SpanDetector::ID;
+    const ID: &'static str = turbo_langspan::ScriptDetector::ID;
     type Reads = (turbo_analysis::View,);
     type Writes = (
         turbo_analysis_layers::Sentences,
@@ -96,7 +96,7 @@ impl turbo_analysis::Annotator for QueryTermAnnotator {
         };
         let (tokens, _) = self.tok.annotate((view, Some(&sentences)))?;
         let (lang_spans, lang) = self.span_detector.annotate((view, Some(&sentences), Some(&tokens)))?;
-        let language = (!lang.code.is_empty()).then_some(&lang);
+        let language = lang.best().filter(|(code, _)| *code != "und").map(|_| &lang);
         let terms = if text.is_ascii() && text.len() <= 512 && tokens.spans.view() == view.id() {
             let stemmer = match language.and_then(turbo_analysis_layers::Language::best) {
                 Some(("eng", _)) => {
