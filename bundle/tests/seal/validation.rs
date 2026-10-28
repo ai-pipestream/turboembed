@@ -318,3 +318,12 @@ fn the_calibration_pin_is_the_committed_lf_bytes() {
     }
     assert_eq!(turbo::bundle::sha256_hex(&crlf), "9e6ac4eb099b4934d86adb2af92fdc3d5817b84ecd9d7bf1445d1b832d37d940");
 }
+
+#[test]
+fn the_tiny_bert_bundle_names_its_generated_identity() {
+    let bundle = turbo::bundle::Bundle::open(&root().join("testdata/tiny-bert-bundle")).unwrap();
+    assert_eq!(bundle.manifest.model.id, "turboembed/tiny-bert");
+    assert_eq!(bundle.manifest.model.revision, "1");
+    assert_eq!(bundle.manifest.model.source.repository, "https://github.com/ai-pipestream/turboembed");
+    assert_eq!(bundle.manifest.model.source.commit, "af146a9213260f30554ba972a9c79d6053b84ad0");
+}
