@@ -193,13 +193,14 @@ in the zoo's index:
 `deepset/roberta-base-squad2` (`deepset-roberta-base-squad2`,
 share-alike through its training data, fetched only after the user
 accepts CC BY-SA 4.0), `urchade/gliner_small-v2.1`
-(`urchade-gliner-small-v2.1`, permissive) and its base tokenizer
+(`urchade-gliner-small-v2.1`, local-only by its training data since
+2026-10-28, fetched after the user accepts the terms below) and its base tokenizer
 `microsoft/deberta-v3-small`'s `spm.model` and `config.json`
 (`microsoft-deberta-v3-small-tokenizer`, permissive), `urchade/gliner_multi-v2.1`
-(`urchade-gliner-multi-v2.1`, permissive) and its base tokenizer
+(`urchade-gliner-multi-v2.1`, local-only the same way) and its base tokenizer
 `microsoft/mdeberta-v3-base`'s `spm.model` and `config.json`
 (`microsoft-mdeberta-v3-base-tokenizer`, permissive), `fastino/gliner2-base-v1` (`fastino-gliner2-base-v1`,
-permissive), `jackboyla/glirel-large-v0` (`jackboyla-glirel-large-v0`,
+local-only the same way), `jackboyla/glirel-large-v0` (`jackboyla-glirel-large-v0`,
 local-only, fetched from its publisher only after the user accepts CC
 BY-NC-SA 4.0), GLiREL's tokenizer, `microsoft/deberta-v3-large`'s
 `spm.model` and `config.json` (`microsoft-deberta-v3-large-tokenizer`,
@@ -224,12 +225,12 @@ files were downloaded then, with SHA-512 digests recorded in their entries.
 | [segment-any-text/sat-1l-sm](https://huggingface.co/segment-any-text/sat-1l-sm) | `00a783439c201b20ee91ee1624dc817f1bf0e578` | MIT | XLM-R (MIT); trained on mC4, then a mixture that includes Universal Dependencies training sets | refused: the published training mixture includes OPUS-100 with unconfirmed terms (`LicenseRef-Unconfirmed`); the UD part alone is local-only | here, 2026-10-24 |
 | [segment-any-text/sat-12l-sm](https://huggingface.co/segment-any-text/sat-12l-sm) | `d70c72a9331b2d5a9e82baad00c64964a23a09bb` | MIT | as `sat-1l-sm` | refused, as `sat-1l-sm` | here, 2026-10-24 |
 | [segment-any-text/sat-3l](https://huggingface.co/segment-any-text/sat-3l) | `a3b7ba6b61881d619989757aea971cde7d3d6a98` | MIT | XLM-R (MIT); mC4 (ODC-BY) | permissive; in the index (`segment-any-text-sat-3l`); limited lookahead runs on the CPU (#887) | here, 2026-10-24 |
-| [urchade/gliner_small-v2.1](https://huggingface.co/urchade/gliner_small-v2.1) | `4e091416cf7c3481db542c2a3d26156916f3a47f` | Apache-2.0 | deberta-v3-small (MIT); `urchade/pile-mistral-v0.1` (Apache-2.0, labels Mistral wrote for text from The Pile) | permissive; in the index (`urchade-gliner-small-v2.1`, docs/gliner.md) | here |
+| [urchade/gliner_small-v2.1](https://huggingface.co/urchade/gliner_small-v2.1) | `4e091416cf7c3481db542c2a3d26156916f3a47f` | Apache-2.0 | deberta-v3-small (MIT); `urchade/pile-mistral-v0.1` (Apache-2.0, labels Mistral wrote for text from The Pile, whose source texts carry mixed and partly unknown rights) | local-only by its training data (decision 2026-10-28 below): in the index (`urchade-gliner-small-v2.1`, docs/gliner.md), fetched from its publisher after the user accepts the dataset card's terms; never bundled or shipped | here; data rechecked 2026-10-28 |
 | [microsoft/deberta-v3-small](https://huggingface.co/microsoft/deberta-v3-small) (`spm.model`, `config.json`) | `a36c739020e01763fe789b4b85e2df55d6180012` | MIT | | permissive; in the index (`microsoft-deberta-v3-small-tokenizer`) | here, 2026-10-23 |
-| [urchade/gliner_multi-v2.1](https://huggingface.co/urchade/gliner_multi-v2.1) | `443d26d654e0324125a96bebd8e796c14ff2efe6` | Apache-2.0 | mdeberta-v3-base (MIT); as `gliner_small-v2.1` | permissive; in the index (`urchade-gliner-multi-v2.1`, docs/gliner.md) | here |
+| [urchade/gliner_multi-v2.1](https://huggingface.co/urchade/gliner_multi-v2.1) | `443d26d654e0324125a96bebd8e796c14ff2efe6` | Apache-2.0 | mdeberta-v3-base (MIT); as `gliner_small-v2.1` | local-only, as `gliner_small-v2.1` | here; data rechecked 2026-10-28 |
 | [microsoft/mdeberta-v3-base](https://huggingface.co/microsoft/mdeberta-v3-base) (`spm.model`, `config.json`) | `a0484667b22365f84929a935b5e50a51f71f159d` | MIT | | permissive; in the index (`microsoft-mdeberta-v3-base-tokenizer`) | here, 2026-10-23 |
 | [urchade/gliner_small](https://huggingface.co/urchade/gliner_small) (v1) | `0f0f4e7d3f10e48844110162d6b5c6072ddd5a4e` | CC BY-NC 4.0 | | local-only; not used | here |
-| [fastino/gliner2-base-v1](https://huggingface.co/fastino/gliner2-base-v1) | `f9634218e53580c56edf0de97ca1a7d3f1c2354e` | Apache-2.0 | deberta-v3-base (MIT); training data not named on the card | permissive; in the index; the relation scorer and schema extraction (docs/schema-extract.md) | here |
+| [fastino/gliner2-base-v1](https://huggingface.co/fastino/gliner2-base-v1) | `f9634218e53580c56edf0de97ca1a7d3f1c2354e` | Apache-2.0 | deberta-v3-base (MIT); training data not named on the card; the GLiNER2 paper (arXiv 2507.18546) describes 254k examples of news, Wikipedia, legal, PubMed and arXiv text labelled by GPT-4o plus GPT-4o synthetic examples, not released | local-only by its training data (decision 2026-10-28 below): in the index, fetched from its publisher after the user accepts the card's terms; the relation scorer and schema extraction (docs/schema-extract.md) | here; data rechecked 2026-10-28 |
 | [microsoft/deberta-v3-large](https://huggingface.co/microsoft/deberta-v3-large) (`spm.model`, `config.json`) | `64a8c8eab3e352a784c658aef62be1662607476f` | MIT | | permissive; in the index | here |
 | [jackboyla/glirel-large-v0](https://huggingface.co/jackboyla/glirel-large-v0) | `40a523e12a8432d6da364cf2a195a28755ff04d3` | CC BY-NC-SA 4.0 (the card and the GLiREL repository) | deberta-v3-large (MIT); training data not named on the card | local-only; in the index, fetched after acceptance | here |
 | [cross-encoder/nli-MiniLM2-L6-H768](https://huggingface.co/cross-encoder/nli-MiniLM2-L6-H768) | `b95119ce93d3e065de6214e38cd4a97b0f2f2c6d` | Apache-2.0 | [nreimers/MiniLMv2-L6-H768-distilled-from-RoBERTa-Large](https://huggingface.co/nreimers/MiniLMv2-L6-H768-distilled-from-RoBERTa-Large) (Apache-2.0); [SNLI](https://huggingface.co/datasets/stanfordnlp/snli) (CC BY-SA 4.0) and [MultiNLI](https://huggingface.co/datasets/nyu-mll/multi_nli) (CC BY-SA 3.0; majority of OANC genres) | share-alike; in the index, fetched after acceptance; zero-shot categorization (docs/doccat.md) | here |
@@ -243,6 +244,39 @@ files were downloaded then, with SHA-512 digests recorded in their entries.
 | [minishlab/potion-base-8M](https://huggingface.co/minishlab/potion-base-8M) | `bf8b056651a2c21b8d2565580b8569da283cab23` | MIT | Model2Vec distillation with teacher `BAAI/bge-base-en-v1.5` (above) over `minishlab/tokenlearn-c4-en-bge-base-v1.5` (C4 English) | not proven permissive: the static table is distilled from the teacher, so it keeps the teacher's unaudited lineage (docs/static.md states the same rule for `turbo-bundle distill`); static tier of the cascade and SPLATE records, fetched by recipe, not shipped | here, 2026-10-26 |
 | [minishlab/potion-retrieval-32M](https://huggingface.co/minishlab/potion-retrieval-32M) | `6fc8051fab2a1e0ee76689cf08c853792ac285e7` | MIT | `minishlab/potion-base-32M`; fine-tuned on a retrieval mixture the card lists, including MS MARCO derivatives (`sentence-transformers/msmarco-co-condenser-margin-mse-sym-mnrl-mean-v1`, `bclavie/msmarco-10m-triplets`) | local-only, by its training data; its recipe has carried the MS MARCO notice and `--accept-terms` fetch all along (docs/static.md) | here, 2026-10-26 |
 | [ibm-granite/granite-embedding-30m-english](https://huggingface.co/ibm-granite/granite-embedding-30m-english) | `9b5b096411652ec1189c68fcfb90d0a82c5b45af` | Apache-2.0 | IBM's RoBERTa encoder (retrieval-oriented pretraining, contrastive fine-tuning, distillation and merging, arXiv 2502.20204); the card enumerates the mixture and no entry is under non-commercial terms (IBM excluded MS MARCO for its license): title-body web pairs, S2ORC, WikiAnswers, arXiv, PubMed and DBpedia pairs, IBM-internal and IBM synthetic pairs, and the CC BY-SA sets Stack Exchange, Natural Questions, SQuAD 2.0, HotpotQA, FEVER, SPECTER, SearchQA, MIRACL, Wikipedia pairs and PAQ (CC BY-SA 3.0, per the facebookresearch/PAQ README) | CC BY-SA training-data class, as roberta-base-squad2 above; optional local download after user acceptance under docs/zoo.md ("Granite requires an explicit download decision", #1451). No weights or generated bundles are included in TurboEmbed releases. The recipe notice discloses the web-scraped and IBM-internal inputs and requires `--accept-terms`. The catalogue recipe converts BF16 to F32 locally; evaluation is in docs/analysis.md | here, 2026-10-27 |
+
+Not in the index, classified for when an entry is made (cards read on
+2026-10-28; their files were not fetched, so no SHA-512s exist):
+
+| Checkpoint | Licence | Base and data | Class once entered |
+|---|---|---|---|
+| [urchade/gliner_multi_pii-v1](https://huggingface.co/urchade/gliner_multi_pii-v1) | Apache-2.0 | `urchade/gliner_multi-v2.1` (above); `urchade/synthetic-pii-ner-mistral-v1` (Apache-2.0) | local-only, inherited from `gliner_multi-v2.1` |
+| [cis-lmu/glotlid](https://huggingface.co/cis-lmu/glotlid) | Apache-2.0 plus notices (LICENSE: no training data distributed, its licensing not warranted) | fastText; GlotSparse, GlotStoryBook, glotlid-corpus, licences not stated | local-only by its training data; also needs a fastText reader the core lacks |
+
+### Apache weights on unreleased or LLM-labelled data (decision 2026-10-28)
+
+Kristian, 2026-10-28 06:45 UTC, agreeing to the recommendation in the
+open-model inventory of 2026-10-28:
+"i agree with all your recommendations". The recommendation was that a
+checkpoint whose weights are Apache-2.0 or MIT but whose training data is
+unreleased, or is web text of mixed rights labelled by an LLM, is
+accept-first rather than default: we cannot show the data's licence.
+
+In the index this is `LicenseRef-RestrictedPublic` on the training-data
+entry, with the card or dataset page that describes the data as its terms,
+which puts the checkpoint in `CLASS_LOCAL_ONLY`: fetched only from its
+publisher (`origin`), after the user accepts that page, never bundled,
+checked in or shipped, and any model trained from it stays local. It
+applies to `fastino-gliner2-base-v1`, `urchade-gliner-small-v2.1`,
+`urchade-gliner-multi-v2.1`, and to `gliner_multi_pii-v1` and GlotLID
+when they are entered. Should the decision change, only the
+training-data entries and the class move back.
+
+Open under this decision: the reduced GLiNER small-v2.1 weight slices
+checked in under `analysis/gliner/tests/fixtures` (section "GLiNER
+small-v2.1 numerical fixtures") are derived from a local-only checkpoint
+now. Whether they stay as test fixtures or move to a test-time download
+is Kristian's call; this change does not touch them.
 
 The `-sm` class was checked on 2026-10-23 against wtpsplit (MIT) at
 commit `3ef928c8e163d11dc6f6336ad610bff2ffe0bda4`.

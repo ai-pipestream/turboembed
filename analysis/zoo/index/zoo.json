@@ -3630,10 +3630,16 @@
           "name": "microsoft/deberta-v3-base",
           "license": "MIT",
           "license_terms": "https://huggingface.co/microsoft/deberta-v3-base"
+        },
+        {
+          "name": "GLiNER2 training data",
+          "license": "LicenseRef-RestrictedPublic",
+          "license_terms": "https://huggingface.co/fastino/gliner2-base-v1/blob/f9634218e53580c56edf0de97ca1a7d3f1c2354e/README.md"
         }
       ],
-      "class": "CLASS_PERMISSIVE",
-      "attribution": "fastino/gliner2-base-v1 at f9634218e53580c56edf0de97ca1a7d3f1c2354e (Apache-2.0, https://huggingface.co/fastino/gliner2-base-v1/blob/f9634218e53580c56edf0de97ca1a7d3f1c2354e/README.md), derived from microsoft/deberta-v3-base (MIT, https://huggingface.co/microsoft/deberta-v3-base).",
+      "class": "CLASS_LOCAL_ONLY",
+      "attribution": "fastino/gliner2-base-v1 at f9634218e53580c56edf0de97ca1a7d3f1c2354e (Apache-2.0, https://huggingface.co/fastino/gliner2-base-v1/blob/f9634218e53580c56edf0de97ca1a7d3f1c2354e/README.md), derived from microsoft/deberta-v3-base (MIT, https://huggingface.co/microsoft/deberta-v3-base); GLiNER2 training data (LicenseRef-RestrictedPublic, https://huggingface.co/fastino/gliner2-base-v1/blob/f9634218e53580c56edf0de97ca1a7d3f1c2354e/README.md).",
+      "origin": "https://huggingface.co/fastino/gliner2-base-v1",
       "files": [
         {
           "path": "model.safetensors",
@@ -3903,10 +3909,16 @@
           "name": "urchade/pile-mistral-v0.1",
           "license": "Apache-2.0",
           "license_terms": "https://huggingface.co/datasets/urchade/pile-mistral-v0.1"
+        },
+        {
+          "name": "The Pile",
+          "license": "LicenseRef-RestrictedPublic",
+          "license_terms": "https://huggingface.co/datasets/urchade/pile-mistral-v0.1"
         }
       ],
-      "class": "CLASS_PERMISSIVE",
-      "attribution": "urchade/gliner_small-v2.1 at 4e091416cf7c3481db542c2a3d26156916f3a47f (Apache-2.0, https://huggingface.co/urchade/gliner_small-v2.1/blob/4e091416cf7c3481db542c2a3d26156916f3a47f/README.md), derived from microsoft/deberta-v3-small (MIT, https://huggingface.co/microsoft/deberta-v3-small); urchade/pile-mistral-v0.1 (Apache-2.0, https://huggingface.co/datasets/urchade/pile-mistral-v0.1).",
+      "class": "CLASS_LOCAL_ONLY",
+      "attribution": "urchade/gliner_small-v2.1 at 4e091416cf7c3481db542c2a3d26156916f3a47f (Apache-2.0, https://huggingface.co/urchade/gliner_small-v2.1/blob/4e091416cf7c3481db542c2a3d26156916f3a47f/README.md), derived from microsoft/deberta-v3-small (MIT, https://huggingface.co/microsoft/deberta-v3-small); urchade/pile-mistral-v0.1 (Apache-2.0, https://huggingface.co/datasets/urchade/pile-mistral-v0.1); The Pile (LicenseRef-RestrictedPublic, https://huggingface.co/datasets/urchade/pile-mistral-v0.1).",
+      "origin": "https://huggingface.co/urchade/gliner_small-v2.1",
       "files": [
         {
           "path": "pytorch_model.bin",
@@ -3971,10 +3983,16 @@
           "name": "urchade/pile-mistral-v0.1",
           "license": "Apache-2.0",
           "license_terms": "https://huggingface.co/datasets/urchade/pile-mistral-v0.1"
+        },
+        {
+          "name": "The Pile",
+          "license": "LicenseRef-RestrictedPublic",
+          "license_terms": "https://huggingface.co/datasets/urchade/pile-mistral-v0.1"
         }
       ],
-      "class": "CLASS_PERMISSIVE",
-      "attribution": "urchade/gliner_multi-v2.1 at 443d26d654e0324125a96bebd8e796c14ff2efe6 (Apache-2.0, https://huggingface.co/urchade/gliner_multi-v2.1/blob/443d26d654e0324125a96bebd8e796c14ff2efe6/README.md), derived from microsoft/mdeberta-v3-base (MIT, https://huggingface.co/microsoft/mdeberta-v3-base); urchade/pile-mistral-v0.1 (Apache-2.0, https://huggingface.co/datasets/urchade/pile-mistral-v0.1).",
+      "class": "CLASS_LOCAL_ONLY",
+      "attribution": "urchade/gliner_multi-v2.1 at 443d26d654e0324125a96bebd8e796c14ff2efe6 (Apache-2.0, https://huggingface.co/urchade/gliner_multi-v2.1/blob/443d26d654e0324125a96bebd8e796c14ff2efe6/README.md), derived from microsoft/mdeberta-v3-base (MIT, https://huggingface.co/microsoft/mdeberta-v3-base); urchade/pile-mistral-v0.1 (Apache-2.0, https://huggingface.co/datasets/urchade/pile-mistral-v0.1); The Pile (LicenseRef-RestrictedPublic, https://huggingface.co/datasets/urchade/pile-mistral-v0.1).",
+      "origin": "https://huggingface.co/urchade/gliner_multi-v2.1",
       "files": [
         {
           "path": "model.safetensors",
