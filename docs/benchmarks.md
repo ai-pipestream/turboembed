@@ -1139,10 +1139,11 @@ docs/analysis.md ("BiLSTM-CRF numerics") reads the committed record.
 the tagger mode every backend records through: it measures one tier of
 the BiLSTM-CRF part-of-speech tagger, a device and a precision, on the
 syntactic words of a CoNLL-U corpus. `--model` takes the bundle form
-`turbo-bundle postag-convert` writes (`analysis/postag/README.md`,
-"Bundle form"), verified before it is read, or the `ONLP-BLPT` file
-itself. The CPU tiers are `exact` (the `JvmParity` f64 numerics, on the
-file's f64 or the bundle's F32 weights), `model` (the `Packed` numerics on
+`turbo_bundle::postag::export` writes (`analysis/postag/README.md`,
+"Bundle form"), verified before it is read. The legacy file argument
+remains in the command syntax, but OpenNLP archive loading is retired
+under #1511. The CPU tiers are `exact` (the `JvmParity` f64 numerics, on the
+bundle's F32 weights), `model` (the `Packed` numerics on
 the same weights) and `fastest` (`Packed` on the bundle's F16 copy, so a
 bundle is needed). Another device is refused: no tier of the tagger runs
 there yet. The records go to `benchmarks/records/tag/`, read by neither
