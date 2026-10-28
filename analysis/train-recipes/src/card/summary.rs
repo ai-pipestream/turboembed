@@ -260,7 +260,7 @@ mod tests {
             training: TrainingCard {
                 parameters: ParametersCard { algorithm: "MAXENT".into(), iterations: 300, cutoff: 5, threads: 4 },
                 sentences_per_sample: Some(20),
-                whitespace: Some("legacy".into()),
+                whitespace: Some("unicode".into()),
                 timestamp_ms: TIMESTAMP_MS,
                 seed: None,
                 samples: 1,

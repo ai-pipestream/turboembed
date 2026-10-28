@@ -17,7 +17,7 @@ use turbo_analysis::{Annotator, Error, Execution, ModelRef, Refs, Span, Spans};
 use turbo_analysis_layers::Sentences;
 use turbo_unicode::script::script;
 use turbo_unicode::sentence_break::sentence_break;
-use turbo_unicode::{Script, SentenceBreak, WhitespaceMode};
+use turbo_unicode::{Script, SentenceBreak};
 
 use crate::check_len;
 use crate::scan::trim;
@@ -127,12 +127,12 @@ pub(crate) fn validate_and_shift(
             });
         }
         prev_end = e;
-        if let Some((ts, te)) = trim(slice, s, e, WhitespaceMode::Unicode) {
+        if let Some((ts, te)) = trim(slice, s, e) {
             out.push(Span::new(base + ts as u32, base + te as u32));
         }
     }
     if out.len() == before
-        && let Some((ts, te)) = trim(slice, 0, len, WhitespaceMode::Unicode)
+        && let Some((ts, te)) = trim(slice, 0, len)
     {
         out.push(Span::new(base + ts as u32, base + te as u32));
     }
@@ -208,7 +208,7 @@ pub(crate) fn boundaries_with_fallback(
 
     let mut slices: Vec<(usize, u32, &str)> = Vec::new();
     for (idx, &(s, e)) in seg_ranges.iter().enumerate() {
-        if let Some((ts, te)) = trim(text, s, e, WhitespaceMode::Unicode) {
+        if let Some((ts, te)) = trim(text, s, e) {
             let slice = &text[ts..te];
             if needs_unpunctuated_fallback(slice) {
                 slices.push((idx, ts as u32, slice));

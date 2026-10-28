@@ -46,7 +46,7 @@ use std::sync::Arc;
 
 use turbo_goldens::{Golden, data_dir};
 use turbo_maxent::{MaxentModel, ModelFile};
-use turbo_sentdetect::{SentenceDetector, SentenceModel, WhitespaceMode};
+use turbo_sentdetect::{SentenceDetector, SentenceModel};
 use turbo_train::gis;
 use turbo_train::package::{MANIFEST_ENTRY, SENTENCE_MODEL_ENTRY, sentence_model_package};
 use turbo_train::trainer::train_events;
@@ -171,13 +171,11 @@ fn the_sentence_fixture_model_is_trained_written_loaded_and_scores_the_same() {
     // Both load as sentence models and split the training text alike.
     let theirs = Arc::new(SentenceModel::open(fixture).unwrap());
     let ours = Arc::new(SentenceModel::open(ours).unwrap());
-    for mode in [WhitespaceMode::Unicode, WhitespaceMode::Legacy] {
-        let (mut a, mut b) = (Vec::new(), Vec::new());
-        SentenceDetector::new(theirs.clone(), mode).detect(&text, &mut a);
-        SentenceDetector::new(ours.clone(), mode).detect(&text, &mut b);
-        assert!(a.len() > 100, "{mode:?}: {} sentences", a.len());
-        assert_eq!(a, b, "{mode:?}");
-    }
+    let (mut a, mut b) = (Vec::new(), Vec::new());
+    SentenceDetector::new(theirs).detect(&text, &mut a);
+    SentenceDetector::new(ours).detect(&text, &mut b);
+    assert!(a.len() > 100, "{} sentences", a.len());
+    assert_eq!(a, b);
 
     // The predicates of the model trained here are the fixture's.
     let fixture_maxent = ModelFile::read(&fixture_path).unwrap().maxent(SENTENCE_MODEL_ENTRY).unwrap();
@@ -237,7 +235,7 @@ fn the_qn_sentence_model_is_the_jvms_and_its_bin_is_the_fixture() {
     // does with the same file.
     let ours = Arc::new(SentenceModel::open(ours).unwrap());
     let mut spans = Vec::new();
-    SentenceDetector::new(ours, WhitespaceMode::Unicode).with_jvm_parity().detect(&text, &mut spans);
+    SentenceDetector::new(ours).with_jvm_parity().detect(&text, &mut spans);
     assert_eq!(spans.len(), 210);
 }
 
@@ -293,6 +291,6 @@ fn the_perceptron_sentence_model_is_the_jvms_and_its_bin_is_the_fixture() {
     // does with the same file.
     let ours = Arc::new(SentenceModel::open(ours).unwrap());
     let mut spans = Vec::new();
-    SentenceDetector::new(ours, WhitespaceMode::Unicode).with_jvm_parity().detect(&text, &mut spans);
+    SentenceDetector::new(ours).with_jvm_parity().detect(&text, &mut spans);
     assert_eq!(spans.len(), 212);
 }

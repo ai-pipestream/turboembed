@@ -12,7 +12,7 @@ use std::path::Path;
 use turbo_analysis::{Document, Key, Provenance, Span, Spans, ViewId};
 use turbo_analysis_layers::{Sentences, Structure};
 use turbo_maxent::ModelFile;
-use turbo_sentdetect::{SentenceDetector, SentenceModel, WhitespaceMode, newline_spans};
+use turbo_sentdetect::{SentenceDetector, SentenceModel, newline_spans};
 use turbo_structure::Syntax;
 
 use crate::Result;
@@ -42,7 +42,7 @@ impl Sentencer {
         let sha256 = file.sha256().to_hex();
         let model = SentenceModel::open(file).map_err(|e| at(&e))?;
         let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-        Ok(Sentencer::Maxent { detector: SentenceDetector::new(model, WhitespaceMode::Unicode), file: name, sha256 })
+        Ok(Sentencer::Maxent { detector: SentenceDetector::new(model), file: name, sha256 })
     }
 
     fn name(&self) -> String {
@@ -65,7 +65,7 @@ impl Sentencer {
         match self {
             Sentencer::Newline => {
                 let mut out = Vec::new();
-                newline_spans(text, WhitespaceMode::Unicode, &mut out);
+                newline_spans(text, &mut out);
                 out.into_iter().for_each(|s| {
                     spans.push(s);
                 });

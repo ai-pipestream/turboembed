@@ -26,7 +26,6 @@ use turbo_eval::model_gate::{
 use turbo_formats::FormatError;
 use turbo_formats::conllu::ConlluDependencyReader;
 use turbo_train::{Key, TrainingParameters};
-use turbo_unicode::WhitespaceMode;
 use turbo_zoo::Sha256;
 
 pub use card::{
@@ -134,7 +133,7 @@ pub struct ReadDepparseSamples {
 /// Reads the dependency samples of `conllu` using [`ConlluDependencyReader`].
 pub fn read_samples(conllu: &str, treebank: &'static str, file: &'static str) -> Result<ReadDepparseSamples> {
     let conllu_err = |error: FormatError| Error::Conllu { treebank, file, error: Box::new(error) };
-    let mut reader = ConlluDependencyReader::new(conllu, TAGSET, WhitespaceMode::Unicode).map_err(conllu_err)?;
+    let mut reader = ConlluDependencyReader::new(conllu, TAGSET).map_err(conllu_err)?;
     let mut samples = Vec::new();
     let mut projective_samples = 0;
     let mut tokens = 0u64;
