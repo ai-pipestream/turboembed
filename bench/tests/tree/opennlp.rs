@@ -17,6 +17,81 @@ pub const ALLOWLIST: &[(&str, &str)] = &[
     ("docs/receipts/masc-427-v2/README.md", "Historical MASC #427 benchmark receipt"),
     ("docs/receipts/progressive-snapshot-adoption-1249.md", "Historical progressive snapshot #1249 receipt"),
     ("docs/receipts/unigram-984/README.md", "Historical unigram #984 benchmark receipt"),
+    ("docs/receipts/core-708/tests.log", "Historical core #708 test receipt log"),
+    ("docs/receipts/crf-923/report.json", "Historical CRF #923 benchmark receipt JSON"),
+    ("docs/receipts/depparse-688/compact-tags-tests.log", "Historical depparse #688 compact-tags test receipt log"),
+    ("docs/receipts/depparse-688/cycle-tests.log", "Historical depparse #688 cycle test receipt log"),
+    ("docs/receipts/depparse-688/forest-split-tests.log", "Historical depparse #688 forest-split test receipt log"),
+    ("docs/receipts/depparse-688/formats-tests.log", "Historical depparse #688 formats test receipt log"),
+    ("docs/receipts/depparse-688/tests.log", "Historical depparse #688 test receipt log"),
+    ("docs/receipts/depparse-689/tests.log", "Historical depparse #689 test receipt log"),
+    ("docs/receipts/document-trace/main.rs", "Historical document-trace receipt harness"),
+    ("docs/receipts/heads-levelzero-989/tests.log", "Historical Level Zero heads #989 test receipt log"),
+    ("docs/receipts/heads-metal-989/tests.log", "Historical Metal heads #989 test receipt log"),
+    ("docs/receipts/masc-427-v2/verify.py", "Historical MASC #427 verification script receipt"),
+    ("docs/receipts/maxent-embed-660/tests.log", "Historical maxent-embed #660 test receipt log"),
+    ("docs/receipts/parser-506/green-tests.log", "Historical parser #506 green test receipt log"),
+    ("docs/receipts/parser-506/inference-tests.log", "Historical parser #506 inference test receipt log"),
+    ("docs/receipts/parser-postag-649/dependents.log", "Historical parser-postag #649 dependents receipt log"),
+    ("docs/receipts/parser-postag-649/tests.log", "Historical parser-postag #649 test receipt log"),
+    ("docs/receipts/sentiment-647/split-parity.log", "Historical sentiment #647 split receipt log"),
+    ("docs/receipts/sentiment-647/tests.log", "Historical sentiment #647 test receipt log"),
+    ("docs/receipts/unigram-984/1-blocked.log", "Historical unigram #984 run 1 blocked receipt log"),
+    ("docs/receipts/unigram-984/1-fixed.log", "Historical unigram #984 run 1 fixed receipt log"),
+    ("docs/receipts/unigram-984/2-blocked.log", "Historical unigram #984 run 2 blocked receipt log"),
+    ("docs/receipts/unigram-984/2-fixed.log", "Historical unigram #984 run 2 fixed receipt log"),
+    ("docs/receipts/unigram-984/3-blocked.log", "Historical unigram #984 run 3 blocked receipt log"),
+    ("docs/receipts/unigram-984/3-fixed.log", "Historical unigram #984 run 3 fixed receipt log"),
+    ("docs/receipts/unigram-984/4-blocked.log", "Historical unigram #984 run 4 blocked receipt log"),
+    ("docs/receipts/unigram-984/4-fixed.log", "Historical unigram #984 run 4 fixed receipt log"),
+    ("docs/receipts/unigram-984/5-blocked.log", "Historical unigram #984 run 5 blocked receipt log"),
+    ("docs/receipts/unigram-984/5-fixed.log", "Historical unigram #984 run 5 fixed receipt log"),
+    ("docs/receipts/unigram-984/6-blocked.log", "Historical unigram #984 run 6 blocked receipt log"),
+    ("docs/receipts/unigram-984/6-fixed.log", "Historical unigram #984 run 6 fixed receipt log"),
+    ("docs/receipts/unigram-984/7-blocked.log", "Historical unigram #984 run 7 blocked receipt log"),
+    ("docs/receipts/unigram-984/7-fixed.log", "Historical unigram #984 run 7 fixed receipt log"),
+    ("docs/receipts/unigram-984/8-blocked.log", "Historical unigram #984 run 8 blocked receipt log"),
+    ("docs/receipts/unigram-984/8-fixed.log", "Historical unigram #984 run 8 fixed receipt log"),
+    ("docs/receipts/unigram-984/9-blocked.log", "Historical unigram #984 run 9 blocked receipt log"),
+    ("docs/receipts/unigram-984/9-fixed.log", "Historical unigram #984 run 9 fixed receipt log"),
+    ("docs/receipts/unigram-984/10-blocked.log", "Historical unigram #984 run 10 blocked receipt log"),
+    ("docs/receipts/unigram-984/10-fixed.log", "Historical unigram #984 run 10 fixed receipt log"),
+    ("docs/receipts/unigram-984/11-blocked.log", "Historical unigram #984 run 11 blocked receipt log"),
+    ("docs/receipts/unigram-984/11-fixed.log", "Historical unigram #984 run 11 fixed receipt log"),
+    ("docs/receipts/unigram-984/12-blocked.log", "Historical unigram #984 run 12 blocked receipt log"),
+    ("docs/receipts/unigram-984/12-fixed.log", "Historical unigram #984 run 12 fixed receipt log"),
+    ("docs/receipts/unigram-984/rejected/byte-scan/1-blocked.log", "Historical unigram #984 byte-scan 1 blocked log"),
+    ("docs/receipts/unigram-984/rejected/byte-scan/1-fixed.log", "Historical unigram #984 byte-scan 1 fixed log"),
+    ("docs/receipts/unigram-984/rejected/byte-scan/2-blocked.log", "Historical unigram #984 byte-scan 2 blocked log"),
+    ("docs/receipts/unigram-984/rejected/byte-scan/2-fixed.log", "Historical unigram #984 byte-scan 2 fixed log"),
+    ("docs/receipts/unigram-984/rejected/byte-scan/3-blocked.log", "Historical unigram #984 byte-scan 3 blocked log"),
+    ("docs/receipts/unigram-984/rejected/byte-scan/3-fixed.log", "Historical unigram #984 byte-scan 3 fixed log"),
+    ("docs/receipts/unigram-984/rejected/byte-scan/4-blocked.log", "Historical unigram #984 byte-scan 4 blocked log"),
+    ("docs/receipts/unigram-984/rejected/byte-scan/4-fixed.log", "Historical unigram #984 byte-scan 4 fixed log"),
+    ("docs/receipts/unigram-984/rejected/byte-scan/summary.json", "Historical unigram #984 byte-scan summary JSON"),
+    (
+        "docs/receipts/unigram-984/rejected/prepare-rescan/1-blocked.log",
+        "Historical unigram #984 prepare-rescan 1 blocked log",
+    ),
+    (
+        "docs/receipts/unigram-984/rejected/prepare-rescan/1-fixed.log",
+        "Historical unigram #984 prepare-rescan 1 fixed log",
+    ),
+    (
+        "docs/receipts/unigram-984/rejected/prepare-rescan/2-blocked.log",
+        "Historical unigram #984 prepare-rescan 2 blocked log",
+    ),
+    (
+        "docs/receipts/unigram-984/rejected/prepare-rescan/2-fixed.log",
+        "Historical unigram #984 prepare-rescan 2 fixed log",
+    ),
+    (
+        "docs/receipts/unigram-984/rejected/prepare-rescan/summary.json",
+        "Historical unigram #984 prepare-rescan summary JSON",
+    ),
+    ("docs/receipts/unigram-984/screens/range-screen.log", "Historical unigram #984 range-screen receipt log"),
+    ("docs/receipts/unigram-984/summarize.mjs", "Historical unigram #984 summarize script receipt"),
+    ("docs/receipts/unigram-984/summary.json", "Historical unigram #984 summary receipt JSON"),
     ("analysis/depparse/tests/apache/README.md", "Apache-2.0 dependency fixture attribution"),
     ("analysis/depparse/tests/data/README.md", "Dependency test corpus attribution"),
     ("analysis/depparse/tests/feedforward/data/README.md", "Feedforward dependency fixture attribution"),
@@ -71,7 +146,6 @@ fn collect_candidates(root: &Path, dir: &Path, out: &mut Vec<String>) {
             }
             collect_candidates(root, &path, out);
         } else if path.is_file()
-            && rel_str.ends_with(".md")
             && (rel_str.starts_with("docs/") || rel_str == "README.md" || rel_str.ends_with("/README.md"))
         {
             out.push(rel_str);
@@ -127,6 +201,7 @@ fn opennlp_check_fails_on_a_fixture_with_one_unlisted_mention() {
     std::fs::write(dir.join("README.md"), "# Workspace\nClean root README.\n").unwrap();
     std::fs::write(dir.join("docs/licences.md"), "Apache OpenNLP attribution is allowlisted.\n").unwrap();
     std::fs::write(dir.join("docs/guide.md"), "Wire contract layer `opennlp:tokens` is permitted.\n").unwrap();
+    std::fs::write(dir.join("docs/current-api.txt"), "Unlisted OpenNLP compatibility claim in a text file.\n").unwrap();
     std::fs::write(dir.join("docs/receipts/new-api.md"), "Unlisted OpenNLP compatibility claim.\n").unwrap();
     std::fs::write(
         dir.join("analysis/sample/README.md"),
@@ -135,6 +210,13 @@ fn opennlp_check_fails_on_a_fixture_with_one_unlisted_mention() {
     .unwrap();
 
     let (seen, found) = violations(&dir);
-    assert_eq!(seen, 5);
-    assert_eq!(found, vec!["analysis/sample/README.md".to_owned(), "docs/receipts/new-api.md".to_owned()]);
+    assert_eq!(seen, 6);
+    assert_eq!(
+        found,
+        vec![
+            "analysis/sample/README.md".to_owned(),
+            "docs/current-api.txt".to_owned(),
+            "docs/receipts/new-api.md".to_owned(),
+        ]
+    );
 }
