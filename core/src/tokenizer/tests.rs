@@ -304,3 +304,13 @@ fn a_long_run_of_combining_marks_encodes_in_linear_time() {
     assert_eq!(spanned, ids);
     assert!(spans.iter().all(|&s| s == NOWHERE));
 }
+
+/// What clean_text deletes parts no words: the words either side are
+/// one, as WordPiece reads them after normalizing, and a word ends after
+/// its last kept character.
+#[test]
+fn pre_words_join_across_what_the_normalizer_deletes() {
+    let t = "una\u{85}ffable x\u{0}y \u{fffd} ab\u{7}";
+    let got: Vec<&str> = pre_words(t).into_iter().map(|(a, b)| &t[a..b]).collect();
+    assert_eq!(got, ["una\u{85}ffable", "x\u{0}y", "ab"]);
+}
