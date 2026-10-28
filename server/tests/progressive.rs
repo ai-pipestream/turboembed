@@ -10,7 +10,10 @@ use tokio_stream::StreamExt as _;
 use tonic::Code;
 use turbo_analysis::export::{DocumentGraph, export, import};
 use turbo_analysis::{Document, Ix, Key, Provenance, Span, Spans, View, ViewBuilder, ViewId};
-use turbo_analysis_layers::{Abbreviations, Boundaries, Sentences, Stems, Structure, Terms, Tokens};
+use turbo_analysis_layers::{
+    Abbreviations, Boundaries, DocumentDate, Money, Numbers, Pii, Quantities, Sentences, Stems, Structure, Temporals,
+    Terms, Tokens,
+};
 use turbo_keywords::Keywords;
 use turbo_kserve::api::TURBO_E_INTERNAL;
 use turbo_kserve::progressive::compile_analyzer;
@@ -275,4 +278,54 @@ async fn progressive_stream_cancellation_and_validation_refusals() {
     assert_eq!(err.code(), Code::InvalidArgument);
 
     server.stop().await;
+}
+
+#[test]
+fn block5_opt_in_steps_write_pii_masked_and_numeric_layers() {
+    let text = "Email alice@example.com about $12.50 for 3 kg on 2026-01-15.";
+    let mut doc = Document::new(text.to_string());
+    let analyzer = compile_analyzer(
+        &doc,
+        &[
+            "turbo-pii:pii",
+            "turbo-pii:masked",
+            "turbo-numeric:numbers",
+            "turbo-numeric:money",
+            "turbo-numeric:quantities",
+            "turbo-numeric:temporal",
+            "turbo-numeric:document-date",
+        ],
+    )
+    .unwrap();
+    let status = analyzer.run(std::slice::from_mut(&mut doc));
+    assert!(status[0].is_ok(), "{:?}", status[0]);
+
+    assert!(!doc.get::<Pii>().unwrap().spans.is_empty());
+    let masked = doc.get_key(&Key::<View>::named("masked")).unwrap();
+    assert!(!masked.text().contains("alice@example.com"), "masked view leaked the email: {}", masked.text());
+    assert!(masked.text().contains('*'));
+    assert_eq!(masked.text().len(), text.len());
+    assert!(!doc.get::<Numbers>().unwrap().spans.is_empty());
+    assert!(!doc.get::<Money>().unwrap().spans.is_empty());
+    assert!(!doc.get::<Quantities>().unwrap().spans.is_empty());
+    assert!(!doc.get::<Temporals>().unwrap().spans.is_empty());
+    assert!(doc.get::<DocumentDate>().unwrap().date.is_some());
+}
+
+#[test]
+fn sat_step_is_recognized_and_refuses_without_a_loaded_bundle() {
+    let doc = Document::new("One. Two.".to_string());
+    let err = match compile_analyzer(&doc, &["turbo-sat:sat"]) {
+        Ok(_) => panic!("SaT step unexpectedly compiled without a loaded bundle"),
+        Err(e) => e,
+    };
+    assert_eq!(err.code, turbo_kserve::api::TURBO_E_BUNDLE_NOT_FOUND);
+    assert!(!err.message.contains("unknown pipeline step"), "{}", err.message);
+}
+
+#[test]
+fn default_steps_do_not_include_block5_opt_in_steps() {
+    assert!(
+        !DEFAULT_STEP_IDS.iter().any(|step| step.contains("sat") || step.contains("pii") || step.contains("numeric"))
+    );
 }
