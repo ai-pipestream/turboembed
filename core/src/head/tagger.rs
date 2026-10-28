@@ -73,11 +73,7 @@ impl TokenTagger {
 
     /// The word scorer of any head that scores words as a tagger does
     /// (`HeadKind::scores_words`); its kind's own type decodes the labels.
-    pub(crate) fn scoring_words(
-        spec: &HeadSpec,
-        hidden: usize,
-        get: &dyn Fn(&str) -> Option<Vec<f32>>,
-    ) -> Result<Self> {
+    pub fn scoring_words(spec: &HeadSpec, hidden: usize, get: &dyn Fn(&str) -> Option<Vec<f32>>) -> Result<Self> {
         if !spec.kind.scores_words() {
             return Err(invalid(format!("head {:?} does not score words", spec.name)));
         }
