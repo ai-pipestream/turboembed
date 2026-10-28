@@ -98,6 +98,48 @@ lower than a UD-native system's (Stanza, Trankit) and are not a
 like-for-like parser ranking; tokens, UPOS, XPOS, feats, lemma, and
 sentence boundaries are the comparable columns for this peer.
 
+## Multilingual UD splits
+
+The same protocol on the four further UD test splits the issue
+names, fetched from the UniversalDependencies repositories at the
+pinned commits (gold files are not committed; the bench pins check
+their hashes):
+
+- `es_ancora-ud-test.conllu`, UD_Spanish-AnCora
+  `20adddbfcdd773c6dc97ba48ea11ca9364e74185`, SHA-256
+  `679f1c05ca654aa26801c80319df45f8f97606718fb534b91755b48f3e67fa6f`
+  (1721 sentences, 53622 tokens).
+- `ca_ancora-ud-test.conllu`, UD_Catalan-AnCora
+  `7f3d23e85abc0656e8e88535d28174b030eb4d20`, SHA-256
+  `7cd23807c1f8b090959b82fcab566c6312fc048c29bc9db5ff0bf794c9b98633`
+  (1846 sentences, 59610 tokens).
+- `fi_ftb-ud-test.conllu`, UD_Finnish-FTB
+  `2dd197c1f7c4b9b6d69be1e3f826162a4443af96`, SHA-256
+  `f7b738e86bf79c4c2db18ad8141649b175846d9f57c452ac1ca8671cc34f954e`
+  (1867 sentences, 16286 tokens).
+- `it_markit-ud-test.conllu`, UD_Italian-MarkIT
+  `e210079df0aea331ec1dcaa90648d815ce94c3ce`, SHA-256
+  `9048ed0064e3989e2c37377755a28c25c7e462b1ad916e5808dc0a7ce95fc3fc`
+  (340 sentences, 10196 tokens).
+
+Stanza runs as shipped per language, its default packages with no
+treebank override, which matters for Finnish: the default Finnish
+package is TDT while the gold split is FTB, so the Finnish XPOS and
+parsing columns are cross-treebank numbers, not a like-for-like
+parser ranking. Spanish and Italian defaults are their combined
+packages. Prediction SHA-256s: es
+`8c10d264e261371ce2d61f785a7e4c520cfb8daee8e03d3f7499922ba3b5325c`,
+ca
+`ed021a5eff707018e67e686ff267d9f6efee7ea04bd351399f7296e404d5babb`,
+fi
+`0fa9451cc32d087bffa8cb1c6090190562aae224d6e8393478c0271a266aba1d`,
+it
+`c464d04869a1c23b46acfbfec5e1a3485537eeb1968333197bb49740f7e50609`.
+Headlines (Stanza LAS; our rule tier's sentence F1 in the same
+records): es 86.71 LAS, rule sentences 97.19; ca 87.63, rule 99.64;
+fi 60.06 cross-treebank, rule 82.19; it 77.93, rule 87.56 against
+Stanza's own 72.90 sentence F1 on MarkIT.
+
 ## Reproduce
 
 ```sh
@@ -128,6 +170,16 @@ turbo-eval analysis --gold <gold-dir>/en_ewt-ud-test.conllu \
   --sha256 fa024f43dc5da3c5ac02563bc9bd0e974f46cbb1560823976a8f342a37dc494a \
   --system turbo-sat-1l-sm-cpu --sentences sat \
   --sat-bundle <sat-1l-sm-bundle-dir> --out <new-record>.json
+
+# Multilingual Stanza (per language; es shown)
+docker build --build-arg STANZA_LANG=es \
+  -t turbo-peer-stanza:1.10.1-es analysis/eval/reference/peers/stanza
+docker run --rm --network none -v <gold-dir>:/gold:ro -v <out-dir>:/out \
+  turbo-peer-stanza:1.10.1-es /gold/es_ancora-ud-test.conllu /out/stanza-es.conllu es
+turbo-eval analysis --gold <gold-dir>/es_ancora-ud-test.conllu \
+  --sha256 679f1c05ca654aa26801c80319df45f8f97606718fb534b91755b48f3e67fa6f \
+  --pred stanza-1.10.1-es=<out-dir>/stanza-es.conllu \
+  --sentences rule --out <new-record>.json
 ```
 
 Recorded 2026-10-28 under load average about 31 to 36 (accuracy

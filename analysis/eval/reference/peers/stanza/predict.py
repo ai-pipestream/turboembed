@@ -1,6 +1,6 @@
 """Write Stanza CoNLL-U predictions for the raw text of a gold CoNLL-U file.
 
-Usage: predict.py GOLD.conllu OUT.conllu
+Usage: predict.py GOLD.conllu OUT.conllu [LANG]
 
 Documents are taken from `# newdoc` groups, their `# text` sentences
 joined with one space, so the peer tokenizes and segments sentences
@@ -35,8 +35,9 @@ def documents(path):
 
 def main():
     gold, out = sys.argv[1], sys.argv[2]
+    lang = sys.argv[3] if len(sys.argv) > 3 else "en"
     nlp = stanza.Pipeline(
-        lang="en",
+        lang=lang,
         dir="/stanza",
         processors="tokenize,mwt,pos,lemma,depparse",
         download_method=DownloadMethod.NONE,
@@ -45,7 +46,7 @@ def main():
     )
     print(json.dumps({
         "stanza": stanza.__version__,
-        "lang": "en",
+        "lang": lang,
         "processors": "tokenize,mwt,pos,lemma,depparse",
     }), file=sys.stderr)
     docs_text = documents(gold)
