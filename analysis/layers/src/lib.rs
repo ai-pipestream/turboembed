@@ -41,8 +41,9 @@ pub use numbers::{DecimalRef, Multiplier, NumberMention, NumberNotation, Numbers
 pub use ordinals::{OrdinalBase, OrdinalMention, Ordinals};
 pub use pii::{Pii, PiiConfidence, PiiKind, PiiKinds, PiiMention};
 pub use quality::{
-    QualityFlags, QualityMetrics, QualityPredicate, SpanQuality, TextQuality, lexical_quality_gate,
-    lexical_quality_gate_on, quality_gate, quality_gate_on,
+    GrammarCategory, GrammarChecker, GrammarDiagnostic, GrammarDiagnostics, QualityFlags, QualityMetrics,
+    QualityPredicate, SpanQuality, TextQuality, builtin_rule_id, lexical_quality_gate, lexical_quality_gate_on,
+    quality_gate, quality_gate_on,
 };
 pub use quantities::{PERCENT, Quantities, QuantityMention};
 pub use regions::{InvalidRegionCode, MarginError, RegionCode, RegionVote, Regions, VoteError};
@@ -57,7 +58,8 @@ pub use sentiment::{
 };
 pub use sparse::SparseTerms;
 pub use syntax::{
-    ChunkTags, Dependencies, Entities, Lemmas, PhraseChunks, Phrases, PosTags, Stems, TermSlot, Terms, WordDependencies,
+    ChunkTags, Dependencies, DependencyGraph, Entities, Lemmas, PhraseChunks, Phrases, PosTags, Stems, TermSlot, Terms,
+    WordDependencies,
 };
 pub use tables::{
     ChunkTableContext, ChunkTableHeaders, ColumnAlign, KeyValuePair, KeyValuePairs, TableCell, TableCellRef, Tables,

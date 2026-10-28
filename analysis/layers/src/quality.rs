@@ -5,9 +5,15 @@ use std::ops::{BitOr, BitOrAssign};
 
 use turbo_analysis::{Document, FilterableLayer, Ix, KeyId, Layer, Span, Spans, TextSpans, ViewId};
 
+mod agreement;
+mod clause;
 mod gates;
+pub(crate) mod grammar;
+mod morphology;
 mod overlap;
+mod phonetics;
 pub use gates::{QualityPredicate, lexical_quality_gate, lexical_quality_gate_on, quality_gate, quality_gate_on};
+pub use grammar::{GrammarCategory, GrammarChecker, GrammarDiagnostic, GrammarDiagnostics, builtin_rule_id};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct QualityFlags(pub u16);

@@ -91,3 +91,34 @@ hyphens, 0.4 for symbol noise, 0.6 for digit density, 0.5 for repetition, 0.3 fo
 navbar and 0.75 for short text, then clipped to [0,1]. No words yields zero.
 These constants are explicit heuristics for triage, not learned thresholds.
 Changing this policy requires an annotator version bump.
+
+## Syntactic and morphological grammar diagnostics (`turbo:grammar_diagnostics`)
+
+`turbo_analysis_layers::{GrammarDiagnostics, GrammarDiagnostic, GrammarCategory, GrammarChecker}`
+provide a clean-room Apache-2.0 syntactic and morphological agreement and grammar
+checker over pipeline layers:
+
+* **Reads**: `(View, Sentences, Tokens, PosTags, Option<Lemmas>, Option<Dependencies>)`.
+* **Writes**: `GrammarDiagnostics` (`turbo:grammar_diagnostics`), anchored on the active
+  `View` with `Overlap::Any` so multiple independent rules can attach diagnostics to the
+  same token or phrase span in deterministic start order.
+* **Cross-view projection**: `GrammarDiagnostics` implements `ProjectableLayer`, mapping
+  every diagnostic span between `ViewId::SOURCE` and normalized or edited child views via
+  the `EditLog`.
+* **Wire transport**: `GrammarDiagnostics` registers a binary `DocumentGraph` `LayerCodec`
+  and projects into `GrammarDiagnosticAnnotation` (`TypedAnnotation.value = grammar_diagnostic`)
+  on `InspectDocumentGraph` and `RoundTripTypedDocument` across byte, UTF-16 code-unit, and
+  Unicode scalar offset modes.
+
+### Rule families and identifiers
+
+| Rule ID | `GrammarCategory` | Wire name | Linguistic check and repair |
+| :--- | :--- | :--- | :--- |
+| `SVA-001` | `SubjectVerbAgreement` | `subject_verb_agreement` | Subject-verb number/person agreement across intervening prepositional phrases (`of the boxes`), relative clauses (`who ...`), coordinated subjects (`X and Y`), and explicit `Dependencies` (`nsubj`, `cop`, `aux`, `conj`, `expl`). |
+| `DET-001` | `DeterminerNounAgreement` | `determiner_noun_agreement` | Determiner and quantifier number agreement with NP head nouns (`this`/`that` vs `these`/`those`, `many`/`several`/`both`/`fewer`, `much`/`less`, `a`/`an`, and partitive `one of the` + singular noun). |
+| `ART-001` | `ArticlePhonetics` | `article_phonetics` | English `a`/`an` selection by phonetic onset rather than orthographic vowel letters: silent-`h` stems (`an hour`, `an honest`, `an heir`, `an honor`, `an herb`), `/ju:/` and `/w/` stems (`a university`, `a European`, `a one-way`, `a URL`), and letter-spelled acronyms (`an MRI`, `an HTTP`, `an SQL`). |
+| `AUX-001` | `AuxiliaryVerbForm` | `auxiliary_verb_form` | Bare-infinitive government after modals and `do`-support (`can`, `could`, `should`, `would`, `will`, `must`, `did`, `does`, `didn't`), repairing inflected main verbs (`should went` -> `go`, `did not bought` -> `buy`). |
+| `REP-001` | `RepeatedToken` | `repeated_token` | Immediate adjacent duplicate word tokens (`the the`, `is is`) separated only by whitespace, excluding grammatical reduplications (`had had`, `that that`, `so so`, `very very`). |
+| `CASE-001` | `CaseGovernment` | `case_government` | Prepositional objective pronoun government, both direct (`with he` -> `him`) and across coordination (`between you and I` -> `me`, `for she and I` -> `me`). |
+| `PUNCT-001` | `ClausePunctuation` | `clause_punctuation` | Repeated clause or terminal punctuation tokens (`..`, `,,`, `;;`, `!!`, `??`, `, ,`, `; ;`), without flagging standard ellipses (`...`). |
+

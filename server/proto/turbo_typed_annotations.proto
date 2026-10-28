@@ -904,6 +904,16 @@ message QualityMetricsAnnotation
   uint32 flags = 12;
 }
 
+// One syntactic or morphological grammar diagnostic in turbo:grammar_diagnostics.
+message GrammarDiagnosticAnnotation
+{
+  string rule_id = 1;
+  string category = 2;
+  string message = 3;
+  repeated string replacements = 4;
+  float confidence = 5;
+}
+
 // Exact layer instance and item range supporting an evidence record.
 message EvidenceSupport
 {
@@ -1042,5 +1052,6 @@ message TypedAnnotation
     QualityMetricsAnnotation span_quality = 92;
     EvidenceAnnotation evidence = 93;
     QuotationAnnotation quotation = 94;
+    GrammarDiagnosticAnnotation grammar_diagnostic = 95;
   }
 }
