@@ -1,3 +1,4 @@
+===OUT===
 line one
 line two after LS
 paragraph after PS
@@ -5,3 +6,10 @@ next
 after NEL
 vertical tab
 form feed end
+===EDITS===
+8	11	\n
+28	31	\n
+54	56	\n
+65	66	\n
+78	79	\n
+92	93	

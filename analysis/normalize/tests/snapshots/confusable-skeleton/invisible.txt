@@ -1,3 +1,8 @@
+===OUT===
 zero​width​space, joiner‍and non‌joiner, born﻿inside, word⁠joiner here.
 Marks ‎ left-to-right and ‏ right-to-left and ‪ ernbedding ‬ and isolate ⁦ ⁩.
 Controls      and soft­hyphen, variation️ selectors, ᠎ Mongolian, ⁤ ⁪.
+
+===EDITS===
+51	52	rn
+138	139	rn

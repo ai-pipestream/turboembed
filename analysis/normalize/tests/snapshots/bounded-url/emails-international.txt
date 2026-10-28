@@ -1,2 +1,9 @@
+===OUT===
 Mail   or   or   today.
 Plain   is the same in both.
+
+===EDITS===
+5	22	 
+26	46	 
+50	58	 
+72	89	 

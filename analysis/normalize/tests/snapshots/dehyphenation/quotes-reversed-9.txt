@@ -1,1 +1,4 @@
+===OUT===
 Das Wort ⹂Wort“ und „Wort“ stehen nebeneinander.
+
+===EDITS===

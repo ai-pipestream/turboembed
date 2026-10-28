@@ -1,2 +1,12 @@
+===OUT===
 アイウ ー あいう ヴ ヴ がきぐ がぎぐ゙ ÿ ÿ.
 combining dakuten after kana and ascıı voiced: ガギグ and パピ.
+
+===EDITS===
+67	69	ÿ
+71	72	c
+104	105	a
+105	106	s
+106	107	c
+107	108	ı
+108	109	ı

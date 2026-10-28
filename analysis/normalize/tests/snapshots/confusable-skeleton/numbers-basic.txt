@@ -1,3 +1,40 @@
+===OUT===
 ln 2O24 there were l,234,567 visitors, 3.l4l59 ratio, l2:3O tirne, l/2 cup, -5 degrees, +7 points.
 Phone 555-l234 or +l (8OO) 555-Ol99. Price $l9.99, 2O°/₀ off, 5elO and OxlF, l,5 in Gerrnan style.
 Version 2.O.l, lOth, 2lst, 3rd place, H2O, Bl2, 4K, 24/7, lOOrn.
+
+===EDITS===
+0	1	l
+4	5	O
+19	20	l
+41	42	l
+43	44	l
+54	55	l
+58	59	O
+62	63	rn
+66	67	l
+108	109	l
+117	118	l
+121	122	O
+122	123	O
+129	130	O
+130	131	l
+142	143	l
+150	151	O
+151	152	°/₀
+160	161	l
+161	162	O
+167	168	O
+169	170	l
+173	174	l
+183	184	rn
+204	205	O
+206	207	l
+209	210	l
+210	211	O
+216	217	l
+238	239	l
+252	253	l
+253	254	O
+254	255	O
+255	256	rn

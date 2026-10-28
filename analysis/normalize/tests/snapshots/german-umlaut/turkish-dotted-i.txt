@@ -1,3 +1,7 @@
+===OUT===
 İstanbul, ISPARTA, ışık, İZMİR, istanbul, Izmir, ı and i and I and İ.
 i̇ (i plus combining dot above) vs İ, ŞEHİR, ÇOCUK, Ğ, OeĞRENCİ.
 Title: İngilizce, ILIK, Irmak, ırmak, İNSAN.
+
+===EDITS===
+139	141	Oe

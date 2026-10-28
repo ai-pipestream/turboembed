@@ -1,1 +1,27 @@
+===OUT===
 go to https://example.com/path, then https://example.org/q?x=1; or https://example.net/z: whichever. also https://example.com/a/b/c/ and https://example.com/#frag, and https://example.com:8080/port. uppercase http://example.com/path works as well.
+===EDITS===
+0	1	g
+100	101	 
+101	102	a
+198	199	 
+199	200	u
+209	210	h
+210	211	t
+211	212	t
+212	213	p
+216	217	e
+217	218	x
+218	219	a
+219	220	m
+220	221	p
+221	222	l
+222	223	e
+224	225	c
+225	226	o
+226	227	m
+228	229	p
+229	230	a
+230	231	t
+231	232	h
+247	248	

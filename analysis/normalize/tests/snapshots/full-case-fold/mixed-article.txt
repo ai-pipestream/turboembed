@@ -1,6 +1,16 @@
+===OUT===
 “the re-
 sults,” wrote dr. müller—a well‑known expert—“were surprising…”
 see https://example.com/paper.pdf. cost: £19.99 (≈ €23). contact: m.mueller@example.org
 • item one　with ideographic space
 • item two   with  extra   spaces
 it’s 100% done :) 😀 #win
+
+===EDITS===
+3	4	t
+27	28	d
+31	32	m
+90	91	s
+125	126	c
+152	153	c
+259	260	i

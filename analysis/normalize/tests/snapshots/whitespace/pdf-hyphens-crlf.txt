@@ -1,1 +1,12 @@
+===OUT===
 Intro- duction to the sys- tem. Also e- mail and Euro- Pean words, TCP- IP, a- b and 3- 4 numbers. Trailing hyphen at end -
+===EDITS===
+6	8	 
+27	29	 
+41	43	 
+57	59	 
+75	77	 
+83	85	 
+93	95	 
+105	107	 
+131	132	

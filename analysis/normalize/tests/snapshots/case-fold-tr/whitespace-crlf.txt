@@ -1,6 +1,12 @@
+===OUT===
 first line  with   spaces
 second	line	with	tabs
    indented line   
 
 
 after two blank lines.
+
+===EDITS===
+0	1	f
+27	28	s
+75	76	a

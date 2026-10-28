@@ -1,3 +1,18 @@
+===OUT===
 I do not know. We can not go and they will not come. I am sure you are right; he’s here.
 They have left, we have won, I will try, I’d say. DO NOT SHOUT, Is not it?
 Possessive John's book, the dogs' bowls, 'tis and 'twas, rock 'n' roll, 'cause, gonna, it's, let us go.
+
+===EDITS===
+4	9	 not
+22	26	 not
+39	41	will
+41	46	 not
+54	58	 am
+67	72	 are
+97	102	 have
+111	116	 have
+123	128	 will
+147	152	 NOT
+162	167	 not
+268	270	 us

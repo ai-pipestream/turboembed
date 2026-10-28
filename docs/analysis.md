@@ -4033,7 +4033,7 @@ exactly the ones the golden tests list:
   break among them.
 - `normalize`: for each normalizer whose section of `docs/normalizers.md`
   records a deliberate difference ("Differences from OpenNLP"), a rule in
-  `analysis/fuzz/src/runs/normalize/mod.rs` recognizes that construct and no
+  `analysis/normalize/tests/goldens.rs` recognizes that construct and no
   other: every region of the source the two sides change differently
   must be it (U+2E42 folded by `Quotes`, the five added bullets, the
   three added ellipsis forms, U+206A to U+206F deleted by `Invisible`, a
@@ -4219,7 +4219,7 @@ against the JVM's), 2,381 simple tokenizer goldens with `keepNewLines`
 e-mail addresses), 224 symbol word goldens (symbols in running text), 148
 WordPiece goldens with final sigma, 100 language goldens. For the
 normalizers with a "Differences from OpenNLP" section, the rule per
-normalizer in `analysis/fuzz/src/runs/normalize/mod.rs` (listed above) names
+normalizer in `analysis/normalize/tests/goldens.rs` (listed above) names
 the difference each mismatch is, and a region no rule recognizes is a
 divergence. No OpenNLP bug was found that the crate docs did not already
 record.

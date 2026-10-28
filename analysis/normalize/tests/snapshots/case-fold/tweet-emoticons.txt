@@ -1,2 +1,14 @@
+===OUT===
 so happy :) but then :( and ;-) or :d :-d :p xd <3 </3 :'( :-/ :o :-o 8) b-)
 smileys: (: ):  ^_^  -_-  o_o  t_t  \o/
+
+===EDITS===
+36	37	d
+40	41	d
+43	44	p
+46	47	d
+68	69	o
+73	74	b
+105	106	o
+108	109	t
+110	111	t

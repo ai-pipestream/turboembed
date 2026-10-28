@@ -1,2 +1,10 @@
+===OUT===
 Paragraph one has two
 lines inside it. Paragraph two follows a blank line. Paragraph three after three blank lines. Paragraph four with CRLF. Last one.
+===EDITS===
+38	40	 
+61	64	 
+77	81	 
+121	125	 
+150	157	 
+166	167	

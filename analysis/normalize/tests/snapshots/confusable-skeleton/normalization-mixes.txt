@@ -1,3 +1,24 @@
+===OUT===
 café vs café, naïve vs naïve, Ångströrn vs Ångströrn, Zürich vs Zürich.
 Order: q̣̇ and q̣̇ differ only in rnark order; ậ and ậ and ậ are one letter.
 Vietnarnese tiếng Việt and tiếng Việt; Greek á vs á; Cyrillic ᴎ̆ vs ᴎ̆.
+
+===EDITS===
+3	5	é
+19	21	ï
+36	38	Å
+43	45	ö
+45	46	rn
+61	62	rn
+65	67	ü
+92	97	q̣̇
+123	124	rn
+145	148	ạ
+155	158	ậ
+181	182	rn
+188	191	ế
+196	199	ệ
+231	233	á
+237	239	a
+252	254	ᴎ̆
+258	260	ᴎ

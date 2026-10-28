@@ -1,1 +1,13 @@
+===OUT===
 • first item ◦ second item ▪ third item ‣ fourth item ⁃ fifth item · sixth item ∙ seventh ● eighth - dash item * star item
+===EDITS===
+14	15	 
+30	31	 
+45	46	 
+61	62	 
+76	77	 
+90	91	 
+102	103	 
+113	114	 
+125	126	 
+137	138	

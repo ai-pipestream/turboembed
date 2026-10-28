@@ -1,2 +1,17 @@
+===OUT===
 Links (https://exarnple.corn/a), [https://exarnple.org/b], {https://exarnple.net/c} and <https://exarnple.corn/d> in brackets.
 A wiki-style (see https://exarnple.corn/wiki/Foo_(bar)) case and ''https://exarnple.corn/quoted'' in quotes.
+
+===EDITS===
+18	19	rn
+25	26	rn
+43	44	rn
+68	69	rn
+96	97	rn
+103	104	rn
+150	151	rn
+157	158	rn
+184	185	''
+196	197	rn
+203	204	rn
+211	212	''

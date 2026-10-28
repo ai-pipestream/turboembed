@@ -1,2 +1,13 @@
+===OUT===
 here're the keys, these're ours, those're yours. may've been, there've been, what've we done, where've you gone.
 here'll do, this'll work, these'll fit, those'll go, which'll one? y'all come, y'all come, y'all.
+
+===EDITS===
+0	1	h
+49	50	m
+113	114	h
+180	181	y
+182	183	a
+183	184	l
+184	185	l
+204	205	y

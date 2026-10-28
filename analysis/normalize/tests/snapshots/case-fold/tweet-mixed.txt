@@ -1,3 +1,20 @@
+===OUT===
 omg!!!! @sarah check this http://bit.ly/xyz #awesome #so_cool sooooo goood :) :) :)
 rt @news: breaking: something happened. details: https://example.com/news/1 #breaking
 lol that's #fail haha @user's tweet “quoted”
+
+===EDITS===
+0	1	o
+1	2	m
+2	3	g
+84	85	r
+85	86	t
+94	95	b
+95	96	r
+96	97	e
+97	98	a
+98	99	k
+99	100	i
+100	101	n
+101	102	g
+124	125	d

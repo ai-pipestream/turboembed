@@ -1,3 +1,8 @@
+===OUT===
 Fullwidth ＡＢＣ ａｂｃ ０１２ ！？ and ideographic comma、full stop。
 Halfwidth katakana ｶﾞｷﾞ ﾊﾟﾋﾟ ｱｲｳ and voiced mark sequences ガ パ.
 Square ㌀ ㌃ ㍿ and parenthesized ㈱, ㊤.
+
+===EDITS===
+165	171	ガ
+172	178	パ

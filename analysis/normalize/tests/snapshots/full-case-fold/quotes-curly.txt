@@ -1,2 +1,9 @@
+===OUT===
 “we’re leaving,” she said. ‘it’s late,’ he answered.
 the sign read “open ‘till nine” and nothing more.
+
+===EDITS===
+3	4	w
+36	37	i
+65	66	t
+82	83	o

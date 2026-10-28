@@ -1,3 +1,35 @@
+===OUT===
 Fullwidth ABC abc Ol2 !? and ideographic cornrna、full stop˳
 Halfwidth katakana 力ﾞキﾞ 八̊匕̊ ア亻ウ and voiced rnark sequences 力ﾞ 八̊.
 Square ㌀ ㌃ ㍿ and parenthesized (株), ㊤.
+
+===EDITS===
+10	13	A
+13	16	B
+16	19	C
+20	23	a
+23	26	b
+26	29	c
+30	33	O
+33	36	l
+36	39	2
+40	43	!
+43	46	?
+65	66	rn
+66	67	rn
+80	83	˳
+103	106	力
+109	112	キ
+116	119	八
+119	122	̊
+122	125	匕
+125	128	̊
+129	132	ア
+132	135	亻
+135	138	ウ
+150	151	rn
+165	168	力
+168	171	ﾞ
+172	175	八
+175	178	̊
+217	220	(株)

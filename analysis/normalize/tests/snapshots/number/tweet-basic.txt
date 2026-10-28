@@ -1,3 +1,7 @@
+===OUT===
 RT @alice_b: Loving the new #Rust release! #programming #OpenSource http://t.co/abc 
 @bob thanks!! cc @carol_d and @dave (see #tbt)
 rt @eve: lowercase marker, and "RT" in the middle of a sentence is plain text.
+
+===EDITS===
+83	86	 

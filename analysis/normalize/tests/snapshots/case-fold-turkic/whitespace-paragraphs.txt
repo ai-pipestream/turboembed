@@ -1,3 +1,4 @@
+===OUT===
 paragraph one has two
 lines inside it.
 
@@ -10,3 +11,14 @@ paragraph three after three blank lines.
 paragraph four with crlf.
    
 last one.
+
+===EDITS===
+0	1	p
+40	41	p
+81	82	p
+125	126	p
+145	146	c
+146	147	r
+147	148	l
+148	149	f
+157	158	l

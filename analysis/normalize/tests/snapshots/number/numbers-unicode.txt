@@ -1,3 +1,8 @@
+===OUT===
 Arabic-Indic ٠١٢٣٤, extended ۵۶۷, Devanagari १२३, Thai ๑๒๓.
 Fullwidth １２３ and ４５６, superscripts ²³¹, fractions ½ ⅓, Roman Ⅲ and circled ①.
 Mixed  ٣ and  ５ in one token, Bengali ০১২ and Tamil ௦௧.
+
+===EDITS===
+187	189	 
+196	197	 

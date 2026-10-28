@@ -1,5 +1,10 @@
+===OUT===
 the quick brown fox jumped over the lazy dog and the cow jumped over the moon, repeat-
 
 edly, with a blank line above.
 exam- 
 ple with a trailing space after the hyphen.
+
+===EDITS===
+38	42	
+64	67	

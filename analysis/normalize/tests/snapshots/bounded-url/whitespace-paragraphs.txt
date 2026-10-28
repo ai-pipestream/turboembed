@@ -1,3 +1,4 @@
+===OUT===
 Paragraph one has two
 lines inside it.
 
@@ -10,3 +11,5 @@ Paragraph three after three blank lines.
 Paragraph four with CRLF.
    
 Last one.
+
+===EDITS===

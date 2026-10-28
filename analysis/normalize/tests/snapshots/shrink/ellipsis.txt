@@ -1,3 +1,11 @@
+===OUT===
 Wait… what…… no.. really.. yes.. or . . . maybe.
 Dots ⋯ ‥ …… and a final one…
 Three .. dots, four .. dots, spaced . . . . apart, and a version.number.here.
+===EDITS===
+22	25	.
+33	37	.
+42	44	.
+77	83	…
+124	127	.
+182	183	

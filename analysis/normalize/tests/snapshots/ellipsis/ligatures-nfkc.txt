@@ -1,3 +1,7 @@
+===OUT===
 The ﬁrst ﬂight oﬀered an eﬃcient oﬃce; ﬆ and ﬅ are ligatures too.
 Dutch ij: ĳ, Serbian ǆ ǉ, units ㎏ ㎒ ㎡, TM ™, SM ℠, No №, ①②.
 Superscript x² and E=mc², ⅕ fifth, ¼ quarter, ... ellipsis,   nbsp.
+
+===EDITS===
+211	214	...

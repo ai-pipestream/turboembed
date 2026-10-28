@@ -1,3 +1,13 @@
+===OUT===
 Go to  , then  ; or  : whichever.
 Also   and  , and  .
 Uppercase   works as well.
+
+===EDITS===
+6	30	 
+37	62	 
+67	88	 
+106	132	 
+137	162	 
+168	197	 
+209	232	 

@@ -1,3 +1,9 @@
+===OUT===
 zero​width​space, joiner‍and non‌joiner, bom﻿inside, word⁠joiner here.
 marks ‎ left-to-right and ‏ right-to-left and ‪ embedding ‬ and isolate ⁦ ⁩.
 controls      and soft­hyphen, variation️ selectors, ᠎ mongolian, ⁤ ⁪.
+
+===EDITS===
+83	84	m
+172	173	c
+239	240	m

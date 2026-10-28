@@ -1,3 +1,24 @@
+===OUT===
 ı don't know. we can't go and they won't come. ı'm sure you're right; he's here, she's there.
 they've left, we've won, ı'll try, you'll see, he'd go, ı'd say. shan't, ain't, y'all, o'clock, ma'am.
 don't shout, ısn't it? wouldn't, couldn't, shouldn't, mustn't, needn't, hasn't, haven't, hadn't, aren't, wasn't, weren't, doesn't, didn't.
+
+===EDITS===
+0	1	ı
+14	15	w
+47	48	ı
+94	95	t
+119	120	ı
+150	151	ı
+159	160	s
+197	198	d
+198	199	o
+199	200	n
+201	202	t
+203	204	s
+204	205	h
+205	206	o
+206	207	u
+207	208	t
+210	211	ı
+220	221	w

@@ -1,3 +1,8 @@
+===OUT===
 OMG!!!! @sarah check this http://bit.ly/xyz #awesome #so_cool sooooo goood :) :) :)
 RT @news: BREAKING: something happened. Details: https://example.com/news/1 #breaking
 lol that's #fail haha @user's tweet "quoted"
+
+===EDITS===
+206	209	"
+215	218	"

@@ -1,2 +1,23 @@
+===OUT===
 Here are the keys, these are ours, those are yours. May have been, there have been, what have we done, where have you gone.
 Here will do, this will work, these will fit, those will go, which will one? YOU ALL come, you all come, You all.
+
+===EDITS===
+4	7	 are
+23	26	 are
+38	41	 are
+52	55	 have
+67	70	 have
+81	84	 have
+99	102	 have
+117	120	 will
+129	132	 will
+144	147	 will
+158	161	 will
+171	174	 will
+180	181	YOU
+181	182	 
+192	193	you
+193	194	 
+204	205	You
+205	206	 

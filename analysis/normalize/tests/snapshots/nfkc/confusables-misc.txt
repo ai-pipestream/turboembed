@@ -1,3 +1,14 @@
+===OUT===
 IIIIII lc, l o ᴀ ı ȷ, ᴄᴏᴍ, paypal.
 Math: ABC abc and AB. Hebrew ו vs ASCII |, ן vs l.
 Armenian օ ս and Cherokee Ꭺ Ꭱ Ꮪ look like Latin letters.
+
+===EDITS===
+0	9	IIIIII
+10	16	lc
+18	21	l
+22	25	o
+48	66	paypal
+74	86	ABC
+87	99	abc
+104	112	AB

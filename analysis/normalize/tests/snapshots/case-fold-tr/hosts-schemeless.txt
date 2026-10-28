@@ -1,3 +1,12 @@
+===OUT===
 visit www.example.com, example.org/path/file.txt or sub.domain.example.net:8080/x?y=z for details.
 ftp://files.example.com/pub/readme.txt and mailto:someone@example.com are other schemes.
 a version like 1.2.3 and a name like e.g. or i.e. or u.s.a. are not hosts. neither is file.txt.
+
+===EDITS===
+0	1	v
+188	189	a
+241	242	u
+243	244	s
+245	246	a
+263	264	n

@@ -1,1 +1,43 @@
+===OUT===
 cafe, naive, angstrom, garcon, senor, lodz, ore, aeble, d, th, d, oeuvre. vietnamese: tieng viet, duong, greek αεη, cyrillic ие ие. thai ที่ น้ำ stays, devanagari कि हैं stays, arabic كَتَبَ stays, hebrew שׁלום stays.
+===EDITS===
+0	1	c
+3	5	e
+9	11	i
+15	17	a
+22	24	o
+27	28	g
+30	32	c
+38	40	n
+44	46	l
+46	48	o
+49	51	z
+53	55	o
+59	61	ae
+66	68	d
+70	72	th
+74	76	d
+78	80	oe
+85	86	 
+86	87	v
+100	103	e
+106	107	v
+108	111	e
+114	116	d
+116	118	u
+118	121	o
+125	126	g
+131	133	α
+133	135	ε
+135	137	η
+139	140	c
+148	150	и
+150	152	е
+153	155	и
+155	157	е
+158	159	 
+159	160	t
+191	192	d
+226	227	a
+253	254	h
+277	278	

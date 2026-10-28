@@ -1,1 +1,9 @@
+===OUT===
 One dot leader a.b, vertical ellipsis ... and vertical two dot .. and the usual ... and .. here.
+
+===EDITS===
+16	19	.
+40	43	...
+65	68	..
+83	86	...
+91	94	..

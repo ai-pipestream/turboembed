@@ -1,3 +1,13 @@
+===OUT===
 rt @alice: check https://example.com/a?b=c#d and #hash_tag_1 @user_name's post http://t.co/xy9z
 #nospace#adjacent @a@b email me at me@example.com or visit example.com.
 @user: "quoted" #tag. (see @bob, #cool!)
+
+===EDITS===
+0	1	r
+1	2	t
+91	92	x
+94	95	z
+97	98	n
+99	100	s
+105	106	a

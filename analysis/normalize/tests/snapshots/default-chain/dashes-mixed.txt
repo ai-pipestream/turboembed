@@ -1,1 +1,22 @@
+===OUT===
 pages 10-14, a long-dash-sentence, and a minus −3 next to a hyphen-minus -3. u+2010 - u+2011 non-breaking u+2012 figure-2 u+2015 bar - u+2212 −. a double hyphen -- and a triple --- stay as they are, - and - too.
+===EDITS===
+0	1	p
+8	11	-
+21	24	-
+28	31	-
+84	85	 
+85	86	u
+92	95	-
+96	97	u
+106	109	-
+118	119	u
+131	134	-
+136	137	u
+147	150	-
+151	152	u
+162	163	 
+163	164	a
+217	220	-
+225	228	-
+233	234	

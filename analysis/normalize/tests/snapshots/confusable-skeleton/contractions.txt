@@ -1,3 +1,16 @@
+===OUT===
 l don't know. We can't go and they won't corne. l'rn sure you're right; he's here, she's there.
 They've left, we've won, l'll try, you'll see, he'd go, l'd say. Shan't, ain't, y'all, o'clock, rna'arn.
 DON'T SHOUT, lsn't it? Wouldn't, couldn't, shouldn't, rnustn't, needn't, hasn't, haven't, hadn't, aren't, wasn't, weren't, doesn't, didn't.
+
+===EDITS===
+0	1	l
+43	44	rn
+47	48	l
+49	50	rn
+119	120	l
+150	151	l
+190	191	rn
+194	195	rn
+210	211	l
+251	252	rn

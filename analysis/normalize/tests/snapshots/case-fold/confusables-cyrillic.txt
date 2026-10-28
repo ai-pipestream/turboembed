@@ -1,3 +1,16 @@
+===OUT===
 pаypal, аpple, gооgle, еxample, micrоsоft, раssроrt and саt.
 greek look-alikes: οnιοn, νοte, αlpha, βeta, ρaul, tαble and ιnternet.
 plain latin pair: paypal apple google, and 0 vs o, l vs 1 vs i, rn vs m.
+
+===EDITS===
+74	75	g
+111	113	α
+119	121	β
+126	128	ρ
+133	134	t
+144	146	ι
+155	156	p
+161	162	l
+203	204	o
+216	217	i

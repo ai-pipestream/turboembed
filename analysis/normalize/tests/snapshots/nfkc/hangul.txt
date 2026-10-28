@@ -1,3 +1,16 @@
+===OUT===
 한글 composed, and decomposed 한글 jamo.
 Mixed: 가 가 각 and 대한민국 대한민국.
 Compatibility jamo 가 and halfwidth 가 stay different under NFC.
+
+===EDITS===
+32	41	한
+41	50	글
+64	70	가
+75	84	각
+102	108	대
+108	117	한
+117	126	민
+126	135	국
+156	162	가
+177	183	가

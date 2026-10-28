@@ -1,3 +1,9 @@
+===OUT===
 text default: ☺ ☺️ ❤ ❤️ ✔ ✔️ © ©️ ™ ™️ ☀ ☀️ ☂ ☂️.
 with text selector: ❤︎ ☺︎ ®︎ and digits 5 5️ 5️⃣.
 emoji default: ✅ ❌ ⭐ ⌚ 😀 💩 🚀.
+
+===EDITS===
+0	1	t
+90	91	w
+157	158	e

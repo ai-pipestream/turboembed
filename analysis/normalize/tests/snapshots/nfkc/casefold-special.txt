@@ -1,3 +1,15 @@
+===OUT===
 STRASSE Straße ẞ İ ı ffi ʼn ǰ ΐ ΰ ẖ ὐ ᾷ ῤ.
 Mixed Case: Hello World, MiXeD cAsE, ÉCOLE, ÑANDU, ΑΒΓ, АБВ, Ꭰ ꭰ.
 Titlecase Dž Lj Nj Dz and ligature st մն եւ.
+
+===EDITS===
+26	29	ffi
+30	32	ʼn
+147	149	Dž
+150	152	Lj
+153	155	Nj
+156	158	Dz
+172	175	st
+176	179	մն
+180	182	եւ

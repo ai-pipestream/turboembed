@@ -1,20 +1,21 @@
-//! Reviewed normalize output snapshots and documented divergences from OpenNLP.
+//! Reviewed normalize output and edit-list snapshots.
 //!
-//! `tests/snapshots/<name>/<id>.txt` holds the text each normalizer produces
-//! for each input in `tests/inputs/`. Regenerate with
+//! `tests/snapshots/<name>/<id>.txt` holds the output text and every
+//! alignment edit (`start\tend\twith`, with `with` escaped). Regenerate with
 //! `TURBO_BLESS=1 cargo test -p turbo-normalize --test goldens`.
 //!
 //! Where `docs/normalizers.md` records a deliberate difference from OpenNLP,
 //! the input is listed in the `Divergence` table with the documented Rust
-//! output; the test asserts that output (and that it differs from a pure
-//! freeze of a wrong answer). JVM output is not an oracle.
+//! output; the test asserts that output. JVM output is not an oracle.
 //!
-//! Every case also checks that the Rust edits rebuild the Rust output and
-//! that edit ends stay on UTF-8 character boundaries.
+//! Every case also checks that the edits rebuild the output, sit on UTF-8
+//! character boundaries, and that source/child projections round-trip for
+//! changed and unchanged regions (including UTF-16 and code-point edges).
 
 use std::path::PathBuf;
 
-use turbo_analysis::{Document, Key, Provenance, View};
+use turbo_analysis::{Document, Key, OffsetTable, Provenance, Span, View, ViewId};
+use turbo_goldens::escape::{escape, unescape};
 use turbo_normalize::{
     AccentFold, BoundedUrls, Bullets, CaseFold, Chain, ConfusableSkeleton, Dashes, Dehyphenate, Digits, Ellipsis,
     EmojiRemove, EmojiToEmoticon, EmoticonToEmoji, EnglishContractions, GermanUmlauts, Invisible, Normalizer, Numbers,
@@ -100,16 +101,116 @@ fn normalized<N: Normalizer>(n: &N, text: &str) -> (Document, String, Vec<Row>) 
     (doc, out, rows)
 }
 
-fn check_or_bless(bless: bool, name: &str, id: &str, out: &str) {
+fn render_snapshot(out: &str, rows: &[Row]) -> String {
+    // OUT bytes are exact; a leading newline on ===EDITS=== separates the
+    // sections whether or not `out` already ends with one.
+    let mut body = String::from("===OUT===\n");
+    body.push_str(out);
+    body.push_str("\n===EDITS===\n");
+    for r in rows {
+        body.push_str(&format!("{}\t{}\t{}\n", r.start, r.end, escape(&r.with)));
+    }
+    body
+}
+
+fn parse_snapshot(body: &str) -> (String, Vec<(usize, usize, String)>) {
+    let rest = body.strip_prefix("===OUT===\n").unwrap_or_else(|| panic!("snapshot missing ===OUT==="));
+    let (out, edits) = rest.split_once("\n===EDITS===\n").unwrap_or_else(|| panic!("snapshot missing ===EDITS==="));
+    let mut rows = Vec::new();
+    for (i, line) in edits.lines().enumerate() {
+        if line.is_empty() {
+            continue;
+        }
+        let mut parts = line.splitn(3, '\t');
+        let start: usize = parts.next().unwrap_or_else(|| panic!("edit {i}")).parse().unwrap();
+        let end: usize = parts.next().unwrap_or_else(|| panic!("edit {i}")).parse().unwrap();
+        let with = unescape(parts.next().unwrap_or_else(|| panic!("edit {i}"))).unwrap();
+        rows.push((start, end, with));
+    }
+    (out.to_string(), rows)
+}
+
+fn check_or_bless(bless: bool, name: &str, id: &str, out: &str, rows: &[Row]) {
     let path = snap_path(name, id);
+    let body = render_snapshot(out, rows);
     if bless {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        std::fs::write(&path, out).unwrap();
+        std::fs::write(&path, &body).unwrap();
         return;
     }
     let want = std::fs::read_to_string(&path)
         .unwrap_or_else(|e| panic!("missing snapshot {} (TURBO_BLESS=1 to write): {e}", path.display()));
-    assert_eq!(out, want, "{name}/{id}");
+    assert_eq!(body, want, "{name}/{id}");
+    let (parsed_out, parsed_rows) = parse_snapshot(&want);
+    assert_eq!(parsed_out, out, "{name}/{id} out");
+    assert_eq!(parsed_rows.len(), rows.len(), "{name}/{id} edit count");
+    for (got, (s, e, w)) in rows.iter().zip(parsed_rows) {
+        assert_eq!(got.start, s);
+        assert_eq!(got.end, e);
+        assert_eq!(got.with, w);
+    }
+}
+
+fn assert_projections(doc: &Document, text: &str, out: &str, label: &str) {
+    let view = doc.get_key(&NORM).expect("norm view");
+    let view_id = view.id();
+    let table = OffsetTable::build(text);
+    for edge in [0u32, text.len() as u32] {
+        if edge > 0 && edge < text.len() as u32 && !text.is_char_boundary(edge as usize) {
+            continue;
+        }
+        let u16 = table.to_utf16(text, edge);
+        let cp = table.to_code_point(text, edge);
+        assert_eq!(table.from_utf16(text, u16).unwrap(), edge, "{label}");
+        assert_eq!(table.from_code_point(text, cp).unwrap(), edge, "{label}");
+    }
+    // Unchanged region: map a span of the source that sits between edits.
+    if let Some(span) = unchanged_source_span(text, view) {
+        let child = doc.map_span(ViewId::SOURCE, view_id, span).unwrap();
+        let back = doc.map_span(view_id, ViewId::SOURCE, child).unwrap();
+        assert_eq!(back, span, "{label}: unchanged source projection");
+        assert_eq!(&text[span.range()], &out[child.range()], "{label}: unchanged text");
+    }
+    // Changed region: every non-empty child edit maps back to its parent.
+    for edit in view.alignment().edits() {
+        if !edit.child.is_empty() {
+            let back = doc.map_span(view_id, ViewId::SOURCE, edit.child).unwrap();
+            assert_eq!(back, edit.parent, "{label}: changed projection");
+        }
+        for edge in [edit.parent.start, edit.parent.end] {
+            let u16 = table.to_utf16(text, edge);
+            let cp = table.to_code_point(text, edge);
+            assert_eq!(table.from_utf16(text, u16).unwrap(), edge, "{label} edit edge");
+            assert_eq!(table.from_code_point(text, cp).unwrap(), edge, "{label} edit edge");
+        }
+    }
+}
+
+fn unchanged_source_span(text: &str, view: &View) -> Option<Span> {
+    let mut at = 0u32;
+    for edit in view.alignment().edits() {
+        if edit.parent.start > at {
+            let end = edit.parent.start;
+            // Prefer a one-byte ASCII span when possible.
+            if (end - at) >= 1 && text.is_char_boundary(at as usize) {
+                let ch = text[at as usize..].chars().next()?;
+                let len = ch.len_utf8() as u32;
+                if at + len <= end {
+                    return Some(Span::new(at, at + len));
+                }
+            }
+        }
+        at = edit.parent.end;
+    }
+    let end = text.len() as u32;
+    if end > at {
+        let ch = text[at as usize..].chars().next()?;
+        let len = ch.len_utf8() as u32;
+        if at + len <= end {
+            return Some(Span::new(at, at + len));
+        }
+    }
+    None
 }
 
 /// Runs `n` over every text and compares with snapshots of `name`.
@@ -124,7 +225,7 @@ fn check<N: Normalizer>(name: &str, n: &N, divergences: &[Divergence]) -> Tally 
     }
     for id in &ids {
         let text = text_of(id);
-        let (_doc, out, rust_rows) = normalized(n, &text);
+        let (doc, out, rust_rows) = normalized(n, &text);
         assert_eq!(rebuild(&text, &rust_rows), out, "{name}/{id}: edits do not rebuild output");
         let mut at = 0usize;
         for r in &rust_rows {
@@ -132,6 +233,7 @@ fn check<N: Normalizer>(name: &str, n: &N, divergences: &[Divergence]) -> Tally 
             assert!(text.is_char_boundary(r.start) && text.is_char_boundary(r.end), "{name}/{id}");
             at = r.end;
         }
+        assert_projections(&doc, &text, &out, &format!("{name}/{id}"));
 
         if let Some(d) = divergences.iter().find(|d| d.input == id) {
             if out != d.rust {
@@ -140,12 +242,12 @@ fn check<N: Normalizer>(name: &str, n: &N, divergences: &[Divergence]) -> Tally 
                     d.section, d.rust
                 ));
             }
-            // Snapshot still records the documented correct answer.
-            check_or_bless(bless, name, id, d.rust);
+            // Snapshot still records the documented correct answer and its edits.
+            check_or_bless(bless, name, id, d.rust, &rust_rows);
             tally.diverged += 1;
             continue;
         }
-        check_or_bless(bless, name, id, &out);
+        check_or_bless(bless, name, id, &out, &rust_rows);
         tally.snapshot += 1;
     }
     eprintln!("snapshots {name}: {tally:?}");

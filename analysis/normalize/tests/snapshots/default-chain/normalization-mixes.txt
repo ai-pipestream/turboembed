@@ -1,1 +1,38 @@
+===OUT===
 cafe vs cafe, naive vs naive, angstrom vs angstrom, zurich vs zurich. order: q and q differ only in mark order; a and a and a are one letter. vietnamese tieng viet and tieng viet; greek α vs α; cyrillic и vs и.
+===EDITS===
+3	5	e
+12	15	e
+19	21	i
+29	32	i
+36	38	a
+43	45	o
+50	53	a
+58	61	o
+64	65	z
+65	67	u
+75	76	z
+76	79	u
+84	85	 
+85	86	o
+93	97	
+103	105	
+105	107	
+135	140	a
+145	150	a
+155	158	a
+174	175	 
+175	176	v
+188	191	e
+194	195	v
+196	199	e
+207	212	e
+215	216	v
+217	222	e
+225	226	g
+231	233	α
+237	241	α
+243	244	c
+252	254	и
+258	262	и
+263	264	

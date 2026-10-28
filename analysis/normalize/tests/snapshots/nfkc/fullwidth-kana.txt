@@ -1,3 +1,20 @@
+===OUT===
 Fullwidth ABC abc 012 !? and ideographic comma、full stop。
 Halfwidth katakana ガギ パピ アイウ and voiced mark sequences ガ パ.
 Square アパート アール 株式会社 and parenthesized (株), 上.
+
+===EDITS===
+10	19	ABC
+20	29	abc
+30	39	012
+40	46	!?
+103	115	ガギ
+116	128	パピ
+129	138	アイウ
+165	171	ガ
+172	178	パ
+187	190	アパート
+191	194	アール
+195	198	株式会社
+217	220	(株)
+222	225	上

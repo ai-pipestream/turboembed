@@ -1,3 +1,21 @@
+===OUT===
 «Bonjour», dit-il. „Guten Tag'', sagte sie. ,Ja' und <nein>.
 Prirne rnarks: 5' lO'' and an apostrophe 'n' here. Backtick 'quote' pair.
 CJK: 「こんにちは」 and 『本』.
+
+===EDITS===
+33	36	''
+49	52	,
+54	57	'
+62	65	<
+69	72	>
+77	78	rn
+80	81	rn
+88	91	'
+92	93	l
+93	94	O
+94	97	''
+116	118	'
+119	121	'
+137	138	'
+143	145	'

@@ -1,3 +1,4 @@
+===OUT===
 ıntro-
 duction to the sys-
 tem. also e-
@@ -7,3 +8,15 @@ pean words, tcp-
 b and 3-
 4 numbers.
 trailing hyphen at end -
+
+===EDITS===
+0	1	ı
+34	35	a
+52	53	e
+59	60	p
+71	72	t
+72	73	c
+73	74	p
+77	78	ı
+78	79	p
+107	108	t

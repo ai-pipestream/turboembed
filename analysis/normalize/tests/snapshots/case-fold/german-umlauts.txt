@@ -1,3 +1,38 @@
+===OUT===
 müller, könig, bäcker und öl für ärzte. straße, große, fuß, weiß, ßeta.
 größe und grüße; schlüssel, über, übung, äßer, käse, möglich.
 already ascii: mueller, koenig, strasse, aepfel; but decomposed ü ö ä too.
+
+===EDITS===
+0	1	m
+9	10	k
+17	18	b
+29	31	ö
+38	40	ä
+46	47	s
+55	56	g
+63	64	f
+76	79	ß
+84	85	g
+85	86	r
+86	88	ö
+90	91	e
+96	97	g
+97	98	r
+98	100	ü
+100	103	ß
+103	104	e
+106	107	s
+125	127	ü
+133	135	ä
+141	142	k
+158	159	a
+166	167	a
+167	168	s
+168	169	c
+169	170	i
+170	171	i
+173	174	m
+182	183	k
+190	191	s
+199	200	a

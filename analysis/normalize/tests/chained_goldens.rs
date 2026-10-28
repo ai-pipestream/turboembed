@@ -1,13 +1,15 @@
 //! Three separately stored views: umlaut → full case fold → whitespace.
 //!
 //! Snapshots under `tests/snapshots/umlaut-full-case-whitespace-chain/` hold
-//! the final view text. Offset round trips and the hand case below are
-//! independent of those files. Regenerate with
+//! the final view text and the composed source→final edit list
+//! (`start\tend\twith`, escaped). Offset round trips and the hand case
+//! below are independent of those files. Regenerate with
 //! `TURBO_BLESS=1 cargo test -p turbo-normalize --test chained_goldens`.
 
 use std::path::PathBuf;
 
 use turbo_analysis::{Document, Key, Provenance, Span, View, ViewId};
+use turbo_goldens::escape::escape;
 use turbo_normalize::{CaseFold, GermanUmlauts, Normalizer, Whitespace, normalize};
 
 fn root() -> PathBuf {
@@ -41,15 +43,22 @@ fn three_views_match_snapshots_and_source_offsets() {
         let final_text = doc.get_key(&c).unwrap().text().to_string();
         let view_id = doc.get_key(&c).unwrap().id();
         assert_eq!(doc.get_key(&c).unwrap().parent(), Some(doc.get_key(&b).unwrap().id()));
+        let composed = doc.view_alignment(ViewId::SOURCE, view_id).unwrap();
+        let mut body = String::from("===OUT===\n");
+        body.push_str(&final_text);
+        body.push_str("\n===EDITS===\n");
+        for edit in composed.edits() {
+            let with = &final_text[edit.child.range()];
+            body.push_str(&format!("{}\t{}\t{}\n", edit.parent.start, edit.parent.end, escape(with)));
+        }
         let path = root().join("snapshots/umlaut-full-case-whitespace-chain").join(format!("{id}.txt"));
         if bless {
             std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-            std::fs::write(&path, &final_text).unwrap();
+            std::fs::write(&path, &body).unwrap();
         } else {
             let want = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            assert_eq!(final_text, want, "{id}");
+            assert_eq!(body, want, "{id}");
         }
-        let composed = doc.view_alignment(ViewId::SOURCE, view_id).unwrap();
         for edit in composed.edits() {
             assert!(source.is_char_boundary(edit.parent.start as usize));
             assert!(source.is_char_boundary(edit.parent.end as usize));

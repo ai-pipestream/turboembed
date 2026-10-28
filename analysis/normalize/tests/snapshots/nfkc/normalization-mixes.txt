@@ -1,3 +1,18 @@
+===OUT===
 café vs café, naïve vs naïve, Ångström vs Ångström, Zürich vs Zürich.
 Order: q̣̇ and q̣̇ differ only in mark order; ậ and ậ and ậ are one letter.
 Vietnamese tiếng Việt and tiếng Việt; Greek ά vs ά; Cyrillic й vs й.
+
+===EDITS===
+12	15	é
+29	32	ï
+50	53	Å
+58	61	ö
+76	79	ü
+93	97	̣̇
+135	140	ậ
+145	150	ậ
+207	212	ế
+217	222	ệ
+237	241	ά
+258	262	й

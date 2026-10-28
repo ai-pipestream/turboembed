@@ -194,7 +194,10 @@ fn every_layer_of_every_run_keeps_the_offset_invariants() {
         eprintln!("{name}: {:.1} s", started.elapsed().as_secs_f64());
     }
     eprintln!("{runs_checked} runs over {} texts, {layers_checked} layers checked; skipped {skipped:?}", texts.len());
-    assert!(runs_checked >= 70, "{runs_checked} runs; skipped {skipped:?}");
+    // Normalize differential runs moved into crate-local offset/snapshot tests,
+    // so the catalog no longer reaches 70 native runs. CI still sees 62 with
+    // OpenNLP models present and only the three full MeCab dictionaries skipped.
+    assert!(runs_checked >= 62, "{runs_checked} runs; skipped {skipped:?}");
     assert!(layers_checked > 10_000, "{layers_checked} layers checked");
     assert!(failures.is_empty(), "{} offset invariants broken:\n{}", failures.len(), failures.join("\n"));
 }

@@ -1,2 +1,12 @@
+===OUT===
 Mail José@exarnple.corn or 用戶@例子.广告 or éa@b.co today.
 Plain ascii@exarnple.org is the sarne in both.
+
+===EDITS===
+8	10	é
+14	15	rn
+21	22	rn
+29	32	戶
+50	52	é
+81	82	rn
+99	100	rn

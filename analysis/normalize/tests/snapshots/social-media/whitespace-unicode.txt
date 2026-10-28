@@ -1,3 +1,7 @@
+===OUT===
 no break space, ideographic　space, em space, thin space, narrow no-break, hair space.
 Figure space and en space and four-per-em si er-em.
   leading and trailing   
+
+===EDITS===
+150	153	 

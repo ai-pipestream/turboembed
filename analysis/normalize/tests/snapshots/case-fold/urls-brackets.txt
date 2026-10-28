@@ -1,2 +1,8 @@
+===OUT===
 links (https://example.com/a), [https://example.org/b], {https://example.net/c} and <https://example.com/d> in brackets.
 a wiki-style (see https://example.com/wiki/foo_(bar)) case and "https://example.com/quoted" in quotes.
+
+===EDITS===
+0	1	l
+121	122	a
+164	165	f

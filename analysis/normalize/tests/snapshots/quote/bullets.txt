@@ -1,3 +1,4 @@
+===OUT===
 • first item
 ◦ second item
 ▪ third item
@@ -8,3 +9,5 @@
 ● eighth
 - dash item
 * star item
+
+===EDITS===

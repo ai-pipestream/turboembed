@@ -1,1 +1,6 @@
+===OUT===
 Flags 🇩🇪 🇺🇸 🇯🇵 and a lone indicator 🇩 then text. Keycaps 1️⃣ 2️⃣ #️⃣ *️⃣ 0️⃣ and 7⃣ without the selector. Subdivision flag 🏴󠁧󠁢󠁥󠁮󠁧󠁿 is a tag sequence.
+===EDITS===
+69	70	 
+148	149	 
+213	214	

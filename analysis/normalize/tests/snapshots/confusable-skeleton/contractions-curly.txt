@@ -1,3 +1,25 @@
+===OUT===
 l don't know. We can't go and they won't corne. l'rn sure you're right; he's here.
 They've left, we've won, l'll try, l'd say. DON'T SHOUT, lsn't it?
 Possessive John's book, the dogs' bowls, 'tis and 'twas, rock 'n' roll, 'cause, gonna, it's, let's go.
+
+===EDITS===
+0	1	l
+5	8	'
+22	25	'
+42	45	'
+49	50	rn
+53	54	l
+54	57	'
+57	58	rn
+67	70	'
+82	85	'
+97	100	'
+111	114	'
+122	123	l
+123	126	'
+134	135	l
+135	138	'
+148	151	'
+160	161	l
+163	166	'

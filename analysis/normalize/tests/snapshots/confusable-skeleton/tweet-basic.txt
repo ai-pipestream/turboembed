@@ -1,3 +1,13 @@
+===OUT===
 RT @alice_b: Loving the new #Rust release! #prograrnrning #OpenSource http://t.co/abcl23
 @bob thanks!! cc @carol_d and @dave (see #tbt)
 rt @eve: lowercase rnarker, and ''RT'' in the rniddle of a sentence is plain text.
+
+===EDITS===
+50	51	rn
+51	52	rn
+83	84	l
+153	154	rn
+165	166	''
+168	169	''
+177	178	rn

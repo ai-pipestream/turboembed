@@ -1,3 +1,7 @@
+===OUT===
 Text default: ☺ ☺️ ❤ ❤️ ✔ ✔️ © ©️ ™ ™️ ☀ ☀️ ☂ ☂️.
 With text selector: ❤︎ ☺︎ ®︎ and digits 5 5️ 5️⃣.
 Ernoji default: ✅ ❌ ⭐ ⌚ 😀 💩 🚀.
+
+===EDITS===
+158	159	rn
