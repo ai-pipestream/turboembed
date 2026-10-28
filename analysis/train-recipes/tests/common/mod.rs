@@ -398,23 +398,3 @@ pub fn set_text_class(root: &Path, header: &str, cat_ref: &str) {
     assert_eq!(xml.matches("<profileDesc>").count(), 1, "{}", path.display());
     std::fs::write(&path, xml.replace("<profileDesc>", &text_class)).unwrap();
 }
-
-/// Adds a chunk over the Penn tokens `penn` (their quark numbers) to the
-/// `file` chunk file (`nc` or `vc`) of the document whose header is
-/// `header` (relative to `root`), numbered 100,000 plus `id` so it does
-/// not clash with the chunks written.
-pub fn add_chunk(root: &Path, header: &str, file: &str, id: usize, penn: &[usize]) {
-    let header = root.join(header);
-    let name = header.file_stem().unwrap().to_str().unwrap();
-    let path = header.with_file_name(format!("{name}-{file}.xml"));
-    let xml = std::fs::read_to_string(&path).unwrap();
-    let label = if file == "nc" { "nchunk" } else { "vchunk" };
-    let n = 100_000 + id;
-    let mut chunk =
-        format!("  <node xml:id=\"{file}-n{n}\"/>\n  <a label=\"{label}\" ref=\"{file}-n{n}\" as=\"anc\"/>\n");
-    for q in penn {
-        writeln!(chunk, "  <edge from=\"{file}-n{n}\" to=\"penn-n{q}\"/>").unwrap();
-    }
-    assert_eq!(xml.matches("</graph>").count(), 1, "{}", path.display());
-    std::fs::write(&path, xml.replace("</graph>", &format!("{chunk}</graph>"))).unwrap();
-}

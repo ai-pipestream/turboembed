@@ -38,15 +38,10 @@ pub struct ModelsRelease {
 }
 
 /// The release that publishes the models of the MASC sentence detector,
-/// tokenizer, part-of-speech tagger and chunker recipes.
+/// tokenizer and part-of-speech tagger recipes.
 pub const MASC_MODELS: ModelsRelease = ModelsRelease {
     tag: "models-masc-3.0.0-1",
-    models: &[
-        "turbo-en-masc-3.0.0-sentence-1",
-        "turbo-en-masc-3.0.0-tokens-1",
-        "turbo-en-masc-3.0.0-pos-1",
-        "turbo-en-masc-3.0.0-chunks-1",
-    ],
+    models: &["turbo-en-masc-3.0.0-sentence-1", "turbo-en-masc-3.0.0-tokens-1", "turbo-en-masc-3.0.0-pos-1"],
 };
 
 /// The release that publishes the models of the UD recipes that passed

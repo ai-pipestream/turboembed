@@ -356,7 +356,6 @@ impl ModelCard {
             ),
             Recipe::Pos(p) => (None, None, TagFormat::of(postag::CANDIDATE_FORMAT), TagFormat::of(p.reference_format)),
             Recipe::Name(_) => (None, None, None, None),
-            Recipe::Chunk(_) => (None, None, None, None),
         };
         ModelCard {
             card_version: CARD_VERSION,

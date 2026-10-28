@@ -6,7 +6,7 @@ use super::numeric::{MoneyLayer, Numeric};
 use super::pii::PiiRun;
 use super::sentences::{MaxentSentences, NewlineSentences};
 use super::subwords::{VOCABULARY, WordPiece};
-use super::tagging::{Chunker, FIXTURE_CHUNKERS, Lemmatizer, Tagger};
+use super::tagging::{Lemmatizer, Tagger};
 use super::temporal::Temporal;
 use super::tokens::{Lattice, Maxent, Plain, Uax29, Unigram};
 use super::{Run, split_options};
@@ -40,7 +40,7 @@ use crate::resources::{Resources, Unavailable};
 /// which turbo-formats compares with; the sentence vector runs
 /// (`sentvectors`) need an encoder bundle, and turbo-analysis-embed's
 /// `sentence_vectors_dl` test compares with them.
-pub const NOT_COVERED: [&str; 33] = [
+pub const NOT_COVERED: [&str; 29] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -53,8 +53,6 @@ pub const NOT_COVERED: [&str; 33] = [
     "masc",
     "ner",
     "ad",
-    "parse",
-    "head-rules",
     "gazetteer",
     "place-profiles",
     "string-pattern",
@@ -71,8 +69,6 @@ pub const NOT_COVERED: [&str; 33] = [
     "postag-neural",
     "conllu",
     "corpora",
-    "ontonotes",
-    "frenchtreebank",
     "sentvectors",
 ];
 
@@ -126,9 +122,6 @@ pub const RUNS: &[(&str, &str)] = &[
     ("lemmatize", "opennlp-de-ud-gsd-lemmas-1.3-2.5.4"),
     ("lemmatize", "opennlp-en-ud-ewt-lemmas-1.3-2.5.4"),
     ("lemmatize-dictionary", "lemmatizer-dictionary"),
-    ("chunk", "chunker-fixture"),
-    ("chunk", "chunker-fixture+beam1"),
-    ("chunk", "chunker-fixture-rust"),
     ("langdetect", "langdetect-183"),
     ("langdetect", "langdetect-183+probing"),
     ("langdetect", "langdetect-183+probing-chunk50"),
@@ -235,7 +228,6 @@ pub fn open(annotator: &str, run: &str, res: &Resources) -> Result<Box<dyn Run>,
         "postag" => Tagger::open(base, &options, res),
         "lemmatize" if options.is_empty() => Lemmatizer::open_maxent(base, res),
         "lemmatize-dictionary" if run == "lemmatizer-dictionary" => Lemmatizer::open_dictionary(res),
-        "chunk" if FIXTURE_CHUNKERS.contains(&base) => Chunker::open(base, &options, res),
         "langdetect" => Detector::open(base, &options, res),
         "normalize" if NORMALIZERS.contains(&run) => NormalizerRun::open(run),
         "numbers" => Numeric::open_numbers(run),
