@@ -3,20 +3,19 @@
 //! precision tiers) can be checked for the same cuts afterwards with
 //! `turbo_chunker::compare` (#172, #856).
 //!
-//! A dump is one file per set, `<dir>/<set>.cuts`: the magic line, a
-//! JSON header (the set, the backend the run's model ran on, the
-//! budget and the chunker's settings), then one entry per document in
-//! the set's order: its id and a document graph holding only the
-//! source, `Sentences`, `Boundaries` and `Chunks`, through the shared
-//! layers' codecs. Every length is a little-endian `u32`.
+//! Version 2 has a bounded binary header, framed document graphs and a
+//! required document-count/SHA-256 footer. Version 1 must be regenerated.
+//! Graphs retain source text and non-vector layers; this is not encrypted
+//! storage (security design is tracked separately in #1490).
+//! Comparison means the chunker's cut-start identity, not complete range
+//! coverage or retrieval-quality equivalence.
 
 use std::fmt;
+#[cfg(test)]
 use std::fs;
-use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use serde::{Deserialize, Serialize};
-use turbo_analysis::export::{Codecs, DocumentGraph, export, import};
+use turbo_analysis::export::{Codecs, DocumentGraph, export};
 use turbo_analysis::{Document, Execution, Layer};
 use turbo_analysis_layers::{Boundaries, Chunks, Sentences, Subwords, TokenVectorWindows, Vectors};
 use turbo_chunker::Budget;
@@ -25,7 +24,18 @@ use turbo_chunker::compare::{Pricing, Report, Run, compare};
 use crate::Result;
 use crate::record::Setting;
 
-const MAGIC: &[u8] = b"turbo-eval cuts 1\n";
+mod codec;
+use crate::artifact::{ArtifactKey, EvaluationArtifactStore, TemporaryFileStore};
+pub use codec::Writer;
+
+pub struct DumpConfig {
+    pub store: Box<dyn EvaluationArtifactStore>,
+    pub precision: turbo_analysis_embed::Precision,
+}
+
+fn key(set: &str) -> Result<ArtifactKey> {
+    ArtifactKey::new(format!("{set}.cuts")).map_err(|e| e.to_string())
+}
 
 /// The file a set's cuts are written to.
 pub fn cuts_path(dir: &Path, set: &str) -> PathBuf {
@@ -33,8 +43,7 @@ pub fn cuts_path(dir: &Path, set: &str) -> PathBuf {
 }
 
 /// What a dump says about the run that made it.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Header {
     pub set: String,
     pub sha256: String,
@@ -66,64 +75,6 @@ fn codecs() -> Codecs {
     c
 }
 
-fn u32_len(n: usize, what: &str) -> Result<[u8; 4]> {
-    u32::try_from(n).map(u32::to_le_bytes).map_err(|_| format!("{what} of {n} bytes: over a u32"))
-}
-
-/// Writes a set's dump, one document at a time. The file is made new:
-/// one already there is never replaced.
-pub struct Writer {
-    path: PathBuf,
-    partial: PathBuf,
-    out: std::io::BufWriter<fs::File>,
-    codecs: Codecs,
-    docs: u32,
-}
-
-impl Writer {
-    pub fn create(dir: &Path, header: &Header) -> Result<Writer> {
-        fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-        let path = cuts_path(dir, &header.set);
-        if path.exists() {
-            return Err(format!("{}: a cut dump is never replaced", path.display()));
-        }
-        // Written under a partial name and renamed whole by `finish`, so a
-        // run that fails part way leaves no dump a later run refuses.
-        let partial = path.with_extension("cuts.partial");
-        let at = |e: std::io::Error| format!("{}: {e}", partial.display());
-        let file = fs::File::create(&partial).map_err(at)?;
-        let mut out = std::io::BufWriter::new(file);
-        let json = serde_json::to_vec(header).map_err(|e| format!("cut dump header: {e}"))?;
-        out.write_all(MAGIC).map_err(at)?;
-        out.write_all(&u32_len(json.len(), "a header")?).map_err(at)?;
-        out.write_all(&json).map_err(at)?;
-        Ok(Writer { path, partial, out, codecs: codecs(), docs: 0 })
-    }
-
-    /// Writes one document's cuts: `doc` is the document the chunker
-    /// cut, holding at least `Sentences`, `Boundaries` and `Chunks`.
-    pub fn document(&mut self, id: &str, doc: &Document) -> Result<()> {
-        let bytes = graph(doc, &self.codecs)?.to_bytes().map_err(|e| format!("document {id}: {e}"))?;
-        let at = |e: std::io::Error| format!("{}: {e}", self.partial.display());
-        self.out.write_all(&u32_len(id.len(), "a document id")?).map_err(at)?;
-        self.out.write_all(id.as_bytes()).map_err(at)?;
-        self.out.write_all(&u32_len(bytes.len(), "a document graph")?).map_err(at)?;
-        self.out.write_all(&bytes).map_err(at)?;
-        self.docs += 1;
-        Ok(())
-    }
-
-    /// Flushes the file; returns its path and the documents written.
-    pub fn finish(mut self) -> Result<(PathBuf, u32)> {
-        self.out.flush().map_err(|e| format!("{}: {e}", self.partial.display()))?;
-        if self.path.exists() {
-            return Err(format!("{}: a cut dump is never replaced", self.path.display()));
-        }
-        fs::rename(&self.partial, &self.path).map_err(|e| format!("{}: {e}", self.path.display()))?;
-        Ok((self.path, self.docs))
-    }
-}
-
 /// The document graph without its vector layers: the sentence vectors
 /// drift and cohesion read are most of a document's bytes, and the
 /// comparison reads only `Sentences`, `Boundaries` and `Chunks` (and
@@ -147,54 +98,6 @@ pub struct Dump {
     pub header: Header,
     /// Each document's id and its cut document, in the set's order.
     pub docs: Vec<(String, Document)>,
-}
-
-struct Bytes<'a>(&'a [u8]);
-
-impl<'a> Bytes<'a> {
-    fn take(&mut self, n: usize) -> Result<&'a [u8]> {
-        if self.0.len() < n {
-            return Err("cut dump: cut short".into());
-        }
-        let (head, rest) = self.0.split_at(n);
-        self.0 = rest;
-        Ok(head)
-    }
-
-    fn chunk(&mut self) -> Result<&'a [u8]> {
-        let n = u32::from_le_bytes(self.take(4)?.try_into().expect("four bytes"));
-        self.take(n as usize)
-    }
-}
-
-impl Dump {
-    pub fn read(path: &Path) -> Result<Dump> {
-        let at = |e: String| format!("{}: {e}", path.display());
-        let all = fs::read(path).map_err(|e| at(e.to_string()))?;
-        let mut b = Bytes(&all);
-        if b.take(MAGIC.len()).map_err(at)? != MAGIC {
-            return Err(at("not a cut dump".into()));
-        }
-        let header: Header = serde_json::from_slice(b.chunk().map_err(at)?).map_err(|e| at(e.to_string()))?;
-        let codecs = codecs();
-        let mut docs = Vec::new();
-        while !b.0.is_empty() {
-            let id = std::str::from_utf8(b.chunk().map_err(at)?).map_err(|e| at(e.to_string()))?.to_owned();
-            let graph = DocumentGraph::from_bytes(b.chunk().map_err(at)?).map_err(|e| at(format!("{id}: {e}")))?;
-            let doc = import(&graph, &codecs).map_err(|e| at(format!("{id}: {e}")))?;
-            for (what, there) in [
-                ("sentences", doc.get::<Sentences>().is_some()),
-                ("boundaries", doc.get::<Boundaries>().is_some()),
-                ("chunks", doc.get::<Chunks>().is_some()),
-            ] {
-                if !there {
-                    return Err(at(format!("{id}: no {what} layer")));
-                }
-            }
-            docs.push((id, doc));
-        }
-        Ok(Dump { header, docs })
-    }
 }
 
 /// One document whose cuts differ, with the comparison's own report.
@@ -254,6 +157,9 @@ pub fn compare_dumps(a: &Dump, b: &Dump) -> Result<SetCuts> {
             return Err(format!("set {}: document {ida}: the texts differ", ha.set));
         }
         let (ra, rb) = (run(da, &ea, ha)?, run(db, &eb, hb)?);
+        if da.text(ra.chunks.spans.view()) != db.text(rb.chunks.spans.view()) {
+            return Err(format!("set {}: document {ida}: the anchored view texts differ", ha.set));
+        }
         let report: Report<'_> = compare(ra, rb).map_err(|e| format!("set {}: document {ida}: {e}", ha.set))?;
         out.matched += report.matched;
         if !report.is_identical() {
@@ -280,24 +186,24 @@ fn run<'a>(d: &'a Document, execution: &'a Execution, h: &Header) -> Result<Run<
 /// The dumps of every set in both directories, by set name; a set in one
 /// directory only is an error.
 pub fn compare_dirs(a: &Path, b: &Path) -> Result<Vec<SetCuts>> {
-    let names = |dir: &Path| -> Result<Vec<String>> {
-        let mut v: Vec<String> = fs::read_dir(dir)
-            .map_err(|e| format!("{}: {e}", dir.display()))?
-            .filter_map(|e| e.ok().map(|e| e.path()))
-            .filter(|p| p.extension().is_some_and(|x| x == "cuts"))
-            .filter_map(|p| p.file_stem().and_then(|s| s.to_str()).map(str::to_owned))
-            .collect();
-        v.sort();
-        Ok(v)
+    compare_stores(&TemporaryFileStore::new(a), &TemporaryFileStore::new(b))
+}
+
+pub fn compare_stores(a: &dyn EvaluationArtifactStore, b: &dyn EvaluationArtifactStore) -> Result<Vec<SetCuts>> {
+    let names = |store: &dyn EvaluationArtifactStore| -> Result<Vec<ArtifactKey>> {
+        let mut names: Vec<_> =
+            store.list().map_err(|e| e.to_string())?.into_iter().filter(|k| k.as_str().ends_with(".cuts")).collect();
+        names.sort();
+        Ok(names)
     };
     let (na, nb) = (names(a)?, names(b)?);
     if na != nb {
-        return Err(format!("{} holds sets {na:?}, {} holds {nb:?}", a.display(), b.display()));
+        return Err(format!("stores holds sets {na:?} against {nb:?}"));
     }
     if na.is_empty() {
-        return Err(format!("{}: no cut dumps (*.cuts)", a.display()));
+        return Err("no cut dumps (*.cuts)".into());
     }
-    na.iter().map(|s| compare_dumps(&Dump::read(&cuts_path(a, s))?, &Dump::read(&cuts_path(b, s))?)).collect()
+    na.iter().map(|key| compare_dumps(&Dump::read_from(a, key)?, &Dump::read_from(b, key)?)).collect()
 }
 
 fn margin(m: Option<i128>) -> String {

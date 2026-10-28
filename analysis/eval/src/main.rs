@@ -401,7 +401,10 @@ fn run_cmd(args: &[String]) -> Result<()> {
         }
         r => return Err(format!("--retrieval {r}: dense, bm25, hybrid or cascade")),
     };
-    let dump_cuts = o.take("--dump-cuts").map(|d| (PathBuf::from(d), precision_name.clone()));
+    let dump_cuts = o.take("--dump-cuts").map(|d| turbo_eval::cuts::DumpConfig {
+        store: Box::new(turbo_eval::artifact::TemporaryFileStore::new(d)),
+        precision,
+    });
     let repo = o.take("--repo").map_or(workspace, PathBuf::from);
     if sets.is_empty() {
         return Err("--sets names no set".into());

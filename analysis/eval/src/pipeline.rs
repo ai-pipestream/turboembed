@@ -53,7 +53,7 @@ pub struct Pipeline {
     pub static_embedder: Option<Box<dyn Embedder>>,
     /// Where to dump each set's cuts (`crate::cuts`), and the precision
     /// tier the embedder ran at, as the dump names it.
-    pub dump_cuts: Option<(std::path::PathBuf, String)>,
+    pub dump_cuts: Option<crate::cuts::DumpConfig>,
 }
 
 /// What a pipeline did on a set.
@@ -166,8 +166,11 @@ impl Pipeline {
         // The dump's writing is not the chunker's cost.
         let chunking_ms = ms(t) - dump_ms;
         if let Some(w) = dump {
-            let (path, n) = w.finish()?;
-            eprintln!("set {}: the cuts of {n} documents in {}", set.name, path.display());
+            let (receipt, n) = w.publish()?;
+            eprintln!("set {}: the cuts of {n} documents in artifact {}", set.name, receipt.key);
+            if let Some(error) = receipt.cleanup_error {
+                eprintln!("artifact {} published; staging cleanup failed: {error}", receipt.key);
+            }
         }
         drop(docs);
         if spans.is_empty() {
@@ -239,7 +242,7 @@ impl Pipeline {
 
     /// The writer of this set's cut dump, when the pipeline dumps cuts.
     fn cut_writer(&self, set: &LoadedSet) -> Result<Option<crate::cuts::Writer>> {
-        let Some((dir, precision)) = &self.dump_cuts else { return Ok(None) };
+        let Some(config) = &self.dump_cuts else { return Ok(None) };
         let budget = self
             .chunker
             .cut_budget()
@@ -250,14 +253,14 @@ impl Pipeline {
             sha256: set.sha256.clone(),
             backend: device.backend.clone(),
             device: device.name.clone(),
-            precision: precision.clone(),
+            precision: config.precision.name().into(),
             max: budget.max,
             target: budget.target,
             size_weight: budget.size_weight,
             overhead: budget.overhead,
             chunker: self.chunker.config(),
         };
-        crate::cuts::Writer::create(dir, &header).map(Some)
+        crate::cuts::Writer::create_in(config.store.as_ref(), &header).map(Some)
     }
 
     /// Runs the pipeline over the set and makes its record, checked.
