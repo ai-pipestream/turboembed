@@ -1,12 +1,12 @@
 # turbo-lemmatizer
 
-Dictionary and morphological edit-script lemmatization (`DictionaryLemmatizer`, `Lemmatizer` trait) mapping `(token, pos_tag)` pairs to canonical base forms.
+Dictionary and statistical edit-script lemmatization (`DictionaryLemmatizer`, `MaxentLemmatizer`, `LemmatizerModel`) mapping `(token, pos_tag)` pairs to canonical base forms.
 
 ## Features
 
 - **Dictionary lookup (`analysis/lemmatizer/src/dictionary.rs`)**: Supports tab-separated `(word, pos, lemma)` dictionaries (`DictionaryLemmatizer`) with case-aware lookup and zero-allocation borrowed stem return paths.
-- **Suffix-prefix edit scripts (`analysis/lemmatizer/src/edit_script.rs`, `analysis/lemmatizer/src/encoding.rs`)**: Encodes word-to-lemma transformations as compact prefix/suffix strip-and-replace operations for out-of-vocabulary morphological generalization.
-- **Document pipeline integration (`analysis/lemmatizer/src/lib.rs`)**: Implements `Annotator` reading `Sentences`, `Tokens`, and `PosTags` and writing a `Lemmas` layer onto `Document`.
+- **Statistical edit-script lemmatizer (`MaxentLemmatizer`, `LemmatizerModel`, `analysis/lemmatizer/src/maxent.rs`, `analysis/lemmatizer/src/edit_script.rs`, `analysis/lemmatizer/src/encoding.rs`)**: Encodes word-to-lemma transformations as shortest prefix/suffix edit scripts (`LemmaEncoding`) for out-of-vocabulary morphological generalization.
+- **Document pipeline integration (`analysis/lemmatizer/src/lib.rs`)**: `DictionaryLemmatizer` and `MaxentLemmatizer` implement `Annotator`, reading `Tokens` and `PosTags` and writing the `Lemmas` layer onto `Document`.
 
 ## Testing, Accuracy, and Speed
 

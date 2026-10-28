@@ -1,12 +1,12 @@
 # turbo-glossary
 
-Multi-token terminology and glossary span extraction (`GlossaryAnnotator`, `GlossaryMatcher`) with longest-match-first or all-matches resolution, optional case sensitivity, and static-borrow zero-copy entry storage (`analysis/glossary/src/mapped/mod.rs`).
+Multi-token terminology and glossary span extraction (`GlossaryAnnotator`, `GlossaryMatcher`, `TextMatcher`, `TokenMatcher`, `MappedGlossaryMatcher`) with leftmost-longest overlap resolution (`select`), optional case sensitivity, and mapped double-array automaton images (`analysis/glossary/src/mapped/mod.rs`).
 
 ## Features
 
-- **Trie-backed token phrase matching (`analysis/glossary/src/lib.rs`, `analysis/glossary/src/matcher.rs`)**: Indexes multi-token glossary entries by token sequence with configurable case folding and overlap resolution (`analysis/glossary/src/select.rs`).
-- **Zero-copy memory-mapped dictionaries (`analysis/glossary/src/mapped/mod.rs`)**: Supports borrowed string slices mapped directly from disk without per-entry heap allocation.
-- **Document pipeline integration (`analysis/glossary/src/annotate.rs`)**: Implements `Annotator` to read `Sentences` and `Tokens` layers and emit typed glossary match annotations with canonical concept IDs and metadata.
+- **Character and token phrase matching (`TextMatcher`, `TokenMatcher`, `GlossaryMatcher`, `analysis/glossary/src/lib.rs`, `analysis/glossary/src/matcher.rs`)**: Matches glossary terms by code-point Aho-Corasick automaton (`TextMatcher`) or analyzed token sequences (`TokenMatcher`), with leftmost-longest-first overlap selection (`analysis/glossary/src/select.rs`).
+- **Mapped double-array images (`MappedGlossaryWriter`, `MappedGlossaryMatcher`, `analysis/glossary/src/mapped/mod.rs`)**: Reads flat character automaton images in place from byte slices or memory-mapped files (`MappedFile` under the `mmap` feature) without per-state heap allocation.
+- **Glossary readers and pipeline integration (`DelimitedReader`, `TbxReader`, `GlossaryAnnotator`, `analysis/glossary/src/annotate.rs`)**: Reads CSV/TSV and TBX 2/3 termbases into `Glossary`, and implements `Annotator` (`GlossaryAnnotator`) reading a view and `Tokens` (plus `Stems` when configured) to write the `GlossaryTerms` (`turbo:glossary-terms`) layer on `Document`.
 
 ## Testing, Accuracy, and Speed
 
