@@ -32,6 +32,7 @@ fn chunker(spec: &str, e: &dyn Embedder) -> Box<dyn Chunker> {
             costs: Costs::default(),
             signals: Signals::Structure,
             cohesion: None,
+            clauses: p.get(3) == Some(&"clauses"),
         }),
         "windows" => Box::new(SentenceWindows::new(n(1)).unwrap()),
         "fixed" => Box::new(FixedTokens::new(n(1), 0).unwrap()),

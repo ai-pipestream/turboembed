@@ -42,6 +42,7 @@ fn cascade_latency_receipt() {
         costs: Costs::default(),
         signals: Signals::Structure,
         cohesion: None,
+        clauses: false,
     };
     let depths = [10usize, 25, 50, 100, 200, 400];
     let mut record_sets: Vec<serde_json::Value> = Vec::new();

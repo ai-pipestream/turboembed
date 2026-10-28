@@ -15,6 +15,7 @@ fn chunker(costs: Costs) -> TurboChunker {
         costs,
         signals: Signals::Structure,
         cohesion: None,
+        clauses: false,
     }
 }
 

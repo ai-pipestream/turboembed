@@ -108,9 +108,11 @@ chunkers:
                   [--min-sentences <n>] [--max-sentences <n>]
       the sandbox's semantic chunker; unset values take its defaults
   --chunker turbo-chunker --max <n> --target <n> [--size-weight <n>]
-                  [--drift] [--cohesion <weight>]
+                  [--drift] [--cohesion <weight>] [--clauses]
       turbo-chunker's optimizer on the structure's costs (size weight
       default 1000), with drift weighed in and a cohesion term when given
+      and, with --clauses, sentences over --max split at clause
+      punctuation and then by token windows
     [--level <l>] [--level-vectors <v>]
       retrieve the units of one level of the chunker's levels: chunk,
       section (each section, and each chunk outside every section) or
@@ -184,7 +186,7 @@ fn fetch_cmd(args: &[String]) -> Result<()> {
 /// `--name value` pairs and bare `--flag`s.
 struct Opts(BTreeMap<String, Option<String>>);
 
-const FLAGS: [&str; 1] = ["--drift"];
+const FLAGS: [&str; 2] = ["--drift", "--clauses"];
 
 impl Opts {
     fn parse(args: &[String]) -> Result<Opts> {
@@ -294,7 +296,8 @@ fn chunker(o: &mut Opts, embedder: &dyn Embedder, model: (&Path, &Device, Precis
                 Signals::Structure
             };
             let cohesion = o.parsed("--cohesion")?.map(|weight| Cohesion { weight });
-            let chunker = TurboChunker { budget, costs: Costs::default(), signals, cohesion };
+            let clauses = o.flag("--clauses");
+            let chunker = TurboChunker { budget, costs: Costs::default(), signals, cohesion, clauses };
             let level = match o.take("--level").as_deref() {
                 None => None,
                 Some("chunk") => Some(Retrieve::Chunk),
