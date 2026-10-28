@@ -18,12 +18,19 @@ use turbo_structure::Syntax;
 use crate::Result;
 use crate::embedder::Embedder;
 
+/// The rule splitter with no unpunctuated-script fallback; the field is
+/// private so no model or device can be attached to it.
+pub struct RuleSentences(RuleSentenceDetector);
+
 /// Where the sentences come from.
 pub enum Sentencer {
     /// The rule splitter of `turbo-sentdetect` for a language: UAX #29
     /// with the language's tailorings and abbreviation inventory. It
-    /// needs no model file, and it is the default.
-    Rules(RuleSentenceDetector),
+    /// needs no model file, and it is the default. Built only by
+    /// [`Sentencer::rules`], so it never has a model-backed fallback and
+    /// its record name (language, version, configuration hash) says all
+    /// that decides its spans.
+    Rules(RuleSentences),
     /// One sentence per line that is not blank (OpenNLP's
     /// `NewlineSentenceDetector`).
     Newline,
@@ -39,7 +46,7 @@ pub enum Sentencer {
 impl Sentencer {
     /// The rule splitter for the BCP 47 language tag `tag`.
     pub fn rules(tag: &str) -> Sentencer {
-        Sentencer::Rules(RuleSentenceDetector::new(tag))
+        Sentencer::Rules(RuleSentences(RuleSentenceDetector::new(tag)))
     }
 
     /// The maxent detector with the model file at `path`, with the bundled
@@ -55,7 +62,7 @@ impl Sentencer {
 
     fn name(&self) -> String {
         match self {
-            Sentencer::Rules(d) => format!(
+            Sentencer::Rules(RuleSentences(d)) => format!(
                 "{} {} version {} config {:016x}",
                 RuleSentenceDetector::ID,
                 d.splitter.language().rules_code(),
@@ -75,12 +82,12 @@ impl Sentencer {
         }
     }
 
-    fn spans(&self, text: &str) -> Spans<Sentences> {
+    fn spans(&self, text: &str) -> Result<Spans<Sentences>> {
         let mut spans = Spans::new(ViewId::SOURCE);
         match self {
-            Sentencer::Rules(d) => {
+            Sentencer::Rules(RuleSentences(d)) => {
                 let mut out = Vec::new();
-                d.splitter.split(text, &mut out);
+                d.splitter.try_split(text, &mut out).map_err(|e| e.to_string())?;
                 out.into_iter().for_each(|s| {
                     spans.push(s);
                 });
@@ -100,7 +107,7 @@ impl Sentencer {
                 });
             }
         }
-        spans
+        Ok(spans)
     }
 }
 
@@ -132,7 +139,7 @@ impl Analysis {
         }
         let mut doc = Document::new(text);
         let fail = |e: turbo_analysis::Error| e.to_string();
-        doc.add(&Key::DEFAULT, Sentences { spans: self.sentences.spans(text) }, Provenance::by("turbo-eval"))
+        doc.add(&Key::DEFAULT, Sentences { spans: self.sentences.spans(text)? }, Provenance::by("turbo-eval"))
             .map_err(fail)?;
         if let Some(syntax) = self.structure {
             let s: Structure = turbo_structure::detect(text, syntax, ViewId::SOURCE);
@@ -173,6 +180,7 @@ mod tests {
             format!("turbo-sentdetect:rules en version {} config {config:016x}", RuleSentenceDetector::VERSION)
         );
         assert_ne!(names[0], Sentencer::rules("de").name());
+        assert_eq!(names[0], Sentencer::rules("en").name());
         assert_eq!(names[1..], ["turbo:structure plain", "opennlp:subwords"]);
     }
 }
