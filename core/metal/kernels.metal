@@ -148,14 +148,14 @@ struct GemmParams {
     uint m;
     uint n;
     uint k;
-    uint epilogue;   // EPILOGUE_*: the F16 kernels take 0, 1 and 2 alone
+    uint epilogue;   // EPILOGUE_*
     uint splits;
     uint kchunk;
     uint head_dim;   // EPILOGUE_ROPE: a head's width
     uint rope_sin;   // EPILOGUE_ROPE: floats from the cos table to the sin table
 };
 
-// What the F32 kernels' stores do (gemm, gemm_small; store_pair).
+// What every linear kernel's stores do (store_pair).
 constant uint EPILOGUE_NONE = 0;
 constant uint EPILOGUE_BIAS = 1;
 constant uint EPILOGUE_BIAS_GELU = 2;
@@ -175,9 +175,11 @@ constant uint EPILOGUE_RESIDUAL = 6;
 float silu(float v) { return v / (1.0f + exp(-v)); }
 
 // A lane's two outputs, row `row` and columns col and col + 1 (col even)
-// of y [m, n], through the epilogue: layer is the output's place in the
-// dispatch, pos each token's column in its row, rope the layer's cos table.
-void store_pair(device float *y, uint row, uint col, float v0, float v1, uint layer, device const float *bias,
+// of y [m, n], through the epilogue in F32, rounded to y's type last:
+// layer is the output's place in the dispatch, pos each token's column in
+// its row, rope the layer's cos table.
+template <typename YT>
+void store_pair(device YT *y, uint row, uint col, float v0, float v1, uint layer, device const float *bias,
                 constant GemmParams &p, device const int *pos, device const float *rope) {
     const uint n = p.n;
     switch (p.epilogue) {
@@ -200,20 +202,20 @@ void store_pair(device float *y, uint row, uint col, float v0, float v1, uint la
         }
         break;
     case EPILOGUE_GATED_GELU:
-        y[ulong(row) * (n / 2) + col / 2] = gelu(v0) * v1;
+        y[ulong(row) * (n / 2) + col / 2] = YT(gelu(v0) * v1);
         return;
     case EPILOGUE_GATED_SILU:
-        y[ulong(row) * (n / 2) + col / 2] = silu(v0) * v1;
+        y[ulong(row) * (n / 2) + col / 2] = YT(silu(v0) * v1);
         return;
     case EPILOGUE_RESIDUAL:
-        v0 = y[ulong(row) * n + col] + v0;
-        v1 = y[ulong(row) * n + col + 1] + v1;
+        v0 = float(y[ulong(row) * n + col]) + v0;
+        v1 = float(y[ulong(row) * n + col + 1]) + v1;
         break;
     default:
         break;
     }
-    y[ulong(row) * n + col] = v0;
-    y[ulong(row) * n + col + 1] = v1;
+    y[ulong(row) * n + col] = YT(v0);
+    y[ulong(row) * n + col + 1] = YT(v1);
 }
 
 constant uint BM = 32, BN = 64, BK = 16;
@@ -326,8 +328,8 @@ kernel void gemm_small(device const float *x [[buffer(0)]], device const float *
 //
 // The same products with F16 weights, w [n, k] as half, and x in F32 or
 // F16: each operand is rounded to F16 as it is staged or loaded, and every
-// sum is F32, in F32 SIMD-group matrices. The epilogue adds the bias, or
-// the bias and GELU, in F32 and rounds to the output's type last. Three
+// sum is F32, in F32 SIMD-group matrices. The epilogue (store_pair) runs
+// in F32 and rounds to the output's type last. Three
 // tiles: 32 x 64, four SIMD groups each 16 x 32 of it; 64 x 64, four
 // groups each 32 x 32; and 128 x 64, eight groups each 32 x 32. k is
 // staged in steps of 32, as F16, 16 bytes a thread at a time, so the
@@ -363,6 +365,7 @@ kernel void gemm_h(device const XT *x [[buffer(0)]], device const half *w0 [[buf
                    device const float *b0 [[buffer(4)]], device const float *b1 [[buffer(5)]],
                    device const float *b2 [[buffer(6)]], device YT *y0 [[buffer(7)]], device YT *y1 [[buffer(8)]],
                    device YT *y2 [[buffer(9)]], constant GemmParams &p [[buffer(10)]],
+                   device const int *pos [[buffer(11)]], device const float *rope [[buffer(12)]],
                    uint3 tg [[threadgroup_position_in_grid]], ushort tid [[thread_index_in_threadgroup]],
                    ushort sg [[simdgroup_index_in_threadgroup]], ushort lane [[thread_index_in_simdgroup]]) {
     // TM 8 x 8 matrices down each group's part of the tile, 4 across, and
@@ -442,22 +445,11 @@ kernel void gemm_h(device const XT *x [[buffer(0)]], device const half *w0 [[buf
     for (uint i = 0; i < TM; i++) {
         const uint row = m0 + sm + i * 8 + cd.fm;
         if (row >= m) continue;
-        device YT *yr = y + ulong(row) * n;
         for (uint j = 0; j < 4; j++) {
             const uint col = n0 + sn + j * 8 + cd.fn;
             if (col >= n) continue;
             thread auto &e = acc[i][j].thread_elements();
-            float v0 = e[0], v1 = e[1];
-            if (p.epilogue >= 1) {
-                v0 += bias[col];
-                v1 += bias[col + 1];
-            }
-            if (p.epilogue == 2) {
-                v0 = gelu(v0);
-                v1 = gelu(v1);
-            }
-            yr[col] = YT(v0);
-            yr[col + 1] = YT(v1);
+            store_pair(y, row, col, e[0], e[1], layer, bias, p, pos, rope);
         }
     }
 }
@@ -482,6 +474,7 @@ kernel void gemm_hn(device const XT *x [[buffer(0)]], device const half *w0 [[bu
                     device const float *b0 [[buffer(4)]], device const float *b1 [[buffer(5)]],
                     device const float *b2 [[buffer(6)]], device YT *y0 [[buffer(7)]], device YT *y1 [[buffer(8)]],
                     device YT *y2 [[buffer(9)]], constant GemmParams &p [[buffer(10)]],
+                    device const int *pos [[buffer(11)]], device const float *rope [[buffer(12)]],
                     uint3 tg [[threadgroup_position_in_grid]], ushort tid [[thread_index_in_threadgroup]],
                     ushort sg [[simdgroup_index_in_threadgroup]], ushort lane [[thread_index_in_simdgroup]]) {
     constexpr uint BM = 16 * TM;
@@ -557,23 +550,12 @@ kernel void gemm_hn(device const XT *x [[buffer(0)]], device const half *w0 [[bu
     for (uint i = 0; i < TM; i++) {
         const uint row = m0 + tm + i * 16 + cd.fm;
         if (!AL && row >= m) continue;
-        device YT *yr = y + ulong(row) * n;
         _Pragma("clang loop unroll(full)")
         for (uint j = 0; j < 2; j++) {
             const uint col = n0 + tn + j * 16 + cd.fn;
             if (!AL && col >= n) continue;
             thread auto &e = acc[i][j].thread_elements();
-            float v0 = e[0], v1 = e[1];
-            if (p.epilogue >= 1) {
-                v0 += bias[col];
-                v1 += bias[col + 1];
-            }
-            if (p.epilogue == 2) {
-                v0 = gelu(v0);
-                v1 = gelu(v1);
-            }
-            yr[col] = YT(v0);
-            yr[col + 1] = YT(v1);
+            store_pair(y, row, col, e[0], e[1], layer, bias, p, pos, rope);
         }
     }
 }
@@ -586,7 +568,8 @@ kernel void gemm_small_h(device const XT *x [[buffer(0)]], device const half *w0
                          device const float *b0 [[buffer(4)]], device const float *b1 [[buffer(5)]],
                          device const float *b2 [[buffer(6)]], device YT *y0 [[buffer(7)]],
                          device YT *y1 [[buffer(8)]], device YT *y2 [[buffer(9)]],
-                         constant GemmParams &p [[buffer(10)]], uint3 tg [[threadgroup_position_in_grid]],
+                         constant GemmParams &p [[buffer(10)]], device const int *pos [[buffer(11)]],
+                         device const float *rope [[buffer(12)]], uint3 tg [[threadgroup_position_in_grid]],
                          ushort tid [[thread_index_in_threadgroup]], ushort sg [[simdgroup_index_in_threadgroup]],
                          ushort lane [[thread_index_in_simdgroup]]) {
     threadgroup float red[4 * 32 * 16];
@@ -595,7 +578,7 @@ kernel void gemm_small_h(device const XT *x [[buffer(0)]], device const half *w0
     device const half *w = tg.z == 0 ? w0 : tg.z == 1 ? w1 : w2;
     device const float *bias = tg.z == 0 ? b0 : tg.z == 1 ? b1 : b2;
     device YT *y = tg.z == 0 ? y0 : tg.z == 1 ? y1 : y2;
-    const uint m0 = tg.y * 32, n0 = tg.x * 16, k = p.k, n = p.n;
+    const uint m0 = tg.y * 32, n0 = tg.x * 16, k = p.k;
     simdgroup_float8x8 acc[4][2];
     for (uint i = 0; i < 4; i++)
         for (uint j = 0; j < 2; j++) acc[i][j] = make_filled_simdgroup_matrix<float, 8, 8>(0.0f);
@@ -618,12 +601,11 @@ kernel void gemm_small_h(device const XT *x [[buffer(0)]], device const half *w0
     for (uint i = 0; i < 4; i++)
         for (uint j = 0; j < 2; j++) simdgroup_store(acc[i][j], red + sg * 512 + (i * 8) * 16 + j * 8, 16);
     threadgroup_barrier(mem_flags::mem_threadgroup);
-    for (uint e = tid; e < 512; e += 128) {
-        const uint col = n0 + e % 16;
-        float v = red[e] + red[512 + e] + red[1024 + e] + red[1536 + e];
-        if (p.epilogue >= 1) v += bias[col];
-        if (p.epilogue == 2) v = gelu(v);
-        y[ulong(m0 + e / 16) * n + col] = YT(v);
+    // A thread a pair of neighbouring columns, as store_pair takes them.
+    for (uint e = tid * 2; e < 512; e += 256) {
+        const float v0 = red[e] + red[512 + e] + red[1024 + e] + red[1536 + e];
+        const float v1 = red[e + 1] + red[512 + e + 1] + red[1024 + e + 1] + red[1536 + e + 1];
+        store_pair(y, m0 + e / 16, n0 + e % 16, v0, v1, tg.z, bias, p, pos, rope);
     }
 }
 
@@ -632,7 +614,7 @@ kernel void gemm_small_h(device const XT *x [[buffer(0)]], device const half *w0
     template [[host_name(name)]] kernel void gemm_h<XT, YT, TM, WM>( \
         device const XT *, device const half *, device const half *, device const half *, device const float *,       \
         device const float *, device const float *, device YT *, device YT *, device YT *, constant GemmParams &,      \
-        uint3, ushort, ushort, ushort);
+        device const int *, device const float *, uint3, ushort, ushort, ushort);
 GEMM_H(float, float, 2, 2, "gemm_h32_ff")
 GEMM_H(float, half, 2, 2, "gemm_h32_fh")
 GEMM_H(half, float, 2, 2, "gemm_h32_hf")
@@ -650,7 +632,7 @@ GEMM_H(half, half, 4, 4, "gemm_h128_hh")
     template [[host_name(name)]] kernel void gemm_hn<XT, YT, TM, AL>(                                                     \
         device const XT *, device const half *, device const half *, device const half *, device const float *,       \
         device const float *, device const float *, device YT *, device YT *, device YT *, constant GemmParams &,      \
-        uint3, ushort, ushort, ushort);
+        device const int *, device const float *, uint3, ushort, ushort, ushort);
 GEMM_HN(float, float, 2, false, "gemm_h32n32_ff")
 GEMM_HN(float, float, 2, true, "gemm_h32n32a_ff")
 GEMM_HN(float, half, 2, false, "gemm_h32n32_fh")
@@ -668,7 +650,7 @@ GEMM_HN(half, half, 4, false, "gemm_h64n32_hh")
     template [[host_name(name)]] kernel void gemm_small_h<XT, YT>(                                                   \
         device const XT *, device const half *, device const half *, device const half *, device const float *,       \
         device const float *, device const float *, device YT *, device YT *, device YT *, constant GemmParams &,      \
-        uint3, ushort, ushort, ushort);
+        device const int *, device const float *, uint3, ushort, ushort, ushort);
 GEMM_SMALL_H(float, float, "gemm_small_h_ff")
 GEMM_SMALL_H(float, half, "gemm_small_h_fh")
 GEMM_SMALL_H(half, float, "gemm_small_h_hf")
@@ -694,8 +676,7 @@ struct AttentionParams {
     // longest row, rounded up to 8.
     uint narrow_stride;
     // A sliding-window layer's (#1461) keys each side of a query: query i
-    // reads keys j with |i - j| <= window. NO_WINDOW reads the whole row;
-    // the F16 kernels take NO_WINDOW alone.
+    // reads keys j with |i - j| <= window. NO_WINDOW reads the whole row.
     uint window;
 };
 
@@ -914,8 +895,17 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
     const Coord cd = lane_coord(lane);
     const uint qr = lane / 4, part = lane % 4;
     float mx = -INFINITY, sum = 0.0f;
+    // A sliding window, as attention's: the chunks holding a key some
+    // query of the 32 reads, each score outside its own query's window
+    // -inf. A lane's query: row qr of the group's 8 for the staged scores,
+    // row fm for the scores held in registers.
+    const uint win = p.window;
+    const bool banded = win < len;
+    const uint qi_lane = first + sg * 8 + (REG ? cd.fm : qr);
+    const uint c_lo = banded && first > win ? (first - win) / KC * KC : 0;
+    const uint c_hi = banded ? min(len, first + 32 + win) : len;
 
-    for (uint c0 = 0; c0 < len; c0 += KC) {
+    for (uint c0 = c_lo; c0 < c_hi; c0 += KC) {
         threadgroup_barrier(mem_flags::mem_threadgroup);
         for (uint e = tid; e < KC * hd4; e += 128) {
             const uint r = e / hd4, d = (e % hd4) * 4;
@@ -956,6 +946,11 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
                 thread auto &e = acc.thread_elements();
                 e[0] += kb[j * 8 + cd.fn];
                 e[1] += kb[j * 8 + cd.fn + 1];
+                if (banded) {
+                    const uint key = c0 + j * 8 + cd.fn;
+                    if (!near(qi_lane, key, win)) e[0] = -INFINITY;
+                    if (!near(qi_lane, key + 1, win)) e[1] = -INFINITY;
+                }
                 cm = max(cm, max(e[0], e[1]));
                 sr[j] = acc;
             } else {
@@ -966,6 +961,7 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
             simdgroup_barrier(mem_flags::mem_threadgroup);
             for (uint t = part * 8; t < part * 8 + 8; t++) {
                 s[qr * KC + t] += kb[t];
+                if (banded && !near(qi_lane, c0 + t, win)) s[qr * KC + t] = -INFINITY;
                 cm = max(cm, s[qr * KC + t]);
             }
         }
@@ -1021,7 +1017,9 @@ kernel void attention_h(device const half *q [[buffer(0)]], device const half *k
         }
     }
 
-    const float inv = 1.0f / (REG ? sum : simd_shuffle(sum, ushort(cd.fm * 4)));
+    // No live key in a query's window: a context of 0, as attention's.
+    const float total = REG ? sum : simd_shuffle(sum, ushort(cd.fm * 4));
+    const float inv = total > 0.0f ? 1.0f / total : 0.0f;
     const uint qi = first + sg * 8 + cd.fm;
     if (qi >= len) return;
     device half *out = ctx + ulong(p0 + qi) * h + col;

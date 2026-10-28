@@ -283,9 +283,8 @@ fails it (3.3e-4 on the tiny model).
 ## ModernBERT and nomic-bert
 
 A model of `FAMILY_MODERNBERT` or `FAMILY_NOMIC_BERT` (docs/bundle.md,
-#1461) loads and runs at MODEL and EXACT, in F32; FASTEST is refused with
-`TURBO_E_UNSUPPORTED_OPTION` naming field 3, and never runs in F32 in its
-place. model_load checks the description as the CPU's does (the struct
+#1461) loads and runs at every precision: in F32 at MODEL and EXACT, and
+at FASTEST with F16 linear layers and attention (below). model_load checks the description as the CPU's does (the struct
 reaches `global_every`, the family's tensors, MLP, activation and norm, a
 head twice `rope_pairs` wide) and copies the core's cos/sin table once;
 no angle is computed on the device. The first session lays out each
@@ -294,8 +293,10 @@ layer's weights once a model (`pack_rows`, as
 in pairs (c, c + d/2), and the gated MLP's gate row j (ModernBERT's `Wi`
 rows 0..i, nomic's `fc12`) and up row j (`Wi` rows i..2i, `fc11`) side by
 side. A lane of an 8 x 8 SIMD-group matrix holds two neighbouring
-columns, so the F32 linear layers' stores (`store_pair`) finish each
-pair in registers:
+columns, so the linear layers' stores (`store_pair`, in `gemm`,
+`gemm_small` and the F16 `gemm_h`, `gemm_hn` and `gemm_small_h` alike)
+finish each pair in registers, in F32, before rounding to the output's
+type:
 
 - `EPILOGUE_ROPE`: Q's and K's pairs turned by the token's position, its
   column in its row, from the table of the layer's base (global, or local
@@ -313,13 +314,32 @@ writing the normalized rows beside the residual, layer 0 reading x, the
 final norm last), its norms bias-free; nomic-bert is post-norm in BERT's
 order with token types (`rotary_embed`). No projection has a bias.
 
+At FASTEST the first such session narrows each layer's six linear
+weights (Q and K paired, V, the attention output, the paired MLP input,
+the MLP output) to F16 once a model (`rotary_half`); a layer with a
+weight past F16's range computes in F32, as a BERT's does. The linear
+layers then run the F16 kernels BERT's FASTEST runs, with the same tile
+choices (Kernel choices; `TURBO_METAL_CHOICES` forces them the same way),
+F16 operands and F32 sums: their inputs are the F32 residual stream or
+its norm, rounded to F16 as they are staged; Q, K and V come out in F16
+for `attention_h`, which takes the same window and gives a query with no
+live key in it a context of 0; the gated MLP's middle is F16. The
+residual stream, the norms and the residual adds stay F32.
+
 `core/tests/metal_gated.rs` holds the device to the CPU at MODEL and
 EXACT on the sealed tiny bundles (testdata/tiny-modernbert-bundle,
 tiny-nomic-bundle) on rows up to 64 tokens, past the window of 8, at
 seven row patterns and token ranges, and to their sealed reference
 vectors; on the M2 every value is within 3e-6 of the CPU's, against a
 bound of 1e-4, and within 1.1e-6 of the reference. Reading the whole row
-on the local layers fails it (6.7e-2).
+on the local layers fails it (6.7e-2). At FASTEST the tiny widths (32 and
+48) run F16: the sealed references within cosine 1 - 5.6e-7 (floor
+0.999), every forced tile and attention kernel within 1 - 5.9e-7 of the
+CPU at MODEL, the left-padded row finite, repeated runs the same bits;
+reading the whole row in `attention_h` fails it (2.1e-2). On the real
+bundles (`TURBO_TEST_PRECISION=fastest`, conformance, 12 cases up to
+8192 tokens) ModernBERT-base reaches 1 - 5.3e-6 (max abs diff 1.7e-2)
+and nomic-embed-text-v1.5 1 - 5.9e-7 (3.0e-3).
 
 ## The LSTM for the taggers
 

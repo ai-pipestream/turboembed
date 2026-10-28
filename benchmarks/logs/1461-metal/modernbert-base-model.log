@@ -1,0 +1,15 @@
+== modernbert-base model 2026-10-28T06:06:05Z head 4cc4468fe7e1734e7880fb9d67a3abe7b8b6ce23
+ 2:06  up 18 days, 19:15, 6 users, load averages: 6.68 7.98 6.00
+"Device Utilization %"=41
+cmd: cargo run --release -p turbo-bench --features metal -- record --bundle <bundles>/modernbert-base --device metal --precision model --batch 8 --seq 512 --rows dense --warmup 5 --iterations 20 --no-tei --no-mlx --out <out>
+    Finished `release` profile [optimized] target(s) in 0.07s
+     Running `target/release/turbo-bench record --bundle ~/turbo-bundles/modernbert-base --device metal --precision model --batch 8 --seq 512 --rows dense --warmup 5 --iterations 20 --no-tei --no-mlx --out $SCRATCH/rec1461/out`
+metal Apple M2: p50 792.9324 ms, p99 809.4295 ms over 20 runs of [8, 512] ROWS_DENSE, 4096 live tokens, 4096 computed; min cosine 0.9999999999991096, max abs diff 1.1444091796875e-5
+library (metal Apple M2): p50 792.9324 ms, p99 809.4295 ms on [8, 512] ROWS_DENSE: 4096 token positions computed of 4096 live
+text-embeddings-inference (end_to_end): not run: disabled on the command line (--no-tei)
+mlx (kernel): not run: disabled on the command line (--no-mlx)
+$SCRATCH/rec1461/out/m2.metal.embed.model-dense.modernbert-base-65a07202.4cc4468fe7e1.json
+exit 0
+== end 2026-10-28T06:06:29Z
+ 2:06  up 18 days, 19:15, 6 users, load averages: 6.11 7.74 5.97
+"Device Utilization %"=97
