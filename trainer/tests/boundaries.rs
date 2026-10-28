@@ -156,7 +156,10 @@ fn large_scores_that_cancel_or_are_forbidden_leave_the_loss_whole() {
     let names = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
     let (_, tags) = allowed(Scheme::Tags, &names(&["A", "B"])).unwrap();
     let (_, bio) = allowed(Scheme::Bio, &names(&["O", "B-X", "I-X"])).unwrap();
-    let cases: [(&_, Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>); 3] = [
+    // Lattice, start, end, emissions, and the start, end and emission
+    // gradients wanted.
+    type Case<'a> = (&'a turbo::head::crf::Allowed, Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>);
+    let cases: [Case; 3] = [
         (&tags, vec![1e20, 0.0], vec![0.0, 1e20], vec![0.0; 2], vec![-0.5, 0.5]),
         (&tags, vec![0.0, 1e20], vec![1e20, 0.0], vec![0.0; 2], vec![-0.5, 0.5]),
         (&bio, vec![0.0, 0.0, 1e20], vec![0.0; 3], vec![0.0; 3], vec![-0.5, 0.5, 0.0]),
