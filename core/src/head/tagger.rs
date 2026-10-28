@@ -99,7 +99,11 @@ impl TokenTagger {
             .ok_or_else(|| Error::new(INVALID_ARGUMENT, format!("the bundle has no head {name:?}")))?;
         let a = m.architecture.as_ref().ok_or_else(|| invalid("manifest.json: heads: requires an architecture"))?;
         let hidden = a.hidden as usize;
-        let art = &m.artifacts[spec.artifact as usize];
+        let art = m
+            .artifacts
+            .iter()
+            .find(|a| a.name == spec.artifact)
+            .ok_or_else(|| invalid(format!("head {:?}: no artifact {:?}", spec.name, spec.artifact)))?;
         let wanted = tensors(spec, hidden);
         let expected: Vec<Expected> = wanted
             .iter()
@@ -195,8 +199,9 @@ impl TokenTagger {
     /// The label scores [words, labels] of one sequence into `out`, from
     /// its subword states `states` [rows, hidden] and `words` [rows], each
     /// row's word index or [`NO_WORD`]. Word indices must start at 0 and
-    /// rise by 0 or 1 from row to row (a word's rows are adjacent and in
-    /// order). Returns the number of words.
+    /// rise by 0 or 1 from row to row, and a word's rows are adjacent: no
+    /// NO_WORD row between two rows of one word. Returns the number of
+    /// words.
     ///
     /// Refused: states or map of the wrong size (INVALID_SHAPE); a word
     /// map out of order or a non-finite state (INVALID_ARGUMENT).
@@ -275,21 +280,31 @@ impl TokenTagger {
 }
 
 /// The number of words a word map names, checking it starts at 0 and
-/// rises by at most 1 from row to row, skipping rows of no word.
+/// rises by at most 1 from row to row, skipping rows of no word, and that
+/// no row of no word falls between two rows of one word.
 pub fn word_count(words: &[u32]) -> Result<usize> {
     let mut next = 0u32;
+    // Whether a NO_WORD row came after the last word's rows: that word
+    // may not go on, since a word's rows are adjacent.
+    let mut gap = false;
     for (r, &word) in words.iter().enumerate() {
         if word == NO_WORD {
+            gap = next > 0;
             continue;
         }
         if word == next {
             next += 1;
-        } else if next == 0 || word != next - 1 {
+        } else if next == 0 || word != next - 1 || gap {
             return Err(Error::new(
                 INVALID_ARGUMENT,
-                format!("word map row {r}: word {word} after word {}", next as i64 - 1),
+                format!(
+                    "word map row {r}: word {word} after word {}{}",
+                    next as i64 - 1,
+                    if gap { " and a gap" } else { "" }
+                ),
             ));
         }
+        gap = false;
     }
     Ok(next as usize)
 }
