@@ -34,7 +34,11 @@ use turbo::*;
 /// runs tests in the package directory), or None.
 fn named_bundle() -> Option<PathBuf> {
     let p = PathBuf::from(std::env::var_os("TURBO_TEST_BUNDLE")?);
-    Some(if p.is_absolute() { p } else { Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join(p) })
+    Some(turbo_pins::require(if p.is_absolute() {
+        p
+    } else {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("..").join(p)
+    }))
 }
 
 fn bundle() -> PathBuf {

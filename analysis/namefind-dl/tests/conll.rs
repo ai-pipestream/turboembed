@@ -39,7 +39,7 @@ fn of_kind<'a>(names: &[LabeledSpan<'a>], kind: &str) -> Vec<LabeledSpan<'a>> {
 #[test]
 #[ignore = "needs TURBO_NER_BUNDLE (bundle/recipes/dslim-bert-base-ner.json) and TURBO_CONLL2003_TEST naming eng.testb"]
 fn conll2003_english_test_set() {
-    let bundle = PathBuf::from(std::env::var("TURBO_NER_BUNDLE").expect("TURBO_NER_BUNDLE"));
+    let bundle = turbo_pins::require(PathBuf::from(std::env::var("TURBO_NER_BUNDLE").expect("TURBO_NER_BUNDLE")));
     let source = std::fs::read_to_string(std::env::var("TURBO_CONLL2003_TEST").expect("TURBO_CONLL2003_TEST")).unwrap();
     let samples: Vec<_> = Conll03Reader::new(&source, Conll03Language::English, EntityTypes::ALL)
         .unwrap()
