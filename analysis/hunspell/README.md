@@ -38,12 +38,44 @@ crate's tests with the dictionaries required.
 
 ## Golden files
 
-`tests/snapshots.rs` checks reviewed snapshots under `tests/snapshots/` for
-each published and fixture dictionary: load errors, unsupported directives,
-`stem`, `stemAll`, and `analyze`. Regenerate with `TURBO_BLESS=1`. Published
-dictionaries still come from `turbo-goldens fetch-models` (`TURBO_GOLDENS_MODELS`).
-Fixtures stay under `analysis/goldens/data/fixtures/hunspell`. JVM OpenNLP
-goldens are no longer an oracle; snapshots record this crate's output.
+`tests/golden.rs` compares the crate with goldens a JVM running OpenNLP wrote:
+the `hunspell` runs of `analysis/goldens-tool` (`HunspellGolden.java`), made in
+its container by `turbo-goldens generate` and checked by `turbo-goldens
+verify`. Nothing calls the JVM at test time.
+
+A run is one dictionary: `en_US`, `de_DE_frami` or `hu_HU`, or
+`fixture-<name>` for each pair of files in
+`analysis/goldens/data/fixtures/hunspell`. A fixture whose name starts with
+`unsupported` has a second run, `fixture-<name>+partial`, loaded with
+`LoadMode::AllowPartial`. A run reads `inputs/hunspell/edge.txt` and
+`inputs/hunspell/<run>.txt`, and a published dictionary also the Snowball
+sample of its language in `inputs/stem`. Its goldens are
+`analysis/goldens/data/hunspell/<run>/<set>/<input>.golden`, with five
+layers anchored to the document:
+
+| Layer | Contents |
+|---|---|
+| `turbo:hunspell-load` | One row: the class and message of the exception loading threw, empty when it loaded |
+| `turbo:hunspell-unsupported` | The directives a partial load skipped, with the line of each |
+| `turbo:hunspell-words` | Per word: the word, what `stem` returned and the class of an exception stemming threw |
+| `turbo:hunspell-stems` | Every string `stemAll` returned, by the row of its word |
+| `turbo:hunspell-analyses` | Every string `analyze` returned, by the row of its word |
+
+The fixtures are written for this project and may be redistributed with it:
+
+| Fixture | What it covers |
+|---|---|
+| `affixes` | Conditions, strip text, continuation classes, cross products, `NEEDAFFIX`, `ONLYINCOMPOUND`, `FORBIDDENWORD`, `KEEPCASE`, `CIRCUMFIX`, `WARN` with `FORBIDWARN`, `FULLSTRIP`, `IGNORE`, `ICONV`, `OCONV`, morphological fields |
+| `flag-long`, `flag-num`, `flag-utf8`, `raw-flags` | The flag formats, with `AF` and `AM` aliases, supplementary characters and raw flag bytes in a UTF-8 file |
+| `compound` | Positional compound flags, `COMPOUNDMIN`, `COMPOUNDWORDMAX`, the `CHECKCOMPOUND*` checks, `COMPOUNDPERMITFLAG`, `COMPOUNDFORBIDFLAG`, `FORCEUCASE`, `COMPOUNDROOT`, `CHECKCOMPOUNDPATTERN`, `CHECKCOMPOUNDREP` and `BREAK` |
+| `triple`, `compound-rule`, `complex` | `SIMPLIFIEDTRIPLE`, `COMPOUNDRULE`, `COMPLEXPREFIXES` |
+| `latin1`, `turkic`, `hungarian` | An ISO 8859-1 file with `CHECKSHARPS`, Turkic case mapping, Hungarian compounding (`COMPOUNDSYLLABLE`, `SYLLABLENUM`) |
+| `bom-crlf`, `unsupported-directives` | A byte order mark, CRLF lines and comments; a directive the reader refuses |
+| `error-*` | One load error each: the flag mode, a truncated block, a condition, the encoding, an alias, a morphology alias, a long flag, a compound rule, bytes that are not UTF-8 |
+
+The inputs of a run hold one word per line, escaped as
+`EscapedLines` reads them (`\\`, `\t`, `\n`, `\r`, `\uXXXX`); a line starting
+with `#` is a comment.
 
 ## Speed
 
