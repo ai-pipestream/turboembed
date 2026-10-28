@@ -61,21 +61,30 @@ fn input(
     }
 }
 
-fn run(input: &Input, path: &str) -> (Relations, Edges<Entities, Entities>, Duration) {
+/// Annotates the small and the large input with `path`: one warm-up pass,
+/// then five rounds alternating the two sizes, keeping each size's best time.
+/// Alternating makes a burst of load on a shared runner hit both sizes alike;
+/// timing all of one size first let a burst land on the large run only.
+fn run_pair(small: &Input, large: &Input, path: &str) -> (Relations, Edges<Entities, Entities>, Duration, Duration) {
     let annotator: RelationAnnotator = RelationAnnotator::new(vec![RelationPattern::new("r", path).unwrap()]).unwrap();
-    let view = input.doc.get::<View>().unwrap();
-    let mut best = Duration::MAX;
-    let mut out = None;
-    for _ in 0..3 {
-        let start = Instant::now();
-        let layers = annotator
+    let annotate = |input: &Input| {
+        let view = input.doc.get::<View>().unwrap();
+        annotator
             .annotate((view, &input.sentences, &input.tokens, &input.tokens, &input.deps, &input.entities, None, None))
-            .unwrap();
-        best = best.min(start.elapsed());
-        out = Some(layers);
+            .unwrap()
+    };
+    let mut out = annotate(large);
+    annotate(small);
+    let (mut small_best, mut large_best) = (Duration::MAX, Duration::MAX);
+    for _ in 0..5 {
+        let start = Instant::now();
+        std::hint::black_box(annotate(small));
+        small_best = small_best.min(start.elapsed());
+        let start = Instant::now();
+        out = annotate(large);
+        large_best = large_best.min(start.elapsed());
     }
-    let (relations, edges) = out.unwrap();
-    (relations, edges, best)
+    (out.0, out.1, small_best, large_best)
 }
 
 fn assert_linear(small: Duration, large: Duration) {
@@ -95,8 +104,7 @@ fn coordination(n: u32) -> Input {
 #[test]
 fn edges_grow_linearly_with_mentions() {
     let (small, large) = (coordination(150), coordination(300));
-    let (_, _, small_time) = run(&small, "<conj >conj");
-    let (relations, edges, large_time) = run(&large, "<conj >conj");
+    let (relations, edges, small_time, large_time) = run_pair(&small, &large, "<conj >conj");
     assert_eq!(relations.subject.len(), 300 * 299);
     assert_eq!(edges.from, relations.subject);
     assert_eq!(edges.to, relations.object);
@@ -123,8 +131,7 @@ fn pairs_and_heads_grow_linearly_with_the_document() {
     // release build; at millisecond scale a loaded machine can
     // preempt only the large run and fake a quadratic ratio.
     let (small, large) = (sentences(16_000), sentences(64_000));
-    let (_, _, small_time) = run(&small, "<nsubj >obj");
-    let (relations, _, large_time) = run(&large, "<nsubj >obj");
+    let (relations, _, small_time, large_time) = run_pair(&small, &large, "<nsubj >obj");
     assert_eq!(relations.subject.len(), 64_000);
     assert!(relations.subject.iter().zip(&relations.object).all(|(s, o)| s.get() % 2 == 0 && o.get() == s.get() + 1));
     assert_linear(small_time, large_time);
