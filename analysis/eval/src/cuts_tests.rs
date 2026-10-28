@@ -138,3 +138,39 @@ fn sentence_vectors_stay_out_of_the_dump() {
     assert!(doc.get::<Chunks>().is_some());
     fs::remove_dir_all(d).unwrap();
 }
+
+#[test]
+fn weighed_drift_boundaries_cross_and_compare() {
+    // Drift writes the structure's and the drift's costs as their own
+    // instances and the weighed costs as the default one, which the
+    // optimizer and the comparison read.
+    let (a, b) = (dir("drift-a"), dir("drift-b"));
+    let w = turbo_chunker::WeighBoundaries::default();
+    let c = TurboChunker {
+        signals: Signals::StructureDrift {
+            drift: turbo_chunker::Drift::default(),
+            structure: w.structure,
+            weight: w.drift,
+        },
+        ..chunker(Costs::default())
+    };
+    dump(&a, "s", "cpu", &c);
+    dump(&b, "s", "cpu", &c);
+    let sets = compare_dirs(&a, &b).unwrap();
+    assert!(sets[0].is_identical(), "{}", sets[0]);
+    assert!(sets[0].matched > 0);
+    for d in [a, b] {
+        fs::remove_dir_all(d).unwrap();
+    }
+}
+
+#[test]
+fn an_unfinished_dump_leaves_no_file() {
+    let d = dir("partial");
+    let c = chunker(Costs::default());
+    drop(Writer::create(&d, &header("s", "cpu", &c)).unwrap());
+    assert!(!cuts_path(&d, "s").exists());
+    // A later run is not refused by it.
+    dump(&d, "s", "cpu", &c);
+    fs::remove_dir_all(d).unwrap();
+}

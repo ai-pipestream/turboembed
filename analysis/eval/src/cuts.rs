@@ -74,6 +74,7 @@ fn u32_len(n: usize, what: &str) -> Result<[u8; 4]> {
 /// one already there is never replaced.
 pub struct Writer {
     path: PathBuf,
+    partial: PathBuf,
     out: std::io::BufWriter<fs::File>,
     codecs: Codecs,
     docs: u32,
@@ -83,27 +84,27 @@ impl Writer {
     pub fn create(dir: &Path, header: &Header) -> Result<Writer> {
         fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
         let path = cuts_path(dir, &header.set);
-        let at = |e: std::io::Error| format!("{}: {e}", path.display());
-        let file = fs::OpenOptions::new().write(true).create_new(true).open(&path).map_err(|e| {
-            if e.kind() == std::io::ErrorKind::AlreadyExists {
-                format!("{}: a cut dump is never replaced", path.display())
-            } else {
-                at(e)
-            }
-        })?;
+        if path.exists() {
+            return Err(format!("{}: a cut dump is never replaced", path.display()));
+        }
+        // Written under a partial name and renamed whole by `finish`, so a
+        // run that fails part way leaves no dump a later run refuses.
+        let partial = path.with_extension("cuts.partial");
+        let at = |e: std::io::Error| format!("{}: {e}", partial.display());
+        let file = fs::File::create(&partial).map_err(at)?;
         let mut out = std::io::BufWriter::new(file);
         let json = serde_json::to_vec(header).map_err(|e| format!("cut dump header: {e}"))?;
         out.write_all(MAGIC).map_err(at)?;
         out.write_all(&u32_len(json.len(), "a header")?).map_err(at)?;
         out.write_all(&json).map_err(at)?;
-        Ok(Writer { path, out, codecs: codecs(), docs: 0 })
+        Ok(Writer { path, partial, out, codecs: codecs(), docs: 0 })
     }
 
     /// Writes one document's cuts: `doc` is the document the chunker
     /// cut, holding at least `Sentences`, `Boundaries` and `Chunks`.
     pub fn document(&mut self, id: &str, doc: &Document) -> Result<()> {
         let bytes = graph(doc, &self.codecs)?.to_bytes().map_err(|e| format!("document {id}: {e}"))?;
-        let at = |e: std::io::Error| format!("{}: {e}", self.path.display());
+        let at = |e: std::io::Error| format!("{}: {e}", self.partial.display());
         self.out.write_all(&u32_len(id.len(), "a document id")?).map_err(at)?;
         self.out.write_all(id.as_bytes()).map_err(at)?;
         self.out.write_all(&u32_len(bytes.len(), "a document graph")?).map_err(at)?;
@@ -114,7 +115,11 @@ impl Writer {
 
     /// Flushes the file; returns its path and the documents written.
     pub fn finish(mut self) -> Result<(PathBuf, u32)> {
-        self.out.flush().map_err(|e| format!("{}: {e}", self.path.display()))?;
+        self.out.flush().map_err(|e| format!("{}: {e}", self.partial.display()))?;
+        if self.path.exists() {
+            return Err(format!("{}: a cut dump is never replaced", self.path.display()));
+        }
+        fs::rename(&self.partial, &self.path).map_err(|e| format!("{}: {e}", self.path.display()))?;
         Ok((self.path, self.docs))
     }
 }
