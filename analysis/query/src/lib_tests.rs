@@ -8,7 +8,7 @@ fn sentences_of(text: &str) -> Vec<(u32, u32)> {
             "eng",
             "eng",
             TermForm::Surface,
-            crate::annotators::QuerySpanDetector::new(crate::default_span_detector(), false),
+            crate::annotators::QuerySpanDetector::new(crate::default_span_detector()),
         ))
         .build()
         .unwrap();
