@@ -15,7 +15,7 @@ use std::sync::{Mutex, PoisonError};
 
 use turbo::bundle::Bundle;
 use turbo::head::{EditTreeLemmatizer, TokenTagger, lemmatizer, tagger};
-use turbo::manifest::HeadKind;
+use turbo::manifest::{HeadKind, WordPooling};
 use turbo::status::Error as CoreError;
 use turbo_analysis::{Annotator, Error, Execution, Fnv1a, Ix, Layer, ModelRef, Refs, View};
 use turbo_analysis_embed::EncoderOptions;
@@ -106,26 +106,34 @@ impl Lemmatizer {
     /// Each sequence of words lemmatized.
     pub fn lemmatize(&self, sequences: &[Vec<&str>]) -> Result<Vec<Vec<String>>, CoreError> {
         let mut words = self.words.lock().unwrap_or_else(PoisonError::into_inner);
-        let mut read = |pooling| words.features(sequences, pooling);
+        let mut read = |poolings: &[WordPooling]| words.features_pooled(sequences, poolings);
         let (head, pos) = self.features(&mut read)?;
         drop(words);
         self.lemmas_of(&head, pos.as_deref(), sequences)
     }
 
+    /// Rows the encoder has read so far: one a window, however many
+    /// poolings the heads take from it.
+    pub fn rows(&self) -> u64 {
+        self.words.lock().unwrap_or_else(PoisonError::into_inner).rows()
+    }
+
     /// The word features the head reads and, when the tagger pools words
-    /// another way, the tagger's.
+    /// another way, the tagger's, both from one read of each window.
     #[allow(clippy::type_complexity)]
     fn features<E>(
         &self,
-        read: &mut dyn FnMut(turbo::manifest::WordPooling) -> Result<Vec<Vec<f32>>, E>,
+        read: &mut dyn FnMut(&[WordPooling]) -> Result<Vec<Vec<Vec<f32>>>, E>,
     ) -> Result<(Vec<Vec<f32>>, Option<Vec<Vec<f32>>>), E> {
         let pooling = self.head.spec().word_pooling;
-        let head = read(pooling)?;
-        let pos = match &self.pos {
-            Some(t) if t.spec().word_pooling != pooling => Some(read(t.spec().word_pooling)?),
-            _ => None,
-        };
-        Ok((head, pos))
+        match &self.pos {
+            Some(t) if t.spec().word_pooling != pooling => {
+                let mut out = read(&[pooling, t.spec().word_pooling])?;
+                let pos = out.pop().expect("two poolings");
+                Ok((out.pop().expect("two poolings"), Some(pos)))
+            }
+            _ => Ok((read(&[pooling])?.pop().expect("one pooling"), None)),
+        }
     }
 
     /// Each sequence's lemmas from its features, `forms` its words' text.
@@ -184,7 +192,7 @@ impl Lemmatizer {
     ) -> Result<Lemmas, String> {
         let seqs = HeadRunner::sequences(view, tokens, sentences)?;
         let mut words = self.words.lock().unwrap_or_else(PoisonError::into_inner);
-        let mut read = |pooling| words.token_features(view, tokens, &seqs, subwords, pooling);
+        let mut read = |poolings: &[WordPooling]| words.token_features_pooled(view, tokens, &seqs, subwords, poolings);
         let (head, pos) = self.features(&mut read)?;
         drop(words);
         let text = view.text();

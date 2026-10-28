@@ -58,6 +58,28 @@ fn the_lemmatizer_writes_the_core_heads_lemma_for_every_token() {
 }
 
 #[test]
+fn the_tagger_and_the_head_pool_from_one_read_of_each_window() {
+    // The pos head pools by the mean and the lemma head by the first
+    // piece: both come from the rows one pooling would read.
+    let dir = bundle("lemma-rows", |_| {});
+    let doc = Document::new(TEXT);
+    let view = doc.require(&Key::<View>::DEFAULT).unwrap();
+    let toks = tokens(TEXT);
+    let o = EncoderOptions { max_seq: 8, ..EncoderOptions::default() };
+    let lem = Lemmatizer::open(&dir, None, &o).unwrap();
+    assert_ne!(lem.pos().unwrap().spec().word_pooling, lem.head().spec().word_pooling);
+    let words: Vec<&str> = TEXT.split(' ').collect();
+    let mut enc = WordEncoder::open(&dir, &o).unwrap();
+    enc.features(std::slice::from_ref(&words), WordPooling::First).unwrap();
+    let one = enc.rows();
+    assert!(one > 1, "the sentence is read in windows");
+    lem.annotate((view, &toks, None, None)).unwrap();
+    assert_eq!(lem.rows(), one);
+    lem.lemmatize(&[words]).unwrap();
+    assert_eq!(lem.rows(), 2 * one);
+}
+
+#[test]
 fn the_tags_match_the_pos_annotator() {
     let dir = bundle("lemma-tags", |_| {});
     let doc = Document::new(TEXT);
