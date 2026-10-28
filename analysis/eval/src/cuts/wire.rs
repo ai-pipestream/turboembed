@@ -2,8 +2,8 @@
 use super::super::Header;
 use crate::Result;
 use crate::record::Setting;
+use crate::sha::Sha256;
 use std::io::{Read, Write};
-use turbo_goldens::sha::Sha256;
 
 pub const MAGIC: &[u8] = b"turbo-eval cuts 2\n";
 pub const HEADER: usize = 1024 * 1024;

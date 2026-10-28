@@ -22,6 +22,7 @@ mod attend;
 mod dense;
 mod gemm;
 mod micro;
+mod pairs;
 mod rowwise;
 mod simd;
 
@@ -34,6 +35,7 @@ pub(super) use micro::Neon;
 #[cfg(target_arch = "x86_64")]
 pub(super) use micro::{Avx2, Avx512};
 pub(super) use micro::{Micro, Portable};
+pub(super) use pairs::{Act, Rope};
 pub(crate) use rowwise::gelu;
 pub(super) use rowwise::layer_norm;
 
@@ -168,6 +170,9 @@ impl Panels {
 pub(super) struct Packed {
     pub(super) isa: Isa,
     pub(super) layers: Vec<PackedLayer>,
+    /// Zeros, the bias of every product and norm of a model that has
+    /// none (pairs.rs): adding 0 leaves every bit. Empty for a BERT.
+    pub(super) zero: Vec<f32>,
 }
 
 pub(super) struct PackedLayer {
@@ -203,7 +208,7 @@ impl Packed {
                 ffn_out: Panels::pack(&[w(FFN_OUT_W)], i, isa)?,
             });
         }
-        Ok(Packed { isa, layers })
+        Ok(Packed { isa, layers, zero: Vec::new() })
     }
 }
 

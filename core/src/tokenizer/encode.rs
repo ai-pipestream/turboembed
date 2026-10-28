@@ -23,6 +23,18 @@ impl Tokenizer {
         }
     }
 
+    /// The words a WordPiece tokenizer cuts `text` into before WordPiece,
+    /// under this tokenizer's own normalizer settings (see
+    /// [`pre_words`](super::pre_words)); None for any other model.
+    pub fn wordpiece_words(&self, text: &str) -> Option<Vec<(usize, usize)>> {
+        match &self.kind {
+            Kind::WordPiece { normalizer, .. } => {
+                Some(normalize::words_under(text, normalizer.clean_text, normalizer.split_cjk))
+            }
+            _ => None,
+        }
+    }
+
     /// The id under mask 0 in rows the session lays out: the pad token,
     /// or the unk token (which every bundle has) when there is no pad
     /// token, so every id a backend reads is in the vocabulary.

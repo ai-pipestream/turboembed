@@ -82,7 +82,7 @@ pub use self::models::{
 };
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 48] = [
+pub const INPUT_SETS: [&str; 45] = [
     "en",
     "multi",
     "num",
@@ -120,9 +120,6 @@ pub const INPUT_SETS: [&str; 48] = [
     "tag-format",
     "namefind",
     "stem",
-    "stopword",
-    "hunspell",
-    "glossary",
     "svm-doccat",
     "svm-doccat-train",
     "sentiment",
@@ -144,7 +141,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 53] = [
+pub const ANNOTATORS: [&str; 49] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -188,10 +185,6 @@ pub const ANNOTATORS: [&str; 53] = [
     "tag-dictionary",
     "tag-format",
     "namefind",
-    "stem",
-    "stopword",
-    "hunspell",
-    "glossary",
     "svm-doccat",
     "sentiment",
     "doccat",
@@ -209,6 +202,7 @@ pub const ANNOTATORS: [&str; 53] = [
 /// the unigram segmenter, the BPE trainer and the lattice tokenizer, which
 /// ask no model.
 pub const DUMPED_ANNOTATORS: [&str; 6] = ["sentdetect", "tokenize", "postag", "lemmatize", "chunk", "langdetect"];
+
 
 /// The input set the number scan runs on. It runs on no other set, and the
 /// other annotators do not run on this one.

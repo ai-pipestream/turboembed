@@ -171,7 +171,7 @@ pub fn train(
     params: &TrainingParameters,
     annotator: &CorefAnnotator,
 ) -> Result<CorefModel, String> {
-    if turbo_unicode::java::is_blank(language) {
+    if turbo_unicode::whitespace::is_blank(language) {
         return Err("languageCode must not be null or blank".into());
     }
     let mut events = Vec::new();
