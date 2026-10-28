@@ -340,7 +340,8 @@ enum Kernel {
     NARROW_F16, ATTENTION_H, ATTENTION_HR, GEMM_H32, GEMM_H64 = GEMM_H32 + 4, GEMM_H128 = GEMM_H64 + 4,
     GEMM_H32N32 = GEMM_H128 + 4, GEMM_H64N32 = GEMM_H32N32 + 4, GEMM_H32N32A = GEMM_H64N32 + 4,
     GEMM_SMALL_H = GEMM_H32N32A + 4, ABS_MAX_F16 = GEMM_SMALL_H + 4, ATTENTION_H128, ATTENTION_HR128, DEBERTA_EMBED,
-    DEBERTA_LN_ROWS, DEBERTA_RELATIVE, DEBERTA_ATTENTION, LSTM_PROJECT, LSTM_STEP, KERNELS
+    DEBERTA_LN_ROWS, DEBERTA_RELATIVE, DEBERTA_ATTENTION, LSTM_PROJECT, LSTM_STEP, ROTARY_EMBED, LAYER_NORM_INTO, PACK_ROWS,
+    KERNELS
 };
 const char *const KERNEL_NAMES[KERNELS] = {
     "embed_layer_norm", "add_layer_norm",  "gemm",            "gemm_small",      "attention",       "attention_narrow",
@@ -353,7 +354,7 @@ const char *const KERNEL_NAMES[KERNELS] = {
     "gemm_h32n32a_ff",  "gemm_h32n32a_fh", "gemm_h32n32a_hf", "gemm_h32n32a_hh",
     "gemm_small_h_ff",  "gemm_small_h_fh", "gemm_small_h_hf", "gemm_small_h_hh", "abs_max_f16",
     "attention_h128",   "attention_hr128", "deberta_embed",  "deberta_layer_norm_rows", "deberta_relative",
-    "deberta_attention", "lstm_project",   "lstm_step"};
+    "deberta_attention", "lstm_project",   "lstm_step",       "rotary_embed",    "layer_norm_into", "pack_rows"};
 
 /* The kernels compiled for one device. */
 struct Kernels {
@@ -757,13 +758,67 @@ struct Model {
      * first session; relative_at[l] is layer l's offset. */
     id<MTLBuffer> relative = nil;
     std::vector<uint64_t> relative_at;
+    /* TURBO_FAMILY_MODERNBERT and TURBO_FAMILY_NOMIC_BERT (#1461): the
+     * core's cos/sin table, copied at load, [2 (global, local)][2 (cos,
+     * sin)][max_positions][rope_pairs]; zeros for the bias-free norms; and
+     * each layer's Q and K rows pair-adjacent and its gate and up rows
+     * side by side, made by the first session (paired_weights), at
+     * paired_at[3 l] (Q), [3 l + 1] (K) and [3 l + 2] (the MLP's). */
+    id<MTLBuffer> rope = nil;
+    id<MTLBuffer> zero = nil;
+    id<MTLBuffer> paired = nil;
+    std::vector<uint64_t> paired_at;
 };
 
 bool is_deberta(const turbo_backend_model &d) { return d.family == TURBO_FAMILY_DEBERTA_V2; }
 
+bool is_rotary(const turbo_backend_model &d) {
+    return d.family == TURBO_FAMILY_MODERNBERT || d.family == TURBO_FAMILY_NOMIC_BERT;
+}
+
 /* The tensors before the first layer's, by family. */
 uint32_t layer_base(const turbo_backend_model &d) {
-    return is_deberta(d) ? TURBO_DEBERTA_EMBEDDING_TENSORS : TURBO_BERT_EMBEDDING_TENSORS;
+    return is_deberta(d)                            ? TURBO_DEBERTA_EMBEDDING_TENSORS
+           : d.family == TURBO_FAMILY_MODERNBERT    ? TURBO_MODERNBERT_EMBEDDING_TENSORS
+           : d.family == TURBO_FAMILY_NOMIC_BERT    ? TURBO_NOMIC_EMBEDDING_TENSORS
+                                                    : TURBO_BERT_EMBEDDING_TENSORS;
+}
+
+/* What model_load checks of a ModernBERT or nomic-bert description, as the
+ * CPU's does (core/src/cpu/rotary.rs): the struct reaches global_every,
+ * the table holds the family's tensors, the MLP, activation and norm are
+ * the family's, a head is twice rope_pairs wide with a table, and only
+ * ModernBERT has a window. */
+int32_t check_rotary(const turbo_backend_model *d, turbo_error *err) {
+    const size_t need = offsetof(turbo_backend_model, global_every) + sizeof(uint32_t);
+    if (d->struct_size < need)
+        return refuse(err, TURBO_E_INVALID_STRUCT_SIZE, "turbo_backend_model of %u bytes: a rotary model needs %zu",
+                      d->struct_size, need);
+    const bool modern = d->family == TURBO_FAMILY_MODERNBERT;
+    const uint64_t expected = modern ? TURBO_MODERNBERT_EMBEDDING_TENSORS +
+                                           (uint64_t)d->layers * TURBO_MODERNBERT_LAYER_TENSORS
+                                     : TURBO_NOMIC_EMBEDDING_TENSORS + (uint64_t)d->layers * TURBO_NOMIC_LAYER_TENSORS;
+    if (d->tensor_count != expected || !d->tensors)
+        return refuse(err, TURBO_E_INVALID_ARGUMENT, "tensor_count %u: this family's encoder of %u layers has %llu",
+                      d->tensor_count, d->layers, (unsigned long long)expected);
+    const uint32_t act = modern ? TURBO_ACTIVATION_GELU_ERF : TURBO_ACTIVATION_SILU;
+    const uint32_t norm = modern ? TURBO_NORM_LAYER_NO_BIAS : TURBO_NORM_LAYER;
+    if (d->mlp != TURBO_MLP_GATED || d->activation != act || d->norm != norm)
+        return refuse(err, TURBO_E_UNSUPPORTED, "mlp %u, activation %u, norm %u: the metal backend runs this family with %u, %u, %u",
+                      d->mlp, d->activation, d->norm, TURBO_MLP_GATED, act, norm);
+    const uint32_t head = d->heads ? d->hidden / d->heads : 0;
+    if (head == 0 || d->hidden % d->heads != 0 || head % 2 != 0 || d->rope_pairs * 2 != head || !d->rope_table)
+        return refuse(err, TURBO_E_INVALID_ARGUMENT,
+                      "hidden %u, heads %u, rope_pairs %u: a rotary head is an even width, twice rope_pairs, with a "
+                      "table",
+                      d->hidden, d->heads, d->rope_pairs);
+    if ((d->attention_window == 0) != (d->global_every == 0) || (modern && d->attention_window == 0))
+        return refuse(err, TURBO_E_INVALID_ARGUMENT, "attention_window %u, global_every %u", d->attention_window,
+                      d->global_every);
+    if (d->max_positions == 0 || d->max_positions > (1u << 20))
+        return refuse(err, TURBO_E_INVALID_ARGUMENT, "max_positions %u: a rotary table of 1..=%u", d->max_positions,
+                      1u << 20);
+    return TURBO_OK;
 }
 
 /* What model_load checks of a DeBERTa-v2 description, as the CPU's and
@@ -821,13 +876,16 @@ const char *dtype_name(uint32_t d) { return d == TURBO_DTYPE_F32 ? "F32" : d == 
  * copied, or -1 when the host could not give them. */
 int64_t map_weights(Model *m, const turbo_backend_model *desc) {
     const uintptr_t page = (uintptr_t)getpagesize();
-    const uint32_t n = desc->tensor_count;
-    std::vector<uint32_t> order(n);
-    for (uint32_t i = 0; i < n; i++) order[i] = i;
+    std::vector<uint32_t> order;
+    // An absent tensor (ModernBERT's first attention norm) has no bytes
+    // and no buffer.
+    for (uint32_t i = 0; i < desc->tensor_count; i++)
+        if (desc->tensors[i].data && desc->tensors[i].bytes) order.push_back(i);
+    const uint32_t n = (uint32_t)order.size();
     auto start = [&](uint32_t i) { return (uintptr_t)desc->tensors[i].data; };
     auto stop = [&](uint32_t i) { return start(i) + (uintptr_t)desc->tensors[i].bytes; };
     std::sort(order.begin(), order.end(), [&](uint32_t a, uint32_t b) { return start(a) < start(b); });
-    m->stored.assign(n, Ref{});
+    m->stored.assign(desc->tensor_count, Ref{});
     int64_t copied = 0;
     for (uint32_t k = 0; k < n;) {
         const uintptr_t lo = start(order[k]) / page * page;
@@ -859,11 +917,14 @@ int64_t map_weights(Model *m, const turbo_backend_model *desc) {
 int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo_error *err) {
     return guarded(err, [&]() -> int32_t {
         Context *c = static_cast<Context *>(ctx);
-        const bool deberta = is_deberta(*desc);
+        const bool deberta = is_deberta(*desc), rotary = is_rotary(*desc);
         if (deberta)
             TRY(check_deberta(desc, err));
+        else if (rotary)
+            TRY(check_rotary(desc, err));
         else if (desc->family != TURBO_FAMILY_BERT && desc->family != TURBO_FAMILY_ROBERTA)
-            return refuse(err, TURBO_E_UNSUPPORTED, "family %u: the metal backend holds BERT and DeBERTa-v2 encoders",
+            return refuse(err, TURBO_E_UNSUPPORTED,
+                          "family %u: the metal backend holds BERT, DeBERTa-v2, ModernBERT and nomic-bert encoders",
                           desc->family);
         if (desc->heads == 0 || desc->hidden % desc->heads != 0)
             return refuse(err, TURBO_E_UNSUPPORTED, "hidden %u is not a multiple of heads %u", desc->hidden,
@@ -883,6 +944,21 @@ int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo
             delete m;
             return refuse(err, TURBO_E_OUT_OF_MEMORY, "host memory for a copy of the weights");
         }
+        if (rotary) {
+            // The core's cos/sin table, copied once: no trigonometry on
+            // the device. Zeros stand in for the absent biases.
+            const size_t table = (size_t)4 * desc->max_positions * desc->rope_pairs * sizeof(float);
+            const size_t zeros = (size_t)std::max(desc->hidden, 2 * desc->intermediate) * sizeof(float);
+            m->rope = new_buffer(c->device, table, MTLResourceStorageModeShared | WEIGHTS);
+            m->zero = new_buffer(c->device, zeros, MTLResourceStorageModeShared | WEIGHTS);
+            if (!m->rope || !m->zero) {
+                delete m;
+                return refuse(err, TURBO_E_OUT_OF_MEMORY, "%zu bytes for the rotary table", table + zeros);
+            }
+            memcpy(m->rope.contents, desc->rope_table, table);
+            memset(m->zero.contents, 0, zeros);
+            m->desc.rope_table = nullptr;
+        }
         m->in_place = copied == 0;
         if (copied)
             c->say(LOG_WARNING, "metal device %u: Metal did not map some pages the weights are on; copied %lld bytes",
@@ -890,7 +966,11 @@ int32_t model_load(void *ctx, const turbo_backend_model *desc, void **out, turbo
         for (uint32_t i = 0; i < desc->tensor_count; i++) m->counts.push_back(desc->tensors[i].bytes / elem);
         if (desc->dtype == TURBO_DTYPE_F32) m->f32 = m->stored;
         c->say(LOG_DEBUG, "metal device %u: a %s of %u layers, %s weights %s", c->ordinal,
-               deberta ? "DeBERTa-v2" : "BERT", desc->layers, dtype_name(desc->dtype),
+               deberta                                        ? "DeBERTa-v2"
+               : desc->family == TURBO_FAMILY_MODERNBERT      ? "ModernBERT"
+               : desc->family == TURBO_FAMILY_NOMIC_BERT      ? "nomic-bert"
+                                                              : "BERT",
+               desc->layers, dtype_name(desc->dtype),
                m->in_place ? "read in place" : "copied");
         *out = m;
         return TURBO_OK;
@@ -939,6 +1019,7 @@ int32_t f32_weights(Model *m, turbo_error *err) {
         [enc setComputePipelineState:c->kernels->k[m->desc.dtype == TURBO_DTYPE_F16 ? WIDEN_F16 : WIDEN_BF16]];
         for (size_t i = 0; i < m->counts.size(); i++) {
             const uint32_t n = (uint32_t)m->counts[i];
+            if (n == 0) continue;
             [enc setBuffer:m->stored[i].buf offset:m->stored[i].at atIndex:0];
             [enc setBuffer:wide offset:at[i] atIndex:1];
             [enc setBytes:&n length:sizeof n atIndex:2];
@@ -1078,11 +1159,20 @@ struct RowParams {
 };
 struct GemmParams {
     uint32_t m, n, k, epilogue, splits, kchunk;
+    /* EPILOGUE_ROPE's: a head's width, and the floats from the cos table
+     * to the sin table. */
+    uint32_t head_dim = 0, rope_sin = 0;
 };
+/* AttentionParams::window for a layer that reads the whole row. */
+constexpr uint32_t NO_WINDOW = UINT32_MAX;
 struct AttentionParams {
     uint32_t hidden, head_dim;
     float scale;
     uint32_t narrow_stride;
+    uint32_t window = NO_WINDOW;
+};
+struct PackParams {
+    uint32_t rows, k, mode, head_dim;
 };
 struct PoolParams {
     uint32_t hidden, output_dim, pooling, l2;
@@ -1153,10 +1243,83 @@ int32_t relative_rows(Model *m, turbo_error *err) {
     m->relative_at = at;
     return TURBO_OK;
 }
+/* The tensor index of a rotary model's layer l, role r. */
+uint32_t rotary_tensor(const turbo_backend_model &d, uint32_t l, uint32_t r) {
+    const uint32_t per = d.family == TURBO_FAMILY_MODERNBERT ? TURBO_MODERNBERT_LAYER_TENSORS : TURBO_NOMIC_LAYER_TENSORS;
+    return layer_base(d) + l * per + r;
+}
+
+/* A ModernBERT's or nomic-bert's linear layers laid out as the epilogues
+ * read them (kernels.metal, pack_rows; core/src/cpu/kernels/pairs.rs), made
+ * on first need from the F32 tensors f32_weights made: each layer's Q and
+ * K rows with each head's in pairs (c, c + d/2), and its gate and up rows
+ * side by side, [2 intermediate, hidden]. V, the attention output and the
+ * MLP's output are read as stored. */
+int32_t paired_weights(Model *m, turbo_error *err) {
+    std::lock_guard<std::mutex> g(m->widen_lock);
+    if (m->paired) return TURBO_OK;
+    Context *c = m->ctx;
+    const turbo_backend_model &d = m->desc;
+    const bool modern = d.family == TURBO_FAMILY_MODERNBERT;
+    const uint32_t h = d.hidden, inter = d.intermediate, hd = h / d.heads;
+    const size_t square = round_up((size_t)h * h * 4, 256), gated = round_up((size_t)2 * inter * h * 4, 256);
+    const size_t total = d.layers * (2 * square + gated);
+    id<MTLBuffer> buf = new_buffer(c->device, total, MTLResourceStorageModePrivate | WEIGHTS);
+    if (!buf) return refuse(err, TURBO_E_OUT_OF_MEMORY, "%zu bytes for the paired weights", total);
+    std::vector<uint64_t> at;
+    {
+        std::lock_guard<std::mutex> cg(c->lock);
+        id<MTLCommandBuffer> cb = [c->queue commandBuffer];
+        id<MTLComputeCommandEncoder> enc = [cb computeCommandEncoder];
+        [enc setComputePipelineState:c->kernels->k[PACK_ROWS]];
+        auto pack = [&](const Ref &a, uint64_t a_off, const Ref &b, uint64_t b_off, uint64_t dst, uint32_t rows,
+                        uint32_t mode) {
+            const PackParams pp{rows, h, mode, hd};
+            [enc setBuffer:a.buf offset:a.at + a_off atIndex:0];
+            [enc setBuffer:b.buf offset:b.at + b_off atIndex:1];
+            [enc setBuffer:buf offset:dst atIndex:2];
+            [enc setBytes:&pp length:sizeof pp atIndex:3];
+            [enc dispatchThreads:MTLSizeMake((NSUInteger)rows * h, 1, 1) threadsPerThreadgroup:MTLSizeMake(256, 1, 1)];
+        };
+        uint64_t next = 0;
+        for (uint32_t l = 0; l < d.layers; l++) {
+            const Ref &qkv = m->f32[rotary_tensor(d, l, modern ? TURBO_MODERNBERT_QKV_WEIGHT : TURBO_NOMIC_QKV_WEIGHT)];
+            for (uint32_t third = 0; third < 2; third++) {
+                at.push_back(next);
+                pack(qkv, (uint64_t)third * h * h * 4, qkv, 0, next, h, 0);
+                next += square;
+            }
+            at.push_back(next);
+            if (modern) {
+                const Ref &wi = m->f32[rotary_tensor(d, l, TURBO_MODERNBERT_FFN_IN_WEIGHT)];
+                pack(wi, 0, wi, (uint64_t)inter * h * 4, next, 2 * inter, 1);
+            } else {
+                pack(m->f32[rotary_tensor(d, l, TURBO_NOMIC_FFN_GATE_WEIGHT)], 0,
+                     m->f32[rotary_tensor(d, l, TURBO_NOMIC_FFN_UP_WEIGHT)], 0, next, 2 * inter, 1);
+            }
+            next += gated;
+        }
+        [enc endEncoding];
+        TRY(finish(cb, err, "pairing the weights"));
+    }
+    m->paired = buf;
+    m->paired_at = at;
+    return TURBO_OK;
+}
+
 /* pool_ranges reads each range as three uints, as turbo.h lays it out. */
 static_assert(sizeof(turbo_token_range) == 12, "turbo_token_range is three uint32");
 
-enum : uint32_t { EPILOGUE_NONE = 0, EPILOGUE_BIAS = 1, EPILOGUE_BIAS_GELU = 2 };
+enum : uint32_t {
+    EPILOGUE_NONE = 0,
+    EPILOGUE_BIAS = 1,
+    EPILOGUE_BIAS_GELU = 2,
+    /* The rotary families' (kernels.metal, store_pair), F32 kernels alone. */
+    EPILOGUE_ROPE = 3,
+    EPILOGUE_GATED_GELU = 4,
+    EPILOGUE_GATED_SILU = 5,
+    EPILOGUE_RESIDUAL = 6
+};
 
 /* Threadgroups a linear layer's dispatch should have to keep the GPU's
  * cores busy: several per core on the largest Apple GPUs. */
@@ -1387,6 +1550,12 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
             return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
                                 "precision: FASTEST on FAMILY_DEBERTA_V2: the metal backend runs a DeBERTa-v2 encoder "
                                 "in F32 alone; ask for MODEL or EXACT");
+        const bool rotary = is_rotary(d);
+        if (rotary && precision == TURBO_PRECISION_FASTEST)
+            return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
+                                "precision: FASTEST on %s: the metal backend runs a rotary encoder in F32 alone; ask "
+                                "for MODEL or EXACT",
+                                d.family == TURBO_FAMILY_MODERNBERT ? "FAMILY_MODERNBERT" : "FAMILY_NOMIC_BERT");
         // A DeBERTa-v2 attention SIMD group holds a row's scores, as the
         // narrow kernel's does.
         const size_t shared = deberta ? round_up(sizeof(float) * round_up(max_seq, 8), 16)
@@ -1432,6 +1601,7 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
                                 LINEAR_NAMES[forced], c->ordinal);
         TRY(f32_weights(m, err));
         if (deberta) TRY(relative_rows(m, err));
+        if (rotary) TRY(paired_weights(m, err));
         // The linear layers' kernels: the forced ones, else F16 where
         // allowed, else F32 where allowed. A layer with a weight past F16's
         // range computes in F32, at FASTEST too, as on CUDA; a forced F16
@@ -1455,6 +1625,10 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
                 linear = LINEAR_F32;
             }
         }
+        if (rotary && linear != LINEAR_F32)
+            return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
+                                "TURBO_METAL_CHOICES linear=%s: the metal backend runs a rotary encoder in F32 alone",
+                                LINEAR_NAMES[linear]);
         // Attention's kernels are F16 ones, and run where the linear
         // layers' do and the heads are ones the matrix kernels take.
         if (forced_attn >= 0 && !(linear != LINEAR_F32 && half_heads(d.hidden / d.heads)))
@@ -1587,7 +1761,9 @@ void pack(Session &s, const turbo_backend_embed_rows *r) {
     uint32_t *starts = reinterpret_cast<uint32_t *>(base + s.starts);
     uint32_t *blocks = reinterpret_cast<uint32_t *>(base + s.blocks);
     uint32_t t = 0, nb = 0, longest = 0;
-    const int32_t pos0 = (int32_t)s.model->desc.position_offset;
+    // A rotary family's position is the token's column in its row, as on
+    // the CPU, with no offset.
+    const int32_t pos0 = is_rotary(s.model->desc) ? 0 : (int32_t)s.model->desc.position_offset;
     for (uint32_t row = 0; row < r->batch; row++) {
         const size_t at = (size_t)row * r->row_stride;
         const int32_t *m = r->mask + at;
@@ -1675,7 +1851,7 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
     const Kernel att_h = wide_heads(hd) ? (registers ? ATTENTION_HR : ATTENTION_H)
                                         : (registers ? ATTENTION_HR128 : ATTENTION_H128);
     const std::vector<uint8_t> &f32_layer = s.model->f32_layer;
-    const bool deberta = is_deberta(d);
+    const bool deberta = is_deberta(d), rotary = is_rotary(d);
     const uint32_t base = layer_base(d);
     auto layer = [&](uint32_t l, int r) -> const Ref & {
         return w[base + l * TURBO_BERT_LAYER_TENSORS + r];
@@ -1683,6 +1859,11 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
     auto per_token = [&]() {
         [enc dispatchThreadgroups:MTLSizeMake(tokens / 4, 1, 1) threadsPerThreadgroup:MTLSizeMake(128, 1, 1)];
     };
+    // EPILOGUE_ROPE's table: the floats from cos to sin, and where the
+    // layer's base's cos table starts, in bytes (the global one at 0, the
+    // local one after both of its tables).
+    const uint32_t rope_sin = d.max_positions * d.rope_pairs;
+    uint64_t rope_at = 0;
     // Up to three layers of one shape, over the same input, in one
     // dispatch. A single layer with no epilogue whose tiles would leave
     // most of the GPU idle has its k split, so more threadgroups share the
@@ -1712,7 +1893,7 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
         // Whole 32 x 32 tiles and whole k steps in every split: the
         // 32 x 32 tile's form without range checks, the same bits.
         const bool aligned = tokens % 32 == 0 && n_out % 32 == 0 && n_in % 32 == 0 && kchunk % 32 == 0;
-        const GemmParams p{tokens, n_out, n_in, epilogue, splits, kchunk};
+        const GemmParams p{tokens, n_out, n_in, epilogue, splits, kchunk, hd, rope_sin};
         int kernel = small ? GEMM_SMALL : GEMM;
         if (f16) {
             const int types = (x_half ? 2 : 0) + (y_half ? 1 : 0);
@@ -1742,6 +1923,13 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
             [enc setBuffer:sc offset:0 atIndex:7 + j];
         }
         [enc setBytes:&p length:sizeof p atIndex:10];
+        // The F32 kernels' token positions and cos table, for
+        // EPILOGUE_ROPE; something valid otherwise.
+        [enc setBuffer:rows offset:s.pos atIndex:11];
+        if (s.model->rope)
+            [enc setBuffer:s.model->rope offset:rope_at atIndex:12];
+        else
+            bind(w[0], 12);
         if (small)
             [enc dispatchThreadgroups:MTLSizeMake(n_out / 16, tokens / 32, n) threadsPerThreadgroup:MTLSizeMake(128, 1, 1)];
         else
@@ -1775,6 +1963,25 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
         [enc setBuffer:sc offset:s.x atIndex:5];
         [enc setBytes:&rp length:sizeof rp atIndex:6];
         [enc setBuffer:sc offset:s.x atIndex:7];
+    } else if (rotary) {
+        // The word row, plus the type row for nomic-bert, LayerNormed; no
+        // position rows.
+        const bool modern = d.family == TURBO_FAMILY_MODERNBERT;
+        const uint32_t typed = modern ? 0 : 1;
+        [enc setComputePipelineState:kn.k[ROTARY_EMBED]];
+        [enc setBuffer:rows offset:s.ids atIndex:0];
+        [enc setBuffer:rows offset:s.types atIndex:1];
+        bind(w[modern ? TURBO_MODERNBERT_WORD_EMBEDDINGS : TURBO_NOMIC_WORD_EMBEDDINGS], 2);
+        bind(w[modern ? TURBO_MODERNBERT_WORD_EMBEDDINGS : TURBO_NOMIC_TOKEN_TYPE_EMBEDDINGS], 3);
+        bind(w[modern ? TURBO_MODERNBERT_EMBEDDINGS_LN_WEIGHT : TURBO_NOMIC_EMBEDDINGS_LN_WEIGHT], 4);
+        if (modern)
+            [enc setBuffer:s.model->zero offset:0 atIndex:5];
+        else
+            bind(w[TURBO_NOMIC_EMBEDDINGS_LN_BIAS], 5);
+        [enc setBuffer:sc offset:s.x atIndex:6];
+        [enc setBytes:&rp length:sizeof rp atIndex:7];
+        [enc setBytes:&typed length:sizeof typed atIndex:8];
+        [enc setBuffer:sc offset:s.x atIndex:9];
     } else {
         [enc setComputePipelineState:kn.k[EMBED_LN]];
         [enc setBuffer:rows offset:s.ids atIndex:0];
@@ -1814,9 +2021,84 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
                                                                 kn.k[k].maxTotalThreadsPerThreadgroup / 32}));
     };
     const uint32_t narrow_groups = groups_for(ATTENTION_NARROW), deberta_groups = groups_for(DEBERTA_ATTENTION);
-    const AttentionParams ap{h, hd, 1.0f / sqrtf((float)hd), stride};
+    // BERT's attention, which the rotary families share: a sliding window
+    // reads keys within `window` of each query, NO_WINDOW the whole row.
+    auto attend = [&](bool f16_att, uint32_t window) {
+        const AttentionParams ap{h, hd, 1.0f / sqrtf((float)hd), stride, window};
+        const bool wide = f16_att || wide_heads(hd);
+        [enc setComputePipelineState:kn.k[f16_att ? att_h : wide ? ATTENTION : ATTENTION_NARROW]];
+        [enc setBuffer:sc offset:s.q atIndex:0];
+        [enc setBuffer:sc offset:s.k atIndex:1];
+        [enc setBuffer:sc offset:s.v atIndex:2];
+        [enc setBuffer:rows offset:s.mask atIndex:3];
+        [enc setBuffer:rows offset:s.starts atIndex:4];
+        [enc setBuffer:rows offset:s.blocks atIndex:5];
+        [enc setBuffer:sc offset:s.att atIndex:6];
+        [enc setBytes:&ap length:sizeof ap atIndex:7];
+        [enc setThreadgroupMemoryLength:f16_att ? attention_h_bytes(hd, registers)
+                                        : wide  ? attention_bytes(hd, s.longest)
+                                                : round_up(sizeof(float) * stride * narrow_groups, 16)
+                                atIndex:0];
+        [enc dispatchThreadgroups:MTLSizeMake(s.nblocks, d.heads, 1)
+            threadsPerThreadgroup:MTLSizeMake(wide ? 128 : 32 * narrow_groups, 1, 1)];
+    };
     const DebertaParams dp{h, hd, 1.0f / sqrtf(3.0f * (float)hd), s.max_seq - 1, stride};
-    for (uint32_t l = 0; l < d.layers; l++) {
+    if (rotary) {
+        // ModernBERT, pre-norm: x += attn(attn_ln(x)), x += mlp(ffn_ln(x)),
+        // the normalized rows in tmp, layer 0 reading x; its layers
+        // alternate between the whole row with the global base and a
+        // window with the local one; the final norm last. nomic-bert,
+        // post-norm in BERT's order, every layer global (#1461; the CPU's
+        // core/src/cpu/encoder/rotary).
+        const bool modern = d.family == TURBO_FAMILY_MODERNBERT;
+        const Ref zero{s.model->zero, 0};
+        auto t = [&](uint32_t l, uint32_t r) -> const Ref & { return w[rotary_tensor(d, l, r)]; };
+        auto paired = [&](uint32_t l, int part) { return Ref{s.model->paired, s.model->paired_at[3 * l + part]}; };
+        auto norm_into = [&](const Ref &ln_w, uint64_t src, uint64_t dst) {
+            [enc setComputePipelineState:kn.k[LAYER_NORM_INTO]];
+            [enc setBuffer:sc offset:src atIndex:0];
+            bind(ln_w, 1);
+            bind(zero, 2);
+            [enc setBytes:&rp length:sizeof rp atIndex:3];
+            [enc setBuffer:sc offset:dst atIndex:4];
+            [enc setBuffer:sc offset:dst atIndex:5];
+            per_token();
+        };
+        const uint32_t gated = d.activation == TURBO_ACTIVATION_SILU ? EPILOGUE_GATED_SILU : EPILOGUE_GATED_GELU;
+        const uint64_t local = 2ull * rope_sin * sizeof(float);
+        for (uint32_t l = 0; l < d.layers; l++) {
+            const bool global = d.global_every == 0 || l % d.global_every == 0;
+            rope_at = global ? 0 : local;
+            const uint32_t window = global ? NO_WINDOW : d.attention_window / 2;
+            const uint32_t qkv_r = modern ? TURBO_MODERNBERT_QKV_WEIGHT : TURBO_NOMIC_QKV_WEIGHT;
+            const Ref q = paired(l, 0), k = paired(l, 1), ffn_in = paired(l, 2);
+            const Ref v{t(l, qkv_r).buf, t(l, qkv_r).at + 2ull * h * h * sizeof(float)};
+            if (modern) {
+                uint64_t src = s.x;
+                if (l > 0) {
+                    norm_into(t(l, TURBO_MODERNBERT_ATTN_LN_WEIGHT), s.x, s.tmp);
+                    src = s.tmp;
+                }
+                gemm(false, src, h, h, EPILOGUE_ROPE, {{&q, s.q}, {&k, s.k}, {&v, s.v}}, {});
+                attend(false, window);
+                gemm(false, s.att, h, h, EPILOGUE_RESIDUAL, {{&t(l, TURBO_MODERNBERT_ATTN_OUT_WEIGHT), s.x}}, {});
+                norm_into(t(l, TURBO_MODERNBERT_FFN_LN_WEIGHT), s.x, s.tmp);
+                gemm(false, s.tmp, h, 2 * inter, gated, {{&ffn_in, s.ffn}}, {});
+                gemm(false, s.ffn, inter, h, EPILOGUE_RESIDUAL, {{&t(l, TURBO_MODERNBERT_FFN_OUT_WEIGHT), s.x}}, {});
+            } else {
+                gemm(false, s.x, h, h, EPILOGUE_ROPE, {{&q, s.q}, {&k, s.k}, {&v, s.v}}, {});
+                attend(false, window);
+                uint32_t splits = gemm(false, s.att, h, h, EPILOGUE_NONE, {{&t(l, TURBO_NOMIC_ATTN_OUT_WEIGHT), s.tmp}}, {});
+                add_ln(s.tmp, splits, zero, t(l, TURBO_NOMIC_ATTN_LN_WEIGHT), t(l, TURBO_NOMIC_ATTN_LN_BIAS));
+                gemm(false, s.x, h, 2 * inter, gated, {{&ffn_in, s.ffn}}, {});
+                splits = gemm(false, s.ffn, inter, h, EPILOGUE_NONE, {{&t(l, TURBO_NOMIC_FFN_OUT_WEIGHT), s.tmp}}, {});
+                add_ln(s.tmp, splits, zero, t(l, TURBO_NOMIC_FFN_LN_WEIGHT), t(l, TURBO_NOMIC_FFN_LN_BIAS));
+            }
+        }
+        rope_at = 0;
+        if (modern) norm_into(w[TURBO_MODERNBERT_FINAL_NORM_WEIGHT], s.x, s.x);
+    }
+    for (uint32_t l = 0; l < (rotary ? 0 : d.layers); l++) {
         // This layer's kernels: F16 at FASTEST unless a weight of the
         // layer is past F16's range.
         const bool f16l = f16 && !(l < f32_layer.size() && f32_layer[l]);
@@ -1853,22 +2135,7 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
             [enc dispatchThreadgroups:MTLSizeMake(s.nblocks, d.heads, 1)
                 threadsPerThreadgroup:MTLSizeMake(32 * deberta_groups, 1, 1)];
         } else {
-            const bool wide = f16_att || wide_heads(hd);
-            [enc setComputePipelineState:kn.k[f16_att ? att_h : wide ? ATTENTION : ATTENTION_NARROW]];
-            [enc setBuffer:sc offset:s.q atIndex:0];
-            [enc setBuffer:sc offset:s.k atIndex:1];
-            [enc setBuffer:sc offset:s.v atIndex:2];
-            [enc setBuffer:rows offset:s.mask atIndex:3];
-            [enc setBuffer:rows offset:s.starts atIndex:4];
-            [enc setBuffer:rows offset:s.blocks atIndex:5];
-            [enc setBuffer:sc offset:s.att atIndex:6];
-            [enc setBytes:&ap length:sizeof ap atIndex:7];
-            [enc setThreadgroupMemoryLength:f16_att ? attention_h_bytes(hd, registers)
-                                            : wide  ? attention_bytes(hd, s.longest)
-                                                    : round_up(sizeof(float) * stride * narrow_groups, 16)
-                                    atIndex:0];
-            [enc dispatchThreadgroups:MTLSizeMake(s.nblocks, d.heads, 1)
-                threadsPerThreadgroup:MTLSizeMake(wide ? 128 : 32 * narrow_groups, 1, 1)];
+            attend(f16_att, NO_WINDOW);
         }
 
         if (f16_att) peak(s.att, h, 3);

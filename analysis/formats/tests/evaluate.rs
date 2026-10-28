@@ -7,6 +7,11 @@
 //! the verdicts, the scores after every pair (compared bit for bit), the
 //! static precision and recall of each pair's spans, and the folds of
 //! cross-validation.
+//!
+//! There is no `name` golden: its pairs repeat a prediction, and the JVM
+//! scored that with OpenNLP's `countTruePositives`, which counts it once
+//! per equal reference (a recall of 2). Our scores for those pairs are
+//! checked by hand below instead.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -15,7 +20,7 @@ use turbo_analysis::Span;
 use turbo_formats::evaluate::{
     ChunkerEvaluator, CrossValidation, DocumentCategorizerEvaluator, EvalError, FMeasure, LabeledSpan,
     LanguageDetectorEvaluator, LemmatizerEvaluator, NameFinderEvaluator, PosEvaluator, SentenceDetectorEvaluator,
-    TokenizerEvaluator, Verdict, precision, recall,
+    TokenizerEvaluator, Verdict, count_true_positives, precision, recall,
 };
 use turbo_formats::native::{
     ChunkReader, DocumentReader, LanguageReader, LemmaReader, NameReader, SentenceReader, TokenReader, WordTagReader,
@@ -113,7 +118,7 @@ impl Rebuilt {
         self.row("turbo:accuracy", vec![pair.to_string(), bits(accuracy), count.to_string()]);
     }
 
-    fn span_scores<T: PartialEq>(&mut self, pair: usize, references: &[T], predictions: &[T]) {
+    fn span_scores<T: Eq + std::hash::Hash>(&mut self, pair: usize, references: &[T], predictions: &[T]) {
         let (p, r) = (precision(references, predictions), recall(references, predictions));
         self.row("turbo:span-scores", vec![pair.to_string(), bits(p), bits(r)]);
     }
@@ -164,16 +169,6 @@ fn rebuild(run: &str, input: &str) -> Rebuilt {
             for (i, (r, p)) in pairs(LemmaReader::new(input).unwrap()).iter().enumerate() {
                 out.verdict(i, e.evaluate(r, &texts(p.lemmas())));
                 out.accuracy(i, e.word_accuracy(), e.word_count());
-            }
-        }
-        "name" => {
-            let mut e = NameFinderEvaluator::default();
-            for (i, (r, p)) in pairs(NameReader::new(input).unwrap()).iter().enumerate() {
-                out.verdict(i, e.evaluate(r, p.names()));
-                out.fmeasure(i, e.fmeasure());
-                let refs: Vec<LabeledSpan<'_>> = r.names().iter().map(LabeledSpan::from).collect();
-                let preds: Vec<LabeledSpan<'_>> = p.names().iter().map(LabeledSpan::from).collect();
-                out.span_scores(i, &refs, &preds);
             }
         }
         "chunk" => {
@@ -254,7 +249,7 @@ fn every_evaluator_golden_matches() {
     let data = turbo_goldens::data_dir();
     let shapes = shapes();
     let all = goldens();
-    assert!(all.len() >= 9, "only {} evaluate goldens", all.len());
+    assert!(all.len() >= 8, "only {} evaluate goldens", all.len());
     for (run, path) in all {
         let golden = Golden::read_with(&path, &shapes).unwrap();
         let input = golden.input_text(&data).unwrap();
@@ -268,5 +263,33 @@ fn every_evaluator_golden_matches() {
             assert_eq!(ours.len(), theirs.len(), "{}: {} rows", path.display(), layer.id);
         }
         assert!(rebuilt.is_empty(), "{}: layers the golden lacks: {:?}", path.display(), rebuilt.keys());
+    }
+}
+
+/// The name pairs of `inputs/formats/pairs-name-basic.txt`, scored by
+/// hand: each prediction matches at most one reference, so the third
+/// pair's two equal empty `p` names make one true positive, not two, and
+/// recall never exceeds 1.
+#[test]
+fn the_name_pairs_count_a_repeated_prediction_once() {
+    let input = std::fs::read_to_string(turbo_goldens::data_dir().join("inputs/formats/pairs-name-basic.txt")).unwrap();
+    let pairs = pairs(NameReader::new(&input).unwrap());
+    // (true positives, predictions, references) after each pair.
+    let running = [(1, 2, 2), (2, 3, 3), (3, 5, 4), (3, 6, 4), (3, 6, 4), (3, 7, 6), (4, 9, 8)];
+    // (true positives, predictions, references) of each pair alone.
+    let alone = [(1, 2, 2), (1, 1, 1), (1, 2, 1), (0, 1, 0), (0, 0, 0), (0, 1, 2), (1, 2, 2)];
+    assert_eq!(pairs.len(), running.len());
+    let mut e = NameFinderEvaluator::default();
+    for (i, (r, p)) in pairs.iter().enumerate() {
+        e.evaluate(r, p.names()).unwrap();
+        let f = e.fmeasure();
+        let (tp, selected, target) = running[i];
+        assert_eq!((f.true_positives(), f.selected(), f.target()), (tp, selected, target), "pair {i}");
+        assert!(f.recall() <= 1.0 && f.precision() <= 1.0, "pair {i}");
+        let refs: Vec<LabeledSpan<'_>> = r.names().iter().map(LabeledSpan::from).collect();
+        let preds: Vec<LabeledSpan<'_>> = p.names().iter().map(LabeledSpan::from).collect();
+        let (tp, selected, target) = alone[i];
+        assert_eq!(count_true_positives(&refs, &preds), tp, "pair {i}");
+        assert_eq!((preds.len() as u64, refs.len() as u64), (selected, target), "pair {i}");
     }
 }

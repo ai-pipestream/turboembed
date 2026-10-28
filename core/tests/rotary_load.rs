@@ -85,10 +85,10 @@ fn a_modernbert_file_with_a_first_attention_norm_is_refused() {
     assert!(e.is(BUNDLE_INVALID, "first layer has no attention norm"), "{e:?}");
 }
 
-/// The CPU and CUDA run both families (#1461); every other backend
-/// refuses them before model_load.
+/// The CPU, CUDA and Metal run both families (#1461); every other
+/// backend refuses them before model_load.
 #[test]
-fn only_the_cpu_and_cuda_run_a_rotary_family() {
+fn only_the_cpu_cuda_and_metal_run_a_rotary_family() {
     for f in [rotary::modernbert("rotary-cpu-mb"), rotary::nomic("rotary-cpu-nb")] {
         assert!(f.load().is_ok());
     }
@@ -97,7 +97,8 @@ fn only_the_cpu_and_cuda_run_a_rotary_family() {
     {
         assert!(turbo::model::runs_family("cpu", family).is_ok());
         assert!(turbo::model::runs_family("cuda", family).is_ok());
-        for b in ["metal", "levelzero", "npu", "hailo"] {
+        assert!(turbo::model::runs_family("metal", family).is_ok());
+        for b in ["levelzero", "npu", "hailo"] {
             let e = turbo::model::runs_family(b, family).err().unwrap();
             assert_eq!(e.code, UNSUPPORTED);
             assert!(e.message.contains(&format!("{name}: the {b} backend has no encoder for it yet")), "{}", e.message);

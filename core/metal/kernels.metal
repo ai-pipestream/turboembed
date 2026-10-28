@@ -148,10 +148,73 @@ struct GemmParams {
     uint m;
     uint n;
     uint k;
-    uint epilogue;   // 0: none; 1: + bias; 2: + bias, then GELU
+    uint epilogue;   // EPILOGUE_*: the F16 kernels take 0, 1 and 2 alone
     uint splits;
     uint kchunk;
+    uint head_dim;   // EPILOGUE_ROPE: a head's width
+    uint rope_sin;   // EPILOGUE_ROPE: floats from the cos table to the sin table
 };
+
+// What the F32 kernels' stores do (gemm, gemm_small; store_pair).
+constant uint EPILOGUE_NONE = 0;
+constant uint EPILOGUE_BIAS = 1;
+constant uint EPILOGUE_BIAS_GELU = 2;
+// The rotary families' (#1461), over weights packed pair-adjacent by
+// pack_rows: a lane's two columns col and col + 1 (col even) are a pair.
+// ROPE turns Q's and K's pairs (layers 0 and 1 of the dispatch; V, layer 2,
+// as is) by the token's position, from the core's cos/sin table, never
+// trigonometry here: y1 = x1 cos - x2 sin, y2 = x2 cos + x1 sin.
+constant uint EPILOGUE_ROPE = 3;
+// GATED_*: columns col (the activated gate) and col + 1 (the linear up)
+// make column col / 2 of y, n / 2 wide: act(gate) * up.
+constant uint EPILOGUE_GATED_GELU = 4;
+constant uint EPILOGUE_GATED_SILU = 5;
+// RESIDUAL: y += the product, y the residual stream.
+constant uint EPILOGUE_RESIDUAL = 6;
+
+float silu(float v) { return v / (1.0f + exp(-v)); }
+
+// A lane's two outputs, row `row` and columns col and col + 1 (col even)
+// of y [m, n], through the epilogue: layer is the output's place in the
+// dispatch, pos each token's column in its row, rope the layer's cos table.
+void store_pair(device float *y, uint row, uint col, float v0, float v1, uint layer, device const float *bias,
+                constant GemmParams &p, device const int *pos, device const float *rope) {
+    const uint n = p.n;
+    switch (p.epilogue) {
+    case EPILOGUE_BIAS:
+        v0 += bias[col];
+        v1 += bias[col + 1];
+        break;
+    case EPILOGUE_BIAS_GELU:
+        v0 = gelu(v0 + bias[col]);
+        v1 = gelu(v1 + bias[col + 1]);
+        break;
+    case EPILOGUE_ROPE:
+        if (layer < 2) {
+            const uint pairs = p.head_dim / 2;
+            device const float *c = rope + ulong(pos[row]) * pairs + (col % p.head_dim) / 2;
+            const float cs = c[0], sn = c[p.rope_sin];
+            const float a = v0 * cs - v1 * sn, b = v1 * cs + v0 * sn;
+            v0 = a;
+            v1 = b;
+        }
+        break;
+    case EPILOGUE_GATED_GELU:
+        y[ulong(row) * (n / 2) + col / 2] = gelu(v0) * v1;
+        return;
+    case EPILOGUE_GATED_SILU:
+        y[ulong(row) * (n / 2) + col / 2] = silu(v0) * v1;
+        return;
+    case EPILOGUE_RESIDUAL:
+        v0 = y[ulong(row) * n + col] + v0;
+        v1 = y[ulong(row) * n + col + 1] + v1;
+        break;
+    default:
+        break;
+    }
+    y[ulong(row) * n + col] = v0;
+    y[ulong(row) * n + col + 1] = v1;
+}
 
 constant uint BM = 32, BN = 64, BK = 16;
 // Staged rows are padded by 4 floats, so the rows a SIMD group reads
@@ -163,7 +226,8 @@ kernel void gemm(device const float *x [[buffer(0)]], device const float *w0 [[b
                  device const float *b0 [[buffer(4)]], device const float *b1 [[buffer(5)]],
                  device const float *b2 [[buffer(6)]], device float *y0 [[buffer(7)]],
                  device float *y1 [[buffer(8)]], device float *y2 [[buffer(9)]],
-                 constant GemmParams &p [[buffer(10)]], uint3 tg [[threadgroup_position_in_grid]],
+                 constant GemmParams &p [[buffer(10)]], device const int *pos [[buffer(11)]],
+                 device const float *rope [[buffer(12)]], uint3 tg [[threadgroup_position_in_grid]],
                  ushort tid [[thread_index_in_threadgroup]], ushort sg [[simdgroup_index_in_threadgroup]],
                  ushort lane [[thread_index_in_simdgroup]]) {
     threadgroup float xs[BM * LD];
@@ -206,22 +270,12 @@ kernel void gemm(device const float *x [[buffer(0)]], device const float *w0 [[b
 
     const Coord cd = lane_coord(lane);
     for (uint i = 0; i < 2; i++) {
-        device float *yr = y + ulong(m0 + sm + i * 8 + cd.fm) * n;
+        const uint row = m0 + sm + i * 8 + cd.fm;
         for (uint j = 0; j < 4; j++) {
             const uint col = n0 + sn + j * 8 + cd.fn;
             if (col >= n) continue;
             thread auto &e = acc[i][j].thread_elements();
-            float v0 = e[0], v1 = e[1];
-            if (p.epilogue >= 1) {
-                v0 += bias[col];
-                v1 += bias[col + 1];
-            }
-            if (p.epilogue == 2) {
-                v0 = gelu(v0);
-                v1 = gelu(v1);
-            }
-            yr[col] = v0;
-            yr[col + 1] = v1;
+            store_pair(y, row, col, e[0], e[1], layer, bias, p, pos, rope);
         }
     }
 }
@@ -237,13 +291,14 @@ kernel void gemm_small(device const float *x [[buffer(0)]], device const float *
                        device const float *b0 [[buffer(4)]], device const float *b1 [[buffer(5)]],
                        device const float *b2 [[buffer(6)]], device float *y0 [[buffer(7)]],
                        device float *y1 [[buffer(8)]], device float *y2 [[buffer(9)]],
-                       constant GemmParams &p [[buffer(10)]], uint3 tg [[threadgroup_position_in_grid]],
+                       constant GemmParams &p [[buffer(10)]], device const int *pos [[buffer(11)]],
+                       device const float *rope [[buffer(12)]], uint3 tg [[threadgroup_position_in_grid]],
                        ushort tid [[thread_index_in_threadgroup]], ushort sg [[simdgroup_index_in_threadgroup]]) {
     threadgroup float red[4 * 32 * 16];
     device const float *w = tg.z == 0 ? w0 : tg.z == 1 ? w1 : w2;
     device const float *bias = tg.z == 0 ? b0 : tg.z == 1 ? b1 : b2;
     device float *y = tg.z == 0 ? y0 : tg.z == 1 ? y1 : y2;
-    const uint m0 = tg.y * 32, n0 = tg.x * 16, k = p.k, n = p.n;
+    const uint m0 = tg.y * 32, n0 = tg.x * 16, k = p.k;
     simdgroup_float8x8 acc[4][2];
     for (uint i = 0; i < 4; i++)
         for (uint j = 0; j < 2; j++) acc[i][j] = make_filled_simdgroup_matrix<float, 8, 8>(0.0f);
@@ -259,12 +314,11 @@ kernel void gemm_small(device const float *x [[buffer(0)]], device const float *
     for (uint i = 0; i < 4; i++)
         for (uint j = 0; j < 2; j++) simdgroup_store(acc[i][j], red + sg * 512 + (i * 8) * 16 + j * 8, 16);
     threadgroup_barrier(mem_flags::mem_threadgroup);
-    for (uint e = tid; e < 512; e += 128) {
-        const uint col = n0 + e % 16;
-        float v = red[e] + red[512 + e] + red[1024 + e] + red[1536 + e];
-        if (p.epilogue >= 1) v += bias[col];
-        if (p.epilogue == 2) v = gelu(v);
-        y[ulong(m0 + e / 16) * n + col] = v;
+    // A thread a pair of neighbouring columns, as store_pair takes them.
+    for (uint e = tid * 2; e < 512; e += 256) {
+        const float v0 = red[e] + red[512 + e] + red[1024 + e] + red[1536 + e];
+        const float v1 = red[e + 1] + red[512 + e + 1] + red[1024 + e + 1] + red[1536 + e + 1];
+        store_pair(y, m0 + e / 16, n0 + e % 16, v0, v1, tg.z, bias, p, pos, rope);
     }
 }
 
@@ -639,7 +693,16 @@ struct AttentionParams {
     // attention_narrow's floats of scores per SIMD group: the run's
     // longest row, rounded up to 8.
     uint narrow_stride;
+    // A sliding-window layer's (#1461) keys each side of a query: query i
+    // reads keys j with |i - j| <= window. NO_WINDOW reads the whole row;
+    // the F16 kernels take NO_WINDOW alone.
+    uint window;
 };
+
+constant uint NO_WINDOW = 0xffffffffu;
+
+// Whether key j is within query i's window.
+bool near(uint i, uint j, uint window) { return (i > j ? i - j : j - i) <= window; }
 
 constant uint KC = 32;       // keys per chunk
 constant uint HD_MAX = 64;   // widest head
@@ -682,7 +745,17 @@ kernel void attention(device const float *q [[buffer(0)]], device const float *k
     float mx = -INFINITY, sum = 0.0f;
     threadgroup float *s = vs + KC * LDH + sg * 8 * KC;
 
-    for (uint c0 = 0; c0 < len; c0 += KC) {
+    // A sliding window: the chunks holding a key some query of the 32
+    // reads, from the one holding first - window through the one holding
+    // first + 31 + window, each score outside its own query's window
+    // dropped as a masked key's is.
+    const uint win = p.window;
+    const bool banded = win < len;
+    const uint qi_row = first + sg * 8 + qr;
+    const uint c_lo = banded && first > win ? (first - win) / KC * KC : 0;
+    const uint c_hi = banded ? min(len, first + 32 + win) : len;
+
+    for (uint c0 = c_lo; c0 < c_hi; c0 += KC) {
         threadgroup_barrier(mem_flags::mem_threadgroup);
         for (uint e = tid; e < KC * hd4; e += 128) {
             const uint r = e / hd4, d = (e % hd4) * 4;
@@ -712,7 +785,8 @@ kernel void attention(device const float *q [[buffer(0)]], device const float *k
         float cm = -INFINITY;
         for (uint t = part * 8; t < part * 8 + 8; t++) {
             const uint key = c0 + t;
-            if (key < len && m[key] != 0) cm = max(cm, s[qr * KC + t] * p.scale);
+            if (key < len && m[key] != 0 && (!banded || near(qi_row, key, win)))
+                cm = max(cm, s[qr * KC + t] * p.scale);
         }
         cm = max(cm, simd_shuffle_xor(cm, 1));
         cm = max(cm, simd_shuffle_xor(cm, 2));
@@ -723,7 +797,7 @@ kernel void attention(device const float *q [[buffer(0)]], device const float *k
         for (uint t = part * 8; t < part * 8 + 8; t++) {
             const uint key = c0 + t;
             float e = 0.0f;
-            if (key < len && m[key] != 0) e = exp(s[qr * KC + t] * p.scale - nm);
+            if (key < len && m[key] != 0 && (!banded || near(qi_row, key, win))) e = exp(s[qr * KC + t] * p.scale - nm);
             s[qr * KC + t] = e;
             cs += e;
         }
@@ -750,7 +824,11 @@ kernel void attention(device const float *q [[buffer(0)]], device const float *k
     }
 
     const Coord cd = lane_coord(lane);
-    const float inv = 1.0f / simd_shuffle(sum, ushort(cd.fm * 4));
+    // A query whose window holds no live key (a left-padded row's pad on a
+    // sliding-window layer) has every probability 0 and a sum of 0: its
+    // context is 0, finite, not 0 / 0.
+    const float total = simd_shuffle(sum, ushort(cd.fm * 4));
+    const float inv = total > 0.0f ? 1.0f / total : 0.0f;
     const uint qi = first + sg * 8 + cd.fm;
     if (qi >= len) return;
     device float *out = ctx + ulong(p0 + qi) * h + col;
@@ -986,8 +1064,11 @@ kernel void attention_narrow(device const float *q [[buffer(0)]], device const f
     device const int *m = mask + p0;
     for (uint i = blk.y * 32 + sg; i < min(len, blk.y * 32 + 32); i += groups) {
         device const float *qi = q + ulong(p0 + i) * h + col;
+        // A sliding window reads keys j0 .. j1 alone.
+        const bool banded = p.window < len;
+        const uint j0 = banded && i > p.window ? i - p.window : 0, j1 = banded ? min(len, i + p.window + 1) : len;
         float mx = -INFINITY;
-        for (uint j = lane; j < len; j += 32) {
+        for (uint j = j0 + lane; j < j1; j += 32) {
             if (m[j] == 0) continue;
             device const float *kj = k + ulong(p0 + j) * h + col;
             float s = 0.0f;
@@ -997,17 +1078,19 @@ kernel void attention_narrow(device const float *q [[buffer(0)]], device const f
         }
         mx = simd_max(mx);
         float sum = 0.0f;
-        for (uint j = lane; j < len; j += 32) {
+        for (uint j = j0 + lane; j < j1; j += 32) {
             const float e = m[j] != 0 ? exp(sc[j] - mx) : 0.0f;
             sc[j] = e;
             sum += e;
         }
-        const float inv = 1.0f / simd_sum(sum);
+        // No live key in the window: a context of 0, as attention's.
+        const float total = simd_sum(sum);
+        const float inv = total > 0.0f ? 1.0f / total : 0.0f;
         simdgroup_barrier(mem_flags::mem_threadgroup);
         device float *out = ctx + ulong(p0 + i) * h + col;
         for (uint d = lane; d < hd; d += 32) {
             float c = 0.0f;
-            for (uint j = 0; j < len; j++)
+            for (uint j = j0; j < j1; j++)
                 if (m[j] != 0) c += sc[j] * inv * v[ulong(p0 + j) * h + col + d];
             out[d] = c;
         }
@@ -1223,6 +1306,76 @@ kernel void deberta_attention(device const float *q [[buffer(0)]], device const 
             out[d] = c;
         }
         simdgroup_barrier(mem_flags::mem_threadgroup);
+    }
+}
+
+// ---- ModernBERT and nomic-bert ----------------------------------------------------
+//
+// The parts of the rotary families (TURBO_FAMILY_MODERNBERT,
+// TURBO_FAMILY_NOMIC_BERT, #1461) beyond the BERT kernels, held to the CPU
+// encoder (core/src/cpu/encoder/rotary), the reference. The rotation, the
+// gated MLP and the residual adds are the F32 linear layers' epilogues
+// (store_pair), over weights pack_rows lays out once a model as
+// core/src/cpu/kernels/pairs.rs does; the sliding window is attention's.
+
+// x[t] = LayerNorm(word[ids[t]] (+ type[types[t]] when types is set)): no
+// position rows; a bias-free norm is handed zeros.
+kernel void rotary_embed(device const int *ids [[buffer(0)]], device const int *types [[buffer(1)]],
+                         device const float *word [[buffer(2)]], device const float *type [[buffer(3)]],
+                         device const float *ln_w [[buffer(4)]], device const float *ln_b [[buffer(5)]],
+                         device float *x [[buffer(6)]], constant RowParams &p [[buffer(7)]],
+                         constant uint &typed [[buffer(8)]], device half *unused [[buffer(9)]],
+                         uint tg [[threadgroup_position_in_grid]], ushort sg [[simdgroup_index_in_threadgroup]],
+                         ushort lane [[thread_index_in_simdgroup]]) {
+    const uint t = tg * 4 + sg, h = p.hidden;
+    device float *row = x + ulong(t) * h;
+    device const float *w = word + ulong(ids[t]) * h;
+    if (typed) {
+        device const float *tt = type + ulong(types[t]) * h;
+        for (uint d = lane; d < h; d += 32) row[d] = w[d] + tt[d];
+    } else {
+        for (uint d = lane; d < h; d += 32) row[d] = w[d];
+    }
+    layer_norm_row(row, h, ln_w, ln_b, p.eps, lane, unused, 0);
+}
+
+// dst[t] = LayerNorm(x[t]), one SIMD group a token, four a threadgroup;
+// dst may be x.
+kernel void layer_norm_into(device const float *x [[buffer(0)]], device const float *ln_w [[buffer(1)]],
+                            device const float *ln_b [[buffer(2)]], constant RowParams &p [[buffer(3)]],
+                            device float *dst [[buffer(4)]], device half *unused [[buffer(5)]],
+                            uint tg [[threadgroup_position_in_grid]], ushort sg [[simdgroup_index_in_threadgroup]],
+                            ushort lane [[thread_index_in_simdgroup]]) {
+    const uint t = tg * 4 + sg, h = p.hidden;
+    device float *row = dst + ulong(t) * h;
+    device const float *src = x + ulong(t) * h;
+    for (uint d = lane; d < h; d += 32) row[d] = src[d];
+    layer_norm_row(row, h, ln_w, ln_b, p.eps, lane, unused, 0);
+}
+
+struct PackParams {
+    uint rows;   // of dst
+    uint k;      // values a row
+    uint mode;   // PACK_*
+    uint head_dim;
+};
+
+// PAIRS: Q's or K's rows [hidden, k] with each head's rows taken in pairs
+// (c, c + head_dim / 2). GATED: gate row j (from a) at 2j, up row j (from
+// b) at 2j + 1.
+constant uint PACK_PAIRS = 0;
+constant uint PACK_GATED = 1;
+
+kernel void pack_rows(device const float *a [[buffer(0)]], device const float *b [[buffer(1)]],
+                      device float *dst [[buffer(2)]], constant PackParams &p [[buffer(3)]],
+                      uint e [[thread_position_in_grid]]) {
+    if (e >= p.rows * p.k) return;
+    const uint r = e / p.k, c = e % p.k;
+    if (p.mode == PACK_PAIRS) {
+        const uint d = p.head_dim, w = r % d;
+        dst[e] = a[ulong(r - w + w / 2 + (w % 2) * (d / 2)) * p.k + c];
+    } else {
+        dst[e] = (r % 2 == 0 ? a : b)[ulong(r / 2) * p.k + c];
     }
 }
 

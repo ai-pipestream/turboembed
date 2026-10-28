@@ -92,8 +92,9 @@
           "weights/model.safetensors"
         ],
         "backends": [
+          "cpu",
           "cuda",
-          "cpu"
+          "metal"
         ],
         "graph_input": "INPUT_TOKEN_IDS",
         "graph_output": "OUTPUT_HIDDEN_STATES",

@@ -38,12 +38,8 @@ impl Resolver<'_> {
                 continue;
             }
             let we = m.person == Person::First && m.number == Number::Plural;
-            let group = format!(
-                "{}\u{0}{}\u{0}{}",
-                self.speaker_of.as_ref().expect("assigned above")[j],
-                m.person.java_name(),
-                we
-            );
+            let group =
+                format!("{}\u{0}{}\u{0}{}", self.speaker_of.as_ref().expect("assigned above")[j], m.person.name(), we);
             match first_of_group.get(&group) {
                 Some(&first) => {
                     self.link(first, j, Sieve::Speaker, 1.0);
