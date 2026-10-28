@@ -1,8 +1,9 @@
 //! The mapped matcher against the in-heap one: the same hits in the same
 //! order, and the same matches, on random glossaries and texts and on the
-//! JVM goldens' glossary and inputs.
+//! fixture glossary and inputs.
 
 use std::borrow::Cow;
+use std::path::PathBuf;
 
 use turbo_analysis::Span;
 use turbo_glossary::{
@@ -89,11 +90,11 @@ fn random_glossaries_match_as_the_in_heap_matcher_does() {
 }
 
 #[test]
-fn the_goldens_glossary_matches_their_inputs_as_the_in_heap_matcher_does() {
-    let data = turbo_goldens::data_dir();
-    let bytes = std::fs::read(data.join("fixtures").join("glossary-terms.tsv")).unwrap();
+fn the_fixture_glossary_matches_their_inputs_as_the_in_heap_matcher_does() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests");
+    let bytes = std::fs::read(root.join("fixtures/glossary-terms.tsv")).unwrap();
     let g = DelimitedReader::tsv(FirstRecord::Header).read(&bytes).unwrap().glossary;
-    let dir = data.join("inputs").join("glossary");
+    let dir = root.join("inputs");
     let mut texts: Vec<String> = std::fs::read_dir(&dir)
         .unwrap()
         .map(|e| e.unwrap().path())
