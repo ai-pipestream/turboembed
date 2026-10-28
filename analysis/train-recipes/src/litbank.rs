@@ -43,6 +43,20 @@ pub struct Archive {
     pub sha256: &'static str,
 }
 
+/// The official LitBank train/dev/test split over the 100 works.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct Split {
+    pub train: usize,
+    pub dev: usize,
+    pub test: usize,
+}
+
+/// The split the coreference and entity recipes use: 80 train, 10 dev, 10 test.
+pub const SPLIT: Split = Split { train: 80, dev: 10, test: 10 };
+
+/// The total number of works in LitBank.
+pub const WORKS: usize = 100;
+
 /// The archive of [`FILES`].
 pub fn archive() -> Archive {
     let line = FILES.lines().find(|l| !l.starts_with('#') && !l.is_empty()).expect("archive row");
@@ -69,5 +83,13 @@ mod tests {
     #[test]
     fn archive_url_points_at_the_pinned_revision() {
         assert!(LITBANK.archive_url().contains(LITBANK.revision));
+    }
+
+    #[test]
+    fn split_counts_cover_all_works() {
+        assert_eq!(SPLIT.train + SPLIT.dev + SPLIT.test, WORKS);
+        assert_eq!(SPLIT.train, 80);
+        assert_eq!(SPLIT.dev, 10);
+        assert_eq!(SPLIT.test, 10);
     }
 }
