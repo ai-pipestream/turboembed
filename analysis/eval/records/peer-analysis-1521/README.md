@@ -1,7 +1,8 @@
 # Peer analysis records (#1521)
 
-First peer record: `spacy-en-ewt-test.json`, scored by `turbo-eval
-analysis` against the UD English-EWT test file.
+Peer records scored by `turbo-eval analysis` against the UD
+English-EWT test file: `spacy-en-ewt-test.json` and
+`stanza-en-ewt-test.json` so far.
 
 ## Inputs and pins
 
@@ -13,8 +14,17 @@ analysis` against the UD English-EWT test file.
   container built from `analysis/eval/reference/peers/spacy/`
   (base image pinned by digest; local image id at record time
   `sha256:efad301914b0dc8f5be1f2f7fe02ebb011665aba7da00820055730108fecbb26`).
-- Predictions SHA-256:
+- spaCy predictions SHA-256:
   `a88fa76835915f87c8b0d7e75fd222383d6e0e81a683ac10c6ce44c8c4f1882e`.
+- Peer: Stanza 1.10.1 with the English default models
+  (`tokenize,mwt,pos,lemma,depparse`) on CPU torch 2.6.0, in the
+  pinned container built from `analysis/eval/reference/peers/stanza/`
+  (local image id at record time
+  `sha256:cf9ee7acb0b86e8f96510481bc171dd9bac4ea4a67dab3ab61a3a443024d54ae`).
+  Stanza's English default package trains on the UD EWT training
+  split, so this treebank is in-domain for it.
+- Stanza predictions SHA-256:
+  `ae0e58aa2c5045709bae07f100556286eaccf6570ebe28cb54c5314f0a801f90`.
 
 ## Conditioning
 
@@ -42,6 +52,10 @@ turbo-eval analysis --gold <gold-dir>/en_ewt-ud-test.conllu \
   --sha256 fa024f43dc5da3c5ac02563bc9bd0e974f46cbb1560823976a8f342a37dc494a \
   --pred spacy-3.8.7-en_core_web_sm-3.8.0=<out-dir>/spacy-sm.conllu \
   --sentences rule --out <new-record>.json
+
+docker build -t turbo-peer-stanza:1.10.1-en analysis/eval/reference/peers/stanza
+docker run --rm --network none -v <gold-dir>:/gold:ro -v <out-dir>:/out \
+  turbo-peer-stanza:1.10.1-en /gold/en_ewt-ud-test.conllu /out/stanza.conllu
 ```
 
 Recorded 2026-10-28 under load average about 31 to 36 (accuracy
