@@ -4,7 +4,9 @@ Peer and turbo records scored by `turbo-eval analysis` against the
 UD English-EWT test file: `spacy-en-ewt-test.json`,
 `spacy-lg-en-ewt-test.json`, `spacy-trf-en-ewt-test.json`,
 `stanza-en-ewt-test.json`, `wtpsplit-en-ewt-test.json`,
-`trankit-en-ewt-test.json`, and `turbo-sat-en-ewt-test.json`.
+`trankit-en-ewt-test.json`, and `turbo-sat-en-ewt-test.json`; the
+multilingual splits and the WNUT-17 entity records are listed in
+their own sections below.
 
 ## Inputs and pins
 
@@ -168,6 +170,37 @@ Spanish: sentences 99.71, LAS 83.43. Catalan: sentences 99.88, LAS
 82.32. On both, Trankit's XPOS column repeats its UPOS while AnCora
 gold XPOS is the EAGLES tagset, so XPOS scores exactly 0.00 there;
 that is a tagset difference, not a tagging failure.
+
+## Entities: WNUT-17
+
+Entity records use the `--ner-gold` form on the WNUT-17 test split
+(`wnut17-test.tsv`, SHA-256
+`2aa79b764e56ec9264a1b30fdd9b70195bd00ff400b62edd8f399d5f13c178f0`;
+1287 sentences, 23394 tokens, 1079 gold entities over the six WNUT
+kinds). Unlike the UD protocol, tokenization is given: each peer
+labels the gold tokens and the scorer takes exact-span F1 from the
+BIO labels with per-kind breakdowns and a paired bootstrap over
+sentences. Both peer runners map their OntoNotes-style labels to the
+WNUT kinds with the same documented map (PERSON to person, ORG to
+corporation, GPE/LOC/FAC to location, PRODUCT to product,
+WORK_OF_ART to creative-work, NORP to group; anything else becomes
+O), recorded in each runner's versions output.
+
+- `spacy-wnut17-test.json`: spaCy 3.8.7, `en_core_web_sm` 3.8.0,
+  predictions SHA-256
+  `480e09b72181755ba45dce59e7821a3ac5de1463b21ba088038545170170ab6a`.
+  Entities 20.01 F1 (213 correct of 1050 selected against 1079
+  target).
+- `stanza-wnut17-test.json`: Stanza 1.10.1 English NER,
+  pretokenized, predictions SHA-256
+  `0d7dc83f5c9d9dd4d20c4d9e2bfcde55af0b199a25371f1e9e9ad98bb16a9acb`.
+  Entities 40.09 F1 (360 of 717 selected).
+
+Reading note: both peers train on edited newswire-style corpora
+while WNUT-17 is noisy user-generated text with emerging entities,
+so these rows are the off-the-shelf peer bar on a hard split, not
+tuned WNUT systems. There is no turbo entity row yet: that waits on
+an entity bundle and label policy.
 
 ## Reproduce
 
