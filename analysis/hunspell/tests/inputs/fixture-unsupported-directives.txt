@@ -1,0 +1,5 @@
+# Words for the Hunspell goldens, one per line; a line starting with # is a
+# comment. \\, \t, \n, \r and \uXXXX are escapes (\uXXXX is one UTF-16 unit).
+# The fixture unsupported-directives.
+cat
+cats

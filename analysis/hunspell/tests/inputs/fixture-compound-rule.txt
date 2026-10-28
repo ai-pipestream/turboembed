@@ -1,0 +1,24 @@
+# Words for the Hunspell goldens, one per line; a line starting with # is a
+# comment. \\, \t, \n, \r and \uXXXX are escapes (\uXXXX is one UTF-16 unit).
+# The fixture compound-rule.
+1st
+2nd
+3rd
+4th
+11th
+12th
+13th
+21st
+22nd
+23rd
+101st
+111th
+112th
+1th
+21th
+1
+12
+0th
+10th
+100th
+1sts
