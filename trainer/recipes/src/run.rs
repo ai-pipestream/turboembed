@@ -15,6 +15,12 @@ use turbo_trainer::Example;
 use crate::corpus::{Corpus, FileRecord, Sentence, Task};
 use crate::{Error, Result};
 
+/// The metadata keys of a checkpoint's `head.safetensors`: the epoch the
+/// weights are from (counted from 0) and its dev score, as decimal text.
+pub const CHECKPOINT_EPOCH: &str = "best_epoch";
+/// See [`CHECKPOINT_EPOCH`].
+pub const CHECKPOINT_DEV: &str = "dev";
+
 /// Sentences read by the encoder at a time while predicting, so a large
 /// test split never holds all its features at once.
 pub const PREDICT_CHUNK: usize = 512;

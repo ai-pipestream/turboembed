@@ -226,3 +226,30 @@ fn wrongly_shaped_gradients_are_refused_with_every_buffer_untouched() {
         assert!(model.loss(&x, &t, &[Some(0), Some(1)], &mut g, &mut Work::default()).unwrap().is_finite());
     }
 }
+
+#[test]
+fn a_feature_that_is_not_finite_is_refused_with_the_gradients_untouched() {
+    // Codex's and kimi's probe: one label, feature NaN on a word with no
+    // gold tree gave Ok(0.0) and a NaN gradient. Every word's features
+    // are checked, whether or not it has a gold tree.
+    let hidden = 1;
+    let labels: Vec<String> = ["(m 0 0 () ())"].map(String::from).to_vec();
+    for (adapter, tags) in [(None, None), (Some((2, 1)), Some(2))] {
+        let s = spec(labels.clone(), adapter, tags);
+        let model = Lemmatizer::<f32>::new(&s, hidden, &mut Rng::new(3)).unwrap();
+        let t: Vec<u32> = if tags.is_some() { vec![0, 1] } else { Vec::new() };
+        for bad in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            for gold in [[None, None], [Some(0), None], [None, Some(0)]] {
+                let mut g = model.zero_grads();
+                g.iter_mut().flatten().for_each(|v| *v = 1.5);
+                let snapshot = g.clone();
+                let r = model.loss(&[bad, 0.25], &t, &gold, &mut g, &mut Work::default());
+                assert!(r.is_err(), "{adapter:?} {bad} {gold:?}: {r:?}");
+                assert_eq!(g, snapshot, "{adapter:?} {bad} {gold:?}");
+            }
+        }
+        let mut g = model.zero_grads();
+        assert_eq!(model.loss(&[0.5, 0.25], &t, &[None, None], &mut g, &mut Work::default()).unwrap(), 0.0);
+        assert!(g.iter().flatten().all(|v| *v == 0.0), "no gold tree, no gradient");
+    }
+}

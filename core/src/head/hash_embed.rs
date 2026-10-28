@@ -22,7 +22,7 @@
 //! classes are the standard library's, so they follow the Unicode version
 //! of the toolchain that builds the crate.
 
-use crate::manifest::HashEmbed;
+use crate::manifest::{HashEmbed, MAX_HASH_DIM, MAX_HASH_ROWS};
 use crate::status::{Error, INVALID_ARGUMENT, INVALID_SHAPE, Result};
 
 /// The features, in table and output order.
@@ -94,9 +94,19 @@ pub struct Tables {
 }
 
 impl Tables {
-    /// The tables of `spec`, refused unless each holds rows[k] x dim
-    /// finite values.
+    /// The tables of `spec`, refused unless its dim and rows are in the
+    /// manifest's range (none zero, so a lookup never takes a modulo by
+    /// zero) and each table holds rows[k] x dim finite values.
     pub fn new(spec: HashEmbed, tables: [Vec<f32>; 4]) -> Result<Tables> {
+        if !(1..=MAX_HASH_DIM).contains(&spec.dim) || spec.rows.iter().any(|r| !(1..=MAX_HASH_ROWS).contains(r)) {
+            return Err(Error::new(
+                INVALID_ARGUMENT,
+                format!(
+                    "hash_embed dim {} and rows {:?}; dim 1 to {MAX_HASH_DIM}, rows 1 to {MAX_HASH_ROWS}",
+                    spec.dim, spec.rows
+                ),
+            ));
+        }
         for (k, t) in tables.iter().enumerate() {
             if t.len() as u64 != spec.rows[k] as u64 * spec.dim as u64 {
                 return Err(Error::new(

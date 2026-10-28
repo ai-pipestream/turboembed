@@ -4,7 +4,9 @@
 
 use super::hash_embed::{FEATURES, SEEDS, Tables, features, rows, suffix};
 use super::tagger::{TokenTagger, Work, tensors};
-use crate::manifest::{Adapter, Bilstm, Decode, HashEmbed, HeadKind, HeadSpec, Scheme, WordPooling};
+use crate::manifest::{
+    Adapter, Bilstm, Decode, HashEmbed, HeadKind, HeadSpec, MAX_HASH_DIM, MAX_HASH_ROWS, Scheme, WordPooling,
+};
 use crate::status::{INVALID_ARGUMENT, INVALID_SHAPE};
 
 const H: HashEmbed = HashEmbed { dim: 3, rows: [11, 5, 7, 6] };
@@ -145,6 +147,20 @@ fn bad_tables_and_specs_are_refused() {
         Tables::new(H, [vec![0.0; 32], vec![0.0; 15], vec![0.0; 21], vec![0.0; 18]]).unwrap_err().code,
         INVALID_SHAPE
     );
+    // A spec the manifest would refuse is refused here too, before a
+    // lookup could take a row modulo zero.
+    let empty = || std::array::from_fn(|_| Vec::new());
+    for bad in [
+        HashEmbed { dim: 1, rows: [0; 4] },
+        HashEmbed { dim: 0, rows: [1; 4] },
+        HashEmbed { dim: 1, rows: [1, 1, 0, 1] },
+        HashEmbed { dim: MAX_HASH_DIM + 1, rows: [1; 4] },
+        HashEmbed { dim: 1, rows: [MAX_HASH_ROWS + 1, 1, 1, 1] },
+    ] {
+        let e = Tables::new(bad, empty()).unwrap_err();
+        assert_eq!(e.code, INVALID_ARGUMENT, "{bad:?}");
+        assert!(e.message.contains("dim 1 to"), "{e:?}");
+    }
     let mut sp = spec(None);
     sp.hash_embed = Some(HashEmbed { dim: 0, rows: [1; 4] });
     assert!(sp.validate("head").is_err());
