@@ -18,6 +18,7 @@ fn pipeline(hybrid: Hybrid) -> Pipeline {
         hybrid: Some(hybrid),
         cascade: None,
         static_embedder: None,
+        dump_cuts: None,
     }
 }
 
