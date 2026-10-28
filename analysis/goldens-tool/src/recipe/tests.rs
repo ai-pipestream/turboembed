@@ -12,7 +12,6 @@ fn the_commit_is_forty_hex_digits() {
     assert!(is_lower_hex(PLACE_PROFILES_COMMIT, 40), "{PLACE_PROFILES_COMMIT}");
     assert!(is_lower_hex(LIBLINEAR_ADDON_COMMIT, 40), "{LIBLINEAR_ADDON_COMMIT}");
     assert!(is_lower_hex(NEURAL_POSTAG_COMMIT, 40), "{NEURAL_POSTAG_COMMIT}");
-    assert!(is_lower_hex(HUNSPELL_COMMIT, 40), "{HUNSPELL_COMMIT}");
     assert!(is_lower_hex(CONLLU_DEPENDENCY_COMMIT, 40), "{CONLLU_DEPENDENCY_COMMIT}");
     assert!(is_lower_hex(COREF_ADDONS_COMMIT, 40), "{COREF_ADDONS_COMMIT}");
     assert!(is_lower_hex(HUNSPELL_DICTIONARIES_COMMIT, 40), "{HUNSPELL_DICTIONARIES_COMMIT}");
@@ -61,9 +60,6 @@ fn the_dockerfile_pins_the_same_base_image_and_commit() {
     assert!(dockerfile.contains(&format!("\nARG STRING_PATTERN_COMMIT={STRING_PATTERN_COMMIT}\n")));
     let patterns = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/StringPatternGolden.java");
     assert!(patterns.contains(&format!("BRANCH_COMMIT = \"{STRING_PATTERN_COMMIT}\";")));
-    assert!(dockerfile.contains(&format!("\nARG HUNSPELL_COMMIT={HUNSPELL_COMMIT}\n")));
-    let hunspell = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/HunspellGolden.java");
-    assert!(hunspell.contains(&format!("BRANCH_COMMIT = \"{HUNSPELL_COMMIT}\";")));
     assert!(dockerfile.contains(&format!("\nARG PLACE_PROFILES_COMMIT={PLACE_PROFILES_COMMIT}\n")));
     let profiles = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/PlaceProfilesGolden.java");
     assert!(profiles.contains(&format!("PROFILES_COMMIT = \"{PLACE_PROFILES_COMMIT}\";")));

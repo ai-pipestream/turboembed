@@ -25,12 +25,6 @@ pub const ADDONS_COMMIT: &str = "33e95a4956f1535cdc074056b29246fe88b3c81a";
 /// the two it needs from this commit into a jar of their own.
 pub const STRING_PATTERN_COMMIT: &str = "b2473ca80d65ae2ef10a24b08b1d0ae6a9231109";
 
-/// The commit of the OpenNLP fork's `OPENNLP-1927-hunspell-compatibility`
-/// branch whose Hunspell classes the generator runs for the Hunspell
-/// goldens. The container compiles them into a jar of their own, as it does
-/// the string pattern classes.
-pub const HUNSPELL_COMMIT: &str = "fb299cf32ccf6f5dbc81b39448d2d7bea1cf66dc";
-
 /// The commit of the OpenNLP addons fork, on its `ready/geo-place-profiles`
 /// branch, whose `PlaceProfiles` the generator runs. The class is not in
 /// [`ADDONS_COMMIT`]; the container compiles its source from this commit
