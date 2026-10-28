@@ -17,5 +17,5 @@ turbo-stopword-layers = { path = "../stopword-layers" }
 turbo-unicode = { path = "../unicode" }
 
 [dev-dependencies]
-# The goldens of the lists and the lookup, made by OpenNLP on a JVM.
-turbo-goldens = { path = "../goldens" }
+# Digests of the bundled list files against data/SHA256SUMS.
+turbo-sha256 = { path = "../sha256" }

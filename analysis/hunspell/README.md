@@ -36,30 +36,14 @@ download directory under the hash of the recipe directory
 `analysis/goldens-tool/src/models.rs`, which fetches them, and runs this
 crate's tests with the dictionaries required.
 
-## Golden files
+## Snapshots and unit tests
 
-`tests/golden.rs` compares the crate with goldens a JVM running OpenNLP wrote:
-the `hunspell` runs of `analysis/goldens-tool` (`HunspellGolden.java`), made in
-its container by `turbo-goldens generate` and checked by `turbo-goldens
-verify`. Nothing calls the JVM at test time.
-
-A run is one dictionary: `en_US`, `de_DE_frami` or `hu_HU`, or
-`fixture-<name>` for each pair of files in
-`analysis/goldens/data/fixtures/hunspell`. A fixture whose name starts with
-`unsupported` has a second run, `fixture-<name>+partial`, loaded with
-`LoadMode::AllowPartial`. A run reads `inputs/hunspell/edge.txt` and
-`inputs/hunspell/<run>.txt`, and a published dictionary also the Snowball
-sample of its language in `inputs/stem`. Its goldens are
-`analysis/goldens/data/hunspell/<run>/<set>/<input>.golden`, with five
-layers anchored to the document:
-
-| Layer | Contents |
-|---|---|
-| `turbo:hunspell-load` | One row: the class and message of the exception loading threw, empty when it loaded |
-| `turbo:hunspell-unsupported` | The directives a partial load skipped, with the line of each |
-| `turbo:hunspell-words` | Per word: the word, what `stem` returned and the class of an exception stemming threw |
-| `turbo:hunspell-stems` | Every string `stemAll` returned, by the row of its word |
-| `turbo:hunspell-analyses` | Every string `analyze` returned, by the row of its word |
+`tests/snapshots.rs` pins Dictionary/Stemmer output for each fixture and
+published dictionary against the checked-in files under `tests/snapshots/`.
+`tests/units.rs` covers listed-form stemming, circumfix/forbidden/needaffix,
+`COMPOUNDRULE`, and the annotator's per-token stems layer. Fixtures live in
+`analysis/goldens/data/fixtures/hunspell` (and inputs under
+`tests/snapshots/inputs/` plus `inputs/stem` for published dictionaries).
 
 The fixtures are written for this project and may be redistributed with it:
 
@@ -73,9 +57,7 @@ The fixtures are written for this project and may be redistributed with it:
 | `bom-crlf`, `unsupported-directives` | A byte order mark, CRLF lines and comments; a directive the reader refuses |
 | `error-*` | One load error each: the flag mode, a truncated block, a condition, the encoding, an alias, a morphology alias, a long flag, a compound rule, bytes that are not UTF-8 |
 
-The inputs of a run hold one word per line, escaped as
-`EscapedLines` reads them (`\\`, `\t`, `\n`, `\r`, `\uXXXX`); a line starting
-with `#` is a comment.
+
 
 ## Speed
 

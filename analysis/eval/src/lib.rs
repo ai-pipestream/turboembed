@@ -42,6 +42,7 @@
 pub use turbo_calibration::metrics as calibration;
 
 pub mod analysis;
+pub mod analysis_bench;
 pub mod artifact;
 pub mod cascade;
 pub mod cascade_latency;
@@ -57,12 +58,14 @@ pub mod lexical;
 pub mod metrics;
 pub mod model_gate;
 pub mod pipeline;
+pub mod random;
 pub mod read;
 pub mod record;
 pub mod retrieve;
 pub mod run;
 pub mod set;
 pub mod sets;
+pub mod sha;
 pub mod significance;
 pub mod source;
 pub mod spans;

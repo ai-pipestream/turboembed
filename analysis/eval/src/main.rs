@@ -25,6 +25,7 @@ use turbo_eval::pipeline::{Pipeline, Titles};
 use turbo_eval::run::{gate_dirs, run_sets};
 use turbo_eval::set::LoadedSet;
 use turbo_eval::sets;
+use turbo_sat::SatOptions;
 use turbo_structure::Syntax;
 
 const USAGE: &str = "\
@@ -49,9 +50,10 @@ usage:
       more than half a point under the best baseline; exit status 1 when
       it fails, 2 on an error
   turbo-eval cuts <a-dir> <b-dir>
-      compare two directories of cut dumps (run --dump-cuts), one per set,
-      document by document; each differing cut is printed with both runs'
-      margins; exit status 1 when any cut differs, 2 on an error
+      compare two directories of cut dumps (run --dump-cuts), one per set;
+      exit status 1 when any cut differs, 2 on an error
+  turbo-eval analysis --gold <f.conllu>|--lang-gold <f.tsv>|--ner-gold <f.tsv>
+      --sha256 <hex> --out <file>: peer/language/entity scores (#1521)
 
 The cache root is --cache, or $TURBO_EVAL_CACHE when it is not given.
 Sets: scifact, nfcorpus, arguana, legalbench-rag-mini, conteb-covid-qa,
@@ -63,9 +65,8 @@ run options:
   --device <d>            cpu, select, a device index or a backend name
                           (default cpu)
   --precision <p>         model, fastest or exact (default model)
-  --sentences <s>         rules (turbo-sentdetect's rule splitter for
-                          English, the default), rules:<tag> (for the BCP
-                          47 tag), newline, or a maxent sentence model file
+  --sentences <s>         rules (English, the default), rules:<tag>,
+                          newline, or sat (with --sat-bundle <dir>)
   --structure <s>         plain, markdown or none (default plain)
   --titles <t>            ignore, or prefix each chunk with the document's
                           title (default ignore)
@@ -138,9 +139,7 @@ fn run(args: &[String]) -> Result<ExitCode> {
         Some("squad") => turbo_eval::squad::command(&args[1..]).map(|()| ExitCode::SUCCESS),
         Some("cuts") if args.len() == 3 => {
             let sets = turbo_eval::cuts::compare_dirs(Path::new(&args[1]), Path::new(&args[2]))?;
-            for s in &sets {
-                print!("{s}");
-            }
+            sets.iter().for_each(|s| print!("{s}"));
             Ok(if sets.iter().all(|s| s.is_identical()) { ExitCode::SUCCESS } else { ExitCode::FAILURE })
         }
         Some("chunk-gate") if args.len() >= 3 => {
@@ -152,6 +151,7 @@ fn run(args: &[String]) -> Result<ExitCode> {
             println!("{report}");
             Ok(if report.pass { ExitCode::SUCCESS } else { ExitCode::FAILURE })
         }
+        Some("analysis") => turbo_eval::analysis_bench::command(&args[1..]).map(|()| ExitCode::SUCCESS),
         Some("gate") if args.len() == 3 => {
             let report = gate_dirs(Path::new(&args[1]), Path::new(&args[2]))?;
             println!("{report}");
@@ -336,6 +336,24 @@ fn chunker(o: &mut Opts, embedder: &dyn Embedder, model: (&Path, &Device, Precis
         other => return Err(format!("--chunker {other}: not a chunker\n{USAGE}")),
     })
 }
+fn sentencer(o: &mut Opts, device: &Device, precision: Precision) -> Result<Sentencer> {
+    let requested = o.take("--sentences");
+    let sat_bundle = o.take("--sat-bundle");
+    if sat_bundle.is_some() && requested.as_deref() != Some("sat") {
+        return Err("--sat-bundle needs --sentences sat".into());
+    }
+    match requested.as_deref() {
+        None | Some("rule") | Some("rules") => Ok(Sentencer::rules("en")),
+        Some(s) if s.starts_with("rules:") => Ok(Sentencer::rules(&s["rules:".len()..])),
+        Some("newline") => Ok(Sentencer::Newline),
+        Some("sat") => {
+            let path = sat_bundle.ok_or("--sentences sat needs --sat-bundle <dir>")?;
+            let encoder = EncoderOptions { device: device.clone(), precision, ..EncoderOptions::default() };
+            Sentencer::sat(Path::new(&path), &SatOptions { encoder, ..SatOptions::default() })
+        }
+        Some(other) => Err(format!("--sentences {other}: rules, rules:<tag>, newline or sat")),
+    }
+}
 
 fn run_cmd(args: &[String]) -> Result<()> {
     let mut o = Opts::parse(args)?;
@@ -352,12 +370,7 @@ fn run_cmd(args: &[String]) -> Result<()> {
         p => return Err(format!("--precision {p}: model, fastest or exact")),
     };
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let sentences = match o.take("--sentences").as_deref() {
-        None | Some("rules") => Sentencer::rules("en"),
-        Some(s) if s.starts_with("rules:") => Sentencer::rules(&s["rules:".len()..]),
-        Some("newline") => Sentencer::Newline,
-        Some(path) => Sentencer::maxent(Path::new(path))?,
-    };
+    let sentences = sentencer(&mut o, &device, precision)?;
     let structure = match o.take("--structure").as_deref().unwrap_or("plain") {
         "plain" => Some(Syntax::Plain),
         "markdown" => Some(Syntax::Markdown),
@@ -474,6 +487,26 @@ mod tests {
         let config = built(&["--level", "section", "--level-vectors", "contextual"]).unwrap().config();
         assert!(config.iter().any(|s| s.name == "level" && s.value == "section"));
         assert!(config.iter().any(|s| s.name == "level_vectors" && s.value.starts_with("contextual")));
+    }
+
+    #[test]
+    fn the_sentence_tier_defaults_to_rules_and_sat_needs_a_bundle() {
+        let built = |args: &[&str]| {
+            let a = args.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+            let mut o = Opts::parse(&a).unwrap();
+            sentencer(&mut o, &Device::Cpu, Precision::Model)
+        };
+        for args in [&[][..], &["--sentences", "rule"][..]] {
+            assert!(matches!(built(args).unwrap(), Sentencer::Rules(..)));
+        }
+        assert!(matches!(built(&["--sentences", "newline"]).unwrap(), Sentencer::Newline));
+        let err = |args: &[&str]| match built(args) {
+            Ok(_) => panic!("sentence options unexpectedly accepted: {args:?}"),
+            Err(e) => e,
+        };
+        assert!(err(&["--sentences", "sat"]).contains("--sat-bundle"));
+        assert!(err(&["--sat-bundle", "some-bundle"]).contains("--sentences sat"));
+        assert!(err(&["--sentences", "model.bin"]).contains("rules, rules:<tag>, newline or sat"));
     }
 
     #[test]
