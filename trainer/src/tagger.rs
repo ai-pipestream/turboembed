@@ -13,9 +13,11 @@ use turbo::head::tagger::tensors;
 use turbo::manifest::{Decode, HeadKind, HeadSpec};
 use turbo::status::{Result, invalid};
 
+use crate::adamw::AdamW;
 use crate::adapter::{self, Shape};
 use crate::real::Real;
 use crate::rng::Rng;
+use crate::shapes::{checked_shapes, fits};
 use crate::{crf, linear, xent};
 
 /// The weights of one head, `params[i]` named `names[i]`.
@@ -24,7 +26,8 @@ pub struct Tagger<R> {
     spec: HeadSpec,
     hidden: usize,
     names: Vec<String>,
-    pub params: Vec<Vec<R>>,
+    /// Shaped as `tensors` says at construction and never reshaped.
+    params: Vec<Vec<R>>,
     allowed: Allowed,
 }
 
@@ -47,10 +50,10 @@ impl<R: Real> Tagger<R> {
     /// A head with seeded initial weights: Xavier-uniform matrices, zero
     /// biases but for each LSTM forget gate's (1), zero CRF scores.
     pub fn new(spec: &HeadSpec, hidden: usize, rng: &mut Rng) -> Result<Self> {
-        let shapes = tensors(spec, hidden);
+        let shapes = checked_shapes(spec, hidden, tensors(spec, hidden))?;
         let mut params = Vec::with_capacity(shapes.len());
-        for (suffix, shape) in &shapes {
-            let n = shape.iter().product::<u64>() as usize;
+        for ((suffix, shape), n) in &shapes {
+            let n = *n;
             let v = if shape.len() == 2 && !suffix.starts_with("crf.") {
                 let limit = (6.0 / (shape[0] + shape[1]) as f64).sqrt();
                 (0..n).map(|_| R::from_f64(rng.uniform(limit))).collect()
@@ -67,20 +70,40 @@ impl<R: Real> Tagger<R> {
 
     /// A head from given weights, in `tensors` order.
     pub fn with_params(spec: &HeadSpec, hidden: usize, params: Vec<Vec<R>>) -> Result<Self> {
-        // A head no bundle could carry is never trained.
-        spec.validate("head")?;
         if spec.kind != HeadKind::TokenTagger {
             return Err(invalid(format!("trainer: head {:?} is not a token tagger", spec.name)));
         }
-        let shapes = tensors(spec, hidden);
-        let fits = params.len() == shapes.len()
-            && shapes.iter().zip(&params).all(|((_, s), p)| s.iter().product::<u64>() as usize == p.len());
-        if !fits {
-            return Err(invalid(format!("trainer: weights do not match the tensors of head {:?}", spec.name)));
-        }
+        let shapes = checked_shapes(spec, hidden, tensors(spec, hidden))?;
+        fits(spec, &shapes, &params)?;
         let (_, allowed) = allowed(spec.scheme, &spec.labels)?;
-        let names = shapes.into_iter().map(|(s, _)| s).collect();
+        let names = shapes.into_iter().map(|((s, _), _)| s).collect();
         Ok(Tagger { spec: spec.clone(), hidden, names, params, allowed })
+    }
+
+    /// The weights, in `tensors` order.
+    pub fn params(&self) -> &[Vec<R>] {
+        &self.params
+    }
+
+    /// Tensor i's weights, to change in place; its length is fixed.
+    pub fn param_mut(&mut self, i: usize) -> &mut [R] {
+        &mut self.params[i]
+    }
+
+    /// Replaces every weight, refused unless each tensor keeps its length.
+    pub fn set_params(&mut self, params: Vec<Vec<R>>) -> Result<()> {
+        let lens: Vec<usize> = self.params.iter().map(Vec::len).collect();
+        if params.len() != lens.len() || params.iter().zip(&lens).any(|(p, &n)| p.len() != n) {
+            return Err(invalid(format!("trainer: weights do not match the tensors of head {:?}", self.spec.name)));
+        }
+        self.params = params;
+        Ok(())
+    }
+
+    /// One optimizer step on the weights; returns the gradient norm
+    /// before clipping.
+    pub fn step(&mut self, opt: &mut AdamW<R>, grads: &mut [Vec<R>], decay: &[bool]) -> Result<f64> {
+        opt.step(&mut self.params, grads, decay)
     }
 
     pub fn spec(&self) -> &HeadSpec {

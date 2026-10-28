@@ -7,6 +7,7 @@ use turbo::head::parser::Work as CoreWork;
 use turbo::manifest::HeadSpec;
 use turbo::status::{Result, invalid};
 
+use crate::adamw::AdamW;
 use crate::fit::{Config, Model, Report, check_config, train};
 use crate::parser::{Parser, Work};
 use crate::rng::Rng;
@@ -40,10 +41,31 @@ impl Attachment {
     }
 }
 
+/// Each sentence has `hidden` features, a head in range other than
+/// itself and a relation among `labels` for every word.
+fn check_parses(examples: &[ParseExample], hidden: usize, labels: usize) -> Result<()> {
+    for (i, e) in examples.iter().enumerate() {
+        let n = e.heads.len();
+        let fits = hidden > 0
+            && n.checked_mul(hidden) == Some(e.features.len())
+            && e.rels.len() == n
+            && e.heads.iter().enumerate().all(|(j, &h)| h as usize <= n && h as usize != j + 1)
+            && e.rels.iter().all(|&l| (l as usize) < labels);
+        if !fits {
+            return Err(invalid(format!(
+                "trainer: sentence {i} does not fit {hidden} features per word, its heads and relations"
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// Attachment of `parser` on `examples`, decoded by the core exactly as
-/// at inference.
+/// at inference. Refuses a sentence without one gold head and relation
+/// in range per word.
 pub fn attachment(parser: &BiaffineParser, examples: &[ParseExample]) -> Result<Attachment> {
     let hidden = parser.hidden();
+    check_parses(examples, hidden, parser.labels().len())?;
     let mut a = Attachment::default();
     let (mut arcs, mut heads, mut scores, mut rels, mut w) =
         (Vec::new(), Vec::new(), Vec::new(), Vec::new(), CoreWork::default());
@@ -68,11 +90,14 @@ pub fn attachment(parser: &BiaffineParser, examples: &[ParseExample]) -> Result<
 impl Model for Parser<f32> {
     type Example = ParseExample;
     type Work = Work<f32>;
-    fn params(&self) -> &Vec<Vec<f32>> {
-        &self.params
+    fn params(&self) -> &[Vec<f32>] {
+        Parser::params(self)
     }
-    fn params_mut(&mut self) -> &mut Vec<Vec<f32>> {
-        &mut self.params
+    fn set_params(&mut self, params: Vec<Vec<f32>>) -> Result<()> {
+        Parser::set_params(self, params)
+    }
+    fn step(&mut self, opt: &mut AdamW<f32>, grads: &mut [Vec<f32>], decay: &[bool]) -> Result<f64> {
+        Parser::step(self, opt, grads, decay)
     }
     fn zero_grads(&self) -> Vec<Vec<f32>> {
         Parser::zero_grads(self)
@@ -98,18 +123,8 @@ pub fn fit_parser(
     c: &Config,
 ) -> Result<(Parser<f32>, Report)> {
     check_config(c, train_set.len())?;
-    for (i, e) in train_set.iter().chain(dev).enumerate() {
-        let n = e.heads.len();
-        let fits = e.features.len() == n * hidden
-            && e.rels.len() == n
-            && e.heads.iter().enumerate().all(|(j, &h)| h as usize <= n && h as usize != j + 1)
-            && e.rels.iter().all(|&l| (l as usize) < spec.labels.len());
-        if !fits {
-            return Err(invalid(format!(
-                "trainer: sentence {i} does not fit {hidden} features per word, its heads and relations"
-            )));
-        }
-    }
+    check_parses(train_set, hidden, spec.labels.len())?;
+    check_parses(dev, hidden, spec.labels.len())?;
     let mut rng = Rng::new(c.seed);
     let model = Parser::<f32>::new(spec, hidden, &mut rng)?;
     train(model, &mut rng, train_set, dev, c)

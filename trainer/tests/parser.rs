@@ -39,8 +39,8 @@ fn parser_loss_gradients_match_finite_differences() {
         let s = spec(adapter);
         let mut rng = Rng::new(40 + k as u64);
         let mut model = Parser::<f64>::new(&s, hidden, &mut rng).unwrap();
-        for p in &mut model.params {
-            p.iter_mut().for_each(|v| *v += rng.uniform(0.4));
+        for i in 0..model.params().len() {
+            model.param_mut(i).iter_mut().for_each(|v| *v += rng.uniform(0.4));
         }
         let x = random(&mut rng, heads.len() * hidden, 1.0);
         let mut grads = model.zero_grads();
@@ -50,10 +50,10 @@ fn parser_loss_gradients_match_finite_differences() {
             for (j, &analytic) in g.iter().enumerate() {
                 let f = |v: f64| {
                     let mut m = model.clone();
-                    m.params[i][j] = v;
+                    m.param_mut(i)[j] = v;
                     m.loss(&x, &heads, &rels, &mut m.zero_grads(), &mut Work::default()).unwrap()
                 };
-                let p = model.params[i][j];
+                let p = model.params()[i][j];
                 let numeric = (f(p + EPS) - f(p - EPS)) / (2.0 * EPS);
                 let tol = 1e-6 * (1.0 + numeric.abs().max(analytic.abs()));
                 assert!(
@@ -71,8 +71,8 @@ fn trained_weights_score_as_the_core_scores_them() {
     let s = spec(Some((3, 1)));
     let mut rng = Rng::new(9);
     let mut model = Parser::<f32>::new(&s, hidden, &mut rng).unwrap();
-    for p in &mut model.params {
-        p.iter_mut().for_each(|v| *v += rng.uniform(0.3) as f32);
+    for i in 0..model.params().len() {
+        model.param_mut(i).iter_mut().for_each(|v| *v += rng.uniform(0.3) as f32);
     }
     let core = model.to_core().unwrap();
     let x: Vec<f32> = (0..5 * hidden).map(|_| rng.uniform(1.0) as f32).collect();

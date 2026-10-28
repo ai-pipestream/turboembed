@@ -22,6 +22,7 @@ pub mod lstm;
 pub mod parser;
 pub mod real;
 pub mod rng;
+mod shapes;
 pub mod tagger;
 pub mod xent;
 

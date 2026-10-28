@@ -54,10 +54,12 @@ pub struct Report {
 }
 
 /// Accuracy (SCHEME_TAGS) or exact span F1 (BIO, BILOU) of `tagger` on
-/// `examples`, decoded by the core exactly as at inference.
+/// `examples`, decoded by the core exactly as at inference. Refuses an
+/// example without exactly one gold label in range per feature row.
 pub fn score(tagger: &TokenTagger, examples: &[Example]) -> Result<f64> {
     let spec = tagger.spec();
     let hidden = tagger.hidden();
+    check_examples(examples, hidden, spec.labels.len())?;
     let (mut right, mut total, mut found, mut gold_n) = (0usize, 0usize, 0usize, 0usize);
     let (mut scores, mut tags, mut work) = (Vec::new(), Vec::new(), CoreWork::default());
     for e in examples {
@@ -90,8 +92,11 @@ pub fn score(tagger: &TokenTagger, examples: &[Example]) -> Result<f64> {
 pub(crate) trait Model: Sized {
     type Example;
     type Work: Default;
-    fn params(&self) -> &Vec<Vec<f32>>;
-    fn params_mut(&mut self) -> &mut Vec<Vec<f32>>;
+    fn params(&self) -> &[Vec<f32>];
+    /// Replaces every weight; refused unless each tensor keeps its length.
+    fn set_params(&mut self, params: Vec<Vec<f32>>) -> Result<()>;
+    /// One optimizer step on the weights.
+    fn step(&mut self, opt: &mut AdamW<f32>, grads: &mut [Vec<f32>], decay: &[bool]) -> Result<f64>;
     fn zero_grads(&self) -> Vec<Vec<f32>>;
     fn decays(&self) -> Vec<bool>;
     /// The example's loss, its gradients added to `grads`, and its words.
@@ -103,11 +108,14 @@ pub(crate) trait Model: Sized {
 impl Model for Tagger<f32> {
     type Example = Example;
     type Work = Work<f32>;
-    fn params(&self) -> &Vec<Vec<f32>> {
-        &self.params
+    fn params(&self) -> &[Vec<f32>] {
+        Tagger::params(self)
     }
-    fn params_mut(&mut self) -> &mut Vec<Vec<f32>> {
-        &mut self.params
+    fn set_params(&mut self, params: Vec<Vec<f32>>) -> Result<()> {
+        Tagger::set_params(self, params)
+    }
+    fn step(&mut self, opt: &mut AdamW<f32>, grads: &mut [Vec<f32>], decay: &[bool]) -> Result<f64> {
+        Tagger::step(self, opt, grads, decay)
     }
     fn zero_grads(&self) -> Vec<Vec<f32>> {
         Tagger::zero_grads(self)
@@ -146,6 +154,20 @@ pub(crate) fn check_config(c: &Config, examples: usize) -> Result<()> {
     Ok(())
 }
 
+/// Each example has `hidden` features per gold label and every label is
+/// one of `labels`.
+fn check_examples(examples: &[Example], hidden: usize, labels: usize) -> Result<()> {
+    for (i, e) in examples.iter().enumerate() {
+        let rows = e.labels.len().checked_mul(hidden);
+        if hidden == 0 || rows != Some(e.features.len()) || e.labels.iter().any(|&l| l as usize >= labels) {
+            return Err(invalid(format!(
+                "trainer: example {i} does not have {hidden} features per gold label, each label one of {labels}"
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// The loop: seeded shuffles, minibatch gradients summed in a fixed
 /// order and scaled per word, AdamW, dev scoring each epoch, early
 /// stopping, the best weights kept.
@@ -157,7 +179,7 @@ pub(crate) fn train<M: Model>(
     c: &Config,
 ) -> Result<(M, Report)> {
     let shapes: Vec<usize> = model.params().iter().map(Vec::len).collect();
-    let mut opt = AdamW::new(settings(c, train.len()), &shapes);
+    let mut opt = AdamW::new(settings(c, train.len()), &shapes)?;
     let decay = model.decays();
     let mut order: Vec<usize> = (0..train.len()).collect();
     let mut work = M::Work::default();
@@ -180,20 +202,20 @@ pub(crate) fn train<M: Model>(
             }
             let scale = 1.0 / n as f32;
             grads.iter_mut().flatten().for_each(|g| *g *= scale);
-            opt.step(model.params_mut(), &mut grads, &decay);
+            model.step(&mut opt, &mut grads, &decay)?;
         }
         report.train_loss.push(if words == 0 { 0.0 } else { loss / words as f64 });
         let s = model.score(dev)?;
         report.dev.push(s);
         if best.as_ref().is_none_or(|(b, _)| s > *b) {
-            best = Some((s, model.params().clone()));
+            best = Some((s, model.params().to_vec()));
             report.best_epoch = epoch;
         } else if c.patience > 0 && epoch - report.best_epoch >= c.patience as usize {
             break;
         }
     }
     if let Some((_, params)) = best {
-        *model.params_mut() = params;
+        model.set_params(params)?;
     }
     Ok((model, report))
 }
@@ -208,13 +230,8 @@ pub fn fit(
     c: &Config,
 ) -> Result<(Tagger<f32>, Report)> {
     check_config(c, train.len())?;
-    for (i, e) in train.iter().chain(dev).enumerate() {
-        if e.features.len() != e.labels.len() * hidden || e.labels.iter().any(|&l| l as usize >= spec.labels.len()) {
-            return Err(invalid(format!(
-                "trainer: example {i} does not fit {hidden} features per word and its labels"
-            )));
-        }
-    }
+    check_examples(train, hidden, spec.labels.len())?;
+    check_examples(dev, hidden, spec.labels.len())?;
     let mut rng = Rng::new(c.seed);
     let model = Tagger::<f32>::new(spec, hidden, &mut rng)?;
     self::train(model, &mut rng, train, dev, c)

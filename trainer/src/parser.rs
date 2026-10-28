@@ -14,10 +14,12 @@ use turbo::head::parser::{LEAKY_SLOPE, tensors};
 use turbo::manifest::{HeadKind, HeadSpec};
 use turbo::status::{Result, invalid};
 
+use crate::adamw::AdamW;
 use crate::adapter::{self, Shape};
 use crate::linear;
 use crate::real::Real;
 use crate::rng::Rng;
+use crate::shapes::{checked_shapes, fits};
 
 /// The weights of one head, `params[i]` named `names[i]`.
 #[derive(Debug, Clone)]
@@ -25,7 +27,8 @@ pub struct Parser<R> {
     spec: HeadSpec,
     hidden: usize,
     names: Vec<String>,
-    pub params: Vec<Vec<R>>,
+    /// Shaped as `tensors` says at construction and never reshaped.
+    params: Vec<Vec<R>>,
 }
 
 /// The activations of one sentence, kept for backward.
@@ -60,10 +63,10 @@ impl<R: Real> Parser<R> {
     /// root, zero biases but for each LSTM forget gate's (1), zero
     /// biaffine tensors (as SuPar starts them).
     pub fn new(spec: &HeadSpec, hidden: usize, rng: &mut Rng) -> Result<Self> {
-        let shapes = tensors(spec, hidden);
+        let shapes = checked_shapes(spec, hidden, tensors(spec, hidden))?;
         let mut params = Vec::with_capacity(shapes.len());
-        for (suffix, shape) in &shapes {
-            let n = shape.iter().product::<u64>() as usize;
+        for ((suffix, shape), n) in &shapes {
+            let n = *n;
             let v = if suffix == "root" || (shape.len() == 2 && !suffix.ends_with("arc.weight")) {
                 let fan = if shape.len() == 2 { shape[0] + shape[1] } else { shape[0] + 1 };
                 let limit = (6.0 / fan as f64).sqrt();
@@ -81,18 +84,38 @@ impl<R: Real> Parser<R> {
 
     /// A head from given weights, in `tensors` order.
     pub fn with_params(spec: &HeadSpec, hidden: usize, params: Vec<Vec<R>>) -> Result<Self> {
-        spec.validate("head")?;
+        let shapes = checked_shapes(spec, hidden, tensors(spec, hidden))?;
         if spec.kind != HeadKind::BiaffineParser {
             return Err(invalid(format!("trainer: head {:?} is not a biaffine parser", spec.name)));
         }
-        let shapes = tensors(spec, hidden);
-        let fits = params.len() == shapes.len()
-            && shapes.iter().zip(&params).all(|((_, s), p)| s.iter().product::<u64>() as usize == p.len());
-        if !fits {
-            return Err(invalid(format!("trainer: weights do not match the tensors of head {:?}", spec.name)));
-        }
-        let names = shapes.into_iter().map(|(s, _)| s).collect();
+        fits(spec, &shapes, &params)?;
+        let names = shapes.into_iter().map(|((s, _), _)| s).collect();
         Ok(Parser { spec: spec.clone(), hidden, names, params })
+    }
+
+    /// The weights, in `tensors` order.
+    pub fn params(&self) -> &[Vec<R>] {
+        &self.params
+    }
+
+    /// Tensor i's weights, to change in place; its length is fixed.
+    pub fn param_mut(&mut self, i: usize) -> &mut [R] {
+        &mut self.params[i]
+    }
+
+    /// Replaces every weight, refused unless each tensor keeps its length.
+    pub fn set_params(&mut self, params: Vec<Vec<R>>) -> Result<()> {
+        if params.len() != self.params.len() || params.iter().zip(&self.params).any(|(a, b)| a.len() != b.len()) {
+            return Err(invalid(format!("trainer: weights do not match the tensors of head {:?}", self.spec.name)));
+        }
+        self.params = params;
+        Ok(())
+    }
+
+    /// One optimizer step on the weights; returns the gradient norm
+    /// before clipping.
+    pub fn step(&mut self, opt: &mut AdamW<R>, grads: &mut [Vec<R>], decay: &[bool]) -> Result<f64> {
+        opt.step(&mut self.params, grads, decay)
     }
 
     pub fn spec(&self) -> &HeadSpec {

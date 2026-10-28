@@ -1,7 +1,10 @@
 //! AdamW (Loshchilov and Hutter, arXiv 1711.05101) over a list of
 //! tensors, with global-norm clipping and a learning rate that warms up
-//! linearly and then decays linearly to zero. Weight decay is decoupled
+//! linearly and then decays linearly toward zero: every step of a
+//! schedule moves the weights, the last by lr / (total - warmup). Weight decay is decoupled
 //! from the gradient and applied only to tensors marked for it.
+
+use turbo::status::{Result, invalid};
 
 use crate::real::Real;
 
@@ -16,6 +19,28 @@ pub struct Settings {
     pub clip: f64,
     pub warmup: u64,
     pub total: u64,
+}
+
+impl Settings {
+    /// Refuses settings that would not train: a rate that is not positive
+    /// and finite, betas outside [0, 1), a negative or nonfinite eps,
+    /// decay or clip, or a warmup longer than the schedule.
+    pub fn check(&self) -> Result<()> {
+        let finite = |v: f64| v.is_finite();
+        if !(finite(self.lr) && self.lr > 0.0) {
+            return Err(invalid(format!("adamw: the learning rate {} is not positive and finite", self.lr)));
+        }
+        if !(0.0..1.0).contains(&self.beta1) || !(0.0..1.0).contains(&self.beta2) {
+            return Err(invalid("adamw: beta1 and beta2 lie in [0, 1)"));
+        }
+        if [self.eps, self.weight_decay, self.clip].iter().any(|&v| !finite(v) || v < 0.0) {
+            return Err(invalid("adamw: eps, weight decay and clip are finite and not negative"));
+        }
+        if self.total > 0 && self.warmup >= self.total {
+            return Err(invalid("adamw: the warmup is shorter than the schedule"));
+        }
+        Ok(())
+    }
 }
 
 impl Default for Settings {
@@ -33,30 +58,42 @@ pub struct AdamW<R> {
 }
 
 impl<R: Real> AdamW<R> {
-    pub fn new(settings: Settings, shapes: &[usize]) -> Self {
+    pub fn new(settings: Settings, shapes: &[usize]) -> Result<Self> {
+        settings.check()?;
         let zeros = || shapes.iter().map(|&n| vec![R::ZERO; n]).collect();
-        AdamW { settings, step: 0, m: zeros(), v: zeros() }
+        Ok(AdamW { settings, step: 0, m: zeros(), v: zeros() })
     }
 
-    /// The learning rate at step `t` (counted from 1).
+    /// The learning rate at step `t` (counted from 1): `t / warmup` of
+    /// the rate while warming up, then `(total + 1 - t) / (total - warmup)`
+    /// of it, so the first step after warmup takes the full rate and step
+    /// `total` the smallest nonzero one. Past `total` it is zero.
     pub fn rate(&self, t: u64) -> f64 {
         let s = &self.settings;
         if s.warmup > 0 && t <= s.warmup {
             return s.lr * t as f64 / s.warmup as f64;
         }
         if s.total > s.warmup && t > s.warmup {
-            let left = s.total.saturating_sub(t) as f64 / (s.total - s.warmup) as f64;
-            return s.lr * left.max(0.0);
+            let left = (s.total + 1).saturating_sub(t) as f64 / (s.total - s.warmup) as f64;
+            return s.lr * left.min(1.0);
         }
         s.lr
     }
 
     /// One step: clips `grads` in place by their global norm, then moves
     /// `params`. `decay[i]` says whether tensor i takes weight decay.
-    /// Returns the norm before clipping.
-    pub fn step(&mut self, params: &mut [Vec<R>], grads: &mut [Vec<R>], decay: &[bool]) -> f64 {
+    /// Returns the norm before clipping. Refuses tensors shaped other than
+    /// the optimizer was made for, and a nonfinite gradient.
+    pub fn step(&mut self, params: &mut [Vec<R>], grads: &mut [Vec<R>], decay: &[bool]) -> Result<f64> {
+        let shaped = |v: &[Vec<R>]| v.len() == self.m.len() && v.iter().zip(&self.m).all(|(a, b)| a.len() == b.len());
+        if !shaped(params) || !shaped(grads) || decay.len() != self.m.len() {
+            return Err(invalid("adamw: the weights, gradients or decay flags do not match the optimizer"));
+        }
         let s = self.settings;
         let norm = grads.iter().flatten().map(|g| g.to_f64() * g.to_f64()).sum::<f64>().sqrt();
+        if !norm.is_finite() {
+            return Err(invalid("adamw: a gradient is not finite"));
+        }
         if s.clip > 0.0 && norm > s.clip {
             let scale = R::from_f64(s.clip / norm);
             grads.iter_mut().flatten().for_each(|g| *g *= scale);
@@ -81,6 +118,6 @@ impl<R: Real> AdamW<R> {
                 *p = R::from_f64(x);
             }
         }
-        norm
+        Ok(norm)
     }
 }

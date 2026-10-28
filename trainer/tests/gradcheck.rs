@@ -171,19 +171,19 @@ fn whole_tagger_loss_gradients_match_finite_differences() {
         let mut rng = Rng::new(30 + k as u64);
         let mut model = Tagger::<f64>::new(&s, hidden, &mut rng).unwrap();
         // Random CRF scores and biases too, so no gradient is checked at zero.
-        for p in &mut model.params {
-            p.iter_mut().for_each(|v| *v += rng.uniform(0.3));
+        for i in 0..model.params().len() {
+            model.param_mut(i).iter_mut().for_each(|v| *v += rng.uniform(0.3));
         }
         let x = random(&mut rng, gold.len() * hidden, 1.0);
         let mut grads = model.zero_grads();
         let mut work = Default::default();
         model.loss(&x, &gold, &mut grads, &mut work).unwrap();
         for (i, g) in grads.iter().enumerate() {
-            let mut p = model.params[i].clone();
+            let mut p = model.params()[i].clone();
             let name = model.names()[i].clone();
             check(&format!("case {k} {name}"), &mut p, g, &mut |v| {
                 let mut m = model.clone();
-                m.params[i] = v.to_vec();
+                m.param_mut(i).copy_from_slice(v);
                 m.loss(&x, &gold, &mut m.zero_grads(), &mut Default::default()).unwrap()
             });
         }
