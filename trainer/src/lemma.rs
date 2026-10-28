@@ -174,7 +174,8 @@ impl<R: Real> Lemmatizer<R> {
 
     /// The summed loss over the words with a gold tree (`gold[i]`, None
     /// for a word whose tree the head does not have), and its gradients
-    /// added to `grads`.
+    /// added to `grads` (shaped as `zero_grads` gives); gradients of any
+    /// other shape are refused before anything runs.
     pub fn loss(
         &self,
         features: &[R],
@@ -183,6 +184,9 @@ impl<R: Real> Lemmatizer<R> {
         grads: &mut [Vec<R>],
         w: &mut Work<R>,
     ) -> Result<f64> {
+        if grads.len() != self.params.len() || grads.iter().zip(&self.params).any(|(g, p)| g.len() != p.len()) {
+            return Err(invalid(format!("trainer: gradients do not match the tensors of head {:?}", self.spec.name)));
+        }
         let n = self.forward(features, tags, w)?;
         if gold.len() != n {
             return Err(invalid(format!("trainer: {} gold trees for {n} words", gold.len())));

@@ -195,3 +195,33 @@ fn two_runs_and_any_thread_count_give_identical_bytes() {
         assert_eq!(bytes(&t), bytes(&a), "{threads} threads");
     }
 }
+
+#[test]
+fn wrongly_shaped_gradients_are_refused_with_every_buffer_untouched() {
+    let hidden = 3;
+    let labels: Vec<String> = ["(m 0 0 () ())", "(m 0 1 () (s 's' ''))"].map(String::from).to_vec();
+    for (adapter, tags) in [(None, None), (Some((2, 1)), Some(2)), (Some((2, 2)), None)] {
+        let s = spec(labels.clone(), adapter, tags);
+        let model = Lemmatizer::<f32>::new(&s, hidden, &mut Rng::new(9)).unwrap();
+        let before = model.params().to_vec();
+        let lens: Vec<usize> = before.iter().map(Vec::len).collect();
+        let full = |lens: &[usize]| lens.iter().map(|&n| vec![7.25f32; n]).collect::<Vec<_>>();
+        let mut wrong = vec![Vec::new(), lens.iter().map(|_| Vec::new()).collect(), full(&lens[..lens.len() - 1])];
+        for i in 0..lens.len() {
+            let mut g = full(&lens);
+            g[i].push(7.25);
+            wrong.push(g);
+        }
+        let x = [0.5f32, -0.25, 1.0, 0.75, 0.0, -1.0];
+        let t: Vec<u32> = if tags.is_some() { vec![0, 1] } else { Vec::new() };
+        for mut g in wrong {
+            let snapshot = g.clone();
+            let r = model.loss(&x, &t, &[Some(0), Some(1)], &mut g, &mut Work::default());
+            assert!(r.is_err(), "{adapter:?} {tags:?}: {r:?}");
+            assert_eq!(g, snapshot);
+            assert_eq!(model.params(), &before[..]);
+        }
+        let mut g = model.zero_grads();
+        assert!(model.loss(&x, &t, &[Some(0), Some(1)], &mut g, &mut Work::default()).unwrap().is_finite());
+    }
+}
