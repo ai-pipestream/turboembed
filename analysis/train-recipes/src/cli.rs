@@ -3,19 +3,10 @@ use std::path::PathBuf;
 use turbo_train_recipes::release::ModelsRelease;
 
 pub(crate) const USAGE: &str = "usage:
-  turbo-train-recipes masc --corpus <dir> --references <dir> --out <dir> [--unrecorded-corpus] [--recipe <model id>]...
-  turbo-train-recipes masc-namefind-select --corpus <dir> --references <dir> --out <dir> [--recipe <model id>]...
   turbo-train-recipes fetch-masc --home <dir>
-  turbo-train-recipes ud --treebanks <dir> --references <dir> --out <dir> [--recipe <model id>]...
-  turbo-train-recipes depparse --treebanks <dir> --out <dir> [--recipe <model id>]...
   turbo-train-recipes fetch-ud --home <dir> [--recipe <model id>]...
-  turbo-train-recipes zoo-index --models <dir> --release <tag> [--check]
-  turbo-train-recipes tatoeba --export <dir> --references <dir> --out <dir> [--unrecorded-export]
   turbo-train-recipes fineweb-ranges (--paths | --web <dir> [--files <path>] (--need | --record))
-  turbo-train-recipes tatoeba-fineweb --export <dir> --web <dir> --references <dir> --out <dir>
-      [--unrecorded-export] [--files <path> --ranges <path> --unrecorded-web]
-  turbo-train-recipes static-embed --teacher <safetensors> --tokenizer <tokenizer.json> --recipes <dir>
-      [--sentences <path>]... [--parquet <path>] --out <dir> --commit <40-hex> [--steps <n>] [--lr <f>] [--init-only]";
+Classical training, reference-model gates and publication commands are disabled by #1511.";
 
 #[derive(Debug)]
 pub(crate) struct Args {
@@ -38,15 +29,6 @@ pub(crate) struct Args {
     pub(crate) paths: bool,
     pub(crate) need: bool,
     pub(crate) record: bool,
-    pub(crate) teacher: Option<PathBuf>,
-    pub(crate) tokenizer: Option<PathBuf>,
-    pub(crate) recipes: Option<PathBuf>,
-    pub(crate) sentences: Vec<PathBuf>,
-    pub(crate) parquet: Option<PathBuf>,
-    pub(crate) commit: Option<String>,
-    pub(crate) steps: Option<String>,
-    pub(crate) lr: Option<String>,
-    pub(crate) init_only: bool,
     /// The model ids `--recipe` names, resolved by the command.
     pub(crate) recipe_ids: Vec<String>,
     /// Every flag given, for the commands that refuse flags they do not
@@ -82,6 +64,14 @@ pub(crate) fn parse() -> Result<Args, String> {
 
 pub(crate) fn parse_from(mut it: impl Iterator<Item = String>) -> Result<Args, String> {
     let command = it.next().ok_or(USAGE)?;
+    if matches!(
+        command.as_str(),
+        "masc" | "masc-namefind-select" | "ud" | "depparse" | "zoo-index" | "tatoeba" | "tatoeba-fineweb"
+    ) {
+        return Err(format!(
+            "{command}: disabled by #1511; OpenNLP model training, reference gates and publication are disabled. Replacement trainers: #1518; models: #1522-#1525."
+        ));
+    }
     let mut a = Args {
         command,
         corpus: None,
@@ -102,15 +92,6 @@ pub(crate) fn parse_from(mut it: impl Iterator<Item = String>) -> Result<Args, S
         paths: false,
         need: false,
         record: false,
-        teacher: None,
-        tokenizer: None,
-        recipes: None,
-        sentences: Vec::new(),
-        parquet: None,
-        commit: None,
-        steps: None,
-        lr: None,
-        init_only: false,
         recipe_ids: Vec::new(),
         given: Vec::new(),
     };
@@ -140,15 +121,6 @@ pub(crate) fn parse_from(mut it: impl Iterator<Item = String>) -> Result<Args, S
             "--paths" => a.paths = true,
             "--need" => a.need = true,
             "--record" => a.record = true,
-            "--teacher" => set_once(&mut a.teacher, &flag, value()?.into())?,
-            "--tokenizer" => set_once(&mut a.tokenizer, &flag, value()?.into())?,
-            "--recipes" => set_once(&mut a.recipes, &flag, value()?.into())?,
-            "--sentences" => a.sentences.push(value()?.into()),
-            "--parquet" => set_once(&mut a.parquet, &flag, value()?.into())?,
-            "--commit" => set_once(&mut a.commit, &flag, value()?)?,
-            "--steps" => set_once(&mut a.steps, &flag, value()?)?,
-            "--lr" => set_once(&mut a.lr, &flag, value()?)?,
-            "--init-only" => a.init_only = true,
             _ => return Err(format!("unknown argument {flag}\n{USAGE}")),
         }
     }
@@ -177,8 +149,8 @@ mod tests {
 
     #[test]
     fn duplicate_single_value_flag_is_rejected() {
-        let err = args(&["masc", "--corpus", "a", "--corpus", "b"]).unwrap_err();
-        assert!(err.starts_with("--corpus was given more than once"), "{err}");
+        let err = args(&["fetch-masc", "--home", "a", "--home", "b"]).unwrap_err();
+        assert!(err.starts_with("--home was given more than once"), "{err}");
     }
 
     #[test]
