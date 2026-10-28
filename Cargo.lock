@@ -2167,9 +2167,8 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-calibration",
  "turbo-chunker",
- "turbo-goldens",
- "turbo-jvm",
- "turbo-maxent",
+ "turbo-langspan",
+ "turbo-sat",
  "turbo-sentdetect",
  "turbo-stem",
  "turbo-structure",
@@ -2273,7 +2272,6 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-glossary-layers",
- "turbo-goldens",
  "turbo-matcher",
  "turbo-normalize",
  "turbo-stem",
@@ -2336,7 +2334,6 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
- "turbo-goldens",
  "turbo-stem-layers",
  "turbo-unicode",
 ]
@@ -2395,8 +2392,11 @@ dependencies = [
  "turbo-maxent",
  "turbo-normalize",
  "turbo-normalize-layers",
+ "turbo-numeric",
+ "turbo-pii",
  "turbo-query",
  "turbo-relation",
+ "turbo-sat",
  "turbo-schema-extract",
  "turbo-sentdetect",
  "turbo-sequence",
@@ -2741,7 +2741,6 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
- "turbo-goldens",
  "turbo-langdetect",
  "turbo-lemmatizer",
  "turbo-normalize",
@@ -2764,7 +2763,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
- "turbo-goldens",
+ "turbo-sha256",
  "turbo-stopword-layers",
  "turbo-unicode",
 ]
@@ -2786,6 +2785,17 @@ dependencies = [
  "turbo-chunker",
  "turbo-normalize",
  "turbo-unicode",
+]
+
+[[package]]
+name = "turbo-tagger"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "turbo",
+ "turbo-analysis",
+ "turbo-analysis-embed",
+ "turbo-analysis-layers",
 ]
 
 [[package]]
