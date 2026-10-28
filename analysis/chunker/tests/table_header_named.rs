@@ -15,7 +15,7 @@ fn named_dependencies_and_normalized_source_survive_binary_graph_roundtrip() {
     let text = "| Cafe\u{301} | Total |\n| --- | ---: |\n| Montre\u{301}al | 12 |\n| Que\u{301}bec | 34 |\n";
     let pipeline = Analyzer::builder()
         .step(Bound::new(NormalizeStep::new(UnicodeForm::nfc())).write(0, "nfc"))
-        .step(Bound::new(NewlineDetector::default()).read(0, "nfc").write(0, "rows"))
+        .step(Bound::new(NewlineDetector::new()).read(0, "nfc").write(0, "rows"))
         .step(
             Bound::new(SimpleTokenizer::new(TokenizerOptions::default()))
                 .read(0, "nfc")

@@ -89,7 +89,18 @@ time, which shows in the CPU's wider spread at `model`.
 | sat-1l-sm (11612 tokens, block 510, stride 64) | `model` | 195.5, 239.2, 231.1, 321.0 | 61.0, 66.5, 66.2, 70.8 | 3.49x (3.02 to 4.74) | 175,000 |
 | sat-1l-sm | `fastest` | 193.4, 197.1, 197.9, 202.9 | 33.7, 34.7, 34.8, 37.2 | 5.71x (5.22 to 5.87) | 334,000 |
 
-Above 1 the B70 is the faster, by that factor. Both sides found the
+Above 1 the B70 is the faster, by that factor.
+
+`timings.log` also holds 40 `sat-1l-sm` entries, run 1 to 20 at `model`
+and at `fastest` from 00:39 to 00:52 UTC on 28 Oct, each with a command
+line and loads but no timing or test result. They did not run: the
+script that took them passed the bundle as `${B:+TURBO_SAT_BUNDLE=$B}`
+before the command, and bash does not read a word that comes out of an
+expansion as an assignment, so it tried to run
+`TURBO_SAT_BUNDLE=<path>` as the command, which failed before any test,
+and its error was outside what the log keeps. They are excluded from the
+table. The second `commit` line starts the forty that did run, with the
+bundle passed through `env`, from 00:54 UTC. Both sides found the
 same sentences in every run: 9220 (tiny) and 676 (`sat-1l-sm`). On the
 tiny model of two layers of width 32 the device is mostly per-run
 overhead; `sat-1l-sm` is the one that says what the card does. These

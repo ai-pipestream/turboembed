@@ -6,7 +6,9 @@ entity types, document classification tasks, and record types with
 fields. It uses no Python, ONNX or external inference engine. The
 checkpoint is `fastino/gliner2-base-v1` at
 `f9634218e53580c56edf0de97ca1a7d3f1c2354e` (Apache-2.0, docs/licences.md),
-which the zoo lists as `fastino-gliner2-base-v1` and fetches by digest.
+which the zoo lists as `fastino-gliner2-base-v1` and fetches by digest,
+local-only by its training data: only after the user accepts its card's
+terms, and never bundled (decision 2026-10-28).
 The code follows GLiNER2's inference path (`fastino-ai/GLiNER2` at
 `ca4f68235b50fe4c3ecf3876851d748fe4b15c6c`, Apache-2.0). The span heads
 are the relation scorer's (docs/gliner2-relations.md).
@@ -189,11 +191,12 @@ Python.
   agree, and so does every decoded value: entities, labels, record fields
   and choices, with byte offsets equal and confidences within 1e-4.
 - `analysis/schema-extract/tests/reduced.rs` runs on the relation scorer's
-  reduced encoder and heads, with the classifier sliced to width 32. Count
+  reduced encoder and heads, with a seeded random classifier at width 32 (no
+  checkpoint value; docs/licences.md). Count
   queries across three and four fields, for one and three instances, and
   classifier logits agree with GLiNER2's own layer classes within 2e-5.
 - `analysis/schema-extract/tests/offline.rs` and `limits.rs` run the whole
-  annotator on that reduced model, with 800 word embeddings and
+  annotator on that reduced model, with 800 seeded random word embeddings and
   `testdata/sentencepiece/unigram-identity.model`, with no checkpoint. They
   cover:
   - byte spans on character boundaries of multi-byte text, with the values

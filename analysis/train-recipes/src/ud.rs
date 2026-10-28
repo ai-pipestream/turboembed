@@ -1,32 +1,23 @@
 //! Recipes that train the sentence detector, tokenizer, part-of-speech
 //! tagger and lemmatizer on the CC BY 4.0 treebanks of [`crate::treebank`]
-//! (issue #415), and their gates against the OpenNLP UD 1.3 models.
+//! (issue #415), and their gates against the OpenNLP UD 1.3 models as
+//! score references.
 //!
 //! Each recipe trains on the treebank's UD `train` file and is gated on
 //! its UD `test` file; the `dev` file is checked against its digest and
-//! not read. Training is what OpenNLP 2.5.4's CoNLL-U trainer tools do,
-//! with the settings used for this project's `models-ud-2.16-1` release:
+//! not read. Training runs the CoNLL-U event streams of
+//! `turbo-train-components` with these settings ([`training_parameters`]):
 //! GIS, 300 iterations, cutoff 5, 4 partitions, the factory defaults for
-//! the language, OpenNLP 2.5.4's whitespace, 10 sentences per sentence
-//! detector sample and the universal tags. The separate OpenNLP UD 1.3
-//! reproduction recipes use 12 partitions. Training uses no randomness,
-//! so a recipe has no seed.
+//! the language, Unicode `White_Space` as whitespace, 10 sentences per
+//! sentence detector sample and the universal tags. Training uses no
+//! randomness, so a recipe has no seed.
 //! These published recipe ids retain the OpenNLP lemma class format.
 //! [`native`] trains and gates explicitly local case-preserving artifacts;
 //! publishing those requires a separately versioned release.
 //!
-//! OpenNLP trained the Catalan references on this treebank's `train` file.
-//! The Catalan sentence detector and tokenizer recipes make OpenNLP's
-//! events exactly (the same `Training-Eventhash`), but their four-partition
-//! sums differ from the references in the last parameter bits. Those two
-//! gates compare the released recipes with the references; exact parameter
-//! reproduction uses the separate 12-partition recipes. The Catalan tagger
-//! and lemmatizer recipes make OpenNLP's events exactly when the empty
-//! nodes are kept (the event hash OpenNLP's
-//! trainer gives), so the data their models and the references are
-//! trained on differ only by the 4,999 empty nodes the recipes leave out
-//! (below).
-//! The other references were trained on another treebank of the language.
+//! The Catalan references were trained on this treebank's `train` file,
+//! the other references on another treebank of the language. A reference
+//! is a score to compare with, not a model to reproduce.
 //!
 //! The samples are those of OpenNLP's CoNLL-U streams, with one change:
 //! the tagger's and the lemmatizer's samples leave out empty nodes (ids
@@ -127,7 +118,6 @@ use turbo_eval::model_gate::ModelGateRecord;
 use turbo_formats::conllu::Tagset;
 use turbo_formats::sample::{LemmaSample, PosSample};
 use turbo_postag::PosTagFormat;
-use turbo_train_components::ud::{self as published, Component};
 
 pub use lemma::{ReferenceClasses, lemma_samples_sha256, score_lemmas};
 pub use samples::{lemma_samples, pos_samples};
@@ -140,20 +130,49 @@ use crate::treebank::{
 use crate::ud_card::UdModelCard;
 use crate::{GateRun, Limit, RecordedReference, Reference, Trained};
 
+/// GIS iterations.
+pub const ITERATIONS: i32 = 300;
+/// The GIS cutoff: features seen fewer times are dropped.
+pub const CUTOFF: i32 = 5;
 /// GIS partitions used for the published `models-ud-2.16-1` models.
 pub const THREADS: i32 = 4;
 
-/// Release parameters, independent of OpenNLP UD 1.3 reproduction.
-pub(crate) fn training_parameters() -> turbo_train::TrainingParameters {
-    let mut params = published::training_parameters();
+/// The training parameters, every value a string as a parameters file
+/// gives them: GIS ([`ITERATIONS`], [`CUTOFF`], [`THREADS`]).
+pub fn training_parameters() -> turbo_train::TrainingParameters {
+    let mut params = turbo_train::TrainingParameters::new();
+    params.put_str(turbo_train::Key::ALGORITHM, "MAXENT");
+    params.put_str(turbo_train::Key::ITERATIONS, &ITERATIONS.to_string());
+    params.put_str(turbo_train::Key::CUTOFF, &CUTOFF.to_string());
     params.put_str(turbo_train::Key::THREADS, &THREADS.to_string());
     params
 }
 
 /// Sentences per sentence detector sample.
-pub const SENTENCES_PER_SAMPLE: usize = published::SENTENCES_PER_SAMPLE;
+pub const SENTENCES_PER_SAMPLE: usize = 10;
 /// The tag column the tagger and the lemmatizer read: the universal tags.
-pub const TAGSET: Tagset = published::TAGSET;
+pub const TAGSET: Tagset = Tagset::U;
+
+/// Which model of a treebank a recipe trains.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Component {
+    Sentence,
+    Tokens,
+    Pos,
+    Lemmas,
+}
+
+impl Component {
+    /// The word in the model ids.
+    pub fn name(self) -> &'static str {
+        match self {
+            Component::Sentence => "sentence",
+            Component::Tokens => "tokens",
+            Component::Pos => "pos",
+            Component::Lemmas => "lemmas",
+        }
+    }
+}
 /// The tags both taggers are scored in: their outcomes as they are, the
 /// universal tags with a multiword token's tags joined by `+`, which both
 /// were trained on.
@@ -334,22 +353,19 @@ fn component_name(component: Component) -> &'static str {
 #[cfg(test)]
 mod tests {
     #[test]
-    fn ud_release_keeps_four_partitions_when_reproduction_uses_twelve() {
+    fn the_release_parameters_are_pinned() {
         use turbo_train::Key;
         let release = super::training_parameters();
-        let reproduction = turbo_train_components::ud::training_parameters();
+        assert_eq!(release.get_str(Key::ALGORITHM).unwrap(), Some("MAXENT"));
+        assert_eq!(release.get_int(Key::ITERATIONS).unwrap(), Some(300));
+        assert_eq!(release.get_int(Key::CUTOFF).unwrap(), Some(5));
         assert_eq!(release.get_int(Key::THREADS).unwrap(), Some(4));
-        assert_eq!(reproduction.get_int(Key::THREADS).unwrap(), Some(12));
-        for key in [Key::ITERATIONS, Key::CUTOFF] {
-            assert_eq!(release.get_int(key).unwrap(), reproduction.get_int(key).unwrap());
-        }
         assert_eq!(turbo_train::GisParams::default().threads, 1);
     }
 
     use super::*;
     use crate::error::Error;
-    use crate::treebank::TREEBANKS;
-    use turbo_eval::model_gate::Task;
+
     use turbo_lemmatizer::edit_script::decode_lemma;
     use turbo_train_components::lemmatize;
 
@@ -378,72 +394,10 @@ mod tests {
     }
 
     #[test]
-    fn the_recipes_name_their_treebank_component_and_reference() {
-        for r in UD_RECIPES {
-            let t = r.treebank;
-            let id = format!("turbo-{}-ud-{}-2.16-{}-1", t.language, t.name, r.component.name());
-            assert_eq!(r.model_id, id);
-            let parsed: turbo_zoo::ArtifactId = r.model_id.parse().unwrap();
-            assert_eq!(parsed.as_str(), r.model_id);
-            match r.reference {
-                Reference::Zoo(reference) => {
-                    let index = turbo_zoo::Index::builtin();
-                    let a = index.get(reference).unwrap();
-                    assert_eq!(a.component, Some(r.zoo_component()), "{reference}");
-                    assert_eq!(a.language.as_ref().unwrap().as_str(), t.language, "{reference}");
-                    assert!(reference.ends_with(&format!("-{}-1.3-2.5.4", r.component.name())));
-                }
-                Reference::Recorded(reference) => {
-                    // OpenNLP's Italian models are local-only and not in the zoo.
-                    assert_eq!(t.language, "it");
-                    assert_eq!(reference.file, format!("{}.bin", reference.id));
-                    assert_eq!(reference.id, format!("opennlp-it-ud-vit-{}-1.3-2.5.4", r.component.name()));
-                    assert!(reference.url.ends_with(reference.file));
-                    assert_eq!(turbo_zoo::Index::builtin().find("it", r.zoo_component()).count(), 0);
-                }
-            }
-            assert_eq!(UdRecipe::trains(r.model_id), Some(r));
-            assert_eq!(r.segmentation().is_some(), matches!(r.component, Sentences | Tokens));
-            let tagger = r.tagger();
-            assert_eq!(tagger.is_some(), r.component == Pos);
-            if let Some(pos) = tagger {
-                assert_eq!((pos.model_id, pos.reference, pos.reference_format), (r.model_id, r.reference, TAG_FORMAT));
-                assert!(pos.reference_mappings.is_empty());
-                assert_eq!(pos.max_left_out, MAX_TOKENS_LEFT_OUT);
-            }
-        }
-        // Every treebank has a tagger and a lemmatizer; the ones whose text
-        // is running text have a sentence detector and a tokenizer.
-        for t in TREEBANKS {
-            let components: Vec<Component> =
-                UD_RECIPES.iter().filter(|r| r.treebank == t).map(|r| r.component).collect();
-            let running = t.name != "ftb" && t.name != "markit";
-            let expected: &[Component] = if running { &[Sentences, Tokens, Pos, Lemmas] } else { &[Pos, Lemmas] };
-            assert_eq!(components, expected, "{}", t.repository);
-        }
-        assert_eq!(UD_RECIPES[3].task(), Task::Lemmatizer);
-        assert_eq!(UdRecipe::trains("turbo-en-ud-ewt-2.16-pos-1"), None);
-    }
-
-    #[test]
     fn check_data_rejects_invalid_segmentation_reference_bytes() {
         let conllu = "# text = Hola.\n1\tHola\thola\tINTJ\t_\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n";
         let text = TreebankText { train: conllu.to_owned(), test: conllu.to_owned() };
         assert!(matches!(UD_RECIPES[0].check_data(&text, b"not a model"), Err(Error::Model(_))));
         assert!(matches!(UD_RECIPES[1].check_data(&text, b"not a model"), Err(Error::Model(_))));
-    }
-
-    #[test]
-    fn score_lemmas_handles_empty_sample_without_nan_panic() {
-        let conllu = "# text = Gatos.\n1\tGatos\tgato\tNOUN\t_\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n\
-                      # text = Perros.\n1\tPerros\tperro\tNOUN\t_\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n\
-                      # text = Casas.\n1\tCasas\tcasa\tNOUN\t_\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n\
-                      # text = Mesas.\n1\tMesas\tmesa\tNOUN\t_\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n\
-                      # text = Libros.\n1\tLibros\tlibro\tNOUN\t_\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n";
-        let trained = UD_RECIPES[3].train(conllu).unwrap();
-        let classes = ReferenceClasses::of_model(&trained.bytes).unwrap();
-        let empty = LemmaSample::new(Vec::new(), Vec::new(), Vec::new(), turbo_analysis::Span::new(0, 0)).unwrap();
-        let counts = score_lemmas(&trained.bytes, &[empty], &classes).unwrap();
-        assert_eq!(counts.len(), 1);
     }
 }

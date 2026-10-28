@@ -17,7 +17,7 @@ pub fn table(rows: usize) -> String {
 }
 pub fn prepared(text: &str) -> Document {
     let pipeline = Analyzer::builder()
-        .step(Bound::new(NewlineDetector::default()))
+        .step(Bound::new(NewlineDetector::new()))
         .step(Bound::new(SimpleTokenizer::new(TokenizerOptions::default())))
         .step(Bound::new(
             SubwordAnnotator::open(

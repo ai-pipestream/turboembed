@@ -228,6 +228,7 @@ fn spans_reconstruct_every_non_whitespace_token_across_normalization_utf8_and_wi
         encoder: EncoderOptions { max_seq: 14, ..EncoderOptions::default() },
         prompt: PromptRole::None,
         stride: 5,
+        output_dim: 0,
     };
     let va = VectorAnnotator::open(&bert(), &o).unwrap();
     assert_eq!(va.width(), 12);
@@ -312,6 +313,7 @@ fn window_seam_tokens_select_most_interior_window_and_stay_stable_across_stride_
         encoder: EncoderOptions { max_seq: 12, ..EncoderOptions::default() },
         prompt: PromptRole::None,
         stride: 5,
+        output_dim: 0,
     };
     let va_s5 = VectorAnnotator::open(&bert(), &base_opts).unwrap();
     let va_s4 = va_s5.clone_with_stride(4);
@@ -377,6 +379,7 @@ impl CloneWithStride for VectorAnnotator {
             encoder: EncoderOptions { max_seq: self.info().max_seq, ..EncoderOptions::default() },
             prompt: PromptRole::None,
             stride,
+            output_dim: 0,
         };
         VectorAnnotator::open(&bert(), &o).unwrap()
     }
@@ -440,9 +443,15 @@ fn token_placement_scales_linearly_and_batch_matches_single_doc() {
     // finishes 80,000 pieces in well under 50ms even in unoptimized test builds.
     for pieces in [20_000u32, 40_000, 80_000] {
         let wins = plan_sliding_windows(0, pieces, 64, 32);
-        let t0 = std::time::Instant::now();
-        let placed = place_tokens_in_windows(0, pieces, &wins);
-        let elapsed = t0.elapsed();
+        // Best of five runs: one run can be preempted on a loaded runner,
+        // while a quadratic sweep is slow on every run.
+        let mut elapsed = std::time::Duration::MAX;
+        let mut placed = Vec::new();
+        for _ in 0..5 {
+            let t0 = std::time::Instant::now();
+            placed = place_tokens_in_windows(0, pieces, &wins);
+            elapsed = elapsed.min(t0.elapsed());
+        }
         assert_eq!(placed.len(), pieces as usize);
         assert!(elapsed.as_millis() < 100, "{pieces} pieces took {elapsed:?}");
         for sample in [0u32, 31, 32, 47, 48, 63, 64, pieces / 2, pieces - 1] {

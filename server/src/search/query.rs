@@ -416,6 +416,8 @@ fn embed_query_text(state: &State, bundle_name: &str, space: &Space, text: &str)
         normalize,
         pooling: 0,
         output_dim,
+        quantization: 0,
+        int8_ranges: std::ptr::null(),
     };
     let views = [turbo_text { ptr: text.as_ptr().cast(), len: text.len() as u64 }];
     slot.session.write_text(&views, &opts)?;
