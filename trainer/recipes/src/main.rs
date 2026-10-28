@@ -10,8 +10,10 @@
 //!     [--max-train N] [--commit <sha>] [--unrecorded-corpus]
 //! ```
 //!
-//! Exit status 2 on any error. `--out` must not exist yet; it is made
-//! only once a run has something to write, so a refused run leaves none.
+//! Exit status 2 on any error. `--out` must not exist yet. A run claims
+//! it before anything else, by making it, which fails when it exists, so
+//! of two runs given one `--out` exactly one goes on; a run that fails
+//! removes it, so a refused run leaves none.
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -90,7 +92,7 @@ fn run(argv: Vec<String>) -> Result<()> {
             Ok(())
         }
         "baseline" => {
-            let out = out_dir(&a.required("--out")?)?;
+            let out = OutDir::claim(&a.required("--out")?)?;
             let commit = commit(a.value("--commit")?);
             a.done()?;
             let t = Instant::now();
@@ -124,7 +126,7 @@ fn run(argv: Vec<String>) -> Result<()> {
                 timing_s: Timing { read, eval: t.elapsed().as_secs_f64(), ..Timing::default() },
                 outputs: Vec::new(),
             };
-            finish(&out, receipt)
+            finish(out, receipt)
         }
         "train" => train(&argv, &corpus_id, &dir, unrecorded, a),
         _ => Err(Error(format!("unknown command {command:?}: check, baseline or train"))),
@@ -133,7 +135,7 @@ fn run(argv: Vec<String>) -> Result<()> {
 
 fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
     let bundle = PathBuf::from(a.required("--bundle")?);
-    let out = out_dir(&a.required("--out")?)?;
+    let out = OutDir::claim(&a.required("--out")?)?;
     let device = match a.value("--device")?.as_deref() {
         None | Some("cpu") => Device::Cpu,
         Some(d) => Device::Backend(d.to_owned()),
@@ -210,8 +212,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
 
     let weights = safetensors::write(&named(&head, enc.hidden(), model.tensors()));
     let spec_json = serde_json::to_vec_pretty(&head).expect("a head spec serializes");
-    create(&out)?;
-    let outputs = vec![write(&out, "head.safetensors", &weights)?, write(&out, "head.json", &spec_json)?];
+    let outputs = vec![write(&out.path, "head.safetensors", &weights)?, write(&out.path, "head.json", &spec_json)?];
     let receipt = Receipt {
         schema: SCHEMA.into(),
         command: argv.to_vec(),
@@ -242,7 +243,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         timing_s: Timing { read, features, train: trained, eval: eval_s },
         outputs,
     };
-    finish(&out, receipt)
+    finish(out, receipt)
 }
 
 /// The majority baseline's labels for the test split.
@@ -269,17 +270,37 @@ fn encoder_record(bundle: &Path, enc: &WordEncoder) -> Result<EncoderRecord> {
     })
 }
 
-fn out_dir(p: &str) -> Result<PathBuf> {
-    let p = PathBuf::from(p);
-    if p.exists() {
-        return Err(Error(format!("{}: already there; a run writes a new directory", p.display())));
-    }
-    Ok(p)
+/// A run's output directory, claimed before the run reads or writes
+/// anything: `create_dir` fails when the directory exists, so two runs
+/// given one `--out` cannot both have it. Dropped unkept, as when the run
+/// fails, it is removed with what the run wrote in it.
+struct OutDir {
+    path: PathBuf,
+    keep: bool,
 }
 
-/// Makes the run's directory, once there is something to write.
-fn create(p: &Path) -> Result<()> {
-    std::fs::create_dir_all(p).map_err(|e| Error(format!("{}: {e}", p.display())))
+impl OutDir {
+    fn claim(p: &str) -> Result<OutDir> {
+        let path = PathBuf::from(p);
+        if let Some(parent) = path.parent().filter(|q| !q.as_os_str().is_empty()) {
+            std::fs::create_dir_all(parent).map_err(|e| Error(format!("{}: {e}", parent.display())))?;
+        }
+        match std::fs::create_dir(&path) {
+            Ok(()) => Ok(OutDir { path, keep: false }),
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                Err(Error(format!("{}: already there; a run writes a new directory", path.display())))
+            }
+            Err(e) => Err(Error(format!("{}: {e}", path.display()))),
+        }
+    }
+}
+
+impl Drop for OutDir {
+    fn drop(&mut self) {
+        if !self.keep {
+            let _ = std::fs::remove_dir_all(&self.path);
+        }
+    }
 }
 
 fn commit(given: Option<String>) -> String {
@@ -291,17 +312,17 @@ fn commit(given: Option<String>) -> String {
         .unwrap_or_else(|| "unknown".into())
 }
 
-fn finish(out: &Path, receipt: Receipt) -> Result<()> {
-    create(out)?;
+fn finish(mut out: OutDir, receipt: Receipt) -> Result<()> {
     let text = serde_json::to_string_pretty(&receipt).expect("the receipt serializes");
-    write(out, "receipt.json", text.as_bytes())?;
+    write(&out.path, "receipt.json", text.as_bytes())?;
+    out.keep = true;
     let model = receipt.eval.model.as_ref().map_or("-".into(), |m| format!("{:.4}", m.score()));
     println!(
         "{}: {} model {model} baseline {:.4}; {}",
         receipt.corpus.id,
         receipt.eval.split,
         receipt.eval.baseline.score(),
-        out.join("receipt.json").display()
+        out.path.join("receipt.json").display()
     );
     Ok(())
 }
