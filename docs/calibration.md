@@ -1,88 +1,58 @@
 # Calibrated confidence and abstention
 
-`turbo-calibration` adds opt-in probability calibration and split conformal
-prediction. Existing categorizer and name finder APIs keep their raw outputs.
-The adapters in `analysis/doccat/src/calibrated.rs` and
-`analysis/namefind/src/calibrated.rs` write an aligned `Calibrated<L>` sidecar
-containing the raw distribution, calibrated distribution, label-index set,
-artifact identity, policy, quantile, and optional abstention reason. Reasons
-are `EmptySet`, `SetTooLarge`, and `BelowThreshold`, in that precedence order.
-Consumers must inspect the sidecar before delivering a category or entity.
-Raw output presence is not acceptance. For `NameFinderME`
-(`CalibratedNameAnnotator`, `Calibrated<Tokens>`), inspect every covered token
-because token sets are prefix-conditioned and do not form a jointly valid BIO
-sequence. For `CrfNameFinder` (`CalibratedCrfNameAnnotator`,
-`Calibrated<Entities>`), each decoded entity span carries its own calibrated
-sequence-marginal distribution over `["other", kind_0, ...]`, aligned 1-to-1
-with `Entities`.
+`turbo-calibration` provides opt-in probability calibration and split conformal
+prediction. The native SVM adapter in `analysis/doccat/src/calibrated.rs`
+retains raw outputs and writes an aligned `Calibrated<Categories>` sidecar:
+raw and calibrated distributions, label-index sets, artifact identity, policy,
+quantile and optional abstention reason. Reasons are `EmptySet`, `SetTooLarge`
+and `BelowThreshold`, in that precedence order. Consumers must inspect this
+sidecar before accepting a category; raw output presence is not acceptance.
+
+Archive-bound maxent and namefinder adapters cannot construct models after
+#1511. Their earlier tables below are historical. Native entity document
+annotation and calibration integration remain separate work in #1540.
 
 ## Fit, bind, and evaluate
 
-1. Train the underlying model without using any calibration or test samples.
-2. Collect full model probability distributions and gold label indices on
-   three separate splits: probability fitting, conformal calibration, and
-   final evaluation. Label order must be the model's outcome order (or
-   `CrfSequenceModel::span_outcomes()` for span-level CRF calibration).
-3. Construct the actual producer identity with `turbo_doccat::calibrated::identity`,
-   `turbo_namefind::calibrated::identity` (`Task::TokenTagging`), or
-   `turbo_namefind::calibrated::crf_identity` (`Task::SpanTagging`). Supply a
-   domain identifier.
+1. Train the underlying model without calibration or test samples.
+2. Collect full probability distributions and gold indices on separate fitting,
+   conformal-calibration and final-evaluation splits. Preserve label order.
+3. Bind the actual producer identity with `turbo_doccat::calibrated::identity`
+   for a native SVM categorizer. For a direct numerical `Predictor`, supply the
+   model and encoder identities, task, domain, labels and inference settings;
+   a decoder schema hash by itself does not identify the producer.
 4. Call `turbo_train::calibration::fit` with a `Method` and two `Samples`
-   collections. The frozen transform is fitted only on the first collection;
-   sorted `1 - p(gold)` scores come only from the second. Split names and SHA-256
-   digests of the probability/target records are stored in the artifact.
-5. Persist `Calibration::to_bytes()`. Reload with `Calibration::from_bytes`
-   and the expected producer identity. Model, revision, SHA-256, task, domain,
-   ordered labels, and inference configuration must match. A mismatch names
-   the artifact digest. In-memory doccat models without a model digest, and
-   custom feature generators without an identifiable configuration, are refused.
-6. Construct `Predictor`, `CalibratedCategorizer`, `CalibratedNameAnnotator`,
-   or `CalibratedCrfNameAnnotator` with
-   `Policy { coverage, max_set_size, min_confidence }`. All policy fields
-   enter `config_hash()`, together with the complete artifact. Built-in doccat
-   feature settings and CRF sequence codec settings also enter the producer
-   identity.
-7. Evaluate the untouched test split with `turbo_eval::calibration::reliability`
-   and `coverage`. ECE is equal-width top-label ECE; Brier is the sum of squared
-   errors across classes. Set coverage and delivered coverage are separate:
-   an abstained example never counts as delivered, even if its set covers gold.
+   collections. Transform fitting uses the first; sorted `1 - p(gold)` scores
+   use the second. The artifact records split names and data digests.
+5. Persist `Calibration::to_bytes()` and reload with `Calibration::from_bytes`.
+   Bind to the expected producer identity, checking model, revision, SHA-256,
+   task, domain, ordered labels and inference configuration.
+6. Construct `Predictor` or `CalibratedCategorizer` with
+   `Policy { coverage, max_set_size, min_confidence }`. Policy fields and the
+   complete artifact enter the adapter configuration hash.
+7. Evaluate the held-out test split with `turbo_eval::calibration::reliability`
+   and `coverage`. ECE is equal-width top-label ECE; Brier sums squared class
+   errors. Set coverage and delivered coverage are separate: abstentions
+   never count as delivered, even when their sets cover the gold label.
 
 The binary artifact uses version `TCAL0001`, little-endian numbers, u32
-lengths, and fixed field order. Decoders validate counts against available
-bytes before allocation, reject trailing bytes, and validate parameters.
-`DocumentGraph` codecs register the sidecars for document `Categories`,
-`Tokens`, and `Entities`; the imported policy, set, and reason must be
-consistent.
+lengths and fixed field order. Decoders validate sizes before allocation,
+reject trailing bytes and validate parameters. DocumentGraph sidecar codecs
+retain policy, set and abstention consistency checks independently of model
+archive support.
 
-## Span-level CRF calibration
+## Span-level numerical CRF calibration
 
-`NameFinderME` decodes with beam search and returns per-token MaxEnt
-distributions conditioned on the winning prefix (`Task::TokenTagging`). In
-contrast, `CrfSequenceModel` (`analysis/sequence/src/crf/model.rs`) defines a
-globally normalized probability distribution over legal BIO or BILOU paths.
-For any contiguous token span `start..end`:
+`turbo_sequence::crf::EntityDecoder` constrains BIO/BILOU paths on native score
+arrays. `EntityLattice::span_distribution(range)` returns the probability of
+no exact entity over that range followed by exact entity marginals in kind
+order. It sums over all legal paths, rather than taking a winning path's local
+probabilities. See `analysis/sequence/README.md` for the full input contract.
 
-- Each entity kind `k` in `CrfSequenceModel::entity_kinds()` corresponds to a
-  unique legal BIO or BILOU state sequence on `start..end` (with `{k}-cont`
-  excluded at `end` under BIO). Because distinct entity kinds require distinct
-  start or unit states at `start`, the events that `start..end` is a complete
-  entity of kind `k` are mutually exclusive across kinds.
-- `CrfSequenceModel::span_distribution(&lattice, start, end)` evaluates each
-  kind's exact forward-backward marginal via `CrfLattice::span_probability` and
-  places the complement probability `1 - sum_k p(k)` at index `0` (`"other"`,
-  not a complete entity on `start..end`), yielding a normalized distribution
-  over `CrfSequenceModel::span_outcomes()` (`["other", kind_0, ...]`).
-- `CrfNameFinder::find_scored_spans` pairs each top-1 decoded entity with its
-  span marginal distribution, and `CrfNameFinder::candidate_spans(tokens, k)`
-  returns the ordered unique candidate spans from the top-`k` constrained paths
-  with their span marginal distributions for calibration fitting and conformal
-  scoring.
-- `CalibratedCrfNameAnnotator` writes `(Entities, Calibrated<Entities>)`, where
-  row `i` of `Calibrated<Entities>` aligns to entity `i` of `Entities`, and
-  `Entities` aligns both to `View` byte spans and `Tokens` index ranges. When a
-  candidate span is ambiguous between an entity kind and `"other"`, both indices
-  enter the conformal prediction set and a single-label policy (`max_set_size: 1`)
-  abstains with `Abstention::SetTooLarge`.
+`analysis/namefind/tests/calibrated.rs` checks these distributions against
+independent small-lattice path counts, applies the temperature equation via
+`Predictor`, and rejects mismatched producer identities. This is numerical
+coverage, not a trained entity model or a document-adapter accuracy claim.
 
 ## Methods and coverage interpretation
 
@@ -108,9 +78,8 @@ observed score. Ties can give conservative coverage. The requested coverage
 is a marginal guarantee under exchangeability, not a per-example correctness
 promise. A confidence threshold or set-size cap may abstain and reduce
 **delivered** coverage. Domain shift, adaptive token histories, and dependent
-tokens can invalidate exchangeability. NameFinderME returns local model
-probabilities conditioned on the winning decoded prefix, not sequence marginals.
-Fit and evaluate with the same adaptive-state boundaries as deployment.
+tokens can invalidate exchangeability. Fit and evaluate using the same
+context and state boundaries as deployment.
 
 The temperature method follows [Guo et al.](https://proceedings.mlr.press/v70/guo17a.html).
 The finite-sample conformal quantile follows
