@@ -7,11 +7,19 @@ layer is its own Rust type, so reading one gives that type with its own
 fields. Annotators declare the layer types they read and write, and the
 compiler holds them to it.
 
-It is the base the chunker is built on, and the base OpenNLP 3.x is to
-be rewritten on, as add-ons: OpenNLP is the reference, and the Rust side
-follows it on its own schedule. The crates are Rust only; the
-gRPC server serves analysis documents and layers over them
-(`server/src/analysis.rs`, docs/grpc-analysis.md).
+It is the base the chunker and the analysis pipeline are built on.
+OpenNLP 3.0, its add-ons and the sandbox are a feature checklist;
+learned components are heads on one shared encoder pass trained with our
+own Rust trainers; rule components are ours; each component is judged
+against spaCy, Stanza and other current stacks on held-out data, never
+against Java output. Two standing assumptions govern this direction
+(#1509): JVM goldens are no longer the test oracle (no new code may load
+an OpenNLP model, reproduce Java platform behaviour or use JVM output as
+an oracle), and English syntax models trained on Universal Dependencies
+English EWT (CC BY-SA 4.0) ship in the accept-first download tier because
+every English UD treebank carries a ShareAlike or non-commercial licence.
+The crates are Rust only; the gRPC server serves analysis documents and
+layers over them (`server/src/analysis.rs`, docs/grpc-analysis.md).
 
 ## Crates
 
@@ -77,7 +85,9 @@ layer lives in `turbo-analysis-layers`, so a consumer of a layer never
 depends on the add-on that produces it; an add-on's own layers live in a
 small schema crate beside it, for the same reason.
 
-## JVM parity
+## JVM parity (being retired under #1509; delete when #1530 lands)
+
+> **Being retired under #1509 (delete when #1530 lands):** JVM output and Java platform parity are no longer the test oracle. No new code may depend on `turbo-jvm` or reproduce Java platform quirks.
 
 Some of OpenNLP's results depend on the Java platform rather than on
 OpenNLP, and `turbo-jvm` reproduces those parts exactly, so a port can
@@ -2652,7 +2662,9 @@ in nDCG@10 points):
   local vector pools all of it, which is +30.77 on gutenqa's books but
   -1.91 on qasper and -1.60 on arguana.
 
-## Golden files
+## Golden files (being retired under #1509; delete when #1530 lands)
+
+> **Being retired under #1509 (delete when #1530 lands):** JVM goldens are no longer the test oracle. Do not add new `.golden` files or `turbo-goldens` comparisons; this section is removed when #1530 deletes `analysis/goldens`.
 
 An annotator that ports an OpenNLP component is checked against what
 OpenNLP 3.x computes on the JVM. The JVM runs once, from a recorded
@@ -2997,7 +3009,9 @@ A `turbo:view` block is not loaded. A view golden is only compared with
 the view a Rust normalizer makes, so `load_document` on one gives the
 source text alone, for the normalizer to run on.
 
-## Training goldens
+## Training goldens (being retired under #1509; delete when #1530 lands)
+
+> **Being retired under #1509 (delete when #1530 lands):** Classical OpenNLP trainer goldens are being retired alongside `turbo-train`, `turbo-train-components` and `turbo-goldens` (#1529, #1530).
 
 `analysis/goldens/data/train/<source>-<indexer>-cutoff<n>[-unsorted]/<set>/<id>.golden`
 is what OpenNLP's training stack does below the sample types, for the
@@ -3406,7 +3420,9 @@ independent byte comparison establish exact equality for all 18 outputs.
 | `opennlp-pt-ud-gsd-tokens-1.3-2.5.4` | `token.model` | 669251 | `f7dc70bdd9c1a397bacbab18e59464235eeb7d224a8b31a8e46cb214ac4b27dd` |
 
 
-## Generating golden files
+## Generating golden files (being retired under #1509; delete when #1530 lands)
+
+> **Being retired under #1509 (delete when #1530 lands):** The JVM golden generator (`analysis/goldens-tool`) is frozen and slated for deletion in #1530.
 
 The goldens in `analysis/goldens/data` are made by `turbo-goldens`
 (crate `turbo-goldens-tool` in `analysis/goldens-tool`). It builds a
@@ -3556,7 +3572,9 @@ least one row cuts a character, so every other golden is as it was.
 `analysis/goldens/data/inputs/en/emoji-split.txt` and the
 `inputs/surrogate` set are such inputs for the tokenizer models.
 
-## Decision point dumps
+## Decision point dumps (being retired under #1509; delete when #1530 lands)
+
+> **Being retired under #1509 (delete when #1530 lands):** Maxent decision point dumps (`.dump`) are frozen and slated for deletion with `analysis/goldens` in #1530.
 
 Beside each golden of `sentdetect`, `tokenize`, `postag`, `lemmatize`, `chunk`
 and `langdetect` that names a model and has no error record,
