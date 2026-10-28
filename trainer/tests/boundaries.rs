@@ -22,6 +22,7 @@ fn spec(labels: &[&str], scheme: Scheme, decode: Decode) -> HeadSpec {
         artifact: "weights".into(),
         tensor_prefix: "probe".into(),
         biaffine: None,
+        hash_embed: None,
     }
 }
 

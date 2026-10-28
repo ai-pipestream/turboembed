@@ -22,6 +22,7 @@ fn spec(labels: &[&str], scheme: Scheme, adapter: Option<(u32, u32)>, decode: De
         adapter: adapter.map(|(hidden, layers)| Adapter { bilstm: Bilstm { hidden, layers } }),
         decode,
         biaffine: None,
+        hash_embed: None,
         artifact: "weights".into(),
         tensor_prefix: "toy".into(),
     }

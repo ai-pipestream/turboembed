@@ -14,11 +14,14 @@ mod linear;
 mod words;
 pub use linear::Linear;
 pub mod crf;
+pub mod hash_embed;
 pub mod parser;
 pub mod tagger;
 pub mod tree;
 pub use parser::BiaffineParser;
 pub use tagger::TokenTagger;
+#[cfg(test)]
+mod hash_embed_tests;
 #[cfg(test)]
 mod parser_tests;
 #[cfg(test)]

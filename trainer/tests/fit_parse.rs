@@ -21,6 +21,7 @@ fn spec(decode: Decode) -> HeadSpec {
         adapter: Some(Adapter { bilstm: Bilstm { hidden: 8, layers: 1 } }),
         decode,
         biaffine: Some(Biaffine { arc: 16, rel: 8 }),
+        hash_embed: None,
         artifact: "weights".into(),
         tensor_prefix: "deps".into(),
     }
