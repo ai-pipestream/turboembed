@@ -1,6 +1,6 @@
 # CUDA ModernBERT and nomic-bert (#1461, #1580)
 
-Head: `0fda7ded8` (claude/1461-cuda with claude/1461-cpu at `f22199098`
+Head: `0fda7ded864cb246bf247709bc5cdeed0f27f78a` (claude/1461-cuda with claude/1461-cpu at `f22199098b5dd1448212f2935c7294cb560e064f`
 merged in). Device: RTX 4080 SUPER (sm_89), nvcc 12.4,
 `TURBO_CUDA_ROOT=/usr`. These are correctness runs, not timings: the
 host's one-minute load average was 62 to 72 on 32 threads when the runs

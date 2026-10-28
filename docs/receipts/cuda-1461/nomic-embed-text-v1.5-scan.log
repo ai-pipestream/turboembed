@@ -1,4 +1,4 @@
-# cuda_variants attention_sums_by_row_length_of_a_real_bundle, TURBO_TEST_BUNDLE=<bundles>/nomic-embed-text-v1.5, head 0fda7ded8
+# cuda_variants attention_sums_by_row_length_of_a_real_bundle, TURBO_TEST_BUNDLE=<bundles>/nomic-embed-text-v1.5, head 0fda7ded864cb246bf247709bc5cdeed0f27f78a
 4 rows of 512 tokens, F16 sums: 1 - lowest cosine with the cpu 5.121e-6
 4 rows of 512 tokens, F32 sums: 1 - lowest cosine with the cpu 2.692e-6
 4 rows of 1024 tokens, F16 sums: 1 - lowest cosine with the cpu 1.960e-5

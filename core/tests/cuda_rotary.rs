@@ -402,9 +402,8 @@ fn fastest_takes_f32_attention_sums_past_4096_keys() {
         let choices = field(&s.info().choices);
         println!("{test}: max_seq {seq}, tuning {tuning}: {choices}");
         assert!(choices.contains(attn), "max_seq {seq}, tuning {tuning}: {choices}");
-        if attn != "attn=mma128," {
-            assert!(!choices.contains("attn=mma128,"), "max_seq {seq}, tuning {tuning}: {choices}");
-        }
+        let other = if attn == "attn=mma128," { "attn=mma128-acc32," } else { "attn=mma128," };
+        assert!(!choices.contains(other), "max_seq {seq}, tuning {tuning}: {choices}");
     }
     turbo::tuning::use_cache_dir(None);
 }
