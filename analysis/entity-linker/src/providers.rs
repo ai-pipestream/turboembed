@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use turbo_geo::{FuzzyStringScorer, Gazetteer};
 use turbo_glossary_layers::Glossary;
+use turbo_matcher::FuzzyMatchPolicy;
 use turbo_vector_index::Space;
 use turbo_wordnet::{HypernymTyper, LexicalKnowledgeBase, Synset, WordNetPos, WordNetRelation};
 
@@ -53,6 +54,26 @@ pub trait KbProvider: Send + Sync {
         max_candidates: usize,
         fuzzy_threshold: f64,
     ) -> Vec<RawCandidate>;
+
+    /// Like [`generate_candidates`](KbProvider::generate_candidates) with a fuzzy match policy;
+    /// the default delegates when disabled and otherwise broadens retrieval, policy-filters, caps.
+    fn generate_candidates_with_policy(
+        &self,
+        mention_text: &str,
+        query_vector: Option<(&Space, &[f32])>,
+        max_candidates: usize,
+        fuzzy_threshold: f64,
+        fuzzy_policy: FuzzyMatchPolicy,
+    ) -> Vec<RawCandidate> {
+        crate::policy::generate_with_policy(
+            self,
+            mention_text,
+            query_vector,
+            max_candidates,
+            fuzzy_threshold,
+            fuzzy_policy,
+        )
+    }
 
     /// Looks up a single entity by its canonical `kb_id`.
     fn lookup_by_id(&self, kb_id: &str) -> Option<RawCandidate>;

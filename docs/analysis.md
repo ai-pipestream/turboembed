@@ -1684,6 +1684,33 @@ call's time is lowercasing each token and looking it up. The same run
 reports three token patterns (a run of titlecase tokens, a number and
 a word, a short quotation) at about 8 million tokens a second.
 
+### Fuzzy strings and phonetic keys
+
+`soundex` and `double_metaphone` return fixed-size American Soundex and
+Double Metaphone keys without allocating per word. Soundex is four bytes;
+Double Metaphone returns primary and alternate eight-byte, NUL-padded
+keys. Non-ASCII input is handled without panicking, and empty phonetic
+keys never make two otherwise unrelated strings match.
+
+`Lexicon::new` builds a trie from a sorted, distinct string slice.
+`Lexicon::search` intersects that trie with a bounded optimal-string-
+alignment dynamic program, including adjacent transposition, rather than
+scanning the entries and checking each one. Distances count Unicode
+scalar values. A reusable `Scratch` holds the query, dynamic-program rows
+and traversal stack; results are ordered by distance and entry index.
+Bounds zero, one and two cover exact lookup and the intended fuzzy cases.
+
+`FuzzyMatchPolicy` combines this lookup with a minimum token length, an
+edit penalty and optional Soundex or Double Metaphone fallback. Its
+constructor limits distance to two and requires a finite penalty in
+`[0, 1]`. The default is disabled. `TokenMatcher::new_with_fuzzy_policy`,
+`GeoEntityLinker::with_fuzzy_match_policy`, and entity-linker's
+`LinkerConfig::fuzzy_policy` opt in; disabled policy preserves the exact
+configuration hash and prior matching behavior. Fuzzy glossary matches
+reuse the original token ranges, and geo and entity candidates retain
+their existing mention spans. Enabled policy contributes to annotator
+configuration hashes and candidate confidence.
+
 ### The span ruler
 
 `SpanRuler` holds token patterns (`add_pattern`) and phrases
