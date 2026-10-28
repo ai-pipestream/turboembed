@@ -114,8 +114,23 @@ impl Document {
                 }
                 if e.key.ty == view_ty {
                     // Views are matched by the position check above, not
-                    // by policy: this key already names that view here.
-                    continue;
+                    // by policy, but only when the key names the same view
+                    // position on both sides. A view key holding no view
+                    // (a skipped or failed record) is an ordinary
+                    // duplicate and follows the policy below.
+                    fn view_of(entry: &Entry) -> Option<&View> {
+                        entry.value.as_deref().and_then(|v| v.downcast_ref::<View>())
+                    }
+                    match (view_of(mine), view_of(e)) {
+                        (Some(a), Some(b)) if a.id == b.id => continue,
+                        (Some(a), Some(b)) => {
+                            return Err(Error::Pipeline(format!(
+                                "{} names view {} here and view {} in the other document",
+                                e.key, a.id.0, b.id.0
+                            )));
+                        }
+                        _ => {}
+                    }
                 }
                 match policy {
                     DuplicateLayerPolicy::Refuse => return Err(Error::Duplicate(e.key)),
@@ -141,12 +156,13 @@ impl Document {
                     e.key, missing
                 )));
             }
-            let entry = if e.key.ty == view_ty {
+            let entry = if e.key.ty == view_ty
+                && let Some(view) = e.value.as_deref().and_then(|v| v.downcast_ref::<View>())
+            {
                 // Point the adopted view key at the view table entry at
                 // the same position: the one already here, or the one
-                // about to be appended from `other`.
-                let view =
-                    e.value.as_deref().and_then(|v| v.downcast_ref::<View>()).expect("a view entry holds a view");
+                // about to be appended from `other`. A view entry with no
+                // view (skipped or failed) is adopted as the record it is.
                 let idx = view.id.0 as usize;
                 let shared_view: Arc<View> =
                     if idx < self.views.len() { self.views[idx].clone() } else { other.views[idx].clone() };

@@ -177,6 +177,48 @@ fn a_different_view_at_the_same_position_is_refused() {
 }
 
 #[test]
+fn skipped_view_records_adopt_without_a_view() {
+    let mut a = Document::new(TEXT);
+    let mut b = Document::new(TEXT);
+    b.skip(Key::<View>::named("folded").id(), "declined".into(), Provenance::by("t:fold")).unwrap();
+    a.merge_with(&b, DuplicateLayerPolicy::Refuse).unwrap();
+    assert!(a.has(Key::<View>::named("folded").id()));
+    assert!(a.get_key(&Key::<View>::named("folded")).is_none(), "the record holds no view");
+}
+
+#[test]
+fn one_view_key_naming_two_positions_is_refused() {
+    let text = "Cats nap";
+    let view_from = |doc: &Document, replacement: &str| {
+        let source = doc.get::<View>().unwrap().clone();
+        let mut b = ViewBuilder::new(text);
+        b.replace(1, replacement);
+        b.keep(text.len());
+        let (out, alignment) = b.finish();
+        View::derived(&source, out, alignment)
+    };
+    let mut a = Document::new(text);
+    let v = view_from(&a, "c");
+    a.add(&Key::named("v"), v, Provenance::by("t:v")).unwrap();
+
+    let mut b = Document::new(text);
+    let w = view_from(&b, "c");
+    b.add(&Key::named("w"), w, Provenance::by("t:w")).unwrap();
+    let parent = b.get_key(&Key::<View>::named("w")).unwrap().clone();
+    let mut bb = ViewBuilder::new(parent.text());
+    bb.keep(4);
+    bb.replace(5, "N");
+    bb.keep(parent.text().len());
+    let (out, alignment) = bb.finish();
+    b.add(&Key::named("v"), View::derived(&parent, out, alignment), Provenance::by("t:v")).unwrap();
+
+    let before = a.layers().count();
+    let err = a.merge_with(&b, DuplicateLayerPolicy::KeepFirst).unwrap_err();
+    assert!(err.to_string().contains("names view 1 here and view 2"), "{err}");
+    assert_eq!(a.layers().count(), before);
+}
+
+#[test]
 fn decoded_and_text_documents_of_one_text_are_refused() {
     // Latin-1 bytes for the same decoded text: spans in file bytes
     // would mean different things in the two documents.
