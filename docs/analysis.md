@@ -4527,7 +4527,7 @@ splits a sentence over `--max` at clause punctuation and else by token
 windows: gutenqa has unpunctuated stretches the sentence splitter cannot
 break, up to 116k tokens, which were one truncated chunk and cost v1
 1.46 points of nDCG@10 against fixed-tokens-200. Records at
-`8051f4d7` (gate code `e28b80d0`), six sets, under
+`8051f4d7` (gate reports from `957dc00a`, byte-identical to `e28b80d0`'s), six sets, under
 `analysis/eval/records/v1-clauses-172/<backend>/<name>/`, with the gate
 and cut reports in `reports/`. On the CPU and Level Zero (Arc Pro B70),
 alike:
