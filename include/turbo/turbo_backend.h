@@ -355,9 +355,13 @@ typedef struct turbo_backend_model {
     double      rope_local_theta;   /* on sliding-window layers; the global one without them */
     const float *rope_table;        /* the core's cos/sin table, [2 (global, local)]
                                        [2 (cos, sin)][max_positions][rope_pairs] F32: entry
-                                       (p, i) is cos or sin of p * theta^(-2i / head width),
-                                       computed in F64 and rounded once. Column i of a head
-                                       rotates with column i + rope_pairs (rotate_half) */
+                                       (p, i) is cos or sin of p * theta^(-2i / head width)
+                                       as transformers computes it: the exponent, the inverse
+                                       frequency and the angle each rounded to F32, then cos
+                                       and sin of that angle, within 2 ULP of upstream's (an
+                                       F64 angle would differ from upstream's by up to 4e-4 at
+                                       position 8192). Column i of a head rotates with column
+                                       i + rope_pairs (rotate_half) */
     uint32_t    rope_pairs;         /* half a head's width */
     uint32_t    mlp;                /* TURBO_MLP_* */
     uint32_t    activation;         /* TURBO_ACTIVATION_* */

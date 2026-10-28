@@ -79,6 +79,66 @@ mod tests {
         }
     }
 
+    /// cos and sin as transformers computes them (its default RoPE in
+    /// F32: `inv_freq = 1 / theta ** (arange(0, d, 2) / d)`, then
+    /// `position * inv_freq`, then cos and sin), from the reference
+    /// container's torch 2.14.0+cpu, as F32 bits, at head width 64.
+    const UPSTREAM: [(f64, usize, usize, u32, u32); 36] = [
+        (160000.0, 1, 1, 0x3f45d205, 0x3f227d83),
+        (160000.0, 1, 15, 0x3f7fff91, 0x3b6e4215),
+        (160000.0, 1, 31, 0x3f800000, 0x37187c4d),
+        (160000.0, 2047, 1, 0x3f7af9c2, 0x3e49e17b),
+        (160000.0, 2047, 15, 0x3ecd0af1, 0x3f6a932b),
+        (160000.0, 2047, 31, 0x3f7ff4a8, 0x3c9866fd),
+        (160000.0, 4096, 1, 0xbe4cc9cb, 0x3f7ad40f),
+        (160000.0, 4096, 15, 0xbf2f3f45, 0x3f3a9cf2),
+        (160000.0, 4096, 31, 0x3f7fd297, 0x3d187349),
+        (160000.0, 8191, 1, 0xbf75afee, 0x3e8fdbaa),
+        (160000.0, 8191, 15, 0xbd87f503, 0xbf7f6f6e),
+        (160000.0, 8191, 31, 0x3f7f4a79, 0x3d98537e),
+        (10000.0, 1, 1, 0x3f3b54b0, 0x3f2e7ace),
+        (10000.0, 1, 15, 0x3f7ffa2c, 0x3c5a7a4a),
+        (10000.0, 1, 31, 0x3f800000, 0x390bd472),
+        (10000.0, 2047, 1, 0xbeb6f76f, 0x3f6f1888),
+        (10000.0, 2047, 15, 0xbf0f341c, 0x3f543324),
+        (10000.0, 2047, 31, 0x3f768576, 0x3e8a0848),
+        (10000.0, 4096, 1, 0x3f1cec81, 0xbf4a43b3),
+        (10000.0, 4096, 15, 0xbeb2d854, 0xbf6fdfc9),
+        (10000.0, 4096, 31, 0x3f5ac075, 0x3f04fadb),
+        (10000.0, 8191, 1, 0xbf5792bd, 0xbf0a12bb),
+        (10000.0, 8191, 15, 0xbf3f46b6, 0x3f2a252f),
+        (10000.0, 8191, 31, 0x3eebc0e6, 0x3f633f29),
+        (1000.0, 1, 1, 0x3f3147ef, 0x3f38ae99),
+        (1000.0, 1, 15, 0x3f7fcd8c, 0x3d20b18e),
+        (1000.0, 1, 31, 0x3f7ffff3, 0x3aa2a6f4),
+        (1000.0, 2047, 1, 0xbf79aa1c, 0xbe62672f),
+        (1000.0, 2047, 15, 0x3e5d04c4, 0xbf79f742),
+        (1000.0, 2047, 31, 0xbf531599, 0x3f10d7b7),
+        (1000.0, 4096, 1, 0xbeef728a, 0x3f624773),
+        (1000.0, 4096, 15, 0xbf5ef8e4, 0xbefb8cdf),
+        (1000.0, 4096, 31, 0x3eb961d5, 0xbf6ea154),
+        (1000.0, 8191, 1, 0xbf7c693c, 0xbe2add27),
+        (1000.0, 8191, 15, 0x3f0ce7cc, 0x3f55bb90),
+        (1000.0, 8191, 31, 0xbf3d1794, 0xbf2c91c0),
+    ];
+
+    /// Within 2 ULP of upstream at every sampled entry, positions to 8191
+    /// included: the angle is rounded as upstream rounds it, so only the
+    /// last step's cos or sin may differ.
+    #[test]
+    fn the_table_matches_transformers() {
+        let (positions, pairs) = (8192, 32);
+        for theta in [160000.0, 10000.0, 1000.0] {
+            let t = table(theta, theta, positions, pairs).unwrap();
+            for &(_, p, i, cos, sin) in UPSTREAM.iter().filter(|u| u.0 == theta) {
+                for (got, want) in [(t[p * pairs + i], cos), (t[(positions + p) * pairs + i], sin)] {
+                    let ulps = (got.to_bits() as i64 - want as i64).abs();
+                    assert!(ulps <= 2, "theta {theta} p {p} i {i}: {got} is {ulps} ULP from {}", f32::from_bits(want));
+                }
+            }
+        }
+    }
+
     #[test]
     fn a_table_too_large_to_hold_says_so() {
         assert_eq!(table(1000.0, 1000.0, usize::MAX / 2, 32), Err(usize::MAX));
