@@ -24,8 +24,8 @@ text with labelled spans per kind. Within the mixed set only `phone` has
 unedited third-party prose coverage; the separate external partition below
 adds unedited third-party coverage for `aba-routing`,
 `aws-access-key`, `btc-address`, `ca-sin`, `email`, `eth-address`,
-`iban`, `imei`, `ipv4`, `ipv6`, `jwt`, `mac`, `uk-nhs`,
-`url-credential`, `us-ssn` and further `phone`, plus zero-gold
+`github-token`, `iban`, `imei`, `ipv4`, `ipv6`, `jwt`, `mac`,
+`uk-nhs`, `url-credential`, `us-ssn` and further `phone`, plus zero-gold
 precision documents for `card`, `us-itin` and `de-steuer-id`, for
 which no licensed source found so far prints a complete specimen. The adapted
 crypto summaries and authored memos remain useful, separately
@@ -79,7 +79,7 @@ positives.
 
 ## External prose partition (#968)
 
-Nineteen further whole third-party documents (`455,475` UTF-8 bytes, `125` gold
+Twenty further whole third-party documents (`459,327` UTF-8 bytes, `130` gold
 mentions in `labels-external.tsv`, same five columns except that newlines
 inside covered text are escaped as `\n`), scored separately by
 `precision_and_recall_on_external_prose` (`analysis/pii/tests/external_prose.rs`)
@@ -114,8 +114,10 @@ of each file is pinned in the test.
 | `awsdocs-eks-install-awscli` | `awsdocs-eks-install-awscli.adoc` | 4,258 | `1c537abb5ca8d1d14936c74526c6b34c0250b8bbe7e1d24edf280cdea1d9ab72` | [Amazon EKS User Guide](https://docs.aws.amazon.com/eks/latest/userguide/), the install-AWS-CLI chapter (the latest/ug/getting-started/install-awscli.adoc file) at awsdocs/amazon-eks-user-guide commit `4553d6483b1e7fc781b633106bcf80f1a4782ce5` (CC BY-SA 4.0). Gold: `2` `aws-access-key` (the canonical AWS documentation example key, in the `aws configure` prompt answer and again as the `UserId` of the example `sts get-caller-identity` output, where the guide reuses the same published example string). The example secret access key beside it is not an access key ID and is not labelled. |
 | `awsdocs-rekognition-cloudtrail` | `awsdocs-rekognition-cloudtrail.md` | 8,402 | `355de027b081c4b29765be8d71c74d5374861f1de771c11d1a94824c5cffa690` | [Amazon Rekognition Developer Guide](https://docs.aws.amazon.com/rekognition/latest/dg/), the CloudTrail logging chapter (the doc_source/logging-using-cloudtrail.md file) at awsdocs/amazon-rekognition-developer-guide commit `8ca760f370aebf48c0f852617188c6181fb7c556` (CC BY-SA 4.0). Gold: `2` `aws-access-key` (the `accessKeyId` of the two example log records, the canonical AWS example key), `2` `ipv4` (the records' `sourceIPAddress` documentation address `192.0.2.0`). The example account ID `111122223333` is not an occurrence of any built-in kind. |
 
+| `github-docs-credentials` | `github-docs-credentials.json` | 3,852 | `6264abec023c7028ad236ff545a802aeea01653e83cfcc3990fc480ab6797102` | [GitHub Docs](https://docs.github.com/) REST API data for the credentials-revoke endpoint (the src/rest/data/fpt-2022-11-28/credentials.json file) at github/docs commit `e6d6a89c2a7f36382ac7a99d6b3f5e44fd312781` (CC BY 4.0). Gold: `5` `github-token` (the example credentials of the revoke request body: one classic personal access token, one fine-grained token, and one token each for the OAuth, user-to-server and refresh prefixes). They are documentation example values published for revocation examples, not live credentials. |
+
 Annotation method: every occurrence of every built-in kind in these
-nineteen documents was enumerated by independent shape searches over the pinned text
+twenty documents was enumerated by independent shape searches over the pinned text
 and read in context before labelling; spans the search shapes could not
 produce (the display-wrapped JWTs, address parts of CIDR prefixes) were
 located from the documents' own example sections. Values are as their

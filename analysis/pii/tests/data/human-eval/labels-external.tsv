@@ -124,3 +124,8 @@ awsdocs-rekognition-cloudtrail	5038	5058	aws-access-key	AKIAIOSFODNN7EXAMPLE
 awsdocs-rekognition-cloudtrail	5908	5917	ipv4	192.0.2.0
 awsdocs-rekognition-cloudtrail	6932	6952	aws-access-key	AKIAIOSFODNN7EXAMPLE
 awsdocs-rekognition-cloudtrail	7795	7804	ipv4	192.0.2.0
+github-docs-credentials	2532	2576	github-token	ghp_1234567890abcdef1234567890abcdef12345678
+github-docs-credentials	2596	2689	github-token	github_pat_0A1B2C3D4E5F6G7H8I9J0K_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456
+github-docs-credentials	2709	2753	github-token	gho_1234567890abcdef1234567890abcdef12345678
+github-docs-credentials	2773	2817	github-token	ghu_1234567890abcdef1234567890abcdef12345678
+github-docs-credentials	2837	2917	github-token	ghr_1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab
