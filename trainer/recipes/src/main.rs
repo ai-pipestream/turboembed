@@ -9,7 +9,12 @@
 //!     [--bilstm <hidden>x<layers>] [--hash-embed <dim>] [--hash-rows <norm>,<prefix>,<suffix>,<shape>]
 //!     [--seed N] [--epochs N] [--batch N] [--lr X] [--patience N] [--tolerance X]
 //!     [--threads N] [--max-train N] [--commit <sha>] [--unrecorded-corpus]
+//! turbo-train-head cache    --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <dir> --layers N
+//!     [--device ..] [--precision ..] [--pooling ..] [--max-batch N] [--commit <sha>] [--unrecorded-corpus]
 //! ```
+//!
+//! `cache` writes every split's word features at the encoder's last N
+//! layers, for heads on one layer or a mix of them (`cache` module).
 //!
 //! Exit status 2 on any error. `--out` must not exist yet. A run claims
 //! it before anything else, by making it, which fails when it exists, so
@@ -24,6 +29,7 @@ use turbo::manifest::{HashEmbed, WordPooling};
 use turbo_analysis_embed::{Device, EncoderOptions, Precision};
 use turbo_tagger::WordEncoder;
 use turbo_trainer::Config;
+use turbo_trainer_recipes::cache::{self, CacheRecord};
 use turbo_trainer_recipes::corpus::{Sentence, Task};
 use turbo_trainer_recipes::eval::{Majority, Seen, bootstrap, evaluate};
 use turbo_trainer_recipes::receipt::*;
@@ -132,13 +138,13 @@ fn run(argv: Vec<String>) -> Result<()> {
             finish(out, receipt)
         }
         "train" => train(&argv, &corpus_id, &dir, unrecorded, a),
-        _ => Err(Error(format!("unknown command {command:?}: check, baseline or train"))),
+        "cache" => cache(&argv, &corpus_id, &dir, unrecorded, a),
+        _ => Err(Error(format!("unknown command {command:?}: check, baseline, train or cache"))),
     }
 }
 
-fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
-    let bundle = PathBuf::from(a.required("--bundle")?);
-    let out = OutDir::claim(&a.required("--out")?)?;
+/// --device, --precision and --pooling.
+fn encoder_args(a: &mut Args) -> Result<(Device, Precision, WordPooling)> {
     let device = match a.value("--device")?.as_deref() {
         None | Some("cpu") => Device::Cpu,
         Some(d) => Device::Backend(d.to_owned()),
@@ -153,6 +159,58 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         Some("mean") => WordPooling::Mean,
         Some(p) => return Err(Error(format!("--pooling {p:?}: first or mean"))),
     };
+    Ok((device, precision, pooling))
+}
+
+/// Writes the word features of every split at the encoder's last
+/// `--layers` layers, and `cache.json` last.
+fn cache(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
+    let bundle = PathBuf::from(a.required("--bundle")?);
+    let mut out = OutDir::claim(&a.required("--out")?)?;
+    let (device, precision, pooling) = encoder_args(&mut a)?;
+    let taps: u32 = a.parsed("--layers", 0)?;
+    let max_batch: u32 = a.parsed("--max-batch", 32)?;
+    let commit = commit(a.value("--commit")?);
+    a.done()?;
+    let corpus = read_corpus(corpus_id, dir, unrecorded)?;
+    let o = EncoderOptions { device, precision, max_batch: max_batch.max(taps), ..EncoderOptions::default() };
+    let mut enc = WordEncoder::open(&bundle, &o).map_err(|e| Error(e.message))?;
+    let encoder = encoder_record(&bundle, &enc)?;
+    let model_layers = encoder.layers.ok_or_else(|| Error(format!("{}: no architecture.layers", bundle.display())))?;
+    let t = Instant::now();
+    let s = &corpus.splits;
+    let splits = [("train", &s.train[..]), ("dev", &s.dev[..]), ("test", &s.test[..])];
+    let (layers, splits) = cache::write(&mut enc, &splits, pooling, taps, model_layers, &out.path)?;
+    let record = CacheRecord {
+        schema: cache::SCHEMA.into(),
+        command: argv.to_vec(),
+        commit,
+        host: host(),
+        unix_time: unix_time(),
+        corpus: corpus.record.clone(),
+        encoder,
+        pooling,
+        layers,
+        splits,
+        features_s: t.elapsed().as_secs_f64(),
+    };
+    write(&out.path, "cache.json", serde_json::to_string_pretty(&record).expect("serializes").as_bytes())?;
+    out.keep = true;
+    let words: u64 = record.splits.iter().map(|s| s.words).sum();
+    println!(
+        "{}: layers {:?} of {words} words in {:.1} s, {:.0} words/s",
+        out.path.display(),
+        record.layers,
+        record.features_s,
+        words as f64 / record.features_s.max(1e-9)
+    );
+    Ok(())
+}
+
+fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: Args) -> Result<()> {
+    let bundle = PathBuf::from(a.required("--bundle")?);
+    let out = OutDir::claim(&a.required("--out")?)?;
+    let (device, precision, pooling) = encoder_args(&mut a)?;
     let crf = a.flag("--crf");
     let bilstm = match a.value("--bilstm")? {
         None => None,

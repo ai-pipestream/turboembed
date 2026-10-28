@@ -13,6 +13,7 @@
 //! | `receipt` | `receipt.json` |
 //! | `safetensors` | Writing the head's F32 tensors |
 
+pub mod cache;
 pub mod corpus;
 pub mod eval;
 pub mod masc_pos;
