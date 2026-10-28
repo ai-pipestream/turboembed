@@ -1,9 +1,9 @@
 # Peer analysis records (#1521)
 
-Peer records scored by `turbo-eval analysis` against the UD
-English-EWT test file: `spacy-en-ewt-test.json`,
-`stanza-en-ewt-test.json`, `wtpsplit-en-ewt-test.json`, and
-`trankit-en-ewt-test.json`.
+Peer and turbo records scored by `turbo-eval analysis` against the
+UD English-EWT test file: `spacy-en-ewt-test.json`,
+`stanza-en-ewt-test.json`, `wtpsplit-en-ewt-test.json`,
+`trankit-en-ewt-test.json`, and `turbo-sat-en-ewt-test.json`.
 
 ## Inputs and pins
 
@@ -48,6 +48,21 @@ English-EWT test file: `spacy-en-ewt-test.json`,
   `2c14aae8c6ae8d90a03996dcb3a48221916ccb0195c2be2dd8ff4891522314df`.
   Headlines: sentences 93.43 F1, tokens 98.42, UPOS 94.94, XPOS
   95.38, feats 84.51, lemma 93.17, UAS 86.82, LAS 83.39.
+- Ours: the SaT sentence tier (`--sentences sat`) on CPU with model
+  precision, bundle `segment-any-text/sat-1l-sm` revision 1, source
+  commit `00a783439c201b20ee91ee1624dc817f1bf0e578`. Bundle weights
+  SHA-256
+  `81eb7a4fcd4dab85c50866c7e2cf58f3d848e1c830c9207d132277110489ea0c`;
+  tokenizer SHA-256
+  `a898ea75433890f6610f4e470b8ebeb0c21dce5c8dd61f892eb09eb5919d2e2c`;
+  manifest SHA-256
+  `c3a0dbcc13b9f5eec8154563eb3403b8f859254e69fcb202204296f734bcb506`.
+  Sentence F1 82.64 in joined-text coordinates (1414 correct of 1661
+  selected against 1761 target boundaries). This is the one-layer
+  small SaT variant; the wtpsplit peer above used the three-layer
+  weights, so the two sentence rows are not the same model in two
+  runtimes. The record's throughput field is one in-process timing,
+  not a 20-run receipt.
 
 ## Conditioning
 
@@ -83,6 +98,11 @@ docker run --rm --network none -v <gold-dir>:/gold:ro -v <out-dir>:/out \
 docker build -t turbo-peer-trankit:1.1.2-en analysis/eval/reference/peers/trankit
 docker run --rm --network none -v <gold-dir>:/gold:ro -v <out-dir>:/out \
   turbo-peer-trankit:1.1.2-en /gold/en_ewt-ud-test.conllu /out/trankit.conllu
+
+turbo-eval analysis --gold <gold-dir>/en_ewt-ud-test.conllu \
+  --sha256 fa024f43dc5da3c5ac02563bc9bd0e974f46cbb1560823976a8f342a37dc494a \
+  --system turbo-sat-1l-sm-cpu --sentences sat \
+  --sat-bundle <sat-1l-sm-bundle-dir> --out <new-record>.json
 ```
 
 Recorded 2026-10-28 under load average about 31 to 36 (accuracy
