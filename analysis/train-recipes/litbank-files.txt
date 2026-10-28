@@ -1,0 +1,4 @@
+# The LitBank archive the coreference and entity recipes read,
+# with its size and SHA-256 at the pinned commit.
+# repo	revision	path	size	sha256
+dbamman/litbank	3e50db0ffc033d7ccbb94f4d88f6b99210328ed8	archive.tar.gz	29297133	1dc94ccf0ee6bcfb949f879d5786d15547b6295b9b3cd2ac727369cf771f3d20
