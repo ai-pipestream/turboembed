@@ -48,7 +48,7 @@ gRPC service) build against. Everything below is new.
 - The CPU encoder for ModernBERT and nomic-bert: RoPE in the QKV
   product's epilogue over pair-adjacent weights, sliding-window attention
   over each block's band of keys, GeGLU and SwiGLU in one product, held to
-  upstream on the sealed tiny bundles (#1461).
+  upstream on the sealed tiny bundles (#1544).
 
 ### Not in this release yet
 
