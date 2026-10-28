@@ -3,7 +3,7 @@
 //! `tests/snapshots/money/{extract,convert}/<notation>/<id>.tsv`.
 //! Regenerate with `TURBO_BLESS=1 cargo test -p turbo-numeric --test money_goldens`.
 //! Rates: `tests/fixtures/ecb-snapshot.csv`. Target EUR as of 2026-03-15.
-//! JVM goldens are not an oracle.
+//! Snapshots freeze the default (non-OpenNLP-parity) configuration.
 
 use std::path::PathBuf;
 
@@ -91,7 +91,7 @@ fn check(dir: &str, notation: NumberNotation) -> Counts {
     let as_of = Date::parse(AS_OF).expect("as_of");
     let rates = EcbRates::load(root().join("fixtures/ecb-snapshot.csv")).expect("rates");
     let analyzer = Analyzer::builder()
-        .add(MoneyExtractor::new(notation).with_opennlp_parity(true))
+        .add(MoneyExtractor::new(notation))
         .step(MoneyConverter::new(rates, target, as_of).bound())
         .build()
         .expect("analyzer");

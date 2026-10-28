@@ -2,7 +2,7 @@
 //!
 //! `tests/snapshots/quantity/<notation>/<id>.tsv`. Regenerate with
 //! `TURBO_BLESS=1 cargo test -p turbo-numeric --test quantity_goldens`.
-//! JVM goldens are not an oracle.
+//! Snapshots freeze the default (non-OpenNLP-parity) configuration.
 
 use std::path::PathBuf;
 
@@ -66,8 +66,7 @@ fn check(dir: &str, notation: NumberNotation) -> usize {
     let bless = std::env::var_os("TURBO_BLESS").is_some();
     let ids = input_ids();
     assert!(!ids.is_empty());
-    let analyzer =
-        Analyzer::builder().add(QuantityExtractor::new(notation).with_opennlp_parity(true)).build().expect("analyzer");
+    let analyzer = Analyzer::builder().add(QuantityExtractor::new(notation)).build().expect("analyzer");
     let mut found = 0;
     for id in &ids {
         let text = text_of(id);

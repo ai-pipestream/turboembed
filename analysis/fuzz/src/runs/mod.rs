@@ -156,11 +156,6 @@ pub(crate) fn has_cut(golden: &Golden, layer: &str) -> bool {
     golden.layer(&format!("turbo:utf16<{layer}>")).is_some()
 }
 
-/// The value of the golden's `config` record `key`.
-pub(crate) fn config<'g>(golden: &'g Golden, key: &str) -> Option<&'g str> {
-    golden.header.config.iter().find(|c| c.key == key).map(|c| c.value.as_str())
-}
-
 /// A run name split at its `+` options: `opennlp-en-...+beam1` gives the
 /// model and `["beam1"]`.
 pub(crate) fn split_options(run: &str) -> (&str, Vec<&str>) {

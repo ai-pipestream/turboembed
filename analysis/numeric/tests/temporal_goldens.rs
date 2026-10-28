@@ -2,7 +2,14 @@
 //!
 //! `tests/snapshots/temporal/<mode>/<id>.{temporal,document-date}.tsv`.
 //! Regenerate with `TURBO_BLESS=1 cargo test -p turbo-numeric --test temporal_goldens`.
-//! Fixed mode reference date: 2026-03-15. JVM goldens are not an oracle.
+//! Fixed mode reference date: 2026-03-15.
+//!
+//! Snapshots freeze the default (non-OpenNLP-parity) configuration. Relative to
+//! the retired JVM/parity goldens that is a deliberate change: default mode
+//! keeps year-range edges such as July 0999 and July 3000 in
+//! `fixed/years-range`, and the 100-day relative expressions in
+//! `fixed/relative-count-digits`, which parity mode omitted. See
+//! `temporal_fixes.rs` for the targeted assertions.
 
 use std::path::PathBuf;
 
@@ -120,7 +127,7 @@ fn check(mode: &str, extractor: TemporalExtractor) -> Compared {
 
 #[test]
 fn dateline_snapshots() {
-    let c = check("dateline", TemporalExtractor::new().with_opennlp_parity(true));
+    let c = check("dateline", TemporalExtractor::new());
     assert!(c.mentions > 75, "only {} mentions", c.mentions);
     assert!(c.relative >= 5, "only {} relative", c.relative);
     assert!(c.dated > 25, "only {} dated", c.dated);
@@ -129,7 +136,7 @@ fn dateline_snapshots() {
 #[test]
 fn fixed_snapshots() {
     let reference = Date::parse(REFERENCE).expect("reference");
-    let c = check("fixed", TemporalExtractor::with_reference(reference).with_opennlp_parity(true));
+    let c = check("fixed", TemporalExtractor::with_reference(reference));
     assert!(c.mentions > 110, "only {} mentions", c.mentions);
     assert!(c.relative > 40, "only {} relative", c.relative);
     assert!(c.dated > 25, "only {} dated", c.dated);

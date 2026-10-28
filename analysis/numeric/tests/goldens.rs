@@ -3,8 +3,9 @@
 //! `tests/snapshots/numbers/<notation>/<id>.tsv` holds the `turbo:numbers`
 //! rows for each input in `tests/inputs/num/`. Regenerate with
 //! `TURBO_BLESS=1 cargo test -p turbo-numeric --test goldens`.
-//! JVM goldens are not an oracle. Each case checks Layer::check, spans in
-//! bounds, and that `plain` matches `DecimalRef::to_plain_string`.
+//! Snapshots freeze the default (non-OpenNLP-parity) configuration the pipeline
+//! runs. Each case checks Layer::check, spans in bounds, and that `plain` is
+//! digits/sign/point only and matches `DecimalRef::to_plain_string`.
 
 use std::path::PathBuf;
 
@@ -66,15 +67,17 @@ fn check_invariants(text: &str, layer: &Numbers) {
         let k = i.get();
         assert!(layer.numeral_end[k] >= span.start && layer.numeral_end[k] <= span.end);
         let plain = layer.value(i).to_plain_string();
-        // plain is digits/sign/point only
-        assert!(!plain.is_empty());
-        let _ = plain;
+        assert!(!plain.is_empty(), "empty plain for {span:?}");
+        assert!(
+            plain.chars().all(|c| c.is_ascii_digit() || c == '-' || c == '.'),
+            "plain {plain:?} is not digits/sign/point only"
+        );
     }
 }
 
 fn check(dir: &str, notation: NumberNotation) -> usize {
     let bless = std::env::var_os("TURBO_BLESS").is_some();
-    let scanner = NumberScanner::new(notation).with_opennlp_parity(true);
+    let scanner = NumberScanner::new(notation);
     let ids = input_ids();
     assert!(!ids.is_empty());
     let mut numbers = 0;
@@ -94,9 +97,10 @@ fn check(dir: &str, notation: NumberNotation) -> usize {
         let want = std::fs::read_to_string(&path)
             .unwrap_or_else(|e| panic!("missing snapshot {} (TURBO_BLESS=1 to write): {e}", path.display()));
         assert_eq!(body, want, "{dir}/{id}");
-        // Keep Document path warm for Layer wiring.
         let mut doc = Document::new(text.as_str());
         doc.add(&Key::<Numbers>::DEFAULT, layer, Provenance::by("snapshot")).unwrap();
+        let got = doc.get_key(&Key::<Numbers>::DEFAULT).expect("Numbers on document");
+        assert_eq!(got.spans.len(), body.lines().filter(|l| !l.is_empty()).count());
     }
     numbers
 }

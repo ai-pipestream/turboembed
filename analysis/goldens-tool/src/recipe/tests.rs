@@ -219,10 +219,6 @@ fn the_dumped_annotators_and_the_normalizer_set_are_in_the_recipe() {
     assert!(normalizer.contains(&format!("INPUT_SET = \"{NORMALIZER_INPUT_SET}\"")));
 }
 
-
-
-
-
 #[test]
 fn the_svm_categorizer_has_its_own_input_sets_and_no_dumps() {
     assert!(INPUT_SETS.contains(&SVM_DOCCAT_INPUT_SET));

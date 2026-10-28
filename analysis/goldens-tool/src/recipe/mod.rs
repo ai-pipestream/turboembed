@@ -86,7 +86,7 @@ pub const INPUT_SETS: [&str; 39] = [
     "en",
     "multi",
     "norm",
-                    "edge",
+    "edge",
     "surrogate",
     "abbreviations",
     "alphanumeric",
@@ -144,7 +144,7 @@ pub const ANNOTATORS: [&str; 41] = [
     "chunk",
     "langdetect",
     "normalize",
-            "detokenize",
+    "detokenize",
     "subwords",
     "sentvectors",
     "unigram",
@@ -192,7 +192,6 @@ pub const DUMPED_ANNOTATORS: [&str; 6] = ["sentdetect", "tokenize", "postag", "l
 /// The input set the normalizers run on. They run on no other set, and the
 /// other annotators do not run on this one.
 pub const NORMALIZER_INPUT_SET: &str = "norm";
-
 
 /// The input sets of the SVM document categorizer: the documents its models
 /// categorize, and the corpora they are trained on. No other annotator runs
