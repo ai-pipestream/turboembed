@@ -414,7 +414,7 @@ impl ModelCard {
         publishable_class(&self.id, self.license, &self.trained_on)?;
         let not = |reason| Error::NotShippable { id: self.id.clone(), reason };
         let recipe = Recipe::trains(&self.id).ok_or(not("no recipe trains it"))?;
-        let reference = recipe.reference();
+        let reference = recipe.reference().map_err(|_| not("its recipe has no reference model"))?;
         if self.gate.reference != reference.id() || self.gate.reference_sha256 != reference.sha256()? {
             return Err(not("it was not gated against its recipe's reference"));
         }

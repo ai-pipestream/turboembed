@@ -12,6 +12,11 @@ pub enum Reference {
     Zoo(&'static str),
     /// A model the zoo does not list, recorded by the recipe.
     Recorded(RecordedReference),
+    /// An OpenNLP 2.5 model the recipe was gated against, kept by its id
+    /// alone: it is not fetched or pinned (#1509), so its file, digest and
+    /// check are errors ([`Error::RetiredReference`]) until #1532 removes
+    /// the recipe's gate.
+    Retired(&'static str),
 }
 
 /// A reference model the zoo does not list: its file as published, which
@@ -35,7 +40,7 @@ impl Reference {
     /// recorded one.
     pub fn id(&self) -> &'static str {
         match self {
-            Reference::Zoo(id) => id,
+            Reference::Zoo(id) | Reference::Retired(id) => id,
             Reference::Recorded(r) => r.id,
         }
     }
@@ -45,11 +50,12 @@ impl Reference {
     ///
     /// # Errors
     ///
-    /// A zoo id the index does not list.
+    /// A zoo id the index does not list, or a retired reference.
     pub fn file(&self) -> Result<String> {
         match self {
             Reference::Zoo(id) => Ok(Index::builtin().get(id)?.files[0].path.to_string()),
             Reference::Recorded(r) => Ok(r.file.to_owned()),
+            Reference::Retired(id) => Err(Error::RetiredReference { id }),
         }
     }
 
@@ -58,11 +64,12 @@ impl Reference {
     ///
     /// # Errors
     ///
-    /// A zoo id the index does not list.
+    /// A zoo id the index does not list, or a retired reference.
     pub fn sha256(&self) -> Result<String> {
         match self {
             Reference::Zoo(id) => Ok(Index::builtin().get(id)?.files[0].sha256.to_string()),
             Reference::Recorded(r) => Ok(r.sha256.to_owned()),
+            Reference::Retired(id) => Err(Error::RetiredReference { id }),
         }
     }
 
@@ -71,12 +78,12 @@ impl Reference {
     ///
     /// # Errors
     ///
-    /// [`Error::ReferenceDigest`] for other bytes, or a zoo id the index
-    /// does not list.
+    /// [`Error::ReferenceDigest`] for other bytes, a zoo id the index
+    /// does not list, or a retired reference.
     pub fn check(&self, bytes: &[u8]) -> Result<()> {
         let expected = self.sha256()?;
         let size = match self {
-            Reference::Zoo(_) => None,
+            Reference::Zoo(_) | Reference::Retired(_) => None,
             Reference::Recorded(r) => Some(r.size),
         };
         let found = Sha256::of(bytes).to_string();
@@ -94,6 +101,16 @@ mod tests {
     use super::*;
 
     use crate::{LeftOut, Limit, check_skipped};
+
+    #[test]
+    fn a_retired_reference_has_an_id_but_no_file_digest_or_check() {
+        let r = Reference::Retired("opennlp-langdetect-183");
+        assert_eq!(r.id(), "opennlp-langdetect-183");
+        assert!(matches!(r.file(), Err(Error::RetiredReference { id: "opennlp-langdetect-183" })));
+        assert!(matches!(r.sha256(), Err(Error::RetiredReference { .. })));
+        let err = r.check(b"abc").unwrap_err();
+        assert!(err.to_string().contains("#1532"), "{err}");
+    }
 
     #[test]
     fn a_recorded_reference_is_checked_by_size_and_digest() {

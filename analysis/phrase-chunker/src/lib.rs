@@ -16,8 +16,7 @@
 //! bit for bit; the tests compare both, and the phrases, with files the
 //! JVM wrote (`analysis/goldens/data/chunk`, see `README.md` here). The
 //! published chunker models are OpenNLP 1.5 models, which this project
-//! does not ship (the chunker recipe of `turbo-train-recipes` scores
-//! `en-chunker.bin` as its gate's reference); the tests run the small
+//! does not ship, fetch or score (#1509); the tests run the small
 //! models `chunker-fixture.bin`, trained by OpenNLP, and
 //! `chunker-fixture-rust.bin`, trained by `turbo-train-components`, both
 //! on Penn Treebank tags, over the Penn Treebank tags the English
