@@ -17,8 +17,8 @@ fn tokenizer_of(matrix: &str, lexicon: &str, char_def: &str, unk_def: &str) -> L
         char_def: char_def.as_bytes(),
         unk_def: unk_def.as_bytes(),
     };
-    let d = MecabDictionary::from_files(files, WhitespaceMode::Unicode, DictionaryLimits::default()).unwrap();
-    LatticeTokenizer::new(d, WhitespaceMode::Unicode)
+    let d = MecabDictionary::from_files(files, DictionaryLimits::default()).unwrap();
+    LatticeTokenizer::new(d)
 }
 
 fn tokenizer() -> LatticeTokenizer {
@@ -225,8 +225,8 @@ fn every_byte_is_covered_once_outside_whitespace() {
     for m in &out {
         let (a, b) = (m.span.start as usize, m.span.end as usize);
         assert!(text.is_char_boundary(a) && text.is_char_boundary(b) && a < b);
-        assert!(text[at..a].chars().all(|c| WhitespaceMode::Unicode.is_whitespace(c as u32)));
-        assert!(!text[a..b].chars().any(|c| WhitespaceMode::Unicode.is_whitespace(c as u32)));
+        assert!(text[at..a].chars().all(|c| turbo_unicode::whitespace::is_whitespace(c as u32)));
+        assert!(!text[a..b].chars().any(|c| turbo_unicode::whitespace::is_whitespace(c as u32)));
         at = b;
     }
     assert_eq!(at, text.len());

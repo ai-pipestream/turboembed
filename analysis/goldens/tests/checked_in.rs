@@ -42,8 +42,8 @@ fn every_segmentation_golden_reads_and_writes_back_its_bytes() {
             n += 1;
         }
     }
-    // 779 tokenize, 362 sentdetect, 19 detokenize and 264 unigram goldens.
-    assert_eq!(n, 1424);
+    // 643 tokenize, 243 sentdetect, 19 detokenize and 132 unigram goldens.
+    assert_eq!(n, 1037);
 }
 
 #[test]
@@ -68,25 +68,23 @@ fn every_dump_reads_and_has_its_goldens_header() {
             points += d.points.len();
         }
     }
-    // 473 tokenize, 294 sentdetect and 140 langdetect dumps (22 each of
+    // 473 tokenize, 209 sentdetect and 140 langdetect dumps (22 each of
     // langdetect-183 and the Rust fixture, and 24 each of their four
     // probing runs).
-    assert_eq!(dumps, 907);
-    assert_eq!(points, 25351, "every point of every dump");
+    assert_eq!(dumps, 822);
+    assert_eq!(points, 24967, "every point of every dump");
 }
 
 #[test]
-fn the_fixture_sentence_model_refuses_three_splits_in_each_mode() {
+fn the_fixture_sentence_model_refuses_three_splits() {
     // `en-abbrev` has an abbreviation dictionary; it refuses a split the
-    // model wanted three times over the fixture inputs, in each mode.
-    for run in ["en-abbrev", "en-abbrev+legacy"] {
-        let dir = data_dir().join("sentdetect").join(run);
-        let mut paths = Vec::new();
-        files(&dir, "dump", &mut paths);
-        let refused: usize = paths
-            .iter()
-            .map(|p| Dump::read(p).unwrap().points.iter().filter(|p| p.acceptable == Some(false)).count())
-            .sum();
-        assert_eq!(refused, 3, "{run}");
-    }
+    // model wanted three times over the fixture inputs.
+    let dir = data_dir().join("sentdetect").join("en-abbrev");
+    let mut paths = Vec::new();
+    files(&dir, "dump", &mut paths);
+    let refused: usize = paths
+        .iter()
+        .map(|p| Dump::read(p).unwrap().points.iter().filter(|p| p.acceptable == Some(false)).count())
+        .sum();
+    assert_eq!(refused, 3);
 }

@@ -18,7 +18,6 @@ import opennlp.tools.tokenize.lattice.LatticeTokenizer;
 import opennlp.tools.tokenize.lattice.MecabDictionary;
 import opennlp.tools.tokenize.lattice.Morpheme;
 import opennlp.tools.util.Span;
-import opennlp.tools.util.WhitespaceMode;
 
 /**
  * The golden of OpenNLP's {@link LatticeTokenizer}: the morphemes of the cheapest path through the
@@ -28,9 +27,7 @@ import opennlp.tools.util.WhitespaceMode;
  * SHA-512 of a manifest of the files {@link MecabDictionary#load} reads, in the order it reads
  * them ({@code matrix.def}, the {@code *.csv} files sorted by path, {@code char.def},
  * {@code unk.def}): for each, its name, a tab, the SHA-512 of its bytes in lowercase hex and a
- * line feed. The directory's name is the golden's model directory. {@code StringUtil.isWhitespace}
- * splits the dictionary's lines and the text, so a {@code +legacy} run loads the dictionary and
- * segments with the legacy mode active.</p>
+ * line feed. The directory's name is the golden's model directory.</p>
  *
  * <p>A dictionary that is not UTF-8 (IPADIC is EUC-JP) is loaded in its own encoding, as OpenNLP
  * users load it, and has a second {@code model} record: a UTF-8 copy of its files, which the
@@ -52,22 +49,19 @@ final class LatticeGolden implements AnnotatorGolden {
 
   private final List<ModelRef> models;
   private final LatticeTokenizer tokenizer;
-  private final WhitespaceMode whitespace;
   private final Set<String> inputSets;
 
-  private LatticeGolden(List<ModelRef> models, LatticeTokenizer tokenizer, WhitespaceMode whitespace,
-      Set<String> inputSets) {
+  private LatticeGolden(List<ModelRef> models, LatticeTokenizer tokenizer, Set<String> inputSets) {
     this.models = List.copyOf(models);
     this.tokenizer = tokenizer;
-    this.whitespace = whitespace;
     this.inputSets = Set.copyOf(inputSets);
   }
 
-  /** Loads the UTF-8 dictionary directory {@code dir} in {@code whitespace} mode. */
-  static LatticeGolden load(Path dir, WhitespaceMode whitespace, Set<String> inputSets) throws IOException {
+  /** Loads the UTF-8 dictionary directory {@code dir}. */
+  static LatticeGolden load(Path dir, Set<String> inputSets) throws IOException {
     ModelRef ref = manifest(dir);
-    MecabDictionary dictionary = loadIn(dir, StandardCharsets.UTF_8, whitespace);
-    return new LatticeGolden(List.of(ref), new LatticeTokenizer(dictionary), whitespace, inputSets);
+    MecabDictionary dictionary = MecabDictionary.load(dir, StandardCharsets.UTF_8);
+    return new LatticeGolden(List.of(ref), new LatticeTokenizer(dictionary), inputSets);
   }
 
   /**
@@ -75,8 +69,8 @@ final class LatticeGolden implements AnnotatorGolden {
    * utf8Copy} holds the same files and that each, read as UTF-8, is the same text as the original
    * read in {@code charset}. Both decoders refuse malformed input.
    */
-  static LatticeGolden loadRecoded(Path dir, Charset charset, Path utf8Copy, WhitespaceMode whitespace,
-      Set<String> inputSets) throws IOException {
+  static LatticeGolden loadRecoded(Path dir, Charset charset, Path utf8Copy, Set<String> inputSets)
+      throws IOException {
     List<Path> original = files(dir);
     List<Path> copy = files(utf8Copy);
     List<String> names = original.stream().map(p -> p.getFileName().toString()).toList();
@@ -91,18 +85,8 @@ final class LatticeGolden implements AnnotatorGolden {
       }
     }
     List<ModelRef> refs = List.of(manifest(dir), manifest(utf8Copy));
-    MecabDictionary dictionary = loadIn(dir, charset, whitespace);
-    return new LatticeGolden(refs, new LatticeTokenizer(dictionary), whitespace, inputSets);
-  }
-
-  private static MecabDictionary loadIn(Path dir, Charset charset, WhitespaceMode whitespace) throws IOException {
-    WhitespaceMode previous = WhitespaceMode.current();
-    WhitespaceMode.setActive(whitespace);
-    try {
-      return MecabDictionary.load(dir, charset);
-    } finally {
-      WhitespaceMode.setActive(previous);
-    }
+    MecabDictionary dictionary = MecabDictionary.load(dir, charset);
+    return new LatticeGolden(refs, new LatticeTokenizer(dictionary), inputSets);
   }
 
   private static String decode(byte[] bytes, Charset charset, Path file) throws IOException {
@@ -152,7 +136,7 @@ final class LatticeGolden implements AnnotatorGolden {
 
   @Override
   public String modelDir() {
-    return models.get(0).baseName() + Whitespace.dirSuffix(whitespace);
+    return models.get(0).baseName();
   }
 
   @Override
@@ -167,7 +151,7 @@ final class LatticeGolden implements AnnotatorGolden {
 
   @Override
   public Map<String, String> config() {
-    return Whitespace.config(whitespace);
+    return Map.of();
   }
 
   @Override
@@ -178,7 +162,7 @@ final class LatticeGolden implements AnnotatorGolden {
   @Override
   public List<Layer> layers(Input input) throws AnnotatorException {
     List<Morpheme> morphemes =
-        Whitespace.in(whitespace, () -> AnnotatorException.call(() -> tokenizer.analyze(input.text())));
+        AnnotatorException.call(() -> tokenizer.analyze(input.text()));
     int n = morphemes.size();
     Span[] spans = new Span[n];
     long[] unknown = new long[n];

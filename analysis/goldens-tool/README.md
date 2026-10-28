@@ -142,14 +142,14 @@ a directory with the same model run without them, and its options are
 |---|---|---|---|
 | `sentdetect` (`SentenceDetectorME`) | `opennlp-en-ud-ewt-sentence-1.3-2.5.4` | `en`, `multi`, `edge` | |
 | | `opennlp-de-ud-gsd-sentence-1.3-2.5.4`, `opennlp-pt-ud-gsd-sentence-1.3-2.5.4` | `edge` | |
-| | `en-abbrev`, `en-plain`, `en-plain-rust`, `en-plain-qn-rust`, `en-plain-perceptron-rust` (fixtures), each also `+legacy` | `sentence-fixture` | `whitespace legacy` |
-| `sentdetect` (`NewlineSentenceDetector`) | `newline`, `newline+legacy` | `edge` | `whitespace legacy` |
+| | `en-abbrev`, `en-plain`, `en-plain-rust`, `en-plain-qn-rust`, `en-plain-perceptron-rust` (fixtures) | `sentence-fixture` | |
+| `sentdetect` (`NewlineSentenceDetector`) | `newline` | `edge` | |
 | `tokenize` (`TokenizerME`) | `opennlp-en-ud-ewt-tokens-1.3-2.5.4` | `en`, `multi`, `edge`, `surrogate` | |
 | | the `de`, `es`, `fr` and `pt` tokenizer models | `edge`, `surrogate` | |
 | | `tokenizer-abbreviations` (fixture) | `abbreviations`, `edge` | |
 | | `opennlp-en-ud-ewt-tokens-1.3-2.5.4+english-dictionary` | `abbreviations`, `edge` | |
 | | each of the five models `+alphanumeric` | `edge`, `alphanumeric` | `useAlphaNumericOptimization true`, `alphaNumericPattern <pattern>` |
-| `tokenize` (`SimpleTokenizer`, `WhitespaceTokenizer`) | `simple`, `whitespace`, each also `+keep-new-lines`, `+legacy` and `+keep-new-lines+legacy` | `edge` | `keepNewLines true`, `whitespace legacy` |
+| `tokenize` (`SimpleTokenizer`, `WhitespaceTokenizer`) | `simple`, `whitespace`, each also `+keep-new-lines` | `edge` | `keepNewLines true` |
 | `tokenize` (UAX #29 `WordTokenizer`) | `uax29` | `edge` | |
 | `detokenize` (`DictionaryDetokenizer`) | `en-detokenizer`, `fr-detokenizer`, `latin-detokenizer`, `pt-detokenizer`, `quotes-detokenizer` (fixtures) | `detokenizer`, the inputs whose id starts with the dictionary's name | `splitMarker <SPLIT>` |
 | `postag` (`POSTaggerME`) | `opennlp-en-ud-ewt-pos-1.3-2.5.4` | `en`, `multi`, `edge` | |
@@ -188,26 +188,26 @@ a directory with the same model run without them, and its options are
 | `train-liblinear` (`LiblinearTrainer.train` of the addons' `liblinear-addon`) | `sentdetect-sample`, `postag-l2`, `postag-dual`, `sentdetect-dual-newton`, `realvalue-l1`, `sentdetect-l2`, `sentdetect-raw` | `en`, `multi`, `edge`, `train` by run | `source`, `DataIndexer`, `Cutoff`, `solverType`, `c`, `eps`, `p`, `bias`, `events` |
 | `train-langdetect` (`LanguageDetectorME.train`) | `default`, `cutoff1` | `langdetect`, and the `formats` inputs whose id starts with `language-` | `run`, `Algorithm`, `Cutoff`, `DataIndexer`, `Iterations` |
 | `cross-validate` (`TokenNameFinderCrossValidator`, `LanguageDetectorCrossValidator`) | `namefind-bio`, `namefind-bilou`, `langdetect-default`, `langdetect-cutoff1` | `tagged/names` (name finder runs), `langdetect/samples` (language detector runs) | `run`, `folds`, and `language`, `codec` (name finder) or `Algorithm`, `Cutoff`, `Iterations` (language detector) |
-| `unigram` (`UnigramSegmenter`) | `zh-unigram-fixture` (fixture), also `+legacy` | `zh`, `multi`, `edge`, `surrogate` | `whitespace legacy` |
-| | `jieba-dict-subset` (fixture), also `+legacy` | `zh`, `multi`, `edge` | `whitespace legacy` |
-| | `zh-unigram-modes` (fixture), also `+legacy` | `zh` | `whitespace legacy` |
-| `lattice` (`LatticeTokenizer`) | `mecab-fixture-ja` (fixture), also `+legacy` | `ja`, `multi`, `edge`, `surrogate` | `whitespace legacy` |
+| `unigram` (`UnigramSegmenter`) | `zh-unigram-fixture` (fixture) | `zh`, `multi`, `edge`, `surrogate` | |
+| | `jieba-dict-subset` (fixture) | `zh`, `multi`, `edge` | |
+| | `zh-unigram-modes` (fixture) | `zh` | |
+| `lattice` (`LatticeTokenizer`) | `mecab-fixture-ja` (fixture) | `ja`, `multi`, `edge`, `surrogate` | |
 | | `mecab-fixture-ko` (fixture) | `ko`, `multi`, `edge` | |
 | | `mecab-fixture-partial` (fixture) | `ja`, `edge` | |
 | | `mecab-ipadic-2.7.0-20070801` | `ja`, `multi`, `edge`, `surrogate` | |
 | | `mecab-ko-dic-2.1.1-20180720` | `ko`, `multi`, `edge`, `surrogate` | |
 | | `unidic-mecab-2.1.2` | `ja`, `multi`, `edge`, `surrogate` | |
-| `formats` (the native sample streams) | `name`, `wordtag`, `token`, `doccat`, each also `+legacy`; `lemma`, `chunk`, `sentence`, `language` | `formats`, the inputs whose id starts with the format | `whitespace legacy` |
+| `formats` (the native sample streams) | `name`, `wordtag`, `token`, `doccat`, `lemma`, `chunk`, `sentence`, `language` | `formats`, the inputs whose id starts with the format | |
 | `formats` (the conversion streams) | `name-to-token`, `name-to-sentence`, `pos-to-token`, `pos-to-sentence`, with `en-detokenizer` (fixture) | `formats`, the `name` and `wordtag` inputs | `chunkSize 2` for the sentence conversions |
-| `evaluate` (the evaluators) | `pos`, `lemma`, `name`, `chunk`, `token`, `sentence` (also `+legacy`), `doccat`, `language`, `cross-validation` | `formats`, the `pairs-` inputs of the evaluator's format | `whitespace legacy` |
-| `formats` (the CoNLL-U streams) | `conllu-pos-u`, `conllu-pos-x`, `conllu-lemma-u`, `conllu-lemma-x`, `conllu-sentence`, `conllu-token` (also `+legacy`) | `formats`, the `conllu` inputs | `tagset u` or `x`; `sentencesPerSample 2`; `whitespace legacy` |
+| `evaluate` (the evaluators) | `pos`, `lemma`, `name`, `chunk`, `token`, `sentence`, `doccat`, `language`, `cross-validation` | `formats`, the `pairs-` inputs of the evaluator's format | |
+| `formats` (the CoNLL-U streams) | `conllu-pos-u`, `conllu-pos-x`, `conllu-lemma-u`, `conllu-lemma-x`, `conllu-sentence`, `conllu-token` | `formats`, the `conllu` inputs | `tagset u` or `x`; `sentencesPerSample 2` |
 | `formats` (the CoNLL streams) | `conll02-nld`, `conll02-spa`, `conll02-spa-per-loc`, `conll03-eng`, `conll03-deu`, `conll03-eng-org-misc`, `conllx-pos`, `conllx-token` and `conllx-sentence` (with `en-detokenizer`, fixture) | `formats`, the `conll02`, `conll03` and `conllx` inputs | `lang`, `types`; `chunkSize 2` for `conllx-sentence` |
-| `conllu` (`ConlluDependencySampleStream` of the `ready/agents-md` branch, `ConlluCorefDocumentStream` of the addons' `ready/coref` branch) | `dependency-u`, `dependency-x`, `dependency-u+legacy`; `corefud-u`, `corefud-x` | `conllu`, the inputs whose id starts with `dependency-` or `corefud-` | `tagset u` or `x`, `whitespace legacy`; `branchCommit`, `addonsCommit` |
+| `conllu` (`ConlluDependencySampleStream` of the `ready/agents-md` branch, `ConlluCorefDocumentStream` of the addons' `ready/coref` branch) | `dependency-u`, `dependency-x`; `corefud-u`, `corefud-x` | `conllu`, the inputs whose id starts with `dependency-` or `corefud-` | `tagset u` or `x`; `branchCommit`, `addonsCommit` |
 | `masc` (the MASC readers) | `documents` (`MascDocument.parseDocument`), `pos`, `token`, `sentence`, `name` (the sample streams) | `formats`, the `masc-` inputs | `sentencesPerSample 2` for `sentence` |
-| `corpora` (the sentence, language and document corpus streams) | `moses`, `letsmt`, `letsmt-detokenized`, `nkjp`, `irish-sentences`, `irish-tokens`, `leipzig-2x3`, `leipzig-1x4-skip2`, `20newsgroup-whitespace` (also `+legacy`), `20newsgroup-simple` | `corpora`, the inputs whose id starts with the corpus's prefix (`moses-`, `letsmt-`, `nkjp-`, `irish-`, `leipzig-`, `newsgroups-`) | `detokenizer`; `sentencesPerSample`, `samplesPerLanguage`, `samplesToSkip`; `tokenizer`, `dataDir`, `whitespace legacy` |
-| `ner` (the named entity corpus streams) | `germeval-outer`, `germeval-inner`, `germeval-outer-loc-misc`, `bionlp`, `bionlp-cell-line`, `bionlp-dna-cell-type`, `evalita`, `evalita-per-gpe`, `census`, `muc6-whitespace` (also `+legacy`), `muc6-simple`, `brat-whitespace` (also `+legacy`), `brat-simple`, `brat-recursive-person-location`, `brat-config` | `ner`, the inputs whose id starts with the corpus's prefix (`germeval-`, `bionlp-`, `evalita-`, `census-`, `muc-`, `brat-`) | `types`, `layer`, `lang it`, `tokenizer`, `recursive true`, `nameTypes`, `whitespace legacy` |
+| `corpora` (the sentence, language and document corpus streams) | `moses`, `letsmt`, `letsmt-detokenized`, `nkjp`, `irish-sentences`, `irish-tokens`, `leipzig-2x3`, `leipzig-1x4-skip2`, `20newsgroup-whitespace`, `20newsgroup-simple` | `corpora`, the inputs whose id starts with the corpus's prefix (`moses-`, `letsmt-`, `nkjp-`, `irish-`, `leipzig-`, `newsgroups-`) | `detokenizer`; `sentencesPerSample`, `samplesPerLanguage`, `samplesToSkip`; `tokenizer`, `dataDir` |
+| `ner` (the named entity corpus streams) | `germeval-outer`, `germeval-inner`, `germeval-outer-loc-misc`, `bionlp`, `bionlp-cell-line`, `bionlp-dna-cell-type`, `evalita`, `evalita-per-gpe`, `census`, `muc6-whitespace`, `muc6-simple`, `brat-whitespace`, `brat-simple`, `brat-recursive-person-location`, `brat-config` | `ner`, the inputs whose id starts with the corpus's prefix (`germeval-`, `bionlp-`, `evalita-`, `census-`, `muc-`, `brat-`) | `types`, `layer`, `lang it`, `tokenizer`, `recursive true`, `nameTypes` |
 | `ad` (the Arvores Deitadas streams) | `names`, `names-nosplit`, `pos`, `pos-expand-features`, `chunk`, `chunk-1-3`, `sentence`, `sentence-titles`, `token` (with `pt-detokenizer`, fixture) | `ad`; the `sentence` runs leave out `ad-null-text` | `splitHyphenatedTokens`, `expandME`, `includeFeatures`, `start`, `end`, `includeTitles` |
-| `ontonotes` (the OntoNotes streams) | `names` (also `+legacy`), `parse`, `pos`, `lines` | `ontonotes` | `whitespace legacy` |
+| `ontonotes` (the OntoNotes streams) | `names`, `parse`, `pos`, `lines` | `ontonotes` | |
 | `frenchtreebank` (`ConstitParseSampleStream`) | `parse` | `frenchtreebank` | |
 | `parse` (`ParseSampleStream`, `Parse.parseParse`) | `treebank`, `treebank+function-tags`; `en-head-rules`, `en-head-rules+possessives`, `es-head-rules`, `es-regex-head-rules` (fixtures) | `parse` | `useFunctionTags true`; `rules`, `fixPossesives true` |
 | `parse` (`buildDictionary`, the `chunking` and `treeinsert` event streams and context generators, `Parser.train`, `ParserTool.parseLine`, `ParserEvaluator`) | `dictionary-cutoff-1`, `dictionary-cutoff-5`; `events-chunking-build`, `events-chunking-build+dictionary`, `events-chunking-check`, `events-treeinsert-build`, `events-treeinsert-check`, `events-treeinsert-attach`, `events-chunk`, `events-tag`; `generators`; `model-chunking`, `model-treeinsert` (all with `en-head-rules`, fixture) | `parse-treebank`; the models are trained on its `treebank` input | `rules`, `cutoff`, `etype`, `dictionary-cutoff`, `check-types`; `corpus`, `language`, `<model>.Algorithm`, `<model>.Iterations`, `<model>.Cutoff`, `dict.Cutoff`, `searches`, `parse-counts` |
@@ -238,8 +238,6 @@ a directory with the same model run without them, and its options are
   optimization on and its own pattern; the `alphaNumericPattern` record is
   the pattern the tokenizer uses (`Factory.DEFAULT_ALPHANUMERIC` when the
   factory has none, which no published model lacks).
-- The legacy runs set OpenNLP's `WhitespaceMode` for the call and put it
-  back afterwards.
 - A detokenizer input holds one token per line, and its golden holds the
   tokens, the operation `detokenize` gave each and the text it returned
   with and without the split marker (`docs/analysis.md`).
@@ -512,8 +510,7 @@ as UTF-8). The layer is `opennlp:tokens`, one row per word with its UTF-8
 byte span; a word is always whole code points, so there is never a
 `turbo:utf16<opennlp:tokens>` layer, and the generator stops if one
 would be needed. `StringUtil.isWhitespace` decides both where a lexicon
-line's word ends and where the text is split, so a `+legacy` run loads
-its lexicon and segments with the legacy mode active. The segmenter asks
+line's word ends and where the text is split. The segmenter asks
 no model, so there are no dumps; its goldens are under their own
 annotator directory so that the rule that every `tokenize` golden naming
 a model has a dump still holds.
@@ -541,8 +538,7 @@ SHA-512 of its bytes in lowercase hex and a line feed. IPADIC is loaded
 in EUC-JP, as OpenNLP users load it, and its goldens have a second
 `model` record for the UTF-8 copy, which the Rust port reads.
 `StringUtil.isWhitespace` splits both the dictionary's lines and the
-text, so a `+legacy` run loads the dictionary and segments with the
-legacy mode active. There are no dumps.
+text. There are no dumps.
 
 The fixture dictionaries are small and written for this project
 (`analysis/goldens/data/README.md`). IPADIC is under the license in its
@@ -563,16 +559,14 @@ starts with, read as the command line tools read it
 `NameSampleDataStream`, `WordTagSampleStream`, `LemmaSampleStream`,
 `ChunkSampleStream` (of `opennlp.tools.chunker`), `TokenSampleStream`,
 `SentenceSampleStream`, `DocumentSampleStream` and
-`LanguageDetectorSampleStream`, the four that split lines with
-`WhitespaceTokenizer` also in the legacy whitespace mode, and the
+`LanguageDetectorSampleStream`, and the
 conversion streams `NameToTokenSampleStream`, `POSToTokenSampleStream`,
 `NameToSentenceSampleStream` and `POSToSentenceSampleStream` with the
 fixture `en-detokenizer.xml` (the `model` record). The sentence
 conversions run with a chunk size of 2, so the inputs show the sample a
 full chunk drops. The CoNLL-U streams `ConlluPOSSampleStream` and
 `ConlluLemmaSampleStream` (with each tag set), `ConlluSentenceSampleStream`
-(two sentences a sample) and `ConlluTokenSampleStream` (in both
-whitespace modes) read the `conllu` inputs through a `ConlluStream`. `ConllGolden` runs `Conll02NameSampleStream` (Dutch and
+(two sentences a sample) and `ConlluTokenSampleStream` read the `conllu` inputs through a `ConlluStream`. `ConllGolden` runs `Conll02NameSampleStream` (Dutch and
 Spanish) and `Conll03NameSampleStream` (English and German), each with
 every name type and one run of each with some left out, over the
 `conll02` and `conll03` inputs of both languages, and
@@ -611,8 +605,7 @@ jars (`BranchJar`).
   `DependencySample`, `DependencyTree` and `DependencyArc` it builds, of
   the fork's `ready/agents-md` branch (`CONLLU_DEPENDENCY_COMMIT` in
   `src/recipe/mod.rs`, `-Dturbo.goldens.conlluDependencyJar`), over the
-  `dependency-` inputs, in each tag set and for the universal tags also
-  in the legacy whitespace mode. The layers are those of the format
+  `dependency-` inputs, in each tag set. The layers are those of the format
   goldens' part-of-speech samples, `turbo:samples`, `turbo:read-errors`,
   `turbo:sample-tokens` and `turbo:sample-tags`, with
   `turbo:sample-heads` (the head's index plus one, 0 for the root) and
@@ -894,7 +887,7 @@ streams read from the corpus directory bundled in
 `inputs/ontonotes/<id>.txt` (a bundle, see "MASC goldens"). `OntoNotesGolden`
 writes the directory out and makes each stream with the `ontonotes` factory
 of the registry, given the directory as `-ontoNotesDir`: the name samples of
-its `.name` files (`names`, and `names+legacy` with the legacy whitespace),
+its `.name` files (`names`),
 the parses of its `.parse` files (`parse`) and the part-of-speech samples
 made of them (`pos`). `lines` reads the `.parse` files with the
 `DocumentToLineStream` the parse factory puts under its stream.

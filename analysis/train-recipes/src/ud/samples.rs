@@ -3,7 +3,6 @@ use turbo_formats::FormatError;
 use turbo_formats::conllu::{ConlluReader, ConlluSentenceReader, ConlluTokenReader, Sentence, WordLine};
 use turbo_formats::sample::{LemmaSample, PosSample};
 use turbo_train::TrainingConfiguration;
-use turbo_train_components::ud::Component;
 use turbo_train_components::{
     LemmaEventStream, LemmatizerFactory, PosEventStream, PosTaggerFactory, SdEventStream, SentenceDetectorFactory,
     Stamp, TokSpanEventStream, TokenizerFactory, lemmatize, postag, sentdetect, tokenize,
@@ -12,13 +11,13 @@ use turbo_zoo::Sha256;
 
 use super::lemma::{ReferenceClasses, lemma_samples_sha256, lemma_scores, lemma_tokens, score_lemmas};
 use super::{
-    MAX_TOKENS_LEFT_OUT, ReadSamples, SENTENCES_PER_SAMPLE, TAG_FORMAT, TAGSET, UD_RECIPES, UdRecipe, UdSamples,
-    component_name,
+    Component, MAX_TOKENS_LEFT_OUT, ReadSamples, SENTENCES_PER_SAMPLE, TAG_FORMAT, TAGSET, UD_RECIPES, UdRecipe,
+    UdSamples, component_name,
 };
 use crate::card::{HeldOutCard, TagCount, TokenCoverage};
 use crate::error::{Error, LeftOut, Result};
 use crate::postag::{HeldOutTags, PosRecipe, Scored};
-use crate::segmentation::{self, HeldOut, SegmentationRecipe, TIMESTAMP_MS, WHITESPACE};
+use crate::segmentation::{self, HeldOut, SegmentationRecipe, TIMESTAMP_MS};
 use crate::treebank::{RELEASE, TreebankText};
 use crate::{GateRun, Trained, check_skipped};
 
@@ -151,7 +150,7 @@ impl UdRecipe {
             ),
             Component::Tokens => (
                 UdSamples::Segments(HeldOut::Tokens {
-                    samples: ConlluTokenReader::new(conllu, WHITESPACE)
+                    samples: ConlluTokenReader::new(conllu)
                         .map_err(conllu_error)?
                         .collect::<std::result::Result<_, _>>()
                         .map_err(conllu_error)?,
@@ -272,14 +271,14 @@ impl UdRecipe {
         let (bytes, report) = match &read.samples {
             UdSamples::Segments(HeldOut::Sentences(samples)) => {
                 let factory = SentenceDetectorFactory::new(language, true, None, None)?;
-                let mut stream = SdEventStream::new(&factory, WHITESPACE);
+                let mut stream = SdEventStream::new(&factory);
                 samples.iter().for_each(|s| stream.events(s, &mut events));
                 let t = sentdetect::train_sentence_model_from_events(&events, &factory, &params, &mut config, stamp)?;
                 (t.package.to_bytes(), t.report)
             }
             UdSamples::Segments(HeldOut::Tokens { samples, .. }) => {
                 let factory = TokenizerFactory::new(language, None, false, None)?;
-                let mut stream = TokSpanEventStream::new(&factory, WHITESPACE);
+                let mut stream = TokSpanEventStream::new(&factory);
                 for s in samples {
                     stream.events(s, &mut events)?;
                 }

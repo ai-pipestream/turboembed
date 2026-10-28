@@ -84,7 +84,7 @@ fn newline_tokens_join_the_plain_tokens_in_order() {
 
 #[test]
 fn the_jvms_keep_new_lines_spans_are_modelled_with_their_stale_start() {
-    let jvm = |t: &str| jvm_simple_newline_spans(t, WhitespaceMode::Unicode);
+    let jvm = |t: &str| jvm_simple_newline_spans(t);
     // A line break right after a token: its own span. After a space:
     // the span starting at the last token's end, which is the space,
     // and the next break one further on.

@@ -46,7 +46,7 @@ impl<'a> Iterator for Lines<'a> {
     }
 }
 
-pub(crate) use turbo_unicode::whitespace::{is_unicode_blank as is_blank, trim_unicode_whitespace as trim};
+pub(crate) use turbo_unicode::whitespace::{is_blank, trim};
 
 /// The text [`parse_long`] refused, where Java throws a
 /// `NumberFormatException`.
