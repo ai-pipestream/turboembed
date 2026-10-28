@@ -199,7 +199,7 @@ a directory with the same model run without them, and its options are
 | | `unidic-mecab-2.1.2` | `ja`, `multi`, `edge`, `surrogate` | |
 | `formats` (the native sample streams) | `name`, `wordtag`, `token`, `doccat`, `lemma`, `chunk`, `sentence`, `language` | `formats`, the inputs whose id starts with the format | |
 | `formats` (the conversion streams) | `name-to-token`, `name-to-sentence`, `pos-to-token`, `pos-to-sentence`, with `en-detokenizer` (fixture) | `formats`, the `name` and `wordtag` inputs | `chunkSize 2` for the sentence conversions |
-| `evaluate` (the evaluators) | `pos`, `lemma`, `name`, `chunk`, `token`, `sentence`, `doccat`, `language`, `cross-validation` | `formats`, the `pairs-` inputs of the evaluator's format | |
+| `evaluate` (the evaluators) | `pos`, `lemma`, `chunk`, `token`, `sentence`, `doccat`, `language`, `cross-validation` (the `name` golden was deleted, below) | `formats`, the `pairs-` inputs of the evaluator's format | |
 | `formats` (the CoNLL-U streams) | `conllu-pos-u`, `conllu-pos-x`, `conllu-lemma-u`, `conllu-lemma-x`, `conllu-sentence`, `conllu-token` | `formats`, the `conllu` inputs | `tagset u` or `x`; `sentencesPerSample 2` |
 | `formats` (the CoNLL streams) | `conll02-nld`, `conll02-spa`, `conll02-spa-per-loc`, `conll03-eng`, `conll03-deu`, `conll03-eng-org-misc`, `conllx-pos`, `conllx-token` and `conllx-sentence` (with `en-detokenizer`, fixture) | `formats`, the `conll02`, `conll03` and `conllx` inputs | `lang`, `types`; `chunkSize 2` for `conllx-sentence` |
 | `conllu` (`ConlluDependencySampleStream` of the `ready/agents-md` branch, `ConlluCorefDocumentStream` of the addons' `ready/coref` branch) | `dependency-u`, `dependency-x`; `corefud-u`, `corefud-x` | `conllu`, the inputs whose id starts with `dependency-` or `corefud-` | `tagset u` or `x`; `branchCommit`, `addonsCommit` |
@@ -976,7 +976,13 @@ spans) and, for `cross-validation`, `turbo:folds` (the training and test
 places of every fold of `CrossValidationPartitioner` for 1 to 4
 partitions). `DetokenizerEvaluator` is in `opennlp-tools`, which the
 image does not build, so it has no golden. `analysis/formats/tests/evaluate.rs`
-compares the Rust evaluators with these goldens.
+compares the Rust evaluators with these goldens. There is no `name`
+golden: its pairs repeat a prediction, and OpenNLP's
+`countTruePositives` counts a repeated prediction once per equal
+reference, so the JVM recorded a recall of 2. `turbo-formats` counts
+true positives as a multiset intersection and does not reproduce that
+counting, so the golden was deleted (#1495) and the test scores those
+pairs by hand instead.
 
 ## Normalizer goldens
 

@@ -1,0 +1,102 @@
+load_error	
+unsupported	0
+words	99
+Haus	Haus	Haus	st:Haus
+Häuser	Haus	Haus	st:Haus fl:p
+Hauses	Haus	Haus	st:Haus fl:T
+Häusern	Haus	Haus	st:Haus fl:p
+Haustür	Haus	Haustür	pa:Haus st:Haus fl:j pa:tür
+Haustüren	Haus	Haustür	pa:Haus st:Haus fl:j pa:türen st:tür fl:P
+Donaudampfschifffahrt	Donau	Donaudampfschifffahrt	pa:Donau st:Donau fl:j pa:dampf st:dampf fl:e pa:schifffahrtpa:Donau st:Donau fl:j pa:dampf  st:dampf fl:k pa:schifffahrtpa:Donau st:Donau fl:j pa:dampf fl:k st:dampf fl:e pa:schifffahrt
+Donaudampfschiffahrt	Donaudampfschiffahrt	Donaudampfschiffahrt	
+Schifffahrt	Schifffahrt	Schifffahrt	st:Schifffahrt
+Schiffahrt	Schiffahrt	Schiffahrt	
+Straße	Straße	Straße	st:Straße
+Straßen	Straße	Straße	st:Straße fl:N
+STRASSE	Straße	Straße	st:Straße
+STRASSEN	Straße	Straße	st:Straße fl:N
+Strasse	Strasse	Strasse	
+Fußball	Fuß	Fußball	pa:Fuß st:Fuß fl:j pa:ball
+FUSSBALL	Fuß	Fußball	pa:Fuß st:Fuß fl:j pa:ball
+Fussball	Fussball	Fussball	
+gelacht	gelacht	gelacht	st:gelacht
+gemacht	gemacht	gemacht	st:gemacht
+lachte	lachen	lachen	st:lachen fl:Y
+machten	machen	machen	st:machen fl:Y
+Kinderbuch	Kinder	Kinderbuch	pa:Kinder st:Kinder fl:j pa:buch
+Kinderbücher	Kinder	Kinderbücher	pa:Kinder st:Kinder fl:j pa:bücher
+Arbeitszimmer	Arbeits	Arbeitszimmer	pa:Arbeits st:Arbeits fl:j pa:zimmer
+Arbeitszimmern	Arbeits	Arbeitszimmer	pa:Arbeits st:Arbeits fl:j pa:zimmern st:zimmer fl:N
+Bundesverfassungsgericht	Bundes	Bundesverfassungsgericht	pa:Bundes st:Bundes fl:j pa:verfassungs st:verfassungs fl:e pa:gerichtpa:Bundes st:Bundes fl:j pa:verfassungs  st:verfassungs fl:k pa:gerichtpa:Bundes st:Bundes fl:j pa:verfassungs fl:k st:verfassungs fl:e pa:gericht
+Bundesverfassungsgerichtsurteil	Bundes	Bundesverfassungsgerichtsurteil	pa:Bundes st:Bundes fl:j pa:verfassungs st:verfassungs fl:e pa:gerichts st:gerichts fl:e pa:urteilpa:Bundes st:Bundes fl:j pa:verfassungs st:verfassungs fl:e pa:gerichts  st:gerichts fl:k pa:urteilpa:Bundes st:Bundes fl:j pa:verfassungs st:verfassungs fl:e pa:gerichts fl:k st:gerichts fl:e pa:urteilpa:Bundes st:Bundes fl:j pa:verfassungs  st:verfassungs fl:k pa:gerichts st:gerichts fl:e pa:urteilpa:Bundes st:Bundes fl:j pa:verfassungs  st:verfassungs fl:k pa:gerichts  st:gerichts fl:k pa:urteilpa:Bundes st:Bundes fl:j pa:verfassungs  st:verfassungs fl:k pa:gerichts fl:k st:gerichts fl:e pa:urteilpa:Bundes st:Bundes fl:j pa:verfassungs fl:k st:verfassungs fl:e pa:gerichts st:gerichts fl:e pa:urteilpa:Bundes st:Bundes fl:j pa:verfassungs fl:k st:verfassungs fl:e pa:gerichts  st:gerichts fl:k pa:urteilpa:Bundes st:Bundes fl:j pa:verfassungs fl:k st:verfassungs fl:e pa:gerichts fl:k st:gerichts fl:e pa:urteil
+ÄRZTE	Ärzte	Ärzte	st:Ärzte
+Ärzte	Ärzte	Ärzte	st:Ärzte
+ärzte	ärzte	ärzte	
+aufgeben	aufgeben	aufgeben	st:aufgeben
+aufgegeben	aufgegeben	aufgegeben	st:aufgegeben
+Aufgabe	Aufgabe	Aufgabe	st:Aufgabe
+schön	schön	schön	st:schön
+schöner	schön	schön	st:schön fl:A
+schönsten	schön	schön	st:schön fl:C
+Schönheit	Schönheit	Schönheit	st:Schönheit
+Weihnachtsbaum	Weihnachts	Weihnachtsbaum	pa:Weihnachts st:Weihnachts fl:j pa:baum
+Weihnachtsbäume	Weihnachts	Weihnachtsbaum	pa:Weihnachts st:Weihnachts fl:j pa:bäume st:baum fl:p
+E-Mail	e	eMail	pa:E st:e pa:Mail st:Mail
+E-Mails	e	eMail	pa:E st:e pa:Mails st:Mail fl:S
+Know-how	Know-how	Know-how	
+Mitte-links-Bündnis	Mitte	MitteLinksbündnislinksBündnis	pa:Mitte st:Mitte pa:Links st:Links fl:j pa:-Bündnis -B st:bündnis fl:mpa:Mitte st:Mitte pa:links st:links pa:Bündnis st:Bündnis
+Autobahn	Auto	Autobahn	pa:Auto st:Auto fl:j pa:bahn
+Autobahnraststätte	Auto	Autobahnraststätte	pa:Auto st:Auto fl:j pa:bahn st:bahn fl:e pa:rast st:rast fl:e pa:stättepa:Auto st:Auto fl:j pa:bahn st:bahn fl:e pa:rast  st:rast fl:k pa:stättepa:Auto st:Auto fl:j pa:bahn st:bahn fl:e pa:rast fl:k st:rast fl:e pa:stättepa:Auto st:Auto fl:j pa:bahn  st:bahn fl:k pa:rast st:rast fl:e pa:stättepa:Auto st:Auto fl:j pa:bahn  st:bahn fl:k pa:rast  st:rast fl:k pa:stättepa:Auto st:Auto fl:j pa:bahn  st:bahn fl:k pa:rast fl:k st:rast fl:e pa:stättepa:Auto st:Auto fl:j pa:bahn fl:k st:bahn fl:e pa:rast st:rast fl:e pa:stättepa:Auto st:Auto fl:j pa:bahn fl:k st:bahn fl:e pa:rast  st:rast fl:k pa:stättepa:Auto st:Auto fl:j pa:bahn fl:k st:bahn fl:e pa:rast fl:k st:rast fl:e pa:stätte
+Raststätte	Rast	Raststätte	pa:Rast st:Rast fl:j pa:stätte
+Fahrradweg	Fahr	Fahrradweg	pa:Fahr st:Fahr fl:j pa:rad st:rad fl:e pa:wegpa:Fahr st:Fahr fl:j pa:rad  st:rad fl:k pa:wegpa:Fahr st:Fahr fl:j pa:rad fl:k st:rad fl:e pa:weg
+Fahrradwege	Fahr	Fahrradweg	pa:Fahr st:Fahr fl:j pa:rad st:rad fl:e pa:wege st:weg fl:Epa:Fahr st:Fahr fl:j pa:rad  st:rad fl:k pa:wege st:weg fl:Epa:Fahr st:Fahr fl:j pa:rad fl:k st:rad fl:e pa:wege st:weg fl:E
+Lebensversicherungsgesellschaft	Lebens	Lebensversicherungsgesellschaft	pa:Lebens st:Lebens fl:j pa:versicherungs st:versicherungs fl:e pa:gesellschaftpa:Lebens st:Lebens fl:j pa:versicherungs  st:versicherungs fl:k pa:gesellschaftpa:Lebens st:Lebens fl:j pa:versicherungs fl:k st:versicherungs fl:e pa:gesellschaft
+Vergangenheitsbewältigung	Vergangenheitsbewältigung	Vergangenheitsbewältigung	st:Vergangenheitsbewältigung
+Rindfleischetikettierungsüberwachungsaufgabenübertragungsgesetz	Rindfleischetikettierungsüberwachungsaufgabenübertragungsgesetz	Rindfleischetikettierungsüberwachungsaufgabenübertragungsgesetz	st:Rindfleischetikettierungsüberwachungsaufgabenübertragungsgesetz
+Maßstab	Maß	Maßstab	pa:Maß st:Maß fl:j pa:stab
+MASSSTAB	Maß	Maßstab	pa:Maß st:Maß fl:j pa:stab
+Massstab	Massstab	Massstab	
+groß	groß	groß	st:groß
+GROSS	groß	groß	st:groß
+größer	größer	größer	st:größer
+GRÖSSER	größer	größer	st:größer
+Grüße	Gruß	Grußgrüßen	st:Gruß fl:pst:grüßen fl:I
+GRÜSSE	grüßen	grüßenGruß	st:grüßen fl:Ist:Gruß fl:p
+Glück	Glück	Glück	st:Glück
+glücklich	glücklich	glücklich	st:glücklich
+unglücklicherweise	glücklicherweise	glücklicherweise	un st:glücklicherweise fl:U
+Bäckerei	Bäckerei	Bäckerei	st:Bäckerei
+Bäckereien	Bäckerei	Bäckerei	st:Bäckerei fl:P
+Kaffee	Kaffee	Kaffee	st:Kaffee
+Kaffeetasse	Kaffee	Kaffeetasse	pa:Kaffee st:Kaffee fl:j pa:tasse
+Kaffeeernte	Kaffee	Kaffeeernte	pa:Kaffee st:Kaffee fl:j pa:ernte
+Teeei	Tee	Teeei	pa:Tee st:Tee fl:j pa:ei
+Teeeier	Tee	Teeei	pa:Tee st:Tee fl:j pa:eier st:ei fl:R
+Schwimmmeister	Schwimm	Schwimmmeister	pa:Schwimm st:Schwimm fl:j pa:meister
+Schwimmeister	Schwimmeister	Schwimmeister	
+Ballettänzer	Ballettänzer	Ballettänzer	
+Balletttänzer	Ballett	Balletttänzer	pa:Ballett st:Ballett fl:j pa:tänzer
+Stofffetzen	Stoff	Stofffetzen	pa:Stoff st:Stoff fl:j pa:fetzen
+Krankenhaus	Kranken	Krankenhaus	pa:Kranken st:Kranken fl:j pa:haus
+krankenhaus	Kranken	Krankenhaus	pa:Kranken st:Kranken fl:j pa:haus
+KRANKENHAUS	Kranken	Krankenhaus	pa:Kranken st:Kranken fl:j pa:haus
+Krankenhäuser	Kranken	Krankenhaus	pa:Kranken st:Kranken fl:j pa:häuser st:haus fl:p
+Zugfahrt	Zug	Zugfahrt	pa:Zug st:Zug fl:j pa:fahrt
+Hauptbahnhof	Haupt	Hauptbahnhof	pa:Haupt st:Haupt fl:j pa:bahn st:bahn fl:e pa:hofpa:Haupt st:Haupt fl:j pa:bahn  st:bahn fl:k pa:hofpa:Haupt st:Haupt fl:j pa:bahn fl:k st:bahn fl:e pa:hof
+Hauptbahnhöfe	Haupt	Hauptbahnhöfe	pa:Haupt st:Haupt fl:j pa:bahn st:bahn fl:e pa:höfepa:Haupt st:Haupt fl:j pa:bahn  st:bahn fl:k pa:höfepa:Haupt st:Haupt fl:j pa:bahn fl:k st:bahn fl:e pa:höfe
+Weg	Weg	Wegweg	st:Wegst:weg
+Wege	Weg	Weg	st:Weg fl:E
+Weges	Weg	Weg	st:Weg fl:T
+gehen	gehen	gehen	st:gehen
+ging	ging	ging	st:ging
+gegangen	gegangen	gegangen	st:gegangen
+Ü-Ei	ü	üEi	pa:Ü st:ü pa:Ei st:Ei
+U-Bahn	u	uBahnbahnen	pa:U st:u pa:Bahn st:Bahnpa:U st:u pa:Bahn st:bahnen fl:W
+U-Bahnhof	u	uBahnhof	pa:U st:u pa:Bahn st:Bahn fl:j pa:hof
+S-Bahn-Station	s	sBahnstationbahnenStation	pa:S st:s pa:Bahn st:Bahn fl:j pa:-Station -S st:station fl:mpa:S st:s pa:Bahn st:Bahn pa:Station st:Stationpa:S st:s pa:Bahn st:bahnen fl:W pa:Station st:Station
+Dr.	Dr.	Dr.	st:Dr.
+z.B.	z	zb	pa:z st:z pa:B st:b
+usw.	usw.	usw.	st:usw.
+Hamburg	Hamburg	Hamburg	st:Hamburg
+Hamburger	Hamburger	Hamburger	st:Hamburger
+hamburger	hamburger	hamburger	

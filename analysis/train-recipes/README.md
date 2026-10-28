@@ -905,7 +905,9 @@ also with `training-sentences.txt`, and the web one with
 `<model id>.gate-web.json`, `<model id>.compare-tatoeba.json` and
 `<model id>.compare-web.json`) and a `SHA256SUMS` file as an artifact.
 A pull request that changes the workflow, this crate or the zoo's index runs it
-that far. Run by hand on main, a job of its own, which unlike the
+that far when it carries the label `ci:models`, and every push to main
+that changes them does too (`.github/runner/README.md`, "Model training
+runs"). Run by hand on main, a job of its own, which unlike the
 training job may write to the repository, runs
 `.github/workflows/models-publish.yml`,
 which publishes exactly those files: it checks `SHA256SUMS`, stops if
@@ -1523,8 +1525,8 @@ Serbian, which are written much alike.
 </details>
 
 The `models-tatoeba` workflow (`.github/workflows/models-tatoeba.yml`)
-trains the release's model on the recorded export when it is run by hand
-or a pull request changes it or the crates the run mostly rests on: this
+trains the release's model on the recorded export when it is run by hand,
+or a push to main or a pull request labelled `ci:models` changes it or the crates the run mostly rests on: this
 one, the trainers (`analysis/train`, `analysis/train-components`), the
 gate (`analysis/eval`), `turbo-langdetect` and the zoo's index. It
 fetches the two archives from release `data-tatoeba-2026-10-10`, or,
@@ -1753,8 +1755,8 @@ list the model yet, so it built no release files; the entry it printed
 is the one `analysis/zoo/index/zoo.json` now holds.
 
 The `models-fineweb` workflow
-(`.github/workflows/models-fineweb.yml`) runs when it is run by hand or
-a pull request changes it, `models-publish.yml`, this crate, the
+(`.github/workflows/models-fineweb.yml`) runs when it is run by hand, or
+a push to main or a pull request labelled `ci:models` changes it, `models-publish.yml`, this crate, the
 trainers, the gate (`analysis/eval`), the Zstandard decoder,
 `turbo-langdetect` or the zoo's index; only a run by hand on main
 publishes, as release `models-tatoeba-fineweb-2026-10-10-1` ("The

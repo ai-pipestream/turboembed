@@ -91,11 +91,24 @@ fn every_hunspell_file_names_the_commit_and_a_sha512() {
         assert!(f.url.ends_with(&format!("/{name}")), "{} does not end in {name}", f.url);
         assert!(!f.license.is_empty());
     }
-    let golden = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/HunspellGolden.java");
+    let pairs = include_str!("../../../hunspell/tests/snapshot-pairs.txt");
     for f in HUNSPELL_FILES.iter().filter(|f| f.file.ends_with(".aff")) {
         let name = &f.file["hunspell/".len()..f.file.len() - ".aff".len()];
-        assert!(golden.contains(&format!("\"{name}\"")), "HunspellGolden.java does not name {name}");
+        assert!(pairs.lines().any(|l| l.starts_with(&format!("{name}\t"))), "snapshot-pairs.txt does not name {name}");
     }
+}
+
+#[test]
+fn runs_java_does_not_register_hunspell_goldens() {
+    let runs = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
+    assert!(
+        !runs.contains("HunspellGolden"),
+        "Runs.java must not register HunspellGolden; turbo-hunspell owns its own snapshots"
+    );
+    assert!(!ANNOTATORS.contains(&"hunspell"), "hunspell must stay out of ANNOTATORS");
+    let golden = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("java/src/main/java/ai/pipestream/turbo/goldens/HunspellGolden.java");
+    assert!(!golden.is_file(), "{} must stay deleted", golden.display());
 }
 
 #[test]

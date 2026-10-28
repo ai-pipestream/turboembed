@@ -72,7 +72,7 @@ fn lowered(types: &[&str], name: &str) -> Result<Vec<String>, String> {
     }
     let mut out: Vec<String> = Vec::with_capacity(types.len());
     for t in types {
-        if turbo_unicode::java::is_blank(t) {
+        if turbo_unicode::whitespace::is_blank(t) {
             return Err(format!("{name} must not contain blank entries"));
         }
         let l = lowercase(t);
