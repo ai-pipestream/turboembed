@@ -40,6 +40,7 @@ pub mod projection;
 pub mod qa;
 pub mod record;
 pub mod rerank;
+pub mod rope;
 pub mod safetensors;
 pub mod sentencepiece;
 mod session;

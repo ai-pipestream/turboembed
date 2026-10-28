@@ -115,6 +115,15 @@ fn struct_layouts_match_the_header() {
         ("turbo_backend_model", "max_relative_positions", offset_of!(turbo_backend_model, max_relative_positions)),
         ("turbo_backend_model", "artifact_sha256", offset_of!(turbo_backend_model, artifact_sha256)),
         ("turbo_backend_model", "artifact2_sha256", offset_of!(turbo_backend_model, artifact2_sha256)),
+        ("turbo_backend_model", "rope_global_theta", offset_of!(turbo_backend_model, rope_global_theta)),
+        ("turbo_backend_model", "rope_local_theta", offset_of!(turbo_backend_model, rope_local_theta)),
+        ("turbo_backend_model", "rope_table", offset_of!(turbo_backend_model, rope_table)),
+        ("turbo_backend_model", "rope_pairs", offset_of!(turbo_backend_model, rope_pairs)),
+        ("turbo_backend_model", "mlp", offset_of!(turbo_backend_model, mlp)),
+        ("turbo_backend_model", "activation", offset_of!(turbo_backend_model, activation)),
+        ("turbo_backend_model", "norm", offset_of!(turbo_backend_model, norm)),
+        ("turbo_backend_model", "attention_window", offset_of!(turbo_backend_model, attention_window)),
+        ("turbo_backend_model", "global_every", offset_of!(turbo_backend_model, global_every)),
         ("turbo_backend", "formats", offset_of!(turbo_backend, formats)),
         ("turbo_backend", "reserved2", offset_of!(turbo_backend, reserved2)),
     ];
@@ -375,7 +384,11 @@ fn the_token_head_layout_is_the_one_proposed() {
     // The artifact files' manifest digests were appended after that.
     assert_eq!(offset_of!(turbo_backend_model, artifact_sha256), 144);
     assert_eq!(offset_of!(turbo_backend_model, artifact2_sha256), 176);
-    assert_eq!(size_of::<turbo_backend_model>(), 208);
+    // The rotary families' fields were appended after those (#1461).
+    assert_eq!(offset_of!(turbo_backend_model, rope_global_theta), 208);
+    assert_eq!(offset_of!(turbo_backend_model, rope_table), 224);
+    assert_eq!(offset_of!(turbo_backend_model, global_every), 252);
+    assert_eq!(size_of::<turbo_backend_model>(), 256);
     assert_eq!(offset_of!(turbo_backend_embed_rows, head), 52);
     assert_eq!(size_of::<turbo_backend_embed_rows>(), 56);
 }
