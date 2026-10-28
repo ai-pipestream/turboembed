@@ -290,7 +290,8 @@ status is 1 when a gate fails and 2 on an error.
   token at a sentence's start as empty, and a sentence of two or more
   names mostly keeps one of them or none (its removal of overlapping
   names compares a name with itself, and can also keep names that
-  overlap, which `NameSample` then refuses). What it keeps of a name of
+  overlap, which `NameSample` then refuses; turbo-formats'
+  `MascNameReader` keeps every name the removal does not remove, #1496). What it keeps of a name of
   several tokens depends on the order the entity file lists them
   (`MascSentence.java:217` moves the end to one past a token only when
   the token is past the end so far, which is already one past a token):
