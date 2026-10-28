@@ -112,6 +112,14 @@ impl Config<'_> {
 
     /// The value the keys give: at least one present, and every present one
     /// a number and the same (an old name beside its new one).
+    /// The key may be absent or null; present, it must hold `want`.
+    fn default_is_or_null(&self, key: &str, want: Value) -> Result<()> {
+        match self.get(key) {
+            Some(Value::Null) | None => Ok(()),
+            Some(_) => self.default_is(key, want),
+        }
+    }
+
     fn number(&self, keys: &[&str]) -> Result<Value> {
         let mut found: Option<(&str, &Value)> = None;
         for &k in keys {

@@ -29,12 +29,18 @@ pub(super) fn architecture(c: &Config) -> Result<Fields> {
     // The NTK-scaled table is not built; absent is contrastors' None.
     c.default_is("rotary_scaling_factor", Value::Null)?;
     c.default_is("rotary_emb_scale_base", Value::Null)?;
+    c.default_is("rope_scaling", Value::Null)?;
     for key in ["causal", "parallel_block"] {
         c.default_is(key, false.into())?;
     }
     let hidden = c.number(&["hidden_size", "n_embd"])?;
     let heads = c.number(&["num_attention_heads", "n_head"])?;
     c.head_dim(&hidden, &heads)?;
+    // Grouped keys and a partial rotary width are contrastors options the
+    // encoder does not run: either may be null, or the value it implies.
+    c.default_is_or_null("num_heads_kv", heads.clone())?;
+    let head = hidden.as_u64().zip(heads.as_u64()).map(|(h, n)| h / n.max(1));
+    c.default_is_or_null("rotary_head_dim", head.into())?;
     let positions = match c.get("n_positions") {
         Some(_) => c.number(&["n_positions"])?,
         None => c.number(&["max_position_embeddings"])?,

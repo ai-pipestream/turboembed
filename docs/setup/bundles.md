@@ -133,7 +133,7 @@ copy of the recipe.
 | `bge-m3.json` | BAAI/bge-m3 | 512 | `onnx-f16`; the weights are converted from the PyTorch checkpoint |
 | `bge-m3-8192.json` | BAAI/bge-m3 | 8192 | the same, at `max_batch` 8 |
 | `modernbert-base.json` | answerdotai/ModernBERT-base | 8192 | none (`weights-f32` only, the upstream F32 safetensors); the masked-language-model checkpoint, served as mean pooling of `final_norm`'s output: a conformance target and a base for heads, not a trained embedding |
-| `nomic-embed-text-v1.5.json` | nomic-ai/nomic-embed-text-v1.5 | 8192 | none (`weights-f32` only); trained to 2048 tokens and served to 8192 with the unscaled rotary table, as upstream's `n_positions` gives; prefixes `search_query: ` and `search_document: `; not normalized (ask for L2 at run time) |
+| `nomic-embed-text-v1.5.json` | nomic-ai/nomic-embed-text-v1.5 | 8192 | none (`weights-f32` only); trained to 2048 tokens and served to 8192 with the unscaled rotary table, as upstream's `n_positions` gives and text-embeddings-inference serves it (the model card's long-context example instead loads it with `rotary_scaling_factor=2`, an NTK-scaled table this bundle does not build, so vectors past 2048 tokens follow the unscaled model); prefixes `search_query: ` and `search_document: `; not normalized, as its `modules.json` has no Normalize module (ask for L2 at run time) |
 
 The two rotary recipes (#1461) are made by path, and no backend runs
 their families yet: the bundles open, tokenize and match their reference
