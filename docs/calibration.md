@@ -118,8 +118,9 @@ The finite-sample conformal quantile follows
 
 ## Validation receipts
 
-Tests train small real GIS models and execute the real SVM evaluator and
-NameFinderME decoder. They do not mock inference. The synthetic domains use
+The tables below retain historical GIS, SVM and NameFinderME receipts.
+Archive-bound producers were removed from acceptance coverage under #1511.
+Current categorizer tests use the real native SVM evaluator, not a mock. The synthetic domains use
 independent seeds for fitting, conformal calibration, and evaluation; they
 are reproducible API/numerical checks, not corpus quality claims.
 
@@ -147,23 +148,20 @@ less conservative 90% request.
 | NameFinderME | 0.254385 | 0.124000 | 0.546524 | 0.463920 |
 
 Run the numerical test with `cargo test --locked -p turbo-train --test calibration -- --nocapture`
-and the model integration receipts with
-`cargo test --locked -p turbo-doccat -p turbo-namefind --test calibrated -- --nocapture`.
+and current native SVM integration tests with
+`cargo test --locked -p turbo-doccat --test calibrated -- --nocapture`.
+The old archive-bound ECE values are not expected values for that native producer.
 
 ## Real-corpus ECE and coverage records
 
-### MASC 3.0.0 (`analysis/train-recipes/examples/masc_calibration.rs`)
+### Historical MASC 3.0.0 evaluation
 
-`analysis/train-recipes/examples/masc_calibration.rs` evaluates all three
-transforms (`Temperature`, `Platt`, `Isotonic`) at requested coverage `0.90` on
-the verified MASC 3.0.0 release (`corpus_sha256`
+The MASC calibration example was removed with archive loading under #1511.
+The following tables retain its historical Temperature, Platt and Isotonic
+results at requested coverage 0.90 on MASC 3.0.0 (SHA-256
 `445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd`, CC BY 3.0
-US, Twitter genre excluded by `masc::SPLIT`; see `docs/licences.md`). Reproduce
-with:
-
-```sh
-cargo run --release --locked -p turbo-train-recipes --example masc_calibration -- DATA_DIRECTORY
-```
+US, Twitter excluded). They are not current integration gates or evidence
+for a native replacement head. No current reproduction command is provided.
 
 Models are trained only on `split.train` (351 documents). For document
 categorization, the 39 held-out documents in `split.held_out` are partitioned
@@ -232,17 +230,18 @@ decision policy `Policy { coverage: 0.90, max_set_size: 1, min_confidence: 0.50 
 | Platt | 0.026345 | 0.183358 | 0.912409 | 1.108 | 0.802920 | 0.125912 | `32284f429c373887ce8041bb4f2166aa89a693c9fe0a8dfb478a1819dc39f973` |
 | Isotonic | 0.024549 | 0.185042 | 0.901460 | 1.091 | 0.810219 | 0.105839 | `6640a979ad41e6c4e08d3b2b654b492509a42b80803ce2316cf26b00b958d5e3` |
 
-### Checked-in GermEval 2014 and passage excerpts
+### Historical GermEval 2014 and passage excerpts
 
-`analysis/namefind/tests/calibrated.rs`
-(`germeval_real_corpus_token_and_crf_span_calibration_receipts`) and
-`analysis/doccat/tests/calibrated.rs`
-(`real_passage_corpus_receipts_across_all_transforms`) run in CI on the
-checked-in 105-sentence GermEval 2014 excerpt
+These archive-based receipts are retained for provenance, not current CI
+claims. The NameFinderME/CRF and maxent passage integration tests were removed
+under #1511. Native SVM calibration tests cover the retained producer and all
+three transforms on independent synthetic splits without a corpus-accuracy
+claim. Native entity document calibration still needs replacement coverage.
+
+The former experiment used the 105-sentence GermEval 2014 excerpt
 (`analysis/goldens/data/inputs/ner/germeval-excerpt.txt`, SHA-256
 `0bc6a217acfc21773d49b2ab3861e0cd318c2ce825374a4aba5b242571eaa53c`, CC BY 4.0)
-and checked-in passage fixtures (`analysis/goldens/data/inputs/svm-doccat-train/topics.txt`
-and `analysis/goldens/data/inputs/sentiment-train/feedback.txt`):
+and the topic and feedback passage fixtures.
 
 | Producer and corpus | Transform | ECE before | ECE after | Brier before | Brier after | Set coverage (`0.90`) |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
