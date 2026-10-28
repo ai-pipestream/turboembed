@@ -142,13 +142,17 @@ pub fn named(spec: &HeadSpec, hidden: usize, values: Vec<(String, Vec<f32>)>) ->
         .collect()
 }
 
-/// Writes `bytes` to `dir/name` and returns its record.
+/// Writes `bytes` to the new file `dir/name` and returns its record.
 ///
 /// # Errors
 ///
-/// A file that cannot be written.
+/// A file that cannot be written, or that is already there: a run never
+/// writes over a file.
 pub fn write(dir: &Path, name: &str, bytes: &[u8]) -> Result<FileRecord> {
+    use std::io::Write as _;
     let path = dir.join(name);
-    std::fs::write(&path, bytes).map_err(|e| Error(format!("{}: {e}", path.display())))?;
+    let err = |e: std::io::Error| Error(format!("{}: {e}", path.display()));
+    let mut f = std::fs::OpenOptions::new().write(true).create_new(true).open(&path).map_err(err)?;
+    f.write_all(bytes).map_err(err)?;
     Ok(FileRecord { path: name.into(), size: bytes.len() as u64, sha256: turbo::bundle::sha256_hex(bytes) })
 }
