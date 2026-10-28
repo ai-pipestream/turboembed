@@ -167,7 +167,7 @@ final class Runs {
   static final String TAG_FORMAT = "tag-format";
   /** The hand-made sentences of the name finder goldens. */
   static final String NAMEFIND = "namefind";
-  /** The words the stemmers stem. */
+  /** The words the stemmers and some Hunspell goldens read. */
   static final String STEM = "stem";
   /** The words and language codes of the stopword goldens. */
   static final String STOPWORD = "stopword";
@@ -414,10 +414,9 @@ final class Runs {
     annotators.addAll(BeamGolden.all(models, fixtures));
     annotators.addAll(TagDictionaryGolden.all(models, fixtures));
     annotators.addAll(TagFormatGolden.all(models, fixtures));
-    // The name finders without a model and the merge of overlapping names (turbo-namefind), the
-    // stemmers (turbo-stem) and the stopword lists (turbo-stopword).
+    // The name finders without a model and the merge of overlapping names (turbo-namefind) and the
+    // stopword lists (turbo-stopword).
     annotators.addAll(NameFindGolden.all(fixtures));
-    annotators.addAll(StemGolden.all());
     annotators.addAll(StopwordGolden.all());
     // The Hunspell stemmer of the compatibility branch over the published and the fixture
     // dictionaries (turbo-hunspell).

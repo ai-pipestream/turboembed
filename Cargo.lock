@@ -2746,7 +2746,6 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
- "turbo-goldens",
  "turbo-langdetect",
  "turbo-lemmatizer",
  "turbo-normalize",
