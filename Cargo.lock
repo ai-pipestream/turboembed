@@ -2453,12 +2453,6 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
- "turbo-calibration",
- "turbo-goldens",
- "turbo-langdetect",
- "turbo-maxent",
- "turbo-normalize",
- "turbo-train",
  "turbo-unicode",
 ]
 
@@ -2647,7 +2641,6 @@ dependencies = [
  "turbo-glossary",
  "turbo-glossary-layers",
  "turbo-grammar",
- "turbo-langdetect",
  "turbo-langspan",
  "turbo-maxent",
  "turbo-namefind",
@@ -2917,7 +2910,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "turbo-goldens",
  "turbo-maxent",
  "turbo-zstd",
  "ureq",
