@@ -2,6 +2,8 @@
 //! contexts, what the model file must name, and the annotator. Parity
 //! with the JVM is `analysis/train-components/tests/sentiment.rs`.
 
+#![cfg(feature = "classical")]
+
 use turbo_analysis::{Analyzer, Document, Key, Span, Spans, ViewId};
 use turbo_analysis_layers::{Categories, Tokens};
 use turbo_doccat::sentiment::{

@@ -2108,6 +2108,7 @@ dependencies = [
  "turbo-normalize",
  "turbo-normalize-layers",
  "turbo-sequence",
+ "turbo-sha256",
  "turbo-train",
  "turbo-unicode",
  "turbo-zoo",

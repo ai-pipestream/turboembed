@@ -10,9 +10,10 @@ use turbo_analysis::{Annotator, Document, Layer, Span, Spans, Tag, TagSet, View,
 use turbo_analysis_layers::{Categories, Sentences, Tokens};
 use turbo_doccat::multilabel::{
     LinearHead, MultiLabelCategorizer, MultiLabelDoccatModel, MultiLabelError, MultiLabelSample,
-    MultiLabelTrainingParameters, ThresholdCalibrator, f_beta, macro_f1, open_package, package_multilabel_model,
-    precision_recall, train_multilabel,
+    MultiLabelTrainingParameters, ThresholdCalibrator, f_beta, macro_f1, precision_recall, train_multilabel,
 };
+#[cfg(feature = "classical")]
+use turbo_doccat::multilabel::{open_package, package_multilabel_model};
 use turbo_doccat::{BagOfWordsFeatureGenerator, BuiltinFeatureGenerator, DoccatContextGenerator, DoccatFactory};
 
 /// Two labels with separable keywords and one shared noise word: `stock`
@@ -227,6 +228,7 @@ fn the_entry_bytes_round_trip_and_truncation_errors() {
     assert!(matches!(MultiLabelDoccatModel::open(&corrupt), Err(MultiLabelError::Checksum { .. })));
 }
 
+#[cfg(feature = "classical")]
 #[test]
 fn the_package_round_trips_the_calibrated_thresholds() {
     let model = hand_built_model().with_thresholds(vec![0.3, 0.7]).unwrap();
@@ -422,11 +424,18 @@ fn training_then_calibration_beats_a_flat_threshold_on_macro_f1() {
     let finance = model.index("finance").unwrap();
     assert_ne!(calibrated.thresholds()[finance], 0.5, "the rare label moved off the default");
 
-    // The calibrated thresholds serialize inside the package and come
-    // back: the acceptance claim survives a save and an open.
-    let opened = open_package(package_multilabel_model(&calibrated, 1_700_000_000_000).unwrap().to_bytes()).unwrap();
-    assert_eq!(opened.thresholds(), calibrated.thresholds());
-    assert_eq!(macro_f1(&scores, &truth, opened.thresholds()), tuned);
+    // The calibrated thresholds serialize inside the model entry and package
+    // and come back: the acceptance claim survives a save and an open.
+    let opened_entry = MultiLabelDoccatModel::open(&calibrated.write().unwrap()).unwrap();
+    assert_eq!(opened_entry.thresholds(), calibrated.thresholds());
+    assert_eq!(macro_f1(&scores, &truth, opened_entry.thresholds()), tuned);
+    #[cfg(feature = "classical")]
+    {
+        let opened =
+            open_package(package_multilabel_model(&calibrated, 1_700_000_000_000).unwrap().to_bytes()).unwrap();
+        assert_eq!(opened.thresholds(), calibrated.thresholds());
+        assert_eq!(macro_f1(&scores, &truth, opened.thresholds()), tuned);
+    }
 }
 
 #[test]
@@ -458,13 +467,16 @@ fn a_trained_model_classifies_and_package_round_trips() {
     let opened = MultiLabelDoccatModel::open(&bytes).unwrap();
     assert_eq!(opened.scores(&["team", "wins"]), model.scores(&["team", "wins"]));
 
-    let package = package_multilabel_model(&model, 1_700_000_000_000).unwrap();
-    assert_eq!(package.manifest().component_name(), "MultiLabelDoccat");
-    let bytes = package.to_bytes();
-    let opened = open_package(bytes.clone()).unwrap();
-    assert_eq!(opened.label(0), model.label(0));
-    assert_eq!(opened.scores(&["stock", "market"]), model.scores(&["stock", "market"]));
-    // Opening from a package records the package's identity: the SHA-256
-    // of the archive's bytes, not of the bare entry.
-    assert_eq!(opened.model_ref().sha256, turbo_maxent::sha256(&bytes).to_hex());
+    #[cfg(feature = "classical")]
+    {
+        let package = package_multilabel_model(&model, 1_700_000_000_000).unwrap();
+        assert_eq!(package.manifest().component_name(), "MultiLabelDoccat");
+        let bytes = package.to_bytes();
+        let opened = open_package(bytes.clone()).unwrap();
+        assert_eq!(opened.label(0), model.label(0));
+        assert_eq!(opened.scores(&["stock", "market"]), model.scores(&["stock", "market"]));
+        // Opening from a package records the package's identity: the SHA-256
+        // of the archive's bytes, not of the bare entry.
+        assert_eq!(opened.model_ref().sha256, turbo_sha256::sha256(&bytes).to_hex());
+    }
 }
