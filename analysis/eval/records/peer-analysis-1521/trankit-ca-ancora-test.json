@@ -1,0 +1,117 @@
+{
+  "version": 1,
+  "gold_file": "ca_ancora-ud-test.conllu",
+  "gold_sha256": "7cd23807c1f8b090959b82fcab566c6312fc048c29bc9db5ff0bf794c9b98633",
+  "sentences": 1846,
+  "tokens": 59610,
+  "resamples": 1000,
+  "seed": 42,
+  "conditioning": [
+    "sentences: boundary F1 on form-aligned tokens for CoNLL-U predictions; boundary F1 in per-document space-joined # text coordinates for sentence tiers",
+    "fields: gold denominators; gold and predicted token streams aligned by form with bounded resync; an unaligned gold token scores zero on every field; gold sentences containing one are counted",
+    "uas/las: punctuation included",
+    "bootstrap: per-document pooled resampling for token-aligned metrics"
+  ],
+  "systems": [
+    {
+      "system": "trankit-1.1.2-catalan",
+      "sentences": {
+        "correct": 1843,
+        "selected": 1845,
+        "target": 1845,
+        "score": 99.89159891598915,
+        "low": null,
+        "high": null
+      },
+      "tokens": {
+        "correct": 56097,
+        "selected": 57907,
+        "target": 59610,
+        "score": 95.47044257426586,
+        "low": 95.07185382568166,
+        "high": 95.8067248035248
+      },
+      "upos": {
+        "correct": 55076,
+        "selected": 59610,
+        "target": 59610,
+        "score": 92.39389364200638,
+        "low": 91.80429837142749,
+        "high": 92.89478116474933
+      },
+      "xpos": {
+        "correct": 0,
+        "selected": 59610,
+        "target": 59610,
+        "score": 0.0,
+        "low": 0.0,
+        "high": 0.0
+      },
+      "feats": {
+        "correct": 45521,
+        "selected": 59610,
+        "target": 59610,
+        "score": 76.36470390874014,
+        "low": 75.65453132053923,
+        "high": 77.02118231995945
+      },
+      "lemma": {
+        "correct": 55560,
+        "selected": 59610,
+        "target": 59610,
+        "score": 93.20583794665325,
+        "low": 92.69320893374713,
+        "high": 93.65193542169798
+      },
+      "uas": {
+        "correct": 52366,
+        "selected": 59610,
+        "target": 59610,
+        "score": 87.84767656433485,
+        "low": 87.01698306839963,
+        "high": 88.55517412153955
+      },
+      "las": {
+        "correct": 49073,
+        "selected": 59610,
+        "target": 59610,
+        "score": 82.32343566515685,
+        "low": 81.50286136227685,
+        "high": 83.11188943446489
+      },
+      "entities": null,
+      "language": null,
+      "not_run": [
+        "entities: CoNLL-U carries no entity layer",
+        "language: scored on FLORES+ inputs, not CoNLL-U"
+      ],
+      "token_mismatch_sentences": 995,
+      "throughput_sentences_per_second": null
+    },
+    {
+      "system": "turbo",
+      "sentences": {
+        "correct": 1649,
+        "selected": 1651,
+        "target": 1659,
+        "score": 99.63746223564954,
+        "low": null,
+        "high": null
+      },
+      "tokens": null,
+      "upos": null,
+      "xpos": null,
+      "feats": null,
+      "lemma": null,
+      "uas": null,
+      "las": null,
+      "entities": null,
+      "language": null,
+      "not_run": [
+        "tokens/fields: a sentence tier writes no token fields"
+      ],
+      "token_mismatch_sentences": 0,
+      "throughput_sentences_per_second": 308223.9870058377
+    }
+  ]
+}

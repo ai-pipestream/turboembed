@@ -155,6 +155,19 @@ Finnish: sentences 95.97, LAS 63.85, with the same FTB XPOS
 convention gap as Stanza (5.91). Italian: sentences 99.70, LAS
 82.06; the segmentation gap against Stanza on MarkIT is the model,
 not the protocol, since both peers saw the same joined text.
+Spanish and Catalan complete the set (`trankit-es-ancora-test.json`,
+`trankit-ca-ancora-test.json`; spanish image
+`sha256:4cc6cfe20048a84e4d09b06d830e9a7c6c37b7466f882c97613e9d4f83bfd76f`,
+catalan image
+`sha256:4c11c004dbda85bd5e7d3d2a01b7782b64ed2262c1f6d4072875d5b3d5dda656`;
+prediction SHA-256s es
+`8f911076cb63e618eacf33990699fb7dc459e22c3a027300d8dcb42eaaa0a146`,
+ca
+`3940baab9db0ca7392785186bdf21d13b07250303238b9f65a6262823d109850`).
+Spanish: sentences 99.74, LAS 83.43. Catalan: sentences 99.89, LAS
+82.32. On both, Trankit's XPOS column repeats its UPOS while AnCora
+gold XPOS is the EAGLES tagset, so XPOS scores exactly 0.00 there;
+that is a tagset difference, not a tagging failure.
 
 ## Reproduce
 
