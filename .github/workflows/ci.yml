@@ -388,8 +388,8 @@ jobs:
 
   # Windows, the host the Intel NPU machines run (#1011). The CPU backend
   # and the host-only NPU build: the CUDA, Metal, Level Zero and Hailo
-  # backends need toolchains this runner does not have, and the JVM
-  # parity steps above need the OpenNLP models, so their tests skip here.
+  # backends need toolchains this runner does not have. Classical OpenNLP
+  # model downloads and JVM comparisons are disabled under #1511.
   # The lanes mirror the Linux ones: lint, the workspace tests in four
   # shards, turbo-fuzz optimized, and the core with its C ABI tests.
   # Skipped in the shards: two docker runner tests (unix exit status
