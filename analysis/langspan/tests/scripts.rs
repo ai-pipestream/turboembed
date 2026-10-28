@@ -57,3 +57,28 @@ fn existing_token_boundaries_are_preserved() {
     assert_eq!(spans.iter().next().unwrap().span, Span::new(0, text.len() as u32));
     assert_eq!(spans.script, [Script::Latin]);
 }
+
+#[test]
+fn malformed_sentences_and_tokens_are_errors() {
+    use turbo_analysis::View;
+    use turbo_analysis_layers::Sentences;
+    let document = Document::new("café language");
+    let view = document.get::<View>().unwrap();
+    for spans in [
+        vec![Span { start: 5, end: 2 }],
+        vec![Span::new(0, 99)],
+        vec![Span::new(4, 5)],
+        vec![Span::new(0, 4)],
+        vec![Span::new(0, 6), Span::new(5, 7)],
+        vec![Span::new(6, 7), Span::new(0, 2)],
+    ] {
+        let mut sentences = Sentences { spans: Spans::new(view.id()) };
+        let mut tokens = Tokens { spans: Spans::new(view.id()), sentence: None };
+        for span in spans {
+            sentences.spans.push(span);
+            tokens.spans.push(span);
+        }
+        assert!(ScriptDetector.annotate((view, Some(&sentences), None)).is_err());
+        assert!(ScriptDetector.annotate((view, None, Some(&tokens))).is_err());
+    }
+}
