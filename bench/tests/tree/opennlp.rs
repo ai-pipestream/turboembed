@@ -220,3 +220,86 @@ fn opennlp_check_fails_on_a_fixture_with_one_unlisted_mention() {
         ]
     );
 }
+
+#[test]
+fn documented_analysis_segmentation_and_normalizer_apis_match_crate_exports() {
+    let root = crate::common::workspace();
+    let analysis_doc = std::fs::read_to_string(root.join("docs/analysis.md")).unwrap();
+    let seg_doc = std::fs::read_to_string(root.join("docs/segmentation.md")).unwrap();
+    let norm_doc = std::fs::read_to_string(root.join("docs/normalizers.md")).unwrap();
+    let lang_doc = std::fs::read_to_string(root.join("docs/langdetect.md")).unwrap();
+
+    for &(doc_name, text) in &[
+        ("docs/analysis.md", analysis_doc.as_str()),
+        ("docs/segmentation.md", seg_doc.as_str()),
+        ("docs/normalizers.md", norm_doc.as_str()),
+        ("docs/langdetect.md", lang_doc.as_str()),
+    ] {
+        for forbidden in [
+            "SatSentenceDetector",
+            "Uax29Tokenizer",
+            "EditTreeLemmatizer",
+            "BiLstmCrfPosTagger",
+            "GeoLocations",
+            "turbo:geo-locations",
+            "turbo:text-quality",
+            "ParagraphSplitter",
+            "turbo:paragraphs",
+            "InventorySentenceDetector",
+            "InventoryLanguage",
+            "NewlineSentenceDetector",
+            "SentenceDetectorME",
+            "TokenReadings",
+            "turbo:token-readings",
+            "TokenizerME",
+            "UnigramTokenizer",
+            "ComplexScriptTokenizer",
+            "DictionaryDetokenizer",
+            "NormalizeChain",
+            "UnicodeFormNormalizer",
+            "CaseFoldNormalizer",
+            "ConfusablesNormalizer",
+            "AcceptFirst",
+            "analysis/formats/recipes/",
+        ] {
+            assert!(!text.contains(forbidden), "{doc_name} still contains nonexistent API or path {forbidden:?}");
+        }
+    }
+
+    for required in [
+        "SatAnnotator",
+        "ParagraphDetector",
+        "NewlineDetector",
+        "SentenceDetector",
+        "WordTokenizer",
+        "TokenizerMe",
+        "UnigramSegmenter",
+        "ComplexSegmenter",
+        "Detokenizer",
+        "BilstmPosTagger",
+        "MaxentLemmatizer",
+        "Locations",
+        "EntityLocationLinks",
+        "turbo:text_quality",
+        "LicenceClass",
+    ] {
+        assert!(analysis_doc.contains(required), "docs/analysis.md missing exported symbol {required:?}");
+    }
+    for required in ["ParagraphDetector", "SatAnnotator", "Readings", "turbo:readings", "TokenizerMe"] {
+        assert!(seg_doc.contains(required), "docs/segmentation.md missing exported symbol {required:?}");
+    }
+    for required in [
+        "Chain",
+        "UnicodeForm",
+        "CaseFold",
+        "AccentFold",
+        "ConfusableSkeleton",
+        "HtmlTagStripNormalizer",
+        "Corrections",
+        "Artifacts",
+        "Noise",
+        "Placeholders",
+    ] {
+        assert!(norm_doc.contains(required), "docs/normalizers.md missing exported symbol {required:?}");
+    }
+}
