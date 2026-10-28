@@ -194,15 +194,23 @@ with SQuAD 2.0 dev, precision EXACT, and TEI 89-1.8 (image digest
 | MS MARCO MiniLM L6 v2 | 4303.7 | 1276.1 | 3.37x | 0.0129 |
 | BGE reranker base | 663.9 | 427.9 | 1.55x | 0.116 |
 
-On Level Zero, measured on 2026-10-26 at commit `6b982643` on an Arc Pro
-B70 with the own kernels, MS MARCO MiniLM L6 v2 at EXACT scored 889.6
-pairs/s (a second run 876.2), against 665.4 on the host CPU, an AMD Ryzen 9
-9950X, unpinned, in the same tool: 1.34x. TEI was not run, since the TEI
-image above is the CUDA build. The bench's compute engine was about 29%
-busy during the run (xe fdinfo), so the run is bound by the host and the
-launches, not by compute; a desktop client held the render engine about
-68% busy. BGE was not timed on Level Zero, and these records are not in
-`benchmarks/rerank/`.
+On Level Zero, measured on 2026-10-28 at commit `e6a9693f` on an Arc Pro
+B70 with the own kernels (compute-runtime 1.3.39122, Level Zero loader
+1.32.0), precision EXACT, ten passes after two warmups, TEI not run
+(the TEI image above is the CUDA build). Host loaded, B70 idle: no other
+xe client used the compute engine and none held more than 1% of the
+render engine, but the host's one-minute load was between 17.5 and 30.0
+across the two runs (docs/receipts/rerank-levelzero-916 has the logs).
+
+| Model | Library pairs/s | p50 ms a pass (min to max) |
+| --- | ---: | ---: |
+| MS MARCO MiniLM L6 v2 | 2907.9 | 352.1 (347.4 to 359.4) |
+| BGE reranker base | 403.6 | 2536.9 (2490.1 to 2583.0) |
+
+These records are in `benchmarks/rerank/` beside the CUDA ones. An
+earlier MiniLM run at `6b982643`, 889.6 pairs/s, was taken while a
+desktop client held the B70's render engine about 68% busy, and is
+superseded.
 
 On Metal, measured on 2026-10-26 at commit `e051ae76` on an Apple M2 with
 `--device metal --precision exact --no-tei`, against the M2's CPU in the

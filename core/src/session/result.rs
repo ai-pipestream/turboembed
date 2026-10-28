@@ -91,8 +91,10 @@ unsafe fn quantized(s: &SessionInner, state: &mut State, w: &Written, r: &mut tu
     };
     let out = &mut codes[..w.batch as usize * w.quantization.row_bytes(dim)];
     quantize::rows(w.quantization, src, dim, &int8_ranges[..2 * dim], out);
-    r.output = out.as_mut_ptr().cast();
-    r.host = r.output;
+    // Codes belong to the core, not to a backend buffer object. Native
+    // handle export uses the host-only path when there is no such object.
+    r.output = std::ptr::null_mut();
+    r.host = out.as_mut_ptr().cast();
     r.placement = TURBO_PLACE_HOST;
     Ok(())
 }
