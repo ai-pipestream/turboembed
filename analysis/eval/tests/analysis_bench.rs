@@ -1,6 +1,7 @@
 use turbo_eval::analysis::Sentencer;
 use turbo_eval::analysis_bench::{
-    command, parse_conllu, parse_sentence_list, score_conllu, score_sentence_list, score_sentencer,
+    command, parse_conllu, parse_lang_gold, parse_lang_pred, parse_sentence_list, score_conllu, score_language,
+    score_sentence_list, score_sentencer, script_fallback_predictions,
 };
 use turbo_eval::sha::{sha256, to_hex};
 
@@ -141,6 +142,63 @@ fn the_rule_sentencer_scores_the_joined_gold_text() {
     assert_eq!(scores.sentences.score, 100.0);
     assert!(scores.tokens.is_none());
     assert!(scores.throughput_sentences_per_second.is_some_and(|t| t > 0.0));
+}
+
+#[test]
+fn language_scoring_and_the_script_fallback() {
+    let gold = parse_lang_gold(concat!(
+        "ell\tΚαλημέρα κόσμε\n",
+        "kor\t안녕하세요 세상\n",
+        "eng\tGood morning world\n",
+        "spa\tBuenos días mundo\n",
+        "zho\t早上好世界\n",
+    ))
+    .unwrap();
+    // Greek and Hangul identify their language by script in this label
+    // set; Latin is shared (eng/spa) and Han has no unique candidate
+    // once zho's table alias shares it with Japanese's group alone...
+    // here zho is the only Han-group label, so it is named.
+    let fallback = script_fallback_predictions(&gold);
+    assert_eq!(fallback, ["ell", "kor", "und", "und", "zho"]);
+    let scores = score_language("fallback", &gold, &fallback, 0);
+    assert_eq!(scores.language.correct, 3);
+    assert_eq!(scores.language.target, 5);
+    assert_eq!(scores.per_language.iter().find(|l| l.code == "eng").unwrap().score, 0.0);
+
+    let pred = parse_lang_pred("ell\nkor\neng\t0.9\nspa\nzho\n", 5).unwrap();
+    assert_eq!(score_language("peer", &gold, &pred, 0).language.score, 100.0);
+    let err = parse_lang_pred("ell\nkor\n", 5).unwrap_err();
+    assert!(err.contains("2 predicted codes for 5"), "{err}");
+    assert!(parse_lang_gold("no-tab-here").is_err());
+}
+
+#[test]
+fn the_language_command_writes_a_record() {
+    let dir = std::env::temp_dir().join(format!("turbo-eval-lang-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let gold_text = "ell\tΚαλημέρα κόσμε\nkor\t안녕하세요 세상\n";
+    let gold = dir.join("gold.tsv");
+    std::fs::write(&gold, gold_text).unwrap();
+    let digest = to_hex(&sha256(gold_text.as_bytes()));
+    let out = dir.join("record.json");
+    command(&[
+        "--lang-gold".into(),
+        gold.to_string_lossy().into_owned(),
+        "--sha256".into(),
+        digest.clone(),
+        "--out".into(),
+        out.to_string_lossy().into_owned(),
+        "--script-fallback".into(),
+        "--resamples".into(),
+        "0".into(),
+    ])
+    .unwrap();
+    let record: serde_json::Value = serde_json::from_slice(&std::fs::read(&out).unwrap()).unwrap();
+    assert_eq!(record["gold_sha256"], digest);
+    assert_eq!(record["texts"], 2);
+    assert_eq!(record["systems"][0]["language"]["score"], 100.0);
+    std::fs::remove_dir_all(&dir).unwrap();
 }
 
 #[test]

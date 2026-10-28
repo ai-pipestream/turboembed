@@ -49,7 +49,9 @@ usage:
       margins; exit status 1 when any cut differs, 2 on an error
   turbo-eval analysis --gold <file.conllu> --sha256 <hex> --out <file>
       [--pred <name=file.conllu> ...] [--sentences rule|sat]
-      peer analysis scores on a SHA-pinned CoNLL-U test file (#1521)
+      peer analysis scores on a SHA-pinned CoNLL-U test file (#1521);
+      with --lang-gold <file.tsv> in place of --gold, language scores
+      on a SHA-pinned code<TAB>text file [--lang-pred <name=file> ...]
 
 The cache root is --cache, or $TURBO_EVAL_CACHE when it is not given.
 Sets: scifact, nfcorpus, arguana, legalbench-rag-mini, conteb-covid-qa,
