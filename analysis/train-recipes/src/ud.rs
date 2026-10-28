@@ -182,6 +182,17 @@ pub const TAG_FORMAT: PosTagFormat = PosTagFormat::Custom;
 /// [`Error::ClassesOutsideReference`](crate::error::Error::ClassesOutsideReference)).
 pub const MAX_TOKENS_LEFT_OUT: Limit = Limit { count: 5, of: 100 };
 
+/// OpenNLP's Italian UD 1.3 tagger, trained on UD_Italian-VIT (CC
+/// BY-NC-SA 3.0), as published. Its SHA-512 is the one Apache publishes
+/// beside it, and it is the file in Maven Central's
+/// `org.apache.opennlp:opennlp-models-pos-it:1.3.0`.
+pub const IT_UD_VIT_POS: RecordedReference = RecordedReference {
+    id: "opennlp-it-ud-vit-pos-1.3-2.5.4",
+    file: "opennlp-it-ud-vit-pos-1.3-2.5.4.bin",
+    url: "https://archive.apache.org/dist/opennlp/models/ud-models-1.3/opennlp-it-ud-vit-pos-1.3-2.5.4.bin",
+    size: 1_149_395,
+    sha256: "d38e645dc81289c035f2f126f813092ea657ae704769bd65a26f6da89fdd18f1",
+};
 /// One model trained on a treebank and its reference.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct UdRecipe {
@@ -196,11 +207,11 @@ const fn recipe(model_id: &'static str, treebank: Treebank, component: Component
     UdRecipe { model_id, treebank, component, reference }
 }
 
-use Component::{Lemmas, Pos, Sentence as Sentences, Tokens};
-use Reference::Retired;
+use Component::{Pos, Sentence as Sentences, Tokens};
+use Reference::{Recorded, Retired};
 
 /// The recipes, by treebank, in the order the binary runs them.
-pub const UD_RECIPES: [UdRecipe; 16] = [
+pub const UD_RECIPES: [UdRecipe; 11] = [
     recipe(
         "turbo-es-ud-ancora-2.16-sentence-1",
         SPANISH_ANCORA,
@@ -209,7 +220,6 @@ pub const UD_RECIPES: [UdRecipe; 16] = [
     ),
     recipe("turbo-es-ud-ancora-2.16-tokens-1", SPANISH_ANCORA, Tokens, Retired("opennlp-es-ud-gsd-tokens-1.3-2.5.4")),
     recipe("turbo-es-ud-ancora-2.16-pos-1", SPANISH_ANCORA, Pos, Retired("opennlp-es-ud-gsd-pos-1.3-2.5.4")),
-    recipe("turbo-es-ud-ancora-2.16-lemmas-1", SPANISH_ANCORA, Lemmas, Retired("opennlp-es-ud-gsd-lemmas-1.3-2.5.4")),
     recipe(
         "turbo-ca-ud-ancora-2.16-sentence-1",
         CATALAN_ANCORA,
@@ -229,6 +239,7 @@ pub const UD_RECIPES: [UdRecipe; 16] = [
         Lemmas,
         Retired("opennlp-ca-ud-ancora-lemmas-1.3-2.5.4"),
     ),
+
     recipe(
         "turbo-pt-ud-porttinari-2.16-sentence-1",
         PORTUGUESE_PORTTINARI,
@@ -242,16 +253,8 @@ pub const UD_RECIPES: [UdRecipe; 16] = [
         Retired("opennlp-pt-ud-gsd-tokens-1.3-2.5.4"),
     ),
     recipe("turbo-pt-ud-porttinari-2.16-pos-1", PORTUGUESE_PORTTINARI, Pos, Retired("opennlp-pt-ud-gsd-pos-1.3-2.5.4")),
-    recipe(
-        "turbo-pt-ud-porttinari-2.16-lemmas-1",
-        PORTUGUESE_PORTTINARI,
-        Lemmas,
-        Retired("opennlp-pt-ud-gsd-lemmas-1.3-2.5.4"),
-    ),
     recipe("turbo-fi-ud-ftb-2.16-pos-1", FINNISH_FTB, Pos, Retired("opennlp-fi-ud-tdt-pos-1.3-2.5.4")),
-    recipe("turbo-fi-ud-ftb-2.16-lemmas-1", FINNISH_FTB, Lemmas, Retired("opennlp-fi-ud-tdt-lemmas-1.3-2.5.4")),
-    recipe("turbo-it-ud-markit-2.16-pos-1", ITALIAN_MARKIT, Pos, Retired("opennlp-it-ud-vit-pos-1.3-2.5.4")),
-    recipe("turbo-it-ud-markit-2.16-lemmas-1", ITALIAN_MARKIT, Lemmas, Retired("opennlp-it-ud-vit-lemmas-1.3-2.5.4")),
+    recipe("turbo-it-ud-markit-2.16-pos-1", ITALIAN_MARKIT, Pos, Recorded(IT_UD_VIT_POS)),
 ];
 
 /// The samples of one component read from one CoNLL-U file, borrowed

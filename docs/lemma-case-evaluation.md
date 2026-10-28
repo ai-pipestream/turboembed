@@ -25,7 +25,7 @@ rows are combined as in that reader and empty nodes are omitted. No samples
 were skipped. Native and lowercase baselines both use GIS, 300 iterations,
 cutoff 5 and 4 training partitions, with the same feature generator and beam.
 The baseline is the code at `62dce738e7e4e81bc77d66c883cd3d562229591b`.
-The published references are OpenNLP UD 1.3 models (2.5.4).
+The published references were OpenNLP UD 1.3 models (2.5.4), retired under #1647.
 
 These measurements deliberately retain 4 partitions on both sides to isolate
 the class-format change. The separate UD 1.3 reproduction fix in #953 uses

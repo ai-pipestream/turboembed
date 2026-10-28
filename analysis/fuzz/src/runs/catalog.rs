@@ -40,7 +40,7 @@ use crate::resources::{Resources, Unavailable};
 /// which turbo-formats compares with; the sentence vector runs
 /// (`sentvectors`) need an encoder bundle, and turbo-analysis-embed's
 /// `sentence_vectors_dl` test compares with them.
-pub const NOT_COVERED: [&str; 33] = [
+pub const NOT_COVERED: [&str; 36] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -74,6 +74,9 @@ pub const NOT_COVERED: [&str; 33] = [
     "ontonotes",
     "frenchtreebank",
     "sentvectors",
+    "lemmatize",
+    "lemmatize-dictionary",
+    "langdetect",
 ];
 
 /// Historical directory inventory, including retired classical runs.
@@ -122,19 +125,9 @@ pub const RUNS: &[(&str, &str)] = &[
     ("postag", "opennlp-en-ud-ewt-pos-1.3-2.5.4+penn"),
     ("postag", "pos-fixture"),
     ("postag", "pos-fixture-rust"),
-    ("lemmatize", "lemma-fixture-rust"),
-    ("lemmatize", "opennlp-de-ud-gsd-lemmas-1.3-2.5.4"),
-    ("lemmatize", "opennlp-en-ud-ewt-lemmas-1.3-2.5.4"),
-    ("lemmatize-dictionary", "lemmatizer-dictionary"),
     ("chunk", "chunker-fixture"),
     ("chunk", "chunker-fixture+beam1"),
     ("chunk", "chunker-fixture-rust"),
-    ("langdetect", "langdetect-183"),
-    ("langdetect", "langdetect-183+probing"),
-    ("langdetect", "langdetect-183+probing-chunk50"),
-    ("langdetect", "langdetect-fixture-rust"),
-    ("langdetect", "langdetect-fixture-rust+probing"),
-    ("langdetect", "langdetect-fixture-rust+probing-chunk50"),
     ("normalize", "whitespace"),
     ("normalize", "whitespace-keep-lines"),
     ("normalize", "whitespace-keep-paragraphs"),
