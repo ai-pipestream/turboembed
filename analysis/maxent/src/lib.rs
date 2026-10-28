@@ -1,29 +1,9 @@
-//! Reading OpenNLP 3.x model files and evaluating their classifiers.
+//! Classical model loading is disabled under #1511.
 //!
-//! An OpenNLP `.bin` model is a zip archive. [`ModelFile`] opens one: it
-//! reads the archive with this crate's own [`zip`] and [`inflate`]
-//! modules, and the manifest as `java.util.Properties` reads it
-//! ([`Properties`]). From the archive it reads the classifier
-//! ([`MaxentModel`], for models of type `GIS`, `QN`, `Perceptron` and
-//! `NaiveBayes`) and the dictionary XML ([`Dictionary`] as a set,
-//! [`Entries`] with each entry's attributes).
-//!
-//! [`MaxentModel::eval`] takes a context's features as strings and writes
-//! one probability per outcome into the caller's buffer;
-//! [`MaxentModel::eval_modified_utf8`] takes them as Java modified UTF-8
-//! bytes, the form the model keys its predicates by, and allocates
-//! nothing. Both compute as the Java model of the same type does, in `f64`
-//! throughout with `StrictMath`'s `exp` and `log` (from `turbo-jvm`). A
-//! model's outcome labels are [`JavaString`]s, since a label the JVM
-//! trained on can hold half of a surrogate pair (a lemmatizer's edit
-//! script over a character outside the BMP); predicates are keyed by the
-//! same encoding. docs/segmentation.md, section "Model files", describes where this fits.
-//!
-//! [`ModelFile::sha256`] identifies a model file the way `sha256sum` does,
-//! for the provenance of every layer a model produces.
-//!
-//! Nothing here calls into a JVM; the tests compare against values the
-//! JVM produced, kept as fixtures.
+//! ModelFile and MaxentModel readers return Error::Disabled before I/O or decoding.
+//! Dictionary/archive utilities and in-memory classifiers remain for dependent
+//! crates until the training-stack deletion in #1532. Replacement heads are
+//! tracked in #1509.
 
 pub mod container;
 mod crc32;
