@@ -91,7 +91,7 @@ fn the_annotators_write_one_tag_per_token_and_entities_on_token_bounds() {
     let view = doc.require(&Key::<View>::DEFAULT).unwrap();
     let toks = tokens(TEXT);
     let pos = PosTagger::open(&dir, None, &EncoderOptions::default()).unwrap();
-    let (tags,) = pos.annotate((view, &toks, None)).unwrap();
+    let (tags,) = pos.annotate((view, &toks, None, None)).unwrap();
     tags.check().unwrap();
     assert_eq!(tags.tags.len(), toks.spans.len());
     assert!(tags.tags.iter().any(|t| *t != tags.tags[0]), "the seeded head gives more than one tag");
@@ -100,7 +100,7 @@ fn the_annotators_write_one_tag_per_token_and_entities_on_token_bounds() {
 
     let ner = EntityTagger::open(&dir, None, &EncoderOptions::default()).unwrap();
     assert_eq!(ner.kinds().len(), 2);
-    let (ents,) = ner.annotate((view, &toks, None)).unwrap();
+    let (ents,) = ner.annotate((view, &toks, None, None)).unwrap();
     assert!(!ents.spans.is_empty(), "the seeded head marks some entities");
     let (starts, ends) = toks.spans.columns();
     for ((_, s), r) in ents.spans.iter().zip(&ents.tokens) {
@@ -108,10 +108,10 @@ fn the_annotators_write_one_tag_per_token_and_entities_on_token_bounds() {
         assert_eq!(s.end, ends[r.end.get() - 1]);
     }
     // The same document again gives the same layers.
-    let (again,) = ner.annotate((view, &toks, None)).unwrap();
+    let (again,) = ner.annotate((view, &toks, None, None)).unwrap();
     assert_eq!(again.tokens, ents.tokens);
     assert_eq!(again.score, ents.score);
-    assert_eq!(pos.annotate((view, &toks, None)).unwrap().0.tags, tags.tags);
+    assert_eq!(pos.annotate((view, &toks, None, None)).unwrap().0.tags, tags.tags);
 
     // The tags are the core head's decode of the word features.
     let run = HeadRunner::open(&dir, Some("pos"), PosTags::ID, &EncoderOptions::default()).unwrap();
@@ -163,11 +163,11 @@ fn sentences_come_from_the_token_column_else_the_sentence_layer_else_the_view() 
     // A sentence is tagged as it would be on its own.
     let dir = bundle("sentences", |_| {});
     let pos = PosTagger::open(&dir, None, &EncoderOptions::default()).unwrap();
-    let (both,) = pos.annotate((view, &toks, None)).unwrap();
+    let (both,) = pos.annotate((view, &toks, None, None)).unwrap();
     let alone_text = "Bob slept .";
     let alone_doc = Document::new(alone_text);
     let alone_view = alone_doc.require(&Key::<View>::DEFAULT).unwrap();
-    let (alone,) = pos.annotate((alone_view, &tokens(alone_text), None)).unwrap();
+    let (alone,) = pos.annotate((alone_view, &tokens(alone_text), None, None)).unwrap();
     assert_eq!(both.tags[4..], alone.tags[..]);
 }
 

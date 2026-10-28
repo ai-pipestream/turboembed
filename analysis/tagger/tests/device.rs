@@ -6,6 +6,7 @@
 //! and the run asserts the backend it reports. With
 //! TURBO_TEST_REQUIRE_CUDA, TURBO_TEST_REQUIRE_LEVELZERO or
 //! TURBO_TEST_REQUIRE_METAL set, the test fails unless it runs there.
+//! The backend is a feature of `turbo`: run with `--features turbo/<backend>`.
 
 mod common;
 
@@ -98,10 +99,13 @@ fn the_device_reads_words_and_tags_as_the_cpu() {
     let pd = PosTagger::open(&dir, None, &o).unwrap();
     let pc = PosTagger::open(&dir, None, &EncoderOptions::default()).unwrap();
     assert_eq!(pd.execution().unwrap().backend, execution.backend);
-    assert_eq!(pd.annotate((view, &toks, None)).unwrap().0.tags, pc.annotate((view, &toks, None)).unwrap().0.tags);
+    assert_eq!(
+        pd.annotate((view, &toks, None, None)).unwrap().0.tags,
+        pc.annotate((view, &toks, None, None)).unwrap().0.tags
+    );
     let ed = EntityTagger::open(&dir, None, &o).unwrap();
     let ec = EntityTagger::open(&dir, None, &EncoderOptions::default()).unwrap();
-    let (a,) = ed.annotate((view, &toks, None)).unwrap();
-    let (b,) = ec.annotate((view, &toks, None)).unwrap();
+    let (a,) = ed.annotate((view, &toks, None, None)).unwrap();
+    let (b,) = ec.annotate((view, &toks, None, None)).unwrap();
     assert_eq!((a.tokens, a.kind), (b.tokens, b.kind));
 }
