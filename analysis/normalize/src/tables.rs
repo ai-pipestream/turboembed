@@ -62,7 +62,7 @@ pub const LINE_BREAKS: &[char] = &[
 /// Whether `c` is in [`WHITESPACE`], using the shared Unicode mode.
 #[inline]
 pub fn is_whitespace(c: char) -> bool {
-    turbo_unicode::whitespace::WhitespaceMode::Unicode.is_whitespace(c as u32)
+    turbo_unicode::whitespace::is_whitespace(c as u32)
 }
 
 /// Whether `c` is in [`LINE_BREAKS`].

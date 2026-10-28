@@ -291,6 +291,8 @@ pub(crate) fn populate_embeddings_from_bundle(
         normalize,
         pooling: 0,
         output_dim,
+        quantization: 0,
+        int8_ranges: std::ptr::null(),
     };
     for batch in chunks.chunks_mut(max_batch.max(1)) {
         let mut need_indices = Vec::new();

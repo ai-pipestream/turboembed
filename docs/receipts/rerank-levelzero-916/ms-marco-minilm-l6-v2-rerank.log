@@ -1,0 +1,8 @@
+commit e6a9693f203a8307578c7278afedf56087a5c005; 2026-10-28T00:16:07Z; load before 28.64 26.59 19.89 34/4497 3060593
+B70 compute clients: none; B70 runner build/test processes: 0
+command: target/release/turbo-bench rerank --bundle <bundles>/ms-marco-minilm-l6-v2-rerank --questions <SQuAD 2.0 dev-v2.0.json, sha256 80a5225e...> --device levelzero --precision exact --no-tei
+levelzero Intel(R) Arc(TM) Pro B70 Graphics: 64 requests of 16 passages: p50 352.1 ms a pass, 2907.9 pairs/s
+benchmarks/rerank/b70.levelzero.rerank.exact.ms-marco-minilm-l6-v2-bb57a12c.e6a9693f203a.json
+exit 0
+load after 25.55 26.10 19.94 14/4359 3093940
+B70 engines during the run: gnome-shell ccs 0.0% rcs 0.8%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%; 

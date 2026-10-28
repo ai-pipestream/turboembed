@@ -140,6 +140,8 @@ fn struct_layouts_match_the_header() {
         ("turbo_embed_options", "normalize", offset_of!(turbo_embed_options, normalize)),
         ("turbo_embed_options", "pooling", offset_of!(turbo_embed_options, pooling)),
         ("turbo_embed_options", "output_dim", offset_of!(turbo_embed_options, output_dim)),
+        ("turbo_embed_options", "quantization", offset_of!(turbo_embed_options, quantization)),
+        ("turbo_embed_options", "int8_ranges", offset_of!(turbo_embed_options, int8_ranges)),
         ("turbo_token_batch", "batch", offset_of!(turbo_token_batch, batch)),
         ("turbo_token_batch", "seq", offset_of!(turbo_token_batch, seq)),
         ("turbo_token_batch", "row_stride", offset_of!(turbo_token_batch, row_stride)),
@@ -390,5 +392,8 @@ fn the_token_head_layout_is_the_one_proposed() {
     assert_eq!(offset_of!(turbo_backend_model, global_every), 252);
     assert_eq!(size_of::<turbo_backend_model>(), 256);
     assert_eq!(offset_of!(turbo_backend_embed_rows, head), 52);
-    assert_eq!(size_of::<turbo_backend_embed_rows>(), 56);
+    // taps was appended after head (#1616), with a reserved field so the
+    // struct has no padding.
+    assert_eq!(offset_of!(turbo_backend_embed_rows, taps), 56);
+    assert_eq!(size_of::<turbo_backend_embed_rows>(), 64);
 }

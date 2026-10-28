@@ -45,6 +45,20 @@ gRPC service) build against. Everything below is new.
   `turbo_backend.h`: rotary positions, sliding-window attention, gated
   MLPs and bias-free norms, with the core's cos/sin table appended to
   `turbo_backend_model`; no backend runs them yet (#1493).
+- The CPU encoder for ModernBERT and nomic-bert: RoPE in the QKV
+  product's epilogue over pair-adjacent weights, sliding-window attention
+  over each block's band of keys, GeGLU and SwiGLU in one product, held to
+  upstream on the sealed tiny bundles (#1544).
+- The CUDA encoder for ModernBERT and nomic-bert at MODEL (F32) and
+  FASTEST (F16 on the tensor cores): RoPE and the gated MLP in the GEMMs'
+  epilogues over pair-adjacent weights, sliding-window attention that
+  reads only each block's band of keys, held to the CPU (#1580).
+- On cuda, a FASTEST session whose max_seq is over 4096 takes the
+  tensor cores' attention with F32 sums of the scores and the output,
+  whatever the model's family (BERT and XLM-R too, bge-m3 at 8192 for
+  one): the F16 sums went over FASTEST's cosine bound at 8192 tokens.
+  That attention is slower; sessions of 4096 or fewer keep the F16 sums
+  (#1580).
 
 ### Not in this release yet
 

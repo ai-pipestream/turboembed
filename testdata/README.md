@@ -195,6 +195,18 @@
     the library gives on every text, one line per text as the
     docstring of `goldens.py` writes it. `core/tests/sentencepiece.rs`
     makes the same edits.
+- `quantize/sentence-transformers-145ef47d.txt`: int8 and ubinary codes
+  for synthetic f32 rows (widths 1, 7, 8, 9 and 64, six rows each, with
+  rows below every minimum, above every maximum, on a bucket edge and of
+  +0 and -0, and a dimension whose minimum is its maximum), with explicit
+  ranges, as the expressions of sentence-transformers' `quantize_embeddings`
+  (`sentence_transformers/util/quantization.py` at
+  `145ef47d5a4bcb9c88ab5e0684e14a4222ef408f`, Apache-2.0) give them under
+  numpy 2.5.3. Each line is the width, then hex of the row's
+  little-endian f32 values, of the `[2, dim]` ranges, of the int8 codes
+  and of the ubinary codes. `quantize/regenerate.py` writes it
+  (`python3 -I regenerate.py`); `core/src/quantize/tests.rs` holds the
+  core's codes to it.
 
 - `tiny-modernbert-reference/` and `tiny-nomic-reference/`: a small
   ModernBERT (three layers, hidden 32, one global and two local layers
@@ -209,6 +221,28 @@
   shapes, the hashes and the commands that make it again. Made for this
   repository; the nomic one's tokenizer is under Apache-2.0, the licence
   of the MiniLM tokenizer.
+
+- `tiny-modernbert-bundle/` and `tiny-nomic-bundle/`: those two models
+  as bundles, which `turbo-bundle seal` made from the `recipe.json` in
+  each reference directory, the model directory as the upstream files,
+  and the reference file already written (it does not run the
+  container): the weights and tokenizer file of the model directory,
+  unchanged, and `reference.safetensors` of the reference directory,
+  with its `produced_by.json` and the image above as the report. The
+  manifests take mean pooling with no normalization, `max_seq` 64 and
+  `max_batch` 8, as the container ran; nomic's reference cases are the
+  query and document cases with its prefixes. `core/tests/conformance.rs`
+  holds the CPU encoder to both (`the_rotary_bundles_match_upstream`).
+  To make them again, from the repository root, for `m` each of
+  `modernbert` and `nomic`:
+
+  ```
+  mkdir -p testdata/tiny-$m-bundle/reference
+  cp testdata/tiny-$m-reference/reference.safetensors testdata/tiny-$m-bundle/reference/
+  # reference/report.json: produced_by.json with "container" set to the image above
+  cargo run --release -p turbo-bundle -- seal testdata/tiny-$m-reference/recipe.json \
+      testdata/tiny-$m-reference/model testdata/tiny-$m-bundle
+  ```
 
 Everything here is about 25 MB, 4 MB each of it the weights of the
 tiny BERT, DeBERTa, SaT and nomic models, 2 MB the SentencePiece models

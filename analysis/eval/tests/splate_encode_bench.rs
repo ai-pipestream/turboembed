@@ -30,7 +30,7 @@ fn query_encode_timing() {
     let mlm = MlmHead::load(&sparse_bundle).expect("mlm head");
     let sparse_ann = VectorAnnotator::open(
         &root.join("neural-sparse"),
-        &VectorOptions { encoder: EncoderOptions::default(), prompt: PromptRole::None, stride: 0 },
+        &VectorOptions { prompt: PromptRole::None, ..VectorOptions::default() },
     )
     .expect("sparse annotator");
     let tuned = EncoderOptions { cpu_threads: 4, ..EncoderOptions::default() };

@@ -44,7 +44,7 @@ impl VectorAnnotator {
                     }
                 }
                 let states =
-                    windows.iter().map(|w| vec![0.0; (w.end - w.start) as usize * self.dim as usize]).collect();
+                    windows.iter().map(|w| vec![0.0; (w.end - w.start) as usize * self.hidden as usize]).collect();
                 Ok(CachedWindows { windows, states, tokens })
             })
             .collect();
@@ -97,7 +97,7 @@ impl VectorAnnotator {
         sub: &Subwords,
         cached: &CachedWindows,
     ) -> Result<Vectors<Subwords>, Error> {
-        let dim = self.dim as usize;
+        let dim = self.hidden as usize;
         let mut states = vec![0.0; sub.len() * dim];
         for p in place_tokens_in_windows(0, sub.len() as u32, &cached.tokens) {
             let win = cached.tokens[p.window as usize];
@@ -139,7 +139,7 @@ impl VectorAnnotator {
             plan.item(Target { doc: 0, which: Which::Chunks, item: i as u32 }, r);
         }
         plan.place(0, sub.len() as u32).map_err(|e| fail(e.to_string()))?;
-        let dim = self.dim as usize;
+        let dim = self.hidden as usize;
         let mut data = vec![0.0; spans.len() * dim];
         for x in &plan.placed {
             if x.target.which != Which::Chunks {
@@ -173,11 +173,7 @@ impl VectorAnnotator {
                 *v *= inv;
             }
         }
-        if self.l2 {
-            for row in data.chunks_exact_mut(dim) {
-                normalize(row);
-            }
-        }
+        cut_and_normalize(&mut data, dim, self.dim as usize, self.l2);
         Ok(Vectors::new(self.dim, data, empty, self.model.clone()))
     }
 }

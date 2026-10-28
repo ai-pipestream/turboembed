@@ -76,7 +76,7 @@ async function addModels(names: string[]): Promise<void> {
 
 // ---- Math -----------------------------------------------------------------
 
-function cosine(a: number[], b: number[]): number {
+export function cosine(a: number[], b: number[]): number {
   let d = 0;
   let na = 0;
   let nb = 0;
@@ -92,7 +92,7 @@ function norm(a: number[]): number {
   return Math.sqrt(a.reduce((s, x) => s + x * x, 0));
 }
 
-function matrix(vectors: number[][]): number[][] {
+export function matrix(vectors: number[][]): number[][] {
   return vectors.map((a) => vectors.map((b) => cosine(a, b)));
 }
 
@@ -191,7 +191,7 @@ async function run(): Promise<void> {
 
 // ---- Results --------------------------------------------------------------
 
-function heat(v: number): string {
+export function heat(v: number): string {
   const a = Math.max(0, Math.min(1, v));
   return `background: rgba(var(--heat), ${(a * a * 0.85).toFixed(3)})`;
 }

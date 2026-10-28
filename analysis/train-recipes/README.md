@@ -1,5 +1,24 @@
 # turbo-train-recipes
 
+## Current command surface after #1511
+
+Classical model training, reference-model gates and release publication commands
+are disabled. OpenNLP archives cannot be loaded, even from a caller-managed
+cache. Remaining classical library code is scheduled for removal in #1532.
+
+The executable currently supports `fetch-masc`, `fetch-ud`, `fineweb-ranges`
+and native `static-embed`. Consult `src/cli.rs` for arguments. Dataset download
+and integrity checks remain active, subject to their original licence policy.
+The retained `masc-references.txt` is historical input provenance, not an active
+model download or loading requirement.
+
+The sections below preserve historical recipes, dataset hashes, split rules
+and evaluation results. Their classical commands are no longer runnable in
+current builds; their JVM/model comparison results are not current acceptance
+evidence and do not establish accuracy for replacement heads.
+
+## Historical recipe record
+
 Recipes that train models only on permissive data, and the
 accuracy gate each model passes before it ships (#401, #415).
 docs/analysis.md ("Models trained on permissive data" and "Model gates")
@@ -11,11 +30,12 @@ the OpenNLP lowercase format; the local native-v1 route preserves case under
 distinct ids. Per-language accuracy, hashes, commands and the Italian gate diagnosis are in
 [docs/lemma-case-evaluation.md](../../docs/lemma-case-evaluation.md).
 
-The UD reproduction investigation in #953 identified 12 training partitions
-as the setting that gives the published parameter bytes. New runs using
-`turbo_train_components::ud::training_parameters` use 12. MASC segmentation
-and POS recipes and this project's UD 2.16 release recipes keep 4 partitions,
-preserving their released model hashes and gate values.
+The MASC segmentation and POS recipes and this project's UD 2.16 release
+recipes train with 4 partitions (`ud::training_parameters`). Every recipe
+treats whitespace as Unicode `White_Space`. The released MASC and UD
+segmentation models were trained before that was the only definition, and
+their cards record `"whitespace": "legacy"`; a card written now records
+`"unicode"`.
 
 | Module | What it holds |
 |---|---|
@@ -48,14 +68,14 @@ published file names: `opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin` and
 `opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin`, as `cargo run -p
 turbo-goldens-tool -- fetch-models <dir>` writes them and checked against
 the zoo's SHA-256, and `en-pos-maxent.bin`, downloaded by hand from
-<https://opennlp.sourceforge.net/models-1.5/en-pos-maxent.bin> and checked
+<https://downloads.sourceforge.net/project/opennlp/models-1.5/en-pos-maxent.bin> and checked
 against the size and SHA-256 the recipe records (5,696,197 bytes,
 `645a094f45a866687a617385233fd23ae8b0f5fa8b1b76996781a50c17bdcf3d`),
 `en-chunker.bin`, downloaded by hand from
-<https://opennlp.sourceforge.net/models-1.5/en-chunker.bin> and checked
+<https://downloads.sourceforge.net/project/opennlp/models-1.5/en-chunker.bin> and checked
 the same way (2,560,304 bytes,
 `7861a0c2f134d9c12a022a1ba501e88bc7039f6db72b4140e1bafd1fb5ef76cc`), and
-the four name finders of the same page, checked the same way
+the four name finders of the 1.5 models, checked the same way
 (`namefind::EN_NER_*`):
 
 | File | Size | SHA-256 |
@@ -109,11 +129,11 @@ status is 1 when a gate fails and 2 on an error.
 - Parameters: the released MASC settings
   (GIS, 300 iterations, cutoff 5, 4 partitions),
   the factory defaults for English (for the tagger: the default feature
-  generator descriptor, no tag dictionary, beam size 3), OpenNLP 2.5.4's
-  whitespace, and a fixed manifest `Timestamp` (2026-10-14T00:00:00Z), so
-  a run gives the same model bytes. The sentence detector's and the
-  tokenizer's references, UD 1.3 models, use 12 partitions, so they
-  differ in data and floating-point grouping.
+  generator descriptor, no tag dictionary, beam size 3), Unicode
+  `White_Space` as whitespace, and a fixed manifest `Timestamp`
+  (2026-10-14T00:00:00Z), so a run gives the same model bytes. The
+  sentence detector's and the tokenizer's references are UD 1.3 models,
+  trained on other data.
   The tagger's reference was not: its manifest records OpenNLP 1.5.0, 100
   iterations and cutoff 5, and it holds a tag dictionary (`tags.tagdict`)
   and no feature generator descriptor, so its gate compares data and
@@ -290,7 +310,8 @@ status is 1 when a gate fails and 2 on an error.
   token at a sentence's start as empty, and a sentence of two or more
   names mostly keeps one of them or none (its removal of overlapping
   names compares a name with itself, and can also keep names that
-  overlap, which `NameSample` then refuses). What it keeps of a name of
+  overlap, which `NameSample` then refuses; turbo-formats'
+  `MascNameReader` keeps every name the removal does not remove, #1496). What it keeps of a name of
   several tokens depends on the order the entity file lists them
   (`MascSentence.java:217` moves the end to one past a token only when
   the token is past the end so far, which is already one past a token):
@@ -903,7 +924,9 @@ also with `training-sentences.txt`, and the web one with
 `<model id>.gate-web.json`, `<model id>.compare-tatoeba.json` and
 `<model id>.compare-web.json`) and a `SHA256SUMS` file as an artifact.
 A pull request that changes the workflow, this crate or the zoo's index runs it
-that far. Run by hand on main, a job of its own, which unlike the
+that far when it carries the label `ci:models`, and every push to main
+that changes them does too (`.github/runner/README.md`, "Model training
+runs"). Run by hand on main, a job of its own, which unlike the
 training job may write to the repository, runs
 `.github/workflows/models-publish.yml`,
 which publishes exactly those files: it checks `SHA256SUMS`, stops if
@@ -961,8 +984,8 @@ read on 2026-10-14 (#415):
 - Split: UD's own. Each model is trained on `train` and gated on `test`;
   `dev` is checked and not read.
 - Parameters: the released UD 2.16 settings (GIS, 300 iterations, cutoff 5,
-  4 partitions), the factory defaults for the treebank's language, OpenNLP
-  2.5.4's whitespace, 10 sentences per sentence detector sample, the
+  4 partitions), the factory defaults for the treebank's language, Unicode
+  `White_Space` as whitespace, 10 sentences per sentence detector sample, the
   universal tags, and the fixed manifest `Timestamp`. No randomness, so
   no seed.
 - Samples: those of OpenNLP's CoNLL-U streams (a multiword token is one
@@ -1167,22 +1190,9 @@ models scored on every token):
   MarkIT's `train` file has 611 sentences.
 - The Catalan references are OpenNLP's models of this treebank's
   `train` file (the zoo records them as trained on `UD_Catalan-AnCora
-  r2.16`), made with 12 training partitions; these release recipes keep
-  their original 4. The recipes make OpenNLP's sentence detector and tokenizer
-  events exactly: each trained model's `Training-Eventhash` is its
-  reference's (2275230916, from 14,747 events, and 289028499, from
-  1,432,196), the model entries are the same byte for byte up to the
-  parameters, and the parameters differ only in their last bits (1,107
-  of 1,237 in `sent.model` and 39,509 of 55,744 in `token.model`, by at
-  most 4.8e-13 of their value). So those two gates check that the
-  four-partition release recipes agree with the reference predictions
-  on every unit; the separate 12-partition reproduction recipes require
-  exact parameter bytes. With the empty nodes kept, the recipes
-  make OpenNLP's tagger and lemmatizer events exactly too (event hashes
-  4145769459, from 422,116 events, and 896960108); the recipes leave the
-  treebank's 4,999 empty nodes out (417,117 events), so the tagger and
-  lemmatizer are trained on what OpenNLP's were less those nodes. The
-  taggers differ on 127 of the 1,846 units and the lemmatizers on 6.
+  r2.16`). The recipes leave the treebank's 4,999 empty nodes out of the
+  tagger's and lemmatizer's samples, so those are trained on what
+  OpenNLP's were less those nodes.
 - The other references are trained on another treebank of the language
   (Spanish GSD, Portuguese GSD, Finnish TDT, Italian VIT), so a gap can
   come from the two treebanks' annotation as well as from the models,
@@ -1534,8 +1544,8 @@ Serbian, which are written much alike.
 </details>
 
 The `models-tatoeba` workflow (`.github/workflows/models-tatoeba.yml`)
-trains the release's model on the recorded export when it is run by hand
-or a pull request changes it or the crates the run mostly rests on: this
+trains the release's model on the recorded export when it is run by hand,
+or a push to main or a pull request labelled `ci:models` changes it or the crates the run mostly rests on: this
 one, the trainers (`analysis/train`, `analysis/train-components`), the
 gate (`analysis/eval`), `turbo-langdetect` and the zoo's index. It
 fetches the two archives from release `data-tatoeba-2026-10-10`, or,
@@ -1764,8 +1774,8 @@ list the model yet, so it built no release files; the entry it printed
 is the one `analysis/zoo/index/zoo.json` now holds.
 
 The `models-fineweb` workflow
-(`.github/workflows/models-fineweb.yml`) runs when it is run by hand or
-a pull request changes it, `models-publish.yml`, this crate, the
+(`.github/workflows/models-fineweb.yml`) runs when it is run by hand, or
+a push to main or a pull request labelled `ci:models` changes it, `models-publish.yml`, this crate, the
 trainers, the gate (`analysis/eval`), the Zstandard decoder,
 `turbo-langdetect` or the zoo's index; only a run by hand on main
 publishes, as release `models-tatoeba-fineweb-2026-10-10-1` ("The

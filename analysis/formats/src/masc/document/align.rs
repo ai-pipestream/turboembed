@@ -24,8 +24,15 @@ impl MascDocument {
                 tokens.insert(0, t);
             }
         }
+        // Each quark id's first place in the document, for token quarks
+        // outside their sentence: built once instead of a scan per quark.
+        let mut first_places: HashMap<i32, usize> = HashMap::with_capacity(self.quarks.len());
+        for (place, q) in self.quarks.iter().enumerate() {
+            first_places.entry(q.id).or_insert(place);
+        }
+        let quarks = Quarks { all: &self.quarks, first_places: &first_places };
         for si in 0..self.sentences.len() {
-            let tokens = tokenize(si, &self.sentences[si], &self.quarks, penn, &quark_tokens, &mut self.warnings)?;
+            let tokens = tokenize(si, &self.sentences[si], &quarks, penn, &quark_tokens, &mut self.warnings)?;
             let sentence = &mut self.sentences[si];
             sentence.token_places = tokens.iter().enumerate().map(|(i, t)| (t.id, i)).collect();
             sentence.tokens = Some(tokens);
@@ -125,14 +132,22 @@ impl MascDocument {
     }
 }
 
-/// The list of names `addNamedEntities` keeps of names sorted by start,
-/// or `None` when it finds no overlap and keeps them all.
+/// The names `addNamedEntities` keeps of names sorted by start, or `None`
+/// when it finds no overlap and keeps them all.
 ///
-/// It walks a left and a right name: when they overlap (the left contains
-/// or crosses the right) it marks the shorter (the right on a tie) and
-/// moves the right on; otherwise it moves the left on, until the left
-/// reaches the right and finds that a name contains itself. Then, if
-/// anything was marked, it keeps the unmarked names but the last.
+/// It walks a left and a right name: when they overlap (either contains
+/// the other, or they cross) it marks the shorter (the right on a tie)
+/// and moves the right on; otherwise it moves the left on. When the left
+/// catches up with the right, the right moves on, so a name is never
+/// compared with itself. If anything was marked, it keeps every unmarked
+/// name, the last one too.
+///
+/// OpenNLP's walk differs in three steps the port does not reproduce
+/// (#1496): it compares a name with itself there, finds that it contains
+/// itself and marks it; it asks only whether the left contains the right,
+/// so a shorter name sorted before a longer one of the same start is not
+/// an overlap; and once it has marked anything it drops the last name as
+/// well. So a name apart from the others, the last above all, was lost.
 pub(super) fn remove_overlaps(names: &[MascName]) -> Option<Vec<MascName>> {
     let contains = |a: &MascName, b: &MascName| a.start <= b.start && b.end <= a.end;
     let crosses = |a: &MascName, b: &MascName| {
@@ -145,8 +160,12 @@ pub(super) fn remove_overlaps(names: &[MascName]) -> Option<Vec<MascName>> {
     let mut left = 0;
     let mut right = 1;
     while right < names.len() {
+        if left == right {
+            right += 1;
+            continue;
+        }
         let (l, r) = (&names[left], &names[right]);
-        if contains(l, r) || crosses(l, r) {
+        if contains(l, r) || contains(r, l) || crosses(l, r) {
             if r.end - r.start > l.end - l.start {
                 marked.insert(left);
             } else {
@@ -158,14 +177,13 @@ pub(super) fn remove_overlaps(names: &[MascName]) -> Option<Vec<MascName>> {
             left += 1;
         }
     }
-    overlaps.then(|| {
-        names[..names.len() - 1]
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| !marked.contains(i))
-            .map(|(_, n)| n.clone())
-            .collect()
-    })
+    overlaps.then(|| names.iter().enumerate().filter(|(i, _)| !marked.contains(i)).map(|(_, n)| n.clone()).collect())
+}
+
+/// The document's quarks and each quark id's first place among them.
+struct Quarks<'a> {
+    all: &'a [Quark],
+    first_places: &'a HashMap<i32, usize>,
 }
 
 /// `MascSentence.tokenizePenn` for sentence `si`: the tokens of its
@@ -175,7 +193,7 @@ pub(super) fn remove_overlaps(names: &[MascName]) -> Option<Vec<MascName>> {
 fn tokenize(
     si: usize,
     sentence: &MascSentence,
-    quarks: &[Quark],
+    quarks: &Quarks<'_>,
     penn: &Penn,
     quark_tokens: &HashMap<i32, Vec<usize>>,
     warnings: &mut Vec<MascWarning>,
@@ -183,7 +201,7 @@ fn tokenize(
     let mut tokens = Vec::new();
     let mut processed = HashSet::new();
     for &w in &sentence.quarks {
-        let Some(list) = quark_tokens.get(&quarks[w].id) else {
+        let Some(list) = quark_tokens.get(&quarks.all[w].id) else {
             continue;
         };
         for &t in list {
@@ -201,15 +219,15 @@ fn tokenize(
                 // the sentence's own quark, else the first in the document
                 let place = match sentence.quark_places.get(&q) {
                     Some(&p) => p,
-                    None => quarks.iter().position(|x| x.id == q).ok_or(MascError::MissingQuark { id: q })?,
+                    None => *quarks.first_places.get(&q).ok_or(MascError::MissingQuark { id: q })?,
                 };
                 places.push(place);
             }
             let (Some(&first), Some(&last)) = (places.first(), places.last()) else {
                 continue;
             };
-            let start = quarks[first].start;
-            let end = quarks[last].end;
+            let start = quarks.all[first].start;
+            let end = quarks.all[last].end;
             if end - start > 0 {
                 tokens.push(MascToken {
                     id: token.id,

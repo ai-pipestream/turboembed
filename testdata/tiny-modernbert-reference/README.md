@@ -8,6 +8,8 @@ the manifest, from these files, on the Rust side.
   directory `reference.py` reads (the upstream layout: `config.json`,
   `model.safetensors`, the tokenizer files, and the sentence-transformers
   files for mean pooling with no normalization).
+- `recipe.json`: the recipe `turbo-bundle seal` made
+  `testdata/tiny-modernbert-bundle` from (`testdata/README.md`).
 - `cases.json`: the texts, in the form the bundle tool hands the
   container (`bundle/src/reference.rs`): the cases of the MiniLM recipe
   with no prompts, `max_seq` 64, `max_batch` 8. The last two run to the
