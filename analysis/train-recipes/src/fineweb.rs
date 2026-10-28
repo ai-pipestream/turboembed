@@ -162,6 +162,9 @@ pub struct WebLanguage {
     pub sources: &'static [Source],
 }
 
+/// The languages the language identification recipe covers.
+pub const LANGUAGES: &[WebLanguage] = &WEB_LANGUAGES;
+
 macro_rules! sources {
     (fineweb) => {
         &[Source::FineWeb]

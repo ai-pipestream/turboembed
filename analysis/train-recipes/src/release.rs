@@ -13,8 +13,6 @@ use turbo_zoo::{Artifact, Index};
 
 use crate::depparse::{DEPPARSE_RECIPES, DepparseRecipe};
 use crate::error::{Error, Result};
-use crate::langdetect::{LANGDETECT, LanguageRecipe};
-use crate::langdetect_web::{LANGDETECT_WEB, WebLanguageRecipe};
 use crate::ud::{UD_RECIPES, UdRecipe};
 use crate::{RECIPES, Recipe, Reference};
 
@@ -70,19 +68,6 @@ pub const UD_MODELS: ModelsRelease = ModelsRelease {
     ],
 };
 
-/// The release that publishes the language detector the Tatoeba recipe
-/// trains on the export of 2026-10-10 (`langdetect::EXPORT`), with the ids
-/// of the sentences it was trained on.
-pub const TATOEBA_MODELS: ModelsRelease =
-    ModelsRelease { tag: "models-tatoeba-2026-10-10-1", models: &[crate::langdetect::MODEL_ID] };
-
-/// The release that publishes the language detector the web recipe
-/// trains on the same Tatoeba export and on the FineWeb-2 and FineWeb
-/// documents of the recorded lists (`fineweb::FILES`), with the ids of
-/// the sentences and the documents it was trained on.
-pub const FINEWEB_MODELS: ModelsRelease =
-    ModelsRelease { tag: "models-tatoeba-fineweb-2026-10-10-1", models: &[crate::langdetect_web::MODEL_ID] };
-
 /// The release that publishes the UD 2.16 dependency parser models
 /// (both MaxEnt and Feedforward) for the four treebanks with settled text
 /// rights that pass their LAS and UAS gates: Spanish AnCora, Catalan AnCora,
@@ -103,8 +88,7 @@ pub const UD_DEPPARSE_MODELS: ModelsRelease = ModelsRelease {
 };
 
 /// Every release of the recipes' models.
-pub const MODELS_RELEASES: [ModelsRelease; 5] =
-    [MASC_MODELS, UD_MODELS, TATOEBA_MODELS, FINEWEB_MODELS, UD_DEPPARSE_MODELS];
+pub const MODELS_RELEASES: [ModelsRelease; 3] = [MASC_MODELS, UD_MODELS, UD_DEPPARSE_MODELS];
 
 /// The release of this repository that keeps the Tatoeba export the
 /// language detector is trained on (`langdetect::EXPORT`): its two
@@ -144,16 +128,6 @@ impl ModelsRelease {
         UD_RECIPES.into_iter().filter(|r| self.models.contains(&r.model_id)).collect()
     }
 
-    /// The language detector recipe, when it publishes its model.
-    pub fn language_recipes(&self) -> Vec<LanguageRecipe> {
-        [LANGDETECT].into_iter().filter(|r| self.models.contains(&r.model_id)).collect()
-    }
-
-    /// The web language detector recipe, when it publishes its model.
-    pub fn web_language_recipes(&self) -> Vec<WebLanguageRecipe> {
-        [LANGDETECT_WEB].into_iter().filter(|r| self.models.contains(&r.model_id)).collect()
-    }
-
     /// The UD dependency parser recipes that train models it publishes, in
     /// the order of [`DEPPARSE_RECIPES`].
     pub fn depparse_recipes(&self) -> Vec<DepparseRecipe> {
@@ -161,14 +135,11 @@ impl ModelsRelease {
     }
 
     /// The references of the recipes that train its models, in the order
-    /// of its models: for the web language detector, its gates' reference
-    /// and then the model it is compared with.
+    /// of its models.
     pub(super) fn recipe_references(&self) -> Vec<Reference> {
         let masc = self.recipes().into_iter().map(|r| r.reference());
         let ud = self.ud_recipes().into_iter().map(|r| r.reference);
-        let language = self.language_recipes().into_iter().map(|r| r.reference);
-        let web = self.web_language_recipes().into_iter().flat_map(|r| [r.tatoeba.reference, r.compared]);
-        masc.chain(ud).chain(language).chain(web).collect()
+        masc.chain(ud).collect()
     }
 }
 

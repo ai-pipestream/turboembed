@@ -64,8 +64,6 @@ pub mod chunk;
 pub mod depparse;
 pub mod error;
 pub mod fineweb;
-pub mod langdetect;
-pub mod langdetect_web;
 pub mod langid;
 pub mod masc;
 pub mod namefind;
