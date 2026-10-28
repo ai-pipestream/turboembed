@@ -6,8 +6,16 @@ use turbo::status::{Result, invalid};
 use crate::real::Real;
 
 /// The summed loss over the words of scores [n, labels], and its
-/// gradients added to `dscores`. Sums run in f64.
+/// gradients added to `dscores`. Sums run in f64. Refuses scores or
+/// gradients not shaped [gold, labels], and nonfinite scores.
 pub fn loss<R: Real>(scores: &[R], gold: &[u32], labels: usize, dscores: &mut [R]) -> Result<f64> {
+    let cells = gold.len().checked_mul(labels);
+    if labels == 0 || cells != Some(scores.len()) || cells != Some(dscores.len()) {
+        return Err(invalid(format!("xent: scores and gradients are not [{}, {labels}]", gold.len())));
+    }
+    if scores.iter().any(|v| !v.to_f64().is_finite()) {
+        return Err(invalid("xent: a score is not finite"));
+    }
     let mut total = 0.0;
     for (t, &g) in gold.iter().enumerate() {
         let g = g as usize;
@@ -22,6 +30,9 @@ pub fn loss<R: Real>(scores: &[R], gold: &[u32], labels: usize, dscores: &mut [R
             let p = (row[j].to_f64() - m).exp() / z;
             *d += R::from_f64(p - if j == g { 1.0 } else { 0.0 });
         }
+    }
+    if !total.is_finite() {
+        return Err(invalid("xent: the loss is not finite"));
     }
     Ok(total)
 }
