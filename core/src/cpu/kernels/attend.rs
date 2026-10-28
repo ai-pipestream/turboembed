@@ -159,6 +159,15 @@ impl Attend<'_> {
                 let mut lanes = [0.0f32; LANES];
                 m.store(lanes.as_mut_ptr());
                 let max = lanes.iter().fold(f32::NEG_INFINITY, |m, &v| if v > m { v } else { m });
+                // A query whose window holds no live key (a pad at the
+                // start of a left-padded row, on a sliding-window layer)
+                // reads nothing: its context is 0, not exp(-inf + inf),
+                // which would put NaN in its value row a layer later and
+                // from there, through 0 * NaN, into live queries.
+                if max == f32::NEG_INFINITY {
+                    row[j0..].fill(0.0);
+                    continue;
+                }
                 for s in row[j0..].iter_mut() {
                     *s = exp(*s - max);
                 }
