@@ -69,6 +69,7 @@ pub mod langdetect_web;
 pub mod masc;
 pub mod namefind;
 pub mod namefind_eval;
+pub mod native_ner;
 pub mod postag;
 mod reference;
 pub mod release;
