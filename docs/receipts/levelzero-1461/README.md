@@ -1,11 +1,11 @@
 # Level Zero ModernBERT and nomic-bert (#1461, #1561)
 
-Head: `8e980ac6365f755c7b80d75eefbe42198d82bb55` (claude/1461-levelzero
-with claude/1461-cpu at `f22199098b5dd1448212f2935c7294cb560e064f` merged
-in). Device: Intel Arc Pro B70 (Machine B), Level Zero, release builds,
+Head: `9ce14a0fe8692e78fbe5a3d692a22e487e1cefb4` (claude/1461-levelzero
+with main at `b649bd652fb455d1c285abe5d930fc1cfc0dab11` merged in, which
+carries #1560's Metal leg and #1544's CPU encoder). Device: Intel Arc Pro B70 (Machine B), Level Zero, release builds,
 `TURBO_TEST_REQUIRE_LEVELZERO=1`. These are correctness runs, not
 timings: the box's three b70 CI runners were running jobs on the same
-device, and the host's one-minute load average was 54.6 to 75.1 (each
+device, and the host's one-minute load average was 51.06 to 61.33 (each
 log's first and last lines give it).
 
 ## Runs
