@@ -1,6 +1,6 @@
 # turbo-tagger
 
-Part-of-speech and entity annotators over a bundle's own token tagger
+Part-of-speech, entity and dependency annotators over a bundle's own
 heads (`manifest.heads`, docs/bundle.md "Heads"), on any backend the
 encoder runs on. Heads are trained by `turbo-trainer` (`trainer/`).
 
@@ -15,6 +15,10 @@ encoder runs on. Heads are trained by `turbo-trainer` (`trainer/`).
 - `PosTagger` writes the part-of-speech layer from a `SCHEME_TAGS` head;
   `EntityTagger` writes the entity layer from a `SCHEME_BIO` or
   `SCHEME_BILOU` head, each span on token bounds.
+- `parse`: `DependencyParser` writes the dependency layer from a
+  `HEAD_BIAFFINE_PARSER` head: arcs scored by the core's `BiaffineParser`,
+  one tree a sentence by MST or Eisner as the head says, a relation for
+  each word under its head. A word under the root has no head.
 
 ```text
 cargo test -p turbo-tagger

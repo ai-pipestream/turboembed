@@ -2,7 +2,9 @@
 //! `levelzero`, `cuda`, `metal`; the CPU when it is not set), at the
 //! precision TURBO_TEST_PRECISION names (model, or exact), against the
 //! CPU: every word feature and every label score within 1e-4, the decoded
-//! tags and entities the same. The encoder loads on the device itself,
+//! tags and entities the same; for the parser head every arc and
+//! relation score within 1e-4 of its size (at least 1), the trees and
+//! relations the same. The encoder loads on the device itself,
 //! and the run asserts the backend it reports. With
 //! TURBO_TEST_REQUIRE_CUDA, TURBO_TEST_REQUIRE_LEVELZERO or
 //! TURBO_TEST_REQUIRE_METAL set, the test fails unless it runs there.
@@ -15,7 +17,7 @@ use turbo::head::tagger::Work;
 use turbo_analysis::{Annotator, Document, Key, Layer, View};
 use turbo_analysis_embed::{Device, EncoderOptions, Precision};
 use turbo_analysis_layers::{Entities, PosTags};
-use turbo_tagger::{EntityTagger, HeadRunner, PosTagger, WordEncoder};
+use turbo_tagger::{DependencyParser, EntityTagger, HeadRunner, PosTagger, WordEncoder};
 
 const BOUND: f32 = 1e-4;
 
@@ -105,4 +107,62 @@ fn the_device_reads_words_and_tags_as_the_cpu() {
     let (a,) = ed.annotate((view, &toks, None)).unwrap();
     let (b,) = ec.annotate((view, &toks, None)).unwrap();
     assert_eq!((a.tokens, a.kind), (b.tokens, b.kind));
+}
+
+/// The largest difference of `a` from `b`, each over the size of `b` (at
+/// least 1): a biaffine score is a product of two views, so its error
+/// grows with it.
+fn max_relative(a: &[f32], b: &[f32]) -> f32 {
+    assert_eq!(a.len(), b.len());
+    a.iter().zip(b).map(|(x, y)| (x - y).abs() / y.abs().max(1.0)).fold(0.0, f32::max)
+}
+
+#[test]
+fn the_device_parses_as_the_cpu() {
+    let o = options();
+    if let Some(b) = required() {
+        assert!(!matches!(o.device, Device::Cpu), "{b} is required but TURBO_TEST_DEVICE names no device");
+    }
+    let dir = bundle("device-parse", |_| {});
+    let mut device = WordEncoder::open(&dir, &o).unwrap();
+    let execution = device.execution().clone();
+    if let Some(b) = required() {
+        assert_eq!(execution.backend, b, "the session runs on the backend required");
+    }
+    let mut cpu = WordEncoder::open(&dir, &EncoderOptions::default()).unwrap();
+    let deps = DependencyParser::open(&dir, None, &EncoderOptions::default()).unwrap();
+    let p = deps.parser();
+    let seqs = sequences();
+    let pooling = p.spec().word_pooling;
+    let (on_device, on_cpu) = (device.features(&seqs, pooling).unwrap(), cpu.features(&seqs, pooling).unwrap());
+    let (mut worst_arc, mut worst_rel) = (0f32, 0f32);
+    for (s, (d, c)) in seqs.iter().zip(on_device.iter().zip(&on_cpu)) {
+        let ids: Vec<u32> = (0..s.len() as u32).collect();
+        let (mut wd, mut wc) = (turbo::head::parser::Work::default(), turbo::head::parser::Work::default());
+        let (mut ad, mut ac, mut hd, mut hc) = (Vec::new(), Vec::new(), Vec::new(), Vec::new());
+        let n = p.arcs(d, &ids, &mut ad, &mut wd).unwrap();
+        p.arcs(c, &ids, &mut ac, &mut wc).unwrap();
+        worst_arc = worst_arc.max(max_relative(&ad, &ac));
+        p.decode(&ad, n, &mut hd).unwrap();
+        p.decode(&ac, n, &mut hc).unwrap();
+        assert_eq!(hd, hc, "{s:?}");
+        let (mut rd, mut rc) = (Vec::new(), Vec::new());
+        p.relations(&hc, &mut rd, &wd).unwrap();
+        p.relations(&hc, &mut rc, &wc).unwrap();
+        worst_rel = worst_rel.max(max_relative(&rd, &rc));
+    }
+    eprintln!(
+        "parser device {} ({}): max arc score diff {worst_arc:e}, max relation score diff {worst_rel:e} (relative)",
+        execution.backend, execution.device
+    );
+    assert!(worst_arc <= BOUND && worst_rel <= BOUND, "{worst_arc} {worst_rel}");
+
+    let doc = Document::new(TEXT);
+    let view = doc.require(&Key::<View>::DEFAULT).unwrap();
+    let toks = tokens(TEXT);
+    let on = DependencyParser::open(&dir, None, &o).unwrap();
+    assert_eq!(on.execution().unwrap().backend, execution.backend);
+    let (a,) = on.annotate((view, &toks, None)).unwrap();
+    let (b,) = deps.annotate((view, &toks, None)).unwrap();
+    assert_eq!((a.head, a.relation), (b.head, b.relation));
 }
