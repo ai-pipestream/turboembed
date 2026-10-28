@@ -234,7 +234,12 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     };
     let eval_s = t.elapsed().as_secs_f64();
 
-    let weights = safetensors::write(&named(&head, enc.hidden(), model.tensors()));
+    // The final head is the best checkpoint's, published with the same
+    // epoch and dev score, so no moment of finishing leaves weights
+    // without the record of where they are from.
+    let best = report.best_epoch;
+    let at = [(CHECKPOINT_EPOCH, best.to_string()), (CHECKPOINT_DEV, report.dev[best].to_string())];
+    let weights = safetensors::write_with(&named(&head, enc.hidden(), model.tensors()), &at);
     let outputs = vec![replace(&out.path, "head.safetensors", &weights)?, replace(&out.path, "head.json", &spec_json)?];
     let receipt = Receipt {
         schema: SCHEMA.into(),
