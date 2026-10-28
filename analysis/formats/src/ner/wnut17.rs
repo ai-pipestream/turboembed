@@ -27,7 +27,7 @@ impl Wnut17Types {
         product: true,
     };
 
-    /// The types the factory takes from its `types` parameter: each type
+    /// The types a reader keeps from its `types` parameter: each type
     /// whose short name (`per`, `loc`, `grp`, `work`, `corp`, `prod`) the
     /// value contains anywhere.
     pub fn from_param(types: &str) -> Wnut17Types {
@@ -166,6 +166,9 @@ mod tests {
         assert_eq!(samples.len(), 2);
         let first = samples[0].as_ref().unwrap();
         assert!(first.contains("location"));
+        assert!(first.contains("Empire"));
+        assert!(first.contains("State"));
+        assert!(first.contains("Building"));
     }
 
     #[test]
@@ -173,12 +176,18 @@ mod tests {
         let types = Wnut17Types { location: false, ..Wnut17Types::ALL };
         let samples = read(TEXT, types);
         assert_eq!(samples.len(), 2);
+        let first = samples[0].as_ref().unwrap();
+        assert!(!first.contains("location"));
+        let second = samples[1].as_ref().unwrap();
+        assert!(second.contains("group"));
     }
 
     #[test]
     fn rejects_wrong_field_count() {
         let err = read("Empire\n", Wnut17Types::ALL);
         assert_eq!(err.len(), 1);
-        assert!(err[0].is_err());
+        let message = err[0].as_ref().unwrap_err();
+        assert!(message.contains("Expected two tab-separated fields"), "{message}");
+        assert!(message.contains("Empire"), "{message}");
     }
 }

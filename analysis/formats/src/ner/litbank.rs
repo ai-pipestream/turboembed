@@ -41,4 +41,29 @@ mod tests {
     fn litbank_types_are_the_six_ace_categories() {
         assert_eq!(LITBANK_TYPES, ["PER", "FAC", "GPE", "LOC", "VEH", "ORG"]);
     }
+
+    #[test]
+    fn reads_a_brat_document() {
+        let dir = std::env::temp_dir().join("litbank-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        let txt = dir.join("doc.txt");
+        let ann = dir.join("doc.ann");
+        std::fs::write(&txt, "Tom Sawyer").unwrap();
+        std::fs::write(&ann, "T1\tPER 0 10\tTom Sawyer\n").unwrap();
+        let doc = LitbankReader::read_document(&txt, &ann).unwrap();
+        assert_eq!(doc.text(), "Tom Sawyer");
+        assert_eq!(doc.annotations().len(), 1);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn documents_lists_brat_files() {
+        let dir = std::env::temp_dir().join("litbank-docs-test");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("a.txt"), "a").unwrap();
+        std::fs::write(dir.join("a.ann"), "").unwrap();
+        let docs = LitbankReader::documents(&dir).unwrap();
+        assert_eq!(docs.len(), 1);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 }

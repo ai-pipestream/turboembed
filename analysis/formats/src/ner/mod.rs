@@ -87,7 +87,7 @@ pub use evalita::{EvalitaLanguage, EvalitaReader, EvalitaTypes};
 pub use formats::{BioNlpNames, EvalitaNames, GermEvalNames, Muc6Names};
 pub use germeval::{GermEvalLayer, GermEvalReader, GermEvalTypes};
 pub use litbank::{LITBANK_TYPES, LitbankReader};
-pub use litbank_coref::{LitbankCorefDocument, LitbankCorefReader};
+pub use litbank_coref::{CorefToken, LitbankCorefDocument, LitbankCorefReader, Mention};
 pub use muc::{MUC_TYPES, MUC6_FORMAT, MucReader, MucSamples, muc_files};
 pub use tokens::{NewlineSentences, RuleTokenizer, SentenceSpans, TokenSpans};
 pub use wnut17::{Wnut17Reader, Wnut17Types};
@@ -171,10 +171,10 @@ impl NerError {
     pub fn java_class(&self) -> &'static str {
         use NerError::*;
         match self {
-            GermEvalFields { .. } | BioNlpFields { .. } | EvalitaFields { .. } | Wnut17Fields { .. } => {
-                "java.io.IOException"
+            GermEvalFields { .. } | BioNlpFields { .. } | EvalitaFields { .. } => "java.io.IOException",
+            Wnut17Fields { .. } | LitbankCorefFields { .. } | LitbankCorefChain { .. } => {
+                "java.lang.IllegalArgumentException"
             }
-            LitbankCorefFields { .. } | LitbankCorefChain { .. } => "opennlp.tools.util.InvalidFormatException",
             EmptyCensusName { .. } => "java.lang.StringIndexOutOfBoundsException",
             MucUnexpectedOpen { .. } | MucUnexpectedClose { .. } | MucUnclosedTag { .. } | MucUnknownType { .. } => {
                 "opennlp.tools.util.InvalidFormatException"

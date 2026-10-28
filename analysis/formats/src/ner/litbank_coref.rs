@@ -92,10 +92,10 @@ impl<'a> LitbankCorefReader<'a> {
                 }));
             }
 
-            let token_start = text.len() as u32;
             if !text.is_empty() {
                 text.push(' ');
             }
+            let token_start = text.len() as u32;
             text.push_str(fields[3].text);
             let token_end = text.len() as u32;
 
