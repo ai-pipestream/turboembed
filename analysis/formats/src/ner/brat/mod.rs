@@ -70,7 +70,6 @@ mod tests {
     use super::*;
     use turbo_analysis::{Ix, Span, Spans, ViewId};
     use turbo_analysis_layers::Tokens;
-    use turbo_unicode::WhitespaceMode;
 
     #[test]
     fn brat_standoff_round_trips_nested_and_discontinuous_entities() {
@@ -89,7 +88,7 @@ mod tests {
             "T2\tLoc 8 16\tNew York\n",
             "T3\tPhrasalVerb 17 21;31 34\ttook off\n",
         );
-        let doc = BratDocument::parse("doc1", text.as_bytes(), ann.as_bytes(), WhitespaceMode::Unicode).unwrap();
+        let doc = BratDocument::parse("doc1", text.as_bytes(), ann.as_bytes()).unwrap();
         let entities = doc.to_entities(&tokens).unwrap();
         assert_eq!(entities.spans.len(), 3);
         assert_eq!(entities.spans.get(Ix::new(0)), Span::new(0, 16));
@@ -103,8 +102,7 @@ mod tests {
         let written = write_brat_entities(text, &entities);
         assert_eq!(written, ann);
 
-        let reparsed =
-            BratDocument::parse("doc1", text.as_bytes(), written.as_bytes(), WhitespaceMode::Unicode).unwrap();
+        let reparsed = BratDocument::parse("doc1", text.as_bytes(), written.as_bytes()).unwrap();
         let round_tripped = reparsed.to_entities(&tokens).unwrap();
         assert_eq!(round_tripped.spans.len(), 3);
         assert_eq!(
@@ -133,7 +131,7 @@ mod tests {
             "T2\tVerb 17 21;25 28\ttook off\n",
             "T3\tVerb 17 21;21 24\ttook  it\n",
         );
-        let doc = BratDocument::parse("doc1", text.as_bytes(), ann.as_bytes(), WhitespaceMode::Unicode).unwrap();
+        let doc = BratDocument::parse("doc1", text.as_bytes(), ann.as_bytes()).unwrap();
         let entities = doc.to_entities(&tokens).unwrap();
         assert_eq!(entities.spans.get(Ix::new(0)), Span::new(11, 19));
         assert_eq!(entities.spans.fragments(Ix::new(1)).collect::<Vec<_>>(), [Span::new(20, 24), Span::new(28, 31)]);
@@ -145,8 +143,7 @@ mod tests {
             written,
             concat!("T1\tLoc 8 16\tNew York\n", "T2\tVerb 17 21;25 28\ttook off\n", "T3\tVerb 17 24\ttook it\n",)
         );
-        let reparsed =
-            BratDocument::parse("doc1", text.as_bytes(), written.as_bytes(), WhitespaceMode::Unicode).unwrap();
+        let reparsed = BratDocument::parse("doc1", text.as_bytes(), written.as_bytes()).unwrap();
         let again = reparsed.to_entities(&tokens).unwrap();
         assert_eq!(again.spans.get(Ix::new(0)), Span::new(11, 19));
         assert_eq!(again.spans.fragments(Ix::new(1)).collect::<Vec<_>>(), [Span::new(20, 24), Span::new(28, 31)]);

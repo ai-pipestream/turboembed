@@ -19,7 +19,8 @@
 //! file links them to Penn tokens ([`MascSentence::entities`]), not the
 //! names OpenNLP's `MascNamedEntitySampleStream` reads, which make a name
 //! of one token at a sentence's start empty, mostly keep one name of a
-//! sentence or none in its overlap removal, and lose the last token of a
+//! sentence or none in its overlap removal (which the port's
+//! `MascNameReader` does not reproduce, #1496), and lose the last token of a
 //! name whose tokens the file lists in some orders (see
 //! [`turbo_formats::masc`]). An entity is the span from its first token
 //! to one past its last; one whose tokens have a gap is kept as that span

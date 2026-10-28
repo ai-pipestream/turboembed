@@ -4,11 +4,10 @@
 //! whitespace (the sentence detectors trim, the tokenizers split on it).
 //! A row whose UTF-16 span cuts a surrogate pair (its `turbo:utf16<L>` row
 //! has `cut` 1) holds the whole character, so it overlaps its neighbour
-//! over that character. Three kinds of run are let off part of it, each for
+//! over that character. Two kinds of run are let off part of it, each for
 //! what OpenNLP does there: a tokenizer that keeps line breaks makes them
 //! tokens (and the simple tokenizer gives some of them the wrong span, out
-//! of order), a run in the legacy whitespace mode does not count every
-//! Unicode space as whitespace, and the tokenizer with an abbreviation
+//! of order), and the tokenizer with an abbreviation
 //! dictionary emits a listed token whole and then goes on splitting inside
 //! it, so its spans overlap. Spans over emoji and CJK Extension B characters
 //! are checked by text.
@@ -127,7 +126,6 @@ fn every_span_lands_on_characters_of_its_input() {
             let spans = read_spans(&path);
             let text = input_text(&spans.input);
             let keeps_new_lines = spans.has_config("keepNewLines", "true");
-            let legacy = spans.has_config("whitespace", "legacy");
             let abbreviations = path.iter().any(|p| {
                 let dir = p.to_string_lossy();
                 dir == "tokenizer-abbreviations" || dir.ends_with("+english-dictionary")
@@ -146,7 +144,7 @@ fn every_span_lands_on_characters_of_its_input() {
                     }
                     assert!(text.is_char_boundary(s) && text.is_char_boundary(e), "{at}");
                     let slice = &text[s..e];
-                    if !keeps_new_lines && !legacy {
+                    if !keeps_new_lines {
                         assert_eq!(slice.trim(), slice, "{at}");
                     }
                     (previous_start, previous_end) = (s, e);

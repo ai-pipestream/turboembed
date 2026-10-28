@@ -54,7 +54,6 @@ import opennlp.tools.tokenize.TokenizerEvaluator;
 import opennlp.tools.util.ObjectStream;
 import opennlp.tools.util.PlainTextByLineStream;
 import opennlp.tools.util.Span;
-import opennlp.tools.util.WhitespaceMode;
 import opennlp.tools.util.eval.CrossValidationPartitioner;
 import opennlp.tools.util.eval.Evaluator;
 import opennlp.tools.util.eval.FMeasure;
@@ -97,27 +96,24 @@ final class EvalGolden implements AnnotatorGolden {
   static final int MAX_PARTITIONS = 4;
 
   enum Kind {
-    POS("pos", "wordtag", POSEvaluator.class, false),
-    LEMMA("lemma", "lemma", LemmatizerEvaluator.class, false),
-    NAME("name", "name", TokenNameFinderEvaluator.class, false),
-    CHUNK("chunk", "chunk", ChunkerEvaluator.class, false),
-    TOKEN("token", "token", TokenizerEvaluator.class, false),
-    SENTENCE("sentence", "sentence", SentenceDetectorEvaluator.class, true),
-    DOCCAT("doccat", "doccat", DocumentCategorizerEvaluator.class, false),
-    LANGUAGE("language", "language", LanguageDetectorEvaluator.class, false),
-    CROSS_VALIDATION("cross-validation", "wordtag", CrossValidationPartitioner.class, false);
+    POS("pos", "wordtag", POSEvaluator.class),
+    LEMMA("lemma", "lemma", LemmatizerEvaluator.class),
+    NAME("name", "name", TokenNameFinderEvaluator.class),
+    CHUNK("chunk", "chunk", ChunkerEvaluator.class),
+    TOKEN("token", "token", TokenizerEvaluator.class),
+    SENTENCE("sentence", "sentence", SentenceDetectorEvaluator.class),
+    DOCCAT("doccat", "doccat", DocumentCategorizerEvaluator.class),
+    LANGUAGE("language", "language", LanguageDetectorEvaluator.class),
+    CROSS_VALIDATION("cross-validation", "wordtag", CrossValidationPartitioner.class);
 
     final String dir;
     final String format;
     final Class<?> evaluatorClass;
-    /** Whether the evaluator tests for whitespace, so it is also run in the legacy mode. */
-    final boolean testsWhitespace;
 
-    Kind(String dir, String format, Class<?> evaluatorClass, boolean testsWhitespace) {
+    Kind(String dir, String format, Class<?> evaluatorClass) {
       this.dir = dir;
       this.format = format;
       this.evaluatorClass = evaluatorClass;
-      this.testsWhitespace = testsWhitespace;
     }
 
     boolean keepsFMeasure() {
@@ -126,21 +122,16 @@ final class EvalGolden implements AnnotatorGolden {
   }
 
   private final Kind kind;
-  private final WhitespaceMode whitespace;
 
-  private EvalGolden(Kind kind, WhitespaceMode whitespace) {
+  private EvalGolden(Kind kind) {
     this.kind = kind;
-    this.whitespace = whitespace;
   }
 
-  /** Every run: each evaluator, in the legacy whitespace mode too when it tests for whitespace. */
+  /** Every run: one for each evaluator. */
   static List<EvalGolden> all() {
     List<EvalGolden> runs = new ArrayList<>();
     for (Kind k : Kind.values()) {
-      runs.add(new EvalGolden(k, WhitespaceMode.UNICODE));
-      if (k.testsWhitespace) {
-        runs.add(new EvalGolden(k, WhitespaceMode.LEGACY));
-      }
+      runs.add(new EvalGolden(k));
     }
     return runs;
   }
@@ -167,7 +158,7 @@ final class EvalGolden implements AnnotatorGolden {
 
   @Override
   public Map<String, String> config() {
-    return Whitespace.config(whitespace);
+    return Map.of();
   }
 
   @Override
@@ -182,12 +173,12 @@ final class EvalGolden implements AnnotatorGolden {
 
   @Override
   public String modelDir() {
-    return kind.dir + Whitespace.dirSuffix(whitespace);
+    return kind.dir;
   }
 
   @Override
   public List<Layer> layers(Input input) throws AnnotatorException {
-    return Whitespace.in(whitespace, () -> run(input));
+    return run(input);
   }
 
   private ObjectStream<?> open(Input input) throws IOException {
