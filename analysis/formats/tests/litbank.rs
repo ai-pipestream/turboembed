@@ -7,7 +7,6 @@ use std::collections::BTreeSet;
 use turbo_analysis::Span;
 use turbo_formats::ner::{LITBANK_TYPES, LitBankError, LitBankReader, NewlineSentences, RuleTokenizer, SentenceSpans};
 use turbo_tokenize::TokenizerOptions;
-use turbo_unicode::WhitespaceMode;
 
 const TEXT: &str = "Ada went to London.\nBob left Paris.";
 
@@ -15,9 +14,8 @@ const ANN: &str =
     concat!("T1\tPER 0 3\tAda\n", "T2\tGPE 12 18\tLondon\n", "T3\tPER 20 23\tBob\n", "T4\tGPE 29 34\tParis\n",);
 
 fn reader<'a>(text: &'a str, ann: &'a str) -> LitBankReader<'a, RuleTokenizer> {
-    let sentences = NewlineSentences(WhitespaceMode::Unicode);
-    let tokenizer =
-        RuleTokenizer::Simple(TokenizerOptions { whitespace: WhitespaceMode::Unicode, keep_newlines: false });
+    let sentences = NewlineSentences;
+    let tokenizer = RuleTokenizer::Simple(TokenizerOptions { keep_newlines: false });
     LitBankReader::new(text, ann, sentences, tokenizer, None).unwrap()
 }
 
@@ -68,7 +66,7 @@ fn offsets_count_utf16_code_units() {
 
 #[test]
 fn a_type_left_out_is_not_a_name() {
-    let sentences = NewlineSentences(WhitespaceMode::Unicode);
+    let sentences = NewlineSentences;
     let tokenizer = RuleTokenizer::Simple(TokenizerOptions::default());
     let types = Some(LITBANK_TYPES.into_iter().filter(|&t| t == "PER").map(str::to_owned).collect::<BTreeSet<_>>());
     let samples: Vec<_> =
@@ -79,7 +77,7 @@ fn a_type_left_out_is_not_a_name() {
 
 #[test]
 fn an_empty_set_of_types_is_refused() {
-    let sentences = NewlineSentences(WhitespaceMode::Unicode);
+    let sentences = NewlineSentences;
     let tokenizer = RuleTokenizer::Simple(TokenizerOptions::default());
     let err = LitBankReader::new(TEXT, ANN, sentences, tokenizer, Some(BTreeSet::new())).unwrap_err();
     assert!(matches!(err, LitBankError::NoNameTypes));
@@ -110,7 +108,7 @@ fn malformed_annotation_lines_fail_the_document() {
 }
 
 fn reader_err(text: &str, ann: &str) -> LitBankError {
-    let sentences = NewlineSentences(WhitespaceMode::Unicode);
+    let sentences = NewlineSentences;
     let tokenizer = RuleTokenizer::Simple(TokenizerOptions::default());
     match LitBankReader::new(text, ann, sentences, tokenizer, None) {
         Err(e) => e,
