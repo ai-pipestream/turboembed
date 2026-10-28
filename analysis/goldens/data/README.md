@@ -358,12 +358,12 @@ are not taken from any corpus.
 - `inputs/namefind/`: 31 tokenized sentences with phone numbers, emails,
   URLs, MGRS references, coordinates and the name finder dictionaries'
   entries, written for this project (`analysis/namefind/README.md`).
-- `inputs/stem/`: the words the stemmers get: samples of Snowball's
-  reference vocabularies for the 16 languages whose snowball-data files are
-  under its BSD license (`voc.txt` at snowball-data commit
-  `da07690d20ce69ee16b5fb95796f92090cc9b4a1`, every n-th line), 135 edge
-  case words and 1,000 generated words per language
+- `inputs/stem/`: word lists (Snowball samples, edge cases, generated)
+  still read by the Hunspell goldens for the dictionary's language
+  (`analysis/hunspell`); the stem crate keeps its own copies under
+  `analysis/stem/tests/inputs/` for reviewed snapshots
   (`analysis/stem/README.md`).
+
 - `inputs/stopword/`: words and language codes the stopword lookup is asked
   about besides the lists' own, written for this project
   (`analysis/stopword/README.md`).
