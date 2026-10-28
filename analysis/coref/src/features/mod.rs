@@ -176,10 +176,10 @@ impl Resolver<'_> {
         f.push(format!("anaType={}", ty(ana)));
         f.push(format!("antType={}", ty(ant)));
         f.push(format!("types={}|{}", ty(ana), ty(ant)));
-        f.push(format!("gender={}|{}", ana.gender.java_name(), ant.gender.java_name()));
-        f.push(format!("number={}|{}", ana.number.java_name(), ant.number.java_name()));
-        f.push(format!("animacy={}|{}", ana.animacy.java_name(), ant.animacy.java_name()));
-        f.push(format!("antPerson={}", ant.person.java_name()));
+        f.push(format!("gender={}|{}", ana.gender.name(), ant.gender.name()));
+        f.push(format!("number={}|{}", ana.number.name(), ant.number.name()));
+        f.push(format!("animacy={}|{}", ana.animacy.name(), ant.animacy.name()));
+        f.push(format!("antPerson={}", ant.person.name()));
         f.push(format!("antFirstInCluster={ant_first_in_cluster}"));
         let sentences = ana.sentence as i64 - ant.sentence as i64;
         let distance = format!("dist={}|{}", bucket(sentences), bucket(j as i64 - i as i64));
@@ -190,9 +190,9 @@ impl Resolver<'_> {
             let form = format!("form={}", ana.head);
             f.push(form.clone());
             f.push(format!("{form}|{}", kind(ant)));
-            f.push(format!("{form}|antGender={}", ant.gender.java_name()));
-            f.push(format!("{form}|antNumber={}", ant.number.java_name()));
-            f.push(format!("{form}|antAnimacy={}", ant.animacy.java_name()));
+            f.push(format!("{form}|antGender={}", ant.gender.name()));
+            f.push(format!("{form}|antNumber={}", ant.number.name()));
+            f.push(format!("{form}|antAnimacy={}", ant.animacy.name()));
             f.push(format!("{form}|antType={}", ty(ant)));
             f.push(format!("{form}|{distance}"));
             f.push(format!("{form}|antHead={}", ant.head));

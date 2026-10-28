@@ -383,7 +383,8 @@ whole row through a DeBERTa-v3 encoder, and then:
   expression and scores word spans; the step would map them to
   `opennlp:tokens` or keep its own word layer, with byte offsets.
 
-No permissive GLiNER checkpoint avoids DeBERTa: `gliner_small-v2.1`
+No GLiNER checkpoint avoids DeBERTa (none is permissive since
+2026-10-28, docs/licences.md): `gliner_small-v2.1`
 uses `deberta-v3-small`, `gliner_multi-v2.1` `mdeberta-v3-base`,
 `gliner_small-v2.5` `deberta-v3-small`, and NuNER Zero
 `deberta-v3-large`. The bi-encoder `gliner-bi-small-v1.0` encodes the

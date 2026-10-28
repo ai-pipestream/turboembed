@@ -138,6 +138,37 @@ flowchart LR
   are already loaded is the analysis layer's job
   ([model-routing.md](model-routing.md)).
 
+### Narrower vectors: Matryoshka widths and int8 or ubinary codes
+
+`turbo_embed_options.output_dim` keeps the first `output_dim` values of
+each vector, one of the widths the bundle declares
+(`turbo_model_info.output_dims`), and normalizes after the cut.
+`quantization` (field 7) then returns the vectors as codes, in the layout
+sentence-transformers' `quantize_embeddings` makes
+(`sentence_transformers/util/quantization.py` at 145ef47d, Apache-2.0;
+`core/src/quantize.rs` is held byte for byte to its expressions by
+`testdata/quantize/`):
+
+| `quantization` | Result dtype | Bytes a row | Code |
+|---|---|---|---|
+| `TURBO_QUANTIZE_MODEL`, `_NONE` | F32 | 4 x dim | the vector |
+| `TURBO_QUANTIZE_INT8` | I8 | dim | step = (max - min) / 255, or 1 where that is 0; clamp(floor((x - min) / step), 0, 255) - 128 |
+| `TURBO_QUANTIZE_UBINARY` | U8 | (dim + 7) / 8 | bit x > 0, the first dimension in a byte's top bit, a last byte padded with 0 |
+
+- int8 needs `int8_ranges` (field 8): `[2, output_dim]` f32, each
+  dimension's minimum, then each one's maximum, over the caller's own
+  calibration vectors at the same model, `output_dim` and normalization.
+  The library never takes them from the batch it is quantizing, so a
+  text's code does not depend on what it was batched with.
+- ubinary rows load into a usearch `b1x8` index as they are (its
+  `cast_to_b1x8_gt` packs the same bits). faiss' `fvecs2bitvecs` packs
+  `x >= 0` from the low bit up: its codes and these differ, so do not
+  mix them in one index.
+- The core quantizes on the host, after the backend's run, so the codes
+  are the same on every backend for the same f32 vectors. A device's
+  vectors come back as F32 first (counted in `d2h_bytes`); the saving on
+  a device today is in what is stored and sent, not in the bus.
+
 ```mermaid
 sequenceDiagram
     participant App

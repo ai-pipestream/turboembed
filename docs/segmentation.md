@@ -2,17 +2,12 @@
 
 The segmentation crates write the first two layers of a document: the
 sentences (`opennlp:sentences`) and the word tokens (`opennlp:tokens`).
-They are ports of the OpenNLP 3.x sentence detectors and tokenizers onto
-the analysis API (docs/analysis.md), reading OpenNLP's own models. A
-model-free tokenizer gives tokens before any model is loaded, the
-UAX #29 tokenizer handles text in any script, the dictionary word
-tokenizer adds the words of Thai, Lao, Khmer and Burmese (which are
-written without spaces), and a rule sentence splitter gives sentences in
-languages that have no sentence model.
+Rule, newline, paragraph, Unicode and dictionary segmentation remain
+available without model archives. Classical OpenNLP model loading is disabled
+under #1511. Protocol layer identifiers are unchanged by that removal.
 
-OpenNLP is the reference. Where the Rust side matches it, a golden file
-made by the JVM proves it. Where it differs on purpose, this page says
-where and why.
+Historical comparisons on this page describe earlier implementations; they
+are not current JVM-oracle or archive-model acceptance tests.
 
 ## Crates
 
@@ -61,14 +56,10 @@ features and the same splits, the ports walk the text as code units too.
 
 ### Whitespace
 
-OpenNLP has two definitions of whitespace, chosen by a global
-`WhitespaceMode`: `Unicode`, the default since 3.0, is the Unicode
-`White_Space` set (25 code points, `U+0085` included, `U+001C` to
-`U+001F` excluded); `Legacy` is `Character.isWhitespace` or general
-category `Zs`. The mode changes tokens, trimmed spans and model
-features, so it is a parameter of every annotator here, never a global,
-and a golden file records the mode it was made with. The default is
-`Unicode`.
+Whitespace is the Unicode `White_Space` set (25 code points, `U+0085`
+included, `U+001C` to `U+001F` excluded), in every annotator, tokenizer
+and reader here (`docs/whitespace.md`). It is not a setting: there is no
+other definition to choose.
 
 ### Model features
 
@@ -124,7 +115,7 @@ two separators with an empty piece between them that is dropped;
 separators are ASCII, so the scan is over bytes, eight at a time, and
 whitespace is decoded only where a byte is not ASCII. The function
 `newline_spans` gives the same spans outside a pipeline. The goldens of
-the runs `newline` and `newline+legacy` are matched exactly, in UTF-8
+the run `newline` are matched exactly, in UTF-8
 and UTF-16 offsets.
 
 ### `ParagraphDetector`
@@ -144,90 +135,11 @@ three slightly different paragraph definitions (an exactly empty line in
 `EmptyLinePreprocessorStream`, Unicode line breaks in the whitespace
 normalizer); this is the one `turbo:structure` uses.
 
-### `SentenceDetector` (maxent)
+### Classical sentence models
 
-Reads a `View`, writes `Sentences` and `Confidence<Sentences>`. It is
-`SentenceDetectorME`, reading a `SentenceModel` (`SentenceModel::open`
-checks the component, the factory, the `useTokenEnd` property and the
-outcomes `s` and `n`, as OpenNLP does):
-
-1. The end-of-sentence scanner lists every position holding one of the
-   model's end characters, the manifest's `eosCharacters`. A model
-   without the property (or with an empty one) gets `. ! ?` whatever its
-   language: `SentenceDetectorFactory` looks up the language default of
-   `lang/Factory` with a language code that is never set on a factory
-   loaded from a file, so the Portuguese default never applies to a
-   loaded model, and a Thai model gets the default context generator, not
-   the Thai one. Both were checked on the JVM with manifests stripped of
-   the property. Every model OpenNLP's factory writes has it; the
-   Portuguese UD model lists `. ? ! ; : ( ) « » ' "`. A set with a
-   character outside the BMP is refused.
-2. Leading parts of a run of end characters are skipped (`z.B.` is one
-   candidate), unless the character after one is upper case.
-3. For each candidate, `DefaultSDContextGenerator` builds the features:
-   `sp` and `sn` for whitespace on either side, `eos=` the character,
-   the prefix, previous, suffix and next words with the prefix length,
-   capitalization and abbreviation flags. Word boundaries here are
-   whitespace in the configured mode, and `String.trim` semantics
-   (every code unit at or below `U+0020`) apply to the words. The words
-   are written per code unit as modified UTF-8, so a suffix that ends
-   between the halves of a character outside the BMP is looked up with
-   its lone surrogate, as the JVM looks it up. A text that is all ASCII
-   (its UTF-16 length equals its byte length, which the scanner counts
-   anyway) is walked by byte; any other text through `Utf16Cursor`.
-   The searches for the whitespace before and after a candidate remember
-   what earlier candidates of the same text found, and a word feature
-   longer than every predicate of the model is not built (it could not
-   change the probabilities), nor is a word longer than every dictionary
-   entry looked up. Without both, a text with no whitespace takes time
-   quadratic in its length, since every word reaches to an end of the
-   text. `detect_traced` builds every feature, as the Java does.
-4. The model decides `s` or `n`. A split is then checked against the
-   abbreviation dictionary (each entry's first token, lowercased per code
-   point unless the dictionary is case-sensitive). An entry counts when it
-   holds the candidate, ends on the code unit just before it, or starts
-   on it, and starts no earlier than the start of the current segment.
-   The split is refused when such an entry starts at the segment start
-   and ends exactly at the candidate, or starts right after whitespace
-   (`Character.isWhitespace`), an apostrophe or `(`; an entry starting at
-   the segment start but not ending at the candidate is judged by its own
-   first character instead. So with an entry `et al.`, indexed as `et`,
-   "We x et. Then" is not split at the `.`.
-5. Sentence starts are placed after the end character, or after the
-   following whitespace run when `useTokenEnd` is set. Spans are
-   trimmed of Unicode `White_Space` (this step and the skip in step 2
-   always use the Unicode set, as OpenNLP does since OPENNLP-205) and
-   empty ones are dropped with their probability. The text after the last
-   start is a last sentence with probability 1.
-
-The sentence detector works on code units for the features and on code
-points for the spans, as the Java does. Its spans are UTF-8 byte
-offsets on character boundaries by construction: an end character is
-always a whole character. `SentenceDetector::detect` gives the spans and
-probabilities outside a pipeline, and `detect_traced` also hands every
-candidate's features, probabilities and decision to a callback. The
-probabilities are `f64`, and the `Confidence` layer stores them as they
-are.
-
-The annotator's confidence output is aligned to the sentences it writes
-in the same step, which the analyzer accepts, so the detector is added
-with a plain `Analyzer::builder().add(..)`.
-
-The model's `ModelRef` is `opennlp:SentenceDetectorME:<language>`, the
-OpenNLP version in the manifest as the revision, and the SHA-256 of the
-model file.
-
-The goldens are the runs of the three published UD models
-(`analysis/goldens/data/sentdetect/opennlp-<language>-...`). The models
-are trained on CC BY-SA treebanks and not checked in;
-`turbo-goldens fetch-models` downloads them and the tests read them from
-its directory (`analysis/sentdetect/tests/models/README.md`). The
-published models have no abbreviation dictionary, so two small English
-models trained on the JVM (`en-abbrev.bin` and `en-plain.bin` in
-`analysis/goldens/data/fixtures`; the training sentences, the Java
-source and the commands are in `analysis/sentdetect/tests/fixtures`)
-cover the dictionary, `useTokenEnd=false` and both whitespace modes,
-with every context of their dumps compared feature by feature.
+OpenNLP sentence-model constructors are disabled under #1511. Published model
+downloads, ME fixtures and JVM expected-output checks were removed. Use the
+rule, newline or paragraph detector, or a supported native neural head.
 
 ### `RuleSentenceDetector` (rules)
 
@@ -411,97 +323,49 @@ commit `ac2e2aa1dd6cf2eb2a3eb9d560cdbe9da8449989`):
 | Khmer punctuated (`khpos_raw`) | `rules` | 1000 / 1097 / 907 | 0.827 | 0.907 | 0.865 | 800 / 897 / 777 | 0.866 | 0.971 | 0.916 |
 | Khmer punctuated (`khpos_raw`) | `rules + sat-1l-sm` (`t = 0.25`) | 1000 / 1105 / 907 | 0.821 | 0.907 | **0.862** | 800 / 905 / 777 | 0.859 | 0.971 | **0.911** |
 
-**Conformance.** `analysis/sentdetect/tests/conformance.rs` runs three detectors over three
-suites stored as typed test data in
-`analysis/goldens/data/conformance/sentences` (its README names the
-sources, commits and licences): the Pragmatic Segmenter specs (MIT; 585
-cases in 23 languages, the first 52 English cases being its Golden
-Rules), the pySBD tests (MIT; 471 cases) and `SentenceBreakTest.txt`
-(Unicode 18.0; 512 lines). A text case passes when the detector's
-sentences equal the expected ones once runs of whitespace are made one
-space; a break test line passes when the spans equal the UAX segments
-trimmed of whitespace. The detectors are `rules` (every tailoring, the
-case's language, with the bundled abbreviation inventory), `uax29` (no
-tailoring) and the maxent detector with the published UD model of each
-language that has one, in JVM parity mode, on the cases in that
-language; `maxent-en-inventory` is the English model with its default
-inventory. The CI step "sentence conformance and agreement, models
-required" prints the pass counts. Every failing case is listed with what differs in
-`analysis/sentdetect/tests/conformance/<detector>.<suite>.failures`, and for `rules` with
-the tailoring without which it would pass; the test fails when the
-lists change. 34 text cases expect sentences that the reference's
-cleaning step rewrote, and fail for every detector that runs them.
+**Conformance.** `analysis/sentdetect/tests/conformance.rs` runs the native
+rule and UAX #29 detectors against the third-party expectations in
+`analysis/goldens/data/conformance/sentences`. Its README records sources,
+commits and licences. These are segmentation specifications, not JVM output.
+The six retained rules/UAX failure lists are unchanged by #1511.
 
-| Detector | Pragmatic Segmenter | Golden Rules (English) | pySBD | `SentenceBreakTest.txt` |
+| Detector | Pragmatic Segmenter | Golden Rules (English) | pySBD | Unicode break tests |
 |---|---|---|---|---|
 | `rules` | 444 of 585 | 46 of 52 | 385 of 471 | 504 of 512 |
 | `uax29` | 305 of 585 | 29 of 52 | 264 of 471 | 512 of 512 |
-| maxent, English UD model, parity | 133 of 289 (English cases) | 31 of 52 | 98 of 193 (English) | 467 of 512 |
-| maxent, English UD model, default | 155 of 289 (English cases) | 36 of 52 | 112 of 193 (English) | |
-| maxent, German UD model | 22 of 37 (German cases) | | 20 of 35 (German) | |
 
-The Portuguese model has no case in its language. Among the rules
-detector's failures are remaining abbreviation contexts, a sentence that
-starts with a lower case letter after a full stop (the Greek cases,
-which SB8 keeps together), `:` as a sentence end in Arabic, and the
-references' document cleaning. By language, the rules detector passes
-all cases of `am bg fa fr hi hy mr my pl ur zh`, and 342 of 482 English,
-65 of 72 German, 86 of 109 Danish, 78 of 84 Russian, 68 of 72 Italian
-and 56 of 72 Spanish cases, against 234, 29, 63, 72, 56 and 41 for
-plain UAX #29.
+`analysis/sentdetect/tests/agreement.rs` now checks only native rule output
+on the existing text inputs. It retains the sentence and boundary counts:
 
-**Agreement with the maxent detector.** `analysis/sentdetect/tests/agreement.rs` runs the
-rule splitter and the maxent detector with the published model, both
-as they run by default (with the bundled abbreviation inventory), on the
-same texts, for the three languages with a model: the golden inputs in
-that language and the texts of the conformance cases in it (not their
-expected sentences). Boundaries are the starts of the sentences after
-the first; precision is the share of the rule splitter's boundaries
-that the model also places, recall the share of the model's boundaries
-that the rule splitter places.
+| Inputs | Texts | Rule sentences | Rule boundaries |
+|---|---:|---:|---:|
+| English short inputs | 45 | 119 | 76 |
+| English conformance texts | 482 | 2649 | 2167 |
+| German short inputs | 2 | 6 | 4 |
+| German conformance texts | 72 | 175 | 103 |
+| Portuguese short inputs | 1 | 5 | 4 |
 
-| Language, texts | Texts | Split alike | Sentences (maxent, rules, same span) | Boundaries (maxent, rules, same) | Precision | Recall |
-|---|---|---|---|---|---|---|
-| English, golden inputs | 45 | 33 | 121, 119, 99 | 78, 76, 69 | 90.8% | 88.5% |
-| English, conformance texts | 482 | 292 | 3180, 2649, 1803 | 2698, 2167, 1934 | 89.2% | 71.7% |
-| German, golden inputs | 2 | 1 | 7, 6, 5 | 5, 4, 4 | 100% | 80.0% |
-| German, conformance texts | 72 | 48 | 190, 175, 106 | 118, 103, 76 | 73.8% | 64.4% |
-| Portuguese, golden inputs | 1 | 1 | 5, 5, 5 | 4, 4, 4 | 100% | 100% |
-
-The maxent detector places more boundaries than the rule splitter on
-every set but the Portuguese one. The numbers are asserted by the
-test.
-
-Both tests need the models for the maxent rows and skip those rows
-without them; the CI job fetches the models and runs both with
-`TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`, so that there a missing model
-fails.
+These checks require no model download. Historical ME agreement rows are no
+longer part of the suite and do not establish native neural accuracy.
 
 ### Abbreviation inventories
 
 `AbbreviationInventory` (`analysis/sentdetect/src/inventory/`) is a
 classified list of abbreviations that the maxent detector and the rule
-splitter consult at a full stop, on top of a model's dictionary or a
-language's CLDR suppressions. It is on by default:
-`SentenceDetector::new` takes the bundled inventory of the model's
-language and `RuleSplitter::new` (and so `RuleSentenceDetector::new`)
-that of its tag, through `AbbreviationInventories::for_language`. Bundled
+splitter consults at a full stop, in addition to a language's CLDR
+suppressions. It is on by default: `RuleSplitter::new` (and therefore
+`RuleSentenceDetector::new`) takes the inventory for its tag through
+`AbbreviationInventories::for_language`. Bundled
 inventories cover English and the thirteen languages in the table below.
 Other languages get `AbbreviationInventory::EMPTY` and retain their rule
 profiles. `RuleSplitter::uax29` has none. `with_abbreviations` sets another
 inventory; `for_language_with_classes` selects classes or a preset for any
 bundled language.
 
-**JVM parity mode.** `SentenceDetector::with_jvm_parity()` drops the
-inventory (it is `with_abbreviations(AbbreviationInventory::EMPTY)`), and
-the detector's spans, probabilities and `config_hash` are then those of
-OpenNLP's `SentenceDetectorME` bit for bit, as before inventories. The
-JVM golden comparisons (`analysis/sentdetect/tests/golden.rs`, the fuzz
-runs against the goldens, the sentence counts of
-`analysis/train/tests/roundtrip.rs`), the `maxent-<language>`
-conformance runs and the `turbo-train-recipes` model gate, which
-compares models and not the inventory, use it. `RuleSplitter::without_inventory()` is the same
-for the rule splitter.
+**Rule-only validation.** OpenNLP sentence archives and their JVM oracle
+checks are disabled under #1511. Rule/UAX, newline, paragraph and inventory
+expectations remain independent of those models. `RuleSplitter::without_inventory()`
+disables the inventory for explicit rule-only comparisons.
 
 The bundled English inventory
 (`analysis/sentdetect/src/inventory/english.rs`) has four classes,
@@ -537,13 +401,13 @@ those it was trained with. In the rule splitter the inventory is part of
 the abbreviation tailoring and is asked before the language's own
 abbreviations, initials and sentence starters.
 
-`config_hash` of both annotators folds in the inventory's hash: the
+`config_hash` of the rule annotator folds in the inventory's hash: the
 language, the classes, every active entry with its rule, the
 never-abbreviation words, the additions and the exclusions. So the
 default hash of an English detector changed with inventories, and the
 hash in parity mode (or of a language without an inventory) is the hash
-from before them; `analysis/sentdetect/tests/abbreviations.rs` checks
-both. `RuleSentenceDetector::VERSION` is `3` since the default changed.
+from before them. `analysis/sentdetect/tests/abbreviations.rs` checks native
+rule inventory behavior; archive-model parity assertions were removed. `RuleSentenceDetector::VERSION` is `3` since the default changed.
 `turbo-eval` names a maxent sentencer with an inventory by the model and
 the inventory's hash (`... abbreviations <hash>`), so its records tell
 the two modes apart.
@@ -617,8 +481,8 @@ every tokenizer handles sentences the same way. It is generic over what
 a tokenizer reports per token: a rule tokenizer reports a bare `Span`,
 whose value is `()`, and calls it through `tokenize_units`, so its loop
 moves nothing but spans. The simple, whitespace and maxent tokenizers
-take the same `TokenizerOptions` (the whitespace mode and
-`keepNewLines`), with one configuration hash. Each rule tokenizer is
+take the same `TokenizerOptions` (`keepNewLines`), with one
+configuration hash. Each rule tokenizer is
 also a plain function over a `&str` that appends spans to a caller's
 buffer (`simple_spans`, `whitespace_spans`, `word_tokens`), and
 `TokenizerMe::tokenize` appends spans with their probabilities.
@@ -925,9 +789,9 @@ in the error, rather than approximated (OpenNLP hands such a pattern to
 `java.util.regex`). With the optimization off the pattern is never used
 and is not read.
 
-The whitespace units come from `TokenizerOptions`: the whitespace mode
-decides which characters separate units, and also the `_ws` feature,
-though a unit never holds whitespace; `keep_newlines` makes every line
+The whitespace units are separated by Unicode `White_Space`, which also
+decides the `_ws` feature, though a unit never holds whitespace;
+`TokenizerOptions::keep_newlines` makes every line
 feed and carriage return a unit, and so a token of probability 1, of its
 own.
 
@@ -1031,22 +895,18 @@ surrogate pair are never reached in the Java (the step over an unlisted
 character takes the whole pair), so skipping them changes nothing. The
 lexicon file must be UTF-8 (the Java takes any charset), and the entry
 limit is a parameter rather than the `OPENNLP_MAX_ENTRIES` system
-property. A line that starts with a character that is whitespace in the
-legacy mode but not Unicode `White_Space` (`U+001C` to `U+001F`) lists the
-empty word in legacy mode; the Java keeps it on the trie's root, where
-nothing scores it, but counts it in the total and the entries, and so
-does the port.
+property.
 
-The goldens are the runs of three lexicons, each in both whitespace
-modes: `zh-unigram-fixture.txt` (OpenNLP's test lexicon, words with
+The goldens are the runs of three lexicons: `zh-unigram-fixture.txt` (OpenNLP's test lexicon, words with
 equal count products, CR LF and lone CR line ends, fullwidth digits and
 a `+` sign in counts, no-break and ideographic spaces between word and
 count, a word outside the Basic Multilingual Plane, a word listed twice)
 on the `zh`, `multi`, `edge` and `surrogate` inputs;
 `jieba-dict-subset.txt` (the lines of jieba's `dict.txt` whose word
 occurs in the `zh`, `multi` or `edge` inputs) on those sets; and
-`zh-unigram-modes.txt`, whose words differ between the modes, on the
-`zh` inputs. Every token matches, on 264 goldens. In a run outside the
+`zh-unigram-modes.txt`, whose words hold `U+0085` and the information
+separators `U+001C` to `U+001F`, on the `zh` inputs. Every token matches,
+on 132 goldens. In a run outside the
 repository at commit `0260665`, with the whole of jieba's `dict.txt`
 (fxsjy/jieba commit `67fa2e36e72f69d9134b8a1037b83fbb070b9775`, 349046
 lines), the port's tokens equalled the JVM's on every line of the PKU
@@ -1130,9 +990,8 @@ by OpenNLP or here. The files are read in this order:
 - `unk.def`, in the lexicon format. Its surfaces are category names,
   which `char.def` must define.
 
-Lines end at `\n`, `\r` or `\r\n`, are trimmed of Unicode `White_Space`
-in both whitespace modes, and are split into fields at whitespace in the
-configured mode. Numbers are read as `Integer.parseInt` reads them:
+Lines end at `\n`, `\r` or `\r\n`, are trimmed of Unicode `White_Space`,
+and are split into fields at it. Numbers are read as `Integer.parseInt` reads them:
 decimal digits of any script in the Basic Multilingual Plane, and
 `char.def`'s hexadecimal also accepts fullwidth letters. The checks and
 their order are the Java's, and a malformed file is an error that names
@@ -1185,10 +1044,6 @@ Deviations, each with a test in `analysis/tokenize/src/lattice`:
   after its header than its lines need (six per cell, less one) is
   refused before its table is allocated. The Java allocates the table from the header
   first, then finds that pairs are missing.
-- In the legacy whitespace mode, a `char.def` line made only of
-  characters that are whitespace in that mode but not Unicode
-  `White_Space` (`U+001C` to `U+001F`) is a malformed category. In the
-  Java it throws an `ArrayIndexOutOfBoundsException`.
 - Where `unk.def` names several undefined categories, the port reports
   the first in file order, and the Java the first in its `HashMap`'s
   order.
@@ -1197,8 +1052,8 @@ Deviations, each with a test in `analysis/tokenize/src/lattice`:
 
 The goldens are the runs of six dictionaries
 (`analysis/goldens-tool/README.md`, "Lattice goldens"). Three are
-fixtures written for this project. `mecab-fixture-ja`, run in both
-whitespace modes on the `ja`, `multi`, `edge` and `surrogate` inputs,
+fixtures written for this project. `mecab-fixture-ja`, run on the
+`ja`, `multi`, `edge` and `surrogate` inputs,
 has costs that make ties, a quoted surface with a comma, overlapping
 categories and supplementary characters. `mecab-fixture-ko` runs on the
 `ko`, `multi` and `edge` inputs. `mecab-fixture-partial`, whose
@@ -1213,7 +1068,6 @@ where the JVM threw, the port fails at the same character:
 | Dictionary | Goldens | Morphemes | Unknown | JVM errors |
 |---|---|---|---|---|
 | `mecab-fixture-ja` | 65 | 1497 | 1244 | 0 |
-| `mecab-fixture-ja+legacy` | 65 | 1494 | 1241 | 0 |
 | `mecab-fixture-ko` | 55 | 1310 | 1155 | 0 |
 | `mecab-fixture-partial` | 48 | 17 | 11 | 44 |
 | `mecab-ipadic-2.7.0-20070801` | 65 | 1512 | 1068 | 0 |
@@ -1444,8 +1298,7 @@ same input. The goldens are made by `turbo-goldens` (crate
 generator in a container built from a fixed JDK image and OpenNLP
 commit, and live in `analysis/goldens/data`:
 `tokenize/`, `sentdetect/` and `detokenize/` hold a directory per run,
-named after the model and any options (`+legacy` for OpenNLP's legacy
-whitespace mode, `+keep-new-lines`, `+alphanumeric`,
+named after the model and any options (`+keep-new-lines`, `+alphanumeric`,
 `+english-dictionary`), or after the component when it has no model
 (`simple`, `whitespace`, `uax29`, `newline`). The format and the list of
 runs are in `docs/analysis.md` ("Golden files") and
@@ -1547,16 +1400,6 @@ reach the OpenNLP side:
   word of its own, so an unlisted number such as `2000` is four words;
   jieba keeps runs of unlisted ASCII letters and digits together, which
   is most of what separates the two on the PKU test set.
-- `UnigramSegmenter.load` accepts a line whose word is empty in the
-  legacy whitespace mode (one starting with `U+001C` to `U+001F`, which
-  `trimUnicodeWhitespace` keeps and `isWhitespace` splits on); the empty
-  word goes on the trie's root and is never used, but its count is in
-  the total.
-- `MecabDictionary.load` reads `char.def` with `trimUnicodeWhitespace`
-  and then splits it with `isWhitespace`. In the legacy whitespace mode,
-  a line made only of `U+001C` to `U+001F` therefore has no fields, and
-  it throws an `ArrayIndexOutOfBoundsException` instead of an
-  `IOException`.
 - `MecabDictionary.load` checks the categories `unk.def` names by
   iterating over a `HashMap`. Where several are undefined, which one the
   message names depends on hash order, not on the file.

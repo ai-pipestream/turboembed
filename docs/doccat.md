@@ -1,70 +1,14 @@
 # Document categorization
 
-`turbo-doccat` (`analysis/doccat/`) ports the document categorizers of
-OpenNLP 3.x (`DocumentCategorizerME` and `DoccatModel` in
-`opennlp.tools.doccat.*`, `DocumentCategorizerSVM` in the
-`opennlp-ml-libsvm` module, and `DocumentCategorizerDL` in
-`opennlp.dl.doccat.*`), along with `SpanCategorizer<L>` and
-`DlSpanCategorizer<S, L, C>` for sentence-, structure-, and chunk-level
-categorization and `turbo_train_components::doccat` for training and
-packaging maxent and perceptron `DoccatModel` archives.
+`turbo-doccat` retains native SVM, multi-label, neural and zero-shot
+categorization. The OpenNLP `DocumentCategorizerME` and `SentimentME` archive
+constructors are disabled under #1511. Their training/archive and JVM parity
+tests are no longer current acceptance coverage. Downloading a `.bin` model
+does not enable those paths; classical API removal is tracked in #1530.
 
-The crate also holds OpenNLP's maxent sentiment detector, `SentimentME`,
-which [sentiment.md](sentiment.md) describes, its own multi-label
-categorizer, [`MultiLabelDoccatModel`](#multi-label-categorization-multilabeldoccatmodel),
-and zero-shot natural-language-inference categorization,
-[`ZeroShotCategorizer`](#zero-shot-categorization-zeroshotcategorizer).
-
-It depends on `turbo-analysis`, `turbo-analysis-layers`, `turbo-jvm`
-(Java's `Double.toString`, `Double.parseDouble`, `Integer.parseInt`,
-`String.hashCode`, `Math.log` and `StrictMath.tanh`), `turbo-maxent`
-(SHA-256, for the model reference, and the maxent/perceptron classifier),
-`turbo-normalize` (the emoji features), `turbo-sequence` (`StringPattern`
-for letter-only token checks) and `turbo-train` (event streams and
-indexing), and on nothing outside the workspace.
-
-## Maximum entropy and perceptron categorization (`DocumentCategorizerME`)
-
-`DocumentCategorizerME` scores tokenized text with an OpenNLP `DoccatModel`
-(`.bin` zip archive containing `doccat.model` and `manifest.properties`):
-
-1. `DoccatContextGenerator` runs the configured `FeatureGenerator` chain over
-   the tokens and optional `extra_information` map:
-   - `BagOfWordsFeatureGenerator`: emits `bow=<token>` for every token (or,
-     with `BagOfWordsFeatureGenerator::only_all_letter_tokens()`, only tokens
-     where `StringPattern::recognize` reports `ALL_LETTERS`; by default it
-     checks UTF-16 code units as the JVM does, with `PatternMode::CodePoints`
-     available as an opt-in).
-   - `NGramFeatureGenerator`: emits `ng=:<t_i>:...:<t_{i+n-1}>` for sliding
-     token windows of length `min_gram..=max_gram` (default `2..=3`).
-   - `EmojiFeatureGenerator`: emits `emoji=<token>` for emoji code points.
-2. `categorize` (or `categorize_with_extra`) evaluates the underlying
-   `MaxentModel` on the extracted context features and returns the outcome
-   probability distribution.
-3. `best_category` returns the first highest-scoring category, `get_index` /
-   `get_category` map between category names and indices, `score_map` groups
-   categories by probability into a `BTreeMap<OrderedFloat, BTreeSet<String>>`,
-   and `sorted_score_map` orders categories by ascending score.
-4. As an annotator (`opennlp:DocumentCategorizerME`), `DocumentCategorizerME`
-   reads `opennlp:tokens` from the view and writes a single-item
-   `turbo_analysis_layers::Categories` (`turbo:categories`) layer anchored to
-   the document.
-5. `SpanCategorizer<L>` (`turbo:SpanCategorizer`) wraps a
-   `DocumentCategorizerME` and categorizes each span of a target layer `L:
-   SpanCategorizable` (`Sentences`, `Structure`, or `Chunks`) using the tokens
-   contained within that span, writing `Categories<L>` (`turbo:categories<L>`)
-   aligned 1-to-1 with `L`.
-6. `turbo_train_components::doccat::train` (and `train_from_samples` /
-   `package`) trains a `DoccatModel` from `DocumentSample`s using GIS, QN
-   (L-BFGS), Naive Bayes, or Perceptron and writes a byte-compatible OpenNLP
-   `.bin` model archive.
-
-`DoccatGolden.java` in `analysis/goldens-tool` trains 8 maxent/perceptron/naive
-bayes models on the UCI SMS Spam Collection and records the features and
-category probabilities on 12 test documents (`analysis/goldens/data/doccat`);
-`analysis/doccat/tests/maxent_goldens.rs` and
-`analysis/train-components/tests/doccat_goldens.rs` verify bit-for-bit feature,
-model binary, and probability parity against the JVM.
+Native multi-label entry bytes, real SVM scoring and calibration, span
+validation and document provenance remain covered in `analysis/doccat/tests`.
+The following sections describe retained categorization paths.
 
 ## Multi-label categorization (`MultiLabelDoccatModel`)
 
@@ -102,12 +46,10 @@ many of them.
   fraction of documents whose predicted set equals the gold set), under
   the crate's division conventions (predicting nothing is precision 1.0,
   no gold positive is recall 1.0, both 0 is an F of 0.0).
-- The model serializes as a `.bin` package (`package_multilabel_model` /
-  `open_package` in the format `turbo_train::ModelPackage` writes, with
-  the calibrated thresholds inside the model entry and a trailing
-  CRC-32C). The entry is format version 2, which added `min_labels`;
-  version 1 entries still open with `min_labels` `None`. Truncated or
-  corrupted bytes fail with `MultiLabelError`, never panic.
+- Native multi-label entry bytes preserve calibrated thresholds and reject
+  truncated or corrupt input. Archive wrapping through `ModelFile` is disabled;
+  use the native entry codec. Version 1 entries retain `min_labels = None`.
+
 
 `analysis/doccat/tests/multilabel.rs` covers the scoring, the abstention
 into `Categories`, the calibration sweep (beta, floor, ties, zero
