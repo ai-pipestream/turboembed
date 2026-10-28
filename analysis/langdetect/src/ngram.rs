@@ -90,12 +90,6 @@ impl NgramModel {
                 *features.entry(bucket).or_insert(0.0) += 1.0;
             }
         }
-        let total: f32 = features.values().sum();
-        if total > 0.0 {
-            for count in features.values_mut() {
-                *count /= total;
-            }
-        }
         features
     }
 
