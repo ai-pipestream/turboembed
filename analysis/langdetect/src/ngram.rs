@@ -129,6 +129,9 @@ impl NgramModel {
 
     /// Predicts the most likely language of `text`.
     pub fn predict(&self, text: &str) -> Option<&str> {
+        if text.trim().is_empty() {
+            return None;
+        }
         let scores = self.scores(text);
         scores
             .iter()
