@@ -978,6 +978,55 @@ partitions). `DetokenizerEvaluator` is in `opennlp-tools`, which the
 image does not build, so it has no golden. `analysis/formats/tests/evaluate.rs`
 compares the Rust evaluators with these goldens.
 
+## Normalizer goldens
+
+`normalize/<name>/norm/<id>.golden` is what the OpenNLP normalizer `<name>`
+did to `inputs/norm/<id>.txt`: a `turbo:view` layer with one row per edit,
+the UTF-8 byte span of the source it replaces and the text it writes. There
+is no model, so the normalizer's name takes the model's place in the path.
+A normalizer run with a non-default option also has a `config` header
+record (`case-fold-tr` has `config	locale	tr`).
+
+`NormalizerGolden` lists the normalizers. One that implements
+`OffsetAwareNormalizer` is run through `normalizeAligned` and `Edit.fromAlignment`
+reads its edits from the alignment: characters that share an original range
+are one edit, characters with ranges of their own are one edit each, an
+original range no output character covers is a deletion, and a block that
+writes its own text back is not an edit. The others are run through
+`normalize` and `Edit.fromDiff` reconstructs the edits by a diff of source
+and result on code points, so for them the alignment is reconstructed and
+the `annotator` line says `normalize` where the others say `normalizeAligned`.
+The diff drops runs of fewer than three equal code points inside a changed
+region, because they are coincidences (a URL replaced by a space next to a
+space), which makes it join changes that lie one or two characters apart.
+
+The `norm` inputs are written for the project and use characters of the
+Unicode 15.0 repertoire only, which is what JDK 21 implements.
+
+### Chained views
+
+`umlaut-full-case-whitespace-chain` runs German umlaut expansion, full case
+folding and whitespace collapse on all 61 `norm` inputs. The generator calls
+OpenNLP's `normalizeAligned` on each step, then `Alignment.andThen` twice.
+The output rows come from that composed JVM alignment, with UTF-16 spans
+converted to source UTF-8 bytes. No diff or Rust output supplies the oracle.
+
+The Rust test stores three separate views on a document and compares the
+last one through `GoldenCompare`. Parent edits are composed to the source
+with `Document::view_alignment`, then the text and edit rows are checked
+exactly as for a direct view. Direct-view edit boundaries are unchanged.
+The test also maps changed spans both ways and repeats the comparison after
+adding an identity view. Invalid parent references report `ViewAlignment`.
+
+The normal generator includes the chain. It can also be regenerated without
+loading other models using `NormalizerChainGolden.main`. Compile the two
+normalizer generator classes against the pinned generator jar, then run the
+class with the input directory, output directory, and OpenNLP commit. For the
+checked-in files the image is
+`turbo-goldens-java:opennlp-cdf33c653d5d-addons-33e95a4956f1`, OpenNLP commit
+`cdf33c653d5d61d5af7d37ffee189a83bd8392ea`, and Temurin 21.0.12.1+1-LTS.
+The headers report the actual jar version, JDK and input digest. Running this
+generator twice produced the same 61 files byte for byte.
 
 ## Number goldens
 
