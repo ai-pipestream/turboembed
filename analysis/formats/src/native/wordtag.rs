@@ -14,8 +14,6 @@
 //! tokens in its place, and so does this reader, which keeps a
 //! [`Warning::NoTagSeparator`] for it.
 
-use turbo_unicode::WhitespaceMode;
-
 use crate::error::{FormatError, Warning};
 use crate::sample::pos::PosSample;
 use crate::source::{Line, Lines, whitespace_tokens};
@@ -24,14 +22,13 @@ use crate::source::{Line, Lines, whitespace_tokens};
 #[derive(Clone, Debug)]
 pub struct WordTagReader<'a> {
     lines: Lines<'a>,
-    mode: WhitespaceMode,
     warnings: Vec<Warning>,
 }
 
 impl<'a> WordTagReader<'a> {
-    /// A reader of `source`, splitting lines on whitespace in `mode`.
-    pub fn new(source: &'a str, mode: WhitespaceMode) -> Result<WordTagReader<'a>, FormatError> {
-        Ok(WordTagReader { lines: Lines::new(source)?, mode, warnings: Vec::new() })
+    /// A reader of `source`, splitting lines at Unicode whitespace.
+    pub fn new(source: &'a str) -> Result<WordTagReader<'a>, FormatError> {
+        Ok(WordTagReader { lines: Lines::new(source)?, warnings: Vec::new() })
     }
 
     /// The lines read so far that were replaced by an empty sample.
@@ -45,7 +42,7 @@ impl<'a> Iterator for WordTagReader<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let line = self.lines.next()?;
-        Some(Ok(match parse_line(line, self.mode) {
+        Some(Ok(match parse_line(line) {
             Ok(sample) => sample,
             Err(warning) => {
                 self.warnings.push(warning);
@@ -56,10 +53,10 @@ impl<'a> Iterator for WordTagReader<'a> {
 }
 
 /// `POSSample.parse` of one line; the warning when a token has no `_`.
-pub fn parse_line(line: Line<'_>, mode: WhitespaceMode) -> Result<PosSample<'_>, Warning> {
+pub fn parse_line(line: Line<'_>) -> Result<PosSample<'_>, Warning> {
     let mut tokens = Vec::new();
     let mut tags = Vec::new();
-    for part in whitespace_tokens(line.piece, mode) {
+    for part in whitespace_tokens(line.piece) {
         let Some(split) = part.text.rfind('_') else {
             return Err(Warning::NoTagSeparator { line: line.number, token: part.span });
         };
@@ -76,7 +73,7 @@ mod tests {
     #[test]
     fn splits_at_the_last_underscore() {
         let src = "a_b_C d_ _x\n\nno tag_T\n";
-        let mut r = WordTagReader::new(src, WhitespaceMode::Unicode).unwrap();
+        let mut r = WordTagReader::new(src).unwrap();
         let samples: Vec<PosSample<'_>> = r.by_ref().map(Result::unwrap).collect();
         assert_eq!(samples.len(), 3);
         let pairs: Vec<(&str, &str)> =

@@ -85,8 +85,9 @@ print are not a timing receipt.
 
 ## Timings
 
-Host loaded, B70 idle. `timings.log` is the run: twenty release runs at
-`04f89fcb` of
+Host loaded, B70 idle. `timings.log` is the run: twenty release runs,
+from 26 Oct 23:21 to 27 Oct 00:11 UTC, at `04f89fcb`, before main's
+later changes to the Level Zero `gpu/mod.rs` and its encoder rows, of
 
 ```
 GLINER2_PACKAGE=... GLINER2_BUNDLE=... GLINER2_CHECKPOINT=... \
@@ -109,14 +110,19 @@ decisions), then times a further 50 passes over the same texts without
 comparing them: the timed passes are not themselves checked. A pass is
 timed in milliseconds, the CPU encoder and the device interleaved; the
 relations fixture has three texts and the schema fixture four, so each
-distribution mixes the texts' lengths. Only the encoder moves: the
+distribution mixes the texts' lengths. The timed section is each
+model's `pass`: the prompt built, the encoder, and the heads that pass
+runs (GLiNER2's count, query and span heads; GLiREL's projection, LSTM
+and label rows). Decoding is outside it, and so are GLiREL's entity and
+pair scoring, which run after its pass. Only the encoder moves: the
 heads run on the host in both columns, so the B70 column is the encoder
 on the B70 plus the heads on the CPU. Host: AMD Ryzen 9 9950X, 32
 threads.
 
 Over the twenty runs: the median of each run's p50, the range of the
 runs' p50s, the least min, the mean of the means and the largest p99,
-and the median and range of each run's CPU p50 over its B70 p50.
+and the median and range of each run's CPU p50 over its B70 p50: above
+1 the B70 column is the faster, by that factor.
 
 | Pass | CPU encoder and heads: p50 (runs), min, mean, p99 | B70 encoder, CPU heads: p50 (runs), min, mean, p99 | CPU p50 over B70 p50 |
 |---|---|---|---|

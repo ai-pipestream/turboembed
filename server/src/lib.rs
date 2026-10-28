@@ -12,6 +12,7 @@ pub mod deadline;
 pub mod format;
 mod health;
 mod infer;
+mod infer_ranges;
 pub mod inspect;
 mod kserve;
 pub mod metrics;
