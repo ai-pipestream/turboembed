@@ -28,6 +28,87 @@ pub struct Architecture {
     /// POSITION_RELATIVE; absent for every other family.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub relative: Option<Relative>,
+    /// POSITION_ROTARY's rotary bases; absent for every other position
+    /// embedding.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rope: Option<Rope>,
+    /// Alternating local and global attention; absent, every layer
+    /// attends to the whole row.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attention: Option<Attention>,
+    /// The feed-forward block: one projection, or a gated pair.
+    #[serde(default, skip_serializing_if = "Mlp::is_dense")]
+    pub mlp: Mlp,
+    /// The normalization every LayerNorm of the encoder applies.
+    #[serde(default, skip_serializing_if = "Norm::is_layer")]
+    pub norm: Norm,
+}
+
+/// Rotary position embeddings over each head's halves (rotate_half, not
+/// interleaved pairs): `global_theta` is the base on full-attention
+/// layers, `local_theta` the base on sliding-window layers, present iff
+/// `architecture.attention` is.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Rope {
+    pub global_theta: f64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub local_theta: Option<f64>,
+}
+
+/// Alternating attention: layer l attends to the whole row iff
+/// `l % global_every == 0`; every other layer is local, its query i
+/// reading the keys j with `abs(i - j) <= window / 2`. `window` is the
+/// total width, as ModernBERT's `local_attention` gives it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Attention {
+    pub window: u32,
+    pub global_every: u32,
+}
+
+impl Attention {
+    /// Whether layer `l` attends to the whole row.
+    pub fn is_global(&self, l: u32) -> bool {
+        l.is_multiple_of(self.global_every)
+    }
+}
+
+/// The feed-forward block. MLP_DENSE is BERT's `out(act(in x))`; MLP_GATED
+/// is `out(act(gate x) * up x)`, GeGLU with ACTIVATION_GELU_ERF and
+/// SwiGLU with ACTIVATION_SILU, its gated width `architecture.intermediate`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Mlp {
+    #[default]
+    #[serde(rename = "MLP_DENSE")]
+    Dense,
+    #[serde(rename = "MLP_GATED")]
+    Gated,
+}
+
+impl Mlp {
+    fn is_dense(&self) -> bool {
+        *self == Mlp::Dense
+    }
+}
+
+/// The normalization: LayerNorm with weight and bias, LayerNorm with a
+/// weight alone, or RMSNorm (named, and refused until a backend runs it).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Norm {
+    #[default]
+    #[serde(rename = "NORM_LAYER")]
+    Layer,
+    #[serde(rename = "NORM_LAYER_NO_BIAS")]
+    LayerNoBias,
+    #[serde(rename = "NORM_RMS")]
+    Rms,
+}
+
+impl Norm {
+    fn is_layer(&self) -> bool {
+        *self == Norm::Layer
+    }
 }
 
 /// DeBERTa-v2's relative positions: `position_buckets` buckets each way
@@ -130,12 +211,24 @@ pub enum Family {
     /// token types.
     #[serde(rename = "FAMILY_DEBERTA_V2")]
     DebertaV2,
+    /// ModernBERT: pre-norm layers with rotary positions, alternating
+    /// local and global attention, a gated MLP and no biases; a final
+    /// norm and no position or token type tables.
+    #[serde(rename = "FAMILY_MODERNBERT")]
+    Modernbert,
+    /// nomic-bert: BERT's post-norm layers with rotary positions, a gated
+    /// MLP and no projection biases; token types and no position table.
+    #[serde(rename = "FAMILY_NOMIC_BERT")]
+    NomicBert,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Activation {
     #[serde(rename = "ACTIVATION_GELU_ERF")]
     GeluErf,
+    /// `x * sigmoid(x)`, SwiGLU's gate.
+    #[serde(rename = "ACTIVATION_SILU")]
+    Silu,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -144,4 +237,7 @@ pub enum PositionEmbedding {
     Absolute,
     #[serde(rename = "POSITION_RELATIVE")]
     Relative,
+    /// Rotary positions on Q and K, with architecture.rope.
+    #[serde(rename = "POSITION_ROTARY")]
+    Rotary,
 }

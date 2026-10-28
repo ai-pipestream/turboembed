@@ -334,7 +334,7 @@ release.md.
 | `analysis/maxent`, `analysis/sequence`, `analysis/postag`, `analysis/lemmatizer`, `analysis/phrase-chunker`, `analysis/parser`, `analysis/depparse`, `analysis/namefind`, `analysis/doccat`, `analysis/coref` | OpenNLP ports |
 | `analysis/stem`, `analysis/stopword`, `analysis/hunspell`, `analysis/morfologik`, `analysis/wordnet`, `analysis/glossary`, `analysis/ngram`, `analysis/abbrev` | lexical resources |
 | `analysis/numeric`, `analysis/grammar`, `analysis/geo`, `analysis/pii`, `analysis/matcher` | numbers, dates, places, PII and pattern matching |
-| `analysis/embed`, `analysis/namefind-dl`, `analysis/gliner`, `analysis/schema-extract`, `analysis/relation`, `analysis/entity-linker`, `analysis/calibration` | neural annotators, extraction and calibration |
+| `analysis/embed`, `analysis/tagger`, `analysis/namefind-dl`, `analysis/gliner`, `analysis/schema-extract`, `analysis/relation`, `analysis/entity-linker`, `analysis/calibration` | neural annotators, extraction and calibration |
 | `analysis/chunker`, `analysis/vector-index`, `analysis/query`, `analysis/group`, `analysis/keywords`, `analysis/eval` | chunking, retrieval and evaluation |
 | `analysis/train`, `analysis/train-components`, `analysis/train-recipes`, `analysis/bpe-trainer`, `analysis/formats` | training |
 | `analysis/zoo`, `analysis/goldens`, `analysis/goldens-tool`, `analysis/fuzz`, `analysis/jvm` | the model zoo and OpenNLP parity testing |
@@ -369,7 +369,7 @@ OpenNLP on the JVM and against Model2Vec, and Windows lint and tests.
 | Neural extraction and graphs | [neural-annotators.md](docs/neural-annotators.md), [namefind-dl.md](docs/namefind-dl.md), [gliner.md](docs/gliner.md), [schema-extract.md](docs/schema-extract.md), [gliner2-relations.md](docs/gliner2-relations.md), [glirel-relations.md](docs/glirel-relations.md), [relation.md](docs/relation.md), [events.md](docs/events.md), [modality.md](docs/modality.md), [entity-graph.md](docs/entity-graph.md), [entity-salience.md](docs/entity-salience.md), [discourse.md](docs/discourse.md) |
 | Classification and calibration | [dense-classifier.md](docs/dense-classifier.md), [model-routing.md](docs/model-routing.md), [calibration.md](docs/calibration.md) |
 | Chunking and retrieval | [chunker-cut-identity.md](docs/chunker-cut-identity.md), [chunker-text-signals.md](docs/chunker-text-signals.md), [keywords.md](docs/keywords.md), [turboquant.md](docs/turboquant.md), [splate.md](docs/splate.md), [quality-consumers.md](docs/quality-consumers.md) |
-| Training and evaluation | [bpe-trainer.md](docs/bpe-trainer.md), [namefinder-evaluation.md](docs/namefinder-evaluation.md), [namefinder-crf-evaluation.md](docs/namefinder-crf-evaluation.md), [lemma-case-evaluation.md](docs/lemma-case-evaluation.md) |
+| Training and evaluation | [cut-artifact-storage.md](docs/cut-artifact-storage.md), [bpe-trainer.md](docs/bpe-trainer.md), [namefinder-evaluation.md](docs/namefinder-evaluation.md), [namefinder-crf-evaluation.md](docs/namefinder-crf-evaluation.md), [lemma-case-evaluation.md](docs/lemma-case-evaluation.md) |
 | Server and demo | [integration.md](docs/integration.md), [grpc.md](docs/grpc.md), [kserve.md](docs/kserve.md), [grpc-analysis.md](docs/grpc-analysis.md), [grpc-inspect.md](docs/grpc-inspect.md), [grpc-sink.md](docs/grpc-sink.md), [grpc-catalog.md](docs/grpc-catalog.md), [grpc-vocabulary.md](docs/grpc-vocabulary.md), [demo.md](docs/demo.md) |
 | Releases | [release.md](docs/release.md) |
 

@@ -34,7 +34,7 @@ impl Step {
     }
 }
 
-use turbo_unicode::whitespace::is_unicode_blank as is_blank;
+use turbo_unicode::whitespace::is_blank;
 
 // Checks StringUtil's simple mapping without allocating the lowercase text.
 use turbo_unicode::java::lowercase_code_points_changes;

@@ -19,6 +19,7 @@ fn spec(labels: &[&str], scheme: Scheme, decode: Decode) -> HeadSpec {
         word_pooling: WordPooling::First,
         adapter: None,
         decode,
+        biaffine: None,
         artifact: "weights".into(),
         tensor_prefix: "probe".into(),
         biaffine: None,
