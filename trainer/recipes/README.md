@@ -12,6 +12,14 @@ A directory that is not the recorded release is refused unless the run
 passes `--unrecorded-corpus`, and its receipt then says
 `"recorded": false`. Neither corpus is checked in.
 
+Each corpus records its licence's SPDX id, and the head a run writes
+carries that licence's class by the model zoo's rules as
+`license_class` (`CorpusRecord::class`): a MASC head is
+`CLASS_PERMISSIVE`, a MultiCoNER head `CLASS_SHARE_ALIKE`, so a bundle
+holding it is share-alike whatever its encoder (`Manifest::license_tier`)
+and is fetched only after the user accepts. A corpus licence the zoo does
+not know or refuses makes no head.
+
 Every run scores the test split against the majority baseline (each
 word's commonest training label, the commonest label overall for an
 unseen word). Tags score by word accuracy, also over unseen words;
