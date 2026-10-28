@@ -7,6 +7,7 @@
 use std::path::PathBuf;
 
 use turbo_analysis::{Analyzer, Document, Layer};
+use turbo_goldens::data_dir;
 use turbo_numeric::{NumberNotation, Quantities, QuantityExtractor};
 
 fn root() -> PathBuf {
@@ -14,8 +15,8 @@ fn root() -> PathBuf {
 }
 
 fn input_ids() -> Vec<String> {
-    let mut ids: Vec<String> = std::fs::read_dir(root().join("inputs/quantity"))
-        .expect("tests/inputs/quantity")
+    let mut ids: Vec<String> = std::fs::read_dir(data_dir().join("inputs").join("quantity"))
+        .expect("goldens/data/inputs/quantity")
         .map(|e| {
             let name = e.expect("entry").file_name().into_string().expect("utf-8");
             name.strip_suffix(".txt").expect(".txt").to_string()
@@ -26,7 +27,7 @@ fn input_ids() -> Vec<String> {
 }
 
 fn text_of(id: &str) -> String {
-    std::fs::read_to_string(root().join("inputs/quantity").join(format!("{id}.txt"))).unwrap()
+    std::fs::read_to_string(data_dir().join("inputs").join("quantity").join(format!("{id}.txt"))).unwrap()
 }
 
 fn snap_path(notation: &str, id: &str) -> PathBuf {

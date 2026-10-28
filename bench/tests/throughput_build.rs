@@ -91,17 +91,16 @@ fn an_optimized_clean_pushed_cli_records_real_settings_and_grammar_counts() {
     assert!(r.runs.iter().all(|r| r.seconds > 0.0 && r.seconds.is_finite()));
 }
 
-/// What `turbo-bench grammar` counts over the numeric number inputs:
+/// What `turbo-bench grammar` counts over the goldens number inputs:
 /// find, lex, parse, parse-units and times. The parse-units count went
 /// from 45619 to 45640 with #1234 (rates other than speed): each of the
 /// seven repeats of the text now also charts an information rate in MB
 /// per second and a rupee rate per month, as unit, quantity and rate
 /// nodes. #1233 pinned 45619 on a base from before #1234. The text is
-/// the num, quantity, money and temporal inputs (under
-/// analysis/numeric/tests/inputs after the crate-local golden move)
-/// repeated past 100 KiB, so all of these move when an input is added:
-/// #1192's eight nightly quantity inputs took them from 106407 bytes,
-/// 100282 chars and [11081, 31073, 32529, 45640, 1344].
+/// the goldens num, quantity, money and temporal inputs repeated past
+/// 100 KiB, so all of these move when an input is added: #1192's eight
+/// nightly quantity inputs took them from 106407 bytes, 100282 chars and
+/// [11081, 31073, 32529, 45640, 1344].
 #[cfg(feature = "grammar")]
 const GRAMMAR_UNITS: [u64; 5] = [11137, 31283, 32711, 46382, 1344];
 
@@ -121,11 +120,8 @@ fn the_grammar_counts_hold_on_any_tree() {
     use turbo_grammar::{ENGLISH, ENGLISH_UNITS, Grammar, GrammarAnnotator, Parser, TimeAnnotator};
 
     let mut one = String::new();
-    let top = common::workspace();
     for set in ["num", "quantity", "money", "temporal"] {
-        let numeric = top.join("analysis/numeric/tests/inputs").join(set);
-        let goldens = top.join("analysis/goldens/data/inputs").join(set);
-        let dir = if numeric.is_dir() { numeric } else { goldens };
+        let dir = common::workspace().join("analysis/goldens/data/inputs").join(set);
         let mut names = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().path()).collect::<Vec<_>>();
         names.retain(|p| p.extension().is_some_and(|x| x == "txt"));
         names.sort();

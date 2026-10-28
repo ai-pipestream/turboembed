@@ -1,5 +1,4 @@
 //! Cross-revision release harness; the same file compiles on the main baseline.
-use std::path::PathBuf;
 use std::{hint::black_box, time::Instant};
 use turbo_analysis::{Ix, Layer, Spans, ViewId};
 use turbo_analysis_layers::Numbers;
@@ -20,8 +19,7 @@ fn reset(out: &mut Numbers) {
 fn paired_release() {
     let mut ascii_corpus = String::new();
     for name in ["prose-english.txt", "prose-german.txt", "decimals-us.txt", "eu-grouping.txt", "both-notations.txt"] {
-        let s = std::fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/inputs/num").join(name))
-            .unwrap();
+        let s = std::fs::read_to_string(turbo_goldens::data_dir().join("inputs/num").join(name)).unwrap();
         for _ in 0..200 {
             ascii_corpus.push_str(&s);
             ascii_corpus.push('\n');

@@ -14,6 +14,7 @@
 use std::path::PathBuf;
 
 use turbo_analysis::{Analyzer, Document, Layer};
+use turbo_goldens::data_dir;
 use turbo_numeric::{Date, DocumentDate, DocumentDateSelector, Origin, TemporalExtractor, Temporals};
 
 const REFERENCE: &str = "2026-03-15";
@@ -23,8 +24,8 @@ fn root() -> PathBuf {
 }
 
 fn input_ids() -> Vec<String> {
-    let mut ids: Vec<String> = std::fs::read_dir(root().join("inputs/temporal"))
-        .expect("tests/inputs/temporal")
+    let mut ids: Vec<String> = std::fs::read_dir(data_dir().join("inputs").join("temporal"))
+        .expect("goldens/data/inputs/temporal")
         .map(|e| {
             let name = e.expect("entry").file_name().into_string().expect("utf-8");
             name.strip_suffix(".txt").expect(".txt").to_string()
@@ -35,7 +36,7 @@ fn input_ids() -> Vec<String> {
 }
 
 fn text_of(id: &str) -> String {
-    std::fs::read_to_string(root().join("inputs/temporal").join(format!("{id}.txt"))).unwrap()
+    std::fs::read_to_string(data_dir().join("inputs").join("temporal").join(format!("{id}.txt"))).unwrap()
 }
 
 fn snap_path(mode: &str, id: &str, suffix: &str) -> PathBuf {

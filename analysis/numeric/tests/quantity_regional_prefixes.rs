@@ -1,6 +1,6 @@
 //! Quantities next to dollar-prefixed region symbols, in both notations.
 //!
-//! The texts are the `nightly-*` inputs in `tests/inputs/quantity`. A
+//! The texts are the `nightly-*` inputs in `analysis/goldens/data/inputs/quantity`. A
 //! region symbol such as `A$`, `US$` or `HK$` makes the amount money, so
 //! the trailing `2m` is not a quantity of metres. The controls (`$2m`,
 //! `2m` alone, `xA$2m`, and `A$1,2m` read in US notation) pin what the
@@ -25,7 +25,7 @@ enum Want {
 }
 
 fn input(id: &str) -> String {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/inputs/quantity").join(format!("{id}.txt"));
+    let path = turbo_goldens::data_dir().join("inputs/quantity").join(format!("{id}.txt"));
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()))
 }
 

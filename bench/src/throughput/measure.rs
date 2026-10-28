@@ -69,21 +69,14 @@ impl Options {
     }
 }
 
-/// Inputs of `sets` under the repository at `top`, set by set in
-/// name order, each file followed by a line feed, repeated to at
-/// least `floor` bytes: the same bytes on every machine.
-///
-/// Prefers `analysis/numeric/tests/inputs/{set}` when present
-/// (num/quantity/money/temporal after the crate-local golden move);
-/// otherwise `analysis/goldens/data/inputs/{set}`.
+/// The goldens inputs of `sets` under the repository at `top`,
+/// set by set in name order, each file followed by a line feed,
+/// repeated to at least `floor` bytes: the same bytes on every
+/// machine.
 pub(super) fn goldens_text(top: &Path, sets: &[&str], floor: usize) -> Result<(String, String)> {
     let mut one = String::new();
-    let mut roots: Vec<String> = Vec::new();
     for set in sets {
-        let numeric = top.join("analysis/numeric/tests/inputs").join(set);
-        let goldens = top.join("analysis/goldens/data/inputs").join(set);
-        let dir = if numeric.is_dir() { numeric } else { goldens };
-        roots.push(dir.strip_prefix(top).unwrap_or(&dir).display().to_string());
+        let dir = top.join("analysis/goldens/data/inputs").join(set);
         let mut names: Vec<PathBuf> = std::fs::read_dir(&dir)
             .map_err(|e| format!("{}: {e}", dir.display()))?
             .map(|e| e.map(|e| e.path()))
@@ -103,7 +96,13 @@ pub(super) fn goldens_text(top: &Path, sets: &[&str], floor: usize) -> Result<(S
     while text.len() < floor {
         text.push_str(&one);
     }
-    Ok((text, format!("{} in name order, repeated to at least {floor} bytes", roots.join(","))))
+    Ok((
+        text,
+        format!(
+            "analysis/goldens/data/inputs/{{{}}} in name order, repeated to at least {floor} bytes",
+            sets.join(",")
+        ),
+    ))
 }
 
 /// One warm pass, then `rounds` timed passes of `f`; the warm

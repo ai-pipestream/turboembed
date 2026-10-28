@@ -27,7 +27,7 @@ fn sample() -> ThroughputRecord {
         mode: "grammar".into(),
         subject: Subject { name: "english".into(), sha256: String::new(), load_seconds: None },
         text: RecordText {
-            source: "analysis/numeric/tests/inputs/num in name order, repeated to at least 102400 bytes".into(),
+            source: "analysis/goldens/data/inputs/{num} in name order, repeated to at least 102400 bytes".into(),
             bytes: 1000,
             chars: 900,
             sha256: "ab".repeat(32),

@@ -1,7 +1,7 @@
 //! Reviewed number-scan snapshots and span/value invariants.
 //!
 //! `tests/snapshots/numbers/<notation>/<id>.tsv` holds the `turbo:numbers`
-//! rows for each input in `tests/inputs/num/`. Regenerate with
+//! rows for each input in `analysis/goldens/data/inputs/num/`. Regenerate with
 //! `TURBO_BLESS=1 cargo test -p turbo-numeric --test goldens`.
 //! Snapshots freeze the default (non-OpenNLP-parity) configuration the pipeline
 //! runs. Each case checks Layer::check, spans in bounds, and that `plain` is
@@ -11,6 +11,7 @@ use std::path::PathBuf;
 
 use turbo_analysis::{Document, Key, Layer, Provenance, ViewId};
 use turbo_analysis_layers::{NumberNotation, Numbers};
+use turbo_goldens::data_dir;
 use turbo_numeric::NumberScanner;
 
 fn root() -> PathBuf {
@@ -18,8 +19,8 @@ fn root() -> PathBuf {
 }
 
 fn input_ids() -> Vec<String> {
-    let mut ids: Vec<String> = std::fs::read_dir(root().join("inputs/num"))
-        .expect("tests/inputs/num")
+    let mut ids: Vec<String> = std::fs::read_dir(data_dir().join("inputs").join("num"))
+        .expect("goldens/data/inputs/num")
         .map(|e| {
             let name = e.expect("entry").file_name().into_string().expect("utf-8");
             name.strip_suffix(".txt").expect(".txt").to_string()
@@ -30,7 +31,7 @@ fn input_ids() -> Vec<String> {
 }
 
 fn text_of(id: &str) -> String {
-    std::fs::read_to_string(root().join("inputs/num").join(format!("{id}.txt"))).unwrap()
+    std::fs::read_to_string(data_dir().join("inputs").join("num").join(format!("{id}.txt"))).unwrap()
 }
 
 fn snap_path(notation: &str, id: &str) -> PathBuf {

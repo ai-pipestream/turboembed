@@ -255,12 +255,11 @@ fn quantities_and_money_support_extended_numbers_and_regions() {
 
 #[test]
 fn all_local_numeric_inputs_satisfy_layer_and_offset_invariants_in_default_extended_mode() {
-    use std::path::PathBuf;
     use turbo_analysis::Analyzer;
     use turbo_goldens::invariants::assert_invariants;
     use turbo_numeric::NumberNotation::{LatinEu, LatinUs};
 
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/inputs");
+    let root = turbo_goldens::data_dir().join("inputs");
     for notation in [LatinUs, LatinEu] {
         let analyzer = Analyzer::builder()
             .add(NumberScanner::new(notation))

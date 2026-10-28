@@ -8,6 +8,7 @@ use std::path::PathBuf;
 
 use turbo_analysis::{Analyzer, Document, Key, OffsetTable, Span, ViewId};
 use turbo_analysis_layers::{Money, NumberNotation, Numbers, Quantities};
+use turbo_goldens::data_dir;
 use turbo_goldens::invariants::check_document;
 use turbo_numeric::money::{CONVERTED_MONEY, Currency, Date, EcbRates, MoneyConverter, MoneyExtractor};
 use turbo_numeric::{DocumentDateSelector, NumberScanner, QuantityExtractor, TemporalExtractor, Temporals};
@@ -90,7 +91,7 @@ fn local_numeric_inputs_keep_offset_invariants_in_default_mode() {
             .build()
             .unwrap();
         for set in ["num", "quantity", "money", "temporal"] {
-            let dir = root().join("inputs").join(set);
+            let dir = data_dir().join("inputs").join(set);
             for entry in std::fs::read_dir(&dir).unwrap() {
                 let path = entry.unwrap().path();
                 if path.extension().and_then(|e| e.to_str()) != Some("txt") {

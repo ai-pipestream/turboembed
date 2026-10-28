@@ -42,7 +42,7 @@ usage:
                      [--out <dir>]
       the English number, unit and time grammars' characters per
       second per phase (find, lex, parse, parse-units, times) over
-      the number, quantity, money and temporal inputs;
+      the number, quantity, money and temporal goldens inputs;
       write the record to <repo>/benchmarks/records/throughput
       (needs --features grammar)
   turbo-bench qa --bundle <dir> --questions <squad.json> [--device <d>]
