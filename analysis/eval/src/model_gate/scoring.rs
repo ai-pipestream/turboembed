@@ -135,8 +135,10 @@ impl Scoring {
 /// span of another type is left out of the predictions, so neither model
 /// is scored on a type the other does not give. A held-out type that the
 /// models name otherwise is renamed first (`renamed`). The evaluator then
-/// counts each unit as OpenNLP's `FMeasure.updateScores` does: a
-/// prediction is right with the reference's tokens and type. A model
+/// counts each unit as `turbo_formats`' `FMeasure` does: a prediction is
+/// right with the reference's tokens and type, and matches at most one
+/// such reference (a multiset intersection, not OpenNLP's
+/// `countTruePositives`, which counts a repeated prediction each time). A model
 /// that reads tags with its tokens (a chunker reads part-of-speech tags)
 /// is given the held-out tags, the reference through `reference_inputs`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
