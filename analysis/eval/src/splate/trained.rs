@@ -111,6 +111,7 @@ fn annotator(dir: &Path, device: &Device) -> Result<VectorAnnotator> {
         encoder: EncoderOptions { device: device.clone(), ..EncoderOptions::default() },
         prompt: PromptRole::None,
         stride: 0,
+        output_dim: 0,
     };
     VectorAnnotator::open(dir, &o).map_err(|e| format!("{}: {e}", dir.display()))
 }
