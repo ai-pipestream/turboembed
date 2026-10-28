@@ -28,14 +28,22 @@ pub unsafe extern "C" fn turbo_session_run(
             } else {
                 backend::check(b, "session_run", |err| (s.run)(s.raw, &mut r, err))?;
                 check_run(b, &r, w.tokenized)?;
+                if w.quantization != Quantization::F32 {
+                    quantized(s, &mut state, &w, &mut r)?;
+                }
             }
 
             let res = &mut *s.result;
             let i = &mut res.info;
             i.batch = w.batch;
             i.dim = w.output_dim;
+            i.dtype = match w.quantization {
+                Quantization::F32 => TURBO_DTYPE_F32,
+                Quantization::Int8 => TURBO_DTYPE_I8,
+                Quantization::UBinary => TURBO_DTYPE_U8,
+            };
             i.placement = r.placement;
-            i.bytes = w.batch as u64 * w.output_dim as u64 * 4;
+            i.bytes = w.batch as u64 * w.quantization.row_bytes(w.output_dim as usize) as u64;
             i.h2d_bytes = r.h2d_bytes;
             i.d2h_bytes = r.d2h_bytes;
             i.host_allocs = r.host_allocs + CORE_RUN_ALLOCS;
@@ -52,6 +60,41 @@ pub unsafe extern "C" fn turbo_session_run(
             Ok(())
         })
     }
+}
+
+/// The run's f32 vectors as the write's codes, in the session's own host
+/// memory, which the result then points at. A device-placed result is
+/// copied back first, into memory the first such run makes.
+unsafe fn quantized(s: &SessionInner, state: &mut State, w: &Written, r: &mut turbo_backend_run) -> Result<()> {
+    let dim = w.output_dim as usize;
+    let n = w.batch as usize * dim;
+    let State { codes, int8_ranges, staged, .. } = state;
+    let src: &[f32] = if r.host.is_null() {
+        let b = s.backend;
+        let read = backend::offered!(b, buffer_read).map_err(|_| {
+            Error::new(
+                UNSUPPORTED,
+                format!("the vectors are in device memory, and the {} backend reads none", b.name()),
+            )
+        })?;
+        if staged.len() < n {
+            // As many values as the codes have bytes: the most a run makes.
+            *staged = vec![0.0; codes.len()];
+            r.host_allocs += 1;
+        }
+        let bytes = n as u64 * 4;
+        backend::check(b, "buffer_read", |err| unsafe { read(r.output, staged.as_mut_ptr().cast(), bytes, err) })?;
+        r.d2h_bytes += bytes;
+        &staged[..n]
+    } else {
+        unsafe { std::slice::from_raw_parts(r.host as *const f32, n) }
+    };
+    let out = &mut codes[..w.batch as usize * w.quantization.row_bytes(dim)];
+    quantize::rows(w.quantization, src, dim, &int8_ranges[..2 * dim], out);
+    r.output = out.as_mut_ptr().cast();
+    r.host = r.output;
+    r.placement = TURBO_PLACE_HOST;
+    Ok(())
 }
 
 /// What the backend reported is something turbo.h can say.
@@ -165,7 +208,8 @@ pub unsafe extern "C" fn turbo_result_buffer(
                 placement: i.placement,
                 dtype: i.dtype,
                 ndim: 2,
-                shape: [i.batch as u64, i.dim as u64],
+                // Packed bits are a row's bytes wide, not its dimensions.
+                shape: [i.batch as u64, if i.dtype == TURBO_DTYPE_U8 { i.dim.div_ceil(8) } else { i.dim } as u64],
                 bytes: i.bytes,
             };
             s.holders.fetch_add(1, Ordering::AcqRel);

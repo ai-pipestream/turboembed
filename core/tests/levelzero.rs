@@ -380,7 +380,7 @@ fn embed_is_offered_in_f32_and_f16_as_sessions_run_it() {
         // FASTEST runs the linear layers on the matrix engines in F16.
         let want = if p == TURBO_PRECISION_FASTEST { TURBO_DTYPE_F16 } else { TURBO_DTYPE_F32 };
         assert_eq!(cap.dtype, want, "precision {p}");
-        assert_eq!(cap.options_honored, 0b111111, "every field of turbo_embed_options");
+        assert_eq!(cap.options_honored, 0b1111_1111, "every field of turbo_embed_options");
         let info = Session::create(l.m, Some(&session_desc(0, 0, p))).unwrap().info();
         assert_eq!(info.compute_dtype, cap.dtype, "precision {p}");
     }

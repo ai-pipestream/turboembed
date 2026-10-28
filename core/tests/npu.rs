@@ -166,7 +166,7 @@ fn embed_is_offered_and_exact_is_refused() {
         // (0b111000); the core sets the bits of truncate, max_tokens and
         // prompt_role itself, which it applies before any backend sees
         // the rows.
-        assert_eq!(c.options_honored, 0b111111, "every field of turbo_embed_options");
+        assert_eq!(c.options_honored, 0b1111_1111, "every field of turbo_embed_options");
         let name = match p {
             TURBO_PRECISION_MODEL => "arl-npu.npu.ngraph-lite.embed.model.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json",
             TURBO_PRECISION_FASTEST => {
