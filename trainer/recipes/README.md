@@ -37,6 +37,8 @@ turbo-train-head train    --corpus <id> --dir <corpus dir> --bundle <encoder bun
 turbo-train-head cache    --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <new dir>
     --layers N [--device ..] [--precision ..] [--pooling first|mean] [--max-batch N]
     [--splits train,dev,test] [--commit <sha>]
+turbo-train-head fit-cache --corpus <id> --dir <corpus dir> --cache <cache dir> --out <new dir>
+    (--layer N | --mix [--from-layer N]) [--crf] [--bilstm ..] [--hash-embed ..] [training settings]
 ```
 
 `cache` (#1616) reads every split once and writes each word's features
@@ -54,6 +56,18 @@ every layer, so `--max-batch` is raised to N when lower. A cache is
 (some 250,000 words) at all 22 layers of ModernBERT-base is about 17 GB,
 and its 249,980-sentence test split many times that, so `--splits`
 names the splits to read (all three by default).
+
+`fit-cache` trains a head on a cache's train split and scores it on its
+dev split, without the encoder: on one layer (`--layer N`; on the last
+layer it is the run `train` makes, epoch for epoch), or on a learned mix
+of the cached layers from `--from-layer` on (`--mix`: ELMo's scalar
+mix, `turbo_trainer::mix`, a softmax weight a layer and a gain, trained
+with the head). It writes `head.safetensors`, `head.json` and
+`fit.json` (`fit_cache::FitRecord`: the cache's record, the layers, the
+mix's weights and gain, the head, the settings, and the loss and dev
+score each epoch). Comparing the best single layer's dev score with the
+mix's is #1616's step 2; the winner is then scored on test through the
+encoder.
 
 A head with a BiLSTM adapter waits 15 epochs without progress before
 it stops (`--patience`, 6 for other heads): its dev score creeps up for
@@ -80,5 +94,5 @@ TURBO_TEST_MASC_DIR=<MASC-3.0.0> TURBO_TEST_MULTICONER_DIR=<multiconer2023> \
 ```
 
 Not yet here: bundle output (a sealed bundle carrying the head),
-training on a cache (one layer, or the learned mix of the last layers),
+a core head that reads a mix of layers (only if the mix wins, #1616),
 WNUT-17 and MASC named entities.

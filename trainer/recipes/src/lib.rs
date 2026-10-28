@@ -14,8 +14,10 @@
 //! | `safetensors` | Writing the head's F32 tensors |
 
 pub mod cache;
+pub mod cli;
 pub mod corpus;
 pub mod eval;
+pub mod fit_cache;
 pub mod masc_pos;
 pub mod multiconer;
 pub mod receipt;

@@ -1,6 +1,7 @@
 //! `turbo-train-head cache` on the small BERT in testdata (two layers)
 //! and a small corpus in MultiCoNER's format: every split's word features
-//! at the last layers, read back as the encoder gives them, and refusals.
+//! at the last layers, read back as the encoder gives them; heads trained
+//! on one cached layer and on a mix (`fit-cache`); and refusals.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -10,6 +11,7 @@ use turbo::manifest::WordPooling;
 use turbo_analysis_embed::EncoderOptions;
 use turbo_tagger::WordEncoder;
 use turbo_trainer_recipes::cache::{CacheRecord, SCHEMA, layer_file, read_layer};
+use turbo_trainer_recipes::fit_cache::{FitRecord, SCHEMA as SCHEMA_FIT};
 
 fn tiny() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle")
@@ -125,6 +127,80 @@ fn a_cache_holds_each_splits_features_at_the_last_layers() {
     assert!(String::from_utf8_lossy(&run(&a).stderr).contains("--splits"));
     fs::remove_dir_all(some).unwrap();
     for p in [data, out] {
+        fs::remove_dir_all(p).unwrap();
+    }
+}
+
+#[test]
+fn a_head_on_a_cached_layer_trains_as_on_the_encoder_and_a_mix_trains_too() {
+    let data = scratch("fit-data");
+    corpus(&data);
+    let cache = scratch("fit-cache");
+    let (d, c, b) = (data.to_str().unwrap(), cache.to_str().unwrap(), tiny());
+    let bundle = b.to_str().unwrap();
+    let common = ["--corpus", "multiconer2-en", "--dir", d, "--unrecorded-corpus"];
+    let settings = ["--crf", "--epochs", "3", "--batch", "8", "--lr", "0.01", "--commit", "test"];
+    let ok = |args: Vec<&str>| {
+        let o = run(&args);
+        assert!(o.status.success(), "{}", String::from_utf8_lossy(&o.stderr));
+    };
+    ok([&["cache"][..], &common, &["--bundle", bundle, "--out", c, "--layers", "2", "--splits", "train,dev"]].concat());
+
+    // The last cached layer is what `train` reads from the encoder: the
+    // same seed gives the same dev curve.
+    let enc_out = scratch("fit-enc");
+    ok([&["train"][..], &common, &["--bundle", bundle, "--out", enc_out.to_str().unwrap()], &settings].concat());
+    let receipt: turbo_trainer_recipes::receipt::Receipt =
+        serde_json::from_slice(&fs::read(enc_out.join("receipt.json")).unwrap()).unwrap();
+    let fit = |name: &str, how: &[&str]| -> FitRecord {
+        let out = scratch(name);
+        ok([&["fit-cache"][..], &common, &["--cache", c, "--out", out.to_str().unwrap()], how, &settings].concat());
+        let r = serde_json::from_slice(&fs::read(out.join("fit.json")).unwrap()).unwrap();
+        assert!(out.join("head.safetensors").is_file() && out.join("head.json").is_file());
+        fs::remove_dir_all(out).unwrap();
+        r
+    };
+    let one = fit("fit-one", &["--layer", "2"]);
+    assert_eq!((one.schema.as_str(), one.layers.clone(), one.mix.clone()), (SCHEMA_FIT, vec![2], None));
+    assert_eq!(one.dev, receipt.training.as_ref().unwrap().dev);
+    assert_eq!(Some(one.head.clone()), receipt.head);
+    let below = fit("fit-below", &["--layer", "1"]);
+    assert_eq!(below.layers, [1]);
+
+    let mix = fit("fit-mix", &["--mix"]);
+    assert_eq!(mix.layers, [1, 2]);
+    let m = mix.mix.as_ref().unwrap();
+    assert_eq!(m.weights.len(), 2);
+    assert!((m.weights.iter().sum::<f64>() - 1.0).abs() < 1e-6 && m.gain.is_finite(), "{m:?}");
+    assert_eq!(mix.dev.len(), 3);
+    let top = fit("fit-top", &["--mix", "--from-layer", "2"]);
+    assert_eq!((top.layers.clone(), top.mix.as_ref().map(|m| m.weights.len())), (vec![2], Some(1)));
+
+    // Refusals: no layer named, both, a layer not cached, another corpus.
+    let refused = |name: &str, how: &[&str], data: &str, msg: &str| {
+        let out = scratch(name);
+        let o = out.to_str().unwrap();
+        let args = [
+            &["fit-cache", "--corpus", "multiconer2-en", "--dir", data, "--unrecorded-corpus"][..],
+            &["--cache", c, "--out", o],
+            how,
+        ]
+        .concat();
+        let r = run(&args);
+        assert_eq!(r.status.code(), Some(2), "{how:?}");
+        assert!(String::from_utf8_lossy(&r.stderr).contains(msg), "{}", String::from_utf8_lossy(&r.stderr));
+        assert!(!out.exists());
+    };
+    refused("r1", &[], d, "one of --layer N or --mix");
+    refused("r2", &["--layer", "2", "--mix"], d, "one of --layer N or --mix");
+    refused("r3", &["--layer", "3"], d, "the cache holds [1, 2]");
+    let other = scratch("fit-other");
+    fs::create_dir_all(other.join("EN-English")).unwrap();
+    for f in ["en_train", "en_dev", "en_test"] {
+        fs::write(other.join(format!("EN-English/{f}.conll")), "# id 0\tdomain=en\nx _ _ O\n\n").unwrap();
+    }
+    refused("r4", &["--layer", "2"], other.to_str().unwrap(), "another corpus");
+    for p in [data, cache, enc_out, other] {
         fs::remove_dir_all(p).unwrap();
     }
 }

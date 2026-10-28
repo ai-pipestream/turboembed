@@ -24,6 +24,7 @@ pub mod lemma;
 pub mod linear;
 pub mod logspace;
 pub mod lstm;
+pub mod mix;
 pub mod parser;
 pub mod real;
 pub mod rng;
