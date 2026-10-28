@@ -15,8 +15,7 @@ use turbo_formats::evaluate::FMeasure;
 
 /// A unit's counts from the `FMeasure` its evaluator kept for it: the
 /// true positives (as the evaluator's `FMeasure` counts them: a multiset
-/// intersection, unless it was made for OpenNLP compatibility), the
-/// predictions and the references.
+/// intersection), the predictions and the references.
 pub fn counts(f: &FMeasure) -> Counts {
     Counts { true_positives: f.true_positives(), selected: f.selected(), target: f.target() }
 }

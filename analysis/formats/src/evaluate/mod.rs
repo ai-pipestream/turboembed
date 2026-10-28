@@ -7,22 +7,14 @@
 //!   against a reference sample.
 //! - [`partition`]: `CrossValidationPartitioner`'s folds.
 //!
-//! # Standard and compatibility scoring
+//! # Scoring
 //!
 //! [`FMeasure`] and the static [`precision`] and [`recall`] count true
 //! positives as a multiset intersection ([`count_true_positives`]): a
 //! prediction matches at most one equal reference, so both scores stay
-//! within 0 and 1. That is the default everywhere.
-//!
-//! OpenNLP's `FMeasure` counts, for each reference, every prediction equal
-//! to it, so repeated predictions all count and recall can exceed 1; and
-//! it removes a match of the previous reference when a reference matches
-//! nothing. That counting is kept only as compatibility scoring for the
-//! JVM goldens, behind the `jvm-goldens` feature, which only the
-//! `evaluate` golden test enables: `FMeasure::opennlp`,
-//! `opennlp_count_true_positives`, `opennlp_precision`, `opennlp_recall`
-//! and the `opennlp` constructors of the span evaluators. A default build
-//! has no OpenNLP scoring.
+//! within 0 and 1. OpenNLP's `FMeasure.countTruePositives`, which counts
+//! a repeated prediction once per equal reference and so can score a
+//! recall above 1, is not reproduced.
 //!
 //! # What OpenNLP does here
 //!
@@ -54,6 +46,4 @@ pub use components::{
     LemmatizerEvaluator, NameFinderEvaluator, PosEvaluator, SentenceDetectorEvaluator, TokenizerEvaluator, Verdict,
 };
 pub use measure::{FMeasure, LabeledSpan, Mean, count_true_positives, precision, recall};
-#[cfg(feature = "jvm-goldens")]
-pub use measure::{opennlp_count_true_positives, opennlp_precision, opennlp_recall};
 pub use partition::{CrossValidation, Fold};

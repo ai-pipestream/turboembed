@@ -1,8 +1,8 @@
 //! `FMeasure` and `Mean`: the scores every evaluator keeps.
 //!
 //! Standard evaluation counts true positives as a multiset intersection
-//! ([`count_true_positives`]). OpenNLP's own counting, which can score a
-//! recall above 1, is in [`opennlp_count_true_positives`] for golden comparisons only.
+//! ([`count_true_positives`]), so precision and recall stay within 0
+//! and 1.
 
 use std::collections::HashMap;
 use std::fmt;
@@ -47,57 +47,27 @@ impl fmt::Display for LabeledSpan<'_> {
     }
 }
 
-/// How [`FMeasure`] counts the true positives of a sample.
-#[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
-enum Scoring {
-    /// The size of the multiset intersection of references and
-    /// predictions ([`count_true_positives`]): each prediction matches at
-    /// most one reference, so precision and recall stay within 0 and 1.
-    #[default]
-    Standard,
-    /// OpenNLP's `FMeasure.countTruePositives`
-    /// ([`opennlp_count_true_positives`]), which counts repeated
-    /// predictions more than once. It exists only with the `jvm-goldens`
-    /// feature, to compare with the scores the JVM wrote into goldens.
-    #[cfg(feature = "jvm-goldens")]
-    OpenNlp,
-}
-
 /// Precision, recall and F-measure over all the samples evaluated, as
 /// `opennlp.tools.util.eval.FMeasure` keeps them.
 ///
 /// The counts add up over every sample, so the scores are those of all
 /// the items together, not a mean of per-sample scores (the Java
-/// documentation says otherwise; the code adds counts). The default
-/// counts each prediction against at most one reference, so precision
-/// and recall stay within 0 and 1. With the `jvm-goldens` feature,
-/// `FMeasure::opennlp` counts them as OpenNLP does, for golden
-/// comparisons only.
+/// documentation says otherwise; the code adds counts). Each prediction
+/// counts against at most one reference ([`count_true_positives`]), so
+/// precision and recall stay within 0 and 1.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct FMeasure {
     selected: u64,
     target: u64,
     true_positives: u64,
-    scoring: Scoring,
 }
 
 impl FMeasure {
-    /// Empty counts that count true positives as OpenNLP does:
-    /// compatibility scoring, only for comparing with JVM goldens.
-    #[cfg(feature = "jvm-goldens")]
-    pub fn opennlp() -> FMeasure {
-        FMeasure { scoring: Scoring::OpenNlp, ..FMeasure::default() }
-    }
-
     /// `updateScores`: adds the true positives of `predictions` against
     /// `references`, the number of
     /// predictions and the number of references.
     pub fn update<T: Eq + Hash>(&mut self, references: &[T], predictions: &[T]) {
-        self.true_positives += match self.scoring {
-            Scoring::Standard => count_true_positives(references, predictions),
-            #[cfg(feature = "jvm-goldens")]
-            Scoring::OpenNlp => opennlp_count_true_positives(references, predictions),
-        };
+        self.true_positives += count_true_positives(references, predictions);
         self.selected += predictions.len() as u64;
         self.target += references.len() as u64;
     }
@@ -115,8 +85,7 @@ impl FMeasure {
     }
 
     /// The true positives over the references, or 0 with no references.
-    /// It is at most 1, except with OpenNLP's counting under the
-    /// `jvm-goldens` feature, which can make it exceed 1.
+    /// It is at most 1.
     pub fn recall(&self) -> f64 {
         if self.target > 0 { self.true_positives as f64 / self.target as f64 } else { 0.0 }
     }
@@ -181,60 +150,6 @@ pub fn recall<T: Eq + Hash>(references: &[T], predictions: &[T]) -> f64 {
         return f64::NAN;
     }
     count_true_positives(references, predictions) as f64 / references.len() as f64
-}
-
-/// OpenNLP-compatible scoring, kept only to compare with the scores the
-/// JVM wrote into goldens: `FMeasure.countTruePositives`, which is not a
-/// count of matched pairs. Use [`count_true_positives`] for evaluation.
-///
-/// For each reference it counts every remaining prediction equal to it,
-/// then removes from the predictions the first one equal to the last
-/// prediction it matched. The last match is kept from one reference to
-/// the next, so a reference that matches nothing removes another copy of
-/// the previous reference's match. Repeated predictions of one reference
-/// therefore all count: references `[a]` and predictions `[a, a]` make
-/// two true positives, a recall of 2. It is quadratic, as Java's is.
-#[cfg(feature = "jvm-goldens")]
-pub fn opennlp_count_true_positives<T: PartialEq>(references: &[T], predictions: &[T]) -> u64 {
-    let mut remaining: Vec<&T> = predictions.iter().collect();
-    let mut true_positives = 0;
-    let mut matched: Option<&T> = None;
-    for reference in references {
-        for &prediction in &remaining {
-            if reference == prediction {
-                matched = Some(prediction);
-                true_positives += 1;
-            }
-        }
-        if let Some(m) = matched
-            && let Some(at) = remaining.iter().position(|&p| p == m)
-        {
-            remaining.remove(at);
-        }
-    }
-    true_positives
-}
-
-/// OpenNLP-compatible `FMeasure.precision`, for golden comparisons only:
-/// [`opennlp_count_true_positives`] over the predictions, NaN with no
-/// predictions.
-#[cfg(feature = "jvm-goldens")]
-pub fn opennlp_precision<T: PartialEq>(references: &[T], predictions: &[T]) -> f64 {
-    if predictions.is_empty() {
-        return f64::NAN;
-    }
-    opennlp_count_true_positives(references, predictions) as f64 / predictions.len() as f64
-}
-
-/// OpenNLP-compatible `FMeasure.recall`, for golden comparisons only:
-/// [`opennlp_count_true_positives`] over the references, NaN with no
-/// references. It can exceed 1.
-#[cfg(feature = "jvm-goldens")]
-pub fn opennlp_recall<T: PartialEq>(references: &[T], predictions: &[T]) -> f64 {
-    if references.is_empty() {
-        return f64::NAN;
-    }
-    opennlp_count_true_positives(references, predictions) as f64 / references.len() as f64
 }
 
 /// The arithmetic mean of values: `opennlp.tools.util.eval.Mean`.
@@ -310,23 +225,6 @@ mod tests {
         assert!(precision::<&str>(&[], &[]).is_nan());
     }
 
-    #[cfg(feature = "jvm-goldens")]
-    #[test]
-    fn opennlp_true_positives_count_repeats_and_carry_the_last_match() {
-        assert_eq!(opennlp_count_true_positives(&["a"], &["a", "a"]), 2);
-        assert_eq!(opennlp_count_true_positives(&["a", "a"], &["a"]), 1);
-        // The first `a` counts all three and removes one; `b` matches
-        // nothing and removes another; the last `a` counts the one left.
-        assert_eq!(opennlp_count_true_positives(&["a", "b", "a"], &["a", "a", "a"]), 4);
-        assert_eq!(opennlp_count_true_positives(&["a", "b", "a"], &["a", "b", "a"]), 4);
-        assert_eq!(opennlp_count_true_positives::<&str>(&[], &["a"]), 0);
-        assert_eq!((opennlp_precision(&["a"], &["a", "a"]), opennlp_recall(&["a"], &["a", "a"])), (1.0, 2.0));
-        let mut f = FMeasure::opennlp();
-        f.update(&["a"], &["a", "a"]);
-        assert_eq!((f.precision(), f.recall()), (1.0, 2.0));
-        assert_eq!(f.f_measure(), 2.0 * 2.0 / 3.0);
-    }
-
     #[test]
     fn scores_and_their_zero_cases() {
         let mut f = FMeasure::default();
@@ -338,23 +236,6 @@ mod tests {
         f.merge(&g);
         assert_eq!((f.selected(), f.target(), f.true_positives()), (3, 3, 1));
         assert_eq!(precision(&["a"], &["a", "b"]), 0.5);
-    }
-
-    #[test]
-    fn opennlp_scoring_is_off_by_default_and_only_the_golden_test_turns_it_on() {
-        let manifest = include_str!("../../Cargo.toml");
-        let section = |name: &str| {
-            let start = manifest.find(name).unwrap_or_else(|| panic!("{name} in Cargo.toml"));
-            let rest = &manifest[start + name.len()..];
-            &rest[..rest.find("\n[").unwrap_or(rest.len())]
-        };
-        let features = section("[features]");
-        assert!(
-            !features.lines().any(|l| l.trim_start().starts_with("default")),
-            "jvm-goldens is not a default feature"
-        );
-        let test = section("[[test]]");
-        assert!(test.contains("name = \"evaluate\"") && test.contains("required-features = [\"jvm-goldens\"]"));
     }
 
     #[test]

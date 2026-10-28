@@ -28,19 +28,7 @@ turbo-maxent = { path = "../maxent" }
 # The constituency parse the OntoNotes and French Treebank readers make.
 turbo-parser = { path = "../parser" }
 
-[features]
-# OpenNLP's FMeasure counting (repeated predictions all count, so recall
-# can exceed 1), kept only to compare with the scores in the JVM evaluate
-# goldens. Off by default; the dev-dependency on this crate below turns it
-# on for its own tests.
-jvm-goldens = []
-
 [dev-dependencies]
-turbo-formats = { path = ".", features = ["jvm-goldens"] }
 turbo-goldens = { path = "../goldens" }
 turbo-normalize = { path = "../normalize" }
 turbo-structure = { path = "../structure" }
-
-[[test]]
-name = "evaluate"
-required-features = ["jvm-goldens"]

@@ -21,14 +21,6 @@ pub struct TokenizerEvaluator {
 }
 
 impl TokenizerEvaluator {
-    /// An evaluator that counts true positives as OpenNLP does
-    /// ([`FMeasure::opennlp`]): compatibility scoring, kept for comparing
-    /// with JVM goldens.
-    #[cfg(feature = "jvm-goldens")]
-    pub fn opennlp() -> TokenizerEvaluator {
-        TokenizerEvaluator { fmeasure: FMeasure::opennlp() }
-    }
-
     /// Scores the token spans `predicted`, byte spans of `reference`'s
     /// text.
     ///
@@ -123,14 +115,6 @@ impl SentenceDetectorEvaluator {
     /// An evaluator that trims spans of whitespace in `mode`.
     pub fn new(mode: WhitespaceMode) -> SentenceDetectorEvaluator {
         SentenceDetectorEvaluator { fmeasure: FMeasure::default(), mode }
-    }
-
-    /// An evaluator that trims spans of whitespace in `mode` and counts
-    /// true positives as OpenNLP does ([`FMeasure::opennlp`]):
-    /// compatibility scoring, kept for comparing with JVM goldens.
-    #[cfg(feature = "jvm-goldens")]
-    pub fn opennlp(mode: WhitespaceMode) -> SentenceDetectorEvaluator {
-        SentenceDetectorEvaluator { fmeasure: FMeasure::opennlp(), mode }
     }
 
     /// Scores the sentence spans `predicted`, byte spans of `reference`'s
