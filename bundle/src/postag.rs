@@ -1,11 +1,11 @@
 //! The bundle form of a BiLSTM(-CRF) part-of-speech model
-//! (`turbo-bundle postag-convert` and `postag-verify`).
+//! (`export` and `turbo-bundle postag-verify`).
 //!
-//! `ONLP-BLPT-1` to `-5` stays the interchange format. A bundle holds the
-//! same model for the device backends: every tensor as F32 safetensors
+//! Export accepts an already constructed native model, never an OpenNLP
+//! archive. A bundle stores every tensor as F32 safetensors
 //! and as an F16 copy for `FASTEST`, LSTM gate rows in `(i, f, g, o)`
 //! order, the vocabularies and tags as JSON, and a manifest that holds the
-//! SHA-256 of the source file and of every file written.
+//! native producer identity and the SHA-256 of every file written.
 
 use crate::Result;
 use serde::{Deserialize, Serialize};
@@ -24,15 +24,33 @@ const WEIGHTS_F32: &str = "weights.safetensors";
 const WEIGHTS_F16: &str = "weights-f16.safetensors";
 const VOCAB: &str = "vocab.json";
 
+/// Caller-supplied provenance of native parameters, not an archive identity
+/// or a claim that a model passed a training or accuracy gate.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct NativeSource {
+    pub id: String,
+    pub revision: String,
+}
+
+impl NativeSource {
+    fn check(&self) -> Result<()> {
+        if self.id.trim().is_empty() || self.revision.trim().is_empty() || self.id.starts_with("opennlp:") {
+            return Err("postag: native producer id and revision are required; OpenNLP provenance is retired".into());
+        }
+        Ok(())
+    }
+}
+
 /// `postag.json`.
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(deny_unknown_fields)]
 pub struct Manifest {
     pub format: String,
     pub version: u32,
-    /// SHA-256 of the `ONLP-BLPT` file the bundle was converted from.
-    pub source_sha256: String,
-    pub source_bytes: u64,
+    /// Native producer provenance. File digests below identify the exported
+    /// parameters and vocabulary, including their precision conversion.
+    pub native: NativeSource,
     pub license: String,
     pub gate_order: String,
     pub crf: bool,
@@ -69,25 +87,35 @@ fn vocab_json(v: &Vocabularies) -> Vec<u8> {
     .expect("JSON of strings and numbers")
 }
 
-/// Converts the `ONLP-BLPT` file `bin` into a new bundle directory `out`.
+/// Archive conversion is retired. No bytes are decoded and no path is accessed.
+pub fn convert(_bin: &[u8], _license: &str, _out: &Path) -> Result<()> {
+    Err("postag-convert is retired under #1511; use postag::export with native parameters".into())
+}
+
+/// Exports native parameters into a new bundle directory `out`.
 /// Rejects weights that narrow to non-finite F32 or F16 before creating
 /// the directory, so both advertised variants remain loadable.
-pub fn convert(bin: &[u8], license: &str, out: &Path) -> Result<()> {
-    let model = BilstmPosModel::load(bin).map_err(|e| format!("postag-convert: {e}"))?;
+/// Version 2 records explicit native provenance instead of claiming an archive
+/// source. F64 tensors are narrowed; no exact F64 inference parity is promised.
+pub fn export(model: &BilstmPosModel, native: &NativeSource, license: &str, out: &Path) -> Result<()> {
+    native.check()?;
+    if license.trim().is_empty() {
+        return Err("postag-export: license is required".into());
+    }
     let mut named = model.named_tensors();
     named.sort_by(|a, b| a.name.cmp(&b.name));
     let mut f32s = Vec::new();
     let mut f16s = Vec::new();
     for t in &named {
         if let Some(bad) = t.values.iter().find(|x| !(**x as f32).is_finite()) {
-            return Err(format!("postag-convert: {} holds {bad}, not a finite F32", t.name));
+            return Err(format!("postag-export: {} holds {bad}, not a finite F32", t.name));
         }
         let a: Vec<u8> = t.values.iter().flat_map(|&x| (x as f32).to_le_bytes()).collect();
         let mut h = Vec::with_capacity(t.values.len() * 2);
         for &value in &t.values {
             let narrowed = half::f16::from_f64(value);
             if !narrowed.is_finite() {
-                return Err(format!("postag-convert: {} holds {value}, not a finite F16", t.name));
+                return Err(format!("postag-export: {} holds {value}, not a finite F16", t.name));
             }
             h.extend_from_slice(&narrowed.to_le_bytes());
         }
@@ -101,9 +129,8 @@ pub fn convert(bin: &[u8], license: &str, out: &Path) -> Result<()> {
     ];
     let manifest = Manifest {
         format: FORMAT.into(),
-        version: 1,
-        source_sha256: digest(bin),
-        source_bytes: bin.len() as u64,
+        version: 2,
+        native: native.clone(),
         license: license.into(),
         gate_order: "i,f,g,o".into(),
         crf: model.is_crf(),
@@ -111,7 +138,7 @@ pub fn convert(bin: &[u8], license: &str, out: &Path) -> Result<()> {
         adapter: model.has_adapter(),
         files: files.iter().map(|(n, b)| ((*n).to_owned(), digest(b))).collect(),
     };
-    fs::create_dir(out).map_err(|e| format!("{}: {e} (postag-convert writes a new directory)", out.display()))?;
+    fs::create_dir(out).map_err(|e| format!("{}: {e} (postag-export writes a new directory)", out.display()))?;
     for (name, bytes) in &files {
         fs::write(out.join(name), bytes).map_err(|e| format!("{name}: {e}"))?;
     }
@@ -123,12 +150,16 @@ fn read(dir: &Path, name: &str) -> Result<Vec<u8>> {
     fs::read(dir.join(name)).map_err(|e| format!("{}: {e}", dir.join(name).display()))
 }
 
-/// Reads the manifest and checks every file against its digest, and,
-/// given the source file, that the bundle was converted from it.
-pub fn verify(dir: &Path, source: Option<&[u8]>) -> Result<Manifest> {
+/// Reads a native version-2 manifest and checks every file against its digest.
+/// Use [`load`] to additionally validate tensor shapes, types and model flags.
+pub fn verify(dir: &Path) -> Result<Manifest> {
     let m: Manifest = serde_json::from_slice(&read(dir, MANIFEST)?).map_err(|e| format!("{MANIFEST}: {e}"))?;
-    if m.format != FORMAT || m.version != 1 || m.gate_order != "i,f,g,o" {
-        return Err(format!("{MANIFEST}: not a {FORMAT} version 1 bundle with (i, f, g, o) gates"));
+    if m.format != FORMAT || m.version != 2 || m.gate_order != "i,f,g,o" {
+        return Err(format!("{MANIFEST}: not a {FORMAT} version 2 native bundle with (i, f, g, o) gates"));
+    }
+    m.native.check()?;
+    if m.license.trim().is_empty() {
+        return Err(format!("{MANIFEST}: license is required"));
     }
     let want: Vec<&str> = vec![VOCAB, WEIGHTS_F16, WEIGHTS_F32];
     if m.files.keys().map(String::as_str).collect::<Vec<_>>() != want {
@@ -140,22 +171,13 @@ pub fn verify(dir: &Path, source: Option<&[u8]>) -> Result<Manifest> {
             return Err(format!("{name}: SHA-256 {got}, the manifest says {sha}"));
         }
     }
-    if let Some(src) = source {
-        let got = digest(src);
-        if got != m.source_sha256 || src.len() as u64 != m.source_bytes {
-            return Err(format!(
-                "the source file's SHA-256 is {got}; the bundle was converted from {}",
-                m.source_sha256
-            ));
-        }
-    }
     Ok(m)
 }
 
 /// The model a verified bundle holds, from its F32 weights, or from the
 /// F16 copy when `f16`.
 pub fn load(dir: &Path, f16: bool) -> Result<BilstmPosModel> {
-    verify(dir, None)?;
+    let manifest = verify(dir)?;
     #[derive(Deserialize)]
     struct V {
         words: Vec<(String, usize)>,
@@ -193,5 +215,9 @@ pub fn load(dir: &Path, f16: bool) -> Result<BilstmPosModel> {
     if let Some(b) = bad {
         return Err(b);
     }
-    model.map_err(|e| format!("{}: {e}", dir.display()))
+    let model = model.map_err(|e| format!("{}: {e}", dir.display()))?;
+    if (manifest.crf, manifest.stacked, manifest.adapter) != (model.is_crf(), model.is_stacked(), model.has_adapter()) {
+        return Err(format!("{MANIFEST}: model flags do not match the tensors"));
+    }
+    Ok(model)
 }
