@@ -1,11 +1,17 @@
-//! Property tests: UTF-16 stemming and offset round trips.
+//! Pure-Rust property tests for stemmers (no JVM goldens).
 //!
 //! Stemmers work in UTF-16 code units. Offsets into the source text must
 //! still round-trip through UTF-16 and code-point tables after stemming,
 //! so a view that replaces a word with its stem can map spans back.
 
-use turbo_analysis::OffsetTable;
-use turbo_stem::{Algorithm, LightStemmer, NorwegianStandard, SnowballAlgorithm, SnowballStemmer, Stemmer};
+use turbo_analysis::{
+    Analyzer, Bound, Document, Key, Layer, OffsetTable, Provenance, Span, Spans, ViewId,
+};
+use turbo_analysis_layers::Tokens;
+use turbo_stem::{
+    Algorithm, LightStemmer, NorwegianStandard, SnowballAlgorithm, SnowballStemmer, StemAnnotator,
+    Stemmer, Stems,
+};
 
 fn sample_algorithms() -> Vec<Algorithm> {
     use LightStemmer as L;
@@ -28,8 +34,19 @@ fn to_utf16(s: &str) -> Vec<u16> {
     s.encode_utf16().collect()
 }
 
+fn space_tokens(text: &str) -> Tokens {
+    let mut spans = Spans::new(ViewId::SOURCE);
+    let mut start = 0usize;
+    for piece in text.split(' ') {
+        let end = start + piece.len();
+        spans.push(Span::new(start as u32, end as u32));
+        start = end + 1;
+    }
+    Tokens { spans, sentence: None }
+}
+
 #[test]
-fn stem_utf16_matches_stem_on_bmp_words() {
+fn every_stemmer_returns_valid_utf8_and_matches_borrow_equivalence() {
     let words = ["", "a", "running", "GENERALIZATIONS", "café", "re-enter", "o'clock", "1990s"];
     let mut out = Vec::new();
     for algorithm in sample_algorithms() {
@@ -37,24 +54,82 @@ fn stem_utf16_matches_stem_on_bmp_words() {
             out.clear();
             algorithm.stem_utf16(&to_utf16(w), &mut out);
             let via_str = algorithm.stem(w);
-            let from_utf16: String = String::from_utf16(&out).unwrap_or_else(|_| {
-                // Lone surrogates are not valid UTF-8; BMP samples must decode.
+            let from_utf16 = String::from_utf16(&out).unwrap_or_else(|_| {
                 panic!("{algorithm:?} {w}: stem_utf16 not UTF-16 scalar sequence: {out:?}");
             });
             assert_eq!(from_utf16, via_str, "{algorithm:?} {w}");
+            assert!(from_utf16.is_char_boundary(from_utf16.len()));
         }
     }
 }
 
 #[test]
-fn empty_and_short_words_are_stable() {
+fn porter_never_grows_ascii_words_and_is_idempotent_after_two_passes() {
+    let porter = Algorithm::Porter;
+    let words = [
+        "a", "run", "running", "generalizations", "ponies", "caresses", "relational", "allowed",
+        "misc", "overhead", "xyz",
+    ];
+    let mut once = Vec::new();
+    let mut twice = Vec::new();
+    for w in words {
+        let units = to_utf16(w);
+        once.clear();
+        porter.stem_utf16(&units, &mut once);
+        assert!(once.len() <= units.len(), "porter grew {w}: {} -> {}", units.len(), once.len());
+        twice.clear();
+        porter.stem_utf16(&once, &mut twice);
+        assert_eq!(once, twice, "porter not idempotent on {w}: {once:?} vs {twice:?}");
+    }
+}
+
+#[test]
+fn snowball_stemmers_never_panic_on_arbitrary_unicode_or_long_runs() {
+    let probes = [
+        "",
+        "a",
+        "\u{0}",
+        "\u{FFFF}",
+        "🐶🐱",
+        "a\u{0301}",
+        &"x".repeat(10_000),
+        &"ß".repeat(1_000),
+        "مرحبا",
+        "Ελληνικά",
+    ];
     let mut out = Vec::new();
-    for algorithm in sample_algorithms() {
-        for w in ["", "a", "ab", "é", "ß"] {
+    for algorithm in SnowballAlgorithm::ALL {
+        let stemmer = SnowballStemmer::new(algorithm);
+        for p in probes {
+            out.clear();
+            stemmer.stem_utf16(&to_utf16(p), &mut out);
+            let _ = String::from_utf16_lossy(&out);
+        }
+        // Lone surrogate units must not panic.
+        out.clear();
+        stemmer.stem_utf16(&[0xD800, 0x0041, 0xDC00], &mut out);
+    }
+}
+
+#[test]
+fn light_stemmers_never_grow_short_ascii_and_leave_empty_intact() {
+    // OpenNLP has no Lancaster here; light stemmers are the closest pure-Rust
+    // analogue for intact/min-length behaviour on short input.
+    let lights = [
+        Algorithm::Light(LightStemmer::EnglishMinimal),
+        Algorithm::Light(LightStemmer::FrenchLight),
+        Algorithm::Light(LightStemmer::GermanMinimal),
+        Algorithm::Light(LightStemmer::SpanishMinimal),
+    ];
+    let mut out = Vec::new();
+    for algorithm in lights {
+        for w in ["", "a", "ab", "the", "ing"] {
             out.clear();
             algorithm.stem_utf16(&to_utf16(w), &mut out);
-            // Stem length never grows for these light/snowball samples on short input.
-            assert!(out.len() <= to_utf16(w).len() + 4, "{algorithm:?} {w} -> {out:?}");
+            if w.is_empty() {
+                assert!(out.is_empty(), "{algorithm:?} empty -> {out:?}");
+            }
+            assert!(out.len() <= to_utf16(w).len() + 2, "{algorithm:?} {w} -> {out:?}");
         }
     }
 }
@@ -91,5 +166,37 @@ fn offset_tables_round_trip_on_words_and_stems() {
             let u16 = stem_table.to_utf16(&stem, byte as u32);
             assert_eq!(stem_table.from_utf16(&stem, u16).unwrap(), byte as u32);
         }
+    }
+}
+
+#[test]
+fn stems_layer_check_aligns_to_tokens() {
+    // Stems lives in analysis-layers (src/); we only assert the layer contract
+    // from tests/ here — one stem per token, Layer::check, unescape not needed.
+    let text = "the cats were running";
+    let algorithm = Algorithm::Snowball(SnowballStemmer::new(SnowballAlgorithm::English));
+    let analyzer = Analyzer::builder()
+        .given(Key::<Tokens>::DEFAULT)
+        .step(Bound::new(StemAnnotator::new(algorithm)))
+        .build()
+        .unwrap();
+    let mut doc = Document::new(text);
+    doc.add(&Key::DEFAULT, space_tokens(text), Provenance::by("test")).unwrap();
+    let mut docs = vec![doc];
+    assert!(analyzer.run(&mut docs).iter().all(Result::is_ok));
+    let doc = &docs[0];
+    let tokens = doc.get::<Tokens>().unwrap();
+    let stems = doc.get::<Stems>().unwrap();
+    assert_eq!(stems.len(), tokens.spans.len());
+    assert_eq!(stems.stem.len(), tokens.spans.len());
+    // stem-layers/src is untouched (Block 2 owns tests/ only). Enforce the
+    // layer contract from tests: length alignment + Layer::check.
+    stems.check().unwrap_or_else(|e| panic!("Stems::check: {e}"));
+    for (i, span) in tokens.spans.iter() {
+        let piece = &doc.source()[span.range()];
+        if span.start != span.end {
+            assert!(!piece.is_empty());
+        }
+        let _ = stems.stem.get(i.get());
     }
 }

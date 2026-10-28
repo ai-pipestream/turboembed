@@ -221,6 +221,7 @@ a directory with the same model run without them, and its options are
 | `tag-dictionary` (`POSDictionary`) | `tags`, `tags-cases`, `tags-exact`, `pos-fixture` (fixtures); `opennlp-en-ud-ewt-pos-1.3-2.5.4`, `en-pos-maxent`, `en-pos-perceptron` | `sequence` (the `sentences` input) | |
 | `tag-format` (`POSTagFormatMapper`) | `pos-fixture` (fixture), `opennlp-en-ud-ewt-pos-1.3-2.5.4`, `en-pos-maxent`, `en-pos-perceptron`; `guesses` | `sequence` (the `sentences` input); `guesses` on `tag-format` | |
 | `namefind` (`DictionaryNameFinder`, `RegexNameFinder`, `NameFinderME.dropOverlappingSpans`) | `generated`, `dictionary`, `regex-builtin`, `regex-factory`, `regex-user`, `merge`, with the fixtures in `namefind/` | `namefind` | |
+| `stem` (`PorterStemmer`, `SnowballStemmer`, the light and minimal stemmers) | `porter`, `snowball-<language>`, `snowball-<language>-repeat2`, `<language>-light`, `<language>-minimal`, and the Norwegian ones by variety | `stem`: `edge`, the stemmer's language and `generated-<language>` | `stemmer` |
 | `hunspell` (`HunspellDictionary`, `HunspellStemmer` of the `OPENNLP-1927-hunspell-compatibility` branch) | `en_US`, `de_DE_frami`, `hu_HU` (downloaded); `fixture-<name>` for each fixture in `hunspell/`, and `fixture-unsupported-directives+partial` | `hunspell`: `edge` and the run's own; `stem`: the Snowball sample of the dictionary's language | `mode`, `branchCommit` |
 | `stopword` (`StopwordLists`, `StopwordFilter`, `StopwordFilteringTokenizer`) | `lists`, `codes`, `words`, `filter`, `letters` | `stopword`: `codes` for `codes`, `words` for the others | |
 | `glossary` (`AhoCorasickGlossaryMatcher`, `TermAnalyzingGlossaryMatcher`, `CompositeGlossaryMatcher`, `CsvGlossaryReader`, `TbxGlossaryReader`) | `exact`, `ignore-case`, `whitespace+ignore-case`, `analyzed`, `composite` (the fixture `glossary-terms.tsv`); `csv`, `tsv-header`, `tbx-en`, `tbx-de` | `glossary`: the `text-` inputs for the matchers, the `csv-`, `tsv-` and `tbx-` inputs for the readers | `ignoreCase`, `normalizer`, `analyzer`; `delimiter`, `skipHeader`; `languageTag` |
@@ -1361,7 +1362,7 @@ The command:
    the rate snapshot mounted as `generate` mounts them, and with
    `--skip-annotators` set to `turbo_fuzz::runs::NOT_COVERED` (the training,
    format reader, evaluator, detokenizer, BPE, parse, sequence, name finder,
-   stopword and glossary annotators),
+   stemmer, stopword and glossary annotators),
    the annotators the differential does not cover; the goldens go under
    `<out>/jvm/`;
 3. compares every golden with the Rust side (`turbo_fuzz::compare_tree`),
@@ -1415,10 +1416,10 @@ The generator's two options behind this are general: `--skip-annotators
 follow the five positional arguments, in any order with `--dumps`, and
 the inputs directory may hold any subset of the sets.
 
-## Sequence, name finder, stopword and glossary goldens
+## Sequence, name finder, stemmer, stopword and glossary goldens
 
 These runs are the parity tests of `turbo-sequence`, `turbo-namefind`,
-`turbo-hunspell`, `turbo-stopword` and `turbo-glossary`; each
+`turbo-stem`, `turbo-hunspell`, `turbo-stopword` and `turbo-glossary`; each
 crate's README describes its inputs, fixtures and layers, and the Java class of
 each run says what it records. Their layers are anchored to the document, but
 for the glossary matchers' matches and analyzed terms, which are spans of the
