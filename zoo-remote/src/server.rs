@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use tokio::runtime::{Builder, Runtime};
-use tonic::transport::{Channel, ClientTlsConfig, Endpoint};
+use tonic::transport::{Channel, Endpoint};
 use turbo_zoo::{Artifact, File, Transport, Url, UserId, most_bytes};
 
 use crate::proto::ReadModelFileRequest;
@@ -49,11 +49,7 @@ impl ZooServer {
         let mut endpoint = Endpoint::from_shared(http).map_err(|e| format!("{address}: {e}"))?;
         endpoint = endpoint.connect_timeout(Duration::from_secs(10));
         if tls {
-            let config = match ca_pem {
-                Some(pem) => ClientTlsConfig::new().ca_certificate(tonic::transport::Certificate::from_pem(pem)),
-                None => ClientTlsConfig::new().with_webpki_roots(),
-            };
-            endpoint = endpoint.tls_config(config).map_err(|e| format!("{address}: {e}"))?;
+            endpoint = with_tls(endpoint, ca_pem).map_err(|e| format!("{address}: {e}"))?;
         }
         let runtime = Builder::new_current_thread().enable_all().build().map_err(|e| format!("{address}: {e}"))?;
         let channel = {
@@ -98,6 +94,23 @@ impl ZooServer {
         }
         Ok(out)
     }
+}
+
+/// `endpoint` over TLS, trusting `ca_pem` alone when given, else the public
+/// web roots.
+#[cfg(feature = "tls")]
+fn with_tls(endpoint: Endpoint, ca_pem: Option<&[u8]>) -> Result<Endpoint, String> {
+    use tonic::transport::{Certificate, ClientTlsConfig};
+    let config = match ca_pem {
+        Some(pem) => ClientTlsConfig::new().ca_certificate(Certificate::from_pem(pem)),
+        None => ClientTlsConfig::new().with_webpki_roots(),
+    };
+    endpoint.tls_config(config).map_err(|e| e.to_string())
+}
+
+#[cfg(not(feature = "tls"))]
+fn with_tls(_endpoint: Endpoint, _ca_pem: Option<&[u8]>) -> Result<Endpoint, String> {
+    Err("grpcs:// needs the tls feature, which this build leaves out".into())
 }
 
 impl Transport for ZooServer {

@@ -12,11 +12,18 @@ name = "turbo_zoo_remote"
 turbo-zoo = { path = "../analysis/zoo", default-features = false }
 # The zoo server's client, over the tonic stack the server already uses
 # (outside analysis/, whose crates keep to the plain dependency allowlist);
-# webpki roots for grpcs://, the same roots ureq trusts.
+# grpcs:// is the tls feature's.
 prost = "0.14"
 tokio = { version = "1", features = ["rt"] }
-tonic = { version = "0.14", default-features = false, features = ["transport", "codegen", "channel", "tls-ring", "tls-webpki-roots"] }
+tonic = { version = "0.14", default-features = false, features = ["transport", "codegen", "channel"] }
 tonic-prost = "0.14"
+
+[features]
+default = ["tls"]
+# grpcs://: TLS with the public web roots (the webpki roots ureq trusts)
+# or a private CA. Without it the crate builds with no TLS stack, which
+# the arm64 check in CI needs, and a grpcs:// address is refused.
+tls = ["tonic/tls-ring", "tonic/tls-webpki-roots"]
 
 [build-dependencies]
 # Compiles the server's turbo_training.proto without protoc, as the
