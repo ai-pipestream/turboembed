@@ -32,11 +32,16 @@ pub struct LemmaExample {
 
 /// The trees of the training pairs that come up at least `min_freq`
 /// times, as labels: most frequent first, then by label, at most the
-/// labels a head holds, none longer than a label may be.
+/// labels a head holds, none longer than a label may be. A pair whose
+/// tree the core would refuse on its own form (an empty lemma for a
+/// word) gives none.
 pub fn mine_trees<'a>(pairs: impl IntoIterator<Item = (&'a str, &'a str)>, min_freq: usize) -> Vec<String> {
     let mut counts: HashMap<String, usize> = HashMap::new();
     for (form, lemma) in pairs {
-        *counts.entry(EditTree::mine(form, lemma).label()).or_default() += 1;
+        let tree = EditTree::mine(form, lemma);
+        if tree.apply(form).is_some() {
+            *counts.entry(tree.label()).or_default() += 1;
+        }
     }
     let mut kept: Vec<(String, usize)> =
         counts.into_iter().filter(|(l, c)| *c >= min_freq.max(1) && l.len() <= MAX_LABEL).collect();

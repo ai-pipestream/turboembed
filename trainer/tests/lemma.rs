@@ -100,6 +100,19 @@ fn trees_are_mined_by_frequency_then_label_and_rare_ones_dropped() {
     assert_eq!(mine_trees(pairs.iter().copied(), 2).len(), 2);
 }
 
+#[test]
+fn a_pair_whose_tree_empties_its_word_is_not_mined() {
+    // A word with an empty lemma, and "walked" -> "walk" whose suffix
+    // tree would empty "ed": the first gives no tree, the second keeps
+    // its own.
+    let pairs = [("ed", ""), ("ed", ""), ("walked", "walk")];
+    let all = mine_trees(pairs.iter().copied(), 1);
+    assert_eq!(all.len(), 1, "{all:?}");
+    let tree = EditTree::parse(&all[0]).unwrap();
+    assert_eq!(tree.apply("walked").as_deref(), Some("walk"));
+    assert_eq!(tree.apply("ed"), None, "the core refuses an empty lemma");
+}
+
 const STEMS: [&str; 12] =
     ["walk", "jump", "talk", "look", "cook", "play", "work", "call", "pull", "kick", "lift", "mix"];
 
