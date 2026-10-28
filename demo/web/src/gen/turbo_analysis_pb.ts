@@ -1,9 +1,10 @@
 // The shared analysis result layer over gRPC (docs/grpc-analysis.md),
 // beside the vendored Open Inference Protocol file: the Stage 5 result
-// kinds of epic #151, so an analysis result crosses a process boundary
-// the way the in-process layers hold it, and a capability call that
-// lists what every loaded bundle is, so a client rejects an incompatible
-// request before sending it.
+// kinds of epic #151 (including typed document and grammar diagnostics
+// projections via turbo_typed_annotations.proto), so an analysis result
+// crosses a process boundary the way the in-process layers hold it, and a
+// capability call that lists what every loaded bundle is, so a client
+// rejects an incompatible request before sending it.
 //
 // SPDX-License-Identifier: Apache-2.0
 
