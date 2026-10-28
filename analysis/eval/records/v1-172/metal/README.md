@@ -1,11 +1,11 @@
 # #172 chunker v1 records: Metal (Apple M2)
 
-Commit 16e74c040898d961d0c50e4e9bf1412f1722f86c (claude/172-dump-cuts), release build, `--device metal`;
-every record's provenance names backend `metal` on the Apple M2 and this commit.
+Commit 0d58e8629e85345b5c585c4beffa39b66a63c248 (main, with the rule sentence splitter turbo-sentdetect:rules en v3),
+release build, `--device metal`. Every record's provenance names backend `metal` on the Apple M2 and this commit.
 Bundle all-MiniLM-L6-v2, manifest sha256 0f17adc4b795ed27bbe59ec88d35d37bf10f25af15f07b09f3249e5c1001b6d3.
-Sets scifact, nfcorpus, arguana, qasper; retrieval hybrid. TURBO_GOLDENS_MODELS held
-opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin. Records were written outside the tree with `--out` (the tool refuses
-a dirty tree) and copied here unchanged; logs have the scratch directory replaced by `$SCRATCH`.
+Sets scifact, nfcorpus, arguana, qasper; retrieval hybrid. No TURBO_GOLDENS_MODELS (the rule splitter needs no model).
+Records were written outside the tree with `--out` (the tool refuses a dirty tree) and copied here unchanged;
+logs have the scratch directory replaced by `$SCRATCH`. These replace the earlier Metal records taken at 16e74c04.
 
 Command per pipeline:
 
@@ -15,28 +15,27 @@ cargo run --release -p turbo-eval --features turbo/metal -- run --bundle <bundle
   --out <out>/<name> [--dump-cuts <dumps>/<name>] <chunker flags>
 ```
 
-| Pipeline | Chunker flags | Wall (s) | Load 1/5/15 at start | GPU busy at start |
-|---|---|---|---|---|
-| turbo-chunker-254-200-hybrid | --chunker turbo-chunker --max 254 --target 200 (cuts dumped) | 299.8 | 9.47 32.92 24.33 | 24% |
-| turbo-chunker-254-200-cohesion-1000-hybrid | --chunker turbo-chunker --max 254 --target 200 --cohesion 1000 (cuts dumped) | 710.7 | 8.48 18.16 19.95 | 20% |
-| sentence-windows-5-hybrid | --chunker sentence-windows --window 5 | 321.4 | 4.96 10.02 14.23 | 0% |
-| fixed-tokens-200-hybrid | --chunker fixed-tokens --tokens 200 --overlap 0 | 337.8 | 6.85 7.53 11.58 | 12% |
-| opennlp-sandbox-semantic-hybrid | --chunker opennlp-sandbox-semantic | 572.4 | 8.03 8.16 10.36 | 17% |
+| Pipeline | Chunker flags | Load 1/5/15 at start | GPU busy at start |
+|---|---|---|---|
+| turbo-chunker-254-200-hybrid | --chunker turbo-chunker --max 254 --target 200 (cuts dumped) | 14.35 6.97 5.06 | 45% |
+| turbo-chunker-254-200-cohesion-1000-hybrid | --chunker turbo-chunker --max 254 --target 200 --cohesion 1000 (cuts dumped) | 6.11 6.56 5.25 | 0% |
+| sentence-windows-5-hybrid | --chunker sentence-windows --window 5 | 3.70 5.18 5.00 | 0% |
+| fixed-tokens-200-hybrid | --chunker fixed-tokens --tokens 200 --overlap 0 | 3.36 4.15 4.56 | 0% |
+| opennlp-sandbox-semantic-hybrid | --chunker opennlp-sandbox-semantic | 5.37 5.03 4.77 | 36% |
 
-Host load: the M2 is a busy desktop (desktop apps on the GPU, outside builds). These are quality records, not
-timing receipts; wall times above are context only and not a speed claim. Load and GPU utilisation before and
-after each run are in `logs/`.
+The M2 is a shared desktop. These are quality records only and make no timing claim. Load and GPU utilisation
+before and after each run are in `logs/`.
 
 Cut dumps (not committed, about 107 MB per pipeline) are on the B70 host under
-eval-cuts-172/metal/<name>/<set>.cuts. sha256:
+eval-cuts-172-main/metal/<name>/<set>.cuts. sha256:
 
 ```
-9775d44d55477ec71b235d59b41078d941f057746601f708a3c4191393cc88ed  turbo-chunker-254-200-cohesion-1000-hybrid/arguana.cuts
-8b2dc617bbdb11e797113e3eb33090db8f819e52732f17a70852faeb228d9af9  turbo-chunker-254-200-cohesion-1000-hybrid/nfcorpus.cuts
-a19a96913fc885b44b80c429ffa3bd09e8f57cc4dd5fd4391bbac37385f39d80  turbo-chunker-254-200-cohesion-1000-hybrid/qasper.cuts
-92f709d695b850abd692c0dddb1874bc31b2fb61597cefa1dd8d51f274a7acaa  turbo-chunker-254-200-cohesion-1000-hybrid/scifact.cuts
-9a5a5ef46b6b63a8783bc8a9af037ff99302fe1c3b94378f85f5dc4ea90eee05  turbo-chunker-254-200-hybrid/arguana.cuts
-21326dd638bed5386f243aa21060debaff7d6d5acb1e7cc9035a53ba3e7cc260  turbo-chunker-254-200-hybrid/nfcorpus.cuts
-17b87654c86e950d9a3252af0055d280b69829b1e11efbf0fad2842bad8a137c  turbo-chunker-254-200-hybrid/qasper.cuts
-97b97b6e7a3dac17c9a088dea9551fdbd6cf27c70d1c15aab0caa1577e18f4d2  turbo-chunker-254-200-hybrid/scifact.cuts
+dc90c4a7f3d456cbff9215d35006b2fbf80248bb26b93438dbcd5f332787ba8e  turbo-chunker-254-200-cohesion-1000-hybrid/arguana.cuts
+30720d47916c9f4048c64a60c3836968cf925b158c96c06e97bcd8b2be7ce8e9  turbo-chunker-254-200-cohesion-1000-hybrid/nfcorpus.cuts
+b6e9e04314c27fdf4200cfda319823a8a2e674cb10c886c20a360dc2a756e2c2  turbo-chunker-254-200-cohesion-1000-hybrid/qasper.cuts
+18549d73f992b22e24d8a338496a71da1a5913a0e05788b01a7b5b53ecdba08d  turbo-chunker-254-200-cohesion-1000-hybrid/scifact.cuts
+441808cdc3a64195c1f6a3ccc01cf17796f5dfde5540af84aa667b6da0dee94f  turbo-chunker-254-200-hybrid/arguana.cuts
+18f9fcf502f817bd0c0ae536b588f21f68caa08d9596db3c4164b1d04798fb1a  turbo-chunker-254-200-hybrid/nfcorpus.cuts
+640cc529cf3655d31c4aaf98117f5acb7612763b5f82d67ef347b721452e5ba0  turbo-chunker-254-200-hybrid/qasper.cuts
+5b9a9a1dcf8b568cf4f114720d6dafb7e17a5e84010e751aec6ba7a668eb00c2  turbo-chunker-254-200-hybrid/scifact.cuts
 ```

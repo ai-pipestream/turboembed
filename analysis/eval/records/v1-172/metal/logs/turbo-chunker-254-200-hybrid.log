@@ -1,38 +1,38 @@
-== turbo-chunker-254-200-hybrid 2026-10-28T01:39:34Z head 16e74c040898d961d0c50e4e9bf1412f1722f86c
-21:39  up 18 days, 14:49, 5 users, load averages: 9.47 32.92 24.33
-"Device Utilization %"=24
+== turbo-chunker-254-200-hybrid 2026-10-28T08:26:47Z head 0d58e8629e85345b5c585c4beffa39b66a63c248
+ 4:26  up 18 days, 21:36, 6 users, load averages: 14.35 6.97 5.06
+"Device Utilization %"=45
 cmd: cargo run --release -p turbo-eval --features turbo/metal -- run --bundle ~/turbo-bundles/all-minilm-l6-v2-r4 --sets scifact,nfcorpus,arguana,qasper --cache ~/eval-cache --device metal --retrieval hybrid --out $SCRATCH/records/turbo-chunker-254-200-hybrid --dump-cuts $SCRATCH/cuts/turbo-chunker-254-200-hybrid --chunker turbo-chunker --max 254 --target 200
-    Finished `release` profile [optimized] target(s) in 0.07s
+    Finished `release` profile [optimized] target(s) in 0.15s
      Running `target/release/turbo-eval run --bundle ~/turbo-bundles/all-minilm-l6-v2-r4 --sets scifact,nfcorpus,arguana,qasper --cache ~/eval-cache --device metal --retrieval hybrid --out $SCRATCH/records/turbo-chunker-254-200-hybrid --dump-cuts $SCRATCH/cuts/turbo-chunker-254-200-hybrid --chunker turbo-chunker --max 254 --target 200`
-set scifact: the cuts of 5183 documents in $SCRATCH/cuts/turbo-chunker-254-200-hybrid/scifact.cuts
-set nfcorpus: the cuts of 3633 documents in $SCRATCH/cuts/turbo-chunker-254-200-hybrid/nfcorpus.cuts
+set scifact: the cuts of 5183 documents in artifact scifact.cuts
+set nfcorpus: the cuts of 3633 documents in artifact nfcorpus.cuts
 set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
-set arguana: the cuts of 8674 documents in $SCRATCH/cuts/turbo-chunker-254-200-hybrid/arguana.cuts
+set arguana: the cuts of 8674 documents in artifact arguana.cuts
 set qasper: 21 judgements could not be placed in their document and are left out
-set qasper: the cuts of 416 documents in $SCRATCH/cuts/turbo-chunker-254-200-hybrid/qasper.cuts
+set qasper: the cuts of 416 documents in artifact qasper.cuts
 $SCRATCH/records/turbo-chunker-254-200-hybrid/scifact.json
 $SCRATCH/records/turbo-chunker-254-200-hybrid/nfcorpus.json
 $SCRATCH/records/turbo-chunker-254-200-hybrid/arguana.json
 $SCRATCH/records/turbo-chunker-254-200-hybrid/qasper.json
-      299.75 real       127.15 user         2.16 sys
-           403423232  maximum resident set size
+      199.52 real       121.33 user         1.68 sys
+           392708096  maximum resident set size
                    0  average shared memory size
                    0  average unshared data size
                    0  average unshared stack size
-               40951  page reclaims
-                 175  page faults
+               45888  page reclaims
+                1340  page faults
                    0  swaps
                    0  block input operations
                    0  block output operations
                    0  messages sent
                    0  messages received
                    0  signals received
-                  61  voluntary context switches
-              221856  involuntary context switches
-        527484186727  instructions retired
-        245041766033  cycles elapsed
-           557269976  peak memory footprint
+                 168  voluntary context switches
+              163462  involuntary context switches
+        538568660783  instructions retired
+        237101073243  cycles elapsed
+           586154992  peak memory footprint
 exit 0
-== end 2026-10-28T01:44:33Z
-21:44  up 18 days, 14:54, 5 users, load averages: 8.48 18.16 19.95
-"Device Utilization %"=95
+== end 2026-10-28T08:30:06Z
+ 4:30  up 18 days, 21:39, 6 users, load averages: 6.11 6.56 5.25
+"Device Utilization %"=97

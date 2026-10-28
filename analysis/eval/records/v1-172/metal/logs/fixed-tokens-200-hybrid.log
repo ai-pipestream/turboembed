@@ -1,8 +1,8 @@
-== fixed-tokens-200-hybrid 2026-10-28T02:01:46Z head 16e74c040898d961d0c50e4e9bf1412f1722f86c
-22:01  up 18 days, 15:11, 6 users, load averages: 6.85 7.53 11.58
-"Device Utilization %"=12
+== fixed-tokens-200-hybrid 2026-10-28T08:41:48Z head 0d58e8629e85345b5c585c4beffa39b66a63c248
+ 4:41  up 18 days, 21:51, 6 users, load averages: 3.36 4.15 4.56
+"Device Utilization %"=0
 cmd: cargo run --release -p turbo-eval --features turbo/metal -- run --bundle ~/turbo-bundles/all-minilm-l6-v2-r4 --sets scifact,nfcorpus,arguana,qasper --cache ~/eval-cache --device metal --retrieval hybrid --out $SCRATCH/records/fixed-tokens-200-hybrid --chunker fixed-tokens --tokens 200 --overlap 0
-    Finished `release` profile [optimized] target(s) in 0.31s
+    Finished `release` profile [optimized] target(s) in 0.29s
      Running `target/release/turbo-eval run --bundle ~/turbo-bundles/all-minilm-l6-v2-r4 --sets scifact,nfcorpus,arguana,qasper --cache ~/eval-cache --device metal --retrieval hybrid --out $SCRATCH/records/fixed-tokens-200-hybrid --chunker fixed-tokens --tokens 200 --overlap 0`
 set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
 set qasper: 21 judgements could not be placed in their document and are left out
@@ -10,25 +10,25 @@ $SCRATCH/records/fixed-tokens-200-hybrid/scifact.json
 $SCRATCH/records/fixed-tokens-200-hybrid/nfcorpus.json
 $SCRATCH/records/fixed-tokens-200-hybrid/arguana.json
 $SCRATCH/records/fixed-tokens-200-hybrid/qasper.json
-      337.78 real       144.43 user         2.42 sys
-           372817920  maximum resident set size
+      280.59 real       133.04 user         1.70 sys
+           331415552  maximum resident set size
                    0  average shared memory size
                    0  average unshared data size
                    0  average unshared stack size
-               38054  page reclaims
-                1514  page faults
+               45080  page reclaims
+                1532  page faults
                    0  swaps
                    0  block input operations
                    0  block output operations
                    0  messages sent
                    0  messages received
                    0  signals received
-                  61  voluntary context switches
-              252543  involuntary context switches
-        579130131467  instructions retired
-        274431237961  cycles elapsed
-           536413120  peak memory footprint
+                1531  voluntary context switches
+              175468  involuntary context switches
+        583314298140  instructions retired
+        259708628200  cycles elapsed
+           563479512  peak memory footprint
 exit 0
-== end 2026-10-28T02:07:24Z
-22:07  up 18 days, 15:16, 6 users, load averages: 8.03 8.16 10.36
+== end 2026-10-28T08:46:28Z
+ 4:46  up 18 days, 21:55, 6 users, load averages: 5.37 5.03 4.77
 "Device Utilization %"=98
