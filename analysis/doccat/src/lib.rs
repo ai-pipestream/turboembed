@@ -11,8 +11,9 @@
 //! - [`scorers`] defines the vector-head and category scorer traits
 //!   ([`PragmaticsVectorScorer`], [`EmotionVectorScorer`],
 //!   [`IncivilityVectorScorer`], and [`AspectCategoryScorer`]) and re-exports
-//!   the sentiment and pragmatics layer types with no dependency on
-//!   `turbo-maxent`.
+//!   the sentiment and pragmatics layer types without coupling to
+//!   `SentimentModel`, `SentimentMe`, or `turbo-maxent` (crate-level
+//!   `turbo-train` retirement is tracked under `#1530`).
 //! - [`dl`] implements sequence-classification document and span categorization
 //!   ([`DocumentCategorizerDL`], [`DlSpanCategorizer`]) over an encoder-backed
 //!   [`DlSequenceScorer`].

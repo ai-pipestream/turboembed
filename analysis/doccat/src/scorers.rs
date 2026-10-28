@@ -1,10 +1,11 @@
 //! Vector-head and category scorer traits and layer re-exports for sentiment,
 //! emotion, incivility, aspect, and pragmatics annotators.
 //!
-//! This module depends only on `turbo-analysis` and `turbo-analysis-layers`
-//! (never on `turbo-maxent`), so encoder-backed heads in `turbo-analysis-embed`
-//! and rule/lexicon annotators in `turbo-doccat` share these traits without
-//! pulling in classical maxent or SVM dependencies.
+//! This module imports only `turbo-analysis` and `turbo-analysis-layers`
+//! (never `SentimentModel`, `SentimentMe`, or `turbo-maxent`), so encoder-backed
+//! heads in `turbo-analysis-embed` and rule/lexicon annotators in `turbo-doccat`
+//! share these traits without coupling to the classical sentiment or categorizer
+//! types (crate-level `turbo-train` retirement is tracked under `#1530`).
 
 use std::fmt;
 use std::sync::Arc;

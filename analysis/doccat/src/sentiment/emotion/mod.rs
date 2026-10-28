@@ -1,5 +1,5 @@
 //! Multi-label emotion annotator (`#855`, part of `#318`): the 28 GoEmotions
-//! labels of `turbo:emotion` ([`EmotionLayer`]) for each sentence or chunk.
+//! labels of `turbo:emotion` ([`crate::scorers::EmotionLayer`]) for each sentence or chunk.
 //!
 //! [`EmotionAnnotator`] (`turbo-doccat:emotion`) scores a unit in one of
 //! three stages ([`EmotionStage`]):

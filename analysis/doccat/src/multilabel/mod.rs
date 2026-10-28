@@ -16,8 +16,9 @@
 //! validation set by sweeping candidate cut points and maximizing each
 //! label's F_beta (beta configurable, default 1.0), optionally under a
 //! minimum-precision floor. The calibrated thresholds serialize inside
-//! the model package ([`package`], [`open_package`]) and round-trip with
-//! the rest of the model.
+//! the model entry (and inside the classical model package when the
+//! `classical` feature is enabled) and round-trip with the rest of the
+//! model.
 
 pub mod bytes;
 pub mod calibrate;
