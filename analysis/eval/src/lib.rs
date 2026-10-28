@@ -46,6 +46,7 @@ pub mod cascade;
 pub mod cascade_latency;
 pub mod chunkers;
 pub mod cost;
+pub mod cuts;
 pub mod embedder;
 pub mod fetch;
 pub mod gate;

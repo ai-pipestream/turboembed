@@ -42,6 +42,10 @@ usage:
   turbo-eval gate <candidate-dir> <baseline-dir>
       compare two directories of records, one per set; exit status 1
       when the gate fails, 2 on an error
+  turbo-eval cuts <a-dir> <b-dir>
+      compare two directories of cut dumps (run --dump-cuts), one per set,
+      document by document; each differing cut is printed with both runs'
+      margins; exit status 1 when any cut differs, 2 on an error
 
 The cache root is --cache, or $TURBO_EVAL_CACHE when it is not given.
 Sets: scifact, nfcorpus, arguana, legalbench-rag-mini, conteb-covid-qa,
@@ -84,6 +88,8 @@ run options:
                           (default 60)
   --dump-terms <dir>      with bm25, also write each set's chunk and query
                           terms there, for a reference BM25
+  --dump-cuts <dir>       with turbo-chunker (no --level), also write each
+                          set's cuts to <dir>/<set>.cuts for turbo-eval cuts
   --repo <dir>            the clean, pushed working tree this tool was
                           built from (default: the one it was built in)
 
@@ -124,6 +130,13 @@ fn run(args: &[String]) -> Result<ExitCode> {
         Some("fetch") => fetch_cmd(&args[1..]).map(|()| ExitCode::SUCCESS),
         Some("run") => run_cmd(&args[1..]).map(|()| ExitCode::SUCCESS),
         Some("squad") => turbo_eval::squad::command(&args[1..]).map(|()| ExitCode::SUCCESS),
+        Some("cuts") if args.len() == 3 => {
+            let sets = turbo_eval::cuts::compare_dirs(Path::new(&args[1]), Path::new(&args[2]))?;
+            for s in &sets {
+                print!("{s}");
+            }
+            Ok(if sets.iter().all(|s| s.is_identical()) { ExitCode::SUCCESS } else { ExitCode::FAILURE })
+        }
         Some("gate") if args.len() == 3 => {
             let report = gate_dirs(Path::new(&args[1]), Path::new(&args[2]))?;
             println!("{report}");
@@ -315,7 +328,8 @@ fn run_cmd(args: &[String]) -> Result<()> {
     let cache = cache_root(o.take("--cache").as_deref().map(Path::new))?;
     let out = PathBuf::from(o.need("--out")?);
     let device = device(&o.take("--device").unwrap_or_else(|| "cpu".into()));
-    let precision = match o.take("--precision").as_deref().unwrap_or("model") {
+    let precision_name = o.take("--precision").unwrap_or_else(|| "model".into());
+    let precision = match precision_name.as_str() {
         "model" => Precision::Model,
         "fastest" => Precision::Fastest,
         "exact" => Precision::Exact,
@@ -387,6 +401,7 @@ fn run_cmd(args: &[String]) -> Result<()> {
         }
         r => return Err(format!("--retrieval {r}: dense, bm25, hybrid or cascade")),
     };
+    let dump_cuts = o.take("--dump-cuts").map(|d| (PathBuf::from(d), precision_name.clone()));
     let repo = o.take("--repo").map_or(workspace, PathBuf::from);
     if sets.is_empty() {
         return Err("--sets names no set".into());
@@ -414,6 +429,7 @@ fn run_cmd(args: &[String]) -> Result<()> {
         hybrid,
         cascade,
         static_embedder,
+        dump_cuts,
     };
     let written = run_sets(&mut pipeline, &sets, &cache, load_set, &out, &source)?;
     if turbo_eval::source::source(&repo)? != source {
