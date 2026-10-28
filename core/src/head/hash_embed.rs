@@ -23,7 +23,7 @@
 //! of the toolchain that builds the crate.
 
 use crate::manifest::HashEmbed;
-use crate::status::{Error, INVALID_SHAPE, Result};
+use crate::status::{Error, INVALID_ARGUMENT, INVALID_SHAPE, Result};
 
 /// The features, in table and output order.
 pub const FEATURES: [&str; 4] = ["norm", "prefix", "suffix", "shape"];
@@ -94,7 +94,8 @@ pub struct Tables {
 }
 
 impl Tables {
-    /// The tables of `spec`, refused unless each holds rows[k] x dim.
+    /// The tables of `spec`, refused unless each holds rows[k] x dim
+    /// finite values.
     pub fn new(spec: HashEmbed, tables: [Vec<f32>; 4]) -> Result<Tables> {
         for (k, t) in tables.iter().enumerate() {
             if t.len() as u64 != spec.rows[k] as u64 * spec.dim as u64 {
@@ -102,6 +103,9 @@ impl Tables {
                     INVALID_SHAPE,
                     format!("{} has {} values, expected {} x {}", suffix(k), t.len(), spec.rows[k], spec.dim),
                 ));
+            }
+            if let Some(at) = t.iter().position(|v| !v.is_finite()) {
+                return Err(Error::new(INVALID_ARGUMENT, format!("{}[{at}] is {}, not finite", suffix(k), t[at])));
             }
         }
         Ok(Tables { spec, tables })
