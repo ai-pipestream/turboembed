@@ -31,12 +31,12 @@ What is here:
 - `fit`: the loop. Seeded shuffles, minibatch gradients summed in a
   fixed order, dev scoring through the core's own inference path
   (accuracy, or exact span F1 under BIO and BILOU), early stopping that
-  keeps the best weights. `EarlyStop` is armed only after warmup, and a
-  dev score within `tolerance` of the best holds the run going; the
-  defaults are 60 epochs, patience 6, tolerance 0.001. An equal score
-  holds under that default, so a run whose dev score sits flat goes on
-  to its epoch cap; a tolerance of 0 is classic patience, where only a
-  better score holds and a flat run stops. A batch's
+  keeps the best weights. `EarlyStop` is armed only after warmup, and
+  only a dev score more than `tolerance` above the last one that counted
+  resets patience (Keras's `min_delta`); the defaults are 60 epochs,
+  patience 6, tolerance 0.001. A run whose dev score sits flat or creeps
+  by less than that stops after `patience` epochs, keeping its best
+  weights; a tolerance of 0 counts any better score. A batch's
   examples run on `threads` threads (0, the default, takes every core),
   each into a gradient buffer of its own, and the buffers are summed
   element by element in example order, so the weights do not depend on
