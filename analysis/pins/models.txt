@@ -28,8 +28,8 @@
 # Bundles checked in under testdata/.
 blobs/sha256/273ee3dfe946989a27a68e37d58e1dd7bc537c06b404075279f02a1b640b91f7  bundle  testdata/tiny-bert-bundle
 blobs/sha256/0c0a047b07ffc6177dfa02188f4c47a49f52734c3e191f91e5c78f09ca69d133  bundle  testdata/tiny-deberta-bundle
-blobs/sha256/51fbb5707561d62d3e5edb484c451cc0854bd82b0f7072e476b22d336c95010a  bundle  testdata/tiny-modernbert-bundle
-blobs/sha256/cd0036a71ec203dbfeb6a038bcdbc6333f3531eb7713b4eabaf64fff56e64ba2  bundle  testdata/tiny-nomic-bundle
+blobs/sha256/b6add53969bdad1b84c5aef1847b21e3eeabb836e58dfe3f2b109c41d3720f53  bundle  testdata/tiny-modernbert-bundle
+blobs/sha256/c65bddf47ed7a956d0589d9e0408481ea5a0a2658c7aabd2f3d25c80ab739484  bundle  testdata/tiny-nomic-bundle
 blobs/sha256/a84dc0f5806a827fba920bbd2f1f3a459cd53546381f2128de216742ff24daac  bundle  testdata/tiny-sat-bundle
 blobs/sha256/9236265aedb7df4ffa76d1c3351cc3dd36343e2b718c274b91910bac6a2a3456  bundle  testdata/tiny-static-bundle
 

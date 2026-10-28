@@ -17,8 +17,6 @@ mod score;
 const MAGIC_V1: &str = "ONLP-FFPT-1";
 const MAGIC_V2: &str = "ONLP-FFPT-2";
 pub(super) const CACHE_ENTRY_LIMIT: isize = 32768;
-const INITIAL_CAPACITY: usize = 4096;
-const MAX_LENGTH: i32 = 1 << 30;
 
 #[derive(Debug)]
 pub(super) struct ContributionCache {

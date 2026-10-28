@@ -11,6 +11,7 @@ name = "turbo_sequence"
 [dependencies]
 # The canonical deterministic FNV-1a hasher for configuration hashes.
 turbo-analysis = { path = "../core" }
+turbo-analysis-layers = { path = "../layers" }
 # The maxent models the beam search asks, the model archive the feature
 # generator descriptor and its resources are read from, the dictionary
 # XML reader and the XML reader for the descriptors.
@@ -21,7 +22,6 @@ turbo-unicode = { path = "../unicode" }
 turbo-jvm = { path = "../jvm" }
 
 [dev-dependencies]
-turbo-pins = { path = "../pins" }
 turbo-goldens = { path = "../goldens" }
 # Writes a small model whose outcome holds half of a surrogate pair.
 turbo-train = { path = "../train" }

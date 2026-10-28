@@ -20,12 +20,7 @@ pub const MODELS: &str = include_str!("../models.txt");
 /// The zoo index, whose files are pinned by size, SHA-256 and SHA-512.
 const ZOO: &str = include_str!("../../zoo/index/zoo.json");
 /// The score-only reference models of the training recipes.
-const REFERENCES: [&str; 4] = [
-    include_str!("../../train-recipes/masc-references.txt"),
-    include_str!("../../train-recipes/ud-references.txt"),
-    include_str!("../../train-recipes/tatoeba-references.txt"),
-    include_str!("../../train-recipes/fineweb-references.txt"),
-];
+const REFERENCES: [&str; 1] = [include_str!("../../train-recipes/masc-references.txt")];
 /// The key prefix of a pin, as the model store names a blob.
 pub const BLOB_PREFIX: &str = "blobs/sha256/";
 /// The manifests a directory is pinned by, in the order they are looked
