@@ -23,7 +23,10 @@ use crate::error::Result;
 /// Evaluates a constituency [`Parser`] against gold-standard [`Parse`] trees,
 /// accumulating labeled constituent precision, recall, and F1 in [`FMeasure`].
 ///
-/// Mirrors `opennlp.tools.parser.ParserEvaluator`.
+/// Mirrors `opennlp.tools.parser.ParserEvaluator`, but counts true positives as a multiset
+/// intersection ([`turbo_formats::evaluate::count_true_positives`]): a repeated constituent
+/// matches at most as often as the reference has it, where OpenNLP's `countTruePositives` counts
+/// it once per equal reference.
 pub struct ParserEvaluator<'a> {
     parser: &'a dyn Parser,
     fmeasure: FMeasure,
@@ -45,8 +48,8 @@ impl<'a> ParserEvaluator<'a> {
     /// included), each as `LabeledSpan::new(span.start, span.end, Some(kind))`.
     ///
     /// The order is OpenNLP's too, a stack of the root's children: each node comes before its
-    /// children and the last child of a node first. [`FMeasure::update`] counts true positives
-    /// in an order-dependent way when spans repeat, so the order is part of the score.
+    /// children and the last child of a node first. OpenNLP's `countTruePositives` depends on
+    /// that order when spans repeat; [`FMeasure::update`] does not.
     pub fn get_constituent_spans(parse: &Parse) -> Vec<LabeledSpan<'_>> {
         let mut stack: Vec<&Parse> = parse.children().iter().collect();
         let mut out = Vec::new();
