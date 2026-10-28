@@ -35,6 +35,7 @@ fn spec(decode: Decode) -> HeadSpec {
         biaffine: Some(Biaffine { arc: 5, rel: 3 }),
         pos_input: None,
         hash_embed: None,
+        span: None,
         license_class: None,
         artifact: "weights-f32".into(),
         tensor_prefix: "heads.deps".into(),

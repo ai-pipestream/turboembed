@@ -140,6 +140,7 @@ pub enum Normalize {
 mod architecture;
 mod artifact;
 mod heads;
+mod heads_kinds;
 mod helpers;
 pub use heads::*;
 mod provenance;

@@ -156,6 +156,7 @@ fn spec(labels: &[&str], scheme: Scheme, adapter: Option<(u32, u32)>, decode: De
         biaffine: None,
         pos_input: None,
         hash_embed: None,
+        span: None,
         license_class: None,
         artifact: "weights".into(),
         tensor_prefix: "t".into(),

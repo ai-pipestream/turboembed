@@ -349,15 +349,16 @@ so any number of heads fit one artifact.
 |---|---|
 | `name` | Unique in the bundle; lowercase ASCII letters, digits, `_` and `-`, at most 64 bytes. |
 | `layer` | The layer id the analysis annotator writes the output to: `turboembed:` and a lowercase name, such as `turboembed:pos`. |
-| `kind` | `HEAD_TOKEN_TAGGER`: one label per word. `HEAD_BIAFFINE_PARSER`: a head word and a relation per word, decoded to a tree. `HEAD_EDIT_TREE_LEMMATIZER`: an edit tree per word, the lemma being the tree applied to the word. |
+| `kind` | `HEAD_TOKEN_TAGGER`: one label per word. `HEAD_BIAFFINE_PARSER`: a head word and a relation per word, decoded to a tree. `HEAD_EDIT_TREE_LEMMATIZER`: an edit tree per word, the lemma being the tree applied to the word. `HEAD_SENTENCE_BOUNDARY`: whether each word ends its sentence. `HEAD_TOKEN_SPLIT`: the syntactic words of each token, as UD splits a multi-word token. `HEAD_SPAN_CLASSIFIER`: a label for every span of up to `span.max_words` words. |
 | `labels` | The labels in output order: 1 to 4096, unique, non-empty, each readable under `scheme`. |
 | `scheme` | `SCHEME_TAGS` (each label a tag), `SCHEME_BIO` (`O`, `B-T`, `I-T`) or `SCHEME_BILOU` (adds `L-T` and `U-T`). BIO and BILOU need the label `O`. |
 | `word_pooling` | `WORD_POOLING_FIRST` (a word's first subword row) or `WORD_POOLING_MEAN` (the mean of its rows). |
 | `adapter.bilstm` | Optional stacked bidirectional LSTM over the pooled words: `hidden` 1 to 4096, `layers` 1 to 3. |
-| `decode` | A tagger's: `DECODE_ARGMAX` (each word's best label, ties to the lower index) or `DECODE_CRF` (the best sequence under a first-order CRF; under BIO and BILOU, sequences the scheme forbids are never chosen). A parser's: `DECODE_MST` (the maximum spanning tree, Chu-Liu-Edmonds) or `DECODE_EISNER` (the best projective tree), each with exactly one word on the root. A lemmatizer's: `DECODE_EDIT_TREE` (the best-scoring tree that fits the word, ties to the lower index; the word itself when none fits). |
-| `hash_embed` | Optional, `HEAD_TOKEN_TAGGER` only: `dim` (1 to 1024) and `rows` (four counts, each 1 to 2^20). Hashed embeddings of the word's text, NORM, PREFIX, SUFFIX and SHAPE, joined after its pooled states; the annotator passes each word's text. Features and hashes are defined in `core/src/head/hash_embed.rs` and pinned by its tests. |
+| `decode` | A tagger's: `DECODE_ARGMAX` (each word's best label, ties to the lower index) or `DECODE_CRF` (the best sequence under a first-order CRF; under BIO and BILOU, sequences the scheme forbids are never chosen). A parser's: `DECODE_MST` (the maximum spanning tree, Chu-Liu-Edmonds) or `DECODE_EISNER` (the best projective tree), each with exactly one word on the root. A lemmatizer's: `DECODE_EDIT_TREE` (the best-scoring tree that fits the word, ties to the lower index; the word itself when none fits). A sentence boundary head's: `DECODE_ARGMAX` or `DECODE_CRF`, as a tagger's. A token split head's: `DECODE_EDIT_TREE` (the best-scoring label that fits the token; `_` always fits). A span classifier's: `DECODE_SPANS_NESTED` (every span whose best label is not `O`) or `DECODE_SPANS_FLAT` (those spans from the highest margin over `O` down, each kept unless it overlaps one kept, ties to the earlier span). |
+| `hash_embed` | Optional, for the kinds that score words as a tagger does (`HEAD_TOKEN_TAGGER`, `HEAD_SENTENCE_BOUNDARY`, `HEAD_TOKEN_SPLIT`): `dim` (1 to 1024) and `rows` (four counts, each 1 to 2^20). Hashed embeddings of the word's text, NORM, PREFIX, SUFFIX and SHAPE, joined after its pooled states; the annotator passes each word's text. Features and hashes are defined in `core/src/head/hash_embed.rs` and pinned by its tests. |
 | `biaffine` | A parser's MLP widths, `arc` and `rel`, each 1 to 4096; required for `HEAD_BIAFFINE_PARSER`, refused for any other kind. A parser's `scheme` is `SCHEME_TAGS` and its labels are the dependency relations. |
 | `pos_input` | A lemmatizer's optional tag input: `head` names a `SCHEME_TAGS` token tagger head of the same bundle with `labels` labels, and the lemmatizer reads each word's decoded tag as a learned `dim`-wide embedding (1 to 1024) beside the word vector. Refused for any other kind. A lemmatizer's `scheme` is `SCHEME_TAGS` and its labels are edit trees, each written as `turbo::head::edit_tree::EditTree::label` writes it. |
+| `span` | A span classifier's spans: `max_words` (1 to 128), the longest span scored, and `width_dim` (1 to 256), the width of its learned span-width embedding; required for `HEAD_SPAN_CLASSIFIER`, refused for any other kind. Its `scheme` is `SCHEME_TAGS` and its labels include `O`, no span. |
 | `license_class` | Optional: the class (as `model.license_class` names classes, docs/zoo.md) of the strictest licence among the corpora the head was trained on. The bundle's tier (`Manifest::license_tier`) is the strictest of `model.license_class` and every head's, so a permissive encoder with a head trained on CC BY-SA data is `CLASS_SHARE_ALIKE`. Refused when `model.license_class` is not recorded, since the tier would leave the encoder out. |
 | `artifact` | The name of the `FORMAT_SAFETENSORS` artifact holding the tensors, as `from` and `host_weights` name artifacts. |
 | `tensor_prefix` | Each tensor is named `<tensor_prefix>.<suffix>`. |
@@ -430,6 +431,39 @@ those by `X` and `Y` (`()` for none); `(s 'from' 'to')` substitutes, with
 `\'` and `\\` escaped inside quotes. `walked` to `walk` is
 `(m 0 2 () (s 'ed' ''))`. Only the canonical form of a label is
 accepted, so one tree has one label.
+
+A `HEAD_SENTENCE_BOUNDARY` and a `HEAD_TOKEN_SPLIT` have a tagger's
+tensors and differ only in their labels and decode. A sentence boundary
+head's `scheme` is `SCHEME_TAGS` and its labels are exactly `inside` and
+`last`, in that order; a word whose decoded label is `last` ends its
+sentence, and the last word of a sequence always does, so the sentences
+cover every word. It reads words, the unit UD marks sentences in, so it
+trains on the same words as the bundle's other heads; SaT's boundary
+head, which reads subword pieces of raw text, stays its own model.
+
+A token split head's `scheme` is `SCHEME_TAGS` and its labels are `_`,
+which keeps a token one word, and splits: two to eight edit trees
+separated by single spaces, the k-th tree rewriting the whole token into
+its k-th word. Spanish `del` is `de` and `el` by
+`(m 0 1 () (s 'l' '')) (m 1 0 (s 'd' '') ())`. A split fits a token when
+every tree applies to it and gives a word that is not empty.
+
+The tensors of a `HEAD_SPAN_CLASSIFIER`, F32, with `M` =
+`span.max_words`, `E` = `span.width_dim`, `L` labels and `width` as
+above (the adapter's tensors come first, as for a tagger):
+
+| Suffix | Shape | What |
+|---|---|---|
+| `span.width` | `[M, E]` | row `w - 1` embeds a span of `w` words |
+| `out.weight` | `[L, 2 * width + E]` | a span's first word vector, its last, then its width embedding |
+| `out.bias` | `[L]` | |
+
+Every span of 1 to `M` words is scored, in order of first word then
+last; a sequence of `n` words has `n - w + 1` spans of each width `w`
+up to `M` (`SpanClassifier::span_count`). Each word's start and end parts of the score
+are computed once and summed per span, so a span's score is the same
+sum the joined layer gives. A kept span carries its label and its
+margin, its label's score less `O`'s.
 
 A manifest whose heads break any rule above is refused at open with
 `BUNDLE_INVALID`, the field named; a missing or misshapen tensor is
