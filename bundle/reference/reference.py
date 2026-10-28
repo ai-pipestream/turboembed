@@ -5,7 +5,6 @@ wrote, the safetensors file to write, and the JSON file that says what ran.
 """
 
 import json
-import re
 import sys
 
 import numpy as np
@@ -15,6 +14,8 @@ import transformers
 from safetensors import safe_open
 from safetensors.numpy import save_file
 from sentence_transformers import SentenceTransformer
+
+from cut import unexplained
 
 
 def checkpoint_keys(path):
@@ -37,14 +38,6 @@ def upstream_layers(config):
     sys.exit(f"{type(config).__name__}: no layer count (num_hidden_layers or n_layer) to cut")
 
 
-def cut_layer_key(key, layers):
-    """Whether checkpoint tensor `key` belongs to a layer at or past
-    `layers`, which a cut model leaves unused (`model.layers.12.attn...`,
-    `encoder.layer.11.output...`)."""
-    m = re.search(r"\.layers?\.(\d+)\.", key)
-    return m is not None and int(m.group(1)) >= layers
-
-
 def check_loaded(module, cut=None):
     """Load the encoder of a sentence-transformers module again with
     transformers' loading report, and refuse a model that left any of its
@@ -63,14 +56,10 @@ def check_loaded(module, cut=None):
         path, config=model.config, local_files_only=True, output_loading_info=True
     )
     keys = checkpoint_keys(path)
-    prefix = model.base_model_prefix + "."
-    heads = {k for k in keys if not k.startswith(prefix)} if any(k.startswith(prefix) for k in keys) else set()
     bad = {
         "missing": sorted(info["missing_keys"]),
         "mismatched": sorted(str(k) for k in info["mismatched_keys"]),
-        "unexpected": sorted(
-            k for k in set(info["unexpected_keys"]) - heads if cut is None or not cut_layer_key(k, cut)
-        ),
+        "unexpected": unexplained(info["unexpected_keys"], keys, model.base_model_prefix + ".", cut),
         "errors": [str(e) for e in info.get("error_msgs", [])],
     }
     if any(bad.values()):
