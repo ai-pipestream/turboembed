@@ -178,6 +178,13 @@ impl TokenizerModel {
         self.affixes
     }
 
+    /// The same model with other affix limits, to compare against.
+    #[cfg(test)]
+    pub(crate) fn with_affix_limits(mut self, affixes: AffixLimits) -> TokenizerModel {
+        self.affixes = affixes;
+        self
+    }
+
     /// The abbreviation dictionary, when the model has one.
     pub fn abbreviations(&self) -> Option<&Dictionary> {
         self.abbreviations.as_ref()
@@ -215,4 +222,133 @@ fn outcomes(maxent: &MaxentModel) -> Result<[Outcome; 2], ModelError> {
         index: maxent.outcome_index(names[i]).expect("the outcome's own name"),
     };
     Ok([outcome(0), outcome(1)])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The generator's fixture model, a copy of turbo-maxent's
+    /// tests/fixtures/models/tokenizer.bin.
+    fn fixture_path() -> std::path::PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures/tokenizer-abbreviations.bin")
+    }
+
+    #[test]
+    fn reads_the_english_model() {
+        let Some(path) = turbo_goldens::published_model("opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin") else { return };
+        let m = TokenizerModel::read(path).unwrap();
+        assert_eq!(m.language(), "en");
+        assert_eq!(m.opennlp_version(), "2.5.4");
+        assert_eq!(m.alphanumeric_pattern(), "^[A-Za-z0-9]+$");
+        assert!(m.alphanumeric().is_none());
+        assert!(m.abbreviations().is_none());
+        assert_eq!(m.sha256().to_hex(), "95139111197ba9f1165fc12be8d4cbac05ea3912f995d167efa1a0e04e3e649a");
+        let limits = m.affix_limits();
+        assert_eq!(limits, AffixLimits::of(m.maxent()));
+        assert!(m.maxent().predicates().filter(|p| p.starts_with(b"p=")).all(|p| p.len() <= limits.prefix));
+        assert!(m.maxent().predicates().any(|p| p.starts_with(b"p=") && p.len() == limits.prefix));
+        assert!(m.maxent().predicates().any(|p| p.starts_with(b"s=") && p.len() == limits.suffix));
+        assert_eq!(m.maxent().outcomes().collect::<Vec<_>>(), ["F", "T"]);
+        assert_eq!(m.outcome(0), Outcome { split: false, index: 0 });
+        assert_eq!(m.outcome(1), Outcome { split: true, index: 1 });
+    }
+
+    #[test]
+    fn reads_the_abbreviation_dictionary() {
+        let m = TokenizerModel::read(fixture_path()).unwrap();
+        let d = m.abbreviations().unwrap();
+        assert_eq!(d.len(), 3);
+        assert!(d.contains("dr."));
+        let m = m.with_abbreviations(None);
+        assert!(m.abbreviations().is_none());
+    }
+
+    /// A zip of stored entries, enough for `Zip` to read.
+    fn stored_zip(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        let mut z = Vec::new();
+        let mut dir = Vec::new();
+        for &(name, data) in entries {
+            let local = z.len() as u32;
+            let crc = turbo_maxent::crc32(data);
+            z.extend_from_slice(&0x0403_4b50u32.to_le_bytes());
+            z.extend_from_slice(&[20, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+            for v in [crc, data.len() as u32, data.len() as u32] {
+                z.extend_from_slice(&v.to_le_bytes());
+            }
+            z.extend_from_slice(&(name.len() as u16).to_le_bytes());
+            z.extend_from_slice(&[0, 0]);
+            z.extend_from_slice(name.as_bytes());
+            z.extend_from_slice(data);
+            dir.extend_from_slice(&0x0201_4b50u32.to_le_bytes());
+            dir.extend_from_slice(&[20, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+            for v in [crc, data.len() as u32, data.len() as u32] {
+                dir.extend_from_slice(&v.to_le_bytes());
+            }
+            dir.extend_from_slice(&(name.len() as u16).to_le_bytes());
+            dir.extend_from_slice(&[0; 12]);
+            dir.extend_from_slice(&local.to_le_bytes());
+            dir.extend_from_slice(name.as_bytes());
+        }
+        let at = z.len() as u32;
+        z.extend_from_slice(&dir);
+        z.extend_from_slice(&0x0605_4b50u32.to_le_bytes());
+        z.extend_from_slice(&[0, 0, 0, 0]);
+        let n = entries.len() as u16;
+        z.extend_from_slice(&n.to_le_bytes());
+        z.extend_from_slice(&n.to_le_bytes());
+        z.extend_from_slice(&(dir.len() as u32).to_le_bytes());
+        z.extend_from_slice(&at.to_le_bytes());
+        z.extend_from_slice(&[0, 0]);
+        z
+    }
+
+    /// A classifier under a manifest of `extra` lines.
+    fn with_manifest(extra: &str, classifier: &[u8]) -> Result<TokenizerModel, ModelError> {
+        let manifest = format!("OpenNLP-Version=2.5.4\nLanguage=de\n{extra}");
+        let bytes = stored_zip(&[("manifest.properties", manifest.as_bytes()), (MODEL_ENTRY, classifier)]);
+        let model = TokenizerModel::open(ModelFile::open(bytes.clone()).unwrap());
+        if let Ok(m) = &model {
+            assert_eq!(m.sha256(), turbo_maxent::sha256(&bytes));
+        }
+        model
+    }
+
+    /// The fixture model's classifier, whose outcomes are T and F.
+    fn tokenizer_classifier() -> Vec<u8> {
+        let file = ModelFile::read(fixture_path()).unwrap();
+        file.entry(MODEL_ENTRY).unwrap().into_owned()
+    }
+
+    #[test]
+    fn manifest_checks() {
+        let c = tokenizer_classifier();
+        let e = with_manifest("Component-Name=SentenceDetectorME\nuseAlphaNumericOptimization=false\n", &c);
+        assert_eq!(e.unwrap_err().to_string(), "the model is for \"SentenceDetectorME\", not TokenizerME");
+        let e = with_manifest("Component-Name=TokenizerME\n", &c).unwrap_err();
+        assert!(matches!(e, ModelError::MissingOptimizationFlag));
+        let gis = include_bytes!("../../../maxent/tests/fixtures/models/gis.model");
+        let e = with_manifest("Component-Name=TokenizerME\nuseAlphaNumericOptimization=false\n", gis).unwrap_err();
+        assert_eq!(e.to_string(), "the classifier's outcomes are [\"yes\", \"no\", \"maybe\"], not T and F");
+    }
+
+    #[test]
+    fn the_optimization_flag_and_its_pattern() {
+        let c = tokenizer_classifier();
+        // On, in any case, with no pattern: the default, not the German one.
+        let m = with_manifest("Component-Name=TokenizerME\nuseAlphaNumericOptimization=TRUE\n", &c).unwrap();
+        assert_eq!(m.alphanumeric_pattern(), DEFAULT_PATTERN);
+        assert!(m.alphanumeric().unwrap().test("abc"));
+        assert!(!m.alphanumeric().unwrap().test("\u{e4}"));
+        // Anything but "true" is off.
+        let m = with_manifest("Component-Name=TokenizerME\nuseAlphaNumericOptimization=yes\n", &c).unwrap();
+        assert!(m.alphanumeric().is_none());
+        // A pattern the check cannot read is refused when it would be used...
+        let manifest = "Component-Name=TokenizerME\nuseAlphaNumericOptimization=true\nalphaNumericPattern=^\\\\w+$\n";
+        let e = with_manifest(manifest, &c).unwrap_err();
+        assert_eq!(e.to_string(), "alphanumeric pattern \"^\\w+$\": not of the form ^[characters]+$");
+        // ...and kept as text when it would not.
+        let manifest = "Component-Name=TokenizerME\nuseAlphaNumericOptimization=false\nalphaNumericPattern=^\\\\w+$\n";
+        assert_eq!(with_manifest(manifest, &c).unwrap().alphanumeric_pattern(), "^\\w+$");
+    }
 }

@@ -180,7 +180,3 @@ fn a_wrong_output_length_panics() {
 fn a_wrong_output_length_panics_for_bytes() {
     model(ModelKind::Gis).eval_modified_utf8(&[], &mut [0.0; 2]);
 }
-
-fn outcome_texts(outcomes: &[JavaString]) -> Vec<Option<Box<str>>> {
-    outcomes.iter().map(|o| o.to_str().map(Box::from)).collect()
-}

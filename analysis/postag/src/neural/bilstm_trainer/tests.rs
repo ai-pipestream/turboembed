@@ -3,6 +3,132 @@ use std::collections::HashMap;
 use super::*;
 use crate::neural::bilstm_model::char_vocabulary_from_strs;
 
+fn tiny_corpus() -> Vec<PosSample> {
+    vec![
+        PosSample::new(["The", "cat", "sat"], ["D", "N", "V"]).unwrap(),
+        PosSample::new(["A", "dog", "ran"], ["D", "N", "V"]).unwrap(),
+    ]
+}
+
+fn usage_corpus() -> Vec<PosSample> {
+    let distinct = vec![
+        PosSample::new(["the", "dog", "barks"], ["DT", "NN", "VBZ"]).unwrap(),
+        PosSample::new(["the", "cat", "sleeps"], ["DT", "NN", "VBZ"]).unwrap(),
+        PosSample::new(["a", "bird", "sings"], ["DT", "NN", "VBZ"]).unwrap(),
+        PosSample::new(["dogs", "bark"], ["NNS", "VBP"]).unwrap(),
+        PosSample::new(["cats", "sleep"], ["NNS", "VBP"]).unwrap(),
+    ];
+    let mut out = Vec::with_capacity(40 * distinct.len());
+    for _ in 0..40 {
+        out.extend_from_slice(&distinct);
+    }
+    out
+}
+
+#[test]
+fn serialization_round_trip_preserves_scores_pretrained_and_adapter() {
+    let settings =
+        BilstmSettings::new(8, 4, 4, 8, 3, 2, 5e-3, 5.0, 0.1, 1, 12, 7, 2, 0.0, 0, false, 1, 0.0, 0.0, 1.0, 0.0, false)
+            .unwrap();
+    let model = BilstmPosTrainer::train(&tiny_corpus(), settings.clone()).unwrap();
+    let mut buf = Vec::new();
+    model.serialize(&mut buf).unwrap();
+    let loaded = BilstmPosModel::load(&buf[..]).unwrap();
+    assert_eq!(model.tags(), loaded.tags());
+    let sent = ["The", "dog", "sat"];
+    assert_eq!(model.score(&sent).unwrap(), loaded.score(&sent).unwrap());
+
+    // Pretrained table + unseen lexicon word
+    let vec_fn = |w: &str| Some(vec![w.len() as f32, 1.0]);
+    let extra = vec!["unseen".to_owned()];
+    let model_p =
+        BilstmPosTrainer::train_with_vectors(&tiny_corpus(), settings, Some(vec_fn), Some(&extra), None).unwrap();
+    buf.clear();
+    model_p.serialize(&mut buf).unwrap();
+    let loaded_p = BilstmPosModel::load(&buf[..]).unwrap();
+    assert_eq!(model_p.word_representation("unseen").unwrap(), loaded_p.word_representation("unseen").unwrap());
+
+    // Adapter model (ONLP-BLPT-5)
+    let adapter_settings =
+        BilstmSettings::new(8, 4, 4, 8, 3, 2, 5e-3, 5.0, 0.1, 1, 12, 7, 2, 0.0, 0, false, 1, 0.0, 0.0, 1.0, 0.0, true)
+            .unwrap();
+    let model_a =
+        BilstmPosTrainer::train_with_vectors(&tiny_corpus(), adapter_settings, Some(vec_fn), Some(&extra), None)
+            .unwrap();
+    buf.clear();
+    model_a.serialize(&mut buf).unwrap();
+    assert_eq!(&buf[2..2 + buf[1] as usize], b"ONLP-BLPT-5");
+    let loaded_a = BilstmPosModel::load(&buf[..]).unwrap();
+    let sent4 = ["The", "dog", "sat", "unseen"];
+    assert_eq!(model_a.score(&sent4).unwrap(), loaded_a.score(&sent4).unwrap());
+}
+
+#[test]
+fn serialization_round_trip_preserves_one_and_two_layer_crf() {
+    for layers in [1, 2] {
+        let settings = BilstmSettings::new(
+            8, 4, 4, 8, 3, 2, 5e-3, 5.0, 0.1, 1, 12, 7, 2, 0.0, 0, true, layers, 0.0, 0.0, 1.0, 0.0, false,
+        )
+        .unwrap();
+        let model = BilstmPosTrainer::train(&tiny_corpus(), settings).unwrap();
+        let mut buf = Vec::new();
+        model.serialize(&mut buf).unwrap();
+        let expected_magic = if layers == 1 { b"ONLP-BLPT-2" } else { b"ONLP-BLPT-4" };
+        assert_eq!(&buf[2..2 + buf[1] as usize], expected_magic);
+        let loaded = BilstmPosModel::load(&buf[..]).unwrap();
+        assert!(loaded.is_crf());
+        let sent = ["The", "dog", "sat"];
+        assert_eq!(BilstmPosTagger::new(model).tag(&sent).unwrap(), BilstmPosTagger::new(loaded).tag(&sent).unwrap());
+    }
+}
+
+#[test]
+fn usage_and_edge_cases_match_java_deterministic_outputs() {
+    let settings = BilstmSettings::new(
+        16, 8, 8, 16, 60, 8, 0.05, 5.0, 0.0, 1, 16, 17, 1, 0.0, 0, false, 1, 0.0, 0.0, 1.0, 0.0, false,
+    )
+    .unwrap();
+    let model = BilstmPosTrainer::train(&usage_corpus(), settings).unwrap();
+    let tagger = BilstmPosTagger::jvm_parity(model.clone());
+
+    assert_eq!(tagger.tag(&["the", "cat", "barks"]).unwrap(), vec!["DT", "NN", "VBZ"]);
+    assert_eq!(tagger.tag(&["dogs", "bark"]).unwrap(), vec!["NNS", "VBP"]);
+    assert_eq!(tagger.tag(&["dog"]).unwrap(), vec!["VBZ"]);
+    let packed = BilstmPosTagger::new(model.clone());
+    for s in [&["the", "cat", "barks"][..], &["dogs", "bark"], &["dog"]] {
+        assert_eq!(packed.tag(s).unwrap(), tagger.tag(s).unwrap(), "{s:?}");
+    }
+    assert!(tagger.tag(&Vec::<&str>::new()).unwrap().is_empty());
+
+    let overlong = "z".repeat(40);
+    let prefix = &overlong[..model.max_word_length()];
+    assert_eq!(tagger.tag(&[prefix]).unwrap(), tagger.tag(&[overlong.as_str()]).unwrap());
+
+    // An empty token has no characters, so as in Java its character
+    // states stay zero instead of running the character LSTMs.
+    assert!(model.char_ids("").is_empty());
+    let empty = model.word_representation("").unwrap();
+    let word_dim = model.word_embeddings[0].len();
+    let char_hidden = model.char_forward.hidden_size();
+    assert!(empty[word_dim..word_dim + 2 * char_hidden].iter().all(|&v| v.to_bits() == 0));
+    assert_eq!(tagger.tag(&[""]).unwrap().len(), 1);
+
+    let unicode_tags = tagger.tag(&["İstanbul", "🐕"]).unwrap();
+    assert_eq!(unicode_tags.len(), 2);
+    assert_eq!(unicode_tags, tagger.tag(&["İstanbul", "🐕"]).unwrap());
+
+    // 2-layer CRF usage test
+    let accurate = BilstmSettings::new(
+        16, 8, 8, 16, 60, 8, 0.05, 5.0, 0.0, 1, 16, 17, 1, 0.0, 0, true, 2, 0.0, 0.0, 1.0, 0.0, false,
+    )
+    .unwrap();
+    let crf_model = BilstmPosTrainer::train(&usage_corpus(), accurate).unwrap();
+    for crf_tagger in [BilstmPosTagger::jvm_parity(crf_model.clone()), BilstmPosTagger::new(crf_model)] {
+        assert_eq!(crf_tagger.tag(&["the", "cat", "barks"]).unwrap(), vec!["DT", "NN", "VBZ"]);
+        assert_eq!(crf_tagger.tag(&["dogs", "bark"]).unwrap(), vec!["NNS", "VBP"]);
+    }
+}
+
 #[test]
 fn full_model_gradients_match_finite_differences() {
     const EPSILON: f64 = 1e-6;
