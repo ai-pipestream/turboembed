@@ -129,8 +129,10 @@ a session whose max_seq is over 4096 takes F32 sums of the scores and
 the output by default (`mma128-acc32`): on nomic-embed-text-v1.5 at
 FASTEST, 8 rows of 8192 synthetic tokens against the CPU, the F16 sums
 gave 1 - lowest cosine 1.04e-3, over FASTEST's bound of 1e-3 (1.5e-4 at
-4096 tokens), and F32 sums 1.1e-6; on an RTX 4080 SUPER they took the
-run from 323 to 398 ms.
+4096 tokens), and F32 sums 1.1e-6 (docs/receipts/cuda-1461/). The F32
+sums make that attention slower; no timing of the cost is recorded yet.
+`TURBO_CUDA_ATTENTION=128` (or a `TURBO_CUDA_CHOICES` line naming
+`mma128`) still gives such a session the F16 sums, for measuring.
 `TURBO_CUDA_ATTENTION=acc32` keeps F32 sums of the scores and the
 output, the arithmetic before the F16 sums, and
 `TURBO_CUDA_ATTENTION=exact` keeps the earlier softmax as well, the

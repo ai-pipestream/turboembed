@@ -387,6 +387,58 @@ fn largest_shape_matches_the_cpu_at(dir: &std::path::Path, precision: u32) {
     );
 }
 
+/// FASTEST's tensor-core attention with F16 sums of the output and with
+/// F32 sums, on a real bundle against the CPU, by row length: 4 rows of
+/// 512 up to 8192 tokens (to the bundle's max_seq) and max_batch rows of
+/// max_seq, the rows of largest_shape_matches_the_cpu. The F16 sums'
+/// error grows with a row's keys, which is why a session past 4096 takes
+/// F32 sums (backend.cpp, ACC16_ATTENTION_MAX_KEYS); the F32 sums are held
+/// to the bound at each length, the F16 sums only printed. The run in
+/// docs/receipts/cuda-1461/ is this test's output.
+#[test]
+#[ignore = "needs a real bundle directory in TURBO_TEST_BUNDLE"]
+fn attention_sums_by_row_length_of_a_real_bundle() {
+    let _t = turn();
+    let dir = named_bundle().expect("TURBO_TEST_BUNDLE is not set");
+    let Some(_) = cuda_device("attention_sums_by_row_length_of_a_real_bundle") else { return };
+    let (g, c) = (on_cuda(&dir), Loaded::load(&dir).unwrap());
+    let mi = g.info();
+    let vocab = Tok::create(&dir).unwrap().info().vocab_size as usize;
+    let mut shapes: Vec<(usize, usize)> =
+        [512, 1024, 2048, 4096, 8192].into_iter().filter(|&s| s <= mi.max_seq as usize).map(|s| (4, s)).collect();
+    shapes.push((mi.max_batch as usize, mi.max_seq as usize));
+    for (batch, seq) in shapes {
+        let batch = batch.min(mi.max_batch as usize);
+        let rows: Vec<Vec<i32>> = (0..batch)
+            .map(|r| {
+                let len = seq - (r * 7) % (seq / 2);
+                (0..len).map(|p| (1000 + (r * 131 + p * 17) % (vocab - 1000)) as i32).collect()
+            })
+            .collect();
+        let t = Tokens::new(&rows, 0);
+        let cs = Session::create(c.m, Some(&session_desc(batch as u32, seq as u32, TURBO_PRECISION_MODEL))).unwrap();
+        cs.write_tokens(&t.batch(), None).unwrap();
+        let want = cs.run().unwrap().rows();
+        for (sums, acc32, attn) in [("F16", false, "attn=mma128,"), ("F32", true, "attn=mma128-acc32,")] {
+            turbo::cuda::use_acc32_attention(Some(acc32));
+            let gs = Session::create(g.m, Some(&session_desc(batch as u32, seq as u32, TURBO_PRECISION_FASTEST)));
+            turbo::cuda::use_acc32_attention(None);
+            let gs = gs.unwrap();
+            let info = gs.info();
+            let choices = field(&info.choices);
+            assert!(choices.contains(attn), "{choices}");
+            gs.write_tokens(&t.batch(), None).unwrap();
+            let got = gs.run().unwrap().rows();
+            let lowest = got.iter().zip(&want).map(|(a, b)| cosine(a, b)).fold(1f64, f64::min);
+            println!("{batch} rows of {seq} tokens, {sums} sums: 1 - lowest cosine with the cpu {:.3e}", 1.0 - lowest);
+            if acc32 {
+                let tol = record::tolerance(info.compute_dtype).unwrap();
+                assert!(lowest >= tol.min_cosine, "{batch} x {seq}, F32 sums: cosine {lowest}");
+            }
+        }
+    }
+}
+
 #[test]
 fn the_largest_shape_matches_the_cpu() {
     let _t = turn();

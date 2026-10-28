@@ -289,8 +289,9 @@ fn a_left_padded_modernbert_row_stays_finite() {
 
 /// A ModernBERT of hidden 128 over heads of 64, intermediate 64, three
 /// layers (one global, two local), window 128 and 512 positions, its
-/// weights from each element's place, scaled small enough for F16.
-fn wide_modernbert(name: &str) -> Fixture {
+/// weights from each element's place, scaled small enough for F16. With
+/// `long`, that many positions and a max_seq of as many, one row a run.
+fn wide_modernbert(name: &str, long: Option<u64>) -> Fixture {
     let mut m = rotary::modernbert(&format!("{name}-base")).manifest.clone();
     let (h, i, layers) = (128u64, 64u64, 3usize);
     let a = &mut m["architecture"];
@@ -298,9 +299,15 @@ fn wide_modernbert(name: &str) -> Fixture {
     a["heads"] = 2.into();
     a["intermediate"] = i.into();
     a["layers"] = layers.into();
-    a["max_positions"] = 512.into();
+    a["max_positions"] = long.unwrap_or(512).into();
     a["attention"] = json!({ "window": 128, "global_every": 3 });
     m["embed"]["dim"] = h.into();
+    if let Some(n) = long {
+        m["embed"]["max_seq"] = n.into();
+        m["embed"]["max_batch"] = 1.into();
+        // A case longer than max_seq, which the loader asks for.
+        m["reference"]["cases"][8]["text"] = json!(vec![PARAGRAPH; 600].join(" "));
+    }
     m["files"] = json!([]);
     let mut f = Fixture::new(name, m);
     let mut shapes: Vec<(String, Vec<u64>)> = vec![
@@ -352,7 +359,7 @@ fn a_modernbert_of_head_width_64_matches_the_cpu() {
     if !device(test) {
         return;
     }
-    let f = wide_modernbert("cu-rotary-wide");
+    let f = wide_modernbert("cu-rotary-wide", None);
     f.write();
     let (g, c) = (on_gpu(&f.dir), Loaded::load(&f.dir).unwrap());
     let cs = Session::create(c.m, Some(&session_desc(8, 256, TURBO_PRECISION_MODEL))).unwrap();
@@ -366,6 +373,40 @@ fn a_modernbert_of_head_width_64_matches_the_cpu() {
         assert_eq!(gs.info().compute_dtype, TURBO_DTYPE_F16);
         holds(test, &format!("FASTEST {what}"), &gs, &cs, 256, false, true);
     }
+}
+
+/// FASTEST's attention past 4096 keys: the generated ModernBERT at 4097
+/// positions takes the tensor cores' attention with F32 sums of the
+/// scores and the output (mma128-acc32) in a session of max_seq 4097,
+/// tuned or not, and the F16 sums (mma128) at 4096. The F16 sums' error
+/// grows with a row's keys; past 4096 it can leave FASTEST's bound.
+#[test]
+fn fastest_takes_f32_attention_sums_past_4096_keys() {
+    let test = "fastest_takes_f32_attention_sums_past_4096_keys";
+    let _t = turn();
+    if !device(test) {
+        return;
+    }
+    let f = wide_modernbert("cu-rotary-long", Some(4097));
+    f.write();
+    let g = on_gpu(&f.dir);
+    turbo::tuning::use_cache_dir(Some(None));
+    for (seq, tuning, attn) in [
+        (4096, TURBO_AUTOTUNE_OFF, "attn=mma128,"),
+        (4097, TURBO_AUTOTUNE_OFF, "attn=mma128-acc32,"),
+        (4097, TURBO_AUTOTUNE_ON, "attn=mma128-acc32,"),
+    ] {
+        let mut d = session_desc(1, seq, TURBO_PRECISION_FASTEST);
+        d.tuning = tuning;
+        let s = Session::create(g.m, Some(&d)).unwrap_or_else(|e| panic!("{e:?}"));
+        let choices = field(&s.info().choices);
+        println!("{test}: max_seq {seq}, tuning {tuning}: {choices}");
+        assert!(choices.contains(attn), "max_seq {seq}, tuning {tuning}: {choices}");
+        if attn != "attn=mma128," {
+            assert!(!choices.contains("attn=mma128,"), "max_seq {seq}, tuning {tuning}: {choices}");
+        }
+    }
+    turbo::tuning::use_cache_dir(None);
 }
 
 /// FASTEST on the tiny bundles held to the CPU at the cosine floor on each
