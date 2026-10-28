@@ -171,7 +171,7 @@ impl VectorAnnotator {
             return vec![Err(err); inputs.len()];
         }
 
-        let hidden_dim = self.dim as usize;
+        let hidden_dim = self.hidden as usize;
         let out_dim = self.token_dim();
         let mut raw_states: Vec<Result<Vec<f32>, Error>> =
             inputs.iter().map(|&(sub, sents)| self.validate_token_input(annotator, sub, sents, hidden_dim)).collect();
@@ -323,7 +323,7 @@ impl VectorAnnotator {
         run.rows.clear();
         run.ranges.clear();
         run.targets.clear();
-        let dim = self.dim as usize;
+        let dim = self.hidden as usize;
         let head = self.head.len() as u32;
         let mut p = 0usize;
         for (w, win) in plan.windows.iter().enumerate() {

@@ -280,6 +280,47 @@ row patterns and token ranges: on the M2 every value is within 8.3e-6 of
 the CPU's, against a bound of 1e-4. Dropping the content-to-position term
 fails it (3.3e-4 on the tiny model).
 
+## ModernBERT and nomic-bert
+
+A model of `FAMILY_MODERNBERT` or `FAMILY_NOMIC_BERT` (docs/bundle.md,
+#1461) loads and runs at MODEL and EXACT, in F32; FASTEST is refused with
+`TURBO_E_UNSUPPORTED_OPTION` naming field 3, and never runs in F32 in its
+place. model_load checks the description as the CPU's does (the struct
+reaches `global_every`, the family's tensors, MLP, activation and norm, a
+head twice `rope_pairs` wide) and copies the core's cos/sin table once;
+no angle is computed on the device. The first session lays out each
+layer's weights once a model (`pack_rows`, as
+`core/src/cpu/kernels/pairs.rs` does): Q's and K's rows with each head's
+in pairs (c, c + d/2), and the gated MLP's gate row j (ModernBERT's `Wi`
+rows 0..i, nomic's `fc12`) and up row j (`Wi` rows i..2i, `fc11`) side by
+side. A lane of an 8 x 8 SIMD-group matrix holds two neighbouring
+columns, so the F32 linear layers' stores (`store_pair`) finish each
+pair in registers:
+
+- `EPILOGUE_ROPE`: Q's and K's pairs turned by the token's position, its
+  column in its row, from the table of the layer's base (global, or local
+  on a sliding-window layer); V as is.
+- `EPILOGUE_GATED_GELU`, `EPILOGUE_GATED_SILU`: act(gate) * up into
+  column c / 2 of the intermediate-wide buffer, GELU by erf or SiLU.
+- `EPILOGUE_RESIDUAL`: the product added to the residual stream.
+
+Attention is BERT's with a window: on a sliding-window layer (layer l
+with l % global_every not 0) query i reads keys j with |i - j| <=
+attention_window / 2, the kernel visiting only the chunks of 32 keys
+that hold one, and a query whose window holds no live key (a left-padded
+row's pad) gets a context of 0. ModernBERT is pre-norm (`layer_norm_into`
+writing the normalized rows beside the residual, layer 0 reading x, the
+final norm last), its norms bias-free; nomic-bert is post-norm in BERT's
+order with token types (`rotary_embed`). No projection has a bias.
+
+`core/tests/metal_gated.rs` holds the device to the CPU at MODEL and
+EXACT on the sealed tiny bundles (testdata/tiny-modernbert-bundle,
+tiny-nomic-bundle) on rows up to 64 tokens, past the window of 8, at
+seven row patterns and token ranges, and to their sealed reference
+vectors; on the M2 every value is within 3e-6 of the CPU's, against a
+bound of 1e-4, and within 1.1e-6 of the reference. Reading the whole row
+on the local layers fails it (6.7e-2).
+
 ## The LSTM for the taggers
 
 `turbo::device::lstm::Lstm` on `Device::Metal(n)` (`metal` or `metal:N`)
