@@ -2897,6 +2897,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-trainer-recipes"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "turbo",
+ "turbo-analysis-embed",
+ "turbo-formats",
+ "turbo-tagger",
+ "turbo-train-recipes",
+ "turbo-trainer",
+]
+
+[[package]]
 name = "turbo-unicode"
 version = "0.1.0"
 dependencies = [

@@ -24,9 +24,10 @@ What is here:
   (accuracy, or exact span F1 under BIO and BILOU), early stopping that
   keeps the best weights. Two runs with one seed give identical bytes.
 
-Not yet here: the feature cache that runs the encoder over a corpus,
-recipes, and bundle output (R1b); the biaffine and edit-tree heads
-(R1c); encoder fine-tuning (R2, #1519); distillation (R3, #1520).
+Corpora, scoring, receipts and the `turbo-train-head` command are in
+`trainer/recipes` (R1b). Not yet here: a feature cache on disk, bundle
+output; the biaffine and edit-tree heads (R1c); encoder fine-tuning
+(R2, #1519); distillation (R3, #1520).
 
 ```text
 cargo test -p turbo-trainer

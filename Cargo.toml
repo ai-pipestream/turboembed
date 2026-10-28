@@ -3,6 +3,7 @@ members = [
     "core",
     "bundle",
     "trainer",
+    "trainer/recipes",
     "bench",
     "server",
     "demo",
