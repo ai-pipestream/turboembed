@@ -4782,24 +4782,21 @@ tokens left out are those whose gold lemma class (the edit script from
 the token to its lemma) gives the lemma while no class of the reference
 does, and `check` refuses a lemmatizer's record with tag mappings.
 
-### A permissively trained default encoder
+### Encoder audit and optional Granite download
 
-The lineup the records above were made with has no encoder the
-licence audit proves permissive (docs/licences.md): all-MiniLM-L6-v2
-trains on MS MARCO, SNLI/MultiNLI and Reddit pairs with no confirmed
-text grant, the BGE family does not pin a
-per-model mixture, and the potion statics inherit BGE. The encoder
-adopted as the shippable default is
-`ibm-granite/granite-embedding-30m-english` (Apache-2.0): IBM's card
-enumerates its training mixture, no entry is under non-commercial
-terms (MS MARCO was excluded for its license), and several entries are
-CC BY-SA, credited in docs/licences.md. Its class by the zoo rule
-is share-alike; its adoption as the shipped default is the decision
-recorded in docs/zoo.md ("A shipped default trained on share-alike
-data"). It is a 6-layer, 384-wide RoBERTa with CLS pooling, made by
-name from `bundle/recipes/granite-embedding-30m-english.json`; its
-BF16 checkpoint is cast to F32 weights at bundle make, the exact
-widening the cpu backend computes in at MODEL precision.
+The licence audit does not establish a permissive training lineage for
+all-MiniLM-L6-v2, BGE or Potion (docs/licences.md).
+`ibm-granite/granite-embedding-30m-english` is an optional local encoder:
+Apache-2.0 weights, CC BY-SA training inputs, and web-scraped and
+IBM-internal text with no auditable grant. The recipe requires explicit
+user acceptance as described in docs/zoo.md ("Granite requires an
+explicit download decision"). Granite weights and generated Granite
+bundles are excluded from TurboEmbed releases; automatic download is
+not authorized.
+
+Granite is a 6-layer, 384-wide RoBERTa with CLS pooling, available by name
+through `bundle/recipes/granite-embedding-30m-english.json`. Bundle make
+converts the BF16 checkpoint to F32 for CPU MODEL precision.
 
 The gate is the document chunker with dense retrieval on CPU at
 MODEL precision, the three records side by side
@@ -4818,8 +4815,7 @@ for all three). nDCG@10:
 Granite leads the incumbent on every set, by 0.019 to 0.077, at the
 same size and depth (its BPE tokenizer embeds about 28 percent more
 tokens on scifact; the records carry the embedding walls, measured
-on a shared machine). It is the default encoder new work should
-name. The historic records keep all-MiniLM-L6-v2 as their reference
+on a shared machine). New work may select it after explicit user acceptance. The historic records keep all-MiniLM-L6-v2 as their reference
 embedder, and the static tier is unchanged: potion stays local-only.
 
 An in-house alternative was measured first and is not shipped:

@@ -165,6 +165,7 @@
       }
     }
   },
+  "notice": "Apache-2.0 weights; training inputs include CC BY-SA datasets and web-scraped and IBM-internal text without auditable grants. This model is not distributed with TurboEmbed. Review https://huggingface.co/ibm-granite/granite-embedding-30m-english/blob/9b5b096411652ec1189c68fcfb90d0a82c5b45af/README.md and docs/licences.md before accepting this optional local download.",
   "upstream": [
     {
       "path": "config.json",
