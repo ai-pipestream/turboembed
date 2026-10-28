@@ -180,10 +180,29 @@ fn an_unfinished_dump_leaves_no_file() {
 fn a_clauses_run_dumps_and_compares() {
     let (a, b) = (dir("clauses-a"), dir("clauses-b"));
     let c = TurboChunker { clauses: true, ..chunker(Costs::default()) };
+fn a_chunk_whose_end_alone_moved_is_a_difference() {
+    // The same starts, levels and parents, and one end moved: the cut
+    // comparison alone would match these.
+    let a: Vec<ChunkRange> = vec![(0, 10, 0, None), (10, 20, 0, None), (0, 20, 1, None)];
+    let mut b = a.clone();
+    b[1].1 = 18;
+    assert_eq!(first_range_difference(&a, &b), Some(1));
+    assert_eq!(first_range_difference(&a, &a), None);
+    // A chunk missing from the end.
+    assert_eq!(first_range_difference(&a, &a[..2]), Some(2));
+}
+
+#[test]
+fn identical_dumps_have_identical_ranges() {
+    let (a, b) = (dir("ranges-a"), dir("ranges-b"));
+    let c = chunker(Costs::default());
     dump(&a, "s", "cpu", &c);
     dump(&b, "s", "levelzero", &c);
     let sets = compare_dirs(&a, &b).unwrap();
     assert!(sets[0].is_identical(), "{}", sets[0]);
+    let read = Dump::read(&cuts_path(&a, "s")).unwrap();
+    let chunks = read.docs[0].1.get::<Chunks>().unwrap();
+    assert_eq!(ranges(chunks).len(), chunks.spans.len());
     for d in [a, b] {
         fs::remove_dir_all(d).unwrap();
     }

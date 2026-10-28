@@ -142,15 +142,7 @@ fn run(args: &[String]) -> Result<ExitCode> {
             sets.iter().for_each(|s| print!("{s}"));
             Ok(if sets.iter().all(|s| s.is_identical()) { ExitCode::SUCCESS } else { ExitCode::FAILURE })
         }
-        Some("chunk-gate") if args.len() >= 3 => {
-            let read = |p: &String| turbo_eval::run::read_records(Path::new(p));
-            let (cand, windows) = (read(&args[1])?, read(&args[2])?);
-            let others = args[3..].iter().map(read).collect::<Result<Vec<_>>>()?;
-            let others: Vec<&[_]> = others.iter().map(Vec::as_slice).collect();
-            let report = turbo_eval::chunk_gate::chunk_gate(&cand, &windows, &others)?;
-            println!("{report}");
-            Ok(if report.pass { ExitCode::SUCCESS } else { ExitCode::FAILURE })
-        }
+        Some("chunk-gate") => turbo_eval::chunk_gate::command(&args[1..]),
         Some("analysis") => turbo_eval::analysis_bench::command(&args[1..]).map(|()| ExitCode::SUCCESS),
         Some("gate") if args.len() == 3 => {
             let report = gate_dirs(Path::new(&args[1]), Path::new(&args[2]))?;

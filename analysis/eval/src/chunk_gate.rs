@@ -188,6 +188,21 @@ impl fmt::Display for ChunkGateReport {
     }
 }
 
+/// `turbo-eval chunk-gate <candidate> <windows> [<baseline> ...]`: prints
+/// the report; exit status 1 when the gate fails.
+pub fn command(args: &[String]) -> Result<std::process::ExitCode> {
+    if args.len() < 2 {
+        return Err("chunk-gate <candidate-dir> <windows-dir> [<baseline-dir> ...]".into());
+    }
+    let read = |p: &String| crate::run::read_records(std::path::Path::new(p));
+    let (cand, windows) = (read(&args[0])?, read(&args[1])?);
+    let others = args[2..].iter().map(read).collect::<Result<Vec<_>>>()?;
+    let others: Vec<&[EvalRecord]> = others.iter().map(Vec::as_slice).collect();
+    let report = chunk_gate(&cand, &windows, &others)?;
+    println!("{report}");
+    Ok(if report.pass { std::process::ExitCode::SUCCESS } else { std::process::ExitCode::FAILURE })
+}
+
 #[cfg(test)]
 #[path = "chunk_gate_tests.rs"]
 mod tests;

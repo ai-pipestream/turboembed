@@ -108,6 +108,25 @@ pub struct Differing {
     pub id: String,
     pub matched: usize,
     pub disagreements: Vec<turbo_chunker::compare::Disagreement>,
+    /// The first chunk, in layer order, whose full range (start, end,
+    /// level and parent) differs between the runs, when any does. The cut
+    /// comparison matches chunk starts by level and parent; this also
+    /// holds each chunk's end and the chunk count to account.
+    pub range: Option<usize>,
+}
+
+/// Each chunk's full range: start, end, level and parent index.
+pub type ChunkRange = (u32, u32, u8, Option<u32>);
+
+/// The ranges of every chunk of a layer, in layer order.
+pub fn ranges(c: &Chunks) -> Vec<ChunkRange> {
+    c.spans.iter().map(|(i, s)| (s.start, s.end, c.level[i.get()], c.parent[i.get()].map(|p| p.get() as u32))).collect()
+}
+
+/// The first index at which two runs' chunk ranges differ, the shorter
+/// list's length when one is a prefix of the other; None when equal.
+pub fn first_range_difference(a: &[ChunkRange], b: &[ChunkRange]) -> Option<usize> {
+    a.iter().zip(b).position(|(x, y)| x != y).or_else(|| (a.len() != b.len()).then_some(a.len().min(b.len())))
 }
 
 /// Two dumps of one set compared document by document.
@@ -162,13 +181,15 @@ pub fn compare_dumps(a: &Dump, b: &Dump) -> Result<SetCuts> {
         if da.text(ra.chunks.spans.view()) != db.text(rb.chunks.spans.view()) {
             return Err(format!("set {}: document {ida}: the anchored view texts differ", ha.set));
         }
+        let range = first_range_difference(&ranges(ra.chunks), &ranges(rb.chunks));
         let report: Report<'_> = compare(ra, rb).map_err(|e| format!("set {}: document {ida}: {e}", ha.set))?;
         out.matched += report.matched;
-        if !report.is_identical() {
+        if !report.is_identical() || range.is_some() {
             out.differing.push(Differing {
                 id: ida.clone(),
                 matched: report.matched,
                 disagreements: report.disagreements,
+                range,
             });
         }
     }
@@ -229,6 +250,9 @@ impl fmt::Display for SetCuts {
             self.b.precision
         )?;
         for d in &self.differing {
+            if let (Some(i), true) = (d.range, d.disagreements.is_empty()) {
+                writeln!(f, "  {}: chunk {i}'s range differs with the same cut starts", d.id)?;
+            }
             for x in &d.disagreements {
                 let starts = |c: &[turbo_chunker::compare::CutAt]| {
                     c.iter().map(|c| c.start.to_string()).collect::<Vec<_>>().join(",")
