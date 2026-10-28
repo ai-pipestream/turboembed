@@ -1,4 +1,4 @@
-//! Shared annotators must keep each document's adaptive state independent.
+//! Shared annotators must keep each document's state independent.
 #[path = "resource_reuse.rs"]
 mod resource;
 
@@ -9,7 +9,7 @@ use turbo_analysis_layers::{Calibrated, Entities, Sentences, Tokens};
 use turbo_calibration::{Calibration, DataIdentity, Policy, Transform, digest};
 use turbo_namefind::{
     CrfNameAnnotator,
-    calibrated::{CalibratedNameAnnotator, identity},
+    calibrated::{CalibratedCrfNameAnnotator, crf_identity},
 };
 
 fn input() -> (Document, Sentences, Tokens) {
@@ -31,7 +31,7 @@ impl EntityOutput for (Entities, Alternatives<Entities>) {
         &self.0
     }
 }
-impl EntityOutput for (Entities, Calibrated<Tokens>) {
+impl EntityOutput for (Entities, Calibrated<Entities>) {
     fn entities(&self) -> &Entities {
         &self.0
     }
@@ -69,14 +69,14 @@ fn shared_annotators_run_documents_on_multiple_threads() {
     let file = resource::package(2000);
     let crf = CrfNameAnnotator::new((*file).clone(), 1).unwrap();
     let artifact = Calibration::new(
-        identity(&file, "test").unwrap(),
+        crf_identity(&file, "test").unwrap(),
         Transform::Temperature(1.0),
         DataIdentity { split: "fit".into(), sha256: digest(b"fit") },
         DataIdentity { split: "conf".into(), sha256: digest(b"conf") },
         vec![0.1; 20],
     )
     .unwrap();
-    let calibrated = CalibratedNameAnnotator::new(
+    let calibrated = CalibratedCrfNameAnnotator::new(
         file,
         artifact,
         "test",
