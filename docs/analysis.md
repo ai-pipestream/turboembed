@@ -4593,48 +4593,19 @@ cuts read no vectors. Beside it runs
 `turbo-chunker-254-200-cohesion-1000-hybrid`, whose cohesion term reads
 sentence vectors, so a backend's numerics could move its cuts: it is the
 cut-identity check. Each backend gates the candidate against the three
-hybrid baselines run on that same backend. Every record is at commit
-`16e74c04`, under `analysis/eval/records/v1-172/<backend>/<name>/`, with
-the run logs beside them and the gate and cut reports in
-`analysis/eval/records/v1-172/reports/`.
+hybrid baselines run on that same backend. Every record is at main
+`0d58e862`, with turbo-sentdetect's rule splitter as the sentence
+default (#1568), under `analysis/eval/records/v1-172/<backend>/<name>/`
+for the CPU, Level Zero (Arc Pro B70), CUDA (RTX 4080 SUPER) and Metal
+(Apple M2), with the run logs beside them and the gate and cut reports in
+`analysis/eval/records/v1-172/reports/`. (The first records, at
+`16e74c04` with the 2.5.4 OpenNLP sentence model, gave the same
+verdicts; their cut dumps predate the dumps' completion record and could
+not be re-verified, so they are not kept.)
 
-The gate FAILs on every backend (CPU, Level Zero, CUDA and Metal),
-with the same verdicts:
-
-| Candidate | `sentence-windows-5-hybrid` | `fixed-tokens-200-hybrid` | `opennlp-sandbox-semantic-hybrid` |
-| :--- | :--- | :--- | :--- |
-| structure-cost hybrid (v1) | FAIL, 0 gains; `scifact` -0.90 | FAIL, 0 gains; `arguana` -0.70 (CUDA -0.57) | FAIL, 3 gains; `qasper` -1.52 |
-| cohesion-1000 hybrid | FAIL, 0 gains; `scifact` -1.00, `qasper` -1.18 | FAIL, 0 gains; `arguana` -0.93 (CUDA -0.86), `qasper` -1.20 | FAIL, 3 gains; `qasper` -2.44 |
-
-The numbers named are the sets below the -0.5 floor. On CUDA the
-cohesion candidate is also below the floor against
-`sentence-windows-5-hybrid` on `arguana` (-0.51, interval -1.37 to
-+0.33). So against like-for-like baselines the structure-cost hybrid is
-not 2 points better on any set; it is within noise of the two simple
-baselines on most sets and beats the sandbox semantic chunker on three.
-
-Cut identity: `turbo-eval run --dump-cuts` wrote each turbo-chunker
-run's cuts, and `turbo-eval cuts` compared every document's cuts, at
-every level, against the CPU's. Both pipelines cut every document of
-all four sets the same on the CPU, Level Zero (Arc Pro B70), CUDA
-(RTX 4080 SUPER) and Metal (Apple M2), the cohesion check included (structure-cost: 55659
-shared cuts, cohesion: 57319, 0 documents differ). No cut differs, so
-the reports hold no margins, and none had to be set against a backend's
-precision tier. The dumps are not committed (about 107 MB per pipeline
-and backend); `analysis/eval/records/v1-172/reports/cut-dumps.sha256`
-names each one's SHA-256 and size.
-The Level Zero and Metal records also match the CPU records query for
-query on every pipeline. CUDA's nDCG@10 differs from the CPU's by up to 0.18
-points on `arguana` and 0.04 on `nfcorpus`, with the same chunks: its
-numerics in the vectors, not the chunker. The Intel NPU leg is #1480.
-
-With turbo-sentdetect's rule splitter as the sentence default (#1568,
-in place of the 2.5.4-trained OpenNLP model), every record above was
-rerun at main `0d58e862` on all four backends, and these replace the
-`16e74c04` records and reports in the same directories. The gate still
-FAILs on every backend, with the same verdicts (the sets below the
-floor; CPU, Level Zero and Metal number for number, CUDA where it
-differs):
+The document gate FAILs on every backend, with the same verdicts (the
+sets below the -0.5 floor; CPU, Level Zero and Metal number for number,
+CUDA where it differs):
 
 | Candidate | `sentence-windows-5-hybrid` | `fixed-tokens-200-hybrid` | `opennlp-sandbox-semantic-hybrid` |
 | :--- | :--- | :--- | :--- |
@@ -4642,18 +4613,31 @@ differs):
 | cohesion-1000 hybrid | FAIL, 0 gains; `scifact` -1.20, `qasper` -0.74 | FAIL, 0 gains; `arguana` -0.77 (CUDA -0.59) | FAIL, 2 gains; `qasper` -1.12 (Level Zero -1.09, CUDA -1.10) |
 
 v1's nDCG@10 is `69.07` / `34.22` / `51.49` / `37.64` (scifact,
-nfcorpus, arguana, qasper) on the CPU. Both turbo-chunker pipelines cut
-every document of the four sets the same on the CPU, Level Zero, CUDA
-and Metal (`turbo-eval cuts` against the CPU's dumps: structure-cost
-55854 shared cuts, cohesion 57804, 0 documents differ). Metal matches
-the CPU query for query on every record; Level Zero on every record but
-the sandbox semantic chunker's on qasper (2 of 1451 queries differ, same
-chunk count and sizes); CUDA differs on up to 62 of arguana's 1406
-queries (v1 +0.18 points, cohesion +0.24), with the same cuts, so from
-its vectors' numerics. The sandbox semantic chunker cuts on
-sentence-vector thresholds and writes no cut dump; on Metal its arguana
-run has one chunk fewer than the CPU's (49147 against 49148) with the
-same per-query scores.
+nfcorpus, arguana, qasper) on the CPU. Against like-for-like baselines
+it is not 2 points better on any set; the per-document diagnosis on #172
+explains why (most judged BEIR documents are one or two chunks under any
+chunker) and what v1 does better: on qasper it cuts through 7.7% of the
+judged evidence spans against sentence windows' 51%.
+
+Cut identity: `turbo-eval run --dump-cuts` wrote each turbo-chunker
+run's cuts, and `turbo-eval cuts` (with #1595, which also compares every
+chunk's full range) compared every document against the CPU's. Each
+dump read as complete; for both pipelines, on all four sets, every
+document has the same chunks on the CPU, Level Zero, CUDA and Metal:
+the same full ranges (start, end, level and parent) and the same cut
+starts (structure-cost 55854 shared cuts, cohesion 57804; 0 documents
+differ). With no differing cut, the reports hold no margins to set
+against a precision tier. The dumps are not committed (about 107 MB per
+pipeline and backend); `reports/cut-dumps.sha256` names each one's
+SHA-256 and size. Metal matches the CPU query for query on every
+record; Level Zero on every record but the sandbox semantic chunker's
+on qasper (2 of 1451 queries differ, same chunk count and sizes); CUDA
+differs on up to 62 of arguana's 1406 queries (v1 +0.18 points,
+cohesion +0.24) with the same chunks, so from its vectors' numerics. The
+sandbox semantic chunker cuts on sentence-vector thresholds and writes
+no cut dump; on Metal its arguana run has one chunk fewer than the
+CPU's (49147 against 49148) with the same per-query scores. The Intel
+NPU leg is #1480.
 
 ### Structure in the chunker
 
