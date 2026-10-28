@@ -4584,6 +4584,47 @@ with the same chunk counts and the same `tokens_embedded`,
 `chunk_bytes` and `chunk_tokens`, and both gates FAIL with the same
 numbers. Every cut is the same on the CPU, CUDA, Level Zero and Metal.
 
+### Chunker v1 (#172)
+
+Chunker v1 is the structure-cost hybrid: `turbo-chunker --max 254
+--target 200` with `--retrieval hybrid` at its defaults (weighted
+fusion, BM25 weight 0.35), all-MiniLM-L6-v2 (manifest `0f17adc4`). Its
+cuts read no vectors. Beside it runs
+`turbo-chunker-254-200-cohesion-1000-hybrid`, whose cohesion term reads
+sentence vectors, so a backend's numerics could move its cuts: it is the
+cut-identity check. Each backend gates the candidate against the three
+hybrid baselines run on that same backend. Every record is at commit
+`16e74c04`, under `analysis/eval/records/v1-172/<backend>/<name>/`, with
+the run logs beside them and the gate and cut reports in
+`analysis/eval/records/v1-172/reports/`.
+
+The gate FAILs on every backend recorded, with the same verdicts:
+
+| Candidate | `sentence-windows-5-hybrid` | `fixed-tokens-200-hybrid` | `opennlp-sandbox-semantic-hybrid` |
+| :--- | :--- | :--- | :--- |
+| structure-cost hybrid (v1) | FAIL, 0 gains; `scifact` -0.90 | FAIL, 0 gains; `arguana` -0.70 (CUDA -0.57) | FAIL, 3 gains; `qasper` -1.52 |
+| cohesion-1000 hybrid | FAIL, 0 gains; `scifact` -1.00, `qasper` -1.18 | FAIL, 0 gains; `arguana` -0.93 (CUDA -0.86), `qasper` -1.20 | FAIL, 3 gains; `qasper` -2.44 |
+
+The numbers named are the sets below the -0.5 floor. On CUDA the
+cohesion candidate is also below the floor against
+`sentence-windows-5-hybrid` on `arguana` (-0.51, interval -1.37 to
++0.33). So against like-for-like baselines the structure-cost hybrid is
+not 2 points better on any set; it is within noise of the two simple
+baselines on most sets and beats the sandbox semantic chunker on three.
+
+Cut identity: `turbo-eval run --dump-cuts` wrote each turbo-chunker
+run's cuts, and `turbo-eval cuts` compared every document's cuts, at
+every level, against the CPU's. Both pipelines cut every document of
+all four sets the same on the CPU, Level Zero (Arc Pro B70) and CUDA
+(RTX 4080 SUPER), the cohesion check included (structure-cost: 55659
+shared cuts, cohesion: 57319, 0 documents differ). So no reported cut
+has a margin, and no margin had to be explained by a precision tier.
+The Level Zero records also match the CPU records query for query on
+every pipeline. CUDA's nDCG@10 differs from the CPU's by up to 0.18
+points on `arguana` and 0.04 on `nfcorpus`, with the same chunks: its
+numerics in the vectors, not the chunker. Metal records at the same
+commit come from the Mac; the Intel NPU leg is #1480.
+
 ### Structure in the chunker
 
 The records under `analysis/eval/records/turbo-chunker-254-200-structure-*`

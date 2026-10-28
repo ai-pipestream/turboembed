@@ -1,0 +1,14 @@
+== turbo-chunker-254-200-hybrid 2026-10-28T01:38:46Z 16e74c040898d961d0c50e4e9bf1412f1722f86c load 9.10 5.69 4.63
+target/release/turbo-eval run --bundle <bundles>/all-minilm-l6-v2-r4 --sets scifact,nfcorpus,arguana,qasper --cache <cache> --device levelzero --retrieval hybrid --out <records>/levelzero/turbo-chunker-254-200-hybrid --dump-cuts <dumps>/levelzero/turbo-chunker-254-200-hybrid --chunker turbo-chunker --max 254 --target 200
+set scifact: the cuts of 5183 documents in <dumps>/levelzero/turbo-chunker-254-200-hybrid/scifact.cuts
+set nfcorpus: the cuts of 3633 documents in <dumps>/levelzero/turbo-chunker-254-200-hybrid/nfcorpus.cuts
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set arguana: the cuts of 8674 documents in <dumps>/levelzero/turbo-chunker-254-200-hybrid/arguana.cuts
+set qasper: 21 judgements could not be placed in their document and are left out
+set qasper: the cuts of 416 documents in <dumps>/levelzero/turbo-chunker-254-200-hybrid/qasper.cuts
+<records>/levelzero/turbo-chunker-254-200-hybrid/scifact.json
+<records>/levelzero/turbo-chunker-254-200-hybrid/nfcorpus.json
+<records>/levelzero/turbo-chunker-254-200-hybrid/arguana.json
+<records>/levelzero/turbo-chunker-254-200-hybrid/qasper.json
+wall 18.71 s maxrss 355780 KB
+exit 0 load 9.52 5.99 4.75

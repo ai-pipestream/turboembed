@@ -1,0 +1,6 @@
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set qasper: 21 judgements could not be placed in their document and are left out
+analysis/eval/records/v1-172/cuda/opennlp-sandbox-semantic-hybrid/scifact.json
+analysis/eval/records/v1-172/cuda/opennlp-sandbox-semantic-hybrid/nfcorpus.json
+analysis/eval/records/v1-172/cuda/opennlp-sandbox-semantic-hybrid/arguana.json
+analysis/eval/records/v1-172/cuda/opennlp-sandbox-semantic-hybrid/qasper.json

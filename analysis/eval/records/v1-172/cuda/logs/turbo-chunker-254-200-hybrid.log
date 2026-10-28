@@ -1,0 +1,10 @@
+set scifact: the cuts of 5183 documents in <dumps>/cuda/turbo-chunker-254-200-hybrid/scifact.cuts
+set nfcorpus: the cuts of 3633 documents in <dumps>/cuda/turbo-chunker-254-200-hybrid/nfcorpus.cuts
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set arguana: the cuts of 8674 documents in <dumps>/cuda/turbo-chunker-254-200-hybrid/arguana.cuts
+set qasper: 21 judgements could not be placed in their document and are left out
+set qasper: the cuts of 416 documents in <dumps>/cuda/turbo-chunker-254-200-hybrid/qasper.cuts
+analysis/eval/records/v1-172/cuda/turbo-chunker-254-200-hybrid/scifact.json
+analysis/eval/records/v1-172/cuda/turbo-chunker-254-200-hybrid/nfcorpus.json
+analysis/eval/records/v1-172/cuda/turbo-chunker-254-200-hybrid/arguana.json
+analysis/eval/records/v1-172/cuda/turbo-chunker-254-200-hybrid/qasper.json
