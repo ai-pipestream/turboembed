@@ -196,3 +196,32 @@ fn large_scores_that_cancel_or_are_forbidden_leave_the_loss_whole() {
         assert_eq!((&de, &gs, &ge), (&want, &want, &want), "case {k}");
     }
 }
+
+/// Codex's case: the gold path far from dominant, two equal alternatives
+/// that are. The marginals at every place still sum to one.
+#[test]
+fn marginals_stay_normalized_when_other_paths_dominate() {
+    let names = ["A", "B", "C"].map(String::from);
+    let (_, tags) = allowed(Scheme::Tags, &names).unwrap();
+    let (tr, st, en) = (vec![0.0f32; 9], vec![0.0f32; 3], vec![0.0f32; 3]);
+    for n in [1usize, 2, 4] {
+        let emit: Vec<f32> = (0..n).flat_map(|_| [0.0, 1e20, 1e20]).collect();
+        let p = crf::Params { transitions: &tr, start: &st, end: &en };
+        let (mut gt, mut gs, mut ge, mut de) = (vec![0.0f32; 9], vec![0.0; 3], vec![0.0; 3], vec![0.0; 3 * n]);
+        let g = crf::Grad { transitions: &mut gt, start: &mut gs, end: &mut ge };
+        let l = crf::nll(p, &tags, &emit, &vec![0; n], 3, &mut de, g).unwrap();
+        assert!(l > 0.0 && l.is_finite(), "{n} words: {l}");
+        for row in de.chunks(3) {
+            assert_eq!(row, [-1.0, 0.5, 0.5], "{n} words: {de:?}");
+        }
+        assert_eq!((&gs[..], &ge[..]), (&[-1.0, 0.5, 0.5][..], &[-1.0, 0.5, 0.5][..]), "{n} words");
+        // Each step's pair marginals sum to one less the gold pair's one.
+        let total: f32 = gt.iter().sum();
+        assert!(total.abs() < 1e-6, "{n} words: {gt:?}");
+        if n > 1 {
+            let k = (n - 1) as f32;
+            assert_eq!(gt[0], -k, "{n} words: {gt:?}");
+            assert_eq!([gt[4], gt[5], gt[7], gt[8]], [0.25 * k; 4], "{n} words: {gt:?}");
+        }
+    }
+}
