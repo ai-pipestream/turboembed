@@ -164,7 +164,17 @@ fn manifest_refuses_ill_formed_heads() {
     refused("bad-label", |m| h(m)["labels"] = json!(["O", "L-PER"]), BUNDLE_INVALID, "L-PER");
     refused("no-outside", |m| h(m)["labels"] = json!(["B-PER", "I-PER"]), BUNDLE_INVALID, "needs the label");
     refused("twice", |m| h(m)["labels"] = json!(["O", "O"]), BUNDLE_INVALID, "listed twice");
-    refused("empty", |m| h(m)["labels"] = json!([]), BUNDLE_INVALID, "empty");
+    refused("empty", |m| h(m)["labels"] = json!([]), BUNDLE_INVALID, "0 labels");
+    refused(
+        "too-many",
+        |m| {
+            let many: Vec<String> = (0..4097).map(|i| format!("L{i}")).collect();
+            h(m)["labels"] = json!(many);
+            h(m)["scheme"] = json!("SCHEME_TAGS");
+        },
+        BUNDLE_INVALID,
+        "4097 labels",
+    );
     refused("name", |m| h(m)["name"] = json!("NER"), BUNDLE_INVALID, "lowercase");
     refused(
         "duplicate",

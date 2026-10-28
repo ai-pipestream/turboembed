@@ -110,25 +110,44 @@ impl Allowed {
     }
 }
 
-/// A first-order CRF's scores: `transitions` [from, to], `start` and
-/// `end` [labels], added to the emission scores of each word.
+/// A first-order CRF's scores: transitions [from, to], start and end
+/// [labels], added to the emission scores of each word. Built only by
+/// [`Crf::new`], which checks every shape and value, and read-only after.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Crf {
-    pub labels: usize,
-    pub transitions: Vec<f32>,
-    pub start: Vec<f32>,
-    pub end: Vec<f32>,
+    labels: usize,
+    transitions: Vec<f32>,
+    start: Vec<f32>,
+    end: Vec<f32>,
 }
 
 impl Crf {
     pub fn new(labels: usize, transitions: Vec<f32>, start: Vec<f32>, end: Vec<f32>) -> Result<Crf> {
-        if labels == 0 || transitions.len() != labels * labels || start.len() != labels || end.len() != labels {
+        let square = labels.checked_mul(labels);
+        if labels == 0 || square != Some(transitions.len()) || start.len() != labels || end.len() != labels {
             return Err(Error::new(INVALID_SHAPE, format!("crf: shapes do not match {labels} labels")));
         }
         if !transitions.iter().chain(&start).chain(&end).all(|v| v.is_finite()) {
             return Err(Error::new(INVALID_ARGUMENT, "crf: a weight is not finite"));
         }
         Ok(Crf { labels, transitions, start, end })
+    }
+
+    pub fn labels(&self) -> usize {
+        self.labels
+    }
+
+    /// [from * labels + to].
+    pub fn transitions(&self) -> &[f32] {
+        &self.transitions
+    }
+
+    pub fn start(&self) -> &[f32] {
+        &self.start
+    }
+
+    pub fn end(&self) -> &[f32] {
+        &self.end
     }
 }
 
