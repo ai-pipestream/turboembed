@@ -15,6 +15,7 @@
 pub mod adamw;
 pub mod crf;
 pub mod fit;
+pub mod langid;
 pub mod linear;
 pub mod logspace;
 pub mod lstm;
