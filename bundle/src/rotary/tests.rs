@@ -135,12 +135,14 @@ fn each_unsupported_modernbert_key_is_refused_by_name() {
     }
 }
 
-/// Contrastors' grouped keys and partial rotary width may be written as
-/// the values they imply for this model.
+/// Contrastors' grouped keys may be written as the heads they imply, and
+/// its rotary layout flag as off (false or null).
 #[test]
-fn nomic_options_at_their_implied_values_agree() {
-    let c = mutate(&mutate(&parse(NOMIC), "/num_heads_kv", Some(json!(12))), "/rotary_head_dim", Some(json!(64)));
-    assert_eq!(agrees(&c, &nomic()), Ok(()));
+fn nomic_options_at_their_off_values_agree() {
+    for flag in [json!(false), Value::Null] {
+        let c = mutate(&mutate(&parse(NOMIC), "/num_heads_kv", Some(json!(12))), "/rotary_head_dim", Some(flag));
+        assert_eq!(agrees(&c, &nomic()), Ok(()));
+    }
 }
 
 #[test]
@@ -163,7 +165,8 @@ fn each_unsupported_nomic_key_is_refused_by_name() {
         ("/rotary_emb_scale_base", Some(json!(512)), "rotary_emb_scale_base"),
         ("/rope_scaling", Some(json!({ "type": "dynamic", "factor": 2.0 })), "rope_scaling"),
         ("/num_heads_kv", Some(json!(4)), "num_heads_kv"),
-        ("/rotary_head_dim", Some(json!(32)), "rotary_head_dim"),
+        ("/rotary_head_dim", Some(json!(true)), "rotary_head_dim"),
+        ("/rotary_head_dim", Some(json!(64)), "rotary_head_dim"),
         ("/causal", Some(json!(true)), "causal"),
         ("/parallel_block", Some(json!(true)), "parallel_block"),
         ("/rotary_emb_base", Some(json!(10000)), "rotary_emb_base"),

@@ -36,11 +36,12 @@ pub(super) fn architecture(c: &Config) -> Result<Fields> {
     let hidden = c.number(&["hidden_size", "n_embd"])?;
     let heads = c.number(&["num_attention_heads", "n_head"])?;
     c.head_dim(&hidden, &heads)?;
-    // Grouped keys and a partial rotary width are contrastors options the
-    // encoder does not run: either may be null, or the value it implies.
+    // Grouped keys are a contrastors option the encoder does not run: null,
+    // or the heads it implies. `rotary_head_dim` is contrastors' flag for
+    // xformers' rotary layout (layers/attention.py), not a width: only its
+    // off values, null or false, describe this model.
     c.default_is_or_null("num_heads_kv", heads.clone())?;
-    let head = hidden.as_u64().zip(heads.as_u64()).map(|(h, n)| h / n.max(1));
-    c.default_is_or_null("rotary_head_dim", head.into())?;
+    c.default_is_or_null("rotary_head_dim", false.into())?;
     let positions = match c.get("n_positions") {
         Some(_) => c.number(&["n_positions"])?,
         None => c.number(&["max_position_embeddings"])?,
