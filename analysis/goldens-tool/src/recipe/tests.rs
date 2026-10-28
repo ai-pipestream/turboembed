@@ -101,6 +101,19 @@ fn every_hunspell_file_names_the_commit_and_a_sha512() {
 }
 
 #[test]
+fn runs_java_does_not_register_hunspell_goldens() {
+    let runs = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");
+    assert!(
+        !runs.contains("HunspellGolden"),
+        "Runs.java must not register HunspellGolden; turbo-hunspell owns its own snapshots"
+    );
+    assert!(!ANNOTATORS.contains(&"hunspell"), "hunspell must stay out of ANNOTATORS");
+    let golden = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("java/src/main/java/ai/pipestream/turbo/goldens/HunspellGolden.java");
+    assert!(!golden.is_file(), "{} must stay deleted", golden.display());
+}
+
+#[test]
 fn every_fixture_has_a_file_and_a_sha512() {
     for f in FIXTURES {
         assert!(is_lower_hex(f.sha512, 128), "{}: {}", f.file, f.sha512);
