@@ -4,7 +4,7 @@ mod cli;
 mod commands;
 
 use cli::{Args, USAGE, need, only, parse};
-use commands::{fetch_ud_command, fineweb_ranges_command};
+use commands::{fetch_ud_command, fineweb_ranges_command, static_embed_command};
 use std::process::ExitCode;
 use turbo_train_recipes::masc::{self, RELEASE};
 
@@ -29,6 +29,7 @@ fn main() -> ExitCode {
         "fetch-masc" => fetch_command(a),
         "fetch-ud" => fetch_ud_command(a),
         "fineweb-ranges" => fineweb_ranges_command(a),
+        "static-embed" => static_embed_command(a),
         _ => Err(USAGE.to_owned()),
     });
     match result {
