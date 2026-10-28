@@ -20,8 +20,29 @@ fn every_line_of_models_txt_parses_and_no_digest_is_pinned_twice() {
 #[test]
 fn the_zoo_and_the_references_are_pinned_too() {
     assert!(pins().iter().filter(|p| p.source == "analysis/zoo/index/zoo.json").count() >= 90);
-    let sentence = "4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8";
-    assert!(pins().iter().any(|p| p.sha256 == sentence && p.source.contains("references")));
+    let text = "# a comment\n\
+                1111111111111111111111111111111111111111111111111111111111111111 https://example.org/a/kept.bin\n\
+                2222222222222222222222222222222222222222222222222222222222222222 https://example.org/models-1.5/gone.bin\n";
+    let refs = reference_pins(text);
+    assert_eq!(refs.len(), 1);
+    assert_eq!((refs[0].name, refs[0].kind), ("kept.bin", Kind::File));
+}
+
+/// No OpenNLP 1.5 model is pinned anywhere (#1509), whatever a references
+/// file still lists.
+#[test]
+fn no_retired_model_is_pinned() {
+    for name in
+        ["en-pos-maxent.bin", "en-pos-perceptron.bin", "en-chunker.bin", "en-ner-person.bin", "en-ner-location.bin"]
+    {
+        assert!(!pins().iter().any(|p| p.name == name), "{name} is pinned");
+    }
+    for hex in [
+        "645a094f45a866687a617385233fd23ae8b0f5fa8b1b76996781a50c17bdcf3d",
+        "7861a0c2f134d9c12a022a1ba501e88bc7039f6db72b4140e1bafd1fb5ef76cc",
+    ] {
+        assert!(lookup(hex).is_none(), "{hex} is pinned");
+    }
 }
 
 #[test]
@@ -96,9 +117,44 @@ fn a_directory_of_pinned_files_passes_and_one_unpinned_file_fails_it() {
     // The tiny bundle's manifest is pinned as a bundle, not as a file.
     assert!(check(&dir).is_err());
     let dir = scratch("checkpoint-files");
-    let masc = include_str!("../../train-recipes/masc-references.txt");
-    assert!(masc.contains("4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8"));
     fs::write(dir.join("x.bin"), b"not a model").unwrap();
     let e = check(&dir).unwrap_err();
     assert!(e.contains("files not pinned: x.bin"), "{e}");
+}
+
+/// A GLiREL-shaped package: glirel.json beside encoder/, whose deberta.json
+/// glirel.json does not name.
+fn glirel_package(name: &str, encoder: &[u8]) -> PathBuf {
+    let dir = scratch(name);
+    fs::write(dir.join("glirel.json"), br#"{"version": 1}"#).unwrap();
+    fs::write(dir.join("heads.safetensors"), b"heads").unwrap();
+    fs::create_dir_all(dir.join("encoder")).unwrap();
+    fs::write(dir.join("encoder/deberta.json"), encoder).unwrap();
+    fs::write(dir.join("encoder/weights.safetensors"), encoder).unwrap();
+    dir
+}
+
+#[test]
+fn a_package_whose_inner_encoder_is_swapped_is_refused() {
+    let package = sha256_hex(br#"{"version": 1}"#);
+    let encoder = sha256_hex(b"encoder");
+    let pinned = |hex: &str| (hex == package || hex == encoder).then_some((Kind::Package, "pin"));
+    let dir = glirel_package("glirel", b"encoder");
+    check_with(&dir, &pinned).unwrap();
+    // glirel.json is unchanged and still pinned; encoder/ is replaced,
+    // manifest and weights together.
+    let swapped = glirel_package("glirel-swapped", b"another encoder");
+    let e = check_with(&swapped, &pinned).unwrap_err();
+    assert!(e.contains("inner model is not bound") && e.contains("encoder"), "{e}");
+    // Without a pin of its own, an encoder the outer manifest names by
+    // digest is bound by it, as gliner.json names encoder/deberta.json.
+    let dir = scratch("gliner");
+    let named = format!(r#"{{"encoder_sha256": "{encoder}"}}"#);
+    fs::write(dir.join("gliner.json"), &named).unwrap();
+    fs::create_dir_all(dir.join("encoder")).unwrap();
+    fs::write(dir.join("encoder/deberta.json"), b"encoder").unwrap();
+    let outer = sha256_hex(named.as_bytes());
+    check_with(&dir, &|hex: &str| (hex == outer).then_some((Kind::Package, "pin"))).unwrap();
+    fs::write(dir.join("encoder/deberta.json"), b"another encoder").unwrap();
+    assert!(check_with(&dir, &|hex: &str| (hex == outer).then_some((Kind::Package, "pin"))).is_err());
 }

@@ -136,10 +136,15 @@ fn zoo_pins(text: &'static str) -> Vec<Pin> {
     out
 }
 
-/// The `<sha256> <address>` lines of a references file.
+/// Addresses of models no test may load, so a references file that still
+/// lists one pins nothing for it: the OpenNLP 1.5 models (#1509).
+const RETIRED: [&str; 1] = ["/models-1.5/"];
+
+/// The `<sha256> <address>` lines of a references file, but for a retired
+/// model's.
 fn reference_pins(text: &'static str) -> Vec<Pin> {
     text.lines()
-        .filter(|l| !l.starts_with('#'))
+        .filter(|l| !l.starts_with('#') && !RETIRED.iter().any(|r| l.contains(r)))
         .filter_map(|l| {
             let (hex, url) = l.split_once(' ')?;
             is_hex64(hex).then(|| Pin {
@@ -220,18 +225,28 @@ fn list(root: &Path, dir: &Path, out: &mut Vec<String>) -> Result<(), String> {
 
 /// Whether the model at `path` is pinned: its digest is pinned as its
 /// kind, or, for a directory with no manifest (a checkpoint the zoo
-/// fetched), every file in it is pinned as a file.
+/// fetched), every file in it is pinned as a file. A bundle or package
+/// passes only when each model directory inside it (`encoder/` of a GLiREL
+/// package) is bound too: its manifest's digest is written in the outer
+/// manifest, or it is pinned itself.
 pub fn check(path: &Path) -> Result<(), String> {
+    check_with(path, &|hex| lookup(hex).map(|p| (p.kind, p.name)))
+}
+
+/// What a pin list says of a digest: its kind and name, if it is pinned.
+type Pins<'a> = dyn Fn(&str) -> Option<(Kind, &'static str)> + 'a;
+
+/// [`check`] against the pins `pinned` gives.
+fn check_with(path: &Path, pinned: &Pins) -> Result<(), String> {
     let (kind, hex, each) = measure(path)?;
-    match lookup(&hex) {
-        Some(p) if p.kind == kind => return Ok(()),
-        Some(p) => {
+    match pinned(&hex) {
+        Some((k, _)) if k == kind => return inner_bound(path, kind, pinned),
+        Some((k, name)) => {
             return Err(format!(
-                "{}: its {} digest {hex} is pinned as a {} ({}), not as a {}",
+                "{}: its {} digest {hex} is pinned as a {} ({name}), not as a {}",
                 path.display(),
                 kind.name(),
-                p.kind.name(),
-                p.name,
+                k.name(),
                 kind.name()
             ));
         }
@@ -239,7 +254,7 @@ pub fn check(path: &Path) -> Result<(), String> {
     }
     let unpinned: Vec<&str> = each
         .iter()
-        .filter(|(_, h)| !lookup(h).is_some_and(|p| p.kind == Kind::File))
+        .filter(|(_, h)| !pinned(h).is_some_and(|(k, _)| k == Kind::File))
         .map(|(rel, _)| rel.as_str())
         .collect();
     if kind == Kind::Tree && !each.is_empty() && unpinned.is_empty() {
@@ -256,6 +271,30 @@ pub fn check(path: &Path) -> Result<(), String> {
         line_key(&hex),
         kind.name()
     ))
+}
+
+/// Each model directory directly inside the bundle or package `path` (one
+/// with a manifest of its own) is bound by the outer manifest naming its
+/// manifest's digest, or passes [`check_with`] itself.
+fn inner_bound(path: &Path, kind: Kind, pinned: &Pins) -> Result<(), String> {
+    if !matches!(kind, Kind::Bundle | Kind::Package) {
+        return Ok(());
+    }
+    let (outer, _) = MANIFESTS.iter().find(|(m, _)| path.join(m).is_file()).ok_or("no manifest")?;
+    let outer = fs::read_to_string(path.join(outer)).map_err(|e| format!("{}: {e}", path.display()))?;
+    let mut dirs: Vec<PathBuf> = fs::read_dir(path)
+        .map_err(|e| format!("{}: {e}", path.display()))?
+        .filter_map(|e| e.ok().map(|e| e.path()))
+        .filter(|p| p.is_dir() && MANIFESTS.iter().any(|(m, _)| p.join(m).is_file()))
+        .collect();
+    dirs.sort();
+    for dir in dirs {
+        let (_, hex) = digest(&dir)?;
+        if !outer.contains(&hex) {
+            check_with(&dir, pinned).map_err(|e| format!("{}: its inner model is not bound: {e}", path.display()))?;
+        }
+    }
+    Ok(())
 }
 
 /// `path` itself, once [`check`] passes; panics otherwise. Every call

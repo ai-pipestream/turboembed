@@ -10,7 +10,10 @@
 #            verified read check those, so the manifest pin pins them all
 #   package  a GLiNER, GLiREL or DeBERTa package's own manifest
 #            (gliner.json, glirel.json, deberta.json), which binds its
-#            files' digests the same way
+#            files' digests the same way. A model directory inside a
+#            bundle or package (a GLiREL package's encoder/) must be bound
+#            too: named by digest in the outer manifest (gliner.json names
+#            encoder/deberta.json) or pinned by its own line here
 #   file     one model file (an OpenNLP model, a head, a checkpoint file)
 #   tree     a directory with no manifest: the SHA-256 of its listing, one
 #            line "<sha256>  <relative path>\n" per regular file, in
@@ -18,7 +21,8 @@
 #
 # Also pinned, without a line here: every file of the zoo index
 # (analysis/zoo/index/zoo.json) and every score-only reference model in
-# analysis/train-recipes/*-references.txt, which pin their files already.
+# analysis/train-recipes/*-references.txt, which pin their files already,
+# except a retired model's (the OpenNLP 1.5 models, #1509).
 #
 # A test that loads a model from a path it is given goes through
 # turbo_pins::require, which refuses a model whose digest is not here;
