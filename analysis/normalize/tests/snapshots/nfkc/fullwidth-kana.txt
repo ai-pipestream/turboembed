@@ -1,0 +1,3 @@
+Fullwidth ABC abc 012 !? and ideographic comma、full stop。
+Halfwidth katakana ガギ パピ アイウ and voiced mark sequences ガ パ.
+Square アパート アール 株式会社 and parenthesized (株), 上.

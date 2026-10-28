@@ -1,0 +1,3 @@
+STRASSE Straße ẞ İ ı ﬃ ŉ ǰ ΐ ΰ ẖ ὐ ᾷ ῤ.
+Mixed Case: Hello World, MiXeD cAsE, ÉCOLE, ÑANDU, ΑΒΓ, АБВ, Ꭰ ꭰ.
+Titlecase ǅ ǈ ǋ ǲ and ligature ﬆ ﬓ և.

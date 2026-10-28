@@ -1,0 +1,3 @@
+Visit www.example.com, example.org/path/file.txt or sub.domain.example.net:8080/x?y=z for details.
+ftp://files.example.com/pub/readme.txt and mailto:someone@example.com are other schemes.
+A version like 1.2.3 and a name like e.g. or i.e. or U.S.A. are not hosts. Neither is file.txt.

@@ -1,0 +1,1 @@
+write to alice@example.com or bob.smith+tag@mail.example.org, or (carol_d@example.co.uk). not an address: user@, @example.com and a@b. ends with dave@example.com. two in a row: erin@example.com,frank@example.org.

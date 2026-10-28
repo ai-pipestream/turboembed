@@ -1,0 +1,3 @@
+AT&T and R&D but Q & A and a lone & here.  % and   % and a lone % there.
+©   Example™ and Brand®, a lone © or ™ or ®. Temperature  °C, section §  , ¶  .
+x + y = z, a < b > c,   *  ,   /  , a ~ b, c ^ d, e | f, g # h, i @ j, k $ l.

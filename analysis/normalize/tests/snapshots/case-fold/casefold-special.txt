@@ -1,0 +1,3 @@
+strasse straße ß i̇ ı ﬃ ŉ ǰ ΐ ΰ ẖ ὐ ᾷ ῤ.
+mixed case: hello world, mixed case, école, ñandu, αβγ, абв, ꭰ ꭰ.
+titlecase ǆ ǉ ǌ ǳ and ligature ﬆ ﬓ և.

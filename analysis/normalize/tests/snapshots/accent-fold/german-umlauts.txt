@@ -1,0 +1,3 @@
+Muller, Konig, Backer und Ol fur Arzte. Strasse, Grosse, Fuss, weiss, SSeta.
+GROssE und GRUSSE; Schlussel, uber, Ubung, Asser, Kase, moglich.
+Already ASCII: Mueller, Koenig, Strasse, Aepfel; but decomposed u o a too.

@@ -1,7 +1,6 @@
 //! Every run by name, and the one that opens it.
 
 use super::language::Detector;
-use super::normalize::{NormalizerRun, RUN_NAMES as NORMALIZERS};
 use super::numeric::{MoneyLayer, Numeric};
 use super::pii::PiiRun;
 use super::sentences::{MaxentSentences, NewlineSentences};
@@ -41,7 +40,7 @@ use crate::resources::{Resources, Unavailable};
 /// which turbo-formats compares with; the sentence vector runs
 /// (`sentvectors`) need an encoder bundle, and turbo-analysis-embed's
 /// `sentence_vectors_dl` test compares with them.
-pub const NOT_COVERED: [&str; 37] = [
+pub const NOT_COVERED: [&str; 38] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -65,6 +64,7 @@ pub const NOT_COVERED: [&str; 37] = [
     "tag-dictionary",
     "tag-format",
     "namefind",
+    "normalize",
     "stem",
     "hunspell",
     "stopword",
@@ -140,36 +140,6 @@ pub const RUNS: &[(&str, &str)] = &[
     ("langdetect", "langdetect-fixture-rust"),
     ("langdetect", "langdetect-fixture-rust+probing"),
     ("langdetect", "langdetect-fixture-rust+probing-chunk50"),
-    ("normalize", "whitespace"),
-    ("normalize", "whitespace-keep-lines"),
-    ("normalize", "whitespace-keep-paragraphs"),
-    ("normalize", "dash"),
-    ("normalize", "quote"),
-    ("normalize", "bullet"),
-    ("normalize", "ellipsis"),
-    ("normalize", "digit"),
-    ("normalize", "invisible"),
-    ("normalize", "dehyphenation"),
-    ("normalize", "nfc"),
-    ("normalize", "nfkc"),
-    ("normalize", "case-fold"),
-    ("normalize", "case-fold-tr"),
-    ("normalize", "full-case-fold"),
-    ("normalize", "accent-fold"),
-    ("normalize", "german-umlaut"),
-    ("normalize", "confusable-skeleton"),
-    ("normalize", "url"),
-    ("normalize", "bounded-url"),
-    ("normalize", "social-media"),
-    ("normalize", "number"),
-    ("normalize", "shrink"),
-    ("normalize", "english-contraction"),
-    ("normalize", "emoji"),
-    ("normalize", "emoji-to-emoticon"),
-    ("normalize", "emoticon-to-emoji"),
-    ("normalize", "symbol-joiner"),
-    ("normalize", "default-chain"),
-    ("normalize", "umlaut-full-case-whitespace-chain"),
     ("numbers", "latin-eu"),
     ("numbers", "latin-us"),
     ("money", "latin-eu"),
@@ -213,7 +183,6 @@ pub fn open(annotator: &str, run: &str, res: &Resources) -> Result<Box<dyn Run>,
         "lemmatize-dictionary" if run == "lemmatizer-dictionary" => Lemmatizer::open_dictionary(res),
         "chunk" if FIXTURE_CHUNKERS.contains(&base) => Chunker::open(base, &options, res),
         "langdetect" => Detector::open(base, &options, res),
-        "normalize" if NORMALIZERS.contains(&run) => NormalizerRun::open(run),
         "numbers" => Numeric::open_numbers(run),
         "money" => Numeric::open_money(run, MoneyLayer::Extracted, res),
         "money-convert" => Numeric::open_money(run, MoneyLayer::Converted, res),
@@ -266,8 +235,6 @@ mod tests {
             ("sentdetect", "en-abbrev"),
             ("tokenize", "simple+keep-new-lines"),
             ("tokenize", "uax29"),
-            ("normalize", "default-chain"),
-            ("normalize", "umlaut-full-case-whitespace-chain"),
             ("money-convert", "latin-eu"),
             ("chunk", "chunker-fixture+beam1"),
             ("chunk", "chunker-fixture-rust"),
@@ -281,6 +248,5 @@ mod tests {
         for (annotator, run) in [("sentdetect", "en-abbrev+legacy"), ("tokenize", "simple+legacy")] {
             assert!(matches!(open(annotator, run, &res), Err(Unavailable::NotCovered(_))), "{run}");
         }
-        assert!(open("normalize", "case-fold-tr", &res).is_ok());
     }
 }

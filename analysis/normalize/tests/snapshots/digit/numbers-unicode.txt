@@ -1,0 +1,3 @@
+Arabic-Indic 01234, extended 567, Devanagari 123, Thai 123.
+Fullwidth 123 and 456, superscripts ²³¹, fractions ½ ⅓, Roman Ⅲ and circled ①.
+Mixed 123 and 45 in one token, Bengali 012 and Tamil 01.

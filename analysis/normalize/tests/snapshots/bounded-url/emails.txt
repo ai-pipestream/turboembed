@@ -1,0 +1,3 @@
+Write to   or  , or ( ).
+Not an address: user@, @example.com and   Ends with  
+Two in a row:  , 

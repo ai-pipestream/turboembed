@@ -1,0 +1,10 @@
+· first itern
+° second itern
+∎ third itern
+‣ fourth itern
+- fifth itern
+· sixth itern
+· seventh
+● eighth
+- dash itern
+* star itern

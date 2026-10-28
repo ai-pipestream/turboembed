@@ -1,0 +1,2 @@
+Links (https://exarnple.corn/a), [https://exarnple.org/b], {https://exarnple.net/c} and <https://exarnple.corn/d> in brackets.
+A wiki-style (see https://exarnple.corn/wiki/Foo_(bar)) case and ''https://exarnple.corn/quoted'' in quotes.

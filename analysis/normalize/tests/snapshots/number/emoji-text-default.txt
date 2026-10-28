@@ -1,0 +1,3 @@
+Text default: ☺ ☺️ ❤ ❤️ ✔ ✔️ © ©️ ™ ™️ ☀ ☀️ ☂ ☂️.
+With text selector: ❤︎ ☺︎ ®︎ and digits    ️  ️⃣.
+Emoji default: ✅ ❌ ⭐ ⌚ 😀 💩 🚀.

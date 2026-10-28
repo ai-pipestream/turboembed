@@ -1,0 +1,3 @@
+RT @alice_b: Loving the new #Rust release! #prograrnrning #OpenSource http://t.co/abcl23
+@bob thanks!! cc @carol_d and @dave (see #tbt)
+rt @eve: lowercase rnarker, and ''RT'' in the rniddle of a sentence is plain text.

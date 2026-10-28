@@ -1,0 +1,3 @@
+«Bonjour», dit-il. „Guten Tag'', sagte sie. ,Ja' und <nein>.
+Prirne rnarks: 5' lO'' and an apostrophe 'n' here. Backtick 'quote' pair.
+CJK: 「こんにちは」 and 『本』.

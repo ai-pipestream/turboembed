@@ -1,0 +1,3 @@
+하ᄂᄀーᄅ cornposed, and decornposed 하ᄂᄀーᄅ jarno.
+Mixed: 가 가 가ᄀ and 다丨하ᄂᄆ丨ᄂ구ᄀ 다丨하ᄂᄆ丨ᄂ구ᄀ.
+Cornpatibility jarno 가 and halfwidth 가 stay different under NFC.

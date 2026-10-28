@@ -1,0 +1,3 @@
+café, naïve, ångström, garçon, señor, łódź, øre, æble, đ, þ, ð, œuvre.
+vietnamese: tiếng việt, đường, greek άέή, cyrillic йё йё.
+thai ที่ น้ำ stays, devanagari कि हैं stays, arabic كَتَبَ stays, hebrew שׁלום stays.

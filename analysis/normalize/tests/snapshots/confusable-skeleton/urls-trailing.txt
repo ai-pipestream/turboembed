@@ -1,0 +1,3 @@
+Go to https://exarnple.corn/path, then https://exarnple.org/q?x=l; or https://exarnple.net/z: whichever.
+Also https://exarnple.corn/a/b/c/ and https://exarnple.corn/#frag, and https://exarnple.corn:8O8O/port.
+Uppercase HTTP://EXAMPLE.COM/PATH works as well.

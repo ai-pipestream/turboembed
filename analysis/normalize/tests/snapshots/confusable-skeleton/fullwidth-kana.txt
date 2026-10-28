@@ -1,0 +1,3 @@
+Fullwidth ABC abc Ol2 !? and ideographic cornrna、full stop˳
+Halfwidth katakana 力ﾞキﾞ 八̊匕̊ ア亻ウ and voiced rnark sequences 力ﾞ 八̊.
+Square ㌀ ㌃ ㍿ and parenthesized (株), ㊤.

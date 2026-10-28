@@ -1,0 +1,3 @@
+Write to alice@exarnple.corn or bob.srnith+tag@rnail.exarnple.org, or (carol_d@exarnple.co.uk).
+Not an address: user@, @exarnple.corn and a@b. Ends with dave@exarnple.corn.
+Two in a row: erin@exarnple.corn,frank@exarnple.org.

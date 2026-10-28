@@ -1,0 +1,1 @@
+cafe vs cafe, naive vs naive, angstrom vs angstrom, zurich vs zurich. order: q and q differ only in mark order; a and a and a are one letter. vietnamese tieng viet and tieng viet; greek α vs α; cyrillic и vs и.

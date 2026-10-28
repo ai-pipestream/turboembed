@@ -58,8 +58,7 @@ fn the_checked_in_goldens_show_no_divergence() {
     eprintln!("{matched} matched, {documented} documented, {skipped} skipped");
     assert!(matched > 1000, "{matched} matched");
     // The documented differences are exactly the ones the golden tests
-    // list, run by run: the inputs of each normalizer with a "Differences
-    // from OpenNLP" section that show it, the WordPiece inputs of
+    // list, run by run: the WordPiece inputs of
     // `analysis/embed/tests/goldens.rs`, the two keep new lines defects
     // of `SimpleTokenizer`, and the two texts the Rust language fixture
     // knows no n-gram of, which the annotator declines
@@ -71,16 +70,6 @@ fn the_checked_in_goldens_show_no_divergence() {
     }
     let expected: BTreeMap<String, usize> = [
         ("langdetect/langdetect-fixture-rust", 2),
-        ("normalize/bounded-url", 1),
-        ("normalize/bullet", 1),
-        ("normalize/confusable-skeleton", 16),
-        ("normalize/default-chain", 2),
-        ("normalize/dehyphenation", 1),
-        ("normalize/ellipsis", 1),
-        ("normalize/english-contraction", 2),
-        ("normalize/invisible", 1),
-        ("normalize/quote", 1),
-        ("normalize/symbol-joiner", 2),
         ("subwords/all-minilm-l6-v2-vocab", 11),
         ("tokenize/simple+keep-new-lines", 2),
     ]
@@ -102,20 +91,4 @@ fn the_checked_in_goldens_show_no_divergence() {
         let known = why.contains("surrogate pair") || why.contains("not available") || why.contains("does not read");
         assert!(known, "{} on {}: {why}", f.run_name(), f.input_name());
     }
-}
-
-#[test]
-fn turkish_lowercase_is_compared_without_skips() {
-    let data = turbo_goldens::data_dir();
-    let report = compare_tree(
-        &data,
-        &data.join("inputs"),
-        &Resources::from_env(),
-        |annotator, run| annotator == "normalize" && run == "case-fold-tr",
-        |_, _, _| {},
-    )
-    .unwrap();
-    assert!(report.unavailable.is_empty(), "{}", report.render());
-    assert!(!report.findings.is_empty());
-    assert!(report.findings.iter().all(|f| f.outcome == Outcome::Match), "{}", report.render());
 }

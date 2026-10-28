@@ -1,0 +1,1 @@
+mueller, koenig, baecker und oel fuer aerzte. strasse, grosse, fuss, weiss, sseta. groesse und gruesse; schluessel, ueber, uebung, aesser, kaese, moeglich. already ascii: mueller, koenig, strasse, aepfel; but decomposed ü ö ä too.

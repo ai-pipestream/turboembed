@@ -1,0 +1,3 @@
+Müller, König, Bäcker und Öl für Ärzte. Straße, Große, Fuß, weiß, ßeta.
+GRÖßE und GRÜßE; Schlüssel, über, Übung, Äßer, Käse, rnöglich.
+Already ASCll: Mueller, Koenig, Strasse, Aepfel; but decornposed ü ö ä too.

@@ -1,0 +1,2 @@
+Links ( ), [ ], { } and < > in brackets.
+A wiki-style (see  ) case and " " in quotes.

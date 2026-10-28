@@ -2229,7 +2229,6 @@ dependencies = [
  "turbo-langdetect",
  "turbo-lemmatizer",
  "turbo-maxent",
- "turbo-normalize",
  "turbo-numeric",
  "turbo-phrase-chunker",
  "turbo-pii",

@@ -1,0 +1,3 @@
+zero​width​space, joiner‍and non‌joiner, bom﻿inside, word⁠joiner here.
+marks ‎ left-to-right and ‏ right-to-left and ‪ embedding ‬ and isolate ⁦ ⁩.
+controls      and soft­hyphen, variation️ selectors, ᠎ mongolian, ⁤ ⁪.

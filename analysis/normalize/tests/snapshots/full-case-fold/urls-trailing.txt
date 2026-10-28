@@ -1,0 +1,3 @@
+go to https://example.com/path, then https://example.org/q?x=1; or https://example.net/z: whichever.
+also https://example.com/a/b/c/ and https://example.com/#frag, and https://example.com:8080/port.
+uppercase http://example.com/path works as well.

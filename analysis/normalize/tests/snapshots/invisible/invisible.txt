@@ -1,0 +1,3 @@
+zerowidthspace, joiner‍and non‌joiner, bominside, wordjoiner here.
+Marks  left-to-right and  right-to-left and  embedding  and isolate  .
+Controls      and softhyphen, variation️ selectors, ᠎ Mongolian,  .

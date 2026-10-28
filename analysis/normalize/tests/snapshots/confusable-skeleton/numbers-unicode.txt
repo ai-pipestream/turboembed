@@ -1,0 +1,3 @@
+Arabic-lndic .l٢٣٤, extended o٦V, Devanagari ٩२3, Thai ๑๒๓.
+Fullwidth l23 and 456, superscripts ᒾ³ᣳ, fractions l/2 l/3, Rornan lll and circled ➀.
+Mixed l2٣ and 45 in one token, Bengali o১২ and Tarnil oக.

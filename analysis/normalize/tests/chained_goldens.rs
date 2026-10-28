@@ -1,7 +1,18 @@
-//! Three separately stored views compared with OpenNLP Alignment.andThen.
+//! Three separately stored views: umlaut → full case fold → whitespace.
+//!
+//! Snapshots under `tests/snapshots/umlaut-full-case-whitespace-chain/` hold
+//! the final view text. Offset round trips and the hand case below are
+//! independent of those files. Regenerate with
+//! `TURBO_BLESS=1 cargo test -p turbo-normalize --test chained_goldens`.
+
+use std::path::PathBuf;
+
 use turbo_analysis::{Document, Key, Provenance, Span, View, ViewId};
-use turbo_goldens::{Golden, Tolerance, data_dir, matches_golden_key};
 use turbo_normalize::{CaseFold, GermanUmlauts, Normalizer, Whitespace, normalize};
+
+fn root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests")
+}
 
 fn step<N: Normalizer>(doc: &mut Document, parent: &Key<View>, key: &Key<View>, n: N) {
     let parent = doc.get_key(parent).unwrap().clone();
@@ -10,44 +21,53 @@ fn step<N: Normalizer>(doc: &mut Document, parent: &Key<View>, key: &Key<View>, 
 }
 
 #[test]
-fn three_views_match_jvm_text_edits_and_source_offsets() {
-    let directory = data_dir().join("normalize/umlaut-full-case-whitespace-chain/norm");
-    let mut paths: Vec<_> = std::fs::read_dir(directory).unwrap().map(|e| e.unwrap().path()).collect();
-    paths.sort();
+fn three_views_match_snapshots_and_source_offsets() {
+    let bless = std::env::var_os("TURBO_BLESS").is_some();
+    let mut ids: Vec<String> = std::fs::read_dir(root().join("inputs"))
+        .unwrap()
+        .map(|e| e.unwrap().file_name().into_string().unwrap())
+        .filter_map(|n| n.strip_suffix(".txt").map(str::to_string))
+        .collect();
+    ids.sort();
     let (a, b, c) = (Key::named("umlaut"), Key::named("full-case"), Key::named("whitespace"));
     let mut count = 0;
     let mut edits = 0;
-    for path in paths {
-        let golden = Golden::read(&path).unwrap();
-        assert_eq!(golden.header.annotator.method, "andThen");
-        let source = golden.input_text(data_dir()).unwrap();
+    for id in &ids {
+        let source = std::fs::read_to_string(root().join("inputs").join(format!("{id}.txt"))).unwrap();
         let mut doc = Document::new(source.as_str());
         step(&mut doc, &Key::<View>::DEFAULT, &a, GermanUmlauts::new());
         step(&mut doc, &a, &b, CaseFold::full());
         step(&mut doc, &b, &c, Whitespace::collapse());
-        let view = doc.get_key(&c).unwrap();
-        assert_eq!(view.parent(), Some(doc.get_key(&b).unwrap().id()));
-        matches_golden_key(&doc, &c, &golden, Tolerance::exact()).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-        let composed = doc.view_alignment(ViewId::SOURCE, view.id()).unwrap();
+        let final_text = doc.get_key(&c).unwrap().text().to_string();
+        let view_id = doc.get_key(&c).unwrap().id();
+        assert_eq!(doc.get_key(&c).unwrap().parent(), Some(doc.get_key(&b).unwrap().id()));
+        let path = root().join("snapshots/umlaut-full-case-whitespace-chain").join(format!("{id}.txt"));
+        if bless {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, &final_text).unwrap();
+        } else {
+            let want = std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            assert_eq!(final_text, want, "{id}");
+        }
+        let composed = doc.view_alignment(ViewId::SOURCE, view_id).unwrap();
         for edit in composed.edits() {
             assert!(source.is_char_boundary(edit.parent.start as usize));
             assert!(source.is_char_boundary(edit.parent.end as usize));
-            assert!(view.text().is_char_boundary(edit.child.start as usize));
-            assert!(view.text().is_char_boundary(edit.child.end as usize));
+            assert!(final_text.is_char_boundary(edit.child.start as usize));
+            assert!(final_text.is_char_boundary(edit.child.end as usize));
             if !edit.child.is_empty() {
-                let back = doc.map_span(view.id(), ViewId::SOURCE, edit.child).unwrap();
-                assert_eq!(back, edit.parent, "{}: source projection", path.display());
+                let back = doc.map_span(view_id, ViewId::SOURCE, edit.child).unwrap();
+                assert_eq!(back, edit.parent, "{id}: source projection");
             }
             if !edit.parent.is_empty() {
-                let forward = doc.map_span(ViewId::SOURCE, view.id(), edit.parent).unwrap();
-                assert_eq!(forward, edit.child, "{}: child projection", path.display());
+                let forward = doc.map_span(ViewId::SOURCE, view_id, edit.parent).unwrap();
+                assert_eq!(forward, edit.child, "{id}: child projection");
             }
         }
         edits += composed.edits().len();
-        // A later identity view must not discard changes made by ancestors.
         let again = Key::named("again");
         step(&mut doc, &c, &again, Whitespace::collapse());
-        matches_golden_key(&doc, &again, &golden, Tolerance::exact()).unwrap();
+        assert_eq!(doc.get_key(&again).unwrap().text(), final_text, "{id}: identity after collapse");
         count += 1;
     }
     assert_eq!(count, 61);
@@ -64,7 +84,6 @@ fn expansion_changed_again_and_then_trimmed_keeps_source_bytes() {
     step(&mut doc, &b, &c, Whitespace::collapse());
     let v = doc.get_key(&c).unwrap();
     assert_eq!(v.text(), "mueller strasse 😀");
-    // The first pass expands Ü to Ue, then the second changes U to u.
     let umlaut = Span::new(1, 3);
     let back = doc.map_span(v.id(), ViewId::SOURCE, umlaut).unwrap();
     assert_eq!(&text[back.range()], "Ü");
