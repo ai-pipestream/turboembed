@@ -175,7 +175,9 @@ impl<R: Real> Lemmatizer<R> {
     /// The summed loss over the words with a gold tree (`gold[i]`, None
     /// for a word whose tree the head does not have), and its gradients
     /// added to `grads` (shaped as `zero_grads` gives); gradients of any
-    /// other shape are refused before anything runs.
+    /// other shape, and a feature that is not finite (a word without a
+    /// gold tree included), are refused before anything runs, and a loss
+    /// or gradient that is not finite is refused with `grads` untouched.
     pub fn loss(
         &self,
         features: &[R],
@@ -186,6 +188,9 @@ impl<R: Real> Lemmatizer<R> {
     ) -> Result<f64> {
         if grads.len() != self.params.len() || grads.iter().zip(&self.params).any(|(g, p)| g.len() != p.len()) {
             return Err(invalid(format!("trainer: gradients do not match the tensors of head {:?}", self.spec.name)));
+        }
+        if features.iter().any(|v| !v.to_f64().is_finite()) {
+            return Err(invalid("trainer: a lemmatizer feature is not finite"));
         }
         let n = self.forward(features, tags, w)?;
         if gold.len() != n {
@@ -207,19 +212,30 @@ impl<R: Real> Lemmatizer<R> {
         let joined_width = width + dim;
         let o = self.params.len() - 2;
         let mut djoined = vec![R::ZERO; n * joined_width];
-        let [dw, db] = grads.get_disjoint_mut([o, o + 1]).expect("distinct");
+        // Gradients gather here and reach `grads` only when every one,
+        // and the loss, is finite.
+        let mut local = self.zero_grads();
+        let [dw, db] = local.get_disjoint_mut([o, o + 1]).expect("distinct");
         linear::backward(&self.params[o], &w.joined, &dscores, joined_width, trees, dw, db, Some(&mut djoined));
         if let Some(e) = emb {
             for (i, &t) in tags.iter().enumerate() {
                 let src = &djoined[i * joined_width + width..][..dim];
-                for (g, d) in grads[e][t as usize * dim..][..dim].iter_mut().zip(src) {
+                for (g, d) in local[e][t as usize * dim..][..dim].iter_mut().zip(src) {
                     *g += *d;
                 }
             }
         }
         if shape.layers > 0 {
             let dx: Vec<R> = (0..n).flat_map(|i| djoined[i * joined_width..][..width].iter().copied()).collect();
-            adapter::backward(shape, &self.params, features, dx, grads, &w.adapter, false);
+            adapter::backward(shape, &self.params, features, dx, &mut local, &w.adapter, false);
+        }
+        if !total.is_finite() || !local.iter().flatten().all(|v| v.to_f64().is_finite()) {
+            return Err(invalid("trainer: the lemmatizer's loss or a gradient is not finite"));
+        }
+        for (g, l) in grads.iter_mut().zip(local) {
+            for (a, b) in g.iter_mut().zip(l) {
+                *a += b;
+            }
         }
         Ok(total)
     }
