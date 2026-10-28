@@ -108,7 +108,7 @@ impl EditTreeLemmatizer {
         w: &mut Work,
     ) -> Result<usize> {
         out.clear();
-        let n = self.reader.read(states, words, w)?;
+        let n = self.reader.read(states, words, None, w)?;
         let width = self.reader.width();
         let joined: std::borrow::Cow<'_, [f32]> = match (&self.pos, tags) {
             (None, None) => (&w.pooled[..n * width]).into(),
