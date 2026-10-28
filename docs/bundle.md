@@ -346,14 +346,14 @@ so any number of heads fit one artifact.
 | Field | Meaning |
 |---|---|
 | `name` | Unique in the bundle; lowercase ASCII letters, digits, `_` and `-`, at most 64 bytes. |
-| `layer` | The layer id the analysis annotator writes the output to, such as `turboembed:pos`. |
+| `layer` | The layer id the analysis annotator writes the output to: `turboembed:` and a lowercase name, such as `turboembed:pos`. |
 | `kind` | `HEAD_TOKEN_TAGGER`: one label per word. |
 | `labels` | The labels in output order; unique, non-empty, each readable under `scheme`. |
 | `scheme` | `SCHEME_TAGS` (each label a tag), `SCHEME_BIO` (`O`, `B-T`, `I-T`) or `SCHEME_BILOU` (adds `L-T` and `U-T`). BIO and BILOU need the label `O`. |
 | `word_pooling` | `WORD_POOLING_FIRST` (a word's first subword row) or `WORD_POOLING_MEAN` (the mean of its rows). |
 | `adapter.bilstm` | Optional stacked bidirectional LSTM over the pooled words: `hidden` 1 to 4096, `layers` 1 to 3. |
 | `decode` | `DECODE_ARGMAX` (each word's best label, ties to the lower index) or `DECODE_CRF` (the best sequence under a first-order CRF; under BIO and BILOU, sequences the scheme forbids are never chosen). |
-| `artifact` | Index into `artifacts` of the `FORMAT_SAFETENSORS` artifact holding the tensors. |
+| `artifact` | The name of the `FORMAT_SAFETENSORS` artifact holding the tensors, as `from` and `host_weights` name artifacts. |
 | `tensor_prefix` | Each tensor is named `<tensor_prefix>.<suffix>`. |
 
 The tensors of a `HEAD_TOKEN_TAGGER`, F32, for an encoder `hidden`
@@ -363,7 +363,7 @@ wide and `L` labels, in the order the loader reads them:
 |---|---|---|
 | `lstm.{k}.fwd.w`, `lstm.{k}.bwd.w` | `[4h, in]` | adapter layer `k`; `in` is `hidden` for layer 0, `2h` after |
 | `lstm.{k}.fwd.u`, `lstm.{k}.bwd.u` | `[4h, h]` | adapter layer `k` |
-| `lstm.{k}.fwd.b`, `lstm.{k}.bwd.b` | `[4h]` | adapter layer `k` |
+| `lstm.{k}.fwd.b`, `lstm.{k}.bwd.b` | `[4h]` | adapter layer `k`; one bias, so weights from a framework that keeps two (PyTorch's `bias_ih` and `bias_hh`) are stored as their sum |
 | `out.weight` | `[L, width]` | always; `width` is `hidden`, or `2h` with an adapter |
 | `out.bias` | `[L]` | always |
 | `crf.transitions` | `[L, L]` | `DECODE_CRF`; row is the label before, column the label after |

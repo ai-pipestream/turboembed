@@ -27,7 +27,7 @@ fn head_json() -> Value {
         "word_pooling": "WORD_POOLING_MEAN",
         "adapter": {"bilstm": {"hidden": 6, "layers": 2}},
         "decode": "DECODE_CRF",
-        "artifact": 0,
+        "artifact": "weights-f32",
         "tensor_prefix": "heads.ner"
     })
 }
@@ -175,7 +175,11 @@ fn manifest_refuses_ill_formed_heads() {
         BUNDLE_INVALID,
         "names two heads",
     );
-    refused("artifact", |m| h(m)["artifact"] = json!(1), BUNDLE_INVALID, "past the 1 artifacts");
+    refused("artifact", |m| h(m)["artifact"] = json!("weights-f16"), BUNDLE_INVALID, "no artifact \"weights-f16\"");
+    refused("artifact-index", |m| h(m)["artifact"] = json!(0), BUNDLE_INVALID, "artifact");
+    refused("layer-namespace", |m| h(m)["layer"] = json!("opennlp:pos"), BUNDLE_INVALID, "turboembed:");
+    refused("layer-name", |m| h(m)["layer"] = json!("turboembed:"), BUNDLE_INVALID, "turboembed:");
+    refused("layer-case", |m| h(m)["layer"] = json!("turboembed:POS"), BUNDLE_INVALID, "turboembed:");
     refused("layers", |m| h(m)["adapter"]["bilstm"]["layers"] = json!(4), BUNDLE_INVALID, "at most");
     refused("hidden", |m| h(m)["adapter"]["bilstm"]["hidden"] = json!(0), BUNDLE_INVALID, "hidden");
     refused("prefix", |m| h(m)["tensor_prefix"] = json!(""), BUNDLE_INVALID, "tensor_prefix");

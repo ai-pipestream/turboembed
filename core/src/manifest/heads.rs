@@ -17,13 +17,16 @@ pub const MAX_HEADS: usize = 32;
 pub const MAX_ADAPTER_LAYERS: u32 = 3;
 /// The widest BiLSTM adapter state.
 pub const MAX_ADAPTER_HIDDEN: u32 = 4096;
+/// The namespace every head's layer id is in.
+pub const LAYER_NAMESPACE: &str = "turboembed:";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct HeadSpec {
     /// Unique within the bundle: lowercase ASCII letters, digits, `_`, `-`.
     pub name: String,
-    /// The layer id the analysis annotator writes the head's output to.
+    /// The layer id the analysis annotator writes the head's output to,
+    /// in the `turboembed:` namespace.
     pub layer: String,
     pub kind: HeadKind,
     pub labels: Vec<String>,
@@ -32,9 +35,9 @@ pub struct HeadSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub adapter: Option<Adapter>,
     pub decode: Decode,
-    /// Index into `artifacts` of the FORMAT_SAFETENSORS artifact holding
-    /// the head's tensors.
-    pub artifact: u32,
+    /// The name of the FORMAT_SAFETENSORS artifact holding the head's
+    /// tensors, as `from` and `host_weights` name artifacts.
+    pub artifact: String,
     pub tensor_prefix: String,
 }
 
@@ -160,6 +163,13 @@ impl Manifest {
             }
             required(&at("layer"), &h.layer)?;
             fits(&at("layer"), &h.layer, 128)?;
+            if h.layer.strip_prefix(LAYER_NAMESPACE).is_none_or(|rest| !is_name(rest)) {
+                return Err(invalid(format!(
+                    "manifest.json: {}: {:?} is not {LAYER_NAMESPACE} and a lowercase name",
+                    at("layer"),
+                    h.layer
+                )));
+            }
             required(&at("tensor_prefix"), &h.tensor_prefix)?;
             fits(&at("tensor_prefix"), &h.tensor_prefix, 128)?;
             if h.labels.is_empty() {
@@ -193,22 +203,17 @@ impl Manifest {
                     )));
                 }
             }
-            match self.artifacts.get(h.artifact as usize) {
+            match self.artifacts.iter().find(|a| a.name == h.artifact) {
                 Some(a) if a.format == Format::Safetensors => {}
                 Some(_) => {
                     return Err(invalid(format!(
-                        "manifest.json: {}: artifacts[{}] is not FORMAT_SAFETENSORS",
+                        "manifest.json: {}: {:?} is not FORMAT_SAFETENSORS",
                         at("artifact"),
                         h.artifact
                     )));
                 }
                 None => {
-                    return Err(invalid(format!(
-                        "manifest.json: {}: {} is past the {} artifacts",
-                        at("artifact"),
-                        h.artifact,
-                        self.artifacts.len()
-                    )));
+                    return Err(invalid(format!("manifest.json: {}: no artifact {:?}", at("artifact"), h.artifact)));
                 }
             }
         }
