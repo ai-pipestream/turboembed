@@ -37,8 +37,9 @@ fn logsumexp(v: impl Iterator<Item = f64> + Clone) -> f64 {
 /// its gradients added to `demit` [n, labels] and `grad`. A gold
 /// sequence the lattice forbids is refused: the scheme would never decode
 /// it, so it cannot be a training target. So are a lattice, parameters,
-/// scores or gradients of another label count or length, and nonfinite
-/// scores or parameters.
+/// scores or gradients of another label count or length, nonfinite
+/// scores or parameters, and a loss or gradient that overflows. A
+/// refusal leaves `demit` and `grad` as they were.
 pub fn nll<R: Real>(
     p: Params<R>,
     allowed: &Allowed,
@@ -66,14 +67,14 @@ pub fn nll<R: Real>(
     if n == 0 {
         return Ok(0.0);
     }
-    let e = |t: usize, j: usize| emit[t * labels + j].to_f64();
-    let tr = |a: usize, b: usize| {
-        if allowed.may_follow(a, b) { p.transitions[a * labels + b].to_f64() } else { f64::NEG_INFINITY }
-    };
     let y: Vec<usize> = gold.iter().map(|&g| g as usize).collect();
     if y.iter().any(|&g| g >= labels) {
         return Err(invalid(format!("crf: a gold label is past the {labels} labels")));
     }
+    let e = |t: usize, j: usize| emit[t * labels + j].to_f64();
+    let tr = |a: usize, b: usize| {
+        if allowed.may_follow(a, b) { p.transitions[a * labels + b].to_f64() } else { f64::NEG_INFINITY }
+    };
     let legal =
         allowed.may_start(y[0]) && allowed.may_end(y[n - 1]) && y.windows(2).all(|w| allowed.may_follow(w[0], w[1]));
     if !legal {
@@ -112,17 +113,23 @@ pub fn nll<R: Real>(
         }
     }
     let log_z = logsumexp((0..labels).map(|j| alpha[(n - 1) * labels + j] + beta[(n - 1) * labels + j]));
+    let loss = log_z - gold_score;
+    if !loss.is_finite() {
+        return Err(invalid("crf: the loss is not finite"));
+    }
+    // Every gradient is worked out before any is written, so a refusal
+    // leaves the caller's sums whole.
     let marginal = |t: usize, j: usize| (alpha[t * labels + j] + beta[t * labels + j] - log_z).exp();
+    let mut d_emit = vec![0.0f64; n * labels];
     for t in 0..n {
         for j in 0..labels {
             let gold_here = if y[t] == j { 1.0 } else { 0.0 };
-            demit[t * labels + j] += R::from_f64(marginal(t, j) - gold_here);
+            d_emit[t * labels + j] = marginal(t, j) - gold_here;
         }
     }
-    for j in 0..labels {
-        grad.start[j] += R::from_f64(marginal(0, j) - if y[0] == j { 1.0 } else { 0.0 });
-        grad.end[j] += R::from_f64(marginal(n - 1, j) - if y[n - 1] == j { 1.0 } else { 0.0 });
-    }
+    let d_start: Vec<f64> = (0..labels).map(|j| marginal(0, j) - if y[0] == j { 1.0 } else { 0.0 }).collect();
+    let d_end: Vec<f64> = (0..labels).map(|j| marginal(n - 1, j) - if y[n - 1] == j { 1.0 } else { 0.0 }).collect();
+    let mut d_tr = vec![0.0f64; labels * labels];
     for t in 1..n {
         for a in 0..labels {
             let from = alpha[(t - 1) * labels + a];
@@ -132,15 +139,19 @@ pub fn nll<R: Real>(
             for b in 0..labels {
                 let s = from + tr(a, b) + e(t, b) + beta[t * labels + b] - log_z;
                 if s > f64::NEG_INFINITY {
-                    grad.transitions[a * labels + b] += R::from_f64(s.exp());
+                    d_tr[a * labels + b] += s.exp();
                 }
             }
         }
-        grad.transitions[y[t - 1] * labels + y[t]] -= R::ONE;
+        d_tr[y[t - 1] * labels + y[t]] -= 1.0;
     }
-    let loss = log_z - gold_score;
-    if !loss.is_finite() {
-        return Err(invalid("crf: the loss is not finite"));
+    if ![&d_emit, &d_start, &d_end, &d_tr].iter().all(|v| v.iter().all(|x| x.is_finite())) {
+        return Err(invalid("crf: a gradient is not finite"));
     }
+    let add = |dst: &mut [R], src: &[f64]| dst.iter_mut().zip(src).for_each(|(d, &x)| *d += R::from_f64(x));
+    add(demit, &d_emit);
+    add(grad.start, &d_start);
+    add(grad.end, &d_end);
+    add(grad.transitions, &d_tr);
     Ok(loss)
 }
