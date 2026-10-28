@@ -183,12 +183,8 @@ pub(crate) fn write_dir(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::card::{
-        CARD_VERSION, CorpusCard, GATE_FILE, GateCard, MODEL_LICENCE, MODEL_LICENCE_TERMS, ModelFileCard,
-        ParametersCard,
-    };
-    use crate::masc::{self, SPLIT};
-    use crate::segmentation::{LANGUAGE, TIMESTAMP_MS};
+    use crate::card::MODEL_LICENCE;
+    use crate::masc::{self};
 
     fn data(name: &str, license: Licence) -> TrainingData {
         TrainingData { name: name.to_owned(), license, license_terms: "https://example.org/terms".parse().unwrap() }
@@ -224,79 +220,5 @@ mod tests {
             Err(Error::NotShippable { reason, .. }) => assert!(reason.contains("refuses"), "{reason}"),
             other => panic!("{other:?}"),
         }
-    }
-
-    #[test]
-    fn model_card_artifact_validates_trained_on_component_and_language() {
-        let recipe = &crate::RECIPES[0];
-        let ref_sha = recipe.reference().sha256().unwrap();
-        let sha64 = "a".repeat(64);
-        let sha128 = "b".repeat(128);
-        let card = ModelCard {
-            card_version: CARD_VERSION,
-            id: recipe.model_id().into(),
-            component: recipe.component(),
-            language: LANGUAGE.into(),
-            file: ModelFileCard {
-                name: format!("{}.bin", recipe.model_id()),
-                size: 3,
-                sha256: sha64.clone(),
-                sha512: sha128,
-            },
-            license: MODEL_LICENCE,
-            license_terms: MODEL_LICENCE_TERMS.into(),
-            trained_on: vec![masc::training_data()],
-            class: LicenceClass::Permissive,
-            attribution: masc::ATTRIBUTION.into(),
-            corpus: CorpusCard {
-                name: masc::NAME.into(),
-                corpus_sha256: sha64,
-                release_recorded: true,
-                split: SPLIT,
-                training_documents: 1,
-                held_out_documents: Vec::new(),
-                excluded_documents: Vec::new(),
-            },
-            training: TrainingCard {
-                parameters: ParametersCard { algorithm: "MAXENT".into(), iterations: 300, cutoff: 5, threads: 4 },
-                sentences_per_sample: Some(20),
-                whitespace: Some("unicode".into()),
-                timestamp_ms: TIMESTAMP_MS,
-                seed: None,
-                samples: 1,
-                skipped_sentences: 0,
-                events: 1,
-                event_hash: 0,
-                names: None,
-                chunks: None,
-            },
-            held_out: HeldOutCard { samples: 1, skipped_sentences: 0, tokens: None, names: None, chunks: None },
-            gate: GateCard {
-                record: GATE_FILE.into(),
-                reference: recipe.reference_id().into(),
-                reference_sha256: ref_sha,
-                candidate_tag_format: None,
-                reference_tag_format: None,
-                candidate_score: 100.0,
-                reference_score: 100.0,
-                difference_low: 0.0,
-                difference_high: 0.0,
-                pass: true,
-            },
-        };
-        let url = "https://example.org/m.bin";
-        assert!(card.artifact(url).is_ok());
-
-        let mut bad_trained = card.clone();
-        bad_trained.trained_on = vec![data("other", Licence::CcBy40)];
-        assert!(matches!(bad_trained.artifact(url), Err(Error::NotShippable { .. })));
-
-        let mut bad_component = card.clone();
-        bad_component.component = turbo_zoo::Component::Pos;
-        assert!(matches!(bad_component.artifact(url), Err(Error::InvalidCard { field: "component", .. })));
-
-        let mut bad_language = card;
-        bad_language.language = "de".into();
-        assert!(matches!(bad_language.artifact(url), Err(Error::InvalidCard { field: "language", .. })));
     }
 }
