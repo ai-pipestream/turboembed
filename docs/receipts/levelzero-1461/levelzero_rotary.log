@@ -1,0 +1,125 @@
+head 8e980ac6365f755c7b80d75eefbe42198d82bb55
+start 2026-10-28T07:58:27Z load 44.03 41.96 37.66
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 cargo test --release -p turbo --features levelzero --test levelzero_rotary -- --nocapture --test-threads 1
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.26
+   Compiling serde_core v1.0.229
+   Compiling zmij v1.0.23
+   Compiling libc v0.2.190
+   Compiling cfg-if v1.0.5
+   Compiling memchr v2.8.3
+   Compiling crossbeam-utils v0.8.23
+   Compiling serde v1.0.229
+   Compiling zerocopy v0.8.60
+   Compiling crossbeam-epoch v0.9.21
+   Compiling fnv v1.0.7
+   Compiling strsim v0.11.1
+   Compiling getrandom v0.3.4
+   Compiling ident_case v1.0.1
+   Compiling crossbeam-deque v0.8.8
+   Compiling rustversion v1.0.23
+   Compiling itoa v1.0.18
+   Compiling serde_json v1.0.151
+   Compiling turbo-sha256 v0.1.0 (<repo>/analysis/sha256)
+   Compiling turbo-unicode v0.1.0 (<repo>/analysis/unicode)
+   Compiling rayon-core v1.13.0
+   Compiling either v1.18.0
+   Compiling version_check v0.9.5
+   Compiling regex-syntax v0.8.11
+   Compiling bit-vec v0.8.0
+   Compiling esaxx-rs v0.1.10
+   Compiling turbo-analysis v0.1.0 (<repo>/analysis/core)
+   Compiling minimal-lexical v0.2.1
+   Compiling thiserror v2.0.21
+   Compiling paste v1.0.15
+   Compiling smallvec v1.16.2
+   Compiling once_cell v1.21.4
+   Compiling ryu v1.0.23
+   Compiling base64 v0.13.1
+   Compiling pastey v0.2.3
+   Compiling static_assertions v1.1.0
+   Compiling macro_rules_attribute-proc_macro v0.2.3
+   Compiling bit-set v0.8.0
+   Compiling unicode-segmentation v1.13.3
+   Compiling libloading v0.9.0
+   Compiling log v0.4.34
+   Compiling unicode_categories v0.1.1
+   Compiling daachorse v3.0.3
+   Compiling unicode-normalization-alignments v0.1.12
+   Compiling aho-corasick v1.1.5
+   Compiling itertools v0.14.0
+   Compiling ahash v0.8.12
+   Compiling nom v7.1.3
+   Compiling macro_rules_attribute v0.2.3
+   Compiling castaway v0.2.4
+   Compiling syn v3.0.6
+   Compiling syn v2.0.119
+   Compiling turbo-jvm v0.1.0 (<repo>/analysis/jvm)
+   Compiling rand_core v0.9.5
+   Compiling rayon v1.12.0
+   Compiling turbo-maxent v0.1.0 (<repo>/analysis/maxent)
+   Compiling regex-automata v0.4.18
+   Compiling serde_path_to_error v0.1.20
+   Compiling serde_derive v1.0.229
+   Compiling thiserror-impl v2.0.21
+   Compiling turbo-calibration v0.1.0 (<repo>/analysis/calibration)
+   Compiling turbo v0.1.0 (<repo>/core)
+   Compiling turbo-analysis-layers v0.1.0 (<repo>/analysis/layers)
+   Compiling darling_core v0.20.11
+   Compiling rayon-cond v0.4.0
+   Compiling monostate-impl v0.1.18
+   Compiling ppv-lite86 v0.2.21
+   Compiling monostate v0.1.18
+   Compiling rand_chacha v0.9.0
+   Compiling rand v0.9.5
+   Compiling darling_macro v0.20.11
+   Compiling darling v0.20.11
+   Compiling derive_builder_core v0.20.2
+   Compiling regex v1.13.1
+   Compiling fancy-regex v0.17.0
+   Compiling derive_builder_macro v0.20.2
+   Compiling compact_str v0.9.1
+   Compiling spm_precompiled v0.1.4
+   Compiling dary_heap v0.3.9
+   Compiling derive_builder v0.20.2
+   Compiling tokenizers v0.23.2
+   Compiling turbo-goldens v0.1.0 (<repo>/analysis/goldens)
+    Finished `release` profile [optimized] target(s) in 26.72s
+     Running tests/levelzero_rotary.rs (target/release/deps/levelzero_rotary-00bd9d680159b649)
+
+running 2 tests
+test a_modernbert_matches_the_cpu ... a_modernbert_matches_the_cpu: precision 0: mixed lengths, padded, mean and L2: largest difference 4.4703484e-7
+a_modernbert_matches_the_cpu: precision 0: left padding and masked holes, mean: largest difference 1.3709068e-6
+a_modernbert_matches_the_cpu: precision 0: left padding and masked holes, CLS: largest difference 1.8924475e-6
+a_modernbert_matches_the_cpu: precision 0: one token, CLS and L2: largest difference 1.4156103e-7
+a_modernbert_matches_the_cpu: precision 0: a row of max_seq tokens: largest difference 1.6391277e-7
+a_modernbert_matches_the_cpu: precision 0: the last token: largest difference 1.1920929e-7
+a_modernbert_matches_the_cpu: precision 0: token ranges: largest difference 2.5331974e-7
+a_modernbert_matches_the_cpu: precision 2: mixed lengths, padded, mean and L2: largest difference 4.4703484e-7
+a_modernbert_matches_the_cpu: precision 2: left padding and masked holes, mean: largest difference 1.3709068e-6
+a_modernbert_matches_the_cpu: precision 2: left padding and masked holes, CLS: largest difference 1.8924475e-6
+a_modernbert_matches_the_cpu: precision 2: one token, CLS and L2: largest difference 1.4156103e-7
+a_modernbert_matches_the_cpu: precision 2: a row of max_seq tokens: largest difference 1.6391277e-7
+a_modernbert_matches_the_cpu: precision 2: the last token: largest difference 1.1920929e-7
+a_modernbert_matches_the_cpu: precision 2: token ranges: largest difference 2.5331974e-7
+ok
+test a_nomic_bert_matches_the_cpu ... a_nomic_bert_matches_the_cpu: precision 0: mixed lengths, padded, mean and L2: largest difference 5.9604645e-8
+a_nomic_bert_matches_the_cpu: precision 0: left padding and masked holes, mean: largest difference 2.3841858e-7
+a_nomic_bert_matches_the_cpu: precision 0: left padding and masked holes, CLS: largest difference 1.1920929e-7
+a_nomic_bert_matches_the_cpu: precision 0: one token, CLS and L2: largest difference 5.9604645e-8
+a_nomic_bert_matches_the_cpu: precision 0: a row of max_seq tokens: largest difference 8.940697e-8
+a_nomic_bert_matches_the_cpu: precision 0: the last token: largest difference 5.9604645e-8
+a_nomic_bert_matches_the_cpu: precision 0: token ranges: largest difference 8.940697e-8
+a_nomic_bert_matches_the_cpu: precision 2: mixed lengths, padded, mean and L2: largest difference 5.9604645e-8
+a_nomic_bert_matches_the_cpu: precision 2: left padding and masked holes, mean: largest difference 2.3841858e-7
+a_nomic_bert_matches_the_cpu: precision 2: left padding and masked holes, CLS: largest difference 1.1920929e-7
+a_nomic_bert_matches_the_cpu: precision 2: one token, CLS and L2: largest difference 5.9604645e-8
+a_nomic_bert_matches_the_cpu: precision 2: a row of max_seq tokens: largest difference 8.940697e-8
+a_nomic_bert_matches_the_cpu: precision 2: the last token: largest difference 5.9604645e-8
+a_nomic_bert_matches_the_cpu: precision 2: token ranges: largest difference 8.940697e-8
+ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.82s
+
+exit 0 end 2026-10-28T07:58:55Z load 54.61 44.64 38.69
