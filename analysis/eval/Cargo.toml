@@ -27,6 +27,9 @@ turbo-analysis-embed = { path = "../embed" }
 turbo-chunker = { path = "../chunker" }
 turbo-sentdetect = { path = "../sentdetect" }
 turbo-sat = { path = "../sat" }
+# The language mode's script fallback reuses langspan's table of which
+# scripts each language is written in.
+turbo-langspan = { path = "../langspan" }
 turbo-structure = { path = "../structure" }
 # BM25 retrieval's terms: the word tokens, and Porter's stemmer for the
 # English rule.

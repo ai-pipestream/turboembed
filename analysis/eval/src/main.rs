@@ -44,9 +44,10 @@ usage:
       compare two directories of records, one per set; exit status 1
       when the gate fails, 2 on an error
   turbo-eval cuts <a-dir> <b-dir>
-      compare two directories of cut dumps (run --dump-cuts), one per set,
-      document by document; each differing cut is printed with both runs'
-      margins; exit status 1 when any cut differs, 2 on an error
+      compare two directories of cut dumps (run --dump-cuts), one per set;
+      exit status 1 when any cut differs, 2 on an error
+  turbo-eval analysis --gold <f.conllu>|--lang-gold <f.tsv>|--ner-gold <f.tsv>
+      --sha256 <hex> --out <file>: peer/language/entity scores (#1521)
 
 The cache root is --cache, or $TURBO_EVAL_CACHE when it is not given.
 Sets: scifact, nfcorpus, arguana, legalbench-rag-mini, conteb-covid-qa,
@@ -130,11 +131,10 @@ fn run(args: &[String]) -> Result<ExitCode> {
         Some("squad") => turbo_eval::squad::command(&args[1..]).map(|()| ExitCode::SUCCESS),
         Some("cuts") if args.len() == 3 => {
             let sets = turbo_eval::cuts::compare_dirs(Path::new(&args[1]), Path::new(&args[2]))?;
-            for s in &sets {
-                print!("{s}");
-            }
+            sets.iter().for_each(|s| print!("{s}"));
             Ok(if sets.iter().all(|s| s.is_identical()) { ExitCode::SUCCESS } else { ExitCode::FAILURE })
         }
+        Some("analysis") => turbo_eval::analysis_bench::command(&args[1..]).map(|()| ExitCode::SUCCESS),
         Some("gate") if args.len() == 3 => {
             let report = gate_dirs(Path::new(&args[1]), Path::new(&args[2]))?;
             println!("{report}");
@@ -318,7 +318,6 @@ fn chunker(o: &mut Opts, embedder: &dyn Embedder, model: (&Path, &Device, Precis
         other => return Err(format!("--chunker {other}: not a chunker\n{USAGE}")),
     })
 }
-
 fn sentencer(o: &mut Opts, device: &Device, precision: Precision) -> Result<Sentencer> {
     let requested = o.take("--sentences");
     let sat_bundle = o.take("--sat-bundle");
@@ -479,8 +478,9 @@ mod tests {
             let mut o = Opts::parse(&a).unwrap();
             sentencer(&mut o, &Device::Cpu, Precision::Model)
         };
-        assert!(matches!(built(&[]).unwrap(), Sentencer::Rules(..)));
-        assert!(matches!(built(&["--sentences", "rule"]).unwrap(), Sentencer::Rules(..)));
+        for args in [&[][..], &["--sentences", "rule"][..]] {
+            assert!(matches!(built(args).unwrap(), Sentencer::Rules(..)));
+        }
         assert!(matches!(built(&["--sentences", "newline"]).unwrap(), Sentencer::Newline));
         let err = |args: &[&str]| match built(args) {
             Ok(_) => panic!("sentence options unexpectedly accepted: {args:?}"),

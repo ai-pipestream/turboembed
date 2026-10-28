@@ -80,7 +80,7 @@ impl Sentencer {
         }
     }
 
-    fn spans(&self, text: &str) -> Result<Spans<Sentences>> {
+    pub(crate) fn spans(&self, text: &str) -> Result<Spans<Sentences>> {
         let mut spans = Spans::new(ViewId::SOURCE);
         match self {
             Sentencer::Rules(RuleSentences(d)) => {
