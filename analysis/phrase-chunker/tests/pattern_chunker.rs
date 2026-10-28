@@ -3,10 +3,13 @@
 
 mod common;
 
-use turbo_analysis::{Annotator, Document, Ix, IxRange, Key, Provenance, Span, Spans, View, ViewId};
+use std::path::Path;
+
+use turbo_analysis::{Analyzer, Annotator, Document, Ix, IxRange, Key, Provenance, Span, Spans, View, ViewId};
 use turbo_analysis_layers::{PhraseChunks, PosTags, Sentences, Tag, TagSet, Tokens};
 use turbo_phrase_chunker::{
-    ComposeMode, PatternChunkComposer, PatternChunker, PatternError, TagPatternRule, TokenMatcher, TokenTag,
+    ChunkerModel, ComposeMode, PatternChunkComposer, PatternChunker, PatternError, PhraseChunker, TagPatternRule,
+    TokenMatcher, TokenTag,
 };
 
 fn build_doc_with_tags(text: &str, tagset_name: &str, word_tags: &[(&str, &str, u32)]) -> Document {
@@ -228,6 +231,70 @@ fn quantifiers_word_literals_negation_and_priority_resolution() {
     // Standalone quoted literals and negated tags
     let neg_rule = TagPatternRule::compile("NON_PUNCT", r#""put"i <!IN|RP>{1,2}"#).unwrap();
     assert_eq!(neg_rule.longest_match_at(&sentence, 0), None);
+}
+
+#[test]
+fn composition_combines_chunker_me_and_pattern_chunker_in_fallback_and_override_modes() {
+    let model_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures/chunker-fixture.bin");
+    let me = PhraseChunker::new(ChunkerModel::read(model_path).unwrap());
+
+    let text = "The cat sat on the mat .";
+    let words = [
+        ("The", "DT", 0),
+        ("cat", "NN", 0),
+        ("sat", "VBD", 0),
+        ("on", "IN", 0),
+        ("the", "DT", 0),
+        ("mat", "NN", 0),
+        (".", ".", 0),
+    ];
+    let mut doc = build_doc_with_tags(text, "penn", &words);
+
+    // 1. Override mode: a pattern rule for full prepositional phrases ("on the mat" -> PP_FULL)
+    // overrides ChunkerME's separate ("on", PP) and ("the mat", NP), while preserving ("The cat", NP) and ("sat", VP).
+    let override_patterns = PatternChunker::from_patterns([("PP_FULL", "<IN><DT><NN>")]).unwrap();
+    let override_composer =
+        PatternChunkComposer::new(override_patterns, ComposeMode::Override).with_me(PhraseChunker::new(
+            ChunkerModel::read(
+                Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures/chunker-fixture.bin"),
+            )
+            .unwrap(),
+        ));
+
+    let analyzer = Analyzer::builder()
+        .given(Key::<Tokens>::DEFAULT)
+        .given(Key::<PosTags>::DEFAULT)
+        .add(override_composer.clone())
+        .build()
+        .unwrap();
+    assert_eq!(analyzer.run(std::slice::from_mut(&mut doc)), [Ok(())]);
+
+    let chunks = doc.get::<PhraseChunks>().unwrap();
+    assert_eq!(
+        summarize_chunks(text, chunks),
+        vec![("The cat", "NP", (0, 2)), ("sat", "VP", (2, 3)), ("on the mat", "PP_FULL", (3, 6))]
+    );
+
+    // 2. Fallback mode: ChunkerME's chunks are all preserved, and a pattern rule matching "." ("PUNCT_CHUNK")
+    // fills in the unclaimed final token (6..7) without overriding "on" + "the mat".
+    let fallback_patterns =
+        PatternChunker::from_patterns([("PP_FULL", "<IN><DT><NN>"), ("PUNCT_CHUNK", "<\\.>")]).unwrap();
+    let fallback_composer = PatternChunkComposer::new(fallback_patterns, ComposeMode::Fallback).with_me(me);
+    let view = doc.get::<View>().unwrap();
+    let toks = doc.get::<Tokens>().unwrap();
+    let pos = doc.get::<PosTags>().unwrap();
+    let (fb_chunks,) = fallback_composer.annotate((view, toks, pos)).unwrap();
+    assert_eq!(
+        summarize_chunks(text, &fb_chunks),
+        vec![
+            ("The cat", "NP", (0, 2)),
+            ("sat", "VP", (2, 3)),
+            ("on", "PP", (3, 4)),
+            ("the mat", "NP", (4, 6)),
+            (".", "PUNCT_CHUNK", (6, 7)),
+        ]
+    );
+    assert_ne!(override_composer.config_hash(), fallback_composer.config_hash());
 }
 
 #[test]

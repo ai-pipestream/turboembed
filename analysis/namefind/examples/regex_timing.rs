@@ -1,23 +1,38 @@
-//! Release timing on the crate's own sentences: the five built-in
-//! patterns and one token pattern. Compile on each revision, then
-//! interleave the two binaries.
+//! Release timing on the ASCII sentences from the checked-in namefinder
+//! goldens. Compile on each revision, then interleave the two binaries.
 use std::{hint::black_box, time::Instant};
-use turbo_namefind::{BuiltIn, Pattern, RegexNameFinder, Tok, TokenNameFinder};
+use turbo_goldens::{ColumnSpec, ColumnType, Golden, GoldenAnchor, Shape};
+use turbo_namefind::{Pattern, RegexNameFinder, TokenNameFinder};
 
 fn main() {
     let rounds: usize = std::env::args().nth(1).unwrap_or_else(|| "100".into()).parse().unwrap();
-    let mut texts: Vec<String> =
-        include_str!("../tests/snapshot-data/sentences.txt").lines().map(String::from).collect();
+    let root = turbo_goldens::data_dir();
+    let mut texts: Vec<String> = std::fs::read_to_string(root.join("inputs/namefind/sentences.txt"))
+        .unwrap()
+        .lines()
+        .map(String::from)
+        .collect();
+    const COLS: &[ColumnSpec] =
+        &[ColumnSpec::new("sentence", ColumnType::Str), ColumnSpec::new("token", ColumnType::Str)];
+    let shape = Shape { id: "turbo:sentences".into(), anchor: GoldenAnchor::Document, columns: COLS };
+    let g = Golden::read_with(root.join("namefind/generated/namefind/sentences.golden"), &[shape]).unwrap();
+    let layer = g.layer("turbo:sentences").unwrap();
+    let mut last = "";
+    for (key, token) in layer.strs("sentence").unwrap().iter().zip(layer.strs("token").unwrap().iter()) {
+        if key != last {
+            texts.push(String::new());
+            last = key;
+        } else {
+            texts.last_mut().unwrap().push(' ');
+        }
+        texts.last_mut().unwrap().push_str(token);
+    }
     texts.retain(|s| s.is_ascii() && !s.ends_with(['\r', '\n']));
     let tokens: Vec<Vec<&str>> = texts.iter().map(|s| s.split(' ').collect()).collect();
-    let mut finders = vec![RegexNameFinder::defaults(&BuiltIn::ALL)];
-    finders.push(
-        RegexNameFinder::new(
-            vec![Pattern::tokens(vec![Tok::text("call").opt(), Tok::text("555-123-4567")]).unwrap()],
-            "T",
-        )
-        .unwrap(),
-    );
+    let finders: Vec<_> = [r"\b\d{4}\b", r"\b[a-z]+\b", r"\Bx", r"[a-z]+$", r"\d+\Z"]
+        .into_iter()
+        .map(|p| RegexNameFinder::new(vec![Pattern::java(p).unwrap()], "T").unwrap())
+        .collect();
     let mut out = Vec::new();
     let mut found = 0;
     for f in &finders {

@@ -46,12 +46,12 @@ impl LiblinearModel {
         LiblinearModel { linear, outcomes, predicates, lookup }
     }
 
-    /// A model from a liblinear text model (read with
+    /// A model from a liblinear model the JVM wrote (read with
     /// [`format::load_model`](super::format::load_model)), the outcome
     /// labels and the predicate map's entries in the order they were put.
     /// Fails when a predicate comes twice, an id is negative, or the model
-    /// has more classes than there are outcome labels. The OpenNLP binary
-    /// envelope reader is disabled.
+    /// has more classes than there are outcome labels: [`format::read`]
+    /// (super::format::read) refuses the same.
     pub fn from_parts(
         linear: LinearModel,
         outcomes: Vec<JavaString>,

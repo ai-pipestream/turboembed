@@ -58,7 +58,7 @@ fn entry(id: &str, license: Licence, trained_on: &[Licence], class: LicenceClass
       "kind": "KIND_MODEL",
       "component": "COMPONENT_TOKENIZER",
       "language": "en",
-      "format": "FORMAT_SAFETENSORS",
+      "format": "FORMAT_OPENNLP_MODEL",
       "version": "1",
       "license": "{license}",
       "license_terms": "https://example.org/{id}/LICENSE",

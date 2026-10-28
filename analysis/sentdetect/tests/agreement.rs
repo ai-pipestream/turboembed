@@ -1,8 +1,99 @@
-//! Native rule segmentation counts on the retained input and external suites.
-//! These are the rule-side corpus assertions formerly paired with a model.
+//! How often the rule splitter agrees with OpenNLP's maxent sentence
+//! detector, for the languages that have a published model (German,
+//! English, Portuguese), on texts in that language:
+//!
+//! - the golden inputs (`analysis/goldens/data/inputs`): for English the
+//!   `en` and `edge` sets, which the English model's goldens also run on;
+//!   for German `multi/de.txt` and `edge/german.txt`; for Portuguese
+//!   `multi/pt.txt`;
+//! - the texts of the conformance suites in that language (their expected
+//!   sentences play no part here).
+//!
+//! Agreement is counted three ways: texts split identically, sentences
+//! with the same span in both, and the boundaries (the start of every
+//! sentence after the first) the two place alike, as precision and recall
+//! of the rule splitter's boundaries against the model's. The numbers are
+//! asserted so that a change to either detector shows here, and
+//! docs/segmentation.md reports them. Without the models this test says so
+//! and passes.
 
-use turbo_goldens::{data_dir, sentences::sentence_suite};
-use turbo_sentdetect::RuleSplitter;
+mod common;
+
+use std::collections::BTreeSet;
+
+use turbo_analysis::Span;
+use turbo_goldens::data_dir;
+use turbo_goldens::sentences::sentence_suite;
+use turbo_maxent::ModelFile;
+use turbo_sentdetect::{RuleSplitter, SentenceDetector, SentenceModel};
+
+#[derive(Debug, Default, PartialEq, Eq)]
+struct Agreement {
+    texts: usize,
+    identical: usize,
+    maxent_sentences: usize,
+    rule_sentences: usize,
+    same_spans: usize,
+    maxent_boundaries: usize,
+    rule_boundaries: usize,
+    same_boundaries: usize,
+}
+
+impl Agreement {
+    fn add(&mut self, maxent: &[Span], rules: &[Span]) {
+        self.texts += 1;
+        self.identical += usize::from(maxent == rules);
+        self.maxent_sentences += maxent.len();
+        self.rule_sentences += rules.len();
+        let (m, r): (BTreeSet<_>, BTreeSet<_>) = (maxent.iter().collect(), rules.iter().collect());
+        self.same_spans += m.intersection(&r).count();
+        let starts = |s: &[Span]| s.iter().skip(1).map(|s| s.start).collect::<BTreeSet<_>>();
+        let (m, r) = (starts(maxent), starts(rules));
+        self.maxent_boundaries += m.len();
+        self.rule_boundaries += r.len();
+        self.same_boundaries += m.intersection(&r).count();
+    }
+
+    fn report(&self, what: &str) {
+        let pct = |a: usize, b: usize| if b == 0 { 100.0 } else { 100.0 * a as f64 / b as f64 };
+        eprintln!(
+            "{what}: {} texts, {} identical ({:.1}%); sentences maxent {} rules {} same {}; boundaries maxent {} rules {} \
+             same {} (precision {:.1}%, recall {:.1}%)",
+            self.texts,
+            self.identical,
+            pct(self.identical, self.texts),
+            self.maxent_sentences,
+            self.rule_sentences,
+            self.same_spans,
+            self.maxent_boundaries,
+            self.rule_boundaries,
+            self.same_boundaries,
+            pct(self.same_boundaries, self.rule_boundaries),
+            pct(self.same_boundaries, self.maxent_boundaries),
+        );
+    }
+}
+
+fn maxent(file: &str) -> Option<SentenceDetector> {
+    let path = common::published_model(file)?;
+    let model = SentenceModel::open(ModelFile::read(&path).unwrap()).unwrap();
+    Some(SentenceDetector::new(model))
+}
+
+fn agreement(lang: &str, detector: &SentenceDetector, texts: impl IntoIterator<Item = String>) -> Agreement {
+    let rules = RuleSplitter::new(lang);
+    let mut a = Agreement::default();
+    let (mut m, mut r) = (Vec::new(), Vec::new());
+    for text in texts {
+        m.clear();
+        r.clear();
+        detector.detect(&text, &mut m);
+        rules.split(&text, &mut r);
+        let m: Vec<Span> = m.iter().map(|&(s, _)| s).collect();
+        a.add(&m, &r);
+    }
+    a
+}
 
 fn inputs(paths: &[&str]) -> Vec<String> {
     let mut out = Vec::new();
@@ -27,33 +118,93 @@ fn conformance_texts(lang: &str) -> Vec<String> {
     out
 }
 
-fn counts(lang: &str, texts: &[String]) -> (usize, usize, usize) {
-    let splitter = RuleSplitter::new(lang);
-    let mut sentences = 0;
-    let mut boundaries = 0;
-    for text in texts {
-        let mut spans = Vec::new();
-        splitter.split(text, &mut spans);
-        sentences += spans.len();
-        boundaries += spans.len().saturating_sub(1);
-    }
-    (texts.len(), sentences, boundaries)
-}
-
 #[test]
 fn english() {
-    assert_eq!(counts("en", &inputs(&["en", "edge"])), (45, 119, 76));
-    assert_eq!(counts("en", &conformance_texts("en")), (482, 2649, 2167));
+    let Some(d) = maxent("opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin") else { return };
+    let golden = agreement("en", &d, inputs(&["en", "edge"]));
+    golden.report("en, golden inputs");
+    let conformance = agreement("en", &d, conformance_texts("en"));
+    conformance.report("en, conformance texts");
+    assert_eq!(
+        golden,
+        Agreement {
+            texts: 45,
+            identical: 33,
+            maxent_sentences: 121,
+            rule_sentences: 119,
+            same_spans: 99,
+            maxent_boundaries: 78,
+            rule_boundaries: 76,
+            same_boundaries: 69
+        }
+    );
+    assert_eq!(
+        conformance,
+        Agreement {
+            texts: 482,
+            identical: 292,
+            maxent_sentences: 3180,
+            rule_sentences: 2649,
+            same_spans: 1803,
+            maxent_boundaries: 2698,
+            rule_boundaries: 2167,
+            same_boundaries: 1934
+        }
+    );
 }
 
 #[test]
 fn german() {
-    assert_eq!(counts("de", &inputs(&["multi/de.txt", "edge/german.txt"])), (2, 6, 4));
-    assert_eq!(counts("de", &conformance_texts("de")), (72, 175, 103));
+    let Some(d) = maxent("opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin") else { return };
+    let golden = agreement("de", &d, inputs(&["multi/de.txt", "edge/german.txt"]));
+    golden.report("de, golden inputs");
+    let conformance = agreement("de", &d, conformance_texts("de"));
+    conformance.report("de, conformance texts");
+    assert_eq!(
+        golden,
+        Agreement {
+            texts: 2,
+            identical: 1,
+            maxent_sentences: 7,
+            rule_sentences: 6,
+            same_spans: 5,
+            maxent_boundaries: 5,
+            rule_boundaries: 4,
+            same_boundaries: 4
+        }
+    );
+    assert_eq!(
+        conformance,
+        Agreement {
+            texts: 72,
+            identical: 48,
+            maxent_sentences: 190,
+            rule_sentences: 175,
+            same_spans: 106,
+            maxent_boundaries: 118,
+            rule_boundaries: 103,
+            same_boundaries: 76
+        }
+    );
 }
 
 #[test]
 fn portuguese() {
-    assert_eq!(counts("pt", &inputs(&["multi/pt.txt"])), (1, 5, 4));
+    let Some(d) = maxent("opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin") else { return };
+    let golden = agreement("pt", &d, inputs(&["multi/pt.txt"]));
+    golden.report("pt, golden inputs");
+    assert_eq!(
+        golden,
+        Agreement {
+            texts: 1,
+            identical: 1,
+            maxent_sentences: 5,
+            rule_sentences: 5,
+            same_spans: 5,
+            maxent_boundaries: 4,
+            rule_boundaries: 4,
+            same_boundaries: 4
+        }
+    );
     assert!(conformance_texts("pt").is_empty());
 }

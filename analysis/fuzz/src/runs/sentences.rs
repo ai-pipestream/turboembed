@@ -7,7 +7,7 @@ use turbo_analysis::{Analyzer, Document};
 use turbo_analysis_layers::{Confidence, Sentences};
 use turbo_goldens::{Golden, Tolerance, matches_golden};
 use turbo_maxent::ModelFile;
-use turbo_sentdetect::{NewlineDetector, ParagraphDetector, RuleSentenceDetector, SentenceDetector, SentenceModel};
+use turbo_sentdetect::{NewlineDetector, SentenceDetector, SentenceModel};
 
 use super::{Outcome, Run, RustError, analyze, has_cut, outcome};
 use crate::resources::{Resources, Unavailable};
@@ -66,16 +66,10 @@ pub(crate) struct NewlineSentences {
 }
 
 impl NewlineSentences {
-    pub(crate) fn open_native(kind: &str, options: &[&str]) -> Result<Box<dyn Run>, Unavailable> {
+    pub(crate) fn open(options: &[&str]) -> Result<Box<dyn Run>, Unavailable> {
         no_options(options)?;
-        let builder = Analyzer::builder();
-        let builder = match kind {
-            "newline" => builder.add(NewlineDetector::new()),
-            "rule" => builder.add(RuleSentenceDetector::new("und")),
-            "paragraph" => builder.add(ParagraphDetector::new()),
-            _ => return Err(Unavailable::NotCovered(kind.into())),
-        };
-        let analyzer = builder.build().map_err(|e| Unavailable::Broken(e.to_string()))?;
+        let analyzer =
+            Analyzer::builder().add(NewlineDetector::new()).build().map_err(|e| Unavailable::Broken(e.to_string()))?;
         Ok(Box::new(NewlineSentences { analyzer }))
     }
 }

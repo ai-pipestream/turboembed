@@ -10,7 +10,8 @@ use turbo_analysis::{Annotator, Document, Layer, Span, Spans, Tag, TagSet, View,
 use turbo_analysis_layers::{Categories, Sentences, Tokens};
 use turbo_doccat::multilabel::{
     LinearHead, MultiLabelCategorizer, MultiLabelDoccatModel, MultiLabelError, MultiLabelSample,
-    MultiLabelTrainingParameters, ThresholdCalibrator, f_beta, macro_f1, precision_recall, train_multilabel,
+    MultiLabelTrainingParameters, ThresholdCalibrator, f_beta, macro_f1, open_package, package_multilabel_model,
+    precision_recall, train_multilabel,
 };
 use turbo_doccat::{BagOfWordsFeatureGenerator, BuiltinFeatureGenerator, DoccatContextGenerator, DoccatFactory};
 
@@ -227,16 +228,22 @@ fn the_entry_bytes_round_trip_and_truncation_errors() {
 }
 
 #[test]
-fn native_entry_round_trips_calibrated_thresholds_and_identity() {
+fn the_package_round_trips_the_calibrated_thresholds() {
     let model = hand_built_model().with_thresholds(vec![0.3, 0.7]).unwrap();
-    let bytes = model.write().unwrap();
-    let opened = MultiLabelDoccatModel::open(&bytes).unwrap();
+    let package = package_multilabel_model(&model, 1_700_000_000_000).unwrap();
+    let opened = open_package(package.to_bytes()).unwrap();
     assert_eq!(opened.thresholds(), [0.3, 0.7]);
     assert_eq!(opened.max_labels(), None);
     assert_eq!(opened.label(1), Some("finance"));
     assert_eq!(opened.scores(&["stock"]), model.scores(&["stock"]));
-    assert_eq!(opened.model_ref(), model.model_ref());
-    assert_eq!(opened.write().unwrap(), bytes);
+    assert_eq!(opened.model_ref().id, model.model_ref().id);
+
+    // A package of another component is refused.
+    let mut manifest = turbo_train::Manifest::new("DocumentCategorizerME", "en", 0);
+    manifest.set("factory", "opennlp.tools.doccat.DoccatFactory");
+    let mut other = turbo_train::ModelPackage::new(manifest);
+    other.add_entry("doccat.model", model.write().unwrap());
+    assert!(open_package(other.to_bytes()).is_err());
 }
 
 #[test]
@@ -415,11 +422,11 @@ fn training_then_calibration_beats_a_flat_threshold_on_macro_f1() {
     let finance = model.index("finance").unwrap();
     assert_ne!(calibrated.thresholds()[finance], 0.5, "the rare label moved off the default");
 
-    // The calibrated thresholds serialize inside the model entry
-    // and come back: the acceptance claim survives a save and an open.
-    let opened_entry = MultiLabelDoccatModel::open(&calibrated.write().unwrap()).unwrap();
-    assert_eq!(opened_entry.thresholds(), calibrated.thresholds());
-    assert_eq!(macro_f1(&scores, &truth, opened_entry.thresholds()), tuned);
+    // The calibrated thresholds serialize inside the package and come
+    // back: the acceptance claim survives a save and an open.
+    let opened = open_package(package_multilabel_model(&calibrated, 1_700_000_000_000).unwrap().to_bytes()).unwrap();
+    assert_eq!(opened.thresholds(), calibrated.thresholds());
+    assert_eq!(macro_f1(&scores, &truth, opened.thresholds()), tuned);
 }
 
 #[test]
@@ -437,7 +444,7 @@ fn the_trainer_validates_its_inputs() {
 }
 
 #[test]
-fn a_trained_model_classifies_and_entry_round_trips() {
+fn a_trained_model_classifies_and_package_round_trips() {
     let fixture = fixture();
     let factory = DoccatFactory::new();
     let model = train_multilabel("en", &fixture.train, &factory, &MultiLabelTrainingParameters::default()).unwrap();
@@ -450,5 +457,14 @@ fn a_trained_model_classifies_and_entry_round_trips() {
     let bytes = model.write().unwrap();
     let opened = MultiLabelDoccatModel::open(&bytes).unwrap();
     assert_eq!(opened.scores(&["team", "wins"]), model.scores(&["team", "wins"]));
+
+    let package = package_multilabel_model(&model, 1_700_000_000_000).unwrap();
+    assert_eq!(package.manifest().component_name(), "MultiLabelDoccat");
+    let bytes = package.to_bytes();
+    let opened = open_package(bytes.clone()).unwrap();
+    assert_eq!(opened.label(0), model.label(0));
     assert_eq!(opened.scores(&["stock", "market"]), model.scores(&["stock", "market"]));
+    // Opening from a package records the package's identity: the SHA-256
+    // of the archive's bytes, not of the bare entry.
+    assert_eq!(opened.model_ref().sha256, turbo_maxent::sha256(&bytes).to_hex());
 }

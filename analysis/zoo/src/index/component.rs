@@ -10,12 +10,15 @@ use super::{Artifact, Index};
 use crate::licence::LicenceClass;
 
 constant_enum! {
-    /// The analysis capability a model or learned head serves.
+    /// The analysis component a model serves. The first eight are
+    /// OpenNLP's `opennlp.tools.models.ModelType` constants, prefixed; the
+    /// others have no `ModelType`, so OpenNLP's lookup never returns them.
     Component, "a component" {
         Lemmatizer => "COMPONENT_LEMMATIZER",
         Tokenizer => "COMPONENT_TOKENIZER",
         SentenceDetector => "COMPONENT_SENTENCE_DETECTOR",
         Pos => "COMPONENT_POS",
+        PosGeneric => "COMPONENT_POS_GENERIC",
         NameFinder => "COMPONENT_NAME_FINDER",
         Chunker => "COMPONENT_CHUNKER",
         Parser => "COMPONENT_PARSER",
@@ -32,13 +35,15 @@ constant_enum! {
         /// Labels a caller names, scored against a text by an NLI
         /// cross-encoder (zero-shot categorization, docs/doccat.md).
         ZeroShotCategorizer => "COMPONENT_ZERO_SHOT_CATEGORIZER",
-        /// Typed dependency arcs between tokens.
+        /// Arc-standard transition-based dependency parser (`turbo-depparse`).
         DependencyParser => "COMPONENT_DEPENDENCY_PARSER",
     }
 }
 
 impl Index {
-    /// The listed artifacts for `component` in `language`, in index order.
+    /// The listed models for `component` in `language`, in index order, as
+    /// OpenNLP's `DownloadUtil` looks a model up by language and
+    /// `ModelType`.
     pub fn find(&self, language: &str, component: Component) -> impl Iterator<Item = &Artifact> + '_ {
         let language = language.to_owned();
         self.artifacts.iter().filter(move |a| {

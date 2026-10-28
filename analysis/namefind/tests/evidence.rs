@@ -7,7 +7,7 @@ use turbo_analysis::{
     Analyzer, Bound, Document, Evidence, EvidenceStep, Ix, Key, Provenance, Span, Spans, View, ViewBuilder,
 };
 use turbo_analysis_layers::{Entities, Sentences, Tokens};
-use turbo_namefind::Dictionary;
+use turbo_maxent::Dictionary;
 use turbo_namefind::DictionaryNameFinder;
 
 const SOURCE: &str = "<p>Mail Ann in <b>New York</b> .</p> Call <i>new</i> york today";
@@ -45,8 +45,9 @@ fn document() -> Document {
 }
 
 fn finder() -> DictionaryNameFinder {
-    let text = "case-insensitive\nname    New York\nname    Ann\n";
-    DictionaryNameFinder::new(Dictionary::read(text).unwrap()).unwrap()
+    let xml = "<dictionary case_sensitive='false'><entry><token>New</token><token>York</token></entry>\
+               <entry><token>Ann</token></entry></dictionary>";
+    DictionaryNameFinder::new(Dictionary::read(xml.as_bytes()).unwrap(), "name")
 }
 
 fn run(evidence: bool) -> Document {

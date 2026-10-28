@@ -286,8 +286,34 @@ impl<'m, C: BorrowMut<DefaultNameContext>> NameFinder<'m, C> {
 
 #[cfg(test)]
 mod tests {
+    use turbo_train::{Event, Key, Manifest, ModelPackage, TrainingConfiguration, TrainingParameters};
 
     use super::*;
+
+    fn test_model_and_file(beam_size: Option<&str>) -> (ModelFile, MaxentModel) {
+        let events = [
+            Event::from_strs("person-start", &["ne=hint", "w=Alice"]),
+            Event::from_strs("person-start", &["ne=hint", "w=Bob"]),
+            Event::from_strs("other", &["w=Alice"]),
+            Event::from_strs("other", &["w=Bob"]),
+            Event::from_strs("other", &["w= walked"]),
+        ];
+        let mut params = TrainingParameters::new();
+        params.put(Key::ITERATIONS, 50);
+        params.put(Key::CUTOFF, 0);
+        let (trained, _) =
+            turbo_train::gis::train_events(&events, &params, &mut TrainingConfiguration::default()).unwrap();
+        let model_bytes = turbo_train::write_gis(&trained).unwrap();
+        let maxent = MaxentModel::read(&model_bytes).unwrap();
+        let mut manifest = Manifest::new("TokenNameFinder", "en", 1_700_000_000_000);
+        if let Some(bs) = beam_size {
+            manifest.set(BEAM_SIZE_PROPERTY, bs);
+        }
+        let mut pkg = ModelPackage::new(manifest);
+        pkg.add_entry(MODEL_ENTRY_NAME, model_bytes);
+        let file = ModelFile::open(pkg.to_bytes()).unwrap();
+        (file, maxent)
+    }
 
     #[test]
     fn each_codec_names_its_class_and_checks_outcomes_as_its_codec_does() {
@@ -300,5 +326,22 @@ mod tests {
         assert!(!NameCodec::Bio.are_outcomes_compatible(&["other"]));
         assert!(NameCodec::Bilou.are_outcomes_compatible(&["other", "x-unit"]));
         assert_eq!(NameCodec::Bio.encode(&[Span::new(0, 1, Some("x"))], 2), ["x-start", "other"]);
+    }
+
+    #[test]
+    fn name_finder_rejects_zero_beam_size_and_propagates_additional_context() {
+        let (zero_file, maxent) = test_model_and_file(Some("0"));
+        let err = NameFinder::new(&zero_file, &maxent, PatternMode::Utf16Units).err().unwrap();
+        assert!(
+            matches!(&err, Error::Manifest { property, value } if &**property == BEAM_SIZE_PROPERTY && value == "0"),
+            "{err:?}"
+        );
+
+        let (file, maxent) = test_model_and_file(None);
+        let mut finder = NameFinder::new(&file, &maxent, PatternMode::Utf16Units).unwrap();
+        assert!(finder.find(&["Alice"]).is_empty());
+        let found = finder.find_with_context(&["Alice"], &[vec!["hint".into()]]);
+        assert_eq!(found.len(), 1);
+        assert_eq!(found[0].span, Span::new(0, 1, Some("person")));
     }
 }

@@ -2453,6 +2453,12 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-calibration",
+ "turbo-goldens",
+ "turbo-langdetect",
+ "turbo-maxent",
+ "turbo-normalize",
+ "turbo-train",
  "turbo-unicode",
 ]
 
@@ -2507,7 +2513,8 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-calibration",
- "turbo-matcher",
+ "turbo-goldens",
+ "turbo-jvm",
  "turbo-maxent",
  "turbo-sequence",
  "turbo-train",
@@ -2641,6 +2648,7 @@ dependencies = [
  "turbo-glossary",
  "turbo-glossary-layers",
  "turbo-grammar",
+ "turbo-langdetect",
  "turbo-langspan",
  "turbo-maxent",
  "turbo-namefind",
@@ -2720,7 +2728,6 @@ name = "turbo-sequence"
 version = "0.1.0"
 dependencies = [
  "turbo-analysis",
- "turbo-analysis-layers",
  "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
@@ -2821,8 +2828,10 @@ name = "turbo-train"
 version = "0.1.0"
 dependencies = [
  "turbo-calibration",
+ "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
+ "turbo-sentdetect",
  "turbo-sequence",
  "turbo-unicode",
 ]
@@ -2919,6 +2928,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "turbo-goldens",
  "turbo-maxent",
  "turbo-zstd",
  "ureq",

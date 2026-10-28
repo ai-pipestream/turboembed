@@ -1,0 +1,137 @@
+# The cases of the pragmatic-segmenter suite that the maxent-en-inventory detector gets wrong, and what
+# differs. tests/conformance.rs writes this file and fails when a run differs
+# from it. 134 of 289 cases fail.
+pragmatic-segmenter/danish_spec/053	4 extra, first after "'Well!'" [doc_type=pdf]
+pragmatic-segmenter/danish_spec/054	4 extra, first after "'Well!'" [doc_type=pdf]
+pragmatic-segmenter/danish_spec/055	3 extra, first after "...of tumbling down stairs!"
+pragmatic-segmenter/danish_spec/056	1 extra, first after "...ve fallen by this time?'"
+pragmatic-segmenter/danish_spec/057	4 extra, first after "'Well!'"
+pragmatic-segmenter/danish_spec/058	1 extra, first after "Colloquially, a min."
+pragmatic-segmenter/danish_spec/059	the expected sentences rewrite the text
+pragmatic-segmenter/danish_spec/060	1 extra, first after "I think Jun."
+pragmatic-segmenter/danish_spec/067	1 extra, first after "Q."
+pragmatic-segmenter/danish_spec/072	the expected sentences rewrite the text
+pragmatic-segmenter/danish_spec/073	the same breaks, different text
+pragmatic-segmenter/danish_spec/075	2 missing, first after "features"
+pragmatic-segmenter/danish_spec/077	the same breaks, different text
+pragmatic-segmenter/danish_spec/079	1 missing, first after "10. Get some rest"; 1 extra, first after "10." [doc_type=pdf]
+pragmatic-segmenter/danish_spec/080	3 missing, first after "• 9. Stop smoking"; 3 extra, first after "• 9." [doc_type=pdf]
+pragmatic-segmenter/danish_spec/082	the expected sentences rewrite the text
+pragmatic-segmenter/danish_spec/083	the same breaks, different text
+pragmatic-segmenter/danish_spec/084	the expected sentences rewrite the text
+pragmatic-segmenter/danish_spec/095	1 extra, first after "Charles (Ind.)"
+pragmatic-segmenter/danish_spec/096	the expected sentences rewrite the text
+pragmatic-segmenter/danish_spec/097	1 extra, first after "Send it to P.O."
+pragmatic-segmenter/danish_spec/098	1 missing, first after "...re 500 cases in the U.S."
+pragmatic-segmenter/danish_spec/099	2 extra, first after "...ULAR COMMUNICATIONS INC."
+pragmatic-segmenter/danish_spec/100	the expected sentences rewrite the text
+pragmatic-segmenter/danish_spec/103	1 missing, first after "Test strange period．"
+pragmatic-segmenter/danish_spec/104	the expected sentences rewrite the text
+pragmatic-segmenter/danish_spec/112	2 missing, first after "...ng Scavenger Hunt Trophy"
+pragmatic-segmenter/danish_spec/114	4 missing, first after "Header 1.2; Attachment Z"; 2 extra, first after "...der 1.2; Attachment Z d."
+pragmatic-segmenter/danish_spec/115	2 missing, first after "a.) The first item"; 2 extra, first after "a.) The first item b.)"
+pragmatic-segmenter/danish_spec/116	2 missing, first after "a) The first item"
+pragmatic-segmenter/danish_spec/117	10 missing, first after "1. The first item"; 8 extra, first after "1."
+pragmatic-segmenter/danish_spec/118	1 missing, first after "... for ABC Co. and BCD Co."
+pragmatic-segmenter/danish_spec/119	the expected sentences rewrite the text
+pragmatic-segmenter/danish_spec/120	1 missing, first after "...th President of the U.S."
+pragmatic-segmenter/danish_spec/122	1 missing, first after "He left at 6 P.M."
+pragmatic-segmenter/danish_spec/124	1 extra, first after "...et the warning at 5 A.M."
+pragmatic-segmenter/danish_spec/125	18 missing, first after "I live in the U.S."; 16 extra, first after "I visited the U.S.A."
+pragmatic-segmenter/danish_spec/129	4 extra, first after "'Well?'"
+pragmatic-segmenter/danish_spec/130	2 extra, first after "Leave me alone!"
+pragmatic-segmenter/danish_spec/132	the expected sentences rewrite the text
+pragmatic-segmenter/danish_spec/133	the expected sentences rewrite the text
+pragmatic-segmenter/danish_spec/134	the expected sentences rewrite the text
+pragmatic-segmenter/danish_spec/141	1 extra, first after "The GmbH & Co."
+pragmatic-segmenter/danish_spec/143	1 extra, first after "[15: 12:32] [16: firma?"
+pragmatic-segmenter/danish_spec/146	19 missing, first after "DOWN THE RABBIT-HOLE"; 152 extra, first after "...say to itself, "Oh dear!"
+pragmatic-segmenter/danish_spec/147	5 extra, first after ""Dear, dear!"
+pragmatic-segmenter/danish_spec/148	1 missing, first after "..., afore she comes, to--""; 2 extra, first after "...heads cut off, you know."
+pragmatic-segmenter/danish_spec/149	1 extra, first after "...cer of milk at tea-time."
+pragmatic-segmenter/danish_spec/155	1 extra, first after "The med."
+pragmatic-segmenter/danish_spec/157	1 extra, first after "SEC."
+pragmatic-segmenter/danish_spec/163	1 extra, first after "I will be paid Rs."
+pragmatic-segmenter/danish_spec/164	3 extra, first after "...od 1, I will be paid Rs."
+pragmatic-segmenter/danish_spec/165	1 extra, first after "...an advance amount of rs."
+pragmatic-segmenter/danish_spec/166	1 extra, first after "... the oven, and -- voila!"
+pragmatic-segmenter/danish_spec/167	1 extra, first after "...n be -- if I may say so?"
+pragmatic-segmenter/english_spec/013	1 extra, first after "I visited the U.S.A."
+pragmatic-segmenter/english_spec/015	1 missing, first after "I live in the U.S."
+pragmatic-segmenter/english_spec/018	1 extra, first after "At 5 a.m." [skipped-upstream]
+pragmatic-segmenter/english_spec/021	1 extra, first after "...5 years as an engineer.)"
+pragmatic-segmenter/english_spec/031	1 missing, first after "1.) The first item"
+pragmatic-segmenter/english_spec/033	1 missing, first after "1) The first item"
+pragmatic-segmenter/english_spec/035	1 missing, first after "1. The first item"
+pragmatic-segmenter/english_spec/037	1 missing, first after "• 9. The first item"; 2 extra, first after "• 9."
+pragmatic-segmenter/english_spec/038	1 missing, first after "⁃9. The first item"; 2 extra, first after "⁃9."
+pragmatic-segmenter/english_spec/039	2 missing, first after "a. The first item"; 3 extra, first after "a."
+pragmatic-segmenter/english_spec/042	2 missing, first after "features"
+pragmatic-segmenter/english_spec/045	1 extra, first after "Did you see Albert I."
+pragmatic-segmenter/english_spec/046	1 extra, first after "...appear less complex. . ."
+pragmatic-segmenter/english_spec/050	1 extra, first after "...ying, the thing is . . ."
+pragmatic-segmenter/english_spec/051	1 missing, first after "...-interpreting compounds."; 2 extra, first after "... somewhat weakened . . ."
+pragmatic-segmenter/english_spec/052	3 missing, first after "Hello world."; 1 extra, first after "...rld.Today is Tuesday.Mr."
+pragmatic-segmenter/english_spec/054	4 extra, first after "'Well!'" [doc_type=pdf]
+pragmatic-segmenter/english_spec/055	4 extra, first after "'Well!'" [doc_type=pdf]
+pragmatic-segmenter/english_spec/056	3 extra, first after "...of tumbling down stairs!"
+pragmatic-segmenter/english_spec/057	1 extra, first after "...ve fallen by this time?'"
+pragmatic-segmenter/english_spec/058	4 extra, first after "'Well!'"
+pragmatic-segmenter/english_spec/059	1 extra, first after "Colloquially, a min."
+pragmatic-segmenter/english_spec/060	the expected sentences rewrite the text
+pragmatic-segmenter/english_spec/061	1 extra, first after "I think Jun."
+pragmatic-segmenter/english_spec/068	1 extra, first after "Q."
+pragmatic-segmenter/english_spec/073	the expected sentences rewrite the text
+pragmatic-segmenter/english_spec/074	the same breaks, different text
+pragmatic-segmenter/english_spec/076	2 missing, first after "features"
+pragmatic-segmenter/english_spec/078	the same breaks, different text
+pragmatic-segmenter/english_spec/080	1 missing, first after "10. Get some rest"; 1 extra, first after "10." [doc_type=pdf]
+pragmatic-segmenter/english_spec/081	3 missing, first after "• 9. Stop smoking"; 3 extra, first after "• 9." [doc_type=pdf]
+pragmatic-segmenter/english_spec/083	the expected sentences rewrite the text
+pragmatic-segmenter/english_spec/084	the same breaks, different text
+pragmatic-segmenter/english_spec/085	the expected sentences rewrite the text
+pragmatic-segmenter/english_spec/096	1 extra, first after "Charles (Ind.)"
+pragmatic-segmenter/english_spec/097	the expected sentences rewrite the text
+pragmatic-segmenter/english_spec/098	1 extra, first after "Send it to P.O."
+pragmatic-segmenter/english_spec/099	1 missing, first after "...re 500 cases in the U.S."
+pragmatic-segmenter/english_spec/100	2 extra, first after "...ULAR COMMUNICATIONS INC."
+pragmatic-segmenter/english_spec/101	the expected sentences rewrite the text
+pragmatic-segmenter/english_spec/104	1 missing, first after "Test strange period．"
+pragmatic-segmenter/english_spec/105	the expected sentences rewrite the text
+pragmatic-segmenter/english_spec/113	2 missing, first after "...ng Scavenger Hunt Trophy"
+pragmatic-segmenter/english_spec/115	4 missing, first after "Header 1.2; Attachment Z"; 2 extra, first after "...der 1.2; Attachment Z d."
+pragmatic-segmenter/english_spec/116	2 missing, first after "a.) The first item"; 2 extra, first after "a.) The first item b.)"
+pragmatic-segmenter/english_spec/117	2 missing, first after "a) The first item"
+pragmatic-segmenter/english_spec/118	10 missing, first after "1. The first item"; 8 extra, first after "1."
+pragmatic-segmenter/english_spec/119	1 missing, first after "... for ABC Co. and BCD Co."
+pragmatic-segmenter/english_spec/120	the expected sentences rewrite the text
+pragmatic-segmenter/english_spec/121	1 missing, first after "...th President of the U.S."
+pragmatic-segmenter/english_spec/123	1 missing, first after "He left at 6 P.M."
+pragmatic-segmenter/english_spec/125	1 extra, first after "...et the warning at 5 A.M."
+pragmatic-segmenter/english_spec/126	18 missing, first after "I live in the U.S."; 16 extra, first after "I visited the U.S.A."
+pragmatic-segmenter/english_spec/127	3 missing, first after "a. here it is"; 4 extra, first after "a."
+pragmatic-segmenter/english_spec/128	5 missing, first after "a) here it is"
+pragmatic-segmenter/english_spec/129	the expected sentences rewrite the text
+pragmatic-segmenter/english_spec/130	4 extra, first after "'Well?'"
+pragmatic-segmenter/english_spec/131	2 extra, first after "Leave me alone!"
+pragmatic-segmenter/english_spec/133	the expected sentences rewrite the text
+pragmatic-segmenter/english_spec/134	the expected sentences rewrite the text
+pragmatic-segmenter/english_spec/135	the expected sentences rewrite the text
+pragmatic-segmenter/english_spec/142	1 extra, first after "The GmbH & Co."
+pragmatic-segmenter/english_spec/144	1 extra, first after "[15: 12:32] [16: firma?"
+pragmatic-segmenter/english_spec/147	19 missing, first after "DOWN THE RABBIT-HOLE"; 152 extra, first after "...say to itself, "Oh dear!"
+pragmatic-segmenter/english_spec/148	5 extra, first after ""Dear, dear!"
+pragmatic-segmenter/english_spec/149	1 missing, first after "..., afore she comes, to--""; 2 extra, first after "...heads cut off, you know."
+pragmatic-segmenter/english_spec/150	1 extra, first after "...cer of milk at tea-time."
+pragmatic-segmenter/english_spec/156	1 extra, first after "The med."
+pragmatic-segmenter/english_spec/158	1 extra, first after "SEC."
+pragmatic-segmenter/english_spec/164	1 extra, first after "I will be paid Rs."
+pragmatic-segmenter/english_spec/165	3 extra, first after "...od 1, I will be paid Rs."
+pragmatic-segmenter/english_spec/166	1 extra, first after "...an advance amount of rs."
+pragmatic-segmenter/english_spec/167	1 extra, first after "... the oven, and -- voila!"
+pragmatic-segmenter/english_spec/168	1 extra, first after "...n be -- if I may say so?"
+pragmatic-segmenter/english_spec/173	1 extra, first after "...grown in dragon’s blood."
+pragmatic-segmenter/english_spec/174	1 extra, first after "...ial citation: Baker, C.,"
+pragmatic-segmenter/english_spec/177	1 missing, first after "... in a consultation.11 12"
+pragmatic-segmenter/english_spec/178	1 missing, first after "...al cognition (type 2).10"
+pragmatic-segmenter/english_spec/180	2 missing, first after "... country at large.[7][8]"

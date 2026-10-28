@@ -1,0 +1,12 @@
+# The models the web language detector recipe (langdetect_web) reads: the
+# OpenNLP language detector its two gates score beside the trained one,
+# and the Tatoeba recipe's model as the zoo lists it, which both held-out
+# sets are scored with again (langdetect_web::COMPARED). Each line is the
+# file's SHA-256 and the address the models-fineweb workflow fetches it
+# from; the workflow saves it under the address's last segment and checks
+# it against the SHA-256 before it caches it. A test checks these lines
+# against the recipe's reference and the zoo's entry. The OpenNLP model is
+# only scored, never shipped or bundled: the terms of the Leipzig corpora
+# it was trained on are not confirmed (docs/licences.md).
+2ddf585fac2e02a9dcfb9a4a9cc9417562eaac351be2efb506a2eaa87f19e9d4 https://downloads.apache.org/opennlp/models/langdetect/1.8.3/langdetect-183.bin
+89f8e570f2f27184267de91ce26433e848ee341b94b7ef9fe623a56236e4e64e https://github.com/ai-pipestream/turboembed/releases/download/models-tatoeba-2026-10-10-1/turbo-mul-tatoeba-langdetect-1.bin

@@ -1,10 +1,10 @@
 //! The detectors in pipelines, each followed by a step that reads what
-//! they wrote: sentences inside each paragraph and rule-derived Unicode
-//! source spans, including UTF-16 and code-point boundaries.
+//! they wrote: the sentences inside each paragraph, and the maxent
+//! detector's sentences with their probabilities.
 
 use turbo_analysis::{Analyzer, Anchor, Annotator, Document, Error, Key, Layer, Refs, Status, View};
-use turbo_analysis_layers::{Block, Sentences, Structure};
-use turbo_sentdetect::{NewlineDetector, ParagraphDetector, RuleSentenceDetector};
+use turbo_analysis_layers::{Block, Confidence, Sentences, Structure};
+use turbo_sentdetect::{NewlineDetector, ParagraphDetector, SentenceDetector, SentenceModel};
 
 /// How many sentences each paragraph holds, aligned to the structure.
 struct PerParagraph {
@@ -87,14 +87,15 @@ fn newline_then_paragraph_then_reader() {
     assert_eq!(p.config, NewlineDetector::new().config_hash());
 }
 
-/// Source text and offsets consumed by a downstream step.
-struct ReadBack {
+/// The probability of each sentence, read back from the confidence layer,
+/// with the sentence text: what a step after the maxent detector sees.
+struct Scored {
     text: Vec<String>,
-    offsets: Vec<(usize, usize, usize, usize, usize, usize)>,
+    confidence: Vec<f64>,
 }
 
-impl Layer for ReadBack {
-    const ID: &'static str = "test:read-back";
+impl Layer for Scored {
+    const ID: &'static str = "test:scored";
     fn anchor() -> Anchor {
         Anchor::aligned::<Sentences>()
     }
@@ -103,62 +104,61 @@ impl Layer for ReadBack {
     }
 }
 
-struct ReadSentences;
+struct ReadScores;
 
-impl Annotator for ReadSentences {
-    const ID: &'static str = "test:read-sentences";
-    type Reads = (View, Sentences);
-    type Writes = (ReadBack,);
+impl Annotator for ReadScores {
+    const ID: &'static str = "test:read-scores";
+    type Reads = (View, Sentences, Confidence<Sentences>);
+    type Writes = (Scored,);
 
-    fn annotate(&self, (view, sentences): Refs<'_, Self>) -> Result<(ReadBack,), Error> {
-        use turbo_unicode::utf16::{byte_to_utf16, utf16_to_byte};
-        assert_eq!(sentences.spans.view(), view.id());
-        let source = view.text();
-        let mut text = Vec::new();
-        let mut offsets = Vec::new();
-        for (_, span) in sentences.spans.iter() {
-            let (start, end) = (span.start as usize, span.end as usize);
-            let (u_start, u_end) = (byte_to_utf16(source, start).unwrap(), byte_to_utf16(source, end).unwrap());
-            assert_eq!(utf16_to_byte(source, u_start), Some(start));
-            assert_eq!(utf16_to_byte(source, u_end), Some(end));
-            let (c_start, c_end) = (source[..start].chars().count(), source[..end].chars().count());
-            for (byte, point) in [(start, c_start), (end, c_end)] {
-                assert_eq!(source.char_indices().map(|(b, _)| b).chain([source.len()]).nth(point), Some(byte));
-            }
-            text.push(source[span.range()].to_owned());
-            offsets.push((start, end, u_start, u_end, c_start, c_end));
-        }
-        Ok((ReadBack { text, offsets },))
+    fn annotate(&self, (view, sentences, confidence): Refs<'_, Self>) -> Result<(Scored,), Error> {
+        assert_eq!(sentences.spans.len(), confidence.value.len());
+        let text = sentences.spans.iter().map(|(_, s)| view.text()[s.range()].to_string()).collect();
+        Ok((Scored { text, confidence: confidence.value.clone() },))
     }
 }
 
 #[test]
-fn rules_then_unicode_source_reader() {
-    let detector = RuleSentenceDetector::new("en");
-    let hash = detector.config_hash();
-    let analyzer = Analyzer::builder().add(ReadSentences).add(detector).build().unwrap();
-    assert_eq!(analyzer.plan(), [vec!["turbo-sentdetect:rules"], vec!["test:read-sentences"]]);
+fn maxent_then_reader() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures/en-abbrev.bin");
+    let model = SentenceModel::open(turbo_maxent::ModelFile::read(&path).unwrap()).unwrap();
+    let detector = SentenceDetector::new(model);
+    let model_ref = detector.sentence_model().model_ref().clone();
+    // The detector aligns its confidence to the sentences it writes in the
+    // same step, so it is added as a plain annotator.
+    let analyzer = Analyzer::builder().add(ReadScores).add(detector).build().unwrap();
+    assert_eq!(analyzer.plan(), [vec!["turbo-sentdetect:maxent"], vec!["test:read-scores"]]);
+
+    // The first two texts are fixture inputs, so the values are those of
+    // the golden files.
     let mut docs = vec![
         Document::new("Mr. Smith met Dr. Brown at 5 p.m. on Main St. today. He left early."),
-        Document::new("Été. 𐐀 Start. 😀 End."),
+        Document::new("It ended.\u{1F600} Next one starts.\u{10400}Deseret here. Last.\u{1F600}"),
         Document::new(" \t\n  \u{3000} "),
     ];
     let results = analyzer.run(&mut docs);
     assert!(results.iter().all(Result::is_ok), "{results:?}");
-    let first = docs[0].get::<ReadBack>().unwrap();
-    assert_eq!(first.text, ["Mr. Smith met Dr. Brown at 5 p.m. on Main St. today.", "He left early."]);
-    assert_eq!(first.offsets, [(0, 52, 0, 52, 0, 52), (53, 67, 53, 67, 53, 67)]);
-    let unicode = docs[1].get::<ReadBack>().unwrap();
-    assert_eq!(unicode.text, ["Été.", "𐐀 Start.", "😀 End."]);
-    assert_eq!(unicode.offsets, [(0, 6, 0, 4, 0, 4), (7, 18, 5, 14, 5, 13), (19, 28, 15, 22, 14, 20)]);
-    let empty = &docs[2];
-    for key in [Key::<Sentences>::DEFAULT.id(), Key::<ReadBack>::DEFAULT.id()] {
-        assert_eq!(empty.status(key), Some(&Status::Complete), "{key}");
+
+    let scored = |d: &Document| {
+        let s = d.get::<Scored>().unwrap();
+        (s.text.clone(), s.confidence.clone())
+    };
+    let (text, confidence) = scored(&docs[0]);
+    assert_eq!(text, ["Mr. Smith met Dr. Brown at 5 p.m. on Main St. today.", "He left early."]);
+    assert_eq!(confidence, [0.9955300941022667, 0.9466056890177881]);
+    let (text, confidence) = scored(&docs[1]);
+    assert_eq!(text, ["It ended.\u{1F600}", "Next one starts.\u{10400}Deseret", "here.", "Last.\u{1F600}"]);
+    assert_eq!(confidence[3], 0.50730226664988);
+
+    // Whitespace only: no sentences, and both layers complete, not skipped.
+    let d = &docs[2];
+    for key in [Key::<Sentences>::DEFAULT.id(), Key::<Confidence<Sentences>>::DEFAULT.id(), Key::<Scored>::DEFAULT.id()]
+    {
+        assert_eq!(d.status(key), Some(&Status::Complete), "{key}");
     }
-    assert!(empty.get::<ReadBack>().unwrap().text.is_empty());
-    assert!(empty.get::<ReadBack>().unwrap().offsets.is_empty());
-    let provenance = docs[0].provenance(Key::<Sentences>::DEFAULT.id()).unwrap();
-    assert_eq!(provenance.annotator, "turbo-sentdetect:rules");
-    assert_eq!(provenance.config, hash);
-    assert!(provenance.model.is_none());
+    assert_eq!(scored(d), (vec![], vec![]));
+
+    let p = docs[0].provenance(Key::<Sentences>::DEFAULT.id()).unwrap();
+    assert_eq!(p.annotator, "turbo-sentdetect:maxent");
+    assert_eq!(p.model.as_ref(), Some(&model_ref));
 }

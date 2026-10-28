@@ -308,8 +308,9 @@ fn feature_generator_settings_round_trip_and_custom_generators_error() {
     use std::collections::BTreeMap;
     use std::sync::Arc;
     use turbo_doccat::features::PatternMode;
-    use turbo_doccat::multilabel::package_multilabel_model;
-    use turbo_doccat::multilabel::{MultiLabelSample, MultiLabelTrainingParameters, train_multilabel};
+    use turbo_doccat::multilabel::{
+        MultiLabelSample, MultiLabelTrainingParameters, open_package, package_multilabel_model, train_multilabel,
+    };
     use turbo_doccat::{DoccatFactory, DoccatFeatureGenerator, NGramFeatureGenerator};
 
     let samples = [
@@ -346,6 +347,11 @@ fn feature_generator_settings_round_trip_and_custom_generators_error() {
     assert_eq!(opened_entry.context_generator().builtins(), trained.context_generator().builtins());
     assert_eq!(opened_entry.scores(probe), trained.scores(probe));
     assert_eq!(opened_entry.model_ref().sha256, trained.model_ref().sha256);
+
+    let pkg = package_multilabel_model(&trained, 1_700_000_000_000).unwrap();
+    let opened_pkg = open_package(pkg.to_bytes()).unwrap();
+    assert_eq!(opened_pkg.context_generator().builtins(), trained.context_generator().builtins());
+    assert_eq!(opened_pkg.scores(probe), trained.scores(probe));
 
     #[derive(Debug)]
     struct CustomGen;
@@ -387,7 +393,10 @@ fn feature_generator_settings_round_trip_and_custom_generators_error() {
 fn hash_compat_categorizer_annotators_report_distinct_config_hashes() {
     use turbo_analysis::Annotator;
     use turbo_analysis_layers::{Chunks, Sentences};
-    use turbo_doccat::NGramFeatureGenerator;
+    use turbo_doccat::features::PatternMode;
+    use turbo_doccat::{DoccatModel, DocumentCategorizerME, NGramFeatureGenerator, SpanCategorizer};
+    use turbo_maxent::MaxentModel;
+    use turbo_train::{Event, Key as Param, TrainingConfiguration, TrainingParameters, trainer};
 
     let ml_base = model();
     let ml_cat = MultiLabelCategorizer::new(ml_base.clone());
@@ -417,17 +426,48 @@ fn hash_compat_categorizer_annotators_report_distinct_config_hashes() {
     assert_ne!(ml_spans_sent.config_hash(), 0);
     assert_ne!(ml_spans_sent.config_hash(), ml_spans_chunk.config_hash());
     assert_ne!(ml_spans_sent.config_hash(), ml_thresh.for_spans::<Sentences>().config_hash());
+
+    let events = vec![Event::from_strs("pos", &["bow=good"]), Event::from_strs("neg", &["bow=bad"])];
+    let mut params = TrainingParameters::new();
+    params.put(Param::ALGORITHM, "MAXENT");
+    params.put(Param::ITERATIONS, 20);
+    params.put(Param::CUTOFF, 0);
+    let (trained, _) = trainer::train_events(&events, &params, &mut TrainingConfiguration::default()).unwrap();
+    let maxent = MaxentModel::read(&trained.write().unwrap()).unwrap();
+    let cg1 = DoccatContextGenerator::from_builtins(vec![BuiltinFeatureGenerator::BagOfWords(
+        BagOfWordsFeatureGenerator::new(),
+    )]);
+    let cg2 = DoccatContextGenerator::from_builtins(vec![BuiltinFeatureGenerator::BagOfWords(
+        BagOfWordsFeatureGenerator::only_all_letter_tokens().with_pattern_mode(PatternMode::CodePoints),
+    )]);
+    let doc_cat1 = DocumentCategorizerME::new(DoccatModel::from_maxent("en", maxent.clone(), cg1).unwrap());
+    let doc_cat2 = DocumentCategorizerME::new(DoccatModel::from_maxent("en", maxent, cg2).unwrap());
+    assert_ne!(doc_cat1.config_hash(), 0);
+    assert_ne!(doc_cat1.config_hash(), doc_cat2.config_hash());
+    let span1: SpanCategorizer<Sentences> = doc_cat1.for_spans();
+    let span2: SpanCategorizer<Sentences> = doc_cat2.for_spans();
+    let span_chunk: SpanCategorizer<Chunks> = doc_cat1.for_spans();
+    assert_ne!(span1.config_hash(), 0);
+    assert_ne!(span1.config_hash(), span2.config_hash());
+    assert_ne!(span1.config_hash(), span_chunk.config_hash());
+    let hashes = [
+        h_base,
+        ml_thresh.config_hash(),
+        ml_max.config_hash(),
+        ml_min.config_hash(),
+        ml_score.config_hash(),
+        ml_cg.config_hash(),
+        ml_spans_sent.config_hash(),
+        ml_spans_chunk.config_hash(),
+        doc_cat1.config_hash(),
+        doc_cat2.config_hash(),
+        span1.config_hash(),
+        span2.config_hash(),
+        span_chunk.config_hash(),
+    ];
+    // Fixed values from the previous implementation, before migration.
     assert_eq!(
-        [
-            h_base,
-            ml_thresh.config_hash(),
-            ml_max.config_hash(),
-            ml_min.config_hash(),
-            ml_score.config_hash(),
-            ml_cg.config_hash(),
-            ml_spans_sent.config_hash(),
-            ml_spans_chunk.config_hash(),
-        ],
+        hashes,
         [
             2406797393651371811,
             14589794838530488386,
@@ -437,6 +477,11 @@ fn hash_compat_categorizer_annotators_report_distinct_config_hashes() {
             5785359090408478346,
             902727703835235239,
             5322199426368607831,
+            14593223505865006032,
+            15804804405288898674,
+            11971614223886549790,
+            18330262021213611080,
+            10610587880484796636
         ]
     );
 }

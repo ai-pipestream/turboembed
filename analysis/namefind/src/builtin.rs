@@ -6,20 +6,21 @@
 //! [`search`], with no regex compilation and no per-sentence stand-in
 //! buffer.
 //!
-//! All five patterns match ASCII characters (plus U+00B0, U+2019 and
+//! All five Java patterns match ASCII characters (plus U+00B0, U+2019 and
 //! U+201D in `DEGREES_MIN_SEC_LAT_LON`), fold ASCII case only, and use
-//! the ASCII classes `\d`, `\w`, `\s` and `\b` over the bytes.
+//! Java's default ASCII `\d`, `\w`, `\s` and `\b` classes.
 //!
-//! `\b` also counts a nonspacing mark after a letter or digit as a word
-//! character. It makes no difference to the names: `URL`, the one pattern
-//! with `\b`, matches no space, so a match lies within one token, and a
-//! match that is kept starts and ends at the token's edges, next to a
-//! space or the end of the text. A boundary inside a token only decides
-//! matches that are dropped, and they cover nothing past the token.
+//! `\b` in `java.util.regex` also counts a nonspacing mark after a letter
+//! or digit as a word character. It makes no difference to the names:
+//! `URL`, the one pattern with `\b`, matches no space, so a match lies
+//! within one token, and a match that is kept starts and ends at the
+//! token's edges, next to a space or the end of the text. A boundary
+//! inside a token only decides matches that are dropped, and they cover
+//! nothing past the token.
 //!
 //! `EMAIL` starts with a lookbehind, `(?<![a-z0-9!#$%&'*+/=?^_`{|}~.-])`;
 //! [`search`] checks the byte before each candidate start and moves on one
-//! byte when the check fails, which is the order the pattern tries
+//! byte when the check fails, which is the order the Java matcher tries
 //! positions in.
 
 mod geo;
@@ -62,8 +63,7 @@ impl BuiltIn {
         }
     }
 
-    /// The pattern the built-in matches, in the factory's regex syntax;
-    /// the spec [`search`] implements.
+    /// The Java pattern, as `Pattern.compile` receives it.
     pub const fn java_pattern(self) -> &'static str {
         match self {
             BuiltIn::UsaPhoneNum => r"((\(\d{3}\) ?)|(\d{3}-))?\d{3}-\d{4}",
@@ -97,7 +97,7 @@ impl BuiltIn {
         }
     }
 
-    /// Whether the pattern folds ASCII case.
+    /// Whether Java compiles it with `Pattern.CASE_INSENSITIVE`.
     pub const fn case_insensitive(self) -> bool {
         !matches!(self, BuiltIn::UsaPhoneNum)
     }

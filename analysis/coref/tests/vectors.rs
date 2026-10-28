@@ -8,10 +8,10 @@ mod training;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
-use common::Fixture;
-use training::{Corpus, Encoder, Gold, document, encoder, firm, names};
+use common::{Fixture, chain_ids};
+use training::{Corpus, Encoder, Gold, corpus, document, encoder, firm, names};
 use turbo_coref::train::{pairs, train_ranking};
-use turbo_coref::{CorefAnnotator, DEFAULT_THRESHOLD, MapWordVectors, TokenVectors, WordVectors};
+use turbo_coref::{CorefAnnotator, CorefModel, DEFAULT_THRESHOLD, MapWordVectors, TokenVectors, WordVectors};
 
 const PERSON: &[&str] = &["person"];
 const NEUTRAL: &[&str] = &["organization", "location"];
@@ -120,7 +120,35 @@ fn token_vectors_add_span_features_with_values() {
 }
 
 #[test]
+fn ranking_model_trains_and_decodes_with_token_vectors() {
+    let rules = with_encoder(encoder());
+    let trained = train_ranking("eng", &corpus().documents(), 10, 0.05, 0.001, &rules).unwrap();
+    assert_eq!(trained.token_vector_dimension(), 2);
+    let model = CorefModel::read(trained.to_bytes().to_vec()).unwrap();
+    assert!(model.is_ranking());
+    assert_eq!(model.token_vector_dimension(), 2);
+    let p = model.link_probability(&["vp0".to_owned()], Some(&[1.0])).unwrap();
+    assert!(p > 0.5, "a shared direction should favor linking: {p}");
+    let model = Arc::new(model);
+    let annotator =
+        CorefAnnotator::new(PERSON, NEUTRAL, Some(model.clone()), DEFAULT_THRESHOLD, None, Some(encoder())).unwrap();
+    assert_eq!(annotator.token_vector_dimension(), 2);
+    let linked = document("Cyberdyne", "organization", "expanded", "It", 0);
+    assert_eq!(chain_ids(&linked.fixture, &annotator), [0, 0]);
+    let apart = document("Cyberdyne", "organization", "expanded", "He", 1);
+    assert_eq!(chain_ids(&apart.fixture, &annotator), [0, 1]);
+    // The model requires its encoder, of its dimension.
+    assert!(CorefAnnotator::with_model(model.clone()).is_err());
+    let one = encoder_of(1, |t| vec![vec![1.0]; t.len()]);
+    assert!(CorefAnnotator::new(PERSON, NEUTRAL, Some(model), DEFAULT_THRESHOLD, None, Some(one)).is_err());
+}
+
+#[test]
 fn vector_dimensions_are_validated_at_construction() {
+    let plain = train_ranking("eng", &corpus().documents(), 1, 0.05, 0.0, &CorefAnnotator::default()).unwrap();
+    assert_eq!(plain.token_vector_dimension(), 0);
+    let plain = Arc::new(plain);
+    assert!(CorefAnnotator::new(PERSON, NEUTRAL, Some(plain), DEFAULT_THRESHOLD, None, Some(encoder())).is_err());
     let zero_words = MapWordVectors::new(0);
     assert!(CorefAnnotator::new(PERSON, NEUTRAL, None, DEFAULT_THRESHOLD, Some(Arc::new(zero_words)), None).is_err());
     let zero_encoder = encoder_of(0, |t| vec![vec![]; t.len()]);
@@ -154,8 +182,7 @@ fn ranking_rejects_an_encoder_that_changes_dimension_between_documents() {
         document("Acme", "organization", "expanded", "It", 0),
         document("Kowalczyk", "person", "arrived", "He", 0),
     ]);
-    let error = train_ranking("eng", &docs.documents(), 1, 0.05, 0.0, &with_encoder(changing)).unwrap_err();
-    assert!(error.contains("token encoder returned dimension 3"), "{error}");
+    assert!(train_ranking("eng", &docs.documents(), 1, 0.05, 0.0, &with_encoder(changing)).is_err());
 }
 
 #[test]

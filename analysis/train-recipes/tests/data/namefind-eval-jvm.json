@@ -1,0 +1,106 @@
+{
+  "format_version": 1,
+  "engine": "opennlp:cdf33c653d5d61d5af7d37ffee189a83bd8392ea",
+  "model_sha256": "da05d773f20be0b8325e6dee3e0a1a103449f694c27275c58cb6f6f29e281081",
+  "corpus_sha256": "51390e67215170936ce0bbca0221f7fbc77b5e564b94fba02dccca18076c1c12",
+  "types": "all",
+  "samples": [
+    {
+      "tokens": 5,
+      "clear_adaptive_data": true,
+      "gold": [
+        {
+          "start": 0,
+          "end": 2,
+          "label": "person"
+        },
+        {
+          "start": 3,
+          "end": 4,
+          "label": "location"
+        }
+      ],
+      "predicted": [
+        {
+          "mention": {
+            "start": 0,
+            "end": 2,
+            "label": "person"
+          },
+          "probability": 0.4116019640380909
+        },
+        {
+          "mention": {
+            "start": 3,
+            "end": 4,
+            "label": "location"
+          },
+          "probability": 0.44067927259356243
+        }
+      ]
+    },
+    {
+      "tokens": 5,
+      "clear_adaptive_data": false,
+      "gold": [
+        {
+          "start": 0,
+          "end": 1,
+          "label": "person"
+        },
+        {
+          "start": 3,
+          "end": 4,
+          "label": "organization"
+        }
+      ],
+      "predicted": []
+    },
+    {
+      "tokens": 6,
+      "clear_adaptive_data": true,
+      "gold": [
+        {
+          "start": 0,
+          "end": 1,
+          "label": "person"
+        },
+        {
+          "start": 2,
+          "end": 3,
+          "label": "person"
+        },
+        {
+          "start": 4,
+          "end": 5,
+          "label": "location"
+        }
+      ],
+      "predicted": [
+        {
+          "mention": {
+            "start": 0,
+            "end": 1,
+            "label": "person"
+          },
+          "probability": 0.44195182486934637
+        }
+      ]
+    },
+    {
+      "tokens": 4,
+      "clear_adaptive_data": false,
+      "gold": [],
+      "predicted": [
+        {
+          "mention": {
+            "start": 0,
+            "end": 1,
+            "label": "person"
+          },
+          "probability": 0.16209369919685182
+        }
+      ]
+    }
+  ]
+}

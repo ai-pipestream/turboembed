@@ -90,10 +90,78 @@ impl Reference {
 
 #[cfg(test)]
 mod tests {
+    use turbo_eval::model_gate::Task;
 
     use super::*;
+    use crate::card::ParametersCard;
+    use crate::{LeftOut, Limit, RECIPES, Recipe, check_skipped, chunk, postag};
 
-    use crate::{LeftOut, Limit, check_skipped};
+    #[test]
+    fn every_recipe_names_a_reference_and_a_valid_model_id() {
+        let ids: Vec<&str> = RECIPES.iter().map(Recipe::model_id).collect();
+        assert_eq!(
+            ids,
+            [
+                "turbo-en-masc-3.0.0-sentence-1",
+                "turbo-en-masc-3.0.0-tokens-1",
+                "turbo-en-masc-3.0.0-pos-1",
+                "turbo-en-masc-3.0.0-chunks-1",
+                "turbo-en-masc-3.0.0-ner-person-1",
+                "turbo-en-masc-3.0.0-ner-location-1",
+                "turbo-en-masc-3.0.0-ner-organization-1",
+                "turbo-en-masc-3.0.0-ner-date-1",
+            ]
+        );
+        for r in RECIPES {
+            assert!(matches!(r.check_reference(b"not the model"), Err(Error::ReferenceDigest { .. })));
+            let id: turbo_zoo::ArtifactId = r.model_id().parse().unwrap();
+            assert_eq!(id.as_str(), r.model_id());
+            match r.reference() {
+                // The reference is a model of the component the trained
+                // one is, under its zoo file name.
+                Reference::Zoo(id) => {
+                    assert_eq!(r.reference_file().unwrap(), format!("{id}.bin"));
+                    assert_eq!(Index::builtin().get(id).unwrap().component, Some(r.component()));
+                }
+                // A recorded reference is one the zoo does not list, so it
+                // can never be fetched or shipped through it.
+                Reference::Recorded(rec) => {
+                    assert_eq!(r.reference_file().unwrap(), rec.file);
+                    assert!(Index::builtin().get(rec.id).is_err());
+                }
+            }
+        }
+        assert_eq!(RECIPES[2].task(), Task::PartOfSpeechTagger);
+        assert_eq!(RECIPES[2].component(), turbo_zoo::Component::Pos);
+        assert_eq!(RECIPES[2].reference_id(), "opennlp-en-pos-maxent-1.5");
+        assert_eq!(RECIPES[2].reference().sha256().unwrap(), postag::EN_POS_MAXENT.sha256);
+        for r in &RECIPES[4..] {
+            assert_eq!(r.task(), Task::NameFinder);
+            assert_eq!(r.component(), turbo_zoo::Component::NameFinder);
+            assert_eq!(
+                r.parameters(),
+                ParametersCard { algorithm: "MAXENT".into(), iterations: 300, cutoff: 0, threads: 1 }
+            );
+        }
+        assert_eq!(
+            RECIPES[0].parameters(),
+            ParametersCard { algorithm: "MAXENT".into(), iterations: 300, cutoff: 5, threads: 4 }
+        );
+        for r in RECIPES {
+            assert_eq!(Recipe::trains(r.model_id()), Some(r));
+        }
+        assert_eq!(RECIPES[3].task(), Task::Chunker);
+        assert_eq!(RECIPES[3].component(), turbo_zoo::Component::Chunker);
+        assert_eq!(RECIPES[3].reference_id(), "opennlp-en-chunker-1.5");
+        assert_eq!(RECIPES[3].reference().sha256().unwrap(), chunk::EN_CHUNKER.sha256);
+        let p = RECIPES[3].parameters();
+        assert_eq!((p.algorithm.as_str(), p.iterations, p.cutoff, p.threads), ("MAXENT", 100, 5, 1));
+        let p = RECIPES[2].parameters();
+        assert_eq!((p.algorithm.as_str(), p.iterations, p.cutoff, p.threads), ("MAXENT", 300, 5, 4));
+        assert!(RECIPES[3].reads_chunks() && !RECIPES[2].reads_chunks());
+        assert_eq!(Recipe::trains("turbo-en-masc-3.0.0-unknown-1"), None);
+        assert!(Reference::Zoo("not-in-the-zoo").file().is_err());
+    }
 
     #[test]
     fn a_recorded_reference_is_checked_by_size_and_digest() {

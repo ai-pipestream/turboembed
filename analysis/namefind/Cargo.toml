@@ -13,13 +13,14 @@ turbo-calibration = { path = "../calibration" }
 turbo-sequence = { path = "../sequence" }
 turbo-analysis = { path = "../core" }
 turbo-analysis-layers = { path = "../layers" }
-# Token patterns of RegexNameFinder.
-turbo-matcher = { path = "../matcher" }
-# The Java Character.toLowerCase mapping, for case-insensitive dictionaries.
-turbo-unicode = { path = "../unicode" }
-# The CRF model package the CRF annotators read (turbo-sequence's model
-# file type; dropped when the CRF package reader moves off it).
+# The dictionary XML reader and OpenNLP's dictionary lookups.
 turbo-maxent = { path = "../maxent" }
+# Java's general categories, for the word boundary of java.util.regex.
+turbo-unicode = { path = "../unicode" }
+# String.compareTo, which orders entity types when names are merged.
+turbo-jvm = { path = "../jvm" }
 
 [dev-dependencies]
 turbo-train = { path = "../train" }
+# The goldens of the finders and the merge, made by OpenNLP on a JVM.
+turbo-goldens = { path = "../goldens" }

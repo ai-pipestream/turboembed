@@ -1,7 +1,9 @@
-//! BundleTokenVectors integration: alignment, pooling, projection and native
-//! coreference pair features. Archive-trained ranker comparisons are retired;
-//! these tests do not establish replacement coreference accuracy.
+//! BundleTokenVectors integration (#960): alignment, pooling and projection
+//! parity, including overlapping BPE pieces. Coreference training compares
+//! surface/syntax, static vectors, contextual vectors and their combination
+//! using MUC, B-cubed, CEAF-m/e and the CoNLL average.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -9,8 +11,10 @@ use turbo::head::{Linear, ProjectionHead};
 use turbo_analysis::*;
 use turbo_analysis_embed::*;
 use turbo_analysis_layers::{Entities, PhraseChunks, PosTags, Sentences, Subwords, Tokens, Vectors};
-use turbo_coref::train::{GoldMention, TrainingDocument, pairs};
-use turbo_coref::{CorefAnnotator, CorefInput, DEFAULT_THRESHOLD, TokenVectors};
+use turbo_coref::scorer::{CorefScorer, CorefScores, partition};
+use turbo_coref::train::{GoldMention, TrainingDocument, train_ranking};
+use turbo_coref::word2vec::{Word2VecArch, Word2VecParameters, Word2VecTrainer};
+use turbo_coref::{CorefAnnotator, CorefInput, DEFAULT_THRESHOLD, TokenVectors, WordVectors};
 
 const PERSON: &[&str] = &["person"];
 const NEUTRAL: &[&str] = &["organization", "location"];
@@ -168,6 +172,30 @@ impl BuiltDoc {
             speakers: None,
         }
     }
+
+    fn gold_partition(&self) -> Vec<HashSet<(u32, u32)>> {
+        let max_chain = self.gold.iter().map(|g| g.chain).max().unwrap_or(0);
+        let mut chains = vec![HashSet::new(); max_chain + 1];
+        for g in &self.gold {
+            chains[g.chain].insert((g.span.start, g.span.end));
+        }
+        chains.into_iter().filter(|c| !c.is_empty()).collect()
+    }
+
+    fn sentence_tokens(&self) -> Vec<Vec<&str>> {
+        let mut out = Vec::new();
+        for (s_ix, _) in self.sentences.spans.iter() {
+            let r = self.tokens.of(s_ix);
+            let words: Vec<&str> = (r.start.get()..r.end.get())
+                .map(|t| {
+                    let sp = self.tokens.spans.get(Ix::new(t as u32));
+                    &self.text[sp.range()]
+                })
+                .collect();
+            out.push(words);
+        }
+        out
+    }
 }
 
 #[test]
@@ -320,42 +348,149 @@ fn pool_word_tokens_handles_shared_bpe_spans_and_validates_inputs() {
     }
 }
 
-#[test]
-fn real_bundle_vectors_reach_coreference_pair_features() {
-    let bundle = Arc::new(BundleTokenVectors::open(&bert_bundle(), &VectorOptions::default()).unwrap());
-    let s1 = [("Acme", "NNP"), ("grew", "VBD"), (".", ".")];
-    let s2 = [("The", "DT"), ("firm", "NN"), ("hired", "VBD"), (".", ".")];
-    let doc = BuiltDoc::build(
-        &[&s1, &s2],
-        &[("Acme", "organization")],
-        &[("Acme", "NP"), ("The firm", "NP")],
-        &[("Acme", 0), ("The firm", 0)],
-    );
-    let training = TrainingDocument { input: doc.input(), gold: doc.gold.clone() };
-    let plain = pairs(&training, &CorefAnnotator::default()).unwrap();
-    assert_eq!(plain.len(), 1);
-    assert!(plain[0].values().is_none());
-    let annotator = CorefAnnotator::new(PERSON, NEUTRAL, None, DEFAULT_THRESHOLD, None, Some(bundle.clone())).unwrap();
-    let contextual = pairs(&training, &annotator).unwrap();
-    assert_eq!(contextual.len(), plain.len());
-    assert_eq!(contextual[0].outcome(), plain[0].outcome());
-    let names: Vec<String> = contextual[0].context().iter().map(|name| name.to_string_lossy()).collect();
-    let values = contextual[0].values().unwrap();
-    assert_eq!(names.len(), values.len());
-    assert!(values.iter().all(|value| value.is_finite()));
-    let value = |name: &str| values[names.iter().position(|n| n == name).unwrap()];
-    // Compare the public producer output to the pair feature contract:
-    // Acme's token vector versus the mean of The and firm in their sentence.
-    let antecedent = bundle.vectors(&["Acme", "grew", "."]);
-    let anaphor = bundle.vectors(&["The", "firm", "hired", "."]);
-    for d in 0..bundle.dimension() {
-        let u = ((f64::from(anaphor[0][d]) + f64::from(anaphor[1][d])) / 2.0) as f32;
-        let v = antecedent[0][d];
-        let product = (f64::from(u) * f64::from(v)) as f32;
-        let difference = (f64::from(u) - f64::from(v)).abs() as f32;
-        assert!((value(&format!("vp{d}")) - product).abs() < 1e-6);
-        assert!((value(&format!("vd{d}")) - difference).abs() < 1e-6);
+/// Builds a coreference benchmark where each document introduces two candidate
+/// entities of the same entity type in the first two sentences, followed by a
+/// nominal anaphor in the third sentence whose modifier disambiguates which
+/// antecedent it corefers with (`BundleTokenVectors` pools over the full
+/// mention span while static `WordVectors` only sees the shared head noun).
+fn benchmark_splits() -> (Vec<BuiltDoc>, Vec<BuiltDoc>) {
+    let specs: &[(&str, &str, &str, &str, &str, usize)] = &[
+        ("Apex Cloud", "cloud", "Vertex Bio", "bio", "division", 0),
+        ("Apex Cloud", "cloud", "Vertex Bio", "bio", "division", 1),
+        ("Solaris Grid", "solar", "Lunar Harbor", "lunar", "group", 0),
+        ("Solaris Grid", "solar", "Lunar Harbor", "lunar", "group", 1),
+        ("Nordic Rail", "rail", "Alpine Freight", "freight", "unit", 0),
+        ("Nordic Rail", "rail", "Alpine Freight", "freight", "unit", 1),
+        ("Pacific Optics", "optics", "Atlantic Sonar", "sonar", "center", 0),
+        ("Pacific Optics", "optics", "Atlantic Sonar", "sonar", "center", 1),
+        ("Cobalt Motors", "cobalt", "Quartz Robotics", "quartz", "division", 0),
+        ("Cobalt Motors", "cobalt", "Quartz Robotics", "quartz", "division", 1),
+        ("Harbor Logistics", "harbor", "Summit Aviation", "summit", "group", 0),
+        ("Harbor Logistics", "harbor", "Summit Aviation", "summit", "group", 1),
+    ];
+
+    let make_doc =
+        |ant1: &str, mod1: &str, ant2: &str, mod2: &str, head: &str, target: usize, verb: &str| -> BuiltDoc {
+            let w1: Vec<&str> = ant1.split(' ').collect();
+            let w2: Vec<&str> = ant2.split(' ').collect();
+            let chosen_mod = if target == 0 { mod1 } else { mod2 };
+            let anaphor_np = format!("The {chosen_mod} {head}");
+            let s1 = [(w1[0], "NNP"), (w1[1], "NNP"), ("built", "VBD"), (mod1, "NN"), ("systems", "NNS"), (".", ".")];
+            let s2 = [(w2[0], "NNP"), (w2[1], "NNP"), ("tested", "VBD"), (mod2, "NN"), ("sensors", "NNS"), (".", ".")];
+            let s3 = [("The", "DT"), (chosen_mod, "NN"), (head, "NN"), (verb, "VBD"), ("rapidly", "RB"), (".", ".")];
+            let gold_marks: Vec<(&str, usize)> = if target == 0 {
+                vec![(ant1, 0), (ant2, 1), (&anaphor_np, 0)]
+            } else {
+                vec![(ant1, 0), (ant2, 1), (&anaphor_np, 1)]
+            };
+            BuiltDoc::build(
+                &[&s1, &s2, &s3],
+                &[(ant1, "organization"), (ant2, "organization")],
+                &[(ant1, "NP"), (ant2, "NP"), (&anaphor_np, "NP")],
+                &gold_marks,
+            )
+        };
+
+    let mut train_docs = Vec::new();
+    let mut test_docs = Vec::new();
+    for &(a1, m1, a2, m2, head, target) in specs {
+        train_docs.push(make_doc(a1, m1, a2, m2, head, target, "expanded"));
+        train_docs.push(make_doc(a1, m1, a2, m2, head, target, "grew"));
+        test_docs.push(make_doc(a1, m1, a2, m2, head, target, "succeeded"));
     }
-    assert_eq!(names.iter().filter(|n| n.starts_with("vp")).count(), bundle.dimension());
-    assert_eq!(names.iter().filter(|n| n.starts_with("vd")).count(), bundle.dimension());
+    (train_docs, test_docs)
+}
+
+fn evaluate_split(annotator: &CorefAnnotator, docs: &[BuiltDoc]) -> CorefScores {
+    let mut scorer = CorefScorer::new();
+    for doc in docs {
+        let (mentions, chains, _) = annotator.resolve(&doc.input()).unwrap();
+        let response = partition(&mentions, &chains);
+        let key = doc.gold_partition();
+        scorer.add(&key, &response).unwrap();
+    }
+    scorer.scores()
+}
+
+fn run_ranking_comparison(bundle_dir: &Path, label: &str) -> (CorefScores, CorefScores, CorefScores, CorefScores) {
+    let (train_docs, test_docs) = benchmark_splits();
+    let train_inputs: Vec<TrainingDocument<'_>> =
+        train_docs.iter().map(|d| TrainingDocument { input: d.input(), gold: d.gold.clone() }).collect();
+
+    // 1. Train static Word2Vec vectors on the training split sentences only.
+    let mut sentences_owned: Vec<Vec<String>> = Vec::new();
+    for d in &train_docs {
+        for s in d.sentence_tokens() {
+            sentences_owned.push(s.into_iter().map(str::to_owned).collect());
+        }
+    }
+    let w2v_params = Word2VecParameters {
+        arch: Word2VecArch::SkipGram,
+        dimension: 32,
+        min_count: 1,
+        epochs: 25,
+        window: 4,
+        seed: 42,
+        ..Word2VecParameters::default()
+    };
+    let w2v: Arc<dyn WordVectors> =
+        Arc::new(Word2VecTrainer::new(w2v_params).unwrap().train(&sentences_owned).unwrap());
+    let token_vecs: Arc<dyn TokenVectors> =
+        Arc::new(BundleTokenVectors::open(bundle_dir, &VectorOptions::default()).unwrap());
+
+    let train_and_score = |w: Option<Arc<dyn WordVectors>>, t: Option<Arc<dyn TokenVectors>>| -> CorefScores {
+        let extractor = CorefAnnotator::new(PERSON, NEUTRAL, None, DEFAULT_THRESHOLD, w.clone(), t.clone()).unwrap();
+        let model = Arc::new(train_ranking("eng", &train_inputs, 20, 0.05, 0.001, &extractor).unwrap());
+        let annotator = CorefAnnotator::new(PERSON, NEUTRAL, Some(model), DEFAULT_THRESHOLD, w, t).unwrap();
+        evaluate_split(&annotator, &test_docs)
+    };
+
+    let base_scores = train_and_score(None, None);
+    let static_scores = train_and_score(Some(w2v.clone()), None);
+    let ctx_scores = train_and_score(None, Some(token_vecs.clone()));
+    let both_scores = train_and_score(Some(w2v), Some(token_vecs));
+    for (arm, s) in [
+        ("surface", &base_scores),
+        ("static_word2vec", &static_scores),
+        ("contextual_token_vectors", &ctx_scores),
+        ("combined", &both_scores),
+    ] {
+        println!(
+            "[{label}] {arm}: CoNLL={:.4} (MUC={:.4}, B3={:.4}, CEAFe={:.4})",
+            s.conll(),
+            s.muc().f1(),
+            s.b_cubed().f1(),
+            s.ceaf_e().f1()
+        );
+    }
+    (base_scores, static_scores, ctx_scores, both_scores)
+}
+
+#[test]
+fn ranking_model_with_bundle_token_vectors_outperforms_static_word_vectors() {
+    let (base, static_w2v, ctx, both) = run_ranking_comparison(&bert_bundle(), "tiny-bert-bundle");
+    assert!(
+        ctx.conll() > static_w2v.conll(),
+        "expected contextual BundleTokenVectors CoNLL F1 ({:.4}) > static Word2Vec CoNLL F1 ({:.4}) (surface={:.4})",
+        ctx.conll(),
+        static_w2v.conll(),
+        base.conll()
+    );
+    assert!(
+        both.conll() >= ctx.conll(),
+        "expected combined CoNLL F1 ({:.4}) >= contextual CoNLL F1 ({:.4})",
+        both.conll(),
+        ctx.conll()
+    );
+
+    if let Ok(real_dir) = std::env::var("TURBO_TEST_COREF_BUNDLE") {
+        let (_, real_static, real_ctx, real_both) = run_ranking_comparison(Path::new(&real_dir), "real-bundle");
+        assert!(
+            real_ctx.conll() > real_static.conll(),
+            "expected real-bundle contextual CoNLL F1 ({:.4}) > static CoNLL F1 ({:.4})",
+            real_ctx.conll(),
+            real_static.conll()
+        );
+        assert!(real_both.conll() >= real_ctx.conll());
+    }
 }

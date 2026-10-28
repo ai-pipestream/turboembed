@@ -4,10 +4,9 @@ The datasets and published checkpoints the analysis add-ons may use, with
 their licences, their class under the policy on #326 and where the terms
 are stated. The classes and what the zoo does with each are in
 docs/zoo.md. The zoo's built-in index (`analysis/zoo/index/zoo.json`)
-is the current downloadable catalogue. The classical model tables below
-are historical licence records: #1511 removed their archive entries and
-disabled loading. A permissive licence does not make an unsupported format
-usable. Refused and local-only checkpoints remain documented here.
+lists the checkpoints of the first two tables below; the refused
+checkpoints, and the local-only ones the index does not list, are only
+here.
 Restricted but public data and non-commercial data, requested only at
 addresses under their original sources and never shipped by this
 project, have sections of their own at the end.
@@ -29,7 +28,7 @@ Dependencies treebank, and the treebank decides the class.
   machine this table was written on, and should be opened before the
   dataset is used.
 
-## OpenNLP UD models 1.3 (historical, unsupported)
+## OpenNLP UD models 1.3 (fetchable)
 
 Published at <https://archive.apache.org/dist/opennlp/models/ud-models-1.3/>
 under Apache-2.0 (its README), trained by OpenNLP 2.5.4 on UD 2.16.
@@ -74,17 +73,49 @@ The Spanish and Portuguese models are trained on GSD, not on the CC BY
 AnCora and Porttinari treebanks, so they are share-alike; only Catalan
 uses AnCora.
 
-Current acceptance tests do not download or read these models. The old model
-fetch steps and archive comparisons were removed under #1511. Retained licence
-and hash records are historical provenance, not a fetch or runtime contract.
+The tests run eight of these share-alike models: the English, German and
+Portuguese sentence models and the English, German, Spanish, French and
+Portuguese tokenizer models. Under the 2026-10-14 decision share-alike
+files are not checked in, so the tests fetch them: `cargo run -p
+turbo-goldens-tool -- fetch-models <dir>` downloads them and checks their
+SHA-512 (`analysis/goldens-tool/src/recipe/mod.rs`), the tests read them from
+that directory, and CI fetches them and requires them. The READMEs in
+`analysis/sentdetect/tests/models/` and `analysis/tokenize/tests/models/`
+list them. The small fixture models trained for this project
+(`analysis/goldens/data/fixtures`, listed in `analysis/goldens/data/README.md`)
+stay checked in.
 
-## Classical models previously trained by this project
+## Models trained by this project (fetchable once released)
 
-The following table preserves data licensing and attribution for historical
-MASC, UD, Tatoeba and FineWeb model releases. Their archive entries are no
-longer in the built-in zoo index, and the model publication workflows have
-been removed under #1511. Existing release files are not supported runtime
-models. Dataset download helpers remain subject to the same licence policy.
+Trained by the recipes in `analysis/train-recipes` only on permissive
+data, each gated against the OpenNLP model for the same task, under
+Apache-2.0. The index lists each at its address in a release of this
+repository: `models-masc-3.0.0-1` for the MASC models, which
+`.github/workflows/models.yml` creates, `models-ud-2.16-1` for the UD
+models, which `.github/workflows/models-ud.yml` creates, and
+`models-tatoeba-2026-10-10-1` for the language detector, which
+`.github/workflows/models-tatoeba.yml` creates, and
+`models-tatoeba-fineweb-2026-10-10-1` for the web language detector,
+which `.github/workflows/models-fineweb.yml` creates, each with every
+model's card and gate records, when it is run by hand on main.
+Until it has been, the release's addresses answer 404 and fetching its
+models through the zoo fails. Every file's size, SHA-256 and SHA-512 in
+the index are the ones its card records, and a workflow publishes
+nothing unless the models it trains have them. The attribution of the
+data (MASC's, the treebank's, Tatoeba's, or for the web language
+detector Tatoeba's, FineWeb-2's and FineWeb's under ODC-By 1.0) is in
+each model's card
+(the `attribution` field, published as `<model id>.card.json` beside the
+model), in the release notes, and on the model's entry in the zoo index
+(`attribution`, shown by `turbo-zoo show`). The language detectors name the sentences they were trained on by
+id in `training-sentences.txt`, which the zoo lists as each model's
+second file, and the web language detector names its documents
+(repository, file, row and FineWeb id) in `training-documents.txt`, its
+third. The Tatoeba export it is trained on is kept, unchanged, as release
+`data-tatoeba-2026-10-10`, with the CC BY 2.0 FR and CC0 1.0 notices in
+its release notes. The Portuguese Porttinari models and the Italian
+MarkIT models are in no release (the first for the rights to the text,
+the second for failing their gates).
 
 | Model | Trained on | Licence of the data | Class | Checked |
 |---|---|---|---|---|
@@ -115,14 +146,39 @@ models. Dataset download helpers remain subject to the same licence policy.
 | 1.5 `en-pos-perceptron` | not published (as `en-pos-maxent`) | none stated | proprietary | plan |
 | 1.5 English NER, sentence and token models | no corpus named | none stated | no licence | plan |
 
-Earlier MASC evaluation used `en-pos-maxent.bin` and `en-chunker.bin` as
-restricted comparison inputs. The current build neither loads these archives
-nor runs the old model publication workflow. The retained
-`analysis/train-recipes/masc-references.txt` records historical input hashes;
-it is not permission to fetch, redistribute or execute these models.
-The former language detector comparison input, `langdetect-183.bin`, is also
-unsupported and absent from the zoo. Historical evaluation permission does
-not authorize bundling, mirroring or training on any of these inputs.
+`en-pos-maxent.bin` and `en-chunker.bin` are used only as references
+whose output is scored or compared. Nothing ships, bundles, mirrors or
+trains on them, and the zoo does not list them. The `ci` workflow
+(`ci.yml`) does not fetch them. The `models` workflow
+(`.github/workflows/models.yml`), which runs the recipes' gates before
+it publishes their models, downloads them from
+<https://opennlp.sourceforge.net/models-1.5/>, checks them against the
+SHA-256s `analysis/train-recipes/masc-references.txt` lists, and keeps
+them in the repository's GitHub Actions cache. GitHub restores that
+cache only in this repository's workflow runs, and it cannot be
+downloaded. Anywhere else they are downloaded by hand from that address
+into a directory the user names. The SHA-256 of `en-pos-maxent.bin` is
+`645a094f45a866687a617385233fd23ae8b0f5fa8b1b76996781a50c17bdcf3d`, and
+that of `en-chunker.bin` is
+`7861a0c2f134d9c12a022a1ba501e88bc7039f6db72b4140e1bafd1fb5ef76cc`
+(`chunk::EN_CHUNKER`, 2,560,304 bytes); the turbo-train-recipes chunker
+gate scores it on MASC's held-out documents as the tagger gate scores
+`en-pos-maxent.bin`. The
+JVM goldens (`PosGolden`, `BeamGolden`) record its tags for the test
+sentences and that digest; turbo-sequence's tests check the digest and
+compare what turbo-sequence makes of the model with the goldens; and the
+turbo-train-recipes tagger gate checks its size and SHA-256 (5,696,197
+bytes, `postag::EN_POS_MAXENT`), scores it on MASC's held-out documents
+and compares that score with the trained model's.
+
+The goldens tool fetches `langdetect-183.bin` to make the language
+detector's goldens (`analysis/goldens-tool/src/recipe/mod.rs`); the zoo does
+not list it. The language detector recipe and the web language detector
+recipe (`analysis/train-recipes`, #429) score it as their gates'
+reference, the web one in both of its gates: each reads the file from a
+directory the user names and checks its size and SHA-256
+(`langdetect::LANGDETECT_183`), and ships, bundles and trains on nothing
+of it.
 
 ## Neural annotator checkpoints
 

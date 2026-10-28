@@ -2,12 +2,17 @@
 
 The segmentation crates write the first two layers of a document: the
 sentences (`opennlp:sentences`) and the word tokens (`opennlp:tokens`).
-Rule, newline, paragraph, Unicode and dictionary segmentation remain
-available without model archives. Classical OpenNLP model loading is disabled
-under #1511. Protocol layer identifiers are unchanged by that removal.
+They are ports of the OpenNLP 3.x sentence detectors and tokenizers onto
+the analysis API (docs/analysis.md), reading OpenNLP's own models. A
+model-free tokenizer gives tokens before any model is loaded, the
+UAX #29 tokenizer handles text in any script, the dictionary word
+tokenizer adds the words of Thai, Lao, Khmer and Burmese (which are
+written without spaces), and a rule sentence splitter gives sentences in
+languages that have no sentence model.
 
-Historical comparisons on this page describe earlier implementations; they
-are not current JVM-oracle or archive-model acceptance tests.
+OpenNLP is the reference. Where the Rust side matches it, a golden file
+made by the JVM proves it. Where it differs on purpose, this page says
+where and why.
 
 ## Crates
 
@@ -135,11 +140,90 @@ three slightly different paragraph definitions (an exactly empty line in
 `EmptyLinePreprocessorStream`, Unicode line breaks in the whitespace
 normalizer); this is the one `turbo:structure` uses.
 
-### Classical sentence models
+### `SentenceDetector` (maxent)
 
-OpenNLP sentence-model constructors are disabled under #1511. Published model
-downloads, ME fixtures and JVM expected-output checks were removed. Use the
-rule, newline or paragraph detector, or a supported native neural head.
+Reads a `View`, writes `Sentences` and `Confidence<Sentences>`. It is
+`SentenceDetectorME`, reading a `SentenceModel` (`SentenceModel::open`
+checks the component, the factory, the `useTokenEnd` property and the
+outcomes `s` and `n`, as OpenNLP does):
+
+1. The end-of-sentence scanner lists every position holding one of the
+   model's end characters, the manifest's `eosCharacters`. A model
+   without the property (or with an empty one) gets `. ! ?` whatever its
+   language: `SentenceDetectorFactory` looks up the language default of
+   `lang/Factory` with a language code that is never set on a factory
+   loaded from a file, so the Portuguese default never applies to a
+   loaded model, and a Thai model gets the default context generator, not
+   the Thai one. Both were checked on the JVM with manifests stripped of
+   the property. Every model OpenNLP's factory writes has it; the
+   Portuguese UD model lists `. ? ! ; : ( ) « » ' "`. A set with a
+   character outside the BMP is refused.
+2. Leading parts of a run of end characters are skipped (`z.B.` is one
+   candidate), unless the character after one is upper case.
+3. For each candidate, `DefaultSDContextGenerator` builds the features:
+   `sp` and `sn` for whitespace on either side, `eos=` the character,
+   the prefix, previous, suffix and next words with the prefix length,
+   capitalization and abbreviation flags. Word boundaries here are
+   whitespace in the configured mode, and `String.trim` semantics
+   (every code unit at or below `U+0020`) apply to the words. The words
+   are written per code unit as modified UTF-8, so a suffix that ends
+   between the halves of a character outside the BMP is looked up with
+   its lone surrogate, as the JVM looks it up. A text that is all ASCII
+   (its UTF-16 length equals its byte length, which the scanner counts
+   anyway) is walked by byte; any other text through `Utf16Cursor`.
+   The searches for the whitespace before and after a candidate remember
+   what earlier candidates of the same text found, and a word feature
+   longer than every predicate of the model is not built (it could not
+   change the probabilities), nor is a word longer than every dictionary
+   entry looked up. Without both, a text with no whitespace takes time
+   quadratic in its length, since every word reaches to an end of the
+   text. `detect_traced` builds every feature, as the Java does.
+4. The model decides `s` or `n`. A split is then checked against the
+   abbreviation dictionary (each entry's first token, lowercased per code
+   point unless the dictionary is case-sensitive). An entry counts when it
+   holds the candidate, ends on the code unit just before it, or starts
+   on it, and starts no earlier than the start of the current segment.
+   The split is refused when such an entry starts at the segment start
+   and ends exactly at the candidate, or starts right after whitespace
+   (`Character.isWhitespace`), an apostrophe or `(`; an entry starting at
+   the segment start but not ending at the candidate is judged by its own
+   first character instead. So with an entry `et al.`, indexed as `et`,
+   "We x et. Then" is not split at the `.`.
+5. Sentence starts are placed after the end character, or after the
+   following whitespace run when `useTokenEnd` is set. Spans are
+   trimmed of Unicode `White_Space` (this step and the skip in step 2
+   always use the Unicode set, as OpenNLP does since OPENNLP-205) and
+   empty ones are dropped with their probability. The text after the last
+   start is a last sentence with probability 1.
+
+The sentence detector works on code units for the features and on code
+points for the spans, as the Java does. Its spans are UTF-8 byte
+offsets on character boundaries by construction: an end character is
+always a whole character. `SentenceDetector::detect` gives the spans and
+probabilities outside a pipeline, and `detect_traced` also hands every
+candidate's features, probabilities and decision to a callback. The
+probabilities are `f64`, and the `Confidence` layer stores them as they
+are.
+
+The annotator's confidence output is aligned to the sentences it writes
+in the same step, which the analyzer accepts, so the detector is added
+with a plain `Analyzer::builder().add(..)`.
+
+The model's `ModelRef` is `opennlp:SentenceDetectorME:<language>`, the
+OpenNLP version in the manifest as the revision, and the SHA-256 of the
+model file.
+
+The goldens are the runs of the three published UD models
+(`analysis/goldens/data/sentdetect/opennlp-<language>-...`). The models
+are trained on CC BY-SA treebanks and not checked in;
+`turbo-goldens fetch-models` downloads them and the tests read them from
+its directory (`analysis/sentdetect/tests/models/README.md`). The
+published models have no abbreviation dictionary, so two small English
+models trained on the JVM (`en-abbrev.bin` and `en-plain.bin` in
+`analysis/goldens/data/fixtures`; the training sentences, the Java
+source and the commands are in `analysis/sentdetect/tests/fixtures`)
+cover the dictionary and `useTokenEnd=false`,
+with every context of their dumps compared feature by feature.
 
 ### `RuleSentenceDetector` (rules)
 
@@ -323,49 +407,97 @@ commit `ac2e2aa1dd6cf2eb2a3eb9d560cdbe9da8449989`):
 | Khmer punctuated (`khpos_raw`) | `rules` | 1000 / 1097 / 907 | 0.827 | 0.907 | 0.865 | 800 / 897 / 777 | 0.866 | 0.971 | 0.916 |
 | Khmer punctuated (`khpos_raw`) | `rules + sat-1l-sm` (`t = 0.25`) | 1000 / 1105 / 907 | 0.821 | 0.907 | **0.862** | 800 / 905 / 777 | 0.859 | 0.971 | **0.911** |
 
-**Conformance.** `analysis/sentdetect/tests/conformance.rs` runs the native
-rule and UAX #29 detectors against the third-party expectations in
-`analysis/goldens/data/conformance/sentences`. Its README records sources,
-commits and licences. These are segmentation specifications, not JVM output.
-The six retained rules/UAX failure lists are unchanged by #1511.
+**Conformance.** `analysis/sentdetect/tests/conformance.rs` runs three detectors over three
+suites stored as typed test data in
+`analysis/goldens/data/conformance/sentences` (its README names the
+sources, commits and licences): the Pragmatic Segmenter specs (MIT; 585
+cases in 23 languages, the first 52 English cases being its Golden
+Rules), the pySBD tests (MIT; 471 cases) and `SentenceBreakTest.txt`
+(Unicode 18.0; 512 lines). A text case passes when the detector's
+sentences equal the expected ones once runs of whitespace are made one
+space; a break test line passes when the spans equal the UAX segments
+trimmed of whitespace. The detectors are `rules` (every tailoring, the
+case's language, with the bundled abbreviation inventory), `uax29` (no
+tailoring) and the maxent detector with the published UD model of each
+language that has one, in JVM parity mode, on the cases in that
+language; `maxent-en-inventory` is the English model with its default
+inventory. The CI step "sentence conformance and agreement, models
+required" prints the pass counts. Every failing case is listed with what differs in
+`analysis/sentdetect/tests/conformance/<detector>.<suite>.failures`, and for `rules` with
+the tailoring without which it would pass; the test fails when the
+lists change. 34 text cases expect sentences that the reference's
+cleaning step rewrote, and fail for every detector that runs them.
 
-| Detector | Pragmatic Segmenter | Golden Rules (English) | pySBD | Unicode break tests |
+| Detector | Pragmatic Segmenter | Golden Rules (English) | pySBD | `SentenceBreakTest.txt` |
 |---|---|---|---|---|
 | `rules` | 444 of 585 | 46 of 52 | 385 of 471 | 504 of 512 |
 | `uax29` | 305 of 585 | 29 of 52 | 264 of 471 | 512 of 512 |
+| maxent, English UD model, parity | 133 of 289 (English cases) | 31 of 52 | 98 of 193 (English) | 467 of 512 |
+| maxent, English UD model, default | 155 of 289 (English cases) | 36 of 52 | 112 of 193 (English) | |
+| maxent, German UD model | 22 of 37 (German cases) | | 20 of 35 (German) | |
 
-`analysis/sentdetect/tests/agreement.rs` now checks only native rule output
-on the existing text inputs. It retains the sentence and boundary counts:
+The Portuguese model has no case in its language. Among the rules
+detector's failures are remaining abbreviation contexts, a sentence that
+starts with a lower case letter after a full stop (the Greek cases,
+which SB8 keeps together), `:` as a sentence end in Arabic, and the
+references' document cleaning. By language, the rules detector passes
+all cases of `am bg fa fr hi hy mr my pl ur zh`, and 342 of 482 English,
+65 of 72 German, 86 of 109 Danish, 78 of 84 Russian, 68 of 72 Italian
+and 56 of 72 Spanish cases, against 234, 29, 63, 72, 56 and 41 for
+plain UAX #29.
 
-| Inputs | Texts | Rule sentences | Rule boundaries |
-|---|---:|---:|---:|
-| English short inputs | 45 | 119 | 76 |
-| English conformance texts | 482 | 2649 | 2167 |
-| German short inputs | 2 | 6 | 4 |
-| German conformance texts | 72 | 175 | 103 |
-| Portuguese short inputs | 1 | 5 | 4 |
+**Agreement with the maxent detector.** `analysis/sentdetect/tests/agreement.rs` runs the
+rule splitter and the maxent detector with the published model, both
+as they run by default (with the bundled abbreviation inventory), on the
+same texts, for the three languages with a model: the golden inputs in
+that language and the texts of the conformance cases in it (not their
+expected sentences). Boundaries are the starts of the sentences after
+the first; precision is the share of the rule splitter's boundaries
+that the model also places, recall the share of the model's boundaries
+that the rule splitter places.
 
-These checks require no model download. Historical ME agreement rows are no
-longer part of the suite and do not establish native neural accuracy.
+| Language, texts | Texts | Split alike | Sentences (maxent, rules, same span) | Boundaries (maxent, rules, same) | Precision | Recall |
+|---|---|---|---|---|---|---|
+| English, golden inputs | 45 | 33 | 121, 119, 99 | 78, 76, 69 | 90.8% | 88.5% |
+| English, conformance texts | 482 | 292 | 3180, 2649, 1803 | 2698, 2167, 1934 | 89.2% | 71.7% |
+| German, golden inputs | 2 | 1 | 7, 6, 5 | 5, 4, 4 | 100% | 80.0% |
+| German, conformance texts | 72 | 48 | 190, 175, 106 | 118, 103, 76 | 73.8% | 64.4% |
+| Portuguese, golden inputs | 1 | 1 | 5, 5, 5 | 4, 4, 4 | 100% | 100% |
+
+The maxent detector places more boundaries than the rule splitter on
+every set but the Portuguese one. The numbers are asserted by the
+test.
+
+Both tests need the models for the maxent rows and skip those rows
+without them; the CI job fetches the models and runs both with
+`TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`, so that there a missing model
+fails.
 
 ### Abbreviation inventories
 
 `AbbreviationInventory` (`analysis/sentdetect/src/inventory/`) is a
 classified list of abbreviations that the maxent detector and the rule
-splitter consults at a full stop, in addition to a language's CLDR
-suppressions. It is on by default: `RuleSplitter::new` (and therefore
-`RuleSentenceDetector::new`) takes the inventory for its tag through
-`AbbreviationInventories::for_language`. Bundled
+splitter consult at a full stop, on top of a model's dictionary or a
+language's CLDR suppressions. It is on by default:
+`SentenceDetector::new` takes the bundled inventory of the model's
+language and `RuleSplitter::new` (and so `RuleSentenceDetector::new`)
+that of its tag, through `AbbreviationInventories::for_language`. Bundled
 inventories cover English and the thirteen languages in the table below.
 Other languages get `AbbreviationInventory::EMPTY` and retain their rule
 profiles. `RuleSplitter::uax29` has none. `with_abbreviations` sets another
 inventory; `for_language_with_classes` selects classes or a preset for any
 bundled language.
 
-**Rule-only validation.** OpenNLP sentence archives and their JVM oracle
-checks are disabled under #1511. Rule/UAX, newline, paragraph and inventory
-expectations remain independent of those models. `RuleSplitter::without_inventory()`
-disables the inventory for explicit rule-only comparisons.
+**JVM parity mode.** `SentenceDetector::with_jvm_parity()` drops the
+inventory (it is `with_abbreviations(AbbreviationInventory::EMPTY)`), and
+the detector's spans, probabilities and `config_hash` are then those of
+OpenNLP's `SentenceDetectorME` bit for bit, as before inventories. The
+JVM golden comparisons (`analysis/sentdetect/tests/golden.rs`, the fuzz
+runs against the goldens, the sentence counts of
+`analysis/train/tests/roundtrip.rs`), the `maxent-<language>`
+conformance runs and the `turbo-train-recipes` model gate, which
+compares models and not the inventory, use it. `RuleSplitter::without_inventory()` is the same
+for the rule splitter.
 
 The bundled English inventory
 (`analysis/sentdetect/src/inventory/english.rs`) has four classes,
@@ -401,13 +533,13 @@ those it was trained with. In the rule splitter the inventory is part of
 the abbreviation tailoring and is asked before the language's own
 abbreviations, initials and sentence starters.
 
-`config_hash` of the rule annotator folds in the inventory's hash: the
+`config_hash` of both annotators folds in the inventory's hash: the
 language, the classes, every active entry with its rule, the
 never-abbreviation words, the additions and the exclusions. So the
 default hash of an English detector changed with inventories, and the
 hash in parity mode (or of a language without an inventory) is the hash
-from before them. `analysis/sentdetect/tests/abbreviations.rs` checks native
-rule inventory behavior; archive-model parity assertions were removed. `RuleSentenceDetector::VERSION` is `3` since the default changed.
+from before them; `analysis/sentdetect/tests/abbreviations.rs` checks
+both. `RuleSentenceDetector::VERSION` is `3` since the default changed.
 `turbo-eval` names a maxent sentencer with an inventory by the model and
 the inventory's hash (`... abbreviations <hash>`), so its records tell
 the two modes apart.

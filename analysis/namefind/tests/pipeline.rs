@@ -4,7 +4,7 @@
 
 use turbo_analysis::{Analyzer, Bound, Document, Ix, Key, Provenance, Span, Spans, ViewId};
 use turbo_analysis_layers::{Entities, Sentences, Tokens};
-use turbo_namefind::Dictionary;
+use turbo_maxent::Dictionary;
 use turbo_namefind::{BuiltIn, DictionaryNameFinder, MergeEntities, RegexNameFinder};
 
 /// Tokens at the spaces of `text`, a new sentence after each " . ".
@@ -35,8 +35,9 @@ fn names(d: &Document, key: &Key<Entities>) -> Vec<(String, String)> {
 
 #[test]
 fn finders_then_merge() {
-    let text = "case-insensitive\nplace   New York\nplace   WWW.example.com\n";
-    let dictionary = DictionaryNameFinder::new(Dictionary::read(text).unwrap()).unwrap();
+    let xml = "<dictionary case_sensitive='false'><entry><token>New</token><token>York</token></entry>\
+               <entry><token>WWW.example.com</token></entry></dictionary>";
+    let dictionary = DictionaryNameFinder::new(Dictionary::read(xml.as_bytes()).unwrap(), "place");
     let regex = RegexNameFinder::defaults(&[BuiltIn::Email, BuiltIn::Url, BuiltIn::UsaPhoneNum]);
     let analyzer = Analyzer::builder()
         .given(Key::<Tokens>::DEFAULT)
@@ -132,13 +133,10 @@ fn filter_entities_step_resolves_nested_entities() {
 #[test]
 fn regex_finder_with_crossing_patterns_is_accepted_and_filtered() {
     use turbo_analysis_layers::FilterRule;
-    use turbo_namefind::{FilterEntities, Pattern, Tok};
+    use turbo_namefind::{FilterEntities, JavaRegex, Pattern};
 
     let regex = RegexNameFinder::new(
-        vec![
-            Pattern::tokens(vec![Tok::text("a"), Tok::text("b")]).unwrap(),
-            Pattern::tokens(vec![Tok::text("b"), Tok::text("c")]).unwrap(),
-        ],
+        vec![Pattern::Java(JavaRegex::compile("a b").unwrap()), Pattern::Java(JavaRegex::compile("b c").unwrap())],
         "x",
     )
     .unwrap();

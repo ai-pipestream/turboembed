@@ -1,0 +1,84 @@
+# The cases of the pysbd suite that the maxent-en-inventory detector gets wrong, and what
+# differs. tests/conformance.rs writes this file and fails when a run differs
+# from it. 81 of 193 cases fail.
+pysbd/test_english/013	1 extra, first after "I visited the U.S.A."
+pysbd/test_english/015	1 missing, first after "I live in the U.S."
+pysbd/test_english/018	1 extra, first after "At 5 a.m." [xfail-upstream]
+pysbd/test_english/021	1 extra, first after "...5 years as an engineer.)"
+pysbd/test_english/031	1 missing, first after "1.) The first item"
+pysbd/test_english/033	1 missing, first after "1) The first item"
+pysbd/test_english/035	1 missing, first after "1. The first item"
+pysbd/test_english/037	1 missing, first after "• 9. The first item"; 2 extra, first after "• 9."
+pysbd/test_english/038	1 missing, first after "⁃9. The first item"; 2 extra, first after "⁃9."
+pysbd/test_english/039	2 missing, first after "a. The first item"; 3 extra, first after "a."
+pysbd/test_english/042	1 extra, first after "Did you see Albert I."
+pysbd/test_english/043	1 extra, first after "...appear less complex. . ."
+pysbd/test_english/047	1 extra, first after "...ying, the thing is . . ."
+pysbd/test_english/048	1 missing, first after "...-interpreting compounds."; 2 extra, first after "... somewhat weakened . . ."
+pysbd/test_english_clean/002	3 extra, first after "...of tumbling down stairs!" [clean=true]
+pysbd/test_english_clean/003	1 extra, first after "...ve fallen by this time?'" [clean=true]
+pysbd/test_english_clean/004	4 extra, first after "'Well!'" [clean=true]
+pysbd/test_english_clean/005	1 extra, first after "Colloquially, a min." [clean=true]
+pysbd/test_english_clean/007	2 missing, first after "features" [clean=true]
+pysbd/test_english_clean/008	3 missing, first after "Hello world."; 1 extra, first after "...rld.Today is Tuesday.Mr." [clean=true]
+pysbd/test_english_clean/009	the expected sentences rewrite the text [clean=true]
+pysbd/test_english_clean/010	1 extra, first after "I think Jun." [clean=true]
+pysbd/test_english_clean/017	1 extra, first after "Q." [clean=true]
+pysbd/test_english_clean/022	the expected sentences rewrite the text [clean=true]
+pysbd/test_english_clean/023	the same breaks, different text [clean=true]
+pysbd/test_english_clean/025	the same breaks, different text [clean=true]
+pysbd/test_english_clean/027	1 missing, first after "3" [clean=true]
+pysbd/test_english_clean/028	the same breaks, different text [clean=true]
+pysbd/test_english_clean/029	2 missing, first after "WARNING" [clean=true]
+pysbd/test_english_clean/040	1 extra, first after "Charles (Ind.)" [clean=true]
+pysbd/test_english_clean/041	the expected sentences rewrite the text [clean=true]
+pysbd/test_english_clean/042	1 extra, first after "Send it to P.O." [clean=true]
+pysbd/test_english_clean/043	1 missing, first after "...re 500 cases in the U.S." [clean=true]
+pysbd/test_english_clean/044	2 extra, first after "...ULAR COMMUNICATIONS INC." [clean=true]
+pysbd/test_english_clean/045	the expected sentences rewrite the text [clean=true]
+pysbd/test_english_clean/048	1 missing, first after "Test strange period．" [clean=true]
+pysbd/test_english_clean/049	the expected sentences rewrite the text [clean=true]
+pysbd/test_english_clean/057	2 missing, first after "...ng Scavenger Hunt Trophy" [clean=true]
+pysbd/test_english_clean/059	4 missing, first after "Header 1.2; Attachment Z"; 2 extra, first after "...der 1.2; Attachment Z d." [clean=true]
+pysbd/test_english_clean/060	2 missing, first after "a.) The first item"; 2 extra, first after "a.) The first item b.)" [clean=true]
+pysbd/test_english_clean/061	2 missing, first after "a) The first item" [clean=true]
+pysbd/test_english_clean/062	10 missing, first after "1. The first item"; 8 extra, first after "1." [clean=true]
+pysbd/test_english_clean/063	1 missing, first after "... for ABC Co. and BCD Co." [clean=true]
+pysbd/test_english_clean/064	the expected sentences rewrite the text [clean=true]
+pysbd/test_english_clean/065	1 missing, first after "...th President of the U.S." [clean=true]
+pysbd/test_english_clean/067	1 missing, first after "He left at 6 P.M." [clean=true]
+pysbd/test_english_clean/069	1 extra, first after "...et the warning at 5 A.M." [clean=true]
+pysbd/test_english_clean/070	18 missing, first after "I live in the U.S."; 16 extra, first after "I visited the U.S.A." [clean=true]
+pysbd/test_english_clean/071	3 missing, first after "a. here it is"; 4 extra, first after "a." [clean=true]
+pysbd/test_english_clean/072	the expected sentences rewrite the text [clean=true]
+pysbd/test_english_clean/073	4 extra, first after "'Well?'" [clean=true]
+pysbd/test_english_clean/074	2 extra, first after "Leave me alone!" [clean=true]
+pysbd/test_english_clean/076	the expected sentences rewrite the text [clean=true]
+pysbd/test_english_clean/078	5 missing, first after "a) here it is" [clean=true]
+pysbd/test_english_clean/079	the expected sentences rewrite the text [clean=true]
+pysbd/test_english_clean/086	1 extra, first after "The GmbH & Co." [clean=true]
+pysbd/test_english_clean/088	1 extra, first after "[15: 12:32] [16: firma?" [clean=true]
+pysbd/test_english_clean/091	5 extra, first after ""Dear, dear!" [clean=true]
+pysbd/test_english_clean/092	1 missing, first after "..., afore she comes, to--""; 2 extra, first after "...heads cut off, you know." [clean=true]
+pysbd/test_english_clean/093	1 extra, first after "...cer of milk at tea-time." [clean=true]
+pysbd/test_english_clean/100	1 extra, first after "The med." [clean=true]
+pysbd/test_english_clean/102	1 extra, first after "SEC." [clean=true]
+pysbd/test_english_clean/107	1 extra, first after "...grown in dragon’s blood." [clean=true]
+pysbd/test_english_clean/108	1 extra, first after "...ial citation: Baker, C.," [clean=true]
+pysbd/test_english_clean/111	1 missing, first after "... in a consultation.11 12" [clean=true]
+pysbd/test_english_clean/112	1 missing, first after "...al cognition (type 2).10" [clean=true]
+pysbd/test_english_clean/114	2 missing, first after "... country at large.[7][8]" [clean=true]
+pysbd/test_english_clean/116	19 missing, first after "DOWN THE RABBIT-HOLE"; 152 extra, first after "...say to itself, "Oh dear!" [clean=true]
+pysbd/test_english_clean/119	1 extra, first after "I will be paid Rs."
+pysbd/test_english_clean/120	3 extra, first after "...od 1, I will be paid Rs."
+pysbd/test_english_clean/121	1 extra, first after "...an advance amount of rs."
+pysbd/test_english_clean/122	1 extra, first after "... the oven, and -- voila!"
+pysbd/test_english_clean/123	1 extra, first after "...n be -- if I may say so?"
+pysbd/test_issues/004	1 extra, first after "...ves to each vertex in X."
+pysbd/test_issues/008	1 extra, first after "! !"
+pysbd/test_issues/010	1 extra, first after "...d Mahdian [86] at Yahoo!"
+pysbd/test_issues/011	1 extra, first after "As shown in Fig."
+pysbd/test_segmenter/003	1 missing, first after "10. Get some rest"; 1 extra, first after "10." [doc_type=pdf]
+pysbd/test_segmenter/004	3 missing, first after "• 9. Stop smoking"; 3 extra, first after "• 9." [doc_type=pdf]
+pysbd/test_segmenter/005	4 extra, first after "'Well!'" [doc_type=pdf]
+pysbd/test_segmenter/006	4 extra, first after "'Well!'" [doc_type=pdf]

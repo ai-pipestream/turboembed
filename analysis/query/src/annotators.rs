@@ -1,6 +1,7 @@
 //! Query-tuned annotator steps:
-//! - [`default_span_detector`]: model-free Unicode script evidence; language
-//!   remains undetermined until the trained language head is available.
+//! - [`default_span_detector`]: an in-memory [`turbo_langspan::SpanDetector`] covering
+//!   major Latin languages (`deu`, `eng`, `fra`, `ita`, `nld`, `por`, `spa`)
+//!   and script-distinct languages (`ara`, `ell`, `heb`, `jpn`, `kor`, `rus`, `zho`).
 //! - [`GazetteerCandidateAnnotator`]: fast multi-token gazetteer phrase
 //!   matcher producing candidate location entities for [`turbo_geo::GeocodeAnnotator`].
 //! - [`QueryGrammarAnnotator`] and [`QueryTimeAnnotator`]: trigger-gated

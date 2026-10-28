@@ -213,6 +213,16 @@ jobs:
         with:
           key: shard-${{ matrix.shard }}
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      # The OpenNLP models the JVM goldens were made with, downloaded from
+      # downloads.apache.org and checked against their published SHA-512
+      # (analysis/goldens-tool/src/recipe/models.rs). With them present, the
+      # tests over them compare instead of skipping.
+      - uses: actions/cache@v4
+        with:
+          path: .opennlp-models
+          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe/**', 'analysis/goldens-tool/src/models.rs') }}
+      - name: fetch the OpenNLP models
+        run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
       - name: the shard's crates
         run: |
           set -euo pipefail
@@ -229,6 +239,8 @@ jobs:
       # test runs them one after another; it does not run doctests, so
       # those run after it.
       - name: test
+        env:
+          TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
         run: |
           cargo nextest run --no-tests=warn $PACKAGES
           cargo test --doc $PACKAGES
@@ -248,8 +260,15 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: actions/cache@v4
+        with:
+          path: .opennlp-models
+          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe/**', 'analysis/goldens-tool/src/models.rs') }}
+      - name: fetch the OpenNLP models
+        run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
       - name: test
         env:
+          TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
           CARGO_TARGET_DIR: target/fuzz
           CARGO_PROFILE_DEV_OPT_LEVEL: "2"
           CARGO_PROFILE_DEV_DEBUG_ASSERTIONS: "true"
@@ -264,6 +283,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: actions/cache@v4
+        with:
+          path: .opennlp-models
+          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe/**', 'analysis/goldens-tool/src/models.rs') }}
+      - name: fetch the OpenNLP models
+        run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
@@ -271,6 +296,8 @@ jobs:
       - name: test (turboquant)
         run: cargo test -p turbo-vector-index --features turboquant
       - name: test (fuzz command)
+        env:
+          TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
         run: cargo test -p turbo-goldens-tool --features fuzz
       # The core's own tests build it with its `internals` feature, and
       # the core is a cdylib as well, so its rlib has no hash in its name:
@@ -313,13 +340,67 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
+      - uses: actions/cache@v4
+        with:
+          path: .opennlp-models
+          key: opennlp-models-${{ hashFiles('analysis/goldens-tool/src/recipe/**', 'analysis/goldens-tool/src/models.rs') }}
+      - name: fetch the OpenNLP models
+        run: cargo run -q -p turbo-goldens-tool -- fetch-models .opennlp-models
       - uses: taiki-e/install-action@v2
         with:
           tool: cargo-nextest
-      # Model-free sentence conformance remains required. OpenNLP model
-      # downloads and JVM comparison steps were retired under #1511.
-      - name: sentence conformance
-        run: cargo test -p turbo-sentdetect --test conformance -- --nocapture
+      # The published UD sentence detector, tokenizer, part-of-speech and
+      # lemmatizer models are trained on CC BY-SA treebanks and not checked
+      # in either; the tests over them skip without them and fail here.
+      # turbo-maxent evaluates the es and fr token models, and
+      # turbo-sequence's beam and tag-format tests the en pos model.
+      # turbo-zoo checks their bytes against its index, turbo-eval's
+      # default sentence model is the English one, and turbo-train-recipes
+      # gates its models against the English sentence and token models (its
+      # tagger's reference, OpenNLP 1.5's en-pos-maxent, is local-only).
+      # LibreOffice's Hunspell dictionaries are not checked in either
+      # (de_DE_frami is GPL, hu_HU MPL or LGPL; en_US, under SCOWL's
+      # permissive terms, is downloaded with them); turbo-hunspell's
+      # goldens over them run here. The SMS Spam Collection (CC BY 4.0) is
+      # not checked in either: fetch-models downloads it into
+      # .opennlp-models/corpora by the URL and SHA-512 in the recipe, so the
+      # cache above, keyed by the recipe, keeps it until its digest changes.
+      # turbo-train-components trains the maxent document categorizer on it
+      # here and compares the models with the JVM's byte for byte.
+      - name: parity against the JVM with the published models, models required
+        env:
+          TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
+          TURBO_TEST_REQUIRE_OPENNLP_MODELS: "1"
+        # nextest runs the test binaries side by side, where cargo test runs
+        # them one after another; the doctests run after it.
+        run: |
+          PACKAGES="-p turbo-maxent -p turbo-sequence -p turbo-langdetect -p turbo-langspan -p turbo-sentdetect -p turbo-tokenize -p turbo-postag -p turbo-lemmatizer -p turbo-hunspell"
+          cargo nextest run $PACKAGES
+          cargo test --doc $PACKAGES
+          cargo nextest run -p turbo-zoo --test builtin
+          cargo nextest run -p turbo-eval --lib
+          cargo nextest run -p turbo-train-recipes --test recipes
+          cargo nextest run -p turbo-train-components --test doccat_goldens
+      # The sentence detectors against the conformance suites (Pragmatic
+      # Segmenter, pySBD, UAX #29) and the rule splitter's agreement with
+      # the maxent detector, with the de, en and pt sentence models. The
+      # step above runs these tests too; this one names them, so that a
+      # change in a pass count or an agreement number shows as its own
+      # failing step. docs/segmentation.md, "RuleSentenceDetector".
+      - name: sentence conformance and agreement, models required
+        env:
+          TURBO_GOLDENS_MODELS: ${{ github.workspace }}/.opennlp-models
+          TURBO_TEST_REQUIRE_OPENNLP_MODELS: "1"
+        run: cargo test -p turbo-sentdetect --test conformance --test agreement -- --nocapture
+      # fetch-models also unpacks the MeCab dictionaries into the same
+      # directory (IPADIC with its UTF-8 copy). The lattice tokenizer's
+      # IPADIC and mecab-ko-dic golden tests, and the readings tests over
+      # the same goldens, are ignored by default; here they run, and a
+      # missing dictionary fails them.
+      - name: lattice tokenizer parity against the JVM, dictionaries required
+        env:
+          TURBO_MECAB_DICTIONARIES: ${{ github.workspace }}/.opennlp-models
+        run: cargo nextest run -p turbo-tokenize --test lattice_golden --test lattice_readings --run-ignored only
 
   # A static bundle against Model2Vec's own ids and vectors
   # (core/tests/static_parity.rs, docs/static.md). potion-base-2M, the
@@ -388,8 +469,8 @@ jobs:
 
   # Windows, the host the Intel NPU machines run (#1011). The CPU backend
   # and the host-only NPU build: the CUDA, Metal, Level Zero and Hailo
-  # backends need toolchains this runner does not have. Classical OpenNLP
-  # model downloads and JVM comparisons are disabled under #1511.
+  # backends need toolchains this runner does not have, and the JVM
+  # parity steps above need the OpenNLP models, so their tests skip here.
   # The lanes mirror the Linux ones: lint, the workspace tests in four
   # shards, turbo-fuzz optimized, and the core with its C ABI tests.
   # Skipped in the shards: two docker runner tests (unix exit status

@@ -132,3 +132,25 @@ fn the_most_frequent_mismatches_come_first_and_are_at_most_ten() {
         ]
     );
 }
+
+#[test]
+fn score_handles_empty_held_out_sample_without_nan_panic() {
+    let f = factory().unwrap();
+    let mut stream = postag::PosEventStream::new(&f).unwrap();
+    let mut events = Vec::new();
+    let train_sample = sample("Dogs ran.", &[(0, 4), (5, 8), (8, 9)], &["NNS", "VBD", "."]);
+    for _ in 0..5 {
+        stream.events(&train_sample, &mut events);
+    }
+    let mut config = TrainingConfiguration::default();
+    let params = crate::masc::training_parameters();
+    let trained = postag::train_pos_model_from_events(&events, &f, &params, &mut config, Stamp::at(TIMESTAMP_MS))
+        .unwrap()
+        .package
+        .to_bytes();
+    let empty = sample("", &[], &[]);
+    let held_out = HeldOutTags::new(vec![empty], 0);
+    let reference = POS.reference_tags(&trained).unwrap();
+    let units = POS.score(&trained, Scored::Candidate, &held_out, &reference).unwrap();
+    assert_eq!(units, vec![Counts::accuracy(0, 0)]);
+}

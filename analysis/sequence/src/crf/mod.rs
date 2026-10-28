@@ -1,12 +1,10 @@
 //! Globally normalized, first-order CRFs with BIO/BILOU constraints.
 //! The same start, transition and end masks apply to training and decoding.
 mod decode;
-mod entities;
 mod lattice;
 mod model;
 mod wire;
 use crate::namefind::NameCodec;
-pub use entities::{EntityDecoder, EntityEncoding, EntityLabel, EntityLattice, EntityPath, ScoredEntity};
 pub use lattice::{CrfGradient, CrfLattice, CrfScores};
 pub use model::{CrfSequenceModel, FeatureRow};
 

@@ -297,3 +297,118 @@ impl Annotator for SentenceDetector {
         if self.inventory.is_unset() { h } else { fold_hash(h, self.inventory.config_hash()) }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use turbo_analysis::Document;
+    use turbo_maxent::ModelFile;
+
+    use super::*;
+
+    fn detector(name: &str) -> SentenceDetector {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures").join(name);
+        SentenceDetector::new(SentenceModel::open(ModelFile::read(path).unwrap()).unwrap())
+    }
+
+    fn detect(d: &SentenceDetector, text: &str) -> Vec<(u32, u32, f64)> {
+        let mut out = Vec::new();
+        d.detect(text, &mut out);
+        out.iter().map(|&(s, p)| (s.start, s.end, p)).collect()
+    }
+
+    #[test]
+    fn empty_and_blank_texts_have_no_sentences() {
+        let d = detector("en-abbrev.bin");
+        assert_eq!(detect(&d, ""), []);
+        assert_eq!(detect(&d, " \u{85}\u{2028}\t"), []);
+        // Text with no end character is one sentence of probability 1.
+        assert_eq!(detect(&d, "  no end here "), [(2, 13, 1.0)]);
+    }
+
+    #[test]
+    fn a_split_at_the_segment_start_adds_no_sentence() {
+        // From the golden file lone-period: the split at index 0 is taken,
+        // but `index != cint` is false, so no start is added and the text
+        // is one sentence of probability 1.
+        let d = detector("en-abbrev.bin");
+        let mut decisions = Vec::new();
+        let mut out = Vec::new();
+        d.detect_traced(".", &mut Scratch::new(), &mut out, |c| decisions.push((c.at, c.decision)));
+        assert_eq!(decisions, [(Position { byte: 0, unit: 0 }, Decision::Split)]);
+        assert_eq!(out, [(Span::new(0, 1), 1.0)]);
+    }
+
+    #[test]
+    fn scratch_reuse_gives_the_same_result() {
+        let d = detector("en-plain.bin");
+        let texts = ["Mr. Smith left. Then he came back.", "", "One. Two! Three?"];
+        let mut scratch = Scratch::new();
+        for text in texts.iter().chain(texts.iter()) {
+            let (mut fresh, mut reused) = (Vec::new(), Vec::new());
+            d.detect(text, &mut fresh);
+            d.detect_with(text, &mut scratch, &mut reused);
+            assert_eq!(fresh, reused, "{text:?}");
+        }
+    }
+
+    #[test]
+    fn leaving_out_long_words_changes_nothing() {
+        // detect_with leaves out word features longer than every predicate
+        // and skips lookups of words longer than every dictionary entry;
+        // detect_traced builds every feature as the Java does. On texts
+        // without whitespace every word reaches to an end of the text.
+        // The two fixture models always, the published English and
+        // Portuguese models when they are downloaded.
+        let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures");
+        let mut models = vec![fixtures.join("en-abbrev.bin"), fixtures.join("en-plain.bin")];
+        models.extend(
+            ["opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin", "opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin"]
+                .into_iter()
+                .filter_map(turbo_goldens::published_model),
+        );
+        let texts = [
+            "A.".repeat(1500),
+            "x.Y".repeat(1000),
+            "Mr.Smith.went.Home!Then?Dr.Who.et.al.".repeat(80),
+            "He thought hard.Bekannt.Sie kam.".repeat(90),
+            format!("Start. {} End. Mr. Brown left.", "\u{E9}t\u{E9}.\u{1F600}".repeat(400)),
+        ];
+        let mut splits = 0;
+        for path in models {
+            let model = Arc::new(SentenceModel::open(ModelFile::read(path).unwrap()).unwrap());
+            assert!(model.limits().feature < 1000, "{}", model.limits().feature);
+            let d = SentenceDetector::new(model.clone());
+            for text in &texts {
+                let (mut fast, mut full) = (Vec::new(), Vec::new());
+                d.detect(text, &mut fast);
+                d.detect_traced(text, &mut Scratch::new(), &mut full, |c| {
+                    splits += usize::from(c.decision == Decision::Split);
+                });
+                let bits = |v: &[(Span, f64)]| v.iter().map(|&(s, p)| (s, p.to_bits())).collect::<Vec<_>>();
+                assert_eq!(
+                    bits(&fast),
+                    bits(&full),
+                    "{} on {:?}",
+                    model.language(),
+                    text.chars().take(30).collect::<String>()
+                );
+            }
+        }
+        // The two fixture models alone split over 3000 times.
+        assert!(splits > 1000, "only {splits} splits");
+    }
+
+    #[test]
+    fn annotator_writes_both_layers() {
+        let d = detector("en-abbrev.bin");
+        let doc = Document::new("Mr. Smith met Dr. Brown at 5 p.m. on Main St. today. He left early.");
+        let view = doc.get::<View>().unwrap();
+        let (sentences, confidence) = d.annotate((view,)).unwrap();
+        assert_eq!(sentences.spans.view(), view.id());
+        assert_eq!(sentences.spans.columns(), (&[0, 53][..], &[52, 67][..]));
+        // The golden probabilities.
+        assert_eq!(confidence.value, [0.9955300941022667, 0.9466056890177881]);
+        assert_eq!(d.clone().with_jvm_parity().config_hash(), WHITESPACE_HASH);
+        assert_eq!(d.model().unwrap().id, "opennlp:SentenceDetectorME:en");
+    }
+}

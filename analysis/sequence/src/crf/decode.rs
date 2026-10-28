@@ -26,10 +26,9 @@ impl CrfLattice {
                 cell.push(Cell { score: finite(self.start[y] + self.emissions[0][y])?, previous: 0, rank: 0 });
             }
         }
-        let mut candidates = Vec::new();
         for i in 1..t {
             for y in 0..n {
-                candidates.clear();
+                let mut candidates = Vec::new();
                 for (p, previous) in cells[i - 1].iter().enumerate() {
                     if !self.mask.allows_transition(p, y) {
                         continue;
@@ -45,9 +44,8 @@ impl CrfLattice {
                 candidates.sort_by(|a, b| {
                     b.score.total_cmp(&a.score).then(a.previous.cmp(&b.previous)).then(a.rank.cmp(&b.rank))
                 });
-                // Keep scratch capacity once, not up to n*k in each saved
-                // cell. Only selected backpointers live for the full decode.
-                cells[i][y] = candidates[..candidates.len().min(k)].to_vec();
+                candidates.truncate(k);
+                cells[i][y] = candidates;
             }
         }
         let mut finals = Vec::new();

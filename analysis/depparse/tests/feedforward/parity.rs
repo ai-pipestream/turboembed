@@ -1,7 +1,118 @@
 use super::support::*;
+use turbo_analysis::Ix;
 use turbo_analysis_layers::Tokens;
 use turbo_depparse::*;
-
+fn close(a: f64, b: f64) {
+    assert!((a - b).abs() <= 1e-6 * b.abs().max(1e-8), "{a} != {b}");
+}
+#[test]
+fn java_seeded_training_weights_context_scores_and_greedy_beam_match() {
+    for (dropout, bytes, text) in [
+        (false, include_bytes!("data/plain.bin").as_slice(), include_str!("data/plain.tsv")),
+        (true, include_bytes!("data/dropout.bin").as_slice(), include_str!("data/dropout.tsv")),
+    ] {
+        let model = FeedforwardDependencyTrainer::train(&samples(), &settings(dropout)).unwrap();
+        let java = FeedforwardDependencyModel::from_java_bytes(bytes).unwrap();
+        assert_eq!(model.vocabulary(), java.vocabulary());
+        assert_eq!(model.transitions(), java.transitions());
+        let a = model.weights();
+        let b = java.weights();
+        for (a, b) in [
+            (&a.embeddings, &b.embeddings),
+            (&a.hidden_weights, &b.hidden_weights),
+            (&a.hidden_bias, &b.hidden_bias),
+            (&a.output_weights, &b.output_weights),
+            (&a.output_bias, &b.output_bias),
+        ] {
+            for (&a, &b) in a.iter().zip(b) {
+                close(a as f64, b as f64);
+            }
+        }
+        assert_eq!(java.to_java_bytes().unwrap(), bytes);
+        assert_eq!(
+            model.to_bytes().unwrap(),
+            FeedforwardDependencyTrainer::train(&samples(), &settings(dropout)).unwrap().to_bytes().unwrap()
+        );
+        let mut state = ArcStandardState::<Tokens>::new(3).unwrap();
+        let steps = ArcStandardOracle::transitions(samples()[0].graph()).unwrap();
+        let mut rows = text.lines();
+        for step in steps {
+            let context = FeedforwardContext::extract(
+                &state,
+                &["I", "see", "birds"],
+                &["PRON", "VERB", "NOUN"],
+                FeatureLayout::OpenNlp14,
+            )
+            .unwrap();
+            let actual: Vec<_> = context
+                .words
+                .iter()
+                .chain(&context.pos)
+                .chain(&context.labels)
+                .map(|s| s.as_deref().unwrap_or("<NULL>"))
+                .collect();
+            assert_eq!(actual, rows.next().unwrap().split('\t').skip(1).collect::<Vec<_>>());
+            let ids = model.feature_ids(&context).unwrap();
+            assert_eq!(format!("I\t{ids:?}"), rows.next().unwrap());
+            let expected: Vec<f64> = rows
+                .next()
+                .unwrap()
+                .trim_start_matches("S\t[")
+                .trim_end_matches(']')
+                .split(", ")
+                .map(|v| v.parse().unwrap())
+                .collect();
+            for (a, b) in model.score(&ids).unwrap().into_iter().zip(expected) {
+                close(a, b);
+            }
+            state.apply(&step).unwrap();
+        }
+        for beam in [1, 4] {
+            let parser = FeedforwardDependencyParser::new(model.clone(), beam).unwrap();
+            let graph: DependencyGraph = parser.parse(&["I", "see", "birds"], &["PRON", "VERB", "NOUN"]).unwrap();
+            for i in 0..3 {
+                let arc = graph.arc(Ix::new(i)).unwrap();
+                assert_eq!(
+                    format!("G\t{beam}\t{i}\t{}\t{}", arc.head.map_or(-1, |h| h.get() as i32), arc.relation),
+                    rows.next().unwrap()
+                );
+            }
+        }
+    }
+}
+#[test]
+fn normalize_matches_java_fixture() {
+    let base = minimal(FeatureLayout::OpenNlp14);
+    let mut vocabulary = base.vocabulary().clone();
+    let mut expected = Vec::new();
+    for line in include_str!("data/normalize.tsv").lines() {
+        let (word, normalized) = line.split_once('\t').unwrap();
+        let id = if let Some(&id) = vocabulary.words.get(normalized) {
+            id
+        } else {
+            let id = vocabulary.len();
+            vocabulary.words.insert(normalized.into(), id);
+            id
+        };
+        expected.push((word, id));
+    }
+    let mut weights = base.weights().clone();
+    weights.embeddings.resize(vocabulary.len(), 0.0);
+    let model = FeedforwardDependencyModel::new(
+        vocabulary,
+        base.transitions().to_vec(),
+        base.layout(),
+        base.activation(),
+        weights,
+    )
+    .unwrap();
+    for (word, id) in expected {
+        let ctx =
+            FeedforwardContext::extract(&ArcStandardState::<Tokens>::new(1).unwrap(), &[word], &["X"], base.layout())
+                .unwrap();
+        assert_eq!(model.feature_ids(&ctx).unwrap()[3], id, "{word}");
+    }
+}
 #[test]
 fn scoring_uses_double_products_and_cache_preserves_cancellation() {
     for (embedding, weight, bias, scale, pre) in [

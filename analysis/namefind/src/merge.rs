@@ -20,16 +20,11 @@ use std::sync::Arc;
 
 use turbo_analysis::{Annotator, Error, FilterRule, Layer, Refs, Spans};
 use turbo_analysis_layers::{Entities, Tag, TagSet};
-
-/// The order entity types keep when names are merged: `String.compareTo`
-/// order, a lexicographic compare of the UTF-16 code units.
-fn type_order(a: &str, b: &str) -> Ordering {
-    a.encode_utf16().cmp(b.encode_utf16())
-}
+use turbo_jvm::chars::compare_to;
 
 /// `Span.compareTo` on token spans and types.
 fn compare(a: (u32, u32, &str), b: (u32, u32, &str)) -> Ordering {
-    a.0.cmp(&b.0).then(b.1.cmp(&a.1)).then_with(|| type_order(a.2, b.2))
+    a.0.cmp(&b.0).then(b.1.cmp(&a.1)).then_with(|| compare_to(a.2, b.2).cmp(&0))
 }
 
 /// `Span.intersects`.

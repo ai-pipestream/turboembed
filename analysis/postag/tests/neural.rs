@@ -1,8 +1,8 @@
 use turbo_analysis::{Analyzer, Annotator, Document, Error, Ix, Key, Layer, Provenance, Span, Spans, View, ViewId};
 use turbo_analysis_layers::{PosTags, Sentences, Tokens};
 use turbo_postag::neural::{
-    BilstmPosTagger, BilstmPosTrainer, BilstmSettings, FeedforwardPosTagger, FeedforwardPosTrainer,
-    FeedforwardSettings, MultiTaskSample, PosSample,
+    BilstmPosModel, BilstmPosTagger, BilstmPosTrainer, BilstmSettings, FeedforwardPosModel, FeedforwardPosTagger,
+    FeedforwardPosTrainer, FeedforwardSettings, MultiTaskSample, NeuralError, PosSample,
 };
 
 fn build_tokens(view: ViewId, triples: &[(u32, u32, u32)]) -> Tokens {
@@ -130,6 +130,21 @@ fn bilstm_fine_tuning_dropout_schedule_and_representation_cache() {
     let r2 = model.word_representation("cat").unwrap();
     assert_eq!(r1, model.word_representation("The").unwrap());
     assert_eq!(r2, model.word_representation("cat").unwrap());
+}
+
+#[test]
+fn binary_format_rejects_corrupt_streams() {
+    let bad_magic = b"\x00\x0bONLP-BAD-99";
+    assert!(matches!(BilstmPosModel::load(&bad_magic[..]), Err(NeuralError::Format(_))));
+    assert!(matches!(FeedforwardPosModel::load(&bad_magic[..]), Err(NeuralError::Format(_))));
+
+    // Truncated stream after valid header
+    let samples = tiny_samples();
+    let ff_settings = FeedforwardSettings::new(4, 6, 1, 2, 0.01, 1e-6, 0.0, 1, 1, 7).unwrap();
+    let ff_model = FeedforwardPosTrainer::train(&samples, ff_settings).unwrap();
+    let mut buf = Vec::new();
+    ff_model.serialize(&mut buf).unwrap();
+    assert!(FeedforwardPosModel::load(&buf[..buf.len() / 2]).is_err());
 }
 
 #[test]

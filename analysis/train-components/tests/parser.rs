@@ -5,11 +5,19 @@
 //! behaviour on a small project-written corpus.
 
 use std::str::FromStr;
+use std::sync::Arc;
 
+use turbo_analysis::{Analyzer, Document, Ix, Key, Provenance, Span, Spans, ViewId};
+use turbo_analysis_layers::{Phrases, Sentences, Tokens};
 use turbo_formats::evaluate::LabeledSpan;
 use turbo_parser::treeinsert::{ATTACH_DAUGHTER, ATTACH_SISTER, DONE};
-use turbo_parser::{EnglishHeadRules, INC_NODE, Parse, ParseSampleStream, ParserEventType, build_dictionary};
-use turbo_train_components::parser::{ParserEvaluator, chunking, treeinsert};
+use turbo_parser::{
+    EnglishHeadRules, HeadRulesArtifact, INC_NODE, Parse, ParseSampleStream, Parser, ParserAnnotator, ParserEventType,
+    ParserFactory, ParserModel, ParserTool, ParserType, build_dictionary,
+};
+use turbo_train_components::parser::{
+    ParserCrossValidator, ParserEvaluator, ParserTrainingParameters, chunking, treeinsert,
+};
 
 fn english_head_rules() -> EnglishHeadRules {
     let path = turbo_goldens::data_dir().join("fixtures/en-head-rules.txt");
@@ -102,7 +110,70 @@ fn tag_events_are_default_pos_contexts_in_both_streams() {
 }
 
 #[test]
-fn parser_evaluator_constituent_spans() {
+fn chunking_parser_trains_serializes_and_parses() {
+    let rules = HeadRulesArtifact::English(english_head_rules());
+    let samples = sample_parses();
+    let params = ParserTrainingParameters::with_iterations_and_cutoff(50, 1);
+
+    let model = chunking::train("en", &samples, rules, &params).expect("train chunking parser");
+    assert_eq!(model.parser_type(), ParserType::Chunking);
+    assert_eq!(model.language(), "en");
+    assert!(model.attach_model().is_none());
+
+    // Round-trip model through bytes
+    let bytes = model.as_bytes().to_vec();
+    let reloaded = ParserModel::from_bytes(bytes).expect("reload chunking model");
+    assert_eq!(reloaded.parser_type(), ParserType::Chunking);
+    assert_eq!(reloaded.sha256(), model.sha256());
+
+    let parser = ParserFactory::create(Arc::new(reloaded));
+    let flat = Parse::from_tokens(&["The", "quick", "fox", "jumped", "."]).unwrap();
+    let parsed = parser.parse(&flat).unwrap().expect("produce parse");
+    assert_eq!(parsed.kind(), "TOP");
+    assert!(parsed.complete());
+    assert_eq!(parsed.text(), "The quick fox jumped .");
+
+    // Top-k parses
+    let top2 = parser.parse_n(&flat, 2).unwrap();
+    assert!(!top2.is_empty());
+    if top2.len() == 2 {
+        assert!(top2[0].prob() >= top2[1].prob());
+    }
+}
+
+#[test]
+fn treeinsert_parser_trains_serializes_and_parses() {
+    let rules = HeadRulesArtifact::English(english_head_rules());
+    // OpenNLP's parser reads the attach model's sister outcome, so the corpus needs a constituent
+    // with a child of its own type for sister adjunction to be trained.
+    let mut samples = sample_parses();
+    samples.push(
+        Parse::parse(
+            "(TOP (S (NP-SBJ (NP (DT The) (NN dog)) (PP (IN in) (NP (DT the) (NN yard)))) (VP (VBD barked)) (. .)))",
+        )
+        .unwrap(),
+    );
+    let params = ParserTrainingParameters::with_iterations_and_cutoff(50, 1);
+
+    let model = treeinsert::train("en", &samples, rules, &params).expect("train treeinsert parser");
+    assert_eq!(model.parser_type(), ParserType::TreeInsert);
+    assert_eq!(model.language(), "en");
+    assert!(model.attach_model().is_some());
+
+    let bytes = model.as_bytes().to_vec();
+    let reloaded = ParserModel::from_bytes(bytes).expect("reload treeinsert model");
+    assert_eq!(reloaded.parser_type(), ParserType::TreeInsert);
+
+    let parser = ParserFactory::create(Arc::new(reloaded));
+    let flat = Parse::from_tokens(&["The", "lazy", "dog", "slept", "."]).unwrap();
+    let parsed = parser.parse(&flat).unwrap().expect("produce treeinsert parse");
+    assert_eq!(parsed.kind(), "TOP");
+    assert!(parsed.complete());
+    assert_eq!(parsed.text(), "The lazy dog slept .");
+}
+
+#[test]
+fn parser_evaluator_constituent_spans_and_evaluation() {
     // Ported from OpenNLP's ParserEvaluatorTest.testGetConstituencySpans
     let parse_str = "(TOP (S (NP-SBJ (NNP Mr.) (NNP Vinken) )(VP (VBZ is)(NP-PRD (NP (NN chairman) )(PP (IN of)(NP (NP (NNP Elsevier) (NNP N.V.) )(, ,)(NP (DT the) (NNP Dutch) (VBG publishing) (NN group) )))))(. .) ))";
     let p = Parse::parse(parse_str).unwrap();
@@ -129,6 +200,79 @@ fn parser_evaluator_constituent_spans() {
         ParserEvaluator::get_constituent_spans(&guess),
         [LabeledSpan::new(8, 11, Some("VP")), LabeledSpan::new(0, 7, Some("NP"))]
     );
+
+    // Evaluate trained model on training corpus
+    let rules = HeadRulesArtifact::English(english_head_rules());
+    let samples = sample_parses();
+    let params = ParserTrainingParameters::with_iterations_and_cutoff(50, 1);
+    let model = Arc::new(chunking::train("en", &samples, rules.clone(), &params).unwrap());
+    let engine = ParserFactory::create(model);
+    let mut evaluator = ParserEvaluator::new(&engine);
+    evaluator.evaluate(&samples[..4]).unwrap();
+    let fm = evaluator.fmeasure();
+    assert!(fm.precision() > 0.0);
+    assert!(fm.recall() > 0.0);
+    assert!(fm.f_measure() > 0.0);
+
+    // Cross-validator
+    let mut cv = ParserCrossValidator::new("en", params, ParserType::Chunking);
+    cv.evaluate(&samples[..6], 2, &rules).expect("cross-validate");
+    assert!(cv.fmeasure().f_measure() >= 0.0);
+}
+
+#[test]
+fn parser_annotator_and_parser_tool() {
+    let rules = HeadRulesArtifact::English(english_head_rules());
+    let samples = sample_parses();
+    let params = ParserTrainingParameters::with_iterations_and_cutoff(50, 1);
+    let model = Arc::new(chunking::train("en", &samples, rules, &params).unwrap());
+
+    // Test ParserTool::parse_line with untokenized parens
+    let engine = ParserFactory::create(Arc::clone(&model));
+    let line = "The quick (fox) jumped .";
+    let parsed_lines = ParserTool::parse_line(line, &engine, 1).unwrap();
+    assert_eq!(parsed_lines.len(), 1);
+    assert_eq!(parsed_lines[0].text(), line);
+
+    // Test ParserAnnotator on Document
+    let doc_text = "The quick fox jumped.";
+    let mut doc = Document::new(doc_text);
+    let view_id = ViewId(0);
+    let mut sent_spans = Spans::<Sentences>::new(view_id);
+    sent_spans.push(Span::new(0, 21));
+    doc.add(&Key::<Sentences>::DEFAULT, Sentences { spans: sent_spans }, Provenance::by("test")).unwrap();
+
+    let mut tok_spans = Spans::<Tokens>::new(view_id);
+    tok_spans.push(Span::new(0, 3)); // The
+    tok_spans.push(Span::new(4, 9)); // quick
+    tok_spans.push(Span::new(10, 13)); // fox
+    tok_spans.push(Span::new(14, 20)); // jumped
+    tok_spans.push(Span::new(20, 21)); // .
+    doc.add(
+        &Key::<Tokens>::DEFAULT,
+        Tokens { spans: tok_spans, sentence: Some(vec![Ix::new(0); 5]) },
+        Provenance::by("test"),
+    )
+    .unwrap();
+
+    let annotator = ParserAnnotator::new(model);
+    let analyzer = Analyzer::builder()
+        .given(Key::<Sentences>::DEFAULT)
+        .given(Key::<Tokens>::DEFAULT)
+        .add(annotator)
+        .build()
+        .unwrap();
+    assert_eq!(analyzer.run(std::slice::from_mut(&mut doc)), [Ok(())]);
+
+    let phrases = doc.get::<Phrases>().unwrap();
+    assert!(!phrases.spans.is_empty());
+    let tokens = doc.get::<Tokens>().unwrap();
+    for i in 0..phrases.spans.len() {
+        let ix = Ix::<Phrases>::new(i as u32);
+        let head_sp = phrases.head_span(ix, tokens);
+        let phrase_sp = phrases.spans.get(ix);
+        assert!(phrase_sp.contains(head_sp));
+    }
 }
 
 #[test]
