@@ -4258,6 +4258,34 @@
       ]
     },
     {
+      "id": "csc-conversational-sarcasm-2024",
+      "kind": "KIND_DATASET",
+      "language": "en",
+      "format": "FORMAT_CSV",
+      "version": "f11c92b8d54686f64cf1d92766cef07201efb986",
+      "license": "MIT",
+      "license_terms": "https://github.com/CoPsyN/CSC/blob/f11c92b8d54686f64cf1d92766cef07201efb986/LICENSE",
+      "trained_on": [],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Conversational Sarcasm Corpus (CSC) by Hyewon Jang, Bettina Braun, and Diego Frassinelli, at CoPsyN/CSC commit f11c92b8d54686f64cf1d92766cef07201efb986 under the MIT License. Response-level evaluator ratings are aggregated for sarcasm training and evaluation in issue #925.",
+      "files": [
+        {
+          "path": "data_full.csv",
+          "url": "https://raw.githubusercontent.com/CoPsyN/CSC/f11c92b8d54686f64cf1d92766cef07201efb986/data_full.csv",
+          "size": 9966538,
+          "sha256": "fd8ca7531887823a315e91f5d0edbcc9ec685a557c333c37f485a15a9e55ad7a",
+          "sha512": "f905c13d77a2f103e7c9451410bf8057418ba2132091aa82fc1338d7c133e4102c075c5fa1043d2446e2890645de89185c397f6e964d4986ee86d42d7d56b05b"
+        },
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/CoPsyN/CSC/f11c92b8d54686f64cf1d92766cef07201efb986/LICENSE",
+          "size": 1063,
+          "sha256": "390830edfee0a5ac38d9f84de152a37bf1f6b3c574a074ea6eaef9ba4db799e0",
+          "sha512": "0300f9b7786af81a3ede7849a6ab82fb5c6ca54f1ab8fcb3a71df6e16a8120b0bc93f1ab5055c74834a89a65d67387d47542ed80f02f018f3963e38c3a7c6e49"
+        }
+      ]
+    },
+    {
       "id": "masc-3.0.0",
       "kind": "KIND_DATASET",
       "language": "en",
@@ -4275,6 +4303,38 @@
           "size": 36358521,
           "sha256": "0b300d96016233c7c79b43559b477a6bb0ed16bb416d5c517eccb108a6228493",
           "sha512": "a88795055fab5c600f26215cbe6143c2325627adaf9ae80d06c7e815a76834debd4b7728a745aa67608ee1d028b35ca139b2b90760e69d0e7227af83bf05d6a9"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-masc-3.0.0-aspect-sentiment-1",
+      "kind": "KIND_MODEL",
+      "language": "en",
+      "format": "FORMAT_ZIP",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "MASC 3.0.0 MPQA aspect, attitude, and opinion annotations",
+          "license": "CC-BY-3.0-US",
+          "license_terms": "https://anc.org/data/masc/"
+        },
+        {
+          "name": "sentence-transformers/all-MiniLM-L6-v2",
+          "license": "Apache-2.0",
+          "license_terms": "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2/blob/1110a243fdf4706b3f48f1d95db1a4f5529b4d41/LICENSE"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Experimental BIO and polarity heads trained on 56 MASC 3.0.0 documents with MPQA annotations and sentence-transformers/all-MiniLM-L6-v2. MASC is by the American National Corpus project under CC BY 3.0 US. Held-out aspect F1 is 0.013491, so this head is not the default extractor. Configuration and evaluation are included in the zip.",
+      "files": [
+        {
+          "path": "aspect-sentiment-1.zip",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-sentiment-924-1/aspect-sentiment-1.zip",
+          "size": 25106,
+          "sha256": "109c0eea8f2f0d5aa979b9f819820504456d236b372222a9ad9e34362d241be3",
+          "sha512": "0507c12e88de97842bf94de856f1faf391b4e78f5159938324c5e2bdde2e4c215ca8173c37a907b16a2e40c9980618174daef72e3522bca5a58d4fdeac9d55fc"
         }
       ]
     },
@@ -4646,6 +4706,482 @@
           "size": 14395164,
           "sha256": "467f1e7191af00f2e76cc7f425885c2dc304bea8aff284b10e8c460d22f2e1af",
           "sha512": "2c3743a0dc1ef5c4389b3c63dbf23c7c41b97ba6c1c091ee8f325e26dd0207072660f5fd037e370e5460024ec45f56f1a237ed7111d680088d494e8677b0dbd1"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-goemotions-minilm-l6-v2-head-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
+      "language": "en",
+      "format": "FORMAT_HEAD",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "GoEmotions 7de3624754e2b0f2",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/google-research/google-research/blob/7de3624754e2b0f2f505ae496db3ba194bb40be9/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on GoEmotions filtered train/dev/test split (google-research/google-research/goemotions at 7de3624754e2b0f2f505ae496db3ba194bb40be9, https://github.com/google-research/google-research/tree/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions), by Dorottya Demszky, Dana Movshovitz-Attias, Jeongwoo Ko, Alan Cowen, Gaurav Nemade and Sujith Ravi (Google Research, 2020), under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).",
+      "files": [
+        {
+          "path": "turbo-en-goemotions-minilm-l6-v2-head-1.tevh",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-goemotions-1/turbo-en-goemotions-minilm-l6-v2-head-1.tevh",
+          "size": 43251,
+          "sha256": "9b280043bff1293280808a38d35d0cf0489cde4c6f92c08423d5c88fc5021723",
+          "sha512": "697c7cf434beb3203874b30e16d2f46f36b7a4fb15a9ffa0ca606b8173f4ce55721fbb740781586c289d5fb94343073f100576815b3d132faf6df8852ceaf6ee"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-goemotions-bge-small-en-v1.5-head-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
+      "language": "en",
+      "format": "FORMAT_HEAD",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "GoEmotions 7de3624754e2b0f2",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/google-research/google-research/blob/7de3624754e2b0f2f505ae496db3ba194bb40be9/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on GoEmotions filtered train/dev/test split (google-research/google-research/goemotions at 7de3624754e2b0f2f505ae496db3ba194bb40be9, https://github.com/google-research/google-research/tree/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions), by Dorottya Demszky, Dana Movshovitz-Attias, Jeongwoo Ko, Alan Cowen, Gaurav Nemade and Sujith Ravi (Google Research, 2020), under CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).",
+      "files": [
+        {
+          "path": "turbo-en-goemotions-bge-small-en-v1.5-head-1.tevh",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-goemotions-1/turbo-en-goemotions-bge-small-en-v1.5-head-1.tevh",
+          "size": 43235,
+          "sha256": "f82b1beb02642576d12e8932b6f3cf0b8487d3f150c0066b576c50011665123a",
+          "sha512": "de5260320ecf59e5c017b33be26cab002e020599de7e09ef8832e8b4a8d82d9316e373636a57b4ec23ed2af2a780b4a5436ebb036fd186c3ab37f4b6e413218b"
+        }
+      ]
+    },
+    {
+      "id": "turbo-es-ud-ancora-2.16-depparse-maxent-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_DEPENDENCY_PARSER",
+      "language": "es",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Spanish-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Spanish-AnCora r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Spanish-AnCora/tree/r2.16), by Héctor Martínez Alonso and Daniel Zeman, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). The model is derived from the treebank; the treebank itself is not included.",
+      "files": [
+        {
+          "path": "turbo-es-ud-ancora-2.16-depparse-maxent-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-depparse-2.16-1/turbo-es-ud-ancora-2.16-depparse-maxent-1.bin",
+          "size": 17406430,
+          "sha256": "6d399e33ee858d0ab87ebc6fa9438a445f614b6729f8a609ab5ffeabfa538f63",
+          "sha512": "f99f1dc6c0a6a2174efff800757c37001163d212a0234600f3cb32dd233cef74a6f2573572be791b53e169511f8e03e9b0bb437efa8623adb3f6be087bb235f8"
+        }
+      ]
+    },
+    {
+      "id": "turbo-es-ud-ancora-2.16-depparse-feedforward-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_DEPENDENCY_PARSER",
+      "language": "es",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Spanish-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Spanish-AnCora/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Spanish-AnCora r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Spanish-AnCora/tree/r2.16), by Héctor Martínez Alonso and Daniel Zeman, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). The model is derived from the treebank; the treebank itself is not included.",
+      "files": [
+        {
+          "path": "turbo-es-ud-ancora-2.16-depparse-feedforward-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-depparse-2.16-1/turbo-es-ud-ancora-2.16-depparse-feedforward-1.bin",
+          "size": 900875,
+          "sha256": "68aea2dfec51c015ce8ac99ff4c15875d84a364ef9bfe9fe3b5a4976c0b0f8a7",
+          "sha512": "35c3f948dc7dc5576b26bbf97d78f1752781ca74215e512a6557a69295e23cab8adcce06f3d44e748a4c3b705157bf41a06461f63aa62afc204e092a5f5e28f2"
+        }
+      ]
+    },
+    {
+      "id": "turbo-ca-ud-ancora-2.16-depparse-maxent-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_DEPENDENCY_PARSER",
+      "language": "ca",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Catalan-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Catalan-AnCora r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Catalan-AnCora/tree/r2.16), by Héctor Martínez Alonso, Elena Pascual and Daniel Zeman, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). The model is derived from the treebank; the treebank itself is not included.",
+      "files": [
+        {
+          "path": "turbo-ca-ud-ancora-2.16-depparse-maxent-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-depparse-2.16-1/turbo-ca-ud-ancora-2.16-depparse-maxent-1.bin",
+          "size": 15339008,
+          "sha256": "33e2ec6844fabfa173bf0e0eafca62eaf259f95622e1c149a2f15197782c27f6",
+          "sha512": "f106888c6e795dc4f35942142fb3e962dd85422a06158959600dcaa85cd7b36ef70bb4e1191206749d23e9a41f733ac231d8490f3a30a847b97c53ffa4f8c541"
+        }
+      ]
+    },
+    {
+      "id": "turbo-ca-ud-ancora-2.16-depparse-feedforward-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_DEPENDENCY_PARSER",
+      "language": "ca",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Catalan-AnCora r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Catalan-AnCora/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Catalan-AnCora r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Catalan-AnCora/tree/r2.16), by Héctor Martínez Alonso, Elena Pascual and Daniel Zeman, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). The model is derived from the treebank; the treebank itself is not included.",
+      "files": [
+        {
+          "path": "turbo-ca-ud-ancora-2.16-depparse-feedforward-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-depparse-2.16-1/turbo-ca-ud-ancora-2.16-depparse-feedforward-1.bin",
+          "size": 816124,
+          "sha256": "8af62c85bd4f3ab42498ee8b217911ff55101df2caab554391120ab2dbb45455",
+          "sha512": "86ef82fc9915771677e57ba1df228f28e531a8c487e6e4e89214c344de36e6739ed07f1415cee4c7d98a84b0fc66e8a7dd7e13add372cd61271963b3f35dc85d"
+        }
+      ]
+    },
+    {
+      "id": "turbo-fi-ud-ftb-2.16-depparse-maxent-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_DEPENDENCY_PARSER",
+      "language": "fi",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Finnish-FTB r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Finnish-FTB r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Finnish-FTB/tree/r2.16), by Jussi Piitulainen, Hanna Nurmi and Jack Rueter, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). FTB1U is Copyright 2014 FIN-CLARIN. The model is derived from the treebank; the treebank itself is not included.",
+      "files": [
+        {
+          "path": "turbo-fi-ud-ftb-2.16-depparse-maxent-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-depparse-2.16-1/turbo-fi-ud-ftb-2.16-depparse-maxent-1.bin",
+          "size": 5757374,
+          "sha256": "755ef066e10c65adc3d17f93bb15b35ebee78fbd189fd56297f12409bf5f782d",
+          "sha512": "511a7371a1ef287f6c23595135fc21b6d0791b2e820ac36beb551d9bb6ff6c90dfd761202564628076ddbebc906b753fd70617351fc26c63c1c096234528db13"
+        }
+      ]
+    },
+    {
+      "id": "turbo-fi-ud-ftb-2.16-depparse-feedforward-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_DEPENDENCY_PARSER",
+      "language": "fi",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Finnish-FTB r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Finnish-FTB/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Finnish-FTB r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Finnish-FTB/tree/r2.16), by Jussi Piitulainen, Hanna Nurmi and Jack Rueter, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). FTB1U is Copyright 2014 FIN-CLARIN. The model is derived from the treebank; the treebank itself is not included.",
+      "files": [
+        {
+          "path": "turbo-fi-ud-ftb-2.16-depparse-feedforward-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-depparse-2.16-1/turbo-fi-ud-ftb-2.16-depparse-feedforward-1.bin",
+          "size": 564886,
+          "sha256": "3df4a7db92fb89759aa964153cc7a55154779cf25a56250cc8b2b2924ce9870d",
+          "sha512": "14dad5a49d219b0adf6b519c2f93d7c4cdcbe5a392ec82d4dbb0281afe9062b9550c54dbad5be677f74dc430622079da1e6899b317e2b7e1b22c5d297b45a2f0"
+        }
+      ]
+    },
+    {
+      "id": "turbo-it-ud-markit-2.16-depparse-maxent-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_DEPENDENCY_PARSER",
+      "language": "it",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Italian-MarkIT r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Italian-MarkIT/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Italian-MarkIT r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Italian-MarkIT/tree/r2.16), by Teresa Paccosi, Alessio Palmero Aprosio and Sara Tonelli, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). The model is derived from the treebank; the treebank itself is not included.",
+      "files": [
+        {
+          "path": "turbo-it-ud-markit-2.16-depparse-maxent-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-depparse-2.16-1/turbo-it-ud-markit-2.16-depparse-maxent-1.bin",
+          "size": 1364091,
+          "sha256": "2f8539971c1d4434bde2b5e16aff8348c8ef7841d2a5576b180ed23e8f70da93",
+          "sha512": "93cd88f18735ced04ed6108b0ef351abf36a278ba15356332418c78eb3c9cb2f143baedabde598fbf444a09cfcd8aebb790fc3f254f8c9905454d7a1bca83c13"
+        }
+      ]
+    },
+    {
+      "id": "turbo-it-ud-markit-2.16-depparse-feedforward-1",
+      "kind": "KIND_MODEL",
+      "component": "COMPONENT_DEPENDENCY_PARSER",
+      "language": "it",
+      "format": "FORMAT_OPENNLP_MODEL",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "UD_Italian-MarkIT r2.16",
+          "license": "CC-BY-4.0",
+          "license_terms": "https://github.com/UniversalDependencies/UD_Italian-MarkIT/blob/r2.16/LICENSE.txt"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on UD_Italian-MarkIT r2.16 of Universal Dependencies (https://github.com/UniversalDependencies/UD_Italian-MarkIT/tree/r2.16), by Teresa Paccosi, Alessio Palmero Aprosio and Sara Tonelli, under the Creative Commons Attribution 4.0 International licence (https://creativecommons.org/licenses/by/4.0/). The model is derived from the treebank; the treebank itself is not included.",
+      "files": [
+        {
+          "path": "turbo-it-ud-markit-2.16-depparse-feedforward-1.bin",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-ud-depparse-2.16-1/turbo-it-ud-markit-2.16-depparse-feedforward-1.bin",
+          "size": 258169,
+          "sha256": "397fc29dd5ee2ac576400f38742a38023d4b23abe09df351dd18c449094f2b3e",
+          "sha512": "0afdcd2784998aa830a36b6dac11891059772b589a1593eec56d2dc3d879b45372c466bb54a64482fa6584e9131068958aef273dea964027a137f7468f0d4c63"
+        }
+      ]
+    },
+    {
+      "id": "civil-comments-wilds",
+      "kind": "KIND_DATASET",
+      "language": "en",
+      "format": "FORMAT_CSV",
+      "version": "3fbfeca80bad0f3aec37e72fa07eff222b6e752f",
+      "license": "CC0-1.0",
+      "license_terms": "https://huggingface.co/datasets/shlomihod/civil-comments-wilds/blob/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/README.md",
+      "trained_on": [],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Civil Comments WILDS subset with identity annotations and parent IDs, mirrored by shlomihod at 3fbfeca80bad0f3aec37e72fa07eff222b6e752f. Civil Comments by Conversation AI / Jigsaw (Borkan et al., 2019), CC0-1.0. WILDS train/val/test partitions.",
+      "files": [
+        {
+          "path": "README.md",
+          "url": "https://huggingface.co/datasets/shlomihod/civil-comments-wilds/resolve/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/README.md",
+          "size": 5714,
+          "sha256": "3a1b73672f5deea25042316accb879c1c0a5232c5201f112c92d9b99abbbf9fb",
+          "sha512": "eb44c7a79585833285547f4e9c20b8e22e635f6ce6c153c4831c48411e475527a257bb00003828c6a5aa22bba6ff7c4c68dd6121f8a188508d14154fbc25f6a7"
+        },
+        {
+          "path": "all_data_with_identities.csv",
+          "url": "https://huggingface.co/datasets/shlomihod/civil-comments-wilds/resolve/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/all_data_with_identities.csv",
+          "size": 272542670,
+          "sha256": "403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f",
+          "sha512": "d64ff03e215c5b0aa29f5b790e2cca511561f244c617e26e9541e9ffea6fe51104e3708f7320de9372381998e443566251ef4ad354f9061f2c245718931f43e2"
+        }
+      ]
+    },
+    {
+      "id": "toxic-spans",
+      "kind": "KIND_DATASET",
+      "language": "en",
+      "format": "FORMAT_CSV",
+      "version": "beaf170538df8275c3447b2e26070f2f82e55272",
+      "license": "CC0-1.0",
+      "license_terms": "https://github.com/ipavlopoulos/toxic_spans/blob/beaf170538df8275c3447b2e26070f2f82e55272/LICENSE",
+      "trained_on": [],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Toxic Spans (ipavlopoulos/toxic_spans at beaf170538df8275c3447b2e26070f2f82e55272, https://github.com/ipavlopoulos/toxic_spans), by John Pavlopoulos, Jeffrey Sorensen, Léo Laugier and Ion Androutsopoulos (SemEval-2021 Task 5 / ACL 2022), released into the public domain under CC0 1.0 (https://creativecommons.org/publicdomain/zero/1.0/).",
+      "files": [
+        {
+          "path": "LICENSE",
+          "url": "https://raw.githubusercontent.com/ipavlopoulos/toxic_spans/beaf170538df8275c3447b2e26070f2f82e55272/LICENSE",
+          "size": 7048,
+          "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
+          "sha512": "1eb4436f8d58766cbe99db97e5e8c0db8a706376afd291c337de1ba7a6b066d3791dc85ad034bdd54ea336bed6e6e8e7a037d8b04b2773c9c7517b9d9921d1fa"
+        },
+        {
+          "path": "README.md",
+          "url": "https://raw.githubusercontent.com/ipavlopoulos/toxic_spans/beaf170538df8275c3447b2e26070f2f82e55272/README.md",
+          "size": 1636,
+          "sha256": "8b3c53da72ea10393bffeecf328d40745f0bdabf0f156c05746a20f6787eb418",
+          "sha512": "89ce13095057bf4ebf3bdd88c0be8aff1ff86dcc02fe1ed97b490892912d4e33f80638ee5c3438378c7929c54df9367a9544a9eb129e41341566d85b81577a6d"
+        },
+        {
+          "path": "ACL2022/data/toxic_spans.csv",
+          "url": "https://raw.githubusercontent.com/ipavlopoulos/toxic_spans/beaf170538df8275c3447b2e26070f2f82e55272/ACL2022/data/toxic_spans.csv",
+          "size": 10646703,
+          "sha256": "384bf8ab53117459ce4fe8de462d382493450b9e3b91d9a9c2d9cf56385c8545",
+          "sha512": "313fbbaffb90798f06bc67b1da86a913fa0134eb229fb0014ec6cf1965d5d871748688456257aafefbfc1a6f00ea60d8014919ba22cbeb41314049a68b44515c"
+        },
+        {
+          "path": "data/comments.csv",
+          "url": "https://raw.githubusercontent.com/ipavlopoulos/toxic_spans/beaf170538df8275c3447b2e26070f2f82e55272/data/comments.csv",
+          "size": 3530155,
+          "sha256": "76cd6ebd10a890d269c0a7e5e451f3da12375219906f314fd9cfb1e18b1a905f",
+          "sha512": "28a554088742f5051571e58c1313847314145cd4b19ca58adc951acc670f2df62ecb6b85d0a1b02109a7994dd7f2633869ab64e722b75e6fff47fa4d6cd38a6a"
+        },
+        {
+          "path": "data/spans.csv",
+          "url": "https://raw.githubusercontent.com/ipavlopoulos/toxic_spans/beaf170538df8275c3447b2e26070f2f82e55272/data/spans.csv",
+          "size": 1016622,
+          "sha256": "389c6964db5d96d79ecfe038aa4ffe04abafd64b6d6427fbad4ec7fb2c7672aa",
+          "sha512": "c0aba952741ef9bf58376cb43ce133f219b6034bea49dff1073761bc1887b2d4c1088379f8d58074a6674ebc0475bcb7da5935de8ec32c339396512a2c44bc50"
+        },
+        {
+          "path": "data/annotations.csv",
+          "url": "https://raw.githubusercontent.com/ipavlopoulos/toxic_spans/beaf170538df8275c3447b2e26070f2f82e55272/data/annotations.csv",
+          "size": 1978724,
+          "sha256": "f67725aa9de73cd4ef9050222f6ae985ef0e33e8da89cb8137ffeb9a1d0fc32b",
+          "sha512": "a21ca90dd6d5551d90bc8bb15512cfb5004b9916ca18aee48859864f14e79688b8ed18a48a46e61994d513d60ccd0e7be8e85e5e3b5e5f21c19d6ee70d7237f7"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-civil-comments-minilm-l6-v2-head-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
+      "language": "en",
+      "format": "FORMAT_HEAD",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "Civil Comments WILDS 3fbfeca80bad0f3aec37e72fa07eff222b6e752f",
+          "license": "CC0-1.0",
+          "license_terms": "https://huggingface.co/datasets/shlomihod/civil-comments-wilds/blob/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on the Civil Comments WILDS subset (shlomihod/civil-comments-wilds at 3fbfeca80bad0f3aec37e72fa07eff222b6e752f), all_data_with_identities.csv, SHA-256 403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f. Original Civil Comments by Conversation AI / Jigsaw (Borkan et al., 2019), CC0-1.0.",
+      "files": [
+        {
+          "path": "turbo-en-civil-comments-minilm-l6-v2-head-1.tivh",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-civil-comments-1/turbo-en-civil-comments-minilm-l6-v2-head-1.tivh",
+          "size": 9371,
+          "sha256": "26c1147d5431901e41ca6847ee482d0534c63b0ddcf63e9e99f2b22e472997ba",
+          "sha512": "35ce10567ed7c8e79bc2fc7f495ee2e6fde9e26068ea4741632d3d26b0f794530b1775568f097dcf0eb82ae1deeddf5219a990c2b851c284ca96411f3bff4b2c"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-civil-comments-minilm-l6-v2-context-head-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
+      "language": "en",
+      "format": "FORMAT_HEAD",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "Civil Comments WILDS 3fbfeca80bad0f3aec37e72fa07eff222b6e752f",
+          "license": "CC0-1.0",
+          "license_terms": "https://huggingface.co/datasets/shlomihod/civil-comments-wilds/blob/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on the Civil Comments WILDS subset (shlomihod/civil-comments-wilds at 3fbfeca80bad0f3aec37e72fa07eff222b6e752f), all_data_with_identities.csv, SHA-256 403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f. Original Civil Comments by Conversation AI / Jigsaw (Borkan et al., 2019), CC0-1.0.",
+      "files": [
+        {
+          "path": "turbo-en-civil-comments-minilm-l6-v2-context-head-1.tivh",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-civil-comments-1/turbo-en-civil-comments-minilm-l6-v2-context-head-1.tivh",
+          "size": 18587,
+          "sha256": "43f80c1aee79f005cbd058905c73649dfed5536708657172966032dbe36e9b4d",
+          "sha512": "daf5f84d445101cb33d5bf08e88e0f651572da7b07a72ee8263c899ba324604ef82dbf0fa69832da95426a97f545c3a3af564b8a217b1ea2521215d7090fb918"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-civil-comments-bge-small-en-v1.5-head-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
+      "language": "en",
+      "format": "FORMAT_HEAD",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "Civil Comments WILDS 3fbfeca80bad0f3aec37e72fa07eff222b6e752f",
+          "license": "CC0-1.0",
+          "license_terms": "https://huggingface.co/datasets/shlomihod/civil-comments-wilds/blob/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on the Civil Comments WILDS subset (shlomihod/civil-comments-wilds at 3fbfeca80bad0f3aec37e72fa07eff222b6e752f), all_data_with_identities.csv, SHA-256 403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f. Original Civil Comments by Conversation AI / Jigsaw (Borkan et al., 2019), CC0-1.0.",
+      "files": [
+        {
+          "path": "turbo-en-civil-comments-bge-small-en-v1.5-head-1.tivh",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-civil-comments-1/turbo-en-civil-comments-bge-small-en-v1.5-head-1.tivh",
+          "size": 9355,
+          "sha256": "378ccd113df231a0db4cdb6e3dbe634a094151f8a4f0c02e71a596d172742fa3",
+          "sha512": "46dadfcc9f67ccc05e0a732490b167b523e7e93e2980a0be4788fc9f41f277ae9a686bc426501e06673b21fb3377451837886403894dc6b73c66c6d51ea39c74"
+        }
+      ]
+    },
+    {
+      "id": "turbo-en-civil-comments-bge-small-en-v1.5-context-head-1",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
+      "language": "en",
+      "format": "FORMAT_HEAD",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://github.com/ai-pipestream/turboembed/blob/main/LICENSE",
+      "trained_on": [
+        {
+          "name": "Civil Comments WILDS 3fbfeca80bad0f3aec37e72fa07eff222b6e752f",
+          "license": "CC0-1.0",
+          "license_terms": "https://huggingface.co/datasets/shlomihod/civil-comments-wilds/blob/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/README.md"
+        }
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on the Civil Comments WILDS subset (shlomihod/civil-comments-wilds at 3fbfeca80bad0f3aec37e72fa07eff222b6e752f), all_data_with_identities.csv, SHA-256 403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f. Original Civil Comments by Conversation AI / Jigsaw (Borkan et al., 2019), CC0-1.0.",
+      "files": [
+        {
+          "path": "turbo-en-civil-comments-bge-small-en-v1.5-context-head-1.tivh",
+          "url": "https://github.com/ai-pipestream/turboembed/releases/download/models-civil-comments-1/turbo-en-civil-comments-bge-small-en-v1.5-context-head-1.tivh",
+          "size": 18571,
+          "sha256": "dfd34e2cca4cbe81d53ee6015ede61621950a10938c5e8f2c4a90d606bc6a5f7",
+          "sha512": "62d38ca000d161ee8eb6bf06d7f307886a123207c3911ac95e9442c138bfa61146f8ad6b8944f013dff6fb256fff66b1d6ca66b3a7f87cfcc87b83e693dfac11"
         }
       ]
     }

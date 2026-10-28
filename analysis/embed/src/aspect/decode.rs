@@ -77,6 +77,7 @@ pub(super) fn project_subword_bio_to_tokens(
     tokens: &Tokens,
     subwords: &Subwords,
     piece_probs: &[[f64; 5]],
+    threshold: f64,
 ) -> Vec<u16> {
     let n_tokens = tokens.len();
     let tok_pieces = token_subword_ranges(tokens, subwords);
@@ -107,7 +108,7 @@ pub(super) fn project_subword_bio_to_tokens(
                 best_k = k;
             }
         }
-        tok_tags[t] = best_k as u16;
+        tok_tags[t] = if best_k != 0 && avg[best_k] >= threshold { best_k as u16 } else { TAG_O };
     }
     tok_tags
 }

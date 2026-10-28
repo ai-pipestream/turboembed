@@ -63,6 +63,7 @@ mod trie;
 
 pub use category::GeneralCategory;
 pub use grapheme::{GraphemeBreak, IndicConjunctBreak, grapheme_boundaries};
+pub use normalize::hf;
 pub use script::Script;
 pub use sentence_break::SentenceBreak;
 pub use utf16::Utf16Cursor;

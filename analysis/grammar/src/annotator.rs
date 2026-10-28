@@ -74,6 +74,18 @@ impl GrammarAnnotator {
         GrammarAnnotator::new(&crate::SPANISH_UNITS)
     }
 
+    pub fn dutch() -> GrammarAnnotator {
+        GrammarAnnotator::new(&crate::lang::nl::DUTCH_UNITS)
+    }
+
+    pub fn italian() -> GrammarAnnotator {
+        GrammarAnnotator::new(&crate::ITALIAN_UNITS)
+    }
+
+    pub fn portuguese() -> GrammarAnnotator {
+        GrammarAnnotator::new(&crate::PORTUGUESE_UNITS)
+    }
+
     /// The step for a pipeline: writes numbers under [`GRAMMAR_NUMBERS`],
     /// percentages and quantities under [`GRAMMAR_PERCENTS`], money under
     /// [`GRAMMAR_MONEY`] and ordinals to the default instance.
@@ -249,7 +261,7 @@ fn push_number(
 }
 
 impl Annotator for GrammarAnnotator {
-    const VERSION: &'static str = "2";
+    const VERSION: &'static str = "3";
     const ID: &'static str = "turbo-grammar:numbers";
     type Reads = (View,);
     type Writes = (Numbers, Quantities, Ordinals, Money);

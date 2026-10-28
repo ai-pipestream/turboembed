@@ -9,7 +9,8 @@ use std::path::{Path, PathBuf};
 use common::*;
 use serde_json::{Value, json};
 use turbo::tokenizer::{Encode, NOWHERE, Tokenizer};
-use turbo_unicode::normalize::{Form, aligned};
+use turbo_unicode::hf::aligned;
+use turbo_unicode::normalize::Form;
 
 fn tokenizer_json() -> PathBuf {
     testdata().join("tiny-bpe-split/tokenizer.json")
@@ -235,6 +236,33 @@ fn qwen2_with_nfc_matches_upstream() {
     tok.encode_spans(text, whole_text(), &mut ids, &mut spans).unwrap();
     assert_eq!(spans.iter().find(|s| **s != NOWHERE), Some(&[0, 5]), "{spans:?}");
     check(&tok, &up, text, true);
+    // Characters newer than upstream's Unicode 9.0 tables neither reorder
+    // nor compose as they would now (#1387).
+    for text in
+        ["E\u{5c8}\u{301}z", "\u{105d2}\u{307}", "\u{1611e}\u{1611e}", "\u{16121}\u{1611f}", "\u{16d69}\u{16d67}"]
+    {
+        check(&tok, &up, text, true);
+    }
+}
+
+/// Every scalar before a mark, before itself, and between a starter and
+/// an acute, against upstream's ids: 256 scalars to a text, apart by
+/// spaces, which NFC does not reorder or compose across.
+#[test]
+fn qwen2_with_nfc_matches_upstream_on_every_scalar() {
+    let mut json = base();
+    as_qwen2(&mut json);
+    let (_f, tok, up) = tokenizer("qwen2-every-scalar", manifest_split("BPE_PATTERN_QWEN2", true), &json);
+    let scalars: Vec<char> = (0..=0x10ffffu32).filter_map(char::from_u32).collect();
+    let mut ids = Vec::new();
+    for chunk in scalars.chunks(256) {
+        let text: Vec<String> = chunk.iter().map(|c| format!("E{c}\u{301}z {c}\u{307} {c}{c}")).collect();
+        let text = text.join(" ");
+        ids.clear();
+        tok.encode_into(&text, whole_text(), &mut ids).unwrap();
+        let theirs: Vec<i32> = up.encode(text.as_str(), true).unwrap().get_ids().iter().map(|&i| i as i32).collect();
+        assert_eq!(ids, theirs, "{text:?}");
+    }
 }
 
 /// Llama-3's file with Qwen2's pattern, with merges ignored for a word

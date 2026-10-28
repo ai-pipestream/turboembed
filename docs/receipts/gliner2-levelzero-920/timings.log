@@ -1,0 +1,322 @@
+commit 04f89fcb184264b19fb980daa67bf46c6a2a48b3; host: AMD Ryzen 9 9950X 16-Core Processor, 32 threads; release build
+command: GLINER2_PACKAGE GLINER2_BUNDLE GLINER2_CHECKPOINT GLIREL_PACKAGE GLIREL_BUNDLE GLIREL_SPM set, DEVICE_REPS=50 TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --locked --features turbo/levelzero -p turbo-relation -p turbo-schema-extract --test device_real -- --ignored --nocapture --test-threads 1
+== run 1, commit 04f89fcb184264b19fb980daa67bf46c6a2a48b3, at 23:21:45: load 27.56 27.27 25.80 15/4274 3944215; B70 runner build/test processes 0; B70 engines over 5 s before: ChatGPT ccs 0.0% rcs 0.0%; 
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 4.5895576e-6
+gliner2 relations, one text a pass: cpu encoder min 15.119 p50 23.356 mean 23.913 p99 38.577
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 6.739 p50 7.553 mean 7.635 p99 10.552
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 3.09x
+test glirel_on_the_real_checkpoint ... glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 5.722046e-6, 2600 pair labels held
+glirel, one text a pass: cpu encoder min 29.644 p50 39.153 mean 45.459 p99 78.208
+glirel, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 10.870 p50 11.400 mean 12.000 p99 14.970
+glirel, one text a pass: the cpu encoder's p50 over the device's: 3.43x
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 83.48s
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 7.4505806e-6
+schema extraction, one text a pass: cpu encoder min 18.207 p50 49.722 mean 50.114 p99 81.472
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 8.686 p50 16.345 mean 16.191 p99 25.043
+schema extraction: the cpu encoder's p50 over the device's: 3.04x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 45.40s
+after: load 37.55 30.13 27.00 20/4248 4018070; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%;
+== run 2, commit 04f89fcb184264b19fb980daa67bf46c6a2a48b3, at 23:24:24: load 32.85 29.45 26.83 24/4181 4038551; B70 runner build/test processes 0; B70 engines over 5 s before: ChatGPT ccs 0.0% rcs 0.0%; 
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 4.5895576e-6
+gliner2 relations, one text a pass: cpu encoder min 15.868 p50 18.432 mean 18.522 p99 22.236
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 6.747 p50 7.585 mean 7.650 p99 9.422
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 2.43x
+test glirel_on_the_real_checkpoint ... glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 5.722046e-6, 2600 pair labels held
+glirel, one text a pass: cpu encoder min 31.241 p50 48.459 mean 54.717 p99 90.802
+glirel, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 11.003 p50 12.342 mean 12.882 p99 16.382
+glirel, one text a pass: the cpu encoder's p50 over the device's: 3.93x
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 82.85s
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 7.4505806e-6
+schema extraction, one text a pass: cpu encoder min 19.959 p50 40.290 mean 38.573 p99 54.943
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 7.860 p50 13.450 mean 12.918 p99 17.367
+schema extraction: the cpu encoder's p50 over the device's: 3.00x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 37.54s
+after: load 30.06 28.77 26.85 16/4202 4075364; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%;
+== run 3, commit 04f89fcb184264b19fb980daa67bf46c6a2a48b3, at 23:26:47: load 27.31 28.21 26.70 14/4212 4095761; B70 runner build/test processes 0; B70 engines over 5 s before: ChatGPT ccs 0.0% rcs 0.0%; 
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 4.5895576e-6
+gliner2 relations, one text a pass: cpu encoder min 19.113 p50 36.015 mean 37.379 p99 68.954
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 7.980 p50 9.341 mean 9.896 p99 17.182
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 3.86x
+test glirel_on_the_real_checkpoint ... glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 5.722046e-6, 2600 pair labels held
+glirel, one text a pass: cpu encoder min 27.316 p50 38.462 mean 43.024 p99 71.460
+glirel, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 10.634 p50 11.230 mean 11.797 p99 14.348
+glirel, one text a pass: the cpu encoder's p50 over the device's: 3.42x
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 88.08s
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 7.4505806e-6
+schema extraction, one text a pass: cpu encoder min 18.010 p50 37.626 mean 36.482 p99 62.082
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 7.663 p50 13.434 mean 13.927 p99 26.468
+schema extraction: the cpu encoder's p50 over the device's: 2.80x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 37.81s
+after: load 25.86 28.25 27.00 13/4237 4152909; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%;
+== run 4, commit 04f89fcb184264b19fb980daa67bf46c6a2a48b3, at 23:29:16: load 24.80 27.89 26.90 23/4271 4169791; B70 runner build/test processes 0; B70 engines over 5 s before: ChatGPT ccs 0.0% rcs 0.0%; 
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 4.5895576e-6
+gliner2 relations, one text a pass: cpu encoder min 15.453 p50 21.600 mean 21.621 p99 28.737
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 6.856 p50 7.645 mean 7.752 p99 9.535
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 2.83x
+test glirel_on_the_real_checkpoint ... glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 5.722046e-6, 2600 pair labels held
+glirel, one text a pass: cpu encoder min 25.359 p50 28.563 mean 36.012 p99 63.889
+glirel, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 10.550 p50 10.801 mean 11.424 p99 13.475
+glirel, one text a pass: the cpu encoder's p50 over the device's: 2.64x
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 79.18s
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 7.4505806e-6
+schema extraction, one text a pass: cpu encoder min 16.984 p50 35.670 mean 36.715 p99 60.169
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 7.212 p50 13.154 mean 12.686 p99 18.703
+schema extraction: the cpu encoder's p50 over the device's: 2.71x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 33.84s
+after: load 21.83 26.65 26.63 39/4356 28672; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%;
+== run 5, commit 04f89fcb184264b19fb980daa67bf46c6a2a48b3, at 23:31:37: load 22.35 26.51 26.58 21/4187 55371; B70 runner build/test processes 0; B70 engines over 5 s before: gnome-shell ccs 0.0% rcs 0.3%; ChatGPT ccs 0.0% rcs 0.0%; 
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 4.5895576e-6
+gliner2 relations, one text a pass: cpu encoder min 20.051 p50 28.488 mean 29.038 p99 47.186
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 7.338 p50 8.977 mean 9.359 p99 14.942
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 3.17x
+test glirel_on_the_real_checkpoint ... glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 5.722046e-6, 2600 pair labels held
+glirel, one text a pass: cpu encoder min 47.547 p50 64.591 mean 73.189 p99 113.364
+glirel, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 11.064 p50 12.773 mean 13.393 p99 19.852
+glirel, one text a pass: the cpu encoder's p50 over the device's: 5.06x
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 102.76s
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 7.4505806e-6
+schema extraction, one text a pass: cpu encoder min 18.493 p50 32.925 mean 30.638 p99 40.421
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 7.150 p50 11.929 mean 11.223 p99 13.915
+schema extraction: the cpu encoder's p50 over the device's: 2.76x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 39.67s
+after: load 36.58 31.04 28.28 16/4195 144573; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.7%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%;
+== run 6, commit 04f89fcb184264b19fb980daa67bf46c6a2a48b3, at 23:34:25: load 31.55 30.20 28.05 10/4218 159054; B70 runner build/test processes 0; B70 engines over 5 s before: ChatGPT ccs 0.0% rcs 0.0%; 
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 4.5895576e-6
+gliner2 relations, one text a pass: cpu encoder min 22.438 p50 28.702 mean 28.789 p99 37.243
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 7.777 p50 10.083 mean 10.374 p99 13.940
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 2.85x
+test glirel_on_the_real_checkpoint ... glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 5.722046e-6, 2600 pair labels held
+glirel, one text a pass: cpu encoder min 32.531 p50 51.045 mean 57.838 p99 95.227
+glirel, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 10.964 p50 13.010 mean 13.466 p99 19.737
+glirel, one text a pass: the cpu encoder's p50 over the device's: 3.92x
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 90.15s
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 7.4505806e-6
+schema extraction, one text a pass: cpu encoder min 23.705 p50 51.378 mean 49.616 p99 68.374
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 10.063 p50 17.534 mean 16.534 p99 21.829
+schema extraction: the cpu encoder's p50 over the device's: 2.93x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 40.60s
+after: load 39.49 31.93 28.84 28/4344 226354; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%;
+== run 7, commit 04f89fcb184264b19fb980daa67bf46c6a2a48b3, at 23:37:07: load 39.73 32.48 29.09 16/4334 250845; B70 runner build/test processes 0; B70 engines over 5 s before: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%; 
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 4.5895576e-6
+gliner2 relations, one text a pass: cpu encoder min 18.193 p50 32.088 mean 33.048 p99 54.013
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 7.678 p50 10.003 mean 10.619 p99 18.897
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 3.21x
+test glirel_on_the_real_checkpoint ... glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 5.722046e-6, 2600 pair labels held
+glirel, one text a pass: cpu encoder min 31.682 p50 41.672 mean 47.585 p99 79.133
+glirel, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 10.691 p50 11.592 mean 12.075 p99 14.630
+glirel, one text a pass: the cpu encoder's p50 over the device's: 3.59x
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 94.78s
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 7.4505806e-6
+schema extraction, one text a pass: cpu encoder min 21.216 p50 43.496 mean 43.124 p99 68.761
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 7.462 p50 15.395 mean 14.638 p99 21.055
+schema extraction: the cpu encoder's p50 over the device's: 2.83x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 44.81s
+after: load 44.50 37.18 31.37 16/4207 332105; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%;
+== run 8, commit 04f89fcb184264b19fb980daa67bf46c6a2a48b3, at 23:39:48: load 40.75 36.62 31.24 6/4210 347959; B70 runner build/test processes 0; B70 engines over 5 s before: ChatGPT ccs 0.0% rcs 0.0%; 
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 4.5895576e-6
+gliner2 relations, one text a pass: cpu encoder min 23.173 p50 32.502 mean 32.828 p99 47.199
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 7.270 p50 10.111 mean 10.258 p99 15.406
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 3.21x
+test glirel_on_the_real_checkpoint ... glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 5.722046e-6, 2600 pair labels held
+glirel, one text a pass: cpu encoder min 35.573 p50 43.307 mean 50.416 p99 75.778
+glirel, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 10.863 p50 12.068 mean 12.418 p99 15.067
+glirel, one text a pass: the cpu encoder's p50 over the device's: 3.59x
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 89.17s
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 7.4505806e-6
+schema extraction, one text a pass: cpu encoder min 17.650 p50 44.967 mean 45.415 p99 83.184
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 7.252 p50 14.057 mean 14.000 p99 29.205
+schema extraction: the cpu encoder's p50 over the device's: 3.20x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 37.60s
+after: load 33.65 35.14 31.42 17/4246 406314; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%;
+== run 9, commit 04f89fcb184264b19fb980daa67bf46c6a2a48b3, at 23:42:19: load 30.43 34.39 31.21 23/4242 420520; B70 runner build/test processes 0; B70 engines over 5 s before: ChatGPT ccs 0.0% rcs 0.0%; 
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 4.5895576e-6
+gliner2 relations, one text a pass: cpu encoder min 16.891 p50 21.494 mean 21.468 p99 28.193
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 6.847 p50 7.597 mean 7.731 p99 11.124
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 2.83x
+test glirel_on_the_real_checkpoint ... glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 5.722046e-6, 2600 pair labels held
+glirel, one text a pass: cpu encoder min 26.675 p50 40.661 mean 44.227 p99 74.995
+glirel, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 10.600 p50 11.150 mean 11.877 p99 14.774
+glirel, one text a pass: the cpu encoder's p50 over the device's: 3.65x
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 86.95s
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 7.4505806e-6
+schema extraction, one text a pass: cpu encoder min 18.043 p50 38.866 mean 38.171 p99 65.010
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 7.718 p50 13.698 mean 13.334 p99 23.826
+schema extraction: the cpu encoder's p50 over the device's: 2.84x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 36.32s
+after: load 33.02 33.44 31.22 11/4214 473083; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%;
+== run 10, commit 04f89fcb184264b19fb980daa67bf46c6a2a48b3, at 23:44:44: load 29.79 32.73 31.02 10/4247 494213; B70 runner build/test processes 0; B70 engines over 5 s before: ChatGPT ccs 0.0% rcs 0.0%; 
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 4.5895576e-6
+gliner2 relations, one text a pass: cpu encoder min 16.601 p50 25.920 mean 26.137 p99 38.709
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 6.854 p50 8.228 mean 8.536 p99 12.189
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 3.15x
+test glirel_on_the_real_checkpoint ... glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 5.722046e-6, 2600 pair labels held
+glirel, one text a pass: cpu encoder min 45.685 p50 70.548 mean 77.749 p99 130.565
+glirel, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 12.279 p50 15.664 mean 16.554 p99 22.003
+glirel, one text a pass: the cpu encoder's p50 over the device's: 4.50x
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 102.41s
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 7.4505806e-6
+schema extraction, one text a pass: cpu encoder min 19.457 p50 39.609 mean 38.143 p99 58.248
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 7.724 p50 13.365 mean 12.664 p99 16.880
+schema extraction: the cpu encoder's p50 over the device's: 2.96x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 38.93s
+after: load 36.40 32.68 31.10 17/4338 566894; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%;
+== run 11, commit 04f89fcb184264b19fb980daa67bf46c6a2a48b3, at 23:47:31: load 36.12 32.81 31.16 20/4189 583348; B70 runner build/test processes 0; B70 engines over 5 s before: ChatGPT ccs 0.0% rcs 0.0%; 
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 4.5895576e-6
+gliner2 relations, one text a pass: cpu encoder min 15.012 p50 16.688 mean 16.862 p99 19.415
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 6.737 p50 7.243 mean 7.254 p99 7.812
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 2.30x
+test glirel_on_the_real_checkpoint ... glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 5.722046e-6, 2600 pair labels held
+glirel, one text a pass: cpu encoder min 36.597 p50 73.612 mean 78.503 p99 150.491
+glirel, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 11.617 p50 16.374 mean 16.886 p99 26.679
+glirel, one text a pass: the cpu encoder's p50 over the device's: 4.50x
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 88.91s
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 7.4505806e-6
+schema extraction, one text a pass: cpu encoder min 16.845 p50 32.931 mean 32.612 p99 52.734
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 7.116 p50 12.105 mean 11.538 p99 15.836
+schema extraction: the cpu encoder's p50 over the device's: 2.72x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 37.84s
+after: load 42.00 34.77 31.99 9/4177 630686; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%;
+== run 12, commit 04f89fcb184264b19fb980daa67bf46c6a2a48b3, at 23:50:03: load 38.78 34.39 31.91 23/4216 651282; B70 runner build/test processes 0; B70 engines over 5 s before: ChatGPT ccs 0.0% rcs 0.0%; 
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 4.5895576e-6
+gliner2 relations, one text a pass: cpu encoder min 15.994 p50 20.916 mean 20.885 p99 27.346
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 6.750 p50 7.577 mean 7.618 p99 8.787
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 2.76x
+test glirel_on_the_real_checkpoint ... glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 5.722046e-6, 2600 pair labels held
+glirel, one text a pass: cpu encoder min 34.526 p50 53.001 mean 59.019 p99 92.669
+glirel, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 10.770 p50 12.724 mean 13.384 p99 22.575
+glirel, one text a pass: the cpu encoder's p50 over the device's: 4.17x
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 88.56s
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 7.4505806e-6
+schema extraction, one text a pass: cpu encoder min 18.064 p50 35.230 mean 33.756 p99 50.673
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 7.303 p50 12.461 mean 11.802 p99 15.705
+schema extraction: the cpu encoder's p50 over the device's: 2.83x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 36.29s
+after: load 29.96 32.62 31.59 16/4176 706142; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%;
+== run 13, commit 04f89fcb184264b19fb980daa67bf46c6a2a48b3, at 23:52:29: load 26.95 31.89 31.36 11/4148 719997; B70 runner build/test processes 0; B70 engines over 5 s before: ChatGPT ccs 0.0% rcs 0.0%; 
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 4.5895576e-6
+gliner2 relations, one text a pass: cpu encoder min 15.525 p50 20.733 mean 21.415 p99 37.260
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 6.718 p50 7.839 mean 8.326 p99 14.839
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 2.64x
+test glirel_on_the_real_checkpoint ... glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 5.722046e-6, 2600 pair labels held
+glirel, one text a pass: cpu encoder min 35.003 p50 59.215 mean 65.013 p99 131.356
+glirel, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 10.928 p50 13.661 mean 14.367 p99 22.061
+glirel, one text a pass: the cpu encoder's p50 over the device's: 4.33x
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 92.85s
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 7.4505806e-6
+schema extraction, one text a pass: cpu encoder min 21.013 p50 40.350 mean 38.769 p99 53.548
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 7.599 p50 13.296 mean 12.617 p99 16.733
+schema extraction: the cpu encoder's p50 over the device's: 3.03x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 37.14s
+after: load 34.71 32.58 31.61 7/4192 774543; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%;
+== run 14, commit 04f89fcb184264b19fb980daa67bf46c6a2a48b3, at 23:55:02: load 30.23 31.67 31.33 24/4248 795536; B70 runner build/test processes 0; B70 engines over 5 s before: ChatGPT ccs 0.0% rcs 0.0%; 
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 4.5895576e-6
+gliner2 relations, one text a pass: cpu encoder min 17.430 p50 23.041 mean 23.285 p99 32.281
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 6.952 p50 7.739 mean 7.741 p99 9.250
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 2.98x
+test glirel_on_the_real_checkpoint ... glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 5.722046e-6, 2600 pair labels held
+glirel, one text a pass: cpu encoder min 32.783 p50 46.673 mean 50.838 p99 85.230
+glirel, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 10.768 p50 11.836 mean 12.368 p99 16.255
+glirel, one text a pass: the cpu encoder's p50 over the device's: 3.94x
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 87.49s
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 7.4505806e-6
+schema extraction, one text a pass: cpu encoder min 25.441 p50 50.936 mean 50.211 p99 80.737
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 9.699 p50 17.755 mean 17.457 p99 30.155
+schema extraction: the cpu encoder's p50 over the device's: 2.87x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 42.57s
+after: load 40.55 32.98 31.71 23/4195 874057; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%;
+== run 15, commit 04f89fcb184264b19fb980daa67bf46c6a2a48b3, at 23:57:39: load 39.45 33.12 31.78 14/4235 893446; B70 runner build/test processes 0; B70 engines over 5 s before: ChatGPT ccs 0.0% rcs 0.0%; 
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 4.5895576e-6
+gliner2 relations, one text a pass: cpu encoder min 16.285 p50 20.114 mean 20.528 p99 30.562
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 6.900 p50 7.687 mean 7.717 p99 9.831
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 2.62x
+test glirel_on_the_real_checkpoint ... glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 5.722046e-6, 2600 pair labels held
+glirel, one text a pass: cpu encoder min 26.963 p50 37.872 mean 42.436 p99 76.942
+glirel, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 10.493 p50 11.350 mean 11.795 p99 15.120
+glirel, one text a pass: the cpu encoder's p50 over the device's: 3.34x
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 88.48s
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 7.4505806e-6
+schema extraction, one text a pass: cpu encoder min 20.169 p50 41.953 mean 41.491 p99 64.309
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 7.936 p50 15.663 mean 15.615 p99 24.223
+schema extraction: the cpu encoder's p50 over the device's: 2.68x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 35.13s
+after: load 30.52 31.77 31.43 16/4142 968203; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%;
+== run 16, commit 04f89fcb184264b19fb980daa67bf46c6a2a48b3, at 00:00:12: load 35.17 32.66 31.72 34/4197 992993; B70 runner build/test processes 0; B70 engines over 5 s before: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%; 
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 4.5895576e-6
+gliner2 relations, one text a pass: cpu encoder min 16.094 p50 18.000 mean 18.317 p99 20.292
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 6.753 p50 7.390 mean 7.415 p99 8.354
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 2.44x
+test glirel_on_the_real_checkpoint ... glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 5.722046e-6, 2600 pair labels held
+glirel, one text a pass: cpu encoder min 33.657 p50 48.453 mean 53.616 p99 90.674
+glirel, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 11.045 p50 12.548 mean 12.853 p99 17.588
+glirel, one text a pass: the cpu encoder's p50 over the device's: 3.86x
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 83.77s
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 7.4505806e-6
+schema extraction, one text a pass: cpu encoder min 16.705 p50 32.244 mean 31.445 p99 48.623
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 6.996 p50 11.895 mean 11.456 p99 15.480
+schema extraction: the cpu encoder's p50 over the device's: 2.71x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 37.75s
+after: load 32.31 32.20 31.66 13/4247 1047459; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%;
+== run 17, commit 04f89fcb184264b19fb980daa67bf46c6a2a48b3, at 00:02:37: load 30.50 31.81 31.54 25/4202 1063204; B70 runner build/test processes 0; B70 engines over 5 s before: ChatGPT ccs 0.0% rcs 0.0%; 
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 4.5895576e-6
+gliner2 relations, one text a pass: cpu encoder min 14.997 p50 18.084 mean 20.322 p99 39.718
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 6.671 p50 7.412 mean 7.550 p99 12.002
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 2.44x
+test glirel_on_the_real_checkpoint ... glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 5.722046e-6, 2600 pair labels held
+glirel, one text a pass: cpu encoder min 32.900 p50 50.737 mean 56.228 p99 95.013
+glirel, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 10.955 p50 12.964 mean 13.265 p99 19.666
+glirel, one text a pass: the cpu encoder's p50 over the device's: 3.91x
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 85.73s
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 7.4505806e-6
+schema extraction, one text a pass: cpu encoder min 17.206 p50 34.632 mean 33.716 p99 51.228
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 7.090 p50 12.870 mean 12.560 p99 25.234
+schema extraction: the cpu encoder's p50 over the device's: 2.69x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 37.51s
+after: load 39.50 40.27 35.20 14/4118 1130220; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%;
+== run 18, commit 04f89fcb184264b19fb980daa67bf46c6a2a48b3, at 00:05:02: load 34.66 39.15 34.91 38/4301 1151877; B70 runner build/test processes 0; B70 engines over 5 s before: ChatGPT ccs 0.0% rcs 0.0%; 
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 4.5895576e-6
+gliner2 relations, one text a pass: cpu encoder min 16.196 p50 22.965 mean 23.286 p99 32.729
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 6.767 p50 8.750 mean 9.205 p99 15.841
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 2.62x
+test glirel_on_the_real_checkpoint ... glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 5.722046e-6, 2600 pair labels held
+glirel, one text a pass: cpu encoder min 32.825 p50 62.606 mean 69.147 p99 115.467
+glirel, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 11.085 p50 14.470 mean 15.099 p99 20.650
+glirel, one text a pass: the cpu encoder's p50 over the device's: 4.33x
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 94.40s
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 7.4505806e-6
+schema extraction, one text a pass: cpu encoder min 30.005 p50 64.887 mean 66.004 p99 110.100
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 10.848 p50 19.737 mean 19.386 p99 34.494
+schema extraction: the cpu encoder's p50 over the device's: 3.29x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 57.54s
+after: load 53.64 42.37 36.61 69/4506 1232536; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%;
+== run 19, commit 04f89fcb184264b19fb980daa67bf46c6a2a48b3, at 00:08:36: load 51.06 42.99 37.01 21/4328 1259201; B70 runner build/test processes 0; B70 engines over 5 s before: gnome-shell ccs 0.0% rcs 0.1%; ChatGPT ccs 0.0% rcs 0.0%; 
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 4.5895576e-6
+gliner2 relations, one text a pass: cpu encoder min 24.358 p50 37.070 mean 38.422 p99 62.257
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 8.847 p50 9.758 mean 9.955 p99 14.170
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 3.80x
+test glirel_on_the_real_checkpoint ... glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 5.722046e-6, 2600 pair labels held
+glirel, one text a pass: cpu encoder min 25.718 p50 39.910 mean 42.336 p99 73.656
+glirel, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 10.536 p50 11.693 mean 11.979 p99 16.046
+glirel, one text a pass: the cpu encoder's p50 over the device's: 3.41x
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 101.09s
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 7.4505806e-6
+schema extraction, one text a pass: cpu encoder min 16.920 p50 33.202 mean 33.111 p99 63.904
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 7.034 p50 12.258 mean 12.442 p99 24.222
+schema extraction: the cpu encoder's p50 over the device's: 2.71x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 35.88s
+after: load 30.65 39.66 36.76 5/4049 1332688; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%;
+== run 20, commit 04f89fcb184264b19fb980daa67bf46c6a2a48b3, at 00:11:15: load 25.11 38.00 36.26 8/4070 1347016; B70 runner build/test processes 0; B70 engines over 5 s before: ChatGPT ccs 0.0% rcs 0.0%; 
+gliner2 relations on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 4.5895576e-6
+gliner2 relations, one text a pass: cpu encoder min 17.858 p50 22.060 mean 22.411 p99 33.289
+gliner2 relations, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 7.234 p50 8.365 mean 8.600 p99 12.196
+gliner2 relations, one text a pass: the cpu encoder's p50 over the device's: 2.64x
+test glirel_on_the_real_checkpoint ... glirel on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 5.722046e-6, 2600 pair labels held
+glirel, one text a pass: cpu encoder min 25.245 p50 29.047 mean 35.175 p99 52.784
+glirel, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 10.523 p50 10.790 mean 11.387 p99 13.012
+glirel, one text a pass: the cpu encoder's p50 over the device's: 2.69x
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 72.28s
+schema extraction on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): largest logit difference from the cpu encoder 7.4505806e-6
+schema extraction, one text a pass: cpu encoder min 15.792 p50 29.223 mean 27.234 p99 36.360
+schema extraction, one text a pass: levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)) min 6.790 p50 11.141 mean 10.512 p99 13.496
+schema extraction: the cpu encoder's p50 over the device's: 2.62x
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 28.85s
+after: load 17.92 31.68 34.16 1/4170 1381234; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%;

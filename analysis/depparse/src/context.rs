@@ -60,8 +60,14 @@ impl DependencyContextGenerator {
         let s1deps = count(s1);
         let dist = match (s0, b0) {
             (Position::Node(s), Position::Node(b)) => {
-                let d = b.get() - s.get();
-                if d >= 4 { "4+".into() } else { d.to_string() }
+                let d = b.get() as i64 - s.get() as i64;
+                if d >= 4 {
+                    "4+".into()
+                } else if d <= -4 {
+                    "-4+".into()
+                } else {
+                    d.to_string()
+                }
             }
             _ => "*NULL*".into(),
         };

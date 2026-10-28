@@ -30,6 +30,31 @@ impl LearnedAspectSentiment {
         epochs: usize,
         lr: f64,
     ) -> Result<Self, String> {
+        Self::fit_inner(vectors, category_labels, docs, l2_reg, epochs, lr, false)
+    }
+
+    /// Fits with deterministic background down-sampling for corpora where
+    /// background pieces otherwise overwhelm every BIO class.
+    pub fn fit_balanced(
+        vectors: Arc<VectorAnnotator>,
+        category_labels: &[&str],
+        docs: &[LabeledAbsaDoc<'_>],
+        l2_reg: f64,
+        epochs: usize,
+        lr: f64,
+    ) -> Result<Self, String> {
+        Self::fit_inner(vectors, category_labels, docs, l2_reg, epochs, lr, true)
+    }
+
+    fn fit_inner(
+        vectors: Arc<VectorAnnotator>,
+        category_labels: &[&str],
+        docs: &[LabeledAbsaDoc<'_>],
+        l2_reg: f64,
+        epochs: usize,
+        lr: f64,
+        balance_bio: bool,
+    ) -> Result<Self, String> {
         let dim = vectors.dim();
         if dim == 0 {
             return Err("LearnedAspectSentiment::fit requires vector dimension > 0".into());
@@ -158,6 +183,21 @@ impl LearnedAspectSentiment {
             }
         }
 
+        if balance_bio {
+            let largest_non_background =
+                (1..5).map(|tag| bio_vecs.iter().filter(|(_, t)| t.0 == tag).count()).max().unwrap_or(0).max(1);
+            let background_count = bio_vecs.iter().filter(|(_, t)| *t == Tag(TAG_O)).count();
+            let background_stride = (background_count / largest_non_background).max(1);
+            let mut background_seen = 0usize;
+            bio_vecs.retain(|(_, tag)| {
+                if *tag != Tag(TAG_O) {
+                    return true;
+                }
+                let keep = background_seen.is_multiple_of(background_stride);
+                background_seen += 1;
+                keep
+            });
+        }
         let bio_refs: Vec<(&[f32], Tag)> = bio_vecs.iter().map(|(v, t)| (v.as_slice(), *t)).collect();
         let bio_head = ClassifierHead::fit_single_label(model.clone(), dim, bio_tags, &bio_refs, l2_reg, epochs, lr)?;
 

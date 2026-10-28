@@ -84,6 +84,9 @@ impl Manifest {
         let expected = match a.family {
             Family::Bert => PairTemplate::Bert,
             Family::Roberta => PairTemplate::Roberta,
+            Family::DebertaV2 => {
+                return Err(invalid("manifest.json: rerank: FAMILY_DEBERTA_V2 has no pair template yet"));
+            }
         };
         if r.pair_template != expected || (expected == PairTemplate::Bert && a.token_types < 2) {
             return Err(invalid("manifest.json: rerank.pair_template: incompatible architecture or token_types"));

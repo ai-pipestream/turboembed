@@ -104,6 +104,7 @@ impl Area {
             }
             // 1 international acre = 4840 yd² = 4046.8564224 m².
             Area::Acre => dec(40_468_564_224, 7),
+            Area::Mu => dec(2000, 0).checked_div(dec(3, 0)).expect("constant mu factor"),
         }
     }
 }
@@ -169,6 +170,8 @@ impl Weight {
             Weight::Pound => dec(45_359_237, 8),
             Weight::Ounce => dec(28_349_523_125, 12),
             Weight::Dram => dec(17_718_451_953_125, 16),
+            Weight::Jin => dec(5, 1),
+            Weight::Liang => dec(5, 2),
             Weight::Grain => dec(6_479_891, 11),
             Weight::Pennyweight => dec(155_517_384, 11),
             Weight::Stone => dec(635_029_318, 8),
@@ -328,6 +331,7 @@ impl Energy {
             Energy::Kilojoule => dec(1_000, 0),
             Energy::WattHour => dec(3_600, 0),
             Energy::KilowattHour => dec(3_600_000, 0),
+            Energy::Kilocalorie => dec(4184, 0),
         }
     }
 }
@@ -424,6 +428,7 @@ impl Unit {
         let base = self.base_unit()?;
         let converted = match self {
             Unit::Speed(s) => s.to_base(value)?,
+            Unit::Area(Area::Mu) => value.checked_mul(dec(2000, 0))?.checked_div(dec(3, 0))?,
             Unit::Rate(Rate::Information(i, p)) => value.checked_mul(i.factor())?.checked_div(p.seconds())?,
             Unit::Temperature(t) => t.to_base(value)?,
             Unit::Age(a) => a.to_base(value)?,

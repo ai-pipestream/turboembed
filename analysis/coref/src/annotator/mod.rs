@@ -6,14 +6,14 @@
 use std::sync::Arc;
 
 use turbo_analysis::{Annotator, Edges, Error, Groups, ModelRef, Refs, View};
-use turbo_analysis_layers::{Entities, PhraseChunks, Phrases, PosTags, Sentences, Tokens};
+use turbo_analysis_layers::{Entities, PhraseChunks, Phrases, PosTags, Sentences, Subwords, Tokens};
 
 use crate::detect::Detector;
 use crate::input::{CorefInput, Prepared, lowercase};
 use crate::layer::{Mentions, Speakers};
 use crate::model::CorefModel;
 use crate::sieve::Resolver;
-use crate::vectors::{TokenVectors, WordVectors, encode};
+use crate::vectors::{TokenVectors, WordVectors, check_vectors, encode};
 
 mod config;
 mod output;
@@ -153,10 +153,24 @@ impl CorefAnnotator {
 
     /// Validates the input, detects its mentions and builds the resolver
     /// over them; `None` for a document without tokens.
-    pub(crate) fn resolver<'p>(&'p self, prepared: &'p Prepared<'p>) -> Result<Resolver<'p>, String> {
+    pub(crate) fn resolver<'p>(
+        &'p self,
+        input: &CorefInput<'p>,
+        prepared: &'p Prepared<'p>,
+        subwords: Option<&Subwords>,
+    ) -> Result<Resolver<'p>, String> {
         let mentions = Detector::new(prepared, &self.person_types).detect();
         let token_vectors = match &self.encoder {
-            Some(e) => Some(encode(e.as_ref(), &prepared.forms, &prepared.sentence_of_token)?),
+            Some(e) => {
+                let direct = e.vectors_spans(input.view, input.tokens, subwords, input.sentences).transpose()?;
+                Some(match direct {
+                    Some(vectors) => {
+                        check_vectors(&vectors, prepared.forms.len(), e.dimension())?;
+                        vectors
+                    }
+                    None => encode(e.as_ref(), &prepared.forms, &prepared.sentence_of_token)?,
+                })
+            }
             None => None,
         };
         Ok(Resolver::new(
@@ -171,28 +185,42 @@ impl CorefAnnotator {
         ))
     }
 
-    /// Resolves coreference over `input`.
-    pub fn resolve(&self, input: &CorefInput<'_>) -> Result<Resolution, String> {
+    fn resolve_with_subwords(&self, input: &CorefInput<'_>, subwords: Option<&Subwords>) -> Result<Resolution, String> {
         let Some(prepared) = input.prepare()? else {
             return Ok(output::empty(input.view));
         };
-        let mut resolver = self.resolver(&prepared)?;
+        let mut resolver = self.resolver(input, &prepared, subwords)?;
         match &self.model {
             None => resolver.resolve(),
             Some(model) => resolver.resolve_with_model(model, self.threshold)?,
         }
         output::layers(input.view, &mut resolver)
     }
+
+    /// Resolves coreference over `input`.
+    pub fn resolve(&self, input: &CorefInput<'_>) -> Result<Resolution, String> {
+        self.resolve_with_subwords(input, None)
+    }
 }
 
 impl Annotator for CorefAnnotator {
     const ID: &'static str = "turbo-coref:coref";
-    type Reads = (View, Sentences, Tokens, PosTags, Entities, Option<PhraseChunks>, Option<Phrases>, Option<Speakers>);
+    type Reads = (
+        View,
+        Sentences,
+        Tokens,
+        PosTags,
+        Entities,
+        Option<PhraseChunks>,
+        Option<Phrases>,
+        Option<Speakers>,
+        Option<Subwords>,
+    );
     type Writes = (Mentions, Groups<Mentions>, Edges<Mentions, Mentions>);
 
     fn annotate(
         &self,
-        (view, sentences, tokens, tags, entities, chunks, phrases, speakers): Refs<'_, Self>,
+        (view, sentences, tokens, tags, entities, chunks, phrases, speakers, subwords): Refs<'_, Self>,
     ) -> Result<Self::Writes, Error> {
         let input = CorefInput {
             text: view.text(),
@@ -205,7 +233,7 @@ impl Annotator for CorefAnnotator {
             phrases,
             speakers,
         };
-        self.resolve(&input).map_err(|detail| Error::Annotator { annotator: Self::ID, detail })
+        self.resolve_with_subwords(&input, subwords).map_err(|detail| Error::Annotator { annotator: Self::ID, detail })
     }
 
     fn model(&self) -> Option<ModelRef> {

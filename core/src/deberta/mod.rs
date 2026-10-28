@@ -23,7 +23,11 @@ use crate::{
     status::{Error, Result, invalid},
 };
 use attention::Run;
+/// A run's workspace, reused across runs (`Encoder::workspace`).
+pub(crate) use attention::Run as Workspace;
 pub use config::Config;
+#[cfg(feature = "levelzero")]
+pub(crate) use math::bucket;
 pub use projections::TokenPromptProjections;
 use weights::Weights;
 
@@ -67,6 +71,43 @@ impl Encoder {
         let threads = crate::cpu::threads(0, std::env::var("TURBO_CPU_THREADS").ok().as_deref())
             .map_err(|r| Error::new(r.code, r.message))?;
         Ok(Self { config, weights, pool: Mutex::new(Pool::new(threads)) })
+    }
+
+    /// The encoder from a backend table's F32 tensors, in TURBO_DEBERTA_*
+    /// then TURBO_BERT_* layer order (turbo_backend.h). It computes on the
+    /// pool its caller hands `encode_on`.
+    pub(crate) fn from_table(config: Config, tensors: &[&[f32]]) -> Result<Self> {
+        config.check()?;
+        let weights = Weights::from_table(&config, tensors)?;
+        Ok(Self { config, weights, pool: Mutex::new(Pool::new(1)) })
+    }
+
+    /// A workspace for runs of up to `max_seq` positions on `pool`, which
+    /// `encode_into` then computes in without allocating.
+    pub(crate) fn workspace(&self, pool: &Pool, max_seq: usize) -> Result<Workspace> {
+        let cached = self.weights.layers.iter().all(|l| l.pos.is_some());
+        let mut run = Run::new(&self.config, &vec![true; max_seq.max(1)], cached, pool.threads())?;
+        run.presize(&self.config)?;
+        Ok(run)
+    }
+
+    /// One sequence's last hidden states into `out`, [ids.len(), hidden],
+    /// on `pool`'s threads and in `run`, a workspace from `workspace` for
+    /// that pool and at least this many positions: `encode`'s bits
+    /// whatever the thread count, and no allocation.
+    pub(crate) fn encode_into(
+        &self,
+        pool: &mut Pool,
+        run: &mut Workspace,
+        ids: &[u32],
+        mask: &[bool],
+        out: &mut [f32],
+    ) -> Result<()> {
+        self.check(ids, mask)?;
+        run.reuse(&self.config, mask);
+        self.forward(run, ids, None, Some(pool))?;
+        scatter_into(run, self.config.hidden, out);
+        Ok(())
     }
 
     /// The same encoder on `threads` threads, the caller's among them:
@@ -133,8 +174,21 @@ impl Encoder {
         ids: &[u32],
         mask: &[bool],
         trace: bool,
-        mut pool: Option<&mut Pool>,
+        pool: Option<&mut Pool>,
     ) -> Result<(Vec<Vec<f32>>, Vec<f32>)> {
+        let c = &self.config;
+        self.check(ids, mask)?;
+        let h = c.hidden;
+        let cached = self.weights.layers.iter().all(|l| l.pos.is_some());
+        let mut run = Run::new(c, mask, cached, pool.as_ref().map_or(1, |p| p.threads()))?;
+        let mut layers = Vec::new();
+        self.forward(&mut run, ids, trace.then_some(&mut layers), pool)?;
+        let mut last = weights::zeros(run.n * h)?;
+        scatter_into(&run, h, &mut last);
+        Ok((layers, last))
+    }
+
+    fn check(&self, ids: &[u32], mask: &[bool]) -> Result<()> {
         let c = &self.config;
         if ids.is_empty() || ids.len() > c.max_sequence || ids.len() != mask.len() || !mask.iter().any(|x| *x) {
             return Err(invalid("deberta sequence/mask shape or max_sequence limit"));
@@ -142,9 +196,20 @@ impl Encoder {
         if ids.iter().any(|&id| id as usize >= c.vocabulary) {
             return Err(invalid("deberta token ID outside vocabulary"));
         }
-        let h = c.hidden;
-        let cached = self.weights.layers.iter().all(|l| l.pos.is_some());
-        let mut run = Run::new(c, mask, cached, pool.as_ref().map_or(1, |p| p.threads()))?;
+        Ok(())
+    }
+
+    /// The embeddings and every layer in `run`, made for `ids`' mask; each
+    /// state after the embeddings and each layer onto `trace`.
+    fn forward(
+        &self,
+        run: &mut Run,
+        ids: &[u32],
+        mut trace: Option<&mut Vec<Vec<f32>>>,
+        pool: Option<&mut Pool>,
+    ) -> Result<()> {
+        let mut pool = pool;
+        let (c, h) = (&self.config, self.config.hidden);
         // Visible rows are their embeddings, LayerNorm'd; the shared
         // masked row stays zero, as upstream multiplies it by its mask.
         for (row, &p) in run.x.chunks_exact_mut(h).zip(&run.at) {
@@ -153,18 +218,16 @@ impl Encoder {
         }
         let visible = run.at.len() * h;
         self.weights.embedding_norm.apply(&mut run.x[..visible], c.layer_norm_eps)?;
-        let mut layers = Vec::new();
-        if trace {
-            layers.push(scatter(&run, h)?);
+        if let Some(t) = trace.as_deref_mut() {
+            t.push(scatter(run, h)?);
         }
         for layer in &self.weights.layers {
             run.layer(c, layer, &self.weights.relative, pool.as_deref_mut())?;
-            if trace {
-                layers.push(scatter(&run, h)?);
+            if let Some(t) = trace.as_deref_mut() {
+                t.push(scatter(run, h)?);
             }
         }
-        let last = scatter(&run, h)?;
-        Ok((layers, last))
+        Ok(())
     }
 }
 
@@ -172,6 +235,12 @@ impl Encoder {
 /// shared masked row at every masked position.
 fn scatter(run: &Run, h: usize) -> Result<Vec<f32>> {
     let mut out = weights::zeros(run.n * h)?;
+    scatter_into(run, h, &mut out);
+    Ok(out)
+}
+
+/// `scatter` into `out`, [run.n, h].
+fn scatter_into(run: &Run, h: usize, out: &mut [f32]) {
     let mut next = run.at.iter().peekable();
     let mut seen = 0;
     for (p, dst) in out.chunks_exact_mut(h).enumerate() {
@@ -184,5 +253,4 @@ fn scatter(run: &Run, h: usize) -> Result<Vec<f32>> {
         };
         dst.copy_from_slice(&run.x[row * h..(row + 1) * h]);
     }
-    Ok(out)
 }

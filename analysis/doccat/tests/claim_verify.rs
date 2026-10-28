@@ -20,6 +20,8 @@ fn run(verifier: Verifier, d: Document) -> Result<Run, Error> {
         d.require(&Key::<Sentences>::DEFAULT)?,
         d.get::<Entities>(),
         d.get::<Vectors<Sentences>>(),
+        d.get::<turbo_analysis_layers::Tokens>(),
+        d.get::<turbo_analysis_layers::Terms>(),
     ))?;
     edges.check().unwrap();
     Ok((rows(&edges), verifier.scorer().seen()))
@@ -137,9 +139,63 @@ fn nested_chunks_are_never_paired() {
     d.add(&Key::<Chunks>::DEFAULT, chunks, Provenance::by("test:chunks")).unwrap();
     let v = ClaimVerificationAnnotator::<_, Chunks>::new(RuleNli::three());
     let (edges,) = v
-        .annotate((d.require(&Key::<View>::DEFAULT).unwrap(), d.require(&Key::<Chunks>::DEFAULT).unwrap(), None, None))
+        .annotate((
+            d.require(&Key::<View>::DEFAULT).unwrap(),
+            d.require(&Key::<Chunks>::DEFAULT).unwrap(),
+            None,
+            None,
+            None,
+            None,
+        ))
         .unwrap();
     let pairs: Vec<(usize, usize)> = edges.iter().map(|(_, e)| (e.from.get(), e.to.get())).collect();
     assert_eq!(pairs, [(1, 2)], "the section holds both chunks, so only the siblings pair");
     assert_eq!(v.scorer().seen(), 2);
+}
+
+#[test]
+fn lexical_pruning_reuses_token_spans_and_folded_terms() {
+    use turbo_analysis::{Provenance, Span, Spans, ViewId};
+    use turbo_analysis_layers::{Sentences, Strs, Terms, Tokens};
+
+    fn add(d: &mut Document, folded: &[&str]) {
+        let view = d.require(&Key::<View>::DEFAULT).unwrap();
+        let mut spans = Spans::new(view.id());
+        let mut surface = Strs::default();
+        let mut forms = Strs::default();
+        for (i, form) in folded.iter().enumerate() {
+            let word = if i == 0 { "Acme" } else { "sells" };
+            for (start, _) in view.text().match_indices(word) {
+                spans.push(Span::new(start as u32, start as u32 + word.len() as u32));
+                surface.push(word);
+                forms.push(form);
+            }
+        }
+        d.add(&Key::<Tokens>::DEFAULT, Tokens { spans, sentence: None }, Provenance::by("test:tokens")).unwrap();
+        d.add(
+            &Key::<Terms>::DEFAULT,
+            Terms { surface, folded: forms, stem: None, lemma: None },
+            Provenance::by("test:terms"),
+        )
+        .unwrap();
+    }
+
+    let document = || {
+        let mut d = Document::new("Acme sells parts. Acme sells parts.");
+        let mut spans = Spans::new(ViewId(0));
+        spans.push(Span::new(0, 17));
+        spans.push(Span::new(18, 35));
+        d.add(&Key::<Sentences>::DEFAULT, Sentences { spans }, Provenance::by("test:sentences")).unwrap();
+        d
+    };
+
+    let mut stop = document();
+    add(&mut stop, &["the", "the"]);
+    let (_, scored) = run(verifier(), stop).unwrap();
+    assert_eq!(scored, 0, "folded stop words suppress the lexical candidate");
+
+    let mut content = document();
+    add(&mut content, &["acme", "sells"]);
+    let (_, scored) = run(verifier(), content).unwrap();
+    assert_eq!(scored, 2, "folded content words make the candidate");
 }

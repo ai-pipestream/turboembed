@@ -7,7 +7,7 @@
 
 use std::collections::BTreeSet;
 
-use turbo_zoo::{Component, Format, Index, Kind, Licence, LicenceClass, Policy, verify};
+use turbo_zoo::{Component, Format, Http, Index, Kind, Licence, LicenceClass, Policy, verify};
 
 #[path = "builtin/checkpoints.rs"]
 mod checkpoints;
@@ -90,11 +90,12 @@ const BASE: &str = "https://archive.apache.org/dist/opennlp/models/ud-models-1.3
 
 /// The models the MASC recipes train (analysis/train-recipes), listed at
 /// their addresses in a release of this repository.
-const MASC_MODELS: [&str; 4] = [
+const MASC_MODELS: [&str; 5] = [
     "turbo-en-masc-3.0.0-sentence-1",
     "turbo-en-masc-3.0.0-tokens-1",
     "turbo-en-masc-3.0.0-pos-1",
     "turbo-en-masc-3.0.0-chunks-1",
+    "turbo-en-masc-3.0.0-aspect-sentiment-1",
 ];
 
 /// The models the UD recipes train (analysis/train-recipes) that passed
@@ -122,9 +123,42 @@ const TATOEBA_MODEL: &str = "turbo-mul-tatoeba-langdetect-1";
 /// sentences and documents at their addresses in a fourth release.
 const WEB_MODEL: &str = "turbo-mul-tatoeba-fineweb-langdetect-1";
 
+/// The dependency parser models (MaxEnt and Feedforward) the UD recipes
+/// train on the four settled CC BY 4.0 UD 2.16 treebanks (#922).
+const UD_DEPPARSE_MODELS: [&str; 8] = [
+    "turbo-es-ud-ancora-2.16-depparse-maxent-1",
+    "turbo-es-ud-ancora-2.16-depparse-feedforward-1",
+    "turbo-ca-ud-ancora-2.16-depparse-maxent-1",
+    "turbo-ca-ud-ancora-2.16-depparse-feedforward-1",
+    "turbo-fi-ud-ftb-2.16-depparse-maxent-1",
+    "turbo-fi-ud-ftb-2.16-depparse-feedforward-1",
+    "turbo-it-ud-markit-2.16-depparse-maxent-1",
+    "turbo-it-ud-markit-2.16-depparse-feedforward-1",
+];
+/// The 28-label linear heads trained on GoEmotions (#926), listed at their
+/// addresses in a fifth release of this repository.
+const GOEMOTIONS_HEADS: [&str; 2] =
+    ["turbo-en-goemotions-minilm-l6-v2-head-1", "turbo-en-goemotions-bge-small-en-v1.5-head-1"];
+
+/// The 6-label incivility linear heads trained on Civil Comments (#888),
+/// with and without parent-comment context, listed at their addresses in a
+/// sixth release of this repository.
+const CIVIL_COMMENTS_HEADS: [&str; 4] = [
+    "turbo-en-civil-comments-minilm-l6-v2-head-1",
+    "turbo-en-civil-comments-minilm-l6-v2-context-head-1",
+    "turbo-en-civil-comments-bge-small-en-v1.5-head-1",
+    "turbo-en-civil-comments-bge-small-en-v1.5-context-head-1",
+];
+
 /// A model this repository's recipes train.
 fn trained_here(id: &str) -> bool {
-    MASC_MODELS.contains(&id) || UD_RECIPE_MODELS.contains(&id) || id == TATOEBA_MODEL || id == WEB_MODEL
+    MASC_MODELS.contains(&id)
+        || UD_RECIPE_MODELS.contains(&id)
+        || UD_DEPPARSE_MODELS.contains(&id)
+        || id == TATOEBA_MODEL
+        || id == WEB_MODEL
+        || GOEMOTIONS_HEADS.contains(&id)
+        || CIVIL_COMMENTS_HEADS.contains(&id)
 }
 
 /// The published neural checkpoints the index lists (docs/licences.md,
@@ -168,10 +202,11 @@ const SHARE_ALIKE_EVAL_SETS: [&str; 1] = ["codespell-dictionary-en"];
 /// data and fetched only after accepting MS MARCO's terms.
 const RETRIEVAL_CHECKPOINTS: [&str; 2] = ["opensearch-neural-sparse-encoding-v1", "colbert-ir-colbertv2.0"];
 
-/// The permissive training datasets in the built-in index (#945): MASC,
-/// the four settled CC BY 4.0 UD 2.16 treebanks, the Tatoeba export,
-/// Civil Comments, and GoEmotions (filtered split and raw annotations).
-const DATASETS: [&str; 9] = [
+/// The permissive training and evaluation datasets in the built-in index (#945, #890, #925):
+/// CSC, MASC, the four settled CC BY 4.0 UD 2.16 treebanks, the Tatoeba export,
+/// Civil Comments, GoEmotions (filtered split and raw annotations), and Toxic Spans.
+const DATASETS: [&str; 12] = [
+    "csc-conversational-sarcasm-2024",
     "masc-3.0.0",
     "ud-spanish-ancora-r2.16",
     "ud-catalan-ancora-r2.16",
@@ -179,8 +214,10 @@ const DATASETS: [&str; 9] = [
     "ud-italian-markit-r2.16",
     "tatoeba-2026-10-10",
     "civil-comments",
+    "civil-comments-wilds",
     "goemotions",
     "goemotions-raw",
+    "toxic-spans",
 ];
 
 #[test]
@@ -216,8 +253,11 @@ fn the_ud_models_carry_their_treebank_licences() {
     }
     expected.extend(MASC_MODELS.map(str::to_owned));
     expected.extend(UD_RECIPE_MODELS.map(str::to_owned));
+    expected.extend(UD_DEPPARSE_MODELS.map(str::to_owned));
     expected.insert(TATOEBA_MODEL.to_owned());
     expected.insert(WEB_MODEL.to_owned());
+    expected.extend(GOEMOTIONS_HEADS.map(str::to_owned));
+    expected.extend(CIVIL_COMMENTS_HEADS.map(str::to_owned));
     expected.extend(CHECKPOINTS.map(str::to_owned));
     expected.extend(SHARE_ALIKE_CHECKPOINTS.map(str::to_owned));
     expected.extend(LOCAL_CHECKPOINTS.map(str::to_owned));
@@ -321,7 +361,8 @@ fn every_builtin_artifact_fetches_and_verifies() {
     acc.accept(&user, Licence::CcBySa30, 0).unwrap();
     let index = Index::builtin();
     let ids: Vec<String> = index.list().iter().map(|a| a.id.to_string()).collect();
-    let zoo = turbo_zoo::Zoo::new(index, cache.clone(), Policy::default(), &turbo_zoo::Http);
+    let transport = Http::new();
+    let zoo = turbo_zoo::Zoo::new(index, cache.clone(), Policy::default(), &transport);
     for id in &ids {
         let f = zoo.fetch(id, &user, &acc).unwrap();
         assert_eq!(f.files.len(), f.artifact.files.len(), "{id}");

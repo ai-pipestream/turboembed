@@ -6,12 +6,15 @@ pub mod analysis;
 pub mod api;
 pub mod capabilities;
 pub mod catalog;
+mod ceiling;
 pub mod config;
+pub mod deadline;
 pub mod format;
 mod health;
 mod infer;
 pub mod inspect;
 mod kserve;
+pub mod metrics;
 pub mod offsets;
 pub mod probe;
 pub mod progressive;
@@ -22,10 +25,12 @@ pub mod state;
 pub mod status;
 pub mod stream;
 pub mod tasks;
+pub mod tls;
 mod training;
 pub mod vocabulary;
 
 pub use crate::state::Held;
+pub use crate::tls::TlsConfig;
 
 /// The messages and services of the protos.
 pub mod proto {
@@ -101,7 +106,7 @@ use crate::state::State;
 /// The services' own refusals all carry turbo-code, so an OUT_OF_RANGE
 /// without it is that one, and is answered RESOURCE_EXHAUSTED as other gRPC
 /// servers answer it: OUT_OF_RANGE is TURBO_E_CAPACITY's (docs/kserve.md).
-fn too_large<B>(mut r: http::Response<B>) -> http::Response<B> {
+pub(crate) fn too_large<B>(mut r: http::Response<B>) -> http::Response<B> {
     let h = r.headers_mut();
     let out_of_range = (Code::OutOfRange as i32).to_string();
     if h.get("grpc-status").is_some_and(|v| v.as_bytes() == out_of_range.as_bytes()) && !h.contains_key("turbo-code") {
@@ -118,8 +123,11 @@ pub struct Server {
     state: Arc<State>,
     search_registry: Arc<search::SearchRegistry>,
     addr: SocketAddr,
+    metrics_addr: Option<SocketAddr>,
     stop: Option<oneshot::Sender<()>>,
     task: JoinHandle<std::result::Result<(), tonic::transport::Error>>,
+    metrics_stop: Option<oneshot::Sender<()>>,
+    metrics_task: Option<JoinHandle<()>>,
     sink: Option<Arc<SinkForwarder>>,
 }
 
@@ -141,14 +149,21 @@ pub struct Serve {
     pub training: Option<PathBuf>,
     pub sink: Option<SinkConfig>,
     pub sink_receiver: Option<SinkReceiver>,
+    /// The most bytes one call's request may carry in all, frames
+    /// included; `config::DEFAULT_MAX_STREAM_BYTES` when `None`.
+    pub max_stream_bytes: Option<u64>,
+    pub tls: Option<TlsConfig>,
+    pub metrics_listen: Option<SocketAddr>,
 }
 
 impl Server {
     /// Binds `listen` and answers gRPC, with nothing loaded yet. A bundle
     /// path that names no bundle, or two models of one name, is refused. A
     /// request message over `max_message_bytes` is refused by gRPC with
-    /// RESOURCE_EXHAUSTED before it is read. `serve.admin` opts in to the
-    /// admin calls LoadBundle, UnloadBundle, RecordLicenceAcceptance,
+    /// RESOURCE_EXHAUSTED before it is read; a request whose frames pass
+    /// `serve.max_stream_bytes` in all is refused the same way at the frame
+    /// that passes it. A reply message over `config::max_reply_bytes` is
+    /// not sent. `serve.admin` opts in to the admin calls LoadBundle, UnloadBundle, RecordLicenceAcceptance,
     /// InstallModel, TrainStaticModel and DeleteStaticModel; off, they
     /// refuse UNIMPLEMENTED.
     pub async fn start(
@@ -158,20 +173,26 @@ impl Server {
         serve: Serve,
     ) -> std::result::Result<Server, String> {
         let names = config::names_with(&models, serve.admin)?;
+        let builder = tls::configure_server(tonic::transport::Server::builder(), serve.tls.as_ref())?;
         let listener = TcpListener::bind(listen).await.map_err(|e| format!("listen on {listen}: {e}"))?;
         let addr = listener.local_addr().map_err(|e| format!("listen on {listen}: {e}"))?;
         let state = Arc::new(State::new(names, models));
+        let ceiling = serve.max_stream_bytes.unwrap_or(config::DEFAULT_MAX_STREAM_BYTES);
+        let max_reply_bytes = config::max_reply_bytes(max_message_bytes);
         let kserve = GrpcInferenceServiceServer::new(kserve::Inference { state: state.clone() })
-            .max_decoding_message_size(max_message_bytes);
+            .max_decoding_message_size(max_message_bytes)
+            .max_encoding_message_size(max_reply_bytes);
         let search_registry = Arc::new(search::SearchRegistry::new());
         let search = TurboSearchServiceServer::new(search::SearchService {
             state: state.clone(),
             registry: search_registry.clone(),
             admin: serve.admin,
         })
-        .max_decoding_message_size(max_message_bytes);
+        .max_decoding_message_size(max_message_bytes)
+        .max_encoding_message_size(max_reply_bytes);
         let health = HealthServer::new(health::HealthService { state: state.clone() })
-            .max_decoding_message_size(max_message_bytes);
+            .max_decoding_message_size(max_message_bytes)
+            .max_encoding_message_size(max_reply_bytes);
         let store = match &serve.vocabulary {
             Some(dir) => Some(Arc::new(vocabulary::Store::open(dir).map_err(|e| format!("vocabulary store: {e}"))?)),
             None => None,
@@ -179,6 +200,13 @@ impl Server {
         let training = match &serve.training {
             Some(dir) => Some(training::open(dir).map_err(|e| format!("training directory: {e}"))?),
             None => None,
+        };
+        let (metrics_addr, metrics_stop, metrics_task) = match serve.metrics_listen {
+            Some(m_listen) => {
+                let (m_addr, m_stop, m_task) = metrics::start_http_listener(m_listen, state.clone()).await?;
+                (Some(m_addr), Some(m_stop), Some(m_task))
+            }
+            None => (None, None, None),
         };
         // The forwarder spawns its drain, so it starts after every step that
         // can refuse the start: a refused start leaves no task behind.
@@ -188,19 +216,27 @@ impl Server {
             admin: serve.admin,
             sink: sink.clone(),
         })
-        .max_decoding_message_size(max_message_bytes);
-        let receiver =
-            serve.sink_receiver.map(|r| TurboSinkServiceServer::new(r).max_decoding_message_size(max_message_bytes));
+        .max_decoding_message_size(max_message_bytes)
+        .max_encoding_message_size(max_reply_bytes);
+        let receiver = serve.sink_receiver.map(|r| {
+            TurboSinkServiceServer::new(r)
+                .max_decoding_message_size(max_message_bytes)
+                .max_encoding_message_size(max_reply_bytes)
+        });
         let training = TurboTrainingServiceServer::new(training::TrainingService::new(
             state.clone(),
             store.clone(),
             training,
             serve.admin,
         ))
-        .max_decoding_message_size(max_message_bytes);
+        .max_decoding_message_size(max_message_bytes)
+        .max_encoding_message_size(max_reply_bytes);
         let vocabulary = TurboVocabularyServiceServer::new(vocabulary::Vocabulary { store, admin: serve.admin })
-            .max_decoding_message_size(max_message_bytes);
-        let catalog = TurboCatalogServiceServer::new(catalog::CatalogService::new(serve.catalog, serve.admin));
+            .max_decoding_message_size(max_message_bytes)
+            .max_encoding_message_size(max_reply_bytes);
+        let catalog = TurboCatalogServiceServer::new(catalog::CatalogService::new(serve.catalog, serve.admin))
+            .max_decoding_message_size(max_message_bytes)
+            .max_encoding_message_size(max_reply_bytes);
         let (stop, stopped) = oneshot::channel::<()>();
         // TCP_NODELAY on every accepted socket. The builder's tcp_nodelay
         // does not reach a listener served with serve_with_incoming, and
@@ -208,8 +244,9 @@ impl Server {
         // client's delayed ACK (about 40 ms a ModelInfer).
         let incoming = TcpIncoming::from(listener).with_nodelay(Some(true));
         let task = tokio::spawn(
-            tonic::transport::Server::builder()
-                .layer(tower::util::MapResponseLayer::new(too_large))
+            builder
+                .layer(metrics::MetricsLayer::new(state.metrics.clone()))
+                .layer(tower::util::MapRequestLayer::new(ceiling::cap(ceiling)))
                 .add_service(kserve)
                 .add_service(analysis)
                 .add_service(search)
@@ -222,7 +259,17 @@ impl Server {
                     let _ = stopped.await;
                 }),
         );
-        Ok(Server { state, search_registry, addr, stop: Some(stop), task, sink })
+        Ok(Server {
+            state,
+            search_registry,
+            addr,
+            metrics_addr,
+            stop: Some(stop),
+            task,
+            metrics_stop,
+            metrics_task,
+            sink,
+        })
     }
 
     /// Configures the directory within which `PersistIndex` and
@@ -233,6 +280,17 @@ impl Server {
 
     pub fn local_addr(&self) -> SocketAddr {
         self.addr
+    }
+
+    /// Returns the bound Prometheus `/metrics` HTTP address when `--metrics-listen`
+    /// is configured.
+    pub fn metrics_addr(&self) -> Option<SocketAddr> {
+        self.metrics_addr
+    }
+
+    /// Renders the server's Prometheus metrics in text exposition format (`0.0.4`).
+    pub fn metrics(&self) -> String {
+        self.state.metrics.render(&self.state)
     }
 
     /// Loads every model and makes its sessions. The error names the model,
@@ -287,7 +345,13 @@ impl Server {
         if let Some(s) = self.stop.take() {
             let _ = s.send(());
         }
+        if let Some(s) = self.metrics_stop.take() {
+            let _ = s.send(());
+        }
         let _ = (&mut self.task).await;
+        if let Some(m) = self.metrics_task.take() {
+            let _ = m.await;
+        }
         self.close_sink(std::time::Duration::from_secs(10)).await;
     }
 }

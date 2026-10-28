@@ -1,0 +1,117 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-27T13:49:35Z",
+  "machine": {
+    "arch": "m2",
+    "host_cpu": "Apple M2",
+    "os": "macos"
+  },
+  "device": {
+    "backend": "metal",
+    "kind": "DEVICE_IGPU",
+    "name": "Apple M2",
+    "vendor": "Apple",
+    "driver_version": "macOS 27.0.1 (26A434)",
+    "runtime_version": "Metal, macOS SDK 27.0",
+    "memory_total": 19069665280
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 metal cpu",
+    "commit": "e9b0491d4e8e29b5de9975d379f095adf2880c5d",
+    "pushed_to": [
+      "origin/fable/812-aligned"
+    ],
+    "settings": [
+      "TURBO_METAL_TUNED=default",
+      "TURBO_METAL_CHOICES=linear=auto;attn=auto;forced="
+    ]
+  },
+  "task": "TASK_EMBED",
+  "precision": "PRECISION_FASTEST",
+  "compute_dtype": "DTYPE_F16",
+  "bundle": {
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "revision": "1",
+    "manifest_sha256": "3c305237a79d0b4bcae9513683b2373c84190d8a2d96941aacb25e035c30b9ea",
+    "artifact_sha256": "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db",
+    "tokenizer_sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
+  },
+  "rows": {
+    "kind": "ROWS_DENSE",
+    "batch": 1,
+    "seq": 32,
+    "live_tokens": 32,
+    "cases": [
+      7
+    ],
+    "sha256": "c0ef073196c7fe2c5e74121a240b576879f8ca2a25e992b79905da44a9089205"
+  },
+  "timing": {
+    "warmup": 5,
+    "iterations": 20,
+    "p50_ms": 1.511792,
+    "p99_ms": 2.904583,
+    "mean_ms": 1.6019063,
+    "min_ms": 1.142917,
+    "max_ms": 2.904583,
+    "rows_per_second": 624.1961913545831,
+    "computed_tokens": 32
+  },
+  "conformance": {
+    "rows": 7,
+    "min_cosine": 0.9999995917466737,
+    "max_abs_diff": 0.0001329481601715088
+  },
+  "references": [
+    {
+      "name": "text-embeddings-inference",
+      "role": "end_to_end",
+      "pinned": "",
+      "version": "",
+      "commands": [],
+      "procedure": "",
+      "measured": null,
+      "not_run": "disabled on the command line (--no-tei)"
+    },
+    {
+      "name": "mlx",
+      "role": "kernel",
+      "pinned": "mlx@sha256:2ea1232407a42823ff3b562514e07a4c551cedbae195d7d0db3dc07ee1890b32",
+      "version": "0.29.3",
+      "commands": [
+        [
+          "python3",
+          "-E",
+          "<mlx-reference>",
+          "--model",
+          "<mlx-model>",
+          "--dtype",
+          "float16",
+          "--rows",
+          "<work>/rows.json",
+          "--warmup",
+          "5",
+          "--iterations",
+          "20",
+          "--version",
+          "0.29.3",
+          "--out",
+          "<work>/receipt.json"
+        ]
+      ],
+      "procedure": "MLX 0.29.3 on the machine's Python, the BERT encoder of bench/reference/mlx_reference.py with every weight cast to float16, mx.compile, mean pooling and L2 in F32, on the same token rows as a padded batch; untimed runs, then 20 timed as host wall time, each waited for with mx.eval, the rows already on the device and the vectors not read back: min 2.8800 ms, mean 3.4189 ms. min_cosine is against each row's expected vector. Host load averages before the runs 34.86 25.26 25.76. SHA-256 of lib/libmlx.dylib (the pin) 2ea1232407a42823ff3b562514e07a4c551cedbae195d7d0db3dc07ee1890b32, lib/mlx.metallib 516d89e779bd310bcf289d5ae6611577fa267e5a953d6aa2845ba3a4136c3913, mlx.core fa640ea6383907b9a464436036e3ae9b5206a75a848443a8fa0e10a800beb01f; runner 083669b6ab9dc360e95d55824de9a9fedf37392eb27a7d0ea5ce82ce05b840ba",
+      "measured": {
+        "iterations": 20,
+        "p50_ms": 3.2911249999999503,
+        "p99_ms": 4.067124999999949,
+        "rows_per_second": 303.84746857078204,
+        "min_cosine": 0.9999990037808499,
+        "computed_tokens": 32
+      },
+      "not_run": null
+    }
+  ],
+  "speed_ratio": 0.45935417220555974,
+  "speed_reference": "mlx"
+}

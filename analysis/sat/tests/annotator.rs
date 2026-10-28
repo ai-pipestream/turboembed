@@ -4,10 +4,13 @@
 
 use std::path::{Path, PathBuf};
 
+use turbo::bundle::Bundle;
+use turbo::manifest::{PromptRole, Truncation};
+use turbo::tokenizer::{Encode, Tokenizer};
 use turbo_analysis::registry::{Registry, Spec};
-use turbo_analysis::{Analyzer, Annotator, Document, Span};
+use turbo_analysis::{Analyzer, Annotator, Document, Key, Provenance, Span, Spans, ViewId};
 use turbo_analysis_embed::EncoderOptions;
-use turbo_analysis_layers::Sentences;
+use turbo_analysis_layers::{Sentences, Subwords};
 use turbo_sat::{SatAnnotator, SatOptions, SatProvider, cuts};
 
 fn testdata() -> PathBuf {
@@ -292,4 +295,57 @@ fn hostile_texts_give_well_formed_sentences() {
             }
         }
     }
+}
+
+fn subwords(a: &SatAnnotator, text: &str) -> Subwords {
+    let tokenizer = Tokenizer::load(&Bundle::open(&bundle()).unwrap()).unwrap();
+    let opts = Encode {
+        add_special_tokens: false,
+        truncation: Truncation::None,
+        max_tokens: u32::MAX,
+        prompt: PromptRole::None,
+    };
+    let (mut ids, mut raw) = (Vec::new(), Vec::new());
+    tokenizer.encode_spans(text, opts, &mut ids, &mut raw).unwrap();
+    let mut spans = Spans::new(ViewId::SOURCE);
+    for &[start, end] in &raw {
+        spans.push(Span::new(start, end));
+    }
+    Subwords { spans, ids, model: a.model().unwrap(), token: None }
+}
+
+#[test]
+fn analyzer_reuses_compatible_subwords() {
+    let source = "One. Two.";
+    let changed = "Xxx. Xxx.";
+    assert_eq!(source.len(), changed.len());
+    let a = sat(SatOptions::default());
+    let mut doc = Document::new(changed);
+    doc.add(&Key::<Subwords>::DEFAULT, subwords(&a, source), Provenance::by("test:subwords")).unwrap();
+    let analyzer = Analyzer::builder().add(sat(SatOptions::default())).build().unwrap();
+    let mut docs = vec![doc];
+    assert!(analyzer.run(&mut docs).iter().all(Result::is_ok));
+    let layer = docs[0].get::<Sentences>().unwrap();
+    let got: Vec<Span> = layer.spans.iter().map(|(_, span)| span).collect();
+    let (raw, scores) = a.scores(&[source]).remove(0).unwrap();
+    let mut want = Vec::new();
+    a.sentences(source, &raw, &scores, &mut want);
+    let (raw_changed, scores_changed) = a.scores(&[changed]).remove(0).unwrap();
+    let mut changed_spans = Vec::new();
+    a.sentences(changed, &raw_changed, &scores_changed, &mut changed_spans);
+    assert!(!want.is_empty() && want != changed_spans);
+    assert_eq!(got, want);
+}
+
+#[test]
+fn analyzer_rejects_subwords_from_another_model() {
+    let a = sat(SatOptions::default());
+    let mut layer = subwords(&a, "One. Two.");
+    layer.model.id = "another-model".into();
+    let mut doc = Document::new("One. Two.");
+    doc.add(&Key::<Subwords>::DEFAULT, layer, Provenance::by("test:subwords")).unwrap();
+    let analyzer = Analyzer::builder().add(sat(SatOptions::default())).build().unwrap();
+    let mut docs = vec![doc];
+    let result = analyzer.run(&mut docs).remove(0);
+    assert!(result.as_ref().is_err_and(|e| e.to_string().contains("another model")), "{result:?}");
 }

@@ -55,6 +55,15 @@ fn negated_opinion_preserves_prior_polarity_and_flips_effective_and_aspect_polar
     };
     let pos_annotator =
         LearnedAspectSentiment::fit(Arc::clone(&vec_ann), &["service"], &[pos_doc], 1e-4, 200, 2.0).unwrap();
+    let thresholded = pos_annotator.clone().with_bio_threshold(0.4);
+    assert_ne!(thresholded.config_hash(), pos_annotator.config_hash());
+    assert!(pos_annotator.clone().with_bio_threshold(f64::NAN).config_hash() != pos_annotator.config_hash());
+    assert!(
+        thresholded
+            .with_bio_threshold(f64::NAN)
+            .annotate((view, &sentences, &tokens, &subwords, None, None, None))
+            .is_err()
+    );
 
     let (opinions, aspects) = pos_annotator.annotate((view, &sentences, &tokens, &subwords, None, None, None)).unwrap();
     assert_eq!(opinions.len(), 1);

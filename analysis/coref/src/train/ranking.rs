@@ -76,7 +76,7 @@ fn instances(
     order: &mut Vec<String>,
 ) -> Result<Vec<Instance>, String> {
     let Some(prepared) = doc.input.prepare()? else { return Ok(Vec::new()) };
-    let mut resolver = annotator.resolver(&prepared)?;
+    let mut resolver = annotator.resolver(&doc.input, &prepared, None)?;
     resolver.resolve_precise();
     let gold = Gold::of(&doc.gold, &resolver)?;
     let mut out = Vec::new();

@@ -7,6 +7,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 
 use crate::api::{Failure, Result, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_UTF8};
+use crate::deadline::Deadline;
 use crate::infer::{EMPTY, bad, bad_shape, has_contents, kind, only, shape, split_bytes, view};
 use crate::kserve::result_parameters;
 use crate::proto::infer_parameter::ParameterChoice;
@@ -48,6 +49,7 @@ pub(crate) fn infer_qa(
     served: &Arc<Served>,
     loaded: &Arc<Loaded>,
     req: ModelInferRequest,
+    deadline: &Deadline,
 ) -> Result<ModelInferResponse> {
     const ALL_OUTPUTS: [&str; 3] = ["spans", "scores", "probabilities"];
     let mut requested = Vec::new();
@@ -73,7 +75,10 @@ pub(crate) fn infer_qa(
     let qa = loaded.qa.as_ref().expect("TASK_EXTRACTIVE_QA loaded state has QaModel");
     let map_err = |e: turbo::status::Error| Failure::new(e.code, e.field, e.message);
 
+    let _docs = loaded.metrics.track_docs(1, Some(loaded.device));
+    deadline.check_alive()?;
     let held = loaded.take()?;
+    deadline.check_alive()?;
     let slot = held.slot();
     let mut cfg = qa.config.clone();
     cfg.max_seq = slot.info.max_seq;
@@ -86,12 +91,15 @@ pub(crate) fn infer_qa(
     let mut last_info = None;
     let fill = qa.tokenizer.fill_id();
     for chunk in windows.chunks(slot.info.max_batch as usize) {
+        deadline.check_alive()?;
+        loaded.metrics.record_batch_size(chunk.len());
         let (batch_logits, info) =
             unsafe { turbo::qa::run_window_batch(slot.session.as_ptr(), fill, &qa.head, chunk) }.map_err(map_err)?;
         win_logits.extend(batch_logits);
         last_info = Some(info);
     }
     drop(held);
+    deadline.check_alive()?;
 
     let decoded = turbo::qa::decode(context, &win_logits, decode_opts).map_err(map_err)?;
     let (answers, abstained, null_score, null_probability) = match decoded {

@@ -14,6 +14,8 @@
 //! word; a word with no subwords takes the position the next element
 //! starts at.
 
+use std::borrow::Cow;
+
 use turbo::sentencepiece::{Scratch, SentencePiece};
 
 use super::words::{Word, split};
@@ -32,7 +34,7 @@ pub struct Specials {
 pub struct Prompt<'a> {
     pub ids: Vec<u32>,
     /// The normalized text, which the word offsets index.
-    pub text: String,
+    pub text: Cow<'a, str>,
     pub words: Vec<Word<'a>>,
     /// Each word's first subword position in `ids`.
     pub word_first: Vec<usize>,
@@ -40,14 +42,15 @@ pub struct Prompt<'a> {
     pub markers: Vec<[usize; 3]>,
 }
 
-/// `text` as the reference normalizes it before splitting.
-pub fn normalize(text: &str) -> String {
+/// `text` as the reference normalizes it before splitting. Borrows the
+/// text when nothing changes; copies only when a `.` must be appended.
+pub fn normalize(text: &str) -> Cow<'_, str> {
     if text.is_empty() {
-        ".".to_owned()
+        Cow::Borrowed(".")
     } else if text.ends_with(['.', '!', '?']) {
-        text.to_owned()
+        Cow::Borrowed(text)
     } else {
-        format!("{text}.")
+        Cow::Owned(format!("{text}."))
     }
 }
 
@@ -97,4 +100,18 @@ pub fn build_words<'a>(
         w.subword_len = ids.len() - at;
     }
     Prompt { ids, text: normalized, words, word_first, markers }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn normalize_borrows_when_nothing_changes() {
+        assert!(matches!(normalize("ends here."), Cow::Borrowed(_)));
+        assert!(matches!(normalize(""), Cow::Borrowed(_)));
+        assert!(matches!(normalize("no period"), Cow::Owned(_)));
+        assert_eq!(normalize("no period").as_ref(), "no period.");
+        assert_eq!(normalize("ends!").as_ref(), "ends!");
+    }
 }

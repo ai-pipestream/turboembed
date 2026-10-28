@@ -19,6 +19,7 @@ use tokio::time::Instant;
 use tonic::Status;
 
 use crate::api::Failure;
+use crate::deadline::{Deadline, deadline_status};
 use crate::proto::result::{AnalyzeOrder, AnalyzeStreamResponse};
 use crate::stream::run::{self, Doc, Outcome, RowPayload, Whole};
 use crate::stream::{BatchKey, Dead, Envelope, Room, Shared};
@@ -29,6 +30,7 @@ pub(crate) struct Config {
     pub(crate) order: AnalyzeOrder,
     pub(crate) window: usize,
     pub(crate) linger: Duration,
+    pub(crate) deadline: Deadline,
 }
 
 /// How often a stalled batch retries its model's session pool.
@@ -99,19 +101,30 @@ impl Engine {
         answers: mpsc::Sender<std::result::Result<AnalyzeStreamResponse, Status>>,
         dead: Arc<Dead>,
     ) {
+        self.config.deadline.bind_stream_dead(dead.clone());
         let mut input_ended = false;
         // The two timers live across the loop and are reset each turn;
         // a branch whose deadline is None is disabled, so a far reset
         // never fires.
         let far = || Instant::now() + Duration::from_secs(86400);
+        let rpc_stop_at = self.config.deadline.stop_at();
+        let mut rpc_deadline = std::pin::pin!(tokio::time::sleep_until(rpc_stop_at.unwrap_or_else(far)));
         let mut sleeper = std::pin::pin!(tokio::time::sleep_until(far()));
         let mut stalled_retry = std::pin::pin!(tokio::time::sleep_until(far()));
         loop {
+            if self.config.deadline.is_expired() {
+                self.abort_deadline(&answers, &dead).await;
+                break;
+            }
             let deadline = self.deadline(input_ended);
             sleeper.as_mut().reset(deadline.unwrap_or_else(far));
             let stalled_deadline = self.stalled_at.map(|at| at + SESSION_RETRY);
             stalled_retry.as_mut().reset(stalled_deadline.unwrap_or_else(far));
             tokio::select! {
+                _ = rpc_deadline.as_mut(), if rpc_stop_at.is_some() => {
+                    self.abort_deadline(&answers, &dead).await;
+                    break;
+                },
                 env = work.recv(), if !input_ended => match env {
                     Some(Envelope::Doc(mut doc)) => {
                         doc.seq = self.next_seq;
@@ -134,6 +147,11 @@ impl Engine {
                 },
                 outcome = self.inflight.join_next(), if !self.inflight.is_empty() => match outcome {
                     Some(Ok(outcome)) => {
+                        if self.config.deadline.is_expired() {
+                            drop(outcome);
+                            self.abort_deadline(&answers, &dead).await;
+                            break;
+                        }
                         if self.deliver(outcome, &answers, &dead).await.is_err() {
                             break;
                         }
@@ -169,6 +187,20 @@ impl Engine {
             }
         }
         dead.set();
+    }
+
+    async fn abort_deadline(
+        &mut self,
+        answers: &mpsc::Sender<std::result::Result<AnalyzeStreamResponse, Status>>,
+        dead: &Arc<Dead>,
+    ) {
+        self.config.deadline.trip();
+        dead.set();
+        self.pending.clear();
+        self.buffer.clear();
+        self.stalled.clear();
+        while self.inflight.join_next().await.is_some() {}
+        let _ = answers.send(Err(deadline_status())).await;
     }
 
     /// When the next dispatch is due: the linger after the oldest

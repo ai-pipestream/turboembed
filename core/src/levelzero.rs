@@ -8,6 +8,7 @@
 
 mod encoder;
 mod gpu;
+pub(crate) mod lstm;
 #[cfg(feature = "levelzero-onednn")]
 mod onednn;
 mod ze;
@@ -159,6 +160,9 @@ pub fn live_allocations() -> i64 {
     gpu::device_allocs_live()
 }
 
+#[cfg(feature = "internals")]
+pub use lstm::fail_append as fail_lstm_append;
+
 /// The device address of the F32 copy of an F16 or BF16 model's weights,
 /// once a session made it.
 ///
@@ -176,6 +180,16 @@ pub(crate) unsafe fn widened(model: *mut c_void) -> Option<*const c_void> {
 pub fn use_choices(choices: Option<&str>) {
     encoder::use_choices(choices);
 }
+
+/// A DeBERTa-v2 session made from now on runs the general attention kernel
+/// when `on`, the tiled one for its head width otherwise. Built only with
+/// `internals`.
+#[cfg(feature = "internals")]
+pub fn use_general_attention(on: bool) {
+    encoder::use_general_attention(on);
+}
+#[cfg(feature = "internals")]
+pub use encoder::{last_attention, tiled_rows};
 
 /// Recovery from a failed append on the first listed device's queue, as
 /// gpu/mod.rs describes it. Built only with `internals`.

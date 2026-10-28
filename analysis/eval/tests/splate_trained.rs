@@ -18,6 +18,7 @@ use turbo_analysis_embed::Device;
 use turbo_eval::metrics::{Qrel, Qrels};
 use turbo_eval::read::beir;
 use turbo_eval::set::LoadedSet;
+use turbo_eval::splate::receipt::{self, PinnedBundle, ReceiptBundles, ReceiptRun};
 use turbo_eval::splate::{
     BundleCrossEncoder, SplateConfig, TrainedBundles, TrainedConfig, encode_trained, run_study_with_encoded,
 };
@@ -76,14 +77,22 @@ fn splate_trained_receipt() {
         colbert: root.join("colbertv2"),
         static_bundle: root.join("potion-base-8m"),
     };
-    let device = match std::env::var("TURBO_EVAL_DEVICE").as_deref() {
-        Ok("cpu") | Err(_) => Device::Cpu,
-        Ok(name) => Device::Backend(name.into()),
+    let device_name = std::env::var("TURBO_EVAL_DEVICE").unwrap_or_else(|_| "cpu".into());
+    let device = match device_name.as_str() {
+        "cpu" => Device::Cpu,
+        name => Device::Backend(name.into()),
     };
     let ce_threads: u32 = std::env::var("TURBO_SPLATE913_CE_THREADS").ok().and_then(|v| v.parse().ok()).unwrap_or(4);
     let rounds: usize = std::env::var("TURBO_SPLATE913_ROUNDS").ok().and_then(|v| v.parse().ok()).unwrap_or(3);
-    let ce = BundleCrossEncoder::open(&root.join("ms-marco-minilm"), ce_threads, RerankOptions::default())
-        .expect("open cross-encoder bundle");
+    let ce_dir = root.join("ms-marco-minilm");
+    let ce =
+        BundleCrossEncoder::open(&ce_dir, ce_threads, RerankOptions::default()).expect("open cross-encoder bundle");
+    let pinned = ReceiptBundles {
+        sparse: PinnedBundle::open(&bundles.sparse).expect("pin the sparse bundle"),
+        colbert: PinnedBundle::open(&bundles.colbert).expect("pin the ColBERT bundle"),
+        static_model: PinnedBundle::open(&bundles.static_bundle).expect("pin the static bundle"),
+        cross_encoder: PinnedBundle::open(&ce_dir).expect("pin the cross-encoder bundle"),
+    };
     let cache = PathBuf::from(std::env::var("TURBO_EVAL_CACHE").expect("TURBO_EVAL_CACHE"));
     let tcfg = TrainedConfig::default();
     let doc_cut = SparseOptions { top_k: 64, floor: 0.05 };
@@ -106,13 +115,11 @@ fn splate_trained_receipt() {
         let (encoded, prov) =
             encode_trained(&set, &bundles, device.clone(), &tcfg, &doc_cut, &query_cut).expect("encode trained");
         println!(
-            "provenance: sparse={}@{} colbert={}@{} static={}@{} token_dim={} static_dim={} vocab={} fit_docs={} fit_tokens={} fit_terms={} misaligned={} fit_mse={:.6}",
-            prov.sparse_model.id,
-            prov.sparse_model.revision,
-            prov.colbert_model.id,
-            prov.colbert_model.revision,
-            prov.static_model.id,
-            prov.static_model.revision,
+            "provenance: sparse={} colbert={} static={} cross_encoder={} token_dim={} static_dim={} vocab={} fit_docs={} fit_tokens={} fit_terms={} misaligned={} fit_mse={:.6}",
+            pinned.sparse.pinned(),
+            pinned.colbert.pinned(),
+            pinned.static_model.pinned(),
+            pinned.cross_encoder.pinned(),
             prov.token_dim,
             prov.static_dim,
             prov.vocab_size,
@@ -122,7 +129,7 @@ fn splate_trained_receipt() {
             prov.fit_misaligned_docs,
             prov.fit_mse,
         );
-        let mut tables: Vec<serde_json::Value> = Vec::new();
+        let mut tables: Vec<(usize, String)> = Vec::new();
         for c in [10usize, 25, 50, 100] {
             let cfg = SplateConfig {
                 dim: prov.token_dim,
@@ -139,21 +146,22 @@ fn splate_trained_receipt() {
             let rep = run_study_with_encoded(&encoded, &set.qrels, &ce, &cfg).expect("study");
             println!("\n--- Shortlist C = {c} (trained) ---");
             print!("{}", rep.to_markdown_table());
-            tables.push(serde_json::json!({ "c": c, "markdown": rep.to_markdown_table() }));
+            tables.push((c, rep.to_markdown_table()));
         }
-        record_sets.push(serde_json::json!({
-            "set": name, "docs": set.docs.len(), "queries": set.queries.len(),
-            "sparse": format!("{}@{}", prov.sparse_model.id, prov.sparse_model.revision),
-            "colbert": format!("{}@{}", prov.colbert_model.id, prov.colbert_model.revision),
-            "static": format!("{}@{}", prov.static_model.id, prov.static_model.revision),
-            "fit_tokens": prov.fit_tokens, "fit_terms": prov.fit_terms, "fit_mse": prov.fit_mse,
-            "tables": tables,
-        }));
+        record_sets.push(receipt::set_record(name, set.docs.len(), set.queries.len(), &pinned, &prov, &tables));
     }
     if let Ok(out) = std::env::var("TURBO_SPLATE913_OUT") {
         let dir = PathBuf::from(out);
         std::fs::create_dir_all(&dir).expect("create out dir");
-        let record = serde_json::json!({ "issue": 913, "sets": record_sets });
+        let run = ReceiptRun {
+            device: &device_name,
+            rounds,
+            cross_encoder_threads: ce_threads,
+            encoder: &tcfg,
+            doc_cut: &doc_cut,
+            query_cut: &query_cut,
+        };
+        let record = receipt::record(&run, record_sets);
         std::fs::write(dir.join("splate-trained-913.json"), serde_json::to_string_pretty(&record).expect("json"))
             .expect("write record");
     }

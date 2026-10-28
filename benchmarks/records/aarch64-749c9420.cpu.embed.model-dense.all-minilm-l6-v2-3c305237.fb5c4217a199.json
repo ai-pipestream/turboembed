@@ -1,0 +1,108 @@
+{
+  "record_version": 1,
+  "recorded_at": "2026-10-26T15:04:28Z",
+  "machine": {
+    "arch": "aarch64",
+    "host_cpu": "Apple M2",
+    "os": "macos"
+  },
+  "device": {
+    "backend": "cpu",
+    "kind": "DEVICE_CPU",
+    "name": "Apple M2",
+    "vendor": "Apple",
+    "driver_version": "",
+    "runtime_version": "",
+    "memory_total": 25769803776
+  },
+  "library": {
+    "version": "0.1.0",
+    "build": "0.1.0 cpu",
+    "commit": "fb5c4217a199fd65922010f20b5747dd7420d41c",
+    "pushed_to": [
+      "origin/main"
+    ],
+    "settings": []
+  },
+  "task": "TASK_EMBED",
+  "precision": "PRECISION_MODEL",
+  "compute_dtype": "DTYPE_F32",
+  "bundle": {
+    "model_id": "sentence-transformers/all-MiniLM-L6-v2",
+    "revision": "1",
+    "manifest_sha256": "3c305237a79d0b4bcae9513683b2373c84190d8a2d96941aacb25e035c30b9ea",
+    "artifact_sha256": "53aa51172d142c89d9012cce15ae4d6cc0ca6895895114379cacb4fab128d9db",
+    "tokenizer_sha256": "be50c3628f2bf5bb5e3a7f17b1f74611b2561a3a27eeab05e5aa30f411572037"
+  },
+  "rows": {
+    "kind": "ROWS_DENSE",
+    "batch": 32,
+    "seq": 256,
+    "live_tokens": 8192,
+    "cases": [
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8,
+      8
+    ],
+    "sha256": "0c85ff407a58448a04661fa81fda7ae4e5ff72e378e19e3bbcafe070f9fdfcc3"
+  },
+  "timing": {
+    "warmup": 20,
+    "iterations": 200,
+    "p50_ms": 1379.8325419999999,
+    "p99_ms": 1572.458792,
+    "mean_ms": 1387.4623410550005,
+    "min_ms": 1279.514833,
+    "max_ms": 1619.646958,
+    "rows_per_second": 23.06368549516882,
+    "computed_tokens": 8192
+  },
+  "conformance": {
+    "rows": 41,
+    "min_cosine": 0.9999999999982059,
+    "max_abs_diff": 3.427267074584961e-7
+  },
+  "references": [
+    {
+      "name": "text-embeddings-inference",
+      "role": "end_to_end",
+      "pinned": "",
+      "version": "",
+      "commands": [],
+      "procedure": "",
+      "measured": null,
+      "not_run": "disabled on the command line (--no-tei)"
+    }
+  ],
+  "speed_ratio": null,
+  "speed_reference": null
+}

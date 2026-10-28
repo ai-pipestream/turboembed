@@ -239,9 +239,10 @@ persistence, vocabulary writes, catalog licence acceptance and model
 installs) need `--admin`. The server speaks plaintext gRPC with
 no authentication, so it belongs behind a trusted network boundary.
 
-`turbo-kserve-demo` (`demo/`) is a small web page that proxies JSON to a
-running server for trying embeddings, precision tiers and analysis from
-a browser ([demo.md](docs/demo.md)).
+`turbo-kserve-demo` (`demo/`) is a small web page and a Connect protocol
+proxy, protobuf only, in front of a running server for trying
+embeddings, precision tiers and analysis from a browser
+([demo.md](docs/demo.md)).
 
 ## Training and evaluation
 

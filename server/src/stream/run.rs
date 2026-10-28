@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::sync::OwnedSemaphorePermit;
 use turbo::{TURBO_PLACE_HOST, TURBO_PLACE_PINNED, TURBO_PLACE_SHARED, turbo_embed_options, turbo_text};
 
-use crate::api::{Failure, Output, Result, TURBO_E_INTERNAL, TURBO_E_INVALID_UTF8};
+use crate::api::{Failure, Output, Result, TURBO_E_INTERNAL, TURBO_E_INVALID_STATE, TURBO_E_INVALID_UTF8};
 use crate::offsets::OffsetMode;
 use crate::proto::result::AnalyzeOutput;
 use crate::proto::result::analyze_stream_response::Outcome as ProtoOutcome;
@@ -121,17 +121,27 @@ pub(crate) fn run(
         dim: 0,
         rows: Err(Whole { failure, docs, permits }),
     };
+    if dead.load(Ordering::Acquire) {
+        return fail(Failure::new(TURBO_E_INVALID_STATE, 0, "the client cancelled the stream"), docs, permits);
+    }
     let texts: Vec<turbo_text> =
         docs.iter().map(|d| turbo_text { ptr: d.text.as_ptr().cast(), len: d.text.len() as u64 }).collect();
     let slot = held.slot();
     if let Err(f) = slot.session.write_text(&texts, opts) {
         return fail(f, docs, permits);
     }
+    if dead.load(Ordering::Acquire) {
+        return fail(Failure::new(TURBO_E_INVALID_STATE, 0, "the client cancelled the stream"), docs, permits);
+    }
+    shared.metrics.record_batch_size(docs.len());
     shared.runs.fetch_add(1, Ordering::Relaxed);
     let result = match slot.session.run() {
         Ok(r) => r,
         Err(f) => return fail(f, docs, permits),
     };
+    if dead.load(Ordering::Acquire) {
+        return fail(Failure::new(TURBO_E_INVALID_STATE, 0, "the client cancelled the stream"), docs, permits);
+    }
     drop(texts);
     let (dim, data) = match read(&result, docs.len()) {
         Ok(v) => v,

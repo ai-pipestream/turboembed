@@ -247,15 +247,11 @@ pub fn pre_words(text: &str) -> Vec<(usize, usize)> {
 /// A character of regex's Unicode \\w, which upstream's single_word
 /// reads: alphabetic, a mark, a decimal digit, a connector, or a joiner.
 pub(super) fn is_word(c: char) -> bool {
-    let category = turbo_unicode::category::general_category(c);
-    turbo_unicode::props::alphabetic(c)
-        || category.is_mark()
-        || matches!(category, turbo_unicode::GeneralCategory::Nd | turbo_unicode::GeneralCategory::Pc)
-        || matches!(c, '\u{200c}' | '\u{200d}')
+    crate::classes::is_word(c)
 }
 
 pub(super) fn is_whitespace(c: char) -> bool {
-    turbo_unicode::props::white_space(c)
+    matches!(c, '\t' | '\n' | '\r') || c.is_whitespace()
 }
 
 pub(super) fn is_control(c: char) -> bool {
@@ -285,14 +281,26 @@ pub(crate) fn category(c: char, bits: u8) -> bool {
     table[at as usize] & bits != 0
 }
 
-/// `c`'s bits: C, Mn, P, L and N from turbo-unicode.
+/// `c`'s bits: frozen C, Mn and P, plus upstream's split L and N tables.
 pub(super) fn categories(c: char) -> u8 {
-    let category = turbo_unicode::category::general_category(c);
-    (category.is_other() as u8)
-        | ((matches!(category, turbo_unicode::GeneralCategory::Mn) as u8) << 1)
-        | ((category.is_punctuation() as u8) << 2)
-        | ((category.is_letter() as u8) << 3)
-        | ((category.is_number() as u8) << 4)
+    let within = |runs: &[(u32, u32)]| {
+        let u = c as u32;
+        runs.binary_search_by(|&(a, b)| {
+            if b < u {
+                std::cmp::Ordering::Less
+            } else if a > u {
+                std::cmp::Ordering::Greater
+            } else {
+                std::cmp::Ordering::Equal
+            }
+        })
+        .is_ok()
+    };
+    (turbo_unicode::hf::is_other(c) as u8)
+        | ((turbo_unicode::hf::is_mark_nonspacing(c) as u8) << 1)
+        | ((turbo_unicode::hf::is_punctuation(c) as u8) << 2)
+        | ((within(crate::classes::LETTERS) as u8) << 3)
+        | ((within(crate::classes::NUMBERS) as u8) << 4)
 }
 
 pub(super) fn is_cjk(c: char) -> bool {

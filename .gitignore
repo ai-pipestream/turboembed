@@ -30,3 +30,5 @@ zig-pkg/
 zig-out/
 /.opennlp-models
 /.potion
+# The web toolchain (scripts/generate-web-stubs.sh).
+/demo/web/node_modules/

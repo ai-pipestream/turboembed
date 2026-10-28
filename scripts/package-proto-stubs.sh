@@ -97,6 +97,7 @@ WHEEL_NAME="$(basename "$WHEEL_PATH")"
 
 # 5. Optional end-to-end smoke check against a running turbo-kserve instance
 if [[ -n "$SMOKE_ADDR" ]]; then
+  DOCLING_DATA="$ROOT/examples/docling/data"
   # 5a. Compile and run the minimal Java client ONLY against the packaged stub JAR
   JAVA_SMOKE_CLASSES="$WORK_DIR/java-smoke-classes"
   mkdir -p "$JAVA_SMOKE_CLASSES"
@@ -104,9 +105,15 @@ if [[ -n "$SMOKE_ADDR" ]]; then
   javac --release 17 \
     -cp "$OUT_DIR/$JAR_NAME:$RUNTIME_CP" \
     -d "$JAVA_SMOKE_CLASSES" \
-    "$ROOT/clients/java/src/test/java/ai/pipestream/turboembed/ClientSmoke.java"
+    "$ROOT/clients/java/src/test/java/ai/pipestream/turboembed/ClientSmoke.java" \
+    "$ROOT/examples/docling/clients/java/DoclingClient.java"
   java -cp "$JAVA_SMOKE_CLASSES:$OUT_DIR/$JAR_NAME:$RUNTIME_CP" \
     ai.pipestream.turboembed.ClientSmoke "$SMOKE_ADDR"
+  # The docling example's Java client, held to the summary the Rust and
+  # Python clients print (examples/docling, docs/integration.md).
+  java -cp "$JAVA_SMOKE_CLASSES:$OUT_DIR/$JAR_NAME:$RUNTIME_CP" \
+    ai.pipestream.turboembed.examples.DoclingClient "$SMOKE_ADDR" \
+    "$DOCLING_DATA/report.seed.graph" "$DOCLING_DATA/report.server.expected.txt"
 
   # 5b. Install the packaged wheel into a fresh venv on the oldest Python it
   # declares, its dependencies resolved to the lowest versions its
@@ -126,4 +133,6 @@ for req in md.requires("turboembed-proto"):
         raise SystemExit(f"{name} resolved to {have}, not its declared floor {floor}")
 PY
   (cd "$WORK_DIR" && "$SMOKE_VENV_DIR/bin/python" "$ROOT/clients/python/smoke_test.py" "$SMOKE_ADDR")
+  (cd "$WORK_DIR" && "$SMOKE_VENV_DIR/bin/python" "$ROOT/examples/docling/clients/python/docling_client.py" \
+    "$SMOKE_ADDR" "$DOCLING_DATA/report.seed.graph" "$DOCLING_DATA/report.server.expected.txt")
 fi

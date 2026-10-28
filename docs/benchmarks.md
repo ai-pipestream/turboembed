@@ -46,6 +46,11 @@ the same files copied elsewhere pass it.
 | `--tei-image <name@sha256:…>`, `--tei-model <dir>` | text-embeddings-inference: its image, and the model in the upstream layout (the directory `turbo-bundle fetch` fills). |
 | `--tei-bin <path>` | TEI's router built natively, run in place of an image: for metal, whose GPU no container reaches (Reference programs). Goes with `--tei-model`, not `--tei-image`. |
 | `--no-tei` | TEI is not run; the record says so. |
+| `--mlx-model <dir>` | MLX on the machine's Python, for metal: the model in the upstream layout, `config.json` and the loaded artifact as `model.safetensors` (Reference programs). |
+| `--no-mlx` | MLX is not run; the record says so. |
+| `--tei-nsys <dir>` | Nsight Systems' command-line target directory (`target-linux-x64`), mounted into TEI's container to trace its requests' GPU kernels (cuda; "TEI's kernel time", below). |
+| `--tei-nsys-libs <dir>` | Libraries the nsys command line needs that TEI's image lacks, built for the image's glibc (`libelf.so.1`, say), mounted beside it. |
+| `--nsys-importer <path>` | The host's `QdstrmImporter`, where the nsys in the container leaves only its raw stream (`.qdstrm`) and the host's nsys does not import it itself. |
 | `--tensorrt-image <name@sha256:…>` | NVIDIA's TensorRT container. |
 | `--tensorrt-inputs <ids,mask[,types]>` | The ONNX inputs, in that order, each of `[A-Za-z0-9_.]+` and neither `.` nor `..` (each names a file and a part of trtexec's lists); two for a graph that takes no token types (an XLM-RoBERTa export). Default `input_ids,attention_mask,token_type_ids`. |
 | `--tensorrt-input-dtype int64\|int32` | Their element type. Default `int64`. |
@@ -146,8 +151,22 @@ so eight reference cases fit seq and the rows list all eight.
 to SUPPORTED on a Windows build of library `0.1.0` whose device
 arch is `arl-npu` and whose graph format is `NGRAPH_LITE`. The
 library p50 is the sum of the eight frames, about 30 ms. Another
-arch, a `NATIVE` graph, and a build whose OS is not windows stay
-EXPERIMENTAL with no record for the cell.
+arch and a build whose OS is not windows stay EXPERIMENTAL with no
+record for the cell.
+
+The `NATIVE` cells of the same device, which a load on AI Boost
+creates (docs/npu.md), are backed by two ROWS_MIXED MiniLM records of
+the same IR measured at library commit `db05141`, cases 0 through 7,
+`TURBO_NPU_GRAPH_FORMAT=NATIVE`, `conformance.min_cosine`
+0.999996097954919, OpenVINO measured on the same frames:
+`benchmarks/records/arl-npu.npu.native.embed.model.all-minilm-l6-v2-da08a0f9.db0514120b6a.json`
+(library p50 30.0209 ms; OpenVINO IR p50 30.08 ms; `speed_ratio`
+0.9980352393617021) and
+`benchmarks/records/arl-npu.npu.native.embed.fastest.all-minilm-l6-v2-da08a0f9.db0514120b6a.json`
+(library p50 29.9576 ms; OpenVINO IR p50 30.1 ms; `speed_ratio`
+0.9952691029900333). `decide_embedded` sets `MODEL` and `FASTEST` to
+SUPPORTED on a Windows build of library `0.1.0` whose device arch is
+`arl-npu` and whose graph format is `NATIVE`.
 
 Two ROWS_DENSE records of the same IR are committed at `00aa734`,
 measured at library commit `febfed530`, case 8, and are reference
@@ -381,7 +400,7 @@ may lack: `rows.kind`, read as `ROWS_MIXED` (then the only rows), and
 | `rows` | `kind`, `ROWS_MIXED` or `ROWS_DENSE` (`--rows`); the shape; `live_tokens`, the mask's ones across the measured rows, which for dense rows must be `batch` x `seq`; the reference case each row is (one per row of the batch, or one per frame when `batch` is 1 and the pass cycles every fitting case); and the hash of the rows (below). |
 | `timing` | The library: `warmup` untimed runs, then `iterations` timed ones, each a pass over the rows (`turbo_embed_write_tokens`, `turbo_session_run`, `turbo_result_read` of every vector and `turbo_result_release`), timed from the host. A batch-1 mixed cycle's pass is one embed per fitting case. Nearest-rank p50 and p99, mean, min, max, and rows per second over the timed runs' wall time. `computed_tokens`: the token positions each run computed. cpu, cuda and levelzero count each row through its last live token. npu counts every position of each compiled frame in the pass: `batch` x `seq` for one frame, and one `[1, seq]` frame per fitting case when the frame batch is 1 (What each time covers). An npu record whose count is anything else does not parse. |
 | `conformance` | Vectors compared with the bundle's fp32 reference on this device, through the C interface: each reference case no longer than `seq` alone, as a batch of one at its own length, then every measured row of the pass that is its case whole. A batch-1 mixed cycle measures one row per fitting case. A dense row cut to `seq` has no reference vector; it must give, within the dtype's tolerance, what it gives alone, or the tool stops with an error. The lowest cosine, in [-1, 1], and the largest absolute difference, not negative. |
-| `references[]` | Each reference program the tool knows for the backend: `name` and `role`, which are `text-embeddings-inference` and `end_to_end`, `tensorrt` and `kernel`, `openvino` and `kernel`, or `hailort` and `kernel` (any other pair is refused), `pinned` (the image as `name@sha256:<64 hex>`, the name of `[a-z0-9][a-z0-9._/:-]*`; empty only when disabled before one was named), `version` (as the program reported it), `commands` (every external command, as its argv, host paths as placeholders: Reference programs), `procedure` (what the tool did around them), and either `measured` (`iterations`, `p50_ms`, `p99_ms`, `rows_per_second`, `min_cosine` against the reference when the program returns vectors, and `computed_tokens`, the token positions it computed per run, null when that cannot be known) or `not_run` with the reason. Every `computed_tokens` lies between `rows.live_tokens` and the padded pass (one frame is `batch` x `seq`; a batch-1 cycle is one frame per case). |
+| `references[]` | Each reference program the tool knows for the backend: `name` and `role`, which are `text-embeddings-inference` and `end_to_end`, `tensorrt` and `kernel`, `openvino` and `kernel`, `hailort` and `kernel`, or `mlx` and `kernel` (any other pair is refused), `pinned` (the image as `name@sha256:<64 hex>`, the name of `[a-z0-9][a-z0-9._/:-]*`; empty only when disabled before one was named), `version` (as the program reported it), `commands` (every external command, as its argv, host paths as placeholders: Reference programs), `procedure` (what the tool did around them), and either `measured` (`iterations`, `p50_ms`, `p99_ms`, `rows_per_second`, `min_cosine` against the reference when the program returns vectors, and `computed_tokens`, the token positions it computed per run, null when that cannot be known) or `not_run` with the reason. Every `computed_tokens` lies between `rows.live_tokens` and the padded pass (one frame is `batch` x `seq`; a batch-1 cycle is one frame per case). |
 | `speed_ratio` | `timing.p50_ms` over the p50 of the fastest measured reference, named in `speed_reference`; both null when none was measured. The core recomputes it and refuses a record where it differs. |
 
 ### Token rows
@@ -451,7 +470,7 @@ read with that in mind:
   requests ran as, per request, and their mean size, from TEI's
   `/metrics`. Tokenization overlaps inference, so no difference of the
   headers is the compute alone either; TEI's compute is compared through
-  a kernel-time profile.
+  a kernel-time profile (`kernel_time`, "TEI's kernel time", below).
 - **TensorRT and OpenVINO** (`measured`, kernel): the model's graph
   alone, on the rows padded to the batch's `seq`, as the vendor's tool
   times it (trtexec: the inputs' copy to the GPU, the compute and the
@@ -494,6 +513,80 @@ dense rows are where the kernels compare like for like. The tool prints
 each side's p50 and p99 with its computed and live tokens when it writes
 the record.
 
+### TEI's kernel time
+
+With `--tei-nsys` on cuda, the record's TEI reference also carries
+`kernel_time`: the GPU time of its requests, as Nsight Systems traced
+them (bench/src/tei/kernels.rs). The image has no profiler, so the tool
+mounts the machine's nsys command line into the container, read-only,
+and starts TEI's router under `nsys launch --trace=cuda`. The router
+keeps the image's own library path. The profiled server is a second
+container: the end-to-end timing runs first, in a container with no
+profiler, which is removed before the profiled one starts. After the
+same warm-up, the tool runs `nsys start` in the container and sends as
+many /embed requests of the same rows, one at a time, leaving the GPU
+idle for 50 ms after each. Then it runs `nsys stop` and reads the trace
+on the host (`nsys stats --report cuda_gpu_trace --format csv`). Every
+gap between two requests' activity is at least 50 ms, because the next
+request goes out 50 ms after the last answer arrives. TEI's own host
+work can pause the GPU that long inside a request on a loaded machine,
+so a trace of n requests is cut at its n - 1 longest gaps, each of
+which must be at least 50 ms. Every request is of the same rows, but
+TEI's kernel count still varies a little between them (557 to 593 at
+[32, 512] on bge-small), so each request's count must be within 25% of
+their median. A cut in the wrong place leaves out a right one too, and
+the two requests it merges launch about twice the kernels. A trace that
+does not cut so is collected again.
+Nsight Systems 2023.4's importer refuses long traces of TEI as events
+out of order, and sometimes short ones too. So the requests are
+collected 25 at a time, and a collection whose trace the host's tools
+refuse, or that does not split into its requests, is taken
+again, up to three times. The record's commands show each collection. `kernel_time` gives:
+
+- `profiler`, as `nsys --version` names itself;
+- `requests`, the number profiled;
+- `p50_ms` and `p99_ms`, the per-request sum of kernel durations;
+- `copy_p50_ms`, the per-request sum of memory copies and sets;
+- `kernels_p50`, the kernels a request launched.
+
+After each collection's requests the tool reads the GPU's SM clock
+(`nvidia-smi --query-gpu=clocks.sm`), and the procedure gives the least
+and the median. A kernel p50 longer than the end-to-end p50 is refused,
+and the run records nothing: the kernels are part of the request, so a
+longer time says the profiled requests did not run as the timed ones
+did.
+
+Measure end-to-end without a profiler. The first version of this
+(#1399) timed end-to-end in the same server it profiled, and
+`nsys launch` tracing CUDA slowed every request. On an RTX 4080 SUPER
+host, bge-small at [32, 512], the same commit, TEI's end-to-end p50 was
+169.3 ms under the profiler and 35.2 ms without it. Its kernel p50 of
+77.1 ms was longer than the unprofiled request. The measured cause is the
+tracing: the same server ran about five times slower under it. That run
+also left the GPU idle 250 ms between requests, which may have let its
+clocks drop; no clock was read then, and the SM clock samples now show
+it.
+At 25 ms the gaps no longer told requests apart on that loaded host:
+collections of 25 requests fell into 35 to 38 runs of activity.
+
+This is the time the GPU spent in TEI's kernels. It leaves out
+tokenization, queueing, launch gaps and the HTTP round trip. Read it
+beside the library's `timing`, which covers a whole run through the C
+interface, knowing that the library's figure includes host work this
+one leaves out. On an RTX 4080 SUPER host with Nsight Systems 2023.4 in
+`/usr/lib/x86_64-linux-gnu/nsight-systems` and TEI's Ubuntu 22.04 image,
+the nsys command line needs a `libelf.so.1` built for glibc 2.35, and its
+raw stream is imported with the host's `QdstrmImporter`:
+
+```
+... record --bundle bge-small-en-v1.5/ --device cuda --precision model \
+    --tei-image ghcr.io/huggingface/text-embeddings-inference@sha256:<digest of the 89-* image> \
+    --tei-model upstream/ --no-tensorrt \
+    --tei-nsys /usr/lib/x86_64-linux-gnu/nsight-systems/target-linux-x64 \
+    --tei-nsys-libs <dir with libelf.so.1> \
+    --nsys-importer /usr/lib/nsight-systems/host-linux-x64/QdstrmImporter
+```
+
 ### Name
 
 ```
@@ -529,6 +622,7 @@ with dense rows `rtx4080.cuda.embed.model-dense.all-minilm-l6-v2-<8 hex>.<12 hex
 | npu | OpenVINO `benchmark_app` | kernel | an OpenVINO container with `-d NPU`, or `benchmark_app` on the machine (`--openvino-bin`) when the container cannot see the NPU driver |
 | npu | text-embeddings-inference | end to end | its CPU image, over HTTP: the end-to-end baseline on that machine |
 | metal | text-embeddings-inference | end to end | its router built natively with the Metal feature, over HTTP |
+| metal | MLX | kernel | the BERT encoder written on MLX, run by the machine's Python on the same token rows (`--mlx-model`) |
 | hailo | HailoRT `hailortcli` | kernel | native CLI on the same verified HEF and F32 embedding inputs (`--hailort-bin`), or explicitly disabled (`--no-hailort`) |
 | any other | none yet | | a record of it backs nothing |
 
@@ -563,6 +657,34 @@ records the command with `<tei-bin>` for its path, checks and times it
 as the image, and stops it when the run ends. It computes on the GPU, in
 float32 or in float16 as the session's compute dtype asks. `--tei-bin` is
 refused for any other backend, and with `--cpus`.
+
+**MLX on Metal** is Apple's array framework, the fastest open path to a
+Mac's GPU we know of, so it is the metal backend's kernel reference.
+The tool writes its runner, `bench/reference/mlx_reference.py`, and the
+measured rows (ids, mask and types) to a fresh directory under `--work`,
+and runs `python3 -E <mlx-reference> --model <mlx-model> --dtype <float16
+or float32> --rows <work>/rows.json --warmup <n> --iterations <n>
+--version 0.29.3 --out <work>/receipt.json`; the runner refuses an MLX
+of another version (`MLX_VERSION` in `bench/src/mlx.rs`). The runner is `bench/metal-peers/mlx_bench.py`'s
+encoder: every weight cast to the dtype it runs in (float16 at FASTEST,
+float32 otherwise), `mx.fast` LayerNorm and attention, `mx.compile`d,
+mean pooling over the mask and L2 normalization in F32. It runs the rows
+as a padded batch, so `computed_tokens` is the padded pass. Its time is
+host wall time, each run waited for with `mx.eval`: the encoder and
+pooling, with the rows already on the device and the vectors not read
+back, and no tokenization (the library's includes writing the rows and
+reading the vectors). Its vectors of the last run are held against each
+row's expected vector for `min_cosine`. The record pins the library the
+kernels run from, `mlx@sha256:<SHA-256 of mlx/lib/libmlx.dylib>`, and
+gives `mx.__version__` as the version. `procedure` gives MLX's min and
+mean beside the p50 and p99 the record holds, the host's load averages
+just before it ran, the SHA-256 of `mlx/lib/mlx.metallib` and of the
+`mlx.core` module, and the runner's. The Python is the machine's
+`python3`, with its user site packages, where pip puts MLX. `--mlx-model` must hold `config.json` and, as
+`model.safetensors`, the artifact the device loaded, checked by its
+hash; a bundle whose contract is not mean pooling with L2 is refused.
+MLX float16 is F16 throughout, LayerNorm included, a looser contract
+than FASTEST's F32 residual stream and sums (docs/metal.md).
 
 **TensorRT** builds an engine from one of the bundle's `FORMAT_ONNX`
 artifacts, checked against its hash, and times the rows loaded from raw
@@ -837,7 +959,7 @@ A record for the cell backs SUPPORTED when all of these hold:
    | I8 | 0.93 | not bounded |
 
 4. At least one of the known reference programs,
-   `text-embeddings-inference`, `tensorrt`, `openvino` or `hailort`, was measured.
+   `text-embeddings-inference`, `tensorrt`, `openvino`, `hailort` or `mlx`, was measured.
    (A record naming any other program, or one with another's role, does
    not parse.) The tool gives each backend its own programs (Reference
    programs), so a levelzero or npu record is backed by OpenVINO or TEI.
@@ -951,6 +1073,33 @@ No ratio is read from the MODEL run. In both, a range over a whole row
 gave the row's vector to the bit, and the lowest cosine of a chunk's
 range vector to its chunk row's was 0.69. These figures want a re-run
 with the render engine idle.
+
+On the Apple M2 (Metal) with all-MiniLM-L6-v2 (the bundle sealed on the
+M2, manifest `3c305237`, the same weights) and the same shape, at commit
+`1b452912`, each run started once the 1-minute load was under 3 and the
+GPU under 25 percent busy (2.2 and 2.8, both 0 percent); desktop
+applications took the GPU back to 92 to 96 percent by the end of each,
+which the means and p99s show:
+
+| Precision | Mode | Min | p50 | Mean | p99 |
+| --- | --- | --- | --- | --- | --- |
+| FASTEST (F16) | Rows | 95.750 ms | 113.780 ms | 169.774 ms | 400.438 ms |
+| FASTEST (F16) | Ranges | 95.082 ms | 113.108 ms | 168.972 ms | 403.228 ms |
+| FASTEST (F16) | One row per chunk | 88.405 ms | 106.250 ms | 157.516 ms | 382.519 ms |
+| MODEL (F32) | Rows | 139.990 ms | 260.662 ms | 310.770 ms | 858.923 ms |
+| MODEL (F32) | Ranges | 139.201 ms | 257.735 ms | 306.992 ms | 786.837 ms |
+| MODEL (F32) | One row per chunk | 126.085 ms | 232.940 ms | 277.596 ms | 737.865 ms |
+
+The modes run in turn within each round, so the shared GPU falls on all
+three and the ratios are what to read. The ranges' p50 is 0.6 percent
+(FASTEST) and 1.1 percent (MODEL) under the rows', but an earlier pair
+of runs at the same commit, under more load, gave 1.003 (ranges slower)
+and 0.992: the ranges cost the same as the rows to within the M2's run
+to run noise. One row per chunk takes 6 and 10 percent less than the
+ranges here, 7 and 10 percent in the earlier runs (0.929 and 0.901), as
+on CUDA at MODEL. The earlier records were not kept. A range over a whole row gave the row's vector
+to the bit, and the lowest cosine of a chunk's range vector to its
+chunk row's was 0.69.
 
 ## Part-of-speech records
 

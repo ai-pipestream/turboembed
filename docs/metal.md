@@ -58,10 +58,13 @@ frameworks and libc++, which every macOS has.
   FASTEST, whose linear layers take F16 operands (Numerics). A model
   stored in F16 or BF16 computes from an F32 copy at EXACT and FASTEST;
   its session at MODEL is refused (`TURBO_E_UNSUPPORTED_OPTION`, field 3),
-  as on the CPU. A model with a linear layer's weight past F16's range
-  (65504) has no F16 kernels: its session at FASTEST, whose numerics
-  allow only F16 operands, is refused (`TURBO_E_UNSUPPORTED_OPTION`,
-  field 3), with a warning in the log, and EXACT runs it in F32. A cell is SUPPORTED where a benchmark record in
+  as on the CPU. An encoder layer with a linear layer's weight past
+  F16's range (65504) computes in F32 at FASTEST, as CUDA computes such
+  a model, with a warning in the log naming how many layers; the other
+  layers run in F16. When every layer has one, the session computes in
+  F32 and reports it in `compute_dtype`, and a `TURBO_METAL_CHOICES`
+  line that forces an F16 tiling is refused
+  (`TURBO_E_UNSUPPORTED_OPTION`, field 3). A cell is SUPPORTED where a benchmark record in
   `benchmarks/records/` backs it (docs/benchmarks.md): on the M2, the
   records against TEI's router built natively with Metal, FASTEST's
   against TEI 1.8.3 in float16. Elsewhere it is EXPERIMENTAL. At FASTEST,
@@ -115,8 +118,9 @@ frameworks and libc++, which every macOS has.
   The first FASTEST session makes the linear layers' weights in F16 the
   same way, narrowed on the device from the F32 ones, shared by every
   later FASTEST session and freed with the model; an F16 model's are
-  read where they are. The narrowing kernel flags a finite weight that
-  F16 cannot hold, and then the copy is dropped and the session refused.
+  read where they are. The narrowing kernel flags each encoder layer
+  with a finite weight that F16 cannot hold, and that layer's F16
+  weights go unused; when every layer is flagged, the copy is dropped.
 - **Sessions.** Every byte a run touches is allocated when the session is
   made, for its `max_batch` rows of `max_seq` tokens: private scratch,
   shared memory for the rows, the shared buffer the vectors are written
@@ -164,10 +168,17 @@ frameworks and libc++, which every macOS has.
   SIMD-group matrices load without a transpose) and each chunk's mask as
   an additive bias, keeps its queries in registers and runs the softmax
   in base 2, with each group's scores and probabilities in threadgroup
-  memory or in the SIMD-group matrices' registers (Kernel choices). A
-  head width that is not a
-  multiple of 8, or is over 64, runs a narrower kernel, one query at a
-  time, in F32 at every precision. The run waits for the pass to
+  memory or in the SIMD-group matrices' registers (Kernel choices). At
+  FASTEST a head width over 64 or not a multiple of 8, up to 128, runs
+  the same F16 kernel built for heads of up to 128, with the head padded
+  to a multiple of 8 by zeros in threadgroup memory and, when its width
+  is not a multiple of 4, read from device memory a value at a time. At
+  EXACT and MODEL, in a FASTEST layer computed in F32, and past 128 at
+  any precision, such a head runs a narrower kernel in F32: each query's
+  scores one key per lane of a SIMD group, the block's 32 queries shared
+  out over as many SIMD groups as the threadgroup memory holds rows of
+  the longest row's scores (up to 32; one at a time ran long enough at
+  large shapes for macOS to stop the command buffer, #1406). The run waits for the pass to
   complete before it returns, and leaves the vectors in the session's
   `SHARED` buffer, which `turbo_result_buffer` hands out and
   `turbo_result_read` copies from.
@@ -237,10 +248,73 @@ frameworks and libc++, which every macOS has.
   Metal's own objects, made by Metal for every submission, and are not
   counted.
 
+## DeBERTa-v2
+
+A model of `FAMILY_DEBERTA_V2` (docs/bundle.md; GLiNER's encoder, #883)
+loads and runs at MODEL and EXACT, in F32; FASTEST is refused with
+`TURBO_E_UNSUPPORTED_OPTION` naming field 3, and never runs in F32 in its
+place. The linear layers, the LayerNorms after them and the pooling are
+the BERT encoder's; three kernels differ (kernels.metal, DeBERTa-v2),
+each held to the CPU encoder (core/src/deberta), the reference:
+
+- `deberta_embed`: the word row alone, LayerNormed, or 0 for a masked
+  position; no position or type rows.
+- The relative rows, made once a model by its first session: the
+  relative table LayerNormed (`deberta_layer_norm_rows`), then put
+  through each layer's query and key projections with their biases
+  (`deberta_relative`, a thread an output, the sum in the CPU's order),
+  `[2 * position_buckets, 2 * hidden]` a layer. A session holds the
+  bucket of every distance its rows can span (HF's log buckets, in F32
+  logarithms, as the CPU takes them).
+- `deberta_attention`: a threadgroup per block of 32 queries of a row and
+  head, as many SIMD groups as the threadgroup memory holds rows of the
+  longest row's scores, each taking every groups-th query, a key a lane.
+  A live query's score of a live key is (q . k + q . pos_key[b] +
+  k . pos_query[b]) / sqrt(3 head_dim), b the bucket of i - j, over live
+  keys; a masked query attends evenly to every position of its row.
+
+`core/tests/metal_deberta.rs` holds the device to the CPU at MODEL on the
+shapes of `core/tests/common/deberta.rs` (the tiny model, one at
+GLiNER-small's size, heads of 32 and 128, and steep buckets), at seven
+row patterns and token ranges: on the M2 every value is within 8.3e-6 of
+the CPU's, against a bound of 1e-4. Dropping the content-to-position term
+fails it (3.3e-4 on the tiny model).
+
+## The LSTM for the taggers
+
+`turbo::device::lstm::Lstm` on `Device::Metal(n)` (`metal` or `metal:N`)
+is the batched LSTM of `turbo::cpu::lstm` on an Apple GPU, for the
+analysis crates' sequence taggers (#860), as core/cuda/lstm.cu runs it on
+CUDA. It is a Rust surface (core/src/device/metal_lstm.rs), not part of
+the backend table; its host side is in backend.mm and its kernels,
+`lstm_project` and `lstm_step`, in kernels.metal, compiled with the
+backend's. The weights and a table are shared Metal buffers on the
+device's unified memory. A run copies its rows (or table row ids),
+lengths and starts in, encodes one product for every row's input
+projections and one dispatch per step over the sequences still running
+(every direction at once, a thread a unit) on its workspace's own
+command queue, and waits once. A non-finite gate or state is refused at
+the end of the run with INVALID_ARGUMENT, as the CPU form refuses it.
+FASTEST (F16 weights) is refused with UNSUPPORTED, never run at MODEL in
+its place. `core/tests/device_lstm.rs` holds it to the CPU form at 1e-5
+with `TURBO_TEST_REQUIRE_METAL=1` (or `TURBO_TEST_DEVICE=metal`).
+
+On the M2 (`docs/receipts/bilstm-metal-860/`) the states are within
+5.1e-7 of the CPU's, the BiLSTM-CRF tagger gives the goldens' 1980 tags,
+and on UD English EWT r2.15's test split (SHA-256 `0612e459...`), with a
+model `bilstm_ewt`'s trainer made (SHA-256 `fcf0b057...`), MODEL on
+Metal tags all 25,094 tokens as the M2's CPU packed path does (94.8553%
+each). It is slower than
+the CPU's packed path: at 256 sentences a call 184.6 ms against 103.2 ms
+warm at p50 with one layer, 405.1 against 205.8 with two. The kernels
+are a thread per output with no tiling or threadgroup memory, so the
+recurrent product reads each step's state from device memory once per
+unit; a tiled step, as CUDA's, is the next step.
+
 ## Kernel choices
 
 At FASTEST a session chooses two items, which tile its linear layers
-run in past 64 packed tokens and, for heads a multiple of 8 up to 64,
+run in past 64 packed tokens and, for heads up to 128,
 which kernel runs attention, and reports them in
 `turbo_session_get_info`'s `choices` (docs/autotune.md):
 
@@ -255,7 +329,11 @@ device that runs threadgroups of 256; and `linear=h32n32` the 32 x 32
 tile, after the fragment handling of MLX's steel GEMM: each of four
 groups holds four 8 x 8 fragments spread across the tile, 16 rows and 16
 columns apart, loaded lane by lane from threadgroup memory as F32, with
-the weights staged as they lie, so nothing is transposed on the way.
+the weights staged as they lie, so nothing is transposed on the way;
+`linear=h64n32` the 64 x 32 tile in the same way, each group four
+fragments down and two across, the shape MLX runs a half "nt" product in
+on a small Apple GPU (The 64 x 32 tile, below; the tuner times it, and
+`auto` does not run it).
 `linear=auto` picks per run: the 32 x 32 tile up to 1024 packed tokens,
 where its extra threadgroups fill the GPU, and the 64 x 64 tile above.
 On the M2 (all-minilm-l6-v2, six alternating rounds, FASTEST against
@@ -285,7 +363,7 @@ session nothing forces or tunes runs `auto` for both.
 
 `TURBO_METAL_CHOICES`, read when a session is made, forces the items it
 names (`linear=h32`, `linear=h64`, `linear=h128`, `linear=h32n32`,
-`linear=auto`, or
+`linear=h64n32`, `linear=auto`, or
 `linear=f32` at EXACT and MODEL; `attn=staged`, `attn=registers` or
 `attn=auto`), and a session with any item forced is not tuned; a line a
 session reported, `forced=` and all, forces the same kernels back. A
@@ -417,6 +495,224 @@ From 1 to 8 rows of 128 FASTEST is now ahead of MLX float16; from 2048
 tokens up the kernels are the same as before, so those rows differ by
 noise alone, and MLX's larger products still run at about 3 TFLOPS
 against our 2.5.
+
+### The linear layers alone against MLX
+
+`bench/metal-peers/gemm_time.swift` compiles `core/metal/kernels.metal`
+as the backend does (safe math) and times one dispatch of a linear-layer
+kernel per command buffer; `bench/metal-peers/mlx_gemm.py` times one MLX
+0.29.3 `x @ w` per `mx.eval` (version refused if another; the SHA-256 of
+`mlx/lib/libmlx.dylib` and `mlx.metallib` recorded). Each is twenty timed
+runs after one untimed, every sample kept, with least, mean, median and
+nearest-rank p99. The comparison is `mode=bare` on both sides: F16
+inputs, F32 sums (our SIMD-group matrices are `simdgroup_float8x8`, as
+MLX's steel GEMM sums float16 products in float32) and F16 output, no
+bias or activation, no k split, and Q, K and V as one product of n = 3h.
+Our weights are `[n, k]`, MLX's `[k, n]`, so any difference includes the
+layout. Both figures are host wall time from submission to completion,
+so each includes its side's launch and synchronization; our GPU time is
+in the raw files and is not compared with MLX's host time.
+
+Receipt: `docs/receipts/metal-gemm-812/` (`turbo.jsonl`, `mlx.jsonl`,
+`schedule.jsonl`, `summary.json`, `kernels-check.log`), at source commit
+`618fbee963d4`. Five paired rounds on the M2, interleaved shape by shape
+(`GEMM_ONLY`), the side that goes first alternating by shape and round,
+so neither side's runs sit at another GPU temperature; `schedule.jsonl`
+gives each run's start and end, the 1, 5 and 15-minute load and the
+GPU's utilization before and after, the macOS build, the binary's and
+scripts' SHA-256 and the commands. The 1-minute load before a run was
+3.2 to 4.2 and the GPU 0 to 53% busy (desktop apps). `kernels-check.log`
+is `metal_f16` at the same commit, every F16 choice within FASTEST's
+floor of the CPU.
+
+Ours (`linear=auto`'s tile) and MLX, least / median of medians / mean of
+means / largest p99 over the five rounds, in ms, the ratio of the
+medians, and our fastest tile by median:
+
+| h | M | shape | ours | MLX | ours / MLX | our fastest tile |
+|---|---|---|---|---|---|---|
+| 384 | 128 | qkv | 0.191 / 0.224 / 0.261 / 1.084 | 0.191 / 0.224 / 0.279 / 1.210 | 1.00 | h64 0.217 |
+| 384 | 128 | attn_out | 0.168 / 0.205 / 0.211 / 0.348 | 0.237 / 0.263 / 0.306 / 1.602 | 0.78 | h32n32 0.219 |
+| 384 | 128 | ffn_in | 0.208 / 0.232 / 0.244 / 0.688 | 0.342 / 0.370 / 0.416 / 1.204 | 0.63 | h32n32 0.237 |
+| 384 | 128 | ffn_out | 0.207 / 0.232 / 0.278 / 0.564 | 0.280 / 0.534 / 0.578 / 1.692 | 0.43 | h32n32 0.231 |
+| 384 | 512 | qkv | 0.328 / 0.356 / 0.389 / 1.320 | 0.317 / 0.761 / 0.791 / 1.762 | 0.47 | h32n32 0.349 |
+| 384 | 512 | attn_out | 0.203 / 0.232 / 0.248 / 0.642 | 0.333 / 0.366 / 0.409 / 1.328 | 0.64 | h32n32 0.232 |
+| 384 | 512 | ffn_in | 0.388 / 0.407 / 0.438 / 1.067 | 0.369 / 0.902 / 0.924 / 1.846 | 0.45 | h32n32 0.402 |
+| 384 | 512 | ffn_out | 0.357 / 0.396 / 0.418 / 0.864 | 0.399 / 0.992 / 0.930 / 2.019 | 0.40 | h32n32 0.406 |
+| 384 | 1024 | qkv | 0.499 / 0.534 / 0.569 / 1.135 | 0.429 / 1.162 / 1.270 / 24.411 | 0.46 | h32n32 0.537 |
+| 384 | 1024 | attn_out | 0.268 / 0.287 / 0.300 / 0.852 | 0.483 / 0.524 / 0.574 / 1.806 | 0.55 | h32n32 0.286 |
+| 384 | 1024 | ffn_in | 0.626 / 0.687 / 0.854 / 1.848 | 0.544 / 1.422 / 1.242 / 2.373 | 0.48 | h32n32 0.699 |
+| 384 | 1024 | ffn_out | 0.597 / 0.663 / 0.723 / 1.272 | 0.586 / 1.178 / 1.162 / 3.243 | 0.56 | h32n32 0.678 |
+| 384 | 4096 | qkv | 1.607 / 1.647 / 1.676 / 2.106 | 1.288 / 1.365 / 1.995 / 5.455 | 1.21 | h32n32 1.585 |
+| 384 | 4096 | attn_out | 0.646 / 0.717 / 0.728 / 1.192 | 0.541 / 1.427 / 1.171 / 3.160 | 0.50 | h32n32 0.676 |
+| 384 | 4096 | ffn_in | 2.008 / 2.109 / 2.137 / 2.358 | 1.655 / 1.741 / 2.432 / 6.123 | 1.21 | h32n32 2.036 |
+| 384 | 4096 | ffn_out | 2.028 / 2.087 / 2.126 / 2.719 | 1.676 / 1.813 / 2.159 / 6.457 | 1.15 | h32n32 1.964 |
+| 384 | 16384 | qkv | 5.777 / 5.936 / 6.179 / 27.287 | 4.528 / 4.635 / 4.843 / 8.814 | 1.28 | h32n32 5.656 |
+| 384 | 16384 | attn_out | 2.079 / 2.151 / 2.501 / 28.449 | 1.636 / 1.751 / 2.126 / 6.462 | 1.23 | h32n32 2.050 |
+| 384 | 16384 | ffn_in | 7.657 / 7.759 / 7.875 / 8.748 | 6.001 / 6.122 / 6.328 / 9.329 | 1.27 | h32n32 7.457 |
+| 384 | 16384 | ffn_out | 7.306 / 7.392 / 7.511 / 8.327 | 5.942 / 6.053 / 6.220 / 7.663 | 1.22 | h32n32 7.031 |
+| 768 | 128 | qkv | 0.325 / 0.342 / 0.356 / 0.586 | 0.318 / 0.383 / 0.433 / 1.464 | 0.89 | h32n32 0.349 |
+| 768 | 128 | attn_out | 0.203 / 0.220 / 0.231 / 0.538 | 0.419 / 0.451 / 0.521 / 1.564 | 0.49 | h32n32 0.233 |
+| 768 | 128 | ffn_in | 0.384 / 0.410 / 0.446 / 0.971 | 0.362 / 0.915 / 0.878 / 2.677 | 0.45 | h32n32 0.430 |
+| 768 | 128 | ffn_out | 0.379 / 0.412 / 0.430 / 0.784 | 0.504 / 1.370 / 1.217 / 3.382 | 0.30 | h32n32 0.412 |
+| 768 | 512 | qkv | 0.830 / 0.893 / 0.927 / 1.685 | 0.754 / 1.516 / 1.444 / 3.852 | 0.59 | h32n32 0.892 |
+| 768 | 512 | attn_out | 0.368 / 0.396 / 0.413 / 1.229 | 0.378 / 0.910 / 0.922 / 1.746 | 0.44 | h32n32 0.395 |
+| 768 | 512 | ffn_in | 1.051 / 1.114 / 1.145 / 1.764 | 0.904 / 1.223 / 1.560 / 4.082 | 0.91 | h32n32 1.133 |
+| 768 | 512 | ffn_out | 1.050 / 1.104 / 1.131 / 1.815 | 0.998 / 1.134 / 1.654 / 3.808 | 0.97 | h32n32 1.110 |
+| 768 | 1024 | qkv | 1.509 / 1.564 / 1.703 / 3.252 | 1.272 / 1.405 / 1.772 / 4.262 | 1.11 | h32n32 1.571 |
+| 768 | 1024 | attn_out | 0.589 / 0.653 / 0.669 / 1.106 | 0.535 / 0.757 / 1.033 / 2.333 | 0.86 | h32n32 0.656 |
+| 768 | 1024 | ffn_in | 1.904 / 2.009 / 2.034 / 2.624 | 1.655 / 1.738 / 2.152 / 5.483 | 1.16 | h32n32 2.024 |
+| 768 | 1024 | ffn_out | 1.888 / 1.941 / 1.982 / 2.632 | 1.777 / 1.833 / 2.157 / 6.084 | 1.06 | h32n32 1.945 |
+| 768 | 4096 | qkv | 5.584 / 5.722 / 6.460 / 34.252 | 4.514 / 4.635 / 4.829 / 8.143 | 1.23 | h32n32 5.427 |
+| 768 | 4096 | attn_out | 2.036 / 2.078 / 2.112 / 2.818 | 1.666 / 1.736 / 2.236 / 5.412 | 1.20 | h32n32 1.984 |
+| 768 | 4096 | ffn_in | 7.376 / 7.484 / 7.714 / 12.796 | 5.935 / 6.059 / 6.329 / 9.745 | 1.24 | h32n32 7.239 |
+| 768 | 4096 | ffn_out | 7.302 / 7.379 / 7.431 / 7.946 | 5.996 / 6.119 / 6.271 / 8.132 | 1.21 | h32n32 7.005 |
+| 768 | 16384 | qkv | 21.707 / 21.864 / 21.998 / 23.481 | 17.392 / 17.667 / 17.896 / 21.879 | 1.24 | h32n32 20.960 |
+| 768 | 16384 | attn_out | 7.383 / 7.506 / 7.752 / 16.824 | 5.907 / 6.055 / 6.339 / 13.153 | 1.24 | h32n32 7.168 |
+| 768 | 16384 | ffn_in | 28.854 / 29.100 / 29.673 / 32.933 | 23.158 / 23.490 / 23.759 / 26.343 | 1.24 | h32n32 27.887 |
+| 768 | 16384 | ffn_out | 28.348 / 28.843 / 32.223 / 49.137 | 23.022 / 23.408 / 27.294 / 48.013 | 1.23 | h32n32 27.543 |
+
+Only at M = 16384 does the product outweigh each side's launch and
+synchronization: there ours is 1.22x to 1.28x MLX's median, 2.25 to 2.68
+TFLOPS against 2.76 to 3.30. Below that, from 128 to 4096 tokens, the
+ratios (0.30 to 1.24) mostly measure each side's per-call overhead, which
+for MLX includes Python and a graph per call, not the tiles. Earlier
+whole-sweep rounds, in which our sweep ran about twenty minutes and
+MLX's three, put the h = 768 rows at 1.9x to 2.1x; interleaved, the same
+shapes are 1.20x to 1.24x, so that gap was the GPU's state late in a
+long sweep, not the tile. At 4096 and 16384 tokens the 32 x 32 tile is
+the fastest by median in every row, 3% to 6% under `auto`'s 64 x 64,
+which `auto` picks past 1024 tokens (#849's per-bin tuning).
+
+### The 64 x 32 tile
+
+`linear=h64n32` is MLX's tile for a half "nt" product on a small Apple
+GPU such as the base M2 (64 x 32, BK 32, 2 x 2 SIMD groups), built on
+the 32 x 32 tile's fragment handling. It computes the same sums in the
+same order as the other F16 tiles: on all-minilm-l6-v2 and
+bge-base-en-v1.5 at their longest rows every tile, forced, is the same
+distance from the CPU (1 - cosine 1.965e-6 and 4.635e-6).
+
+`gemm_time.swift` (bare mode, as above) timed it beside the 32 x 32 and
+64 x 64 tiles at each shape, five rounds at `60128d6e`, the three tiles in
+one process per shape, the order rotated by shape and by round, with
+the 1-minute load 2.3 to 2.8 and desktop applications holding the GPU
+0 to 92% busy (docs/receipts/metal-tiles-812). The 32 x 32 tile had the
+least median (of the five rounds' medians) at 36 of the 40 shapes. At
+M = 16384, at both widths, the 64 x 32 tile took 3% to 8% longer than
+the 32 x 32 in every round, and at M = 4096 it took 2% to 7% longer in
+every round for h = 768; at the other shapes the paired rounds swing
+both ways (0.33x to 3.4x) with the desktop's use of the GPU, so they
+settle nothing. So the tile MLX picks
+does not close the gap to MLX's rate measured above: whatever MLX's
+kernels do differently, it is not the tile's shape. The tuner times
+`h64n32` with the others and keeps it only where it wins.
+
+### The 32 x 32 tile without range checks
+
+Where the packed tokens (always a multiple of 32 on Metal), n and k are
+all multiples of 32, which covers every linear layer of the BERT models
+here, the 32 x 32 tile now runs a form of itself with its range checks
+compiled out: no row, column or k step can fall outside, so nothing is
+skipped and the sums are the same in the same order
+(`core/tests/metal_aligned.rs` holds the bits equal). `gemm_time.swift`
+timed the two beside each other and beside `auto`'s 64 x 64 tile, five
+rounds at `da1472b0`, the order rotated by shape and by round
+(docs/receipts/metal-aligned-812). Paired shape by shape, the form
+without checks took 0.935 to 0.943 of the checked tile's GPU time at
+the median of each round's 40 shapes, in rounds where the load ranged
+from under 4 to 55; the 16 pairs taken on a quiet host and GPU are all
+under 1, median 0.936. About 6% off the tile that `auto` runs up to
+1024 tokens.
+
+### MLX as a recorded reference
+
+`turbo-bench record` on metal runs MLX beside TEI (docs/benchmarks.md,
+Reference programs), so a record holds the MLX comparison. The two dense
+records in `benchmarks/records/` (`m2.metal.embed.*-dense.*.3484a9d48f34`)
+were made from a release build of that commit:
+
+```
+cargo build --release -p turbo-bench --features metal
+target/release/turbo-bench record --bundle <all-minilm-l6-v2> --device metal \
+    --precision <fastest|model> --rows dense --batch 32 --seq 256 --warmup 5 --iterations 50 \
+    --tei-bin <text-embeddings-router> --tei-model <upstream model> --mlx-model <upstream model>
+```
+
+The M2 is a desktop and was in use. Each record started once the
+5-minute load average was under 3.5 and the GPU's utilization had read
+under 35% six times over 30 s (16 to 19% just before), with the
+desktop's apps running; MLX's `procedure` gives the load averages just
+before it ran (2.95 3.35 4.87 and 2.20 3.02 4.60). The library, TEI and
+MLX run one after another within each record, about a minute apart, so
+the load can differ between them. min / mean / p50 / p99 in ms; MLX's
+min and mean are in its `procedure`, and its time is host wall time
+over the encoder and pooling, with the rows already on the device and
+the vectors not read back, where the library's includes writing the
+rows and reading the vectors:
+
+| Precision | turbo | MLX (wall time) | TEI end to end p50 / p99 | MLX's lowest cosine |
+|---|---|---|---|---|
+| FASTEST (F16; MLX float16) | 97.59 / 98.96 / 98.74 / 101.57 | 102.95 / 104.90 / 104.84 / 107.65 | 1109.9 / 1202.7 | 0.9999991 |
+| MODEL (F32; MLX float32) | 142.29 / 145.51 / 145.27 / 149.38 | 150.22 / 152.90 / 152.27 / 159.40 | 1151.0 / 1233.8 | 1 - 2.7e-13 |
+
+Each record's `speed_ratio`, against MLX, its fastest reference, is
+0.94 at FASTEST and 0.95 at MODEL. MLX is pinned by the SHA-256 of
+`mlx/lib/libmlx.dylib` (`mlx@sha256:2ea12324...`), with `mlx.metallib`'s
+and `mlx.core`'s in its `procedure`, and the runner refuses an MLX other
+than 0.29.3.
+
+### Wide heads and weights past F16's range
+
+Six-layer BERTs written by the tests' `bert_weights` (weights scaled by
+0.05, no real model of either kind is among the sealed bundles), dense
+rows, 8 untimed then 32 timed runs from the host on an M2, p50 / least
+in ms; main from before these changes and after, two rounds each in
+alternating order (the machine's 5-minute load average 3 to 5):
+
+| Model | Rows | FASTEST before | FASTEST | EXACT |
+|---|---|---|---|---|
+| hidden 768, heads of 128 | 32 x 256 | 1968 / 1352 | 518 / 507 | 2286 / 2048 |
+| hidden 768, heads of 128 | 8 x 128 | 161 / 154 | 59.2 / 58.3 | 165 / 163 |
+| hidden 768, heads of 128 | 1 x 128 | 35.7 / 32.7 | 8.05 / 7.67 | 36.5 / 36.2 |
+| hidden 640, heads of 80 | 32 x 256 | 1436 / 1367 | 341 / 312 | 1602 / 1553 |
+| hidden 640, heads of 80 | 8 x 128 | 125 / 121 | 42.0 / 40.8 | 137 / 136 |
+| hidden 640, heads of 80 | 1 x 128 | 27.6 / 25.5 | 6.29 / 5.88 | 28.0 / 26.9 |
+| hidden 384, layer 0 past F16 | 32 x 256 | refused | 156 / 130 | 218 / 212 |
+| hidden 384, layer 0 past F16 | 8 x 128 | refused | 19.5 / 18.8 | 25.6 / 24.4 |
+| hidden 384, layer 0 past F16 | 1 x 128 | refused | 3.49 / 3.19 | 4.80 / 4.37 |
+
+FASTEST before ran these heads in the F32 narrow kernel; the F16 one is
+2.6x to 4.4x faster on them (by p50 or by least). A model with one
+layer past F16's range, refused at FASTEST before, now runs it about
+1.4x faster than EXACT.
+The kernels for heads a multiple of 8 up to 64 are unchanged:
+all-minilm-l6-v2 and bge-base-en-v1.5 give main's vectors bit for bit at
+MODEL and FASTEST.
+
+### LayerNorm in registers, not kept
+
+`embed_layer_norm` and `add_layer_norm` read each row from device memory
+three times (the mean, the variance, the output). A version that held
+rows of up to 1024 values in registers, 32 to a lane, read each once
+and gave main's vectors bit for bit (all-minilm-l6-v2, bge-base-en-v1.5
+and the tiny bundle, MODEL and FASTEST, 1 x 128 to 32 x 256). It was
+slower. all-minilm-l6-v2 at FASTEST, dense rows, p50 in ms, two
+`turbo-bench record` rounds in alternating order:
+
+| Rows | main | registers |
+|---|---|---|
+| 32 x 256 | 104.6, 100.8 | 109.4, 105.0 |
+| 8 x 128 | 12.28, 12.17 | 13.04, 12.93 |
+| 2 x 128 | 3.67, 3.56 | 3.99, 4.10 |
+| 1 x 128 | 2.28, 2.29 | 2.42, 2.41 |
+
+Sized to the width (12 values to a lane for hidden 384) it was level
+with main, within the rounds' spread, and at bge-base-en-v1.5's 768 the
+32-value version was level as well. LayerNorm is a small part of a
+layer, so the reads saved do not show, and the larger register file a
+lane needs costs more than they save. `core/tests/metal_ranges.rs`
+keeps a test at widths around 1024 for any later try.
 
 ## Testing
 

@@ -3,10 +3,10 @@
 use std::ffi::c_void;
 use std::sync::Mutex;
 
+use super::staging::Staging;
 use super::*;
 use crate::backend::{
-    TURBO_BERT_EMBEDDING_TENSORS, TURBO_BERT_LAYER_TENSORS, TURBO_FAMILY_BERT, TURBO_FAMILY_ROBERTA,
-    turbo_backend_model,
+    TURBO_BERT_LAYER_TENSORS, TURBO_FAMILY_BERT, TURBO_FAMILY_DEBERTA_V2, TURBO_FAMILY_ROBERTA, turbo_backend_model,
 };
 use crate::levelzero::gpu::{Arg, Context, LOG_DEBUG, Res, fail, guarded, quietly};
 use crate::status::{INVALID_ARGUMENT, UNSUPPORTED};
@@ -57,6 +57,11 @@ pub(super) struct Weights {
     /// The widened copy; null for an F32 model.
     pub(super) widened: *mut c_void,
     pub(super) fused: *mut c_void,
+    /// A DeBERTa-v2 model's relative rows through each layer's fused
+    /// projection (deberta.rs), and their allocation; empty and null for
+    /// any other family.
+    pub(super) relative: Vec<u64>,
+    pub(super) relative_alloc: *mut c_void,
 }
 
 // The context outlives the model (the core releases models first); the
@@ -94,9 +99,23 @@ impl Model {
         };
         let (h, layers) = (self.desc.hidden as u64, self.desc.layers as u64);
         let per_layer = 3 * h * h * 4 + 3 * h * 4;
-        let qkv =
+        let qkv: Vec<_> =
             (0..layers).map(|l| (fused as u64 + l * per_layer, fused as u64 + l * per_layer + 3 * h * h * 4)).collect();
-        let w = Weights { tensors, qkv, widened, fused };
+        let (relative, relative_alloc) = if self.desc.family == TURBO_FAMILY_DEBERTA_V2 {
+            match self.relative(&tensors, &qkv) {
+                Ok(r) => r,
+                Err(e) => {
+                    c.free(fused, "the fused projections");
+                    if !widened.is_null() {
+                        c.free(widened, "the widened weights");
+                    }
+                    return Err(e);
+                }
+            }
+        } else {
+            (Vec::new(), std::ptr::null_mut())
+        };
+        let w = Weights { tensors, qkv, widened, fused, relative, relative_alloc };
         *f = Some(w.clone());
         Ok(w)
     }
@@ -177,7 +196,8 @@ impl Model {
         let c = self.ctx();
         let d = &self.desc;
         let (h, i) = (d.hidden as u64, d.intermediate as u64);
-        let t = |l: u32, r: u32| w.tensors[(TURBO_BERT_EMBEDDING_TENSORS + l * TURBO_BERT_LAYER_TENSORS + r) as usize];
+        let base = deberta::layer_base(d);
+        let t = |l: u32, r: u32| w.tensors[(base + l * TURBO_BERT_LAYER_TENSORS + r) as usize];
         // Each layer's four weights: where they are in F32, and their
         // outputs and inputs.
         let mut parts = Vec::with_capacity(4 * d.layers as usize);
@@ -263,14 +283,13 @@ impl Model {
         let (h, layers) = (self.desc.hidden as usize, self.desc.layers as usize);
         let (weight, bias) = (h * h * 4, h * 4);
         let fused = c.alloc_device(layers * 3 * (weight + bias))?;
+        let base = deberta::layer_base(&self.desc);
         let copied = (|| {
             let mut q = c.lock_queue()?;
             let appended = (|| {
                 for l in 0..layers {
                     let dst = fused as usize + l * 3 * (weight + bias);
-                    let t = |r: u32| {
-                        tensors[(TURBO_BERT_EMBEDDING_TENSORS + l as u32 * TURBO_BERT_LAYER_TENSORS + r) as usize]
-                    };
+                    let t = |r: u32| tensors[(base + l as u32 * TURBO_BERT_LAYER_TENSORS + r) as usize];
                     for (i, (w, b)) in
                         [(Q_WEIGHT, Q_BIAS), (K_WEIGHT, K_BIAS), (V_WEIGHT, V_BIAS)].into_iter().enumerate()
                     {
@@ -308,6 +327,9 @@ impl Drop for Model {
                 c.free(w.widened, "the widened weights");
             }
             c.free(w.fused, "the fused projections");
+            if !w.relative_alloc.is_null() {
+                c.free(w.relative_alloc, "the relative projections");
+            }
         }
         let h = self.f16.get_mut().unwrap_or_else(|p| p.into_inner());
         if let Some(h) = h.take() {
@@ -335,10 +357,12 @@ pub(crate) unsafe extern "C" fn model_load(
     unsafe {
         guarded(err, || {
             let (c, d) = (&*(ctx as *const Context), &*desc);
-            if d.family != TURBO_FAMILY_BERT && d.family != TURBO_FAMILY_ROBERTA {
+            if d.family == TURBO_FAMILY_DEBERTA_V2 {
+                deberta::check_load(d)?;
+            } else if d.family != TURBO_FAMILY_BERT && d.family != TURBO_FAMILY_ROBERTA {
                 return Err(fail(
                     UNSUPPORTED,
-                    format!("family {}: the levelzero backend holds BERT encoders", d.family),
+                    format!("family {}: the levelzero backend holds BERT and DeBERTa-v2 encoders", d.family),
                 ));
             }
             if d.heads == 0 || d.hidden % d.heads != 0 {
@@ -346,7 +370,7 @@ pub(crate) unsafe extern "C" fn model_load(
             }
             // Each layer's tensors are read by index when a session is made:
             // the table holds the embeddings and every layer's, no fewer.
-            let expected = TURBO_BERT_EMBEDDING_TENSORS as u64 + d.layers as u64 * TURBO_BERT_LAYER_TENSORS as u64;
+            let expected = deberta::layer_base(d) as u64 + d.layers as u64 * TURBO_BERT_LAYER_TENSORS as u64;
             if d.tensor_count as u64 != expected || d.tensors.is_null() {
                 return Err(fail(
                     INVALID_ARGUMENT,
@@ -379,25 +403,35 @@ pub(crate) unsafe extern "C" fn model_load(
                 f32t: Mutex::new(None),
             });
             {
+                // The weights go through staging the context allocated, not
+                // straight from the caller's pages (a mapped bundle), which
+                // the driver read until the queue synchronized: two large
+                // loads at once failed that way (#1355, staging.rs).
+                let stage = Staging::new(c)?;
                 let mut q = c.lock_queue()?;
                 // The queue is left idle whether or not every copy was
                 // appended, before a failure frees what they write to.
                 let appended = (|| {
+                    let mut s = stage.fill();
                     for (i, t) in tensors.iter().enumerate() {
-                        let dst = (stored as *mut u8).add(m.offsets[i]) as *mut c_void;
-                        c.copy(&mut q, dst, t.data, t.bytes as usize)?;
+                        let dst = (stored as *mut u8).add(m.offsets[i]);
+                        let src = std::slice::from_raw_parts(t.data as *const u8, t.bytes as usize);
+                        s.copy(c, &mut q, dst, src)?;
                     }
                     Ok(())
                 })();
                 let synced = c.sync(&mut q);
+                drop(q);
+                drop(stage);
                 appended?;
                 synced?;
             }
             c.say(
                 LOG_DEBUG,
                 &format!(
-                    "levelzero device {}: a BERT of {} layers, {total} bytes of {} weights",
+                    "levelzero device {}: a {} of {} layers, {total} bytes of {} weights",
                     c.ordinal,
+                    if d.family == TURBO_FAMILY_DEBERTA_V2 { "DeBERTa-v2" } else { "BERT" },
                     d.layers,
                     dtype_name(d.dtype)
                 ),

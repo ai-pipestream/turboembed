@@ -169,6 +169,7 @@ pub fn measured_reference(name: &str) -> ReferenceRun {
             computed_tokens: Some(m.rows.padded_tokens()),
         }),
         not_run: None,
+        kernel_time: None,
     }
 }
 

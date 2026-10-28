@@ -46,6 +46,7 @@ fn not_run(image: &str, log: Log, procedure: &str, why: String) -> ReferenceRun 
         procedure: procedure.into(),
         measured: None,
         not_run: Some(crate::openvino::redact_user_paths(&why)),
+        kernel_time: None,
     }
 }
 
@@ -119,34 +120,79 @@ pub fn run(
     let (what, threads) = (procedure, cpus::procedure(tei.cpus.as_ref(), library, &env));
 
     let container = format!("turbo-bench-tei-{}", std::process::id());
-    let start_argv = |dir: &Path| {
-        run_argv(
-            image,
-            dir,
-            &container,
-            gpu,
-            tei.cpus.as_ref(),
-            dtype,
-            pooling(m.pooling()),
-            m.rows.row_count() as u32,
-            m.rows.seq,
-        )
-    };
-    log.run_as(&start_argv(&dir), start_argv(Path::new(docker::TEI_MODEL)))?;
-    let _running = Running { name: container.clone() };
-    let port = docker::parse_port(&log.run(&argv(&["docker", "port", &container, "80/tcp"]))?)?;
-    let base = format!("http://127.0.0.1:{port}");
-
-    let start = Instant::now();
-    while get(&format!("{base}/health")).is_err() {
-        let state = log.run(&argv(&["docker", "inspect", "--format", "{{.State.Running}}", &container]));
-        if state.as_deref().map(str::trim) != Ok("true") || start.elapsed() > START_TIMEOUT {
-            let logs = log.run(&argv(&["docker", "logs", &container])).unwrap_or_default();
-            return Err(format!("TEI did not become healthy within {START_TIMEOUT:?}:\n{logs}"));
+    let profile = match (&tei.nsys, gpu) {
+        (Some(n), Some(g)) => {
+            let out = std::env::temp_dir().join(format!("turbo-bench-tei-nsys-{}", std::process::id()));
+            fs::create_dir_all(&out).map_err(|e| format!("{}: {e}", out.display()))?;
+            Some(kernels::Profile { container: format!("{container}-nsys"), nsys: n, out, gpu: g })
         }
-        std::thread::sleep(Duration::from_secs(1));
+        (Some(_), None) => return Err("--tei-nsys profiles TEI's kernels on a GPU; this device is not one".into()),
+        (None, _) => None,
+    };
+    let _trace = profile.as_ref().map(|p| Scratch(p.out.clone()));
+    // TEI as the record names it, under the profiler or not: the
+    // profiler's tracing slows every request, so the end-to-end timing is
+    // of a server that runs without it.
+    let serve = |log: &mut Log, name: &str, profiled: Option<&kernels::Profile>| -> Result<(Running, String)> {
+        let start_argv = |dir: &Path, shown: bool| {
+            let a = run_argv(
+                image,
+                dir,
+                name,
+                gpu,
+                tei.cpus.as_ref(),
+                dtype,
+                pooling(m.pooling()),
+                m.rows.row_count() as u32,
+                m.rows.seq,
+            );
+            match profiled {
+                Some(p) => kernels::profiled(a, image, p.nsys, &p.out, shown),
+                None => a,
+            }
+        };
+        log.run_as(&start_argv(&dir, false), start_argv(Path::new(docker::TEI_MODEL), true))?;
+        let running = Running { name: name.to_owned() };
+        let port = docker::parse_port(&log.run(&argv(&["docker", "port", name, "80/tcp"]))?)?;
+        let base = format!("http://127.0.0.1:{port}");
+        let start = Instant::now();
+        while get(&format!("{base}/health")).is_err() {
+            let state = log.run(&argv(&["docker", "inspect", "--format", "{{.State.Running}}", name]));
+            if state.as_deref().map(str::trim) != Ok("true") || start.elapsed() > START_TIMEOUT {
+                let logs = log.run(&argv(&["docker", "logs", name])).unwrap_or_default();
+                return Err(format!("TEI did not become healthy within {START_TIMEOUT:?}:\n{logs}"));
+            }
+            std::thread::sleep(Duration::from_secs(1));
+        }
+        Ok((running, base))
+    };
+    let (running, base) = serve(&mut log, &container, None)?;
+    let mut run = against(&base, image, log, what, threads, m, warmup, iterations)?;
+    drop(running);
+    let (Some(p), Some(e2e)) = (&profile, run.measured.as_ref().map(|x| x.p50_ms)) else {
+        return Ok(run);
+    };
+    let mut log = Log { commands: std::mem::take(&mut run.commands) };
+    let (_running, base) = serve(&mut log, &p.container, Some(p))?;
+    let (url, body) = (format!("{base}/embed"), embed_body(&m.rows, m.normalize()));
+    for _ in 0..warmup {
+        post(&url, &body)?;
     }
-    against(&base, image, log, what, threads, m, warmup, iterations)
+    let (k, clocks) = kernels::measure(&mut log, p, iterations, || post(&url, &body).map(|_| ()))?;
+    kernels::check(&k, e2e)?;
+    run.commands = log.commands;
+    run.procedure = format!("{}; {}", run.procedure, kernels::procedure(iterations, warmup, &clocks));
+    run.kernel_time = Some(k);
+    Ok(run)
+}
+
+/// A directory the tool made, removed when this goes.
+struct Scratch(PathBuf);
+
+impl Drop for Scratch {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
 }
 
 /// TEI's router run natively on the model directory, as run() runs the
@@ -288,5 +334,6 @@ fn against(
             computed_tokens: computed_tokens(&m.rows),
         }),
         not_run: None,
+        kernel_time: None,
     })
 }

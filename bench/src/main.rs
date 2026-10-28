@@ -6,7 +6,7 @@ mod qa_cmd;
 mod references;
 mod rerank_cmd;
 mod static_cmd;
-use references::Given;
+use references::{Given, Native};
 
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
@@ -80,17 +80,43 @@ fn record_cmd(args: &[String]) -> Result<()> {
     let no_hailort = o.flag("--no-hailort");
     let hailort =
         o.take("--hailort-bin").map(|binary| turbo_bench::hailo::HailoRt { binary: binary.into(), work: work.clone() });
+    let no_mlx = o.flag("--no-mlx");
+    let mlx = o.take("--mlx-model").map(|model| turbo_bench::mlx::Mlx { model: model.into(), work: work.clone() });
     let no_tei = o.flag("--no-tei");
     let tei = match (o.take("--tei-image"), o.take("--tei-bin"), o.take("--tei-model")) {
         (Some(image), None, Some(model)) => {
-            Some(Tei { image, model_dir: model.into(), cpus: cpus.clone(), binary: None })
+            Some(Tei { image, model_dir: model.into(), cpus: cpus.clone(), binary: None, nsys: None })
         }
-        (None, Some(bin), Some(model)) => {
-            Some(Tei { image: String::new(), model_dir: model.into(), cpus: cpus.clone(), binary: Some(bin.into()) })
-        }
+        (None, Some(bin), Some(model)) => Some(Tei {
+            image: String::new(),
+            model_dir: model.into(),
+            cpus: cpus.clone(),
+            binary: Some(bin.into()),
+            nsys: None,
+        }),
         (None, None, None) => None,
         (Some(_), Some(_), _) => return Err("--tei-image and --tei-bin are two ways to run TEI; give one".into()),
         _ => return Err("--tei-model goes with --tei-image or --tei-bin".into()),
+    };
+    let (nsys, nsys_libs, importer) = (o.take("--tei-nsys"), o.take("--tei-nsys-libs"), o.take("--nsys-importer"));
+    let tei = match (tei, nsys) {
+        (Some(t), Some(_)) if t.binary.is_some() => {
+            return Err("--tei-nsys profiles TEI's container; the native router (--tei-bin) is not one".into());
+        }
+        (Some(t), Some(target)) => Some(Tei {
+            nsys: Some(tei::kernels::Nsys {
+                target: target.into(),
+                libs: nsys_libs.map(Into::into),
+                importer: importer.map(Into::into),
+            }),
+            ..t
+        }),
+        (None, Some(_)) => return Err("--tei-nsys goes with --tei-image".into()),
+        (t, None) if nsys_libs.is_some() || importer.is_some() => {
+            let _ = t;
+            return Err("--tei-nsys-libs and --nsys-importer go with --tei-nsys".into());
+        }
+        (t, None) => t,
     };
     let no_trt = o.flag("--no-tensorrt");
     let inputs = onnx_inputs(o.take("--tensorrt-inputs"), "--tensorrt-inputs")?;
@@ -168,6 +194,7 @@ fn record_cmd(args: &[String]) -> Result<()> {
         return Err(format!("{unknown}: not an option here\n{USAGE}"));
     }
     if (no_hailort && hailort.is_some())
+        || (no_mlx && mlx.is_some())
         || (no_tei && tei.is_some())
         || (no_trt && trt.is_some())
         || (no_ov && ov.is_some())
@@ -223,6 +250,7 @@ fn record_cmd(args: &[String]) -> Result<()> {
         trt: (trt.is_some(), no_trt),
         ov: (ov.is_some(), no_ov),
         hailo: (hailort.is_some(), no_hailort),
+        mlx: (mlx.is_some(), no_mlx),
     };
     given.check(&backend)?;
     // The native router is the reference where no container reaches the
@@ -262,7 +290,7 @@ fn record_cmd(args: &[String]) -> Result<()> {
         m.conformance.min_cosine,
         m.conformance.max_abs_diff
     );
-    let references = references::run(&m, &plan, tei, trt, ov, &given, hailort)?;
+    let references = references::run(&m, &plan, tei, trt, ov, &given, Native { hailort, mlx })?;
     let after = git::provenance(&repo)?;
     if after != before {
         return Err(format!("the working tree moved from {} to {} during the run", before.commit, after.commit));

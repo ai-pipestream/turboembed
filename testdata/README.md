@@ -69,7 +69,7 @@
   SHA-256 `c258bffc3c37afc5a8b12324c0d29b81d31738fbf72183ade9c52c0d68e06180`)
   and the reference file above. The core's tests check numerics against
   it: `core/tests/conformance.rs` compares every reference case with the
-  upstream vectors (docs/conformance.md), and `core/tests/sessions.rs`
+  upstream vectors (docs/conformance.md), and `core/tests/sessions/plain.rs`
   compares the encoder's options with the same arithmetic written
   plainly in f64.
   Its `tokenizer.json` is not the upstream file above byte for byte: it
@@ -98,6 +98,31 @@
   each case). `analysis/sat/README.md` says how both were made and
   checked; `analysis/sat/tests` compare the SaT step with wtpsplit on
   it. Under MIT, the licence of wtpsplit and of BAAI/bge-m3's tokenizer.
+
+- `tiny-deberta-recipe/` and `tiny-deberta-bundle/`: a small DeBERTa-v2
+  (DeBERTa-v3's shared-key profile, two layers, hidden 32, four heads, 8
+  relative buckets over 512 positions) with random weights, seed 0, which
+  `bundle/reference/tiny_deberta.py` writes over the MiniLM tokenizer, in
+  the pinned reference container; and the bundle `turbo-bundle reference`
+  sealed and verified from it: the weights (`weights/model.safetensors`,
+  3981800 bytes, SHA-256 `cffdba9450814a52a5ebd32b7f75df5f0ffda23ca580df81f7291578b3c3f695`), the tokenizer file of `tiny-bert-bundle/`
+  (the same bytes), and the reference the container wrote for the MiniLM
+  recipe's cases (mean pooled, L2 normalized, at 128 tokens).
+  `core/tests/conformance.rs` holds every backend to it
+  (`TURBO_TEST_BUNDLE`), and `analysis/gliner/tests/device.rs` runs GLiNER
+  on it. To make them again, from the repository root, with `W` an empty
+  directory and the recipe's image loaded:
+
+  ```
+  cp testdata/all-minilm-l6-v2/tokenizer.json $W/
+  docker run --rm --network none --user $(id -u):$(id -g) -e HOME=/tmp \
+      -v $PWD/bundle/reference:/scripts:ro -v $W:/w --entrypoint python \
+      turbo-reference@sha256:3fe2d4ad441927475b97a400364ebcb7fca3f324dae1a0463720eff7fc0a53f4 \
+      /scripts/tiny_deberta.py /w/tokenizer.json /w/out
+  cargo run --release -p turbo-bundle -- reference testdata/tiny-deberta-recipe/recipe.json $W/out $W/bundle
+  ```
+
+  Under Apache-2.0, the licence of the MiniLM tokenizer.
 
 - `tiny-static-recipe/`: the recipe `turbo-bundle distill` made the
   next bundle from: a 16-wide static model distilled from

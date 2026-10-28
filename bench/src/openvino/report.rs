@@ -142,6 +142,7 @@ pub(super) fn not_run(image: &str, log: Log, procedure: &str, why: String) -> Re
         procedure: procedure.into(),
         measured: None,
         not_run: Some(redact_user_paths(&why)),
+        kernel_time: None,
     }
 }
 
@@ -205,6 +206,7 @@ pub fn measured(image: &str, log: Log, procedure: &str, p50: Report, p99: Report
             computed_tokens: Some(rows.padded_tokens()),
         }),
         not_run: None,
+        kernel_time: None,
     })
 }
 
@@ -269,5 +271,6 @@ pub fn measured_frames(
             computed_tokens: Some(rows.padded_tokens()),
         }),
         not_run: None,
+        kernel_time: None,
     })
 }

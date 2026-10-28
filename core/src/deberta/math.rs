@@ -25,7 +25,7 @@ impl Norm {
 }
 
 /// HF make_log_bucket_position, including its signed distance convention.
-pub(super) fn bucket(distance: isize, buckets: usize, maximum: usize) -> usize {
+pub(crate) fn bucket(distance: isize, buckets: usize, maximum: usize) -> usize {
     let mid = buckets / 2;
     let abs = distance.unsigned_abs();
     let magnitude = if abs <= mid {

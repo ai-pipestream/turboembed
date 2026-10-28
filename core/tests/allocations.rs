@@ -7,6 +7,8 @@
 //! allocates meanwhile.
 
 mod common;
+#[path = "common/deberta.rs"]
+mod deberta_common;
 
 use std::alloc::{GlobalAlloc, Layout, System};
 use std::cell::Cell;
@@ -69,8 +71,11 @@ fn counted_all<T>(f: impl FnOnce() -> T) -> (T, u64, u64) {
 
 #[test]
 fn a_run_reports_the_allocations_it_made() {
-    // An encoder, and a static model, which has none.
-    for dir in [tiny_bundle(), testdata().join("tiny-static-bundle")] {
+    // A BERT encoder, a DeBERTa-v2 one, and a static model, which has
+    // none.
+    let deberta = deberta_common::fixture("allocations-deberta", &deberta_common::TINY);
+    let dir = deberta.write().to_path_buf();
+    for dir in [tiny_bundle(), dir, testdata().join("tiny-static-bundle")] {
         runs_of(&dir);
     }
 }

@@ -1,0 +1,963 @@
+base: 2bf5b0df56ebeed04d124cd445ab928aeba5b7a6 plus the commit that adds this log
+2026-10-26T14:53:59Z
+B70 CI runner containers: 0 cargo, test or nextest processes
+== run 1, load 27.46 27.68 33.91: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.96s
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s
+== run 2, load 27.46 27.68 33.91: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.73s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.55s
+== run 3, load 27.46 27.68 33.91: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.59s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+== run 4, load 26.95 27.57 33.84: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.54s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s
+== run 5, load 26.95 27.57 33.84: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.66s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+== run 6, load 26.95 27.57 33.84: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.57s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+== run 7, load 26.95 27.57 33.84: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.61s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+== run 8, load 26.95 27.56 33.80: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.66s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+== run 9, load 26.95 27.56 33.80: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.73s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+== run 10, load 26.95 27.56 33.80: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+== run 11, load 26.95 27.56 33.80: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.36s
+== run 12, load 25.83 27.32 33.69: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+== run 13, load 25.83 27.32 33.69: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+== run 14, load 25.83 27.32 33.69: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+== run 15, load 25.83 27.32 33.69: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+== run 16, load 25.83 27.32 33.69: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.36s
+== run 17, load 26.33 27.39 33.68: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+== run 18, load 26.33 27.39 33.68: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+== run 19, load 26.33 27.39 33.68: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+== run 20, load 26.33 27.39 33.68: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.45s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (model)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+== run 1, load 26.33 27.39 33.68: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+== run 2, load 25.18 27.14 33.56: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.47s
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s
+== run 3, load 25.18 27.14 33.56: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.39s
+== run 4, load 25.18 27.14 33.56: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+== run 5, load 25.18 27.14 33.56: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s
+== run 6, load 25.00 27.07 33.51: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.68s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+== run 7, load 25.00 27.07 33.51: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+== run 8, load 25.00 27.07 33.51: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.36s
+== run 9, load 25.00 27.07 33.51: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+== run 10, load 25.00 27.07 33.51: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.71s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.46s
+== run 11, load 23.72 26.77 33.38: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.55s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+== run 12, load 23.72 26.77 33.38: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+== run 13, load 23.72 26.77 33.38: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.62s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+== run 14, load 23.72 26.77 33.38: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.64s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s
+== run 15, load 24.71 26.92 33.39: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.69s
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.50s
+== run 16, load 24.71 26.92 33.39: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.74s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+== run 17, load 24.71 26.92 33.39: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.68s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.45s
+== run 18, load 24.97 26.94 33.36: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.68s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+== run 19, load 24.97 26.94 33.36: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.69s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.41s
+== run 20, load 24.97 26.94 33.36: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=exact cargo test --release --features turbo/levelzero -p turbo-analysis-embed --test heads_device --test heads -- --nocapture
+test centroids_match_opennlp_grpc_centroids_test ... ok
+test category_sentence_centroids_matches_chunk_embed_processor_group ... ok
+test label_centroids_from_text_examples_and_binary_roundtrip ... ok
+test vector_head_and_span_heads_write_expected_layers ... ok
+test sentiment_comparison_against_lexicon_and_masc_mpqa ... ok
+Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }: CPU/device head and centroid scores match within 1e-5
+test classifier_head_linear_and_mlp_fit_and_binary_roundtrip ... ok
+test heads_and_centroids_cpu_and_device_parity ... ok
+test incivility_annotator_combines_lexicon_embedding_head_and_reply_context_cpu_device ... ok
+test learned_and_rule_aspect_sentiment_extract_triplets_and_match_cpu_device ... ok
+test pragmatics_annotator_combines_incongruity_emoji_and_embedding_head ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.62s
+pair 0: contradiction by 0.04695213
+pair 1: neutral by 0.37785697
+pair 2: entailment by 0.056848645
+pair 3: contradiction by 0.017952919
+pair 4: contradiction by 0.0043278933
+pair 5: entailment by 0.007926583
+bundle nli scorer on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): logits 7.152557373046875e-6, labels picked ["contradiction", "entailment", "neutral"]
+dense classifier on levelzero Intel(R) Arc(TM) Pro B70 Graphics (f32 (exact)): vectors 1.1920928955078125e-7, probabilities 5.6686733085342667e-8
+test a_dense_classifier_reads_device_vectors_as_the_cpus ... ok
+test the_bundle_nli_scorer_scores_on_the_device_as_on_the_cpu ... ok
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s

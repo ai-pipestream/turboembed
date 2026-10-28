@@ -128,14 +128,13 @@ fn appended_rows_are_the_rows_alone() {
     }
 }
 
-/// The cached table gives each character's turbo-unicode categories.
+/// The cached table gives each character's frozen upstream categories.
 #[test]
-fn the_category_table_is_turbo_unicode() {
-    for c in (0..=0x10ffffu32).filter(|&u| u < 0x10000 || u % 7 == 0).filter_map(char::from_u32) {
-        let category_of = turbo_unicode::category::general_category(c);
-        assert_eq!(category(c, OTHER), category_of.is_other(), "{c:?}");
-        assert_eq!(category(c, MARK_NONSPACING), matches!(category_of, turbo_unicode::GeneralCategory::Mn), "{c:?}");
-        assert_eq!(category(c, PUNCTUATION), category_of.is_punctuation(), "{c:?}");
+fn the_category_table_is_hf_compatible() {
+    for c in (0..=0x10ffffu32).filter_map(char::from_u32) {
+        assert_eq!(category(c, OTHER), turbo_unicode::hf::is_other(c), "{c:?}");
+        assert_eq!(category(c, MARK_NONSPACING), turbo_unicode::hf::is_mark_nonspacing(c), "{c:?}");
+        assert_eq!(category(c, PUNCTUATION), turbo_unicode::hf::is_punctuation(c), "{c:?}");
     }
 }
 
@@ -269,4 +268,39 @@ fn pre_words_part_punctuation_and_ideographs() {
     let t = "(Paris) Merkel's\u{3000}\u{6771}\u{4eac}x \u{ff0c}y";
     let got: Vec<&str> = pre_words(t).into_iter().map(|(a, b)| &t[a..b]).collect();
     assert_eq!(got, ["(", "Paris", ")", "Merkel", "'", "s", "\u{6771}", "\u{4eac}", "x", "\u{ff0c}", "y"]);
+}
+
+#[test]
+fn added_token_word_classes_match_upstream_on_every_scalar() {
+    let upstream = crate::classes::tests::upstream(r"^\w$");
+    for c in (0..=0x10ffff).filter_map(char::from_u32) {
+        assert_eq!(normalize::is_word(c), upstream(c), "U+{:04X}", c as u32);
+    }
+}
+
+/// A text that is one run of combining marks of alternating classes,
+/// under a megabyte: the normalizer's NFD put them in canonical order
+/// by insertion, quadratic in the run, and a request of a few hundred
+/// kilobytes held a thread for seconds. Encoding stays close to linear,
+/// and strip_accents drops every mark: the row is the template alone.
+#[test]
+fn a_long_run_of_combining_marks_encodes_in_linear_time() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../testdata/tiny-bert-bundle");
+    let tok = Tokenizer::unchecked(&Bundle::open(&dir).unwrap()).unwrap();
+    const MARKS: usize = 400_000;
+    let text: String = (0..MARKS).map(|i| if i % 2 == 0 { '\u{301}' } else { '\u{323}' }).collect();
+    let opts =
+        Encode { add_special_tokens: true, truncation: Truncation::Right, max_tokens: 64, prompt: PromptRole::None };
+    let start = std::time::Instant::now();
+    let ids = tok.encode(&text, opts).unwrap();
+    let took = start.elapsed();
+    assert!(took < std::time::Duration::from_secs(3), "{MARKS} marks took {took:?}");
+    assert_eq!(ids.len(), tok.specials_per_sequence() as usize);
+    let (mut spanned, mut spans) = (Vec::new(), Vec::new());
+    let start = std::time::Instant::now();
+    tok.encode_spans(&text, opts, &mut spanned, &mut spans).unwrap();
+    let took = start.elapsed();
+    assert!(took < std::time::Duration::from_secs(3), "{MARKS} marks with spans took {took:?}");
+    assert_eq!(spanned, ids);
+    assert!(spans.iter().all(|&s| s == NOWHERE));
 }

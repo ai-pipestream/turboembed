@@ -13,17 +13,17 @@
 //! beside the latencies as a sanity check; the committed quality
 //! records come from `turbo-eval run`.
 
-use std::collections::BTreeSet;
 use std::time::Instant;
 
-use turbo_vector_index::{IndexBuilder, Metric, Normalization, Space, VectorIndex};
+use turbo_vector_index::{Normalization, Space};
 
 use crate::Result;
 use crate::analysis::Analysis;
 use crate::cascade::{Cascade, CascadeSearch};
 use crate::chunkers::Chunker;
 use crate::embedder::{Embedder, Role};
-use crate::metrics::{DocScores, Hit, Ranking, Run, evaluate};
+use crate::metrics::{DocScores, Ranking, Run, evaluate};
+use crate::retrieve::Index;
 use crate::set::LoadedSet;
 
 /// One measured arm: a single tier, or the cascade at a candidate count.
@@ -114,45 +114,6 @@ fn embed_all(embedder: &mut dyn Embedder, texts: &[String], role: Role) -> Resul
     Ok(out)
 }
 
-fn dense_index(space: Space, vectors: &[f32], rows: usize) -> Result<VectorIndex<u32>> {
-    let dim = space.dim as usize;
-    let mut b = IndexBuilder::new(space, Metric::Cosine).map_err(|e| e.to_string())?;
-    for (i, v) in vectors.chunks_exact(dim).enumerate().take(rows) {
-        if v.iter().any(|x| !x.is_finite()) || v.iter().all(|&x| x == 0.0) {
-            continue;
-        }
-        b.push(v, i as u32).map_err(|e| e.to_string())?;
-    }
-    Ok(b.build())
-}
-
-/// Document ranking of one dense chunk search: best chunk per
-/// document in score order, the query's own document left out.
-fn dense_ranking(
-    index: &VectorIndex<u32>,
-    space: &Space,
-    qvec: &[f32],
-    doc_of: &[u32],
-    ids: &[String],
-    qid: &str,
-) -> Result<Ranking> {
-    let fetch = (ids.len()).min(400);
-    let hits = index.top_k(space, qvec, fetch).map_err(|e| e.to_string())?;
-    let mut seen = BTreeSet::new();
-    let mut out = Vec::new();
-    for h in hits {
-        let doc = doc_of[h.row as usize] as usize;
-        if ids[doc] == qid || !seen.insert(doc) {
-            continue;
-        }
-        out.push(Hit { doc: ids[doc].clone(), score: f64::from(h.score) });
-        if out.len() >= 100 {
-            break;
-        }
-    }
-    Ok(Ranking { query: qid.into(), hits: out })
-}
-
 /// Measures every arm in `depths` (plus the two single tiers) on `set`:
 /// chunked by `chunker` over `analysis`, static chunks and queries in
 /// `statics`' space, contextual ones in `contextual`'s. `rounds`
@@ -200,8 +161,6 @@ pub fn measure(
     let contextual_vectors = embed_all(contextual, &texts, Role::Document)?;
     let static_space = Space::new(statics.identity().model_ref(), statics.dim() as u32, Normalization::None);
     let contextual_space = Space::new(contextual.identity().model_ref(), contextual.dim() as u32, Normalization::None);
-    let static_index = dense_index(static_space.clone(), &static_vectors, rows)?;
-    let contextual_index = dense_index(contextual_space.clone(), &contextual_vectors, rows)?;
     let template = Cascade {
         candidates: depths[0],
         model: turbo_chunker::terms::Bm25::LUCENE,
@@ -210,6 +169,15 @@ pub fn measure(
     let cascade_index =
         template.build(static_space.clone(), &static_vectors, contextual_space.clone(), &contextual_vectors, rows)?;
     let bm25_index = template.index(&texts, &doc_of)?;
+    let static_index =
+        Index { dim: statics.dim(), vectors: static_vectors, doc: doc_of.clone(), span: spans.clone(), docs: &ids };
+    let contextual_index = Index {
+        dim: contextual.dim(),
+        vectors: contextual_vectors,
+        doc: doc_of.clone(),
+        span: spans.clone(),
+        docs: &ids,
+    };
     drop(texts);
     let cascades: Vec<Cascade> =
         depths.iter().map(|&c| Cascade { candidates: c, model: template.model, terms: template.terms }).collect();
@@ -237,7 +205,7 @@ pub fn measure(
                         statics.embed(&[q.text.as_str()], Role::Query, &mut sv)?;
                         enc = t0.elapsed().as_nanos() as u64;
                         let t1 = Instant::now();
-                        let r = dense_ranking(&static_index, &static_space, &sv[..sdim], &doc_of, &ids, &q.id)?;
+                        let r = static_index.document_ranking(&q.id, &sv[..sdim])?;
                         sea = t1.elapsed().as_nanos() as u64;
                         r
                     }
@@ -245,7 +213,7 @@ pub fn measure(
                         contextual.embed(&[q.text.as_str()], Role::Query, &mut cv)?;
                         enc = t0.elapsed().as_nanos() as u64;
                         let t1 = Instant::now();
-                        let r = dense_ranking(&contextual_index, &contextual_space, &cv[..cdim], &doc_of, &ids, &q.id)?;
+                        let r = contextual_index.document_ranking(&q.id, &cv[..cdim])?;
                         sea = t1.elapsed().as_nanos() as u64;
                         r
                     }

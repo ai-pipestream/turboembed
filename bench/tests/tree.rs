@@ -2,12 +2,18 @@
 //! under benchmarks/records, benchmarks/records/postag,
 //! benchmarks/records/tag, benchmarks/records/throughput and
 //! benchmarks/ranges are what their names say, the README and the
-//! docs point at files that exist, and no committed text names a home
-//! directory on one of our machines.
+//! docs point at files that exist, no committed text names a home
+//! directory on one of our machines, no committed file holds a private
+//! key block (tree/secrets.rs), and the demo has no JSON front end
+//! (tree/front_end.rs).
 
 mod common;
 #[path = "tree/dependencies.rs"]
 mod dependencies;
+#[path = "tree/front_end.rs"]
+mod front_end;
+#[path = "tree/secrets.rs"]
+mod secrets;
 
 use std::path::{Path, PathBuf};
 
@@ -237,7 +243,17 @@ fn the_committed_text_carries_no_host_path() {
     files.extend(committed_postag_records().iter().map(|(n, _)| root.join(postag::POSTAG_DIR).join(n)));
     files.extend(committed_tag_records().iter().map(|(n, _)| root.join(tag::TAG_DIR).join(n)));
     files.extend(committed_throughput_records().iter().map(|(n, _)| root.join(throughput::THROUGHPUT_DIR).join(n)));
-    for dir in ["bundle/recipes", "include/turbo", ".github/workflows"] {
+    for dir in [
+        "bundle/recipes",
+        "include/turbo",
+        ".github/workflows",
+        "demo/web",
+        "demo/web/src",
+        "demo/web/src/tabs",
+        "demo/web/src/gen",
+        "demo/web/test",
+        "demo/static",
+    ] {
         if let Ok(rd) = std::fs::read_dir(root.join(dir)) {
             files.extend(rd.map(|e| e.unwrap().path()).filter(|p| p.is_file()));
         }
@@ -278,13 +294,13 @@ fn obsolete_source_tree_is_absent() {
 }
 
 #[test]
-fn committed_rust_and_markdown_have_no_literal_em_dash() {
+fn committed_rust_markdown_and_typescript_have_no_literal_em_dash() {
     let root = workspace();
     let out = std::process::Command::new("git")
         .current_dir(&root)
-        .args(["ls-files", "-z", "--", ":(glob)**/*.rs", ":(glob)**/*.md"])
+        .args(["ls-files", "-z", "--", ":(glob)**/*.rs", ":(glob)**/*.md", ":(glob)**/*.ts"])
         .output()
-        .expect("git lists Rust and Markdown sources");
+        .expect("git lists Rust, Markdown and TypeScript sources");
     assert!(out.status.success());
     let paths = String::from_utf8(out.stdout).unwrap();
     let mut found = Vec::new();

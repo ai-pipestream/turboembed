@@ -24,7 +24,9 @@ use turbo_analysis::{Analyzer, Document};
 use crate::api::{
     Failure, TURBO_E_CAPACITY, TURBO_E_INTERNAL, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_STATE, TURBO_E_PANIC,
 };
+use crate::deadline::{Deadline, deadline_status};
 use crate::kserve::Reply;
+use crate::metrics::{DocGuard, StreamGuard};
 use crate::offsets::OffsetMode;
 use crate::proto::result::analyze_progressive_event::Event;
 use crate::proto::result::{
@@ -48,6 +50,8 @@ use steps::{CHUNKING_STEPS, DEFAULT_STEPS, MINIMAL_STEPS, compile_analyzer_with_
 pub struct ProgressiveStream {
     inner: ReceiverStream<std::result::Result<AnalyzeProgressiveEvent, Status>>,
     cancel: Arc<AtomicBool>,
+    _stream_guard: Option<StreamGuard>,
+    _doc_guard: Option<DocGuard>,
 }
 
 impl Drop for ProgressiveStream {
@@ -93,24 +97,33 @@ fn step_error_code(err: &turbo_analysis::Error) -> i32 {
 /// Validates `req`, builds the [`Analyzer`] DAG, and starts the progressive
 /// execution task feeding the returned [`ProgressiveStream`].
 pub(crate) async fn start_progressive(state: &State, req: Request<AnalyzePipelineRequest>) -> Reply<ProgressiveStream> {
+    let deadline = Deadline::from_request(&req)?;
+    deadline.check()?;
     let req = req.into_inner();
     let offsets = OffsetMode::from_proto(req.offsets).map_err(plain)?;
 
     let doc = build_initial_document(&req)?;
     let analyzer = build_pipeline(state, &req, &doc)?;
 
-    let cancel = Arc::new(AtomicBool::new(false));
+    let cancel = Arc::clone(deadline.cancel_flag());
     let task_cancel = Arc::clone(&cancel);
+    let task_deadline = deadline.clone();
     let (tx, rx) = mpsc::channel::<std::result::Result<AnalyzeProgressiveEvent, Status>>(32);
 
     let doc_id = req.doc_id.clone();
     let proto_offsets = offsets.to_proto();
+    let (stream_guard, doc_guard) = (Some(state.metrics.track_stream()), Some(state.metrics.track_docs(1, None)));
 
     tokio::task::spawn_blocking(move || {
-        run_progressive_task(doc_id, proto_offsets, doc, analyzer, task_cancel, tx);
+        run_progressive_task(doc_id, proto_offsets, doc, analyzer, task_cancel, task_deadline, tx);
     });
 
-    Ok(Response::new(ProgressiveStream { inner: ReceiverStream::new(rx), cancel }))
+    Ok(Response::new(ProgressiveStream {
+        inner: ReceiverStream::new(rx),
+        cancel,
+        _stream_guard: stream_guard,
+        _doc_guard: doc_guard,
+    }))
 }
 
 fn build_initial_document(req: &AnalyzePipelineRequest) -> Result<Document, Status> {
@@ -178,8 +191,13 @@ fn run_progressive_task(
     mut doc: Document,
     analyzer: Analyzer,
     cancel: Arc<AtomicBool>,
+    deadline: Deadline,
     tx: mpsc::Sender<std::result::Result<AnalyzeProgressiveEvent, Status>>,
 ) {
+    if deadline.is_expired() {
+        let _ = tx.blocking_send(Err(deadline_status()));
+        return;
+    }
     let mut seq = 1u64;
     let c = codecs();
     let initial_export = match export(&doc, c) {
@@ -307,6 +325,10 @@ fn run_progressive_task(
         }
     });
 
+    if deadline.is_expired() {
+        let _ = tx.blocking_send(Err(deadline_status()));
+        return;
+    }
     if cancel.load(Ordering::Relaxed) {
         return;
     }

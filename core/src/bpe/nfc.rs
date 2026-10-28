@@ -1,12 +1,16 @@
 //! NFC for a byte-level BPE whose tokenizer file normalizes with it, as
 //! Qwen2's does, writing the source of each byte, so that spans point
-//! into the caller's text.
+//! into the caller's text. The normalization is turbo-unicode's frozen
+//! Hugging Face profile, the Unicode 9.0 tables upstream normalizes with,
+//! so characters assigned or changed since compose and reorder as they do
+//! upstream.
 
 use std::cell::Cell;
 
-use turbo_unicode::normalize::{
-    Form, aligned as unicode_aligned, canonical_combining_class, compose as char_compose, is_normalized,
+use turbo_unicode::hf::{
+    aligned as unicode_aligned, canonical_combining_class, compose as char_compose, is_nfc as hf_is_nfc,
 };
+use turbo_unicode::normalize::Form;
 
 use crate::tokenizer::Span;
 
@@ -28,7 +32,7 @@ fn runs(s: &str) -> impl Iterator<Item = (usize, usize)> + '_ {
 }
 
 fn run_is_nfc(s: &str) -> bool {
-    is_normalized(Form::Nfc, s)
+    hf_is_nfc(s)
 }
 
 /// Whether `s` is in NFC already.

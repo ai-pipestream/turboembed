@@ -26,6 +26,7 @@ pub fn stage(recipe: &Recipe, upstream: &Path, bundle: &Path) -> Result<()> {
 fn stage_named(recipe: &Recipe, upstream: &Path, bundle: &Path, keep: Option<&BTreeSet<String>>) -> Result<()> {
     check_classifier_config(recipe, upstream, keep.is_none())?;
     crate::lookahead::check(recipe, upstream)?;
+    crate::deberta::check_profile(recipe, upstream)?;
     for u in &recipe.upstream {
         if let Some(to) = &u.to {
             if keep.is_some_and(|k| !k.contains(to)) {

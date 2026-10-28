@@ -12,10 +12,14 @@
 //! ```
 mod annotator;
 mod context;
+mod encoding;
 mod evaluation;
+pub use encoding::LabelEncoding;
 mod graph;
 mod model;
+mod projective;
 mod sample;
+mod training;
 mod transition;
 
 pub use annotator::{DependencyAnnotator, DependencyBackend};
@@ -45,3 +49,9 @@ pub use feedforward::{
     Activation, FeatureLayout, FeedforwardContext, FeedforwardDependencyModel, FeedforwardDependencyParser,
     FeedforwardDependencyTrainer, FeedforwardFeatureIds, FeedforwardSettings, NeuralWeights, Vocabulary,
 };
+
+mod swap;
+pub use swap::SwapOracle;
+
+mod held_out;
+pub use held_out::{EvaluationSubset, HeldOutEvaluation};

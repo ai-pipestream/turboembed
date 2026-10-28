@@ -128,7 +128,7 @@ impl Gold {
 /// The training pairs of one document, in text order of their anaphors.
 pub fn pairs(doc: &TrainingDocument<'_>, annotator: &CorefAnnotator) -> Result<Vec<Event>, String> {
     let Some(prepared) = doc.input.prepare()? else { return Ok(Vec::new()) };
-    let mut resolver = annotator.resolver(&prepared)?;
+    let mut resolver = annotator.resolver(&doc.input, &prepared, None)?;
     resolver.resolve_precise();
     let gold = Gold::of(&doc.gold, &resolver)?;
     let mut events = Vec::new();

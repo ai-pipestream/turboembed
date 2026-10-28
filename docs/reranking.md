@@ -118,11 +118,11 @@ Compact run outputs are in `docs/receipts/rerank-707/`.
 
 ## Devices
 
-A rerank bundle loads on the CPU, on CUDA and on Level Zero. Those are the
-backends whose rerank scores and timing are recorded below. Metal would take
-the same code path, but `turbo_model_load` refuses a rerank bundle on it
-with `TURBO_E_UNSUPPORTED_TASK`, and its rerank cell is UNSUPPORTED, until
-it has been run. The pair windows go
+A rerank bundle loads on the CPU, on CUDA, on Level Zero and on Metal.
+Those are the backends whose rerank scores and timing are recorded below;
+any other refuses a rerank bundle at `turbo_model_load` with
+`TURBO_E_UNSUPPORTED_TASK`, and its rerank cell is UNSUPPORTED, until it
+has been run. The pair windows go
 through the embedding encoder with CLS pooling and no normalization. When
 the backend leaves the hidden states in device memory, the CLS states
 (`hidden` floats a window) are copied to the host. The pooler, the
@@ -147,6 +147,8 @@ TURBO_TEST_REQUIRE_CUDA=1 TURBO_TEST_RERANK_BUNDLES=<minilm bundle>,<bge bundle>
   cargo test --release -p turbo --features cuda --test cuda_rerank -- --test-threads=1 --nocapture
 TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_RERANK_BUNDLES=<minilm bundle>,<bge bundle> \
   cargo test --release -p turbo --features levelzero --test levelzero_rerank -- --test-threads=1 --nocapture
+TURBO_TEST_REQUIRE_METAL=1 TURBO_TEST_RERANK_BUNDLES=<minilm bundle>,<bge bundle> \
+  cargo test --release -p turbo --features metal --test metal_rerank -- --nocapture
 ```
 
 The Level Zero rows were run with `--features levelzero` (the own kernels)
@@ -162,10 +164,15 @@ and, separately, `--features levelzero-onednn`, on an Arc Pro B70
 | Level Zero with oneDNN | MS MARCO MiniLM L6 v2 | EXACT | 0.0000038 | 0.0000026 |
 | Level Zero with oneDNN | MS MARCO MiniLM L6 v2 | MODEL | 0.0000033 | 0.0000031 |
 | Level Zero with oneDNN | BGE reranker base | EXACT, MODEL | 0.0000083 | 0.0000091 |
+| Metal, Apple M2 | MS MARCO MiniLM L6 v2 | EXACT, MODEL | 0.0000010 | 0.0000048 |
+| Metal, Apple M2 | BGE reranker base | EXACT, MODEL | 0.0000086 | 0.0000086 |
 
 EXACT and MODEL gave the same scores on both bundles on CUDA and with the
 Level Zero kernels; with oneDNN they differ on MiniLM by under `1e-6`.
-Metal has no recorded parity yet, so it is refused.
+On Metal EXACT and MODEL gave the same scores on both bundles. On Metal
+the scores are written into the session's shared output buffer, which the
+host and the GPU both address, so the result's placement is SHARED and a
+run uploads and reads back nothing (`core/tests/metal_rerank.rs`).
 
 ### Throughput
 
@@ -187,15 +194,41 @@ with SQuAD 2.0 dev, precision EXACT, and TEI 89-1.8 (image digest
 | MS MARCO MiniLM L6 v2 | 4303.7 | 1276.1 | 3.37x | 0.0129 |
 | BGE reranker base | 663.9 | 427.9 | 1.55x | 0.116 |
 
-On Level Zero, measured on 2026-10-26 at commit `6b982643` on an Arc Pro
-B70 with the own kernels, MS MARCO MiniLM L6 v2 at EXACT scored 889.6
-pairs/s (a second run 876.2), against 665.4 on the host CPU, an AMD Ryzen 9
-9950X, unpinned, in the same tool: 1.34x. TEI was not run, since the TEI
-image above is the CUDA build. The bench's compute engine was about 29%
-busy during the run (xe fdinfo), so the run is bound by the host and the
-launches, not by compute; a desktop client held the render engine about
-68% busy. BGE was not timed on Level Zero, and these records are not in
-`benchmarks/rerank/`.
+On Level Zero, measured on 2026-10-28 at commit `e6a9693f` on an Arc Pro
+B70 with the own kernels (compute-runtime 1.3.39122, Level Zero loader
+1.32.0), precision EXACT, ten passes after two warmups, TEI not run
+(the TEI image above is the CUDA build). Host loaded, B70 idle: no other
+xe client used the compute engine and none held more than 1% of the
+render engine, but the host's one-minute load was between 17.5 and 30.0
+across the two runs (docs/receipts/rerank-levelzero-916 has the logs).
+
+| Model | Library pairs/s | p50 ms a pass (min to max) |
+| --- | ---: | ---: |
+| MS MARCO MiniLM L6 v2 | 2907.9 | 352.1 (347.4 to 359.4) |
+| BGE reranker base | 403.6 | 2536.9 (2490.1 to 2583.0) |
+
+These records are in `benchmarks/rerank/` beside the CUDA ones. An
+earlier MiniLM run at `6b982643`, 889.6 pairs/s, was taken while a
+desktop client held the B70's render engine about 68% busy, and is
+superseded.
+
+On Metal, measured on 2026-10-26 at commit `e051ae76` on an Apple M2 with
+`--device metal --precision exact --no-tei`, against the M2's CPU in the
+same tool (TEI was not run: the native router is not wired for rerank).
+p50 / min / max ms a pass, and pairs per second at the p50:
+
+| Model | Metal | Metal pairs/s | CPU | CPU pairs/s |
+| --- | ---: | ---: | ---: | ---: |
+| MS MARCO MiniLM L6 v2 | 6307.6 / 5239.3 / 6929.7 | 162.3 | 33776.3 / 32864.0 / 35300.5 | 30.3 |
+| BGE reranker base | 54938.2 / 53094.1 / 61751.9 | 18.6 | 305979.2 / 258876.1 / 350386.6 | 3.3 |
+
+The M2 is a desktop in use: the Metal records started once the
+five-minute load average was under 4 and the GPU under 40% busy from the
+desktop's apps (16% just before), and the CPU records ran with the
+one-minute load at about 20, the bench's own threads included. The two
+sides ran under different loads, so no Metal-over-CPU ratio is drawn from
+them. The records are the four `m2.metal.*`
+and `aarch64.cpu.*` files in `benchmarks/rerank/`.
 
 The records are in `benchmarks/rerank/`. The score differences are TEI's:
 the library is within `1e-5` of the Transformers FP32 reference on both

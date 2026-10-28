@@ -133,7 +133,8 @@ impl Heads {
     }
     /// Every span of at most `max_width` words with every label, in start,
     /// width, label order. `states` holds rows of `width` floats; `prompts`
-    /// and `words` index them.
+    /// and `words` index them. The model scores through score_with_work.
+    #[cfg(test)]
     pub fn score(
         &self,
         states: &[f32],

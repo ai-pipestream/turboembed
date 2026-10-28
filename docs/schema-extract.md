@@ -161,6 +161,20 @@ untrusted:
 - every support row against the restored source layer;
 - the result against `Records::check`.
 
+## On a device
+
+The encoder can also be a `FAMILY_DEBERTA_V2` core bundle on the device
+`EncoderOptions` names (cpu, cuda, levelzero, metal), through the backend table
+(#920): open it with `turbo_relation::encoder::DebertaEncoder::open` and
+pass it to `Gliner2Extractor::load_with`. Only the rows the heads read come back from the
+device, as one-token ranges of the range write: each word's first
+subword and the label markers. The heads stay on the host. `execution()`
+names where the encoder ran. `analysis/schema-extract/tests/device.rs` holds a device to the CPU encoder
+over `testdata/tiny-deberta-bundle`, with every count equal and every
+logit within 1e-4. On Metal (Apple M2) these tests and the real
+checkpoint's pass at `model` and `exact`; the figures are in
+docs/receipts/gliner2-metal-920.
+
 ## Parity
 
 `analysis/schema-extract/reference/build_fixture.py` writes both fixtures,

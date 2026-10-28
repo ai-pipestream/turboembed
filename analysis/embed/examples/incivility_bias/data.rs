@@ -6,9 +6,13 @@ use std::path::Path;
 use turbo_analysis_layers::{IncivilityLabel, IncivilityScores};
 use turbo_doccat::IdentityTerms;
 
-/// One unit: its text, its label scores (the fraction of raters, or 0 and
-/// 1), and the identity subgroups it mentions.
+/// One unit: its comment id, optional parent comment id, text, label scores
+/// (the fraction of raters, or 0 and 1), and the identity subgroups it
+/// mentions.
+#[allow(dead_code)]
 pub struct Unit {
+    pub id: String,
+    pub parent_id: Option<String>,
     pub text: String,
     pub targets: IncivilityScores,
     pub subgroups: Vec<String>,
@@ -74,6 +78,7 @@ fn column(header: &[String], name: &str) -> Result<usize, String> {
 /// The English sentence templates (`en_sentence_templates.csv`) and the
 /// neutral identity terms of `words.csv`, each term its own subgroup. A
 /// toxic template is an insult; the set has no other label.
+#[allow(dead_code)]
 pub fn madlibs(dir: &Path) -> Result<(Vec<Unit>, IdentityTerms), String> {
     let words = read(&dir.join("words.csv"))?;
     let (kind, connotation, word) =
@@ -95,7 +100,7 @@ pub fn madlibs(dir: &Path) -> Result<(Vec<Unit>, IdentityTerms), String> {
             t => return Err(format!("a toxicity of {t:?}")),
         }
         let subgroups = terms.find(&tokens(&r[phrase])).into_iter().map(str::to_owned).collect();
-        units.push(Unit { text: r[phrase].clone(), targets, subgroups });
+        units.push(Unit { id: String::new(), parent_id: None, text: r[phrase].clone(), targets, subgroups });
     }
     Ok((units, terms))
 }
@@ -137,7 +142,8 @@ pub struct Civil {
 pub fn civil(dir: &Path) -> Result<Civil, String> {
     let rows = read(&dir.join("all_data_with_identities.csv"))?;
     let h = &rows[0];
-    let (text, split) = (column(h, "comment_text")?, column(h, "split")?);
+    let (id_col, parent_col, text, split) =
+        (column(h, "id")?, column(h, "parent_id")?, column(h, "comment_text")?, column(h, "split")?);
     let labels: Vec<(IncivilityLabel, Option<usize>)> = CIVIL_LABELS
         .iter()
         .map(|&(l, c)| Ok((l, c.map(|c| column(h, c)).transpose()?)))
@@ -145,6 +151,11 @@ pub fn civil(dir: &Path) -> Result<Civil, String> {
     let ids: Vec<usize> = CIVIL_IDENTITIES.iter().map(|c| column(h, c)).collect::<Result<_, _>>()?;
     let number = |s: &str| -> Result<f64, String> {
         if s.is_empty() { Ok(0.0) } else { s.parse::<f64>().map_err(|e| format!("{s:?}: {e}")) }
+    };
+    let normalize_id = |s: &str| -> Option<String> {
+        let trimmed = s.trim();
+        let stripped = trimmed.strip_suffix(".0").unwrap_or(trimmed);
+        if stripped.is_empty() || stripped == "0" { None } else { Some(stripped.to_owned()) }
     };
     let (mut train, mut val, mut test) = (Vec::new(), Vec::new(), Vec::new());
     for (n, r) in rows[1..].iter().enumerate() {
@@ -163,7 +174,9 @@ pub fn civil(dir: &Path) -> Result<Civil, String> {
                 subgroups.push(name.to_owned());
             }
         }
-        let unit = Unit { text: r[text].clone(), targets, subgroups };
+        let id = normalize_id(&r[id_col]).unwrap_or_default();
+        let parent_id = normalize_id(&r[parent_col]);
+        let unit = Unit { id, parent_id, text: r[text].clone(), targets, subgroups };
         match r[split].as_str() {
             "train" => train.push(unit),
             "test" => test.push(unit),

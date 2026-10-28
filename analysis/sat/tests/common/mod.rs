@@ -29,13 +29,17 @@ pub fn encoder() -> EncoderOptions {
     EncoderOptions { device, precision, ..EncoderOptions::default() }
 }
 
-/// The backend TURBO_TEST_REQUIRE_CUDA or TURBO_TEST_REQUIRE_LEVELZERO
-/// requires (set, not empty and not 0), on which a device session must
+/// The backend TURBO_TEST_REQUIRE_CUDA, TURBO_TEST_REQUIRE_LEVELZERO or
+/// TURBO_TEST_REQUIRE_METAL requires (set, not empty and not 0), on which a device session must
 /// then run.
 pub fn required() -> Option<&'static str> {
     let set = |v: &str| std::env::var(v).is_ok_and(|v| !v.is_empty() && v != "0");
-    [("TURBO_TEST_REQUIRE_CUDA", "cuda"), ("TURBO_TEST_REQUIRE_LEVELZERO", "levelzero")]
-        .into_iter()
-        .find(|(v, _)| set(v))
-        .map(|(_, b)| b)
+    [
+        ("TURBO_TEST_REQUIRE_CUDA", "cuda"),
+        ("TURBO_TEST_REQUIRE_LEVELZERO", "levelzero"),
+        ("TURBO_TEST_REQUIRE_METAL", "metal"),
+    ]
+    .into_iter()
+    .find(|(v, _)| set(v))
+    .map(|(_, b)| b)
 }

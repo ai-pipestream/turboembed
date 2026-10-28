@@ -1211,6 +1211,225 @@ __kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void attention(
     }
 }
 
+/* ---- DeBERTa-v2 -------------------------------------------------------------
+ *
+ * The lookup: each token's word row, LayerNormed, then multiplied by its
+ * mask, so a masked position is zero, as upstream's embeddings give it. A
+ * group per token, as embed_layer_norm_group, which also copies the mask
+ * and the row table to the device. There are no position or type rows. */
+__kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void deberta_embed(
+    __global const int *ids, __global const int *mask, __global const int *rows, int batch,
+    __global const float *word, __global const float *ln_w, __global const float *ln_b, float eps, int hidden,
+    __global float *x, __global int *packed_mask, __global int *device_rows) {
+    const int t = get_group_id(0), lid = get_local_id(0);
+    const int live = mask[t];
+    __global float *row = x + (size_t)t * hidden;
+    if (lid == 0) packed_mask[t] = live;
+    if (t < batch && lid < 2) device_rows[2 * t + lid] = rows[2 * t + lid];
+    if (live == 0) {
+        for (int d = lid; d < hidden; d += BLOCK) row[d] = 0.0f;
+        return;
+    }
+    __global const float *wr = word + (size_t)ids[t] * hidden;
+    for (int d = lid; d < hidden; d += BLOCK) row[d] = wr[d];
+    layer_norm_row_group(row, hidden, ln_w, ln_b, eps, 0);
+}
+
+/* Each row of x LayerNormed in place, a group a row: the relative table,
+ * once a model. */
+__kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void layer_norm_rows(
+    __global float *x, __global const float *ln_w, __global const float *ln_b, float eps, int hidden) {
+    layer_norm_row_group(x + (size_t)get_group_id(0) * hidden, hidden, ln_w, ln_b, eps, 0);
+}
+
+/* Disentangled attention, as the general kernel walks a query: a group
+ * per query, head and row. pos is the layer's relative rows through its own
+ * query, key and value projections, [2 * buckets, 3 * hidden];
+ * buckets[i - j + span] is the relative row of distance i - j. A visible
+ * query's score of a visible key is
+ * (q_i . k_j + q_i . pos_key[b] + k_j . pos_query[b]) * scale, b that
+ * bucket and scale 1 / sqrt(3 head_dim); it attends to visible keys alone.
+ * A masked query attends evenly to every position of its row, as
+ * upstream's mask leaves it, and reads every value. */
+__kernel __attribute__((reqd_work_group_size(BLOCK, 1, 1))) void deberta_attention(
+    __global const float *qkv, __global const int *mask, __global const int *rows, int hidden, int head_dim,
+    float scale, __global float *ctx, __global const float *pos, __global const int *buckets, int span,
+    __local float *sm) {
+    const int i = get_group_id(0), head = get_group_id(1), r = get_num_groups(2) - 1 - get_group_id(2);
+    const int start = rows[2 * r], len = rows[2 * r + 1];
+    if (i >= len) return;
+    __local float *qi = sm;
+    __local float *score = qi + head_dim;
+    __local float *part = score + len;
+    const int lid = get_local_id(0);
+    const int lane = get_sub_group_local_id(), sg = get_sub_group_id();
+    const int lanes = get_max_sub_group_size(), groups_of_lanes = get_num_sub_groups();
+    const int stride = 3 * hidden, col = head * head_dim;
+    __global const int *m = mask + start;
+    __global const float *base = qkv + (size_t)start * stride + col;
+    __global const float *pq = pos + col, *pk = pos + hidden + col;
+    const bool live = m[i] != 0;
+    for (int d = lid; d < head_dim; d += BLOCK) qi[d] = base[(size_t)i * stride + d];
+    barrier(CLK_LOCAL_MEM_FENCE);
+    // A sub-group per key: its lanes split the head's width.
+    for (int j = sg; j < len; j += groups_of_lanes) {
+        if (!live) {
+            if (lane == 0) score[j] = 0.0f;
+            continue;
+        }
+        if (m[j] == 0) continue;
+        __global const float *krow = base + (size_t)j * stride + hidden;
+        const size_t b = (size_t)buckets[i - j + span] * stride;
+        float c2c = 0.0f, c2p = 0.0f, p2c = 0.0f;
+        for (int d = lane; d < head_dim; d += lanes) {
+            c2c += qi[d] * krow[d];
+            c2p += qi[d] * pk[b + d];
+            p2c += krow[d] * pq[b + d];
+        }
+        c2c = sub_group_reduce_add(c2c);
+        c2p = sub_group_reduce_add(c2p);
+        p2c = sub_group_reduce_add(p2c);
+        if (lane == 0) score[j] = (c2c + c2p + p2c) * scale;
+    }
+    barrier(CLK_LOCAL_MEM_FENCE);
+    float mx = -INFINITY;
+    for (int j = lid; j < len; j += BLOCK)
+        if (!live || m[j] != 0) mx = fmax(mx, score[j]);
+    mx = work_group_reduce_max(mx);
+    float sum = 0.0f;
+    for (int j = lid; j < len; j += BLOCK) {
+        float e = 0.0f;
+        if (!live || m[j] != 0) {
+            e = exp(score[j] - mx);
+            sum += e;
+        }
+        score[j] = e;
+    }
+    sum = work_group_reduce_add(sum);
+    const float inv = 1.0f / sum;
+    barrier(CLK_LOCAL_MEM_FENCE);
+    const size_t at = (size_t)(start + i) * hidden + col;
+    if (head_dim <= BLOCK) {
+        const int groups = BLOCK / head_dim;
+        const int d = lid % head_dim, g = lid / head_dim;
+        if (g < groups) {
+            float c = 0.0f;
+            for (int j = g; j < len; j += groups) {
+                if (live && m[j] == 0) continue;
+                c += score[j] * inv * base[(size_t)j * stride + 2 * hidden + d];
+            }
+            part[g * head_dim + d] = c;
+        }
+        barrier(CLK_LOCAL_MEM_FENCE);
+        if (lid < head_dim) {
+            float c = 0.0f;
+            for (int gg = 0; gg < groups; gg++) c += part[gg * head_dim + lid];
+            ctx[at + lid] = c;
+        }
+    } else {
+        for (int d = lid; d < head_dim; d += BLOCK) {
+            float c = 0.0f;
+            for (int j = 0; j < len; j++) {
+                if (live && m[j] == 0) continue;
+                c += score[j] * inv * base[(size_t)j * stride + 2 * hidden + d];
+            }
+            ctx[at + d] = c;
+        }
+    }
+}
+
+/* The same attention tiled, for head widths 32, 64 and 128: a work-item
+ * per query, QD queries of a row and head a group, the query (scaled) and
+ * its running context in registers, an online softmax as the BERT tiled
+ * kernels keep. The row's keys and values stream through local memory KD
+ * at a time, and with them the relative rows the block's distances reach:
+ * the group's queries less the block's keys span QD + KD - 1 distances,
+ * whose buckets are a run of at most as many rows, staged once for every
+ * query (the query rows scaled, so all three terms are), each read at
+ * its bucket less the block's first. Rows padded by a float4 keep the
+ * work-items' reads of different rows off one bank. */
+#define DEBERTA_FLASH(NAME, HD, QD, KD)                                                                            \
+    __kernel __attribute__((reqd_work_group_size(QD, 1, 1))) void NAME(                                           \
+        __global const float *qkv, __global const int *mask, __global const int *rows, int hidden, float scale,    \
+        __global float *ctx, __global const float *pos, __global const int *buckets, int span) {                   \
+        __local float4 ks[KD][HD / 4];                                                                             \
+        __local float4 vs[KD][HD / 4];                                                                             \
+        __local float4 pk[QD + KD - 1][HD / 4 + 1];                                                                \
+        __local float4 pq[QD + KD - 1][HD / 4 + 1];                                                                \
+        __local int live[KD];                                                                                      \
+        const int head = get_group_id(1), r = get_num_groups(2) - 1 - get_group_id(2);                             \
+        const int start = rows[2 * r], len = rows[2 * r + 1];                                                      \
+        const int i0 = get_group_id(0) * QD;                                                                       \
+        if (i0 >= len) return;                                                                                     \
+        const int lid = get_local_id(0), i = i0 + lid;                                                             \
+        const int stride = 3 * hidden, col = head * HD;                                                            \
+        const bool mine = i < len;                                                                                 \
+        const bool alive = mine && mask[start + i] != 0;                                                           \
+        float4 q[HD / 4], acc[HD / 4];                                                                             \
+        __global const float *qrow = qkv + (size_t)(start + (mine ? i : 0)) * stride + col;                        \
+        __attribute__((opencl_unroll_hint)) for (int d = 0; d < HD / 4; d++) {                                     \
+            q[d] = vload4(d, qrow) * scale;                                                                        \
+            acc[d] = (float4)(0.0f);                                                                               \
+        }                                                                                                          \
+        float m = -INFINITY, l = 0.0f;                                                                             \
+        for (int j0 = 0; j0 < len; j0 += KD) {                                                                     \
+            const int n = min(KD, len - j0);                                                                       \
+            const int dlo = i0 - (j0 + KD - 1);                                                                    \
+            const int blo = buckets[clamp(dlo, -span, span) + span];                                               \
+            /* The host takes this kernel only where nb fits its rows (tiled_reach); never past them. */          \
+            const int nb = min(QD + KD - 1, buckets[clamp(dlo + QD + KD - 2, -span, span) + span] - blo + 1);      \
+            for (int e = lid; e < n * (HD / 4); e += QD) {                                                         \
+                const int j = e / (HD / 4), d = e % (HD / 4);                                                      \
+                __global const float *kv = qkv + (size_t)(start + j0 + j) * stride + col;                          \
+                ks[j][d] = vload4(d, kv + hidden);                                                                 \
+                vs[j][d] = vload4(d, kv + 2 * hidden);                                                             \
+            }                                                                                                      \
+            for (int e = lid; e < nb * (HD / 4); e += QD) {                                                        \
+                const int b = e / (HD / 4), d = e % (HD / 4);                                                      \
+                __global const float *pr = pos + (size_t)(blo + b) * stride + col;                                 \
+                pk[b][d] = vload4(d, pr + hidden);                                                                 \
+                pq[b][d] = vload4(d, pr) * scale;                                                                  \
+            }                                                                                                      \
+            for (int j = lid; j < n; j += QD) live[j] = mask[start + j0 + j];                                      \
+            barrier(CLK_LOCAL_MEM_FENCE);                                                                          \
+            if (mine) {                                                                                            \
+                for (int j = 0; j < n; j++) {                                                                      \
+                    float s = 0.0f;                                                                                \
+                    if (alive) {                                                                                   \
+                        if (live[j] == 0) continue;                                                                \
+                        const int b = buckets[i - (j0 + j) + span] - blo;                                          \
+                        float4 c2c = q[0] * ks[j][0], c2p = q[0] * pk[b][0], p2c = ks[j][0] * pq[b][0];            \
+                        __attribute__((opencl_unroll_hint)) for (int d = 1; d < HD / 4; d++) {                     \
+                            c2c = fma(q[d], ks[j][d], c2c);                                                        \
+                            c2p = fma(q[d], pk[b][d], c2p);                                                        \
+                            p2c = fma(ks[j][d], pq[b][d], p2c);                                                    \
+                        }                                                                                          \
+                        s = ((c2c.x + c2c.y) + (c2c.z + c2c.w)) + ((c2p.x + c2p.y) + (c2p.z + c2p.w)) +            \
+                            ((p2c.x + p2c.y) + (p2c.z + p2c.w));                                                   \
+                    }                                                                                              \
+                    if (s > m) {                                                                                   \
+                        const float c = exp(m - s);                                                                \
+                        l *= c;                                                                                    \
+                        __attribute__((opencl_unroll_hint)) for (int d = 0; d < HD / 4; d++) acc[d] *= c;          \
+                        m = s;                                                                                     \
+                    }                                                                                              \
+                    const float p = exp(s - m);                                                                    \
+                    l += p;                                                                                        \
+                    __attribute__((opencl_unroll_hint)) for (int d = 0; d < HD / 4; d++) acc[d] = fma(p, vs[j][d], acc[d]); \
+                }                                                                                                  \
+            }                                                                                                      \
+            barrier(CLK_LOCAL_MEM_FENCE);                                                                          \
+        }                                                                                                          \
+        if (!mine) return;                                                                                         \
+        const float inv = 1.0f / l;                                                                                \
+        __global float *out = ctx + (size_t)(start + i) * hidden + col;                                            \
+        __attribute__((opencl_unroll_hint)) for (int d = 0; d < HD / 4; d++) vstore4(acc[d] * inv, d, out);        \
+    }
+
+DEBERTA_FLASH(deberta_attention_32, 32, 128, 32)
+DEBERTA_FLASH(deberta_attention_64, 64, 64, 32)
+DEBERTA_FLASH(deberta_attention_128, 128, 32, 16)
+
 /* ---- Pooling ----------------------------------------------------------------
  *
  * Each row's vector, cut to output_dim: the mean over the tokens whose mask
@@ -1346,4 +1565,90 @@ __kernel void narrow_f16_transposed(__global const float *w, int n_out, int n_in
 
 __kernel void widen_bf16(__global const ushort *src, ulong n, __global float *dst) {
     for (size_t i = get_global_id(0); i < n; i += get_global_size(0)) dst[i] = as_float((uint)src[i] << 16);
+}
+
+/* ---- The batched LSTM of turbo::device::lstm (#860) ----------------------
+ *
+ * The rows and order of the CPU form (core/src/cpu/lstm.rs): sequence s
+ * holds rows start[s]..start[s] + len[s], the longest first, gates (i, f,
+ * g, o) each `hidden` wide, a reverse direction reading each sequence
+ * from its last row. lstm_project makes every row's input projections;
+ * lstm_step is one step of every direction over the first `active`
+ * sequences, a 16 x 16 group per (units, sequences) tile and direction,
+ * each work-item one unit's four gates from the projection and the
+ * recurrent product over the previous step's state (double buffered). At
+ * t == 0 the state and cell are zero and neither is read. A non-finite
+ * gate or state records the least row it was found at in *bad.
+ */
+
+#define LSTM_TILE 16
+
+/* out[m][n] = bias[n] + sum over k of a[m][k] w[n][k]. Groups 16 x 16. */
+__kernel void lstm_project(__global const float *a, __global const float *w, __global const float *bias,
+                           __global float *out, long m, int n, int k) {
+    __local float as[LSTM_TILE][LSTM_TILE + 1];
+    __local float ws[LSTM_TILE][LSTM_TILE + 1];
+    const int tx = get_local_id(0), ty = get_local_id(1);
+    const long row = (long)get_group_id(1) * LSTM_TILE + ty;
+    const int col = get_group_id(0) * LSTM_TILE + tx;
+    const int wrow = get_group_id(0) * LSTM_TILE + ty;
+    float acc = 0.0f;
+    for (int k0 = 0; k0 < k; k0 += LSTM_TILE) {
+        as[ty][tx] = row < m && k0 + tx < k ? a[row * k + k0 + tx] : 0.0f;
+        ws[ty][tx] = wrow < n && k0 + tx < k ? w[(long)wrow * k + k0 + tx] : 0.0f;
+        barrier(CLK_LOCAL_MEM_FENCE);
+        for (int i = 0; i < LSTM_TILE; i++) acc = fma(as[ty][i], ws[tx][i], acc);
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+    if (row < m && col < n) out[row * n + col] = bias[col] + acc;
+}
+
+/* The CPU form's sigmoid, either side of 0, so neither branch overflows. */
+float lstm_sigmoid(float x) {
+    if (x >= 0.0f) return 1.0f / (1.0f + exp(-x));
+    const float e = exp(x);
+    return e / (1.0f + e);
+}
+
+/* index is row r's table row, or null for row r itself. */
+__kernel void lstm_step(__global const float *proj, __global const long *index, __global const float *u,
+                        __global const long *len, __global const long *start, __global const float *state_in,
+                        __global float *state_out, __global float *cell, __global float *out, __global int *bad,
+                        __global const int *reverse, long batch, int active, int hidden, int pw, int width, int t) {
+    __local float ss[LSTM_TILE][LSTM_TILE + 1];
+    __local float us[4][LSTM_TILE][LSTM_TILE + 1];
+    const int tx = get_local_id(0), ty = get_local_id(1), k = get_group_id(2), h = hidden;
+    const int j = get_group_id(0) * LSTM_TILE + tx;
+    const int s = get_group_id(1) * LSTM_TILE + ty;
+    const int ju = get_group_id(0) * LSTM_TILE + ty;
+    __global const float *state = state_in + (long)k * batch * h;
+    __global const float *uk = u + (long)k * 4 * h * h;
+    float acc[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+    if (t > 0) {
+        for (int i0 = 0; i0 < h; i0 += LSTM_TILE) {
+            const bool in = i0 + tx < h;
+            ss[ty][tx] = s < active && in ? state[(long)s * h + i0 + tx] : 0.0f;
+            for (int q = 0; q < 4; q++) us[q][ty][tx] = ju < h && in ? uk[(long)(q * h + ju) * h + i0 + tx] : 0.0f;
+            barrier(CLK_LOCAL_MEM_FENCE);
+            for (int i = 0; i < LSTM_TILE; i++) {
+                const float v = ss[ty][i];
+                for (int q = 0; q < 4; q++) acc[q] = fma(v, us[q][tx][i], acc[q]);
+            }
+            barrier(CLK_LOCAL_MEM_FENCE);
+        }
+    }
+    if (s >= active || j >= h) return;
+    const long n = len[s];
+    const long row = start[s] + (reverse[k] ? n - 1 - t : t);
+    const long src = index ? index[row] : row;
+    __global const float *g = proj + src * pw + (long)k * 4 * h;
+    const float gi = g[j] + acc[0], gf = g[h + j] + acc[1], gg = g[2 * h + j] + acc[2], go = g[3 * h + j] + acc[3];
+    const long at = ((long)k * batch + s) * h + j;
+    const float old = t > 0 ? cell[at] : 0.0f;
+    const float c = lstm_sigmoid(gf) * old + lstm_sigmoid(gi) * tanh(gg);
+    const float st = lstm_sigmoid(go) * tanh(c);
+    if (!(isfinite(gi) && isfinite(gf) && isfinite(gg) && isfinite(go) && isfinite(st))) atomic_min(bad, (int)row);
+    cell[at] = c;
+    state_out[at] = st;
+    out[row * width + (long)k * h + j] = st;
 }

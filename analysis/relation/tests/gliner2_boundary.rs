@@ -149,7 +149,7 @@ fn encoder() -> Encoder {
 
 /// Reduced case 0: one relation, five words.
 fn prompt() -> Prompt<'static> {
-    let text = "a b c d e.".to_string();
+    let text: std::borrow::Cow<'static, str> = "a b c d e.".into();
     let words = split("a b c d e.")[..5].to_vec();
     Prompt {
         ids: vec![5, 3, 9, 1, 4, 2, 4, 6, 7, 8, 11, 12, 13, 14, 10],

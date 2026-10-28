@@ -33,6 +33,8 @@ fn run(max_pairs: usize, max_pair_tokens: u32, sents: &[&str]) -> Run {
             d.require(&Key::<Sentences>::DEFAULT).unwrap(),
             d.get::<Entities>(),
             d.get::<Vectors<Sentences>>(),
+            None,
+            None,
         ))
         .unwrap();
     edges.check().unwrap();

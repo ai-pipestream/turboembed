@@ -189,6 +189,11 @@ impl NameEventStream {
         })
     }
 
+    /// Clears the feature generators without changing sample document boundaries.
+    pub fn clear_adaptive_data(&mut self) {
+        self.context.clear_adaptive_data();
+    }
+
     /// `createEvents(sample)`: appends one event per token of the sample
     /// to `out`, in token order, and passes the sample to the generators'
     /// adaptive data. A name the codec would write outside the sentence

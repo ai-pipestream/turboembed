@@ -111,6 +111,10 @@ fn struct_layouts_match_the_header() {
         ("turbo_backend_model", "head", offset_of!(turbo_backend_model, head)),
         ("turbo_backend_model", "head_out", offset_of!(turbo_backend_model, head_out)),
         ("turbo_backend_model", "lookahead", offset_of!(turbo_backend_model, lookahead)),
+        ("turbo_backend_model", "position_buckets", offset_of!(turbo_backend_model, position_buckets)),
+        ("turbo_backend_model", "max_relative_positions", offset_of!(turbo_backend_model, max_relative_positions)),
+        ("turbo_backend_model", "artifact_sha256", offset_of!(turbo_backend_model, artifact_sha256)),
+        ("turbo_backend_model", "artifact2_sha256", offset_of!(turbo_backend_model, artifact2_sha256)),
         ("turbo_backend", "formats", offset_of!(turbo_backend, formats)),
         ("turbo_backend", "reserved2", offset_of!(turbo_backend, reserved2)),
     ];
@@ -365,7 +369,13 @@ fn the_token_head_layout_is_the_one_proposed() {
     assert_eq!(size_of::<turbo_backend>(), 192);
     assert_eq!(offset_of!(turbo_backend_model, head), 120);
     assert_eq!(offset_of!(turbo_backend_model, head_out), 128);
-    assert_eq!(size_of::<turbo_backend_model>(), 136);
+    // DeBERTa-v2's relative geometry was appended after lookahead.
+    assert_eq!(offset_of!(turbo_backend_model, position_buckets), 136);
+    assert_eq!(offset_of!(turbo_backend_model, max_relative_positions), 140);
+    // The artifact files' manifest digests were appended after that.
+    assert_eq!(offset_of!(turbo_backend_model, artifact_sha256), 144);
+    assert_eq!(offset_of!(turbo_backend_model, artifact2_sha256), 176);
+    assert_eq!(size_of::<turbo_backend_model>(), 208);
     assert_eq!(offset_of!(turbo_backend_embed_rows, head), 52);
     assert_eq!(size_of::<turbo_backend_embed_rows>(), 56);
 }

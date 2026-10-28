@@ -83,6 +83,7 @@ pub struct LearnedAspectSentiment {
     pub category_centroids: Option<Arc<LabelCentroids>>,
     pub categories: Arc<TagSet>,
     pub emit_implicit_aspects: bool,
+    bio_threshold: f64,
 }
 
 impl LearnedAspectSentiment {
@@ -104,7 +105,15 @@ impl LearnedAspectSentiment {
             category_centroids,
             categories,
             emit_implicit_aspects: true,
+            bio_threshold: 0.0,
         }
+    }
+
+    /// Requires a non-background BIO probability of at least `threshold`
+    /// before decoding an aspect or opinion token. Zero keeps argmax decoding.
+    pub fn with_bio_threshold(mut self, threshold: f64) -> Self {
+        self.bio_threshold = if threshold.is_finite() { threshold.clamp(0.0, 1.0) } else { threshold };
+        self
     }
 
     /// Configures whether sentences with extracted opinion expressions but no
@@ -126,7 +135,7 @@ impl LearnedAspectSentiment {
 
 impl Annotator for LearnedAspectSentiment {
     const ID: &'static str = "turbo:aspect-sentiment-learned";
-    const VERSION: &'static str = "2";
+    const VERSION: &'static str = "3";
     type Reads =
         (View, Sentences, Tokens, Subwords, Option<Vectors<Subwords>>, Option<Dependencies>, Option<PhraseChunks>);
     type Writes = (Opinions, Aspects);
@@ -136,7 +145,7 @@ impl Annotator for LearnedAspectSentiment {
     }
 
     fn annotate_batch<'d>(&self, inputs: Vec<Refs<'d, Self>>) -> Vec<Result<Self::Writes, Error>> {
-        let valid: Vec<_> = inputs.iter().map(|&i| Self::validate_views(i)).collect();
+        let valid: Vec<_> = inputs.iter().map(|&i| Self::validate_views(i, self.bio_threshold)).collect();
         let windows: Vec<_> =
             inputs.iter().zip(&valid).filter(|(_, v)| v.is_ok()).map(|(i, _)| (i.3, &i.1.spans)).collect();
         let mut cached = self.vectors.cache_windows(Self::ID, &windows).into_iter();
@@ -168,13 +177,20 @@ impl Annotator for LearnedAspectSentiment {
             buf.extend_from_slice(&c.config_hash().to_le_bytes());
         }
         buf.push(u8::from(self.emit_implicit_aspects));
+        buf.extend_from_slice(&self.bio_threshold.to_bits().to_le_bytes());
         fnv1a(&buf)
     }
 }
 
 impl LearnedAspectSentiment {
-    fn validate_views((view, sentences, tokens, subwords, _, _, phrase_chunks): Refs<'_, Self>) -> Result<(), Error> {
+    fn validate_views(
+        (view, sentences, tokens, subwords, _, _, phrase_chunks): Refs<'_, Self>,
+        bio_threshold: f64,
+    ) -> Result<(), Error> {
         let fail = |detail: String| Error::Annotator { annotator: Self::ID, detail };
+        if !bio_threshold.is_finite() {
+            return Err(fail("BIO threshold must be finite".into()));
+        }
         if sentences.spans.view() != view.id() {
             return Err(fail("sentences are not in the given view".into()));
         }

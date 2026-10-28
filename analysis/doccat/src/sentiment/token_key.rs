@@ -54,7 +54,7 @@ fn key_with(token: &str, keep_hyphen: bool, trim: Trim) -> Cow<'_, str> {
 }
 
 /// [`token_key_cow`] as an owned string.
-pub(crate) fn token_key(token: &str) -> String {
+pub fn token_key(token: &str) -> String {
     token_key_cow(token, false).into_owned()
 }
 

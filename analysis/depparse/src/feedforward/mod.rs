@@ -1,5 +1,6 @@
 //! Feedforward arc-standard parsing and deterministic AdaGrad training.
 //! The Java reference uses 14/14/8 features; the expanded template uses 18/18/12.
+mod apache;
 mod context;
 mod model;
 mod normalize;

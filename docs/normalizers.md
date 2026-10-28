@@ -2328,10 +2328,12 @@ no OpenNLP counterpart to either normalizer.
 Licensed page extracts, hand-labelled UTF-8 spans, attribution, pinned hashes
 and a Rust reproduction helper are in
 [`analysis/normalize/data/extracted-pdf`](../analysis/normalize/data/extracted-pdf/README.md).
-Eleven complete pages from four CC-BY-4.0 papers provide 50,994 bytes and
-6,555 whitespace-delimited tokens. The two original ACL page pairs use
+Thirteen complete pages from four CC-BY-4.0 papers and one CC-BY-4.0
+learner-question dataset provide 55,338 bytes and 7,137 whitespace-delimited
+tokens. The two original ACL page pairs use
 Poppler 26.07.0; an additional ACL page uses MuPDF 1.27.0; six JMLR pages
-use Poppler 26.07.0. Extraction identity and page ranges are pinned separately.
+use Poppler 26.07.0, as do the new dataset pages 111 and 116. Extraction
+identity and page ranges are pinned separately.
 No corruption was injected or source text repaired. Run:
 
 ```sh
@@ -2346,16 +2348,16 @@ denominator. The default and optional all-kinds configurations differ:
 | Kind | Default TP/FP/FN | Default precision/recall | All-kinds TP/FP/FN | All-kinds precision/recall |
 | --- | --- | --- | --- | --- |
 | ReplacementChar | 1/0/0 | 1.0000/1.0000 | 1/0/0 | 1.0000/1.0000 |
-| Control | 26/0/0 | 1.0000/1.0000 | 26/0/0 | 1.0000/1.0000 |
+| Control | 27/0/0 | 1.0000/1.0000 | 27/0/0 | 1.0000/1.0000 |
 | Noncharacter | 0/0/0 | N/A/N/A | 0/0/0 | N/A/N/A |
 | UnpairedSurrogate | 0/0/0 | N/A/N/A | 0/0/0 | N/A/N/A |
 | PrivateUse | 4/0/0 | 1.0000/1.0000 | 4/0/0 | 1.0000/1.0000 |
 | BidiControl | 0/0/0 | N/A/N/A | 0/0/0 | N/A/N/A |
 | ZeroWidth | 0/0/0 | N/A/N/A | 0/0/0 | N/A/N/A |
 | UnicodeTag | 0/0/0 | N/A/N/A | 0/0/0 | N/A/N/A |
-| Mojibake | 0/0/0 | N/A/N/A | 0/0/0 | N/A/N/A |
-| MojibakeSequence | 0/0/0 | N/A/N/A | 0/0/0 | N/A/N/A |
-| RepeatedLine | 0/0/6 | N/A/0.0000 | 6/3/0 | 0.6667/1.0000 |
+| Mojibake | 36/0/0 | 1.0000/1.0000 | 36/0/0 | 1.0000/1.0000 |
+| MojibakeSequence | 0/0/2 | N/A/0.0000 | 2/0/0 | 1.0000/1.0000 |
+| RepeatedLine | 0/0/6 | N/A/0.0000 | 6/24/0 | 0.2000/1.0000 |
 
 The six repeated-line gold spans are alternating running headers in JMLR
 pages 2-7. The optional rule also reports three legitimate occurrences of
@@ -2367,6 +2369,24 @@ negatives in its result. The replacement-character positive is an actual
 MuPDF extraction of a summation sign on ACL printed page 174. This
 measurement does not imply that Poppler produces the same damage.
 
+Leonard Ng's public learner-question PDF adds 36 Mojibake spans,
+two MojibakeSequence spans and one isolated control. The original PDF
+already visibly contains this damage; extraction preserves it. These
+are natural examples, not an injected diagnostic PDF. The complete
+Chinese sequence images in broken runs are labelled separately from
+incomplete neighbouring byte images split by spaces, which cannot form
+complete sequences and remain outside these categories. Source hashes,
+licence and annotation details are in the corpus README.
+
+Repeated learner questions are meaningful log content. The optional
+RepeatedLine rule reports 21 false-positive fragments on page 111 after
+mojibake precedence splits the repeated lines. Combined with the original
+3 false positives, its exact-span precision is now 6/30. These labels
+were fixed before detector execution and were not changed to hide errors.
+The default leaves both optional kinds disabled: the 2 sequence spans
+and 6 running headers are false negatives. This small added sample does
+not establish a safe global default change.
+
 The default NoiseScorer evaluation remains negative-only on the two
 original ACL samples. It reports the legitimate acronym `FFNNs` at
 5548..5553 in P19-1423, severity Damaged and score 0.5: precision 0/1 = 0,
@@ -2374,12 +2394,65 @@ recall N/A. The second sample has no noise prediction. The new pages
 were annotated for artifacts, not for lexical noise, and do not expand
 that auxiliary noise evaluation.
 
-No defaults were tuned. **Mojibake and ZeroWidth remain unsupported by
-positive corpus examples**, so issue #915's coverage work is incomplete.
+No defaults were tuned. **ZeroWidth still has no authentic positive
+corpus examples**, so issue #915's coverage work is incomplete. The new
+source PDFs also yielded no literal zero-width characters; encoded
+images of such characters are mojibake, not ZeroWidth positives.
 Other absent kinds are also unmeasured; a Rust str cannot contain an
-unpaired surrogate. Four scientific papers labelled in one pass cannot
-establish general PDF or OCR quality. Column order, hyphenation and
+unpaired surrogate. Four scientific papers and one learner log cannot establish general
+PDF or OCR quality; labels still need external independent review. Column order, hyphenation and
 flattened equations are outside this taxonomy. Further licensed damaged
 extracts and independent annotation review are still required. The test
 pins observed errors as well as successes; it does not certify unsupported
 kinds by treating N/A as perfect precision or recall.
+
+### Zero-width context and extractor layout
+
+The zero-width rule is contextual, not a count of invisible characters.
+A synthetic PDF test word containing U+200B between each letter of
+`approved` retains 7 such characters in both Poppler 26.07.0 and MuPDF
+1.27.0 output. MuPDF keeps the word together, so the detector reports 0.
+Poppler layout mode inserts line breaks after 4 of the characters, which
+no longer have letters on both sides, so it reports those 4 exact spans.
+Neither result means the extractor dropped a character. Selecting all
+artifact kinds does not disable this context rule.
+
+This follows the documented OpenNLP-compatible behavior above: a singleton
+between letters is left unreported, including Latin letters. As a result,
+this detector alone cannot identify all intentional or accidental
+zero-width insertions in a word. Removing extractor whitespace before
+running detection can change findings and requires its own aligned view;
+it must not silently replace the original text or its offsets.
+
+`analysis/normalize/tests/zero_width_context.rs` reproduces both layouts
+with synthetic strings and checks UTF-8 byte spans, whitespace variants,
+combining marks, legitimate joiners and adjacent zero-width runs. These
+strings are regression tests, not additions to the authentic evaluation
+set or evidence for its missing positive classes. The per-kind table
+above remains unchanged.
+
+The same PDF was submitted through gRParse's protobuf `ConvertSource` RPC
+with `do_ocr: false` and text export selected. The service reported
+`grparse-0.3.0-cpu`, build
+`5fc2c6379e691692c69689ce2a5e23ad6c08d8e60acb3b806f45ee00d130bc8c`,
+and the text collector reported `pdf-inspector 1.17.0`, version `0.2.0`.
+Conversion succeeded. Its export contains `a p p r o v e d` with ordinary
+spaces and no U+200B. The structured text item's `orig` and `text` fields
+contain the same spaced string. This change precedes artifact detection;
+the detector cannot report characters absent from its input. This run
+does not identify which parser stage changed them.
+
+| Extractor | Export bytes | U+200B characters | ZeroWidth findings |
+| --- | ---: | ---: | ---: |
+| Poppler 26.07.0, layout mode | 1711 | 7 | 4 |
+| MuPDF 1.27.0 | 1431 | 7 | 0 |
+| gRParse, OCR disabled | 1393 | 0 | 0 |
+
+The test PDF SHA-256 is
+`9038a728f4a9f9a602982d8d42b613ea16a17676c2b5860e8165cfda8a878e74`.
+The corresponding UTF-8 export SHA-256 values, in table order, are
+`989594b709897804217563b9902d9345660aae9d8ecce2907e607cf118906a1c`,
+`38fa67978c8dec78feceab212ffcac182959495d9cd2b6108a085aa3dfb47887`,
+and `7f6343a50018f54b0cc020a230882b789a6a72a9fe691c0852919f5ac49cef71`.
+These are observations on one synthetic diagnostic PDF, not measured
+precision or recall on authentic damaged documents.

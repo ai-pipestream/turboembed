@@ -254,4 +254,17 @@ fn the_evaluation_counts_each_label() {
     assert_eq!((neutral.tp, neutral.fp), (1, 1));
     assert_eq!((m.active, m.active_with_evidence), (1, 1));
     assert!(evaluate_emotion_corpus(&gold[..2], layer, 0.5).is_err());
+
+    let mut per_label = [0.5f64; 28];
+    per_label[D::Joy.index()] = 0.99;
+    let m_high = evaluate_emotion_corpus_with_thresholds(&gold, layer, &per_label).unwrap();
+    assert_eq!(m_high.per_label[D::Joy.index()].1.tp, 0);
+
+    let mut d_thresh = doc("I am happy.", &[(0, 11)]);
+    let res = run(EmotionAnnotator::new().with_thresholds(per_label), &mut d_thresh).unwrap();
+    assert!(res[0].1.is_empty());
+    let mut bad_thresh = [0.5f64; 28];
+    bad_thresh[0] = f64::NAN;
+    assert!(run(EmotionAnnotator::new().with_thresholds(bad_thresh), &mut d_thresh).is_err());
+    assert!(evaluate_emotion_corpus_with_thresholds(&gold, layer, &bad_thresh).is_err());
 }

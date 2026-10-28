@@ -153,5 +153,6 @@ pub fn from_evidence(bytes: &[u8], m: &Measurement) -> Result<ReferenceRun> {
             computed_tokens: Some(m.rows.padded_tokens()),
         }),
         not_run: None,
+        kernel_time: None,
     })
 }

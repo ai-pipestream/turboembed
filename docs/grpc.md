@@ -55,8 +55,10 @@ and all its sessions are made. It logs `listening on ADDR:PORT`, then
 exit, naming the model, the failing call, its status, the field it names
 and the library's message.
 
-The connection is plaintext gRPC with no authentication: put it behind
-whatever your deployment uses for that, and listen on `0.0.0.0` only
+The connection is plaintext gRPC by default: pass `--tls-cert` and
+`--tls-key` for TLS, and add `--tls-client-ca` to require client
+certificates (mutual TLS). Without TLS, put the listener behind whatever
+your deployment uses for authentication, and listen on `0.0.0.0` only
 where that is in place.
 
 SIGTERM, what Kubernetes and `docker stop` send, and SIGINT (Ctrl-C)
@@ -70,10 +72,15 @@ no way to stop a load part way.
 
 | Flag | Meaning | Absent |
 |---|---|---|
-| `--listen ADDR:PORT` | Where to answer gRPC, without TLS. | Required. |
+| `--listen ADDR:PORT` | Where to answer gRPC (plaintext unless `--tls-cert` and `--tls-key` are set). | Required. |
+| `--tls-cert FILE` | Server TLS certificate chain in PEM format; requires `--tls-key`. | Off (plaintext). |
+| `--tls-key FILE` | Server TLS private key in PEM format; requires `--tls-cert`. | Off (plaintext). |
+| `--tls-client-ca FILE` | Client CA bundle in PEM format for mutual TLS (mTLS); requires `--tls-cert` and `--tls-key`. Connections without a valid client certificate are refused during the TLS handshake. | Off. |
+| `--metrics-listen ADDR:PORT` | Serve Prometheus metrics in text exposition format (`0.0.4`) on `GET /metrics` over HTTP. | Off. |
 | `--model SETTINGS` | One served model; repeat for more. | At least one model (from `--model` or `--bundle-dir`) is required unless `--admin` is set. |
 | `--bundle-dir DIR` | Discover immediate child directories containing `manifest.json` and serve each on device 0 with 1 session unless overridden by an explicit `--model` of the same name. | Off. |
 | `--max-message-bytes N` | The largest request message read; a larger one is refused with `RESOURCE_EXHAUSTED` before it is read. | 64 MiB. |
+| `--max-stream-bytes N` | The most bytes one call's request carries in all, every frame and its five-byte prefix counted; the frame that passes it ends the call with `RESOURCE_EXHAUSTED`. At least `--max-message-bytes`. | 2 GiB. |
 | `--admin` | Answer the admin calls: the analysis service's `LoadBundle` and `UnloadBundle` (docs/grpc-analysis.md), the vocabulary store's writes (docs/grpc-vocabulary.md) and the catalog's `RecordLicenceAcceptance` and `InstallModel` (docs/grpc-catalog.md), the training service's `TrainStaticModel` and `DeleteStaticModel` (docs/grpc-training.md), and allow starting with zero models. Without it they refuse with `UNIMPLEMENTED`. | Off. |
 | `--vocabulary-dir PATH` | The vocabulary store's directory, made when it does not exist (docs/grpc-vocabulary.md). | No store: it lists nothing and refuses writes with `FAILED_PRECONDITION`. |
 | `--catalog-dir PATH` | Serve the model catalog with this zoo home: the cache under `artifacts/`, the acceptance file `acceptances.json`, as the `turbo-zoo` command keeps them (docs/zoo.md). | No catalog; its calls refuse with `UNIMPLEMENTED`. |
@@ -96,7 +103,8 @@ no way to stop a load part way.
 | `max_seq` | The sessions' sequence limit. | 0, the model's. |
 
 A bundle path may not contain a comma. Two models may not share a name.
-`--listen` and `--max-message-bytes` are refused when given twice;
+`--listen`, `--max-message-bytes` and `--max-stream-bytes` are refused
+when given twice;
 `--model` repeats, once per model.
 The tier and the device are the model's, not a request's: a request
 that names `precision` or `device` is refused. To offer one bundle at
@@ -113,6 +121,23 @@ in the order `turbo_version()` lists the backends, the cpu last. With
 the cpu backend alone, the CPU is device 0; `turbo_runtime_device_info`
 reports each index's kind and name.
 
+### Message and stream limits
+
+| Limit | Default | Where |
+|---|---|---|
+| One request message | 64 MiB, `--max-message-bytes` | every service |
+| One reply message | 256 MiB, or `--max-message-bytes` when larger | every service |
+| One call's request in all | 2 GiB, `--max-stream-bytes` | every call |
+| One frame of a client stream | 4 MiB recommended (`config::FRAME_BYTES`) | the client |
+
+Each refusal is `RESOURCE_EXHAUSTED` with no `turbo-code`; a reply over
+its limit is not sent. Past one message, a request goes as a client
+stream: `IndexDocuments`, `ImportDictionary`, `LearnVocabulary`,
+`AnalyzeStream` and `StreamDocuments`, in frames of about 4 MiB. The
+server reads a stream a frame at a time; a call that keeps what it
+reads (`ImportDictionary`, `LearnVocabulary`) also stops at its own cap
+(docs/grpc-vocabulary.md).
+
 ### Environment
 
 Each variable is read when its flag is absent; a flag on the command
@@ -122,9 +147,14 @@ twice; `TURBO_KSERVE_MODELS` lists every model in one.
 | Variable | Flag |
 |---|---|
 | `TURBO_KSERVE_LISTEN` | `--listen` |
+| `TURBO_KSERVE_TLS_CERT` | `--tls-cert` |
+| `TURBO_KSERVE_TLS_KEY` | `--tls-key` |
+| `TURBO_KSERVE_TLS_CLIENT_CA` | `--tls-client-ca` |
+| `TURBO_KSERVE_METRICS_LISTEN` | `--metrics-listen` |
 | `TURBO_KSERVE_MODELS` | `--model`, one or more values separated by `;` |
 | `TURBO_KSERVE_BUNDLE_DIR` | `--bundle-dir` |
 | `TURBO_KSERVE_MAX_MESSAGE_BYTES` | `--max-message-bytes` |
+| `TURBO_KSERVE_MAX_STREAM_BYTES` | `--max-stream-bytes` |
 | `TURBO_KSERVE_ADMIN` | `--admin` (`1`, `true`, `yes`, `0`, `false`, `no`) |
 | `TURBO_KSERVE_VOCABULARY_DIR` | `--vocabulary-dir` |
 | `TURBO_KSERVE_SINK_ENDPOINT` | `--sink-endpoint` |
@@ -216,7 +246,49 @@ Errors are gRPC statuses with the library's status name and message,
 and trailing metadata `turbo-code` and `turbo-field` (kserve.md,
 Errors).
 
+### TLS, Prometheus metrics, and gRPC deadlines
+
+Pass `--tls-cert FILE` and `--tls-key FILE` (`TURBO_KSERVE_TLS_CERT` and
+`TURBO_KSERVE_TLS_KEY`) to serve TLS over the gRPC listener. Adding
+`--tls-client-ca FILE` (`TURBO_KSERVE_TLS_CLIENT_CA`) enables mutual TLS
+(mTLS) and refuses any connection that does not present a client
+certificate signed by a CA in `FILE`.
+
+Pass `--metrics-listen ADDR:PORT` (`TURBO_KSERVE_METRICS_LISTEN`) to
+expose Prometheus metrics in text exposition format (`0.0.4`) on `GET
+/metrics`. This separate listener is plaintext and unauthenticated, even
+when the gRPC listener uses TLS. Bind it to loopback or a trusted internal
+interface. It exposes these metrics:
+
+| Metric | Type | Labels | Meaning |
+|---|---|---|---|
+| `turbo_kserve_rpc_requests_total` | counter | `service`, `method`, `code` | Completed gRPC calls by service, method, and gRPC status code. |
+| `turbo_kserve_rpc_duration_seconds` | histogram | `service`, `method` | gRPC request latency in seconds. |
+| `turbo_kserve_inflight_streams` | gauge | none | Active streaming RPCs (`AnalyzeStream` and `AnalyzeDocumentProgressive`). |
+| `turbo_kserve_inflight_documents` | gauge | none | Documents currently executing across unary and streaming calls. |
+| `turbo_kserve_queued_documents` | gauge | none | Stream documents admitted and awaiting completion. |
+| `turbo_kserve_queued_bytes` | gauge | none | Stream document bytes admitted and awaiting completion. |
+| `turbo_kserve_batch_size` | histogram | none | Inference batch size distribution. |
+| `turbo_kserve_device_queue_depth` | gauge | `device` | Documents queued or executing per runtime device. |
+| `turbo_kserve_device_active_sessions` | gauge | `device` | Held sessions currently executing per runtime device. |
+| `turbo_kserve_device_idle_sessions` | gauge | `device` | Idle sessions available per runtime device. |
+| `turbo_kserve_bundle_loads_total` | counter | `status` | Bundle load attempts (`ok` or `error`). |
+| `turbo_kserve_bundle_unloads_total` | counter | none | Unloaded model bundles. |
+| `turbo_kserve_loaded_bundles` | gauge | none | Currently loaded model bundles. |
+
+Per-call `grpc-timeout` metadata is propagated into unary (`ModelInfer`)
+and streaming (`AnalyzeStream`, `AnalyzeDocumentProgressive`) workers.
+When a deadline expires, in-flight batches and pipeline steps stop
+cooperatively, return held model sessions to their pool, release stream
+queue room, and answer `DEADLINE_EXCEEDED`. Positive timeout budgets are
+not shortened, including budgets of 15 ms or less. Deadline timers are
+released when the final active call or worker drops its deadline handle.
+
 ## The proto
+
+Browsers reach these services only through generated Connect-ES clients
+with the binary codec, by way of the demo's allowlisted Connect proxy;
+there is no JSON front end (docs/demo.md, AGENTS.md).
 
 `server/proto/open_inference_grpc.proto` is the Open Inference
 Protocol's own file (`inference`), vendored (Apache-2.0); its first lines

@@ -28,58 +28,52 @@ use crate::stream::{Dead, Envelope, Room, Shared, admit, admit_refusal, bound_re
 /// The refusal is the document's own: it crosses as a failed answer,
 /// tagged with the document's id, holding the room it was admitted
 /// with, and the stream continues.
-fn check(state: &State, d: AnalyzeDocument, room: Room) -> Result<Doc, Box<(String, Failure, Room)>> {
+fn check(state: &State, d: AnalyzeDocument, mut room: Room) -> Result<Doc, Box<(String, Failure, Room)>> {
     let id = d.id.clone();
-    let checked = (|d: AnalyzeDocument, room: Room| -> Result<Doc, (Failure, Room)> {
+    let checked: Result<_, Failure> = (|| {
         if d.id.is_empty() {
-            return Err((Failure::new(TURBO_E_INVALID_ARGUMENT, 0, "id is empty"), room));
+            return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, "id is empty"));
         }
         if d.model.is_empty() {
-            return Err((Failure::new(TURBO_E_INVALID_ARGUMENT, 0, "model is empty"), room));
+            return Err(Failure::new(TURBO_E_INVALID_ARGUMENT, 0, "model is empty"));
         }
-        let (served, loaded) = match state.ready(&d.model, "") {
-            Ok(v) => v,
-            Err(f) => return Err((f, room)),
-        };
+        let (served, loaded) = state.ready(&d.model, "")?;
+        room.bind_device(loaded.device);
         if loaded.task != turbo::TURBO_TASK_EMBED {
-            return Err((Failure::new(crate::api::TURBO_E_UNSUPPORTED_TASK, 0, "the model's task is not embed"), room));
+            return Err(Failure::new(crate::api::TURBO_E_UNSUPPORTED_TASK, 0, "the model's task is not embed"));
         }
-        let doc_opts = match handler::doc_options(d.output, d.offsets, d.options.as_ref()) {
-            Ok(o) => o,
-            Err(f) => return Err((f, room)),
-        };
+        let doc_opts = handler::doc_options(d.output, d.offsets, d.options.as_ref())?;
         if doc_opts.output != AnalyzeOutput::Vectors {
             if std::str::from_utf8(&d.text).is_err() {
-                return Err((Failure::new(TURBO_E_INVALID_UTF8, 0, "document text is not valid UTF-8"), room));
+                return Err(Failure::new(TURBO_E_INVALID_UTF8, 0, "document text is not valid UTF-8"));
             }
-            let embed = match loaded.embed() {
-                Ok(e) => e,
-                Err(f) => return Err((f, room)),
-            };
-            if let Err(f) = embed.validate_options(doc_opts.output, &doc_opts.embed, doc_opts.sparse_top_k) {
-                return Err((f, room));
-            }
+            let embed = loaded.embed()?;
+            embed.validate_options(doc_opts.output, &doc_opts.embed, doc_opts.sparse_top_k)?;
         }
-        let batch_limit = loaded.slots[0].info.max_batch;
-        let version = loaded.revision.clone();
-        Ok(Doc {
-            seq: 0,
-            id: d.id,
-            text: d.text,
-            opts: doc_opts.embed,
-            output: doc_opts.output,
-            offsets: doc_opts.offsets,
-            sparse_top_k: doc_opts.sparse_top_k,
-            sparse_floor: doc_opts.sparse_floor,
-            token_stride: doc_opts.token_stride,
-            loaded,
-            model: served.name.clone(),
-            version,
-            batch_limit,
-            room,
-        })
-    })(d, room);
-    checked.map_err(|(f, room)| Box::new((id, f, room)))
+        Ok((served, loaded, doc_opts))
+    })();
+    let (served, loaded, doc_opts) = match checked {
+        Ok(v) => v,
+        Err(f) => return Err(Box::new((id, f, room))),
+    };
+    let batch_limit = loaded.slots[0].info.max_batch;
+    let version = loaded.revision.clone();
+    Ok(Doc {
+        seq: 0,
+        id: d.id,
+        text: d.text,
+        opts: doc_opts.embed,
+        output: doc_opts.output,
+        offsets: doc_opts.offsets,
+        sparse_top_k: doc_opts.sparse_top_k,
+        sparse_floor: doc_opts.sparse_floor,
+        token_stride: doc_opts.token_stride,
+        loaded,
+        model: served.name.clone(),
+        version,
+        batch_limit,
+        room,
+    })
 }
 
 /// Reads and admits until the input closes, the client cancels, or the
