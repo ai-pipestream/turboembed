@@ -29,6 +29,27 @@ fn required(var: &str) -> bool {
     std::env::var(format!("TURBO_TEST_REQUIRE_{var}")).is_ok_and(|v| !v.is_empty() && v != "0")
 }
 
+#[test]
+fn required_device_selection_cannot_skip() {
+    let mut skipped_requirements = Vec::new();
+    for selector in [None, Some("cpu"), Some("unknown"), Some("metal")] {
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap());
+        child.args(["--exact", "device_codes_are_the_codes_of_the_same_devices_f32_vectors", "--nocapture"]);
+        child.env_remove("TURBO_TEST_DEVICE");
+        for (_, var) in BACKENDS {
+            child.env_remove(format!("TURBO_TEST_REQUIRE_{var}"));
+        }
+        if let Some(selector) = selector {
+            child.env("TURBO_TEST_DEVICE", selector);
+        }
+        let out = child.env("TURBO_TEST_REQUIRE_CUDA", "1").output().unwrap();
+        if out.status.success() {
+            skipped_requirements.push(selector);
+        }
+    }
+    assert!(skipped_requirements.is_empty(), "required CUDA coverage skipped for {skipped_requirements:?}");
+}
+
 /// The backend TURBO_TEST_DEVICE names, if it lists a device; None after
 /// saying the test is skipped.
 fn backend(test: &str) -> Option<&'static str> {
