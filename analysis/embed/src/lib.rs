@@ -47,7 +47,7 @@ pub use sparse::{SparseAnnotator, SparseOptions, SparseProvider};
 pub use subwords::{SubwordAnnotator, SubwordsProvider, align};
 pub use vectors::{
     ChunkVectors, ContextualTokens, Embedder, Input, Output, SentenceChunkVectors, SentenceVectors, SubwordVectors,
-    VectorAnnotator, VectorOptions, VectorsProvider,
+    VectorAnnotator, VectorCodesProvider, VectorCodesStep, VectorOptions, VectorsProvider,
 };
 
 use turbo::bundle::Bundle;

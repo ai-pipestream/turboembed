@@ -121,18 +121,18 @@ pub fn runs_band(backend: &str, lookahead: u32) -> Result<()> {
 
 /// Whether the backend named `backend` holds a model of TURBO_FAMILY_*
 /// `family`: only the CPU, CUDA, Level Zero and Metal have a DeBERTa-v2
-/// encoder so far, and only the CPU and Level Zero a ModernBERT or
+/// encoder so far, and only the CPU, Level Zero and Metal a ModernBERT or
 /// nomic-bert one; any other would refuse the family at model_load.
 pub fn runs_family(backend: &str, family: u32) -> Result<()> {
-    // Only the CPU and Level Zero have a rotary encoder so far (#1461).
+    // Only the CPU, Level Zero and Metal have a rotary encoder so far (#1461).
     if matches!(family, TURBO_FAMILY_MODERNBERT | TURBO_FAMILY_NOMIC_BERT) {
-        if matches!(backend, "cpu" | "levelzero") {
+        if matches!(backend, "cpu" | "levelzero" | "metal") {
             return Ok(());
         }
         let name = if family == TURBO_FAMILY_MODERNBERT { "FAMILY_MODERNBERT" } else { "FAMILY_NOMIC_BERT" };
         return Err(Error::new(
             UNSUPPORTED,
-            format!("{name}: the {backend} backend has no encoder for it yet; use cpu"),
+            format!("{name}: the {backend} backend has no encoder for it yet; use cpu or metal"),
         ));
     }
     if family != TURBO_FAMILY_DEBERTA_V2 || matches!(backend, "cpu" | "cuda" | "levelzero" | "metal") {

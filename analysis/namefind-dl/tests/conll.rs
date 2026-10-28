@@ -83,8 +83,8 @@ fn conll2003_english_test_set() {
             })
             .collect();
         // Two names of one word's pieces (`Ko` `##fi`, each a `B-`) cover
-        // the same token: one name there, as `FMeasure` would count a
-        // repeated one twice.
+        // the same token: one name there, or the repeat would count as a
+        // prediction that matches nothing.
         let mut seen = Vec::new();
         predicted.retain(|p| {
             let new = !seen.contains(p);
