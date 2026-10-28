@@ -64,6 +64,7 @@ pub mod chunk;
 pub mod depparse;
 pub mod error;
 pub mod fineweb;
+pub mod flores;
 pub mod langid;
 pub mod masc;
 pub mod namefind;
