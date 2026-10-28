@@ -4598,7 +4598,8 @@ hybrid baselines run on that same backend. Every record is at commit
 the run logs beside them and the gate and cut reports in
 `analysis/eval/records/v1-172/reports/`.
 
-The gate FAILs on every backend recorded, with the same verdicts:
+The gate FAILs on every backend (CPU, Level Zero, CUDA and Metal),
+with the same verdicts:
 
 | Candidate | `sentence-windows-5-hybrid` | `fixed-tokens-200-hybrid` | `opennlp-sandbox-semantic-hybrid` |
 | :--- | :--- | :--- | :--- |
@@ -4615,18 +4616,17 @@ baselines on most sets and beats the sandbox semantic chunker on three.
 Cut identity: `turbo-eval run --dump-cuts` wrote each turbo-chunker
 run's cuts, and `turbo-eval cuts` compared every document's cuts, at
 every level, against the CPU's. Both pipelines cut every document of
-all four sets the same on the CPU, Level Zero (Arc Pro B70) and CUDA
-(RTX 4080 SUPER), the cohesion check included (structure-cost: 55659
+all four sets the same on the CPU, Level Zero (Arc Pro B70), CUDA
+(RTX 4080 SUPER) and Metal (Apple M2), the cohesion check included (structure-cost: 55659
 shared cuts, cohesion: 57319, 0 documents differ). No cut differs, so
 the reports hold no margins, and none had to be set against a backend's
 precision tier. The dumps are not committed (about 107 MB per pipeline
 and backend); `analysis/eval/records/v1-172/reports/cut-dumps.sha256`
 names each one's SHA-256 and size.
-The Level Zero records also match the CPU records query for query on
-every pipeline. CUDA's nDCG@10 differs from the CPU's by up to 0.18
+The Level Zero and Metal records also match the CPU records query for
+query on every pipeline. CUDA's nDCG@10 differs from the CPU's by up to 0.18
 points on `arguana` and 0.04 on `nfcorpus`, with the same chunks: its
-numerics in the vectors, not the chunker. Metal records at the same
-commit come from the Mac; the Intel NPU leg is #1480.
+numerics in the vectors, not the chunker. The Intel NPU leg is #1480.
 
 ### Structure in the chunker
 
