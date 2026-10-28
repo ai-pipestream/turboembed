@@ -348,8 +348,7 @@ mod tests {
 
     use super::*;
     use crate::error::Error;
-    use crate::treebank::TREEBANKS;
-    use turbo_eval::model_gate::Task;
+
     use turbo_lemmatizer::edit_script::decode_lemma;
     use turbo_train_components::lemmatize;
 
@@ -378,72 +377,10 @@ mod tests {
     }
 
     #[test]
-    fn the_recipes_name_their_treebank_component_and_reference() {
-        for r in UD_RECIPES {
-            let t = r.treebank;
-            let id = format!("turbo-{}-ud-{}-2.16-{}-1", t.language, t.name, r.component.name());
-            assert_eq!(r.model_id, id);
-            let parsed: turbo_zoo::ArtifactId = r.model_id.parse().unwrap();
-            assert_eq!(parsed.as_str(), r.model_id);
-            match r.reference {
-                Reference::Zoo(reference) => {
-                    let index = turbo_zoo::Index::builtin();
-                    let a = index.get(reference).unwrap();
-                    assert_eq!(a.component, Some(r.zoo_component()), "{reference}");
-                    assert_eq!(a.language.as_ref().unwrap().as_str(), t.language, "{reference}");
-                    assert!(reference.ends_with(&format!("-{}-1.3-2.5.4", r.component.name())));
-                }
-                Reference::Recorded(reference) => {
-                    // OpenNLP's Italian models are local-only and not in the zoo.
-                    assert_eq!(t.language, "it");
-                    assert_eq!(reference.file, format!("{}.bin", reference.id));
-                    assert_eq!(reference.id, format!("opennlp-it-ud-vit-{}-1.3-2.5.4", r.component.name()));
-                    assert!(reference.url.ends_with(reference.file));
-                    assert_eq!(turbo_zoo::Index::builtin().find("it", r.zoo_component()).count(), 0);
-                }
-            }
-            assert_eq!(UdRecipe::trains(r.model_id), Some(r));
-            assert_eq!(r.segmentation().is_some(), matches!(r.component, Sentences | Tokens));
-            let tagger = r.tagger();
-            assert_eq!(tagger.is_some(), r.component == Pos);
-            if let Some(pos) = tagger {
-                assert_eq!((pos.model_id, pos.reference, pos.reference_format), (r.model_id, r.reference, TAG_FORMAT));
-                assert!(pos.reference_mappings.is_empty());
-                assert_eq!(pos.max_left_out, MAX_TOKENS_LEFT_OUT);
-            }
-        }
-        // Every treebank has a tagger and a lemmatizer; the ones whose text
-        // is running text have a sentence detector and a tokenizer.
-        for t in TREEBANKS {
-            let components: Vec<Component> =
-                UD_RECIPES.iter().filter(|r| r.treebank == t).map(|r| r.component).collect();
-            let running = t.name != "ftb" && t.name != "markit";
-            let expected: &[Component] = if running { &[Sentences, Tokens, Pos, Lemmas] } else { &[Pos, Lemmas] };
-            assert_eq!(components, expected, "{}", t.repository);
-        }
-        assert_eq!(UD_RECIPES[3].task(), Task::Lemmatizer);
-        assert_eq!(UdRecipe::trains("turbo-en-ud-ewt-2.16-pos-1"), None);
-    }
-
-    #[test]
     fn check_data_rejects_invalid_segmentation_reference_bytes() {
         let conllu = "# text = Hola.\n1\tHola\thola\tINTJ\t_\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n";
         let text = TreebankText { train: conllu.to_owned(), test: conllu.to_owned() };
         assert!(matches!(UD_RECIPES[0].check_data(&text, b"not a model"), Err(Error::Model(_))));
         assert!(matches!(UD_RECIPES[1].check_data(&text, b"not a model"), Err(Error::Model(_))));
-    }
-
-    #[test]
-    fn score_lemmas_handles_empty_sample_without_nan_panic() {
-        let conllu = "# text = Gatos.\n1\tGatos\tgato\tNOUN\t_\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n\
-                      # text = Perros.\n1\tPerros\tperro\tNOUN\t_\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n\
-                      # text = Casas.\n1\tCasas\tcasa\tNOUN\t_\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n\
-                      # text = Mesas.\n1\tMesas\tmesa\tNOUN\t_\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n\
-                      # text = Libros.\n1\tLibros\tlibro\tNOUN\t_\t_\t0\troot\t_\tSpaceAfter=No\n2\t.\t.\tPUNCT\t_\t_\t1\tpunct\t_\t_\n\n";
-        let trained = UD_RECIPES[3].train(conllu).unwrap();
-        let classes = ReferenceClasses::of_model(&trained.bytes).unwrap();
-        let empty = LemmaSample::new(Vec::new(), Vec::new(), Vec::new(), turbo_analysis::Span::new(0, 0)).unwrap();
-        let counts = score_lemmas(&trained.bytes, &[empty], &classes).unwrap();
-        assert_eq!(counts.len(), 1);
     }
 }

@@ -3,17 +3,10 @@ use std::path::PathBuf;
 use turbo_train_recipes::release::ModelsRelease;
 
 pub(crate) const USAGE: &str = "usage:
-  turbo-train-recipes masc --corpus <dir> --references <dir> --out <dir> [--unrecorded-corpus] [--recipe <model id>]...
-  turbo-train-recipes masc-namefind-select --corpus <dir> --references <dir> --out <dir> [--recipe <model id>]...
   turbo-train-recipes fetch-masc --home <dir>
-  turbo-train-recipes ud --treebanks <dir> --references <dir> --out <dir> [--recipe <model id>]...
-  turbo-train-recipes depparse --treebanks <dir> --out <dir> [--recipe <model id>]...
   turbo-train-recipes fetch-ud --home <dir> [--recipe <model id>]...
-  turbo-train-recipes zoo-index --models <dir> --release <tag> [--check]
-  turbo-train-recipes tatoeba --export <dir> --references <dir> --out <dir> [--unrecorded-export]
   turbo-train-recipes fineweb-ranges (--paths | --web <dir> [--files <path>] (--need | --record))
-  turbo-train-recipes tatoeba-fineweb --export <dir> --web <dir> --references <dir> --out <dir>
-      [--unrecorded-export] [--files <path> --ranges <path> --unrecorded-web]";
+Classical training, reference-model gates and publication commands are disabled by #1511.";
 
 #[derive(Debug)]
 pub(crate) struct Args {
@@ -71,6 +64,14 @@ pub(crate) fn parse() -> Result<Args, String> {
 
 pub(crate) fn parse_from(mut it: impl Iterator<Item = String>) -> Result<Args, String> {
     let command = it.next().ok_or(USAGE)?;
+    if matches!(
+        command.as_str(),
+        "masc" | "masc-namefind-select" | "ud" | "depparse" | "zoo-index" | "tatoeba" | "tatoeba-fineweb"
+    ) {
+        return Err(format!(
+            "{command}: disabled by #1511; OpenNLP model training, reference gates and publication are disabled. Replacement trainers: #1518; models: #1522-#1525."
+        ));
+    }
     let mut a = Args {
         command,
         corpus: None,
@@ -148,8 +149,8 @@ mod tests {
 
     #[test]
     fn duplicate_single_value_flag_is_rejected() {
-        let err = args(&["masc", "--corpus", "a", "--corpus", "b"]).unwrap_err();
-        assert!(err.starts_with("--corpus was given more than once"), "{err}");
+        let err = args(&["fetch-masc", "--home", "a", "--home", "b"]).unwrap_err();
+        assert!(err.starts_with("--home was given more than once"), "{err}");
     }
 
     #[test]
