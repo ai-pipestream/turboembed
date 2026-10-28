@@ -54,6 +54,7 @@ pub fn spec(corpus: &Corpus, o: &HeadOptions) -> Result<HeadSpec> {
         word_pooling: o.pooling,
         adapter: o.bilstm.map(|(hidden, layers)| Adapter { bilstm: Bilstm { hidden, layers } }),
         decode: if o.crf { Decode::Crf } else { Decode::Argmax },
+        biaffine: None,
         artifact: "weights-f32".into(),
         tensor_prefix: format!("heads.{name}"),
     };
