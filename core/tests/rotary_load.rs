@@ -1,7 +1,7 @@
 //! A ModernBERT or nomic-bert bundle through the loader (#1461): its
 //! tensors found in the family's order and checked against the
 //! architecture, its rotary fields and cos/sin table in the description a
-//! backend is handed, and no backend claiming to run it yet.
+//! backend is handed, and only the CPU running it.
 
 #![cfg(feature = "cpu")]
 
@@ -85,13 +85,48 @@ fn a_modernbert_file_with_a_first_attention_norm_is_refused() {
     assert!(e.is(BUNDLE_INVALID, "first layer has no attention norm"), "{e:?}");
 }
 
+/// The CPU runs both families (#1461); every other backend refuses them
+/// before model_load.
 #[test]
-fn no_backend_runs_a_rotary_family_yet() {
-    for (f, name) in [
-        (rotary::modernbert("rotary-cpu-mb"), "FAMILY_MODERNBERT"),
-        (rotary::nomic("rotary-cpu-nb"), "FAMILY_NOMIC_BERT"),
-    ] {
-        let e = f.load().err().unwrap();
-        assert!(e.is(UNSUPPORTED, &format!("{name}: the cpu backend has no encoder for it yet")), "{e:?}");
+fn only_the_cpu_runs_a_rotary_family() {
+    for f in [rotary::modernbert("rotary-cpu-mb"), rotary::nomic("rotary-cpu-nb")] {
+        assert!(f.load().is_ok());
+    }
+    for (family, name) in
+        [(TURBO_FAMILY_MODERNBERT, "FAMILY_MODERNBERT"), (TURBO_FAMILY_NOMIC_BERT, "FAMILY_NOMIC_BERT")]
+    {
+        assert!(turbo::model::runs_family("cpu", family).is_ok());
+        for b in ["cuda", "metal", "levelzero", "npu", "hailo"] {
+            let e = turbo::model::runs_family(b, family).err().unwrap();
+            assert_eq!(e.code, UNSUPPORTED);
+            assert!(e.message.contains(&format!("{name}: the {b} backend has no encoder for it yet")), "{}", e.message);
+        }
+    }
+}
+
+/// A row padded on the left, on a sliding-window layer: its first pads
+/// see no live key in their window. Their context must be 0, not NaN, or
+/// the NaN reaches the row's live tokens a layer later (found by the
+/// Level Zero leg on rows of 17, 5, 40, 9 and 1 tokens padded to 40).
+#[test]
+fn a_left_padded_modernbert_row_stays_finite() {
+    let f = rotary::modernbert("rotary-left-pad");
+    let loaded = f.load().unwrap();
+    let session =
+        common::Session::create(loaded.m, Some(&common::session_desc(8, 64, turbo::TURBO_PRECISION_MODEL))).unwrap();
+    let lengths = [17usize, 5, 40, 9, 1];
+    let rows: Vec<Vec<i32>> = lengths.iter().map(|&n| (0..n as i32).map(|k| 1000 + 37 * k).collect()).collect();
+    let mut t = common::Tokens::new(&rows, 0);
+    // Row 3 moves to the right end of its 40 columns.
+    let (seq, n) = (t.seq as usize, lengths[3]);
+    let at = 3 * seq;
+    t.ids[at..at + seq].fill(0);
+    t.mask[at..at + seq].fill(0);
+    t.ids[at + seq - n..at + seq].copy_from_slice(&rows[3]);
+    t.mask[at + seq - n..at + seq].fill(1);
+    session.write_tokens(&t.batch(), None).unwrap();
+    let out = session.run().unwrap().rows();
+    for (r, v) in out.iter().enumerate() {
+        assert!(v.iter().all(|x| x.is_finite()), "row {r}: {v:?}");
     }
 }
