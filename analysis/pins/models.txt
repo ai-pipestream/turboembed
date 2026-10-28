@@ -106,3 +106,13 @@ blobs/sha256/4ac96221ea772033f248df8c08fc546f62c384860bf3abc5d96e383a800497a2  f
 blobs/sha256/643023b738f8d1072fffa358000247b61c7027da720f4d310fd902f6cc59a99a  file  aspect-polarity-1.thead (analysis/embed/tests/aspect_masc_support/release.json)
 blobs/sha256/a0cc253cdcf8bdd6f28bc13f17a1d7012740bcfe2deb384ca212dbf9e3aef5de  file  pragmatics-1.thead (analysis/embed/tests/pragmatics_csc_support/release.json)
 blobs/sha256/26c1147d5431901e41ca6847ee482d0534c63b0ddcf63e9e99f2b22e472997ba  file  MiniLM TIVH incivility head (analysis/embed/examples/incivility_eval/tests.rs)
+
+# Bundles CI makes from a pinned recipe before a test loads them.
+blobs/sha256/09275a1b537fd120d5ee10ed614aa8963c65100dda824b6c14fc9f9a7715de04  bundle  minishlab/potion-base-2M as the static-parity job of ci.yml makes it
+
+# Bundles in the device machines' caches that tests are run with, from
+# `turbo-pins` on each machine (#1621).
+blobs/sha256/3c520dec8d833a3594b15567d1de0c8c039a571c728fbf2a6247d4fa885a64b4  bundle  answerdotai/ModernBERT-base, 12-layer cut for the #1607 receipt (RTX 4080 machine)
+blobs/sha256/1c3b7bc10bd32729227801704b9e22f9a333b50bd899e4494dc3e7d49f3afb21  bundle  sentence-transformers/all-MiniLM-L6-v2 revision 3 (RTX 4080 machine)
+blobs/sha256/8dc4c5f58d474c5714b2b5c33782a8ce8d14033c0b13336c9400301cff254842  bundle  BAAI/bge-m3 revision 1 (RTX 4080 machine)
+blobs/sha256/c38aa631f6b5a02f8f198ec6e9bbed4e98b8a3e7437032898950245458192c70  bundle  BAAI/bge-m3 revision 2 (RTX 4080 machine)
