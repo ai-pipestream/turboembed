@@ -149,9 +149,23 @@ impl Chunker for TurboChunker {
     }
 
     fn chunk(&self, doc: &Document, embedder: &mut dyn Embedder) -> Result<Vec<Span>> {
+        Ok(self.chunk_cut(doc, embedder)?.0)
+    }
+
+    fn cut_budget(&self) -> Option<Budget> {
+        Some(self.budget)
+    }
+
+    fn chunk_cut(&self, doc: &Document, embedder: &mut dyn Embedder) -> Result<(Vec<Span>, Document)> {
         let doc = self.chunked(doc, embedder)?;
         let chunks = need::<Chunks>(&doc, self.name())?;
-        Ok(chunks.spans.iter().filter(|(i, _)| chunks.level[i.get()] == 0).filter_map(|(_, s)| chunk_span(s)).collect())
+        let spans = chunks
+            .spans
+            .iter()
+            .filter(|(i, _)| chunks.level[i.get()] == 0)
+            .filter_map(|(_, s)| chunk_span(s))
+            .collect();
+        Ok((spans, doc))
     }
 }
 

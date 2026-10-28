@@ -1,0 +1,108 @@
+## cuda
+     Running tests/cuda_attention.rs (target/release/deps/cuda_attention-40f4f2e4a2c8b99a)
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.04s
+     Running tests/cuda_deberta.rs (target/release/deps/cuda_deberta-bffe97bb533db530)
+test result: ok. 12 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 26.49s
+     Running tests/cuda_devices.rs (target/release/deps/cuda_devices-3e4287f463643bc4)
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+     Running tests/cuda_gelu.rs (target/release/deps/cuda_gelu-f6ad5f630c30a5ff)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running tests/cuda_gemms.rs (target/release/deps/cuda_gemms-9e3534540cfe178a)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.67s
+     Running tests/cuda_kernels.rs (target/release/deps/cuda_kernels-a7eb63bea71dabc8)
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.03s
+     Running tests/cuda_qa.rs (target/release/deps/cuda_qa-24fde12544c3c37f)
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.81s
+     Running tests/cuda_ranges.rs (target/release/deps/cuda_ranges-beb27384e3b2c801)
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.30s
+     Running tests/cuda_rerank.rs (target/release/deps/cuda_rerank-9ab75b641c780ab7)
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.58s
+     Running tests/cuda_rotary.rs (target/release/deps/cuda_rotary-b3bf0dbd372d2fa8)
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.74s
+     Running tests/cuda_runs.rs (target/release/deps/cuda_runs-9b755f79046cd8b6)
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.18s
+     Running tests/cuda_tuning.rs (target/release/deps/cuda_tuning-491cc773e16a03e8)
+test result: ok. 9 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.87s
+     Running tests/cuda_variants.rs (target/release/deps/cuda_variants-8f79ee2ca590fdeb)
+test result: ok. 9 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 3.81s
+## conf-model
+     Running tests/conformance.rs (target/release/deps/conformance-c86287bf301f662a)
+test result: ok. 7 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.39s
+## conf-fastest
+     Running tests/conformance.rs (target/release/deps/conformance-c86287bf301f662a)
+test result: ok. 7 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.35s
+## conf-exact
+     Running tests/conformance.rs (target/release/deps/conformance-c86287bf301f662a)
+test result: ok. 7 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.36s
+## nomic-embed-text-v1.5-conf-model
+     Running tests/conformance.rs (target/release/deps/conformance-c86287bf301f662a)
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.78s
+## nomic-embed-text-v1.5-conf-fastest
+     Running tests/conformance.rs (target/release/deps/conformance-c86287bf301f662a)
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.91s
+## nomic-embed-text-v1.5-conf-exact
+     Running tests/conformance.rs (target/release/deps/conformance-c86287bf301f662a)
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.63s
+## nomic-embed-text-v1.5-cuda
+     Running tests/cuda_attention.rs (target/release/deps/cuda_attention-40f4f2e4a2c8b99a)
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.33s
+     Running tests/cuda_deberta.rs (target/release/deps/cuda_deberta-bffe97bb533db530)
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 25.10s
+     Running tests/cuda_devices.rs (target/release/deps/cuda_devices-3e4287f463643bc4)
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+     Running tests/cuda_gelu.rs (target/release/deps/cuda_gelu-f6ad5f630c30a5ff)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+     Running tests/cuda_gemms.rs (target/release/deps/cuda_gemms-9e3534540cfe178a)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.42s
+     Running tests/cuda_kernels.rs (target/release/deps/cuda_kernels-a7eb63bea71dabc8)
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.63s
+     Running tests/cuda_qa.rs (target/release/deps/cuda_qa-24fde12544c3c37f)
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.55s
+     Running tests/cuda_ranges.rs (target/release/deps/cuda_ranges-beb27384e3b2c801)
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.87s
+     Running tests/cuda_rerank.rs (target/release/deps/cuda_rerank-9ab75b641c780ab7)
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.47s
+     Running tests/cuda_rotary.rs (target/release/deps/cuda_rotary-b3bf0dbd372d2fa8)
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.16s
+     Running tests/cuda_runs.rs (target/release/deps/cuda_runs-9b755f79046cd8b6)
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.88s
+     Running tests/cuda_tuning.rs (target/release/deps/cuda_tuning-491cc773e16a03e8)
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.92s
+     Running tests/cuda_variants.rs (target/release/deps/cuda_variants-8f79ee2ca590fdeb)
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 245.44s
+## modernbert-base-conf-model
+     Running tests/conformance.rs (target/release/deps/conformance-c86287bf301f662a)
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.35s
+## modernbert-base-conf-fastest
+     Running tests/conformance.rs (target/release/deps/conformance-c86287bf301f662a)
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.46s
+## modernbert-base-conf-exact
+     Running tests/conformance.rs (target/release/deps/conformance-c86287bf301f662a)
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.60s
+## modernbert-base-cuda
+     Running tests/cuda_attention.rs (target/release/deps/cuda_attention-40f4f2e4a2c8b99a)
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.29s
+     Running tests/cuda_deberta.rs (target/release/deps/cuda_deberta-bffe97bb533db530)
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 40.65s
+     Running tests/cuda_devices.rs (target/release/deps/cuda_devices-3e4287f463643bc4)
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.27s
+     Running tests/cuda_gelu.rs (target/release/deps/cuda_gelu-f6ad5f630c30a5ff)
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+     Running tests/cuda_gemms.rs (target/release/deps/cuda_gemms-9e3534540cfe178a)
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s
+     Running tests/cuda_kernels.rs (target/release/deps/cuda_kernels-a7eb63bea71dabc8)
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.64s
+     Running tests/cuda_qa.rs (target/release/deps/cuda_qa-24fde12544c3c37f)
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.94s
+     Running tests/cuda_ranges.rs (target/release/deps/cuda_ranges-beb27384e3b2c801)
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.41s
+     Running tests/cuda_rerank.rs (target/release/deps/cuda_rerank-9ab75b641c780ab7)
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.81s
+     Running tests/cuda_rotary.rs (target/release/deps/cuda_rotary-b3bf0dbd372d2fa8)
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.88s
+     Running tests/cuda_runs.rs (target/release/deps/cuda_runs-9b755f79046cd8b6)
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.41s
+     Running tests/cuda_tuning.rs (target/release/deps/cuda_tuning-491cc773e16a03e8)
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.77s
+     Running tests/cuda_variants.rs (target/release/deps/cuda_variants-8f79ee2ca590fdeb)
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 191.21s

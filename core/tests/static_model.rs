@@ -474,8 +474,8 @@ fn a_static_manifest_is_checked_field_by_field() {
         "static_mapping and static_embedding.rows come together",
     );
     refused(
-        |m| m["tokenizer"]["special_tokens"][0]["single_word"] = true.into(),
-        "single_word and rstrip are read with normalized",
+        |m| m["tokenizer"]["added_tokens"] = serde_json::json!([{ "content": "[PAD]", "id": 7 }]),
+        "added_tokens[0].content: listed twice",
     );
     refused(|m| m["artifacts"][0]["format"] = "FORMAT_ONNX".into(), "a static model's artifacts are raw weights");
     refused(

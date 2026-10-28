@@ -10,7 +10,6 @@ use turbo_parser::{
     AncoraSpanishHeadRules, EnglishHeadRules, Head, HeadRules, HeadRulesError, INC_NODE, Parse, ParseError,
     ParseSampleStream, ParserChunkSample, TOK_NODE, TagPattern, decode_token, encode_token, space_untokenized_parens,
 };
-use turbo_unicode::WhitespaceMode;
 
 fn english() -> EnglishHeadRules {
     let path = turbo_goldens::data_dir().join("fixtures/en-head-rules.txt");
@@ -370,16 +369,13 @@ fn the_sample_stream_skips_blank_lines() {
 
 #[test]
 fn spaces_untokenized_brackets() {
-    let unicode = WhitespaceMode::Unicode;
-    assert_eq!(space_untokenized_parens("no brackets", unicode), "no brackets");
-    assert_eq!(space_untokenized_parens("a(b)c", unicode), "a ( b ) c");
-    assert_eq!(space_untokenized_parens("(x){y}", unicode), "( x ) { y }");
-    assert_eq!(space_untokenized_parens("a ( b ) c", unicode), "a ( b ) c");
-    // U+001C is whitespace only in the legacy mode, U+0085 only in the Unicode mode.
-    assert_eq!(space_untokenized_parens("a\u{1c}(b", unicode), "a\u{1c} ( b");
-    assert_eq!(space_untokenized_parens("a\u{1c}(b", WhitespaceMode::Legacy), "a\u{1c}( b");
-    assert_eq!(space_untokenized_parens("a\u{85}(b", unicode), "a\u{85}( b");
-    assert_eq!(space_untokenized_parens("a\u{85}(b", WhitespaceMode::Legacy), "a\u{85} ( b");
+    assert_eq!(space_untokenized_parens("no brackets"), "no brackets");
+    assert_eq!(space_untokenized_parens("a(b)c"), "a ( b ) c");
+    assert_eq!(space_untokenized_parens("(x){y}"), "( x ) { y }");
+    assert_eq!(space_untokenized_parens("a ( b ) c"), "a ( b ) c");
+    // U+001C is not whitespace, so a space is put after it; U+0085 is.
+    assert_eq!(space_untokenized_parens("a\u{1c}(b"), "a\u{1c} ( b");
+    assert_eq!(space_untokenized_parens("a\u{85}(b"), "a\u{85}( b");
 }
 
 #[test]

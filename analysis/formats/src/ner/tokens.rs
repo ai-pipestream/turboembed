@@ -2,7 +2,7 @@
 //! text with.
 
 use turbo_analysis::Span;
-use turbo_tokenize::{TokenizerOptions, WhitespaceMode, simple_spans, whitespace_spans};
+use turbo_tokenize::{TokenizerOptions, simple_spans, whitespace_spans};
 
 /// A tokenizer, as the MUC and brat streams use OpenNLP's `Tokenizer`:
 /// the byte spans of the tokens of a text (`tokenizePos`). OpenNLP's
@@ -70,17 +70,16 @@ pub trait SentenceSpans {
 }
 
 /// `NewlineSentenceDetector`: a sentence per line, a line ending at `\n`
-/// or `\r`, trimmed of whitespace (`StringUtil.isWhitespace` in `mode`),
-/// and lines left empty by the trim dropped.
+/// or `\r`, trimmed of Unicode whitespace, and lines left empty by the
+/// trim dropped.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
-pub struct NewlineSentences(pub WhitespaceMode);
+pub struct NewlineSentences;
 
 impl SentenceSpans for NewlineSentences {
     fn sentence_spans(&self, text: &str, out: &mut Vec<Span>) {
-        let mode = self.0;
         let mut push = |start: usize, end: usize| {
             let line = &text[start..end];
-            let ws = |c: char| mode.is_whitespace(c as u32);
+            let ws = |c: char| turbo_unicode::whitespace::is_whitespace(c as u32);
             let from = start + (line.len() - line.trim_start_matches(ws).len());
             let to = start + line.trim_end_matches(ws).len();
             if from < to {
@@ -126,11 +125,11 @@ mod tests {
     fn a_sentence_per_line() {
         let text = "\n a b \r\n\n\u{85}c\n \n d";
         let mut out = Vec::new();
-        NewlineSentences(WhitespaceMode::Unicode).sentence_spans(text, &mut out);
+        NewlineSentences.sentence_spans(text, &mut out);
         assert_eq!(out.iter().map(|s| &text[s.range()]).collect::<Vec<_>>(), ["a b", "c", "d"]);
         out.clear();
-        NewlineSentences(WhitespaceMode::Legacy).sentence_spans(text, &mut out);
-        assert_eq!(out.iter().map(|s| &text[s.range()]).collect::<Vec<_>>(), ["a b", "\u{85}c", "d"]);
+        NewlineSentences.sentence_spans("\u{1c}a\u{1f}\n\u{85}", &mut out);
+        assert_eq!(out, [Span::new(0, 3)]);
     }
 
     #[test]

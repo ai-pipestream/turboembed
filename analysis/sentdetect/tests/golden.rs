@@ -1,13 +1,13 @@
 //! The detectors against OpenNLP on the JVM (analysis/goldens/data/sentdetect).
 //!
 //! - The newline detector against `NewlineSentenceDetector`: every golden
-//!   of the `newline` and `newline+legacy` runs.
+//!   of the `newline` run.
 //! - The maxent detector against `SentenceDetectorME` with the published
 //!   German, English and Portuguese models, which `turbo-goldens
 //!   fetch-models` downloads (`common::published_model`); without them
 //!   these tests say so and pass.
 //! - The maxent detector with the two fixture models (one with an
-//!   abbreviation dictionary), in both whitespace modes, and with the
+//!   abbreviation dictionary), and with the
 //!   models the Rust GIS, QN and perceptron trainers wrote from en-plain's
 //!   events.
 //!
@@ -28,7 +28,7 @@ use common::{Case, GoldenSpan};
 use turbo_analysis::Span;
 use turbo_goldens::Unit;
 use turbo_maxent::ModelFile;
-use turbo_sentdetect::{Decision, Scratch, SentenceDetector, SentenceModel, WhitespaceMode, newline_spans};
+use turbo_sentdetect::{Decision, Scratch, SentenceDetector, SentenceModel, newline_spans};
 use turbo_unicode::modified_utf8::push_modified_utf8;
 use turbo_unicode::utf16::byte_to_utf16;
 
@@ -53,17 +53,17 @@ fn assert_spans(got: &[GoldenSpan], want: &[GoldenSpan], name: &str) {
     }
 }
 
-fn check_newline_run(name: &str, mode: WhitespaceMode) -> usize {
+fn check_newline_run(name: &str) -> usize {
     let cases = common::run(name);
     let mut out = Vec::new();
     for case in &cases {
         let what = case.path.display().to_string();
         case.assert_annotator("opennlp.tools.sentdetect.NewlineSentenceDetector");
         case.assert_model(None);
-        assert_eq!(case.whitespace(), mode, "{what}");
+        case.assert_no_options();
         assert!(case.golden.layer("turbo:confidence<opennlp:sentences>").is_none(), "{what}");
         out.clear();
-        newline_spans(&case.text, mode, &mut out);
+        newline_spans(&case.text, &mut out);
         let got: Vec<GoldenSpan> = out.iter().map(|&s| golden_span(&case.text, s, None)).collect();
         assert_eq!(got, case.spans(), "{what}");
     }
@@ -72,12 +72,7 @@ fn check_newline_run(name: &str, mode: WhitespaceMode) -> usize {
 
 #[test]
 fn newline_unicode() {
-    assert_eq!(check_newline_run("newline", WhitespaceMode::Unicode), 34);
-}
-
-#[test]
-fn newline_legacy() {
-    assert_eq!(check_newline_run("newline+legacy", WhitespaceMode::Legacy), 34);
+    assert_eq!(check_newline_run("newline"), 34);
 }
 
 fn open(path: &Path) -> SentenceModel {
@@ -107,7 +102,7 @@ fn check_maxent_run(name: &str, detector: &SentenceDetector, model: &Path) -> Co
         let what = case.path.display().to_string();
         case.assert_annotator(ME);
         case.assert_model(Some(model));
-        assert_eq!(case.whitespace(), detector.whitespace, "{what}");
+        case.assert_no_options();
         out.clear();
         detector.detect_with(&case.text, &mut scratch, &mut out);
         let got: Vec<GoldenSpan> = out.iter().map(|&(s, p)| golden_span(&case.text, s, Some(p))).collect();
@@ -174,7 +169,7 @@ fn check_published(language: &str, model_file: &str) -> Option<Counts> {
     let path = common::published_model(model_file)?;
     let model = open(&path);
     assert_eq!(model.language(), language);
-    let detector = SentenceDetector::new(model, WhitespaceMode::Unicode).with_jvm_parity();
+    let detector = SentenceDetector::new(model).with_jvm_parity();
     let counts = check_maxent_run(model_file.strip_suffix(".bin").unwrap(), &detector, &path);
     // The 34 edge inputs for each model.
     assert!(counts.files.contains(&("edge".to_string(), 34)), "{counts:?}");
@@ -203,32 +198,27 @@ fn maxent_german() {
     assert_eq!(counts.candidates, 67);
 }
 
-/// The fixture model's spans and dumps in one whitespace mode, with as
-/// many candidates as the earlier generator's contexts files had.
-fn check_fixture(name: &str, mode: WhitespaceMode, candidates: usize) -> Counts {
+/// The fixture model's spans and dumps, with as many candidates as the
+/// earlier generator's contexts files had.
+fn check_fixture(name: &str, candidates: usize) -> Counts {
     let path = common::fixtures_dir().join(format!("{name}.bin"));
-    let detector = SentenceDetector::new(open(&path), mode).with_jvm_parity();
-    let run = if mode == WhitespaceMode::Legacy { format!("{name}+legacy") } else { name.to_string() };
-    let counts = check_maxent_run(&run, &detector, &path);
-    assert_eq!(counts.files, [("sentence-fixture".into(), 17)], "{run}");
-    assert_eq!(counts.candidates, candidates, "{run}");
+    let detector = SentenceDetector::new(open(&path)).with_jvm_parity();
+    let counts = check_maxent_run(name, &detector, &path);
+    assert_eq!(counts.files, [("sentence-fixture".into(), 17)], "{name}");
+    assert_eq!(counts.candidates, candidates, "{name}");
     counts
 }
 
 #[test]
 fn fixture_with_abbreviations() {
-    for mode in [WhitespaceMode::Unicode, WhitespaceMode::Legacy] {
-        let counts = check_fixture("en-abbrev", mode, 76);
-        // The dictionary refuses three splits the model wanted.
-        assert_eq!(counts.refused, 3, "{mode:?}");
-    }
+    let counts = check_fixture("en-abbrev", 76);
+    // The dictionary refuses three splits the model wanted.
+    assert_eq!(counts.refused, 3);
 }
 
 #[test]
 fn fixture_without_abbreviations() {
-    for mode in [WhitespaceMode::Unicode, WhitespaceMode::Legacy] {
-        assert_eq!(check_fixture("en-plain", mode, 77).refused, 0, "{mode:?}");
-    }
+    assert_eq!(check_fixture("en-plain", 77).refused, 0);
 }
 
 /// `en-plain-qn-rust.bin` is the `.bin` `analysis/train` writes when it
@@ -239,9 +229,7 @@ fn fixture_without_abbreviations() {
 /// spans are its own; the candidates are the same positions.
 #[test]
 fn fixture_written_by_the_rust_qn_trainer() {
-    for mode in [WhitespaceMode::Unicode, WhitespaceMode::Legacy] {
-        assert_eq!(check_fixture("en-plain-qn-rust", mode, 77).refused, 0, "{mode:?}");
-    }
+    assert_eq!(check_fixture("en-plain-qn-rust", 77).refused, 0);
 }
 
 /// `en-plain-perceptron-rust.bin` is the `.bin` `analysis/train` writes
@@ -249,9 +237,7 @@ fn fixture_written_by_the_rust_qn_trainer() {
 /// (`analysis/train/tests/roundtrip.rs`), checked as the QN one is.
 #[test]
 fn fixture_written_by_the_rust_perceptron_trainer() {
-    for mode in [WhitespaceMode::Unicode, WhitespaceMode::Legacy] {
-        assert_eq!(check_fixture("en-plain-perceptron-rust", mode, 77).refused, 0, "{mode:?}");
-    }
+    assert_eq!(check_fixture("en-plain-perceptron-rust", 77).refused, 0);
 }
 
 /// `en-plain-rust.bin` is the `.bin` `analysis/train` writes from
@@ -261,15 +247,12 @@ fn fixture_written_by_the_rust_perceptron_trainer() {
 /// the same file, which are also those of the en-plain goldens.
 #[test]
 fn fixture_written_by_the_rust_trainer() {
-    for mode in [WhitespaceMode::Unicode, WhitespaceMode::Legacy] {
-        assert_eq!(check_fixture("en-plain-rust", mode, 77).refused, 0, "{mode:?}");
-        let suffix = if mode == WhitespaceMode::Legacy { "+legacy" } else { "" };
-        let theirs = common::run(&format!("en-plain{suffix}"));
-        let ours = common::run(&format!("en-plain-rust{suffix}"));
-        assert_eq!(theirs.len(), ours.len());
-        for (a, b) in theirs.iter().zip(&ours) {
-            assert_eq!(a.golden.header.input.id, b.golden.header.input.id);
-            assert_eq!(a.spans(), b.spans(), "{}", b.path.display());
-        }
+    assert_eq!(check_fixture("en-plain-rust", 77).refused, 0);
+    let theirs = common::run("en-plain");
+    let ours = common::run("en-plain-rust");
+    assert_eq!(theirs.len(), ours.len());
+    for (a, b) in theirs.iter().zip(&ours) {
+        assert_eq!(a.golden.header.input.id, b.golden.header.input.id);
+        assert_eq!(a.spans(), b.spans(), "{}", b.path.display());
     }
 }

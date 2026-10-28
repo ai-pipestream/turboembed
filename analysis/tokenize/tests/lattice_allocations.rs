@@ -12,7 +12,7 @@ use turbo_tokenize::complex::{
     ComplexScript, Lstm, LstmScratch, bundled, bundled_dictionaries, bundled_lstm, bundled_lstms,
 };
 use turbo_tokenize::lattice::{PrebuiltImage, Scratch};
-use turbo_tokenize::{LatticeTokenizer, MecabDictionary, WhitespaceMode};
+use turbo_tokenize::{LatticeTokenizer, MecabDictionary};
 
 struct Counting;
 
@@ -56,11 +56,11 @@ fn inputs(set: &str) -> Vec<String> {
 fn a_grown_scratch_analyzes_without_allocating() {
     for (dictionary, set) in [("mecab-fixture-ja", "ja"), ("mecab-fixture-ko", "ko")] {
         let dir = data_dir().join("fixtures").join(dictionary);
-        let d = MecabDictionary::load(&dir, WhitespaceMode::Unicode).unwrap();
+        let d = MecabDictionary::load(&dir).unwrap();
         let image = PrebuiltImage::copy_from(&d.to_prebuilt().unwrap());
         let packed = MecabDictionary::from_prebuilt(image, Default::default()).unwrap();
         for d in [d, packed] {
-            let t = LatticeTokenizer::new(d, WhitespaceMode::Unicode);
+            let t = LatticeTokenizer::new(d);
             let texts = inputs(set);
             let long = texts.join("\n");
             let mut scratch = Scratch::new();

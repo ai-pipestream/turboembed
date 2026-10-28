@@ -48,6 +48,9 @@ impl TokTests {
             Compiled::Iob(i) => cols.iob[rel] == *i,
             Compiled::Length(c, n) => c.holds(cols.chars[rel], *n),
             Compiled::Text(f) => f(input.token(abs)),
+            // A set test reads the FEATS string as written: its features
+            // are those of the canonical form, without building it.
+            Compiled::Value(Attr::Morph, t @ crate::ValueTest::Morph { .. }) => t.holds(input.feats(abs)),
             Compiled::Value(a, t) => t.holds(input.value(*a, abs, &mut String::new())),
         });
         all != self.negated
@@ -95,7 +98,11 @@ pub(crate) fn compile_tests(tok: &Tok, vocab: &mut Vocab, needs: &mut Needs) -> 
             }
             Test::Text(f) => Compiled::Text(f.clone()),
             Test::Value(a, t) => {
-                needs.attr(*a);
+                if let (Attr::Morph, crate::ValueTest::Morph { .. }) = (a, t) {
+                    needs.feats = true;
+                } else {
+                    needs.attr(*a);
+                }
                 Compiled::Value(*a, t.clone())
             }
         })

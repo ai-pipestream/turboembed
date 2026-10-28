@@ -11,13 +11,13 @@ use std::path::{Path, PathBuf};
 
 use turbo_eval::model_gate::{Measure, ModelGateRecord, ModelId, Scoring, TagScoring};
 use turbo_train_components::lemmatize::lemma_class;
-use turbo_train_components::ud::Component;
+
 use turbo_train_recipes::card::{CARD_FILE, GATE_FILE, MODEL_VERSION, TagCount, TagFormat, TokenCoverage};
 use turbo_train_recipes::postag::{HeldOutTags, ReferenceTags};
 use turbo_train_recipes::release::{self, UD_MODELS};
 use turbo_train_recipes::treebank::{Grant, SPANISH_ANCORA, TextRights, Treebank, TreebankFile};
 use turbo_train_recipes::ud::{
-    IT_UD_VIT_POS, MAX_TOKENS_LEFT_OUT, ReferenceClasses, UD_RECIPES, UdRecipe, UdSamples, lemma_samples,
+    Component, IT_UD_VIT_POS, MAX_TOKENS_LEFT_OUT, ReferenceClasses, UD_RECIPES, UdRecipe, UdSamples, lemma_samples,
     lemma_samples_sha256, pos_samples, run_ud, score_lemmas,
 };
 use turbo_train_recipes::ud_card::{TreebankCard, UD_CARD_VERSION, UdModelCard, write_ud_model_dir};

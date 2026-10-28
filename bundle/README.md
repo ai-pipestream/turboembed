@@ -24,7 +24,11 @@ cargo run -p turbo-bundle -- make bundle/recipes/all-minilm-l6-v2.json upstream/
    against its pinned hash.
 3. **reference**: the upstream pipeline runs in the pinned container,
    with no network, on the fetched files: fp32 on CPU, one text at a time.
-   It writes the reference ids and vectors, and reports what ran. Python
+   It writes the reference ids and vectors, and reports what ran. It
+   first loads the encoder again with transformers' loading report and
+   stops on any missing, misshapen or unused tensor (an unused task head
+   beside the encoder, such as a masked-LM head, is allowed), so a
+   tensor the model renamed is never left at its random start. Python
    runs here and in the next step, in the pinned containers. `seal`
    (below) does not run Python. It copies files a container already
    wrote, and the report that names that image.

@@ -298,5 +298,11 @@ pub(crate) fn keep_greedy<T: Copy>(
 }
 
 fn union(a: Needs, b: Needs) -> Needs {
-    Needs { attrs: a.attrs | b.attrs, flags: a.flags | b.flags, iob: a.iob || b.iob, length: a.length || b.length }
+    Needs {
+        attrs: a.attrs | b.attrs,
+        flags: a.flags | b.flags,
+        iob: a.iob || b.iob,
+        length: a.length || b.length,
+        feats: a.feats || b.feats,
+    }
 }

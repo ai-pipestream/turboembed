@@ -227,6 +227,8 @@ pub unsafe fn run_window_batch(
         normalize: TURBO_NORMALIZE_NONE,
         pooling: TURBO_POOLING_MEAN,
         output_dim: 0,
+        quantization: 0,
+        int8_ranges: std::ptr::null(),
     };
     let mut e = error();
     let mut result = Owned(ptr::null_mut());

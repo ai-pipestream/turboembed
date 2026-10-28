@@ -30,6 +30,7 @@ use std::sync::{Arc, Mutex, MutexGuard, TryLockError};
 
 use crate::backend::{self, turbo_backend, turbo_backend_embed_rows, turbo_backend_run};
 use crate::manifest::{PromptRole, Truncation};
+use crate::quantize::{self, Quantization};
 use crate::status::{
     BUSY, CAPACITY, Error, INTERNAL, INVALID_ARGUMENT, INVALID_ENUM, INVALID_HANDLE, INVALID_SHAPE, INVALID_STATE,
     Result, UNSUPPORTED, UNSUPPORTED_OPTION, UNSUPPORTED_TASK,
@@ -82,7 +83,19 @@ pub struct turbo_embed_options {
     pub normalize: u32,
     pub pooling: u32,
     pub output_dim: u32,
+    pub quantization: u32,
+    pub int8_ranges: *const f32,
 }
+
+// int8_ranges is read during a write call alone, as turbo.h says: the
+// struct holds no memory of its own, so moving or sharing it between
+// threads touches nothing behind the pointer.
+unsafe impl Send for turbo_embed_options {}
+unsafe impl Sync for turbo_embed_options {}
+
+/// The size of turbo_embed_options before quantization was appended,
+/// which every write still accepts.
+pub const TURBO_EMBED_OPTIONS_SIZE_V1: usize = std::mem::offset_of!(turbo_embed_options, quantization);
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
@@ -142,8 +155,9 @@ const RESULT_MAGIC: u64 = 0x7475_7262_6f72_7331; // "turbors1"
 
 /// Fields 1 to 3 of turbo_embed_options (truncate, max_tokens,
 /// prompt_role): the core applies them before a backend sees the rows, so
-/// every device honors them.
-pub(crate) const CORE_HONORED: u32 = 0b111;
+/// every device honors them. Fields 7 and 8 (quantization, int8_ranges)
+/// likewise: the core quantizes the vectors a backend returns.
+pub(crate) const CORE_HONORED: u32 = 0b1100_0111;
 
 /// Heap allocations the core's part of turbo_session_run makes. See the
 /// module comment.
@@ -187,6 +201,13 @@ struct State {
     rerank: Option<rerank::PairBatch>,
     scores: Vec<f32>,
     pooled: Vec<f32>,
+    /// The quantized vectors, max(max_batch, max_ranges) x dim bytes, and
+    /// the write's int8 ranges, 2 x dim, made with the session.
+    codes: Vec<u8>,
+    int8_ranges: Vec<f32>,
+    /// A device-placed result's f32 vectors, copied back for quantizing;
+    /// made by the first quantized run that needs it.
+    staged: Vec<f32>,
 }
 
 /// What the backend was last written.
@@ -196,6 +217,8 @@ struct Written {
     output_dim: u32,
     /// Whether the core tokenized the rows (write_text) or the caller did.
     tokenized: bool,
+    /// What the run returns its vectors as; int8 reads State::int8_ranges.
+    quantization: Quantization,
 }
 
 impl SessionInner {

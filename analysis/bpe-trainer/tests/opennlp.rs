@@ -309,11 +309,7 @@ fn jvm_merges(text: &str, num_merges: usize) -> Vec<Utf16Pair> {
     let end = utf16(END_OF_WORD);
     let mut word_freqs: JavaHashMap<Utf16String, u64> = JavaHashMap::new();
     let mut spans = Vec::new();
-    turbo_tokenize::whitespace_spans(
-        text,
-        turbo_tokenize::TokenizerOptions { whitespace: turbo_tokenize::WhitespaceMode::Unicode, keep_newlines: false },
-        &mut spans,
-    );
+    turbo_tokenize::whitespace_spans(text, turbo_tokenize::TokenizerOptions { keep_newlines: false }, &mut spans);
     for s in &spans {
         let w = utf16(&text[s.start as usize..s.end as usize]);
         word_freqs.merge(w, 1, |acc, v| *acc += v);

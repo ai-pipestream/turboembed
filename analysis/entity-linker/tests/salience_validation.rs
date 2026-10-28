@@ -28,7 +28,7 @@ mod tests {
         let dictionary = Dictionary::read("<dictionary case_sensitive='true'><entry><token>Acme</token></entry><entry><token>Beta</token></entry></dictionary>".as_bytes()).unwrap();
         let model = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../testdata/tiny-bert-bundle");
         let analyzer = Analyzer::builder()
-            .add(NewlineDetector::default())
+            .add(NewlineDetector::new())
             .add(SimpleTokenizer::new(TokenizerOptions::default()))
             .step(Bound::new(DictionaryNameFinder::new(dictionary, "ORG")).write(0, entity_name))
             .step(Bound::new(EntityConsolidator::new()).read(1, entity_name).write(0, document_name))

@@ -290,7 +290,6 @@ impl FeatureMap {
 mod tests {
     use super::*;
     use crate::lattice::{DictionaryFiles, DictionaryLimits, LatticeTokenizer};
-    use turbo_unicode::WhitespaceMode;
 
     /// One unknown character a morpheme.
     const CHAR_DEF: &str = "DEFAULT 0 0 1\n";
@@ -303,7 +302,7 @@ mod tests {
             char_def: CHAR_DEF.as_bytes(),
             unk_def: unk.as_bytes(),
         };
-        MecabDictionary::from_files(files, WhitespaceMode::Unicode, DictionaryLimits::default()).unwrap()
+        MecabDictionary::from_files(files, DictionaryLimits::default()).unwrap()
     }
 
     // The tests assert the values themselves, not only that they match the
@@ -347,10 +346,7 @@ mod tests {
         let lexicon = "東京,0,0,100,名詞,固有名詞,地域,一般,*,*,東京,トウキョウ,トーキョー\n\
             行っ,0,0,100,動詞,自立,*,*,五段・カ行促音便,連用タ接続,行く,イッ,イッ\n\
             た,0,0,100,助動詞,*,*,*,特殊・タ,基本形,た,タ,タ\n";
-        let t = LatticeTokenizer::new(
-            dictionary(lexicon, "DEFAULT,0,0,500,記号,一般,*,*,*,*,*\n"),
-            WhitespaceMode::Unicode,
-        );
+        let t = LatticeTokenizer::new(dictionary(lexicon, "DEFAULT,0,0,500,記号,一般,*,*,*,*,*\n"));
         let got = analyze(&t, DictionaryFormat::Ipadic, "東京へ行った");
         assert_eq!(
             got,
@@ -371,7 +367,7 @@ mod tests {
             에,0,0,100,JKB,*,F,에,*,*,*,*\n\
             !,0,0,100,SF,*,*,*,*,*,*,*\n";
         let unk = "DEFAULT,0,0,500,SY,*,*,*,*,*,*,*\n";
-        let t = LatticeTokenizer::new(dictionary(lexicon, unk), WhitespaceMode::Unicode);
+        let t = LatticeTokenizer::new(dictionary(lexicon, unk));
         let got = analyze(&t, DictionaryFormat::MecabKoDic, "學校에!");
         assert_eq!(got, [("學校", Some("학교"), None, None), ("에", Some("에"), None, None), ("!", None, None, None)]);
     }
@@ -415,10 +411,7 @@ mod tests {
         for layout in [UnidicLayout::Source17, UnidicLayout::Full26, UnidicLayout::Full29] {
             let lexicon = unidic_entry("行っ", "行く", "イッ", "行く", "イッ", layout)
                 + &unidic_entry("為", "為る", "シ", "する", "シ", layout);
-            let t = LatticeTokenizer::new(
-                dictionary(&lexicon, "DEFAULT,0,0,500,補助記号,一般,*,*,*,*\n"),
-                WhitespaceMode::Unicode,
-            );
+            let t = LatticeTokenizer::new(dictionary(&lexicon, "DEFAULT,0,0,500,補助記号,一般,*,*,*,*\n"));
             let format = DictionaryFormat::Unidic(layout);
             let got = analyze(&t, format, "行っ為");
             let kana = |k| layout.kana().map(|_| k);

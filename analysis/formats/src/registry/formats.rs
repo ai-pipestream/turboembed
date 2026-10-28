@@ -4,7 +4,7 @@ use turbo_tokenize::detok::{Detokenizer, DetokenizerDictionary};
 
 use super::{
     CONLLU_FORMAT, DependencySamples, Format, LemmaSamples, NameSamples, NativeFormat, OPENNLP_FORMAT, PosSamples,
-    ReadOptions, Samples, SentenceSamples, TokenSamples,
+    Samples, SentenceSamples, TokenSamples,
 };
 use crate::conll::{
     CONLL02_FORMAT, CONLL03_FORMAT, CONLLX_FORMAT, Conll02Language, Conll02Reader, Conll03Language, Conll03Reader,
@@ -49,15 +49,11 @@ impl Format<TokenSamples> for ConvertedTokens {
         self.from.format_name()
     }
 
-    fn open<'a>(&'a self, source: &'a str, options: ReadOptions) -> Result<Samples<'a, TokenSamples>, FormatError> {
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, TokenSamples>, FormatError> {
         let detokenizer = Detokenizer::new(&self.dictionary);
         Ok(match self.from {
-            ConvertFrom::Names => {
-                Box::new(ToTokenSamples::new(NameReader::new(source, options.whitespace)?, detokenizer))
-            }
-            ConvertFrom::Pos => {
-                Box::new(ToTokenSamples::new(WordTagReader::new(source, options.whitespace)?, detokenizer))
-            }
+            ConvertFrom::Names => Box::new(ToTokenSamples::new(NameReader::new(source)?, detokenizer)),
+            ConvertFrom::Pos => Box::new(ToTokenSamples::new(WordTagReader::new(source)?, detokenizer)),
         })
     }
 }
@@ -78,17 +74,11 @@ impl Format<SentenceSamples> for ConvertedSentences {
         self.from.format_name()
     }
 
-    fn open<'a>(&'a self, source: &'a str, options: ReadOptions) -> Result<Samples<'a, SentenceSamples>, FormatError> {
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, SentenceSamples>, FormatError> {
         let detokenizer = Detokenizer::new(&self.dictionary);
         Ok(match self.from {
-            ConvertFrom::Names => {
-                Box::new(ToSentenceSamples::new(NameReader::new(source, options.whitespace)?, detokenizer, self.chunk))
-            }
-            ConvertFrom::Pos => Box::new(ToSentenceSamples::new(
-                WordTagReader::new(source, options.whitespace)?,
-                detokenizer,
-                self.chunk,
-            )),
+            ConvertFrom::Names => Box::new(ToSentenceSamples::new(NameReader::new(source)?, detokenizer, self.chunk)),
+            ConvertFrom::Pos => Box::new(ToSentenceSamples::new(WordTagReader::new(source)?, detokenizer, self.chunk)),
         })
     }
 }
@@ -105,7 +95,7 @@ impl Format<PosSamples> for ConlluPos {
         CONLLU_FORMAT
     }
 
-    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, PosSamples>, FormatError> {
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, PosSamples>, FormatError> {
         Ok(Box::new(ConlluPosReader::new(source, self.tagset)?))
     }
 }
@@ -121,7 +111,7 @@ impl Format<LemmaSamples> for ConlluLemmas {
         CONLLU_FORMAT
     }
 
-    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, LemmaSamples>, FormatError> {
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, LemmaSamples>, FormatError> {
         Ok(Box::new(ConlluLemmaReader::new(source, self.tagset)?))
     }
 }
@@ -138,7 +128,7 @@ impl Format<SentenceSamples> for ConlluSentences {
         CONLLU_FORMAT
     }
 
-    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, SentenceSamples>, FormatError> {
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, SentenceSamples>, FormatError> {
         Ok(Box::new(ConlluSentenceReader::new(source, self.per_sample)?))
     }
 }
@@ -152,14 +142,14 @@ impl Format<TokenSamples> for ConlluTokens {
         CONLLU_FORMAT
     }
 
-    fn open<'a>(&'a self, source: &'a str, options: ReadOptions) -> Result<Samples<'a, TokenSamples>, FormatError> {
-        Ok(Box::new(ConlluTokenReader::new(source, options.whitespace)?))
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, TokenSamples>, FormatError> {
+        Ok(Box::new(ConlluTokenReader::new(source)?))
     }
 }
 
 /// Dependency samples from CoNLL-U (`ConlluDependencySampleStreamFactory`,
 /// whose tag set defaults to [`Tagset::U`]), registered as [`CONLLU_FORMAT`].
-/// Blank lines and relations are tested in [`ReadOptions::whitespace`].
+/// Blank lines and relations are tested for Unicode whitespace.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct ConlluDependencies {
     pub tagset: Tagset,
@@ -170,12 +160,8 @@ impl Format<DependencySamples> for ConlluDependencies {
         CONLLU_FORMAT
     }
 
-    fn open<'a>(
-        &'a self,
-        source: &'a str,
-        options: ReadOptions,
-    ) -> Result<Samples<'a, DependencySamples>, FormatError> {
-        Ok(Box::new(ConlluDependencyReader::new(source, self.tagset, options.whitespace)?))
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, DependencySamples>, FormatError> {
+        Ok(Box::new(ConlluDependencyReader::new(source, self.tagset)?))
     }
 }
 
@@ -191,12 +177,8 @@ impl Format<DependencySamples> for NativeDependencies {
         OPENNLP_FORMAT
     }
 
-    fn open<'a>(
-        &'a self,
-        source: &'a str,
-        options: ReadOptions,
-    ) -> Result<Samples<'a, DependencySamples>, FormatError> {
-        Ok(Box::new(ConlluDependencyReader::new(source, self.tagset, options.whitespace)?))
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, DependencySamples>, FormatError> {
+        Ok(Box::new(ConlluDependencyReader::new(source, self.tagset)?))
     }
 }
 
@@ -219,7 +201,7 @@ impl Format<NameSamples> for Conll02Names {
         CONLL02_FORMAT
     }
 
-    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, NameSamples>, FormatError> {
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, NameSamples>, FormatError> {
         Ok(Box::new(Conll02Reader::new(source, self.language, self.types)?))
     }
 }
@@ -237,7 +219,7 @@ impl Format<NameSamples> for Conll03Names {
         CONLL03_FORMAT
     }
 
-    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, NameSamples>, FormatError> {
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, NameSamples>, FormatError> {
         Ok(Box::new(Conll03Reader::new(source, self.language, self.types)?))
     }
 }
@@ -251,7 +233,7 @@ impl Format<PosSamples> for ConllXPos {
         CONLLX_FORMAT
     }
 
-    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, PosSamples>, FormatError> {
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, PosSamples>, FormatError> {
         Ok(Box::new(ConllXPosReader::new(source)?))
     }
 }
@@ -268,7 +250,7 @@ impl Format<TokenSamples> for ConllXTokens {
         CONLLX_FORMAT
     }
 
-    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, TokenSamples>, FormatError> {
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, TokenSamples>, FormatError> {
         Ok(Box::new(ToTokenSamples::new(ConllXPosReader::new(source)?, Detokenizer::new(&self.dictionary))))
     }
 }
@@ -287,7 +269,7 @@ impl Format<SentenceSamples> for ConllXSentences {
         CONLLX_FORMAT
     }
 
-    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, SentenceSamples>, FormatError> {
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, SentenceSamples>, FormatError> {
         let detokenizer = Detokenizer::new(&self.dictionary);
         Ok(Box::new(ToSentenceSamples::new(ConllXPosReader::new(source)?, detokenizer, self.chunk)))
     }
@@ -304,9 +286,9 @@ mod tests {
     fn native_formats_open_by_name() {
         let r = Registry::<PosSamples>::default();
         assert_eq!(r.names().collect::<Vec<_>>(), [OPENNLP_FORMAT]);
-        let samples: Vec<_> = r.open("opennlp", "a_X b_Y\nc_Z", ReadOptions::default()).unwrap().collect();
+        let samples: Vec<_> = r.open("opennlp", "a_X b_Y\nc_Z").unwrap().collect();
         assert_eq!(samples.len(), 2);
-        let Err(err) = r.open("conllu", "", ReadOptions::default()) else { panic!("expected unknown format") };
+        let Err(err) = r.open("conllu", "") else { panic!("expected unknown format") };
         assert!(err.source().is_none());
         let wrapped = OpenError::from(FormatError::NoTokens);
         assert_eq!(wrapped.to_string(), FormatError::NoTokens.to_string());
@@ -318,7 +300,7 @@ mod tests {
         let mut r = Registry::<LemmaSamples>::with_native();
         r.register(ConlluLemmas { tagset: Tagset::X }).unwrap();
         let src = "1\ta\tla\tX\tx\t_\t_\t_\t_\t_\n";
-        let samples: Vec<_> = r.open(CONLLU_FORMAT, src, ReadOptions::default()).unwrap().map(Result::unwrap).collect();
+        let samples: Vec<_> = r.open(CONLLU_FORMAT, src).unwrap().map(Result::unwrap).collect();
         assert_eq!(samples[0].tags()[0].as_str(), "x");
     }
 
@@ -331,8 +313,7 @@ mod tests {
         let e = r.register(NativeTokens).unwrap_err();
         assert_eq!(e.name, "opennlp");
         assert_eq!(r.names().collect::<Vec<_>>(), ["opennlp", "namefinder", "pos"]);
-        let samples: Vec<_> =
-            r.open("namefinder", "<START:x> a <END> b", ReadOptions::default()).unwrap().map(Result::unwrap).collect();
+        let samples: Vec<_> = r.open("namefinder", "<START:x> a <END> b").unwrap().map(Result::unwrap).collect();
         assert_eq!(samples[0].text(), "a b");
     }
 
@@ -342,9 +323,7 @@ mod tests {
         r.register(ConlluDependencies { tagset: Tagset::from_parameter("x").unwrap() }).unwrap();
         assert_eq!(r.names().collect::<Vec<_>>(), [OPENNLP_FORMAT, CONLLU_FORMAT]);
         let src = "1\ta\t_\tU\tX\t_\t0\troot\t_\t_\n";
-        let read = |name: &str| -> Vec<String> {
-            r.open(name, src, ReadOptions::default()).unwrap().map(|s| s.unwrap().to_string()).collect()
-        };
+        let read = |name: &str| -> Vec<String> { r.open(name, src).unwrap().map(|s| s.unwrap().to_string()).collect() };
         assert_eq!(read(OPENNLP_FORMAT), ["1\ta\tU\t0\troot\n"]);
         assert_eq!(read(CONLLU_FORMAT), ["1\ta\tX\t0\troot\n"]);
         assert_eq!(Tagset::from_parameter("U"), None);
@@ -357,7 +336,7 @@ mod tests {
         names.register(Conll03Names { language: Conll03Language::English, types: EntityTypes::ALL }).unwrap();
         assert_eq!(names.names().collect::<Vec<_>>(), [OPENNLP_FORMAT, CONLL02_FORMAT, CONLL03_FORMAT]);
         let read = |format: &str, src: &str| -> Vec<String> {
-            names.open(format, src, ReadOptions::default()).unwrap().map(|s| s.unwrap().to_string()).collect()
+            names.open(format, src).unwrap().map(|s| s.unwrap().to_string()).collect()
         };
         assert_eq!(read(CONLL02_FORMAT, "Gent N B-LOC\nis V O\n"), ["<START:location> Gent <END> is"]);
         assert_eq!(read(CONLL03_FORMAT, "Gent NNP I-NP I-LOC\nis VBZ I-VP O\n"), ["<START:location> Gent <END> is"]);
@@ -365,8 +344,7 @@ mod tests {
         let mut tokens = Registry::<TokenSamples>::with_native();
         tokens.register(ConllXTokens { dictionary: Arc::new(DetokenizerDictionary::new()) }).unwrap();
         let src = "1\tHet\thet\tArt\tDT\n2\tregent\tregenen\tV\tVBZ\n";
-        let samples: Vec<_> =
-            tokens.open(CONLLX_FORMAT, src, ReadOptions::default()).unwrap().map(Result::unwrap).collect();
+        let samples: Vec<_> = tokens.open(CONLLX_FORMAT, src).unwrap().map(Result::unwrap).collect();
         assert_eq!(samples[0].text(), "Het regent");
     }
 }

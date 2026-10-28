@@ -70,7 +70,7 @@ fn whole_view_without_sentences() {
 
 #[test]
 fn whitespace_tokens_keep_newlines() {
-    let options = TokenizerOptions { keep_newlines: true, ..TokenizerOptions::default() };
+    let options = TokenizerOptions { keep_newlines: true };
     let analyzer = Analyzer::builder().add(WhitespaceTokenizer::new(options)).add(Sentencer).build().unwrap();
     let mut docs = vec![Document::new("a b.\nc. d")];
     assert!(analyzer.run(&mut docs).iter().all(Result::is_ok));

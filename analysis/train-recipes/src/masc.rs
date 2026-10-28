@@ -44,7 +44,7 @@ pub const THREADS: i32 = 4;
 
 /// The original MASC parameters, independent of the published UD models.
 pub(crate) fn training_parameters() -> TrainingParameters {
-    let mut params = turbo_train_components::ud::training_parameters();
+    let mut params = crate::ud::training_parameters();
     params.put_str(Key::THREADS, &THREADS.to_string());
     params
 }

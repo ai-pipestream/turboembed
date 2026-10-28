@@ -84,6 +84,27 @@ panel layout the matrix kernel reads: for all-MiniLM-L6-v2, 42.5 MB
 beside its 90.9 MB weights file. Sessions share it, and it goes with the
 model.
 
+## ModernBERT and nomic-bert
+
+The rotary families (#1461, `FAMILY_MODERNBERT` and `FAMILY_NOMIC_BERT`)
+run on the BERT encoder's rows, packing, pooling and kernels, with their
+own layer loop (`core/src/cpu/encoder/rotary/`). At packing time each
+head's Q and K rows are reordered so that the two columns a rotation
+pairs (c and c + d/2, rotate_half) are neighbours, and so are a gated
+MLP's gate row j and up row j (`core/src/cpu/kernels/pairs.rs`). The QKV
+product's epilogue then rotates each pair by the token's position, with
+the core's cos/sin table, and the MLP product's epilogue writes
+act(gate) * up (GELU by erf for ModernBERT, SiLU for nomic) from one
+product of twice the width. There is no second pass for either.
+ModernBERT's sliding-window layers compute only the band of keys each
+block of queries can read, rounded out to whole 16-key lane blocks. That
+gives the bits of full-row attention with the band set to minus infinity,
+so vectors are still the same bits on any number of threads. Projections
+and norms without a bias add a zero vector, which leaves every bit as it
+was. The sealed bundles `testdata/tiny-modernbert-bundle` and
+`testdata/tiny-nomic-bundle` hold the encoder to upstream PyTorch
+(docs/conformance.md).
+
 ## Benchmark records
 
 `benchmarks/records/x86-64-4d6f19dd.cpu.*` are the CPU backend's

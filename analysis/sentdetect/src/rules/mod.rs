@@ -38,6 +38,7 @@ pub mod languages;
 mod lists;
 pub mod profile;
 mod refine;
+mod scratch;
 #[rustfmt::skip]
 mod tables;
 mod uax29;
@@ -47,7 +48,6 @@ use std::sync::Arc;
 
 use turbo_analysis::{Annotator, Error, Execution, ModelRef, Refs, Span, Spans, View};
 use turbo_analysis_layers::Sentences;
-use turbo_unicode::WhitespaceMode;
 
 use crate::inventory::{AbbreviationInventories, AbbreviationInventory};
 use crate::scan::trim;
@@ -59,6 +59,7 @@ pub use fallback::{
 pub use languages::{LANGUAGES, Language, Resolved, resolve};
 pub use profile::LanguageRules;
 use refine::Text;
+use scratch::with_rule_scratch;
 use uax29::Break;
 use units::Unit;
 
@@ -277,7 +278,7 @@ impl RuleSplitter {
         if let Some(ref fb) = self.fallback {
             fallback::split_with_fallback(self, text, fb.as_ref(), out)
         } else {
-            RULE_SCRATCH.with_borrow_mut(|scratch| self.split_rules_only(text, scratch, out));
+            with_rule_scratch(|scratch| self.split_rules_only(text, scratch, out));
             Ok(())
         }
     }
@@ -312,7 +313,7 @@ impl RuleSplitter {
         if let Some(ref fb) = self.fallback {
             fallback::boundaries_with_fallback(self, text, fb.as_ref(), out)
         } else {
-            RULE_SCRATCH.with_borrow_mut(|scratch| {
+            with_rule_scratch(|scratch| {
                 self.boundaries_with(text, scratch);
                 out.extend(
                     scratch
@@ -392,7 +393,7 @@ impl RuleSplitter {
 /// Appends the span `start..end` trimmed of Unicode `White_Space`, when
 /// anything is left.
 fn push_trimmed(text: &str, start: usize, end: usize, out: &mut Vec<Span>) {
-    if let Some((s, e)) = trim(text, start, end, WhitespaceMode::Unicode) {
+    if let Some((s, e)) = trim(text, start, end) {
         out.push(Span::new(s as u32, e as u32));
     }
 }
@@ -416,12 +417,6 @@ impl RuleSentenceDetector {
     }
 }
 
-thread_local! {
-    /// The buffers of the rule annotator, one set per thread, so that a
-    /// pipeline running many documents allocates only while they grow.
-    pub(crate) static RULE_SCRATCH: std::cell::RefCell<RuleScratch> = std::cell::RefCell::new(RuleScratch::default());
-}
-
 impl Annotator for RuleSentenceDetector {
     const ID: &'static str = "turbo-sentdetect:rules";
     /// Changes whenever the rules or the data change what is split.
@@ -437,7 +432,7 @@ impl Annotator for RuleSentenceDetector {
         let text = view.text();
         check_len(Self::ID, text)?;
         let mut out = Vec::new();
-        RULE_SCRATCH.with_borrow_mut(|scratch| self.splitter.split_rules_only(text, scratch, &mut out));
+        with_rule_scratch(|scratch| self.splitter.split_rules_only(text, scratch, &mut out));
         let mut spans = Spans::with_capacity(view.id(), out.len());
         for s in out {
             spans.push(s);

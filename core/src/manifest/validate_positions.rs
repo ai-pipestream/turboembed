@@ -12,6 +12,10 @@ impl Manifest {
     /// types for BERT and RoBERTa, relative buckets and neither for
     /// DeBERTa-v2.
     pub(super) fn validate_positions(&self, a: &Architecture) -> Result<()> {
+        self.validate_rotary(a)?;
+        if matches!(a.family, Family::Modernbert | Family::NomicBert) {
+            return Ok(());
+        }
         if a.family != Family::DebertaV2 {
             if a.position_embedding != PositionEmbedding::Absolute || a.relative.is_some() {
                 return Err(invalid(

@@ -24,7 +24,7 @@ common word. There is no inference-time POS rule for capitalization.
 Edit indices end in `:`, so indices above nine decode without ambiguity.
 
 `LemmatizerFactory::opennlp` retains the original training behavior for
-JVM goldens and UD reproduction. Published models and manifests without a
+JVM goldens. Published models and manifests without a
 factory keep the original decoder. Native models use a distinct factory
 name so a JVM without that factory refuses them instead of silently
 misreading the new classes. Unknown factory versions are refused here.
