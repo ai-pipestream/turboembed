@@ -1,10 +1,3 @@
-use turbo_maxent::{JavaString, MaxentModel, ModelFile, sha256};
-use turbo_train::GisModel;
-use turbo_train::package::MANIFEST_ENTRY;
-
-use super::{Recipe, Trained};
-use crate::error::{Error, Result};
-
 /// Whether a trained value agrees with the published one.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Agreement<T> {
@@ -13,13 +6,6 @@ pub enum Agreement<T> {
 }
 
 impl<T> Agreement<T> {
-    pub(super) fn of(published: T, trained: T) -> Agreement<T>
-    where
-        T: PartialEq,
-    {
-        if published == trained { Agreement::Same(trained) } else { Agreement::Differ { published, trained } }
-    }
-
     pub fn is_same(&self) -> bool {
         matches!(self, Agreement::Same(_))
     }
@@ -30,12 +16,6 @@ impl<T> Agreement<T> {
 pub struct EntryDigest {
     pub len: usize,
     pub sha256: String,
-}
-
-impl EntryDigest {
-    pub(super) fn of(bytes: &[u8]) -> EntryDigest {
-        EntryDigest { len: bytes.len(), sha256: sha256(bytes).to_hex() }
-    }
 }
 
 /// How far the parameters of two models of the same predicates and
@@ -72,47 +52,6 @@ pub struct Comparison {
 }
 
 impl Comparison {
-    pub(super) fn of(recipe: &Recipe, trained: &Trained, published: &ModelFile) -> Result<Comparison> {
-        let hash: u32 = published
-            .manifest()
-            .get("Training-Eventhash")
-            .ok_or(Error::MissingManifestEntry("Training-Eventhash"))?
-            .parse()
-            .map_err(|_| Error::MissingManifestEntry("Training-Eventhash"))?;
-        let entry = recipe.component.model_entry();
-        let theirs = published.entry(entry).map_err(Error::Model)?;
-        let ours = trained
-            .package
-            .entries()
-            .find(|(n, _)| *n == entry)
-            .map(|(_, b)| b)
-            .expect("the package holds its model entry");
-        let first_difference = theirs
-            .iter()
-            .zip(ours)
-            .position(|(a, b)| a != b)
-            .or_else(|| (theirs.len() != ours.len()).then_some(theirs.len().min(ours.len())));
-        let parameters = first_difference.map(|_| {
-            let theirs = published.maxent(entry).map_err(|e| e.to_string())?;
-            parameter_distance(&trained.model, &theirs)
-        });
-        let their_manifest =
-            String::from_utf8_lossy(&published.entry(MANIFEST_ENTRY).map_err(Error::Model)?).into_owned();
-        let their_names: Vec<String> =
-            published.archive().names().map(|n| String::from_utf8_lossy(n).into_owned()).collect();
-        let our_names: Vec<String> = trained.package.entry_names().into_iter().map(str::to_owned).collect();
-        Ok(Comparison {
-            model: recipe.model_id(),
-            events: trained.events,
-            event_hash: Agreement::of(hash, trained.report.event_hash.expect("trained from events")),
-            model_entry: Agreement::of(EntryDigest::of(&theirs), EntryDigest::of(ours)),
-            first_difference,
-            parameters,
-            manifest: Agreement::of(their_manifest, trained.package.manifest().to_properties()),
-            entry_names: Agreement::of(their_names, our_names),
-        })
-    }
-
     /// Whether every compared part agrees, the model entry byte for byte.
     pub fn reproduced(&self) -> bool {
         self.event_hash.is_same() && self.model_entry.is_same() && self.manifest.is_same() && self.entry_names.is_same()
@@ -192,44 +131,7 @@ impl Comparison {
     }
 }
 
-/// The distance between the trained parameters and the published model's,
-/// matched by predicate name and outcome label, or why they cannot be
-/// matched.
-pub(super) fn parameter_distance(
-    ours: &GisModel,
-    theirs: &MaxentModel,
-) -> std::result::Result<ParameterDistance, String> {
-    // The outcomes first, in order: a pattern is indices into them, and an
-    // outcome no pattern names would not be seen below.
-    let our_labels: Vec<&JavaString> = ours.outcome_labels().iter().collect();
-    let their_labels: Vec<&JavaString> = theirs.outcomes().collect();
-    if our_labels != their_labels {
-        return Err(format!("the outcomes are {our_labels:?} trained and {their_labels:?} published"));
-    }
-    if ours.num_predicates() != theirs.num_predicates() {
-        return Err(format!("{} predicates trained, {} published", ours.num_predicates(), theirs.num_predicates()));
-    }
-    let mut d = ParameterDistance { total: 0, differing: 0, max_ulps: 0, max_abs: 0.0 };
-    for (p, label) in ours.pred_labels().iter().enumerate() {
-        let Some(q) = theirs.predicate_index(label.as_bytes()) else {
-            return Err(format!("the published model lacks the predicate {}", label.to_string_lossy()));
-        };
-        let our_outcomes: Vec<&JavaString> =
-            ours.pattern(p).iter().map(|&o| &ours.outcome_labels()[o as usize]).collect();
-        let their_outcomes: Vec<&JavaString> = theirs.pattern(q).iter().map(|&o| theirs.outcome(o as usize)).collect();
-        if our_outcomes != their_outcomes {
-            return Err(format!(
-                "the predicate {} has the pattern {our_outcomes:?} trained and {their_outcomes:?} published",
-                label.to_string_lossy()
-            ));
-        }
-        for (&a, &b) in ours.parameters(p).iter().zip(theirs.parameters(q)) {
-            update_parameter_distance(&mut d, a, b);
-        }
-    }
-    Ok(d)
-}
-
+#[cfg(test)]
 pub(super) fn update_parameter_distance(d: &mut ParameterDistance, a: f64, b: f64) {
     d.total += 1;
     if a.to_bits() != b.to_bits() || a.is_nan() || b.is_nan() {
@@ -250,6 +152,7 @@ pub(super) fn update_parameter_distance(d: &mut ParameterDistance, a: f64, b: f6
 /// of their bit patterns once each is mapped from sign and magnitude to a
 /// number line, so that two values on either side of zero are as far
 /// apart as the numbers between them and not half the bit space.
+#[cfg(test)]
 pub(super) fn ulps_apart(a: f64, b: f64) -> u64 {
     fn ordered(x: f64) -> i64 {
         let bits = x.to_bits() as i64;

@@ -46,7 +46,6 @@ mod compare;
 use std::path::{Path, PathBuf};
 
 use turbo_formats::conllu::{ConlluLemmaReader, ConlluPosReader, ConlluSentenceReader, ConlluTokenReader, Tagset};
-use turbo_maxent::ModelFile;
 use turbo_train::{GisModel, Key, TimeZone, TrainingConfiguration, TrainingParameters};
 use turbo_unicode::WhitespaceMode;
 use turbo_zoo::{
@@ -347,28 +346,14 @@ impl Recipe {
         }
     }
 
-    /// Trains from the treebank file and compares with the published
-    /// file, taking the timestamp from the latter.
+    /// Published OpenNLP reproduction is disabled before either input is read.
     pub fn reproduce(
         &self,
-        treebank: &Path,
-        published: &Path,
-        config: &mut TrainingConfiguration,
+        _treebank: &Path,
+        _published: &Path,
+        _config: &mut TrainingConfiguration,
     ) -> Result<(Trained, Comparison)> {
-        let read = |p: &Path| std::fs::read(p).map_err(|e| Error::Io { path: p.to_path_buf(), message: e.to_string() });
-        let conllu = String::from_utf8(read(treebank)?)
-            .map_err(|e| Error::Io { path: treebank.to_path_buf(), message: e.to_string() })?;
-        let published = ModelFile::open(read(published)?).map_err(Error::Model)?;
-        let timestamp: i64 = published
-            .manifest()
-            .get("Timestamp")
-            .ok_or(Error::MissingManifestEntry("Timestamp"))?
-            .parse()
-            .map_err(|_| Error::MissingManifestEntry("Timestamp"))?;
-        let trained = self.train(&conllu, timestamp, config)?;
-        drop(conllu);
-        let comparison = Comparison::of(self, &trained, &published)?;
-        Ok((trained, comparison))
+        Err(Error::Model(turbo_maxent::Error::Disabled))
     }
 }
 
