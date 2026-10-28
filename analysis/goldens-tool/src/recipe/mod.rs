@@ -82,7 +82,7 @@ pub use self::models::{
 };
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 48] = [
+pub const INPUT_SETS: [&str; 47] = [
     "en",
     "multi",
     "norm",
