@@ -25,9 +25,8 @@ use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::sha::{Sha256, sha256, to_hex};
 use serde::de::DeserializeOwned;
-use turbo_goldens::hex::to_hex;
-use turbo_goldens::sha::{Sha256, sha256};
 
 use crate::Result;
 
