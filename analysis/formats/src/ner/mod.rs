@@ -72,6 +72,7 @@ mod evalita;
 mod formats;
 mod germeval;
 mod litbank;
+mod litbank_coref;
 mod muc;
 mod tokens;
 mod wnut17;
@@ -86,6 +87,7 @@ pub use evalita::{EvalitaLanguage, EvalitaReader, EvalitaTypes};
 pub use formats::{BioNlpNames, EvalitaNames, GermEvalNames, Muc6Names};
 pub use germeval::{GermEvalLayer, GermEvalReader, GermEvalTypes};
 pub use litbank::{LITBANK_TYPES, LitbankReader};
+pub use litbank_coref::{LitbankCorefDocument, LitbankCorefReader};
 pub use muc::{MUC_TYPES, MUC6_FORMAT, MucReader, MucSamples, muc_files};
 pub use tokens::{NewlineSentences, RuleTokenizer, SentenceSpans, TokenSpans};
 pub use wnut17::{Wnut17Reader, Wnut17Types};
@@ -115,6 +117,10 @@ pub enum NerError {
     GermEvalFields { line: u32, count: usize, text: String },
     /// A WNUT-17 line without exactly two tab-separated fields.
     Wnut17Fields { line: u32, count: usize, text: String },
+    /// A LitBank CoNLL coreference line with too few fields.
+    LitbankCorefFields { line: u32, count: usize, text: String },
+    /// A LitBank CoNLL coreference chain id that is not a number.
+    LitbankCorefChain { line: u32, text: String },
     /// A BioNLP line without exactly two tab-separated fields.
     BioNlpFields { line: u32, count: usize, text: String },
     /// An Evalita line without exactly four space-separated fields.
@@ -168,6 +174,7 @@ impl NerError {
             GermEvalFields { .. } | BioNlpFields { .. } | EvalitaFields { .. } | Wnut17Fields { .. } => {
                 "java.io.IOException"
             }
+            LitbankCorefFields { .. } | LitbankCorefChain { .. } => "opennlp.tools.util.InvalidFormatException",
             EmptyCensusName { .. } => "java.lang.StringIndexOutOfBoundsException",
             MucUnexpectedOpen { .. } | MucUnexpectedClose { .. } | MucUnclosedTag { .. } | MucUnknownType { .. } => {
                 "opennlp.tools.util.InvalidFormatException"
@@ -190,6 +197,8 @@ impl NerError {
             | BioNlpFields { line, .. }
             | EvalitaFields { line, .. }
             | Wnut17Fields { line, .. }
+            | LitbankCorefFields { line, .. }
+            | LitbankCorefChain { line, .. }
             | EmptyCensusName { line }
             | MucUnexpectedOpen { line }
             | MucUnexpectedClose { line }
@@ -220,6 +229,15 @@ impl fmt::Display for NerError {
             }
             Wnut17Fields { count, text, .. } => {
                 write!(f, "Expected two tab-separated fields per line in WNUT-17 data, got {count} for line '{text}'!")
+            }
+            LitbankCorefFields { count, text, .. } => {
+                write!(
+                    f,
+                    "Expected at least twelve tab-separated fields per line in LitBank CoNLL data, got {count} for line '{text}'!"
+                )
+            }
+            LitbankCorefChain { text, .. } => {
+                write!(f, "Invalid LitBank coreference chain id: '{text}'!")
             }
             EvalitaFields { text, .. } => write!(f, "Incorrect number of fields per line for language: '{text}'!"),
             EmptyCensusName { .. } => f.write_str("Range [0, 1) out of bounds for length 0"),
