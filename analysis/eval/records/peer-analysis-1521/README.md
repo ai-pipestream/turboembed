@@ -202,6 +202,49 @@ so these rows are the off-the-shelf peer bar on a hard split, not
 tuned WNUT systems. There is no turbo entity row yet: that waits on
 an entity bundle and label policy.
 
+### MultiCoNER v2 (English)
+
+The same entity form on MultiCoNER v2 English test
+(`en_test.conll` from the `MultiCoNER/multiconer_v2` dataset at
+revision `4be2d62c912977ee26ed14d2553a4fe17ca3d980`, source SHA-256
+`be7e85f1542a9643de5f01cc99465ec0cb9d96a20bdc3c58418d391e194aff9a`:
+249980 sentences, 3773671 tokens, 377805 entities). MultiCoNER
+labels 33 fine-grained kinds on lowercased text; peers are compared
+at the dataset's six coarse groups (PER, LOC, GRP, PROD, CW, MED)
+because the peer label sets are coarse OntoNotes types. Gold is
+converted by `analysis/eval/reference/peers/multiconer/convert_gold.py`
+(fine-to-coarse taxonomy map, refusal on an unmapped kind) to
+`multiconer-en-test.tsv`, SHA-256
+`200c831eebb31201c19894149a3b4a1bb0a1f3a2651af67811970c485822a498`,
+which is the pinned bench input. Peer runners take
+`multiconer` as their label set: PERSON to PER, ORG and NORP to GRP,
+GPE, LOC and FAC to LOC, PRODUCT to PROD, WORK_OF_ART to CW, the
+rest dropped (so MED is unreachable for both peers and scores 0 by
+construction). Gold tokens are given, as on WNUT-17.
+
+- `spacy-multiconer-en-test.json`: spaCy 3.8.7, `en_core_web_sm`
+  3.8.0, predictions SHA-256
+  `2a51c1c4d1a468786607249068c5fe6113df703700531950948fa5a88b3949fc`.
+  Entities 25.24 F1 (69265 correct of 170941 selected); PER 44.79
+  and LOC 25.74 carry it, CW 0.03 (58 selected against 53164 gold)
+  and PROD 0.50 show where the OntoNotes label set and the
+  lowercased fine-grained gold do not meet.
+- `stanza-multiconer-en-test.json`: Stanza 1.10.1 English NER,
+  pretokenized, predictions SHA-256
+  `5275d49d5b3492f971096bddcb4729ea4bd6684e97a3eb26fe95d82ef1ddd66e`.
+  Entities 18.33 F1 (41233 correct of 72170 selected); PER 32.72
+  and LOC 23.52 carry it, GRP 2.86 (5997 selected, where spaCy
+  selects 39353) and CW 0.35 show the same label-set gap. The
+  predictions were made in four 512-aligned shards and joined;
+  the first shard's first 20480 sentences are byte-identical to
+  an earlier unsharded partial run, so the sharding changed no
+  output.
+
+Reading note: these are off-the-shelf peers on a lowercased,
+fine-grained benchmark whose tuned systems train on MultiCoNER
+itself; the numbers are a peer bar under a coarse-label protocol,
+not a MultiCoNER leaderboard entry.
+
 ## Reproduce
 
 ```sh
@@ -250,8 +293,10 @@ docker run --rm --network none -v <gold-dir>:/gold:ro -v <out-dir>:/out \
   turbo-peer-trankit:1.1.2-finnish /gold/fi_ftb-ud-test.conllu /out/trankit-fi.conllu finnish
 ```
 
-Recorded 2026-10-28 under load average about 31 to 36 (accuracy
-record; no timing claimed).
+Recorded 2026-10-28 under load average about 31 to 36, except
+the Stanza MultiCoNER predictions, which ran 2026-10-28 under
+load average about 65 to 120 (accuracy record; no timing
+claimed).
 
 Scoring correction: sentence boundaries are within-document on
 every bench path (a document's final sentence end is never a
