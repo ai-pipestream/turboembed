@@ -44,6 +44,21 @@
   `d4c7c9dcccc43c4ba18dc80435cc5c2560f01d63746263547d89a1fd599e6b90`. The
   core is compared with upstream on it with Llama-3's pattern, and with
   Qwen2's pattern and NFC normalizer written into it.
+- `tiny-bpe-added/tokenizer.json`: the BPE of `tiny-bpe/` in
+  ModernBERT's form, as upstream `tokenizers` 0.23.2 writes it
+  (`tiny_bpe_added` in `core/tests/tokenizer/added.rs`, which
+  `make_tiny_bpe_added` writes and `the_file_is_what_upstream_writes`
+  checks): its first five pieces renamed `|||IP_ADDRESS|||`,
+  `<|padding|>`, `<|endoftext|>` and runs of four and two spaces, an NFC
+  normalizer, ModernBERT's kinds of added tokens added in its order
+  (those, a run of three spaces, `|||EMAIL_ADDRESS|||`, `[UNK]`, `[CLS]`,
+  `[SEP]`, `[PAD]`, `[MASK]` taking the whitespace before it, and
+  `[unused0]` to `[unused11]`), so upstream gives the pieces their ids
+  and the others ids from 1200 on, and `[CLS] $A [SEP]` around the
+  text. 31586 bytes, SHA-256
+  `37d1d146237c943c766cad555db3e0f21741b270eb7dac7ec447efb95bb6f7f1`.
+  The core's added-token matching is compared with upstream on it, and
+  on the same with the flags ModernBERT's file does not set.
 - `tiny-bpe/corpus.jsonl`: the 232 texts that tokenizer was trained on
   (`bpe::corpus` in `core/tests/tokenizer.rs`, the texts the tests
   encode, twice over), one JSON string per line, written by
