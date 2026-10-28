@@ -26,5 +26,6 @@ turbo-tokenize = { path = "../tokenize" }
 turbo-unicode = { path = "../unicode" }
 
 [dev-dependencies]
+turbo-sha256 = { path = "../sha256" }
 turbo-goldens = { path = "../goldens" }
 turbo-numeric = { path = "../numeric" }

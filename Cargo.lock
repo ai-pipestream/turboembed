@@ -2251,6 +2251,7 @@ dependencies = [
  "turbo-jvm",
  "turbo-normalize",
  "turbo-numeric",
+ "turbo-sha256",
  "turbo-tokenize",
  "turbo-unicode",
 ]

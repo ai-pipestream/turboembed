@@ -2,9 +2,9 @@
 //!
 //! `tests/snapshots/gazetteer/<run>/<id>.snap` holds the rebuilt layers for
 //! each input under `tests/inputs/gazetteer/`. Regenerate with
-//! `TURBO_BLESS=1 cargo test -p turbo-geo --test jvm_goldens`.
-//! JVM goldens are not an oracle. Doubles are compared bit for bit; load
-//! failures keep the OpenNLP exception class the port mirrors.
+//! `TURBO_BLESS=1 cargo test -p turbo-geo --test gazetteer_snapshots`.
+//! Doubles are compared bit for bit; load failures keep the exception class
+//! names the port mirrors.
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -245,7 +245,14 @@ fn check_snap(run: &str, id: &str, rebuilt: Rebuilt) {
 #[test]
 fn the_bundled_table_name_and_bytes_are_stable() {
     assert_eq!(turbo_geo::BUNDLED_TABLE_NAME, "naturalearth-populated-places.txt");
-    assert!(!BUNDLED_TABLE.is_empty());
+    let sums = include_str!("../data/SHA256SUMS");
+    let (want, name) = sums.lines().next().unwrap().split_once(' ').unwrap();
+    assert_eq!(name.trim(), "naturalearth-populated-places.txt");
+    assert_eq!(
+        turbo_sha256::sha256(BUNDLED_TABLE.as_bytes()).to_hex(),
+        want.trim(),
+        "bundled table bytes drifted from data/SHA256SUMS"
+    );
     assert!(!BundledGazetteer::get().sources().is_empty());
 }
 

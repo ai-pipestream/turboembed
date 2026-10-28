@@ -1,9 +1,7 @@
 //! Compares `PopulationPriorGeocoder`, `SpatialCoherenceGeocoder`,
 //! `GeocodeAnnotator`, `DocumentRegionAnnotator`, `ContainmentSpine`,
-//! `HierarchyAnnotator`, and `RegionAwareMoneyAnnotator` against the JVM test
-//! vectors in `tests/vectors/geo_pipeline.tsv`, produced by
-//! `java/GeoPipelineVectors.java` on the pinned JDK 21 image against OpenNLP
-//! commit `cdf33c653d5d61d5af7d37ffee189a83bd8392ea`.
+//! `HierarchyAnnotator`, and `RegionAwareMoneyAnnotator` against the reviewed
+//! native snapshots in `tests/vectors/geo_pipeline.tsv`.
 
 use std::collections::BTreeMap;
 
@@ -257,7 +255,7 @@ fn run_pipeline<G: Geocoder + Send + Sync + 'static>(
 }
 
 #[test]
-fn pipeline_matches_jvm_vectors() {
+fn pipeline_matches_reviewed_snapshots() {
     let mut expected: BTreeMap<(String, String, String), String> = BTreeMap::new();
     for (line_no, raw) in VECTORS.lines().enumerate() {
         let line = raw.trim_end_matches('\r');
