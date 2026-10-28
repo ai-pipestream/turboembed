@@ -203,7 +203,6 @@ pub const ANNOTATORS: [&str; 49] = [
 /// ask no model.
 pub const DUMPED_ANNOTATORS: [&str; 6] = ["sentdetect", "tokenize", "postag", "lemmatize", "chunk", "langdetect"];
 
-
 /// The input set the number scan runs on. It runs on no other set, and the
 /// other annotators do not run on this one.
 pub const NUMBER_INPUT_SET: &str = "num";
