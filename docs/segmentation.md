@@ -352,11 +352,10 @@ longer part of the suite and do not establish native neural accuracy.
 
 `AbbreviationInventory` (`analysis/sentdetect/src/inventory/`) is a
 classified list of abbreviations that the maxent detector and the rule
-splitter consult at a full stop, on top of a model's dictionary or a
-language's CLDR suppressions. It is on by default:
-`SentenceDetector::new` takes the bundled inventory of the model's
-language and `RuleSplitter::new` (and so `RuleSentenceDetector::new`)
-that of its tag, through `AbbreviationInventories::for_language`. Bundled
+splitter consults at a full stop, in addition to a language's CLDR
+suppressions. It is on by default: `RuleSplitter::new` (and therefore
+`RuleSentenceDetector::new`) takes the inventory for its tag through
+`AbbreviationInventories::for_language`. Bundled
 inventories cover English and the thirteen languages in the table below.
 Other languages get `AbbreviationInventory::EMPTY` and retain their rule
 profiles. `RuleSplitter::uax29` has none. `with_abbreviations` sets another
