@@ -179,6 +179,7 @@ pub(crate) fn static_embed_command(a: Args) -> Result<bool, String> {
     let [vocab, in_dim] = shape[..] else {
         return Err(format!("teacher embeddings shape {shape:?} is not [vocab, dim]"));
     };
+    let (stage, init_bundle) = static_embed::bundle::reserve_scratch(&out).map_err(err)?;
     println!("teacher embeddings {vocab}x{in_dim}; initializing table (center, PCA {}, SIF)", cfg.dim);
     let mut table = static_embed::initial_table(&teacher, vocab, in_dim, cfg.dim, cfg.sif_coefficient);
     drop(teacher);
@@ -187,14 +188,6 @@ pub(crate) fn static_embed_command(a: Args) -> Result<bool, String> {
         repository: "https://github.com/ai-pipestream/turboembed",
         commit: &commit,
     };
-    let stage = out.with_extension("stage");
-    let init_bundle = out.with_extension("init");
-    // The init bundle is this command's own scratch (the tokenizer
-    // vehicle); a previous run's copy is replaced. The final `--out`
-    // above stays guarded.
-    if init_bundle.join("manifest.json").exists() {
-        std::fs::remove_dir_all(&init_bundle).map_err(|e| format!("{}: {e}", init_bundle.display()))?;
-    }
     let teacher_sha = turbo_sha256::sha256(&bytes).to_hex();
     let init_manifest = static_embed::bundle::make_bundle(
         &table,

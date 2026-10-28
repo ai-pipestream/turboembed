@@ -4825,7 +4825,10 @@ embedder, and the static tier is unchanged: potion stays local-only.
 An in-house alternative was measured first and is not shipped:
 `turbo-train-recipes static-embed` initializes a static table from
 BERT-base-uncased's token embeddings (centered, PCA-reduced,
-SIF-scaled) and contrastive-trains it. The untrained table scores
+SIF-scaled) and contrastive-trains it. The command reserves new `.stage`
+and `.init` directories beside its output; it rejects existing scratch
+paths instead of deleting or overwriting them. Choose a new output name
+for another run. The untrained table scores
 0.3354 on scifact under this gate; training on token-dropout views
 scored 0.2842, and on adjacent FineWeb sentences 0.2718 at 400 steps
 and 0.2381 at 2,000 gentler steps. Adjacent-sentence alignment

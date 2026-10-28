@@ -6,7 +6,7 @@
 //! table staged as the upstream `model.safetensors`.
 
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use serde_json::Value;
 
@@ -16,6 +16,31 @@ use super::write_safetensors;
 
 fn fail<T>(m: String) -> Result<T, Error> {
     Err(Error::Model(m))
+}
+
+/// Reserve new scratch directories; an earlier run's files are never
+/// deleted or reused. Keep them after failures for inspection.
+pub fn reserve_scratch(out: &Path) -> Result<(PathBuf, PathBuf), Error> {
+    let stage = out.with_extension("stage");
+    let init = out.with_extension("init");
+    if out == stage || out == init {
+        return fail("output must not alias its .stage or .init scratch directory".into());
+    }
+    for path in [&stage, &init] {
+        match fs::symlink_metadata(path) {
+            Ok(_) => return fail(format!("{}: scratch path already exists; choose a new output name", path.display())),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return fail(format!("{}: {e}", path.display())),
+        }
+    }
+    if let Some(parent) = out.parent().filter(|p| !p.as_os_str().is_empty()) {
+        fs::create_dir_all(parent).map_err(|e| Error::Model(format!("{}: {e}", parent.display())))?;
+    }
+    // create_dir also rejects a concurrent creator after the preflight.
+    for path in [&stage, &init] {
+        fs::create_dir(path).map_err(|e| Error::Model(format!("{}: {e}", path.display())))?;
+    }
+    Ok((stage, init))
 }
 
 /// What the sealed manifest says about the model.

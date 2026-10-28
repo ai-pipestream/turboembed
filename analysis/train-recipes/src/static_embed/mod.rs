@@ -69,35 +69,27 @@ impl Rng {
     }
 }
 
-/// The one tensor this trainer reads from a safetensors file: a named
-/// F32 matrix, by a minimal reader for the container's header.
+/// Read a finite, nonempty F32 teacher matrix through the core's
+/// checked safetensors parser before PCA can index its rows.
 pub fn read_tensor(bytes: &[u8], name: &str) -> Result<(Vec<f32>, Vec<usize>), Error> {
-    let fail = |m: String| Error::Model(m);
-    if bytes.len() < 8 {
-        return Err(fail("safetensors: short file".into()));
-    }
-    let n = u64::from_le_bytes(bytes[..8].try_into().unwrap()) as usize;
-    let header: serde_json::Value =
-        serde_json::from_slice(bytes.get(8..8 + n).ok_or_else(|| fail("safetensors: short header".into()))?)
-            .map_err(|e| fail(format!("safetensors header: {e}")))?;
-    let t = header.get(name).ok_or_else(|| fail(format!("safetensors: no tensor {name}")))?;
-    if t["dtype"] != "F32" {
-        return Err(fail(format!("safetensors: {name} is {}, not F32", t["dtype"])));
-    }
-    let shape: Vec<usize> = t["shape"]
-        .as_array()
-        .ok_or_else(|| fail("safetensors: bad shape".into()))?
+    use turbo::safetensors::{Dtype, File};
+    let fail = |e: turbo::status::Error| Error::Model(e.message);
+    let file = File::parse("teacher safetensors", bytes).map_err(fail)?;
+    let tensor = file.get(name, Dtype::F32, 2).map_err(fail)?;
+    let shape = tensor
+        .shape
         .iter()
-        .map(|v| v.as_u64().map(|u| u as usize))
-        .collect::<Option<Vec<_>>>()
-        .ok_or_else(|| fail("safetensors: bad shape".into()))?;
-    let off = t["data_offsets"].as_array().ok_or_else(|| fail("safetensors: bad offsets".into()))?;
-    let (lo, hi) = (off[0].as_u64().unwrap_or(0) as usize, off[1].as_u64().unwrap_or(0) as usize);
-    let raw = bytes.get(8 + n + lo..8 + n + hi).ok_or_else(|| fail("safetensors: short data".into()))?;
-    if !raw.len().is_multiple_of(4) {
-        return Err(fail("safetensors: ragged data".into()));
+        .map(|&d| usize::try_from(d))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|_| Error::Model("teacher dimensions exceed address space".into()))?;
+    if shape.contains(&0) {
+        return Err(Error::Model("teacher matrix must be nonempty".into()));
     }
-    Ok((raw.as_chunks::<4>().0.iter().map(|c| f32::from_le_bytes(*c)).collect(), shape))
+    let values = tensor.f32s();
+    if values.iter().any(|v| !v.is_finite()) {
+        return Err(Error::Model("teacher matrix must contain finite values".into()));
+    }
+    Ok((values, shape))
 }
 
 /// Centered top-`dim` principal components of the [rows x cols]
