@@ -266,7 +266,10 @@ impl Tokenizer {
             let pair_template = match a.family {
                 crate::manifest::Family::Bert if a.token_types >= 2 => crate::manifest::PairTemplate::Bert,
                 crate::manifest::Family::Roberta => crate::manifest::PairTemplate::Roberta,
-                crate::manifest::Family::Bert | crate::manifest::Family::DebertaV2 => return None,
+                crate::manifest::Family::Bert
+                | crate::manifest::Family::DebertaV2
+                | crate::manifest::Family::Modernbert
+                | crate::manifest::Family::NomicBert => return None,
             };
             let specials = pair_template.specials();
             if e.max_seq <= specials + 1 {
