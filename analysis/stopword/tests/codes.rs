@@ -1,7 +1,8 @@
 //! Language code resolution for the bundled lists.
 //!
-//! OpenNLP accepts lower-case ISO 639-1, ISO 639-2/T, and the bibliographic
-//! codes dut/fre/ger only. Upper case and tags with a region are refused.
+//! `StopwordLanguage::from_code` accepts lower-case ISO 639-1, ISO 639-2/T,
+//! and the bibliographic codes dut/fre/ger only. Upper case and tags with a
+//! region are refused.
 
 use turbo_stopword::StopwordLanguage;
 

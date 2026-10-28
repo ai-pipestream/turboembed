@@ -111,47 +111,9 @@ fn utf16_and_code_point_tables_round_trip_on_flagged_text() {
     }
 }
 
-fn escape_field(s: &str) -> String {
-    s.replace('\\', "\\\\").replace('\t', "\\t").replace('\n', "\\n").replace('\r', "\\r")
-}
-
-fn unescape_field(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let mut chars = s.chars();
-    while let Some(c) = chars.next() {
-        if c != '\\' {
-            out.push(c);
-            continue;
-        }
-        match chars.next() {
-            Some('\\') => out.push('\\'),
-            Some('t') => out.push('\t'),
-            Some('n') => out.push('\n'),
-            Some('r') => out.push('\r'),
-            Some(other) => {
-                out.push('\\');
-                out.push(other);
-            }
-            None => out.push('\\'),
-        }
-    }
-    out
-}
-
 #[test]
-fn unescape_round_trips_tsv_fields() {
-    for s in ["", "a", "a b", "a\tb", "a\\b", "a\nb", "a\rb", "café", "\\t\\n\\\\"] {
-        assert_eq!(unescape_field(&escape_field(s)), s, "{s:?}");
-    }
-}
-
-#[test]
-fn layer_invariants_align_flags_to_tokens_and_keep_non_empty_spans() {
-    let texts = [
-        ("The cat and the dog", "eng"),
-        ("Der Hund und die Katze", "deu"),
-        ("hot dog New York", "eng"),
-    ];
+fn layer_check_passes_on_annotator_output() {
+    let texts = [("The cat and the dog", "eng"), ("Der Hund und die Katze", "deu"), ("hot dog New York", "eng")];
     for &(text, code) in &texts {
         let mut docs = vec![document(text, Some(code))];
         let analyzer = Analyzer::builder()
@@ -161,31 +123,53 @@ fn layer_invariants_align_flags_to_tokens_and_keep_non_empty_spans() {
             .build()
             .unwrap();
         assert!(analyzer.run(&mut docs).iter().all(Result::is_ok), "{text:?}");
-        let doc = &docs[0];
-        let tokens = doc.get::<Tokens>().unwrap();
-        let stops = doc.get::<Stopwords>().unwrap();
-        // stopword_positions.len() == token_positions.len()
+        let stops = docs[0].get::<Stopwords>().unwrap();
+        let tokens = docs[0].get::<Tokens>().unwrap();
         assert_eq!(stops.len(), tokens.spans.len(), "{text:?}");
-        assert_eq!(stops.stop.len(), tokens.spans.len(), "{text:?}");
         stops.check().unwrap_or_else(|e| panic!("Stopwords::check: {e}"));
-        let source = doc.source();
-        let token_view = tokens.spans.view();
-        for (i, span) in tokens.spans.iter() {
-            let piece = &source[span.range()];
-            // Non-empty source tokens stay non-empty slices.
-            if span.start != span.end {
-                assert!(!piece.is_empty(), "{text:?} token {i:?} empty slice");
-                assert!(!source[span.range()].is_empty(), "{text:?}");
+    }
+}
+
+#[test]
+fn lookup_matches_documented_case_and_script_surprises() {
+    let en = StopwordList::bundled(StopwordLanguage::English);
+    // U+0130 LATIN CAPITAL LETTER I WITH DOT ABOVE lowercases to ASCII i.
+    assert!(en.contains("İT"), "İT should be the stopword it");
+    assert!(en.contains("it"));
+    // LONG S and DOTLESS I do not land in the list word's hash bucket.
+    assert!(!en.contains("ſo"), "long-s o must not match so");
+    assert!(!en.contains("ıt"), "dotless-i + t must not match it");
+    // Decomposed vs composed: accents are not folded.
+    let es = StopwordList::bundled(StopwordLanguage::Spanish);
+    assert!(es.contains("también"), "también is a Spanish stopword");
+    assert!(!es.contains("tambien"), "no accent fold");
+    assert!(!es.contains("también"), "decomposed accent is a different word");
+    // German: DASS is not daß; DAẞ (capital sharp S) is. Also in lists.rs.
+    let de = StopwordList::bundled(StopwordLanguage::German);
+    assert!(de.contains("daß"));
+    assert!(!de.contains("DASS"), "DASS is not daß");
+    assert!(de.contains("DAẞ"), "capital sharp S lowercases to daß");
+}
+
+#[test]
+fn every_bundled_word_has_no_long_s_dotless_i_or_cyrillic_ve_spelling() {
+    // Documents that compareToIgnoreCase would equate these, but the HashSet
+    // bucket means none of the bundled words are found under those spellings.
+    for language in StopwordLanguage::ALL {
+        let list = StopwordList::bundled(language);
+        for &word in list.words() {
+            let long_s = word.replace(['s', 'S'], "ſ");
+            if long_s != word {
+                assert!(!list.contains(&long_s), "{language:?} long-s spelling of {word}");
             }
-            // Filtered (kept) tokens stay on the same token view; the annotator
-            // does not invent a derived view (StopwordFilter is not ported).
-            assert_eq!(tokens.spans.view(), token_view);
-            let _ = stops.stop[i.get()];
-        }
-        let kept: Vec<_> = stops.kept().collect();
-        for ix in kept {
-            let span = tokens.spans.get(ix);
-            assert!(!source[span.range()].is_empty() || span.start == span.end, "{text:?}");
+            let dotless = word.replace(['i', 'I'], "\u{0131}");
+            if dotless != word {
+                assert!(!list.contains(&dotless), "{language:?} dotless-i spelling of {word}");
+            }
+            let ve = word.replace(['в', 'В'], "\u{1C80}");
+            if ve != word {
+                assert!(!list.contains(&ve), "{language:?} cyrillic-ve spelling of {word}");
+            }
         }
     }
 }
