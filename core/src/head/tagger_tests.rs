@@ -40,7 +40,7 @@ fn spec(
         word_pooling: pooling,
         adapter: adapter.map(|(hidden, layers)| Adapter { bilstm: Bilstm { hidden, layers } }),
         decode,
-        artifact: 0,
+        artifact: "weights-f32".into(),
         tensor_prefix: "heads.t".into(),
     }
 }
@@ -306,7 +306,9 @@ fn decoded_sequences_are_always_legal() {
 fn word_maps_and_states_are_checked() {
     assert_eq!(word_count(&[NO_WORD, 0, 0, 1, NO_WORD]).unwrap(), 2);
     assert_eq!(word_count(&[NO_WORD, NO_WORD]).unwrap(), 0);
-    for bad in [&[1u32][..], &[0, 2], &[0, 1, 0], &[0, 1, 1, 0]] {
+    // A gap between two words is fine; a gap inside one word is not.
+    assert_eq!(word_count(&[0, NO_WORD, 1, NO_WORD]).unwrap(), 2);
+    for bad in [&[1u32][..], &[0, 2], &[0, 1, 0], &[0, 1, 1, 0], &[0, NO_WORD, 0], &[0, 1, NO_WORD, 1, 2]] {
         assert_eq!(word_count(bad).unwrap_err().code, INVALID_ARGUMENT, "{bad:?}");
     }
     let s = spec(TAGS, Scheme::Tags, WordPooling::Mean, Some((2, 1)), Decode::Argmax);
