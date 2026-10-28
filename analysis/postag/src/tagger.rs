@@ -187,3 +187,160 @@ impl Annotator for PosTagger {
             .finish()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use turbo_analysis::{Analyzer, Document, Ix, Key, Layer, Span, Spans, Status, ViewId};
+    use turbo_analysis_layers::Sentences;
+    use turbo_sequence::postag::PosTagFormat;
+
+    use super::*;
+
+    /// The tagger over the English model, or `None` when it is not
+    /// downloaded.
+    fn english() -> Option<PosTagger> {
+        Some(PosTagger::new(PosModel::read(english_path()?).unwrap()))
+    }
+
+    fn english_path() -> Option<std::path::PathBuf> {
+        turbo_goldens::published_model("opennlp-en-ud-ewt-pos-1.3-2.5.4.bin")
+    }
+
+    fn labels(t: &PosTagger, words: &[&str]) -> Vec<String> {
+        let (mut tags, mut probs) = (Vec::new(), Vec::new());
+        assert!(t.tag(words, &mut tags, &mut probs).unwrap());
+        assert_eq!(tags.len(), probs.len());
+        assert!(probs.iter().all(|p| (0.0..=1.0).contains(p)));
+        tags.iter().map(|&x| t.pos_model().tagset().label(x).to_string()).collect()
+    }
+
+    #[test]
+    fn tags_a_sentence() {
+        let Some(t) = english() else { return };
+        assert_eq!(labels(&t, &["The", "cat", "sat", "."]), ["DET", "NOUN", "VERB", "PUNCT"]);
+        assert_eq!(labels(&t, &[]), Vec::<String>::new());
+    }
+
+    #[test]
+    fn penn_tags_are_the_converted_outcomes() {
+        let Some(path) = english_path() else { return };
+        let t = PosTagger::new(PosModel::read(path).unwrap().with_format(PosTagFormat::Penn));
+        assert_eq!(labels(&t, &["The", "cat", "sat", "."]), ["DT", "NN", "VB", "."]);
+    }
+
+    /// Tokens over `text` at the given byte spans, each in sentence `s`.
+    fn tokens(view: ViewId, spans: &[(u32, u32, u32)]) -> Tokens {
+        let mut out = Spans::new(view);
+        for &(a, b, _) in spans {
+            out.push(Span::new(a, b));
+        }
+        Tokens { spans: out, sentence: Some(spans.iter().map(|&(_, _, s)| Ix::new(s)).collect()) }
+    }
+
+    #[test]
+    fn sentences_are_tagged_one_at_a_time() {
+        let Some(t) = english() else { return };
+        let text = "I run . Dogs run .";
+        let doc = Document::new(text);
+        let view = doc.get::<View>().unwrap();
+        let two = tokens(view.id(), &[(0, 1, 0), (2, 5, 0), (6, 7, 0), (8, 12, 1), (13, 16, 1), (17, 18, 1)]);
+        let (pos,) = t.annotate((view, &two)).unwrap();
+        assert_eq!(pos.tags.len(), 6);
+        let (mut tags, mut probs) = (Vec::new(), Vec::new());
+        t.tag(&["I", "run", "."], &mut tags, &mut probs).unwrap();
+        t.tag(&["Dogs", "run", "."], &mut tags, &mut probs).unwrap();
+        assert_eq!(pos.tags, tags);
+        assert_eq!(pos.prob.as_deref().unwrap(), &probs[..]);
+        // Without a sentence column the six tokens are one sentence, and
+        // the second "run" sees the first.
+        let mut one = two;
+        one.sentence = None;
+        let (pos,) = t.annotate((view, &one)).unwrap();
+        tags.clear();
+        probs.clear();
+        t.tag(&["I", "run", ".", "Dogs", "run", "."], &mut tags, &mut probs).unwrap();
+        assert_eq!(pos.tags, tags);
+        assert_eq!(pos.prob.as_deref().unwrap(), &probs[..]);
+    }
+
+    #[test]
+    fn tokens_in_another_view_are_refused() {
+        let doc = Document::new("ab");
+        let Some(t) = english() else { return };
+        let e = t.annotate((doc.get::<View>().unwrap(), &tokens(ViewId(3), &[(0, 1, 0)]))).err().unwrap();
+        assert_eq!(
+            e,
+            Error::Annotator {
+                annotator: "turbo-postag:maxent",
+                detail: "the tokens are in view 3, not in view 0 that is tagged".into()
+            }
+        );
+    }
+
+    #[test]
+    fn in_a_pipeline_after_given_sentences_and_tokens() {
+        let text = "Birds sing .";
+        let mut doc = Document::new(text);
+        let view = doc.get::<View>().unwrap().id();
+        let mut s = Spans::new(view);
+        s.push(Span::new(0, 12));
+        doc.add(&Key::<Sentences>::DEFAULT, Sentences { spans: s }, turbo_analysis::Provenance::by("test")).unwrap();
+        let toks = tokens(view, &[(0, 5, 0), (6, 10, 0), (11, 12, 0)]);
+        doc.add(&Key::<Tokens>::DEFAULT, toks, turbo_analysis::Provenance::by("test")).unwrap();
+        let Some(tagger) = english() else { return };
+        let config = tagger.config_hash();
+        let analyzer = Analyzer::builder()
+            .given(Key::<Sentences>::DEFAULT)
+            .given(Key::<Tokens>::DEFAULT)
+            .add(tagger)
+            .build()
+            .unwrap();
+        assert_eq!(analyzer.run(std::slice::from_mut(&mut doc)), [Ok(())]);
+        let key = Key::<PosTags>::DEFAULT;
+        assert_eq!(doc.status(key.id()), Some(&Status::Complete));
+        let pos = doc.get::<PosTags>().unwrap();
+        let got: Vec<&str> = pos.tags.iter().map(|&t| pos.tagset.label(t)).collect();
+        assert_eq!(got, ["NOUN", "VERB", "PUNCT"]);
+        let p = doc.provenance(key.id()).unwrap();
+        assert_eq!(p.annotator, "turbo-postag:maxent");
+        assert_eq!(p.config, config);
+        assert_eq!(p.model.as_ref().unwrap().id, "opennlp:POSTaggerME:en");
+        assert_eq!(p.reads, [Key::<View>::DEFAULT.id(), Key::<Tokens>::DEFAULT.id()]);
+        assert_eq!(pos.len(), 3);
+    }
+
+    #[test]
+    fn the_configuration_hash_tells_settings_apart() {
+        let Some(path) = english_path() else { return };
+        let open = || PosModel::read(&path).unwrap();
+        let a = PosTagger::new(open()).config_hash();
+        let b = PosTagger::new(open().with_format(PosTagFormat::Penn)).config_hash();
+        let c = PosTagger::new(open().with_beam_size(1).unwrap()).config_hash();
+        let d = PosTagger::new(open().with_context_cache(0)).config_hash();
+        assert_eq!(a, PosTagger::new(open()).config_hash());
+        assert!(a != b && a != c && a != d && b != c && b != d && c != d);
+    }
+
+    #[test]
+    fn pos_annotator_rejects_invalid_token_spans_without_panicking() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures/pos-fixture.bin");
+        let tagger = PosTagger::new(PosModel::read(path).unwrap());
+
+        let doc = Document::new("café");
+        let view = doc.get::<View>().unwrap();
+        for bad_span in [
+            Span::new(0, 99),          // past end of text
+            Span { start: 3, end: 1 }, // inverted span
+            Span::new(0, 4),           // splits 2-byte UTF-8 'é' (bytes 3..5)
+        ] {
+            let mut spans = Spans::new(ViewId::SOURCE);
+            spans.push(bad_span);
+            let toks = Tokens { spans, sentence: None };
+            let err = tagger.annotate((view, &toks)).err().unwrap();
+            assert!(
+                matches!(&err, Error::Annotator { annotator: PosTagger::ID, detail } if detail.contains("outside the text or off a UTF-8 boundary")),
+                "unexpected error for {bad_span:?}: {err:?}"
+            );
+        }
+    }
+}

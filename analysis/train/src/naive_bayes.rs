@@ -219,6 +219,59 @@ pub fn train_model(index: &DataIndex) -> Result<NaiveBayesModel> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::index::IndexerKind;
+    use crate::writer::write_naive_bayes;
+    use turbo_maxent::{MaxentModel, ModelKind, best_outcome};
+
+    fn abstract_naive_bayes_events() -> Vec<Event> {
+        vec![
+            Event::from_strs("politics", &["bow=the", "bow=united", "bow=nations"]),
+            Event::from_strs("politics", &["bow=the", "bow=united", "bow=states", "bow=and"]),
+            Event::from_strs("sports", &["bow=manchester", "bow=united"]),
+            Event::from_strs("sports", &["bow=manchester", "bow=and", "bow=barca"]),
+        ]
+    }
+
+    #[test]
+    fn matches_opennlp_naive_bayes_correctness_test() {
+        // Reproduces OpenNLP's `NaiveBayesCorrectnessTest` and
+        // `NaiveBayesSerializedCorrectnessTest` (TwoPassDataIndexer,
+        // cutoff = 1, sort = false).
+        let index = DataIndex::index(&abstract_naive_bayes_events(), &IndexParams::new(IndexerKind::TwoPass, 1, false))
+            .unwrap();
+        let model = train_model(&index).unwrap();
+        assert_eq!(model.outcome_labels(), &[JavaString::new("politics"), JavaString::new("sports")]);
+        assert_eq!(model.pred_labels().len(), 7);
+        assert_eq!(model.outcome_totals(), &[7.0, 5.0]);
+
+        let bytes = write_naive_bayes(&model).unwrap();
+        let read = MaxentModel::read(&bytes).unwrap();
+        assert_eq!(read.kind(), ModelKind::NaiveBayes);
+
+        let cases: &[(&str, &[&str], f64)] = &[
+            ("politics", &["bow=united", "bow=nations"], 0.9681650180264167),
+            ("sports", &["bow=manchester", "bow=united"], 0.9658833555831029),
+            ("politics", &["bow=united"], 0.6655036407766989),
+            ("politics", &[], 7.0 / 12.0),
+        ];
+
+        for &(expected_label, context, expected_prob) in cases {
+            let mut probs_trained = [0.0; 2];
+            model.eval(context, None, &mut probs_trained);
+            let mut probs_read = [0.0; 2];
+            read.eval(context, &mut probs_read);
+            assert_eq!(probs_trained, probs_read, "trained vs serialized eval on {context:?}");
+
+            let best = best_outcome(&probs_read);
+            assert_eq!(read.outcome_str(best), Some(expected_label));
+            let expected_idx = read.outcome_index(expected_label).unwrap();
+            assert!((probs_read[expected_idx] - expected_prob).abs() < 1e-15, "{context:?}: {probs_read:?}");
+            assert!(
+                (probs_read[1 - expected_idx] - (1.0 - expected_prob)).abs() < 1e-15,
+                "{context:?}: {probs_read:?}"
+            );
+        }
+    }
 
     #[test]
     fn real_valued_events_accumulate_weighted_counts() {

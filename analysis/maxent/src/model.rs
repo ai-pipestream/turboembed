@@ -347,6 +347,11 @@ impl MaxentModel {
     }
 }
 
+/// Each label as text, `None` where it holds half of a surrogate pair.
+pub(crate) fn outcome_texts(outcomes: &[JavaString]) -> Vec<Option<Box<str>>> {
+    outcomes.iter().map(|o| o.to_str().map(Box::from)).collect()
+}
+
 /// `s` as Java modified UTF-8, written into `buffer`, or `None` when `s`
 /// holds no U+0000 and no four-byte sequence, so its UTF-8 bytes are
 /// already its modified UTF-8.
