@@ -38,6 +38,7 @@ pub mod languages;
 mod lists;
 pub mod profile;
 mod refine;
+mod scratch;
 #[rustfmt::skip]
 mod tables;
 mod uax29;
@@ -59,6 +60,7 @@ pub use fallback::{
 pub use languages::{LANGUAGES, Language, Resolved, resolve};
 pub use profile::LanguageRules;
 use refine::Text;
+use scratch::with_rule_scratch;
 use uax29::Break;
 use units::Unit;
 
@@ -277,7 +279,7 @@ impl RuleSplitter {
         if let Some(ref fb) = self.fallback {
             fallback::split_with_fallback(self, text, fb.as_ref(), out)
         } else {
-            RULE_SCRATCH.with_borrow_mut(|scratch| self.split_rules_only(text, scratch, out));
+            with_rule_scratch(|scratch| self.split_rules_only(text, scratch, out));
             Ok(())
         }
     }
@@ -312,7 +314,7 @@ impl RuleSplitter {
         if let Some(ref fb) = self.fallback {
             fallback::boundaries_with_fallback(self, text, fb.as_ref(), out)
         } else {
-            RULE_SCRATCH.with_borrow_mut(|scratch| {
+            with_rule_scratch(|scratch| {
                 self.boundaries_with(text, scratch);
                 out.extend(
                     scratch
@@ -416,12 +418,6 @@ impl RuleSentenceDetector {
     }
 }
 
-thread_local! {
-    /// The buffers of the rule annotator, one set per thread, so that a
-    /// pipeline running many documents allocates only while they grow.
-    pub(crate) static RULE_SCRATCH: std::cell::RefCell<RuleScratch> = std::cell::RefCell::new(RuleScratch::default());
-}
-
 impl Annotator for RuleSentenceDetector {
     const ID: &'static str = "turbo-sentdetect:rules";
     /// Changes whenever the rules or the data change what is split.
@@ -437,7 +433,7 @@ impl Annotator for RuleSentenceDetector {
         let text = view.text();
         check_len(Self::ID, text)?;
         let mut out = Vec::new();
-        RULE_SCRATCH.with_borrow_mut(|scratch| self.splitter.split_rules_only(text, scratch, &mut out));
+        with_rule_scratch(|scratch| self.splitter.split_rules_only(text, scratch, &mut out));
         let mut spans = Spans::with_capacity(view.id(), out.len());
         for s in out {
             spans.push(s);
