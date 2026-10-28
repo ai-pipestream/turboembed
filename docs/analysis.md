@@ -837,6 +837,7 @@ fields mean bumps its `SCHEMA`.
 | `Stopwords` | `turbo:stopwords` | tokens | `turbo-stopword-layers` |
 | `GlossaryTerms` | `turbo:glossary-terms` | text (indexes `Tokens`) | `turbo-glossary-layers` |
 | `Vectors<L>` | `opennlp:embeddings<L>` | `L` | `turbo-analysis-layers` |
+| `VectorCodes<L>` | `turbo:vector-codes<L>` | `L` | `turbo-analysis-layers` |
 | `Confidence<L>` | `turbo:confidence<L>` | `L` | `turbo-analysis-layers` |
 | `Utf16Spans<L>` | `turbo:utf16<L>` | `L` | `turbo-analysis-layers` |
 | `Edges<From, To>` | `turbo:edges<From, To>` | the document (indexes `From` and `To`) | `turbo-analysis` |
@@ -1104,8 +1105,36 @@ all three and writes both from the same windows. They can share one
 loaded model (`Arc<VectorAnnotator>`). `VectorsProvider` offers them to
 a registry as `vectors`, the spec's location being the bundle directory
 and its options `layers` (`sentences`, `chunks`, `both`, `levels`),
-`device`, `precision` and `prompt`. `LevelVectors`, for `levels`, is
-described under "Levels" below.
+`device`, `precision`, `prompt` and `output_dim`. `LevelVectors`, for
+`levels`, is described under "Levels" below.
+
+### Narrower vectors and codes
+
+`VectorOptions::output_dim` (the provider's `output_dim`) cuts the
+sentence, chunk and level vectors to a width the bundle declares in
+`embed.output_dims` (Matryoshka), as `turbo_embed_options.output_dim`
+does in the core: every item is pooled at the model's dim, cut to its
+first `output_dim` values, then normalized as the bundle says. `0`, the
+default, is the model's dim. A width over the dim is refused as
+`TURBO_E_INVALID_ARGUMENT`, one the bundle does not declare as
+`TURBO_E_UNSUPPORTED_OPTION`, when the annotator is opened. A cut
+changes the step's configuration hash; the full width keeps the hash it
+had before the option. Per-token vectors (`SubwordVectors`) are never
+cut. `VectorAnnotator::dim` is the width written and `hidden_dim` the
+encoder's.
+
+`VectorCodesStep<L>` reads `L` and `Vectors<L>` and writes
+`VectorCodes<L>` (`turbo:vector-codes<L>`): each row as int8 codes or
+packed sign bits, with the core's `turbo::quantize`, in the layout
+docs/embeddings.md gives under "Narrower vectors" (sentence-transformers'
+`quantize_embeddings`). int8 takes the caller's `[2, dim]` ranges, the
+minimums then the maximums, calibrated on vectors of the same model and
+width; ranges are never taken from the documents being coded, and
+ranges of another width fail the document. The layer keeps the vectors'
+`empty` list and model. `VectorCodesProvider` offers it as
+`vector-codes`, with options `codes` (`ubinary`, the default, or
+`int8`) and `layers` (`chunks`, the default, or `sentences`); for int8
+the spec's location is a file of `2 * dim` little-endian f32 values.
 
 The subwords must be the same bundle's pieces (the layer's model is
 compared) and every layer must be in the subwords' view; a document
