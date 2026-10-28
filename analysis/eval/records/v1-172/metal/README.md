@@ -27,7 +27,7 @@ Host load: the M2 is a busy desktop (desktop apps on the GPU, outside builds). T
 timing receipts; wall times above are context only and not a speed claim. Load and GPU utilisation before and
 after each run are in `logs/`.
 
-Cut dumps (not committed, about 107 MB per pipeline) are on the krick-1 host under
+Cut dumps (not committed, about 107 MB per pipeline) are on the B70 host under
 eval-cuts-172/metal/<name>/<set>.cuts. sha256:
 
 ```
