@@ -8,10 +8,10 @@
 //!   tokens.
 //! - A sentence sample is the `text` comments of up to a number of
 //!   sentences, each followed by a space, the last space removed. A
-//!   sentence without one stands in the document as `null`, Java's
-//!   string of a missing value; that sentence's source is the sentence's
-//!   lines. A number of zero gives no samples. An error in a sentence
-//!   discards the sentences read before it into the same sample.
+//!   sentence without one uses its source lines instead of a placeholder;
+//!   that sentence's source is those lines. A number of zero gives no
+//!   samples. An error in a sentence discards the sentences read before it
+//!   into the same sample.
 //! - A token sample is a sentence's `text` comment with `<SPLIT>`
 //!   inserted after each word form that is followed by a character that
 //!   is not Unicode whitespace, parsed as the token
@@ -114,7 +114,7 @@ impl<'a> Iterator for ConlluSentenceReader<'a> {
             };
             let (text, source) = match &sentence.text {
                 Some(t) => (t.as_str(), t.span),
-                None => ("null", sentence.source),
+                None => (&self.sentences.source()[sentence.source.range()], sentence.source),
             };
             let start = document.len();
             document.push_str(text);
@@ -227,7 +227,7 @@ mod tests {
     }
 
     #[test]
-    fn sentence_samples_stand_null_for_a_missing_text() {
+    fn sentence_samples_use_source_lines_when_text_is_missing() {
         let src = format!(
             "# text = One.\n{}\n{}\n# text = Three.\n{}\n",
             line("1", "One", "_", "_", "_"),
@@ -237,8 +237,10 @@ mod tests {
         let samples: Vec<SentenceSample<'_>> =
             ConlluSentenceReader::new(&src, 2).unwrap().map(Result::unwrap).collect();
         assert_eq!(samples.len(), 2);
-        assert_eq!(samples[0].document(), "One. null");
-        assert_eq!(samples[0].sentence(1), "null");
+        let raw = line("1", "Two", "_", "_", "_");
+        let raw = raw.trim_end();
+        assert_eq!(samples[0].document(), format!("One. {raw}"));
+        assert_eq!(samples[0].sentence(1), raw);
         assert_eq!(&src[samples[0].sources()[0].range()], "One.");
         assert_eq!(samples[1].document(), "Three.");
         assert_eq!(ConlluSentenceReader::new(&src, 0).unwrap().count(), 0);

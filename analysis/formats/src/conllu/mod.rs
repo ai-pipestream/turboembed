@@ -199,6 +199,11 @@ impl<'a> ConlluReader<'a> {
         Ok(ConlluReader { lines: Lines::new(source)? })
     }
 
+    /// The full source text the sentences were read from.
+    pub fn source(&self) -> &'a str {
+        self.lines.source()
+    }
+
     /// `ParagraphStream.read`: the next run of lines that are not of
     /// length zero.
     fn block(&mut self) -> Vec<Line<'a>> {
