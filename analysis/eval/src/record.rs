@@ -316,7 +316,7 @@ pub(crate) mod tests {
                     memory_total: 1 << 34,
                 },
                 bundle: BundleId {
-                    model_id: "sentence-transformers/all-MiniLM-L6-v2".into(),
+                    model_id: "turboembed/tiny-bert".into(),
                     revision: "f".repeat(40),
                     manifest_sha256: "a".repeat(64),
                     artifact_sha256: "b".repeat(64),
