@@ -35,12 +35,16 @@ impl Blobs {
     }
 
     /// Keeps `bytes` under their own SHA-256, written whole through a
-    /// temporary name, and returns that SHA-256. Bytes already kept are
-    /// not written again.
+    /// temporary name, and returns that SHA-256. A file already kept there
+    /// is written again unless it holds those bytes. The store's
+    /// directories are made one at a time, and a symlink or anything but a
+    /// directory on the way is refused, so nothing is written outside the
+    /// store; only `root` itself may be a symlink.
     pub fn put(&self, bytes: &[u8]) -> Result<Sha256, ZooError> {
         let sha256 = Sha256::of(bytes);
-        let dest = self.path(&sha256);
-        let kept = fs::symlink_metadata(&dest).is_ok_and(|m| m.is_file() && m.len() == bytes.len() as u64);
+        let dir = self.dir(true).map_err(|(path, e)| ZooError::Io { path, message: e.to_string() })?;
+        let dest = dir.join(sha256.to_string());
+        let kept = read_plain(&dest, bytes.len() as u64).is_ok_and(|held| held == bytes);
         if !kept {
             write_atomic(&dest, bytes)?;
         }
@@ -49,10 +53,43 @@ impl Blobs {
 
     /// The bytes kept for `file`, at most one more than its size, so the
     /// zoo's size check fails on a longer one. A symlink, or anything but
-    /// a plain file, is refused.
+    /// a plain file or directory, on the way or as the file, is refused.
     fn read(&self, file: &File) -> Result<Vec<u8>, String> {
-        let p = self.path(&file.sha256);
+        let dir = self.dir(false).map_err(|(p, e)| format!("{}: {e}", p.display()))?;
+        let p = dir.join(file.sha256.to_string());
         read_plain(&p, file.size).map_err(|e| format!("{}: {e}", p.display()))
+    }
+
+    /// `<root>/blobs/sha256`, each directory below `root` checked as a
+    /// plain directory, and with `make`, made when absent.
+    fn dir(&self, make: bool) -> Result<PathBuf, (PathBuf, std::io::Error)> {
+        let mut dir = self.root.clone();
+        if make {
+            fs::create_dir_all(&dir).map_err(|e| (dir.clone(), e))?;
+        }
+        for part in ["blobs", "sha256"] {
+            dir.push(part);
+            match denied_again(|| fs::symlink_metadata(&dir)) {
+                Ok(m) if m.file_type().is_symlink() => {
+                    return Err((dir, std::io::Error::other("is a symlink; the store holds only plain directories")));
+                }
+                Ok(m) if m.is_dir() => {}
+                Ok(_) => return Err((dir, std::io::Error::other("is not a directory"))),
+                Err(e) if make && e.kind() == std::io::ErrorKind::NotFound => match fs::create_dir(&dir) {
+                    Ok(()) => {}
+                    // Made by another writer since: checked again.
+                    Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => {
+                        let m = fs::symlink_metadata(&dir).map_err(|e| (dir.clone(), e))?;
+                        if !m.is_dir() || m.file_type().is_symlink() {
+                            return Err((dir, std::io::Error::other("is not a plain directory")));
+                        }
+                    }
+                    Err(e) => return Err((dir, e)),
+                },
+                Err(e) => return Err((dir, e)),
+            }
+        }
+        Ok(dir)
     }
 }
 

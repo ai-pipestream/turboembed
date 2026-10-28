@@ -178,3 +178,45 @@ fn the_licence_is_checked_before_any_source_is_asked() {
     let fetched = zoo.fetch("sa", &alice(), &accepted).unwrap();
     assert_eq!(fs::read(fetched.single().unwrap()).unwrap(), SA);
 }
+
+#[test]
+fn putting_bytes_again_repairs_a_kept_file_of_the_same_length_with_other_bytes() {
+    let dir = Dir::new("repair");
+    let blobs = Blobs::new(&dir.0);
+    let sha = blobs.put(b"good").unwrap();
+    fs::write(blobs.path(&sha), b"evil").unwrap();
+    assert_eq!(blobs.put(b"good").unwrap(), sha);
+    assert_eq!(fs::read(blobs.path(&sha)).unwrap(), b"good");
+}
+
+#[cfg(unix)]
+#[test]
+fn a_symlinked_directory_inside_the_store_is_neither_written_through_nor_read() {
+    use std::os::unix::fs::symlink;
+    let (dir, outside) = (Dir::new("inner-link"), Dir::new("inner-link-outside"));
+    fs::create_dir_all(&dir.0).unwrap();
+    fs::create_dir_all(outside.0.join("sha256")).unwrap();
+    let index = index();
+    let (a, f) = file_of(&index, "hello");
+    fs::write(outside.0.join("sha256").join(f.sha256.to_string()), TEXT).unwrap();
+    // <root>/blobs leads outside the store.
+    symlink(&outside.0, dir.0.join("blobs")).unwrap();
+    let blobs = Blobs::new(&dir.0);
+    assert!(matches!(blobs.put(b"good"), Err(ZooError::Io { .. })));
+    assert!(!outside.0.join("sha256").join(Sha256::of(b"good").to_string()).exists(), "nothing written outside");
+    assert!(blobs.get_file(a, f).unwrap_err().contains("is a symlink"));
+    // <root>/blobs/sha256 leading outside is refused the same way.
+    fs::remove_file(dir.0.join("blobs")).unwrap();
+    fs::create_dir_all(dir.0.join("blobs")).unwrap();
+    symlink(outside.0.join("sha256"), dir.0.join("blobs/sha256")).unwrap();
+    assert!(matches!(blobs.put(b"good"), Err(ZooError::Io { .. })));
+    assert!(blobs.get_file(a, f).unwrap_err().contains("is a symlink"));
+    // The root itself is the caller's choice and may be a symlink.
+    let (real, link) = (Dir::new("root-real"), Dir::new("root-link"));
+    fs::create_dir_all(&real.0).unwrap();
+    symlink(&real.0, &link.0).unwrap();
+    let through = Blobs::new(&link.0);
+    through.put(TEXT).unwrap();
+    assert_eq!(through.get_file(a, f).unwrap(), TEXT);
+    assert!(real.0.join("blobs/sha256").join(f.sha256.to_string()).is_file());
+}
