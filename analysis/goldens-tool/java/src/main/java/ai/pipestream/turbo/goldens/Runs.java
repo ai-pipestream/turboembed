@@ -197,7 +197,7 @@ final class Runs {
    * document categorizer runs train their models from ({@link SvmDoccatGolden},
    * {@link SentimentGolden}, {@link DoccatGolden}), and the models and fixtures directories.
    */
-  static All load(Path inputs, Path models, Path fixtures, Path moneySnapshot) throws IOException {
+  static All load(Path inputs, Path models, Path fixtures) throws IOException {
     List<AnnotatorGolden> annotators = new ArrayList<>();
     List<AnnotatorDump> recorders = new ArrayList<>();
 
