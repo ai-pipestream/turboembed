@@ -1,0 +1,34 @@
+== opennlp-sandbox-semantic-hybrid 2026-10-28T02:07:24Z head 16e74c040898d961d0c50e4e9bf1412f1722f86c
+22:07  up 18 days, 15:16, 6 users, load averages: 8.03 8.16 10.36
+"Device Utilization %"=17
+cmd: cargo run --release -p turbo-eval --features turbo/metal -- run --bundle ~/turbo-bundles/all-minilm-l6-v2-r4 --sets scifact,nfcorpus,arguana,qasper --cache ~/eval-cache --device metal --retrieval hybrid --out $SCRATCH/records/opennlp-sandbox-semantic-hybrid --chunker opennlp-sandbox-semantic
+    Finished `release` profile [optimized] target(s) in 0.32s
+     Running `target/release/turbo-eval run --bundle ~/turbo-bundles/all-minilm-l6-v2-r4 --sets scifact,nfcorpus,arguana,qasper --cache ~/eval-cache --device metal --retrieval hybrid --out $SCRATCH/records/opennlp-sandbox-semantic-hybrid --chunker opennlp-sandbox-semantic`
+set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
+set qasper: 21 judgements could not be placed in their document and are left out
+$SCRATCH/records/opennlp-sandbox-semantic-hybrid/scifact.json
+$SCRATCH/records/opennlp-sandbox-semantic-hybrid/nfcorpus.json
+$SCRATCH/records/opennlp-sandbox-semantic-hybrid/arguana.json
+$SCRATCH/records/opennlp-sandbox-semantic-hybrid/qasper.json
+      572.35 real       434.37 user         5.82 sys
+           445825024  maximum resident set size
+                   0  average shared memory size
+                   0  average unshared data size
+                   0  average unshared stack size
+               66471  page reclaims
+                1521  page faults
+                   0  swaps
+                   0  block input operations
+                   0  block output operations
+                   0  messages sent
+                   0  messages received
+                   0  signals received
+                  61  voluntary context switches
+              737516  involuntary context switches
+       2045095505208  instructions retired
+        911844038598  cycles elapsed
+           623543256  peak memory footprint
+exit 0
+== end 2026-10-28T02:16:56Z
+22:16  up 18 days, 15:26, 6 users, load averages: 9.68 12.70 12.86
+"Device Utilization %"=97
