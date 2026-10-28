@@ -59,7 +59,10 @@ pub fn pipeline(bundle: &Path, places: &[&str]) -> Result<Analyzer, String> {
             spans.iter().map(|s| p[s.range()].to_owned()).collect()
         })
         .collect();
-    let dictionary = turbo_maxent::Dictionary::from_entries(false, entries.iter().map(Vec::as_slice));
+    let dictionary = turbo_namefind::Dictionary::from_entries(
+        false,
+        entries.into_iter().map(|tokens| ("location".to_owned(), tokens)),
+    );
     let drift = Drift { window: NonZeroU32::new(2).expect("not zero"), ..Drift::default() };
     Analyzer::builder()
         .given(Key::<Structure>::named(SOURCE))
@@ -68,7 +71,7 @@ pub fn pipeline(bundle: &Path, places: &[&str]) -> Result<Analyzer, String> {
         .step(Bound::new(turbo_sentdetect::RuleSentenceDetector::new("en")).read(0, CLEAN))
         .step(Bound::new(turbo_tokenize::SimpleTokenizer::default()).read(0, CLEAN))
         .step(Bound::new(SubwordAnnotator::open(bundle).map_err(|e| e.to_string())?).read(0, CLEAN))
-        .step(Bound::new(DictionaryNameFinder::new(dictionary, "location")).read(0, CLEAN))
+        .step(Bound::new(DictionaryNameFinder::new(dictionary).map_err(|e| e.to_string())?).read(0, CLEAN))
         .add(SentenceVectors(Arc::clone(&vectors)))
         .step(Bound::new(StructureBoundaries { costs: Costs::default() }).write(0, STRUCTURE))
         .step(DriftBoundaries { drift }.bound())
