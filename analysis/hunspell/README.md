@@ -10,5 +10,5 @@ Pure-Rust reader and morphological analyzer for Hunspell `.aff` and `.dic` dicti
 
 ## Testing, Accuracy, and Speed
 
-- **Test suite**: Covered by `analysis/hunspell/tests/hostile.rs`, `analysis/hunspell/tests/pipeline.rs`, and dictionary/stemmer snapshot and unit suites.
+- **Test suite**: Covered by `analysis/hunspell/tests/snapshots.rs`, `analysis/hunspell/tests/properties.rs`, `analysis/hunspell/tests/hostile.rs`, and `analysis/hunspell/tests/pipeline.rs`.
 - **Accuracy and speed**: Indexed root-table and affix-suffix tries (`analysis/hunspell/src/dictionary/index.rs`) provide sub-microsecond single-word validation without external C++ dependencies.
