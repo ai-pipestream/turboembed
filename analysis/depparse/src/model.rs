@@ -39,19 +39,9 @@ impl DependencyModel {
         }
         Ok(Self { classifier, transitions, identity, bytes: None, label_encoding: crate::LabelEncoding::Plain })
     }
-    pub fn from_raw(bytes: &[u8]) -> Result<Self> {
-        let mut model = Self::from_maxent(
-            MaxentModel::read(bytes).map_err(error)?,
-            ModelRef {
-                id: "opennlp:DependencyParserME:raw".into(),
-                revision: "1".into(),
-                sha256: turbo_maxent::sha256(bytes).to_hex(),
-            },
-        )?;
-        if model.transitions.contains(&Transition::Swap) {
-            model.identity.id = "turbo:SwapDependencyParser:raw".into();
-        }
-        Ok(model)
+    /// Retired under #1511; no model bytes are decoded.
+    pub fn from_raw(_bytes: &[u8]) -> Result<Self> {
+        Err(error(turbo_maxent::Error::Disabled))
     }
     pub fn open(bytes: Vec<u8>) -> Result<Self> {
         let file = ModelFile::open(bytes.clone()).map_err(error)?;

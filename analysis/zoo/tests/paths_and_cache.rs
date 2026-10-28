@@ -63,7 +63,7 @@ fn index_with_files(files_json: &str, origin_json: &str) -> String {
     {{
       "id": "test-art",
       "kind": "KIND_MODEL",
-      "format": "FORMAT_OPENNLP_MODEL",
+      "format": "FORMAT_SAFETENSORS",
       "version": "1.0",
       "license": "{license}",
       "license_terms": "https://example.org/terms",
