@@ -73,6 +73,7 @@ pub mod postag;
 mod reference;
 pub mod release;
 pub mod segmentation;
+pub mod sentence_gold;
 pub mod spans;
 pub mod static_embed;
 pub mod tatoeba;
@@ -224,7 +225,7 @@ impl Recipe {
     /// The model the recipe's model is gated against.
     pub fn reference(&self) -> Reference {
         match self {
-            Recipe::Segmentation(r) => Reference::Zoo(r.reference_id),
+            Recipe::Segmentation(r) => r.reference,
             Recipe::Pos(r) => r.reference,
             Recipe::Chunk(r) => r.reference,
             Recipe::Name(r) => r.reference,

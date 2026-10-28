@@ -156,6 +156,9 @@ fn recipe(treebank: Treebank, component: Component, reference: Reference) -> UdR
 /// The OpenNLP Spanish model of `component`, which the test recipes name
 /// as their reference although the test gives them other bytes.
 fn spanish(component: Component) -> Reference {
+    if component == Component::Sentence {
+        return Reference::GoldSentences;
+    }
     Reference::Zoo(leak(format!("opennlp-es-ud-gsd-{}-1.3-2.5.4", component.name())))
 }
 

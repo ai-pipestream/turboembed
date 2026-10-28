@@ -107,7 +107,7 @@ impl UdRecipe {
             Component::Tokens => segmentation::Component::Tokens,
             Component::Pos | Component::Lemmas => return None,
         };
-        Some(SegmentationRecipe { component, model_id: self.model_id, reference_id: self.reference.id() })
+        Some(SegmentationRecipe { component, model_id: self.model_id, reference: self.reference })
     }
 
     /// For a tagger, the MASC tagger's gate for it: a [`PosRecipe`] of the

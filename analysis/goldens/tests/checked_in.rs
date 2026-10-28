@@ -42,8 +42,8 @@ fn every_segmentation_golden_reads_and_writes_back_its_bytes() {
             n += 1;
         }
     }
-    // 643 tokenize, 243 sentdetect, 19 detokenize and 132 unigram goldens.
-    assert_eq!(n, 1037);
+    // 643 tokenize, 119 sentdetect, 19 detokenize and 132 unigram goldens.
+    assert_eq!(n, 913);
 }
 
 #[test]
@@ -68,11 +68,11 @@ fn every_dump_reads_and_has_its_goldens_header() {
             points += d.points.len();
         }
     }
-    // 473 tokenize, 209 sentdetect and 140 langdetect dumps (22 each of
+    // 473 tokenize, 85 sentdetect and 140 langdetect dumps (22 each of
     // langdetect-183 and the Rust fixture, and 24 each of their four
     // probing runs).
-    assert_eq!(dumps, 822);
-    assert_eq!(points, 24967, "every point of every dump");
+    assert_eq!(dumps, 698);
+    assert_eq!(points, 24611, "every point of every dump");
 }
 
 #[test]
@@ -87,4 +87,13 @@ fn the_fixture_sentence_model_refuses_three_splits() {
         .map(|p| Dump::read(p).unwrap().points.iter().filter(|p| p.acceptable == Some(false)).count())
         .sum();
     assert_eq!(refused, 3);
+}
+
+#[test]
+fn released_sentence_models_and_their_vector_exports_are_retired() {
+    for entry in std::fs::read_dir(data_dir().join("sentdetect")).unwrap() {
+        let name = entry.unwrap().file_name();
+        assert!(!name.to_string_lossy().starts_with("opennlp-"), "released sentence model golden remains");
+    }
+    assert!(!data_dir().join("sentvectors/all-minilm-l6-v2-mean").exists());
 }

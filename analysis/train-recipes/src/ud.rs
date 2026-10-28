@@ -229,30 +229,15 @@ use Reference::{Recorded, Zoo};
 
 /// The recipes, by treebank, in the order the binary runs them.
 pub const UD_RECIPES: [UdRecipe; 16] = [
-    recipe(
-        "turbo-es-ud-ancora-2.16-sentence-1",
-        SPANISH_ANCORA,
-        Sentences,
-        Zoo("opennlp-es-ud-gsd-sentence-1.3-2.5.4"),
-    ),
+    recipe("turbo-es-ud-ancora-2.16-sentence-1", SPANISH_ANCORA, Sentences, Reference::GoldSentences),
     recipe("turbo-es-ud-ancora-2.16-tokens-1", SPANISH_ANCORA, Tokens, Zoo("opennlp-es-ud-gsd-tokens-1.3-2.5.4")),
     recipe("turbo-es-ud-ancora-2.16-pos-1", SPANISH_ANCORA, Pos, Zoo("opennlp-es-ud-gsd-pos-1.3-2.5.4")),
     recipe("turbo-es-ud-ancora-2.16-lemmas-1", SPANISH_ANCORA, Lemmas, Zoo("opennlp-es-ud-gsd-lemmas-1.3-2.5.4")),
-    recipe(
-        "turbo-ca-ud-ancora-2.16-sentence-1",
-        CATALAN_ANCORA,
-        Sentences,
-        Zoo("opennlp-ca-ud-ancora-sentence-1.3-2.5.4"),
-    ),
+    recipe("turbo-ca-ud-ancora-2.16-sentence-1", CATALAN_ANCORA, Sentences, Reference::GoldSentences),
     recipe("turbo-ca-ud-ancora-2.16-tokens-1", CATALAN_ANCORA, Tokens, Zoo("opennlp-ca-ud-ancora-tokens-1.3-2.5.4")),
     recipe("turbo-ca-ud-ancora-2.16-pos-1", CATALAN_ANCORA, Pos, Zoo("opennlp-ca-ud-ancora-pos-1.3-2.5.4")),
     recipe("turbo-ca-ud-ancora-2.16-lemmas-1", CATALAN_ANCORA, Lemmas, Zoo("opennlp-ca-ud-ancora-lemmas-1.3-2.5.4")),
-    recipe(
-        "turbo-pt-ud-porttinari-2.16-sentence-1",
-        PORTUGUESE_PORTTINARI,
-        Sentences,
-        Zoo("opennlp-pt-ud-gsd-sentence-1.3-2.5.4"),
-    ),
+    recipe("turbo-pt-ud-porttinari-2.16-sentence-1", PORTUGUESE_PORTTINARI, Sentences, Reference::GoldSentences),
     recipe(
         "turbo-pt-ud-porttinari-2.16-tokens-1",
         PORTUGUESE_PORTTINARI,

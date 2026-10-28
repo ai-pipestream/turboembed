@@ -1981,6 +1981,7 @@ dependencies = [
  "turbo-doccat",
  "turbo-goldens",
  "turbo-normalize",
+ "turbo-sentdetect",
  "turbo-tokenize",
  "turbo-unicode",
  "turbo-vector-index",

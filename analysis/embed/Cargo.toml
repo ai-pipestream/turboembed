@@ -24,6 +24,8 @@ turbo-doccat = { path = "../doccat" }
 turbo-coref = { path = "../coref" }
 
 [dev-dependencies]
+# Native sentence boundaries for the mandatory sentence-vector snapshot.
+turbo-sentdetect = { path = "../sentdetect" }
 # The tests build the levels with the chunker crate's builder.
 turbo-chunker = { path = "../chunker" }
 # The JVM's WordPiece goldens, which the pieces are compared with.
