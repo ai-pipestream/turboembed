@@ -2908,6 +2908,7 @@ dependencies = [
  "turbo-tagger",
  "turbo-train-recipes",
  "turbo-trainer",
+ "turbo-zoo",
 ]
 
 [[package]]
