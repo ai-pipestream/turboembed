@@ -208,6 +208,7 @@ fn the_container_gets_the_cases_with_their_prefixes() {
     assert_eq!(cases.len(), r.manifest["reference"]["cases"].as_array().unwrap().len());
     assert_eq!(cases[5], json!({ "text": "how do I reset a password", "prefix": "query: " }));
     assert_eq!(cases[6]["prefix"], "", "the recipe has no document prefix");
+    assert_eq!(c["layers"], r.manifest["architecture"]["layers"], "the container runs the layers the bundle runs");
     fs::remove_dir_all(d).unwrap();
 }
 

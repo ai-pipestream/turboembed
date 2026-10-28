@@ -2368,6 +2368,7 @@ dependencies = [
  "prost",
  "protox",
  "serde_json",
+ "sha2",
  "tokio",
  "tokio-stream",
  "tonic",

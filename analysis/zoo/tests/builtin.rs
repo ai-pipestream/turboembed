@@ -51,14 +51,23 @@ fn trained_here(id: &str) -> bool {
 
 /// The published neural checkpoints the index lists (docs/licences.md,
 /// "Neural annotator checkpoints"): permissive, so nothing to accept.
-pub(crate) const CHECKPOINTS: [&str; 7] = [
-    "fastino-gliner2-base-v1",
+pub(crate) const CHECKPOINTS: [&str; 4] = [
     "microsoft-deberta-v3-large-tokenizer",
-    "urchade-gliner-small-v2.1",
     "microsoft-deberta-v3-small-tokenizer",
-    "urchade-gliner-multi-v2.1",
     "microsoft-mdeberta-v3-base-tokenizer",
     "segment-any-text-sat-3l",
+];
+
+/// The Apache-2.0 checkpoints whose training data is unreleased or
+/// LLM-labelled web text (Kristian, 2026-10-28): local-only, fetched from
+/// their publisher after the user accepts the terms on its card.
+pub(crate) const UNRELEASED_DATA_CHECKPOINTS: [(&str, &str); 3] = [
+    (
+        "fastino-gliner2-base-v1",
+        "https://huggingface.co/fastino/gliner2-base-v1/blob/f9634218e53580c56edf0de97ca1a7d3f1c2354e/README.md",
+    ),
+    ("urchade-gliner-small-v2.1", "https://huggingface.co/datasets/urchade/pile-mistral-v0.1"),
+    ("urchade-gliner-multi-v2.1", "https://huggingface.co/datasets/urchade/pile-mistral-v0.1"),
 ];
 
 /// The share-alike neural checkpoints the index lists: fetched after the user
@@ -117,6 +126,7 @@ fn the_builtin_catalogue_preserves_supported_artifacts() {
     expected.extend(CHECKPOINTS.map(str::to_owned));
     expected.extend(SHARE_ALIKE_CHECKPOINTS.map(str::to_owned));
     expected.extend(LOCAL_CHECKPOINTS.map(str::to_owned));
+    expected.extend(UNRELEASED_DATA_CHECKPOINTS.map(|(id, _)| id.to_owned()));
     expected.extend(LEXICONS.map(str::to_owned));
     expected.extend(EVAL_SETS.map(str::to_owned));
     expected.extend(SHARE_ALIKE_EVAL_SETS.map(str::to_owned));
@@ -155,6 +165,13 @@ fn the_remaining_artifacts_keep_their_licence_requirements() {
                     licence: Licence::RestrictedPublic,
                     text: "https://microsoft.github.io/msmarco/".into(),
                 }],
+                "{}",
+                a.id
+            );
+        } else if let Some((_, terms)) = UNRELEASED_DATA_CHECKPOINTS.iter().find(|(id, _)| *id == a.id.as_str()) {
+            assert_eq!(
+                needs,
+                [turbo_zoo::Requirement { licence: Licence::RestrictedPublic, text: (*terms).into() }],
                 "{}",
                 a.id
             );
