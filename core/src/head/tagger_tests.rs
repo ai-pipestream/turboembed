@@ -263,6 +263,39 @@ fn malformed_dimensions_are_refused_not_panicked_on() {
     let two = Crf::new(2, vec![0.0; 4], vec![0.0; 2], vec![0.0; 2]).unwrap();
     assert_eq!(viterbi(&two, &one_mask, &[0.0; 4], 2, &mut out).unwrap_err().code, INVALID_SHAPE);
     assert!(Crf::new(0, vec![], vec![], vec![]).is_err());
+    // Sizes whose products overflow are refused before anything is read.
+    assert_eq!(Crf::new(usize::MAX, vec![], vec![], vec![]).unwrap_err().code, INVALID_SHAPE);
+    let s = spec(&["A", "B"], Scheme::Tags, WordPooling::First, None, Decode::Argmax);
+    let none = |_: &str| None;
+    assert_eq!(TokenTagger::from_tensors(&s, usize::MAX, &none).unwrap_err().code, INVALID_SHAPE);
+    // Malformed or non-finite CRF scores never reach decode: the only way
+    // to a Crf is `new`, and its state cannot change after.
+    assert_eq!(Crf::new(1, vec![0.0], vec![], vec![0.0]).unwrap_err().code, INVALID_SHAPE);
+    assert_eq!(Crf::new(1, vec![0.0], vec![f32::INFINITY], vec![0.0]).unwrap_err().code, INVALID_ARGUMENT);
+    assert_eq!(Crf::new(1, vec![f32::NAN], vec![0.0], vec![0.0]).unwrap_err().code, INVALID_ARGUMENT);
+    assert_eq!(Crf::new(2, vec![0.0; 3], vec![0.0; 2], vec![0.0; 2]).unwrap_err().code, INVALID_SHAPE);
+}
+
+#[test]
+fn a_head_no_bundle_could_carry_is_not_built() {
+    let w = |s: &HeadSpec| weights(s, 3, &mut Rng(11));
+    let mut bad = Vec::new();
+    let dup = spec(&["A", "A"], Scheme::Tags, WordPooling::First, None, Decode::Argmax);
+    bad.push(dup);
+    let mut no_o = spec(&["B-X", "I-X"], Scheme::Bio, WordPooling::First, None, Decode::Crf);
+    no_o.name = "no-o".into();
+    bad.push(no_o);
+    let mut layer = spec(TAGS, Scheme::Tags, WordPooling::First, None, Decode::Argmax);
+    layer.layer = "opennlp:pos".into();
+    bad.push(layer);
+    let mut adapter = spec(TAGS, Scheme::Tags, WordPooling::First, Some((2, 9)), Decode::Argmax);
+    adapter.name = "deep".into();
+    bad.push(adapter);
+    for s in bad {
+        let ws = w(&s);
+        let get = |k: &str| ws.iter().find(|(n, _)| n == k).map(|(_, v)| v.clone());
+        assert!(TokenTagger::from_tensors(&s, 3, &get).is_err(), "{s:?}");
+    }
 }
 
 #[test]

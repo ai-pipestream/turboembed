@@ -17,6 +17,8 @@ pub const MAX_HEADS: usize = 32;
 pub const MAX_ADAPTER_LAYERS: u32 = 3;
 /// The widest BiLSTM adapter state.
 pub const MAX_ADAPTER_HIDDEN: u32 = 4096;
+/// The most labels one head scores.
+pub const MAX_LABELS: usize = 4096;
 /// The namespace every head's layer id is in.
 pub const LAYER_NAMESPACE: &str = "turboembed:";
 
@@ -136,6 +138,72 @@ fn is_name(s: &str) -> bool {
     !s.is_empty() && s.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_' || b == b'-')
 }
 
+impl HeadSpec {
+    /// The rules a head meets on its own, whatever bundle carries it, with
+    /// `at` the field path its errors name (`heads[0]`). A trainer checks
+    /// a head by these before it builds one, so it never makes a head no
+    /// bundle could carry.
+    pub fn validate(&self, at: &str) -> Result<()> {
+        let at = |field: &str| format!("{at}.{field}");
+        required(&at("name"), &self.name)?;
+        fits(&at("name"), &self.name, 64)?;
+        if !is_name(&self.name) {
+            return Err(invalid(format!(
+                "manifest.json: {}: {:?} is not lowercase ASCII letters, digits, '_' and '-'",
+                at("name"),
+                self.name
+            )));
+        }
+        required(&at("layer"), &self.layer)?;
+        fits(&at("layer"), &self.layer, 128)?;
+        if self.layer.strip_prefix(LAYER_NAMESPACE).is_none_or(|rest| !is_name(rest)) {
+            return Err(invalid(format!(
+                "manifest.json: {}: {:?} is not {LAYER_NAMESPACE} and a lowercase name",
+                at("layer"),
+                self.layer
+            )));
+        }
+        required(&at("tensor_prefix"), &self.tensor_prefix)?;
+        fits(&at("tensor_prefix"), &self.tensor_prefix, 128)?;
+        if self.labels.is_empty() || self.labels.len() > MAX_LABELS {
+            return Err(invalid(format!(
+                "manifest.json: {}: {} labels, 1 to {MAX_LABELS}",
+                at("labels"),
+                self.labels.len()
+            )));
+        }
+        for (j, l) in self.labels.iter().enumerate() {
+            let field = at(&format!("labels[{j}]"));
+            required(&field, l)?;
+            fits(&field, l, 128)?;
+            if self.labels[..j].contains(l) {
+                return Err(invalid(format!("manifest.json: {field}: {l:?} is listed twice")));
+            }
+            if self.scheme.part(l).is_none() {
+                return Err(invalid(format!("manifest.json: {field}: {l:?} is not a label of {:?}", self.scheme)));
+            }
+        }
+        // With an outside label every length has a sequence the scheme
+        // admits, so a CRF decode always has an answer.
+        if self.scheme != Scheme::Tags && !self.labels.iter().any(|l| l == "O") {
+            return Err(invalid(format!("manifest.json: {}: {:?} needs the label \"O\"", at("labels"), self.scheme)));
+        }
+        if let Some(a) = &self.adapter {
+            positive(&at("adapter.bilstm.hidden"), a.bilstm.hidden)?;
+            positive(&at("adapter.bilstm.layers"), a.bilstm.layers)?;
+            if a.bilstm.hidden > MAX_ADAPTER_HIDDEN || a.bilstm.layers > MAX_ADAPTER_LAYERS {
+                return Err(invalid(format!(
+                    "manifest.json: {}: hidden {} and layers {}; at most {MAX_ADAPTER_HIDDEN} and {MAX_ADAPTER_LAYERS}",
+                    at("adapter.bilstm"),
+                    a.bilstm.hidden,
+                    a.bilstm.layers
+                )));
+            }
+        }
+        Ok(())
+    }
+}
+
 impl Manifest {
     pub(super) fn validate_heads(&self) -> Result<()> {
         if self.heads.is_empty() {
@@ -149,59 +217,9 @@ impl Manifest {
         }
         for (i, h) in self.heads.iter().enumerate() {
             let at = |field: &str| format!("heads[{i}].{field}");
-            required(&at("name"), &h.name)?;
-            fits(&at("name"), &h.name, 64)?;
-            if !is_name(&h.name) {
-                return Err(invalid(format!(
-                    "manifest.json: {}: {:?} is not lowercase ASCII letters, digits, '_' and '-'",
-                    at("name"),
-                    h.name
-                )));
-            }
+            h.validate(&format!("heads[{i}]"))?;
             if self.heads[..i].iter().any(|o| o.name == h.name) {
                 return Err(invalid(format!("manifest.json: {}: {:?} names two heads", at("name"), h.name)));
-            }
-            required(&at("layer"), &h.layer)?;
-            fits(&at("layer"), &h.layer, 128)?;
-            if h.layer.strip_prefix(LAYER_NAMESPACE).is_none_or(|rest| !is_name(rest)) {
-                return Err(invalid(format!(
-                    "manifest.json: {}: {:?} is not {LAYER_NAMESPACE} and a lowercase name",
-                    at("layer"),
-                    h.layer
-                )));
-            }
-            required(&at("tensor_prefix"), &h.tensor_prefix)?;
-            fits(&at("tensor_prefix"), &h.tensor_prefix, 128)?;
-            if h.labels.is_empty() {
-                return Err(invalid(format!("manifest.json: {}: empty", at("labels"))));
-            }
-            for (j, l) in h.labels.iter().enumerate() {
-                let field = format!("heads[{i}].labels[{j}]");
-                required(&field, l)?;
-                fits(&field, l, 128)?;
-                if h.labels[..j].contains(l) {
-                    return Err(invalid(format!("manifest.json: {field}: {l:?} is listed twice")));
-                }
-                if h.scheme.part(l).is_none() {
-                    return Err(invalid(format!("manifest.json: {field}: {l:?} is not a label of {:?}", h.scheme)));
-                }
-            }
-            // With an outside label every length has a sequence the scheme
-            // admits, so a CRF decode always has an answer.
-            if h.scheme != Scheme::Tags && !h.labels.iter().any(|l| l == "O") {
-                return Err(invalid(format!("manifest.json: {}: {:?} needs the label \"O\"", at("labels"), h.scheme)));
-            }
-            if let Some(a) = &h.adapter {
-                positive(&at("adapter.bilstm.hidden"), a.bilstm.hidden)?;
-                positive(&at("adapter.bilstm.layers"), a.bilstm.layers)?;
-                if a.bilstm.hidden > MAX_ADAPTER_HIDDEN || a.bilstm.layers > MAX_ADAPTER_LAYERS {
-                    return Err(invalid(format!(
-                        "manifest.json: {}: hidden {} and layers {}; at most {MAX_ADAPTER_HIDDEN} and {MAX_ADAPTER_LAYERS}",
-                        at("adapter.bilstm"),
-                        a.bilstm.hidden,
-                        a.bilstm.layers
-                    )));
-                }
             }
             match self.artifacts.iter().find(|a| a.name == h.artifact) {
                 Some(a) if a.format == Format::Safetensors => {}

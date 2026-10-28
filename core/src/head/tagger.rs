@@ -126,8 +126,9 @@ impl TokenTagger {
         if spec.kind != HeadKind::TokenTagger {
             return Err(invalid(format!("head {:?} is not a token tagger", spec.name)));
         }
-        if hidden == 0 || spec.labels.is_empty() {
-            return Err(invalid(format!("head {:?}: hidden {hidden} and {} labels", spec.name, spec.labels.len())));
+        spec.validate("head")?;
+        if hidden == 0 {
+            return Err(invalid(format!("head {:?}: hidden 0", spec.name)));
         }
         let take = |suffix: &str, len: u64| -> Result<Vec<f32>> {
             let v = get(suffix).ok_or_else(|| invalid(format!("head {:?}: no tensor {suffix}", spec.name)))?;
@@ -139,9 +140,18 @@ impl TokenTagger {
             }
             Ok(v)
         };
-        let size = |shape: &[u64]| shape.iter().product::<u64>();
+        // Each tensor's size, checked, so a width past what memory could
+        // hold is refused before anything is read.
         let shapes = tensors(spec, hidden);
-        let shape = |suffix: &str| size(&shapes.iter().find(|(s, _)| s == suffix).expect("listed").1);
+        let mut sizes = Vec::with_capacity(shapes.len());
+        for (suffix, dims) in &shapes {
+            let n = dims.iter().try_fold(1u64, |a, &d| a.checked_mul(d)).filter(|&n| usize::try_from(n).is_ok());
+            let n = n.ok_or_else(|| {
+                Error::new(INVALID_SHAPE, format!("head {:?}: {suffix} {dims:?} is too large", spec.name))
+            })?;
+            sizes.push((suffix.as_str(), n));
+        }
+        let shape = |suffix: &str| sizes.iter().find(|(s, _)| *s == suffix).expect("listed").1;
         let mut adapter = Vec::new();
         let mut width = hidden;
         if let Some(a) = &spec.adapter {
