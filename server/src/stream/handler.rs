@@ -65,7 +65,7 @@ pub(crate) fn doc_options(output: i32, offsets: i32, o: Option<&AnalyzeOptions>)
             TURBO_E_INVALID_ENUM,
             0,
             format!(
-                "output {output}: not one of ANALYZE_OUTPUT_VECTORS, ANALYZE_OUTPUT_SPARSE_TERMS, ANALYZE_OUTPUT_TOKEN_VECTORS"
+                "output {output}: not one of ANALYZE_OUTPUT_VECTORS, ANALYZE_OUTPUT_SPARSE_TERMS, ANALYZE_OUTPUT_TOKEN_VECTORS, ANALYZE_OUTPUT_VECTOR_CODES"
             ),
         )
     })?;
@@ -79,11 +79,22 @@ pub(crate) fn doc_options(output: i32, offsets: i32, o: Option<&AnalyzeOptions>)
             format!("sparse_floor {}: must be a finite number >= 0", raw.sparse_floor),
         ));
     }
-    if raw.quantization > TURBO_QUANTIZE_NONE && output != AnalyzeOutput::Vectors {
+    if raw.quantization > TURBO_QUANTIZE_NONE && !matches!(output, AnalyzeOutput::Vectors | AnalyzeOutput::VectorCodes)
+    {
         return Err(Failure::new(
             TURBO_E_UNSUPPORTED_OPTION,
             7,
             format!("quantization {}: sparse terms and token vectors are f32 alone", raw.quantization),
+        ));
+    }
+    if output == AnalyzeOutput::VectorCodes && raw.quantization <= TURBO_QUANTIZE_NONE {
+        return Err(Failure::new(
+            TURBO_E_UNSUPPORTED_OPTION,
+            7,
+            format!(
+                "quantization {}: vector codes need TURBO_QUANTIZE_INT8 or TURBO_QUANTIZE_UBINARY",
+                raw.quantization
+            ),
         ));
     }
     let int8_ranges = (!raw.int8_ranges.is_empty()).then(|| Arc::from(raw.int8_ranges.as_slice()));
