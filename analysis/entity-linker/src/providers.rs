@@ -87,6 +87,16 @@ impl CatalogProvider {
         &self.kb
     }
 
+    /// Deterministic fuzzy-index work for `mention_text` at `fuzzy_threshold`.
+    ///
+    /// Folds the mention the same way [`KbProvider::generate_candidates`] does,
+    /// then reports [`crate::FuzzyLookupWork`] from the catalog's fuzzy index.
+    pub fn fuzzy_lookup_work(&self, mention_text: &str, fuzzy_threshold: f64) -> crate::FuzzyLookupWork {
+        let query_folded = fold_alias(mention_text);
+        let threshold = fuzzy_threshold.clamp(0.0, 1.0);
+        self.kb.fuzzy_lookup_work(&query_folded, threshold)
+    }
+
     fn candidate_from_idx(
         &self,
         idx: u32,
