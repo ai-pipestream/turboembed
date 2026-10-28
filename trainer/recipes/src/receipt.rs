@@ -49,6 +49,11 @@ pub struct EncoderRecord {
     /// The SHA-256 of the bundle's `manifest.json`, which pins every file.
     pub manifest_sha256: String,
     pub hidden: usize,
+    /// The encoder layers run (`architecture.layers`): a bundle cut at a
+    /// middle layer differs from the full one only here and in its
+    /// manifest digest.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub layers: Option<u32>,
     /// Pieces a row holds beside its special tokens.
     pub width: usize,
     pub backend: String,
@@ -101,9 +106,20 @@ pub struct EvalRecord {
 #[serde(deny_unknown_fields)]
 pub struct Timing {
     pub read: f64,
+    /// Reading the train and dev words through the encoder: exactly
+    /// `feature_words` words.
     pub features: f64,
     pub train: f64,
     pub eval: f64,
+    #[serde(default)]
+    pub feature_words: u64,
+}
+
+impl Timing {
+    /// Words read through the encoder a second, or None when none were.
+    pub fn words_per_s(&self) -> Option<f64> {
+        (self.feature_words > 0 && self.features > 0.0).then(|| self.feature_words as f64 / self.features)
+    }
 }
 
 /// This machine's name, from `HOSTNAME` or `/etc/hostname`, or "unknown".
