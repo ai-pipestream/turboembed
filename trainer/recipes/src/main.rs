@@ -24,10 +24,12 @@ use turbo::manifest::{HashEmbed, WordPooling};
 use turbo_analysis_embed::{Device, EncoderOptions, Precision};
 use turbo_tagger::WordEncoder;
 use turbo_trainer::Config;
-use turbo_trainer_recipes::corpus::{Corpus, Task};
+use turbo_trainer_recipes::corpus::{Sentence, Task};
 use turbo_trainer_recipes::eval::{Majority, Seen, bootstrap, evaluate};
 use turbo_trainer_recipes::receipt::*;
-use turbo_trainer_recipes::run::{HASH_ROWS, HeadOptions, examples, named, predict, replace, spec, write};
+use turbo_trainer_recipes::run::{
+    CHECKPOINT_DEV, CHECKPOINT_EPOCH, HASH_ROWS, HeadOptions, examples, named, predict, replace, spec, write,
+};
 use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
 const RESAMPLES: usize = 1000;
@@ -100,7 +102,7 @@ fn run(argv: Vec<String>) -> Result<()> {
             let c = read_corpus(&corpus_id, &dir, unrecorded)?;
             let read = t.elapsed().as_secs_f64();
             let t = Instant::now();
-            let base = baseline(&c);
+            let base = baseline(&c.splits.train, &c.splits.test);
             let receipt = Receipt {
                 schema: SCHEMA.into(),
                 command: argv.clone(),
@@ -204,9 +206,10 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     let features = t.elapsed().as_secs_f64();
     let feature_words = train_ex.iter().chain(&dev_ex).map(|e| e.labels.len() as u64).sum();
 
-    // The best epoch's head is on disk whenever it improves, with
-    // checkpoint.json naming the epoch, so a run stopped midway keeps it;
-    // from the first one on, the directory stays even if the run fails.
+    // The best epoch's head is on disk whenever it improves, the epoch and
+    // its dev score in the same file's metadata, so a run stopped midway
+    // keeps a head and the epoch it is from, replaced together by one
+    // rename; from the first one on, the directory stays if the run fails.
     let t = Instant::now();
     let spec_json = serde_json::to_vec_pretty(&head).expect("a head spec serializes");
     let hidden = enc.hidden();
@@ -215,13 +218,12 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         let dir = out.path.clone();
         let mut saved = false;
         let mut save = |m: &turbo_trainer::Tagger<f32>, epoch: usize, dev: f64| -> turbo_trainer_recipes::Result<()> {
-            replace(&dir, "head.safetensors", &safetensors::write(&named(&head, hidden, m.tensors())))?;
             if !saved {
                 replace(&dir, "head.json", &spec_json)?;
                 saved = true;
             }
-            let at = serde_json::json!({ "best_epoch": epoch, "dev": dev });
-            replace(&dir, "checkpoint.json", at.to_string().as_bytes())?;
+            let at = [(CHECKPOINT_EPOCH, epoch.to_string()), (CHECKPOINT_DEV, dev.to_string())];
+            replace(&dir, "head.safetensors", &safetensors::write_with(&named(&head, hidden, m.tensors()), &at))?;
             Ok(())
         };
         let r = turbo_trainer::fit_with(&head, hidden, &train_ex, &dev_ex, &c, &mut |m, e, d| {
@@ -237,7 +239,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     let tagger = model.to_token_tagger().map_err(|e| Error(e.message))?;
     let test = &corpus.splits.test;
     let predicted = predict(&mut enc, &tagger, test)?;
-    let base = baseline(&corpus);
+    let base = baseline(train_set, test);
     let seen = Seen::of(train_set);
     let task: Task = corpus.record.task;
     let eval = EvalRecord {
@@ -250,7 +252,6 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
 
     let weights = safetensors::write(&named(&head, enc.hidden(), model.tensors()));
     let outputs = vec![replace(&out.path, "head.safetensors", &weights)?, replace(&out.path, "head.json", &spec_json)?];
-    let _ = std::fs::remove_file(out.path.join("checkpoint.json"));
     let receipt = Receipt {
         schema: SCHEMA.into(),
         command: argv.to_vec(),
@@ -287,10 +288,11 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     finish(out, receipt)
 }
 
-/// The majority baseline's labels for the test split.
-fn baseline(c: &Corpus) -> Vec<Vec<String>> {
-    let m = Majority::train(&c.splits.train);
-    c.splits.test.iter().map(|s| m.predict(&s.words)).collect()
+/// The labels for `test` of the majority baseline learned from `train`,
+/// the sentences the model is given, so the two compare on equal data.
+fn baseline(train: &[Sentence], test: &[Sentence]) -> Vec<Vec<String>> {
+    let m = Majority::train(train);
+    test.iter().map(|s| m.predict(&s.words)).collect()
 }
 
 fn encoder_record(bundle: &Path, enc: &WordEncoder) -> Result<EncoderRecord> {
@@ -347,7 +349,7 @@ impl Drop for OutDir {
 
 /// Whether a checkpoint was written into `dir`.
 fn saved_any(dir: &Path) -> bool {
-    dir.join("checkpoint.json").is_file()
+    dir.join("head.safetensors").is_file()
 }
 
 fn commit(given: Option<String>) -> String {
