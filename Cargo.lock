@@ -2879,6 +2879,7 @@ dependencies = [
  "turbo-tokenize",
  "turbo-train",
  "turbo-train-components",
+ "turbo-trainer",
  "turbo-unicode",
  "turbo-zoo",
 ]

@@ -66,6 +66,7 @@ pub mod error;
 pub mod fineweb;
 pub mod langdetect;
 pub mod langdetect_web;
+pub mod langid;
 pub mod masc;
 pub mod namefind;
 pub mod namefind_eval;
