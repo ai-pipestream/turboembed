@@ -77,11 +77,16 @@ pub fn parse_conllu(text: &str) -> Result<Vec<ConlluSentence>> {
     let mut out = Vec::new();
     let mut current = ConlluSentence::default();
     let mut started = false;
+    let mut token_lines: Vec<usize> = Vec::new();
+    let mut expected_id = 1u32;
     for (line_no, line) in text.lines().enumerate() {
         let line_no = line_no + 1;
         if line.is_empty() {
             if started {
+                validate_heads(&current, &token_lines)?;
                 out.push(std::mem::take(&mut current));
+                token_lines.clear();
+                expected_id = 1;
                 started = false;
             }
             continue;
@@ -101,29 +106,69 @@ pub fn parse_conllu(text: &str) -> Result<Vec<ConlluSentence>> {
             return Err(format!("line {line_no}: expected 10 CoNLL-U fields, got {}", fields.len()));
         }
         if fields[0].contains('-') || fields[0].contains('.') {
+            // A multiword range covers the next word ids; an empty node
+            // sits between them. Neither is a scored word, but a range
+            // must start where the next word id belongs.
+            if let Some((a, b)) = fields[0].split_once('-') {
+                let (a, b) = (a.parse::<u32>(), b.parse::<u32>());
+                match (a, b) {
+                    (Ok(a), Ok(b)) if a == expected_id && b >= a => {}
+                    _ => {
+                        return Err(format!(
+                            "line {line_no}: multiword id {:?} does not cover word {expected_id}",
+                            fields[0]
+                        ));
+                    }
+                }
+            }
+            started = true;
             continue;
         }
-        if fields[0].parse::<u32>().is_err() {
-            return Err(format!("line {line_no}: token id {:?} is not a positive integer", fields[0]));
+        let id = fields[0]
+            .parse::<u32>()
+            .map_err(|_| format!("line {line_no}: token id {:?} is not a positive integer", fields[0]))?;
+        if id != expected_id {
+            return Err(format!("line {line_no}: token id {id}, expected {expected_id}"));
         }
+        expected_id += 1;
+        let head = match fields[6] {
+            "_" => None,
+            raw => Some(raw.parse::<i64>().map_err(|_| format!("line {line_no}: head {raw:?} is not an integer"))?),
+        };
         started = true;
+        token_lines.push(line_no);
         current.tokens.push(ConlluToken {
             form: fields[1].to_string(),
             lemma: fields[2].to_string(),
             upos: fields[3].to_string(),
             xpos: fields[4].to_string(),
             feats: fields[5].to_string(),
-            head: fields[6].parse::<i64>().ok(),
+            head,
             deprel: fields[7].to_string(),
         });
     }
     if started {
+        validate_heads(&current, &token_lines)?;
         out.push(current);
     }
     if out.is_empty() {
         return Err("no CoNLL-U sentences".into());
     }
     Ok(out)
+}
+
+/// Every stated head must name the root (0) or another word of its
+/// sentence, so flattening can safely read HEAD as a row position.
+fn validate_heads(sentence: &ConlluSentence, token_lines: &[usize]) -> Result<()> {
+    let len = sentence.tokens.len() as i64;
+    for (i, token) in sentence.tokens.iter().enumerate() {
+        if let Some(head) = token.head
+            && (head < 0 || head > len || head == i as i64 + 1)
+        {
+            return Err(format!("line {}: head {head} does not name the root or another word", token_lines[i]));
+        }
+    }
+    Ok(())
 }
 
 /// One metric of one system: pooled counts, the score in points, and a
@@ -216,25 +261,9 @@ pub fn score_conllu(system: &str, gold: &[ConlluSentence], pred: &[ConlluSentenc
         gold_to_pred[g] = Some(p);
         pred_to_gold[p] = Some(g);
     }
-    // Sentence boundaries: a gold sentence-final token (other than the
-    // file's last) whose aligned partner is also sentence-final.
-    let mut sent_counts = Counts::default();
-    for (i, t) in gold_flat.iter().enumerate() {
-        if t.sentence_end && i + 1 < gold_flat.len() {
-            sent_counts.target += 1;
-            if let Some(p) = gold_to_pred[i] {
-                sent_counts.true_positives += pred_flat[p].sentence_end as u64;
-            }
-        }
-    }
-    sent_counts.selected =
-        pred_flat.iter().enumerate().filter(|(i, t)| t.sentence_end && *i + 1 < pred_flat.len()).count() as u64;
-
     let doc_of_gold = |g: usize| gold_docs.partition_point(|&(_, end)| end <= g);
-    let mut units: Vec<[Counts; 7]> = vec![[Counts::default(); 7]; gold_docs.len()];
-    // Predicted tokens join the gold document of the nearest
-    // following-or-preceding aligned pair for per-document counts; the
-    // pooled totals do not depend on this attribution.
+    // Predicted tokens join the gold document of the nearest preceding
+    // aligned pair, for the boundary rule and per-document counts.
     let mut pred_doc = vec![0usize; pred_flat.len()];
     let mut current = 0usize;
     for (p, slot) in pred_doc.iter_mut().enumerate() {
@@ -243,6 +272,32 @@ pub fn score_conllu(system: &str, gold: &[ConlluSentence], pred: &[ConlluSentenc
         }
         *slot = current;
     }
+    // Sentence boundaries are within-document on every path of this
+    // bench: a boundary is eligible only if more of its document
+    // follows it (by gold position on the gold side; by the last
+    // aligned predicted token of the attributed gold document on the
+    // predicted side, whose own document markers peer files may not
+    // carry). The same eligibility feeds all three counts, so a
+    // truncated prediction earns nothing for ending where it stopped.
+    let gold_eligible = |i: usize| gold_flat[i].sentence_end && i + 1 < gold_docs[doc_of_gold(i)].1;
+    let mut doc_last_pred: Vec<Option<usize>> = vec![None; gold_docs.len()];
+    for &(g, p) in &pairs {
+        let last = &mut doc_last_pred[doc_of_gold(g)];
+        *last = Some((*last).map_or(p, |l| l.max(p)));
+    }
+    let pred_eligible = |p: usize| pred_flat[p].sentence_end && doc_last_pred[pred_doc[p]].is_some_and(|last| p < last);
+    let mut sent_counts = Counts::default();
+    for (i, partner) in gold_to_pred.iter().enumerate() {
+        if gold_eligible(i) {
+            sent_counts.target += 1;
+            if let Some(p) = partner {
+                sent_counts.true_positives += pred_eligible(*p) as u64;
+            }
+        }
+    }
+    sent_counts.selected = (0..pred_flat.len()).filter(|&p| pred_eligible(p)).count() as u64;
+
+    let mut units: Vec<[Counts; 7]> = vec![[Counts::default(); 7]; gold_docs.len()];
     for (doc, &(start, end)) in gold_docs.iter().enumerate() {
         units[doc][0].target = (end - start) as u64;
         for field in units[doc].iter_mut().skip(1) {
@@ -261,7 +316,13 @@ pub fn score_conllu(system: &str, gold: &[ConlluSentence], pred: &[ConlluSentenc
         unit[2].true_positives += (pt.xpos == gt.xpos) as u64;
         unit[3].true_positives += (pt.feats == gt.feats) as u64;
         unit[4].true_positives += (pt.lemma == gt.lemma) as u64;
-        let pred_head = pred_flat[p].head.map(|head| head.and_then(|hp| pred_to_gold[hp]));
+        // Some(None) is a stated root, Some(Some(g)) an aligned
+        // governor, and None a missing or unaligned one: only the
+        // first two can ever equal the gold head.
+        let pred_head = pred_flat[p].head.and_then(|head| match head {
+            None => Some(None),
+            Some(hp) => pred_to_gold[hp].map(Some),
+        });
         let right_head = pred_head.is_some() && pred_head == gold_flat[g].head;
         unit[5].true_positives += right_head as u64;
         unit[6].true_positives += (right_head && pt.deprel == gt.deprel) as u64;
@@ -439,7 +500,7 @@ pub fn command(args: &[String]) -> Result<()> {
         resamples,
         seed: BOOTSTRAP_SEED,
         conditioning: vec![
-            "sentences: boundary F1 on form-aligned tokens for CoNLL-U predictions; boundary F1 in per-document space-joined # text coordinates for sentence tiers".into(),
+            "sentences: within-document boundary F1 (a document's final sentence end is never a boundary) on form-aligned tokens for CoNLL-U predictions; in per-document space-joined # text coordinates for sentence tiers".into(),
             "fields: gold denominators; gold and predicted token streams aligned by form with bounded resync; an unaligned gold token scores zero on every field; gold sentences containing one are counted".into(),
             "uas/las: punctuation included".into(),
             "bootstrap: per-document pooled resampling for token-aligned metrics".into(),

@@ -23,7 +23,7 @@ UD English-EWT test file: `spacy-en-ewt-test.json`,
   `sha256:ac75f6a5866cad276de5aef167ccbe27cfb82d49a3f5a027e63090f94315ac7b`).
   Predictions SHA-256:
   `488c7b5e51c08e6f1b612e6f139514e472ca85e544f22cf52130f99f9c21f785`.
-  Sentences 82.52 F1, UPOS 91.74. Per the issue, spaCy is compared
+  Sentences 80.05 F1, UPOS 91.74. Per the issue, spaCy is compared
   on sentences and UPOS here (and NER once entity inputs land); the
   remaining columns stay in the JSON for completeness under the
   label-scheme caveat below.
@@ -34,7 +34,7 @@ UD English-EWT test file: `spacy-en-ewt-test.json`,
   `sha256:bd8fb6da4c3c2dc05f9477be3adc78be4ed5b332bb1552f45e0f2bcd2fe7a286`).
   Predictions SHA-256:
   `9c617b026c9b1489fda5e9653e17cd238d67c18ede50fbb1a3ceb5c0e5fa1126`.
-  Sentences 85.41 F1, UPOS 92.96, under the same comparison rule.
+  Sentences 83.48 F1, UPOS 92.96, under the same comparison rule.
 - Peer: Stanza 1.10.1 with the English default models
   (`tokenize,mwt,pos,lemma,depparse`) on CPU torch 2.6.0, in the
   pinned container built from `analysis/eval/reference/peers/stanza/`
@@ -64,7 +64,7 @@ UD English-EWT test file: `spacy-en-ewt-test.json`,
   mirror pinned by revision; the Dockerfile records that revision.
 - Trankit predictions SHA-256:
   `2c14aae8c6ae8d90a03996dcb3a48221916ccb0195c2be2dd8ff4891522314df`.
-  Headlines: sentences 93.43 F1, tokens 98.42, UPOS 94.94, XPOS
+  Headlines: sentences 92.66 F1, tokens 98.42, UPOS 94.94, XPOS
   95.38, feats 84.51, lemma 93.17, UAS 86.82, LAS 83.39.
 - Ours: the SaT sentence tier (`--sentences sat`) on CPU with model
   precision, bundle `segment-any-text/sat-1l-sm` revision 1, source
@@ -164,7 +164,7 @@ prediction SHA-256s es
 `8f911076cb63e618eacf33990699fb7dc459e22c3a027300d8dcb42eaaa0a146`,
 ca
 `3940baab9db0ca7392785186bdf21d13b07250303238b9f65a6262823d109850`).
-Spanish: sentences 99.74, LAS 83.43. Catalan: sentences 99.89, LAS
+Spanish: sentences 99.71, LAS 83.43. Catalan: sentences 99.88, LAS
 82.32. On both, Trankit's XPOS column repeats its UPOS while AnCora
 gold XPOS is the EAGLES tagset, so XPOS scores exactly 0.00 there;
 that is a tagset difference, not a tagging failure.
@@ -219,3 +219,14 @@ docker run --rm --network none -v <gold-dir>:/gold:ro -v <out-dir>:/out \
 
 Recorded 2026-10-28 under load average about 31 to 36 (accuracy
 record; no timing claimed).
+
+Scoring correction: sentence boundaries are within-document on
+every bench path (a document's final sentence end is never a
+boundary, for targets and selected alike). An earlier scorer let
+the CoNLL-U path count file-final style boundaries the tiers never
+counted, which also let truncated predictions earn unselected
+credit and collapsed an unaligned governor to a root in UAS. All
+CoNLL-U records above were re-scored from their existing
+prediction files under the corrected scorer; EWT sentence scores
+moved down by up to about two points (316 documents), the other
+splits by hundredths, LAS unchanged to two decimals.

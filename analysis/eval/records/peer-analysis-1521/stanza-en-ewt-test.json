@@ -7,7 +7,7 @@
   "resamples": 1000,
   "seed": 42,
   "conditioning": [
-    "sentences: boundary F1 on form-aligned tokens for CoNLL-U predictions; boundary F1 in per-document space-joined # text coordinates for sentence tiers",
+    "sentences: within-document boundary F1 (a document's final sentence end is never a boundary) on form-aligned tokens for CoNLL-U predictions; in per-document space-joined # text coordinates for sentence tiers",
     "fields: gold denominators; gold and predicted token streams aligned by form with bounded resync; an unaligned gold token scores zero on every field; gold sentences containing one are counted",
     "uas/las: punctuation included",
     "bootstrap: per-document pooled resampling for token-aligned metrics"
@@ -16,10 +16,10 @@
     {
       "system": "stanza-1.10.1-en",
       "sentences": {
-        "correct": 1664,
-        "selected": 1709,
-        "target": 2076,
-        "score": 87.92602377807133,
+        "correct": 1353,
+        "selected": 1394,
+        "target": 1761,
+        "score": 85.76862123613313,
         "low": null,
         "high": null
       },
@@ -64,12 +64,12 @@
         "high": 96.51476155098258
       },
       "uas": {
-        "correct": 21789,
+        "correct": 21779,
         "selected": 25094,
         "target": 25094,
-        "score": 86.8295210010361,
-        "low": 85.45327460378749,
-        "high": 88.11079045063362
+        "score": 86.78967083765043,
+        "low": 85.40655625908177,
+        "high": 88.07916758118657
       },
       "las": {
         "correct": 21172,
@@ -111,7 +111,7 @@
         "tokens/fields: a sentence tier writes no token fields"
       ],
       "token_mismatch_sentences": 0,
-      "throughput_sentences_per_second": 1119992.3212851926
+      "throughput_sentences_per_second": 1053362.951242025
     }
   ]
 }

@@ -28,6 +28,68 @@ fn parse_skips_multiword_ranges_and_keeps_sentence_text() {
 }
 
 #[test]
+fn truncated_predictions_earn_no_boundary_credit() {
+    let one = |word: &str| format!("1\t{word}\t{word}\tNOUN\tNN\t_\t0\troot\t_\t_\n\n");
+    let gold = parse_conllu(&format!("{}{}{}", one("Cats"), one("Dogs"), one("Birds"))).unwrap();
+    let pred = parse_conllu(&format!("{}{}", one("Cats"), one("Dogs"))).unwrap();
+    let scores = score_conllu("truncated", &gold, &pred, 0);
+    assert_eq!(scores.sentences.correct, 1);
+    assert_eq!(scores.sentences.selected, 1);
+    assert_eq!(scores.sentences.target, 2);
+    assert!(scores.sentences.score <= 100.0);
+}
+
+#[test]
+fn an_unaligned_governor_is_not_a_root() {
+    let gold = parse_conllu("1\tCats\tcat\tNOUN\tNN\t_\t0\troot\t_\t_\n").unwrap();
+    let pred = parse_conllu(concat!(
+        "1\tNoise\tnoise\tNOUN\tNN\t_\t0\troot\t_\t_\n",
+        "2\tCats\tcat\tNOUN\tNN\t_\t1\tdep\t_\t_\n",
+    ))
+    .unwrap();
+    let scores = score_conllu("noisy", &gold, &pred, 0);
+    assert_eq!(scores.uas.unwrap().score, 0.0);
+    assert_eq!(scores.las.unwrap().score, 0.0);
+}
+
+#[test]
+fn boundary_populations_agree_across_paths() {
+    let one = |word: &str| format!("1\t{word}\t{word}\tNOUN\tNN\t_\t0\troot\t_\t_\n\n");
+    let text = |word: &str| format!("# text = {word}\n{}", one(word));
+    let gold = parse_conllu(&format!(
+        "# newdoc id = a\n{}{}# newdoc id = b\n{}{}",
+        text("Cats"),
+        text("Dogs"),
+        text("Birds"),
+        text("Fish")
+    ))
+    .unwrap();
+    let by_conllu = score_conllu("self", &gold, &gold, 0);
+    assert_eq!(by_conllu.sentences.target, 2, "one within-document boundary per document");
+    assert_eq!(by_conllu.sentences.score, 100.0);
+    let listed = parse_sentence_list("Cats\nDogs\n\nBirds\nFish\n");
+    let by_list = score_sentence_list("self", &gold, &listed).unwrap();
+    assert_eq!(by_list.sentences.target, by_conllu.sentences.target);
+}
+
+#[test]
+fn malformed_word_ids_and_heads_are_refused() {
+    let row = |id: &str, head: &str| format!("{id}\tA\ta\tNOUN\tNN\t_\t{head}\troot\t_\t_\n");
+    for bad in [
+        row("0", "0"),
+        format!("{}{}", row("1", "0"), row("1", "1")),
+        format!("{}{}", row("1", "0"), row("3", "1")),
+        row("1", "9"),
+        row("1", "1"),
+        row("1", "-1"),
+        row("1", "x"),
+    ] {
+        let err = parse_conllu(&bad).unwrap_err();
+        assert!(err.contains("line "), "{err} for {bad:?}");
+    }
+}
+
+#[test]
 fn malformed_rows_are_refused_with_the_line_number() {
     let err = parse_conllu("1\tCats\tcat\n").unwrap_err();
     assert!(err.contains("line 1"), "{err}");

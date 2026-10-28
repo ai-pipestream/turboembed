@@ -7,7 +7,7 @@
   "resamples": 1000,
   "seed": 42,
   "conditioning": [
-    "sentences: boundary F1 on form-aligned tokens for CoNLL-U predictions; boundary F1 in per-document space-joined # text coordinates for sentence tiers",
+    "sentences: within-document boundary F1 (a document's final sentence end is never a boundary) on form-aligned tokens for CoNLL-U predictions; in per-document space-joined # text coordinates for sentence tiers",
     "fields: gold denominators; gold and predicted token streams aligned by form with bounded resync; an unaligned gold token scores zero on every field; gold sentences containing one are counted",
     "uas/las: punctuation included",
     "bootstrap: per-document pooled resampling for token-aligned metrics"
@@ -16,10 +16,10 @@
     {
       "system": "trankit-1.1.2-catalan",
       "sentences": {
-        "correct": 1843,
-        "selected": 1845,
-        "target": 1845,
-        "score": 99.89159891598915,
+        "correct": 1657,
+        "selected": 1659,
+        "target": 1659,
+        "score": 99.87944544906571,
         "low": null,
         "high": null
       },
@@ -64,12 +64,12 @@
         "high": 93.65193542169798
       },
       "uas": {
-        "correct": 52366,
+        "correct": 52365,
         "selected": 59610,
         "target": 59610,
-        "score": 87.84767656433485,
-        "low": 87.01698306839963,
-        "high": 88.55517412153955
+        "score": 87.84599899345747,
+        "low": 87.01362678612766,
+        "high": 88.55347281464744
       },
       "las": {
         "correct": 49073,
@@ -111,7 +111,7 @@
         "tokens/fields: a sentence tier writes no token fields"
       ],
       "token_mismatch_sentences": 0,
-      "throughput_sentences_per_second": 308223.9870058377
+      "throughput_sentences_per_second": 456253.8788376549
     }
   ]
 }
