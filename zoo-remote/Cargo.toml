@@ -1,0 +1,30 @@
+[package]
+name = "turbo-zoo-remote"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lib]
+name = "turbo_zoo_remote"
+
+[dependencies]
+turbo-zoo = { path = "../analysis/zoo", default-features = false }
+# The zoo server's client, over the tonic stack the server already uses
+# (outside analysis/, whose crates keep to the plain dependency allowlist);
+# webpki roots for grpcs://, the same roots ureq trusts.
+prost = "0.14"
+tokio = { version = "1", features = ["rt"] }
+tonic = { version = "0.14", default-features = false, features = ["transport", "codegen", "channel", "tls-ring", "tls-webpki-roots"] }
+tonic-prost = "0.14"
+
+[build-dependencies]
+# Compiles the server's turbo_training.proto without protoc, as the
+# server's own build does.
+protox = "0.9"
+tonic-prost-build = { version = "0.14", default-features = false, features = ["transport"] }
+
+[dev-dependencies]
+# The tests read files from a real server started in-process.
+turbo-kserve = { path = "../server" }
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
