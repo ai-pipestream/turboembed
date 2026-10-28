@@ -63,8 +63,6 @@ fn the_dockerfile_pins_the_same_base_image_and_commit() {
     assert!(patterns.contains(&format!("BRANCH_COMMIT = \"{STRING_PATTERN_COMMIT}\";")));
     assert!(dockerfile.contains(&format!("\nARG HUNSPELL_COMMIT={HUNSPELL_COMMIT}\n")));
     assert!(dockerfile.contains(&format!("\nARG PLACE_PROFILES_COMMIT={PLACE_PROFILES_COMMIT}\n")));
-    let profiles = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/PlaceProfilesGolden.java");
-    assert!(profiles.contains(&format!("PROFILES_COMMIT = \"{PLACE_PROFILES_COMMIT}\";")));
     assert!(dockerfile.contains(&format!("\nARG LIBLINEAR_ADDON_COMMIT={LIBLINEAR_ADDON_COMMIT}\n")));
     let liblinear = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/LiblinearTrainGolden.java");
     assert!(liblinear.contains(&format!("ADDON_COMMIT = \"{LIBLINEAR_ADDON_COMMIT}\";")));

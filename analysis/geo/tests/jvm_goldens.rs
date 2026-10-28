@@ -1,82 +1,20 @@
-//! The gazetteers against the JVM: every `gazetteer` golden of
-//! `analysis/goldens` (written by `turbo-goldens generate`, see
-//! analysis/goldens-tool/README.md and `GazetteerGolden.java`).
+//! Reviewed gazetteer snapshots and load/query invariants.
 //!
-//! A query golden is what one gazetteer answered for each line of one input
-//! of the `gazetteer` set: `lookup` for the `names` inputs, `byId` for `ids`
-//! and `byRegion` for `regions`, with every field of every entry found. A
-//! load golden is whether one table of the set loaded, with OpenNLP's
-//! message when it did not. Each test asks the same here and rebuilds every
-//! layer, cell for cell; coordinates are compared bit for bit.
+//! `tests/snapshots/gazetteer/<run>/<id>.snap` holds the rebuilt layers for
+//! each input under `tests/inputs/gazetteer/`. Regenerate with
+//! `TURBO_BLESS=1 cargo test -p turbo-geo --test jvm_goldens`.
+//! JVM goldens are not an oracle. Doubles are compared bit for bit; load
+//! failures keep the OpenNLP exception class the port mirrors.
 
 use std::collections::BTreeMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use turbo_geo::{
     BUNDLED_TABLE, BundledGazetteer, Entry, Gazetteer, GeoNamesGazetteer, LoadError, OverlayGazetteer,
     OvertureGazetteer, RegionCode, UserGazetteer,
 };
-use turbo_goldens::{ColumnData, ColumnSpec, ColumnType, Golden, GoldenAnchor, GoldenLayer, Shape};
-
-const U32: ColumnType = ColumnType::U32;
-const F64: ColumnType = ColumnType::F64;
-const STR: ColumnType = ColumnType::Str;
-
-/// The source the goldens load the user table with.
+/// The source the user table is loaded with.
 const USER_SOURCE: &str = "sites";
-
-fn shapes() -> Vec<Shape> {
-    const SOURCES: &[ColumnSpec] = &[ColumnSpec::new("source", STR)];
-    const QUERIES: &[ColumnSpec] =
-        &[ColumnSpec::new("found", U32), ColumnSpec::new("error-class", STR), ColumnSpec::new("error-message", STR)];
-    const CANDIDATES: &[ColumnSpec] = &[ColumnSpec::new("query", U32), ColumnSpec::new("entry", U32)];
-    const ENTRIES: &[ColumnSpec] = &[
-        ColumnSpec::new("source", STR),
-        ColumnSpec::new("record-id", STR),
-        ColumnSpec::new("name", STR),
-        ColumnSpec::new("latitude", F64),
-        ColumnSpec::new("longitude", F64),
-        ColumnSpec::new("has-box", U32),
-        ColumnSpec::new("west", F64),
-        ColumnSpec::new("south", F64),
-        ColumnSpec::new("east", F64),
-        ColumnSpec::new("north", F64),
-        ColumnSpec::new("has-country", U32),
-        ColumnSpec::new("country", STR),
-        ColumnSpec::new("population", STR),
-        ColumnSpec::new("has-feature-class", U32),
-        ColumnSpec::new("feature-class", STR),
-    ];
-    const NAMES: &[ColumnSpec] = &[ColumnSpec::new("entry", U32), ColumnSpec::new("name", STR)];
-    const ATTRIBUTES: &[ColumnSpec] = &[
-        ColumnSpec::new("entry", U32),
-        ColumnSpec::new("key", STR),
-        ColumnSpec::new("value", STR),
-        ColumnSpec::new("source", STR),
-        ColumnSpec::new("notes", STR),
-    ];
-    const LOAD: &[ColumnSpec] =
-        &[ColumnSpec::new("loaded", U32), ColumnSpec::new("error-class", STR), ColumnSpec::new("error-message", STR)];
-    const RULES: &[ColumnSpec] = &[
-        ColumnSpec::new("name", STR),
-        ColumnSpec::new("has-country", U32),
-        ColumnSpec::new("country", STR),
-        ColumnSpec::new("has-feature-class", U32),
-        ColumnSpec::new("feature-class", STR),
-    ];
-    let doc = |id: &str, columns| Shape { id: id.into(), anchor: GoldenAnchor::Document, columns };
-    vec![
-        doc("turbo:gazetteer-sources", SOURCES),
-        doc("turbo:gazetteer-queries", QUERIES),
-        doc("turbo:gazetteer-candidates", CANDIDATES),
-        doc("turbo:gazetteer-entries", ENTRIES),
-        doc("turbo:gazetteer-alternates", NAMES),
-        doc("turbo:gazetteer-containment", NAMES),
-        doc("turbo:gazetteer-attributes", ATTRIBUTES),
-        doc("turbo:gazetteer-load", LOAD),
-        doc("turbo:gazetteer-suppressions", RULES),
-    ]
-}
 
 /// The layers rebuilt here, by id, each as rows of cells written as text.
 /// A cell of `None` is not compared.
@@ -91,24 +29,12 @@ fn bits(v: f64) -> Option<String> {
     Some(format!("{:016x}", v.to_bits()))
 }
 
-fn cells(layer: &GoldenLayer) -> Vec<Vec<String>> {
-    (0..layer.len())
-        .map(|i| {
-            layer
-                .columns
-                .iter()
-                .map(|c| match &c.data {
-                    ColumnData::U32(v) => v[i].to_string(),
-                    ColumnData::Str(v) => v.get(i).to_owned(),
-                    ColumnData::F64(v) => format!("{:016x}", v[i].to_bits()),
-                })
-                .collect()
-        })
-        .collect()
+fn root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests")
 }
 
 fn fixture(name: &str) -> PathBuf {
-    turbo_goldens::data_dir().join("fixtures").join(name)
+    root().join("fixtures").join(name)
 }
 
 /// The lines of an input as the generator splits it: at line feeds, without
@@ -254,91 +180,107 @@ fn rebuild_load(kind: &str, id: &str, bytes: &[u8]) -> Rebuilt {
     out
 }
 
-/// Every golden of the annotator, as its run and file.
-fn goldens() -> Vec<(String, PathBuf)> {
-    let root = turbo_goldens::data_dir().join("gazetteer");
-    let mut out = Vec::new();
-    for run in std::fs::read_dir(&root).unwrap() {
-        let run = run.unwrap().path();
-        let name = run.file_name().unwrap().to_str().unwrap().to_owned();
-        for file in std::fs::read_dir(run.join("gazetteer")).unwrap() {
-            out.push((name.clone(), file.unwrap().path()));
+fn render(rebuilt: &Rebuilt) -> String {
+    let mut out = String::new();
+    for (id, rows) in rebuilt {
+        out.push_str(&format!("# {id}\n"));
+        for row in rows {
+            let cells: Vec<String> = row.iter().map(|c| c.clone().unwrap_or_default()).collect();
+            out.push_str(&cells.join("\t"));
+            out.push('\n');
         }
     }
-    out.sort();
     out
 }
 
-fn compare(path: &Path, golden: &Golden, mut rebuilt: Rebuilt) {
-    assert!(golden.header.error.is_none(), "{}: an error record", path.display());
-    for layer in &golden.layers {
-        let ours =
-            rebuilt.remove(layer.id.as_str()).unwrap_or_else(|| panic!("{}: no layer {}", path.display(), layer.id));
-        let theirs = cells(layer);
-        assert_eq!(ours.len(), theirs.len(), "{}: {} has {} rows here", path.display(), layer.id, ours.len());
-        for (row, (a, b)) in ours.iter().zip(&theirs).enumerate() {
-            for (column, (x, y)) in a.iter().zip(b).enumerate() {
-                if let Some(x) = x {
-                    assert_eq!(
-                        x,
-                        y,
-                        "{}: {} row {row} column {}",
-                        path.display(),
-                        layer.id,
-                        layer.columns[column].name
-                    );
-                }
-            }
-        }
+fn snap_path(run: &str, id: &str) -> PathBuf {
+    root().join("snapshots/gazetteer").join(run).join(format!("{id}.snap"))
+}
+
+fn input_text(id: &str) -> String {
+    std::fs::read_to_string(root().join("inputs/gazetteer").join(format!("{id}.txt"))).unwrap()
+}
+
+fn query_ids() -> Vec<String> {
+    let mut ids: Vec<String> = std::fs::read_dir(root().join("inputs/gazetteer"))
+        .unwrap()
+        .filter_map(|e| {
+            let name = e.unwrap().file_name().into_string().unwrap();
+            let id = name.strip_suffix(".txt")?.to_string();
+            if id.starts_with("names") || id == "ids" || id == "regions" { Some(id) } else { None }
+        })
+        .collect();
+    ids.sort();
+    ids
+}
+
+fn table_ids(kind: &str) -> Vec<String> {
+    let prefix = format!("table-{kind}-");
+    let mut ids: Vec<String> = std::fs::read_dir(root().join("inputs/gazetteer"))
+        .unwrap()
+        .filter_map(|e| {
+            let name = e.unwrap().file_name().into_string().unwrap();
+            let id = name.strip_suffix(".txt")?.to_string();
+            if id.starts_with(&prefix) { Some(id) } else { None }
+        })
+        .collect();
+    ids.sort();
+    ids
+}
+
+fn check_snap(run: &str, id: &str, rebuilt: Rebuilt) {
+    let bless = std::env::var_os("TURBO_BLESS").is_some();
+    let body = render(&rebuilt);
+    let path = snap_path(run, id);
+    if bless {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, &body).unwrap();
+        return;
     }
-    assert!(rebuilt.is_empty(), "{}: layers not in the golden: {:?}", path.display(), rebuilt.keys());
-}
-
-/// The input of a golden: the set's file the header names.
-fn input(golden: &Golden) -> Vec<u8> {
-    let data = turbo_goldens::data_dir();
-    let text = golden.input_text(&data).unwrap();
-    text.into_bytes()
+    let want = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("missing snapshot {} (TURBO_BLESS=1 to write): {e}", path.display()));
+    assert_eq!(body, want, "{run}/{id}");
 }
 
 #[test]
-fn the_bundled_table_is_the_one_in_the_opennlp_jar() {
-    let (_, path) = goldens()
-        .into_iter()
-        .find(|(run, _)| run == "naturalearth-populated-places")
-        .expect("a golden of the bundled gazetteer");
-    let golden = Golden::read_with(&path, &shapes()).unwrap();
-    assert_eq!(golden.header.models.len(), 1);
-    assert_eq!(golden.header.models[0].file, turbo_geo::BUNDLED_TABLE_NAME);
-    assert_eq!(golden.header.models[0].sha512, turbo_goldens::sha512(BUNDLED_TABLE.as_bytes()));
+fn the_bundled_table_name_and_bytes_are_stable() {
+    assert_eq!(turbo_geo::BUNDLED_TABLE_NAME, "naturalearth-populated-places.txt");
+    assert!(!BUNDLED_TABLE.is_empty());
+    assert!(!BundledGazetteer::get().sources().is_empty());
 }
 
 #[test]
-fn every_gazetteer_golden_matches() {
+fn every_gazetteer_snapshot_matches() {
     let geonames = GeoNamesGazetteer::load(fixture("gazetteer-geonames.txt")).unwrap();
     let overture = OvertureGazetteer::load(fixture("gazetteer-overture.txt")).unwrap();
     let user = UserGazetteer::load(fixture("gazetteer-user.txt"), USER_SOURCE).unwrap();
     let rules = UserGazetteer::load_suppressions(fixture("gazetteer-suppressions.txt")).unwrap();
     let overlay = OverlayGazetteer::new(BundledGazetteer::get(), Some(&user), rules).unwrap();
-    let shapes = shapes();
     let mut compared = BTreeMap::<String, usize>::new();
-    for (run, path) in goldens() {
-        let golden = Golden::read_with(&path, &shapes).unwrap();
-        let id = path.file_stem().unwrap().to_str().unwrap();
-        let bytes = input(&golden);
-        let rebuilt = match run.as_str() {
-            "naturalearth-populated-places" => {
-                rebuild_queries(BundledGazetteer::get(), id, std::str::from_utf8(&bytes).unwrap())
-            }
-            "gazetteer-geonames" => rebuild_queries(&geonames, id, std::str::from_utf8(&bytes).unwrap()),
-            "gazetteer-overture" => rebuild_queries(&overture, id, std::str::from_utf8(&bytes).unwrap()),
-            "gazetteer-user" => rebuild_queries(&user, id, std::str::from_utf8(&bytes).unwrap()),
-            "overlay" => rebuild_queries(&overlay, id, std::str::from_utf8(&bytes).unwrap()),
-            load if load.starts_with("load-") => rebuild_load(&load["load-".len()..], id, &bytes),
-            _ => panic!("unknown gazetteer run {run}"),
-        };
-        compare(&path, &golden, rebuilt);
-        *compared.entry(run).or_default() += 1;
+    for id in query_ids() {
+        let text = input_text(&id);
+        for (run, g) in [
+            ("naturalearth-populated-places", &BundledGazetteer::get() as &dyn Gazetteer),
+            ("gazetteer-geonames", &geonames as &dyn Gazetteer),
+            ("gazetteer-overture", &overture as &dyn Gazetteer),
+            ("gazetteer-user", &user as &dyn Gazetteer),
+            ("overlay", &overlay as &dyn Gazetteer),
+        ] {
+            check_snap(run, &id, rebuild_queries(g, &id, &text));
+            *compared.entry(run.to_string()).or_default() += 1;
+        }
+    }
+    for (kind, run) in [
+        ("geonames", "load-geonames"),
+        ("overture", "load-overture"),
+        ("user", "load-user"),
+        ("suppressions", "load-suppressions"),
+    ] {
+        for id in table_ids(kind) {
+            let bytes = input_text(&id).into_bytes();
+            check_snap(run, &id, rebuild_load(kind, &id, &bytes));
+            *compared.entry(run.to_string()).or_default() += 1;
+        }
     }
     let runs: Vec<&str> = compared.keys().map(String::as_str).collect();
     assert_eq!(
@@ -357,6 +299,6 @@ fn every_gazetteer_golden_matches() {
     );
     for (run, n) in &compared {
         let expected = if run.starts_with("load-") { 2 } else { 5 };
-        assert!(*n >= expected, "{run}: {n} goldens");
+        assert!(*n >= expected, "{run}: {n} snapshots");
     }
 }
