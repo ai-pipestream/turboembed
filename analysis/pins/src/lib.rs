@@ -113,6 +113,9 @@ pub fn parse_models(text: &'static str) -> Result<Vec<Pin>, String> {
         if name.trim().is_empty() || name != name.trim() {
             return Err(bad("the name is empty or padded"));
         }
+        if retired(name) {
+            return Err(bad("a retired model is pinned nowhere (#1509)"));
+        }
         out.push(Pin { sha256, kind, name, source: "models.txt" });
     }
     Ok(out)
@@ -136,15 +139,25 @@ fn zoo_pins(text: &'static str) -> Vec<Pin> {
     out
 }
 
-/// Addresses of models no test may load, so a references file that still
-/// lists one pins nothing for it: the OpenNLP 1.5 models (#1509).
-const RETIRED: [&str; 1] = ["/models-1.5/"];
+/// Whether `name` (a file name or an address) is a retired model's, which
+/// is pinned nowhere (#1509): an OpenNLP 1.5 model, or an OpenNLP 2.5
+/// artifact (the UD 1.3 models built with 2.5.4, langdetect-183). Their
+/// remaining loaders go with #1532.
+pub fn retired(name: &str) -> bool {
+    const ONE_FIVE: [&str; 5] =
+        ["en-pos-maxent.bin", "en-pos-perceptron.bin", "en-chunker.bin", "en-ner-person.bin", "en-ner-location.bin"];
+    let file = name.rsplit('/').next().unwrap_or(name);
+    name.contains("/models-1.5/")
+        || ONE_FIVE.contains(&file)
+        || file.ends_with("-2.5.4.bin")
+        || file == "langdetect-183.bin"
+}
 
-/// The `<sha256> <address>` lines of a references file, but for a retired
-/// model's.
+/// The `<sha256> <address>` lines of a references file, but for a
+/// [`retired`] model's.
 fn reference_pins(text: &'static str) -> Vec<Pin> {
     text.lines()
-        .filter(|l| !l.starts_with('#') && !RETIRED.iter().any(|r| l.contains(r)))
+        .filter(|l| !l.starts_with('#') && !retired(l.trim_end()))
         .filter_map(|l| {
             let (hex, url) = l.split_once(' ')?;
             is_hex64(hex).then(|| Pin {
@@ -306,6 +319,14 @@ pub fn require(path: impl AsRef<Path>) -> PathBuf {
         panic!("{e}");
     }
     path.to_path_buf()
+}
+
+/// [`require`], but a [`retired`] model's path is returned unchecked: it
+/// has no pin, and the loaders that still read one go with #1532.
+pub fn require_current(path: impl AsRef<Path>) -> PathBuf {
+    let path = path.as_ref();
+    let name = path.file_name().map(|n| n.to_string_lossy()).unwrap_or_default();
+    if retired(&name) { path.to_path_buf() } else { require(path) }
 }
 
 /// `root` itself, once each of the models `names` under it passes

@@ -71,9 +71,9 @@ impl Resources {
     }
 
     /// A published model by file name, which must be the pinned one
-    /// (analysis/pins).
+    /// (analysis/pins) unless it is a retired one (turbo_pins::retired).
     pub fn model(&self, name: &str) -> Result<PathBuf, Unavailable> {
-        present(self.models.join(name)).map(turbo_pins::require)
+        present(self.models.join(name)).map(turbo_pins::require_current)
     }
 
     /// A MeCab dictionary by file or directory name, as fetch-models

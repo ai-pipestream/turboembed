@@ -28,21 +28,47 @@ fn the_zoo_and_the_references_are_pinned_too() {
     assert_eq!((refs[0].name, refs[0].kind), ("kept.bin", Kind::File));
 }
 
-/// No OpenNLP 1.5 model is pinned anywhere (#1509), whatever a references
-/// file still lists.
+/// No OpenNLP 1.5 or 2.5 model is pinned anywhere (#1509), whatever a
+/// references file still lists.
 #[test]
 fn no_retired_model_is_pinned() {
-    for name in
-        ["en-pos-maxent.bin", "en-pos-perceptron.bin", "en-chunker.bin", "en-ner-person.bin", "en-ner-location.bin"]
-    {
-        assert!(!pins().iter().any(|p| p.name == name), "{name} is pinned");
+    for p in pins() {
+        assert!(!retired(p.name), "{} ({}) is retired and pinned in {}", p.name, p.sha256, p.source);
     }
     for hex in [
         "645a094f45a866687a617385233fd23ae8b0f5fa8b1b76996781a50c17bdcf3d",
         "7861a0c2f134d9c12a022a1ba501e88bc7039f6db72b4140e1bafd1fb5ef76cc",
+        "4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8",
+        "95139111197ba9f1165fc12be8d4cbac05ea3912f995d167efa1a0e04e3e649a",
+        "2ddf585fac2e02a9dcfb9a4a9cc9417562eaac351be2efb506a2eaa87f19e9d4",
     ] {
         assert!(lookup(hex).is_none(), "{hex} is pinned");
     }
+    for name in [
+        "en-pos-maxent.bin",
+        "https://downloads.sourceforge.net/project/opennlp/models-1.5/en-chunker.bin",
+        "opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin",
+        "langdetect-183.bin",
+    ] {
+        assert!(retired(name), "{name}");
+    }
+    for name in ["all-minilm-l6-v2.onnx", "hunspell/en_US.dic", "manifest.json"] {
+        assert!(!retired(name), "{name}");
+    }
+    let line =
+        "blobs/sha256/0000000000000000000000000000000000000000000000000000000000000000  file  langdetect-183.bin\n";
+    assert!(parse_models(line).is_err());
+}
+
+#[test]
+fn a_retired_model_is_passed_through_unchecked_and_any_other_is_checked() {
+    let dir = scratch("retired");
+    let old = dir.join("opennlp-xx-ud-1.3-2.5.4.bin");
+    fs::write(&old, b"retired").unwrap();
+    assert_eq!(require_current(&old), old);
+    let other = dir.join("model.bin");
+    fs::write(&other, b"unpinned").unwrap();
+    assert!(std::panic::catch_unwind(|| require_current(&other)).is_err());
 }
 
 #[test]

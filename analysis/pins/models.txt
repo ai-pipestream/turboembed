@@ -22,7 +22,7 @@
 # Also pinned, without a line here: every file of the zoo index
 # (analysis/zoo/index/zoo.json) and every score-only reference model in
 # analysis/train-recipes/*-references.txt, which pin their files already,
-# except a retired model's (the OpenNLP 1.5 models, #1509).
+# except a retired model's (OpenNLP 1.5 and 2.5 models, #1509).
 #
 # A test that loads a model from a path it is given goes through
 # turbo_pins::require, which refuses a model whose digest is not here;
@@ -76,20 +76,10 @@ blobs/sha256/f4256cb3162b4272d50d028c08d0965d34f65f672c7d179d90a53709314a3ff5  b
 # The files turbo-goldens fetch-models fetches, which
 # analysis/goldens-tool/src/recipe/models.rs pins by SHA-512 at fetch:
 # these are the SHA-256 of the same bytes, which
-# turbo_goldens::published_model checks at load.
-blobs/sha256/4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8  file  opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin
-blobs/sha256/b5553223d30a0422e80a28e2ae766a92dd7181e229f0d6c73087951e84142c43  file  opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin
-blobs/sha256/a711463f146555de26d69d806a9f1a88a66ed0c02f3fe2020b4a475ccea047ff  file  opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin
-blobs/sha256/95139111197ba9f1165fc12be8d4cbac05ea3912f995d167efa1a0e04e3e649a  file  opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin
-blobs/sha256/32d0a7ff84fdd50f9e454340bed782d7269845bfa656e0c988cbb823dd628d6e  file  opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin
-blobs/sha256/309de611ff7a8c4227c57086838d4783bcede8520026d7ad416c85a513567ce7  file  opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin
-blobs/sha256/a06dbc9b72600ba0886f64a632636e136e5fc225955913c4c1a926a9333bc14a  file  opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin
-blobs/sha256/b85f42a6a1dfe0728b7c7c9df1ca0c98de708c04be3df22da1917b8d8dc4b096  file  opennlp-pt-ud-gsd-tokens-1.3-2.5.4.bin
-blobs/sha256/510b89087e7ef7ffb8c50c63e3e999122404ac9fa64790dfa93b38d1938c52ce  file  opennlp-en-ud-ewt-pos-1.3-2.5.4.bin
-blobs/sha256/073fefbfaff2ed403bf474fccf793752d01c22e69f487cd68b43832d3123742f  file  opennlp-de-ud-gsd-pos-1.3-2.5.4.bin
-blobs/sha256/711ad051faba79865c5f9fc5b8c455d6ad8e6d3e8b92f42142af1ef0bc7b3a96  file  opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin
-blobs/sha256/8850986f02dfbe293046bfce93bc0c3f3fa010e89177250abca23d860033d4f6  file  opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin
-blobs/sha256/2ddf585fac2e02a9dcfb9a4a9cc9417562eaac351be2efb506a2eaa87f19e9d4  file  langdetect-183.bin
+# turbo_goldens::published_model checks at load. The OpenNLP 2.5 models
+# it still fetches (the UD 1.3 models built with 2.5.4, langdetect-183)
+# are retired and pinned nowhere (#1509, turbo_pins::retired); #1532
+# removes them and their loaders.
 blobs/sha256/6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452  file  all-minilm-l6-v2.onnx
 blobs/sha256/e746c882dd6f303c2c46e7452804b9201115a6942cfeb15f18f8edf774d2e24e  file  hunspell/en_US.aff
 blobs/sha256/f0b1a234bd178bdd01875b2a392a9647f888b8fe879f79c52aae62c2759b3647  file  hunspell/en_US.dic
