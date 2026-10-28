@@ -127,5 +127,5 @@ pub fn fit_parser(
     check_parses(dev, hidden, spec.labels.len())?;
     let mut rng = Rng::new(c.seed);
     let model = Parser::<f32>::new(spec, hidden, &mut rng)?;
-    train(model, &mut rng, train_set, dev, c)
+    train(model, &mut rng, train_set, dev, c, &mut |_, _, _| Ok(()))
 }

@@ -31,7 +31,7 @@ mod shapes;
 pub mod tagger;
 pub mod xent;
 
-pub use fit::{Config, EarlyStop, Example, Report, batch_gradients, fit};
+pub use fit::{Config, EarlyStop, Example, Report, batch_gradients, fit, fit_with};
 pub use fit_lemma::{LemmaExample, fit_lemmatizer, mine_trees};
 pub use fit_parse::{ParseExample, fit_parser};
 pub use lemma::Lemmatizer;

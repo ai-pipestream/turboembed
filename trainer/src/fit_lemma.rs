@@ -159,5 +159,5 @@ pub fn fit_lemmatizer(
     let dev: Vec<Prepared> = dev.into_iter().map(prepare).collect();
     let mut rng = Rng::new(c.seed);
     let model = Lemmatizer::<f32>::new(spec, hidden, &mut rng)?;
-    train(model, &mut rng, &train_set, &dev, c)
+    train(model, &mut rng, &train_set, &dev, c, &mut |_, _, _| Ok(()))
 }
