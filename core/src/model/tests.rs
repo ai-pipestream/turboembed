@@ -25,11 +25,12 @@ fn only_the_cpu_runs_a_banded_model() {
 }
 
 #[test]
-fn only_the_cpu_runs_a_rotary_model() {
+fn only_the_cpu_and_levelzero_run_a_rotary_model() {
     use crate::backend::{TURBO_FAMILY_MODERNBERT, TURBO_FAMILY_NOMIC_BERT};
     for family in [TURBO_FAMILY_MODERNBERT, TURBO_FAMILY_NOMIC_BERT] {
         assert!(runs_family("cpu", family).is_ok());
-        for b in ["cuda", "levelzero", "metal", "npu", "hailo"] {
+        assert!(runs_family("levelzero", family).is_ok());
+        for b in ["cuda", "metal", "npu", "hailo"] {
             let e = runs_family(b, family).err().unwrap();
             assert_eq!(e.code, UNSUPPORTED);
             assert!(

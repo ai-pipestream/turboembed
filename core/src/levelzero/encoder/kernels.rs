@@ -50,6 +50,8 @@ pub(super) struct Kernels {
     pub(super) normalize: Kernel,
     /// For a DeBERTa-v2 model, its lookup and its attention (deberta.rs).
     pub(super) deberta: Option<Deberta>,
+    /// For a ModernBERT or nomic-bert model, its kernels (rotary.rs).
+    pub(super) rotary: Option<super::rotary::RotaryKernels>,
 }
 
 /// A DeBERTa-v2 model's lookup, its general attention, and the tiled
@@ -156,6 +158,7 @@ impl Kernels {
                 }),
                 None => None,
             },
+            rotary: None,
         })
     }
 }

@@ -92,7 +92,8 @@
           "weights/model.safetensors"
         ],
         "backends": [
-          "cpu"
+          "cpu",
+          "levelzero"
         ],
         "graph_input": "INPUT_TOKEN_IDS",
         "graph_output": "OUTPUT_HIDDEN_STATES",
