@@ -7,7 +7,7 @@ use turbo::manifest::{Adapter, Bilstm, Decode, HeadKind, HeadSpec, Scheme, WordP
 use turbo_trainer::fit::score;
 use turbo_trainer::rng::Rng;
 use turbo_trainer::tagger::Work;
-use turbo_trainer::{Config, Example, Tagger, fit};
+use turbo_trainer::{Config, Example, Tagger, fit, fit_with};
 
 const HIDDEN: usize = 8;
 
@@ -168,4 +168,37 @@ fn ill_fitting_examples_are_refused() {
     let bio = spec(&["O", "B-X", "I-X"], Scheme::Bio, None, Decode::Crf);
     let bad = Example { features: vec![0.0; 2 * HIDDEN], labels: vec![0, 2], forms: Vec::new() };
     assert!(fit(&bio, HIDDEN, &[bad], &[], &c).is_err());
+}
+
+#[test]
+fn on_best_sees_every_improvement_and_last_the_weights_kept() {
+    let s = spec(&["A", "B", "C", "D"], Scheme::Tags, None, Decode::Argmax);
+    let (train, dev) = (tags_data(1, 120), tags_data(2, 30));
+    let c = Config { epochs: 8, lr: 1e-2, patience: 0, ..Config::default() };
+    let mut seen: Vec<(usize, f64, Vec<Vec<f32>>)> = Vec::new();
+    let (model, report) = fit_with(&s, HIDDEN, &train, &dev, &c, &mut |m, e, d| {
+        seen.push((e, d, m.params().to_vec()));
+        Ok(())
+    })
+    .unwrap();
+    // Called on each epoch whose dev score beats every earlier one.
+    let mut want = Vec::new();
+    let mut best = f64::NEG_INFINITY;
+    for (e, &d) in report.dev.iter().enumerate() {
+        if d > best {
+            best = d;
+            want.push(e);
+        }
+    }
+    assert_eq!(seen.iter().map(|(e, _, _)| *e).collect::<Vec<_>>(), want);
+    let (e, d, params) = seen.last().unwrap();
+    assert_eq!((*e, *d), (report.best_epoch, report.dev[report.best_epoch]));
+    assert_eq!(params.as_slice(), model.params(), "the last weights seen are the ones kept");
+    // The same run through fit gives the same bytes.
+    let (plain, _) = fit(&s, HIDDEN, &train, &dev, &c).unwrap();
+    assert_eq!(plain.params(), model.params());
+    // An error from on_best stops the run with it.
+    let e =
+        fit_with(&s, HIDDEN, &train, &dev, &c, &mut |_, _, _| Err(turbo::status::invalid("disk full"))).err().unwrap();
+    assert!(e.message.contains("disk full"));
 }

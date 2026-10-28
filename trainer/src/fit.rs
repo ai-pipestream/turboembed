@@ -264,15 +264,22 @@ fn check_examples(examples: &[Example], hidden: usize, labels: usize, forms: boo
     Ok(())
 }
 
+/// What a run calls each time its best improves: the model, the epoch and
+/// its dev score.
+pub type OnBest<'a, M> = &'a mut dyn FnMut(&M, usize, f64) -> Result<()>;
+
 /// The loop: seeded shuffles, minibatch gradients summed in a fixed
 /// order (across `c.threads` threads, see [`Batch`]) and scaled per word,
-/// AdamW, dev scoring each epoch, early stopping, the best weights kept.
+/// AdamW, dev scoring each epoch, early stopping, the best weights kept;
+/// `on_best` sees the model and the epoch and dev score each time the
+/// best improves, so a caller can save it while the run goes on.
 pub(crate) fn train<M: Model>(
     mut model: M,
     rng: &mut Rng,
     train: &[M::Example],
     dev: &[M::Example],
     c: &Config,
+    on_best: OnBest<'_, M>,
 ) -> Result<(M, Report)> {
     let shapes: Vec<usize> = model.params().iter().map(Vec::len).collect();
     let mut opt = AdamW::new(settings(c, train.len()), &shapes)?;
@@ -331,6 +338,7 @@ pub(crate) fn train<M: Model>(
         if better {
             best = Some(model.params().to_vec());
             report.best_epoch = epoch;
+            on_best(&model, epoch, s)?;
         }
         if done {
             if c.verbose {
@@ -365,11 +373,25 @@ pub fn fit(
     dev: &[Example],
     c: &Config,
 ) -> Result<(Tagger<f32>, Report)> {
+    fit_with(spec, hidden, train, dev, c, &mut |_, _, _| Ok(()))
+}
+
+/// As [`fit`], calling `on_best` with the model, the epoch and its dev
+/// score each time the best improves: the weights it sees are the ones
+/// the run keeps if nothing better follows.
+pub fn fit_with(
+    spec: &HeadSpec,
+    hidden: usize,
+    train: &[Example],
+    dev: &[Example],
+    c: &Config,
+    on_best: OnBest<'_, Tagger<f32>>,
+) -> Result<(Tagger<f32>, Report)> {
     check_config(c, train.len())?;
     let forms = spec.hash_embed.is_some();
     check_examples(train, hidden, spec.labels.len(), forms)?;
     check_examples(dev, hidden, spec.labels.len(), forms)?;
     let mut rng = Rng::new(c.seed);
     let model = Tagger::<f32>::new(spec, hidden, &mut rng)?;
-    self::train(model, &mut rng, train, dev, c)
+    self::train(model, &mut rng, train, dev, c, on_best)
 }
