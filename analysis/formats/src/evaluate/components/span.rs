@@ -24,6 +24,7 @@ impl TokenizerEvaluator {
     /// An evaluator that counts true positives as OpenNLP does
     /// ([`FMeasure::opennlp`]): compatibility scoring, kept for comparing
     /// with JVM goldens.
+    #[cfg(feature = "jvm-goldens")]
     pub fn opennlp() -> TokenizerEvaluator {
         TokenizerEvaluator { fmeasure: FMeasure::opennlp() }
     }
@@ -127,6 +128,7 @@ impl SentenceDetectorEvaluator {
     /// An evaluator that trims spans of whitespace in `mode` and counts
     /// true positives as OpenNLP does ([`FMeasure::opennlp`]):
     /// compatibility scoring, kept for comparing with JVM goldens.
+    #[cfg(feature = "jvm-goldens")]
     pub fn opennlp(mode: WhitespaceMode) -> SentenceDetectorEvaluator {
         SentenceDetectorEvaluator { fmeasure: FMeasure::opennlp(), mode }
     }

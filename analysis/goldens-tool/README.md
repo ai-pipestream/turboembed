@@ -973,7 +973,10 @@ scoring (`FMeasure::opennlp`, `opennlp_precision`, `opennlp_recall`):
 OpenNLP's `countTruePositives` counts a repeated prediction once per
 equal reference, so its recall can exceed 1. Standard evaluation in
 `turbo-formats` counts true positives as a multiset intersection
-instead, and that compatibility scoring is kept only for these goldens.
+instead, and that compatibility scoring is kept only for these goldens,
+behind the `jvm-goldens` feature of `turbo-formats`: it is off by
+default, the `evaluate` test target requires it, and the crate's
+dev-dependency on itself turns it on for its own tests.
 
 ## Normalizer goldens
 

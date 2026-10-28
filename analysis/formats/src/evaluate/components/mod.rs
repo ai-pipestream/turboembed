@@ -231,6 +231,7 @@ impl NameFinderEvaluator {
     /// An evaluator that counts true positives as OpenNLP does
     /// ([`FMeasure::opennlp`]): compatibility scoring, kept for comparing
     /// with JVM goldens.
+    #[cfg(feature = "jvm-goldens")]
     pub fn opennlp() -> NameFinderEvaluator {
         NameFinderEvaluator { fmeasure: FMeasure::opennlp() }
     }
@@ -284,6 +285,7 @@ impl ChunkerEvaluator {
     /// An evaluator that counts true positives as OpenNLP does
     /// ([`FMeasure::opennlp`]): compatibility scoring, kept for comparing
     /// with JVM goldens.
+    #[cfg(feature = "jvm-goldens")]
     pub fn opennlp() -> ChunkerEvaluator {
         ChunkerEvaluator { fmeasure: FMeasure::opennlp() }
     }
