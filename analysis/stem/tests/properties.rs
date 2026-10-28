@@ -4,13 +4,10 @@
 //! still round-trip through UTF-16 and code-point tables after stemming,
 //! so a view that replaces a word with its stem can map spans back.
 
-use turbo_analysis::{
-    Analyzer, Bound, Document, Key, Layer, OffsetTable, Provenance, Span, Spans, ViewId,
-};
+use turbo_analysis::{Analyzer, Bound, Document, Key, Layer, OffsetTable, Provenance, Span, Spans, ViewId};
 use turbo_analysis_layers::Tokens;
 use turbo_stem::{
-    Algorithm, LightStemmer, NorwegianStandard, SnowballAlgorithm, SnowballStemmer, StemAnnotator,
-    Stemmer, Stems,
+    Algorithm, LightStemmer, NorwegianStandard, SnowballAlgorithm, SnowballStemmer, StemAnnotator, Stemmer, Stems,
 };
 
 fn sample_algorithms() -> Vec<Algorithm> {
@@ -67,8 +64,17 @@ fn every_stemmer_returns_valid_utf8_and_matches_borrow_equivalence() {
 fn porter_never_grows_ascii_words_and_is_idempotent_after_two_passes() {
     let porter = Algorithm::Porter;
     let words = [
-        "a", "run", "running", "generalizations", "ponies", "caresses", "relational", "allowed",
-        "misc", "overhead", "xyz",
+        "a",
+        "run",
+        "running",
+        "generalizations",
+        "ponies",
+        "caresses",
+        "relational",
+        "allowed",
+        "misc",
+        "overhead",
+        "xyz",
     ];
     let mut once = Vec::new();
     let mut twice = Vec::new();
@@ -113,8 +119,6 @@ fn snowball_stemmers_never_panic_on_arbitrary_unicode_or_long_runs() {
 
 #[test]
 fn light_stemmers_never_grow_short_ascii_and_leave_empty_intact() {
-    // OpenNLP has no Lancaster here; light stemmers are the closest pure-Rust
-    // analogue for intact/min-length behaviour on short input.
     let lights = [
         Algorithm::Light(LightStemmer::EnglishMinimal),
         Algorithm::Light(LightStemmer::FrenchLight),
@@ -124,18 +128,20 @@ fn light_stemmers_never_grow_short_ascii_and_leave_empty_intact() {
     let mut out = Vec::new();
     for algorithm in lights {
         for w in ["", "a", "ab", "the", "ing"] {
+            let units = to_utf16(w);
             out.clear();
-            algorithm.stem_utf16(&to_utf16(w), &mut out);
+            algorithm.stem_utf16(&units, &mut out);
             if w.is_empty() {
                 assert!(out.is_empty(), "{algorithm:?} empty -> {out:?}");
             }
-            assert!(out.len() <= to_utf16(w).len() + 2, "{algorithm:?} {w} -> {out:?}");
+            assert!(out.len() <= units.len(), "{algorithm:?} grew {w}: {} -> {}", units.len(), out.len());
         }
     }
 }
 
 #[test]
-fn offset_tables_round_trip_on_words_and_stems() {
+fn offset_tables_round_trip_on_source_and_stem_strings() {
+    // OffsetTable round-trip on source words and their stems; not a stemmer property.
     let words = ["The", "café", "and", "GENERALIZATIONS", "re-enter", "🐶", "running"];
     let text = words.join(" ");
     let table = OffsetTable::build(&text);
@@ -171,8 +177,8 @@ fn offset_tables_round_trip_on_words_and_stems() {
 
 #[test]
 fn stems_layer_check_aligns_to_tokens() {
-    // Stems lives in analysis-layers (src/); we only assert the layer contract
-    // from tests/ here — one stem per token, Layer::check, unescape not needed.
+    // Stems lives in analysis-layers (src/); assert from tests/ that each stem
+    // equals the stemmer output for its token and Layer::check passes.
     let text = "the cats were running";
     let algorithm = Algorithm::Snowball(SnowballStemmer::new(SnowballAlgorithm::English));
     let analyzer = Analyzer::builder()
@@ -189,14 +195,11 @@ fn stems_layer_check_aligns_to_tokens() {
     let stems = doc.get::<Stems>().unwrap();
     assert_eq!(stems.len(), tokens.spans.len());
     assert_eq!(stems.stem.len(), tokens.spans.len());
-    // stem-layers/src is untouched (Block 2 owns tests/ only). Enforce the
-    // layer contract from tests: length alignment + Layer::check.
     stems.check().unwrap_or_else(|e| panic!("Stems::check: {e}"));
     for (i, span) in tokens.spans.iter() {
         let piece = &doc.source()[span.range()];
-        if span.start != span.end {
-            assert!(!piece.is_empty());
-        }
-        let _ = stems.stem.get(i.get());
+        let want = algorithm.stem(piece);
+        let got = stems.stem.get(i.get());
+        assert_eq!(got, want.as_str(), "token {piece:?}");
     }
 }
