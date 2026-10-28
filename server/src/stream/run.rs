@@ -9,7 +9,10 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 use tokio::sync::OwnedSemaphorePermit;
-use turbo::{TURBO_PLACE_HOST, TURBO_PLACE_PINNED, TURBO_PLACE_SHARED, turbo_embed_options, turbo_text};
+use turbo::{
+    TURBO_DTYPE_F32, TURBO_DTYPE_I8, TURBO_DTYPE_U8, TURBO_PLACE_HOST, TURBO_PLACE_PINNED, TURBO_PLACE_SHARED,
+    turbo_embed_options, turbo_text,
+};
 
 use crate::api::{Failure, Output, Result, TURBO_E_INTERNAL, TURBO_E_INVALID_STATE, TURBO_E_INVALID_UTF8};
 use crate::offsets::OffsetMode;
@@ -158,22 +161,20 @@ pub(crate) fn run(
         return fail(Failure::new(TURBO_E_INVALID_STATE, 0, "the client cancelled the stream"), docs, permits);
     }
     drop(texts);
-    let (dim, data) = match read(&result, docs.len()) {
+    let (dim, dtype, data) = match read(&result, docs.len()) {
         Ok(v) => v,
         Err(f) => return fail(f, docs, permits),
     };
     drop(ranges);
     // One copy out of the result, which frees the session for the next
     // batch; each document's vector is a slice of it.
-    let row = data.len() / docs.len();
-    if data.len() < docs.len() * row {
-        let f = Failure::new(TURBO_E_INTERNAL, 0, format!("{} bytes for {} rows of {row}", data.len(), docs.len()));
-        return fail(f, docs, permits);
-    }
-    let data = prost::bytes::Bytes::from(data);
+    let slices = match split(data, docs.len(), dtype, dim) {
+        Ok(s) => s,
+        Err(f) => return fail(f, docs, permits),
+    };
     let mut permits = permits.into_iter();
-    let rows: Vec<Row> = (0..docs.len())
-        .map(|i| data.slice(i * row..(i + 1) * row))
+    let rows: Vec<Row> = slices
+        .into_iter()
         .zip(docs)
         .map(|(c, d)| Row {
             seq: d.seq,
@@ -255,7 +256,7 @@ fn run_structured(
 
 /// The result's whole bytes and dim, read the way the single-document
 /// call reads them, whatever placement the backend produced.
-fn read(result: &Output, want_rows: usize) -> Result<(u32, Vec<u8>)> {
+fn read(result: &Output, want_rows: usize) -> Result<(u32, u32, Vec<u8>)> {
     let first = result.info()?;
     let data = match first.placement {
         TURBO_PLACE_HOST | TURBO_PLACE_PINNED | TURBO_PLACE_SHARED => {
@@ -280,5 +281,45 @@ fn read(result: &Output, want_rows: usize) -> Result<(u32, Vec<u8>)> {
             format!("the result carries {} rows for {} documents", info.batch, want_rows),
         ));
     }
-    Ok((info.dim, data))
+    Ok((info.dim, info.dtype, data))
+}
+
+/// `data` as `n` rows of a result of `dtype` and `dim`, one slice each:
+/// f32 rows of `dim * 4` bytes, int8 of `dim`, packed bits of
+/// `ceil(dim / 8)`. A result that does not hold exactly that is refused.
+fn split(data: Vec<u8>, n: usize, dtype: u32, dim: u32) -> Result<Vec<prost::bytes::Bytes>> {
+    let dim = dim as usize;
+    let row = match dtype {
+        TURBO_DTYPE_F32 => dim * 4,
+        TURBO_DTYPE_I8 => dim,
+        TURBO_DTYPE_U8 => dim.div_ceil(8),
+        d => return Err(Failure::new(TURBO_E_INTERNAL, 0, format!("a result of dtype {d} is not vectors"))),
+    };
+    if data.len() != n * row {
+        return Err(Failure::new(TURBO_E_INTERNAL, 0, format!("{} bytes for {n} rows of {row}", data.len())));
+    }
+    let data = prost::bytes::Bytes::from(data);
+    Ok((0..n).map(|i| data.slice(i * row..(i + 1) * row)).collect())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rows_are_the_dtypes_width_and_a_result_of_another_length_is_refused() {
+        let rows = |dtype, dim, len: usize| split((0..len as u8).collect(), 2, dtype, dim);
+        let ok = rows(TURBO_DTYPE_U8, 12, 4).unwrap();
+        assert_eq!(ok.iter().map(|b| b.to_vec()).collect::<Vec<_>>(), [vec![0, 1], vec![2, 3]]);
+        assert_eq!(rows(TURBO_DTYPE_I8, 3, 6).unwrap()[1].as_ref(), [3, 4, 5]);
+        assert_eq!(rows(TURBO_DTYPE_F32, 1, 8).unwrap()[1].as_ref(), [4, 5, 6, 7]);
+        // One byte short, or one over, of two 2-byte rows of 12 bits.
+        for len in [3, 5] {
+            let e = rows(TURBO_DTYPE_U8, 12, len).unwrap_err();
+            assert_eq!(e.code, TURBO_E_INTERNAL, "{len} bytes");
+            assert!(e.message.contains(&format!("{len} bytes for 2 rows of 2")), "{}", e.message);
+        }
+        assert!(rows(TURBO_DTYPE_F32, 1, 7).is_err());
+        assert!(rows(9, 1, 8).is_err());
+    }
 }
