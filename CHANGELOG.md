@@ -45,6 +45,10 @@ gRPC service) build against. Everything below is new.
   `turbo_backend.h`: rotary positions, sliding-window attention, gated
   MLPs and bias-free norms, with the core's cos/sin table appended to
   `turbo_backend_model`; no backend runs them yet (#1493).
+- The CPU encoder for ModernBERT and nomic-bert: RoPE in the QKV
+  product's epilogue over pair-adjacent weights, sliding-window attention
+  over each block's band of keys, GeGLU and SwiGLU in one product, held to
+  upstream on the sealed tiny bundles (#1544).
 
 ### Not in this release yet
 

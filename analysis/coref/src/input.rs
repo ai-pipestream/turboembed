@@ -88,7 +88,7 @@ pub(crate) struct Prepared<'a> {
     pub tokens: Vec<Span>,
     /// The token texts as written.
     pub forms: Vec<&'a str>,
-    /// The token texts lowercased as `String.toLowerCase(Locale.ROOT)`.
+    /// The token texts in Unicode lower case ([`lowercase`]).
     pub lower: Vec<String>,
     pub tags: Vec<&'a str>,
     pub sentence_of_token: Vec<usize>,
@@ -98,13 +98,15 @@ pub(crate) struct Prepared<'a> {
     pub speakers: Option<Vec<Labeled>>,
 }
 
+/// The Unicode lower case of `text` (full mappings, with the final
+/// sigma rule): the form mentions, labels and lexicon words are compared
+/// in, and the key of the word vectors and of the ranker's features, so
+/// a vector table or model trained on lowercased text finds its words.
 pub(crate) fn lowercase(text: &str) -> String {
-    let mut out = String::with_capacity(text.len());
-    turbo_unicode::java::to_lowercase(text, &mut out);
-    out
+    text.to_lowercase()
 }
 
-use turbo_unicode::java::is_blank as blank;
+use turbo_unicode::whitespace::is_blank as blank;
 
 fn same_view(name: &str, view: ViewId, expected: ViewId) -> Result<(), String> {
     if view == expected {
@@ -115,8 +117,7 @@ fn same_view(name: &str, view: ViewId, expected: ViewId) -> Result<(), String> {
 }
 
 impl<'a> CorefInput<'a> {
-    /// Validates the layers as OpenNLP's `CorefAnnotator` does and
-    /// flattens them; `None` for a document without tokens, whose chains
+    /// Validates the layers and flattens them; `None` for a document without tokens, whose chains
     /// are empty.
     pub(crate) fn prepare(&self) -> Result<Option<Prepared<'a>>, String> {
         let view = self.view;
@@ -255,4 +256,19 @@ impl<'a> CorefInput<'a> {
 /// The index `i` as a layer index.
 pub(crate) fn ix<L>(i: usize) -> Ix<L> {
     Ix::new(i as u32)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::lowercase;
+
+    /// Lower case, not a case fold: `ß` stays `ß`, so a vector table or
+    /// model keyed by lowercased words finds it; a word-final capital
+    /// sigma becomes `ς`.
+    #[test]
+    fn lowercase_is_unicode_lower_case_not_a_fold() {
+        assert_eq!(lowercase("Straße STRASSE"), "straße strasse");
+        assert_eq!(lowercase("ΟΔΟΣ ΟΔΟΣ."), "οδος οδος.");
+        assert_eq!(lowercase("ΟΔΟΣ"), "οδος");
+    }
 }

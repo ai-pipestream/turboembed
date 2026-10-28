@@ -1,11 +1,12 @@
-//! Every glossary the readers take from the goldens' inputs, and the
+//! Every glossary the readers take from the crate-local inputs, and the
 //! fixture glossary, written as TBX in both dialects and read back, is the
 //! same glossary.
 
+use std::path::PathBuf;
 use turbo_glossary::{DelimitedReader, FirstRecord, Glossary, TbxDialect, TbxReader, write_tbx};
 
 fn inputs(prefix: &str) -> Vec<(String, Vec<u8>)> {
-    let dir = turbo_goldens::data_dir().join("inputs").join("glossary");
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/inputs");
     let mut out: Vec<(String, Vec<u8>)> = std::fs::read_dir(&dir)
         .unwrap()
         .map(|e| e.unwrap().path())
@@ -43,7 +44,7 @@ fn termbases_round_trip() {
 
 #[test]
 fn delimited_lists_round_trip() {
-    let fixture = turbo_goldens::data_dir().join("fixtures").join("glossary-terms.tsv");
+    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/glossary-terms.tsv");
     let g = DelimitedReader::tsv(FirstRecord::Header).read(&std::fs::read(&fixture).unwrap()).unwrap().glossary;
     round_trip("glossary-terms.tsv", &g, "en");
     for (name, bytes) in inputs("csv-") {
