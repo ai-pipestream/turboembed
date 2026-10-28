@@ -51,9 +51,23 @@ pub fn per_layer(cfg: &Value) -> Result<Option<u64>> {
     }
 }
 
-/// The recipe's architecture.lookahead against what `cfg` trains.
+/// The recipe's architecture.lookahead against what `cfg` trains. A
+/// lookahead model is never cut (`architecture.layers` below the
+/// upstream count): its band is the upstream lookahead divided among all
+/// the upstream layers, so a cut model's layers see what no layer of the
+/// trained one saw.
 pub fn agrees(cfg: &Value, manifest: &Value) -> Result<()> {
     let want = per_layer(cfg)?;
+    let layers = manifest.pointer("/architecture/layers").and_then(Value::as_u64);
+    let upstream = cfg["num_hidden_layers"].as_u64();
+    if let (Some(_), Some(l), Some(u)) = (want, layers, upstream)
+        && l < u
+    {
+        return Err(format!(
+            "manifest.architecture.layers: {l} cuts a lookahead model of {u} layers; a lookahead model runs all its \
+             layers"
+        ));
+    }
     let got = manifest.pointer("/architecture/lookahead").and_then(Value::as_u64);
     if got == want {
         return Ok(());
@@ -103,6 +117,20 @@ mod tests {
         assert!(e.contains("lookahead: none, the upstream config.json trains 16 a layer (lookahead 48"), "{e}");
         let e = agrees(&json!({ "num_hidden_layers": 1 }), &json!({ "architecture": { "lookahead": 4 } })).unwrap_err();
         assert!(e.contains("lookahead: 4, the upstream config.json trains none"), "{e}");
+    }
+
+    #[test]
+    fn a_lookahead_model_is_never_cut() {
+        let sat_3l = json!({ "lookahead": 48, "num_hidden_layers": 3 });
+        let m = |layers: u64| json!({ "architecture": { "lookahead": 16, "layers": layers } });
+        assert!(agrees(&sat_3l, &m(3)).is_ok());
+        for cut in [1, 2] {
+            let e = agrees(&sat_3l, &m(cut)).unwrap_err();
+            assert!(e.contains(&format!("layers: {cut} cuts a lookahead model of 3 layers")), "{e}");
+        }
+        // A model without lookahead may be cut.
+        let plain = json!({ "num_hidden_layers": 12 });
+        assert!(agrees(&plain, &json!({ "architecture": { "layers": 6 } })).is_ok());
     }
 
     #[test]

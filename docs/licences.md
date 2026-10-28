@@ -4,9 +4,10 @@ The datasets and published checkpoints the analysis add-ons may use, with
 their licences, their class under the policy on #326 and where the terms
 are stated. The classes and what the zoo does with each are in
 docs/zoo.md. The zoo's built-in index (`analysis/zoo/index/zoo.json`)
-lists the checkpoints of the first two tables below; the refused
-checkpoints, and the local-only ones the index does not list, are only
-here.
+is the current downloadable catalogue. The classical model tables below
+are historical licence records: #1511 removed their archive entries and
+disabled loading. A permissive licence does not make an unsupported format
+usable. Refused and local-only checkpoints remain documented here.
 Restricted but public data and non-commercial data, requested only at
 addresses under their original sources and never shipped by this
 project, have sections of their own at the end.
@@ -28,7 +29,7 @@ Dependencies treebank, and the treebank decides the class.
   machine this table was written on, and should be opened before the
   dataset is used.
 
-## OpenNLP UD models 1.3 (fetchable)
+## OpenNLP UD models 1.3 (historical, unsupported)
 
 Published at <https://archive.apache.org/dist/opennlp/models/ud-models-1.3/>
 under Apache-2.0 (its README), trained by OpenNLP 2.5.4 on UD 2.16.
@@ -73,49 +74,17 @@ The Spanish and Portuguese models are trained on GSD, not on the CC BY
 AnCora and Porttinari treebanks, so they are share-alike; only Catalan
 uses AnCora.
 
-The tests run eight of these share-alike models: the English, German and
-Portuguese sentence models and the English, German, Spanish, French and
-Portuguese tokenizer models. Under the 2026-10-14 decision share-alike
-files are not checked in, so the tests fetch them: `cargo run -p
-turbo-goldens-tool -- fetch-models <dir>` downloads them and checks their
-SHA-512 (`analysis/goldens-tool/src/recipe/mod.rs`), the tests read them from
-that directory, and CI fetches them and requires them. The READMEs in
-`analysis/sentdetect/tests/models/` and `analysis/tokenize/tests/models/`
-list them. The small fixture models trained for this project
-(`analysis/goldens/data/fixtures`, listed in `analysis/goldens/data/README.md`)
-stay checked in.
+Current acceptance tests do not download or read these models. The old model
+fetch steps and archive comparisons were removed under #1511. Retained licence
+and hash records are historical provenance, not a fetch or runtime contract.
 
-## Models trained by this project (fetchable once released)
+## Classical models previously trained by this project
 
-Trained by the recipes in `analysis/train-recipes` only on permissive
-data, each gated against the OpenNLP model for the same task, under
-Apache-2.0. The index lists each at its address in a release of this
-repository: `models-masc-3.0.0-1` for the MASC models, which
-`.github/workflows/models.yml` creates, `models-ud-2.16-1` for the UD
-models, which `.github/workflows/models-ud.yml` creates, and
-`models-tatoeba-2026-10-10-1` for the language detector, which
-`.github/workflows/models-tatoeba.yml` creates, and
-`models-tatoeba-fineweb-2026-10-10-1` for the web language detector,
-which `.github/workflows/models-fineweb.yml` creates, each with every
-model's card and gate records, when it is run by hand on main.
-Until it has been, the release's addresses answer 404 and fetching its
-models through the zoo fails. Every file's size, SHA-256 and SHA-512 in
-the index are the ones its card records, and a workflow publishes
-nothing unless the models it trains have them. The attribution of the
-data (MASC's, the treebank's, Tatoeba's, or for the web language
-detector Tatoeba's, FineWeb-2's and FineWeb's under ODC-By 1.0) is in
-each model's card
-(the `attribution` field, published as `<model id>.card.json` beside the
-model), in the release notes, and on the model's entry in the zoo index
-(`attribution`, shown by `turbo-zoo show`). The language detectors name the sentences they were trained on by
-id in `training-sentences.txt`, which the zoo lists as each model's
-second file, and the web language detector names its documents
-(repository, file, row and FineWeb id) in `training-documents.txt`, its
-third. The Tatoeba export it is trained on is kept, unchanged, as release
-`data-tatoeba-2026-10-10`, with the CC BY 2.0 FR and CC0 1.0 notices in
-its release notes. The Portuguese Porttinari models and the Italian
-MarkIT models are in no release (the first for the rights to the text,
-the second for failing their gates).
+The following table preserves data licensing and attribution for historical
+MASC, UD, Tatoeba and FineWeb model releases. Their archive entries are no
+longer in the built-in zoo index, and the model publication workflows have
+been removed under #1511. Existing release files are not supported runtime
+models. Dataset download helpers remain subject to the same licence policy.
 
 | Model | Trained on | Licence of the data | Class | Checked |
 |---|---|---|---|---|
@@ -146,39 +115,14 @@ the second for failing their gates).
 | 1.5 `en-pos-perceptron` | not published (as `en-pos-maxent`) | none stated | proprietary | plan |
 | 1.5 English NER, sentence and token models | no corpus named | none stated | no licence | plan |
 
-`en-pos-maxent.bin` and `en-chunker.bin` are used only as references
-whose output is scored or compared. Nothing ships, bundles, mirrors or
-trains on them, and the zoo does not list them. The `ci` workflow
-(`ci.yml`) does not fetch them. The `models` workflow
-(`.github/workflows/models.yml`), which runs the recipes' gates before
-it publishes their models, downloads them from
-<https://opennlp.sourceforge.net/models-1.5/>, checks them against the
-SHA-256s `analysis/train-recipes/masc-references.txt` lists, and keeps
-them in the repository's GitHub Actions cache. GitHub restores that
-cache only in this repository's workflow runs, and it cannot be
-downloaded. Anywhere else they are downloaded by hand from that address
-into a directory the user names. The SHA-256 of `en-pos-maxent.bin` is
-`645a094f45a866687a617385233fd23ae8b0f5fa8b1b76996781a50c17bdcf3d`, and
-that of `en-chunker.bin` is
-`7861a0c2f134d9c12a022a1ba501e88bc7039f6db72b4140e1bafd1fb5ef76cc`
-(`chunk::EN_CHUNKER`, 2,560,304 bytes); the turbo-train-recipes chunker
-gate scores it on MASC's held-out documents as the tagger gate scores
-`en-pos-maxent.bin`. The
-JVM goldens (`PosGolden`, `BeamGolden`) record its tags for the test
-sentences and that digest; turbo-sequence's tests check the digest and
-compare what turbo-sequence makes of the model with the goldens; and the
-turbo-train-recipes tagger gate checks its size and SHA-256 (5,696,197
-bytes, `postag::EN_POS_MAXENT`), scores it on MASC's held-out documents
-and compares that score with the trained model's.
-
-The goldens tool fetches `langdetect-183.bin` to make the language
-detector's goldens (`analysis/goldens-tool/src/recipe/mod.rs`); the zoo does
-not list it. The language detector recipe and the web language detector
-recipe (`analysis/train-recipes`, #429) score it as their gates'
-reference, the web one in both of its gates: each reads the file from a
-directory the user names and checks its size and SHA-256
-(`langdetect::LANGDETECT_183`), and ships, bundles and trains on nothing
-of it.
+Earlier MASC evaluation used `en-pos-maxent.bin` and `en-chunker.bin` as
+restricted comparison inputs. The current build neither loads these archives
+nor runs the old model publication workflow. The retained
+`analysis/train-recipes/masc-references.txt` records historical input hashes;
+it is not permission to fetch, redistribute or execute these models.
+The former language detector comparison input, `langdetect-183.bin`, is also
+unsupported and absent from the zoo. Historical evaluation permission does
+not authorize bundling, mirroring or training on any of these inputs.
 
 ## Neural annotator checkpoints
 
@@ -193,13 +137,14 @@ in the zoo's index:
 `deepset/roberta-base-squad2` (`deepset-roberta-base-squad2`,
 share-alike through its training data, fetched only after the user
 accepts CC BY-SA 4.0), `urchade/gliner_small-v2.1`
-(`urchade-gliner-small-v2.1`, permissive) and its base tokenizer
+(`urchade-gliner-small-v2.1`, local-only by its training data since
+2026-10-28, fetched after the user accepts the terms below) and its base tokenizer
 `microsoft/deberta-v3-small`'s `spm.model` and `config.json`
 (`microsoft-deberta-v3-small-tokenizer`, permissive), `urchade/gliner_multi-v2.1`
-(`urchade-gliner-multi-v2.1`, permissive) and its base tokenizer
+(`urchade-gliner-multi-v2.1`, local-only the same way) and its base tokenizer
 `microsoft/mdeberta-v3-base`'s `spm.model` and `config.json`
 (`microsoft-mdeberta-v3-base-tokenizer`, permissive), `fastino/gliner2-base-v1` (`fastino-gliner2-base-v1`,
-permissive), `jackboyla/glirel-large-v0` (`jackboyla-glirel-large-v0`,
+local-only the same way), `jackboyla/glirel-large-v0` (`jackboyla-glirel-large-v0`,
 local-only, fetched from its publisher only after the user accepts CC
 BY-NC-SA 4.0), GLiREL's tokenizer, `microsoft/deberta-v3-large`'s
 `spm.model` and `config.json` (`microsoft-deberta-v3-large-tokenizer`,
@@ -224,16 +169,16 @@ files were downloaded then, with SHA-512 digests recorded in their entries.
 | [segment-any-text/sat-1l-sm](https://huggingface.co/segment-any-text/sat-1l-sm) | `00a783439c201b20ee91ee1624dc817f1bf0e578` | MIT | XLM-R (MIT); trained on mC4, then a mixture that includes Universal Dependencies training sets | refused: the published training mixture includes OPUS-100 with unconfirmed terms (`LicenseRef-Unconfirmed`); the UD part alone is local-only | here, 2026-10-24 |
 | [segment-any-text/sat-12l-sm](https://huggingface.co/segment-any-text/sat-12l-sm) | `d70c72a9331b2d5a9e82baad00c64964a23a09bb` | MIT | as `sat-1l-sm` | refused, as `sat-1l-sm` | here, 2026-10-24 |
 | [segment-any-text/sat-3l](https://huggingface.co/segment-any-text/sat-3l) | `a3b7ba6b61881d619989757aea971cde7d3d6a98` | MIT | XLM-R (MIT); mC4 (ODC-BY) | permissive; in the index (`segment-any-text-sat-3l`); limited lookahead runs on the CPU (#887) | here, 2026-10-24 |
-| [urchade/gliner_small-v2.1](https://huggingface.co/urchade/gliner_small-v2.1) | `4e091416cf7c3481db542c2a3d26156916f3a47f` | Apache-2.0 | deberta-v3-small (MIT); `urchade/pile-mistral-v0.1` (Apache-2.0, labels Mistral wrote for text from The Pile) | permissive; in the index (`urchade-gliner-small-v2.1`, docs/gliner.md) | here |
+| [urchade/gliner_small-v2.1](https://huggingface.co/urchade/gliner_small-v2.1) | `4e091416cf7c3481db542c2a3d26156916f3a47f` | Apache-2.0 | deberta-v3-small (MIT); `urchade/pile-mistral-v0.1` (Apache-2.0, labels Mistral wrote for text from The Pile, whose source texts carry mixed and partly unknown rights) | local-only by its training data (decision 2026-10-28 below): in the index (`urchade-gliner-small-v2.1`, docs/gliner.md), fetched from its publisher after the user accepts the dataset card's terms; never bundled or shipped | here; data rechecked 2026-10-28 |
 | [microsoft/deberta-v3-small](https://huggingface.co/microsoft/deberta-v3-small) (`spm.model`, `config.json`) | `a36c739020e01763fe789b4b85e2df55d6180012` | MIT | | permissive; in the index (`microsoft-deberta-v3-small-tokenizer`) | here, 2026-10-23 |
-| [urchade/gliner_multi-v2.1](https://huggingface.co/urchade/gliner_multi-v2.1) | `443d26d654e0324125a96bebd8e796c14ff2efe6` | Apache-2.0 | mdeberta-v3-base (MIT); as `gliner_small-v2.1` | permissive; in the index (`urchade-gliner-multi-v2.1`, docs/gliner.md) | here |
+| [urchade/gliner_multi-v2.1](https://huggingface.co/urchade/gliner_multi-v2.1) | `443d26d654e0324125a96bebd8e796c14ff2efe6` | Apache-2.0 | mdeberta-v3-base (MIT); as `gliner_small-v2.1` | local-only, as `gliner_small-v2.1` | here; data rechecked 2026-10-28 |
 | [microsoft/mdeberta-v3-base](https://huggingface.co/microsoft/mdeberta-v3-base) (`spm.model`, `config.json`) | `a0484667b22365f84929a935b5e50a51f71f159d` | MIT | | permissive; in the index (`microsoft-mdeberta-v3-base-tokenizer`) | here, 2026-10-23 |
 | [urchade/gliner_small](https://huggingface.co/urchade/gliner_small) (v1) | `0f0f4e7d3f10e48844110162d6b5c6072ddd5a4e` | CC BY-NC 4.0 | | local-only; not used | here |
-| [fastino/gliner2-base-v1](https://huggingface.co/fastino/gliner2-base-v1) | `f9634218e53580c56edf0de97ca1a7d3f1c2354e` | Apache-2.0 | deberta-v3-base (MIT); training data not named on the card | permissive; in the index; the relation scorer and schema extraction (docs/schema-extract.md) | here |
+| [fastino/gliner2-base-v1](https://huggingface.co/fastino/gliner2-base-v1) | `f9634218e53580c56edf0de97ca1a7d3f1c2354e` | Apache-2.0 | deberta-v3-base (MIT); training data not named on the card; the GLiNER2 paper (arXiv 2507.18546) describes 254k examples of news, Wikipedia, legal, PubMed and arXiv text labelled by GPT-4o plus GPT-4o synthetic examples, not released | local-only by its training data (decision 2026-10-28 below): in the index, fetched from its publisher after the user accepts the card's terms; the relation scorer and schema extraction (docs/schema-extract.md) | here; data rechecked 2026-10-28 |
 | [microsoft/deberta-v3-large](https://huggingface.co/microsoft/deberta-v3-large) (`spm.model`, `config.json`) | `64a8c8eab3e352a784c658aef62be1662607476f` | MIT | | permissive; in the index | here |
 | [jackboyla/glirel-large-v0](https://huggingface.co/jackboyla/glirel-large-v0) | `40a523e12a8432d6da364cf2a195a28755ff04d3` | CC BY-NC-SA 4.0 (the card and the GLiREL repository) | deberta-v3-large (MIT); training data not named on the card | local-only; in the index, fetched after acceptance | here |
 | [cross-encoder/nli-MiniLM2-L6-H768](https://huggingface.co/cross-encoder/nli-MiniLM2-L6-H768) | `b95119ce93d3e065de6214e38cd4a97b0f2f2c6d` | Apache-2.0 | [nreimers/MiniLMv2-L6-H768-distilled-from-RoBERTa-Large](https://huggingface.co/nreimers/MiniLMv2-L6-H768-distilled-from-RoBERTa-Large) (Apache-2.0); [SNLI](https://huggingface.co/datasets/stanfordnlp/snli) (CC BY-SA 4.0) and [MultiNLI](https://huggingface.co/datasets/nyu-mll/multi_nli) (CC BY-SA 3.0; majority of OANC genres) | share-alike; in the index, fetched after acceptance; zero-shot categorization (docs/doccat.md) | here |
-| [dslim/bert-base-NER](https://huggingface.co/dslim/bert-base-NER) | `d1a3e8f13f8c3566299d95fcfc9a8d2382a9affc` | MIT | [google-bert/bert-base-cased](https://huggingface.co/google-bert/bert-base-cased) (Apache-2.0); CoNLL-2003 (Reuters RCV1, research only; under Datasets) | refused by the class rule, for its training data: not shipped, bundled, listed in the index or trained on; a local reference that is scored, as `en-pos-maxent` is | here |
+| [dslim/bert-base-NER](https://huggingface.co/dslim/bert-base-NER) | `d1a3e8f13f8c3566299d95fcfc9a8d2382a9affc` | MIT | [google-bert/bert-base-cased](https://huggingface.co/google-bert/bert-base-cased) (Apache-2.0); CoNLL-2003 (Reuters RCV1, research only; under Datasets) | download after acceptance, bring your own data (Kristian, #1599, 2026-10-28): the user fetches the checkpoint after accepting its terms and supplies CoNLL-2003 under Reuters' agreement; not shipped, bundled, a default, or trained into a shipped model | here |
 | [deepset/roberta-base-squad2](https://huggingface.co/deepset/roberta-base-squad2) | `adc3b06f79f797d1c575d5479d6f5efe54a9e3b4` | CC BY 4.0 | [FacebookAI/roberta-base](https://huggingface.co/FacebookAI/roberta-base) (MIT); SQuAD 2.0 (CC BY-SA 4.0, under Datasets) | share-alike, by its training data: in the index, fetched after acceptance; not shipped or bundled; `bundle/recipes/roberta-base-squad2.json` makes a local bundle from it | here, 2026-10-23 |
 | [opensearch-project/opensearch-neural-sparse-encoding-v1](https://huggingface.co/opensearch-project/opensearch-neural-sparse-encoding-v1) | `708f7e68f4aada15c2d59144a5187c521da6d8db` | Apache-2.0 | [google-bert/bert-base-uncased](https://huggingface.co/google-bert/bert-base-uncased) (Apache-2.0); [MS MARCO](https://microsoft.github.io/msmarco/) (Microsoft's terms: non-commercial research only, no intellectual property rights extended; under Datasets) | local-only, by its training data: in the index, fetched from its publisher only after the user accepts MS MARCO's terms; not shipped or bundled; the learned-sparse arm of the SPLATE study (#913, docs/splate.md) | here, 2026-10-24 |
 | [colbert-ir/colbertv2.0](https://huggingface.co/colbert-ir/colbertv2.0) | `c1e84128e85ef755c096a95bdb06b47793b13acf` | MIT | [google-bert/bert-base-uncased](https://huggingface.co/google-bert/bert-base-uncased) (Apache-2.0); [MS MARCO](https://microsoft.github.io/msmarco/) (as above) | local-only, by its training data: in the index, fetched after acceptance the same way; the MaxSim arm of the SPLATE study (#913) | here, 2026-10-24 |
@@ -243,6 +188,46 @@ files were downloaded then, with SHA-512 digests recorded in their entries.
 | [minishlab/potion-base-8M](https://huggingface.co/minishlab/potion-base-8M) | `bf8b056651a2c21b8d2565580b8569da283cab23` | MIT | Model2Vec distillation with teacher `BAAI/bge-base-en-v1.5` (above) over `minishlab/tokenlearn-c4-en-bge-base-v1.5` (C4 English) | not proven permissive: the static table is distilled from the teacher, so it keeps the teacher's unaudited lineage (docs/static.md states the same rule for `turbo-bundle distill`); static tier of the cascade and SPLATE records, fetched by recipe, not shipped | here, 2026-10-26 |
 | [minishlab/potion-retrieval-32M](https://huggingface.co/minishlab/potion-retrieval-32M) | `6fc8051fab2a1e0ee76689cf08c853792ac285e7` | MIT | `minishlab/potion-base-32M`; fine-tuned on a retrieval mixture the card lists, including MS MARCO derivatives (`sentence-transformers/msmarco-co-condenser-margin-mse-sym-mnrl-mean-v1`, `bclavie/msmarco-10m-triplets`) | local-only, by its training data; its recipe has carried the MS MARCO notice and `--accept-terms` fetch all along (docs/static.md) | here, 2026-10-26 |
 | [ibm-granite/granite-embedding-30m-english](https://huggingface.co/ibm-granite/granite-embedding-30m-english) | `9b5b096411652ec1189c68fcfb90d0a82c5b45af` | Apache-2.0 | IBM's RoBERTa encoder (retrieval-oriented pretraining, contrastive fine-tuning, distillation and merging, arXiv 2502.20204); the card enumerates the mixture and no entry is under non-commercial terms (IBM excluded MS MARCO for its license): title-body web pairs, S2ORC, WikiAnswers, arXiv, PubMed and DBpedia pairs, IBM-internal and IBM synthetic pairs, and the CC BY-SA sets Stack Exchange, Natural Questions, SQuAD 2.0, HotpotQA, FEVER, SPECTER, SearchQA, MIRACL, Wikipedia pairs and PAQ (CC BY-SA 3.0, per the facebookresearch/PAQ README) | CC BY-SA training-data class, as roberta-base-squad2 above; optional local download after user acceptance under docs/zoo.md ("Granite requires an explicit download decision", #1451). No weights or generated bundles are included in TurboEmbed releases. The recipe notice discloses the web-scraped and IBM-internal inputs and requires `--accept-terms`. The catalogue recipe converts BF16 to F32 locally; evaluation is in docs/analysis.md | here, 2026-10-27 |
+
+Not in the index, classified for when an entry is made (cards read on
+2026-10-28; their files were not fetched, so no SHA-512s exist):
+
+| Checkpoint | Licence | Base and data | Class once entered |
+|---|---|---|---|
+| [urchade/gliner_multi_pii-v1](https://huggingface.co/urchade/gliner_multi_pii-v1) | Apache-2.0 | `urchade/gliner_multi-v2.1` (above); `urchade/synthetic-pii-ner-mistral-v1` (Apache-2.0) | local-only, inherited from `gliner_multi-v2.1` |
+| [cis-lmu/glotlid](https://huggingface.co/cis-lmu/glotlid) | Apache-2.0 plus notices (LICENSE: no training data distributed, its licensing not warranted) | fastText; GlotSparse, GlotStoryBook, glotlid-corpus, licences not stated | local-only by its training data; also needs a fastText reader the core lacks |
+
+### Apache weights on unreleased or LLM-labelled data (decision 2026-10-28)
+
+Kristian, 2026-10-28 06:45 UTC, agreeing to the recommendation in the
+open-model inventory of 2026-10-28:
+"i agree with all your recommendations". The recommendation was that a
+checkpoint whose weights are Apache-2.0 or MIT but whose training data is
+unreleased, or is web text of mixed rights labelled by an LLM, is
+accept-first rather than default: we cannot show the data's licence.
+
+In the index this is `LicenseRef-RestrictedPublic` on the training-data
+entry, with the card or dataset page that describes the data as its terms,
+which puts the checkpoint in `CLASS_LOCAL_ONLY`: fetched only from its
+publisher (`origin`), after the user accepts that page, never bundled,
+checked in or shipped, and any model trained from it stays local. It
+applies to `fastino-gliner2-base-v1`, `urchade-gliner-small-v2.1`,
+`urchade-gliner-multi-v2.1`, and to `gliner_multi_pii-v1` and GlotLID
+when they are entered. Should the decision change, only the
+training-data entries and the class move back. The same review withdrew
+the recommendation to refuse GoEmotions: its data is CC BY 4.0 and its
+Reddit text was already classified under #326, so that approval stands.
+
+Checked-in weights count as included, so the reduced fixtures that were
+sliced from these checkpoints (`analysis/gliner/tests/fixtures`,
+`analysis/relation/tests/fixtures/gliner2`,
+`analysis/schema-extract/tests/fixtures`, `core/tests/fixtures/deberta`)
+are now seeded random weights in the same shapes and tensor names, with
+reference outputs regenerated by the pinned reference code, as the GLiREL
+fixture already was. No fixture value comes from a checkpoint; the tests
+run offline as before. Files holding only outputs of a full checkpoint
+(`real.json`, `full-reference.json`, `multi-reference.json`) carry no
+weights and stay.
 
 The `-sm` class was checked on 2026-10-23 against wtpsplit (MIT) at
 commit `3ef928c8e163d11dc6f6336ad610bff2ffe0bda4`.
@@ -434,7 +419,7 @@ later as further lexicon entries behind the same
 | [UD_Czech-PDT r2.16](https://github.com/UniversalDependencies/UD_Czech-PDT/blob/r2.16/README.md) | | CC BY-NC-SA 4.0 | local-only | non-commercial (the plan counts about 62 non-commercial UD treebanks; not recounted here) | here |
 | [UD_English-GUMReddit r2.16](https://github.com/UniversalDependencies/UD_English-GUMReddit/blob/r2.16/README.md) | | CC BY 4.0 annotations | refused | the text is rebuilt from Reddit, under Reddit's terms | here (annotations); plan (text) |
 | [UD_Portuguese-DANTEStocks r2.16](https://github.com/UniversalDependencies/UD_Portuguese-DANTEStocks/blob/r2.16/README.md) | | CC BY 4.0 | refused | its text is tweets (the README: "a collection of Brazilian Portuguese tweets"), and the policy refuses platform-terms data, as it does MASC's Twitter genre, so no recipe trains on it | here |
-| [CoNLL-2003](https://www.clips.uantwerpen.be/conll2003/ner/) | NER | Reuters RCV1, research only | refused for training | evaluation runs may use a local copy (`turbo-namefind-dl`, docs/namefind-dl.md); numbers recorded, files not kept | plan |
+| [CoNLL-2003](https://www.clips.uantwerpen.be/conll2003/ner/) | NER | Reuters RCV1, research only | bring your own data (Kristian, #1599, 2026-10-28) | the reader and parity test are ours; the user obtains the text under Reuters' agreement; never committed, bundled or trained into a shipped model; evaluation numbers recorded, files not kept | plan |
 | [OntoNotes 5.0](https://catalog.ldc.upenn.edu/LDC2013T19) | NER | LDC, non-commercial | refused | not a CC licence: an LDC user agreement, outside the 2026-10-14 decision on non-commercial data | plan |
 | [MultiNERD](https://github.com/Babelscape/multinerd) | NER | CC BY-NC-SA 4.0 | local-only | non-commercial | plan |
 | [WikiNEuRal](https://github.com/Babelscape/wikineural) | NER | CC BY-NC-SA 4.0 | local-only | non-commercial | plan |
@@ -628,9 +613,9 @@ not list them, and CI does not fetch them.
 [model card](https://huggingface.co/urchade/gliner_small-v2.1/blob/4e091416cf7c3481db542c2a3d26156916f3a47f/README.md).
 The underlying `microsoft/deberta-v3-small` encoder and SentencePiece tokenizer
 declare MIT in their [pinned model card](https://huggingface.co/microsoft/deberta-v3-small/blob/a36c739020e01763fe789b4b85e2df55d6180012/README.md). GLiNER 0.2.21 reference code is Apache-2.0.
-The head fixture in `analysis/gliner/tests/fixtures` contains modified, reduced
-slices of those trained weights, not a usable extraction checkpoint. Its
-provenance lists the slicing rules. Full-width reference outputs and source
+The head fixture in `analysis/gliner/tests/fixtures` held reduced slices of
+those trained weights until 2026-10-28; it now holds seeded random weights in
+their shapes (decision 2026-10-28 above), and its provenance gives the seed. Full-width reference outputs and source
 SHA-256 values are in `analysis/gliner/tests/fixtures/full-reference.json`.
 No full model is added to the zoo by this change. The exact checkpoint above
 was checked; this is not a licence decision for other GLiNER checkpoints.
