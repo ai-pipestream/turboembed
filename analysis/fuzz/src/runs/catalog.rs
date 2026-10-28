@@ -2,11 +2,9 @@
 
 use super::language::Detector;
 use super::normalize::{NormalizerRun, RUN_NAMES as NORMALIZERS};
-use super::numeric::{MoneyLayer, Numeric};
 use super::sentences::{MaxentSentences, NewlineSentences};
 use super::subwords::{VOCABULARY, WordPiece};
 use super::tagging::{Chunker, FIXTURE_CHUNKERS, Lemmatizer, Tagger};
-use super::temporal::Temporal;
 use super::tokens::{Lattice, Maxent, Plain, Uax29, Unigram};
 use super::{Run, split_options};
 use crate::resources::{Resources, Unavailable};
@@ -31,7 +29,8 @@ use crate::resources::{Resources, Unavailable};
 /// compares with; the maxent document categorizer runs (`doccat`) train
 /// models on a downloaded corpus and categorize documents of their own; the
 /// PII packs and rewrites (`pii`, `pii-rewrite`) live under
-/// turbo-pii's own snapshots; the neural part-of-speech taggers (`postag-neural`) train
+/// turbo-pii's own snapshots; the number, money, quantity and temporal
+/// runs live under turbo-numeric's own snapshots; the neural part-of-speech taggers (`postag-neural`) train
 /// models of their own and tag token lists rather than texts; the CoNLL-U
 /// dependency and CorefUD readers (`conllu`) and the OntoNotes and French
 /// Treebank readers (`ontonotes`, `frenchtreebank`) read files of their own,
@@ -160,16 +159,6 @@ pub const RUNS: &[(&str, &str)] = &[
     ("normalize", "symbol-joiner"),
     ("normalize", "default-chain"),
     ("normalize", "umlaut-full-case-whitespace-chain"),
-    ("numbers", "latin-eu"),
-    ("numbers", "latin-us"),
-    ("money", "latin-eu"),
-    ("money", "latin-us"),
-    ("money-convert", "latin-eu"),
-    ("money-convert", "latin-us"),
-    ("quantity", "latin-eu"),
-    ("quantity", "latin-us"),
-    ("temporal", "dateline"),
-    ("temporal", "fixed"),
     ("subwords", VOCABULARY),
 ];
 
@@ -194,11 +183,6 @@ pub fn open(annotator: &str, run: &str, res: &Resources) -> Result<Box<dyn Run>,
         "chunk" if FIXTURE_CHUNKERS.contains(&base) => Chunker::open(base, &options, res),
         "langdetect" => Detector::open(base, &options, res),
         "normalize" if NORMALIZERS.contains(&run) => NormalizerRun::open(run),
-        "numbers" => Numeric::open_numbers(run),
-        "money" => Numeric::open_money(run, MoneyLayer::Extracted, res),
-        "money-convert" => Numeric::open_money(run, MoneyLayer::Converted, res),
-        "quantity" => Numeric::open_quantities(run),
-        "temporal" => Temporal::open(run),
         "subwords" if run == VOCABULARY => WordPiece::open(res),
         _ => Err(not_covered()),
     }
@@ -242,7 +226,6 @@ mod tests {
             ("tokenize", "uax29"),
             ("normalize", "default-chain"),
             ("normalize", "umlaut-full-case-whitespace-chain"),
-            ("money-convert", "latin-eu"),
             ("chunk", "chunker-fixture+beam1"),
             ("chunk", "chunker-fixture-rust"),
         ] {

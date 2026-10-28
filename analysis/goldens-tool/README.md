@@ -1028,96 +1028,9 @@ checked-in files the image is
 The headers report the actual jar version, JDK and input digest. Running this
 generator twice produced the same 61 files byte for byte.
 
-## Number goldens
 
-`numbers/<notation>/num/<id>.golden` is what number scanning did to
-`inputs/num/<id>.txt`, with `<notation>` `latin-us` (`,` groups, `.` is the
-decimal mark) or `latin-eu` (the reverse). It has a `turbo:numbers` layer
-with one row per number mention: `start` and `end` (UTF-8 byte offsets of
-the mention, from the sign to the end of the scale marker), `numeral_end`
-(where the digits stop and a `k` or `million` begins; equal to `end` when
-there is none), `negative`, and the value as `coefficient` (the unscaled
-value without sign), `scale` (digits after the decimal point) and `plain`
-(`toPlainString()`, for a reader of the file). The golden has a
-`config notation` record. As with the normalizers, there is no model, so
-the notation takes the model's place in the path.
 
-The scan is `NumberScan.parse` in the `numeric` module of
-`ai-pipestream/opennlp-addons` (branch `ready/numeric`, commit
-`33e95a4956f1535cdc074056b29246fe88b3c81a`, pinned in `src/recipe/mod.rs`). `NumberGolden` runs the
-loop of that module's `CursorQuantityExtractor.extract` and `matchAt`
-without the exclusion of money spans and without units, using only public
-`NumberScan` methods: at each offset an optional `-`, an ASCII digit that
-does not continue an earlier number, a boundary before the mention (the
-sign boundary after a `-`), then `parse` with scale markers.
 
-The OpenNLP fork at the pinned commit also contains
-`opennlp.tools.extraction.NumberScan` and `NumberNotation`, older than the
-module's (the fork's `NumberScan` allows only an ASCII space before a scale
-word). The generator's pom lists the module before the runtime so that its
-classes come first on the class path, and the generator stops if `NumberScan`
-was not loaded from the module's jar.
-
-The `num` inputs are written for the project and use characters of the
-Unicode 15.0 repertoire only. Only `NumberGolden` runs on them.
-
-## Money goldens
-
-`money/<notation>/money/<id>.golden` is what `MoneyAnnotator` over
-`CursorMoneyExtractor` found in `inputs/money/<id>.txt`, in `latin-us` or
-`latin-eu`. `money-convert/<notation>/money/<id>.golden` is the same
-mentions restated in EUR by `MoneyConversionAnnotator` with `EcbFxRates`
-as of 2026-03-15. Both have one row per mention with `start`, `end`
-(UTF-8 byte offsets), `coefficient`, `negative`, `scale`, `plain` and
-`currency`, in the layer `turbo:money`. The
-`config` records are `notation`, and for the conversions `target`,
-`as_of` and `snapshot`. A mention without a usable rate has no row in the
-converted layer. An amount that comes out with a negative scale, such as
-`2E+1`, is written with scale 0.
-
-The rates are `analysis/goldens/data/rates/ecb-snapshot.csv`, a small
-hand made file in the format of the ECB's `eurofxref-hist.csv` with
-invented values. The generator reads `rates/ecb-snapshot.csv` beside its
-inputs directory; the driver mounts the data directory's `rates` at
-`/rates` in the container. 2026-03-15 is a Sunday, so the Friday row
-applies; the file has no CNY quote on that Friday and never one for RUB.
-
-The `money` inputs are written for the project. Only the two money
-annotators run on them, and they have no dumps.
-
-## Quantity goldens
-
-`quantity/<notation>/quantity/<id>.golden` is what `QuantityAnnotator`
-over `CursorQuantityExtractor`, with its default units, found in
-`inputs/quantity/<id>.txt`, in `latin-us` or `latin-eu`. Each has one row
-per mention with `start`, `end` (UTF-8 byte offsets), `coefficient`,
-`negative`, `scale`, `plain` and `unit`, in the layer `turbo:quantities`,
-and a `config notation` record. `negative` follows the value's sign, and a
-value with a negative scale is written with scale 0, as for money.
-
-The `quantity` inputs are written for the project. Only the quantity
-annotator runs on them, and it has no dumps.
-
-## Temporal goldens
-
-`temporal/<mode>/temporal/<id>.golden` is what `TemporalAnnotator` over
-`CursorTemporalExtractor`, followed by `DocumentDateAnnotator`, found in
-`inputs/temporal/<id>.txt`. In the `dateline` mode the annotator takes the
-reference date of relative mentions from the text's first absolute day,
-and a text without one has no relative mentions; in the `fixed` mode the
-reference date is 2026-03-15. The `config reference` record is `dateline`
-or `2026-03-15`; the mode takes the model's place in the path.
-
-Each golden has two layers. `turbo:temporal` has one row per mention with
-`start`, `end` (UTF-8 byte offsets), `value` (`TemporalExpression.value()`:
-`2026-07-14`, `2026-W29`, `2026-07`, `2024-Q3` or `2026`), and
-`granularity` and `origin`, the names of the enum constants.
-`turbo:document-date` is anchored on the document and has no row or one:
-`date`, the chosen `LocalDate`, and `mention`, the index in
-`turbo:temporal` of the mention the date annotation spans.
-
-The `temporal` inputs are written for the project. Only the temporal
-annotators run on them, and they have no dumps.
 
 ## SVM document categorizer goldens
 

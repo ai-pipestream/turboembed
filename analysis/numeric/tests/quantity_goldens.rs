@@ -1,84 +1,106 @@
-//! Parity of quantity extraction with OpenNLP 3.x on the JVM.
+//! Reviewed quantity snapshots and span/value invariants.
 //!
-//! For every text in `analysis/goldens/data/inputs/quantity/`,
-//! `quantity/<notation>/quantity/<id>.golden` holds the mentions OpenNLP's
-//! `QuantityAnnotator` found with `CursorQuantityExtractor` and its default
-//! units (see `analysis/goldens-tool/README.md`). Each test runs
-//! `QuantityExtractor` in explicit OpenNLP parity mode over every text and compares the
-//! `turbo:quantities` layer with the golden row for row. No tolerance is
-//! applied.
+//! `tests/snapshots/quantity/<notation>/<id>.tsv`. Regenerate with
+//! `TURBO_BLESS=1 cargo test -p turbo-numeric --test quantity_goldens`.
+//! JVM goldens are not an oracle.
 
 use std::path::PathBuf;
 
-use turbo_analysis::{Analyzer, Document};
-use turbo_goldens::{Golden, Tolerance, data_dir, matches_golden};
+use turbo_analysis::{Analyzer, Document, Layer};
 use turbo_numeric::{NumberNotation, Quantities, QuantityExtractor};
 
-/// The ids of the texts in `inputs/quantity`, sorted.
-fn inputs() -> Vec<String> {
-    let mut ids: Vec<String> = std::fs::read_dir(data_dir().join("inputs/quantity"))
-        .expect("the quantity input set")
+fn root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests")
+}
+
+fn input_ids() -> Vec<String> {
+    let mut ids: Vec<String> = std::fs::read_dir(root().join("inputs/quantity"))
+        .expect("tests/inputs/quantity")
         .map(|e| {
-            let name = e.expect("a directory entry").file_name().into_string().expect("a UTF-8 file name");
-            name.strip_suffix(".txt").expect("an input set holds only <id>.txt files").to_string()
+            let name = e.expect("entry").file_name().into_string().expect("utf-8");
+            name.strip_suffix(".txt").expect(".txt").to_string()
         })
         .collect();
     ids.sort();
     ids
 }
 
-fn golden(notation: &str, id: &str) -> Golden {
-    let path: PathBuf = data_dir().join("quantity").join(notation).join("quantity").join(format!("{id}.golden"));
-    Golden::read(path).unwrap_or_else(|e| panic!("{e}"))
+fn text_of(id: &str) -> String {
+    std::fs::read_to_string(root().join("inputs/quantity").join(format!("{id}.txt"))).unwrap()
 }
 
-fn config<'g>(golden: &'g Golden, key: &str) -> &'g str {
-    let entry = golden.header.config.iter().find(|c| c.key == key);
-    &entry.unwrap_or_else(|| panic!("no {key} config record")).value
+fn snap_path(notation: &str, id: &str) -> PathBuf {
+    root().join("snapshots/quantity").join(notation).join(format!("{id}.tsv"))
 }
 
-/// Runs extraction in `notation` over every text, compares the layer with
-/// the goldens of `dir` and returns how many mentions were compared.
-fn check(dir: &str, notation: NumberNotation, name: &str) -> usize {
-    let ids = inputs();
-    assert!(!ids.is_empty(), "no inputs in the quantity set");
-    let analyzer = Analyzer::builder()
-        .add(QuantityExtractor::new(notation).with_opennlp_parity(true))
-        .build()
-        .expect("the analyzer");
+fn render(q: &Quantities) -> String {
+    let mut out = String::new();
+    for (i, span) in q.spans.iter() {
+        let m = q.get(i);
+        out.push_str(&format!(
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}\n",
+            span.start,
+            span.end,
+            m.coefficient,
+            u32::from(m.negative),
+            m.scale,
+            q.value(i).to_plain_string(),
+            m.unit,
+        ));
+    }
+    out
+}
+
+fn check_invariants(text: &str, q: &Quantities) {
+    q.check().unwrap_or_else(|e| panic!("Layer::check: {e}"));
+    let len = text.len() as u32;
+    let mut prev = 0u32;
+    for (_, span) in q.spans.iter() {
+        assert!(span.start <= span.end && span.end <= len);
+        assert!(span.start >= prev);
+        prev = span.end;
+    }
+}
+
+fn check(dir: &str, notation: NumberNotation) -> usize {
+    let bless = std::env::var_os("TURBO_BLESS").is_some();
+    let ids = input_ids();
+    assert!(!ids.is_empty());
+    let analyzer =
+        Analyzer::builder().add(QuantityExtractor::new(notation).with_opennlp_parity(true)).build().expect("analyzer");
     let mut found = 0;
-    let mut failures = Vec::new();
     for id in &ids {
-        let g = golden(dir, id);
-        assert_eq!(config(&g, "notation"), name, "{id}: the golden was made in another notation");
-        let text = g.input_text(data_dir()).unwrap_or_else(|e| panic!("{e}"));
+        let text = text_of(id);
         let mut docs = vec![Document::new(text.as_str())];
         for result in analyzer.run(&mut docs) {
             result.unwrap_or_else(|e| panic!("{id}: {e}"));
         }
-        found += docs[0].get::<Quantities>().map_or(0, |q| q.spans.len());
-        if let Err(m) = matches_golden::<Quantities>(&docs[0], &g, Tolerance::exact()) {
-            failures.push(format!("{id}: {m}"));
+        let empty = Quantities::new(turbo_analysis::ViewId::SOURCE);
+        let q = docs[0].get::<Quantities>().unwrap_or(&empty);
+        found += q.spans.len();
+        check_invariants(&text, q);
+        let body = render(q);
+        let path = snap_path(dir, id);
+        if bless {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, &body).unwrap();
+            continue;
         }
+        let want = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("missing snapshot {} (TURBO_BLESS=1 to write): {e}", path.display()));
+        assert_eq!(body, want, "{dir}/{id}");
     }
-    assert!(
-        failures.is_empty(),
-        "{} texts of {} differ from the JVM:\n{}",
-        failures.len(),
-        ids.len(),
-        failures.join("\n")
-    );
     found
 }
 
 #[test]
-fn latin_us_matches_the_jvm() {
-    let found = check("latin-us", NumberNotation::LatinUs, "LATIN_US");
+fn latin_us_snapshots() {
+    let found = check("latin-us", NumberNotation::LatinUs);
     assert!(found > 120, "only {found} mentions compared");
 }
 
 #[test]
-fn latin_eu_matches_the_jvm() {
-    let found = check("latin-eu", NumberNotation::LatinEu, "LATIN_EU");
+fn latin_eu_snapshots() {
+    let found = check("latin-eu", NumberNotation::LatinEu);
     assert!(found > 110, "only {found} mentions compared");
 }

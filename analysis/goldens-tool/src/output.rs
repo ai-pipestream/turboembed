@@ -345,25 +345,25 @@ mod tests {
         fs::remove_file(root.join("normalize/dash/norm/a.dump")).unwrap();
 
         // Non-dumped annotators still validate golden framing and path layout.
-        put("numbers/m/en/x.golden", "");
+        put("pii/m/en/x.golden", "");
         assert!(check_dumps(&root).unwrap_err().contains("does not start with `golden 1`"));
-        put("numbers/m/en/x.golden", "golden 1\n");
+        put("pii/m/en/x.golden", "golden 1\n");
         assert!(check_dumps(&root).unwrap_err().contains("has no `annotator` header record"));
-        fs::remove_dir_all(root.join("numbers")).unwrap();
+        fs::remove_dir_all(root.join("pii")).unwrap();
 
-        put("numbers/x.golden", "golden 1\nannotator\ta.B\trun\n");
+        put("pii/x.golden", "golden 1\nannotator\ta.B\trun\n");
         assert!(check_dumps(&root).unwrap_err().contains("not at <model>/<set>/<id>.golden"));
-        fs::remove_dir_all(root.join("numbers")).unwrap();
+        fs::remove_dir_all(root.join("pii")).unwrap();
 
         #[cfg(unix)]
         {
             use std::ffi::OsStr;
             use std::os::unix::ffi::OsStrExt;
-            let bad_dir = root.join("numbers").join("m").join(OsStr::from_bytes(b"bad\xffset"));
+            let bad_dir = root.join("pii").join("m").join(OsStr::from_bytes(b"bad\xffset"));
             fs::create_dir_all(&bad_dir).unwrap();
             fs::write(bad_dir.join("x.golden"), "golden 1\nannotator\ta.B\trun\n").unwrap();
             assert!(check_dumps(&root).unwrap_err().contains("non-UTF-8 path component"));
-            fs::remove_dir_all(root.join("numbers")).unwrap();
+            fs::remove_dir_all(root.join("pii")).unwrap();
         }
 
         fs::remove_dir_all(&root).unwrap();

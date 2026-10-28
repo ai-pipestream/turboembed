@@ -185,10 +185,6 @@ fn the_generator_names_the_same_input_sets() {
     for set in INPUT_SETS.iter().filter(|s| {
         ![
             NORMALIZER_INPUT_SET,
-            NUMBER_INPUT_SET,
-            MONEY_INPUT_SET,
-            QUANTITY_INPUT_SET,
-            TEMPORAL_INPUT_SET,
             SVM_DOCCAT_INPUT_SET,
             SVM_DOCCAT_TRAIN_SET,
             SENTIMENT_INPUT_SET,
@@ -223,46 +219,9 @@ fn the_dumped_annotators_and_the_normalizer_set_are_in_the_recipe() {
     assert!(normalizer.contains(&format!("INPUT_SET = \"{NORMALIZER_INPUT_SET}\"")));
 }
 
-#[test]
-fn the_number_scan_has_its_own_input_set_and_no_dumps() {
-    assert!(INPUT_SETS.contains(&NUMBER_INPUT_SET));
-    assert!(ANNOTATORS.contains(&"numbers"));
-    assert!(!DUMPED_ANNOTATORS.contains(&"numbers"));
-    let numbers = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/NumberGolden.java");
-    assert!(numbers.contains(&format!("INPUT_SET = \"{NUMBER_INPUT_SET}\"")));
-}
 
-#[test]
-fn the_money_annotators_have_their_own_input_set_and_no_dumps() {
-    assert!(INPUT_SETS.contains(&MONEY_INPUT_SET));
-    assert!(ANNOTATORS.contains(&"money"));
-    assert!(ANNOTATORS.contains(&"money-convert"));
-    assert!(!DUMPED_ANNOTATORS.contains(&"money"));
-    assert!(!DUMPED_ANNOTATORS.contains(&"money-convert"));
-    let money = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/MoneyGolden.java");
-    assert!(money.contains(&format!("INPUT_SET = \"{MONEY_INPUT_SET}\"")));
-    assert!(money.contains(&format!("SNAPSHOT_DIR = \"{RATES_DIR}\"")));
-    assert!(money.contains(&format!("SNAPSHOT_FILE = \"{RATES_FILE}\"")));
-}
 
-#[test]
-fn the_quantity_extractor_has_its_own_input_set_and_no_dumps() {
-    assert!(INPUT_SETS.contains(&QUANTITY_INPUT_SET));
-    assert!(ANNOTATORS.contains(&"quantity"));
-    assert!(!DUMPED_ANNOTATORS.contains(&"quantity"));
-    let quantity = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/QuantityGolden.java");
-    assert!(quantity.contains(&format!("INPUT_SET = \"{QUANTITY_INPUT_SET}\"")));
-}
 
-#[test]
-fn the_temporal_extractor_has_its_own_input_set_and_no_dumps() {
-    assert!(INPUT_SETS.contains(&TEMPORAL_INPUT_SET));
-    assert!(ANNOTATORS.contains(&"temporal"));
-    assert!(!DUMPED_ANNOTATORS.contains(&"temporal"));
-    let temporal = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/TemporalGolden.java");
-    assert!(temporal.contains(&format!("INPUT_SET = \"{TEMPORAL_INPUT_SET}\"")));
-    assert!(temporal.contains("ANNOTATOR = \"temporal\""));
-}
 
 #[test]
 fn the_svm_categorizer_has_its_own_input_sets_and_no_dumps() {

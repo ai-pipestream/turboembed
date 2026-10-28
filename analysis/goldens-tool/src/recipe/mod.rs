@@ -82,15 +82,11 @@ pub use self::models::{
 };
 
 /// The input sets under `analysis/goldens/data/inputs`.
-pub const INPUT_SETS: [&str; 43] = [
+pub const INPUT_SETS: [&str; 39] = [
     "en",
     "multi",
     "norm",
-    "num",
-    "money",
-    "quantity",
-    "temporal",
-    "edge",
+                    "edge",
     "surrogate",
     "abbreviations",
     "alphanumeric",
@@ -139,7 +135,7 @@ pub const GENERATOR_ARGS: [&str; 1] = ["--dumps"];
 /// replaces and `verify` compares. The data directory holds other things
 /// (the inputs, the fixtures, the rate snapshot, a README) that neither
 /// touches.
-pub const ANNOTATORS: [&str; 46] = [
+pub const ANNOTATORS: [&str; 41] = [
     "sentdetect",
     "tokenize",
     "postag",
@@ -148,12 +144,7 @@ pub const ANNOTATORS: [&str; 46] = [
     "chunk",
     "langdetect",
     "normalize",
-    "numbers",
-    "money",
-    "money-convert",
-    "quantity",
-    "temporal",
-    "detokenize",
+            "detokenize",
     "subwords",
     "sentvectors",
     "unigram",
@@ -202,21 +193,6 @@ pub const DUMPED_ANNOTATORS: [&str; 6] = ["sentdetect", "tokenize", "postag", "l
 /// other annotators do not run on this one.
 pub const NORMALIZER_INPUT_SET: &str = "norm";
 
-/// The input set the number scan runs on. It runs on no other set, and the
-/// other annotators do not run on this one.
-pub const NUMBER_INPUT_SET: &str = "num";
-
-/// The input set the money annotators run on. They run on no other set, and
-/// the other annotators do not run on this one.
-pub const MONEY_INPUT_SET: &str = "money";
-
-/// The input set the quantity extractor runs on. It runs on no other set,
-/// and the other annotators do not run on this one.
-pub const QUANTITY_INPUT_SET: &str = "quantity";
-
-/// The input set the temporal extractor runs on. It runs on no other set,
-/// and the other annotators do not run on this one.
-pub const TEMPORAL_INPUT_SET: &str = "temporal";
 
 /// The input sets of the SVM document categorizer: the documents its models
 /// categorize, and the corpora they are trained on. No other annotator runs

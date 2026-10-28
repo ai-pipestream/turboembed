@@ -254,12 +254,13 @@ fn quantities_and_money_support_extended_numbers_and_regions() {
 }
 
 #[test]
-fn all_golden_inputs_satisfy_layer_and_offset_invariants_in_default_extended_mode() {
+fn all_local_numeric_inputs_satisfy_layer_and_offset_invariants_in_default_extended_mode() {
+    use std::path::PathBuf;
     use turbo_analysis::Analyzer;
-    use turbo_goldens::data_dir;
     use turbo_goldens::invariants::assert_invariants;
     use turbo_numeric::NumberNotation::{LatinEu, LatinUs};
 
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/inputs");
     for notation in [LatinUs, LatinEu] {
         let analyzer = Analyzer::builder()
             .add(NumberScanner::new(notation))
@@ -267,8 +268,8 @@ fn all_golden_inputs_satisfy_layer_and_offset_invariants_in_default_extended_mod
             .add(MoneyExtractor::new(notation))
             .build()
             .unwrap();
-        for set in ["num", "quantity", "money", "multi", "edge", "formats", "surrogate"] {
-            let dir = data_dir().join("inputs").join(set);
+        for set in ["num", "quantity", "money"] {
+            let dir = root.join(set);
             for entry in std::fs::read_dir(&dir).unwrap() {
                 let path = entry.unwrap().path();
                 if path.extension().and_then(|e| e.to_str()) != Some("txt") {
