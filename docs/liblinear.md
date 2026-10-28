@@ -1,17 +1,21 @@
 # liblinear trainer
 
+This is documentation of the remaining classical training implementation,
+scheduled for removal in #1532. Classical archive loading is disabled by #1511.
+
 `turbo_train::liblinear` (`analysis/train/src/liblinear/mod.rs`) implements the
 LIBLINEAR trainer (`LiblinearTrainer`, `LiblinearModel`,
 `LiblinearModelSerializer`), with the solvers from `liblinear-java`
 2.44 (`de.bwaldvogel:liblinear`, a Java port of LIBLINEAR's
-`linear.cpp`) implemented in Rust. A model trained here has the standard
+`linear.cpp`) ported into the crate. A model trained here has the JVM's
 header, outcome labels and predicate map, and weights and probabilities
-that agree with the reference solvers to within the tolerances below.
+that agree with the JVM's to within the tolerances below.
 
-It is implemented directly in the crate so the workspace takes no
-external C/C++ dependency for it, while preserving `liblinear-java`'s
+It is a port and not a binding or another crate: the workspace takes no
+new dependency for it, and parity with the JVM needs liblinear-java's
 order of floating point operations, its `java.util.Random` shuffles and
-its text model format.
+its text model format, which a general linear model library does not
+reproduce.
 
 ## Use
 
@@ -127,10 +131,11 @@ three runs):
 All three pass the same tolerances. fdlibm is as fast as the platform's
 `ln` and, unlike it, gives the same model on every platform.
 
-## Testing
+## Historical comparison status
 
-`analysis/train/src/liblinear/tests.rs` verifies `LiblinearTrainer`,
-`LiblinearModel`, and `format::write` / `format::read` across `L2R_LR`,
-`L2R_LR_DUAL`, and `L1R_LR` solvers, checking parameter validation,
-unsorted predicate rejection, model serialization round-tripping, and
-predicted probabilities.
+The JVM golden comparison test was removed under #1511. The previous solver
+counts and timing table above describe historical runs, not current acceptance
+coverage (`analysis/train/src/liblinear/tests.rs` exercises the unit tests).
+Classical archive readers are disabled; no JVM output or downloaded model is
+required to validate this change. Removal of the remaining classical training
+stack is tracked in #1532.

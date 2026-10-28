@@ -1,37 +1,16 @@
-# Local NameFinderME evaluation (#177)
+# Historical NameFinderME evaluation (#177)
 
-The local CoNLL-2003 English test evaluation below records the corpus
-comparison for #177. It uses the approved local test set and existing
-1.5 English reference models; no training or model release is involved. No
-Reuters text or annotation records are distributed. The MASC recipes and
-their accuracy gates (#427) are unchanged; the FineWeb model publication
-step (#429) is separate.
+The archive-based evaluation example and its JVM comparator test were removed
+under #1511. The model loader rejects classical model archives before decoding. These
+results describe an earlier implementation and cannot validate a replacement
+entity head. Do not run the historical JVM/model procedure as an acceptance
+test for current builds.
 
-## Evaluation protocol
-
-Set `MODEL` and `CORPUS` to files the caller is entitled to use. `TYPES` is
-`all`, `per`, `org`, `loc` or `misc`. This filters gold labels only, matching
-the CoNLL reader; model predictions of other types still count as
-false positives. Use a matching label inventory for meaningful accuracy.
-No label remapping or merge of independent finders is performed.
-
-Records include SHA-256 of the complete model and corpus bytes, selected
-gold types, token counts, document reset flags, gold spans, predicted spans
-and probabilities. They contain no source text or workstation paths. The
-record still discloses annotation positions and labels; treat results in
-accordance with the input data agreement. Corpus digests are sensitive to
-line endings and byte order marks, deliberately preventing comparison of
-different inputs under one claimed run.
-
-The comparator checks model and corpus identity, sample order, reset flags,
-gold labels and token counts, then requires identical predicted spans and
-types and absolute probability error at most `1e-9`. Equal aggregate F1
-alone cannot pass. Non-finite scores, invalid probabilities, empty corpora,
-empty or out-of-range spans, overlapping predictions and duplicate mentions
-are rejected. Adaptive features carry across sentences and reset at document
-boundaries as requested by `Conll03NameSampleStream`. The F1 sentinel
-`-1` is preserved when precision and recall are both zero.
-
+The retained numerical entity decoder is described in
+`analysis/sequence/README.md`; it accepts typed states and native score arrays.
+Native document-level entity integration is tracked separately in #1540 and
+replacement model heads in #1524. The historical scores below are preserved
+with their input identities and data-use limits.
 
 ## CoNLL-2003 English test results
 
@@ -77,22 +56,21 @@ error was **0** for `per`, **0** for `org`, and **0** for `loc`, below the
 required `1e-9`. Agreement is checked before the native result is written;
 it is not inferred from matching aggregate F1.
 
-These are accuracy measurements for the three classical single-type models,
+These are accuracy measurements for the three legacy single-type models,
 not a combined four-type CoNLL score. No `misc` model, cross-finder merge,
 label remapping, training, tuning or threshold selection was performed.
 The low recall, especially for organizations, occurs in both runtimes.
 Parity establishes faithful execution of these models, not their suitability
 as a new accuracy baseline.
 
-### Reproduction and data handling
+### Historical data handling
 
-Use the commands above once per model, with `TYPES=per`, `org` and `loc`,
-and a distinct output record for each run. The corpus and model digests
-must match the table before comparing results. Preserve document boundaries
-so adaptive features reset in the same places.
+Reproduction requires the historical implementation and the exact inputs
+identified above. No runnable archive-loading recipe is supplied by the
+current build. These results have not been rerun with a replacement head.
 
 Local evaluation was approved under the CoNLL-2003 entry in
-[licences.md](licences.md). The corpus and the classical model binaries remain
+[licences.md](licences.md). The corpus and the legacy model binaries remain
 external inputs. Only hashes, counts and aggregate metrics are included in
 this report; no Reuters text, gold/predicted span records, or workstation
 paths are committed. The raw comparison records are local scratch output,

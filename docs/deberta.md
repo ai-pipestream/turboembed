@@ -113,19 +113,18 @@ Future extraction tasks can share that single encoder result.
 
 ## Independent numerical reference
 
-The fixture in `core/tests/fixtures/deberta` is extracted from
-[fastino/gliner2-base-v1 at f9634218](https://huggingface.co/fastino/gliner2-base-v1/tree/f9634218e53580c56edf0de97ca1a7d3f1c2354e).
-Its model card declares Apache-2.0. The fixture is modified from those weights:
-2 layers, hidden width 32, 2 heads, intermediate width 48, 16 vocabulary rows
-(original IDs 1000..1015), and 16 relative rows (original rows 248..263).
-Other tensor dimensions use prefix slices. No random weight remains after
-strict state-dictionary loading. This is a reduced numerical fixture, not a
-usable GLiNER checkpoint or evidence of extraction quality.
+The fixture in `core/tests/fixtures/deberta` holds seeded random weights
+(seed 20261028) under the tensor names of GLiNER2's DeBERTa-v3 encoder,
+reduced to 2 layers, hidden width 32, 2 heads, intermediate width 48, 16
+vocabulary rows and 16 relative rows. No value comes from a checkpoint:
+until 2026-10-28 it held slices of `fastino/gliner2-base-v1`, which is now
+local-only by its training data (docs/licences.md). This is a reduced
+numerical fixture, not a usable checkpoint or evidence of extraction
+quality.
 
 The reference is Hugging Face Transformers 4.57.1 `DebertaV2Model` in evaluation
-mode with CPU PyTorch. `provenance.json` records the immutable source revision,
-original tensor shapes, row offsets and SHA-256 of fetched byte ranges.
-`bundle/reference/deberta/build_fixture.py` reproduces the slices and expected
+mode with CPU PyTorch. `provenance.json` records the seed and the reference
+versions. `bundle/reference/deberta/build_fixture.py` reproduces the weights and expected
 outputs; its adjacent requirements file pins the reference environment.
 Install the CPU PyTorch wheel from its official CPU index, then the other
 requirements, and run the script with a new output directory. Only fixture
@@ -133,9 +132,8 @@ production uses Python. Tests and inference are native Rust and offline.
 
 Five sequences cover singleton input, bidirectional positions, padding,
 noncontiguous masks and distances beyond the linear bucket region. Tests compare
-embedding output, each encoder layer and linear token/prompt outputs. Current
-maximum encoder absolute error is below 4e-7; tests allow 2e-5 for CPU numerical
-variation. This does not replace full-width, full-depth checkpoint validation
+embedding output, each encoder layer and linear token/prompt outputs, and allow
+2e-5 for CPU numerical variation. This does not replace full-width, full-depth checkpoint validation
 before shipping an extraction model. The next integration should add that
 record plus tokenizer/prompt, span and schema-head parity.
 

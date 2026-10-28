@@ -1,84 +1,41 @@
-# Language detection (`turbo-langdetect` and `turbo-langspan`)
+# Language and script evidence (`turbo-langspan` and `turbo-langdetect`)
 
-`turbo-langdetect` (`analysis/langdetect/`) detects the primary language of a
-document view and writes the ranked ballot as the `Language`
-layer. `turbo-langspan` (`analysis/langspan/`) segments mixed-language views
-into contiguous language-labelled spans and writes them as the
-`turbo:language-spans` (`LanguageSpans`) layer alongside the document-level
-`Language` summary (`summary`).
+Classical language-model loading (`LanguageDetector`, `LanguageModel`,
+`ProbingContext`, `ProbingConfig` in `analysis/langdetect/`) and the n-gram
+language decoder are disabled under #1511. The replacement trained language head
+is tracked in #1525. There is currently no statistical language-confidence claim
+for the fallback.
 
-## Document-level language detection (`turbo-langdetect`)
+## Model-free fallback
 
-`LanguageDetector` (`LanguageModel`, `analysis/langdetect/src/lib.rs`) scores a
-`View` over character $n$-grams extracted from a normalized view and produces a
-ranked list (`Ranking`) of `Prediction` (`lang`, `confidence`) items.
+`turbo_langspan::ScriptDetector` consumes an existing `View` and optional
+`Sentences` and `Tokens` layers. It writes `LanguageSpans` and `Language`
+without loading a model. All emitted language codes are `und`, with confidence
+`0.0`: a script cannot distinguish languages that share it.
 
-### Normalization and context extraction
+With input tokens, it preserves each token's boundaries and selects its most
+frequent letter script, choosing the first encountered script on ties.
+Adjacent evidence of the same script is combined into one source span, which
+may include intervening punctuation or whitespace. Without tokens, it scans
+Unicode letters directly and retains adjoining combining marks. Common,
+Inherited and Unknown script values do not create letter evidence. Empty
+or non-letter input produces empty language layers.
 
-Before extracting character $n$-grams, `ContextGenerator`
-(`analysis/langdetect/src/context.rs`) normalizes the view through a `Chain`
-combining:
+Optional sentence and token spans are checked against the source view before
+use. Invalid UTF-8 boundaries, reversed, overlapping or out-of-range spans
+return an error. No joined text or secondary tokenizer is used.
 
-- Twitter/X and social token stripping (`@handle`, `#hashtag`, URLs, and
-  e-mail addresses),
-- Unicode character substitution and script-aware filtering,
-- Number digit stripping (`Numbers`), and
-- Whitespace and repeated-character run collapsing (`Shrink`).
+## Validation
 
-`ContextGenerator` extracts character $n$-grams within the model's configured
-`(min_length, max_length)` window from the normalized text.
+`analysis/langspan/tests/scripts.rs` checks mixed scripts, supplementary
+letters and combining marks, exact source spans, existing token boundaries,
+empty input and malformed layers. Run:
 
-### Adaptive probing (`ProbingContext` and `ProbingConfig`)
+```sh
+cargo nextest run -p turbo-langspan
+```
 
-On long documents, scoring every character $n$-gram across the entire text is
-unnecessary once the leading language candidate has converged.
-`ProbingContext` (`analysis/langdetect/src/probing.rs`) samples fixed
-windows of text under `ProbingConfig` (`chunk_size`, `max_chars`,
-`convergence_streak`, `min_diff`), accumulating $n$-gram log-probabilities
-until the top language candidate leads the runner-up by at least `min_diff`
-for `convergence_streak` consecutive windows.
-
-### The `Language` layer
-
-`Language`, in `turbo-analysis-layers` (`analysis/layers/src/lib.rs`), is a
-document-anchored layer holding the ranked language
-predictions (`code`, `confidence`), with `Language::top()` returning the
-highest-scoring language code (`eng`, `deu`, `fra`, `spa`, `cmn`, `jpn`, `ara`,
-`rus`, etc.).
-
-## Mixed-language span detection (`turbo-langspan`)
-
-When a document mixes multiple languages or scripts (for example, quoted
-passages, code-switched dialogue, or bilingual headings), a single document
-tag obscures the interior switches. `SpanDetector` and
-`CalibratedSpanDetector` (`analysis/langspan/src/lib.rs`) segment a `View` into
-contiguous UTF-8 byte spans (`Run`), each tagged with its language code and
-confidence, and write:
-
-- `LanguageSpans` (`turbo:language-spans`): ordered, non-overlapping spans
-  covering the text with per-span language code and confidence, and
-- `Language`: the letter-count-weighted language
-  distribution aggregated across the detected spans (`summary`).
-
-### Script priors and sequence decoding
-
-`SpanDetector` (`Settings`, `SpanScratch`) combines character $n$-gram emission
-scores with Unicode script priors (for example, Han, Hiragana/Katakana, Hangul,
-Arabic, Cyrillic, Devanagari, Greek, Hebrew, Thai) and decodes the sequence of
-words with a switch penalty (`Settings::switch`) so isolated foreign proper
-nouns do not fragment a monolingual sentence while genuine multi-word switches
-form clean span boundaries snapped to sentence and token boundaries.
-
-For short inputs and single-sentence queries, `CalibratedSpanDetector` applies
-Platt-calibrated emission models (`calibration_identity`) and script-prior
-boosting to sharpen top-1 language identification
-(`analysis/langspan/examples/short_text.rs`).
-
-## Testing
-
-- `analysis/langdetect/tests/detector.rs` and
-  `analysis/langdetect/tests/context.rs` test $n$-gram context extraction,
-  full-text and adaptive probing detection, convergence thresholds, and
-  pipeline integration into `Language`.
-- `analysis/langspan/examples/short_text.rs` exercises short-text and
-  mixed-language span segmentation across multilingual passages.
+The former language-classification accuracy and calibration tables apply only
+to the removed model implementation. They are preserved in
+[the historical language report](https://github.com/ai-pipestream/turboembed/blob/c71fba1a642e7221d0054528b5ee4fb183b4fd43/docs/langdetect.md),
+not acceptance evidence for this script-only fallback or a future head.

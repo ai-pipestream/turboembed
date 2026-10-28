@@ -259,6 +259,8 @@ fn documented_analysis_segmentation_and_normalizer_apis_match_crate_exports() {
             "UnicodeFormNormalizer",
             "CaseFoldNormalizer",
             "ConfusablesNormalizer",
+            "SpanDetector",
+            "CalibratedSpanDetector",
             "AcceptFirst",
             "analysis/formats/recipes/",
         ] {
@@ -278,6 +280,7 @@ fn documented_analysis_segmentation_and_normalizer_apis_match_crate_exports() {
         "Detokenizer",
         "BilstmPosTagger",
         "MaxentLemmatizer",
+        "ScriptDetector",
         "Locations",
         "EntityLocationLinks",
         "turbo:text_quality",
