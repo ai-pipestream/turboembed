@@ -139,6 +139,17 @@ impl NgramModel {
             .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(i, _)| self.languages[i].as_str())
     }
+
+    /// Predicts the language of `text` with a minimum confidence threshold.
+    pub fn predict_with_threshold(&self, text: &str, threshold: f32) -> Option<&str> {
+        if text.trim().is_empty() {
+            return None;
+        }
+        let scores = self.scores(text);
+        let (i, score) =
+            scores.iter().enumerate().max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))?;
+        if *score >= threshold { Some(self.languages[i].as_str()) } else { None }
+    }
 }
 
 /// A coarse script class for language priors.
