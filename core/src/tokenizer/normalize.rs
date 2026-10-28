@@ -226,13 +226,19 @@ pub(super) fn pre_tokenize<'a>(s: &'a str, mut word: impl FnMut(&'a str)) {
 /// after its last kept character. No piece of such a tokenizer crosses
 /// one.
 pub fn pre_words(text: &str) -> Vec<(usize, usize)> {
+    words_under(text, true, true)
+}
+
+/// [`pre_words`] under a normalizer that deletes what clean_text deletes
+/// only when `clean`, and spaces CJK ideographs only when `split_cjk`.
+pub(super) fn words_under(text: &str, clean: bool, split_cjk: bool) -> Vec<(usize, usize)> {
     let mut out = Vec::new();
     let mut word: Option<(usize, usize)> = None;
     for (i, c) in text.char_indices() {
-        if c == '\0' || c == '\u{fffd}' || is_control(c) {
+        if clean && (c == '\0' || c == '\u{fffd}' || is_control(c)) {
             continue;
         }
-        let alone = c.is_ascii_punctuation() || (!c.is_ascii() && category(c, PUNCTUATION)) || is_cjk(c);
+        let alone = c.is_ascii_punctuation() || (!c.is_ascii() && category(c, PUNCTUATION)) || (split_cjk && is_cjk(c));
         if is_whitespace(c) || alone {
             out.extend(word.take());
             if alone {
