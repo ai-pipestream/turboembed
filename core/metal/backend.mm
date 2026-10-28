@@ -24,6 +24,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <chrono>
 #include <cmath>
@@ -768,7 +769,18 @@ struct Model {
     id<MTLBuffer> zero = nil;
     id<MTLBuffer> paired = nil;
     std::vector<uint64_t> paired_at;
+    /* For FASTEST, the rotary layers' linear weights in F16, ROTARY_LINEARS
+     * a layer in RotaryLinear order (rotary_half); empty when every layer
+     * has a weight past F16's range, and a layer marked in f32_layer has
+     * empty entries. */
+    id<MTLBuffer> paired_narrowed = nil;
+    std::vector<Ref> paired_h;
 };
+
+/* A rotary layer's linear weights, as rotary_half narrows them and
+ * encode reads them: Q and K pair-adjacent, V, the attention output, the
+ * MLP's gate and up side by side, and its output. */
+enum RotaryLinear { RL_Q, RL_K, RL_V, RL_OUT, RL_FFN_IN, RL_FFN_OUT, ROTARY_LINEARS };
 
 bool is_deberta(const turbo_backend_model &d) { return d.family == TURBO_FAMILY_DEBERTA_V2; }
 
@@ -1307,6 +1319,105 @@ int32_t paired_weights(Model *m, turbo_error *err) {
     return TURBO_OK;
 }
 
+/* A rotary layer's linear weight w in F32, where paired_weights and
+ * f32_weights left it, and its rows and columns. */
+struct RotaryWeight {
+    Ref f32;
+    uint32_t rows, k;
+};
+RotaryWeight rotary_weight(const Model *m, uint32_t l, int w) {
+    const turbo_backend_model &d = m->desc;
+    const bool modern = d.family == TURBO_FAMILY_MODERNBERT;
+    const uint32_t h = d.hidden, inter = d.intermediate;
+    switch (w) {
+    case RL_Q:
+    case RL_K:
+        return {Ref{m->paired, m->paired_at[3 * l + (w == RL_K)]}, h, h};
+    case RL_V: {
+        const Ref &qkv = m->f32[rotary_tensor(d, l, modern ? TURBO_MODERNBERT_QKV_WEIGHT : TURBO_NOMIC_QKV_WEIGHT)];
+        return {Ref{qkv.buf, qkv.at + 2ull * h * h * sizeof(float)}, h, h};
+    }
+    case RL_OUT:
+        return {m->f32[rotary_tensor(d, l, modern ? TURBO_MODERNBERT_ATTN_OUT_WEIGHT : TURBO_NOMIC_ATTN_OUT_WEIGHT)], h,
+                h};
+    case RL_FFN_IN:
+        return {Ref{m->paired, m->paired_at[3 * l + 2]}, 2 * inter, h};
+    default:
+        return {m->f32[rotary_tensor(d, l, modern ? TURBO_MODERNBERT_FFN_OUT_WEIGHT : TURBO_NOMIC_FFN_OUT_WEIGHT)], h,
+                inter};
+    }
+}
+
+/* A rotary model's linear weights in F16, for FASTEST, made on first need
+ * from the F32 ones paired_weights and f32_weights made, as f16_weights
+ * makes a BERT's: a layer with a weight past F16's range (65504) is
+ * marked in f32_layer, with a warning, and computes in F32; when every
+ * layer is, paired_h is left empty and the session runs in F32. */
+int32_t rotary_half(Model *m, turbo_error *err) {
+    std::lock_guard<std::mutex> g(m->widen_lock);
+    if (m->narrow_tried) return TURBO_OK;
+    Context *c = m->ctx;
+    const uint32_t layers = m->desc.layers;
+    m->f32_layer.assign(layers, 0);
+    size_t total = 0;
+    std::vector<uint64_t> at;
+    for (uint32_t l = 0; l < layers; l++)
+        for (int w = 0; w < ROTARY_LINEARS; w++) {
+            const RotaryWeight rw = rotary_weight(m, l, w);
+            at.push_back(total);
+            total += round_up((size_t)rw.rows * rw.k * 2, 256);
+        }
+    id<MTLBuffer> half = new_buffer(c->device, total, MTLResourceStorageModePrivate | WEIGHTS);
+    id<MTLBuffer> flag = new_buffer(c->device, layers * sizeof(uint32_t), MTLResourceStorageModeShared);
+    if (!half || !flag)
+        return refuse(err, TURBO_E_OUT_OF_MEMORY, "%zu bytes for the linear layers' weights in F16", total);
+    uint32_t *flags = static_cast<uint32_t *>(flag.contents);
+    memset(flags, 0, layers * sizeof(uint32_t));
+    {
+        std::lock_guard<std::mutex> cg(c->lock);
+        id<MTLCommandBuffer> cb = [c->queue commandBuffer];
+        id<MTLComputeCommandEncoder> enc = [cb computeCommandEncoder];
+        [enc setComputePipelineState:c->kernels->k[NARROW_F16]];
+        for (uint32_t l = 0; l < layers; l++)
+            for (int w = 0; w < ROTARY_LINEARS; w++) {
+                const RotaryWeight rw = rotary_weight(m, l, w);
+                const uint32_t count = rw.rows * rw.k;
+                [enc setBuffer:rw.f32.buf offset:rw.f32.at atIndex:0];
+                [enc setBuffer:half offset:at[l * ROTARY_LINEARS + w] atIndex:1];
+                [enc setBytes:&count length:sizeof count atIndex:2];
+                [enc setBuffer:flag offset:l * sizeof(uint32_t) atIndex:3];
+                [enc dispatchThreads:MTLSizeMake(count, 1, 1) threadsPerThreadgroup:MTLSizeMake(256, 1, 1)];
+            }
+        [enc endEncoding];
+        TRY(finish(cb, err, "narrowing the weights"));
+    }
+    m->narrow_tried = true;
+    uint32_t past = 0;
+    for (uint32_t l = 0; l < layers; l++) {
+        m->f32_layer[l] = flags[l] != 0;
+        past += m->f32_layer[l];
+    }
+    if (past == layers) {
+        c->say(LOG_WARNING,
+               "metal device %u: a linear layer's weight in each layer of this rotary model is past F16's range; "
+               "FASTEST computes it in F32",
+               c->ordinal);
+        return TURBO_OK;
+    }
+    if (past > 0)
+        c->say(LOG_WARNING,
+               "metal device %u: a linear layer's weight in %u of the %u layers of this rotary model is past F16's "
+               "range; FASTEST computes those layers in F32",
+               c->ordinal, past, layers);
+    m->paired_narrowed = half;
+    m->paired_h.assign((size_t)layers * ROTARY_LINEARS, Ref{});
+    for (uint32_t l = 0; l < layers; l++)
+        if (!m->f32_layer[l])
+            for (int w = 0; w < ROTARY_LINEARS; w++)
+                m->paired_h[l * ROTARY_LINEARS + w] = Ref{half, at[l * ROTARY_LINEARS + w]};
+    return TURBO_OK;
+}
+
 /* pool_ranges reads each range as three uints, as turbo.h lays it out. */
 static_assert(sizeof(turbo_token_range) == 12, "turbo_token_range is three uint32");
 
@@ -1314,7 +1425,7 @@ enum : uint32_t {
     EPILOGUE_NONE = 0,
     EPILOGUE_BIAS = 1,
     EPILOGUE_BIAS_GELU = 2,
-    /* The rotary families' (kernels.metal, store_pair), F32 kernels alone. */
+    /* The rotary families' (kernels.metal, store_pair). */
     EPILOGUE_ROPE = 3,
     EPILOGUE_GATED_GELU = 4,
     EPILOGUE_GATED_SILU = 5,
@@ -1551,11 +1662,6 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
                                 "precision: FASTEST on FAMILY_DEBERTA_V2: the metal backend runs a DeBERTa-v2 encoder "
                                 "in F32 alone; ask for MODEL or EXACT");
         const bool rotary = is_rotary(d);
-        if (rotary && precision == TURBO_PRECISION_FASTEST)
-            return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
-                                "precision: FASTEST on %s: the metal backend runs a rotary encoder in F32 alone; ask "
-                                "for MODEL or EXACT",
-                                d.family == TURBO_FAMILY_MODERNBERT ? "FAMILY_MODERNBERT" : "FAMILY_NOMIC_BERT");
         // A DeBERTa-v2 attention SIMD group holds a row's scores, as the
         // narrow kernel's does.
         const size_t shared = deberta ? round_up(sizeof(float) * round_up(max_seq, 8), 16)
@@ -1615,8 +1721,8 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
                                 precision);
         Linear linear = forced >= 0 ? (Linear)forced : half ? LINEAR_DEFAULT : LINEAR_F32;
         if (linear != LINEAR_F32) {
-            TRY(f16_weights(m, err));
-            if (m->f16.empty()) {
+            TRY(rotary ? rotary_half(m, err) : f16_weights(m, err));
+            if (rotary ? m->paired_h.empty() : m->f16.empty()) {
                 if (forced >= 0)
                     return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
                                         "TURBO_METAL_CHOICES linear=%s: a linear layer's weight in each layer of "
@@ -1625,10 +1731,6 @@ int32_t open_session(void *model, uint32_t task, uint32_t max_batch, uint32_t ma
                 linear = LINEAR_F32;
             }
         }
-        if (rotary && linear != LINEAR_F32)
-            return refuse_field(err, TURBO_E_UNSUPPORTED_OPTION, 3,
-                                "TURBO_METAL_CHOICES linear=%s: the metal backend runs a rotary encoder in F32 alone",
-                                LINEAR_NAMES[linear]);
         // Attention's kernels are F16 ones, and run where the linear
         // layers' do and the heads are ones the matrix kernels take.
         if (forced_attn >= 0 && !(linear != LINEAR_F32 && half_heads(d.hidden / d.heads)))
@@ -2053,7 +2155,6 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
         const bool modern = d.family == TURBO_FAMILY_MODERNBERT;
         const Ref zero{s.model->zero, 0};
         auto t = [&](uint32_t l, uint32_t r) -> const Ref & { return w[rotary_tensor(d, l, r)]; };
-        auto paired = [&](uint32_t l, int part) { return Ref{s.model->paired, s.model->paired_at[3 * l + part]}; };
         auto norm_into = [&](const Ref &ln_w, uint64_t src, uint64_t dst) {
             [enc setComputePipelineState:kn.k[LAYER_NORM_INTO]];
             [enc setBuffer:sc offset:src atIndex:0];
@@ -2070,28 +2171,34 @@ void encode(Session &s, id<MTLComputeCommandEncoder> enc) {
             const bool global = d.global_every == 0 || l % d.global_every == 0;
             rope_at = global ? 0 : local;
             const uint32_t window = global ? NO_WINDOW : d.attention_window / 2;
-            const uint32_t qkv_r = modern ? TURBO_MODERNBERT_QKV_WEIGHT : TURBO_NOMIC_QKV_WEIGHT;
-            const Ref q = paired(l, 0), k = paired(l, 1), ffn_in = paired(l, 2);
-            const Ref v{t(l, qkv_r).buf, t(l, qkv_r).at + 2ull * h * h * sizeof(float)};
+            // At FASTEST, unless a weight of the layer is past F16's range:
+            // F16 weights with F32 sums, the inputs from the F32 residual
+            // stream or its norm rounded to F16 as they are staged, Q, K, V
+            // and the context in F16 where attention_h takes the heads, and
+            // the gated MLP's middle in F16. The residual stays F32.
+            const bool f16l = f16 && !(l < f32_layer.size() && f32_layer[l]);
+            const bool f16_att = f16l && half_heads(hd);
+            std::array<Ref, ROTARY_LINEARS> lw;
+            for (int r = 0; r < ROTARY_LINEARS; r++)
+                lw[r] = f16l ? s.model->paired_h[l * ROTARY_LINEARS + r] : rotary_weight(s.model, l, r).f32;
+            uint64_t src = s.x;
+            if (modern && l > 0) {
+                norm_into(t(l, TURBO_MODERNBERT_ATTN_LN_WEIGHT), s.x, s.tmp);
+                src = s.tmp;
+            }
+            gemm(f16l, src, h, h, EPILOGUE_ROPE, {{&lw[RL_Q], s.q}, {&lw[RL_K], s.k}, {&lw[RL_V], s.v}}, {}, false,
+                 f16_att);
+            attend(f16_att, window);
             if (modern) {
-                uint64_t src = s.x;
-                if (l > 0) {
-                    norm_into(t(l, TURBO_MODERNBERT_ATTN_LN_WEIGHT), s.x, s.tmp);
-                    src = s.tmp;
-                }
-                gemm(false, src, h, h, EPILOGUE_ROPE, {{&q, s.q}, {&k, s.k}, {&v, s.v}}, {});
-                attend(false, window);
-                gemm(false, s.att, h, h, EPILOGUE_RESIDUAL, {{&t(l, TURBO_MODERNBERT_ATTN_OUT_WEIGHT), s.x}}, {});
+                gemm(f16l, s.att, h, h, EPILOGUE_RESIDUAL, {{&lw[RL_OUT], s.x}}, {}, f16_att);
                 norm_into(t(l, TURBO_MODERNBERT_FFN_LN_WEIGHT), s.x, s.tmp);
-                gemm(false, s.tmp, h, 2 * inter, gated, {{&ffn_in, s.ffn}}, {});
-                gemm(false, s.ffn, inter, h, EPILOGUE_RESIDUAL, {{&t(l, TURBO_MODERNBERT_FFN_OUT_WEIGHT), s.x}}, {});
+                gemm(f16l, s.tmp, h, 2 * inter, gated, {{&lw[RL_FFN_IN], s.ffn}}, {}, false, f16l);
+                gemm(f16l, s.ffn, inter, h, EPILOGUE_RESIDUAL, {{&lw[RL_FFN_OUT], s.x}}, {}, f16l);
             } else {
-                gemm(false, s.x, h, h, EPILOGUE_ROPE, {{&q, s.q}, {&k, s.k}, {&v, s.v}}, {});
-                attend(false, window);
-                uint32_t splits = gemm(false, s.att, h, h, EPILOGUE_NONE, {{&t(l, TURBO_NOMIC_ATTN_OUT_WEIGHT), s.tmp}}, {});
+                uint32_t splits = gemm(f16l, s.att, h, h, EPILOGUE_NONE, {{&lw[RL_OUT], s.tmp}}, {}, f16_att);
                 add_ln(s.tmp, splits, zero, t(l, TURBO_NOMIC_ATTN_LN_WEIGHT), t(l, TURBO_NOMIC_ATTN_LN_BIAS));
-                gemm(false, s.x, h, 2 * inter, gated, {{&ffn_in, s.ffn}}, {});
-                splits = gemm(false, s.ffn, inter, h, EPILOGUE_NONE, {{&t(l, TURBO_NOMIC_FFN_OUT_WEIGHT), s.tmp}}, {});
+                gemm(f16l, s.x, h, 2 * inter, gated, {{&lw[RL_FFN_IN], s.ffn}}, {}, false, f16l);
+                splits = gemm(f16l, s.ffn, inter, h, EPILOGUE_NONE, {{&lw[RL_FFN_OUT], s.tmp}}, {}, f16l);
                 add_ln(s.tmp, splits, zero, t(l, TURBO_NOMIC_FFN_LN_WEIGHT), t(l, TURBO_NOMIC_FFN_LN_BIAS));
             }
         }
