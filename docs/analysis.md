@@ -4617,8 +4617,11 @@ run's cuts, and `turbo-eval cuts` compared every document's cuts, at
 every level, against the CPU's. Both pipelines cut every document of
 all four sets the same on the CPU, Level Zero (Arc Pro B70) and CUDA
 (RTX 4080 SUPER), the cohesion check included (structure-cost: 55659
-shared cuts, cohesion: 57319, 0 documents differ). So no reported cut
-has a margin, and no margin had to be explained by a precision tier.
+shared cuts, cohesion: 57319, 0 documents differ). No cut differs, so
+the reports hold no margins, and none had to be set against a backend's
+precision tier. The dumps are not committed (about 107 MB per pipeline
+and backend); `analysis/eval/records/v1-172/reports/cut-dumps.sha256`
+names each one's SHA-256 and size.
 The Level Zero records also match the CPU records query for query on
 every pipeline. CUDA's nDCG@10 differs from the CPU's by up to 0.18
 points on `arguana` and 0.04 on `nfcorpus`, with the same chunks: its
