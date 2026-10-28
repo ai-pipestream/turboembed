@@ -236,6 +236,11 @@ impl<'a> Input<'a> {
         column.ok_or(MatchError::Missing(layer))
     }
 
+    /// Token `i`'s FEATS string as written.
+    pub(crate) fn feats(&self, i: usize) -> &'a str {
+        self.strings(Attr::Morph).expect("validated column").get(i)
+    }
+
     pub(crate) fn value<'b>(&'b self, attr: Attr, i: usize, scratch: &'b mut String) -> &'b str {
         match attr {
             Attr::Norm | Attr::Lemma | Attr::Stem | Attr::Tag => self.strings(attr).expect("validated column").get(i),
@@ -306,6 +311,9 @@ pub(crate) struct Needs {
     pub(crate) flags: u32,
     pub(crate) iob: bool,
     pub(crate) length: bool,
+    /// Whether a morphology set test reads the FEATS strings as written,
+    /// which needs the layer but no column.
+    pub(crate) feats: bool,
 }
 
 impl Needs {
@@ -348,6 +356,9 @@ impl Columns {
         }
         let mut c = Columns::default();
         let mut scratch = String::new();
+        if needs.feats {
+            input.strings(Attr::Morph)?;
+        }
         let entity_of = if needs.has(Attr::Entity) || needs.iob { Some(input.entity_of(range)?) } else { None };
         for attr in Attr::ALL {
             if !needs.has(attr) {

@@ -31,12 +31,12 @@ use crate::language_spans::LanguageSpans;
 use crate::temporal::{DocumentDate, Granularity, Origin, Temporals};
 use crate::words::{MorphFeatures, WordLemmas, WordOrTokenAnchor, WordPosTags, Words};
 use crate::{
-    Abbreviations, Aspects, Block, Boundaries, ChunkTags, Chunks, Confidence, Containment, Currency, Cut, Dependencies,
-    Entities, Incivility, IncivilityLabel, IncivilityTarget, Incongruity, Language, Lemmas, Levels, Matches, Modifier,
-    Money, Multiplier, NumberNotation, Numbers, Opinions, OrdinalBase, Ordinals, PhraseChunks, Phrases, Pii,
-    PiiConfidence, PiiKind, Portion, PosTags, Pragmatics, Quantities, RegionCode, Regions, Relation, ScaleMarker,
-    Sentences, Stems, Strs, Structure, Subwords, Terms, TimeGrain, TimeKind, Times, TokenVectorWindows, Tokens, Unit,
-    Utf16Spans, Vectors,
+    Abbreviations, Aspects, Block, Boundaries, ChunkTags, Chunks, CodeKind, Confidence, Containment, Currency, Cut,
+    Dependencies, Entities, Incivility, IncivilityLabel, IncivilityTarget, Incongruity, Language, Lemmas, Levels,
+    Matches, Modifier, Money, Multiplier, NumberNotation, Numbers, Opinions, OrdinalBase, Ordinals, PhraseChunks,
+    Phrases, Pii, PiiConfidence, PiiKind, Portion, PosTags, Pragmatics, Quantities, RegionCode, Regions, Relation,
+    ScaleMarker, Sentences, Stems, Strs, Structure, Subwords, Terms, TimeGrain, TimeKind, Times, TokenVectorWindows,
+    Tokens, Unit, Utf16Spans, VectorCodes, Vectors,
 };
 use crate::{LexicalExpansions, WordNetSenses};
 
@@ -151,6 +151,9 @@ pub fn register_codecs(codecs: &mut Codecs) {
         .register::<Vectors<Chunks>>()
         .register::<Vectors<Structure>>()
         .register::<Vectors<Levels>>()
+        .register::<VectorCodes<Sentences>>()
+        .register::<VectorCodes<Chunks>>()
+        .register::<VectorCodes<Levels>>()
         .register::<Confidence<Tokens>>()
         .register::<Confidence<Sentences>>()
         .register::<Confidence<Entities>>()

@@ -9,7 +9,7 @@ use turbo_tokenize::{SimpleTokenizer, TokenizerOptions};
 pub const TEXT: &str = "Zoë said , “ Café grew . ”";
 pub fn prepared(text: &str) -> Document {
     let a = Analyzer::builder()
-        .add(NewlineDetector::default())
+        .add(NewlineDetector::new())
         .add(SimpleTokenizer::new(TokenizerOptions::default()))
         .build()
         .unwrap();

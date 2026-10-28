@@ -25,8 +25,7 @@ http = ["dep:ureq"]
 # manifest is (docs/zoo.md).
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-# SHA-256 as the bundle tool checks it, SHA-512 as OpenNLP's
-# DownloadUtil checks it.
+# Artifact integrity digests.
 sha2 = "0.11"
 # Without ureq's gzip decoding, so a file served compressed reaches the
 # zoo's own wire check as sent.
@@ -35,6 +34,3 @@ ureq = { version = "3", optional = true, default-features = false, features = ["
 # and CRC-32 for gzip, and the zstd decoder.
 turbo-maxent = { path = "../maxent" }
 turbo-zstd = { path = "../zstd" }
-
-[dev-dependencies]
-turbo-goldens = { path = "../goldens" }

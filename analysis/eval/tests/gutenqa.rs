@@ -5,6 +5,7 @@ mod common;
 use common::parquet::{Col, write};
 use common::{copy_dir, data, query_ids, quoted, spans, text};
 use turbo_eval::read::gutenqa;
+use turbo_eval::sha::{sha256, to_hex};
 
 #[test]
 fn reads_the_sample() {
@@ -27,14 +28,10 @@ fn reads_the_sample() {
 fn the_digest_is_of_the_files_read() {
     // sha256sum over the two sample files, as the manifest lists them.
     let s = gutenqa::read("g", &data("gutenqa")).unwrap();
-    let a = turbo_goldens::hex::to_hex(&turbo_goldens::sha::sha256(
-        &std::fs::read(data("gutenqa").join(gutenqa::CHUNKS)).unwrap(),
-    ));
-    let b = turbo_goldens::hex::to_hex(&turbo_goldens::sha::sha256(
-        &std::fs::read(data("gutenqa").join(gutenqa::QUESTIONS)).unwrap(),
-    ));
+    let a = to_hex(&sha256(&std::fs::read(data("gutenqa").join(gutenqa::CHUNKS)).unwrap()));
+    let b = to_hex(&sha256(&std::fs::read(data("gutenqa").join(gutenqa::QUESTIONS)).unwrap()));
     let manifest = format!("{a}  {}\n{b}  {}\n", gutenqa::CHUNKS, gutenqa::QUESTIONS);
-    assert_eq!(s.sha256, turbo_goldens::hex::to_hex(&turbo_goldens::sha::sha256(manifest.as_bytes())));
+    assert_eq!(s.sha256, to_hex(&sha256(manifest.as_bytes())));
 }
 
 #[test]

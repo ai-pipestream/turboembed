@@ -2,7 +2,6 @@
 //! [`MecabDictionary`].
 
 use turbo_analysis::Span;
-use turbo_unicode::WhitespaceMode;
 
 use super::chardef::AssignmentId;
 use super::dictionary::{BOUNDARY, EntryId, MecabDictionary};
@@ -61,28 +60,22 @@ impl Scratch {
     }
 }
 
-/// The lattice tokenizer: a dictionary and the whitespace mode the text is
-/// split in.
+/// The lattice tokenizer: a dictionary. The text is split at Unicode
+/// whitespace first.
 #[derive(Debug, Clone)]
 pub struct LatticeTokenizer {
     pub(crate) dictionary: MecabDictionary,
-    pub(crate) whitespace: WhitespaceMode,
 }
 
 impl LatticeTokenizer {
-    /// A tokenizer over `dictionary` that splits the text at whitespace in
-    /// `whitespace` mode. The dictionary keeps the mode its files were
-    /// split in; OpenNLP reads one process-wide mode for both.
-    pub fn new(dictionary: MecabDictionary, whitespace: WhitespaceMode) -> LatticeTokenizer {
-        LatticeTokenizer { dictionary, whitespace }
+    /// A tokenizer over `dictionary` that splits the text at Unicode
+    /// whitespace before it decodes each stretch.
+    pub fn new(dictionary: MecabDictionary) -> LatticeTokenizer {
+        LatticeTokenizer { dictionary }
     }
 
     pub fn dictionary(&self) -> &MecabDictionary {
         &self.dictionary
-    }
-
-    pub fn whitespace(&self) -> WhitespaceMode {
-        self.whitespace
     }
 
     /// Appends the morphemes of `text` to `out`, in text order, with byte
@@ -96,7 +89,7 @@ impl LatticeTokenizer {
     /// [`analyze`](Self::analyze) with the caller's buffers.
     pub fn analyze_with(&self, text: &str, scratch: &mut Scratch, out: &mut Vec<Morpheme>) -> Result<(), NoCandidate> {
         scratch.stretches.clear();
-        let options = TokenizerOptions { whitespace: self.whitespace, keep_newlines: false };
+        let options = TokenizerOptions { keep_newlines: false };
         whitespace_spans(text, options, &mut scratch.stretches);
         for i in 0..scratch.stretches.len() {
             let stretch = scratch.stretches[i];

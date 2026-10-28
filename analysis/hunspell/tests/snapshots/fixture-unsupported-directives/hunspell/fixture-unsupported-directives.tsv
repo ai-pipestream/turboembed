@@ -1,0 +1,3 @@
+load_error	unsupported affix directive FOO in affix stream at line 3; use LoadMode.ALLOW_PARTIAL to load without this behavior
+unsupported	0
+words	0

@@ -8,7 +8,7 @@ use crate::lexicon;
 
 /// A detected mention. Attribute values are `Unknown` when the text gives
 /// no evidence; an unknown attribute never blocks a link. Words, head and
-/// forms are lowercased as `String.toLowerCase(Locale.ROOT)` lowercases.
+/// forms are in Unicode lower case.
 #[derive(Clone, Debug)]
 pub(crate) struct Mention {
     /// The envelope the mention covers in the view text.
