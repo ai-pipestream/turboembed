@@ -14,13 +14,15 @@ use crate::error::{Check, ZooError};
 use crate::index::{Artifact, File, Index};
 use crate::licence::Policy;
 
+mod sources;
 mod status;
 mod transport;
 
+pub use sources::{Blobs, Sources};
 pub use status::CacheStatus;
 #[cfg(feature = "http")]
 pub use transport::Http;
-pub use transport::{Mirror, Offline, Transport};
+pub use transport::{Mirror, Offline, Transport, most_bytes};
 
 use status::{Local, local_file};
 
@@ -118,10 +120,9 @@ impl<'t> Zoo<'t> {
             make_dirs(&self.cache, a.id.as_str(), f.path.as_str())?;
             let cached = matches!(local_file(a, f, &local)?, Local::Verified);
             if !cached {
-                let most = f.download.as_ref().map_or(f.size, |d| d.download_bytes.max(f.size));
                 let bytes = self
                     .transport
-                    .get(&f.url, most)
+                    .get_file(a, f)
                     .map_err(|message| ZooError::Transport { url: f.url.to_string(), message })?;
                 let bytes = unpack(a, f, bytes)?;
                 verify(a, f, &bytes)?;

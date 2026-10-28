@@ -17,6 +17,38 @@ const BASE_FUZZY_VERIFY: usize = 256;
 /// Maximum key length (in characters) indexed in the short-key 1-delete / anagram table.
 const SHORT_KEY_MAX_CHARS: usize = 8;
 
+/// Deterministic work counters for one [`FuzzyAliasIndex::for_each_candidate`] call.
+///
+/// Wall-clock time is not part of these counters: CI runners share hosts, so
+/// scaling assertions use inverted-index probe work instead of elapsed time.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct FuzzyLookupWork {
+    /// Entries read from inverted posting lists (length-window slices).
+    pub postings_scanned: usize,
+    /// Keys verified and visited from the posting path (sketch prefilter passed).
+    pub posting_candidates_verified: usize,
+    /// Keys examined in the lossless length-window fallback (O(1) sketch filters).
+    pub window_keys_considered: usize,
+    /// Keys visited from the window fallback after sketch filtering.
+    pub window_candidates_visited: usize,
+}
+
+impl FuzzyLookupWork {
+    /// Inverted-index probe work: postings scanned plus posting-path verifies.
+    ///
+    /// The window fallback is a lossless escape hatch when posting budgets
+    /// saturate; its cost is mostly O(1) sketch filters per key in a length
+    /// band, so sublinear scaling is asserted on this posting-path total.
+    pub fn index_probe_units(self) -> usize {
+        self.postings_scanned.saturating_add(self.posting_candidates_verified)
+    }
+
+    /// Every key passed to the visit callback (posting path or window).
+    pub fn candidates_visited(self) -> usize {
+        self.posting_candidates_verified.saturating_add(self.window_candidates_visited)
+    }
+}
+
 type PostingList = Vec<(u16, u32)>;
 type TrigramKey = ([char; 3], u8);
 type BigramKey = ([char; 2], u8);
@@ -156,13 +188,22 @@ impl FuzzyAliasIndex {
     /// Visits candidate `folded_keys` indices using rarest-first posting lists and,
     /// whenever any posting list or verification cap saturates, falls back to scanning
     /// the lossless `[min_len, max_len]` sketch window with an $O(1)$ Jaro-Winkler upper bound.
-    pub(crate) fn for_each_candidate(&self, query_folded: &str, threshold: f64, mut visit: impl FnMut(u32, &mut f64)) {
+    ///
+    /// Returns deterministic [`FuzzyLookupWork`] for the call so callers can assert
+    /// sublinear scaling without depending on wall-clock time.
+    pub(crate) fn for_each_candidate(
+        &self,
+        query_folded: &str,
+        threshold: f64,
+        mut visit: impl FnMut(u32, &mut f64),
+    ) -> FuzzyLookupWork {
         let q_chars: Vec<char> = query_folded.chars().collect();
         let q_len = q_chars.len();
         let n_keys = self.sketches_by_idx.len();
         if q_len == 0 || n_keys == 0 {
-            return;
+            return FuzzyLookupWork::default();
         }
+        let mut work = FuzzyLookupWork::default();
 
         let mut q_prefix4 = ['\0'; 4];
         for (i, &c) in q_chars.iter().take(4).enumerate() {
@@ -226,6 +267,7 @@ impl FuzzyAliasIndex {
                             let t_k = self.key_token_lens[k_idx as usize] as usize;
                             let dice_scaled = 0.95 * (2.0 * (shared as f64)) / ((t_q + t_k) as f64);
                             if dice_scaled + 1e-9 >= running_cutoff && mark_visited(&mut visited, k_idx) {
+                                work.posting_candidates_verified += 1;
                                 visit(k_idx, &mut running_cutoff);
                             }
                         }
@@ -239,6 +281,7 @@ impl FuzzyAliasIndex {
         {
             for &k_idx in list {
                 if mark_visited(&mut visited, k_idx) {
+                    work.posting_candidates_verified += 1;
                     visit(k_idx, &mut running_cutoff);
                 }
             }
@@ -319,14 +362,12 @@ impl FuzzyAliasIndex {
 
         slices.sort_unstable_by_key(|s| s.len());
 
-        let mut scanned_postings = 0usize;
-        let mut verified_count = 0usize;
         for slice in slices {
             if slice.len() <= BASE_FEATURE_SCAN
-                && scanned_postings.saturating_add(slice.len()) <= TOTAL_POSTING_BUDGET
-                && verified_count < BASE_FUZZY_VERIFY
+                && work.postings_scanned.saturating_add(slice.len()) <= TOTAL_POSTING_BUDGET
+                && work.posting_candidates_verified < BASE_FUZZY_VERIFY
             {
-                scanned_postings = scanned_postings.saturating_add(slice.len());
+                work.postings_scanned = work.postings_scanned.saturating_add(slice.len());
                 for &(_, k_idx) in slice {
                     let word = (k_idx as usize) >> 6;
                     let bit = 1u64 << (k_idx & 63);
@@ -336,7 +377,7 @@ impl FuzzyAliasIndex {
                     let sk = &self.sketches_by_idx[k_idx as usize];
                     if passes_sketch_prefilter(sk, &q_ctx, running_cutoff) {
                         visited[word] |= bit;
-                        verified_count += 1;
+                        work.posting_candidates_verified += 1;
                         visit(k_idx, &mut running_cutoff);
                     }
                 }
@@ -354,6 +395,7 @@ impl FuzzyAliasIndex {
             if lo < hi {
                 let mut bounds = LenFilterBounds::compute(q_len, self.sorted_sketches[lo].char_len, running_cutoff);
                 for sk in &self.sorted_sketches[lo..hi] {
+                    work.window_keys_considered += 1;
                     if sk.char_len != bounds.k_len || running_cutoff.to_bits() != bounds.cutoff_bits {
                         bounds = LenFilterBounds::compute(q_len, sk.char_len, running_cutoff);
                     }
@@ -378,12 +420,14 @@ impl FuzzyAliasIndex {
                             as i32;
                         if missing_k <= bounds.max_missing_k[p] {
                             visited[word] |= bit;
+                            work.window_candidates_visited += 1;
                             visit(sk.k_idx, &mut running_cutoff);
                         }
                     }
                 }
             }
         }
+        work
     }
 }
 
@@ -455,5 +499,50 @@ fn extract_short_signatures(chars: &[char], out: &mut Vec<String>) {
         if !del.is_empty() && !out.contains(&del) {
             out.push(del);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn index_of(keys: &[&str]) -> FuzzyAliasIndex {
+        let owned: Vec<String> = keys.iter().map(|s| (*s).to_owned()).collect();
+        FuzzyAliasIndex::build(&owned)
+    }
+
+    #[test]
+    fn lookup_work_is_zero_for_empty_query_or_empty_index() {
+        let empty = FuzzyAliasIndex::build(&[]);
+        assert_eq!(empty.for_each_candidate("apple", 0.88, |_, _| {}), FuzzyLookupWork::default());
+        let idx = index_of(&["apple inc", "barack obama"]);
+        assert_eq!(idx.for_each_candidate("", 0.88, |_, _| {}), FuzzyLookupWork::default());
+    }
+
+    #[test]
+    fn lookup_work_counts_postings_and_visits_for_a_near_match() {
+        let idx = index_of(&["apple incorporated", "apple computer", "barack obama", "synthetic entity 000001"]);
+        let mut visited = 0usize;
+        let work = idx.for_each_candidate("aple incorporated", 0.88, |_, _| {
+            visited += 1;
+        });
+        assert_eq!(work.candidates_visited(), visited);
+        assert!(work.postings_scanned > 0, "expected posting scans, got {work:?}");
+        assert!(work.index_probe_units() >= work.posting_candidates_verified);
+        // A second identical lookup must report the same deterministic counters.
+        let again = idx.for_each_candidate("aple incorporated", 0.88, |_, _| {});
+        assert_eq!(again, work);
+    }
+
+    #[test]
+    fn lookup_work_index_probe_units_add_postings_and_posting_verifies() {
+        let w = FuzzyLookupWork {
+            postings_scanned: 10,
+            posting_candidates_verified: 3,
+            window_keys_considered: 100,
+            window_candidates_visited: 7,
+        };
+        assert_eq!(w.index_probe_units(), 13);
+        assert_eq!(w.candidates_visited(), 10);
     }
 }

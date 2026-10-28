@@ -214,39 +214,39 @@ sentences on the same core: within 1%).
 
 ### Bundle form
 
-`ONLP-BLPT-1` to `-5` stays the interchange format. For the device
-backends, `turbo-bundle postag-convert <model.bin> <license> <new-dir>`
-reads the file through this crate and writes a bundle directory:
+OpenNLP archive loading and `postag-convert` are retired under #1511.
+Native producers call `turbo_bundle::postag::export` with an in-memory
+`BilstmPosModel`, a typed `NativeSource { id, revision }`, a licence and a
+new output directory. No archive is read. The version-2 bundle contains:
 
-- `weights.safetensors`: every tensor as F32, row-major, by name
-  (`word_embeddings`, `char_embeddings`, `{char,word}_{forward,backward}`
-  and, stacked, `word_{forward,backward}2`, each as `.w`, `.u` and `.b`
-  with the gate rows in `(i, f, g, o)` order, `output_weights`,
-  `output_bias`, and when the model has them `transition_weights`,
-  `start_weights`, `end_weights`, `pretrained_vectors`, `adapter_weights`
-  and `adapter_bias`);
+- `weights.safetensors`: every tensor as F32, row-major, by name,
+  with LSTM gate rows in `(i, f, g, o)` order;
 - `weights-f16.safetensors`: the same tensors as F16, for `FASTEST`;
-- `vocab.json`: the word, character (modified UTF-8 bytes) and pretrained
-  vocabularies, the tags and the longest word;
-- `postag.json`: the format, the source file's SHA-256 and length, the
-  licence, the gate order, whether the model is CRF, stacked or has an
-  adapter, and the SHA-256 of each file above.
+- `vocab.json`: word, character (modified UTF-8 bytes) and pretrained
+  vocabularies, tags and maximum word length;
+- `postag.json`: native producer identity and revision, licence, gate
+  order, CRF/stacked/adapter flags and each file's SHA-256.
 
-`turbo-bundle postag-verify <dir> [<model.bin>]` checks every digest, and
-with the source file that the bundle came from it.
-`BilstmPosModel::named_tensors`, `vocabularies` and `from_named` are the
-two directions; `turbo_bundle::postag::load` reads a bundle back.
-Conversion checks that every narrowed F32 and F16 weight remains finite
-before creating the output directory. An unsupported value is refused
-with its tensor name and precision, leaving no partial bundle. Values
-that round to a finite F16 remain supported.
+`turbo-bundle postag-verify <dir>` checks native version-2 provenance and
+file digests. It does not accept an archive comparison argument.
+`turbo_bundle::postag::load` additionally validates tensor shapes, types
+and model flags. Version-1 archive-derived manifests are not accepted.
+`BilstmPosModel::named_tensors`, `vocabularies` and `from_named` expose the
+native parameters in both directions.
 
-Bundle weights are rounded from the source model's f64 values, so their
-probabilities may differ from the interchange model's probabilities.
-`bundle/tests/postag.rs` converts the six BiLSTM runs of the
-`postag-neural` goldens: each bundle (F32) tags the training sentences
-and the fixed token list exactly as the `.bin` does, with the parity and
-the packed numerics, and a bundle whose digests do not match is refused.
+Export checks every narrowed F32 and F16 weight for finiteness before
+creating the output directory. Values that round to finite F16 remain
+supported. File-system failures after directory creation can leave a
+partial directory; the required manifest and digest checks reject it.
+
+Bundle weights are rounded from native f64 parameters. Exact f64 score
+or probability parity is not promised. Native regression tests compare
+every tensor and vocabulary, then compare packed inference with an
+explicitly F32-rounded model across optional-component variants. F16
+boundaries, corruption, malformed tensors and retired CLI forms have
+separate coverage. These tests establish format and inference contracts,
+not trained-model accuracy.
+
 
 ### The turbo-bench record
 

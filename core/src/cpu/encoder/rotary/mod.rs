@@ -33,7 +33,7 @@ use super::job::{Bufs, Step};
 use super::{Encoder, TOKENS};
 
 #[cfg(test)]
-mod tests;
+pub(super) mod tests;
 
 /// The family's parts beyond a BERT's.
 pub(super) struct Rotary {
@@ -80,7 +80,11 @@ impl Rotary {
     }
 
     /// The encoder's embeddings and layers, through x as the last layer
-    /// leaves it, each step on `go`.
+    /// leaves it, each step on `go`. After each layer before the last,
+    /// `tap` is handed its states, which a range write with taps pools:
+    /// for ModernBERT with final_norm applied, in xn, as the last layer's
+    /// are, so every tap is on the scale the final states are on.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn layers(
         &self,
         e: &Encoder,
@@ -89,6 +93,7 @@ impl Rotary {
         tokens: usize,
         pool: &mut Pool,
         go: &dyn Fn(&mut Pool, Step, usize),
+        tap: &dyn Fn(&mut Pool, usize, *const f32),
     ) {
         let (h, n_i) = (e.hidden, e.intermediate);
         let zero = &packed.zero[..];
@@ -153,6 +158,16 @@ impl Rotary {
                 linear(pool, gemm(bufs.x, h, &pl.ffn_in, bufs.ffn, n_i, Epilogue::Gated(self.act)));
                 linear(pool, gemm(bufs.ffn, n_i, &pl.ffn_out, bufs.x, h, Epilogue::Residual));
                 go(pool, Step::Norm(w(l, TURBO_NOMIC_FFN_LN_WEIGHT), w(l, TURBO_NOMIC_FFN_LN_BIAS)), chunks);
+            }
+            if e.tap(l).is_some() {
+                if self.modern {
+                    // xn is free until the next layer's attention norm.
+                    let final_norm = e.tensor(TURBO_MODERNBERT_FINAL_NORM_WEIGHT as usize);
+                    go(pool, Step::NormInto(final_norm, &zero[..h]), chunks);
+                    tap(pool, l, bufs.xn);
+                } else {
+                    tap(pool, l, bufs.x);
+                }
             }
         }
         if self.modern {
