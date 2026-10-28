@@ -1,0 +1,97 @@
+//! A ModernBERT or nomic-bert bundle through the loader (#1461): its
+//! tensors found in the family's order and checked against the
+//! architecture, its rotary fields and cos/sin table in the description a
+//! backend is handed, and no backend claiming to run it yet.
+
+#![cfg(feature = "cpu")]
+
+mod common;
+#[path = "common/rotary.rs"]
+mod rotary;
+
+use rotary::{HEADS, HIDDEN, LAYERS};
+use turbo::backend::*;
+use turbo::bundle::Bundle;
+use turbo::model::{Weights, choose};
+use turbo::status::{BUNDLE_INVALID, UNSUPPORTED};
+
+fn weights(f: &common::Fixture) -> Weights {
+    let bundle = Bundle::open(f.write()).unwrap();
+    let index = choose(&bundle.manifest, "cpu", format_bit(TURBO_FORMAT_SAFETENSORS), "").unwrap();
+    Weights::load(&bundle, index).unwrap()
+}
+
+#[test]
+fn a_modernbert_bundle_loads_its_tensors_in_the_family_order() {
+    let f = rotary::modernbert("rotary-modernbert");
+    let w = weights(&f);
+    let t = w.tensors();
+    let (emb, per) = (TURBO_MODERNBERT_EMBEDDING_TENSORS as usize, TURBO_MODERNBERT_LAYER_TENSORS as usize);
+    assert_eq!(t.len(), emb + LAYERS * per);
+    // Layer 0 has no attention norm: its entry is NULL, every other is there.
+    let at = emb + TURBO_MODERNBERT_ATTN_LN_WEIGHT as usize;
+    assert!(t[at].data.is_null() && t[at].bytes == 0);
+    assert!(t.iter().enumerate().all(|(i, x)| i == at || !x.data.is_null()));
+    assert_eq!(t[emb + per + TURBO_MODERNBERT_FFN_IN_WEIGHT as usize].shape, [2 * rotary::INTERMEDIATE, HIDDEN]);
+    assert_eq!(t[emb + TURBO_MODERNBERT_QKV_WEIGHT as usize].shape, [3 * HIDDEN, HIDDEN]);
+
+    let d = w.desc(&t);
+    assert_eq!(d.family, TURBO_FAMILY_MODERNBERT);
+    assert_eq!((d.mlp, d.activation, d.norm), (TURBO_MLP_GATED, TURBO_ACTIVATION_GELU_ERF, TURBO_NORM_LAYER_NO_BIAS));
+    assert_eq!((d.attention_window, d.global_every), (4, 3));
+    assert_eq!((d.rope_global_theta, d.rope_local_theta), (160000.0, 10000.0));
+    let pairs = (HIDDEN / HEADS / 2) as usize;
+    assert_eq!(d.rope_pairs as usize, pairs);
+    // The table the description points at is the core's for both bases.
+    let positions = d.max_positions as usize;
+    let table = unsafe { std::slice::from_raw_parts(d.rope_table, 4 * positions * pairs) };
+    assert_eq!(table, turbo::rope::table(160000.0, 10000.0, positions, pairs).unwrap());
+}
+
+#[test]
+fn a_nomic_bundle_loads_with_one_rotary_base() {
+    let f = rotary::nomic("rotary-nomic");
+    let w = weights(&f);
+    let t = w.tensors();
+    assert_eq!(t.len(), (TURBO_NOMIC_EMBEDDING_TENSORS + LAYERS as u32 * TURBO_NOMIC_LAYER_TENSORS) as usize);
+    assert!(t.iter().all(|x| !x.data.is_null()));
+    // The gate is fc12 and the value fc11, as upstream pairs them.
+    let gate = unsafe {
+        std::ffi::CStr::from_ptr(t[(TURBO_NOMIC_EMBEDDING_TENSORS + TURBO_NOMIC_FFN_GATE_WEIGHT) as usize].name)
+    };
+    assert_eq!(gate.to_str().unwrap(), "encoder.layers.0.mlp.fc12.weight");
+    let d = w.desc(&t);
+    assert_eq!(d.family, TURBO_FAMILY_NOMIC_BERT);
+    assert_eq!((d.mlp, d.activation, d.norm), (TURBO_MLP_GATED, TURBO_ACTIVATION_SILU, TURBO_NORM_LAYER));
+    assert_eq!((d.attention_window, d.global_every), (0, 0));
+    assert_eq!((d.rope_global_theta, d.rope_local_theta), (1000.0, 1000.0));
+}
+
+/// The families' descriptions carry nothing of theirs for any other.
+#[test]
+fn a_bert_bundle_describes_no_rotary_fields() {
+    let f = common::Fixture::model("rotary-bert");
+    let w = weights(&f);
+    let d = w.desc(&w.tensors());
+    assert!(d.rope_table.is_null());
+    assert_eq!([d.rope_pairs, d.mlp, d.activation, d.norm, d.attention_window, d.global_every], [0; 6]);
+}
+
+#[test]
+fn a_modernbert_file_with_a_first_attention_norm_is_refused() {
+    let mut f = rotary::modernbert("rotary-first-norm");
+    f.weights("weights/model.safetensors", &rotary::modernbert_weights(true));
+    let e = f.load().err().unwrap();
+    assert!(e.is(BUNDLE_INVALID, "first layer has no attention norm"), "{e:?}");
+}
+
+#[test]
+fn no_backend_runs_a_rotary_family_yet() {
+    for (f, name) in [
+        (rotary::modernbert("rotary-cpu-mb"), "FAMILY_MODERNBERT"),
+        (rotary::nomic("rotary-cpu-nb"), "FAMILY_NOMIC_BERT"),
+    ] {
+        let e = f.load().err().unwrap();
+        assert!(e.is(UNSUPPORTED, &format!("{name}: the cpu backend has no encoder for it yet")), "{e:?}");
+    }
+}

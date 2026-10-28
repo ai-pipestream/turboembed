@@ -14,7 +14,7 @@ use common::*;
 use turbo_maxent::Dictionary;
 use turbo_tokenize::TokenizerOptions;
 use turbo_tokenize::me::{Features, TokenizerMe, UnitFacts, token_context};
-use turbo_unicode::{Utf16Cursor, WhitespaceMode};
+use turbo_unicode::Utf16Cursor;
 
 const EN: &str = "opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin";
 
@@ -156,7 +156,7 @@ fn the_pabb_feature() {
         for _ in 0..index {
             at.step_forward();
         }
-        token_context(&at, UnitFacts::of(unit, dictionary.contains(unit)), WhitespaceMode::Unicode, &mut features);
+        token_context(&at, UnitFacts::of(unit, dictionary.contains(unit)), &mut features);
         let got: Vec<&str> = features.iter().map(|f| std::str::from_utf8(f).unwrap()).collect();
         assert_eq!(got.join("|"), want);
         maxent.eval_features(features.iter(), &mut probs);

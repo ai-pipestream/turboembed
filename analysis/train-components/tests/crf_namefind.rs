@@ -10,11 +10,10 @@ use turbo_sequence::namefind::{CrfNameFinder, NameCodec};
 use turbo_train::crf::CrfTrainer;
 use turbo_train_components::namefind::{TokenNameFinderFactory, crf_sequences, train_crf_name_model};
 use turbo_train_components::package::Stamp;
-use turbo_unicode::WhitespaceMode;
 
 fn package(codec: NameCodec) -> Vec<u8> {
     let text = "<START:person> Alice Smith <END> visits <START:place> Paris <END> .\n<START:person> Bob Jones <END> visits <START:place> London <END> .\n";
-    let samples = NameReader::new(text, WhitespaceMode::Unicode).unwrap().collect::<Result<Vec<_>, _>>().unwrap();
+    let samples = NameReader::new(text).unwrap().collect::<Result<Vec<_>, _>>().unwrap();
     let factory = TokenNameFinderFactory::new("en", None, codec).unwrap();
     train_crf_name_model(
         &factory,
@@ -70,7 +69,7 @@ fn training_package_inference_and_document_lattice_round_trip() {
 #[test]
 fn feature_stream_excludes_gold_history_and_checks_annotations() {
     let text = "<START:x> One Two <END> .\nOne Two .\n";
-    let samples = NameReader::new(text, WhitespaceMode::Unicode).unwrap().collect::<Result<Vec<_>, _>>().unwrap();
+    let samples = NameReader::new(text).unwrap().collect::<Result<Vec<_>, _>>().unwrap();
     let factory = TokenNameFinderFactory::new("en", None, NameCodec::Bio).unwrap();
     let sequences = crf_sequences(&factory, &samples).unwrap();
     assert_eq!(sequences[0].features, sequences[1].features);

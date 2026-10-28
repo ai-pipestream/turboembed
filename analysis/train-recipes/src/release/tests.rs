@@ -255,3 +255,17 @@ fn the_tatoeba_workflow_trains_on_the_kept_export() {
     assert!(lines.contains(&format!("id={MODEL_ID}").as_str()));
     assert!(workflow.contains(&format!("\"$id.bin\" {SENTENCES_FILE} {CARD_FILE} {GATE_FILE}")));
 }
+
+/// No workflow fetches a reference from `opennlp.sourceforge.net`: its
+/// `models-1.5` page is gone (#1565), so a fetch there fails every
+/// models run. The 1.5 models are served from the project's file area.
+#[test]
+fn no_references_file_lists_the_retired_opennlp_host() {
+    let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    for file in ["masc-references.txt", "ud-references.txt", "tatoeba-references.txt", "fineweb-references.txt"] {
+        let listed = std::fs::read_to_string(crate_dir.join(file)).unwrap();
+        for line in listed.lines().filter(|l| !l.starts_with('#')) {
+            assert!(!line.contains("://opennlp.sourceforge.net/"), "{file}: {line}");
+        }
+    }
+}

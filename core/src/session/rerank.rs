@@ -101,7 +101,8 @@ pub unsafe extern "C" fn turbo_rerank_write_pairs(
                 batch.mask[at].fill(1);
             }
             state.rerank = Some(batch);
-            state.written = Some(Written { batch: count, output_dim: 1, tokenized: true });
+            state.written =
+                Some(Written { batch: count, output_dim: 1, tokenized: true, quantization: Quantization::F32 });
             Ok(())
         })
     }

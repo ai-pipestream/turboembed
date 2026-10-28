@@ -258,6 +258,9 @@ pub(super) fn create_session(m: &Arc<Model>, d: turbo_session_desc) -> Result<Se
         rerank: None,
         scores: vec![0.0; max_batch as usize],
         pooled: vec![0.0; mi.dim as usize],
+        codes: vec![0; max_ranges.max(max_batch) as usize * mi.dim as usize],
+        int8_ranges: vec![0.0; 2 * mi.dim as usize],
+        staged: Vec::new(),
     });
     // Where the lock is a pthread mutex (macOS), std allocates it on first
     // use; take it once here so no write or run allocates it later.
