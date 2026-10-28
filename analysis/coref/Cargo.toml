@@ -18,7 +18,7 @@ turbo-jvm = { path = "../jvm" }
 turbo-maxent = { path = "../maxent" }
 # Training the pair classifier and writing the CorefModel archive.
 turbo-train = { path = "../train" }
-# Java's lower case mapping and character classes.
+# Unicode case folding, White_Space and general categories (Unicode 18).
 turbo-unicode = { path = "../unicode" }
 
 [dev-dependencies]

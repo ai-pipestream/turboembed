@@ -98,13 +98,15 @@ pub(crate) struct Prepared<'a> {
     pub speakers: Option<Vec<Labeled>>,
 }
 
+/// The full Unicode case folding of `text`: the form mentions, labels and
+/// lexicon words are compared in, so `STRASSE` and `Straße` match.
 pub(crate) fn lowercase(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
-    turbo_unicode::java::to_lowercase(text, &mut out);
+    turbo_unicode::casefold::fold(text, &mut out);
     out
 }
 
-use turbo_unicode::java::is_blank as blank;
+use turbo_unicode::whitespace::is_blank as blank;
 
 fn same_view(name: &str, view: ViewId, expected: ViewId) -> Result<(), String> {
     if view == expected {
@@ -115,8 +117,7 @@ fn same_view(name: &str, view: ViewId, expected: ViewId) -> Result<(), String> {
 }
 
 impl<'a> CorefInput<'a> {
-    /// Validates the layers as OpenNLP's `CorefAnnotator` does and
-    /// flattens them; `None` for a document without tokens, whose chains
+    /// Validates the layers and flattens them; `None` for a document without tokens, whose chains
     /// are empty.
     pub(crate) fn prepare(&self) -> Result<Option<Prepared<'a>>, String> {
         let view = self.view;
