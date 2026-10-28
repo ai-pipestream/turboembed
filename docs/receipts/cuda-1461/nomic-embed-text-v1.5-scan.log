@@ -1,0 +1,15 @@
+# cuda_variants attention_sums_by_row_length_of_a_real_bundle, TURBO_TEST_BUNDLE=<bundles>/nomic-embed-text-v1.5, head 0fda7ded8
+4 rows of 512 tokens, F16 sums: 1 - lowest cosine with the cpu 5.121e-6
+4 rows of 512 tokens, F32 sums: 1 - lowest cosine with the cpu 2.692e-6
+4 rows of 1024 tokens, F16 sums: 1 - lowest cosine with the cpu 1.960e-5
+4 rows of 1024 tokens, F32 sums: 1 - lowest cosine with the cpu 2.399e-6
+4 rows of 2048 tokens, F16 sums: 1 - lowest cosine with the cpu 1.841e-4
+4 rows of 2048 tokens, F32 sums: 1 - lowest cosine with the cpu 2.749e-6
+4 rows of 4096 tokens, F16 sums: 1 - lowest cosine with the cpu 1.469e-4
+4 rows of 4096 tokens, F32 sums: 1 - lowest cosine with the cpu 1.175e-6
+4 rows of 8192 tokens, F16 sums: 1 - lowest cosine with the cpu 9.824e-4
+4 rows of 8192 tokens, F32 sums: 1 - lowest cosine with the cpu 1.147e-6
+test attention_sums_by_row_length_of_a_real_bundle has been running for over 60 seconds
+8 rows of 8192 tokens, F16 sums: 1 - lowest cosine with the cpu 1.406e-3
+8 rows of 8192 tokens, F32 sums: 1 - lowest cosine with the cpu 1.147e-6
+test attention_sums_by_row_length_of_a_real_bundle ... ok

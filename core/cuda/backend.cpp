@@ -1566,7 +1566,7 @@ bool mma_attention(const Shape &base) {
  * attention to sum its output in F16. The F16 sums' error grows with the
  * keys: nomic-embed-text-v1.5 at FASTEST on an RTX 4080 SUPER, 4 rows of
  * synthetic tokens against the CPU, 1 - lowest cosine 5.1e-6 at 512
- * tokens, 1.5e-4 at 4096 and 9.8e-4 at 8192 (8 rows: 1.04e-3, over
+ * tokens, 1.5e-4 at 4096 and 9.8e-4 at 8192 (8 rows: 1.41e-3, over
  * FASTEST's bound of 1e-3); with F32 sums 1.1e-6 to 2.7e-6 at each
  * (docs/receipts/cuda-1461/, core/tests/cuda_variants.rs
  * attention_sums_by_row_length_of_a_real_bundle). */

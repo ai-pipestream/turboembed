@@ -1,0 +1,15 @@
+# cuda_variants attention_sums_by_row_length_of_a_real_bundle, TURBO_TEST_BUNDLE=<bundles>/modernbert-base, head 0fda7ded8
+4 rows of 512 tokens, F16 sums: 1 - lowest cosine with the cpu 2.056e-5
+4 rows of 512 tokens, F32 sums: 1 - lowest cosine with the cpu 1.525e-5
+4 rows of 1024 tokens, F16 sums: 1 - lowest cosine with the cpu 1.078e-4
+4 rows of 1024 tokens, F32 sums: 1 - lowest cosine with the cpu 1.614e-4
+4 rows of 2048 tokens, F16 sums: 1 - lowest cosine with the cpu 2.593e-5
+4 rows of 2048 tokens, F32 sums: 1 - lowest cosine with the cpu 2.813e-5
+4 rows of 4096 tokens, F16 sums: 1 - lowest cosine with the cpu 1.138e-4
+4 rows of 4096 tokens, F32 sums: 1 - lowest cosine with the cpu 3.157e-6
+4 rows of 8192 tokens, F16 sums: 1 - lowest cosine with the cpu 5.536e-4
+4 rows of 8192 tokens, F32 sums: 1 - lowest cosine with the cpu 8.625e-6
+test attention_sums_by_row_length_of_a_real_bundle has been running for over 60 seconds
+8 rows of 8192 tokens, F16 sums: 1 - lowest cosine with the cpu 8.034e-4
+8 rows of 8192 tokens, F32 sums: 1 - lowest cosine with the cpu 1.431e-5
+test attention_sums_by_row_length_of_a_real_bundle ... ok
