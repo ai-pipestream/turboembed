@@ -1,8 +1,10 @@
 //! The document: its text views and its layers.
 
+mod merge;
 mod project;
 mod view;
 
+pub use merge::DuplicateLayerPolicy;
 pub use view::View;
 
 use std::any::{Any, TypeId};
@@ -431,35 +433,6 @@ impl Document {
     /// How many items a layer here has: it must be present, with data.
     fn len_of(&self, key: KeyId) -> Result<usize, Error> {
         self.entries.iter().find(|e| e.key == key && e.value.is_some()).map(|e| e.len).ok_or(Error::Missing(key))
-    }
-
-    /// Joins a copy grown on another branch of a pipeline: its new views
-    /// and layers are added here. Both must be copies of one document, and
-    /// the branches must not both have written a layer, both made a view,
-    /// or written two layer types under one id, since each would leave two
-    /// answers under one name. A refused merge changes nothing.
-    pub fn merge(&mut self, other: &Document) -> Result<(), Error> {
-        if !Arc::ptr_eq(&self.views[0], &other.views[0]) {
-            return Err(Error::Pipeline("merge needs two copies of one document".into()));
-        }
-        let shared = self.views.len().min(other.views.len());
-        if !self.views[..shared].iter().zip(&other.views[..shared]).all(|(a, b)| Arc::ptr_eq(a, b)) {
-            return Err(Error::Pipeline("both branches made a view".into()));
-        }
-        for e in &other.entries {
-            match self.entries.iter().find(|m| m.key == e.key) {
-                Some(mine) if !Arc::ptr_eq(mine, e) => return Err(Error::Duplicate(e.key)),
-                None if self.clashes(e.key) => return Err(Error::Clash(e.key)),
-                _ => {}
-            }
-        }
-        for e in &other.entries {
-            if !self.has(e.key) {
-                self.entries.push(e.clone());
-            }
-        }
-        self.views.extend(other.views[shared..].iter().cloned());
-        Ok(())
     }
 }
 
