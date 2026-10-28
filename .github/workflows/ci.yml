@@ -361,7 +361,8 @@ jobs:
       # LibreOffice's Hunspell dictionaries are not checked in either
       # (de_DE_frami is GPL, hu_HU MPL or LGPL; en_US, under SCOWL's
       # permissive terms, is downloaded with them); turbo-hunspell's
-      # goldens over them run here. The SMS Spam Collection (CC BY 4.0) is
+      # unit tests over them run here (JVM hunspell goldens removed in
+      # #1530 / #1531). The SMS Spam Collection (CC BY 4.0) is
       # not checked in either: fetch-models downloads it into
       # .opennlp-models/corpora by the URL and SHA-512 in the recipe, so the
       # cache above, keyed by the recipe, keeps it until its digest changes.
