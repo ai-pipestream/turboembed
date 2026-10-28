@@ -2,7 +2,8 @@
 
 Peer records scored by `turbo-eval analysis` against the UD
 English-EWT test file: `spacy-en-ewt-test.json`,
-`stanza-en-ewt-test.json`, and `wtpsplit-en-ewt-test.json` so far.
+`stanza-en-ewt-test.json`, `wtpsplit-en-ewt-test.json`, and
+`trankit-en-ewt-test.json`.
 
 ## Inputs and pins
 
@@ -36,6 +37,17 @@ English-EWT test file: `spacy-en-ewt-test.json`,
   `1aa2702be1c99bcf1743337cfa5fc430ce4c173579f9265091e609a6e2c04841`.
   Sentence F1 85.30 in joined-text coordinates (our rule tier in the
   same record: 73.55).
+- Peer: Trankit 1.1.2 with the English `xlm-roberta-base` pipeline
+  on CPU torch 2.0.1, in the digest-pinned Python 3.10 container at
+  `analysis/eval/reference/peers/trankit/` (local image id at record
+  time `sha256:693b004911d6fb9bc1c70b4ed8f833e5b495bcc315e3f33cfde85ba9680cf540`).
+  Trankit's own model host was unreachable from the recording
+  machine, so the same model zip was baked in from the `uonlp`
+  mirror pinned by revision; the Dockerfile records that revision.
+- Trankit predictions SHA-256:
+  `2c14aae8c6ae8d90a03996dcb3a48221916ccb0195c2be2dd8ff4891522314df`.
+  Headlines: sentences 93.43 F1, tokens 98.42, UPOS 94.94, XPOS
+  95.38, feats 84.51, lemma 93.17, UAS 86.82, LAS 83.39.
 
 ## Conditioning
 
@@ -67,6 +79,10 @@ turbo-eval analysis --gold <gold-dir>/en_ewt-ud-test.conllu \
 docker build -t turbo-peer-stanza:1.10.1-en analysis/eval/reference/peers/stanza
 docker run --rm --network none -v <gold-dir>:/gold:ro -v <out-dir>:/out \
   turbo-peer-stanza:1.10.1-en /gold/en_ewt-ud-test.conllu /out/stanza.conllu
+
+docker build -t turbo-peer-trankit:1.1.2-en analysis/eval/reference/peers/trankit
+docker run --rm --network none -v <gold-dir>:/gold:ro -v <out-dir>:/out \
+  turbo-peer-trankit:1.1.2-en /gold/en_ewt-ud-test.conllu /out/trankit.conllu
 ```
 
 Recorded 2026-10-28 under load average about 31 to 36 (accuracy
