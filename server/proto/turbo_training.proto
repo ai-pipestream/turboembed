@@ -24,6 +24,13 @@ service TurboCatalogService {
   // Admin. Fetches and verifies an artifact into the cache, one install at
   // a time, after the licence and free disk checks.
   rpc InstallModel(InstallModelRequest) returns (stream InstallModelUpdate);
+  // One artifact the index lists, as ListModelCatalog gives it.
+  rpc DescribeModel(DescribeModelRequest) returns (DescribeModelResponse);
+  // The artifact and file the index pins at a SHA-256.
+  rpc ResolveModel(ResolveModelRequest) returns (ResolveModelResponse);
+  // An installed file's bytes, for a user who accepted every term the
+  // artifact needs: its catalog file first, then the bytes.
+  rpc ReadModelFile(ReadModelFileRequest) returns (stream ModelFileChunk);
 }
 
 // A licence and the address of the text a user accepts for it.
@@ -155,6 +162,50 @@ message InstallModelUpdate {
   oneof update {
     InstallProgress progress = 1;
     InstalledModel installed = 2;
+  }
+}
+
+message DescribeModelRequest {
+  // With a user, the entry's missing_terms are the ones that user has not
+  // accepted.
+  string user = 1;
+  string artifact_id = 2;
+}
+
+message DescribeModelResponse {
+  CatalogEntry entry = 1;
+}
+
+message ResolveModelRequest {
+  // The unpacked file's SHA-256, 64 lowercase hexadecimal digits.
+  string sha256 = 1;
+  // When set, only that artifact's files are searched.
+  string artifact_id = 2;
+  string user = 3;
+}
+
+message ResolveModelResponse {
+  CatalogEntry entry = 1;
+  // The file's path inside the artifact's directory.
+  string path = 2;
+}
+
+message ReadModelFileRequest {
+  string user = 1;
+  string artifact_id = 2;
+  // The file's path inside the artifact's directory.
+  string path = 3;
+  // When set, the SHA-256 the caller's own index pins: a file the server's
+  // index pins at another is refused.
+  string sha256 = 4;
+}
+
+message ModelFileChunk {
+  oneof frame {
+    // The first frame: the file as the index records it.
+    CatalogFile file = 1;
+    // Every later frame: the next bytes, at most 64 KiB.
+    bytes data = 2;
   }
 }
 
