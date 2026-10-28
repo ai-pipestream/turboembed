@@ -3,12 +3,13 @@
 //! `tests/snapshots/<pack>/<id>.tsv` holds the `turbo:pii` rows for each
 //! input in `tests/inputs/`. Regenerate with
 //! `TURBO_BLESS=1 cargo test -p turbo-pii --test goldens`.
-//! JVM goldens are not an oracle. Each case checks `Layer::check`, spans in
-//! bounds, non-empty normalized forms, and that kind names parse back.
+//! Each case checks `Layer::check`, spans in bounds, non-empty normalized
+//! forms, and that kind names parse back. Normalized fields are TSV-escaped.
 
 use std::path::PathBuf;
 
 use turbo_analysis::{Analyzer, Document, Layer, ViewId};
+use turbo_goldens::escape::escape;
 use turbo_pii::{Pack, Pii, PiiDetector, PiiKind};
 
 fn root() -> PathBuf {
@@ -44,7 +45,7 @@ fn render(layer: &Pii) -> String {
             m.span.end,
             m.kind.name(),
             m.confidence.name(),
-            m.normalized,
+            escape(m.normalized),
         ));
     }
     out

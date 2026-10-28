@@ -296,11 +296,8 @@ cargo run -p turbo-goldens-tool -- generate
 ```
 
 `analysis/pii/tests/goldens.rs` runs every pack with
-`PiiDetector::keeping_nested` over the set and compares the layer with
-the goldens row for row; while the `pii` golden directory is not on disk
-it says so and passes. The differential fuzzer covers the ten packs in
-the same parity mode (`analysis/fuzz/src/runs/pii.rs`), and the `pii`
-set is among the sets it writes generated texts into.
+`PiiDetector::keeping_nested` over `tests/inputs/` and compares each layer
+with the crate-local snapshots under `tests/snapshots/`.
 
 `analysis/pii/tests/rewrite_goldens.rs` runs every pack (with
 `keeping_nested`) and `MaskedView` over the set and compares the masked
