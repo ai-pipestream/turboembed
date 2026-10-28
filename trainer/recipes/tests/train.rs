@@ -285,6 +285,57 @@ fn of_runs_racing_for_one_out_exactly_one_writes() {
 }
 
 #[test]
+fn a_run_stopped_midway_keeps_its_best_head_so_far() {
+    let data = scratch("stop-data");
+    corpus(&data);
+    let out = scratch("stop-out");
+    let (d, o, b) = (data.to_str().unwrap(), out.to_str().unwrap(), tiny());
+    let args = [
+        "train",
+        "--corpus",
+        "multiconer2-en",
+        "--dir",
+        d,
+        "--bundle",
+        b.to_str().unwrap(),
+        "--out",
+        o,
+        "--unrecorded-corpus",
+        "--epochs",
+        "100000",
+        "--patience",
+        "0",
+        "--commit",
+        "test",
+    ];
+    let mut child = Command::new(env!("CARGO_BIN_EXE_turbo-train-head"))
+        .args(args)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .unwrap();
+    let start = std::time::Instant::now();
+    while !out.join("checkpoint.json").is_file() {
+        assert!(start.elapsed().as_secs() < 120, "no checkpoint within two minutes");
+        std::thread::sleep(std::time::Duration::from_millis(50));
+    }
+    std::thread::sleep(std::time::Duration::from_millis(300));
+    child.kill().unwrap();
+    child.wait().unwrap();
+    // What is there is whole: the spec, a head the core loads by it, and
+    // the epoch it is from; no receipt, since the run did not finish.
+    let at: Value = serde_json::from_slice(&fs::read(out.join("checkpoint.json")).unwrap()).unwrap();
+    assert!(at["best_epoch"].as_u64().is_some() && at["dev"].as_f64().is_some(), "{at}");
+    let head: HeadSpec = serde_json::from_slice(&fs::read(out.join("head.json")).unwrap()).unwrap();
+    let t = read_safetensors(&fs::read(out.join("head.safetensors")).unwrap());
+    let get = |s: &str| t.iter().find(|(k, _, _)| *k == format!("heads.ner.{s}")).map(|(_, _, v)| v.clone());
+    TokenTagger::from_tensors(&head, 32, &get).unwrap();
+    assert!(!out.join("receipt.json").exists());
+    fs::remove_dir_all(data).unwrap();
+    fs::remove_dir_all(out).unwrap();
+}
+
+#[test]
 fn unknown_commands_corpora_and_arguments_are_refused() {
     for (args, msg) in [
         (&["fit", "--corpus", "masc-pos", "--dir", "."][..], "unknown command"),

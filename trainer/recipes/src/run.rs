@@ -156,3 +156,17 @@ pub fn write(dir: &Path, name: &str, bytes: &[u8]) -> Result<FileRecord> {
     f.write_all(bytes).map_err(err)?;
     Ok(FileRecord { path: name.into(), size: bytes.len() as u64, sha256: turbo::bundle::sha256_hex(bytes) })
 }
+
+/// Writes `bytes` to `dir/name` in place of what is there, by a write to
+/// a partial file and a rename over it, so a reader (or a run stopped
+/// midway) sees the old file or the new one whole, never a part.
+///
+/// # Errors
+///
+/// A file that cannot be written or renamed.
+pub fn replace(dir: &Path, name: &str, bytes: &[u8]) -> Result<FileRecord> {
+    let (path, partial) = (dir.join(name), dir.join(format!(".{name}.partial")));
+    std::fs::write(&partial, bytes).map_err(|e| Error(format!("{}: {e}", partial.display())))?;
+    std::fs::rename(&partial, &path).map_err(|e| Error(format!("{}: {e}", path.display())))?;
+    Ok(FileRecord { path: name.into(), size: bytes.len() as u64, sha256: turbo::bundle::sha256_hex(bytes) })
+}

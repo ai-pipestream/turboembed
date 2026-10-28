@@ -27,7 +27,7 @@ use turbo_trainer::Config;
 use turbo_trainer_recipes::corpus::{Corpus, Task};
 use turbo_trainer_recipes::eval::{Majority, Seen, bootstrap, evaluate};
 use turbo_trainer_recipes::receipt::*;
-use turbo_trainer_recipes::run::{HASH_ROWS, HeadOptions, examples, named, predict, spec, write};
+use turbo_trainer_recipes::run::{HASH_ROWS, HeadOptions, examples, named, predict, replace, spec, write};
 use turbo_trainer_recipes::{Error, Result, coarse, read_corpus, safetensors};
 
 const RESAMPLES: usize = 1000;
@@ -204,9 +204,32 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     let features = t.elapsed().as_secs_f64();
     let feature_words = train_ex.iter().chain(&dev_ex).map(|e| e.labels.len() as u64).sum();
 
+    // The best epoch's head is on disk whenever it improves, with
+    // checkpoint.json naming the epoch, so a run stopped midway keeps it;
+    // from the first one on, the directory stays even if the run fails.
     let t = Instant::now();
-    let (model, report) =
-        turbo_trainer::fit(&head, enc.hidden(), &train_ex, &dev_ex, &c).map_err(|e| Error(e.message))?;
+    let spec_json = serde_json::to_vec_pretty(&head).expect("a head spec serializes");
+    let hidden = enc.hidden();
+    let mut out = out;
+    let (model, report) = {
+        let dir = out.path.clone();
+        let mut saved = false;
+        let mut save = |m: &turbo_trainer::Tagger<f32>, epoch: usize, dev: f64| -> turbo_trainer_recipes::Result<()> {
+            replace(&dir, "head.safetensors", &safetensors::write(&named(&head, hidden, m.tensors())))?;
+            if !saved {
+                replace(&dir, "head.json", &spec_json)?;
+                saved = true;
+            }
+            let at = serde_json::json!({ "best_epoch": epoch, "dev": dev });
+            replace(&dir, "checkpoint.json", at.to_string().as_bytes())?;
+            Ok(())
+        };
+        let r = turbo_trainer::fit_with(&head, hidden, &train_ex, &dev_ex, &c, &mut |m, e, d| {
+            save(m, e, d).map_err(|x| turbo::status::invalid(x.0))
+        });
+        out.keep = out.keep || saved_any(&dir);
+        r.map_err(|e| Error(e.message))?
+    };
     drop((train_ex, dev_ex));
     let trained = t.elapsed().as_secs_f64();
 
@@ -226,8 +249,8 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     let eval_s = t.elapsed().as_secs_f64();
 
     let weights = safetensors::write(&named(&head, enc.hidden(), model.tensors()));
-    let spec_json = serde_json::to_vec_pretty(&head).expect("a head spec serializes");
-    let outputs = vec![write(&out.path, "head.safetensors", &weights)?, write(&out.path, "head.json", &spec_json)?];
+    let outputs = vec![replace(&out.path, "head.safetensors", &weights)?, replace(&out.path, "head.json", &spec_json)?];
+    let _ = std::fs::remove_file(out.path.join("checkpoint.json"));
     let receipt = Receipt {
         schema: SCHEMA.into(),
         command: argv.to_vec(),
@@ -320,6 +343,11 @@ impl Drop for OutDir {
             let _ = std::fs::remove_dir_all(&self.path);
         }
     }
+}
+
+/// Whether a checkpoint was written into `dir`.
+fn saved_any(dir: &Path) -> bool {
+    dir.join("checkpoint.json").is_file()
 }
 
 fn commit(given: Option<String>) -> String {
