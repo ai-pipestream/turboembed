@@ -366,3 +366,12 @@ fn phonetic_keys_do_not_allocate() {
     }
     assert_eq!(COUNT.get() - before, 0, "{sink} key bytes hashed");
 }
+
+#[test]
+fn double_metaphone_keeps_its_apache_attribution() {
+    let notice = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../NOTICE"));
+    assert!(notice.contains("Apache Commons Codec"));
+    assert!(notice.contains("Copyright 2002-2026 The Apache Software Foundation"));
+    assert!(notice.contains("analysis/matcher/src/phonetic.rs"));
+    assert!(notice.contains("analysis/matcher/src/phonetic/metaphone.rs"));
+}
