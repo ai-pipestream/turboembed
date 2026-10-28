@@ -64,11 +64,15 @@ struct Window {
     offsets: Vec<usize>,
 }
 
-/// Where a range's states go: pooling, sequence, word.
+/// Where a range's states go: pooling, sequence, word. A range of one
+/// piece of `pieces` (`piece` counted from 0) feeds every pooling, which
+/// is pooled from the pieces here.
 struct Owner {
-    pooling: usize,
+    pooling: Option<usize>,
     seq: usize,
     word: usize,
+    piece: usize,
+    pieces: usize,
 }
 
 const BARE: Encode =
@@ -268,40 +272,48 @@ impl WordEncoder {
         for (s, pieces) in sequences.iter().enumerate() {
             for (window, keep) in self.windows(s, pieces) {
                 let kept = keep.iter().filter(|&&k| k).count();
-                // Every pooling from one read of the row, unless its
-                // ranges outgrow a run (one row a batch): then a read
-                // each.
-                let all: Vec<usize> = (0..poolings.len()).collect();
-                let groups: Vec<&[usize]> =
-                    if kept * poolings.len() <= self.max_ranges { vec![&all] } else { all.chunks(1).collect() };
-                for group in groups {
-                    if rows.len() as usize == self.max_batch || ranges.len() + kept * group.len() > self.max_ranges {
-                        self.flush(&mut rows, &mut ranges, &mut owners, &mut states, &mut out)?;
+                let kept_pieces: usize =
+                    keep.iter().enumerate().filter(|&(_, &k)| k).map(|(k, _)| pieces[window.first + k].len()).sum();
+                // A range a word and pooling, unless those outgrow a run
+                // (one row a batch): then a range a piece, which every
+                // pooling reads, so the row is still read once. A row's
+                // pieces never outgrow a run.
+                let per_piece = kept * poolings.len() > self.max_ranges;
+                let need = if per_piece { kept_pieces } else { kept * poolings.len() };
+                if rows.len() as usize == self.max_batch || ranges.len() + need > self.max_ranges {
+                    self.flush(&mut rows, &mut ranges, &mut owners, &mut states, &mut out, poolings)?;
+                }
+                row_ids.clear();
+                for p in &pieces[window.first..window.first + window.offsets.len()] {
+                    row_ids.extend_from_slice(p);
+                }
+                let row = rows.push(&[&self.cls, &row_ids, &self.sep]);
+                for (k, &at) in window.offsets.iter().enumerate() {
+                    if !keep[k] {
+                        continue;
                     }
-                    row_ids.clear();
-                    for p in &pieces[window.first..window.first + window.offsets.len()] {
-                        row_ids.extend_from_slice(p);
+                    let (seq, word) = (window.seq, window.first + k);
+                    let (start, n) = ((self.cls.len() + at) as u32, pieces[word].len());
+                    if per_piece {
+                        for piece in 0..n {
+                            let at = start + piece as u32;
+                            ranges.push(turbo_token_range { row, start: at, end: at + 1 });
+                            owners.push(Owner { pooling: None, seq, word, piece, pieces: n });
+                        }
+                        continue;
                     }
-                    let row = rows.push(&[&self.cls, &row_ids, &self.sep]);
-                    for (k, &at) in window.offsets.iter().enumerate() {
-                        if !keep[k] {
-                            continue;
-                        }
-                        let word = window.first + k;
-                        let start = (self.cls.len() + at) as u32;
-                        for &p in group {
-                            let len = match poolings[p] {
-                                WordPooling::First => 1,
-                                WordPooling::Mean => pieces[word].len() as u32,
-                            };
-                            ranges.push(turbo_token_range { row, start, end: start + len });
-                            owners.push(Owner { pooling: p, seq: window.seq, word });
-                        }
+                    for (p, pooling) in poolings.iter().enumerate() {
+                        let len = match pooling {
+                            WordPooling::First => 1,
+                            WordPooling::Mean => n as u32,
+                        };
+                        ranges.push(turbo_token_range { row, start, end: start + len });
+                        owners.push(Owner { pooling: Some(p), seq, word, piece: 0, pieces: n });
                     }
                 }
             }
         }
-        self.flush(&mut rows, &mut ranges, &mut owners, &mut states, &mut out)?;
+        self.flush(&mut rows, &mut ranges, &mut owners, &mut states, &mut out, poolings)?;
         Ok(out)
     }
 
@@ -328,13 +340,37 @@ impl WordEncoder {
         owners: &mut Vec<Owner>,
         states: &mut Vec<f32>,
         out: &mut [Vec<Vec<f32>>],
+        poolings: &[WordPooling],
     ) -> Result<()> {
         if !ranges.is_empty() {
             self.encoder.run_ranges(rows, ranges, states)?;
             self.rows += u64::from(rows.len());
             let h = self.hidden;
             for (r, o) in owners.iter().enumerate() {
-                out[o.pooling][o.seq][o.word * h..][..h].copy_from_slice(&states[r * h..][..h]);
+                let state = &states[r * h..][..h];
+                let Some(p) = o.pooling else {
+                    // A word's pieces come in order in one run; the mean
+                    // is the cpu's: the sum in order, times 1 / pieces.
+                    for (p, pooling) in poolings.iter().enumerate() {
+                        let dst = &mut out[p][o.seq][o.word * h..][..h];
+                        match pooling {
+                            WordPooling::First if o.piece == 0 => dst.copy_from_slice(state),
+                            WordPooling::First => {}
+                            WordPooling::Mean => {
+                                if o.piece == 0 {
+                                    dst.fill(0.0);
+                                }
+                                dst.iter_mut().zip(state).for_each(|(d, &x)| *d += x);
+                                if o.piece + 1 == o.pieces {
+                                    let inv = 1.0 / o.pieces as f32;
+                                    dst.iter_mut().for_each(|d| *d *= inv);
+                                }
+                            }
+                        }
+                    }
+                    continue;
+                };
+                out[p][o.seq][o.word * h..][..h].copy_from_slice(state);
             }
         }
         rows.clear();

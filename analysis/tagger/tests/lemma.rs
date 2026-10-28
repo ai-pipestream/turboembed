@@ -60,23 +60,37 @@ fn the_lemmatizer_writes_the_core_heads_lemma_for_every_token() {
 #[test]
 fn the_tagger_and_the_head_pool_from_one_read_of_each_window() {
     // The pos head pools by the mean and the lemma head by the first
-    // piece: both come from the rows one pooling would read.
+    // piece: both come from the rows one pooling would read, a row a run
+    // or many.
     let dir = bundle("lemma-rows", |_| {});
     let doc = Document::new(TEXT);
     let view = doc.require(&Key::<View>::DEFAULT).unwrap();
     let toks = tokens(TEXT);
-    let o = EncoderOptions { max_seq: 8, ..EncoderOptions::default() };
-    let lem = Lemmatizer::open(&dir, None, &o).unwrap();
-    assert_ne!(lem.pos().unwrap().spec().word_pooling, lem.head().spec().word_pooling);
-    let words: Vec<&str> = TEXT.split(' ').collect();
-    let mut enc = WordEncoder::open(&dir, &o).unwrap();
-    enc.features(std::slice::from_ref(&words), WordPooling::First).unwrap();
-    let one = enc.rows();
-    assert!(one > 1, "the sentence is read in windows");
-    lem.annotate((view, &toks, None, None)).unwrap();
-    assert_eq!(lem.rows(), one);
-    lem.lemmatize(&[words]).unwrap();
-    assert_eq!(lem.rows(), 2 * one);
+    for max_batch in [0, 1] {
+        let o = EncoderOptions { max_seq: 8, max_batch, ..EncoderOptions::default() };
+        let lem = Lemmatizer::open(&dir, None, &o).unwrap();
+        assert_ne!(lem.pos().unwrap().spec().word_pooling, lem.head().spec().word_pooling);
+        let words: Vec<&str> = TEXT.split(' ').collect();
+        let mut enc = WordEncoder::open(&dir, &o).unwrap();
+        enc.features(std::slice::from_ref(&words), WordPooling::First).unwrap();
+        let one = enc.rows();
+        assert!(one > 1, "the sentence is read in windows");
+        // Both poolings from one read of each window are each pooling's
+        // own, words of two pieces among five a window too.
+        let long = vec!["zx", "of", "of", "of", "of", "qq", "of", "of", "of", "of"];
+        assert_eq!((enc.pieces("zx").unwrap().len(), enc.pieces("qq").unwrap().len()), (2, 2));
+        let seqs = &[words.clone(), long][..];
+        let at = enc.rows();
+        let both = enc.features_pooled(seqs, &[WordPooling::First, WordPooling::Mean]).unwrap();
+        let read = enc.rows() - at;
+        let alone = [enc.features(seqs, WordPooling::First).unwrap(), enc.features(seqs, WordPooling::Mean).unwrap()];
+        assert_eq!(2 * read, enc.rows() - at - read, "max_batch {max_batch}");
+        assert_eq!(both, alone, "max_batch {max_batch}");
+        lem.annotate((view, &toks, None, None)).unwrap();
+        assert_eq!(lem.rows(), one, "max_batch {max_batch}");
+        lem.lemmatize(&[words]).unwrap();
+        assert_eq!(lem.rows(), 2 * one, "max_batch {max_batch}");
+    }
 }
 
 #[test]
