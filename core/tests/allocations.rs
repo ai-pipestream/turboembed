@@ -71,11 +71,12 @@ fn counted_all<T>(f: impl FnOnce() -> T) -> (T, u64, u64) {
 
 #[test]
 fn a_run_reports_the_allocations_it_made() {
-    // A BERT encoder, a DeBERTa-v2 one, and a static model, which has
-    // none.
+    // A BERT encoder, a DeBERTa-v2 one, a ModernBERT and a nomic-bert
+    // (#1461), and a static model, which has none.
     let deberta = deberta_common::fixture("allocations-deberta", &deberta_common::TINY);
     let dir = deberta.write().to_path_buf();
-    for dir in [tiny_bundle(), dir, testdata().join("tiny-static-bundle")] {
+    let (modernbert, nomic) = (testdata().join("tiny-modernbert-bundle"), testdata().join("tiny-nomic-bundle"));
+    for dir in [tiny_bundle(), dir, modernbert, nomic, testdata().join("tiny-static-bundle")] {
         runs_of(&dir);
     }
 }
@@ -87,7 +88,10 @@ fn runs_of(dir: &std::path::Path) {
     let texts = ["The quick brown fox jumps over the lazy dog.", "how do I reset a password", "a"];
     let rows: Vec<Vec<i32>> = texts.iter().map(|t| tok.row(t, None).unwrap()).collect();
     let small = Tokens::new(&rows, 0);
-    let long = Tokens::new(&vec![(0..64).map(|i| 1000 + i).collect(); 64], 0);
+    // The session's largest batch, up to 64 rows, of 64 tokens.
+    let m: serde_json::Value = serde_json::from_slice(&std::fs::read(dir.join("manifest.json")).unwrap()).unwrap();
+    let rows_max = m["embed"]["max_batch"].as_u64().map_or(64, |b| b.min(64)) as usize;
+    let long = Tokens::new(&vec![(0..64).map(|i| 1000 + i).collect(); rows_max], 0);
     let mut dst = vec![0f32; 64 * 32];
 
     // The first run of the session, then warm runs of the same shape, a

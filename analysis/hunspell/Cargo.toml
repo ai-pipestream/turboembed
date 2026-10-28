@@ -17,6 +17,3 @@ turbo-stem-layers = { path = "../stem-layers" }
 # toUpperCase, and the White_Space property StringUtil.isWhitespace reads.
 turbo-unicode = { path = "../unicode" }
 
-[dev-dependencies]
-# The goldens of the stemmer, made by OpenNLP on a JVM.
-turbo-goldens = { path = "../goldens" }
