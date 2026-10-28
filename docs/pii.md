@@ -413,23 +413,26 @@ remaining 17 kinds are evaluated on project-authored operational memos
 
 ### External prose partition (whole third-party documents)
 
-A separately scored partition of ten whole third-party documents
-(`324,937` bytes, `88` gold mentions,
+A separately scored partition of thirteen whole third-party documents
+(`376,250` bytes, `118` gold mentions,
 `precision_and_recall_on_external_prose`, gold in
 `analysis/pii/tests/data/human-eval/labels-external.tsv`, provenance in
 that directory's `README.md`): RFC 7519, RFC 5737, RFC 3849 and RFC 7042
-as retrieved from the RFC Editor (publication-era BCP 78 notices), and six Wikipedia
+as retrieved from the RFC Editor (publication-era BCP 78 notices), six Wikipedia
 articles as wikitext at pinned revisions (CC BY-SA 4.0): "International
 Bank Account Number", "Social Security number", "Social insurance
 number", "NHS number", "International Mobile Equipment Identity" and
-"Routing transit number".
+"Routing transit number", and the BIP-173 and BIP-350 specification
+texts (BSD-2-Clause) with ERC-55 (CC0-1.0) at pinned source commits.
 These rows never pool with the mixed set above.
 
 | Kind | Source partition | true | false | missed | precision | recall |
 |---|---|---:|---:|---:|---:|---:|
 | `aba-routing` | external (Wikipedia routing wikitext) | 4 | 0 | 4 | 1.000 | 0.500 |
+| `btc-address` | external (BIP-173, BIP-350 mediawiki) | 8 | 0 | 3 | 1.000 | 0.727 |
 | `ca-sin` | external (Wikipedia SIN wikitext) | 0 | 0 | 2 | N/A | 0.000 |
-| `email` | external (RFC 7519, RFC 5737, RFC 3849, RFC 7042) | 17 | 1 | 1 | 0.944 | 0.944 |
+| `email` | external (RFC 7519, RFC 5737, RFC 3849, RFC 7042, BIP-173, BIP-350, ERC-55) | 22 | 1 | 1 | 0.957 | 0.957 |
+| `eth-address` | external (ERC-55 markdown) | 14 | 0 | 0 | 1.000 | 1.000 |
 | `iban` | external (Wikipedia IBAN wikitext) | 4 | 0 | 0 | 1.000 | 1.000 |
 | `imei` | external (Wikipedia IMEI wikitext) | 0 | 0 | 2 | N/A | 0.000 |
 | `ipv4` | external (RFC 5737) | 8 | 3 | 0 | 0.727 | 1.000 |
@@ -437,9 +440,9 @@ These rows never pool with the mixed set above.
 | `jwt` | external (RFC 7519) | 0 | 0 | 2 | N/A | 0.000 |
 | `mac` | external (RFC 7042) | 29 | 0 | 0 | 1.000 | 1.000 |
 | `phone` | external (RFC 5737, RFC 7042) | 5 | 14 | 0 | 0.263 | 1.000 |
-| `uk-nhs` | external (Wikipedia NHS wikitext) | 1 | 1 | 3 | 0.500 | 0.250 |
+| `uk-nhs` | external (Wikipedia NHS wikitext) | 1 | 2 | 3 | 0.333 | 0.250 |
 | `us-ssn` | external (Wikipedia SSN wikitext) | 3 | 0 | 0 | 1.000 | 1.000 |
-| **all kinds** | **external (`88` gold; false mentions of kinds without gold included)** | **74** | **27** | **14** | **0.733** | **0.841** |
+| **all kinds** | **external (`118` gold; false mentions of kinds without gold included)** | **101** | **28** | **17** | **0.783** | **0.856** |
 
 Zero prediction or gold support makes the corresponding precision or
 recall **N/A**, including the card recall when no card is gold-labelled.
@@ -468,8 +471,18 @@ What the external false positives and misses are:
 - **`ipv4` false positives (3)**: the Simple Web Token version `0.9.5.1`
   in RFC 7519's references and the section number `2.3.2.1` twice in
   RFC 7042.
-- **`uk-nhs` false positive (1)**: `0110201035` in the SSN article's
-  citations, a 10-digit string that passes the NHS checksum.
+- **`uk-nhs` false positives (2)**: `0110201035` in the SSN article's
+  citations, a 10-digit string that passes the NHS checksum, and
+  `0123456789` in ERC-55's hexadecimal digit alphabet, which also
+  satisfies the modulus-11 check.
+- **`btc-address` misses (3)**: the witness version 1, 2 and 16
+  addresses of BIP-173's own valid list. BIP-173 encodes every
+  version with the original bech32 checksum; BIP-350 replaced it
+  with bech32m for version 1 and up, and the scanner follows
+  BIP-350, so the three BIP-173-era encodings fail its checksum
+  split. The document publishes them as valid mainnet addresses,
+  so they are gold occurrences in a form the scanner does not take.
+  Testnet addresses in both BIPs are not labelled.
 - **`aba-routing` misses (4)**: the dashed forms `0260-0959-3` and
   `2260-7352-3`, which the scanner does not take, and the historical
   check-image MICR example `129131673` (twice), whose check digit does
@@ -496,13 +509,14 @@ What the external false positives and misses are:
 #968 remains open with its original acceptance requirements. Independent
 human-written prose coverage has not been established for `card`,
 `us-itin`, `de-steuer-id`, `aws-access-key`, `github-token`, and
-`url-credential`. The `btc-address` and
-`eth-address` rows also remain results from adapted specifications,
-without established coverage on externally authored prose. The external
-partition above establishes coverage for `aba-routing`, `ca-sin`,
-`email`, `iban`, `imei`, `ipv4`, `ipv6`, `jwt` (recall `0.000` on the
-signed/unsecured subset, which is display-wrapped), `mac`, `uk-nhs`,
-`us-ssn`, and further third-party `phone`.
+`url-credential`. The external
+partition above establishes coverage for `aba-routing`, `btc-address`,
+`ca-sin`, `email`, `eth-address`, `iban`, `imei`, `ipv4`, `ipv6`, `jwt`
+(recall `0.000` on the signed/unsecured subset, which is
+display-wrapped), `mac`, `uk-nhs`, `us-ssn`, and further third-party
+`phone`; the `btc-address` and `eth-address` coverage is the whole
+BIP-173, BIP-350 and ERC-55 specification texts, superseding the
+adapted summaries as the crypto evidence.
 
 Further corpus additions need attributable, licensed source passages with
 appropriate context and per-occurrence gold labels, including scanner misses

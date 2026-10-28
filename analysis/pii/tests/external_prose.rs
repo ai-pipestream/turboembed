@@ -1,5 +1,6 @@
 //! #968 external partition: per-kind precision and recall on whole
-//! third-party documents (RFC texts and Wikipedia wikitext), gold in
+//! third-party documents (RFC texts, Wikipedia wikitext, and the
+//! BIP-173, BIP-350 and ERC-55 specification texts), gold in
 //! `tests/data/human-eval/labels-external.tsv` (newlines in covered
 //! text escaped as `\n`, for the display-wrapped RFC 7519 JWTs).
 //! Kept apart from the mixed set in `precision_recall.rs` so the two
@@ -11,7 +12,7 @@ mod support;
 use support::{Counts, load_labelled, measure, ratio, ratio_text};
 
 /// (id, goldens-escaped, file, pinned SHA-256 of the document text).
-const EXTERNAL_DOCS: [(&str, bool, &str, &str); 10] = [
+const EXTERNAL_DOCS: [(&str, bool, &str, &str); 13] = [
     ("rfc7519", false, "rfc7519.txt", "fecd930e9ccf2276b95c0017c6c4ff5d09352e4bc3c7629946447894e0f97248"),
     ("rfc5737", false, "rfc5737.txt", "9d16217614a74a9b064eff900e5cd07a525793cf8227dca1267100e880f0c410"),
     ("rfc3849", false, "rfc3849.txt", "b0741fc609be565b356c62d2f9b9ef30469f3fe7bde386c2690e173751bb1941"),
@@ -52,6 +53,9 @@ const EXTERNAL_DOCS: [(&str, bool, &str, &str); 10] = [
         "wikipedia-routing-transit-number.wikitext",
         "75e90f864f2d7896f6ac5ab10a77d6f9392de4e78266d7fc26d2bf6ae41b67af",
     ),
+    ("bip-0173", false, "bip-0173.mediawiki", "b19eab06b264bbd15ad7f7d640fa34de8f4a8809fba8a6ecc3e165545b27a543"),
+    ("bip-0350", false, "bip-0350.mediawiki", "63634b06aa8bae88b31929674736e74964c4598684269ac2b0b140c43a7a0dec"),
+    ("erc-55", false, "erc-55.md", "54a9b25ffcd12966c60d6abd6584734d2793734f266fbe41118e6ee52b05dc9e"),
 ];
 
 /// Only kinds with gold in these documents are pinned here; mentions
@@ -61,10 +65,12 @@ fn precision_and_recall_on_external_prose() {
     let set = load_labelled(&EXTERNAL_DOCS, "labels-external.tsv", true);
     let by_kind = measure(&set);
     eprintln!("\nexternal prose evaluation set (#968):");
-    let want_by_kind: [(&str, usize, usize, usize); 12] = [
+    let want_by_kind: [(&str, usize, usize, usize); 14] = [
         ("aba-routing", 4, 0, 4),
+        ("btc-address", 8, 0, 3),
         ("ca-sin", 0, 0, 2),
-        ("email", 17, 1, 1),
+        ("email", 22, 1, 1),
+        ("eth-address", 14, 0, 0),
         ("iban", 4, 0, 0),
         ("imei", 0, 0, 2),
         ("ipv4", 8, 3, 0),
@@ -72,7 +78,7 @@ fn precision_and_recall_on_external_prose() {
         ("jwt", 0, 0, 2),
         ("mac", 29, 0, 0),
         ("phone", 5, 14, 0),
-        ("uk-nhs", 1, 1, 3),
+        ("uk-nhs", 1, 2, 3),
         ("us-ssn", 3, 0, 0),
     ];
     let mut total = Counts::default();
@@ -97,7 +103,7 @@ fn precision_and_recall_on_external_prose() {
         let c = by_kind.get(kind).unwrap();
         assert_eq!((c.tp, c.fp, c.fn_), (tp, fp, fn_), "{kind}");
     }
-    assert_eq!((total.tp, total.fp, total.fn_), (74, 27, 14));
+    assert_eq!((total.tp, total.fp, total.fn_), (101, 28, 17));
 }
 
 #[test]
@@ -111,6 +117,24 @@ fn wrapped_rfc_address_keeps_the_complete_source_span() {
     let counts = measure(&[doc]);
     let email = &counts["email"];
     assert_eq!((email.tp, email.fp, email.fn_), (3, 1, 1));
+}
+
+#[test]
+fn bip173_era_witness_addresses_are_gold_the_scanner_misses() {
+    // BIP-173's own valid list encodes witness versions 1, 2 and 16
+    // with the original bech32 checksum; BIP-350 replaced it with
+    // bech32m for version 1 and up, and the scanner follows BIP-350.
+    // The publishing document presents the three as valid mainnet
+    // addresses, so they are gold occurrences the scanner misses.
+    let mut set = load_labelled(&EXTERNAL_DOCS, "labels-external.tsv", true);
+    let index = EXTERNAL_DOCS.iter().position(|&(id, ..)| id == "bip-0173").unwrap();
+    let doc = set.remove(index);
+    for span in [(15136, 15210), (15317, 15331), (15362, 15398)] {
+        assert!(doc.labels.contains(&(span.0, span.1, "btc-address")), "{span:?}");
+    }
+    let counts = measure(&[doc]);
+    let btc = &counts["btc-address"];
+    assert_eq!((btc.tp, btc.fp, btc.fn_), (3, 0, 3));
 }
 
 #[test]
