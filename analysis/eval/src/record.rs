@@ -261,6 +261,7 @@ impl EvalRecord {
             span_in_unit("metrics.span.mean.at_5", &s.mean.at_5)?;
             span_in_unit("metrics.span.mean.at_10", &s.mean.at_10)?;
             span_in_unit("metrics.span.mean.at_100", &s.mean.at_100)?;
+            crate::chunk_gate::check_evidence(s)?;
         }
 
         let c = &self.cost;

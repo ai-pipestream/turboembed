@@ -97,3 +97,63 @@ fn a_candidate_cannot_excuse_a_set_by_keeping_its_documents_whole() {
     assert!(q.gated && !q.pass, "{r}");
     assert!(!r.pass, "{r}");
 }
+
+#[test]
+fn a_candidate_missing_a_set_is_refused() {
+    let cand = [rec("qasper", 0.37, Some((0.23, 0.21, 0.08, 0.0)))];
+    let windows = [rec("qasper", 0.37, Some((0.17, 0.07, 0.51, 0.0))), rec("scifact", 0.69, None)];
+    let e = chunk_gate(&cand, &windows, &[]).unwrap_err();
+    assert!(e.contains("the candidate holds sets"), "{e}");
+}
+
+#[test]
+fn a_set_given_twice_is_refused() {
+    let one = rec("qasper", 0.37, Some((0.23, 0.21, 0.08, 0.0)));
+    let windows = [rec("qasper", 0.37, Some((0.17, 0.07, 0.51, 0.0)))];
+    let e = chunk_gate(&[one.clone(), one.clone()], &windows, &[]).unwrap_err();
+    assert!(e.contains("holds set qasper twice"), "{e}");
+    let fixed = [windows[0].clone(), windows[0].clone()];
+    let e = chunk_gate(&[one], &windows, &[&fixed]).unwrap_err();
+    assert!(e.contains("baseline 1 holds set qasper twice"), "{e}");
+}
+
+#[test]
+fn a_candidate_without_evidence_on_an_evidence_set_is_refused() {
+    let windows = [rec("qasper", 0.37, Some((0.17, 0.07, 0.51, 0.0)))];
+    let e = chunk_gate(&[rec("qasper", 0.37, None)], &windows, &[]).unwrap_err();
+    assert!(e.contains("one record scores evidence"), "{e}");
+    let mut empty = rec("qasper", 0.37, Some((0.23, 0.21, 0.08, 0.0)));
+    empty.metrics.span.as_mut().unwrap().per_query.clear();
+    let e = chunk_gate(&[empty], &windows, &[]).unwrap_err();
+    assert!(e.contains("no per-query evidence scores"), "{e}");
+}
+
+#[test]
+fn records_with_bad_evidence_fields_fail_their_check() {
+    let ok = rec("qasper", 0.37, Some((0.23, 0.21, 0.08, 0.0)));
+    let check = |edit: &dyn Fn(&mut SpanMetrics)| {
+        let mut r = ok.clone();
+        // The means the per-query scores must reproduce.
+        let s = r.metrics.span.as_mut().unwrap();
+        let n = s.per_query.len() as f64;
+        s.mean.at_10.recall = s.per_query.iter().map(|q| q.recall).sum::<f64>() / n;
+        s.mean.at_10.contained = s.per_query.iter().map(|q| q.contained).sum::<f64>() / n;
+        s.queries = s.per_query.len() as u32;
+        edit(s);
+        r.check()
+    };
+    assert!(check(&|_| {}).is_ok());
+    assert!(
+        check(&|s| s.integrity = Some(Integrity { split: 1.5, short_documents: 0.0 })).unwrap_err().contains("split")
+    );
+    assert!(check(&|s| s.per_query[3].contained = -0.1).unwrap_err().contains("contained"));
+    assert!(check(&|s| s.per_query.swap(0, 1)).unwrap_err().contains("is not before"));
+    assert!(
+        check(&|s| {
+            s.per_query.pop();
+        })
+        .unwrap_err()
+        .contains("per_query has")
+    );
+    assert!(check(&|s| s.mean.at_10.recall += 0.1).unwrap_err().contains("per query mean"));
+}

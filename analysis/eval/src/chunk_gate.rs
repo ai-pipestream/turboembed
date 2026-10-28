@@ -24,7 +24,7 @@
 use std::fmt;
 
 use crate::Result;
-use crate::record::EvalRecord;
+use crate::record::{EvalRecord, SpanMetrics};
 use crate::significance::{Bootstrap, RESAMPLES, SEED, bootstrap};
 
 /// An evidence measure's interval must lie above this (fraction, 0 to 1).
@@ -101,12 +101,36 @@ pub fn chunk_gate(
     windows: &[EvalRecord],
     others: &[&[EvalRecord]],
 ) -> Result<ChunkGateReport> {
+    // The candidate is judged on every set the reference holds, once.
+    let sets = |records: &[EvalRecord], who: &str| -> Result<Vec<String>> {
+        let mut names: Vec<String> = records.iter().map(|r| r.set.name.clone()).collect();
+        names.sort();
+        if let Some(w) = names.windows(2).find(|w| w[0] == w[1]) {
+            return Err(format!("{who} holds set {} twice", w[0]));
+        }
+        Ok(names)
+    };
+    let (cs, ws) = (sets(candidate, "the candidate")?, sets(windows, "the reference")?);
+    if cs != ws {
+        return Err(format!("the candidate holds sets {cs:?} and the reference {ws:?}"));
+    }
+    for (k, o) in others.iter().enumerate() {
+        sets(o, &format!("baseline {}", k + 1))?;
+    }
     let mut report = ChunkGateReport { evidence: Vec::new(), floors: Vec::new(), pass: true };
     for c in candidate {
         let set = c.set.name.as_str();
         let w = of(windows, set).ok_or_else(|| format!("set {set}: no reference record"))?;
         same_set(c, w)?;
+        if c.metrics.span.is_some() != w.metrics.span.is_some() {
+            return Err(format!("set {set}: one record scores evidence and the other does not"));
+        }
         if let (Some(cs), Some(ws)) = (&c.metrics.span, &w.metrics.span) {
+            if cs.per_query.is_empty() || ws.per_query.is_empty() {
+                return Err(format!(
+                    "set {set}: a record holds no per-query evidence scores (made before #172's gate)"
+                ));
+            }
             let (Some(ci), Some(wi)) = (cs.integrity, ws.integrity) else {
                 return Err(format!("set {set}: a record holds no evidence integrity (made before #172's gate)"));
             };
@@ -194,6 +218,44 @@ impl fmt::Display for ChunkGateReport {
             self.floors.len()
         )
     }
+}
+
+fn in_unit(what: &str, v: f64) -> Result<()> {
+    if (0.0..=1.0).contains(&v) { Ok(()) } else { Err(format!("{what} is {v}, outside [0, 1]")) }
+}
+
+/// The evidence fields the chunk gate reads: integrity shares in [0, 1],
+/// and per-query scores (when present) one per span-scored query, in
+/// byte order, in [0, 1], whose means are the record's at 10.
+pub(crate) fn check_evidence(s: &SpanMetrics) -> Result<()> {
+    if let Some(i) = s.integrity {
+        in_unit("metrics.span.integrity.split", i.split)?;
+        in_unit("metrics.span.integrity.short_documents", i.short_documents)?;
+    }
+    if s.per_query.is_empty() {
+        return Ok(());
+    }
+    if s.per_query.len() != s.queries as usize {
+        return Err(format!("metrics.span.queries is {} and per_query has {}", s.queries, s.per_query.len()));
+    }
+    for w in s.per_query.windows(2) {
+        if w[0].query >= w[1].query {
+            return Err(format!("metrics.span.per_query: {} is not before {}", w[0].query, w[1].query));
+        }
+    }
+    for q in &s.per_query {
+        in_unit(&format!("metrics.span.per_query {} recall", q.query), q.recall)?;
+        in_unit(&format!("metrics.span.per_query {} contained", q.query), q.contained)?;
+    }
+    for (what, from, mean_at_10) in [
+        ("recall", crate::metrics::mean(s.per_query.iter().map(|q| q.recall)), s.mean.at_10.recall),
+        ("contained", crate::metrics::mean(s.per_query.iter().map(|q| q.contained)), s.mean.at_10.contained),
+    ] {
+        if (from - mean_at_10).abs() > 1e-9 {
+            return Err(format!("metrics.span.mean.at_10.{what} is {mean_at_10} and the per query mean is {from}"));
+        }
+    }
+    Ok(())
 }
 
 /// `turbo-eval chunk-gate <candidate> <windows> [<baseline> ...]`: prints
