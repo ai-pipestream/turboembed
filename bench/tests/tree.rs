@@ -4,7 +4,8 @@
 //! benchmarks/ranges are what their names say, the README and the
 //! docs point at files that exist, no committed text names a home
 //! directory on one of our machines, no committed file holds a private
-//! key block (tree/secrets.rs), and the demo has no JSON front end
+//! key block (tree/secrets.rs), no committed file names an OpenNLP 1.5
+//! model (tree/opennlp_1_5.rs), and the demo has no JSON front end
 //! (tree/front_end.rs).
 
 mod common;
@@ -12,6 +13,8 @@ mod common;
 mod dependencies;
 #[path = "tree/front_end.rs"]
 mod front_end;
+#[path = "tree/opennlp_1_5.rs"]
+mod opennlp_1_5;
 #[path = "tree/secrets.rs"]
 mod secrets;
 
