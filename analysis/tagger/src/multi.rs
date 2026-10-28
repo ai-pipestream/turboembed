@@ -6,6 +6,7 @@
 //! are a tuple of types, as for any annotator: `MultiTask<(PosTags,
 //! Dependencies<Tokens>, Lemmas)>` writes those three, each from the head
 //! named for it or the one head of the bundle that writes its layer.
+//! The heads decode at once, one thread each, once the encoder is done.
 //!
 //! Each layer is written exactly as the single-head annotator writes it
 //! ([`crate::PosTagger`], [`crate::EntityTagger`],
@@ -203,7 +204,12 @@ macro_rules! outputs {
                 Ok(vec![$($L::open(bundle, find_head(bundle, names[$i], $L::ID, $L::KIND)?)?),+])
             }
             fn write(heads: &[Head], input: &Input<'_>) -> Result<Self, String> {
-                Ok(($($L::write(&heads[$i], input)?,)+))
+                // Each head decodes on its own thread; every layer is its
+                // head's alone, so the result does not depend on the order.
+                std::thread::scope(|s| {
+                    let running = ($(s.spawn(|| $L::write(&heads[$i], input)),)+);
+                    Ok(($(running.$i.join().map_err(|_| format!("head {:?} panicked", heads[$i].spec().name))??,)+))
+                })
             }
         }
     };
