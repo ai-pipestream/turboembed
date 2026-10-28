@@ -6,10 +6,23 @@ use std::path::PathBuf;
 use crate::bundle;
 use crate::common::{GATED_DOCUMENTS, SENTENCES, rewrite_document, temp_dir, write_corpus};
 use crate::{sentences_after, split_of};
-use turbo_formats::masc::MascCorpus;
+use turbo_formats::PosSample;
+use turbo_formats::masc::{MascCorpus, MascError};
 use turbo_train_recipes::card::TagCount;
 use turbo_train_recipes::postag::{self, POS, Scored};
 use turbo_train_recipes::{Error, Recipe, held_out_name};
+
+/// A part-of-speech sample as the golden's `turbo:samples` layer records
+/// it: `token_tag` pairs separated by single spaces.
+fn pos_string(sample: &PosSample<'_>) -> String {
+    sample
+        .tokens()
+        .iter()
+        .zip(sample.tags())
+        .map(|(token, tag)| format!("{}_{}", token.as_str(), tag.as_str()))
+        .collect::<Vec<_>>()
+        .join(" ")
+}
 
 /// A sentence tagged as MASC tags brackets, a hyphen, an ellipsis, a
 /// semicolon and an opening quotation mark, and the same sentence as the
@@ -178,7 +191,7 @@ fn the_tagger_recipe_reads_the_jvm_s_samples_from_the_checked_in_masc_corpora() 
         let root = write(name);
         let corpus = MascCorpus::read(&root).unwrap();
         let mut read = Vec::new();
-        let skipped = postag::read_samples(&corpus, |s| read.push(s.to_string())).unwrap();
+        let skipped = postag::read_samples(&corpus, |s| read.push(pos_string(&s))).unwrap();
         assert_eq!(read, expected, "{name}");
         assert_eq!(skipped, thrown.len(), "{name}");
         println!(
@@ -196,18 +209,16 @@ fn the_tagger_recipe_reads_the_jvm_s_samples_from_the_checked_in_masc_corpora() 
     assert_eq!(opened.len(), 1);
     let root = write("masc-aborts");
     let err = MascCorpus::read(&root).unwrap_err();
-    assert_eq!(err.java_class(), Some(opened[0][0].as_str()), "{err}");
-    assert_eq!(err.to_string(), opened[0][1]);
+    assert!(matches!(err, MascError::IndexOutOfBounds { index: -1, len: 0 }), "masc-aborts: {err:?}");
     std::fs::remove_dir_all(&root).unwrap();
 
     let opened = jvm("masc-unpenned", "turbo:open-errors");
     assert_eq!(opened.len(), 1);
     let root = write("masc-unpenned");
     let corpus = MascCorpus::read(&root).unwrap();
-    match postag::read_samples(&corpus, |s| panic!("masc-unpenned: a sample {s}")) {
+    match postag::read_samples(&corpus, |s| panic!("masc-unpenned: a sample {}", pos_string(&s))) {
         Err(Error::Masc(e)) => {
-            assert_eq!(e.java_class(), Some(opened[0][0].as_str()), "{e}");
-            assert_eq!(e.to_string(), opened[0][1]);
+            assert!(matches!(e, MascError::NoDocuments { .. }), "masc-unpenned: {e:?}");
         }
         other => panic!("masc-unpenned: {other:?}"),
     }

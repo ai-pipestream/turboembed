@@ -235,7 +235,7 @@ pub fn language_index(events: &[Event], params: &TrainingParameters) -> Result<D
 #[cfg(test)]
 mod tests {
     use super::*;
-    use turbo_formats::native::LanguageReader;
+    use crate::testsupport::LanguageReader;
 
     fn samples(text: &str) -> Vec<LanguageSample<'_>> {
         LanguageReader::new(text).unwrap().map(|s| s.unwrap()).collect()

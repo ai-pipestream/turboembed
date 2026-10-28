@@ -76,6 +76,10 @@ pub const MULTICONER_TYPES: [&str; 36] = [
 #[derive(Clone, Debug)]
 pub struct MulticonerReader<'a> {
     lines: Lines<'a>,
+    /// Whether the next sentence starts a new document: set when an `# id`
+    /// header ends the sentence before it, so the flag survives until the
+    /// iterator is called again.
+    pending_clear: bool,
 }
 
 impl<'a> MulticonerReader<'a> {
@@ -85,7 +89,7 @@ impl<'a> MulticonerReader<'a> {
     ///
     /// [`FormatError::TooLong`] for a source longer than spans can index.
     pub fn new(source: &'a str) -> Result<MulticonerReader<'a>, FormatError> {
-        Ok(MulticonerReader { lines: Lines::new(source)? })
+        Ok(MulticonerReader { lines: Lines::new(source)?, pending_clear: false })
     }
 }
 
@@ -101,10 +105,9 @@ impl<'a> Iterator for MulticonerReader<'a> {
     type Item = Result<NameSample<'a>, FormatError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        let mut clear_next = false;
         loop {
             let mut sentence = Sentence::default();
-            let mut clear = std::mem::take(&mut clear_next);
+            let mut clear = std::mem::take(&mut self.pending_clear);
             let mut at_end = false;
             loop {
                 let Some(line) = self.lines.next() else {
@@ -119,7 +122,7 @@ impl<'a> Iterator for MulticonerReader<'a> {
                         clear = true;
                         continue;
                     }
-                    clear_next = true;
+                    self.pending_clear = true;
                     break;
                 }
                 sentence.cover(&line);

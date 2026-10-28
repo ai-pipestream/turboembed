@@ -15,7 +15,6 @@
 
 use std::path::{Path, PathBuf};
 
-use turbo_formats::native::{ChunkReader, LanguageReader, LemmaReader, NameReader, WordTagReader};
 use turbo_goldens::data_dir;
 use turbo_maxent::{JavaString, ModelFile};
 use turbo_sequence::namefind::NameCodec;
@@ -27,6 +26,7 @@ use turbo_train_components::lemmatize::{self, LemmatizerFactory, train_lemmatize
 use turbo_train_components::namefind::{self, TokenNameFinderFactory, train_name_model};
 use turbo_train_components::postag::{self, PosTaggerFactory, train_pos_model};
 use turbo_train_components::sentdetect::{self, SentenceDetectorFactory, train_sentence_model};
+use turbo_train_components::testsupport::{ChunkReader, LanguageReader, LemmaReader, NameReader, WordTagReader};
 use turbo_train_components::tokenize::{self, TokenizerFactory, train_tokenizer_model};
 use turbo_train_components::{AbbreviationDictionary, PosDictionary, Stamp};
 
@@ -88,7 +88,8 @@ fn sentences() -> String {
 fn en_plain_is_trained_again_from_its_sentences() {
     let theirs = fixture("en-plain.bin");
     let text = sentences();
-    let samples: Vec<_> = turbo_formats::native::SentenceReader::new(&text).unwrap().map(|s| s.unwrap()).collect();
+    let samples: Vec<_> =
+        turbo_train_components::testsupport::SentenceReader::new(&text).unwrap().map(|s| s.unwrap()).collect();
     let factory = SentenceDetectorFactory::new("en", false, None, None).unwrap();
     let ours = train_sentence_model(
         &samples,
@@ -109,7 +110,8 @@ fn en_plain_is_trained_again_from_its_sentences() {
 fn en_abbrev_is_trained_again_with_its_dictionary() {
     let theirs = fixture("en-abbrev.bin");
     let text = sentences();
-    let samples: Vec<_> = turbo_formats::native::SentenceReader::new(&text).unwrap().map(|s| s.unwrap()).collect();
+    let samples: Vec<_> =
+        turbo_train_components::testsupport::SentenceReader::new(&text).unwrap().map(|s| s.unwrap()).collect();
     // The entries in the order TrainSentenceModel.java puts them.
     let entries = [
         vec!["Mr."],
@@ -155,7 +157,8 @@ fn the_tokenizer_fixture_is_trained_again_from_its_six_samples() {
     let dictionary = AbbreviationDictionary::read(xml).unwrap();
     let text = "Dr. Smith<SPLIT>, e.g. here<SPLIT>.\nIt<SPLIT>'s ok<SPLIT>.\nThe U.S. team won<SPLIT>!\n\
         Call me<SPLIT>, please<SPLIT>.\n(<SPLIT>yes<SPLIT>)\n\"<SPLIT>Hi<SPLIT>\"<SPLIT>, she said<SPLIT>.\n";
-    let samples: Vec<_> = turbo_formats::native::TokenReader::new(text).unwrap().map(|s| s.unwrap()).collect();
+    let samples: Vec<_> =
+        turbo_train_components::testsupport::TokenReader::new(text).unwrap().map(|s| s.unwrap()).collect();
     let mut p = TrainingParameters::new();
     p.put_str(Key::ALGORITHM, "MAXENT");
     p.put(Key::ITERATIONS, 50);

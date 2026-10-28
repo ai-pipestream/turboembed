@@ -1,6 +1,17 @@
+use turbo_analysis::Span;
 use turbo_doccat::{DoccatFactory, DoccatTrainer, FeatureSelection, SelectionMetric};
-use turbo_formats::native::DocumentReader;
+use turbo_formats::{DocumentSample, Field};
 use turbo_train::{Event, JavaString};
+
+/// A document sample of `category` and `tokens`, the shape the removed
+/// native document reader gave for one `category<TAB>tokens` line.
+fn document_sample(category: &str, tokens: &[&str]) -> DocumentSample<'static> {
+    DocumentSample {
+        category: Field::made(category.to_owned(), Span::default()),
+        tokens: tokens.iter().map(|token| Field::made((*token).to_owned(), Span::default())).collect(),
+        source: Span::default(),
+    }
+}
 #[test]
 fn informative_features_beat_noise_and_ties_are_deterministic() {
     let events = vec![
@@ -47,10 +58,12 @@ fn duplicates_affect_training_values_but_not_presence_ranking() {
 #[test]
 fn trainer_prepares_selected_bow_and_ngram_events() {
     use turbo_doccat::{BuiltinFeatureGenerator, NGramFeatureGenerator};
-    let samples: Vec<_> = DocumentReader::new("a\tred fox\na\tred fox\nb\tblue bird\nb\tblue bird\n")
-        .unwrap()
-        .map(Result::unwrap)
-        .collect();
+    let samples = [
+        document_sample("a", &["red", "fox"]),
+        document_sample("a", &["red", "fox"]),
+        document_sample("b", &["blue", "bird"]),
+        document_sample("b", &["blue", "bird"]),
+    ];
     let factory =
         DoccatFactory::with_feature_generators(vec![BuiltinFeatureGenerator::NGram(NGramFeatureGenerator::default())]);
     let trainer = DoccatTrainer::new(factory)

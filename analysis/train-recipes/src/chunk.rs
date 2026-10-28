@@ -83,6 +83,7 @@ mod samples;
 mod tests;
 
 use turbo_eval::model_gate::{Counts, HeldOutSet, ModelGateRecord, ModelId, TagMapping, Task};
+use turbo_formats::ChunkSample;
 use turbo_formats::evaluate::ChunkerEvaluator;
 use turbo_formats::masc::MascCorpus;
 #[cfg(doc)]
@@ -362,7 +363,10 @@ impl ChunkRecipe {
             outcomes.clear();
             probs.clear();
             if !chunker.outcomes(&words, &mut outcomes, &mut probs) {
-                return Err(Error::Model(format!("no chunk tag sequence scored above the minimum for: {sample}")));
+                return Err(Error::Model(format!(
+                    "no chunk tag sequence scored above the minimum for: {}",
+                    render(sample)
+                )));
             }
             predicted.clear();
             predicted.extend(outcomes.iter().map(|o| scored_tag(o, &SPAN_TYPES)));
@@ -422,4 +426,16 @@ fn open(bytes: &[u8]) -> Result<PhraseChunker> {
     let file = ModelFile::open(bytes.to_vec()).map_err(|e| Error::Model(e.to_string()))?;
     let model = ChunkerModel::open(file).map_err(|e| Error::Model(e.to_string()))?;
     Ok(PhraseChunker::new(model))
+}
+
+/// The sample as the stripped native chunk format wrote it: a
+/// `token tag chunk` line per token, each ending with a line feed.
+fn render(sample: &ChunkSample<'_>) -> String {
+    sample
+        .tokens()
+        .iter()
+        .zip(sample.tags())
+        .zip(sample.chunks())
+        .map(|((token, tag), chunk)| format!("{} {} {}\n", token.as_str(), tag.as_str(), chunk.as_str()))
+        .collect()
 }

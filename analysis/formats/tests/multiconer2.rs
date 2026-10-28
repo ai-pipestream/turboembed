@@ -62,6 +62,23 @@ fn reads_the_released_conll_form_and_document_headers() {
 }
 
 #[test]
+fn a_document_header_directly_after_a_token_row_still_clears_the_next_document() {
+    // No blank line before the second `# id`: the first sentence ends at
+    // the header, and the second document's first sentence must clear.
+    let source =
+        concat!("# id first\n", "doris _ _ B-Artist\n", "# id second\n", "acme _ _ B-ORG\n", "billy _ _ I-ORG\n",);
+    assert_eq!(
+        read(source),
+        [
+            Ok((true, strings(&["doris"]), vec![(0, 1, Some("Artist"))])),
+            Ok((true, strings(&["acme", "billy"]), vec![(0, 2, Some("ORG"))])),
+        ]
+    );
+    let samples: Vec<_> = MulticonerReader::new(source).unwrap().map(|s| s.unwrap()).collect();
+    assert!(samples[0].clear_adaptive_data() && samples[1].clear_adaptive_data());
+}
+
+#[test]
 fn every_fine_grained_type_is_kept_as_written() {
     assert_eq!(MULTICONER_TYPES.len(), 36);
     for kind in MULTICONER_TYPES {

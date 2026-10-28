@@ -32,7 +32,6 @@ use turbo_doccat::{
     EmojiFeatureGenerator, MODEL_ENTRY, NGramFeatureGenerator,
 };
 use turbo_formats::DocumentSample;
-use turbo_formats::native::DocumentReader;
 use turbo_goldens::{
     ColumnSpec, ColumnType, Golden, GoldenAnchor, Shape, Tolerance, data_dir, known_shapes, load_layer, matches_golden,
     published_model,
@@ -42,6 +41,7 @@ use turbo_train::package::MANIFEST_ENTRY;
 use turbo_train::{Key as Param, TrainingConfiguration, TrainingParameters};
 use turbo_train_components::Stamp;
 use turbo_train_components::doccat::train_doccat;
+use turbo_train_components::testsupport::DocumentReader;
 
 /// The command that writes the goldens.
 const GENERATE: &str = "cargo run -p turbo-goldens-tool -- generate";

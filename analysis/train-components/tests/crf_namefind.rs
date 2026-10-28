@@ -2,7 +2,6 @@ use turbo_analysis::{
     Analyzer, Annotator, Document, Evidence, EvidenceStep, Ix, Key, Layer, Provenance, Span, Spans, View, ViewId,
 };
 use turbo_analysis_layers::{Entities, Sentences, Tokens};
-use turbo_formats::native::NameReader;
 use turbo_maxent::ModelFile;
 use turbo_namefind::CrfNameAnnotator;
 use turbo_sequence::PatternMode;
@@ -10,6 +9,7 @@ use turbo_sequence::namefind::{CrfNameFinder, NameCodec};
 use turbo_train::crf::CrfTrainer;
 use turbo_train_components::namefind::{TokenNameFinderFactory, crf_sequences, train_crf_name_model};
 use turbo_train_components::package::Stamp;
+use turbo_train_components::testsupport::NameReader;
 
 fn package(codec: NameCodec) -> Vec<u8> {
     let text = "<START:person> Alice Smith <END> visits <START:place> Paris <END> .\n<START:person> Bob Jones <END> visits <START:place> London <END> .\n";

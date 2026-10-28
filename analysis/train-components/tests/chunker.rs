@@ -13,7 +13,6 @@ mod common;
 
 use std::path::Path;
 
-use turbo_formats::native::ChunkReader;
 use turbo_formats::{ChunkSample, FormatError};
 use turbo_goldens::{Golden, data_dir};
 use turbo_maxent::Properties;
@@ -22,6 +21,7 @@ use turbo_train::package::MANIFEST_ENTRY;
 use turbo_train::params::Key;
 use turbo_train::{Event, TrainingConfiguration, TrainingParameters};
 use turbo_train_components::chunk::{self, ChunkerFactory, train_chunker_model};
+use turbo_train_components::testsupport::ChunkReader;
 use turbo_train_components::{Error, Stamp, postag};
 use turbo_zoo::Sha256;
 
@@ -82,7 +82,7 @@ fn samples_and_events(text: &str) -> (Vec<ChunkSample<'_>>, Vec<Event>, Vec<Stre
 }
 
 fn stream_error(after: usize, e: &FormatError) -> StreamError {
-    let class = e.java_class().unwrap_or_else(|| panic!("{e} has no Java class")).to_owned();
+    let class = common::java_class(e).unwrap_or_else(|| panic!("{e} has no Java class")).to_owned();
     StreamError { after: u32::try_from(after).unwrap(), class, message: e.to_string() }
 }
 

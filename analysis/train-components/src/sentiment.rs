@@ -4,8 +4,8 @@
 //! `SentimentSampleStream` reads one sample per line, the sentiment and
 //! then the tokens, all split by `WhitespaceTokenizer`, and refuses a line
 //! with fewer than two tokens with the message `DocumentSampleStream`
-//! uses; the samples are `turbo_formats::DocumentSample`s read by
-//! `turbo_formats::native::DocumentReader`. `SentimentEventStream` makes
+//! uses; the samples are `turbo_formats::DocumentSample`s read here by
+//! [`crate::testsupport::DocumentReader`]. `SentimentEventStream` makes
 //! one event per sample: the sentiment as the outcome, and as the context
 //! what the factory's context generator gives for the tokens
 //! ([`turbo_doccat::SentimentFactory::context`]).
@@ -134,7 +134,7 @@ pub fn train_sentiment_model_from_events(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use turbo_formats::native::DocumentReader;
+    use crate::testsupport::DocumentReader;
 
     fn samples(text: &str) -> Vec<DocumentSample<'_>> {
         DocumentReader::new(text).unwrap().map(|s| s.unwrap()).collect()

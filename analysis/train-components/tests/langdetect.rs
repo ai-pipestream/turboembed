@@ -17,7 +17,6 @@ use std::rc::Rc;
 
 use common::{describe_difference, golden_files, java_string, layer, layer_opt};
 use turbo_formats::LanguageSample;
-use turbo_formats::native::LanguageReader;
 use turbo_goldens::{ColumnSpec, ColumnType, Golden, GoldenAnchor, Shape, data_dir};
 use turbo_maxent::Properties;
 use turbo_train::error::NO_EVENTS;
@@ -34,6 +33,7 @@ use turbo_train_components::langdetect::{
     self, LanguageDetectorFactory, MODEL_ENTRY, language_events, language_index, train_language_model,
     trainer_parameters,
 };
+use turbo_train_components::testsupport::LanguageReader;
 
 /// The layers only these goldens have: the events, a row each, and their
 /// predicates, a row each, since an n-gram can hold a space or a tab.

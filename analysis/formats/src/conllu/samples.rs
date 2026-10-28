@@ -165,6 +165,9 @@ fn token_sample<'a>(sentence: &Sentence<'a>) -> Result<TokenSample<'a>, FormatEr
     let base = comment.span.start;
     let mut origin: Vec<Option<u32>> = (base..comment.span.end).map(Some).collect();
     let mut search = 0;
+    // The marker bytes inserted into `text` so far: raw offsets shift by
+    // this much once `text` holds a marker.
+    let mut shift = 0usize;
     for word in &sentence.word_lines {
         if word.id.as_str().contains('.') {
             continue;
@@ -182,8 +185,10 @@ fn token_sample<'a>(sentence: &Sentence<'a>) -> Result<TokenSample<'a>, FormatEr
         if let Some(c) = raw[search..].chars().next()
             && !turbo_unicode::whitespace::is_whitespace(c as u32)
         {
-            text.insert_str(search, SPLIT_MARKER);
-            origin.splice(search..search, std::iter::repeat_n(None, SPLIT_MARKER.len()));
+            let at = search + shift;
+            text.insert_str(at, SPLIT_MARKER);
+            origin.splice(at..at, std::iter::repeat_n(None, SPLIT_MARKER.len()));
+            shift += SPLIT_MARKER.len();
         }
     }
     let len = u32::try_from(text.len()).map_err(|_| FormatError::TooLong { len: text.len() })?;
@@ -295,6 +300,24 @@ mod tests {
         assert_eq!(s.tokens(), [Span::new(0, 5), Span::new(6, 8), Span::new(9, 12), Span::new(12, 13)]);
         let sources: Vec<&str> = s.sources().iter().map(|sp| &src[sp.range()]).collect();
         assert_eq!(sources, ["Vamos", "al", "mar", "."]);
+    }
+
+    #[test]
+    fn token_samples_separate_forms_written_together_after_each_marker() {
+        // `10`, `h` and `.` run together, so every form but the last is
+        // followed by a marker; each later marker's offset accounts for the
+        // markers before it.
+        let src = format!(
+            "# sent_id = s\n# text = at 10h.\n{}{}{}",
+            line("1", "10", "_", "_", "_"),
+            line("2", "h", "_", "_", "_"),
+            line("3", ".", "_", "_", "_"),
+        );
+        let s = ConlluTokenReader::new(&src).unwrap().next().unwrap().unwrap();
+        assert_eq!(s.text(), "at 10h. ");
+        assert_eq!(s.tokens(), [Span::new(0, 2), Span::new(3, 5), Span::new(5, 6), Span::new(6, 7)]);
+        let sources: Vec<&str> = s.sources().iter().map(|sp| &src[sp.range()]).collect();
+        assert_eq!(sources, ["at", "10", "h", "."]);
     }
 
     #[test]

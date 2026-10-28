@@ -1,3 +1,5 @@
+use std::cmp::Ordering;
+
 use turbo_analysis::Span;
 use turbo_formats::masc::{MascCorpus, MascDocument, MascSentence, Unplaced};
 use turbo_formats::{Field, Name, NameSample};
@@ -6,6 +8,17 @@ use turbo_zoo::Sha256;
 use crate::card::NamesCard;
 use crate::error::{Error, Result};
 use crate::spans::SpanTypes;
+
+/// The native name order, as `Name` orders itself: by start, then longer
+/// names first, then by type, a name with a type before one without.
+fn name_order(a: &Name<'_>, b: &Name<'_>) -> Ordering {
+    a.start.cmp(&b.start).then(b.end.cmp(&a.end)).then_with(|| match (a.kind, b.kind) {
+        (None, None) => Ordering::Equal,
+        (Some(x), Some(y)) => x.cmp(y),
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+    })
+}
 
 /// The name samples read from one side of the split, and what reading
 /// them counted.
@@ -148,7 +161,7 @@ fn sample<'c>(
             None => counts.other_types += 1,
         }
     }
-    names.sort_by(|a, b| a.0.java_cmp(&b.0));
+    names.sort_by(|a, b| name_order(&a.0, &b.0));
     let mut kept: Vec<Name<'c>> = Vec::with_capacity(names.len());
     for (name, gapped) in names {
         if kept.last().is_some_and(|k| name.start < k.end) {

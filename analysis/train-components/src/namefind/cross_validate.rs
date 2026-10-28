@@ -205,7 +205,7 @@ fn flatten(docs: &[Range<usize>], documents: &[usize]) -> Vec<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use turbo_formats::native::NameReader;
+    use crate::testsupport::NameReader;
 
     #[test]
     fn documents_start_at_the_first_sample_and_at_each_clear() {

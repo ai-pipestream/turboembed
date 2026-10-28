@@ -10,12 +10,12 @@ use turbo_doccat::{
     DocumentCategorizerME, EMOJI_CLASS, EmojiFeatureGenerator, NGRAM_CLASS, NGramFeatureGenerator, SpanCategorizer,
 };
 use turbo_formats::DocumentSample;
-use turbo_formats::native::DocumentReader;
 use turbo_maxent::ModelFile;
 use turbo_tokenize::WhitespaceTokenizer;
 use turbo_train::{Key as ParamKey, TrainingConfiguration, TrainingParameters};
 use turbo_train_components::Stamp;
 use turbo_train_components::doccat::train_doccat;
+use turbo_train_components::testsupport::DocumentReader;
 
 fn parse_samples(corpus: &str) -> Vec<DocumentSample<'_>> {
     DocumentReader::new(corpus).unwrap().map(|r| r.expect("valid sample")).collect()

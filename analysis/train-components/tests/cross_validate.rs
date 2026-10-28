@@ -13,7 +13,6 @@ mod common;
 use std::path::Path;
 
 use common::{golden_files, layer};
-use turbo_formats::native::{LanguageReader, NameReader};
 use turbo_formats::{LanguageSample, NameSample};
 use turbo_goldens::{ColumnSpec, ColumnType, Golden, GoldenAnchor, Shape, data_dir};
 use turbo_sequence::namefind::NameCodec;
@@ -23,6 +22,7 @@ use turbo_train_components::langdetect::{
     LanguageCrossValidation, LanguageDetectorCrossValidator, LanguageDetectorFactory, default_training_parameters,
 };
 use turbo_train_components::namefind::{NameCrossValidation, TokenNameFinderCrossValidator, TokenNameFinderFactory};
+use turbo_train_components::testsupport::{LanguageReader, NameReader};
 
 const fn col(name: &'static str, ty: ColumnType) -> ColumnSpec {
     ColumnSpec::new(name, ty)

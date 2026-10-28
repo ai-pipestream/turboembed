@@ -8,9 +8,9 @@
 //!
 //! The samples are what OpenNLP's MASC streams read, with two changes
 //! ([`read_token_samples`]): the token stream skips a sentence without a
-//! sample alone ([`EmptySentence::Skipped`]) instead of ending the corpus
-//! there, so one such sentence does not lose the rest of the training
-//! data; and it skips a sentence whose tokens are out of text order
+//! sample and counts it instead of ending the corpus there, so one such
+//! sentence does not lose the rest of the training data; and it skips a
+//! sentence whose tokens are out of text order
 //! ([`in_text_order`]), which [`tokenize::TokSpanEventStream`] refuses. It
 //! skips held-out sentences the same way; the card records both counts,
 //! and a recipe fails when either is more than
@@ -35,7 +35,7 @@ use std::sync::Arc;
 use turbo_analysis::Span;
 use turbo_eval::model_gate::{Counts, HeldOutSet, ModelGateRecord, ModelId, Scoring, Task};
 use turbo_formats::evaluate::{SentenceDetectorEvaluator, TokenizerEvaluator};
-use turbo_formats::masc::{EmptySentence, MascCorpus, MascSentenceReader, MascTokenReader};
+use turbo_formats::masc::{MascCorpus, MascSentenceReader, MascTokenReader};
 use turbo_formats::sample::{SentenceSample, TokenSample};
 use turbo_maxent::ModelFile;
 use turbo_sentdetect::{SentenceDetector, SentenceModel};
@@ -154,10 +154,9 @@ pub fn in_text_order(tokens: &[Span]) -> bool {
 }
 
 /// Reads the token samples of `corpus` as `MascTokenSampleStream` reads
-/// them, giving each to `each`, except that a sentence without a sample
-/// ([`EmptySentence::Skipped`]) is skipped alone, and so is a sentence
-/// whose tokens are out of text order ([`in_text_order`]). Returns how
-/// many were skipped.
+/// them, giving each to `each`, except that a sentence without a sample is
+/// skipped alone and counted, and so is a sentence whose tokens are out of
+/// text order ([`in_text_order`]). Returns how many were skipped.
 ///
 /// # Errors
 ///
@@ -167,7 +166,7 @@ pub fn read_token_samples<'c>(
     corpus: &'c MascCorpus,
     mut each: impl FnMut(TokenSample<'c>) -> Result<()>,
 ) -> Result<usize> {
-    let mut reader = MascTokenReader::with_empty_sentences(corpus, EmptySentence::Skipped)?;
+    let mut reader = MascTokenReader::new(corpus)?;
     let mut out_of_order = 0;
     while let Some(read) = reader.read()? {
         if in_text_order(read.sample.tokens()) {

@@ -282,8 +282,8 @@ pub fn train_sentence_model_from_events(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::testsupport::SentenceReader;
     use turbo_analysis::Span;
-    use turbo_formats::native::SentenceReader;
 
     fn outcomes(events: &[Event]) -> String {
         events.iter().map(|e| e.outcome().to_string()).collect()

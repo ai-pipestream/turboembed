@@ -159,6 +159,7 @@ pub mod postag;
 pub mod sentdetect;
 pub mod sentiment;
 pub mod tagdict;
+pub mod testsupport;
 pub mod tokenize;
 
 pub use chunk::{ChunkerEventStream, ChunkerFactory, chunk_events, train_chunker_model};

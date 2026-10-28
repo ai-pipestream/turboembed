@@ -30,7 +30,6 @@ use std::path::Path;
 
 use turbo_formats::FormatError;
 use turbo_formats::conllu::{ConlluLemmaReader, ConlluPosReader, ConlluSentenceReader, ConlluTokenReader, Tagset};
-use turbo_formats::native::{LemmaReader, SentenceReader, TokenReader, WordTagReader};
 use turbo_formats::{LemmaSample, PosSample, SentenceSample, TokenSample};
 use turbo_goldens::{Golden, data_dir};
 use turbo_maxent::Properties;
@@ -42,6 +41,7 @@ use turbo_train::params::TrainerType;
 use turbo_train_components::lemmatize::{self, LemmaEventStream, LemmatizerFactory, package_lemmatizer_model};
 use turbo_train_components::postag::{self, PosEventStream, PosTaggerFactory, package_pos_model};
 use turbo_train_components::sentdetect::package_sentence_model;
+use turbo_train_components::testsupport::{LemmaReader, SentenceReader, TokenReader, WordTagReader};
 use turbo_train_components::tokenize::package_tokenizer_model;
 use turbo_train_components::{
     AbbreviationDictionary, PosDictionary, SdEventStream, SentenceDetectorFactory, Stamp, TokSpanEventStream,
@@ -151,7 +151,7 @@ struct StreamError {
 
 impl StreamError {
     fn of(after: usize, e: &FormatError) -> StreamError {
-        let class = e.java_class().unwrap_or_else(|| panic!("{e} has no Java class")).to_owned();
+        let class = common::java_class(e).unwrap_or_else(|| panic!("{e} has no Java class")).to_owned();
         StreamError { after: u32::try_from(after).unwrap(), class, message: e.to_string() }
     }
 }

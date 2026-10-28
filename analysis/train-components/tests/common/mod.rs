@@ -3,6 +3,7 @@
 
 #![allow(dead_code)]
 
+use turbo_formats::FormatError;
 use turbo_goldens::{ColumnSpec, ColumnType, Golden, GoldenAnchor, GoldenLayer, Shape};
 use turbo_train::{Event, JavaString};
 
@@ -200,4 +201,39 @@ pub fn describe_difference(expected: &[Event], actual: &[Event]) -> String {
         }
     }
     String::from("no difference")
+}
+
+/// The Java exception class of a sample error, as `FormatError::java_class`
+/// gave it before the corpus crate dropped the method: the class the JVM's
+/// stream threw for the error. `None` where Java names no class.
+pub fn java_class(e: &FormatError) -> Option<&'static str> {
+    use FormatError::*;
+    match e {
+        NestedName { .. } | MissingNameType { .. } | UnexpectedEnd { .. } | NoDocumentText { .. } => {
+            Some("java.io.IOException")
+        }
+        OverlappingNames { .. } => Some("java.lang.RuntimeException"),
+        Ner(_) => None,
+        ShortChunkTag { .. } => Some("java.lang.StringIndexOutOfBoundsException"),
+        SplitsSurrogatePair { .. } | NameOutsideTokens { .. } | TooLong { .. } => None,
+        Lengths { .. } | OutOfBounds { .. } | BackwardsSpan { .. } => Some("java.lang.IllegalArgumentException"),
+        ConlluColumns { .. }
+        | InvalidLanguage { .. }
+        | InvalidMultiwordId { .. }
+        | BackwardsMultiwordId { .. }
+        | MissingMultiwordLine { .. }
+        | DependencyColumns { .. }
+        | UnknownNameType { .. }
+        | ConllXColumns { .. }
+        | MulticonerFields { .. }
+        | UnexpectedNameContinuation { .. }
+        | NameTypeMismatch { .. } => Some("opennlp.tools.util.InvalidFormatException"),
+        MultiwordRemoval { .. } => Some("java.lang.IndexOutOfBoundsException"),
+        TokenNotInText { .. } | NoSentenceText { .. } => Some("java.io.IOException"),
+        ConlluHead { .. } | ConlluDocument { .. } | HeadOutsideSentence { .. } | NoTokens => None,
+        Conll02Fields { .. } | Conll03Fields { .. } | InvalidNameTag { .. } | DocstartNotFollowedByEmpty { .. } => {
+            Some("java.io.IOException")
+        }
+        DocstartAtEnd { .. } => Some("java.lang.NullPointerException"),
+    }
 }

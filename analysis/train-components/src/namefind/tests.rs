@@ -1,6 +1,6 @@
 use super::*;
+use crate::testsupport::NameReader;
 use turbo_analysis::Span as Bytes;
-use turbo_formats::native::NameReader;
 use turbo_formats::{Field, Name};
 use turbo_train::Value;
 

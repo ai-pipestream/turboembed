@@ -217,7 +217,7 @@ pub fn train_chunker_model_from_events(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use turbo_formats::native::ChunkReader;
+    use crate::testsupport::ChunkReader;
     use turbo_train::{Algorithm, JavaString, Key};
 
     fn samples(text: &str) -> Vec<ChunkSample<'_>> {

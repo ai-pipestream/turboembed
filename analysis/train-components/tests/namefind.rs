@@ -21,7 +21,6 @@ mod common;
 use std::collections::HashMap;
 use std::path::Path;
 
-use turbo_formats::native::NameReader;
 use turbo_formats::{FormatError, NameSample};
 use turbo_goldens::{ColumnSpec, ColumnType, Golden, GoldenAnchor, Shape, data_dir};
 use turbo_maxent::{JavaString, ModelFile, Properties};
@@ -31,6 +30,7 @@ use turbo_train::event::checksum;
 use turbo_train::package::MANIFEST_ENTRY;
 use turbo_train::{Event, Key, TrainingConfiguration, TrainingParameters};
 use turbo_train_components::namefind::{self, NameEventStream, TokenNameFinderFactory, train_name_model};
+use turbo_train_components::testsupport::NameReader;
 use turbo_train_components::{Error, Stamp};
 
 const fn col(name: &'static str, ty: ColumnType) -> ColumnSpec {
@@ -81,7 +81,7 @@ fn thrown(e: &Error) -> Thrown {
 }
 
 fn format_thrown(e: &FormatError) -> Thrown {
-    (e.java_class().unwrap_or_else(|| panic!("{e} has no Java class")).to_owned(), e.to_string())
+    (common::java_class(e).unwrap_or_else(|| panic!("{e} has no Java class")).to_owned(), e.to_string())
 }
 
 /// The samples of the input and the errors the reader gave in their

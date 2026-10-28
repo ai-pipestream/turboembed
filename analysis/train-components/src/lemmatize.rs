@@ -197,7 +197,7 @@ pub fn train_lemmatizer_model_from_events(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use turbo_formats::native::LemmaReader;
+    use crate::testsupport::LemmaReader;
     use turbo_train::JavaString;
 
     fn samples(text: &str) -> Vec<LemmaSample<'_>> {
