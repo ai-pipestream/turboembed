@@ -2453,6 +2453,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-langdetect",
  "turbo-unicode",
 ]
 
