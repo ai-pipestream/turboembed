@@ -2,7 +2,7 @@
 //! loops for pooling, the BiLSTM and the output layer, and every label
 //! sequence enumerated for the CRF.
 
-use super::crf::{WordSpan, spans, viterbi};
+use super::crf::{Crf, WordSpan, allowed, argmax, spans, viterbi};
 use super::tagger::{NO_WORD, TokenTagger, Work, tensors, word_count};
 use crate::manifest::{Adapter, Bilstm, Decode, HeadKind, HeadSpec, Scheme, WordPooling};
 use crate::status::{INVALID_ARGUMENT, INVALID_SHAPE};
@@ -251,6 +251,18 @@ fn viterbi_finds_the_best_legal_sequence_by_enumeration() {
             }
         }
     }
+}
+
+#[test]
+fn malformed_dimensions_are_refused_not_panicked_on() {
+    let mut out = Vec::new();
+    assert_eq!(argmax(&[], 1, 0, &mut out).unwrap_err().code, INVALID_SHAPE);
+    assert_eq!(argmax(&[], 0, 0, &mut out).unwrap_err().code, INVALID_SHAPE);
+    let one: Vec<String> = vec!["A".into()];
+    let (_, one_mask) = allowed(Scheme::Tags, &one).unwrap();
+    let two = Crf::new(2, vec![0.0; 4], vec![0.0; 2], vec![0.0; 2]).unwrap();
+    assert_eq!(viterbi(&two, &one_mask, &[0.0; 4], 2, &mut out).unwrap_err().code, INVALID_SHAPE);
+    assert!(Crf::new(0, vec![], vec![], vec![]).is_err());
 }
 
 #[test]
