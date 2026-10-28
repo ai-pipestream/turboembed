@@ -1,7 +1,7 @@
 //! A ModernBERT or nomic-bert bundle through the loader (#1461): its
 //! tensors found in the family's order and checked against the
 //! architecture, its rotary fields and cos/sin table in the description a
-//! backend is handed, and no backend claiming to run it yet.
+//! backend is handed, and only the CPU running it.
 
 #![cfg(feature = "cpu")]
 
@@ -85,13 +85,21 @@ fn a_modernbert_file_with_a_first_attention_norm_is_refused() {
     assert!(e.is(BUNDLE_INVALID, "first layer has no attention norm"), "{e:?}");
 }
 
+/// The CPU runs both families (#1461); every other backend refuses them
+/// before model_load.
 #[test]
-fn no_backend_runs_a_rotary_family_yet() {
-    for (f, name) in [
-        (rotary::modernbert("rotary-cpu-mb"), "FAMILY_MODERNBERT"),
-        (rotary::nomic("rotary-cpu-nb"), "FAMILY_NOMIC_BERT"),
-    ] {
-        let e = f.load().err().unwrap();
-        assert!(e.is(UNSUPPORTED, &format!("{name}: the cpu backend has no encoder for it yet")), "{e:?}");
+fn only_the_cpu_runs_a_rotary_family() {
+    for f in [rotary::modernbert("rotary-cpu-mb"), rotary::nomic("rotary-cpu-nb")] {
+        assert!(f.load().is_ok());
+    }
+    for (family, name) in
+        [(TURBO_FAMILY_MODERNBERT, "FAMILY_MODERNBERT"), (TURBO_FAMILY_NOMIC_BERT, "FAMILY_NOMIC_BERT")]
+    {
+        assert!(turbo::model::runs_family("cpu", family).is_ok());
+        for b in ["cuda", "metal", "levelzero", "npu", "hailo"] {
+            let e = turbo::model::runs_family(b, family).err().unwrap();
+            assert_eq!(e.code, UNSUPPORTED);
+            assert!(e.message.contains(&format!("{name}: the {b} backend has no encoder for it yet")), "{}", e.message);
+        }
     }
 }

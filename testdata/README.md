@@ -195,6 +195,28 @@
   repository; the nomic one's tokenizer is under Apache-2.0, the licence
   of the MiniLM tokenizer.
 
+- `tiny-modernbert-bundle/` and `tiny-nomic-bundle/`: those two models
+  as bundles, which `turbo-bundle seal` made from the `recipe.json` in
+  each reference directory, the model directory as the upstream files,
+  and the reference file already written (it does not run the
+  container): the weights and tokenizer file of the model directory,
+  unchanged, and `reference.safetensors` of the reference directory,
+  with its `produced_by.json` and the image above as the report. The
+  manifests take mean pooling with no normalization, `max_seq` 64 and
+  `max_batch` 8, as the container ran; nomic's reference cases are the
+  query and document cases with its prefixes. `core/tests/conformance.rs`
+  holds the CPU encoder to both (`the_rotary_bundles_match_upstream`).
+  To make them again, from the repository root, for `m` each of
+  `modernbert` and `nomic`:
+
+  ```
+  mkdir -p testdata/tiny-$m-bundle/reference
+  cp testdata/tiny-$m-reference/reference.safetensors testdata/tiny-$m-bundle/reference/
+  # reference/report.json: produced_by.json with "container" set to the image above
+  cargo run --release -p turbo-bundle -- seal testdata/tiny-$m-reference/recipe.json \
+      testdata/tiny-$m-reference/model testdata/tiny-$m-bundle
+  ```
+
 Everything here is about 25 MB, 4 MB each of it the weights of the
 tiny BERT, DeBERTa, SaT and nomic models, 2 MB the SentencePiece models
 and goldens, 1.8 MB the static bundle and 1.1 MB each the cut-down

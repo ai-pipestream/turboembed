@@ -9,6 +9,8 @@ the manifest, from these files, on the Rust side.
   `config.json`, `model.safetensors`, the tokenizer files, `modules.json`,
   `1_Pooling/config.json` for mean pooling, `sentence_bert_config.json`;
   no Normalize module).
+- `recipe.json`: the recipe `turbo-bundle seal` made
+  `testdata/tiny-nomic-bundle` from (`testdata/README.md`).
 - `cases.json`: the texts, in the form the bundle tool hands the
   container (`bundle/src/reference.rs`): the cases of the MiniLM recipe,
   with the prefixes `search_query: ` and `search_document: ` on the query
