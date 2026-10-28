@@ -381,7 +381,7 @@ fn the_published_references_are_checked_and_scored_when_present() {
             eprintln!("{} not found: skipping", path.display());
             continue;
         }
-        let bytes = std::fs::read(&path).unwrap();
+        let bytes = std::fs::read(turbo_pins::require(&path)).unwrap();
         reference.check(&bytes).unwrap();
         let test = recipe(treebank, r.component, r.reference);
         let held_out = test.samples(&text.test, treebank.test.name).unwrap();
@@ -451,7 +451,7 @@ fn the_ud_command_checks_every_reference_and_treebank_before_training() {
     // training.
     match references_dir().map(|d| d.join("opennlp-it-ud-vit-pos-1.3-2.5.4.bin")) {
         Some(path) if path.is_file() => {
-            std::fs::copy(&path, refs.join("opennlp-it-ud-vit-pos-1.3-2.5.4.bin")).unwrap();
+            std::fs::copy(turbo_pins::require(&path), refs.join("opennlp-it-ud-vit-pos-1.3-2.5.4.bin")).unwrap();
             let stderr = run(&refs, &["--recipe", "turbo-it-ud-markit-2.16-pos-1"]);
             assert!(stderr.contains("ud-italian-markit-r2.16") && stderr.contains("LICENSE.txt"), "{stderr}");
             assert!(!models.exists(), "nothing is written before every check passes");

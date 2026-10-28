@@ -484,7 +484,8 @@ fn ranking_model_with_bundle_token_vectors_outperforms_static_word_vectors() {
     );
 
     if let Ok(real_dir) = std::env::var("TURBO_TEST_COREF_BUNDLE") {
-        let (_, real_static, real_ctx, real_both) = run_ranking_comparison(Path::new(&real_dir), "real-bundle");
+        let (_, real_static, real_ctx, real_both) =
+            run_ranking_comparison(&turbo_pins::require(&real_dir), "real-bundle");
         assert!(
             real_ctx.conll() > real_static.conll(),
             "expected real-bundle contextual CoNLL F1 ({:.4}) > static CoNLL F1 ({:.4})",

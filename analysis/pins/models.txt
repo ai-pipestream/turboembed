@@ -1,0 +1,108 @@
+# Every model a test, gate, evaluation or record loads, pinned by the
+# SHA-256 of its bytes, written as its key in the content-addressed model
+# store of #1613: blobs/sha256/<64 hex>. One pin per line: the key, the
+# kind, and a name for people (for a bundle seen only in a record, the
+# model id and the first record that names it).
+#
+# Kinds, and the bytes each digest is over:
+#   bundle   a bundle's manifest.json, which names every file of the
+#            bundle with its size and SHA-256; Bundle::open and every
+#            verified read check those, so the manifest pin pins them all
+#   package  a GLiNER, GLiREL or DeBERTa package's own manifest
+#            (gliner.json, glirel.json, deberta.json), which binds its
+#            files' digests the same way
+#   file     one model file (an OpenNLP model, a head, a checkpoint file)
+#   tree     a directory with no manifest: the SHA-256 of its listing, one
+#            line "<sha256>  <relative path>\n" per regular file, in
+#            byte order of the path (turbo_pins::digest)
+#
+# Also pinned, without a line here: every file of the zoo index
+# (analysis/zoo/index/zoo.json) and every score-only reference model in
+# analysis/train-recipes/*-references.txt, which pin their files already.
+#
+# A test that loads a model from a path it is given goes through
+# turbo_pins::require, which refuses a model whose digest is not here;
+# `cargo run -p turbo-pins -- <path>` prints the line to add, which goes
+# in with the record or test that first uses the model.
+
+# Bundles checked in under testdata/.
+blobs/sha256/273ee3dfe946989a27a68e37d58e1dd7bc537c06b404075279f02a1b640b91f7  bundle  testdata/tiny-bert-bundle
+blobs/sha256/0c0a047b07ffc6177dfa02188f4c47a49f52734c3e191f91e5c78f09ca69d133  bundle  testdata/tiny-deberta-bundle
+blobs/sha256/51fbb5707561d62d3e5edb484c451cc0854bd82b0f7072e476b22d336c95010a  bundle  testdata/tiny-modernbert-bundle
+blobs/sha256/cd0036a71ec203dbfeb6a038bcdbc6333f3531eb7713b4eabaf64fff56e64ba2  bundle  testdata/tiny-nomic-bundle
+blobs/sha256/a84dc0f5806a827fba920bbd2f1f3a459cd53546381f2128de216742ff24daac  bundle  testdata/tiny-sat-bundle
+blobs/sha256/9236265aedb7df4ffa76d1c3351cc3dd36343e2b718c274b91910bac6a2a3456  bundle  testdata/tiny-static-bundle
+
+# Bundles the benchmark records, eval records and receipts were made with.
+blobs/sha256/0ecbae3e134445be5963318db4ff8a94cbb0757e0864c96d3653d1279ab92848  bundle  BAAI/bge-base-en-v1.5 (first recorded in benchmarks/records/b70.levelzero.embed.exact-dense.bge-base-en-v1-5-0ecbae3e.63c64065f42f.json)
+blobs/sha256/16dfb6a8b98742cff180a357db2a1adcda7ffec8c320fcc7030f875c6f1bf09a  bundle  BAAI/bge-base-en-v1.5 (first recorded in analysis/eval/records/bge-base-turbo-chunker-254-200-hybrid/arguana.json)
+blobs/sha256/5e903b0140e1c3efce0ac0cd7a9911005012086907c741e39b8bab75dd02795a  bundle  BAAI/bge-base-en-v1.5 (first recorded in benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest-dense.bge-base-en-v1-5-5e903b01.e56bb0bfad5f.json)
+blobs/sha256/fd11eab406647ca0c909e1618b8a24c9866310c1493e8020e7ce23e659f0546b  bundle  BAAI/bge-base-en-v1.5 (first recorded in analysis/eval/records/bge-base-turbo-chunker-254-200-instruction-hybrid/arguana.json)
+blobs/sha256/6961016910fa740056d8719fa8a6d40f2796ffad6a83239c19114e5922a49407  bundle  BAAI/bge-large-en-v1.5 (first recorded in benchmarks/records/b70.levelzero.embed.exact-dense.bge-large-en-v1-5-69610169.63c64065f42f.json)
+blobs/sha256/7ff68f5c3f3a570e49a15d300621f00c93c5462c50fe20bf4e4c71d8b386caf3  bundle  BAAI/bge-large-en-v1.5 (first recorded in benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest-dense.bge-large-en-v1-5-7ff68f5c.de964e7a6bcf.json)
+blobs/sha256/dce186f35bcbed9ddd41204960713357608ec4d22734488c6c2c09965af242ab  bundle  BAAI/bge-reranker-base (first recorded in benchmarks/rerank/aarch64.cpu.rerank.exact.bge-reranker-base-dce186f3.e051ae76366b.json)
+blobs/sha256/094ef1aa8a61db376e638e4991dbd5f77be22fc0734304768085b556eb2d3ef5  bundle  BAAI/bge-small-en-v1.5 (first recorded in docs/receipts/goemotions-926/bge-small-en-v1.5.json)
+blobs/sha256/1ce4999d83fb7b5d774cbfce3352e94220e6222c4e759e7cb2344225fffe7b8f  bundle  BAAI/bge-small-en-v1.5 (first recorded in analysis/eval/records/bge-small-turbo-chunker-254-200-instruction-hybrid/arguana.json)
+blobs/sha256/352402c205716d9ea3325b4e4df5e5e5ca34ada21c643be5719885572030605b  bundle  BAAI/bge-small-en-v1.5 (first recorded in analysis/eval/records/bge-small-turbo-chunker-254-200-hybrid/arguana.json)
+blobs/sha256/cb28c3c7cd30bfafe809994c0c9ea0df921f75b2bc9c5856275854b14bcfcbaa  bundle  BAAI/bge-small-en-v1.5 (first recorded in benchmarks/records/b70.levelzero.embed.exact-dense.bge-small-en-v1-5-cb28c3c7.63c64065f42f.json)
+blobs/sha256/d44a36cd22071f7545443839fcc6878adbe3af2b69282a7cbc2c448822f0f0cc  bundle  BAAI/bge-small-en-v1.5 (first recorded in benchmarks/records/arl-npu.npu.ngraph-lite.embed.fastest-dense.bge-small-en-v1-5-d44a36cd.ab1d3d9984b3.json)
+blobs/sha256/65a0720298fc5fe7f229ee57ffbe1ccf0eb3836a91526840ca23fa30a5937ac8  bundle  answerdotai/ModernBERT-base (first recorded in benchmarks/records/m2.metal.embed.fastest-dense.modernbert-base-65a07202.4cc4468fe7e1.json)
+blobs/sha256/bb57a12c1646762a831dac4e7d7f52ab8ab4ab2edfd0dfa826d7f8d486a650ea  bundle  cross-encoder/ms-marco-MiniLM-L6-v2 (first recorded in benchmarks/rerank/aarch64.cpu.rerank.exact.ms-marco-minilm-l6-v2-bb57a12c.e051ae76366b.json)
+blobs/sha256/da0398773c5b3c8d547dd5b46f5f7d030eb42ebb74c3a4693ce081a3bb792630  bundle  deepset/roberta-base-squad2 (first recorded in benchmarks/qa/rtx4080super.cuda.qa.exact.roberta-base-squad2-da039877.27e47015da91.json)
+blobs/sha256/1a25f8579ed92b10a8963f366b14bf9103ea6d6e886c0526d5802ee7cc46a30d  bundle  ibm-granite/granite-embedding-30m-english (first recorded in analysis/eval/records/granite-embedding-30m-document/arguana.json)
+blobs/sha256/f017e2c45618572636b1979f14357b03744a02ee1425b9ce6fcb5f313e2267c0  bundle  minishlab/potion-base-2M (first recorded in benchmarks/static/x86-64.cpu.static.fastest.potion-base-2m-f017e2c4.d95afdbd0727.json)
+blobs/sha256/9658fd0ee34121759206942116c1ed9058acb202f0fa29aad90fe4816684dc0e  bundle  minishlab/potion-base-32M (first recorded in benchmarks/static/x86-64.cpu.static.fastest.potion-base-32m-9658fd0e.d95afdbd0727.json)
+blobs/sha256/166fe1cf950c45b3c837d59b217740bb0252f52a8d95fb59e7268a2a7faee346  bundle  minishlab/potion-base-4M (first recorded in benchmarks/static/x86-64.cpu.static.fastest.potion-base-4m-166fe1cf.d95afdbd0727.json)
+blobs/sha256/246591f84bb828e2482b23f4e22a000b9f0930b96373f357771d625dea35feeb  bundle  minishlab/potion-base-8M (first recorded in analysis/eval/records/potion-base-8m-document/arguana.json)
+blobs/sha256/6353f1df582faf2c73a5542f06d24e70539799dba3281ce895b1240ede20f3eb  bundle  minishlab/potion-base-8M (first recorded in benchmarks/static/x86-64.cpu.static.fastest.potion-base-8m-6353f1df.d95afdbd0727.json)
+blobs/sha256/6aa8a4101c7a06cf87ad62e6cfce31a3dfc7261d671facfb9b325914fd5451ef  bundle  minishlab/potion-code-16M (first recorded in benchmarks/static/x86-64.cpu.static.fastest.potion-code-16m-6aa8a410.d95afdbd0727.json)
+blobs/sha256/50b7d0bd522f67037e3dc0241ac28e10f814021b612d79310734194bf5aacb3d  bundle  minishlab/potion-code-16M-v2 (first recorded in benchmarks/static/x86-64.cpu.static.fastest.potion-code-16m-v2-50b7d0bd.d95afdbd0727.json)
+blobs/sha256/a095d52bc7d09862f7739ab1c6bde93a2a59145e42304aa259f533f91eb4e669  bundle  minishlab/potion-multilingual-128M (first recorded in benchmarks/static/x86-64.cpu.static.fastest.potion-multilingual-128m-a095d52b.d95afdbd0727.json)
+blobs/sha256/5c6a9f6a04563236ce9b3f07c9fde9618c3ecea6a8c8df377ec66c599d186662  bundle  minishlab/potion-science-32M (first recorded in benchmarks/static/x86-64.cpu.static.fastest.potion-science-32m-5c6a9f6a.d95afdbd0727.json)
+blobs/sha256/d5877f3f1087c39095e3363927a37df73679b6e5fcd685008f36ffe4ee591ab6  bundle  nomic-ai/nomic-embed-text-v1.5 (first recorded in benchmarks/records/m2.metal.embed.fastest-dense.nomic-embed-text-v1-5-d5877f3f.4cc4468fe7e1.json)
+blobs/sha256/0f17adc4b795ed27bbe59ec88d35d37bf10f25af15f07b09f3249e5c1001b6d3  bundle  sentence-transformers/all-MiniLM-L6-v2 (first recorded in analysis/eval/records/bm25-document/arguana.json)
+blobs/sha256/2d16573646925a45fcd353dd485c50429b552986e88b6f470702908eb1b53817  bundle  sentence-transformers/all-MiniLM-L6-v2 (first recorded in analysis/eval/records/all-minilm-l6-v2-document/arguana.json)
+blobs/sha256/3c305237a79d0b4bcae9513683b2373c84190d8a2d96941aacb25e035c30b9ea  bundle  sentence-transformers/all-MiniLM-L6-v2 (first recorded in benchmarks/ranges/m2.metal.ranges.fastest.all-minilm-l6-v2-3c305237.1b452912e881.json)
+blobs/sha256/a8cbd482abd96cee824791f9ad59a84d8a69b3f44c5a168bfc07a8ddb972e2b0  bundle  sentence-transformers/all-MiniLM-L6-v2 (first recorded in benchmarks/records/b70.levelzero.embed.exact-dense.all-minilm-l6-v2-a8cbd482.176d0ce81418.json)
+blobs/sha256/aa4fe6835aad81378f69103998c05aab05b3170c72b2536c230d016979ff9c27  bundle  sentence-transformers/all-MiniLM-L6-v2 (first recorded in analysis/eval/records/fixed-tokens-200-hybrid/arguana.json)
+blobs/sha256/da08a0f9f04985288e22252d16dd05ad277570913d03456527b93669603b07ec  bundle  sentence-transformers/all-MiniLM-L6-v2 (first recorded in benchmarks/ranges/arl-npu.npu.ranges.fastest.all-minilm-l6-v2-da08a0f9.db0514120b6a.json)
+blobs/sha256/e57c4f36615d3e5f3fdbf0439103247cb0e4a28cfd09c2fb5b1464e9e2a93305  bundle  sentence-transformers/all-MiniLM-L6-v2 (first recorded in benchmarks/records/hailo10h.hailo.embed.fastest.all-minilm-l6-v2-e57c4f36.94a833f60389.json)
+blobs/sha256/f4256cb3162b4272d50d028c08d0965d34f65f672c7d179d90a53709314a3ff5  bundle  sentence-transformers/all-MiniLM-L6-v2 (first recorded in benchmarks/records/hailo8.hailo.embed.fastest.all-minilm-l6-v2-f4256cb3.94a833f60389.json)
+
+# The files turbo-goldens fetch-models fetches, which
+# analysis/goldens-tool/src/recipe/models.rs pins by SHA-512 at fetch:
+# these are the SHA-256 of the same bytes, which
+# turbo_goldens::published_model checks at load.
+blobs/sha256/4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8  file  opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin
+blobs/sha256/b5553223d30a0422e80a28e2ae766a92dd7181e229f0d6c73087951e84142c43  file  opennlp-de-ud-gsd-sentence-1.3-2.5.4.bin
+blobs/sha256/a711463f146555de26d69d806a9f1a88a66ed0c02f3fe2020b4a475ccea047ff  file  opennlp-pt-ud-gsd-sentence-1.3-2.5.4.bin
+blobs/sha256/95139111197ba9f1165fc12be8d4cbac05ea3912f995d167efa1a0e04e3e649a  file  opennlp-en-ud-ewt-tokens-1.3-2.5.4.bin
+blobs/sha256/32d0a7ff84fdd50f9e454340bed782d7269845bfa656e0c988cbb823dd628d6e  file  opennlp-de-ud-gsd-tokens-1.3-2.5.4.bin
+blobs/sha256/309de611ff7a8c4227c57086838d4783bcede8520026d7ad416c85a513567ce7  file  opennlp-es-ud-gsd-tokens-1.3-2.5.4.bin
+blobs/sha256/a06dbc9b72600ba0886f64a632636e136e5fc225955913c4c1a926a9333bc14a  file  opennlp-fr-ud-gsd-tokens-1.3-2.5.4.bin
+blobs/sha256/b85f42a6a1dfe0728b7c7c9df1ca0c98de708c04be3df22da1917b8d8dc4b096  file  opennlp-pt-ud-gsd-tokens-1.3-2.5.4.bin
+blobs/sha256/510b89087e7ef7ffb8c50c63e3e999122404ac9fa64790dfa93b38d1938c52ce  file  opennlp-en-ud-ewt-pos-1.3-2.5.4.bin
+blobs/sha256/073fefbfaff2ed403bf474fccf793752d01c22e69f487cd68b43832d3123742f  file  opennlp-de-ud-gsd-pos-1.3-2.5.4.bin
+blobs/sha256/711ad051faba79865c5f9fc5b8c455d6ad8e6d3e8b92f42142af1ef0bc7b3a96  file  opennlp-en-ud-ewt-lemmas-1.3-2.5.4.bin
+blobs/sha256/8850986f02dfbe293046bfce93bc0c3f3fa010e89177250abca23d860033d4f6  file  opennlp-de-ud-gsd-lemmas-1.3-2.5.4.bin
+blobs/sha256/2ddf585fac2e02a9dcfb9a4a9cc9417562eaac351be2efb506a2eaa87f19e9d4  file  langdetect-183.bin
+blobs/sha256/645a094f45a866687a617385233fd23ae8b0f5fa8b1b76996781a50c17bdcf3d  file  en-pos-maxent.bin
+blobs/sha256/0b49b7d9bdb9f888aed85e9f41fbcfd6cab607805ba9cd2370e1e5af4e540db8  file  en-pos-perceptron.bin
+blobs/sha256/7861a0c2f134d9c12a022a1ba501e88bc7039f6db72b4140e1bafd1fb5ef76cc  file  en-chunker.bin
+blobs/sha256/687a9263d96b37fced707c9f2ac0560f9edaf54658856395555901924f64dbe4  file  en-ner-person.bin
+blobs/sha256/8fe39e48633f4a86c4132d9c54b396a2d8e0460c1d71e3562dacf976984f447b  file  en-ner-location.bin
+blobs/sha256/6fd5d72fe4589f189f8ebc006442dbb529bb7ce38f8082112682524616046452  file  all-minilm-l6-v2.onnx
+blobs/sha256/e746c882dd6f303c2c46e7452804b9201115a6942cfeb15f18f8edf774d2e24e  file  hunspell/en_US.aff
+blobs/sha256/f0b1a234bd178bdd01875b2a392a9647f888b8fe879f79c52aae62c2759b3647  file  hunspell/en_US.dic
+blobs/sha256/646bf3333ac69c23e9d794533ee5241d6f755c359e8fe10a648f87613743d594  file  hunspell/de_DE_frami.aff
+blobs/sha256/4ca3c958b0e5545910999bc246f668840bf8ede3df8e5e6790d05edd5a586c38  file  hunspell/de_DE_frami.dic
+blobs/sha256/f3a2748dd535cfde2142ab17d0f7f8e4787b03fb25a60829c69ac8d493db4802  file  hunspell/hu_HU.aff
+blobs/sha256/97293d670ad4a3b8e7eebef7e25c6e8e939b914c64b6b4672b2bf416b768f990  file  hunspell/hu_HU.dic
+blobs/sha256/7d039a24a6083ed9ef0f806ebad56bbb976e3aeb8de05669173bfdc4996c239d  file  corpora/sms-spam-collection.tsv
+
+# Heads published as release files, which their tests also check against
+# the digests in their release.json and source.
+blobs/sha256/4ac96221ea772033f248df8c08fc546f62c384860bf3abc5d96e383a800497a2  file  aspect-bio-1.thead (analysis/embed/tests/aspect_masc_support/release.json)
+blobs/sha256/643023b738f8d1072fffa358000247b61c7027da720f4d310fd902f6cc59a99a  file  aspect-polarity-1.thead (analysis/embed/tests/aspect_masc_support/release.json)
+blobs/sha256/a0cc253cdcf8bdd6f28bc13f17a1d7012740bcfe2deb384ca212dbf9e3aef5de  file  pragmatics-1.thead (analysis/embed/tests/pragmatics_csc_support/release.json)
+blobs/sha256/26c1147d5431901e41ca6847ee482d0534c63b0ddcf63e9e99f2b22e472997ba  file  MiniLM TIVH incivility head (analysis/embed/examples/incivility_eval/tests.rs)

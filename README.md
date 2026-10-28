@@ -117,6 +117,16 @@ its licence, attribution and training data. Its fetcher refuses an
 artifact whose licence class has not been accepted with `turbo-zoo
 accept` ([zoo.md](docs/zoo.md), [licences.md](docs/licences.md)).
 
+`turbo-pins` (`analysis/pins`) pins every model a test, evaluation or
+record loads by the SHA-256 of its bytes (`analysis/pins/models.txt`,
+keys `blobs/sha256/<hex>` as the model store names them, #1613), and
+counts the zoo index and the score-only reference lists as pins too. A
+test that loads a model from a path it is given passes it through
+`turbo_pins::require`, which refuses a model that is not pinned; its
+tree test fails when a checked-in bundle, a bundle a record names, a
+recipe's upstream file or a test that reads a model path lacks a pin
+(#1621).
+
 ## Document analysis
 
 Analysis runs over a document model in `analysis/core`. Every
@@ -336,7 +346,7 @@ release.md.
 | `analysis/embed`, `analysis/tagger`, `analysis/namefind-dl`, `analysis/gliner`, `analysis/schema-extract`, `analysis/relation`, `analysis/entity-linker`, `analysis/calibration` | neural annotators, extraction and calibration |
 | `analysis/chunker`, `analysis/vector-index`, `analysis/query`, `analysis/group`, `analysis/keywords`, `analysis/eval` | chunking, retrieval and evaluation |
 | `analysis/train`, `analysis/train-components`, `analysis/train-recipes`, `analysis/bpe-trainer`, `analysis/formats` | training |
-| `analysis/zoo`, `analysis/goldens`, `analysis/goldens-tool`, `analysis/fuzz`, `analysis/jvm` | the model zoo and OpenNLP parity testing |
+| `analysis/zoo`, `analysis/pins`, `analysis/goldens`, `analysis/goldens-tool`, `analysis/fuzz`, `analysis/jvm` | the model zoo, the pins of tested models, and OpenNLP parity testing |
 | `docs/` | documentation; `docs/setup/` has per-machine setup |
 
 Crates with a `-layers` or `-gen` suffix next to these hold layer types

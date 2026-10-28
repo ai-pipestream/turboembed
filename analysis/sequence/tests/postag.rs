@@ -179,7 +179,7 @@ fn model_15(file_name: &str, test: &str) -> Option<PathBuf> {
         println!("{test}: skipped: TURBO_TEST_OPENNLP_MODELS is not set");
         return None;
     };
-    Some(PathBuf::from(dir).join(file_name))
+    Some(turbo_pins::require(PathBuf::from(dir).join(file_name)))
 }
 
 /// No tag dictionary; UD outcomes, among them joined ones like

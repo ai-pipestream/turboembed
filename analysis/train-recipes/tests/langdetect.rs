@@ -108,7 +108,7 @@ fn langdetect_183() -> Option<PathBuf> {
     };
     let path = dir.join(LANGDETECT_183.file);
     if path.is_file() {
-        return Some(path);
+        return Some(turbo_pins::require(path));
     }
     assert!(!required, "{} not found and TURBO_TEST_REQUIRE_OPENNLP_MODELS=1", path.display());
     eprintln!("{} not found: skipping", path.display());

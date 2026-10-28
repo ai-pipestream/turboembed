@@ -73,7 +73,7 @@ fn reference_path(recipe: &Recipe) -> Option<PathBuf> {
             };
             let path = dir.join(&file);
             if path.is_file() {
-                return Some(path);
+                return Some(turbo_pins::require(path));
             }
             assert!(!models_required(), "{} not found and TURBO_TEST_REQUIRE_OPENNLP_MODELS=1", path.display());
             eprintln!("{} not found: skipping", path.display());
@@ -86,7 +86,7 @@ fn reference_path(recipe: &Recipe) -> Option<PathBuf> {
             };
             let path = dir.join(&file);
             assert!(path.is_file(), "TURBO_TEST_OPENNLP_MODELS is set and {} is not there", path.display());
-            Some(path)
+            Some(turbo_pins::require(path))
         }
     }
 }

@@ -39,6 +39,24 @@ fn every_model_has_a_file_an_https_url_and_a_sha512() {
     assert!(is_lower_hex(crate::pooled::POOLED_SHA512, 128));
 }
 
+/// fetch-models checks each file by SHA-512 when it fetches it; the
+/// tests that load one check its SHA-256 pin (analysis/pins/models.txt,
+/// by the same file name) every time they load it.
+#[test]
+fn every_fetched_file_has_a_sha256_pin() {
+    let files = MODELS
+        .iter()
+        .chain(&LOCAL_MODELS)
+        .chain([&POOLING_SOURCE])
+        .map(|m| m.file)
+        .chain(HUNSPELL_FILES.iter().map(|f| f.file))
+        .chain(CORPORA.iter().map(|c| c.file));
+    for file in files {
+        let pin = turbo_pins::named(file).unwrap_or_else(|| panic!("{file} has no pin in analysis/pins/models.txt"));
+        assert_eq!(pin.kind, turbo_pins::Kind::File, "{file}");
+    }
+}
+
 #[test]
 fn the_generator_opens_the_pooled_model_the_tool_derives() {
     let runs = include_str!("../../java/src/main/java/ai/pipestream/turbo/goldens/Runs.java");

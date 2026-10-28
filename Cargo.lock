@@ -1946,6 +1946,7 @@ dependencies = [
  "tokenizers",
  "turbo",
  "turbo-goldens",
+ "turbo-pins",
  "turbo-sha256",
  "turbo-unicode",
 ]
@@ -1981,6 +1982,7 @@ dependencies = [
  "turbo-doccat",
  "turbo-goldens",
  "turbo-normalize",
+ "turbo-pins",
  "turbo-tokenize",
  "turbo-unicode",
  "turbo-vector-index",
@@ -2007,6 +2009,7 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-bundle",
  "turbo-grammar",
+ "turbo-pins",
  "turbo-postag",
  "turbo-tokenize",
  "ureq",
@@ -2168,6 +2171,7 @@ dependencies = [
  "turbo-calibration",
  "turbo-chunker",
  "turbo-langspan",
+ "turbo-pins",
  "turbo-sat",
  "turbo-sentdetect",
  "turbo-stem",
@@ -2232,6 +2236,7 @@ dependencies = [
  "turbo-numeric",
  "turbo-phrase-chunker",
  "turbo-pii",
+ "turbo-pins",
  "turbo-postag",
  "turbo-sentdetect",
  "turbo-tokenize",
@@ -2265,6 +2270,7 @@ dependencies = [
  "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-bundle",
+ "turbo-pins",
  "turbo-zoo",
 ]
 
@@ -2300,6 +2306,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
  "turbo-maxent",
+ "turbo-pins",
  "turbo-unicode",
 ]
 
@@ -2309,6 +2316,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-fuzz",
  "turbo-goldens",
+ "turbo-pins",
 ]
 
 [[package]]
@@ -2338,6 +2346,7 @@ version = "0.1.0"
 dependencies = [
  "turbo-analysis",
  "turbo-analysis-layers",
+ "turbo-pins",
  "turbo-stem-layers",
  "turbo-unicode",
 ]
@@ -2531,6 +2540,7 @@ dependencies = [
  "turbo-analysis-embed",
  "turbo-analysis-layers",
  "turbo-formats",
+ "turbo-pins",
 ]
 
 [[package]]
@@ -2621,6 +2631,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "turbo-pins"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "turbo-sha256",
+]
+
+[[package]]
 name = "turbo-postag"
 version = "0.1.0"
 dependencies = [
@@ -2677,6 +2695,7 @@ dependencies = [
  "turbo-bundle",
  "turbo-depparse",
  "turbo-matcher",
+ "turbo-pins",
  "turbo-unicode",
  "turbo-zoo",
 ]
@@ -2690,6 +2709,7 @@ dependencies = [
  "turbo-analysis",
  "turbo-analysis-embed",
  "turbo-analysis-layers",
+ "turbo-pins",
  "turbo-sentdetect",
  "turbo-unicode",
 ]
@@ -2707,6 +2727,7 @@ dependencies = [
  "turbo-glossary-layers",
  "turbo-numeric",
  "turbo-pii",
+ "turbo-pins",
  "turbo-relation",
  "turbo-unicode",
  "turbo-zoo",
@@ -2720,6 +2741,7 @@ dependencies = [
  "turbo-analysis-layers",
  "turbo-goldens",
  "turbo-maxent",
+ "turbo-pins",
  "turbo-unicode",
 ]
 
@@ -2731,6 +2753,7 @@ dependencies = [
  "turbo-goldens",
  "turbo-jvm",
  "turbo-maxent",
+ "turbo-pins",
  "turbo-train",
  "turbo-unicode",
 ]
@@ -2880,6 +2903,7 @@ dependencies = [
  "turbo-maxent",
  "turbo-namefind",
  "turbo-phrase-chunker",
+ "turbo-pins",
  "turbo-postag",
  "turbo-sentdetect",
  "turbo-sequence",

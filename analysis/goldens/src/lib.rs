@@ -71,7 +71,7 @@ pub fn published_model(file: &str) -> Option<PathBuf> {
     };
     let path = dir.join(file);
     if path.is_file() {
-        Some(path)
+        Some(turbo_pins::require(path))
     } else if std::env::var("TURBO_TEST_REQUIRE_OPENNLP_MODELS").is_ok_and(|v| v == "1") {
         panic!("{} not found and TURBO_TEST_REQUIRE_OPENNLP_MODELS=1", path.display());
     } else {

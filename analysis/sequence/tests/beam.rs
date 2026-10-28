@@ -370,13 +370,16 @@ fn ner_qn_fixture() {
 
 /// The directory of the OpenNLP 1.5 English models (local-only: their
 /// training corpora are LDC corpora or undocumented, so CI does not fetch
-/// them), or `None` after saying the test is skipped.
-fn models_15(test: &str) -> Option<PathBuf> {
+/// them), or `None` after saying the test is skipped. The model `name`
+/// in it must be the pinned one.
+fn models_15(test: &str, name: &str) -> Option<PathBuf> {
     let Some(dir) = std::env::var_os("TURBO_TEST_OPENNLP_MODELS") else {
         println!("{test}: skipped: TURBO_TEST_OPENNLP_MODELS is not set");
         return None;
     };
-    Some(PathBuf::from(dir))
+    let dir = PathBuf::from(dir);
+    turbo_pins::require(dir.join(format!("{name}.bin")));
+    Some(dir)
 }
 
 const RUN_EN_UD_EWT_POS: &str = "opennlp-en-ud-ewt-pos-1.3-2.5.4";
@@ -393,28 +396,28 @@ fn en_ud_ewt_pos() {
 
 #[test]
 fn en_pos_maxent() {
-    if let Some(dir) = models_15("en_pos_maxent") {
+    if let Some(dir) = models_15("en_pos_maxent", "en-pos-maxent") {
         check_pos(&dir, "en-pos-maxent");
     }
 }
 
 #[test]
 fn en_pos_perceptron() {
-    if let Some(dir) = models_15("en_pos_perceptron") {
+    if let Some(dir) = models_15("en_pos_perceptron", "en-pos-perceptron") {
         check_pos(&dir, "en-pos-perceptron");
     }
 }
 
 #[test]
 fn en_chunker() {
-    if let Some(dir) = models_15("en_chunker") {
+    if let Some(dir) = models_15("en_chunker", "en-chunker") {
         check_chunker(&dir, "en-chunker");
     }
 }
 
 #[test]
 fn en_ner_person() {
-    if let Some(dir) = models_15("en_ner_person") {
+    if let Some(dir) = models_15("en_ner_person", "en-ner-person") {
         check_names(&dir, "en-ner-person");
         check_name_finder(&dir, "en-ner-person");
     }
@@ -422,7 +425,7 @@ fn en_ner_person() {
 
 #[test]
 fn en_ner_location() {
-    if let Some(dir) = models_15("en_ner_location") {
+    if let Some(dir) = models_15("en_ner_location", "en-ner-location") {
         check_names(&dir, "en-ner-location");
         check_name_finder(&dir, "en-ner-location");
     }

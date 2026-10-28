@@ -668,7 +668,7 @@ fn sentiment_comparison_against_lexicon_and_masc_mpqa() {
     // Optional MASC 3.0.0 MPQA corpus evaluation: TURBO_MASC_ROOT is the corpus'
     // `data` directory and TURBO_MINILM_BUNDLE an all-MiniLM-L6-v2 bundle.
     let masc_root = std::env::var_os("TURBO_MASC_ROOT").map(PathBuf::from);
-    let minilm_path = std::env::var_os("TURBO_MINILM_BUNDLE").map(PathBuf::from);
+    let minilm_path = std::env::var_os("TURBO_MINILM_BUNDLE").map(turbo_pins::require);
     if let (Some(masc_root), Some(minilm_path)) = (masc_root, minilm_path)
         && masc_root.is_dir()
     {

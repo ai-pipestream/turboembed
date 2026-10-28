@@ -15,4 +15,5 @@ turbo-maxent = { path = "../maxent" }
 turbo-unicode = { path = "../unicode" }
 
 [dev-dependencies]
+turbo-pins = { path = "../pins" }
 turbo-goldens = { path = "../goldens" }

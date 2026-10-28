@@ -294,7 +294,9 @@ fn raw_weights_are_not_an_artifact_for_hailo() {
 
 /// TURBO_TEST_BUNDLE: a bundle with a HEF for the first hailo device.
 fn hef_bundle() -> std::path::PathBuf {
-    std::path::PathBuf::from(std::env::var_os("TURBO_TEST_BUNDLE").expect("TURBO_TEST_BUNDLE is not set"))
+    turbo_pins::require(std::path::PathBuf::from(
+        std::env::var_os("TURBO_TEST_BUNDLE").expect("TURBO_TEST_BUNDLE is not set"),
+    ))
 }
 
 fn on_hailo() -> Loaded {

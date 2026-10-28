@@ -57,7 +57,7 @@ fn main() {
             None => Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/turbo-goldens/models"),
         };
         let path = dir.join("opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin");
-        let file = ModelFile::read(&path)
+        let file = ModelFile::read(turbo_pins::require(&path))
             .unwrap_or_else(|e| panic!("{}: {e} (download it with turbo-goldens-tool fetch-models)", path.display()));
         let model = SentenceModel::open(file).expect("a sentence model");
         let detector = SentenceDetector::new(model);
