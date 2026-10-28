@@ -5,7 +5,7 @@ use super::{
     GERMEVAL_FORMAT, GermEvalLayer, GermEvalReader, GermEvalTypes, MUC6_FORMAT, MucReader, RuleTokenizer, TokenSpans,
 };
 use crate::error::FormatError;
-use crate::registry::{Format, NameSamples, ReadOptions, Samples};
+use crate::registry::{Format, NameSamples, Samples};
 
 /// Name samples from GermEval 2014 (`GermEval2014NameSampleStreamFactory`),
 /// named [`GERMEVAL_FORMAT`].
@@ -20,7 +20,7 @@ impl Format<NameSamples> for GermEvalNames {
         GERMEVAL_FORMAT
     }
 
-    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, NameSamples>, FormatError> {
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, NameSamples>, FormatError> {
         Ok(Box::new(GermEvalReader::new(source, self.types, self.layer)?))
     }
 }
@@ -37,7 +37,7 @@ impl Format<NameSamples> for BioNlpNames {
         BIONLP_FORMAT
     }
 
-    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, NameSamples>, FormatError> {
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, NameSamples>, FormatError> {
         Ok(Box::new(BioNlpReader::new(source, self.types)?))
     }
 }
@@ -55,7 +55,7 @@ impl Format<NameSamples> for EvalitaNames {
         EVALITA_FORMAT
     }
 
-    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, NameSamples>, FormatError> {
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, NameSamples>, FormatError> {
         Ok(Box::new(EvalitaReader::new(source, self.language, self.types)?))
     }
 }
@@ -74,8 +74,8 @@ impl<T: TokenSpans + Send + Sync> Format<NameSamples> for Muc6Names<T> {
         MUC6_FORMAT
     }
 
-    fn open<'a>(&'a self, source: &'a str, options: ReadOptions) -> Result<Samples<'a, NameSamples>, FormatError> {
-        Ok(Box::new(MucReader::new(source, &self.tokenizer, options.whitespace)?))
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, NameSamples>, FormatError> {
+        Ok(Box::new(MucReader::new(source, &self.tokenizer)?))
     }
 }
 
@@ -93,7 +93,7 @@ mod tests {
         r.register(Muc6Names::<RuleTokenizer>::default()).unwrap();
         assert_eq!(r.names().collect::<Vec<_>>(), ["opennlp", "germeval2014", "bionlp2004", "evalita", "muc6"]);
         let read = |name: &str, text: &'static str| -> String {
-            r.open(name, text, ReadOptions::default()).unwrap().next().unwrap().unwrap().to_string()
+            r.open(name, text).unwrap().next().unwrap().unwrap().to_string()
         };
         assert_eq!(read("germeval2014", "1\ta\tB-LOC\tO\n"), "<START:location> a  <END>");
         assert_eq!(read("bionlp2004", "a\tB-RNA\n"), "<START:RNA> a  <END>");

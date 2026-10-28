@@ -90,3 +90,21 @@ export function download(name: string, data: BlobPart[], type: string): void {
 export function after(s: string, prefix: string): string {
   return s.startsWith(prefix) ? s.slice(prefix.length) : s;
 }
+
+/** A panel that renders when opened and again when its input changes while open. */
+export function lazy(details: HTMLDetailsElement, render: () => void): () => void {
+  let stale = true;
+  details.addEventListener("toggle", () => {
+    if (details.open && stale) {
+      stale = false;
+      render();
+    }
+  });
+  return () => {
+    stale = true;
+    if (details.open) {
+      stale = false;
+      render();
+    }
+  };
+}

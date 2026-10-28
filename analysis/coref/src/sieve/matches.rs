@@ -2,6 +2,8 @@
 
 use std::collections::HashSet;
 
+use turbo_unicode::GeneralCategory;
+
 use super::Resolver;
 use crate::layer::Gender;
 use crate::lexicon;
@@ -164,9 +166,10 @@ fn numbers_differ(a: &Mention, b: &Mention) -> bool {
     !x.is_empty() && !y.is_empty() && x != y
 }
 
-/// The words that begin with a Unicode digit (`Character.isDigit`).
+/// The words that begin with a decimal digit (general category Nd).
 fn numerals(m: &Mention) -> HashSet<&str> {
-    m.words.iter().filter(|w| w.chars().next().is_some_and(turbo_unicode::java::is_digit)).map(String::as_str).collect()
+    let digit = |c: char| turbo_unicode::category::general_category(c) == GeneralCategory::Nd;
+    m.words.iter().filter(|w| w.chars().next().is_some_and(digit)).map(String::as_str).collect()
 }
 
 /// Whether the first name has a compound head absent from the other.

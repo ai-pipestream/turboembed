@@ -27,7 +27,7 @@ use std::time::Instant;
 use turbo_analysis::{Analyzer, Document};
 use turbo_maxent::sha256;
 use turbo_tokenize::lattice::{DictionaryFormat, Scratch, UnidicLayout};
-use turbo_tokenize::{LatticeAnalyzer, LatticeTokenizer, MecabDictionary, WhitespaceMode};
+use turbo_tokenize::{LatticeAnalyzer, LatticeTokenizer, MecabDictionary};
 
 const TEN_MIB: usize = 10 << 20;
 
@@ -98,10 +98,10 @@ fn best_of(mut f: impl FnMut()) -> f64 {
 fn run(setup: &Setup, dir: &Path, readings: bool) {
     let path = dir.join(setup.dir);
     let t = Instant::now();
-    let dictionary = MecabDictionary::load(&path, WhitespaceMode::Unicode)
+    let dictionary = MecabDictionary::load(&path)
         .unwrap_or_else(|e| panic!("{}: {e} (run turbo-goldens fetch-models)", path.display()));
     let load = t.elapsed().as_secs_f64();
-    let tokenizer = LatticeTokenizer::new(dictionary, WhitespaceMode::Unicode);
+    let tokenizer = LatticeTokenizer::new(dictionary);
     let text = text(setup.inputs);
     println!(
         "dictionary: {} ({}), manifest sha256 {}",

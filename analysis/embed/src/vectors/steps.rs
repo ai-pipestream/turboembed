@@ -257,7 +257,9 @@ impl Annotator for SubwordVectors {
 /// - `precision`: `model` (the default), `fastest` or `exact`;
 /// - `prompt`: `document` (the default), `query` or `none`;
 /// - `stride`: sliding-window stride in subword pieces for `subwords` (`0`
-///   by default, selecting half the window width).
+///   by default, selecting half the window width);
+/// - `output_dim`: the width sentence, chunk and level vectors are cut
+///   to, one the bundle declares (`0`, the default, for the model's dim).
 pub struct VectorsProvider;
 
 fn parse_options(spec: &Spec) -> Result<VectorOptions, String> {
@@ -285,7 +287,11 @@ fn parse_options(spec: &Spec) -> Result<VectorOptions, String> {
         Ok(s) => s,
         Err(_) => return Err(format!("stride {:?}: expected a non-negative integer", spec.option("stride", "0"))),
     };
-    Ok(VectorOptions { encoder: EncoderOptions { device, precision, ..EncoderOptions::default() }, prompt, stride })
+    let Ok(output_dim) = spec.option("output_dim", "0").parse::<u32>() else {
+        return Err(format!("output_dim {:?}: expected a non-negative integer", spec.option("output_dim", "0")));
+    };
+    let encoder = EncoderOptions { device, precision, ..EncoderOptions::default() };
+    Ok(VectorOptions { encoder, prompt, stride, output_dim })
 }
 
 impl Provider<dyn Step> for VectorsProvider {

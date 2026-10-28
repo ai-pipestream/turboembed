@@ -50,8 +50,8 @@ mod sums;
 #[cfg(test)]
 mod tests;
 
+use crate::random::JavaRandom;
 use serde::{Deserialize, Serialize};
-use turbo_jvm::random::JavaRandom;
 
 use crate::gate::FLOOR_POINTS;
 use crate::significance::{Bootstrap, percentile};

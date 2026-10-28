@@ -2,7 +2,7 @@
 //! over tracked text, step for step. Ported from ftfy 6.3.1 by Robyn
 //! Speer (Apache-2.0; see NOTICE).
 
-use super::badness::{Scan, is_bad_chars};
+use super::badness::{class, is_bad_chars};
 use super::bytes::{TrackedBytes, decode_utf8, has_altered_utf8, replace_lossy_sequences, restore_byte_a0};
 use super::classes::{UTF8_CONTINUATION, UTF8_CONTINUATION_STRICT, UTF8_FIRST_OF_2, UTF8_FIRST_OF_3, UTF8_FIRST_OF_4};
 use super::{Action, PlanStep, Tracked};
@@ -11,9 +11,16 @@ use crate::tables;
 use turbo_encoding_layers::Encoding;
 
 /// Fixes `t` until a step changes nothing, appending each step's plan.
-pub(crate) fn fix_encoding(mut t: Tracked, plan: &mut Vec<PlanStep>) -> Tracked {
+pub(crate) fn fix_encoding(t: Tracked, plan: &mut Vec<PlanStep>) -> Tracked {
+    fix_from(t, plan, false)
+}
+
+/// `fix_encoding`, where `known_bad` says the badness heuristic has
+/// already matched `t`, so its first step does not scan it again.
+fn fix_from(mut t: Tracked, plan: &mut Vec<PlanStep>, mut known_bad: bool) -> Tracked {
     loop {
-        let (next, steps) = one_step(&t);
+        let (next, steps) = one_step(&t, known_bad);
+        known_bad = false;
         plan.extend(steps);
         match next {
             Some(next) if next.chars != t.chars => t = next,
@@ -27,8 +34,10 @@ fn step(action: Action, parameter: &'static str) -> PlanStep {
 }
 
 /// One step: the text it makes (None for unchanged) and the plan steps.
-fn one_step(t: &Tracked) -> (Option<Tracked>, Vec<PlanStep>) {
-    if t.chars.is_empty() || t.chars.iter().all(char::is_ascii) || !is_bad_chars(&t.chars) {
+/// `known_bad` is for text the heuristic has matched, which is not empty
+/// and not all ASCII.
+fn one_step(t: &Tracked, known_bad: bool) -> (Option<Tracked>, Vec<PlanStep>) {
+    if !known_bad && (t.chars.is_empty() || t.chars.iter().all(char::is_ascii) || !is_bad_chars(&t.chars)) {
         return (None, Vec::new());
     }
     // Text that was UTF-8 decoded with a single-byte code page: encode it
@@ -59,11 +68,10 @@ fn one_step(t: &Tracked) -> (Option<Tracked>, Vec<PlanStep>) {
         }
     }
     // UTF-8 mojibake inside text that is otherwise fine.
-    if has_utf8_clue(t) {
-        let fixed = decode_inconsistent_utf8(t);
-        if fixed.chars != t.chars {
-            return (Some(fixed), vec![step(Action::Apply, "decode_inconsistent_utf8")]);
-        }
+    if let Some(fixed) = decode_inconsistent_utf8(t)
+        && fixed.chars != t.chars
+    {
+        return (Some(fixed), vec![step(Action::Apply, "decode_inconsistent_utf8")]);
     }
     // Latin-1 meant as windows-1252: C1 controls standing for its
     // punctuation. ftfy decodes with Python's strict windows-1252, which
@@ -119,22 +127,29 @@ fn fix_c1_controls(t: &Tracked) -> Tracked {
     out
 }
 
-/// ftfy's `UTF8_DETECTOR_RE` at `i`, given the scan of the whole text:
-/// the end of a run of characters that look like UTF-8 read as a
-/// single-byte code page, or `i` for none. The run must not follow a
-/// character that is itself a likely continuation byte.
-fn utf8_clue_end(scan: &Scan<'_>, i: usize) -> usize {
-    if i > 0 && scan.has(i - 1, UTF8_CONTINUATION_STRICT) {
+/// Whether character `k` exists and is in one of `classes`.
+fn has(chars: &[char], k: usize, classes: u64) -> bool {
+    chars.get(k).is_some_and(|&c| class(c) & classes != 0)
+}
+
+/// ftfy's `UTF8_DETECTOR_RE` at `i`: the end of a run of characters that
+/// look like UTF-8 read as a single-byte code page, or `i` for none. The
+/// run must not follow a character that is itself a likely continuation
+/// byte. Classes are looked up as the run is matched.
+fn utf8_clue_end(chars: &[char], i: usize) -> usize {
+    if i > 0 && has(chars, i - 1, UTF8_CONTINUATION_STRICT) {
         return i;
     }
     let mut j = i;
     loop {
-        let continued = |from: usize, n: usize| (from..from + n).all(|k| scan.has(k, UTF8_CONTINUATION));
-        if scan.has(j, UTF8_FIRST_OF_2) && continued(j + 1, 1) {
+        let Some(&c) = chars.get(j) else { return j };
+        let first = class(c);
+        let continued = |n: usize| (j + 1..j + 1 + n).all(|k| has(chars, k, UTF8_CONTINUATION));
+        if first & UTF8_FIRST_OF_2 != 0 && continued(1) {
             j += 2;
-        } else if scan.has(j, UTF8_FIRST_OF_3) && continued(j + 1, 2) {
+        } else if first & UTF8_FIRST_OF_3 != 0 && continued(2) {
             j += 3;
-        } else if scan.has(j, UTF8_FIRST_OF_4) && continued(j + 1, 3) {
+        } else if first & UTF8_FIRST_OF_4 != 0 && continued(3) {
             j += 4;
         } else {
             return j;
@@ -142,32 +157,36 @@ fn utf8_clue_end(scan: &Scan<'_>, i: usize) -> usize {
     }
 }
 
-fn has_utf8_clue(t: &Tracked) -> bool {
-    let scan = Scan::new(&t.chars);
-    (0..t.chars.len()).any(|i| utf8_clue_end(&scan, i) > i)
-}
-
 /// ftfy's `decode_inconsistent_utf8`: every run `UTF8_DETECTOR_RE`
 /// finds, shorter than the text and bad by the heuristic, is fixed on
-/// its own with the whole of `fix_encoding`.
-fn decode_inconsistent_utf8(t: &Tracked) -> Tracked {
-    let scan = Scan::new(&t.chars);
-    let mut out = Tracked::default();
+/// its own with the whole of `fix_encoding`. One pass both finds the
+/// runs and fixes them; the result is None when no run changed, and is
+/// only built from the first run that did.
+fn decode_inconsistent_utf8(t: &Tracked) -> Option<Tracked> {
+    let chars = &t.chars;
+    let mut out: Option<Tracked> = None;
+    let mut copied = 0;
     let mut i = 0;
-    while i < t.chars.len() {
-        let end = utf8_clue_end(&scan, i);
+    while i < chars.len() {
+        let end = utf8_clue_end(chars, i);
         if end == i {
-            out.push(t.chars[i], t.src[i]);
             i += 1;
             continue;
         }
-        let run = t.slice(i, end);
-        if end - i < t.chars.len() && is_bad_chars(&run.chars) {
-            out.extend(fix_encoding(run, &mut Vec::new()));
-        } else {
-            out.extend(run);
+        if end - i < chars.len() && is_bad_chars(&chars[i..end]) {
+            let fixed = fix_from(t.slice(i, end), &mut Vec::new(), true);
+            // A run that comes back as it went in, spans and all, adds
+            // nothing; any other is written as the fix gave it.
+            if fixed.chars[..] != chars[i..end] || fixed.src[..] != t.src[i..end] {
+                let out = out.get_or_insert_with(|| Tracked::with_capacity(chars.len()));
+                out.extend_from(t, copied, i);
+                out.extend(fixed);
+                copied = end;
+            }
         }
         i = end;
     }
-    out
+    let mut out = out?;
+    out.extend_from(t, copied, chars.len());
+    Some(out)
 }
