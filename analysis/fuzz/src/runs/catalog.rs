@@ -22,11 +22,10 @@ use crate::resources::{Resources, Unavailable};
 /// gazetteers answer queries line by line and load whole tables, and the
 /// place profiles load whole tables; the
 /// sequence runs (`string-pattern`, `features`, `codec`, `beam`,
-/// `tag-dictionary`, `tag-format`), the name finders, the stemmers, the
-/// Hunspell runs, the stopword lists, the glossary matchers and readers and
-/// the SVM document categorizer (`svm-doccat`) read input sets of their own,
-/// which turbo-sequence, turbo-namefind, turbo-stem, turbo-hunspell,
-/// turbo-stopword, turbo-glossary and turbo-doccat compare with; the other
+/// `tag-dictionary`, `tag-format`), the name finders, the
+/// Hunspell runs, the SVM document categorizer (`svm-doccat`) read input sets of their own,
+/// which turbo-sequence, turbo-namefind, turbo-hunspell
+/// and turbo-doccat compare with; the other
 /// `namefind` runs train name finders from name samples and find names in
 /// them, and the sentiment runs (`sentiment`) train models on a corpus of
 /// their own and score their own documents, which turbo-train-components
@@ -41,7 +40,7 @@ use crate::resources::{Resources, Unavailable};
 /// which turbo-formats compares with; the sentence vector runs
 /// (`sentvectors`) need an encoder bundle, and turbo-analysis-embed's
 /// `sentence_vectors_dl` test compares with them.
-pub const NOT_COVERED: [&str; 37] = [
+pub const NOT_COVERED: [&str; 33] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -65,10 +64,6 @@ pub const NOT_COVERED: [&str; 37] = [
     "tag-dictionary",
     "tag-format",
     "namefind",
-    "stem",
-    "hunspell",
-    "stopword",
-    "glossary",
     "svm-doccat",
     "sentiment",
     "doccat",
