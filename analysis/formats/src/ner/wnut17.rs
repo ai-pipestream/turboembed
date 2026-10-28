@@ -22,9 +22,8 @@
 //!
 //! # What is pinned here
 //!
-//! - A row has exactly two tab-separated fields; a row of any other count
-//!   is refused, and the read ends at its line with the tokens before it
-//!   lost, as a bad line ends a read in the ported readers.
+//! - Whitespace-only lines end sentences. Every other row has exactly two
+//!   tab-separated fields; any other count is refused at its line.
 //! - IOB is strict: a name starts at `B-` and continues only through `I-`
 //!   tags of the same type. An orphaned or mismatched continuation is an
 //!   error at its line.
@@ -139,7 +138,7 @@ impl<'a> Iterator for WnutReader<'a> {
                     at_end = true;
                     break;
                 };
-                if line.text().is_empty() {
+                if line.text().trim().is_empty() {
                     break;
                 }
                 sentence.cover(&line);

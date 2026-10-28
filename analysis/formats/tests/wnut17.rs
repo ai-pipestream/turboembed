@@ -111,5 +111,27 @@ fn every_type_of_the_task_is_kept_as_written() {
 fn empty_text_gives_no_samples_and_a_sentence_at_the_end_is_read() {
     assert!(read("").is_empty());
     assert_eq!(read("a\tO"), [Ok((false, strings(&["a"]), Vec::new()))]);
-    assert_eq!(read("\n\na\tO\n\n"), [Ok((false, strings(&["a"]), Vec::new()))]);
+    assert_eq!(read("\n\na\tO\n\t\n \n"), [Ok((false, strings(&["a"]), Vec::new()))]);
+}
+
+#[test]
+fn pinned_training_file_streams_with_exact_offsets() {
+    let Ok(path) = std::env::var("TURBO_WNUT17_TRAIN") else { return };
+    let source = std::fs::read_to_string(path).unwrap();
+    let mut sentences = 0;
+    let mut names = 0;
+    for sample in WnutReader::new(&source).unwrap() {
+        let sample = sample.unwrap();
+        sentences += 1;
+        names += sample.names().len();
+        for token in sample.tokens() {
+            assert!(token.is_borrowed());
+            assert_eq!(&source[token.span.range()], token.as_str());
+        }
+        for name in sample.names() {
+            assert!(name.end as usize <= sample.tokens().len());
+        }
+    }
+    assert!(sentences > 1_000, "only {sentences} sentences");
+    assert!(names > 100, "only {names} names");
 }

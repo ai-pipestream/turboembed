@@ -114,3 +114,25 @@ fn empty_input_and_a_final_unterminated_sentence_are_handled() {
     let sample = MulticonerReader::new("token _ _ O").unwrap().next().unwrap().unwrap();
     assert!(sample.names().is_empty());
 }
+
+#[test]
+fn pinned_english_training_file_streams_with_exact_offsets() {
+    let Ok(path) = std::env::var("TURBO_MULTICONER_EN_TRAIN") else { return };
+    let source = std::fs::read_to_string(path).unwrap();
+    let mut sentences = 0;
+    let mut names = 0;
+    for sample in MulticonerReader::new(&source).unwrap() {
+        let sample = sample.unwrap();
+        sentences += 1;
+        names += sample.names().len();
+        for token in sample.tokens() {
+            assert!(token.is_borrowed());
+            assert_eq!(&source[token.span.range()], token.as_str());
+        }
+        for name in sample.names() {
+            assert!(name.end as usize <= sample.tokens().len());
+        }
+    }
+    assert!(sentences > 10_000, "only {sentences} sentences");
+    assert!(names > 10_000, "only {names} names");
+}
