@@ -29,6 +29,9 @@ fn settings_that_would_not_train_and_mismatched_tensors_are_refused() {
         Settings { weight_decay: -0.01, ..Settings::default() },
         Settings { clip: f64::INFINITY, ..Settings::default() },
         Settings { warmup: 3, total: 3, ..Settings::default() },
+        // A zero eps divides 0 by 0 on a zero gradient.
+        Settings { eps: 0.0, ..Settings::default() },
+        Settings { eps: f64::NAN, ..Settings::default() },
     ] {
         assert!(AdamW::<f64>::new(bad, &[1]).is_err(), "{bad:?}");
     }
@@ -62,4 +65,24 @@ fn decay_applies_only_to_marked_tensors() {
     o.step(&mut params, &mut grads, &[true, false]).unwrap();
     assert!((params[0][0] - 1.9).abs() < 1e-12);
     assert_eq!(params[1][0], 2.0);
+}
+
+#[test]
+fn a_zero_gradient_never_writes_nan_and_settings_stay_as_checked() {
+    let mut o = AdamW::<f32>::new(Settings::default(), &[1]).unwrap();
+    let mut p = vec![vec![1.0f32]];
+    o.step(&mut p, &mut [vec![0.0]], &[false]).unwrap();
+    assert!(p[0][0].is_finite());
+    // The settings are read-only after construction.
+    assert_eq!(o.settings().eps, Settings::default().eps);
+}
+
+#[test]
+fn the_longest_schedule_does_not_overflow() {
+    let s = Settings { lr: 1.0, warmup: 0, total: u64::MAX, ..Settings::default() };
+    let o = AdamW::<f64>::new(s, &[1]).unwrap();
+    assert_eq!(o.rate(1), 1.0);
+    assert!(o.rate(u64::MAX) > 0.0);
+    let w = AdamW::<f64>::new(Settings { warmup: u64::MAX - 1, ..s }, &[1]).unwrap();
+    assert_eq!(w.rate(u64::MAX), 1.0);
 }
