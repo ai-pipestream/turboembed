@@ -674,6 +674,21 @@ threw, and `nulls` 1 in `turbo:names` for a name without a type.
 `analysis/formats/tests/masc.rs` compares the Rust readers with these
 goldens.
 
+Four of these goldens are corrected by hand where the port no longer
+follows OpenNLP's removal of overlapping names (#1496): the
+`turbo:masc-names` layer of `documents/formats/masc-basic.golden` and
+`documents/formats/masc-names.golden`, and the `turbo:samples` and
+`turbo:names` layers of `name/formats/masc-basic.golden` and
+`name/formats/masc-names.golden`. OpenNLP compares a name with itself,
+removes it, and removes the last name of a sentence whenever it removes
+any; the port keeps every name that no other name overlaps, and also
+finds a shorter name inside a longer one of the same start. The
+corrected layers keep the names the JVM dropped (`today`, `Charles`,
+`London`, `June`, `Babbage`, `five`, `six`) and replace the unlabelled
+`Analytical` with the longer `org` name over it; every other layer and
+row is the JVM's. A regeneration writes the JVM's names back, so these
+layers have to be corrected again after one.
+
 ## NER goldens
 
 `ner/<run>/ner/<id>.golden` is what one of OpenNLP's named entity corpus

@@ -16,22 +16,21 @@ fn one_name_is_kept() {
 }
 
 #[test]
-fn names_apart_lose_all_but_the_first() {
-    // the left index reaches the right, the name contains itself and is
-    // marked, and the last name is dropped as well
-    let kept = remove_overlaps(&[name(0, 1), name(2, 3), name(4, 6)]).unwrap();
-    assert_eq!(spans(&kept), [(0, 1)]);
+fn names_apart_are_all_kept() {
+    // the left index catches up with the right, which moves on, so no
+    // name is compared with itself and nothing is marked (#1496)
+    assert_eq!(remove_overlaps(&[name(0, 1), name(2, 3), name(4, 6)]), None);
 }
 
 #[test]
 fn the_shorter_of_two_overlapping_names_is_marked() {
-    // (1, 4) contains (2, 3): the right is marked, then the left is
-    // compared with (5, 6), which moves it on to itself
+    // (1, 4) contains (2, 3): the right is marked; the names after it
+    // overlap nothing and stay
     let kept = remove_overlaps(&[name(1, 4), name(2, 3), name(5, 6), name(7, 8)]).unwrap();
-    assert_eq!(spans(&kept), [(1, 4)]);
+    assert_eq!(spans(&kept), [(1, 4), (5, 6), (7, 8)]);
     // the longer name on the right marks the left one
     let kept = remove_overlaps(&[name(0, 2), name(1, 5), name(9, 9)]).unwrap();
-    assert_eq!(spans(&kept), [(1, 5)]);
+    assert_eq!(spans(&kept), [(1, 5), (9, 9)]);
 }
 
 #[test]
@@ -44,11 +43,11 @@ fn overlapping_names_can_survive() {
     // comparing them with each other; both stay, and `NameSample`
     // refuses them
     let kept = remove_overlaps(&[name(0, 2), name(1, 4), name(1, 4), name(9, 10)]).unwrap();
-    assert_eq!(spans(&kept), [(1, 4), (1, 4)]);
+    assert_eq!(spans(&kept), [(1, 4), (1, 4), (9, 10)]);
     // the same with two names of one start but different ends, which a
     // `HashMap` of entity ids can order shorter first
     let kept = remove_overlaps(&[name(0, 2), name(1, 5), name(1, 6), name(20, 21)]).unwrap();
-    assert_eq!(spans(&kept), [(1, 5), (1, 6)]);
+    assert_eq!(spans(&kept), [(1, 5), (1, 6), (20, 21)]);
 }
 
 #[test]
@@ -241,4 +240,98 @@ fn unplaced_entity_checks_all_quarks_when_quark_id_is_repeated() {
         doc.unplaced_entities(),
         [MascUnplacedEntity { kind: Some("person".into()), cause: Unplaced::DroppedSentence }]
     );
+}
+
+/// `aa bb cc dd ee`, one sentence of five Penn tokens, with the named
+/// entities `ne` (#1496).
+fn five_tokens(ne: &str) -> MascDocument {
+    let text = b"aa bb cc dd ee";
+    let mut seg = String::from("<graph>");
+    let mut penn = String::from("<graph>");
+    for i in 0..5 {
+        seg.push_str(&format!(r#"<region xml:id="seg-r{i}" anchors="{} {}"/>"#, 3 * i, 3 * i + 2));
+        penn.push_str(&format!(r#"<node xml:id="penn-n{i}"><link targets="seg-r{i}"/></node>"#));
+    }
+    seg.push_str("</graph>");
+    penn.push_str("</graph>");
+    let s = br#"<graph><region anchors="0 14"/></graph>"#;
+    let files = MascFiles {
+        text,
+        segments: Some(seg.as_bytes()),
+        sentences: Some(s),
+        penn: Some(penn.as_bytes()),
+        named_entities: Some(ne.as_bytes()),
+    };
+    MascDocument::parse("t.hdr", files).unwrap()
+}
+
+#[test]
+fn an_overlapping_pair_keeps_a_disjoint_final_name() {
+    // ne-n0: `bb cc`, listed last to first; ne-n1: `cc`, inside ne-n0 and
+    // shorter, so it is removed; ne-n2: `ee`, apart from both, and kept.
+    let ne = r#"<graph><a ref="ne-n0" label="person"/><a ref="ne-n1" label="org"/><a ref="ne-n2" label="date"/>
+        <edge from="ne-n0" to="penn-n2"/><edge from="ne-n0" to="penn-n1"/><edge from="ne-n1" to="penn-n2"/>
+        <edge from="ne-n2" to="penn-n4"/></graph>"#;
+    let doc = five_tokens(ne);
+    let sentence = &doc.sentences()[0];
+    let named = |start, end, kind: &str| MascName { start, end, kind: Some(kind.to_owned()) };
+    assert_eq!(sentence.names(), [named(1, 3, "person"), named(4, 5, "date")]);
+    assert!(doc.warnings().contains(&MascWarning::OverlappingNames { sentence: 0 }));
+    // The kept names cover the same source text and tokens as before.
+    let tokens = sentence.tokens().unwrap();
+    let source = |n: &MascName| {
+        let (first, last) = (&tokens[n.start as usize], &tokens[n.end as usize - 1]);
+        doc.span(i64::from(first.start), i64::from(last.end)).unwrap()
+    };
+    let texts: Vec<&str> = sentence.names().iter().map(|n| &doc.text()[source(n).range()]).collect();
+    assert_eq!(texts, ["bb cc", "ee"]);
+    let ids: Vec<i32> = tokens.iter().map(|t| t.id).collect();
+    assert_eq!(ids, [0, 1, 2, 3, 4]);
+    let entity = |start, end, kind: &str, tokens: &[u32]| MascEntity {
+        start,
+        end,
+        kind: Some(kind.to_owned()),
+        tokens: tokens.to_vec(),
+    };
+    assert_eq!(
+        sentence.entities(),
+        [entity(1, 3, "person", &[1, 2]), entity(2, 3, "org", &[2]), entity(4, 5, "date", &[4])]
+    );
+    // The name sample stream carries the same names over the same tokens.
+    let corpus = crate::masc::MascCorpus::from_documents(vec![doc.clone()]);
+    let samples: Vec<_> = crate::masc::MascNameReader::new(&corpus).unwrap().map(|s| s.unwrap()).collect();
+    assert_eq!(samples.len(), 1);
+    let sample = &samples[0].sample;
+    let words: Vec<&str> = sample.tokens().iter().map(|t| t.text.as_ref()).collect();
+    assert_eq!(words, ["aa", "bb", "cc", "dd", "ee"]);
+    let kept: Vec<(u32, u32, Option<&str>)> = sample.names().iter().map(|n| (n.start, n.end, n.kind)).collect();
+    assert_eq!(kept, [(1, 3, Some("person")), (4, 5, Some("date"))]);
+}
+
+#[test]
+fn names_that_overlap_nothing_are_all_kept_without_a_warning() {
+    let ne = r#"<graph><a ref="ne-n0" label="person"/><a ref="ne-n1" label="org"/><a ref="ne-n2" label="date"/>
+        <edge from="ne-n0" to="penn-n1"/><edge from="ne-n1" to="penn-n3"/><edge from="ne-n2" to="penn-n4"/></graph>"#;
+    let doc = five_tokens(ne);
+    assert_eq!(spans(doc.sentences()[0].names()), [(1, 2), (3, 4), (4, 5)]);
+    assert!(!doc.warnings().contains(&MascWarning::OverlappingNames { sentence: 0 }));
+}
+
+#[test]
+fn remove_overlaps_keeps_every_unmarked_name() {
+    // (2, 3) is inside (1, 3) and marked; (4, 5) is apart and kept
+    let kept = remove_overlaps(&[name(1, 3), name(2, 3), name(4, 5)]).unwrap();
+    assert_eq!(spans(&kept), [(1, 3), (4, 5)]);
+    // the longer name last marks the shorter one before it and stays
+    let kept = remove_overlaps(&[name(0, 2), name(1, 5)]).unwrap();
+    assert_eq!(spans(&kept), [(1, 5)]);
+    // a tie of lengths marks the right name
+    let kept = remove_overlaps(&[name(1, 3), name(2, 4), name(6, 7)]).unwrap();
+    assert_eq!(spans(&kept), [(1, 3), (6, 7)]);
+    // a shorter name before a longer one of the same start is inside it
+    // and marked, as the longer one before it would mark it
+    let kept = remove_overlaps(&[name(5, 6), name(5, 8), name(8, 9)]).unwrap();
+    assert_eq!(spans(&kept), [(5, 8), (8, 9)]);
+    let kept = remove_overlaps(&[name(5, 8), name(5, 6), name(8, 9)]).unwrap();
+    assert_eq!(spans(&kept), [(5, 8), (8, 9)]);
 }
