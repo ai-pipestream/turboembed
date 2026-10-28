@@ -10,7 +10,7 @@ every pattern against every ordered entity pair whose head words
 entity) lie in one sentence, following the shortest dependency
 path through their lowest common ancestor.
 
-It writes two layers: `opennlp:relations` (`Relations`), one row
+It writes two layers: `Relations`, one row
 per mention in extraction order, covering both entity spans and
 keeping duplicate pattern registrations as duplicate mentions;
 and `Edges<Entities, Entities>` with each (subject, object, type)

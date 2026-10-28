@@ -46,9 +46,9 @@ every served profile under `CapabilitiesResponse.profiles` (`ProfileCapabilities
 
 | Profile | Version | Steps | Produced Layers | Required Bundles |
 |---|---|---|---|---|
-| `default-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped`, `turbo:structure-boundaries`, `turbo-geo:names`, `turbo:subwords`, `turbo:chunker`, `turbo:level-builder`, `turbo:chunk-vectors` | `turbo:structure`, `opennlp:sentences`, `opennlp:tokens`, `turbo:boundaries`, `opennlp:entities`, `opennlp:subwords`, `turbo:chunks`, `turbo:levels`, `opennlp:embeddings<turbo:chunks>` | `TASK_EMBED` |
+| `default-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped`, `turbo:structure-boundaries`, `turbo-geo:names`, `turbo:subwords`, `turbo:chunker`, `turbo:level-builder`, `turbo:chunk-vectors` | `turbo:structure`, `Sentences`, `Tokens`, `turbo:boundaries`, `Entities`, `Subwords`, `turbo:chunks`, `turbo:levels`, `Embeddings<turbo:chunks>` | `TASK_EMBED` |
 | `retrieval-v1` | `"1"` | `default-v1` steps + `turbo:sparse` | `default-v1` layers + `turbo:sparse-terms<turbo:view>` | `TASK_EMBED`, `embed.sparse` |
-| `minimal-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped` | `turbo:structure`, `opennlp:sentences`, `opennlp:tokens` | *(none)* |
+| `minimal-v1` | `"1"` | `turbo-structure:blocks`, `turbo-sentdetect:rules`, `turbo-tokenize:uax29-untyped` | `turbo:structure`, `Sentences`, `Tokens` | *(none)* |
 
 A profile's output set never changes within a version. When a profile or
 explicit step requires a bundle capability (`TASK_EMBED` or `embed.sparse`)
@@ -82,7 +82,7 @@ is converted and validated against `text`. An offset
 that is out of bounds, inverted, or inside a code point or a UTF-16
 surrogate pair refuses with `TURBO_E_INVALID_ARGUMENT`; nothing is
 snapped to a boundary. `ChunkLevelsResult` carries `turbo:chunks`,
-`turbo:levels`, and `opennlp:embeddings` over the chunks in one round
+`turbo:levels`, and `Embeddings` over the chunks in one round
 trip, fragments included. `RoundTripDocumentGraph` takes binary
 `DocumentGraph` bytes and answers with the same document imported and
 re-exported through a `OnceLock<Codecs>` registry
@@ -93,8 +93,8 @@ workspace `LayerCodec` registrations (`turbo-analysis-layers`,
 `turbo-gliner`, `turbo-glossary-layers`, `turbo-group`,
 `turbo-keywords`, `turbo-normalize-layers`, `turbo-relation`,
 `turbo-schema-extract`, `turbo-stopword-layers`, and
-`turbo-tokenize-layers`), listing every layer's standard id (`opennlp:*` or
-`turbo:*`), instance, provenance (annotator, version, model, config
+`turbo-tokenize-layers`), listing every layer's standard id,
+instance, provenance (annotator, version, model, config
 hash), item count, and status (`OK`, `SKIPPED`, or `FAILED` with its
 detail), and every view likewise. Layers whose codecs the server does
 not register are refused by name, never dropped.

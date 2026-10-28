@@ -22,13 +22,13 @@ parts:
   currencies over `SPANISH`, and is used by `GrammarAnnotator::spanish()`.
 
 `GrammarAnnotator` runs a grammar over a text view and writes layers
-([below](#layers)). It is separate from `turbo-numeric`, which ports
-OpenNLP's number scan ([numbers.md](numbers.md)) and keeps its behaviour
-and goldens; the two write different layer instances.
+([below](#layers)). It is separate from `turbo-numeric`, which runs the
+cursor number scanner ([numbers.md](numbers.md)); the two write
+different layer instances.
 
 ## Lexer
 
-The grammar reads the view's text, not `opennlp:tokens`: a mention
+The grammar reads the view's text, not the `Tokens` layer: a mention
 starts and ends on character boundaries a tokenizer may not cut at
 (`10k`, `twenty-one`, `4/5`). One pass cuts the text into lexemes:
 

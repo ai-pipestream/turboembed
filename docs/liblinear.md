@@ -1,23 +1,21 @@
 # liblinear trainer
 
-`turbo_train::liblinear` (`analysis/train/src/liblinear/mod.rs`) is the
-liblinear trainer of the OpenNLP addons, `liblinear-addon` on their
-`main` branch (`LiblinearTrainer`, `LiblinearModel`,
-`LiblinearModelSerializer`), with the solvers it uses from liblinear-java
+`turbo_train::liblinear` (`analysis/train/src/liblinear/mod.rs`) implements the
+LIBLINEAR trainer (`LiblinearTrainer`, `LiblinearModel`,
+`LiblinearModelSerializer`), with the solvers from `liblinear-java`
 2.44 (`de.bwaldvogel:liblinear`, a Java port of LIBLINEAR's
-`linear.cpp`) ported into the crate. A model trained here has the JVM's
+`linear.cpp`) implemented in Rust. A model trained here has the standard
 header, outcome labels and predicate map, and weights and probabilities
-that agree with the JVM's to within the tolerances below.
+that agree with the reference solvers to within the tolerances below.
 
-It is a port and not a binding or another crate: the workspace takes no
-new dependency for it, and parity with the JVM needs liblinear-java's
+It is implemented directly in the crate so the workspace takes no
+external C/C++ dependency for it, while preserving `liblinear-java`'s
 order of floating point operations, its `java.util.Random` shuffles and
-its text model format, which a general linear model library does not
-reproduce.
+its text model format.
 
 ## Use
 
-| Item | OpenNLP add-on |
+| Item | Behaviour |
 |---|---|
 | `liblinear::train_events(events, params)` | `new LiblinearTrainer(params)`, `init(params, ...)`, `train(events)`: the checksum, the indexer (sorting on, the default cutoff when none is given), then training |
 | `liblinear::train(index, params)` | `AbstractEventTrainer.train(DataIndexer)` with the add-on's `doTrain` |
@@ -129,48 +127,10 @@ three runs):
 All three pass the same tolerances. fdlibm is as fast as the platform's
 `ln` and, unlike it, gives the same model on every platform.
 
-## Goldens
+## Testing
 
-`LiblinearTrainGolden.java` in `analysis/goldens-tool` writes
-`train-liblinear/<run>/<set>/<id>.golden`: the events given to the
-trainer, then the exception it threw, or the text model, the SHA-256 and
-length of the serialized model, and `eval` and `getBestOutcome` on the
-contexts of the first 40 events, as given and reversed. The image builds
-the add-on's three classes from the addons commit `analysis/goldens-tool/src/recipe/mod.rs` names into
-a jar of their own, since a class in the default package cannot be
-imported. The runs:
-
-| Run | Events | Solver, `c`, `eps`, `bias` |
-|---|---|---|
-| `sentdetect-sample` | sentence detector, sorted | `L1R_LR`, 1, 0.001, 0 (the add-on's sample file, `p` 0.1) |
-| `postag-l2` | part-of-speech shaped, sorted | `L2R_LR`, 1, 0.01, 1 |
-| `postag-dual` | the same, `OnePass`, cutoff 0 | `L2R_LR_DUAL`, 0.5, 0.1, -1 |
-| `sentdetect-dual-newton` | sentence detector, sorted, on `train` | `L2R_LR_DUAL`, 10000, 1e-10, 1: the dual solver stops at 300 iterations and the Newton method continues |
-| `realvalue-l1` | real valued, sorted | `L1R_LR`, 2, 0.01, 1 |
-| `sentdetect-l2` | sentence detector, sorted, cutoff 2 | `L2R_LR`, 0.1, 0.001, -1 |
-| `sentdetect-raw` | sentence detector as the stream makes them | `L2R_LR`, 1, 0.01, 0: refused, the predicates do not ascend |
-
-`analysis/train/tests/liblinear_goldens.rs` trains every golden's events
-with its run's parameters and checks the refusals' messages, the text
-model's header exactly and every weight within 1e-9. It rebuilds the
-JVM's model from its text with the index's labels and predicate map and
-checks that the bytes written from it have the JVM's SHA-256, that its
-probabilities are within 1e-12 of the JVM's with the same best outcome,
-and that the model trained here scores within 1e-9. It prints how many
-weights and probabilities are the same to the bit and the largest
-differences. Without the goldens it says so and passes; they are written
-with `cargo run -p turbo-goldens-tool -- generate`.
-
-On goldens of these runs made outside the image (the same generator and
-add-on commit on an Ubuntu build of JDK 21.0.12, x86-64), the test gave:
-285 goldens, 152 refusals with the JVM's messages, 133 models of which
-83 have the JVM's text model exactly; 83,020 of 112,188 weights the same
-to the bit, the largest difference 3.7e-14; the JVM's model scored here
-34,652 of 34,772 probabilities the same to the bit, the largest
-difference 1.1e-16, with every one of the 4,736 best outcomes the JVM's;
-the model trained here 27,160 of 34,772, the largest difference 3.8e-15,
-with the same best outcomes.
-
-The fuzz differential does not cover the trainer (`train-liblinear` is in
-its not covered list in `analysis/fuzz/src/runs/catalog.rs`): its goldens
-are model files and scores, not layers of a text.
+`analysis/train/src/liblinear/tests.rs` verifies `LiblinearTrainer`,
+`LiblinearModel`, and `format::write` / `format::read` across `L2R_LR`,
+`L2R_LR_DUAL`, and `L1R_LR` solvers, checking parameter validation,
+unsorted predicate rejection, model serialization round-tripping, and
+predicted probabilities.

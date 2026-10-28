@@ -152,18 +152,13 @@ and the model integration receipts with
 
 ## Real-corpus ECE and coverage records
 
-### MASC 3.0.0 (`analysis/train-recipes/examples/masc_calibration.rs`)
+### MASC 3.0.0
 
-`analysis/train-recipes/examples/masc_calibration.rs` evaluates all three
+The MASC 3.0.0 calibration evaluation evaluates all three
 transforms (`Temperature`, `Platt`, `Isotonic`) at requested coverage `0.90` on
 the verified MASC 3.0.0 release (`corpus_sha256`
 `445449f535cac62e74b2712ad975d7b727e72b8276720dd27492266565ae0afd`, CC BY 3.0
-US, Twitter genre excluded by `masc::SPLIT`; see `docs/licences.md`). Reproduce
-with:
-
-```sh
-cargo run --release --locked -p turbo-train-recipes --example masc_calibration -- DATA_DIRECTORY
-```
+US, Twitter genre excluded by `masc::SPLIT`; see `docs/licences.md`).
 
 Models are trained only on `split.train` (351 documents). For document
 categorization, the 39 held-out documents in `split.held_out` are partitioned

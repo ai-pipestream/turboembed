@@ -1,9 +1,9 @@
 # Neural annotators on the embedder's runtime
 
 Two neural annotators were asked for in #391: zero-shot named entities
-with GLiNER, written as `opennlp:entities`, and sentence boundaries with
-SaT (Segment any Text, the `wtpsplit` package), written as
-`opennlp:sentences`. Both are encoders with a small head, and the
+with GLiNER, written to the `Entities` layer, and sentence boundaries with
+SaT (Segment any Text, the `wtpsplit` package), written to the
+`Sentences` layer. Both are encoders with a small head, and the
 question is whether they can run on turboembed's own runtime, with no
 ONNX Runtime and no new dependency, and whether they can share the
 embedding pass.
@@ -86,7 +86,7 @@ Face hub):
 
 ### The step
 
-`SatAnnotator` reads a view and writes `opennlp:sentences`:
+`SatAnnotator` reads a view and writes `Sentences`:
 
 1. The view is tokenized whole with the bundle's tokenizer
    (`encode_spans`, no special tokens), keeping each token's span.
@@ -381,7 +381,7 @@ whole row through a DeBERTa-v3 encoder, and then:
   when the bundle is sealed.
 - **Words.** GLiNER splits the text into words with its own regular
   expression and scores word spans; the step would map them to
-  `opennlp:tokens` or keep its own word layer, with byte offsets.
+  `Tokens` or keep its own word layer, with byte offsets.
 
 No permissive GLiNER checkpoint avoids DeBERTa: `gliner_small-v2.1`
 uses `deberta-v3-small`, `gliner_multi-v2.1` `mdeberta-v3-base`,
@@ -403,8 +403,8 @@ DeBERTa.
 ## BiLSTM-CRF part-of-speech tagger
 
 `turbo-postag`'s BiLSTM-CRF tagger (`neural::BilstmPosTagger`, from
-`opennlp:tokens` to `opennlp:pos`) runs its LSTMs on the CPU backend's
-packed f32 GEMM (`turbo::cpu::Matrix`) by default, with the JVM's f64
+`Tokens` to `PosTags`) runs its LSTMs on the CPU backend's
+packed f32 GEMM (`turbo::cpu::Matrix`) by default, with f64
 numerics kept for the golden tests. Its goldens, accuracy and throughput
 are in `analysis/postag/README.md`, "BiLSTM-CRF on the CPU backend". It
 has only run on the CPU.

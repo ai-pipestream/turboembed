@@ -1,13 +1,13 @@
 # Case-preserving lemma recipes
 
 Issue #954 changes newly trained lemma models to retain annotated case. Published
-OpenNLP models still use their original decoder. `LemmatizerFactory::opennlp`
-selects that format explicitly for reproduction and JVM goldens; `new` selects
-`turbo.lemmatizer.CaseSensitiveV1`. A JVM without that factory refuses the native
+legacy models still use their original decoder. The legacy factory
+selects that format explicitly for reproduction and golden comparisons; `new` selects
+`turbo.lemmatizer.CaseSensitiveV1`. A runtime without that factory refuses the native
 model rather than decoding its classes incorrectly.
 
 The existing `models-ud-2.16-1` release and its recipe ids retain the
-OpenNLP factory and original model bytes. The native models measured below
+legacy factory and original model bytes. The native models measured below
 are local evaluation artifacts, not replacements for that release. Publishing
 native UD models requires new model ids, a release tag and index entries.
 
@@ -25,7 +25,7 @@ rows are combined as in that reader and empty nodes are omitted. No samples
 were skipped. Native and lowercase baselines both use GIS, 300 iterations,
 cutoff 5 and 4 training partitions, with the same feature generator and beam.
 The baseline is the code at `62dce738e7e4e81bc77d66c883cd3d562229591b`.
-The published references are OpenNLP UD 1.3 models (2.5.4).
+The published references are the UD 1.3 baseline models.
 
 These measurements deliberately retain 4 partitions on both sides to isolate
 the class-format change. The separate UD 1.3 reproduction fix in #953 uses

@@ -18,10 +18,9 @@ constant `other` history, and omits po/pow/powf/ppo context features. Thus
 label history cannot leak into emissions. Transitions model label dependence.
 
 The versioned `nameFinder.crf` payload has manifest type
-`turbo-linear-chain-crf-v1`. It uses the existing zip container, but is not an
-OpenNLP Maxent binary. Loading validates counts, shapes, labels, duplicate
-keys, finite weights and trailing bytes. Arithmetic beyond f64 support fails;
-Java arbitrary-precision path sums are not implemented.
+`turbo-linear-chain-crf-v1`. It uses the existing zip container with a dedicated
+linear-chain CRF binary payload. Loading validates counts, shapes, labels, duplicate
+keys, finite weights and trailing bytes. Arithmetic beyond f64 support fails.
 
 `CrfNameAnnotator` validates View/Sentences/Tokens and produces Entities plus
 Alternatives<Entities>. The latter combines candidate spans and unit-token
@@ -32,14 +31,6 @@ Use `CrfNameSequence` for exact ranked, typed paths and log probabilities.
 Discontinuous sentence/token input is rejected.
 
 Evidence and limitations: `docs/receipts/crf-726/README.md`.
-Reproduce MASC with `analysis/train-recipes/examples/crf_namefind_fixture.rs`:
-
-```sh
-cargo run --release --locked -p turbo-train-recipes -- fetch-masc --home target/crf-data
-# Extract the verified archive, then supply its directory:
-cargo run --release --locked -p turbo-train-recipes --example crf_namefind_fixture -- DATA_DIRECTORY bio
-cargo run --release --locked -p turbo-train-recipes --example crf_namefind_fixture -- DATA_DIRECTORY bilou
-```
 
 The CPU harnesses are `analysis/sequence/examples/crf_speed.rs` and
 `analysis/sequence/tests/crf-reference/Speed.java`. Compile Speed.java with

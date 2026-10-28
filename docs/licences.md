@@ -88,17 +88,13 @@ stay checked in.
 ## Models trained by this project (fetchable once released)
 
 Trained by the recipes in `analysis/train-recipes` only on permissive
-data, each gated against the OpenNLP model for the same task, under
+data, each gated against the reference model for the same task, under
 Apache-2.0. The index lists each at its address in a release of this
-repository: `models-masc-3.0.0-1` for the MASC models, which
-`.github/workflows/models.yml` creates, `models-ud-2.16-1` for the UD
-models, which `.github/workflows/models-ud.yml` creates, and
-`models-tatoeba-2026-10-10-1` for the language detector, which
-`.github/workflows/models-tatoeba.yml` creates, and
-`models-tatoeba-fineweb-2026-10-10-1` for the web language detector,
-which `.github/workflows/models-fineweb.yml` creates, each with every
-model's card and gate records, when it is run by hand on main.
-Until it has been, the release's addresses answer 404 and fetching its
+repository: `models-masc-3.0.0-1` for the MASC models, `models-ud-2.16-1`
+for the UD models, `models-tatoeba-2026-10-10-1` for the language
+detector, and `models-tatoeba-fineweb-2026-10-10-1` for the web language
+detector, each with every model's card and gate records.
+Until a release is published, the release's addresses answer 404 and fetching its
 models through the zoo fails. Every file's size, SHA-256 and SHA-512 in
 the index are the ones its card records, and a workflow publishes
 nothing unless the models it trains have them. The attribution of the
@@ -149,15 +145,9 @@ the second for failing their gates).
 `en-pos-maxent.bin` and `en-chunker.bin` are used only as references
 whose output is scored or compared. Nothing ships, bundles, mirrors or
 trains on them, and the zoo does not list them. The `ci` workflow
-(`ci.yml`) does not fetch them. The `models` workflow
-(`.github/workflows/models.yml`), which runs the recipes' gates before
-it publishes their models, downloads them from
-<https://opennlp.sourceforge.net/models-1.5/>, checks them against the
-SHA-256s `analysis/train-recipes/masc-references.txt` lists, and keeps
-them in the repository's GitHub Actions cache. GitHub restores that
-cache only in this repository's workflow runs, and it cannot be
-downloaded. Anywhere else they are downloaded by hand from that address
-into a directory the user names. The SHA-256 of `en-pos-maxent.bin` is
+(`ci.yml`) does not fetch them. When scoring reference gates locally,
+they are downloaded from <https://opennlp.sourceforge.net/models-1.5/>
+and checked against their pinned SHA-256 digests (`reference.rs`). The SHA-256 of `en-pos-maxent.bin` is
 `645a094f45a866687a617385233fd23ae8b0f5fa8b1b76996781a50c17bdcf3d`, and
 that of `en-chunker.bin` is
 `7861a0c2f134d9c12a022a1ba501e88bc7039f6db72b4140e1bafd1fb5ef76cc`

@@ -5,21 +5,20 @@ a text view and writes them as the `turbo:pii` layer: e-mail addresses,
 phone numbers, payment cards, IBANs, ABA routing numbers, network
 addresses, credentials, Bitcoin and Ethereum addresses, national
 identifiers and device identifiers. Each kind with a check digit or
-checksum is validated with it. It is a port of the `opennlp.tools.pii`
-package of the OpenNLP fork the other ports follow (commit `cdf33c6`):
+checksum is validated with it:
 
-| Rust | OpenNLP |
+| Type | Role |
 |---|---|
-| `PiiDetector` | `CompositePiiExtractor` and `PiiAnnotator` |
-| `Pack`, `PiiDetector::pack` | `PiiPacks` |
-| `Extractor`, `Scanner`, `CustomExtractor`, `PiiSink` | `PiiExtractor`, the extractor classes (`CursorPiiExtractor`, `NetworkPiiExtractor` and the others) and their type selection |
-| `Pii`, `PiiMention`, `PiiKind`, `PiiKind::Custom` | `PiiMention`, the type strings, `PiiTypePriority` |
-| `PiiConfidence` | none (below) |
-| `rewrite::mask`, `mask_all`, `mask_by_kind`, `MaskPolicy` | `Masker`, `MaskPolicy`, `MaskPolicies` |
-| `rewrite::MaskedView`, `mask_view` | `Masker` with `MaskPolicies.byType()`, as a view |
-| `rewrite::Pseudonymizer`, `HmacTokenizer`, `PiiRewrite` | `Pseudonymizer`, `HmacTokenizer`, `PiiRewrite` |
-| `rewrite::PiiAuditReport` | `PiiAuditReport` |
-| `checksum::luhn`, `mod97`, `sha256`, `keccak`, `base58`, `bech32` | `Luhn`, the IBAN check, `MessageDigest` and `Mac`, `Keccak256`, `Base58Check`, `Bech32` |
+| `PiiDetector` | Runs one or more `Scanner`s and orders mentions into `Pii` (`turbo:pii`) |
+| `Pack`, `PiiDetector::pack` | Preconfigured scanner packs (`Payment`, `Contact`, `Network`, `Secrets`, `Crypto`, `UsIdentity`, `EuIdentity`, `CaIdentity`, `Device`, `AllStructured`) |
+| `Extractor`, `Scanner`, `CustomExtractor`, `PiiSink` | Built-in and caller-defined byte scanners and kind filters |
+| `Pii`, `PiiMention`, `PiiKind`, `PiiKind::Custom` | Typed layer, mention accessor, and built-in/custom kind identifiers |
+| `PiiConfidence` | `Format`, `Checksum`, or `LabelledChecksum` |
+| `rewrite::mask`, `mask_all`, `mask_by_kind`, `MaskPolicy` | Byte-length-preserving character masking |
+| `rewrite::MaskedView`, `mask_view` | Derived `View` with bidirectional UTF-8 offset alignment |
+| `rewrite::Pseudonymizer`, `HmacTokenizer`, `PiiRewrite` | Deterministic label replacement and HMAC-SHA-256 tokenization |
+| `rewrite::PiiAuditReport` | Redacted mention counts and keyed token summaries |
+| `checksum::luhn`, `mod97`, `sha256`, `keccak`, `base58`, `bech32` | Checksum and cryptographic validators |
 
 The crate depends on `turbo-analysis`, `turbo-analysis-layers` and
 `turbo-unicode` only. SHA-256, HMAC-SHA-256, Keccak-256, base58check,
@@ -77,8 +76,8 @@ by start, then longer first, then by kind rank; equal mentions (span,
 kind and normalized form) appear once, the first found kept. By default,
 a mention strictly nested inside a longer mention (such as a phone or
 card inside a grouped IBAN, or an NHS number inside an international
-phone number) is dropped; `PiiDetector::keeping_nested` keeps it for
-OpenNLP parity. Mentions of different kinds may still share an exact
+phone number) is dropped; `PiiDetector::keeping_nested` retains strictly
+nested mentions when requested. Mentions of different kinds may still share an exact
 span or cross each other: an IMEI after its label is also a Luhn-valid
 card number, and `https://user:pass@example.com` has a URL credential
 crossing an e-mail address. `Pii::check` holds a layer to this order.
@@ -108,16 +107,16 @@ normalized form and the confidence each gets:
 | `aba-routing` | the digits | checksum (3, 7, 1 weights) |
 | `phone` | `+` and digits, or the digits | format |
 
-`PiiConfidence` is not in OpenNLP, which reports none. It is read from
+`PiiConfidence` is read from
 what the scanner checked, so it never changes which mentions are found:
 `Format` when only the shape backs the kind, `Checksum` when a check digit
 or checksum over the value passes, `LabelledChecksum` when a label names
-the kind as well. The goldens hold no confidence.
+the kind as well.
 
 ## Masking and labels
 
 `rewrite::mask` overwrites the characters of each span with a policy;
-`mask_by_kind` uses `MaskPolicy::for_kind` (`MaskPolicies.forType`: cards
+`mask_by_kind` uses `MaskPolicy::for_kind` (cards
 and IBANs keep separators and their last four letters or digits, contact,
 network, national and device identifiers and routing numbers keep
 separators, credentials and wallet addresses are masked whole), and
@@ -125,13 +124,10 @@ separators, credentials and wallet addresses are masked whole), and
 original text, in order, and what a later policy keeps readable does not
 undo an earlier mask, so overlapping mentions are both masked.
 
-OpenNLP writes one mask character per UTF-16 unit. Here the mask is one
-ASCII byte (`MaskPolicy::new` refuses any other, `MaskError::NotAscii`)
-and a masked character becomes as many mask bytes as it has UTF-8 bytes,
-so the masked text has the byte length of the original and every byte
-offset stays valid. Every detected mention is ASCII, so the two write the
-same text for them; they differ only for spans over non-ASCII text, which
-a caller can pass to `mask`.
+The mask character is one ASCII byte (`MaskPolicy::new` refuses any other,
+`MaskError::NotAscii`) and a masked character becomes as many mask bytes as
+it has UTF-8 bytes, so the masked text has the byte length of the original
+and every byte offset stays valid.
 
 `Pseudonymizer` replaces each mention with a numbered label (`EMAIL-1`),
 the same label for the same kind and value within one text.
@@ -196,13 +192,10 @@ mask (a `*` masked with `*`) is not an edit.
 `analysis/pii/tests/masked_view.rs` checks every offset of every pair of
 spans over multi-byte texts, and that the text equals `mask`.
 
-## Differences from OpenNLP
+## Custom extractors and scanner rules
 
-- Offsets are UTF-8 bytes; OpenNLP's are UTF-16 units. They differ after
-  any non-ASCII character (after U+10428 the byte offset is 4 more, the
-  unit offset 2 more). The goldens record UTF-8 offsets, so the
-  comparison is exact.
-- Masks keep the byte length, not the UTF-16 length (above).
+- Offsets are UTF-8 bytes on character boundaries.
+- Masks preserve the UTF-8 byte length of the input (above).
 - Caller-defined extractors implement `CustomExtractor` (with optional
   `config_hash` for stateful settings, or pass a scan function to
   `Scanner::custom_fn` / `PiiDetector::with_custom_fn`) and emit
@@ -221,18 +214,13 @@ spans over multi-byte texts, and that the text equals `mask`.
   through `mask_all`, `mask_by_kind`, `MaskedView` (with
   `MaskedView::with` overrides), `Pseudonymizer`, `HmacTokenizer`,
   `PiiAuditReport` and binary graph export/import.
-- `PiiConfidence` is added (above).
 - By default, `PiiDetector` drops a mention whose span lies strictly
   inside a longer mention, so trailing groups of a grouped IBAN are not
   also reported as a phone or card and ten digits inside an
   international phone number are not also reported as an NHS number.
-  `PiiDetector::keeping_nested` keeps nested mentions as OpenNLP does;
-  the golden and differential parity checks use it.
+  `PiiDetector::keeping_nested` retains strictly nested mentions.
 
-## OpenNLP behaviour kept
-
-These are kept for parity; none is clearly wrong, so the port matches
-them.
+Scanner edge-case rules:
 
 - The IPv6 filter refuses an address with fewer than two groups written,
   or with no group of three digits or more unless all eight are written,
@@ -252,8 +240,9 @@ them.
 
 ## Fixtures
 
-Every fixture is synthetic. Where an OpenNLP test or corpus held a value
-that could be real, it is replaced, and the tests say so:
+Every fixture is synthetic. Where a test or corpus fixture would otherwise
+hold a value that could be real, it uses documented test values or
+synthetic specimens:
 
 - The legacy Bitcoin addresses of the golden corpora
   (`analysis/pii/tests/data/golden-true-positives.tsv`,
@@ -265,53 +254,10 @@ that could be real, it is replaced, and the tests say so:
   names by `example.com`.
 - An SSN known to have been published in an advertisement is left out.
 
-## Golden files
-
-JVM goldens come from the goldens tool (`analysis/goldens-tool`), as for
-the other OpenNLP ports ([analysis.md](analysis.md#golden-files)).
-
-- Inputs: the `pii` set, `analysis/goldens/data/inputs/pii/`, 61 texts
-  written for the packs with only documented test values, example ranges
-  and made up values.
-- Goldens: `analysis/goldens/data/pii/<pack>/pii/<id>.golden`, one
-  directory per pack (`payment`, `contact`, `network`, `secrets`,
-  `crypto`, `us-identity`, `eu-identity`, `ca-identity`, `device`,
-  `all-structured`), from `PiiAnnotator` over the `PiiPacks` extractor.
-  Layer `turbo:pii` with the columns `start`, `end` (UTF-8 byte offsets),
-  `type` and `normalized`; the `config pack` record names the pack.
-- Rewrite goldens: `pii-rewrite/<pack>/pii/<id>.golden` under the same
-  data directory, what `Masker` (with `MaskPolicies.byType()` and with
-  `#`), `Pseudonymizer`, `HmacTokenizer` and `PiiAuditReport` make of
-  the pack's mentions under the test key in the `config key` record: the
-  masked text's edits as `turbo:view`, the text with every mention
-  masked, both rewrites or the exception each threw, their labels with
-  the spans they replaced, and the audit report by type and as text.
-  `analysis/goldens-tool/README.md` lists the columns. A character
-  OpenNLP masks is written as one mask byte per UTF-8 byte, as here.
-
-Make them in the recipe container with
-
-```
-cargo run -p turbo-goldens-tool -- generate
-```
-
-`analysis/pii/tests/goldens.rs` runs every pack with
-`PiiDetector::keeping_nested` over the set and compares the layer with
-the goldens row for row; while the `pii` golden directory is not on disk
-it says so and passes. The differential fuzzer covers the ten packs in
-the same parity mode (`analysis/fuzz/src/runs/pii.rs`), and the `pii`
-set is among the sets it writes generated texts into.
-
-`analysis/pii/tests/rewrite_goldens.rs` runs every pack (with
-`keeping_nested`) and `MaskedView` over the set and compares the masked
-view's edits, the fully masked text, both rewrites (or that both sides
-refuse overlapping mentions; the Java message gives UTF-16 offsets, so
-only the refusal is compared), the labels with the spans they replaced
-and the offset map at them, and the audit report, exactly. While the
-`pii-rewrite` golden directory is not on disk it says so and passes. The
-differential fuzzer leaves these runs out (`NOT_COVERED` in
-`analysis/fuzz/src/runs/catalog.rs`), since they compare texts and
-reports rather than layers.
+`analysis/pii/tests/goldens.rs` and `analysis/pii/tests/rewrite_goldens.rs`
+verify pack detection, masking, `MaskedView` edits, pseudonymization,
+HMAC tokenization, and audit reports across the 61-document `pii` fixture
+set.
 
 ## Precision and recall
 
@@ -328,7 +274,9 @@ found mention is false. `PII_SHOW_FALSE=1` lists the false mentions.
 `precision_and_recall_on_the_synthetic_set` runs on a labelled set made
 from a fixed seed (40 values of every kind built to pass their checks,
 each in a sentence, and near misses of the checksummed kinds with no
-label) together with OpenNLP's golden true and false positive corpora:
+label) together with the checked-in true and false positive corpora
+(`analysis/pii/tests/data/golden-true-positives.tsv` and
+`analysis/pii/tests/data/golden-false-positives.txt`):
 1112 texts, 720 labels made in the test.
 
 | | true | false | missed | precision | recall |
@@ -550,17 +498,3 @@ What the false positives and misses are:
   scanners skip; and the second occurrence of `490154203237518` in
   `"Note that 490154203237518 begins with..."` (`operational-memos.txt`)
   has no immediately preceding `IMEI` keyword.
-
-## Parity checks
-
-Besides the goldens, a scratch differential (a JVM oracle over the same
-OpenNLP commit and a Rust one, kept out of the tree) compared every pack
-and the default cursor extractor on more than 500,000 generated texts, and the
-masking, pseudonymizing, keyed labels, offset maps and audit reports on
-20,000, with no difference. A second one ran the generator's
-`PiiRewriteGolden` over 20,000 texts (a quarter from the fuzz corpus,
-the rest values of the `pii` set run together, cut and mixed with
-non-ASCII text) with every pack, and compared its 200,000 goldens with
-the masked view, the rewrites, the labels and the audit report: no
-difference over 955,007 masked characters, 102,992 labels, 4,562
-refused rewrites and 60,496 audited mentions.

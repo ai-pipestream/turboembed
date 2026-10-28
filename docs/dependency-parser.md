@@ -1,7 +1,7 @@
 # Dependency parsing
 
-`turbo-depparse` implements OpenNLP 3.x arc-standard parsing, training,
-UAS/LAS evaluation and document annotation (inventory 68, 69, 72).
+`turbo-depparse` implements arc-standard transition-based dependency parsing,
+training, UAS/LAS evaluation and document annotation.
 Eight permissive UD 2.16 dependency parser models (four languages x MaxEnt and
 Feedforward) are listed in the built-in model zoo under release
 `models-ud-depparse-2.16-1`.
@@ -102,8 +102,8 @@ Each recipe gates its full-budget pseudo-projective candidate (`100` GIS
 iterations for MaxEnt, `5` AdaGrad epochs for Feedforward across all training
 sentences) against a single-step projective-only internal baseline
 (`<model_id>-projective-baseline`: `1` GIS iteration for MaxEnt, `1` AdaGrad
-epoch for Feedforward trained on projective sentences only). Because Apache
-OpenNLP publishes no pre-trained UD dependency parser models in the zoo, the
+epoch for Feedforward trained on projective sentences only). Because no external
+pre-trained UD dependency parser baseline is bundled in the zoo, the
 paired bootstrap gate (`gate.json` on LAS, `gate-uas.json` on UAS) verifies
 end-to-end learning and non-projective retention over that single-step internal
 baseline rather than comparing against an equal-budget external parser (such as

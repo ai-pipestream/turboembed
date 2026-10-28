@@ -3,7 +3,7 @@
 The full-corpus run for #923 rejects publication of all 4 CRF models.
 The CRF's micro F1 is 44.66 across person, location, organization and date,
 compared with 51.71 for maxent trained on the same MASC split and 56.03 for
-the published OpenNLP 1.5 models. On the 3 types supported by namefind-dl,
+the published 1.5 reference models. On the 3 types supported by namefind-dl,
 the scores are 44.24, 53.96 and 80.12 respectively. No model or zoo entry
 is published by this change.
 
@@ -22,7 +22,7 @@ Training is BIO, feature cutoff 2, L2 1.0 and 100 optimizer iterations.
 Model ZIP timestamps are fixed at zero. The matched maxent baseline uses
 GIS, cutoff 0, 300 iterations and 1 thread on the same training documents.
 Each type has its own model and gold annotation set. Both inference paths
-use the existing OpenNLP feature generators. CRF previous-label features
+use the same token and window feature generators. CRF previous-label features
 receive constant `other` history and adaptive state resets each sentence;
 maxent preserves its normal document-adaptive behavior. This evaluates
 the current shipped recipes, not a controlled comparison of optimizers
@@ -112,8 +112,8 @@ cargo run --locked --release -p turbo-namefind-dl --example masc_predict -- BUND
 cargo run --locked --release -p turbo-train-recipes --example crf_compare_dl -- MASC_DIRECTORY OUTPUT PREDICTIONS_JSON
 ```
 
-`REFERENCES` contains the digest-checked OpenNLP 1.5 English person,
-location, organization and date models. The first command refuses an
+`REFERENCES` contains the digest-checked 1.5 English person,
+location, organization and date reference models. The first command refuses an
 existing per-type output directory. The prediction command refuses an
 existing output file. The comparison command writes reports and returns
 success when report generation succeeds, even when a reported gate fails;

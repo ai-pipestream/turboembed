@@ -1,123 +1,14 @@
 # turbo-geo
 
-The gazetteer API of the OpenNLP addons `geo` module and its gazetteers,
-ported to Rust: the bundled Natural Earth table, GeoNames and Overture
-tables the caller supplies, user tables with suppression rules, records
-built in code, and the overlay. The crate documentation (`src/lib.rs`)
-describes the index and where OpenNLP's behaviour is surprising;
-`data/README.md` gives the bundled table's origin.
+Offline gazetteer entity extraction (`GeoEntityLinker`) and forward/reverse geocoding (`Geocoder`) over a compact memory-mappable binary index (`TRBGEO\x01\x00`), scoring candidate Administrative, Country, and Place entries by fuzzy matching, hierarchical containment, population prior, and proximity clustering without network dependencies.
 
-## Golden files
+## Features
 
-`tests/jvm_goldens.rs` compares the crate with the `gazetteer` goldens of
-`analysis/goldens/data`, which `turbo-goldens generate` writes in the
-recipe's container ("Gazetteer goldens" in
-`analysis/goldens-tool/README.md`). Nothing calls the JVM at test time.
+- **Gazetteer entity linking (`GeoEntityLinker`)**: Matches named-entity location spans (`analysis/geo/src/linker/mod.rs`) against a memory-mapped or owned `GeoIndex` (`analysis/geo/src/index.rs`), combining normalized exact-key and fuzzy lookup (`analysis/geo/src/fold.rs`, `analysis/geo/src/linker/fuzzy.rs`) with country/region context boosts and spatial clustering (`analysis/geo/src/linker/spatial.rs`).
+- **Forward and reverse geocoding (`Geocoder`, `GeocodeAnnotator`)**: Resolves free-form place strings and coordinate pairs (`analysis/geo/src/geocode.rs`, `analysis/geo/src/geocode/annotator.rs`) into structured `GeoPlace` layers on `Document`.
+- **Multi-source data compilers**: Ingestion builders for GeoNames (`analysis/geo/src/geonames.rs`), Overture Maps (`analysis/geo/src/overture.rs`), and administrative hierarchy overlays (`analysis/geo/src/overlay.rs`, `analysis/geo/src/containment.rs`), plus an embedded starter gazetteer (`analysis/geo/src/bundled.rs`).
 
-| Run | Gazetteer | Inputs |
-|---|---|---|
-| `naturalearth-populated-places` | `BundledGazetteer` | `names-*`, `ids`, `regions` |
-| `gazetteer-geonames` | `GeoNamesGazetteer` over `fixtures/gazetteer-geonames.txt` | the same |
-| `gazetteer-overture` | `OvertureGazetteer` over `fixtures/gazetteer-overture.txt` | the same |
-| `gazetteer-user` | `UserGazetteer` over `fixtures/gazetteer-user.txt`, source `sites` | the same |
-| `overlay` | `OverlayGazetteer`: the bundled gazetteer, the user table as additions, `fixtures/gazetteer-suppressions.txt` | the same |
-| `load-geonames`, `load-overture`, `load-user`, `load-suppressions` | the loader of that kind of table | `table-<kind>-*` |
+## Testing, Accuracy, and Speed
 
-For every line of a `names` input the test compares the entries `lookup`
-returns, in order, with every field (coordinates bit for bit, attributes
-sorted by key); for `ids` the entry `by_id` returns, and for `regions` the
-entry `by_region` returns or the message of the refused code. For a table
-it compares whether it loads and, when it does not, OpenNLP's message, and
-the rules of a suppression table. A second test checks that the bundled
-table is the bytes of the resource in the OpenNLP jar (the SHA-512 in the
-golden's model record).
-
-## Place profiles
-
-`PlaceProfiles` ports `opennlp.geo.PlaceProfiles`: a tab separated table of
-numeric metrics per place (no data is bundled, in OpenNLP or here), each
-column standardized to mean zero and unit population variance, and places
-ranked by cosine similarity. The standardization is OpenNLP's `BigDecimal`
-arithmetic, exact but for the same 34-digit roundings, so profiles and
-similarities match the JVM bit for bit. `tests/profile_goldens.rs` compares
-every `place-profiles` golden ("Place profile goldens" in
-`analysis/goldens-tool/README.md`): the load result or OpenNLP's message,
-the standardized profiles, the similarity of every pair and `mostSimilar`
-with the counts 1, 2 and all.
-
-## Load time and memory
-
-`examples/load_report.rs` measures them:
-
-```
-cargo run --release -p turbo-geo --example load_report -- bundled
-cargo run --release -p turbo-geo --example load_report -- synthesize 12400000 all.txt
-cargo run --release -p turbo-geo --example load_report -- geonames all.txt all.snapshot
-```
-
-`synthesize` writes a made up table in the GeoNames format with as many
-rows as `allCountries.txt` and a similar spread of alternate names and
-scripts, for when the real file is not at hand.
-
-## Linking cost
-
-`GeoEntityLinker::link_mentions` builds a document's context once: every
-candidate's Geohash with its centre (each distinct hash decoded once), and
-small ids for mention keys and candidate hash lists, which each mention's
-scoring borrows instead of copying. Mentions with the same key and candidate
-hashes share one Geohash scoring. `examples/linker_bench.rs` times it on made
-up documents of 10, 100 and 1000 mentions with the allocations of one run,
-the peak resident set and a checksum of every score's bits, which two builds
-can compare:
-
-```
-cargo run --release -p turbo-geo --example linker_bench -- 5
-```
-
-## Names in running text
-
-`name_image` (on `InMemoryGazetteer`, `BundledGazetteer`, `GeoNamesGazetteer`,
-`OvertureGazetteer` and `UserGazetteer`) writes the gazetteer's distinct match
-keys as one `turbo-glossary` automaton image, and `NameFinder` reads it in place
-(from an `ImageBuf`, any 4-byte aligned slice or a mapped file) to find every
-run of word tokens in a text whose match key is a name: the text's UAX #29 word
-tokens are folded one by one as a name is, joined by one space, and the
-automaton matches at token edges. `find_all` gives every name, nested and
-overlapping ones included; `find` keeps the leftmost, then the longest.
-`lookup_key` gives a match's records without folding again. `NameAnnotator`
-writes the `find` matches as `location` entities, so `GeocodeAnnotator` and
-`GeoEntityLinker` can resolve mentions no model tagged; use the mention policy
-below with it.
-
-`tests/names.rs` checks the finder against the gazetteer itself: on the bundled
-table and on random gazetteers of accented, Greek, Han and punctuated names, a
-match is exactly a run of tokens whose `lookup` finds a record, and its key's
-records are that lookup's. `examples/names_bench.rs` times it against looking
-up every run of tokens up to the longest name with `Gazetteer::lookup`, which
-finds the same names, the two alternating run by run. On a Zen 5 desktop, one
-pinned core, release, about 2 MB of text (the bundled row at a load average of
-4, the GeoNames row at 13 to 26 of 32 threads, from other work):
-
-| Gazetteer | Keys | Longest | Heap | Image | Image load | Lookup of every run | Name finder |
-|---|---|---|---|---|---|---|---|
-| bundled | 7,698 | 7 tokens | 1.8 MB | 1.0 MB | 0.25 ms | 387 ms | 32 ms |
-| GeoNames `cities15000` | 313,840 | 112 tokens | 17.9 MB | 41.8 MB | 16 ms | 95,087 ms | 163 ms |
-
-The image of a table with many alternate names in many scripts is larger
-than the index it was written from: the index stores each key once, the
-automaton a state per character of every key.
-
-## Dictionary mention admission
-
-Gazetteer aliases are lookup keys, not evidence that every matching token
-is a place. The bundled `S` and `C` aliases can resolve possessive `s` or a
-scientific `c` to Sao Paulo or Cordoba with a population-prior score of 0.9.
-That score describes candidate separation, not entity recognition accuracy.
-
-For dictionary-generated candidates, use
-`GeocodeAnnotator::new(geocoder).with_mention_policy(MentionPolicy::ExcludeSingleAsciiLetters)`.
-This rejects single ASCII letters before the geocoder receives any context.
-It keeps original entity annotations and preserves eligible mention spans.
-The default `All` policy retains OpenNLP behavior. Non-ASCII names remain
-eligible; legitimate single-letter ASCII names require `All` or a separate
-pipeline. This narrow filter does not replace contextual disambiguation.
+- **Test suite**: Covered by `analysis/geo/tests/bundled.rs`, `analysis/geo/tests/loaders.rs`, `analysis/geo/tests/mention_admission.rs`, `analysis/geo/tests/names.rs`, `analysis/geo/tests/overlay.rs`, and `analysis/geo/tests/snapshot.rs`.
+- **Accuracy and speed**: Memory-mapped `TRBGEO\x01\x00` lookup runs in zero-copy read-only slices with $O(1)$ exact-hash lookup and bounded candidate scoring. See `analysis/geo/data/README.md` for gazetteer provenance and licensing.

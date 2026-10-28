@@ -1,100 +1,14 @@
 # turbo-stem
 
-OpenNLP 3.x's stemmers and layered term analyzer, ported to Rust:
-`PorterStemmer`, the 21 Snowball stemmers of `opennlp.tools.stemmer.snowball`,
-the 16 light and minimal stemmers of `opennlp.tools.stemmer.light` (the two
-Norwegian ones for each of three choices of written standard),
-`CachingStemmer`, `StemmerAnnotator` (here `StemAnnotator`) as an analysis step
-that reads `opennlp:tokens` and writes `turbo:stems`, and the layered term
-analyzer (`Dimension`, `Term`, `TermAnalyzer`, `NormalizationProfile`,
-`NormalizationProfiles`, and `TermAnnotator`, which reads `opennlp:tokens` and
-optional `opennlp:language`, `opennlp:pos`, and `opennlp:lemmas` and writes
-`turbo:terms`; both `Stems` and `Terms` are defined in `turbo-analysis-layers`
-and re-exported by `turbo-stem-layers`). The crate documentation (`src/lib.rs`)
-describes the modules and where OpenNLP's behaviour is surprising.
+Deterministic algorithmic stemmers (`Stemmer` trait) for English and multilingual text analysis: Porter (`PorterStemmer`), Snowball across 29 languages (`SnowballStemmer`), and light inflectional stemmers (`analysis/stem/src/light/mod.rs`).
 
-It follows OpenNLP at commit `cdf33c653d5d61d5af7d37ffee189a83bd8392ea` of the
-OpenNLP fork. The light and minimal stemmers there are the same files as on
-the `ready/light-stemmers` branch of opennlp-addons (commit
-`14bcaffef2c1c4a579a2a8df03edbd09a1193192`).
+## Features
 
-The Snowball stemmers are generated code; `snowball/README.md` says from what
-and how.
+- **Unified `Stemmer` trait (`analysis/stem/src/lib.rs`, `analysis/stem/src/stemmer.rs`, `analysis/stem/src/term.rs`)**: Borrowed-or-owned (`Cow<str>`) token stemming with zero allocation when a token equals its stem, plus `StemmerAnnotator` (`analysis/stem/src/annotate.rs`) for `Document` pipelines (`Stems` layer).
+- **Porter and 29-language Snowball stemmers (`analysis/stem/src/porter.rs`, `analysis/stem/src/snowball/mod.rs`)**: Algorithmic suffix stripping for Arabic, Armenian, Basque, Catalan, Danish, Dutch, English, Esperanto, Estonian, Finnish, French, German, Greek, Hindi, Hungarian, Indonesian, Irish, Italian, Lithuanian, Nepali, Norwegian, Portuguese, Romanian, Russian, Serbian, Spanish, Swedish, Tamil, Turkish, and Yiddish.
+- **Light morphological stemmers (`analysis/stem/src/light/mod.rs`)**: High-precision inflection strippers (`analysis/stem/src/light/english_minimal.rs`, `analysis/stem/src/light/french_light.rs`, `analysis/stem/src/light/german_light.rs`, `analysis/stem/src/light/italian_light.rs`, `analysis/stem/src/light/portuguese_light.rs`, `analysis/stem/src/light/russian_light.rs`, `analysis/stem/src/light/spanish_light.rs`) tuned for information-retrieval recall without over-stemming.
 
-## Golden files
+## Testing, Accuracy, and Speed
 
-`tests/golden.rs` compares every stemmer with goldens a JVM running OpenNLP
-wrote: the `stem` runs of `analysis/goldens-tool` (`StemGolden.java`), made in
-its container by `turbo-goldens generate` and checked by `turbo-goldens
-verify`. Nothing calls the JVM at test time. A run's goldens are
-`analysis/goldens/data/stem/<stemmer>/stem/<input>.golden`, one per input it
-reads, each with the layer `turbo:stems`: every word of the input and the stem
-OpenNLP returned for it.
-
-| File | Contents |
-|---|---|
-| `inputs/stem/<language>.txt` | About 1,000 words of the language's Snowball reference vocabulary (`voc.txt` of snowball-data at `da07690d20ce69ee16b5fb95796f92090cc9b4a1`): every n-th line from the first, for the 16 languages whose data is under snowball-data's BSD license. Arabic (GPL 3), Catalan, French, Greek and Indonesian (in part from Wikipedia, CC BY-SA) have none |
-| `tests/snowball/<language>.txt` (this crate) | The same lines of `output.txt`: Snowball's own stems of those words |
-| `inputs/stem/edge.txt` | 135 words every stemmer gets: the empty word, short words and bare suffixes, upper and mixed case, digits, apostrophes and hyphens, combining accents, words of several scripts, a word of 104 letters, supplementary characters, and lone surrogates |
-| `inputs/stem/generated-<language>.txt` | 1,000 words per language (and for `porter`): a random base of the language's letters with one or two endings from its Snowball suffix tables and its light stemmers' endings, some with an upper-case letter, a digit, an apostrophe, a hyphen, a combining accent, a supplementary character or a lone surrogate mixed in |
-
-The samples are taken with `awk -v s="$step" '(NR - 1) % s == 0'` over
-`voc.txt` and `output.txt` of each language's directory of snowball-data, where
-`step` is the number of lines divided by 1,000, rounded up. No word in them has
-a backslash or starts with `#`, so the lines need no escapes.
-
-There are 46 stemmers: `porter` (`PorterStemmer`), `snowball-<language>` for
-each `SnowballStemmer.ALGORITHM`, `snowball-<language>-repeat2` for English,
-German, Russian and Turkish with a repeat count of 2, and one per light or
-minimal stemmer (`norwegian-light-bokmaal`, `-nynorsk` and `-both`, and the
-same for the minimal one). Each gets the sample of its language when there is
-one, `edge.txt`, and the generated words of its language, each through a new
-Java instance: 90,713 words in all.
-
-A word of an input is one line: the backslash, tab, line feed, carriage return,
-other C0 controls, lone surrogates and a leading `#` are escaped (`\\`, `\t`,
-`\n`, `\r`, `\uXXXX`, one UTF-16 unit each); everything else is UTF-8. A line
-that starts with `#` is a comment. In a golden a word and its stem are written
-as `TrainGolden.lossless` writes them: a backslash doubled, a lone surrogate as
-`\uXXXX`.
-
-`tests/golden.rs` also checks the Snowball stemmers against the samples in
-`tests/snowball/`.
-
-## The full Snowball vocabularies
-
-`tests/snowball_vocabulary.rs` stems every word of snowball-data (10.4 million
-words, most of them Arabic) when `TURBO_SNOWBALL_DATA` names a checkout of
-it, and passes without checking anything otherwise:
-
-```sh
-TURBO_SNOWBALL_DATA=/path/to/snowball-data cargo test --release -p turbo-stem --test snowball_vocabulary -- --nocapture
-```
-
-At snowball-data commit `da07690d20ce69ee16b5fb95796f92090cc9b4a1` (January
-2025, which updated the data for the Snowball commit OpenNLP's classes were
-generated from) every word of all 21 vocabularies stems to its line of
-`output.txt`.
-
-Snowball has changed several algorithms since. At snowball-data commit
-`a0ec0d0a2839ec885878868de20fcb63209d92b0` (June 2026), these words of the
-vocabulary of that commit stem differently, so OpenNLP's stems are not current
-Snowball's for them:
-
-| Language | Words that differ | Of | Examples (OpenNLP, then current Snowball) |
-|---|---:|---:|---|
-| Danish | 35 | 23,868 | `bbc's` bbc's / bbc |
-| Dutch | 20,897 | 45,670 | `aalmoezen` aalmoez / aalmoes: Snowball's `dutch` is now the Kraaij-Pohlmann algorithm, and the one OpenNLP has is `dutch_porter` |
-| English | 50 | 42,649 | `emergency` emerg / emergenc |
-| Finnish | 183 | 84,399 | `abachan` abachan / abach |
-| French | 838 | 21,653 | `bijoux` bijoux / bijou, `c'est` c'est / est |
-| German | 915 | 35,053 | `abgeleitet` abgeleitet / abgeleit |
-| Italian | 1,867 | 37,426 | `all'acqua` all'acqu / acqua |
-| Norwegian | 154 | 20,913 | `binders` bind / binders |
-| Spanish | 9 | 28,378 | `educacion` educacion / educ |
-| Swedish | 506 | 30,738 | `aftonbladet` aftonbladet / aftonblad |
-| Turkish | 78 | 96,325 | `a'ya` a / a'ya |
-
-Arabic, Catalan, Greek, Hungarian, Indonesian, Irish, Portuguese, Romanian,
-Russian and Snowball's Porter agree with current Snowball on every word of
-their current vocabularies.
+- **Test suite**: Verified against the official Snowball and Porter vocabulary fixtures in `analysis/stem/tests/snowball_vocabulary.rs`, `analysis/stem/tests/golden.rs`, and `analysis/stem/tests/pipeline.rs`.
+- **Accuracy and speed**: Zero-regex slice state machines operating in a single forward/backward pass at multi-million words per second on CPU.
