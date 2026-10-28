@@ -60,7 +60,7 @@ fn cut_vectors_are_the_pooled_vectors_first_values_normalized_after_the_cut() {
         assert_eq!((vs.dim, Layer::len(vs), vc.dim, Layer::len(vc)), (w, 12, w, 2));
         let mut windows = 0;
         for (g, f) in [(&vs.data, &sentence_vectors(&want[0]).data), (&vc.data, &chunk_vectors(&want[0]).data)] {
-            for (g, f) in g.chunks_exact(w as usize).zip(f.chunks_exact(32)) {
+            for (g, f) in g.chunks_exact(w as usize).zip(f.as_chunks::<32>().0) {
                 let mut f = f[..w as usize].to_vec();
                 normalize(&mut f);
                 assert_eq!(g, &f[..], "width {w}: the pooled vector cut, then normalized");
