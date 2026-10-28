@@ -1,11 +1,13 @@
 {
   "record_version": 1,
-  "recorded_at": "2026-10-28T01:52:27Z",
+  "recorded_at": "2026-10-28T08:13:32Z",
   "provenance": {
-    "commit": "16e74c040898d961d0c50e4e9bf1412f1722f86c",
+    "commit": "0d58e8629e85345b5c585c4beffa39b66a63c248",
     "pushed_to": [
-      "origin/claude/172-cuda-records",
-      "origin/claude/172-dump-cuts"
+      "origin/claude/1461-cpu",
+      "origin/claude/1461-levelzero",
+      "origin/claude/1461-levelzero-f16",
+      "origin/main"
     ],
     "machine": {
       "arch": "x86_64",
@@ -35,7 +37,7 @@
   },
   "pipeline": {
     "analyzer": [
-      "opennlp:sentences maxent opennlp-en-ud-ewt-sentence-1.3-2.5.4.bin sha256 4de58d12b09421003c8b1ba13e8b58ec533b28e1f22a65272119dc0993d333e8 abbreviations 5828191ce3975517",
+      "turbo-sentdetect:rules en version 3 config 5533cc9561ce8998",
       "turbo:structure plain",
       "opennlp:subwords"
     ],
@@ -1385,10 +1387,10 @@
   },
   "cost": {
     "wall": {
-      "analysis_ms": 87.011824,
-      "chunking_ms": 1.469943,
-      "embedding_ms": 11593.713555,
-      "retrieval_ms": 229.892483
+      "analysis_ms": 305.699349,
+      "chunking_ms": 2.114245,
+      "embedding_ms": 33923.710835,
+      "retrieval_ms": 460.992656
     },
     "tokens_embedded": 1235343,
     "chunks": 7851,

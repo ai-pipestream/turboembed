@@ -1,14 +1,14 @@
-== turbo-chunker-254-200-cohesion-1000-hybrid 2026-10-28T01:57:30Z 16e74c040898d961d0c50e4e9bf1412f1722f86c load 23.35 33.63 24.74
+== turbo-chunker-254-200-cohesion-1000-hybrid 2026-10-28T08:02:00Z 0d58e8629e85345b5c585c4beffa39b66a63c248 load 69.57 53.78 43.12
 target/release/turbo-eval run --bundle <bundles>/all-minilm-l6-v2-r4 --sets scifact,nfcorpus,arguana,qasper --cache <cache> --device cpu --retrieval hybrid --out <records>/cpu/turbo-chunker-254-200-cohesion-1000-hybrid --dump-cuts <dumps>/cpu/turbo-chunker-254-200-cohesion-1000-hybrid --chunker turbo-chunker --max 254 --target 200 --cohesion 1000
-set scifact: the cuts of 5183 documents in <dumps>/cpu/turbo-chunker-254-200-cohesion-1000-hybrid/scifact.cuts
-set nfcorpus: the cuts of 3633 documents in <dumps>/cpu/turbo-chunker-254-200-cohesion-1000-hybrid/nfcorpus.cuts
+set scifact: the cuts of 5183 documents in artifact scifact.cuts
+set nfcorpus: the cuts of 3633 documents in artifact nfcorpus.cuts
 set arguana: 5 judgements name a document the set does not have and are kept, never retrieved
-set arguana: the cuts of 8674 documents in <dumps>/cpu/turbo-chunker-254-200-cohesion-1000-hybrid/arguana.cuts
+set arguana: the cuts of 8674 documents in artifact arguana.cuts
 set qasper: 21 judgements could not be placed in their document and are left out
-set qasper: the cuts of 416 documents in <dumps>/cpu/turbo-chunker-254-200-cohesion-1000-hybrid/qasper.cuts
+set qasper: the cuts of 416 documents in artifact qasper.cuts
 <records>/cpu/turbo-chunker-254-200-cohesion-1000-hybrid/scifact.json
 <records>/cpu/turbo-chunker-254-200-cohesion-1000-hybrid/nfcorpus.json
 <records>/cpu/turbo-chunker-254-200-cohesion-1000-hybrid/arguana.json
 <records>/cpu/turbo-chunker-254-200-cohesion-1000-hybrid/qasper.json
-wall 167.73 s maxrss 621684 KB
-exit 0 load 32.81 33.89 26.32
+wall 488.77 s maxrss 638032 KB
+exit 0 load 69.50 69.73 56.11
