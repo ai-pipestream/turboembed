@@ -39,7 +39,10 @@ protos by the `proto` CI job. Its pins are exact, in
 `demo/web/package.json` and its lockfile: the `buf` CLI 1.70.0
 (`@bufbuild/buf`, the version the `proto` job lints with),
 `@bufbuild/protoc-gen-es` 2.16.0, `@bufbuild/protobuf` 2.16.0, and
-`@connectrpc/connect` and `@connectrpc/connect-web` 2.2.0.
+`@connectrpc/connect` and `@connectrpc/connect-web` 2.2.0. The page
+itself is bundled into `demo/static/app.js` by `scripts/build-web.sh`
+with TypeScript 7.0.2 and esbuild 0.28.2, pinned the same way and
+checked by the same job.
 
 Running the workflow by hand (`workflow_dispatch`) is the dry run: it
 builds and checks the release archives and client stubs and keeps them,

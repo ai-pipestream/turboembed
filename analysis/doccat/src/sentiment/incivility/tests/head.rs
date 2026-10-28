@@ -201,3 +201,87 @@ fn encoder_strings_at_the_cap_round_trip_and_longer_ones_are_refused_at_bind() {
         assert!(matches!(r, Err(IncivilityHeadError::Value(_))), "part {which}");
     }
 }
+
+#[test]
+fn zoo_loader_resolves_bound_head_bytes_and_rejects_non_head_artifacts() {
+    use turbo_zoo::{Acceptances, Index, Offline, Policy, Sha256, Sha512, UserId, Zoo};
+    let dir = std::env::temp_dir().join(format!("turbo-incivility-zoo-test-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let m =
+        ModelRef { id: "sentence-transformers/all-MiniLM-L6-v2".into(), revision: "2".into(), sha256: "a".repeat(64) };
+    let bound = two_wide().with_model(m).unwrap();
+    let bytes = bound.to_bytes();
+    let sha256 = Sha256::of(&bytes);
+    let sha512 = Sha512::of(&bytes);
+    let art_dir = dir.join(CIVIL_COMMENTS_MINILM_HEAD);
+    std::fs::create_dir_all(&art_dir).unwrap();
+    std::fs::write(art_dir.join("head.tivh"), &bytes).unwrap();
+    let index_json = format!(
+        r#"{{
+  "zoo_version": 1,
+  "artifacts": [
+    {{
+      "id": "{id}",
+      "kind": "KIND_HEAD",
+      "component": "COMPONENT_DOCUMENT_CATEGORIZER",
+      "language": "en",
+      "format": "FORMAT_HEAD",
+      "version": "1",
+      "license": "Apache-2.0",
+      "license_terms": "https://www.apache.org/licenses/LICENSE-2.0",
+      "trained_on": [
+        {{
+          "name": "Civil Comments",
+          "license": "CC0-1.0",
+          "license_terms": "https://creativecommons.org/publicdomain/zero/1.0/"
+        }}
+      ],
+      "class": "CLASS_PERMISSIVE",
+      "attribution": "Trained on Civil Comments (Borkan et al., WWW 2019, CC0-1.0).",
+      "files": [
+        {{
+          "path": "head.tivh",
+          "url": "https://example.org/models/{id}.tivh",
+          "size": {len},
+          "sha256": "{sha256}",
+          "sha512": "{sha512}"
+        }}
+      ]
+    }}
+  ]
+}}"#,
+        id = CIVIL_COMMENTS_MINILM_HEAD,
+        len = bytes.len(),
+        sha256 = sha256,
+        sha512 = sha512,
+    );
+    let index = Index::parse(index_json.as_bytes()).unwrap();
+    let zoo = Zoo::new(index, dir.clone(), Policy::default(), &Offline);
+    let user: UserId = "test".parse().unwrap();
+    let loaded =
+        IncivilityVectorHead::from_zoo(&zoo, CIVIL_COMMENTS_MINILM_HEAD, &user, || Ok(Acceptances::default())).unwrap();
+    assert_eq!(loaded, bound);
+    assert!(matches!(
+        IncivilityVectorHead::from_zoo(&zoo, "missing-head", &user, || Ok(Acceptances::default())),
+        Err(IncivilityZooError::Zoo(_))
+    ));
+    let builtin_index = Index::builtin();
+    let builtin = Zoo::new(builtin_index.clone(), dir.clone(), Policy::default(), &Offline);
+    assert!(matches!(
+        IncivilityVectorHead::from_zoo(&builtin, "civil-comments", &user, || Ok(Acceptances::default())),
+        Err(IncivilityZooError::NotAHead { .. })
+    ));
+    for id in [
+        CIVIL_COMMENTS_MINILM_HEAD,
+        CIVIL_COMMENTS_MINILM_CONTEXT_HEAD,
+        CIVIL_COMMENTS_BGE_SMALL_HEAD,
+        CIVIL_COMMENTS_BGE_SMALL_CONTEXT_HEAD,
+    ] {
+        let entry = builtin_index.get(id).unwrap();
+        assert_eq!(entry.kind, turbo_zoo::Kind::Head);
+        assert_eq!(entry.format, turbo_zoo::Format::Head);
+        assert_eq!(entry.class, turbo_zoo::LicenceClass::Permissive);
+    }
+    let _ = std::fs::remove_dir_all(&dir);
+}

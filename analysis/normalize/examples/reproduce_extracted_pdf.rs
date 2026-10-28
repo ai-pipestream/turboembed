@@ -52,6 +52,24 @@ const SOURCES: &[Source] = &[
         last: 7,
         mupdf: false,
     },
+    Source {
+        id: "leodar-111",
+        url: "https://data.mendeley.com/public-files/datasets/9mrxwtfh6w/files/e83d0706-ea0f-466e-b3fb-e95a9ccfd802/file_downloaded",
+        pdf_sha: "5fa80011faf2661c650cc4d9b7c8cd0e799e5276b29074c81ae51417a721b4e8",
+        text_sha: "51cde9a82c4603dcb3696521ce6f41221cfc026a4bb2b41c4ce4e8e022c3079b",
+        first: 111,
+        last: 111,
+        mupdf: false,
+    },
+    Source {
+        id: "leodar-116",
+        url: "https://data.mendeley.com/public-files/datasets/9mrxwtfh6w/files/e83d0706-ea0f-466e-b3fb-e95a9ccfd802/file_downloaded",
+        pdf_sha: "5fa80011faf2661c650cc4d9b7c8cd0e799e5276b29074c81ae51417a721b4e8",
+        text_sha: "116f31dc10e2ddc8075b02f548f5d2c39e226b9e98a7ae3b35b6692239fc43b5",
+        first: 116,
+        last: 116,
+        mupdf: false,
+    },
 ];
 fn require(ok: bool, detail: impl Into<String>) -> Result<()> {
     if ok { Ok(()) } else { Err(detail.into().into()) }

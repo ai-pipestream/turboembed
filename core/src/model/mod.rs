@@ -71,6 +71,29 @@ pub fn artifact_sha256(m: &Manifest, a: &Artifact) -> String {
     }
 }
 
+/// A manifest file's sha256 as bytes. validate() holds it to 64
+/// lowercase hex digits; anything else is all zero, which no backend
+/// takes as a digest.
+fn digest(hex: &str) -> [u8; 32] {
+    let mut out = [0u8; 32];
+    let b = hex.as_bytes();
+    if b.len() != 64 {
+        return out;
+    }
+    let nibble = |c: u8| match c {
+        b'0'..=b'9' => Some(c - b'0'),
+        b'a'..=b'f' => Some(c - b'a' + 10),
+        _ => None,
+    };
+    for (i, o) in out.iter_mut().enumerate() {
+        match (nibble(b[2 * i]), nibble(b[2 * i + 1])) {
+            (Some(h), Some(l)) => *o = h << 4 | l,
+            _ => return [0; 32],
+        }
+    }
+    out
+}
+
 /// A static model's tensors, in TURBO_STATIC_* order: its table, its
 /// weight per token and its token mapping, the last two optional.
 pub const STATIC_ROLES: [TensorRole; TURBO_STATIC_TENSORS as usize] =
@@ -149,6 +172,8 @@ pub struct Weights {
     artifact: Option<AlignedBytes>,
     /// An OpenVINO IR's second file, its weights (.bin), as hashed.
     artifact2: Option<AlignedBytes>,
+    /// The manifest's SHA-256 of those two files, zero where absent.
+    digests: [[u8; 32]; 2],
     /// TURBO_FORMAT_*, TURBO_INPUT_*, TURBO_OUTPUT_*, TURBO_DTYPE_* or 0,
     /// fixed_seq and fixed_batch, as the manifest gives the artifact.
     shape: [u32; 6],
@@ -185,6 +210,7 @@ impl Weights {
                 layer_norm_eps: 0.0,
                 artifact: None,
                 artifact2: None,
+                digests: [[0; 32]; 2],
                 shape: [art.format.value(), art.graph_input.value(), art.graph_output.value(), 0, 0, 0],
             });
         }
@@ -251,6 +277,13 @@ impl Weights {
             lookahead: a.lookahead.unwrap_or(0),
             relative: a.relative.map_or([0, 0], |r| [r.position_buckets, r.max_relative_positions]),
             layer_norm_eps: a.layer_norm_eps,
+            digests: match art.format {
+                Format::Hef | Format::OpenvinoIr => {
+                    let at = |i: usize| art.files.get(i).map_or([0; 32], |f| digest(&m.file(f).sha256));
+                    [at(0), if art.format == Format::OpenvinoIr { at(1) } else { [0; 32] }]
+                }
+                _ => [[0; 32]; 2],
+            },
             artifact,
             artifact2,
             shape: [
@@ -336,6 +369,8 @@ impl Weights {
             lookahead: self.lookahead,
             position_buckets: self.relative[0],
             max_relative_positions: self.relative[1],
+            artifact_sha256: self.digests[0],
+            artifact2_sha256: self.digests[1],
         }
     }
 
@@ -422,6 +457,17 @@ mod tests {
             let e = runs_family(b, TURBO_FAMILY_DEBERTA_V2).err().unwrap();
             assert_eq!(e.code, UNSUPPORTED);
             assert!(e.message.contains(&format!("the {b} backend has no DeBERTa-v2 encoder")), "{}", e.message);
+        }
+    }
+
+    /// A backend keys on the digest the manifest recorded, so it must be
+    /// the bytes sha256sum prints, and never a partial parse.
+    #[test]
+    fn a_manifest_digest_is_its_bytes_or_all_zero() {
+        let hex = turbo_sha256::sha256(b"weights").to_hex();
+        assert_eq!(digest(&hex), turbo_sha256::sha256(b"weights").0);
+        for bad in ["", &hex[..62], &hex.to_uppercase(), &format!("{}zz", &hex[..62])] {
+            assert_eq!(digest(bad), [0; 32], "{bad:?}");
         }
     }
 }

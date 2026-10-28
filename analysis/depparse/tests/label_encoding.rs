@@ -162,6 +162,7 @@ fn legacy_java_custom_labels_are_not_decoded_by_production_parsers() {
             .iter()
             .map(|t| match t {
                 Transition::Shift => Transition::Shift,
+                Transition::Swap => Transition::Swap,
                 Transition::LeftArc(r) => Transition::LeftArc(format!("{prefix}:{r}")),
                 Transition::RightArc(r) => Transition::RightArc(format!("{prefix}:{r}")),
             })

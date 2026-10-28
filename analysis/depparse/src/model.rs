@@ -40,14 +40,18 @@ impl DependencyModel {
         Ok(Self { classifier, transitions, identity, bytes: None, label_encoding: crate::LabelEncoding::Plain })
     }
     pub fn from_raw(bytes: &[u8]) -> Result<Self> {
-        Self::from_maxent(
+        let mut model = Self::from_maxent(
             MaxentModel::read(bytes).map_err(error)?,
             ModelRef {
                 id: "opennlp:DependencyParserME:raw".into(),
                 revision: "1".into(),
                 sha256: turbo_maxent::sha256(bytes).to_hex(),
             },
-        )
+        )?;
+        if model.transitions.contains(&Transition::Swap) {
+            model.identity.id = "turbo:SwapDependencyParser:raw".into();
+        }
+        Ok(model)
     }
     pub fn open(bytes: Vec<u8>) -> Result<Self> {
         let file = ModelFile::open(bytes.clone()).map_err(error)?;
@@ -56,7 +60,15 @@ impl DependencyModel {
         }
         let mut out = Self::from_raw(&file.entry(MODEL_ENTRY).map_err(error)?)?;
         out.identity = ModelRef {
-            id: format!("opennlp:DependencyParserME:{}", file.language()),
+            id: format!(
+                "{}:{}",
+                if out.transitions.contains(&Transition::Swap) {
+                    "turbo:SwapDependencyParser"
+                } else {
+                    "opennlp:DependencyParserME"
+                },
+                file.language()
+            ),
             revision: file.opennlp_version().into(),
             sha256: file.sha256().to_hex(),
         };
@@ -83,7 +95,7 @@ impl DependencyModel {
         samples: &[DependencySample<A>],
         params: &TrainingParameters,
     ) -> Result<Self> {
-        Self::train_with_projectivization(language, samples, params, true)
+        Self::train_with_mode(language, samples, params, crate::training::TrainingMode::PseudoProjective)
     }
     /// Train plain arc-standard labels. Every sample must already be projective;
     /// crossing trees produce an error rather than implicit sample filtering.
@@ -92,22 +104,32 @@ impl DependencyModel {
         samples: &[DependencySample<A>],
         params: &TrainingParameters,
     ) -> Result<Self> {
-        Self::train_with_projectivization(language, samples, params, false)
+        Self::train_with_mode(language, samples, params, crate::training::TrainingMode::Projective)
     }
-    fn train_with_projectivization<A: WordOrTokenAnchor>(
+    /// Train native SWAP transitions without label lifting or sample filtering.
+    pub fn train_swap<A: WordOrTokenAnchor>(
         language: &str,
         samples: &[DependencySample<A>],
         params: &TrainingParameters,
-        pseudo_projective: bool,
     ) -> Result<Self> {
-        let stream = DependencyEventStream::generate_with_projectivization(samples, pseudo_projective)?;
+        Self::train_with_mode(language, samples, params, crate::training::TrainingMode::Swap)
+    }
+    fn train_with_mode<A: WordOrTokenAnchor>(
+        language: &str,
+        samples: &[DependencySample<A>],
+        params: &TrainingParameters,
+        mode: crate::training::TrainingMode,
+    ) -> Result<Self> {
+        let stream = DependencyEventStream::generate_with_mode(samples, mode)?;
         let (model, report) =
             turbo_train::trainer::train_events(&stream.events, params, &mut TrainingConfiguration::default())
                 .map_err(error)?;
         let mut manifest = Manifest::new(COMPONENT_NAME, language, 0);
         manifest.set_training(&report);
-        let encoding = if pseudo_projective { crate::LabelEncoding::EscapedV1 } else { crate::LabelEncoding::Plain };
-        manifest.set("Turbo-Dependency-Label-Encoding", encoding.name());
+        manifest.set("Turbo-Dependency-Label-Encoding", mode.encoding().name());
+        if mode == crate::training::TrainingMode::Swap {
+            manifest.set("TransitionSystem", "ArcStandardSwap");
+        }
         let mut package = ModelPackage::new(manifest);
         package.add_entry(MODEL_ENTRY, model.write().map_err(error)?);
         Self::open(package.to_bytes())

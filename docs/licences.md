@@ -461,8 +461,10 @@ No external dataset or checkpoint is added by this audit.
 | Material and provenance | Licence | Project disposition and obligations |
 |---|---|---|
 | [Civil Comments / Jigsaw Unintended Bias in Toxicity Classification (2019)](https://www.tensorflow.org/datasets/catalog/civil_comments), comments from Civil Comments and crowd-labelled toxicity/identity annotations | CC0-1.0, including the underlying comment text according to the publisher's dataset catalogue | `CLASS_PERMISSIVE`: listed in the zoo as `civil-comments` (`KIND_DATASET`, `FORMAT_PARQUET`) from Google's [`google/civil_comments`](https://huggingface.co/datasets/google/civil_comments/tree/f2970eb3a55777454c94069077cc8d9b5866312d) repository at revision `f2970eb3a55777454c94069077cc8d9b5866312d` (`README.md`, `train-00000-of-00002.parquet`, `train-00001-of-00002.parquet`, `validation-00000-of-00001.parquet`, and `test-00000-of-00001.parquet`; checked on 2026-10-25, #945). May train redistributable models and be included in bundles. Record the release, source and digest even though CC0 requires no attribution. This approval does not cover the 2018 Wikipedia challenge or the multilingual challenge. |
+| Civil Comments WILDS subset, `all_data_with_identities.csv` with parent and identity annotations | CC0-1.0 per the [pinned mirror dataset card](https://huggingface.co/datasets/shlomihod/civil-comments-wilds/blob/3fbfeca80bad0f3aec37e72fa07eff222b6e752f/README.md) | `civil-comments-wilds`, `KIND_DATASET`, `FORMAT_CSV`, revision `3fbfeca80bad0f3aec37e72fa07eff222b6e752f`. CSV size 272,542,670 bytes, SHA-256 `403e638c83a225d738a937ff98b61fd0631e30f710d57928c7766d413526b77f`; size, SHA-256 and SHA-512 verified from the downloaded file. This is the source used by the four Civil Comments heads, separate from Google Parquet. |
 | [GoEmotions](https://github.com/google-research/google-research/tree/7de3624754e2b0f2f505ae496db3ba194bb40be9/goemotions), Google's released Reddit comments with 27 emotion labels plus neutral | **CC-BY-4.0 for data**, Apache-2.0 for source code: the [root README](https://github.com/google-research/google-research/blob/7de3624754e2b0f2f505ae496db3ba194bb40be9/README.md) states the distinction | `CLASS_PERMISSIVE` for this published dataset under the #326 approval: listed in the zoo at revision `7de3624754e2b0f2f505ae496db3ba194bb40be9` as `goemotions` (`KIND_DATASET`, `FORMAT_TSV`, the filtered train/dev/test split `train.tsv`, `dev.tsv`, and `test.tsv` with `README.md`, `emotions.txt`, `ekman_mapping.json`, and `sentiment_mapping.json`) and `goemotions-raw` (`KIND_DATASET`, `FORMAT_CSV`, the raw rater annotations `goemotions_1.csv`, `goemotions_2.csv`, and `goemotions_3.csv` at `storage.googleapis.com/gresearch/goemotions/data/full_dataset/`; checked on 2026-10-25, #945). Preserve Google Research/Demszky et al. attribution, source and licence links, and describe changes. Record whether raw annotations or the filtered train/dev/test split was used. This does not approve new Reddit collection or unrelated Reddit datasets. |
 | [Jigsaw sentence templates ("bias madlibs")](https://github.com/conversationai/unintended-ml-bias-analysis/tree/1244018d92bed14bd0a2b0197292add67dbac97f), `sentence_templates/en_sentence_templates.csv` and the identity terms of `archive/unintended_ml_bias/new_madlibber/input_data/en/en-us/words.csv`, synthetic sentences built from templates | **CC-BY-4.0 for data**, Apache-2.0 for code: the [README at that commit](https://github.com/conversationai/unintended-ml-bias-analysis/blob/1244018d92bed14bd0a2b0197292add67dbac97f/README.md) states both | `CLASS_PERMISSIVE`: evaluation only for the incivility bias metrics (#889); the files are not in the repository. Credit Jigsaw / Conversation AI with the source link, as `docs/sentiment.md` does where it reports numbers. |
+| [Toxic Spans](https://github.com/ipavlopoulos/toxic_spans/tree/beaf170538df8275c3447b2e26070f2f82e55272) (Pavlopoulos et al., SemEval-2021 Task 5 / ACL 2022), `ACL2022/data/toxic_spans.csv` and `data/comments.csv`, `data/annotations.csv`, `data/spans.csv` over Civil Comments posts | **CC0-1.0**: [`LICENSE` at `beaf170538df8275c3447b2e26070f2f82e55272`](https://github.com/ipavlopoulos/toxic_spans/blob/beaf170538df8275c3447b2e26070f2f82e55272/LICENSE) dedicates the dataset and character-span annotations to the public domain, over CC0-1.0 Civil Comments text | `CLASS_PERMISSIVE`: listed in the zoo as `toxic-spans` (`KIND_DATASET`, `FORMAT_CSV`) at revision `beaf170538df8275c3447b2e26070f2f82e55272` (`LICENSE`, `README.md`, `ACL2022/data/toxic_spans.csv`, `data/comments.csv`, `data/spans.csv`, and `data/annotations.csv`; checked on 2026-10-26, #890). Record the commit (`beaf170538df8275c3447b2e26070f2f82e55272`), file SHA-256 digests, and citation in `docs/sentiment.md`. |
 | Project-authored English incivility vocabulary and phrase rules in `analysis/doccat/src/sentiment/incivility/tables.rs` and `analysis/doccat/src/sentiment/incivility/vocabulary.rs` | Apache-2.0, repository licence | `CLASS_PERMISSIVE`: already in-tree; retain repository notices. The six-label taxonomy is a design reference, not permission to copy an external incivility corpus. |
 | Project-authored aspect seeds and rules in `analysis/doccat/src/sentiment/aspect/tables/`, and pragmatics cues in `analysis/doccat/src/sentiment/pragmatics/tables.rs` | Apache-2.0, repository licence | `CLASS_PERMISSIVE`: may be compiled and shipped, including project-authored regression fixtures. There is no separate reporting lexicon in the current sentiment tree; a future one needs its own provenance entry. Imported VADER scores retain their separate MIT provenance. |
 | VADER vocabulary in `analysis/doccat/src/sentiment/vader_lexicon.txt`, C. J. Hutto; OpenNLP emoji annotations used by the fallback | MIT for VADER; Apache-2.0 for OpenNLP annotations | `CLASS_PERMISSIVE`: already used; retain the VADER copyright and MIT text in `NOTICE`, plus OpenNLP notices. See [sentiment's lexicon description](sentiment.md). |
@@ -635,9 +637,13 @@ was checked; this is not a licence decision for other GLiNER checkpoints.
 
 ### Extracted PDF artifact evaluation
 
-The three ACL paper excerpts and the JMLR excerpt under `analysis/normalize/data/extracted-pdf` are
-CC-BY-4.0 material, with authors, titles, page ranges, source URLs, licence
-links and transformation notices in that directory's README. The ACL
+The three ACL paper excerpts, the JMLR excerpt and the two Leodar dataset
+excerpts under `analysis/normalize/data/extracted-pdf` are CC-BY-4.0
+material, with authors, titles, page ranges, source URLs, licence links and
+transformation notices in that directory's README. The files are
+`P19-1423.escaped`, `2020.acl-main.1.escaped`,
+`2022.acl-long.14-mupdf.escaped` (ACL), `jmlr-25-0035.escaped` (JMLR),
+`leodar-111.escaped` and `leodar-116.escaped` (Leodar). The ACL
 [copyright policy](https://aclanthology.org/faq/copyright/) places ACL materials
 from 2016 onward under CC-BY-4.0. The paper text is evaluation data, not
 repository-licensed source code; retain attribution when redistributing it.
@@ -646,6 +652,15 @@ Andrew M. Stuart and T. J. Sullivan, 2025, *Autoencoders in Function Space*,
 JMLR 26(165):1-54, pages 2-7. Its PDF explicitly states CC-BY 4.0 and
 requires attribution linking to the
 [original publication](https://jmlr.org/papers/v26/25-0035.html).
+The Leodar excerpts are from Leonard Ng, 2024, *Dataset for "Harnessing
+GenAI for Higher Education": A Mixed-Methods Study of Prof. Leodar, a Custom
+RAG Chatbot*, version 1, Mendeley Data,
+doi:[10.17632/9mrxwtfh6w.1](https://data.mendeley.com/datasets/9mrxwtfh6w/1),
+file `SI_Annex_C-List_of_questions_asked_by_learners.pdf`, PDF pages 111 and
+116. The dataset record states
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); credit Leonard Ng
+and link the dataset when redistributing them. Changes are page selection,
+text extraction and reversible escaping only; no endorsement is implied.
 The Rust reproduction helper verifies original PDF and extracted-text hashes.
 
 ## Sentence abbreviation inventories

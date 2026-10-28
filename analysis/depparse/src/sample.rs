@@ -1,6 +1,4 @@
-use crate::{
-    ArcStandardOracle, ArcStandardState, DependencyContextGenerator, DependencyGraph, ParserInput, Result, error,
-};
+use crate::{ArcStandardState, DependencyContextGenerator, DependencyGraph, ParserInput, Result, error};
 use turbo_analysis::{Ix, Layer};
 use turbo_analysis_layers::{Dependencies, Tokens, WordOrTokenAnchor};
 use turbo_formats::conllu::ConlluDependencySample;
@@ -47,15 +45,6 @@ impl<A: WordOrTokenAnchor> DependencySample<A> {
     }
     pub fn graph(&self) -> &DependencyGraph<A> {
         &self.graph
-    }
-    pub(crate) fn training_graph(&self, pseudo_projective: bool) -> Result<DependencyGraph<A>> {
-        if pseudo_projective {
-            self.graph.projectivize()
-        } else if self.graph.label_encoding != crate::LabelEncoding::Plain || !self.graph.is_projective() {
-            Err(error("projective training requires plain projective trees"))
-        } else {
-            Ok(self.graph.clone())
-        }
     }
     pub fn from_format(sample: &FormatSample<'_>) -> Result<Self> {
         let heads = sample
@@ -133,19 +122,26 @@ impl<A: WordOrTokenAnchor> DependencySample<A> {
 pub struct DependencyEventStream {
     pub events: Vec<Event>,
     pub skipped_nonprojective: usize,
+    /// Number of source trees with crossing dependencies retained in the events.
+    pub included_nonprojective: usize,
 }
 impl DependencyEventStream {
     pub fn generate<A: WordOrTokenAnchor>(samples: &[DependencySample<A>]) -> Result<Self> {
-        Self::generate_with_projectivization(samples, true)
+        Self::generate_with_mode(samples, crate::training::TrainingMode::PseudoProjective)
     }
-    pub(crate) fn generate_with_projectivization<A: WordOrTokenAnchor>(
+    /// Generate native SWAP events, retaining ordinary source relation labels.
+    pub fn generate_swap<A: WordOrTokenAnchor>(samples: &[DependencySample<A>]) -> Result<Self> {
+        Self::generate_with_mode(samples, crate::training::TrainingMode::Swap)
+    }
+    pub(crate) fn generate_with_mode<A: WordOrTokenAnchor>(
         samples: &[DependencySample<A>],
-        pseudo_projective: bool,
+        mode: crate::training::TrainingMode,
     ) -> Result<Self> {
         let mut out = Self::default();
         for sample in samples {
-            let graph = sample.training_graph(pseudo_projective)?;
-            let steps = ArcStandardOracle::transitions(&graph)?;
+            let graph = mode.graph(sample.graph())?;
+            out.included_nonprojective += usize::from(!sample.graph().is_projective());
+            let steps = mode.transitions(&graph)?;
             let mut state = ArcStandardState::<A>::new(sample.tokens.len())?;
             let tokens: Vec<_> = sample.tokens.iter().map(String::as_str).collect();
             let tags: Vec<_> = sample.tags.iter().map(String::as_str).collect();

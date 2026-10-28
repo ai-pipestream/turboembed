@@ -52,6 +52,8 @@ impl Model {
             lookahead: 0,
             position_buckets: 0,
             max_relative_positions: 0,
+            artifact_sha256: [0; 32],
+            artifact2_sha256: [0; 32],
         };
         Model { desc, tensors }
     }

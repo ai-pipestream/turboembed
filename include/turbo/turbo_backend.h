@@ -278,6 +278,12 @@ typedef struct turbo_backend_model {
                                            rows; 0 for every other family */
     uint32_t    max_relative_positions; /* TURBO_FAMILY_DEBERTA_V2: the distance the log buckets
                                            reach; 0 for every other family */
+    /* The SHA-256 the manifest records for artifact's and artifact2's
+     * file, which the core checked the bytes against before this call;
+     * all zero for raw weights and for a file that is absent. A backend
+     * reads them only when struct_size covers them. */
+    uint8_t     artifact_sha256[32];
+    uint8_t     artifact2_sha256[32];
 } turbo_backend_model;
 
 /* A session as session_open receives it: turbo_session_desc's fields with

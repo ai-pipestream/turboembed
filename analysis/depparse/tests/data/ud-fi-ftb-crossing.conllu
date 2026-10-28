@@ -1,0 +1,14 @@
+# sent_id = pg1os-206
+# text = et nyt täsä on viäl aikka siihem pualtoista kuukaut melkke .
+1	et	että	SCONJ	Pcle,CS	Style=Coll	4	mark	_	_
+2	nyt	nyt	ADV	Adv	_	4	advmod	_	_
+3	täsä	tässä	ADV	Adv,Dem	PronType=Dem|Style=Coll	4	advmod	_	_
+4	on	olla	VERB	V,Act,Ind,Pres,Sg3	Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin|Voice=Act	0	root	_	_
+5	viäl	vielä	PART	Pcle	Style=Coll	4	advmod	_	_
+6	aikka	aika	NOUN	N,Sg,Par	Case=Par|Number=Sing|Style=Coll	4	nsubj	_	_
+7	siihem	se	PRON	Pron,Dem,Sg,Ill	Case=Ill|Number=Sing|PronType=Dem|Style=Coll	6	nmod	_	_
+8	pualtoista	puolitoista	NUM	Num,Card,Sg,Nom	Case=Nom|Number=Sing|NumType=Card|Style=Coll	9	nummod	_	_
+9	kuukaut	kuukausi	NOUN	N,Sg,Par	Case=Par|Number=Sing|Style=Coll	6	nmod	_	Alt=6_nmod
+10	melkke	melkein	PART	Pcle	Style=Coll	8	advmod	_	_
+11	.	.	PUNCT	Pun	_	10	punct	_	_
+
