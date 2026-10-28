@@ -212,6 +212,8 @@ a directory with the same model run without them, and its options are
 | `parse` (`ParseSampleStream`, `Parse.parseParse`) | `treebank`, `treebank+function-tags`; `en-head-rules`, `en-head-rules+possessives`, `es-head-rules`, `es-regex-head-rules` (fixtures) | `parse` | `useFunctionTags true`; `rules`, `fixPossesives true` |
 | `parse` (`buildDictionary`, the `chunking` and `treeinsert` event streams and context generators, `Parser.train`, `ParserTool.parseLine`, `ParserEvaluator`) | `dictionary-cutoff-1`, `dictionary-cutoff-5`; `events-chunking-build`, `events-chunking-build+dictionary`, `events-chunking-check`, `events-treeinsert-build`, `events-treeinsert-check`, `events-treeinsert-attach`, `events-chunk`, `events-tag`; `generators`; `model-chunking`, `model-treeinsert` (all with `en-head-rules`, fixture) | `parse-treebank`; the models are trained on its `treebank` input | `rules`, `cutoff`, `etype`, `dictionary-cutoff`, `check-types`; `corpus`, `language`, `<model>.Algorithm`, `<model>.Iterations`, `<model>.Cutoff`, `dict.Cutoff`, `searches`, `parse-counts` |
 | `head-rules` (`HeadRules`, `AncoraSpanishHeadRules`) | `en`, `es` | `head-rules` | |
+| `gazetteer` (the addons `geo` module) | `naturalearth-populated-places` (the bundled table), `gazetteer-geonames`, `gazetteer-overture`, `gazetteer-user`, `overlay` (fixtures); `load-geonames`, `load-overture`, `load-user`, `load-suppressions` | `gazetteer`: the `names`, `ids` and `regions` inputs for the first five, the `table-<kind>-` inputs for the load runs | `source sites` for the user table |
+| `place-profiles` (`PlaceProfiles` of the addons `geo` module) | `place-profiles` | `place-profiles` | `profilesCommit` |
 | `string-pattern` (`StringPattern`, `FeatureGeneratorUtil.tokenFeature`) | `utf16-units`, `code-points` | `sequence` | `mode`; `branchCommit` for `code-points` |
 | `features` (`GeneratorFactory`, `DefaultPOSContextGenerator`) | `pos-default`, `ner-default`, `everything`, `nesting` (fixtures, `featuregen/`), `default-pos-context`, `default-pos-context+names-dictionary`; `errors` | `sequence` (the `sentences` input); `errors` on `descriptor-errors` | `adaptiveData` for the descriptors |
 | `codec` (`BioCodec`, `BilouCodec`) | `bio`, `bilou` | `codec`, the input of the codec's name | `compatibleOutcomes` |
@@ -908,13 +910,52 @@ writes it `<corpus>`. `analysis/formats/tests/ontonotes.rs` and
 goldens; the messages of parse errors and XML errors are the JVM's own and
 are not compared.
 
+## Gazetteer goldens
 
+`gazetteer/<run>/gazetteer/<id>.golden` is what a gazetteer of the addons
+`geo` module (built from the same addons commit as the `numeric` module)
+answered for each line of `inputs/gazetteer/<id>.txt`, the input split at
+line feeds: `lookup` for a `names` input, `byId` for an `ids` input (a
+source and a record id per line, split at the first tab) and `byRegion`
+for a `regions` input. `GazetteerGolden` asks the bundled gazetteer
+(`BundledGazetteer.getInstance()`, whose resource's SHA-512 is the
+golden's model record), the GeoNames, Overture and user gazetteers over
+the fixture tables, and an `OverlayGazetteer` with the bundled gazetteer
+as its base, the user table as additions and the fixture suppression
+rules. The layers are `turbo:gazetteer-sources` (sorted, since the
+module's sets have no order), `turbo:gazetteer-queries` (per line, how
+many entries came back, or the exception), `turbo:gazetteer-candidates`
+(the entries of each line in order, as indices into the next layer),
+`turbo:gazetteer-entries` (each entry found, once, with every field),
+`turbo:gazetteer-alternates`, `turbo:gazetteer-containment` and
+`turbo:gazetteer-attributes` (sorted by key). The `load-<kind>` runs load
+each `table-<kind>-` input as a table of that kind and write
+`turbo:gazetteer-load` (whether it loaded, or the exception) and
+`turbo:gazetteer-suppressions` (the rules of a suppression table).
+`analysis/geo/tests/jvm_goldens.rs` asks the Rust gazetteers the same and
+compares every cell.
 
+The OpenNLP commit of the recipe has no `StringUtil.stripByteOrderMark`, which
+two readers of the module call; the Dockerfile replaces both calls with
+the expression the method returns before building the module.
 
+## Place profile goldens
 
-
-
-
+`place-profiles/place-profiles/place-profiles/<id>.golden` is what
+`PlaceProfiles.load` made of the table `inputs/place-profiles/<id>.txt`.
+The class is not in the addons commit the rest of the `geo` module is built
+from, so the Dockerfile takes `PlaceProfiles.java` from
+`PLACE_PROFILES_COMMIT` (`src/recipe/mod.rs`, on the addons'
+`ready/geo-place-profiles` branch) and compiles it into the module; the
+golden's `profilesCommit` record names that commit. The layers are
+`turbo:profiles-load` (whether it loaded, or the exception),
+`turbo:profiles-metrics`, `turbo:profiles-places` (the ids sorted by
+`String.compareTo`, since the class keeps them in a map),
+`turbo:profiles-values` (the standardized profiles, read from the class's
+private map by reflection), `turbo:profiles-similarity` (every ordered pair)
+and `turbo:profiles-neighbors` (`mostSimilar` of every place with the
+counts 1, 2 and the number of places). `analysis/geo/tests/profile_goldens.rs`
+rebuilds every layer and compares the doubles bit for bit.
 
 ## Evaluator goldens
 
