@@ -155,3 +155,47 @@ fn bad_tables_and_specs_are_refused() {
     assert!(sp.validate("head").unwrap_err().message.contains("hash_embed"));
     assert_eq!(FEATURES.len(), 4);
 }
+
+#[test]
+fn non_ascii_and_mixed_script_rows_are_pinned() {
+    // Characters, not bytes: a suffix is the last three characters, and
+    // an uncased letter (CJK) shapes as x, as spaCy's `is_upper` gives.
+    assert_eq!(features("東京"), ["東京", "東", "東京", "xx"].map(String::from));
+    assert_eq!(features("Tokyo東京2024"), ["tokyo東京2024", "T", "024", "Xxxxxdddd"].map(String::from));
+    let big = HashEmbed { dim: 1, rows: [1 << 20; 4] };
+    for (w, want) in PINNED_UNICODE {
+        assert_eq!(rows(&big, w), want, "{w}: the hashing changed: every trained hash table is void");
+    }
+}
+
+/// rows(&big, w) as first written for a Latin word with a diacritic, a
+/// CJK word, and a word mixing scripts and digits.
+const PINNED_UNICODE: [(&str, [[u32; SEEDS]; 4]); 3] = [
+    (
+        "Zoë",
+        [
+            [813574, 384992, 410414, 329289],
+            [1023363, 199977, 1036419, 117924],
+            [714545, 341061, 172524, 38245],
+            [327476, 812623, 56975, 267625],
+        ],
+    ),
+    (
+        "東京",
+        [
+            [154146, 587550, 992401, 622288],
+            [431298, 432282, 930494, 308778],
+            [154146, 587550, 992401, 622288],
+            [607117, 1003624, 645368, 518860],
+        ],
+    ),
+    (
+        "Tokyo東京2024",
+        [
+            [614402, 486703, 1048561, 935150],
+            [712305, 405649, 931681, 741005],
+            [785229, 672048, 714202, 857314],
+            [297800, 96109, 15989, 988853],
+        ],
+    ),
+];

@@ -41,9 +41,15 @@ fn a_score_within_tolerance_holds_but_only_a_better_one_is_kept() {
 }
 
 #[test]
-fn an_equal_score_holds_level() {
-    let c = Config { epochs: 10, patience: 1, warmup: 0.0, tolerance: 0.0, ..Config::default() };
+fn an_equal_score_holds_level_under_a_tolerance_and_stops_a_run_without_one() {
+    // Intended: under the default tolerance a flat dev score is not a
+    // decline, and the run goes on to its epoch cap while the rate
+    // decays; a tolerance of 0 asks for classic patience, where only a
+    // better score holds and a flat run stops.
+    let c = Config { epochs: 10, patience: 1, warmup: 0.0, tolerance: 1e-3, ..Config::default() };
     assert_eq!(run(&c, &[0.9, 0.9, 0.9, 0.9]), (None, 0));
+    assert_eq!(run(&Config { tolerance: 0.0, ..c }, &[0.9, 0.9, 0.9, 0.9]), (Some(1), 0));
+    assert_eq!(run(&Config { tolerance: 0.0, ..c }, &[0.9, 0.91, 0.92, 0.92]), (Some(3), 2));
 }
 
 #[test]

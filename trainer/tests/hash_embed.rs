@@ -165,3 +165,29 @@ fn the_trained_head_scores_the_same_through_the_core() {
     let diff = w.scores().iter().zip(&scores).map(|(a, b)| (a - b).abs()).fold(0f32, f32::max);
     assert!(diff <= 1e-5, "trainer and core differ by {diff}");
 }
+
+#[test]
+fn a_sentence_of_no_words_is_taken_as_the_core_takes_it() {
+    for (adapter, decode) in [(None, Decode::Argmax), (Some((3, 1)), Decode::Crf)] {
+        let s = spec(adapter, decode, HashEmbed { dim: 2, rows: [5, 3, 4, 3] });
+        let model = Tagger::<f32>::new(&s, HIDDEN, &mut Rng::new(3)).unwrap();
+        let core = model.to_token_tagger().unwrap();
+        let mut scores = Vec::new();
+        assert_eq!(core.scores_forms(&[], &[], None, &mut scores, &mut CoreWork::default()).unwrap(), 0);
+        let mut w = Work::default();
+        assert_eq!(model.forward_forms(&[], None, &mut w).unwrap(), 0);
+        let mut grads = model.zero_grads();
+        assert_eq!(model.loss_forms(&[], None, &[], &mut grads, &mut w).unwrap(), 0.0);
+        assert!(grads.iter().flatten().all(|g| *g == 0.0));
+        // An empty sentence among the training examples trains and scores.
+        let mut train = data(5, 6, &NOUNS, &VERBS);
+        if decode == Decode::Crf {
+            // V as a one-word span, the rest outside, which BIO allows.
+            train.iter_mut().flat_map(|e| e.labels.iter_mut()).for_each(|l| *l = u32::from(*l == 1));
+        }
+        train.insert(2, Example { features: Vec::new(), labels: Vec::new(), forms: Vec::new() });
+        let c = Config { epochs: 2, ..Config::default() };
+        let (_, report) = fit(&s, HIDDEN, &train, &train, &c).unwrap();
+        assert_eq!(report.dev.len(), 2);
+    }
+}

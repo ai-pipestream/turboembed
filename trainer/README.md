@@ -33,8 +33,15 @@ What is here:
   (accuracy, or exact span F1 under BIO and BILOU), early stopping that
   keeps the best weights. `EarlyStop` is armed only after warmup, and a
   dev score within `tolerance` of the best holds the run going; the
-  defaults are 60 epochs, patience 6, tolerance 0.001. Two runs with one
-  seed give identical bytes.
+  defaults are 60 epochs, patience 6, tolerance 0.001. An equal score
+  holds under that default, so a run whose dev score sits flat goes on
+  to its epoch cap; a tolerance of 0 is classic patience, where only a
+  better score holds and a flat run stops. A batch's
+  examples run on `threads` threads (0, the default, takes every core),
+  each into a gradient buffer of its own, and the buffers are summed
+  element by element in example order, so the weights do not depend on
+  the thread count; `verbose` logs each epoch's loss, dev score, seconds
+  and words a second. Two runs with one seed give identical bytes.
 
 Corpora, scoring, receipts and the `turbo-train-head` command are in
 `trainer/recipes` (R1b). Not yet here: a feature cache on disk, bundle

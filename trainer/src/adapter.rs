@@ -61,8 +61,9 @@ pub fn output<'a, R>(features: &'a [R], w: &'a Work<R>) -> &'a [R] {
 
 /// Adds the adapter's weight gradients to `grads` from `dx`, the
 /// gradient of its output, and returns the gradient of its input (`dx`
-/// itself without an adapter), which a head's hashed embeddings take;
-/// the encoder is frozen.
+/// itself without an adapter) when `input` asks for it, which a head's
+/// hashed embeddings take; the encoder is frozen, so otherwise the first
+/// layer's input gradient is skipped and an empty vector returned.
 pub fn backward<R: Real>(
     s: Shape,
     params: &[Vec<R>],
@@ -70,17 +71,20 @@ pub fn backward<R: Real>(
     mut dx: Vec<R>,
     grads: &mut [Vec<R>],
     w: &Work<R>,
+    input: bool,
 ) -> Vec<R> {
     let n = features.len() / s.hidden;
     for k in (0..s.layers).rev() {
         let inp = if k == 0 { s.hidden } else { 2 * s.h };
         let x = if k == 0 { features } else { &w.layers[k - 1] };
-        let mut dprev = vec![R::ZERO; n * inp];
+        let want = k > 0 || input;
+        let mut dprev = if want { vec![R::ZERO; n * inp] } else { Vec::new() };
         for d in 0..2 {
             let i = 6 * k + 3 * d;
             let [gw, gu, gb] = grads.get_disjoint_mut([i, i + 1, i + 2]).expect("distinct");
             let g = lstm::Grad { w: gw, u: gu, b: gb };
-            lstm::backward(dir(params, k, d), x, inp, s.h, &dx, 2 * s.h, d * s.h, &w.caches[2 * k + d], g, &mut dprev);
+            let into = want.then_some(&mut dprev[..]);
+            lstm::backward(dir(params, k, d), x, inp, s.h, &dx, 2 * s.h, d * s.h, &w.caches[2 * k + d], g, into);
         }
         dx = dprev;
     }

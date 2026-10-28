@@ -8,7 +8,10 @@ use turbo::head::tagger::{NO_WORD, Work as CoreWork};
 use turbo::manifest::{HeadSpec, Scheme};
 use turbo::status::{Result, invalid};
 
+use std::time::Instant;
+
 use crate::adamw::{AdamW, Settings};
+use crate::batch::Batch;
 use crate::rng::Rng;
 use crate::tagger::{Tagger, Work};
 
@@ -44,9 +47,20 @@ pub struct Config {
     /// best before stopping; 0 never stops early.
     pub patience: u32,
     /// How far under the best a dev score may fall and still count as
-    /// holding level for `patience`; the best weights are kept only on a
+    /// holding level for `patience`: a score holds level when it is
+    /// better than `best - tolerance`. So under the default 0.001 an equal
+    /// score holds level, and a run whose dev score sits flat (often a
+    /// small dev set's accuracy) runs to `epochs`, the learning rate
+    /// still decaying; under 0 only a better score holds, and a flat run
+    /// stops after `patience` epochs. The best weights are kept only on a
     /// strictly better score.
     pub tolerance: f64,
+    /// Threads a batch's examples are spread over; 0 takes every core.
+    /// The weights a run gives do not depend on it.
+    pub threads: usize,
+    /// Logs each epoch's loss, dev score and time, and progress within
+    /// it, to standard error.
+    pub verbose: bool,
 }
 
 impl Default for Config {
@@ -61,6 +75,8 @@ impl Default for Config {
             warmup: 0.1,
             patience: 6,
             tolerance: 1e-3,
+            threads: 0,
+            verbose: false,
         }
     }
 }
@@ -92,7 +108,7 @@ impl EarlyStop {
         if better {
             self.best = Some(score);
         }
-        if better || self.best.is_some_and(|b| score >= b - self.tolerance) {
+        if better || self.best.is_some_and(|b| score > b - self.tolerance) {
             self.level = epoch;
         }
         // Warmup epochs neither count against patience nor run it down.
@@ -111,6 +127,9 @@ pub struct Report {
     pub dev: Vec<f64>,
     /// The epoch (from 0) whose weights were kept.
     pub best_epoch: usize,
+    /// Wall seconds each epoch took, its dev scoring included; the one
+    /// field two runs of the same seed do not share.
+    pub epoch_seconds: Vec<f64>,
 }
 
 /// Accuracy (SCHEME_TAGS) or exact span F1 (BIO, BILOU) of `tagger` on
@@ -149,9 +168,9 @@ pub fn score(tagger: &TokenTagger, examples: &[Example]) -> Result<f64> {
 }
 
 /// What the training loop needs of a head in training.
-pub(crate) trait Model: Sized {
-    type Example;
-    type Work: Default;
+pub(crate) trait Model: Sized + Sync {
+    type Example: Sync;
+    type Work: Default + Send;
     fn params(&self) -> &[Vec<f32>];
     /// Replaces every weight; refused unless each tensor keeps its length.
     fn set_params(&mut self, params: Vec<Vec<f32>>) -> Result<()>;
@@ -244,8 +263,8 @@ fn check_examples(examples: &[Example], hidden: usize, labels: usize, forms: boo
 }
 
 /// The loop: seeded shuffles, minibatch gradients summed in a fixed
-/// order and scaled per word, AdamW, dev scoring each epoch, early
-/// stopping, the best weights kept.
+/// order (across `c.threads` threads, see [`Batch`]) and scaled per word,
+/// AdamW, dev scoring each epoch, early stopping, the best weights kept.
 pub(crate) fn train<M: Model>(
     mut model: M,
     rng: &mut Rng,
@@ -257,22 +276,32 @@ pub(crate) fn train<M: Model>(
     let mut opt = AdamW::new(settings(c, train.len()), &shapes)?;
     let decay = model.decays();
     let mut order: Vec<usize> = (0..train.len()).collect();
-    let mut work = M::Work::default();
-    let mut report = Report { train_loss: Vec::new(), dev: Vec::new(), best_epoch: 0 };
+    let mut batch = Batch::new(c.threads);
+    let mut grads = model.zero_grads();
+    let mut report = Report { train_loss: Vec::new(), dev: Vec::new(), best_epoch: 0, epoch_seconds: Vec::new() };
     let mut best: Option<Vec<Vec<f32>>> = None;
     let mut stop = EarlyStop::new(c);
+    let steps = train.len().div_ceil(c.batch);
+    let tick = steps.div_ceil(10).max(1);
     for epoch in 0..c.epochs as usize {
+        let started = Instant::now();
         rng.shuffle(&mut order);
         let (mut loss, mut words) = (0.0, 0usize);
-        for batch in order.chunks(c.batch) {
-            let mut grads = model.zero_grads();
-            let mut n = 0;
-            for &i in batch {
-                let (l, k) = model.loss(&train[i], &mut grads, &mut work)?;
-                loss += l;
-                n += k;
-            }
+        for (step, ids) in order.chunks(c.batch).enumerate() {
+            let examples: Vec<&M::Example> = ids.iter().map(|&i| &train[i]).collect();
+            let (l, n) = batch.gradients(&model, &examples, &mut grads)?;
+            loss += l;
             words += n;
+            if c.verbose && (step + 1) % tick == 0 && step + 1 < steps {
+                let s = started.elapsed().as_secs_f64();
+                eprintln!(
+                    "epoch {}: step {}/{steps}, {:.1}s, {:.0} words/s",
+                    epoch + 1,
+                    step + 1,
+                    s,
+                    words as f64 / s.max(1e-9)
+                );
+            }
             if n == 0 {
                 continue;
             }
@@ -280,15 +309,31 @@ pub(crate) fn train<M: Model>(
             grads.iter_mut().flatten().for_each(|g| *g *= scale);
             model.step(&mut opt, &mut grads, &decay)?;
         }
-        report.train_loss.push(if words == 0 { 0.0 } else { loss / words as f64 });
+        let train_s = started.elapsed().as_secs_f64();
+        let mean = if words == 0 { 0.0 } else { loss / words as f64 };
+        report.train_loss.push(mean);
         let s = model.score(dev)?;
         report.dev.push(s);
+        let seconds = started.elapsed().as_secs_f64();
+        report.epoch_seconds.push(seconds);
+        if c.verbose {
+            eprintln!(
+                "epoch {}/{}: loss {mean:.5}, dev {s:.4}, {seconds:.1}s ({train_s:.1}s training, {:.0} words/s, {} threads)",
+                epoch + 1,
+                c.epochs,
+                words as f64 / train_s.max(1e-9),
+                batch.threads()
+            );
+        }
         let (better, done) = stop.update(epoch, s);
         if better {
             best = Some(model.params().to_vec());
             report.best_epoch = epoch;
         }
         if done {
+            if c.verbose {
+                eprintln!("stopping early after epoch {}; keeping epoch {}", epoch + 1, report.best_epoch + 1);
+            }
             break;
         }
     }
@@ -296,6 +341,17 @@ pub(crate) fn train<M: Model>(
         model.set_params(params)?;
     }
     Ok((model, report))
+}
+
+/// The summed gradients and loss of `examples` under `model`, computed
+/// as a training step computes them over `threads` threads (0: every
+/// core); the bytes do not depend on `threads`.
+pub fn batch_gradients(model: &Tagger<f32>, examples: &[Example], threads: usize) -> Result<(Vec<Vec<f32>>, f64)> {
+    check_examples(examples, model.hidden(), model.spec().labels.len(), model.spec().hash_embed.is_some())?;
+    let mut grads = model.zero_grads();
+    let refs: Vec<&Example> = examples.iter().collect();
+    let (loss, _) = Batch::new(threads).gradients(model, &refs, &mut grads)?;
+    Ok((grads, loss))
 }
 
 /// Trains a head for `spec` over features `hidden` wide on `train`,

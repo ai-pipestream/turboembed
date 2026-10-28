@@ -123,7 +123,9 @@ fn two_runs_give_identical_bytes_and_another_seed_does_not() {
     let (a, ra) = fit(&s, HIDDEN, &train, &dev, &c).unwrap();
     let (b, rb) = fit(&s, HIDDEN, &train, &dev, &c).unwrap();
     assert_eq!(bytes(&a), bytes(&b));
-    assert_eq!(ra, rb);
+    // Everything but the wall time.
+    assert_eq!((&ra.train_loss, &ra.dev, ra.best_epoch), (&rb.train_loss, &rb.dev, rb.best_epoch));
+    assert_eq!(ra.epoch_seconds.len(), ra.dev.len());
     let (other, _) = fit(&s, HIDDEN, &train, &dev, &Config { seed: 2, ..c }).unwrap();
     assert_ne!(bytes(&a), bytes(&other));
 }

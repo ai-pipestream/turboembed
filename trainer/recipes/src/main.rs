@@ -8,7 +8,7 @@
 //!     [--device cpu|cuda|levelzero|metal] [--precision model|exact] [--pooling first|mean] [--crf]
 //!     [--bilstm <hidden>x<layers>] [--hash-embed <dim>] [--hash-rows <norm>,<prefix>,<suffix>,<shape>]
 //!     [--seed N] [--epochs N] [--batch N] [--lr X] [--patience N] [--tolerance X]
-//!     [--max-train N] [--commit <sha>] [--unrecorded-corpus]
+//!     [--threads N] [--max-train N] [--commit <sha>] [--unrecorded-corpus]
 //! ```
 //!
 //! Exit status 2 on any error. `--out` must not exist yet; it is made
@@ -176,6 +176,8 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
         lr: a.parsed("--lr", d.lr)?,
         patience: a.parsed("--patience", d.patience)?,
         tolerance: a.parsed("--tolerance", d.tolerance)?,
+        threads: a.parsed("--threads", d.threads)?,
+        verbose: true,
         ..d
     };
     let max_train: usize = a.parsed("--max-train", 0)?;
@@ -243,6 +245,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
             warmup: c.warmup,
             patience: c.patience,
             tolerance: c.tolerance,
+            threads: c.threads,
             max_train,
             dev_left_out,
         }),
@@ -250,6 +253,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
             train_loss: report.train_loss,
             dev: report.dev,
             best_epoch: report.best_epoch,
+            epoch_seconds: report.epoch_seconds,
         }),
         eval,
         timing_s: Timing { read, features, train: trained, eval: eval_s },

@@ -120,6 +120,11 @@ impl<R: Real> Tagger<R> {
         &self.spec
     }
 
+    /// The width of the encoder features the head reads.
+    pub fn hidden(&self) -> usize {
+        self.hidden
+    }
+
     pub fn names(&self) -> &[String] {
         &self.names
     }
@@ -178,9 +183,15 @@ impl<R: Real> Tagger<R> {
     }
 
     /// With a hash_embed, each word's features joined with the sum of
-    /// its hashed rows into `w.input`, and the rows kept for backward.
+    /// its hashed rows into `w.input`, and the rows kept for backward. A
+    /// sentence of no words needs no forms, as in the core.
     fn join(&self, features: &[R], forms: Option<&[&str]>, n: usize, w: &mut Work<R>) -> Result<()> {
         let Some(h) = self.spec.hash_embed else { return Ok(()) };
+        if n == 0 {
+            w.rows.clear();
+            w.input.clear();
+            return Ok(());
+        }
         let forms = forms.ok_or_else(|| invalid("trainer: the head reads each word's text"))?;
         if forms.len() != n {
             return Err(invalid(format!("trainer: {} forms for {n} words", forms.len())));
@@ -252,7 +263,7 @@ impl<R: Real> Tagger<R> {
         let [dw, db] = grads.get_disjoint_mut([o, o + 1]).expect("distinct");
         let dxo = if dx.is_empty() { None } else { Some(&mut dx[..]) };
         linear::backward(&self.params[o], x, &w.dscores, width, labels, dw, db, dxo);
-        let dx0 = adapter::backward(shape, &self.params, x0, dx, grads, &w.adapter);
+        let dx0 = adapter::backward(shape, &self.params, x0, dx, grads, &w.adapter, hashed);
         if let Some(h) = self.spec.hash_embed {
             let (hidden, d, t) = (self.hidden, h.dim as usize, 6 * layers);
             let width0 = hidden + 4 * d;
