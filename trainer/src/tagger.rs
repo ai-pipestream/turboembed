@@ -68,6 +68,8 @@ impl<R: Real> Tagger<R> {
 
     /// A head from given weights, in `tensors` order.
     pub fn with_params(spec: &HeadSpec, hidden: usize, params: Vec<Vec<R>>) -> Result<Self> {
+        // A head no bundle could carry is never trained.
+        spec.validate("head")?;
         let shapes = tensors(spec, hidden);
         let fits = params.len() == shapes.len()
             && shapes.iter().zip(&params).all(|((_, s), p)| s.iter().product::<u64>() as usize == p.len());
