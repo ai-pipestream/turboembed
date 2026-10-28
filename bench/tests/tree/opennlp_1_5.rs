@@ -1,7 +1,7 @@
 //! No OpenNLP 1.5 model is fetched, pinned, scored or run (#1509): no
 //! committed file names one of their files, ids, addresses, recorded
 //! constants or SHA-256 pins, outside the licence record that refuses them
-//! and the negative tests that check the source lists.
+//! and the filters and negative tests that keep them out.
 
 use std::path::Path;
 
@@ -32,6 +32,10 @@ const ALLOWED: &[&str] = &[
     // Negative tests over the train-recipes and goldens-tool source lists.
     "analysis/train-recipes/src/release/tests.rs",
     "analysis/goldens-tool/src/recipe/tests.rs",
+    // The model pins' filter that refuses the 1.5 address, and its negative
+    // test that no 1.5 file or SHA-256 is pinned (#1623).
+    "analysis/pins/src/lib.rs",
+    "analysis/pins/src/tests.rs",
     // This check.
     "bench/tests/tree/opennlp_1_5.rs",
 ];
