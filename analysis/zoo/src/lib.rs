@@ -7,7 +7,7 @@
 //!   most restrictive of its own licence and the licences of the data it
 //!   was trained on; the index records both, and the class.
 //! - [`Index`]: the artifacts, parsed strictly from the JSON format
-//!   docs/zoo.md describes, which OpenNLP can read as well. Refused
+//!   docs/zoo.md describes. Refused
 //!   artifacts are never listed.
 //! - [`Acceptances`]: which user accepted which terms, in a strict JSON
 //!   file of its own.

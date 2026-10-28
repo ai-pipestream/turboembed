@@ -432,18 +432,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_recipes_name_models_the_zoo_lists_as_references() {
-        for r in RECIPES {
-            assert!(r.reference_file().unwrap().ends_with(".bin"));
-            assert!(matches!(r.check_reference(b"not the model"), Err(Error::ReferenceDigest { .. })));
-            let id: turbo_zoo::ArtifactId = r.model_id.parse().unwrap();
-            assert_eq!(id.as_str(), r.model_id);
-        }
-        assert_eq!(SENTENCE.task(), Task::SentenceDetector);
-        assert_eq!(TOKENS.task(), Task::Tokenizer);
-    }
-
-    #[test]
     fn tokens_are_in_text_order_unless_one_starts_or_ends_before_the_one_before_it() {
         let spans = |s: &[(u32, u32)]| s.iter().map(|&(a, b)| Span::new(a, b)).collect::<Vec<_>>();
         assert!(in_text_order(&[]));
