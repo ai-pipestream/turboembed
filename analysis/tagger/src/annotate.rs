@@ -15,7 +15,7 @@ use turbo::manifest::{HeadKind, HeadSpec, Scheme};
 use turbo::status::{Error as CoreError, INVALID_ARGUMENT};
 use turbo_analysis::{Execution, Ix, IxRange, Layer as _, ModelRef, Span, Spans, TagSet, View};
 use turbo_analysis_embed::EncoderOptions;
-use turbo_analysis_layers::{Entities, PosTags, Sentences, Tag, Tokens};
+use turbo_analysis_layers::{Entities, PosTags, Sentences, Subwords, Tag, Tokens};
 
 use crate::words::WordEncoder;
 
@@ -111,11 +111,32 @@ impl HeadRunner {
     pub fn decode(&self, sequences: &[Vec<&str>]) -> Result<Vec<Decoded>, CoreError> {
         let pooling = self.tagger.spec().word_pooling;
         let features = self.words.lock().unwrap_or_else(PoisonError::into_inner).features(sequences, pooling)?;
+        self.decode_features(&features)
+    }
+
+    /// Each sequence of `tokens` decoded, its pieces from `subwords` when
+    /// the encoder reads them (`WordEncoder::reads`).
+    pub fn decode_tokens(
+        &self,
+        view: &View,
+        tokens: &Tokens,
+        seqs: &[Vec<usize>],
+        subwords: Option<&Subwords>,
+    ) -> Result<Vec<Decoded>, String> {
+        let pooling = self.tagger.spec().word_pooling;
+        let mut words = self.words.lock().unwrap_or_else(PoisonError::into_inner);
+        let features = words.token_features(view, tokens, seqs, subwords, pooling)?;
+        drop(words);
+        self.decode_features(&features).map_err(|e| e.to_string())
+    }
+
+    fn decode_features(&self, features: &[Vec<f32>]) -> Result<Vec<Decoded>, CoreError> {
         let (mut scores, mut work) = (Vec::new(), Work::default());
         let labels = self.tagger.labels().len();
-        let mut out = Vec::with_capacity(sequences.len());
-        for (s, f) in sequences.iter().zip(&features) {
-            let n = s.len();
+        let hidden = self.tagger.hidden();
+        let mut out = Vec::with_capacity(features.len());
+        for f in features {
+            let n = f.len() / hidden;
             let words: Vec<u32> = (0..n as u32).collect();
             self.tagger.scores(f, &words, &mut scores, &mut work)?;
             let mut tags = Vec::new();
@@ -137,6 +158,9 @@ impl HeadRunner {
 
     /// The token indices of each sequence of `tokens`, in order: by the
     /// token layer's own sentence column, else by `sentences`, else one.
+    /// Every token is in exactly one sequence: a token across a sentence
+    /// boundary, or outside every sentence, is refused, as are sentences
+    /// off the view's UTF-8 boundaries.
     pub fn sequences(view: &View, tokens: &Tokens, sentences: Option<&Sentences>) -> Result<Vec<Vec<usize>>, String> {
         if tokens.spans.view() != view.id() || sentences.is_some_and(|s| s.spans.view() != view.id()) {
             return Err("the tokens or sentences are in another view".into());
@@ -144,6 +168,9 @@ impl HeadRunner {
         tokens.check_contiguous_in(view)?;
         let n = tokens.spans.len();
         if let Some(of) = &tokens.sentence {
+            if of.len() != n {
+                return Err("a sentence for every token".into());
+            }
             let mut out: Vec<Vec<usize>> = Vec::new();
             for (i, s) in of.iter().enumerate() {
                 if i == 0 || *s != of[i - 1] {
@@ -157,22 +184,26 @@ impl HeadRunner {
             return Ok(if n == 0 { Vec::new() } else { vec![(0..n).collect()] });
         };
         sentences.check().map_err(|e| format!("invalid sentences: {e}"))?;
+        if sentences.spans.iter().any(|(_, s)| view.text().get(s.range()).is_none()) {
+            return Err("a sentence is off the view's UTF-8 boundaries".into());
+        }
         let (starts, ends) = tokens.spans.columns();
         let mut out = Vec::new();
+        let mut owned = 0;
         for (_, s) in sentences.spans.iter() {
-            let first = ends.partition_point(|&e| e <= s.start);
-            let last = starts.partition_point(|&t| t < s.end);
+            // The tokens wholly inside the sentence; tokens are in order
+            // and do not overlap, so they are a run.
+            let first = starts.partition_point(|&t| t < s.start);
+            let last = ends.partition_point(|&e| e <= s.end);
             if first < last {
-                out.push((first..last).collect());
+                out.push((first..last).collect::<Vec<_>>());
+                owned += last - first;
             }
         }
+        if owned != n {
+            return Err("a token crosses a sentence boundary or lies outside every sentence".into());
+        }
         Ok(out)
-    }
-
-    pub(crate) fn texts<'a>(view: &'a View, tokens: &Tokens, seqs: &[Vec<usize>]) -> Vec<Vec<&'a str>> {
-        seqs.iter()
-            .map(|s| s.iter().map(|&i| &view.text()[tokens.spans.get(Ix::new(i as u32)).range()]).collect())
-            .collect()
     }
 
     /// The tag of every token of the view, by `head`'s labels.
@@ -181,10 +212,11 @@ impl HeadRunner {
         view: &View,
         tokens: &Tokens,
         sentences: Option<&Sentences>,
+        subwords: Option<&Subwords>,
         tagset: &Arc<TagSet>,
     ) -> Result<PosTags, String> {
         let seqs = Self::sequences(view, tokens, sentences)?;
-        let decoded = self.decode(&Self::texts(view, tokens, &seqs)).map_err(|e| e.to_string())?;
+        let decoded = self.decode_tokens(view, tokens, &seqs, subwords)?;
         let n = tokens.spans.len();
         let (mut tags, mut prob) = (vec![Tag(0); n], vec![0.0; n]);
         let mut seen = vec![false; n];
@@ -207,10 +239,11 @@ impl HeadRunner {
         view: &View,
         tokens: &Tokens,
         sentences: Option<&Sentences>,
+        subwords: Option<&Subwords>,
         kinds: &Arc<TagSet>,
     ) -> Result<Entities, String> {
         let seqs = Self::sequences(view, tokens, sentences)?;
-        let decoded = self.decode(&Self::texts(view, tokens, &seqs)).map_err(|e| e.to_string())?;
+        let decoded = self.decode_tokens(view, tokens, &seqs, subwords)?;
         let mut out = Entities {
             spans: Spans::new(view.id()),
             tokens: Vec::new(),

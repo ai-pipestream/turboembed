@@ -13,7 +13,7 @@ use turbo::manifest::HeadKind;
 use turbo::status::Error as CoreError;
 use turbo_analysis::{Annotator, Error, Execution, Fnv1a, Ix, Layer, ModelRef, Refs, TagSet, View};
 use turbo_analysis_embed::EncoderOptions;
-use turbo_analysis_layers::{Dependencies, Sentences, Tag, Tokens};
+use turbo_analysis_layers::{Dependencies, Sentences, Subwords, Tag, Tokens};
 
 use crate::annotate::{HeadRunner, find_head, model_ref, refuse};
 use crate::words::WordEncoder;
@@ -76,10 +76,15 @@ impl DependencyParser {
     pub fn parse(&self, sequences: &[Vec<&str>]) -> Result<Vec<Parse>, CoreError> {
         let pooling = self.parser.spec().word_pooling;
         let features = self.words.lock().unwrap_or_else(PoisonError::into_inner).features(sequences, pooling)?;
+        self.parse_features(&features)
+    }
+
+    fn parse_features(&self, features: &[Vec<f32>]) -> Result<Vec<Parse>, CoreError> {
         let (mut arcs, mut scores, mut work) = (Vec::new(), Vec::new(), Work::default());
-        let mut out = Vec::with_capacity(sequences.len());
-        for (s, f) in sequences.iter().zip(&features) {
-            let ids: Vec<u32> = (0..s.len() as u32).collect();
+        let hidden = self.parser.hidden();
+        let mut out = Vec::with_capacity(features.len());
+        for f in features {
+            let ids: Vec<u32> = (0..(f.len() / hidden) as u32).collect();
             let n = self.parser.arcs(f, &ids, &mut arcs, &mut work)?;
             let mut heads = Vec::new();
             self.parser.decode(&arcs, n, &mut heads)?;
@@ -91,15 +96,21 @@ impl DependencyParser {
         Ok(out)
     }
 
-    /// The dependency layer over every token of the view.
+    /// The dependency layer over every token of the view, the pieces
+    /// from `subwords` when the encoder reads them (`WordEncoder::reads`).
     pub fn dependencies(
         &self,
         view: &View,
         tokens: &Tokens,
         sentences: Option<&Sentences>,
+        subwords: Option<&Subwords>,
     ) -> Result<Dependencies<Tokens>, String> {
         let seqs = HeadRunner::sequences(view, tokens, sentences)?;
-        let parses = self.parse(&HeadRunner::texts(view, tokens, &seqs)).map_err(|e| e.to_string())?;
+        let pooling = self.parser.spec().word_pooling;
+        let mut words = self.words.lock().unwrap_or_else(PoisonError::into_inner);
+        let features = words.token_features(view, tokens, &seqs, subwords, pooling)?;
+        drop(words);
+        let parses = self.parse_features(&features).map_err(|e| e.to_string())?;
         let n = tokens.spans.len();
         let (mut head, mut relation) = (vec![None; n], vec![Tag(0); n]);
         let mut seen = vec![false; n];
@@ -120,11 +131,11 @@ impl DependencyParser {
 
 impl Annotator for DependencyParser {
     const ID: &'static str = "turbo-tagger-dependencies";
-    type Reads = (View, Tokens, Option<Sentences>);
+    type Reads = (View, Tokens, Option<Subwords>, Option<Sentences>);
     type Writes = (Dependencies<Tokens>,);
 
-    fn annotate(&self, (view, tokens, sentences): Refs<'_, Self>) -> Result<Self::Writes, Error> {
-        self.dependencies(view, tokens, sentences)
+    fn annotate(&self, (view, tokens, subwords, sentences): Refs<'_, Self>) -> Result<Self::Writes, Error> {
+        self.dependencies(view, tokens, sentences, subwords)
             .map(|d| (d,))
             .map_err(|detail| Error::Annotator { annotator: Self::ID, detail })
     }

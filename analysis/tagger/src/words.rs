@@ -14,6 +14,12 @@
 //! in windows of whole words, each starting about half a row after the
 //! last, and each word's features come from the window where it has the
 //! most pieces of context on its nearer side (the earlier on a tie).
+//!
+//! A document's `Subwords` stand in for that tokenizing when they give the
+//! same pieces ([`WordEncoder::reads`]): made by this bundle's model, per
+//! word token, by a WordPiece tokenizer (whose pieces of a word do not
+//! depend on the words around it), each piece inside its token. Other
+//! subwords of this model are passed over and the words tokenized.
 
 use std::path::Path;
 
@@ -22,8 +28,9 @@ use turbo::manifest::{PromptRole, Truncation, WordPooling};
 use turbo::status::{Error, INVALID_ARGUMENT, Result};
 use turbo::tokenizer::{Encode, Tokenizer};
 use turbo::turbo_token_range;
-use turbo_analysis::Execution;
+use turbo_analysis::{Execution, Ix, Layer as _, View};
 use turbo_analysis_embed::{Encoder, EncoderOptions, Rows};
+use turbo_analysis_layers::{Subwords, Tokens};
 
 /// The encoder, its tokenizer, and how rows are laid out.
 pub struct WordEncoder {
@@ -36,6 +43,10 @@ pub struct WordEncoder {
     max_batch: usize,
     max_ranges: usize,
     hidden: usize,
+    /// The bundle's manifest digest, which names the model of its subwords.
+    manifest: String,
+    /// Words this encoder has tokenized itself.
+    tokenized: u64,
 }
 
 /// One window: its sequence, its words `first..end`, and each word's
@@ -65,7 +76,7 @@ impl WordEncoder {
         let (cls, sep) = tokenizer.template_ends();
         let overhead = cls.len() + sep.len();
         let info = encoder.info().clone();
-        if info.max_seq as usize <= overhead + 1 {
+        if info.max_seq as usize <= overhead {
             return Err(Error::new(
                 INVALID_ARGUMENT,
                 format!("max_seq {} leaves no room beside {overhead} special tokens", info.max_seq),
@@ -80,7 +91,81 @@ impl WordEncoder {
             tokenizer,
             cls,
             sep,
+            manifest: bundle.manifest_sha256.clone(),
+            tokenized: 0,
         })
+    }
+
+    /// Words tokenized by this encoder so far, not read from subwords.
+    pub fn tokenized(&self) -> u64 {
+        self.tokenized
+    }
+
+    /// Whether `sub` gives each token of `tokens` the pieces this encoder
+    /// would make of it (see the module comment). Subwords of another
+    /// model, or in another view, are refused.
+    pub fn reads(&self, sub: &Subwords, tokens: &Tokens) -> std::result::Result<bool, String> {
+        if sub.spans.view() != tokens.spans.view() {
+            return Err("the subwords are in another view".into());
+        }
+        sub.check().map_err(|e| format!("invalid subwords: {e}"))?;
+        if sub.model.sha256 != self.manifest {
+            return Err("the subwords are from another model".into());
+        }
+        let Some(col) = &sub.token else { return Ok(false) };
+        if self.tokenizer.kind_name() != "wordpiece" {
+            return Ok(false);
+        }
+        let n = tokens.spans.len();
+        Ok(sub.spans.iter().zip(col).all(|((_, p), t)| {
+            t.get() < n && {
+                let w = tokens.spans.get(Ix::new(t.get() as u32));
+                w.start <= p.start && p.end <= w.end
+            }
+        }))
+    }
+
+    /// Each sequence's word features, a sequence being token indices of
+    /// `tokens` over `view`: pieces from `subwords` when this encoder
+    /// [`reads`](Self::reads) them, else from each token's text.
+    pub fn token_features(
+        &mut self,
+        view: &View,
+        tokens: &Tokens,
+        sequences: &[Vec<usize>],
+        subwords: Option<&Subwords>,
+        pooling: WordPooling,
+    ) -> std::result::Result<Vec<Vec<f32>>, String> {
+        let sub = match subwords {
+            Some(s) if self.reads(s, tokens)? => Some(s),
+            _ => None,
+        };
+        let mut pieces = Vec::with_capacity(sequences.len());
+        for seq in sequences {
+            let mut words = Vec::with_capacity(seq.len());
+            for &i in seq {
+                let t = Ix::new(i as u32);
+                words.push(match sub {
+                    Some(s) => {
+                        let r = s.of(t);
+                        self.bounded(s.ids[r.start.get()..r.end.get()].to_vec())
+                    }
+                    None => self.pieces(&view.text()[tokens.spans.get(t).range()]).map_err(|e| e.to_string())?,
+                });
+            }
+            pieces.push(words);
+        }
+        self.features_of(&pieces, pooling).map_err(|e| e.to_string())
+    }
+
+    /// A word's pieces as a row holds them: the unknown piece for none,
+    /// the first row's worth of many.
+    fn bounded(&self, mut ids: Vec<i32>) -> Vec<i32> {
+        if ids.is_empty() {
+            ids.push(self.tokenizer.unk_id);
+        }
+        ids.truncate(self.width);
+        ids
     }
 
     /// Values per word.
@@ -98,26 +183,30 @@ impl WordEncoder {
     }
 
     /// Each word's pieces, read as the module comment says.
-    pub fn pieces(&self, word: &str) -> Result<Vec<i32>> {
+    pub fn pieces(&mut self, word: &str) -> Result<Vec<i32>> {
         let (mut ids, mut spans) = (Vec::new(), Vec::new());
         self.tokenizer.encode_spans(word, BARE, &mut ids, &mut spans)?;
-        if ids.is_empty() {
-            ids.push(self.tokenizer.unk_id);
-        }
-        ids.truncate(self.width);
-        Ok(ids)
+        self.tokenized += 1;
+        Ok(self.bounded(ids))
     }
 
     /// Each sequence's word features [words, hidden], `sequences[s]` its
     /// words' text, pooled by `pooling`.
     pub fn features(&mut self, sequences: &[Vec<&str>], pooling: WordPooling) -> Result<Vec<Vec<f32>>> {
+        let pieces: Vec<Vec<Vec<i32>>> =
+            sequences.iter().map(|words| words.iter().map(|w| self.pieces(w)).collect()).collect::<Result<_>>()?;
+        self.features_of(&pieces, pooling)
+    }
+
+    /// As [`features`](Self::features), from each word's pieces, every
+    /// word one to `width` pieces.
+    fn features_of(&mut self, sequences: &[Vec<Vec<i32>>], pooling: WordPooling) -> Result<Vec<Vec<f32>>> {
         let mut out: Vec<Vec<f32>> = sequences.iter().map(|s| vec![0.0; s.len() * self.hidden]).collect();
         let mut rows = Rows::new((self.width + self.cls.len() + self.sep.len()) as u32, self.tokenizer.fill_id());
         let (mut ranges, mut owners, mut states) = (Vec::new(), Vec::<(usize, usize)>::new(), Vec::new());
         let mut row_ids = Vec::new();
-        for (s, words) in sequences.iter().enumerate() {
-            let pieces: Vec<Vec<i32>> = words.iter().map(|w| self.pieces(w)).collect::<Result<_>>()?;
-            for (window, keep) in self.windows(s, &pieces) {
+        for (s, pieces) in sequences.iter().enumerate() {
+            for (window, keep) in self.windows(s, pieces) {
                 let n: usize = keep.iter().filter(|&&k| k).count();
                 if rows.len() as usize == self.max_batch || ranges.len() + n > self.max_ranges {
                     self.flush(&mut rows, &mut ranges, &mut owners, &mut states, &mut out)?;

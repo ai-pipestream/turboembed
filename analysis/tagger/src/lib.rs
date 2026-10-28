@@ -19,7 +19,7 @@ use turbo::manifest::Scheme;
 use turbo::status::{Error as CoreError, INVALID_ARGUMENT};
 use turbo_analysis::{Annotator, Error, Execution, Fnv1a, Layer, ModelRef, Refs, TagSet, View};
 use turbo_analysis_embed::EncoderOptions;
-use turbo_analysis_layers::{Entities, PosTags, Sentences, Tokens};
+use turbo_analysis_layers::{Entities, PosTags, Sentences, Subwords, Tokens};
 
 pub use annotate::HeadRunner;
 pub use parse::DependencyParser;
@@ -52,12 +52,12 @@ impl PosTagger {
 
 impl Annotator for PosTagger {
     const ID: &'static str = "turbo-tagger-pos";
-    type Reads = (View, Tokens, Option<Sentences>);
+    type Reads = (View, Tokens, Option<Subwords>, Option<Sentences>);
     type Writes = (PosTags,);
 
-    fn annotate(&self, (view, tokens, sentences): Refs<'_, Self>) -> Result<Self::Writes, Error> {
+    fn annotate(&self, (view, tokens, subwords, sentences): Refs<'_, Self>) -> Result<Self::Writes, Error> {
         self.run
-            .pos_tags(view, tokens, sentences, &self.tagset)
+            .pos_tags(view, tokens, sentences, subwords, &self.tagset)
             .map(|t| (t,))
             .map_err(|detail| Error::Annotator { annotator: Self::ID, detail })
     }
@@ -100,12 +100,12 @@ impl EntityTagger {
 
 impl Annotator for EntityTagger {
     const ID: &'static str = "turbo-tagger-entities";
-    type Reads = (View, Tokens, Option<Sentences>);
+    type Reads = (View, Tokens, Option<Subwords>, Option<Sentences>);
     type Writes = (Entities,);
 
-    fn annotate(&self, (view, tokens, sentences): Refs<'_, Self>) -> Result<Self::Writes, Error> {
+    fn annotate(&self, (view, tokens, subwords, sentences): Refs<'_, Self>) -> Result<Self::Writes, Error> {
         self.run
-            .entities(view, tokens, sentences, &self.kinds)
+            .entities(view, tokens, sentences, subwords, &self.kinds)
             .map(|e| (e,))
             .map_err(|detail| Error::Annotator { annotator: Self::ID, detail })
     }
