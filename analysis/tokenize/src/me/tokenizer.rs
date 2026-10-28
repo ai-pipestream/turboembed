@@ -84,7 +84,7 @@ impl TokenizerMe {
     pub fn tokenize_with(&self, text: &str, scratch: &mut Scratch, out: &mut Vec<(Span, f64)>) {
         let maxent = self.model.maxent();
         scratch.probs.resize(maxent.num_outcomes(), 0.0);
-        let units = WhitespaceUnits::new(text, self.options.whitespace, self.options.keep_newlines);
+        let units = WhitespaceUnits::new(text, self.options.keep_newlines);
         for (start, end) in units {
             let unit = &text[start..end];
             if fewer_than_two_units(unit) || self.model.alphanumeric().is_some_and(|a| a.test(unit)) {
@@ -110,7 +110,7 @@ impl TokenizerMe {
         let mut at = Utf16Cursor::new(unit);
         at.step_forward();
         while !at.at_end() {
-            token_context(&at, facts, self.options.whitespace, features);
+            token_context(&at, facts, features);
             maxent.eval_features(features.iter(), probs);
             let outcome = self.model.outcome(best_outcome(probs));
             prob *= probs[outcome.index];

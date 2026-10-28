@@ -3,11 +3,9 @@
 //!
 //! The first line is the two dimensions; every other non-blank line is a
 //! right context id (of the earlier word), a left context id (of the later
-//! word) and the cost, separated by whitespace in the configured mode.
+//! word) and the cost, separated by Unicode whitespace.
 //! Every pair must be listed exactly once. Lines are trimmed of Unicode
 //! `White_Space`, and each number is read as `Integer.parseInt` reads it.
-
-use turbo_unicode::WhitespaceMode;
 
 use super::error::{DictionaryError, DictionaryFile};
 use super::limits::DictionaryLimits;
@@ -47,7 +45,7 @@ impl Matrix {
         self.costs[right as usize * self.cols as usize + left as usize]
     }
 
-    pub(crate) fn parse(text: &str, mode: WhitespaceMode, limits: DictionaryLimits) -> Result<Matrix, DictionaryError> {
+    pub(crate) fn parse(text: &str, limits: DictionaryLimits) -> Result<Matrix, DictionaryError> {
         let number = |field: &str, line: usize| {
             parse_java_int(trim_unicode_whitespace(field), 10)
                 .ok_or(DictionaryError::Number { file: DictionaryFile::Matrix, line })
@@ -57,7 +55,7 @@ impl Matrix {
         if header.is_empty() {
             return Err(DictionaryError::MatrixEmpty);
         }
-        let mut fields = whitespace_fields(header, mode);
+        let mut fields = whitespace_fields(header);
         let (Some(a), Some(b), None) = (fields.next(), fields.next(), fields.next()) else {
             return Err(DictionaryError::MatrixHeader);
         };
@@ -94,7 +92,7 @@ impl Matrix {
             if trimmed.is_empty() {
                 continue;
             }
-            let mut fields = whitespace_fields(trimmed, mode);
+            let mut fields = whitespace_fields(trimmed);
             let (Some(r), Some(l), Some(c), None) = (fields.next(), fields.next(), fields.next(), fields.next()) else {
                 return Err(DictionaryError::MatrixLine { line });
             };
@@ -128,7 +126,7 @@ mod tests {
     use super::*;
 
     fn parse(text: &str) -> Result<Matrix, DictionaryError> {
-        Matrix::parse(text, WhitespaceMode::Unicode, DictionaryLimits::default())
+        Matrix::parse(text, DictionaryLimits::default())
     }
 
     fn message(text: &str) -> String {
@@ -175,9 +173,9 @@ mod tests {
             "matrix.def declares 65536 connection costs but only 1 pairs are listed"
         );
         let limits = DictionaryLimits { max_entries: 3, max_matrix_cells: 4 };
-        let e = Matrix::parse("2 3\n", WhitespaceMode::Unicode, limits).unwrap_err();
+        let e = Matrix::parse("2 3\n", limits).unwrap_err();
         assert!(matches!(e, DictionaryError::MatrixTooLarge { rows: 2, cols: 3 }), "{e:?}");
-        let e = Matrix::parse("4 1\n", WhitespaceMode::Unicode, limits).unwrap_err();
+        let e = Matrix::parse("4 1\n", limits).unwrap_err();
         assert!(matches!(e, DictionaryError::MatrixTooLarge { rows: 4, cols: 1 }), "{e:?}");
     }
 
@@ -211,13 +209,11 @@ mod tests {
     }
 
     #[test]
-    fn the_whitespace_mode_splits_the_fields() {
-        // U+001C separates in legacy mode only, U+0085 in Unicode mode only.
-        let legacy = Matrix::parse("1 1\n0\u{1c}0\u{1c}7\n", WhitespaceMode::Legacy, DictionaryLimits::default());
-        assert_eq!(legacy.unwrap().cost(0, 0), 7);
-        let unicode = Matrix::parse("1 1\n0\u{1c}0\u{1c}7\n", WhitespaceMode::Unicode, DictionaryLimits::default());
+    fn unicode_whitespace_splits_the_fields() {
+        // U+001C is not whitespace, so the line has one field; U+0085 splits.
+        let unicode = Matrix::parse("1 1\n0\u{1c}0\u{1c}7\n", DictionaryLimits::default());
         assert!(matches!(unicode.unwrap_err(), DictionaryError::MatrixLine { line: 2 }));
-        let unicode = Matrix::parse("1 1\n0\u{85}0\u{85}7\n", WhitespaceMode::Unicode, DictionaryLimits::default());
+        let unicode = Matrix::parse("1 1\n0\u{85}0\u{85}7\n", DictionaryLimits::default());
         assert_eq!(unicode.unwrap().cost(0, 0), 7);
     }
 }

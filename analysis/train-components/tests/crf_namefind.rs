@@ -1,12 +1,11 @@
 use turbo_formats::native::NameReader;
 use turbo_sequence::namefind::NameCodec;
 use turbo_train_components::namefind::{TokenNameFinderFactory, crf_sequences};
-use turbo_unicode::WhitespaceMode;
 
 #[test]
 fn feature_stream_excludes_gold_history_and_checks_annotations() {
     let text = "<START:x> One Two <END> .\nOne Two .\n";
-    let samples = NameReader::new(text, WhitespaceMode::Unicode).unwrap().collect::<Result<Vec<_>, _>>().unwrap();
+    let samples = NameReader::new(text).unwrap().collect::<Result<Vec<_>, _>>().unwrap();
     let factory = TokenNameFinderFactory::new("en", None, NameCodec::Bio).unwrap();
     let sequences = crf_sequences(&factory, &samples).unwrap();
     assert_eq!(sequences[0].features, sequences[1].features);

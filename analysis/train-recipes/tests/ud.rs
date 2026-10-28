@@ -10,11 +10,12 @@
 use std::path::{Path, PathBuf};
 
 use turbo_train_components::lemmatize::lemma_class;
-use turbo_train_components::ud::Component;
 use turbo_train_recipes::card::TagCount;
 use turbo_train_recipes::postag::{HeldOutTags, ReferenceTags};
 use turbo_train_recipes::treebank::{Grant, TextRights, Treebank, TreebankFile};
-use turbo_train_recipes::ud::{ReferenceClasses, UdRecipe, lemma_samples, lemma_samples_sha256, pos_samples};
+use turbo_train_recipes::ud::{
+    Component, ReferenceClasses, UdRecipe, lemma_samples, lemma_samples_sha256, pos_samples,
+};
 use turbo_train_recipes::{Error, LeftOut, Reference};
 use turbo_zoo::{Sha256, Sha512};
 

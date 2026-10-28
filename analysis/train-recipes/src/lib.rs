@@ -270,7 +270,7 @@ impl Recipe {
     /// `NameFinderME.train`'s defaults for the name finders
     /// ([`namefind::training_parameters`]).
     pub fn parameters(&self) -> ParametersCard {
-        use turbo_train_components::{namefind as names, ud};
+        use turbo_train_components::namefind as names;
         let (iterations, cutoff, threads) = match self {
             Recipe::Segmentation(_) | Recipe::Pos(_) => (ud::ITERATIONS, ud::CUTOFF, masc::THREADS),
             Recipe::Chunk(_) => (chunk::ITERATIONS, chunk::CUTOFF, chunk::THREADS),

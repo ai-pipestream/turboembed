@@ -11,7 +11,7 @@ use turbo_train_components::Stamp;
 use turbo_train_components::doccat::train_doccat;
 
 fn parse_samples(corpus: &str) -> Vec<DocumentSample<'_>> {
-    DocumentReader::new(corpus, Default::default()).unwrap().map(|r| r.expect("valid sample")).collect()
+    DocumentReader::new(corpus).unwrap().map(|r| r.expect("valid sample")).collect()
 }
 
 #[test]

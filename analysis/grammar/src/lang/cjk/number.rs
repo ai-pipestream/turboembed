@@ -1,6 +1,5 @@
 //! Decimal arithmetic directly over source text, without a normalized copy.
 use crate::dec::Dec;
-use turbo_unicode::whitespace::WhitespaceMode;
 
 // Nonnegative digits, powers of ten, and syntax markers. The same inventory
 // drives the lexicon and this reader so segmentation and arithmetic agree.
@@ -77,7 +76,7 @@ pub(super) const WORDS: &[(&str, i64)] = &[
 ];
 
 fn white(c: char) -> bool {
-    WhitespaceMode::Unicode.is_whitespace(c as u32)
+    turbo_unicode::whitespace::is_whitespace(c as u32)
 }
 fn token(text: &str) -> Option<(usize, i64)> {
     let c = text.chars().next()?;

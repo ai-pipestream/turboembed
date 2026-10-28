@@ -47,7 +47,6 @@ use std::sync::Arc;
 
 use turbo_analysis::{Annotator, Error, Execution, ModelRef, Refs, Span, Spans, View};
 use turbo_analysis_layers::Sentences;
-use turbo_unicode::WhitespaceMode;
 
 use crate::inventory::{AbbreviationInventories, AbbreviationInventory};
 use crate::scan::trim;
@@ -392,7 +391,7 @@ impl RuleSplitter {
 /// Appends the span `start..end` trimmed of Unicode `White_Space`, when
 /// anything is left.
 fn push_trimmed(text: &str, start: usize, end: usize, out: &mut Vec<Span>) {
-    if let Some((s, e)) = trim(text, start, end, WhitespaceMode::Unicode) {
+    if let Some((s, e)) = trim(text, start, end) {
         out.push(Span::new(s as u32, e as u32));
     }
 }

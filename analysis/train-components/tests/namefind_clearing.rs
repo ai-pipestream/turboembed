@@ -4,12 +4,11 @@ use turbo_formats::native::NameReader;
 use turbo_sequence::namefind::NameCodec;
 use turbo_train_components::namefind::cross_validate::documents;
 use turbo_train_components::namefind::{NameEventStream, TokenNameFinderFactory};
-use turbo_unicode::WhitespaceMode;
 
 #[test]
 fn sentence_clearing_changes_features_not_document_partitions() {
     let text = std::fs::read_to_string(turbo_goldens::data_dir().join("inputs/tagged/names.txt")).unwrap();
-    let samples: Vec<_> = NameReader::new(&text, WhitespaceMode::Unicode).unwrap().map(Result::unwrap).collect();
+    let samples: Vec<_> = NameReader::new(&text).unwrap().map(Result::unwrap).collect();
     let original = samples.clone();
     let partitions = documents(&samples);
     assert_eq!(partitions, [0..4, 4..9, 9..13, 13..19, 19..23]);
