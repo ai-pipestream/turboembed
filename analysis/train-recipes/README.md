@@ -1,5 +1,24 @@
 # turbo-train-recipes
 
+## Current command surface after #1511
+
+Classical model training, reference-model gates and release publication commands
+are disabled. OpenNLP archives cannot be loaded, even from a caller-managed
+cache. Remaining classical library code is scheduled for removal in #1532.
+
+The executable currently supports `fetch-masc`, `fetch-ud`, `fineweb-ranges`
+and native `static-embed`. Consult `src/cli.rs` for arguments. Dataset download
+and integrity checks remain active, subject to their original licence policy.
+The retained `masc-references.txt` is historical input provenance, not an active
+model download or loading requirement.
+
+The sections below preserve historical recipes, dataset hashes, split rules
+and evaluation results. Their classical commands are no longer runnable in
+current builds; their JVM/model comparison results are not current acceptance
+evidence and do not establish accuracy for replacement heads.
+
+## Historical recipe record
+
 Recipes that train models only on permissive data, and the
 accuracy gate each model passes before it ships (#401, #415).
 docs/analysis.md ("Models trained on permissive data" and "Model gates")
