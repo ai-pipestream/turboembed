@@ -185,6 +185,8 @@ pub enum Energy {
     Kilojoule,
     WattHour,
     KilowattHour,
+    /// Thermochemical kilocalorie: exactly 4184 joules.
+    Kilocalorie,
 }
 
 impl Energy {
@@ -194,6 +196,7 @@ impl Energy {
             Energy::Kilojoule => "Kilojoule",
             Energy::WattHour => "Watt-hour",
             Energy::KilowattHour => "Kilowatt-hour",
+            Energy::Kilocalorie => "Kilocalorie",
         }
     }
 
@@ -203,6 +206,7 @@ impl Energy {
             Energy::Kilojoule => "kJ",
             Energy::WattHour => "Wh",
             Energy::KilowattHour => "kWh",
+            Energy::Kilocalorie => "kcal",
         }
     }
 }
