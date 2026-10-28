@@ -202,6 +202,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     let (train_ex, _) = examples(&mut enc, train_set, &head.labels, pooling)?;
     let (dev_ex, dev_left_out) = examples(&mut enc, &corpus.splits.dev, &head.labels, pooling)?;
     let features = t.elapsed().as_secs_f64();
+    let feature_words = train_ex.iter().chain(&dev_ex).map(|e| e.labels.len() as u64).sum();
 
     let t = Instant::now();
     let (model, report) =
@@ -257,7 +258,7 @@ fn train(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
             epoch_seconds: report.epoch_seconds,
         }),
         eval,
-        timing_s: Timing { read, features, train: trained, eval: eval_s },
+        timing_s: Timing { read, features, train: trained, eval: eval_s, feature_words },
         outputs,
     };
     finish(out, receipt)
@@ -280,6 +281,7 @@ fn encoder_record(bundle: &Path, enc: &WordEncoder) -> Result<EncoderRecord> {
         revision: m.model.revision,
         manifest_sha256: turbo::bundle::sha256_hex(&manifest),
         hidden: enc.hidden(),
+        layers: m.architecture.as_ref().map(|a| a.layers),
         width: enc.width(),
         backend: x.backend.clone(),
         device: x.device.clone(),
@@ -333,6 +335,12 @@ fn finish(mut out: OutDir, receipt: Receipt) -> Result<()> {
     let text = serde_json::to_string_pretty(&receipt).expect("the receipt serializes");
     write(&out.path, "receipt.json", text.as_bytes())?;
     out.keep = true;
+    if let Some(w) = receipt.timing_s.words_per_s() {
+        println!(
+            "features: {} train and dev words in {:.1} s, {w:.0} words/s",
+            receipt.timing_s.feature_words, receipt.timing_s.features
+        );
+    }
     let model = receipt.eval.model.as_ref().map_or("-".into(), |m| format!("{:.4}", m.score()));
     println!(
         "{}: {} model {model} baseline {:.4}; {}",

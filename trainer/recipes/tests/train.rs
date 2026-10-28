@@ -106,7 +106,10 @@ fn a_training_run_writes_a_head_the_core_loads_and_a_receipt() {
     assert_eq!(r.commit, "test");
     assert!(!r.corpus.recorded);
     let enc = r.encoder.as_ref().unwrap();
-    assert_eq!((enc.backend.as_str(), enc.hidden), ("cpu", 32));
+    assert_eq!((enc.backend.as_str(), enc.hidden, enc.layers), ("cpu", 32, Some(2)));
+    // The data's 48 sentences of five words, train and dev both read.
+    assert_eq!(r.timing_s.feature_words, 2 * 48 * 5);
+    assert!(r.timing_s.words_per_s().is_some_and(|w| w > 0.0));
     let head = r.head.clone().unwrap();
     assert_eq!(head.layer, "turboembed:entities");
     assert_eq!(head.labels, ["O", "B-HumanSettlement", "B-OtherPER"]);
