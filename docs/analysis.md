@@ -62,7 +62,7 @@ layers over them (`server/src/analysis.rs`, [grpc-analysis.md](grpc-analysis.md)
 | `turbo-stopword` | `analysis/stopword/` | Multilingual stopword lists across 11 languages and `StopwordAnnotator` writing `Stopwords` (`turbo:stopwords`) |
 | `turbo-glossary` | `analysis/glossary/` | CSV and TBX 2/3 glossary readers, Aho-Corasick character matcher, zero-copy double-array `MappedGlossaryMatcher`, and token/stem matcher writing `GlossaryTerms` (`turbo:glossary-terms`) |
 | `turbo-bpe-trainer` | `analysis/bpe-trainer/` | Byte-level, SentencePiece, and word-bounded BPE vocabulary trainers ([bpe-trainer.md](bpe-trainer.md)) |
-| `turbo-formats` | `analysis/formats/` | Corpus readers and evaluation scorers: Universal Dependencies CoNLL-U (`analysis/formats/src/conllu/` with byte-identical round trips), CoNLL-2003, GermEval 2014, WNUT-17, and MultiCoNER v2 NER (`analysis/formats/src/ner/`), LitBank brat entity and coreference standoff (`analysis/formats/src/ner/brat/`), MASC 3.0.0 standoff (`analysis/formats/src/masc/`), pinned dataset recipes (`analysis/formats/recipes/`), and precision/recall/$F_1$ evaluators (`analysis/formats/src/evaluate/`) |
+| `turbo-formats` | `analysis/formats/` | Corpus readers and evaluation scorers: Universal Dependencies CoNLL-U (`analysis/formats/src/conllu/` with byte-identical round trips), CoNLL-2003, GermEval 2014, WNUT-17, and MultiCoNER v2 NER (`analysis/formats/src/ner/`), LitBank brat entity and coreference standoff (`analysis/formats/src/ner/brat/`), MASC 3.0.0 standoff (`analysis/formats/src/masc/`), pinned dataset recipes (`analysis/formats/recipes/`), and precision/recall/$F_1$ evaluators (`analysis/formats/src/evaluate/`; true positives are a multiset intersection, so recall is at most 1) |
 | `turbo-zoo` | `analysis/zoo/` | JSON model and lexicon catalog (`analysis/zoo/index/zoo.json`) with artifact byte-length, SHA-256, and SHA-512 content-digest verification, license-tier gating (`Permissive` vs `AcceptFirst`), and atomic cache layout ([zoo.md](zoo.md)) |
 
 ## Document, views, and alignments (`analysis/core/src/doc/mod.rs`)
@@ -165,6 +165,135 @@ for zero-loss transport across gRPC (`server/src/analysis.rs`,
   CPU throughput measurements in its companion guide under `docs/` and crate
   `README.md`.
 
+### Abbreviations and MED1250 (`turbo-abbrev`)
+
+`AbbreviationExtractor` finds short/long form pairs in running text and
+scores against the 1,203 distinct gold pairs of Ab3P's MED1250 corpus:
+
+| Long form punctuation dropped | True positives | False positives | False negatives | Precision | Recall | F1 |
+|---|---|---|---|---|---|---|
+| yes (as shipped) | 956 | 45 | 247 | 0.9550 | 0.7947 | 0.8675 |
+| no | 950 | 51 | 253 | 0.9491 | 0.7897 | 0.8621 |
+
+### Rule matching (`turbo-matcher`)
+
+A token pattern test reads one string attribute (`Attr`) or one lexical flag:
+
+| `Attr` | Value | spaCy |
+|---|---|---|
+| `Text` | the token's text in its view | `ORTH`, `TEXT` |
+| `Lower` | the text lowercased (`str::to_lowercase`) | `LOWER` |
+| `Prefix`, `Suffix` | the first character, the last three | `PREFIX`, `SUFFIX` |
+| `Shape` | `word_shape` ("Xxxxx", "dd.d") | `SHAPE` |
+| `Norm` | a string column the caller aligns to the tokens | `NORM` |
+| `Lemma`, `Stem` | `Lemmas`, `turbo:stems` | `LEMMA` |
+| `Pos` | the tag in `PosTags` | `TAG`, `POS` |
+| `Entity` | the kind of the first entity in `Entities` covering the token, or the empty string where none does | `ENT_TYPE` |
+
+Measured on one million two- to four-word phrases (3.05 million phrase tokens,
+17,023 distinct values) matched over `Attr::Lower`:
+
+| Measure | Value |
+|---|---|
+| Build | 1.2 s |
+| Trie states | 1.52 million |
+| Heap the matcher holds (`heap_bytes`) | 64.9 MiB |
+| Growth of the process's RSS over the build | 92.1 MiB |
+| Dev file (24,788 tokens, 0.13 MB): 41,544 matches | 2.8 ms, 8.9 million tokens/s, 45 MB/s |
+| Test file (24,740 tokens, 0.12 MB): 41,268 matches | 2.8 ms, 8.9 million tokens/s, 45 MB/s |
+
+### Chunker boundary costs, sketches, and levels
+
+Each inter-sentence gap in `turbo-chunker` takes its strongest structural break:
+
+| Break at the gap | Reason | Default cost |
+| --- | --- | --- |
+| A section starts or ends | `Section` | 0 |
+| A heading starts | `Heading` | 100 |
+| A paragraph, list, table, code block, quote, caption, footnote or page header or footer starts or ends | `Paragraph` | 400 |
+| A list item or table row starts or ends | `Item` | 600 |
+| None of these | `Sentence` | 1000 |
+
+Per item, `turbo-group`'s sketch layer holds:
+
+| Column | What it is |
+| --- | --- |
+| `words` | The item's word count |
+| `exact` | A 128-bit hash of the word sequence: equal for the same words in the same order, whatever lies between them |
+| `shape` | A 64-bit hash of the sequence with every number word replaced by one placeholder |
+| `simhash` | The 64-bit SimHash of the item's shingles, each occurrence counted |
+| `minhash` | 64 MinHash values of the item's set of shingles by one-permutation hashing with optimal densification |
+
+Multi-level retrieval (`analysis/eval/records/turbo-chunker-254-200-level-*`,
+`all-MiniLM-L6-v2`, `--max 254 --target 200`, plain structure) nDCG@10:
+
+| Level, vectors | scifact | nfcorpus | arguana | qasper | gutenqa |
+| --- | --- | --- | --- | --- | --- |
+| chunk, text | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2817 (10578) | 0.8635 (69226) |
+| chunk, local | 0.6504 | 0.3172 | 0.4918 | 0.2817 | 0.8637 |
+| chunk, contextual | 0.6599 | 0.3230 | 0.4932 | 0.2750 | 0.8563 |
+| section, text | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2841 (10207) | 0.8570 (67572) |
+| section, local | 0.6504 | 0.3172 | 0.4918 | 0.2838 | 0.8569 |
+| section, contextual | 0.6599 | 0.3230 | 0.4932 | 0.2771 | 0.8506 |
+| document, text | 0.6402 (5183) | 0.3097 (3633) | 0.5033 (8674) | 0.2519 (416) | 0.3161 (100) |
+| document, local | 0.6518 | 0.3167 | 0.4872 | 0.2328 | 0.6238 |
+
+### Hybrid BM25 + dense retrieval, structure, and larger embedders
+
+Hybrid fusion sweep across `scifact`, `nfcorpus`, `arguana`, and `qasper`:
+
+| Chunker | Fusion | `scifact` | `nfcorpus` | `arguana` | `qasper` | Mean | Gate vs stage-0 (3 baselines) | Gate vs `bm25-document` |
+| :--- | :--- | ---: | ---: | ---: | ---: | ---: | :--- | :--- |
+| `turbo-chunker-254-200` | `weighted` `w = 0.35` (default) | `69.24` | `34.28` | `51.65` | `37.85` | `48.26` | PASS (4/4, 4/4, 4/4) | PASS (3/4, `qasper` `+0.09`) |
+| `turbo-chunker-254-200` | `weighted` `w = 0.38` | `69.13` | `34.28` | `51.22` | `38.36` | `48.25` | PASS (4/4, 4/4, 4/4) | PASS (3/4, `qasper` `+0.60`) |
+| `turbo-chunker-254-200` | `weighted` `w = 0.40` | `69.04` | `34.11` | `51.12` | `38.44` | `48.18` | PASS (4/4, 3/4, 4/4) | PASS (3/4, `qasper` `+0.68`) |
+| `turbo-chunker-254-200` | `weighted` `w = 0.45` | `68.79` | `33.96` | `50.86` | `39.11` | `48.18` | PASS (3/4, 3/4, 4/4) | PASS (3/4, `qasper` `+1.35`) |
+| `turbo-chunker-254-200` | `weighted` `w = 0.50` (untuned 50/50) | `68.45` | `33.62` | `50.48` | `39.42` | `47.99` | PASS (3/4, 3/4, 4/4) | PASS (3/4, `qasper` `+1.66`) |
+| `turbo-chunker-254-200` | `rrf` `k = 60, w = 0.50` (untuned RRF) | `68.13` | `34.17` | `49.69` | `36.82` | `47.20` | PASS (2/4, 3/4, 4/4) | FAIL (3/4, `qasper` `-0.94`) |
+
+Held-out `bm25_weight` selection (`Hybrid::choose_bm25_weight_held_out`,
+`analysis/eval/tests/heldout_hybrid.rs`,
+`analysis/eval/records/heldout-hybrid-955/heldout-hybrid-955.json`):
+
+| Set | Chosen `bm25_weight` | Selection queries | Selection nDCG@10 | Held-out queries | Held-out nDCG@10 | Held-out dense (`0.0`) | Held-out BM25 (`1.0`) |
+| :--- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `scifact` | 0.20 | 150 | 0.6860 | 150 | 0.7269 | 0.6667 | 0.6506 |
+| `nfcorpus` | 0.30 | 162 | 0.3438 | 161 | 0.3472 | 0.3188 | 0.2868 |
+| `arguana` | 0.30 | 703 | 0.5162 | 703 | 0.5179 | 0.4938 | 0.4474 |
+| `qasper` | 0.60 | 726 | 0.4050 | 725 | 0.3854 | 0.2706 | 0.3678 |
+
+Structure ablation (`--structure none`, `plain`, and `markdown`) at `--max 254 --target 200`:
+
+| Structure | scifact | nfcorpus | arguana | qasper | gutenqa |
+| --- | --- | --- | --- | --- | --- |
+| none | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2792 (9453) | 0.8631 (69197) |
+| plain | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2817 (10578) | 0.8635 (69226) |
+| markdown | 0.6506 (9126) | 0.3176 (6819) | 0.4955 (11145) | 0.2825 (10544) | 0.8634 (69228) |
+
+Larger embedders with `turbo-chunker --max 254 --target 200`, nDCG@10:
+
+| Embedder | Retrieval | `scifact` | `nfcorpus` | `arguana` | `qasper` | Mean |
+| :--- | :--- | ---: | ---: | ---: | ---: | ---: |
+| all-MiniLM-L6-v2 | dense | `65.06` | `31.76` | `49.55` | `28.17` | `43.63` |
+| bge-small-en-v1.5 | dense | `70.32` | `35.21` | `62.86` | `30.32` | `49.68` |
+| bge-base-en-v1.5 | dense | `73.74` | `36.65` | `64.51` | `30.82` | `51.43` |
+| all-MiniLM-L6-v2 | hybrid, `w = 0.35` | `69.24` | `34.28` | `51.65` | `37.85` | `48.25` |
+| bge-small-en-v1.5 | hybrid, `w = 0.35` | `70.55` | `34.90` | `58.57` | `38.62` | `50.66` |
+| bge-base-en-v1.5 | hybrid, `w = 0.35` | `72.26` | `36.05` | `60.47` | `39.21` | `52.00` |
+
+Query instruction ablation on `bge-small-en-v1.5` and `bge-base-en-v1.5`, nDCG@10:
+
+| Embedder | Retrieval | Query | `scifact` | `nfcorpus` | `arguana` | `qasper` | Mean |
+| :--- | :--- | :--- | ---: | ---: | ---: | ---: | ---: |
+| bge-small-en-v1.5 | dense | none | `70.32` | `35.21` | `62.86` | `30.32` | `49.68` |
+| bge-small-en-v1.5 | dense | instruction | `70.21` | `35.15` | `61.39` | `31.28` | `49.51` |
+| bge-base-en-v1.5 | dense | none | `73.74` | `36.65` | `64.51` | `30.82` | `51.43` |
+| bge-base-en-v1.5 | dense | instruction | `73.90` | `36.70` | `62.84` | `31.64` | `51.27` |
+| bge-small-en-v1.5 | hybrid, `w = 0.35` | none | `70.55` | `34.90` | `58.57` | `38.62` | `50.66` |
+| bge-small-en-v1.5 | hybrid, `w = 0.35` | instruction | `70.44` | `35.16` | `57.66` | `38.63` | `50.47` |
+| bge-base-en-v1.5 | hybrid, `w = 0.35` | none | `72.26` | `36.05` | `60.47` | `39.21` | `52.00` |
+| bge-base-en-v1.5 | hybrid, `w = 0.35` | instruction | `71.77` | `36.42` | `59.29` | `39.22` | `51.68` |
+
 ### Encoder audit and optional Granite download
 
 The licence audit does not establish a permissive training lineage for
@@ -176,8 +305,56 @@ text requiring explicit user acceptance ([zoo.md](zoo.md), "Granite requires an
 explicit download decision"). Under the document-chunker dense retrieval gate on
 CPU at `MODEL` precision (`analysis/eval/records/granite-embedding-30m-document`,
 `all-minilm-l6-v2-document`, and `potion-base-8m-document`), Granite leads
-`all-MiniLM-L6-v2` on all four BEIR sets (`scifact` `0.7172` vs `0.6402`,
-`nfcorpus` `0.3282` vs `0.3094`, `arguana` `0.5562` vs `0.5015`, `qasper`
-`0.2767` vs `0.2519`, mean nDCG@10 `0.4696` vs `0.4258`). `turbo-train-recipes
-static-embed` ships as experimental tooling for static embedding table
-initialization and contrastive training (`0.3354` untrained on `scifact`).
+`all-MiniLM-L6-v2` on all four BEIR sets:
+
+| set | granite-embedding-30m-english | all-MiniLM-L6-v2 | potion-base-8M |
+| --- | ---: | ---: | ---: |
+| scifact | 0.7172 | 0.6402 | 0.4914 |
+| nfcorpus | 0.3282 | 0.3094 | 0.2305 |
+| arguana | 0.5562 | 0.5015 | 0.3625 |
+| qasper | 0.2767 | 0.2519 | 0.1970 |
+| mean | 0.4696 | 0.4258 | 0.3204 |
+
+`turbo-train-recipes static-embed` ships as experimental tooling for static
+embedding table initialization and contrastive training (`0.3354` untrained on
+`scifact`).
+
+### Evaluation sets and static-to-contextual cascade records (#712)
+
+Evaluation datasets registered under `analysis/eval/src/sets/`:
+
+| Set | Source | Licence | Spans | Digests |
+|---|---|---|---|---|
+| `scifact`, `nfcorpus`, `arguana` | BEIR layout, from MTEB's plain copies at a recorded revision | CC BY-SA 4.0 (BEIR dataset cards) | none | recorded |
+| `legalbench-rag-mini` | a shared folder, placed by hand | MIT for the benchmark; the documents under their sources' terms | code points | none (no stable file URLs) |
+| `conteb-covid-qa` | Parquet | none for the article text, so refused | the judged chunk | not recorded yet |
+| `conteb-squad` | Parquet, ConTEB's SQuAD set (`illuin-conteb/squad-conteb-eval`, revision 8f81cbd), validation split | CC BY-SA 4.0 (SQuAD over Wikipedia; downloaded at use, never bundled) | the judged chunk | recorded |
+| `gutenqa` | Parquet | MIT (dataset card) | the quoted passage | recorded |
+| `hicbench` | no copy that can be fetched | none stated, so refused | quoted sentences | none |
+| `qasper` | gzip tar, test split | CC BY 4.0 | quoted evidence, located by paragraph or text | recorded |
+
+Static-to-contextual cascade records (`#712`) across BEIR sets and GutenQA:
+
+| Set | Arm | Recall@10 | nDCG@10 | Contextual scored/query |
+|---|---|---|---|---|
+| scifact | Static only | 0.3325 | 0.2564 | 0 |
+| scifact | Contextual only | 0.4650 | 0.3726 | 12387 |
+| scifact | Cascade C=5 | 0.4650 | 0.3726 | 8534 |
+| scifact | Cascade C=64 | 0.4650 | 0.3726 | 12387 |
+| nfcorpus | Static only | 0.0537 | 0.1255 | 0 |
+| nfcorpus | Contextual only | 0.1254 | 0.2655 | 21088 |
+| nfcorpus | Cascade C=5 | 0.1254 | 0.2660 | 11841 |
+| nfcorpus | Cascade C=64 | 0.1254 | 0.2655 | 21088 |
+| arguana | Static only | 0.3600 | 0.2280 | 0 |
+| arguana | Contextual only | 0.3700 | 0.2502 | 9564 |
+| arguana | Cascade C=5 | 0.3700 | 0.2502 | 7659 |
+| arguana | Cascade C=64 | 0.3700 | 0.2502 | 9564 |
+
+GutenQA (100 documents, 339,809 level units, 50 queries):
+
+| Arm | Recall@10 | nDCG@10 | Contextual scored/query |
+|---|---|---|---|
+| Static only | 0.4800 | 0.2806 | 0 |
+| Contextual only | 0.6200 | 0.4374 | 339809 |
+| Cascade C=5 | 0.5800 | 0.4105 | 968 |
+| Cascade C=64 | 0.6000 | 0.4268 | 11651 |

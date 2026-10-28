@@ -38,6 +38,7 @@ pub const ALLOWLIST: &[(&str, &str)] = &[
     ("analysis/tokenize/tests/models/README.md", "Tokenizer test model attribution"),
     ("analysis/train/README.md", "Legacy train crate slated for removal under #1530"),
     ("analysis/train-components/README.md", "Legacy train-components crate slated for removal under #1530"),
+    ("analysis/train-recipes/README.md", "Training recipes documentation owned by #1529"),
 ];
 
 /// Wire protocol and layer identifiers in source code that currently carry an
