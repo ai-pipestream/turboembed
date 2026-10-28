@@ -17,12 +17,14 @@ fn classical_commands_are_explicitly_disabled_before_io() {
 }
 
 #[test]
-fn classical_workflows_and_reference_download_lists_are_removed() {
+fn classical_workflows_and_retired_reference_lists_are_removed() {
     let crate_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     for workflow in ["models.yml", "models-ud.yml", "models-tatoeba.yml", "models-fineweb.yml", "models-publish.yml"] {
         assert!(!crate_dir.join("../../.github/workflows").join(workflow).exists(), "{workflow}");
     }
-    for list in ["masc-references.txt", "ud-references.txt", "tatoeba-references.txt", "fineweb-references.txt"] {
+    // #1567 owns the MASC list; keeping its provenance does not enable a loader.
+    assert!(crate_dir.join("masc-references.txt").is_file());
+    for list in ["ud-references.txt", "tatoeba-references.txt", "fineweb-references.txt"] {
         assert!(!crate_dir.join(list).exists(), "{list}");
     }
 }
