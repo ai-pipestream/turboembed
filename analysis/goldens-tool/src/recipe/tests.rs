@@ -96,10 +96,7 @@ fn every_hunspell_file_names_the_commit_and_a_sha512() {
     let pairs = include_str!("../../../hunspell/tests/snapshot-pairs.txt");
     for f in HUNSPELL_FILES.iter().filter(|f| f.file.ends_with(".aff")) {
         let name = &f.file["hunspell/".len()..f.file.len() - ".aff".len()];
-        assert!(
-            pairs.lines().any(|l| l.starts_with(&format!("{name}\t"))),
-            "snapshot-pairs.txt does not name {name}"
-        );
+        assert!(pairs.lines().any(|l| l.starts_with(&format!("{name}\t"))), "snapshot-pairs.txt does not name {name}");
     }
 }
 
