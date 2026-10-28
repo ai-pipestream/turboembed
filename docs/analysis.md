@@ -4782,6 +4782,56 @@ tokens left out are those whose gold lemma class (the edit script from
 the token to its lemma) gives the lemma while no class of the reference
 does, and `check` refuses a lemmatizer's record with tag mappings.
 
+### Encoder audit and optional Granite download
+
+The licence audit does not establish a permissive training lineage for
+all-MiniLM-L6-v2, BGE or Potion (docs/licences.md).
+`ibm-granite/granite-embedding-30m-english` is an optional local encoder:
+Apache-2.0 weights, CC BY-SA training inputs, and web-scraped and
+IBM-internal text with no auditable grant. The recipe requires explicit
+user acceptance as described in docs/zoo.md ("Granite requires an
+explicit download decision"). Granite weights and generated Granite
+bundles are excluded from TurboEmbed releases; automatic download is
+not authorized.
+
+Granite is a 6-layer, 384-wide RoBERTa with CLS pooling, available by name
+through `bundle/recipes/granite-embedding-30m-english.json`. Bundle make
+converts the BF16 checkpoint to F32 for CPU MODEL precision.
+
+The gate is the document chunker with dense retrieval on CPU at
+MODEL precision, the three records side by side
+(`analysis/eval/records/granite-embedding-30m-document`,
+`all-minilm-l6-v2-document` and `potion-base-8m-document`, one commit
+for all three). nDCG@10:
+
+| set | granite-embedding-30m-english | all-MiniLM-L6-v2 | potion-base-8M |
+| --- | ---: | ---: | ---: |
+| scifact | 0.7172 | 0.6402 | 0.4914 |
+| nfcorpus | 0.3282 | 0.3094 | 0.2305 |
+| arguana | 0.5562 | 0.5015 | 0.3625 |
+| qasper | 0.2767 | 0.2519 | 0.1970 |
+| mean | 0.4696 | 0.4258 | 0.3204 |
+
+Granite leads the incumbent on every set, by 0.019 to 0.077, at the
+same size and depth (its BPE tokenizer embeds about 28 percent more
+tokens on scifact; the records carry the embedding walls, measured
+on a shared machine). New work may select it after explicit user acceptance. The historic records keep all-MiniLM-L6-v2 as their reference
+embedder, and the static tier is unchanged: potion stays local-only.
+
+An in-house alternative was measured first and is not shipped:
+`turbo-train-recipes static-embed` initializes a static table from
+BERT-base-uncased's token embeddings (centered, PCA-reduced,
+SIF-scaled) and contrastive-trains it. The command reserves new `.stage`
+and `.init` directories beside its output; it rejects existing scratch
+paths instead of deleting or overwriting them. Choose a new output name
+for another run. The untrained table scores
+0.3354 on scifact under this gate; training on token-dropout views
+scored 0.2842, and on adjacent FineWeb sentences 0.2718 at 400 steps
+and 0.2381 at 2,000 gentler steps. Adjacent-sentence alignment
+pressure on a mean-pooled table degrades the geometry the
+initialization carries, so the trainer ships as tooling with a
+measured negative result, and no model is taken from it.
+
 ### The sets
 
 The sets (decision 10) are described one file each under
