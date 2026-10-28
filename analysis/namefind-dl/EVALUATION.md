@@ -52,9 +52,13 @@ bundle conversion belong to the bundle implementation, not this evaluator.
 
 ## Upstream predictions
 
-Use an upstream inference implementation with the same checkpoint commit and
-the exact gold token sequence. Save predictions as a private UTF-8 file with
-four space-separated CoNLL columns: token, POS placeholder, chunk placeholder,
+Use Hugging Face transformers token-classification inference with the dslim
+checkpoint and tokenizer pinned to the same full source commit as the native
+bundle, and the exact gold token sequence. Record the transformers package
+version or source commit separately from that model commit. OpenNLP
+NameFinderDL is not an acceptable upstream peer for this evaluation.
+
+Save predictions as a private UTF-8 file with four space-separated CoNLL columns: token, POS placeholder, chunk placeholder,
 and predicted IOB tag. Empty lines separate samples. Keep optional DOCSTART
 markers in CoNLL-2003 form. This is a prediction file, not a fifth column added
 to the gold file. The accepted types are PER, ORG, LOC and MISC, plus O; IOB1

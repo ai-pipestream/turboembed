@@ -123,8 +123,8 @@ mod tiny {
     const BIAS: [f32; 3] = [0.0, 2.0, 0.0];
     include!("../../tests/offline/support.rs");
 
-    pub fn bundle() -> PathBuf {
-        let dir = write_bundle("conll-eval-native", &["O", "B-PER", "I-PER"]);
+    pub fn bundle(name: &str) -> PathBuf {
+        let dir = write_bundle(name, &["O", "B-PER", "I-PER"]);
         let path = dir.join("manifest.json");
         let mut m: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
         m["model"]["id"] = json!("generated-conll-eval-test");
@@ -136,7 +136,7 @@ mod tiny {
 
 #[test]
 fn native_cpu_command_reports_comparison_and_no_input_text() {
-    let dir = tiny::bundle();
+    let dir = tiny::bundle("conll-eval-native");
     let gold = "Ann X X B-PER\nmet X X O\n";
     let peer = "Ann X X B-PER\nmet X X B-PER\n";
     std::fs::write(dir.join("gold.conll"), gold).unwrap();
@@ -168,4 +168,43 @@ fn command_validates_arguments_before_reading_inputs() {
     assert!(super::run(&args).unwrap_err().contains("full 40-character"));
     args[4] = "invalid".into();
     assert!(super::run(&args).unwrap_err().contains("word or piece"));
+}
+
+fn error_case_args(dir: &std::path::Path) -> Vec<String> {
+    let corpus = dir.join("input.conll");
+    std::fs::write(&corpus, "Ann X X B-PER\n").unwrap();
+    vec![
+        dir.to_string_lossy().into_owned(),
+        corpus.to_string_lossy().into_owned(),
+        corpus.to_string_lossy().into_owned(),
+        "0000000000000000000000000000000000000001".into(),
+        "word".into(),
+    ]
+}
+
+#[test]
+fn bundle_open_failure_keeps_the_original_cause() {
+    let dir = tiny::bundle("conll-eval-missing-manifest");
+    let args = error_case_args(&dir);
+    std::fs::remove_file(dir.join("manifest.json")).unwrap();
+    let cause = super::Bundle::open(&dir).err().unwrap().to_string();
+    let error = super::run(&args).unwrap_err();
+    std::fs::remove_dir_all(dir).unwrap();
+    assert!(error.contains(&cause), "missing cause {cause:?} in {error:?}");
+}
+
+#[test]
+fn finder_open_failure_keeps_the_original_cause() {
+    let dir = tiny::bundle("conll-eval-sequence-head");
+    let args = error_case_args(&dir);
+    let path = dir.join("manifest.json");
+    let mut manifest: serde_json::Value = serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+    manifest["classifier"]["kind"] = serde_json::json!("CLASSIFIER_SEQUENCE");
+    std::fs::write(path, serde_json::to_vec(&manifest).unwrap()).unwrap();
+    super::Bundle::open(&dir).unwrap();
+    let cause = super::NameFinderDl::open(&dir, &super::NameFinderDlOptions::default()).err().unwrap().to_string();
+    assert!(cause.contains("not a token classifier"), "{cause}");
+    let error = super::run(&args).unwrap_err();
+    std::fs::remove_dir_all(dir).unwrap();
+    assert!(error.contains(&cause), "missing cause {cause:?} in {error:?}");
 }

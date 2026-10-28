@@ -46,7 +46,7 @@ fn run(args: &[String]) -> Result<String, String> {
     let peer = support::read(&peer_text).map_err(|e| format!("upstream: {e}"))?;
     support::aligned(&gold, &peer)?;
     let bundle = Path::new(bundle);
-    let info = Bundle::open(bundle).map_err(|_| "cannot open native bundle")?;
+    let info = Bundle::open(bundle).map_err(|error| format!("cannot open native bundle: {error}"))?;
     if !info.manifest.model.source.commit.eq_ignore_ascii_case(revision) {
         return Err("native bundle and upstream predictions must name the same source commit".into());
     }
@@ -55,7 +55,8 @@ fn run(args: &[String]) -> Result<String, String> {
         encoder: EncoderOptions { precision: Precision::Exact, cpu_threads: 2, ..Default::default() },
         ..Default::default()
     };
-    let finder = NameFinderDl::open(bundle, &options).map_err(|_| "cannot load native token-classification model")?;
+    let finder = NameFinderDl::open(bundle, &options)
+        .map_err(|error| format!("cannot load native token-classification model: {error}"))?;
     let kinds = (0..finder.kinds().len())
         .map(|i| Kind::parse(finder.kinds().label(Tag(i as u16))))
         .collect::<Result<Vec<_>, _>>()?;
