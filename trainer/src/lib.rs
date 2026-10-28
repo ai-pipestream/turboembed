@@ -20,6 +20,7 @@ pub mod fit_lemma;
 pub mod fit_parse;
 pub mod lemma;
 pub mod linear;
+pub mod logspace;
 pub mod lstm;
 pub mod parser;
 pub mod real;

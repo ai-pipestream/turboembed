@@ -8,6 +8,7 @@
 use turbo::head::crf::Allowed;
 use turbo::status::{Result, invalid};
 
+use crate::logspace::{logsumexp, softmax};
 use crate::real::Real;
 
 /// The CRF's parameters: transitions [from, to], start and end [labels].
@@ -25,20 +26,18 @@ pub struct Grad<'a, R> {
     pub end: &'a mut [R],
 }
 
-fn logsumexp(v: impl Iterator<Item = f64> + Clone) -> f64 {
-    let m = v.clone().fold(f64::NEG_INFINITY, f64::max);
-    if m == f64::NEG_INFINITY {
-        return m;
-    }
-    m + v.map(|x| (x - m).exp()).sum::<f64>().ln()
-}
+/// How far, at one place, a score may sit from the gold path's own score
+/// there (see [`nll`]); trained heads sit within tens.
+pub const SCORE_RANGE: f64 = 1e6;
 
 /// The loss -log p(gold | emit) for one sequence, emit [n, labels], and
 /// its gradients added to `demit` [n, labels] and `grad`. A gold
 /// sequence the lattice forbids is refused: the scheme would never decode
 /// it, so it cannot be a training target. So are a lattice, parameters,
-/// scores or gradients of another label count or length, and nonfinite
-/// scores or parameters.
+/// scores or gradients of another label count or length, nonfinite
+/// scores or parameters, a score more than [`SCORE_RANGE`] from the gold
+/// path's at its place, and a loss or gradient that overflows. A refusal
+/// leaves `demit` and `grad` as they were.
 pub fn nll<R: Real>(
     p: Params<R>,
     allowed: &Allowed,
@@ -66,81 +65,118 @@ pub fn nll<R: Real>(
     if n == 0 {
         return Ok(0.0);
     }
-    let e = |t: usize, j: usize| emit[t * labels + j].to_f64();
-    let tr = |a: usize, b: usize| {
-        if allowed.may_follow(a, b) { p.transitions[a * labels + b].to_f64() } else { f64::NEG_INFINITY }
-    };
     let y: Vec<usize> = gold.iter().map(|&g| g as usize).collect();
     if y.iter().any(|&g| g >= labels) {
         return Err(invalid(format!("crf: a gold label is past the {labels} labels")));
     }
+    // Every path takes one start, one emission a word, one transition a
+    // step and one end, so each is measured from the gold path's own at
+    // that place: each path's score is then its score less the gold's,
+    // the gold path scores exactly 0, and the loss is log Z alone. No
+    // large score the gold path shares, nor one only a forbidden path
+    // could take, swallows the normaliser.
+    let at = |t: usize, j: usize| emit[t * labels + j].to_f64();
+    let e = |t: usize, j: usize| at(t, j) - at(t, y[t]);
+    let start = |j: usize| p.start[j].to_f64() - p.start[y[0]].to_f64();
+    let end = |j: usize| p.end[j].to_f64() - p.end[y[n - 1]].to_f64();
+    let raw = |a: usize, b: usize| p.transitions[a * labels + b].to_f64();
+    // Into word t, from 1.
+    let tr = |t: usize, a: usize, b: usize| {
+        if allowed.may_follow(a, b) { raw(a, b) - raw(y[t - 1], y[t]) } else { f64::NEG_INFINITY }
+    };
     let legal =
         allowed.may_start(y[0]) && allowed.may_end(y[n - 1]) && y.windows(2).all(|w| allowed.may_follow(w[0], w[1]));
     if !legal {
         return Err(invalid("crf: the gold sequence is one the scheme forbids"));
     }
-    let mut gold_score = p.start[y[0]].to_f64() + p.end[y[n - 1]].to_f64();
-    for t in 0..n {
-        gold_score += e(t, y[t]);
-        if t > 0 {
-            gold_score += p.transitions[y[t - 1] * labels + y[t]].to_f64();
-        }
+    // The range the sums are exact enough over. A score the gold path's
+    // does not cancel, more than SCORE_RANGE from it, would leave log Z
+    // and the marginals carrying f64 rounding as large as the normaliser
+    // they need (a path count's log next to 1e20), so it is refused
+    // rather than trained on. Forbidden places are never summed.
+    let mut far = (0..n).any(|t| (0..labels).any(|j| e(t, j).abs() > SCORE_RANGE));
+    far |= (0..labels).any(|j| {
+        (allowed.may_start(j) && start(j).abs() > SCORE_RANGE) || (allowed.may_end(j) && end(j).abs() > SCORE_RANGE)
+    });
+    far |= (1..n)
+        .any(|t| (0..labels).any(|a| (0..labels).any(|b| allowed.may_follow(a, b) && tr(t, a, b).abs() > SCORE_RANGE)));
+    if far {
+        return Err(invalid(format!(
+            "crf: a score is more than {SCORE_RANGE:e} from the gold path's at its place; log-space sums would round \
+             away the normaliser"
+        )));
     }
     let mut alpha = vec![f64::NEG_INFINITY; n * labels];
     for (j, a) in alpha[..labels].iter_mut().enumerate() {
         if allowed.may_start(j) {
-            *a = p.start[j].to_f64() + e(0, j);
+            *a = start(j) + e(0, j);
         }
     }
     for t in 1..n {
         for b in 0..labels {
             let prev = &alpha[(t - 1) * labels..][..labels];
-            let s = logsumexp((0..labels).map(|a| prev[a] + tr(a, b)));
+            let s = logsumexp((0..labels).map(|a| prev[a] + tr(t, a, b)));
             alpha[t * labels + b] = s + e(t, b);
         }
     }
     let mut beta = vec![f64::NEG_INFINITY; n * labels];
     for j in 0..labels {
         if allowed.may_end(j) {
-            beta[(n - 1) * labels + j] = p.end[j].to_f64();
+            beta[(n - 1) * labels + j] = end(j);
         }
     }
     for t in (0..n - 1).rev() {
         for a in 0..labels {
             let next = &beta[(t + 1) * labels..][..labels];
-            beta[t * labels + a] = logsumexp((0..labels).map(|b| tr(a, b) + e(t + 1, b) + next[b]));
+            beta[t * labels + a] = logsumexp((0..labels).map(|b| tr(t + 1, a, b) + e(t + 1, b) + next[b]));
         }
     }
     let log_z = logsumexp((0..labels).map(|j| alpha[(n - 1) * labels + j] + beta[(n - 1) * labels + j]));
-    let marginal = |t: usize, j: usize| (alpha[t * labels + j] + beta[t * labels + j] - log_z).exp();
-    for t in 0..n {
-        for j in 0..labels {
-            let gold_here = if y[t] == j { 1.0 } else { 0.0 };
-            demit[t * labels + j] += R::from_f64(marginal(t, j) - gold_here);
-        }
-    }
-    for j in 0..labels {
-        grad.start[j] += R::from_f64(marginal(0, j) - if y[0] == j { 1.0 } else { 0.0 });
-        grad.end[j] += R::from_f64(marginal(n - 1, j) - if y[n - 1] == j { 1.0 } else { 0.0 });
-    }
-    for t in 1..n {
-        for a in 0..labels {
-            let from = alpha[(t - 1) * labels + a];
-            if from == f64::NEG_INFINITY {
-                continue;
-            }
-            for b in 0..labels {
-                let s = from + tr(a, b) + e(t, b) + beta[t * labels + b] - log_z;
-                if s > f64::NEG_INFINITY {
-                    grad.transitions[a * labels + b] += R::from_f64(s.exp());
-                }
-            }
-        }
-        grad.transitions[y[t - 1] * labels + y[t]] -= R::ONE;
-    }
-    let loss = log_z - gold_score;
+    // The gold path's score is 0.
+    let loss = log_z;
     if !loss.is_finite() {
         return Err(invalid("crf: the loss is not finite"));
     }
+    // Every gradient is worked out before any is written, so a refusal
+    // leaves the caller's sums whole.
+    // Each place's marginals are normalized over that place on its own:
+    // every place's alpha + beta sums to Z, but taking log Z from one
+    // place and subtracting it at another loses the normalizer when the
+    // scores are large (codex: [0, 1e20, 1e20] gave marginals [0, 1, 1]).
+    let mut marginals: Vec<f64> = alpha.iter().zip(&beta).map(|(a, b)| a + b).collect();
+    marginals.chunks_mut(labels).for_each(|row| {
+        softmax(row);
+    });
+    let marginal = |t: usize, j: usize| marginals[t * labels + j];
+    let mut d_emit = vec![0.0f64; n * labels];
+    for t in 0..n {
+        for j in 0..labels {
+            let gold_here = if y[t] == j { 1.0 } else { 0.0 };
+            d_emit[t * labels + j] = marginal(t, j) - gold_here;
+        }
+    }
+    let d_start: Vec<f64> = (0..labels).map(|j| marginal(0, j) - if y[0] == j { 1.0 } else { 0.0 }).collect();
+    let d_end: Vec<f64> = (0..labels).map(|j| marginal(n - 1, j) - if y[n - 1] == j { 1.0 } else { 0.0 }).collect();
+    let mut d_tr = vec![0.0f64; labels * labels];
+    let mut pair = vec![f64::NEG_INFINITY; labels * labels];
+    for t in 1..n {
+        for a in 0..labels {
+            for b in 0..labels {
+                pair[a * labels + b] = alpha[(t - 1) * labels + a] + tr(t, a, b) + e(t, b) + beta[t * labels + b];
+            }
+        }
+        // As the nodes: normalized over this step's pairs on their own.
+        softmax(&mut pair);
+        d_tr.iter_mut().zip(&pair).for_each(|(d, &p)| *d += p);
+        d_tr[y[t - 1] * labels + y[t]] -= 1.0;
+    }
+    if ![&d_emit, &d_start, &d_end, &d_tr].iter().all(|v| v.iter().all(|x| x.is_finite())) {
+        return Err(invalid("crf: a gradient is not finite"));
+    }
+    let add = |dst: &mut [R], src: &[f64]| dst.iter_mut().zip(src).for_each(|(d, &x)| *d += R::from_f64(x));
+    add(demit, &d_emit);
+    add(grad.start, &d_start);
+    add(grad.end, &d_end);
+    add(grad.transitions, &d_tr);
     Ok(loss)
 }

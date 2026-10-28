@@ -83,11 +83,13 @@ impl EditTree {
     }
 
     /// The lemma of `form` by this tree, or None when the tree does not
-    /// fit the form.
+    /// fit the form. A tree that would leave a word with no lemma at all
+    /// (the `walked` -> `walk` tree on the word `ed`) does not fit it, so
+    /// decode moves on to the next tree, or to the word itself.
     pub fn apply(&self, form: &str) -> Option<String> {
         let chars: Vec<char> = form.chars().collect();
         let mut out = String::with_capacity(form.len() + 4);
-        self.apply_to(&chars, &mut out).then_some(out)
+        (self.apply_to(&chars, &mut out) && (form.is_empty() || !out.is_empty())).then_some(out)
     }
 
     fn apply_to(&self, part: &[char], out: &mut String) -> bool {

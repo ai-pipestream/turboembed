@@ -125,3 +125,118 @@ fn attachment_refuses_gold_that_does_not_match_the_words() {
     let fine = [ParseExample { features: vec![1.0], heads: vec![0], rels: vec![0] }];
     assert_eq!(attachment(&core, &fine).unwrap().words, 1);
 }
+
+#[test]
+fn an_overflowing_loss_leaves_the_gradients_as_they_were() {
+    // Finite scores whose loss overflows: [MAX, -MAX] against label 1.
+    let mut d = vec![7.0f64, 7.0];
+    assert!(xent::loss(&[f64::MAX, -f64::MAX], &[1], 2, &mut d).is_err());
+    assert_eq!(d, [7.0, 7.0]);
+    let mut d = vec![7.0f64, 7.0];
+    assert!(xent::loss(&[0.0, 0.0], &[2], 2, &mut d).is_err(), "a gold label out of range");
+    assert_eq!(d, [7.0, 7.0]);
+
+    let s = spec(&["A", "B"], Scheme::Tags, Decode::Crf);
+    let (_, lattice) = allowed(s.scheme, &s.labels).unwrap();
+    // Scores a common offset does not explain: [MAX, -MAX] against label 1.
+    let (start, end, tr) = (vec![0.0; 2], vec![0.0; 2], vec![0.0; 4]);
+    let p = crf::Params { transitions: &tr, start: &start, end: &end };
+    let (mut gt, mut gs, mut ge, mut de) = (vec![7.0; 4], vec![7.0; 2], vec![7.0; 2], vec![7.0; 2]);
+    let g = crf::Grad { transitions: &mut gt, start: &mut gs, end: &mut ge };
+    assert!(crf::nll(p, &lattice, &[f64::MAX, -f64::MAX], &[1], 2, &mut de, g).is_err());
+    assert!([&gt, &gs, &ge, &de].iter().all(|v| v.iter().all(|&x| x == 7.0)), "{gt:?} {gs:?} {ge:?} {de:?}");
+}
+
+#[test]
+fn a_common_score_offset_changes_neither_loss_nor_gradient() {
+    let (_, two) = allowed(Scheme::Tags, &["A".to_string(), "B".to_string()]).unwrap();
+    for offset in [0.0f32, 1e20, -1e20, 3e38] {
+        let emit = [offset, offset];
+        let mut d = vec![0.0f32; 2];
+        let l = xent::loss(&emit, &[0], 2, &mut d).unwrap();
+        assert!((l - std::f64::consts::LN_2).abs() < 1e-12 && d == [-0.5, 0.5], "xent at {offset}: {l} {d:?}");
+
+        // The same offset on the emissions, the start and end scores, and
+        // the transitions, over two words.
+        let (tr, st, en) = (vec![offset; 4], vec![offset; 2], vec![offset; 2]);
+        let p = crf::Params { transitions: &tr, start: &st, end: &en };
+        let (mut gt, mut gs, mut ge, mut de) = (vec![0.0f32; 4], vec![0.0; 2], vec![0.0; 2], vec![0.0; 4]);
+        let g = crf::Grad { transitions: &mut gt, start: &mut gs, end: &mut ge };
+        let l = crf::nll(p, &two, &[offset; 4], &[0, 1], 2, &mut de, g).unwrap();
+        assert!((l - 4f64.ln()).abs() < 1e-12, "crf at {offset}: {l}");
+        assert_eq!((de, gs, ge), (vec![-0.5, 0.5, 0.5, -0.5], vec![-0.5, 0.5], vec![0.5, -0.5]), "crf at {offset}");
+        assert_eq!(gt, [0.25, -0.75, 0.25, 0.25], "crf at {offset}");
+    }
+}
+
+/// Codex's cases: large start and end scores that cancel along every
+/// legal path, and a large start score only a forbidden path could take.
+/// Neither may swallow the normaliser. Past `SCORE_RANGE` from the gold
+/// path's, a score the gold path does not cancel is refused instead, the
+/// gradients left as they were; a forbidden one never counts.
+#[test]
+fn large_scores_that_cancel_or_are_forbidden_leave_the_loss_whole() {
+    let names = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+    let (_, tags) = allowed(Scheme::Tags, &names(&["A", "B"])).unwrap();
+    let (_, bio) = allowed(Scheme::Bio, &names(&["O", "B-X", "I-X"])).unwrap();
+    // Lattice, start, end, emissions, and the start, end and emission
+    // gradients wanted.
+    type Case<'a> = (&'a turbo::head::crf::Allowed, Vec<f32>, Vec<f32>, Vec<f32>, Vec<f32>);
+    let cases: [Case; 3] = [
+        (&tags, vec![1e5, 0.0], vec![0.0, 1e5], vec![0.0; 2], vec![-0.5, 0.5]),
+        (&tags, vec![0.0, 1e5], vec![1e5, 0.0], vec![0.0; 2], vec![-0.5, 0.5]),
+        (&bio, vec![0.0, 0.0, 1e20], vec![0.0; 3], vec![0.0; 3], vec![-0.5, 0.5, 0.0]),
+    ];
+    for (k, (lattice, st, en, emit, want)) in cases.into_iter().enumerate() {
+        let labels = st.len();
+        let tr = vec![0.0f32; labels * labels];
+        let p = crf::Params { transitions: &tr, start: &st, end: &en };
+        let (mut gt, mut gs, mut ge, mut de) =
+            (vec![0.0f32; labels * labels], vec![0.0; labels], vec![0.0; labels], vec![0.0; labels]);
+        let g = crf::Grad { transitions: &mut gt, start: &mut gs, end: &mut ge };
+        let l = crf::nll(p, lattice, &emit, &[0], labels, &mut de, g).unwrap();
+        assert!((l - std::f64::consts::LN_2).abs() < 1e-12, "case {k}: loss {l}");
+        assert_eq!((&de, &gs, &ge), (&want, &want, &want), "case {k}");
+    }
+    let (st, en, tr) = (vec![1e20f32, 0.0], vec![0.0f32, 1e20], vec![0.0f32; 4]);
+    let p = crf::Params { transitions: &tr, start: &st, end: &en };
+    let (mut gt, mut gs, mut ge, mut de) = (vec![7.0f32; 4], vec![7.0; 2], vec![7.0; 2], vec![7.0; 2]);
+    let g = crf::Grad { transitions: &mut gt, start: &mut gs, end: &mut ge };
+    assert!(crf::nll(p, &tags, &[0.0, 0.0], &[0], 2, &mut de, g).is_err(), "past the range");
+    assert!([&gt, &gs, &ge, &de].iter().all(|v| v.iter().all(|&x| x == 7.0)));
+}
+
+/// Codex's case: the gold path far from dominant, two equal alternatives
+/// that are. The marginals at every place still sum to one; past
+/// `SCORE_RANGE` the case is refused.
+#[test]
+fn marginals_stay_normalized_when_other_paths_dominate() {
+    let names = ["A", "B", "C"].map(String::from);
+    let (_, tags) = allowed(Scheme::Tags, &names).unwrap();
+    let (tr, st, en) = (vec![0.0f32; 9], vec![0.0f32; 3], vec![0.0f32; 3]);
+    for n in [1usize, 2, 4] {
+        let far: Vec<f32> = (0..n).flat_map(|_| [0.0, 1e20, 1e20]).collect();
+        let p = crf::Params { transitions: &tr, start: &st, end: &en };
+        let (mut gt, mut gs, mut ge, mut de) = (vec![0.0f32; 9], vec![0.0; 3], vec![0.0; 3], vec![0.0; 3 * n]);
+        let g = crf::Grad { transitions: &mut gt, start: &mut gs, end: &mut ge };
+        assert!(crf::nll(p, &tags, &far, &vec![0; n], 3, &mut de, g).is_err(), "{n} words past the range");
+        let emit: Vec<f32> = (0..n).flat_map(|_| [0.0, 1e5, 1e5]).collect();
+        let p = crf::Params { transitions: &tr, start: &st, end: &en };
+        let (mut gt, mut gs, mut ge, mut de) = (vec![0.0f32; 9], vec![0.0; 3], vec![0.0; 3], vec![0.0; 3 * n]);
+        let g = crf::Grad { transitions: &mut gt, start: &mut gs, end: &mut ge };
+        let l = crf::nll(p, &tags, &emit, &vec![0; n], 3, &mut de, g).unwrap();
+        assert!(l > 0.0 && l.is_finite(), "{n} words: {l}");
+        for row in de.chunks(3) {
+            assert_eq!(row, [-1.0, 0.5, 0.5], "{n} words: {de:?}");
+        }
+        assert_eq!((&gs[..], &ge[..]), (&[-1.0, 0.5, 0.5][..], &[-1.0, 0.5, 0.5][..]), "{n} words");
+        // Each step's pair marginals sum to one less the gold pair's one.
+        let total: f32 = gt.iter().sum();
+        assert!(total.abs() < 1e-6, "{n} words: {gt:?}");
+        if n > 1 {
+            let k = (n - 1) as f32;
+            assert_eq!(gt[0], -k, "{n} words: {gt:?}");
+            assert_eq!([gt[4], gt[5], gt[7], gt[8]], [0.25 * k; 4], "{n} words: {gt:?}");
+        }
+    }
+}

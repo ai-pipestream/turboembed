@@ -25,7 +25,9 @@ const PAIRS: [(&str, &str); 14] = [
 fn every_mined_tree_rewrites_its_form_into_its_lemma_and_its_label_parses_back() {
     for (form, lemma) in PAIRS {
         let t = EditTree::mine(form, lemma);
-        assert_eq!(t.apply(form).as_deref(), Some(lemma), "{form:?} -> {lemma:?}: {t:?}");
+        // A tree mines from `über` -> "" but gives no word an empty lemma.
+        let want = (form.is_empty() || !lemma.is_empty()).then_some(lemma);
+        assert_eq!(t.apply(form).as_deref(), want, "{form:?} -> {lemma:?}: {t:?}");
         let label = t.label();
         assert_eq!(EditTree::parse(&label).unwrap(), t, "{label}");
     }
@@ -41,6 +43,8 @@ fn trees_read_as_spacy_writes_them_and_generalize() {
     assert_eq!(walked.label(), "(m 0 2 () (s 'ed' ''))");
     assert_eq!(walked.apply("jumped").as_deref(), Some("jump"));
     assert_eq!(walked.apply("d"), None, "too short for the kept suffix");
+    assert_eq!(walked.apply("ed"), None, "it would leave no lemma");
+    assert_eq!(EditTree::mine("x", "").apply("x"), None, "nor may any tree");
     assert_eq!(walked.apply("jumps"), None, "the suffix does not match");
     assert_eq!(EditTree::mine("was", "be").apply("is"), None);
     assert_eq!(EditTree::mine("", "").label(), "(m 0 0 () ())");
@@ -66,7 +70,9 @@ fn mining_round_trips_random_pairs() {
     let lemmas = strings(11, 3000);
     for (f, l) in forms.iter().zip(&lemmas) {
         let t = EditTree::mine(f, l);
-        assert_eq!(t.apply(f).as_deref(), Some(l.as_str()), "{f:?} -> {l:?}: {}", t.label());
+        // An empty lemma of a word is never a lemma the tree gives.
+        let want = (f.is_empty() || !l.is_empty()).then_some(l.as_str());
+        assert_eq!(t.apply(f).as_deref(), want, "{f:?} -> {l:?}: {}", t.label());
         assert_eq!(EditTree::parse(&t.label()).unwrap(), t);
     }
 }
