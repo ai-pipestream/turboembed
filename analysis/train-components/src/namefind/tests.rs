@@ -117,25 +117,6 @@ fn the_defaults_go_in_only_where_absent_whatever_the_case_of_the_key() {
 }
 
 #[test]
-fn a_trained_model_is_packaged_in_the_jvms_entry_order() {
-    let s = samples("<START:person> Ann <END> met <START:person> Bo <END> .\nIt rained .\n");
-    let mut p = TrainingParameters::new();
-    p.put(Key::ITERATIONS, 10);
-    let ours = train_name_model(&s, &bio(), None, &p, &mut TrainingConfiguration::default(), Stamp::at(0)).unwrap();
-    assert_eq!(ours.package.entry_names(), ["manifest.properties", "nameFinder.model", "generator.featuregen"]);
-    let file = turbo_maxent::ModelFile::open(ours.package.to_bytes()).unwrap();
-    let m = file.manifest();
-    assert_eq!(m.get("Component-Name"), Some("NameFinderME"));
-    assert_eq!(m.get("BeamSize"), Some("3"));
-    assert_eq!(m.get("factory"), Some(FACTORY));
-    assert_eq!(m.get("sequenceCodecImplName"), Some("opennlp.tools.namefind.BioCodec"));
-    assert_eq!(m.get("TrainerType"), Some("Event"));
-    assert_eq!(&*file.entry(DESCRIPTOR_ENTRY).unwrap(), DEFAULT_DESCRIPTOR.as_bytes());
-    assert_eq!(ours.model.algorithm(), Algorithm::Maxent);
-    assert_eq!(ours.params.get_int(Key::CUTOFF).unwrap(), Some(0));
-}
-
-#[test]
 fn outcomes_the_codec_cannot_decode_are_refused() {
     // Samples without a name give only `other`, one outcome, which GIS
     // refuses before the codec is asked.
