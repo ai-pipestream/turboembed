@@ -194,7 +194,8 @@ pub struct SystemScores {
     pub throughput_sentences_per_second: Option<f64>,
 }
 
-use align::{align_forms, flatten};
+use align::{add_boundary_counts, align_forms, flatten, joined_documents};
+pub use align::{parse_sentence_list, score_sentence_list};
 
 /// Scores predicted CoNLL-U sentences against gold: the token streams
 /// are form-aligned, sentence boundaries and fields are scored on the
@@ -297,36 +298,14 @@ pub fn score_conllu(system: &str, gold: &[ConlluSentence], pred: &[ConlluSentenc
 /// Scores a sentence tier over each document's joined `# text` lines
 /// by boundary F1 in joined byte coordinates, and times the split.
 pub fn score_sentencer(system: &str, gold: &[ConlluSentence], sentencer: &Sentencer) -> Result<SystemScores> {
-    let mut gold_texts = Vec::with_capacity(gold.len());
-    for (i, s) in gold.iter().enumerate() {
-        gold_texts.push(s.text.as_deref().ok_or_else(|| format!("gold sentence {i} has no # text line"))?);
-    }
-    // Split each CoNLL-U document separately: joining the whole test
-    // file would let bracket and quote state leak across documents.
-    let mut documents: Vec<Vec<&str>> = Vec::new();
-    for (sentence, text) in gold.iter().zip(&gold_texts) {
-        if sentence.new_doc || documents.is_empty() {
-            documents.push(Vec::new());
-        }
-        documents.last_mut().expect("a document group").push(text);
-    }
+    let documents = joined_documents(gold)?;
     let started = Instant::now();
     let mut counts = Counts::default();
-    for document in &documents {
-        let joined = document.join(" ");
-        let spans = sentencer.spans(&joined)?;
-        let mut gold_at = BTreeSet::new();
-        let mut at = 0usize;
-        for text in &document[..document.len().saturating_sub(1)] {
-            at += text.len();
-            gold_at.insert(at as u32);
-            at += 1;
-        }
+    for (joined, gold_at) in &documents {
+        let spans = sentencer.spans(joined)?;
         let rows: Vec<_> = spans.iter().collect();
         let pred_at: BTreeSet<u32> = rows[..rows.len().saturating_sub(1)].iter().map(|(_, s)| s.end).collect();
-        counts.true_positives += gold_at.intersection(&pred_at).count() as u64;
-        counts.selected += pred_at.len() as u64;
-        counts.target += gold_at.len() as u64;
+        add_boundary_counts(&mut counts, gold_at, &pred_at);
     }
     let elapsed = started.elapsed().as_secs_f64();
     Ok(SystemScores {
@@ -368,6 +347,7 @@ pub fn command(args: &[String]) -> Result<()> {
     let mut want_sha = None;
     let mut out = None;
     let mut preds: Vec<(String, String)> = Vec::new();
+    let mut sents: Vec<(String, String)> = Vec::new();
     let mut system_name = "turbo".to_string();
     let mut sentences = None;
     let mut sat_bundle = None;
@@ -388,6 +368,11 @@ pub fn command(args: &[String]) -> Result<()> {
                 let v = value(&mut it)?;
                 let (name, path) = v.split_once('=').ok_or("--pred needs NAME=PATH")?;
                 preds.push((name.to_string(), path.to_string()));
+            }
+            "--sents" => {
+                let v = value(&mut it)?;
+                let (name, path) = v.split_once('=').ok_or("--sents needs NAME=PATH")?;
+                sents.push((name.to_string(), path.to_string()));
             }
             other => return Err(format!("analysis: unknown option {other}")),
         }
@@ -412,6 +397,10 @@ pub fn command(args: &[String]) -> Result<()> {
         let pred = parse_conllu(&text)?;
         systems.push(score_conllu(name, &gold, &pred, resamples));
     }
+    for (name, path) in &sents {
+        let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
+        systems.push(score_sentence_list(name, &gold, &parse_sentence_list(&text))?);
+    }
     if let Some(tier) = &sentences {
         let sentencer = match tier.as_str() {
             "rule" | "rules" => Sentencer::rules("en"),
@@ -429,7 +418,7 @@ pub fn command(args: &[String]) -> Result<()> {
         systems.push(score_sentencer(&system_name, &gold, &sentencer)?);
     }
     if systems.is_empty() {
-        return Err("analysis needs at least one --pred or --sentences system".into());
+        return Err("analysis needs at least one --pred, --sents or --sentences system".into());
     }
 
     let record = AnalysisRecord {

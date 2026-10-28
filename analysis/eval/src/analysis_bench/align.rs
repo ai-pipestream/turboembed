@@ -1,7 +1,10 @@
-//! Token-stream flattening and form alignment for the analysis
-//! benchmark scorer.
+//! Token-stream flattening, form alignment, and sentence-list inputs
+//! for the analysis benchmark scorer.
 
-use super::{ConlluSentence, ConlluToken};
+use std::collections::BTreeSet;
+
+use super::{ConlluSentence, ConlluToken, Counts, Measure, MetricScore, SystemScores};
+use crate::Result;
 
 /// One flattened token: its row, whether it ends a sentence, and its
 /// head as a flattened index (`Some(None)` for a root, `None` when the
@@ -103,4 +106,109 @@ pub(super) fn align_forms(gold: &[FlatToken<'_>], pred: &[FlatToken<'_>]) -> Vec
         }
     }
     pairs
+}
+
+/// Each gold document's `# text` lines joined with one space, with the
+/// gold sentence-boundary ends in joined coordinates (the final
+/// sentence's end excluded: the document ends there anyway). Documents
+/// are kept apart so bracket and quote state cannot leak across them.
+pub(super) fn joined_documents(gold: &[ConlluSentence]) -> Result<Vec<(String, BTreeSet<u32>)>> {
+    let mut texts: Vec<Vec<&str>> = Vec::new();
+    for (i, sentence) in gold.iter().enumerate() {
+        let text = sentence.text.as_deref().ok_or_else(|| format!("gold sentence {i} has no # text line"))?;
+        if sentence.new_doc || texts.is_empty() {
+            texts.push(Vec::new());
+        }
+        texts.last_mut().expect("a document group").push(text);
+    }
+    let mut out = Vec::with_capacity(texts.len());
+    for document in &texts {
+        let mut gold_at = BTreeSet::new();
+        let mut at = 0usize;
+        for text in &document[..document.len().saturating_sub(1)] {
+            at += text.len();
+            gold_at.insert(at as u32);
+            at += 1;
+        }
+        out.push((document.join(" "), gold_at));
+    }
+    Ok(out)
+}
+
+pub(super) fn add_boundary_counts(counts: &mut Counts, gold_at: &BTreeSet<u32>, pred_at: &BTreeSet<u32>) {
+    counts.true_positives += gold_at.intersection(pred_at).count() as u64;
+    counts.selected += pred_at.len() as u64;
+    counts.target += gold_at.len() as u64;
+}
+
+/// Reads a sentence-list prediction: one sentence per line, documents
+/// separated by blank lines, in gold document order.
+pub fn parse_sentence_list(text: &str) -> Vec<Vec<String>> {
+    let mut docs: Vec<Vec<String>> = Vec::new();
+    let mut current: Vec<String> = Vec::new();
+    for line in text.lines() {
+        if line.trim().is_empty() {
+            if !current.is_empty() {
+                docs.push(std::mem::take(&mut current));
+            }
+        } else {
+            current.push(line.to_string());
+        }
+    }
+    if !current.is_empty() {
+        docs.push(current);
+    }
+    docs
+}
+
+/// Scores a sentence-only system (wtpsplit) whose output is sentences,
+/// not tokens: the predicted sentences must tile each gold document's
+/// joined text in order with only whitespace between them, and their
+/// end positions are scored against the gold boundaries.
+pub fn score_sentence_list(system: &str, gold: &[ConlluSentence], peer: &[Vec<String>]) -> Result<SystemScores> {
+    let documents = joined_documents(gold)?;
+    if peer.len() != documents.len() {
+        return Err(format!("{system}: {} predicted documents, {} gold documents", peer.len(), documents.len()));
+    }
+    let mut counts = Counts::default();
+    for (doc, ((joined, gold_at), sentences)) in documents.iter().zip(peer).enumerate() {
+        let mut pred_at = BTreeSet::new();
+        let mut cursor = 0usize;
+        for (i, sentence) in sentences.iter().enumerate() {
+            let sentence = sentence.trim();
+            if sentence.is_empty() {
+                return Err(format!("{system}: document {doc} sentence {i} is empty"));
+            }
+            let at = joined[cursor..].find(sentence).map(|p| cursor + p).ok_or_else(|| {
+                format!("{system}: document {doc} sentence {i} not found in the document text in order")
+            })?;
+            if !joined[cursor..at].trim().is_empty() {
+                return Err(format!("{system}: document {doc} sentence {i} skips text"));
+            }
+            cursor = at + sentence.len();
+            if i + 1 < sentences.len() {
+                pred_at.insert(cursor as u32);
+            }
+        }
+        if !joined[cursor..].trim().is_empty() {
+            return Err(format!("{system}: document {doc} leaves text unsplit"));
+        }
+        add_boundary_counts(&mut counts, gold_at, &pred_at);
+    }
+    Ok(SystemScores {
+        system: system.to_string(),
+        sentences: MetricScore::of(counts, Measure::FMeasure, None, 0),
+        tokens: None,
+        upos: None,
+        xpos: None,
+        feats: None,
+        lemma: None,
+        uas: None,
+        las: None,
+        entities: None,
+        language: None,
+        not_run: vec!["tokens/fields: a sentence-only system writes no token fields".into()],
+        token_mismatch_sentences: 0,
+        throughput_sentences_per_second: None,
+    })
 }

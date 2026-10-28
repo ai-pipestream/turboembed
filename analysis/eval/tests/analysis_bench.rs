@@ -1,5 +1,7 @@
 use turbo_eval::analysis::Sentencer;
-use turbo_eval::analysis_bench::{command, parse_conllu, score_conllu, score_sentencer};
+use turbo_eval::analysis_bench::{
+    command, parse_conllu, parse_sentence_list, score_conllu, score_sentence_list, score_sentencer,
+};
 use turbo_eval::sha::{sha256, to_hex};
 
 const GOLD: &str = concat!(
@@ -108,6 +110,28 @@ fn split_tokens_resync_instead_of_shifting_the_stream() {
     assert_eq!(scores.upos.unwrap().correct, 5);
     assert_eq!(scores.token_mismatch_sentences, 1);
     assert_eq!(scores.sentences.score, 100.0);
+}
+
+#[test]
+fn sentence_lists_tile_gold_documents_or_are_refused() {
+    let gold = parse_conllu(GOLD).unwrap();
+    let perfect = parse_sentence_list("Cats purr.\nDogs bark.\n");
+    let scores = score_sentence_list("peer", &gold, &perfect).unwrap();
+    assert_eq!(scores.sentences.score, 100.0);
+    assert!(scores.tokens.is_none());
+
+    let merged = parse_sentence_list("Cats purr. Dogs bark.\n");
+    let scores = score_sentence_list("peer", &gold, &merged).unwrap();
+    assert_eq!(scores.sentences.correct, 0);
+    assert_eq!(scores.sentences.target, 1);
+
+    let swapped = parse_sentence_list("Dogs bark.\nCats purr.\n");
+    let err = score_sentence_list("peer", &gold, &swapped).unwrap_err();
+    assert!(err.contains("in order") || err.contains("skips"), "{err}");
+
+    let two_docs = parse_sentence_list("Cats purr.\n\nDogs bark.\n");
+    let err = score_sentence_list("peer", &gold, &two_docs).unwrap_err();
+    assert!(err.contains("predicted documents"), "{err}");
 }
 
 #[test]

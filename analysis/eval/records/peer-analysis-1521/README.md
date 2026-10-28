@@ -1,8 +1,8 @@
 # Peer analysis records (#1521)
 
 Peer records scored by `turbo-eval analysis` against the UD
-English-EWT test file: `spacy-en-ewt-test.json` and
-`stanza-en-ewt-test.json` so far.
+English-EWT test file: `spacy-en-ewt-test.json`,
+`stanza-en-ewt-test.json`, and `wtpsplit-en-ewt-test.json` so far.
 
 ## Inputs and pins
 
@@ -25,6 +25,17 @@ English-EWT test file: `spacy-en-ewt-test.json` and
   split, so this treebank is in-domain for it.
 - Stanza predictions SHA-256:
   `ae0e58aa2c5045709bae07f100556286eaccf6570ebe28cb54c5314f0a801f90`.
+- Peer: wtpsplit 2.2.2 with the `sat-3l` SaT weights on CPU torch
+  2.6.0, in the pinned container built from
+  `analysis/eval/reference/peers/wtpsplit/` (local image id at record
+  time `sha256:e9f66767399d34097ae89a0d6cb16af96dc799327f51fe4d1f045cc84cd14d32`).
+  wtpsplit predicts sentences only; it is scored through the bench's
+  sentence-list input (`--sents`), whose sentences must tile each
+  gold document's joined text in order.
+- wtpsplit predictions SHA-256:
+  `1aa2702be1c99bcf1743337cfa5fc430ce4c173579f9265091e609a6e2c04841`.
+  Sentence F1 85.30 in joined-text coordinates (our rule tier in the
+  same record: 73.55).
 
 ## Conditioning
 
