@@ -3537,19 +3537,18 @@ mentions, structure);
 `check_spans` takes any span columns. A `Violation` names the layer, the
 view, the span and what failed.
 
-The differential runs them on every document the Rust side makes.
-Without a container, `analysis/fuzz/tests/invariants.rs` runs every run
-over the first forty inputs of seed 7 and every checked in golden input
-but those of the sets it names as left out, each with its reason (the
-stemmers' and the Hunspell runs' word lists); a set that is in neither its fed list nor its
-left out list fails the test, and
-`analysis/fuzz/tests/checked_in.rs` runs the differential itself over
-the checked in goldens, which must show no divergence and no broken
-invariant, only the documented differences and the known skips. Both
-run in an ordinary `cargo test -p turbo-fuzz`; they skip the runs whose
-published model is not downloaded unless
-`TURBO_TEST_REQUIRE_OPENNLP_MODELS=1`, and the published MeCab
-dictionaries unless `TURBO_TEST_MECAB_DICTIONARIES=1`.
+The native acceptance suite uses `analysis/fuzz/tests/invariants.rs` and
+`analysis/fuzz/tests/native_contract.rs`. It runs 68 registered configurations
+over seeded input and the retained input texts, without JVM expected outputs.
+Three external MeCab dictionaries are opt-in; the default run executes 65
+configurations over 846 texts. Every retained input set is accounted for.
+The tests check layer offsets and normalized scalar mappings among source
+bytes, UTF-16 units and code points. Retired archive configurations are rejected
+before resource lookup. Missing or broken native resources fail the run.
+
+The historical comparison implementation and directory catalogue remain pending
+#1530. Historical JVM matches below are not acceptance evidence for the current
+native paths.
 
 ### What the runs found
 
@@ -4580,17 +4579,12 @@ runs them on any machine:
   text of every character width and in a normalized view, and catch a
   span cutting a character or leaving the text, a view whose alignment
   lies, and a broken span in a named instance of any layer type.
-- `analysis/fuzz/tests/invariants.rs` runs every run of the
-  differential over forty generated inputs and every checked in golden
-  input but the sets it names as left out, and holds every layer to the
-  offset invariants;
-  `analysis/fuzz/tests/checked_in.rs` runs the differential over the
-  checked in goldens, which must show no divergence
-  (["Differential fuzzing"](#differential-fuzzing)). The unit tests of
-  `turbo-fuzz` hold the run catalog to the directories on disk, the
-  reducer on hand made oracles and the WordPiece mapping on texts with
-  final sigma, controls, no-break spaces, ideographs, punctuation and
-  reordered marks.
+- `analysis/fuzz/tests/invariants.rs` exercises the retained native registry
+  over seeded and checked-in input text, with no JVM expected output.
+  `analysis/fuzz/tests/native_contract.rs` checks archive admission, exact
+  family counts and Unicode source projection. The run catalogue is checked
+  against historical directories separately; directory coverage does not
+  establish current native correctness. See ["Differential fuzzing"](#differential-fuzzing).
 - The tests of `turbo-tokenize` and `turbo-sentdetect` read their
   goldens and dumps from `analysis/goldens/data` through
   `turbo_goldens` (`docs/segmentation.md`, "Golden files"). The tests of
