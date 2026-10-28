@@ -110,6 +110,20 @@ fn a_cache_holds_each_splits_features_at_the_last_layers() {
     assert_eq!(r.status.code(), Some(2));
     assert!(String::from_utf8_lossy(&r.stderr).contains("--layers 3: 1 to the model's 2"));
     assert!(!deep.exists());
+    // --splits reads only the splits named.
+    let some = scratch("some");
+    let mut a = args.to_vec();
+    a[8] = some.to_str().unwrap();
+    a.extend(["--splits", "train,dev"]);
+    assert!(run(&a).status.success());
+    let r: CacheRecord = serde_json::from_slice(&fs::read(some.join("cache.json")).unwrap()).unwrap();
+    assert_eq!(r.splits.iter().map(|s| s.name.as_str()).collect::<Vec<_>>(), ["train", "dev"]);
+    assert!(!some.join(layer_file("test", 2)).exists());
+    a[8] = "unused";
+    let n = a.len();
+    a[n - 1] = "train,eval";
+    assert!(String::from_utf8_lossy(&run(&a).stderr).contains("--splits"));
+    fs::remove_dir_all(some).unwrap();
     for p in [data, out] {
         fs::remove_dir_all(p).unwrap();
     }

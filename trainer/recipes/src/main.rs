@@ -10,7 +10,8 @@
 //!     [--seed N] [--epochs N] [--batch N] [--lr X] [--patience N] [--tolerance X]
 //!     [--threads N] [--max-train N] [--commit <sha>] [--unrecorded-corpus]
 //! turbo-train-head cache    --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <dir> --layers N
-//!     [--device ..] [--precision ..] [--pooling ..] [--max-batch N] [--commit <sha>] [--unrecorded-corpus]
+//!     [--device ..] [--precision ..] [--pooling ..] [--max-batch N] [--splits train,dev,test]
+//!     [--commit <sha>] [--unrecorded-corpus]
 //! ```
 //!
 //! `cache` writes every split's word features at the encoder's last N
@@ -170,8 +171,13 @@ fn cache(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     let (device, precision, pooling) = encoder_args(&mut a)?;
     let taps: u32 = a.parsed("--layers", 0)?;
     let max_batch: u32 = a.parsed("--max-batch", 32)?;
+    let wanted = a.value("--splits")?.unwrap_or_else(|| "train,dev,test".into());
     let commit = commit(a.value("--commit")?);
     a.done()?;
+    let wanted: Vec<&str> = wanted.split(',').collect();
+    if wanted.is_empty() || wanted.iter().any(|w| !["train", "dev", "test"].contains(w)) {
+        return Err(Error(format!("--splits {wanted:?}: train, dev and test, comma separated")));
+    }
     let corpus = read_corpus(corpus_id, dir, unrecorded)?;
     let o = EncoderOptions { device, precision, max_batch: max_batch.max(taps), ..EncoderOptions::default() };
     let mut enc = WordEncoder::open(&bundle, &o).map_err(|e| Error(e.message))?;
@@ -179,7 +185,10 @@ fn cache(argv: &[String], corpus_id: &str, dir: &Path, unrecorded: bool, mut a: 
     let model_layers = encoder.layers.ok_or_else(|| Error(format!("{}: no architecture.layers", bundle.display())))?;
     let t = Instant::now();
     let s = &corpus.splits;
-    let splits = [("train", &s.train[..]), ("dev", &s.dev[..]), ("test", &s.test[..])];
+    let splits: Vec<(&str, &[_])> = [("train", &s.train[..]), ("dev", &s.dev[..]), ("test", &s.test[..])]
+        .into_iter()
+        .filter(|(n, _)| wanted.contains(n))
+        .collect();
     let (layers, splits) = cache::write(&mut enc, &splits, pooling, taps, model_layers, &out.path)?;
     let record = CacheRecord {
         schema: cache::SCHEMA.into(),

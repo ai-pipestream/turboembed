@@ -35,7 +35,8 @@ turbo-train-head train    --corpus <id> --dir <corpus dir> --bundle <encoder bun
     [--crf] [--bilstm <hidden>x<layers>] [--seed N] [--epochs N] [--batch N] [--lr X]
     [--patience N] [--max-train N] [--commit <sha>]
 turbo-train-head cache    --corpus <id> --dir <corpus dir> --bundle <encoder bundle> --out <new dir>
-    --layers N [--device ..] [--precision ..] [--pooling first|mean] [--max-batch N] [--commit <sha>]
+    --layers N [--device ..] [--precision ..] [--pooling first|mean] [--max-batch N]
+    [--splits train,dev,test] [--commit <sha>]
 ```
 
 `cache` (#1616) reads every split once and writes each word's features
@@ -48,9 +49,11 @@ order. `cache::read_layer` reads one split at one layer back, checked
 against the corpus's sentences and the file size. The layers come from
 the core's per-layer taps (`turbo_embed_write_layer_ranges`): CPU, BERT,
 RoBERTa, ModernBERT and nomic encoders. A run holds a window's words at
-every layer, so `--max-batch` is raised to N when lower. A ModernBERT-base
-cache of MultiCoNER v2 English (some 300,000 words) at all 22 layers is
-about 20 GB.
+every layer, so `--max-batch` is raised to N when lower. A cache is
+[words, hidden, layers] f32: MultiCoNER v2 English's train and dev
+(some 250,000 words) at all 22 layers of ModernBERT-base is about 17 GB,
+and its 249,980-sentence test split many times that, so `--splits`
+names the splits to read (all three by default).
 
 `train` reads per-word features from the encoder through
 `turbo_tagger::WordEncoder`, the path the annotators use, trains with
