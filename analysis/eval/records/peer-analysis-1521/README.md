@@ -2,8 +2,9 @@
 
 Peer and turbo records scored by `turbo-eval analysis` against the
 UD English-EWT test file: `spacy-en-ewt-test.json`,
-`stanza-en-ewt-test.json`, `wtpsplit-en-ewt-test.json`,
-`trankit-en-ewt-test.json`, and `turbo-sat-en-ewt-test.json`.
+`spacy-lg-en-ewt-test.json`, `stanza-en-ewt-test.json`,
+`wtpsplit-en-ewt-test.json`, `trankit-en-ewt-test.json`, and
+`turbo-sat-en-ewt-test.json`.
 
 ## Inputs and pins
 
@@ -17,6 +18,15 @@ UD English-EWT test file: `spacy-en-ewt-test.json`,
   `sha256:efad301914b0dc8f5be1f2f7fe02ebb011665aba7da00820055730108fecbb26`).
 - spaCy predictions SHA-256:
   `a88fa76835915f87c8b0d7e75fd222383d6e0e81a683ac10c6ce44c8c4f1882e`.
+- Peer: spaCy 3.8.7 with `en_core_web_lg` 3.8.0, same container with
+  the model build arguments changed (local image id at record time
+  `sha256:ac75f6a5866cad276de5aef167ccbe27cfb82d49a3f5a027e63090f94315ac7b`).
+  Predictions SHA-256:
+  `488c7b5e51c08e6f1b612e6f139514e472ca85e544f22cf52130f99f9c21f785`.
+  Sentences 82.52 F1, UPOS 91.74. Per the issue, spaCy is compared
+  on sentences and UPOS here (and NER once entity inputs land); the
+  remaining columns stay in the JSON for completeness under the
+  label-scheme caveat below.
 - Peer: Stanza 1.10.1 with the English default models
   (`tokenize,mwt,pos,lemma,depparse`) on CPU torch 2.6.0, in the
   pinned container built from `analysis/eval/reference/peers/stanza/`
@@ -86,6 +96,10 @@ sentence boundaries are the comparable columns for this peer.
 docker build -t turbo-peer-spacy:3.8.7-sm-3.8.0 analysis/eval/reference/peers/spacy
 docker run --rm --network none -v <gold-dir>:/gold:ro -v <out-dir>:/out \
   turbo-peer-spacy:3.8.7-sm-3.8.0 /gold/en_ewt-ud-test.conllu /out/spacy-sm.conllu
+docker build --build-arg MODEL=en_core_web_lg --build-arg MODEL_VERSION=3.8.0 \
+  -t turbo-peer-spacy:3.8.7-lg-3.8.0 analysis/eval/reference/peers/spacy
+docker run --rm --network none -v <gold-dir>:/gold:ro -v <out-dir>:/out \
+  turbo-peer-spacy:3.8.7-lg-3.8.0 /gold/en_ewt-ud-test.conllu /out/spacy-lg.conllu en_core_web_lg
 turbo-eval analysis --gold <gold-dir>/en_ewt-ud-test.conllu \
   --sha256 fa024f43dc5da3c5ac02563bc9bd0e974f46cbb1560823976a8f342a37dc494a \
   --pred spacy-3.8.7-en_core_web_sm-3.8.0=<out-dir>/spacy-sm.conllu \
