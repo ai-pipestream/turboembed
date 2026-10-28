@@ -186,3 +186,36 @@ fn nested_and_duplicate_names_keep_only_the_outermost_annotation() {
     assert_eq!((sample.names()[0].start, sample.names()[0].end), (0, 2));
     assert_eq!(&text[sample.tokens()[0].span.start as usize..sample.tokens()[1].span.end as usize], text);
 }
+
+struct WholeDocument;
+
+impl SentenceSpans for WholeDocument {
+    fn sentence_spans(&self, text: &str, out: &mut Vec<Span>) {
+        out.push(Span::new(0, text.len() as u32));
+    }
+}
+
+#[test]
+fn pinned_document_annotations_align_with_the_source_tokens() {
+    let (Ok(text_path), Ok(ann_path)) = (std::env::var("TURBO_LITBANK_TEXT"), std::env::var("TURBO_LITBANK_ANN"))
+    else {
+        return;
+    };
+    let text = std::fs::read_to_string(text_path).unwrap();
+    let ann = std::fs::read_to_string(ann_path).unwrap();
+    let tokenizer = RuleTokenizer::Simple(TokenizerOptions { keep_newlines: false });
+    let samples: Vec<_> = LitBankReader::new(&text, &ann, WholeDocument, tokenizer, None)
+        .unwrap()
+        .map(|sample| sample.unwrap())
+        .collect();
+    assert_eq!(samples.len(), 1);
+    let sample = &samples[0];
+    assert!(sample.names().len() > 10, "only {} names", sample.names().len());
+    for token in sample.tokens() {
+        assert!(token.is_borrowed());
+        assert_eq!(&text[token.span.range()], token.as_str());
+    }
+    for name in sample.names() {
+        assert!(name.end as usize <= sample.tokens().len());
+    }
+}
