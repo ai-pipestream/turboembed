@@ -215,6 +215,33 @@ fn the_models_workflows_publish_the_releases_and_fetch_their_references() {
     published_by(&FINEWEB_MODELS, "models-fineweb.yml", "fineweb-references.txt");
 }
 
+/// The training workflows are an opt-in integration test on pull
+/// requests: the training job runs on a pull request only with the label
+/// `ci:models`, and every push to main that changes their paths trains
+/// (.github/runner/README.md, "Model training runs").
+#[test]
+fn the_models_workflows_train_on_pull_requests_only_with_the_label() {
+    let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    for file in ["models.yml", "models-ud.yml", "models-tatoeba.yml", "models-fineweb.yml"] {
+        let workflow = std::fs::read_to_string(crate_dir.join("../../.github/workflows").join(file)).unwrap();
+        let lines: Vec<&str> = workflow.lines().map(str::trim).collect();
+        assert!(lines.contains(&"types: [opened, synchronize, reopened, labeled]"), "{file}");
+        assert!(lines.contains(&"branches: [main]"), "{file} trains on main");
+        assert!(lines.contains(&"github.event_name != 'pull_request' ||"), "{file}");
+        assert!(lines.contains(&"(contains(github.event.pull_request.labels.*.name, 'ci:models') &&"), "{file}");
+        // The pull request and the push list the same paths.
+        let paths = |from: &str| -> Vec<&str> {
+            let at = lines.iter().position(|l| *l == from).unwrap();
+            let rest = &lines[at..];
+            let start = rest.iter().position(|l| *l == "paths:").unwrap() + 1;
+            rest[start..].iter().take_while(|l| l.starts_with("- ")).copied().collect()
+        };
+        let pr = paths("pull_request:");
+        assert!(!pr.is_empty(), "{file}");
+        assert_eq!(pr, paths("push:"), "{file}");
+    }
+}
+
 /// The `models-tatoeba` workflow names the release that keeps the
 /// recorded export and reads `tatoeba-export.txt`, which lists the
 /// export's two archives at their addresses in that release, each
@@ -254,4 +281,18 @@ fn the_tatoeba_workflow_trains_on_the_kept_export() {
     // The runs write the model's directory under its id.
     assert!(lines.contains(&format!("id={MODEL_ID}").as_str()));
     assert!(workflow.contains(&format!("\"$id.bin\" {SENTENCES_FILE} {CARD_FILE} {GATE_FILE}")));
+}
+
+/// No workflow fetches a reference from `opennlp.sourceforge.net`: its
+/// `models-1.5` page is gone (#1565), so a fetch there fails every
+/// models run. The 1.5 models are served from the project's file area.
+#[test]
+fn no_references_file_lists_the_retired_opennlp_host() {
+    let crate_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    for file in ["masc-references.txt", "ud-references.txt", "tatoeba-references.txt", "fineweb-references.txt"] {
+        let listed = std::fs::read_to_string(crate_dir.join(file)).unwrap();
+        for line in listed.lines().filter(|l| !l.starts_with('#')) {
+            assert!(!line.contains("://opennlp.sourceforge.net/"), "{file}: {line}");
+        }
+    }
 }

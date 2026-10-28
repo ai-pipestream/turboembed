@@ -51,6 +51,9 @@ pub struct Pipeline {
     /// is the contextual stage, `static_embedder` the static one.
     pub cascade: Option<Cascade>,
     pub static_embedder: Option<Box<dyn Embedder>>,
+    /// Where to dump each set's cuts (`crate::cuts`), and the precision
+    /// tier the embedder ran at, as the dump names it.
+    pub dump_cuts: Option<crate::cuts::DumpConfig>,
 }
 
 /// What a pipeline did on a set.
@@ -108,6 +111,7 @@ impl Pipeline {
             return Err("cascade retrieval needs a static embedder".into());
         }
         set.check()?;
+        let mut dump = self.cut_writer(set)?;
         let embedder = &mut Counted { inner: self.embedder.as_mut(), tokens: 0 };
 
         let t = Instant::now();
@@ -118,14 +122,24 @@ impl Pipeline {
             .collect::<Result<Vec<_>>>()?;
         let analysis_ms = ms(t);
 
+        let mut dump_ms = 0.0;
         let t = Instant::now();
         let (mut doc_of, mut spans) = (Vec::new(), Vec::new());
         // Vectors the chunker pooled itself, one per chunk: from every
         // document or from none.
         let mut pooled: Option<Vec<f32>> = None;
         for (i, (d, doc)) in set.docs.iter().zip(&docs).enumerate() {
-            let (chunks, vectors) =
-                self.chunker.chunk_vectors(doc, embedder).map_err(|e| format!("document {}: {e}", d.id))?;
+            let (chunks, vectors) = match dump.as_mut() {
+                None => self.chunker.chunk_vectors(doc, embedder).map_err(|e| format!("document {}: {e}", d.id))?,
+                Some(w) => {
+                    let (chunks, cut) =
+                        self.chunker.chunk_cut(doc, embedder).map_err(|e| format!("document {}: {e}", d.id))?;
+                    let t = Instant::now();
+                    w.document(&d.id, &cut)?;
+                    dump_ms += ms(t);
+                    (chunks, None)
+                }
+            };
             match (i, vectors, pooled.as_mut()) {
                 (_, None, None) => {}
                 (0, Some(v), None) => pooled = Some(v),
@@ -149,7 +163,15 @@ impl Pipeline {
                 spans.push(s);
             }
         }
-        let chunking_ms = ms(t);
+        // The dump's writing is not the chunker's cost.
+        let chunking_ms = ms(t) - dump_ms;
+        if let Some(w) = dump {
+            let (receipt, n) = w.publish()?;
+            eprintln!("set {}: the cuts of {n} documents in artifact {}", set.name, receipt.key);
+            if let Some(error) = receipt.cleanup_error {
+                eprintln!("artifact {} published; staging cleanup failed: {error}", receipt.key);
+            }
+        }
         drop(docs);
         if spans.is_empty() {
             return Err(format!("set {}: the chunker made no chunks", set.name));
@@ -216,6 +238,29 @@ impl Pipeline {
             chunk_tokens: Distribution::of(&chunk_tokens)?,
         };
         Ok(Outcome { run, chunks, metrics, cost })
+    }
+
+    /// The writer of this set's cut dump, when the pipeline dumps cuts.
+    fn cut_writer(&self, set: &LoadedSet) -> Result<Option<crate::cuts::Writer>> {
+        let Some(config) = &self.dump_cuts else { return Ok(None) };
+        let budget = self
+            .chunker
+            .cut_budget()
+            .ok_or_else(|| format!("--dump-cuts: the {} chunker runs no optimizer", self.chunker.name()))?;
+        let device = &self.embedder.identity().device;
+        let header = crate::cuts::Header {
+            set: set.name.clone(),
+            sha256: set.sha256.clone(),
+            backend: device.backend.clone(),
+            device: device.name.clone(),
+            precision: config.precision.name().into(),
+            max: budget.max,
+            target: budget.target,
+            size_weight: budget.size_weight,
+            overhead: budget.overhead,
+            chunker: self.chunker.config(),
+        };
+        crate::cuts::Writer::create_in(config.store.as_ref(), &header).map(Some)
     }
 
     /// Runs the pipeline over the set and makes its record, checked.

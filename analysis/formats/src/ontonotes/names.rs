@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::ops::Range;
 
 use turbo_analysis::Span;
-use turbo_unicode::WhitespaceMode;
 use turbo_unicode::java::lowercase_code_points;
 
 use super::OntoNotesError;
@@ -69,14 +68,14 @@ pub struct NameDocument<'a> {
 }
 
 impl<'a> NameDocument<'a> {
-    /// Reads `source`, splitting each line into tokens at the whitespace
-    /// of `mode` (`WhitespaceTokenizer`).
+    /// Reads `source`, splitting each line into tokens at Unicode
+    /// whitespace (`WhitespaceTokenizer`).
     ///
     /// Each line that does not start with `<DOC` is a sample, up to a line
     /// that is exactly `</DOC>`; the first sample clears adaptive data. An
     /// error on a line stops the reading and is kept
     /// ([`NameDocument::error`]) with the samples of the lines before it.
-    pub fn read(source: &'a str, mode: WhitespaceMode) -> NameDocument<'a> {
+    pub fn read(source: &'a str) -> NameDocument<'a> {
         let mut doc =
             NameDocument { tokens: Vec::new(), names: Vec::new(), samples: Vec::new(), types: Vec::new(), error: None };
         let lines = match Lines::new(source) {
@@ -97,7 +96,7 @@ impl<'a> NameDocument<'a> {
             }
             let tokens_start = doc.tokens.len();
             let names_start = doc.names.len();
-            if let Err(e) = doc.read_line(line.piece, line.number, mode, &mut type_ids) {
+            if let Err(e) = doc.read_line(line.piece, line.number, &mut type_ids) {
                 doc.tokens.truncate(tokens_start);
                 doc.names.truncate(names_start);
                 doc.error = Some(e);
@@ -119,7 +118,6 @@ impl<'a> NameDocument<'a> {
         &mut self,
         line: Piece<'a>,
         number: u32,
-        mode: WhitespaceMode,
         type_ids: &mut HashMap<String, u32>,
     ) -> Result<(), OntoNotesError> {
         let mut token_index = 0u32;
@@ -127,7 +125,7 @@ impl<'a> NameDocument<'a> {
         let mut kind: Option<u32> = None;
         let mut inside_start_tag = false;
         let mut tag_start = line.span.start;
-        for token in whitespace_tokens(line, mode) {
+        for token in whitespace_tokens(line) {
             let text = token.text;
             if text.starts_with(ENAMEX_OPEN) {
                 inside_start_tag = true;
@@ -314,7 +312,7 @@ mod tests {
     use super::*;
 
     fn read(source: &str) -> (Vec<String>, Option<(String, &'static str)>) {
-        let doc = NameDocument::read(source, WhitespaceMode::Unicode);
+        let doc = NameDocument::read(source);
         let samples = doc.samples().map(|s| s.to_string()).collect();
         let error = doc.error().map(|e| (e.to_string(), e.java_class().unwrap()));
         (samples, error)
@@ -327,7 +325,7 @@ mod tests {
         let (samples, error) = read(doc);
         assert_eq!(error, None);
         assert_eq!(samples, ["\n<START:person> John Smith <END> met <START:gpe> -LRB-Paris-RRB- <END> .", "", "next "]);
-        let d = NameDocument::read(doc, WhitespaceMode::Unicode);
+        let d = NameDocument::read(doc);
         let first = d.samples().next().unwrap();
         let toks: Vec<&str> = first.tokens().iter().map(Field::as_str).collect();
         assert_eq!(toks, ["John", "Smith", "met", "-LRB-Paris-RRB-", "."]);
@@ -372,10 +370,10 @@ mod tests {
     #[test]
     fn the_stream_orders_errors_and_stops_at_an_empty_document() {
         let docs = [
-            NameDocument::read("a\nb</ENAMEX>", WhitespaceMode::Unicode),
-            NameDocument::read("c", WhitespaceMode::Unicode),
-            NameDocument::read("<DOC>\n</DOC>", WhitespaceMode::Unicode),
-            NameDocument::read("d", WhitespaceMode::Unicode),
+            NameDocument::read("a\nb</ENAMEX>"),
+            NameDocument::read("c"),
+            NameDocument::read("<DOC>\n</DOC>"),
+            NameDocument::read("d"),
         ];
         let items: Vec<Result<String, String>> =
             NameStream::new(&docs).map(|r| r.map(|s| s.to_string()).map_err(|e| e.to_string())).collect();

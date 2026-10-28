@@ -47,17 +47,13 @@ use turbo_train_components::{
     AbbreviationDictionary, PosDictionary, SdEventStream, SentenceDetectorFactory, Stamp, TokSpanEventStream,
     TokenizerFactory, sd_events, tok_events,
 };
-use turbo_unicode::WhitespaceMode;
-
-/// The whitespace definition of the OpenNLP the goldens were made with.
-const MODE: WhitespaceMode = WhitespaceMode::Unicode;
 
 fn sentence_samples(text: &str) -> Vec<SentenceSample<'_>> {
     SentenceReader::new(text).unwrap().map(|s| s.unwrap()).collect()
 }
 
 fn token_samples(text: &str) -> Vec<TokenSample<'_>> {
-    TokenReader::new(text, MODE).unwrap().map(|s| s.unwrap()).collect()
+    TokenReader::new(text).unwrap().map(|s| s.unwrap()).collect()
 }
 
 fn check(path: &Path, g: &Golden, events: &[Event]) {
@@ -76,11 +72,11 @@ fn check_train_golden(path: &Path, source: &str) {
     let events = match source {
         "sentdetect" => {
             let f = SentenceDetectorFactory::new("en", false, None, None).unwrap();
-            sd_events(&sentence_samples(&text), &f, MODE)
+            sd_events(&sentence_samples(&text), &f)
         }
         "tokenize" => {
             let f = TokenizerFactory::new("en", None, false, None).unwrap();
-            tok_events(&token_samples(&text), &f, MODE).unwrap()
+            tok_events(&token_samples(&text), &f).unwrap()
         }
         other => panic!("{other}"),
     };
@@ -201,7 +197,7 @@ fn event_golden_events(g: &Golden, text: &str) -> (Vec<Event>, Vec<StreamError>)
             } else {
                 collect(SentenceReader::new(text).unwrap(), &mut samples, &mut errors);
             }
-            let mut stream = SdEventStream::new(&f, MODE);
+            let mut stream = SdEventStream::new(&f);
             let mut out = Vec::new();
             for s in &samples {
                 stream.events(s, &mut out);
@@ -215,11 +211,11 @@ fn event_golden_events(g: &Golden, text: &str) -> (Vec<Event>, Vec<StreamError>)
             let f = TokenizerFactory::new(language, dictionary(g), optimization, pattern).unwrap();
             let mut samples: Vec<TokenSample<'_>> = Vec::new();
             if conllu {
-                collect(ConlluTokenReader::new(text, MODE).unwrap(), &mut samples, &mut errors);
+                collect(ConlluTokenReader::new(text).unwrap(), &mut samples, &mut errors);
             } else {
-                collect(TokenReader::new(text, MODE).unwrap(), &mut samples, &mut errors);
+                collect(TokenReader::new(text).unwrap(), &mut samples, &mut errors);
             }
-            let mut stream = TokSpanEventStream::new(&f, MODE);
+            let mut stream = TokSpanEventStream::new(&f);
             let mut out = Vec::new();
             for s in &samples {
                 stream.events(s, &mut out).unwrap();
@@ -233,7 +229,7 @@ fn event_golden_events(g: &Golden, text: &str) -> (Vec<Event>, Vec<StreamError>)
             if conllu {
                 collect(ConlluPosReader::new(text, tagset(g)).unwrap(), &mut samples, &mut errors);
             } else {
-                collect(WordTagReader::new(text, MODE).unwrap(), &mut samples, &mut errors);
+                collect(WordTagReader::new(text).unwrap(), &mut samples, &mut errors);
             }
             let mut stream = PosEventStream::new(&f).unwrap();
             let mut out = Vec::new();

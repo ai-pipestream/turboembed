@@ -41,6 +41,14 @@ gRPC service) build against. Everything below is new.
   arm64 (metal and cpu), Linux aarch64 (cpu) and Windows x86_64 (cpu),
   each with the library, the headers and the server (docs/release.md).
 - This changelog, and the compatibility policy in docs/release.md.
+- The ModernBERT and nomic-bert families in the bundle format and
+  `turbo_backend.h`: rotary positions, sliding-window attention, gated
+  MLPs and bias-free norms, with the core's cos/sin table appended to
+  `turbo_backend_model`; no backend runs them yet (#1493).
+- The CPU encoder for ModernBERT and nomic-bert: RoPE in the QKV
+  product's epilogue over pair-adjacent weights, sliding-window attention
+  over each block's band of keys, GeGLU and SwiGLU in one product, held to
+  upstream on the sealed tiny bundles (#1544).
 
 ### Not in this release yet
 

@@ -44,6 +44,9 @@ use super::kernels::{Attend, Epilogue, Gemm, LANES, Packed, zeroed};
 use super::pool::Pool;
 
 mod job;
+mod rotary;
+#[cfg(test)]
+mod taps_tests;
 #[cfg(test)]
 mod tests;
 
@@ -123,6 +126,10 @@ pub(super) struct Encoder {
     /// capacity the session's max_ranges. Empty after `write`: the run
     /// then pools each row.
     ranges: Vec<turbo_token_range>,
+    /// The last layers each range is pooled from, 1 for the final alone:
+    /// the output is [taps, ranges, output_dim], the last block the
+    /// final layer's (turbo_backend.h, `taps`).
+    taps: usize,
 
     /// Each row's first packed token and its length through its last
     /// live token.
@@ -153,6 +160,9 @@ pub(super) struct Encoder {
     /// Each thread's attention scratch, `per_thread` floats apiece.
     scratch: Vec<f32>,
     per_thread: usize,
+    /// A ModernBERT's or nomic-bert's own parts (rotary/); None for a
+    /// BERT.
+    rotary: Option<rotary::Rotary>,
 }
 
 impl Encoder {
@@ -167,7 +177,11 @@ impl Encoder {
         size: Size,
     ) -> Result<Encoder, usize> {
         let Size { threads, max_batch, max_seq, max_ranges } = size;
-        debug_assert_eq!(tensors.len(), (TURBO_BERT_EMBEDDING_TENSORS + d.layers * TURBO_BERT_LAYER_TENSORS) as usize);
+        let rotary = rotary::Rotary::new(d, max_batch.checked_mul(max_seq).ok_or(usize::MAX)?)?;
+        debug_assert!(
+            rotary.is_some()
+                || tensors.len() == (TURBO_BERT_EMBEDDING_TENSORS + d.layers * TURBO_BERT_LAYER_TENSORS) as usize
+        );
         debug_assert_eq!(packed.layers.len(), d.layers as usize);
         let (h, i) = (d.hidden as usize, d.intermediate as usize);
         let tokens = max_batch.checked_mul(max_seq).ok_or(usize::MAX)?;
@@ -196,6 +210,7 @@ impl Encoder {
             normalize: 0,
             output_dim: 0,
             ranges,
+            taps: 1,
             rows: zeroed(max_batch)?,
             at: zeroed(tokens)?,
             padded: zeroed(max_batch)?,
@@ -210,6 +225,7 @@ impl Encoder {
             ffn: zeroed(wide(i)?)?,
             scratch: zeroed(threads.checked_mul(per_thread).ok_or(usize::MAX)?)?,
             per_thread,
+            rotary,
         })
     }
 
@@ -269,11 +285,20 @@ impl Encoder {
         self.pooling = r.pooling;
         self.normalize = r.normalize;
         self.output_dim = r.output_dim as usize;
+        self.taps = (r.taps as usize).max(1);
+    }
+
+    /// The block of the output layer `l`'s states are pooled into when it
+    /// is a tap before the last layer: None for the last layer, whose
+    /// states the run pools at its end, and for any layer untapped.
+    fn tap(&self, l: usize) -> Option<usize> {
+        let first = self.layers - self.taps;
+        (!self.ranges.is_empty() && l >= first && l + 1 < self.layers).then(|| l - first)
     }
 
     /// Run the written rows into `out`, [batch, output_dim] packed, or
-    /// [ranges, output_dim] after `write_ranges`, on `pool`, which has at
-    /// most the threads the encoder was made for.
+    /// [taps, ranges, output_dim] after `write_ranges`, on `pool`, which
+    /// has at most the threads the encoder was made for.
     pub(super) fn run(&mut self, pool: &mut Pool, out: &mut [f32]) {
         debug_assert!(pool.threads() * self.per_thread <= self.scratch.len());
         let tokens = self.pack();
@@ -284,6 +309,7 @@ impl Encoder {
             ctx: self.ctx.as_mut_ptr(),
             ffn: self.ffn.as_mut_ptr(),
             scratch: self.scratch.as_mut_ptr(),
+            xn: self.rotary.as_mut().map_or(std::ptr::null_mut(), |r| r.xn.as_mut_ptr()),
         };
         let e = &*self;
         // SAFETY: the model's, which outlives the session.
@@ -300,27 +326,44 @@ impl Encoder {
         };
         let linear = |pool: &mut Pool, g: Gemm| go(pool, Step::Linear(g), g.tasks());
         let chunks = tokens.div_ceil(TOKENS);
-        go(pool, Step::Lookup, chunks);
-        for l in 0..e.layers {
+        let (count, od, at) = (e.ranges.len(), e.output_dim, out.as_mut_ptr());
+        debug_assert!(count == 0 || out.len() >= e.taps * count * od);
+        // Each range pooled from the states at `src` into block k of out.
+        let pool_ranges = |pool: &mut Pool, src: *const f32, k: usize| {
+            let per_task = count.div_ceil(pool.threads() * RANGE_TASKS_PER_THREAD);
+            // SAFETY: k is below taps, and out holds taps blocks of count
+            // vectors.
+            let out = unsafe { at.add(k * count * od) };
+            go(pool, Step::PoolRanges { src, out, per_task }, count.div_ceil(per_task));
+        };
+        let tapped = |pool: &mut Pool, l: usize, src: *const f32| {
+            if let Some(k) = e.tap(l) {
+                pool_ranges(pool, src, k);
+            }
+        };
+        if let Some(r) = &e.rotary {
+            r.layers(e, packed, bufs, tokens, pool, &go, &tapped);
+        } else {
+            go(pool, Step::Lookup, chunks);
+        }
+        for l in (0..e.layers).filter(|_| e.rotary.is_none()) {
             let (pl, w) = (&packed.layers[l], |r| e.layer(l, r));
             let gemm = |x, ldx, w, bias, y, ldy, epilogue| Gemm { x, ldx, rows: tokens, w, bias, y, ldy, epilogue };
             let split = Epilogue::Split { lo: h, hi: 2 * h, t_out: bufs.kt, stride: e.stride, slot: e.slot.as_ptr() };
             linear(pool, gemm(bufs.x, h, &pl.qkv, &pl.qkv_bias, bufs.qv, 3 * h, split));
-            go(pool, Step::Attention, e.heads * e.blocks[e.batch]);
+            go(pool, Step::Attention { window: usize::MAX }, e.heads * e.blocks[e.batch]);
             linear(pool, gemm(bufs.ctx, h, &pl.out, w(O_B), bufs.x, h, Epilogue::Residual));
             go(pool, Step::Norm(w(ATTN_LN_W), w(ATTN_LN_B)), chunks);
             linear(pool, gemm(bufs.x, h, &pl.ffn_in, w(FFN_IN_B), bufs.ffn, n_i, Epilogue::Gelu));
             linear(pool, gemm(bufs.ffn, n_i, &pl.ffn_out, w(FFN_OUT_B), bufs.x, h, Epilogue::Residual));
             go(pool, Step::Norm(w(FFN_LN_W), w(FFN_LN_B)), chunks);
+            tapped(pool, l, bufs.x);
         }
-        if e.ranges.is_empty() {
+        if count == 0 {
             self.pool(out);
             return;
         }
-        let count = e.ranges.len();
-        debug_assert!(out.len() >= count * e.output_dim);
-        let per_task = count.div_ceil(pool.threads() * RANGE_TASKS_PER_THREAD);
-        go(pool, Step::PoolRanges { out: out.as_mut_ptr(), per_task }, count.div_ceil(per_task));
+        pool_ranges(pool, bufs.x, e.taps - 1);
     }
 
     /// Each row's place among the packed tokens, each token's place in

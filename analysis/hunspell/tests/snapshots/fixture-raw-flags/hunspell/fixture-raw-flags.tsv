@@ -1,0 +1,9 @@
+load_error	
+unsupported	0
+words	6
+café	café	café	st:café
+cafés	cafés	cafés	
+caféx	café	café	st:café fl:ñ
+cafésx	cafésx	cafésx	
+naïve	naïve	naïve	st:naïve
+naïvex	naïve	naïve	st:naïve fl:ñ

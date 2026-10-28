@@ -13,7 +13,8 @@ use std::sync::{Mutex, OnceLock};
 
 use crate::backend::{
     TURBO_BERT_EMBEDDING_TENSORS, TURBO_BERT_LAYER_TENSORS, TURBO_FAMILY_BERT, TURBO_FAMILY_DEBERTA_V2,
-    TURBO_FAMILY_ROBERTA, TURBO_FAMILY_STATIC, refuse, turbo_backend_model, turbo_backend_tensor,
+    TURBO_FAMILY_MODERNBERT, TURBO_FAMILY_NOMIC_BERT, TURBO_FAMILY_ROBERTA, TURBO_FAMILY_STATIC, refuse,
+    turbo_backend_model, turbo_backend_tensor,
 };
 use crate::status::{INVALID_ARGUMENT, INVALID_STRUCT_SIZE, UNSUPPORTED};
 use crate::{TURBO_DTYPE_F16, TURBO_DTYPE_F32, turbo_error};
@@ -72,13 +73,23 @@ impl Model {
             return self
                 .tensors
                 .iter()
-                .map(|t| unsafe { std::slice::from_raw_parts(t.data as *const f32, t.bytes as usize / 4) })
+                .map(|t| {
+                    // An absent tensor (ModernBERT's first attention
+                    // norm) has no data.
+                    if t.data.is_null() {
+                        return &[][..];
+                    }
+                    unsafe { std::slice::from_raw_parts(t.data as *const f32, t.bytes as usize / 4) }
+                })
                 .collect();
         }
         let copy = self.f32.get_or_init(|| {
             self.tensors
                 .iter()
                 .map(|t| {
+                    if t.data.is_null() {
+                        return Vec::new();
+                    }
                     let h = unsafe { std::slice::from_raw_parts(t.data as *const u16, t.bytes as usize / 2) };
                     let widen = if self.desc.dtype == TURBO_DTYPE_F16 { f16_to_f32 } else { bf16_to_f32 };
                     h.iter().map(|&v| widen(v)).collect()
@@ -99,10 +110,15 @@ impl Model {
         if let Some(p) = self.packed.get() {
             return Ok(p);
         }
-        let layer = |l: usize, r: usize| {
-            tensors[(TURBO_BERT_EMBEDDING_TENSORS + l as u32 * TURBO_BERT_LAYER_TENSORS) as usize + r]
+        let isa = kernels::Isa::detect();
+        let p = if super::rotary::is(self.desc.family) {
+            kernels::Packed::rotary(&self.desc, tensors, isa)?
+        } else {
+            let layer = |l: usize, r: usize| {
+                tensors[(TURBO_BERT_EMBEDDING_TENSORS + l as u32 * TURBO_BERT_LAYER_TENSORS) as usize + r]
+            };
+            kernels::Packed::new(&self.desc, layer, isa)?
         };
-        let p = kernels::Packed::new(&self.desc, layer, kernels::Isa::detect())?;
         Ok(self.packed.get_or_init(|| p))
     }
 }
@@ -132,10 +148,25 @@ pub(super) unsafe extern "C" fn model_load(
     err: *mut turbo_error,
 ) -> i32 {
     let desc = unsafe { *desc };
-    if !matches!(desc.family, TURBO_FAMILY_BERT | TURBO_FAMILY_ROBERTA | TURBO_FAMILY_STATIC | TURBO_FAMILY_DEBERTA_V2)
-    {
-        let msg = format!("family {}: the cpu holds BERT and DeBERTa-v2 encoders and static models", desc.family);
+    if !matches!(
+        desc.family,
+        TURBO_FAMILY_BERT
+            | TURBO_FAMILY_ROBERTA
+            | TURBO_FAMILY_STATIC
+            | TURBO_FAMILY_DEBERTA_V2
+            | TURBO_FAMILY_MODERNBERT
+            | TURBO_FAMILY_NOMIC_BERT
+    ) {
+        let msg = format!(
+            "family {}: the cpu holds BERT, DeBERTa-v2, ModernBERT and nomic-bert encoders and static models",
+            desc.family
+        );
         return unsafe { refuse(err, UNSUPPORTED, &msg) };
+    }
+    if super::rotary::is(desc.family)
+        && let Err((code, msg)) = super::rotary::check(&desc)
+    {
+        return unsafe { refuse(err, code, &msg) };
     }
     if desc.family == TURBO_FAMILY_DEBERTA_V2 {
         let need = std::mem::offset_of!(turbo_backend_model, max_relative_positions) + size_of::<u32>();

@@ -228,6 +228,7 @@ fn spans_reconstruct_every_non_whitespace_token_across_normalization_utf8_and_wi
         encoder: EncoderOptions { max_seq: 14, ..EncoderOptions::default() },
         prompt: PromptRole::None,
         stride: 5,
+        output_dim: 0,
     };
     let va = VectorAnnotator::open(&bert(), &o).unwrap();
     assert_eq!(va.width(), 12);
@@ -312,6 +313,7 @@ fn window_seam_tokens_select_most_interior_window_and_stay_stable_across_stride_
         encoder: EncoderOptions { max_seq: 12, ..EncoderOptions::default() },
         prompt: PromptRole::None,
         stride: 5,
+        output_dim: 0,
     };
     let va_s5 = VectorAnnotator::open(&bert(), &base_opts).unwrap();
     let va_s4 = va_s5.clone_with_stride(4);
@@ -377,6 +379,7 @@ impl CloneWithStride for VectorAnnotator {
             encoder: EncoderOptions { max_seq: self.info().max_seq, ..EncoderOptions::default() },
             prompt: PromptRole::None,
             stride,
+            output_dim: 0,
         };
         VectorAnnotator::open(&bert(), &o).unwrap()
     }

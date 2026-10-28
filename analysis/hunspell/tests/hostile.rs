@@ -4,6 +4,7 @@
 //! flags and options whose behaviour is easy to get backwards, each on a
 //! dictionary small enough to read.
 
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use turbo_hunspell::{Dictionary, LoadError, LoadMode, Stemmer};
@@ -34,7 +35,7 @@ fn within<T>(limit: Duration, what: &str, f: impl FnOnce() -> T) -> T {
 }
 
 fn fixtures() -> Vec<(String, Vec<u8>, Vec<u8>)> {
-    let dir = turbo_goldens::data_dir().join("fixtures/hunspell");
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures/hunspell");
     let mut out = Vec::new();
     let mut names: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().path()).collect();
     names.sort();

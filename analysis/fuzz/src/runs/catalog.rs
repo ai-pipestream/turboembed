@@ -22,11 +22,10 @@ use crate::resources::{Resources, Unavailable};
 /// gazetteers answer queries line by line and load whole tables, and the
 /// place profiles load whole tables; the
 /// sequence runs (`string-pattern`, `features`, `codec`, `beam`,
-/// `tag-dictionary`, `tag-format`), the name finders, the stemmers, the
-/// Hunspell runs, the stopword lists, the glossary matchers and readers and
-/// the SVM document categorizer (`svm-doccat`) read input sets of their own,
-/// which turbo-sequence, turbo-namefind, turbo-stem, turbo-hunspell,
-/// turbo-stopword, turbo-glossary and turbo-doccat compare with; the other
+/// `tag-dictionary`, `tag-format`), the name finders, the
+/// Hunspell runs, the SVM document categorizer (`svm-doccat`) read input sets of their own,
+/// which turbo-sequence, turbo-namefind, turbo-hunspell
+/// and turbo-doccat compare with; the other
 /// `namefind` runs train name finders from name samples and find names in
 /// them, and the sentiment runs (`sentiment`) train models on a corpus of
 /// their own and score their own documents, which turbo-train-components
@@ -41,7 +40,7 @@ use crate::resources::{Resources, Unavailable};
 /// which turbo-formats compares with; the sentence vector runs
 /// (`sentvectors`) need an encoder bundle, and turbo-analysis-embed's
 /// `sentence_vectors_dl` test compares with them.
-pub const NOT_COVERED: [&str; 37] = [
+pub const NOT_COVERED: [&str; 33] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -65,10 +64,6 @@ pub const NOT_COVERED: [&str; 37] = [
     "tag-dictionary",
     "tag-format",
     "namefind",
-    "stem",
-    "hunspell",
-    "stopword",
-    "glossary",
     "svm-doccat",
     "sentiment",
     "doccat",
@@ -86,17 +81,11 @@ pub const NOT_COVERED: [&str; 37] = [
 /// present opens as `Unavailable::Missing`.
 pub const RUNS: &[(&str, &str)] = &[
     ("sentdetect", "en-abbrev"),
-    ("sentdetect", "en-abbrev+legacy"),
     ("sentdetect", "en-plain"),
-    ("sentdetect", "en-plain+legacy"),
     ("sentdetect", "en-plain-perceptron-rust"),
-    ("sentdetect", "en-plain-perceptron-rust+legacy"),
     ("sentdetect", "en-plain-qn-rust"),
-    ("sentdetect", "en-plain-qn-rust+legacy"),
     ("sentdetect", "en-plain-rust"),
-    ("sentdetect", "en-plain-rust+legacy"),
     ("sentdetect", "newline"),
-    ("sentdetect", "newline+legacy"),
     ("sentdetect", "opennlp-de-ud-gsd-sentence-1.3-2.5.4"),
     ("sentdetect", "opennlp-en-ud-ewt-sentence-1.3-2.5.4"),
     ("sentdetect", "opennlp-pt-ud-gsd-sentence-1.3-2.5.4"),
@@ -113,22 +102,14 @@ pub const RUNS: &[(&str, &str)] = &[
     ("tokenize", "opennlp-pt-ud-gsd-tokens-1.3-2.5.4+alphanumeric"),
     ("tokenize", "simple"),
     ("tokenize", "simple+keep-new-lines"),
-    ("tokenize", "simple+keep-new-lines+legacy"),
-    ("tokenize", "simple+legacy"),
     ("tokenize", "tokenizer-abbreviations"),
     ("tokenize", "uax29"),
     ("tokenize", "whitespace"),
     ("tokenize", "whitespace+keep-new-lines"),
-    ("tokenize", "whitespace+keep-new-lines+legacy"),
-    ("tokenize", "whitespace+legacy"),
     ("unigram", "jieba-dict-subset"),
-    ("unigram", "jieba-dict-subset+legacy"),
     ("unigram", "zh-unigram-fixture"),
-    ("unigram", "zh-unigram-fixture+legacy"),
     ("unigram", "zh-unigram-modes"),
-    ("unigram", "zh-unigram-modes+legacy"),
     ("lattice", "mecab-fixture-ja"),
-    ("lattice", "mecab-fixture-ja+legacy"),
     ("lattice", "mecab-fixture-ko"),
     ("lattice", "mecab-fixture-partial"),
     ("lattice", "mecab-ipadic-2.7.0-20070801"),
@@ -277,7 +258,7 @@ mod tests {
     fn runs_without_a_model_open_from_the_fixtures_alone() {
         let res = Resources::new("/nonexistent");
         for (annotator, run) in [
-            ("sentdetect", "en-abbrev+legacy"),
+            ("sentdetect", "en-abbrev"),
             ("tokenize", "simple+keep-new-lines"),
             ("tokenize", "uax29"),
             ("normalize", "default-chain"),
@@ -291,6 +272,10 @@ mod tests {
         }
         assert!(matches!(open("tokenize", "opennlp-en-ud-ewt-tokens-1.3-2.5.4", &res), Err(Unavailable::Missing(_))));
         assert!(matches!(open("train", "anything", &res), Err(Unavailable::NotCovered(_))));
+        // There is one whitespace definition, so no run takes a mode.
+        for (annotator, run) in [("sentdetect", "en-abbrev+legacy"), ("tokenize", "simple+legacy")] {
+            assert!(matches!(open(annotator, run, &res), Err(Unavailable::NotCovered(_))), "{run}");
+        }
         assert!(open("normalize", "case-fold-tr", &res).is_ok());
     }
 }

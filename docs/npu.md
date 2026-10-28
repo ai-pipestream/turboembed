@@ -94,9 +94,9 @@ extension exports the compiled blob, a load initializes that blob as a
   seen by the next process, not this one.
 - **Capability.** The backend reports embed as EXPERIMENTAL at
   `MODEL` and `FASTEST`, honoring `normalize`, `pooling` and
-  `output_dim` (the core owns `truncate`, `max_tokens` and
-  `prompt_role`, and sets their bits itself, so
-  `turbo_capability.options_honored` reads 0b111111). The reported
+  `output_dim` (the core owns `truncate`, `max_tokens`,
+  `prompt_role`, `quantization` and `int8_ranges`, and sets their bits
+  itself, so `turbo_capability.options_honored` reads 0b11111111). The reported
   dtype is `TURBO_DTYPE_F16`, the compute dtype the published npu
   recipes declare, which the backend knows without loading an
   artifact. `model_load` still reads the compiled graph, and

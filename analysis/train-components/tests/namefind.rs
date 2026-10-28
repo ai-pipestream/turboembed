@@ -32,7 +32,6 @@ use turbo_train::package::MANIFEST_ENTRY;
 use turbo_train::{Event, Key, TrainingConfiguration, TrainingParameters};
 use turbo_train_components::namefind::{self, NameEventStream, TokenNameFinderFactory, train_name_model};
 use turbo_train_components::{Error, Stamp};
-use turbo_unicode::WhitespaceMode;
 
 const fn col(name: &'static str, ty: ColumnType) -> ColumnSpec {
     ColumnSpec::new(name, ty)
@@ -89,7 +88,7 @@ fn format_thrown(e: &FormatError) -> Thrown {
 /// place, by the number of samples read before each.
 fn samples(text: &str) -> (Vec<NameSample<'_>>, Vec<(usize, FormatError)>) {
     let (mut samples, mut errors) = (Vec::new(), Vec::new());
-    for item in NameReader::new(text, WhitespaceMode::Unicode).unwrap() {
+    for item in NameReader::new(text).unwrap() {
         match item {
             Ok(s) => samples.push(s),
             Err(e) => errors.push((samples.len(), e)),

@@ -8,7 +8,7 @@
 //! and passed to MT19937's `init_by_array`. A draw takes two outputs,
 //! `a >> 5` and `b >> 6`, and returns `(a * 2^26 + b) / 2^53`.
 
-use turbo_goldens::sha::sha512;
+use crate::sha::sha512;
 
 const N: usize = 624;
 const M: usize = 397;
