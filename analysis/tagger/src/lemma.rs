@@ -149,7 +149,8 @@ impl Lemmatizer {
             let tagged = match &self.pos {
                 Some(t) => {
                     let pf = pos.map_or(f, |p| &p[s]);
-                    t.scores(pf, &ids, &mut scores, &mut tw)?;
+                    // A hashed tag head reads each word's text too.
+                    t.scores_forms(pf, &ids, Some(words), &mut scores, &mut tw)?;
                     t.decode(&scores, n, &mut tags)?;
                     Some(&tags[..])
                 }

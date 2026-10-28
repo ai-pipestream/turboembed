@@ -1,13 +1,15 @@
 //! The lemma annotator end to end on the small BERT in testdata, with an
 //! edit-tree lemmatizer head of seeded weights reading the part-of-speech
 //! head's tags: a lemma per token, the core heads' decode, each sentence
-//! on its own, a dictionary over the head, and refusals.
+//! on its own, a dictionary over the head, a hashed part-of-speech head
+//! reading each word's text, and refusals.
 
 mod common;
 
 use std::sync::{Arc, Mutex};
 
 use common::*;
+use serde_json::json;
 use turbo::head::{lemmatizer, tagger};
 use turbo::manifest::WordPooling;
 use turbo_analysis::{Annotator, Document, Ix, Key, View};
@@ -127,6 +129,40 @@ fn a_head_without_tags_reads_the_words_alone() {
     lem.head().scores(&first.unwrap()[0], &ids, None, &mut scores, &mut lemmatizer::Work::default()).unwrap();
     lem.head().decode(&scores, &words, &mut trees).unwrap();
     assert_eq!(lemmas_of(&layer), lem.head().lemmas(&trees, &words).unwrap());
+}
+
+#[test]
+fn the_tags_come_from_a_hashed_pos_head_reading_each_words_text() {
+    let dir = bundle("lemma-hashed", |m| m["heads"][0]["hash_embed"] = json!({"dim": 4, "rows": [16, 8, 8, 8]}));
+    let doc = Document::new(TEXT);
+    let view = doc.require(&Key::<View>::DEFAULT).unwrap();
+    let toks = tokens(TEXT);
+    let o = EncoderOptions::default();
+    let lem = Lemmatizer::open(&dir, None, &o).unwrap();
+    let pos = lem.pos().expect("the head reads the pos head's tags");
+    assert!(pos.reads_forms());
+    let (layer,) = lem.annotate((view, &toks, None, None)).unwrap();
+
+    let words: Vec<&str> = TEXT.split(' ').collect();
+    let mut enc = WordEncoder::open(&dir, &o).unwrap();
+    let mean = enc.features(std::slice::from_ref(&words), WordPooling::Mean).unwrap().remove(0);
+    let first = enc.features(std::slice::from_ref(&words), WordPooling::First).unwrap().remove(0);
+    let ids: Vec<u32> = (0..words.len() as u32).collect();
+    let (mut scores, mut tags, mut trees) = (Vec::new(), Vec::new(), Vec::new());
+    assert!(pos.scores(&mean, &ids, &mut scores, &mut tagger::Work::default()).is_err(), "the text is required");
+    pos.scores_forms(&mean, &ids, Some(&words), &mut scores, &mut tagger::Work::default()).unwrap();
+    pos.decode(&scores, words.len(), &mut tags).unwrap();
+    let head = lem.head();
+    head.scores(&first, &ids, Some(&tags), &mut scores, &mut lemmatizer::Work::default()).unwrap();
+    head.decode(&scores, &words, &mut trees).unwrap();
+    let want = head.lemmas(&trees, &words).unwrap();
+    assert_eq!(lemmas_of(&layer), want);
+    assert_eq!(lem.lemmatize(&[words]).unwrap(), [want]);
+
+    // The tags the dictionary is asked under are the pos annotator's.
+    let pos_run = PosTagger::open(&dir, None, &o).unwrap();
+    let (from_pos,) = pos_run.annotate((view, &toks, None, None)).unwrap();
+    assert_eq!(from_pos.tags.iter().map(|t| t.0 as u32).collect::<Vec<_>>(), tags);
 }
 
 #[test]
