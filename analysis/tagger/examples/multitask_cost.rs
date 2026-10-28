@@ -23,13 +23,58 @@ use turbo::manifest::{Format, HeadKind, HeadSpec};
 use turbo_analysis::{Document, Ix, Key, Span, Spans, View, ViewId};
 use turbo_analysis_embed::{Device, EncoderOptions, Precision};
 use turbo_analysis_layers::{Dependencies, Entities, Lemmas, PosTags, Sentences, Tokens};
+use turbo_tagger::multi::Outputs;
 use turbo_tagger::{MultiTask, WordEncoder};
 
 const WORDS: [&str; 48] = [
-    "the", "a", "dog", "river", "walked", "quietly", "over", "bridge", "Paris", "Ann", "met", "Bob", "in", "old",
-    "house", "and", "because", "children", "were", "singing", "loudly", "near", "station", "yesterday", "company",
-    "announced", "results", "for", "quarter", "unexpectedly", "strong", ",", ".", "government", "policy", "changes",
-    "affected", "markets", "across", "Europe", "she", "said", "that", "it", "would", "rain", "tomorrow", "Microsoft",
+    "the",
+    "a",
+    "dog",
+    "river",
+    "walked",
+    "quietly",
+    "over",
+    "bridge",
+    "Paris",
+    "Ann",
+    "met",
+    "Bob",
+    "in",
+    "old",
+    "house",
+    "and",
+    "because",
+    "children",
+    "were",
+    "singing",
+    "loudly",
+    "near",
+    "station",
+    "yesterday",
+    "company",
+    "announced",
+    "results",
+    "for",
+    "quarter",
+    "unexpectedly",
+    "strong",
+    ",",
+    ".",
+    "government",
+    "policy",
+    "changes",
+    "affected",
+    "markets",
+    "across",
+    "Europe",
+    "she",
+    "said",
+    "that",
+    "it",
+    "would",
+    "rain",
+    "tomorrow",
+    "Microsoft",
 ];
 
 fn values(seed: u64, n: usize) -> Vec<u8> {
@@ -69,12 +114,27 @@ fn heads(artifact: &str) -> Value {
     json!([
         head("upos", "turboembed:pos", "HEAD_TOKEN_TAGGER", json!(labels("U", 17)), json!({})),
         head("xpos", "turboembed:xpos", "HEAD_TOKEN_TAGGER", json!(labels("X", 45)), json!({})),
-        head("ner", "turboembed:entities", "HEAD_TOKEN_TAGGER", json!(ner),
-            json!({"scheme": "SCHEME_BIO", "decode": "DECODE_CRF"})),
-        head("deps", "turboembed:dependencies", "HEAD_BIAFFINE_PARSER", json!(labels("r", 37)),
-            json!({"decode": "DECODE_MST", "biaffine": {"arc": 500, "rel": 100}})),
-        head("lemma", "turboembed:lemmas", "HEAD_EDIT_TREE_LEMMATIZER", json!(trees),
-            json!({"decode": "DECODE_EDIT_TREE", "pos_input": {"head": "upos", "labels": 17, "dim": 32}})),
+        head(
+            "ner",
+            "turboembed:entities",
+            "HEAD_TOKEN_TAGGER",
+            json!(ner),
+            json!({"scheme": "SCHEME_BIO", "decode": "DECODE_CRF"})
+        ),
+        head(
+            "deps",
+            "turboembed:dependencies",
+            "HEAD_BIAFFINE_PARSER",
+            json!(labels("r", 37)),
+            json!({"decode": "DECODE_MST", "biaffine": {"arc": 500, "rel": 100}})
+        ),
+        head(
+            "lemma",
+            "turboembed:lemmas",
+            "HEAD_EDIT_TREE_LEMMATIZER",
+            json!(trees),
+            json!({"decode": "DECODE_EDIT_TREE", "pos_input": {"head": "upos", "labels": 17, "dim": 32}})
+        ),
     ])
 }
 
@@ -83,7 +143,8 @@ fn heads(artifact: &str) -> Value {
 fn with_heads(src: &Path, dst: &Path) {
     let hidden = WordEncoder::open(src, &EncoderOptions::default()).unwrap().hidden();
     let bundle = Bundle::open(src).unwrap();
-    let art = bundle.manifest.artifacts.iter().find(|a| a.format == Format::Safetensors).expect("a safetensors artifact");
+    let art =
+        bundle.manifest.artifacts.iter().find(|a| a.format == Format::Safetensors).expect("a safetensors artifact");
     let (name, file) = (art.name.clone(), art.files[0].clone());
     let mut m: Value = serde_json::from_slice(&fs::read(src.join("manifest.json")).unwrap()).unwrap();
     m["heads"] = heads(&name);
@@ -165,6 +226,24 @@ fn summary(label: &str, ms: &mut [f64]) -> f64 {
     mean
 }
 
+/// The mean of `runs` passes of the heads `names` alone.
+fn alone<W: Outputs>(
+    dir: &Path,
+    names: &[Option<&str>],
+    o: &EncoderOptions,
+    view: &View,
+    t: &Tokens,
+    runs: usize,
+) -> f64 {
+    let m = MultiTask::<W>::open(dir, names, o).unwrap();
+    m.layers(view, t, None, None).unwrap();
+    let start = Instant::now();
+    for _ in 0..runs {
+        std::hint::black_box(m.layers(view, t, None, None).unwrap());
+    }
+    start.elapsed().as_secs_f64() * 1e3 / runs as f64
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().collect();
     let (src, scratch) = (Path::new(&args[1]), Path::new(&args[2]));
@@ -216,6 +295,15 @@ fn main() {
     println!("sentences {sentences} words {} rows a pass {}", tokens.spans.len(), five.rows() / (runs as u64 + 1));
     println!("load: one head {load_one:.1} ms, five heads {load_five:.1} ms");
     let (ma, mb) = (summary("one head (upos)", &mut a), summary("five heads", &mut b));
+    let each = (runs / 4).max(1);
+    println!(
+        "each head alone, mean of {each}: upos {:.2} ms, xpos {:.2} ms, ner {:.2} ms, deps {:.2} ms, lemma {:.2} ms",
+        alone::<(PosTags,)>(&dir, &[Some("upos")], &o, view, &tokens, each),
+        alone::<(PosTags,)>(&dir, &[Some("xpos")], &o, view, &tokens, each),
+        alone::<(Entities,)>(&dir, &[Some("ner")], &o, view, &tokens, each),
+        alone::<(Dependencies<Tokens>,)>(&dir, &[Some("deps")], &o, view, &tokens, each),
+        alone::<(Lemmas,)>(&dir, &[Some("lemma")], &o, view, &tokens, each),
+    );
     let ratio = mb / ma;
     println!("five over one, by mean: {ratio:.3} (bar 1.3): {}", if ratio < 1.3 { "PASS" } else { "FAIL" });
 }

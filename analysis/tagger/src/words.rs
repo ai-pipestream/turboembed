@@ -249,11 +249,7 @@ impl WordEncoder {
     /// As [`features`](Self::features), the features of every pooling in
     /// `poolings` from one read of each window: `out[p]` is
     /// `poolings[p]`'s.
-    pub fn features_pooled(
-        &mut self,
-        sequences: &[Vec<&str>],
-        poolings: &[WordPooling],
-    ) -> Result<Vec<Vec<Vec<f32>>>> {
+    pub fn features_pooled(&mut self, sequences: &[Vec<&str>], poolings: &[WordPooling]) -> Result<Vec<Vec<Vec<f32>>>> {
         let pieces: Vec<Vec<Vec<i32>>> =
             sequences.iter().map(|words| words.iter().map(|w| self.pieces(w)).collect()).collect::<Result<_>>()?;
         self.features_of(&pieces, poolings)
@@ -264,10 +260,8 @@ impl WordEncoder {
     /// whatever the poolings: a pooling is only which of the row's states
     /// a range reads.
     fn features_of(&mut self, sequences: &[Vec<Vec<i32>>], poolings: &[WordPooling]) -> Result<Vec<Vec<Vec<f32>>>> {
-        let mut out: Vec<Vec<Vec<f32>>> = poolings
-            .iter()
-            .map(|_| sequences.iter().map(|s| vec![0.0; s.len() * self.hidden]).collect())
-            .collect();
+        let mut out: Vec<Vec<Vec<f32>>> =
+            poolings.iter().map(|_| sequences.iter().map(|s| vec![0.0; s.len() * self.hidden]).collect()).collect();
         let mut rows = Rows::new((self.width + self.cls.len() + self.sep.len()) as u32, self.tokenizer.fill_id());
         let (mut ranges, mut owners, mut states) = (Vec::new(), Vec::<Owner>::new(), Vec::new());
         let mut row_ids = Vec::new();
@@ -278,11 +272,8 @@ impl WordEncoder {
                 // ranges outgrow a run (one row a batch): then a read
                 // each.
                 let all: Vec<usize> = (0..poolings.len()).collect();
-                let groups: Vec<&[usize]> = if kept * poolings.len() <= self.max_ranges {
-                    vec![&all]
-                } else {
-                    all.chunks(1).collect()
-                };
+                let groups: Vec<&[usize]> =
+                    if kept * poolings.len() <= self.max_ranges { vec![&all] } else { all.chunks(1).collect() };
                 for group in groups {
                     if rows.len() as usize == self.max_batch || ranges.len() + kept * group.len() > self.max_ranges {
                         self.flush(&mut rows, &mut ranges, &mut owners, &mut states, &mut out)?;

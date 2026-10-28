@@ -34,10 +34,19 @@ use crate::words::WordEncoder;
 /// A loaded head and the label set its layer names.
 pub enum Head {
     /// A token tagger, `set` its tags or, under BIO and BILOU, its kinds.
-    Tagger { tagger: TokenTagger, set: Arc<TagSet> },
-    Parser { parser: BiaffineParser, relations: Arc<TagSet> },
+    Tagger {
+        tagger: TokenTagger,
+        set: Arc<TagSet>,
+    },
+    Parser {
+        parser: BiaffineParser,
+        relations: Arc<TagSet>,
+    },
     /// A lemmatizer and the tagger its `pos_input` names.
-    Lemma { lemmatizer: EditTreeLemmatizer, pos: Option<TokenTagger> },
+    Lemma {
+        lemmatizer: EditTreeLemmatizer,
+        pos: Option<TokenTagger>,
+    },
 }
 
 impl Head {
@@ -123,7 +132,10 @@ impl HeadLayer for Entities {
     const KIND: HeadKind = HeadKind::TokenTagger;
     fn open(bundle: &Bundle, spec: &HeadSpec) -> Result<Head, CoreError> {
         if spec.scheme == Scheme::Tags {
-            return Err(refuse(format!("head {:?}: an entity head reads SCHEME_BIO or SCHEME_BILOU labels", spec.name)));
+            return Err(refuse(format!(
+                "head {:?}: an entity head reads SCHEME_BIO or SCHEME_BILOU labels",
+                spec.name
+            )));
         }
         let tagger = TokenTagger::load(bundle, &spec.name)?;
         let types: Vec<&str> = tagger.types().iter().map(String::as_str).collect();
@@ -302,7 +314,8 @@ impl<W: Outputs> Annotator for MultiTask<W> {
     type Writes = W;
 
     fn annotate(&self, (view, tokens, subwords, sentences): Refs<'_, Self>) -> Result<W, Error> {
-        self.layers(view, tokens, sentences, subwords).map_err(|detail| Error::Annotator { annotator: Self::ID, detail })
+        self.layers(view, tokens, sentences, subwords)
+            .map_err(|detail| Error::Annotator { annotator: Self::ID, detail })
     }
 
     fn model(&self) -> Option<ModelRef> {

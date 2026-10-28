@@ -232,7 +232,11 @@ impl HeadRunner {
 
 /// Each sequence decoded by `tagger` from its word features and its
 /// words' text, which a head with a `hash_embed` reads.
-pub(crate) fn decode_with(tagger: &TokenTagger, features: &[Vec<f32>], forms: &[Vec<&str>]) -> Result<Vec<Decoded>, CoreError> {
+pub(crate) fn decode_with(
+    tagger: &TokenTagger,
+    features: &[Vec<f32>],
+    forms: &[Vec<&str>],
+) -> Result<Vec<Decoded>, CoreError> {
     let (mut scores, mut work) = (Vec::new(), Work::default());
     let labels = tagger.labels().len();
     let hidden = tagger.hidden();

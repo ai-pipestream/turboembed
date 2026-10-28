@@ -55,10 +55,11 @@ pub struct BiaffineParser {
     arc_head: Linear,
     rel_dep: Linear,
     rel_head: Linear,
-    /// [arc + 1, arc].
-    arc: Vec<f32>,
-    /// [labels, rel + 1, rel + 1].
-    rel: Vec<f32>,
+    /// U [arc + 1, arc] as a layer: a head view to its projections.
+    arc: Linear,
+    /// W [labels, rel + 1, rel + 1] as a layer of labels x (rel + 1)
+    /// outputs: a head's [rhead; 1] to W_l [rhead; 1] for every label.
+    rel: Linear,
 }
 
 /// What a parser computes in, kept across calls. After [`BiaffineParser::arcs`]
@@ -108,21 +109,23 @@ impl BiaffineParser {
         let mlp = |name: &str, width: u32| {
             Linear::new(w, width as usize, t.take(&format!("{name}.weight"))?, t.take(&format!("{name}.bias"))?)
         };
+        let (root, arc, rel) = (t.take("root")?, t.take("arc.weight")?, t.take("rel.weight")?);
+        if !root.iter().chain(&arc).chain(&rel).all(|v| v.is_finite()) {
+            return Err(invalid(format!("head {:?}: a root, arc or rel weight is not finite", spec.name)));
+        }
+        let (a, k, labels) = (b.arc as usize, b.rel as usize + 1, spec.labels.len());
         let parser = BiaffineParser {
-            root: t.take("root")?,
+            root,
             arc_dep: mlp("arc_dep", b.arc)?,
             arc_head: mlp("arc_head", b.arc)?,
             rel_dep: mlp("rel_dep", b.rel)?,
             rel_head: mlp("rel_head", b.rel)?,
-            arc: t.take("arc.weight")?,
-            rel: t.take("rel.weight")?,
+            arc: Linear::new(a, a + 1, arc, vec![0.0; a + 1])?,
+            rel: Linear::new(k, labels * k, rel, vec![0.0; labels * k])?,
             spec: spec.clone(),
             hidden,
             reader,
         };
-        if !parser.root.iter().chain(&parser.arc).chain(&parser.rel).all(|v| v.is_finite()) {
-            return Err(invalid(format!("head {:?}: a root, arc or rel weight is not finite", spec.name)));
-        }
         Ok(parser)
     }
 
@@ -167,26 +170,20 @@ impl BiaffineParser {
             lin.apply_rows(&w.nodes, rows, dst);
             leaky(dst);
         }
-        // U head_h for each head: [rows, arc + 1], summed in f64.
+        // U head_h for each head, [rows, arc + 1], in one packed product;
+        // then each dependent's [dep_d; 1] against every head's, a second
+        // product with the heads' projections as its weights.
         let a = self.arc_dep.out_dim;
         w.projected.clear();
         w.projected.resize(rows * (a + 1), 0.0);
-        for h in 0..rows {
-            let y = &w.head[h * a..][..a];
-            for i in 0..=a {
-                let u = &self.arc[i * a..][..a];
-                w.projected[h * (a + 1) + i] = u.iter().zip(y).map(|(p, q)| *p as f64 * *q as f64).sum::<f64>() as f32;
-            }
-        }
+        self.arc.apply_rows(&w.head, rows, &mut w.projected);
+        let (weights, bias): (Vec<f32>, Vec<f32>) = (
+            w.projected.chunks_exact(a + 1).flat_map(|p| p[..a].iter().copied()).collect(),
+            w.projected.chunks_exact(a + 1).map(|p| p[a]).collect(),
+        );
+        let heads = Linear::new(a, rows, weights, bias)?;
         out.resize(n * rows, 0.0);
-        for d in 1..rows {
-            let x = &w.dep[d * a..][..a];
-            for h in 0..rows {
-                let p = &w.projected[h * (a + 1)..][..a + 1];
-                let s: f64 = x.iter().zip(p).map(|(u, v)| *u as f64 * *v as f64).sum::<f64>() + p[a] as f64;
-                out[(d - 1) * rows + h] = s as f32;
-            }
-        }
+        heads.apply_rows(&w.dep[a..rows * a], n, out);
         Ok(n)
     }
 
@@ -214,19 +211,20 @@ impl BiaffineParser {
         let k = r + 1;
         out.clear();
         out.resize(n * labels, 0.0);
-        let with_one = |v: &[f32], i: usize| if i < r { v[i] as f64 } else { 1.0 };
+        // Every word's head [rhead; 1] through all the labels' W_l in one
+        // packed product, then each label's score against [rdep; 1].
+        let mut ones = Vec::with_capacity(n * k);
+        for &h in heads {
+            ones.extend_from_slice(&w.rel_head[h as usize * r..][..r]);
+            ones.push(1.0);
+        }
+        let mut projected = vec![0.0; n * labels * k];
+        self.rel.apply_rows(&ones, n, &mut projected);
         for d in 1..=n {
             let x = &w.rel_dep[d * r..][..r];
-            let y = &w.rel_head[heads[d - 1] as usize * r..][..r];
-            for l in 0..labels {
-                let m = &self.rel[l * k * k..][..k * k];
-                let mut s = 0f64;
-                for i in 0..k {
-                    let xi = with_one(x, i);
-                    let row = &m[i * k..][..k];
-                    let inner: f64 = (0..k).map(|j| row[j] as f64 * with_one(y, j)).sum();
-                    s += xi * inner;
-                }
+            let z = &projected[(d - 1) * labels * k..][..labels * k];
+            for (l, zl) in z.chunks_exact(k).enumerate() {
+                let s: f64 = x.iter().zip(zl).map(|(a, b)| *a as f64 * *b as f64).sum::<f64>() + zl[r] as f64;
                 out[(d - 1) * labels + l] = s as f32;
             }
         }
