@@ -1,6 +1,7 @@
 use super::{Dump, Header, codecs, cuts_path, graph, key};
 use crate::Result;
 use crate::artifact::{ArtifactKey, EvaluationArtifactStore, PendingArtifact, Publication, TemporaryFileStore};
+use crate::sha::Sha256;
 use std::io::{BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use turbo_analysis::{
@@ -8,7 +9,6 @@ use turbo_analysis::{
     export::{Codecs, DocumentGraph, import},
 };
 use turbo_analysis_layers::{Boundaries, Chunks, Sentences};
-use turbo_goldens::sha::Sha256;
 #[path = "wire.rs"]
 mod wire;
 
@@ -124,7 +124,7 @@ impl Dump {
                     if input.number()? as usize != docs.len() {
                         return Err("cut dump: completion count mismatch".into());
                     }
-                    let hash = std::mem::replace(&mut input.hash, Sha256::new()).finish();
+                    let hash = std::mem::take(&mut input.hash).finish();
                     let mut digest = [0; 32];
                     input.source.read_exact(&mut digest).map_err(|e| format!("cut dump: incomplete digest: {e}"))?;
                     if digest != hash {
