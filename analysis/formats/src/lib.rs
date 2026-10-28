@@ -133,6 +133,7 @@ pub mod masc;
 pub mod native;
 pub mod ner;
 pub mod ontonotes;
+pub mod recipes;
 pub mod registry;
 pub mod sample;
 pub mod source;

@@ -1,0 +1,16 @@
+# LitBank (dbamman/litbank): the README at the pinned commit, read on
+# 2026-10-28 (13,172 bytes). It states LitBank is licensed under a
+# Creative Commons Attribution 4.0 International License and that the
+# corpus is drawn from the public domain texts on Project Gutenberg, as
+# samples of about 2,000 words of each of 100 works of English-language
+# fiction (210,532 tokens). The annotations live in the same tree as
+# per-book brat files, which this pin does not cover.
+name: litbank
+tier: default
+url: https://raw.githubusercontent.com/dbamman/litbank/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8/README.md
+sha256: 10e740b0beb5482490c0dc4eabd0c79a31eb881fa895c18b49993cd9e31af268
+license-url: https://raw.githubusercontent.com/dbamman/litbank/3e50db0ffc033d7ccbb94f4d88f6b99210328ed8/README.md
+license: CC BY 4.0
+note: The README grants CC BY 4.0 over the annotations; the text it annotates is public domain on Project Gutenberg, so no separate text terms are claimed here.
+note: Attribution: David Bamman, Sejal Popat and Sheng Shen (NAACL 2019) for entities, Sims, Park and Bamman (ACL 2019) for events, and Bamman, Lewke and Mansoor (LREC 2020) for coreference.
+note: LitBank was not in docs/licences.md before this recipe; the licence claim comes from the read above, not from the earlier table.
