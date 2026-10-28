@@ -22,7 +22,8 @@ use turbo_unicode::{Script, SentenceBreak, WhitespaceMode};
 use crate::check_len;
 use crate::scan::trim;
 
-use super::{RULE_SCRATCH, RuleSentenceDetector, RuleSplitter};
+use super::scratch::with_rule_scratch;
+use super::{RuleSentenceDetector, RuleSplitter};
 
 /// Scripts written without sentence-ending punctuation that [`RuleSplitter`]
 /// routes to its [`UnpunctuatedSplitter`] fallback when one is configured.
@@ -149,7 +150,7 @@ pub(crate) fn split_with_fallback(
 ) -> Result<(), Error> {
     check_len(RuleSentenceDetector::ID, text)?;
     let mut rule_spans = Vec::new();
-    RULE_SCRATCH.with_borrow_mut(|scratch| splitter.split_rules_only(text, scratch, &mut rule_spans));
+    with_rule_scratch(|scratch| splitter.split_rules_only(text, scratch, &mut rule_spans));
     let mut slices: Vec<(usize, u32, &str)> = Vec::new();
     for (idx, sp) in rule_spans.iter().enumerate() {
         let slice = &text[sp.start as usize..sp.end as usize];
@@ -194,7 +195,7 @@ pub(crate) fn boundaries_with_fallback(
     out: &mut Vec<u32>,
 ) -> Result<(), Error> {
     check_len(RuleSentenceDetector::ID, text)?;
-    let rule_breaks: Vec<u32> = RULE_SCRATCH.with_borrow_mut(|scratch| {
+    let rule_breaks: Vec<u32> = with_rule_scratch(|scratch| {
         splitter.boundaries_with(text, scratch);
         scratch.breaks.iter().map(|b| scratch.units.get(b.at as usize).map_or(text.len() as u32, |u| u.start)).collect()
     });
@@ -271,7 +272,7 @@ pub(crate) fn annotate_batch_with_fallback<'d>(
             continue;
         }
         let mut rule_spans = Vec::new();
-        RULE_SCRATCH.with_borrow_mut(|scratch| detector.splitter.split_rules_only(text, scratch, &mut rule_spans));
+        with_rule_scratch(|scratch| detector.splitter.split_rules_only(text, scratch, &mut rule_spans));
         for (span_idx, sp) in rule_spans.iter().enumerate() {
             let slice = &text[sp.start as usize..sp.end as usize];
             if needs_unpunctuated_fallback(slice) {
