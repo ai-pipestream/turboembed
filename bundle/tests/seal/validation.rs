@@ -318,3 +318,31 @@ fn the_calibration_pin_is_the_committed_lf_bytes() {
     }
     assert_eq!(turbo::bundle::sha256_hex(&crlf), "9e6ac4eb099b4934d86adb2af92fdc3d5817b84ecd9d7bf1445d1b832d37d940");
 }
+
+#[test]
+fn tiny_bert_bundle_names_the_generated_fixture_and_reseals_identically() {
+    let src = root().join("testdata/tiny-bert-bundle");
+    seal::verify(&src).unwrap();
+    let b = turbo::bundle::Bundle::open(&src).unwrap();
+    assert_eq!(b.manifest.model.id, "turboembed/tiny-bert");
+    assert_eq!(b.manifest.model.source.repository, "https://github.com/ai-pipestream/turboembed");
+    assert_eq!(b.manifest.model.source.commit, "6acb198f201edc273bbf6e8c70df764e4849102b");
+
+    let d = scratch("tiny-bert-reseal");
+    let copy = d.join("bundle");
+    for sub in ["", "weights", "reference"] {
+        fs::create_dir_all(copy.join(sub)).unwrap();
+    }
+    for rel in ["tokenizer.json", "weights/model.safetensors", "reference/reference.safetensors"] {
+        fs::copy(src.join(rel), copy.join(rel)).unwrap();
+    }
+    let committed = fs::read(src.join("manifest.json")).unwrap();
+    let mut m: Value = serde_json::from_slice(&committed).unwrap();
+    m.as_object_mut().unwrap().remove("files");
+    seal::seal_manifest(m, &copy).unwrap();
+    assert_eq!(
+        String::from_utf8(fs::read(copy.join("manifest.json")).unwrap()).unwrap(),
+        String::from_utf8(committed).unwrap()
+    );
+    fs::remove_dir_all(d).unwrap();
+}

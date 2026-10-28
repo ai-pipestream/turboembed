@@ -1,13 +1,14 @@
 {
   "bundle_version": 1,
   "model": {
-    "id": "sentence-transformers/all-MiniLM-L6-v2",
+    "id": "turboembed/tiny-bert",
     "revision": "1",
     "source": {
-      "repository": "https://huggingface.co/sentence-transformers/all-MiniLM-L6-v2",
-      "commit": "c9745ed1d9f207416be6d2e6f8de32d1f16199bf"
+      "repository": "https://github.com/ai-pipestream/turboembed",
+      "commit": "6acb198f201edc273bbf6e8c70df764e4849102b"
     },
-    "license": "Apache-2.0"
+    "license": "Apache-2.0",
+    "license_class": "CLASS_PERMISSIVE"
   },
   "task": "TASK_EMBED",
   "embed": {
@@ -18,6 +19,7 @@
     "max_batch": 64,
     "prefix_query": "query: "
   },
+  "qa": null,
   "tokenizer": {
     "file": "tokenizer.json",
     "normalizer": {
