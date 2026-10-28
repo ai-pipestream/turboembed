@@ -54,14 +54,17 @@ fn the_ud_release_leaves_out_porttinari_and_markit() {
 }
 
 /// Preserve the corrected reference metadata from #1567 without restoring
-/// retired training workflows or runtime model loading.
+/// retired training workflows or runtime model loading, and ensure no
+/// OpenNLP 1.5 model is listed (#1509).
 #[test]
 fn masc_references_do_not_use_the_retired_download_host() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
     let listed = std::fs::read_to_string(root.join("masc-references.txt")).unwrap();
     let references: Vec<_> = listed.lines().filter(|line| !line.is_empty() && !line.starts_with('#')).collect();
+    let retired = ["models-1.5", "en-pos-maxent", "en-chunker", "en-ner-", "-1.5"];
     assert!(!references.is_empty());
     for line in references {
         assert!(!line.contains("://opennlp.sourceforge.net/"), "{line}");
+        assert!(!retired.iter().any(|r| line.contains(r)), "{line}");
     }
 }
