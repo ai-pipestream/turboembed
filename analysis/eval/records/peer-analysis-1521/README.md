@@ -1,0 +1,48 @@
+# Peer analysis records (#1521)
+
+First peer record: `spacy-en-ewt-test.json`, scored by `turbo-eval
+analysis` against the UD English-EWT test file.
+
+## Inputs and pins
+
+- Gold: `en_ewt-ud-test.conllu`, SHA-256
+  `fa024f43dc5da3c5ac02563bc9bd0e974f46cbb1560823976a8f342a37dc494a`
+  (2077 sentences, 25094 tokens, 316 documents). The scorer refuses
+  any other bytes under this pin.
+- Peer: spaCy 3.8.7 with `en_core_web_sm` 3.8.0, run in the pinned
+  container built from `analysis/eval/reference/peers/spacy/`
+  (base image pinned by digest; local image id at record time
+  `sha256:efad301914b0dc8f5be1f2f7fe02ebb011665aba7da00820055730108fecbb26`).
+- Predictions SHA-256:
+  `a88fa76835915f87c8b0d7e75fd222383d6e0e81a683ac10c6ce44c8c4f1882e`.
+
+## Conditioning
+
+Raw-text end to end: the peer receives each gold document's `# text`
+sentences joined with one space and does its own tokenization and
+sentence segmentation; no gold token or sentence boundaries reach it.
+The scorer aligns predicted and gold token streams by form with
+bounded resync; field metrics count over gold tokens (see the
+`conditioning` list inside the record).
+
+One reading note: the spaCy English pipeline predicts its own
+dependency label scheme and attaches adpositions as heads, where UD
+attaches the nominal. Its UAS/LAS here are therefore structurally
+lower than a UD-native system's (Stanza, Trankit) and are not a
+like-for-like parser ranking; tokens, UPOS, XPOS, feats, lemma, and
+sentence boundaries are the comparable columns for this peer.
+
+## Reproduce
+
+```sh
+docker build -t turbo-peer-spacy:3.8.7-sm-3.8.0 analysis/eval/reference/peers/spacy
+docker run --rm --network none -v <gold-dir>:/gold:ro -v <out-dir>:/out \
+  turbo-peer-spacy:3.8.7-sm-3.8.0 /gold/en_ewt-ud-test.conllu /out/spacy-sm.conllu
+turbo-eval analysis --gold <gold-dir>/en_ewt-ud-test.conllu \
+  --sha256 fa024f43dc5da3c5ac02563bc9bd0e974f46cbb1560823976a8f342a37dc494a \
+  --pred spacy-3.8.7-en_core_web_sm-3.8.0=<out-dir>/spacy-sm.conllu \
+  --sentences rule --out <new-record>.json
+```
+
+Recorded 2026-10-28 under load average about 31 to 36 (accuracy
+record; no timing claimed).

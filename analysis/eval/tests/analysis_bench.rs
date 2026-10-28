@@ -51,12 +51,63 @@ fn field_errors_and_token_mismatches_are_counted_not_aligned_away() {
     pred[0].tokens[0].head = Some(0);
     pred[1].tokens.remove(1);
     let scores = score_conllu("altered", &gold, &pred, 0);
+    // The second gold sentence holds a token ("bark") with no aligned
+    // partner, so it is counted; its other tokens still score.
     assert_eq!(scores.token_mismatch_sentences, 1);
-    // Fields count only in aligned sentences: sentence one has one UPOS
-    // and one head error; the mismatched second sentence contributes zero.
-    assert_eq!(scores.upos.unwrap().correct, 2);
+    // UPOS: all but "bark" (unaligned) and the altered "Cats": 4 of 6.
+    assert_eq!(scores.upos.unwrap().correct, 4);
+    // UAS: sentence one scores the root and the punctuation; the
+    // shortened second sentence's heads name the wrong tokens.
     assert_eq!(scores.uas.as_ref().unwrap().correct, 2);
     assert!(scores.uas.unwrap().low.is_none(), "no resamples were requested");
+}
+
+#[test]
+fn resegmented_predictions_keep_their_field_scores() {
+    // The same six tokens as GOLD but one sentence: fields must stay
+    // perfect while the sentence boundary is missed, the raw-text peer
+    // shape that sentence-index pairing used to score as near zero.
+    let pred = parse_conllu(concat!(
+        "1\tCats\tcat\tNOUN\tNN\tNumber=Plur\t2\tnsubj\t_\t_\n",
+        "2\tpurr\tpurr\tVERB\tVB\tTense=Pres\t0\troot\t_\t_\n",
+        "3\t.\t.\tPUNCT\t.\t_\t2\tpunct\t_\t_\n",
+        "4\tDogs\tdog\tNOUN\tNN\tNumber=Plur\t5\tnsubj\t_\t_\n",
+        "5\tbark\tbark\tVERB\tVB\tTense=Pres\t0\troot\t_\t_\n",
+        "6\t.\t.\tPUNCT\t.\t_\t5\tpunct\t_\t_\n",
+    ))
+    .unwrap();
+    let gold = parse_conllu(GOLD).unwrap();
+    let scores = score_conllu("merged", &gold, &pred, 0);
+    assert_eq!(scores.tokens.unwrap().score, 100.0);
+    assert_eq!(scores.upos.unwrap().score, 100.0);
+    assert_eq!(scores.las.unwrap().score, 100.0);
+    assert_eq!(scores.sentences.correct, 0);
+    assert_eq!(scores.sentences.target, 1);
+    assert_eq!(scores.token_mismatch_sentences, 0);
+}
+
+#[test]
+fn split_tokens_resync_instead_of_shifting_the_stream() {
+    // "Cats" split in two in the prediction: the walk must resync at
+    // "purr" so the rest of the stream still scores.
+    let pred = parse_conllu(concat!(
+        "1\tCat\tcat\tNOUN\tNN\tNumber=Plur\t3\tnsubj\t_\t_\n",
+        "2\ts\ts\tNOUN\tNN\tNumber=Plur\t3\tnsubj\t_\t_\n",
+        "3\tpurr\tpurr\tVERB\tVB\tTense=Pres\t0\troot\t_\t_\n",
+        "4\t.\t.\tPUNCT\t.\t_\t3\tpunct\t_\t_\n",
+        "\n",
+        "1\tDogs\tdog\tNOUN\tNN\tNumber=Plur\t2\tnsubj\t_\t_\n",
+        "2\tbark\tbark\tVERB\tVB\tTense=Pres\t0\troot\t_\t_\n",
+        "3\t.\t.\tPUNCT\t.\t_\t2\tpunct\t_\t_\n",
+    ))
+    .unwrap();
+    let gold = parse_conllu(GOLD).unwrap();
+    let scores = score_conllu("split", &gold, &pred, 0);
+    assert_eq!(scores.tokens.as_ref().unwrap().correct, 5);
+    assert_eq!(scores.tokens.as_ref().unwrap().selected, 7);
+    assert_eq!(scores.upos.unwrap().correct, 5);
+    assert_eq!(scores.token_mismatch_sentences, 1);
+    assert_eq!(scores.sentences.score, 100.0);
 }
 
 #[test]

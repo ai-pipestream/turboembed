@@ -1,20 +1,22 @@
 //! The peer analysis benchmark mode (`turbo-eval analysis`, #1521).
 //!
 //! It scores CoNLL-U predictions against a SHA-pinned CoNLL-U test
-//! file: sentence boundaries by token position, token forms, and, where
-//! a sentence's predicted tokens align with the gold tokens, UPOS,
-//! XPOS, feats, lemma, UAS and LAS. The same scoring serves our own
-//! systems and peer systems (spaCy, Stanza, Trankit, wtpsplit) once a
-//! peer run has written its predictions as CoNLL-U; the peers are
-//! measurement inputs here, never dependencies of this crate.
+//! file. Predicted and gold token streams are aligned by token form
+//! (a greedy walk with bounded resync, like the official UD scorer's
+//! word alignment but on forms rather than character offsets, since a
+//! peer prediction need not carry offsets); sentence boundaries are
+//! then compared on aligned tokens, and UPOS, XPOS, feats, lemma, UAS,
+//! and LAS count over gold tokens, an unaligned gold token scoring as
+//! wrong on every field. The same scoring serves our own systems and
+//! peer systems (spaCy, Stanza, Trankit, wtpsplit) once a peer run has
+//! written its predictions as CoNLL-U; the peers are measurement
+//! inputs here, never dependencies of this crate.
 //!
 //! It also scores our sentence tiers directly: each document's gold
 //! `# text` lines are joined with spaces, split by the chosen
-//! [`Sentencer`], and scored by boundary F1 in joined coordinates. That
-//! conditioning is recorded in every record, as is the token-aligned
-//! conditioning of the field metrics: a sentence whose predicted token
-//! forms or count differ from gold contributes zero correct field
-//! values and is counted under `token_mismatch_sentences`.
+//! [`Sentencer`], and scored by boundary F1 in joined coordinates. A
+//! gold sentence with a token the alignment could not match is counted
+//! under `token_mismatch_sentences`.
 //!
 //! Entities and language are not scored by this first mode: CoNLL-U
 //! carries neither. Their records land with the MultiCoNER/WNUT and
@@ -31,6 +33,8 @@ use turbo_sat::SatOptions;
 
 use crate::Result;
 use crate::analysis::Sentencer;
+
+mod align;
 use crate::model_gate::{Counts, Measure};
 use crate::random::JavaRandom;
 use crate::sha::{sha256, to_hex};
@@ -190,82 +194,89 @@ pub struct SystemScores {
     pub throughput_sentences_per_second: Option<f64>,
 }
 
-fn boundaries(sentences: &[ConlluSentence]) -> BTreeSet<usize> {
-    let mut at = BTreeSet::new();
-    let mut seen = 0usize;
-    for s in &sentences[..sentences.len().saturating_sub(1)] {
-        seen += s.tokens.len();
-        at.insert(seen);
-    }
-    at
-}
+use align::{align_forms, flatten};
 
-fn sentence_counts(gold: &[ConlluSentence], pred: &[ConlluSentence]) -> Counts {
-    let gold_at = boundaries(gold);
-    let pred_at = boundaries(pred);
-    Counts {
-        true_positives: gold_at.intersection(&pred_at).count() as u64,
-        selected: pred_at.len() as u64,
-        target: gold_at.len() as u64,
-    }
-}
-
-/// Scores predicted CoNLL-U sentences against gold. Sentence
-/// boundaries are compared by flattened token position; field metrics
-/// are token-aligned per paired sentence, as the module docs state.
+/// Scores predicted CoNLL-U sentences against gold: the token streams
+/// are form-aligned, sentence boundaries and fields are scored on the
+/// aligned pairs, and field denominators are gold tokens. Bootstrap
+/// units are gold documents.
 pub fn score_conllu(system: &str, gold: &[ConlluSentence], pred: &[ConlluSentence], resamples: u32) -> SystemScores {
-    let mut mismatch = 0usize;
-    let mut units: [Vec<Counts>; 7] = Default::default();
-    for (i, gold_sentence) in gold.iter().enumerate() {
-        let mut per = [Counts::default(); 7];
-        let gold_tokens = &gold_sentence.tokens;
-        per[0].target = gold_tokens.len() as u64;
-        for field in per.iter_mut().skip(1) {
-            field.selected = gold_tokens.len() as u64;
-            field.target = gold_tokens.len() as u64;
-        }
-        match pred.get(i) {
-            Some(pred_sentence) => {
-                let pred_tokens = &pred_sentence.tokens;
-                per[0].selected = pred_tokens.len() as u64;
-                let aligned = pred_tokens.len() == gold_tokens.len()
-                    && pred_tokens.iter().zip(gold_tokens).all(|(p, g)| p.form == g.form);
-                if aligned {
-                    per[0].true_positives = gold_tokens.len() as u64;
-                    for (p, g) in pred_tokens.iter().zip(gold_tokens) {
-                        per[1].true_positives += (p.upos == g.upos) as u64;
-                        per[2].true_positives += (p.xpos == g.xpos) as u64;
-                        per[3].true_positives += (p.feats == g.feats) as u64;
-                        per[4].true_positives += (p.lemma == g.lemma) as u64;
-                        per[5].true_positives += (p.head == g.head) as u64;
-                        per[6].true_positives += (p.head == g.head && p.deprel == g.deprel) as u64;
-                    }
-                } else {
-                    mismatch += 1;
-                    per[0].true_positives =
-                        pred_tokens.iter().zip(gold_tokens).filter(|(p, g)| p.form == g.form).count() as u64;
-                }
+    let gold_all = flatten(gold);
+    let (gold_flat, gold_docs, gold_sents) = (&gold_all.tokens, &gold_all.documents, &gold_all.sentences);
+    let pred_all = flatten(pred);
+    let pred_flat = &pred_all.tokens;
+    let pairs = align_forms(gold_flat, pred_flat);
+    let mut gold_to_pred: Vec<Option<usize>> = vec![None; gold_flat.len()];
+    let mut pred_to_gold: Vec<Option<usize>> = vec![None; pred_flat.len()];
+    for &(g, p) in &pairs {
+        gold_to_pred[g] = Some(p);
+        pred_to_gold[p] = Some(g);
+    }
+    // Sentence boundaries: a gold sentence-final token (other than the
+    // file's last) whose aligned partner is also sentence-final.
+    let mut sent_counts = Counts::default();
+    for (i, t) in gold_flat.iter().enumerate() {
+        if t.sentence_end && i + 1 < gold_flat.len() {
+            sent_counts.target += 1;
+            if let Some(p) = gold_to_pred[i] {
+                sent_counts.true_positives += pred_flat[p].sentence_end as u64;
             }
-            None => mismatch += 1,
-        }
-        for (slot, counts) in units.iter_mut().zip(per) {
-            slot.push(counts);
         }
     }
-    let pooled = |slot: &[Counts]| {
-        slot.iter().fold(Counts::default(), |mut total, u| {
-            total.true_positives += u.true_positives;
-            total.selected += u.selected;
-            total.target += u.target;
+    sent_counts.selected =
+        pred_flat.iter().enumerate().filter(|(i, t)| t.sentence_end && *i + 1 < pred_flat.len()).count() as u64;
+
+    let doc_of_gold = |g: usize| gold_docs.partition_point(|&(_, end)| end <= g);
+    let mut units: Vec<[Counts; 7]> = vec![[Counts::default(); 7]; gold_docs.len()];
+    // Predicted tokens join the gold document of the nearest
+    // following-or-preceding aligned pair for per-document counts; the
+    // pooled totals do not depend on this attribution.
+    let mut pred_doc = vec![0usize; pred_flat.len()];
+    let mut current = 0usize;
+    for (p, slot) in pred_doc.iter_mut().enumerate() {
+        if let Some(g) = pred_to_gold[p] {
+            current = doc_of_gold(g);
+        }
+        *slot = current;
+    }
+    for (doc, &(start, end)) in gold_docs.iter().enumerate() {
+        units[doc][0].target = (end - start) as u64;
+        for field in units[doc].iter_mut().skip(1) {
+            field.selected = (end - start) as u64;
+            field.target = (end - start) as u64;
+        }
+    }
+    for &doc in &pred_doc {
+        units[doc][0].selected += 1;
+    }
+    for &(g, p) in &pairs {
+        let unit = &mut units[doc_of_gold(g)];
+        let (gt, pt) = (gold_flat[g].token, pred_flat[p].token);
+        unit[0].true_positives += 1;
+        unit[1].true_positives += (pt.upos == gt.upos) as u64;
+        unit[2].true_positives += (pt.xpos == gt.xpos) as u64;
+        unit[3].true_positives += (pt.feats == gt.feats) as u64;
+        unit[4].true_positives += (pt.lemma == gt.lemma) as u64;
+        let pred_head = pred_flat[p].head.map(|head| head.and_then(|hp| pred_to_gold[hp]));
+        let right_head = pred_head.is_some() && pred_head == gold_flat[g].head;
+        unit[5].true_positives += right_head as u64;
+        unit[6].true_positives += (right_head && pt.deprel == gt.deprel) as u64;
+    }
+    let mismatch = gold_sents.iter().filter(|&&(s, e)| (s..e).any(|g| gold_to_pred[g].is_none())).count();
+    let pooled = |idx: usize| {
+        units.iter().fold(Counts::default(), |mut total, u| {
+            total.true_positives += u[idx].true_positives;
+            total.selected += u[idx].selected;
+            total.target += u[idx].target;
             total
         })
     };
-    let accuracy =
-        |idx: usize| Some(MetricScore::of(pooled(&units[idx]), Measure::Accuracy, Some(&units[idx]), resamples));
+    let slot = |idx: usize| units.iter().map(|u| u[idx]).collect::<Vec<_>>();
+    let accuracy = |idx: usize| Some(MetricScore::of(pooled(idx), Measure::Accuracy, Some(&slot(idx)), resamples));
     SystemScores {
         system: system.to_string(),
-        sentences: MetricScore::of(sentence_counts(gold, pred), Measure::FMeasure, None, resamples),
-        tokens: Some(MetricScore::of(pooled(&units[0]), Measure::FMeasure, Some(&units[0]), resamples)),
+        sentences: MetricScore::of(sent_counts, Measure::FMeasure, None, resamples),
+        tokens: Some(MetricScore::of(pooled(0), Measure::FMeasure, Some(&slot(0)), resamples)),
         upos: accuracy(1),
         xpos: accuracy(2),
         feats: accuracy(3),
@@ -430,10 +441,10 @@ pub fn command(args: &[String]) -> Result<()> {
         resamples,
         seed: BOOTSTRAP_SEED,
         conditioning: vec![
-            "sentences: boundary F1 by flattened token position for CoNLL-U predictions; boundary F1 in per-document space-joined # text coordinates for sentence tiers".into(),
-            "fields: token-aligned per gold sentence; a token-form or count mismatch scores zero field values for that sentence and is counted".into(),
+            "sentences: boundary F1 on form-aligned tokens for CoNLL-U predictions; boundary F1 in per-document space-joined # text coordinates for sentence tiers".into(),
+            "fields: gold denominators; gold and predicted token streams aligned by form with bounded resync; an unaligned gold token scores zero on every field; gold sentences containing one are counted".into(),
             "uas/las: punctuation included".into(),
-            "bootstrap: per-sentence pooled resampling for token-aligned metrics".into(),
+            "bootstrap: per-document pooled resampling for token-aligned metrics".into(),
         ],
         systems,
     };
