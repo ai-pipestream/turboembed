@@ -1,0 +1,14 @@
+MASKED	From: The Desk <****@*******.***>; Cc: (****@*******.***).
+
+MASK_ALL	From: The Desk <################>; Cc: (################).
+
+REWRITE	pseudonymize	OK	From: The Desk <EMAIL-1>; Cc: (EMAIL-2).
+
+LABEL	pseudonymize	16	32	16	23	EMAIL-1
+LABEL	pseudonymize	40	56	31	38	EMAIL-2
+REWRITE	hmac	OK	From: The Desk <EMAIL-06b0ac92120f3b97>; Cc: (EMAIL-75aa2539d716cd33).
+
+LABEL	hmac	16	32	16	38	EMAIL-06b0ac92120f3b97
+LABEL	hmac	40	56	46	68	EMAIL-75aa2539d716cd33
+AUDIT	email	2	2	EMAIL-06b0ac92120f3b97, EMAIL-75aa2539d716cd33
+AUDIT_REPORT	email: 2 mentions, 2 distinct [EMAIL-06b0ac92120f3b97, EMAIL-75aa2539d716cd33]

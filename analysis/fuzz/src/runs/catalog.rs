@@ -3,7 +3,6 @@
 use super::language::Detector;
 use super::normalize::{NormalizerRun, RUN_NAMES as NORMALIZERS};
 use super::numeric::{MoneyLayer, Numeric};
-use super::pii::PiiRun;
 use super::sentences::{MaxentSentences, NewlineSentences};
 use super::subwords::{VOCABULARY, WordPiece};
 use super::tagging::{Chunker, FIXTURE_CHUNKERS, Lemmatizer, Tagger};
@@ -31,16 +30,15 @@ use crate::resources::{Resources, Unavailable};
 /// their own and score their own documents, which turbo-train-components
 /// compares with; the maxent document categorizer runs (`doccat`) train
 /// models on a downloaded corpus and categorize documents of their own; the
-/// PII rewrites (`pii-rewrite`) compare whole rewritten
-/// texts, labels and audit reports rather than layers, which turbo-pii
-/// compares with; the neural part-of-speech taggers (`postag-neural`) train
+/// PII packs and rewrites (`pii`, `pii-rewrite`) live under
+/// turbo-pii's own snapshots; the neural part-of-speech taggers (`postag-neural`) train
 /// models of their own and tag token lists rather than texts; the CoNLL-U
 /// dependency and CorefUD readers (`conllu`) and the OntoNotes and French
 /// Treebank readers (`ontonotes`, `frenchtreebank`) read files of their own,
 /// which turbo-formats compares with; the sentence vector runs
 /// (`sentvectors`) need an encoder bundle, and turbo-analysis-embed's
 /// `sentence_vectors_dl` test compares with them.
-pub const NOT_COVERED: [&str; 31] = [
+pub const NOT_COVERED: [&str; 30] = [
     "train",
     "train-events",
     "train-langdetect",
@@ -65,7 +63,6 @@ pub const NOT_COVERED: [&str; 31] = [
     "svm-doccat",
     "sentiment",
     "doccat",
-    "pii-rewrite",
     "postag-neural",
     "conllu",
     "corpora",
@@ -173,16 +170,6 @@ pub const RUNS: &[(&str, &str)] = &[
     ("quantity", "latin-us"),
     ("temporal", "dateline"),
     ("temporal", "fixed"),
-    ("pii", "payment"),
-    ("pii", "contact"),
-    ("pii", "network"),
-    ("pii", "secrets"),
-    ("pii", "crypto"),
-    ("pii", "us-identity"),
-    ("pii", "eu-identity"),
-    ("pii", "ca-identity"),
-    ("pii", "device"),
-    ("pii", "all-structured"),
     ("subwords", VOCABULARY),
 ];
 
@@ -212,7 +199,6 @@ pub fn open(annotator: &str, run: &str, res: &Resources) -> Result<Box<dyn Run>,
         "money-convert" => Numeric::open_money(run, MoneyLayer::Converted, res),
         "quantity" => Numeric::open_quantities(run),
         "temporal" => Temporal::open(run),
-        "pii" => PiiRun::open(run),
         "subwords" if run == VOCABULARY => WordPiece::open(res),
         _ => Err(not_covered()),
     }
@@ -244,11 +230,6 @@ mod tests {
         on_disk.sort();
         let mut listed: Vec<(String, String)> = RUNS.iter().map(|(a, r)| (a.to_string(), r.to_string())).collect();
         listed.sort();
-        // The PII goldens come with the first `generate` that knows the
-        // packs; until they are on disk, their runs have nothing to match.
-        if !data.join("pii").is_dir() {
-            listed.retain(|(a, _)| a != "pii");
-        }
         assert_eq!(listed, on_disk);
     }
 
@@ -264,7 +245,6 @@ mod tests {
             ("money-convert", "latin-eu"),
             ("chunk", "chunker-fixture+beam1"),
             ("chunk", "chunker-fixture-rust"),
-            ("pii", "all-structured"),
         ] {
             open(annotator, run, &res).unwrap_or_else(|e| panic!("{annotator}/{run}: {e}"));
         }

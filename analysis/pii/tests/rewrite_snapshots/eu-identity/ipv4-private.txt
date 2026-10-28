@@ -1,0 +1,9 @@
+MASKED	Gateway 192.168.1.20, peer 10.0.0.5:8080.
+
+MASK_ALL	Gateway 192.168.1.20, peer 10.0.0.5:8080.
+
+REWRITE	pseudonymize	OK	Gateway 192.168.1.20, peer 10.0.0.5:8080.
+
+REWRITE	hmac	OK	Gateway 192.168.1.20, peer 10.0.0.5:8080.
+
+AUDIT_REPORT	no pii found

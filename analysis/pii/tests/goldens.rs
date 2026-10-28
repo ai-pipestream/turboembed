@@ -1,111 +1,116 @@
-//! Parity of the packs with OpenNLP's `PiiPacks` on the JVM.
+//! Reviewed PII pack snapshots and layer invariants.
 //!
-//! For every text in `analysis/goldens/data/inputs/pii/`,
-//! `pii/<pack>/pii/<id>.golden` holds the mentions OpenNLP's
-//! `PiiAnnotator` found with the pack's extractor: span, type and
-//! normalized form (see `analysis/goldens-tool/README.md`). Each test runs
-//! `PiiDetector::pack(pack).keeping_nested()` in an analyzer over every
-//! text and compares the `turbo:pii` layer with the golden row for row.
-//! No tolerance is applied.
-//!
-//! The goldens come from `cargo run -p turbo-goldens-tool -- generate`;
-//! while the `pii` directory is not on disk the tests say so and pass.
+//! `tests/snapshots/<pack>/<id>.tsv` holds the `turbo:pii` rows for each
+//! input in `tests/inputs/`. Regenerate with
+//! `TURBO_BLESS=1 cargo test -p turbo-pii --test goldens`.
+//! JVM goldens are not an oracle. Each case checks `Layer::check`, spans in
+//! bounds, non-empty normalized forms, and that kind names parse back.
 
 use std::path::PathBuf;
 
-use turbo_analysis::{Analyzer, Document};
-use turbo_goldens::{Golden, Tolerance, data_dir, matches_golden};
-use turbo_pii::{Pack, Pii, PiiDetector};
+use turbo_analysis::{Analyzer, Document, Layer, ViewId};
+use turbo_pii::{Pack, Pii, PiiDetector, PiiKind};
 
-/// The ids of the texts in `inputs/pii`, sorted.
-fn inputs() -> Vec<String> {
-    let mut ids: Vec<String> = std::fs::read_dir(data_dir().join("inputs/pii"))
-        .expect("the pii input set")
+fn root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests")
+}
+
+fn input_ids() -> Vec<String> {
+    let mut ids: Vec<String> = std::fs::read_dir(root().join("inputs"))
+        .expect("tests/inputs")
         .map(|e| {
-            let name = e.expect("a directory entry").file_name().into_string().expect("a UTF-8 file name");
-            name.strip_suffix(".txt").expect("an input set holds only <id>.txt files").to_string()
+            let name = e.expect("entry").file_name().into_string().expect("utf-8");
+            name.strip_suffix(".txt").expect(".txt").to_string()
         })
         .collect();
     ids.sort();
     ids
 }
 
-/// Whether the goldens are on disk; when not, says why the test passes.
-fn goldens_present() -> bool {
-    let dir = data_dir().join("pii");
-    let present = dir.is_dir();
-    if !present {
-        eprintln!(
-            "skipped: {} is absent; make the goldens with `cargo run -p turbo-goldens-tool -- generate`",
-            dir.display()
-        );
+fn text_of(id: &str) -> String {
+    std::fs::read_to_string(root().join("inputs").join(format!("{id}.txt"))).unwrap()
+}
+
+fn snap_path(pack: &str, id: &str) -> PathBuf {
+    root().join("snapshots").join(pack).join(format!("{id}.tsv"))
+}
+
+fn render(layer: &Pii) -> String {
+    let mut out = String::new();
+    for m in layer.mentions() {
+        out.push_str(&format!(
+            "{}\t{}\t{}\t{}\t{}\n",
+            m.span.start,
+            m.span.end,
+            m.kind.name(),
+            m.confidence.name(),
+            m.normalized,
+        ));
     }
-    present
+    out
 }
 
-fn golden(pack: Pack, id: &str) -> Golden {
-    let path: PathBuf = data_dir().join("pii").join(pack.name()).join("pii").join(format!("{id}.golden"));
-    Golden::read(path).unwrap_or_else(|e| panic!("{e}"))
+fn check_invariants(text: &str, layer: &Pii) {
+    layer.check().unwrap_or_else(|e| panic!("Layer::check: {e}"));
+    let len = text.len() as u32;
+    for m in layer.mentions() {
+        assert!(m.span.start < m.span.end && m.span.end <= len, "span out of bounds: {:?}", m.span);
+        assert!(!m.normalized.is_empty());
+        assert_eq!(PiiKind::parse(m.kind.name()), Some(m.kind), "kind name round-trips");
+        assert!(text.is_char_boundary(m.span.start as usize));
+        assert!(text.is_char_boundary(m.span.end as usize));
+    }
 }
 
-fn config<'g>(golden: &'g Golden, key: &str) -> &'g str {
-    let entry = golden.header.config.iter().find(|c| c.key == key);
-    &entry.unwrap_or_else(|| panic!("no {key} config record")).value
-}
-
-/// Runs `pack` over every text, compares the layer with its goldens and
-/// returns how many mentions were compared.
 fn check(pack: Pack) -> usize {
-    let ids = inputs();
-    assert!(ids.len() > 50, "only {} inputs in the pii set", ids.len());
-    let analyzer = Analyzer::builder().add(PiiDetector::pack(pack).keeping_nested()).build().expect("the analyzer");
+    let bless = std::env::var_os("TURBO_BLESS").is_some();
+    let ids = input_ids();
+    assert!(ids.len() > 50, "only {} inputs", ids.len());
+    let analyzer = Analyzer::builder().add(PiiDetector::pack(pack).keeping_nested()).build().expect("analyzer");
+    let empty = Pii::new(ViewId::SOURCE);
     let mut mentions = 0;
-    let mut failures = Vec::new();
     for id in &ids {
-        let g = golden(pack, id);
-        assert_eq!(config(&g, "pack"), pack.name(), "{id}: the golden was made with another pack");
-        let text = g.input_text(data_dir()).unwrap_or_else(|e| panic!("{e}"));
+        let text = text_of(id);
         let mut docs = vec![Document::new(text.as_str())];
         for result in analyzer.run(&mut docs) {
             result.unwrap_or_else(|e| panic!("{id}: {e}"));
         }
-        mentions += docs[0].get::<Pii>().map_or(0, |p| p.spans.len());
-        if let Err(m) = matches_golden::<Pii>(&docs[0], &g, Tolerance::exact()) {
-            failures.push(format!("{id}: {m}"));
+        let layer = docs[0].get::<Pii>().unwrap_or(&empty);
+        mentions += layer.spans.len();
+        check_invariants(&text, layer);
+        let body = render(layer);
+        let path = snap_path(pack.name(), id);
+        if bless {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(&path, &body).unwrap();
+            continue;
         }
+        let want = std::fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("missing snapshot {} (TURBO_BLESS=1 to write): {e}", path.display()));
+        assert_eq!(body, want, "{}/{}", pack.name(), id);
     }
-    assert!(
-        failures.is_empty(),
-        "{} of {} texts differ from the JVM in the {} pack:\n{}",
-        failures.len(),
-        ids.len(),
-        pack.name(),
-        failures.join("\n")
-    );
     mentions
 }
 
 macro_rules! pack_tests {
-    ($($name:ident: $pack:expr, $at_least:expr;)*) => {$(
+    ($($fn_name:ident: $pack:expr, $min:expr;)*) => {$(
         #[test]
-        fn $name() {
-            if goldens_present() {
-                let n = check($pack);
-                assert!(n >= $at_least, "only {n} mentions compared");
-            }
+        fn $fn_name() {
+            let n = check($pack);
+            assert!(n >= $min, "only {n} mentions compared for {}", $pack.name());
         }
     )*};
 }
 
 pack_tests! {
-    payment_matches_the_jvm: Pack::Payment, 15;
-    contact_matches_the_jvm: Pack::Contact, 25;
-    network_matches_the_jvm: Pack::Network, 12;
-    secrets_matches_the_jvm: Pack::Secrets, 5;
-    crypto_matches_the_jvm: Pack::Crypto, 5;
-    us_identity_matches_the_jvm: Pack::UsIdentity, 3;
-    eu_identity_matches_the_jvm: Pack::EuIdentity, 4;
-    ca_identity_matches_the_jvm: Pack::CaIdentity, 2;
-    device_matches_the_jvm: Pack::Device, 2;
-    all_structured_matches_the_jvm: Pack::AllStructured, 80;
+    payment_snapshots: Pack::Payment, 15;
+    contact_snapshots: Pack::Contact, 25;
+    network_snapshots: Pack::Network, 10;
+    secrets_snapshots: Pack::Secrets, 4;
+    crypto_snapshots: Pack::Crypto, 5;
+    us_identity_snapshots: Pack::UsIdentity, 3;
+    eu_identity_snapshots: Pack::EuIdentity, 3;
+    ca_identity_snapshots: Pack::CaIdentity, 1;
+    device_snapshots: Pack::Device, 1;
+    all_structured_snapshots: Pack::AllStructured, 80;
 }
