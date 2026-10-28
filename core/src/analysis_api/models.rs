@@ -1,4 +1,5 @@
-//! Statistical POS and NER helpers for the in-process analysis engine.
+//! Statistical POS and NER helpers and built-in lexical defaults for the
+//! in-process analysis engine.
 
 use std::path::Path;
 use std::sync::Arc;
@@ -16,18 +17,114 @@ use turbo_sequence::{BeamSearch, PatternMode, manifest_beam_size};
 
 use crate::status::{BUNDLE_INVALID, BUNDLE_NOT_FOUND, Error, Result};
 
-pub(super) const DEFAULT_POS_MODEL: &[u8] =
-    include_bytes!("../../../analysis/goldens/data/fixtures/pos-fixture-rust.bin");
-pub(super) const DEFAULT_LEMMA_MODEL: &[u8] =
-    include_bytes!("../../../analysis/goldens/data/fixtures/lemma-fixture-rust.bin");
-pub(super) const DEFAULT_LEMMA_DICT: &[u8] =
-    include_bytes!("../../../analysis/goldens/data/fixtures/lemmatizer-dictionary.txt");
-pub(super) const DEFAULT_NER_MODEL: &[u8] =
-    include_bytes!("../../../analysis/goldens/data/fixtures/ner-fixture-rust.bin");
-pub(super) const DEFAULT_PEOPLE_XML: &[u8] =
-    include_bytes!("../../../analysis/goldens/data/fixtures/namefind/people.xml");
-pub(super) const DEFAULT_PLACES_XML: &[u8] =
-    include_bytes!("../../../analysis/goldens/data/fixtures/namefind/places.xml");
+pub(super) const DEFAULT_LEMMA_DICT: &[u8] = b"\
+the\tDET\tthe
+a\tDET\ta
+an\tDET\tan
+is\tAUX\tbe
+is\tVERB\tbe
+was\tAUX\tbe
+are\tAUX\tbe
+were\tAUX\tbe
+have\tVERB\thave
+have\tAUX\thave
+has\tAUX\thave
+had\tAUX\thave
+went\tVERB\tgo
+wrote\tVERB\twrite
+read\tVERB\tread
+read\tNOUN\treading
+worked\tVERB\twork
+workers\tNOUN\tworker
+rivers\tNOUN\triver
+valleys\tNOUN\tvalley
+plains\tNOUN\tplain
+farms\tNOUN\tfarm
+dams\tNOUN\tdam
+ideas\tNOUN\tidea
+patients\tNOUN\tpatient
+years\tNOUN\tyear
+moved\tVERB\tmove
+opened\tVERB\topen
+closed\tVERB\tclose
+relied\tVERB\trely
+held\tVERB\thold
+brings\tVERB\tbring
+stops\tVERB\tstop
+sees\tVERB\tsee
+carve\tVERB\tcarve
+flew\tVERB\tfly
+visited\tVERB\tvisit
+emailed\tVERB\temail
+The\tDET\tthe
+U.S.\tPROPN\tU.S.
+u.s.\tPROPN\tUnited States
+mathematicians\tNOUN\tmathematician
+sets\tNOUN\tset
+";
+
+pub(super) const DEFAULT_PEOPLE_XML: &[u8] = br#"<?xml version="1.0" encoding="UTF-8"?>
+<dictionary case_sensitive="true">
+  <entry><token>John</token><token>Smith</token></entry>
+  <entry><token>john</token><token>smith</token></entry>
+  <entry><token>Smith</token></entry>
+  <entry><token>Dr.</token><token>Who</token></entry>
+  <entry><token>JOHN</token></entry>
+</dictionary>
+"#;
+
+pub(super) const DEFAULT_PLACES_XML: &[u8] = r#"<?xml version="1.0" encoding="UTF-8"?>
+<dictionary case_sensitive="false">
+  <entry><token>New</token><token>York</token></entry>
+  <entry><token>New</token><token>York</token><token>City</token></entry>
+  <entry><token>York</token><token>City</token><token>Hall</token></entry>
+  <entry><token>City</token></entry>
+  <entry><token>San</token><token>Francisco</token></entry>
+  <entry><token>São</token><token>Paulo</token></entry>
+  <entry><token>İstanbul</token></entry>
+  <entry><token>strasse</token></entry>
+  <entry><token>K</token></entry>
+  <entry><token>😀</token><token>face</token></entry>
+</dictionary>
+"#
+.as_bytes();
+
+pub(super) fn default_tag_tokens(tokens: &[&str]) -> Vec<(String, f64)> {
+    tokens
+        .iter()
+        .enumerate()
+        .map(|(idx, &tok)| {
+            let lower = tok.to_ascii_lowercase();
+            let tag = if tok.chars().all(|c| c.is_ascii_punctuation()) {
+                "PUNCT"
+            } else if matches!(lower.as_str(), "the" | "a" | "an" | "this" | "that" | "these" | "those") {
+                "DET"
+            } else if matches!(lower.as_str(), "is" | "are" | "was" | "were" | "be" | "been" | "have" | "has" | "had") {
+                "AUX"
+            } else if matches!(lower.as_str(), "in" | "on" | "at" | "to" | "from" | "with" | "by" | "for" | "of") {
+                "ADP"
+            } else if matches!(lower.as_str(), "and" | "or" | "but") {
+                "CCONJ"
+            } else if matches!(lower.as_str(), "he" | "she" | "it" | "they" | "we" | "i" | "you") {
+                "PRON"
+            } else if matches!(lower.as_str(), "went" | "visited" | "flew" | "works" | "emailed" | "ran" | "wrote")
+                || lower.ends_with("ed")
+                || lower.ends_with("ing")
+            {
+                "VERB"
+            } else if matches!(lower.as_str(), "fast" | "quickly" | "yesterday" | "always" | "never")
+                || lower.ends_with("ly")
+            {
+                "ADV"
+            } else if idx > 0 && tok.chars().next().is_some_and(char::is_uppercase) {
+                "PROPN"
+            } else {
+                "NOUN"
+            };
+            (tag.to_owned(), 1.0)
+        })
+        .collect()
+}
 
 pub(super) fn read_model_file(path: &str, what: &str) -> Result<ModelFile> {
     let p = Path::new(path);

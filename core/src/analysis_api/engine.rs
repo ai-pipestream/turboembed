@@ -9,7 +9,7 @@ use turbo_analysis::{
 use turbo_analysis_layers::export::register_codecs;
 use turbo_analysis_layers::{Entities, Lemmas, Pii, PosTags, Sentences, Strs, Tokens};
 use turbo_lemmatizer::{DictionaryLemmatizer, LemmatizerModel, MaxentLemmatizer, NOT_FOUND};
-use turbo_maxent::{Dictionary, ModelFile};
+use turbo_maxent::Dictionary;
 use turbo_namefind::{BuiltIn, DictionaryNameFinder, RegexNameFinder, TokenNameFinder};
 use turbo_pii::{Pack, PiiDetector};
 use turbo_sentdetect::{RuleSplitter, SentenceDetector, SentenceModel, WhitespaceMode};
@@ -18,8 +18,8 @@ use turbo_tokenize::me::{TokenizerMe, TokenizerModel};
 use turbo_tokenize::{TokenizerOptions, simple_spans};
 
 use super::models::{
-    DEFAULT_LEMMA_DICT, DEFAULT_LEMMA_MODEL, DEFAULT_NER_MODEL, DEFAULT_PEOPLE_XML, DEFAULT_PLACES_XML,
-    DEFAULT_POS_MODEL, NerEngine, PosEngine, read_model_file,
+    DEFAULT_LEMMA_DICT, DEFAULT_PEOPLE_XML, DEFAULT_PLACES_XML, NerEngine, PosEngine, default_tag_tokens,
+    read_model_file,
 };
 use super::{AnalysisResultInner, SpanPoolBuilder, turbo_analyzer_desc};
 use crate::ffi::text;
@@ -29,10 +29,10 @@ pub struct AnalyzerEngine {
     sentence_model: Option<SentenceDetector>,
     rule_splitter: RuleSplitter,
     tokenizer_model: Option<TokenizerMe>,
-    pos_engine: PosEngine,
+    pos_engine: Option<PosEngine>,
     dict_lemmatizer: Option<DictionaryLemmatizer>,
-    maxent_lemmatizer: MaxentLemmatizer,
-    ner_engine: NerEngine,
+    maxent_lemmatizer: Option<MaxentLemmatizer>,
+    ner_engine: Option<NerEngine>,
     person_dict: DictionaryNameFinder,
     place_dict: DictionaryNameFinder,
     regex_finder: RegexNameFinder,
@@ -74,22 +74,16 @@ impl AnalyzerEngine {
             Some(TokenizerMe::new(model, TokenizerOptions::default()))
         };
 
-        let pos_file = if pos_path.is_empty() {
-            ModelFile::open(DEFAULT_POS_MODEL.to_vec())
-                .map_err(|e| Error::new(BUNDLE_INVALID, format!("default POS: {e}")))?
+        let pos_engine = if pos_path.is_empty() {
+            None
         } else {
-            read_model_file(pos_path, "pos_model_path")?
+            Some(PosEngine::open(read_model_file(pos_path, "pos_model_path")?)?)
         };
-        let pos_engine = PosEngine::open(pos_file)?;
 
-        let default_lemma_file = ModelFile::open(DEFAULT_LEMMA_MODEL.to_vec())
-            .map_err(|e| Error::new(BUNDLE_INVALID, format!("default lemmatizer: {e}")))?;
-        let default_lemma_model = LemmatizerModel::open(default_lemma_file)
-            .map_err(|e| Error::new(BUNDLE_INVALID, format!("default lemmatizer model: {e}")))?;
         let (dict_lemmatizer, maxent_lemmatizer) = if lemma_path.is_empty() {
             let dict = DictionaryLemmatizer::parse(DEFAULT_LEMMA_DICT, lang)
                 .map_err(|e| Error::new(BUNDLE_INVALID, format!("default lemma dictionary: {e}")))?;
-            (Some(dict), MaxentLemmatizer::new(default_lemma_model))
+            (Some(dict), None)
         } else if lemma_path.ends_with(".txt") || lemma_path.ends_with(".tsv") || lemma_path.ends_with(".dict") {
             let p = Path::new(lemma_path);
             if !p.exists() {
@@ -97,21 +91,19 @@ impl AnalyzerEngine {
             }
             let dict = DictionaryLemmatizer::read(p, lang)
                 .map_err(|e| Error::new(BUNDLE_INVALID, format!("lemma_model_path: {e}")))?;
-            (Some(dict), MaxentLemmatizer::new(default_lemma_model))
+            (Some(dict), None)
         } else {
             let file = read_model_file(lemma_path, "lemma_model_path")?;
             let model = LemmatizerModel::open(file)
                 .map_err(|e| Error::new(BUNDLE_INVALID, format!("lemma_model_path: {e}")))?;
-            (None, MaxentLemmatizer::new(model))
+            (None, Some(MaxentLemmatizer::new(model)))
         };
 
-        let ner_file = if ner_path.is_empty() {
-            ModelFile::open(DEFAULT_NER_MODEL.to_vec())
-                .map_err(|e| Error::new(BUNDLE_INVALID, format!("default NER: {e}")))?
+        let ner_engine = if ner_path.is_empty() {
+            None
         } else {
-            read_model_file(ner_path, "ner_model_path")?
+            Some(NerEngine::open(read_model_file(ner_path, "ner_model_path")?)?)
         };
-        let ner_engine = NerEngine::open(ner_file)?;
 
         let person_dict = DictionaryNameFinder::new(
             Dictionary::read(DEFAULT_PEOPLE_XML)
@@ -190,8 +182,15 @@ impl AnalyzerEngine {
         Ok(b.finish(Vec::new()))
     }
 
+    fn tag_token_slice(&self, tokens: &[&str]) -> Result<Vec<(String, f64)>> {
+        match &self.pos_engine {
+            Some(pos) => pos.tag_tokens(tokens),
+            None => Ok(default_tag_tokens(tokens)),
+        }
+    }
+
     pub fn pos_tag(&self, tokens: &[&str]) -> Result<AnalysisResultInner> {
-        let tagged = self.pos_engine.tag_tokens(tokens)?;
+        let tagged = self.tag_token_slice(tokens)?;
         let mut b = SpanPoolBuilder::with_capacity(tagged.len(), tagged.len() * 6);
         for (idx, (tag, prob)) in tagged.into_iter().enumerate() {
             b.push_token_span(idx as u32, idx as u32 + 1, &tag, prob);
@@ -203,16 +202,17 @@ impl AnalyzerEngine {
         if tokens.len() != tags.len() {
             return Err(Error::new(INVALID_ARGUMENT, "tokens and tags must have the same count"));
         }
-        let pairs: Vec<TokenTag<'_>> =
-            tokens.iter().zip(tags.iter()).map(|(&token, &tag)| TokenTag { token, tag }).collect();
         let mut model_lemmas = Strs::default();
         let mut model_probs = Vec::with_capacity(tokens.len());
-        let has_model = if tokens.is_empty() {
-            false
-        } else {
-            self.maxent_lemmatizer
-                .lemmatize(&pairs, &mut model_lemmas, &mut model_probs)
-                .map_err(|e| Error::new(BUNDLE_INVALID, format!("lemmatize: {e}")))?
+        let has_model = match (&self.maxent_lemmatizer, tokens.is_empty()) {
+            (Some(lemmatizer), false) => {
+                let pairs: Vec<TokenTag<'_>> =
+                    tokens.iter().zip(tags.iter()).map(|(&token, &tag)| TokenTag { token, tag }).collect();
+                lemmatizer
+                    .lemmatize(&pairs, &mut model_lemmas, &mut model_probs)
+                    .map_err(|e| Error::new(BUNDLE_INVALID, format!("lemmatize: {e}")))?
+            }
+            _ => false,
         };
         let mut b = SpanPoolBuilder::with_capacity(tokens.len(), tokens.len() * 8);
         for (idx, (&word, &tag)) in tokens.iter().zip(tags.iter()).enumerate() {
@@ -245,9 +245,11 @@ impl AnalyzerEngine {
                 }
             }
         }
-        for (start, end, kind, prob) in self.ner_engine.find(tokens)? {
-            if !entities.iter().any(|&(s, e, _, _)| s < end && start < e) {
-                entities.push((start, end, kind, prob));
+        if let Some(ner) = &self.ner_engine {
+            for (start, end, kind, prob) in ner.find(tokens)? {
+                if !entities.iter().any(|&(s, e, _, _)| s < end && start < e) {
+                    entities.push((start, end, kind, prob));
+                }
             }
         }
         entities.sort_by_key(|&(s, e, _, _)| (s, e));
@@ -312,7 +314,7 @@ impl AnalyzerEngine {
         doc.add(&Key::<Tokens>::DEFAULT, Tokens { spans: tok_spans, sentence: None }, Provenance::by("turbo:tokenize"))
             .map_err(|e| Error::new(BUNDLE_INVALID, format!("add tokens: {e}")))?;
 
-        let tagged = self.pos_engine.tag_tokens(&tok_strs)?;
+        let tagged = self.tag_token_slice(&tok_strs)?;
         let tag_labels: Vec<&str> = tagged.iter().map(|(t, _)| t.as_str()).collect();
         let mut unique_tags: Vec<&str> = tag_labels.clone();
         unique_tags.sort_unstable();
