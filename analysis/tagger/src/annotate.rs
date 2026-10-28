@@ -35,6 +35,14 @@ pub struct Decoded {
     pub prob: Vec<f64>,
 }
 
+/// Whether a head's layer id names the layer `id`. A head's id is always
+/// `turboembed:<name>`; until the analysis layer ids move to that
+/// namespace too (#1534), the names after the namespaces are compared.
+pub fn same_layer(head: &str, id: &str) -> bool {
+    let name = |s: &str| s.rsplit_once(':').map_or(s, |(_, n)| n).to_owned();
+    name(head) == name(id)
+}
+
 fn refuse(m: String) -> CoreError {
     CoreError::new(INVALID_ARGUMENT, m)
 }
@@ -48,7 +56,7 @@ impl HeadRunner {
         let spec: &HeadSpec = match name {
             Some(n) => heads.iter().find(|h| h.name == n).ok_or_else(|| refuse(format!("no head {n:?}")))?,
             None => {
-                let mut found = heads.iter().filter(|h| h.layer == layer);
+                let mut found = heads.iter().filter(|h| same_layer(&h.layer, layer));
                 match (found.next(), found.next()) {
                     (Some(h), None) => h,
                     (None, _) => return Err(refuse(format!("no head writes {layer}"))),

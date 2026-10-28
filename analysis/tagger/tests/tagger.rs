@@ -170,3 +170,13 @@ fn sentences_come_from_the_token_column_else_the_sentence_layer_else_the_view() 
     let (alone,) = pos.annotate((alone_view, &tokens(alone_text), None)).unwrap();
     assert_eq!(both.tags[4..], alone.tags[..]);
 }
+
+#[test]
+fn a_head_names_its_layer_in_the_turboembed_namespace() {
+    use turbo_analysis_layers::Entities;
+    use turbo_tagger::annotate::same_layer;
+    assert!(same_layer("turboembed:pos", PosTags::ID));
+    assert!(same_layer("turboembed:entities", Entities::ID));
+    assert!(same_layer("turboembed:pos", "turboembed:pos"));
+    assert!(!same_layer("turboembed:pos", Entities::ID));
+}

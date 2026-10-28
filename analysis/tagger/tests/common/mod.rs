@@ -10,8 +10,8 @@ use serde_json::{Value, json};
 use turbo::bundle::sha256_hex;
 use turbo::head::tagger::tensors;
 use turbo::manifest::HeadSpec;
-use turbo_analysis::{Layer, Span, Spans, ViewId};
-use turbo_analysis_layers::{Entities, PosTags, Tokens};
+use turbo_analysis::{Span, Spans, ViewId};
+use turbo_analysis_layers::Tokens;
 
 pub const TEXT: &str = "Ann met Bob in Paris , and the quiet old dog slept by the river .";
 
@@ -22,15 +22,15 @@ pub fn tiny() -> PathBuf {
 pub fn heads() -> Value {
     json!([
         {
-            "name": "pos", "layer": PosTags::ID, "kind": "HEAD_TOKEN_TAGGER",
+            "name": "pos", "layer": "turboembed:pos", "kind": "HEAD_TOKEN_TAGGER",
             "labels": ["NOUN", "VERB", "DET", "ADJ", "PUNCT"], "scheme": "SCHEME_TAGS",
-            "word_pooling": "WORD_POOLING_MEAN", "decode": "DECODE_ARGMAX", "artifact": 0, "tensor_prefix": "heads.pos"
+            "word_pooling": "WORD_POOLING_MEAN", "decode": "DECODE_ARGMAX", "artifact": "weights-f32", "tensor_prefix": "heads.pos"
         },
         {
-            "name": "ner", "layer": Entities::ID, "kind": "HEAD_TOKEN_TAGGER",
+            "name": "ner", "layer": "turboembed:entities", "kind": "HEAD_TOKEN_TAGGER",
             "labels": ["O", "B-PER", "I-PER", "B-LOC", "I-LOC"], "scheme": "SCHEME_BIO",
             "word_pooling": "WORD_POOLING_FIRST", "adapter": {"bilstm": {"hidden": 4, "layers": 1}},
-            "decode": "DECODE_CRF", "artifact": 0, "tensor_prefix": "heads.ner"
+            "decode": "DECODE_CRF", "artifact": "weights-f32", "tensor_prefix": "heads.ner"
         }
     ])
 }
