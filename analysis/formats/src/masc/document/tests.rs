@@ -204,6 +204,40 @@ fn an_entity_spans_its_first_token_to_one_past_its_last_and_none_is_removed() {
 }
 
 #[test]
+fn a_token_quark_outside_its_sentence_takes_the_first_place_of_its_id() {
+    // `seg-r2` is in no sentence and appears twice: at 4..5, then at
+    // 6..7. The token `penn-n0` spans `seg-r1` (in the sentence) and
+    // `seg-r2`, so it ends where the first `seg-r2` ends.
+    let parse = |penn: &[u8]| {
+        let seg = br#"<graph>
+            <region xml:id="seg-r0" anchors="0 1"/>
+            <region xml:id="seg-r1" anchors="2 3"/>
+            <region xml:id="seg-r2" anchors="4 5"/>
+            <region xml:id="seg-r2" anchors="6 7"/>
+        </graph>"#;
+        let s = br#"<graph><region anchors="0 3"/></graph>"#;
+        MascDocument::parse(
+            "t.hdr",
+            MascFiles {
+                text: b"a b c d",
+                segments: Some(seg),
+                sentences: Some(s),
+                penn: Some(penn),
+                named_entities: None,
+            },
+        )
+    };
+    let doc = parse(br#"<graph><node xml:id="penn-n0"><link targets="seg-r1 seg-r2"/></node></graph>"#).unwrap();
+    let tokens = doc.sentences()[0].tokens().unwrap();
+    assert_eq!(tokens.len(), 1);
+    assert_eq!((tokens[0].start, tokens[0].end, tokens[0].quarks.as_slice()), (2, 5, &[1, 2][..]));
+    assert!(doc.warnings().contains(&MascWarning::TokenCrossesSentence { sentence: 0, token: 0, quark: 2 }));
+    // A quark id the segmentation lacks is still an error.
+    let missing = parse(br#"<graph><node xml:id="penn-n0"><link targets="seg-r1 seg-r9"/></node></graph>"#);
+    assert!(matches!(missing, Err(MascError::MissingQuark { id: 9 })), "{missing:?}");
+}
+
+#[test]
 fn entity_is_contiguous_checks_reversed_bounds_duplicates_and_exact_range() {
     assert!(!MascEntity { start: 3, end: 1, kind: None, tokens: vec![] }.is_contiguous());
     assert!(!MascEntity { start: 0, end: 2, kind: None, tokens: vec![0, 0] }.is_contiguous());

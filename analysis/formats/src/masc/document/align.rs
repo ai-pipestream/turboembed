@@ -24,8 +24,15 @@ impl MascDocument {
                 tokens.insert(0, t);
             }
         }
+        // Each quark id's first place in the document, for token quarks
+        // outside their sentence: built once instead of a scan per quark.
+        let mut first_places: HashMap<i32, usize> = HashMap::with_capacity(self.quarks.len());
+        for (place, q) in self.quarks.iter().enumerate() {
+            first_places.entry(q.id).or_insert(place);
+        }
+        let quarks = Quarks { all: &self.quarks, first_places: &first_places };
         for si in 0..self.sentences.len() {
-            let tokens = tokenize(si, &self.sentences[si], &self.quarks, penn, &quark_tokens, &mut self.warnings)?;
+            let tokens = tokenize(si, &self.sentences[si], &quarks, penn, &quark_tokens, &mut self.warnings)?;
             let sentence = &mut self.sentences[si];
             sentence.token_places = tokens.iter().enumerate().map(|(i, t)| (t.id, i)).collect();
             sentence.tokens = Some(tokens);
@@ -168,6 +175,12 @@ pub(super) fn remove_overlaps(names: &[MascName]) -> Option<Vec<MascName>> {
     })
 }
 
+/// The document's quarks and each quark id's first place among them.
+struct Quarks<'a> {
+    all: &'a [Quark],
+    first_places: &'a HashMap<i32, usize>,
+}
+
 /// `MascSentence.tokenizePenn` for sentence `si`: the tokens of its
 /// quarks, in the order of the quarks and, for a quark in several tokens,
 /// of the quark's token list; a token is taken once, and a token whose
@@ -175,7 +188,7 @@ pub(super) fn remove_overlaps(names: &[MascName]) -> Option<Vec<MascName>> {
 fn tokenize(
     si: usize,
     sentence: &MascSentence,
-    quarks: &[Quark],
+    quarks: &Quarks<'_>,
     penn: &Penn,
     quark_tokens: &HashMap<i32, Vec<usize>>,
     warnings: &mut Vec<MascWarning>,
@@ -183,7 +196,7 @@ fn tokenize(
     let mut tokens = Vec::new();
     let mut processed = HashSet::new();
     for &w in &sentence.quarks {
-        let Some(list) = quark_tokens.get(&quarks[w].id) else {
+        let Some(list) = quark_tokens.get(&quarks.all[w].id) else {
             continue;
         };
         for &t in list {
@@ -201,15 +214,15 @@ fn tokenize(
                 // the sentence's own quark, else the first in the document
                 let place = match sentence.quark_places.get(&q) {
                     Some(&p) => p,
-                    None => quarks.iter().position(|x| x.id == q).ok_or(MascError::MissingQuark { id: q })?,
+                    None => *quarks.first_places.get(&q).ok_or(MascError::MissingQuark { id: q })?,
                 };
                 places.push(place);
             }
             let (Some(&first), Some(&last)) = (places.first(), places.last()) else {
                 continue;
             };
-            let start = quarks[first].start;
-            let end = quarks[last].end;
+            let start = quarks.all[first].start;
+            let end = quarks.all[last].end;
             if end - start > 0 {
                 tokens.push(MascToken {
                     id: token.id,
