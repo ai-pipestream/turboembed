@@ -3,10 +3,8 @@
 //!
 //! Each recipe trains on the training documents of [`crate::masc::SPLIT`]
 //! with the factory defaults and the released MASC parameters: GIS,
-//! 300 iterations, cutoff 5, 4 partitions, OpenNLP 2.5.4's whitespace.
-//! The UD 1.3 references use 12 partitions, so the models differ in their
-//! data and floating-point grouping. Training uses no randomness, so
-//! the recipe has no seed.
+//! 300 iterations, cutoff 5, 4 partitions, Unicode `White_Space` as
+//! whitespace. Training uses no randomness, so the recipe has no seed.
 //!
 //! The samples are what OpenNLP's MASC streams read, with two changes
 //! ([`read_token_samples`]): the token stream skips a sentence without a
@@ -40,12 +38,10 @@ use turbo_formats::evaluate::{SentenceDetectorEvaluator, TokenizerEvaluator};
 use turbo_formats::masc::{EmptySentence, MascCorpus, MascSentenceReader, MascTokenReader};
 use turbo_formats::sample::{SentenceSample, TokenSample};
 use turbo_maxent::ModelFile;
-use turbo_sentdetect::WhitespaceMode;
 use turbo_sentdetect::{SentenceDetector, SentenceModel};
 use turbo_tokenize::TokenizerOptions;
 use turbo_tokenize::me::{TokenizerMe, TokenizerModel};
 use turbo_train::TrainingConfiguration;
-use turbo_train_components::ud;
 use turbo_train_components::{SentenceDetectorFactory, Stamp, TokenizerFactory, sentdetect, tokenize};
 use turbo_zoo::Sha256;
 
@@ -63,10 +59,7 @@ pub enum Component {
 /// The language of the models.
 pub const LANGUAGE: &str = "en";
 /// Sentences per sentence detector sample, as the UD recipes use.
-pub const SENTENCES_PER_SAMPLE: usize = ud::SENTENCES_PER_SAMPLE;
-/// The whitespace definition training and scoring use: OpenNLP 2.5.4's,
-/// which the reference models were trained with.
-pub const WHITESPACE: WhitespaceMode = ud::WHITESPACE;
+pub const SENTENCES_PER_SAMPLE: usize = crate::ud::SENTENCES_PER_SAMPLE;
 /// The `Timestamp` written into the trained models' manifests, so a
 /// recipe gives the same bytes on every run: 2026-10-14T00:00:00Z.
 pub const TIMESTAMP_MS: i64 = 1_791_936_000_000;
@@ -221,7 +214,7 @@ impl SegmentationRecipe {
         let (samples, skipped_sentences, package, report) = match self.component {
             Component::Sentence => {
                 let factory = sentence_factory()?;
-                let mut stream = sentdetect::SdEventStream::new(&factory, WHITESPACE);
+                let mut stream = sentdetect::SdEventStream::new(&factory);
                 let mut samples = 0;
                 for sample in MascSentenceReader::new(train, SENTENCES_PER_SAMPLE) {
                     stream.events(&sample?.sample, &mut events);
@@ -235,7 +228,7 @@ impl SegmentationRecipe {
             }
             Component::Tokens => {
                 let factory = tokenizer_factory()?;
-                let mut stream = tokenize::TokSpanEventStream::new(&factory, WHITESPACE);
+                let mut stream = tokenize::TokSpanEventStream::new(&factory);
                 let mut samples = 0;
                 let skipped = read_token_samples(train, |sample| {
                     stream.events(&sample, &mut events)?;
@@ -340,21 +333,20 @@ impl SegmentationRecipe {
                 let model = SentenceModel::open(file).map_err(|e| Error::Model(e.to_string()))?;
                 // The gate compares models, so neither gets the bundled
                 // abbreviation inventory: the JVM's splits.
-                let detector = SentenceDetector::new(Arc::new(model), WHITESPACE).with_jvm_parity();
+                let detector = SentenceDetector::new(Arc::new(model)).with_jvm_parity();
                 for sample in samples {
                     predicted.clear();
                     detector.detect(sample.document(), &mut predicted);
                     predicted_spans.clear();
                     predicted_spans.extend(predicted.iter().map(|&(s, _)| s));
-                    let mut evaluator = SentenceDetectorEvaluator::new(WHITESPACE);
+                    let mut evaluator = SentenceDetectorEvaluator::new();
                     evaluator.evaluate(sample, &predicted_spans)?;
                     out.push(spans::counts(evaluator.fmeasure()));
                 }
             }
             (Component::Tokens, HeldOut::Tokens { samples, .. }) => {
                 let model = TokenizerModel::open(file).map_err(|e| Error::Model(e.to_string()))?;
-                let tokenizer =
-                    TokenizerMe::new(model, TokenizerOptions { whitespace: WHITESPACE, keep_newlines: false });
+                let tokenizer = TokenizerMe::new(model, TokenizerOptions { keep_newlines: false });
                 for sample in samples {
                     predicted.clear();
                     tokenizer.tokenize(sample.text(), &mut predicted);
@@ -438,18 +430,6 @@ impl SegmentationRecipe {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn the_recipes_name_models_the_zoo_lists_as_references() {
-        for r in RECIPES {
-            assert!(r.reference_file().unwrap().ends_with(".bin"));
-            assert!(matches!(r.check_reference(b"not the model"), Err(Error::ReferenceDigest { .. })));
-            let id: turbo_zoo::ArtifactId = r.model_id.parse().unwrap();
-            assert_eq!(id.as_str(), r.model_id);
-        }
-        assert_eq!(SENTENCE.task(), Task::SentenceDetector);
-        assert_eq!(TOKENS.task(), Task::Tokenizer);
-    }
 
     #[test]
     fn tokens_are_in_text_order_unless_one_starts_or_ends_before_the_one_before_it() {

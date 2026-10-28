@@ -25,6 +25,10 @@ fn mirrored_constants_match_the_header() {
         ("TURBO_POOLING_MEAN", TURBO_POOLING_MEAN.into()),
         ("TURBO_POOLING_CLS", TURBO_POOLING_CLS.into()),
         ("TURBO_POOLING_LAST", TURBO_POOLING_LAST.into()),
+        ("TURBO_QUANTIZE_MODEL", TURBO_QUANTIZE_MODEL.into()),
+        ("TURBO_QUANTIZE_NONE", TURBO_QUANTIZE_NONE.into()),
+        ("TURBO_QUANTIZE_INT8", TURBO_QUANTIZE_INT8.into()),
+        ("TURBO_QUANTIZE_UBINARY", TURBO_QUANTIZE_UBINARY.into()),
         ("TURBO_STAGE_MAX", TURBO_STAGE_MAX as i64),
         ("TURBO_OUTPUT_DIMS_MAX", TURBO_OUTPUT_DIMS_MAX as i64),
         ("TURBO_EMBED_STAGE_TOKENIZE", TURBO_EMBED_STAGE_TOKENIZE as i64),
@@ -46,6 +50,19 @@ fn mirrored_constants_match_the_header() {
         ("TURBO_FAMILY_STATIC", turbo::backend::TURBO_FAMILY_STATIC.into()),
         ("TURBO_FAMILY_DEBERTA_V2", turbo::backend::TURBO_FAMILY_DEBERTA_V2.into()),
         ("TURBO_DEBERTA_EMBEDDING_TENSORS", turbo::backend::TURBO_DEBERTA_EMBEDDING_TENSORS.into()),
+        ("TURBO_FAMILY_MODERNBERT", turbo::backend::TURBO_FAMILY_MODERNBERT.into()),
+        ("TURBO_FAMILY_NOMIC_BERT", turbo::backend::TURBO_FAMILY_NOMIC_BERT.into()),
+        ("TURBO_MODERNBERT_EMBEDDING_TENSORS", turbo::backend::TURBO_MODERNBERT_EMBEDDING_TENSORS.into()),
+        ("TURBO_MODERNBERT_LAYER_TENSORS", turbo::backend::TURBO_MODERNBERT_LAYER_TENSORS.into()),
+        ("TURBO_NOMIC_EMBEDDING_TENSORS", turbo::backend::TURBO_NOMIC_EMBEDDING_TENSORS.into()),
+        ("TURBO_NOMIC_LAYER_TENSORS", turbo::backend::TURBO_NOMIC_LAYER_TENSORS.into()),
+        ("TURBO_MLP_DENSE", turbo::backend::TURBO_MLP_DENSE.into()),
+        ("TURBO_MLP_GATED", turbo::backend::TURBO_MLP_GATED.into()),
+        ("TURBO_ACTIVATION_GELU_ERF", turbo::backend::TURBO_ACTIVATION_GELU_ERF.into()),
+        ("TURBO_ACTIVATION_SILU", turbo::backend::TURBO_ACTIVATION_SILU.into()),
+        ("TURBO_NORM_LAYER", turbo::backend::TURBO_NORM_LAYER.into()),
+        ("TURBO_NORM_LAYER_NO_BIAS", turbo::backend::TURBO_NORM_LAYER_NO_BIAS.into()),
+        ("TURBO_NORM_RMS", turbo::backend::TURBO_NORM_RMS.into()),
         ("TURBO_STATIC_EMBEDDINGS", turbo::backend::TURBO_STATIC_EMBEDDINGS.into()),
         ("TURBO_STATIC_WEIGHTS", turbo::backend::TURBO_STATIC_WEIGHTS.into()),
         ("TURBO_STATIC_MAPPING", turbo::backend::TURBO_STATIC_MAPPING.into()),
@@ -70,6 +87,7 @@ fn mirrored_constants_match_the_header() {
         ("TURBO_DEVICE_IGPU", TURBO_DEVICE_IGPU.into()),
         ("TURBO_DEVICE_NPU", TURBO_DEVICE_NPU.into()),
         ("TURBO_DTYPE_I8", TURBO_DTYPE_I8.into()),
+        ("TURBO_DTYPE_U8", TURBO_DTYPE_U8.into()),
         ("TURBO_DTYPE_I32", TURBO_DTYPE_I32.into()),
         ("TURBO_DTYPE_I64", TURBO_DTYPE_I64.into()),
         ("TURBO_DTYPE_F16", TURBO_DTYPE_F16.into()),
@@ -142,6 +160,19 @@ fn mirrored_constants_match_the_header() {
             .enumerate()
             .map(|(i, &r)| (format!("TURBO_DEBERTA_{}", turbo::manifest::role_name(r).to_uppercase()), i as i64)),
     );
+    // And each rotary family's tensors.
+    for (prefix, tables) in [
+        ("MODERNBERT", [&turbo::model::MODERNBERT_EMBEDDING_ROLES[..], &turbo::model::MODERNBERT_LAYER_ROLES[..]]),
+        ("NOMIC", [&turbo::model::NOMIC_EMBEDDING_ROLES[..], &turbo::model::NOMIC_LAYER_ROLES[..]]),
+    ] {
+        for table in tables {
+            roles.extend(
+                table.iter().enumerate().map(|(i, &r)| {
+                    (format!("TURBO_{prefix}_{}", turbo::manifest::role_name(r).to_uppercase()), i as i64)
+                }),
+            );
+        }
+    }
     let constants: Vec<(&str, i64)> =
         constants.iter().copied().chain(roles.iter().map(|(n, i)| (n.as_str(), *i))).collect();
     let mut src = String::from(

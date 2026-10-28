@@ -44,6 +44,21 @@
   `d4c7c9dcccc43c4ba18dc80435cc5c2560f01d63746263547d89a1fd599e6b90`. The
   core is compared with upstream on it with Llama-3's pattern, and with
   Qwen2's pattern and NFC normalizer written into it.
+- `tiny-bpe-added/tokenizer.json`: the BPE of `tiny-bpe/` in
+  ModernBERT's form, as upstream `tokenizers` 0.23.2 writes it
+  (`tiny_bpe_added` in `core/tests/tokenizer/added.rs`, which
+  `make_tiny_bpe_added` writes and `the_file_is_what_upstream_writes`
+  checks): its first five pieces renamed `|||IP_ADDRESS|||`,
+  `<|padding|>`, `<|endoftext|>` and runs of four and two spaces, an NFC
+  normalizer, ModernBERT's kinds of added tokens added in its order
+  (those, a run of three spaces, `|||EMAIL_ADDRESS|||`, `[UNK]`, `[CLS]`,
+  `[SEP]`, `[PAD]`, `[MASK]` taking the whitespace before it, and
+  `[unused0]` to `[unused11]`), so upstream gives the pieces their ids
+  and the others ids from 1200 on, and `[CLS] $A [SEP]` around the
+  text. 31586 bytes, SHA-256
+  `37d1d146237c943c766cad555db3e0f21741b270eb7dac7ec447efb95bb6f7f1`.
+  The core's added-token matching is compared with upstream on it, and
+  on the same with the flags ModernBERT's file does not set.
 - `tiny-bpe/corpus.jsonl`: the 232 texts that tokenizer was trained on
   (`bpe::corpus` in `core/tests/tokenizer.rs`, the texts the tests
   encode, twice over), one JSON string per line, written by
@@ -180,7 +195,56 @@
     the library gives on every text, one line per text as the
     docstring of `goldens.py` writes it. `core/tests/sentencepiece.rs`
     makes the same edits.
+- `quantize/sentence-transformers-145ef47d.txt`: int8 and ubinary codes
+  for synthetic f32 rows (widths 1, 7, 8, 9 and 64, six rows each, with
+  rows below every minimum, above every maximum, on a bucket edge and of
+  +0 and -0, and a dimension whose minimum is its maximum), with explicit
+  ranges, as the expressions of sentence-transformers' `quantize_embeddings`
+  (`sentence_transformers/util/quantization.py` at
+  `145ef47d5a4bcb9c88ab5e0684e14a4222ef408f`, Apache-2.0) give them under
+  numpy 2.5.3. Each line is the width, then hex of the row's
+  little-endian f32 values, of the `[2, dim]` ranges, of the int8 codes
+  and of the ubinary codes. `quantize/regenerate.py` writes it
+  (`python3 -I regenerate.py`); `core/src/quantize/tests.rs` holds the
+  core's codes to it.
 
-Everything here is about 9.8 MB, 4 MB of it the tiny
-BERT bundle's weights, 2 MB the SentencePiece models and goldens,
-1.8 MB the static bundle and 1.1 MB the cut-down BGE-M3 tokenizer.
+- `tiny-modernbert-reference/` and `tiny-nomic-reference/`: a small
+  ModernBERT (three layers, hidden 32, one global and two local layers
+  with a window of 8) and a small nomic-bert (two layers, hidden 32,
+  RoPE theta 1000), random weights, seed 0, which
+  `bundle/reference/tiny_modernbert.py` and `tiny_nomic.py` write over
+  `tiny-bpe/tokenizer.json` and the MiniLM tokenizer in the pinned
+  reference container, with the reference ids and vectors `reference.py`
+  wrote for them (#1461). Not bundles: the model directory, the cases
+  and the reference file, from which the Rust side writes the manifest.
+  Each directory's README gives the geometry, the tensor names and
+  shapes, the hashes and the commands that make it again. Made for this
+  repository; the nomic one's tokenizer is under Apache-2.0, the licence
+  of the MiniLM tokenizer.
+
+- `tiny-modernbert-bundle/` and `tiny-nomic-bundle/`: those two models
+  as bundles, which `turbo-bundle seal` made from the `recipe.json` in
+  each reference directory, the model directory as the upstream files,
+  and the reference file already written (it does not run the
+  container): the weights and tokenizer file of the model directory,
+  unchanged, and `reference.safetensors` of the reference directory,
+  with its `produced_by.json` and the image above as the report. The
+  manifests take mean pooling with no normalization, `max_seq` 64 and
+  `max_batch` 8, as the container ran; nomic's reference cases are the
+  query and document cases with its prefixes. `core/tests/conformance.rs`
+  holds the CPU encoder to both (`the_rotary_bundles_match_upstream`).
+  To make them again, from the repository root, for `m` each of
+  `modernbert` and `nomic`:
+
+  ```
+  mkdir -p testdata/tiny-$m-bundle/reference
+  cp testdata/tiny-$m-reference/reference.safetensors testdata/tiny-$m-bundle/reference/
+  # reference/report.json: produced_by.json with "container" set to the image above
+  cargo run --release -p turbo-bundle -- seal testdata/tiny-$m-reference/recipe.json \
+      testdata/tiny-$m-reference/model testdata/tiny-$m-bundle
+  ```
+
+Everything here is about 25 MB, 4 MB each of it the weights of the
+tiny BERT, DeBERTa, SaT and nomic models, 2 MB the SentencePiece models
+and goldens, 1.8 MB the static bundle and 1.1 MB each the cut-down
+BGE-M3 tokenizer and its copy in the SaT bundle.

@@ -146,7 +146,7 @@ impl Bpe {
     /// The ids of `piece`, the bytes of `text` from `base` on with no
     /// special token in them.
     pub(crate) fn encode<S: Sink>(&self, text: &str, base: usize, piece: &str, out: &mut S) {
-        if self.nfc && !nfc::is_nfc(piece) {
+        if self.changes(piece) {
             return self.encode_nfc(text, base, piece, out);
         }
         // The space put in front comes from the character it is put
@@ -185,11 +185,33 @@ impl Bpe {
     fn encode_nfc<S: Sink>(&self, text: &str, base: usize, piece: &str, out: &mut S) {
         let (mut normalized, mut sources) = nfc::buffers();
         nfc::aligned(piece, base, &mut normalized, S::SPANS.then_some(&mut sources));
+        self.encode_normalized(text, &normalized, &sources, out);
+        nfc::keep(normalized, sources);
+    }
+
+    /// The ids of `normalized`, text in NFC already, each byte's source
+    /// in `text` in `sources` (empty when spans are not kept).
+    fn encode_normalized<S: Sink>(&self, text: &str, normalized: &str, sources: &[Span], out: &mut S) {
         let span = |from: usize, to: usize| covering(text, &sources[from..to]);
         let mut word = Word::default();
         let n = normalized.as_bytes();
-        split::words(self.pattern, &normalized, |a, b| self.word(&n[a..b], a, &span, &mut word, out));
-        nfc::keep(normalized, sources);
+        split::words(self.pattern, normalized, |a, b| self.word(&n[a..b], a, &span, &mut word, out));
+    }
+
+    /// Whether the normalizer changes `piece`: with `nfc`, when it is not
+    /// in NFC.
+    pub(crate) fn changes(&self, piece: &str) -> bool {
+        self.nfc && !nfc::is_nfc(piece)
+    }
+
+    /// `s` as the normalizer writes it: in NFC with `nfc`.
+    pub(crate) fn normalize(&self, s: &str) -> String {
+        if !self.changes(s) {
+            return s.to_owned();
+        }
+        let mut out = String::new();
+        nfc::aligned(s, 0, &mut out, None);
+        out
     }
 
     /// One word's pieces: the whole word when `ignore_merges` and it is a

@@ -131,6 +131,8 @@ fn run(cases: &[Case], pooling: u32, normalize: u32, ranges: &[turbo_token_range
         normalize,
         output_dim: HIDDEN as u32,
         head: 0,
+        taps: 0,
+        reserved: 0,
     };
     let rc = if ranges.is_empty() {
         unsafe { (BACKEND.embed_write.unwrap())(s, &rows, &mut err) }

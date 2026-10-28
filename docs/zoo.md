@@ -40,6 +40,27 @@ Local-only sits above them because nothing in it ever leaves the user's
 machine, which also covers what the share-alike term of CC BY-NC-SA
 asks, and a refused licence anywhere still wins over everything.
 
+### Granite requires an explicit download decision
+
+Kristian clarified #1451: users may download
+`ibm-granite/granite-embedding-30m-english` at
+`9b5b096411652ec1189c68fcfb90d0a82c5b45af` after accepting the notice.
+TurboEmbed must not include the weights or generated bundles in releases
+or download them automatically. The distribution rules above still apply.
+
+The project inventory assigns `CLASS_SHARE_ALIKE` due to CC BY-SA training
+inputs. IBM licenses the weights under Apache-2.0. The recipe notice
+also identifies web-scraped and IBM-internal text with no auditable grant.
+The exception permits this named local download after user acceptance;
+it grants no rights to training text and approves no other model.
+
+`turbo-bundle fetch` and `make` require `--accept-terms`, even for cached
+inputs. `turbo-fetch.json` saves the notice and acceptance. API clients
+must set `accept_terms=true` only after an explicit user decision through
+configuration or a prompt. The manifest identifies the weight licence;
+the notice adds the project download restriction. The existing handling
+of `deepset/roberta-base-squad2` is unchanged.
+
 ### Restricted but public data
 
 `CLASS_LOCAL_ONLY` holds two kinds of data: restricted but public data,
@@ -361,6 +382,32 @@ command uses (`$TURBO_ZOO_HOME`, else `$XDG_DATA_HOME/turbo-zoo`, else
 `~/.local/share/turbo-zoo`), with the cache at `Home::artifacts` and the
 acceptance file at `Home::acceptances`; `UserId::from_env` reads `$USER`,
 else `$USERNAME`.
+
+### Other sources: a content-addressed store and a list of sources
+
+The zoo asks its transport for each file with `Transport::get_file`,
+which gets the artifact and the index's record of the file. By default
+it fetches the file's address, as before; a transport that finds files
+another way overrides it (#1613).
+
+- `Blobs::new(root)` is a content-addressed store on disk: each file,
+  unpacked, at `<root>/blobs/sha256/<hex>` of its SHA-256. The same
+  layout serves a zoo server's store, a library's local copy and an S3
+  bucket, so any one can seed another, and a key always names the bytes
+  the index pins. `Blobs::put(bytes)` keeps bytes under their own
+  SHA-256, written whole through a temporary name. As a transport it
+  serves a file by its SHA-256 alone, never by address, and refuses a
+  symlink or anything but a plain file.
+- `Sources::new().then(name, source)...` tries its sources in order for
+  each file and keeps the first answer that verifies by size, SHA-256
+  and SHA-512 (after the wire check, for a file served compressed); a
+  source that lacks the file, fails or serves other bytes passes the
+  request on. When none has it, the error names what each said. A
+  typical list is the local store, then a zoo server, then `Http`
+  for the index's own address.
+
+Whatever the source, the licence check runs first: no source is asked
+for an artifact whose terms the user has not accepted.
 
 ## Reading the index from OpenNLP
 

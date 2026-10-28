@@ -17,7 +17,7 @@ pub struct Fixture {
 /// of the name finder's dictionaries and patterns (`namefind`) or a
 /// hand-written Hunspell dictionary (`hunspell`), and `Runs` opens the
 /// directory.
-pub const FIXTURES: [Fixture; 110] = [
+pub const FIXTURES: [Fixture; 109] = [
     Fixture {
         file: "en-abbrev.bin",
         sha512: "759ab1defc61351f53cdd82a26e708789a225feb6e1ec0cfd6e2e54f35f67c14511f44d0eb73216f9d4c89c0fb26ea28fd6931a7c4f851d09ca487d0a39700fd",
@@ -109,10 +109,6 @@ pub const FIXTURES: [Fixture; 110] = [
     Fixture {
         file: "gazetteer-suppressions.txt",
         sha512: "50db213abd6c0dab3409a1e8ad77aee22bd05920f2fb23c393fccec01f342d128a336761acb8bb3df401549ad319cd6551ba3b06558e4d4cf0604025d1ef39d6",
-    },
-    Fixture {
-        file: "glossary-terms.tsv",
-        sha512: "9356e730339664c7fcbf3cd6c0aef6287ac07f0db2e13d03927a9c5f057305965cb13a1b0df0d5f5e5072a9dded43c07f406cfad9fcad5416d07fef80fb0623a",
     },
     Fixture {
         file: "en-detokenizer.xml",
