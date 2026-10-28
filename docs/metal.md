@@ -302,7 +302,8 @@ type:
   column in its row, from the table of the layer's base (global, or local
   on a sliding-window layer); V as is.
 - `EPILOGUE_GATED_GELU`, `EPILOGUE_GATED_SILU`: act(gate) * up into
-  column c / 2 of the intermediate-wide buffer, GELU by erf or SiLU.
+  column c / 2 of the intermediate-wide buffer, GELU by erf or SiLU,
+  clamped to `[-65504, 65504]` when the output is F16 (#1602).
 - `EPILOGUE_RESIDUAL`: the product added to the residual stream.
 
 Attention is BERT's with a window: on a sliding-window layer (layer l
@@ -323,7 +324,10 @@ choices (Kernel choices; `TURBO_METAL_CHOICES` forces them the same way),
 F16 operands and F32 sums: their inputs are the F32 residual stream or
 its norm, rounded to F16 as they are staged; Q, K and V come out in F16
 for `attention_h`, which takes the same window and gives a query with no
-live key in it a context of 0; the gated MLP's middle is F16. The
+live key in it a context of 0; the gated MLP's middle is F16, with
+products past F16's finite range (`65504`) clamped in `store_pair`
+before rounding to F16 so large gate-times-up activations saturate
+instead of overflowing to infinity (#1602). The
 residual stream, the norms and the residual adds stay F32.
 
 `core/tests/metal_gated.rs` holds the device to the CPU at MODEL and
