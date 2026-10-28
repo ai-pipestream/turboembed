@@ -92,6 +92,7 @@
           "weights/model.safetensors"
         ],
         "backends": [
+          "cuda",
           "cpu"
         ],
         "graph_input": "INPUT_TOKEN_IDS",

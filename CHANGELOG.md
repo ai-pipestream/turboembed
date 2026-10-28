@@ -49,6 +49,10 @@ gRPC service) build against. Everything below is new.
   product's epilogue over pair-adjacent weights, sliding-window attention
   over each block's band of keys, GeGLU and SwiGLU in one product, held to
   upstream on the sealed tiny bundles (#1544).
+- The CUDA encoder for ModernBERT and nomic-bert at MODEL (F32) and
+  FASTEST (F16 on the tensor cores): RoPE and the gated MLP in the GEMMs'
+  epilogues over pair-adjacent weights, sliding-window attention that
+  reads only each block's band of keys, held to the CPU (#1461).
 
 ### Not in this release yet
 
