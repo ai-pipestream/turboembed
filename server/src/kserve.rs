@@ -8,9 +8,10 @@ use std::sync::Arc;
 use bytes::Bytes;
 use tonic::{Request, Response, Status};
 use turbo::{
-    TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_DTYPE_I32, TURBO_EMBED_STAGE_COUNT, TURBO_PLACE_HOST,
-    TURBO_PLACE_PINNED, TURBO_PLACE_SHARED, TURBO_RERANK_STAGE_COUNT, TURBO_TASK_EMBED, TURBO_TASK_EXTRACTIVE_QA,
-    TURBO_TASK_RERANK, turbo_embed_options, turbo_result_info, turbo_session_info, turbo_token_batch,
+    TURBO_DTYPE_BF16, TURBO_DTYPE_F16, TURBO_DTYPE_F32, TURBO_DTYPE_I8, TURBO_DTYPE_I32, TURBO_DTYPE_U8,
+    TURBO_EMBED_STAGE_COUNT, TURBO_PLACE_HOST, TURBO_PLACE_PINNED, TURBO_PLACE_SHARED, TURBO_RERANK_STAGE_COUNT,
+    TURBO_TASK_EMBED, TURBO_TASK_EXTRACTIVE_QA, TURBO_TASK_RERANK, turbo_embed_options, turbo_result_info,
+    turbo_session_info, turbo_token_batch,
 };
 
 use crate::api::{self, *};
@@ -84,6 +85,8 @@ pub(crate) fn datatype(dtype: u32) -> Option<&'static str> {
         TURBO_DTYPE_F16 => Some("FP16"),
         TURBO_DTYPE_BF16 => Some("BF16"),
         TURBO_DTYPE_I32 => Some("INT32"),
+        TURBO_DTYPE_I8 => Some("INT8"),
+        TURBO_DTYPE_U8 => Some("UINT8"),
         _ => None,
     }
 }
@@ -198,7 +201,13 @@ fn infer_embed(
     let held = loaded.take()?;
     deadline.check_alive()?;
     let slot = held.slot();
-    let opts: &turbo_embed_options = &plan.opts;
+    let mut opts: turbo_embed_options = plan.opts;
+    if let Some(r) = &plan.int8_ranges {
+        // The library reads 2 x output_dim values: the table must be that wide.
+        let width = if opts.output_dim == 0 { loaded.model.info()?.dim } else { opts.output_dim };
+        opts.int8_ranges = r.for_width(width)?;
+    }
+    let opts = &opts;
     match &plan.rows {
         Rows::Texts(texts, _) => slot.session.write_text(texts, opts)?,
         Rows::Typed { batch, seq, ids, mask, types } => {
@@ -247,7 +256,12 @@ fn infer_embed(
         outputs: vec![InferOutputTensor {
             name: "vectors".into(),
             datatype: datatype.into(),
-            shape: vec![info.batch as i64, info.dim as i64],
+            // Packed bits are a row's bytes wide; the `dim` parameter
+            // still counts dimensions.
+            shape: vec![
+                info.batch as i64,
+                if info.dtype == TURBO_DTYPE_U8 { info.dim.div_ceil(8) } else { info.dim } as i64,
+            ],
             parameters: HashMap::new(),
             contents: None,
         }],
@@ -325,6 +339,7 @@ impl GrpcInferenceService for Inference {
                     tensor("ids", "INT32", &[-1, -1]),
                     tensor("mask", "INT32", &[-1, -1]),
                     tensor("types", "INT32", &[-1, -1]),
+                    tensor("int8_ranges", "FP32", &[2, -1]),
                 ],
                 vec![tensor("vectors", "FP32", &[-1, -1])],
             ),

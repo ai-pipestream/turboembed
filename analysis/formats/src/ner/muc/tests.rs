@@ -2,7 +2,7 @@ use super::*;
 use crate::ner::RuleTokenizer;
 
 fn read(source: &str) -> Vec<Result<String, String>> {
-    MucReader::new(source, &RuleTokenizer::default(), WhitespaceMode::Unicode)
+    MucReader::new(source, &RuleTokenizer::default())
         .unwrap()
         .map(|r| r.map(|s| s.to_string()).map_err(|e| e.to_string()))
         .collect()
@@ -27,8 +27,7 @@ fn double_closing_brackets_are_one() {
     // a `>` outside a tag is an error, so the replacement matters in
     // tags, and the spans after it still name the source
     let text = "<s>>a <ENAMEX TYPE=\"PERSON\">>b</ENAMEX></s>";
-    let samples: Vec<_> =
-        MucReader::new(text, &RuleTokenizer::default(), WhitespaceMode::Unicode).unwrap().map(Result::unwrap).collect();
+    let samples: Vec<_> = MucReader::new(text, &RuleTokenizer::default()).unwrap().map(Result::unwrap).collect();
     assert_eq!(samples[0].to_string(), "a <START:person> b <END>");
     let tokens = samples[0].tokens();
     assert_eq!(&text[tokens[1].span.range()], "b");
@@ -39,30 +38,27 @@ fn double_closing_brackets_are_one() {
 
 #[test]
 fn attributes_need_double_quotes() {
-    assert_eq!(type_attribute("<ENAMEX TYPE=\"PERSON\">", WhitespaceMode::Unicode).as_deref(), Some("PERSON"));
-    assert_eq!(type_attribute("<ENAMEX TYPE=PERSON>", WhitespaceMode::Unicode), None);
-    assert_eq!(
-        type_attribute("<ENAMEX TYPE=\"DATE\" TYPE=\"TIME\">", WhitespaceMode::Unicode).as_deref(),
-        Some("TIME")
-    );
+    assert_eq!(type_attribute("<ENAMEX TYPE=\"PERSON\">").as_deref(), Some("PERSON"));
+    assert_eq!(type_attribute("<ENAMEX TYPE=PERSON>"), None);
+    assert_eq!(type_attribute("<ENAMEX TYPE=\"DATE\" TYPE=\"TIME\">").as_deref(), Some("TIME"));
     // the space after `=` starts another key, which takes the quote
-    assert_eq!(type_attribute("<ENAMEX TYPE = \"MONEY\">", WhitespaceMode::Unicode), None);
-    assert_eq!(type_attribute("<ENAMEX TYPE =\"MONEY\">", WhitespaceMode::Unicode).as_deref(), Some("MONEY"));
-    assert_eq!(type_attribute("<ENAMEX\u{a0}TYPE=\"MONEY\">", WhitespaceMode::Unicode).as_deref(), Some("MONEY"));
-    assert_eq!(type_attribute("<ENAMEX\u{a0}TYPE=\"MONEY\">", WhitespaceMode::Legacy).as_deref(), Some("MONEY"));
-    assert_eq!(type_attribute("<ENAMEX\u{85}TYPE=\"MONEY\">", WhitespaceMode::Legacy), None);
+    assert_eq!(type_attribute("<ENAMEX TYPE = \"MONEY\">"), None);
+    assert_eq!(type_attribute("<ENAMEX TYPE =\"MONEY\">").as_deref(), Some("MONEY"));
+    assert_eq!(type_attribute("<ENAMEX\u{a0}TYPE=\"MONEY\">").as_deref(), Some("MONEY"));
+    // U+0085 is whitespace and starts a key; U+001C is part of the tag name.
+    assert_eq!(type_attribute("<ENAMEX\u{85}TYPE=\"MONEY\">").as_deref(), Some("MONEY"));
+    assert_eq!(type_attribute("<ENAMEX\u{1c}TYPE=\"MONEY\">"), None);
 }
 
 #[test]
 fn tag_names() {
-    let m = WhitespaceMode::Unicode;
-    assert_eq!(tag_name("<s>", m), "s");
-    assert_eq!(tag_name("</s>", m), "s");
-    assert_eq!(tag_name("<ENAMEX TYPE=\"X\">", m), "ENAMEX");
-    assert_eq!(tag_name("<>", m), "");
-    assert_eq!(tag_name("</>", m), "");
-    assert_eq!(tag_name("< s>", m), "");
-    assert_eq!(tag_name("<a/>", m), "a/");
+    assert_eq!(tag_name("<s>"), "s");
+    assert_eq!(tag_name("</s>"), "s");
+    assert_eq!(tag_name("<ENAMEX TYPE=\"X\">"), "ENAMEX");
+    assert_eq!(tag_name("<>"), "");
+    assert_eq!(tag_name("</>"), "");
+    assert_eq!(tag_name("< s>"), "");
+    assert_eq!(tag_name("<a/>"), "a/");
 }
 
 #[test]
@@ -111,9 +107,7 @@ fn nested_names_overlap() {
 fn documents_end_at_one_without_samples() {
     let t = RuleTokenizer::default();
     let read = |docs: &[&'static str]| -> Vec<Result<String, String>> {
-        MucSamples::new(docs.iter().copied(), &t, WhitespaceMode::Unicode)
-            .map(|r| r.map(|s| s.to_string()).map_err(|e| e.to_string()))
-            .collect()
+        MucSamples::new(docs.iter().copied(), &t).map(|r| r.map(|s| s.to_string()).map_err(|e| e.to_string())).collect()
     };
     assert_eq!(
         read(&["<s>a</s>", "<s", "<s>b</s>"]),
@@ -139,6 +133,6 @@ fn files_come_in_reverse_name_order() {
 #[test]
 fn errors_name_their_lines() {
     let text = "<s>a</s>\r\n\n<s>\rb <ENAMEX TYPE=\"X\">";
-    let e = MucReader::new(text, &RuleTokenizer::default(), WhitespaceMode::Unicode).unwrap().next().unwrap();
+    let e = MucReader::new(text, &RuleTokenizer::default()).unwrap().next().unwrap();
     assert_eq!(e.unwrap_err().line(), Some(4));
 }

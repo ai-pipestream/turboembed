@@ -17,7 +17,7 @@ use turbo_eval::lexical::{Lexical, Search, TermRule};
 use turbo_eval::{metrics, read, spans};
 use turbo_goldens::{hex::to_hex, sha256};
 use turbo_maxent::ModelFile;
-use turbo_sentdetect::{SentenceDetector, SentenceModel, WhitespaceMode};
+use turbo_sentdetect::{SentenceDetector, SentenceModel};
 use turbo_stem::{TermAnalyzer, TermAnnotator};
 
 const CORPUS_SHA: &str = "72a52a41193e2838b8074f80ac074b94f956b84886c36a61c58a7df4171bdd72";
@@ -112,7 +112,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if file.sha256().to_hex() != MODEL_SHA {
         return Err("sentence model checksum differs".into());
     }
-    let detector = SentenceDetector::new(SentenceModel::open(file)?, WhitespaceMode::Unicode);
+    let detector = SentenceDetector::new(SentenceModel::open(file)?);
     let term_step = TermAnnotator::for_language("en").unwrap();
     let lexical = LexicalBoundaries::default();
     let discourse = DiscourseBoundaries { language: DiscourseLanguage::English, discount: 1000 };

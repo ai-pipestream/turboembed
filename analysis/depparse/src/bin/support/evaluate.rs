@@ -6,7 +6,6 @@ use turbo_depparse::{
     DependencyParser, DependencyParserME, DependencySample, FeedforwardDependencyParser, HeldOutEvaluation,
 };
 use turbo_formats::conllu::{ConlluDependencySample, Tagset, words::ConlluWordReader};
-use turbo_unicode::WhitespaceMode;
 
 pub(super) fn run(model: Model, args: &[String], model_hash: &str) -> Result<()> {
     let input = fs::read_to_string(&args[3])?;
@@ -46,7 +45,6 @@ fn evaluate(parser: &impl DependencyParser<Words>, input: &str) -> Result<HeldOu
         let sample = DependencySample::<Words>::from_conllu(ConlluDependencySample::read_sentence(
             &input[span.start as usize..span.end as usize],
             Tagset::U,
-            WhitespaceMode::Unicode,
             ViewId::SOURCE,
         )?)?;
         let forms: Vec<_> = sample.tokens().iter().map(String::as_str).collect();

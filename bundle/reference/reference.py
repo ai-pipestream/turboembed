@@ -77,7 +77,13 @@ def main(model_dir, cases_path, out_path, produced_by_path):
             json.dump({"tool": "transformers", "tool_version": transformers.__version__,
                        "args": sys.argv[1:]}, f)
         return
-    model = SentenceTransformer(model_dir, device="cpu", local_files_only=True)
+    # The reference is fp32 on CPU (the Dockerfile's contract), so the
+    # weights load as float32 whatever dtype the checkpoint stores;
+    # a BF16 checkpoint otherwise computes in BF16, whose rows are
+    # batch-size dependent beyond the check below.
+    model = SentenceTransformer(
+        model_dir, device="cpu", local_files_only=True, model_kwargs={"torch_dtype": torch.float32}
+    )
     for module in model:
         if hasattr(module, "auto_model"):
             unused = check_loaded(module)

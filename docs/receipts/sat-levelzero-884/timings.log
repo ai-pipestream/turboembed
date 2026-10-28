@@ -1,0 +1,722 @@
+commit 1cc14855c2e0d8aa2c12a09434d36b46c56f527a; host: AMD Ryzen 9 9950X 16-Core Processor, 32 threads; release build
+== tiny at model, run 1, 2026-10-28T00:27:24Z, load 7.89 17.07 18.84 1/4145 3396719
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.6 ms a pass (fastest 5.5, slowest 5.9), 2965118 tokens/s, 8.79 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.5 ms a pass (fastest 5.5, slowest 5.5), 3005559 tokens/s, 8.91 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.34s
+load after 6.29 16.27 18.54 1/4183 3423365; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.2%; ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at model, run 2, 2026-10-28T00:27:42Z, load 6.29 16.27 18.54 2/4183 3423442
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 6.3 ms a pass (fastest 5.9, slowest 6.9), 2627983 tokens/s, 7.79 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.5 ms a pass (fastest 5.5, slowest 8.4), 2993409 tokens/s, 8.88 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+load after 4.74 15.26 18.16 1/4164 3449961; other B70 clients during the run: 
+== tiny at model, run 3, 2026-10-28T00:28:01Z, load 4.74 15.26 18.16 1/4164 3450038
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.6 ms a pass (fastest 5.6, slowest 6.3), 2924595 tokens/s, 8.67 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.5 ms a pass (fastest 5.5, slowest 8.5), 3009786 tokens/s, 8.93 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+load after 3.67 14.34 17.80 1/4159 3476531; other B70 clients during the run: 
+== tiny at model, run 4, 2026-10-28T00:28:19Z, load 3.67 14.34 17.80 1/4159 3476608
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.8 ms a pass (fastest 5.6, slowest 6.0), 2822807 tokens/s, 8.37 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.5 ms a pass (fastest 5.5, slowest 8.4), 3000718 tokens/s, 8.90 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+load after 3.09 13.69 17.53 1/4165 3503091; other B70 clients during the run: 
+== tiny at model, run 5, 2026-10-28T00:28:37Z, load 3.09 13.69 17.53 1/4165 3503168
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.6 ms a pass (fastest 5.4, slowest 5.9), 2921849 tokens/s, 8.67 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.5 ms a pass (fastest 5.5, slowest 7.5), 2990163 tokens/s, 8.87 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+load after 2.50 12.86 17.18 1/4168 3529724; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.8%; 
+== tiny at model, run 6, 2026-10-28T00:28:55Z, load 2.50 12.86 17.18 1/4168 3529801
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.8 ms a pass (fastest 5.6, slowest 6.5), 2839287 tokens/s, 8.42 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.5 ms a pass (fastest 5.5, slowest 8.4), 2982901 tokens/s, 8.85 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+load after 2.08 12.09 16.83 1/4173 3556328; other B70 clients during the run: gnome-shell ccs 0.0% rcs 1.0%; ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at model, run 7, 2026-10-28T00:29:13Z, load 2.08 12.09 16.83 3/4173 3556405
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 6.6 ms a pass (fastest 6.2, slowest 7.2), 2478901 tokens/s, 7.35 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.6 ms a pass (fastest 5.5, slowest 8.3), 2932748 tokens/s, 8.70 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+load after 1.85 11.55 16.58 1/4154 3582923; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at model, run 8, 2026-10-28T00:29:32Z, load 1.85 11.55 16.58 1/4154 3583000
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 6.1 ms a pass (fastest 5.9, slowest 6.4), 2715394 tokens/s, 8.05 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.6 ms a pass (fastest 5.5, slowest 9.1), 2952369 tokens/s, 8.76 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+load after 1.60 10.87 16.24 2/4177 3609576; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at model, run 9, 2026-10-28T00:29:50Z, load 1.60 10.87 16.24 1/4162 3609653
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.7 ms a pass (fastest 5.7, slowest 5.8), 2871136 tokens/s, 8.52 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.4 ms a pass (fastest 5.4, slowest 8.4), 3023831 tokens/s, 8.97 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+load after 1.36 10.21 15.91 1/4171 3636145; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; 
+== tiny at model, run 10, 2026-10-28T00:30:08Z, load 1.36 10.21 15.91 1/4171 3636222
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.8 ms a pass (fastest 5.8, slowest 6.3), 2829344 tokens/s, 8.39 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.5 ms a pass (fastest 5.5, slowest 9.1), 2999568 tokens/s, 8.90 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+load after 1.29 9.76 15.67 1/4161 3662710; other B70 clients during the run: 
+== tiny at model, run 11, 2026-10-28T00:30:26Z, load 1.29 9.76 15.67 1/4161 3662787
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.9 ms a pass (fastest 5.7, slowest 6.4), 2803185 tokens/s, 8.31 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.6 ms a pass (fastest 5.6, slowest 8.7), 2938527 tokens/s, 8.71 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+load after 1.36 9.22 15.37 1/4179 3689321; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at model, run 12, 2026-10-28T00:30:44Z, load 1.36 9.22 15.37 1/4179 3689398
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 6.3 ms a pass (fastest 5.8, slowest 7.0), 2594753 tokens/s, 7.70 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.5 ms a pass (fastest 5.5, slowest 9.0), 2986609 tokens/s, 8.86 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+load after 1.29 8.82 15.14 1/4161 3715911; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at model, run 13, 2026-10-28T00:31:02Z, load 1.29 8.82 15.14 1/4161 3715988
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.7 ms a pass (fastest 5.5, slowest 6.0), 2890656 tokens/s, 8.57 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.6 ms a pass (fastest 5.5, slowest 9.2), 2959590 tokens/s, 8.78 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+load after 1.14 8.30 14.83 1/4163 3742477; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at model, run 14, 2026-10-28T00:31:21Z, load 1.14 8.30 14.83 1/4163 3742554
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.9 ms a pass (fastest 5.7, slowest 6.5), 2814058 tokens/s, 8.35 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.7 ms a pass (fastest 5.5, slowest 9.1), 2901297 tokens/s, 8.60 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+load after 1.41 7.89 14.56 2/4180 3769632; other B70 clients during the run: gnome-shell ccs 0.0% rcs 1.8%; 
+== tiny at model, run 15, 2026-10-28T00:31:39Z, load 1.41 7.89 14.56 1/4180 3769709
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.8 ms a pass (fastest 5.6, slowest 5.9), 2852278 tokens/s, 8.46 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.5 ms a pass (fastest 5.5, slowest 10.1), 2990011 tokens/s, 8.87 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+load after 1.32 7.55 14.34 1/4175 3796265; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.8%; 
+== tiny at model, run 16, 2026-10-28T00:31:57Z, load 1.32 7.55 14.34 1/4175 3796342
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.8 ms a pass (fastest 5.7, slowest 5.8), 2833662 tokens/s, 8.40 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.5 ms a pass (fastest 5.5, slowest 8.6), 2981353 tokens/s, 8.84 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+load after 1.22 7.12 14.05 1/4167 3822854; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at model, run 17, 2026-10-28T00:32:15Z, load 1.22 7.12 14.05 1/4167 3822931
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 6.3 ms a pass (fastest 5.9, slowest 7.1), 2607926 tokens/s, 7.73 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.5 ms a pass (fastest 5.5, slowest 7.4), 2992254 tokens/s, 8.87 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+load after 1.25 6.74 13.78 1/4158 3849444; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at model, run 18, 2026-10-28T00:32:33Z, load 1.25 6.74 13.78 1/4158 3849521
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 6.5 ms a pass (fastest 6.5, slowest 6.8), 2517107 tokens/s, 7.47 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.5 ms a pass (fastest 5.5, slowest 9.1), 2999316 tokens/s, 8.90 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+load after 1.33 6.49 13.58 1/4157 3876016; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at model, run 19, 2026-10-28T00:32:51Z, load 1.33 6.49 13.58 1/4157 3876093
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.8 ms a pass (fastest 5.7, slowest 7.0), 2856488 tokens/s, 8.47 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.5 ms a pass (fastest 5.5, slowest 8.6), 2975948 tokens/s, 8.83 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+load after 1.24 6.14 13.31 1/4168 3902664; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at model, run 20, 2026-10-28T00:33:10Z, load 1.24 6.14 13.31 1/4168 3902741
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.8 ms a pass (fastest 5.7, slowest 6.0), 2838576 tokens/s, 8.42 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.6 ms a pass (fastest 5.5, slowest 8.5), 2962669 tokens/s, 8.79 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+load after 1.11 5.79 13.05 1/4155 3929298; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at fastest, run 1, 2026-10-28T00:33:28Z, load 1.11 5.79 13.05 1/4155 3929376
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.9 ms a pass (fastest 5.5, slowest 6.3), 2806440 tokens/s, 8.32 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.4 ms a pass (fastest 5.4, slowest 8.4), 3055224 tokens/s, 9.06 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+load after 1.01 5.54 12.85 1/4168 3955882; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at fastest, run 2, 2026-10-28T00:33:46Z, load 1.01 5.54 12.85 1/4168 3955959
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.7 ms a pass (fastest 5.7, slowest 5.8), 2878065 tokens/s, 8.54 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.4 ms a pass (fastest 5.4, slowest 9.0), 3035573 tokens/s, 9.00 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+load after 0.94 5.23 12.59 1/4156 3982476; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%; 
+== tiny at fastest, run 3, 2026-10-28T00:34:04Z, load 0.94 5.23 12.59 1/4156 3982553
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 6.6 ms a pass (fastest 6.0, slowest 7.2), 2482597 tokens/s, 7.36 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.4 ms a pass (fastest 5.4, slowest 8.9), 3034194 tokens/s, 9.00 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+load after 0.89 5.00 12.40 1/4149 4009044; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at fastest, run 4, 2026-10-28T00:34:22Z, load 0.89 5.00 12.40 3/4149 4009121
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 7.0 ms a pass (fastest 6.2, slowest 7.6), 2354591 tokens/s, 6.98 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.4 ms a pass (fastest 5.4, slowest 9.1), 3030210 tokens/s, 8.99 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+load after 0.91 4.74 12.15 1/4167 4035637; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at fastest, run 5, 2026-10-28T00:34:40Z, load 0.91 4.74 12.15 1/4167 4035714
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.8 ms a pass (fastest 5.6, slowest 6.8), 2818687 tokens/s, 8.36 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.5 ms a pass (fastest 5.4, slowest 9.0), 3019376 tokens/s, 8.95 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+load after 0.87 4.48 11.91 1/4156 4062264; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at fastest, run 6, 2026-10-28T00:34:58Z, load 0.87 4.48 11.91 1/4156 4062341
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 6.3 ms a pass (fastest 5.8, slowest 6.8), 2599181 tokens/s, 7.71 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.4 ms a pass (fastest 5.4, slowest 8.9), 3033337 tokens/s, 9.00 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+load after 0.91 4.31 11.73 1/4152 4088827; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at fastest, run 7, 2026-10-28T00:35:16Z, load 0.91 4.31 11.73 1/4152 4088904
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.9 ms a pass (fastest 5.8, slowest 6.9), 2768376 tokens/s, 8.21 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.6 ms a pass (fastest 5.5, slowest 8.5), 2962247 tokens/s, 8.79 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+load after 1.18 4.15 11.52 4/4228 4115914; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at fastest, run 8, 2026-10-28T00:35:35Z, load 1.18 4.15 11.52 3/4228 4115991
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 6.1 ms a pass (fastest 5.9, slowest 6.6), 2714026 tokens/s, 8.05 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.6 ms a pass (fastest 5.5, slowest 8.5), 2935624 tokens/s, 8.71 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+load after 1.46 4.06 11.37 11/4241 4143287; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at fastest, run 9, 2026-10-28T00:35:53Z, load 2.15 4.16 11.36 10/4242 4143365
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 6.2 ms a pass (fastest 5.9, slowest 7.2), 2638934 tokens/s, 7.83 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.6 ms a pass (fastest 5.6, slowest 9.1), 2945411 tokens/s, 8.74 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+load after 3.81 4.43 11.34 3/4230 4174347; other B70 clients during the run: 
+== tiny at fastest, run 10, 2026-10-28T00:36:12Z, load 3.81 4.43 11.34 3/4230 4174424
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 7.3 ms a pass (fastest 6.8, slowest 8.2), 2263070 tokens/s, 6.71 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.8 ms a pass (fastest 5.7, slowest 9.3), 2846310 tokens/s, 8.44 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.35s
+load after 5.39 4.73 11.29 11/4262 14612; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at fastest, run 11, 2026-10-28T00:36:31Z, load 5.39 4.73 11.29 11/4262 14689
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 6.6 ms a pass (fastest 5.9, slowest 7.9), 2498586 tokens/s, 7.41 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.6 ms a pass (fastest 5.6, slowest 9.1), 2955603 tokens/s, 8.77 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+load after 6.16 4.97 11.23 4/4229 42655; other B70 clients during the run: 
+== tiny at fastest, run 12, 2026-10-28T00:36:49Z, load 6.16 4.97 11.23 4/4228 42737
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 6.2 ms a pass (fastest 5.8, slowest 6.6), 2644497 tokens/s, 7.84 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.5 ms a pass (fastest 5.5, slowest 8.7), 2971401 tokens/s, 8.81 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+load after 5.32 4.84 11.08 2/4210 69474; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%; 
+== tiny at fastest, run 13, 2026-10-28T00:37:06Z, load 5.32 4.84 11.08 2/4210 69551
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 7.2 ms a pass (fastest 5.9, slowest 10.0), 2294357 tokens/s, 6.80 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.7 ms a pass (fastest 5.5, slowest 9.8), 2864884 tokens/s, 8.50 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.36s
+load after 5.93 4.97 10.99 9/4214 99787; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at fastest, run 14, 2026-10-28T00:37:25Z, load 5.93 4.97 10.99 9/4214 99864
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 6.1 ms a pass (fastest 6.0, slowest 8.4), 2712969 tokens/s, 8.05 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.5 ms a pass (fastest 5.5, slowest 9.1), 2988580 tokens/s, 8.86 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+load after 6.12 5.07 10.93 4/4211 128641; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at fastest, run 15, 2026-10-28T00:37:42Z, load 6.12 5.07 10.93 4/4211 128718
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 6.0 ms a pass (fastest 5.8, slowest 6.2), 2765818 tokens/s, 8.20 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.5 ms a pass (fastest 5.5, slowest 9.0), 3000104 tokens/s, 8.90 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+load after 5.22 4.93 10.76 2/4193 155219; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at fastest, run 16, 2026-10-28T00:37:59Z, load 5.22 4.93 10.76 2/4193 155296
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 6.1 ms a pass (fastest 6.0, slowest 6.7), 2680989 tokens/s, 7.95 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.4 ms a pass (fastest 5.4, slowest 8.3), 3036711 tokens/s, 9.01 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.36s
+load after 4.43 4.77 10.61 1/4128 182270; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at fastest, run 17, 2026-10-28T00:38:17Z, load 4.43 4.77 10.61 1/4128 182347
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 7.1 ms a pass (fastest 6.0, slowest 7.6), 2333519 tokens/s, 6.92 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.5 ms a pass (fastest 5.4, slowest 9.0), 3006268 tokens/s, 8.92 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+load after 3.59 4.56 10.41 1/4168 209024; other B70 clients during the run: 
+== tiny at fastest, run 18, 2026-10-28T00:38:35Z, load 3.59 4.56 10.41 1/4168 209101
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.7 ms a pass (fastest 5.6, slowest 6.3), 2902670 tokens/s, 8.61 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.5 ms a pass (fastest 5.4, slowest 8.4), 2996248 tokens/s, 8.89 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+load after 2.79 4.31 10.21 1/4151 235613; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at fastest, run 19, 2026-10-28T00:38:53Z, load 2.79 4.31 10.21 1/4151 235690
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.9 ms a pass (fastest 5.7, slowest 6.3), 2782598 tokens/s, 8.25 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.5 ms a pass (fastest 5.5, slowest 8.5), 2997002 tokens/s, 8.89 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s
+load after 2.32 4.13 10.05 1/4168 262182; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== tiny at fastest, run 20, 2026-10-28T00:39:11Z, load 2.32 4.13 10.05 2/4168 262259
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+tiny-sat-bundle on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 6.4 ms a pass (fastest 5.7, slowest 7.0), 2556234 tokens/s, 7.58 MB/s, 9220 sentences
+tiny-sat-bundle on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 16464 tokens, block 62 stride 62: median of 7 5.4 ms a pass (fastest 5.4, slowest 8.4), 3037009 tokens/s, 9.01 MB/s, 9220 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+load after 1.94 3.93 9.86 1/4154 288745; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 1, 2026-10-28T00:39:30Z, load 1.94 3.93 9.86 1/4154 288823
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 1.74 3.79 9.72 1/4160 315259; other B70 clients during the run: 
+== sat-1l-sm at model, run 2, 2026-10-28T00:39:47Z, load 1.74 3.79 9.72 2/4160 315336
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 1.46 3.59 9.53 1/4161 342837; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 3, 2026-10-28T00:40:05Z, load 1.46 3.59 9.53 1/4161 342915
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 1.34 3.42 9.34 1/4155 369406; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 4, 2026-10-28T00:40:23Z, load 1.34 3.42 9.34 1/4154 369483
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 1.19 3.28 9.20 1/4170 395890; other B70 clients during the run: 
+== sat-1l-sm at model, run 5, 2026-10-28T00:40:41Z, load 1.19 3.28 9.20 1/4170 395967
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 1.07 3.12 9.02 1/4157 422445; other B70 clients during the run: 
+== sat-1l-sm at model, run 6, 2026-10-28T00:40:59Z, load 1.07 3.12 9.02 1/4157 422522
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 0.99 3.00 8.89 1/4158 448951; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 7, 2026-10-28T00:41:16Z, load 0.99 3.00 8.89 1/4158 449028
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 1.06 2.88 8.72 1/4156 475481; other B70 clients during the run: 
+== sat-1l-sm at model, run 8, 2026-10-28T00:41:34Z, load 1.06 2.88 8.72 1/4156 475558
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 1.22 2.83 8.61 1/4281 502447; other B70 clients during the run: 
+== sat-1l-sm at model, run 9, 2026-10-28T00:41:52Z, load 1.22 2.83 8.61 1/4281 502524
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 1.15 2.71 8.45 1/4262 529549; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 10, 2026-10-28T00:42:10Z, load 1.15 2.71 8.45 1/4262 529626
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 1.31 2.64 8.30 2/4235 556283; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 11, 2026-10-28T00:42:28Z, load 1.31 2.64 8.30 3/4235 556360
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 6.33 3.66 8.52 11/4298 593770; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 12, 2026-10-28T00:42:52Z, load 6.33 3.66 8.52 10/4298 593849
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 10.95 4.99 8.83 16/4276 629427; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 13, 2026-10-28T00:43:15Z, load 10.95 4.99 8.83 13/4276 629504
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 9.55 4.97 8.76 6/4216 657010; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 14, 2026-10-28T00:43:32Z, load 9.55 4.97 8.76 5/4213 657087
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 8.38 4.99 8.69 8/4216 684663; other B70 clients during the run: 
+== sat-1l-sm at model, run 15, 2026-10-28T00:43:50Z, load 8.38 4.99 8.69 8/4216 684740
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 7.39 4.94 8.61 3/4218 711321; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 16, 2026-10-28T00:44:07Z, load 7.39 4.94 8.61 3/4218 711398
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 6.85 4.97 8.54 8/4213 738167; other B70 clients during the run: 
+== sat-1l-sm at model, run 17, 2026-10-28T00:44:24Z, load 6.85 4.97 8.54 8/4213 738244
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 6.43 4.97 8.48 5/4202 765016; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 18, 2026-10-28T00:44:41Z, load 6.43 4.97 8.48 5/4202 765093
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 5.58 4.87 8.37 3/4183 791624; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 19, 2026-10-28T00:44:58Z, load 5.58 4.87 8.37 3/4183 791701
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 5.02 4.78 8.29 2/4185 818179; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 20, 2026-10-28T00:45:15Z, load 5.02 4.78 8.29 2/4185 818256
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 4.28 4.63 8.18 1/4165 844844; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 1, 2026-10-28T00:45:32Z, load 4.28 4.63 8.18 2/4165 844922
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 3.35 4.39 8.03 1/4148 871623; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 2, 2026-10-28T00:45:50Z, load 3.35 4.39 8.03 1/4148 871700
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 2.98 4.26 7.92 2/4287 898669; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 3, 2026-10-28T00:46:07Z, load 2.98 4.26 7.92 2/4287 898746
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 2.49 4.06 7.78 2/4271 925227; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 4, 2026-10-28T00:46:25Z, load 2.49 4.06 7.78 1/4271 925304
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 2.41 3.94 7.66 1/4269 952929; other B70 clients during the run: 
+== sat-1l-sm at fastest, run 5, 2026-10-28T00:46:43Z, load 2.41 3.94 7.66 2/4269 953006
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 6.06 4.62 7.80 12/4266 984933; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 6, 2026-10-28T00:47:04Z, load 6.06 4.62 7.80 12/4266 985011
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 9.84 5.59 8.05 16/4244 1016259; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 7, 2026-10-28T00:47:24Z, load 9.84 5.59 8.05 16/4244 1016336
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 8.96 5.61 8.02 8/4245 1043521; other B70 clients during the run: 
+== sat-1l-sm at fastest, run 8, 2026-10-28T00:47:41Z, load 8.96 5.61 8.02 10/4251 1043606
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 7.34 5.45 7.92 7/4214 1072288; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 9, 2026-10-28T00:47:59Z, load 7.34 5.45 7.92 7/4214 1072366
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 7.18 5.51 7.90 3/4190 1099205; other B70 clients during the run: 
+== sat-1l-sm at fastest, run 10, 2026-10-28T00:48:16Z, load 7.18 5.51 7.90 3/4190 1099282
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 6.01 5.35 7.79 2/4347 1126495; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 11, 2026-10-28T00:48:33Z, load 6.01 5.35 7.79 2/4347 1126572
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 6.92 5.58 7.83 5/4336 1153728; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 12, 2026-10-28T00:48:52Z, load 6.92 5.58 7.83 5/4336 1153805
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 6.31 5.52 7.76 5/4320 1180746; other B70 clients during the run: 
+== sat-1l-sm at fastest, run 13, 2026-10-28T00:49:09Z, load 6.31 5.52 7.76 4/4320 1180823
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 13.13 7.18 8.24 27/4397 1228057; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.5%; ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 14, 2026-10-28T00:49:39Z, load 13.13 7.18 8.24 21/4385 1228137
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 24.63 10.98 9.47 20/4446 1278507; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 15, 2026-10-28T00:50:25Z, load 24.63 10.98 9.47 21/4445 1278593
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 19.39 10.66 9.39 10/4317 1309537; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 16, 2026-10-28T00:50:45Z, load 19.39 10.66 9.39 9/4318 1309615
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 15.65 10.35 9.32 14/4366 1343684; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 17, 2026-10-28T00:51:05Z, load 15.65 10.35 9.32 14/4366 1343764
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 12.18 9.90 9.19 3/4250 1373485; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 18, 2026-10-28T00:51:24Z, load 12.18 9.90 9.19 3/4250 1373562
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 10.40 9.63 9.11 7/4252 1400948; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 19, 2026-10-28T00:51:41Z, load 10.40 9.63 9.11 7/4252 1401025
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 9.46 9.47 9.07 6/4386 1428318; other B70 clients during the run: 
+== sat-1l-sm at fastest, run 20, 2026-10-28T00:51:58Z, load 9.46 9.47 9.07 5/4386 1428395
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+load after 8.95 9.35 9.04 4/4355 1456385; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+commit 1cc14855c2e0d8aa2c12a09434d36b46c56f527a; host: AMD Ryzen 9 9950X 16-Core Processor, 32 threads; release build
+== sat-1l-sm at model, run 1, 2026-10-28T00:54:32Z, load 7.59 9.09 9.01 9/4252 1503080
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 207.1 ms a pass (fastest 206.3, slowest 208.2), 56063 tokens/s, 0.24 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 61.0 ms a pass (fastest 60.0, slowest 68.0), 190348 tokens/s, 0.80 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.67s
+load after 6.08 8.60 8.85 2/4232 1529880; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.4%; ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 2, 2026-10-28T00:55:01Z, load 6.08 8.60 8.85 3/4232 1529957
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 198.7 ms a pass (fastest 197.2, slowest 199.9), 58439 tokens/s, 0.25 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 63.7 ms a pass (fastest 62.0, slowest 63.7), 182315 tokens/s, 0.77 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.07s
+load after 4.26 7.92 8.61 1/4196 1556981; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 3, 2026-10-28T00:55:29Z, load 4.26 7.92 8.61 1/4196 1557058
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 204.6 ms a pass (fastest 203.3, slowest 206.3), 56761 tokens/s, 0.24 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 63.8 ms a pass (fastest 63.0, slowest 64.7), 181944 tokens/s, 0.77 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.27s
+load after 6.06 7.94 8.59 2/4385 1584443; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 4, 2026-10-28T00:55:58Z, load 6.06 7.94 8.59 3/4385 1584520
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 207.0 ms a pass (fastest 202.6, slowest 208.5), 56095 tokens/s, 0.24 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 64.2 ms a pass (fastest 63.6, slowest 74.0), 180892 tokens/s, 0.76 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.27s
+load after 7.82 8.11 8.62 4/4340 1612246; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 5, 2026-10-28T00:56:28Z, load 7.82 8.11 8.62 4/4340 1612323
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 293.0 ms a pass (fastest 277.6, slowest 298.6), 39626 tokens/s, 0.17 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 69.2 ms a pass (fastest 67.0, slowest 72.3), 167837 tokens/s, 0.71 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.92s
+load after 13.30 9.27 8.98 55/4516 1654482; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 6, 2026-10-28T00:57:04Z, load 13.30 9.27 8.98 29/4512 1654598
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 283.2 ms a pass (fastest 269.1, slowest 296.3), 41009 tokens/s, 0.17 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 70.6 ms a pass (fastest 68.0, slowest 85.9), 164578 tokens/s, 0.69 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.55s
+load after 30.26 15.24 11.07 16/4373 1717179; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.7%; ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 7, 2026-10-28T00:58:04Z, load 30.26 15.24 11.07 20/4374 1717258
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 268.2 ms a pass (fastest 254.5, slowest 284.9), 43294 tokens/s, 0.18 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 68.3 ms a pass (fastest 63.8, slowest 75.8), 170082 tokens/s, 0.72 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 13.86s
+load after 22.23 14.85 11.09 12/4481 1755271; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.8%; ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 8, 2026-10-28T00:58:39Z, load 22.23 14.85 11.09 12/4481 1755348
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 246.8 ms a pass (fastest 231.2, slowest 267.2), 47054 tokens/s, 0.20 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 69.5 ms a pass (fastest 62.1, slowest 79.4), 167164 tokens/s, 0.70 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 13.43s
+load after 21.71 15.47 11.45 38/4528 1794340; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.7%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 9, 2026-10-28T00:59:18Z, load 21.71 15.47 11.45 37/4517 1794429
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 258.4 ms a pass (fastest 255.2, slowest 264.7), 44939 tokens/s, 0.19 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 68.7 ms a pass (fastest 63.4, slowest 73.3), 169008 tokens/s, 0.71 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 14.82s
+load after 26.29 17.32 12.22 9/4323 1828399; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.8%; ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 10, 2026-10-28T00:59:57Z, load 26.29 17.32 12.22 8/4323 1828476
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 220.8 ms a pass (fastest 217.6, slowest 226.7), 52591 tokens/s, 0.22 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 65.1 ms a pass (fastest 62.1, slowest 71.8), 178388 tokens/s, 0.75 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.34s
+load after 21.45 16.92 12.25 7/4359 1856983; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.8%; ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 11, 2026-10-28T01:00:28Z, load 21.45 16.92 12.25 6/4359 1857060
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 268.9 ms a pass (fastest 260.5, slowest 285.8), 43179 tokens/s, 0.18 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 69.0 ms a pass (fastest 65.4, slowest 77.3), 168397 tokens/s, 0.71 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 14.61s
+load after 19.00 16.92 12.44 16/4447 1902575; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 12, 2026-10-28T01:01:07Z, load 19.00 16.92 12.44 17/4452 1902657
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 297.6 ms a pass (fastest 275.9, slowest 304.1), 39021 tokens/s, 0.16 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 69.7 ms a pass (fastest 68.5, slowest 79.7), 166571 tokens/s, 0.70 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 14.00s
+load after 17.27 16.67 12.52 16/4487 1941650; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 13, 2026-10-28T01:01:43Z, load 17.27 16.67 12.52 36/4487 1941729
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 321.0 ms a pass (fastest 311.1, slowest 332.3), 36169 tokens/s, 0.15 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 67.7 ms a pass (fastest 62.9, slowest 69.1), 171496 tokens/s, 0.72 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 14.75s
+load after 17.40 16.76 12.73 5/4341 1992656; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 14, 2026-10-28T01:02:22Z, load 17.40 16.76 12.73 5/4341 1992733
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 251.8 ms a pass (fastest 241.9, slowest 268.9), 46121 tokens/s, 0.19 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 70.8 ms a pass (fastest 65.7, slowest 83.5), 164018 tokens/s, 0.69 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 13.20s
+load after 15.76 16.33 12.75 12/4370 2027560; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 15, 2026-10-28T01:02:58Z, load 15.76 16.33 12.75 28/4355 2027637
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 233.6 ms a pass (fastest 230.0, slowest 240.9), 49719 tokens/s, 0.21 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 66.1 ms a pass (fastest 64.3, slowest 74.7), 175622 tokens/s, 0.74 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.52s
+load after 13.42 15.70 12.66 9/4252 2059413; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 16, 2026-10-28T01:03:30Z, load 13.42 15.70 12.66 8/4252 2059490
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 228.6 ms a pass (fastest 226.8, slowest 236.5), 50799 tokens/s, 0.21 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 66.4 ms a pass (fastest 65.1, slowest 74.9), 174788 tokens/s, 0.73 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.30s
+load after 8.99 14.41 12.32 1/4262 2094900; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 17, 2026-10-28T01:04:02Z, load 8.99 14.41 12.32 1/4262 2094977
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 195.5 ms a pass (fastest 193.8, slowest 196.1), 59384 tokens/s, 0.25 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 64.7 ms a pass (fastest 63.8, slowest 73.8), 179418 tokens/s, 0.75 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.07s
+load after 5.84 13.13 11.96 1/4178 2122704; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 18, 2026-10-28T01:04:31Z, load 5.84 13.13 11.96 1/4179 2122782
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 198.0 ms a pass (fastest 197.5, slowest 199.0), 58633 tokens/s, 0.25 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 63.6 ms a pass (fastest 62.2, slowest 70.4), 182678 tokens/s, 0.77 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.99s
+load after 3.88 11.95 11.60 1/4161 2149412; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 19, 2026-10-28T01:05:00Z, load 3.88 11.95 11.60 1/4161 2149489
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 198.5 ms a pass (fastest 197.4, slowest 200.6), 58506 tokens/s, 0.25 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 63.6 ms a pass (fastest 63.1, slowest 64.4), 182591 tokens/s, 0.77 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.27s
+load after 2.68 10.89 11.26 1/4164 2176088; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at model, run 20, 2026-10-28T01:05:29Z, load 2.68 10.89 11.26 1/4164 2176165
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=model TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 202.8 ms a pass (fastest 201.5, slowest 204.4), 57261 tokens/s, 0.24 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 63.6 ms a pass (fastest 59.9, slowest 73.5), 182501 tokens/s, 0.77 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.36s
+load after 4.61 10.51 11.12 1/4168 2202913; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.8%; ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 1, 2026-10-28T01:05:58Z, load 4.61 10.51 11.12 1/4168 2202991
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 198.9 ms a pass (fastest 197.7, slowest 199.6), 58390 tokens/s, 0.25 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 33.9 ms a pass (fastest 33.7, slowest 36.0), 342169 tokens/s, 1.44 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.76s
+load after 5.93 10.28 11.02 1/4168 2229686; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.2%; ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 2, 2026-10-28T01:06:27Z, load 5.93 10.28 11.02 1/4168 2229763
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 198.9 ms a pass (fastest 197.9, slowest 200.5), 58368 tokens/s, 0.25 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 35.5 ms a pass (fastest 33.9, slowest 36.2), 327441 tokens/s, 1.38 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.72s
+load after 3.93 9.38 10.70 1/4166 2256410; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 3, 2026-10-28T01:06:56Z, load 3.93 9.38 10.70 1/4166 2256487
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 198.5 ms a pass (fastest 198.2, slowest 201.1), 58505 tokens/s, 0.25 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 34.0 ms a pass (fastest 33.9, slowest 35.9), 341324 tokens/s, 1.44 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.73s
+load after 2.72 8.56 10.38 1/4171 2283089; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 4, 2026-10-28T01:07:24Z, load 2.72 8.56 10.38 1/4171 2283166
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 194.3 ms a pass (fastest 193.6, slowest 196.1), 59759 tokens/s, 0.25 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 35.2 ms a pass (fastest 34.1, slowest 39.0), 330086 tokens/s, 1.39 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.69s
+load after 4.56 8.45 10.29 1/4161 2309829; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 5, 2026-10-28T01:07:53Z, load 4.56 8.45 10.29 1/4161 2309906
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 194.0 ms a pass (fastest 193.3, slowest 194.7), 59852 tokens/s, 0.25 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 35.4 ms a pass (fastest 34.8, slowest 37.6), 328034 tokens/s, 1.38 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.66s
+load after 5.58 8.24 10.16 1/4160 2336514; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 6, 2026-10-28T01:08:21Z, load 5.58 8.24 10.16 1/4160 2336591
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 198.5 ms a pass (fastest 197.8, slowest 199.7), 58497 tokens/s, 0.25 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 34.2 ms a pass (fastest 33.7, slowest 36.4), 339635 tokens/s, 1.43 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.70s
+load after 3.72 7.53 9.86 1/4160 2363188; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 7, 2026-10-28T01:08:50Z, load 3.72 7.53 9.86 1/4160 2363265
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 194.3 ms a pass (fastest 193.5, slowest 194.8), 59749 tokens/s, 0.25 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 35.0 ms a pass (fastest 34.1, slowest 40.2), 331422 tokens/s, 1.39 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.70s
+load after 2.71 6.92 9.58 1/4164 2389873; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 8, 2026-10-28T01:09:18Z, load 2.71 6.92 9.58 4/4164 2389950
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 197.6 ms a pass (fastest 196.8, slowest 199.3), 58769 tokens/s, 0.25 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 33.9 ms a pass (fastest 33.6, slowest 36.0), 342879 tokens/s, 1.44 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.02s
+load after 4.71 6.97 9.53 1/4139 2416562; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 9, 2026-10-28T01:09:47Z, load 4.71 6.97 9.53 1/4139 2416639
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 193.4 ms a pass (fastest 192.9, slowest 198.2), 60051 tokens/s, 0.25 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 35.5 ms a pass (fastest 34.7, slowest 41.3), 327045 tokens/s, 1.38 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.70s
+load after 3.25 6.40 9.25 2/4143 2443285; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 10, 2026-10-28T01:10:16Z, load 3.25 6.40 9.25 1/4142 2443362
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 202.9 ms a pass (fastest 201.4, slowest 204.0), 57223 tokens/s, 0.24 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 34.6 ms a pass (fastest 33.5, slowest 38.9), 335967 tokens/s, 1.41 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.82s
+load after 2.37 5.89 8.99 1/4161 2470005; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.6%; ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 11, 2026-10-28T01:10:45Z, load 2.37 5.89 8.99 3/4161 2470082
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 198.0 ms a pass (fastest 197.0, slowest 199.5), 58646 tokens/s, 0.25 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 34.9 ms a pass (fastest 33.0, slowest 37.2), 332905 tokens/s, 1.40 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.05s
+load after 1.78 5.40 8.73 1/4159 2496719; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 12, 2026-10-28T01:11:14Z, load 1.78 5.40 8.73 1/4159 2496796
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 197.9 ms a pass (fastest 197.5, slowest 199.5), 58674 tokens/s, 0.25 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 33.7 ms a pass (fastest 33.6, slowest 36.2), 344393 tokens/s, 1.45 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.72s
+load after 4.00 5.56 8.69 1/4151 2523416; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 13, 2026-10-28T01:11:42Z, load 4.00 5.56 8.69 1/4151 2523493
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 194.2 ms a pass (fastest 193.2, slowest 195.2), 59792 tokens/s, 0.25 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 37.2 ms a pass (fastest 34.7, slowest 40.5), 311992 tokens/s, 1.31 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.72s
+load after 2.76 5.11 8.44 1/4157 2550149; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 14, 2026-10-28T01:12:11Z, load 2.76 5.11 8.44 1/4157 2550226
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 198.0 ms a pass (fastest 197.5, slowest 199.6), 58651 tokens/s, 0.25 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 33.8 ms a pass (fastest 33.0, slowest 36.8), 343585 tokens/s, 1.44 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.83s
+load after 2.01 4.70 8.19 1/4155 2576838; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 15, 2026-10-28T01:12:39Z, load 2.01 4.70 8.19 1/4155 2576915
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 194.4 ms a pass (fastest 193.5, slowest 195.4), 59744 tokens/s, 0.25 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 35.3 ms a pass (fastest 34.6, slowest 37.5), 328685 tokens/s, 1.38 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.67s
+load after 3.92 4.85 8.13 1/4158 2603575; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 16, 2026-10-28T01:13:08Z, load 3.92 4.85 8.13 1/4158 2603652
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 198.2 ms a pass (fastest 197.4, slowest 201.4), 58594 tokens/s, 0.25 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 34.5 ms a pass (fastest 33.3, slowest 37.1), 336142 tokens/s, 1.41 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.99s
+load after 5.55 5.09 8.12 1/4157 2630341; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 17, 2026-10-28T01:13:37Z, load 5.55 5.09 8.12 1/4157 2630418
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 197.9 ms a pass (fastest 196.8, slowest 198.7), 58675 tokens/s, 0.25 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 35.0 ms a pass (fastest 33.3, slowest 37.3), 331485 tokens/s, 1.39 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.69s
+load after 3.70 4.68 7.89 1/4151 2657058; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 18, 2026-10-28T01:14:05Z, load 3.70 4.68 7.89 1/4151 2657135
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 194.7 ms a pass (fastest 194.3, slowest 196.1), 59635 tokens/s, 0.25 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 35.2 ms a pass (fastest 33.6, slowest 37.4), 329613 tokens/s, 1.39 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.98s
+load after 2.64 4.33 7.66 1/4153 2683783; other B70 clients during the run: ChatGPT ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 19, 2026-10-28T01:14:34Z, load 2.64 4.33 7.66 1/4153 2683860
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 198.5 ms a pass (fastest 197.2, slowest 200.2), 58490 tokens/s, 0.25 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 34.0 ms a pass (fastest 33.7, slowest 38.7), 341683 tokens/s, 1.44 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.00s
+load after 4.22 4.50 7.61 1/4149 2710488; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; kitty ccs 0.0% rcs 0.0%; 
+== sat-1l-sm at fastest, run 20, 2026-10-28T01:15:03Z, load 4.22 4.50 7.61 1/4149 2710565
+B70 compute clients: none; B70 runner build/test processes: 0
+command: TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest TURBO_SPEED_RUNS=7 TURBO_SAT_BUNDLE=<sat-1l-sm> cargo test --release --locked -p turbo-sat --features turbo/levelzero --test speed -- --ignored --nocapture
+sat-1l-sm on Some(Execution { backend: "cpu", device: "AMD Ryzen 9 9950X 16-Core Processor", precision: "f32 (model)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 198.2 ms a pass (fastest 197.7, slowest 198.5), 58583 tokens/s, 0.25 MB/s, 676 sentences
+sat-1l-sm on Some(Execution { backend: "levelzero", device: "Intel(R) Arc(TM) Pro B70 Graphics", precision: "f16 (fastest)" }): 36 documents, 48828 bytes, 11612 tokens, block 510 stride 64: median of 7 33.9 ms a pass (fastest 33.7, slowest 36.3), 342813 tokens/s, 1.44 MB/s, 676 sentences
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.72s
+load after 5.79 4.77 7.61 2/4156 2737230; other B70 clients during the run: gnome-shell ccs 0.0% rcs 0.0%; ChatGPT ccs 0.0% rcs 0.0%; 

@@ -7,10 +7,11 @@ project-owned prebuilt file. Compile once with:
 cargo run --locked --release -p turbo-tokenize --example compile_lattice -- SOURCE dictionary.tlat
 ```
 
-Add `legacy` as the final argument for `WhitespaceMode::Legacy`. The default
-is Unicode whitespace. `MecabDictionary::load(path, whitespace)` detects a
-file and checks that its stored whitespace policy matches the requested
-policy. `load_prebuilt(path, limits)` reads and validates the stored policy.
+`MecabDictionary::load(path)` detects a prebuilt file and loads it;
+`load_prebuilt(path, limits)` reads one directly. Both check the stored
+whitespace policy, which is always 1 (Unicode `White_Space`): a file that
+records any other value is refused with
+`PrebuiltError::UnsupportedWhitespace`.
 The existing source loader remains supported. This format does not read
 MeCab's `sys.dic` or change its dictionary licensing requirements.
 
@@ -46,7 +47,7 @@ zero padding. The current reader rejects big-endian hosts and unaligned
 external storage. Source loading remains available on those hosts.
 
 The 512-byte header starts with `TLATTICE` (eight bytes), version `u32`,
-endian marker `0x01020304`, whitespace policy `u32` (Legacy 0, Unicode 1),
+endian marker `0x01020304`, whitespace policy `u32` (always 1, Unicode `White_Space`),
 lexicon count, matrix rows and columns, default character category and
 fallback assignment (all `u32`). Bytes 40..72 hold the source manifest
 SHA-256. Bytes 72..312 hold fifteen `(offset: u64, length: u64)` pairs.
@@ -92,7 +93,7 @@ byte offsets, readings, unknown flags and tie order are preserved.
 
 `lattice_prebuilt.rs` checks deterministic byte-for-byte reserialization,
 feature slices inside the retained image after caller clones are dropped,
-unaligned owners, truncation, corrupt checksums, wrong whitespace mode,
+unaligned owners, truncation, corrupt checksums, an unsupported whitespace policy,
 invalid table indices and UTF-8, and re-signed trie cycles. Its mutation
 probes alter real dictionary records and exercise accepted images against
 Japanese text. None of these tests substitutes a fake tokenizer.

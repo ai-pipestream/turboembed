@@ -3,10 +3,9 @@ use turbo_analysis::Span as Bytes;
 use turbo_formats::native::NameReader;
 use turbo_formats::{Field, Name};
 use turbo_train::Value;
-use turbo_unicode::WhitespaceMode;
 
 fn samples(text: &str) -> Vec<NameSample<'_>> {
-    NameReader::new(text, WhitespaceMode::Unicode).unwrap().map(|s| s.unwrap()).collect()
+    NameReader::new(text).unwrap().map(|s| s.unwrap()).collect()
 }
 
 fn strings(e: &Event) -> Vec<String> {
