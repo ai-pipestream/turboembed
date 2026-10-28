@@ -67,13 +67,11 @@ const FED: &[&str] = &[
 ];
 
 /// The input sets the runs are not given, each with the reason.
-const NOT_FED: &[(&str, &str)] = &[
-    (
-        "stem",
-        "about half a megabyte of words, one per line, read only by the stemmers; \
+const NOT_FED: &[(&str, &str)] = &[(
+    "stem",
+    "about half a megabyte of words, one per line, read only by the stemmers; \
          it more than doubles the test's time and gives the covered runs nothing new",
-    ),
-];
+)];
 
 /// The names of the subdirectories of `dir`.
 fn subdirectories(dir: &Path) -> BTreeSet<String> {
