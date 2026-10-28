@@ -8,7 +8,10 @@ pragmatics analysis across lexicon, rule, and vector-head stages:
   `PragmaticsVectorScorer`, `EmotionVectorScorer`, `IncivilityVectorScorer`, and
   `AspectCategoryScorer` define the vector-head interfaces and re-export the
   sentiment and pragmatics layers (`Opinions`, `Aspects`, `EmotionLayer`,
-  `Incivility`, `Pragmatics`) with no dependency on `turbo-maxent`.
+  `Incivility`, `Pragmatics`) with no direct module imports of `SentimentModel`,
+  `SentimentMe`, or `turbo-maxent` (while crate-level transitive paths via
+  `turbo-formats`, `turbo-sequence`, and `turbo-train` remain pending the
+  deletion work in `#1532`).
 - **Lexicon and dependency-negation polarity (`LexiconSentiment`)**:
   VADER valence scoring with three-token window or dependency-tree negation,
   producing token-level `Opinions` (`turbo:opinions`) and sentence-level
