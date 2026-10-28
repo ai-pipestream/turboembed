@@ -215,7 +215,7 @@ impl<R: Real> Lemmatizer<R> {
         }
         if shape.layers > 0 {
             let dx: Vec<R> = (0..n).flat_map(|i| djoined[i * joined_width..][..width].iter().copied()).collect();
-            adapter::backward(shape, &self.params, features, dx, grads, &w.adapter);
+            adapter::backward(shape, &self.params, features, dx, grads, &w.adapter, false);
         }
         Ok(total)
     }

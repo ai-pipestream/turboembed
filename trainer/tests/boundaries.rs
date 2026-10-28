@@ -23,6 +23,7 @@ fn spec(labels: &[&str], scheme: Scheme, decode: Decode) -> HeadSpec {
         tensor_prefix: "probe".into(),
         biaffine: None,
         pos_input: None,
+        hash_embed: None,
     }
 }
 
@@ -68,7 +69,7 @@ fn the_losses_refuse_mismatched_shapes_and_nonfinite_scores() {
 }
 
 fn one_example() -> Vec<Example> {
-    vec![Example { features: vec![1.0], labels: vec![1] }]
+    vec![Example { features: vec![1.0], labels: vec![1], forms: Vec::new() }]
 }
 
 #[test]
@@ -85,11 +86,11 @@ fn score_refuses_gold_that_does_not_match_the_words() {
     let s = spec(&["A", "B"], Scheme::Tags, Decode::Argmax);
     let t = Tagger::<f32>::with_params(&s, 1, vec![vec![0.0, 0.0], vec![1.0, 0.0]]).unwrap();
     let core = t.to_token_tagger().unwrap();
-    let extra = [Example { features: vec![1.0], labels: vec![0, 1] }];
+    let extra = [Example { features: vec![1.0], labels: vec![0, 1], forms: Vec::new() }];
     assert!(turbo_trainer::fit::score(&core, &extra).is_err());
-    let out_of_range = [Example { features: vec![1.0], labels: vec![2] }];
+    let out_of_range = [Example { features: vec![1.0], labels: vec![2], forms: Vec::new() }];
     assert!(turbo_trainer::fit::score(&core, &out_of_range).is_err());
-    let fine = [Example { features: vec![1.0], labels: vec![0] }];
+    let fine = [Example { features: vec![1.0], labels: vec![0], forms: Vec::new() }];
     assert_eq!(turbo_trainer::fit::score(&core, &fine).unwrap(), 1.0);
 }
 

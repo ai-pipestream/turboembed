@@ -23,6 +23,7 @@ fn spec(labels: &[&str], scheme: Scheme, adapter: Option<(u32, u32)>, decode: De
         decode,
         biaffine: None,
         pos_input: None,
+        hash_embed: None,
         artifact: "weights".into(),
         tensor_prefix: "toy".into(),
     }
@@ -52,7 +53,7 @@ fn tags_data(seed: u64, n: usize) -> Vec<Example> {
                 labels.push(if c == 3 && prev == 0 { 0 } else { c as u32 });
                 prev = c;
             }
-            Example { features, labels }
+            Example { features, labels, forms: Vec::new() }
         })
         .collect()
 }
@@ -80,7 +81,7 @@ fn bio_data(seed: u64, n: usize) -> Vec<Example> {
                 });
                 prev = c;
             }
-            Example { features, labels }
+            Example { features, labels, forms: Vec::new() }
         })
         .collect()
 }
@@ -123,7 +124,9 @@ fn two_runs_give_identical_bytes_and_another_seed_does_not() {
     let (a, ra) = fit(&s, HIDDEN, &train, &dev, &c).unwrap();
     let (b, rb) = fit(&s, HIDDEN, &train, &dev, &c).unwrap();
     assert_eq!(bytes(&a), bytes(&b));
-    assert_eq!(ra, rb);
+    // Everything but the wall time.
+    assert_eq!((&ra.train_loss, &ra.dev, ra.best_epoch), (&rb.train_loss, &rb.dev, rb.best_epoch));
+    assert_eq!(ra.epoch_seconds.len(), ra.dev.len());
     let (other, _) = fit(&s, HIDDEN, &train, &dev, &Config { seed: 2, ..c }).unwrap();
     assert_ne!(bytes(&a), bytes(&other));
 }
@@ -153,9 +156,9 @@ fn trained_weights_score_the_same_through_the_core() {
 #[test]
 fn ill_fitting_examples_are_refused() {
     let s = spec(&["A", "B"], Scheme::Tags, None, Decode::Argmax);
-    let good = Example { features: vec![0.0; 2 * HIDDEN], labels: vec![0, 1] };
-    let short = Example { features: vec![0.0; HIDDEN], labels: vec![0, 1] };
-    let label = Example { features: vec![0.0; HIDDEN], labels: vec![2] };
+    let good = Example { features: vec![0.0; 2 * HIDDEN], labels: vec![0, 1], forms: Vec::new() };
+    let short = Example { features: vec![0.0; HIDDEN], labels: vec![0, 1], forms: Vec::new() };
+    let label = Example { features: vec![0.0; HIDDEN], labels: vec![2], forms: Vec::new() };
     let c = Config::default();
     assert!(fit(&s, HIDDEN, &[short], &[], &c).is_err());
     assert!(fit(&s, HIDDEN, std::slice::from_ref(&good), &[label], &c).is_err());
@@ -163,6 +166,6 @@ fn ill_fitting_examples_are_refused() {
     assert!(fit(&s, HIDDEN, &[good], &[], &Config { batch: 0, ..c }).is_err());
     // A gold sequence the scheme forbids cannot be a CRF target.
     let bio = spec(&["O", "B-X", "I-X"], Scheme::Bio, None, Decode::Crf);
-    let bad = Example { features: vec![0.0; 2 * HIDDEN], labels: vec![0, 2] };
+    let bad = Example { features: vec![0.0; 2 * HIDDEN], labels: vec![0, 2], forms: Vec::new() };
     assert!(fit(&bio, HIDDEN, &[bad], &[], &c).is_err());
 }

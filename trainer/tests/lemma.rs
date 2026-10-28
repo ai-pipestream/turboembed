@@ -25,6 +25,7 @@ fn spec(labels: Vec<String>, adapter: Option<(u32, u32)>, tags: Option<u32>) -> 
         decode: Decode::EditTree,
         biaffine: None,
         pos_input: tags.map(|labels| PosInput { head: "pos".into(), labels, dim: 3 }),
+        hash_embed: None,
         artifact: "weights".into(),
         tensor_prefix: "lemma".into(),
     }
@@ -173,7 +174,7 @@ fn a_toy_lemmatizer_learns_suffix_rules_and_needs_its_tags_for_the_ambiguous_one
 }
 
 #[test]
-fn two_runs_give_identical_bytes() {
+fn two_runs_and_any_thread_count_give_identical_bytes() {
     let hidden = 6;
     let (train, dev) = (data(3, 40, hidden), data(4, 10, hidden));
     let pairs: Vec<(&str, &str)> =
@@ -184,7 +185,13 @@ fn two_runs_give_identical_bytes() {
         m.tensors().iter().flat_map(|(_, v)| v.iter().flat_map(|x| x.to_le_bytes())).collect()
     };
     let (a, ra) = fit_lemmatizer(&s, hidden, train.clone(), dev.clone(), &c).unwrap();
-    let (b, rb) = fit_lemmatizer(&s, hidden, train, dev, &c).unwrap();
+    let (b, rb) = fit_lemmatizer(&s, hidden, train.clone(), dev.clone(), &c).unwrap();
     assert_eq!(bytes(&a), bytes(&b));
-    assert_eq!(ra, rb);
+    // Everything but the wall time.
+    assert_eq!((&ra.train_loss, &ra.dev, ra.best_epoch), (&rb.train_loss, &rb.dev, rb.best_epoch));
+    // One thread and four give the same bytes.
+    for threads in [1, 4] {
+        let (t, _) = fit_lemmatizer(&s, hidden, train.clone(), dev.clone(), &Config { threads, ..c }).unwrap();
+        assert_eq!(bytes(&t), bytes(&a), "{threads} threads");
+    }
 }

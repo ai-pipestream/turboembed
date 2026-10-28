@@ -331,7 +331,7 @@ impl<R: Real> Parser<R> {
             *g += *d;
         }
         if shape.layers > 0 {
-            adapter::backward(shape, &self.params, features, dnodes[width..].to_vec(), grads, &w.adapter);
+            adapter::backward(shape, &self.params, features, dnodes[width..].to_vec(), grads, &w.adapter, false);
         }
         Ok(total)
     }
