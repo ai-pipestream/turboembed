@@ -7,6 +7,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use super::heads_kinds::{CorefShape, SpanShape};
 use super::helpers::{fits, positive, required};
 use super::{Format, LicenseClass, Manifest};
 use crate::status::{Result, invalid};
@@ -27,10 +28,6 @@ pub const MAX_POS_DIM: u32 = 1024;
 pub const MAX_HASH_DIM: u32 = 1024;
 /// The most rows one hashed feature table holds.
 pub const MAX_HASH_ROWS: u32 = 1 << 20;
-/// The most words one span of a span classifier covers.
-pub const MAX_SPAN_WORDS: u32 = 128;
-/// The widest span-width embedding.
-pub const MAX_SPAN_WIDTH_DIM: u32 = 256;
 /// The namespace every head's layer id is in.
 pub const LAYER_NAMESPACE: &str = "turboembed:";
 
@@ -66,6 +63,10 @@ pub struct HeadSpec {
     /// kind.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub span: Option<SpanShape>,
+    /// How a HEAD_COREF_RANKER scores antecedents; absent for every other
+    /// kind.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub coref: Option<CorefShape>,
     /// The class of the strictest licence among the corpora the head was
     /// trained on (docs/zoo.md); the bundle's tier counts it
     /// ([`Manifest::license_tier`]).
@@ -105,6 +106,11 @@ pub enum HeadKind {
     /// first and last word and its width (head/span.rs); `O` is no span.
     #[serde(rename = "HEAD_SPAN_CLASSIFIER")]
     SpanClassifier,
+    /// For each given mention, its antecedent among the mentions before
+    /// it, or none (head/coref.rs); mentions read as a span classifier
+    /// reads spans (`span`), pairs scored as `coref` says.
+    #[serde(rename = "HEAD_COREF_RANKER")]
+    CorefRanker,
 }
 
 impl HeadKind {
@@ -113,20 +119,6 @@ impl HeadKind {
     pub fn scores_words(self) -> bool {
         matches!(self, HeadKind::TokenTagger | HeadKind::SentenceBoundary | HeadKind::TokenSplit)
     }
-}
-
-/// The labels of a HEAD_SENTENCE_BOUNDARY, in this order.
-pub const BOUNDARY_LABELS: [&str; 2] = ["inside", "last"];
-/// The label of a HEAD_TOKEN_SPLIT that keeps a token one word.
-pub const KEEP_TOKEN: &str = "_";
-
-/// The spans a span classifier reads: every run of 1 to `max_words`
-/// words, each with a learned embedding `width_dim` wide of its width.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SpanShape {
-    pub max_words: u32,
-    pub width_dim: u32,
 }
 
 /// The tags a lemmatizer reads: head `head` (a SCHEME_TAGS token tagger
@@ -228,6 +220,10 @@ pub enum Decode {
     /// the highest score; a span classifier's decode.
     #[serde(rename = "DECODE_SPANS_FLAT")]
     SpansFlat,
+    /// Each mention's best antecedent, or none when no antecedent scores
+    /// above 0; a coreference ranker's decode.
+    #[serde(rename = "DECODE_ANTECEDENT")]
+    Antecedent,
 }
 
 /// A label read under a scheme: outside any span, or a part of a span of
@@ -332,6 +328,7 @@ impl HeadSpec {
             HeadKind::SpanClassifier => {
                 matches!(self.decode, Decode::SpansNested | Decode::SpansFlat) && self.scheme == Scheme::Tags
             }
+            HeadKind::CorefRanker => self.decode == Decode::Antecedent && self.scheme == Scheme::Tags,
         };
         let parser = self.kind == HeadKind::BiaffineParser;
         let lemmatizer = self.kind == HeadKind::EditTreeLemmatizer;
@@ -342,7 +339,7 @@ impl HeadSpec {
                  biaffine; a HEAD_EDIT_TREE_LEMMATIZER takes SCHEME_TAGS, DECODE_EDIT_TREE and an optional pos_input; \
                  a HEAD_SENTENCE_BOUNDARY takes SCHEME_TAGS and DECODE_ARGMAX or DECODE_CRF; a HEAD_TOKEN_SPLIT takes \
                  SCHEME_TAGS and DECODE_EDIT_TREE; a HEAD_SPAN_CLASSIFIER takes SCHEME_TAGS and DECODE_SPANS_NESTED or \
-                 DECODE_SPANS_FLAT",
+                 DECODE_SPANS_FLAT; a HEAD_COREF_RANKER takes SCHEME_TAGS and DECODE_ANTECEDENT",
                 at("kind"),
                 self.kind,
                 self.scheme,

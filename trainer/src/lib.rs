@@ -16,8 +16,10 @@
 pub mod adamw;
 pub mod adapter;
 mod batch;
+pub mod coref;
 pub mod crf;
 pub mod fit;
+pub mod fit_coref;
 pub mod fit_lemma;
 pub mod fit_parse;
 pub mod fit_span;
@@ -34,6 +36,7 @@ pub mod tagger;
 pub mod xent;
 
 pub use fit::{Config, EarlyStop, Example, Report, batch_gradients, fit, fit_with};
+pub use fit_coref::{CorefExample, fit_coref};
 pub use fit_lemma::{LemmaExample, fit_lemmatizer, mine_trees};
 pub use fit_parse::{ParseExample, fit_parser};
 pub use fit_span::{SpanExample, fit_spans};

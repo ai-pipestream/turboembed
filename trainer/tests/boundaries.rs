@@ -25,6 +25,7 @@ fn spec(labels: &[&str], scheme: Scheme, decode: Decode) -> HeadSpec {
         pos_input: None,
         hash_embed: None,
         span: None,
+        coref: None,
         license_class: None,
     }
 }

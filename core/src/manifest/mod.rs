@@ -143,6 +143,10 @@ mod heads;
 mod heads_kinds;
 mod helpers;
 pub use heads::*;
+pub use heads_kinds::{
+    BOUNDARY_LABELS, COREF_LABELS, CorefShape, KEEP_TOKEN, MAX_ANTECEDENTS, MAX_MENTION_DIM, MAX_SPAN_WIDTH_DIM,
+    MAX_SPAN_WORDS, SpanShape,
+};
 mod provenance;
 mod qa;
 pub use qa::Qa;

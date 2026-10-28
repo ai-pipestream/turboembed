@@ -71,6 +71,7 @@ pub fn spec(corpus: &Corpus, o: &HeadOptions) -> Result<HeadSpec> {
         pos_input: None,
         hash_embed: o.hash,
         span: None,
+        coref: None,
         license_class: Some(corpus.record.class()?),
         artifact: "weights-f32".into(),
         tensor_prefix: format!("heads.{name}"),

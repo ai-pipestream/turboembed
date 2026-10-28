@@ -27,6 +27,7 @@ fn spec(decode: Decode, adapter: Option<(u32, u32)>) -> HeadSpec {
         pos_input: None,
         hash_embed: None,
         span: None,
+        coref: None,
         license_class: None,
         artifact: "weights".into(),
         tensor_prefix: "probe".into(),

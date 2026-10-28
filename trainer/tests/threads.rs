@@ -28,6 +28,7 @@ fn spec() -> HeadSpec {
         pos_input: None,
         hash_embed: Some(HashEmbed { dim: 8, rows: [1024, 256, 512, 256] }),
         span: None,
+        coref: None,
         license_class: None,
         artifact: "weights".into(),
         tensor_prefix: "t".into(),

@@ -25,6 +25,7 @@ fn spec(kind: HeadKind, labels: &[&str], decode: Decode) -> HeadSpec {
         pos_input: None,
         hash_embed: None,
         span: None,
+        coref: None,
         license_class: None,
         artifact: "weights".into(),
         tensor_prefix: "seg".into(),
