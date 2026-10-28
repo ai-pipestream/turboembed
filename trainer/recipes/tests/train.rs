@@ -90,7 +90,7 @@ fn read_safetensors(bytes: &[u8]) -> Vec<(String, Vec<u64>, Vec<f32>)> {
             let shape = v["shape"].as_array().unwrap().iter().map(|d| d.as_u64().unwrap()).collect();
             let o = v["data_offsets"].as_array().unwrap();
             let (a, b) = (o[0].as_u64().unwrap() as usize, o[1].as_u64().unwrap() as usize);
-            let vals = data[a..b].chunks_exact(4).map(|c| f32::from_le_bytes(c.try_into().unwrap())).collect();
+            let vals = data[a..b].as_chunks::<4>().0.iter().map(|c| f32::from_le_bytes(*c)).collect();
             (k, shape, vals)
         })
         .collect()
