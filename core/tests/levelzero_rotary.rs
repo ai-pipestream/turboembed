@@ -1,8 +1,8 @@
 //! ModernBERT and nomic-bert (#1461) on Level Zero against the CPU backend
 //! on the same generated bundle (tests/common/rotary.rs): each value within
-//! 1e-4 of the CPU's at MODEL and at FASTEST, both of which compute in F32
-//! on this backend, over rows that reach past ModernBERT's window, masked
-//! holes, left padding, every pooling and token ranges.
+//! 1e-4 of the CPU's at MODEL and EXACT, over rows that reach past
+//! ModernBERT's window, masked holes, left padding, every pooling and
+//! token ranges; FASTEST refused.
 //!
 //! Built with the `levelzero` feature only. TURBO_TEST_DEVICE=levelzero
 //! runs the tests on the first levelzero device; without it they say they
@@ -109,7 +109,7 @@ fn worst(a: &[Vec<f32>], b: &[Vec<f32>]) -> f32 {
 }
 
 /// `f`'s bundle on the device and on the CPU, every case within BOUND at
-/// MODEL and FASTEST.
+/// MODEL and EXACT; a session at FASTEST refused on the device.
 fn matches_the_cpu(test: &str, mut f: Fixture) {
     let _t = turn();
     if !device(test) {
@@ -118,7 +118,9 @@ fn matches_the_cpu(test: &str, mut f: Fixture) {
     f.manifest["artifacts"][0]["backends"] = json!(["levelzero", "cpu"]);
     let (g, c) = (on_gpu(&f), f.load().unwrap());
     let seq = 64usize;
-    for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_FASTEST] {
+    let e = Session::create(g.m, Some(&session_desc(8, seq as u32, TURBO_PRECISION_FASTEST))).err().unwrap();
+    assert!(e.is(turbo::status::UNSUPPORTED_OPTION, "the levelzero backend runs this encoder in F32 alone"), "{e:?}");
+    for precision in [TURBO_PRECISION_MODEL, TURBO_PRECISION_EXACT] {
         let desc = session_desc(8, seq as u32, precision);
         let gs = Session::create(g.m, Some(&desc)).unwrap();
         assert_eq!(gs.info().compute_dtype, TURBO_DTYPE_F32, "a rotary session computes in F32");

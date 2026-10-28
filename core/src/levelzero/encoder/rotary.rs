@@ -13,15 +13,16 @@
 //! of it, with the local base; final_norm follows the last layer.
 //! nomic-bert is post-norm in BERT's order, every layer global.
 //!
-//! The session computes in F32 at every precision: the linear layers run
-//! on linear_sg (or linear, for widths not a multiple of 16), and the
-//! session reports TURBO_DTYPE_F32.
+//! The session computes in F32, at MODEL and EXACT: the linear layers run
+//! on linear_sg (or linear, for widths not a multiple of 16). FASTEST is
+//! refused, as for DeBERTa-v2, never run in F32 in its place.
 
 use std::ffi::c_void;
 
 use super::kernels::Kernels;
 use super::session::Session;
 use super::*;
+use crate::TURBO_PRECISION_FASTEST;
 use crate::backend::{
     TURBO_ACTIVATION_GELU_ERF, TURBO_ACTIVATION_SILU, TURBO_FAMILY_MODERNBERT, TURBO_FAMILY_NOMIC_BERT,
     TURBO_MLP_GATED, TURBO_MODERNBERT_ATTN_LN_WEIGHT, TURBO_MODERNBERT_ATTN_OUT_WEIGHT,
@@ -34,8 +35,8 @@ use crate::backend::{
     TURBO_NOMIC_LAYER_TENSORS, TURBO_NOMIC_QKV_WEIGHT, TURBO_NOMIC_TOKEN_TYPE_EMBEDDINGS, TURBO_NOMIC_WORD_EMBEDDINGS,
     TURBO_NORM_LAYER, TURBO_NORM_LAYER_NO_BIAS, turbo_backend_model,
 };
-use crate::levelzero::gpu::{Arg, Context, Kernel, Queue, Res, fail};
-use crate::status::{INVALID_ARGUMENT, INVALID_STRUCT_SIZE, UNSUPPORTED};
+use crate::levelzero::gpu::{Arg, Context, Kernel, Queue, Res, fail, fail_field};
+use crate::status::{INVALID_ARGUMENT, INVALID_STRUCT_SIZE, UNSUPPORTED, UNSUPPORTED_OPTION};
 
 /// Whether `family` is one of the rotary families.
 pub(super) fn is(family: u32) -> bool {
@@ -99,6 +100,22 @@ pub(super) fn check_load(d: &turbo_backend_model) -> Res<()> {
         return Err(fail(
             INVALID_ARGUMENT,
             format!("position_offset {}: a rotary model counts from 0", d.position_offset),
+        ));
+    }
+    Ok(())
+}
+
+/// Ok unless the session asks for FASTEST, which this backend has no F16
+/// rotary path for yet.
+pub(super) fn check_precision(family: u32, precision: u32) -> Res<()> {
+    if precision == TURBO_PRECISION_FASTEST {
+        let name = if family == TURBO_FAMILY_MODERNBERT { "FAMILY_MODERNBERT" } else { "FAMILY_NOMIC_BERT" };
+        return Err(fail_field(
+            UNSUPPORTED_OPTION,
+            3,
+            format!(
+                "precision: FASTEST on {name}: the levelzero backend runs this encoder in F32 alone; ask for MODEL or EXACT"
+            ),
         ));
     }
     Ok(())

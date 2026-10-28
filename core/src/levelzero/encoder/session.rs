@@ -189,6 +189,9 @@ pub(super) unsafe fn create(
             if is_deberta {
                 deberta::check_precision(precision)?;
             }
+            if is_rotary {
+                super::rotary::check_precision(d.family, precision)?;
+            }
             if precision == TURBO_PRECISION_MODEL && d.dtype != TURBO_DTYPE_F32 {
                 return Err(fail_field(
                     UNSUPPORTED_OPTION,
@@ -217,9 +220,7 @@ pub(super) unsafe fn create(
             // 2D reads take whole steps of DPAS_K terms and tiles of
             // DPAS_TN outputs, from F16 activations: the attention kernels
             // write an F16 context.
-            // A rotary model computes in F32 at every precision (rotary.rs).
             let xmx = precision == TURBO_PRECISION_FASTEST
-                && !is_rotary
                 && d.hidden.is_multiple_of(DPAS_K.max(DPAS_TN))
                 && d.intermediate.is_multiple_of(DPAS_K.max(DPAS_TN));
             let mut kernels =
