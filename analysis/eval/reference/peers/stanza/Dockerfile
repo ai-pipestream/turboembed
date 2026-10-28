@@ -12,7 +12,8 @@ ARG STANZA_LANG=en
 RUN pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu \
     "torch==${TORCH_VERSION}"
 RUN pip install --no-cache-dir "stanza==${STANZA_VERSION}"
-RUN python -c "import stanza; stanza.download('${STANZA_LANG}', model_dir='/stanza', processors='tokenize,mwt,pos,lemma,depparse', verbose=False)"
+RUN python -c "import stanza; stanza.download('${STANZA_LANG}', model_dir='/stanza', processors='tokenize,mwt,pos,lemma,depparse,ner', verbose=False)"
 
 COPY predict.py /predict.py
+COPY ner_predict.py /ner_predict.py
 ENTRYPOINT ["python", "/predict.py"]

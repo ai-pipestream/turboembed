@@ -13,4 +13,5 @@ RUN pip install --no-cache-dir "spacy==${SPACY_VERSION}" "click==8.1.8" \
     "https://github.com/explosion/spacy-models/releases/download/${MODEL}-${MODEL_VERSION}/${MODEL}-${MODEL_VERSION}-py3-none-any.whl"
 
 COPY predict.py /predict.py
+COPY ner_predict.py /ner_predict.py
 ENTRYPOINT ["python", "/predict.py"]

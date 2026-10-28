@@ -35,13 +35,16 @@ fn check_label(label: &str, at: String) -> Result<()> {
 }
 
 /// Reads gold entity lines: `token<TAB>label`, blank line between
-/// sentences. Comment lines starting with `#` are skipped, as the
-/// MultiCoNER files carry sentence headers there.
+/// sentences. Comment lines starting with `#` and carrying no BIO
+/// label are skipped (MultiCoNER sentence headers); a `#token` line
+/// with a label is a hashtag token, of which WNUT-17 has many.
 pub fn parse_ner_gold(text: &str) -> Result<Vec<NerSentence>> {
     let mut out = Vec::new();
     let mut current = NerSentence { tokens: Vec::new(), labels: Vec::new() };
     for (i, line) in text.lines().enumerate() {
-        if line.starts_with('#') {
+        if line.starts_with('#')
+            && !line.split_once('\t').is_some_and(|(_, label)| check_label(label, String::new()).is_ok())
+        {
             continue;
         }
         if line.trim().is_empty() {

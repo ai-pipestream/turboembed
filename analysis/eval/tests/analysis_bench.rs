@@ -205,6 +205,7 @@ fn the_language_command_writes_a_record() {
 fn entity_spans_score_exactly_and_shapes_are_checked() {
     let gold = parse_ner_gold(concat!(
         "# a header comment\n",
+        "#hashtag\tO\n",
         "Ada\tB-person\n",
         "Lovelace\tI-person\n",
         "met\tO\n",
@@ -215,11 +216,11 @@ fn entity_spans_score_exactly_and_shapes_are_checked() {
     ))
     .unwrap();
     assert_eq!(gold.len(), 2);
-    let perfect = parse_ner_pred("B-person\nI-person\nO\nB-corporation\n\nB-location\nO\n", &gold).unwrap();
+    let perfect = parse_ner_pred("O\nB-person\nI-person\nO\nB-corporation\n\nB-location\nO\n", &gold).unwrap();
     assert_eq!(score_ner("self", &gold, &perfect, 0).entities.score, 100.0);
 
     // A split person span and a missed corporation: 1 of 3 spans right.
-    let flawed = parse_ner_pred("B-person\nO\nO\nO\n\nB-location\nO\n", &gold).unwrap();
+    let flawed = parse_ner_pred("O\nB-person\nO\nO\nO\n\nB-location\nO\n", &gold).unwrap();
     let scores = score_ner("flawed", &gold, &flawed, 0);
     assert_eq!(scores.entities.correct, 1);
     assert_eq!(scores.entities.selected, 2);
