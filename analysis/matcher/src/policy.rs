@@ -20,7 +20,8 @@ impl std::error::Error for FuzzyPolicyError {}
 /// counted as one edit. Exact matches always score 1.0. Other matches lose
 /// `edit_penalty` per edit; a phonetic match counts as one more edit than the
 /// configured maximum. A policy with zero distance and no phonetic fallback is
-/// disabled, preserving the exact-only behavior of its caller.
+/// disabled, preserving the exact-only behavior of its caller. Strings are
+/// compared as written; use a normalized view and aliases for case-folded matching.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FuzzyMatchPolicy {
     max_edit_distance: u8,

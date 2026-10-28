@@ -31,11 +31,13 @@ impl TokenFuzzy {
         let lexicon = Lexicon::new(&refs);
         let max_tokens = entries.iter().map(|p| p.bytes().filter(|&b| b == 0).count() + 1).max().unwrap_or(0);
         let mut phonetic: HashMap<PhoneticKey, Vec<u32>> = HashMap::new();
-        let mut keys = Vec::new();
-        for (index, entry) in entries.iter().enumerate() {
-            phonetic_keys(entry, &mut keys);
-            for &key in &keys {
-                phonetic.entry(key).or_default().push(index as u32);
+        if policy.phonetic_fallback() {
+            let mut keys = Vec::new();
+            for (index, entry) in entries.iter().enumerate() {
+                phonetic_keys(entry, &mut keys);
+                for &key in &keys {
+                    phonetic.entry(key).or_default().push(index as u32);
+                }
             }
         }
         Self { entries, phrase_ids, lexicon, phonetic, policy, max_tokens }

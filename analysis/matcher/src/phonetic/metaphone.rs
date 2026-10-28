@@ -46,7 +46,7 @@ pub(super) fn condition_ch1(w: &[char], index: usize) -> bool {
 }
 
 pub(super) fn condition_l0(w: &[char], index: usize) -> bool {
-    if index == w.len() - 3 && contains(w, index as isize - 1, 4, &["ILLO", "ILLA", "ALLE"]) {
+    if index == w.len().saturating_sub(3) && contains(w, index as isize - 1, 4, &["ILLO", "ILLA", "ALLE"]) {
         return true;
     }
     (contains(w, w.len() as isize - 2, 2, &["AS", "OS"]) || contains(w, w.len() as isize - 1, 1, &["A", "O"]))

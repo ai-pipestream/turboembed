@@ -38,6 +38,7 @@ static ALLOCATOR: Counting = Counting;
 /// bytes read NUL-padded, so the table keeps them bare. An empty soundex
 /// marks a non-ASCII word, covered in [`non_ascii_letters_are_skipped`].
 const VECTORS: &[(&str, &str, &str, &str)] = &[
+    ("ll", "L", "L", "L000"),
     ("Smith", "SM0", "XMT", "S530"),
     ("Smyth", "SM0", "XMT", "S530"),
     ("Schmidt", "XMT", "SMT", "S530"),

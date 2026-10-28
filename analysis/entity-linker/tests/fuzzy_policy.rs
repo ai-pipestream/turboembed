@@ -40,3 +40,47 @@ fn entity_policy_is_validated_and_changes_hash_only_when_enabled() {
     assert!(LinkerConfig::default().validate().is_ok());
     assert!(enabled.config().validate().is_ok());
 }
+
+struct SimilarityOneProvider;
+
+impl KbProvider for SimilarityOneProvider {
+    fn provider_id(&self) -> &str {
+        "similarity-one"
+    }
+
+    fn generate_candidates(
+        &self,
+        _mention_text: &str,
+        _query_vector: Option<(&turbo_vector_index::Space, &[f32])>,
+        _max_candidates: usize,
+        _fuzzy_threshold: f64,
+    ) -> Vec<turbo_entity_linker::RawCandidate> {
+        ["Unrelated", "KATHRYN"]
+            .into_iter()
+            .map(|alias| turbo_entity_linker::RawCandidate {
+                kb_id: alias.into(),
+                provider_id: self.provider_id().into(),
+                canonical_name: alias.into(),
+                matched_alias: alias.into(),
+                alias_prior: 1.0,
+                popularity_prior: 1.0,
+                match_similarity: 1.0,
+                entity_types: Vec::new(),
+                context_terms: Vec::new(),
+                related_ids: Vec::new(),
+                vector_score: None,
+            })
+            .collect()
+    }
+
+    fn lookup_by_id(&self, _kb_id: &str) -> Option<turbo_entity_linker::RawCandidate> {
+        None
+    }
+}
+
+#[test]
+fn similarity_one_does_not_bypass_policy_unless_the_alias_is_fold_exact() {
+    let hits = SimilarityOneProvider.generate_candidates_with_policy("Kathryn", None, 8, 1.0, policy(1, false));
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].matched_alias, "KATHRYN");
+}

@@ -52,7 +52,7 @@ fn score_and_retain(policy: &FuzzyMatchPolicy, mention_text: &str, candidates: &
             c.match_similarity = f64::from(score).clamp(0.0, 1.0);
             true
         }
-        _ => c.match_similarity >= 1.0,
+        _ => crate::similarity::fold_alias(mention_text) == crate::similarity::fold_alias(&c.matched_alias),
     });
     candidates.sort_by(|a, b| {
         b.match_similarity
