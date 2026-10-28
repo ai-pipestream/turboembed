@@ -139,7 +139,7 @@ fn jvm_parity_is_the_detector_without_an_inventory() {
         assert_eq!(bits(&a), bits(&b), "{name}");
         assert_eq!(bits(&a), bits(&c), "{name}");
         // The parity hash is the hash before inventories, FNV-1a of the
-        // whitespace mode's number (2 for Unicode); the default differs.
+        // constant whitespace byte 2; the default differs.
         let old = (turbo_analysis::FNV1A_OFFSET_BASIS ^ 2).wrapping_mul(turbo_analysis::FNV1A_PRIME);
         assert_eq!(parity.config_hash(), old);
         assert_ne!(d.config_hash(), old);

@@ -2,7 +2,7 @@
 //!
 //! - `rules`: the newline and paragraph detectors on 10 MB of synthetic
 //!   text (a few repeated lines, mostly ASCII with some accented and CJK
-//!   text, a blank line after every fourth), in both whitespace modes.
+//!   text, a blank line after every fourth).
 //! - `maxent`: the maxent detector with the published English model on
 //!   10 MB of synthetic English (a paragraph of varied sentences,
 //!   repeated), once all ASCII, which the context generator
