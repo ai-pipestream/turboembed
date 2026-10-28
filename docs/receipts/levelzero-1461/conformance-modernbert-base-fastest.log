@@ -1,22 +1,22 @@
-head 23d84e7c1a7876de53e2f76e0e32ba5384b69018
-start 2026-10-28T08:08:03Z load 66.76 67.94 53.50
+head e0b8835e3d16ec67d25d8be154982877271c172a
+start 2026-10-28T09:44:24Z load 56.95 56.17 50.72
 command: TURBO_TEST_BUNDLE=<bundles>/modernbert-base TURBO_TEST_DEVICE=levelzero TURBO_TEST_REQUIRE_LEVELZERO=1 TURBO_TEST_PRECISION=fastest cargo test --release -p turbo --features levelzero --test conformance -- --nocapture
-    Finished `release` profile [optimized] target(s) in 0.13s
+    Finished `release` profile [optimized] target(s) in 0.41s
      Running tests/conformance.rs (target/release/deps/conformance-f4f8f55e1c062bf2)
 
 running 8 tests
 test a_real_bundle_matches_its_reference ... ignored, needs a real bundle directory in TURBO_TEST_BUNDLE
+  rerank, 1 pairs a write: 4 scores, compute dtype 10, max diff 1.505e-3 of the scale, bound 1e-2
+    order: 1 pairs as the reference ranks them, 5 too close to say
+  rerank, 4 pairs a write: 4 scores, compute dtype 10, max diff 1.505e-3 of the scale, bound 1e-2
+    order: 1 pairs as the reference ranks them, 5 too close to say
+test tasks::rerank_scores_match_upstream ... ok
 <repo>/core/../testdata/tiny-modernbert-bundle: 9 cases on device 0, precision 1, compute dtype 12, cosine floor 0.9999, max abs diff Some(0.0001)
   write_text, batch 1: 9 rows, 1 - min cosine 3.386e-14, max abs diff 3.576e-7
   write_text, full batch: 9 rows, 1 - min cosine 3.386e-14, max abs diff 3.576e-7
   write_tokens, batch 1: 9 rows, 1 - min cosine 3.386e-14, max abs diff 3.576e-7
   write_tokens, full batch: 9 rows, 1 - min cosine 3.386e-14, max abs diff 3.576e-7
   0 cases longer than max_seq 64 refused with TURBO_E_CAPACITY
-  rerank, 1 pairs a write: 4 scores, compute dtype 10, max diff 1.505e-3 of the scale, bound 1e-2
-    order: 1 pairs as the reference ranks them, 5 too close to say
-  rerank, 4 pairs a write: 4 scores, compute dtype 10, max diff 1.505e-3 of the scale, bound 1e-2
-    order: 1 pairs as the reference ranks them, 5 too close to say
-test tasks::rerank_scores_match_upstream ... ok
 <tmp>/turbo-conformance-fixed: 9 cases on device 0, precision 1, compute dtype 10, cosine floor 0.999, max abs diff None
   write_text, batch 1: 7 rows, 1 - min cosine 3.512e-8, max abs diff 1.221e-4
   write_text, full batch: 7 rows, 1 - min cosine 3.512e-8, max abs diff 1.221e-4
@@ -29,6 +29,8 @@ test a_fixed_shape_refuses_the_cases_it_cannot_hold ... ok
   token vectors, full batches: 193 tokens, compute dtype 10, 1 - min cosine 1.993e-7, max abs diff 2.724e-3
   token vectors pooled, full batches: 9 rows, compute dtype 10, 1 - min cosine 3.511e-8, max abs diff 1.221e-4
 test tasks::token_vectors_match_the_reference_encoder_and_pool_to_upstream ... ok
+  extractive QA, max_batch 1: 210 scores, compute dtype 10, max diff 5.728e-4 of the scale, bound 1e-2
+    answers: 3 of 4 cases as the reference answers them, the rest too close to say
 <repo>/core/../testdata/tiny-nomic-bundle: 9 cases on device 0, precision 1, compute dtype 12, cosine floor 0.9999, max abs diff Some(0.0001)
   write_text, batch 1: 9 rows, 1 - min cosine 7.472e-14, max abs diff 9.537e-7
   write_text, full batch: 9 rows, 1 - min cosine 7.472e-14, max abs diff 9.537e-7
@@ -36,8 +38,6 @@ test tasks::token_vectors_match_the_reference_encoder_and_pool_to_upstream ... o
   write_tokens, full batch: 9 rows, 1 - min cosine 7.472e-14, max abs diff 9.537e-7
   0 cases longer than max_seq 64 refused with TURBO_E_CAPACITY
 test the_rotary_bundles_match_upstream ... ok
-  extractive QA, max_batch 1: 210 scores, compute dtype 10, max diff 5.728e-4 of the scale, bound 1e-2
-    answers: 3 of 4 cases as the reference answers them, the rest too close to say
   extractive QA, max_batch 0: 210 scores, compute dtype 10, max diff 5.728e-4 of the scale, bound 1e-2
     answers: 3 of 4 cases as the reference answers them, the rest too close to say
 test tasks::extractive_qa_logits_match_upstream ... ok
@@ -53,6 +53,6 @@ test every_reference_case_matches_upstream has been running for over 60 seconds
   0 cases longer than max_seq 8192 refused with TURBO_E_CAPACITY
 test every_reference_case_matches_upstream ... ok
 
-test result: ok. 7 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 98.24s
+test result: ok. 7 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 101.15s
 
-exit 0 end 2026-10-28T08:09:41Z load 77.43 71.00 56.05
+exit 0 end 2026-10-28T09:46:06Z load 47.79 53.17 50.20

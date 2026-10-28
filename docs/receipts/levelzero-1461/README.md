@@ -1,9 +1,8 @@
 # Level Zero ModernBERT and nomic-bert, MODEL and FASTEST (#1461, #1575)
 
-Head: `23d84e7c1a7876de53e2f76e0e32ba5384b69018` (claude/1461-levelzero-f16
-with claude/1461-levelzero at `8e980ac6365f755c7b80d75eefbe42198d82bb55`
-merged in, which carries claude/1461-cpu at
-`f22199098b5dd1448212f2935c7294cb560e064f`). Device: Intel Arc Pro B70
+Head: `e0b8835e3d16ec67d25d8be154982877271c172a` (claude/1461-levelzero-f16
+with claude/1461-levelzero at `89f341142576d078a08f2be2fffa73f73c5718cc`
+merged in, which carries main at `b649bd652fb455d1c285abe5d930fc1cfc0dab11`). Device: Intel Arc Pro B70
 (Machine B), Level Zero, release builds, `TURBO_TEST_REQUIRE_LEVELZERO=1`.
 These are correctness runs, not timings: the box's three b70 CI runners
 were running jobs on the same device, and the host's one-minute load
