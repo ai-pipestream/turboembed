@@ -23,7 +23,6 @@ use turbo_train_components::langdetect::{
     LanguageCrossValidation, LanguageDetectorCrossValidator, LanguageDetectorFactory, default_training_parameters,
 };
 use turbo_train_components::namefind::{NameCrossValidation, TokenNameFinderCrossValidator, TokenNameFinderFactory};
-use turbo_unicode::WhitespaceMode;
 
 const fn col(name: &'static str, ty: ColumnType) -> ColumnSpec {
     ColumnSpec::new(name, ty)
@@ -103,7 +102,7 @@ fn input(name: &str) -> String {
 }
 
 fn name_samples(text: &str) -> Vec<NameSample<'_>> {
-    NameReader::new(text, WhitespaceMode::Unicode).unwrap().map(|s| s.unwrap()).collect()
+    NameReader::new(text).unwrap().map(|s| s.unwrap()).collect()
 }
 
 fn language_samples(text: &str) -> Vec<LanguageSample<'_>> {

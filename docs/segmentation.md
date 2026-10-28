@@ -61,14 +61,10 @@ features and the same splits, the ports walk the text as code units too.
 
 ### Whitespace
 
-OpenNLP has two definitions of whitespace, chosen by a global
-`WhitespaceMode`: `Unicode`, the default since 3.0, is the Unicode
-`White_Space` set (25 code points, `U+0085` included, `U+001C` to
-`U+001F` excluded); `Legacy` is `Character.isWhitespace` or general
-category `Zs`. The mode changes tokens, trimmed spans and model
-features, so it is a parameter of every annotator here, never a global,
-and a golden file records the mode it was made with. The default is
-`Unicode`.
+Whitespace is the Unicode `White_Space` set (25 code points, `U+0085`
+included, `U+001C` to `U+001F` excluded), in every annotator, tokenizer
+and reader here (`docs/whitespace.md`). It is not a setting: there is no
+other definition to choose.
 
 ### Model features
 
@@ -124,7 +120,7 @@ two separators with an empty piece between them that is dropped;
 separators are ASCII, so the scan is over bytes, eight at a time, and
 whitespace is decoded only where a byte is not ASCII. The function
 `newline_spans` gives the same spans outside a pipeline. The goldens of
-the runs `newline` and `newline+legacy` are matched exactly, in UTF-8
+the run `newline` are matched exactly, in UTF-8
 and UTF-16 offsets.
 
 ### `ParagraphDetector`
@@ -226,7 +222,7 @@ published models have no abbreviation dictionary, so two small English
 models trained on the JVM (`en-abbrev.bin` and `en-plain.bin` in
 `analysis/goldens/data/fixtures`; the training sentences, the Java
 source and the commands are in `analysis/sentdetect/tests/fixtures`)
-cover the dictionary, `useTokenEnd=false` and both whitespace modes,
+cover the dictionary and `useTokenEnd=false`,
 with every context of their dumps compared feature by feature.
 
 ### `RuleSentenceDetector` (rules)
@@ -617,8 +613,8 @@ every tokenizer handles sentences the same way. It is generic over what
 a tokenizer reports per token: a rule tokenizer reports a bare `Span`,
 whose value is `()`, and calls it through `tokenize_units`, so its loop
 moves nothing but spans. The simple, whitespace and maxent tokenizers
-take the same `TokenizerOptions` (the whitespace mode and
-`keepNewLines`), with one configuration hash. Each rule tokenizer is
+take the same `TokenizerOptions` (`keepNewLines`), with one
+configuration hash. Each rule tokenizer is
 also a plain function over a `&str` that appends spans to a caller's
 buffer (`simple_spans`, `whitespace_spans`, `word_tokens`), and
 `TokenizerMe::tokenize` appends spans with their probabilities.
@@ -925,9 +921,9 @@ in the error, rather than approximated (OpenNLP hands such a pattern to
 `java.util.regex`). With the optimization off the pattern is never used
 and is not read.
 
-The whitespace units come from `TokenizerOptions`: the whitespace mode
-decides which characters separate units, and also the `_ws` feature,
-though a unit never holds whitespace; `keep_newlines` makes every line
+The whitespace units are separated by Unicode `White_Space`, which also
+decides the `_ws` feature, though a unit never holds whitespace;
+`TokenizerOptions::keep_newlines` makes every line
 feed and carriage return a unit, and so a token of probability 1, of its
 own.
 
@@ -1031,22 +1027,18 @@ surrogate pair are never reached in the Java (the step over an unlisted
 character takes the whole pair), so skipping them changes nothing. The
 lexicon file must be UTF-8 (the Java takes any charset), and the entry
 limit is a parameter rather than the `OPENNLP_MAX_ENTRIES` system
-property. A line that starts with a character that is whitespace in the
-legacy mode but not Unicode `White_Space` (`U+001C` to `U+001F`) lists the
-empty word in legacy mode; the Java keeps it on the trie's root, where
-nothing scores it, but counts it in the total and the entries, and so
-does the port.
+property.
 
-The goldens are the runs of three lexicons, each in both whitespace
-modes: `zh-unigram-fixture.txt` (OpenNLP's test lexicon, words with
+The goldens are the runs of three lexicons: `zh-unigram-fixture.txt` (OpenNLP's test lexicon, words with
 equal count products, CR LF and lone CR line ends, fullwidth digits and
 a `+` sign in counts, no-break and ideographic spaces between word and
 count, a word outside the Basic Multilingual Plane, a word listed twice)
 on the `zh`, `multi`, `edge` and `surrogate` inputs;
 `jieba-dict-subset.txt` (the lines of jieba's `dict.txt` whose word
 occurs in the `zh`, `multi` or `edge` inputs) on those sets; and
-`zh-unigram-modes.txt`, whose words differ between the modes, on the
-`zh` inputs. Every token matches, on 264 goldens. In a run outside the
+`zh-unigram-modes.txt`, whose words hold `U+0085` and the information
+separators `U+001C` to `U+001F`, on the `zh` inputs. Every token matches,
+on 132 goldens. In a run outside the
 repository at commit `0260665`, with the whole of jieba's `dict.txt`
 (fxsjy/jieba commit `67fa2e36e72f69d9134b8a1037b83fbb070b9775`, 349046
 lines), the port's tokens equalled the JVM's on every line of the PKU
@@ -1130,9 +1122,8 @@ by OpenNLP or here. The files are read in this order:
 - `unk.def`, in the lexicon format. Its surfaces are category names,
   which `char.def` must define.
 
-Lines end at `\n`, `\r` or `\r\n`, are trimmed of Unicode `White_Space`
-in both whitespace modes, and are split into fields at whitespace in the
-configured mode. Numbers are read as `Integer.parseInt` reads them:
+Lines end at `\n`, `\r` or `\r\n`, are trimmed of Unicode `White_Space`,
+and are split into fields at it. Numbers are read as `Integer.parseInt` reads them:
 decimal digits of any script in the Basic Multilingual Plane, and
 `char.def`'s hexadecimal also accepts fullwidth letters. The checks and
 their order are the Java's, and a malformed file is an error that names
@@ -1185,10 +1176,6 @@ Deviations, each with a test in `analysis/tokenize/src/lattice`:
   after its header than its lines need (six per cell, less one) is
   refused before its table is allocated. The Java allocates the table from the header
   first, then finds that pairs are missing.
-- In the legacy whitespace mode, a `char.def` line made only of
-  characters that are whitespace in that mode but not Unicode
-  `White_Space` (`U+001C` to `U+001F`) is a malformed category. In the
-  Java it throws an `ArrayIndexOutOfBoundsException`.
 - Where `unk.def` names several undefined categories, the port reports
   the first in file order, and the Java the first in its `HashMap`'s
   order.
@@ -1197,8 +1184,8 @@ Deviations, each with a test in `analysis/tokenize/src/lattice`:
 
 The goldens are the runs of six dictionaries
 (`analysis/goldens-tool/README.md`, "Lattice goldens"). Three are
-fixtures written for this project. `mecab-fixture-ja`, run in both
-whitespace modes on the `ja`, `multi`, `edge` and `surrogate` inputs,
+fixtures written for this project. `mecab-fixture-ja`, run on the
+`ja`, `multi`, `edge` and `surrogate` inputs,
 has costs that make ties, a quoted surface with a comma, overlapping
 categories and supplementary characters. `mecab-fixture-ko` runs on the
 `ko`, `multi` and `edge` inputs. `mecab-fixture-partial`, whose
@@ -1213,7 +1200,6 @@ where the JVM threw, the port fails at the same character:
 | Dictionary | Goldens | Morphemes | Unknown | JVM errors |
 |---|---|---|---|---|
 | `mecab-fixture-ja` | 65 | 1497 | 1244 | 0 |
-| `mecab-fixture-ja+legacy` | 65 | 1494 | 1241 | 0 |
 | `mecab-fixture-ko` | 55 | 1310 | 1155 | 0 |
 | `mecab-fixture-partial` | 48 | 17 | 11 | 44 |
 | `mecab-ipadic-2.7.0-20070801` | 65 | 1512 | 1068 | 0 |
@@ -1444,8 +1430,7 @@ same input. The goldens are made by `turbo-goldens` (crate
 generator in a container built from a fixed JDK image and OpenNLP
 commit, and live in `analysis/goldens/data`:
 `tokenize/`, `sentdetect/` and `detokenize/` hold a directory per run,
-named after the model and any options (`+legacy` for OpenNLP's legacy
-whitespace mode, `+keep-new-lines`, `+alphanumeric`,
+named after the model and any options (`+keep-new-lines`, `+alphanumeric`,
 `+english-dictionary`), or after the component when it has no model
 (`simple`, `whitespace`, `uax29`, `newline`). The format and the list of
 runs are in `docs/analysis.md` ("Golden files") and
@@ -1547,16 +1532,6 @@ reach the OpenNLP side:
   word of its own, so an unlisted number such as `2000` is four words;
   jieba keeps runs of unlisted ASCII letters and digits together, which
   is most of what separates the two on the PKU test set.
-- `UnigramSegmenter.load` accepts a line whose word is empty in the
-  legacy whitespace mode (one starting with `U+001C` to `U+001F`, which
-  `trimUnicodeWhitespace` keeps and `isWhitespace` splits on); the empty
-  word goes on the trie's root and is never used, but its count is in
-  the total.
-- `MecabDictionary.load` reads `char.def` with `trimUnicodeWhitespace`
-  and then splits it with `isWhitespace`. In the legacy whitespace mode,
-  a line made only of `U+001C` to `U+001F` therefore has no fields, and
-  it throws an `ArrayIndexOutOfBoundsException` instead of an
-  `IOException`.
 - `MecabDictionary.load` checks the categories `unk.def` names by
   iterating over a `HashMap`. Where several are undefined, which one the
   message names depends on hash order, not on the file.

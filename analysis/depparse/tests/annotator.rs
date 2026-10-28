@@ -146,7 +146,6 @@ fn real_trained_maxent_and_feedforward_models_parse_through_annotator() {
     };
     use turbo_formats::conllu::{ConlluDependencyReader, Tagset};
     use turbo_train::{Key as TrainKey, TrainingParameters};
-    use turbo_unicode::WhitespaceMode;
 
     let conllu = concat!(
         "# text = El gato negro duerme hoy.\n",
@@ -164,7 +163,7 @@ fn real_trained_maxent_and_feedforward_models_parse_through_annotator() {
         "5\trápido\trápido\tADV\t_\t_\t4\tadvmod\t_\tSpaceAfter=No\n",
         "6\t.\t.\tPUNCT\t_\t_\t4\tpunct\t_\t_\n\n",
     );
-    let mut reader = ConlluDependencyReader::new(conllu, Tagset::U, WhitespaceMode::Unicode).unwrap();
+    let mut reader = ConlluDependencyReader::new(conllu, Tagset::U).unwrap();
     let mut base = Vec::new();
     for item in &mut reader {
         let conllu_sample = item.unwrap();
