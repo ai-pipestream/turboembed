@@ -65,6 +65,10 @@ fn head_weights() -> Vec<(String, Vec<u64>, Vec<f32>)> {
 }
 
 fn bundle(name: &str, edit: impl FnOnce(&mut Value)) -> PathBuf {
+    bundle_of(name, head_weights(), edit)
+}
+
+fn bundle_of(name: &str, weights: Vec<(String, Vec<u64>, Vec<f32>)>, edit: impl FnOnce(&mut Value)) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("turbo-lemmatizer-{}-{name}", std::process::id()));
     let _ = fs::remove_dir_all(&dir);
     for f in ["tokenizer.json", "reference/reference.safetensors"] {
@@ -82,7 +86,7 @@ fn bundle(name: &str, edit: impl FnOnce(&mut Value)) -> PathBuf {
         let (a, b) = (o[0].as_u64().unwrap() as usize, o[1].as_u64().unwrap() as usize);
         all.push(Tensor { name: k, dtype: "F32", shape, data: data[a..b].to_vec() });
     }
-    for (name, shape, v) in head_weights() {
+    for (name, shape, v) in weights {
         all.push(Tensor { name, dtype: "F32", shape, data: v.iter().flat_map(|x| x.to_le_bytes()).collect() });
     }
     let weights = safetensors_file(&all);
@@ -144,4 +148,17 @@ fn manifest_refuses_a_lemmatizer_whose_tags_no_head_gives() {
     );
     refused("bad-tree", |m| m["heads"][1]["labels"][1] = json!("(m 0 2 () (s 'ed' '')"), "labels[1]");
     refused("decode", |m| m["heads"][1]["decode"] = json!("DECODE_ARGMAX"), "HEAD_EDIT_TREE_LEMMATIZER takes");
+}
+
+#[test]
+fn a_bundle_whose_tag_embedding_is_not_finite_does_not_load() {
+    for (name, v) in [("nan", f32::NAN), ("inf", f32::INFINITY), ("neg-inf", f32::NEG_INFINITY)] {
+        let mut w = head_weights();
+        let (_, _, t) = w.iter_mut().find(|(k, _, _)| k == "heads.lemma.pos.embedding").unwrap();
+        t[3] = v;
+        let b = Bundle::open(&bundle_of(&format!("poison-{name}"), w, |_| {})).unwrap();
+        let e = EditTreeLemmatizer::load(&b, "lemma").unwrap_err();
+        assert_eq!(e.code, BUNDLE_INVALID, "{name}: {e:?}");
+        assert!(e.message.contains("pos.embedding holds a value that is not finite"), "{name}: {e:?}");
+    }
 }
