@@ -12,7 +12,7 @@ mod support;
 use support::{Counts, load_labelled, measure, ratio, ratio_text};
 
 /// (id, goldens-escaped, file, pinned SHA-256 of the document text).
-const EXTERNAL_DOCS: [(&str, bool, &str, &str); 20] = [
+const EXTERNAL_DOCS: [(&str, bool, &str, &str); 21] = [
     ("rfc7519", false, "rfc7519.txt", "fecd930e9ccf2276b95c0017c6c4ff5d09352e4bc3c7629946447894e0f97248"),
     ("rfc5737", false, "rfc5737.txt", "9d16217614a74a9b064eff900e5cd07a525793cf8227dca1267100e880f0c410"),
     ("rfc3849", false, "rfc3849.txt", "b0741fc609be565b356c62d2f9b9ef30469f3fe7bde386c2690e173751bb1941"),
@@ -98,6 +98,12 @@ const EXTERNAL_DOCS: [(&str, bool, &str, &str); 20] = [
         "github-docs-credentials.json",
         "6264abec023c7028ad236ff545a802aeea01653e83cfcc3990fc480ab6797102",
     ),
+    (
+        "test-payment-cards",
+        false,
+        "test-payment-cards.md",
+        "abaec7984e9e161615ff93bf3db98e826cab1f281f0c239b333a2d7b2b12825f",
+    ),
 ];
 
 /// Only kinds with gold in these documents are pinned here; mentions
@@ -107,11 +113,12 @@ fn precision_and_recall_on_external_prose() {
     let set = load_labelled(&EXTERNAL_DOCS, "labels-external.tsv", true);
     let by_kind = measure(&set);
     eprintln!("\nexternal prose evaluation set (#968):");
-    let want_by_kind: [(&str, usize, usize, usize); 17] = [
+    let want_by_kind: [(&str, usize, usize, usize); 18] = [
         ("aba-routing", 4, 0, 4),
         ("aws-access-key", 4, 0, 0),
         ("btc-address", 8, 0, 3),
         ("ca-sin", 0, 0, 2),
+        ("card", 314, 11, 41),
         ("email", 22, 2, 1),
         ("eth-address", 14, 0, 0),
         ("github-token", 5, 0, 0),
@@ -148,7 +155,7 @@ fn precision_and_recall_on_external_prose() {
         let c = by_kind.get(kind).unwrap();
         assert_eq!((c.tp, c.fp, c.fn_), (tp, fp, fn_), "{kind}");
     }
-    assert_eq!((total.tp, total.fp, total.fn_), (113, 34, 17));
+    assert_eq!((total.tp, total.fp, total.fn_), (427, 34, 58));
 }
 
 #[test]

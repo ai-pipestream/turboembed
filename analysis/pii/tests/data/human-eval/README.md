@@ -23,11 +23,12 @@ This corpus does not complete #968's requirement for licensed human-written
 text with labelled spans per kind. Within the mixed set only `phone` has
 unedited third-party prose coverage; the separate external partition below
 adds unedited third-party coverage for `aba-routing`,
-`aws-access-key`, `btc-address`, `ca-sin`, `email`, `eth-address`,
-`github-token`, `iban`, `imei`, `ipv4`, `ipv6`, `jwt`, `mac`,
-`uk-nhs`, `url-credential`, `us-ssn` and further `phone`, plus zero-gold
-precision documents for `card`, `us-itin` and `de-steuer-id`, for
-which no licensed source found so far prints a complete specimen. The adapted
+`aws-access-key`, `btc-address`, `ca-sin`, `card`, `email`,
+`eth-address`, `github-token`, `iban`, `imei`, `ipv4`, `ipv6`,
+`jwt`, `mac`, `uk-nhs`, `url-credential`, `us-ssn` and further
+`phone`, plus zero-gold precision documents for `us-itin` and
+`de-steuer-id`, for which no licensed source found so far prints
+a complete specimen. The adapted
 crypto summaries and authored memos remain useful, separately
 labelled test partitions; the adapted summaries no longer carry
 the crypto kinds on their own now that the whole BIP-173, BIP-350
@@ -79,7 +80,7 @@ positives.
 
 ## External prose partition (#968)
 
-Twenty further whole third-party documents (`459,327` UTF-8 bytes, `130` gold
+Twenty-one further whole third-party documents (`493,288` UTF-8 bytes, `485` gold
 mentions in `labels-external.tsv`, same five columns except that newlines
 inside covered text are escaped as `\n`), scored separately by
 `precision_and_recall_on_external_prose` (`analysis/pii/tests/external_prose.rs`)
@@ -116,8 +117,10 @@ of each file is pinned in the test.
 
 | `github-docs-credentials` | `github-docs-credentials.json` | 3,852 | `6264abec023c7028ad236ff545a802aeea01653e83cfcc3990fc480ab6797102` | [GitHub Docs](https://docs.github.com/) REST API data for the credentials-revoke endpoint (the src/rest/data/fpt-2022-11-28/credentials.json file) at github/docs commit `e6d6a89c2a7f36382ac7a99d6b3f5e44fd312781` (CC BY 4.0). Gold: `5` `github-token` (the example credentials of the revoke request body: one classic personal access token, one fine-grained token, and one token each for the OAuth, user-to-server and refresh prefixes). They are documentation example values published for revocation examples, not live credentials. |
 
+| `test-payment-cards` | `test-payment-cards.md` | 33,961 | `abaec7984e9e161615ff93bf3db98e826cab1f281f0c239b333a2d7b2b12825f` | [Test Payment Cards](https://github.com/drmonkeyninja/test-payment-cards), the gateway test-card list (the readme.md file) at commit `323dc3096578ea156cd872641e7aea98f5ec65ca` (CC BY-SA 4.0, stated at the end of the document). Gold: `355` `card` (every 13-to-19-digit number the tables publish as a test card number, contiguous, space-grouped or hyphen-grouped as printed; five of them fail Luhn and 36 begin with a digit outside the scanner's 2-to-6 or 81 rule (34 Pay360 test-range numbers in 9905/9900 and two 1-series UATP numbers), and those 41 are the measured misses). Expiry dates and card codes in the same tables are too short to be card occurrences and are not labelled. |
+
 Annotation method: every occurrence of every built-in kind in these
-twenty documents was enumerated by independent shape searches over the pinned text
+twenty-one documents was enumerated by independent shape searches over the pinned text
 and read in context before labelling; spans the search shapes could not
 produce (the display-wrapped JWTs, address parts of CIDR prefixes) were
 located from the documents' own example sections. Values are as their

@@ -413,8 +413,8 @@ remaining 17 kinds are evaluated on project-authored operational memos
 
 ### External prose partition (whole third-party documents)
 
-A separately scored partition of twenty whole third-party documents
-(`459,327` bytes, `130` gold mentions,
+A separately scored partition of twenty-one whole third-party documents
+(`493,288` bytes, `485` gold mentions,
 `precision_and_recall_on_external_prose`, gold in
 `analysis/pii/tests/data/human-eval/labels-external.tsv`, provenance in
 that directory's `README.md`): RFC 7519, RFC 5737, RFC 3849 and RFC 7042
@@ -424,14 +424,17 @@ Bank Account Number", "Social Security number", "Social insurance
 number", "NHS number", "International Mobile Equipment Identity",
 "Routing transit number", "Individual Taxpayer Identification
 Number", "Steuerliche Identifikationsnummer" and "Payment card
-number" (the last three carry no gold: no licensed source found so
-far prints a complete specimen of their kind, so they measure
-precision on identifier-dense prose with recall N/A), the BIP-173
+number" (the ITIN and Steuer-ID articles carry no gold: no
+licensed source found so far prints a complete specimen of their
+kind, so they measure precision on identifier-dense prose with
+recall N/A; `card` positives come from the Test Payment Cards
+list below), the BIP-173
 and BIP-350 specification texts (BSD-2-Clause) with ERC-55
 (CC0-1.0) at pinned source commits, the Everything curl URL
 authentication chapter (CC BY 4.0), two AWS documentation
 chapters (CC BY-SA 4.0) at pinned awsdocs commits, and the GitHub
-Docs REST data file for the credentials-revoke endpoint (CC BY 4.0).
+Docs REST data file for the credentials-revoke endpoint (CC BY 4.0),
+and the Test Payment Cards gateway list (CC BY-SA 4.0).
 These rows never pool with the mixed set above.
 
 | Kind | Source partition | true | false | missed | precision | recall |
@@ -440,6 +443,7 @@ These rows never pool with the mixed set above.
 | `aws-access-key` | external (AWS EKS and Rekognition documentation chapters) | 4 | 0 | 0 | 1.000 | 1.000 |
 | `btc-address` | external (BIP-173, BIP-350 mediawiki) | 8 | 0 | 3 | 1.000 | 0.727 |
 | `ca-sin` | external (Wikipedia SIN wikitext) | 0 | 0 | 2 | N/A | 0.000 |
+| `card` | external (Test Payment Cards gateway list) | 314 | 11 | 41 | 0.966 | 0.885 |
 | `email` | external (RFC 7519, RFC 5737, RFC 3849, RFC 7042, BIP-173, BIP-350, ERC-55) | 22 | 2 | 1 | 0.917 | 0.957 |
 | `eth-address` | external (ERC-55 markdown) | 14 | 0 | 0 | 1.000 | 1.000 |
 | `github-token` | external (GitHub Docs REST credentials data) | 5 | 0 | 0 | 1.000 | 1.000 |
@@ -453,7 +457,7 @@ These rows never pool with the mixed set above.
 | `url-credential` | external (Everything curl URL authentication chapter) | 1 | 0 | 0 | 1.000 | 1.000 |
 | `uk-nhs` | external (Wikipedia NHS wikitext) | 1 | 2 | 3 | 0.333 | 0.250 |
 | `us-ssn` | external (Wikipedia SSN wikitext) | 3 | 0 | 0 | 1.000 | 1.000 |
-| **all kinds** | **external (`130` gold; false mentions of kinds without gold included)** | **113** | **34** | **17** | **0.769** | **0.869** |
+| **all kinds** | **external (`485` gold; false mentions of kinds without gold included)** | **427** | **34** | **58** | **0.926** | **0.880** |
 
 Zero prediction or gold support makes the corresponding precision or
 recall **N/A**, including the card recall when no card is gold-labelled.
@@ -482,12 +486,18 @@ What the external false positives and misses are:
   at the end of a citation URL slug in the Steuer-ID article; and
   the digit run of an inline SVG icon path in the GitHub Docs
   credentials data.
-- **`card` false positives (11)**: the 15-digit grouped IMEI
-  examples and a contiguous 14-digit walkthrough prefix in the IMEI
-  article (only complete IMEIs carry `imei` gold),
-  and 14-digit archive timestamps in Wikipedia citation templates
-  (two in the Payment card number article and one in the Steuer-ID
-  article among them, Luhn-valid by coincidence).
+- **`card` false positives (11) and misses (41)**: the false
+  positives are the 15-digit grouped IMEI examples and a contiguous
+  14-digit walkthrough prefix in the IMEI article (only complete
+  IMEIs carry `imei` gold), and 14-digit archive timestamps in
+  Wikipedia citation templates (two in the Payment card number
+  article and one in the Steuer-ID article among them, Luhn-valid
+  by coincidence); the Test Payment Cards list itself draws no
+  false card mention. The misses are all in that list: 34 Pay360
+  test numbers in the 9905 and 9900 ranges and two 1-series UATP
+  numbers, whose first digit is outside the scanner's 2-to-6 or 81
+  rule, and five numbers the gateways publish as test cards whose
+  check digit fails Luhn.
 - **`ipv4` false positives (3)**: the Simple Web Token version `0.9.5.1`
   in RFC 7519's references and the section number `2.3.2.1` twice in
   RFC 7042.
@@ -528,16 +538,16 @@ What the external false positives and misses are:
 
 #968 remains open with its original acceptance requirements. Independent
 human-written prose coverage with positive occurrences has not been
-established for `card`, `us-itin` and `de-steuer-id`: the ITIN,
-Steuer-ID and Payment card number articles and IRS Publication
-1915 print format patterns and algorithms but no complete
-specimen, so those documents establish precision evidence only.
+established for `us-itin` and `de-steuer-id`: the ITIN and
+Steuer-ID articles and IRS Publication 1915 print format patterns
+and algorithms but no complete specimen, so those documents
+establish precision evidence only.
 The external partition above establishes coverage for
-`aba-routing`, `aws-access-key`, `btc-address`, `ca-sin`, `email`,
-`eth-address`, `github-token`, `iban`, `imei`, `ipv4`, `ipv6`,
-`jwt` (recall `0.000` on the signed/unsecured subset, which is
-display-wrapped), `mac`, `uk-nhs`, `url-credential`, `us-ssn`, and
-further third-party `phone`; the `btc-address` and
+`aba-routing`, `aws-access-key`, `btc-address`, `ca-sin`, `card`,
+`email`, `eth-address`, `github-token`, `iban`, `imei`, `ipv4`,
+`ipv6`, `jwt` (recall `0.000` on the signed/unsecured subset,
+which is display-wrapped), `mac`, `uk-nhs`, `url-credential`,
+`us-ssn`, and further third-party `phone`; the `btc-address` and
 `eth-address` coverage is the whole
 BIP-173, BIP-350 and ERC-55 specification texts, superseding the
 adapted summaries as the crypto evidence.
