@@ -65,7 +65,8 @@ async fn model_metadata() {
             st("texts", "BYTES", &[-1]),
             st("ids", "INT32", &[-1, -1]),
             st("mask", "INT32", &[-1, -1]),
-            st("types", "INT32", &[-1, -1])
+            st("types", "INT32", &[-1, -1]),
+            st("int8_ranges", "FP32", &[2, -1])
         ]
     );
     assert_eq!(t(&m.outputs), [st("vectors", "FP32", &[-1, -1])]);

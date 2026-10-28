@@ -207,7 +207,9 @@ across the two runs (docs/receipts/rerank-levelzero-916 has the logs).
 | MS MARCO MiniLM L6 v2 | 2907.9 | 352.1 (347.4 to 359.4) |
 | BGE reranker base | 403.6 | 2536.9 (2490.1 to 2583.0) |
 
-These records are in `benchmarks/rerank/` beside the CUDA ones. An
+These records are in `benchmarks/rerank/` beside the CUDA ones. Their
+`machine.host_cpu` field is empty, as the tool writes it; the host was
+an AMD Ryzen 9 9950X (16 cores, 32 threads). An
 earlier MiniLM run at `6b982643`, 889.6 pairs/s, was taken while a
 desktop client held the B70's render engine about 68% busy, and is
 superseded.

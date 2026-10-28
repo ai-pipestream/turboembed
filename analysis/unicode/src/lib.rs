@@ -27,11 +27,11 @@
 //!
 //! The modules the segmentation ports use besides [`java`]:
 //!
-//! - [`whitespace`]: OpenNLP's two whitespace definitions, chosen by a
-//!   [`WhitespaceMode`] value, including `is_blank` and borrowed `trim`.
-//!   Unicode blank includes NBSP and NEL but excludes U+001C;
+//! - [`whitespace`]: the Unicode `White_Space` property, the one
+//!   whitespace definition the workspace uses, with `is_blank` and a
+//!   borrowed `trim`. Blank includes NBSP and NEL but excludes U+001C;
 //!   [`java::is_blank`] follows `String.isBlank`, with the reverse choices.
-//!   Empty strings are blank under all three definitions.
+//!   Empty strings are blank under both definitions.
 //! - [`grapheme`]: UAX #29 extended grapheme cluster boundaries.
 //! - [`word_break`]: the UAX #29 `Word_Break` and `Extended_Pictographic`
 //!   properties.
@@ -67,7 +67,6 @@ pub use normalize::hf;
 pub use script::Script;
 pub use sentence_break::SentenceBreak;
 pub use utf16::Utf16Cursor;
-pub use whitespace::WhitespaceMode;
 pub use word_break::WordBreak;
 
 /// The Unicode version the tables were generated from.

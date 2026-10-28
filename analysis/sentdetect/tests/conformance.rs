@@ -42,9 +42,7 @@ use turbo_goldens::sentences::{
     BreakTestCase, SentenceCase, read_break_test, read_expected_failures, sentence_suite, sentences_dir,
 };
 use turbo_maxent::ModelFile;
-use turbo_sentdetect::{
-    AbbreviationInventories, LineBreaks, RuleSplitter, Rules, SentenceDetector, SentenceModel, WhitespaceMode,
-};
+use turbo_sentdetect::{AbbreviationInventories, LineBreaks, RuleSplitter, Rules, SentenceDetector, SentenceModel};
 use turbo_unicode::sentence_break::sentence_break;
 
 /// The published models, by language.
@@ -153,7 +151,7 @@ fn maxent(lang: &'static str) -> Option<Detector> {
     let file = MODELS.iter().find(|(l, _)| *l == lang).unwrap().1;
     let path = common::published_model(file)?;
     let model = SentenceModel::open(ModelFile::read(&path).unwrap()).unwrap();
-    Some(Detector::Maxent(lang, SentenceDetector::new(model, WhitespaceMode::Unicode).with_jvm_parity()))
+    Some(Detector::Maxent(lang, SentenceDetector::new(model).with_jvm_parity()))
 }
 
 /// Whitespace runs made one space, the ends trimmed.

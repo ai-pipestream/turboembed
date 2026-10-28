@@ -29,7 +29,6 @@ use turbo_train_components::postag::{self, PosTaggerFactory, train_pos_model};
 use turbo_train_components::sentdetect::{self, SentenceDetectorFactory, train_sentence_model};
 use turbo_train_components::tokenize::{self, TokenizerFactory, train_tokenizer_model};
 use turbo_train_components::{AbbreviationDictionary, PosDictionary, Stamp};
-use turbo_unicode::WhitespaceMode;
 
 fn fixture(name: &str) -> ModelFile {
     ModelFile::read(data_dir().join("fixtures").join(name)).unwrap()
@@ -96,7 +95,6 @@ fn en_plain_is_trained_again_from_its_sentences() {
         &factory,
         &sentence_parameters(),
         &mut TrainingConfiguration::default(),
-        WhitespaceMode::Unicode,
         Stamp::at(timestamp(&theirs)),
     )
     .unwrap();
@@ -137,7 +135,6 @@ fn en_abbrev_is_trained_again_with_its_dictionary() {
         &factory,
         &sentence_parameters(),
         &mut TrainingConfiguration::default(),
-        WhitespaceMode::Unicode,
         Stamp::at(timestamp(&theirs)),
     )
     .unwrap();
@@ -158,8 +155,7 @@ fn the_tokenizer_fixture_is_trained_again_from_its_six_samples() {
     let dictionary = AbbreviationDictionary::read(xml).unwrap();
     let text = "Dr. Smith<SPLIT>, e.g. here<SPLIT>.\nIt<SPLIT>'s ok<SPLIT>.\nThe U.S. team won<SPLIT>!\n\
         Call me<SPLIT>, please<SPLIT>.\n(<SPLIT>yes<SPLIT>)\n\"<SPLIT>Hi<SPLIT>\"<SPLIT>, she said<SPLIT>.\n";
-    let samples: Vec<_> =
-        turbo_formats::native::TokenReader::new(text, WhitespaceMode::Unicode).unwrap().map(|s| s.unwrap()).collect();
+    let samples: Vec<_> = turbo_formats::native::TokenReader::new(text).unwrap().map(|s| s.unwrap()).collect();
     let mut p = TrainingParameters::new();
     p.put_str(Key::ALGORITHM, "MAXENT");
     p.put(Key::ITERATIONS, 50);
@@ -170,7 +166,6 @@ fn the_tokenizer_fixture_is_trained_again_from_its_six_samples() {
         &factory,
         &p,
         &mut TrainingConfiguration::default(),
-        WhitespaceMode::Unicode,
         Stamp::at(timestamp(&theirs)),
     )
     .unwrap();
@@ -185,7 +180,7 @@ fn the_tokenizer_fixture_is_trained_again_from_its_six_samples() {
 fn pos_fixture_is_trained_again_with_its_descriptor_and_tag_dictionary() {
     let theirs = fixture("pos-fixture.bin");
     let text = read_text(&goldens_data("train-fixtures/train-pos.txt"));
-    let samples: Vec<_> = WordTagReader::new(&text, WhitespaceMode::Unicode).unwrap().map(|s| s.unwrap()).collect();
+    let samples: Vec<_> = WordTagReader::new(&text).unwrap().map(|s| s.unwrap()).collect();
     let descriptor = read(&goldens_data("fixtures/featuregen/pos-default.xml"));
     let dictionary = PosDictionary::read(&read(&goldens_data("fixtures/tags.tagdict"))).unwrap();
     let factory = PosTaggerFactory::new("en", Some(descriptor), Some(dictionary)).unwrap();
@@ -214,7 +209,7 @@ fn pos_fixture_is_trained_again_with_its_descriptor_and_tag_dictionary() {
 fn check_name_fixture(file: &str, algorithm: &str, descriptor: Option<&str>, codec: NameCodec) {
     let theirs = fixture(file);
     let text = read_text(&goldens_data("train-fixtures/train-names.txt"));
-    let samples: Vec<_> = NameReader::new(&text, WhitespaceMode::Unicode).unwrap().map(|s| s.unwrap()).collect();
+    let samples: Vec<_> = NameReader::new(&text).unwrap().map(|s| s.unwrap()).collect();
     let descriptor = descriptor.map(|d| read(&goldens_data(d)));
     let factory = TokenNameFinderFactory::new("en", descriptor, codec).unwrap();
     let mut p = tagger_parameters(50);
@@ -285,7 +280,7 @@ fn check_rust_fixture(name: &str, bin: &[u8]) {
 #[test]
 fn the_rust_pos_fixture_is_the_bin_written_here() {
     let text = tagged("wordtag.txt");
-    let samples: Vec<_> = WordTagReader::new(&text, WhitespaceMode::Unicode).unwrap().map(|s| s.unwrap()).collect();
+    let samples: Vec<_> = WordTagReader::new(&text).unwrap().map(|s| s.unwrap()).collect();
     assert_eq!(samples.len(), 20);
     let dictionary = PosDictionary::read(&read(&data_dir().join("fixtures/tags.tagdict"))).unwrap();
     let factory = PosTaggerFactory::new("en", None, Some(dictionary)).unwrap();
@@ -357,7 +352,7 @@ fn the_rust_name_fixture_is_the_bin_written_here() {
     // NameFinderME.train's defaults (MAXENT, 300 iterations, cutoff 0),
     // the default descriptor, BIO, and the types of the samples.
     let text = tagged("names.txt");
-    let samples: Vec<_> = NameReader::new(&text, WhitespaceMode::Unicode).unwrap().map(|s| s.unwrap()).collect();
+    let samples: Vec<_> = NameReader::new(&text).unwrap().map(|s| s.unwrap()).collect();
     assert_eq!(samples.len(), 23);
     let factory = TokenNameFinderFactory::new("en", None, NameCodec::Bio).unwrap();
     let ours = train_name_model(

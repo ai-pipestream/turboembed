@@ -4,11 +4,12 @@ use turbo_zoo::RefusalReason;
 use super::*;
 
 #[test]
-fn masc_keeps_its_released_partitions_when_ud_changes() {
+fn masc_keeps_its_released_parameters() {
     let masc = training_parameters();
-    let ud = turbo_train_components::ud::training_parameters();
+    let ud = crate::ud::training_parameters();
     assert_eq!(masc.get_int(Key::THREADS).unwrap(), Some(4));
-    assert_eq!(ud.get_int(Key::THREADS).unwrap(), Some(12));
+    assert_eq!(masc.get_int(Key::ITERATIONS).unwrap(), Some(300));
+    assert_eq!(masc.get_int(Key::CUTOFF).unwrap(), Some(5));
     for key in [Key::ITERATIONS, Key::CUTOFF] {
         assert_eq!(masc.get_int(key).unwrap(), ud.get_int(key).unwrap());
     }

@@ -42,7 +42,6 @@ import opennlp.tools.util.InputStreamFactory;
 import opennlp.tools.util.ObjectStream;
 import opennlp.tools.util.PlainTextByLineStream;
 import opennlp.tools.util.Span;
-import opennlp.tools.util.WhitespaceMode;
 
 /**
  * The golden of one of OpenNLP's sample streams over a file in its format: every sample the
@@ -88,36 +87,33 @@ final class FormatGolden implements AnnotatorGolden {
 
   /** The streams, each with the prefix of the input ids it reads. */
   enum Kind {
-    NAME("name", "name", NameSampleDataStream.class, true),
-    WORDTAG("wordtag", "wordtag", WordTagSampleStream.class, true),
-    LEMMA("lemma", "lemma", LemmaSampleStream.class, false),
-    CHUNK("chunk", "chunk", ChunkSampleStream.class, false),
-    TOKEN("token", "token", TokenSampleStream.class, true),
-    SENTENCE("sentence", "sentence", SentenceSampleStream.class, false),
-    DOCCAT("doccat", "doccat", DocumentSampleStream.class, true),
-    LANGUAGE("language", "language", LanguageDetectorSampleStream.class, false),
-    NAME_TO_TOKEN("name-to-token", "name", NameToTokenSampleStream.class, false),
-    POS_TO_TOKEN("pos-to-token", "wordtag", POSToTokenSampleStream.class, false),
-    NAME_TO_SENTENCE("name-to-sentence", "name", NameToSentenceSampleStream.class, false),
-    POS_TO_SENTENCE("pos-to-sentence", "wordtag", POSToSentenceSampleStream.class, false),
-    CONLLU_POS_U("conllu-pos-u", "conllu", ConlluPOSSampleStream.class, false),
-    CONLLU_POS_X("conllu-pos-x", "conllu", ConlluPOSSampleStream.class, false),
-    CONLLU_LEMMA_U("conllu-lemma-u", "conllu", ConlluLemmaSampleStream.class, false),
-    CONLLU_LEMMA_X("conllu-lemma-x", "conllu", ConlluLemmaSampleStream.class, false),
-    CONLLU_SENTENCE("conllu-sentence", "conllu", ConlluSentenceSampleStream.class, false),
-    CONLLU_TOKEN("conllu-token", "conllu", ConlluTokenSampleStream.class, true);
+    NAME("name", "name", NameSampleDataStream.class),
+    WORDTAG("wordtag", "wordtag", WordTagSampleStream.class),
+    LEMMA("lemma", "lemma", LemmaSampleStream.class),
+    CHUNK("chunk", "chunk", ChunkSampleStream.class),
+    TOKEN("token", "token", TokenSampleStream.class),
+    SENTENCE("sentence", "sentence", SentenceSampleStream.class),
+    DOCCAT("doccat", "doccat", DocumentSampleStream.class),
+    LANGUAGE("language", "language", LanguageDetectorSampleStream.class),
+    NAME_TO_TOKEN("name-to-token", "name", NameToTokenSampleStream.class),
+    POS_TO_TOKEN("pos-to-token", "wordtag", POSToTokenSampleStream.class),
+    NAME_TO_SENTENCE("name-to-sentence", "name", NameToSentenceSampleStream.class),
+    POS_TO_SENTENCE("pos-to-sentence", "wordtag", POSToSentenceSampleStream.class),
+    CONLLU_POS_U("conllu-pos-u", "conllu", ConlluPOSSampleStream.class),
+    CONLLU_POS_X("conllu-pos-x", "conllu", ConlluPOSSampleStream.class),
+    CONLLU_LEMMA_U("conllu-lemma-u", "conllu", ConlluLemmaSampleStream.class),
+    CONLLU_LEMMA_X("conllu-lemma-x", "conllu", ConlluLemmaSampleStream.class),
+    CONLLU_SENTENCE("conllu-sentence", "conllu", ConlluSentenceSampleStream.class),
+    CONLLU_TOKEN("conllu-token", "conllu", ConlluTokenSampleStream.class);
 
     final String dir;
     final String inputPrefix;
     final Class<?> streamClass;
-    /** Whether the stream splits lines with {@code WhitespaceTokenizer}, so it is also run in the legacy mode. */
-    final boolean splitsWhitespace;
 
-    Kind(String dir, String inputPrefix, Class<?> streamClass, boolean splitsWhitespace) {
+    Kind(String dir, String inputPrefix, Class<?> streamClass) {
       this.dir = dir;
       this.inputPrefix = inputPrefix;
       this.streamClass = streamClass;
-      this.splitsWhitespace = splitsWhitespace;
     }
 
     boolean converts() {
@@ -139,20 +135,18 @@ final class FormatGolden implements AnnotatorGolden {
   }
 
   private final Kind kind;
-  private final WhitespaceMode whitespace;
   private final List<ModelRef> models;
   private final Detokenizer detokenizer;
 
-  private FormatGolden(Kind kind, WhitespaceMode whitespace, List<ModelRef> models, Detokenizer detokenizer) {
+  private FormatGolden(Kind kind, List<ModelRef> models, Detokenizer detokenizer) {
     this.kind = kind;
-    this.whitespace = whitespace;
     this.models = List.copyOf(models);
     this.detokenizer = detokenizer;
   }
 
   /**
-   * Every run: each native stream, in the legacy whitespace mode too when it splits on
-   * whitespace, and each conversion stream with the detokenizer dictionary {@code dictionary}.
+   * Every run: each native stream, and each conversion stream with the detokenizer dictionary
+   * {@code dictionary}.
    */
   static List<FormatGolden> all(Path dictionary) throws IOException {
     ModelFile d = ModelFile.read(dictionary);
@@ -160,13 +154,10 @@ final class FormatGolden implements AnnotatorGolden {
     List<FormatGolden> runs = new ArrayList<>();
     for (Kind k : Kind.values()) {
       if (k.converts()) {
-        runs.add(new FormatGolden(k, WhitespaceMode.UNICODE, List.of(d.ref()), detokenizer));
+        runs.add(new FormatGolden(k, List.of(d.ref()), detokenizer));
         continue;
       }
-      runs.add(new FormatGolden(k, WhitespaceMode.UNICODE, List.of(), null));
-      if (k.splitsWhitespace) {
-        runs.add(new FormatGolden(k, WhitespaceMode.LEGACY, List.of(), null));
-      }
+      runs.add(new FormatGolden(k, List.of(), null));
     }
     return runs;
   }
@@ -202,7 +193,7 @@ final class FormatGolden implements AnnotatorGolden {
     if (kind.tagset() != null) {
       return Map.of("tagset", kind.tagset().name().toLowerCase(Locale.ROOT));
     }
-    return Whitespace.config(whitespace);
+    return Map.of();
   }
 
   @Override
@@ -217,12 +208,12 @@ final class FormatGolden implements AnnotatorGolden {
 
   @Override
   public String modelDir() {
-    return kind.dir + Whitespace.dirSuffix(whitespace);
+    return kind.dir;
   }
 
   @Override
   public List<Layer> layers(Input input) throws AnnotatorException {
-    return Whitespace.in(whitespace, () -> read(input));
+    return read(input);
   }
 
   private ObjectStream<?> open(Input input) throws IOException {

@@ -40,6 +40,17 @@ pub(in crate::cpu) struct Attend<'a> {
     /// usize::MAX leaves the whole row. A banded key's score is minus
     /// infinity, as a masked key's is.
     pub(in crate::cpu) ahead: usize,
+    /// A sliding window: query i attends to keys j with |i - j| <=
+    /// window, and usize::MAX leaves the whole row. A key outside it
+    /// scores minus infinity.
+    pub(in crate::cpu) window: usize,
+    /// Whether the key loops run over a group's window alone, from the
+    /// lane block holding its first key through the one holding its last
+    /// (the encoder's), or over the whole row (the reference the tests
+    /// hold that to). Each sum keeps its keys' lanes and order either
+    /// way, and the keys between add exact zeros, so both give the same
+    /// bits.
+    pub(in crate::cpu) span: bool,
     pub(in crate::cpu) scale: f32,
     /// Whether the plain Rust fallback fuses multiply and add: as V does.
     pub(in crate::cpu) fma: bool,
@@ -103,6 +114,7 @@ impl Attend<'_> {
     #[inline(always)]
     unsafe fn group<V: Simd, const G: usize>(&self, i: usize, sc: &mut [f32], masked: &[f32], acc: &mut [f32]) {
         let (d, lp) = (self.d, self.len.next_multiple_of(LANES));
+        let (j0, j1) = self.keys(i, G);
         let (sp, mp) = (sc.as_mut_ptr(), masked.as_ptr());
         // SAFETY: every pointer below is within sc (G rows of lp),
         // masked, the head's columns of qv's rows under len, kt's d rows
@@ -110,59 +122,94 @@ impl Attend<'_> {
         // processor has V's instruction set.
         unsafe {
             let q: [*const f32; G] = std::array::from_fn(|g| self.qv.add((i + g) * self.ld + self.q_at));
-            let mut jb = 0;
-            while jb + 2 * LANES <= lp {
+            let mut jb = j0;
+            while jb + 2 * LANES <= j1 {
                 self.scores::<V, G, 2>(q, jb, sp, lp, mp);
                 jb += 2 * LANES;
             }
-            if jb < lp {
+            if jb < j1 {
                 self.scores::<V, G, 1>(q, jb, sp, lp, mp);
             }
             // The band: only a model with limited lookahead has keys past
             // it, so the whole-row path is one comparison per group.
+            let live = j1.min(self.len);
             if self.ahead < self.len {
                 for g in 0..G {
-                    let from = (i + g).saturating_add(self.ahead).saturating_add(1).min(self.len);
-                    sc[g * lp + from..g * lp + self.len].fill(f32::NEG_INFINITY);
+                    let from = (i + g).saturating_add(self.ahead).saturating_add(1).clamp(j0, live);
+                    sc[g * lp + from..g * lp + live].fill(f32::NEG_INFINITY);
+                }
+            }
+            // The window, on a sliding-window layer: the keys of the
+            // span outside each query's own.
+            if self.window < self.len {
+                for g in 0..G {
+                    let lo = (i + g).saturating_sub(self.window).clamp(j0, live);
+                    let hi = (i + g + self.window + 1).clamp(j0, live);
+                    sc[g * lp + j0..g * lp + lo].fill(f32::NEG_INFINITY);
+                    sc[g * lp + hi..g * lp + live].fill(f32::NEG_INFINITY);
                 }
             }
             for g in 0..G {
-                let row = &mut sc[g * lp..][..lp];
+                let row = &mut sc[g * lp..][..j1];
                 let rp = row.as_mut_ptr();
                 let mut m = V::splat(f32::NEG_INFINITY);
-                for jb in (0..lp).step_by(LANES) {
+                for jb in (j0..j1).step_by(LANES) {
                     m = m.max(V::load(rp.add(jb)));
                 }
                 let mut lanes = [0.0f32; LANES];
                 m.store(lanes.as_mut_ptr());
                 let max = lanes.iter().fold(f32::NEG_INFINITY, |m, &v| if v > m { v } else { m });
-                for s in row.iter_mut() {
+                // A query whose window holds no live key (a pad at the
+                // start of a left-padded row, on a sliding-window layer)
+                // reads nothing: its context is 0, not exp(-inf + inf),
+                // which would put NaN in its value row a layer later and
+                // from there, through 0 * NaN, into live queries.
+                if max == f32::NEG_INFINITY {
+                    row[j0..].fill(0.0);
+                    continue;
+                }
+                for s in row[j0..].iter_mut() {
                     *s = exp(*s - max);
                 }
                 let mut sum = V::zero();
-                for jb in (0..lp).step_by(LANES) {
+                for jb in (j0..j1).step_by(LANES) {
                     sum = sum.add(V::load(rp.add(jb)));
                 }
                 sum.store(lanes.as_mut_ptr());
                 let inv = V::splat(1.0 / tree(lanes));
-                for jb in (0..lp).step_by(LANES) {
+                for jb in (j0..j1).step_by(LANES) {
                     V::load(rp.add(jb)).mul(inv).store(rp.add(jb));
                 }
             }
             let out: [*mut f32; G] = std::array::from_fn(|g| self.ctx.add((i + g) * self.ldc + self.c_at));
+            let keys = j0..live;
             if d % LANES != 0 {
-                self.context_any::<G>(sc, lp, out, acc);
+                self.context_any::<G>(sc, lp, out, acc, keys);
                 return;
             }
             let mut col = 0;
             while col < d {
                 match (d - col) / LANES {
-                    1 => self.context::<V, G, 1>(sp, lp, col, out),
-                    _ => self.context::<V, G, 2>(sp, lp, col, out),
+                    1 => self.context::<V, G, 1>(sp, lp, col, out, keys.clone()),
+                    _ => self.context::<V, G, 2>(sp, lp, col, out, keys.clone()),
                 }
                 col += 2 * LANES;
             }
         }
+    }
+
+    /// The keys queries i..i + g read, as lane blocks: from the block
+    /// holding the first query's first key through the one holding the
+    /// last query's last, or the whole row.
+    #[inline(always)]
+    fn keys(&self, i: usize, g: usize) -> (usize, usize) {
+        let lp = self.len.next_multiple_of(LANES);
+        if !self.span || self.window >= self.len {
+            return (0, lp);
+        }
+        let lo = i.saturating_sub(self.window) / LANES * LANES;
+        let hi = (i + g + self.window).min(self.len).next_multiple_of(LANES);
+        (lo, hi)
     }
 
     /// Scores of G queries for the N * LANES keys from jb: sc[g * lp + j]
@@ -218,11 +265,12 @@ impl Attend<'_> {
         lp: usize,
         col: usize,
         out: [*mut f32; G],
+        keys: std::ops::Range<usize>,
     ) {
         // SAFETY: as run.
         unsafe {
             let mut acc = [[V::zero(); N]; G];
-            for j in 0..self.len {
+            for j in keys {
                 let vj = self.qv.add(j * self.ld + self.v_at + col);
                 let v: [V; N] = std::array::from_fn(|n| V::load(vj.add(n * LANES)));
                 for g in 0..G {
@@ -247,10 +295,17 @@ impl Attend<'_> {
     /// # Safety
     /// As run.
     #[inline(always)]
-    unsafe fn context_any<const G: usize>(&self, p: &[f32], lp: usize, out: [*mut f32; G], acc: &mut [f32]) {
+    unsafe fn context_any<const G: usize>(
+        &self,
+        p: &[f32],
+        lp: usize,
+        out: [*mut f32; G],
+        acc: &mut [f32],
+        keys: std::ops::Range<usize>,
+    ) {
         let d = self.d;
         acc[..G * d].fill(0.0);
-        for j in 0..self.len {
+        for j in keys {
             // SAFETY: row j < len, at the head's value columns.
             let v = unsafe { std::slice::from_raw_parts(self.qv.add(j * self.ld + self.v_at), d) };
             for g in 0..G {
@@ -266,3 +321,7 @@ impl Attend<'_> {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "window_tests.rs"]
+mod window_tests;

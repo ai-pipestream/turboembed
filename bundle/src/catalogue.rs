@@ -11,6 +11,7 @@ pub const MODELS: &[(&str, &str)] = &[
     ("BAAI/bge-base-en-v1.5", include_str!("../recipes/bge-base-en-v1.5.json")),
     ("BAAI/bge-large-en-v1.5", include_str!("../recipes/bge-large-en-v1.5.json")),
     ("BAAI/bge-m3", include_str!("../recipes/bge-m3.json")),
+    ("ibm-granite/granite-embedding-30m-english", include_str!("../recipes/granite-embedding-30m-english.json")),
     ("cross-encoder/ms-marco-MiniLM-L6-v2", include_str!("../recipes/ms-marco-minilm-l6-v2-rerank.json")),
     ("BAAI/bge-reranker-base", include_str!("../recipes/bge-reranker-base.json")),
     ("minishlab/potion-base-2M", include_str!("../recipes/potion/potion-base-2M.json")),

@@ -7,7 +7,10 @@
 //! here and rebuilds every layer of the golden: what each document holds
 //! and what parsing it threw, the documents `MascDocumentStream` keeps,
 //! and the samples, errors, tokens, tags, names, texts and spans of each
-//! sample stream over two passes with a `reset` between them.
+//! sample stream over two passes with a `reset` between them. The name
+//! layers of four goldens are corrected by hand where the port's removal
+//! of overlapping names differs from OpenNLP's (#1496,
+//! analysis/goldens-tool/README.md).
 //!
 //! Beside the comparison, every token, tag and sentence is checked to be
 //! the bytes of the document its span names.

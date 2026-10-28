@@ -141,7 +141,7 @@ use std::fmt;
 
 pub use encoding::{DecodeError, Encoding, decode};
 pub use error::{FormatError, Warning};
-pub use registry::{Format, OPENNLP_FORMAT, ReadOptions, Registry, SampleKind};
+pub use registry::{Format, OPENNLP_FORMAT, Registry, SampleKind};
 pub use sample::{
     ChunkSample, DependencySample, DocumentSample, LanguageSample, LemmaSample, Name, NameSample, Phrase, PosSample,
     SentenceSample, SplitMarker, TokenSample,

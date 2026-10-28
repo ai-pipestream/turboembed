@@ -337,7 +337,7 @@ impl Engine {
         answers: &mpsc::Sender<std::result::Result<AnalyzeStreamResponse, Status>>,
         dead: &Arc<Dead>,
     ) -> std::result::Result<(), ()> {
-        let Outcome { model, version, dim, rows } = outcome;
+        let Outcome { model, version, dim, quantization, rows } = outcome;
         match rows {
             Ok(rows) => {
                 for row in rows {
@@ -348,6 +348,7 @@ impl Engine {
                                 version: version.clone(),
                                 dim,
                                 data,
+                                quantization,
                             };
                             ok_response(row.id, vectors)
                         }

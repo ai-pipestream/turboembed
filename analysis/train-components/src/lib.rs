@@ -2,8 +2,8 @@
 //! set them up, the model files the `train` methods of `SentenceDetectorME`,
 //! `TokenizerME`, `POSTaggerME`, `LemmatizerME`, `ChunkerME`,
 //! `NameFinderME`, `LanguageDetectorME` and `SentimentME` return, the
-//! bottom-up constituency parsers' event streams, trainers and evaluator,
-//! and the reproduction of the published UD 1.3 models.
+//! and the bottom-up constituency parsers' event streams, trainers and
+//! evaluator.
 //!
 //! - [`sentdetect`][]: `SentenceDetectorFactory`, the events of
 //!   `SDEventStream`, and the `SentenceModel` file.
@@ -41,8 +41,6 @@
 //!   iterates in, which those orders and the zip entry order depend on.
 //! - [`package`][]: the factory and serializer manifest entries and the
 //!   zip entry order of `BaseModel.serialize`.
-//! - [`ud`][]: what Apache OpenNLP trained the UD 1.3 models from and
-//!   with, as typed recipes, and the comparison with the published files.
 //!
 //! The samples come from `turbo-formats`, the context generators from
 //! `turbo-sentdetect`, `turbo-tokenize`, `turbo-sequence` (the tagger's
@@ -113,8 +111,6 @@
 //!   goldens), it is written with the bytes `writeUTF` gives (the writer's
 //!   unit tests), and the features that name the previous class hold it
 //!   as the JVM's modified UTF-8.
-//! - The published UD 1.3 models were trained with 300 iterations, not
-//!   the 150 their training configuration file says ([`ud`][]).
 //! - `NameFinderME.train` puts `Algorithm=MAXENT`, `Cutoff=0` and
 //!   `Iterations=300` into the caller's parameters where they are absent,
 //!   so a name finder trained without a parameters file uses cutoff 0,
@@ -164,7 +160,6 @@ pub mod sentdetect;
 pub mod sentiment;
 pub mod tagdict;
 pub mod tokenize;
-pub mod ud;
 
 pub use chunk::{ChunkerEventStream, ChunkerFactory, chunk_events, train_chunker_model};
 pub use dictionary::{AbbreviationDictionary, build_census_dictionary_xml, build_dictionary_xml};

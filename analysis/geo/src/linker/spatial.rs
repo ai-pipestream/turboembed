@@ -1,183 +1,15 @@
-//! Spatial cluster density (`GeoHashBinningScorer`) and geographic context
-//! proximity scorers (`CountryProximityScorer`, `ProvinceProximityScorer`).
+//! Geographic context proximity scorers (`CountryProximityScorer`,
+//! `ProvinceProximityScorer`).
 
 use turbo_analysis::Span;
 
-use crate::entry::{GeoPoint, RegionCode};
+use crate::entry::RegionCode;
 use crate::fold::Folder;
 use crate::region::tables::is_assigned_iso_country;
 
-const GEOHASH_BASE32: &[u8; 32] = b"0123456789bcdefghjkmnpqrstuvwxyz";
-const MAX_GEOHASH_PRECISION: usize = 12;
-const DEFAULT_GEOHASH_PRECISION: usize = 4;
 const NEUTRAL_CONTEXT_SCORE: f64 = 0.5;
-const EARTH_RADIUS_KM: f64 = 6_371.008_8;
-const SPATIAL_KERNEL_SCALE_KM: f64 = 100.0;
 const REGIONAL_INDICATOR_A: u32 = 0x1F1E6;
 const REGIONAL_INDICATOR_Z: u32 = 0x1F1FF;
-
-/// Encodes `point` into a standard base-32 Geohash string of length
-/// `precision` (clamped to `1..=12`).
-pub fn encode_geohash(point: GeoPoint, precision: usize) -> String {
-    let prec = precision.clamp(1, MAX_GEOHASH_PRECISION);
-    let mut lat_range = (-90.0f64, 90.0f64);
-    let mut lon_range = (-180.0f64, 180.0f64);
-    let lat = point.latitude();
-    let lon = point.longitude();
-    let mut is_lon = true;
-    let mut bit = 0u8;
-    let mut ch_idx = 0u8;
-    let mut out = String::with_capacity(prec);
-
-    while out.len() < prec {
-        if is_lon {
-            let mid = 0.5 * (lon_range.0 + lon_range.1);
-            if lon >= mid {
-                ch_idx = (ch_idx << 1) | 1;
-                lon_range.0 = mid;
-            } else {
-                ch_idx <<= 1;
-                lon_range.1 = mid;
-            }
-        } else {
-            let mid = 0.5 * (lat_range.0 + lat_range.1);
-            if lat >= mid {
-                ch_idx = (ch_idx << 1) | 1;
-                lat_range.0 = mid;
-            } else {
-                ch_idx <<= 1;
-                lat_range.1 = mid;
-            }
-        }
-        is_lon = !is_lon;
-        bit += 1;
-        if bit == 5 {
-            out.push(GEOHASH_BASE32[ch_idx as usize] as char);
-            bit = 0;
-            ch_idx = 0;
-        }
-    }
-    out
-}
-
-fn decode_geohash(hash: &str) -> Option<(f64, f64)> {
-    if hash.is_empty() {
-        return None;
-    }
-    let mut lat_range = (-90.0f64, 90.0f64);
-    let mut lon_range = (-180.0f64, 180.0f64);
-    let mut is_lon = true;
-    for b in hash.bytes() {
-        let idx = GEOHASH_BASE32.iter().position(|&c| c == b.to_ascii_lowercase())? as u8;
-        for shift in (0..5).rev() {
-            let bit = (idx >> shift) & 1;
-            if is_lon {
-                let mid = 0.5 * (lon_range.0 + lon_range.1);
-                if bit == 1 {
-                    lon_range.0 = mid;
-                } else {
-                    lon_range.1 = mid;
-                }
-            } else {
-                let mid = 0.5 * (lat_range.0 + lat_range.1);
-                if bit == 1 {
-                    lat_range.0 = mid;
-                } else {
-                    lat_range.1 = mid;
-                }
-            }
-            is_lon = !is_lon;
-        }
-    }
-    Some((0.5 * (lat_range.0 + lat_range.1), 0.5 * (lon_range.0 + lon_range.1)))
-}
-
-fn haversine_km(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
-    let r_lat1 = lat1.to_radians();
-    let r_lat2 = lat2.to_radians();
-    let d_lat = (lat2 - lat1).to_radians();
-    let d_lon = (lon2 - lon1).to_radians();
-    let sin_lat = (0.5 * d_lat).sin();
-    let sin_lon = (0.5 * d_lon).sin();
-    let a = (sin_lat * sin_lat + r_lat1.cos() * r_lat2.cos() * sin_lon * sin_lon).min(1.0);
-    2.0 * EARTH_RADIUS_KM * a.sqrt().asin()
-}
-
-/// Number of leading Geohash characters shared by `a` and `b`.
-#[inline]
-pub fn shared_geohash_prefix_len(a: &str, b: &str) -> usize {
-    a.bytes().zip(b.bytes()).take_while(|(x, y)| x == y).count()
-}
-
-/// Scores candidate locations by spatial cluster density across Geohash prefix
-/// bins and great-circle proximity to other mention candidates in the document.
-#[derive(Clone, Copy, Debug)]
-pub struct GeoHashBinningScorer {
-    precision: usize,
-}
-
-impl Default for GeoHashBinningScorer {
-    fn default() -> Self {
-        GeoHashBinningScorer { precision: DEFAULT_GEOHASH_PRECISION }
-    }
-}
-
-impl GeoHashBinningScorer {
-    /// Creates a Geohash binning scorer with `precision` characters (`1..=12`).
-    pub fn new(precision: usize) -> GeoHashBinningScorer {
-        GeoHashBinningScorer { precision: precision.clamp(1, MAX_GEOHASH_PRECISION) }
-    }
-
-    pub fn precision(&self) -> usize {
-        self.precision
-    }
-
-    /// Scores `candidate_hash` for mention `mention_idx` against the Geohash
-    /// strings of all mentions' candidate sets (`all_hashes_by_mention`),
-    /// returning a value in `[0.0, 1.0]`.
-    pub fn score_in_context(
-        &self,
-        mention_idx: usize,
-        candidate_hash: &str,
-        all_hashes_by_mention: &[Vec<String>],
-    ) -> f64 {
-        let mut other_mentions = 0usize;
-        let mut support_sum = 0.0f64;
-        let denom = self.precision.max(1) as f64;
-        let cand_coord = decode_geohash(candidate_hash);
-        let own_hashes = all_hashes_by_mention.get(mention_idx).map(Vec::as_slice);
-
-        for (j, other_hashes) in all_hashes_by_mention.iter().enumerate() {
-            if j == mention_idx || other_hashes.is_empty() {
-                continue;
-            }
-            if other_hashes.len() > 1 && own_hashes.is_some_and(|own| own == other_hashes.as_slice()) {
-                continue;
-            }
-            other_mentions += 1;
-            let best_support = other_hashes
-                .iter()
-                .map(|h| {
-                    let prefix_support =
-                        (shared_geohash_prefix_len(candidate_hash, h).min(self.precision) as f64) / denom;
-                    let dist_support = if let (Some((lat1, lon1)), Some((lat2, lon2))) = (cand_coord, decode_geohash(h))
-                    {
-                        let km = haversine_km(lat1, lon1, lat2, lon2);
-                        1.0 / (1.0 + (km / SPATIAL_KERNEL_SCALE_KM).powi(2))
-                    } else {
-                        0.0
-                    };
-                    prefix_support.max(dist_support)
-                })
-                .fold(0.0f64, f64::max);
-            support_sum += best_support;
-        }
-        if other_mentions == 0 {
-            return NEUTRAL_CONTEXT_SCORE;
-        }
-        (support_sum / other_mentions as f64).clamp(0.0, 1.0)
-    }
-}
 
 /// A country signal anchored at a byte span in the document text.
 #[derive(Clone, Copy, Debug)]
@@ -301,6 +133,17 @@ impl CountryProximityScorer {
     /// Scores `candidate_country` at `mention_span` against `signals` (skipping
     /// any signal that equals or overlaps `mention_span`), returning a value in `[0.0, 1.0]`.
     pub fn score(&self, mention_span: Span, candidate_country: Option<RegionCode>, signals: &[CountrySignal]) -> f64 {
+        self.score_signals(mention_span, candidate_country, signals)
+    }
+
+    /// [`Self::score`] over signals in iteration order, which the linker
+    /// chains from the text's signals and the other mentions' candidates.
+    pub(super) fn score_signals<'s>(
+        &self,
+        mention_span: Span,
+        candidate_country: Option<RegionCode>,
+        signals: impl IntoIterator<Item = &'s CountrySignal>,
+    ) -> f64 {
         let Some(target) = candidate_country else {
             return NEUTRAL_CONTEXT_SCORE;
         };
@@ -371,6 +214,19 @@ impl ProvinceProximityScorer {
         signals: &[ProvinceSignal],
         doc_text: &str,
     ) -> f64 {
+        let words = DocWords::new(doc_text);
+        self.score_words(mention_span, candidate_containment_folded, signals, &words)
+    }
+
+    /// [`Self::score`] over signals in iteration order and the document's
+    /// words folded once by [`DocWords::new`].
+    pub(super) fn score_words<'s>(
+        &self,
+        mention_span: Span,
+        candidate_containment_folded: &[String],
+        signals: impl IntoIterator<Item = &'s ProvinceSignal>,
+        words: &DocWords,
+    ) -> f64 {
         if candidate_containment_folded.is_empty() {
             return NEUTRAL_CONTEXT_SCORE;
         }
@@ -389,15 +245,15 @@ impl ProvinceProximityScorer {
             }
         }
 
-        for match_span in find_folded_phrase_spans(doc_text, candidate_containment_folded) {
+        words.for_each_phrase_span(candidate_containment_folded, |match_span| {
             if match_span == mention_span || spans_overlap(match_span, mention_span) {
-                continue;
+                return;
             }
             let dist = span_distance_bytes(mention_span, match_span) as f64;
             let w = 1.0 / (1.0 + dist / self.decay_bytes);
             matched_weight += w;
             total_weight += w;
-        }
+        });
 
         if total_weight <= 0.0 {
             return NEUTRAL_CONTEXT_SCORE;
@@ -413,54 +269,77 @@ impl ProvinceProximityScorer {
     }
 }
 
-fn find_folded_phrase_spans(doc_text: &str, phrases: &[String]) -> Vec<Span> {
-    let mut folder = Folder::new();
-    let mut words: Vec<(Span, String)> = Vec::new();
-    let mut in_word = false;
-    let mut start = 0usize;
-    for (i, ch) in doc_text.char_indices() {
-        if ch.is_alphanumeric() {
-            if !in_word {
-                in_word = true;
-                start = i;
+/// A document's alphanumeric words, each folded as a containment name is,
+/// with its byte span: the words a containment phrase is matched against.
+pub(super) struct DocWords {
+    words: Vec<(Span, String)>,
+}
+
+impl DocWords {
+    pub(super) fn new(doc_text: &str) -> DocWords {
+        let mut folder = Folder::new();
+        let mut words: Vec<(Span, String)> = Vec::new();
+        let mut in_word = false;
+        let mut start = 0usize;
+        for (i, ch) in doc_text.char_indices() {
+            if ch.is_alphanumeric() {
+                if !in_word {
+                    in_word = true;
+                    start = i;
+                }
+            } else if in_word {
+                let folded = folder.fold(&doc_text[start..i]);
+                if !folded.is_empty() {
+                    words.push((Span::new(start as u32, i as u32), folded));
+                }
+                in_word = false;
             }
-        } else if in_word {
-            let folded = folder.fold(&doc_text[start..i]);
+        }
+        if in_word {
+            let folded = folder.fold(&doc_text[start..]);
             if !folded.is_empty() {
-                words.push((Span::new(start as u32, i as u32), folded));
+                words.push((Span::new(start as u32, doc_text.len() as u32), folded));
             }
-            in_word = false;
         }
-    }
-    if in_word {
-        let folded = folder.fold(&doc_text[start..]);
-        if !folded.is_empty() {
-            words.push((Span::new(start as u32, doc_text.len() as u32), folded));
-        }
+        DocWords { words }
     }
 
-    let mut out = Vec::new();
-    let mut buf = String::new();
-    for phrase in phrases {
-        if phrase.is_empty() {
-            continue;
-        }
-        let n_words = phrase.split(' ').count();
-        if n_words == 0 || n_words > words.len() {
-            continue;
-        }
-        for i in 0..=words.len() - n_words {
-            buf.clear();
-            for (k, (_, w)) in words[i..i + n_words].iter().enumerate() {
-                if k > 0 {
-                    buf.push(' ');
-                }
-                buf.push_str(w);
+    /// Calls `found` with the span of every run of words that, joined by one
+    /// space, equals a phrase: phrase by phrase, then left to right.
+    fn for_each_phrase_span(&self, phrases: &[String], mut found: impl FnMut(Span)) {
+        let words = &self.words;
+        for phrase in phrases {
+            if phrase.is_empty() {
+                continue;
             }
-            if &buf == phrase {
-                out.push(Span::new(words[i].0.start, words[i + n_words - 1].0.end));
+            let n_words = phrase.split(' ').count();
+            if n_words == 0 || n_words > words.len() {
+                continue;
+            }
+            for i in 0..=words.len() - n_words {
+                if joins_to(&words[i..i + n_words], phrase) {
+                    found(Span::new(words[i].0.start, words[i + n_words - 1].0.end));
+                }
             }
         }
     }
-    out
+}
+
+/// Whether `run`'s words joined by one space are exactly `phrase`, compared
+/// in place.
+fn joins_to(run: &[(Span, String)], phrase: &str) -> bool {
+    let mut rest = phrase.as_bytes();
+    for (k, (_, w)) in run.iter().enumerate() {
+        if k > 0 {
+            let Some((&b' ', tail)) = rest.split_first() else {
+                return false;
+            };
+            rest = tail;
+        }
+        let Some(tail) = rest.strip_prefix(w.as_bytes()) else {
+            return false;
+        };
+        rest = tail;
+    }
+    rest.is_empty()
 }

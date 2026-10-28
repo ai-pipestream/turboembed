@@ -1,5 +1,4 @@
 use turbo_tokenize::detok::Detokenizer;
-use turbo_unicode::WhitespaceMode;
 
 use super::span::trim;
 use super::*;
@@ -9,7 +8,7 @@ use crate::sample::Name;
 #[test]
 fn pos_counts_up_to_the_missing_tag() {
     let src = "a_X b_Y c_Z";
-    let s = WordTagReader::new(src, WhitespaceMode::Unicode).unwrap().next().unwrap().unwrap();
+    let s = WordTagReader::new(src).unwrap().next().unwrap().unwrap();
     let mut e = PosEvaluator::default();
     assert_eq!(e.evaluate(&s, &["X", "Y", "Z"]), Ok(Verdict::Correct));
     assert_eq!(e.evaluate(&s, &["X", "Q"]), Err(EvalError::IndexOutOfBounds { index: 2, len: 2 }));
@@ -22,7 +21,7 @@ fn pos_counts_up_to_the_missing_tag() {
 #[test]
 fn names_score_the_default_type_but_judge_the_own() {
     let src = "<START:p> a <END> b <START> c <END>";
-    let s = NameReader::new(src, WhitespaceMode::Unicode).unwrap().next().unwrap().unwrap();
+    let s = NameReader::new(src).unwrap().next().unwrap().unwrap();
     let mut e = NameFinderEvaluator::default();
     let p = [Name::new(2, 3, Some("p")).unwrap(), Name::new(0, 1, Some("p")).unwrap()];
     assert_eq!(e.evaluate(&s, &p), Ok(Verdict::Correct));
@@ -53,7 +52,7 @@ fn chunks_score_phrases() {
 #[test]
 fn tokens_and_the_detokenizer() {
     let src = "a<SPLIT>, b";
-    let s = TokenReader::new(src, WhitespaceMode::Unicode).unwrap().next().unwrap().unwrap();
+    let s = TokenReader::new(src).unwrap().next().unwrap().unwrap();
     let mut e = TokenizerEvaluator::default();
     assert_eq!(e.evaluate(&s, &[Span::new(0, 1), Span::new(1, 2), Span::new(3, 4)]), Ok(Verdict::Correct));
     let err = e.evaluate(&s, &[Span::new(0, 9)]).unwrap_err();
@@ -69,7 +68,7 @@ fn sentences_are_trimmed() {
     let src = "One.\nTwo.\n";
     let s = SentenceReader::new(src).unwrap().next().unwrap().unwrap();
     assert_eq!(s.document(), "One. Two. ");
-    let mut e = SentenceDetectorEvaluator::new(WhitespaceMode::Unicode);
+    let mut e = SentenceDetectorEvaluator::new();
     assert_eq!(e.evaluate(&s, &[Span::new(0, 5), Span::new(4, 10)]), Ok(Verdict::Correct));
     assert_eq!(e.fmeasure().true_positives(), 2);
     assert_eq!(
@@ -80,8 +79,8 @@ fn sentences_are_trimmed() {
         e.evaluate(&s, &[Span::new(12, 12)]).unwrap_err().to_string(),
         "Sentence span is outside of document text [len 10] and span [12..12)"
     );
-    assert_eq!(trim(" \u{a0} ", Span::new(0, 4), WhitespaceMode::Unicode), Ok(Span::new(0, 0)));
-    assert_eq!(trim("\u{a0}", Span::new(1, 2), WhitespaceMode::Unicode), Ok(Span::new(1, 2)));
+    assert_eq!(trim(" \u{a0} ", Span::new(0, 4)), Ok(Span::new(0, 0)));
+    assert_eq!(trim("\u{a0}", Span::new(1, 2)), Ok(Span::new(1, 2)));
 }
 
 #[test]
@@ -89,14 +88,14 @@ fn span_errors_count_utf16_units() {
     // "\u{c9}t\u{1F600}." is 8 bytes and 5 units; with its space, 9 and 6.
     let src = "\u{c9}t\u{1F600}.\n";
     let s = SentenceReader::new(src).unwrap().next().unwrap().unwrap();
-    let mut e = SentenceDetectorEvaluator::new(WhitespaceMode::Unicode);
+    let mut e = SentenceDetectorEvaluator::new();
     let err = e.evaluate(&s, &[Span::new(9, 11)]).unwrap_err();
     assert_eq!(err, EvalError::TrimOutOfText { index: 9, len: 9, index_units: 6, len_units: 6 });
     assert_eq!(err.to_string(), "Index 6 out of bounds for length 6");
     let err = e.evaluate(&s, &[Span::new(13, 13)]).unwrap_err();
     assert_eq!(err.to_string(), "Sentence span is outside of document text [len 6] and span [10..10)");
     let src = "\u{c9}<SPLIT>\u{1F600}";
-    let s = TokenReader::new(src, WhitespaceMode::Unicode).unwrap().next().unwrap().unwrap();
+    let s = TokenReader::new(src).unwrap().next().unwrap().unwrap();
     let err = TokenizerEvaluator::default().evaluate(&s, &[Span::new(2, 6), Span::new(7, 9)]).unwrap_err();
     assert_eq!(err.to_string(), "Span [4..6) is out of bounds, text length: 4!");
 }

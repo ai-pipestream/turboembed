@@ -4,8 +4,6 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use turbo_unicode::WhitespaceMode;
-
 use crate::error::FormatError;
 use crate::masc::java::parse_int;
 use crate::ner::NerError;
@@ -263,14 +261,14 @@ fn parse_line(values: &[Piece<'_>], line: &str, base: u32) -> Result<Option<Pars
 
 /// The annotations and notes of the annotation file `text` of the
 /// document `file`, in the order of the file, as `BratAnnotationStream`
-/// reads them: each line split on whitespace (`mode`), the first field
+/// reads them: each line split on Unicode whitespace, the first field
 /// the id, whose first character says what the line is. A line of two
 /// fields or fewer ends the reading, and the lines after it are not read.
-pub(crate) fn parse_annotations(text: &str, file: &str, mode: WhitespaceMode) -> Result<Vec<Parsed>, FormatError> {
+pub(crate) fn parse_annotations(text: &str, file: &str) -> Result<Vec<Parsed>, FormatError> {
     let mut out = Vec::new();
     let lines = Lines::new(text)?;
     for line in lines {
-        let values: Vec<Piece<'_>> = whitespace_tokens(line.piece, mode).collect();
+        let values: Vec<Piece<'_>> = whitespace_tokens(line.piece).collect();
         if values.len() <= 2 {
             break;
         }
@@ -327,7 +325,7 @@ impl AnnotationConfiguration {
     /// [`NerError::BratConfigNoType`] for a line with no field (only
     /// whitespace that `String.trim` keeps), and [`FormatError::TooLong`]
     /// for a text longer than spans can index.
-    pub fn parse(text: &str, mode: WhitespaceMode) -> Result<AnnotationConfiguration, FormatError> {
+    pub fn parse(text: &str) -> Result<AnnotationConfiguration, FormatError> {
         let mut types = BTreeMap::new();
         let mut section: Option<&str> = None;
         let lines = Lines::new(text)?;
@@ -344,7 +342,7 @@ impl AnnotationConfiguration {
                 section = Some(&t[open + 1..close]);
                 continue;
             }
-            let name = whitespace_tokens(trimmed, mode).next().ok_or(NerError::BratConfigNoType { line: number })?;
+            let name = whitespace_tokens(trimmed).next().ok_or(NerError::BratConfigNoType { line: number })?;
             let class = match section.ok_or(NerError::BratConfigNoSection { line: number })? {
                 "entities" => AnnotationClass::Entity,
                 "relations" => AnnotationClass::Relation,

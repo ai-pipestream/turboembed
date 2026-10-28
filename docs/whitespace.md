@@ -1,13 +1,18 @@
 # Shared whitespace definitions
 
-`turbo_unicode::whitespace` owns the Unicode White_Space list and the
-`WhitespaceMode::{Unicode, Legacy}` predicates. The ASCII predicate is const,
-so both simple and whitespace tokenizers derive their byte tables from it.
-The whitespace normalizer derives its public `tables::WHITESPACE` character
-list from `UNICODE_WHITESPACE`, and its membership predicate delegates to the
-Unicode mode. The grammar lexer and abbreviation inventory use the same mode.
-The normalizer's UTF-8 lead-byte shortcut is tested against every non-ASCII
-member of the shared list, so a future table addition cannot silently disappear.
+`turbo_unicode::whitespace` owns the one whitespace definition every
+annotator, tokenizer, reader and splitter uses: the 25 code points of the
+Unicode `White_Space` property (`UNICODE_WHITESPACE`), tested with
+`is_whitespace`, `is_blank` and `trim`. It is fixed, not a setting. U+0085
+(next line) is whitespace; the information separators U+001C to U+001F are
+not, so a word that holds one keeps it. The ASCII predicate
+`is_ascii_whitespace` is const, so both simple and whitespace tokenizers
+derive their byte tables from it. The whitespace normalizer derives its
+public `tables::WHITESPACE` character list from `UNICODE_WHITESPACE`, and its
+membership predicate delegates to `is_whitespace`. The grammar lexer and
+abbreviation inventory use the same predicate. The normalizer's UTF-8
+lead-byte shortcut is tested against every non-ASCII member of the shared
+list, so a future table addition cannot silently disappear.
 
 `turbo_unicode::java::is_whitespace(char)` delegates to
 `java::code_point::is_whitespace(u32)`. The unused duplicate
@@ -15,11 +20,12 @@ member of the shared list, so a future table addition cannot silently disappear.
 are exhaustively checked against the original JDK 21 whitespace vectors;
 `turbo-jvm` remains dependency-free. Unicode whitespace includes U+0085 and
 no-break spaces. Java whitespace excludes them but includes U+001C..U+001F.
-These definitions remain distinct; this consolidation does not change them.
+The Java definition is kept only for the readers that port a Java method
+which tests it; nothing chooses between the two.
 
 Tests exercise normalization, grammar lexemes and original byte ranges on
 text containing U+000B, U+0085, U+00A0, U+3000 and U+001C. The first four
-separate words; U+001C remains text in Unicode mode. Existing normalizer
+separate words; U+001C remains text. Existing normalizer
 alignment tests still verify source and output mappings.
 
 ## Release timing receipt

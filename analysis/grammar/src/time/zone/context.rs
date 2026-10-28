@@ -1,7 +1,6 @@
 use super::{Region, ZoneMatch};
 use crate::engine::{Lexed, NumeralStyle};
 use crate::time::spec::{DateSpec, Range, TimeValue};
-use turbo_unicode::whitespace::WhitespaceMode;
 
 /// Zone suffixes disambiguate clock ranges only when the source has a
 /// range cue or explicit clock notation. A unit such as `pt` alone must
@@ -12,7 +11,7 @@ pub(crate) fn for_clock(text: &str, start: u32, end: u32, value: TimeValue, regi
     }
     let zone = super::at(text, end as usize, region)?;
     let prefix =
-        text.get(..start as usize)?.trim_end_matches(|c: char| WhitespaceMode::Unicode.is_whitespace(c as u32));
+        text.get(..start as usize)?.trim_end_matches(|c: char| turbo_unicode::whitespace::is_whitespace(c as u32));
     if prefix
         .chars()
         .next_back()

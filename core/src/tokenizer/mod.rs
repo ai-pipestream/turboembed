@@ -97,29 +97,16 @@ enum Kind {
     SentencePiece(Box<SentencePiece>),
 }
 
-/// A special token as it is matched in raw text, or in normalized text.
-pub(crate) struct Special {
-    pub(crate) content: String,
-    pub(crate) id: i32,
-    /// The whitespace before it is part of the match.
-    pub(crate) lstrip: bool,
-    /// Matched only with no word character on either side.
-    single_word: bool,
-}
-
 pub struct Tokenizer {
     pub(crate) rerank: Option<crate::manifest::Rerank>,
     kind: Kind,
-    /// Special tokens as they are matched in raw text: longest first.
-    specials: Vec<Special>,
-    /// Special tokens matched in each piece of normalized text, their
-    /// content normalized: longest first.
-    normalized_specials: Vec<Special>,
-    /// The bytes a special token starts with, so text_ids looks for a
-    /// match only where one can begin.
-    special_starts: [bool; 256],
-    /// The same for the normalized special tokens, in normalized text.
-    normalized_starts: [bool; 256],
+    /// The special and added tokens matched in raw text.
+    raw: Added,
+    /// Those matched in each piece of normalized text, their content
+    /// normalized.
+    normalized: Added,
+    /// The vocabulary's entries and the added tokens past them.
+    vocab_size: u32,
     /// The row layout: Some(id) for a special token, None for the text.
     template: Vec<Option<i32>>,
     truncation: Truncation,
@@ -190,6 +177,11 @@ mod sink;
 pub(crate) use sink::*;
 
 mod load;
+
+mod load_added;
+
+mod added;
+pub(crate) use added::{Added, Piece, Special};
 
 mod encode;
 

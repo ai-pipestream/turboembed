@@ -1,16 +1,18 @@
 // Analyze: AnalyzeDocumentProgressive as a stream of step events with
 // their timings and layers, then the finished document through
 // InspectDocumentWindow (paged text with its annotations, heatmap lanes)
-// and FormatDocument (export).
+// and FormatDocument (export). The finished graph goes to doc.ts for the
+// X-Ray, annotation drawer, projection and wire panels.
 
 import { LayerWireStatus, OffsetMode } from "../gen/turbo_typed_annotations_pb.js";
 import type { DocumentWindowResponse, LayerInfo } from "../gen/turbo_analysis_pb.js";
+import type { ViewInfo } from "../gen/turbo_typed_annotations_pb.js";
 import { $, download, el, options, say, table } from "../dom.js";
+import { doc, onDoc, setDoc } from "../doc.js";
 import { analysis, describe } from "../rpc.js";
 import { bundles, capabilities, onCapabilities } from "../state.js";
 
 let running: AbortController | null = null;
-let graph: Uint8Array | null = null;
 let page = 0;
 let filter = new Set<string>();
 
@@ -50,7 +52,10 @@ async function run(): Promise<void> {
   layersBox.replaceChildren();
   $("analyze-window").replaceChildren();
   $("analyze-export-out").replaceChildren();
-  graph = null;
+  setDoc(null);
+  let graph: Uint8Array | null = null;
+  let views: ViewInfo[] = [];
+  let source = "";
   const layers = new Map<string, LayerInfo>();
   const t0 = performance.now();
   say(note, "Analyzing\u2026", "busy");
@@ -87,15 +92,15 @@ async function run(): Promise<void> {
         );
       } else if (e.case === "complete") {
         graph = e.value.graph;
+        views = e.value.views;
+        source = e.value.sourceText;
         for (const l of e.value.layers) layers.set(`${l.layer}#${l.instance}`, l);
         layersBox.replaceChildren(layerRows(layers));
         steps.append(el("li", { class: "muted", text: `complete at ${ms} ms, ${graph.length} graph bytes` }));
       }
     }
     say(note, "");
-    page = 0;
-    filter = new Set();
-    if (graph) await showWindow();
+    if (graph) setDoc({ graph, views, source });
   } catch (e) {
     say(note, describe(e), "error");
   } finally {
@@ -141,8 +146,9 @@ function lanesView(w: DocumentWindowResponse): HTMLElement {
 }
 
 async function showWindow(): Promise<void> {
-  if (!graph) return;
+  const graph = doc()?.graph;
   const box = $("analyze-window");
+  if (!graph) return void box.replaceChildren();
   try {
     const base = { graph, view: 0, offsets: OffsetMode.UTF16, pageSize: 16000, filterLayers: [...filter] };
     const [w, heat] = await Promise.all([
@@ -185,6 +191,7 @@ async function showWindow(): Promise<void> {
 
 async function exportDoc(): Promise<void> {
   const out = $("analyze-export-out");
+  const graph = doc()?.graph;
   if (!graph) {
     out.replaceChildren(el("p", { class: "error", text: "Analyze a document first." }));
     return;
@@ -214,6 +221,11 @@ export function init(): void {
   $("analyze-run").addEventListener("click", run);
   $("analyze-stop").addEventListener("click", stop);
   $("analyze-export").addEventListener("click", exportDoc);
+  onDoc(() => {
+    page = 0;
+    filter = new Set();
+    void showWindow();
+  });
   onCapabilities((c) => {
     options(select("analyze-profile"), ["", ...c.profiles.map((p) => p.name)], ["default", ...c.profiles.map((p) => `${p.name} v${p.version}`)]);
     options(select("analyze-model"), ["", ...bundles(c, "TASK_EMBED")], ["none", ...bundles(c, "TASK_EMBED")]);

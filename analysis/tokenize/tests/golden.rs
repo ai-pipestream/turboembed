@@ -10,9 +10,7 @@ use std::num::NonZeroU32;
 use common::{Case, JvmSpan, compare_layers, run};
 use turbo_analysis::Span;
 use turbo_goldens::expect::{simple_newline_spans, whole_character_spans};
-use turbo_tokenize::{
-    TokenizerOptions, WhitespaceMode, WordTokenizer, WordType, simple_spans, whitespace_spans, word_tokens,
-};
+use turbo_tokenize::{TokenizerOptions, WordTokenizer, WordType, simple_spans, whitespace_spans, word_tokens};
 use turbo_unicode::utf16::byte_to_utf16;
 
 /// One span with both offsets and its type, if any: what a golden row
@@ -48,14 +46,14 @@ fn actual(text: &str, spans: &[Span], types: Option<&[WordType]>) -> Vec<Expect>
 }
 
 /// The run's goldens, checked to be of `class` with `keepNewLines` as
-/// given and in `mode`.
-fn cases(name: &str, class: &str, keep_newlines: bool, mode: WhitespaceMode) -> Vec<Case> {
+/// given and in Unicode whitespace.
+fn cases(name: &str, class: &str, keep_newlines: bool) -> Vec<Case> {
     let cases = run("tokenize", name);
     for c in &cases {
         c.assert_annotator(class, if class.ends_with("WordTokenizer") { "tokenizeTyped" } else { "tokenizePos" });
         assert!(c.golden.header.models.is_empty(), "{}", c.path.display());
         assert_eq!(c.config("keepNewLines"), keep_newlines.then_some("true"), "{}", c.path.display());
-        assert_eq!(c.whitespace(), mode, "{}", c.path.display());
+        c.assert_unicode_whitespace();
         assert_eq!(c.golden.header.input.set, "edge");
     }
     assert_eq!(cases.len(), 34, "{name}");
@@ -67,9 +65,8 @@ const WHITESPACE: &str = "opennlp.tools.tokenize.WhitespaceTokenizer";
 
 /// Compares a spans-only tokenizer with every golden of `name`.
 fn spans_match(name: &str, class: &str, run: fn(&str, TokenizerOptions, &mut Vec<Span>), keep_newlines: bool) {
-    let mode = if name.ends_with("+legacy") { WhitespaceMode::Legacy } else { WhitespaceMode::Unicode };
-    let options = TokenizerOptions { whitespace: mode, keep_newlines };
-    for case in cases(name, class, keep_newlines, mode) {
+    let options = TokenizerOptions { keep_newlines };
+    for case in cases(name, class, keep_newlines) {
         assert_eq!(case.golden.header.error, None, "{}", case.path.display());
         let mut out = Vec::new();
         run(&case.text, options, &mut out);
@@ -85,28 +82,13 @@ fn simple() {
 }
 
 #[test]
-fn simple_legacy() {
-    spans_match("simple+legacy", SIMPLE, simple_spans, false);
-}
-
-#[test]
 fn whitespace() {
     spans_match("whitespace", WHITESPACE, whitespace_spans, false);
 }
 
 #[test]
-fn whitespace_legacy() {
-    spans_match("whitespace+legacy", WHITESPACE, whitespace_spans, false);
-}
-
-#[test]
 fn whitespace_newlines() {
     spans_match("whitespace+keep-new-lines", WHITESPACE, whitespace_spans, true);
-}
-
-#[test]
-fn whitespace_newlines_legacy() {
-    spans_match("whitespace+keep-new-lines+legacy", WHITESPACE, whitespace_spans, true);
 }
 
 /// The simple tokenizer with new lines kept. The Java has two defects in
@@ -121,11 +103,10 @@ fn whitespace_newlines_legacy() {
 /// expectation, and the inputs where that happened must be exactly the
 /// ones listed, so a new difference cannot pass unnoticed.
 fn simple_newlines(name: &str, plain_name: &str, affected: &[&str]) {
-    let mode = if name.ends_with("+legacy") { WhitespaceMode::Legacy } else { WhitespaceMode::Unicode };
-    let options = TokenizerOptions { whitespace: mode, keep_newlines: true };
-    let plain = cases(plain_name, SIMPLE, false, mode);
+    let options = TokenizerOptions { keep_newlines: true };
+    let plain = cases(plain_name, SIMPLE, false);
     let mut differs = Vec::new();
-    for case in cases(name, SIMPLE, true, mode) {
+    for case in cases(name, SIMPLE, true) {
         let p = plain.iter().find(|p| p.name() == case.name()).expect("the same input without new lines");
         let text = &case.text;
         let plain_spans: Vec<(u32, u32)> = expected(p).iter().map(|e| e.utf8).collect();
@@ -153,15 +134,10 @@ fn simple_newlines_unicode() {
 }
 
 #[test]
-fn simple_newlines_legacy() {
-    simple_newlines("simple+keep-new-lines+legacy", "simple+legacy", &["leading-trailing", "whitespace-only"]);
-}
-
-#[test]
 fn uax29() {
     let max = WordTokenizer::DEFAULT_MAX_TOKEN_LENGTH;
     let mut tokens = 0;
-    for case in cases("uax29", "opennlp.tools.tokenize.uax29.WordTokenizer", false, WhitespaceMode::Unicode) {
+    for case in cases("uax29", "opennlp.tools.tokenize.uax29.WordTokenizer", false) {
         assert_eq!(case.golden.header.error, None, "{}", case.path.display());
         assert!(case.golden.layer("turbo:word-types").is_some(), "{}", case.path.display());
         let (mut spans, mut types) = (Vec::new(), Vec::new());

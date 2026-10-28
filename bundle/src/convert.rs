@@ -131,6 +131,7 @@ pub fn conversions(recipe: &Recipe) -> Result<Vec<Conversion>> {
             keys.retain(|k| *k != "compiler_optimization");
         }
         let weights = a["format"] == "FORMAT_SAFETENSORS";
+        let cast = weights && keys == ["dtype", "upstream"];
         let named = if hef {
             &["container", "from", "inputs"][..]
         } else if weights {
@@ -138,11 +139,11 @@ pub fn conversions(recipe: &Recipe) -> Result<Vec<Conversion>> {
         } else {
             &["from"][..]
         };
-        if keys != named {
+        if keys != named && !cast {
             let names = if hef {
                 "from, container and inputs, and optionally compiler_optimization"
             } else if weights {
-                "only upstream"
+                "upstream, and optionally dtype"
             } else {
                 "only from"
             };
@@ -213,6 +214,13 @@ fn weights_conversion(recipe: &Recipe, a: &Value, name: &str, pb: &Value) -> Res
     if a.get("compute_dtype").is_some() || a["graph_input"] != "INPUT_TOKEN_IDS" {
         return Err(refuse("raw weights have no compute_dtype and start at INPUT_TOKEN_IDS"));
     }
+    let args = match pb.get("dtype") {
+        None => Vec::new(),
+        Some(d) if d.as_str() == Some("DTYPE_F32") => vec!["float32".to_owned()],
+        Some(d) => {
+            return Err(refuse(&format!("produced_by.dtype {d} is not DTYPE_F32, the one cast the conversion makes")));
+        }
+    };
     Ok(Conversion {
         name: name.to_owned(),
         file: one_file(a, name)?,
@@ -223,7 +231,7 @@ fn weights_conversion(recipe: &Recipe, a: &Value, name: &str, pb: &Value) -> Res
         script: BIN_TO_SAFETENSORS,
         container: None,
         inputs: Vec::new(),
-        args: Vec::new(),
+        args,
     })
 }
 

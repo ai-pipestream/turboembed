@@ -21,7 +21,7 @@ use turbo_analysis::Span;
 use turbo_formats::ad::{AD_FORMAT, AdChunkReader, AdChunks, AdNameReader, AdPosReader, AdSentenceReader};
 use turbo_formats::convert::ToTokenSamples;
 use turbo_formats::registry::{ChunkSamples, Registry};
-use turbo_formats::{Field, FormatError, ReadOptions};
+use turbo_formats::{Field, FormatError};
 use turbo_goldens::{ColumnData, ColumnSpec, ColumnType, Golden, GoldenAnchor, GoldenLayer, Shape};
 use turbo_tokenize::detok::{Detokenizer, DetokenizerDictionary};
 
@@ -304,7 +304,6 @@ fn the_registry_reads_a_range_of_chunks() {
         "<s>\nSOURCE: a\n1 Um.\nUTT:n(\"um\")\tUm\n</s>\n<s>\nSOURCE: b\n1 Dois.\nUTT:n(\"dois\")\tDois\n</s>\n";
     let mut r = Registry::<ChunkSamples>::with_native();
     r.register(AdChunks { start: Some(1), end: None }).unwrap();
-    let samples: Vec<String> =
-        r.open(AD_FORMAT, input, ReadOptions::default()).unwrap().map(|s| s.unwrap().to_string()).collect();
+    let samples: Vec<String> = r.open(AD_FORMAT, input).unwrap().map(|s| s.unwrap().to_string()).collect();
     assert_eq!(samples, ["Dois n B-NP\n"]);
 }

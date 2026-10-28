@@ -9,7 +9,7 @@ use super::{
     MosesReader, NKJP_FORMAT, NkjpReader, NkjpSegmentation, NkjpText,
 };
 use crate::error::FormatError;
-use crate::registry::{Format, ReadOptions, Samples, SentenceSamples, TokenSamples};
+use crate::registry::{Format, Samples, SentenceSamples, TokenSamples};
 
 /// Sentence samples from a Moses file (`MosesSentenceSampleStreamFactory`),
 /// named [`MOSES_FORMAT`].
@@ -21,7 +21,7 @@ impl Format<SentenceSamples> for MosesSentences {
         MOSES_FORMAT
     }
 
-    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, SentenceSamples>, FormatError> {
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, SentenceSamples>, FormatError> {
         Ok(Box::new(MosesReader::new(source)?))
     }
 }
@@ -40,9 +40,9 @@ impl Format<SentenceSamples> for LetsmtSentences {
         LETSMT_FORMAT
     }
 
-    fn open<'a>(&'a self, source: &'a str, options: ReadOptions) -> Result<Samples<'a, SentenceSamples>, FormatError> {
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, SentenceSamples>, FormatError> {
         let document = LetsmtDocument::parse(source)?;
-        let detokenizer = self.detokenizer.as_deref().map(|d| (Detokenizer::new(d), options.whitespace));
+        let detokenizer = self.detokenizer.as_deref().map(Detokenizer::new);
         Ok(Box::new(LetsmtReader::new(document, detokenizer)))
     }
 }
@@ -61,7 +61,7 @@ impl Format<SentenceSamples> for NkjpSentences {
         NKJP_FORMAT
     }
 
-    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, SentenceSamples>, FormatError> {
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, SentenceSamples>, FormatError> {
         let segmentation = NkjpSegmentation::parse(source)?;
         Ok(Box::new(NkjpReader::new(segmentation, &self.text)))
     }
@@ -78,7 +78,7 @@ impl Format<SentenceSamples> for IrishSentences {
         IRISH_SENTENCE_BANK_FORMAT
     }
 
-    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, SentenceSamples>, FormatError> {
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, SentenceSamples>, FormatError> {
         let bank = IrishSentenceBank::parse(source)?;
         Ok(Box::new(bank.sentence_sample().into_iter()))
     }
@@ -95,7 +95,7 @@ impl Format<TokenSamples> for IrishTokens {
         IRISH_SENTENCE_BANK_FORMAT
     }
 
-    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, TokenSamples>, FormatError> {
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, TokenSamples>, FormatError> {
         Ok(Box::new(IrishSentenceBank::parse(source)?.into_token_samples()))
     }
 }
@@ -120,7 +120,7 @@ mod tests {
         r.register(IrishSentences).unwrap();
         assert_eq!(r.names().collect::<Vec<_>>(), ["opennlp", "moses", "letsmt", "nkjp", "irishsentencebank"]);
         let read = |name: &str, text: &'static str| -> String {
-            r.open(name, text, ReadOptions::default()).unwrap().next().unwrap().unwrap().document().to_owned()
+            r.open(name, text).unwrap().next().unwrap().unwrap().document().to_owned()
         };
         assert_eq!(read("moses", " a \nb\n"), "a b ");
         assert_eq!(read("letsmt", "<d><s><w>a</w><w>b</w></s></d>"), "a b ");
@@ -136,7 +136,7 @@ mod tests {
 
         let mut tokens = Registry::<TokenSamples>::with_native();
         tokens.register(IrishTokens).unwrap();
-        let sample = tokens.open("irishsentencebank", irish, ReadOptions::default()).unwrap().next().unwrap().unwrap();
+        let sample = tokens.open("irishsentencebank", irish).unwrap().next().unwrap().unwrap();
         assert_eq!(sample.to_string(), "Dia duit");
     }
 }

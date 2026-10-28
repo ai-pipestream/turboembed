@@ -192,6 +192,8 @@ fn run_ranges_on_slot(
         normalize: TURBO_NORMALIZE_NONE,
         pooling: TURBO_POOLING_MEAN,
         output_dim: 0,
+        quantization: 0,
+        int8_ranges: std::ptr::null(),
     };
     slot.session.write_ranges(&rows.batch(), ranges, &opts).map_err(|f| {
         if f.code == TURBO_E_UNSUPPORTED && f.message.contains("does not offer embed_write_ranges") {

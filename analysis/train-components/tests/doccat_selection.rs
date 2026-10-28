@@ -6,7 +6,7 @@ use turbo_train_components::{Stamp, doccat::train_doccat};
 fn selected_models_keep_accuracy_and_reduce_vocabulary() {
     let corpus =
         "yes\tgood common noiseone\nyes\tgood common noisetwo\nno\tbad common noiseone\nno\tbad common noisetwo\n";
-    let samples: Vec<_> = DocumentReader::new(corpus, Default::default()).unwrap().map(Result::unwrap).collect();
+    let samples: Vec<_> = DocumentReader::new(corpus).unwrap().map(Result::unwrap).collect();
     let factory = DoccatFactory::new();
     let mut p = TrainingParameters::new();
     p.put("Iterations", "100");

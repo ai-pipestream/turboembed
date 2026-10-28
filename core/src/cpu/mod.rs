@@ -12,6 +12,7 @@ mod kernels;
 pub mod lstm;
 mod model;
 pub(crate) mod pool;
+mod rotary;
 mod run;
 mod session;
 mod table;

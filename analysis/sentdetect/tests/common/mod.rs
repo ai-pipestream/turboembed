@@ -8,7 +8,6 @@ use std::path::{Path, PathBuf};
 
 pub use turbo_goldens::published_model;
 use turbo_goldens::{Dump, Golden, data_dir, sha512};
-use turbo_sentdetect::WhitespaceMode;
 use turbo_unicode::utf16::byte_to_utf16;
 
 /// The generator's fixture models, `en-abbrev.bin`, `en-plain.bin` and
@@ -38,15 +37,12 @@ impl Case {
         &self.golden.header.input.set
     }
 
-    /// The whitespace mode the run used: `config whitespace legacy`, or
-    /// the default; no other option is set.
-    pub fn whitespace(&self) -> WhitespaceMode {
+    /// Asserts the run set no option: the JVM's default whitespace,
+    /// Unicode `White_Space`.
+    #[track_caller]
+    pub fn assert_no_options(&self) {
         let config = &self.golden.header.config;
-        match config.iter().map(|c| (c.key.as_str(), c.value.as_str())).collect::<Vec<_>>()[..] {
-            [] => WhitespaceMode::Unicode,
-            [("whitespace", "legacy")] => WhitespaceMode::Legacy,
-            _ => panic!("{}: options {config:?}", self.path.display()),
-        }
+        assert!(config.is_empty(), "{}: options {config:?}", self.path.display());
     }
 
     /// Asserts the annotator that ran.

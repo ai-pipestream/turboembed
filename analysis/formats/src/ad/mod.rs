@@ -117,9 +117,7 @@ pub use sentences::AdSentenceReader;
 
 use crate::convert::ToTokenSamples;
 use crate::error::FormatError;
-use crate::registry::{
-    ChunkSamples, Format, NameSamples, PosSamples, ReadOptions, Samples, SentenceSamples, TokenSamples,
-};
+use crate::registry::{ChunkSamples, Format, NameSamples, PosSamples, Samples, SentenceSamples, TokenSamples};
 
 /// The registry name of the Arvores Deitadas formats, for every sample
 /// kind.
@@ -208,7 +206,7 @@ impl Format<NameSamples> for AdNames {
         AD_FORMAT
     }
 
-    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, NameSamples>, FormatError> {
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, NameSamples>, FormatError> {
         Ok(Box::new(AdNameReader::new(source, self.split_hyphenated_tokens)?))
     }
 }
@@ -227,7 +225,7 @@ impl Format<PosSamples> for AdPos {
         AD_FORMAT
     }
 
-    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, PosSamples>, FormatError> {
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, PosSamples>, FormatError> {
         Ok(Box::new(AdPosReader::new(source, self.expand_me, self.include_features)?))
     }
 }
@@ -245,7 +243,7 @@ impl Format<ChunkSamples> for AdChunks {
         AD_FORMAT
     }
 
-    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, ChunkSamples>, FormatError> {
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, ChunkSamples>, FormatError> {
         Ok(Box::new(AdChunkReader::new(source, self.start, self.end)?))
     }
 }
@@ -262,7 +260,7 @@ impl Format<SentenceSamples> for AdSentences {
         AD_FORMAT
     }
 
-    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, SentenceSamples>, FormatError> {
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, SentenceSamples>, FormatError> {
         Ok(Box::new(AdSentenceReader::new(source, self.include_titles)?))
     }
 }
@@ -281,7 +279,7 @@ impl Format<TokenSamples> for AdTokens {
         AD_FORMAT
     }
 
-    fn open<'a>(&'a self, source: &'a str, _options: ReadOptions) -> Result<Samples<'a, TokenSamples>, FormatError> {
+    fn open<'a>(&'a self, source: &'a str) -> Result<Samples<'a, TokenSamples>, FormatError> {
         let names = AdNameReader::new(source, self.split_hyphenated_tokens)?;
         Ok(Box::new(ToTokenSamples::new(names, Detokenizer::new(&self.dictionary))))
     }
@@ -298,7 +296,7 @@ mod tests {
     where
         for<'a> K::Sample<'a>: fmt::Display,
     {
-        r.open(AD_FORMAT, TEXT, ReadOptions::default()).unwrap().next().unwrap().unwrap().to_string()
+        r.open(AD_FORMAT, TEXT).unwrap().next().unwrap().unwrap().to_string()
     }
 
     #[test]

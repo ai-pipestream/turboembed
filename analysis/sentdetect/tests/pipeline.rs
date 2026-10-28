@@ -4,7 +4,7 @@
 
 use turbo_analysis::{Analyzer, Anchor, Annotator, Document, Error, Key, Layer, Refs, Status, View};
 use turbo_analysis_layers::{Block, Confidence, Sentences, Structure};
-use turbo_sentdetect::{NewlineDetector, ParagraphDetector, SentenceDetector, SentenceModel, WhitespaceMode};
+use turbo_sentdetect::{NewlineDetector, ParagraphDetector, SentenceDetector, SentenceModel};
 
 /// How many sentences each paragraph holds, aligned to the structure.
 struct PerParagraph {
@@ -45,12 +45,8 @@ fn paragraphs(d: &Document) -> Vec<&str> {
 
 #[test]
 fn newline_then_paragraph_then_reader() {
-    let analyzer = Analyzer::builder()
-        .add(Count)
-        .add(ParagraphDetector::new(WhitespaceMode::Unicode))
-        .add(NewlineDetector::new(WhitespaceMode::Unicode))
-        .build()
-        .unwrap();
+    let analyzer =
+        Analyzer::builder().add(Count).add(ParagraphDetector::new()).add(NewlineDetector::new()).build().unwrap();
     assert_eq!(analyzer.plan(), [vec!["turbo-sentdetect:paragraph", "turbo-sentdetect:newline"], vec!["test:count"]]);
 
     let mut docs = vec![
@@ -88,7 +84,7 @@ fn newline_then_paragraph_then_reader() {
 
     let p = d.provenance(Key::<Sentences>::DEFAULT.id()).unwrap();
     assert_eq!(p.annotator, "turbo-sentdetect:newline");
-    assert_eq!(p.config, NewlineDetector::new(WhitespaceMode::Unicode).config_hash());
+    assert_eq!(p.config, NewlineDetector::new().config_hash());
 }
 
 /// The probability of each sentence, read back from the confidence layer,
@@ -126,7 +122,7 @@ impl Annotator for ReadScores {
 fn maxent_then_reader() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../goldens/data/fixtures/en-abbrev.bin");
     let model = SentenceModel::open(turbo_maxent::ModelFile::read(&path).unwrap()).unwrap();
-    let detector = SentenceDetector::new(model, WhitespaceMode::Unicode);
+    let detector = SentenceDetector::new(model);
     let model_ref = detector.sentence_model().model_ref().clone();
     // The detector aligns its confidence to the sentences it writes in the
     // same step, so it is added as a plain annotator.

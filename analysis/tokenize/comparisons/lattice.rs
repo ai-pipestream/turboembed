@@ -12,7 +12,7 @@ use std::{
     time::Instant,
 };
 use turbo_tokenize::lattice::{PrebuiltImage, Scratch};
-use turbo_tokenize::{LatticeTokenizer, MecabDictionary, WhitespaceMode};
+use turbo_tokenize::{LatticeTokenizer, MecabDictionary};
 
 fn mapped(path: &Path) -> MecabDictionary {
     // SAFETY: the benchmark creates this file before loading, retains the
@@ -55,7 +55,7 @@ fn main() {
     let corpus = text(Path::new(&args[3]));
     println!("text bytes={} sha256={}", corpus.len(), turbo_maxent::sha256(corpus.as_bytes()).to_hex());
     let path = work.join("turbo.bin");
-    let (dictionary, source_ms) = timed(|| MecabDictionary::load(source, WhitespaceMode::Unicode).unwrap());
+    let (dictionary, source_ms) = timed(|| MecabDictionary::load(source).unwrap());
     println!(
         "source_sha256={} entries={} surfaces={}",
         dictionary.sha256().to_hex(),
@@ -106,7 +106,7 @@ fn main() {
         for j in 0..5 {
             let kind = (j + i) % 5;
             let ms = match kind {
-                0 => timed(|| MecabDictionary::load(source, WhitespaceMode::Unicode).unwrap()).1,
+                0 => timed(|| MecabDictionary::load(source).unwrap()).1,
                 1 => timed(|| MecabDictionary::load_prebuilt(&path, Default::default()).unwrap()).1,
                 2 => timed(|| mapped(&path)).1,
                 3 => timed(|| load_fs_dictionary(&lindera_path).unwrap()).1,
@@ -122,7 +122,7 @@ fn main() {
         report(&format!("load-{name}"), samples);
     }
     let tokenizers = [dictionary, MecabDictionary::load_prebuilt(&path, Default::default()).unwrap(), mapped(&path)]
-        .map(|d| LatticeTokenizer::new(d, WhitespaceMode::Unicode));
+        .map(|d| LatticeTokenizer::new(d));
     let mut expected = Vec::new();
     tokenizers[0].analyze(&corpus, &mut expected).unwrap();
     for tokenizer in &tokenizers[1..] {

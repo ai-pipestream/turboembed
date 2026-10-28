@@ -124,6 +124,15 @@ maximum is of the unscaled scores, and each probability is
 `ex2.approx` of one fused multiply-add, the score times the scale
 times log2 e less the maximum's. `ex2.approx` is within 2 ulp of F32,
 below the F16 rounding the probabilities take for P V.
+The output's F16 sums carry their error across every key of a row, so
+a session whose max_seq is over 4096 takes F32 sums of the scores and
+the output by default (`mma128-acc32`): on nomic-embed-text-v1.5 at
+FASTEST, 8 rows of 8192 synthetic tokens against the CPU, the F16 sums
+gave 1 - lowest cosine 1.41e-3, over FASTEST's bound of 1e-3 (1.5e-4 at
+4096 tokens), and F32 sums 1.1e-6 (docs/receipts/cuda-1461/). The F32
+sums make that attention slower; no timing of the cost is recorded yet.
+`TURBO_CUDA_ATTENTION=128` (or a `TURBO_CUDA_CHOICES` line naming
+`mma128`) still gives such a session the F16 sums, for measuring.
 `TURBO_CUDA_ATTENTION=acc32` keeps F32 sums of the scores and the
 output, the arithmetic before the F16 sums, and
 `TURBO_CUDA_ATTENTION=exact` keeps the earlier softmax as well, the
@@ -766,6 +775,62 @@ and the general attention; milliseconds a pass, min / median / max):
 The SM clock's median was 2610 MHz, the GPU at most 54 C, while another
 process held the device too. With the tiled attention a pass is 1.8 times
 as fast as with the general at 32 x 128, and 2.9 times at 8 x 512.
+
+### ModernBERT and nomic-bert
+
+A `FAMILY_MODERNBERT` or `FAMILY_NOMIC_BERT` model (docs/bundle.md, #1461)
+runs at MODEL in F32 FMAs and at FASTEST in F16 operands with F32 sums
+on the tensor cores, with the CPU encoder (`core/src/cpu/encoder/rotary/`)
+as the reference. Its weights must be F32. `core/cuda/rotary.h` has the plan;
+`core/cuda/rotary.cpp` the load, `core/cuda/rotary.cuh` the device parts.
+
+At load the family's tensors go into BERT's slots, so the copies, the
+layout and the F16 weights are the BERT model's: Q, K and V from the
+fused `Wqkv` with each head's Q and K rows taken pair-adjacent, `(i,
+i + d/2)` for `i` under `d/2`; a gated MLP's gate row `j` and up row `j`
+side by side, one `[2 intermediate, hidden]` weight; a zero vector for
+every absent bias; ModernBERT's final norm in the unused position table's
+slot. The core's cos/sin table (`rope_table`) is copied to the device as
+it is: the backend computes no trigonometry.
+
+The QKV GEMM's epilogue (`EPI_QKV_ROPE`) adds the zero bias, rotates each
+Q and K pair by the table's cos and sin at the token's position (its
+column in its row) and the layer's base, global or local, and stores
+head-major as BERT's. The first feed-forward GEMM, twice the intermediate
+width, writes `act(gate) * up` to a buffer one intermediate wide
+(`EPI_GATED_*`): GELU by `erff` at F32 and at F16 the session's GELU
+(`TURBO_CUDA_GELU`, the tanh form by default; `erf` and `poly` take
+`erff`), SiLU by `expf` or `__expf`. The epilogues are in the FMA
+kernels, the transposed FMA kernel and the tensor-core kernel; a session
+that names a swizzled or CUTLASS tile (`TURBO_CUDA_TILE`, or the tuner's
+candidates) runs these two GEMMs on the tensor-core kernel's default or
+the transposed FMA kernel in its place. `TURBO_CUDA_CUBLAS` is refused,
+and the LayerNorms are kernels of their own (`TURBO_CUDA_LAYER_NORM`
+is ignored).
+
+Attention takes a window per layer: a ModernBERT layer `l` with
+`l % global_every` not 0 reads, for query `i`, the keys `j` with
+`|i - j| <= attention_window / 2`. Every attention kernel reads only the
+chunks of keys that some query of its block can see, and masks the band's
+edges as it masks a masked key; the attention of 128 queries on the
+tensor cores also skips, per warp, a chunk outside the warp's band and
+takes a chunk wholly inside it as an unmasked one. A query that sees no
+live key (a pad at the start of a left-padded row, in a local layer)
+reads nothing: its context is 0, as on the CPU.
+
+ModernBERT is pre-norm: the residual stays in F32 in `x`; after each
+residual add a kernel writes the sum to `x` and its LayerNorm to the rows
+the next GEMM reads (`xn` in F32, `x16` in F16); layer 0's attention reads
+the embeddings; the last add takes the final norm in place. nomic-bert is
+post-norm in BERT's order, with the token-type row at the lookup and
+BERT's F16 residual stream at FASTEST.
+
+`core/tests/cuda_rotary.rs` holds the device to the CPU at MODEL within
+1e-4 on the tiny sealed bundles (ModernBERT's window 8 over rows of up to
+64 tokens, with left padding and holes) on each GEMM kernel and both FMA
+attentions, at FASTEST and TF32 to the cosine floor of 0.999, and a
+generated ModernBERT of head width 64 and window 128 over rows of up to
+256 tokens on each tensor-core attention.
 
 ## The LSTM for the taggers
 

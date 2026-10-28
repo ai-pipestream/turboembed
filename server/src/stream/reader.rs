@@ -50,6 +50,21 @@ fn check(state: &State, d: AnalyzeDocument, mut room: Room) -> Result<Doc, Box<(
             let embed = loaded.embed()?;
             embed.validate_options(doc_opts.output, &doc_opts.embed, doc_opts.sparse_top_k)?;
         }
+        if let Some(r) = &doc_opts.int8_ranges {
+            // The library reads 2 x the resolved width: the table must be that long.
+            let o = &doc_opts.embed;
+            let width = if o.output_dim == 0 { loaded.model.info()?.dim } else { o.output_dim };
+            if r.len() != 2 * width as usize {
+                return Err(Failure::new(
+                    TURBO_E_INVALID_ARGUMENT,
+                    8,
+                    format!(
+                        "int8_ranges holds {} values and the vectors are {width} wide: 2 x {width} needed",
+                        r.len()
+                    ),
+                ));
+            }
+        }
         Ok((served, loaded, doc_opts))
     })();
     let (served, loaded, doc_opts) = match checked {
@@ -63,6 +78,7 @@ fn check(state: &State, d: AnalyzeDocument, mut room: Room) -> Result<Doc, Box<(
         id: d.id,
         text: d.text,
         opts: doc_opts.embed,
+        int8_ranges: doc_opts.int8_ranges,
         output: doc_opts.output,
         offsets: doc_opts.offsets,
         sparse_top_k: doc_opts.sparse_top_k,

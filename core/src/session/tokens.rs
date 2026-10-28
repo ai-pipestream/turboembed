@@ -87,7 +87,7 @@ pub unsafe extern "C" fn turbo_embed_write_ranges(
             let b = s.backend;
             let write = backend::offered!(b, embed_write_ranges)?;
             backend::check(b, "embed_write_ranges", |err| write(s.raw, &rows, ranges.as_ptr(), count, err))?;
-            state.written = Some(Written { batch: count, output_dim: rows.output_dim, tokenized: false });
+            record(&mut state, &o, count, rows.output_dim, false);
             Ok(())
         })
     }
@@ -95,8 +95,11 @@ pub unsafe extern "C" fn turbo_embed_write_ranges(
 
 /// turbo.h: the span head reads a range's whole vector, so a range write
 /// to a model whose device applies it takes no normalization and no
-/// narrower output_dim.
+/// narrower output_dim, and its logits are not quantized.
 fn span_head_options(o: &EmbedOptions, dim: u32) -> Result<()> {
+    if o.quantization != Quantization::F32 {
+        return Err(Error::field(UNSUPPORTED_OPTION, 7, "quantization: the span head's rows are logits, not vectors"));
+    }
     if o.normalize != TURBO_NORMALIZE_NONE {
         return Err(Error::field(UNSUPPORTED_OPTION, 4, "normalize: the span head's logits are not normalized"));
     }

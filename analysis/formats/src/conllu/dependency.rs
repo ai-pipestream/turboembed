@@ -4,8 +4,8 @@
 //!
 //! The stream reads lines itself, not through `ConlluStream`:
 //!
-//! - A sentence ends at a line that is empty or all whitespace in the
-//!   whitespace mode (`StringUtil.isBlank`), unlike `ConlluStream`, which
+//! - A sentence ends at a line that is empty or all Unicode whitespace,
+//!   unlike `ConlluStream`, which
 //!   ends one only at a line of length zero. A byte order mark at the
 //!   start of the first line is dropped.
 //! - A line whose first character is `#` is a comment and is passed over;
@@ -39,7 +39,6 @@
 //! skipped sentences are Java's whatever the check finds.
 
 use turbo_analysis::Span;
-use turbo_unicode::WhitespaceMode;
 
 use super::Tagset;
 use super::node_ids::{NodeIdIssue, NodeLine, check_node_ids};
@@ -115,7 +114,6 @@ pub struct ConlluDependencyReader<'a> {
     lines: Lines<'a>,
     first_line: bool,
     tagset: Tagset,
-    mode: WhitespaceMode,
     skipped: Vec<Skipped>,
     /// The multiword token and empty node lines of the sentence being read.
     nodes: Vec<NodeLine<'a>>,
@@ -124,13 +122,12 @@ pub struct ConlluDependencyReader<'a> {
 
 impl<'a> ConlluDependencyReader<'a> {
     /// A reader of `source` that takes its tags from `tagset` and tests
-    /// lines and relations for whitespace in `mode`.
-    pub fn new(source: &'a str, tagset: Tagset, mode: WhitespaceMode) -> Result<Self, FormatError> {
+    /// lines and relations for Unicode whitespace.
+    pub fn new(source: &'a str, tagset: Tagset) -> Result<Self, FormatError> {
         Ok(ConlluDependencyReader {
             lines: Lines::new(source)?,
             first_line: true,
             tagset,
-            mode,
             skipped: Vec::new(),
             nodes: Vec::new(),
             node_id_issues: Vec::new(),
@@ -155,12 +152,12 @@ impl<'a> ConlluDependencyReader<'a> {
     fn next_sentence(&mut self) -> Result<Vec<WordColumns<'a>>, FormatError> {
         let mut words = Vec::new();
         self.nodes.clear();
-        while let Some(mut line) = self.lines.next() {
+        for mut line in self.lines.by_ref() {
             if std::mem::take(&mut self.first_line) && line.text().starts_with(BYTE_ORDER_MARK) {
                 let len = line.text().len();
                 line = Line { piece: line.piece.slice(BYTE_ORDER_MARK.len_utf8(), len), number: line.number };
             }
-            if line.text().chars().all(|c| self.mode.is_whitespace(c as u32)) {
+            if turbo_unicode::whitespace::is_blank(line.text()) {
                 if !words.is_empty() {
                     return Ok(words);
                 }
@@ -207,7 +204,7 @@ impl<'a> ConlluDependencyReader<'a> {
             heads.push(head);
             relations.push(word.relation().field());
         }
-        let tree = DependencyTree::new(heads, relations, self.mode).map_err(SkipReason::Tree)?;
+        let tree = DependencyTree::new(heads, relations).map_err(SkipReason::Tree)?;
         let source = Span::new(words[0].span().start, words[words.len() - 1].span().end);
         Ok(DependencySample::new(tokens, tags, tree, source).expect("one tag and one head per token"))
     }
@@ -273,8 +270,8 @@ mod tests {
         format!("{id}\t{form}\t_\t{upos}\tx{upos}\t_\t{head}\t{rel}\t_\t_\n")
     }
 
-    fn read(src: &str, mode: WhitespaceMode) -> (Vec<Result<String, String>>, Vec<Skipped>) {
-        let mut r = ConlluDependencyReader::new(src, Tagset::U, mode).unwrap();
+    fn read(src: &str) -> (Vec<Result<String, String>>, Vec<Skipped>) {
+        let mut r = ConlluDependencyReader::new(src, Tagset::U).unwrap();
         let out = r.by_ref().map(|s| s.map(|s| s.to_string()).map_err(|e| e.to_string())).collect();
         (out, r.skipped().to_vec())
     }
@@ -290,7 +287,7 @@ mod tests {
             line("3.1", "e", "X", "_", "_"),
             line("4", "mar", "NOUN", "1", "obl"),
         );
-        let mut r = ConlluDependencyReader::new(&src, Tagset::X, WhitespaceMode::Unicode).unwrap();
+        let mut r = ConlluDependencyReader::new(&src, Tagset::X).unwrap();
         let s = r.next().unwrap().unwrap();
         assert_eq!(
             s.to_string(),
@@ -315,7 +312,7 @@ mod tests {
             line("3", "c", "X", "1", "dep"),
             line("1", "d", "X", "0", "root"),
         );
-        let mut r = ConlluDependencyReader::new(&src, Tagset::U, WhitespaceMode::Unicode).unwrap();
+        let mut r = ConlluDependencyReader::new(&src, Tagset::U).unwrap();
         assert_eq!(r.by_ref().filter(Result::is_ok).count(), 2);
         let issues: Vec<(u32, NodeIdError, &str)> =
             r.node_id_issues().iter().map(|i| (i.line, i.error, &src[i.id.range()])).collect();
@@ -340,7 +337,7 @@ mod tests {
             ok.clone(),
         ]
         .join("\n");
-        let (samples, skipped) = read(&src, WhitespaceMode::Unicode);
+        let (samples, skipped) = read(&src);
         assert_eq!(samples, [Ok("1\ta\tX\t0\troot\n".to_owned())]);
         let reasons: Vec<SkipReason> = skipped.into_iter().map(|s| s.reason).collect();
         assert_eq!(
@@ -367,7 +364,7 @@ mod tests {
             line("2", "c", "X", "1", "dep"),
             line("1", "d", "X", "0", "root"),
         );
-        let (samples, _) = read(&src, WhitespaceMode::Unicode);
+        let (samples, _) = read(&src);
         assert_eq!(
             samples,
             [
@@ -377,9 +374,9 @@ mod tests {
             ]
         );
         // An empty last column counts.
-        let (samples, _) = read("1\ta\t_\tX\t_\t_\t0\troot\t_\t\n", WhitespaceMode::Unicode);
+        let (samples, _) = read("1\ta\t_\tX\t_\t_\t0\troot\t_\t\n");
         assert_eq!(samples, [Ok("1\ta\tX\t0\troot\n".to_owned())]);
-        let (samples, _) = read("1\ta\t_\tX\t_\t_\t0\troot\t_\t_\t\n", WhitespaceMode::Unicode);
+        let (samples, _) = read("1\ta\t_\tX\t_\t_\t0\troot\t_\t_\t\n");
         assert_eq!(
             samples[0].as_ref().unwrap_err(),
             "CoNLL-U word line has 11 columns, expected 10: 1\ta\t_\tX\t_\t_\t0\troot\t_\t_\t"
@@ -387,13 +384,14 @@ mod tests {
     }
 
     #[test]
-    fn blank_lines_follow_the_whitespace_mode() {
+    fn blank_lines_are_unicode_whitespace() {
+        // A line of U+0085 is blank and ends the first sentence; a line of
+        // U+001C is not, and is a word line of one column.
         let src = format!("{}\u{85}\n{}", line("1", "a", "X", "0", "root"), line("1", "b", "X", "0", "root"));
-        // In the Unicode mode U+0085 ends the first sentence; in the legacy
-        // mode it is a word line of one column.
-        assert_eq!(read(&src, WhitespaceMode::Unicode).0.len(), 2);
-        let (legacy, _) = read(&src, WhitespaceMode::Legacy);
-        assert_eq!(legacy[0], Err("CoNLL-U word line has 1 columns, expected 10: \u{85}".to_owned()));
+        assert_eq!(read(&src).0.len(), 2);
+        let src = format!("{}\u{1c}\n{}", line("1", "a", "X", "0", "root"), line("1", "b", "X", "0", "root"));
+        let (samples, _) = read(&src);
+        assert_eq!(samples[0], Err("CoNLL-U word line has 1 columns, expected 10: \u{1c}".to_owned()));
     }
 
     #[test]
@@ -405,7 +403,7 @@ mod tests {
             line("2", "b", "X", "1", "dep"),
             line("1.1", "e", "X", "_", "_"),
         );
-        let (samples, skipped) = read(&src, WhitespaceMode::Unicode);
+        let (samples, skipped) = read(&src);
         assert_eq!(samples.len(), 1);
         assert!(skipped.is_empty());
     }

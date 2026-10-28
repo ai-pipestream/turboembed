@@ -283,8 +283,9 @@ first, or an unknown order value, refuses the same way.
 After the header the client sends `AnalyzeDocument` messages: a client
 correlation `id` (non-empty, carried back on the answer), the served
 model's `name`, the `text`, `AnalyzeOptions` (the fields of
-`turbo_embed_options`, each 0 for the model's default, plus
-`sparse_top_k`, `sparse_floor`, and `token_stride`), `output`
+`turbo_embed_options`, each 0 for the model's default, `quantization`
+and `int8_ranges` among them, plus `sparse_top_k`, `sparse_floor`, and
+`token_stride`), `output`
 (`ANALYZE_OUTPUT_VECTORS` by default, `ANALYZE_OUTPUT_SPARSE_TERMS` for
 learned sparse lexical expansion, or `ANALYZE_OUTPUT_TOKEN_VECTORS` for
 per-token contextual vectors and encoder window spans), and `offsets`
@@ -294,7 +295,14 @@ document answers exactly once as an `AnalyzeStreamResponse` tagged with
 its id:
 - `AnalyzeVectors`, whose `data` is byte for byte the row the
   single-document call's `raw_output_contents` carries for the same text
-  and options;
+  and options, and whose `quantization` says how: f32, int8 codes or
+  packed sign bits (docs/kserve.md, Output). `int8_ranges` is
+  `[2, width]` row-major, width the document's `output_dim` or the
+  model's `dim`; another length is the document's
+  `TURBO_E_INVALID_ARGUMENT` naming field 8, and documents batch together
+  only under the same table. A `quantization` other than 0 or
+  `TURBO_QUANTIZE_NONE` with another `output` is
+  `TURBO_E_UNSUPPORTED_OPTION` naming field 7;
 - `SparseTermsResult` (`ANALYZE_OUTPUT_SPARSE_TERMS`, issue #917),
   computed on the model's pooled sessions with its MLM head (`SPLADE`
   max-log pooling) and matching `SparseAnnotator`;

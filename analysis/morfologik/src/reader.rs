@@ -6,7 +6,6 @@ use std::path::Path;
 
 use turbo_analysis::{Annotator, Error, ModelRef, Refs, View};
 use turbo_analysis_layers::{Lemmas, PosTags, Strs, Tokens};
-use turbo_unicode::WhitespaceMode;
 use turbo_unicode::java::to_lowercase;
 
 use crate::charset::DictionaryCharset;
@@ -292,7 +291,7 @@ impl PoliMorfDictionaryReader {
         let mut entries = LemmatizerEntries::default();
         for (idx, line) in java_lines(&text).enumerate() {
             let line_number = idx + 1;
-            if line.chars().all(|c| WhitespaceMode::Unicode.is_whitespace(c as u32)) {
+            if turbo_unicode::whitespace::is_blank(line) {
                 continue;
             }
             let Some(first_tab) = line.find('\t') else {

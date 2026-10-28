@@ -14,7 +14,7 @@
 //!   discards the sentences read before it into the same sample.
 //! - A token sample is a sentence's `text` comment with `<SPLIT>`
 //!   inserted after each word form that is followed by a character that
-//!   is not whitespace (in the whitespace mode), parsed as the token
+//!   is not Unicode whitespace, parsed as the token
 //!   format parses a line. Each form is searched for in the text from
 //!   the end of the one before, in the text with the markers inserted so
 //!   far, so a form can be found inside a marker; empty nodes are left
@@ -24,7 +24,6 @@
 use std::borrow::Cow;
 
 use turbo_analysis::Span;
-use turbo_unicode::WhitespaceMode;
 
 use super::{ConlluReader, Sentence, Tagset};
 use crate::error::FormatError;
@@ -137,14 +136,13 @@ impl<'a> Iterator for ConlluSentenceReader<'a> {
 #[derive(Clone, Debug)]
 pub struct ConlluTokenReader<'a> {
     sentences: ConlluReader<'a>,
-    mode: WhitespaceMode,
 }
 
 impl<'a> ConlluTokenReader<'a> {
-    /// A reader of `source`, testing for whitespace and splitting the
-    /// text in `mode`.
-    pub fn new(source: &'a str, mode: WhitespaceMode) -> Result<ConlluTokenReader<'a>, FormatError> {
-        Ok(ConlluTokenReader { sentences: ConlluReader::new(source)?, mode })
+    /// A reader of `source`, testing for and splitting the text at Unicode
+    /// whitespace.
+    pub fn new(source: &'a str) -> Result<ConlluTokenReader<'a>, FormatError> {
+        Ok(ConlluTokenReader { sentences: ConlluReader::new(source)? })
     }
 }
 
@@ -152,12 +150,12 @@ impl<'a> Iterator for ConlluTokenReader<'a> {
     type Item = Result<TokenSample<'a>, FormatError>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        Some(self.sentences.next()?.and_then(|s| token_sample(&s, self.mode)))
+        Some(self.sentences.next()?.and_then(|s| token_sample(&s)))
     }
 }
 
 /// `ConlluTokenSampleStream.read` of one sentence.
-fn token_sample<'a>(sentence: &Sentence<'a>, mode: WhitespaceMode) -> Result<TokenSample<'a>, FormatError> {
+fn token_sample<'a>(sentence: &Sentence<'a>) -> Result<TokenSample<'a>, FormatError> {
     let Some(comment) = &sentence.text else {
         return Err(FormatError::NoSentenceText { line: sentence.line });
     };
@@ -182,7 +180,7 @@ fn token_sample<'a>(sentence: &Sentence<'a>, mode: WhitespaceMode) -> Result<Tok
         };
         search = at + form.len();
         if let Some(c) = text[search..].chars().next()
-            && !mode.is_whitespace(c as u32)
+            && !turbo_unicode::whitespace::is_whitespace(c as u32)
         {
             text.insert_str(search, SPLIT_MARKER);
             origin.splice(search..search, std::iter::repeat_n(None, SPLIT_MARKER.len()));
@@ -199,7 +197,7 @@ fn token_sample<'a>(sentence: &Sentence<'a>, mode: WhitespaceMode) -> Result<Tok
         Span::new(start, end)
     };
     let piece = Piece { text: &text, span: Span::new(0, len) };
-    parse_text(piece, mode, SplitMarker::default(), to_source, sentence.source)
+    parse_text(piece, SplitMarker::default(), to_source, sentence.source)
 }
 
 #[cfg(test)]
@@ -257,7 +255,7 @@ mod tests {
             line("4", "mar", "_", "_", "_"),
             line("5", ".", "_", "_", "_"),
         );
-        let s = ConlluTokenReader::new(&src, WhitespaceMode::Unicode).unwrap().next().unwrap().unwrap();
+        let s = ConlluTokenReader::new(&src).unwrap().next().unwrap().unwrap();
         assert_eq!(s.text(), "Vamos al mar. ");
         assert_eq!(s.to_string(), "Vamos al mar<SPLIT>.");
         let sources: Vec<&str> = s.sources().iter().map(|sp| &src[sp.range()]).collect();
@@ -274,7 +272,7 @@ mod tests {
             line("2", "SPLIT", "_", "_", "_"),
             line("3", "b", "_", "_", "_")
         );
-        let s = ConlluTokenReader::new(&src, WhitespaceMode::Unicode).unwrap().next().unwrap().unwrap();
+        let s = ConlluTokenReader::new(&src).unwrap().next().unwrap().unwrap();
         assert_eq!(s.text(), "a<SPLIT>b ");
         let tokens: Vec<&str> = (0..s.tokens().len()).map(|i| s.token(i)).collect();
         assert_eq!(tokens, ["a<SPLIT", ">b"]);
@@ -289,7 +287,7 @@ mod tests {
             line("1", "c", "_", "_", "_"),
             line("1", "c", "_", "_", "_")
         );
-        let r: Vec<_> = ConlluTokenReader::new(&src, WhitespaceMode::Unicode).unwrap().collect();
+        let r: Vec<_> = ConlluTokenReader::new(&src).unwrap().collect();
         assert_eq!(r[0].as_ref().unwrap_err().to_string(), "Failed to match token [c] in sentence [s9] with text [ab]");
         assert_eq!(r[1], Err(FormatError::NoSentenceText { line: 5 }));
     }

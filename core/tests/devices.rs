@@ -171,7 +171,7 @@ fn the_cpu_runs_embed_in_f32_measured_only_by_a_record() {
             assert_eq!((cap.cosine_floor, cap.speed_ratio), (0.0, 0.0), "no numbers without a record");
         }
         assert_eq!(cap.dtype, TURBO_DTYPE_F32, "FASTEST too: F32 is the one dtype it computes in");
-        assert_eq!(cap.options_honored, 0b111111, "every field of turbo_embed_options");
+        assert_eq!(cap.options_honored, 0b1111_1111, "every field of turbo_embed_options");
     }
 }
 

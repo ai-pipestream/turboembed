@@ -4,7 +4,6 @@ use std::borrow::Cow;
 use std::sync::Arc;
 
 use turbo_analysis::Span;
-use turbo_unicode::WhitespaceMode;
 
 use crate::head_rules::GapLabeler;
 
@@ -58,11 +57,9 @@ pub fn decode_token(token: &str) -> &str {
 
 /// Separates round and curly brackets from adjacent non-whitespace characters with a single ASCII
 /// space (`ParserTool.spaceUntokenizedParens`), leaving whitespace already there alone.
-///
-/// `mode` decides what counts as whitespace, as the active `WhitespaceMode` does for
-/// `StringUtil.isWhitespace` in OpenNLP.
-pub fn space_untokenized_parens(line: &str, mode: WhitespaceMode) -> Cow<'_, str> {
-    let is_ws = |c: char| mode.is_whitespace(c as u32);
+/// Whitespace is Unicode `White_Space`.
+pub fn space_untokenized_parens(line: &str) -> Cow<'_, str> {
+    let is_ws = |c: char| turbo_unicode::whitespace::is_whitespace(c as u32);
     let Some(first) = line.find(['(', ')', '{', '}']) else {
         return Cow::Borrowed(line);
     };
