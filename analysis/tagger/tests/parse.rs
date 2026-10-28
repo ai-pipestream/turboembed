@@ -100,7 +100,7 @@ fn heads_that_are_not_parsers_are_refused_both_ways() {
     assert!(DependencyParser::open(&dir, Some("missing"), &o).is_err());
     assert!(PosTagger::open(&dir, Some("deps"), &o).is_err());
     let none = bundle("parse-none", |m| {
-        m["heads"].as_array_mut().unwrap().pop();
+        m["heads"].as_array_mut().unwrap().retain(|h| h["name"] != "deps");
     });
     assert!(DependencyParser::open(&none, None, &o).is_err());
 }

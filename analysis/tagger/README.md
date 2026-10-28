@@ -1,6 +1,6 @@
 # turbo-tagger
 
-Part-of-speech, entity and dependency annotators over a bundle's own
+Part-of-speech, entity, dependency and lemma annotators over a bundle's own
 heads (`manifest.heads`, docs/bundle.md "Heads"), on any backend the
 encoder runs on. Heads are trained by `turbo-trainer` (`trainer/`).
 
@@ -23,6 +23,14 @@ encoder runs on. Heads are trained by `turbo-trainer` (`trainer/`).
   `HEAD_BIAFFINE_PARSER` head: arcs scored by the core's `BiaffineParser`,
   one tree a sentence by MST or Eisner as the head says, a relation for
   each word under its head. A word under the root has no head.
+- `lemma`: `Lemmatizer` writes the lemma layer from a
+  `HEAD_EDIT_TREE_LEMMATIZER` head: with a `pos_input`, the tagger head
+  it names tags each sentence first (on its own pooling); the core's
+  `EditTreeLemmatizer` scores the trees and applies the best one that
+  fits each word, the word itself when none fits. A `LemmaDictionary`
+  (any `Fn(form, tag) -> Option<String>`, so a Morfologik or WordNet
+  Morphy lookup as a closure) overrides the head where it lists a lemma;
+  its id is part of the config hash.
 
 ```text
 cargo test -p turbo-tagger
