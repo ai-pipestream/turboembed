@@ -146,6 +146,12 @@ fn a_training_run_writes_a_head_the_core_loads_and_a_receipt() {
     assert_eq!(got, want_sorted);
     let get = |s: &str| t.iter().find(|(k, _, _)| *k == format!("heads.ner.{s}")).map(|(_, _, v)| v.clone());
     TokenTagger::from_tensors(&head, 32, &get).unwrap();
+    // The published head keeps its checkpoint record: the best epoch and
+    // its dev score, as the receipt gives them.
+    let m = metadata(&bytes);
+    let best = training.best_epoch;
+    assert_eq!(m["best_epoch"].as_str(), Some(best.to_string().as_str()));
+    assert_eq!(m["dev"].as_str().unwrap().parse::<f64>().unwrap(), training.dev[best]);
 
     let again = scratch("out-b");
     let r2 = train(&data, &again);
