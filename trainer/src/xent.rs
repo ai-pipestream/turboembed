@@ -28,7 +28,9 @@ pub fn loss<R: Real>(scores: &[R], gold: &[u32], labels: usize, dscores: &mut [R
         let row = &scores[t * labels..][..labels];
         let m = row.iter().map(|v| v.to_f64()).fold(f64::NEG_INFINITY, f64::max);
         let z: f64 = row.iter().map(|v| (v.to_f64() - m).exp()).sum();
-        total += m + z.ln() - row[g].to_f64();
+        // Centred on the row's largest score, so a large common offset
+        // does not swallow the normaliser.
+        total += z.ln() - (row[g].to_f64() - m);
         for (j, d) in delta[t * labels..][..labels].iter_mut().enumerate() {
             let p = (row[j].to_f64() - m).exp() / z;
             *d = p - if j == g { 1.0 } else { 0.0 };
