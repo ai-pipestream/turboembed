@@ -4,7 +4,9 @@
 //! the same device's f32 result for the same write; the result names the
 //! device's backend, sits in host memory, and counts what the core added
 //! to fetch a device-placed result: its f32 bytes in d2h_bytes, and the
-//! staging memory in the first such run's host_allocs.
+//! staging memory in the first such run's host_allocs. cuda and levelzero
+//! return f32 vectors in device memory, which the test asserts, so their
+//! runs take the staging path; metal's are in shared memory and do not.
 //!
 //! Without TURBO_TEST_DEVICE, or when the backend lists no device, a test
 //! says it was skipped and passes. With TURBO_TEST_REQUIRE_<BACKEND>=1
@@ -77,6 +79,10 @@ fn take(r: Outcome) -> (turbo_result_info, Vec<u8>) {
 fn check(backend: &str, what: &str, mut write: impl FnMut(&turbo_embed_options) -> Outcome, w: u32, staged: &mut bool) {
     let (fi, fbytes) = take(write(&with(w, TURBO_QUANTIZE_NONE, None)));
     assert_eq!(field(&fi.backend), backend, "{what}: the run's backend");
+    // cuda and levelzero leave the vectors in device memory, so their
+    // quantized runs take the staging path; metal's are shared memory.
+    let placed = if backend == "metal" { TURBO_PLACE_SHARED } else { TURBO_PLACE_DEVICE };
+    assert_eq!(fi.placement, placed, "{what}: the f32 result's placement");
     let flat: Vec<f32> = fbytes.chunks_exact(4).map(|b| f32::from_le_bytes(b.try_into().unwrap())).collect();
     let (batch, dim) = (fi.batch as usize, w as usize);
     assert_eq!(flat.len(), batch * dim, "{what}");
