@@ -41,6 +41,7 @@ fn spec(
         adapter: adapter.map(|(hidden, layers)| Adapter { bilstm: Bilstm { hidden, layers } }),
         decode,
         biaffine: None,
+        pos_input: None,
         artifact: "weights-f32".into(),
         tensor_prefix: "heads.t".into(),
     }
