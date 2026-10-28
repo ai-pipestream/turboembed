@@ -22,3 +22,15 @@ b7af2aaf78b0dcc8c2a26a85af462f059d4669adc75013a7d7785687fe4a4847  14601909  leve
 4da0003728422cb85d95871e095f5b127492ecf22c73d8def04785bc7f3c1e3b  44807647  levelzero/turbo-chunker-254-200-cohesion-1000-clauses-hybrid/nfcorpus.cuts
 6ce5126dc00d2c136f104fe451f3537f36683b9a7b94a08fd333d98a912847c6  75641130  levelzero/turbo-chunker-254-200-cohesion-1000-clauses-hybrid/qasper.cuts
 159f53cac369523613ad69171521c1225e4a50b85af9b7f24c4221753ccd3632  59531312  levelzero/turbo-chunker-254-200-cohesion-1000-clauses-hybrid/scifact.cuts
+6b0dde8ea7fa90936855335ead0f723f9b973c3bda93335de3c8112f6a767dbe  78148887  cuda/turbo-chunker-254-200-clauses-hybrid/arguana.cuts
+c226c2718d03c698a1d20342c90f31d18ad8d51698743cf4fda14294ba1fb555  14583190  cuda/turbo-chunker-254-200-clauses-hybrid/conteb-squad.cuts
+27640b7e7ab305a59a6c80e73d5fbd80fc0b19e4a79999350cb713761e273fb3  570570564  cuda/turbo-chunker-254-200-clauses-hybrid/gutenqa.cuts
+38d6c2f61ac0b7d2f8f27985014d0e1dac7c23292110afc993c8f9d2e1ca393d  44774474  cuda/turbo-chunker-254-200-clauses-hybrid/nfcorpus.cuts
+3e2a7dc95b66842e7f70c33dc02475a379be6d055677f7d5fec22633173df099  75563670  cuda/turbo-chunker-254-200-clauses-hybrid/qasper.cuts
+a37a7879671beec64982db454dc052ccf959c14fc39e15334f6ca3d56956d0b2  59484229  cuda/turbo-chunker-254-200-clauses-hybrid/scifact.cuts
+20da9808272ab8d039b6a0b18397483b90a4f1f4c1d407d9cec79d8e32494265  78230620  cuda/turbo-chunker-254-200-cohesion-1000-clauses-hybrid/arguana.cuts
+65941611e5cfbe2f884db1375a97bfcb60bd40eae2e2f7d165354cec5354d95b  14601900  cuda/turbo-chunker-254-200-cohesion-1000-clauses-hybrid/conteb-squad.cuts
+40bf17fee5c71cbcf8ee2c1b9bf4d70ae91efa6c4a04e657ef7c7e0c549ee195  570757091  cuda/turbo-chunker-254-200-cohesion-1000-clauses-hybrid/gutenqa.cuts
+b87497655a6611448230d5a681da139b45a022c03659a5479b205258104271a3  44807638  cuda/turbo-chunker-254-200-cohesion-1000-clauses-hybrid/nfcorpus.cuts
+5da5838c16432d40d6e5b627aa5d7001e51ea1bdf14f036a9f35a18ce7dc3fab  75641121  cuda/turbo-chunker-254-200-cohesion-1000-clauses-hybrid/qasper.cuts
+2d8768e726ed14ddc56342049573dce434d6b2dff2471114773d6d851b48aea1  59531303  cuda/turbo-chunker-254-200-cohesion-1000-clauses-hybrid/scifact.cuts
