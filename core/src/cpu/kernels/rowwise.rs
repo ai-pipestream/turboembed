@@ -82,6 +82,14 @@ pub(crate) fn gelu(x: f32) -> f32 {
     0.5 * x * if x >= 0.0 { 2.0 - r } else { r }
 }
 
+/// SiLU, x * sigmoid(x) = x / (1 + e^-x), with this file's exp: under
+/// -88 the exponential stops at e^88 and the result is about x * 6e-39,
+/// which upstream's rounds to the same nothing.
+#[inline(always)]
+pub(in crate::cpu) fn silu(x: f32) -> f32 {
+    x / (1.0 + exp(-x))
+}
+
 /// a * b = p + e exactly (Dekker, with Veltkamp's split), in plain
 /// multiplies and adds: the same bits with or without FMA.
 #[inline(always)]
@@ -148,6 +156,19 @@ mod tests {
         assert_eq!(gelu(1e30), 1e30);
         assert_eq!(gelu(-1e30), 0.0);
         assert_eq!(gelu(0.0), 0.0);
+    }
+
+    #[test]
+    fn silu_matches_its_definition() {
+        for i in -12000..=12000 {
+            let x = i as f32 / 1000.0;
+            let want = x as f64 / (1.0 + (-(x as f64)).exp());
+            let got = silu(x) as f64;
+            assert!((got - want).abs() <= 4e-7 * want.abs().max(1e-6), "silu({x}) is {got}, not {want}");
+        }
+        assert_eq!(silu(0.0), 0.0);
+        assert_eq!(silu(100.0), 100.0);
+        assert!(silu(-100.0).abs() < 1e-30);
     }
 
     #[test]

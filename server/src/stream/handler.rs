@@ -14,7 +14,7 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_stream::{Stream, StreamExt};
 use tonic::{Response, Status, Streaming};
 
-use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_ENUM, names};
+use crate::api::{Failure, TURBO_E_INVALID_ARGUMENT, TURBO_E_INVALID_ENUM, TURBO_E_UNSUPPORTED_OPTION, names};
 use crate::deadline::{Deadline, deadline_status};
 use crate::kserve::Reply;
 use crate::metrics::TrackedStream;
@@ -30,6 +30,7 @@ use crate::stream::{
     DEFAULT_BATCH_LINGER, Dead, MAX_BATCH_LINGER, MAX_INFLIGHT_ITEMS_PER_STREAM, MAX_QUEUED_BYTES_PER_STREAM,
     MAX_QUEUED_ITEMS_PER_STREAM, Shared,
 };
+use turbo::TURBO_QUANTIZE_NONE;
 
 /// The response stream of one AnalyzeStream call.
 pub(crate) type AnswerStream = Pin<Box<dyn Stream<Item = std::result::Result<AnalyzeStreamResponse, Status>> + Send>>;
@@ -44,9 +45,11 @@ fn bad_enum(name: &str, value: u32, table: &[(u32, &str)]) -> Failure {
 }
 
 /// Validated per-document options, output kind, and wire offset mode.
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) struct DocOptions {
+    /// int8_ranges is NULL here; the batch's run points it at `int8_ranges`.
     pub(crate) embed: turbo::turbo_embed_options,
+    pub(crate) int8_ranges: Option<Arc<[f32]>>,
     pub(crate) output: AnalyzeOutput,
     pub(crate) offsets: OffsetMode,
     pub(crate) sparse_top_k: u32,
@@ -76,8 +79,17 @@ pub(crate) fn doc_options(output: i32, offsets: i32, o: Option<&AnalyzeOptions>)
             format!("sparse_floor {}: must be a finite number >= 0", raw.sparse_floor),
         ));
     }
+    if raw.quantization > TURBO_QUANTIZE_NONE && output != AnalyzeOutput::Vectors {
+        return Err(Failure::new(
+            TURBO_E_UNSUPPORTED_OPTION,
+            7,
+            format!("quantization {}: sparse terms and token vectors are f32 alone", raw.quantization),
+        ));
+    }
+    let int8_ranges = (!raw.int8_ranges.is_empty()).then(|| Arc::from(raw.int8_ranges.as_slice()));
     Ok(DocOptions {
         embed,
+        int8_ranges,
         output,
         offsets,
         sparse_top_k: raw.sparse_top_k,
@@ -102,6 +114,8 @@ pub(crate) fn options(o: Option<&AnalyzeOptions>) -> Result<turbo::turbo_embed_o
         normalize: pick("normalize", o.normalize, names::NORMALIZE)?,
         pooling: pick("pooling", o.pooling, names::POOLING)?,
         output_dim: o.output_dim,
+        quantization: pick("quantization", o.quantization, names::QUANTIZE)?,
+        int8_ranges: std::ptr::null(),
     })
 }
 

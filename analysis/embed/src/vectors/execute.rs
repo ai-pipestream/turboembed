@@ -66,7 +66,7 @@ impl VectorAnnotator {
             }
             return out;
         }
-        let dim = self.dim as usize;
+        let dim = self.hidden as usize;
         for s in &st.plan.split {
             if let Ok(o) = &mut out[s.target.doc as usize] {
                 let inv = 1.0 / s.pieces as f32;
@@ -76,15 +76,13 @@ impl VectorAnnotator {
             }
         }
         drop(guard);
-        if self.l2 {
-            for o in out.iter_mut().flatten() {
-                let rows = [o.sentences.as_mut().map(|v| &mut v.data), o.chunks.as_mut().map(|v| &mut v.data)];
-                let levels = o.levels.iter_mut().flatten().map(|v| &mut v.data);
-                for data in rows.into_iter().flatten().chain(levels) {
-                    for v in data.chunks_exact_mut(dim) {
-                        normalize(v);
-                    }
-                }
+        for o in out.iter_mut().flatten() {
+            let sentences = o.sentences.as_mut().map(|v| (&mut v.dim, &mut v.data));
+            let rows = sentences.into_iter().chain(o.chunks.as_mut().map(|v| (&mut v.dim, &mut v.data)));
+            let levels = o.levels.iter_mut().flatten().map(|v| (&mut v.dim, &mut v.data));
+            for (d, data) in rows.chain(levels) {
+                cut_and_normalize(data, dim, self.dim as usize, self.l2);
+                *d = self.dim;
             }
         }
         out
@@ -296,12 +294,12 @@ impl VectorAnnotator {
         if let Some((what, v)) = views.into_iter().flatten().find(|(_, v)| *v != view) {
             return fail(format!("the {what} are in view {}, the subwords in view {}", v.0, view.0));
         }
-        let zeros = |n: usize| vec![0.0f32; n * self.dim as usize];
+        let zeros = |n: usize| vec![0.0f32; n * self.hidden as usize];
         Ok(Output {
-            sentences: i.sentences.map(|s| Vectors::new(self.dim, zeros(s.len()), Vec::new(), self.model.clone())),
-            chunks: i.chunks.map(|c| Vectors::new(self.dim, zeros(c.len()), Vec::new(), self.model.clone())),
+            sentences: i.sentences.map(|s| Vectors::new(self.hidden, zeros(s.len()), Vec::new(), self.model.clone())),
+            chunks: i.chunks.map(|c| Vectors::new(self.hidden, zeros(c.len()), Vec::new(), self.model.clone())),
             levels: i.levels.map(|l| {
-                VectorKind::ALL.map(|_| Vectors::new(self.dim, zeros(l.len()), Vec::new(), self.model.clone()))
+                VectorKind::ALL.map(|_| Vectors::new(self.hidden, zeros(l.len()), Vec::new(), self.model.clone()))
             }),
         })
     }
@@ -315,7 +313,7 @@ impl VectorAnnotator {
         run.ranges.clear();
         run.targets.clear();
         run.done = Shape::default();
-        let dim = self.dim as usize;
+        let dim = self.hidden as usize;
         let head = self.head.len() as u32;
         pack(plan, self.max_batch, self.max_ranges, |step| match step {
             Pack::Flush => run.flush(dim, &plan.placed, out),

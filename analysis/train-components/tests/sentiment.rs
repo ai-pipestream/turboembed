@@ -32,7 +32,6 @@ use turbo_train::package::MANIFEST_ENTRY;
 use turbo_train::{Event, Key as Param, TrainingConfiguration, TrainingParameters};
 use turbo_train_components::Stamp;
 use turbo_train_components::sentiment::{sentiment_events, train_sentiment_model};
-use turbo_unicode::WhitespaceMode;
 
 /// The command that writes the goldens.
 const GENERATE: &str = "cargo run -p turbo-goldens-tool -- generate";
@@ -122,10 +121,8 @@ struct Totals {
 /// returns the detector over the model file written here.
 fn train(at: &str, g: &Golden, factory: SentimentFactory, totals: &mut Totals) -> SentimentMe {
     let text = g.input_text(data_dir()).unwrap_or_else(|e| panic!("{at}: {e}"));
-    let samples: Vec<DocumentSample<'_>> = DocumentReader::new(&text, WhitespaceMode::Unicode)
-        .unwrap()
-        .map(|s| s.unwrap_or_else(|e| panic!("{at}: {e}")))
-        .collect();
+    let samples: Vec<DocumentSample<'_>> =
+        DocumentReader::new(&text).unwrap().map(|s| s.unwrap_or_else(|e| panic!("{at}: {e}"))).collect();
     let events = sentiment_events(&samples, factory);
     let expected = golden_events(g);
     assert!(events == expected, "{at}: {}", describe_difference(&expected, &events));

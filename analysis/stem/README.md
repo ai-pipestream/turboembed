@@ -21,45 +21,18 @@ the `ready/light-stemmers` branch of opennlp-addons (commit
 The Snowball stemmers are generated code; `snowball/README.md` says from what
 and how.
 
-## Golden files
+## Snapshots
 
-`tests/golden.rs` compares every stemmer with goldens a JVM running OpenNLP
-wrote: the `stem` runs of `analysis/goldens-tool` (`StemGolden.java`), made in
-its container by `turbo-goldens generate` and checked by `turbo-goldens
-verify`. Nothing calls the JVM at test time. A run's goldens are
-`analysis/goldens/data/stem/<stemmer>/stem/<input>.golden`, one per input it
-reads, each with the layer `turbo:stems`: every word of the input and the stem
-OpenNLP returned for it.
+`tests/snapshots.rs` freezes every stemmer's output under `TURBO_BLESS=1`:
+one TSV per (stemmer, input) under `tests/snapshots/`, each line a word and
+its stem. A missing snapshot fails. Inputs live under `tests/inputs/` (the
+Snowball sample words, `edge.txt`, and generated words). `tests/properties.rs`
+holds pure-Rust checks (UTF-8/borrow equivalence, Porter length and
+idempotence, Snowball no-panic, light stemmers never grow short ASCII, and
+`Stems::check` with per-token stem equality).
 
-| File | Contents |
-|---|---|
-| `inputs/stem/<language>.txt` | About 1,000 words of the language's Snowball reference vocabulary (`voc.txt` of snowball-data at `da07690d20ce69ee16b5fb95796f92090cc9b4a1`): every n-th line from the first, for the 16 languages whose data is under snowball-data's BSD license. Arabic (GPL 3), Catalan, French, Greek and Indonesian (in part from Wikipedia, CC BY-SA) have none |
-| `tests/snowball/<language>.txt` (this crate) | The same lines of `output.txt`: Snowball's own stems of those words |
-| `inputs/stem/edge.txt` | 135 words every stemmer gets: the empty word, short words and bare suffixes, upper and mixed case, digits, apostrophes and hyphens, combining accents, words of several scripts, a word of 104 letters, supplementary characters, and lone surrogates |
-| `inputs/stem/generated-<language>.txt` | 1,000 words per language (and for `porter`): a random base of the language's letters with one or two endings from its Snowball suffix tables and its light stemmers' endings, some with an upper-case letter, a digit, an apostrophe, a hyphen, a combining accent, a supplementary character or a lone surrogate mixed in |
-
-The samples are taken with `awk -v s="$step" '(NR - 1) % s == 0'` over
-`voc.txt` and `output.txt` of each language's directory of snowball-data, where
-`step` is the number of lines divided by 1,000, rounded up. No word in them has
-a backslash or starts with `#`, so the lines need no escapes.
-
-There are 46 stemmers: `porter` (`PorterStemmer`), `snowball-<language>` for
-each `SnowballStemmer.ALGORITHM`, `snowball-<language>-repeat2` for English,
-German, Russian and Turkish with a repeat count of 2, and one per light or
-minimal stemmer (`norwegian-light-bokmaal`, `-nynorsk` and `-both`, and the
-same for the minimal one). Each gets the sample of its language when there is
-one, `edge.txt`, and the generated words of its language, each through a new
-Java instance: 90,713 words in all.
-
-A word of an input is one line: the backslash, tab, line feed, carriage return,
-other C0 controls, lone surrogates and a leading `#` are escaped (`\\`, `\t`,
-`\n`, `\r`, `\uXXXX`, one UTF-16 unit each); everything else is UTF-8. A line
-that starts with `#` is a comment. In a golden a word and its stem are written
-as `TrainGolden.lossless` writes them: a backslash doubled, a lone surrogate as
-`\uXXXX`.
-
-`tests/golden.rs` also checks the Snowball stemmers against the samples in
-`tests/snowball/`.
+`tests/snowball_vocabulary.rs` and the samples under `tests/snowball/` still
+compare Snowball stemmers with Snowball's own `output.txt` samples.
 
 ## The full Snowball vocabularies
 

@@ -5,7 +5,6 @@ mod resolution;
 use crate::engine::{Lexed, NumeralStyle};
 pub(crate) use context::for_clock;
 pub use resolution::{Offsets, offset_for, write_timex};
-use turbo_unicode::whitespace::WhitespaceMode;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum Region {
@@ -40,7 +39,7 @@ pub fn at(text: &str, start: usize, region: Region) -> Option<ZoneMatch> {
     let rest = text.get(start..)?;
     let skip = rest
         .chars()
-        .take_while(|&c| WhitespaceMode::Unicode.is_whitespace(c as u32))
+        .take_while(|&c| turbo_unicode::whitespace::is_whitespace(c as u32))
         .map(char::len_utf8)
         .sum::<usize>();
     let start = start + skip;
@@ -89,7 +88,7 @@ pub fn at(text: &str, start: usize, region: Region) -> Option<ZoneMatch> {
                 && (i == 0
                     || rest[lex.lexemes[i - 1].end as usize..lex.lexemes[i].start as usize]
                         .chars()
-                        .all(|c| WhitespaceMode::Unicode.is_whitespace(c as u32)))
+                        .all(|c| turbo_unicode::whitespace::is_whitespace(c as u32)))
         }) {
             return Some(ZoneMatch { start, end: start + lex.lexemes[words.len() - 1].end as usize, zone });
         }

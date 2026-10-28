@@ -4,7 +4,11 @@
 //! population priors to rank [`Locations`] candidates and link
 //! `Ix<Entities>` to `Ix<Locations>` via [`Edges<Entities, Locations>`].
 
+mod context;
+#[cfg(test)]
+mod equivalence_tests;
 mod fuzzy;
+mod geohash;
 mod policy;
 mod spatial;
 #[cfg(test)]
@@ -27,10 +31,11 @@ use crate::geocode::{
 };
 
 pub use self::fuzzy::{FuzzyMetric, FuzzyStringScorer, jaro_similarity, jaro_winkler, normalized_levenshtein};
-pub use self::spatial::{
-    CountryProximityScorer, CountrySignal, GeoHashBinningScorer, ProvinceProximityScorer, ProvinceSignal,
-    encode_geohash, shared_geohash_prefix_len,
-};
+pub use self::geohash::{GeoHashBinningScorer, encode_geohash, shared_geohash_prefix_len};
+pub use self::spatial::{CountryProximityScorer, CountrySignal, ProvinceProximityScorer, ProvinceSignal};
+
+use self::context::MentionContext;
+use self::spatial::DocWords;
 
 /// Directed edges connecting entity mentions (`Ix<Entities>`) to their
 /// ranked candidate resolutions (`Ix<Locations>`).
@@ -241,7 +246,8 @@ impl<G: Gazetteer> GeoEntityLinker<G> {
         let retrieval_limit = self.max_candidates_per_mention.max(DEFAULT_RETRIEVAL_LIMIT);
         let min_sim = self.fuzzy.min_similarity();
         let mut raw_by_mention: Vec<Vec<(GazetteerEntry, f64)>> = Vec::with_capacity(mentions.len());
-        let mut hashes_by_mention: Vec<Vec<String>> = Vec::with_capacity(mentions.len());
+        let mut hash_rows: Vec<String> = Vec::new();
+        let mut hash_starts: Vec<usize> = Vec::with_capacity(mentions.len() + 1);
         let text_country_signals = self.country.extract_text_signals(text);
         let mut cand_country_signals: Vec<(usize, CountrySignal)> = Vec::new();
         let mut cand_province_signals: Vec<(usize, ProvinceSignal)> = Vec::new();
@@ -268,10 +274,10 @@ impl<G: Gazetteer> GeoEntityLinker<G> {
                 self.gazetteer.lookup_fuzzy(surface, &self.fuzzy, min_sim, retrieval_limit)
             };
             let mut entries = Vec::with_capacity(hits.len());
-            let mut hashes = Vec::with_capacity(hits.len());
+            hash_starts.push(hash_rows.len());
             for (idx, (entry_view, sim)) in hits.into_iter().enumerate() {
                 let owned = entry_view.to_entry();
-                hashes.push(encode_geohash(owned.location(), self.geohash.precision()));
+                hash_rows.push(encode_geohash(owned.location(), self.geohash.precision()));
                 // `hits` is in policy-ranked order when the policy is enabled
                 // and in raw retrieval order when it is disabled, so the rank
                 // weight always follows the order the candidates ranked in.
@@ -290,8 +296,12 @@ impl<G: Gazetteer> GeoEntityLinker<G> {
                 entries.push((owned, sim));
             }
             raw_by_mention.push(entries);
-            hashes_by_mention.push(hashes);
         }
+        hash_starts.push(hash_rows.len());
+        // Built once per document: candidates borrow it instead of copying it.
+        let ctx = MentionContext::new(hash_rows, hash_starts, &mention_keys);
+        let words = DocWords::new(text);
+        let geohash_scores = ctx.geohash_scores(&self.geohash);
 
         let mut out = Vec::with_capacity(mentions.len());
         for (m_idx, (&span, candidates)) in mentions.iter().zip(raw_by_mention).enumerate() {
@@ -302,31 +312,23 @@ impl<G: Gazetteer> GeoEntityLinker<G> {
             let max_pop_ln =
                 candidates.iter().map(|(e, _)| ((e.population().max(0) as f64) + 1.0).ln()).fold(0.0f64, f64::max);
 
-            let own_key = &mention_keys[m_idx];
-            let filtered_hashes: Vec<Vec<String>> = hashes_by_mention
-                .iter()
-                .enumerate()
-                .map(|(j, h)| if j == m_idx || &mention_keys[j] != own_key { h.clone() } else { Vec::new() })
-                .collect();
-            let mut country_signals = text_country_signals.clone();
-            country_signals
-                .extend(cand_country_signals.iter().filter(|(j, _)| &mention_keys[*j] != own_key).map(|(_, s)| *s));
-            let province_signals: Vec<ProvinceSignal> = cand_province_signals
-                .iter()
-                .filter(|(j, _)| &mention_keys[*j] != own_key)
-                .map(|(_, s)| s.clone())
-                .collect();
+            // The text's country signals, then those of mentions with another key.
+            let country_signals = || {
+                let others = cand_country_signals.iter().filter(|(j, _)| !ctx.same_key(*j, m_idx));
+                text_country_signals.iter().chain(others.map(|(_, s)| s))
+            };
+            let province_signals =
+                || cand_province_signals.iter().filter(|(j, _)| !ctx.same_key(*j, m_idx)).map(|(_, s)| s);
 
             let mut scored: Vec<LinkedCandidate> = Vec::with_capacity(candidates.len());
             for (c_idx, (entry, fuzzy_score)) in candidates.into_iter().enumerate() {
-                let geohash_score =
-                    self.geohash.score_in_context(m_idx, &hashes_by_mention[m_idx][c_idx], &filtered_hashes);
-                let country_score = self.country.score(span, entry.region_code(), &country_signals);
+                let geohash_score = geohash_scores[ctx.row(m_idx, c_idx)];
+                let country_score = self.country.score_signals(span, entry.region_code(), country_signals());
                 let folded_containment = ProvinceProximityScorer::fold_containment(
                     &mut folder,
                     entry.containment().iter().map(String::as_str),
                 );
-                let province_score = self.province.score(span, &folded_containment, &province_signals, text);
+                let province_score = self.province.score_words(span, &folded_containment, province_signals(), &words);
                 let population_score = if max_pop_ln <= 0.0 {
                     0.5
                 } else {

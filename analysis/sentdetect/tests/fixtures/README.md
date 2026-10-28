@@ -18,9 +18,8 @@ dictionary of 13 entries, one of them of two tokens, `et al.`) and
 `useTokenEnd=false`), are the golden generator's fixtures, in
 `analysis/goldens/data/fixtures`. Their 17 inputs are
 `analysis/goldens/data/inputs/sentence-fixture`, and their goldens and
-dumps, in both whitespace modes, are
-`analysis/goldens/data/sentdetect/en-abbrev[+legacy]` and
-`en-plain[+legacy]`, made by `turbo-goldens generate`
+dumps are `analysis/goldens/data/sentdetect/en-abbrev` and
+`en-plain`, made by `turbo-goldens generate`
 (`analysis/goldens-tool/README.md`).
 
 Both models declare the English end characters `. ! ?` in their manifest,
