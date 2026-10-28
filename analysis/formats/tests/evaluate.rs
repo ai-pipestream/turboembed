@@ -6,7 +6,10 @@
 //! readers here, gives each evaluator the same predictions, and rebuilds
 //! the verdicts, the scores after every pair (compared bit for bit), the
 //! static precision and recall of each pair's spans, and the folds of
-//! cross-validation.
+//! cross-validation. The scores are OpenNLP's, so the span evaluators are
+//! made with their `opennlp` constructors and the static scores are
+//! `opennlp_precision` and `opennlp_recall`: compatibility scoring, which
+//! counts repeated predictions more than once (the name pairs have one).
 
 use std::collections::BTreeMap;
 use std::path::PathBuf;
@@ -15,7 +18,7 @@ use turbo_analysis::Span;
 use turbo_formats::evaluate::{
     ChunkerEvaluator, CrossValidation, DocumentCategorizerEvaluator, EvalError, FMeasure, LabeledSpan,
     LanguageDetectorEvaluator, LemmatizerEvaluator, NameFinderEvaluator, PosEvaluator, SentenceDetectorEvaluator,
-    TokenizerEvaluator, Verdict, precision, recall,
+    TokenizerEvaluator, Verdict, opennlp_precision, opennlp_recall,
 };
 use turbo_formats::native::{
     ChunkReader, DocumentReader, LanguageReader, LemmaReader, NameReader, SentenceReader, TokenReader, WordTagReader,
@@ -115,7 +118,7 @@ impl Rebuilt {
     }
 
     fn span_scores<T: PartialEq>(&mut self, pair: usize, references: &[T], predictions: &[T]) {
-        let (p, r) = (precision(references, predictions), recall(references, predictions));
+        let (p, r) = (opennlp_precision(references, predictions), opennlp_recall(references, predictions));
         self.row("turbo:span-scores", vec![pair.to_string(), bits(p), bits(r)]);
     }
 }
@@ -172,7 +175,7 @@ fn rebuild(run: &str, input: &str) -> Rebuilt {
             }
         }
         "name" => {
-            let mut e = NameFinderEvaluator::default();
+            let mut e = NameFinderEvaluator::opennlp();
             for (i, (r, p)) in pairs(NameReader::new(input, unicode).unwrap()).iter().enumerate() {
                 out.verdict(i, e.evaluate(r, p.names()));
                 out.fmeasure(i, e.fmeasure());
@@ -182,14 +185,14 @@ fn rebuild(run: &str, input: &str) -> Rebuilt {
             }
         }
         "chunk" => {
-            let mut e = ChunkerEvaluator::default();
+            let mut e = ChunkerEvaluator::opennlp();
             for (i, (r, p)) in pairs(ChunkReader::new(input).unwrap()).iter().enumerate() {
                 out.verdict(i, e.evaluate(r, &texts(p.chunks())));
                 out.fmeasure(i, e.fmeasure());
             }
         }
         "token" => {
-            let mut e = TokenizerEvaluator::default();
+            let mut e = TokenizerEvaluator::opennlp();
             for (i, (r, p)) in pairs(TokenReader::new(input, unicode).unwrap()).iter().enumerate() {
                 let predicted: Vec<Span> = p.tokens().iter().map(|&s| remap(s, p.text(), r.text())).collect();
                 out.verdict(i, e.evaluate(r, &predicted));
@@ -198,7 +201,7 @@ fn rebuild(run: &str, input: &str) -> Rebuilt {
             }
         }
         "sentence" => {
-            let mut e = SentenceDetectorEvaluator::new(mode);
+            let mut e = SentenceDetectorEvaluator::opennlp(mode);
             for (i, (r, p)) in pairs(SentenceReader::new(input).unwrap()).iter().enumerate() {
                 let predicted: Vec<Span> =
                     p.sentences().iter().map(|&s| remap(s, p.document(), r.document())).collect();

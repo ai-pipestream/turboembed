@@ -968,7 +968,12 @@ spans) and, for `cross-validation`, `turbo:folds` (the training and test
 places of every fold of `CrossValidationPartitioner` for 1 to 4
 partitions). `DetokenizerEvaluator` is in `opennlp-tools`, which the
 image does not build, so it has no golden. `analysis/formats/tests/evaluate.rs`
-compares the Rust evaluators with these goldens.
+compares the Rust evaluators with these goldens using OpenNLP-compatible
+scoring (`FMeasure::opennlp`, `opennlp_precision`, `opennlp_recall`):
+OpenNLP's `countTruePositives` counts a repeated prediction once per
+equal reference, so its recall can exceed 1. Standard evaluation in
+`turbo-formats` counts true positives as a multiset intersection
+instead, and that compatibility scoring is kept only for these goldens.
 
 ## Normalizer goldens
 

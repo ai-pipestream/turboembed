@@ -228,6 +228,13 @@ pub struct NameFinderEvaluator {
 }
 
 impl NameFinderEvaluator {
+    /// An evaluator that counts true positives as OpenNLP does
+    /// ([`FMeasure::opennlp`]): compatibility scoring, kept for comparing
+    /// with JVM goldens.
+    pub fn opennlp() -> NameFinderEvaluator {
+        NameFinderEvaluator { fmeasure: FMeasure::opennlp() }
+    }
+
     /// Scores the names `predicted` for `reference`'s tokens. A reference
     /// name without a type is scored as one of type `default`, which is
     /// what the name finder gives such names, but the verdict compares
@@ -274,6 +281,13 @@ pub struct ChunkerEvaluator {
 }
 
 impl ChunkerEvaluator {
+    /// An evaluator that counts true positives as OpenNLP does
+    /// ([`FMeasure::opennlp`]): compatibility scoring, kept for comparing
+    /// with JVM goldens.
+    pub fn opennlp() -> ChunkerEvaluator {
+        ChunkerEvaluator { fmeasure: FMeasure::opennlp() }
+    }
+
     /// Scores the chunk tags `predicted` for `reference`'s tokens.
     ///
     /// # Errors

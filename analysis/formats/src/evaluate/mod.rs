@@ -7,12 +7,23 @@
 //!   against a reference sample.
 //! - [`partition`]: `CrossValidationPartitioner`'s folds.
 //!
+//! # Standard and compatibility scoring
+//!
+//! [`FMeasure`] and the static [`precision`] and [`recall`] count true
+//! positives as a multiset intersection ([`count_true_positives`]): a
+//! prediction matches at most one equal reference, so both scores stay
+//! within 0 and 1. That is the default everywhere.
+//!
+//! OpenNLP's `FMeasure` counts, for each reference, every prediction equal
+//! to it, so repeated predictions all count and recall can exceed 1; and
+//! it removes a match of the previous reference when a reference matches
+//! nothing ([`opennlp_count_true_positives`]). That counting is kept only
+//! as compatibility scoring for the JVM goldens: [`FMeasure::opennlp`],
+//! [`Scoring::OpenNlp`], [`opennlp_precision`] and [`opennlp_recall`], and
+//! the `opennlp` constructors of the span evaluators.
+//!
 //! # What OpenNLP does here
 //!
-//! - `FMeasure` counts, for each reference, every prediction equal to it,
-//!   so repeated predictions all count and recall can exceed 1; and it
-//!   removes a match of the previous reference when a reference matches
-//!   nothing ([`measure::count_true_positives`]).
 //! - The F-measure is -1, not 0 or NaN, when precision and recall are 0;
 //!   the static `precision` and `recall` are NaN on no predictions or no
 //!   references, while the running scores are 0.
@@ -40,5 +51,8 @@ pub use components::{
     ChunkerEvaluator, DetokenizerEvaluator, DocumentCategorizerEvaluator, EvalError, LanguageDetectorEvaluator,
     LemmatizerEvaluator, NameFinderEvaluator, PosEvaluator, SentenceDetectorEvaluator, TokenizerEvaluator, Verdict,
 };
-pub use measure::{FMeasure, LabeledSpan, Mean, count_true_positives, precision, recall};
+pub use measure::{
+    FMeasure, LabeledSpan, Mean, Scoring, count_true_positives, opennlp_count_true_positives, opennlp_precision,
+    opennlp_recall, precision, recall,
+};
 pub use partition::{CrossValidation, Fold};
