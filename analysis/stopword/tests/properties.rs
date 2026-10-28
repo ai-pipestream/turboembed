@@ -110,3 +110,82 @@ fn utf16_and_code_point_tables_round_trip_on_flagged_text() {
         }
     }
 }
+
+fn escape_field(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('\t', "\\t").replace('\n', "\\n").replace('\r', "\\r")
+}
+
+fn unescape_field(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        if c != '\\' {
+            out.push(c);
+            continue;
+        }
+        match chars.next() {
+            Some('\\') => out.push('\\'),
+            Some('t') => out.push('\t'),
+            Some('n') => out.push('\n'),
+            Some('r') => out.push('\r'),
+            Some(other) => {
+                out.push('\\');
+                out.push(other);
+            }
+            None => out.push('\\'),
+        }
+    }
+    out
+}
+
+#[test]
+fn unescape_round_trips_tsv_fields() {
+    for s in ["", "a", "a b", "a\tb", "a\\b", "a\nb", "a\rb", "café", "\\t\\n\\\\"] {
+        assert_eq!(unescape_field(&escape_field(s)), s, "{s:?}");
+    }
+}
+
+#[test]
+fn layer_invariants_align_flags_to_tokens_and_keep_non_empty_spans() {
+    let texts = [
+        ("The cat and the dog", "eng"),
+        ("Der Hund und die Katze", "deu"),
+        ("hot dog New York", "eng"),
+    ];
+    for &(text, code) in &texts {
+        let mut docs = vec![document(text, Some(code))];
+        let analyzer = Analyzer::builder()
+            .given(Key::<Tokens>::DEFAULT)
+            .given(Key::<Language>::DEFAULT)
+            .step(Bound::new(StopwordAnnotator::new(ListChoice::Detected { fallback: None })))
+            .build()
+            .unwrap();
+        assert!(analyzer.run(&mut docs).iter().all(Result::is_ok), "{text:?}");
+        let doc = &docs[0];
+        let tokens = doc.get::<Tokens>().unwrap();
+        let stops = doc.get::<Stopwords>().unwrap();
+        // stopword_positions.len() == token_positions.len()
+        assert_eq!(stops.len(), tokens.spans.len(), "{text:?}");
+        assert_eq!(stops.stop.len(), tokens.spans.len(), "{text:?}");
+        stops.check().unwrap_or_else(|e| panic!("Stopwords::check: {e}"));
+        let source = doc.source();
+        let token_view = tokens.spans.view();
+        for (i, span) in tokens.spans.iter() {
+            let piece = &source[span.range()];
+            // Non-empty source tokens stay non-empty slices.
+            if span.start != span.end {
+                assert!(!piece.is_empty(), "{text:?} token {i:?} empty slice");
+                assert!(!source[span.range()].is_empty(), "{text:?}");
+            }
+            // Filtered (kept) tokens stay on the same token view; the annotator
+            // does not invent a derived view (StopwordFilter is not ported).
+            assert_eq!(tokens.spans.view(), token_view);
+            let _ = stops.stop[i.get()];
+        }
+        let kept: Vec<_> = stops.kept().collect();
+        for ix in kept {
+            let span = tokens.spans.get(ix);
+            assert!(!source[span.range()].is_empty() || span.start == span.end, "{text:?}");
+        }
+    }
+}

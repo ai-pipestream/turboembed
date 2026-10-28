@@ -364,6 +364,9 @@ are not taken from any corpus.
   `da07690d20ce69ee16b5fb95796f92090cc9b4a1`, every n-th line), 135 edge
   case words and 1,000 generated words per language
   (`analysis/stem/README.md`).
+- `inputs/stopword/`: words and language codes the stopword lookup is asked
+  about besides the lists' own, written for this project
+  (`analysis/stopword/README.md`).
 - `inputs/glossary/`: texts for the glossary matchers and comma separated,
   tab separated and TBX glossaries, well formed and malformed, for the
   glossary readers, written for this project (`analysis/glossary/README.md`).
