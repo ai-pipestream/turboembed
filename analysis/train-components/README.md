@@ -7,13 +7,12 @@ and `LanguageDetectorEventStream`, the factories that set them up, the
 model files `SentenceDetectorME.train`, `TokenizerME.train`,
 `POSTaggerME.train`, `LemmatizerME.train`, `ChunkerME.train`,
 `NameFinderME.train` and `LanguageDetectorME.train` return, with every
-manifest entry and artifact the JVM writes, and the reproduction of the
-published UD 1.3 models from their treebanks.
+manifest entry and artifact the JVM writes.
 
 The lemmatizer's default factory is now native and case-preserving.
 Use `LemmatizerFactory::opennlp` for the original event classes and JVM
-model format. The published UD reproduction and golden tests select that
-compatibility factory explicitly. See docs/lemma-case-evaluation.md.
+model format. The golden tests select that compatibility factory
+explicitly. See docs/lemma-case-evaluation.md.
 
 | Module | OpenNLP |
 |---|---|
@@ -28,7 +27,6 @@ compatibility factory explicitly. See docs/lemma-case-evaluation.md.
 | `tagdict` | `POSDictionary` as `POSDictionary.create` reads it (a case-insensitive one is lowercased into a second map in the first map's order) and `POSDictionary.serialize` writes it |
 | `java_hash` | `String.hashCode`, `StringList.hashCode`, and the iteration order of a `java.util.HashMap` |
 | `package` | The `factory` and `serializer-class-*` manifest entries and the zip entry order of `BaseModel.serialize` |
-| `ud` | The recipes of the eighteen `opennlp-*-ud-*-{sentence,tokens,pos,lemmas}-1.3-2.5.4.bin` models and the comparison with the published files |
 
 The samples come from `turbo-formats` (native and CoNLL-U readers), the
 context generators from `turbo-sentdetect`, `turbo-tokenize`,
@@ -124,8 +122,6 @@ All of these are kept and tested (`src/`, `tests/goldens.rs`,
   the written bytes are checked by the writer's unit tests, and
   `analysis/lemmatizer/tests/golden.rs` checks the JVM's lemmas and dumps
   over the Rust fixture, which the JVM reads.
-- The published UD 1.3 models were trained with 300 iterations, not the
-  150 that `ud-train.conf` in `apache/opennlp-models` says (below).
 - `NameFinderME.train` puts `Algorithm=MAXENT`, `Cutoff=0` and
   `Iterations=300` into the caller's parameters where they are absent
   (`putIfAbsent`), so a name finder trained with no parameters file uses
@@ -244,44 +240,3 @@ and the model file; docs/langdetect.md, "Training"), among them
 fold the sides, the training events' checksum, the counts and every
 prediction, and the merged precision, recall and F-measure or accuracy
 (`jvm_accuracy`, the JVM's rounding; `accuracy` is the exact share).
-
-## Reproducing the UD 1.3 models
-
-`ud::RECIPES` are the eighteen published models
-(`opennlp-{en,de,es,fr,pt}-ud-{ewt,gsd}-{sentence,tokens,pos,lemmas}-1.3-2.5.4`;
-no sentence model was published for Spanish and French) as typed data:
-the treebank (repository, train file, size and digests at Universal
-Dependencies release 2.16, licence), the component, the factory and the
-training parameters. The treebanks are CC BY-SA 4.0, so they are fetched
-through `turbo-zoo` by digest after the licence is accepted, into the zoo
-cache, and never committed; `ud::datasets()` is the zoo index of the
-five. A published model that is not under `TURBO_GOLDENS_MODELS` (the
-goldens use only the English and German taggers and lemmatizers) is
-fetched through the zoo's built-in index (`ud::fetch_published_model`).
-
-```text
-cargo run -p turbo-zoo -- accept CC-BY-SA-4.0 --yes
-cargo run -p turbo-goldens-tool -- fetch-models <dir>
-TURBO_GOLDENS_MODELS=<dir> cargo test -p turbo-train-components --release --test reproduce -- --ignored --nocapture
-```
-
-The test is ignored by default and prints the event hash, model entry's
-digest, manifest and ZIP entry names for each model. The recipes use the
-2.5.4 tools' defaults except for two values in the upstream `ud-train.conf`:
-the published models require `Iterations=300` and `Threads=12`, while the
-committed file says 150 and 4. `CONF_ITERATIONS` and `CONF_THREADS` preserve
-the file's values; `ITERATIONS` and `THREADS` are the reproduction settings.
-
-The old last-bit residual came from the partition count. GIS adds events
-within each partition and then combines partial sums in partition order.
-The thread count changes that grouping, even though thread scheduling does
-not change it. The original OpenNLP 2.5.4 CLI at 4 produces the same English
-sentence parameters as Rust at 4; at 12 it matches the published entry
-exactly. The English token, POS and lemma CLI runs also match at 12.
-See docs/analysis.md for artifact hashes, commands and the complete run.
-
-The gate requires exact model-entry bytes, event hash, manifest text and
-entry names. The old `1e-12` tolerance is no longer accepted. A filter that
-selects no recipe fails. ZIP compression is not compared: Rust stores its
-entries and Java deflates them. Model files written to `TURBO_REPRODUCE_OUT`
-load in both runtimes. No corpus text or generated model is checked in.

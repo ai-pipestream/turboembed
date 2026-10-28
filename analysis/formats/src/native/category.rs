@@ -11,8 +11,6 @@
 //! without a tab, or that starts with one, is passed over silently
 //! ([`Warning::NoLanguage`]).
 
-use turbo_unicode::WhitespaceMode;
-
 use crate::error::{FormatError, Warning};
 use crate::sample::document::{DocumentSample, LanguageSample};
 use crate::source::{Field, Lines, Piece, whitespace_tokens};
@@ -21,13 +19,12 @@ use crate::source::{Field, Lines, Piece, whitespace_tokens};
 #[derive(Clone, Debug)]
 pub struct DocumentReader<'a> {
     lines: Lines<'a>,
-    mode: WhitespaceMode,
 }
 
 impl<'a> DocumentReader<'a> {
-    /// A reader of `source`, splitting lines on whitespace in `mode`.
-    pub fn new(source: &'a str, mode: WhitespaceMode) -> Result<DocumentReader<'a>, FormatError> {
-        Ok(DocumentReader { lines: Lines::new(source)?, mode })
+    /// A reader of `source`, splitting lines at Unicode whitespace.
+    pub fn new(source: &'a str) -> Result<DocumentReader<'a>, FormatError> {
+        Ok(DocumentReader { lines: Lines::new(source)? })
     }
 }
 
@@ -36,7 +33,7 @@ impl<'a> Iterator for DocumentReader<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let line = self.lines.next()?;
-        let mut tokens = whitespace_tokens(line.piece, self.mode);
+        let mut tokens = whitespace_tokens(line.piece);
         let category = tokens.next().map(Piece::field);
         let tokens: Vec<Field<'a>> = tokens.map(Piece::field).collect();
         Some(match category {
@@ -93,7 +90,7 @@ mod tests {
     #[test]
     fn categories_need_a_token() {
         let src = "spam buy now\n\nham\nham  see\tyou ";
-        let r: Vec<_> = DocumentReader::new(src, WhitespaceMode::Unicode).unwrap().collect();
+        let r: Vec<_> = DocumentReader::new(src).unwrap().collect();
         assert_eq!(r.len(), 4);
         assert_eq!(r[0].as_ref().unwrap().to_string(), "spam\tbuy now");
         assert_eq!(r[1].as_ref().unwrap_err().line(), Some(2));

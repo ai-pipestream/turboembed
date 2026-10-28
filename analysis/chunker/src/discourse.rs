@@ -5,8 +5,8 @@
 
 use turbo_analysis::{Annotator, Bound, Error, Fnv1a, Layer, Refs, View};
 use turbo_analysis_layers::{Boundaries, Cut, Sentences};
+use turbo_unicode::casefold;
 use turbo_unicode::category::{GeneralCategory, general_category};
-use turbo_unicode::{casefold, whitespace::WhitespaceMode};
 
 pub const DISCOURSE: &str = "discourse";
 
@@ -85,7 +85,7 @@ fn initial_marker(text: &str, markers: &[&str]) -> bool {
     let mut prefix = String::new();
     let mut count = 0;
     for c in text.chars() {
-        if WhitespaceMode::Unicode.is_whitespace(c as u32) {
+        if turbo_unicode::whitespace::is_whitespace(c as u32) {
             if !prefix.is_empty() && !prefix.ends_with(' ') {
                 prefix.push(' ');
                 count += 1;

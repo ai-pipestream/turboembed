@@ -2,7 +2,6 @@ use turbo_analysis::{Ix, ViewId};
 use turbo_analysis_layers::Words;
 use turbo_depparse::{DependencySample, FeedforwardDependencyModel, FeedforwardDependencyParser};
 use turbo_formats::conllu::{ConlluDependencySample, Tagset};
-use turbo_unicode::WhitespaceMode;
 
 #[test]
 fn current_apache_trained_models_import_and_match_predictions() {
@@ -15,9 +14,7 @@ fn current_apache_trained_models_import_and_match_predictions() {
         let mut sentence = 0;
         for input in [include_str!("data/ud-en.conllu"), include_str!("data/ud-es.conllu")] {
             for block in input.trim().split("\n\n") {
-                let data =
-                    ConlluDependencySample::read_sentence(block, Tagset::U, WhitespaceMode::Unicode, ViewId::SOURCE)
-                        .unwrap();
+                let data = ConlluDependencySample::read_sentence(block, Tagset::U, ViewId::SOURCE).unwrap();
                 let sample = DependencySample::<Words>::from_conllu(data).unwrap();
                 let words: Vec<_> = sample.tokens().iter().map(String::as_str).collect();
                 let tags: Vec<_> = sample.tags().iter().map(String::as_str).collect();

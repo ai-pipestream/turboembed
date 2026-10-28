@@ -2,14 +2,11 @@ use turbo_analysis::ViewId;
 use turbo_analysis_layers::Words;
 use turbo_depparse::{DependencyGraph, DependencySample, HeldOutEvaluation};
 use turbo_formats::conllu::{ConlluDependencySample, Tagset};
-use turbo_unicode::WhitespaceMode;
 fn sample(text: &str) -> DependencySample<Words> {
     let sentence = turbo_formats::conllu::words::ConlluWordReader::new(text).unwrap().next().unwrap().unwrap();
     let text = &text[sentence.source.start as usize..sentence.source.end as usize];
-    DependencySample::from_conllu(
-        ConlluDependencySample::read_sentence(text, Tagset::U, WhitespaceMode::Unicode, ViewId::SOURCE).unwrap(),
-    )
-    .unwrap()
+    DependencySample::from_conllu(ConlluDependencySample::read_sentence(text, Tagset::U, ViewId::SOURCE).unwrap())
+        .unwrap()
 }
 #[test]
 fn missing_and_invalid_predictions_stay_in_crossing_denominators() {

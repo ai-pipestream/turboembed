@@ -28,7 +28,7 @@ impl fmt::Display for ContainmentError {
 
 impl std::error::Error for ContainmentError {}
 
-use turbo_unicode::whitespace::is_unicode_blank as is_blank;
+use turbo_unicode::whitespace::is_blank;
 
 /// One administrative ancestor in a [`ContainmentChain`]
 /// (`opennlp.tools.geo.PlaceAncestor`).
