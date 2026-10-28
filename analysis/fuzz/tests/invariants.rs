@@ -56,7 +56,6 @@ const FED: &[&str] = &[
     "sentiment",
     "sentiment-train",
     "sequence",
-    "stopword",
     "subwords",
     "surrogate",
     "svm-doccat",
