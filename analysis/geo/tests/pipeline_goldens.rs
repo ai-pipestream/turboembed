@@ -2,8 +2,11 @@
 //! `GeocodeAnnotator`, `DocumentRegionAnnotator`, `ContainmentSpine`,
 //! `HierarchyAnnotator`, and `RegionAwareMoneyAnnotator` against the reviewed
 //! native snapshots in `tests/vectors/geo_pipeline.tsv`.
+//!
+//! Rewrite with `TURBO_BLESS=1 cargo test -p turbo-geo --test pipeline_goldens`.
 
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 
 use turbo_analysis::{Analyzer, Document, Ix, IxRange, Key, Layer, Provenance, Span, Spans, Tag, TagSet, ViewId};
 use turbo_analysis_layers::{Entities, Tokens};
@@ -254,8 +257,52 @@ fn run_pipeline<G: Geocoder + Send + Sync + 'static>(
     out
 }
 
+fn pipeline_rows() -> BTreeMap<(String, String, String), String> {
+    let spine = fixture_spine();
+    let mut rows = BTreeMap::new();
+    for sc in scenarios() {
+        let prior_out = run_pipeline(&sc, PopulationPriorGeocoder::new(fixture_gazetteer()), &spine);
+        for (layer, actual) in prior_out {
+            rows.insert((sc.id.to_owned(), "prior".to_owned(), layer.to_owned()), actual);
+        }
+        let spatial_out = run_pipeline(&sc, SpatialCoherenceGeocoder::new(fixture_gazetteer()), &spine);
+        for (layer, actual) in spatial_out {
+            rows.insert((sc.id.to_owned(), "spatial".to_owned(), layer.to_owned()), actual);
+        }
+    }
+    rows
+}
+
+fn render_pipeline_tsv(rows: &BTreeMap<(String, String, String), String>) -> String {
+    let mut out =
+        String::from("# reviewed native snapshot of geo pipeline behaviour\tcolumns=scenario,geocoder,layer,records\n");
+    for ((scenario, geocoder, layer), records) in rows {
+        out.push_str(scenario);
+        out.push('\t');
+        out.push_str(geocoder);
+        out.push('\t');
+        out.push_str(layer);
+        out.push('\t');
+        out.push_str(records);
+        out.push('\n');
+    }
+    out
+}
+
+fn vectors_path() -> std::path::PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/vectors/geo_pipeline.tsv")
+}
+
 #[test]
 fn pipeline_matches_reviewed_snapshots() {
+    let actual = pipeline_rows();
+    let bless = std::env::var_os("TURBO_BLESS").is_some();
+    if bless {
+        let body = render_pipeline_tsv(&actual);
+        std::fs::write(vectors_path(), body).expect("write geo_pipeline.tsv");
+        return;
+    }
+
     let mut expected: BTreeMap<(String, String, String), String> = BTreeMap::new();
     for (line_no, raw) in VECTORS.lines().enumerate() {
         let line = raw.trim_end_matches('\r');
@@ -267,24 +314,31 @@ fn pipeline_matches_reviewed_snapshots() {
         expected.insert((cols[0].to_owned(), cols[1].to_owned(), cols[2].to_owned()), cols[3].to_owned());
     }
 
-    let spine = fixture_spine();
-    let mut checked = 0usize;
-    for sc in scenarios() {
-        let prior_out = run_pipeline(&sc, PopulationPriorGeocoder::new(fixture_gazetteer()), &spine);
-        for (layer, actual) in prior_out {
-            let key = (sc.id.to_owned(), "prior".to_owned(), layer.to_owned());
-            let exp = expected.get(&key).unwrap_or_else(|| panic!("missing vector {key:?}"));
-            assert_eq!(&actual, exp, "mismatch for {key:?}");
-            checked += 1;
-        }
-
-        let spatial_out = run_pipeline(&sc, SpatialCoherenceGeocoder::new(fixture_gazetteer()), &spine);
-        for (layer, actual) in spatial_out {
-            let key = (sc.id.to_owned(), "spatial".to_owned(), layer.to_owned());
-            let exp = expected.get(&key).unwrap_or_else(|| panic!("missing vector {key:?}"));
-            assert_eq!(&actual, exp, "mismatch for {key:?}");
-            checked += 1;
-        }
+    assert_eq!(
+        actual.len(),
+        expected.len(),
+        "row count drifted; TURBO_BLESS=1 cargo test -p turbo-geo --test pipeline_goldens to rewrite"
+    );
+    for (key, value) in &actual {
+        let exp = expected.get(key).unwrap_or_else(|| panic!("missing vector {key:?}"));
+        assert_eq!(value, exp, "mismatch for {key:?}");
     }
-    assert_eq!(checked, expected.len());
+}
+
+#[test]
+fn pipeline_tsv_round_trips_through_the_renderer() {
+    let rows = pipeline_rows();
+    assert!(!rows.is_empty(), "pipeline scenarios must emit at least one row");
+    let rendered = render_pipeline_tsv(&rows);
+    let mut parsed: BTreeMap<(String, String, String), String> = BTreeMap::new();
+    for (line_no, raw) in rendered.lines().enumerate() {
+        let line = raw.trim_end_matches('\r');
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        let cols: Vec<&str> = line.splitn(4, '\t').collect();
+        assert_eq!(cols.len(), 4, "rendered line {}: expected 4 columns", line_no + 1);
+        parsed.insert((cols[0].to_owned(), cols[1].to_owned(), cols[2].to_owned()), cols[3].to_owned());
+    }
+    assert_eq!(parsed, rows);
 }
