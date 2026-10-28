@@ -309,15 +309,15 @@ fn rejects_misaligned_tags_and_layers_in_another_view() {
     assert!(rules().resolve(&input).unwrap_err().contains("view"));
 }
 
-/// Names compare under full Unicode case folding, so `Straße` and
-/// `STRASSE` are one name; Java's lower case kept them apart.
+/// Names compare in Unicode lower case, final sigma included, so a
+/// capitalised and an upper case Greek name are one name.
 #[test]
-fn names_match_under_unicode_case_folding() {
+fn names_match_in_unicode_lower_case() {
     let f = Fixture::new()
-        .sentence(&["Straße/PROPN", "opened/VERB", "./PUNCT"])
-        .sentence(&["STRASSE/PROPN", "closed/VERB", "./PUNCT"])
-        .entity("Straße", "location")
-        .entity("STRASSE", "location");
+        .sentence(&["Οδυσσέας/PROPN", "sailed/VERB", "./PUNCT"])
+        .sentence(&["ΟΔΥΣΣΈΑΣ/PROPN", "returned/VERB", "./PUNCT"])
+        .entity("Οδυσσέας", "person")
+        .entity("ΟΔΥΣΣΈΑΣ", "person");
     assert_eq!(chain_ids(&f, &rules()), [0, 0]);
 }
 
