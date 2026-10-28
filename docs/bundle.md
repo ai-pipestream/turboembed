@@ -256,6 +256,7 @@ this form before it is written or loaded.
 | `classifier.kind` | enum | with `classifier` | `CLASSIFIER_TOKEN` or `CLASSIFIER_SEQUENCE`: whether the classification head scores each token's hidden state (`AutoModelForTokenClassification`) or the pooled sequence (`AutoModelForSequenceClassification`). Requires an encoder `architecture`. |
 | `classifier.labels` | string[] | with `classifier` | The output labels in id order (`0..labels.len()`), matching `id2label` in the upstream `config.json`. At least one non-empty label. |
 | `projection.dim` | uint32 | with `projection` | Output width of a linear token-projection head (`[projection.dim, hidden]` weight, optional `[projection.dim]` bias) applied to unpooled token hidden states before L2 normalization, as ColBERT and late-interaction models carry. Requires an encoder `architecture`. |
+| `heads[]` | message[] | no | Task heads read on the host from the encoder's final-layer states, at most 32; see "Heads" below. Requires an encoder `architecture`. |
 | `artifacts[].name` | string | yes | Unique; referenced by `from` and `host_weights`. |
 | `artifacts[].format` | enum | yes | `FORMAT_SAFETENSORS`, `FORMAT_OPENVINO_IR`, `FORMAT_HEF`, `FORMAT_ONNX`. (`FORMAT_GGUF` is a header and manifest name only; no backend loads it.) |
 | `artifacts[].files` | path[] | yes | Each listed in `files`. A `FORMAT_HEF` artifact is one file. A `FORMAT_OPENVINO_IR` artifact is two: the xml, then its weights. A `FORMAT_ONNX` artifact's first file is the graph; any others are its external data, beside it in the same directory, as the exporter wrote them. |
@@ -330,6 +331,60 @@ of its pieces, each model-added term marked expanded with no span, and
 the chunker's adapter writes the same terms per `Levels` unit beside
 `TermStats`, so BM25 and learned sparse scores fuse per unit in the level
 router.
+
+## Heads
+
+`heads` lists the task heads a bundle carries beside its encoder, so
+one encoder pass serves several tasks (part of speech, entities,
+morphology) and each head is a few small tensors, not a second model.
+A head runs on the host from the last layer's hidden states, whichever
+device ran the encoder, the way the classifier and the sparse head do.
+Its weights live in a `FORMAT_SAFETENSORS` artifact and are named by the
+head's `tensor_prefix` and fixed suffixes, not by `tensor_names` roles,
+so any number of heads fit one artifact.
+
+| Field | Meaning |
+|---|---|
+| `name` | Unique in the bundle; lowercase ASCII letters, digits, `_` and `-`, at most 64 bytes. |
+| `layer` | The layer id the analysis annotator writes the output to, such as `turboembed:pos`. |
+| `kind` | `HEAD_TOKEN_TAGGER`: one label per word. |
+| `labels` | The labels in output order; unique, non-empty, each readable under `scheme`. |
+| `scheme` | `SCHEME_TAGS` (each label a tag), `SCHEME_BIO` (`O`, `B-T`, `I-T`) or `SCHEME_BILOU` (adds `L-T` and `U-T`). BIO and BILOU need the label `O`. |
+| `word_pooling` | `WORD_POOLING_FIRST` (a word's first subword row) or `WORD_POOLING_MEAN` (the mean of its rows). |
+| `adapter.bilstm` | Optional stacked bidirectional LSTM over the pooled words: `hidden` 1 to 4096, `layers` 1 to 3. |
+| `decode` | `DECODE_ARGMAX` (each word's best label, ties to the lower index) or `DECODE_CRF` (the best sequence under a first-order CRF; under BIO and BILOU, sequences the scheme forbids are never chosen). |
+| `artifact` | Index into `artifacts` of the `FORMAT_SAFETENSORS` artifact holding the tensors. |
+| `tensor_prefix` | Each tensor is named `<tensor_prefix>.<suffix>`. |
+
+The tensors of a `HEAD_TOKEN_TAGGER`, F32, for an encoder `hidden`
+wide and `L` labels, in the order the loader reads them:
+
+| Suffix | Shape | When |
+|---|---|---|
+| `lstm.{k}.fwd.w`, `lstm.{k}.bwd.w` | `[4h, in]` | adapter layer `k`; `in` is `hidden` for layer 0, `2h` after |
+| `lstm.{k}.fwd.u`, `lstm.{k}.bwd.u` | `[4h, h]` | adapter layer `k` |
+| `lstm.{k}.fwd.b`, `lstm.{k}.bwd.b` | `[4h]` | adapter layer `k` |
+| `out.weight` | `[L, width]` | always; `width` is `hidden`, or `2h` with an adapter |
+| `out.bias` | `[L]` | always |
+| `crf.transitions` | `[L, L]` | `DECODE_CRF`; row is the label before, column the label after |
+| `crf.start`, `crf.end` | `[L]` | `DECODE_CRF` |
+
+LSTM gates are stacked in the order input, forget, cell, output, and a
+layer's output joins its forward and backward states in that order. A
+trainer writes the same names and shapes (`turbo::head::tagger::tensors`
+lists them), so a head trained in memory and the same head loaded from a
+bundle score identically.
+
+Decoding is deterministic: CRF sums are taken in f64 in a fixed order,
+and a tie goes to the lower label index. Spans are read from BIO and
+BILOU labels by one rule, so an ill-formed argmax sequence still reads
+one way: an `I` or `L` that does not continue an open span of its type
+starts a new one; `B` and `U` close what is open; `O` closes; a span
+still open at the end closes there.
+
+A manifest whose heads break any rule above is refused at open with
+`BUNDLE_INVALID`, the field named; a missing or misshapen tensor is
+refused when the head is loaded, the tensor named.
 
 ## Graph inputs
 

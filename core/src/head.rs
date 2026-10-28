@@ -12,6 +12,11 @@ use crate::{TURBO_DTYPE_F16, TURBO_DTYPE_F32};
 
 mod linear;
 pub use linear::Linear;
+pub mod crf;
+pub mod tagger;
+pub use tagger::TokenTagger;
+#[cfg(test)]
+mod tagger_tests;
 
 /// A classification head loaded from a bundle's raw-weights artifact.
 #[derive(Debug, Clone, PartialEq)]

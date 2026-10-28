@@ -35,6 +35,8 @@ pub struct Manifest {
     pub classifier: Option<Classifier>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub projection: Option<Projection>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub heads: Vec<HeadSpec>,
     pub artifacts: Vec<Artifact>,
     pub reference: Reference,
     pub files: Vec<FileEntry>,
@@ -136,7 +138,9 @@ pub enum Normalize {
 
 mod architecture;
 mod artifact;
+mod heads;
 mod helpers;
+pub use heads::*;
 mod provenance;
 mod qa;
 pub use qa::Qa;
